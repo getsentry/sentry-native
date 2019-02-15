@@ -5,6 +5,7 @@
 
 #include "client/crashpad_client.h"
 #include "client/settings.h"
+#include "client/crash_report_database.h"
 
 using namespace crashpad;
 
@@ -20,6 +21,7 @@ int main()
     std::map<std::string, std::string> annotations;
     // Optional arguments to pass to the handler
     std::vector<std::string> arguments;
+    arguments.push_back("--no-rate-limit");
 
     CrashpadClient client;
     bool success = client.StartHandler(
@@ -32,9 +34,24 @@ int main()
         /* restartable */ true,
         /* asynchronous_start */ false);
 
-    //  if (success) {
-    //    success = client.WaitForHandlerStart(10000);
-    //  }
+    if (success)
+    {
+        printf("Started client handler.");
+    }
+    {
+        printf("Failed to start client handler.");
+    }
+
+    std::unique_ptr<CrashReportDatabase> db =
+        crashpad::CrashReportDatabase::Initialize(database);
+
+    if (db != nullptr && db->GetSettings() != nullptr)
+    {
+        db->GetSettings()->SetUploadsEnabled(true);
+    }
+
+    std::function<void(int)> func = nullptr;
+    func(1);
 
     return success;
 }
