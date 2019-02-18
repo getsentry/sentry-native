@@ -9,7 +9,7 @@
 
 using namespace crashpad;
 
-int main()
+int initialize_crashpad()
 {
     // Cache directory that will store crashpad information and minidumps
     base::FilePath database(".");
@@ -49,9 +49,6 @@ int main()
     {
         db->GetSettings()->SetUploadsEnabled(true);
     }
-
-    std::function<void(int)> func = nullptr;
-    func(1);
 
     return success;
 }

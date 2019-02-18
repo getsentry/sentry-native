@@ -1,0 +1,1 @@
+int initialize_crashpad();
