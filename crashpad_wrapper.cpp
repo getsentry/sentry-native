@@ -6,17 +6,22 @@
 #include "client/crashpad_client.h"
 #include "client/settings.h"
 #include "client/crash_report_database.h"
+#include "client/crashpad_info.h"
 
 using namespace crashpad;
 
-int initialize_crashpad()
+namespace sentry
+{
+namespace crashpad
+{
+int init()
 {
     // Cache directory that will store crashpad information and minidumps
     base::FilePath database(".");
     // Path to the out-of-process handler executable
     base::FilePath handler("../crashpad-Darwin/bin/crashpad_handler");
     // URL used to submit minidumps to
-    std::string url("https://sentry.io/api/1188141/minidump/?sentry_key=5fd7a6cda8444965bade9ccfd3df9882");
+    std::string url("https://sentry.garcia.in/api/3/minidump/?sentry_key=93b6c4c0c1a14bec977f0f1adf8525e6");
     // Optional annotations passed via --annotations to the handler
     std::map<std::string, std::string> annotations;
     // Optional arguments to pass to the handler
@@ -43,7 +48,7 @@ int initialize_crashpad()
     }
 
     std::unique_ptr<CrashReportDatabase> db =
-        crashpad::CrashReportDatabase::Initialize(database);
+        CrashReportDatabase::Initialize(database);
 
     if (db != nullptr && db->GetSettings() != nullptr)
     {
@@ -52,3 +57,28 @@ int initialize_crashpad()
 
     return success;
 }
+
+int set_tag(const char *key, const char *value)
+{
+    // TODO: Hold the ref to the dictionary.
+    SimpleStringDictionary *annotations = new SimpleStringDictionary();
+    annotations->SetKeyValue(key, value);
+
+    CrashpadInfo *crashpad_info = CrashpadInfo::GetCrashpadInfo();
+    crashpad_info->set_simple_annotations(annotations);
+    return 0;
+}
+
+int set_extra(const char *key, const char *value)
+{
+    // TODO: Hold the ref to the dictionary.
+    SimpleStringDictionary *annotations = new SimpleStringDictionary();
+    annotations->SetKeyValue(key, value);
+
+    CrashpadInfo *crashpad_info = CrashpadInfo::GetCrashpadInfo();
+    crashpad_info->set_simple_annotations(annotations);
+    return 0;
+}
+
+} // namespace crashpad
+} // namespace sentry
