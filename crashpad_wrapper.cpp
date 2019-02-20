@@ -2,6 +2,7 @@
 #include <map>
 #include <string>
 #include <vector>
+#include <atomic>
 
 #include "client/crashpad_client.h"
 #include "client/settings.h"
@@ -14,6 +15,8 @@ namespace sentry
 {
 namespace crashpad
 {
+SimpleStringDictionary simple_annotations;
+
 int init()
 {
     // Cache directory that will store crashpad information and minidumps
@@ -55,28 +58,20 @@ int init()
         db->GetSettings()->SetUploadsEnabled(true);
     }
 
+    // Ensure that the simple annotations dictionary is set in the client.
+    CrashpadInfo *crashpad_info = CrashpadInfo::GetCrashpadInfo();
+    crashpad_info->set_simple_annotations(&simple_annotations);
+
     return success;
 }
 
-int set_tag(const char *key, const char *value)
+int set_annotation(const char *key, const char *value)
 {
-    // TODO: Hold the ref to the dictionary.
-    SimpleStringDictionary *annotations = new SimpleStringDictionary();
-    annotations->SetKeyValue(key, value);
-
-    CrashpadInfo *crashpad_info = CrashpadInfo::GetCrashpadInfo();
-    crashpad_info->set_simple_annotations(annotations);
-    return 0;
-}
-
-int set_extra(const char *key, const char *value)
-{
-    // TODO: Hold the ref to the dictionary.
-    SimpleStringDictionary *annotations = new SimpleStringDictionary();
-    annotations->SetKeyValue(key, value);
-
-    CrashpadInfo *crashpad_info = CrashpadInfo::GetCrashpadInfo();
-    crashpad_info->set_simple_annotations(annotations);
+    if (key == nullptr || value == nullptr)
+    {
+        // ERROR_NULL_ARGUMENT
+    }
+    simple_annotations.SetKeyValue(key, value);
     return 0;
 }
 

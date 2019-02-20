@@ -1,5 +1,5 @@
 libsentrypad.dylib:
-	g++ -dynamiclib \
+	g++ -g -dynamiclib \
 		-o libsentrypad.dylib sentrypad.cpp crashpad_wrapper.cpp \
 		-I ../crashpad-Darwin/include/ -I ../crashpad-Darwin/include/mini_chromium/ \
 		-std=c++11 -L../crashpad-Darwin/lib -lclient -lbase -lutil \
@@ -7,7 +7,7 @@ libsentrypad.dylib:
 		-framework CoreGraphics -framework IOKit -lbsm \
 		-D SENTRY_CRASHPAD
 example: example.c libsentrypad.dylib
-	gcc -o example example.c -L . -lsentrypad
+	gcc -g -o example example.c -L . -lsentrypad
 build-example: example
 clean:
 	rm -rf example libsentrypad.dylib completed new pending

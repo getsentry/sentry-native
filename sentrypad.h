@@ -10,6 +10,7 @@ extern "C"
     int sentrypad_init(void);
     // int sentrypad_shutdown(void);
     int sentrypad_set_tag(const char *key, const char *value);
+    int sentrypad_set_extra(const char *key, const char *value);
     int sentrypad_set_release(const char *release);
     // int sentrypad_remove_tag(const char *key);
     // int sentrypad_attach_file_by_path(const char *path);

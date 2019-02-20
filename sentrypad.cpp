@@ -2,10 +2,10 @@
 #include "sentrypad.h"
 #include <string>
 
-#ifdef SENTRY_CRASHPAD
+#if defined(SENTRY_CRASHPAD)
 namespace implpad = sentry::crashpad;
-#elif SENTRY_BREAKPAD
-namespace implpad = sentry::crashpad;
+#elif defined(SENTRY_BREAKPAD)
+namespace implpad = sentry::breakpad;
 #endif
 
 int sentrypad_init()
@@ -15,17 +15,19 @@ int sentrypad_init()
 
 int sentrypad_set_tag(const char *key, const char *value)
 {
-    // std::string string_key(key);
-    // std::string final_key = "sentry[" + string_key + "]";
-    return implpad::set_tag(key, value);
+    std::string string_key(key);
+    std::string final_key = "sentry[tags][" + string_key + "]";
+    return implpad::set_annotation(final_key.c_str(), value);
 }
 
 int sentrypad_set_extra(const char *key, const char *value)
 {
-    return implpad::set_extra(key, value);
+    std::string string_key(key);
+    std::string final_key = "sentry[extra][" + string_key + "]";
+    return implpad::set_annotation(final_key.c_str(), value);
 }
 
 int sentrypad_set_release(const char *release)
 {
-    return implpad::set_tag("sentry[release]", release);
+    return implpad::set_annotation("sentry[release]", release);
 }
