@@ -4,6 +4,7 @@
 #include <vector>
 #include <atomic>
 
+#include "sentry.h"
 #include "client/crashpad_client.h"
 #include "client/settings.h"
 #include "client/crash_report_database.h"
@@ -17,14 +18,14 @@ namespace crashpad
 {
 SimpleStringDictionary simple_annotations;
 
-int init()
+int init(const sentry_options_t *options)
 {
     // Cache directory that will store crashpad information and minidumps
-    base::FilePath database(".");
+    base::FilePath database(options->database_path);
     // Path to the out-of-process handler executable
-    base::FilePath handler("../crashpad-Darwin/bin/crashpad_handler");
+    base::FilePath handler(options->handler_path);
     // URL used to submit minidumps to
-    std::string url("https://sentry.garcia.in/api/3/minidump/?sentry_key=93b6c4c0c1a14bec977f0f1adf8525e6");
+    std::string url(options->dsn);
     // Optional annotations passed via --annotations to the handler
     std::map<std::string, std::string> annotations;
     // Optional arguments to pass to the handler
@@ -42,12 +43,15 @@ int init()
         /* restartable */ true,
         /* asynchronous_start */ false);
 
-    if (success)
+    if (options->debug)
     {
-        printf("Started client handler.");
-    }
-    {
-        printf("Failed to start client handler.");
+        if (success)
+        {
+            printf("Started client handler.");
+        }
+        {
+            printf("Failed to start client handler.");
+        }
     }
 
     std::unique_ptr<CrashReportDatabase> db =
@@ -72,6 +76,16 @@ int set_annotation(const char *key, const char *value)
         // ERROR_NULL_ARGUMENT
     }
     simple_annotations.SetKeyValue(key, value);
+    return 0;
+}
+
+int remove_annotation(const char *key)
+{
+    if (key == nullptr)
+    {
+        // ERROR_NULL_ARGUMENT
+    }
+    simple_annotations.RemoveKey(key);
     return 0;
 }
 
