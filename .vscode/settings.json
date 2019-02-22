@@ -49,6 +49,10 @@
         "type_traits": "c",
         "typeinfo": "c",
         "utility": "c",
-        "vector": "c"
+        "vector": "c",
+        "cmath": "cpp",
+        "istream": "cpp",
+        "set": "cpp",
+        "sstream": "cpp"
     }
 }
