@@ -14,10 +14,10 @@ using namespace sentry::breakpad;
 
 int sentry_init(const sentry_options_t *options)
 {
-    auto rv = init(options);
-    if (rv != 1)
+    auto err = init(options);
+    if (err != 0)
     {
-        return rv;
+        return err;
     }
 
     if (options->environment != nullptr)
@@ -34,6 +34,12 @@ int sentry_init(const sentry_options_t *options)
     {
         set_annotation("sentry[dist]", options->dist);
     }
+
+    return SENTRY_ERROR_NULL_ARGUMENT;
+}
+
+void sentry_options_init(sentry_options_t *options)
+{
 }
 
 // int sentry_add_breadcrumb(sentry_breadcrumb_t *breadcrumb);
@@ -73,7 +79,7 @@ int sentry_set_extra(const char *key, const char *value)
 int sentry_remove_extra(const char *key)
 {
     std::string string_key(key);
-    std::string final_key = "sentry[tags][" + string_key + "]";
+    std::string final_key = "sentry[extra][" + string_key + "]";
     return remove_annotation(final_key.c_str());
 }
 

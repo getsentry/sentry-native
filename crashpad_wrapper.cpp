@@ -54,6 +54,11 @@ int init(const sentry_options_t *options)
         }
     }
 
+    if (!success)
+    {
+        return SENTRY_ERROR_HANDLER_STARTUP_FAIL;
+    }
+
     std::unique_ptr<CrashReportDatabase> db =
         CrashReportDatabase::Initialize(database);
 
@@ -66,27 +71,27 @@ int init(const sentry_options_t *options)
     CrashpadInfo *crashpad_info = CrashpadInfo::GetCrashpadInfo();
     crashpad_info->set_simple_annotations(&simple_annotations);
 
-    return success;
+    return SENTRY_ERROR_SUCCESS;
 }
 
 int set_annotation(const char *key, const char *value)
 {
     if (key == nullptr || value == nullptr)
     {
-        // ERROR_NULL_ARGUMENT
+        return SENTRY_ERROR_NULL_ARGUMENT;
     }
     simple_annotations.SetKeyValue(key, value);
-    return 0;
-}
+    return SENTRY_ERROR_SUCCESS;
+} // namespace crashpad
 
 int remove_annotation(const char *key)
 {
     if (key == nullptr)
     {
-        // ERROR_NULL_ARGUMENT
+        return SENTRY_ERROR_NULL_ARGUMENT;
     }
     simple_annotations.RemoveKey(key);
-    return 0;
+    return SENTRY_ERROR_SUCCESS;
 }
 
 } // namespace crashpad
