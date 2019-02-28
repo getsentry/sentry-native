@@ -27,6 +27,7 @@ typedef struct sentry_event_s
     const char *environment;
     const char *transaction;
     std::map<std::string, std::string> tags;
+    std::map<std::string, std::string> extra;
 
 } sentry_event_t;
 
@@ -38,6 +39,7 @@ sentry_event_t sentry_event = {
     .environment = nullptr,
     .transaction = nullptr,
     .tags = std::map<std::string, std::string>(),
+    .extra = std::map<std::string, std::string>(),
 };
 
 void serialize(const sentry_event_t *event)
@@ -47,34 +49,48 @@ void serialize(const sentry_event_t *event)
     mpack_writer_init_filename(&writer, SENTRY_EVENT_FILE_NAME);
     mpack_start_map(&writer, 5);
     mpack_write_cstr(&writer, "release");
-    mpack_write_cstr(&writer, event->release);
-    mpack_write_cstr(&writer, "dist");
-    mpack_write_cstr(&writer, event->dist);
+    mpack_write_cstr_or_nil(&writer, event->release);
     mpack_write_cstr(&writer, "level");
     mpack_write_int(&writer, event->level);
-    mpack_write_cstr(&writer, "environment");
-    mpack_write_cstr(&writer, event->environment);
-    mpack_write_cstr(&writer, "transaction");
-    mpack_write_cstr(&writer, event->transaction);
-    mpack_finish_map(&writer);
-
     if (event->user != nullptr)
     {
         // TODO
     }
+    mpack_write_cstr(&writer, "dist");
+    mpack_write_cstr_or_nil(&writer, event->dist);
+    mpack_write_cstr(&writer, "environment");
+    mpack_write_cstr_or_nil(&writer, event->environment);
+    mpack_write_cstr(&writer, "transaction");
+    mpack_write_cstr_or_nil(&writer, event->transaction);
+    mpack_finish_map(&writer);
 
     int tag_count = event->tags.size();
+    mpack_start_map(&writer, tag_count);
+    mpack_write_cstr(&writer, "tags");
     if (tag_count > 0)
     {
-        mpack_start_map(&writer, tag_count);
         std::map<std::string, std::string>::const_iterator iter;
         for (iter = event->tags.begin(); iter != event->tags.end(); ++iter)
         {
             mpack_write_cstr(&writer, iter->first.c_str());
             mpack_write_cstr(&writer, iter->second.c_str());
         }
-        mpack_finish_map(&writer);
     }
+    mpack_finish_map(&writer);
+
+    int extra_count = event->extra.size();
+    mpack_start_map(&writer, extra_count);
+    mpack_write_cstr(&writer, "extra");
+    if (extra_count > 0)
+    {
+        std::map<std::string, std::string>::const_iterator iter;
+        for (iter = event->extra.begin(); iter != event->extra.end(); ++iter)
+        {
+            mpack_write_cstr(&writer, iter->first.c_str());
+            mpack_write_cstr(&writer, iter->second.c_str());
+        }
+    }
+    mpack_finish_map(&writer);
 
     if (mpack_writer_destroy(&writer) != mpack_ok)
     {
@@ -151,7 +167,9 @@ int sentry_set_user(sentry_user_t *user)
 
 int sentry_remove_user()
 {
-    sentry_set_transaction(nullptr);
+    int rv = sentry_set_transaction(nullptr);
+    serialize(&sentry_event);
+    return rv;
 }
 
 int sentry_set_tag(const char *key, const char *value)
@@ -163,34 +181,35 @@ int sentry_set_tag(const char *key, const char *value)
 
 int sentry_remove_tag(const char *key)
 {
-    std::string string_key(key);
-    std::string final_key = "sentry[tags][" + string_key + "]";
-    return remove_annotation(final_key.c_str());
+    int rv = sentry_set_tag(key, nullptr);
+    serialize(&sentry_event);
+    return rv;
 }
 
 int sentry_set_extra(const char *key, const char *value)
 {
-    std::string string_key(key);
-    std::string final_key = "sentry[extra][" + string_key + "]";
+    sentry_event.extra[key] = value;
     serialize(&sentry_event);
-    return set_annotation(final_key.c_str(), value);
+    return SENTRY_ERROR_SUCCESS;
 }
 
 int sentry_remove_extra(const char *key)
 {
-    std::string string_key(key);
-    std::string final_key = "sentry[extra][" + string_key + "]";
-    return remove_annotation(final_key.c_str());
+    int rv = sentry_set_extra(key, nullptr);
+    serialize(&sentry_event);
+    return rv;
 }
 
 int sentry_set_release(const char *release)
 {
-    auto r = set_annotation("sentry[release]", release);
+    sentry_event.release = release;
     serialize(&sentry_event);
-    return r;
+    return SENTRY_ERROR_SUCCESS;
 }
 
 int sentry_remove_release()
 {
-    return remove_annotation("sentry[release]");
+    int rv = sentry_set_release(nullptr);
+    serialize(&sentry_event);
+    return rv;
 }

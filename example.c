@@ -20,5 +20,5 @@ int main(void)
     sentry_set_tag("not-expected-tag", "some value");
     sentry_remove_tag("not-expected-tag");
 
-    memset((char *)0x0, 1, 100);
+    // memset((char *)0x0, 1, 100);
 }
