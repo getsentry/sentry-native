@@ -4,13 +4,73 @@
 #include "breakpad_wrapper.hpp"
 #endif
 #include "sentry.h"
+#include <map>
 #include <string>
+// #include "mpack-defaults.h"
+// #include "mpack.h"
+#include "mpack.c"
 
 #if defined(SENTRY_CRASHPAD)
 using namespace sentry::crashpad;
 #elif defined(SENTRY_BREAKPAD)
 using namespace sentry::breakpad;
 #endif
+
+static const char *SENTRY_EVENT_FILE_NAME = "sentry-event.mp";
+
+typedef struct sentry_event_s
+{
+    const char *release;
+    const char *dist;
+    const char *environment;
+    const char *transaction;
+    std::map<std::string, std::string> tags;
+
+} sentry_event_t;
+
+sentry_event_t sentry_event = {
+    .release = nullptr,
+    .dist = nullptr,
+    .environment = nullptr,
+    .transaction = nullptr,
+    .tags = std::map<std::string, std::string>(),
+};
+
+void serialize(const sentry_event_t *event)
+{
+    mpack_writer_t writer;
+    // TODO: cycle event file
+    mpack_writer_init_filename(&writer, SENTRY_EVENT_FILE_NAME);
+    mpack_start_map(&writer, 3);
+    mpack_write_cstr(&writer, "release");
+    mpack_write_bool(&writer, event->release);
+    mpack_write_cstr(&writer, "environment");
+    mpack_write_bool(&writer, event->environment);
+    mpack_write_cstr(&writer, "transaction");
+    mpack_write_bool(&writer, event->transaction);
+    mpack_finish_map(&writer);
+
+    int tag_count = event->tags.size();
+    if (tag_count > 0)
+    {
+        mpack_start_map(&writer, tag_count);
+        std::map<std::string, std::string>::const_iterator iter;
+        for (iter = event->tags.begin(); iter != event->tags.end(); ++iter)
+        {
+            mpack_write_cstr(&writer, iter->first.c_str());
+            mpack_write_cstr(&writer, iter->second.c_str());
+        }
+        mpack_finish_map(&writer);
+    }
+
+    if (mpack_writer_destroy(&writer) != mpack_ok)
+    {
+        fprintf(stderr, "An error occurred encoding the data!\n");
+        return;
+    }
+    // atomic move on event file
+    // breadcrumb will send send both files
+}
 
 int sentry_init(const sentry_options_t *options)
 {
@@ -22,20 +82,22 @@ int sentry_init(const sentry_options_t *options)
 
     if (options->environment != nullptr)
     {
-        set_annotation("sentry[environment]", options->environment);
+        sentry_event.environment = options->environment;
     }
 
     if (options->release != nullptr)
     {
-        set_annotation("sentry[release]", options->release);
+        sentry_event.release = options->release;
     }
 
     if (options->dist != nullptr)
     {
-        set_annotation("sentry[dist]", options->dist);
+        sentry_event.dist = options->dist;
     }
 
     return SENTRY_ERROR_NULL_ARGUMENT;
+
+    serialize(&sentry_event);
 }
 
 void sentry_options_init(sentry_options_t *options)
@@ -57,9 +119,9 @@ int sentry_set_level(enum sentry_level_t level)
 
 int sentry_set_tag(const char *key, const char *value)
 {
-    std::string string_key(key);
-    std::string final_key = "sentry[tags][" + string_key + "]";
-    return set_annotation(final_key.c_str(), value);
+    sentry_event.tags[key] = value;
+    serialize(&sentry_event);
+    return SENTRY_ERROR_SUCCESS;
 }
 
 int sentry_remove_tag(const char *key)
@@ -73,6 +135,7 @@ int sentry_set_extra(const char *key, const char *value)
 {
     std::string string_key(key);
     std::string final_key = "sentry[extra][" + string_key + "]";
+    serialize(&sentry_event);
     return set_annotation(final_key.c_str(), value);
 }
 
@@ -85,7 +148,9 @@ int sentry_remove_extra(const char *key)
 
 int sentry_set_release(const char *release)
 {
-    return set_annotation("sentry[release]", release);
+    auto r = set_annotation("sentry[release]", release);
+    serialize(&sentry_event);
+    return r;
 }
 
 int sentry_remove_release()

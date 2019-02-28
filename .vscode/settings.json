@@ -53,6 +53,17 @@
         "cmath": "cpp",
         "istream": "cpp",
         "set": "cpp",
-        "sstream": "cpp"
+        "sstream": "cpp",
+        "__hash_table": "cpp",
+        "array": "cpp",
+        "deque": "cpp",
+        "forward_list": "cpp",
+        "fstream": "cpp",
+        "iomanip": "cpp",
+        "iostream": "cpp",
+        "list": "cpp",
+        "optional": "cpp",
+        "unordered_map": "cpp",
+        "unordered_set": "cpp"
     }
 }

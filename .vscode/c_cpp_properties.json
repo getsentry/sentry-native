@@ -5,6 +5,8 @@
       "includePath": [
         "${workspaceFolder}/**",
         "../crashpad-Darwin/include/",
+        "../mpack-amalgamation-1.0/",
+        "../mpack-amalgamation-1.0/src/mpack",
         "../crashpad-Darwin/include/mini_chromium"
       ],
       "defines": [],
