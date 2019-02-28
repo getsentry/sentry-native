@@ -21,6 +21,8 @@ static const char *SENTRY_EVENT_FILE_NAME = "sentry-event.mp";
 typedef struct sentry_event_s
 {
     const char *release;
+    sentry_level_t level;
+    sentry_user_t *user;
     const char *dist;
     const char *environment;
     const char *transaction;
@@ -30,6 +32,8 @@ typedef struct sentry_event_s
 
 sentry_event_t sentry_event = {
     .release = nullptr,
+    .level = SENTRY_LEVEL_ERROR,
+    .user = nullptr,
     .dist = nullptr,
     .environment = nullptr,
     .transaction = nullptr,
@@ -41,14 +45,23 @@ void serialize(const sentry_event_t *event)
     mpack_writer_t writer;
     // TODO: cycle event file
     mpack_writer_init_filename(&writer, SENTRY_EVENT_FILE_NAME);
-    mpack_start_map(&writer, 3);
+    mpack_start_map(&writer, 5);
     mpack_write_cstr(&writer, "release");
-    mpack_write_bool(&writer, event->release);
+    mpack_write_cstr(&writer, event->release);
+    mpack_write_cstr(&writer, "dist");
+    mpack_write_cstr(&writer, event->dist);
+    mpack_write_cstr(&writer, "level");
+    mpack_write_int(&writer, event->level);
     mpack_write_cstr(&writer, "environment");
-    mpack_write_bool(&writer, event->environment);
+    mpack_write_cstr(&writer, event->environment);
     mpack_write_cstr(&writer, "transaction");
-    mpack_write_bool(&writer, event->transaction);
+    mpack_write_cstr(&writer, event->transaction);
     mpack_finish_map(&writer);
+
+    if (event->user != nullptr)
+    {
+        // TODO
+    }
 
     int tag_count = event->tags.size();
     if (tag_count > 0)
@@ -96,8 +109,6 @@ int sentry_init(const sentry_options_t *options)
     }
 
     return SENTRY_ERROR_NULL_ARGUMENT;
-
-    serialize(&sentry_event);
 }
 
 void sentry_options_init(sentry_options_t *options)
@@ -111,10 +122,36 @@ int sentry_set_user(sentry_user_t *user);
 int sentry_remove_user();
 int sentry_set_fingerprint(const char **fingerprint, size_t len);
 int sentry_remove_fingerprint();
-int sentry_set_transaction(const char *transaction);
-int sentry_remove_transaction();
+
 int sentry_set_level(enum sentry_level_t level)
 {
+    sentry_event.level = level;
+    serialize(&sentry_event);
+    return SENTRY_ERROR_SUCCESS;
+}
+
+int sentry_set_transaction(const char *transaction)
+{
+    sentry_event.transaction = transaction;
+    serialize(&sentry_event);
+    return SENTRY_ERROR_SUCCESS;
+}
+
+int sentry_remove_transaction()
+{
+    sentry_set_transaction(nullptr);
+}
+
+int sentry_set_user(sentry_user_t *user)
+{
+    sentry_event.user = user;
+    serialize(&sentry_event);
+    return SENTRY_ERROR_SUCCESS;
+}
+
+int sentry_remove_user()
+{
+    sentry_set_transaction(nullptr);
 }
 
 int sentry_set_tag(const char *key, const char *value)

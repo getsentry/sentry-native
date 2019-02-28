@@ -14,6 +14,7 @@ int main(void)
 
     sentry_init(&option);
 
+    sentry_set_level(SENTRY_LEVEL_WARNING);
     sentry_set_extra("extra stuff", "some value");
     sentry_set_tag("expected-tag", "some value");
     sentry_set_tag("not-expected-tag", "some value");
