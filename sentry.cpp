@@ -16,6 +16,16 @@ using namespace sentry::breakpad;
 
 static const char *SENTRY_EVENT_FILE_NAME = "sentry-event.mp";
 
+typedef struct sentry_dsn_s
+{
+    const char *scheme;
+    const char *public_key;
+    const char *private_key;
+    const char *host;
+    const char *path;
+    const char *project_id;
+} sentry_dsn_t;
+
 typedef struct sentry_event_s
 {
     const char *release;
@@ -39,6 +49,97 @@ sentry_event_t sentry_event = {
     .tags = std::map<std::string, std::string>(),
     .extra = std::map<std::string, std::string>(),
 };
+
+int parse_dsn(char *dsn, sentry_dsn_t *dsn_out)
+{
+    char *ptr, *tmp, *end;
+
+    if (strncmp(dsn, "http://", 7) == 0)
+    {
+        ptr = dsn + 7;
+        dsn_out->scheme = "http";
+    }
+    else if (strncmp(dsn, "https://", 8) == 0)
+    {
+        ptr = dsn + 8;
+        dsn_out->scheme = "https";
+    }
+    else
+    {
+        return SENTRY_ERROR_INVALID_URL_SCHEME;
+    }
+
+    tmp = strchr(ptr, '?');
+    if (tmp)
+    {
+        *tmp = '\0';
+    }
+
+    end = strchr(ptr, '@');
+    if (!end)
+    {
+        return 1;
+    }
+    *end = '\0';
+    dsn_out->public_key = ptr;
+
+    tmp = strchr(ptr, ':');
+    if (tmp)
+    {
+        *tmp = '\0';
+        dsn_out->private_key = tmp + 1;
+    }
+    else
+    {
+        dsn_out->private_key = "";
+    }
+
+    ptr = end + 1;
+    end = strchr(ptr, '/');
+    if (!end)
+    {
+        return SENTRY_ERROR_INVALID_URL_MISSING_HOST;
+    }
+    *end = '\0';
+    dsn_out->host = ptr;
+
+    ptr = end + 1;
+    end = strrchr(ptr, '/');
+    if (end)
+    {
+        *end = '\0';
+        dsn_out->path = ptr;
+        dsn_out->project_id = end + 1;
+    }
+    else
+    {
+        dsn_out->path = "";
+        dsn_out->project_id = ptr;
+    }
+
+    return SENTRY_SUCCESS;
+}
+
+int minidump_url_from_dsn(char *dsn, std::string &minidump_url_out)
+{
+    // Convert DSN to minidump URL i.e:
+    // From: https://5fd7a6cda8444965bade9ccfd3df9882@sentry.io/1188141
+    // To:   https://sentry.io/api/1188141/minidump/?sentry_key=5fd7a6cda8444965bade9ccfd3df9882
+    sentry_dsn_t dsn_out;
+    auto rv = parse_dsn(dsn, &dsn_out);
+    if (rv != SENTRY_SUCCESS)
+    {
+        return rv;
+    }
+
+    minidump_url_out = std::string(dsn_out.scheme) + "://" + dsn_out.host;
+    if (dsn_out.path != nullptr)
+    {
+        minidump_url_out += std::string("/") + dsn_out.path;
+    }
+    minidump_url_out += std::string("/api/") + dsn_out.project_id + "/minidump/?sentry_key=" + dsn_out.public_key;
+    return SENTRY_SUCCESS;
+}
 
 void serialize(const sentry_event_t *event)
 {
@@ -102,11 +203,28 @@ void serialize(const sentry_event_t *event)
 
 int sentry_init(const sentry_options_t *options)
 {
-    auto err = init(options);
+    if (options->dsn == nullptr)
+    {
+        if (options->debug)
+        {
+            fprintf(stderr, "Not DSN specified. Sentry SDK will be disabled.\n");
+        }
+        return SENTRY_ERROR_NO_DSN;
+    }
+
+    std::string minidump_url;
+    auto err = minidump_url_from_dsn(strdup(options->dsn), minidump_url);
     if (err != 0)
     {
         return err;
     }
+
+    if (options->debug)
+    {
+        fprintf(stdout, "Initializing with minidump endpoint: %s\n", minidump_url.c_str());
+    }
+
+    err = init(options, minidump_url.c_str());
 
     if (options->environment != nullptr)
     {
@@ -123,7 +241,7 @@ int sentry_init(const sentry_options_t *options)
         sentry_event.dist = options->dist;
     }
 
-    return SENTRY_ERROR_NULL_ARGUMENT;
+    return SENTRY_SUCCESS;
 }
 
 void sentry_options_init(sentry_options_t *options)
