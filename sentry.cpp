@@ -6,8 +6,6 @@
 #include "sentry.h"
 #include <map>
 #include <string>
-// #include "mpack-defaults.h"
-// #include "mpack.h"
 #include "mpack.c"
 
 #if defined(SENTRY_CRASHPAD)

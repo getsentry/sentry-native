@@ -71,7 +71,7 @@ int init(const sentry_options_t *options)
     CrashpadInfo *crashpad_info = CrashpadInfo::GetCrashpadInfo();
     crashpad_info->set_simple_annotations(&simple_annotations);
 
-    return SENTRY_ERROR_SUCCESS;
+    return SENTRY_SUCCESS;
 }
 
 int set_annotation(const char *key, const char *value)
@@ -81,7 +81,7 @@ int set_annotation(const char *key, const char *value)
         return SENTRY_ERROR_NULL_ARGUMENT;
     }
     simple_annotations.SetKeyValue(key, value);
-    return SENTRY_ERROR_SUCCESS;
+    return SENTRY_SUCCESS;
 } // namespace crashpad
 
 int remove_annotation(const char *key)
@@ -91,7 +91,7 @@ int remove_annotation(const char *key)
         return SENTRY_ERROR_NULL_ARGUMENT;
     }
     simple_annotations.RemoveKey(key);
-    return SENTRY_ERROR_SUCCESS;
+    return SENTRY_SUCCESS;
 }
 
 } // namespace crashpad
