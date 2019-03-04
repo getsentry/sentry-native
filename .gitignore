@@ -7,3 +7,4 @@ example
 *.dylib
 *.dSYM
 *.mp
+*.dmp

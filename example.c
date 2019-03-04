@@ -14,6 +14,8 @@ int main(void)
 
     sentry_init(&option);
 
+    sentry_set_transaction("tran");
+    // sentry_set_release("different release than the original");
     sentry_set_level(SENTRY_LEVEL_WARNING);
     sentry_set_extra("extra stuff", "some value");
     sentry_set_tag("expected-tag", "some value");

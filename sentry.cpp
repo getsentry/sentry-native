@@ -47,7 +47,7 @@ void serialize(const sentry_event_t *event)
     mpack_writer_t writer;
     // TODO: cycle event file
     mpack_writer_init_filename(&writer, SENTRY_EVENT_FILE_NAME);
-    mpack_start_map(&writer, 5);
+    mpack_start_map(&writer, 7);
     mpack_write_cstr(&writer, "release");
     mpack_write_cstr_or_nil(&writer, event->release);
     mpack_write_cstr(&writer, "level");
@@ -62,11 +62,10 @@ void serialize(const sentry_event_t *event)
     mpack_write_cstr_or_nil(&writer, event->environment);
     mpack_write_cstr(&writer, "transaction");
     mpack_write_cstr_or_nil(&writer, event->transaction);
-    mpack_finish_map(&writer);
 
     int tag_count = event->tags.size();
-    mpack_start_map(&writer, tag_count);
     mpack_write_cstr(&writer, "tags");
+    mpack_start_map(&writer, tag_count); // tags
     if (tag_count > 0)
     {
         std::map<std::string, std::string>::const_iterator iter;
@@ -76,11 +75,11 @@ void serialize(const sentry_event_t *event)
             mpack_write_cstr(&writer, iter->second.c_str());
         }
     }
-    mpack_finish_map(&writer);
+    mpack_finish_map(&writer); // tags
 
     int extra_count = event->extra.size();
-    mpack_start_map(&writer, extra_count);
     mpack_write_cstr(&writer, "extra");
+    mpack_start_map(&writer, extra_count); // extra
     if (extra_count > 0)
     {
         std::map<std::string, std::string>::const_iterator iter;
@@ -90,7 +89,9 @@ void serialize(const sentry_event_t *event)
             mpack_write_cstr(&writer, iter->second.c_str());
         }
     }
-    mpack_finish_map(&writer);
+    mpack_finish_map(&writer); // extra
+
+    mpack_finish_map(&writer); // root
 
     if (mpack_writer_destroy(&writer) != mpack_ok)
     {
@@ -181,9 +182,9 @@ int sentry_set_tag(const char *key, const char *value)
 
 int sentry_remove_tag(const char *key)
 {
-    int rv = sentry_set_tag(key, nullptr);
+    sentry_event.tags.erase(key);
     serialize(&sentry_event);
-    return rv;
+    return SENTRY_ERROR_SUCCESS;
 }
 
 int sentry_set_extra(const char *key, const char *value)
@@ -195,9 +196,9 @@ int sentry_set_extra(const char *key, const char *value)
 
 int sentry_remove_extra(const char *key)
 {
-    int rv = sentry_set_extra(key, nullptr);
+    sentry_event.extra.erase(key);
     serialize(&sentry_event);
-    return rv;
+    return SENTRY_ERROR_SUCCESS;
 }
 
 int sentry_set_release(const char *release)
