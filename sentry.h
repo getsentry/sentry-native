@@ -11,7 +11,9 @@ extern "C"
     {
         SENTRY_SUCCESS,
         SENTRY_ERROR_NULL_ARGUMENT,
-        SENTRY_ERROR_HANDLER_STARTUP_FAIL
+        SENTRY_ERROR_HANDLER_STARTUP_FAIL,
+        SENTRY_ERROR_NO_DSN,
+        SENTRY_ERROR_NO_MINIDUMP_URL
     };
 
     typedef struct sentry_options_s
@@ -48,7 +50,7 @@ extern "C"
         SENTRY_LEVEL_DEBUG = 0,
         SENTRY_LEVEL_INFO = 1,
         SENTRY_LEVEL_WARNING = 2,
-        SENTRY_LEVEL_ERROR = 3
+        SENTRY_LEVEL_ERROR = 3,
     };
 
     // Unified API

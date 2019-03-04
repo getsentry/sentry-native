@@ -18,14 +18,19 @@ namespace crashpad
 {
 SimpleStringDictionary simple_annotations;
 
-int init(const sentry_options_t *options)
+int init(const sentry_options_t *options, const char *minidump_url)
 {
+    if (minidump_url == nullptr)
+    {
+        return SENTRY_ERROR_NO_MINIDUMP_URL;
+    }
+
     // Cache directory that will store crashpad information and minidumps
     base::FilePath database(options->database_path);
     // Path to the out-of-process handler executable
     base::FilePath handler(options->handler_path);
     // URL used to submit minidumps to
-    std::string url(options->dsn);
+    std::string url(minidump_url);
     // Optional annotations passed via --annotations to the handler
     std::map<std::string, std::string> annotations;
     // Optional arguments to pass to the handler

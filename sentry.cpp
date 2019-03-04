@@ -7,6 +7,7 @@
 #include <map>
 #include <string>
 #include "mpack.c"
+#include "url.hpp"
 
 #if defined(SENTRY_CRASHPAD)
 using namespace sentry::crashpad;
@@ -100,9 +101,43 @@ void serialize(const sentry_event_t *event)
     // breadcrumb will send send both files
 }
 
+int minidump_url_from_dsn(const char *dsn, std::string &minidump_url_out)
+{
+    // Convert DSN to minidump URL i.e:
+    // From: https://5fd7a6cda8444965bade9ccfd3df9882@sentry.io/1188141
+    // To:   https://sentry.io/api/1188141/minidump/?sentry_key=5fd7a6cda8444965bade9ccfd3df9882
+    std::string dsn_str = dsn;
+    Url dsn_url = dsn_str;
+
+    Url minidump_url = dsn_url;
+    minidump_url.user_info("");
+    // TODO: Won't work if there's a path before project id (i.e: sentry hosted under /something)
+    minidump_url.path("/api/" + dsn_url.path() + "/minidump/");
+    minidump_url.add_query("sentry_key", dsn_url.user_info());
+
+    minidump_url_out = minidump_url.str();
+    return SENTRY_SUCCESS;
+}
+
 int sentry_init(const sentry_options_t *options)
 {
-    auto err = init(options);
+    if (options->dsn == nullptr)
+    {
+        if (options->debug)
+        {
+            printf("Not DSN specified. Sentry SDK will be disabled.");
+        }
+        return SENTRY_ERROR_NO_DSN;
+    }
+
+    std::string minidump_url;
+    auto err = minidump_url_from_dsn(options->dsn, minidump_url);
+    if (err != 0)
+    {
+        return err;
+    }
+
+    err = init(options, minidump_url.c_str());
     if (err != 0)
     {
         return err;
@@ -123,7 +158,7 @@ int sentry_init(const sentry_options_t *options)
         sentry_event.dist = options->dist;
     }
 
-    return SENTRY_ERROR_NULL_ARGUMENT;
+    return SENTRY_SUCCESS;
 }
 
 void sentry_options_init(sentry_options_t *options)
