@@ -144,14 +144,14 @@ int sentry_set_level(enum sentry_level_t level)
 {
     sentry_event.level = level;
     serialize(&sentry_event);
-    return SENTRY_ERROR_SUCCESS;
+    return SENTRY_SUCCESS;
 }
 
 int sentry_set_transaction(const char *transaction)
 {
     sentry_event.transaction = transaction;
     serialize(&sentry_event);
-    return SENTRY_ERROR_SUCCESS;
+    return SENTRY_SUCCESS;
 }
 
 int sentry_remove_transaction()
@@ -163,7 +163,7 @@ int sentry_set_user(sentry_user_t *user)
 {
     sentry_event.user = user;
     serialize(&sentry_event);
-    return SENTRY_ERROR_SUCCESS;
+    return SENTRY_SUCCESS;
 }
 
 int sentry_remove_user()
@@ -177,35 +177,35 @@ int sentry_set_tag(const char *key, const char *value)
 {
     sentry_event.tags[key] = value;
     serialize(&sentry_event);
-    return SENTRY_ERROR_SUCCESS;
+    return SENTRY_SUCCESS;
 }
 
 int sentry_remove_tag(const char *key)
 {
     sentry_event.tags.erase(key);
     serialize(&sentry_event);
-    return SENTRY_ERROR_SUCCESS;
+    return SENTRY_SUCCESS;
 }
 
 int sentry_set_extra(const char *key, const char *value)
 {
     sentry_event.extra[key] = value;
     serialize(&sentry_event);
-    return SENTRY_ERROR_SUCCESS;
+    return SENTRY_SUCCESS;
 }
 
 int sentry_remove_extra(const char *key)
 {
     sentry_event.extra.erase(key);
     serialize(&sentry_event);
-    return SENTRY_ERROR_SUCCESS;
+    return SENTRY_SUCCESS;
 }
 
 int sentry_set_release(const char *release)
 {
     sentry_event.release = release;
     serialize(&sentry_event);
-    return SENTRY_ERROR_SUCCESS;
+    return SENTRY_SUCCESS;
 }
 
 int sentry_remove_release()

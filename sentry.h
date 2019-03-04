@@ -9,7 +9,7 @@ extern "C"
 
     enum sentry_error_t
     {
-        SENTRY_ERROR_SUCCESS,
+        SENTRY_SUCCESS,
         SENTRY_ERROR_NULL_ARGUMENT,
         SENTRY_ERROR_HANDLER_STARTUP_FAIL
     };
