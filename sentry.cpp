@@ -213,7 +213,9 @@ int sentry_init(const sentry_options_t *options)
     }
 
     std::string minidump_url;
-    auto err = minidump_url_from_dsn(strdup(options->dsn), minidump_url);
+    auto *dsn = strdup(options->dsn);
+    auto err = minidump_url_from_dsn(dsn, minidump_url);
+    free(dsn);
     if (err != 0)
     {
         return err;
