@@ -18,36 +18,46 @@ using namespace sentry::breakpad;
 
 static const char *SENTRY_EVENT_FILE_NAME = "sentry-event.mp";
 
-typedef struct sentry_dsn_s {
+struct SentryDsn {
     const char *scheme;
     const char *public_key;
     const char *private_key;
     const char *host;
     const char *path;
     const char *project_id;
-} sentry_dsn_t;
+};
 
-typedef struct sentry_event_s {
+struct SentryEvent {
     const char *release;
     sentry_level_t level;
-    sentry_user_t *user;
     const char *dist;
     const char *environment;
     const char *transaction;
+    std::map<std::string, std::string> user;
     std::map<std::string, std::string> tags;
     std::map<std::string, std::string> extra;
-} sentry_event_t;
+};
 
-static sentry_event_t sentry_event = {
+static SentryEvent sentry_event = {
     .release = nullptr,
     .level = SENTRY_LEVEL_ERROR,
-    .user = nullptr,
     .dist = nullptr,
     .environment = nullptr,
     .transaction = nullptr,
+    .user = std::map<std::string, std::string>(),
     .tags = std::map<std::string, std::string>(),
     .extra = std::map<std::string, std::string>(),
 };
+
+char *sane_strdup(const char *s) {
+    if (s) {
+        size_t len = strlen(s) + 1;
+        char *rv = (char *)malloc(len);
+        memcpy(rv, s, len);
+        return rv;
+    }
+    return 0;
+}
 
 static const sentry_options_t *sentry_options;
 
@@ -55,7 +65,7 @@ const sentry_options_t *sentry__get_options(void) {
     return sentry_options;
 }
 
-static int parse_dsn(char *dsn, sentry_dsn_t *dsn_out) {
+static int parse_dsn(char *dsn, SentryDsn *dsn_out) {
     char *ptr, *tmp, *end;
 
     if (strncmp(dsn, "http://", 7) == 0) {
@@ -115,14 +125,14 @@ static int minidump_url_from_dsn(char *dsn, std::string &minidump_url_out) {
     // From: https://5fd7a6cda8444965bade9ccfd3df9882@sentry.io/1188141
     // To:
     // https://sentry.io/api/1188141/minidump/?sentry_key=5fd7a6cda8444965bade9ccfd3df9882
-    sentry_dsn_t dsn_out;
+    SentryDsn dsn_out;
     auto rv = parse_dsn(dsn, &dsn_out);
     if (rv != 0) {
         return rv;
     }
 
     minidump_url_out = std::string(dsn_out.scheme) + "://" + dsn_out.host;
-    if (dsn_out.path != nullptr) {
+    if (dsn_out.path != nullptr && *dsn_out.path) {
         minidump_url_out += std::string("/") + dsn_out.path;
     }
     minidump_url_out += std::string("/api/") + dsn_out.project_id +
@@ -130,18 +140,29 @@ static int minidump_url_from_dsn(char *dsn, std::string &minidump_url_out) {
     return 0;
 }
 
-static void serialize(const sentry_event_t *event) {
+static void serialize(const SentryEvent *event) {
     mpack_writer_t writer;
     // TODO: cycle event file
     mpack_writer_init_filename(&writer, SENTRY_EVENT_FILE_NAME);
-    mpack_start_map(&writer, 7);
+    mpack_start_map(&writer, 8);
     mpack_write_cstr(&writer, "release");
     mpack_write_cstr_or_nil(&writer, event->release);
     mpack_write_cstr(&writer, "level");
     mpack_write_int(&writer, event->level);
-    if (event->user != nullptr) {
-        // TODO
+
+    mpack_write_cstr(&writer, "user");
+    if (!event->user.empty()) {
+        mpack_start_map(&writer, event->user.size());
+        std::map<std::string, std::string>::const_iterator iter;
+        for (iter = event->user.begin(); iter != event->user.end(); ++iter) {
+            mpack_write_cstr(&writer, iter->first.c_str());
+            mpack_write_cstr(&writer, iter->second.c_str());
+        }
+        mpack_finish_map(&writer);
+    } else {
+        mpack_write_nil(&writer);
     }
+
     mpack_write_cstr(&writer, "dist");
     mpack_write_cstr_or_nil(&writer, event->dist);
     mpack_write_cstr(&writer, "environment");
@@ -247,8 +268,24 @@ int sentry_remove_transaction() {
     sentry_set_transaction(nullptr);
 }
 
-int sentry_set_user(sentry_user_t *user) {
-    sentry_event.user = user;
+int sentry_set_user(const sentry_user_t *user) {
+    sentry_user_t *new_user = (sentry_user_t *)malloc(sizeof(sentry_user_t));
+    sentry_event.user.clear();
+
+    if (user->id) {
+        sentry_event.user.insert(std::make_pair("id", user->id));
+    }
+    if (user->username) {
+        sentry_event.user.insert(std::make_pair("username", user->username));
+    }
+    if (user->email) {
+        sentry_event.user.insert(std::make_pair("email", user->email));
+    }
+    if (user->ip_address) {
+        sentry_event.user.insert(
+            std::make_pair("ip_address", user->ip_address));
+    }
+
     serialize(&sentry_event);
     return 0;
 }
@@ -293,4 +330,11 @@ int sentry_remove_release() {
     int rv = sentry_set_release(nullptr);
     serialize(&sentry_event);
     return rv;
+}
+
+void sentry_user_clear(sentry_user_t *user) {
+    user->email = nullptr;
+    user->id = nullptr;
+    user->ip_address = nullptr;
+    user->username = nullptr;
 }

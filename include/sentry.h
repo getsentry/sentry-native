@@ -70,7 +70,7 @@ SENTRY_API int sentry_init(const sentry_options_t *options);
 SENTRY_API int sentry_add_breadcrumb(sentry_breadcrumb_t *breadcrumb);
 SENTRY_API int sentry_push_scope();
 SENTRY_API int sentry_pop_scope();
-SENTRY_API int sentry_set_user(sentry_user_t *user);
+SENTRY_API int sentry_set_user(const sentry_user_t *user);
 SENTRY_API int sentry_remove_user();
 SENTRY_API int sentry_set_tag(const char *key, const char *value);
 SENTRY_API int sentry_remove_tag(const char *key);
@@ -84,7 +84,10 @@ SENTRY_API int sentry_set_transaction(const char *transaction);
 SENTRY_API int sentry_remove_transaction();
 SENTRY_API int sentry_set_level(enum sentry_level_t level);
 
-// Sentrypad custom API
+/* helpers */
+SENTRY_API void sentry_user_clear(sentry_user_t *user);
+
+/* Sentrypad custom API */
 SENTRY_API int sentry_shutdown(void);
 SENTRY_API int sentry_attach_file_by_path(const char *path);
 SENTRY_API int sentry_attach_file_with_contents(const char *filename,
