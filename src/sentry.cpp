@@ -7,6 +7,7 @@
 #include <map>
 #include <string>
 #include "mpack.c"
+#include "print_macros.hpp"
 
 #if defined(SENTRY_CRASHPAD)
 using namespace sentry::crashpad;
@@ -49,6 +50,8 @@ sentry_event_t sentry_event = {
     .tags = std::map<std::string, std::string>(),
     .extra = std::map<std::string, std::string>(),
 };
+
+const sentry_options_t *sentry_options;
 
 int parse_dsn(char *dsn, sentry_dsn_t *dsn_out)
 {
@@ -194,7 +197,7 @@ void serialize(const sentry_event_t *event)
 
     if (mpack_writer_destroy(&writer) != mpack_ok)
     {
-        fprintf(stderr, "An error occurred encoding the data!\n");
+        SENTRY_PRINT_ERROR("An error occurred encoding the data.\n");
         return;
     }
     // atomic move on event file
@@ -205,10 +208,7 @@ int sentry_init(const sentry_options_t *options)
 {
     if (options->dsn == nullptr)
     {
-        if (options->debug)
-        {
-            fprintf(stderr, "Not DSN specified. Sentry SDK will be disabled.\n");
-        }
+        SENTRY_PRINT_ERROR("Not DSN specified. Sentry SDK will be disabled.\n");
         return SENTRY_ERROR_NO_DSN;
     }
 
@@ -223,7 +223,7 @@ int sentry_init(const sentry_options_t *options)
 
     if (options->debug)
     {
-        fprintf(stdout, "Initializing with minidump endpoint: %s\n", minidump_url.c_str());
+        SENTRY_PRINT_DEBUG_ARGS("Initializing with minidump endpoint: %s\n", minidump_url.c_str());
     }
 
     err = init(options, minidump_url.c_str());
@@ -242,6 +242,8 @@ int sentry_init(const sentry_options_t *options)
     {
         sentry_event.dist = options->dist;
     }
+
+    sentry_options = options;
 
     return SENTRY_SUCCESS;
 }

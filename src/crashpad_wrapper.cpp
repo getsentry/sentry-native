@@ -9,6 +9,7 @@
 #include "client/settings.h"
 #include "client/crash_report_database.h"
 #include "client/crashpad_info.h"
+#include "print_macros.hpp"
 
 using namespace crashpad;
 
@@ -17,6 +18,7 @@ namespace sentry
 namespace crashpad
 {
 SimpleStringDictionary simple_annotations;
+const sentry_options_t *sentry_options;
 
 int init(const sentry_options_t *options, const char *minidump_url)
 {
@@ -47,16 +49,13 @@ int init(const sentry_options_t *options, const char *minidump_url)
         /* restartable */ true,
         /* asynchronous_start */ false);
 
-    if (options->debug)
+    if (success)
     {
-        if (success)
-        {
-            fprintf(stdout, "Started client handler.\n");
-        }
-        else
-        {
-            fprintf(stderr, "Failed to start client handler.\n");
-        }
+        SENTRY_PRINT_DEBUG("Started client handler.\n");
+    }
+    else
+    {
+        SENTRY_PRINT_ERROR("Failed to start client handler.\n");
     }
 
     if (!success)
@@ -75,6 +74,8 @@ int init(const sentry_options_t *options, const char *minidump_url)
     // Ensure that the simple annotations dictionary is set in the client.
     CrashpadInfo *crashpad_info = CrashpadInfo::GetCrashpadInfo();
     crashpad_info->set_simple_annotations(&simple_annotations);
+
+    sentry_options = options;
 
     return SENTRY_SUCCESS;
 }
