@@ -231,8 +231,6 @@ int sentry_init(const sentry_options_t *options) {
     SENTRY_PRINT_DEBUG_ARGS("Initializing with minidump endpoint: %s\n",
                             minidump_url.c_str());
 
-    err = init(options, minidump_url.c_str());
-
     if (options->environment != nullptr) {
         sentry_event.environment = options->environment;
     }
@@ -266,6 +264,9 @@ int sentry_init(const sentry_options_t *options) {
                                 sentry_event.run_path.c_str());
         return rv;
     }
+
+    err = init(options, minidump_url.c_str(),
+               (sentry_event.run_path + SENTRY_EVENT_FILE_NAME).c_str());
 
     return 0;
 }
