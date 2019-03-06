@@ -9,7 +9,7 @@ int main(void) {
     option.environment = "Production";
     option.release = "5fd7a6cd";
     option.dist = "12345";
-    option.database_path = ".";
+    option.database_path = "crashpad-db";
     option.debug = 1;
 
     sentry_init(&option);

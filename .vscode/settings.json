@@ -65,6 +65,8 @@
         "optional": "cpp",
         "unordered_map": "cpp",
         "unordered_set": "cpp",
-        "mpack.c": "cpp"
+        "mpack.c": "cpp",
+        "numeric": "cpp",
+        "random": "cpp"
     }
 }

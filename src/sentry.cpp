@@ -3,10 +3,13 @@
 #elif defined(SENTRY_BREAKPAD)
 #include "breakpad_wrapper.hpp"
 #endif
+#include <sys/stat.h>
 #include <map>
+#include <sstream>
 #include <string>
 #include "internal.hpp"
 #include "print_macros.hpp"
+#include "random"
 #include "sentry.h"
 #include "vendor/mpack.h"
 
@@ -36,6 +39,8 @@ struct SentryEvent {
     std::map<std::string, std::string> user;
     std::map<std::string, std::string> tags;
     std::map<std::string, std::string> extra;
+    std::string run_id;
+    std::string run_path;
 };
 
 static SentryEvent sentry_event = {
@@ -143,7 +148,10 @@ static int minidump_url_from_dsn(char *dsn, std::string &minidump_url_out) {
 static void serialize(const SentryEvent *event) {
     mpack_writer_t writer;
     // TODO: cycle event file
-    mpack_writer_init_filename(&writer, SENTRY_EVENT_FILE_NAME);
+    // Path must exist otherwise mpack will fail to write.
+    auto dest_path = (event->run_path + SENTRY_EVENT_FILE_NAME).c_str();
+    SENTRY_PRINT_DEBUG_ARGS("Serializing to file: %s\n", dest_path);
+    mpack_writer_init_filename(&writer, dest_path);
     mpack_start_map(&writer, 8);
     mpack_write_cstr(&writer, "release");
     mpack_write_cstr_or_nil(&writer, event->release);
@@ -206,6 +214,7 @@ static void serialize(const SentryEvent *event) {
 
 int sentry_init(const sentry_options_t *options) {
     sentry_options = options;
+
     if (options->dsn == nullptr) {
         SENTRY_PRINT_ERROR("Not DSN specified. Sentry SDK will be disabled.\n");
         return SENTRY_ERROR_NO_DSN;
@@ -219,10 +228,8 @@ int sentry_init(const sentry_options_t *options) {
         return err;
     }
 
-    if (options->debug) {
-        SENTRY_PRINT_DEBUG_ARGS("Initializing with minidump endpoint: %s\n",
-                                minidump_url.c_str());
-    }
+    SENTRY_PRINT_DEBUG_ARGS("Initializing with minidump endpoint: %s\n",
+                            minidump_url.c_str());
 
     err = init(options, minidump_url.c_str());
 
@@ -236,6 +243,28 @@ int sentry_init(const sentry_options_t *options) {
 
     if (options->dist != nullptr) {
         sentry_event.dist = options->dist;
+    }
+
+    std::random_device seed;
+    std::default_random_engine engine(seed());
+    std::uniform_int_distribution<int> uniform_dist(0, INT32_MAX);
+    std::time_t result = std::time(nullptr);
+    std::stringstream ss;
+    ss << result << "-" << uniform_dist(engine);
+    sentry_event.run_id = ss.str();
+
+    /* Make sure run dir exists before serializer needs to write to it */
+    /* TODO: Write proper x-plat mkdir */
+    auto run_path = std::string(options->database_path);
+    mkdir(run_path.c_str(), 0777);
+    run_path = run_path + "/" + "sentry-runs/";
+    mkdir(run_path.c_str(), 0777);
+    sentry_event.run_path = run_path + sentry_event.run_id + "/";
+    auto rv = mkdir(sentry_event.run_path.c_str(), 0777);
+    if (rv != 0 && rv != EEXIST) {
+        SENTRY_PRINT_ERROR_ARGS("Failed to create sentry_runs directory '%s'\n",
+                                sentry_event.run_path.c_str());
+        return rv;
     }
 
     return 0;
