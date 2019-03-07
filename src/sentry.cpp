@@ -19,8 +19,6 @@ using namespace sentry::crashpad;
 using namespace sentry::breakpad;
 #endif
 
-static const char *SENTRY_EVENT_FILE_NAME = "sentry-event.mp";
-
 struct SentryDsn {
     const char *scheme;
     const char *public_key;

@@ -32,7 +32,7 @@ int init(const sentry_options_t *options,
     // Optional annotations passed via --annotations to the handler
     std::map<std::string, std::string> annotations;
     std::map<std::string, base::FilePath> fileAttachments = {
-        {"sentry-event.mp", base::FilePath(event_file)}};
+        {SENTRY_EVENT_FILE_NAME, base::FilePath(event_file)}};
 
     // Optional arguments to pass to the handler
     std::vector<std::string> arguments;
