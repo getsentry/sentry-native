@@ -40,6 +40,7 @@ typedef struct sentry_options_s {
     const char *environment;
     const char *dist;
     int debug;
+    const char **attachments;
     // Crashpad
     const char *handler_path;
     const char *database_path;
@@ -49,6 +50,8 @@ typedef struct sentry_options_s {
 } sentry_options_t;
 
 typedef struct sentry_breadcrumb_s {
+    const char *message;
+    const char *level;
 } sentry_breadcrumb_t;
 
 typedef struct sentry_user_s {
@@ -78,7 +81,7 @@ SENTRY_API int sentry_set_extra(const char *key, const char *value);
 SENTRY_API int sentry_remove_extra(const char *key);
 SENTRY_API int sentry_set_release(const char *release);
 SENTRY_API int sentry_remove_release();
-SENTRY_API int sentry_set_fingerprint(const char **fingerprint, size_t len);
+SENTRY_API int sentry_set_fingerprint(const char *fingerprint, ...);
 SENTRY_API int sentry_remove_fingerprint();
 SENTRY_API int sentry_set_transaction(const char *transaction);
 SENTRY_API int sentry_remove_transaction();

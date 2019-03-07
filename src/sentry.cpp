@@ -3,12 +3,13 @@
 #elif defined(SENTRY_BREAKPAD)
 #include "breakpad_wrapper.hpp"
 #endif
+#include <stdarg.h>
 #include <sys/stat.h>
 #include <map>
 #include <sstream>
 #include <string>
 #include "internal.hpp"
-#include "print_macros.hpp"
+#include "macros.hpp"
 #include "random"
 #include "sentry.h"
 #include "vendor/mpack.h"
@@ -37,6 +38,7 @@ struct SentryEvent {
     std::map<std::string, std::string> user;
     std::map<std::string, std::string> tags;
     std::map<std::string, std::string> extra;
+    std::vector<std::string> fingerprint;
     std::string run_id;
     std::string run_path;
 };
@@ -50,7 +52,15 @@ static SentryEvent sentry_event = {
     .user = std::map<std::string, std::string>(),
     .tags = std::map<std::string, std::string>(),
     .extra = std::map<std::string, std::string>(),
+    .fingerprint = std::vector<std::string>(),
 };
+
+static const int BREADCRUMB_MAX = 100;
+static char *BREADCRUMB_FILE_1 = "sentry-breadcrumb1.mp";
+static char *BREADCRUMB_FILE_2 = "sentry-breadcrumb2.mp";
+static char *BREADCRUMB_CURRENT_FILE =
+    BREADCRUMB_FILE_1;  // start off pointing at 1
+static int breadcrumb_count = 0;
 
 char *sane_strdup(const char *s) {
     if (s) {
@@ -150,7 +160,7 @@ static void serialize(const SentryEvent *event) {
     auto dest_path = (event->run_path + SENTRY_EVENT_FILE_NAME).c_str();
     SENTRY_PRINT_DEBUG_ARGS("Serializing to file: %s\n", dest_path);
     mpack_writer_init_filename(&writer, dest_path);
-    mpack_start_map(&writer, 8);
+    mpack_start_map(&writer, 9);
     mpack_write_cstr(&writer, "release");
     mpack_write_cstr_or_nil(&writer, event->release);
     mpack_write_cstr(&writer, "level");
@@ -162,7 +172,7 @@ static void serialize(const SentryEvent *event) {
         std::map<std::string, std::string>::const_iterator iter;
         for (iter = event->user.begin(); iter != event->user.end(); ++iter) {
             mpack_write_cstr(&writer, iter->first.c_str());
-            mpack_write_cstr(&writer, iter->second.c_str());
+            mpack_write_cstr_or_nil(&writer, iter->second.c_str());
         }
         mpack_finish_map(&writer);
     } else {
@@ -183,7 +193,7 @@ static void serialize(const SentryEvent *event) {
         std::map<std::string, std::string>::const_iterator iter;
         for (iter = event->tags.begin(); iter != event->tags.end(); ++iter) {
             mpack_write_cstr(&writer, iter->first.c_str());
-            mpack_write_cstr(&writer, iter->second.c_str());
+            mpack_write_cstr_or_nil(&writer, iter->second.c_str());
         }
     }
     mpack_finish_map(&writer);  // tags
@@ -195,10 +205,20 @@ static void serialize(const SentryEvent *event) {
         std::map<std::string, std::string>::const_iterator iter;
         for (iter = event->extra.begin(); iter != event->extra.end(); ++iter) {
             mpack_write_cstr(&writer, iter->first.c_str());
-            mpack_write_cstr(&writer, iter->second.c_str());
+            mpack_write_cstr_or_nil(&writer, iter->second.c_str());
         }
     }
     mpack_finish_map(&writer);  // extra
+
+    int fingerprint_count = event->fingerprint.size();
+    mpack_write_cstr(&writer, "fingerprint");
+    mpack_start_array(&writer, fingerprint_count);  // fingerprint
+    if (fingerprint_count > 0) {
+        for (auto part : event->fingerprint) {
+            mpack_write_cstr_or_nil(&writer, part.c_str());
+        }
+    }
+    mpack_finish_array(&writer);  // fingerprint
 
     mpack_finish_map(&writer);  // root
 
@@ -263,6 +283,8 @@ int sentry_init(const sentry_options_t *options) {
         return rv;
     }
 
+    // TODO: Reset breadcrumb files.
+
     err = init(options, minidump_url.c_str(),
                (sentry_event.run_path + SENTRY_EVENT_FILE_NAME).c_str());
 
@@ -272,13 +294,89 @@ int sentry_init(const sentry_options_t *options) {
 void sentry_options_init(sentry_options_t *options) {
 }
 
-// int sentry_add_breadcrumb(sentry_breadcrumb_t *breadcrumb);
+int serialize_breadcrumb(sentry_breadcrumb_t *breadcrumb,
+                         char **data,
+                         size_t *size) {
+    static mpack_writer_t writer;
+
+    mpack_writer_init_growable(&writer, data, size);
+    mpack_start_map(&writer, 2);
+    mpack_write_cstr(&writer, "message");
+    mpack_write_cstr_or_nil(&writer, breadcrumb->message);
+    mpack_write_cstr(&writer, "level");
+    mpack_write_cstr_or_nil(&writer, breadcrumb->level);
+    mpack_finish_map(&writer);
+    if (mpack_writer_destroy(&writer) != mpack_ok) {
+        SENTRY_PRINT_ERROR("An error occurred encoding the data.\n");
+        // TODO: Error code
+        return -1;
+    }
+
+    return 0;
+}
+
+int sentry_add_breadcrumb(sentry_breadcrumb_t *breadcrumb) {
+    // TODO: synchronize!
+
+    if (breadcrumb_count == BREADCRUMB_MAX) {
+        // swap files
+        BREADCRUMB_CURRENT_FILE = BREADCRUMB_CURRENT_FILE == BREADCRUMB_FILE_1
+                                      ? BREADCRUMB_FILE_2
+                                      : BREADCRUMB_FILE_1;
+        breadcrumb_count = 0;
+    }
+
+    char *data;
+    size_t size;
+    auto rv = serialize_breadcrumb(breadcrumb, &data, &size);
+    if (rv != 0) {
+        // TODO: failed to serialize breadcrumb
+        return -1;
+    }
+
+    auto file =
+        fopen(BREADCRUMB_CURRENT_FILE, breadcrumb_count == 0 ? "w" : "a");
+
+    if (file != NULL) {
+        // consider error handling here
+        EINTR_RETRY(fwrite(data, 1, size, file));
+        fclose(file);
+    } else {
+        SENTRY_PRINT_ERROR_ARGS("Failed to open breadcrumb file %s\n",
+                                BREADCRUMB_CURRENT_FILE);
+    }
+
+    free(data);
+
+    breadcrumb_count++;
+}
 // int sentry_push_scope();
 // int sentry_pop_scope();
-int sentry_set_user(sentry_user_t *user);
-int sentry_remove_user();
-int sentry_set_fingerprint(const char **fingerprint, size_t len);
-int sentry_remove_fingerprint();
+int sentry_set_fingerprint(const char *fingerprint, ...) {
+    va_list va;
+    va_start(va, fingerprint);
+
+    if (!fingerprint) {
+        sentry_event.fingerprint.clear();
+    } else {
+        while (1) {
+            const char *arg = va_arg(va, const char *);
+            if (!arg) {
+                break;
+            }
+            sentry_event.fingerprint.push_back(arg);
+        }
+    }
+
+    va_end(va);
+
+    serialize(&sentry_event);
+    return 0;
+}
+
+int sentry_remove_fingerprint(void) {
+    return sentry_set_fingerprint(NULL);
+}
 
 int sentry_set_level(enum sentry_level_t level) {
     sentry_event.level = level;

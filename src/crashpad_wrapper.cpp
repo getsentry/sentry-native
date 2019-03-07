@@ -8,7 +8,7 @@
 #include "client/crashpad_client.h"
 #include "client/crashpad_info.h"
 #include "client/settings.h"
-#include "print_macros.hpp"
+#include "macros.hpp"
 #include "sentry.h"
 
 using namespace crashpad;
