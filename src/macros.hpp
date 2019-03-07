@@ -37,3 +37,4 @@
         } while (_rv == -1 && errno == EINTR); \
         _rv;                                   \
     })
+#endif

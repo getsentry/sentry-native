@@ -19,7 +19,7 @@ SimpleStringDictionary simple_annotations;
 
 int init(const sentry_options_t *options,
          const char *minidump_url,
-         const char *event_file) {
+         std::map<std::string, std::string> attachments) {
     if (minidump_url == nullptr) {
         return SENTRY_ERROR_NO_MINIDUMP_URL;
     }
@@ -31,8 +31,15 @@ int init(const sentry_options_t *options,
     std::string url(minidump_url);
     // Optional annotations passed via --annotations to the handler
     std::map<std::string, std::string> annotations;
-    std::map<std::string, base::FilePath> fileAttachments = {
-        {SENTRY_EVENT_FILE_NAME, base::FilePath(event_file)}};
+
+    std::map<std::string, base::FilePath> fileAttachments =
+        std::map<std::string, base::FilePath>();
+
+    std::map<std::string, std::string>::const_iterator iter;
+    for (iter = attachments.begin(); iter != attachments.end(); ++iter) {
+        fileAttachments.insert(
+            std::make_pair(iter->first, base::FilePath(iter->second)));
+    }
 
     // Optional arguments to pass to the handler
     std::vector<std::string> arguments;
@@ -67,7 +74,7 @@ int init(const sentry_options_t *options,
     crashpad_info->set_simple_annotations(&simple_annotations);
 
     return 0;
-}
+}  // namespace crashpad
 
 int set_annotation(const char *key, const char *value) {
     if (key == nullptr || value == nullptr) {

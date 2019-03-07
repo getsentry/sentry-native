@@ -55,9 +55,6 @@ static SentryEvent sentry_event = {
     .fingerprint = std::vector<std::string>(),
 };
 
-static const int BREADCRUMB_MAX = 100;
-static char *BREADCRUMB_FILE_1 = "sentry-breadcrumb1.mp";
-static char *BREADCRUMB_FILE_2 = "sentry-breadcrumb2.mp";
 static char *BREADCRUMB_CURRENT_FILE =
     BREADCRUMB_FILE_1;  // start off pointing at 1
 static int breadcrumb_count = 0;
@@ -283,10 +280,43 @@ int sentry_init(const sentry_options_t *options) {
         return rv;
     }
 
-    // TODO: Reset breadcrumb files.
+    // TODO: Reset old runs (i.e: delete old run_paths)
 
-    err = init(options, minidump_url.c_str(),
-               (sentry_event.run_path + SENTRY_EVENT_FILE_NAME).c_str());
+    std::map<std::string, std::string> attachments =
+        std::map<std::string, std::string>();
+
+    attachments.insert(
+        std::make_pair(SENTRY_EVENT_FILE_ATTACHMENT_NAME,
+                       (sentry_event.run_path + SENTRY_EVENT_FILE_NAME)));
+    attachments.insert(
+        std::make_pair(SENTRY_BREADCRUMB1_FILE_ATTACHMENT_NAME,
+                       (sentry_event.run_path + BREADCRUMB_FILE_1)));
+    attachments.insert(
+        std::make_pair(SENTRY_BREADCRUMB2_FILE_ATTACHMENT_NAME,
+                       (sentry_event.run_path + BREADCRUMB_FILE_2)));
+
+    if (options->attachments) {
+        for (int i = 0; i < ATTACHMENTS_MAX; i++) {
+            auto attachment = sane_strdup(options->attachments[i]);
+            if (!attachment) break;
+
+            char *name = strtok(attachment, "=");
+            char *file = strtok(NULL, "=");
+            if (file == NULL) {
+                SENTRY_PRINT_DEBUG_ARGS(
+                    "Attachment '%s' didn't match expected format: "
+                    "'file=path'\n",
+                    attachment);
+                free(attachment);
+                continue;
+            }
+
+            attachments.insert(std::make_pair(name, file));
+            free(attachment);
+        }
+    }
+
+    err = init(options, minidump_url.c_str(), attachments);
 
     return 0;
 }
@@ -334,8 +364,8 @@ int sentry_add_breadcrumb(sentry_breadcrumb_t *breadcrumb) {
         return -1;
     }
 
-    auto file =
-        fopen(BREADCRUMB_CURRENT_FILE, breadcrumb_count == 0 ? "w" : "a");
+    auto file = fopen((sentry_event.run_path + BREADCRUMB_CURRENT_FILE).c_str(),
+                      breadcrumb_count == 0 ? "w" : "a");
 
     if (file != NULL) {
         // consider error handling here
@@ -350,8 +380,7 @@ int sentry_add_breadcrumb(sentry_breadcrumb_t *breadcrumb) {
 
     breadcrumb_count++;
 }
-// int sentry_push_scope();
-// int sentry_pop_scope();
+
 int sentry_set_fingerprint(const char *fingerprint, ...) {
     va_list va;
     va_start(va, fingerprint);

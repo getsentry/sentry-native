@@ -4,7 +4,6 @@
 int main(void) {
     sentry_options_t option;
     sentry_options_init(&option);
-    const char *attachments[3] = {"file1=file1.txt", "file2=file2.txt", NULL};
 
     option.dsn = "https://93b6c4c0c1a14bec977f0f1adf8525e6@sentry.garcia.in/3";
     option.handler_path = "../crashpad-Darwin/bin/crashpad_handler";
@@ -13,6 +12,8 @@ int main(void) {
     option.dist = "12345";
     option.database_path = "crashpad-db";
     option.debug = 1;
+
+    const char *attachments[3] = {"file1file1.txt", "file2=file2.txt", NULL};
     option.attachments = attachments;
 
     sentry_init(&option);
@@ -28,11 +29,10 @@ int main(void) {
     sentry_set_fingerprint("foo", "bar", NULL);
 
     for (size_t i = 0; i < 101; i++) {
-        int length = snprintf(NULL, 0, "%d", i);
-        char *str = malloc(length + 1);
-        sentry_breadcrumb_t crumb = {.message = str, .level = "info"};
+        char buffer[4];
+        sprintf(buffer, "%d", i);
+        sentry_breadcrumb_t crumb = {.message = buffer, .level = "info"};
         sentry_add_breadcrumb(&crumb);
-        free(str);
     }
 
     sentry_user_t user;
