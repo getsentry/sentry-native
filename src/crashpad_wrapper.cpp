@@ -17,7 +17,9 @@ namespace sentry {
 namespace crashpad {
 SimpleStringDictionary simple_annotations;
 
-int init(const sentry_options_t *options, const char *minidump_url) {
+int init(const sentry_options_t *options,
+         const char *minidump_url,
+         const char *event_file) {
     if (minidump_url == nullptr) {
         return SENTRY_ERROR_NO_MINIDUMP_URL;
     }
@@ -29,15 +31,19 @@ int init(const sentry_options_t *options, const char *minidump_url) {
     std::string url(minidump_url);
     // Optional annotations passed via --annotations to the handler
     std::map<std::string, std::string> annotations;
+    std::map<std::string, base::FilePath> fileAttachments = {
+        {SENTRY_EVENT_FILE_NAME, base::FilePath(event_file)}};
+
     // Optional arguments to pass to the handler
     std::vector<std::string> arguments;
     arguments.push_back("--no-rate-limit");
 
     CrashpadClient client;
-    bool success = client.StartHandler(handler, database, database, url,
-                                       annotations, arguments,
-                                       /* restartable */ true,
-                                       /* asynchronous_start */ false);
+    bool success = client.StartHandlerWithAttachments(
+        handler, database, database, url, annotations, fileAttachments,
+        arguments,
+        /* restartable */ true,
+        /* asynchronous_start */ false);
 
     if (success) {
         SENTRY_PRINT_DEBUG("Started client handler.\n");

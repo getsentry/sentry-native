@@ -8,3 +8,5 @@ example
 *.dSYM
 *.mp
 *.dmp
+.sentryclirc
+.venv/

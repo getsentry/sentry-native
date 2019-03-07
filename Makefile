@@ -13,4 +13,4 @@ example: example.c libsentry.dylib
 	gcc -g -o example example.c -I ./include -L . -lsentry
 build-example: example
 clean:
-	rm -rf example libsentry.dylib completed new pending *.dSYM *.mp *.dmp *.dat
+	rm -rf example libsentry.dylib crashpad-db *.dSYM *.mp

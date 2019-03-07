@@ -2,7 +2,9 @@
 
 namespace sentry {
 namespace crashpad {
-int init(const sentry_options_t *options, const char *minidump_url);
+int init(const sentry_options_t *options,
+         const char *minidump_url,
+         const char *event_file);
 int set_annotation(const char *key, const char *value);
 int remove_annotation(const char *key);
 }  // namespace crashpad
