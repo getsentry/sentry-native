@@ -252,11 +252,11 @@ int sentry_init(const sentry_options_t *options) {
     /* Make sure run dir exists before serializer needs to write to it */
     /* TODO: Write proper x-plat mkdir */
     auto run_path = std::string(options->database_path);
-    mkdir(run_path.c_str(), 0777);
+    mkdir(run_path.c_str(), 0700);
     run_path = run_path + "/" + "sentry-runs/";
-    mkdir(run_path.c_str(), 0777);
+    mkdir(run_path.c_str(), 0700);
     sentry_event.run_path = run_path + sentry_event.run_id + "/";
-    auto rv = mkdir(sentry_event.run_path.c_str(), 0777);
+    auto rv = mkdir(sentry_event.run_path.c_str(), 0700);
     if (rv != 0 && rv != EEXIST) {
         SENTRY_PRINT_ERROR_ARGS("Failed to create sentry_runs directory '%s'\n",
                                 sentry_event.run_path.c_str());
