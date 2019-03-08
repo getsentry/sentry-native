@@ -8,6 +8,7 @@
 #include <map>
 #include <sstream>
 #include <string>
+#include "ctime"
 #include "internal.hpp"
 #include "macros.hpp"
 #include "random"
@@ -330,7 +331,13 @@ int serialize_breadcrumb(sentry_breadcrumb_t *breadcrumb,
     static mpack_writer_t writer;
 
     mpack_writer_init_growable(&writer, data, size);
-    mpack_start_map(&writer, 2);
+    mpack_start_map(&writer, 3);
+    mpack_write_cstr(&writer, "timestamp");
+    time_t now;
+    time(&now);
+    char buf[sizeof "0000-00-00T00:00:00Z"];
+    strftime(buf, sizeof buf, "%FT%TZ", gmtime(&now));
+    mpack_write_cstr_or_nil(&writer, buf);
     mpack_write_cstr(&writer, "message");
     mpack_write_cstr_or_nil(&writer, breadcrumb->message);
     mpack_write_cstr(&writer, "level");
