@@ -331,7 +331,7 @@ int serialize_breadcrumb(sentry_breadcrumb_t *breadcrumb,
     static mpack_writer_t writer;
 
     mpack_writer_init_growable(&writer, data, size);
-    mpack_start_map(&writer, 3);
+    mpack_start_map(&writer, 5);
     mpack_write_cstr(&writer, "timestamp");
     time_t now;
     time(&now);
@@ -340,8 +340,12 @@ int serialize_breadcrumb(sentry_breadcrumb_t *breadcrumb,
     mpack_write_cstr_or_nil(&writer, buf);
     mpack_write_cstr(&writer, "message");
     mpack_write_cstr_or_nil(&writer, breadcrumb->message);
+    mpack_write_cstr(&writer, "type");
+    mpack_write_cstr_or_nil(&writer, breadcrumb->type);
+    mpack_write_cstr(&writer, "category");
+    mpack_write_cstr_or_nil(&writer, breadcrumb->category);
     mpack_write_cstr(&writer, "level");
-    mpack_write_cstr_or_nil(&writer, breadcrumb->level);
+    mpack_write_i8(&writer, breadcrumb->level);
     mpack_finish_map(&writer);
     if (mpack_writer_destroy(&writer) != mpack_ok) {
         SENTRY_PRINT_ERROR("An error occurred encoding the data.\n");

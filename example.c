@@ -28,10 +28,22 @@ int main(void) {
 
     sentry_set_fingerprint("foo", "bar", NULL);
 
+    sentry_breadcrumb_t default_crumb = {.message = "default level is info"};
+    sentry_add_breadcrumb(&default_crumb);
+
+    sentry_breadcrumb_t debug_crumb = {.message = "debug crumb",
+                                       .category = "example!",
+                                       .type = "http",
+                                       .level = SENTRY_BREADCRUMB_LEVEL_DEBUG};
+    sentry_add_breadcrumb(&debug_crumb);
+
     for (size_t i = 0; i < 101; i++) {
         char buffer[4];
         sprintf(buffer, "%d", i);
-        sentry_breadcrumb_t crumb = {.message = buffer, .level = "info"};
+        sentry_breadcrumb_t crumb = {
+            .message = buffer,
+            .level = i % 2 == 0 ? SENTRY_BREADCRUMB_LEVEL_ERROR
+                                : SENTRY_BREADCRUMB_LEVEL_WARNING};
         sentry_add_breadcrumb(&crumb);
     }
 

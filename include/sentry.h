@@ -33,6 +33,22 @@ enum sentry_error_t {
     SENTRY_ERROR_INVALID_URL_MISSING_HOST = 6,
 };
 
+enum sentry_level_t {
+    SENTRY_LEVEL_DEBUG = 0,
+    SENTRY_LEVEL_INFO = 1,
+    SENTRY_LEVEL_WARNING = 2,
+    SENTRY_LEVEL_ERROR = 3,
+    SENTRY_LEVEL_FATAL = 4
+};
+
+enum sentry_breadcrumb_level_t {
+    SENTRY_BREADCRUMB_LEVEL_DEBUG = -1,
+    SENTRY_BREADCRUMB_LEVEL_INFO = 0,  // defaults to info
+    SENTRY_BREADCRUMB_LEVEL_WARNING = 1,
+    SENTRY_BREADCRUMB_LEVEL_ERROR = 2,
+    SENTRY_BREADCRUMB_LEVEL_CRITICAL = 3,
+};
+
 typedef struct sentry_options_s {
     // Unified API
     const char *dsn;
@@ -51,7 +67,9 @@ typedef struct sentry_options_s {
 
 typedef struct sentry_breadcrumb_s {
     const char *message;
-    const char *level;
+    const char *type;
+    const char *category;
+    const enum sentry_breadcrumb_level_t level;
 } sentry_breadcrumb_t;
 
 typedef struct sentry_user_s {
@@ -60,13 +78,6 @@ typedef struct sentry_user_s {
     const char *id;
     const char *ip_address;
 } sentry_user_t;
-
-enum sentry_level_t {
-    SENTRY_LEVEL_DEBUG = 0,
-    SENTRY_LEVEL_INFO = 1,
-    SENTRY_LEVEL_WARNING = 2,
-    SENTRY_LEVEL_ERROR = 3
-};
 
 // Unified API
 SENTRY_API int sentry_init(const sentry_options_t *options);
