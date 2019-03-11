@@ -3,12 +3,15 @@
 #elif defined(SENTRY_BREAKPAD)
 #include "breakpad_wrapper.hpp"
 #endif
+#include <stdarg.h>
 #include <sys/stat.h>
 #include <map>
+#include <mutex>
 #include <sstream>
 #include <string>
+#include "ctime"
 #include "internal.hpp"
-#include "print_macros.hpp"
+#include "macros.hpp"
 #include "random"
 #include "sentry.h"
 #include "vendor/mpack.h"
@@ -18,6 +21,12 @@ using namespace sentry::crashpad;
 #elif defined(SENTRY_BREAKPAD)
 using namespace sentry::breakpad;
 #endif
+
+#define BEGIN_MODIFY_EVENT std::lock_guard<std::mutex> _lck(event_lock)
+#define END_MODIFY_EVENT serialize(&sentry_event)
+#define BEGIN_MODIFY_BREADCRUMB \
+    std::lock_guard<std::mutex> _lck(breadcrumb_lock)
+#define END_MODIFY_BREADCRUMB
 
 struct SentryDsn {
     const char *scheme;
@@ -37,9 +46,13 @@ struct SentryEvent {
     std::map<std::string, std::string> user;
     std::map<std::string, std::string> tags;
     std::map<std::string, std::string> extra;
+    std::vector<std::string> fingerprint;
     std::string run_id;
     std::string run_path;
 };
+
+static std::mutex event_lock;
+static std::mutex breadcrumb_lock;
 
 static SentryEvent sentry_event = {
     .release = nullptr,
@@ -50,7 +63,12 @@ static SentryEvent sentry_event = {
     .user = std::map<std::string, std::string>(),
     .tags = std::map<std::string, std::string>(),
     .extra = std::map<std::string, std::string>(),
+    .fingerprint = std::vector<std::string>(),
 };
+
+static char *BREADCRUMB_CURRENT_FILE =
+    BREADCRUMB_FILE_1;  // start off pointing at 1
+static int breadcrumb_count = 0;
 
 char *sane_strdup(const char *s) {
     if (s) {
@@ -150,7 +168,7 @@ static void serialize(const SentryEvent *event) {
     auto dest_path = (event->run_path + SENTRY_EVENT_FILE_NAME).c_str();
     SENTRY_PRINT_DEBUG_ARGS("Serializing to file: %s\n", dest_path);
     mpack_writer_init_filename(&writer, dest_path);
-    mpack_start_map(&writer, 8);
+    mpack_start_map(&writer, 9);
     mpack_write_cstr(&writer, "release");
     mpack_write_cstr_or_nil(&writer, event->release);
     mpack_write_cstr(&writer, "level");
@@ -162,7 +180,7 @@ static void serialize(const SentryEvent *event) {
         std::map<std::string, std::string>::const_iterator iter;
         for (iter = event->user.begin(); iter != event->user.end(); ++iter) {
             mpack_write_cstr(&writer, iter->first.c_str());
-            mpack_write_cstr(&writer, iter->second.c_str());
+            mpack_write_cstr_or_nil(&writer, iter->second.c_str());
         }
         mpack_finish_map(&writer);
     } else {
@@ -183,7 +201,7 @@ static void serialize(const SentryEvent *event) {
         std::map<std::string, std::string>::const_iterator iter;
         for (iter = event->tags.begin(); iter != event->tags.end(); ++iter) {
             mpack_write_cstr(&writer, iter->first.c_str());
-            mpack_write_cstr(&writer, iter->second.c_str());
+            mpack_write_cstr_or_nil(&writer, iter->second.c_str());
         }
     }
     mpack_finish_map(&writer);  // tags
@@ -195,10 +213,20 @@ static void serialize(const SentryEvent *event) {
         std::map<std::string, std::string>::const_iterator iter;
         for (iter = event->extra.begin(); iter != event->extra.end(); ++iter) {
             mpack_write_cstr(&writer, iter->first.c_str());
-            mpack_write_cstr(&writer, iter->second.c_str());
+            mpack_write_cstr_or_nil(&writer, iter->second.c_str());
         }
     }
     mpack_finish_map(&writer);  // extra
+
+    int fingerprint_count = event->fingerprint.size();
+    mpack_write_cstr(&writer, "fingerprint");
+    mpack_start_array(&writer, fingerprint_count);  // fingerprint
+    if (fingerprint_count > 0) {
+        for (auto part : event->fingerprint) {
+            mpack_write_cstr_or_nil(&writer, part.c_str());
+        }
+    }
+    mpack_finish_array(&writer);  // fingerprint
 
     mpack_finish_map(&writer);  // root
 
@@ -263,8 +291,42 @@ int sentry_init(const sentry_options_t *options) {
         return rv;
     }
 
-    err = init(options, minidump_url.c_str(),
-               (sentry_event.run_path + SENTRY_EVENT_FILE_NAME).c_str());
+    // TODO: Reset old runs (i.e: delete old run_paths)
+
+    std::map<std::string, std::string> attachments =
+        std::map<std::string, std::string>();
+
+    attachments.insert(
+        std::make_pair(SENTRY_EVENT_FILE_ATTACHMENT_NAME,
+                       (sentry_event.run_path + SENTRY_EVENT_FILE_NAME)));
+    attachments.insert(
+        std::make_pair(SENTRY_BREADCRUMB1_FILE_ATTACHMENT_NAME,
+                       (sentry_event.run_path + BREADCRUMB_FILE_1)));
+    attachments.insert(
+        std::make_pair(SENTRY_BREADCRUMB2_FILE_ATTACHMENT_NAME,
+                       (sentry_event.run_path + BREADCRUMB_FILE_2)));
+
+    if (options->attachments) {
+        for (int i = 0; i < ATTACHMENTS_MAX; i++) {
+            auto attachment = options->attachments[i];
+            if (!attachment) break;
+
+            const char *split = strchr(attachment, '=');
+
+            if (split) {
+                auto key =
+                    std::string(attachment, (size_t)(split - attachment));
+                attachments.insert(std::make_pair(key, split + 1));
+            } else {
+                SENTRY_PRINT_DEBUG_ARGS(
+                    "Attachment '%s' didn't match expected format: "
+                    "'file=path'\n",
+                    attachment);
+            }
+        }
+    }
+
+    err = init(options, minidump_url.c_str(), attachments);
 
     return 0;
 }
@@ -272,23 +334,113 @@ int sentry_init(const sentry_options_t *options) {
 void sentry_options_init(sentry_options_t *options) {
 }
 
-// int sentry_add_breadcrumb(sentry_breadcrumb_t *breadcrumb);
-// int sentry_push_scope();
-// int sentry_pop_scope();
-int sentry_set_user(sentry_user_t *user);
-int sentry_remove_user();
-int sentry_set_fingerprint(const char **fingerprint, size_t len);
-int sentry_remove_fingerprint();
+int serialize_breadcrumb(sentry_breadcrumb_t *breadcrumb,
+                         char **data,
+                         size_t *size) {
+    static mpack_writer_t writer;
+
+    mpack_writer_init_growable(&writer, data, size);
+    mpack_start_map(&writer, 5);
+    mpack_write_cstr(&writer, "timestamp");
+    time_t now;
+    time(&now);
+    char buf[sizeof "0000-00-00T00:00:00Z"];
+    strftime(buf, sizeof buf, "%FT%TZ", gmtime(&now));
+    mpack_write_cstr_or_nil(&writer, buf);
+    mpack_write_cstr(&writer, "message");
+    mpack_write_cstr_or_nil(&writer, breadcrumb->message);
+    mpack_write_cstr(&writer, "type");
+    mpack_write_cstr_or_nil(&writer, breadcrumb->type);
+    mpack_write_cstr(&writer, "category");
+    mpack_write_cstr_or_nil(&writer, breadcrumb->category);
+    mpack_write_cstr(&writer, "level");
+    mpack_write_i8(&writer, breadcrumb->level);
+    mpack_finish_map(&writer);
+    if (mpack_writer_destroy(&writer) != mpack_ok) {
+        SENTRY_PRINT_ERROR("An error occurred encoding the data.\n");
+        // TODO: Error code
+        return -1;
+    }
+
+    return 0;
+}
+
+int sentry_add_breadcrumb(sentry_breadcrumb_t *breadcrumb) {
+    BEGIN_MODIFY_BREADCRUMB;
+
+    if (breadcrumb_count == BREADCRUMB_MAX) {
+        // swap files
+        BREADCRUMB_CURRENT_FILE = BREADCRUMB_CURRENT_FILE == BREADCRUMB_FILE_1
+                                      ? BREADCRUMB_FILE_2
+                                      : BREADCRUMB_FILE_1;
+        breadcrumb_count = 0;
+    }
+
+    char *data;
+    size_t size;
+    auto rv = serialize_breadcrumb(breadcrumb, &data, &size);
+    if (rv != 0) {
+        // TODO: failed to serialize breadcrumb
+        return -1;
+    }
+
+    auto file = fopen((sentry_event.run_path + BREADCRUMB_CURRENT_FILE).c_str(),
+                      breadcrumb_count == 0 ? "w" : "a");
+
+    if (file != NULL) {
+        // consider error handling here
+        EINTR_RETRY(fwrite(data, 1, size, file));
+        fclose(file);
+    } else {
+        SENTRY_PRINT_ERROR_ARGS("Failed to open breadcrumb file %s\n",
+                                BREADCRUMB_CURRENT_FILE);
+    }
+
+    free(data);
+
+    breadcrumb_count++;
+    END_MODIFY_BREADCRUMB;
+}
+
+int sentry_set_fingerprint(const char *fingerprint, ...) {
+    BEGIN_MODIFY_EVENT;
+    va_list va;
+    va_start(va, fingerprint);
+
+    if (!fingerprint) {
+        sentry_event.fingerprint.clear();
+    } else {
+        sentry_event.fingerprint.push_back(fingerprint);
+        while (1) {
+            const char *arg = va_arg(va, const char *);
+            if (!arg) {
+                break;
+            }
+            sentry_event.fingerprint.push_back(arg);
+        }
+    }
+
+    va_end(va);
+
+    END_MODIFY_EVENT;
+    return 0;
+}
+
+int sentry_remove_fingerprint(void) {
+    return sentry_set_fingerprint(NULL);
+}
 
 int sentry_set_level(enum sentry_level_t level) {
+    BEGIN_MODIFY_EVENT;
     sentry_event.level = level;
-    serialize(&sentry_event);
+    END_MODIFY_EVENT;
     return 0;
 }
 
 int sentry_set_transaction(const char *transaction) {
+    BEGIN_MODIFY_EVENT;
     sentry_event.transaction = transaction;
-    serialize(&sentry_event);
+    END_MODIFY_EVENT;
     return 0;
 }
 
@@ -297,6 +449,7 @@ int sentry_remove_transaction() {
 }
 
 int sentry_set_user(const sentry_user_t *user) {
+    BEGIN_MODIFY_EVENT;
     sentry_user_t *new_user = (sentry_user_t *)malloc(sizeof(sentry_user_t));
     sentry_event.user.clear();
 
@@ -314,50 +467,52 @@ int sentry_set_user(const sentry_user_t *user) {
             std::make_pair("ip_address", user->ip_address));
     }
 
-    serialize(&sentry_event);
+    END_MODIFY_EVENT;
     return 0;
 }
 
 int sentry_remove_user() {
-    int rv = sentry_set_transaction(nullptr);
-    serialize(&sentry_event);
+    int rv = sentry_set_user(nullptr);
     return rv;
 }
 
 int sentry_set_tag(const char *key, const char *value) {
+    BEGIN_MODIFY_EVENT;
     sentry_event.tags[key] = value;
-    serialize(&sentry_event);
+    END_MODIFY_EVENT;
     return 0;
 }
 
 int sentry_remove_tag(const char *key) {
+    BEGIN_MODIFY_EVENT;
     sentry_event.tags.erase(key);
-    serialize(&sentry_event);
+    END_MODIFY_EVENT;
     return 0;
 }
 
 int sentry_set_extra(const char *key, const char *value) {
+    BEGIN_MODIFY_EVENT;
     sentry_event.extra[key] = value;
-    serialize(&sentry_event);
+    END_MODIFY_EVENT;
     return 0;
 }
 
 int sentry_remove_extra(const char *key) {
+    BEGIN_MODIFY_EVENT;
     sentry_event.extra.erase(key);
-    serialize(&sentry_event);
+    END_MODIFY_EVENT;
     return 0;
 }
 
 int sentry_set_release(const char *release) {
+    BEGIN_MODIFY_EVENT;
     sentry_event.release = release;
-    serialize(&sentry_event);
+    END_MODIFY_EVENT;
     return 0;
 }
 
 int sentry_remove_release() {
-    int rv = sentry_set_release(nullptr);
-    serialize(&sentry_event);
-    return rv;
+    return sentry_set_release(nullptr);
 }
 
 void sentry_user_clear(sentry_user_t *user) {

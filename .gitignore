@@ -10,3 +10,5 @@ example
 *.dmp
 .sentryclirc
 .venv/
+.DS_Store/
+crashpad-db/

@@ -33,6 +33,14 @@ enum sentry_error_t {
     SENTRY_ERROR_INVALID_URL_MISSING_HOST = 6,
 };
 
+enum sentry_level_t {
+    SENTRY_LEVEL_DEBUG = -1,
+    SENTRY_LEVEL_INFO = 0,  // defaults to info
+    SENTRY_LEVEL_WARNING = 1,
+    SENTRY_LEVEL_ERROR = 2,
+    SENTRY_LEVEL_CRITICAL = 3,
+};
+
 typedef struct sentry_options_s {
     // Unified API
     const char *dsn;
@@ -40,6 +48,7 @@ typedef struct sentry_options_s {
     const char *environment;
     const char *dist;
     int debug;
+    const char **attachments;
     // Crashpad
     const char *handler_path;
     const char *database_path;
@@ -49,6 +58,10 @@ typedef struct sentry_options_s {
 } sentry_options_t;
 
 typedef struct sentry_breadcrumb_s {
+    const char *message;
+    const char *type;
+    const char *category;
+    const enum sentry_level_t level;
 } sentry_breadcrumb_t;
 
 typedef struct sentry_user_s {
@@ -57,13 +70,6 @@ typedef struct sentry_user_s {
     const char *id;
     const char *ip_address;
 } sentry_user_t;
-
-enum sentry_level_t {
-    SENTRY_LEVEL_DEBUG = 0,
-    SENTRY_LEVEL_INFO = 1,
-    SENTRY_LEVEL_WARNING = 2,
-    SENTRY_LEVEL_ERROR = 3
-};
 
 // Unified API
 SENTRY_API int sentry_init(const sentry_options_t *options);
@@ -78,7 +84,7 @@ SENTRY_API int sentry_set_extra(const char *key, const char *value);
 SENTRY_API int sentry_remove_extra(const char *key);
 SENTRY_API int sentry_set_release(const char *release);
 SENTRY_API int sentry_remove_release();
-SENTRY_API int sentry_set_fingerprint(const char **fingerprint, size_t len);
+SENTRY_API int sentry_set_fingerprint(const char *fingerprint, ...);
 SENTRY_API int sentry_remove_fingerprint();
 SENTRY_API int sentry_set_transaction(const char *transaction);
 SENTRY_API int sentry_remove_transaction();
