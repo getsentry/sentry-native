@@ -6,6 +6,7 @@
 #include <stdarg.h>
 #include <sys/stat.h>
 #include <map>
+#include <mutex>
 #include <sstream>
 #include <string>
 #include "ctime"
@@ -20,6 +21,12 @@ using namespace sentry::crashpad;
 #elif defined(SENTRY_BREAKPAD)
 using namespace sentry::breakpad;
 #endif
+
+#define BEGIN_MODIFY_EVENT std::lock_guard<std::mutex> _lck(event_lock)
+#define END_MODIFY_EVENT serialize(&sentry_event)
+#define BEGIN_MODIFY_BREADCRUMB \
+    std::lock_guard<std::mutex> _lck(breadcrumb_lock)
+#define END_MODIFY_BREADCRUMB
 
 struct SentryDsn {
     const char *scheme;
@@ -43,6 +50,9 @@ struct SentryEvent {
     std::string run_id;
     std::string run_path;
 };
+
+static std::mutex event_lock;
+static std::mutex breadcrumb_lock;
 
 static SentryEvent sentry_event = {
     .release = nullptr,
@@ -298,22 +308,21 @@ int sentry_init(const sentry_options_t *options) {
 
     if (options->attachments) {
         for (int i = 0; i < ATTACHMENTS_MAX; i++) {
-            auto attachment = sane_strdup(options->attachments[i]);
+            auto attachment = options->attachments[i];
             if (!attachment) break;
 
-            char *name = strtok(attachment, "=");
-            char *file = strtok(NULL, "=");
-            if (file == NULL) {
+            const char *split = strchr(attachment, '=');
+
+            if (split) {
+                auto key =
+                    std::string(attachment, (size_t)(split - attachment));
+                attachments.insert(std::make_pair(key, split + 1));
+            } else {
                 SENTRY_PRINT_DEBUG_ARGS(
                     "Attachment '%s' didn't match expected format: "
                     "'file=path'\n",
                     attachment);
-                free(attachment);
-                continue;
             }
-
-            attachments.insert(std::make_pair(name, file));
-            free(attachment);
         }
     }
 
@@ -357,7 +366,7 @@ int serialize_breadcrumb(sentry_breadcrumb_t *breadcrumb,
 }
 
 int sentry_add_breadcrumb(sentry_breadcrumb_t *breadcrumb) {
-    // TODO: synchronize!
+    BEGIN_MODIFY_BREADCRUMB;
 
     if (breadcrumb_count == BREADCRUMB_MAX) {
         // swap files
@@ -390,15 +399,18 @@ int sentry_add_breadcrumb(sentry_breadcrumb_t *breadcrumb) {
     free(data);
 
     breadcrumb_count++;
+    END_MODIFY_BREADCRUMB;
 }
 
 int sentry_set_fingerprint(const char *fingerprint, ...) {
+    BEGIN_MODIFY_EVENT;
     va_list va;
     va_start(va, fingerprint);
 
     if (!fingerprint) {
         sentry_event.fingerprint.clear();
     } else {
+        sentry_event.fingerprint.push_back(fingerprint);
         while (1) {
             const char *arg = va_arg(va, const char *);
             if (!arg) {
@@ -410,7 +422,7 @@ int sentry_set_fingerprint(const char *fingerprint, ...) {
 
     va_end(va);
 
-    serialize(&sentry_event);
+    END_MODIFY_EVENT;
     return 0;
 }
 
@@ -419,14 +431,16 @@ int sentry_remove_fingerprint(void) {
 }
 
 int sentry_set_level(enum sentry_level_t level) {
+    BEGIN_MODIFY_EVENT;
     sentry_event.level = level;
-    serialize(&sentry_event);
+    END_MODIFY_EVENT;
     return 0;
 }
 
 int sentry_set_transaction(const char *transaction) {
+    BEGIN_MODIFY_EVENT;
     sentry_event.transaction = transaction;
-    serialize(&sentry_event);
+    END_MODIFY_EVENT;
     return 0;
 }
 
@@ -435,6 +449,7 @@ int sentry_remove_transaction() {
 }
 
 int sentry_set_user(const sentry_user_t *user) {
+    BEGIN_MODIFY_EVENT;
     sentry_user_t *new_user = (sentry_user_t *)malloc(sizeof(sentry_user_t));
     sentry_event.user.clear();
 
@@ -452,50 +467,52 @@ int sentry_set_user(const sentry_user_t *user) {
             std::make_pair("ip_address", user->ip_address));
     }
 
-    serialize(&sentry_event);
+    END_MODIFY_EVENT;
     return 0;
 }
 
 int sentry_remove_user() {
-    int rv = sentry_set_transaction(nullptr);
-    serialize(&sentry_event);
+    int rv = sentry_set_user(nullptr);
     return rv;
 }
 
 int sentry_set_tag(const char *key, const char *value) {
+    BEGIN_MODIFY_EVENT;
     sentry_event.tags[key] = value;
-    serialize(&sentry_event);
+    END_MODIFY_EVENT;
     return 0;
 }
 
 int sentry_remove_tag(const char *key) {
+    BEGIN_MODIFY_EVENT;
     sentry_event.tags.erase(key);
-    serialize(&sentry_event);
+    END_MODIFY_EVENT;
     return 0;
 }
 
 int sentry_set_extra(const char *key, const char *value) {
+    BEGIN_MODIFY_EVENT;
     sentry_event.extra[key] = value;
-    serialize(&sentry_event);
+    END_MODIFY_EVENT;
     return 0;
 }
 
 int sentry_remove_extra(const char *key) {
+    BEGIN_MODIFY_EVENT;
     sentry_event.extra.erase(key);
-    serialize(&sentry_event);
+    END_MODIFY_EVENT;
     return 0;
 }
 
 int sentry_set_release(const char *release) {
+    BEGIN_MODIFY_EVENT;
     sentry_event.release = release;
-    serialize(&sentry_event);
+    END_MODIFY_EVENT;
     return 0;
 }
 
 int sentry_remove_release() {
-    int rv = sentry_set_release(nullptr);
-    serialize(&sentry_event);
-    return rv;
+    return sentry_set_release(nullptr);
 }
 
 void sentry_user_clear(sentry_user_t *user) {

@@ -68,5 +68,6 @@
         "mpack.c": "cpp",
         "numeric": "cpp",
         "random": "cpp"
-    }
+    },
+    "python.pythonPath": ".venv/bin/python2.7"
 }

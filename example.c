@@ -34,7 +34,7 @@ int main(void) {
     sentry_breadcrumb_t debug_crumb = {.message = "debug crumb",
                                        .category = "example!",
                                        .type = "http",
-                                       .level = SENTRY_BREADCRUMB_LEVEL_DEBUG};
+                                       .level = SENTRY_LEVEL_DEBUG};
     sentry_add_breadcrumb(&debug_crumb);
 
     for (size_t i = 0; i < 101; i++) {
@@ -42,8 +42,7 @@ int main(void) {
         sprintf(buffer, "%d", i);
         sentry_breadcrumb_t crumb = {
             .message = buffer,
-            .level = i % 2 == 0 ? SENTRY_BREADCRUMB_LEVEL_ERROR
-                                : SENTRY_BREADCRUMB_LEVEL_WARNING};
+            .level = i % 2 == 0 ? SENTRY_LEVEL_ERROR : SENTRY_LEVEL_WARNING};
         sentry_add_breadcrumb(&crumb);
     }
 
