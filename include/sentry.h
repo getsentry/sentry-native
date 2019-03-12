@@ -34,6 +34,7 @@ enum sentry_error_t {
     SENTRY_ERROR_NO_MINIDUMP_URL = 4,
     SENTRY_ERROR_INVALID_URL_SCHEME = 5,
     SENTRY_ERROR_INVALID_URL_MISSING_HOST = 6,
+    SENTRY_ERROR_BREADCRUMB_SERIALIZATION = 7,
 };
 
 /*
@@ -41,26 +42,26 @@ enum sentry_error_t {
  */
 enum sentry_level_t {
     SENTRY_LEVEL_DEBUG = -1,
-    SENTRY_LEVEL_INFO = 0,  // defaults to info
+    SENTRY_LEVEL_INFO = 0, /* defaults to info */
     SENTRY_LEVEL_WARNING = 1,
     SENTRY_LEVEL_ERROR = 2,
     SENTRY_LEVEL_FATAL = 3,
 };
 
 typedef struct sentry_options_s {
-    // Unified API
+    /* Unified API */
     const char *dsn;
     const char *release;
     const char *environment;
     const char *dist;
     int debug;
     const char **attachments;
-    // Crashpad
+    /* Crashpad */
     const char *handler_path;
     const char *database_path;
-    // TODO hook/callback to crashpad configuration object.
-    // Breakpad
-    // TODO: whatever breakpad needs
+    /* TODO hook/callback to crashpad configuration object. */
+    /* Breakpad */
+    /* TODO: whatever breakpad needs */
 } sentry_options_t;
 
 /*
