@@ -161,6 +161,23 @@ static int minidump_url_from_dsn(char *dsn, std::string &minidump_url_out) {
     return 0;
 }
 
+static char *to_string_level(sentry_level_t level) {
+    // https://github.com/getsentry/semaphore/blob/331b97bd3c6b7d5ea754aaa75b8e1c4083da86c0/general/src/protocol/types.rs#L513-L519
+    switch (level) {
+        case SENTRY_LEVEL_DEBUG:
+            return "debug";
+        case SENTRY_LEVEL_WARNING:
+            return "warning";
+        case SENTRY_LEVEL_ERROR:
+            return "error";
+        case SENTRY_LEVEL_FATAL:
+            return "fatal";
+        case SENTRY_LEVEL_INFO:
+        default:
+            return "info";
+    }
+}
+
 static void serialize(const SentryEvent *event) {
     mpack_writer_t writer;
     // TODO: cycle event file
@@ -172,7 +189,7 @@ static void serialize(const SentryEvent *event) {
     mpack_write_cstr(&writer, "release");
     mpack_write_cstr_or_nil(&writer, event->release);
     mpack_write_cstr(&writer, "level");
-    mpack_write_int(&writer, event->level);
+    mpack_write_cstr(&writer, to_string_level(event->level));
 
     mpack_write_cstr(&writer, "user");
     if (!event->user.empty()) {
@@ -354,7 +371,7 @@ int serialize_breadcrumb(sentry_breadcrumb_t *breadcrumb,
     mpack_write_cstr(&writer, "category");
     mpack_write_cstr_or_nil(&writer, breadcrumb->category);
     mpack_write_cstr(&writer, "level");
-    mpack_write_i8(&writer, breadcrumb->level);
+    mpack_write_cstr(&writer, to_string_level(breadcrumb->level));
     mpack_finish_map(&writer);
     if (mpack_writer_destroy(&writer) != mpack_ok) {
         SENTRY_PRINT_ERROR("An error occurred encoding the data.\n");

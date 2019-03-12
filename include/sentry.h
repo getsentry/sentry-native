@@ -38,7 +38,7 @@ enum sentry_level_t {
     SENTRY_LEVEL_INFO = 0,  // defaults to info
     SENTRY_LEVEL_WARNING = 1,
     SENTRY_LEVEL_ERROR = 2,
-    SENTRY_LEVEL_CRITICAL = 3,
+    SENTRY_LEVEL_FATAL = 3,
 };
 
 typedef struct sentry_options_s {
