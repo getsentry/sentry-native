@@ -63,8 +63,7 @@ static SentryEvent sentry_event = {
     .user = std::map<std::string, std::string>(),
     .tags = std::map<std::string, std::string>(),
     .extra = std::map<std::string, std::string>(),
-    .fingerprint = std::vector<std::string>(),
-};
+    .fingerprint = std::vector<std::string>()};
 
 static char *BREADCRUMB_CURRENT_FILE =
     BREADCRUMB_FILE_1; /* start off pointing at 1 */
@@ -187,7 +186,7 @@ static void serialize(const SentryEvent *event) {
     auto dest_path = (event->run_path + SENTRY_EVENT_FILE_NAME).c_str();
     SENTRY_PRINT_DEBUG_ARGS("Serializing to file: %s\n", dest_path);
     mpack_writer_init_filename(&writer, dest_path);
-    mpack_start_map(&writer, 9);
+    mpack_start_map(&writer, 10);
     mpack_write_cstr(&writer, "release");
     mpack_write_cstr_or_nil(&writer, event->release);
     mpack_write_cstr(&writer, "level");
@@ -246,6 +245,23 @@ static void serialize(const SentryEvent *event) {
         }
     }
     mpack_finish_array(&writer); /* fingerprint */
+
+    mpack_write_cstr(&writer, "sdk");
+    mpack_start_map(&writer, 3); /* sdk */
+    mpack_write_cstr(&writer, "name");
+    mpack_write_cstr(&writer, "sentry.native");
+    mpack_write_cstr(&writer, "version");
+    mpack_write_cstr(&writer, SENTRY_SDK_VERSION);
+    mpack_write_cstr(&writer, "packages");
+    mpack_start_array(&writer, 1); /* packages */
+    mpack_start_map(&writer, 2);   /* package */
+    mpack_write_cstr(&writer, "name");
+    mpack_write_cstr(&writer, "github:getsentry/sentrypad");
+    mpack_write_cstr(&writer, "version");
+    mpack_write_cstr(&writer, SENTRY_SDK_VERSION);
+    mpack_finish_map(&writer);   /* package */
+    mpack_finish_array(&writer); /* packages */
+    mpack_finish_map(&writer);   /* sdk */
 
     mpack_finish_map(&writer); /* root */
 

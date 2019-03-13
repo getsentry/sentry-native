@@ -17,4 +17,6 @@ static const char *SENTRY_BREADCRUMB1_FILE_ATTACHMENT_NAME =
     "__sentry-breadcrumb1";
 static const char *SENTRY_BREADCRUMB2_FILE_ATTACHMENT_NAME =
     "__sentry-breadcrumb2";
+
+static const char *SENTRY_SDK_VERSION = "0.0.1";
 #endif
