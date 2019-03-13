@@ -67,7 +67,7 @@ static SentryEvent sentry_event = {
 };
 
 static char *BREADCRUMB_CURRENT_FILE =
-    BREADCRUMB_FILE_1;  // start off pointing at 1
+    BREADCRUMB_FILE_1; /* start off pointing at 1 */
 static int breadcrumb_count = 0;
 
 char *sane_strdup(const char *s) {
@@ -142,10 +142,11 @@ static int parse_dsn(char *dsn, SentryDsn *dsn_out) {
 }
 
 static int minidump_url_from_dsn(char *dsn, std::string &minidump_url_out) {
-    // Convert DSN to minidump URL i.e:
-    // From: https://5fd7a6cda8444965bade9ccfd3df9882@sentry.io/1188141
-    // To:
-    // https://sentry.io/api/1188141/minidump/?sentry_key=5fd7a6cda8444965bade9ccfd3df9882
+    /*  Convert DSN to minidump URL i.e:
+        From: https://5fd7a6cda8444965bade9ccfd3df9882@sentry.io/1188141
+        To:
+        https://sentry.io/api/1188141/minidump/?sentry_key=5fd7a6cda8444965bade9ccfd3df9882
+    */
     SentryDsn dsn_out;
     auto rv = parse_dsn(dsn, &dsn_out);
     if (rv != 0) {
@@ -162,7 +163,8 @@ static int minidump_url_from_dsn(char *dsn, std::string &minidump_url_out) {
 }
 
 static char *to_string_level(sentry_level_t level) {
-    // https://github.com/getsentry/semaphore/blob/331b97bd3c6b7d5ea754aaa75b8e1c4083da86c0/general/src/protocol/types.rs#L513-L519
+    /* https://github.com/getsentry/semaphore/blob/331b97bd3c6b7d5ea754aaa75b8e1c4083da86c0/general/src/protocol/types.rs#L513-L519
+     */
     switch (level) {
         case SENTRY_LEVEL_DEBUG:
             return "debug";
@@ -180,8 +182,8 @@ static char *to_string_level(sentry_level_t level) {
 
 static void serialize(const SentryEvent *event) {
     mpack_writer_t writer;
-    // TODO: cycle event file
-    // Path must exist otherwise mpack will fail to write.
+    /* TODO: cycle event file */
+    /* Path must exist otherwise mpack will fail to write. */
     auto dest_path = (event->run_path + SENTRY_EVENT_FILE_NAME).c_str();
     SENTRY_PRINT_DEBUG_ARGS("Serializing to file: %s\n", dest_path);
     mpack_writer_init_filename(&writer, dest_path);
@@ -213,7 +215,7 @@ static void serialize(const SentryEvent *event) {
 
     int tag_count = event->tags.size();
     mpack_write_cstr(&writer, "tags");
-    mpack_start_map(&writer, tag_count);  // tags
+    mpack_start_map(&writer, tag_count); /* tags */
     if (tag_count > 0) {
         std::map<std::string, std::string>::const_iterator iter;
         for (iter = event->tags.begin(); iter != event->tags.end(); ++iter) {
@@ -221,11 +223,11 @@ static void serialize(const SentryEvent *event) {
             mpack_write_cstr_or_nil(&writer, iter->second.c_str());
         }
     }
-    mpack_finish_map(&writer);  // tags
+    mpack_finish_map(&writer); /* tags */
 
     int extra_count = event->extra.size();
     mpack_write_cstr(&writer, "extra");
-    mpack_start_map(&writer, extra_count);  // extra
+    mpack_start_map(&writer, extra_count); /* extra */
     if (extra_count > 0) {
         std::map<std::string, std::string>::const_iterator iter;
         for (iter = event->extra.begin(); iter != event->extra.end(); ++iter) {
@@ -233,26 +235,26 @@ static void serialize(const SentryEvent *event) {
             mpack_write_cstr_or_nil(&writer, iter->second.c_str());
         }
     }
-    mpack_finish_map(&writer);  // extra
+    mpack_finish_map(&writer); /* extra */
 
     int fingerprint_count = event->fingerprint.size();
     mpack_write_cstr(&writer, "fingerprint");
-    mpack_start_array(&writer, fingerprint_count);  // fingerprint
+    mpack_start_array(&writer, fingerprint_count); /* fingerprint */
     if (fingerprint_count > 0) {
         for (auto part : event->fingerprint) {
             mpack_write_cstr_or_nil(&writer, part.c_str());
         }
     }
-    mpack_finish_array(&writer);  // fingerprint
+    mpack_finish_array(&writer); /* fingerprint */
 
-    mpack_finish_map(&writer);  // root
+    mpack_finish_map(&writer); /* root */
 
     if (mpack_writer_destroy(&writer) != mpack_ok) {
         SENTRY_PRINT_ERROR("An error occurred encoding the data.\n");
         return;
     }
-    // atomic move on event file
-    // breadcrumb will send send both files
+    /* atomic move on event file */
+    /* breadcrumb will send send both files */
 }
 
 int sentry_init(const sentry_options_t *options) {
@@ -308,7 +310,7 @@ int sentry_init(const sentry_options_t *options) {
         return rv;
     }
 
-    // TODO: Reset old runs (i.e: delete old run_paths)
+    /* TODO: Reset old runs (i.e: delete old run_paths) */
 
     std::map<std::string, std::string> attachments =
         std::map<std::string, std::string>();
@@ -375,8 +377,7 @@ int serialize_breadcrumb(sentry_breadcrumb_t *breadcrumb,
     mpack_finish_map(&writer);
     if (mpack_writer_destroy(&writer) != mpack_ok) {
         SENTRY_PRINT_ERROR("An error occurred encoding the data.\n");
-        // TODO: Error code
-        return -1;
+        return SENTRY_ERROR_BREADCRUMB_SERIALIZATION;
     }
 
     return 0;
@@ -386,7 +387,7 @@ int sentry_add_breadcrumb(sentry_breadcrumb_t *breadcrumb) {
     BEGIN_MODIFY_BREADCRUMB;
 
     if (breadcrumb_count == BREADCRUMB_MAX) {
-        // swap files
+        /* swap files */
         BREADCRUMB_CURRENT_FILE = BREADCRUMB_CURRENT_FILE == BREADCRUMB_FILE_1
                                       ? BREADCRUMB_FILE_2
                                       : BREADCRUMB_FILE_1;
@@ -397,15 +398,14 @@ int sentry_add_breadcrumb(sentry_breadcrumb_t *breadcrumb) {
     size_t size;
     auto rv = serialize_breadcrumb(breadcrumb, &data, &size);
     if (rv != 0) {
-        // TODO: failed to serialize breadcrumb
-        return -1;
+        return rv;
     }
 
     auto file = fopen((sentry_event.run_path + BREADCRUMB_CURRENT_FILE).c_str(),
                       breadcrumb_count == 0 ? "w" : "a");
 
     if (file != NULL) {
-        // consider error handling here
+        /* consider error handling here */
         EINTR_RETRY(fwrite(data, 1, size, file));
         fclose(file);
     } else {
