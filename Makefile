@@ -14,3 +14,19 @@ example: example.c libsentry.dylib
 build-example: example
 clean:
 	rm -rf example libsentry.dylib crashpad-db *.dSYM *.mp
+
+breakpad-libsentry.dylib:
+	g++ -g -dynamiclib \
+		-o libsentry.dylib src/sentry.cpp src/breakpad_wrapper.cpp src/vendor/mpack.c \
+		-I ../breakpad-Darwin/include/ \
+		-L ../breakpad-Darwin/lib \
+		-I ../mpack-amalgamation-1.0/ -I ../mpack-amalgamation-1.0/src/mpack \
+		-I ./include \
+		-fvisibility=hidden \
+		-lbreakpad_client -lpthread \
+		-std=c++11 \
+		-framework Foundation \
+		-mmacosx-version-min=10.9 \
+		-D SENTRY_BREAKPAD
+
+
