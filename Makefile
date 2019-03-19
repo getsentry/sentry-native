@@ -4,7 +4,7 @@ libsentry.dylib:
 		-I ../crashpad-Darwin/include/ -I ../crashpad-Darwin/include/mini_chromium/ \
 		-I ./include \
 		-fvisibility=hidden \
-		-std=c++11 -L../crashpad-Darwin/lib -lclient -lbase -lutil \
+		-std=c++14 -L../crashpad-Darwin/lib -lclient -lbase -lutil \
 		-framework Foundation -framework Security -framework CoreText \
 		-framework CoreGraphics -framework IOKit -lbsm \
 		-D SENTRY_CRASHPAD
@@ -18,14 +18,10 @@ breakpad-libsentry.dylib:
 	g++ -g -dynamiclib \
 		-o libsentry.dylib src/sentry.cpp src/breakpad_wrapper.cpp src/vendor/mpack.c \
 		-I ../breakpad-Darwin/include/ \
-		-L ../breakpad-Darwin/lib \
-		-I ../mpack-amalgamation-1.0/ -I ../mpack-amalgamation-1.0/src/mpack \
 		-I ./include \
 		-fvisibility=hidden \
+		-L ../breakpad-Darwin/lib \
 		-lbreakpad_client -lpthread \
 		-std=c++11 \
 		-framework Foundation \
-		# -mmacosx-version-min=10.9 \
 		-D SENTRY_BREAKPAD
-
-

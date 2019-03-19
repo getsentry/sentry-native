@@ -65,7 +65,7 @@ static SentryEvent sentry_event = {
     .extra = std::map<std::string, std::string>(),
     .fingerprint = std::vector<std::string>()};
 
-static char *BREADCRUMB_CURRENT_FILE =
+static const char *BREADCRUMB_CURRENT_FILE =
     BREADCRUMB_FILE_1; /* start off pointing at 1 */
 static int breadcrumb_count = 0;
 
@@ -161,7 +161,7 @@ static int minidump_url_from_dsn(char *dsn, std::string &minidump_url_out) {
     return 0;
 }
 
-static char *to_string_level(sentry_level_t level) {
+static const char *to_string_level(sentry_level_t level) {
     /* https://github.com/getsentry/semaphore/blob/331b97bd3c6b7d5ea754aaa75b8e1c4083da86c0/general/src/protocol/types.rs#L513-L519
      */
     switch (level) {
@@ -433,6 +433,7 @@ int sentry_add_breadcrumb(sentry_breadcrumb_t *breadcrumb) {
 
     breadcrumb_count++;
     END_MODIFY_BREADCRUMB;
+    return 0;
 }
 
 int sentry_set_fingerprint(const char *fingerprint, ...) {
@@ -478,7 +479,7 @@ int sentry_set_transaction(const char *transaction) {
 }
 
 int sentry_remove_transaction() {
-    sentry_set_transaction(nullptr);
+    return sentry_set_transaction(nullptr);
 }
 
 int sentry_set_user(const sentry_user_t *user) {

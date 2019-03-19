@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <string.h>
 #include "sentry.h"
 
@@ -37,7 +38,7 @@ int main(void) {
                                        .level = SENTRY_LEVEL_DEBUG};
     sentry_add_breadcrumb(&debug_crumb);
 
-    for (size_t i = 0; i < 50; i++) {
+    for (int i = 0; i < 50; i++) {
         char buffer[4];
         sprintf(buffer, "%d", i);
         sentry_breadcrumb_t crumb = {
