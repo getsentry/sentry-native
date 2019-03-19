@@ -11,7 +11,7 @@ int main(void) {
     option.environment = "Production";
     option.release = "5fd7a6cd";
     option.dist = "12345";
-    option.database_path = "crashpad-db";
+    option.database_path = "sentrypad-db";
     option.debug = 1;
 
     const char *attachments[3] = {"file1file1.txt", "file2=file2.txt", NULL};

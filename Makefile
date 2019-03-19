@@ -1,5 +1,5 @@
 clean:
-	rm -rf example libsentry.* crashpad-db *.dSYM *.mp
+	rm -rf example libsentry.* sentrypad-db *.dSYM *.mp
 
 crashpad-mac:
 	g++ -g -dynamiclib \
@@ -39,5 +39,5 @@ breakpad-linux:
 		-lbreakpad_client -lpthread \
 		-std=c++14 \
 		-D SENTRY_BREAKPAD
-example-breakpad-linux: example.c libsentry.dylib
-	gcc -g -o example example.c -I ./include -L . -lsentry
+example-breakpad-linux: breakpad-linux
+	clang++ -g -o example example.c -I ./include -L . -lsentry
