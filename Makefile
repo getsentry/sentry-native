@@ -11,7 +11,7 @@ crashpad-mac:
 		-framework Foundation -framework Security -framework CoreText \
 		-framework CoreGraphics -framework IOKit -lbsm \
 		-D SENTRY_CRASHPAD
-example-crashpad-mac: example.c libsentry.dylib
+example-crashpad-mac: crashpad-mac
 	gcc -g -o example example.c -I ./include -L . -lsentry
 
 breakpad-mac:
@@ -25,7 +25,7 @@ breakpad-mac:
 		-std=c++11 \
 		-framework Foundation \
 		-D SENTRY_BREAKPAD
-example-breakpad-mac: example.c libsentry.dylib
+example-breakpad-mac: breakpad-mac
 	gcc -g -o example example.c -I ./include -L . -lsentry
 
 breakpad-linux:
