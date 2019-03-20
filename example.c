@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include <string.h>
 #include "sentry.h"
-#include <stdlib.h>
 
 int main(void) {
     sentry_options_t option;
@@ -54,5 +53,5 @@ int main(void) {
     user.username = "some name";
     sentry_set_user(&user);
 
-    *(int*)0 = 0;
+    memset((char *)0x0, 1, 100);
 }

@@ -1,5 +1,5 @@
 clean:
-	rm -rf example libsentry.* sentrypad-data *.dSYM *.mp
+	rm -rf example libsentry.* sentrypad-db *.dSYM *.mp
 
 crashpad-mac:
 	g++ -g -dynamiclib \
