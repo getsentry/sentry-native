@@ -38,7 +38,7 @@ bool callback(const MinidumpDescriptor &descriptor,
     // to the minidump file. Context is the context passed to
     // the exception handler's constructor.
     if (succeeded) {
-        SENTRY_PRINT_DEBUG_ARGS("Crashpad Minidump created at: %s\n", descriptor.path());
+        SENTRY_PRINT_DEBUG_ARGS("Breakpad Minidump created at: %s\n", descriptor.path());
     } else {
         SENTRY_PRINT_ERROR("Crashpad minidump creation failed.");
     }
@@ -52,7 +52,7 @@ int init(const sentry_options_t *options,
          const char *minidump_url,
          std::map<std::string, std::string> attachments) {
 
-    SENTRY_PRINT_DEBUG_ARGS("Initializing Crashpad with directory: %s\n", options->database_path);
+    SENTRY_PRINT_DEBUG_ARGS("Initializing Breakpad with directory: %s\n", options->database_path);
 
     #if defined(__APPLE__)
     handler  = new ExceptionHandler(
