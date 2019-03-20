@@ -1,8 +1,18 @@
 #ifndef SENTRY_INTERNAL_HPP_INCLUDED
 #define SENTRY_INTERNAL_HPP_INCLUDED
 #include <sentry.h>
+#include <string>
+#include <map>
 
 const sentry_options_t *sentry__get_options(void);
+
+struct SentryInternalOptions {
+    std::string minidump_url;
+    std::string run_id;
+    std::string run_path;
+    std::map<std::string, std::string> attachments;
+    sentry_options_t *options;
+};
 
 static const int BREADCRUMB_MAX = 100;
 static const int ATTACHMENTS_MAX = 100;

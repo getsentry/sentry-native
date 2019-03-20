@@ -12,7 +12,6 @@
 #include "sentry.h"
 
 namespace sentry {
-namespace breakpad {
 
 using namespace google_breakpad;
 
@@ -45,21 +44,20 @@ bool callback(const MinidumpDescriptor &descriptor,
     }
     return succeeded;
 }
+
 #endif
 
 ExceptionHandler *handler;
 
-int init(const sentry_options_t *options,
-         const char *minidump_url,
-         std::map<std::string, std::string> attachments) {
+int init(const SentryInternalOptions *options) {
     SENTRY_PRINT_DEBUG_ARGS("Initializing Breakpad with directory: %s\n",
-                            options->database_path);
+                            options->run_path.c_str());
 
 #if defined(__APPLE__)
     handler =
-        new ExceptionHandler(options->database_path, 0, callback, 0, true, 0);
+        new ExceptionHandler(options->run_path, 0, callback, 0, true, 0);
 #elif defined(__linux__)
-    MinidumpDescriptor descriptor(options->database_path);
+    MinidumpDescriptor descriptor(options->run_path);
     handler = new ExceptionHandler(descriptor,
                                    /* filter */ nullptr, callback,
                                    /* context */ nullptr,
@@ -68,6 +66,5 @@ int init(const sentry_options_t *options,
 #endif
     return 0;
 }
-} /* namespace breakpad */
 } /* namespace sentry */
 #endif

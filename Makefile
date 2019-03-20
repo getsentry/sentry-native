@@ -3,7 +3,7 @@ clean:
 
 crashpad-mac:
 	g++ -g -dynamiclib \
-		-o libsentry.dylib src/sentry.cpp src/crashpad_wrapper.cpp src/vendor/mpack.c \
+		-o libsentry.dylib src/sentry.cpp src/crashpad_backend.cpp src/vendor/mpack.c \
 		-I ../crashpad-Darwin/include/ -I ../crashpad-Darwin/include/mini_chromium/ \
 		-I ./include \
 		-fvisibility=hidden \
@@ -16,7 +16,7 @@ example-crashpad-mac: crashpad-mac
 
 breakpad-mac:
 	g++ -g -dynamiclib \
-		-o libsentry.dylib src/sentry.cpp src/breakpad_wrapper.cpp src/vendor/mpack.c \
+		-o libsentry.dylib src/sentry.cpp src/breakpad_backend.cpp src/vendor/mpack.c \
 		-I ../breakpad-Darwin/include/ \
 		-I ./include \
 		-fvisibility=hidden \
@@ -31,7 +31,7 @@ example-breakpad-mac: breakpad-mac
 breakpad-linux:
 	clang++ -g -shared \
 		-fPIC \
-		-o libsentry.so src/sentry.cpp src/breakpad_wrapper.cpp src/vendor/mpack.c \
+		-o libsentry.so src/sentry.cpp src/breakpad_backend.cpp src/vendor/mpack.c \
 		-I ../breakpad-Linux/include/ \
 		-I ./include \
 		-fvisibility=hidden \
