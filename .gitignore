@@ -11,4 +11,5 @@ example
 .sentryclirc
 .venv/
 .DS_Store/
-crashpad-db/
+sentrypad-db/
+libsentry.*
