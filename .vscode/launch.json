@@ -7,11 +7,11 @@
     {
       "type": "lldb",
       "request": "launch",
-      "name": "Debug",
+      "name": "Debug Crashpad macOS",
       "program": "${workspaceFolder}/example",
       "args": [],
       "cwd": "${workspaceFolder}",
-      "preLaunchTask": "make example"
+      "preLaunchTask": "make clean example-crashpad-mac"
     }
   ]
 }

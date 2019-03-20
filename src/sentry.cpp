@@ -1,15 +1,15 @@
-#include "backend.hpp"
+#include "sentry.h"
 #include <stdarg.h>
 #include <sys/stat.h>
 #include <map>
 #include <mutex>
 #include <sstream>
 #include <string>
+#include "backend.hpp"
 #include "ctime"
 #include "internal.hpp"
 #include "macros.hpp"
 #include "random"
-#include "sentry.h"
 #include "vendor/mpack.h"
 
 using namespace sentry;
@@ -55,12 +55,7 @@ static SentryEvent sentry_event = {
     .extra = std::map<std::string, std::string>(),
     .fingerprint = std::vector<std::string>()};
 
-static SentryInternalOptions sentry_internal_options = {
-    .minidump_url = nullptr,
-    .run_id = nullptr,
-    .run_path = nullptr,
-    .attachments = std::map<std::string, std::string>(),
-    .options = nullptr};
+SentryInternalOptions sentry_internal_options;
 
 static const char *BREADCRUMB_CURRENT_FILE =
     BREADCRUMB_FILE_1; /* start off pointing at 1 */
@@ -76,10 +71,10 @@ char *sane_strdup(const char *s) {
     return 0;
 }
 
-static const sentry_options_t *sentry_options;
+// static const sentry_options_t *sentry_options;
 
-const sentry_options_t *sentry__get_options(void) {
-    return sentry_options;
+const sentry_options_t *sentry_get_options(void) {
+    return &sentry_internal_options.options;
 }
 
 static int parse_dsn(char *dsn, SentryDsn *dsn_out) {
@@ -180,7 +175,8 @@ static void serialize(const SentryEvent *event) {
     mpack_writer_t writer;
     /* TODO: cycle event file */
     /* Path must exist otherwise mpack will fail to write. */
-    auto dest_path = (sentry_internal_options.run_path + SENTRY_EVENT_FILE_NAME).c_str();
+    auto dest_path =
+        (sentry_internal_options.run_path + SENTRY_EVENT_FILE_NAME).c_str();
     SENTRY_PRINT_DEBUG_ARGS("Serializing to file: %s\n", dest_path);
     mpack_writer_init_filename(&writer, dest_path);
     mpack_start_map(&writer, 10);
@@ -271,7 +267,7 @@ static void serialize(const SentryEvent *event) {
 }
 
 int sentry_init(const sentry_options_t *options) {
-    sentry_options = options;
+    // sentry_options = options;
 
     if (options->dsn == nullptr) {
         SENTRY_PRINT_ERROR("Not DSN specified. Sentry SDK will be disabled.\n");
@@ -307,7 +303,7 @@ int sentry_init(const sentry_options_t *options) {
     std::time_t result = std::time(nullptr);
     std::stringstream ss;
     ss << result << "-" << uniform_dist(engine);
-    sentry_internal_options.run_id = ss.str();
+    auto run_id = ss.str();
 
     /* Make sure run dir exists before serializer needs to write to it */
     /* TODO: Write proper x-plat mkdir */
@@ -315,7 +311,16 @@ int sentry_init(const sentry_options_t *options) {
     mkdir(run_path.c_str(), 0700);
     run_path = run_path + "/" + "sentry-runs/";
     mkdir(run_path.c_str(), 0700);
-    sentry_internal_options.run_path = run_path + sentry_internal_options.run_id + "/";
+    // sentry_internal_options.run_path =
+    //     run_path + sentry_internal_options.run_id + "/";
+
+    sentry_internal_options = SentryInternalOptions{
+        .minidump_url = minidump_url,
+        .run_id = run_id,
+        .run_path = run_path + run_id + "/",
+        .attachments = std::map<std::string, std::string>(),
+        .options = *options};
+
     auto rv = mkdir(sentry_internal_options.run_path.c_str(), 0700);
     if (rv != 0 && rv != EEXIST) {
         SENTRY_PRINT_ERROR_ARGS("Failed to create sentry_runs directory '%s'\n",
@@ -328,9 +333,9 @@ int sentry_init(const sentry_options_t *options) {
     std::map<std::string, std::string> attachments =
         std::map<std::string, std::string>();
 
-    attachments.insert(
-        std::make_pair(SENTRY_EVENT_FILE_ATTACHMENT_NAME,
-                       (sentry_internal_options.run_path + SENTRY_EVENT_FILE_NAME)));
+    attachments.insert(std::make_pair(
+        SENTRY_EVENT_FILE_ATTACHMENT_NAME,
+        (sentry_internal_options.run_path + SENTRY_EVENT_FILE_NAME)));
     attachments.insert(
         std::make_pair(SENTRY_BREADCRUMB1_FILE_ATTACHMENT_NAME,
                        (sentry_internal_options.run_path + BREADCRUMB_FILE_1)));
@@ -416,8 +421,9 @@ int sentry_add_breadcrumb(sentry_breadcrumb_t *breadcrumb) {
         return rv;
     }
 
-    auto file = fopen((sentry_internal_options.run_path + BREADCRUMB_CURRENT_FILE).c_str(),
-                      breadcrumb_count == 0 ? "w" : "a");
+    auto file = fopen(
+        (sentry_internal_options.run_path + BREADCRUMB_CURRENT_FILE).c_str(),
+        breadcrumb_count == 0 ? "w" : "a");
 
     if (file != NULL) {
         /* consider error handling here */

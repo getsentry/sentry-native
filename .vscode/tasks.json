@@ -8,7 +8,7 @@
   },
   "tasks": [
     {
-      "label": "make example",
+      "label": "make clean example-crashpad-mac",
       "type": "shell",
       "presentation": {
         "echo": true,
@@ -17,7 +17,7 @@
         "panel": "shared"
       },
       "command": "make",
-      "args": ["clean", "example"],
+      "args": ["clean", "example-crashpad-mac"],
       "group": "build"
     }
   ]

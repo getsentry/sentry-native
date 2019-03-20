@@ -49,15 +49,15 @@ bool callback(const MinidumpDescriptor &descriptor,
 
 ExceptionHandler *handler;
 
-int init(const SentryInternalOptions *options) {
+int init(const SentryInternalOptions *sentry_internal_options) {
     SENTRY_PRINT_DEBUG_ARGS("Initializing Breakpad with directory: %s\n",
-                            options->run_path.c_str());
+                            sentry_internal_options->run_path.c_str());
 
 #if defined(__APPLE__)
-    handler =
-        new ExceptionHandler(options->run_path, 0, callback, 0, true, 0);
+    handler = new ExceptionHandler(sentry_internal_options->run_path, 0,
+                                   callback, 0, true, 0);
 #elif defined(__linux__)
-    MinidumpDescriptor descriptor(options->run_path);
+    MinidumpDescriptor descriptor(sentry_internal_options->run_path);
     handler = new ExceptionHandler(descriptor,
                                    /* filter */ nullptr, callback,
                                    /* context */ nullptr,

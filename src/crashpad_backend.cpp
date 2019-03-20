@@ -15,21 +15,15 @@
 using namespace crashpad;
 
 namespace sentry {
-namespace crashpad {
 SimpleStringDictionary simple_annotations;
 
-int init(const sentry_options_t *options,
-         const char *minidump_url,
-         std::map<std::string, std::string> attachments) {
-    if (minidump_url == nullptr) {
-        return SENTRY_ERROR_NO_MINIDUMP_URL;
-    }
+int init(const SentryInternalOptions *sentry_internal_options) {
     /* Cache directory that will store crashpad information and minidumps */
-    base::FilePath database(options->database_path);
+    base::FilePath database(sentry_internal_options->options.database_path);
     /* Path to the out-of-process handler executable */
-    base::FilePath handler(options->handler_path);
+    base::FilePath handler(sentry_internal_options->options.handler_path);
     /* URL used to submit minidumps to */
-    std::string url(minidump_url);
+    std::string url(sentry_internal_options->minidump_url);
     /* Optional annotations passed via --annotations to the handler */
     std::map<std::string, std::string> annotations;
 
@@ -37,7 +31,8 @@ int init(const sentry_options_t *options,
         std::map<std::string, base::FilePath>();
 
     std::map<std::string, std::string>::const_iterator iter;
-    for (iter = attachments.begin(); iter != attachments.end(); ++iter) {
+    for (iter = sentry_internal_options->attachments.begin();
+         iter != sentry_internal_options->attachments.end(); ++iter) {
         fileAttachments.insert(
             std::make_pair(iter->first, base::FilePath(iter->second)));
     }
@@ -75,7 +70,7 @@ int init(const sentry_options_t *options,
     crashpad_info->set_simple_annotations(&simple_annotations);
 
     return 0;
-} /* namespace crashpad */
+}
 
 int set_annotation(const char *key, const char *value) {
     if (key == nullptr || value == nullptr) {
@@ -83,7 +78,7 @@ int set_annotation(const char *key, const char *value) {
     }
     simple_annotations.SetKeyValue(key, value);
     return 0;
-} /* namespace crashpad */
+}
 
 int remove_annotation(const char *key) {
     if (key == nullptr) {
@@ -93,6 +88,5 @@ int remove_annotation(const char *key) {
     return 0;
 }
 
-} /* namespace crashpad */
 } /* namespace sentry */
 #endif
