@@ -3,7 +3,6 @@
 #include <atomic>
 #include <map>
 #include <string>
-#include <vector>
 #if defined(__APPLE__)
 #include "client/mac/handler/exception_handler.h"
 #elif defined(__linux__)
@@ -38,17 +37,25 @@ bool callback(const MinidumpDescriptor &descriptor,
     // if succeeded is true, descriptor.path() contains a path
     // to the minidump file. Context is the context passed to
     // the exception handler's constructor.
+    if (succeeded) {
+        SENTRY_PRINT_DEBUG_ARGS("Crashpad Minidump created at: %s\n", descriptor.path());
+    } else {
+        SENTRY_PRINT_ERROR("Crashpad minidump creation failed.");
+    }
     return succeeded;
 }
 #endif
 
+ExceptionHandler *handler;
 
 int init(const sentry_options_t *options,
          const char *minidump_url,
          std::map<std::string, std::string> attachments) {
 
+    SENTRY_PRINT_DEBUG_ARGS("Initializing Crashpad with directory: %s\n", options->database_path);
+
     #if defined(__APPLE__)
-    ExceptionHandler eh(
+    handler  = new ExceptionHandler(
         options->database_path, 
         0, 
         callback, 
@@ -57,7 +64,7 @@ int init(const sentry_options_t *options,
         0);
     #elif defined(__linux__)
     MinidumpDescriptor descriptor(options->database_path);
-    ExceptionHandler eh(
+    handler  = new ExceptionHandler(
         descriptor,
         /* filter */ nullptr,
         callback,
