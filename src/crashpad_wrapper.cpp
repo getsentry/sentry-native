@@ -1,3 +1,4 @@
+#if defined(SENTRY_CRASHPAD)
 #include <stdio.h>
 #include <atomic>
 #include <map>
@@ -94,3 +95,4 @@ int remove_annotation(const char *key) {
 
 } /* namespace crashpad */
 } /* namespace sentry */
+#endif
