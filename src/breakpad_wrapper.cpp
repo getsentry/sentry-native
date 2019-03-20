@@ -52,7 +52,7 @@ int init(const sentry_options_t *options,
          const char *minidump_url,
          std::map<std::string, std::string> attachments) {
 
-    SENTRY_PRINT_DEBUG_ARGS("Initializing Crashpad with directory: %s\n", options->database_path);
+    SENTRY_PRINT_DEBUG_ARGS("Initializing Breakpad with directory: %s\n", options->database_path);
 
     #if defined(__APPLE__)
     handler  = new ExceptionHandler(
