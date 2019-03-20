@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "sentry.h"
+#include <stdlib.h>
 
 int main(void) {
     sentry_options_t option;
@@ -11,7 +12,7 @@ int main(void) {
     option.environment = "Production";
     option.release = "5fd7a6cd";
     option.dist = "12345";
-    option.database_path = "sentrypad-db";
+    option.database_path = "sentrypad-data";
     option.debug = 1;
 
     const char *attachments[3] = {"file1file1.txt", "file2=file2.txt", NULL};
@@ -53,5 +54,5 @@ int main(void) {
     user.username = "some name";
     sentry_set_user(&user);
 
-    memset((char *)0x0, 1, 100);
+    *(int*)0 = 0;
 }

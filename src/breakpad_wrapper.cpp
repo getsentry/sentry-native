@@ -11,6 +11,7 @@
 #endif
 #include "macros.hpp"
 #include "sentry.h"
+#include <vector>
 
 namespace sentry {
 namespace breakpad {
@@ -35,9 +36,15 @@ bool callback(const char *dump_dir,
 bool callback(const MinidumpDescriptor &descriptor,
               void *context,
               bool succeeded) {
+    printf("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAa\n");
     // if succeeded is true, descriptor.path() contains a path
     // to the minidump file. Context is the context passed to
     // the exception handler's constructor.
+    if (succeeded) {
+        SENTRY_PRINT_DEBUG_ARGS("Crashpad Minidump created at: %s\n", descriptor.path());
+    } else {
+        SENTRY_PRINT_ERROR("Crashpad minidump creation failed.");
+    }
     return succeeded;
 }
 #endif
@@ -46,6 +53,8 @@ bool callback(const MinidumpDescriptor &descriptor,
 int init(const sentry_options_t *options,
          const char *minidump_url,
          std::map<std::string, std::string> attachments) {
+
+    SENTRY_PRINT_DEBUG_ARGS("Initializing Crashpad with directory: %s\n", options->database_path);
 
     #if defined(__APPLE__)
     ExceptionHandler eh(
@@ -65,6 +74,9 @@ int init(const sentry_options_t *options,
         /* install handler */ true,
         /* server FD */ -1);
     #endif
+
+    // int* ptr = nullptr;
+    // *ptr = 1;
     return 0;
 }
 } /* namespace breakpad */
