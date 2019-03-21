@@ -47,7 +47,7 @@ bool callback(const MinidumpDescriptor &descriptor,
 }
 #endif
 
-ExceptionHandler *handler;
+breakpad::ExceptionHandler *handler;
 
 int init(const sentry_options_t *options,
          const char *minidump_url,
@@ -57,7 +57,7 @@ int init(const sentry_options_t *options,
 
 #if defined(__APPLE__)
     handler =
-        new ExceptionHandler(options->database_path, 0, callback, 0, true, 0);
+        new breakpad::ExceptionHandler(options->database_path, 0, callback, 0, true, 0);
 #elif defined(__linux__)
     MinidumpDescriptor descriptor(options->database_path);
     handler = new ExceptionHandler(descriptor,
