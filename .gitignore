@@ -13,3 +13,4 @@ example
 .DS_Store/
 sentrypad-db/
 libsentry.*
+.vscode/ipch

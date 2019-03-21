@@ -38,6 +38,7 @@ breakpad-linux:
 		-L ../breakpad-Linux/lib \
 		-lbreakpad_client -lpthread \
 		-std=c++14 \
+		-ldl \
 		-D SENTRY_BREAKPAD
 example-breakpad-linux: breakpad-linux
 	clang++ -g -o example example.c -I ./include -L . -lsentry
