@@ -67,7 +67,11 @@
         "unordered_set": "cpp",
         "mpack.c": "cpp",
         "numeric": "cpp",
-        "random": "cpp"
+        "random": "cpp",
+        "cerrno": "cpp",
+        "*.tcc": "cpp",
+        "clocale": "cpp",
+        "cinttypes": "cpp"
     },
     "python.pythonPath": ".venv/bin/python2.7"
 }

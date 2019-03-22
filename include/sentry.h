@@ -58,6 +58,7 @@ typedef struct sentry_options_s {
     const char **attachments;
     /* Crashpad */
     const char *handler_path;
+    /* The base working directory */
     const char *database_path;
     /* TODO hook/callback to crashpad configuration object. */
     /* Breakpad */

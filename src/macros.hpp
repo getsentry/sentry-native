@@ -5,18 +5,24 @@
 #include <sys/errno.h>
 #include "internal.hpp"
 
-#define SENTRY_PRINT(std, message)         \
-    do {                                   \
-        if (sentry_get_options()->debug) { \
-            fprintf(stderr, message);      \
-        }                                  \
+#define SENTRY_PRINT(std, message)                               \
+    do {                                                         \
+        if (sentry_get_options()->debug) {                       \
+            fprintf(std, message);                               \
+            if (std == stderr) {                                 \
+                fprintf(stderr, "errno: %s\n", strerror(errno)); \
+            }                                                    \
+        }                                                        \
     } while (0)
 
-#define SENTRY_PRINT_ARGS(std, message, args) \
-    do {                                      \
-        if (sentry_get_options()->debug) {    \
-            fprintf(stderr, message, args);   \
-        }                                     \
+#define SENTRY_PRINT_ARGS(std, message, args)                    \
+    do {                                                         \
+        if (sentry_get_options()->debug) {                       \
+            fprintf(std, message, args);                         \
+            if (std == stderr) {                                 \
+                fprintf(stderr, "errno: %s\n", strerror(errno)); \
+            }                                                    \
+        }                                                        \
     } while (0)
 
 #define SENTRY_PRINT_DEBUG(message) SENTRY_PRINT(stdout, message)

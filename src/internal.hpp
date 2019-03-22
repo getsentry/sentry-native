@@ -8,7 +8,9 @@ const sentry_options_t *sentry_get_options(void);
 
 struct SentryInternalOptions {
     std::string minidump_url;
+    /* The unique run identifier */
     std::string run_id;
+    /* The full path to the current run */
     std::string run_path;
     std::map<std::string, std::string> attachments;
     sentry_options_t options;

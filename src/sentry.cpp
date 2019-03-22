@@ -1,5 +1,6 @@
 #include "sentry.h"
 #include <stdarg.h>
+#include <sys/errno.h>
 #include <sys/stat.h>
 #include <map>
 #include <mutex>
@@ -175,8 +176,9 @@ static void serialize(const SentryEvent *event) {
     mpack_writer_t writer;
     /* TODO: cycle event file */
     /* Path must exist otherwise mpack will fail to write. */
-    auto dest_path =
-        (sentry_internal_options.run_path + SENTRY_EVENT_FILE_NAME).c_str();
+    auto dest_path_str =
+        sentry_internal_options.run_path + SENTRY_EVENT_FILE_NAME;
+    auto dest_path = dest_path_str.c_str();
     SENTRY_PRINT_DEBUG_ARGS("Serializing to file: %s\n", dest_path);
     mpack_writer_init_filename(&writer, dest_path);
     mpack_start_map(&writer, 10);
@@ -258,8 +260,11 @@ static void serialize(const SentryEvent *event) {
 
     mpack_finish_map(&writer); /* root */
 
-    if (mpack_writer_destroy(&writer) != mpack_ok) {
-        SENTRY_PRINT_ERROR("An error occurred encoding the data.\n");
+    auto err = mpack_writer_destroy(&writer);
+    if (err != mpack_ok) {
+        SENTRY_PRINT_ERROR_ARGS(
+            "An error occurred encoding the data. Code: %d\n", err);
+
         return;
     }
     /* atomic move on event file */
@@ -309,10 +314,8 @@ int sentry_init(const sentry_options_t *options) {
     /* TODO: Write proper x-plat mkdir */
     auto run_path = std::string(options->database_path);
     mkdir(run_path.c_str(), 0700);
-    run_path = run_path + "/" + "sentry-runs/";
+    run_path = run_path + "/sentry-runs/";
     mkdir(run_path.c_str(), 0700);
-    // sentry_internal_options.run_path =
-    //     run_path + sentry_internal_options.run_id + "/";
 
     sentry_internal_options = SentryInternalOptions{
         .minidump_url = minidump_url,
@@ -322,7 +325,7 @@ int sentry_init(const sentry_options_t *options) {
         .options = *options};
 
     auto rv = mkdir(sentry_internal_options.run_path.c_str(), 0700);
-    if (rv != 0 && rv != EEXIST) {
+    if (rv != 0 && errno != EEXIST) {
         SENTRY_PRINT_ERROR_ARGS("Failed to create sentry_runs directory '%s'\n",
                                 sentry_internal_options.run_path.c_str());
         return rv;
