@@ -1,0 +1,5 @@
+Makefile
+*.make
+deps/
+obj/
+bin/
