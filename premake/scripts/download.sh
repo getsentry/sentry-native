@@ -14,12 +14,10 @@ FILE_URL="${BUILD_REPO}/releases/latest/download/${CRASHTOOL}-${PLATFORM}-${ARCH
 
 if [[ "$CRASHTOOL" == "crashpad" ]]; then
     FILES_TO_CHECK=(
-        "${OUT_DIR}/bin/crashpad_handler"
         "${OUT_DIR}/include/client/crashpad_client.h"
     )
 elif [[ "$CRASHTOOL" == "breakpad" ]]; then
     FILES_TO_CHECK=(
-        "${OUT_DIR}/bin/dump_syms"
         "${OUT_DIR}/include/client/minidump_file_writer.h"
     )
 else

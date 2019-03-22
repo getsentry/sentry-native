@@ -45,7 +45,7 @@ project "download_breakpad"
     "IF_NOT_EXIST=1 bash ./scripts/download.sh breakpad"
   }
   cleancommands {
-    "rm -rf "..CRASHPAD_PKG,
+    "rm -rf "..BREAKPAD_PKG,
   }
 
 project "sentry_crashpad"
@@ -61,12 +61,18 @@ project "sentry_crashpad"
     CRASHPAD_PKG.."/lib",
   }
 
-  filter "system:macosx"
-    -- Crashpad
-    links {
-      "client", "base", "util"
-    }
+  files {
+    SRC_ROOT.."/src/sentry.cpp",
+    SRC_ROOT.."/src/crashpad_wrapper.cpp",
+    SRC_ROOT.."/src/vendor/mpack.c",
+  }
 
+  -- Crashpad
+  links {
+    "client", "base", "util"
+  }
+
+  filter "system:macosx"
     -- System
     links {
       "Foundation.framework",
@@ -76,12 +82,11 @@ project "sentry_crashpad"
       "IOKit.framework",
       "bsm",
     }
-
-    files {
-      SRC_ROOT.."/src/sentry.cpp",
-      SRC_ROOT.."/src/crashpad_wrapper.cpp",
-      SRC_ROOT.."/src/vendor/mpack.c",
+  filter "system:linux"
+    links {
     }
+
+
 
 project "sentry_breakpad"
   kind "SharedLib"
@@ -96,23 +101,29 @@ project "sentry_breakpad"
     BREAKPAD_PKG.."/lib",
   }
 
-  filter "system:macosx"
-    -- Breakpad
-    links {
-      "breakpad_client",
-    }
+  files {
+    SRC_ROOT.."/src/sentry.cpp",
+    SRC_ROOT.."/src/breakpad_wrapper.cpp",
+    SRC_ROOT.."/src/vendor/mpack.c",
+  }
 
+  -- Breakpad
+  links {
+    "breakpad_client",
+  }
+
+  filter "system:macosx"
     -- System
     links {
       "Foundation.framework",
       "pthread",
     }
-
-    files {
-      SRC_ROOT.."/src/sentry.cpp",
-      SRC_ROOT.."/src/breakpad_wrapper.cpp",
-      SRC_ROOT.."/src/vendor/mpack.c",
+  filter "system:linux"
+    -- System
+    links {
+      "pthread",
     }
+  filter {}
 
 project "example_crashpad"
   kind "ConsoleApp"
