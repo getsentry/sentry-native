@@ -40,7 +40,7 @@ bool callback(const char *dump_dir,
     return succeeded;
 }
 #elif defined(__linux__)
-
+//
 // bool upload_minidump(const char *run_dir) {
 //     string dir = string(run_dir);
 //     vector<string> files = vector<string>();
@@ -121,6 +121,38 @@ int serialize_attachments(const char *dest_path,
     return 0;
 }
 
+int deserialize_attachments(const char *path, map<string, string> attachments) {
+    auto file_path =
+        (string(path) + SENTRY_BREAKPAD_ATTACHMENTS_FILE_NAME).c_str();
+    SENTRY_PRINT_DEBUG_ARGS("Reading attachment files: %s\n", file_path);
+
+    mpack_reader_t reader;
+    mpack_reader_init_filename(&reader, file_path);
+
+    int schema = -1;
+    size_t count = mpack_expect_map_max(&reader, ATTACHMENTS_MAX);
+    SENTRY_PRINT_DEBUG_ARGS("# of attachments: %d", count);
+    for (size_t i = ; i > 0 && mpack_reader_error(&reader) == mpack_ok; --i) {
+        char key[ATTACHMENTS_KEY_LENGTH_MAX];
+        mpack_expect_cstr(&reader, key, sizeof(key));
+        char value[ATTACHMENTS_PATH_LENGTH_MAX];
+        mpack_expect_cstr(&reader, key, sizeof(value));
+        SENTRY_PRINT_DEBUG_ARGS("Attachment key: %s", key);
+        SENTRY_PRINT_DEBUG_ARGS(" Value: %s\n", value);
+    }
+    mpack_done_map(&reader);
+
+    // Clean up and handle errors
+    mpack_error_t error = mpack_reader_destroy(&reader);
+    if (error != mpack_ok) {
+        SENTRY_PRINT_DEBUG_ARGS("Failed reading msgpack %d", error);
+        // TODO error code
+        return -1;
+    }
+
+    return 0;
+}
+
 bool has_ending(const std::string &fullString, const std::string &ending) {
     if (fullString.length() >= ending.length()) {
         return (0 == fullString.compare(fullString.length() - ending.length(),
@@ -150,6 +182,26 @@ bool contain_minidump_in_path(DIR *dp) {
         break;
     }
     return contains;
+}
+
+int upload_run(const char *dir) {
+    DIR *dp;
+    if ((dp = opendir(dir)) == nullptr) {
+        SENTRY_PRINT_DEBUG("Not a dir?\n");
+        // TODO: const err code
+        return -1;
+    }
+
+    // TODO: Const
+    auto minidump_extension = ".dmp";
+    if (!has_ending(filep->d_name, minidump_extension)) {
+        SENTRY_PRINT_DEBUG_ARGS("Skipping non minidump file: %s\n",
+                                filep->d_name);
+        continue;
+    }
+
+    SENTRY_PRINT_DEBUG_ARGS("Found minidump file: %s\n", filep->d_name);
+    closedir(dp);
 }
 
 int upload_last_runs(const char *database_path) {
@@ -194,6 +246,24 @@ int upload_last_runs(const char *database_path) {
             continue;
         }
 
+        bool contains = false;
+        struct dirent *filep;
+        while ((filep = readdir(inner_dp)) != nullptr) {
+            if (string(filep->d_name) == "." || string(filep->d_name) == "..") {
+                continue;
+            }
+
+            // TODO: Const
+            auto minidump_extension = ".dmp";
+            if (!has_ending(filep->d_name, minidump_extension)) {
+                SENTRY_PRINT_DEBUG_ARGS("Skipping non minidump file: %s\n",
+                                        filep->d_name);
+                continue;
+            }
+            contains = true;
+            SENTRY_PRINT_DEBUG_ARGS("Found minidump file: %s\n", filep->d_name);
+            // move it, if it works u have ownership so read attachments and send stuff and delete
+        }
         if (!contain_minidump_in_path(inner_dp)) {
             SENTRY_PRINT_DEBUG_ARGS(
                 "Directory: %s doesn't have a minidump. Might be in use or was "
@@ -211,11 +281,12 @@ int upload_last_runs(const char *database_path) {
 
         if (err != 0) {
             SENTRY_PRINT_ERROR("Failed to move runs directory to pending");
+            continue;
         }
+
+        upload_run(to.c_str());
     }
     closedir(dp);
-
-    // move those to sentry_pending
 
     // upload crash
     // read attachments.mp

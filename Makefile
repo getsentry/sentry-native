@@ -41,4 +41,4 @@ breakpad-linux:
 		-ldl \
 		-D SENTRY_BREAKPAD
 example-breakpad-linux: breakpad-linux
-	clang++ -g -o example example.c -I ./include -L . -lsentry
+	clang -g -o example example.c -I ./include -L . -lsentry
