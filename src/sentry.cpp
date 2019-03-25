@@ -72,8 +72,6 @@ char *sane_strdup(const char *s) {
     return 0;
 }
 
-// static const sentry_options_t *sentry_options;
-
 const sentry_options_t *sentry_get_options(void) {
     return &sentry_internal_options.options;
 }
@@ -272,8 +270,6 @@ static void serialize(const SentryEvent *event) {
 }
 
 int sentry_init(const sentry_options_t *options) {
-    // sentry_options = options;
-
     if (options->dsn == nullptr) {
         SENTRY_PRINT_ERROR("Not DSN specified. Sentry SDK will be disabled.\n");
         return SENTRY_ERROR_NO_DSN;

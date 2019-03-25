@@ -20,6 +20,7 @@ static const int BREADCRUMB_MAX = 100;
 static const int ATTACHMENTS_MAX = 100;
 static const int ATTACHMENTS_KEY_LENGTH_MAX = 50;
 static const int ATTACHMENTS_PATH_LENGTH_MAX = 260;
+static const int MINIDUMP_URL_MAX_LENGTH = 150;
 
 static const char *SENTRY_EVENT_FILE_NAME = "sentry-event.mp";
 /* Refs are used to keep track of current breadcrumb file */

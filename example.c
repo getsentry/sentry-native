@@ -1,4 +1,3 @@
-#include <stdio.h>
 #include <string.h>
 #include "sentry.h"
 
@@ -11,7 +10,7 @@ int main(void) {
     option.environment = "Production";
     option.release = "5fd7a6cd";
     option.dist = "12345";
-    option.database_path = "sentrypad-db";
+    option.database_path = "crashpad-db";
     option.debug = 1;
 
     const char *attachments[3] = {"file1file1.txt", "file2=file2.txt", NULL};
@@ -38,7 +37,7 @@ int main(void) {
                                        .level = SENTRY_LEVEL_DEBUG};
     sentry_add_breadcrumb(&debug_crumb);
 
-    for (int i = 0; i < 50; i++) {
+    for (size_t i = 0; i < 101; i++) {
         char buffer[4];
         sprintf(buffer, "%d", i);
         sentry_breadcrumb_t crumb = {
