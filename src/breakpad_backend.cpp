@@ -1,5 +1,5 @@
 #if defined(SENTRY_BREAKPAD)
-#if defined(__linux__)
+#if defined(__linux__) || defined(__APPLE__)
 #include <dirent.h>
 #endif
 #include <sys/errno.h>
@@ -38,6 +38,9 @@ bool callback(const char *dump_dir,
     }
 
     return succeeded;
+}
+int upload(string minidump_url, map<string, string> attachments) {
+    return -1;  // TODO impl
 }
 #elif defined(__linux__)
 
@@ -88,7 +91,7 @@ struct SentryRunInfo {
     map<string, string> attachments;
 };
 
-ExceptionHandler *handler;
+google_breakpad::ExceptionHandler *handler;
 static const char *SENTRY_BREAKPAD_RUN_INFO_FILE_NAME = "sentry-db.mp";
 
 int serialize_run_info(const char *dest_path, const SentryRunInfo *info) {
@@ -311,8 +314,8 @@ int init(const SentryInternalOptions *sentry_internal_options) {
     sentry_internal_options = sentry_internal_options;
 
 #if defined(__APPLE__)
-    handler = new ExceptionHandler(sentry_internal_options->run_path, 0,
-                                   callback, 0, true, 0);
+    handler = new google_breakpad::ExceptionHandler(
+        sentry_internal_options->run_path, 0, callback, 0, true, 0);
 #elif defined(__linux__)
 
     MinidumpDescriptor descriptor(sentry_internal_options->run_path);
