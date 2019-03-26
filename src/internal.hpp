@@ -22,6 +22,7 @@ static const int ATTACHMENTS_KEY_LENGTH_MAX = 50;
 static const int ATTACHMENTS_PATH_LENGTH_MAX = 260;
 static const int MINIDUMP_URL_MAX_LENGTH = 150;
 
+static const char *MINIDUMP_FILE_EXTENSION = ".dmp";
 static const char *SENTRY_EVENT_FILE_NAME = "sentry-event.mp";
 /* Refs are used to keep track of current breadcrumb file */
 static const char *BREADCRUMB_FILE_1 = "sentry-breadcrumb1.mp";

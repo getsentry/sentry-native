@@ -2,8 +2,6 @@
 #if defined(__linux__)
 #include <dirent.h>
 #endif
-// #include <stdio.h>
-// #include <stdlib.h>
 #include <sys/errno.h>
 #include <sys/stat.h>
 #include <atomic>
@@ -120,7 +118,7 @@ int serialize_run_info(const char *dest_path, const SentryRunInfo *info) {
         SENTRY_PRINT_ERROR(
             "An error occurred while writing sentry run information. Error "
             "encoding the data.\n");
-        return -1;
+        return SENTRY_ERROR_SERIALIZING_SENTRY_RUN_INFO;
     }
 
     return 0;
@@ -158,8 +156,8 @@ int deserialize_run_info(const char *path, SentryRunInfo *run_info) {
 
     mpack_error_t error = mpack_reader_destroy(&reader);
     if (error != mpack_ok) {
-        SENTRY_PRINT_DEBUG_ARGS("Failed reading msgpack %d\n", error);
-        return error;
+        SENTRY_PRINT_DEBUG_ARGS("Failed reading msgpack: %d\n", error);
+        return SENTRY_ERROR_DESERIALIZING_SENTRY_RUN_INFO;
     }
 
     return 0;
@@ -207,8 +205,7 @@ int upload_last_runs(const char *database_path) {
     if ((dp = opendir(runs.c_str())) == nullptr) {
         SENTRY_PRINT_ERROR_ARGS("Failed to open database directory. %s\n",
                                 database_path);
-        // TODO: Error code const
-        return -2;
+        return SENTRY_ERROR_FAILED_READING_DATABASE_DIRECTORY;
     }
 
     // Look through run directory for pending uploads
@@ -235,8 +232,7 @@ int upload_last_runs(const char *database_path) {
                 continue;
             }
 
-            // TODO: Const
-            auto minidump_extension = ".dmp";
+            auto minidump_extension = MINIDUMP_FILE_EXTENSION;
             if (!has_ending(filep->d_name, minidump_extension)) {
                 SENTRY_PRINT_DEBUG_ARGS("Skipping non minidump file: %s\n",
                                         filep->d_name);
@@ -318,8 +314,8 @@ int init(const SentryInternalOptions *sentry_internal_options) {
                                    /* server FD */ -1);
 #endif
 
-    /* Serialize attachment name and path for the case of a crash,
-    next run be able to find it and name it correctly */
+    /* Serialize DSN, attachment name and path for the case of a crash,
+    next run will be able to upload it. */
     auto run_info =
         SentryRunInfo{.minidump_url = sentry_internal_options->minidump_url,
                       .attachments = sentry_internal_options->attachments};
