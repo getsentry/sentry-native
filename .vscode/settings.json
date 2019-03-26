@@ -71,7 +71,8 @@
         "cerrno": "cpp",
         "*.tcc": "cpp",
         "clocale": "cpp",
-        "cinttypes": "cpp"
+        "cinttypes": "cpp",
+        "string.h": "c"
     },
     "python.pythonPath": ".venv/bin/python2.7"
 }

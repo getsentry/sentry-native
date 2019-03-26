@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <string.h>
 #include "sentry.h"
 
@@ -39,7 +40,7 @@ int main(void) {
 
     for (size_t i = 0; i < 101; i++) {
         char buffer[4];
-        sprintf(buffer, "%d", i);
+        sprintf(buffer, "%zu", i);
         sentry_breadcrumb_t crumb = {
             .message = buffer,
             .level = i % 2 == 0 ? SENTRY_LEVEL_ERROR : SENTRY_LEVEL_WARNING};

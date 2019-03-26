@@ -70,8 +70,10 @@ bool callback(const MinidumpDescriptor &descriptor,
     // to the minidump file. Context is the context passed to
     // the exception handler's constructor.
     if (succeeded) {
-        SENTRY_PRINT_DEBUG_ARGS("Breakpad Minidump created at: %s\n",
-                                descriptor.path());
+        SENTRY_PRINT_DEBUG_ARGS(
+            "Breakpad Minidump created at: %s\nUpload will happen on the next "
+            "application run.\n",
+            descriptor.path());
     } else {
         SENTRY_PRINT_ERROR("Breakpad minidump creation failed.");
     }
@@ -140,7 +142,7 @@ int deserialize_run_info(const char *path, SentryRunInfo *run_info) {
 
     size_t count = mpack_expect_map_max(&reader, ATTACHMENTS_MAX);
 
-    SENTRY_PRINT_DEBUG_ARGS("# of attachments: %d\n", count);
+    SENTRY_PRINT_DEBUG_ARGS("# of attachments: %zu\n", count);
     for (size_t i = count; i > 0 && mpack_reader_error(&reader) == mpack_ok;
          --i) {
         char key[ATTACHMENTS_KEY_LENGTH_MAX];
@@ -276,9 +278,16 @@ int upload_last_runs(const char *database_path) {
                 SENTRY_PRINT_DEBUG(
                     "Crash upload successful! Removing run and pending "
                     "directories.\n");
-                // remove files
-                remove(run_dir.c_str());
-                remove(pending_run.c_str());
+                rv = remove(run_dir.c_str());
+                if (rv != 0) {
+                    SENTRY_PRINT_ERROR_ARGS("Failed to remove dir: %s\n",
+                                            run_dir.c_str());
+                }
+                rv = remove(pending_run.c_str());
+                if (rv != 0) {
+                    SENTRY_PRINT_ERROR_ARGS("Failed to remove dir: %s\n",
+                                            run_dir.c_str());
+                }
             } else {
                 if (rv == 100) {  // TODO handle client offline/retry
                     // Move the minidump back
