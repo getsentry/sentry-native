@@ -2,6 +2,8 @@
 #if defined(__linux__)
 #include <dirent.h>
 #endif
+// #include <stdio.h>
+// #include <stdlib.h>
 #include <sys/errno.h>
 #include <sys/stat.h>
 #include <atomic>
@@ -41,15 +43,20 @@ bool callback(const char *dump_dir,
 }
 #elif defined(__linux__)
 
-bool upload(string minidump_url, map<string, string> attachments) {
+int upload(string minidump_url, map<string, string> attachments) {
     std::map<string, string> files(attachments);
 
     // Add additional arguments for Sentry
     std::map<string, string> parameters;
 
-    SENTRY_PRINT_DEBUG_ARGS("Total files: %lu\n", files.size());
+    SENTRY_PRINT_DEBUG_ARGS("Uploading %lu files:\n", files.size());
+    std::map<std::string, std::string>::const_iterator iter;
+    for (iter = files.begin(); iter != files.end(); ++iter) {
+        SENTRY_PRINT_DEBUG_ARGS("\t%s=", iter->first.c_str());
+        SENTRY_PRINT_DEBUG_ARGS("%s\n", iter->second.c_str());
+    }
 
-    return HTTPUpload::SendRequest(minidump_url, parameters, attachments,
+    return HTTPUpload::SendRequest(minidump_url, parameters, files,
                                    /* proxy */ "",
                                    /* proxy password */ "",
                                    /* certificate */ "",
@@ -131,32 +138,29 @@ int deserialize_run_info(const char *path, SentryRunInfo *run_info) {
     char minidump_url[MINIDUMP_URL_MAX_LENGTH];
     mpack_expect_cstr(&reader, minidump_url, sizeof(minidump_url));
     SENTRY_PRINT_DEBUG_ARGS("Minidump URL: %s\n", minidump_url);
+    run_info->minidump_url = minidump_url;
 
     size_t count = mpack_expect_map_max(&reader, ATTACHMENTS_MAX);
-    map<string, string> attachments = map<string, string>();
 
     SENTRY_PRINT_DEBUG_ARGS("# of attachments: %d\n", count);
-    for (size_t i = 0; i > 0 && mpack_reader_error(&reader) == mpack_ok; --i) {
+    for (size_t i = count; i > 0 && mpack_reader_error(&reader) == mpack_ok;
+         --i) {
         char key[ATTACHMENTS_KEY_LENGTH_MAX];
         mpack_expect_cstr(&reader, key, sizeof(key));
         char value[ATTACHMENTS_PATH_LENGTH_MAX];
-        mpack_expect_cstr(&reader, key, sizeof(value));
+        mpack_expect_cstr(&reader, value, sizeof(value));
         SENTRY_PRINT_DEBUG_ARGS("Attachment key: %s", key);
         SENTRY_PRINT_DEBUG_ARGS(" Value: %s\n", value);
 
-        attachments.insert(std::make_pair(key, value));
+        run_info->attachments.insert(std::make_pair(key, value));
     }
     mpack_done_map(&reader);
 
-    // Clean up and handle errors
     mpack_error_t error = mpack_reader_destroy(&reader);
     if (error != mpack_ok) {
         SENTRY_PRINT_DEBUG_ARGS("Failed reading msgpack %d\n", error);
         return error;
     }
-
-    run_info->minidump_url = minidump_url;
-    run_info->attachments = attachments;
 
     return 0;
 }
@@ -271,22 +275,27 @@ int upload_last_runs(const char *database_path) {
             run_info.attachments.insert(
                 make_pair("upload_file_minidump", minidump_to));
 
-            upload(run_info.minidump_url, run_info.attachments);
-            // move it, if it works u have ownership so read attachments and
-            // send stuff and delete
+            rv = upload(run_info.minidump_url, run_info.attachments);
+            if (rv == 0) {
+                SENTRY_PRINT_DEBUG(
+                    "Crash upload successful! Removing run and pending "
+                    "directories.\n");
+                // remove files
+                remove(run_dir.c_str());
+                remove(pending_run.c_str());
+            } else {
+                if (rv == 100) {  // TODO handle client offline/retry
+                    // Move the minidump back
+                } else {
+                    SENTRY_PRINT_ERROR_ARGS("Failed to upload with code: %d\n",
+                                            rv);
+                }
+            }
         }
 
         closedir(inner_dp);
-
-        // upload_run(to.c_str());
     }
     closedir(dp);
-
-    // upload crash
-    // read attachments.mp
-    // copy files to working dir
-    // remove attachments.mp
-    // make request
 
     return 0;
 }  // namespace sentry
