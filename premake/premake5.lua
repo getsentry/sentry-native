@@ -68,6 +68,10 @@ project "sentry_crashpad"
     SRC_ROOT.."/src/vendor/mpack.c",
   }
 
+  postbuildcommands {
+    "{COPY} "..CRASHPAD_PKG.."/bin/crashpad_handler %{cfg.buildtarget.directory}",
+  }
+
   -- Crashpad
   links {
     "client", "base", "util"

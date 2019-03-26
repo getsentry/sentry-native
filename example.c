@@ -7,7 +7,7 @@ int main(void) {
     sentry_options_init(&option);
 
     option.dsn = "https://93b6c4c0c1a14bec977f0f1adf8525e6@sentry.garcia.in/3";
-    option.handler_path = "../crashpad-Darwin/bin/crashpad_handler";
+    option.handler_path = "bin/Release/crashpad_handler";
     option.environment = "Production";
     option.release = "5fd7a6cd";
     option.dist = "12345";
