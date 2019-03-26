@@ -20,8 +20,9 @@ function file_exists(name)
   return f ~= nil and io.close(f)
 end
 
-workspace "Sentrypad"
+workspace "sentrypad"
   configurations {"Release"}
+  toolset("clang")
   language "C++"
   cppdialect "C++14"
   includedirs {
@@ -63,8 +64,12 @@ project "sentry_crashpad"
 
   files {
     SRC_ROOT.."/src/sentry.cpp",
-    SRC_ROOT.."/src/crashpad_wrapper.cpp",
+    SRC_ROOT.."/src/crashpad_backend.cpp",
     SRC_ROOT.."/src/vendor/mpack.c",
+  }
+
+  postbuildcommands {
+    "{COPY} "..CRASHPAD_PKG.."/bin/crashpad_handler %{cfg.buildtarget.directory}",
   }
 
   -- Crashpad
@@ -103,7 +108,7 @@ project "sentry_breakpad"
 
   files {
     SRC_ROOT.."/src/sentry.cpp",
-    SRC_ROOT.."/src/breakpad_wrapper.cpp",
+    SRC_ROOT.."/src/breakpad_backend.cpp",
     SRC_ROOT.."/src/vendor/mpack.c",
   }
 
@@ -135,7 +140,7 @@ project "example_crashpad"
 
 project "example_breakpad"
   kind "ConsoleApp"
-  links {"sentry_breakpad"}
+  links {"sentry_breakpad", "dl"}
   files {
     SRC_ROOT.."/example.c",
   }

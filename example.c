@@ -7,14 +7,14 @@ int main(void) {
     sentry_options_init(&option);
 
     option.dsn = "https://93b6c4c0c1a14bec977f0f1adf8525e6@sentry.garcia.in/3";
-    option.handler_path = "../crashpad-Darwin/bin/crashpad_handler";
+    option.handler_path = "bin/Release/crashpad_handler";
     option.environment = "Production";
     option.release = "5fd7a6cd";
     option.dist = "12345";
     option.database_path = "sentrypad-db";
     option.debug = 1;
 
-    const char *attachments[3] = {"file1file1.txt", "file2=file2.txt", NULL};
+    const char *attachments[3] = {"example=example.c", NULL};
     option.attachments = attachments;
 
     sentry_init(&option);
@@ -38,9 +38,9 @@ int main(void) {
                                        .level = SENTRY_LEVEL_DEBUG};
     sentry_add_breadcrumb(&debug_crumb);
 
-    for (int i = 0; i < 50; i++) {
+    for (size_t i = 0; i < 101; i++) {
         char buffer[4];
-        sprintf(buffer, "%d", i);
+        sprintf(buffer, "%zu", i);
         sentry_breadcrumb_t crumb = {
             .message = buffer,
             .level = i % 2 == 0 ? SENTRY_LEVEL_ERROR : SENTRY_LEVEL_WARNING};

@@ -35,6 +35,9 @@ enum sentry_error_t {
     SENTRY_ERROR_INVALID_URL_SCHEME = 5,
     SENTRY_ERROR_INVALID_URL_MISSING_HOST = 6,
     SENTRY_ERROR_BREADCRUMB_SERIALIZATION = 7,
+    SENTRY_ERROR_SERIALIZING_SENTRY_RUN_INFO = 8,
+    SENTRY_ERROR_DESERIALIZING_SENTRY_RUN_INFO = 9,
+    SENTRY_ERROR_FAILED_READING_DATABASE_DIRECTORY = 10,
 };
 
 /*
@@ -58,10 +61,8 @@ typedef struct sentry_options_s {
     const char **attachments;
     /* Crashpad */
     const char *handler_path;
+    /* The base working directory */
     const char *database_path;
-    /* TODO hook/callback to crashpad configuration object. */
-    /* Breakpad */
-    /* TODO: whatever breakpad needs */
 } sentry_options_t;
 
 /*
