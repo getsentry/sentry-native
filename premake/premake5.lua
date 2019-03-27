@@ -22,12 +22,15 @@ end
 
 workspace "sentrypad"
   configurations {"Release"}
-  toolset("clang")
   language "C++"
   cppdialect "C++14"
   includedirs {
     SRC_ROOT.."/include",
   }
+
+  filter "system:macosx or linux"
+    toolset("clang")
+  filter {}
 
 
 project "download_crashpad"
@@ -97,7 +100,9 @@ project "sentry_breakpad"
   kind "SharedLib"
   defines {"SENTRY_BREAKPAD"}
   dependson {"download_breakpad"}
-  buildoptions {"-fvisibility=hidden"}
+  buildoptions {
+    "-fvisibility=hidden",
+  }
   includedirs {
     BREAKPAD_PKG.."/include",
   }
@@ -133,6 +138,9 @@ project "sentry_breakpad"
 project "example_crashpad"
   kind "ConsoleApp"
   links {"sentry_crashpad"}
+  buildoptions {
+    "-fPIC",
+  }
   files {
     SRC_ROOT.."/example.c",
   }
@@ -141,6 +149,9 @@ project "example_crashpad"
 project "example_breakpad"
   kind "ConsoleApp"
   links {"sentry_breakpad", "dl"}
+  buildoptions {
+    "-fPIC",
+  }
   files {
     SRC_ROOT.."/example.c",
   }

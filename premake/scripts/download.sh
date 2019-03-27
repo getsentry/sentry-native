@@ -41,7 +41,7 @@ download_and_extract() {
 DOWNLOAD_IF_NOT_EXIST="${IF_NOT_EXIST:-}"
 
 FILES_EXIST=""
-if ls ${FILES_TO_CHECK[@]} 2>&1 >/dev/null; then
+if ls ${FILES_TO_CHECK[@]} &>/dev/null; then
     FILES_EXIST="1"
 fi
 
