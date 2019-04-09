@@ -95,18 +95,18 @@ google_breakpad::ExceptionHandler *handler;
 static const char *SENTRY_BREAKPAD_RUN_INFO_FILE_NAME = "sentry-db.mp";
 
 int serialize_run_info(const char *dest_path, const SentryRunInfo *info) {
-    auto file_path =
-        (string(dest_path) + SENTRY_BREAKPAD_RUN_INFO_FILE_NAME).c_str();
-    SENTRY_PRINT_DEBUG_ARGS("Writing database files: %s\n", file_path);
+    std::string file_path =
+        (string(dest_path) + SENTRY_BREAKPAD_RUN_INFO_FILE_NAME);
+    SENTRY_PRINT_DEBUG_ARGS("Writing database files: %s\n", file_path.c_str());
 
     mpack_writer_t writer;
-    mpack_writer_init_filename(&writer, file_path);
+    mpack_writer_init_filename(&writer, file_path.c_str());
 
     mpack_write_cstr(&writer, info->minidump_url.c_str());
     SENTRY_PRINT_DEBUG_ARGS("Writing minidump_url: %s\n",
                             info->minidump_url.c_str());
 
-    auto attachments_size = info->attachments.size();
+    size_t attachments_size = info->attachments.size();
     mpack_start_map(&writer, attachments_size); /* attachments */
     if (attachments_size > 0) {
         std::map<std::string, std::string>::const_iterator iter;
@@ -130,13 +130,12 @@ int serialize_run_info(const char *dest_path, const SentryRunInfo *info) {
 }
 
 int deserialize_run_info(const char *path, SentryRunInfo *run_info) {
-    auto file_path =
-        (string(path) + SENTRY_BREAKPAD_RUN_INFO_FILE_NAME).c_str();
+    std::string file_path = (string(path) + SENTRY_BREAKPAD_RUN_INFO_FILE_NAME);
     SENTRY_PRINT_DEBUG_ARGS("Reading run information from path: %s\n",
-                            file_path);
+                            file_path.c_str());
 
     mpack_reader_t reader;
-    mpack_reader_init_filename(&reader, file_path);
+    mpack_reader_init_filename(&reader, file_path.c_str());
 
     char minidump_url[MINIDUMP_URL_MAX_LENGTH];
     mpack_expect_cstr(&reader, minidump_url, sizeof(minidump_url));
@@ -179,7 +178,7 @@ bool has_ending(const std::string &fullString, const std::string &ending) {
 
 int create_directory(const char *path) {
     // TODO: x-plat create dir
-    auto rv = mkdir(path, 0700);
+    int rv = mkdir(path, 0700);
     if (rv != 0) {
         if (errno == EEXIST) {
             SENTRY_PRINT_DEBUG_ARGS("Directory '%s' exists.\n", path);
@@ -198,11 +197,11 @@ int upload_last_runs(const char *database_path) {
     // runs_path
     DIR *dp;
     struct dirent *dirp;
-    auto runs = string(database_path) + "/sentry-runs/";
-    auto pending = string(database_path) + "/sentry-pending/";
+    std::string runs = string(database_path) + "/sentry-runs/";
+    std::string pending = string(database_path) + "/sentry-pending/";
 
     // Make sure pending exists way before getting here
-    auto rv = create_directory(pending.c_str());
+    int rv = create_directory(pending.c_str());
     if (rv != 0) {
         return rv;
     }
@@ -219,7 +218,7 @@ int upload_last_runs(const char *database_path) {
             continue;
         }
 
-        auto from = runs + dirp->d_name;
+        std::string from = runs + dirp->d_name;
         SENTRY_PRINT_DEBUG_ARGS("Looking for runs with minidump files at: %s\n",
                                 dirp->d_name);
 
@@ -237,28 +236,27 @@ int upload_last_runs(const char *database_path) {
                 continue;
             }
 
-            auto minidump_extension = MINIDUMP_FILE_EXTENSION;
-            if (!has_ending(filep->d_name, minidump_extension)) {
+            if (!has_ending(filep->d_name, MINIDUMP_FILE_EXTENSION)) {
                 SENTRY_PRINT_DEBUG_ARGS("Skipping non minidump file: %s\n",
                                         filep->d_name);
                 continue;
             }
             SENTRY_PRINT_DEBUG_ARGS("Found minidump file: %s\n", filep->d_name);
 
-            auto run_dir = runs + dirp->d_name + "/";
-            auto minidump_from = run_dir + filep->d_name;
-            auto pending_run = pending + dirp->d_name;
+            std::string run_dir = runs + dirp->d_name + "/";
+            std::string minidump_from = run_dir + filep->d_name;
+            std::string pending_run = pending + dirp->d_name;
             // Make sure run directory exists
-            auto rv = create_directory(pending_run.c_str());
+            int rv = create_directory(pending_run.c_str());
             if (rv != 0) {
                 continue;
             }
-            auto minidump_to = pending_run + "/" + filep->d_name;
+            std::string minidump_to = pending_run + "/" + filep->d_name;
             SENTRY_PRINT_DEBUG_ARGS("Moving minidump from: %s",
                                     minidump_from.c_str());
             SENTRY_PRINT_DEBUG_ARGS(" to: %s\n", minidump_to.c_str());
 
-            auto err = rename(minidump_from.c_str(), minidump_to.c_str());
+            int err = rename(minidump_from.c_str(), minidump_to.c_str());
             if (err != 0) {
                 SENTRY_PRINT_ERROR("Failed to move minidump.\n");
                 continue;
@@ -328,12 +326,12 @@ int init(const SentryInternalOptions *sentry_internal_options) {
 
     /* Serialize DSN, attachment name and path for the case of a crash,
     next run will be able to upload it. */
-    auto run_info =
-        SentryRunInfo{.minidump_url = sentry_internal_options->minidump_url,
-                      .attachments = sentry_internal_options->attachments};
+    SentryRunInfo run_info{
+        .minidump_url = sentry_internal_options->minidump_url,
+        .attachments = sentry_internal_options->attachments};
 
-    auto rv = serialize_run_info(sentry_internal_options->run_path.c_str(),
-                                 &run_info);
+    int rv = serialize_run_info(sentry_internal_options->run_path.c_str(),
+                                &run_info);
 
     rv = upload_last_runs(sentry_internal_options->options.database_path);
     if (rv != 0) {

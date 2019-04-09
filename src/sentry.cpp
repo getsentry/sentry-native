@@ -138,7 +138,7 @@ static int minidump_url_from_dsn(char *dsn, std::string &minidump_url_out) {
         https://sentry.io/api/1188141/minidump/?sentry_key=5fd7a6cda8444965bade9ccfd3df9882
     */
     SentryDsn dsn_out;
-    auto rv = parse_dsn(dsn, &dsn_out);
+    int rv = parse_dsn(dsn, &dsn_out);
     if (rv != 0) {
         return rv;
     }
@@ -174,9 +174,9 @@ static void serialize(const SentryEvent *event) {
     mpack_writer_t writer;
     /* TODO: cycle event file */
     /* Path must exist otherwise mpack will fail to write. */
-    auto dest_path_str =
+    std::string dest_path_str =
         sentry_internal_options.run_path + SENTRY_EVENT_FILE_NAME;
-    auto dest_path = dest_path_str.c_str();
+    const char *dest_path = dest_path_str.c_str();
     SENTRY_PRINT_DEBUG_ARGS("Serializing to file: %s\n", dest_path);
     mpack_writer_init_filename(&writer, dest_path);
     mpack_start_map(&writer, 10);
@@ -233,7 +233,7 @@ static void serialize(const SentryEvent *event) {
     mpack_write_cstr(&writer, "fingerprint");
     mpack_start_array(&writer, fingerprint_count); /* fingerprint */
     if (fingerprint_count > 0) {
-        for (auto part : event->fingerprint) {
+        for (const std::string &part : event->fingerprint) {
             mpack_write_cstr_or_nil(&writer, part.c_str());
         }
     }
@@ -258,7 +258,7 @@ static void serialize(const SentryEvent *event) {
 
     mpack_finish_map(&writer); /* root */
 
-    auto err = mpack_writer_destroy(&writer);
+    mpack_error_t err = mpack_writer_destroy(&writer);
     if (err != mpack_ok) {
         SENTRY_PRINT_ERROR_ARGS(
             "An error occurred encoding the data. Code: %d\n", err);
@@ -276,8 +276,8 @@ int sentry_init(const sentry_options_t *options) {
     }
 
     std::string minidump_url;
-    auto *dsn = strdup(options->dsn);
-    auto err = minidump_url_from_dsn(dsn, minidump_url);
+    char *dsn = strdup(options->dsn);
+    int err = minidump_url_from_dsn(dsn, minidump_url);
     free(dsn);
     if (err != 0) {
         return err;
@@ -304,11 +304,11 @@ int sentry_init(const sentry_options_t *options) {
     std::time_t result = std::time(nullptr);
     std::stringstream ss;
     ss << result << "-" << uniform_dist(engine);
-    auto run_id = ss.str();
+    std::string run_id = ss.str();
 
     /* Make sure run dir exists before serializer needs to write to it */
     /* TODO: Write proper x-plat mkdir */
-    auto run_path = std::string(options->database_path);
+    std::string run_path = std::string(options->database_path);
     mkdir(run_path.c_str(), 0700);
     run_path = run_path + "/sentry-runs/";
     mkdir(run_path.c_str(), 0700);
@@ -320,7 +320,7 @@ int sentry_init(const sentry_options_t *options) {
         .attachments = std::map<std::string, std::string>(),
         .options = *options};
 
-    auto rv = mkdir(sentry_internal_options.run_path.c_str(), 0700);
+    int rv = mkdir(sentry_internal_options.run_path.c_str(), 0700);
     if (rv != 0 && errno != EEXIST) {
         SENTRY_PRINT_ERROR_ARGS("Failed to create sentry_runs directory '%s'\n",
                                 sentry_internal_options.run_path.c_str());
@@ -344,13 +344,13 @@ int sentry_init(const sentry_options_t *options) {
 
     if (options->attachments) {
         for (int i = 0; i < ATTACHMENTS_MAX; i++) {
-            auto attachment = options->attachments[i];
+            const char *attachment = options->attachments[i];
             if (!attachment) break;
 
             const char *split = strchr(attachment, '=');
 
             if (split) {
-                auto key =
+                std::string key =
                     std::string(attachment, (size_t)(split - attachment));
                 attachments.insert(std::make_pair(key, split + 1));
             } else {
@@ -415,12 +415,12 @@ int sentry_add_breadcrumb(sentry_breadcrumb_t *breadcrumb) {
 
     char *data;
     size_t size;
-    auto rv = serialize_breadcrumb(breadcrumb, &data, &size);
+    int rv = serialize_breadcrumb(breadcrumb, &data, &size);
     if (rv != 0) {
         return rv;
     }
 
-    auto file = fopen(
+    FILE *file = fopen(
         (sentry_internal_options.run_path + BREADCRUMB_CURRENT_FILE).c_str(),
         breadcrumb_count == 0 ? "w" : "a");
 
