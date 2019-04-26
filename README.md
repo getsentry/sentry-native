@@ -4,18 +4,28 @@ SentryPad is a wrapper around two most popular crash-reporting frameworks: [Brea
 
 Platforms we aim to support: MacOS X, Linux (32/64 bit), Windows (32/64 bit), Android, iOS.
 
-## Building Example Application
+## Prerequisites
 
-### Breakpad Linux:
+* [premake5](https://premake.github.io/download.html#v5)
+* make (Linux, MacOS)
+* Visual Studio 2017 (Windows)
+
+## Building Example Applications
+
+### Crashpad on Linux/MacOS
 
 ```sh
-make example-breakpad-linux
-LD_LIBRARY_PATH=. ./example
+cd premake/
+premake5 gmake2
+make example_crashpad
+./bin/Release/example_crashpad
 ```
 
-### Crashpad macOS:
+### Breakpad on Windows
 
 ```sh
-make example-crashpad-mac
-./example
+cd premake/
+premake5 vs2017
 ```
+
+The last command will create a Visual Studio 2017 solution that contains `example_breakpad` project.
