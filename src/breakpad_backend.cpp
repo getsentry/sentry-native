@@ -130,7 +130,7 @@ int serialize_run_info(const char *dest_path, const SentryRunInfo *info) {
 }
 
 int deserialize_run_info(const char *path, SentryRunInfo *run_info) {
-    std::string file_path = (string(path) + SENTRY_BREAKPAD_RUN_INFO_FILE_NAME);
+    std::string file_path = string(path) + SENTRY_BREAKPAD_RUN_INFO_FILE_NAME;
     SENTRY_PRINT_DEBUG_ARGS("Reading run information from path: %s\n",
                             file_path.c_str());
 
@@ -177,19 +177,80 @@ bool has_ending(const std::string &fullString, const std::string &ending) {
 }
 
 int create_directory(const char *path) {
-    // TODO: x-plat create dir
-    int rv = mkdir(path, 0700);
-    if (rv != 0) {
-        if (errno == EEXIST) {
-            SENTRY_PRINT_DEBUG_ARGS("Directory '%s' exists.\n", path);
-            return 0;
-        } else {
-            SENTRY_PRINT_ERROR_ARGS("Failed to create directory '%s'\n", path);
-        }
+#ifdef _WIN32
+    int rv = SHCreateDirectoryExA(NULL, path, NULL);
+    if (rv == ERROR_SUCCESS || rv == ERROR_ALREADY_EXISTS ||
+        ERROR_FILE_EXISTS) {
+        return 0;
     } else {
-        SENTRY_PRINT_DEBUG_ARGS("Created directory: %s\n", path);
+        SENTRY_PRINT_ERROR_ARGS("Failed to create directory '%s'\n", path);
+        return rv;
     }
-    return rv;
+#else
+#define _TRY_MAKE_DIR                                                    \
+    do {                                                                 \
+        rv = mkdir(p, 0700);                                             \
+        if (rv != 0 && errno != EEXIST) {                                \
+            SENTRY_PRINT_ERROR_ARGS("Failed to create directory '%s'\n", \
+                                    path);                               \
+            goto done;                                                   \
+        }                                                                \
+    } while (0)
+
+    int rv = 0;
+    char *p = strdup(path);
+    char *ptr;
+    for (ptr = p; *ptr; ptr++) {
+        if (*ptr == '/') {
+            *ptr = 0;
+            _TRY_MAKE_DIR;
+            *ptr = '/';
+        }
+    }
+    _TRY_MAKE_DIR;
+#undef _TRY_MAKE_DIR
+done:
+    free(p);
+    return 0;
+#endif
+}
+
+int remove_directory(const char *path) {
+#ifdef _WIN32
+    str::string p(path);
+    p += '\0';
+    SHFILEOPSTRUCTA fos = {0};
+    fos.wFunc = FO_DELETE;
+    fos.pFrom = p.c_str();
+    fos.fFlags = FOF_NO_UI;
+    return SHFileOperation(&fos);
+#else
+    DIR *dp;
+    struct dirent *dirp;
+
+    if ((dp = opendir(path)) == nullptr) {
+        return 1;
+    }
+
+    while ((dirp = readdir(dp)) != nullptr) {
+        if (strcmp(dirp->d_name, ".") == 0 || strcmp(dirp->d_name, "..") == 0) {
+            continue;
+        }
+        std::string p(path);
+        if (p[p.length() - 1] != '/') {
+            p += '/';
+        }
+        p += dirp->d_name;
+        if (remove(p.c_str()) != 0) {
+            return 1;
+        }
+    }
+
+    closedir(dp);
+
+    remove(path);
+    return 0;
+#endif
 }
 
 int upload_last_runs(const char *database_path) {
@@ -214,7 +275,7 @@ int upload_last_runs(const char *database_path) {
 
     // Look through run directory for pending uploads
     while ((dirp = readdir(dp)) != nullptr) {
-        if (string(dirp->d_name) == "." || string(dirp->d_name) == "..") {
+        if (strcmp(dirp->d_name, ".") == 0 || strcmp(dirp->d_name, "..") == 0) {
             continue;
         }
 
@@ -226,19 +287,17 @@ int upload_last_runs(const char *database_path) {
         // by another instance)
         DIR *inner_dp;
         if ((inner_dp = opendir(from.c_str())) == nullptr) {
-            SENTRY_PRINT_DEBUG("Not a dir?\n");
             continue;
         }
 
         struct dirent *filep;
         while ((filep = readdir(inner_dp)) != nullptr) {
-            if (string(filep->d_name) == "." || string(filep->d_name) == "..") {
+            if (strcmp(dirp->d_name, ".") == 0 ||
+                strcmp(dirp->d_name, "..") == 0) {
                 continue;
             }
 
             if (!has_ending(filep->d_name, MINIDUMP_FILE_EXTENSION)) {
-                SENTRY_PRINT_DEBUG_ARGS("Skipping non minidump file: %s\n",
-                                        filep->d_name);
                 continue;
             }
             SENTRY_PRINT_DEBUG_ARGS("Found minidump file: %s\n", filep->d_name);
@@ -247,6 +306,8 @@ int upload_last_runs(const char *database_path) {
             std::string minidump_from = run_dir + filep->d_name;
             std::string pending_run = pending + dirp->d_name;
             // Make sure run directory exists
+            SENTRY_PRINT_DEBUG_ARGS("Making pending folder: %s\n",
+                                    pending_run.c_str());
             int rv = create_directory(pending_run.c_str());
             if (rv != 0) {
                 continue;
@@ -279,19 +340,21 @@ int upload_last_runs(const char *database_path) {
                 SENTRY_PRINT_DEBUG(
                     "Crash upload successful! Removing run and pending "
                     "directories.\n");
-                rv = remove(run_dir.c_str());
+                std::string event =
+                    run_dir + SENTRY_BREAKPAD_RUN_INFO_FILE_NAME;
+                int rv = remove_directory(run_dir.c_str());
                 if (rv != 0) {
                     SENTRY_PRINT_ERROR_ARGS("Failed to remove dir: %s\n",
                                             run_dir.c_str());
                 }
-                rv = remove(pending_run.c_str());
+                rv = remove_directory(pending_run.c_str());
                 if (rv != 0) {
                     SENTRY_PRINT_ERROR_ARGS("Failed to remove dir: %s\n",
                                             run_dir.c_str());
                 }
             } else {
-                if (rv == 100) {  // TODO handle client offline/retry
-                    // Move the minidump back
+                if (rv == 100) {
+                    rename(minidump_to.c_str(), minidump_from.c_str());
                 } else {
                     SENTRY_PRINT_ERROR_ARGS("Failed to upload with code: %d\n",
                                             rv);
@@ -304,7 +367,7 @@ int upload_last_runs(const char *database_path) {
     closedir(dp);
 
     return 0;
-}  // namespace sentry
+}
 
 int init(const SentryInternalOptions *sentry_internal_options) {
     SENTRY_PRINT_DEBUG_ARGS("Initializing Breakpad with directory: %s\n",

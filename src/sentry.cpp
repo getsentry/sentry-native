@@ -177,7 +177,6 @@ static void serialize(const SentryEvent *event) {
     std::string dest_path_str =
         sentry_internal_options.run_path + SENTRY_EVENT_FILE_NAME;
     const char *dest_path = dest_path_str.c_str();
-    SENTRY_PRINT_DEBUG_ARGS("Serializing to file: %s\n", dest_path);
     mpack_writer_init_filename(&writer, dest_path);
     mpack_start_map(&writer, 10);
     mpack_write_cstr(&writer, "release");

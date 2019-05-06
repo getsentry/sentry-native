@@ -6,7 +6,7 @@ int main(void) {
     sentry_options_t option;
     sentry_options_init(&option);
 
-    option.dsn = "https://93b6c4c0c1a14bec977f0f1adf8525e6@sentry.garcia.in/3";
+    option.dsn = "http://810ca33ccac847b3a39053f3e4303730@127.0.0.1:8000/3";
     option.handler_path = "bin/Release/crashpad_handler";
     option.environment = "Production";
     option.release = "5fd7a6cd";
