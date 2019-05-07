@@ -128,6 +128,9 @@ project "sentry_breakpad"
       "Foundation.framework",
       "pthread",
     }
+		files {
+			SRC_ROOT.."/src/breakpad_macuploader.mm",
+		}
   filter "system:linux"
     -- System
     links {
