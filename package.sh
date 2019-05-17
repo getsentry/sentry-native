@@ -6,6 +6,7 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 OUT_DIR="$SCRIPT_DIR/out"
 rm -rf "$OUT_DIR"
 mkdir $OUT_DIR
+cp README.package.md "$OUT_DIR/README.md"
 
 CONFIGS=("macosx_gmake2" "linux_gmake2" "windows_vs2017")
 
