@@ -15,7 +15,11 @@ jobs:
       - template: azure-pipelines/install-premake.yml
       - bash: |
           set -eux
-
           bash package.sh
-          zip -r out out
+          zip -r sentrypad-crashpad out/
           ls -alh
+
+      - task: PublishBuildArtifacts@1
+        inputs:
+          pathtoPublish: 'sentrypad-crashpad.zip'
+          artifactName: sentrypad-crashpad
