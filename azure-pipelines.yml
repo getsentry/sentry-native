@@ -1,0 +1,20 @@
+# Add steps that build, run tests, deploy, and more:
+# https://aka.ms/yaml
+
+trigger:
+  - "*"
+
+pr: none
+
+jobs:
+  - job: package_crashpad
+    displayName: Package Sentrypad+Crashpad
+    pool:
+      vmImage: "macos-10.13"
+    steps:
+      - bash: |
+          set -eux
+
+          bash package.sh
+          zip -r out out
+          ls -alh
