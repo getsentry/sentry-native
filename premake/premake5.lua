@@ -1,5 +1,11 @@
 -- premake5.lua
-SRC_ROOT = "../"
+
+newoption {
+  trigger     = "src-root",
+  description = "Sentrypad source root"
+}
+
+SRC_ROOT = (_OPTIONS["src-root"] or "../")
 
 DEPS_DIR="./deps"
 -- XXX Fix this on Windows
