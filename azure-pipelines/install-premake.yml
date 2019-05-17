@@ -1,0 +1,33 @@
+steps:
+  - bash: |
+      set -eux
+
+      if [[ "$AGENT_OS" == "Linux" ]]; then
+        DOWNLOAD_URL="https://github.com/premake/premake-core/releases/download/v5.0.0-alpha13/premake-5.0.0-alpha13-linux.tar.gz"
+        UNAR="tar xvf"
+        DEST_DIR="/usr/local/bin"
+        SUDO="sudo"
+      elif [[ "$AGENT_OS" == "Darwin" ]]; then
+        DOWNLOAD_URL="https://github.com/premake/premake-core/releases/download/v5.0.0-alpha13/premake-5.0.0-alpha13-macosx.tar.gz"
+        UNAR="tar xvf"
+        DEST_DIR="/usr/local/bin"
+        SUDO="sudo"
+      elif [[ "$AGENT_OS" == "Windows_NT" ]]; then
+        DOWNLOAD_URL="https://github.com/premake/premake-core/releases/download/v5.0.0-alpha13/premake-5.0.0-alpha13-windows.zip"
+        UNAR="unzip"
+        DEST_DIR="/mingw64/bin"
+        SUDO=""
+      else
+        print "Unsupported OS, AGENT_OS is set to '$AGENT_OS'"
+        exit 1
+      fi
+
+      cd /tmp
+      curl -L "$DOWNLOAD_URL" -o downloaded.out
+      $UNAR downloaded.out
+      $SUDO mv premake5* $DEST_DIR
+      $SUDO chmod +x $DEST_DIR/premake5*
+
+      # Smoke test
+      which premake5
+    displayName: Install premake5

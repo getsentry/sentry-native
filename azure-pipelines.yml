@@ -12,6 +12,7 @@ jobs:
     pool:
       vmImage: "macos-10.13"
     steps:
+      - template: azure-pipelines/install-premake.yml
       - bash: |
           set -eux
 
