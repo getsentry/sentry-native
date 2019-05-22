@@ -92,7 +92,7 @@ project "sentry_crashpad"
 --     }
 --   filter {}
 
-project "example_crashpad"
+project "sentry_example_crashpad"
   kind "ConsoleApp"
   sentrypad_common()
 
@@ -105,7 +105,7 @@ project "example_crashpad"
   }
 
 
-project "example_breakpad"
+project "sentry_example_breakpad"
   kind "ConsoleApp"
   sentrypad_common()
 

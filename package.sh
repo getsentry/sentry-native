@@ -12,7 +12,8 @@ CONFIGS=("macosx_gmake2" "linux_gmake2" "windows_vs2017")
 
 ### Sentrypad
 SENTRYPAD_REMOTE="https://github.com/getsentry/sentrypad/"
-SENTRYPAD_REVISION="origin/master"
+# FIXME
+SENTRYPAD_REVISION="feat/bulid-and-package-mixed-premake"
 SENTRYPAD_IN_DIR="$SCRIPT_DIR/.sentrypad-tmp"
 if [ -d "$SENTRYPAD_IN_DIR" ]; then
     cd "$SENTRYPAD_IN_DIR"
@@ -24,7 +25,7 @@ else
     git checkout -f "$SENTRYPAD_REVISION"
 fi
 
-SENTRYPAD_OUT_DIR="$OUT_DIR/sentrypad"
+SENTRYPAD_OUT_DIR="$OUT_DIR"
 SENTRYPAD_SRC=("example.c" "include" "src" "premake")
 
 mkdir -p $SENTRYPAD_OUT_DIR
@@ -34,15 +35,6 @@ for f in "${SENTRYPAD_SRC[@]}"; do
     cp -r "$SENTRYPAD_IN_DIR/$f" "$SENTRYPAD_OUT_DIR/"
 done
 
-for CONFIG in "${CONFIGS[@]}"; do
-    PLATFORM="${CONFIG%_*}"
-    BUILD_SYSTEM="${CONFIG#*_}"
-    PLATFORM_GEN_DIR="$SENTRYPAD_OUT_DIR/gen_$PLATFORM"
-    cp -r "$SENTRYPAD_OUT_DIR/premake" "$PLATFORM_GEN_DIR"
-    cd $PLATFORM_GEN_DIR
-    # Run premake for the given platform and build system
-    premake5 "${BUILD_SYSTEM}" --os="$PLATFORM"
-done
 
 ### Crashpad
 # CRASHPAD_REMOTE="git@github.com:getsentry/crashpad.git"
@@ -64,11 +56,13 @@ bash "$CRASHPAD_OUT_DIR/fetch_crashpad.sh"
 # Clean up unneeded files
 rm -rf $CRASHPAD_OUT_DIR/build/{depot_tools,buildtools}
 
+
+### Generate everything
 for CONFIG in "${CONFIGS[@]}"; do
     PLATFORM="${CONFIG%_*}"
     BUILD_SYSTEM="${CONFIG#*_}"
-    PLATFORM_GEN_DIR="$CRASHPAD_OUT_DIR/gen_$PLATFORM"
-    cp -r "$CRASHPAD_OUT_DIR/premake" "$PLATFORM_GEN_DIR"
+    PLATFORM_GEN_DIR="$SENTRYPAD_OUT_DIR/gen_$PLATFORM"
+    cp -r "$SENTRYPAD_OUT_DIR/premake" "$PLATFORM_GEN_DIR"
     cd $PLATFORM_GEN_DIR
     # Run premake for the given platform and build system
     premake5 "${BUILD_SYSTEM}" --os="$PLATFORM"
