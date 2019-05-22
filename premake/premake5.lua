@@ -20,4 +20,4 @@ include "premake5.sentrypad.lua"
 include "premake5.crashpad.lua"
 
 --- BREAKPAD ---
-include "premake5.breakpad.lua"
+-- include "premake5.breakpad.lua"
