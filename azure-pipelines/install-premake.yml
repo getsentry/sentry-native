@@ -30,4 +30,5 @@ steps:
 
       # Smoke test
       which premake5
+      premake5 --version
     displayName: Install premake5
