@@ -65,9 +65,11 @@ end
 
 sysroot = '/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.14.sdk'
 
-project "minichromium_base"
+-- aka "minichromium_base"
+project "crashpad_base"
   kind "StaticLib"
-  include "crashpad_common.lua"
+  crashpad_common()
+
   MINICHROMIUM_BASE_ROOT = SRC_ROOT.."/third_party/mini_chromium/mini_chromium/base"
 
   files {
@@ -108,7 +110,7 @@ project "minichromium_base"
       MINICHROMIUM_BASE_ROOT.."/threading/thread_local_storage_posix.cc",
     }
 
-project "client"
+project "crashpad_client"
   kind "StaticLib"
   crashpad_common()
 
@@ -137,7 +139,7 @@ project "client"
     }
 
 
-project "util"
+project "crashpad_util"
   kind "StaticLib"
   crashpad_common()
 
@@ -362,7 +364,7 @@ project "util"
     }
 
 
-project "snapshot"
+project "crashpad_snapshot"
   kind "StaticLib"
   crashpad_common()
 
@@ -440,7 +442,7 @@ project "snapshot"
       SRC_ROOT.."/snapshot/x86/cpuid_reader.cc",
     }
 
-project "minidump"
+project "crashpad_minidump"
   kind "StaticLib"
   crashpad_common()
 
@@ -478,8 +480,8 @@ project "crashpad_handler"
 
   targetdir "bin/%{cfg.buildcfg}"
   links {
-    "minichromium_base", "client", "util",
-    "snapshot", "minidump",
+    "crashpad_base", "crashpad_client", "crashpad_util",
+    "crashpad_snapshot", "crashpad_minidump",
   }
 
   files {
@@ -531,13 +533,14 @@ project "crashpad_handler"
 
 EXAMPLES_DIR = "../crashpad/premake/examples"
 
-project "crash"
+project "crashpad_crash"
   kind "ConsoleApp"
+  crashpad_common()
   targetdir "bin/%{cfg.buildcfg}"
   links {
-    "minichromium_base",
-    "util",
-    "client",
+    "crashpad_base",
+    "crashpad_util",
+    "crashpad_client",
   }
 
   dependson {"crashpad_handler"}

@@ -15,15 +15,16 @@ end
 project "sentry_crashpad"
   kind "SharedLib"
   sentrypad_common()
+
   defines {"SENTRY_CRASHPAD"}
   includedirs {
     CRASHPAD_PKG,
     CRASHPAD_PKG.."/include",
-    CRASHPAD_PKG.."/include/mini_chromium",
+    CRASHPAD_PKG.."/third_party/mini_chromium/mini_chromium",
   }
 
   libdirs {
-    CRASHPAD_PKG.."/lib",
+    "bin/Release",
   }
 
   files {
@@ -32,13 +33,11 @@ project "sentry_crashpad"
     SRC_ROOT.."/src/vendor/mpack.c",
   }
 
-  postbuildcommands {
-    "{COPY} "..CRASHPAD_PKG.."/bin/crashpad_handler %{cfg.buildtarget.directory}",
-  }
-
   -- Crashpad
   links {
-    "client", "base", "util"
+    "crashpad_base",
+    "crashpad_client",
+    "crashpad_util",
   }
 
   filter "system:macosx"
@@ -95,6 +94,8 @@ project "sentry_crashpad"
 
 project "example_crashpad"
   kind "ConsoleApp"
+  sentrypad_common()
+
   links {"sentry_crashpad"}
   buildoptions {
     "-fPIC",
@@ -106,6 +107,8 @@ project "example_crashpad"
 
 project "example_breakpad"
   kind "ConsoleApp"
+  sentrypad_common()
+
   links {"sentry_breakpad", "dl"}
   buildoptions {
     "-fPIC",

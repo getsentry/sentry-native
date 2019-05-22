@@ -8,6 +8,7 @@ newoption {
 SRC_ROOT = (_OPTIONS["src-root"] or "..")
 
 CRASHPAD_PKG = "../crashpad/build/crashpad"
+BREAKPAD_PKG = "../breakpad/deps/breakpad"
 
 workspace "Sentrypad"
   configurations {"Release"}
@@ -17,3 +18,6 @@ include "premake5.sentrypad.lua"
 
 --- CRASHPAD ---
 include "premake5.crashpad.lua"
+
+--- BREAKPAD ---
+include "premake5.breakpad.lua"
