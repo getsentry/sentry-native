@@ -16,10 +16,11 @@ jobs:
       - bash: |
           set -eux
           bash package.sh
-          zip -r sentrypad-crashpad out/
+          mv out sentrypad-crashpad
+          zip -r sentrypad-crashpad sentrypad-crashpad/
           ls -alh
 
       - task: PublishBuildArtifacts@1
         inputs:
-          pathtoPublish: 'out/'
+          pathtoPublish: 'sentrypad-crashpad.zip'
           artifactName: sentrypad-crashpad
