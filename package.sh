@@ -12,8 +12,7 @@ CONFIGS=("macosx_gmake2" "linux_gmake2" "windows_vs2017")
 
 ### Sentrypad
 SENTRYPAD_REMOTE="https://github.com/getsentry/sentrypad/"
-# FIXME
-SENTRYPAD_REVISION="feat/bulid-and-package-mixed-premake"
+SENTRYPAD_REVISION=$(git rev-parse ${1:-HEAD})
 SENTRYPAD_IN_DIR="$SCRIPT_DIR/.sentrypad-tmp"
 if [ -d "$SENTRYPAD_IN_DIR" ]; then
     cd "$SENTRYPAD_IN_DIR"
@@ -55,7 +54,6 @@ done
 bash "$CRASHPAD_OUT_DIR/fetch_crashpad.sh"
 # Clean up unneeded files
 rm -rf $CRASHPAD_OUT_DIR/build/{depot_tools,buildtools}
-
 
 ### Generate everything
 for CONFIG in "${CONFIGS[@]}"; do
