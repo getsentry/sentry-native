@@ -11,6 +11,7 @@ Build files for a given platform can be found in `./sentrypad/gen_PLATFORM` dire
 ### Linux, MacOS
 
 * [GNU make](https://www.gnu.org/software/make/)
+* [clang](https://clang.llvm.org/)
 
 ### Windows
 
@@ -25,12 +26,12 @@ Build files for a given platform can be found in `./sentrypad/gen_PLATFORM` dire
 ### On MacOS
 
 ```sh
-cd crashpad/gen_macosx
+cd gen_macosx
 make
 ```
 
-The commands will compile Crashpad libraries and binaries. The output can then be found in `crashpad/gen_macosx/bin/Release`.
+The commands will compile Crashpad libraries and binaries. The output can then be found in `gen_macosx/bin/Release`.
 
 ### On Windows
 
-Visual Studio solution is located at `crashpad/gen_windows/Crashpad.sln`
+Visual Studio solution is located at `gen_windows/Crashpad.sln`

@@ -35,7 +35,7 @@ project "sentry_crashpad"
 
   -- Crashpad
   links {
-    "crashpad_base",
+    "crashpad_minichromium_base",
     "crashpad_client",
     "crashpad_util",
   }

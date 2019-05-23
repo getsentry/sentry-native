@@ -27,6 +27,7 @@ function crashpad_common()
     includedirs {
       SRC_ROOT.."/compat/mac",
       SRC_ROOT.."/compat/non_win",
+      SRC_ROOT.."/compat/non_elf",
     }
     buildoptions {
       "-mmacosx-version-min=10.9"
@@ -60,6 +61,21 @@ function crashpad_common()
       "-pie",
     }
 
+  filter "system:windows"
+    includedirs {
+      SRC_ROOT.."/compat/win",
+      SRC_ROOT.."/compat/non_mac",
+      SRC_ROOT.."/compat/non_elf",
+    }
+
+    -- System stuff
+    includedirs {
+      "$(VSInstallDir)/DIA SDK/include"
+    }
+  filter {"system:windows", "platforms:Win32"}
+    architecture "x86"
+  filter {"system:windows", "platforms:Win64"}
+    architecture "x64"
   filter {}
 end
 
@@ -116,6 +132,14 @@ project "crashpad_minichromium_base"
       MINICHROMIUM_BASE_ROOT.."/strings/string_util_win.cc",
       MINICHROMIUM_BASE_ROOT.."/synchronization/lock_impl_win.cc",
       MINICHROMIUM_BASE_ROOT.."/threading/thread_local_storage_win.cc",
+    }
+    defines {
+      "NOMINMAX",
+      "UNICODE",
+      "WIN32_LEAN_AND_MEAN",
+      "_CRT_SECURE_NO_WARNINGS",
+      "_HAS_EXCEPTIONS=0",
+      "_UNICODE",
     }
     links {
       "advapi32.lib"
