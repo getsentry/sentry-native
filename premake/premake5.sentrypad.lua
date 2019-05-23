@@ -104,15 +104,14 @@ project "sentry_example_crashpad"
     SRC_ROOT.."/example.c",
   }
 
+-- project "sentry_example_breakpad"
+--   kind "ConsoleApp"
+--   sentrypad_common()
 
-project "sentry_example_breakpad"
-  kind "ConsoleApp"
-  sentrypad_common()
-
-  links {"sentry_breakpad", "dl"}
-  buildoptions {
-    "-fPIC",
-  }
-  files {
-    SRC_ROOT.."/example.c",
-  }
+--   links {"sentry_breakpad", "dl"}
+--   buildoptions {
+--     "-fPIC",
+--   }
+--   files {
+--     SRC_ROOT.."/example.c",
+--   }

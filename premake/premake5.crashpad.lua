@@ -65,8 +65,8 @@ end
 
 sysroot = '/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.14.sdk'
 
--- aka "minichromium_base"
-project "crashpad_base"
+-- aka "mini_chromium/base"
+project "crashpad_minichromium_base"
   kind "StaticLib"
   crashpad_common()
 
@@ -110,6 +110,20 @@ project "crashpad_base"
       MINICHROMIUM_BASE_ROOT.."/threading/thread_local_storage_posix.cc",
     }
 
+  filter "system:windows"
+    files {
+      MINICHROMIUM_BASE_ROOT.."/process/process_metrics_win.cc",
+      MINICHROMIUM_BASE_ROOT.."/strings/string_util_win.cc",
+      MINICHROMIUM_BASE_ROOT.."/synchronization/lock_impl_win.cc",
+      MINICHROMIUM_BASE_ROOT.."/threading/thread_local_storage_win.cc",
+    }
+    links {
+      "advapi32.lib"
+    }
+
+  filter {}
+
+-- aka "client"
 project "crashpad_client"
   kind "StaticLib"
   crashpad_common()
@@ -138,7 +152,17 @@ project "crashpad_client"
       SRC_ROOT.."/client/crash_report_database_generic.cc",
     }
 
+  filter "system:windows"
+    files {
+      SRC_ROOT.."/client/crash_report_database_win.cc",
+      SRC_ROOT.."/client/crashpad_client_win.cc",
+    }
+    links {
+      "rpcrt4.lib",
+    }
+    -- cflags = [ "/wd4201" ]  # nonstandard extension used : nameless struct/union
 
+-- aka "util"
 project "crashpad_util"
   kind "StaticLib"
   crashpad_common()
@@ -363,6 +387,47 @@ project "crashpad_util"
       -- End posix
     }
 
+  filter "system:windows"
+    files {
+      SRC_ROOT.."/util/file/directory_reader_win.cc",
+      SRC_ROOT.."/util/file/file_io_win.cc",
+      SRC_ROOT.."/util/file/filesystem_win.cc",
+      SRC_ROOT.."/util/misc/clock_win.cc",
+      SRC_ROOT.."/util/misc/paths_win.cc",
+      SRC_ROOT.."/util/misc/time_win.cc",
+      SRC_ROOT.."/util/net/http_transport_win.cc",
+      SRC_ROOT.."/util/process/process_memory_win.cc",
+      SRC_ROOT.."/util/synchronization/semaphore_win.cc",
+      SRC_ROOT.."/util/thread/thread_win.cc",
+      SRC_ROOT.."/util/win/command_line.cc",
+      SRC_ROOT.."/util/win/critical_section_with_debug_info.cc",
+      SRC_ROOT.."/util/win/exception_handler_server.cc",
+      SRC_ROOT.."/util/win/get_function.cc",
+      SRC_ROOT.."/util/win/get_module_information.cc",
+      SRC_ROOT.."/util/win/handle.cc",
+      SRC_ROOT.."/util/win/initial_client_data.cc",
+      SRC_ROOT.."/util/win/module_version.cc",
+      SRC_ROOT.."/util/win/nt_internals.cc",
+      SRC_ROOT.."/util/win/ntstatus_logging.cc",
+      SRC_ROOT.."/util/win/process_info.cc",
+      SRC_ROOT.."/util/win/registration_protocol_win.cc",
+      SRC_ROOT.."/util/win/scoped_handle.cc",
+      SRC_ROOT.."/util/win/scoped_local_alloc.cc",
+      SRC_ROOT.."/util/win/scoped_process_suspend.cc",
+      SRC_ROOT.."/util/win/scoped_set_event.cc",
+      SRC_ROOT.."/util/win/session_end_watcher.cc",
+
+      -- CaptureContext()
+      SRC_ROOT.."/util/misc/capture_context_broken.cc",
+      SRC_ROOT.."/util/win/safe_terminate_process_broken.cc",
+    }
+    links {
+      "user32.lib",
+      "version.lib",
+      "winhttp.lib",
+    }
+    -- cflags = [ "/wd4201" ]  # nonstandard extension used: nameless struct/union.
+
 
 project "crashpad_snapshot"
   kind "StaticLib"
@@ -385,6 +450,9 @@ project "crashpad_snapshot"
     SRC_ROOT.."/snapshot/minidump/system_snapshot_minidump.cc",
     SRC_ROOT.."/snapshot/minidump/thread_snapshot_minidump.cc",
     SRC_ROOT.."/snapshot/unloaded_module_snapshot.cc",
+
+    -- only for x86 and amd64
+    SRC_ROOT.."/snapshot/x86/cpuid_reader.cc",
   }
 
   filter "system:macosx"
@@ -425,7 +493,9 @@ project "crashpad_snapshot"
       SRC_ROOT.."/snapshot/sanitized/process_snapshot_sanitized.cc",
       SRC_ROOT.."/snapshot/sanitized/sanitization_information.cc",
       SRC_ROOT.."/snapshot/sanitized/thread_snapshot_sanitized.cc",
+
       SRC_ROOT.."/snapshot/crashpad_types/crashpad_info_reader.cc",
+
       SRC_ROOT.."/snapshot/crashpad_types/image_annotation_reader.cc",
       SRC_ROOT.."/snapshot/elf/elf_dynamic_array_reader.cc",
       SRC_ROOT.."/snapshot/elf/elf_image_reader.cc",
@@ -438,9 +508,31 @@ project "crashpad_snapshot"
       -- Posix
       SRC_ROOT.."/snapshot/posix/timezone.cc",
       -- End posix
-
-      SRC_ROOT.."/snapshot/x86/cpuid_reader.cc",
     }
+
+  filter "system:windows"
+    files {
+      SRC_ROOT.."/snapshot/win/capture_memory_delegate_win.cc",
+      SRC_ROOT.."/snapshot/win/cpu_context_win.cc",
+      SRC_ROOT.."/snapshot/win/exception_snapshot_win.cc",
+      SRC_ROOT.."/snapshot/win/memory_map_region_snapshot_win.cc",
+      SRC_ROOT.."/snapshot/win/memory_snapshot_win.cc",
+      SRC_ROOT.."/snapshot/win/module_snapshot_win.cc",
+      SRC_ROOT.."/snapshot/win/pe_image_annotations_reader.cc",
+      SRC_ROOT.."/snapshot/win/pe_image_reader.cc",
+      SRC_ROOT.."/snapshot/win/pe_image_resource_reader.cc",
+      SRC_ROOT.."/snapshot/win/process_reader_win.cc",
+      SRC_ROOT.."/snapshot/win/process_snapshot_win.cc",
+      SRC_ROOT.."/snapshot/win/process_subrange_reader.cc",
+      SRC_ROOT.."/snapshot/win/system_snapshot_win.cc",
+      SRC_ROOT.."/snapshot/win/thread_snapshot_win.cc",
+
+      SRC_ROOT.."/snapshot/crashpad_types/crashpad_info_reader.cc",
+    }
+    links {
+      "powrprof.lib"
+    }
+    -- cflags = [ "/wd4201" ]  # nonstandard extension used : nameless struct/union
 
 project "crashpad_minidump"
   kind "StaticLib"
@@ -474,13 +566,20 @@ project "crashpad_minidump"
     SRC_ROOT.."/minidump/minidump_writer_util.cc",
   }
 
+  filter "system:windows"
+    -- cflags = [
+    --   "/wd4201",  # nonstandard extension used : nameless struct/union
+    --   "/wd4324",  # 'struct' : structure was padded due to __declspec(align())
+    -- ]
+
+
 project "crashpad_handler"
   kind "ConsoleApp"
   crashpad_common()
 
   targetdir "bin/%{cfg.buildcfg}"
   links {
-    "crashpad_base", "crashpad_client", "crashpad_util",
+    "crashpad_minichromium_base", "crashpad_client", "crashpad_util",
     "crashpad_snapshot", "crashpad_minidump",
   }
 
@@ -531,6 +630,12 @@ project "crashpad_handler"
       "z",
     }
 
+  filter "system:windows"
+    files {
+      SRC_ROOT.."/handler/win/crash_report_exception_handler.cc",
+    }
+    -- cflags = [ "/wd4201" ]  # nonstandard extension used : nameless struct/union
+
 EXAMPLES_DIR = "../crashpad/premake/examples"
 
 project "crashpad_crash"
@@ -538,7 +643,7 @@ project "crashpad_crash"
   crashpad_common()
   targetdir "bin/%{cfg.buildcfg}"
   links {
-    "crashpad_base",
+    "crashpad_minichromium_base",
     "crashpad_util",
     "crashpad_client",
   }
@@ -562,10 +667,10 @@ project "crashpad_crash"
     }
 
   filter "system:linux"
-    links {"pthread"}
     files {
       EXAMPLES_DIR.."linux/crash.cc",
     }
+    links {"pthread"}
 
   filter "system:windows"
     files {
