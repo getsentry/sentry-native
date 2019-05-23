@@ -1,0 +1,17 @@
+jobs:
+  # MacOS
+  - job: crashpad_macos
+    displayName: Sentrypad + Crashpad (MacOS, x86_64)
+    pool:
+      vmImage: "macos-10.13"
+    steps:
+      - template: prescript-common.yml
+      - task: DownloadBuildArtifacts@0
+        inputs:
+          buildType: 'current'
+          downloadType: 'single'
+          artifactName: 'sentrypad-crashpad'
+          downloadPath: '.'
+      - bash: |
+          set -eux
+          ls -alh .
