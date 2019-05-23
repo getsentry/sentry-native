@@ -55,7 +55,9 @@ bash "$CRASHPAD_OUT_DIR/fetch_crashpad.sh"
 # Clean up unneeded files
 rm -rf $CRASHPAD_OUT_DIR/build/{depot_tools,buildtools}
 
-### Generate everything
+##############################################
+### Generate build files for all platforms ###
+##############################################
 for CONFIG in "${CONFIGS[@]}"; do
     PLATFORM="${CONFIG%_*}"
     BUILD_SYSTEM="${CONFIG#*_}"

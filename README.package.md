@@ -4,7 +4,7 @@
 
 This package contains source code and build files for SentryPad and Crashpad. Build files are pregenerated for several platforms: Linux, Windows, and MacOS at the moment.
 
-Build files for a given platform can be found in `./COMPONENT/gen_PLATFORM` directory, where `COMPONENT` can be either `sentrypad` or `crashpad`, and `PLATFORM` is one of `linux`, `windows`, and `macosx`. For example, one can find makefiles to build SentryPad on MacOS in `./sentrypad/gen_macosx`.
+Build files for a given platform can be found in `./sentrypad/gen_PLATFORM` directory, where `PLATFORM` is one of `linux`, `windows`, and `macosx`.
 
 ## Build Prerequisites
 
