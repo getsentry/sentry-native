@@ -1,16 +1,24 @@
-settings.dat
+.vscode/ipch
+.venv/
+.sentryclirc
+
+# Build files
+libsentry.*
+*.dylib
+*.dSYM
 crashpad_wrapper
+
+# Example files
+example
+settings.dat
 new/
 completed/
 pending/
-example
-*.dylib
-*.dSYM
+sentrypad-db/
 *.mp
 *.dmp
-.sentryclirc
-.venv/
-.DS_Store/
-sentrypad-db/
-libsentry.*
-.vscode/ipch
+
+# OS stuff
+.DS_Store
+Thumbs.db
+._*
