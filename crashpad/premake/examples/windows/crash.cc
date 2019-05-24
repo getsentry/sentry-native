@@ -9,9 +9,9 @@ using namespace crashpad;
 
 int main() {
   // Cache directory that will store crashpad information and minidumps
-  base::FilePath database("./crashpad.db");
+  base::FilePath database(L"./crashpad.db");
   // Path to the out-of-process handler executable
-  base::FilePath handler("./bin/Release/crashpad_handler");
+  base::FilePath handler(L"./bin/Release/crashpad_handler");
   // URL used to submit minidumps to
   std::string url("https://sentry.io/api/YYY/minidump/?sentry_key=XXX");
   // Optional annotations passed via --annotations to the handler

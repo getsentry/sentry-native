@@ -2,7 +2,7 @@
 #define SENTRY_MACROS_HPP_INCLUDED
 
 #include <stdio.h>
-#include <sys/errno.h>
+#include <errno.h>
 #include "internal.hpp"
 
 #define SENTRY_PRINT(std, message)                               \

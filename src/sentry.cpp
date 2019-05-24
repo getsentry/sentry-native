@@ -1,6 +1,6 @@
 #include "sentry.h"
 #include <stdarg.h>
-#include <sys/errno.h>
+#include <errno.h>
 #include <sys/stat.h>
 #include <map>
 #include <mutex>
@@ -46,15 +46,16 @@ static std::mutex event_lock;
 static std::mutex breadcrumb_lock;
 
 static SentryEvent sentry_event = {
-    .release = nullptr,
-    .level = SENTRY_LEVEL_ERROR,
-    .dist = nullptr,
-    .environment = nullptr,
-    .transaction = nullptr,
-    .user = std::map<std::string, std::string>(),
-    .tags = std::map<std::string, std::string>(),
-    .extra = std::map<std::string, std::string>(),
-    .fingerprint = std::vector<std::string>()};
+    /* release = */ nullptr,
+    /* level = */ SENTRY_LEVEL_ERROR,
+    /* dist = */ nullptr,
+    /* environment = */ nullptr,
+    /* transaction = */ nullptr,
+    /* user = */ std::map<std::string, std::string>(),
+    /* tags = */ std::map<std::string, std::string>(),
+    /* extra = */ std::map<std::string, std::string>(),
+    /* fingerprint = */ std::vector<std::string>()
+};
 
 SentryInternalOptions sentry_internal_options;
 
@@ -313,12 +314,13 @@ int sentry_init(const sentry_options_t *options) {
     run_path = run_path + "/sentry-runs/";
     mkdir(run_path.c_str(), 0700);
 
-    sentry_internal_options = SentryInternalOptions{
-        .minidump_url = minidump_url,
-        .run_id = run_id,
-        .run_path = run_path + run_id + "/",
-        .attachments = std::map<std::string, std::string>(),
-        .options = *options};
+    sentry_internal_options = SentryInternalOptions {
+        /* .minidump_url = */ minidump_url,
+        /* .run_id = */ run_id,
+        /* .run_path = */ run_path + run_id + "/",
+        /* .attachments = */ std::map<std::string, std::string>(),
+        /* .options = */ *options
+	};
 
     int rv = mkdir(sentry_internal_options.run_path.c_str(), 0700);
     if (rv != 0 && errno != EEXIST) {

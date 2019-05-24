@@ -62,10 +62,26 @@ function crashpad_common()
     }
 
   filter "system:windows"
+    -- Some defines are missing in Windows SDK version 8.1, that's why we need "latest" here.
+    -- Because of this, we have to run premake on Windows Machine, or even right on the target machine :(
+    systemversion "latest"
     includedirs {
       SRC_ROOT.."/compat/win",
       SRC_ROOT.."/compat/non_mac",
       SRC_ROOT.."/compat/non_elf",
+    }
+
+    defines {
+      "NOMINMAX",
+      "UNICODE",
+      "WIN32_LEAN_AND_MEAN",
+      "_CRT_SECURE_NO_WARNINGS",
+      "_HAS_EXCEPTIONS=0",
+      "_UNICODE",
+    }
+
+    buildoptions {
+      "/wd4201",  -- nonstandard extension used : nameless struct/union
     }
 
     -- System stuff
@@ -133,14 +149,6 @@ project "crashpad_minichromium_base"
       MINICHROMIUM_BASE_ROOT.."/synchronization/lock_impl_win.cc",
       MINICHROMIUM_BASE_ROOT.."/threading/thread_local_storage_win.cc",
     }
-    defines {
-      "NOMINMAX",
-      "UNICODE",
-      "WIN32_LEAN_AND_MEAN",
-      "_CRT_SECURE_NO_WARNINGS",
-      "_HAS_EXCEPTIONS=0",
-      "_UNICODE",
-    }
     links {
       "advapi32.lib"
     }
@@ -184,7 +192,7 @@ project "crashpad_client"
     links {
       "rpcrt4.lib",
     }
-    -- cflags = [ "/wd4201" ]  # nonstandard extension used : nameless struct/union
+
 
 -- aka "util"
 project "crashpad_util"
@@ -412,6 +420,13 @@ project "crashpad_util"
     }
 
   filter "system:windows"
+    defines {
+      "CRASHPAD_ZLIB_SOURCE_EMBEDDED",
+    }
+    includedirs {
+      SRC_ROOT.."/third_party/zlib/zlib",
+    }
+
     files {
       SRC_ROOT.."/util/file/directory_reader_win.cc",
       SRC_ROOT.."/util/file/file_io_win.cc",
@@ -450,7 +465,6 @@ project "crashpad_util"
       "version.lib",
       "winhttp.lib",
     }
-    -- cflags = [ "/wd4201" ]  # nonstandard extension used: nameless struct/union.
 
 
 project "crashpad_snapshot"
@@ -556,7 +570,6 @@ project "crashpad_snapshot"
     links {
       "powrprof.lib"
     }
-    -- cflags = [ "/wd4201" ]  # nonstandard extension used : nameless struct/union
 
 project "crashpad_minidump"
   kind "StaticLib"
@@ -592,7 +605,6 @@ project "crashpad_minidump"
 
   filter "system:windows"
     -- cflags = [
-    --   "/wd4201",  # nonstandard extension used : nameless struct/union
     --   "/wd4324",  # 'struct' : structure was padded due to __declspec(align())
     -- ]
 
@@ -603,8 +615,11 @@ project "crashpad_handler"
 
   targetdir "bin/%{cfg.buildcfg}"
   links {
-    "crashpad_minichromium_base", "crashpad_client", "crashpad_util",
-    "crashpad_snapshot", "crashpad_minidump",
+    "crashpad_minichromium_base",
+    "crashpad_client",
+    "crashpad_util",
+    "crashpad_snapshot",
+    "crashpad_minidump",
   }
 
   files {
@@ -658,7 +673,59 @@ project "crashpad_handler"
     files {
       SRC_ROOT.."/handler/win/crash_report_exception_handler.cc",
     }
-    -- cflags = [ "/wd4201" ]  # nonstandard extension used : nameless struct/union
+    links {
+      "crashpad_zlib",
+      "crashpad_compat",
+    }
+
+project "crashpad_zlib"
+    kind "StaticLib"
+    crashpad_common()
+
+    filter "system:windows"
+      defines {
+        "__clang__",
+      }
+      buildoptions {
+        "/wd4131", -- uses old-style declarator
+        "/wd4244", -- conversion from 't1' to 't2', possible loss of data
+        "/wd4245", -- conversion from 't1' to 't2', signed/unsigned mismatch
+        "/wd4267", -- conversion from 'size_t' to 't', possible loss of data
+        "/wd4324", -- structure was padded due to alignment specifier
+        "/wd4702", -- unreachable code
+      }
+      files {
+        SRC_ROOT.."/third_party/zlib/zlib/adler32.c",
+        SRC_ROOT.."/third_party/zlib/zlib/compress.c",
+        SRC_ROOT.."/third_party/zlib/zlib/crc32.c",
+        SRC_ROOT.."/third_party/zlib/zlib/deflate.c",
+        SRC_ROOT.."/third_party/zlib/zlib/gzclose.c",
+        SRC_ROOT.."/third_party/zlib/zlib/gzlib.c",
+        SRC_ROOT.."/third_party/zlib/zlib/gzread.c",
+        SRC_ROOT.."/third_party/zlib/zlib/gzwrite.c",
+        SRC_ROOT.."/third_party/zlib/zlib/infback.c",
+        SRC_ROOT.."/third_party/zlib/zlib/inffast.c",
+        SRC_ROOT.."/third_party/zlib/zlib/inflate.c",
+        SRC_ROOT.."/third_party/zlib/zlib/inftrees.c",
+        SRC_ROOT.."/third_party/zlib/zlib/trees.c",
+        SRC_ROOT.."/third_party/zlib/zlib/uncompr.c",
+        SRC_ROOT.."/third_party/zlib/zlib/zutil.c",
+
+        SRC_ROOT.."/third_party/zlib/zlib/crc_folding.c",
+        SRC_ROOT.."/third_party/zlib/zlib/fill_window_sse.c",
+        SRC_ROOT.."/third_party/zlib/zlib/x86.c",
+      }
+
+project "crashpad_compat"
+  kind "StaticLib"
+  crashpad_common()
+
+  filter "system:windows"
+    files {
+      -- getopt
+      SRC_ROOT.."/third_party/getopt/getopt.cc",
+    }
+
 
 EXAMPLES_DIR = "../crashpad/premake/examples"
 
@@ -692,13 +759,13 @@ project "crashpad_crash"
 
   filter "system:linux"
     files {
-      EXAMPLES_DIR.."linux/crash.cc",
+      EXAMPLES_DIR.."/linux/crash.cc",
     }
     links {"pthread"}
 
   filter "system:windows"
     files {
-      EXAMPLES_DIR.."windows/crash.cc",
+      EXAMPLES_DIR.."/windows/crash.cc",
     }
 
   filter {}

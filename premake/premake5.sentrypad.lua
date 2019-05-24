@@ -9,6 +9,20 @@ function sentrypad_common()
 
   filter "system:macosx or linux"
     toolset("clang")
+  filter "system:windows"
+    -- Some defines are missing in Windows SDK version 8.1, that's why we need "latest" here.
+    -- Because of this, we have to run premake on Windows Machine, or even right on the target machine :(
+    systemversion "latest"
+
+    defines {
+      "NOMINMAX",
+      "UNICODE",
+      "WIN32_LEAN_AND_MEAN",
+      "_UNICODE",
+      "_CRT_SECURE_NO_WARNINGS",
+      -- "_HAS_EXCEPTIONS=0",
+    }
+
   filter {}
 end
 
