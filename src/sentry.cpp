@@ -1,17 +1,26 @@
-#include "sentry.h"
 #include <stdarg.h>
-#include <errno.h>
 #include <sys/stat.h>
+#include <sys/types.h>
+#include <errno.h>
 #include <map>
 #include <mutex>
 #include <sstream>
 #include <string>
-#include "backend.hpp"
-#include "ctime"
+#include <random>
+
+// For mkdir
+#ifdef _WIN32
+#include <direct.h>
+#include <io.h>
+typedef int mode_t;
+#endif
+
+#include "vendor/mpack.h"
+
 #include "internal.hpp"
 #include "macros.hpp"
-#include "random"
-#include "vendor/mpack.h"
+#include "backend.hpp"
+#include "sentry.h"
 
 using namespace sentry;
 
@@ -71,6 +80,14 @@ char *sane_strdup(const char *s) {
         return rv;
     }
     return 0;
+}
+
+int xmkdir(const xchar_t* dirname, mode_t mode) {
+#ifdef _WIN32
+    return _wmkdir(dirname);
+#else
+    return mkdir(dirname, mode);
+#endif
 }
 
 const sentry_options_t *sentry_get_options(void) {
@@ -310,9 +327,9 @@ int sentry_init(const sentry_options_t *options) {
     /* Make sure run dir exists before serializer needs to write to it */
     /* TODO: Write proper x-plat mkdir */
     std::string run_path = std::string(options->database_path);
-    mkdir(run_path.c_str(), 0700);
+    xmkdir(run_path.c_str(), 0700);
     run_path = run_path + "/sentry-runs/";
-    mkdir(run_path.c_str(), 0700);
+    xmkdir(run_path.c_str(), 0700);
 
     sentry_internal_options = SentryInternalOptions {
         /* .minidump_url = */ minidump_url,
@@ -322,7 +339,7 @@ int sentry_init(const sentry_options_t *options) {
         /* .options = */ *options
 	};
 
-    int rv = mkdir(sentry_internal_options.run_path.c_str(), 0700);
+    int rv = xmkdir(sentry_internal_options.run_path.c_str(), 0700);
     if (rv != 0 && errno != EEXIST) {
         SENTRY_PRINT_ERROR_ARGS("Failed to create sentry_runs directory '%s'\n",
                                 sentry_internal_options.run_path.c_str());

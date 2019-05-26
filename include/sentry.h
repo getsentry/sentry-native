@@ -24,6 +24,13 @@ extern "C" {
 #endif
 #endif
 
+// Char types
+#ifdef _WIN32
+typedef wchar_t xchar_t;
+#else
+typedef char xchar_t;
+#endif
+
 /*
  * Possible error codes.
  */
