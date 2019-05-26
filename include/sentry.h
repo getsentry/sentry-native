@@ -1,7 +1,6 @@
 #ifndef SENTRY_H
 #define SENTRY_H
 
-#include <stddef.h>
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -26,9 +25,12 @@ extern "C" {
 
 // Char types
 #ifdef _WIN32
+#include <wchar.h>
 typedef wchar_t xchar_t;
+#define XSTR(X) L##X
 #else
 typedef char xchar_t;
+#define XSTR(X) X
 #endif
 
 /*
@@ -65,11 +67,11 @@ typedef struct sentry_options_s {
     const char *environment;
     const char *dist;
     int debug;
-    const char **attachments;
+    const xchar_t **attachments;
     /* Crashpad */
-    const char *handler_path;
+    const xchar_t *handler_path;
     /* The base working directory */
-    const char *database_path;
+    const xchar_t *database_path;
 } sentry_options_t;
 
 /*
