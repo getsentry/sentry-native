@@ -65,6 +65,7 @@ function crashpad_common()
     -- Some defines are missing in Windows SDK version 8.1, that's why we need "latest" here.
     -- Because of this, we have to run premake on Windows Machine, or even right on the target machine :(
     systemversion "latest"
+
     includedirs {
       SRC_ROOT.."/compat/win",
       SRC_ROOT.."/compat/non_mac",
@@ -672,15 +673,21 @@ project "crashpad_handler"
   filter "system:windows"
     files {
       SRC_ROOT.."/handler/win/crash_report_exception_handler.cc",
+
+      -- compat
+      SRC_ROOT.."/third_party/getopt/getopt.cc",
     }
     links {
       "crashpad_zlib",
-      "crashpad_compat",
     }
 
 project "crashpad_zlib"
     kind "StaticLib"
     crashpad_common()
+
+    files {
+      "./src/empty.c"
+    }
 
     filter "system:windows"
       defines {
@@ -715,17 +722,6 @@ project "crashpad_zlib"
         SRC_ROOT.."/third_party/zlib/zlib/fill_window_sse.c",
         SRC_ROOT.."/third_party/zlib/zlib/x86.c",
       }
-
-project "crashpad_compat"
-  kind "StaticLib"
-  crashpad_common()
-
-  filter "system:windows"
-    files {
-      -- getopt
-      SRC_ROOT.."/third_party/getopt/getopt.cc",
-    }
-
 
 EXAMPLES_DIR = "../crashpad/premake/examples"
 

@@ -12,7 +12,10 @@ BREAKPAD_PKG = "../breakpad/deps/breakpad"
 
 workspace "Sentrypad"
   configurations {"Release"}
-  platforms {"Win64"}
+
+  filter "system:windows"
+    platforms {"Win64"}
+  filter {}
 
 --- SENTRYPAD ---
 include "premake5.sentrypad.lua"

@@ -43,6 +43,7 @@ jobs:
           MSBUILD="/c/Program Files (x86)/Microsoft Visual Studio/2017/Enterprise/MSBuild/15.0/Bin/MSBuild.exe"
 
           cd sentrypad-crashpad/gen_windows
+
+          # FIXME: generate on Windows initially?
+          premake5 vs2017
           "$MSBUILD" Sentrypad.sln //m //p:Configuration=Release //p:Platform=Win64 //t:Clean,Build
-
-
