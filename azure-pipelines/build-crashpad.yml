@@ -28,6 +28,8 @@ jobs:
       vmImage: "vs2017-win2016"
     steps:
       - template: prescript-common.yml
+      # FIXME
+      - template: install-premake.yml
       - task: DownloadBuildArtifacts@0
         inputs:
           buildType: 'current'
