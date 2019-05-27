@@ -53,7 +53,7 @@ done
 # Fetch crashpad and its dependencies
 bash "$CRASHPAD_OUT_DIR/fetch_crashpad.sh"
 # Clean up unneeded files
-rm -rf $CRASHPAD_OUT_DIR/build/{depot_tools,buildtools}
+rm -rf $CRASHPAD_OUT_DIR/build/{depot_tools,buildtools} $CRASHPAD_OUT_DIR/build/crashpad/third_party/{gtest,gyp}
 
 ##############################################
 ### Generate build files for all platforms ###
