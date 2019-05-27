@@ -27,8 +27,7 @@ int init(const SentryInternalOptions *sentry_internal_options) {
     /* Optional annotations passed via --annotations to the handler */
     std::map<std::string, std::string> annotations;
 
-    std::map<std::string, base::FilePath> fileAttachments =
-        std::map<std::string, base::FilePath>();
+    std::map<std::string, base::FilePath> fileAttachments;
 
     std::map<std::string, std::string>::const_iterator iter;
     for (iter = sentry_internal_options->attachments.begin();

@@ -1,0 +1,33 @@
+# Add steps that build, run tests, deploy, and more:
+# https://aka.ms/yaml
+
+trigger:
+  - "*"
+
+pr: none
+
+
+stages:
+  - stage: prepare_build_files
+    jobs:
+      - job: package_crashpad
+        displayName: Package Sentrypad+Crashpad
+        pool:
+          vmImage: "macos-10.13"
+        steps:
+          - template: azure-pipelines/install-premake.yml
+          - bash: |
+              set -eux
+              bash package.sh
+              mv out sentrypad-crashpad
+              zip -r sentrypad-crashpad sentrypad-crashpad/
+              ls -alh
+
+          - task: PublishBuildArtifacts@1
+            inputs:
+              pathtoPublish: 'sentrypad-crashpad.zip'
+              artifactName: sentrypad-crashpad
+
+  - stage: build_per_platform
+    jobs:
+      - template: azure-pipelines/build-crashpad.yml

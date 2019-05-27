@@ -1,8 +1,9 @@
 #ifndef SENTRY_INTERNAL_HPP_INCLUDED
 #define SENTRY_INTERNAL_HPP_INCLUDED
-#include <sentry.h>
 #include <map>
 #include <string>
+
+#include "sentry.h"
 
 const sentry_options_t *sentry_get_options(void);
 
@@ -29,10 +30,8 @@ static const char *BREADCRUMB_FILE_1 = "sentry-breadcrumb1.mp";
 static const char *BREADCRUMB_FILE_2 = "sentry-breadcrumb2.mp";
 /* Names used when uploading to Sentry */
 static const char *SENTRY_EVENT_FILE_ATTACHMENT_NAME = "__sentry-event";
-static const char *SENTRY_BREADCRUMB1_FILE_ATTACHMENT_NAME =
-    "__sentry-breadcrumb1";
-static const char *SENTRY_BREADCRUMB2_FILE_ATTACHMENT_NAME =
-    "__sentry-breadcrumb2";
+static const char *SENTRY_BREADCRUMB1_FILE_ATTACHMENT_NAME = "__sentry-breadcrumb1";
+static const char *SENTRY_BREADCRUMB2_FILE_ATTACHMENT_NAME = "__sentry-breadcrumb2";
 
 static const char *SENTRY_SDK_VERSION = "0.0.1";
 #endif

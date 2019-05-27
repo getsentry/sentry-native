@@ -2,7 +2,7 @@
 #define SENTRY_MACROS_HPP_INCLUDED
 
 #include <stdio.h>
-#include <sys/errno.h>
+#include <errno.h>
 #include "internal.hpp"
 
 #define SENTRY_PRINT(std, message)                               \
@@ -36,11 +36,11 @@
     SENTRY_PRINT_ARGS(stderr, message, args)
 
 #define EINTR_RETRY(X)                         \
-    ({                                         \
+    {                                          \
         int _rv;                               \
         do {                                   \
             _rv = (X);                         \
         } while (_rv == -1 && errno == EINTR); \
         _rv;                                   \
-    })
+    }
 #endif

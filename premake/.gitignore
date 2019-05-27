@@ -1,5 +1,12 @@
+# .gitignore
 Makefile
 *.make
 deps/
 obj/
 bin/
+*.sln
+*.vcxproj
+*.vcxproj.filters
+
+# Generated files
+gen/

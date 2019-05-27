@@ -12,20 +12,20 @@ Platforms we aim to support: MacOS X, Linux (32/64 bit), Windows (32/64 bit), An
 
 ## Building Example Applications
 
-### Crashpad on Linux/MacOS
+### Crashpad on MacOS
 
 ```sh
 cd premake/
 premake5 gmake2
-make example_crashpad
-./bin/Release/example_crashpad
+make sentry_example_crashpad
+./bin/Release/sentry_example_crashpad
 ```
 
-### Breakpad on Windows
+### Crashpad on Windows
 
 ```sh
 cd premake/
 premake5 vs2017
 ```
 
-The last command will create a Visual Studio 2017 solution that contains `example_breakpad` project.
+The last command will create a Visual Studio 2017 solution (`Sentrypad.sln`) that contains `example_breakpad` project.
