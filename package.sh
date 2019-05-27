@@ -42,7 +42,7 @@ CRASHPAD_OUT_DIR="$OUT_DIR/crashpad"
 
 # FIXME this should be a clean sentrypad checkout
 CRASHPAD_IN_DIR="$SCRIPT_DIR/crashpad"
-CRASHPAD_COPY_SRC=("premake" "fetch_crashpad.sh" "vars.sh")
+CRASHPAD_COPY_SRC=("examples" "fetch_crashpad.sh" "vars.sh")
 
 # Copy files
 mkdir -p "$CRASHPAD_OUT_DIR"

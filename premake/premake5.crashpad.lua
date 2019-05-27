@@ -723,7 +723,7 @@ project "crashpad_zlib"
         SRC_ROOT.."/third_party/zlib/zlib/x86.c",
       }
 
-EXAMPLES_DIR = "../crashpad/premake/examples"
+EXAMPLES_DIR = "../crashpad/examples"
 
 project "crashpad_crash"
   kind "ConsoleApp"
