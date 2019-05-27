@@ -1,7 +1,9 @@
 workspace "Sentrypad"
 
 SRC_ROOT = CRASHPAD_PKG
-mig_script = SRC_ROOT..'/util/mach/mig.py'
+MIG_SCRIPT = SRC_ROOT..'/util/mach/mig.py'
+-- FIXME: find dynamically?
+MACOS_SYSROOT = '/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk'
 
 function crashpad_common()
   language "C++"
@@ -96,7 +98,6 @@ function crashpad_common()
   filter {}
 end
 
-sysroot = '/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.14.sdk'
 
 -- aka "mini_chromium/base"
 project "crashpad_minichromium_base"
@@ -248,9 +249,9 @@ project "crashpad_util"
     buildcommands {
       '{MKDIR} gen/util/mach',
       string.format("python %s --include %s --sdk %s %s %s",
-        mig_script,
+        MIG_SCRIPT,
         SRC_ROOT..'/compat/mac',
-        sysroot,
+        MACOS_SYSROOT,
         '%{file.relpath}',
         table.concat(outputs, ' ')
       ),
@@ -268,9 +269,9 @@ project "crashpad_util"
     buildcommands {
       '{MKDIR} gen/util/mach',
       string.format("python %s --include %s --sdk %s %s %s",
-        mig_script,
+        MIG_SCRIPT,
         SRC_ROOT..'/compat/mac',
-        sysroot,
+        MACOS_SYSROOT,
         '%{file.relpath}',
         table.concat(outputs, ' ')
       ),
@@ -288,9 +289,9 @@ project "crashpad_util"
     buildcommands {
       '{MKDIR} gen/util/mach',
       string.format("python %s --include %s --sdk %s %s %s",
-        mig_script,
+        MIG_SCRIPT,
         SRC_ROOT..'/compat/mac',
-        sysroot,
+        MACOS_SYSROOT,
         '%{file.relpath}',
         table.concat(outputs, ' ')
       ),
@@ -308,9 +309,9 @@ project "crashpad_util"
     buildcommands {
       '{MKDIR} gen/util/mach',
       string.format("python %s --include %s --sdk %s %s %s",
-        mig_script,
+        MIG_SCRIPT,
         SRC_ROOT..'/compat/mac',
-        sysroot,
+        MACOS_SYSROOT,
         '%{file.relpath}',
         table.concat(outputs, ' ')
       ),
@@ -356,9 +357,9 @@ project "crashpad_util"
 
       -- MIG inputs
       SRC_ROOT..'/util/mach/child_port.defs',
-      sysroot..'/usr/include/mach/notify.defs',
-      sysroot..'/usr/include/mach/mach_exc.defs',
-      sysroot..'/usr/include/mach/exc.defs',
+      MACOS_SYSROOT..'/usr/include/mach/notify.defs',
+      MACOS_SYSROOT..'/usr/include/mach/mach_exc.defs',
+      MACOS_SYSROOT..'/usr/include/mach/exc.defs',
 
       -- End MIG inputs
 
