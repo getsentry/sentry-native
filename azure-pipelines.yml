@@ -6,28 +6,87 @@ trigger:
 
 pr: none
 
+variables:
+  ARTIFACT_DIR: 'sentrypad-data'
 
 stages:
   - stage: prepare_build_files
+    displayName: Prepare sources
     jobs:
-      - job: package_crashpad
-        displayName: Package Sentrypad+Crashpad
+      - job: package_sources
+        displayName: "; package sources"
         pool:
           vmImage: "macos-10.13"
         steps:
-          - template: azure-pipelines/install-premake.yml
           - bash: |
               set -eux
+
               bash package.sh
-              mv out sentrypad-crashpad
-              zip -r sentrypad-crashpad sentrypad-crashpad/
+              mv out sp-sources
+              zip -r sp-sources sp-sources/
               ls -alh
 
           - task: PublishBuildArtifacts@1
             inputs:
-              pathtoPublish: 'sentrypad-crashpad.zip'
-              artifactName: sentrypad-crashpad
+              pathtoPublish: 'sp-sources.zip'
+              artifactName: $(ARTIFACT_DIR)
 
   - stage: build_per_platform
+    displayName: Build Crashpad
     jobs:
       - template: azure-pipelines/build-crashpad.yml
+        parameters:
+          vmImage: "macos-10.13"
+          platform: "macosx"
+          buildSystem: "gmake2"
+          buildScript: |
+            make
+
+      - template: azure-pipelines/build-crashpad.yml
+        parameters:
+          vmImage: "vs2017-win2016"
+          platform: "windows"
+          buildSystem: "vs2017"
+          buildScript: |
+            MSBUILD="/c/Program Files (x86)/Microsoft Visual Studio/2017/Enterprise/MSBuild/15.0/Bin/MSBuild.exe"
+            "$MSBUILD" Sentrypad.sln //m //p:Configuration=Release //p:Platform=Win64 //t:Clean,Build
+
+
+  - stage: package_all
+    displayName: Package the final archive
+    jobs:
+      - job: package_all
+        pool:
+          vmImage: "ubuntu-16.04"
+        steps:
+          - task: DownloadBuildArtifacts@0
+            inputs:
+              buildType: 'current'
+              downloadType: 'single'
+              artifactName: $(ARTIFACT_DIR)
+              downloadPath: '.'
+          - bash: |
+              set -eux
+
+              mkdir out
+              cd out
+              unzip -q "../${ARTIFACT_DIR}/sp-sources.zip"
+
+              PLATFORMS=(macosx windows)
+
+              # Copy gen_* directories from available archives
+              for PLATFORM in "${PLATFORMS[@]}"; do
+                rm -rf ./sentrypad
+                unzip -q "../${ARTIFACT_DIR}/sentrypad-crashpad-${PLATFORM}.zip"
+                rm -rf "./sp-sources/gen_${PLATFORM}"
+                mv "sentrypad/gen_${PLATFORM}" "./sp-sources/gen_${PLATFORM}"
+              done
+              rm -rf ./sentrypad
+
+              mv sp-sources sentrypad
+              zip -r sentrypad-crashpad-all sentrypad/
+
+          - task: PublishBuildArtifacts@1
+            inputs:
+              pathtoPublish: 'sentrypad-crashpad-all.zip'
+              artifactName: $(ARTIFACT_DIR)

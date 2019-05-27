@@ -1,51 +1,56 @@
+parameters:
+  vmImage: "macos-10.13"
+  platform: "macosx"
+  buildSystem: "gmake2"
+  buildScript: |
+    echo "Nothing to build"
+    exit 1
+
 jobs:
-  # MacOS
-  - job: crashpad_macos
-    displayName: Sentrypad + Crashpad (MacOS, x86_64)
+  - job: crashpad_${{ parameters.platform }}
+    displayName: Sentrypad + Crashpad (${{ parameters.platform }}, x86_64)
     pool:
-      vmImage: "macos-10.13"
+      vmImage: ${{ parameters.vmImage }}
+    variables:
+      PLATFORM: ${{ parameters.platform }}
+      BUILD_SYSTEM: ${{ parameters.buildSystem }}
+      PACKAGE_DIR: "sentrypad"
     steps:
       - template: prescript-common.yml
-      - task: DownloadBuildArtifacts@0
-        inputs:
-          buildType: 'current'
-          downloadType: 'single'
-          artifactName: 'sentrypad-crashpad'
-          downloadPath: '.'
-      - bash: |
-          set -eux
-
-          ls -alh . ./*
-          unzip ./sentrypad-crashpad/sentrypad-crashpad.zip >/dev/null
-
-          cd sentrypad-crashpad/gen_macosx
-          make
-
-  # Windows
-  - job: crashpad_windows
-    displayName: Sentrypad + Crashpad (Windows, x86_64)
-    pool:
-      vmImage: "vs2017-win2016"
-    steps:
-      - template: prescript-common.yml
-      # FIXME
       - template: install-premake.yml
       - task: DownloadBuildArtifacts@0
         inputs:
           buildType: 'current'
           downloadType: 'single'
-          artifactName: 'sentrypad-crashpad'
+          artifactName: $(ARTIFACT_DIR)
           downloadPath: '.'
-      - bash: |
+
+      - displayName: 'Package generated build files'
+        bash: |
           set -eux
 
-          ls -alh . ./*
-          unzip ./sentrypad-crashpad/sentrypad-crashpad.zip >/dev/null
+          ZIP=./bin/zip.py
 
-          MSBUILD="/c/Program Files (x86)/Microsoft Visual Studio/2017/Enterprise/MSBuild/15.0/Bin/MSBuild.exe"
+          unzip -q ./${ARTIFACT_DIR}/sp-sources.zip
+          mv sp-sources "${PACKAGE_DIR}"
 
-          cd sentrypad-crashpad/gen_windows
+          PLATFORM_BUILD_DIR="${PACKAGE_DIR}/gen_${PLATFORM}"
+          cp -R "${PACKAGE_DIR}/premake" "${PLATFORM_BUILD_DIR}"
 
-          # FIXME: generate on Windows initially?
-          premake5 vs2017
-          "$MSBUILD" Sentrypad.sln //m //p:Configuration=Release //p:Platform=Win64 //t:Clean,Build
+          cd "${PLATFORM_BUILD_DIR}"
+          premake5 "${BUILD_SYSTEM}" --os="${PLATFORM}"
+          cd ../..
+          $ZIP "sentrypad-crashpad-${PLATFORM}.zip" "${PACKAGE_DIR}"
+
+      - task: PublishBuildArtifacts@1
+        inputs:
+          pathtoPublish: 'sentrypad-crashpad-$(PLATFORM).zip'
+          artifactName: $(ARTIFACT_DIR)
+
+      - displayName: 'Build everything'
+        bash: |
+          set -eux
+
+          cd "${PACKAGE_DIR}/gen_${PLATFORM}"
+
+          ${{ parameters.buildScript }}
