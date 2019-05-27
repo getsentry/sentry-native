@@ -23,16 +23,6 @@ extern "C" {
 #endif
 #endif
 
-// Char types
-#ifdef _WIN32
-#include <wchar.h>
-typedef wchar_t xchar_t;
-#define XSTR(X) L##X
-#else
-typedef char xchar_t;
-#define XSTR(X) X
-#endif
-
 /*
  * Possible error codes.
  */
@@ -67,11 +57,11 @@ typedef struct sentry_options_s {
     const char *environment;
     const char *dist;
     int debug;
-    const xchar_t **attachments;
+    const char **attachments;
     /* Crashpad */
-    const xchar_t *handler_path;
+    const char *handler_path;
     /* The base working directory */
-    const xchar_t *database_path;
+    const char *database_path;
 } sentry_options_t;
 
 /*

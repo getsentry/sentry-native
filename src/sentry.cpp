@@ -9,14 +9,6 @@
 #include <random>
 #include <ctime>
 
-// For mkdir
-#ifdef _WIN32
-#include <direct.h>
-#include <io.h>
-#include <stdio.h>
-typedef int mode_t;
-#endif
-
 #include "vendor/mpack.h"
 
 #include "internal.hpp"
@@ -70,7 +62,7 @@ static SentryEvent sentry_event = {
 
 SentryInternalOptions sentry_internal_options;
 
-static const xchar_t *BREADCRUMB_CURRENT_FILE =
+static const char *BREADCRUMB_CURRENT_FILE =
     BREADCRUMB_FILE_1; /* start off pointing at 1 */
 static int breadcrumb_count = 0;
 
@@ -82,41 +74,6 @@ char *sane_strdup(const char *s) {
         return rv;
     }
     return 0;
-}
-
-int xmkdir(const xchar_t *dirname, mode_t mode) {
-#ifdef _WIN32
-    return _wmkdir(dirname);
-#else
-    return mkdir(dirname, mode);
-#endif
-}
-
-FILE* xfopen(const xchar_t *filename, const xchar_t *mode) {
-#ifdef _WIN32
-    return _wfopen(filename, mode);
-#else
-    return fopen(filename, mode);
-#endif
-}
-
-
-const xchar_t* xstrchr(const xchar_t *str, int c) {
-#ifdef _WIN32
-    return wcschr(str, c);
-#else
-    return strchr(str, c);
-#endif
-
-}
-
-xstring to_xstring(const std::string &utf8Str) {
-#ifdef _WIN32
-    std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> conv;
-    return conv.from_bytes(utf8Str);
-#else
-    return utf8Str;
-#endif
 }
 
 
@@ -222,9 +179,9 @@ static void serialize(const SentryEvent *event) {
     mpack_writer_t writer;
     /* TODO: cycle event file */
     /* Path must exist otherwise mpack will fail to write. */
-    xstring dest_path_str =
+    std::string dest_path_str =
         sentry_internal_options.run_path + SENTRY_EVENT_FILE_NAME;
-    const xchar_t *dest_path = dest_path_str.c_str();
+    const char *dest_path = dest_path_str.c_str();
     SENTRY_PRINT_DEBUG_ARGS("Serializing to file: %s\n", dest_path);
     mpack_writer_init_filename(&writer, dest_path);
     mpack_start_map(&writer, 10);
@@ -356,20 +313,20 @@ int sentry_init(const sentry_options_t *options) {
 
     /* Make sure run dir exists before serializer needs to write to it */
     /* TODO: Write proper x-plat mkdir */
-    xstring run_path = xstring(options->database_path);
-    xmkdir(run_path.c_str(), 0700);
-    run_path = run_path + XSTR("/sentry-runs/");
-    xmkdir(run_path.c_str(), 0700);
+    std::string run_path = std::string(options->database_path);
+    mkdir(run_path.c_str(), 0700);
+    run_path = run_path + "/sentry-runs/";
+    mkdir(run_path.c_str(), 0700);
 
     sentry_internal_options = SentryInternalOptions {
         /* .minidump_url = */ minidump_url,
         /* .run_id = */ run_id,
-        /* .run_path = */ run_path + to_xstring(run_id) + XSTR("/"),
-        /* .attachments = */ std::map<std::string, xstring>(),
+        /* .run_path = */ run_path + run_id + "/",
+        /* .attachments = */ std::map<std::string, std::string>(),
         /* .options = */ *options
 	};
 
-    int rv = xmkdir(sentry_internal_options.run_path.c_str(), 0700);
+    int rv = mkdir(sentry_internal_options.run_path.c_str(), 0700);
     if (rv != 0 && errno != EEXIST) {
         SENTRY_PRINT_ERROR_ARGS("Failed to create sentry_runs directory '%s'\n",
                                 sentry_internal_options.run_path.c_str());
@@ -378,7 +335,7 @@ int sentry_init(const sentry_options_t *options) {
 
     /* TODO: Reset old runs (i.e: delete old run_paths) */
 
-    std::map<std::string, xstring> attachments;
+    std::map<std::string, std::string> attachments;
 
     attachments.insert(std::make_pair(
         SENTRY_EVENT_FILE_ATTACHMENT_NAME,
@@ -392,14 +349,14 @@ int sentry_init(const sentry_options_t *options) {
 
     if (options->attachments) {
         for (int i = 0; i < ATTACHMENTS_MAX; i++) {
-            const xchar_t *attachment = options->attachments[i];
+            const char *attachment = options->attachments[i];
             if (!attachment) break;
 
-            const xchar_t *split = xstrchr(attachment, '=');
+            const char *split = strchr(attachment, '=');
 
             if (split) {
-                xstring key =
-                    xstring(attachment, (size_t)(split - attachment));
+                std::string key =
+                    std::string(attachment, (size_t)(split - attachment));
                 attachments.insert(std::make_pair(key, split + 1));
             } else {
                 SENTRY_PRINT_DEBUG_ARGS(
@@ -468,9 +425,9 @@ int sentry_add_breadcrumb(sentry_breadcrumb_t *breadcrumb) {
         return rv;
     }
 
-    FILE *file = xfopen(
+    FILE *file = fopen(
         (sentry_internal_options.run_path + BREADCRUMB_CURRENT_FILE).c_str(),
-        breadcrumb_count == 0 ? XSTR("w") : XSTR("a"));
+        breadcrumb_count == 0 ? "w" : "a");
 
     if (file != NULL) {
         /* consider error handling here */
