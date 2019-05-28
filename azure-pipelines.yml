@@ -57,7 +57,7 @@ stages:
     jobs:
       - job: package_all
         pool:
-          vmImage: "ubuntu-16.04"
+          vmImage: "macos-10.13"
         steps:
           - task: DownloadBuildArtifacts@0
             inputs:
