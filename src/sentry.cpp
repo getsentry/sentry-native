@@ -265,8 +265,8 @@ static void serialize(const SentryEvent *event) {
 
     mpack_error_t err = mpack_writer_destroy(&writer);
     if (err != mpack_ok) {
-        SENTRY_PRINT_ERROR_ARGS(
-            "An error occurred encoding the data. Code: %d\n", err);
+        SENTRY_PRINT_ERROR_ARGS("An error occurred encoding the data. Code: %d",
+                                err);
 
         return;
     }
@@ -276,7 +276,7 @@ static void serialize(const SentryEvent *event) {
 
 int sentry_init(const sentry_options_t *options) {
     if (options->dsn == nullptr) {
-        SENTRY_PRINT_ERROR("Not DSN specified. Sentry SDK will be disabled.\n");
+        SENTRY_PRINT_ERROR("Not DSN specified. Sentry SDK will be disabled.");
         return SENTRY_ERROR_NO_DSN;
     }
 
@@ -288,7 +288,7 @@ int sentry_init(const sentry_options_t *options) {
         return err;
     }
 
-    SENTRY_PRINT_DEBUG_ARGS("Initializing with minidump endpoint: %s\n",
+    SENTRY_PRINT_DEBUG_ARGS("Initializing with minidump endpoint: %s",
                             minidump_url.c_str());
 
     if (options->environment != nullptr) {
@@ -328,7 +328,7 @@ int sentry_init(const sentry_options_t *options) {
 
     int rv = mkdir(sentry_internal_options.run_path.c_str(), 0700);
     if (rv != 0 && errno != EEXIST) {
-        SENTRY_PRINT_ERROR_ARGS("Failed to create sentry_runs directory '%s'\n",
+        SENTRY_PRINT_ERROR_ARGS("Failed to create sentry_runs directory '%s'",
                                 sentry_internal_options.run_path.c_str());
         return rv;
     }
@@ -361,7 +361,7 @@ int sentry_init(const sentry_options_t *options) {
             } else {
                 SENTRY_PRINT_DEBUG_ARGS(
                     "Attachment '%s' didn't match expected format: "
-                    "'file=path'\n",
+                    "'file=path'",
                     attachment);
             }
         }
@@ -400,7 +400,7 @@ int serialize_breadcrumb(sentry_breadcrumb_t *breadcrumb,
     mpack_write_cstr(&writer, to_string_level(breadcrumb->level));
     mpack_finish_map(&writer);
     if (mpack_writer_destroy(&writer) != mpack_ok) {
-        SENTRY_PRINT_ERROR("An error occurred encoding the data.\n");
+        SENTRY_PRINT_ERROR("An error occurred encoding the data.");
         return SENTRY_ERROR_BREADCRUMB_SERIALIZATION;
     }
 
@@ -434,7 +434,7 @@ int sentry_add_breadcrumb(sentry_breadcrumb_t *breadcrumb) {
         EINTR_RETRY(fwrite(data, 1, size, file));
         fclose(file);
     } else {
-        SENTRY_PRINT_ERROR_ARGS("Failed to open breadcrumb file %s\n",
+        SENTRY_PRINT_ERROR_ARGS("Failed to open breadcrumb file %s",
                                 BREADCRUMB_CURRENT_FILE);
     }
 
