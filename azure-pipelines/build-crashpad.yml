@@ -25,8 +25,7 @@ jobs:
           artifactName: $(ARTIFACT_DIR)
           downloadPath: '.'
 
-      - displayName: 'Package generated build files'
-        bash: |
+      - bash: |
           set -eux
 
           ZIP=./bin/zip.py
@@ -41,16 +40,17 @@ jobs:
           premake5 "${BUILD_SYSTEM}" --os="${PLATFORM}"
           cd ../..
           $ZIP "sentrypad-crashpad-${PLATFORM}.zip" "${PACKAGE_DIR}"
+        displayName: 'Package generated build files'
 
       - task: PublishBuildArtifacts@1
         inputs:
           pathtoPublish: 'sentrypad-crashpad-$(PLATFORM).zip'
           artifactName: $(ARTIFACT_DIR)
 
-      - displayName: 'Build everything'
-        bash: |
+      - bash: |
           set -eux
 
           cd "${PACKAGE_DIR}/gen_${PLATFORM}"
 
           ${{ parameters.buildScript }}
+        displayName: 'Build everything'
