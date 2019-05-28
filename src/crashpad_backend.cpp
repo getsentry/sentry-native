@@ -48,9 +48,9 @@ int init(const SentryInternalOptions *sentry_internal_options) {
         /* asynchronous_start */ false);
 
     if (success) {
-        SENTRY_PRINT_DEBUG("Started client handler.\n");
+        SENTRY_PRINT_DEBUG("Started client handler.");
     } else {
-        SENTRY_PRINT_ERROR("Failed to start client handler.\n");
+        SENTRY_PRINT_ERROR("Failed to start client handler.");
     }
 
     if (!success) {
