@@ -1,4 +1,5 @@
 #include "options.hpp"
+#include <ctime>
 #include <random>
 #include <sstream>
 
@@ -7,7 +8,7 @@ sentry_options_s::sentry_options_s()
     std::random_device seed;
     std::default_random_engine engine(seed());
     std::uniform_int_distribution<int> uniform_dist(0, INT32_MAX);
-    std::time_t result = std::time(nullptr);
+    time_t result = std::time(nullptr);
     std::stringstream ss;
     ss << result << "-" << uniform_dist(engine);
     run_id = ss.str();

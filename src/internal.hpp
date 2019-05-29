@@ -18,6 +18,9 @@
 #define SENTRY_PRINT_ERROR_ARGS(Message, ...) \
     SENTRY_PRINT_ARGS(Message, __VA_ARGS__)
 
+#ifdef _WIN32
+#define EINTR_RETRY(X) (X)
+#else
 #define EINTR_RETRY(X)                         \
     {                                          \
         int _rv;                               \
@@ -26,6 +29,7 @@
         } while (_rv == -1 && errno == EINTR); \
         _rv;                                   \
     }
+#endif
 
 #define SENTRY_BREADCRUMBS_MAX 100
 static const char *SENTRY_EVENT_FILE_NAME = "sentry-event.mp";

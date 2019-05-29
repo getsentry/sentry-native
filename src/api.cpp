@@ -87,9 +87,6 @@ void sentry_add_breadcrumb(sentry_breadcrumb_t *breadcrumb) {
     if (file != NULL) {
         EINTR_RETRY(fwrite(data, 1, size, file));
         fclose(file);
-    } else {
-        SENTRY_PRINT_ERROR_ARGS("Failed to open breadcrumb file (%s)",
-                                breadcrumb_file.as_cstr());
     }
 
     free(data);

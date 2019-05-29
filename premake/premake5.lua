@@ -16,6 +16,7 @@ workspace "Sentrypad"
 
   filter "system:windows"
     platforms {"Win64"}
+		defines {"SENTRY_BUILD_SHARED"}
   filter {}
 
 --- SENTRYPAD ---

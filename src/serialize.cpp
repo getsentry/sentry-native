@@ -54,7 +54,7 @@ void serialize_scope_as_event(sentry::Scope *scope, mpack_writer_t *writer) {
 
     mpack_write_cstr(writer, "user");
     if (!scope->user.empty()) {
-        mpack_start_map(writer, scope->user.size());
+        mpack_start_map(writer, (uint32_t)scope->user.size());
         std::unordered_map<std::string, std::string>::const_iterator iter;
         for (iter = scope->user.begin(); iter != scope->user.end(); ++iter) {
             mpack_write_cstr(writer, iter->first.c_str());
@@ -72,9 +72,9 @@ void serialize_scope_as_event(sentry::Scope *scope, mpack_writer_t *writer) {
     mpack_write_cstr(writer, "transaction");
     mpack_write_cstr_or_nil(writer, cstr_or_null(scope->transaction.c_str()));
 
-    int tag_count = scope->tags.size();
+    size_t tag_count = scope->tags.size();
     mpack_write_cstr(writer, "tags");
-    mpack_start_map(writer, tag_count);
+    mpack_start_map(writer, (uint32_t)tag_count);
     if (tag_count > 0) {
         std::unordered_map<std::string, std::string>::const_iterator iter;
         for (iter = scope->tags.begin(); iter != scope->tags.end(); ++iter) {
@@ -84,9 +84,9 @@ void serialize_scope_as_event(sentry::Scope *scope, mpack_writer_t *writer) {
     }
     mpack_finish_map(writer);
 
-    int extra_count = scope->extra.size();
+    size_t extra_count = scope->extra.size();
     mpack_write_cstr(writer, "extra");
-    mpack_start_map(writer, extra_count);
+    mpack_start_map(writer, (uint32_t)extra_count);
     if (extra_count > 0) {
         std::unordered_map<std::string, std::string>::const_iterator iter;
         for (iter = scope->extra.begin(); iter != scope->extra.end(); ++iter) {
@@ -96,9 +96,9 @@ void serialize_scope_as_event(sentry::Scope *scope, mpack_writer_t *writer) {
     }
     mpack_finish_map(writer);
 
-    int fingerprint_count = scope->fingerprint.size();
+    size_t fingerprint_count = scope->fingerprint.size();
     mpack_write_cstr(writer, "fingerprint");
-    mpack_start_array(writer, fingerprint_count);
+    mpack_start_array(writer, (uint32_t)fingerprint_count);
     if (fingerprint_count > 0) {
         for (const std::string &part : scope->fingerprint) {
             mpack_write_cstr_or_nil(writer, part.c_str());
