@@ -207,25 +207,6 @@ SENTRY_API void sentry_remove_transaction();
  */
 SENTRY_API void sentry_set_level(enum sentry_level_t level);
 
-/* Sentrypad custom API */
-
-/*
- * Clears the values of the specified user.
- */
-SENTRY_API void sentry_user_clear(sentry_user_t *user);
-/*
- * Initializes the Sentry options.
- */
-SENTRY_API void sentry_options_init(sentry_options_t *options);
-/*
- * Closes the SDK.
- */
-SENTRY_API int sentry_shutdown(void);
-/*
- * Captures a minidump.
- */
-SENTRY_API int sentry_capture_minidump(const char *optional_message);
-
 #ifdef __cplusplus
 }
 #endif
