@@ -1,10 +1,20 @@
 #include "options.hpp"
+#include <cstdlib>
 #include <ctime>
 #include <random>
 #include <sstream>
 
+static const char *getenv_or_empty(const char *key) {
+    const char *rv = getenv(key);
+    return rv ? rv : "";
+}
+
 sentry_options_s::sentry_options_s()
-    : debug(false), database_path("./.sentrypad") {
+    : debug(false),
+      database_path("./.sentrypad"),
+      dsn(getenv_or_empty("SENTRY_DSN")),
+      environment(getenv_or_empty("SENTRY_ENVIRONMENT")),
+      release(getenv_or_empty("SENTRY_RELEASE")) {
     std::random_device seed;
     std::default_random_engine engine(seed());
     std::uniform_int_distribution<int> uniform_dist(0, INT32_MAX);
