@@ -41,7 +41,6 @@ void init_backend() {
 
     CrashpadClient client;
     std::string url = options->dsn.get_minidump_url();
-    printf("DSN: %s\n", url.c_str());
     bool success = client.StartHandlerWithAttachments(
         handler, database, database, url, annotations, file_attachments,
         arguments,

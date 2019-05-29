@@ -31,8 +31,6 @@ Dsn::Dsn(const char *dsn)
     m_host = url.host();
     m_port = url.port();
 
-    printf("path: %s\n", url.path());
-
     const char *end = strrchr(url.path(), '/');
     if (!end) {
         m_project_id = std::string(url.path());
