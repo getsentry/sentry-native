@@ -3,21 +3,18 @@
 #include "sentry.h"
 
 int main(void) {
-    sentry_options_t option;
-    sentry_options_init(&option);
+    sentry_options_t *options = sentry_options_new();
 
-    option.dsn = "http://810ca33ccac847b3a39053f3e4303730@127.0.0.1:8000/3";
-    option.handler_path = "bin/Release/crashpad_handler";
-    option.environment = "Production";
-    option.release = "5fd7a6cd";
-    option.dist = "12345";
-    option.database_path = "sentrypad-db";
-    option.debug = 1;
+    sentry_options_set_dsn(
+        options, "https://feea6ffd93d44b9f93eeb7e35ab2ff85@sentry.io/287385");
+    sentry_options_set_handler_path(options, "bin/Release/crashpad_handler");
+    sentry_options_set_environment(options, "Production");
+    sentry_options_set_release(options, "5fd7a6cd");
+    sentry_options_set_database_path(options, "sentrypad-db");
+    sentry_options_set_debug(options, 1);
+    sentry_options_add_attachment(options, "example", "example.c");
 
-    const char *attachments[3] = {"example=example.c", NULL};
-    option.attachments = attachments;
-
-    sentry_init(&option);
+    sentry_init(options);
 
     sentry_set_transaction("tran");
     // sentry_set_release("different release than the original");
@@ -47,10 +44,10 @@ int main(void) {
         sentry_add_breadcrumb(&crumb);
     }
 
-    sentry_user_t user;
-    sentry_user_clear(&user);
-    user.id = "some id";
-    user.username = "some name";
+    sentry_user_t user = {
+        .id = "some_id",
+        .username = "some name"
+    };
     sentry_set_user(&user);
 
     memset((char *)0x0, 1, 100);

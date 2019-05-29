@@ -8,6 +8,7 @@ MACOS_SYSROOT = '/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.pla
 function crashpad_common()
   language "C++"
   cppdialect "C++14"
+	symbols "On"
   includedirs {
     SRC_ROOT,
     SRC_ROOT.."/third_party/mini_chromium/mini_chromium"
@@ -15,7 +16,6 @@ function crashpad_common()
   filter "configurations:Release"
     defines { "NDEBUG" }
     optimize "On"
-    symbols "On"
   filter {}
 
   flags {
