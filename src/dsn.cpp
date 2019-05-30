@@ -6,7 +6,8 @@
 namespace sentry {
 
 Dsn::Dsn(const char *dsn)
-    : m_https(false),
+    : m_raw(dsn),
+      m_https(false),
       m_public_key(""),
       m_private_key(""),
       m_host(""),

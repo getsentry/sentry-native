@@ -20,6 +20,6 @@ void sentry::cleanup_old_runs() {
     }
 
     if (some_failed) {
-        SENTRY_PRINT_ERROR("failed to remove old sentry run");
+        SENTRY_LOG("failed to remove old sentry run");
     }
 }

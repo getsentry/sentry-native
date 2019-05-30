@@ -46,9 +46,9 @@ void init_backend() {
         /* asynchronous_start */ false);
 
     if (success) {
-        SENTRY_PRINT_DEBUG("Started client handler.");
+        SENTRY_LOG("Started client handler.");
     } else {
-        SENTRY_PRINT_ERROR("Failed to start client handler.");
+        SENTRY_LOG("Failed to start client handler.");
         return;
     }
 

@@ -34,10 +34,14 @@ class Dsn {
     bool valid() const {
         return m_valid;
     }
+    const char *raw() const {
+        return m_valid ? m_raw.c_str() : nullptr;
+    }
 
     std::string &&get_minidump_url() const;
 
    private:
+    std::string m_raw;
     bool m_https;
     std::string m_public_key;
     std::string m_private_key;

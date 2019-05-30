@@ -28,8 +28,7 @@ static void flush_event() {
     sentry::serialize_scope_as_event(&g_scope, &writer);
     mpack_error_t err = mpack_writer_destroy(&writer);
     if (err != mpack_ok) {
-        SENTRY_PRINT_ERROR_ARGS("An error occurred encoding the data. Code: %d",
-                                err);
+        SENTRY_LOG_ARGS("An error occurred encoding the data. Code: %d", err);
 
         return;
     }
@@ -84,7 +83,7 @@ void sentry_add_breadcrumb(const sentry_breadcrumb_t *breadcrumb) {
     mpack_writer_init_growable(&writer, &data, &size);
     sentry::serialize_breadcrumb(breadcrumb, &writer);
     if (mpack_writer_destroy(&writer) != mpack_ok) {
-        SENTRY_PRINT_ERROR("An error occurred encoding the data.");
+        SENTRY_LOG("An error occurred encoding the data.");
         return;
     }
 

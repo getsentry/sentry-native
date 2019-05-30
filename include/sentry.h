@@ -62,10 +62,20 @@ SENTRY_API void sentry_options_free(sentry_options_t *opts);
 SENTRY_API void sentry_options_set_dsn(sentry_options_t *opts, const char *dsn);
 
 /*
+ * gets the DSN
+ */
+SENTRY_API const char *sentry_options_get_dsn(const sentry_options_t *opts);
+
+/*
  * sets the release
  */
 SENTRY_API void sentry_options_set_release(sentry_options_t *opts,
                                            const char *release);
+
+/*
+ * gets the release
+ */
+SENTRY_API const char *sentry_options_get_release(const sentry_options_t *opts);
 
 /*
  * sets the environment
@@ -74,10 +84,21 @@ SENTRY_API void sentry_options_set_environment(sentry_options_t *opts,
                                                const char *environment);
 
 /*
+ * gets the environment
+ */
+SENTRY_API const char *sentry_options_get_environment(
+    const sentry_options_t *opts);
+
+/*
  * sets the dist
  */
 SENTRY_API void sentry_options_set_dist(sentry_options_t *opts,
                                         const char *dist);
+
+/*
+ * gets the dist
+ */
+SENTRY_API const char *sentry_options_get_dist(const sentry_options_t *opts);
 
 /*
  * enables or disables debug printing mode

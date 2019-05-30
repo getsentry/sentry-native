@@ -9,6 +9,14 @@ static const char *getenv_or_empty(const char *key) {
     return rv ? rv : "";
 }
 
+static const char *empty_str_null(const char *s) {
+    if (!s && !*s) {
+        return nullptr;
+    } else {
+        return s;
+    }
+}
+
 sentry_options_s::sentry_options_s()
     : debug(false),
       database_path("./.sentrypad"),
@@ -38,8 +46,16 @@ void sentry_options_set_dsn(sentry_options_t *opts, const char *dsn) {
     opts->dsn = dsn;
 }
 
+const char *sentry_options_get_dsn(const sentry_options_t *opts) {
+    return opts->dsn.raw();
+}
+
 void sentry_options_set_release(sentry_options_t *opts, const char *release) {
     opts->release = release;
+}
+
+const char *sentry_options_get_release(const sentry_options_t *opts) {
+    return empty_str_null(opts->release.c_str());
 }
 
 void sentry_options_set_environment(sentry_options_t *opts,
@@ -47,8 +63,16 @@ void sentry_options_set_environment(sentry_options_t *opts,
     opts->environment = environment;
 }
 
+const char *sentry_options_get_environment(const sentry_options_t *opts) {
+    return empty_str_null(opts->environment.c_str());
+}
+
 void sentry_options_set_dist(sentry_options_t *opts, const char *dist) {
     opts->dist = dist;
+}
+
+const char *sentry_options_get_dist(const sentry_options_t *opts) {
+    return empty_str_null(opts->dist.c_str());
 }
 
 void sentry_options_set_debug(sentry_options_t *opts, int debug) {
