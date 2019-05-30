@@ -155,11 +155,7 @@ void sentry_set_fingerprint(const char *fingerprint, ...) {
         g_scope.fingerprint.clear();
     } else {
         g_scope.fingerprint.push_back(fingerprint);
-        while (1) {
-            const char *arg = va_arg(va, const char *);
-            if (!arg) {
-                break;
-            }
+        for (const char *arg; (arg = va_arg(va, const char *));) {
             g_scope.fingerprint.push_back(arg);
         }
     }
