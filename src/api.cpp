@@ -53,14 +53,15 @@ int sentry_init(sentry_options_t *options) {
                            current_run_folder.join(SENTRY_BREADCRUMB2_FILE)));
 
     if (!options->dsn.disabled()) {
-        SENTRY_LOGF("crash handler enabled (reporting to %s)", options->dsn.raw());
+        SENTRY_LOGF("crash handler enabled (reporting to %s)",
+                    options->dsn.raw());
         current_run_folder.create_directories();
         event_filename = current_run_folder.join(SENTRY_EVENT_FILE_NAME);
         sentry::init_backend();
-        sentry::cleanup_old_runs();
     } else {
         SENTRY_LOG("crash handler disabled because DSN is empty");
     }
+    sentry::cleanup_old_runs();
 
     return 0;
 }
