@@ -29,11 +29,9 @@ void init_backend() {
     std::map<std::string, std::string> annotations;
     std::map<std::string, base::FilePath> file_attachments;
 
-    std::vector<sentry::Attachment>::const_iterator iter;
-    for (iter = options->attachments.begin();
-         iter != options->attachments.end(); ++iter) {
+    for (const sentry::Attachment &attachment : options->attachments) {
         file_attachments.insert(std::make_pair(
-            iter->name(), base::FilePath(iter->path().as_osstr())));
+            attachment.name(), base::FilePath(attachment.path().as_osstr())));
     }
 
     std::vector<std::string> arguments;
