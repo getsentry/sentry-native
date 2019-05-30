@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <stdarg.h>
 #include <mutex>
 #include "attachment.hpp"
@@ -35,6 +36,7 @@ static void flush_event() {
 }
 
 int sentry_init(sentry_options_t *options) {
+    assert(!g_options);
     g_options = options;
 
     options->runs_folder = options->database_path.join(SENTRY_RUNS_FOLDER);
@@ -64,7 +66,7 @@ const sentry_options_t *sentry_get_options(void) {
     return g_options;
 }
 
-void sentry_add_breadcrumb(sentry_breadcrumb_t *breadcrumb) {
+void sentry_add_breadcrumb(const sentry_breadcrumb_t *breadcrumb) {
     WITH_LOCKED_BREADCRUMBS;
 
     if (breadcrumb_count == 0 || breadcrumb_count == SENTRY_BREADCRUMBS_MAX) {
@@ -124,7 +126,7 @@ void sentry_remove_user() {
 
 void sentry_set_tag(const char *key, const char *value) {
     WITH_LOCKED_SCOPE;
-    g_scope.tags.emplace(key, value);
+    g_scope.tags.insert(std::make_pair(key, value));
     flush_event();
 }
 
@@ -136,7 +138,7 @@ void sentry_remove_tag(const char *key) {
 
 void sentry_set_extra(const char *key, const char *value) {
     WITH_LOCKED_SCOPE;
-    g_scope.tags.emplace(key, value);
+    g_scope.tags.insert(std::make_pair(key, value));
     flush_event();
 }
 
@@ -151,9 +153,8 @@ void sentry_set_fingerprint(const char *fingerprint, ...) {
     va_list va;
     va_start(va, fingerprint);
 
-    if (!fingerprint) {
-        g_scope.fingerprint.clear();
-    } else {
+    g_scope.fingerprint.clear();
+    if (fingerprint) {
         g_scope.fingerprint.push_back(fingerprint);
         for (const char *arg; (arg = va_arg(va, const char *));) {
             g_scope.fingerprint.push_back(arg);

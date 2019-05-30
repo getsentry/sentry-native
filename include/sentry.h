@@ -161,7 +161,7 @@ SENTRY_API const sentry_options_t *sentry_get_options(void);
 /*
  * Adds the breadcrumb to be sent in case of an event.
  */
-SENTRY_API void sentry_add_breadcrumb(sentry_breadcrumb_t *breadcrumb);
+SENTRY_API void sentry_add_breadcrumb(const sentry_breadcrumb_t *breadcrumb);
 /*
  * Sets the specified user.
  */

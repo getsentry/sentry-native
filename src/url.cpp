@@ -4,10 +4,14 @@
 #include <cstdlib>
 #include <cstring>
 
-#define SKIP_WHILE_NOT(ptr, c) \
-    while (*ptr && *ptr != c) tmp++;
-#define SKIP_WHILE_NOT2(ptr, c1, c2) \
-    while (*ptr && *ptr != c1 && *ptr != c2) tmp++;
+#define SKIP_WHILE_NOT(ptr, c)           \
+    do {                                 \
+        while (*ptr && *ptr != c) tmp++; \
+    } while (false)
+#define SKIP_WHILE_NOT2(ptr, c1, c2)                    \
+    do {                                                \
+        while (*ptr && *ptr != c1 && *ptr != c2) tmp++; \
+    } while (false)
 
 static bool is_scheme_valid(const std::string &scheme_name) {
     for (char c : scheme_name) {

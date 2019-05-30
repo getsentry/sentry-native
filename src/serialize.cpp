@@ -24,7 +24,7 @@ static const char *cstr_or_null(const char *s) {
 
 namespace sentry {
 
-void serialize_breadcrumb(sentry_breadcrumb_t *breadcrumb,
+void serialize_breadcrumb(const sentry_breadcrumb_t *breadcrumb,
                           mpack_writer_t *writer) {
     mpack_start_map(writer, 5);
     mpack_write_cstr(writer, "timestamp");
@@ -44,7 +44,8 @@ void serialize_breadcrumb(sentry_breadcrumb_t *breadcrumb,
     mpack_finish_map(writer);
 }
 
-void serialize_scope_as_event(sentry::Scope *scope, mpack_writer_t *writer) {
+void serialize_scope_as_event(const sentry::Scope *scope,
+                              mpack_writer_t *writer) {
     const sentry_options_t *options = sentry_get_options();
     mpack_start_map(writer, 10);
     mpack_write_cstr(writer, "release");
