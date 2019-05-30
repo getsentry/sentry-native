@@ -2,6 +2,7 @@
 #include <string.h>
 #include "sentry.h"
 
+
 int main(void) {
     sentry_options_t *options = sentry_options_new();
 
@@ -17,13 +18,11 @@ int main(void) {
     sentry_init(options);
 
     sentry_set_transaction("tran");
-    // sentry_set_release("different release than the original");
     sentry_set_level(SENTRY_LEVEL_WARNING);
     sentry_set_extra("extra stuff", "some value");
     sentry_set_tag("expected-tag", "some value");
     sentry_set_tag("not-expected-tag", "some value");
     sentry_remove_tag("not-expected-tag");
-
     sentry_set_fingerprint("foo", "bar", NULL);
 
     sentry_breadcrumb_t default_crumb = {.message = "default level is info"};

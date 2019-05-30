@@ -41,7 +41,7 @@ class Dsn {
         return m_valid ? m_raw.c_str() : nullptr;
     }
 
-    std::string &&get_minidump_url() const;
+    std::string get_minidump_url() const;
 
    private:
     std::string m_raw;
