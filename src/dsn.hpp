@@ -6,7 +6,8 @@
 namespace sentry {
 class Dsn {
    public:
-    Dsn() : m_valid(false) {}
+    Dsn() : m_valid(false) {
+    }
     Dsn(const char *dsn);
 
     const char *scheme() const {
@@ -34,7 +35,7 @@ class Dsn {
         return m_valid;
     }
 
-    std::string get_minidump_url() const;
+    std::string &&get_minidump_url() const;
 
    private:
     bool m_https;

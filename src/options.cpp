@@ -62,7 +62,7 @@ int sentry_options_get_debug(const sentry_options_t *opts) {
 void sentry_options_add_attachment(sentry_options_t *opts,
                                    const char *name,
                                    const char *path) {
-    opts->attachments.push_back(sentry::Attachment(name, path));
+    opts->attachments.emplace_back(sentry::Attachment(name, path));
 }
 
 void sentry_options_set_handler_path(sentry_options_t *opts, const char *path) {
@@ -78,7 +78,7 @@ void sentry_options_set_database_path(sentry_options_t *opts,
 void sentry_options_add_attachmentw(sentry_options_t *opts,
                                     const char *name,
                                     const wchar_t *path) {
-    opts->attachments.push_back(sentry::Attachment(name, path));
+    opts->attachments.emplace_back(sentry::Attachment(name, path));
 }
 
 void sentry_options_set_handler_pathw(sentry_options_t *opts,

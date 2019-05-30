@@ -41,13 +41,13 @@ int sentry_init(sentry_options_t *options) {
     sentry::Path current_run_folder =
         options->runs_folder.join(options->run_id.c_str());
 
-    options->attachments.push_back(
+    options->attachments.emplace_back(
         sentry::Attachment(SENTRY_EVENT_FILE_ATTACHMENT_NAME,
                            current_run_folder.join(SENTRY_EVENT_FILE_NAME)));
-    options->attachments.push_back(
+    options->attachments.emplace_back(
         sentry::Attachment(SENTRY_BREADCRUMB1_FILE_ATTACHMENT_NAME,
                            current_run_folder.join(SENTRY_BREADCRUMB1_FILE)));
-    options->attachments.push_back(
+    options->attachments.emplace_back(
         sentry::Attachment(SENTRY_BREADCRUMB2_FILE_ATTACHMENT_NAME,
                            current_run_folder.join(SENTRY_BREADCRUMB2_FILE)));
     current_run_folder.create_directories();

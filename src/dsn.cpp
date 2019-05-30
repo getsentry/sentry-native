@@ -40,10 +40,10 @@ Dsn::Dsn(const char *dsn)
     }
 }
 
-std::string Dsn::get_minidump_url() const {
+std::string &&Dsn::get_minidump_url() const {
     std::stringstream ss;
     ss << scheme() << "://" << host() << ":" << port() << "/" << path()
        << "api/" << project_id() << "/minidump/?sentry_key=" << public_key();
-    return ss.str();
+    return std::move(ss.str());
 }
 }  // namespace sentry

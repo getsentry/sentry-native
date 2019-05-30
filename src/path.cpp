@@ -86,9 +86,9 @@ bool Path::remove() const {
     return false;
 }
 
-Path Path::join(const wchar_t *other) const {
+Path &&Path::join(const wchar_t *other) const {
     if (::isalpha(*other) && other[1] == L':') {
-        return Path(other);
+        return std::move(Path(other));
     } else {
         Path rv = Path(m_path.c_str());
         if (m_path[m_path.size() - 1] != L'/' &&
@@ -96,11 +96,11 @@ Path Path::join(const wchar_t *other) const {
             rv.m_path.push_back('\\');
         }
         rv.m_path.append(other);
-        return rv;
+        return std::move(rv);
     }
 }
 
-Path Path::join(const char *other) const {
+Path &&Path::join(const char *other) const {
     std::wstring tmp = cstr_to_wstr(other);
     return join(tmp.c_str());
 }
@@ -179,16 +179,16 @@ bool Path::remove() const {
     return false;
 }
 
-Path Path::join(const char *other) const {
+Path &&Path::join(const char *other) const {
     if (*other == '/') {
-        return Path(other);
+        return std::move(Path(other));
     } else {
         Path rv = Path(m_path.c_str());
         if (m_path.empty() || m_path[m_path.size() - 1] != '/') {
             rv.m_path.push_back('/');
         }
         rv.m_path.append(other);
-        return rv;
+        return std::move(rv);
     }
 }
 
@@ -241,8 +241,8 @@ bool Path::is_file() const {
     return stat_func(m_path.c_str(), &buf) == 0 && S_ISREG(buf.st_mode);
 }
 
-PathIterator Path::iter_directory() const {
-    return PathIterator(this);
+PathIterator &&Path::iter_directory() const {
+    return std::move(PathIterator(this));
 }
 
 bool Path::remove_all() const {

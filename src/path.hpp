@@ -28,7 +28,7 @@ class Path {
     }
 
     Path(const char *path);
-    Path join(const wchar_t *other) const;
+    Path &&join(const wchar_t *other) const;
 
     const wchar_t *as_osstr() const {
         return m_path.c_str();
@@ -48,11 +48,11 @@ class Path {
 
     bool is_dir() const;
     bool is_file() const;
-    Path join(const char *other) const;
+    Path &&join(const char *other) const;
     bool create_directories() const;
     bool remove() const;
     bool remove_all() const;
-    PathIterator iter_directory() const;
+    PathIterator &&iter_directory() const;
     FILE *open(const char *mode) const;
     bool filename_matches(const char *other) const;
 

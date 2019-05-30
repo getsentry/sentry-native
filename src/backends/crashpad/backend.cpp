@@ -30,8 +30,8 @@ void init_backend() {
     std::map<std::string, base::FilePath> file_attachments;
 
     for (const sentry::Attachment &attachment : options->attachments) {
-        file_attachments.insert(std::make_pair(
-            attachment.name(), base::FilePath(attachment.path().as_osstr())));
+        file_attachments.emplace(attachment.name(),
+                                 base::FilePath(attachment.path().as_osstr()));
     }
 
     std::vector<std::string> arguments;
