@@ -2,6 +2,7 @@
 #include <mutex>
 #include "attachment.hpp"
 #include "backend.hpp"
+#include "cleanup.hpp"
 #include "internal.hpp"
 #include "options.hpp"
 #include "scope.hpp"
@@ -11,8 +12,10 @@ static sentry_options_t *g_options;
 static sentry::Scope g_scope;
 static std::mutex scope_lock;
 static std::mutex breadcrumb_lock;
-static int breadcrumb_current_file = 0;
+static int breadcrumb_fileid = 0;
 static int breadcrumb_count = 0;
+static sentry::Path event_filename;
+static sentry::Path breadcrumb_filename;
 
 #define WITH_LOCKED_BREADCRUMBS \
     std::lock_guard<std::mutex> _blck(breadcrumb_lock)
@@ -20,8 +23,7 @@ static int breadcrumb_count = 0;
 
 static void flush_event() {
     mpack_writer_t writer;
-    sentry::Path dest_path = g_options->run_folder.join(SENTRY_EVENT_FILE_NAME);
-    mpack_writer_init_stdfile(&writer, dest_path.open("w"), true);
+    mpack_writer_init_stdfile(&writer, event_filename.open("w"), true);
     sentry::serialize_scope_as_event(&g_scope, &writer);
     mpack_error_t err = mpack_writer_destroy(&writer);
     if (err != mpack_ok) {
@@ -35,24 +37,25 @@ static void flush_event() {
 int sentry_init(sentry_options_t *options) {
     g_options = options;
 
-    sentry::Path run_path = g_options->database_path.join("sentry-runs");
-    sentry::Path run_folder = run_path.join(options->run_id.c_str());
-    g_options->run_folder = run_folder;
-    run_folder.create_directories();
+    options->runs_folder = options->database_path.join(SENTRY_RUNS_FOLDER);
+    sentry::Path current_run_folder =
+        options->runs_folder.join(options->run_id.c_str());
 
     options->attachments.push_back(
         sentry::Attachment(SENTRY_EVENT_FILE_ATTACHMENT_NAME,
-                           run_folder.join(SENTRY_EVENT_FILE_NAME)));
+                           current_run_folder.join(SENTRY_EVENT_FILE_NAME)));
     options->attachments.push_back(
         sentry::Attachment(SENTRY_BREADCRUMB1_FILE_ATTACHMENT_NAME,
-                           run_folder.join(SENTRY_BREADCRUMB1_FILE)));
+                           current_run_folder.join(SENTRY_BREADCRUMB1_FILE)));
     options->attachments.push_back(
         sentry::Attachment(SENTRY_BREADCRUMB2_FILE_ATTACHMENT_NAME,
-                           run_folder.join(SENTRY_BREADCRUMB2_FILE)));
+                           current_run_folder.join(SENTRY_BREADCRUMB2_FILE)));
+    current_run_folder.create_directories();
 
-    run_path.create_directories();
+    event_filename = current_run_folder.join(SENTRY_EVENT_FILE_NAME);
 
     sentry::init_backend();
+    sentry::cleanup_old_runs();
 
     return 0;
 }
@@ -64,9 +67,13 @@ const sentry_options_t *sentry_get_options(void) {
 void sentry_add_breadcrumb(sentry_breadcrumb_t *breadcrumb) {
     WITH_LOCKED_BREADCRUMBS;
 
-    if (breadcrumb_count == SENTRY_BREADCRUMBS_MAX) {
-        breadcrumb_current_file = breadcrumb_current_file == 0 ? 1 : 0;
+    if (breadcrumb_count == 0 || breadcrumb_count == SENTRY_BREADCRUMBS_MAX) {
+        breadcrumb_fileid = breadcrumb_fileid == 0 ? 1 : 0;
         breadcrumb_count = 0;
+        breadcrumb_filename =
+            g_options->runs_folder.join(g_options->run_id.c_str())
+                .join(breadcrumb_fileid == 0 ? SENTRY_BREADCRUMB1_FILE
+                                             : SENTRY_BREADCRUMB2_FILE);
     }
 
     char *data;
@@ -79,13 +86,10 @@ void sentry_add_breadcrumb(sentry_breadcrumb_t *breadcrumb) {
         return;
     }
 
-    sentry::Path breadcrumb_file = g_options->run_folder.join(
-        breadcrumb_current_file == 0 ? SENTRY_BREADCRUMB1_FILE
-                                     : SENTRY_BREADCRUMB2_FILE);
-    FILE *file = breadcrumb_file.open(breadcrumb_count == 0 ? "w" : "a");
+    FILE *file = breadcrumb_filename.open(breadcrumb_count == 0 ? "w" : "a");
 
     if (file != NULL) {
-        EINTR_RETRY(fwrite(data, 1, size, file));
+        fwrite(data, 1, size, file);
         fclose(file);
     }
 

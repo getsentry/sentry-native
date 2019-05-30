@@ -19,5 +19,5 @@ struct sentry_options_s {
 
     // internal options
     std::string run_id;
-    sentry::Path run_folder;
+    sentry::Path runs_folder;
 };

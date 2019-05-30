@@ -19,19 +19,28 @@
     SENTRY_PRINT_ARGS(Message, __VA_ARGS__)
 
 #ifdef _WIN32
-#define EINTR_RETRY(X) (X)
+#define EINTR_RETRY(X, Y)     \
+    do {                      \
+        int _tmp = (X);       \
+        if (Y) {              \
+            *(int *)Y = _tmp; \
+        }                     \
+    } while (false)
 #else
-#define EINTR_RETRY(X)                         \
-    {                                          \
-        int _rv;                               \
-        do {                                   \
-            _rv = (X);                         \
-        } while (_rv == -1 && errno == EINTR); \
-        _rv;                                   \
-    }
+#define EINTR_RETRY(X, Y)                       \
+    do {                                        \
+        int _tmp;                               \
+        do {                                    \
+            _tmp = (X);                         \
+        } while (_tmp == -1 && errno == EINTR); \
+        if (Y) {                                \
+            *(int *)Y = _tmp;                   \
+        }                                       \
+    } while (false)
 #endif
 
 #define SENTRY_BREADCRUMBS_MAX 100
+static const char *SENTRY_RUNS_FOLDER = "sentry-runs";
 static const char *SENTRY_EVENT_FILE_NAME = "sentry-event.mp";
 static const char *SENTRY_BREADCRUMB1_FILE = "sentry-breadcrumb1.mp";
 static const char *SENTRY_BREADCRUMB2_FILE = "sentry-breadcrumb2.mp";
