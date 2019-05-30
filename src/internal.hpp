@@ -4,14 +4,14 @@
 #include <sentry.h>
 #include <stdio.h>
 
-#define SENTRY_LOG_ARGS(message, ...)                               \
+#define SENTRY_LOGF(message, ...)                               \
     do {                                                            \
         if (sentry_options_get_debug(sentry_get_options())) {       \
             fprintf(stderr, "[sentry] " message "\n", __VA_ARGS__); \
         }                                                           \
     } while (0)
 
-#define SENTRY_LOG(Message) SENTRY_LOG_ARGS("%s", Message "")
+#define SENTRY_LOG(Message) SENTRY_LOGF("%s", Message "")
 
 #ifdef _WIN32
 #define EINTR_RETRY(X, Y)     \

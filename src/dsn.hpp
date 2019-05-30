@@ -34,6 +34,9 @@ class Dsn {
     bool valid() const {
         return m_valid;
     }
+    bool disabled() const {
+        return m_raw.empty();
+    }
     const char *raw() const {
         return m_valid ? m_raw.c_str() : nullptr;
     }

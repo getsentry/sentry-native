@@ -6,7 +6,7 @@
 namespace sentry {
 
 Dsn::Dsn(const char *dsn)
-    : m_raw(dsn),
+    : m_raw(dsn ? dsn : ""),
       m_https(false),
       m_public_key(""),
       m_private_key(""),
@@ -14,6 +14,12 @@ Dsn::Dsn(const char *dsn)
       m_path(""),
       m_project_id(""),
       m_valid(false) {
+    // the disabled dsn
+    if (m_raw.empty()) {
+        m_valid = true;
+        return;
+    }
+
     Url url(dsn);
     if (!url.valid()) {
         return;

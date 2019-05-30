@@ -28,7 +28,7 @@ static void flush_event() {
     sentry::serialize_scope_as_event(&g_scope, &writer);
     mpack_error_t err = mpack_writer_destroy(&writer);
     if (err != mpack_ok) {
-        SENTRY_LOG_ARGS("An error occurred encoding the data. Code: %d", err);
+        SENTRY_LOGF("An error occurred encoding the data. Code: %d", err);
 
         return;
     }
@@ -51,12 +51,16 @@ int sentry_init(sentry_options_t *options) {
     options->attachments.emplace_back(
         sentry::Attachment(SENTRY_BREADCRUMB2_FILE_ATTACHMENT_NAME,
                            current_run_folder.join(SENTRY_BREADCRUMB2_FILE)));
-    current_run_folder.create_directories();
 
-    event_filename = current_run_folder.join(SENTRY_EVENT_FILE_NAME);
-
-    sentry::init_backend();
-    sentry::cleanup_old_runs();
+    if (!options->dsn.disabled()) {
+        SENTRY_LOGF("crash handler enabled (reporting to %s)", options->dsn.raw());
+        current_run_folder.create_directories();
+        event_filename = current_run_folder.join(SENTRY_EVENT_FILE_NAME);
+        sentry::init_backend();
+        sentry::cleanup_old_runs();
+    } else {
+        SENTRY_LOG("crash handler disabled because DSN is empty");
+    }
 
     return 0;
 }
