@@ -43,8 +43,9 @@ Dsn::Dsn(const char *dsn)
         m_project_id = std::string(url.path());
     } else {
         m_path = std::string(url.path(), end + 1);
-        m_valid = true;
+        m_project_id = std::string(end + 1);
     }
+    m_valid = true;
 }
 
 std::string Dsn::get_minidump_url() const {

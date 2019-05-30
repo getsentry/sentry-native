@@ -49,5 +49,5 @@ int main(void) {
     };
     sentry_set_user(&user);
 
-    //memset((char *)0x0, 1, 100);
+    memset((char *)0x0, 1, 100);
 }
