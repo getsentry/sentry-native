@@ -54,16 +54,3 @@ done
 bash "$CRASHPAD_OUT_DIR/fetch_crashpad.sh"
 # Clean up unneeded files
 rm -rf $CRASHPAD_OUT_DIR/build/{depot_tools,buildtools} $CRASHPAD_OUT_DIR/build/crashpad/third_party/{gtest,gyp}
-
-##############################################
-### Generate build files for all platforms ###
-##############################################
-for CONFIG in "${CONFIGS[@]}"; do
-    PLATFORM="${CONFIG%_*}"
-    BUILD_SYSTEM="${CONFIG#*_}"
-    PLATFORM_GEN_DIR="$SENTRYPAD_OUT_DIR/gen_$PLATFORM"
-    cp -r "$SENTRYPAD_OUT_DIR/premake" "$PLATFORM_GEN_DIR"
-    cd $PLATFORM_GEN_DIR
-    # Run premake for the given platform and build system
-    premake5 "${BUILD_SYSTEM}" --os="$PLATFORM"
-done
