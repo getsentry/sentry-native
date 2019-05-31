@@ -11,10 +11,16 @@ CRASHPAD_PKG = "../crashpad/build/crashpad"
 BREAKPAD_PKG = "../breakpad/deps/breakpad"
 
 workspace "Sentrypad"
-  configurations {"Release"}
+  configurations {"Release", "Debug"}
+  symbols "On"
 
   filter "system:windows"
     platforms {"Win64"}
+    defines {"SENTRY_BUILD_SHARED"}
+  filter {"system:windows", "platforms:Win32"}
+    architecture "x86"
+  filter {"system:windows", "platforms:Win64"}
+    architecture "x64"
   filter {}
 
 --- SENTRYPAD ---
@@ -24,4 +30,4 @@ include "premake5.sentrypad.lua"
 include "premake5.crashpad.lua"
 
 --- BREAKPAD ---
--- include "premake5.breakpad.lua"
+--include "premake5.breakpad.lua"

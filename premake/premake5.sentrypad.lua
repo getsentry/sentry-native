@@ -42,8 +42,10 @@ project "sentry_crashpad"
   }
 
   files {
-    SRC_ROOT.."/src/sentry.cpp",
-    SRC_ROOT.."/src/crashpad_backend.cpp",
+    SRC_ROOT.."/src/**.cpp",
+    SRC_ROOT.."/src/**.hpp",
+    SRC_ROOT.."/src/backend/crashpad/**.cpp",
+    SRC_ROOT.."/src/backend/crashpad/**.hpp",
     SRC_ROOT.."/src/vendor/mpack.c",
   }
 

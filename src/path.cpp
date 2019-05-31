@@ -1,0 +1,259 @@
+#include "path.hpp"
+#include "internal.hpp"
+
+#ifdef _WIN32
+#include <shlwapi.h>
+#define stat_func _wstat
+#define STAT _stat
+#define S_ISREG(m) (((m)&_S_IFMT) == _S_IFREG)
+#define S_ISDIR(m) (((m)&_S_IFMT) == _S_IFDIR)
+#if defined(SENTRY_BREAKPAD)
+#include "common/string_conversion.h"
+
+static std::wstring cstr_to_wstr(const char *s) {
+    std::vector<uint16_t> vec;
+    google_breakpad::UTF8ToUTF16(s, vec);
+    return std::wstring(vec.cbegin(), vec.cend());
+}
+
+#elif defined(SENTRY_CRASHPAD)
+#include "base/strings/utf_string_conversions.h"
+
+static std::wstring cstr_to_wstr(const char *s) {
+    std::wstring rv;
+    base::UTF8ToUTF16(s, strlen(s), &rv);
+    return rv;
+}
+#endif
+#else
+#include <unistd.h>
+#define stat_func stat
+#define STAT stat
+#endif
+
+namespace sentry {
+#ifdef _WIN32
+PathIterator::PathIterator(const Path *path) {
+    m_parent = *path;
+    m_dir_handle = nullptr;
+}
+
+bool PathIterator::next() {
+    WIN32_FIND_DATAW data;
+
+    while (true) {
+        if (!m_dir_handle) {
+            m_dir_handle = FindFirstFileW(m_parent.as_osstr(), &data);
+            if (!m_dir_handle) {
+                return false;
+            }
+        } else {
+            if (!FindNextFileW(m_dir_handle, &data)) {
+                return false;
+            }
+        }
+        if (wcscmp(data.cFileName, L".") == 0 ||
+            wcscmp(data.cFileName, L"..") == 0) {
+            continue;
+        }
+    }
+
+    m_current = m_parent.join(data.cFileName);
+    return true;
+}
+
+PathIterator::~PathIterator() {
+    if (m_dir_handle) {
+        FindClose(m_dir_handle);
+    }
+}
+
+Path::Path(const char *path) : m_path(cstr_to_wstr(path)) {
+}
+
+bool Path::remove() const {
+    if (!is_dir()) {
+        if (DeleteFileW(m_path.c_str())) {
+            return true;
+        }
+        return GetLastError() == ERROR_FILE_NOT_FOUND;
+    } else {
+        if (RemoveDirectoryW(m_path.c_str())) {
+            return true;
+        }
+        return false;
+    }
+    return false;
+}
+
+Path Path::join(const wchar_t *other) const {
+    if (::isalpha(*other) && other[1] == L':') {
+        return Path(other);
+    } else {
+        Path rv = Path(m_path.c_str());
+        if (m_path[m_path.size() - 1] != L'/' &&
+            m_path[m_path.size() - 1] != L'\\') {
+            rv.m_path.push_back('\\');
+        }
+        rv.m_path.append(other);
+        return rv;
+    }
+}
+
+Path Path::join(const char *other) const {
+    std::wstring tmp = cstr_to_wstr(other);
+    return join(tmp.c_str());
+}
+
+bool Path::create_directories() const {
+    int rv = SHCreateDirectoryExW(nullptr, m_path.c_str(), nullptr);
+    if (rv == ERROR_SUCCESS || rv == ERROR_ALREADY_EXISTS ||
+        ERROR_FILE_EXISTS) {
+        return true;
+    } else {
+        return false;
+    }
+}
+
+FILE *Path::open(const char *mode) const {
+    std::wstring wmode(mode, mode + strlen(mode));
+    return _wfopen(m_path.c_str(), wmode.c_str());
+}
+
+bool Path::filename_matches(const char *other) const {
+    const wchar_t *ptr = wcsrchr(m_path.c_str(), L'/');
+    if (!ptr) {
+        ptr = wcsrchr(m_path.c_str(), L'\\');
+    }
+    if (!ptr) {
+        ptr = m_path.c_str();
+    } else {
+        ptr++;
+    }
+    std::wstring wother = cstr_to_wstr(other);
+    return wcsstr(ptr, wother.c_str()) == 0;
+}
+#else
+PathIterator::PathIterator(const Path *path) {
+    m_parent = *path;
+    m_dir_handle = opendir(path->as_osstr());
+}
+
+bool PathIterator::next() {
+    struct dirent *entry;
+    while (true) {
+        entry = readdir(m_dir_handle);
+        if (entry == nullptr) {
+            return false;
+        }
+        if (strcmp(entry->d_name, ".") == 0 ||
+            strcmp(entry->d_name, "..") == 0) {
+            continue;
+        }
+        break;
+    }
+    m_current = m_parent.join(entry->d_name);
+    return true;
+}
+
+PathIterator::~PathIterator() {
+    closedir(m_dir_handle);
+}
+
+bool Path::remove() const {
+    int status;
+    if (!is_dir()) {
+        EINTR_RETRY(unlink(m_path.c_str()), &status);
+        if (status == 0) {
+            return true;
+        }
+    } else {
+        EINTR_RETRY(rmdir(m_path.c_str()), &status);
+        if (status == 0) {
+            return true;
+        }
+    }
+    if (errno == ENOENT) {
+        return true;
+    }
+    return false;
+}
+
+Path Path::join(const char *other) const {
+    if (*other == '/') {
+        return Path(other);
+    } else {
+        Path rv = Path(m_path.c_str());
+        if (m_path.empty() || m_path[m_path.size() - 1] != '/') {
+            rv.m_path.push_back('/');
+        }
+        rv.m_path.append(other);
+        return rv;
+    }
+}
+
+bool Path::create_directories() const {
+    bool success = true;
+#define _TRY_MAKE_DIR                     \
+    do {                                  \
+        rv = mkdir(p, 0700);              \
+        if (rv != 0 && errno != EEXIST) { \
+            success = false;              \
+            goto done;                    \
+        }                                 \
+    } while (0)
+
+    const char *path = m_path.c_str();
+    int rv = 0;
+    char *p = strdup(path);
+    char *ptr;
+    for (ptr = p; *ptr; ptr++) {
+        if (*ptr == '/') {
+            *ptr = 0;
+            _TRY_MAKE_DIR;
+            *ptr = '/';
+        }
+    }
+    _TRY_MAKE_DIR;
+#undef _TRY_MAKE_DIR
+done:
+    free(p);
+    return success;
+}
+
+FILE *Path::open(const char *mode) const {
+    return fopen(m_path.c_str(), mode);
+}
+
+bool Path::filename_matches(const char *other) const {
+    const char *ptr = strrchr(m_path.c_str(), '/');
+    return strcmp(ptr ? ptr + 1 : m_path.c_str(), other) == 0;
+}
+#endif
+
+bool Path::is_dir() const {
+    struct STAT buf;
+    return stat_func(m_path.c_str(), &buf) == 0 && S_ISDIR(buf.st_mode);
+}
+
+bool Path::is_file() const {
+    struct STAT buf;
+    return stat_func(m_path.c_str(), &buf) == 0 && S_ISREG(buf.st_mode);
+}
+
+PathIterator Path::iter_directory() const {
+    return PathIterator(this);
+}
+
+bool Path::remove_all() const {
+    if (this->is_dir()) {
+        PathIterator iter = this->iter_directory();
+        while (iter.next()) {
+            if (!iter.path()->remove_all()) {
+                return false;
+            }
+        }
+    }
+    return this->remove();
+}
+}  // namespace sentry

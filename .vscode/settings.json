@@ -72,7 +72,9 @@
         "*.tcc": "cpp",
         "clocale": "cpp",
         "cinttypes": "cpp",
-        "string.h": "c"
+        "string.h": "c",
+        "__errc": "cpp",
+        "__node_handle": "cpp"
     },
     "python.pythonPath": ".venv/bin/python2.7",
     "editor.formatOnSave": true
