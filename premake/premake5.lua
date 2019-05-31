@@ -12,11 +12,11 @@ BREAKPAD_PKG = "../breakpad/deps/breakpad"
 
 workspace "Sentrypad"
   configurations {"Release", "Debug"}
-	symbols "On"
+  symbols "On"
 
   filter "system:windows"
     platforms {"Win64"}
-		defines {"SENTRY_BUILD_SHARED"}
+    defines {"SENTRY_BUILD_SHARED"}
   filter {}
 
 --- SENTRYPAD ---
