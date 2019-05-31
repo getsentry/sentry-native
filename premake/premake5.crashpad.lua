@@ -91,10 +91,6 @@ function crashpad_common()
     includedirs {
       "$(VSInstallDir)/DIA SDK/include"
     }
-  filter {"system:windows", "platforms:Win32"}
-    architecture "x86"
-  filter {"system:windows", "platforms:Win64"}
-    architecture "x64"
   filter {}
 end
 
