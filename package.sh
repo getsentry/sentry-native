@@ -8,8 +8,6 @@ rm -rf "$OUT_DIR"
 mkdir $OUT_DIR
 cp README.package.md "$OUT_DIR/README.md"
 
-CONFIGS=("macosx_gmake2" "linux_gmake2" "windows_vs2017")
-
 ### Sentrypad
 SENTRYPAD_REMOTE="https://github.com/getsentry/sentrypad/"
 SENTRYPAD_REVISION=$(git rev-parse ${1:-HEAD})

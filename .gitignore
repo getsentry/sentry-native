@@ -7,6 +7,8 @@ libsentry.*
 *.dylib
 *.dSYM
 crashpad_wrapper
+.sentrypad-tmp/
+out/
 
 # Example files
 example
