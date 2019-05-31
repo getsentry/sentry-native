@@ -130,7 +130,11 @@ void sentry_remove_user() {
 
 void sentry_set_tag(const char *key, const char *value) {
     WITH_LOCKED_SCOPE;
-    g_scope.tags.insert(std::make_pair(key, value));
+    std::pair<std::unordered_map<std::string, std::string>::iterator, bool> rv;
+    rv = g_scope.tags.insert(std::make_pair(key, value));
+    if (!rv.second) {
+        rv.first->second = value;
+    }
     flush_event();
 }
 
@@ -142,7 +146,11 @@ void sentry_remove_tag(const char *key) {
 
 void sentry_set_extra(const char *key, const char *value) {
     WITH_LOCKED_SCOPE;
-    g_scope.tags.insert(std::make_pair(key, value));
+    std::pair<std::unordered_map<std::string, std::string>::iterator, bool> rv;
+    rv = g_scope.extra.insert(std::make_pair(key, value));
+    if (!rv.second) {
+        rv.first->second = value;
+    }
     flush_event();
 }
 
