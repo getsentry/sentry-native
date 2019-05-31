@@ -24,7 +24,6 @@ stages:
               bash package.sh
               mv out sp-sources
               zip -r sp-sources sp-sources/
-              ls -alh
 
           - task: PublishBuildArtifacts@1
             inputs:
@@ -42,6 +41,9 @@ stages:
           buildScript: |
             make
 
+            # Smoke test
+            ./bin/Release/sentry_example_crashpad || true
+
       - template: azure-pipelines/build-crashpad.yml
         parameters:
           vmImage: "vs2017-win2016"
@@ -51,6 +53,8 @@ stages:
             MSBUILD="/c/Program Files (x86)/Microsoft Visual Studio/2017/Enterprise/MSBuild/15.0/Bin/MSBuild.exe"
             "$MSBUILD" Sentrypad.sln //m //p:Configuration=Release //p:Platform=Win64 //t:Clean,Build
 
+            # Smoke test
+            ./bin/Win64/Release/sentry_example_crashpad.exe || true
 
   - stage: package_all
     displayName: Package the final archive
@@ -88,5 +92,5 @@ stages:
 
           - task: PublishBuildArtifacts@1
             inputs:
-              pathtoPublish: 'sentrypad-crashpad-all.zip'
+              pathtoPublish: 'out/sentrypad-crashpad-all.zip'
               artifactName: $(ARTIFACT_DIR)

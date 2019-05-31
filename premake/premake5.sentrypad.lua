@@ -7,20 +7,14 @@ function sentrypad_common()
     SRC_ROOT.."/include",
   }
 
+  pic "on"
+
   filter "system:macosx or linux"
     toolset("clang")
-  filter "system:windows"
-    -- Some defines are missing in Windows SDK version 8.1, that's why we need "latest" here.
-    -- Because of this, we have to run premake on Windows Machine, or even right on the target machine :(
-    systemversion "latest"
 
-    defines {
-      "NOMINMAX",
-      "UNICODE",
-      "WIN32_LEAN_AND_MEAN",
-      "_UNICODE",
-      "_CRT_SECURE_NO_WARNINGS",
-      -- "_HAS_EXCEPTIONS=0",
+  filter "system:windows"
+    buildoptions {
+      "/wd4201",  -- nonstandard extension used : nameless struct/union
     }
 
   filter {}
@@ -113,9 +107,7 @@ project "sentry_example_crashpad"
   sentrypad_common()
 
   links {"sentry_crashpad"}
-  buildoptions {
-    "-fPIC",
-  }
+
   files {
     SRC_ROOT.."/example.c",
   }

@@ -8,11 +8,6 @@ function breakpad_common()
   includedirs {
     SRC_ROOT.."/src",
   }
-  filter "configurations:Release"
-    defines { "NDEBUG" }
-    optimize "On"
-    symbols "On"
-  filter {}
 
   flags {
   }
