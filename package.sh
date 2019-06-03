@@ -6,7 +6,6 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 OUT_DIR="$SCRIPT_DIR/out"
 rm -rf "$OUT_DIR"
 mkdir $OUT_DIR
-cp README.package.md "$OUT_DIR/README.md"
 
 ### Sentrypad
 SENTRYPAD_REMOTE="https://github.com/getsentry/sentrypad/"
@@ -23,7 +22,7 @@ else
 fi
 
 SENTRYPAD_OUT_DIR="$OUT_DIR"
-SENTRYPAD_SRC=("example.c" "include" "src" "premake")
+SENTRYPAD_SRC=("example.c" "include" "src" "premake" "README.md")
 
 mkdir -p $SENTRYPAD_OUT_DIR
 
