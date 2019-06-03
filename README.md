@@ -13,6 +13,7 @@ Platforms we are going to support eventually: MacOS X, Linux (32/64 bit), Window
   - [Building Crashpad + Sentrypad](#building-crashpad--sentrypad)
     - [MacOS](#macos-1)
     - [Windows](#windows-1)
+    - [Sample Application](#sample-application)
   - [Development: Generating Build Files](#development-generating-build-files)
     - [Additional Dependencies](#additional-dependencies)
     - [MacOS](#macos-2)
@@ -56,7 +57,7 @@ cd gen_macosx
 make
 ```
 
-The command will build both Crashpad and Sentrypad libraries, as well as
+The command will build both Crashpad and Sentrypad libraries, as well as an application example (`bin/Release/sentry_example_crashpad`).
 
 ### Windows
 
@@ -67,7 +68,17 @@ cd premake/
 premake5 vs2017
 ```
 
+### Sample Application
+
+The build commands will produce Sentrypad and Crashpad libraries (e.g. `./bin/Release/libsentry_crashpad.dylib` on MacOS), and a sample crashing application. You can run it by passing your Sentry DSN key via an environment variable:
+
+`SENTRY_DSN=https://XXXXX@sentry.io/YYYYY ./bin/Release/sentry_example_crashpad`
+
+The command will result into a segmentation fault error, and a new event will be sent to Sentry. If [debug symbols are present](https://docs.sentry.io/cli/dif/) in Sentry, the event will also be properly symbolicated.
+
 ## Development: Generating Build Files
+
+If you want to develop/test Sentrypad locally, or the distribution package doesn't fit your needs, you can run generate build files right from the `premake/` directory. We use [premake5](https://premake.github.io/download.html#v5) to prepare build files.
 
 ### Additional Dependencies
 
@@ -80,6 +91,10 @@ cd premake/
 premake5 gmake2
 ```
 
+...will create a set of `Makefile`s that you can use to build any part of the project.
+
+Use `make help` to see all available targets.
+
 ### Windows
 
 ```sh
@@ -87,4 +102,4 @@ cd premake/
 premake5 vs2017
 ```
 
-The last command will create a Visual Studio 2017 solution (`Sentrypad.sln`) that contains `example_crashpad` project.
+The last command will create a Visual Studio 2017 solution (`Sentrypad.sln`) that contains Crashpad and Sentrypad library projects, and a `sentry_example_crashpad` example project.
