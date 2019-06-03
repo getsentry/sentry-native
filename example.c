@@ -1,19 +1,18 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include "sentry.h"
-
 
 int main(void) {
     sentry_options_t *options = sentry_options_new();
 
-    sentry_options_set_dsn(
-        options, "https://feea6ffd93d44b9f93eeb7e35ab2ff85@sentry.io/287385");
+    sentry_options_set_dsn(options, getenv("SENTRY_DSN"));
     sentry_options_set_handler_path(options, "bin/Release/crashpad_handler");
     sentry_options_set_environment(options, "Production");
     sentry_options_set_release(options, "5fd7a6cd");
     sentry_options_set_database_path(options, "sentrypad-db");
     sentry_options_set_debug(options, 1);
-    sentry_options_add_attachment(options, "example", "example.c");
+    sentry_options_add_attachment(options, "example", "../example.c");
 
     sentry_init(options);
 
@@ -43,10 +42,7 @@ int main(void) {
         sentry_add_breadcrumb(&crumb);
     }
 
-    sentry_user_t user = {
-        .id = "some_id",
-        .username = "some name"
-    };
+    sentry_user_t user = {.id = "some_id", .username = "some name"};
     sentry_set_user(&user);
 
     memset((char *)0x0, 1, 100);
