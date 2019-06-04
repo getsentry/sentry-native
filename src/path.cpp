@@ -106,13 +106,14 @@ Path Path::join(const char *other) const {
 }
 
 bool Path::create_directories() const {
-    int rv = SHCreateDirectoryExW(nullptr, m_path.c_str(), nullptr);
-    if (rv == ERROR_SUCCESS || rv == ERROR_ALREADY_EXISTS ||
-        ERROR_FILE_EXISTS) {
-        return true;
-    } else {
+    wchar_t abs_path[_MAX_PATH];
+    if (_wfullpath(abs_path, m_path.c_str(), _MAX_PATH) == nullptr) {
         return false;
     }
+
+    int rv = SHCreateDirectoryExW(nullptr, abs_path, nullptr);
+    return rv == ERROR_SUCCESS || rv == ERROR_ALREADY_EXISTS ||
+           rv == ERROR_FILE_EXISTS;
 }
 
 FILE *Path::open(const char *mode) const {
