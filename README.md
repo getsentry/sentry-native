@@ -1,23 +1,24 @@
-# SentryPad
+# SentryPad <!-- omit in toc -->
 
 SentryPad is a wrapper around two most popular crash-reporting frameworks: [Breakpad](https://chromium.googlesource.com/breakpad/breakpad/) and [Crashpad](https://chromium.googlesource.com/crashpad/crashpad/+/master/README.md). It provides an abstraction layer that unlocks certain Sentry features, such as setting tags and adding breadcrumbs to your crashes. SentryPad is also responsible for sending the crashes directly to Sentry in an efficient manner.
 
 Platforms we are going to support eventually: MacOS X, Linux (32/64 bit), Windows (32/64 bit), Android, iOS.
 
-- [SentryPad](#sentrypad)
-  - [Downloads](#downloads)
-    - [What is inside](#what-is-inside)
-  - [Build Prerequisites](#build-prerequisites)
-    - [MacOS](#macos)
-    - [Windows](#windows)
-  - [Building Crashpad + Sentrypad](#building-crashpad--sentrypad)
-    - [MacOS](#macos-1)
-    - [Windows](#windows-1)
-    - [Sample Application](#sample-application)
-  - [Development: Generating Build Files](#development-generating-build-files)
-    - [Additional Dependencies](#additional-dependencies)
-    - [MacOS](#macos-2)
-    - [Windows](#windows-2)
+## Table of Contents <!-- omit in toc -->
+
+- [Downloads](#downloads)
+  - [What is inside](#what-is-inside)
+- [Build Prerequisites](#build-prerequisites)
+  - [MacOS](#macos)
+  - [Windows](#windows)
+- [Building Crashpad + Sentrypad](#building-crashpad--sentrypad)
+  - [MacOS](#macos-1)
+  - [Windows](#windows-1)
+  - [Sample Application](#sample-application)
+- [Development: Generating Build Files](#development-generating-build-files)
+  - [Additional Dependencies](#additional-dependencies)
+  - [MacOS](#macos-2)
+  - [Windows](#windows-2)
 
 ## Downloads
 
