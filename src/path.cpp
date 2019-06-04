@@ -105,7 +105,8 @@ bool Path::remove_all() const {
                             false,
                             0,
                             L""};
-    return !!SHFileOperationW(&shfo);
+    int rv = SHFileOperationW(&shfo);
+    return rv == 0 || rv == ERROR_FILE_NOT_FOUND;
 }
 
 Path Path::join(const wchar_t *other) const {
