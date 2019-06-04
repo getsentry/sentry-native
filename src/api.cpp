@@ -22,7 +22,14 @@ static sentry::Path breadcrumb_filename;
     std::lock_guard<std::mutex> _blck(breadcrumb_lock)
 #define WITH_LOCKED_SCOPE std::lock_guard<std::mutex> _slck(scope_lock)
 
+static bool sdk_disabled() {
+    return !g_options || g_options->dsn.disabled();
+}
+
 static void flush_event() {
+    if (sdk_disabled()) {
+        return;
+    }
     mpack_writer_t writer;
     mpack_writer_init_stdfile(&writer, event_filename.open("w"), true);
     sentry::serialize_scope_as_event(&g_scope, &writer);
@@ -72,6 +79,9 @@ const sentry_options_t *sentry_get_options(void) {
 
 void sentry_add_breadcrumb(const sentry_breadcrumb_t *breadcrumb) {
     WITH_LOCKED_BREADCRUMBS;
+    if (sdk_disabled()) {
+        return;
+    }
 
     if (breadcrumb_count == 0 || breadcrumb_count == SENTRY_BREADCRUMBS_MAX) {
         breadcrumb_fileid = breadcrumb_fileid == 0 ? 1 : 0;
