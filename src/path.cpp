@@ -2,6 +2,8 @@
 #include "internal.hpp"
 
 #ifdef _WIN32
+#include <Windows.h>
+#include <shellapi.h>
 #include <shlwapi.h>
 #define stat_func _wstat
 #define STAT _stat
@@ -33,9 +35,8 @@ static std::wstring cstr_to_wstr(const char *s) {
 
 namespace sentry {
 #ifdef _WIN32
-PathIterator::PathIterator(const Path *path) {
-    m_parent = *path;
-    m_dir_handle = nullptr;
+PathIterator::PathIterator(const Path *path)
+    : m_parent(*path), m_dir_handle(nullptr) {
 }
 
 bool PathIterator::next() {
@@ -43,7 +44,9 @@ bool PathIterator::next() {
 
     while (true) {
         if (!m_dir_handle) {
-            m_dir_handle = FindFirstFileW(m_parent.as_osstr(), &data);
+            std::wstring pattern = m_parent.as_osstr();
+            pattern += L"\\*";
+            m_dir_handle = FindFirstFileW(pattern.c_str(), &data);
             if (!m_dir_handle) {
                 return false;
             }
@@ -55,6 +58,8 @@ bool PathIterator::next() {
         if (wcscmp(data.cFileName, L".") == 0 ||
             wcscmp(data.cFileName, L"..") == 0) {
             continue;
+        } else {
+            break;
         }
     }
 
@@ -84,6 +89,23 @@ bool Path::remove() const {
         return false;
     }
     return false;
+}
+
+bool Path::remove_all() const {
+    if (!this->is_dir()) {
+        return this->remove();
+    }
+    std::wstring path(m_path);
+    path.push_back('\0');
+    SHFILEOPSTRUCTW shfo = {nullptr,
+                            FO_DELETE,
+                            path.c_str(),
+                            L"",
+                            FOF_SILENT | FOF_NOERRORUI | FOF_NOCONFIRMATION,
+                            false,
+                            0,
+                            L""};
+    return !!SHFileOperationW(&shfo);
 }
 
 Path Path::join(const wchar_t *other) const {
@@ -132,7 +154,7 @@ bool Path::filename_matches(const char *other) const {
         ptr++;
     }
     std::wstring wother = cstr_to_wstr(other);
-    return wcsstr(ptr, wother.c_str()) == 0;
+    return wcscmp(ptr, wother.c_str()) == 0;
 }
 #else
 PathIterator::PathIterator(const Path *path) {
@@ -178,6 +200,16 @@ bool Path::remove() const {
         return true;
     }
     return false;
+}
+
+bool Path::remove_all() const {
+    if (this->is_dir()) {
+        PathIterator iter = this->iter_directory();
+        while (iter.next()) {
+            iter.path()->remove_all();
+        }
+    }
+    return this->remove();
 }
 
 Path Path::join(const char *other) const {
@@ -244,17 +276,5 @@ bool Path::is_file() const {
 
 PathIterator Path::iter_directory() const {
     return PathIterator(this);
-}
-
-bool Path::remove_all() const {
-    if (this->is_dir()) {
-        PathIterator iter = this->iter_directory();
-        while (iter.next()) {
-            if (!iter.path()->remove_all()) {
-                return false;
-            }
-        }
-    }
-    return this->remove();
 }
 }  // namespace sentry
