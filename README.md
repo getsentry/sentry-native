@@ -48,7 +48,7 @@ In order to build the provided source files, you will need the following softwar
 
 ## Building Crashpad + Sentrypad
 
-**WARNING** The following commands will work for the **packaged** version of Sentrypad (see [Downloads](#downloads)). We generate `gen_macosx` and `gen_windows` create during the CI phase, so you will _not_ find them in the repository.
+**WARNING:** The following commands will work for the **packaged** version of Sentrypad (see [Downloads](#downloads)). We generate `gen_macosx` and `gen_windows` create during the CI phase, so you will _not_ find them in the repository.
 
 ### MacOS
 
@@ -61,20 +61,20 @@ The command will build both Crashpad and Sentrypad libraries, as well as an appl
 
 ### Windows
 
-Visual Studio solution is located at `gen_windows/Crashpad.sln`
+Visual Studio solution is located at `gen_windows/Sentrypad.sln` and contains projects for both Sentrypad and Crashpad.
 
-```sh
-cd premake/
-premake5 vs2017
-```
+**WARNING:** There is a known issue that the Windows SDK version configured in the solution might not be present on your system. If you see `The Windows SDK version XXX was not found` error, please check the [development section](#development-generating-build-files).
 
 ### Sample Application
 
 The build commands will produce Sentrypad and Crashpad libraries (e.g. `./bin/Release/libsentry_crashpad.dylib` on MacOS), and a sample crashing application. You can run it by passing your Sentry DSN key via an environment variable:
 
-`SENTRY_DSN=https://XXXXX@sentry.io/YYYYY ./bin/Release/sentry_example_crashpad`
+```sh
+# MacOS
+SENTRY_DSN=https://XXXXX@sentry.io/YYYYY ./bin/Release/sentry_example_crashpad
+```
 
-The command will result into a segmentation fault error, and a new event will be sent to Sentry. If [debug symbols are present](https://docs.sentry.io/cli/dif/) in Sentry, the event will also be properly symbolicated.
+The command will result into a segmentation fault, and a new event will be sent to Sentry. If [debug symbols are present](https://docs.sentry.io/cli/dif/) in Sentry, the event will also be properly symbolicated.
 
 ## Development: Generating Build Files
 
