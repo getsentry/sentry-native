@@ -37,6 +37,11 @@ void init_backend() {
     std::vector<std::string> arguments;
     arguments.push_back("--no-rate-limit");
 
+#ifdef _WIN32
+    // Temporary fix for Windows
+    arguments.push_back("--no-upload-gzip");
+#endif
+
     CrashpadClient client;
     std::string url = options->dsn.get_minidump_url();
     bool success = client.StartHandlerWithAttachments(

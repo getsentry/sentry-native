@@ -9,6 +9,7 @@ libsentry.*
 crashpad_wrapper
 .sentrypad-tmp/
 out/
+tmp/
 
 # Example files
 example
