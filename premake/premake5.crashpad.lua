@@ -592,8 +592,6 @@ project "crashpad_minidump"
 project "crashpad_handler"
   kind "ConsoleApp"
   crashpad_common()
-
-  targetdir "bin/%{cfg.buildcfg}"
   links {
     "crashpad_minichromium_base",
     "crashpad_client",
@@ -707,7 +705,6 @@ EXAMPLES_DIR = "../crashpad/examples"
 project "crashpad_crash"
   kind "ConsoleApp"
   crashpad_common()
-  targetdir "bin/%{cfg.buildcfg}"
   links {
     "crashpad_minichromium_base",
     "crashpad_util",

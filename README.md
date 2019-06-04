@@ -63,7 +63,7 @@ The command will build both Crashpad and Sentrypad libraries, as well as an appl
 
 Visual Studio solution is located at `gen_windows/Sentrypad.sln` and contains projects for both Sentrypad and Crashpad.
 
-**WARNING:** There is a known issue that the Windows SDK version configured in the solution might not be present on your system. If you see `The Windows SDK version XXX was not found` error, please check the [development section](#development-generating-build-files).
+**WARNING:** There is a known issue that the Windows SDK version configured in the solution might not be present on your system. If you see `"The Windows SDK version XXX was not found"` error, you can try to "Retarget Solution" ("Project" -> "Retarget solution"). You can also regenerate build files on the target machine, for that please consult the [development section](#development-generating-build-files).
 
 ### Sample Application
 

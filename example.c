@@ -3,11 +3,17 @@
 #include <string.h>
 #include "sentry.h"
 
+#ifdef _WIN32
+const char *handler_path = "bin/Release/crashpad_handler.exe";
+#else
+const char *handler_path = "bin/Release/crashpad_handler";
+#endif
+
 int main(void) {
     sentry_options_t *options = sentry_options_new();
 
     sentry_options_set_dsn(options, getenv("SENTRY_DSN"));
-    sentry_options_set_handler_path(options, "bin/Release/crashpad_handler");
+    sentry_options_set_handler_path(options, handler_path);
     sentry_options_set_environment(options, "Production");
     sentry_options_set_release(options, "5fd7a6cd");
     sentry_options_set_database_path(options, "sentrypad-db");

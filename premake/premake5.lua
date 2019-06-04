@@ -14,6 +14,8 @@ workspace "Sentrypad"
   configurations {"Release", "Debug"}
   symbols "On"
 
+  targetdir "bin/%{cfg.buildcfg}"
+
   filter "configurations:Release"
     defines { "NDEBUG" }
     optimize "On"
@@ -34,7 +36,6 @@ workspace "Sentrypad"
       "_HAS_EXCEPTIONS=0",
       "_UNICODE",
     }
-
   filter {"system:windows", "platforms:Win32"}
     architecture "x86"
   filter {"system:windows", "platforms:Win64"}
