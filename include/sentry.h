@@ -30,7 +30,7 @@ extern "C" {
 #endif
 #endif
 
-#define SENTRY_SDK_VERSION "0.0.1"
+#define SENTRY_SDK_VERSION "0.0.3"
 
 /*
  * Sentry levels for events and breadcrumbs.
