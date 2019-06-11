@@ -40,7 +40,11 @@ workspace "Sentrypad"
     architecture "x86"
   filter {"system:windows", "platforms:Win64"}
     architecture "x64"
+
+  filter {"system:macosx", "kind:ConsoleApp or SharedLib"}
+    postbuildcommands {"dsymutil %{cfg.buildtarget.abspath}"}
   filter {}
+
 
 --- SENTRYPAD ---
 include "premake5.sentrypad.lua"
