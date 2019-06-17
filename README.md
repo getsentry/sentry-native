@@ -49,7 +49,7 @@ In order to build the provided source files, you will need the following softwar
 
 ## Building Crashpad + Sentrypad
 
-**WARNING:** The following commands will work for the **packaged** version of Sentrypad (see [Downloads](#downloads)). We generate `gen_macosx` and `gen_windows` create during the CI phase, so you will _not_ find them in the repository.
+**WARNING:** The following commands will work for the **packaged** version of Sentrypad (see [Downloads](#downloads)). We generate `gen_macosx` and `gen_windows` during the CI build, so you will _not_ find them in the git repository.
 
 ### MacOS
 
