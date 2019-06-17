@@ -75,7 +75,7 @@ The build commands will produce Sentrypad and Crashpad libraries (e.g. `./bin/Re
 SENTRY_DSN=https://XXXXX@sentry.io/YYYYY ./bin/Release/sentry_example_crashpad
 ```
 
-The command will result into a segmentation fault, and a new event will be sent to Sentry. If [debug symbols are present](https://docs.sentry.io/cli/dif/) in Sentry, the event will also be properly symbolicated.
+The command will result into a segmentation fault, and a new event will be sent to Sentry. If [debug symbols are present](https://docs.sentry.io/cli/dif/) in Sentry (dSYM or PDB files, they are generated automatically in the output directory), the event will also be properly symbolicated.
 
 ## Development: Generating Build Files
 
