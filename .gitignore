@@ -2,6 +2,9 @@
 .venv/
 .sentryclirc
 
+# Crashpad
+crashpad/build
+
 # Build files
 libsentry.*
 *.dylib
@@ -10,6 +13,7 @@ crashpad_wrapper
 .sentrypad-tmp/
 out/
 tmp/
+premake/.vs
 
 # Example files
 example
