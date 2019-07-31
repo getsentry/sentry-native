@@ -5,6 +5,9 @@
 # Crashpad
 crashpad/build
 
+# Breakpad
+breakpad/build
+
 # Build files
 libsentry.*
 *.dylib
