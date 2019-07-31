@@ -14,14 +14,14 @@ workspace "Sentrypad"
   configurations {"Release", "Debug"}
   symbols "On"
 
-  targetdir "bin/%{cfg.buildcfg}"
+  targetdir "bin/%{cfg.architecture}/%{cfg.buildcfg}"
 
   filter "configurations:Release"
     defines { "NDEBUG" }
     optimize "On"
 
   filter "system:windows"
-    platforms {"Win64"}
+    platforms {"x64", "Win32"}
     defines {"SENTRY_BUILD_SHARED"}
 
     -- Some defines are missing in Windows SDK version 8.1, that's why we need "latest" here.
@@ -36,10 +36,6 @@ workspace "Sentrypad"
       "_HAS_EXCEPTIONS=0",
       "_UNICODE",
     }
-  filter {"system:windows", "platforms:Win32"}
-    architecture "x86"
-  filter {"system:windows", "platforms:Win64"}
-    architecture "x64"
 
   filter {"system:macosx", "kind:ConsoleApp or SharedLib"}
     postbuildcommands {"dsymutil %{cfg.buildtarget.abspath}"}
