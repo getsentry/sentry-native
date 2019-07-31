@@ -1,4 +1,5 @@
--- premake5.lua
+workspace "Sentrypad"
+
 SRC_ROOT = BREAKPAD_PKG
 
 function breakpad_common()
@@ -258,9 +259,9 @@ project "breakpad_client"
       SRC_ROOT.."/src/common/windows/string_utils.cc",
     }
 
-EXAMPLES_DIR = "./examples"
+EXAMPLES_DIR = "../breakpad/examples"
 
-project "breakpad_example_crash"
+project "breakpad_crash"
   kind "ConsoleApp"
   breakpad_common()
 
