@@ -52,10 +52,10 @@ stages:
           buildSystem: "vs2017"
           buildScript: |
             MSBUILD="/c/Program Files (x86)/Microsoft Visual Studio/2017/Enterprise/MSBuild/15.0/Bin/MSBuild.exe"
-            "$MSBUILD" Sentrypad.sln //m //p:Configuration=Release //p:Platform=Win64 //t:Clean,Build
+            "$MSBUILD" Sentrypad.sln //m //p:Configuration=Release //p:Platform=x64 //t:Clean,Build
 
             # Smoke test
-            ./bin/Win64/Release/sentry_example_crashpad.exe || true
+            ./bin/x64/Release/sentry_example_crashpad.exe || true
 
   - stage: package_all
     displayName: Package the final archive
