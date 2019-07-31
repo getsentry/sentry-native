@@ -26,13 +26,6 @@ function breakpad_common()
       "HAVE_A_OUT_H",
       "BPLOG_MINIMUM_SEVERITY=SEVERITY_ERROR",
     }
-  filter "system:windows"
-    platforms {"Win32", "Win64"}
-    includedirs {"$(VSInstallDir)/DIA SDK/include"}
-  filter {"system:windows", "platforms:Win32"}
-    architecture "x86"
-  filter {"system:windows", "platforms:Win64"}
-    architecture "x64"
   filter {}
 end
 

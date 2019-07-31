@@ -40,6 +40,7 @@ stages:
           platform: "macosx"
           buildSystem: "gmake2"
           buildScript: |
+            make help
             make
 
             # Smoke test

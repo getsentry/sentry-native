@@ -30,3 +30,6 @@ sentry-native-db/
 .DS_Store
 Thumbs.db
 ._*
+
+# Env files
+.env

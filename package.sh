@@ -36,7 +36,7 @@ fetch_breakpad() {
     mkdir -p "$BREAKPAD_OUT_DIR"
 
     BREAKPAD_IN_DIR="$SCRIPT_DIR/breakpad"
-    BREAKPAD_COPY_SRC=("fetch_breakpad.sh")
+    BREAKPAD_COPY_SRC=("examples" "fetch_breakpad.sh")
 
     # Copy files
     for f in "${BREAKPAD_COPY_SRC[@]}"; do
