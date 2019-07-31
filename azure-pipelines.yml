@@ -4,8 +4,9 @@
 trigger:
   - "*"
 
-pr:
-  - master
+# pr:
+#   - master
+pr: none
 
 variables:
   ARTIFACT_DIR: 'sentry-native-data'
