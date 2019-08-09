@@ -5,16 +5,24 @@
 #include <unordered_map>
 #include <vector>
 #include "internal.hpp"
+#include "protocol_value.hpp"
 
 namespace sentry {
 struct Scope {
-    Scope() : level(SENTRY_LEVEL_ERROR) {
+    Scope()
+        : level(SENTRY_LEVEL_ERROR),
+          extra(Value::newObject()),
+          tags(Value::newObject()),
+          fingerprint(Value::newList()) {
     }
+
+    Value createEvent();
+
     std::string transaction;
-    std::vector<std::string> fingerprint;
-    std::unordered_map<std::string, std::string> user;
-    std::unordered_map<std::string, std::string> tags;
-    std::unordered_map<std::string, std::string> extra;
+    sentry::Value fingerprint;
+    sentry::Value user;
+    sentry::Value tags;
+    sentry::Value extra;
     sentry_level_t level;
 };
 }  // namespace sentry

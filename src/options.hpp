@@ -17,6 +17,8 @@ struct sentry_options_s {
     sentry::Path handler_path;
     sentry::Path database_path;
 
+    sentry_transport_function_t transport_callback;
+
     // internal options
     std::string run_id;
     sentry::Path runs_folder;

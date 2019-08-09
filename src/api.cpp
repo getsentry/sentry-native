@@ -6,8 +6,9 @@
 #include "cleanup.hpp"
 #include "internal.hpp"
 #include "options.hpp"
+#include "protocol_value.hpp"
 #include "scope.hpp"
-#include "serialize.hpp"
+#include "uuid.hpp"
 
 static sentry_options_t *g_options;
 static sentry::Scope g_scope;
@@ -32,7 +33,8 @@ static void flush_event() {
     }
     mpack_writer_t writer;
     mpack_writer_init_stdfile(&writer, event_filename.open("w"), true);
-    sentry::serialize_scope_as_event(&g_scope, &writer);
+    sentry::Value event = g_scope.createEvent();
+    event.serialize(&writer);
     mpack_error_t err = mpack_writer_destroy(&writer);
     if (err != mpack_ok) {
         SENTRY_LOGF("An error occurred encoding the data. Code: %d", err);
@@ -77,7 +79,24 @@ const sentry_options_t *sentry_get_options(void) {
     return g_options;
 }
 
-void sentry_add_breadcrumb(const sentry_breadcrumb_t *breadcrumb) {
+sentry_uuid_t sentry_capture_event(sentry_value_t evt) {
+    sentry::Value event = sentry::Value(evt);
+    sentry_uuid_t uuid;
+    sentry::Value event_id = event.getByKey("event_id");
+
+    if (event_id.isNull()) {
+        uuid = sentry_uuid_new_v4();
+        char uuid_str[40];
+        sentry_uuid_as_string(&uuid, uuid_str);
+        event.setKey("event_id", sentry::Value::newString(uuid_str));
+    } else {
+        uuid = sentry_uuid_from_string(event_id.asCStr());
+    }
+
+    return uuid;
+}
+
+void sentry_add_breadcrumb(sentry_value_t breadcrumb) {
     WITH_LOCKED_BREADCRUMBS;
     if (sdk_disabled()) {
         return;
@@ -96,7 +115,7 @@ void sentry_add_breadcrumb(const sentry_breadcrumb_t *breadcrumb) {
     size_t size;
     static mpack_writer_t writer;
     mpack_writer_init_growable(&writer, &data, &size);
-    sentry::serialize_breadcrumb(breadcrumb, &writer);
+    sentry::Value(breadcrumb).serialize(&writer);
     if (mpack_writer_destroy(&writer) != mpack_ok) {
         SENTRY_LOG("An error occurred encoding the data.");
         return;
@@ -114,59 +133,39 @@ void sentry_add_breadcrumb(const sentry_breadcrumb_t *breadcrumb) {
     breadcrumb_count++;
 }
 
-void sentry_set_user(const sentry_user_t *user) {
+void sentry_set_user(sentry_value_t value) {
     WITH_LOCKED_SCOPE;
-    g_scope.user.clear();
-    if (user->id) {
-        g_scope.user.emplace("id", user->id);
-    }
-    if (user->username) {
-        g_scope.user.emplace("username", user->username);
-    }
-    if (user->email) {
-        g_scope.user.emplace("email", user->email);
-    }
-    if (user->ip_address) {
-        g_scope.user.emplace("ip_address", user->ip_address);
-    }
+    g_scope.user = sentry::Value(value);
     flush_event();
 }
 
 void sentry_remove_user() {
     WITH_LOCKED_SCOPE;
-    g_scope.user.clear();
+    g_scope.user = sentry::Value();
     flush_event();
 }
 
 void sentry_set_tag(const char *key, const char *value) {
     WITH_LOCKED_SCOPE;
-    std::pair<std::unordered_map<std::string, std::string>::iterator, bool> rv;
-    rv = g_scope.tags.insert(std::make_pair(key, value));
-    if (!rv.second) {
-        rv.first->second = value;
-    }
+    g_scope.tags.setKey(key, sentry::Value::newString(value));
     flush_event();
 }
 
 void sentry_remove_tag(const char *key) {
     WITH_LOCKED_SCOPE;
-    g_scope.tags.erase(key);
+    g_scope.tags.removeKey(key);
     flush_event();
 }
 
-void sentry_set_extra(const char *key, const char *value) {
+void sentry_set_extra(const char *key, sentry_value_t value) {
     WITH_LOCKED_SCOPE;
-    std::pair<std::unordered_map<std::string, std::string>::iterator, bool> rv;
-    rv = g_scope.extra.insert(std::make_pair(key, value));
-    if (!rv.second) {
-        rv.first->second = value;
-    }
+    g_scope.extra.setKey(key, sentry::Value(value));
     flush_event();
 }
 
 void sentry_remove_extra(const char *key) {
     WITH_LOCKED_SCOPE;
-    g_scope.extra.erase(key);
+    g_scope.extra.removeKey(key);
     flush_event();
 }
 
@@ -175,11 +174,11 @@ void sentry_set_fingerprint(const char *fingerprint, ...) {
     va_list va;
     va_start(va, fingerprint);
 
-    g_scope.fingerprint.clear();
+    g_scope.fingerprint = sentry::Value::newList();
     if (fingerprint) {
-        g_scope.fingerprint.push_back(fingerprint);
+        g_scope.fingerprint.append(sentry::Value::newString(fingerprint));
         for (const char *arg; (arg = va_arg(va, const char *));) {
-            g_scope.fingerprint.push_back(arg);
+            g_scope.fingerprint.append(sentry::Value::newString(arg));
         }
     }
 

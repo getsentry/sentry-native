@@ -17,12 +17,16 @@ static const char *empty_str_null(const char *s) {
     }
 }
 
+static void null_transport(sentry_value_t _event) {
+}
+
 sentry_options_s::sentry_options_s()
     : debug(false),
       database_path("./.sentrypad"),
       dsn(getenv_or_empty("SENTRY_DSN")),
       environment(getenv_or_empty("SENTRY_ENVIRONMENT")),
-      release(getenv_or_empty("SENTRY_RELEASE")) {
+      release(getenv_or_empty("SENTRY_RELEASE")),
+      transport_callback(null_transport) {
     std::random_device seed;
     std::default_random_engine engine(seed());
     std::uniform_int_distribution<int> uniform_dist(0, INT32_MAX);
