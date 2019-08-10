@@ -1,9 +1,13 @@
+#ifndef SENTRY_OPTIONS_HPP_INCLUDED
+#define SENTRY_OPTIONS_HPP_INCLUDED
+
 #include <string>
 #include <vector>
 #include "attachment.hpp"
 #include "dsn.hpp"
 #include "internal.hpp"
 #include "path.hpp"
+#include "transports/base.hpp"
 
 struct sentry_options_s {
     sentry_options_s();
@@ -17,9 +21,11 @@ struct sentry_options_s {
     sentry::Path handler_path;
     sentry::Path database_path;
 
-    sentry_transport_function_t transport_callback;
+    sentry::transports::Transport *transport = nullptr;
 
     // internal options
     std::string run_id;
     sentry::Path runs_folder;
 };
+
+#endif

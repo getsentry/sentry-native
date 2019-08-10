@@ -75,6 +75,12 @@ int sentry_init(sentry_options_t *options) {
     return 0;
 }
 
+void sentry_shutdown(void) {
+    if (g_options->transport) {
+        g_options->transport->shutdown();
+    }
+}
+
 const sentry_options_t *sentry_get_options(void) {
     return g_options;
 }
@@ -91,6 +97,11 @@ sentry_uuid_t sentry_capture_event(sentry_value_t evt) {
         event.setKey("event_id", sentry::Value::newString(uuid_str));
     } else {
         uuid = sentry_uuid_from_string(event_id.asCStr());
+    }
+
+    const sentry_options_t *opts = sentry_get_options();
+    if (opts->transport) {
+        opts->transport->sendEvent(event);
     }
 
     return uuid;

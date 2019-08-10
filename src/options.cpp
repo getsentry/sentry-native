@@ -3,6 +3,7 @@
 #include <ctime>
 #include <random>
 #include <sstream>
+#include "transports/function.hpp"
 
 static const char *getenv_or_empty(const char *key) {
     const char *rv = getenv(key);
@@ -17,16 +18,13 @@ static const char *empty_str_null(const char *s) {
     }
 }
 
-static void null_transport(sentry_value_t _event) {
-}
-
 sentry_options_s::sentry_options_s()
     : debug(false),
       database_path("./.sentrypad"),
       dsn(getenv_or_empty("SENTRY_DSN")),
       environment(getenv_or_empty("SENTRY_ENVIRONMENT")),
       release(getenv_or_empty("SENTRY_RELEASE")),
-      transport_callback(null_transport) {
+      transport(nullptr) {
     std::random_device seed;
     std::default_random_engine engine(seed());
     std::uniform_int_distribution<int> uniform_dist(0, INT32_MAX);
@@ -38,6 +36,14 @@ sentry_options_s::sentry_options_s()
 
 sentry_options_t *sentry_options_new(void) {
     return new sentry_options_t();
+}
+
+void sentry_options_set_transport(sentry_options_t *opts,
+                                  sentry_transport_function_t func,
+                                  void *data) {
+    delete opts->transport;
+    opts->transport = new sentry::transports::FunctionTransport(
+        [func, data](sentry::Value value) { func(value.lower(), data); });
 }
 
 void sentry_options_free(sentry_options_t *opts) {

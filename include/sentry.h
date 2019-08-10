@@ -132,12 +132,19 @@ struct sentry_options_s;
 typedef struct sentry_options_s sentry_options_t;
 
 /* type of the callback for transports */
-typedef void (*sentry_transport_function_t)(sentry_value_t event);
+typedef void (*sentry_transport_function_t)(sentry_value_t event, void *data);
 
 /*
  * creates a new options struct.  Can be freed with `sentry_options_free`
  */
 SENTRY_API sentry_options_t *sentry_options_new(void);
+
+/*
+ * sets a new transport function
+ */
+SENTRY_API void sentry_options_set_transport(sentry_options_t *opts,
+                                             sentry_transport_function_t func,
+                                             void *data);
 
 /*
  * deallocates previously allocated sentry options
@@ -241,6 +248,11 @@ SENTRY_API void sentry_options_set_database_pathw(sentry_options_t *opts,
  * cannot be modified any more.
  */
 SENTRY_API int sentry_init(sentry_options_t *options);
+
+/*
+ * Shuts down the sentry client and forces transports to flush out.
+ */
+SENTRY_API void sentry_shutdown(void);
 
 /*
  * Returns the client options.
