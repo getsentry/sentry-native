@@ -1,6 +1,8 @@
 #ifndef SENTRY_TRANSPORTS_LIBCURL_HPP_INCLUDED
 #define SENTRY_TRANSPORTS_LIBCURL_HPP_INCLUDED
 
+#include <curl/curl.h>
+#include <curl/easy.h>
 #include "../worker.hpp"
 #include "base.hpp"
 
@@ -15,6 +17,7 @@ class LibcurlTransport : public Transport {
 
    private:
     BackgroundWorker m_worker;
+    CURL *m_curl;
 };
 }  // namespace transports
 }  // namespace sentry

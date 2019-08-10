@@ -43,6 +43,16 @@ void Value::serialize(mpack_writer_t *writer) const {
     }
 }
 
+std::string Value::serializeToString() const {
+    mpack_writer_t writer;
+    char *buf;
+    size_t size;
+    mpack_writer_init_growable(&writer, &buf, &size);
+    serialize(&writer);
+    mpack_writer_destroy(&writer);
+    return std::string(buf, size);
+}
+
 Value::~Value() {
     Thing *thing = this->asThing();
     if (thing) {

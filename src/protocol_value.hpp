@@ -392,6 +392,7 @@ class Value {
     }
 
     void serialize(mpack_writer_t *writer) const;
+    std::string serializeToString() const;
 
     sentry_value_t lower() const {
         sentry_value_t rv;

@@ -42,6 +42,7 @@ class Dsn {
     }
 
     std::string get_minidump_url() const;
+    std::string get_store_url() const;
 
    private:
     std::string m_raw;

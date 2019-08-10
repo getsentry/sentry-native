@@ -54,4 +54,11 @@ std::string Dsn::get_minidump_url() const {
        << "api/" << project_id() << "/minidump/?sentry_key=" << public_key();
     return ss.str();
 }
+
+std::string Dsn::get_store_url() const {
+    std::stringstream ss;
+    ss << scheme() << "://" << host() << ":" << port() << "/" << path()
+       << "api/" << project_id() << "/store/";
+    return ss.str();
+}
 }  // namespace sentry

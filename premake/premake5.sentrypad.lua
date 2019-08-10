@@ -59,6 +59,7 @@ project "sentry_crashpad"
       "CoreGraphics.framework",
       "IOKit.framework",
       "bsm",
+			"curl",
     }
   filter "system:linux"
     links {
