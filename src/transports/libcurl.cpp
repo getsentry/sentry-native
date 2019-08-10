@@ -20,6 +20,8 @@ void LibcurlTransport::shutdown() {
 
 void LibcurlTransport::sendEvent(Value event) {
     m_worker.submitTask([this, event]() {
+        curl_easy_reset(this->m_curl);
+
         const sentry_options_t *opts = sentry_get_options();
         std::string url = opts->dsn.get_store_url();
         std::string payload = event.serializeToString();
@@ -33,5 +35,7 @@ void LibcurlTransport::sendEvent(Value event) {
         curl_easy_setopt(this->m_curl, CURLOPT_CUSTOMREQUEST, "POST");
         curl_easy_setopt(this->m_curl, CURLOPT_HTTPHEADER, headers);
         // TODO: send
+
+        curl_slist_free_all(headers);
     });
 }
