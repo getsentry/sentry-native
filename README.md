@@ -40,6 +40,7 @@ In order to build the provided source files, you will need the following softwar
 
 ### MacOS
 
+- [Xcode](https://developer.apple.com/xcode/) (can be installed from Mac App Store)
 - [GNU make](https://www.gnu.org/software/make/)
 - [clang](https://clang.llvm.org/)
 
