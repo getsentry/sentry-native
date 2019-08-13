@@ -34,7 +34,7 @@ static void flush_event() {
     mpack_writer_t writer;
     mpack_writer_init_stdfile(&writer, event_filename.open("w"), true);
     sentry::Value event = g_scope.createEvent();
-    event.serialize(&writer);
+    event.toMsgpack(&writer);
     mpack_error_t err = mpack_writer_destroy(&writer);
     if (err != mpack_ok) {
         SENTRY_LOGF("An error occurred encoding the data. Code: %d", err);
@@ -71,6 +71,10 @@ int sentry_init(sentry_options_t *options) {
         SENTRY_LOG("crash handler disabled because DSN is empty");
     }
     sentry::cleanup_old_runs();
+
+    if (g_options->transport) {
+        g_options->transport->start();
+    }
 
     return 0;
 }
@@ -126,7 +130,7 @@ void sentry_add_breadcrumb(sentry_value_t breadcrumb) {
     size_t size;
     static mpack_writer_t writer;
     mpack_writer_init_growable(&writer, &data, &size);
-    sentry::Value(breadcrumb).serialize(&writer);
+    sentry::Value(breadcrumb).toMsgpack(&writer);
     if (mpack_writer_destroy(&writer) != mpack_ok) {
         SENTRY_LOG("An error occurred encoding the data.");
         return;

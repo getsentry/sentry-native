@@ -4,6 +4,7 @@
 #include <random>
 #include <sstream>
 #include "transports/function.hpp"
+#include "transports/libcurl.hpp"
 
 static const char *getenv_or_empty(const char *key) {
     const char *rv = getenv(key);
@@ -24,7 +25,7 @@ sentry_options_s::sentry_options_s()
       dsn(getenv_or_empty("SENTRY_DSN")),
       environment(getenv_or_empty("SENTRY_ENVIRONMENT")),
       release(getenv_or_empty("SENTRY_RELEASE")),
-      transport(nullptr) {
+      transport(new sentry::transports::LibcurlTransport()) {
     std::random_device seed;
     std::default_random_engine engine(seed());
     std::uniform_int_distribution<int> uniform_dist(0, INT32_MAX);

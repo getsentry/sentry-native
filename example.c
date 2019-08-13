@@ -31,18 +31,21 @@ int main(void) {
     sentry_set_fingerprint("foo", "bar", NULL);
 
     sentry_value_t default_crumb =
-        sentry_breadcrumb_value_new(0, "default level is info");
+        sentry_value_new_breadcrumb(0, "default level is info");
     sentry_add_breadcrumb(default_crumb);
 
-    sentry_value_t debug_crumb = sentry_breadcrumb_value_new("http", "debug crumb");
-    sentry_value_set_key(debug_crumb, "category", sentry_value_new_string("example!"));
-    sentry_value_set_key(debug_crumb, "level", sentry_value_new_string("debug"));
+    sentry_value_t debug_crumb =
+        sentry_value_new_breadcrumb("http", "debug crumb");
+    sentry_value_set_key(debug_crumb, "category",
+                         sentry_value_new_string("example!"));
+    sentry_value_set_key(debug_crumb, "level",
+                         sentry_value_new_string("debug"));
     sentry_add_breadcrumb(debug_crumb);
 
     for (size_t i = 0; i < 101; i++) {
         char buffer[4];
         sprintf(buffer, "%zu", i);
-        sentry_add_breadcrumb(sentry_breadcrumb_value_new(0, buffer));
+        sentry_add_breadcrumb(sentry_value_new_breadcrumb(0, buffer));
     }
 
     sentry_value_t user = sentry_value_new_object();
@@ -51,5 +54,14 @@ int main(void) {
                          sentry_value_new_string("some_name"));
     sentry_set_user(user);
 
-    memset((char *)0x0, 1, 100);
+    // memset((char *)0x0, 1, 100);
+
+    sentry_value_t event = sentry_value_new_event();
+    sentry_value_set_key(event, "message",
+                         sentry_value_new_string("Hello World!"));
+    sentry_capture_event(event);
+    sentry_value_decref(event);
+
+    // make sure everything flushes
+    sentry_shutdown();
 }

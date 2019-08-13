@@ -5,6 +5,7 @@
 #include <math.h>
 #include <algorithm>
 #include <map>
+#include <sstream>
 #include <string>
 #include <vector>
 #include "internal.hpp"
@@ -43,7 +44,7 @@ class Thing {
                 delete (List *)m_payload;
                 break;
             case THING_TYPE_OBJECT:
-                delete (List *)m_payload;
+                delete (Object *)m_payload;
                 break;
         }
     }
@@ -116,11 +117,11 @@ class Value {
     }
 
     void setNullUnsafe() {
-        m_bits = (uint64_t)2 | TAG_CONST;
+        m_bits = ((uint64_t)2) | TAG_CONST;
     }
 
     Value(void *ptr, ThingType type)
-        : m_bits((uint64_t) new Thing(ptr, type) | TAG_THING) {
+        : m_bits(((uint64_t) new Thing(ptr, type)) | TAG_THING) {
     }
 
    public:
@@ -131,6 +132,12 @@ class Value {
     Value(sentry_value_t value) {
         m_bits = value._bits;
         incref();
+    }
+
+    static Value consume(sentry_value_t value) {
+        Value rv;
+        rv.m_bits = value._bits;
+        return rv;
     }
 
     Value(const Value &other) {
@@ -185,7 +192,7 @@ class Value {
 
     static Value newInt32(int32_t val) {
         Value rv;
-        rv.m_bits = (int64_t)val | TAG_INT32;
+        rv.m_bits = (uint64_t)val | TAG_INT32;
         return rv;
     }
 
@@ -391,15 +398,26 @@ class Value {
         return (size_t)-1;
     }
 
-    void serialize(mpack_writer_t *writer) const;
-    std::string serializeToString() const;
+    void toMsgpack(mpack_writer_t *writer) const;
+    std::string toMsgpack() const;
+    void toJson(std::stringstream &out) const;
+    std::string toJson() const;
 
-    sentry_value_t lower() const {
+    sentry_value_t lower() {
         sentry_value_t rv;
         rv._bits = m_bits;
+        setNullUnsafe();
         return rv;
     }
 };
+
+template <typename Os>
+Os &operator<<(Os &os, const sentry::Value &value) {
+    std::stringstream ss;
+    value.toJson(ss);
+    os << ss.str();
+    return os;
+}
 
 }  // namespace sentry
 

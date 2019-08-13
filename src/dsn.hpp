@@ -41,8 +41,15 @@ class Dsn {
         return m_valid ? m_raw.c_str() : nullptr;
     }
 
-    std::string get_minidump_url() const;
-    std::string get_store_url() const;
+    const char *get_minidump_url() const {
+        return m_minidump_url.c_str();
+    }
+    const char *get_store_url() const {
+        return m_store_url.c_str();
+    }
+    const char *get_auth_header() const {
+        return m_auth_header.c_str();
+    }
 
    private:
     std::string m_raw;
@@ -54,6 +61,10 @@ class Dsn {
     std::string m_path;
     std::string m_project_id;
     bool m_valid;
+
+    std::string m_minidump_url;
+    std::string m_store_url;
+    std::string m_auth_header;
 };
 }  // namespace sentry
 

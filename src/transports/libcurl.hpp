@@ -12,6 +12,7 @@ class LibcurlTransport : public Transport {
    public:
     LibcurlTransport();
     ~LibcurlTransport();
+    void start();
     void shutdown();
     void sendEvent(sentry::Value value);
 

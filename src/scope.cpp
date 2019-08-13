@@ -26,7 +26,7 @@ Value Scope::createEvent() {
     if (!options->release.empty()) {
         event.setKey("release", Value::newString(options->release.c_str()));
     }
-    if (!options->release.empty()) {
+    if (!options->dist.empty()) {
         event.setKey("dist", Value::newString(options->dist.c_str()));
     }
     if (!options->environment.empty()) {
@@ -50,7 +50,7 @@ Value Scope::createEvent() {
     if (sdk_info.isNull()) {
         Value version = Value::newString(SENTRY_SDK_VERSION);
         sdk_info = Value::newObject();
-        sdk_info.setKey("name", Value::newString("sentry.native"));
+        sdk_info.setKey("name", Value::newString(SENTRY_SDK_NAME));
         sdk_info.setKey("version", version);
         Value package = Value::newObject();
         package.setKey("name", Value::newString("github:getsentry/sentrypad"));

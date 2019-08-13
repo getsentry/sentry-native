@@ -1,9 +1,11 @@
 #include "protocol_value.hpp"
+#include <cmath>
 #include <ctime>
+#include <sstream>
 
 using namespace sentry;
 
-void Value::serialize(mpack_writer_t *writer) const {
+void Value::toMsgpack(mpack_writer_t *writer) const {
     switch (this->type()) {
         case SENTRY_VALUE_TYPE_NULL:
             mpack_write_nil(writer);
@@ -26,9 +28,10 @@ void Value::serialize(mpack_writer_t *writer) const {
             mpack_start_array(writer, (uint32_t)list->size());
             for (List::const_iterator iter = list->begin(); iter != list->end();
                  ++iter) {
-                iter->serialize(writer);
+                iter->toMsgpack(writer);
             }
             mpack_finish_array(writer);
+            break;
         }
         case SENTRY_VALUE_TYPE_OBJECT: {
             const Object *object = (const Object *)asThing()->ptr();
@@ -36,21 +39,124 @@ void Value::serialize(mpack_writer_t *writer) const {
             for (Object::const_iterator iter = object->begin();
                  iter != object->end(); ++iter) {
                 mpack_write_cstr(writer, iter->first.c_str());
-                iter->second.serialize(writer);
+                iter->second.toMsgpack(writer);
             }
             mpack_finish_map(writer);
+            break;
         }
     }
 }
 
-std::string Value::serializeToString() const {
+std::string Value::toMsgpack() const {
     mpack_writer_t writer;
     char *buf;
     size_t size;
     mpack_writer_init_growable(&writer, &buf, &size);
-    serialize(&writer);
+    toMsgpack(&writer);
     mpack_writer_destroy(&writer);
     return std::string(buf, size);
+}
+
+namespace {
+template <typename Out>
+void json_serialize_string(const char *ptr, Out &out) {
+    out << "\"";
+    for (; *ptr; ptr++) {
+        switch (*ptr) {
+            case '\\':
+                out << "\\";
+                break;
+            case '"':
+                out << "\\\"";
+                break;
+            case '\b':
+                out << "\\\b";
+                break;
+            case '\f':
+                out << "\\\f";
+                break;
+            case '\n':
+                out << "\\\n";
+                break;
+            case '\r':
+                out << "\\\r";
+                break;
+            case '\t':
+                out << "\\\t";
+                break;
+            default:
+                if (*ptr < 32) {
+                    char buf[10];
+                    sprintf(buf, "u%04x", *ptr);
+                    out << buf;
+                } else {
+                    out << *ptr;
+                }
+        }
+    }
+    out << "\"";
+}
+}  // namespace
+
+void Value::toJson(std::stringstream &out) const {
+    switch (this->type()) {
+        case SENTRY_VALUE_TYPE_NULL:
+            out << "null";
+            break;
+        case SENTRY_VALUE_TYPE_BOOL:
+            out << (this->asBool() ? "true" : "false");
+            break;
+        case SENTRY_VALUE_TYPE_INT32:
+            out << this->asInt32();
+            break;
+        case SENTRY_VALUE_TYPE_DOUBLE: {
+            double val = this->asDouble();
+            if (isnan(val) || isinf(val)) {
+                out << "null";
+            } else {
+                out << val;
+            }
+            break;
+        }
+        case SENTRY_VALUE_TYPE_STRING: {
+            json_serialize_string(asCStr(), out);
+            break;
+        }
+        case SENTRY_VALUE_TYPE_LIST: {
+            const List *list = (const List *)asThing()->ptr();
+            out << "[";
+            for (List::const_iterator iter = list->begin(); iter != list->end();
+                 ++iter) {
+                if (iter != list->begin()) {
+                    out << ",";
+                }
+                iter->toJson(out);
+            }
+            out << "]";
+            break;
+        }
+        case SENTRY_VALUE_TYPE_OBJECT: {
+            const Object *object = (const Object *)asThing()->ptr();
+            out << "{";
+            for (Object::const_iterator iter = object->begin();
+                 iter != object->end(); ++iter) {
+                if (iter != object->begin()) {
+                    out << ",";
+                }
+                json_serialize_string(iter->first.c_str(), out);
+                out << ":";
+                iter->second.toJson(out);
+            }
+            out << "}";
+            break;
+        }
+    }
+}
+
+std::string Value::toJson() const {
+    std::stringstream ss;
+    toJson(ss);
+    return ss.str();
 }
 
 Value::~Value() {
@@ -140,7 +246,7 @@ sentry_value_type_t sentry_value_get_type(sentry_value_t value) {
 int sentry_value_set_key(sentry_value_t value,
                          const char *k,
                          sentry_value_t v) {
-    return !Value(value).setKey(k, Value(v));
+    return !Value(value).setKey(k, Value::consume(v));
 }
 
 int sentry_value_remove_key(sentry_value_t value, const char *k) {
@@ -148,7 +254,7 @@ int sentry_value_remove_key(sentry_value_t value, const char *k) {
 }
 
 int sentry_value_append(sentry_value_t value, sentry_value_t v) {
-    return !Value(value).append(Value(v));
+    return !Value(value).append(Value::consume(v));
 }
 
 sentry_value_t sentry_value_get_by_key(sentry_value_t value, const char *k) {
@@ -183,11 +289,11 @@ int sentry_value_is_null(sentry_value_t value) {
     return Value(value).isNull();
 }
 
-sentry_value_t sentry_event_value_new(void) {
+sentry_value_t sentry_value_new_event(void) {
     return Value::newEvent().lower();
 }
 
-sentry_value_t sentry_breadcrumb_value_new(const char *type,
+sentry_value_t sentry_value_new_breadcrumb(const char *type,
                                            const char *message) {
     return Value::newBreadcrumb(type, message).lower();
 }

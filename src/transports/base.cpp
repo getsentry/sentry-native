@@ -9,5 +9,8 @@ Transport::Transport() {
 Transport::~Transport() {
 }
 
+void Transport::start() {
+}
+
 void Transport::shutdown() {
 }

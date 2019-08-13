@@ -39,8 +39,6 @@ extern "C" {
 #include <uuid/uuid.h>
 #endif
 
-#define SENTRY_SDK_VERSION "0.0.3"
-
 /*
  * type type of a sentry value.
  */
@@ -93,8 +91,9 @@ SENTRY_API double sentry_value_as_double(sentry_value_t value);
 SENTRY_API const char *sentry_value_as_string(sentry_value_t value);
 SENTRY_API int sentry_value_is_true(sentry_value_t value);
 SENTRY_API int sentry_value_is_null(sentry_value_t value);
-SENTRY_API sentry_value_t sentry_event_value_new(void);
-SENTRY_API sentry_value_t sentry_breadcrumb_value_new(const char *type,
+
+SENTRY_API sentry_value_t sentry_value_new_event(void);
+SENTRY_API sentry_value_t sentry_value_new_breadcrumb(const char *type,
                                                       const char *message);
 SENTRY_API void sentry_event_value_add_stacktrace(sentry_value_t event,
                                                   void **ips);
