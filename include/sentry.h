@@ -73,8 +73,7 @@ SENTRY_API sentry_value_t sentry_value_new_bool(int value);
 SENTRY_API sentry_value_t sentry_value_new_string(const char *value);
 SENTRY_API sentry_value_t sentry_value_new_list(void);
 SENTRY_API sentry_value_t sentry_value_new_object(void);
-SENTRY_API void sentry_value_incref(sentry_value_t value);
-SENTRY_API void sentry_value_decref(sentry_value_t value);
+SENTRY_API void sentry_value_free(sentry_value_t value);
 SENTRY_API sentry_value_type_t sentry_value_get_type(sentry_value_t value);
 SENTRY_API int sentry_value_set_key(sentry_value_t value,
                                     const char *k,
@@ -133,6 +132,10 @@ typedef struct sentry_options_s sentry_options_t;
 /* type of the callback for transports */
 typedef void (*sentry_transport_function_t)(sentry_value_t event, void *data);
 
+/* type of the callback for modifying events */
+typedef sentry_value_t (*sentry_event_function_t)(sentry_value_t event,
+                                                  void *data);
+
 /*
  * creates a new options struct.  Can be freed with `sentry_options_free`
  */
@@ -144,6 +147,12 @@ SENTRY_API sentry_options_t *sentry_options_new(void);
 SENTRY_API void sentry_options_set_transport(sentry_options_t *opts,
                                              sentry_transport_function_t func,
                                              void *data);
+
+/*
+ * sets the before send callback
+ */
+SENTRY_API void sentry_options_set_before_send(sentry_options_t *opts,
+                                               sentry_event_function_t func);
 
 /*
  * deallocates previously allocated sentry options

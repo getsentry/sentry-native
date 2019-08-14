@@ -25,7 +25,8 @@ sentry_options_s::sentry_options_s()
       dsn(getenv_or_empty("SENTRY_DSN")),
       environment(getenv_or_empty("SENTRY_ENVIRONMENT")),
       release(getenv_or_empty("SENTRY_RELEASE")),
-      transport(new sentry::transports::LibcurlTransport()) {
+      transport(new sentry::transports::LibcurlTransport()),
+      before_send(nullptr) {
     std::random_device seed;
     std::default_random_engine engine(seed());
     std::uniform_int_distribution<int> uniform_dist(0, INT32_MAX);
@@ -45,6 +46,11 @@ void sentry_options_set_transport(sentry_options_t *opts,
     delete opts->transport;
     opts->transport = new sentry::transports::FunctionTransport(
         [func, data](sentry::Value value) { func(value.lower(), data); });
+}
+
+void sentry_options_set_before_send(sentry_options_t *opts,
+                                    sentry_event_function_t func) {
+    opts->before_send = func;
 }
 
 void sentry_options_free(sentry_options_t *opts) {

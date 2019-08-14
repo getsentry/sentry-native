@@ -19,9 +19,10 @@ static const char *level_as_string(sentry_level_t level) {
     }
 }
 
-Value Scope::createEvent() {
+void Scope::applyToEvent(Value &event) {
     const sentry_options_t *options = sentry_get_options();
-    Value event = Value::newEvent();
+
+    // TODO: Merge instead of overwrite
 
     if (!options->release.empty()) {
         event.setKey("release", Value::newString(options->release.c_str()));
@@ -46,6 +47,10 @@ Value Scope::createEvent() {
         event.setKey("fingerprint", fingerprint);
     }
 
+    if (breadcrumbs.length() > 0) {
+        event.setKey("breadcrumbs", breadcrumbs);
+    }
+
     static Value sdk_info;
     if (sdk_info.isNull()) {
         Value version = Value::newString(SENTRY_SDK_VERSION);
@@ -61,6 +66,4 @@ Value Scope::createEvent() {
     }
 
     event.setKey("sdk", sdk_info);
-
-    return event;
 }

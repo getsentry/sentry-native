@@ -21,7 +21,8 @@ struct sentry_options_s {
     sentry::Path handler_path;
     sentry::Path database_path;
 
-    sentry::transports::Transport *transport = nullptr;
+    sentry_event_function_t before_send;
+    sentry::transports::Transport *transport;
 
     // internal options
     std::string run_id;

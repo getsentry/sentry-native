@@ -6,7 +6,7 @@
 #ifdef _WIN32
 const char *handler_path = "bin/Release/crashpad_handler.exe";
 #else
-const char *handler_path = "bin/Release/crashpad_handler";
+const char *handler_path = "bin/Debug/crashpad_handler";
 #endif
 
 int main(void) {
@@ -60,7 +60,6 @@ int main(void) {
     sentry_value_set_key(event, "message",
                          sentry_value_new_string("Hello World!"));
     sentry_capture_event(event);
-    sentry_value_decref(event);
 
     // make sure everything flushes
     sentry_shutdown();

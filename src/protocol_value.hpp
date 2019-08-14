@@ -150,6 +150,10 @@ class Value {
     }
 
     Value &operator=(const Value &other) {
+        if (this == &other) {
+            return *this;
+        }
+
         Thing *thing = asThing();
         if (thing) {
             thing->decref();

@@ -231,11 +231,7 @@ sentry_value_t sentry_value_new_object() {
     return Value::newObject().lower();
 }
 
-void sentry_value_incref(sentry_value_t value) {
-    Value(value).incref();
-}
-
-void sentry_value_decref(sentry_value_t value) {
+void sentry_value_free(sentry_value_t value) {
     Value(value).decref();
 }
 

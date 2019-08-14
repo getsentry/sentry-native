@@ -13,16 +13,18 @@ struct Scope {
         : level(SENTRY_LEVEL_ERROR),
           extra(Value::newObject()),
           tags(Value::newObject()),
+          breadcrumbs(Value::newList()),
           fingerprint(Value::newList()) {
     }
 
-    Value createEvent();
+    void applyToEvent(Value &event);
 
     std::string transaction;
     sentry::Value fingerprint;
     sentry::Value user;
     sentry::Value tags;
     sentry::Value extra;
+    sentry::Value breadcrumbs;
     sentry_level_t level;
 };
 }  // namespace sentry
