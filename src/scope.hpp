@@ -5,7 +5,7 @@
 #include <unordered_map>
 #include <vector>
 #include "internal.hpp"
-#include "protocol_value.hpp"
+#include "value.hpp"
 
 namespace sentry {
 struct Scope {

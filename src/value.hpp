@@ -1,5 +1,5 @@
-#ifndef SENTRY_PROTOCOL_VALUE_HPP_INCLUDED
-#define SENTRY_PROTOCOL_VALUE_HPP_INCLUDED
+#ifndef SENTRY_VALUE_HPP_INCLUDED
+#define SENTRY_VALUE_HPP_INCLUDED
 
 #include <assert.h>
 #include <math.h>

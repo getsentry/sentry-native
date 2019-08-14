@@ -54,6 +54,6 @@ static const char *SENTRY_BREADCRUMB1_FILE_ATTACHMENT_NAME =
 static const char *SENTRY_BREADCRUMB2_FILE_ATTACHMENT_NAME =
     "__sentry-breadcrumb2";
 
-#include "protocol_value.hpp"
+#include "value.hpp"
 
 #endif

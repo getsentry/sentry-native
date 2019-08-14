@@ -2,7 +2,7 @@
 #define SENTRY_TRANSPORTS_BASE_HPP_INCLUDED
 
 #include "../internal.hpp"
-#include "../protocol_value.hpp"
+#include "../value.hpp"
 
 namespace sentry {
 namespace transports {

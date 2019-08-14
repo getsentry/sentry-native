@@ -6,9 +6,9 @@
 #include "cleanup.hpp"
 #include "internal.hpp"
 #include "options.hpp"
-#include "protocol_value.hpp"
 #include "scope.hpp"
 #include "uuid.hpp"
+#include "value.hpp"
 
 using namespace sentry;
 
