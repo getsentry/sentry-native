@@ -45,7 +45,7 @@ void LibcurlTransport::sendEvent(Value event) {
             std::string("X-Sentry-Auth:") + opts->dsn.get_auth_header();
 
         struct curl_slist *headers = nullptr;
-        headers = curl_slist_append(headers, "Expect;");
+        headers = curl_slist_append(headers, "Expect:");
         headers = curl_slist_append(headers, auth.c_str());
         headers = curl_slist_append(headers, "Content-Type:application/json");
 
