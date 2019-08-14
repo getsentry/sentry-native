@@ -140,29 +140,30 @@ class Value {
         return rv;
     }
 
-    Value(const Value &other) {
+    Value(const Value &other) : Value() {
         *this = other;
     }
 
     Value(Value &&other) {
-        this->m_bits = other.m_bits;
-        other.setNullUnsafe();
+        *this = other;
     }
 
     Value &operator=(const Value &other) {
-        if (this == &other) {
-            return *this;
+        if (this != &other) {
+            decref();
+            m_bits = other.m_bits;
+            incref();
         }
 
-        Thing *thing = asThing();
-        if (thing) {
-            thing->decref();
+        return *this;
+    }
+
+    Value &operator=(Value &&other) {
+        if (this != &other) {
+            this->m_bits = other.m_bits;
+            other.setNullUnsafe();
         }
-        thing = other.asThing();
-        if (thing) {
-            thing->incref();
-        }
-        m_bits = other.m_bits;
+
         return *this;
     }
 
@@ -298,9 +299,18 @@ class Value {
     }
 
     bool append(Value value) {
+        return appendBounded(value, -1);
+    }
+
+    bool appendBounded(Value value, size_t maxItems) {
         Thing *thing = asThing();
         if (thing && thing->type() == THING_TYPE_LIST) {
             List *list = (List *)thing->ptr();
+            if (list->size() >= maxItems) {
+                size_t overhead = list->size() - maxItems + 1;
+                list->erase(list->begin(), list->begin() + overhead);
+            }
+
             list->push_back(value);
             return true;
         }

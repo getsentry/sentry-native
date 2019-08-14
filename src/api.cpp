@@ -130,7 +130,8 @@ void sentry_add_breadcrumb(sentry_value_t breadcrumb) {
 
     {
         WITH_LOCKED_SCOPE;
-        g_scope.breadcrumbs.append(breadcrumb_value);
+        g_scope.breadcrumbs.appendBounded(breadcrumb_value,
+                                          SENTRY_BREADCRUMBS_MAX);
     }
 
     WITH_LOCKED_BREADCRUMBS;
