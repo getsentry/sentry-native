@@ -17,7 +17,10 @@ struct Scope {
           fingerprint(Value::newList()) {
     }
 
-    void applyToEvent(Value &event);
+    void applyToEvent(Value &event, bool withBreadcrumbs) const;
+    void applyToEvent(Value &event) const {
+        applyToEvent(event, true);
+    }
 
     std::string transaction;
     sentry::Value fingerprint;

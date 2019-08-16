@@ -19,7 +19,7 @@ static const char *level_as_string(sentry_level_t level) {
     }
 }
 
-void Scope::applyToEvent(Value &event) {
+void Scope::applyToEvent(Value &event, bool withBreadcrumbs) const {
     const sentry_options_t *options = sentry_get_options();
 
     // TODO: Merge instead of overwrite
@@ -47,7 +47,7 @@ void Scope::applyToEvent(Value &event) {
         event.setKey("fingerprint", fingerprint);
     }
 
-    if (breadcrumbs.length() > 0) {
+    if (withBreadcrumbs && breadcrumbs.length() > 0) {
         event.setKey("breadcrumbs", breadcrumbs);
     }
 

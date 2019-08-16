@@ -3,6 +3,7 @@
 #include <ctime>
 #include <random>
 #include <sstream>
+#include "backends/crashpad.hpp"
 #include "transports/function.hpp"
 #include "transports/libcurl.hpp"
 
@@ -26,6 +27,7 @@ sentry_options_s::sentry_options_s()
       environment(getenv_or_empty("SENTRY_ENVIRONMENT")),
       release(getenv_or_empty("SENTRY_RELEASE")),
       transport(new sentry::transports::LibcurlTransport()),
+      backend(new sentry::backends::CrashpadBackend()),
       before_send(nullptr) {
     std::random_device seed;
     std::default_random_engine engine(seed());
