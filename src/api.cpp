@@ -17,7 +17,7 @@ static Scope g_scope;
 static std::mutex scope_lock;
 static std::mutex breadcrumb_lock;
 static int breadcrumb_fileid = 0;
-static int breadcrumb_count = 0;
+static int breadcrumbs_in_segment = 0;
 static Path event_filename;
 static Path breadcrumb_filename;
 
@@ -135,35 +135,25 @@ void sentry_add_breadcrumb(sentry_value_t breadcrumb) {
     }
 
     WITH_LOCKED_BREADCRUMBS;
-    if (breadcrumb_count == 0 || breadcrumb_count == SENTRY_BREADCRUMBS_MAX) {
+    if (breadcrumbs_in_segment == 0 ||
+        breadcrumbs_in_segment == SENTRY_BREADCRUMBS_MAX) {
         breadcrumb_fileid = breadcrumb_fileid == 0 ? 1 : 0;
-        breadcrumb_count = 0;
+        breadcrumbs_in_segment = 0;
         breadcrumb_filename =
             g_options->runs_folder.join(g_options->run_id.c_str())
                 .join(breadcrumb_fileid == 0 ? SENTRY_BREADCRUMB1_FILE
                                              : SENTRY_BREADCRUMB2_FILE);
     }
 
-    char *data;
-    size_t size;
-    static mpack_writer_t writer;
-    mpack_writer_init_growable(&writer, &data, &size);
-    breadcrumb_value.toMsgpack(&writer);
-    if (mpack_writer_destroy(&writer) != mpack_ok) {
-        SENTRY_LOG("An error occurred encoding the data.");
-        return;
-    }
-
-    FILE *file = breadcrumb_filename.open(breadcrumb_count == 0 ? "w" : "a");
-
-    if (file != NULL) {
-        fwrite(data, 1, size, file);
+    std::string mpack = breadcrumb_value.toMsgpack();
+    FILE *file =
+        breadcrumb_filename.open(breadcrumbs_in_segment == 0 ? "w" : "a");
+    if (file) {
+        fwrite(mpack.c_str(), 1, mpack.size(), file);
         fclose(file);
     }
 
-    free(data);
-
-    breadcrumb_count++;
+    breadcrumbs_in_segment++;
 }
 
 void sentry_set_user(sentry_value_t value) {

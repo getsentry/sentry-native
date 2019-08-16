@@ -12,7 +12,6 @@ const char *handler_path = "bin/Debug/crashpad_handler";
 int main(void) {
     sentry_options_t *options = sentry_options_new();
 
-    sentry_options_set_dsn(options, getenv("SENTRY_DSN"));
     sentry_options_set_handler_path(options, handler_path);
     sentry_options_set_environment(options, "Production");
     sentry_options_set_release(options, "5fd7a6cd");

@@ -92,6 +92,22 @@ const char *sentry_options_get_dist(const sentry_options_t *opts) {
     return empty_str_null(opts->dist.c_str());
 }
 
+void sentry_options_set_http_proxy(sentry_options_t *opts, const char *proxy) {
+    opts->http_proxy = std::string(*proxy ? proxy : "");
+}
+
+const char *sentry_options_get_http_proxy(sentry_options_t *opts) {
+    return opts->http_proxy.empty() ? nullptr : opts->http_proxy.c_str();
+}
+
+void sentry_options_set_ca_certs(sentry_options_t *opts, const char *path) {
+    opts->ca_certs = std::string(*path ? path : "");
+}
+
+const char *sentry_options_get_ca_certs(sentry_options_t *opts) {
+    return opts->ca_certs.empty() ? nullptr : opts->ca_certs.c_str();
+}
+
 void sentry_options_set_debug(sentry_options_t *opts, int debug) {
     opts->debug = !!debug;
 }

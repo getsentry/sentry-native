@@ -60,6 +60,15 @@ void LibcurlTransport::sendEvent(Value event) {
                          SENTRY_SDK_USER_AGENT);
         curl_easy_setopt(this->m_curl, CURLOPT_WRITEFUNCTION, swallow_data);
 
+        if (!opts->http_proxy.empty()) {
+            curl_easy_setopt(this->m_curl, CURLOPT_PROXY,
+                             opts->http_proxy.c_str());
+        }
+        if (!opts->ca_certs.empty()) {
+            curl_easy_setopt(this->m_curl, CURLOPT_CAPATH,
+                             opts->ca_certs.c_str());
+        }
+
         CURLcode _rv = curl_easy_perform(this->m_curl);
 
         // TODO: error handling

@@ -204,6 +204,28 @@ SENTRY_API void sentry_options_set_dist(sentry_options_t *opts,
 SENTRY_API const char *sentry_options_get_dist(const sentry_options_t *opts);
 
 /*
+ * configures the http proxy
+ */
+SENTRY_API void sentry_options_set_http_proxy(sentry_options_t *opts,
+                                              const char *proxy);
+
+/*
+ * returns the configured http proxy
+ */
+SENTRY_API const char *sentry_options_get_http_proxy(sentry_options_t *opts);
+
+/*
+ * configures the path to a file containing ssl certificates for verification.
+ */
+SENTRY_API void sentry_options_set_ca_certs(sentry_options_t *opts,
+                                            const char *path);
+
+/*
+ * returns the configured path for ca certificates.
+ */
+SENTRY_API const char sentry_options_get_ca_certs(void);
+
+/*
  * enables or disables debug printing mode
  */
 SENTRY_API void sentry_options_set_debug(sentry_options_t *opts, int debug);
