@@ -24,7 +24,7 @@ project "sentry_crashpad"
   kind "SharedLib"
   sentrypad_common()
 
-  defines {"SENTRY_CRASHPAD"}
+  defines {"SENTRY_WITH_CRASHPAD_BACKEND"}
   includedirs {
     CRASHPAD_PKG,
     CRASHPAD_PKG.."/include",
@@ -59,8 +59,17 @@ project "sentry_crashpad"
       "bsm",
 			"curl",
     }
+    defines {
+      "SENTRY_WITH_LIBCURL_TRANSPORT"
+    }
   filter "system:linux"
     links {
+    }
+  filter "system:windows"
+    links {
+    }
+    defines {
+      "SENTRY_WITH_WINHTTP_TRANSPORT"
     }
 
 -- project "sentry_breakpad"

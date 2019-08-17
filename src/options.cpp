@@ -4,8 +4,8 @@
 #include <random>
 #include <sstream>
 #include "backends/crashpad.hpp"
+#include "transports/base.hpp"
 #include "transports/function.hpp"
-#include "transports/libcurl.hpp"
 
 static const char *getenv_or_empty(const char *key) {
     const char *rv = getenv(key);
@@ -22,7 +22,7 @@ sentry_options_s::sentry_options_s()
       dsn(getenv_or_empty("SENTRY_DSN")),
       environment(getenv_or_empty("SENTRY_ENVIRONMENT")),
       release(getenv_or_empty("SENTRY_RELEASE")),
-      transport(new sentry::transports::LibcurlTransport()),
+      transport(sentry::transports::create_default_transport()),
       backend(new sentry::backends::CrashpadBackend()),
       before_send(nullptr) {
     std::random_device seed;

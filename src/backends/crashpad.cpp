@@ -5,6 +5,7 @@
 #include <map>
 #include <string>
 #include <vector>
+#include <mutex>
 
 #include "../attachment.hpp"
 #include "../internal.hpp"

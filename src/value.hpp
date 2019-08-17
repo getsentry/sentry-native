@@ -75,6 +75,7 @@ class Thing {
                 return SENTRY_VALUE_TYPE_STRING;
             default:
                 assert(!"unreachable");
+                return SENTRY_VALUE_TYPE_NULL;
         }
     }
 

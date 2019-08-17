@@ -1,6 +1,44 @@
 #include "uuid.hpp"
 
 #ifdef _WIN32
+sentry_uuid_t sentry_uuid_nil() {
+    sentry_uuid_t rv;
+    UuidCreateNil(&rv.native_uuid);
+    return rv;
+}
+
+sentry_uuid_t sentry_uuid_new_v4() {
+    sentry_uuid_t rv;
+    UuidCreate(&rv.native_uuid);
+    return rv;
+}
+
+sentry_uuid_t sentry_uuid_from_string(const char *str) {
+    sentry_uuid_t rv;
+    if (UuidFromStringA((RPC_CSTR)str, &rv.native_uuid) != RPC_S_OK) {
+        UuidCreateNil(&rv.native_uuid);
+    }
+    return rv;
+}
+
+int sentry_uuid_is_nil(const sentry_uuid_t *uuid) {
+    RPC_STATUS status;
+    return !!UuidIsNil((UUID *)&uuid->native_uuid, &status);
+}
+
+void sentry_uuid_as_bytes(const sentry_uuid_t *uuid, char bytes[16]) {
+    memcpy(bytes, uuid, 16);
+    std::reverse(bytes, bytes + 4);
+    std::reverse(bytes + 4, bytes + 6);
+    std::reverse(bytes + 6, bytes + 8);
+}
+
+void sentry_uuid_as_string(const sentry_uuid_t *uuid, char str[37]) {
+    unsigned char *out = 0;
+    UuidToStringA(&uuid->native_uuid, &out);
+    memcpy(str, (const char *)out, 37);
+    RpcStringFreeA(&out);
+}
 #else
 sentry_uuid_t sentry_uuid_nil() {
     sentry_uuid_t rv;
@@ -33,5 +71,4 @@ void sentry_uuid_as_bytes(const sentry_uuid_t *uuid, char bytes[16]) {
 void sentry_uuid_as_string(const sentry_uuid_t *uuid, char str[37]) {
     uuid_unparse_lower(uuid->native_uuid, str);
 }
-
 #endif

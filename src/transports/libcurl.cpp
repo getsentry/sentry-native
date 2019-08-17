@@ -1,3 +1,4 @@
+#ifdef SENTRY_WITH_LIBCURL_TRANSPORT
 #include "libcurl.hpp"
 #include "../options.hpp"
 
@@ -76,3 +77,4 @@ void LibcurlTransport::send_event(Value event) {
         curl_slist_free_all(headers);
     });
 }
+#endif

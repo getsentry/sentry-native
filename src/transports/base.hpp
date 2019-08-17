@@ -18,6 +18,8 @@ class Transport {
     Transport(const Transport &) = delete;
     Transport &operator=(Transport &) = delete;
 };
+
+Transport *create_default_transport();
 }  // namespace transports
 }  // namespace sentry
 

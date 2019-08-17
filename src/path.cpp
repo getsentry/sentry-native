@@ -2,6 +2,8 @@
 #include "internal.hpp"
 
 #ifdef _WIN32
+#include <locale>
+#include <codecvt>
 #include <Windows.h>
 #include <shellapi.h>
 #include <shlwapi.h>
@@ -9,24 +11,13 @@
 #define STAT _stat
 #define S_ISREG(m) (((m)&_S_IFMT) == _S_IFREG)
 #define S_ISDIR(m) (((m)&_S_IFMT) == _S_IFDIR)
-#if defined(SENTRY_BREAKPAD)
-#include "common/string_conversion.h"
 
 static std::wstring cstr_to_wstr(const char *s) {
-    std::vector<uint16_t> vec;
-    google_breakpad::UTF8ToUTF16(s, vec);
-    return std::wstring(vec.cbegin(), vec.cend());
+    std::u16string utf16 =
+        std::wstring_convert<std::codecvt_utf8_utf16<char16_t>, char16_t>{}
+            .from_bytes(s);
+    return std::wstring(utf16.cbegin(), utf16.cend());
 }
-
-#elif defined(SENTRY_CRASHPAD)
-#include "base/strings/utf_string_conversions.h"
-
-static std::wstring cstr_to_wstr(const char *s) {
-    std::wstring rv;
-    base::UTF8ToUTF16(s, strlen(s), &rv);
-    return rv;
-}
-#endif
 #else
 #include <unistd.h>
 #define stat_func stat

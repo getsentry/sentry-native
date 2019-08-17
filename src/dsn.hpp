@@ -13,6 +13,9 @@ class Dsn {
     const char *scheme() const {
         return m_https ? "https" : "http";
     }
+    bool is_secure() const {
+        return m_https;
+    }
     const char *public_key() const {
         return m_public_key.c_str();
     }

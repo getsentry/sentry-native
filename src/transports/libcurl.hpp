@@ -1,5 +1,6 @@
 #ifndef SENTRY_TRANSPORTS_LIBCURL_HPP_INCLUDED
 #define SENTRY_TRANSPORTS_LIBCURL_HPP_INCLUDED
+#ifdef SENTRY_WITH_LIBCURL_TRANSPORT
 
 #include <curl/curl.h>
 #include <curl/easy.h>
@@ -23,4 +24,5 @@ class LibcurlTransport : public Transport {
 }  // namespace transports
 }  // namespace sentry
 
+#endif
 #endif
