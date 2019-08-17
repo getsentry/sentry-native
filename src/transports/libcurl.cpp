@@ -30,8 +30,8 @@ size_t swallow_data(void *buffer, size_t size, size_t nmemb, void *userp) {
     return size * nmemb;
 }
 
-void LibcurlTransport::sendEvent(Value event) {
-    const char *event_id = event.getByKey("event_id").asCStr();
+void LibcurlTransport::send_event(Value event) {
+    const char *event_id = event.get_by_key("event_id").as_cstr();
     SENTRY_LOGF("Sending event %s", *event_id ? event_id : "<no client id>");
     m_worker.submitTask([this, event]() {
         const sentry_options_t *opts = sentry_get_options();
@@ -40,7 +40,7 @@ void LibcurlTransport::sendEvent(Value event) {
         }
 
         std::string url = opts->dsn.get_store_url();
-        std::string payload = event.toJson();
+        std::string payload = event.to_json();
         std::string auth =
             std::string("X-Sentry-Auth:") + opts->dsn.get_auth_header();
 

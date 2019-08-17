@@ -53,6 +53,7 @@ void CrashpadBackend::start() {
 
     base::FilePath database(options->database_path.as_osstr());
     base::FilePath handler(options->handler_path.as_osstr());
+
     std::map<std::string, std::string> annotations;
     std::map<std::string, base::FilePath> file_attachments;
 
@@ -106,12 +107,12 @@ void CrashpadBackend::start() {
     }
 }
 
-void CrashpadBackend::flushScopeState(const sentry::Scope &scope) {
+void CrashpadBackend::flush_scope_state(const sentry::Scope &scope) {
     mpack_writer_t writer;
     mpack_writer_init_stdfile(&writer, m_impl->event_filename.open("w"), true);
-    Value event = Value::newEvent();
+    Value event = Value::new_event();
     scope.applyToEvent(event, false);
-    event.toMsgpack(&writer);
+    event.to_msgpack(&writer);
     mpack_error_t err = mpack_writer_destroy(&writer);
     if (err != mpack_ok) {
         SENTRY_LOGF("an error occurred encoding the data. Code: %d", err);
@@ -119,7 +120,7 @@ void CrashpadBackend::flushScopeState(const sentry::Scope &scope) {
     }
 }
 
-void CrashpadBackend::addBreadcrumb(sentry::Value breadcrumb) {
+void CrashpadBackend::add_breadcrumb(sentry::Value breadcrumb) {
     std::lock_guard<std::mutex> _blck(m_impl->breadcrumb_lock);
     const sentry_options_t *opts = sentry_get_options();
 
@@ -133,7 +134,7 @@ void CrashpadBackend::addBreadcrumb(sentry::Value breadcrumb) {
                                                      : SENTRY_BREADCRUMB2_FILE);
     }
 
-    std::string mpack = breadcrumb.toMsgpack();
+    std::string mpack = breadcrumb.to_msgpack();
     FILE *file = m_impl->breadcrumb_filename.open(
         m_impl->breadcrumbs_in_segment == 0 ? "w" : "a");
     if (file) {

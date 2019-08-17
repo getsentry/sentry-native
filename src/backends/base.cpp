@@ -16,8 +16,8 @@ void Backend::start() {
 void Backend::shutdown() {
 }
 
-void Backend::flushScopeState(const Scope &scope) {
+void Backend::flush_scope_state(const Scope &scope) {
 }
 
-void Backend::addBreadcrumb(Value breadcrumb) {
+void Backend::add_breadcrumb(Value breadcrumb) {
 }

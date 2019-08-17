@@ -5,41 +5,41 @@
 
 using namespace sentry;
 
-void Value::toMsgpack(mpack_writer_t *writer) const {
+void Value::to_msgpack(mpack_writer_t *writer) const {
     switch (this->type()) {
         case SENTRY_VALUE_TYPE_NULL:
             mpack_write_nil(writer);
             break;
         case SENTRY_VALUE_TYPE_BOOL:
-            mpack_write_bool(writer, this->asBool());
+            mpack_write_bool(writer, this->as_bool());
             break;
         case SENTRY_VALUE_TYPE_INT32:
-            mpack_write_int(writer, (int64_t)this->asInt32());
+            mpack_write_int(writer, (int64_t)this->as_int32());
             break;
         case SENTRY_VALUE_TYPE_DOUBLE:
-            mpack_write_double(writer, this->asDouble());
+            mpack_write_double(writer, this->as_double());
             break;
         case SENTRY_VALUE_TYPE_STRING: {
-            mpack_write_cstr_or_nil(writer, asCStr());
+            mpack_write_cstr_or_nil(writer, as_cstr());
             break;
         }
         case SENTRY_VALUE_TYPE_LIST: {
-            const List *list = (const List *)asThing()->ptr();
+            const List *list = (const List *)as_thing()->ptr();
             mpack_start_array(writer, (uint32_t)list->size());
             for (List::const_iterator iter = list->begin(); iter != list->end();
                  ++iter) {
-                iter->toMsgpack(writer);
+                iter->to_msgpack(writer);
             }
             mpack_finish_array(writer);
             break;
         }
         case SENTRY_VALUE_TYPE_OBJECT: {
-            const Object *object = (const Object *)asThing()->ptr();
+            const Object *object = (const Object *)as_thing()->ptr();
             mpack_start_map(writer, (uint32_t)object->size());
             for (Object::const_iterator iter = object->begin();
                  iter != object->end(); ++iter) {
                 mpack_write_cstr(writer, iter->first.c_str());
-                iter->second.toMsgpack(writer);
+                iter->second.to_msgpack(writer);
             }
             mpack_finish_map(writer);
             break;
@@ -47,12 +47,12 @@ void Value::toMsgpack(mpack_writer_t *writer) const {
     }
 }
 
-std::string Value::toMsgpack() const {
+std::string Value::to_msgpack() const {
     mpack_writer_t writer;
     char *buf;
     size_t size;
     mpack_writer_init_growable(&writer, &buf, &size);
-    toMsgpack(&writer);
+    to_msgpack(&writer);
     mpack_writer_destroy(&writer);
     return std::string(buf, size);
 }
@@ -98,19 +98,19 @@ void json_serialize_string(const char *ptr, Out &out) {
 }
 }  // namespace
 
-void Value::toJson(std::stringstream &out) const {
+void Value::to_json(std::stringstream &out) const {
     switch (this->type()) {
         case SENTRY_VALUE_TYPE_NULL:
             out << "null";
             break;
         case SENTRY_VALUE_TYPE_BOOL:
-            out << (this->asBool() ? "true" : "false");
+            out << (this->as_bool() ? "true" : "false");
             break;
         case SENTRY_VALUE_TYPE_INT32:
-            out << this->asInt32();
+            out << this->as_int32();
             break;
         case SENTRY_VALUE_TYPE_DOUBLE: {
-            double val = this->asDouble();
+            double val = this->as_double();
             if (isnan(val) || isinf(val)) {
                 out << "null";
             } else {
@@ -119,24 +119,24 @@ void Value::toJson(std::stringstream &out) const {
             break;
         }
         case SENTRY_VALUE_TYPE_STRING: {
-            json_serialize_string(asCStr(), out);
+            json_serialize_string(as_cstr(), out);
             break;
         }
         case SENTRY_VALUE_TYPE_LIST: {
-            const List *list = (const List *)asThing()->ptr();
+            const List *list = (const List *)as_thing()->ptr();
             out << "[";
             for (List::const_iterator iter = list->begin(); iter != list->end();
                  ++iter) {
                 if (iter != list->begin()) {
                     out << ",";
                 }
-                iter->toJson(out);
+                iter->to_json(out);
             }
             out << "]";
             break;
         }
         case SENTRY_VALUE_TYPE_OBJECT: {
-            const Object *object = (const Object *)asThing()->ptr();
+            const Object *object = (const Object *)as_thing()->ptr();
             out << "{";
             for (Object::const_iterator iter = object->begin();
                  iter != object->end(); ++iter) {
@@ -145,7 +145,7 @@ void Value::toJson(std::stringstream &out) const {
                 }
                 json_serialize_string(iter->first.c_str(), out);
                 out << ":";
-                iter->second.toJson(out);
+                iter->second.to_json(out);
             }
             out << "}";
             break;
@@ -153,82 +153,82 @@ void Value::toJson(std::stringstream &out) const {
     }
 }
 
-std::string Value::toJson() const {
+std::string Value::to_json() const {
     std::stringstream ss;
-    toJson(ss);
+    to_json(ss);
     return ss.str();
 }
 
 Value::~Value() {
-    Thing *thing = this->asThing();
+    Thing *thing = this->as_thing();
     if (thing) {
         thing->decref();
     }
 }
 
-Value Value::newEvent() {
-    Value rv = Value::newObject();
-    rv.setKey("level", Value::newString("error"));
+Value Value::new_event() {
+    Value rv = Value::new_object();
+    rv.set_by_key("level", Value::new_string("error"));
 
     sentry_uuid_t uuid = sentry_uuid_new_v4();
     char uuid_str[40];
     sentry_uuid_as_string(&uuid, uuid_str);
-    rv.setKey("event_id", Value::newString(uuid_str));
+    rv.set_by_key("event_id", Value::new_string(uuid_str));
 
     time_t now;
     time(&now);
     char buf[255];
     strftime(buf, sizeof buf, "%FT%TZ", gmtime(&now));
-    rv.setKey("timestamp", Value::newString(buf));
+    rv.set_by_key("timestamp", Value::new_string(buf));
 
     return rv;
 }
 
-Value Value::newBreadcrumb(const char *type, const char *message) {
-    Value rv = Value::newObject();
+Value Value::new_breadcrumb(const char *type, const char *message) {
+    Value rv = Value::new_object();
 
     time_t now;
     time(&now);
     char buf[255];
     strftime(buf, sizeof buf, "%FT%TZ", gmtime(&now));
-    rv.setKey("timestamp", Value::newString(buf));
+    rv.set_by_key("timestamp", Value::new_string(buf));
 
     if (type) {
-        rv.setKey("type", Value::newString(type));
+        rv.set_by_key("type", Value::new_string(type));
     }
     if (message) {
-        rv.setKey("message", Value::newString(message));
+        rv.set_by_key("message", Value::new_string(message));
     }
 
     return rv;
 }
 
 sentry_value_t sentry_value_new_null() {
-    return Value::newNull().lower();
+    return Value::new_null().lower();
 }
 
 sentry_value_t sentry_value_new_int32(int32_t value) {
-    return Value::newInt32(value).lower();
+    return Value::new_int32(value).lower();
 }
 
 sentry_value_t sentry_value_new_double(double value) {
-    return Value::newDouble(value).lower();
+    return Value::new_double(value).lower();
 }
 
 sentry_value_t sentry_value_new_bool(int value) {
-    return Value::newBool((bool)value).lower();
+    return Value::new_bool((bool)value).lower();
 }
 
 sentry_value_t sentry_value_new_string(const char *value) {
-    return Value::newString(value).lower();
+    return Value::new_string(value).lower();
 }
 
 sentry_value_t sentry_value_new_list() {
-    return Value::newList().lower();
+    return Value::new_list().lower();
 }
 
 sentry_value_t sentry_value_new_object() {
-    return Value::newObject().lower();
+    return Value::new_object().lower();
 }
 
 void sentry_value_free(sentry_value_t value) {
@@ -242,11 +242,11 @@ sentry_value_type_t sentry_value_get_type(sentry_value_t value) {
 int sentry_value_set_key(sentry_value_t value,
                          const char *k,
                          sentry_value_t v) {
-    return !Value(value).setKey(k, Value::consume(v));
+    return !Value(value).set_by_key(k, Value::consume(v));
 }
 
 int sentry_value_remove_key(sentry_value_t value, const char *k) {
-    return !Value(value).removeKey(k);
+    return !Value(value).remove_by_key(k);
 }
 
 int sentry_value_append(sentry_value_t value, sentry_value_t v) {
@@ -254,11 +254,11 @@ int sentry_value_append(sentry_value_t value, sentry_value_t v) {
 }
 
 sentry_value_t sentry_value_get_by_key(sentry_value_t value, const char *k) {
-    return Value(value).getByKey(k).lower();
+    return Value(value).get_by_key(k).lower();
 }
 
 sentry_value_t sentry_value_get_by_index(sentry_value_t value, size_t index) {
-    return Value(value).getByIndex(index).lower();
+    return Value(value).get_by_index(index).lower();
 }
 
 size_t sentry_value_get_length(sentry_value_t value) {
@@ -266,54 +266,54 @@ size_t sentry_value_get_length(sentry_value_t value) {
 }
 
 int32_t sentry_value_as_int32(sentry_value_t value) {
-    return Value(value).asInt32();
+    return Value(value).as_int32();
 }
 
 double sentry_value_as_double(sentry_value_t value) {
-    return Value(value).asDouble();
+    return Value(value).as_double();
 }
 
 const char *sentry_value_as_string(sentry_value_t value) {
-    return Value(value).asCStr();
+    return Value(value).as_cstr();
 }
 
 int sentry_value_is_true(sentry_value_t value) {
-    return Value(value).asBool();
+    return Value(value).as_bool();
 }
 
 int sentry_value_is_null(sentry_value_t value) {
-    return Value(value).isNull();
+    return Value(value).is_null();
 }
 
 sentry_value_t sentry_value_new_event(void) {
-    return Value::newEvent().lower();
+    return Value::new_event().lower();
 }
 
 sentry_value_t sentry_value_new_breadcrumb(const char *type,
                                            const char *message) {
-    return Value::newBreadcrumb(type, message).lower();
+    return Value::new_breadcrumb(type, message).lower();
 }
 
 void sentry_event_value_add_stacktrace(sentry_value_t value, void **ips) {
     Value event = Value(value);
 
-    Value frames = Value::newList();
+    Value frames = Value::new_list();
     for (; *ips; ips++) {
         char buf[100];
         sprintf(buf, "0x%llx", (unsigned long long)*ips);
-        Value frame = Value::newObject();
-        frame.setKey("instruction_addr", Value::newString(buf));
+        Value frame = Value::new_object();
+        frame.set_by_key("instruction_addr", Value::new_string(buf));
         frames.append(frame);
     }
     frames.reverse();
 
-    Value stacktrace = Value::newObject();
-    stacktrace.setKey("frames", frames);
+    Value stacktrace = Value::new_object();
+    stacktrace.set_by_key("frames", frames);
 
-    Value threads = Value::newList();
-    Value thread = Value::newObject();
-    thread.setKey("stacktrace", stacktrace);
+    Value threads = Value::new_list();
+    Value thread = Value::new_object();
+    thread.set_by_key("stacktrace", stacktrace);
     threads.append(thread);
 
-    event.setKey("threads", threads);
+    event.set_by_key("threads", threads);
 }

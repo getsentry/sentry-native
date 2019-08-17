@@ -19,51 +19,53 @@ static const char *level_as_string(sentry_level_t level) {
     }
 }
 
-void Scope::applyToEvent(Value &event, bool withBreadcrumbs) const {
+void Scope::applyToEvent(Value &event, bool with_breadcrumbs) const {
     const sentry_options_t *options = sentry_get_options();
 
     // TODO: Merge instead of overwrite
 
     if (!options->release.empty()) {
-        event.setKey("release", Value::newString(options->release.c_str()));
+        event.set_by_key("release",
+                         Value::new_string(options->release.c_str()));
     }
     if (!options->dist.empty()) {
-        event.setKey("dist", Value::newString(options->dist.c_str()));
+        event.set_by_key("dist", Value::new_string(options->dist.c_str()));
     }
     if (!options->environment.empty()) {
-        event.setKey("environment",
-                     Value::newString(options->environment.c_str()));
+        event.set_by_key("environment",
+                         Value::new_string(options->environment.c_str()));
     }
-    event.setKey("level", Value::newString(level_as_string(level)));
-    event.setKey("user", user);
+    event.set_by_key("level", Value::new_string(level_as_string(level)));
+    event.set_by_key("user", user);
     if (!transaction.empty()) {
-        event.setKey("transaction", Value::newString(transaction.c_str()));
+        event.set_by_key("transaction", Value::new_string(transaction.c_str()));
     }
-    event.setKey("tags", tags);
-    event.setKey("extra", extra);
+    event.set_by_key("tags", tags);
+    event.set_by_key("extra", extra);
 
     if (fingerprint.type() == SENTRY_VALUE_TYPE_LIST &&
         fingerprint.length() > 0) {
-        event.setKey("fingerprint", fingerprint);
+        event.set_by_key("fingerprint", fingerprint);
     }
 
-    if (withBreadcrumbs && breadcrumbs.length() > 0) {
-        event.setKey("breadcrumbs", breadcrumbs);
+    if (with_breadcrumbs && breadcrumbs.length() > 0) {
+        event.set_by_key("breadcrumbs", breadcrumbs);
     }
 
     static Value sdk_info;
-    if (sdk_info.isNull()) {
-        Value version = Value::newString(SENTRY_SDK_VERSION);
-        sdk_info = Value::newObject();
-        sdk_info.setKey("name", Value::newString(SENTRY_SDK_NAME));
-        sdk_info.setKey("version", version);
-        Value package = Value::newObject();
-        package.setKey("name", Value::newString("github:getsentry/sentrypad"));
-        package.setKey("version", version);
-        Value packages = Value::newList();
+    if (sdk_info.is_null()) {
+        Value version = Value::new_string(SENTRY_SDK_VERSION);
+        sdk_info = Value::new_object();
+        sdk_info.set_by_key("name", Value::new_string(SENTRY_SDK_NAME));
+        sdk_info.set_by_key("version", version);
+        Value package = Value::new_object();
+        package.set_by_key("name",
+                           Value::new_string("github:getsentry/sentrypad"));
+        package.set_by_key("version", version);
+        Value packages = Value::new_list();
         packages.append(package);
-        sdk_info.setKey("packages", packages);
+        sdk_info.set_by_key("packages", packages);
     }
 
-    event.setKey("sdk", sdk_info);
+    event.set_by_key("sdk", sdk_info);
 }

@@ -11,13 +11,13 @@ namespace sentry {
 struct Scope {
     Scope()
         : level(SENTRY_LEVEL_ERROR),
-          extra(Value::newObject()),
-          tags(Value::newObject()),
-          breadcrumbs(Value::newList()),
-          fingerprint(Value::newList()) {
+          extra(Value::new_object()),
+          tags(Value::new_object()),
+          breadcrumbs(Value::new_list()),
+          fingerprint(Value::new_list()) {
     }
 
-    void applyToEvent(Value &event, bool withBreadcrumbs) const;
+    void applyToEvent(Value &event, bool with_breadcrumbs) const;
     void applyToEvent(Value &event) const {
         applyToEvent(event, true);
     }

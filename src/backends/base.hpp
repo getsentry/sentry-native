@@ -13,8 +13,8 @@ class Backend {
     virtual ~Backend();
     virtual void start();
     virtual void shutdown();
-    virtual void flushScopeState(const sentry::Scope &scope);
-    virtual void addBreadcrumb(sentry::Value breadcrumb);
+    virtual void flush_scope_state(const sentry::Scope &scope);
+    virtual void add_breadcrumb(sentry::Value breadcrumb);
 
    private:
     Backend(const Backend &) = delete;

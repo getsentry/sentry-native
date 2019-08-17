@@ -15,8 +15,8 @@ class CrashpadBackend : public Backend {
     CrashpadBackend();
     ~CrashpadBackend();
     void start();
-    void flushScopeState(const sentry::Scope &scope);
-    void addBreadcrumb(sentry::Value breadcrumb);
+    void flush_scope_state(const sentry::Scope &scope);
+    void add_breadcrumb(sentry::Value breadcrumb);
 
    private:
     CrashpadBackendImpl *m_impl;

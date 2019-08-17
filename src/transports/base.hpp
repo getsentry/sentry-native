@@ -12,7 +12,7 @@ class Transport {
     virtual ~Transport();
     virtual void start();
     virtual void shutdown();
-    virtual void sendEvent(sentry::Value value) = 0;
+    virtual void send_event(sentry::Value value) = 0;
 
    private:
     Transport(const Transport &) = delete;

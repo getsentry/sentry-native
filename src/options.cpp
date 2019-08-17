@@ -13,11 +13,7 @@ static const char *getenv_or_empty(const char *key) {
 }
 
 static const char *empty_str_null(const char *s) {
-    if (!s && !*s) {
-        return nullptr;
-    } else {
-        return s;
-    }
+    return (s && *s) ? s : nullptr;
 }
 
 sentry_options_s::sentry_options_s()
