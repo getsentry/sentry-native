@@ -18,7 +18,6 @@ typedef std::vector<Value> List;
 typedef std::map<std::string, Value> Object;
 
 enum ThingType {
-    THING_TYPE_EMPTY,
     THING_TYPE_STRING,
     THING_TYPE_LIST,
     THING_TYPE_OBJECT,
@@ -26,17 +25,12 @@ enum ThingType {
 
 class Thing {
    public:
-    Thing() : m_payload(nullptr), m_type(THING_TYPE_EMPTY), m_refcount(1) {
-    }
-
     Thing(void *ptr, ThingType type)
         : m_payload(ptr), m_type(type), m_refcount(1) {
     }
 
     ~Thing() {
         switch (m_type) {
-            case THING_TYPE_EMPTY:
-                break;
             case THING_TYPE_STRING:
                 delete (std::string *)m_payload;
                 break;
@@ -65,8 +59,6 @@ class Thing {
 
     sentry_value_type_t value_type() const {
         switch (m_type) {
-            case THING_TYPE_EMPTY:
-                return SENTRY_VALUE_TYPE_NULL;
             case THING_TYPE_LIST:
                 return SENTRY_VALUE_TYPE_LIST;
             case THING_TYPE_OBJECT:
@@ -74,8 +66,7 @@ class Thing {
             case THING_TYPE_STRING:
                 return SENTRY_VALUE_TYPE_STRING;
             default:
-                assert(!"unreachable");
-                return SENTRY_VALUE_TYPE_NULL;
+                abort();
         }
     }
 
@@ -84,6 +75,7 @@ class Thing {
     }
 
    private:
+    Thing() = delete;
     Thing(const Thing &other) = delete;
     Thing &operator=(const Thing &other) = delete;
 
@@ -93,36 +85,29 @@ class Thing {
 };
 
 class Value {
-    union {
-        mutable double m_double;
-        mutable uint64_t m_bits;
-    };
+    sentry_value_t m_repr;
 
     static const uint64_t MAX_DOUBLE = 0xfff8000000000000ULL;
+    static const uint64_t TAG_THING = 0xfffc000000000000ULL;
     static const uint64_t TAG_INT32 = 0xfff9000000000000ULL;
     static const uint64_t TAG_CONST = 0xfffa000000000000ULL;
-    static const uint64_t TAG_THING = 0xfffb000000000000ULL;
-
-    // this leaves us with 48 bits of space behind the tags which is enough
-    // to hold 48bit pointers which is enough for now.  In theory there could be
-    // 52bit of pointers which will just fit into this knowing that we will
-    // always have 4 byte aligned objects.
-    static const uint64_t TAG_MAX = 0xffff000000000000ULL;
 
     Thing *as_thing() const {
-        if ((m_bits & TAG_THING) == TAG_THING) {
-            return (Thing *)(m_bits & ~TAG_THING);
+        if (m_repr._bits <= MAX_DOUBLE) {
+            return nullptr;
+        } else if ((m_repr._bits & TAG_THING) == TAG_THING) {
+            return (Thing *)((m_repr._bits << 2) & ~TAG_THING);
         } else {
             return nullptr;
         }
     }
 
     void set_null_unsafe() {
-        m_bits = ((uint64_t)2) | TAG_CONST;
+        m_repr._bits = ((uint64_t)2) | TAG_CONST;
     }
 
-    Value(void *ptr, ThingType type)
-        : m_bits(((uint64_t) new Thing(ptr, type)) | TAG_THING) {
+    Value(void *ptr, ThingType type) {
+        m_repr._bits = (((uint64_t) new Thing(ptr, type)) >> 2) | TAG_THING;
     }
 
    public:
@@ -131,13 +116,13 @@ class Value {
     }
 
     Value(sentry_value_t value) {
-        m_bits = value._bits;
+        m_repr._bits = value._bits;
         incref();
     }
 
     static Value consume(sentry_value_t value) {
         Value rv;
-        rv.m_bits = value._bits;
+        rv.m_repr._bits = value._bits;
         return rv;
     }
 
@@ -152,7 +137,7 @@ class Value {
     Value &operator=(const Value &other) {
         if (this != &other) {
             decref();
-            m_bits = other.m_bits;
+            m_repr = other.m_repr;
             incref();
         }
 
@@ -161,7 +146,7 @@ class Value {
 
     Value &operator=(Value &&other) {
         if (this != &other) {
-            this->m_bits = other.m_bits;
+            this->m_repr = other.m_repr;
             other.set_null_unsafe();
         }
 
@@ -189,28 +174,28 @@ class Value {
         // is a NAN.
         Value rv;
         if (isnan(val)) {
-            rv.m_bits = MAX_DOUBLE;
+            rv.m_repr._bits = MAX_DOUBLE;
         } else {
-            rv.m_double = val;
+            rv.m_repr._double = val;
         }
         return rv;
     }
 
     static Value new_int32(int32_t val) {
         Value rv;
-        rv.m_bits = (uint64_t)val | TAG_INT32;
+        rv.m_repr._bits = (uint64_t)val | TAG_INT32;
         return rv;
     }
 
     static Value new_bool(bool val) {
         Value rv;
-        rv.m_bits = (uint64_t)(val ? 1 : 0) | TAG_CONST;
+        rv.m_repr._bits = (uint64_t)(val ? 1 : 0) | TAG_CONST;
         return rv;
     }
 
     static Value new_null() {
         Value rv;
-        rv.m_bits = (uint64_t)2 | TAG_CONST;
+        rv.m_repr._bits = (uint64_t)2 | TAG_CONST;
         return rv;
     }
 
@@ -223,39 +208,38 @@ class Value {
     }
 
     static Value new_string(const char *s) {
-        return s ? Value(new std::string(s), THING_TYPE_STRING) : Value();
+        return Value(new std::string(s), THING_TYPE_STRING);
     }
 
     static Value new_event();
     static Value new_breadcrumb(const char *type, const char *message);
 
     sentry_value_type_t type() const {
-        switch (m_bits & TAG_MAX) {
-            case TAG_CONST: {
-                uint64_t val = m_bits & ~TAG_CONST;
-                switch (val) {
-                    case 0:
-                    case 1:
-                        return SENTRY_VALUE_TYPE_BOOL;
-                    case 2:
-                        return SENTRY_VALUE_TYPE_NULL;
-                    default:
-                        assert(!"unreachable");
-                }
+        if (m_repr._bits <= MAX_DOUBLE) {
+            return SENTRY_VALUE_TYPE_DOUBLE;
+        } else if ((m_repr._bits & TAG_THING) == TAG_THING) {
+            return as_thing()->value_type();
+        } else if ((m_repr._bits & TAG_CONST) == TAG_CONST) {
+            uint64_t val = m_repr._bits & ~TAG_CONST;
+            switch (val) {
+                case 0:
+                case 1:
+                    return SENTRY_VALUE_TYPE_BOOL;
+                case 2:
+                    return SENTRY_VALUE_TYPE_NULL;
+                default:
+                    assert(!"unreachable");
             }
-            case TAG_INT32:
-                return SENTRY_VALUE_TYPE_INT32;
-            case TAG_THING:
-                return as_thing()->value_type();
-            default:
-                return SENTRY_VALUE_TYPE_DOUBLE;
+        } else if ((m_repr._bits & TAG_INT32) == TAG_INT32) {
+            return SENTRY_VALUE_TYPE_INT32;
         }
+        return SENTRY_VALUE_TYPE_DOUBLE;
     }
 
     double as_double() const {
-        if (m_bits <= MAX_DOUBLE) {
-            return m_double;
-        } else if ((m_bits & TAG_INT32) == TAG_INT32) {
+        if (m_repr._bits <= MAX_DOUBLE) {
+            return m_repr._double;
+        } else if ((m_repr._bits & TAG_INT32) == TAG_INT32) {
             return (double)as_int32();
         } else {
             return NAN;
@@ -263,8 +247,8 @@ class Value {
     }
 
     int32_t as_int32() const {
-        if ((m_bits & TAG_INT32) == TAG_INT32) {
-            return (int32_t)(m_bits & ~TAG_INT32);
+        if ((m_repr._bits & TAG_INT32) == TAG_INT32) {
+            return (int32_t)(m_repr._bits & ~TAG_INT32);
         } else {
             return 0;
         }
@@ -278,8 +262,8 @@ class Value {
     }
 
     bool as_bool() const {
-        if ((m_bits & TAG_CONST) == TAG_CONST) {
-            uint64_t val = m_bits & ~TAG_CONST;
+        if ((m_repr._bits & TAG_CONST) == TAG_CONST) {
+            uint64_t val = m_repr._bits & ~TAG_CONST;
             if (val == 1) {
                 return true;
             }
@@ -290,13 +274,11 @@ class Value {
     }
 
     bool is_null() const {
-        if ((m_bits & TAG_CONST) == TAG_CONST) {
-            uint64_t val = m_bits & ~TAG_CONST;
+        if ((m_repr._bits & TAG_CONST) == TAG_CONST) {
+            uint64_t val = m_repr._bits & ~TAG_CONST;
             return val == 2;
-        } else {
-            Thing *thing = as_thing();
-            return thing && thing->type() == THING_TYPE_EMPTY;
         }
+        return false;
     }
 
     bool append(Value value) {
@@ -420,7 +402,7 @@ class Value {
 
     sentry_value_t lower() {
         sentry_value_t rv;
-        rv._bits = m_bits;
+        rv._bits = m_repr._bits;
         set_null_unsafe();
         return rv;
     }

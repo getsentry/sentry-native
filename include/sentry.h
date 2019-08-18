@@ -60,7 +60,7 @@ typedef enum {
  */
 union sentry_value_u {
     uint64_t _bits;
-    double _val;
+    double _double;
 };
 
 typedef union sentry_value_u sentry_value_t;

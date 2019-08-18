@@ -2,6 +2,7 @@
 #include "winhttp.hpp"
 #include <codecvt>
 #include <locale>
+#include <iostream>
 #include "../options.hpp"
 
 using namespace sentry;
@@ -76,14 +77,22 @@ void WinHttpTransport::send_event(Value event) {
             }
         }
 
-        std::u16string store_url =
-            std::wstring_convert<std::codecvt_utf8_utf16<char16_t>, char16_t>{}
+        std::wstring store_url =
+            std::wstring_convert<std::codecvt_utf8<wchar_t>, wchar_t>{}
                 .from_bytes(opts->dsn.get_store_url());
 
         URL_COMPONENTS url_components;
-        WinHttpCrackUrl((LPCWSTR)store_url.c_str(), store_url.size(), 0,
-                        &url_components);
-        if (!m_connect) {
+        wchar_t hostname[128];
+        wchar_t url_path[4096];
+        memset(&url_components, 0, sizeof(URL_COMPONENTS));
+        url_components.dwStructSize = sizeof(URL_COMPONENTS);
+        url_components.lpszHostName = hostname;
+        url_components.dwHostNameLength = 128;
+        url_components.lpszUrlPath = url_path;
+        url_components.dwUrlPathLength = 4096;
+
+        WinHttpCrackUrl(store_url.c_str(), 0, 0, &url_components);
+		if (!m_connect) {
             m_connect =
                 WinHttpConnect(m_session,
                                std::wstring(url_components.lpszHostName,
@@ -99,18 +108,16 @@ void WinHttpTransport::send_event(Value event) {
             opts->dsn.is_secure() ? WINHTTP_FLAG_SECURE : 0);
 
         std::string payload = event.to_json();
-        std::string auth =
-            std::string("X-Sentry-Auth:") + opts->dsn.get_auth_header();
-
         std::wstringstream h;
-        h << L"X-Sentry-Auth:" << opts->dsn.get_auth_header() << "\r\n";
-        h << L"Content-Type:application/json\r\n";
-        h << L"Content-Length:" << payload.length() << L"\r\n";
+        h << L"x-sentry-auth:" << opts->dsn.get_auth_header() << "\r\n";
+        h << L"content-type:application/json";
         std::wstring headers = h.str();
 
-        WinHttpSendRequest(request, headers.c_str(), headers.size(),
-                           (LPVOID)payload.c_str(), payload.size(), payload.size(), 0);
-        WinHttpReceiveResponse(request, nullptr);
+        if (WinHttpSendRequest(request, headers.c_str(), headers.size(),
+                               (LPVOID)payload.c_str(), payload.size(),
+                               payload.size(), 0)) {
+            WinHttpReceiveResponse(request, nullptr);
+        }
         WinHttpCloseHandle(request);
     });
 }
