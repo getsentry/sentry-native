@@ -1,14 +1,15 @@
 #ifdef SENTRY_WITH_WINHTTP_TRANSPORT
 #include "winhttp.hpp"
 #include <codecvt>
-#include <locale>
 #include <iostream>
+#include <locale>
 #include "../options.hpp"
 
 using namespace sentry;
 using namespace transports;
 
-WinHttpTransport::WinHttpTransport() : m_session(0), m_connect(0) {
+WinHttpTransport::WinHttpTransport()
+    : m_session(0), m_connect(0), m_disabled_until(0) {
 }
 
 WinHttpTransport::~WinHttpTransport() {
@@ -33,7 +34,7 @@ void WinHttpTransport::shutdown() {
     }
     if (m_session) {
         WinHttpCloseHandle(m_session);
-		m_session = 0;
+        m_session = 0;
     }
 }
 
@@ -52,6 +53,11 @@ void WinHttpTransport::send_event(Value event) {
     m_worker.submitTask([this, event]() {
         const sentry_options_t *opts = sentry_get_options();
         if (opts->dsn.disabled()) {
+            return;
+        }
+
+        ULONGLONG now = GetTickCount64();
+        if (now < m_disabled_until) {
             return;
         }
 
@@ -89,10 +95,10 @@ void WinHttpTransport::send_event(Value event) {
         url_components.lpszHostName = hostname;
         url_components.dwHostNameLength = 128;
         url_components.lpszUrlPath = url_path;
-        url_components.dwUrlPathLength = 4096;
+        url_components.dwUrlPathLength = 1024;
 
         WinHttpCrackUrl(store_url.c_str(), 0, 0, &url_components);
-		if (!m_connect) {
+        if (!m_connect) {
             m_connect =
                 WinHttpConnect(m_session,
                                std::wstring(url_components.lpszHostName,
@@ -116,6 +122,26 @@ void WinHttpTransport::send_event(Value event) {
         if (WinHttpSendRequest(request, headers.c_str(), headers.size(),
                                (LPVOID)payload.c_str(), payload.size(),
                                payload.size(), 0)) {
+            DWORD status_code = 0;
+            DWORD status_code_size = sizeof(DWORD);
+
+            WinHttpQueryHeaders(
+                request, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
+                WINHTTP_HEADER_NAME_BY_INDEX, &status_code, &status_code_size,
+                WINHTTP_NO_HEADER_INDEX);
+
+            if (status_code == 429) {
+                DWORD retry_after = 0;
+                DWORD retry_after_size = sizeof(DWORD);
+                if (WinHttpQueryHeaders(
+                        request,
+                        WINHTTP_QUERY_RETRY_AFTER | WINHTTP_QUERY_FLAG_NUMBER,
+                        WINHTTP_HEADER_NAME_BY_INDEX, &retry_after,
+                        &retry_after_size, WINHTTP_NO_HEADER_INDEX)) {
+                    m_disabled_until = GetTickCount64() + retry_after * 1000;
+                }
+            }
+
             WinHttpReceiveResponse(request, nullptr);
         }
         WinHttpCloseHandle(request);

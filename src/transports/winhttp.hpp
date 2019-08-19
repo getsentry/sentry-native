@@ -2,9 +2,10 @@
 #define SENTRY_TRANSPORTS_WINHTTP_HPP_INCLUDED
 #ifdef SENTRY_WITH_WINHTTP_TRANSPORT
 
+#include <Windows.h>
+#include <WinHttp.h>
 #include "../worker.hpp"
 #include "base.hpp"
-#include <WinHttp.h>
 
 namespace sentry {
 namespace transports {
@@ -18,6 +19,7 @@ class WinHttpTransport : public Transport {
 
    private:
     BackgroundWorker m_worker;
+    ULONGLONG m_disabled_until;
     HINTERNET m_session;
     HINTERNET m_connect;
 };
