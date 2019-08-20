@@ -17,9 +17,9 @@ struct Scope {
           fingerprint(Value::new_list()) {
     }
 
-    void applyToEvent(Value &event, bool with_breadcrumbs) const;
-    void applyToEvent(Value &event) const {
-        applyToEvent(event, true);
+    void apply_to_event(Value &event, bool with_breadcrumbs) const;
+    void apply_to_event(Value &event) const {
+        apply_to_event(event, true);
     }
 
     std::string transaction;

@@ -4,6 +4,7 @@
 
 #include <curl/curl.h>
 #include <curl/easy.h>
+#include <chrono>
 #include "../worker.hpp"
 #include "base.hpp"
 
@@ -20,6 +21,7 @@ class LibcurlTransport : public Transport {
    private:
     BackgroundWorker m_worker;
     CURL *m_curl;
+    std::chrono::system_clock::time_point m_disabled_until;
 };
 }  // namespace transports
 }  // namespace sentry

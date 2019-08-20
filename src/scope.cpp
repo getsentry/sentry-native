@@ -19,7 +19,7 @@ static const char *level_as_string(sentry_level_t level) {
     }
 }
 
-void Scope::applyToEvent(Value &event, bool with_breadcrumbs) const {
+void Scope::apply_to_event(Value &event, bool with_breadcrumbs) const {
     const sentry_options_t *options = sentry_get_options();
 
     // TODO: Merge instead of overwrite
@@ -52,10 +52,10 @@ void Scope::applyToEvent(Value &event, bool with_breadcrumbs) const {
         event.set_by_key("breadcrumbs", breadcrumbs);
     }
 
-    static Value sdk_info;
-    if (sdk_info.is_null()) {
+    static Value shared_sdk_info;
+    if (shared_sdk_info.is_null()) {
+        Value sdk_info = Value::new_object();
         Value version = Value::new_string(SENTRY_SDK_VERSION);
-        sdk_info = Value::new_object();
         sdk_info.set_by_key("name", Value::new_string(SENTRY_SDK_NAME));
         sdk_info.set_by_key("version", version);
         Value package = Value::new_object();
@@ -65,7 +65,8 @@ void Scope::applyToEvent(Value &event, bool with_breadcrumbs) const {
         Value packages = Value::new_list();
         packages.append(package);
         sdk_info.set_by_key("packages", packages);
+        shared_sdk_info = sdk_info;
     }
 
-    event.set_by_key("sdk", sdk_info);
+    event.set_by_key("sdk", shared_sdk_info);
 }

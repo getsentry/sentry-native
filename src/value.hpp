@@ -4,6 +4,7 @@
 #include <assert.h>
 #include <math.h>
 #include <algorithm>
+#include <atomic>
 #include <map>
 #include <sstream>
 #include <string>
@@ -44,7 +45,7 @@ class Thing {
     }
 
     void incref() {
-        m_refcount++;
+        ++m_refcount;
     }
 
     void decref() {
@@ -81,7 +82,7 @@ class Thing {
 
     void *m_payload;
     ThingType m_type;
-    size_t m_refcount;
+    std::atomic_size_t m_refcount;
 };
 
 class Value {

@@ -76,7 +76,7 @@ sentry_uuid_t sentry_capture_event(sentry_value_t evt) {
 
     {
         WITH_LOCKED_SCOPE;
-        g_scope.applyToEvent(event);
+        g_scope.apply_to_event(event);
     }
 
     const sentry_options_t *opts = sentry_get_options();
