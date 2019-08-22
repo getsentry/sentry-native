@@ -131,7 +131,7 @@ class Value {
         *this = other;
     }
 
-    Value(Value &&other) {
+    Value(Value &&other) : Value() {
         *this = other;
     }
 
@@ -147,6 +147,7 @@ class Value {
 
     Value &operator=(Value &&other) {
         if (this != &other) {
+            decref();
             this->m_repr = other.m_repr;
             other.set_null_unsafe();
         }
@@ -154,7 +155,9 @@ class Value {
         return *this;
     }
 
-    ~Value();
+    ~Value() {
+        decref();
+    }
 
     void incref() const {
         Thing *thing = as_thing();
@@ -283,7 +286,7 @@ class Value {
     }
 
     bool append(Value value) {
-        return append_bounded(value, -1);
+        return append_bounded(value, ~0);
     }
 
     bool append_bounded(Value value, size_t maxItems) {

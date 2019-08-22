@@ -159,13 +159,6 @@ std::string Value::to_json() const {
     return ss.str();
 }
 
-Value::~Value() {
-    Thing *thing = this->as_thing();
-    if (thing) {
-        thing->decref();
-    }
-}
-
 Value Value::new_event() {
     Value rv = Value::new_object();
     rv.set_by_key("level", Value::new_string("error"));
@@ -232,7 +225,7 @@ sentry_value_t sentry_value_new_object() {
 }
 
 void sentry_value_free(sentry_value_t value) {
-    Value(value).decref();
+    Value::consume(value);
 }
 
 sentry_value_type_t sentry_value_get_type(sentry_value_t value) {
