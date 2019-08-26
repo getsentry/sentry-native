@@ -2,42 +2,28 @@
 #include <stdarg.h>
 #include <mutex>
 #include "attachment.hpp"
-#include "backend.hpp"
 #include "cleanup.hpp"
 #include "internal.hpp"
 #include "options.hpp"
 #include "scope.hpp"
-#include "serialize.hpp"
+#include "uuid.hpp"
+#include "value.hpp"
+
+using namespace sentry;
 
 static sentry_options_t *g_options;
-static sentry::Scope g_scope;
+static Scope g_scope;
 static std::mutex scope_lock;
-static std::mutex breadcrumb_lock;
-static int breadcrumb_fileid = 0;
-static int breadcrumb_count = 0;
-static sentry::Path event_filename;
-static sentry::Path breadcrumb_filename;
 
-#define WITH_LOCKED_BREADCRUMBS \
-    std::lock_guard<std::mutex> _blck(breadcrumb_lock)
 #define WITH_LOCKED_SCOPE std::lock_guard<std::mutex> _slck(scope_lock)
 
 static bool sdk_disabled() {
     return !g_options || g_options->dsn.disabled();
 }
 
-static void flush_event() {
-    if (sdk_disabled()) {
-        return;
-    }
-    mpack_writer_t writer;
-    mpack_writer_init_stdfile(&writer, event_filename.open("w"), true);
-    sentry::serialize_scope_as_event(&g_scope, &writer);
-    mpack_error_t err = mpack_writer_destroy(&writer);
-    if (err != mpack_ok) {
-        SENTRY_LOGF("An error occurred encoding the data. Code: %d", err);
-
-        return;
+static void flush_scope() {
+    if (!sdk_disabled() && g_options->backend) {
+        g_options->backend->flush_scope_state(g_scope);
     }
 }
 
@@ -46,128 +32,116 @@ int sentry_init(sentry_options_t *options) {
     g_options = options;
 
     options->runs_folder = options->database_path.join(SENTRY_RUNS_FOLDER);
-    sentry::Path current_run_folder =
-        options->runs_folder.join(options->run_id.c_str());
-
-    options->attachments.emplace_back(
-        sentry::Attachment(SENTRY_EVENT_FILE_ATTACHMENT_NAME,
-                           current_run_folder.join(SENTRY_EVENT_FILE_NAME)));
-    options->attachments.emplace_back(
-        sentry::Attachment(SENTRY_BREADCRUMB1_FILE_ATTACHMENT_NAME,
-                           current_run_folder.join(SENTRY_BREADCRUMB1_FILE)));
-    options->attachments.emplace_back(
-        sentry::Attachment(SENTRY_BREADCRUMB2_FILE_ATTACHMENT_NAME,
-                           current_run_folder.join(SENTRY_BREADCRUMB2_FILE)));
-
-    if (!options->dsn.disabled()) {
+    if (!options->backend) {
+        SENTRY_LOG("crash handler disabled because no backend configured");
+    } else if (!options->dsn.disabled()) {
         SENTRY_LOGF("crash handler enabled (reporting to %s)",
                     options->dsn.raw());
-        current_run_folder.create_directories();
-        event_filename = current_run_folder.join(SENTRY_EVENT_FILE_NAME);
-        sentry::init_backend();
+        g_options->backend->start();
     } else {
         SENTRY_LOG("crash handler disabled because DSN is empty");
     }
-    sentry::cleanup_old_runs();
+    cleanup_old_runs();
+
+    if (g_options->transport) {
+        g_options->transport->start();
+    }
 
     return 0;
+}
+
+void sentry_shutdown(void) {
+    if (g_options->transport) {
+        g_options->transport->shutdown();
+    }
 }
 
 const sentry_options_t *sentry_get_options(void) {
     return g_options;
 }
 
-void sentry_add_breadcrumb(const sentry_breadcrumb_t *breadcrumb) {
-    WITH_LOCKED_BREADCRUMBS;
+sentry_uuid_t sentry_capture_event(sentry_value_t evt) {
+    Value event = Value::consume(evt);
+    sentry_uuid_t uuid;
+    Value event_id = event.get_by_key("event_id");
+
+    if (event_id.is_null()) {
+        uuid = sentry_uuid_new_v4();
+        char uuid_str[40];
+        sentry_uuid_as_string(&uuid, uuid_str);
+        event.set_by_key("event_id", Value::new_string(uuid_str));
+    } else {
+        uuid = sentry_uuid_from_string(event_id.as_cstr());
+    }
+
+    {
+        WITH_LOCKED_SCOPE;
+        g_scope.apply_to_event(event);
+    }
+
+    const sentry_options_t *opts = sentry_get_options();
+    if (opts->before_send) {
+        event = Value::consume(opts->before_send(event.lower(), nullptr));
+    }
+
+    if (opts->transport && !event.is_null()) {
+        opts->transport->send_event(event);
+    }
+
+    return uuid;
+}
+
+void sentry_add_breadcrumb(sentry_value_t breadcrumb) {
+    Value breadcrumb_value = Value::consume(breadcrumb);
     if (sdk_disabled()) {
         return;
     }
 
-    if (breadcrumb_count == 0 || breadcrumb_count == SENTRY_BREADCRUMBS_MAX) {
-        breadcrumb_fileid = breadcrumb_fileid == 0 ? 1 : 0;
-        breadcrumb_count = 0;
-        breadcrumb_filename =
-            g_options->runs_folder.join(g_options->run_id.c_str())
-                .join(breadcrumb_fileid == 0 ? SENTRY_BREADCRUMB1_FILE
-                                             : SENTRY_BREADCRUMB2_FILE);
+    {
+        WITH_LOCKED_SCOPE;
+        g_scope.breadcrumbs.append_bounded(breadcrumb_value,
+                                           SENTRY_BREADCRUMBS_MAX);
     }
 
-    char *data;
-    size_t size;
-    static mpack_writer_t writer;
-    mpack_writer_init_growable(&writer, &data, &size);
-    sentry::serialize_breadcrumb(breadcrumb, &writer);
-    if (mpack_writer_destroy(&writer) != mpack_ok) {
-        SENTRY_LOG("An error occurred encoding the data.");
-        return;
+    if (g_options->backend) {
+        g_options->backend->add_breadcrumb(breadcrumb_value);
     }
-
-    FILE *file = breadcrumb_filename.open(breadcrumb_count == 0 ? "w" : "a");
-
-    if (file != NULL) {
-        fwrite(data, 1, size, file);
-        fclose(file);
-    }
-
-    free(data);
-
-    breadcrumb_count++;
 }
 
-void sentry_set_user(const sentry_user_t *user) {
+void sentry_set_user(sentry_value_t value) {
     WITH_LOCKED_SCOPE;
-    g_scope.user.clear();
-    if (user->id) {
-        g_scope.user.emplace("id", user->id);
-    }
-    if (user->username) {
-        g_scope.user.emplace("username", user->username);
-    }
-    if (user->email) {
-        g_scope.user.emplace("email", user->email);
-    }
-    if (user->ip_address) {
-        g_scope.user.emplace("ip_address", user->ip_address);
-    }
-    flush_event();
+    g_scope.user = Value::consume(value);
+    flush_scope();
 }
 
 void sentry_remove_user() {
     WITH_LOCKED_SCOPE;
-    g_scope.user.clear();
-    flush_event();
+    g_scope.user = Value();
+    flush_scope();
 }
 
 void sentry_set_tag(const char *key, const char *value) {
     WITH_LOCKED_SCOPE;
-    std::pair<std::unordered_map<std::string, std::string>::iterator, bool> rv;
-    rv = g_scope.tags.insert(std::make_pair(key, value));
-    if (!rv.second) {
-        rv.first->second = value;
-    }
-    flush_event();
+    g_scope.tags.set_by_key(key, Value::new_string(value));
+    flush_scope();
 }
 
 void sentry_remove_tag(const char *key) {
     WITH_LOCKED_SCOPE;
-    g_scope.tags.erase(key);
-    flush_event();
+    g_scope.tags.remove_by_key(key);
+    flush_scope();
 }
 
-void sentry_set_extra(const char *key, const char *value) {
+void sentry_set_extra(const char *key, sentry_value_t value) {
     WITH_LOCKED_SCOPE;
-    std::pair<std::unordered_map<std::string, std::string>::iterator, bool> rv;
-    rv = g_scope.extra.insert(std::make_pair(key, value));
-    if (!rv.second) {
-        rv.first->second = value;
-    }
-    flush_event();
+    g_scope.extra.set_by_key(key, Value::consume(value));
+    flush_scope();
 }
 
 void sentry_remove_extra(const char *key) {
     WITH_LOCKED_SCOPE;
-    g_scope.extra.erase(key);
-    flush_event();
+    g_scope.extra.remove_by_key(key);
+    flush_scope();
 }
 
 void sentry_set_fingerprint(const char *fingerprint, ...) {
@@ -175,27 +149,27 @@ void sentry_set_fingerprint(const char *fingerprint, ...) {
     va_list va;
     va_start(va, fingerprint);
 
-    g_scope.fingerprint.clear();
+    g_scope.fingerprint = Value::new_list();
     if (fingerprint) {
-        g_scope.fingerprint.push_back(fingerprint);
+        g_scope.fingerprint.append(Value::new_string(fingerprint));
         for (const char *arg; (arg = va_arg(va, const char *));) {
-            g_scope.fingerprint.push_back(arg);
+            g_scope.fingerprint.append(Value::new_string(arg));
         }
     }
 
     va_end(va);
 
-    flush_event();
+    flush_scope();
 }
 
 void sentry_remove_fingerprint(void) {
-    sentry_set_fingerprint(NULL);
+    sentry_set_fingerprint(nullptr);
 }
 
 void sentry_set_transaction(const char *transaction) {
     WITH_LOCKED_SCOPE;
     g_scope.transaction = transaction;
-    flush_event();
+    flush_scope();
 }
 
 void sentry_remove_transaction() {
@@ -205,5 +179,5 @@ void sentry_remove_transaction() {
 void sentry_set_level(sentry_level_t level) {
     WITH_LOCKED_SCOPE;
     g_scope.level = level;
-    flush_event();
+    flush_scope();
 }

@@ -3,6 +3,9 @@
 #include <ctime>
 #include <random>
 #include <sstream>
+#include "backends/crashpad.hpp"
+#include "transports/base.hpp"
+#include "transports/function.hpp"
 
 static const char *getenv_or_empty(const char *key) {
     const char *rv = getenv(key);
@@ -10,11 +13,7 @@ static const char *getenv_or_empty(const char *key) {
 }
 
 static const char *empty_str_null(const char *s) {
-    if (!s && !*s) {
-        return nullptr;
-    } else {
-        return s;
-    }
+    return (s && *s) ? s : nullptr;
 }
 
 sentry_options_s::sentry_options_s()
@@ -22,7 +21,10 @@ sentry_options_s::sentry_options_s()
       database_path("./.sentry-native"),
       dsn(getenv_or_empty("SENTRY_DSN")),
       environment(getenv_or_empty("SENTRY_ENVIRONMENT")),
-      release(getenv_or_empty("SENTRY_RELEASE")) {
+      release(getenv_or_empty("SENTRY_RELEASE")),
+      transport(sentry::transports::create_default_transport()),
+      backend(new sentry::backends::CrashpadBackend()),
+      before_send(nullptr) {
     std::random_device seed;
     std::default_random_engine engine(seed());
     std::uniform_int_distribution<int> uniform_dist(0, INT32_MAX);
@@ -34,6 +36,19 @@ sentry_options_s::sentry_options_s()
 
 sentry_options_t *sentry_options_new(void) {
     return new sentry_options_t();
+}
+
+void sentry_options_set_transport(sentry_options_t *opts,
+                                  sentry_transport_function_t func,
+                                  void *data) {
+    delete opts->transport;
+    opts->transport = new sentry::transports::FunctionTransport(
+        [func, data](sentry::Value value) { func(value.lower(), data); });
+}
+
+void sentry_options_set_before_send(sentry_options_t *opts,
+                                    sentry_event_function_t func) {
+    opts->before_send = func;
 }
 
 void sentry_options_free(sentry_options_t *opts) {
@@ -73,6 +88,22 @@ void sentry_options_set_dist(sentry_options_t *opts, const char *dist) {
 
 const char *sentry_options_get_dist(const sentry_options_t *opts) {
     return empty_str_null(opts->dist.c_str());
+}
+
+void sentry_options_set_http_proxy(sentry_options_t *opts, const char *proxy) {
+    opts->http_proxy = std::string(*proxy ? proxy : "");
+}
+
+const char *sentry_options_get_http_proxy(sentry_options_t *opts) {
+    return opts->http_proxy.empty() ? nullptr : opts->http_proxy.c_str();
+}
+
+void sentry_options_set_ca_certs(sentry_options_t *opts, const char *path) {
+    opts->ca_certs = std::string(*path ? path : "");
+}
+
+const char *sentry_options_get_ca_certs(sentry_options_t *opts) {
+    return opts->ca_certs.empty() ? nullptr : opts->ca_certs.c_str();
 }
 
 void sentry_options_set_debug(sentry_options_t *opts, int debug) {

@@ -6,8 +6,7 @@
         "${workspaceFolder}/**",
         "../crashpad-Darwin/include/",
         "./include",
-        "../mpack-amalgamation-1.0/",
-        "../mpack-amalgamation-1.0/src/mpack",
+        "../vendor",
         "../breakpad-Darwin/include/client/mac/handler",
         "../breakpad-Darwin/include/",
         "../breakpad-Linux/common/linux"
@@ -17,10 +16,11 @@
       ],
       "compilerPath": "/usr/bin/clang",
       "cStandard": "c11",
-      "cppStandard": "c++17",
+      "cppStandard": "c++11",
       "intelliSenseMode": "clang-x64",
       "defines": [
-        "SENTRY_BREAKPAD"
+        "SENTRY_BREAKPAD",
+        "SENTRY_WITH_LIBCURL_TRANSPORT"
       ]
     }
   ],

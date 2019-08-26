@@ -46,12 +46,20 @@ Dsn::Dsn(const char *dsn)
         m_project_id = std::string(end + 1);
     }
     m_valid = true;
-}
 
-std::string Dsn::get_minidump_url() const {
+    // since a DSN is immutable we can precalculate these
     std::stringstream ss;
     ss << scheme() << "://" << host() << ":" << port() << "/" << path()
        << "api/" << project_id() << "/minidump/?sentry_key=" << public_key();
-    return ss.str();
+    m_minidump_url = ss.str();
+    ss.str("");
+    ss << scheme() << "://" << host() << ":" << port() << "/" << path()
+       << "api/" << project_id() << "/store/";
+    m_store_url = ss.str();
+    ss.str("");
+    ss << "Sentry sentry_key=" << m_public_key << ", sentry_version=7, "
+       << "sentry_client=" << SENTRY_SDK_USER_AGENT;
+    m_auth_header = ss.str();
 }
+
 }  // namespace sentry

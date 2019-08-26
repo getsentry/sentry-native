@@ -1,10 +1,19 @@
 #ifndef SENTRY_INTERNAL_HPP_INCLUDED
 #define SENTRY_INTERNAL_HPP_INCLUDED
+
+// this marker changes the behavior of the header so that some internals
+// can be defined differently
+#define _SENTRY_INTERNAL
+
 #include <errno.h>
 #include <sentry.h>
 #include <stdio.h>
 
-#define SENTRY_LOGF(message, ...)                               \
+#define SENTRY_SDK_NAME "sentry-native"
+#define SENTRY_SDK_VERSION "0.0.0"
+#define SENTRY_SDK_USER_AGENT (SENTRY_SDK_NAME "/" SENTRY_SDK_VERSION)
+
+#define SENTRY_LOGF(message, ...)                                   \
     do {                                                            \
         if (sentry_options_get_debug(sentry_get_options())) {       \
             fprintf(stderr, "[sentry] " message "\n", __VA_ARGS__); \
@@ -44,5 +53,7 @@ static const char *SENTRY_BREADCRUMB1_FILE_ATTACHMENT_NAME =
     "__sentry-breadcrumb1";
 static const char *SENTRY_BREADCRUMB2_FILE_ATTACHMENT_NAME =
     "__sentry-breadcrumb2";
+
+#include "value.hpp"
 
 #endif
