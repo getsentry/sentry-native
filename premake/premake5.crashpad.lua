@@ -1,4 +1,4 @@
-workspace "Sentrypad"
+workspace "Sentry-Native"
 
 SRC_ROOT = CRASHPAD_PKG
 MIG_SCRIPT = SRC_ROOT..'/util/mach/mig.py'

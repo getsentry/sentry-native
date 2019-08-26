@@ -2,7 +2,7 @@
 
 newoption {
   trigger     = "src-root",
-  description = "Sentrypad source root"
+  description = "Sentry-Native source root"
 }
 
 SRC_ROOT = (_OPTIONS["src-root"] or "..")
@@ -10,7 +10,7 @@ SRC_ROOT = (_OPTIONS["src-root"] or "..")
 CRASHPAD_PKG = "../crashpad/build/crashpad"
 BREAKPAD_PKG = "../breakpad/deps/breakpad"
 
-workspace "Sentrypad"
+workspace "Sentry-Native"
   configurations {"Release", "Debug"}
   symbols "On"
 
@@ -42,8 +42,8 @@ workspace "Sentrypad"
   filter {}
 
 
---- SENTRYPAD ---
-include "premake5.sentrypad.lua"
+--- SENTRY-NATIVE ---
+include "premake5.sentry.lua"
 
 --- CRASHPAD ---
 include "premake5.crashpad.lua"

@@ -15,7 +15,7 @@ int main(void) {
     sentry_options_set_handler_path(options, handler_path);
     sentry_options_set_environment(options, "Production");
     sentry_options_set_release(options, "5fd7a6cd");
-    sentry_options_set_database_path(options, "sentrypad-db");
+    sentry_options_set_database_path(options, "sentry-db");
     sentry_options_set_debug(options, 1);
     sentry_options_add_attachment(options, "example", "../example.c");
 

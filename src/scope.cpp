@@ -60,7 +60,7 @@ void Scope::apply_to_event(Value &event, bool with_breadcrumbs) const {
         sdk_info.set_by_key("version", version);
         Value package = Value::new_object();
         package.set_by_key("name",
-                           Value::new_string("github:getsentry/sentrypad"));
+                           Value::new_string("github:getsentry/sentry-native"));
         package.set_by_key("version", version);
         Value packages = Value::new_list();
         packages.append(package);

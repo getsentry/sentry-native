@@ -8,7 +8,7 @@ pr:
   - master
 
 variables:
-  ARTIFACT_DIR: 'sentrypad-data'
+  ARTIFACT_DIR: 'sentry-native-data'
 
 stages:
   - stage: prepare_build_files
@@ -52,7 +52,7 @@ stages:
           buildSystem: "vs2017"
           buildScript: |
             MSBUILD="/c/Program Files (x86)/Microsoft Visual Studio/2017/Enterprise/MSBuild/15.0/Bin/MSBuild.exe"
-            "$MSBUILD" Sentrypad.sln //m //p:Configuration=Release //p:Platform=x64 //t:Clean,Build
+            "$MSBUILD" Sentry-Native.sln //m //p:Configuration=Release //p:Platform=x64 //t:Clean,Build
 
             # Smoke test
             ./bin/x64/Release/sentry_example_crashpad.exe || true
@@ -81,17 +81,17 @@ stages:
 
               # Copy gen_* directories from available archives
               for PLATFORM in "${PLATFORMS[@]}"; do
-                rm -rf ./sentrypad
-                unzip -q "../${ARTIFACT_DIR}/sentrypad-crashpad-${PLATFORM}.zip"
+                rm -rf ./sentry-native
+                unzip -q "../${ARTIFACT_DIR}/sentry-native-crashpad-${PLATFORM}.zip"
                 rm -rf "./sp-sources/gen_${PLATFORM}"
-                mv "sentrypad/gen_${PLATFORM}" "./sp-sources/gen_${PLATFORM}"
+                mv "sentry-native/gen_${PLATFORM}" "./sp-sources/gen_${PLATFORM}"
               done
-              rm -rf ./sentrypad
+              rm -rf ./sentry-native
 
-              mv sp-sources sentrypad
-              zip -r sentrypad-crashpad-all sentrypad/
+              mv sp-sources sentry-native
+              zip -r sentry-native-crashpad-all sentry-native/
 
           - task: PublishBuildArtifacts@1
             inputs:
-              pathtoPublish: 'out/sentrypad-crashpad-all.zip'
+              pathtoPublish: 'out/sentry-native-crashpad-all.zip'
               artifactName: $(ARTIFACT_DIR)

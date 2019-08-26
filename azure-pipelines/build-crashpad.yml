@@ -8,22 +8,22 @@ parameters:
 
 jobs:
   - job: crashpad_${{ parameters.platform }}
-    displayName: Sentrypad + Crashpad (${{ parameters.platform }}, x86_64)
+    displayName: Sentry-Native + Crashpad (${{ parameters.platform }}, x86_64)
     pool:
       vmImage: ${{ parameters.vmImage }}
     variables:
       PLATFORM: ${{ parameters.platform }}
       BUILD_SYSTEM: ${{ parameters.buildSystem }}
-      PACKAGE_DIR: "sentrypad"
+      PACKAGE_DIR: "sentry-native"
     steps:
       - template: prescript-common.yml
       - template: install-premake.yml
       - task: DownloadBuildArtifacts@0
         inputs:
-          buildType: 'current'
-          downloadType: 'single'
+          buildType: "current"
+          downloadType: "single"
           artifactName: $(ARTIFACT_DIR)
-          downloadPath: '.'
+          downloadPath: "."
 
       - bash: |
           set -eux
@@ -39,12 +39,12 @@ jobs:
           cd "${PLATFORM_BUILD_DIR}"
           premake5 "${BUILD_SYSTEM}" --os="${PLATFORM}"
           cd ../..
-          $ZIP "sentrypad-crashpad-${PLATFORM}.zip" "${PACKAGE_DIR}"
-        displayName: 'Package generated build files'
+          $ZIP "sentry-native-crashpad-${PLATFORM}.zip" "${PACKAGE_DIR}"
+        displayName: "Package generated build files"
 
       - task: PublishBuildArtifacts@1
         inputs:
-          pathtoPublish: 'sentrypad-crashpad-$(PLATFORM).zip'
+          pathtoPublish: "sentry-native-crashpad-$(PLATFORM).zip"
           artifactName: $(ARTIFACT_DIR)
 
       - bash: |
@@ -53,4 +53,4 @@ jobs:
           cd "${PACKAGE_DIR}/gen_${PLATFORM}"
 
           ${{ parameters.buildScript }}
-        displayName: 'Build everything'
+        displayName: "Build everything"

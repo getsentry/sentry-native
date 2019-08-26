@@ -22,6 +22,7 @@ new/
 completed/
 pending/
 sentrypad-db/
+sentry-native-db/
 *.mp
 *.dmp
 

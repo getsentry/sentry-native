@@ -1,8 +1,9 @@
 /*
- * sentrypad
+ * sentry-native
  *
- * sentrypad is an abstraction over crashpad/breakpad with some additional
- * features that improve the quality of errors sent to Sentry.
+ * sentry-native is a C client to send events to native from
+ * C and C++ applications.  It can work together with breakpad/crashpad
+ * but also send events on its own.
  */
 #ifndef SENTRY_H_INCLUDED
 #define SENTRY_H_INCLUDED
@@ -249,7 +250,7 @@ SENTRY_API void sentry_options_set_handler_path(sentry_options_t *opts,
                                                 const char *path);
 
 /*
- * sets the path to the sentrypad/crashpad/breakpad database
+ * sets the path to the sentry-native/crashpad/breakpad database
  */
 SENTRY_API void sentry_options_set_database_path(sentry_options_t *opts,
                                                  const char *path);
