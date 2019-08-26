@@ -1,6 +1,6 @@
 workspace "Sentry-Native"
 
-function sentrypad_common()
+function sentry_native_common()
   language "C++"
   cppdialect "C++14"
   includedirs {
@@ -22,7 +22,7 @@ end
 
 project "sentry_crashpad"
   kind "SharedLib"
-  sentrypad_common()
+  sentry_native_common()
 
   defines {"SENTRY_CRASHPAD"}
   includedirs {
@@ -104,7 +104,7 @@ project "sentry_crashpad"
 
 project "sentry_example_crashpad"
   kind "ConsoleApp"
-  sentrypad_common()
+  sentry_native_common()
 
   links {"sentry_crashpad"}
 
@@ -114,7 +114,7 @@ project "sentry_example_crashpad"
 
 -- project "sentry_example_breakpad"
 --   kind "ConsoleApp"
---   sentrypad_common()
+--   sentry_native_common()
 
 --   links {"sentry_breakpad", "dl"}
 --   buildoptions {
