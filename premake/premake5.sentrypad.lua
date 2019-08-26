@@ -24,7 +24,7 @@ project "sentry_crashpad"
   kind "SharedLib"
   sentrypad_common()
 
-  defines {"SENTRY_CRASHPAD"}
+  defines {"SENTRY_WITH_CRASHPAD_BACKEND"}
   includedirs {
     CRASHPAD_PKG,
     CRASHPAD_PKG.."/include",
@@ -38,8 +38,6 @@ project "sentry_crashpad"
   files {
     SRC_ROOT.."/src/**.cpp",
     SRC_ROOT.."/src/**.hpp",
-    SRC_ROOT.."/src/backend/crashpad/**.cpp",
-    SRC_ROOT.."/src/backend/crashpad/**.hpp",
     SRC_ROOT.."/src/vendor/mpack.c",
   }
 
@@ -59,9 +57,19 @@ project "sentry_crashpad"
       "CoreGraphics.framework",
       "IOKit.framework",
       "bsm",
+			"curl",
+    }
+    defines {
+      "SENTRY_WITH_LIBCURL_TRANSPORT"
     }
   filter "system:linux"
     links {
+    }
+  filter "system:windows"
+    links {
+    }
+    defines {
+      "SENTRY_WITH_WINHTTP_TRANSPORT"
     }
 
 -- project "sentry_breakpad"
