@@ -7,28 +7,28 @@ OUT_DIR="$SCRIPT_DIR/out"
 rm -rf "$OUT_DIR"
 mkdir $OUT_DIR
 
-### Sentrypad
-SENTRYPAD_REMOTE="https://github.com/getsentry/sentrypad/"
-SENTRYPAD_REVISION=$(git rev-parse ${1:-HEAD})
-SENTRYPAD_IN_DIR="$SCRIPT_DIR/.sentrypad-tmp"
-if [ -d "$SENTRYPAD_IN_DIR" ]; then
-    cd "$SENTRYPAD_IN_DIR"
+### Sentry-Native
+SENTRY_NATIVE_REMOTE="https://github.com/getsentry/sentry-native/"
+SENTRY_NATIVE_REVISION=$(git rev-parse ${1:-HEAD})
+SENTRY_NATIVE_IN_DIR="$SCRIPT_DIR/.sentry-native-tmp"
+if [ -d "$SENTRY_NATIVE_IN_DIR" ]; then
+    cd "$SENTRY_NATIVE_IN_DIR"
     git fetch origin
-    git checkout -f "$SENTRYPAD_REVISION"
+    git checkout -f "$SENTRY_NATIVE_REVISION"
 else
-    git clone "$SENTRYPAD_REMOTE" "$SENTRYPAD_IN_DIR"
-    cd "$SENTRYPAD_IN_DIR"
-    git checkout -f "$SENTRYPAD_REVISION"
+    git clone "$SENTRY_NATIVE_REMOTE" "$SENTRY_NATIVE_IN_DIR"
+    cd "$SENTRY_NATIVE_IN_DIR"
+    git checkout -f "$SENTRY_NATIVE_REVISION"
 fi
 
-SENTRYPAD_OUT_DIR="$OUT_DIR"
-SENTRYPAD_SRC=("example.c" "include" "src" "premake" "README.md")
+SENTRY_NATIVE_OUT_DIR="$OUT_DIR"
+SENTRY_NATIVE_SRC=("example.c" "include" "src" "premake" "README.md")
 
-mkdir -p $SENTRYPAD_OUT_DIR
+mkdir -p $SENTRY_NATIVE_OUT_DIR
 
 # Copy files
-for f in "${SENTRYPAD_SRC[@]}"; do
-    cp -r "$SENTRYPAD_IN_DIR/$f" "$SENTRYPAD_OUT_DIR/"
+for f in "${SENTRY_NATIVE_SRC[@]}"; do
+    cp -r "$SENTRY_NATIVE_IN_DIR/$f" "$SENTRY_NATIVE_OUT_DIR/"
 done
 
 
@@ -37,7 +37,7 @@ done
 # CRASHPAD_REVISION="origin/getsentry"
 CRASHPAD_OUT_DIR="$OUT_DIR/crashpad"
 
-# FIXME this should be a clean sentrypad checkout
+# FIXME this should be a clean sentry-native checkout
 CRASHPAD_IN_DIR="$SCRIPT_DIR/crashpad"
 CRASHPAD_COPY_SRC=("examples" "fetch_crashpad.sh" "vars.sh")
 

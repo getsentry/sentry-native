@@ -19,7 +19,7 @@ static const char *empty_str_null(const char *s) {
 
 sentry_options_s::sentry_options_s()
     : debug(false),
-      database_path("./.sentrypad"),
+      database_path("./.sentry-native"),
       dsn(getenv_or_empty("SENTRY_DSN")),
       environment(getenv_or_empty("SENTRY_ENVIRONMENT")),
       release(getenv_or_empty("SENTRY_RELEASE")) {

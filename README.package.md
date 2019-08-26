@@ -1,10 +1,10 @@
-# SentryPad Distribution Package
+# Sentry-Native Distribution Package
 
-**Note**: This README files is part of SentryPad distribution package. For general information about the project, see [this README](https://github.com/getsentry/sentrypad/blob/master/README.md).
+**Note**: This README files is part of Sentry-Native distribution package. For general information about the project, see [this README](https://github.com/getsentry/sentry-native/blob/master/README.md).
 
-This package contains source code and build files for SentryPad and Crashpad. Build files are pregenerated for several platforms: Linux, Windows, and MacOS at the moment.
+This package contains source code and build files for Sentry-Native and Crashpad. Build files are pregenerated for several platforms: Linux, Windows, and MacOS at the moment.
 
-Build files for a given platform can be found in `./sentrypad/gen_PLATFORM` directory, where `PLATFORM` is one of `linux`, `windows`, and `macosx`.
+Build files for a given platform can be found in `./sentry-native/gen_PLATFORM` directory, where `PLATFORM` is one of `linux`, `windows`, and `macosx`.
 
 ## Build Prerequisites
 

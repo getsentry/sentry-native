@@ -117,7 +117,7 @@ void serialize_scope_as_event(const sentry::Scope *scope,
     mpack_start_array(writer, 1);
     mpack_start_map(writer, 2);
     mpack_write_cstr(writer, "name");
-    mpack_write_cstr(writer, "github:getsentry/sentrypad");
+    mpack_write_cstr(writer, "github:getsentry/sentry-native");
     mpack_write_cstr(writer, "version");
     mpack_write_cstr(writer, SENTRY_SDK_VERSION);
     mpack_finish_map(writer);
