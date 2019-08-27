@@ -30,7 +30,7 @@ extern "C" {
 #endif
 #endif
 
-#include <inttypes.h>
+//#include <inttypes.h>
 #include <stddef.h>
 
 #ifdef _WIN32
@@ -120,11 +120,34 @@ typedef struct sentry_uuid_s {
 #endif
 } sentry_uuid_t;
 
+/*
+ * creates the nil uuid
+ */
 SENTRY_API sentry_uuid_t sentry_uuid_nil(void);
+
+/*
+ * creates a new uuid4
+ */
 SENTRY_API sentry_uuid_t sentry_uuid_new_v4(void);
+
+/*
+ * parses a uuid from a string
+ */
 SENTRY_API sentry_uuid_t sentry_uuid_from_string(const char *str);
+
+/*
+ * checks if the uuid is nil
+ */
 SENTRY_API int sentry_uuid_is_nil(const sentry_uuid_t *uuid);
+
+/*
+ * returns the bytes of the uuid
+ */
 SENTRY_API void sentry_uuid_as_bytes(const sentry_uuid_t *uuid, char bytes[16]);
+
+/*
+ * formats the uuid into a string buffer
+ */
 SENTRY_API void sentry_uuid_as_string(const sentry_uuid_t *uuid, char str[37]);
 
 struct sentry_options_s;
