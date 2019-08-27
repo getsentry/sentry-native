@@ -38,9 +38,11 @@ project "sentry_crashpad"
   files {
     SRC_ROOT.."/src/*.cpp",
     SRC_ROOT.."/src/*.hpp",
-    SRC_ROOT.."/src/backends/crashpad/*.cpp",
-    SRC_ROOT.."/src/backends/crashpad/*.hpp",
-    SRC_ROOT.."/src/vendor/mpack.c",
+    SRC_ROOT.."/src/transports/*.cpp",
+    SRC_ROOT.."/src/transports/*.hpp",
+    SRC_ROOT.."/src/backends/base.cpp",
+    SRC_ROOT.."/src/backends/crashpad.cpp",
+    SRC_ROOT.."/src/vendor/*.c",
   }
 
   -- Crashpad
@@ -78,7 +80,7 @@ project "sentry_breakpad"
   kind "SharedLib"
   sentry_native_common()
 
-  defines {"SENTRY_BREAKPAD"}
+  defines {"SENTRY_WITH_BREAKPAD_BACKEND"}
   buildoptions {
     "-fvisibility=hidden",
   }
@@ -93,9 +95,11 @@ project "sentry_breakpad"
   files {
     SRC_ROOT.."/src/*.cpp",
     SRC_ROOT.."/src/*.hpp",
-    SRC_ROOT.."/src/backends/breakpad/backend.cpp",
-    SRC_ROOT.."/src/backends/breakpad/*.hpp",
-    SRC_ROOT.."/src/vendor/mpack.c",
+    SRC_ROOT.."/src/transports/*.cpp",
+    SRC_ROOT.."/src/transports/*.hpp",
+    SRC_ROOT.."/src/backends/base.cpp",
+    SRC_ROOT.."/src/backends/breakpad.cpp",
+    SRC_ROOT.."/src/vendor/*.c",
   }
 
   -- Breakpad
@@ -123,7 +127,7 @@ project "sentry_example_crashpad"
   links {"sentry_crashpad"}
 
   files {
-    SRC_ROOT.."/examples/sentrypad_crashpad.c",
+    SRC_ROOT.."/examples/sentry_crashpad.c",
   }
 
 project "sentry_example_breakpad"
@@ -133,5 +137,5 @@ project "sentry_example_breakpad"
   links {"sentry_breakpad", "dl"}
 
   files {
-    SRC_ROOT.."/examples/sentrypad_breakpad.c",
+    SRC_ROOT.."/examples/sentry_breakpad.c",
   }
