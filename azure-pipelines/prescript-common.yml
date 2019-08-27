@@ -4,28 +4,3 @@ steps:
       env
       python --version
     displayName: Agent information
-
-  # - task: NodeTool@0
-  #   inputs:
-  #     versionSpec: "8.x"
-  #   displayName: Install Node 8 (for zeus-cli)
-
-  # - bash: |
-  #     set -eux
-  #     npm --version
-  #     node --version
-  #     if [[ "$AGENT_OS" == "Linux" ]]; then
-  #       SUDO='sudo'
-  #     else
-  #       SUDO=''
-  #     fi
-  #     $SUDO npm install -g @zeus-ci/cli
-  #     zeus --version
-  #   displayName: Install zeus-cli
-
-  # - bash: |
-  #     set -eux
-  #     zeus job update --status=pending || true
-  #   env:
-  #     ZEUS_HOOK_BASE: $(ZEUS_HOOK_BASE)
-  #   displayName: Register build on Zeus

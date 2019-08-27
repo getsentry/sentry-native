@@ -2,8 +2,10 @@
 set -eux
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+BASE_DIR="$SCRIPT_DIR/.."
+OUT_DIR="$BASE_DIR/out"
+TARGET_REVISION="${1:-HEAD}"
 
-OUT_DIR="$SCRIPT_DIR/out"
 rm -rf "$OUT_DIR"
 mkdir $OUT_DIR
 
@@ -15,7 +17,7 @@ fetch_crashpad() {
     mkdir -p "$CRASHPAD_OUT_DIR"
 
     # FIXME this should be a clean sentry-native checkout
-    CRASHPAD_IN_DIR="$SCRIPT_DIR/crashpad"
+    CRASHPAD_IN_DIR="$BASE_DIR/crashpad"
     CRASHPAD_COPY_SRC=("examples" "fetch_crashpad.sh" "vars.sh")
 
     # Copy files
@@ -35,7 +37,7 @@ fetch_breakpad() {
     BREAKPAD_OUT_DIR="$OUT_DIR/breakpad"
     mkdir -p "$BREAKPAD_OUT_DIR"
 
-    BREAKPAD_IN_DIR="$SCRIPT_DIR/breakpad"
+    BREAKPAD_IN_DIR="$BASE_DIR/breakpad"
     BREAKPAD_COPY_SRC=("examples" "fetch_breakpad.sh")
 
     # Copy files
@@ -50,8 +52,8 @@ fetch_breakpad() {
 
 ### Sentry-Native
 SENTRY_NATIVE_REMOTE="https://github.com/getsentry/sentry-native/"
-SENTRY_NATIVE_REVISION=$(git rev-parse ${1:-HEAD})
-SENTRY_NATIVE_IN_DIR="$SCRIPT_DIR/.sentry-native-tmp"
+SENTRY_NATIVE_REVISION=$(git rev-parse "$TARGET_REVISION")
+SENTRY_NATIVE_IN_DIR="$BASE_DIR/.sentry-native-tmp"
 if [ -d "$SENTRY_NATIVE_IN_DIR" ]; then
     cd "$SENTRY_NATIVE_IN_DIR"
     git fetch origin
@@ -62,7 +64,7 @@ else
     git checkout -f "$SENTRY_NATIVE_REVISION"
 fi
 
-SENTRY_NATIVE_SRC=("example.c" "include" "src" "premake" "README.md")
+SENTRY_NATIVE_SRC=("examples" "include" "src" "premake" "README.md")
 
 # Copy files
 for f in "${SENTRY_NATIVE_SRC[@]}"; do

@@ -14,6 +14,7 @@ libsentry.*
 *.dSYM
 crashpad_wrapper
 .sentrypad-tmp/
+.sentry-native-tmp/
 out/
 tmp/
 premake/.vs
