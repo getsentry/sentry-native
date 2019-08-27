@@ -1,4 +1,5 @@
--- premake5.lua
+workspace "Sentry-Native"
+
 SRC_ROOT = BREAKPAD_PKG
 
 function breakpad_common()
@@ -25,13 +26,6 @@ function breakpad_common()
       "HAVE_A_OUT_H",
       "BPLOG_MINIMUM_SEVERITY=SEVERITY_ERROR",
     }
-  filter "system:windows"
-    platforms {"Win32", "Win64"}
-    includedirs {"$(VSInstallDir)/DIA SDK/include"}
-  filter {"system:windows", "platforms:Win32"}
-    architecture "x86"
-  filter {"system:windows", "platforms:Win64"}
-    architecture "x64"
   filter {}
 end
 
@@ -258,9 +252,9 @@ project "breakpad_client"
       SRC_ROOT.."/src/common/windows/string_utils.cc",
     }
 
-EXAMPLES_DIR = "./examples"
+EXAMPLES_DIR = "../breakpad/examples"
 
-project "breakpad_example_crash"
+project "breakpad_crash"
   kind "ConsoleApp"
   breakpad_common()
 

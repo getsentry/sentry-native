@@ -36,9 +36,13 @@ project "sentry_crashpad"
   }
 
   files {
-    SRC_ROOT.."/src/**.cpp",
-    SRC_ROOT.."/src/**.hpp",
-    SRC_ROOT.."/src/vendor/mpack.c",
+    SRC_ROOT.."/src/*.cpp",
+    SRC_ROOT.."/src/*.hpp",
+    SRC_ROOT.."/src/transports/*.cpp",
+    SRC_ROOT.."/src/transports/*.hpp",
+    SRC_ROOT.."/src/backends/base.cpp",
+    SRC_ROOT.."/src/backends/crashpad.cpp",
+    SRC_ROOT.."/src/vendor/*.c",
   }
 
   -- Crashpad
@@ -72,43 +76,49 @@ project "sentry_crashpad"
       "SENTRY_WITH_WINHTTP_TRANSPORT"
     }
 
--- project "sentry_breakpad"
---   kind "SharedLib"
---   defines {"SENTRY_BREAKPAD"}
---   buildoptions {
---     "-fvisibility=hidden",
---   }
---   includedirs {
---     BREAKPAD_PKG.."/include",
---   }
+project "sentry_breakpad"
+  kind "SharedLib"
+  sentry_native_common()
 
---   libdirs {
---     BREAKPAD_PKG.."/lib",
---   }
+  defines {"SENTRY_WITH_BREAKPAD_BACKEND"}
+  buildoptions {
+    "-fvisibility=hidden",
+  }
+  includedirs {
+    BREAKPAD_PKG.."/include",
+  }
 
---   files {
---     SRC_ROOT.."/src/sentry.cpp",
---     SRC_ROOT.."/src/breakpad_backend.cpp",
---     SRC_ROOT.."/src/vendor/mpack.c",
---   }
+  libdirs {
+    "bin/Release"
+  }
 
---   -- Breakpad
---   links {
---     "breakpad_client",
---   }
+  files {
+    SRC_ROOT.."/src/*.cpp",
+    SRC_ROOT.."/src/*.hpp",
+    SRC_ROOT.."/src/transports/*.cpp",
+    SRC_ROOT.."/src/transports/*.hpp",
+    SRC_ROOT.."/src/backends/base.cpp",
+    SRC_ROOT.."/src/backends/breakpad.cpp",
+    SRC_ROOT.."/src/vendor/*.c",
+  }
 
---   filter "system:macosx"
---     -- System
---     links {
---       "Foundation.framework",
---       "pthread",
---     }
---   filter "system:linux"
---     -- System
---     links {
---       "pthread",
---     }
---   filter {}
+  -- Breakpad
+  links {
+    "breakpad_client",
+  }
+
+  filter "system:macosx"
+    -- System
+    links {
+      "Foundation.framework",
+      "pthread",
+    }
+  filter "system:linux"
+    -- System
+    links {
+      "pthread",
+    }
+  filter {}
 
 project "sentry_example_crashpad"
   kind "ConsoleApp"
@@ -117,17 +127,15 @@ project "sentry_example_crashpad"
   links {"sentry_crashpad"}
 
   files {
-    SRC_ROOT.."/example.c",
+    SRC_ROOT.."/examples/sentry_crashpad.c",
   }
 
--- project "sentry_example_breakpad"
---   kind "ConsoleApp"
---   sentry_native_common()
+project "sentry_example_breakpad"
+  kind "ConsoleApp"
+  sentry_native_common()
 
---   links {"sentry_breakpad", "dl"}
---   buildoptions {
---     "-fPIC",
---   }
---   files {
---     SRC_ROOT.."/example.c",
---   }
+  links {"sentry_breakpad", "dl"}
+
+  files {
+    SRC_ROOT.."/examples/sentry_breakpad.c",
+  }

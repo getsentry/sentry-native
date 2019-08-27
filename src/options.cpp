@@ -3,7 +3,11 @@
 #include <ctime>
 #include <random>
 #include <sstream>
+#ifdef SENTRY_WITH_CRASHPAD_BACKEND
 #include "backends/crashpad.hpp"
+#elif SENTRY_WITH_BREAKPAD_BACKEND
+#include "backends/breakpad.hpp"
+#endif
 #include "transports/base.hpp"
 #include "transports/function.hpp"
 
@@ -23,7 +27,11 @@ sentry_options_s::sentry_options_s()
       environment(getenv_or_empty("SENTRY_ENVIRONMENT")),
       release(getenv_or_empty("SENTRY_RELEASE")),
       transport(sentry::transports::create_default_transport()),
+#ifdef SENTRY_WITH_CRASHPAD_BACKEND
       backend(new sentry::backends::CrashpadBackend()),
+#elif SENTRY_WITH_BREAKPAD_BACKEND
+      backend(new sentry::backends::BreakpadBackend()),
+#endif
       before_send(nullptr) {
     std::random_device seed;
     std::default_random_engine engine(seed());
@@ -33,6 +41,7 @@ sentry_options_s::sentry_options_s()
     ss << result << "-" << uniform_dist(engine);
     run_id = ss.str();
 }
+
 
 sentry_options_t *sentry_options_new(void) {
     return new sentry_options_t();

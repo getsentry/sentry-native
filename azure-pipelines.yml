@@ -1,11 +1,10 @@
-# Add steps that build, run tests, deploy, and more:
-# https://aka.ms/yaml
-
+---
 trigger:
-  - "*"
+  - "master"
+  - "*-ci"
 
 pr:
-  - master
+  - "master"
 
 variables:
   ARTIFACT_DIR: 'sentry-native-data'
@@ -19,10 +18,14 @@ stages:
         pool:
           vmImage: "macos-10.13"
         steps:
+          - template: ./azure-pipelines/prescript-common.yml
           - bash: |
               set -eux
 
-              bash package.sh
+              # For compatibility between branch and PR builds.
+              # $REVISION will always point at the tip of the tested branch.
+              REVISION="${SYSTEM_PULLREQUEST_SOURCECOMMITID:-$BUILD_SOURCEVERSION}"
+              bash bin/package.sh "$REVISION"
               mv out sp-sources
               zip -r sp-sources sp-sources/
 
@@ -40,6 +43,7 @@ stages:
           platform: "macosx"
           buildSystem: "gmake2"
           buildScript: |
+            make help
             make
 
             # Smoke test

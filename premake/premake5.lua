@@ -8,7 +8,7 @@ newoption {
 SRC_ROOT = (_OPTIONS["src-root"] or "..")
 
 CRASHPAD_PKG = "../crashpad/build/crashpad"
-BREAKPAD_PKG = "../breakpad/deps/breakpad"
+BREAKPAD_PKG = "../breakpad/build/breakpad"
 
 workspace "Sentry-Native"
   configurations {"Release", "Debug"}
@@ -49,4 +49,4 @@ include "premake5.sentry.lua"
 include "premake5.crashpad.lua"
 
 --- BREAKPAD ---
---include "premake5.breakpad.lua"
+include "premake5.breakpad.lua"
