@@ -1,4 +1,4 @@
-workspace "Sentrypad"
+workspace "Sentry-Native"
 
 SRC_ROOT = BREAKPAD_PKG
 

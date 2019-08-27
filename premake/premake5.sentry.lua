@@ -76,7 +76,7 @@ project "sentry_crashpad"
 
 project "sentry_breakpad"
   kind "SharedLib"
-  sentrypad_common()
+  sentry_native_common()
 
   defines {"SENTRY_BREAKPAD"}
   buildoptions {
@@ -128,7 +128,7 @@ project "sentry_example_crashpad"
 
 project "sentry_example_breakpad"
   kind "ConsoleApp"
-  sentrypad_common()
+  sentry_native_common()
 
   links {"sentry_breakpad", "dl"}
 
