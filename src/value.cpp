@@ -287,6 +287,23 @@ sentry_value_t sentry_value_new_breadcrumb(const char *type,
     return Value::new_breadcrumb(type, message).lower();
 }
 
+char *sentry_value_to_json(sentry_value_t value) {
+    std::string out = Value(value).to_json();
+    char *rv = (char *)malloc(out.length() + 1);
+    memcpy(rv, out.c_str(), out.length() + 1);
+    return rv;
+}
+
+char *sentry_value_to_msgpack(sentry_value_t value, size_t *size_out) {
+    std::string out = Value(value).to_msgpack();
+    char *rv = (char *)malloc(out.length());
+    memcpy(rv, out.c_str(), out.length());
+    if (size_out) {
+        *size_out = (size_t)out.length();
+    }
+    return rv;
+}
+
 void sentry_event_value_add_stacktrace(sentry_value_t value, void **ips) {
     Value event = Value(value);
 

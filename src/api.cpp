@@ -181,3 +181,7 @@ void sentry_set_level(sentry_level_t level) {
     g_scope.level = level;
     flush_scope();
 }
+
+void sentry_string_free(char *str) {
+    free(str);
+}

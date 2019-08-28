@@ -30,7 +30,7 @@ extern "C" {
 #endif
 #endif
 
-//#include <inttypes.h>
+#include <inttypes.h>
 #include <stddef.h>
 
 #ifdef _WIN32
@@ -52,6 +52,12 @@ typedef enum {
     SENTRY_VALUE_TYPE_LIST,
     SENTRY_VALUE_TYPE_OBJECT,
 } sentry_value_type_t;
+
+/*
+ * releases an allocated string from some functions
+ * returning freshly allocated strings.
+ */
+void sentry_string_free(char *str);
 
 /*
  * Represents a sentry protocol value.
@@ -91,6 +97,24 @@ SENTRY_API double sentry_value_as_double(sentry_value_t value);
 SENTRY_API const char *sentry_value_as_string(sentry_value_t value);
 SENTRY_API int sentry_value_is_true(sentry_value_t value);
 SENTRY_API int sentry_value_is_null(sentry_value_t value);
+
+/*
+ * serialize a sentry value to JSON.
+ *
+ * the string is freshly allocated and must be freed with
+ * `sentry_string_free`.
+ */
+SENTRY_API char *sentry_value_to_json(sentry_value_t value);
+
+/*
+ * serialize a sentry value to msgpack.
+ *
+ * the string is freshly allocated and must be freed with
+ * `sentry_string_free`.  Since msgpack is not zero terminated
+ * the size is written to the `size_out` parameter.
+ */
+SENTRY_API char *sentry_value_to_msgpack(sentry_value_t value,
+                                         size_t *size_out);
 
 SENTRY_API sentry_value_t sentry_value_new_event(void);
 SENTRY_API sentry_value_t sentry_value_new_breadcrumb(const char *type,
