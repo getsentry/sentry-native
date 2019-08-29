@@ -2,6 +2,7 @@
 #ifdef SENTRY_WITH_DARWIN_MODULE_FINDER
 
 #include <dlfcn.h>
+#include <limits.h>
 #include <mach-o/arch.h>
 #include <mach-o/dyld.h>
 #include <mach-o/dyld_images.h>
@@ -13,7 +14,7 @@
 #include <mutex>
 #include "../uuid.hpp"
 
-#if defined(GP_ARCH_x86)
+#if UINTPTR_MAX == 0xffffffffULL
 typedef mach_header platform_mach_header;
 typedef segment_command mach_segment_command_type;
 #define MACHO_MAGIC_NUMBER MH_MAGIC
@@ -32,6 +33,7 @@ using namespace modulefinders;
 
 static Value g_modules;
 static std::mutex g_modules_mutex;
+static bool g_initialized = false;
 
 void add_image(const mach_header *mh, intptr_t vmaddr_slide) {
     std::lock_guard<std::mutex> _guard(g_modules_mutex);
@@ -110,8 +112,12 @@ void remove_image(const mach_header *mh, intptr_t vmaddr_slide) {
 }
 
 DarwinModuleFinder::DarwinModuleFinder() {
-    _dyld_register_func_for_add_image(add_image);
-    _dyld_register_func_for_remove_image(remove_image);
+    std::lock_guard<std::mutex> _guard(g_modules_mutex);
+    if (!g_initialized) {
+        _dyld_register_func_for_add_image(add_image);
+        _dyld_register_func_for_remove_image(remove_image);
+        g_initialized = true;
+    }
 }
 
 Value DarwinModuleFinder::get_module_list() const {
