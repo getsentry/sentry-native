@@ -42,7 +42,6 @@ sentry_options_s::sentry_options_s()
     run_id = ss.str();
 }
 
-
 sentry_options_t *sentry_options_new(void) {
     return new sentry_options_t();
 }

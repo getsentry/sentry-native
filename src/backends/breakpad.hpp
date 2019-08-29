@@ -1,5 +1,6 @@
 #ifndef SENTRY_BACKENDS_BREAKPAD_HPP_INCLUDED
 #define SENTRY_BACKENDS_BREAKPAD_HPP_INCLUDED
+#ifdef SENTRY_WITH_BREAKPAD_BACKEND
 
 #include "../internal.hpp"
 #include "../scope.hpp"
@@ -25,4 +26,4 @@ class BreakpadBackend : public Backend {
 }  // namespace sentry
 
 #endif
-
+#endif

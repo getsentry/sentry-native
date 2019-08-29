@@ -21,6 +21,16 @@ sentry_uuid_t sentry_uuid_from_string(const char *str) {
     return rv;
 }
 
+sentry_uuid_t sentry_uuid_from_bytes(const char bytes[16]) {
+    sentry_uuid_t rv;
+    char *uuid_bytes = (char *)&uuid.native_uuid;
+    memcpy(uuid, uuid_bytes, 16);
+    std::reverse(uuid_bytes, uuid_bytes + 4);
+    std::reverse(uuid_bytes + 4, uuid_bytes + 6);
+    std::reverse(uuid_bytes + 6, uuid_bytes + 8);
+    return rv;
+}
+
 int sentry_uuid_is_nil(const sentry_uuid_t *uuid) {
     RPC_STATUS status;
     return !!UuidIsNil((UUID *)&uuid->native_uuid, &status);
@@ -57,6 +67,12 @@ sentry_uuid_t sentry_uuid_from_string(const char *str) {
     if (uuid_parse(str, rv.native_uuid) != 0) {
         uuid_clear(rv.native_uuid);
     }
+    return rv;
+}
+
+sentry_uuid_t sentry_uuid_from_bytes(const char bytes[16]) {
+    sentry_uuid_t rv;
+    memcpy(rv.native_uuid, bytes, 16);
     return rv;
 }
 

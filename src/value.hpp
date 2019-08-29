@@ -173,6 +173,8 @@ class Value {
         }
     }
 
+    Value clone() const;
+
     static Value new_double(double val) {
         // if we are a nan value we want to become the max double value which
         // is a NAN.
