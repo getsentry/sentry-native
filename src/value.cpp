@@ -5,6 +5,39 @@
 
 using namespace sentry;
 
+Value Value::clone() const {
+    Thing *thing = as_thing();
+    if (thing) {
+        Value clone;
+        switch (thing->type()) {
+            case THING_TYPE_LIST: {
+                const List *list = (const List *)as_thing()->ptr();
+                clone = Value::new_list();
+                for (List::const_iterator iter = list->begin();
+                     iter != list->end(); ++iter) {
+                    clone.append(*iter);
+                }
+                break;
+            }
+            case THING_TYPE_OBJECT: {
+                const Object *obj = (const Object *)as_thing()->ptr();
+                clone = Value::new_list();
+                for (Object::const_iterator iter = obj->begin();
+                     iter != obj->end(); ++iter) {
+                    clone.set_by_key(iter->first.c_str(), iter->second.clone());
+                }
+                break;
+            }
+            case THING_TYPE_STRING: {
+                clone = *this;
+            }
+        }
+        return clone;
+    } else {
+        return *this;
+    }
+}
+
 void Value::to_msgpack(mpack_writer_t *writer) const {
     switch (this->type()) {
         case SENTRY_VALUE_TYPE_NULL:

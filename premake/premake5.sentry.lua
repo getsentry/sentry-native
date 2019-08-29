@@ -24,7 +24,9 @@ project "sentry_crashpad"
   kind "SharedLib"
   sentry_native_common()
 
-  defines {"SENTRY_WITH_CRASHPAD_BACKEND"}
+  defines {
+    "SENTRY_WITH_CRASHPAD_BACKEND"
+  }
   includedirs {
     CRASHPAD_PKG,
     CRASHPAD_PKG.."/include",
@@ -36,13 +38,10 @@ project "sentry_crashpad"
   }
 
   files {
-    SRC_ROOT.."/src/*.cpp",
-    SRC_ROOT.."/src/*.hpp",
-    SRC_ROOT.."/src/transports/*.cpp",
-    SRC_ROOT.."/src/transports/*.hpp",
-    SRC_ROOT.."/src/backends/base.cpp",
-    SRC_ROOT.."/src/backends/crashpad.cpp",
-    SRC_ROOT.."/src/vendor/*.c",
+    SRC_ROOT.."/src/**.c",
+    SRC_ROOT.."/src/**.h",
+    SRC_ROOT.."/src/**.cpp",
+    SRC_ROOT.."/src/**.hpp",
   }
 
   -- Crashpad
@@ -64,7 +63,8 @@ project "sentry_crashpad"
 			"curl",
     }
     defines {
-      "SENTRY_WITH_LIBCURL_TRANSPORT"
+      "SENTRY_WITH_LIBCURL_TRANSPORT",
+      "SENTRY_WITH_DARWIN_MODULE_FINDER",
     }
   filter "system:linux"
     links {
@@ -93,13 +93,10 @@ project "sentry_breakpad"
   }
 
   files {
-    SRC_ROOT.."/src/*.cpp",
-    SRC_ROOT.."/src/*.hpp",
-    SRC_ROOT.."/src/transports/*.cpp",
-    SRC_ROOT.."/src/transports/*.hpp",
-    SRC_ROOT.."/src/backends/base.cpp",
-    SRC_ROOT.."/src/backends/breakpad.cpp",
-    SRC_ROOT.."/src/vendor/*.c",
+    SRC_ROOT.."/src/**.c",
+    SRC_ROOT.."/src/**.h",
+    SRC_ROOT.."/src/**.cpp",
+    SRC_ROOT.."/src/**.hpp",
   }
 
   -- Breakpad

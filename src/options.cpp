@@ -10,6 +10,9 @@
 #endif
 #include "transports/base.hpp"
 #include "transports/function.hpp"
+#ifdef SENTRY_WITH_DARWIN_MODULE_FINDER
+#include "modulefinders/darwin.hpp"
+#endif
 
 static const char *getenv_or_empty(const char *key) {
     const char *rv = getenv(key);
@@ -32,6 +35,9 @@ sentry_options_s::sentry_options_s()
 #elif SENTRY_WITH_BREAKPAD_BACKEND
       backend(new sentry::backends::BreakpadBackend()),
 #endif
+#ifdef SENTRY_WITH_DARWIN_MODULE_FINDER
+      module_finder(new sentry::modulefinders::DarwinModuleFinder()),
+#endif
       before_send(nullptr) {
     std::random_device seed;
     std::default_random_engine engine(seed());
@@ -41,7 +47,6 @@ sentry_options_s::sentry_options_s()
     ss << result << "-" << uniform_dist(engine);
     run_id = ss.str();
 }
-
 
 sentry_options_t *sentry_options_new(void) {
     return new sentry_options_t();

@@ -160,6 +160,11 @@ SENTRY_API sentry_uuid_t sentry_uuid_new_v4(void);
 SENTRY_API sentry_uuid_t sentry_uuid_from_string(const char *str);
 
 /*
+ * creates a uuid from bytes
+ */
+SENTRY_API sentry_uuid_t sentry_uuid_from_bytes(const char bytes[16]);
+
+/*
  * checks if the uuid is nil
  */
 SENTRY_API int sentry_uuid_is_nil(const sentry_uuid_t *uuid);

@@ -1,3 +1,4 @@
+#ifdef SENTRY_WITH_CRASHPAD_BACKEND
 #include "crashpad.hpp"
 
 #include <stdio.h>
@@ -145,3 +146,4 @@ void CrashpadBackend::add_breadcrumb(sentry::Value breadcrumb) {
 
     m_impl->breadcrumbs_in_segment++;
 }
+#endif
