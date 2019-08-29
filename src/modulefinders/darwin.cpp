@@ -10,6 +10,7 @@
 #include <mach/mach_traps.h>
 #include <mach/task.h>
 #include <mach/task_info.h>
+#include <atomic>
 #include "../uuid.hpp"
 
 #if defined(GP_ARCH_x86)
@@ -29,7 +30,7 @@ typedef segment_command_64 mach_segment_command_type;
 using namespace sentry;
 using namespace modulefinders;
 
-static Value m_modules = Value();
+static std::atomic<sentry_value_t> g_modules;
 
 void add_image(const mach_header *mh, intptr_t vmaddr_slide) {
     const platform_mach_header *header = (const platform_mach_header *)(mh);
@@ -38,7 +39,7 @@ void add_image(const mach_header *mh, intptr_t vmaddr_slide) {
         return;
     }
 
-    Value modules = m_modules;
+    Value modules(g_modules);
     Value new_modules = modules.is_null() ? Value::new_list() : modules.clone();
     Value module = Value::new_object();
     char buf[100];
@@ -75,7 +76,7 @@ void add_image(const mach_header *mh, intptr_t vmaddr_slide) {
     }
 
     new_modules.append(module);
-    m_modules = new_modules;
+    g_modules = new_modules.lower();
 }
 
 void remove_image(const mach_header *mh, intptr_t vmaddr_slide) {
@@ -92,7 +93,7 @@ DarwinModuleFinder::DarwinModuleFinder() {
 }
 
 Value DarwinModuleFinder::get_module_list() const {
-    Value rv = m_modules;
+    Value rv(g_modules);
     return rv.is_null() ? Value::new_list() : rv;
 }
 
