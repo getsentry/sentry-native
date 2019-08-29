@@ -10,7 +10,7 @@
 #include <mach/mach_traps.h>
 #include <mach/task.h>
 #include <mach/task_info.h>
-#include <atomic>
+#include <mutex>
 #include "../uuid.hpp"
 
 #if defined(GP_ARCH_x86)
@@ -30,21 +30,24 @@ typedef segment_command_64 mach_segment_command_type;
 using namespace sentry;
 using namespace modulefinders;
 
-static std::atomic<sentry_value_t> g_modules;
+static Value g_modules;
+static std::mutex g_modules_mutex;
 
 void add_image(const mach_header *mh, intptr_t vmaddr_slide) {
+    std::lock_guard<std::mutex> _guard(g_modules_mutex);
+
     const platform_mach_header *header = (const platform_mach_header *)(mh);
     Dl_info info;
     if (!dladdr(header, &info)) {
         return;
     }
 
-    Value modules(g_modules);
+    Value modules = g_modules;
     Value new_modules = modules.is_null() ? Value::new_list() : modules.clone();
     Value module = Value::new_object();
     char buf[100];
     sprintf(buf, "0x%llx", (long long)info.dli_fbase);
-    module.set_by_key("name", Value::new_string(info.dli_fname));
+    module.set_by_key("code_file", Value::new_string(info.dli_fname));
     module.set_by_key("image_addr", Value::new_string(buf));
 
     const struct load_command *cmd = (const struct load_command *)(header + 1);
@@ -76,15 +79,34 @@ void add_image(const mach_header *mh, intptr_t vmaddr_slide) {
     }
 
     new_modules.append(module);
-    g_modules = new_modules.lower();
+    g_modules = new_modules;
 }
 
 void remove_image(const mach_header *mh, intptr_t vmaddr_slide) {
+    std::lock_guard<std::mutex> _guard(g_modules_mutex);
+    if (g_modules.is_null() || g_modules.length() == 0) {
+        return;
+    }
+
     const platform_mach_header *header = (const platform_mach_header *)(mh);
     Dl_info info;
     if (!dladdr(header, &info)) {
         return;
     }
+
+    char ref_addr[100];
+    sprintf(ref_addr, "0x%llx", (long long)info.dli_fbase);
+    Value new_modules = Value::new_list();
+
+    for (size_t i = 0; i < g_modules.length(); i++) {
+        Value module = g_modules.get_by_index(i);
+        const char *addr = module.get_by_key("image_addr").as_cstr();
+        if (!addr || strcmp(addr, ref_addr) != 0) {
+            new_modules.append(module);
+        }
+    }
+
+    g_modules = new_modules;
 }
 
 DarwinModuleFinder::DarwinModuleFinder() {
@@ -93,6 +115,7 @@ DarwinModuleFinder::DarwinModuleFinder() {
 }
 
 Value DarwinModuleFinder::get_module_list() const {
+    std::lock_guard<std::mutex> _guard(g_modules_mutex);
     Value rv(g_modules);
     return rv.is_null() ? Value::new_list() : rv;
 }

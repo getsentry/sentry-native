@@ -29,8 +29,7 @@ Value Value::clone() const {
                 break;
             }
             case THING_TYPE_STRING: {
-                clone = Value::new_string(as_cstr());
-                break;
+                clone = *this;
             }
         }
         return clone;

@@ -7,7 +7,7 @@
 namespace sentry {
 namespace modulefinders {
 
-class DarwinModuleFinder {
+class DarwinModuleFinder : public ModuleFinder {
    public:
     DarwinModuleFinder();
     Value get_module_list() const;
