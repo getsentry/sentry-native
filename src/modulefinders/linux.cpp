@@ -26,8 +26,8 @@ int dl_iterate_callback(struct dl_phdr_info *dl_info, size_t size, void *data) {
 
     Value module = Value::new_object();
     char buf[100];
-    uint64_t image_addr;
-    uint64_t image_end_addr;
+    uint64_t image_addr = (uint64_t)-1;
+    uint64_t image_end_addr = 0;
     bool have_build_id = false;
 
     for (size_t i = 0; i < dl_info->dlpi_phnum; i++) {
