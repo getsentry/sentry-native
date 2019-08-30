@@ -68,6 +68,11 @@ project "sentry_crashpad"
     }
   filter "system:linux"
     links {
+      "pthread",
+      "uuid"
+    }
+    defines {
+      "SENTRY_WITH_LINUX_MODULE_FINDER",
     }
   filter "system:windows"
     links {
@@ -114,6 +119,10 @@ project "sentry_breakpad"
     -- System
     links {
       "pthread",
+      "uuid",
+    }
+    defines {
+      "SENTRY_WITH_LINUX_MODULE_FINDER",
     }
   filter {}
 
