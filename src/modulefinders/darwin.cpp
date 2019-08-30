@@ -47,10 +47,8 @@ void add_image(const mach_header *mh, intptr_t vmaddr_slide) {
     Value modules = g_modules;
     Value new_modules = modules.is_null() ? Value::new_list() : modules.clone();
     Value module = Value::new_object();
-    char buf[100];
-    sprintf(buf, "0x%llx", (long long)info.dli_fbase);
     module.set_by_key("code_file", Value::new_string(info.dli_fname));
-    module.set_by_key("image_addr", Value::new_string(buf));
+    module.set_by_key("image_addr", Value::new_addr((uint64_t)info.dli_fbase));
 
     const struct load_command *cmd = (const struct load_command *)(header + 1);
     bool has_size = false;
@@ -74,8 +72,7 @@ void add_image(const mach_header *mh, intptr_t vmaddr_slide) {
             const uuid_command *ucmd = (const uuid_command *)cmd;
             sentry_uuid_t uuid =
                 sentry_uuid_from_bytes((const char *)ucmd->uuid);
-            sentry_uuid_as_string(&uuid, buf);
-            module.set_by_key("debug_id", Value::new_string(buf));
+            module.set_by_key("debug_id", Value::new_uuid(&uuid));
             has_uuid = true;
         }
     }
@@ -112,7 +109,6 @@ void remove_image(const mach_header *mh, intptr_t vmaddr_slide) {
 }
 
 DarwinModuleFinder::DarwinModuleFinder() {
-    std::lock_guard<std::mutex> _guard(g_modules_mutex);
     if (!g_initialized) {
         _dyld_register_func_for_add_image(add_image);
         _dyld_register_func_for_remove_image(remove_image);

@@ -174,7 +174,9 @@ bool PathIterator::next() {
 }
 
 PathIterator::~PathIterator() {
-    closedir(m_dir_handle);
+    if (m_dir_handle) {
+        closedir(m_dir_handle);
+    }
 }
 
 bool Path::remove() const {

@@ -25,7 +25,6 @@ int dl_iterate_callback(struct dl_phdr_info *dl_info, size_t size, void *data) {
     }
 
     Value module = Value::new_object();
-    char buf[100];
     uint64_t image_addr = (uint64_t)-1;
     uint64_t image_end_addr = 0;
     bool have_build_id = false;
@@ -61,9 +60,16 @@ int dl_iterate_callback(struct dl_phdr_info *dl_info, size_t size, void *data) {
                 offset += (size_t)nhdr->n_descsz;
                 align(alignment, &offset);
                 if (nhdr->n_type == NT_GNU_BUILD_ID) {
+                    module.set_by_key(
+                        "code_id", Value::new_hexstring(note, nhdr->n_descsz));
                     sentry_uuid_t uuid = sentry_uuid_from_bytes(note);
-                    sentry_uuid_as_string(&uuid, buf);
-                    module.set_by_key("debug_id", Value::new_string(buf));
+
+                    char *uuid_bytes = (char *)&uuid.native_uuid;
+                    std::reverse(uuid_bytes, uuid_bytes + 4);
+                    std::reverse(uuid_bytes + 4, uuid_bytes + 6);
+                    std::reverse(uuid_bytes + 6, uuid_bytes + 8);
+
+                    module.set_by_key("debug_id", Value::new_uuid(&uuid));
                     have_build_id = true;
                     break;
                 }
@@ -71,8 +77,7 @@ int dl_iterate_callback(struct dl_phdr_info *dl_info, size_t size, void *data) {
         }
     }
 
-    sprintf(buf, "0x%llx", (unsigned long long)image_addr);
-    module.set_by_key("image_addr", Value::new_string(buf));
+    module.set_by_key("image_addr", Value::new_addr(image_addr));
     module.set_by_key("image_size",
                       Value::new_int32((int32_t)(image_end_addr - image_addr)));
     module.set_by_key("code_file", Value::new_string(dl_info->dlpi_name));

@@ -115,6 +115,9 @@ project "sentry_breakpad"
       "Foundation.framework",
       "pthread",
     }
+    defines {
+      "SENTRY_WITH_DARWIN_MODULE_FINDER",
+    }
   filter "system:linux"
     -- System
     links {
