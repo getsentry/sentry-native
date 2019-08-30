@@ -1,5 +1,6 @@
 #ifdef SENTRY_WITH_LINUX_MODULE_FINDER
 #include "linux.hpp"
+#include <arpa/inet.h>
 #include <elf.h>
 #include <link.h>
 #include <mutex>
@@ -65,9 +66,12 @@ int dl_iterate_callback(struct dl_phdr_info *dl_info, size_t size, void *data) {
                     sentry_uuid_t uuid = sentry_uuid_from_bytes(note);
 
                     char *uuid_bytes = (char *)&uuid.native_uuid;
-                    std::reverse(uuid_bytes, uuid_bytes + 4);
-                    std::reverse(uuid_bytes + 4, uuid_bytes + 6);
-                    std::reverse(uuid_bytes + 6, uuid_bytes + 8);
+                    uint32_t *a = (uint32_t *)&uuid_bytes;
+                    *a = htonl(*a);
+                    uint16_t *b = (uint16_t *)&uuid_bytes + 4;
+                    *b = htons(*b);
+                    uint16_t *c = (uint16_t *)&uuid_bytes + 6;
+                    *c = htons(*c);
 
                     module.set_by_key("debug_id", Value::new_uuid(&uuid));
                     have_build_id = true;
