@@ -590,7 +590,7 @@ project "crashpad_minidump"
 
 
 project "crashpad_handler"
-  kind "ConsoleApp"
+  kind "WindowedApp"
   crashpad_common()
   links {
     "crashpad_minichromium_base",
