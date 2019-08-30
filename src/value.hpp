@@ -189,7 +189,7 @@ class Value {
 
     static Value new_int32(int32_t val) {
         Value rv;
-        rv.m_repr._bits = (uint64_t)val | TAG_INT32;
+        rv.m_repr._bits = (uint64_t)(uint32_t)val | TAG_INT32;
         return rv;
     }
 

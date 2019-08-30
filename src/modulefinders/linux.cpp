@@ -48,7 +48,7 @@ int dl_iterate_callback(struct dl_phdr_info *dl_info, size_t size, void *data) {
                 continue;
             }
 
-            size_t offset = (size_t)dl_info->dlpi_phdr[i].p_offset;
+            size_t offset = (size_t)dl_info->dlpi_phdr[i].p_vaddr;
             size_t end = offset + (size_t)dl_info->dlpi_phdr[i].p_filesz;
 
             while (offset < end) {
@@ -73,8 +73,8 @@ int dl_iterate_callback(struct dl_phdr_info *dl_info, size_t size, void *data) {
 
     sprintf(buf, "0x%llx", (unsigned long long)image_addr);
     module.set_by_key("image_addr", Value::new_string(buf));
-    module.set_by_key("image_size", Value::new_int32((uint32_t)(image_end_addr -
-                                                                image_addr)));
+    module.set_by_key("image_size",
+                      Value::new_int32((int32_t)(image_end_addr - image_addr)));
     module.set_by_key("code_file", Value::new_string(dl_info->dlpi_name));
     g_modules.append(module);
 
