@@ -121,6 +121,7 @@ SENTRY_API sentry_value_t sentry_value_new_breadcrumb(const char *type,
                                                       const char *message);
 SENTRY_API void sentry_event_value_add_stacktrace(sentry_value_t event,
                                                   void **ips);
+SENTRY_API sentry_value_t sentry_get_module_list(void);
 
 /*
  * Sentry levels for events and breadcrumbs.

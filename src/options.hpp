@@ -7,7 +7,6 @@
 #include "backends/base.hpp"
 #include "dsn.hpp"
 #include "internal.hpp"
-#include "modulefinders/base.hpp"
 #include "path.hpp"
 #include "transports/base.hpp"
 
@@ -28,7 +27,6 @@ struct sentry_options_s {
     sentry_event_function_t before_send;
     sentry::transports::Transport *transport;
     sentry::backends::Backend *backend;
-    sentry::modulefinders::ModuleFinder *module_finder;
 
     // internal options
     std::string run_id;

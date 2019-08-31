@@ -9,6 +9,12 @@
 #include "uuid.hpp"
 #include "value.hpp"
 
+#ifdef SENTRY_WITH_DARWIN_MODULE_FINDER
+#include "modulefinders/darwin.hpp"
+#elif defined(SENTRY_WITH_LINUX_MODULE_FINDER)
+#include "modulefinders/linux.hpp"
+#endif
+
 using namespace sentry;
 
 static sentry_options_t *g_options;
@@ -184,4 +190,14 @@ void sentry_set_level(sentry_level_t level) {
 
 void sentry_string_free(char *str) {
     free(str);
+}
+
+sentry_value_t sentry_get_module_list() {
+    Value rv;
+#ifdef SENTRY_WITH_DARWIN_MODULE_FINDER
+    rv = sentry::modulefinders::get_darwin_module_list();
+#elif defined(SENTRY_WITH_LINUX_MODULE_FINDER)
+    rv = sentry::modulefinders::get_linux_module_list();
+#endif
+    return rv.lower();
 }

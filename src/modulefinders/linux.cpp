@@ -90,17 +90,13 @@ int dl_iterate_callback(struct dl_phdr_info *dl_info, size_t size, void *data) {
     return 0;
 }
 
-LinuxModuleFinder::LinuxModuleFinder() {
+Value modulefinders::get_linux_module_list() {
     std::lock_guard<std::mutex> _guard(g_modules_mutex);
     if (!g_initialized) {
         g_modules = Value::new_list();
         dl_iterate_phdr(dl_iterate_callback, nullptr);
         g_initialized = true;
     }
-}
-
-Value LinuxModuleFinder::get_module_list() const {
-    std::lock_guard<std::mutex> _guard(g_modules_mutex);
     return g_modules;
 }
 

@@ -32,11 +32,11 @@ using namespace sentry;
 using namespace modulefinders;
 
 static Value g_modules;
-static std::mutex g_modules_mutex;
+static std::recursive_mutex g_modules_mutex;
 static bool g_initialized = false;
 
 void add_image(const mach_header *mh, intptr_t vmaddr_slide) {
-    std::lock_guard<std::mutex> _guard(g_modules_mutex);
+    std::lock_guard<std::recursive_mutex> _guard(g_modules_mutex);
 
     const platform_mach_header *header = (const platform_mach_header *)(mh);
     Dl_info info;
@@ -82,7 +82,7 @@ void add_image(const mach_header *mh, intptr_t vmaddr_slide) {
 }
 
 void remove_image(const mach_header *mh, intptr_t vmaddr_slide) {
-    std::lock_guard<std::mutex> _guard(g_modules_mutex);
+    std::lock_guard<std::recursive_mutex> _guard(g_modules_mutex);
     if (g_modules.is_null() || g_modules.length() == 0) {
         return;
     }
@@ -108,18 +108,15 @@ void remove_image(const mach_header *mh, intptr_t vmaddr_slide) {
     g_modules = new_modules;
 }
 
-DarwinModuleFinder::DarwinModuleFinder() {
+Value modulefinders::get_darwin_module_list() {
+    std::lock_guard<std::recursive_mutex> _guard(g_modules_mutex);
     if (!g_initialized) {
         _dyld_register_func_for_add_image(add_image);
         _dyld_register_func_for_remove_image(remove_image);
         g_initialized = true;
     }
-}
 
-Value DarwinModuleFinder::get_module_list() const {
-    std::lock_guard<std::mutex> _guard(g_modules_mutex);
-    Value rv(g_modules);
-    return rv.is_null() ? Value::new_list() : rv;
+    return g_modules.is_null() ? Value::new_list() : g_modules;
 }
 
 #endif

@@ -68,9 +68,9 @@ void Scope::apply_to_event(Value &event, bool with_breadcrumbs) const {
         shared_sdk_info = sdk_info;
     }
 
-    if (options->module_finder) {
+    Value modules(sentry_get_module_list());
+    if (!modules.is_null()) {
         Value debug_meta = Value::new_object();
-        Value modules = options->module_finder->get_module_list();
         debug_meta.set_by_key("images", modules);
         event.set_by_key("debug_meta", debug_meta);
     }

@@ -2,16 +2,14 @@
 #define SENTRY_MODULEFINDER_DARWIN_HPP_INCLUDED
 #ifdef SENTRY_WITH_DARWIN_MODULE_FINDER
 
-#include "base.hpp"
+#include "../internal.hpp"
+#include "../value.hpp"
 
 namespace sentry {
 namespace modulefinders {
 
-class DarwinModuleFinder : public ModuleFinder {
-   public:
-    DarwinModuleFinder();
-    Value get_module_list() const;
-};
+Value get_darwin_module_list();
+
 }  // namespace modulefinders
 }  // namespace sentry
 
