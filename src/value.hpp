@@ -10,6 +10,7 @@
 #include <string>
 #include <vector>
 #include "internal.hpp"
+#include "uuid.hpp"
 #include "vendor/mpack.h"
 
 namespace sentry {
@@ -189,7 +190,7 @@ class Value {
 
     static Value new_int32(int32_t val) {
         Value rv;
-        rv.m_repr._bits = (uint64_t)val | TAG_INT32;
+        rv.m_repr._bits = (uint64_t)(uint32_t)val | TAG_INT32;
         return rv;
     }
 
@@ -217,6 +218,9 @@ class Value {
         return Value(new std::string(s), THING_TYPE_STRING);
     }
 
+    static Value new_uuid(const sentry_uuid_t *uuid);
+    static Value new_hexstring(const char *bytes, size_t len);
+    static Value new_addr(uint64_t addr);
     static Value new_event();
     static Value new_breadcrumb(const char *type, const char *message);
 

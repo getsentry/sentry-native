@@ -153,6 +153,10 @@ PathIterator::PathIterator(const Path *path) {
 }
 
 bool PathIterator::next() {
+    if (!m_dir_handle) {
+        return false;
+    }
+
     struct dirent *entry;
     while (true) {
         entry = readdir(m_dir_handle);
@@ -170,7 +174,9 @@ bool PathIterator::next() {
 }
 
 PathIterator::~PathIterator() {
-    closedir(m_dir_handle);
+    if (m_dir_handle) {
+        closedir(m_dir_handle);
+    }
 }
 
 bool Path::remove() const {

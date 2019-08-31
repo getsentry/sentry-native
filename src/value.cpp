@@ -192,6 +192,27 @@ std::string Value::to_json() const {
     return ss.str();
 }
 
+Value Value::new_uuid(const sentry_uuid_t *uuid) {
+    char buf[100];
+    sentry_uuid_as_string(uuid, buf);
+    return Value::new_string(buf);
+}
+
+Value Value::new_hexstring(const char *bytes, size_t len) {
+    std::vector<char> rv(len * 2 + 1);
+    char *ptr = &rv[0];
+    for (size_t i = 0; i < len; i++) {
+        ptr += sprintf(ptr, "%02hhx", bytes[i]);
+    }
+    return Value::new_string(&rv[0]);
+}
+
+Value Value::new_addr(uint64_t addr) {
+    char buf[100];
+    sprintf(buf, "0x%llx", (unsigned long long)addr);
+    return Value::new_string(buf);
+}
+
 Value Value::new_event() {
     Value rv = Value::new_object();
     rv.set_by_key("level", Value::new_string("error"));
