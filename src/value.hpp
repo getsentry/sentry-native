@@ -32,7 +32,7 @@ class Thing {
     }
 
     ~Thing() {
-        switch (m_type) {
+		switch (m_type) {
             case THING_TYPE_STRING:
                 delete (std::string *)m_payload;
                 break;
@@ -217,6 +217,10 @@ class Value {
     static Value new_string(const char *s) {
         return Value(new std::string(s), THING_TYPE_STRING);
     }
+
+	#ifdef _WIN32
+	static Value new_string(const wchar_t *s);
+	#endif
 
     static Value new_uuid(const sentry_uuid_t *uuid);
     static Value new_hexstring(const char *bytes, size_t len);

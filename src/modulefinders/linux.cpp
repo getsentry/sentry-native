@@ -1,5 +1,5 @@
-#ifdef SENTRY_WITH_LINUX_MODULE_FINDER
-#include "linux.hpp"
+#include "base.hpp"
+#ifdef SENTRY_WITH_LINUX_MODULEFINDER
 #include <arpa/inet.h>
 #include <elf.h>
 #include <link.h>
@@ -90,7 +90,7 @@ int dl_iterate_callback(struct dl_phdr_info *dl_info, size_t size, void *data) {
     return 0;
 }
 
-Value modulefinders::get_linux_module_list() {
+Value modulefinders::get_module_list() {
     std::lock_guard<std::mutex> _guard(g_modules_mutex);
     if (!g_initialized) {
         g_modules = Value::new_list();

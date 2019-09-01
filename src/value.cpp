@@ -1,6 +1,8 @@
 #include "value.hpp"
 #include <cmath>
+#include <codecvt>
 #include <ctime>
+#include <locale>
 #include <sstream>
 
 using namespace sentry;
@@ -191,6 +193,14 @@ std::string Value::to_json() const {
     to_json(ss);
     return ss.str();
 }
+
+#ifdef _WIN32
+Value Value::new_string(const wchar_t *s) {
+    std::string str =
+        std::wstring_convert<std::codecvt_utf8<wchar_t>, wchar_t>{}.to_bytes(s);
+    return Value::new_string(str.c_str());
+}
+#endif
 
 Value Value::new_uuid(const sentry_uuid_t *uuid) {
     char buf[100];

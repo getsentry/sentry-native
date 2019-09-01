@@ -1,5 +1,5 @@
-#include "darwin.hpp"
-#ifdef SENTRY_WITH_DARWIN_MODULE_FINDER
+#include "base.hpp"
+#ifdef SENTRY_WITH_DARWIN_MODULEFINDER
 
 #include <dlfcn.h>
 #include <limits.h>
@@ -108,7 +108,7 @@ void remove_image(const mach_header *mh, intptr_t vmaddr_slide) {
     g_modules = new_modules;
 }
 
-Value modulefinders::get_darwin_module_list() {
+Value modulefinders::get_module_list() {
     std::lock_guard<std::recursive_mutex> _guard(g_modules_mutex);
     if (!g_initialized) {
         _dyld_register_func_for_add_image(add_image);
