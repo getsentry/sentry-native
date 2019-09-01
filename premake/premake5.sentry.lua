@@ -147,3 +147,19 @@ project "sentry_example_breakpad"
   files {
     SRC_ROOT.."/examples/sentry_breakpad.c",
   }
+
+project "sentry_tests"
+  kind "ConsoleApp"
+  sentry_native_common()
+
+  includedirs {
+    SRC_ROOT.."/src",
+  }
+
+  files {
+    SRC_ROOT.."/src/**.c",
+    SRC_ROOT.."/src/**.h",
+    SRC_ROOT.."/src/**.cpp",
+    SRC_ROOT.."/src/**.hpp",
+    SRC_ROOT.."/tests/**.cpp",
+  }

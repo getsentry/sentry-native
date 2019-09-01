@@ -62,7 +62,7 @@ Url::Url(const char *url) : m_valid(false), m_port(0) {
     }
     tmp = url;
     if (has_username) {
-        SKIP_WHILE_NOT(tmp, '@');
+        SKIP_WHILE_NOT2(tmp, '@', ':');
         m_username = std::string(url, tmp - url);
         url = tmp;
         if (*url == ':') {
