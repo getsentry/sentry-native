@@ -32,7 +32,7 @@ class Thing {
     }
 
     ~Thing() {
-		switch (m_type) {
+        switch (m_type) {
             case THING_TYPE_STRING:
                 delete (std::string *)m_payload;
                 break;
@@ -218,9 +218,9 @@ class Value {
         return Value(new std::string(s), THING_TYPE_STRING);
     }
 
-	#ifdef _WIN32
-	static Value new_string(const wchar_t *s);
-	#endif
+#ifdef _WIN32
+    static Value new_string(const wchar_t *s);
+#endif
 
     static Value new_uuid(const sentry_uuid_t *uuid);
     static Value new_hexstring(const char *bytes, size_t len);
@@ -276,14 +276,20 @@ class Value {
     }
 
     bool as_bool() const {
-        if ((m_repr._bits & TAG_CONST) == TAG_CONST) {
-            uint64_t val = m_repr._bits & ~TAG_CONST;
-            if (val == 1) {
-                return true;
+        switch (type()) {
+            case SENTRY_VALUE_TYPE_BOOL:
+            case SENTRY_VALUE_TYPE_NULL: {
+                uint64_t val = m_repr._bits & ~TAG_CONST;
+                if (val == 1) {
+                    return true;
+                }
+                return false;
             }
-            return false;
-        } else {
-            return as_double() != 0.0;
+            case SENTRY_VALUE_TYPE_INT32:
+            case SENTRY_VALUE_TYPE_DOUBLE:
+                return as_double() != 0.0;
+            default:
+                return length() > 0;
         }
     }
 
