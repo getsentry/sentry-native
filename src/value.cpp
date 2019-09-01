@@ -105,19 +105,19 @@ void json_serialize_string(const char *ptr, Out &out) {
                 out << "\\\"";
                 break;
             case '\b':
-                out << "\\\b";
+                out << "\\b";
                 break;
             case '\f':
-                out << "\\\f";
+                out << "\\f";
                 break;
             case '\n':
-                out << "\\\n";
+                out << "\\n";
                 break;
             case '\r':
-                out << "\\\r";
+                out << "\\r";
                 break;
             case '\t':
-                out << "\\\t";
+                out << "\\t";
                 break;
             default:
                 if (*ptr < 32) {
