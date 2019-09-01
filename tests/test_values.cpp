@@ -114,6 +114,14 @@ TEST_CASE("list value behavior", "[value]") {
     REQUIRE_VALUE_JSON(val, "[]");
     REQUIRE_VALUE_MSGPACK(val, "\x90");
     sentry_value_free(val);
+
+    val = sentry_value_new_list();
+    sentry_value_set_by_index(val, 5, sentry_value_new_int32(100));
+    sentry_value_set_by_index(val, 2, sentry_value_new_int32(10));
+    REQUIRE_VALUE_JSON(val, "[null,null,10,null,null,100]");
+    sentry_value_remove_by_index(val, 2);
+    REQUIRE_VALUE_JSON(val, "[null,null,null,null,100]");
+    sentry_value_free(val);
 }
 
 TEST_CASE("object value behavior", "[value]") {
@@ -121,7 +129,7 @@ TEST_CASE("object value behavior", "[value]") {
     for (size_t i = 0; i < 10; i++) {
         char key[100];
         sprintf(key, "key%d", (int)i);
-        sentry_value_set_key(val, key, sentry_value_new_int32(i));
+        sentry_value_set_by_key(val, key, sentry_value_new_int32(i));
     }
     for (size_t i = 0; i < 20; i++) {
         char key[100];

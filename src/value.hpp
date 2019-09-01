@@ -357,6 +357,32 @@ class Value {
         return false;
     }
 
+    bool set_by_index(size_t index, Value value) {
+        Thing *thing = as_thing();
+        if (thing && thing->type() == THING_TYPE_LIST) {
+            List *list = (List *)thing->ptr();
+            if (index >= list->size()) {
+                list->resize(index + 1);
+            }
+            (*list)[index] = value;
+            return true;
+        }
+        return false;
+    }
+
+    bool remove_by_index(size_t index) {
+        Thing *thing = as_thing();
+        if (thing && thing->type() == THING_TYPE_LIST) {
+            List *list = (List *)thing->ptr();
+            if (index >= list->size()) {
+                return true;
+            }
+            list->erase(list->begin() + index);
+            return true;
+        }
+        return false;
+    }
+
     Value get_by_key(const char *key) const {
         Thing *thing = as_thing();
         if (thing && thing->type() == THING_TYPE_OBJECT) {

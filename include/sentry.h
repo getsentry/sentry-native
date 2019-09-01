@@ -82,11 +82,16 @@ SENTRY_API sentry_value_t sentry_value_new_list(void);
 SENTRY_API sentry_value_t sentry_value_new_object(void);
 SENTRY_API void sentry_value_free(sentry_value_t value);
 SENTRY_API sentry_value_type_t sentry_value_get_type(sentry_value_t value);
-SENTRY_API int sentry_value_set_key(sentry_value_t value,
-                                    const char *k,
-                                    sentry_value_t v);
-SENTRY_API int sentry_value_remove_key(sentry_value_t value, const char *k);
+SENTRY_API int sentry_value_set_by_key(sentry_value_t value,
+                                       const char *k,
+                                       sentry_value_t v);
+SENTRY_API int sentry_value_remove_by_key(sentry_value_t value, const char *k);
 SENTRY_API int sentry_value_append(sentry_value_t value, sentry_value_t v);
+SENTRY_API int sentry_value_set_by_index(sentry_value_t value,
+                                         size_t index,
+                                         sentry_value_t v);
+SENTRY_API int sentry_value_remove_by_index(sentry_value_t value,
+                                            size_t index);
 SENTRY_API sentry_value_t sentry_value_get_by_key(sentry_value_t value,
                                                   const char *k);
 SENTRY_API sentry_value_t sentry_value_get_by_index(sentry_value_t value,

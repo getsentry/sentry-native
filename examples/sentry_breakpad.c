@@ -23,16 +23,16 @@ int main(void) {
     sentry_set_fingerprint("foo", "bar", NULL);
 
     sentry_value_t user = sentry_value_new_object();
-    sentry_value_set_key(user, "id", sentry_value_new_int32(42));
-    sentry_value_set_key(user, "username",
-                         sentry_value_new_string("some_name"));
+    sentry_value_set_by_key(user, "id", sentry_value_new_int32(42));
+    sentry_value_set_by_key(user, "username",
+                            sentry_value_new_string("some_name"));
     sentry_set_user(user);
 
     // memset((char *)0x0, 1, 100);
 
     sentry_value_t event = sentry_value_new_event();
-    sentry_value_set_key(event, "message",
-                         sentry_value_new_string("Hello World!"));
+    sentry_value_set_by_key(event, "message",
+                            sentry_value_new_string("Hello World!"));
     sentry_capture_event(event);
 
     // make sure everything flushes

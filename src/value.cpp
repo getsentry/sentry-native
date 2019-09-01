@@ -296,18 +296,28 @@ sentry_value_type_t sentry_value_get_type(sentry_value_t value) {
     return Value(value).type();
 }
 
-int sentry_value_set_key(sentry_value_t value,
-                         const char *k,
-                         sentry_value_t v) {
+int sentry_value_set_by_key(sentry_value_t value,
+                            const char *k,
+                            sentry_value_t v) {
     return !Value(value).set_by_key(k, Value::consume(v));
 }
 
-int sentry_value_remove_key(sentry_value_t value, const char *k) {
+int sentry_value_remove_by_key(sentry_value_t value, const char *k) {
     return !Value(value).remove_by_key(k);
 }
 
 int sentry_value_append(sentry_value_t value, sentry_value_t v) {
     return !Value(value).append(Value::consume(v));
+}
+
+int sentry_value_set_by_index(sentry_value_t value,
+                              size_t index,
+                              sentry_value_t v) {
+    return !Value(value).set_by_index(index, Value::consume(v));
+}
+
+int sentry_value_remove_by_index(sentry_value_t value, size_t index) {
+    return !Value(value).remove_by_index(index);
 }
 
 sentry_value_t sentry_value_get_by_key(sentry_value_t value, const char *k) {

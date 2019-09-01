@@ -35,10 +35,10 @@ int main(void) {
 
     sentry_value_t debug_crumb =
         sentry_value_new_breadcrumb("http", "debug crumb");
-    sentry_value_set_key(debug_crumb, "category",
-                         sentry_value_new_string("example!"));
-    sentry_value_set_key(debug_crumb, "level",
-                         sentry_value_new_string("debug"));
+    sentry_value_set_by_key(debug_crumb, "category",
+                            sentry_value_new_string("example!"));
+    sentry_value_set_by_key(debug_crumb, "level",
+                            sentry_value_new_string("debug"));
     sentry_add_breadcrumb(debug_crumb);
 
     for (size_t i = 0; i < 101; i++) {
@@ -48,16 +48,16 @@ int main(void) {
     }
 
     sentry_value_t user = sentry_value_new_object();
-    sentry_value_set_key(user, "id", sentry_value_new_int32(42));
-    sentry_value_set_key(user, "username",
-                         sentry_value_new_string("some_name"));
+    sentry_value_set_by_key(user, "id", sentry_value_new_int32(42));
+    sentry_value_set_by_key(user, "username",
+                            sentry_value_new_string("some_name"));
     sentry_set_user(user);
 
     // memset((char *)0x0, 1, 100);
 
     sentry_value_t event = sentry_value_new_event();
-    sentry_value_set_key(event, "message",
-                         sentry_value_new_string("Hello World!"));
+    sentry_value_set_by_key(event, "message",
+                            sentry_value_new_string("Hello World!"));
     sentry_capture_event(event);
 
     // make sure everything flushes
