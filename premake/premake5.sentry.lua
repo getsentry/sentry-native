@@ -64,7 +64,6 @@ project "sentry_crashpad"
     }
     defines {
       "SENTRY_WITH_LIBCURL_TRANSPORT",
-      "SENTRY_WITH_DARWIN_MODULE_FINDER",
     }
   filter "system:linux"
     links {
@@ -72,13 +71,12 @@ project "sentry_crashpad"
       "uuid"
     }
     defines {
-      "SENTRY_WITH_LINUX_MODULE_FINDER",
     }
   filter "system:windows"
     links {
     }
     defines {
-      "SENTRY_WITH_WINHTTP_TRANSPORT"
+      "SENTRY_WITH_WINHTTP_TRANSPORT",
     }
 
 project "sentry_breakpad"
@@ -116,7 +114,6 @@ project "sentry_breakpad"
       "pthread",
     }
     defines {
-      "SENTRY_WITH_DARWIN_MODULE_FINDER",
     }
   filter "system:linux"
     -- System
@@ -125,7 +122,9 @@ project "sentry_breakpad"
       "uuid",
     }
     defines {
-      "SENTRY_WITH_LINUX_MODULE_FINDER",
+    }
+  filter "system:windows"
+    defines {
     }
   filter {}
 

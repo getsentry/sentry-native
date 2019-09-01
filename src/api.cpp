@@ -8,12 +8,7 @@
 #include "scope.hpp"
 #include "uuid.hpp"
 #include "value.hpp"
-
-#ifdef SENTRY_WITH_DARWIN_MODULE_FINDER
-#include "modulefinders/darwin.hpp"
-#elif defined(SENTRY_WITH_LINUX_MODULE_FINDER)
-#include "modulefinders/linux.hpp"
-#endif
+#include "modulefinders/base.hpp"
 
 using namespace sentry;
 
@@ -89,6 +84,8 @@ sentry_uuid_t sentry_capture_event(sentry_value_t evt) {
     if (opts->before_send) {
         event = Value::consume(opts->before_send(event.lower(), nullptr));
     }
+
+	printf("%s\n", event.to_json().c_str());
 
     if (opts->transport && !event.is_null()) {
         opts->transport->send_event(event);
@@ -193,11 +190,5 @@ void sentry_string_free(char *str) {
 }
 
 sentry_value_t sentry_get_module_list() {
-    Value rv;
-#ifdef SENTRY_WITH_DARWIN_MODULE_FINDER
-    rv = sentry::modulefinders::get_darwin_module_list();
-#elif defined(SENTRY_WITH_LINUX_MODULE_FINDER)
-    rv = sentry::modulefinders::get_linux_module_list();
-#endif
-    return rv.lower();
+    return sentry::modulefinders::get_module_list().lower();
 }

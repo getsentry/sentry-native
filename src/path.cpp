@@ -25,18 +25,18 @@ static std::wstring cstr_to_wstr(const char *s) {
 namespace sentry {
 #ifdef _WIN32
 PathIterator::PathIterator(const Path *path)
-    : m_parent(*path), m_dir_handle(nullptr) {
+    : m_parent(*path), m_dir_handle(INVALID_HANDLE_VALUE) {
 }
 
 bool PathIterator::next() {
     WIN32_FIND_DATAW data;
 
     while (true) {
-        if (!m_dir_handle) {
+        if (m_dir_handle == INVALID_HANDLE_VALUE) {
             std::wstring pattern = m_parent.as_osstr();
             pattern += L"\\*";
             m_dir_handle = FindFirstFileW(pattern.c_str(), &data);
-            if (!m_dir_handle) {
+            if (m_dir_handle == INVALID_HANDLE_VALUE) {
                 return false;
             }
         } else {
