@@ -4,11 +4,11 @@
 #include "attachment.hpp"
 #include "cleanup.hpp"
 #include "internal.hpp"
+#include "modulefinders/base.hpp"
 #include "options.hpp"
 #include "scope.hpp"
 #include "uuid.hpp"
 #include "value.hpp"
-#include "modulefinders/base.hpp"
 
 using namespace sentry;
 
@@ -52,9 +52,13 @@ int sentry_init(sentry_options_t *options) {
 }
 
 void sentry_shutdown(void) {
-    if (g_options->transport) {
-        g_options->transport->shutdown();
+    if (g_options) {
+        if (g_options->transport) {
+            g_options->transport->shutdown();
+        }
+        sentry_options_free(g_options);
     }
+    g_options = nullptr;
 }
 
 const sentry_options_t *sentry_get_options(void) {
@@ -85,7 +89,7 @@ sentry_uuid_t sentry_capture_event(sentry_value_t evt) {
         event = Value::consume(opts->before_send(event.lower(), nullptr));
     }
 
-	printf("%s\n", event.to_json().c_str());
+    printf("%s\n", event.to_json().c_str());
 
     if (opts->transport && !event.is_null()) {
         opts->transport->send_event(event);
