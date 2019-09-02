@@ -71,6 +71,7 @@ static void extract_pdb_info(uintptr_t module_addr, Value &module) {
     sprintf(id_buf, "%08x%X", nt_headers->FileHeader.TimeDateStamp,
             nt_headers->OptionalHeader.SizeOfImage);
     module.set_by_key("code_id", Value::new_string(id_buf));
+    module.set_by_key("type", Value::new_string("pe"));
 }
 
 static void load_modules() {

@@ -1,4 +1,5 @@
 #include "value.hpp"
+#include <stdlib.h>
 #include <cmath>
 #include <codecvt>
 #include <ctime>
@@ -255,6 +256,28 @@ Value Value::new_breadcrumb(const char *type, const char *message) {
     }
     if (message) {
         rv.set_by_key("message", Value::new_string(message));
+    }
+
+    return rv;
+}
+
+Value Value::navigate(const char *path) {
+    size_t len = strlen(path);
+    size_t ident_start = 0;
+    Value rv = *this;
+
+    for (size_t i = 0; i < len + 1; i++) {
+        if (path[i] == '.' || path[i] == '\0') {
+            std::string segment(path + ident_start, i - ident_start);
+            char *end = nullptr;
+            int idx = (int)strtol(segment.c_str(), &end, 10);
+            if (end == segment.c_str() + segment.size()) {
+                rv = rv.get_by_index((size_t)idx);
+            } else {
+                rv = rv.get_by_key(segment.c_str());
+            }
+            ident_start = i + 1;
+        }
     }
 
     return rv;

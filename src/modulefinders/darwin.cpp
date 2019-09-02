@@ -77,6 +77,7 @@ void add_image(const mach_header *mh, intptr_t vmaddr_slide) {
         }
     }
 
+    module.set_by_key("type", Value::new_string("macho"));
     new_modules.append(module);
     g_modules = new_modules;
 }

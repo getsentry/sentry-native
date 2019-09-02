@@ -334,6 +334,8 @@ class Value {
         return false;
     }
 
+    Value navigate(const char *path);
+
     bool set_by_key(const char *key, Value value) {
         Thing *thing = as_thing();
         if (thing && thing->type() == THING_TYPE_OBJECT) {

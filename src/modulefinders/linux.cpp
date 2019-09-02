@@ -81,6 +81,7 @@ int dl_iterate_callback(struct dl_phdr_info *dl_info, size_t size, void *data) {
         }
     }
 
+    module.set_by_key("type", Value::new_string("elf"));
     module.set_by_key("image_addr", Value::new_addr(image_addr));
     module.set_by_key("image_size",
                       Value::new_int32((int32_t)(image_end_addr - image_addr)));

@@ -89,8 +89,6 @@ sentry_uuid_t sentry_capture_event(sentry_value_t evt) {
         event = Value::consume(opts->before_send(event.lower(), nullptr));
     }
 
-    printf("%s\n", event.to_json().c_str());
-
     if (opts->transport && !event.is_null()) {
         opts->transport->send_event(event);
     }
