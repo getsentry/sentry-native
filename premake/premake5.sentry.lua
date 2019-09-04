@@ -155,6 +155,9 @@ project "sentry_tests"
   includedirs {
     SRC_ROOT.."/src",
   }
+  defines {
+    "SENTRY_WITH_TESTS"
+  }
 
   files {
     SRC_ROOT.."/src/**.c",
