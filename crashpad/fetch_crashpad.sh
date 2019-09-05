@@ -7,10 +7,11 @@ cd "$SCRIPT_DIR"
 mkdir -p build
 cd build
 
-# Install depot_tools
+# Install latest depot_tools
 if [ -d depot_tools ]; then
   pushd depot_tools
-  git pull -r
+  git fetch
+  git checkout -f origin/master
   popd
 else
   git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
@@ -24,9 +25,14 @@ if [[ "${TF_BUILD:-}" == "True" ]]; then
   git config --global user.name "CI build"
 fi
 
-$FETCH_CMD crashpad
+if [ -d crashpad ]; then
+  gclient sync
+else
+  $FETCH_CMD crashpad
+fi
+
 cd crashpad
-git remote add getsentry https://github.com/getsentry/crashpad
+git remote add getsentry https://github.com/getsentry/crashpad || true
 git fetch getsentry getsentry
 git checkout -f getsentry/getsentry
 git log -1
