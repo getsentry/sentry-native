@@ -10,8 +10,9 @@ Platforms we are going to support eventually: MacOS X, Linux (32/64 bit), Window
   - [What is inside](#what-is-inside)
 - [Build Prerequisites](#build-prerequisites)
   - [MacOS](#macos)
+  - [Linux](#linux)
   - [Windows](#windows)
-- [Building Crashpad + Sentry-Native](#building-crashpad--Sentry-Native)
+- [Building Crashpad + Sentry-Native](#building-crashpad--sentry-native)
   - [MacOS](#macos-1)
   - [Windows](#windows-1)
   - [Sample Application](#sample-application)
@@ -42,7 +43,13 @@ In order to build the provided source files, you will need the following softwar
 
 - [Xcode](https://developer.apple.com/xcode/) (can be installed from Mac App Store)
 - [GNU make](https://www.gnu.org/software/make/)
-- [clang](https://clang.llvm.org/)
+- [clang](https://clang.llvm.org/) 3.9+
+
+### Linux
+
+- [GNU make](https://www.gnu.org/software/make/)
+- [clang](https://clang.llvm.org/) 3.9+
+- uuid-dev (on Ubuntu)
 
 ### Windows
 
