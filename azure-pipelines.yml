@@ -35,9 +35,9 @@ stages:
               artifactName: $(ARTIFACT_DIR)
 
   - stage: build_per_platform
-    displayName: Build Crashpad
+    displayName: Build All
     jobs:
-      - template: azure-pipelines/build-crashpad.yml
+      - template: azure-pipelines/build-platform.yml
         parameters:
           vmImage: "macos-10.13"
           platform: "macosx"
@@ -48,8 +48,9 @@ stages:
 
             # Smoke test
             ./bin/Release/sentry_example_crashpad || true
+            ./bin/Release/sentry_example_breakpad || true
 
-      - template: azure-pipelines/build-crashpad.yml
+      - template: azure-pipelines/build-platform.yml
         parameters:
           vmImage: "vs2017-win2016"
           platform: "windows"
@@ -60,6 +61,21 @@ stages:
 
             # Smoke test
             ./bin/x64/Release/sentry_example_crashpad.exe || true
+            ./bin/x64/Release/sentry_example_breakpad.exe || true
+
+      - template: azure-pipelines/build-platform.yml
+        parameters:
+          vmImage: "ubuntu-16.04"
+          platform: "linux"
+          buildSystem: "gmake2"
+          continueOnError: true
+          buildScript: |
+            make help
+            make
+
+            # Smoke test
+            ./bin/Release/sentry_example_crashpad || true
+            ./bin/Release/sentry_example_breakpad || true
 
   - stage: package_all
     displayName: Package the final archive
@@ -86,16 +102,16 @@ stages:
               # Copy gen_* directories from available archives
               for PLATFORM in "${PLATFORMS[@]}"; do
                 rm -rf ./sentry-native
-                unzip -q "../${ARTIFACT_DIR}/sentry-native-crashpad-${PLATFORM}.zip"
+                unzip -q "../${ARTIFACT_DIR}/sentry-native-${PLATFORM}.zip"
                 rm -rf "./sp-sources/gen_${PLATFORM}"
                 mv "sentry-native/gen_${PLATFORM}" "./sp-sources/gen_${PLATFORM}"
               done
               rm -rf ./sentry-native
 
               mv sp-sources sentry-native
-              zip -r sentry-native-crashpad-all sentry-native/
+              zip -r sentry-native-all sentry-native/
 
           - task: PublishBuildArtifacts@1
             inputs:
-              pathtoPublish: 'out/sentry-native-crashpad-all.zip'
+              pathtoPublish: 'out/sentry-native-all.zip'
               artifactName: $(ARTIFACT_DIR)

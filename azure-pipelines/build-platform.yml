@@ -5,10 +5,12 @@ parameters:
   buildScript: |
     echo "Nothing to build"
     exit 1
+  continueOnError: false
 
 jobs:
-  - job: crashpad_${{ parameters.platform }}
-    displayName: Sentry-Native + Crashpad (${{ parameters.platform }}, x86_64)
+  - job: sentry_native_${{ parameters.platform }}
+    displayName: Sentry-Native (${{ parameters.platform }})
+    continueOnError: ${{ parameters.continueOnError }}
     pool:
       vmImage: ${{ parameters.vmImage }}
     variables:
@@ -39,12 +41,12 @@ jobs:
           cd "${PLATFORM_BUILD_DIR}"
           premake5 "${BUILD_SYSTEM}" --os="${PLATFORM}"
           cd ../..
-          $ZIP "sentry-native-crashpad-${PLATFORM}.zip" "${PACKAGE_DIR}"
+          $ZIP "sentry-native-${PLATFORM}.zip" "${PACKAGE_DIR}"
         displayName: "Package generated build files"
 
       - task: PublishBuildArtifacts@1
         inputs:
-          pathtoPublish: "sentry-native-crashpad-$(PLATFORM).zip"
+          pathtoPublish: "sentry-native-$(PLATFORM).zip"
           artifactName: $(ARTIFACT_DIR)
 
       - bash: |
