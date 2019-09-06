@@ -83,9 +83,9 @@ project "sentry_crashpad"
 
   -- Crashpad
   links {
-    "crashpad_minichromium_base",
     "crashpad_client",
     "crashpad_util",
+    "crashpad_minichromium_base",
   }
 
   filter "system:macosx"
@@ -162,7 +162,7 @@ project "sentry_example_breakpad"
 
   links {
     "sentry_breakpad",
-    "dl"
+    "dl",
   }
 
   files {

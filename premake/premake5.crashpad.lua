@@ -404,7 +404,7 @@ project "crashpad_util"
       "CRASHPAD_ZLIB_SOURCE_EMBEDDED",
     }
     includedirs {
-      SRC_ROOT.."/third_party/zlib/zlib",
+      SRC_ROOT.."/third_party/zlib",
     }
 
     files {

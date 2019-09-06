@@ -13,6 +13,9 @@ function breakpad_common()
   flags {
   }
 
+  filter "system:macosx or linux"
+    toolset("clang")
+
   filter "system:macosx"
     defines {
       -- MacOS only?
