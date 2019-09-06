@@ -590,7 +590,7 @@ project "crashpad_minidump"
 
 
 project "crashpad_handler"
-  kind "WindowedApp"
+  kind "ConsoleApp"
   crashpad_common()
   links {
     "crashpad_minichromium_base",
@@ -648,6 +648,8 @@ project "crashpad_handler"
     }
 
   filter "system:windows"
+    -- Do not show console window when starting the handler
+    kind "WindowedApp"
     files {
       SRC_ROOT.."/handler/win/crash_report_exception_handler.cc",
 

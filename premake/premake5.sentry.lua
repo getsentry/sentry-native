@@ -12,9 +12,30 @@ function sentry_native_common()
   filter "system:macosx or linux"
     toolset("clang")
 
+  filter "system:macosx"
+    links {
+			"curl",
+    }
+    defines {
+      "SENTRY_WITH_LIBCURL_TRANSPORT",
+    }
+
+  filter "system:linux"
+    links {
+      "pthread",
+      "uuid",
+      "curl",
+    }
+    defines {
+      "SENTRY_WITH_LIBCURL_TRANSPORT",
+    }
+
   filter "system:windows"
     buildoptions {
       "/wd4201",  -- nonstandard extension used : nameless struct/union
+    }
+    defines {
+      "SENTRY_WITH_WINHTTP_TRANSPORT",
     }
 
   filter {}
@@ -60,23 +81,10 @@ project "sentry_crashpad"
       "CoreGraphics.framework",
       "IOKit.framework",
       "bsm",
-			"curl",
     }
-    defines {
-      "SENTRY_WITH_LIBCURL_TRANSPORT",
-    }
-  filter "system:linux"
-    links {
-      "pthread",
-      "uuid"
-    }
-    defines {
-    }
+
   filter "system:windows"
     links {
-    }
-    defines {
-      "SENTRY_WITH_WINHTTP_TRANSPORT",
     }
 
 project "sentry_breakpad"
@@ -115,17 +123,11 @@ project "sentry_breakpad"
     }
     defines {
     }
-  filter "system:linux"
-    -- System
-    links {
-      "pthread",
-      "uuid",
-    }
-    defines {
-    }
+
   filter "system:windows"
     defines {
     }
+
   filter {}
 
 project "sentry_example_crashpad"

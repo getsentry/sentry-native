@@ -6,7 +6,7 @@
 #ifdef _WIN32
 const char *handler_path = "bin/Release/crashpad_handler.exe";
 #else
-const char *handler_path = "bin/Debug/crashpad_handler";
+const char *handler_path = "bin/Release/crashpad_handler";
 #endif
 
 int main(void) {
