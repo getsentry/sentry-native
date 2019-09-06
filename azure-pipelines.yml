@@ -104,7 +104,7 @@ stages:
               cd out
               unzip -q "../${ARTIFACT_DIR}/sp-sources.zip"
 
-              PLATFORMS=(macosx windows)
+              PLATFORMS=(macosx windows linux)
 
               # Copy gen_* directories from available archives
               for PLATFORM in "${PLATFORMS[@]}"; do

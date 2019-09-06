@@ -32,7 +32,7 @@ function breakpad_common()
 
   filter {"system:windows", "platforms:Win32"}
     libdirs {"$(VSInstallDir)/DIA SDK/lib"}
-  filter {"system:windows", "platforms:Win64"}
+  filter {"system:windows", "platforms:x64"}
     libdirs {"$(VSInstallDir)/DIA SDK/lib/amd64"}
 
   filter {}
