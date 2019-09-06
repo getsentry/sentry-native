@@ -2,9 +2,9 @@
 #define SENTRY_VALUE_HPP_INCLUDED
 
 #include <assert.h>
-#include <math.h>
 #include <algorithm>
 #include <atomic>
+#include <cmath>
 #include <map>
 #include <sstream>
 #include <string>
@@ -180,7 +180,7 @@ class Value {
         // if we are a nan value we want to become the max double value which
         // is a NAN.
         Value rv;
-        if (isnan(val)) {
+        if (std::isnan(val)) {
             rv.m_repr._bits = MAX_DOUBLE;
         } else {
             rv.m_repr._double = val;
