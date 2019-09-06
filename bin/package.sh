@@ -28,7 +28,9 @@ fetch_crashpad() {
     # Fetch crashpad and its dependencies
     bash "$CRASHPAD_OUT_DIR/fetch_crashpad.sh"
     # Clean up unneeded files
-    rm -rf $CRASHPAD_OUT_DIR/build/{depot_tools,buildtools} $CRASHPAD_OUT_DIR/build/crashpad/third_party/{gtest,gyp}
+    rm -rf $CRASHPAD_OUT_DIR/build/{depot_tools,buildtools} \
+           $CRASHPAD_OUT_DIR/build/crashpad/third_party/{gtest,gyp} \
+           $CRASHPAD_OUT_DIR/build/crashpad/{.git,doc,test}
 }
 
 
@@ -47,6 +49,8 @@ fetch_breakpad() {
 
     # Fetch breakpad and its dependencies
     bash "$BREAKPAD_OUT_DIR/fetch_breakpad.sh"
+    rm -rf $BREAKPAD_OUT_DIR/build/breakpad/{.git,docs} \
+           $BREAKPAD_OUT_DIR/build/breakpad/src/{tools,processor}
 }
 
 
@@ -64,7 +68,7 @@ else
     git checkout -f "$SENTRY_NATIVE_REVISION"
 fi
 
-SENTRY_NATIVE_SRC=("examples" "include" "src" "premake" "README.md")
+SENTRY_NATIVE_SRC=("examples" "include" "src" "premake" "README.md" "tests")
 
 # Copy files
 for f in "${SENTRY_NATIVE_SRC[@]}"; do

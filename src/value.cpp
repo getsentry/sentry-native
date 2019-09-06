@@ -147,7 +147,7 @@ void Value::to_json(std::stringstream &out) const {
             break;
         case SENTRY_VALUE_TYPE_DOUBLE: {
             double val = this->as_double();
-            if (isnan(val) || isinf(val)) {
+            if (std::isnan(val) || std::isinf(val)) {
                 out << "null";
             } else {
                 out << val;

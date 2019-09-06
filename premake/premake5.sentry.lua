@@ -3,6 +3,7 @@ workspace "Sentry-Native"
 function sentry_native_common()
   language "C++"
   cppdialect "C++14"
+
   includedirs {
     SRC_ROOT.."/include",
   }
@@ -20,19 +21,7 @@ function sentry_native_common()
   filter {}
 end
 
-project "sentry_crashpad"
-  kind "SharedLib"
-  sentry_native_common()
-
-  defines {
-    "SENTRY_WITH_CRASHPAD_BACKEND"
-  }
-  includedirs {
-    CRASHPAD_PKG,
-    CRASHPAD_PKG.."/include",
-    CRASHPAD_PKG.."/third_party/mini_chromium/mini_chromium",
-  }
-
+function sentry_native_library()
   libdirs {
     "bin/Release",
   }
@@ -44,11 +33,60 @@ project "sentry_crashpad"
     SRC_ROOT.."/src/**.hpp",
   }
 
+  filter "system:macosx"
+    links {
+      "curl",
+    }
+    defines {
+      "SENTRY_WITH_LIBCURL_TRANSPORT",
+    }
+
+  filter "system:linux"
+    links {
+      "pthread",
+      "uuid",
+      "curl",
+    }
+    defines {
+      "SENTRY_WITH_LIBCURL_TRANSPORT",
+    }
+
+  filter "system:windows"
+    links {
+      "winhttp.lib",
+      "rpcrt4.lib",  -- for UUID operations
+    }
+    defines {
+      "SENTRY_WITH_WINHTTP_TRANSPORT",
+    }
+
+  filter {}
+end
+
+project "sentry"
+  kind "SharedLib"
+  sentry_native_common()
+  sentry_native_library()
+
+project "sentry_crashpad"
+  kind "SharedLib"
+  sentry_native_common()
+  sentry_native_library()
+
+  defines {
+    "SENTRY_WITH_CRASHPAD_BACKEND"
+  }
+  includedirs {
+    CRASHPAD_PKG,
+    CRASHPAD_PKG.."/include",
+    CRASHPAD_PKG.."/third_party/mini_chromium/mini_chromium",
+  }
+
   -- Crashpad
   links {
-    "crashpad_minichromium_base",
     "crashpad_client",
     "crashpad_util",
+    "crashpad_minichromium_base",
   }
 
   filter "system:macosx"
@@ -60,46 +98,23 @@ project "sentry_crashpad"
       "CoreGraphics.framework",
       "IOKit.framework",
       "bsm",
-			"curl",
     }
-    defines {
-      "SENTRY_WITH_LIBCURL_TRANSPORT",
-    }
-  filter "system:linux"
-    links {
-      "pthread",
-      "uuid"
-    }
-    defines {
-    }
-  filter "system:windows"
-    links {
-    }
-    defines {
-      "SENTRY_WITH_WINHTTP_TRANSPORT",
-    }
+
+  filter {}
 
 project "sentry_breakpad"
   kind "SharedLib"
   sentry_native_common()
+  sentry_native_library()
 
-  defines {"SENTRY_WITH_BREAKPAD_BACKEND"}
+  defines {
+    "SENTRY_WITH_BREAKPAD_BACKEND"
+  }
   buildoptions {
     "-fvisibility=hidden",
   }
   includedirs {
     BREAKPAD_PKG.."/include",
-  }
-
-  libdirs {
-    "bin/Release"
-  }
-
-  files {
-    SRC_ROOT.."/src/**.c",
-    SRC_ROOT.."/src/**.h",
-    SRC_ROOT.."/src/**.cpp",
-    SRC_ROOT.."/src/**.hpp",
   }
 
   -- Breakpad
@@ -115,24 +130,28 @@ project "sentry_breakpad"
     }
     defines {
     }
-  filter "system:linux"
-    -- System
-    links {
-      "pthread",
-      "uuid",
-    }
-    defines {
-    }
-  filter "system:windows"
-    defines {
-    }
+
   filter {}
+
+project "sentry_example"
+  kind "ConsoleApp"
+  sentry_native_common()
+
+  links {
+    "sentry",
+  }
+
+  files {
+    SRC_ROOT.."/examples/sentry.c",
+  }
 
 project "sentry_example_crashpad"
   kind "ConsoleApp"
   sentry_native_common()
 
-  links {"sentry_crashpad"}
+  links {
+    "sentry_crashpad"
+  }
 
   files {
     SRC_ROOT.."/examples/sentry_crashpad.c",
@@ -142,7 +161,9 @@ project "sentry_example_breakpad"
   kind "ConsoleApp"
   sentry_native_common()
 
-  links {"sentry_breakpad", "dl"}
+  links {
+    "sentry_breakpad",
+  }
 
   files {
     SRC_ROOT.."/examples/sentry_breakpad.c",
@@ -151,6 +172,8 @@ project "sentry_example_breakpad"
 project "sentry_tests"
   kind "ConsoleApp"
   sentry_native_common()
+  -- We compile the exe, but with the library settings
+  sentry_native_library()
 
   includedirs {
     SRC_ROOT.."/src",
@@ -160,9 +183,5 @@ project "sentry_tests"
   }
 
   files {
-    SRC_ROOT.."/src/**.c",
-    SRC_ROOT.."/src/**.h",
-    SRC_ROOT.."/src/**.cpp",
-    SRC_ROOT.."/src/**.hpp",
     SRC_ROOT.."/tests/**.cpp",
   }

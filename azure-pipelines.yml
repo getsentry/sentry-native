@@ -35,9 +35,9 @@ stages:
               artifactName: $(ARTIFACT_DIR)
 
   - stage: build_per_platform
-    displayName: Build Crashpad
+    displayName: Build All
     jobs:
-      - template: azure-pipelines/build-crashpad.yml
+      - template: azure-pipelines/build-platform.yml
         parameters:
           vmImage: "macos-10.13"
           platform: "macosx"
@@ -46,10 +46,12 @@ stages:
             make help
             make
 
-            # Smoke test
+            # Smoke tests
+            ./bin/Release/sentry_example || true
             ./bin/Release/sentry_example_crashpad || true
+            ./bin/Release/sentry_example_breakpad || true
 
-      - template: azure-pipelines/build-crashpad.yml
+      - template: azure-pipelines/build-platform.yml
         parameters:
           vmImage: "vs2017-win2016"
           platform: "windows"
@@ -59,7 +61,28 @@ stages:
             "$MSBUILD" Sentry-Native.sln //m //p:Configuration=Release //p:Platform=x64 //t:Clean,Build
 
             # Smoke test
+            ./bin/x64/Release/sentry_example.exe || true
             ./bin/x64/Release/sentry_example_crashpad.exe || true
+            ./bin/x64/Release/sentry_example_breakpad.exe || true
+
+      - template: azure-pipelines/build-platform.yml
+        parameters:
+          vmImage: "ubuntu-16.04"
+          platform: "linux"
+          buildSystem: "gmake2"
+          continueOnError: true
+          buildScript: |
+            # TODO: add "Install" step
+            sudo apt-get update && \
+              sudo apt-get install -y uuid-dev libcurl4-openssl-dev
+
+            make help
+            make
+
+            # Smoke tests
+            ./bin/Release/sentry_example || true
+            ./bin/Release/sentry_example_breakpad || true
+            ./bin/Release/sentry_example_breakpad || true
 
   - stage: package_all
     displayName: Package the final archive
@@ -81,21 +104,21 @@ stages:
               cd out
               unzip -q "../${ARTIFACT_DIR}/sp-sources.zip"
 
-              PLATFORMS=(macosx windows)
+              PLATFORMS=(macosx windows linux)
 
               # Copy gen_* directories from available archives
               for PLATFORM in "${PLATFORMS[@]}"; do
                 rm -rf ./sentry-native
-                unzip -q "../${ARTIFACT_DIR}/sentry-native-crashpad-${PLATFORM}.zip"
+                unzip -q "../${ARTIFACT_DIR}/sentry-native-${PLATFORM}.zip"
                 rm -rf "./sp-sources/gen_${PLATFORM}"
                 mv "sentry-native/gen_${PLATFORM}" "./sp-sources/gen_${PLATFORM}"
               done
               rm -rf ./sentry-native
 
               mv sp-sources sentry-native
-              zip -r sentry-native-crashpad-all sentry-native/
+              zip -r sentry-native-all sentry-native/
 
           - task: PublishBuildArtifacts@1
             inputs:
-              pathtoPublish: 'out/sentry-native-crashpad-all.zip'
+              pathtoPublish: 'out/sentry-native-all.zip'
               artifactName: $(ARTIFACT_DIR)
