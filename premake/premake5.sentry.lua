@@ -52,6 +52,9 @@ function sentry_native_library()
     }
 
   filter "system:windows"
+    links {
+      "winhttp.lib"
+    }
     defines {
       "SENTRY_WITH_WINHTTP_TRANSPORT",
     }
