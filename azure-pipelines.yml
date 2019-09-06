@@ -46,7 +46,8 @@ stages:
             make help
             make
 
-            # Smoke test
+            # Smoke tests
+            ./bin/Release/sentry_example || true
             ./bin/Release/sentry_example_crashpad || true
             ./bin/Release/sentry_example_breakpad || true
 
@@ -60,6 +61,7 @@ stages:
             "$MSBUILD" Sentry-Native.sln //m //p:Configuration=Release //p:Platform=x64 //t:Clean,Build
 
             # Smoke test
+            ./bin/x64/Release/sentry_example.exe || true
             ./bin/x64/Release/sentry_example_crashpad.exe || true
             ./bin/x64/Release/sentry_example_breakpad.exe || true
 
@@ -77,8 +79,9 @@ stages:
             make help
             make
 
-            # Smoke test
-            ./bin/Release/sentry_example_crashpad || true
+            # Smoke tests
+            ./bin/Release/sentry_example || true
+            ./bin/Release/sentry_example_breakpad || true
             ./bin/Release/sentry_example_breakpad || true
 
   - stage: package_all

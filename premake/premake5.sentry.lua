@@ -53,7 +53,8 @@ function sentry_native_library()
 
   filter "system:windows"
     links {
-      "winhttp.lib"
+      "winhttp.lib",
+      "Rpcrt4.lib",  -- for UUID operations
     }
     defines {
       "SENTRY_WITH_WINHTTP_TRANSPORT",
