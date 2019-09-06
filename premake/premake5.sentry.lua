@@ -163,7 +163,6 @@ project "sentry_example_breakpad"
 
   links {
     "sentry_breakpad",
-    "dl",
   }
 
   files {
