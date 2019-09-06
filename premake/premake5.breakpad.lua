@@ -30,10 +30,10 @@ function breakpad_common()
       "BPLOG_MINIMUM_SEVERITY=SEVERITY_ERROR",
     }
 
-  filter {"system:windows", "platforms:Win32"}
-    libdirs {"$(VSInstallDir)/DIA SDK/lib"}
-  filter {"system:windows", "platforms:x64"}
-    libdirs {"$(VSInstallDir)/DIA SDK/lib/amd64"}
+  filter "system:windows"
+    includedirs {
+      "$(VSInstallDir)/DIA SDK/include"
+    }
 
   filter {}
 end
