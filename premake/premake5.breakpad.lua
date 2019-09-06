@@ -32,161 +32,160 @@ function breakpad_common()
   filter {}
 end
 
-project "breakpad_dump_syms"
-  kind "ConsoleApp"
-  breakpad_common()
+-- project "breakpad_dump_syms"
+--   kind "ConsoleApp"
+--   breakpad_common()
 
-  filter "system:macosx"
-    files {
-      SRC_ROOT.."/src/common/*.c",
-      SRC_ROOT.."/src/common/*.cc",
-      SRC_ROOT.."/src/common/mac/*.cc",
-      SRC_ROOT.."/src/common/dwarf/*.cc",
-      SRC_ROOT.."/src/tools/mac/dump_syms/dump_syms_tool.cc",
-    }
+--   filter "system:macosx"
+--     files {
+--       SRC_ROOT.."/src/common/*.c",
+--       SRC_ROOT.."/src/common/*.cc",
+--       SRC_ROOT.."/src/common/mac/*.cc",
+--       SRC_ROOT.."/src/common/dwarf/*.cc",
+--       SRC_ROOT.."/src/tools/mac/dump_syms/dump_syms_tool.cc",
+--     }
 
-  filter "system:linux"
-    files {
-      SRC_ROOT.."/src/common/dwarf_cfi_to_module.cc",
-      SRC_ROOT.."/src/common/dwarf_cu_to_module.cc",
-      SRC_ROOT.."/src/common/dwarf_line_to_module.cc",
-      SRC_ROOT.."/src/common/dwarf_range_list_handler.cc",
-      SRC_ROOT.."/src/common/language.cc",
-      SRC_ROOT.."/src/common/module.cc",
-      SRC_ROOT.."/src/common/path_helper.cc",
-      SRC_ROOT.."/src/common/stabs_reader.cc",
-      SRC_ROOT.."/src/common/stabs_to_module.cc",
-      SRC_ROOT.."/src/common/dwarf/bytereader.cc",
-      SRC_ROOT.."/src/common/dwarf/dwarf2diehandler.cc",
-      SRC_ROOT.."/src/common/dwarf/dwarf2reader.cc",
-      SRC_ROOT.."/src/common/dwarf/elf_reader.cc",
-      SRC_ROOT.."/src/common/linux/crc32.cc",
-      SRC_ROOT.."/src/common/linux/dump_symbols.cc",
-      SRC_ROOT.."/src/common/linux/elf_symbols_to_module.cc",
-      SRC_ROOT.."/src/common/linux/elfutils.cc",
-      SRC_ROOT.."/src/common/linux/file_id.cc",
-      SRC_ROOT.."/src/common/linux/linux_libc_support.cc",
-      SRC_ROOT.."/src/common/linux/memory_mapped_file.cc",
-      SRC_ROOT.."/src/common/linux/safe_readlink.cc",
-      SRC_ROOT.."/src/tools/linux/dump_syms/dump_syms.cc",
-    }
-  filter "system:windows"
-    links {"imagehlp.lib", "diaguids.lib"}
-    files {
-      SRC_ROOT.."/src/common/windows/dia_util.cc",
-      SRC_ROOT.."/src/common/windows/guid_string.cc",
-      SRC_ROOT.."/src/common/windows/omap.cc",
-      SRC_ROOT.."/src/common/windows/pdb_source_line_writer.cc",
-      SRC_ROOT.."/src/common/windows/string_utils.cc",
-      SRC_ROOT.."/src/tools/windows/dump_syms/dump_syms.cc",
-    }
-  filter {"system:windows", "platforms:Win32"}
-    libdirs {"$(VSInstallDir)/DIA SDK/lib"}
-  filter {"system:windows", "platforms:Win64"}
-    libdirs {"$(VSInstallDir)/DIA SDK/lib/amd64"}
+--   filter "system:linux"
+--     files {
+--       SRC_ROOT.."/src/common/dwarf_cfi_to_module.cc",
+--       SRC_ROOT.."/src/common/dwarf_cu_to_module.cc",
+--       SRC_ROOT.."/src/common/dwarf_line_to_module.cc",
+--       SRC_ROOT.."/src/common/dwarf_range_list_handler.cc",
+--       SRC_ROOT.."/src/common/language.cc",
+--       SRC_ROOT.."/src/common/module.cc",
+--       SRC_ROOT.."/src/common/path_helper.cc",
+--       SRC_ROOT.."/src/common/stabs_reader.cc",
+--       SRC_ROOT.."/src/common/stabs_to_module.cc",
+--       SRC_ROOT.."/src/common/dwarf/bytereader.cc",
+--       SRC_ROOT.."/src/common/dwarf/dwarf2diehandler.cc",
+--       SRC_ROOT.."/src/common/dwarf/dwarf2reader.cc",
+--       SRC_ROOT.."/src/common/dwarf/elf_reader.cc",
+--       SRC_ROOT.."/src/common/linux/crc32.cc",
+--       SRC_ROOT.."/src/common/linux/dump_symbols.cc",
+--       SRC_ROOT.."/src/common/linux/elf_symbols_to_module.cc",
+--       SRC_ROOT.."/src/common/linux/elfutils.cc",
+--       SRC_ROOT.."/src/common/linux/file_id.cc",
+--       SRC_ROOT.."/src/common/linux/linux_libc_support.cc",
+--       SRC_ROOT.."/src/common/linux/memory_mapped_file.cc",
+--       SRC_ROOT.."/src/common/linux/safe_readlink.cc",
+--       SRC_ROOT.."/src/tools/linux/dump_syms/dump_syms.cc",
+--     }
+--   filter "system:windows"
+--     links {"imagehlp.lib", "diaguids.lib"}
+--     files {
+--       SRC_ROOT.."/src/common/windows/dia_util.cc",
+--       SRC_ROOT.."/src/common/windows/guid_string.cc",
+--       SRC_ROOT.."/src/common/windows/omap.cc",
+--       SRC_ROOT.."/src/common/windows/pdb_source_line_writer.cc",
+--       SRC_ROOT.."/src/common/windows/string_utils.cc",
+--       SRC_ROOT.."/src/tools/windows/dump_syms/dump_syms.cc",
+--     }
+--   filter {"system:windows", "platforms:Win32"}
+--     libdirs {"$(VSInstallDir)/DIA SDK/lib"}
+--   filter {"system:windows", "platforms:Win64"}
+--     libdirs {"$(VSInstallDir)/DIA SDK/lib/amd64"}
 
-  filter {}
+--   filter {}
 
-  removefiles {
-    SRC_ROOT.."/src/**/*_unittest.cc",
-    SRC_ROOT.."/src/**/*_test.cc",
-  }
+--   removefiles {
+--     SRC_ROOT.."/src/**/*_unittest.cc",
+--     SRC_ROOT.."/src/**/*_test.cc",
+--   }
 
-project "breakpad_minidump_dump"
-  kind "ConsoleApp"
-  breakpad_common()
+-- project "breakpad_minidump_dump"
+--   kind "ConsoleApp"
+--   breakpad_common()
 
-  files {
-    SRC_ROOT.."/src/processor/minidump_dump.cc",
-    SRC_ROOT.."/src/processor/basic_code_modules.cc",
-    SRC_ROOT.."/src/processor/convert_old_arm64_context.cc",
-    SRC_ROOT.."/src/processor/dump_context.cc",
-    SRC_ROOT.."/src/processor/dump_object.cc",
-    SRC_ROOT.."/src/processor/logging.cc",
-    SRC_ROOT.."/src/processor/minidump.cc",
-    SRC_ROOT.."/src/processor/pathname_stripper.cc",
-    SRC_ROOT.."/src/processor/proc_maps_linux.cc",
-  }
-  removefiles {
-    SRC_ROOT.."/src/**/*_unittest.cc",
-    SRC_ROOT.."/src/**/*_test.cc",
-  }
+--   files {
+--     SRC_ROOT.."/src/processor/minidump_dump.cc",
+--     SRC_ROOT.."/src/processor/basic_code_modules.cc",
+--     SRC_ROOT.."/src/processor/convert_old_arm64_context.cc",
+--     SRC_ROOT.."/src/processor/dump_context.cc",
+--     SRC_ROOT.."/src/processor/dump_object.cc",
+--     SRC_ROOT.."/src/processor/logging.cc",
+--     SRC_ROOT.."/src/processor/minidump.cc",
+--     SRC_ROOT.."/src/processor/pathname_stripper.cc",
+--     SRC_ROOT.."/src/processor/proc_maps_linux.cc",
+--   }
+--   removefiles {
+--     SRC_ROOT.."/src/**/*_unittest.cc",
+--     SRC_ROOT.."/src/**/*_test.cc",
+--   }
 
-  filter "system:windows"
-    -- This project cannot be currently compiled on Windows
-    removefiles {SRC_ROOT.."/src/**"}
+--   filter "system:windows"
+--     -- This project cannot be currently compiled on Windows
+--     removefiles {SRC_ROOT.."/src/**"}
 
-project "breakpad_minidump_stackwalk"
-  kind "ConsoleApp"
-  breakpad_common()
+-- project "breakpad_minidump_stackwalk"
+--   kind "ConsoleApp"
+--   breakpad_common()
 
-  links {"breakpad_disasm"}
+--   links {"breakpad_disasm"}
 
-  files {
-    SRC_ROOT.."/src/processor/minidump_stackwalk.cc",
-    SRC_ROOT.."/src/common/path_helper.cc",
-    SRC_ROOT.."/src/processor/basic_code_modules.cc",
-    SRC_ROOT.."/src/processor/basic_source_line_resolver.cc",
-    SRC_ROOT.."/src/processor/call_stack.cc",
-    SRC_ROOT.."/src/processor/cfi_frame_info.cc",
-    SRC_ROOT.."/src/processor/convert_old_arm64_context.cc",
-    SRC_ROOT.."/src/processor/disassembler_x86.cc",
-    SRC_ROOT.."/src/processor/dump_context.cc",
-    SRC_ROOT.."/src/processor/dump_object.cc",
-    SRC_ROOT.."/src/processor/exploitability.cc",
-    SRC_ROOT.."/src/processor/exploitability_linux.cc",
-    SRC_ROOT.."/src/processor/exploitability_win.cc",
-    SRC_ROOT.."/src/processor/logging.cc",
-    SRC_ROOT.."/src/processor/minidump.cc",
-    SRC_ROOT.."/src/processor/minidump_processor.cc",
-    SRC_ROOT.."/src/processor/pathname_stripper.cc",
-    SRC_ROOT.."/src/processor/process_state.cc",
-    SRC_ROOT.."/src/processor/proc_maps_linux.cc",
-    SRC_ROOT.."/src/processor/simple_symbol_supplier.cc",
-    SRC_ROOT.."/src/processor/source_line_resolver_base.cc",
-    SRC_ROOT.."/src/processor/stack_frame_cpu.cc",
-    SRC_ROOT.."/src/processor/stack_frame_symbolizer.cc",
-    SRC_ROOT.."/src/processor/stackwalk_common.cc",
-    SRC_ROOT.."/src/processor/stackwalker*.cc",
-    SRC_ROOT.."/src/processor/symbolic_constants_win.cc",
-    SRC_ROOT.."/src/processor/tokenize.cc",
-  }
-  removefiles {
-    SRC_ROOT.."/src/**/*_unittest.cc",
-    SRC_ROOT.."/src/**/*test.cc",
-  }
+--   files {
+--     SRC_ROOT.."/src/processor/minidump_stackwalk.cc",
+--     SRC_ROOT.."/src/common/path_helper.cc",
+--     SRC_ROOT.."/src/processor/basic_code_modules.cc",
+--     SRC_ROOT.."/src/processor/basic_source_line_resolver.cc",
+--     SRC_ROOT.."/src/processor/call_stack.cc",
+--     SRC_ROOT.."/src/processor/cfi_frame_info.cc",
+--     SRC_ROOT.."/src/processor/convert_old_arm64_context.cc",
+--     SRC_ROOT.."/src/processor/disassembler_x86.cc",
+--     SRC_ROOT.."/src/processor/dump_context.cc",
+--     SRC_ROOT.."/src/processor/dump_object.cc",
+--     SRC_ROOT.."/src/processor/exploitability.cc",
+--     SRC_ROOT.."/src/processor/exploitability_linux.cc",
+--     SRC_ROOT.."/src/processor/exploitability_win.cc",
+--     SRC_ROOT.."/src/processor/logging.cc",
+--     SRC_ROOT.."/src/processor/minidump.cc",
+--     SRC_ROOT.."/src/processor/minidump_processor.cc",
+--     SRC_ROOT.."/src/processor/pathname_stripper.cc",
+--     SRC_ROOT.."/src/processor/process_state.cc",
+--     SRC_ROOT.."/src/processor/proc_maps_linux.cc",
+--     SRC_ROOT.."/src/processor/simple_symbol_supplier.cc",
+--     SRC_ROOT.."/src/processor/source_line_resolver_base.cc",
+--     SRC_ROOT.."/src/processor/stack_frame_cpu.cc",
+--     SRC_ROOT.."/src/processor/stack_frame_symbolizer.cc",
+--     SRC_ROOT.."/src/processor/stackwalk_common.cc",
+--     SRC_ROOT.."/src/processor/stackwalker*.cc",
+--     SRC_ROOT.."/src/processor/symbolic_constants_win.cc",
+--     SRC_ROOT.."/src/processor/tokenize.cc",
+--   }
+--   removefiles {
+--     SRC_ROOT.."/src/**/*_unittest.cc",
+--     SRC_ROOT.."/src/**/*test.cc",
+--   }
 
-  filter "system:windows"
-    -- This project cannot be currently compiled on Windows
-    removefiles {SRC_ROOT.."/src/**"}
-    removelinks {"*"}
+--   filter "system:windows"
+--     -- This project cannot be currently compiled on Windows
+--     removefiles {SRC_ROOT.."/src/**"}
+--     removelinks {"*"}
 
-project "breakpad_disasm"
-  kind "StaticLib"
-  breakpad_common()
+-- project "breakpad_disasm"
+--   kind "StaticLib"
+--   breakpad_common()
 
-  pic "On"
-  files {
-    SRC_ROOT.."/src/third_party/libdisasm/ia32_implicit.c",
-    SRC_ROOT.."/src/third_party/libdisasm/ia32_insn.c",
-    SRC_ROOT.."/src/third_party/libdisasm/ia32_invariant.c",
-    SRC_ROOT.."/src/third_party/libdisasm/ia32_modrm.c",
-    SRC_ROOT.."/src/third_party/libdisasm/ia32_opcode_tables.c",
-    SRC_ROOT.."/src/third_party/libdisasm/ia32_operand.c",
-    SRC_ROOT.."/src/third_party/libdisasm/ia32_reg.c",
-    SRC_ROOT.."/src/third_party/libdisasm/ia32_settings.c",
-    SRC_ROOT.."/src/third_party/libdisasm/x86_disasm.c",
-    SRC_ROOT.."/src/third_party/libdisasm/x86_format.c",
-    SRC_ROOT.."/src/third_party/libdisasm/x86_imm.c",
-    SRC_ROOT.."/src/third_party/libdisasm/x86_insn.c",
-    SRC_ROOT.."/src/third_party/libdisasm/x86_misc.c",
-    SRC_ROOT.."/src/third_party/libdisasm/x86_operand_list.c",
-  }
-
-  filter "system:windows"
-    -- This project cannot be currently compiled on Windows
-    removefiles {SRC_ROOT.."/src/**"}
-
+--   pic "On"
+--   files {
+--     SRC_ROOT.."/src/third_party/libdisasm/ia32_implicit.c",
+--     SRC_ROOT.."/src/third_party/libdisasm/ia32_insn.c",
+--     SRC_ROOT.."/src/third_party/libdisasm/ia32_invariant.c",
+--     SRC_ROOT.."/src/third_party/libdisasm/ia32_modrm.c",
+--     SRC_ROOT.."/src/third_party/libdisasm/ia32_opcode_tables.c",
+--     SRC_ROOT.."/src/third_party/libdisasm/ia32_operand.c",
+--     SRC_ROOT.."/src/third_party/libdisasm/ia32_reg.c",
+--     SRC_ROOT.."/src/third_party/libdisasm/ia32_settings.c",
+--     SRC_ROOT.."/src/third_party/libdisasm/x86_disasm.c",
+--     SRC_ROOT.."/src/third_party/libdisasm/x86_format.c",
+--     SRC_ROOT.."/src/third_party/libdisasm/x86_imm.c",
+--     SRC_ROOT.."/src/third_party/libdisasm/x86_insn.c",
+--     SRC_ROOT.."/src/third_party/libdisasm/x86_misc.c",
+--     SRC_ROOT.."/src/third_party/libdisasm/x86_operand_list.c",
+--   }
+--
+--   filter "system:windows"
+--   -- This project cannot be currently compiled on Windows
+--     removefiles {SRC_ROOT.."/src/**"}
 
 project "breakpad_client"
   kind "StaticLib"
