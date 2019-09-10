@@ -1,3 +1,5 @@
+PREMAKE_DIR := premake
+
 help:
 	@echo "Usage: make [target]"
 	@echo ""
@@ -31,7 +33,7 @@ clean-crashpad:
 .PHONY: clean-crashpad
 
 clean-sentry:
-	[ -f "premake/Makefile" ] && $(MAKE) -C premake clean || true
+	[ -f "$(PREMAKE_DIR)/Makefile" ] && $(MAKE) -C $(PREMAKE_DIR) clean || true
 	rm -rf ./premake/{bin,obj}
 .PHONY: clean-sentry
 
@@ -39,8 +41,8 @@ clean: clean-breakpad clean-crashpad clean-sentry
 .PHONY: clean
 
 configure:
-	cd premake && premake5 gmake2
+	cd $(PREMAKE_DIR) && premake5 gmake2
 
 test:
-	cd premake && make sentry_tests && ./bin/Release/sentry_tests
+	cd $(PREMAKE_DIR) && make sentry_tests && ./bin/Release/sentry_tests
 .PHONY: test

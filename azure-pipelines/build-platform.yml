@@ -10,6 +10,7 @@ parameters:
   testScript: |
     echo "No tests, skipping"
   continueOnError: false
+  packageDirectory: "sentry-native"
 
 jobs:
   - job: sentry_native_${{ parameters.platform }}
@@ -20,7 +21,8 @@ jobs:
     variables:
       PLATFORM: ${{ parameters.platform }}
       BUILD_SYSTEM: ${{ parameters.buildSystem }}
-      PACKAGE_DIR: "sentry-native"
+      PACKAGE_DIR: ${{ parameters.buildSystem }}
+      PLATFORM_BUILD_DIR: ${{ parameters.buildSystem }}/gen_${{ parameters.platform }}
     steps:
       - template: prescript-common.yml
       - template: install-premake.yml
@@ -39,7 +41,6 @@ jobs:
           unzip -q ./${ARTIFACT_DIR}/sp-sources.zip
           mv sp-sources "${PACKAGE_DIR}"
 
-          PLATFORM_BUILD_DIR="${PACKAGE_DIR}/gen_${PLATFORM}"
           cp -R "${PACKAGE_DIR}/premake" "${PLATFORM_BUILD_DIR}"
 
           cd "${PLATFORM_BUILD_DIR}"
@@ -62,7 +63,7 @@ jobs:
       - bash: |
           set -eux
 
-          cd "${PACKAGE_DIR}/gen_${PLATFORM}"
+          cd "${PLATFORM_BUILD_DIR}"
 
           ${{ parameters.buildScript }}
         displayName: "Run Build Script"
@@ -70,7 +71,7 @@ jobs:
       - bash: |
           set -eux
 
-          cd "${PACKAGE_DIR}/gen_${PLATFORM}"
+          cd "${PLATFORM_BUILD_DIR}"
 
           ${{ parameters.testScript }}
         displayName: "Run Tests"
