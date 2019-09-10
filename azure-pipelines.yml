@@ -51,7 +51,8 @@ stages:
             ./bin/Release/sentry_example_crashpad || true
             ./bin/Release/sentry_example_breakpad || true
 
-            make -C .. PREMAKE_DIR="${PLATFORM_BUILD_DIR}" test
+            # Run tests
+            ./bin/Release/sentry_tests
 
       - template: azure-pipelines/build-platform.yml
         parameters:
@@ -71,7 +72,8 @@ stages:
             ./bin/Release/sentry_example_breakpad || true
             ./bin/Release/sentry_example_breakpad || true
 
-            make -C .. PREMAKE_DIR="${PLATFORM_BUILD_DIR}" test
+            # Run tests
+            ./bin/Release/sentry_tests
 
       - template: azure-pipelines/build-platform.yml
         parameters:
