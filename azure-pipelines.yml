@@ -84,6 +84,8 @@ stages:
             MSBUILD="/c/Program Files (x86)/Microsoft Visual Studio/2017/Enterprise/MSBuild/15.0/Bin/MSBuild.exe"
             "$MSBUILD" Sentry-Native.sln //m //p:Configuration=Release //p:Platform=x64 //t:Clean,Build
           testScript: |
+            ls -alh bin
+            ls -alh bin/*
             # Smoke test
             ./bin/x64/Release/sentry_example.exe || true
             ./bin/x64/Release/sentry_example_crashpad.exe || true
