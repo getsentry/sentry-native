@@ -90,8 +90,7 @@ SENTRY_API int sentry_value_append(sentry_value_t value, sentry_value_t v);
 SENTRY_API int sentry_value_set_by_index(sentry_value_t value,
                                          size_t index,
                                          sentry_value_t v);
-SENTRY_API int sentry_value_remove_by_index(sentry_value_t value,
-                                            size_t index);
+SENTRY_API int sentry_value_remove_by_index(sentry_value_t value, size_t index);
 SENTRY_API sentry_value_t sentry_value_get_by_key(sentry_value_t value,
                                                   const char *k);
 SENTRY_API sentry_value_t sentry_value_get_by_index(sentry_value_t value,
@@ -121,13 +120,6 @@ SENTRY_API char *sentry_value_to_json(sentry_value_t value);
 SENTRY_API char *sentry_value_to_msgpack(sentry_value_t value,
                                          size_t *size_out);
 
-SENTRY_API sentry_value_t sentry_value_new_event(void);
-SENTRY_API sentry_value_t sentry_value_new_breadcrumb(const char *type,
-                                                      const char *message);
-SENTRY_API void sentry_event_value_add_stacktrace(sentry_value_t event,
-                                                  void **ips);
-SENTRY_API sentry_value_t sentry_get_module_list(void);
-
 /*
  * Sentry levels for events and breadcrumbs.
  */
@@ -138,6 +130,24 @@ enum sentry_level_t {
     SENTRY_LEVEL_ERROR = 2,
     SENTRY_LEVEL_FATAL = 3,
 };
+
+/*
+ * creates a new empty event value.
+ */
+SENTRY_API sentry_value_t sentry_value_new_event(void);
+
+/*
+ * creates a new message event value.
+ */
+SENTRY_API sentry_value_t sentry_value_new_message_event(sentry_level_t level,
+                                                         const char *logger,
+                                                         const char *text);
+
+SENTRY_API sentry_value_t sentry_value_new_breadcrumb(const char *type,
+                                                      const char *message);
+SENTRY_API void sentry_event_value_add_stacktrace(sentry_value_t event,
+                                                  void **ips);
+SENTRY_API sentry_value_t sentry_get_module_list(void);
 
 /*
  * A UUID

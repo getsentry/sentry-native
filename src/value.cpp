@@ -8,6 +8,22 @@
 
 using namespace sentry;
 
+static const char *level_as_string(sentry_level_t level) {
+    switch (level) {
+        case SENTRY_LEVEL_DEBUG:
+            return "debug";
+        case SENTRY_LEVEL_WARNING:
+            return "warning";
+        case SENTRY_LEVEL_ERROR:
+            return "error";
+        case SENTRY_LEVEL_FATAL:
+            return "fatal";
+        case SENTRY_LEVEL_INFO:
+        default:
+            return "info";
+    }
+}
+
 Value Value::clone() const {
     Thing *thing = as_thing();
     if (thing) {
@@ -209,6 +225,10 @@ Value Value::new_uuid(const sentry_uuid_t *uuid) {
     return Value::new_string(buf);
 }
 
+Value Value::new_level(sentry_level_t level) {
+    return Value::new_string(level_as_string(level));
+}
+
 Value Value::new_hexstring(const char *bytes, size_t len) {
     std::vector<char> rv(len * 2 + 1);
     char *ptr = &rv[0];
@@ -281,6 +301,44 @@ Value Value::navigate(const char *path) {
     }
 
     return rv;
+}
+
+bool Value::merge_key(const char *key, Value value) {
+    if (value.is_null()) {
+        return true;
+    }
+
+    Value existing = get_by_key(key);
+
+    switch (value.type()) {
+        case SENTRY_VALUE_TYPE_LIST: {
+            if (existing.is_null()) {
+                existing = Value::new_list();
+            } else if (existing.type() != SENTRY_VALUE_TYPE_LIST) {
+                return false;
+            }
+            List *dst_list = (List *)existing.as_thing()->ptr();
+            List *src_list = (List *)value.as_thing()->ptr();
+            dst_list->insert(dst_list->end(), src_list->begin(),
+                             src_list->end());
+            break;
+        }
+        case SENTRY_VALUE_TYPE_OBJECT: {
+            if (existing.is_null()) {
+                existing = Value::new_object();
+            } else if (existing.type() != SENTRY_VALUE_TYPE_OBJECT) {
+                return false;
+            }
+            Object *dst_obj = (Object *)existing.as_thing()->ptr();
+            Object *src_obj = (Object *)value.as_thing()->ptr();
+            dst_obj->insert(src_obj->begin(), src_obj->end());
+            break;
+        }
+        default:
+            return false;
+    }
+
+    return true;
 }
 
 sentry_value_t sentry_value_new_null() {
@@ -377,6 +435,20 @@ int sentry_value_is_null(sentry_value_t value) {
 
 sentry_value_t sentry_value_new_event(void) {
     return Value::new_event().lower();
+}
+
+sentry_value_t sentry_value_new_message_event(sentry_level_t level,
+                                              const char *logger,
+                                              const char *text) {
+    Value event = Value::new_event();
+    event.set_by_key("level", Value::new_level(level));
+    if (logger) {
+        event.set_by_key("logger", Value::new_string(logger));
+    }
+    if (text) {
+        event.set_by_key("message", Value::new_string(text));
+    }
+    return event.lower();
 }
 
 sentry_value_t sentry_value_new_breadcrumb(const char *type,

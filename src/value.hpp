@@ -223,6 +223,7 @@ class Value {
 #endif
 
     static Value new_uuid(const sentry_uuid_t *uuid);
+    static Value new_level(sentry_level_t level);
     static Value new_hexstring(const char *bytes, size_t len);
     static Value new_addr(uint64_t addr);
     static Value new_event();
@@ -304,6 +305,8 @@ class Value {
     bool append(Value value) {
         return append_bounded(value, ~0);
     }
+
+    bool merge_key(const char *key, Value value);
 
     bool append_bounded(Value value, size_t maxItems) {
         Thing *thing = as_thing();
