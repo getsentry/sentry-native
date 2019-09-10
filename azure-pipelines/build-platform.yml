@@ -21,8 +21,8 @@ jobs:
     variables:
       PLATFORM: ${{ parameters.platform }}
       BUILD_SYSTEM: ${{ parameters.buildSystem }}
-      PACKAGE_DIR: ${{ parameters.buildSystem }}
-      PLATFORM_BUILD_DIR: ${{ parameters.buildSystem }}/gen_${{ parameters.platform }}
+      PACKAGE_DIR: ${{ parameters.packageDirectory }}
+      PLATFORM_BUILD_DIR: ${{ parameters.packageDirectory }}/gen_${{ parameters.platform }}
     steps:
       - template: prescript-common.yml
       - template: install-premake.yml
