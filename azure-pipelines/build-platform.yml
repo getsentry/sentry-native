@@ -2,9 +2,13 @@ parameters:
   vmImage: "macos-10.13"
   platform: "macosx"
   buildSystem: "gmake2"
+  installScript: |
+    echo "Skipping Install Step"
   buildScript: |
     echo "Nothing to build"
     exit 1
+  testScript: |
+    echo "No tests, skipping"
   continueOnError: false
 
 jobs:
@@ -52,7 +56,19 @@ jobs:
       - bash: |
           set -eux
 
+          ${{ parameters.installScript }}
+        displayName: "Install Dependencies"
+
+      - bash: |
+          set -eux
+
           cd "${PACKAGE_DIR}/gen_${PLATFORM}"
 
           ${{ parameters.buildScript }}
-        displayName: "Build everything"
+        displayName: "Run Build Script"
+
+      - bash: |
+          set -eux
+
+          ${{ parameters.testScript }}
+        displayName: "Run Tests"
