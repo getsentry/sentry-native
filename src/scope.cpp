@@ -1,5 +1,6 @@
 #include "scope.hpp"
 #include "options.hpp"
+#include "symbolizers/base.hpp"
 
 using namespace sentry;
 
@@ -56,7 +57,31 @@ static void postprocess_stacktrace(Value stacktrace) {
     }
 
     for (auto iter = frames->begin(); iter != frames->end(); ++iter) {
-        void *addr = iter->get_by_key("instruction_addr").as_addr();
+        Value frame = *iter;
+        Value addr_value = frame.get_by_key("instruction_addr");
+        if (addr_value.is_null()) {
+            continue;
+        }
+        symbolizers::symbolize(
+            (void *)addr_value.as_addr(),
+            [&frame](const symbolizers::FrameInfo *frame_info) {
+                if (frame.get_by_key("function").is_null() &&
+                    frame_info->symbol) {
+                    frame.set_by_key("function",
+                                     Value::new_string(frame_info->symbol));
+                }
+                if (frame.get_by_key("filename").is_null() &&
+                    frame_info->filename) {
+                    frame.set_by_key("filename",
+                                     Value::new_string(frame_info->filename));
+                }
+                if (frame.get_by_key("symbol_addr").is_null() &&
+                    frame_info->symbol_addr) {
+                    frame.set_by_key(
+                        "symbol_addr",
+                        Value::new_addr((uint64_t)frame_info->symbol_addr));
+                }
+            });
     }
 }
 

@@ -269,7 +269,7 @@ class Value {
         }
     }
 
-    void *as_addr() const;
+    uint64_t as_addr() const;
 
     const char *as_cstr() const {
         Thing *thing = as_thing();
