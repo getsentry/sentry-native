@@ -78,7 +78,7 @@ void BackgroundWorker::shutdown() {
     }
 }
 
-void BackgroundWorker::submitTask(std::function<void()> task) {
+void BackgroundWorker::submit_task(std::function<void()> task) {
     {
         std::lock_guard<std::mutex> _lock(m_task_lock);
         m_tasks.push_back(new std::function<void()>(task));

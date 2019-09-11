@@ -16,7 +16,7 @@ class BackgroundWorker {
     void start();
     void kill();
     void shutdown();
-    void submitTask(std::function<void()> task);
+    void submit_task(std::function<void()> task);
 
    private:
     std::condition_variable m_wake;
