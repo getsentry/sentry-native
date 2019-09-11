@@ -123,13 +123,13 @@ SENTRY_API char *sentry_value_to_msgpack(sentry_value_t value,
 /*
  * Sentry levels for events and breadcrumbs.
  */
-enum sentry_level_t {
+typedef enum sentry_level_e {
     SENTRY_LEVEL_DEBUG = -1,
     SENTRY_LEVEL_INFO = 0,
     SENTRY_LEVEL_WARNING = 1,
     SENTRY_LEVEL_ERROR = 2,
     SENTRY_LEVEL_FATAL = 3,
-};
+} sentry_level_t;
 
 /*
  * creates a new empty event value.
@@ -410,7 +410,7 @@ SENTRY_API void sentry_remove_transaction(void);
 /*
  * Sets the event level.
  */
-SENTRY_API void sentry_set_level(enum sentry_level_t level);
+SENTRY_API void sentry_set_level(sentry_level_t level);
 
 #ifdef __cplusplus
 }
