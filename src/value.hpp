@@ -76,6 +76,12 @@ class Thing {
         return m_payload;
     }
 
+    bool operator==(const Thing &rhs) const;
+
+    bool operator!=(const Thing &rhs) const {
+        return !(*this == rhs);
+    }
+
    private:
     Thing() = delete;
     Thing(const Thing &other) = delete;
@@ -485,6 +491,27 @@ class Value {
         rv._bits = m_repr._bits;
         set_null_unsafe();
         return rv;
+    }
+
+    bool operator==(const sentry::Value &rhs) const {
+        if (type() != rhs.type()) {
+            return false;
+        }
+        Thing *thisThing = as_thing();
+        Thing *otherThing = rhs.as_thing();
+
+        if (!thisThing) {
+            if (otherThing) {
+                return false;
+            }
+            return m_repr._bits == rhs.m_repr._bits;
+        }
+
+        return *thisThing == *otherThing;
+    }
+
+    bool operator!=(const sentry::Value &rhs) const {
+        return !(*this == rhs);
     }
 };  // namespace sentry
 

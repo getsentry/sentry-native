@@ -97,3 +97,35 @@ TEST_CASE("send message event", "[api]") {
                 std::string("root_logger"));
     }
 }
+
+static void dummy_function() {
+    printf("dummy here\n");
+}
+
+TEST_CASE("send basic stacktrace", "[api]") {
+    WITH_MOCK_TRANSPORT(nullptr) {
+        sentry_value_t msg_event = sentry_value_new_message_event(
+            SENTRY_LEVEL_WARNING, nullptr, "Hello World!");
+        void *addr = (void *)((char *)(void *)&dummy_function + 1);
+        void *ips[2] = {
+            addr,
+            nullptr,
+        };
+        sentry_event_value_add_stacktrace(msg_event, ips);
+        sentry_capture_event(msg_event);
+
+        REQUIRE(mock_transport.events.size() == 1);
+        sentry::Value event_out = mock_transport.events[0];
+
+        sentry::Value frame =
+            event_out.navigate("threads.0.stacktrace.frames.0");
+        REQUIRE(frame.get_by_key("filename").type() ==
+                SENTRY_VALUE_TYPE_STRING);
+        REQUIRE(frame.get_by_key("instruction_addr") ==
+                sentry::Value::new_addr((uint64_t)addr));
+        REQUIRE(frame.get_by_key("symbol_addr") ==
+                sentry::Value::new_addr((uint64_t)(void *)&dummy_function));
+        REQUIRE(frame.get_by_key("function").as_cstr() ==
+                std::string("_ZL14dummy_functionv"));
+    }
+}

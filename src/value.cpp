@@ -25,6 +25,22 @@ static const char *level_as_string(sentry_level_t level) {
     }
 }
 
+bool Thing::operator==(const Thing &rhs) const {
+    if (m_type != rhs.m_type) {
+        return false;
+    }
+    switch (m_type) {
+        case THING_TYPE_LIST:
+            return *(List *)ptr() == *(List *)rhs.ptr();
+        case THING_TYPE_OBJECT:
+            return *(Object *)ptr() == *(Object *)rhs.ptr();
+        case THING_TYPE_STRING:
+            return *(std::string *)ptr() == *(std::string *)rhs.ptr();
+        default:
+            abort();
+    }
+}
+
 Value Value::clone() const {
     Thing *thing = as_thing();
     if (thing) {
