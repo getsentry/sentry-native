@@ -269,11 +269,40 @@ class Value {
         }
     }
 
+    void *as_addr() const;
+
     const char *as_cstr() const {
         Thing *thing = as_thing();
         return thing && thing->type() == THING_TYPE_STRING
                    ? ((std::string *)thing->ptr())->c_str()
                    : "";
+    }
+
+    List *as_list() {
+        Thing *thing = as_thing();
+        return thing && thing->type() == THING_TYPE_LIST ? (List *)thing->ptr()
+                                                         : nullptr;
+    }
+
+    const List *as_list() const {
+        Thing *thing = as_thing();
+        return thing && thing->type() == THING_TYPE_LIST
+                   ? (const List *)thing->ptr()
+                   : nullptr;
+    }
+
+    Object *as_object() {
+        Thing *thing = as_thing();
+        return thing && thing->type() == THING_TYPE_OBJECT
+                   ? (Object *)thing->ptr()
+                   : nullptr;
+    }
+
+    const Object *as_object() const {
+        Thing *thing = as_thing();
+        return thing && thing->type() == THING_TYPE_OBJECT
+                   ? (const Object *)thing->ptr()
+                   : nullptr;
     }
 
     bool as_bool() const {

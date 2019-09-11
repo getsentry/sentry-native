@@ -1,4 +1,5 @@
 #include "value.hpp"
+#include <inttypes.h>
 #include <stdlib.h>
 #include <cmath>
 #include <codecvt>
@@ -339,6 +340,21 @@ bool Value::merge_key(const char *key, Value value) {
     }
 
     return true;
+}
+
+void *Value::as_addr() const {
+    if (type() == SENTRY_VALUE_TYPE_INT32) {
+        return (void *)as_int32();
+    } else if (type() == SENTRY_VALUE_TYPE_STRING) {
+        const char *addr = as_cstr();
+        if (strncmp(addr, "0x", 2) == 0) {
+            return (void *)strtoll(addr + 2, nullptr, 16);
+        } else {
+            return (void *)strtoll(addr, nullptr, 10);
+        }
+    } else {
+        return nullptr;
+    }
 }
 
 sentry_value_t sentry_value_new_null() {

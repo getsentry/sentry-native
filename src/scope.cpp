@@ -3,6 +3,63 @@
 
 using namespace sentry;
 
+static std::vector<Value> find_stacktraces_in_event(Value event) {
+    std::vector<Value> rv;
+
+    Value stacktrace = event.get_by_key("stacktrace");
+    if (stacktrace.type() == SENTRY_VALUE_TYPE_OBJECT) {
+        rv.push_back(stacktrace);
+    }
+
+    Value threads = event.get_by_key("threads");
+    if (threads.type() == SENTRY_VALUE_TYPE_OBJECT) {
+        threads = threads.get_by_key("values");
+    }
+
+    List *thread_list = threads.as_list();
+    if (thread_list) {
+        for (auto iter = thread_list->begin(); iter != thread_list->end();
+             ++iter) {
+            Value stacktrace = iter->get_by_key("stacktrace");
+            if (stacktrace.type() == SENTRY_VALUE_TYPE_OBJECT) {
+                rv.push_back(stacktrace);
+            }
+        }
+    }
+
+    Value exc = event.get_by_key("exception");
+    if (exc.type() == SENTRY_VALUE_TYPE_OBJECT) {
+        Value exceptions = threads.get_by_key("values");
+        if (exceptions.type() == SENTRY_VALUE_TYPE_OBJECT) {
+            exc = exceptions;
+        }
+    }
+
+    List *exception_list = exc.as_list();
+    if (exception_list) {
+        for (auto iter = exception_list->begin(); iter != exception_list->end();
+             ++iter) {
+            Value stacktrace = iter->get_by_key("stacktrace");
+            if (stacktrace.type() == SENTRY_VALUE_TYPE_OBJECT) {
+                rv.push_back(stacktrace);
+            }
+        }
+    }
+
+    return rv;
+}
+
+static void postprocess_stacktrace(Value stacktrace) {
+    List *frames = stacktrace.get_by_key("frames").as_list();
+    if (!frames) {
+        return;
+    }
+
+    for (auto iter = frames->begin(); iter != frames->end(); ++iter) {
+        void *addr = iter->get_by_key("instruction_addr").as_addr();
+    }
+}
+
 void Scope::apply_to_event(Value &event, bool with_breadcrumbs) const {
     const sentry_options_t *options = sentry_get_options();
 
@@ -60,6 +117,11 @@ void Scope::apply_to_event(Value &event, bool with_breadcrumbs) const {
         Value debug_meta = Value::new_object();
         debug_meta.set_by_key("images", modules);
         event.set_by_key("debug_meta", debug_meta);
+    }
+
+    std::vector<Value> stacktraces = find_stacktraces_in_event(event);
+    for (auto iter = stacktraces.begin(); iter != stacktraces.end(); ++iter) {
+        postprocess_stacktrace(*iter);
     }
 
     event.set_by_key("sdk", shared_sdk_info);
