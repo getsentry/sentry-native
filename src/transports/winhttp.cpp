@@ -50,7 +50,7 @@ static void parse_http_proxy(const char *proxy, std::wstring *proxy_out) {
 void WinHttpTransport::send_event(Value event) {
     const char *event_id = event.get_by_key("event_id").as_cstr();
     SENTRY_LOGF("Sending event %s", *event_id ? event_id : "<no client id>");
-    m_worker.submitTask([this, event]() {
+    m_worker.submit_task([this, event]() {
         const sentry_options_t *opts = sentry_get_options();
         if (opts->dsn.disabled()) {
             return;

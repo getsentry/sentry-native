@@ -15,7 +15,8 @@
 
 #define SENTRY_LOGF(message, ...)                                   \
     do {                                                            \
-        if (sentry_options_get_debug(sentry_get_options())) {       \
+        const sentry_options_t *_options = sentry_get_options();    \
+        if (_options && sentry_options_get_debug(_options)) {       \
             fprintf(stderr, "[sentry] " message "\n", __VA_ARGS__); \
         }                                                           \
     } while (0)

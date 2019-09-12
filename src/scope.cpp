@@ -3,26 +3,8 @@
 
 using namespace sentry;
 
-static const char *level_as_string(sentry_level_t level) {
-    switch (level) {
-        case SENTRY_LEVEL_DEBUG:
-            return "debug";
-        case SENTRY_LEVEL_WARNING:
-            return "warning";
-        case SENTRY_LEVEL_ERROR:
-            return "error";
-        case SENTRY_LEVEL_FATAL:
-            return "fatal";
-        case SENTRY_LEVEL_INFO:
-        default:
-            return "info";
-    }
-}
-
 void Scope::apply_to_event(Value &event, bool with_breadcrumbs) const {
     const sentry_options_t *options = sentry_get_options();
-
-    // TODO: Merge instead of overwrite
 
     if (!options->release.empty()) {
         event.set_by_key("release",
@@ -35,13 +17,18 @@ void Scope::apply_to_event(Value &event, bool with_breadcrumbs) const {
         event.set_by_key("environment",
                          Value::new_string(options->environment.c_str()));
     }
-    event.set_by_key("level", Value::new_string(level_as_string(level)));
-    event.set_by_key("user", user);
+    if (event.get_by_key("level").is_null()) {
+        event.set_by_key("level", Value::new_level(level));
+    }
+    if (event.get_by_key("user").is_null()) {
+        event.set_by_key("user", user);
+    }
     if (!transaction.empty()) {
         event.set_by_key("transaction", Value::new_string(transaction.c_str()));
     }
-    event.set_by_key("tags", tags);
-    event.set_by_key("extra", extra);
+
+    event.merge_key("tags", tags);
+    event.merge_key("extra", extra);
 
     if (fingerprint.type() == SENTRY_VALUE_TYPE_LIST &&
         fingerprint.length() > 0) {
@@ -49,7 +36,7 @@ void Scope::apply_to_event(Value &event, bool with_breadcrumbs) const {
     }
 
     if (with_breadcrumbs && breadcrumbs.length() > 0) {
-        event.set_by_key("breadcrumbs", breadcrumbs);
+        event.merge_key("breadcrumbs", breadcrumbs);
     }
 
     static Value shared_sdk_info;

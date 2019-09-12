@@ -79,3 +79,21 @@ TEST_CASE("send basic event", "[api]") {
         }
     }
 }
+
+TEST_CASE("send message event", "[api]") {
+    WITH_MOCK_TRANSPORT(nullptr) {
+        sentry_value_t msg_event = sentry_value_new_message_event(
+            SENTRY_LEVEL_WARNING, "root_logger", "Hello World!");
+        sentry_capture_event(msg_event);
+
+        REQUIRE(mock_transport.events.size() == 1);
+        sentry::Value event_out = mock_transport.events[0];
+
+        REQUIRE(event_out.get_by_key("level").as_cstr() ==
+                std::string("warning"));
+        REQUIRE(event_out.get_by_key("message").as_cstr() ==
+                std::string("Hello World!"));
+        REQUIRE(event_out.get_by_key("logger").as_cstr() ==
+                std::string("root_logger"));
+    }
+}
