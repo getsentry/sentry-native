@@ -87,7 +87,7 @@ sentry_uuid_t sentry_capture_event(sentry_value_t evt) {
 
     const sentry_options_t *opts = sentry_get_options();
     if (opts->before_send) {
-        event = Value::consume(opts->before_send(event.lower(), nullptr));
+        event = opts->before_send(event, nullptr);
     }
 
     if (opts->transport && !event.is_null()) {

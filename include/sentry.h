@@ -211,7 +211,8 @@ typedef void (*sentry_transport_function_t)(sentry_value_t event, void *data);
 
 /* type of the callback for modifying events */
 typedef sentry_value_t (*sentry_event_function_t)(sentry_value_t event,
-                                                  void *data);
+                                                  void *hint,
+                                                  void *closure);
 
 /*
  * creates a new options struct.  Can be freed with `sentry_options_free`
@@ -229,7 +230,8 @@ SENTRY_API void sentry_options_set_transport(sentry_options_t *opts,
  * sets the before send callback
  */
 SENTRY_API void sentry_options_set_before_send(sentry_options_t *opts,
-                                               sentry_event_function_t func);
+                                               sentry_event_function_t func,
+                                               void *closure);
 
 /*
  * deallocates previously allocated sentry options

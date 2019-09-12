@@ -37,10 +37,18 @@ TEST_CASE("init and shutdown", "[api]") {
     }
 }
 
+static sentry_value_t dummy_before_send(sentry_value_t event, void *hint, void *closure) {
+    sentry_value_t extra = sentry_value_new_object();
+    sentry_value_set_by_key(extra, "foo", sentry_value_new_string((const char *)closure));
+    sentry_value_set_by_key(event, "extra", extra);
+    return event;
+}
+
 TEST_CASE("send basic event", "[api]") {
     sentry_options_t *options = sentry_options_new();
     sentry_options_set_environment(options, "demo-env");
     sentry_options_set_release(options, "demo-app@1.0.0");
+    sentry_options_set_before_send(options, dummy_before_send, (void *)"a value");
 
     WITH_MOCK_TRANSPORT(options) {
         sentry_value_t event = sentry_value_new_event();
@@ -77,6 +85,9 @@ TEST_CASE("send basic event", "[api]") {
             REQUIRE(image.get_by_key("image_addr").type() ==
                     SENTRY_VALUE_TYPE_STRING);
         }
+
+        sentry::Value foo_extra = event_out.navigate("extra.foo");
+        REQUIRE(foo_extra.as_cstr() == std::string("a value"));
     }
 }
 

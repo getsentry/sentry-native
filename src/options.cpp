@@ -32,7 +32,7 @@ sentry_options_s::sentry_options_s()
 #elif defined(SENTRY_WITH_BREAKPAD_BACKEND)
       backend(new sentry::backends::BreakpadBackend()),
 #endif
-      before_send(nullptr) {
+      before_send([] (sentry::Value event, void *hint) { return event; }) {
     std::random_device seed;
     std::default_random_engine engine(seed());
     std::uniform_int_distribution<int> uniform_dist(0, INT32_MAX);
@@ -55,8 +55,11 @@ void sentry_options_set_transport(sentry_options_t *opts,
 }
 
 void sentry_options_set_before_send(sentry_options_t *opts,
-                                    sentry_event_function_t func) {
-    opts->before_send = func;
+                                    sentry_event_function_t func,
+                                    void *closure) {
+    opts->before_send = [func, closure] (sentry::Value event, void *hint) {
+        return sentry::Value::consume(func(event.lower(), hint, closure));
+    };
 }
 
 void sentry_options_free(sentry_options_t *opts) {
