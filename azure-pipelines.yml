@@ -59,7 +59,6 @@ stages:
           vmImage: "ubuntu-16.04"
           platform: "linux"
           buildSystem: "gmake2"
-          continueOnError: true
           installScript: |
             sudo apt-get update && \
               sudo apt-get install -y uuid-dev libcurl4-openssl-dev
