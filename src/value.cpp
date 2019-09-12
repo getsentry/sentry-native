@@ -520,10 +520,8 @@ void sentry_event_value_add_stacktrace(sentry_value_t value,
 
     Value frames = Value::new_list();
     for (size_t i = 0; i < len; i++) {
-        char buf[100];
-        sprintf(buf, "0x%llx", (unsigned long long)ips[i]);
         Value frame = Value::new_object();
-        frame.set_by_key("instruction_addr", Value::new_string(buf));
+        frame.set_by_key("instruction_addr", Value::new_addr((uint64_t)ips[i]));
         frames.append(frame);
     }
     frames.reverse();
