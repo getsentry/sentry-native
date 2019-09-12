@@ -7,7 +7,7 @@ pr:
   - "master"
 
 variables:
-  ARTIFACT_DIR: 'sentry-native-data'
+  ARTIFACT_DIR: "sentry-native-data"
 
 stages:
   - stage: prepare_build_files
@@ -31,7 +31,7 @@ stages:
 
           - task: PublishBuildArtifacts@1
             inputs:
-              pathtoPublish: 'sp-sources.zip'
+              pathtoPublish: "sp-sources.zip"
               artifactName: $(ARTIFACT_DIR)
 
   - stage: build_per_platform
@@ -45,11 +45,35 @@ stages:
           buildScript: |
             make help
             make
-
+          testScript: |
             # Smoke tests
-            ./bin/Release/sentry_example || true
-            ./bin/Release/sentry_example_crashpad || true
-            ./bin/Release/sentry_example_breakpad || true
+            ./bin/Release/example || true
+            ./bin/Release/example_crashpad || true
+            ./bin/Release/example_breakpad || true
+
+            # Run tests
+            ./bin/Release/test_sentry
+
+      - template: azure-pipelines/build-platform.yml
+        parameters:
+          vmImage: "ubuntu-16.04"
+          platform: "linux"
+          buildSystem: "gmake2"
+          continueOnError: true
+          installScript: |
+            sudo apt-get update && \
+              sudo apt-get install -y uuid-dev libcurl4-openssl-dev
+          buildScript: |
+            make help
+            make
+          testScript: |
+            # Smoke tests
+            ./bin/Release/example || true
+            ./bin/Release/example_breakpad || true
+            ./bin/Release/example_breakpad || true
+
+            # Run tests
+            ./bin/Release/test_sentry
 
       - template: azure-pipelines/build-platform.yml
         parameters:
@@ -59,30 +83,14 @@ stages:
           buildScript: |
             MSBUILD="/c/Program Files (x86)/Microsoft Visual Studio/2017/Enterprise/MSBuild/15.0/Bin/MSBuild.exe"
             "$MSBUILD" Sentry-Native.sln //m //p:Configuration=Release //p:Platform=x64 //t:Clean,Build
-
+          testScript: |
             # Smoke test
-            ./bin/x64/Release/sentry_example.exe || true
-            ./bin/x64/Release/sentry_example_crashpad.exe || true
-            ./bin/x64/Release/sentry_example_breakpad.exe || true
+            ./bin/x86_64/Release/example.exe || true
+            ./bin/x86_64/Release/example_crashpad.exe || true
+            ./bin/x86_64/Release/example_breakpad.exe || true
 
-      - template: azure-pipelines/build-platform.yml
-        parameters:
-          vmImage: "ubuntu-16.04"
-          platform: "linux"
-          buildSystem: "gmake2"
-          continueOnError: true
-          buildScript: |
-            # TODO: add "Install" step
-            sudo apt-get update && \
-              sudo apt-get install -y uuid-dev libcurl4-openssl-dev
-
-            make help
-            make
-
-            # Smoke tests
-            ./bin/Release/sentry_example || true
-            ./bin/Release/sentry_example_breakpad || true
-            ./bin/Release/sentry_example_breakpad || true
+            # Run tests
+            ./bin/x86_64/Release/test_sentry.exe
 
   - stage: package_all
     displayName: Package the final archive
@@ -93,10 +101,10 @@ stages:
         steps:
           - task: DownloadBuildArtifacts@0
             inputs:
-              buildType: 'current'
-              downloadType: 'single'
+              buildType: "current"
+              downloadType: "single"
               artifactName: $(ARTIFACT_DIR)
-              downloadPath: '.'
+              downloadPath: "."
           - bash: |
               set -eux
 
@@ -120,5 +128,5 @@ stages:
 
           - task: PublishBuildArtifacts@1
             inputs:
-              pathtoPublish: 'out/sentry-native-all.zip'
+              pathtoPublish: "out/sentry-native-all.zip"
               artifactName: $(ARTIFACT_DIR)
