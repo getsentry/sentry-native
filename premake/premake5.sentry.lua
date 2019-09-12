@@ -46,6 +46,7 @@ function sentry_native_library()
       "pthread",
       "uuid",
       "curl",
+      "dl",
     }
     defines {
       "SENTRY_WITH_LIBCURL_TRANSPORT",
