@@ -55,8 +55,8 @@ configure: $(PREMAKE_DIR)/Makefile
 .PHONY: configure
 
 test: configure
-	$(MAKE) -C $(PREMAKE_DIR) -j$(shell getconf _NPROCESSORS_ONLN) sentry_tests
-	$(PREMAKE_DIR)/bin/Release/sentry_tests
+	$(MAKE) -C $(PREMAKE_DIR) -j$(shell getconf _NPROCESSORS_ONLN) test_sentry
+	$(PREMAKE_DIR)/bin/Release/test_sentry
 .PHONY: test
 
 $(PREMAKE_DIR)/Makefile: $(PREMAKE_DIR)/$(PREMAKE) $(wildcard $(PREMAKE_DIR)/*.lua)

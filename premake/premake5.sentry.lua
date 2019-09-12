@@ -133,7 +133,7 @@ project "sentry_breakpad"
 
   filter {}
 
-project "sentry_example"
+project "example"
   kind "ConsoleApp"
   sentry_native_common()
 
@@ -142,10 +142,10 @@ project "sentry_example"
   }
 
   files {
-    SRC_ROOT.."/examples/sentry.c",
+    SRC_ROOT.."/examples/example.c",
   }
 
-project "sentry_example_crashpad"
+project "example_crashpad"
   kind "ConsoleApp"
   sentry_native_common()
 
@@ -154,10 +154,10 @@ project "sentry_example_crashpad"
   }
 
   files {
-    SRC_ROOT.."/examples/sentry_crashpad.c",
+    SRC_ROOT.."/examples/example_crashpad.c",
   }
 
-project "sentry_example_breakpad"
+project "example_breakpad"
   kind "ConsoleApp"
   sentry_native_common()
 
@@ -166,10 +166,10 @@ project "sentry_example_breakpad"
   }
 
   files {
-    SRC_ROOT.."/examples/sentry_breakpad.c",
+    SRC_ROOT.."/examples/example_breakpad.c",
   }
 
-project "sentry_tests"
+project "test_sentry"
   kind "ConsoleApp"
   sentry_native_common()
   -- We compile the exe, but with the library settings

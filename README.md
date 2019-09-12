@@ -104,7 +104,7 @@ can run them by passing your Sentry DSN key via an environment variable:
 
 ```sh
 # MacOS
-SENTRY_DSN=https://XXXXX@sentry.io/YYYYY ./bin/Release/sentry_example
+SENTRY_DSN=https://XXXXX@sentry.io/YYYYY ./bin/Release/example
 ```
 
 The command will send an event to Sentry. If [debug symbols are present](https://docs.sentry.io/workflow/debug-files/) in Sentry, the event will also be properly symbolicated.
