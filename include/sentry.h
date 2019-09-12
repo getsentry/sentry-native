@@ -146,8 +146,16 @@ SENTRY_API sentry_value_t sentry_value_new_message_event(sentry_level_t level,
 SENTRY_API sentry_value_t sentry_value_new_breadcrumb(const char *type,
                                                       const char *message);
 SENTRY_API void sentry_event_value_add_stacktrace(sentry_value_t event,
-                                                  void **ips);
+                                                  void **ips,
+                                                  size_t len);
 SENTRY_API sentry_value_t sentry_get_module_list(void);
+
+/*
+ * walk a stacktrace manually
+ */
+SENTRY_API size_t sentry_unwind_stack(void *addr,
+                                      void **stacktrace_out,
+                                      size_t max_len);
 
 /*
  * A UUID

@@ -7,6 +7,7 @@
 #include "modulefinders/base.hpp"
 #include "options.hpp"
 #include "scope.hpp"
+#include "unwinders/base.hpp"
 #include "uuid.hpp"
 #include "value.hpp"
 
@@ -193,4 +194,8 @@ void sentry_string_free(char *str) {
 
 sentry_value_t sentry_get_module_list() {
     return sentry::modulefinders::get_module_list().lower();
+}
+
+size_t sentry_unwind_stack(void *addr, void **stacktrace_out, size_t max_len) {
+    return unwinders::unwind_stack(addr, stacktrace_out, max_len);
 }

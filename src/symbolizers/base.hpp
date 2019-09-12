@@ -19,6 +19,7 @@ struct FrameInfo {
     void *instruction_addr;
     const char *symbol;
     const char *filename;
+    const char *object_name;
     uint32_t lineno;
 };
 

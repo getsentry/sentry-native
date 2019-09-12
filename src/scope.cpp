@@ -75,6 +75,11 @@ static void postprocess_stacktrace(Value stacktrace) {
                     frame.set_by_key("filename",
                                      Value::new_string(frame_info->filename));
                 }
+                if (frame.get_by_key("package").is_null() &&
+                    frame_info->object_name) {
+                    frame.set_by_key(
+                        "package", Value::new_string(frame_info->object_name));
+                }
                 if (frame.get_by_key("symbol_addr").is_null() &&
                     frame_info->symbol_addr) {
                     frame.set_by_key(

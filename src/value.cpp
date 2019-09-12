@@ -6,6 +6,7 @@
 #include <ctime>
 #include <locale>
 #include <sstream>
+#include "unwinders/base.hpp"
 
 using namespace sentry;
 
@@ -505,13 +506,22 @@ char *sentry_value_to_msgpack(sentry_value_t value, size_t *size_out) {
     return rv;
 }
 
-void sentry_event_value_add_stacktrace(sentry_value_t value, void **ips) {
+void sentry_event_value_add_stacktrace(sentry_value_t value,
+                                       void **ips,
+                                       size_t len) {
+    void *walked_backtrace[256];
     Value event = Value(value);
 
+    // if nobody gave us a backtrace, walk now.
+    if (!ips) {
+        len = unwinders::unwind_stack(nullptr, walked_backtrace, 256);
+        ips = walked_backtrace;
+    }
+
     Value frames = Value::new_list();
-    for (; *ips; ips++) {
+    for (size_t i = 0; i < len; i++) {
         char buf[100];
-        sprintf(buf, "0x%llx", (unsigned long long)*ips);
+        sprintf(buf, "0x%llx", (unsigned long long)ips[i]);
         Value frame = Value::new_object();
         frame.set_by_key("instruction_addr", Value::new_string(buf));
         frames.append(frame);
