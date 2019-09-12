@@ -8,6 +8,9 @@ crashpad/build
 # Breakpad
 breakpad/build
 
+# Premake
+premake/premake5
+
 # Build files
 libsentry.*
 *.dylib

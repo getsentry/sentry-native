@@ -68,7 +68,7 @@ else
     git checkout -f "$SENTRY_NATIVE_REVISION"
 fi
 
-SENTRY_NATIVE_SRC=("examples" "include" "src" "premake" "README.md" "tests")
+SENTRY_NATIVE_SRC=("examples" "include" "src" "premake" "README.md" "Makefile" "tests")
 
 # Copy files
 for f in "${SENTRY_NATIVE_SRC[@]}"; do
