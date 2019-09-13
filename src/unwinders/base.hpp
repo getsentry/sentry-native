@@ -1,7 +1,7 @@
 #ifndef SENTRY_UNWINDERS_BASE_HPP_INCLUDED
 #define SENTRY_UNWINDERS_BASE_HPP_INCLUDED
 
-#if defined(__APPLE__)
+#if defined(__APPLE__) || defined(__linux__)
 #define SENTRY_WITH_BACKTRACE_UNWINDER
 #else
 #define SENTRY_WITH_NULL_UNWINDER
