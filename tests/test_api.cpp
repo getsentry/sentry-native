@@ -52,9 +52,12 @@ TEST_CASE("init and shutdown", "[api]") {
     }
 }
 
-static sentry_value_t dummy_before_send(sentry_value_t event, void *hint, void *closure) {
+static sentry_value_t dummy_before_send(sentry_value_t event,
+                                        void *hint,
+                                        void *closure) {
     sentry_value_t extra = sentry_value_new_object();
-    sentry_value_set_by_key(extra, "foo", sentry_value_new_string((const char *)closure));
+    sentry_value_set_by_key(extra, "foo",
+                            sentry_value_new_string((const char *)closure));
     sentry_value_set_by_key(event, "extra", extra);
     return event;
 }
@@ -63,7 +66,8 @@ TEST_CASE("send basic event", "[api]") {
     sentry_options_t *options = sentry_options_new();
     sentry_options_set_environment(options, "demo-env");
     sentry_options_set_release(options, "demo-app@1.0.0");
-    sentry_options_set_before_send(options, dummy_before_send, (void *)"a value");
+    sentry_options_set_before_send(options, dummy_before_send,
+                                   (void *)"a value");
 
     WITH_MOCK_TRANSPORT(options) {
         sentry_value_t event = sentry_value_new_event();
@@ -95,8 +99,10 @@ TEST_CASE("send basic event", "[api]") {
             sentry::Value image = images.get_by_index(i);
             REQUIRE(image.get_by_key("type").type() ==
                     SENTRY_VALUE_TYPE_STRING);
-            REQUIRE(image.get_by_key("debug_id").type() ==
-                    SENTRY_VALUE_TYPE_STRING);
+            REQUIRE(((image.get_by_key("debug_id").type() ==
+                      SENTRY_VALUE_TYPE_STRING) ||
+                     (image.get_by_key("code_id").type() ==
+                      SENTRY_VALUE_TYPE_STRING)));
             REQUIRE(image.get_by_key("image_addr").type() ==
                     SENTRY_VALUE_TYPE_STRING);
         }
@@ -167,7 +173,8 @@ TEST_CASE("send basic stacktrace (unwound)", "[api][!mayfail]") {
         bool found_main = false;
         for (size_t i = 0; i < frames.length(); i++) {
             sentry::Value main_frame = frames.get_by_index(i);
-            if (main_frame.get_by_key("function").as_cstr() == std::string("main")) {
+            if (main_frame.get_by_key("function").as_cstr() ==
+                std::string("main")) {
                 found_main = true;
                 break;
             }
