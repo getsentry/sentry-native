@@ -164,9 +164,15 @@ TEST_CASE("send basic stacktrace (unwound)", "[api][!mayfail]") {
             event_out.navigate("threads.0.stacktrace.frames");
         REQUIRE(frames.length() > 5);
 
-        sentry::Value main_frame = frames.get_by_index(1);
-        REQUIRE(main_frame.get_by_key("function").as_cstr() ==
-                std::string("main"));
+        bool found_main = false;
+        for (size_t i = 0; i < frames.length(); i++) {
+            sentry::Value main_frame = frames.get_by_index(i);
+            if (main_frame.get_by_key("function").as_cstr() == std::string("main")) {
+                found_main = true;
+                break;
+            }
+        }
+        REQUIRE(found_main);
 
         sentry::Value api_func_frame = frames.get_by_index(frames.length() - 2);
         REQUIRE(api_func_frame.get_by_key("function").as_cstr() ==
