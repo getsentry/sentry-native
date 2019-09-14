@@ -65,8 +65,14 @@ stages:
           buildScript: |
             cd ..
             CPUS=$(getconf _NPROCESSORS_ONLN)
-            make linux-run CMD="make help"
-            make linux-run CMD="make -j${CPUS}"
+            # Run the commands inside a Docker container
+            echo "
+              set -eux
+              cd gen_${PLATFORM}
+              make help
+              make -j${CPUS}
+            " > build.sh
+            make linux-run CMD="bash build.sh"
           testScript: |
             # Smoke tests
             ./bin/Release/example || true

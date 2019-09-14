@@ -1,6 +1,14 @@
 PREMAKE_DIR := premake
 PREMAKE := premake5
-CPUS ?= $(shell getconf _NPROCESSORS_ONLN)
+
+ifeq ($(OS),Windows_NT)
+	# Windows specific
+else
+	# Mac or Linux
+	CPUS ?= $(shell getconf _NPROCESSORS_ONLN)
+	INTERACTIVE := $(shell [ -t 0 ] && echo 1)
+	UNAME_S := $(shell uname -s)
+endif
 
 help:
 	@echo "Usage: make [target]"
@@ -66,7 +74,6 @@ $(PREMAKE_DIR)/Makefile: $(PREMAKE_DIR)/$(PREMAKE) $(wildcard $(PREMAKE_DIR)/*.l
 
 $(PREMAKE_DIR)/$(PREMAKE):
 	@echo "Downloading premake"
-	$(eval UNAME_S := $(shell uname -s))
 	$(eval PREMAKE_DIST := $(if $(filter Darwin, $(UNAME_S)), macosx, linux))
 	@curl -sL https://github.com/premake/premake-core/releases/download/v5.0.0-alpha14/premake-5.0.0-alpha14-$(PREMAKE_DIST).tar.gz | tar xz -C $(PREMAKE_DIR)
 
@@ -77,9 +84,12 @@ linux-build-env:
 linux-run:
 	@$(MAKE) linux-build-env >/dev/null
 	$(eval CMD ?= bash)
+ifeq ("${INTERACTIVE}","1")
+	$(eval DOCKER_ARGS := "-it")
+endif
 	@docker run --rm -v ${PWD}:/work ${DOCKER_ARGS} getsentry/sentry-native ${CMD}
 .PHONY: linux-run
 
 linux-shell: linux-build-env
-	@$(MAKE) linux-run DOCKER_ARGS="-it"
+	@$(MAKE) linux-run
 .PHONY: linux-shell
