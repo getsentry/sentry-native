@@ -43,8 +43,9 @@ stages:
           platform: "macosx"
           buildSystem: "gmake2"
           buildScript: |
+            CPUS=$(getconf _NPROCESSORS_ONLN)
             make help
-            make
+            make -j${CPUS}
           testScript: |
             # Smoke tests
             ./bin/Release/example || true
@@ -63,8 +64,9 @@ stages:
             make linux-build-env
           buildScript: |
             cd ..
+            CPUS=$(getconf _NPROCESSORS_ONLN)
             make linux-run CMD="make help"
-            make linux-run CMD="make"
+            make linux-run CMD="make -j${CPUS}"
           testScript: |
             # Smoke tests
             ./bin/Release/example || true
@@ -95,6 +97,7 @@ stages:
     displayName: Package the final archive
     jobs:
       - job: package_all
+        displayName: Package all platforms
         pool:
           vmImage: "macos-10.13"
         steps:

@@ -77,8 +77,9 @@ linux-build-env:
 linux-run:
 	@$(MAKE) linux-build-env >/dev/null
 	$(eval CMD ?= bash)
-	@docker run --rm -v ${PWD}:/work -it getsentry/sentry-native ${CMD}
+	@docker run --rm -v ${PWD}:/work ${DOCKER_ARGS} getsentry/sentry-native ${CMD}
 .PHONY: linux-run
 
-linux-shell: linux-build-env linux-run
+linux-shell: linux-build-env
+	@$(MAKE) linux-run DOCKER_ARGS="-it"
 .PHONY: linux-shell
