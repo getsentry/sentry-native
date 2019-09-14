@@ -146,8 +146,16 @@ SENTRY_API sentry_value_t sentry_value_new_message_event(sentry_level_t level,
 SENTRY_API sentry_value_t sentry_value_new_breadcrumb(const char *type,
                                                       const char *message);
 SENTRY_API void sentry_event_value_add_stacktrace(sentry_value_t event,
-                                                  void **ips);
+                                                  void **ips,
+                                                  size_t len);
 SENTRY_API sentry_value_t sentry_get_module_list(void);
+
+/*
+ * walk a stacktrace manually
+ */
+SENTRY_API size_t sentry_unwind_stack(void *addr,
+                                      void **stacktrace_out,
+                                      size_t max_len);
 
 /*
  * A UUID
@@ -203,7 +211,8 @@ typedef void (*sentry_transport_function_t)(sentry_value_t event, void *data);
 
 /* type of the callback for modifying events */
 typedef sentry_value_t (*sentry_event_function_t)(sentry_value_t event,
-                                                  void *data);
+                                                  void *hint,
+                                                  void *closure);
 
 /*
  * creates a new options struct.  Can be freed with `sentry_options_free`
@@ -221,7 +230,8 @@ SENTRY_API void sentry_options_set_transport(sentry_options_t *opts,
  * sets the before send callback
  */
 SENTRY_API void sentry_options_set_before_send(sentry_options_t *opts,
-                                               sentry_event_function_t func);
+                                               sentry_event_function_t func,
+                                               void *closure);
 
 /*
  * deallocates previously allocated sentry options

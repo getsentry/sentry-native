@@ -1,10 +1,12 @@
 #include "value.hpp"
+#include <inttypes.h>
 #include <stdlib.h>
 #include <cmath>
 #include <codecvt>
 #include <ctime>
 #include <locale>
 #include <sstream>
+#include "unwinders/base.hpp"
 
 using namespace sentry;
 
@@ -21,6 +23,22 @@ static const char *level_as_string(sentry_level_t level) {
         case SENTRY_LEVEL_INFO:
         default:
             return "info";
+    }
+}
+
+bool Thing::operator==(const Thing &rhs) const {
+    if (m_type != rhs.m_type) {
+        return false;
+    }
+    switch (m_type) {
+        case THING_TYPE_LIST:
+            return *(List *)ptr() == *(List *)rhs.ptr();
+        case THING_TYPE_OBJECT:
+            return *(Object *)ptr() == *(Object *)rhs.ptr();
+        case THING_TYPE_STRING:
+            return *(std::string *)ptr() == *(std::string *)rhs.ptr();
+        default:
+            abort();
     }
 }
 
@@ -341,6 +359,21 @@ bool Value::merge_key(const char *key, Value value) {
     return true;
 }
 
+uint64_t Value::as_addr() const {
+    if (type() == SENTRY_VALUE_TYPE_INT32) {
+        return (uint64_t)as_int32();
+    } else if (type() == SENTRY_VALUE_TYPE_STRING) {
+        const char *addr = as_cstr();
+        if (strncmp(addr, "0x", 2) == 0) {
+            return (uint64_t)strtoll(addr + 2, nullptr, 16);
+        } else {
+            return (uint64_t)strtoll(addr, nullptr, 10);
+        }
+    } else {
+        return 0;
+    }
+}
+
 sentry_value_t sentry_value_new_null() {
     return Value::new_null().lower();
 }
@@ -473,15 +506,22 @@ char *sentry_value_to_msgpack(sentry_value_t value, size_t *size_out) {
     return rv;
 }
 
-void sentry_event_value_add_stacktrace(sentry_value_t value, void **ips) {
+void sentry_event_value_add_stacktrace(sentry_value_t value,
+                                       void **ips,
+                                       size_t len) {
+    void *walked_backtrace[256];
     Value event = Value(value);
 
+    // if nobody gave us a backtrace, walk now.
+    if (!ips) {
+        len = unwinders::unwind_stack(nullptr, walked_backtrace, 256);
+        ips = walked_backtrace;
+    }
+
     Value frames = Value::new_list();
-    for (; *ips; ips++) {
-        char buf[100];
-        sprintf(buf, "0x%llx", (unsigned long long)*ips);
+    for (size_t i = 0; i < len; i++) {
         Value frame = Value::new_object();
-        frame.set_by_key("instruction_addr", Value::new_string(buf));
+        frame.set_by_key("instruction_addr", Value::new_addr((uint64_t)ips[i]));
         frames.append(frame);
     }
     frames.reverse();

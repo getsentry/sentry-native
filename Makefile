@@ -1,5 +1,6 @@
 PREMAKE_DIR := premake
 PREMAKE := premake5
+CPUS ?= $(shell getconf _NPROCESSORS_ONLN)
 
 help:
 	@echo "Usage: make [target]"
@@ -55,7 +56,7 @@ configure: $(PREMAKE_DIR)/Makefile
 .PHONY: configure
 
 test: configure
-	$(MAKE) -C $(PREMAKE_DIR) -j$(shell getconf _NPROCESSORS_ONLN) test_sentry
+	$(MAKE) -C $(PREMAKE_DIR) -j$(CPUS) test_sentry
 	$(PREMAKE_DIR)/bin/Release/test_sentry
 .PHONY: test
 

@@ -3,6 +3,7 @@
 
 #include <string>
 #include <vector>
+#include <functional>
 #include "attachment.hpp"
 #include "backends/base.hpp"
 #include "dsn.hpp"
@@ -24,7 +25,7 @@ struct sentry_options_s {
     sentry::Path handler_path;
     sentry::Path database_path;
 
-    sentry_event_function_t before_send;
+    std::function<sentry::Value (sentry::Value, void *hint)> before_send;
     sentry::transports::Transport *transport;
     sentry::backends::Backend *backend;
 
