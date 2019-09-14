@@ -60,11 +60,11 @@ stages:
           platform: "linux"
           buildSystem: "gmake2"
           installScript: |
-            sudo apt-get update && \
-              sudo apt-get install -y uuid-dev libcurl4-openssl-dev
+            make linux-build-env
           buildScript: |
-            make help
-            make
+            cd ..
+            make linux-run CMD="make help"
+            make linux-run CMD="make"
           testScript: |
             # Smoke tests
             ./bin/Release/example || true

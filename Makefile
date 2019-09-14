@@ -70,7 +70,15 @@ $(PREMAKE_DIR)/$(PREMAKE):
 	$(eval PREMAKE_DIST := $(if $(filter Darwin, $(UNAME_S)), macosx, linux))
 	@curl -sL https://github.com/premake/premake-core/releases/download/v5.0.0-alpha14/premake-5.0.0-alpha14-$(PREMAKE_DIST).tar.gz | tar xz -C $(PREMAKE_DIR)
 
-linux-shell:
-	@docker build -t getsentry/sentry-native .
-	@docker run --rm -v ${PWD}:/work -it getsentry/sentry-native bash
+linux-build-env:
+	@cd docker && docker build -t getsentry/sentry-native .
+.PHONY: linux-build-env
+
+linux-run:
+	@$(MAKE) linux-build-env >/dev/null
+	$(eval CMD ?= bash)
+	@docker run --rm -v ${PWD}:/work -it getsentry/sentry-native ${CMD}
+.PHONY: linux-run
+
+linux-shell: linux-build-env linux-run
 .PHONY: linux-shell
