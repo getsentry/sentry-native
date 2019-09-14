@@ -3,6 +3,7 @@
 #include <arpa/inet.h>
 #include <elf.h>
 #include <link.h>
+#include <unistd.h>
 #include <mutex>
 #include "../uuid.hpp"
 
@@ -85,7 +86,17 @@ int dl_iterate_callback(struct dl_phdr_info *dl_info, size_t size, void *data) {
     module.set_by_key("image_addr", Value::new_addr(image_addr));
     module.set_by_key("image_size",
                       Value::new_int32((int32_t)(image_end_addr - image_addr)));
-    module.set_by_key("code_file", Value::new_string(dl_info->dlpi_name));
+
+    if (!dl_info->dlpi_name || !*dl_info->dlpi_name) {
+        char path[PATH_MAX];
+        ssize_t len = readlink("/proc/self/exe", path, PATH_MAX);
+        if (len >= 0) {
+            module.set_by_key("code_file",
+                              Value::new_string(path, (size_t)len));
+        }
+    } else {
+        module.set_by_key("code_file", Value::new_string(dl_info->dlpi_name));
+    }
     g_modules.append(module);
 
     return 0;

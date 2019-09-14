@@ -224,6 +224,10 @@ class Value {
         return Value(new std::string(s), THING_TYPE_STRING);
     }
 
+    static Value new_string(const char *s, size_t len) {
+        return Value(new std::string(s, len), THING_TYPE_STRING);
+    }
+
 #ifdef _WIN32
     static Value new_string(const wchar_t *s);
 #endif

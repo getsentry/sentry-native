@@ -130,7 +130,9 @@ TEST_CASE("send message event", "[api]") {
     }
 }
 
-static void dummy_function() {
+// function is non static as dladdr on linux otherwise won't give us a name.
+// For this test we however want to see if we can recover a name here.
+void dummy_function() {
     printf("dummy here\n");
 }
 
@@ -152,7 +154,7 @@ TEST_CASE("send basic stacktrace", "[api][!mayfail]") {
         REQUIRE(frame.get_by_key("symbol_addr") ==
                 sentry::Value::new_addr((uint64_t)(void *)&dummy_function));
         REQUIRE(frame.get_by_key("function").as_cstr() ==
-                std::string("_ZL14dummy_functionv"));
+                std::string("_Z14dummy_functionv"));
     }
 }
 

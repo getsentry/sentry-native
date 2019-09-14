@@ -146,6 +146,10 @@ project "example"
     SRC_ROOT.."/examples/example.c",
   }
 
+  -- make sure we have a build-id
+  filter "system:linux"
+    linkoptions { "-Wl,--build-id=uuid" }
+
 project "example_crashpad"
   kind "ConsoleApp"
   sentry_native_common()
@@ -186,3 +190,8 @@ project "test_sentry"
   files {
     SRC_ROOT.."/tests/**.cpp",
   }
+
+  -- make sure we have a build-id
+  filter "system:linux"
+    -- -E is needed on linux to make dladdr work on the main executable
+    linkoptions { "-Wl,--build-id=uuid,-E" }
