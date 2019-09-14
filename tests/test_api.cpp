@@ -136,7 +136,7 @@ void dummy_function() {
     printf("dummy here\n");
 }
 
-TEST_CASE("send basic stacktrace", "[api][!mayfail]") {
+TEST_CASE("send basic stacktrace", "[api]") {
     WITH_MOCK_TRANSPORT(nullptr) {
         sentry_value_t msg_event = sentry_value_new_message_event(
             SENTRY_LEVEL_WARNING, nullptr, "Hello World!");
@@ -153,12 +153,12 @@ TEST_CASE("send basic stacktrace", "[api][!mayfail]") {
                 sentry::Value::new_addr((uint64_t)addr));
         REQUIRE(frame.get_by_key("symbol_addr") ==
                 sentry::Value::new_addr((uint64_t)(void *)&dummy_function));
-        REQUIRE(frame.get_by_key("function").as_cstr() ==
-                std::string("_Z14dummy_functionv"));
+        REQUIRE(strstr(frame.get_by_key("function").as_cstr(),
+                       "dummy_function") != nullptr);
     }
 }
 
-TEST_CASE("send basic stacktrace (unwound)", "[api][!mayfail]") {
+TEST_CASE("send basic stacktrace (unwound)", "[api]") {
     WITH_MOCK_TRANSPORT(nullptr) {
         sentry_value_t msg_event = sentry_value_new_message_event(
             SENTRY_LEVEL_WARNING, nullptr, "Hello World!");
@@ -175,8 +175,8 @@ TEST_CASE("send basic stacktrace (unwound)", "[api][!mayfail]") {
         bool found_main = false;
         for (size_t i = 0; i < frames.length(); i++) {
             sentry::Value main_frame = frames.get_by_index(i);
-            if (main_frame.get_by_key("function").as_cstr() ==
-                std::string("main")) {
+            const char *func = main_frame.get_by_key("function").as_cstr();
+            if (func == std::string("main") || func == std::string("wmain")) {
                 found_main = true;
                 break;
             }

@@ -55,6 +55,7 @@ function sentry_native_library()
   filter "system:windows"
     links {
       "winhttp.lib",
+      "dbghelp.lib",
       "rpcrt4.lib",  -- for UUID operations
     }
     defines {
