@@ -1,6 +1,6 @@
 #include "scope.hpp"
 #include "options.hpp"
-#include "symbolizers/base.hpp"
+#include "symbolize.hpp"
 
 using namespace sentry;
 

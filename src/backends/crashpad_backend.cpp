@@ -1,5 +1,5 @@
 #ifdef SENTRY_WITH_CRASHPAD_BACKEND
-#include "crashpad.hpp"
+#include "crashpad_backend.hpp"
 
 #include <stdio.h>
 #include <atomic>

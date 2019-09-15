@@ -1,4 +1,4 @@
-#include "base.hpp"
+#include "../modulefinder.hpp"
 #ifdef SENTRY_WITH_LINUX_MODULEFINDER
 #include <arpa/inet.h>
 #include <elf.h>

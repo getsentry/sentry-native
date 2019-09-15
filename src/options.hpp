@@ -1,15 +1,15 @@
 #ifndef SENTRY_OPTIONS_HPP_INCLUDED
 #define SENTRY_OPTIONS_HPP_INCLUDED
 
+#include <functional>
 #include <string>
 #include <vector>
-#include <functional>
 #include "attachment.hpp"
-#include "backends/base.hpp"
+#include "backends/base_backend.hpp"
 #include "dsn.hpp"
 #include "internal.hpp"
 #include "path.hpp"
-#include "transports/base.hpp"
+#include "transports/base_transport.hpp"
 
 struct sentry_options_s {
     sentry_options_s();
@@ -25,7 +25,7 @@ struct sentry_options_s {
     sentry::Path handler_path;
     sentry::Path database_path;
 
-    std::function<sentry::Value (sentry::Value, void *hint)> before_send;
+    std::function<sentry::Value(sentry::Value, void *hint)> before_send;
     sentry::transports::Transport *transport;
     sentry::backends::Backend *backend;
 

@@ -1,4 +1,4 @@
-#include "base.hpp"
+#include "../modulefinder.hpp"
 #ifdef SENTRY_WITH_DARWIN_MODULEFINDER
 
 #include <dlfcn.h>

@@ -1,4 +1,4 @@
-#include "base.hpp"
+#include "base_backend.hpp"
 #include "../scope.hpp"
 
 using namespace sentry;

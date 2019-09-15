@@ -4,10 +4,10 @@
 #include "attachment.hpp"
 #include "cleanup.hpp"
 #include "internal.hpp"
-#include "modulefinders/base.hpp"
+#include "modulefinder.hpp"
 #include "options.hpp"
 #include "scope.hpp"
-#include "unwinders/base.hpp"
+#include "unwind.hpp"
 #include "uuid.hpp"
 #include "value.hpp"
 

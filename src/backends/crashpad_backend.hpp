@@ -1,26 +1,26 @@
-#ifndef SENTRY_BACKENDS_BREAKPAD_HPP_INCLUDED
-#define SENTRY_BACKENDS_BREAKPAD_HPP_INCLUDED
-#ifdef SENTRY_WITH_BREAKPAD_BACKEND
+#ifndef SENTRY_BACKENDS_CRASHPAD_HPP_INCLUDED
+#define SENTRY_BACKENDS_CRASHPAD_HPP_INCLUDED
+#ifdef SENTRY_WITH_CRASHPAD_BACKEND
 
 #include "../internal.hpp"
 #include "../scope.hpp"
-#include "base.hpp"
+#include "base_backend.hpp"
 
 namespace sentry {
 namespace backends {
 
-class BreakpadBackendImpl;
+class CrashpadBackendImpl;
 
-class BreakpadBackend : public Backend {
+class CrashpadBackend : public Backend {
    public:
-    BreakpadBackend();
-    ~BreakpadBackend();
+    CrashpadBackend();
+    ~CrashpadBackend();
     void start();
     void flush_scope_state(const sentry::Scope &scope);
     void add_breadcrumb(sentry::Value breadcrumb);
 
    private:
-    BreakpadBackendImpl *m_impl;
+    CrashpadBackendImpl *m_impl;
 };
 }  // namespace backends
 }  // namespace sentry

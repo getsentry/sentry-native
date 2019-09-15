@@ -1,4 +1,4 @@
-#include "base.hpp"
+#include "../symbolize.hpp"
 #ifdef SENTRY_WITH_WINDOWS_SYMBOLIZER
 #include <dbghelp.h>
 #include <malloc.h>

@@ -4,12 +4,12 @@
 #include <random>
 #include <sstream>
 #ifdef SENTRY_WITH_CRASHPAD_BACKEND
-#include "backends/crashpad.hpp"
+#include "backends/crashpad_backend.hpp"
 #elif defined(SENTRY_WITH_BREAKPAD_BACKEND)
-#include "backends/breakpad.hpp"
+#include "backends/breakpad_backend.hpp"
 #endif
-#include "transports/base.hpp"
-#include "transports/function.hpp"
+#include "transports/base_transport.hpp"
+#include "transports/function_transport.hpp"
 
 static const char *getenv_or_empty(const char *key) {
     const char *rv = getenv(key);
@@ -32,7 +32,7 @@ sentry_options_s::sentry_options_s()
 #elif defined(SENTRY_WITH_BREAKPAD_BACKEND)
       backend(new sentry::backends::BreakpadBackend()),
 #endif
-      before_send([] (sentry::Value event, void *hint) { return event; }) {
+      before_send([](sentry::Value event, void *hint) { return event; }) {
     std::random_device seed;
     std::default_random_engine engine(seed());
     std::uniform_int_distribution<int> uniform_dist(0, INT32_MAX);
@@ -57,7 +57,7 @@ void sentry_options_set_transport(sentry_options_t *opts,
 void sentry_options_set_before_send(sentry_options_t *opts,
                                     sentry_event_function_t func,
                                     void *closure) {
-    opts->before_send = [func, closure] (sentry::Value event, void *hint) {
+    opts->before_send = [func, closure](sentry::Value event, void *hint) {
         return sentry::Value::consume(func(event.lower(), hint, closure));
     };
 }

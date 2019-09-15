@@ -1,4 +1,4 @@
-#include "base.hpp"
+#include "../symbolize.hpp"
 #ifdef SENTRY_WITH_DLADDR_SYMBOLIZER
 #include <dlfcn.h>
 

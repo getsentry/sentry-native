@@ -1,5 +1,5 @@
 #ifdef SENTRY_WITH_WINHTTP_TRANSPORT
-#include "winhttp.hpp"
+#include "winhttp_transport.hpp"
 #include <codecvt>
 #include <iostream>
 #include <locale>
