@@ -1,4 +1,4 @@
-#include "base.hpp"
+#include "../unwind.hpp"
 #ifdef SENTRY_WITH_NULL_UNWINDER
 
 using namespace sentry;

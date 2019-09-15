@@ -1,4 +1,4 @@
-#include "breakpad.hpp"
+#include "breakpad_backend.hpp"
 #ifdef SENTRY_WITH_BREAKPAD_BACKEND
 
 using namespace sentry;

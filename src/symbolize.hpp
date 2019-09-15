@@ -8,7 +8,7 @@
 #endif
 
 #include <functional>
-#include "../internal.hpp"
+#include "internal.hpp"
 
 namespace sentry {
 namespace symbolizers {

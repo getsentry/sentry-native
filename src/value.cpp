@@ -6,7 +6,7 @@
 #include <ctime>
 #include <locale>
 #include <sstream>
-#include "unwinders/base.hpp"
+#include "unwind.hpp"
 
 using namespace sentry;
 

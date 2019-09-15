@@ -1,8 +1,8 @@
 #ifndef SENTRY_TRANSPORTS_FUNCTION_HPP_INCLUDED
 #define SENTRY_TRANSPORTS_FUNCTION_HPP_INCLUDED
 
-#include "base.hpp"
 #include <functional>
+#include "base_transport.hpp"
 
 namespace sentry {
 namespace transports {

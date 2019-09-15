@@ -1,4 +1,4 @@
-#include "base.hpp"
+#include "../modulefinder.hpp"
 #ifdef SENTRY_WITH_WINDOWS_MODULEFINDER
 #include <dbghelp.h>
 #include <tlhelp32.h>

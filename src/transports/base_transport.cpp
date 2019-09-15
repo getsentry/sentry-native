@@ -1,7 +1,7 @@
-#include "base.hpp"
+#include "base_transport.hpp"
 
-#include "libcurl.hpp"
-#include "winhttp.hpp"
+#include "libcurl_transport.hpp"
+#include "winhttp_transport.hpp"
 
 using namespace sentry;
 using namespace transports;

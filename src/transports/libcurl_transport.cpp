@@ -1,5 +1,5 @@
 #ifdef SENTRY_WITH_LIBCURL_TRANSPORT
-#include "libcurl.hpp"
+#include "libcurl_transport.hpp"
 #include <algorithm>
 #include <cctype>
 #include "../options.hpp"

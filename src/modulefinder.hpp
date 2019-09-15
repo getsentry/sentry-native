@@ -9,8 +9,8 @@
 #define SENTRY_WITH_LINUX_MODULEFINDER
 #endif
 
-#include "../internal.hpp"
-#include "../value.hpp"
+#include "internal.hpp"
+#include "value.hpp"
 
 namespace sentry {
 namespace modulefinders {

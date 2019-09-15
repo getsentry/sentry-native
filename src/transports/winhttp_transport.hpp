@@ -3,9 +3,10 @@
 #ifdef SENTRY_WITH_WINHTTP_TRANSPORT
 
 #include <Windows.h>
+
 #include <WinHttp.h>
 #include "../worker.hpp"
-#include "base.hpp"
+#include "base_transport.hpp"
 
 namespace sentry {
 namespace transports {
