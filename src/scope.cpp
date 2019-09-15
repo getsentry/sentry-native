@@ -1,4 +1,5 @@
 #include "scope.hpp"
+#include "modulefinder.hpp"
 #include "options.hpp"
 #include "symbolize.hpp"
 
@@ -142,7 +143,7 @@ void Scope::apply_to_event(Value &event, bool with_breadcrumbs) const {
         shared_sdk_info = sdk_info;
     }
 
-    Value modules(sentry_get_module_list());
+    Value modules(modulefinders::get_module_list());
     if (!modules.is_null()) {
         Value debug_meta = Value::new_object();
         debug_meta.set_by_key("images", modules);
