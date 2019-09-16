@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -eux
+set -eu
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 BASE_DIR="$SCRIPT_DIR/.."
@@ -10,6 +10,11 @@ rm -rf "$OUT_DIR"
 mkdir $OUT_DIR
 
 fetch_crashpad() {
+    echo '
+#########################
+### Fetching Crashpad ###
+#########################
+    '
     ### Crashpad
     # CRASHPAD_REMOTE="git@github.com:getsentry/crashpad.git"
     # CRASHPAD_REVISION="origin/getsentry"
@@ -35,7 +40,11 @@ fetch_crashpad() {
 
 
 fetch_breakpad() {
-    ### Breakpad
+    echo '
+#########################
+### Fetching Breakpad ###
+#########################
+    '
     BREAKPAD_OUT_DIR="$OUT_DIR/breakpad"
     mkdir -p "$BREAKPAD_OUT_DIR"
 
@@ -54,27 +63,33 @@ fetch_breakpad() {
 }
 
 
-### Sentry-Native
-SENTRY_NATIVE_REMOTE="https://github.com/getsentry/sentry-native/"
-SENTRY_NATIVE_REVISION=$(git rev-parse "$TARGET_REVISION")
-SENTRY_NATIVE_IN_DIR="$BASE_DIR/.sentry-native-tmp"
-if [ -d "$SENTRY_NATIVE_IN_DIR" ]; then
-    cd "$SENTRY_NATIVE_IN_DIR"
-    git fetch origin
-    git checkout -f "$SENTRY_NATIVE_REVISION"
-else
-    git clone "$SENTRY_NATIVE_REMOTE" "$SENTRY_NATIVE_IN_DIR"
-    cd "$SENTRY_NATIVE_IN_DIR"
-    git checkout -f "$SENTRY_NATIVE_REVISION"
-fi
+fetch_sentry_native() {
+    echo '
+##############################
+### Fetching Sentry Native ###
+##############################
+    '
+    SENTRY_NATIVE_REMOTE="https://github.com/getsentry/sentry-native/"
+    SENTRY_NATIVE_REVISION=$(git rev-parse "$TARGET_REVISION")
+    SENTRY_NATIVE_IN_DIR="$BASE_DIR/.sentry-native-tmp"
+    if [ -d "$SENTRY_NATIVE_IN_DIR" ]; then
+        cd "$SENTRY_NATIVE_IN_DIR"
+        git fetch origin
+        git checkout -f "$SENTRY_NATIVE_REVISION"
+    else
+        git clone "$SENTRY_NATIVE_REMOTE" "$SENTRY_NATIVE_IN_DIR"
+        cd "$SENTRY_NATIVE_IN_DIR"
+        git checkout -f "$SENTRY_NATIVE_REVISION"
+    fi
 
-SENTRY_NATIVE_SRC=("examples" "include" "src" "premake" "README.md" "Makefile" "tests")
+    SENTRY_NATIVE_SRC=("examples" "include" "src" "premake" "README.md" "Makefile" "tests" "docker")
 
-# Copy files
-for f in "${SENTRY_NATIVE_SRC[@]}"; do
-    cp -r "$SENTRY_NATIVE_IN_DIR/$f" "$OUT_DIR/"
-done
+    # Copy files
+    for f in "${SENTRY_NATIVE_SRC[@]}"; do
+        cp -r "$SENTRY_NATIVE_IN_DIR/$f" "$OUT_DIR/"
+    done
+}
 
+fetch_sentry_native
 fetch_crashpad
-
 fetch_breakpad

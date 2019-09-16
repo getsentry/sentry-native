@@ -22,7 +22,7 @@ jobs:
       PLATFORM: ${{ parameters.platform }}
       BUILD_SYSTEM: ${{ parameters.buildSystem }}
       PACKAGE_DIR: ${{ parameters.packageDirectory }}
-      PLATFORM_BUILD_DIR: ${{ parameters.packageDirectory }}/gen_${{ parameters.platform }}
+      PLATFORM_BUILD_DIR: ${{ parameters.packageDirectory }}/premake
     steps:
       - template: prescript-common.yml
       - template: install-premake.yml
@@ -40,10 +40,7 @@ jobs:
 
           unzip -q ./${ARTIFACT_DIR}/sp-sources.zip
           mv sp-sources "${PACKAGE_DIR}"
-
-          cp -R "${PACKAGE_DIR}/premake" "${PLATFORM_BUILD_DIR}"
-
-          cd "${PLATFORM_BUILD_DIR}"
+          cd "${PACKAGE_DIR}/premake"
           premake5 "${BUILD_SYSTEM}" --os="${PLATFORM}"
           cd ../..
           $ZIP "sentry-native-${PLATFORM}.zip" "${PACKAGE_DIR}"
