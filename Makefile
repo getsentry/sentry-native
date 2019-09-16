@@ -2,12 +2,12 @@ PREMAKE_DIR := premake
 PREMAKE := premake5
 
 ifeq ($(OS),Windows_NT)
-	# Windows specific
+  # Windows specific
 else
-	# Mac or Linux
-	CPUS ?= $(shell getconf _NPROCESSORS_ONLN)
-	INTERACTIVE := $(shell [ -t 0 ] && echo 1)
-	UNAME_S := $(shell uname -s)
+  # Mac or Linux
+  CPUS ?= $(shell getconf _NPROCESSORS_ONLN)
+  INTERACTIVE := $(shell [ -t 0 ] && echo 1)
+  UNAME_S := $(shell uname -s)
 endif
 
 help:
@@ -82,14 +82,17 @@ linux-build-env:
 .PHONY: linux-build-env
 
 linux-run:
-	@$(MAKE) linux-build-env >/dev/null
-	$(eval CMD ?= bash)
+ifneq ("${SHOW_DOCKER_BUILD}","1")
+	$(eval OUTPUT := >/dev/null)
+endif
+	@$(MAKE) linux-build-env ${OUTPUT}
 ifeq ("${INTERACTIVE}","1")
 	$(eval DOCKER_ARGS := "-it")
 endif
+	$(eval CMD ?= bash)
 	@docker run --rm -v ${PWD}:/work ${DOCKER_ARGS} getsentry/sentry-native ${CMD}
 .PHONY: linux-run
 
-linux-shell: linux-build-env
-	@$(MAKE) linux-run
+linux-shell:
+	@$(MAKE) linux-run SHOW_DOCKER_BUILD=1
 .PHONY: linux-shell
