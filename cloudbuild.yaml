@@ -1,0 +1,26 @@
+steps:
+  - name: "gcr.io/cloud-builders/docker"
+    entrypoint: "bash"
+    args:
+      [
+        "-c",
+        "docker pull us.gcr.io/$PROJECT_ID/sentry-native:builder || true"
+      ]
+
+  - name: "gcr.io/cloud-builders/docker"
+    args:
+      [
+        "build",
+        "-t", "us.gcr.io/$PROJECT_ID/sentry-native:builder",
+        "--cache-from", "us.gcr.io/$PROJECT_ID/sentry-native:builder",
+        ".",
+      ]
+
+  # Only tag "builder" when on master
+  - name: 'gcr.io/cloud-builders/docker'
+    entrypoint: 'bash'
+    args:
+    - '-c'
+    - '[[ "$BRANCH_NAME" == "master" ]] && docker push us.gcr.io/$PROJECT_ID/sentry-native:builder || true'
+
+timeout: 10m
