@@ -12,6 +12,7 @@
 extern "C" {
 #endif
 
+/* marks a function as part of the sentry API */
 #ifndef SENTRY_API
 #ifdef _WIN32
 #if defined(SENTRY_BUILD_SHARED) /* build dll */
@@ -28,6 +29,11 @@ extern "C" {
 #define SENTRY_API
 #endif
 #endif
+#endif
+
+/* marks a function as experimental api */
+#ifndef SENTRY_EXPERIMENTAL_API
+#define SENTRY_EXPERIMENTAL_API SENTRY_API
 #endif
 
 #include <inttypes.h>
@@ -59,47 +65,118 @@ typedef enum {
  */
 void sentry_string_free(char *str);
 
+/* -- Protocol Value API -- */
+
 /*
  * Represents a sentry protocol value.
  *
  * The members of this type should never be accessed.  They are only here
  * so that alignment for the type can be properly determined.
+ *
+ * Values must be freed with `sentry_value_free`.  Note that internally
+ * values are reference counted and freeing a value just decrements that
+ * reference count.
  */
 union sentry_value_u {
     uint64_t _bits;
     double _double;
 };
-
 typedef union sentry_value_u sentry_value_t;
 
-/* sentry value functions */
-SENTRY_API sentry_value_t sentry_value_new_null(void);
-SENTRY_API sentry_value_t sentry_value_new_int32(int32_t value);
-SENTRY_API sentry_value_t sentry_value_new_double(double value);
-SENTRY_API sentry_value_t sentry_value_new_bool(int value);
-SENTRY_API sentry_value_t sentry_value_new_string(const char *value);
-SENTRY_API sentry_value_t sentry_value_new_list(void);
-SENTRY_API sentry_value_t sentry_value_new_object(void);
+/* frees an allocated value */
 SENTRY_API void sentry_value_free(sentry_value_t value);
+
+/* creates a null value */
+SENTRY_API sentry_value_t sentry_value_new_null(void);
+
+/* creates anew 32bit signed integer value. */
+SENTRY_API sentry_value_t sentry_value_new_int32(int32_t value);
+
+/* creates a new double value */
+SENTRY_API sentry_value_t sentry_value_new_double(double value);
+
+/* creates a new boolen value */
+SENTRY_API sentry_value_t sentry_value_new_bool(int value);
+
+/* creates a new null terminated string */
+SENTRY_API sentry_value_t sentry_value_new_string(const char *value);
+
+/* creates a new list value */
+SENTRY_API sentry_value_t sentry_value_new_list(void);
+
+/* creates a new object */
+SENTRY_API sentry_value_t sentry_value_new_object(void);
+
+/* returns the type of the value passed */
 SENTRY_API sentry_value_type_t sentry_value_get_type(sentry_value_t value);
+
+/*
+ * sets a key to a value in the map.
+ *
+ * This moves the ownership of the value into the map.  The caller does not
+ * have to call` sentry_value_free` on it.
+ */
 SENTRY_API int sentry_value_set_by_key(sentry_value_t value,
                                        const char *k,
                                        sentry_value_t v);
+
+/* This removes a value from the map by key */
 SENTRY_API int sentry_value_remove_by_key(sentry_value_t value, const char *k);
+
+/*
+ * appends a value to a list.
+ *
+ * This moves the ownership of the value into the list.  The caller does not
+ * have to call` sentry_value_free` on it.
+ */
 SENTRY_API int sentry_value_append(sentry_value_t value, sentry_value_t v);
+
+/*
+ * inserts a value into the list at a certain position.
+ *
+ * This moves the ownership of the value into the list.  The caller does not
+ * have to call` sentry_value_free` on it.
+ *
+ * If the list is shorter than the given index it's automatically extended
+ * and filled with `null` values.
+ */
 SENTRY_API int sentry_value_set_by_index(sentry_value_t value,
                                          size_t index,
                                          sentry_value_t v);
+
+/* This removes a value from the list by index */
 SENTRY_API int sentry_value_remove_by_index(sentry_value_t value, size_t index);
+
+/* looks up a value in a map by key.  If missing a null value is returned.
+
+   If the caller no longer needs the value it must be freed with
+   `sentry_value_free`. */
 SENTRY_API sentry_value_t sentry_value_get_by_key(sentry_value_t value,
                                                   const char *k);
+
+/* looks up a value in a list by index.  If missing a null value is returned.
+
+   If the caller no longer needs the value it must be freed with
+   `sentry_value_free`. */
 SENTRY_API sentry_value_t sentry_value_get_by_index(sentry_value_t value,
                                                     size_t index);
+
+/* returns the length of the given map or list */
 SENTRY_API size_t sentry_value_get_length(sentry_value_t value);
+
+/* converts a value into a 32bit signed integer */
 SENTRY_API int32_t sentry_value_as_int32(sentry_value_t value);
+
+/* converts a value into a double value. */
 SENTRY_API double sentry_value_as_double(sentry_value_t value);
+
+/* returns the value as c string */
 SENTRY_API const char *sentry_value_as_string(sentry_value_t value);
+
+/* returns `true` if the value is boolean true. */
 SENTRY_API int sentry_value_is_true(sentry_value_t value);
+
+/* returns `true` if the value is null. */
 SENTRY_API int sentry_value_is_null(sentry_value_t value);
 
 /*
@@ -109,16 +186,6 @@ SENTRY_API int sentry_value_is_null(sentry_value_t value);
  * `sentry_string_free`.
  */
 SENTRY_API char *sentry_value_to_json(sentry_value_t value);
-
-/*
- * serialize a sentry value to msgpack.
- *
- * the string is freshly allocated and must be freed with
- * `sentry_string_free`.  Since msgpack is not zero terminated
- * the size is written to the `size_out` parameter.
- */
-SENTRY_API char *sentry_value_to_msgpack(sentry_value_t value,
-                                         size_t *size_out);
 
 /*
  * Sentry levels for events and breadcrumbs.
@@ -138,24 +205,53 @@ SENTRY_API sentry_value_t sentry_value_new_event(void);
 
 /*
  * creates a new message event value.
+ *
+ * `logger` can be NULL to omit the logger value.
  */
 SENTRY_API sentry_value_t sentry_value_new_message_event(sentry_level_t level,
                                                          const char *logger,
                                                          const char *text);
 
+/*
+ * creates a new breadcrumb with a specific type and message.
+ *
+ * Either parameter can be NULL in which case no such attributes is created.
+ */
 SENTRY_API sentry_value_t sentry_value_new_breadcrumb(const char *type,
                                                       const char *message);
-SENTRY_API void sentry_event_value_add_stacktrace(sentry_value_t event,
-                                                  void **ips,
-                                                  size_t len);
-SENTRY_API sentry_value_t sentry_get_module_list(void);
+
+/* -- Experimental APIs -- */
 
 /*
- * walk a stacktrace manually
+ * serialize a sentry value to msgpack.
+ *
+ * the string is freshly allocated and must be freed with
+ * `sentry_string_free`.  Since msgpack is not zero terminated
+ * the size is written to the `size_out` parameter.
  */
-SENTRY_API size_t sentry_unwind_stack(void *addr,
-                                      void **stacktrace_out,
-                                      size_t max_len);
+SENTRY_EXPERIMENTAL_API char *sentry_value_to_msgpack(sentry_value_t value,
+                                                      size_t *size_out);
+
+/*
+ * adds a stacktrace to an event.
+ *
+ * If `ips` is NULL the current stacktrace is captured, otherwise `len`
+ * stacktrace instruction pointers are attached to the event.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_event_value_add_stacktrace(
+    sentry_value_t event, void **ips, size_t len);
+
+/*
+ * Unwinds the stack from the given address.
+ *
+ * If the address is given in `addr` the stack is unwound form there.  Otherwise
+ * (NULL is passed) the current instruction pointer is used as start address.
+ * The stacktrace is written to `stacktrace_out` with upt o `max_len` frames
+ * being written.  The actual number of unwound stackframes is returned.
+ */
+SENTRY_EXPERIMENTAL_API size_t sentry_unwind_stack(void *addr,
+                                                   void **stacktrace_out,
+                                                   size_t max_len);
 
 /*
  * A UUID
@@ -338,17 +434,15 @@ SENTRY_API void sentry_options_set_database_path(sentry_options_t *opts,
 SENTRY_API void sentry_options_add_attachmentw(sentry_options_t *opts,
                                                const char *name,
                                                const wchar_t *path);
+
 /* wide char version of `sentry_options_set_handler_path` */
 SENTRY_API void sentry_options_set_handler_pathw(sentry_options_t *opts,
                                                  const wchar_t *path);
+
 /* wide char version of `sentry_options_set_database_path` */
 SENTRY_API void sentry_options_set_database_pathw(sentry_options_t *opts,
                                                   const wchar_t *path);
 #endif
-
-/* Unified API */
-
-/* Unified API */
 
 /*
  * Initializes the Sentry SDK with the specified options.
@@ -377,46 +471,57 @@ SENTRY_API sentry_uuid_t sentry_capture_event(sentry_value_t event);
  * Adds the breadcrumb to be sent in case of an event.
  */
 SENTRY_API void sentry_add_breadcrumb(sentry_value_t breadcrumb);
+
 /*
  * Sets the specified user.
  */
 SENTRY_API void sentry_set_user(sentry_value_t user);
+
 /*
  * Removes a user.
  */
 SENTRY_API void sentry_remove_user(void);
+
 /*
  * Sets a tag.
  */
 SENTRY_API void sentry_set_tag(const char *key, const char *value);
+
 /*
  * Removes the tag with the specified key.
  */
 SENTRY_API void sentry_remove_tag(const char *key);
+
 /*
  * Sets extra information.
  */
 SENTRY_API void sentry_set_extra(const char *key, sentry_value_t value);
+
 /*
  * Removes the extra with the specified key.
  */
 SENTRY_API void sentry_remove_extra(const char *key);
+
 /*
  * Sets the event fingerprint.
  */
 SENTRY_API void sentry_set_fingerprint(const char *fingerprint, ...);
+
 /*
  * Removes the fingerprint.
  */
 SENTRY_API void sentry_remove_fingerprint(void);
+
 /*
  * Sets the transaction.
  */
 SENTRY_API void sentry_set_transaction(const char *transaction);
+
 /*
  * Removes the transaction.
  */
 SENTRY_API void sentry_remove_transaction(void);
+
 /*
  * Sets the event level.
  */
