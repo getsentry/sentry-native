@@ -13,7 +13,7 @@ steps:
         "build",
         "-t", "us.gcr.io/$PROJECT_ID/sentry-native:builder",
         "--cache-from", "us.gcr.io/$PROJECT_ID/sentry-native:builder",
-        ".",
+        "docker",
       ]
 
   # Only tag "builder" when on master
