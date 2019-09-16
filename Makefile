@@ -78,7 +78,7 @@ $(PREMAKE_DIR)/$(PREMAKE):
 	@curl -sL https://github.com/premake/premake-core/releases/download/v5.0.0-alpha14/premake-5.0.0-alpha14-$(PREMAKE_DIST).tar.gz | tar xz -C $(PREMAKE_DIR)
 
 linux-build-env:
-	@cd docker && docker build -t getsentry/sentry-native .
+	@docker build ${DOCKER_BUILD_ARGS} -t getsentry/sentry-native .
 .PHONY: linux-build-env
 
 linux-run:

@@ -82,7 +82,10 @@ fetch_sentry_native() {
         git checkout -f "$SENTRY_NATIVE_REVISION"
     fi
 
-    SENTRY_NATIVE_SRC=("examples" "include" "src" "premake" "README.md" "Makefile" "tests" "docker")
+    SENTRY_NATIVE_SRC=(
+        "examples" "include" "src" "premake" "README.md" "Makefile"
+        "tests" "Dockerfile" ".dockerignore"
+    )
 
     # Copy files
     for f in "${SENTRY_NATIVE_SRC[@]}"; do
