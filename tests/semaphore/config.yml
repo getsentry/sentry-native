@@ -1,0 +1,11 @@
+---
+relay:
+  mode: capture
+  upstream: "https://sentry.io/"
+  host: 127.0.0.1
+  port: 7654
+  tls_port: ~
+  tls_identity_path: ~
+  tls_identity_password: ~
+logging:
+  level: debug
