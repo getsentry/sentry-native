@@ -96,15 +96,14 @@ stages:
             # Run tests
             ./bin/x86_64/Release/test_sentry.exe
 
-      - job: breakpad_android
-        displayName: Breakpad (Android, all)
-        pool:
+      # Android
+      - template: azure-pipelines/build-platform.yml
+        parameters:
           vmImage: "macos-10.13"
-        steps:
-          - template: azure-pipelines/prescript-common.yml
-          - bash: |
-              set -eux
-              bash android/build.sh
+          platform: "android"
+          buildSystem: "gmake2"
+          buildScript: |
+            bash ../android/build.sh
 
   - stage: package_all
     displayName: Package the final archive

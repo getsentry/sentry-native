@@ -84,7 +84,7 @@ fetch_sentry_native() {
 
     SENTRY_NATIVE_SRC=(
         "examples" "include" "src" "premake" "README.md" "Makefile"
-        "tests" "Dockerfile" ".dockerignore"
+        "tests" "Dockerfile" ".dockerignore" "android"
     )
 
     # Copy files
