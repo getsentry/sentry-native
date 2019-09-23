@@ -78,9 +78,9 @@ project "sentry_crashpad"
   defines {
     "SENTRY_WITH_CRASHPAD_BACKEND"
   }
+
   includedirs {
     CRASHPAD_PKG,
-    CRASHPAD_PKG.."/include",
     CRASHPAD_PKG.."/third_party/mini_chromium/mini_chromium",
   }
 
@@ -116,7 +116,7 @@ project "sentry_breakpad"
     "-fvisibility=hidden",
   }
   includedirs {
-    BREAKPAD_PKG.."/include",
+    BREAKPAD_PKG.."/src",
   }
 
   -- Breakpad
