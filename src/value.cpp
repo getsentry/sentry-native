@@ -298,7 +298,7 @@ Value Value::new_breadcrumb(const char *type, const char *message) {
     return rv;
 }
 
-Value Value::navigate(const char *path) {
+Value Value::navigate(const char *path) const {
     size_t len = strlen(path);
     size_t ident_start = 0;
     Value rv = *this;
