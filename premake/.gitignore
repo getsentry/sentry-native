@@ -10,3 +10,6 @@ bin/
 
 # Generated files
 gen/
+
+# Runtime files
+sentry-db/
