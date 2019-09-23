@@ -19,6 +19,7 @@ struct SentryGuard {
     SentryGuard(sentry_options_t *options) {
         if (!options) {
             options = sentry_options_new();
+            sentry_options_set_dsn(options, "https://publickey@127.0.0.1/1");
         }
         mock_transport = MockTransportData();
         sentry_options_set_transport(options, send_event, nullptr);

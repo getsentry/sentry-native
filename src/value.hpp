@@ -482,7 +482,7 @@ class Value {
         } else if (thing && thing->type() == THING_TYPE_STRING) {
             return ((const std::string *)thing->ptr())->size();
         }
-        return (size_t)-1;
+        return -1;
     }
 
     void to_msgpack(mpack_writer_t *writer) const;

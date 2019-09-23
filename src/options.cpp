@@ -31,6 +31,8 @@ sentry_options_s::sentry_options_s()
       backend(new sentry::backends::CrashpadBackend()),
 #elif defined(SENTRY_WITH_BREAKPAD_BACKEND)
       backend(new sentry::backends::BreakpadBackend()),
+#else
+      backend(nullptr),
 #endif
       before_send([](sentry::Value event, void *hint) { return event; }) {
     std::random_device seed;

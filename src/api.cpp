@@ -150,6 +150,18 @@ void sentry_remove_extra(const char *key) {
     flush_scope();
 }
 
+void sentry_set_context(const char *key, sentry_value_t value) {
+    WITH_LOCKED_SCOPE;
+    g_scope.contexts.set_by_key(key, Value::consume(value));
+    flush_scope();
+}
+
+void sentry_remove_context(const char *key) {
+    WITH_LOCKED_SCOPE;
+    g_scope.contexts.remove_by_key(key);
+    flush_scope();
+}
+
 void sentry_set_fingerprint(const char *fingerprint, ...) {
     WITH_LOCKED_SCOPE;
     va_list va;

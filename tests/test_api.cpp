@@ -14,22 +14,11 @@ TEST_CASE("init and shutdown", "[api]") {
     }
 }
 
-static sentry_value_t dummy_before_send(sentry_value_t event,
-                                        void *hint,
-                                        void *closure) {
-    sentry_value_t extra = sentry_value_new_object();
-    sentry_value_set_by_key(extra, "foo",
-                            sentry_value_new_string((const char *)closure));
-    sentry_value_set_by_key(event, "extra", extra);
-    return event;
-}
-
 TEST_CASE("send basic event", "[api]") {
     sentry_options_t *options = sentry_options_new();
     sentry_options_set_environment(options, "demo-env");
     sentry_options_set_release(options, "demo-app@1.0.0");
-    sentry_options_set_before_send(options, dummy_before_send,
-                                   (void *)"a value");
+    sentry_options_set_dist(options, "android");
 
     WITH_MOCK_TRANSPORT(options) {
         sentry_value_t event = sentry_value_new_event();
@@ -38,8 +27,9 @@ TEST_CASE("send basic event", "[api]") {
         sentry_capture_event(event);
 
         REQUIRE(mock_transport.events.size() == 1);
-
         sentry::Value event_out = mock_transport.events[0];
+
+        // Assert basic event attributes
         REQUIRE(event_out.get_by_key("event_id").type() ==
                 SENTRY_VALUE_TYPE_STRING);
         REQUIRE(event_out.get_by_key("debug_meta").type() ==
@@ -48,14 +38,28 @@ TEST_CASE("send basic event", "[api]") {
         REQUIRE(event_out.get_by_key("timestamp").type() ==
                 SENTRY_VALUE_TYPE_STRING);
 
-        sentry::Value images = event_out.navigate("debug_meta.images");
-        REQUIRE(images.type() == SENTRY_VALUE_TYPE_LIST);
-        REQUIRE(images.length() > 0);
-
+        // Assert options attributes
+        REQUIRE(event_out.get_by_key("level").as_cstr() ==
+                std::string("error"));
         REQUIRE(event_out.get_by_key("environment").as_cstr() ==
                 std::string("demo-env"));
         REQUIRE(event_out.get_by_key("release").as_cstr() ==
                 std::string("demo-app@1.0.0"));
+        REQUIRE(event_out.get_by_key("dist").as_cstr() ==
+                std::string("android"));
+    }
+}
+
+TEST_CASE("send event with debug images", "[api]") {
+    WITH_MOCK_TRANSPORT(nullptr) {
+        sentry_value_t event = sentry_value_new_event();
+        sentry_capture_event(event);
+
+        REQUIRE(mock_transport.events.size() == 1);
+        sentry::Value event_out = mock_transport.events[0];
+        sentry::Value images = event_out.navigate("debug_meta.images");
+        REQUIRE(images.type() == SENTRY_VALUE_TYPE_LIST);
+        REQUIRE(images.length() > 0);
 
         for (size_t i = 0; i < images.length(); i++) {
             sentry::Value image = images.get_by_index(i);
@@ -68,7 +72,34 @@ TEST_CASE("send basic event", "[api]") {
             REQUIRE(image.get_by_key("image_addr").type() ==
                     SENTRY_VALUE_TYPE_STRING);
         }
+    }
+}
 
+static sentry_value_t dummy_before_send(sentry_value_t event,
+                                        void *hint,
+                                        void *data) {
+    sentry_value_t extra = sentry_value_new_object();
+    sentry_value_set_by_key(extra, "foo",
+                            sentry_value_new_string((const char *)data));
+
+    sentry_value_set_by_key(event, "extra", extra);
+    return event;
+}
+
+TEST_CASE("send event with before_send callback", "[api]") {
+    sentry_options_t *options = sentry_options_new();
+    sentry_options_set_before_send(options, dummy_before_send,
+                                   (void *)"a value");
+
+    WITH_MOCK_TRANSPORT(options) {
+        sentry_add_breadcrumb(sentry_value_new_breadcrumb("default", "crumb1"));
+        sentry_add_breadcrumb(sentry_value_new_breadcrumb("http", "crumb2"));
+
+        sentry_value_t event = sentry_value_new_event();
+        sentry_capture_event(event);
+
+        REQUIRE(mock_transport.events.size() == 1);
+        sentry::Value event_out = mock_transport.events[0];
         sentry::Value foo_extra = event_out.navigate("extra.foo");
         REQUIRE(foo_extra.as_cstr() == std::string("a value"));
     }
@@ -89,6 +120,162 @@ TEST_CASE("send message event", "[api]") {
                 std::string("Hello World!"));
         REQUIRE(event_out.get_by_key("logger").as_cstr() ==
                 std::string("root_logger"));
+    }
+}
+
+TEST_CASE("send event with breadcrumbs disabled", "[api]") {
+    // Initialize explicitly without DSN
+    sentry_options_t *options = sentry_options_new();
+    WITH_MOCK_TRANSPORT(options) {
+        sentry_add_breadcrumb(sentry_value_new_breadcrumb("default", "crumb1"));
+        sentry_add_breadcrumb(sentry_value_new_breadcrumb("http", "crumb2"));
+
+        sentry_value_t event = sentry_value_new_event();
+        sentry_capture_event(event);
+
+        REQUIRE(mock_transport.events.size() == 1);
+        sentry::Value event_out = mock_transport.events[0];
+        sentry::Value crumbs_out = event_out.navigate("breadcrumbs");
+
+        REQUIRE(crumbs_out.length() == -1);
+    }
+}
+
+TEST_CASE("send event with breadcrumbs", "[api]") {
+    WITH_MOCK_TRANSPORT(nullptr) {
+        sentry_add_breadcrumb(sentry_value_new_breadcrumb("default", "crumb1"));
+        sentry_add_breadcrumb(sentry_value_new_breadcrumb("http", "crumb2"));
+
+        sentry_value_t event = sentry_value_new_event();
+        sentry_capture_event(event);
+
+        REQUIRE(mock_transport.events.size() == 1);
+        sentry::Value event_out = mock_transport.events[0];
+        sentry::Value crumbs_out = event_out.navigate("breadcrumbs");
+
+        REQUIRE(crumbs_out.length() == 2);
+        REQUIRE(crumbs_out.navigate("0.type") ==
+                sentry::Value::new_string("default"));
+        REQUIRE(crumbs_out.navigate("0.message") ==
+                sentry::Value::new_string("crumb1"));
+
+        REQUIRE(crumbs_out.navigate("1.type") ==
+                sentry::Value::new_string("http"));
+        REQUIRE(crumbs_out.navigate("1.message") ==
+                sentry::Value::new_string("crumb2"));
+    }
+}
+
+TEST_CASE("send event with user", "[api]") {
+    WITH_MOCK_TRANSPORT(nullptr) {
+        sentry_value_t user = sentry_value_new_object();
+        sentry_value_set_by_key(user, "id", sentry_value_new_int32(42));
+        sentry_set_user(user);
+
+        sentry_value_t event = sentry_value_new_event();
+        sentry_capture_event(event);
+
+        REQUIRE(mock_transport.events.size() == 1);
+        sentry::Value event_out = mock_transport.events[0];
+
+        REQUIRE(event_out.navigate("user.id") == sentry::Value::new_int32(42));
+    }
+}
+
+TEST_CASE("send event with tag", "[api]") {
+    WITH_MOCK_TRANSPORT(nullptr) {
+        sentry_set_tag("mytag", "myvalue");
+
+        sentry_value_t event = sentry_value_new_event();
+        sentry_capture_event(event);
+
+        REQUIRE(mock_transport.events.size() == 1);
+        sentry::Value event_out = mock_transport.events[0];
+
+        REQUIRE(event_out.navigate("tags.mytag") ==
+                sentry::Value::new_string("myvalue"));
+    }
+}
+
+TEST_CASE("send event with extra", "[api]") {
+    WITH_MOCK_TRANSPORT(nullptr) {
+        sentry_set_extra("extra1", sentry_value_new_string("foo"));
+        sentry_set_extra("extra2", sentry_value_new_int32(42));
+
+        sentry_value_t event = sentry_value_new_event();
+        sentry_capture_event(event);
+
+        REQUIRE(mock_transport.events.size() == 1);
+        sentry::Value event_out = mock_transport.events[0];
+
+        REQUIRE(event_out.navigate("extra.extra1") ==
+                sentry::Value::new_string("foo"));
+        REQUIRE(event_out.navigate("extra.extra2") ==
+                sentry::Value::new_int32(42));
+    }
+}
+
+TEST_CASE("send event with custom context", "[api]") {
+    WITH_MOCK_TRANSPORT(nullptr) {
+        sentry_value_t custom = sentry_value_new_object();
+        sentry_value_set_by_key(custom, "foo", sentry_value_new_string("bar"));
+        sentry_set_context("custom", custom);
+
+        sentry_value_t event = sentry_value_new_event();
+        sentry_capture_event(event);
+
+        REQUIRE(mock_transport.events.size() == 1);
+        sentry::Value event_out = mock_transport.events[0];
+
+        REQUIRE(event_out.navigate("contexts.custom.foo") ==
+                sentry::Value::new_string("bar"));
+    }
+}
+
+TEST_CASE("send event with fingerprint", "[api]") {
+    WITH_MOCK_TRANSPORT(nullptr) {
+        sentry_set_fingerprint("foo", "bar", 0);
+
+        sentry_value_t event = sentry_value_new_event();
+        sentry_capture_event(event);
+
+        REQUIRE(mock_transport.events.size() == 1);
+        sentry::Value event_out = mock_transport.events[0];
+        sentry::Value fp_out = event_out.navigate("fingerprint");
+
+        REQUIRE(fp_out.length() == 2);
+        REQUIRE(fp_out.navigate("0") == sentry::Value::new_string("foo"));
+        REQUIRE(fp_out.navigate("1") == sentry::Value::new_string("bar"));
+    }
+}
+
+TEST_CASE("send event with transaction", "[api]") {
+    WITH_MOCK_TRANSPORT(nullptr) {
+        sentry_set_transaction("my_transaction");
+
+        sentry_value_t event = sentry_value_new_event();
+        sentry_capture_event(event);
+
+        REQUIRE(mock_transport.events.size() == 1);
+        sentry::Value event_out = mock_transport.events[0];
+
+        REQUIRE(event_out.navigate("transaction") ==
+                sentry::Value::new_string("my_transaction"));
+    }
+}
+
+TEST_CASE("send event with level", "[api]") {
+    WITH_MOCK_TRANSPORT(nullptr) {
+        sentry_set_level(SENTRY_LEVEL_INFO);
+
+        sentry_value_t event = sentry_value_new_event();
+        sentry_capture_event(event);
+
+        REQUIRE(mock_transport.events.size() == 1);
+        sentry::Value event_out = mock_transport.events[0];
+
+        REQUIRE(event_out.navigate("level") ==
+                sentry::Value::new_level(SENTRY_LEVEL_INFO));
     }
 }
 

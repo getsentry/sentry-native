@@ -13,6 +13,7 @@ struct Scope {
         : level(SENTRY_LEVEL_ERROR),
           extra(Value::new_object()),
           tags(Value::new_object()),
+          contexts(Value::new_object()),
           breadcrumbs(Value::new_list()),
           fingerprint(Value::new_list()) {
     }
@@ -27,6 +28,7 @@ struct Scope {
     sentry::Value user;
     sentry::Value tags;
     sentry::Value extra;
+    sentry::Value contexts;
     sentry::Value breadcrumbs;
     sentry_level_t level;
 };
