@@ -25,7 +25,7 @@ static bool sdk_disabled() {
 
 static void flush_scope() {
     if (!sdk_disabled() && g_options->backend) {
-        g_options->backend->flush_scope_state(g_scope);
+        g_options->backend->flush_scope(g_scope);
     }
 }
 

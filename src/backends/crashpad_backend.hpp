@@ -3,24 +3,27 @@
 #ifdef SENTRY_WITH_CRASHPAD_BACKEND
 
 #include "../internal.hpp"
+#include "../path.hpp"
 #include "../scope.hpp"
 #include "base_backend.hpp"
 
 namespace sentry {
 namespace backends {
 
-class CrashpadBackendImpl;
-
 class CrashpadBackend : public Backend {
    public:
     CrashpadBackend();
-    ~CrashpadBackend();
+
     void start();
-    void flush_scope_state(const sentry::Scope &scope);
-    void add_breadcrumb(sentry::Value breadcrumb);
+    void flush_scope(const Scope &scope);
+    void add_breadcrumb(Value breadcrumb);
 
    private:
-    CrashpadBackendImpl *m_impl;
+    Path event_filename;
+    Path breadcrumb_filename;
+    std::mutex breadcrumb_lock;
+    int breadcrumb_fileid;
+    int breadcrumbs_in_segment;
 };
 }  // namespace backends
 }  // namespace sentry

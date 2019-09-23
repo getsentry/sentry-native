@@ -1,8 +1,8 @@
 #ifdef SENTRY_WITH_CRASHPAD_BACKEND
 #include "crashpad_backend.hpp"
 
-#include <stdio.h>
 #include <atomic>
+#include <cstdio>
 #include <map>
 #include <mutex>
 #include <string>
@@ -22,28 +22,8 @@
 using namespace sentry;
 using namespace backends;
 
-class backends::CrashpadBackendImpl {
-   public:
-    CrashpadBackendImpl();
-
-    Path event_filename;
-    Path breadcrumb_filename;
-    std::mutex breadcrumb_lock;
-    int breadcrumb_fileid;
-    int breadcrumbs_in_segment;
-};
-
-CrashpadBackendImpl::CrashpadBackendImpl() {
-    breadcrumb_fileid = 0;
-    breadcrumbs_in_segment = 0;
-}
-
 CrashpadBackend::CrashpadBackend()
-    : m_impl(new backends::CrashpadBackendImpl()) {
-}
-
-CrashpadBackend::~CrashpadBackend() {
-    delete m_impl;
+    : breadcrumb_fileid(0), breadcrumbs_in_segment(0) {
 }
 
 void CrashpadBackend::start() {
@@ -64,17 +44,15 @@ void CrashpadBackend::start() {
                                  base::FilePath(attachment.path().as_osstr()));
     }
 
-    m_impl->event_filename = current_run_folder.join(SENTRY_EVENT_FILE_NAME);
+    event_filename = current_run_folder.join(SENTRY_EVENT_FILE);
+    file_attachments.emplace(SENTRY_EVENT_FILE,
+                             base::FilePath(event_filename.as_osstr()));
     file_attachments.emplace(
-        SENTRY_EVENT_FILE_ATTACHMENT_NAME,
-        base::FilePath(
-            current_run_folder.join(SENTRY_EVENT_FILE_NAME).as_osstr()));
-    file_attachments.emplace(
-        SENTRY_BREADCRUMB1_FILE_ATTACHMENT_NAME,
+        SENTRY_BREADCRUMB1_FILE,
         base::FilePath(
             current_run_folder.join(SENTRY_BREADCRUMB1_FILE).as_osstr()));
     file_attachments.emplace(
-        SENTRY_BREADCRUMB2_FILE_ATTACHMENT_NAME,
+        SENTRY_BREADCRUMB2_FILE,
         base::FilePath(
             current_run_folder.join(SENTRY_BREADCRUMB2_FILE).as_osstr()));
 
@@ -109,10 +87,10 @@ void CrashpadBackend::start() {
     }
 }
 
-void CrashpadBackend::flush_scope_state(const sentry::Scope &scope) {
+void CrashpadBackend::flush_scope(const sentry::Scope &scope) {
     mpack_writer_t writer;
-    mpack_writer_init_stdfile(&writer, m_impl->event_filename.open("w"), true);
-    Value event = Value::new_event();
+    mpack_writer_init_stdfile(&writer, event_filename.open("w"), true);
+    Value event = Value::new_object();
     scope.apply_to_event(event, false);
     event.to_msgpack(&writer);
     mpack_error_t err = mpack_writer_destroy(&writer);
@@ -123,27 +101,27 @@ void CrashpadBackend::flush_scope_state(const sentry::Scope &scope) {
 }
 
 void CrashpadBackend::add_breadcrumb(sentry::Value breadcrumb) {
-    std::lock_guard<std::mutex> _blck(m_impl->breadcrumb_lock);
+    std::lock_guard<std::mutex> _blck(breadcrumb_lock);
     const sentry_options_t *opts = sentry_get_options();
 
-    if (m_impl->breadcrumbs_in_segment == 0 ||
-        m_impl->breadcrumbs_in_segment == SENTRY_BREADCRUMBS_MAX) {
-        m_impl->breadcrumb_fileid = m_impl->breadcrumb_fileid == 0 ? 1 : 0;
-        m_impl->breadcrumbs_in_segment = 0;
-        m_impl->breadcrumb_filename =
+    if (breadcrumbs_in_segment == 0 ||
+        breadcrumbs_in_segment == SENTRY_BREADCRUMBS_MAX) {
+        breadcrumb_fileid = breadcrumb_fileid == 0 ? 1 : 0;
+        breadcrumbs_in_segment = 0;
+        breadcrumb_filename =
             opts->runs_folder.join(opts->run_id.c_str())
-                .join(m_impl->breadcrumb_fileid == 0 ? SENTRY_BREADCRUMB1_FILE
-                                                     : SENTRY_BREADCRUMB2_FILE);
+                .join(breadcrumb_fileid == 0 ? SENTRY_BREADCRUMB1_FILE
+                                             : SENTRY_BREADCRUMB2_FILE);
     }
 
     std::string mpack = breadcrumb.to_msgpack();
-    FILE *file = m_impl->breadcrumb_filename.open(
-        m_impl->breadcrumbs_in_segment == 0 ? "w" : "a");
+    FILE *file =
+        breadcrumb_filename.open(breadcrumbs_in_segment == 0 ? "w" : "a");
     if (file) {
         fwrite(mpack.c_str(), 1, mpack.size(), file);
         fclose(file);
     }
 
-    m_impl->breadcrumbs_in_segment++;
+    breadcrumbs_in_segment++;
 }
 #endif

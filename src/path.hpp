@@ -55,7 +55,7 @@ class Path {
     PathIterator iter_directory() const;
     FILE *open(const char *mode) const;
     bool filename_matches(const char *other) const;
-    Path get_executable_path() const;
+    bool ends_with(const char *other) const;
 
    private:
 #ifdef _WIN32
@@ -74,6 +74,7 @@ class PathIterator {
     }
     bool next();
 
+   private:
 #ifdef _WIN32
     HANDLE m_dir_handle;
 #else

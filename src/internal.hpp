@@ -13,6 +13,18 @@
 #define SENTRY_SDK_VERSION "0.0.0"
 #define SENTRY_SDK_USER_AGENT (SENTRY_SDK_NAME "/" SENTRY_SDK_VERSION)
 
+#if defined(__APPLE__)
+#define OS_MACOS 1
+#elif defined(__ANDROID__)
+#define OS_ANDROID 1
+#elif defined(__linux__)
+#define OS_LINUX 1
+#elif defined(_WIN32)
+#define OS_WIN 1
+#else
+#error Platform not supported by Sentry
+#endif
+
 #define SENTRY_LOGF(message, ...)                                   \
     do {                                                            \
         const sentry_options_t *_options = sentry_get_options();    \
@@ -46,14 +58,10 @@
 
 #define SENTRY_BREADCRUMBS_MAX 100
 static const char *SENTRY_RUNS_FOLDER = "sentry-runs";
-static const char *SENTRY_EVENT_FILE_NAME = "sentry-event.mp";
-static const char *SENTRY_BREADCRUMB1_FILE = "sentry-breadcrumb1.mp";
-static const char *SENTRY_BREADCRUMB2_FILE = "sentry-breadcrumb2.mp";
-static const char *SENTRY_EVENT_FILE_ATTACHMENT_NAME = "__sentry-event";
-static const char *SENTRY_BREADCRUMB1_FILE_ATTACHMENT_NAME =
-    "__sentry-breadcrumb1";
-static const char *SENTRY_BREADCRUMB2_FILE_ATTACHMENT_NAME =
-    "__sentry-breadcrumb2";
+static const char *SENTRY_PENDING_FOLDER = "sentry-pending";
+static const char *SENTRY_EVENT_FILE = "__sentry-event";
+static const char *SENTRY_BREADCRUMB1_FILE = "__sentry-breadcrumb1";
+static const char *SENTRY_BREADCRUMB2_FILE = "__sentry-breadcrumb2";
 
 #include "value.hpp"
 
