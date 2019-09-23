@@ -264,7 +264,6 @@ Value Value::new_addr(uint64_t addr) {
 
 Value Value::new_event() {
     Value rv = Value::new_object();
-    rv.set_by_key("level", Value::new_string("error"));
 
     sentry_uuid_t uuid = sentry_uuid_new_v4();
     char uuid_str[40];
@@ -299,7 +298,7 @@ Value Value::new_breadcrumb(const char *type, const char *message) {
     return rv;
 }
 
-Value Value::navigate(const char *path) {
+Value Value::navigate(const char *path) const {
     size_t len = strlen(path);
     size_t ident_start = 0;
     Value rv = *this;
@@ -326,12 +325,12 @@ bool Value::merge_key(const char *key, Value value) {
         return true;
     }
 
-    Value existing = get_by_key(key);
-
     switch (value.type()) {
         case SENTRY_VALUE_TYPE_LIST: {
+            Value existing = get_by_key(key);
             if (existing.is_null()) {
                 existing = Value::new_list();
+                set_by_key(key, existing);
             } else if (existing.type() != SENTRY_VALUE_TYPE_LIST) {
                 return false;
             }
@@ -342,8 +341,10 @@ bool Value::merge_key(const char *key, Value value) {
             break;
         }
         case SENTRY_VALUE_TYPE_OBJECT: {
+            Value existing = get_by_key(key);
             if (existing.is_null()) {
                 existing = Value::new_object();
+                set_by_key(key, existing);
             } else if (existing.type() != SENTRY_VALUE_TYPE_OBJECT) {
                 return false;
             }

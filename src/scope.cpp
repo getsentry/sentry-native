@@ -117,6 +117,7 @@ void Scope::apply_to_event(Value &event, bool with_breadcrumbs) const {
 
     event.merge_key("tags", tags);
     event.merge_key("extra", extra);
+    event.merge_key("contexts", contexts);
 
     if (fingerprint.type() == SENTRY_VALUE_TYPE_LIST &&
         fingerprint.length() > 0) {

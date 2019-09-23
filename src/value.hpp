@@ -376,7 +376,7 @@ class Value {
         return false;
     }
 
-    Value navigate(const char *path);
+    Value navigate(const char *path) const;
 
     bool set_by_key(const char *key, Value value) {
         Thing *thing = as_thing();
@@ -439,33 +439,10 @@ class Value {
         return Value::new_null();
     }
 
-    Value get_by_key(const char *key) {
-        Thing *thing = as_thing();
-        if (thing && thing->type() == THING_TYPE_OBJECT) {
-            Object *object = (Object *)thing->ptr();
-            Object::iterator iter = object->find(key);
-            if (iter != object->end()) {
-                return iter->second;
-            }
-        }
-        return Value::new_null();
-    }
-
     Value get_by_index(size_t index) const {
         Thing *thing = as_thing();
         if (thing && thing->type() == THING_TYPE_LIST) {
             const List *list = (const List *)thing->ptr();
-            if (index < list->size()) {
-                return (*list)[index];
-            }
-        }
-        return Value::new_null();
-    }
-
-    Value get_by_index(size_t index) {
-        Thing *thing = as_thing();
-        if (thing && thing->type() == THING_TYPE_LIST) {
-            List *list = (List *)thing->ptr();
             if (index < list->size()) {
                 return (*list)[index];
             }
@@ -482,7 +459,7 @@ class Value {
         } else if (thing && thing->type() == THING_TYPE_STRING) {
             return ((const std::string *)thing->ptr())->size();
         }
-        return (size_t)-1;
+        return -1;
     }
 
     void to_msgpack(mpack_writer_t *writer) const;

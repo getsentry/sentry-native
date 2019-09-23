@@ -503,6 +503,16 @@ SENTRY_API void sentry_set_extra(const char *key, sentry_value_t value);
 SENTRY_API void sentry_remove_extra(const char *key);
 
 /*
+ * Sets a context object.
+ */
+SENTRY_API void sentry_set_context(const char *key, sentry_value_t value);
+
+/*
+ * Removes the context object with the specified key.
+ */
+SENTRY_API void sentry_remove_context(const char *key, sentry_value_t value);
+
+/*
  * Sets the event fingerprint.
  */
 SENTRY_API void sentry_set_fingerprint(const char *fingerprint, ...);
