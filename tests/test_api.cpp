@@ -3,45 +3,7 @@
 #include <value.hpp>
 #include <vector>
 #include <vendor/catch.hpp>
-
-struct MockTransportData {
-    std::vector<sentry::Value> events;
-};
-
-static MockTransportData mock_transport;
-
-static void send_event(sentry_value_t event, void *data) {
-    mock_transport.events.push_back(sentry::Value(event));
-}
-
-struct SentryGuard {
-    SentryGuard(sentry_options_t *options) {
-        if (!options) {
-            options = sentry_options_new();
-        }
-        mock_transport = MockTransportData();
-        sentry_options_set_transport(options, send_event, nullptr);
-        sentry_init(options);
-        m_done = false;
-    }
-
-    void done() {
-        if (m_done) {
-            return;
-        }
-        sentry_shutdown();
-        m_done = true;
-    }
-
-    ~SentryGuard() {
-        done();
-    }
-
-    bool m_done;
-};
-
-#define WITH_MOCK_TRANSPORT(Options) \
-    for (SentryGuard _guard(Options); !_guard.m_done; _guard.done())
+#include "testutils.hpp"
 
 TEST_CASE("init and shutdown", "[api]") {
     for (size_t i = 0; i < 10; i++) {
@@ -158,6 +120,12 @@ TEST_CASE("send basic stacktrace", "[api]") {
     }
 }
 
+#ifdef _WIN32
+#define OS_MAIN_FUNC "wmain"
+#else
+#define OS_MAIN_FUNC "main"
+#endif
+
 TEST_CASE("send basic stacktrace (unwound)", "[api]") {
     WITH_MOCK_TRANSPORT(nullptr) {
         sentry_value_t msg_event = sentry_value_new_message_event(
@@ -176,7 +144,7 @@ TEST_CASE("send basic stacktrace (unwound)", "[api]") {
         for (size_t i = 0; i < frames.length(); i++) {
             sentry::Value main_frame = frames.get_by_index(i);
             const char *func = main_frame.get_by_key("function").as_cstr();
-            if (func == std::string("main") || func == std::string("wmain")) {
+            if (func == std::string(OS_MAIN_FUNC)) {
                 found_main = true;
                 break;
             }
