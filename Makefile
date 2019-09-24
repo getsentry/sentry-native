@@ -86,11 +86,16 @@ ifneq ("${SHOW_DOCKER_BUILD}","1")
 	$(eval OUTPUT := >/dev/null)
 endif
 	@$(MAKE) linux-build-env ${OUTPUT}
+
 ifeq ("${INTERACTIVE}","1")
-	$(eval DOCKER_ARGS := "-it")
+	$(eval DOCKER_ARGS := -it)
 endif
 	$(eval CMD ?= bash)
-	@docker run --rm -v ${PWD}:/work ${DOCKER_ARGS} getsentry/sentry-native ${CMD}
+
+# We need seccomp:unconfined so we can test crashing inside the container
+	@docker run --rm -v ${PWD}:/work \
+		--security-opt seccomp:unconfined \
+		${DOCKER_ARGS} getsentry/sentry-native ${CMD}
 .PHONY: linux-run
 
 linux-shell:
