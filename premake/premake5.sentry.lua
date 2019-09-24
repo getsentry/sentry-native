@@ -62,6 +62,11 @@ function sentry_native_library()
       "SENTRY_WITH_WINHTTP_TRANSPORT",
     }
 
+  filter "system:android"
+    removefiles {
+      SRC_ROOT.."/**",
+    }
+
   filter {}
 end
 
@@ -155,6 +160,13 @@ project "example"
   filter "system:linux"
     linkoptions { "-Wl,--build-id=uuid" }
 
+  filter "system:android"
+    removefiles {
+      SRC_ROOT.."/**",
+    }
+
+  filter {}
+
 project "example_crashpad"
   kind "ConsoleApp"
   sentry_native_common()
@@ -163,9 +175,18 @@ project "example_crashpad"
     "sentry_crashpad"
   }
 
+  dependson {
+    "crashpad_handler"
+  }
+
   files {
     SRC_ROOT.."/examples/example_crashpad.c",
   }
+
+  filter "system:android"
+    removefiles {
+      SRC_ROOT.."/**",
+    }
 
 project "example_breakpad"
   kind "ConsoleApp"
@@ -178,6 +199,11 @@ project "example_breakpad"
   files {
     SRC_ROOT.."/examples/example_breakpad.c",
   }
+
+  filter "system:android"
+    removefiles {
+      SRC_ROOT.."/**",
+    }
 
 project "test_sentry"
   kind "ConsoleApp"
@@ -200,3 +226,10 @@ project "test_sentry"
   filter "system:linux"
     -- -E is needed on linux to make dladdr work on the main executable
     linkoptions { "-Wl,--build-id=uuid,-E" }
+
+  filter "system:android"
+    removefiles {
+      SRC_ROOT.."/**",
+    }
+
+  filter {}

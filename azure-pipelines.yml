@@ -37,6 +37,8 @@ stages:
   - stage: build_per_platform
     displayName: Build All
     jobs:
+
+      # MacOS
       - template: azure-pipelines/build-platform.yml
         parameters:
           vmImage: "macos-10.13"
@@ -55,6 +57,7 @@ stages:
             # Run tests
             ./bin/Release/test_sentry
 
+      # Linux
       - template: azure-pipelines/build-platform.yml
         parameters:
           vmImage: "ubuntu-16.04"
@@ -79,6 +82,7 @@ stages:
             # Run tests
             ./bin/Release/test_sentry
 
+      # Windows
       - template: azure-pipelines/build-platform.yml
         parameters:
           vmImage: "vs2017-win2016"
@@ -101,9 +105,9 @@ stages:
         parameters:
           vmImage: "macos-10.13"
           platform: "android"
-          buildSystem: "gmake2"
+          buildSystem: "androidmk"
           buildScript: |
-            bash ../android/build.sh
+            ndk-build NDK_APPLICATION_MK=./Sentry-Native_Application.mk NDK_PROJECT_PATH=. PM5_CONFIG=release
 
   - stage: package_all
     displayName: Package the final archive

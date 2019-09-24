@@ -1,7 +1,9 @@
 # .gitignore
 Makefile
 *.make
+*.mk
 deps/
+libs/
 obj/
 bin/
 *.sln

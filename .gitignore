@@ -32,6 +32,7 @@ sentrypad-db/
 sentry-native-db/
 *.mp
 *.dmp
+*.bak
 
 # OS stuff
 .DS_Store

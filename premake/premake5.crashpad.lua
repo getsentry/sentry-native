@@ -133,6 +133,11 @@ project "crashpad_minichromium_base"
       "advapi32.lib"
     }
 
+  filter "system:android"
+    removefiles {
+      SRC_ROOT.."/**",
+    }
+
   filter {}
 
 -- aka "client"
@@ -173,6 +178,10 @@ project "crashpad_client"
       "rpcrt4.lib",
     }
 
+  filter "system:android"
+    removefiles {
+      SRC_ROOT.."/**",
+    }
 
 -- aka "util"
 project "crashpad_util"
@@ -434,6 +443,10 @@ project "crashpad_util"
       "winhttp.lib",
     }
 
+  filter "system:android"
+    removefiles {
+      SRC_ROOT.."/**",
+    }
 
 project "crashpad_snapshot"
   kind "StaticLib"
@@ -539,6 +552,13 @@ project "crashpad_snapshot"
       "powrprof.lib"
     }
 
+  filter "system:android"
+    removefiles {
+      SRC_ROOT.."/**",
+    }
+
+  filter {}
+
 project "crashpad_minidump"
   kind "StaticLib"
   crashpad_common()
@@ -576,6 +596,12 @@ project "crashpad_minidump"
     --   "/wd4324",  # 'struct' : structure was padded due to __declspec(align())
     -- ]
 
+  filter "system:android"
+    removefiles {
+      SRC_ROOT.."/**",
+    }
+
+  filter {}
 
 project "crashpad_handler"
   kind "ConsoleApp"
@@ -647,6 +673,13 @@ project "crashpad_handler"
     links {
       "crashpad_zlib",
     }
+
+  filter "system:android"
+    removefiles {
+      SRC_ROOT.."/**",
+    }
+
+  filter {}
 
 project "crashpad_zlib"
     kind "StaticLib"

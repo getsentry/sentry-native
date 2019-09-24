@@ -260,13 +260,41 @@ project "breakpad_client"
       SRC_ROOT.."/src/common/windows/string_utils.cc",
     }
 
+  filter "system:android"
+    includedirs {
+      SRC_ROOT.."/src/common/android/include",
+    }
+    files {
+      SRC_ROOT.."/src/client/linux/crash_generation/crash_generation_client.cc",
+      SRC_ROOT.."/src/client/linux/dump_writer_common/thread_info.cc",
+      SRC_ROOT.."/src/client/linux/dump_writer_common/ucontext_reader.cc",
+      SRC_ROOT.."/src/client/linux/handler/exception_handler.cc",
+      SRC_ROOT.."/src/client/linux/handler/minidump_descriptor.cc",
+      SRC_ROOT.."/src/client/linux/log/log.cc",
+      SRC_ROOT.."/src/client/linux/microdump_writer/microdump_writer.cc",
+      SRC_ROOT.."/src/client/linux/minidump_writer/linux_dumper.cc",
+      SRC_ROOT.."/src/client/linux/minidump_writer/linux_ptrace_dumper.cc",
+      SRC_ROOT.."/src/client/linux/minidump_writer/minidump_writer.cc",
+      SRC_ROOT.."/src/client/minidump_file_writer.cc",
+      SRC_ROOT.."/src/common/android/breakpad_getcontext.S",
+      SRC_ROOT.."/src/common/convert_UTF.cc",
+      SRC_ROOT.."/src/common/linux/elfutils.cc",
+      SRC_ROOT.."/src/common/linux/file_id.cc",
+      SRC_ROOT.."/src/common/linux/guid_creator.cc",
+      SRC_ROOT.."/src/common/linux/linux_libc_support.cc",
+      SRC_ROOT.."/src/common/linux/memory_mapped_file.cc",
+      SRC_ROOT.."/src/common/linux/safe_readlink.cc",
+    }
+
 EXAMPLES_DIR = "../breakpad/examples"
 
 project "breakpad_crash"
   kind "ConsoleApp"
   breakpad_common()
 
-  links {"breakpad_client"}
+  links {
+    "breakpad_client",
+  }
 
   filter "system:macosx"
     files {
@@ -274,7 +302,9 @@ project "breakpad_crash"
     }
 
   filter "system:linux"
-    links {"pthread"}
+    links {
+      "pthread",
+    }
     files {
       EXAMPLES_DIR.."/linux/crash.cc",
     }
@@ -282,6 +312,14 @@ project "breakpad_crash"
   filter "system:windows"
     files {
       EXAMPLES_DIR.."/windows/crash.cc",
+    }
+
+  filter "system:android"
+    links {
+      "log",
+    }
+    files {
+      EXAMPLES_DIR.."/linux/crash.cc",
     }
 
   filter {}
