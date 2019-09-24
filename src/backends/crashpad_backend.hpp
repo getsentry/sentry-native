@@ -1,6 +1,7 @@
 #ifndef SENTRY_BACKENDS_CRASHPAD_HPP_INCLUDED
 #define SENTRY_BACKENDS_CRASHPAD_HPP_INCLUDED
 #ifdef SENTRY_WITH_CRASHPAD_BACKEND
+#include <mutex>
 
 #include "../internal.hpp"
 #include "../path.hpp"
