@@ -13,6 +13,7 @@ and arbitrary custom context to enrich error reports.
 
 **Note**: This SDK is being actively developed and still in Beta. We recommend
 to check for updates regularly to benefit from latest features and bug fixes.
+Please see [Known Issues](#known-issues).
 
 ## Table of Contents <!-- omit in toc -->
 
@@ -23,6 +24,7 @@ to check for updates regularly to benefit from latest features and bug fixes.
 - [Building and Installation](#building-and-installation)
   - [Build Prerequisites](#build-prerequisites)
   - [Building the SDK](#building-the-sdk)
+- [Known Issues](#known-issues)
 - [Sample Application](#sample-application)
 - [Development](#development)
   - [Additional Dependencies](#additional-dependencies)
@@ -118,12 +120,12 @@ Sentry SDK (see [Downloads]). The `gen_*` folders are only included in the
 release archives. There are multiple available targets to build (defaults to all
 targets):
 
- - `sentry`: Builds the Native SDK built as a dynamic library.
- - `sentry_breakpad`: Builds the Native SDK with Google Breakpad as a dynamic
-   library.
- - `sentry_crashpad`: Builds the Native SDK with Google Crashpad as a dynamic
-   library. This requires to build and ship the `crashpad_handler` executable
-   with the application.
+- `sentry`: Builds the Native SDK built as a dynamic library.
+- `sentry_breakpad`: Builds the Native SDK with Google Breakpad as a dynamic
+  library.
+- `sentry_crashpad`: Builds the Native SDK with Google Crashpad as a dynamic
+  library. This requires to build and ship the `crashpad_handler` executable
+  with the application.
 
 **Linux**:
 
@@ -145,10 +147,20 @@ The Visual Studio solution is located at `gen_windows/Sentry-Native.sln` and
 contains projects for both Sentry Native and Crashpad.
 
 **WARNING:** There is a known issue that the Windows SDK version configured in
-the solution might not be present on your system. If you see `"The Windows SDK
-version XXX was not found"` error, you can try to "Retarget Solution" ("Project"
+the solution might not be present on your system. If you see `"The Windows SDK version XXX was not found"` error, you can try to "Retarget Solution" ("Project"
 -> "Retarget solution"). You can also regenerate build files on the target
 machine, for that please consult the [Development].
+
+## Known Issues
+
+- Sentry with Crashpad cannot upload minidumps on Linux. This is due to a
+  limitation in the upstream Crashpad project.
+- Sentry with Breakpad cannot upload minidumps. The uploader was temporarily
+  removed and will be restored in a future version.
+- Attachments are currently in _Preview_ and may not be available to your
+  organization. Please see [Event Attachments] for more information.
+
+[event attachments]: https://docs.sentry.io/platforms/native/#event-attachments-preview
 
 ## Sample Application
 
@@ -213,14 +225,12 @@ run tests:
 make test
 ```
 
-
-[Releases]: https://github.com/getsentry/sentry-native/releases
-[Breakpad]: https://chromium.googlesource.com/breakpad/breakpad/
-[Crashpad]: https://chromium.googlesource.com/crashpad/crashpad/+/master/README.md
-[Xcode]: https://developer.apple.com/xcode/
-[GNU make]: https://www.gnu.org/software/make/
+[releases]: https://github.com/getsentry/sentry-native/releases
+[breakpad]: https://chromium.googlesource.com/breakpad/breakpad/
+[crashpad]: https://chromium.googlesource.com/crashpad/crashpad/+/master/README.md
+[xcode]: https://developer.apple.com/xcode/
+[gnu make]: https://www.gnu.org/software/make/
 [clang]: https://clang.llvm.org/
 [debug files]: https://docs.sentry.io/workflow/debug-files/
-
-[Downloads]: #downloads
-[Development]: #development
+[downloads]: #downloads
+[development]: #development
