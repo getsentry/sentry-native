@@ -338,19 +338,7 @@ project "crashpad_util"
       MACOS_SYSROOT..'/usr/include/mach/notify.defs',
       MACOS_SYSROOT..'/usr/include/mach/mach_exc.defs',
       MACOS_SYSROOT..'/usr/include/mach/exc.defs',
-
       -- End MIG inputs
-
-      -- MIG
-      gen_dir.."/util/mach/excUser.c",
-      gen_dir.."/util/mach/excServer.c",
-      gen_dir.."/util/mach/mach_excUser.c",
-      gen_dir.."/util/mach/mach_excServer.c",
-      gen_dir.."/util/mach/notifyUser.c",
-      gen_dir.."/util/mach/notifyServer.c",
-      gen_dir.."/util/mach/child_portUser.c",
-      gen_dir.."/util/mach/child_portServer.c",
-      -- End MIG
     }
 
   filter "system:linux"
