@@ -1,6 +1,4 @@
 #ifdef SENTRY_WITH_CRASHPAD_BACKEND
-#include "crashpad_backend.hpp"
-
 #include <atomic>
 #include <cstdio>
 #include <map>
@@ -8,16 +6,18 @@
 #include <string>
 #include <vector>
 
+#include "client/crash_report_database.h"
+#include "client/crashpad_client.h"
+#include "client/crashpad_info.h"
+#include "client/settings.h"
+
 #include "../attachment.hpp"
 #include "../internal.hpp"
 #include "../options.hpp"
 #include "../path.hpp"
 #include "../value.hpp"
 
-#include "client/crash_report_database.h"
-#include "client/crashpad_client.h"
-#include "client/crashpad_info.h"
-#include "client/settings.h"
+#include "crashpad_backend.hpp"
 
 using namespace sentry;
 using namespace backends;

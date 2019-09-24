@@ -1,9 +1,9 @@
 #ifdef SENTRY_WITH_BREAKPAD_BACKEND
-#include "breakpad_backend.hpp"
-
 #include "../internal.hpp"
 #include "../options.hpp"
 #include "../path.hpp"
+
+#include "breakpad_backend.hpp"
 
 using namespace sentry;
 using namespace backends;

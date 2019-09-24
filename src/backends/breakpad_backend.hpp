@@ -2,6 +2,7 @@
 #define SENTRY_BACKENDS_BREAKPAD_HPP_INCLUDED
 #ifdef SENTRY_WITH_BREAKPAD_BACKEND
 #include <cstdio>
+#include <mutex>
 #include <string>
 
 #if defined(__APPLE__)
