@@ -75,6 +75,10 @@ project "sentry_crashpad"
   sentry_native_common()
   sentry_native_library()
 
+  dependson {
+    "crashpad_handler"
+  }
+
   defines {
     "SENTRY_WITH_CRASHPAD_BACKEND"
   }

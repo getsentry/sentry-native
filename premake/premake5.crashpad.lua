@@ -701,7 +701,9 @@ project "crashpad_crash"
     "crashpad_client",
   }
 
-  dependson {"crashpad_handler"}
+  dependson {
+    "crashpad_handler"
+  }
 
   filter "system:macosx"
     files {
