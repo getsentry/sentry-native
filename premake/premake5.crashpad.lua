@@ -425,8 +425,8 @@ project "crashpad_util"
       SRC_ROOT.."/util/win/session_end_watcher.cc",
 
       -- CaptureContext()
-      SRC_ROOT.."/util/misc/capture_context_broken.cc",
-      SRC_ROOT.."/util/win/safe_terminate_process_broken.cc",
+      SRC_ROOT.."/util/misc/capture_context_win.asm",
+      SRC_ROOT.."/util/win/safe_terminate_process.asm",
     }
     links {
       "user32.lib",
