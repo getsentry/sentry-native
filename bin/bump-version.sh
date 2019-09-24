@@ -14,4 +14,4 @@ else
   exit 1
 fi
 
-sed -i '' -e "s/^#define SENTRY_SDK_VERSION.*/#define SENTRY_SDK_VERSION \"${NEW_VERSION}\"/" include/sentry.h
+sed -i '' -e "s/^#define SENTRY_SDK_VERSION.*/#define SENTRY_SDK_VERSION \"${NEW_VERSION}\"/" src/internal.hpp
