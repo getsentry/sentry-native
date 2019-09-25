@@ -20,6 +20,7 @@ newaction {
   valid_kinds     = { 
     premake.STATICLIB,
     premake.SHAREDLIB,
+    premake.CONSOLEAPP,
   },
 
   valid_languages = { "C", "C++" },
