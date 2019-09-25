@@ -4,6 +4,7 @@ SRC_ROOT = CRASHPAD_PKG
 MIG_SCRIPT = SRC_ROOT..'/util/mach/mig.py'
 -- FIXME: find dynamically?
 MACOS_SYSROOT = '/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk'
+EXAMPLES_DIR = "../crashpad/examples"
 
 function crashpad_common()
   language "C++"
@@ -76,6 +77,16 @@ function crashpad_common()
   filter {}
 end
 
+-- Temporary disable specific projects for Android by adding this function call
+function disable_for_android()
+  filter "system:android"
+    kind "SharedLib"
+    removefiles {
+      SRC_ROOT.."/**",
+      EXAMPLES_DIR.."/**",
+    }
+  filter {}
+end
 
 -- aka "mini_chromium/base"
 project "crashpad_minichromium_base"
@@ -133,10 +144,7 @@ project "crashpad_minichromium_base"
       "advapi32.lib"
     }
 
-  filter "system:android"
-    removefiles {
-      SRC_ROOT.."/**",
-    }
+  disable_for_android()
 
   filter {}
 
@@ -178,10 +186,9 @@ project "crashpad_client"
       "rpcrt4.lib",
     }
 
-  filter "system:android"
-    removefiles {
-      SRC_ROOT.."/**",
-    }
+  filter {}
+
+  disable_for_android()
 
 -- aka "util"
 project "crashpad_util"
@@ -443,10 +450,9 @@ project "crashpad_util"
       "winhttp.lib",
     }
 
-  filter "system:android"
-    removefiles {
-      SRC_ROOT.."/**",
-    }
+  filter {}
+
+  disable_for_android()
 
 project "crashpad_snapshot"
   kind "StaticLib"
@@ -552,12 +558,9 @@ project "crashpad_snapshot"
       "powrprof.lib"
     }
 
-  filter "system:android"
-    removefiles {
-      SRC_ROOT.."/**",
-    }
-
   filter {}
+
+  disable_for_android()
 
 project "crashpad_minidump"
   kind "StaticLib"
@@ -596,12 +599,9 @@ project "crashpad_minidump"
     --   "/wd4324",  # 'struct' : structure was padded due to __declspec(align())
     -- ]
 
-  filter "system:android"
-    removefiles {
-      SRC_ROOT.."/**",
-    }
-
   filter {}
+
+  disable_for_android()
 
 project "crashpad_handler"
   kind "ConsoleApp"
@@ -674,12 +674,9 @@ project "crashpad_handler"
       "crashpad_zlib",
     }
 
-  filter "system:android"
-    removefiles {
-      SRC_ROOT.."/**",
-    }
-
   filter {}
+
+  disable_for_android()
 
 project "crashpad_zlib"
     kind "StaticLib"
@@ -723,7 +720,6 @@ project "crashpad_zlib"
         SRC_ROOT.."/third_party/zlib/zlib/x86.c",
       }
 
-EXAMPLES_DIR = "../crashpad/examples"
 
 project "crashpad_crash"
   kind "ConsoleApp"
@@ -766,3 +762,5 @@ project "crashpad_crash"
     }
 
   filter {}
+
+  disable_for_android()

@@ -1,6 +1,7 @@
 workspace "Sentry-Native"
 
 SRC_ROOT = BREAKPAD_PKG
+EXAMPLES_DIR = "../breakpad/examples"
 
 function breakpad_common()
   configurations { "Release" }
@@ -285,8 +286,6 @@ project "breakpad_client"
       SRC_ROOT.."/src/common/linux/memory_mapped_file.cc",
       SRC_ROOT.."/src/common/linux/safe_readlink.cc",
     }
-
-EXAMPLES_DIR = "../breakpad/examples"
 
 project "breakpad_crash"
   kind "ConsoleApp"

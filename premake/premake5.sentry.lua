@@ -21,6 +21,16 @@ function sentry_native_common()
   filter {}
 end
 
+-- Temporary disable specific projects for Android by adding this function call
+function disable_for_android()
+  filter "system:android"
+    kind "SharedLib"
+    removefiles {
+      SRC_ROOT.."/**",
+    }
+  filter {}
+end
+
 function sentry_native_library()
   libdirs {
     "bin/Release",
@@ -62,12 +72,9 @@ function sentry_native_library()
       "SENTRY_WITH_WINHTTP_TRANSPORT",
     }
 
-  filter "system:android"
-    removefiles {
-      SRC_ROOT.."/**",
-    }
-
   filter {}
+
+  disable_for_android()
 end
 
 project "sentry"
@@ -160,12 +167,9 @@ project "example"
   filter "system:linux"
     linkoptions { "-Wl,--build-id=uuid" }
 
-  filter "system:android"
-    removefiles {
-      SRC_ROOT.."/**",
-    }
-
   filter {}
+
+  disable_for_android()
 
 project "example_crashpad"
   kind "ConsoleApp"
@@ -183,10 +187,7 @@ project "example_crashpad"
     SRC_ROOT.."/examples/example_crashpad.c",
   }
 
-  filter "system:android"
-    removefiles {
-      SRC_ROOT.."/**",
-    }
+  disable_for_android()
 
 project "example_breakpad"
   kind "ConsoleApp"
@@ -200,10 +201,7 @@ project "example_breakpad"
     SRC_ROOT.."/examples/example_breakpad.c",
   }
 
-  filter "system:android"
-    removefiles {
-      SRC_ROOT.."/**",
-    }
+  disable_for_android()
 
 project "test_sentry"
   kind "ConsoleApp"
@@ -227,9 +225,6 @@ project "test_sentry"
     -- -E is needed on linux to make dladdr work on the main executable
     linkoptions { "-Wl,--build-id=uuid,-E" }
 
-  filter "system:android"
-    removefiles {
-      SRC_ROOT.."/**",
-    }
-
   filter {}
+
+  disable_for_android()
