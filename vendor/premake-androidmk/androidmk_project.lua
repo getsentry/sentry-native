@@ -54,8 +54,10 @@ function androidmk.prjKind(prj, cfg)
     p.w('  include $(BUILD_STATIC_LIBRARY)')
   elseif cfg.kind == premake.SHAREDLIB then
     p.w('  include $(BUILD_SHARED_LIBRARY)')
-  else -- cfg.kind == premake.CONSOLEAPP
+  elseif cfg.kind == premake.CONSOLEAPP then
     p.w('  include $(BUILD_EXECUTABLE)')
+  else
+    error("Invalid project type.")
   end
 end
 
