@@ -1,5 +1,6 @@
 PREMAKE_DIR := premake
 PREMAKE := premake5
+SOLUTION_NAME := Sentry-Native
 
 ifeq ($(OS),Windows_NT)
   # Windows specific
@@ -58,7 +59,7 @@ clean-build:
 .PHONY: clean-build
 
 # Development on Linux / macOS.
-# Does not work on Windows
+# Does not work on Windows or Android
 
 configure: $(PREMAKE_DIR)/Makefile
 .PHONY: configure
@@ -101,3 +102,16 @@ endif
 linux-shell:
 	@$(MAKE) linux-run SHOW_DOCKER_BUILD=1
 .PHONY: linux-shell
+
+### Android ###
+
+$(PREMAKE_DIR)/$(SOLUTION_NAME)_Application.mk: $(PREMAKE_DIR)/$(PREMAKE) $(wildcard $(PREMAKE_DIR)/*.lua)
+	@cd $(PREMAKE_DIR) && ./$(PREMAKE) --os=android androidmk
+	@touch $@
+
+android-configure: $(PREMAKE_DIR)/$(SOLUTION_NAME)_Application.mk
+.PHONY: android-configure
+
+android-build: android-configure
+	@cd $(PREMAKE_DIR) && ndk-build NDK_APPLICATION_MK=./$(SOLUTION_NAME)_Application.mk NDK_PROJECT_PATH=. PM5_CONFIG=release
+.PHONY: android-build

@@ -107,7 +107,7 @@ stages:
           platform: "android"
           buildSystem: "androidmk"
           buildScript: |
-            ndk-build NDK_APPLICATION_MK=./Sentry-Native_Application.mk NDK_PROJECT_PATH=. PM5_CONFIG=release
+            make -C .. android-build
 
   - stage: package_all
     displayName: Package the final archive
