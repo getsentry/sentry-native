@@ -233,6 +233,15 @@ premake5 vs2017
 The last command will create a Visual Studio 2017 solution (`Sentry-Native.sln`)
 that contains all variants of the Sentry Native library projects, and example projects.
 
+**Android**:
+
+```sh
+make android-configure
+```
+
+...creates `./premake/*.mk` build files. You can then run `make android-build`
+to build all the targets.
+
 ### Running Tests
 
 The SDK ships with a test suite based on `catch.hpp`. Tests are built as
