@@ -302,6 +302,14 @@ SENTRY_API void sentry_uuid_as_string(const sentry_uuid_t *uuid, char str[37]);
 struct sentry_options_s;
 typedef struct sentry_options_s sentry_options_t;
 
+/* type of the payload envelope */
+typedef enum {
+    SENTRY_TRANSPORT_PAYLOAD_TYPE_EVENT,
+    SENTRY_TRANSPORT_PAYLOAD_TYPE_ATTACHMENT,
+    SENTRY_TRANSPORT_PAYLOAD_TYPE_MINIDUMP,
+    SENTRY_TRANSPORT_PAYLOAD_TYPE_MINIDUMP_WITH_ATTACHMENTS
+} sentry_transport_payload_type_t;
+
 /* type of the callback for transports */
 typedef void (*sentry_transport_function_t)(sentry_value_t event, void *data);
 

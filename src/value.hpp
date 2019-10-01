@@ -280,6 +280,7 @@ class Value {
     }
 
     uint64_t as_addr() const;
+    sentry_uuid_t as_uuid() const;
 
     const char *as_cstr() const {
         Thing *thing = as_thing();
@@ -464,7 +465,7 @@ class Value {
 
     void to_msgpack(mpack_writer_t *writer) const;
     std::string to_msgpack() const;
-    void to_json(std::stringstream &out) const;
+    void to_json(std::ostream &out) const;
     std::string to_json() const;
 
     sentry_value_t lower() {
