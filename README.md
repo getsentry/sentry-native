@@ -72,13 +72,6 @@ The SDK bundle contains the following folders:
 
 The Sentry SDK comes with pregenerated build files for the following platforms:
 
-- **Windows**
-
-  `gen_windows` contains a Microsoft Visual Studio 2017 solution. Open the
-  solution and add your projects or copy the projects to an existing solution.
-  Each project supports a debug and release configuration and includes all
-  sources required for building.
-
 - **Linux and macOS**
 
   `gen_linux` and `gen_macos` contain Makefiles that can be used to produce
@@ -89,6 +82,18 @@ The Sentry SDK comes with pregenerated build files for the following platforms:
   ```bash
   make config=release sentry
   ```
+
+- **Windows**
+
+  `gen_windows` contains a Microsoft Visual Studio 2017 solution. Open the
+  solution and add your projects or copy the projects to an existing solution.
+  Each project supports a debug and release configuration and includes all
+  sources required for building.
+
+- **Android (early alpha)**
+
+  `gen_android` contains `*.mk` files that can be used by `ndk-build` to build the project using
+  Android NDK.
 
 ## Building and Installation
 
@@ -112,6 +117,12 @@ the following requirements:
 **Windows**:
 
 - Microsoft Visual Studio 2017 or later
+
+**Android**:
+
+- [Android NDK] (Native Development Kit)
+
+  *Note*: Android cross-compilation is currently only tested on MacOS.
 
 ### Building the SDK
 
@@ -146,10 +157,20 @@ make
 The Visual Studio solution is located at `gen_windows/Sentry-Native.sln` and
 contains projects for both Sentry Native and Crashpad.
 
-**WARNING:** There is a known issue that the Windows SDK version configured in
+*WARNING:* There is a known issue that the Windows SDK version configured in
 the solution might not be present on your system. If you see `"The Windows SDK version XXX was not found"` error, you can try to "Retarget Solution" ("Project"
 -> "Retarget solution"). You can also regenerate build files on the target
 machine, for that please consult the [Development].
+
+**Android**:
+
+```sh
+make android-build PREMAKE_DIR=gen_android
+```
+
+*NOTE*: `nkd-build` command from Android NDK should be available, i.e. Android NDK directory should be added to your `PATH`.
+
+The command will build the project binaries for all NDK platforms (arm64-v8a, armeabi-v7a, x86, and x86_64 at the time of writing) and place the outputs in `gen_android/libs/`.
 
 ## Known Issues
 
@@ -234,3 +255,4 @@ make test
 [debug files]: https://docs.sentry.io/workflow/debug-files/
 [downloads]: #downloads
 [development]: #development
+[android ndk]: https://developer.android.com/ndk/downloads/
