@@ -112,6 +112,10 @@ $(PREMAKE_DIR)/$(SOLUTION_NAME)_Application.mk: $(PREMAKE_DIR)/$(PREMAKE) $(wild
 android-configure: $(PREMAKE_DIR)/$(SOLUTION_NAME)_Application.mk
 .PHONY: android-configure
 
-android-build: android-configure
-	@cd $(PREMAKE_DIR) && ndk-build NDK_APPLICATION_MK=./$(SOLUTION_NAME)_Application.mk NDK_PROJECT_PATH=. PM5_CONFIG=release -j$(CPUS)
+android-build:
+	cd $(PREMAKE_DIR) && ndk-build NDK_APPLICATION_MK=./$(SOLUTION_NAME)_Application.mk NDK_PROJECT_PATH=. PM5_CONFIG=release -j$(CPUS)
 .PHONY: android-build
+
+android-test: android-build
+	./$(PREMAKE_DIR)/scripts/android.sh run-tests
+.PHONY: android-test
