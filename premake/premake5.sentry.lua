@@ -73,8 +73,6 @@ function sentry_native_library()
     }
 
   filter {}
-
-  disable_for_android()
 end
 
 project "sentry"
@@ -119,6 +117,8 @@ project "sentry_crashpad"
     }
 
   filter {}
+
+  disable_for_android()
 
 project "sentry_breakpad"
   kind "SharedLib"
@@ -225,6 +225,9 @@ project "test_sentry"
     -- -E is needed on linux to make dladdr work on the main executable
     linkoptions { "-Wl,--build-id=uuid,-E" }
 
-  filter {}
+  filter "system:android"
+    links {
+      "log",
+    }
 
-  disable_for_android()
+  filter {}

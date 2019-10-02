@@ -64,7 +64,7 @@ sentry_uuid_t sentry_uuid_new_v4() {
     }
 
     char buf[37];
-    size_t read = fread(buf, sizeof(uuid), 1, fd);
+    size_t read = fread(buf, sizeof(buf), 1, fd);
     buf[read] = 0;
     fclose(fd);
 
@@ -130,7 +130,7 @@ void sentry_uuid_as_bytes(const sentry_uuid_t *uuid, char bytes[16]) {
 
 void sentry_uuid_as_string(const sentry_uuid_t *uuid, char str[37]) {
     sprintf(
-        char,
+        str,
         "%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x",
         uuid->native_uuid[0], uuid->native_uuid[1], uuid->native_uuid[2],
         uuid->native_uuid[3], uuid->native_uuid[4], uuid->native_uuid[5],

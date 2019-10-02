@@ -113,5 +113,5 @@ android-configure: $(PREMAKE_DIR)/$(SOLUTION_NAME)_Application.mk
 .PHONY: android-configure
 
 android-build: android-configure
-	@cd $(PREMAKE_DIR) && ndk-build NDK_APPLICATION_MK=./$(SOLUTION_NAME)_Application.mk NDK_PROJECT_PATH=. PM5_CONFIG=release
+	@cd $(PREMAKE_DIR) && ndk-build NDK_APPLICATION_MK=./$(SOLUTION_NAME)_Application.mk NDK_PROJECT_PATH=. PM5_CONFIG=release -j$(CPUS)
 .PHONY: android-build

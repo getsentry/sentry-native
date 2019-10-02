@@ -3,7 +3,7 @@
 
 #ifdef _WIN32
 #define SENTRY_WITH_WINDOWS_UNWINDER
-#elif defined(__APPLE__) || defined(__linux__)
+#elif defined(__APPLE__) || (defined(__linux__) && !defined(__ANDROID__))
 #define SENTRY_WITH_BACKTRACE_UNWINDER
 #else
 #define SENTRY_WITH_NULL_UNWINDER
