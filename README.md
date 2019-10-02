@@ -235,12 +235,31 @@ that contains all variants of the Sentry Native library projects, and example pr
 
 **Android**:
 
+To run tests on Android, Android SDK is also required. The preferred way is to install it
+via [Android Studio].
+
+*NOTE:* various Android tools used for initializing and running emulators
+require Java 8. The recommended way to install it is via [AdoptOpenJDK] project.
+If you have another, more recent system-wide Java installation on your machine,
+set `JAVA8_HOME` environment variable with the path to your Java 8 JDK
+installation directory.
+
+To generate build files:
+
 ```sh
 make android-configure
 ```
 
-...creates `./premake/*.mk` build files. You can then run `make android-build`
-to build all the targets.
+...creates `./premake/*.mk` build files.
+
+To build the project and run tests:
+
+```sh
+# Build only
+make android-build
+# Build and run tests
+make android-test
+```
 
 ### Running Tests
 
@@ -265,3 +284,5 @@ make test
 [downloads]: #downloads
 [development]: #development
 [android ndk]: https://developer.android.com/ndk/downloads/
+[android studio]: https://developer.android.com/studio/
+[adoptopenjdk]: https://adoptopenjdk.net/
