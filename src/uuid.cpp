@@ -64,7 +64,7 @@ sentry_uuid_t sentry_uuid_new_v4() {
     }
 
     char buf[37];
-    size_t read = fread(buf, sizeof(buf), 1, fd);
+    size_t read = fread(buf, 1, sizeof(buf), fd);
     buf[read] = 0;
     fclose(fd);
 
@@ -129,15 +129,25 @@ void sentry_uuid_as_bytes(const sentry_uuid_t *uuid, char bytes[16]) {
 }
 
 void sentry_uuid_as_string(const sentry_uuid_t *uuid, char str[37]) {
-    sprintf(
-        str,
-        "%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x",
-        uuid->native_uuid[0], uuid->native_uuid[1], uuid->native_uuid[2],
-        uuid->native_uuid[3], uuid->native_uuid[4], uuid->native_uuid[5],
-        uuid->native_uuid[6], uuid->native_uuid[7], uuid->native_uuid[8],
-        uuid->native_uuid[9], uuid->native_uuid[10], uuid->native_uuid[11],
-        uuid->native_uuid[12], uuid->native_uuid[13], uuid->native_uuid[14],
-        uuid->native_uuid[15]);
+    snprintf(str, 37,
+             "%02hhx%02hhx%02hhx%02hhx-%02hhx%02hhx-%02hhx%02hhx-%02hhx%02hhx-%"
+             "02hhx%02hhx%02hhx%02hhx%02hhx%02hhx",
+             (unsigned char)uuid->native_uuid[0],
+             (unsigned char)uuid->native_uuid[1],
+             (unsigned char)uuid->native_uuid[2],
+             (unsigned char)uuid->native_uuid[3],
+             (unsigned char)uuid->native_uuid[4],
+             (unsigned char)uuid->native_uuid[5],
+             (unsigned char)uuid->native_uuid[6],
+             (unsigned char)uuid->native_uuid[7],
+             (unsigned char)uuid->native_uuid[8],
+             (unsigned char)uuid->native_uuid[9],
+             (unsigned char)uuid->native_uuid[10],
+             (unsigned char)uuid->native_uuid[11],
+             (unsigned char)uuid->native_uuid[12],
+             (unsigned char)uuid->native_uuid[13],
+             (unsigned char)uuid->native_uuid[14],
+             (unsigned char)uuid->native_uuid[15]);
 }
 
 #elif defined(SENTRY_UUID_LIBUUID)
