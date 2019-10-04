@@ -4,6 +4,7 @@ SRC_ROOT = CRASHPAD_PKG
 MIG_SCRIPT = SRC_ROOT..'/util/mach/mig.py'
 -- FIXME: find dynamically?
 MACOS_SYSROOT = '/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk'
+EXAMPLES_DIR = "../crashpad/examples"
 
 function crashpad_common()
   language "C++"
@@ -76,6 +77,16 @@ function crashpad_common()
   filter {}
 end
 
+-- Temporary disable specific projects for Android by adding this function call
+function disable_for_android()
+  filter "system:android"
+    kind "SharedLib"
+    removefiles {
+      SRC_ROOT.."/**",
+      EXAMPLES_DIR.."/**",
+    }
+  filter {}
+end
 
 -- aka "mini_chromium/base"
 project "crashpad_minichromium_base"
@@ -133,6 +144,8 @@ project "crashpad_minichromium_base"
       "advapi32.lib"
     }
 
+  disable_for_android()
+
   filter {}
 
 -- aka "client"
@@ -173,6 +186,9 @@ project "crashpad_client"
       "rpcrt4.lib",
     }
 
+  filter {}
+
+  disable_for_android()
 
 -- aka "util"
 project "crashpad_util"
@@ -338,19 +354,7 @@ project "crashpad_util"
       MACOS_SYSROOT..'/usr/include/mach/notify.defs',
       MACOS_SYSROOT..'/usr/include/mach/mach_exc.defs',
       MACOS_SYSROOT..'/usr/include/mach/exc.defs',
-
       -- End MIG inputs
-
-      -- MIG
-      gen_dir.."/util/mach/excUser.c",
-      gen_dir.."/util/mach/excServer.c",
-      gen_dir.."/util/mach/mach_excUser.c",
-      gen_dir.."/util/mach/mach_excServer.c",
-      gen_dir.."/util/mach/notifyUser.c",
-      gen_dir.."/util/mach/notifyServer.c",
-      gen_dir.."/util/mach/child_portUser.c",
-      gen_dir.."/util/mach/child_portServer.c",
-      -- End MIG
     }
 
   filter "system:linux"
@@ -437,8 +441,8 @@ project "crashpad_util"
       SRC_ROOT.."/util/win/session_end_watcher.cc",
 
       -- CaptureContext()
-      SRC_ROOT.."/util/misc/capture_context_broken.cc",
-      SRC_ROOT.."/util/win/safe_terminate_process_broken.cc",
+      SRC_ROOT.."/util/misc/capture_context_win.asm",
+      SRC_ROOT.."/util/win/safe_terminate_process.asm",
     }
     links {
       "user32.lib",
@@ -446,6 +450,9 @@ project "crashpad_util"
       "winhttp.lib",
     }
 
+  filter {}
+
+  disable_for_android()
 
 project "crashpad_snapshot"
   kind "StaticLib"
@@ -551,6 +558,10 @@ project "crashpad_snapshot"
       "powrprof.lib"
     }
 
+  filter {}
+
+  disable_for_android()
+
 project "crashpad_minidump"
   kind "StaticLib"
   crashpad_common()
@@ -588,6 +599,9 @@ project "crashpad_minidump"
     --   "/wd4324",  # 'struct' : structure was padded due to __declspec(align())
     -- ]
 
+  filter {}
+
+  disable_for_android()
 
 project "crashpad_handler"
   kind "ConsoleApp"
@@ -660,6 +674,10 @@ project "crashpad_handler"
       "crashpad_zlib",
     }
 
+  filter {}
+
+  disable_for_android()
+
 project "crashpad_zlib"
     kind "StaticLib"
     crashpad_common()
@@ -702,7 +720,6 @@ project "crashpad_zlib"
         SRC_ROOT.."/third_party/zlib/zlib/x86.c",
       }
 
-EXAMPLES_DIR = "../crashpad/examples"
 
 project "crashpad_crash"
   kind "ConsoleApp"
@@ -713,7 +730,9 @@ project "crashpad_crash"
     "crashpad_client",
   }
 
-  dependson {"crashpad_handler"}
+  dependson {
+    "crashpad_handler"
+  }
 
   filter "system:macosx"
     files {
@@ -743,3 +762,5 @@ project "crashpad_crash"
     }
 
   filter {}
+
+  disable_for_android()

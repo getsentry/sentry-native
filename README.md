@@ -7,94 +7,181 @@
 
 # Official Sentry SDK for C/C++ <!-- omit in toc -->
 
-_Sentry Native_ is a wrapper around two most popular crash-reporting frameworks: [Breakpad](https://chromium.googlesource.com/breakpad/breakpad/) and [Crashpad](https://chromium.googlesource.com/crashpad/crashpad/+/master/README.md). It provides an abstraction layer that unlocks certain Sentry features, such as setting tags and adding breadcrumbs to your crashes. Sentry Native is also responsible for sending the crashes directly to Sentry in an efficient manner.
+The _Sentry Native SDK_ is an error and crash reporting client for native
+applications, optimized for C and C++. Sentry allows to add tags, breadcrumbs
+and arbitrary custom context to enrich error reports.
 
-Platforms we are going to support eventually: MacOS X, Linux (32/64 bit), Windows (32/64 bit), Android, iOS.
+**Note**: This SDK is being actively developed and still in Beta. We recommend
+to check for updates regularly to benefit from latest features and bug fixes.
+Please see [Known Issues](#known-issues).
 
 ## Table of Contents <!-- omit in toc -->
 
 - [Downloads](#downloads)
-  - [What is inside](#what-is-inside)
-- [Build Prerequisites](#build-prerequisites)
-  - [Linux](#linux)
-  - [MacOS](#macos)
-  - [Windows](#windows)
-- [Building Sentry Native](#building-sentry-native)
-  - [Linux](#linux-1)
-  - [MacOS](#macos-1)
-  - [Windows](#windows-1)
+- [Distributions](#distributions)
+  - [What is Inside](#what-is-inside)
+  - [Platform Support](#platform-support)
+- [Building and Installation](#building-and-installation)
+  - [Build Prerequisites](#build-prerequisites)
+  - [Building the SDK](#building-the-sdk)
+- [Known Issues](#known-issues)
 - [Sample Application](#sample-application)
-- [Development: Generating Build Files](#development-generating-build-files)
+- [Development](#development)
   - [Additional Dependencies](#additional-dependencies)
-  - [MacOS / Linux](#macos--linux)
-  - [Windows](#windows-2)
+  - [Development Setup](#development-setup)
+  - [Running Tests](#running-tests)
 
 ## Downloads
 
-Packages with source code can be downloaded from the [release](https://github.com/getsentry/sentry-native/releases) page.
+The SDK can be downloaded from the [Releases] page, which also lists the
+changelog of every version.
 
-### What is inside
+## Distributions
 
-At the moment, we package and distribute the following components:
+The release archive contains three distributions of the SDK:
 
-- Sentry Native source code
-- Crashpad source code
-- Build files for MacOS ("make" files) and Windows (Visual Studio solution)
+![SDK distributions](https://user-images.githubusercontent.com/1433023/65526140-dc3ccc00-def0-11e9-8271-6876afe400cc.png)
 
-If any of the provided build files do not work for you, please refer to [Development: Generating Build Files](#development-generating-build-files)
+\* _Adding stack traces and capturing application crashes requires you to add an
+unwind library and hook into signal handlers of your process. The Standalone
+distribution currently does not contain integrations that perform this
+automatically._
 
-## Build Prerequisites
+**Note**: On Windows and macOS, we strongly encourage the Crashpad distribution.
+Due to limitations of Crashpad on Linux, we recommend to use Breakpad for Linux.
 
-In order to build the provided source files, you will need the following software:
+### What is Inside
 
-### Linux
+The SDK bundle contains the following folders:
 
-- [GNU make](https://www.gnu.org/software/make/)
-- [clang](https://clang.llvm.org/) 3.9+
-- uuid-dev (on Ubuntu)
+- `breakpad`, `crashpad`: Contain headers and sources of the Breakpad and
+  Crashpad libraries. These are required to build the SDK in its respective
+  distributions. To build the standalone distribution of the SDK, these folders
+  can be discarded.
+- `include`: Contains the Sentry header file. Set the include path to this
+  directory or copy the header file to your source tree so that it is available
+  during the build.
+- `gen_*`: Contains generated projects and build files for the supported
+  platforms. See the next section for more information.
+- `premake`: Contains build files that allow to generate new projects and
+  customize build parameters. When building for one of the supported platforms,
+  prefer to use build files from the `gen_*` folders, instead.
+- `src`: Sources of the Sentry SDK required for building.
 
-### MacOS
+### Platform Support
 
-- [Xcode](https://developer.apple.com/xcode/) (can be installed from Mac App Store)
-- [GNU make](https://www.gnu.org/software/make/)
-- [clang](https://clang.llvm.org/) 3.9+
+The Sentry SDK comes with pregenerated build files for the following platforms:
 
-### Windows
+- **Linux and macOS**
 
-- Microsoft Visual Studio 2017 (or later)
+  `gen_linux` and `gen_macos` contain Makefiles that can be used to produce
+  dynamic libraries. Run `make help` to see an overview of the available
+  configurations and target. There are debug and release configurations, that
+  can be toggled when building:
 
-## Building Sentry Native
+  ```bash
+  make config=release sentry
+  ```
 
-**NOTE:** The following commands will work for the **packaged** version of
-Sentry Native (see [Downloads](#downloads)). We generate `gen_*` folders for
-Linux, macOS and Windows during the CI build, so you will _not_ find them in the
-GIT repository.
+- **Windows**
 
-### Linux
+  `gen_windows` contains a Microsoft Visual Studio 2017 solution. Open the
+  solution and add your projects or copy the projects to an existing solution.
+  Each project supports a debug and release configuration and includes all
+  sources required for building.
+
+- **Android (early alpha)**
+
+  `gen_android` contains `*.mk` files that can be used by `ndk-build` to build the project using
+  Android NDK.
+
+## Building and Installation
+
+### Build Prerequisites
+
+To build the SDK from the provided source files, ensure that your system meets
+the following requirements:
+
+**Linux**:
+
+- [GNU make]
+- [clang] 3.9 or later
+- `uuid-dev` (on Ubuntu)
+
+**macOS**:
+
+- [Xcode] (can be installed from Mac App Store)
+- [GNU make]
+- [clang] 3.9 or later
+
+**Windows**:
+
+- Microsoft Visual Studio 2017 or later
+
+**Android**:
+
+- [Android NDK] (Native Development Kit)
+
+  *Note*: Android cross-compilation is currently only tested on MacOS.
+
+### Building the SDK
+
+**NOTE:** The following commands will work for the **packaged** version of the
+Sentry SDK (see [Downloads]). The `gen_*` folders are only included in the
+release archives. There are multiple available targets to build (defaults to all
+targets):
+
+- `sentry`: Builds the Native SDK built as a dynamic library.
+- `sentry_breakpad`: Builds the Native SDK with Google Breakpad as a dynamic
+  library.
+- `sentry_crashpad`: Builds the Native SDK with Google Crashpad as a dynamic
+  library. This requires to build and ship the `crashpad_handler` executable
+  with the application.
+
+**Linux**:
 
 ```sh
 cd gen_linux
-make -j`nproc`
+make
 ```
 
-### MacOS
+**macOS**:
 
 ```sh
 cd gen_macosx
-make -j`getconf _NPROCESSORS_ONLN`
+make
 ```
 
-The command will produce the following outputs to `bin/Release`:
+**Windows**:
 
-- The Sentry Native SDK dynamic libraries
-- Example applications for each variant
-- Test targets
+The Visual Studio solution is located at `gen_windows/Sentry-Native.sln` and
+contains projects for both Sentry Native and Crashpad.
 
-### Windows
+*WARNING:* There is a known issue that the Windows SDK version configured in
+the solution might not be present on your system. If you see `"The Windows SDK version XXX was not found"` error, you can try to "Retarget Solution" ("Project"
+-> "Retarget solution"). You can also regenerate build files on the target
+machine, for that please consult the [Development].
 
-Visual Studio solution is located at `gen_windows/Sentry-Native.sln` and contains projects for both Sentry Native and Crashpad.
+**Android**:
 
-**WARNING:** There is a known issue that the Windows SDK version configured in the solution might not be present on your system. If you see `"The Windows SDK version XXX was not found"` error, you can try to "Retarget Solution" ("Project" -> "Retarget solution"). You can also regenerate build files on the target machine, for that please consult the [development section](#development-generating-build-files).
+```sh
+make android-build PREMAKE_DIR=gen_android
+```
+
+*NOTE*: `nkd-build` command from Android NDK should be available, i.e. Android NDK directory should be added to your `PATH`.
+
+The command will build the project binaries for all NDK platforms (arm64-v8a, armeabi-v7a, x86, and x86_64 at the time of writing) and place the outputs in `gen_android/libs/`.
+
+## Known Issues
+
+- Sentry with Crashpad cannot upload minidumps on Linux. This is due to a
+  limitation in the upstream Crashpad project.
+- Sentry with Breakpad cannot upload minidumps. The uploader was temporarily
+  removed and will be restored in a future version.
+- Attachments are currently in _Preview_ and may not be available to your
+  organization. Please see [Event Attachments] for more information.
+
+[event attachments]: https://docs.sentry.io/platforms/native/#event-attachments-preview
 
 ## Sample Application
 
@@ -107,9 +194,9 @@ can run them by passing your Sentry DSN key via an environment variable:
 SENTRY_DSN=https://XXXXX@sentry.io/YYYYY ./bin/Release/example
 ```
 
-The command will send an event to Sentry. If [debug symbols are present](https://docs.sentry.io/workflow/debug-files/) in Sentry, the event will also be properly symbolicated.
+The example sends a message event to Sentry.
 
-## Development: Generating Build Files
+## Development
 
 If you want to develop or test Sentry Native locally, or the distribution package
 doesn't fit your needs, you can run `make configure` from the root directory. On
@@ -117,13 +204,18 @@ Windows, please check `premake/README.md` for more instructions.
 
 ### Additional Dependencies
 
-- [premake5](https://premake.github.io/download.html#v5): we use `premake` to
-  generate build files. When using `make configure`, this is downloaded automatically.
+- [premake5](https://premake.github.io/download.html#v5): We use `premake` to
+  generate build files. When using `make configure`, this is downloaded
+  automatically.
 
-### MacOS / Linux
+### Development Setup
+
+**MacOS / Linux**:
 
 ```sh
 make configure
+cd premake
+make
 ```
 
 This will create `./premake/Makefile`, that you can use to build any part of the
@@ -131,7 +223,7 @@ project and run tests.
 
 Use `make help` to see all available targets.
 
-### Windows
+**Windows**:
 
 ```sh
 cd premake/
@@ -140,3 +232,27 @@ premake5 vs2017
 
 The last command will create a Visual Studio 2017 solution (`Sentry-Native.sln`)
 that contains all variants of the Sentry Native library projects, and example projects.
+
+### Running Tests
+
+The SDK ships with a test suite based on `catch.hpp`. Tests are built as
+separate test targets, prefixed with `test_*` each. You can build and run the
+test targets to execute tests.
+
+On macOS and Linux, the _top-level Makefile_ contains a convenience command to
+run tests:
+
+```sh
+make test
+```
+
+[releases]: https://github.com/getsentry/sentry-native/releases
+[breakpad]: https://chromium.googlesource.com/breakpad/breakpad/
+[crashpad]: https://chromium.googlesource.com/crashpad/crashpad/+/master/README.md
+[xcode]: https://developer.apple.com/xcode/
+[gnu make]: https://www.gnu.org/software/make/
+[clang]: https://clang.llvm.org/
+[debug files]: https://docs.sentry.io/workflow/debug-files/
+[downloads]: #downloads
+[development]: #development
+[android ndk]: https://developer.android.com/ndk/downloads/

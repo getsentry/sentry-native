@@ -37,6 +37,8 @@ stages:
   - stage: build_per_platform
     displayName: Build All
     jobs:
+
+      # MacOS
       - template: azure-pipelines/build-platform.yml
         parameters:
           vmImage: "macos-10.13"
@@ -55,6 +57,7 @@ stages:
             # Run tests
             ./bin/Release/test_sentry
 
+      # Linux
       - template: azure-pipelines/build-platform.yml
         parameters:
           vmImage: "ubuntu-16.04"
@@ -79,6 +82,7 @@ stages:
             # Run tests
             ./bin/Release/test_sentry
 
+      # Windows
       - template: azure-pipelines/build-platform.yml
         parameters:
           vmImage: "vs2017-win2016"
@@ -95,6 +99,15 @@ stages:
 
             # Run tests
             ./bin/x86_64/Release/test_sentry.exe
+
+      # Android
+      - template: azure-pipelines/build-platform.yml
+        parameters:
+          vmImage: "macos-10.13"
+          platform: "android"
+          buildSystem: "androidmk"
+          buildScript: |
+            make -C .. android-build
 
   - stage: package_all
     displayName: Package the final archive
@@ -117,7 +130,7 @@ stages:
               cd out
               unzip -q "../${ARTIFACT_DIR}/sp-sources.zip"
 
-              PLATFORMS=(macosx windows linux)
+              PLATFORMS=(macosx windows linux android)
 
               # Copy gen_* directories from available archives
               for PLATFORM in "${PLATFORMS[@]}"; do

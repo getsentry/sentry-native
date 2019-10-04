@@ -3,13 +3,10 @@
     {
       "name": "Mac",
       "includePath": [
-        "${workspaceFolder}/**",
-        "../crashpad-Darwin/include/",
-        "./include",
-        "../vendor",
-        "../breakpad-Darwin/include/client/mac/handler",
-        "../breakpad-Darwin/include/",
-        "../breakpad-Linux/common/linux"
+        "${workspaceFolder}/include",
+        "${workspaceFolder}/crashpad/build/crashpad",
+        "${workspaceFolder}/crashpad/build/crashpad/third_party/mini_chromium/mini_chromium",
+        "${workspaceFolder}/breakpad/build/breakpad/src"
       ],
       "macFrameworkPath": [
         "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.14.sdk/System/Library/Frameworks"

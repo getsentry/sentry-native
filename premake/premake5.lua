@@ -1,4 +1,5 @@
 -- premake5.lua
+require "../vendor/premake-androidmk/androidmk"
 
 newoption {
   trigger     = "src-root",
@@ -13,6 +14,11 @@ BREAKPAD_PKG = "../breakpad/build/breakpad"
 workspace "Sentry-Native"
   configurations {"Release", "Debug"}
   symbols "On"
+
+  -- Android
+  ndkabi "all"
+  ndkplatform "android-16"
+  ndkstl "c++_static"
 
   targetdir "bin/%{cfg.architecture}/%{cfg.buildcfg}"
 

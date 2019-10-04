@@ -21,6 +21,16 @@ function sentry_native_common()
   filter {}
 end
 
+-- Temporary disable specific projects for Android by adding this function call
+function disable_for_android()
+  filter "system:android"
+    kind "SharedLib"
+    removefiles {
+      SRC_ROOT.."/**",
+    }
+  filter {}
+end
+
 function sentry_native_library()
   libdirs {
     "bin/Release",
@@ -63,6 +73,8 @@ function sentry_native_library()
     }
 
   filter {}
+
+  disable_for_android()
 end
 
 project "sentry"
@@ -75,12 +87,16 @@ project "sentry_crashpad"
   sentry_native_common()
   sentry_native_library()
 
+  dependson {
+    "crashpad_handler"
+  }
+
   defines {
     "SENTRY_WITH_CRASHPAD_BACKEND"
   }
+
   includedirs {
     CRASHPAD_PKG,
-    CRASHPAD_PKG.."/include",
     CRASHPAD_PKG.."/third_party/mini_chromium/mini_chromium",
   }
 
@@ -116,7 +132,7 @@ project "sentry_breakpad"
     "-fvisibility=hidden",
   }
   includedirs {
-    BREAKPAD_PKG.."/include",
+    BREAKPAD_PKG.."/src",
   }
 
   -- Breakpad
@@ -151,6 +167,10 @@ project "example"
   filter "system:linux"
     linkoptions { "-Wl,--build-id=uuid" }
 
+  filter {}
+
+  disable_for_android()
+
 project "example_crashpad"
   kind "ConsoleApp"
   sentry_native_common()
@@ -159,9 +179,15 @@ project "example_crashpad"
     "sentry_crashpad"
   }
 
+  dependson {
+    "crashpad_handler"
+  }
+
   files {
     SRC_ROOT.."/examples/example_crashpad.c",
   }
+
+  disable_for_android()
 
 project "example_breakpad"
   kind "ConsoleApp"
@@ -174,6 +200,8 @@ project "example_breakpad"
   files {
     SRC_ROOT.."/examples/example_breakpad.c",
   }
+
+  disable_for_android()
 
 project "test_sentry"
   kind "ConsoleApp"
@@ -196,3 +224,7 @@ project "test_sentry"
   filter "system:linux"
     -- -E is needed on linux to make dladdr work on the main executable
     linkoptions { "-Wl,--build-id=uuid,-E" }
+
+  filter {}
+
+  disable_for_android()
