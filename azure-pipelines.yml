@@ -108,6 +108,9 @@ stages:
           buildSystem: "androidmk"
           buildScript: |
             make -C .. android-build
+          testScript: |
+            # Do not run "configure" because we already have the build files
+            make -C .. android-test ANDROID_NO_CONFIGURE=1
 
   - stage: package_all
     displayName: Package the final archive

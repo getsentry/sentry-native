@@ -238,7 +238,7 @@ Value Value::new_string(const wchar_t *s) {
 #endif
 
 Value Value::new_uuid(const sentry_uuid_t *uuid) {
-    char buf[100];
+    char buf[100] = {0};
     sentry_uuid_as_string(uuid, buf);
     return Value::new_string(buf);
 }

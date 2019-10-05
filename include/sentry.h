@@ -42,7 +42,11 @@ extern "C" {
 #ifdef _WIN32
 #include <Rpc.h>
 #include <wchar.h>
+#define SENTRY_UUID_WINDOWS
+#elif defined(__ANDROID__)
+#define SENTRY_UUID_ANDROID
 #else
+#define SENTRY_UUID_LIBUUID
 #include <uuid/uuid.h>
 #endif
 
@@ -257,9 +261,11 @@ SENTRY_EXPERIMENTAL_API size_t sentry_unwind_stack(void *addr,
  * A UUID
  */
 typedef struct sentry_uuid_s {
-#ifdef _WIN32
+#ifdef SENTRY_UUID_WINDOWS
     GUID native_uuid;
-#else
+#elif defined(SENTRY_UUID_ANDROID)
+    char native_uuid[16];
+#elif defined(SENTRY_UUID_LIBUUID)
     uuid_t native_uuid;
 #endif
 } sentry_uuid_t;
