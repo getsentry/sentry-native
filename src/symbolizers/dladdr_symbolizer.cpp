@@ -8,6 +8,7 @@ using namespace symbolizers;
 bool symbolizers::symbolize(void *addr,
                             std::function<void(const FrameInfo *)> func) {
     Dl_info info;
+
     if (dladdr(addr, &info) == 0) {
         return false;
     }
