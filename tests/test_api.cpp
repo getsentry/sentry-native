@@ -315,7 +315,6 @@ TEST_CASE("send basic stacktrace", "[api]") {
 #define OS_MAIN_FUNC "main"
 #endif
 
-#if !defined(__ANDROID__)
 TEST_CASE("send basic stacktrace (unwound)", "[api]") {
     WITH_MOCK_TRANSPORT(nullptr) {
         sentry_value_t msg_event = sentry_value_new_message_event(
@@ -346,4 +345,3 @@ TEST_CASE("send basic stacktrace (unwound)", "[api]") {
                 std::string("sentry_event_value_add_stacktrace"));
     }
 }
-#endif

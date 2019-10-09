@@ -1,11 +1,13 @@
 #include "../unwind.hpp"
 #ifdef SENTRY_WITH_LIBUNWINDSTACK_UNWINDER
 
+#include <ucontext.h>
 #include <unwindstack/Elf.h>
 #include <unwindstack/MapInfo.h>
 #include <unwindstack/Maps.h>
 #include <unwindstack/Memory.h>
 #include <unwindstack/Regs.h>
+#include <unwindstack/RegsGetLocal.h>
 
 using namespace sentry;
 
@@ -14,6 +16,7 @@ size_t unwinders::unwind_stack_libunwindstack(void *addr,
                                               size_t max_frames) {
     std::unique_ptr<unwindstack::Regs> regs(
         unwindstack::Regs::CreateFromLocal());
+    unwindstack::RegsGetLocal(regs.get());
 
     unwindstack::LocalMaps maps;
     if (!maps.Parse()) {

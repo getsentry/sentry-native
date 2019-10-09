@@ -98,6 +98,16 @@ function sentry_native_library()
       "log",
     }
 
+  filter { "system:android", "architecture:x86" }
+    files {
+      SRC_ROOT.."/external/libunwindstack-ndk/AsmGetRegsX86.S",
+    }
+
+  filter { "system:android", "architecture:x86_64" }
+    files {
+      SRC_ROOT.."/external/libunwindstack-ndk/AsmGetRegsX86_64.S",
+    }
+
   filter "system:windows"
     links {
       "winhttp.lib",
