@@ -205,5 +205,5 @@ void sentry_string_free(char *str) {
 }
 
 size_t sentry_unwind_stack(void *addr, void **stacktrace_out, size_t max_len) {
-    return unwinders::unwind_stack(addr, stacktrace_out, max_len);
+    return unwind_stack(addr, stacktrace_out, max_len);
 }
