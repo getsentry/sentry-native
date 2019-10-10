@@ -68,15 +68,14 @@ extern "C" {
  * Log macro that allows you to specify a number for the priority.
  */
 #ifndef LOG_PRI
-#define LOG_PRI(priority, tag, ...) android_printLog(priority, tag, __VA_ARGS__)
+#define LOG_PRI(priority, tag, ...) (void)0
 #endif
 
 /*
  * Log macro that allows you to pass in a varargs ("args" is a va_list).
  */
 #ifndef LOG_PRI_VA
-#define LOG_PRI_VA(priority, tag, fmt, args) \
-  android_vprintLog(priority, NULL, tag, fmt, args)
+#define LOG_PRI_VA(priority, tag, fmt, args) (void)0
 #endif
 
 /* --------------------------------------------------------------------- */
