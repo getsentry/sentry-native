@@ -778,7 +778,10 @@ project "crashpad_crash"
     files {
       EXAMPLES_DIR.."/linux/crash.cc",
     }
-    links {"pthread"}
+    links {
+      "pthread",
+      "dl",
+    }
 
   filter "system:windows"
     files {
