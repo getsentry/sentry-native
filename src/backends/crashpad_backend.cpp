@@ -113,7 +113,7 @@ void CrashpadBackend::flush_scope_state(const sentry::Scope &scope) {
     mpack_writer_t writer;
     mpack_writer_init_stdfile(&writer, m_impl->event_filename.open("w"), true);
     Value event = Value::new_event();
-    scope.apply_to_event(event, false);
+    scope.apply_to_event(event, SENTRY_SCOPE_NONE);
     event.to_msgpack(&writer);
     mpack_error_t err = mpack_writer_destroy(&writer);
     if (err != mpack_ok) {
