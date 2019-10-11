@@ -8,6 +8,14 @@
 #include "value.hpp"
 
 namespace sentry {
+enum ScopeMode {
+    SENTRY_SCOPE_NONE = 0x0,
+    SENTRY_SCOPE_BREADCRUMBS = 0x1,
+    SENTRY_SCOPE_MODULES = 0x2,
+    SENTRY_SCOPE_STACKTRACES = 0x4,
+    SENTRY_SCOPE_ALL = 0x7,
+};
+
 struct Scope {
     Scope()
         : level(SENTRY_LEVEL_ERROR),
@@ -18,9 +26,9 @@ struct Scope {
           fingerprint(Value::new_list()) {
     }
 
-    void apply_to_event(Value &event, bool with_breadcrumbs) const;
+    void apply_to_event(Value &event, ScopeMode mode) const;
     void apply_to_event(Value &event) const {
-        apply_to_event(event, true);
+        apply_to_event(event, SENTRY_SCOPE_ALL);
     }
 
     std::string transaction;

@@ -111,9 +111,9 @@ void CrashpadBackend::start() {
 
 void CrashpadBackend::flush_scope_state(const sentry::Scope &scope) {
     mpack_writer_t writer;
-    mpack_writer_init_stdfile(&writer, m_impl->event_filename.open("w"), true);
+    mpack_writer_init_stdfile(&writer, m_impl->event_filename.open("wb"), true);
     Value event = Value::new_event();
-    scope.apply_to_event(event, false);
+    scope.apply_to_event(event, SENTRY_SCOPE_NONE);
     event.to_msgpack(&writer);
     mpack_error_t err = mpack_writer_destroy(&writer);
     if (err != mpack_ok) {
@@ -138,7 +138,7 @@ void CrashpadBackend::add_breadcrumb(sentry::Value breadcrumb) {
 
     std::string mpack = breadcrumb.to_msgpack();
     FILE *file = m_impl->breadcrumb_filename.open(
-        m_impl->breadcrumbs_in_segment == 0 ? "w" : "a");
+        m_impl->breadcrumbs_in_segment == 0 ? "wb" : "a");
     if (file) {
         fwrite(mpack.c_str(), 1, mpack.size(), file);
         fclose(file);
