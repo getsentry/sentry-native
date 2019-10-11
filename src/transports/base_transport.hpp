@@ -1,6 +1,7 @@
 #ifndef SENTRY_TRANSPORTS_BASE_HPP_INCLUDED
 #define SENTRY_TRANSPORTS_BASE_HPP_INCLUDED
 
+#include <functional>
 #include <sstream>
 #include "../internal.hpp"
 #include "../path.hpp"
@@ -9,12 +10,20 @@
 namespace sentry {
 namespace transports {
 
-class Payload {
+class EnvelopeItem {
    public:
-    Payload();
-    Payload(sentry::Value event);
-    Payload(const sentry::Path &path);
-    Payload(const char *bytes, size_t length);
+    EnvelopeItem(sentry::Value event);
+    EnvelopeItem(const sentry::Path &path, const char *type = "attachment");
+    EnvelopeItem(const char *bytes,
+                 size_t length,
+                 const char *type = "attachment");
+
+    void set_header(const char *key, sentry::Value value);
+    char *clone_raw_payload() {
+        char *rv = (char *)malloc(m_bytes.length());
+        memcpy(rv, m_bytes.c_str(), m_bytes.length());
+        return rv;
+    }
 
     bool is_event() const;
     sentry::Value get_event() const;
@@ -23,26 +32,13 @@ class Payload {
     void serialize_into(std::ostream &out) const;
 
    protected:
+    EnvelopeItem();
+
+    sentry::Value m_headers;
     bool m_is_event;
     sentry::Value m_event;
     sentry::Path m_path;
     std::string m_bytes;
-};
-
-class EnvelopeItem {
-   public:
-    EnvelopeItem(Payload payload);
-
-    void set_header(const char *key, sentry::Value value);
-    const Payload *payload() const {
-        return &m_payload;
-    }
-
-    void serialize_into(std::ostream &out) const;
-
-   protected:
-    sentry::Value m_headers;
-    Payload m_payload;
 };
 
 class Envelope {
@@ -53,6 +49,8 @@ class Envelope {
 
     void set_header(const char *key, sentry::Value value);
     void add_item(EnvelopeItem item);
+    void for_each_request(
+        std::function<bool(sentry_prepared_http_request_t *)> func);
 
     void serialize_into(std::ostream &out) const;
     std::string serialize() const;
