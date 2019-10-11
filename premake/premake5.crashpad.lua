@@ -397,6 +397,9 @@ project "crashpad_util"
       SRC_ROOT.."/util/posix/process_info_linux.cc",
       SRC_ROOT.."/util/process/process_memory_linux.cc",
       SRC_ROOT.."/util/process/process_memory_sanitized.cc",
+
+      -- compat
+      SRC_ROOT.."/compat/linux/sys/mman.cc"
     }
 
   filter {"system:macosx or linux"}
