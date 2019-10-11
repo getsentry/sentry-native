@@ -134,7 +134,7 @@ void json_serialize_string(const char *ptr, Out &out) {
     for (; *ptr; ptr++) {
         switch (*ptr) {
             case '\\':
-                out << "\\";
+                out << "\\\\";
                 break;
             case '"':
                 out << "\\\"";
