@@ -469,6 +469,9 @@ project "crashpad_util"
       "winhttp.lib",
     }
 
+  filter {"files:**.asm", "platforms:Win32"}
+    exceptionhandling 'SEH'
+
   filter {}
 
   disable_for_android()
