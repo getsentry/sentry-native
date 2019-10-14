@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.2
+
+- Fix SafeSEH builds on Win32
+- Fix a potential error when shutting down after unloading libsentry on macOS
+
 ## 0.1.1
 
 - Update Crashpad
