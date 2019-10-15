@@ -302,24 +302,6 @@ SENTRY_API void sentry_uuid_as_string(const sentry_uuid_t *uuid, char str[37]);
 struct sentry_options_s;
 typedef struct sentry_options_s sentry_options_t;
 
-/* type of the payload envelope */
-typedef struct sentry_prepared_http_request_s {
-    /* the url to send the http request to */
-    char *url;
-    /* the http method (uppercase) to use */
-    const char *method;
-    /* the null terminated headers to send (key:value) where key is lowercase */
-    char **headers;
-    /* the payload in bytes to send */
-    char *payload;
-    /* the number of bytes in the payload to send */
-    size_t payload_len;
-} sentry_prepared_http_request_t;
-
-/* frees a prepared http request */
-SENTRY_API void sentry_prepared_http_request_free(
-    sentry_prepared_http_request_t *req);
-
 /* type of the callback for transports */
 typedef void (*sentry_transport_function_t)(sentry_value_t event, void *data);
 

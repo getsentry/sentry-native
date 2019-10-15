@@ -74,15 +74,68 @@ Value EnvelopeItem::get_event() const {
     return m_event;
 }
 
+bool EnvelopeItem::is_minidump() const {
+    return strcmp(m_headers.get_by_key("type").as_cstr(), "minidump") == 0;
+}
+
+bool EnvelopeItem::is_attachment() const {
+    return strcmp(m_headers.get_by_key("type").as_cstr(), "attachment") == 0;
+}
+
+const char *EnvelopeItem::name() const {
+    Value name = m_headers.get_by_key("name");
+    if (name.is_null() && is_minidump()) {
+        return "uploaded_file_minidump";
+    } else {
+        return name.as_cstr();
+    }
+}
+
+const char *EnvelopeItem::filename() const {
+    Value filename = m_headers.get_by_key("filename");
+    if (filename.is_null()) {
+        if (is_minidump()) {
+            return "minidump.dmp";
+        } else {
+            return "attachment.bin";
+        }
+    } else {
+        return filename.as_cstr();
+    }
+}
+
+const char *EnvelopeItem::content_type() const {
+    Value content_type = m_headers.get_by_key("content_type");
+    if (content_type.is_null()) {
+        if (is_minidump()) {
+            return "application/x-minidump";
+        } else {
+            return "application/octet-stream";
+        }
+    } else {
+        return content_type.as_cstr();
+    }
+}
+
 Envelope::Envelope() : m_headers(Value::new_object()) {
 }
 
 Envelope::Envelope(Value event) : Envelope() {
+    // envelopes require an event_id.
+    if (event.get_by_key("event_id").is_null()) {
+        sentry_uuid_t event_id = sentry_uuid_new_v4();
+        event.set_by_key("event_id", Value::new_uuid(&event_id));
+    }
     add_item(EnvelopeItem(event));
 }
 
 void Envelope::set_header(const char *key, sentry::Value value) {
     m_headers.set_by_key(key, value);
+}
+
+sentry_uuid_t Envelope::event_id() const {
+    const char *event_id_str = m_headers.get_by_key("event_id").as_cstr();
+    return sentry_uuid_from_string(event_id_str);
 }
 
 void Envelope::add_item(EnvelopeItem item) {
@@ -97,7 +150,7 @@ void Envelope::serialize_into(std::ostream &out) const {
     }
 }
 
-sentry::Value Envelope::get_event() const {
+Value Envelope::get_event() const {
     for (auto iter = m_items.begin(); iter != m_items.end(); ++iter) {
         if (iter->is_event()) {
             return iter->get_event();
@@ -106,53 +159,85 @@ sentry::Value Envelope::get_event() const {
     return sentry::Value();
 }
 
-enum EndpointType {
-    ENDPOINT_TYPE_STORE,
-    ENDPOINT_TYPE_MINIDUMP,
-};
-
-static sentry_prepared_http_request_t *new_request(EndpointType endpoint_type,
-                                                   const char *content_type,
-                                                   size_t payload_len) {
+PreparedHttpRequest::PreparedHttpRequest(const sentry_uuid_t *event_id,
+                                         EndpointType endpoint_type,
+                                         const char *content_type,
+                                         const std::string &payload)
+    : method("POST"), payload(payload) {
     const sentry_options_t *options = sentry_get_options();
-    sentry_prepared_http_request_t *req = new sentry_prepared_http_request_t();
 
-    char **headers = new char *[4];
-    std::string header;
+    headers.push_back(std::string("x-sentry-auth:") +
+                      options->dsn.get_auth_header());
+    headers.push_back(std::string("content-type:") + content_type);
+    headers.push_back(std::string("content-length:") +
+                      std::to_string(payload.size()));
 
-    header = std::string("x-sentry-auth:") + options->dsn.get_auth_header();
-    headers[0] = strdup(header.c_str());
-    header = std::string("content-type:") + content_type;
-    headers[1] = strdup(header.c_str());
-    header = std::string("content-length:") + std::to_string(payload_len);
-    headers[2] = strdup(header.c_str());
-    headers[3] = nullptr;
-
-    req->headers = headers;
-    req->method = "POST";
     switch (endpoint_type) {
         case ENDPOINT_TYPE_STORE:
-            req->url = strdup(options->dsn.get_store_url());
+            url = options->dsn.get_store_url();
             break;
         case ENDPOINT_TYPE_MINIDUMP:
-            req->url = strdup(options->dsn.get_minidump_url());
+            url = options->dsn.get_minidump_url();
             break;
+        case ENDPOINT_TYPE_ATTACHMENT: {
+            url = options->dsn.get_attachment_url(event_id);
+            break;
+        }
     }
-    req->payload_len = payload_len;
-
-    return req;
 }
 
 void Envelope::for_each_request(
-    std::function<bool(sentry_prepared_http_request_t *)> func) {
+    std::function<bool(PreparedHttpRequest &&)> func) {
+    // this is super inefficient
+    sentry_uuid_t event_id = this->event_id();
+    std::vector<const EnvelopeItem *> attachments;
+    const EnvelopeItem *minidump = nullptr;
+
     for (auto iter = m_items.begin(); iter != m_items.end(); ++iter) {
         if (iter->is_event()) {
-            sentry_prepared_http_request_t *req = new_request(
-                ENDPOINT_TYPE_STORE, "application/json", iter->length());
-            req->payload = iter->clone_raw_payload();
-            func(req);
+            func(std::move(PreparedHttpRequest(&event_id, ENDPOINT_TYPE_STORE,
+                                               "application/json",
+                                               iter->bytes())));
+        } else if (iter->is_attachment()) {
+            attachments.push_back(&*iter);
+        } else if (iter->is_minidump()) {
+            minidump = &*iter;
         }
     }
+
+    if (!minidump && attachments.empty()) {
+        return;
+    }
+
+    EndpointType endpoint_type = ENDPOINT_TYPE_ATTACHMENT;
+    if (minidump != nullptr) {
+        attachments.push_back(minidump);
+        endpoint_type = ENDPOINT_TYPE_MINIDUMP;
+    }
+
+    char boundary[50];
+    sentry_uuid_t boundary_id = sentry_uuid_new_v4();
+    sentry_uuid_as_string(&boundary_id, boundary);
+    strcat(boundary, "-boundary-");
+
+    std::stringstream payload_ss;
+
+    for (auto iter = attachments.begin(); iter != attachments.end(); ++iter) {
+        payload_ss << "--" << boundary << "\r\n";
+        payload_ss << "content-type:" << (**iter).content_type() << "\r\n";
+        payload_ss << "content-disposition:form-data;name=\"" << (**iter).name()
+                   << "\";filename=\"" << (**iter).filename() << "\"\r\n\r\n";
+        payload_ss << (**iter).bytes() << "\r\n";
+    }
+    payload_ss << "--" << boundary << "--";
+
+    std::stringstream content_type_ss;
+    content_type_ss << "multipart/form-data;boundary=\"" << boundary << "\"";
+    std::string content_type = content_type_ss.str();
+    std::string payload = payload_ss.str();
+
+    func(std::move(PreparedHttpRequest(&event_id, ENDPOINT_TYPE_STORE,
+                                       content_type.c_str(), payload)));
 }
 
 std::string Envelope::serialize() const {
@@ -189,17 +274,4 @@ Transport *transports::create_default_transport() {
     return new transports::WinHttpTransport();
 #endif
     return nullptr;
-}
-
-void sentry_prepared_http_request_free(sentry_prepared_http_request_t *req) {
-    if (!req) {
-        return;
-    }
-    free(req->url);
-    for (char *header = req->headers[0]; header; ++header) {
-        free(header);
-    }
-    delete[] req->headers;
-    free(req->payload);
-    delete req;
 }

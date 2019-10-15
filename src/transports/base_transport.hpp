@@ -10,6 +10,25 @@
 namespace sentry {
 namespace transports {
 
+enum EndpointType {
+    ENDPOINT_TYPE_STORE,
+    ENDPOINT_TYPE_MINIDUMP,
+    ENDPOINT_TYPE_ATTACHMENT,
+};
+
+/* type of the payload envelope */
+struct PreparedHttpRequest {
+    std::string url;
+    const char *method;
+    std::vector<std::string> headers;
+    std::string payload;
+
+    PreparedHttpRequest(const sentry_uuid_t *event_id,
+                        EndpointType endpoint_type,
+                        const char *content_type,
+                        const std::string &payload);
+};
+
 class EnvelopeItem {
    public:
     EnvelopeItem(sentry::Value event);
@@ -19,15 +38,18 @@ class EnvelopeItem {
                  const char *type = "attachment");
 
     void set_header(const char *key, sentry::Value value);
-    char *clone_raw_payload() {
-        char *rv = (char *)malloc(m_bytes.length());
-        memcpy(rv, m_bytes.c_str(), m_bytes.length());
-        return rv;
-    }
 
     bool is_event() const;
+    bool is_minidump() const;
+    bool is_attachment() const;
+    const char *name() const;
+    const char *filename() const;
+    const char *content_type() const;
     sentry::Value get_event() const;
     size_t length() const;
+    const std::string &bytes() const {
+        return m_bytes;
+    }
 
     void serialize_into(std::ostream &out) const;
 
@@ -48,9 +70,9 @@ class Envelope {
     sentry::Value get_event() const;
 
     void set_header(const char *key, sentry::Value value);
+    sentry_uuid_t event_id() const;
     void add_item(EnvelopeItem item);
-    void for_each_request(
-        std::function<bool(sentry_prepared_http_request_t *)> func);
+    void for_each_request(std::function<bool(PreparedHttpRequest &&)> func);
 
     void serialize_into(std::ostream &out) const;
     std::string serialize() const;

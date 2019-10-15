@@ -2,8 +2,9 @@
 #include <cstring>
 #include <sstream>
 #include "url.hpp"
+#include "uuid.hpp"
 
-namespace sentry {
+using namespace sentry;
 
 Dsn::Dsn(const char *dsn)
     : m_raw(dsn ? dsn : ""),
@@ -62,4 +63,12 @@ Dsn::Dsn(const char *dsn)
     m_auth_header = ss.str();
 }
 
-}  // namespace sentry
+std::string Dsn::get_attachment_url(const sentry_uuid_t *event_id) const {
+    char event_id_buf[40];
+    sentry_uuid_as_string(event_id, event_id_buf);
+    std::stringstream ss;
+    ss << scheme() << "://" << host() << ":" << port() << "/" << path()
+       << "api/" << project_id() << "/events/" << event_id_buf
+       << "/attachments/";
+    return ss.str();
+}
