@@ -11,6 +11,7 @@ class FunctionTransport : public Transport {
     FunctionTransport(std::function<void(sentry::Value)> func) : m_func(func) {
     }
     void send_event(sentry::Value value);
+    void send_envelope(Envelope envelope);
 
    private:
     std::function<void(sentry::Value)> m_func;

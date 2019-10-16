@@ -166,8 +166,10 @@ PreparedHttpRequest::PreparedHttpRequest(const sentry_uuid_t *event_id,
     : method("POST"), payload(payload) {
     const sentry_options_t *options = sentry_get_options();
 
-    headers.push_back(std::string("x-sentry-auth:") +
-                      options->dsn.get_auth_header());
+    if (!options->dsn.disabled()) {
+        headers.push_back(std::string("x-sentry-auth:") +
+                          options->dsn.get_auth_header());
+    }
     headers.push_back(std::string("content-type:") + content_type);
     headers.push_back(std::string("content-length:") +
                       std::to_string(payload.size()));
@@ -187,7 +189,7 @@ PreparedHttpRequest::PreparedHttpRequest(const sentry_uuid_t *event_id,
 }
 
 void Envelope::for_each_request(
-    std::function<bool(PreparedHttpRequest &&)> func) {
+    std::function<bool(PreparedHttpRequest &&)> func) const {
     // this is super inefficient
     sentry_uuid_t event_id = this->event_id();
     std::vector<const EnvelopeItem *> attachments;
@@ -195,9 +197,11 @@ void Envelope::for_each_request(
 
     for (auto iter = m_items.begin(); iter != m_items.end(); ++iter) {
         if (iter->is_event()) {
-            func(std::move(PreparedHttpRequest(&event_id, ENDPOINT_TYPE_STORE,
-                                               "application/json",
-                                               iter->bytes())));
+            if (!func(std::move(
+                    PreparedHttpRequest(&event_id, ENDPOINT_TYPE_STORE,
+                                        "application/json", iter->bytes())))) {
+                return;
+            }
         } else if (iter->is_attachment()) {
             attachments.push_back(&*iter);
         } else if (iter->is_minidump()) {
@@ -258,13 +262,8 @@ void Transport::start() {
 void Transport::shutdown() {
 }
 
-void Transport::send_envelope(Envelope envelope) {
-    sentry::Value event = envelope.get_event();
-    if (!event.is_null()) {
-        send_event(event);
-    } else {
-        SENTRY_LOG("This transport cannot send these payloads. Dropped");
-    }
+void Transport::send_event(Value event) {
+    send_envelope(Envelope(event));
 }
 
 Transport *transports::create_default_transport() {

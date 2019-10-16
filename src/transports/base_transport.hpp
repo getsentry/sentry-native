@@ -72,7 +72,8 @@ class Envelope {
     void set_header(const char *key, sentry::Value value);
     sentry_uuid_t event_id() const;
     void add_item(EnvelopeItem item);
-    void for_each_request(std::function<bool(PreparedHttpRequest &&)> func);
+    void for_each_request(
+        std::function<bool(PreparedHttpRequest &&)> func) const;
 
     void serialize_into(std::ostream &out) const;
     std::string serialize() const;
@@ -88,8 +89,8 @@ class Transport {
     virtual ~Transport();
     virtual void start();
     virtual void shutdown();
-    virtual void send_event(sentry::Value event) = 0;
-    virtual void send_envelope(Envelope envelope);
+    virtual void send_event(sentry::Value event);
+    virtual void send_envelope(Envelope envelope) = 0;
 
    private:
     Transport(const Transport &) = delete;
