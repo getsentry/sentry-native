@@ -35,8 +35,25 @@ static Value g_modules;
 static std::recursive_mutex g_modules_mutex;
 static bool g_initialized = false;
 
+/* there are potential issues with tearning down unloading a dylib on macos
+   which causes the recursive mutex to fail with invalid_argument on attempted
+   lock. We catch down this error here so we can recover from this situation
+   without causing further issues.
+
+   See GH-65 */
+#define SAFE_LOCK_OR(Block)                                                  \
+    do {                                                                     \
+        std::unique_lock<std::recursive_mutex> _lock_guard(g_modules_mutex,  \
+                                                           std::defer_lock); \
+        try {                                                                \
+            _lock_guard.lock();                                              \
+        } catch (std::system_error) {                                        \
+            Block;                                                           \
+        }                                                                    \
+    } while (0)
+
 void add_image(const mach_header *mh, intptr_t vmaddr_slide) {
-    std::lock_guard<std::recursive_mutex> _guard(g_modules_mutex);
+    SAFE_LOCK_OR({ return; });
 
     const platform_mach_header *header = (const platform_mach_header *)(mh);
     Dl_info info;
@@ -83,7 +100,8 @@ void add_image(const mach_header *mh, intptr_t vmaddr_slide) {
 }
 
 void remove_image(const mach_header *mh, intptr_t vmaddr_slide) {
-    std::lock_guard<std::recursive_mutex> _guard(g_modules_mutex);
+    SAFE_LOCK_OR({ return; });
+
     if (g_modules.is_null() || g_modules.length() == 0) {
         return;
     }
@@ -110,7 +128,8 @@ void remove_image(const mach_header *mh, intptr_t vmaddr_slide) {
 }
 
 Value modulefinders::get_module_list() {
-    std::lock_guard<std::recursive_mutex> _guard(g_modules_mutex);
+    SAFE_LOCK_OR({ return Value::new_list(); });
+
     if (!g_initialized) {
         _dyld_register_func_for_add_image(add_image);
         _dyld_register_func_for_remove_image(remove_image);

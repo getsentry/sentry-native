@@ -163,20 +163,17 @@ void sentry_remove_context(const char *key) {
 }
 
 void sentry_set_fingerprint(const char *fingerprint, ...) {
-    WITH_LOCKED_SCOPE;
+    Value fingerprint_value = Value::new_list();
+
     va_list va;
     va_start(va, fingerprint);
-
-    g_scope.fingerprint = Value::new_list();
-    if (fingerprint) {
-        g_scope.fingerprint.append(Value::new_string(fingerprint));
-        for (const char *arg; (arg = va_arg(va, const char *));) {
-            g_scope.fingerprint.append(Value::new_string(arg));
-        }
+    for (; fingerprint; fingerprint = va_arg(va, const char *)) {
+        fingerprint_value.append(Value::new_string(fingerprint));
     }
-
     va_end(va);
 
+    WITH_LOCKED_SCOPE;
+    g_scope.fingerprint = fingerprint_value;
     flush_scope();
 }
 

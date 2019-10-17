@@ -88,6 +88,17 @@ function disable_for_android()
   filter {}
 end
 
+-- LSS is a header-only target in Crashpad that sets a define for dependants
+function depend_lss()
+  filter "system:linux"
+    defines {
+      -- required when including lss.h
+      "CRASHPAD_LSS_SOURCE_EMBEDDED"
+    }
+
+  filter{}
+end
+
 -- aka "mini_chromium/base"
 project "crashpad_minichromium_base"
   kind "StaticLib"
@@ -152,6 +163,7 @@ project "crashpad_minichromium_base"
 project "crashpad_client"
   kind "StaticLib"
   crashpad_common()
+  depend_lss()
 
   files {
     SRC_ROOT.."/client/annotation.cc",
@@ -194,6 +206,7 @@ project "crashpad_client"
 project "crashpad_util"
   kind "StaticLib"
   crashpad_common()
+  depend_lss()
 
   files {
     SRC_ROOT.."/util/file/delimited_file_reader.cc",
@@ -370,17 +383,23 @@ project "crashpad_util"
       SRC_ROOT.."/util/linux/exception_handler_protocol.cc",
       SRC_ROOT.."/util/linux/memory_map.cc",
       SRC_ROOT.."/util/linux/proc_stat_reader.cc",
+      SRC_ROOT.."/util/linux/proc_task_reader.cc",
       SRC_ROOT.."/util/linux/ptrace_broker.cc",
       SRC_ROOT.."/util/linux/ptrace_client.cc",
       SRC_ROOT.."/util/linux/ptracer.cc",
       SRC_ROOT.."/util/linux/scoped_pr_set_dumpable.cc",
       SRC_ROOT.."/util/linux/scoped_pr_set_ptracer.cc",
       SRC_ROOT.."/util/linux/scoped_ptrace_attach.cc",
+      SRC_ROOT.."/util/linux/socket.cc",
       SRC_ROOT.."/util/linux/thread_info.cc",
       SRC_ROOT.."/util/misc/capture_context_linux.S",
       SRC_ROOT.."/util/misc/paths_linux.cc",
       SRC_ROOT.."/util/posix/process_info_linux.cc",
       SRC_ROOT.."/util/process/process_memory_linux.cc",
+      SRC_ROOT.."/util/process/process_memory_sanitized.cc",
+
+      -- compat
+      SRC_ROOT.."/compat/linux/sys/mman.cc"
     }
 
   filter {"system:macosx or linux"}
@@ -450,6 +469,9 @@ project "crashpad_util"
       "winhttp.lib",
     }
 
+  filter {"files:**.asm", "platforms:Win32"}
+    exceptionhandling 'SEH'
+
   filter {}
 
   disable_for_android()
@@ -465,8 +487,10 @@ project "crashpad_snapshot"
     SRC_ROOT.."/snapshot/crashpad_info_client_options.cc",
     SRC_ROOT.."/snapshot/handle_snapshot.cc",
     SRC_ROOT.."/snapshot/memory_snapshot.cc",
+    SRC_ROOT.."/snapshot/minidump/exception_snapshot_minidump.cc",
     SRC_ROOT.."/snapshot/minidump/memory_snapshot_minidump.cc",
     SRC_ROOT.."/snapshot/minidump/minidump_annotation_reader.cc",
+    SRC_ROOT.."/snapshot/minidump/minidump_context_converter.cc",
     SRC_ROOT.."/snapshot/minidump/minidump_simple_string_dictionary_reader.cc",
     SRC_ROOT.."/snapshot/minidump/minidump_string_list_reader.cc",
     SRC_ROOT.."/snapshot/minidump/minidump_string_reader.cc",
@@ -541,7 +565,6 @@ project "crashpad_snapshot"
       SRC_ROOT.."/snapshot/win/cpu_context_win.cc",
       SRC_ROOT.."/snapshot/win/exception_snapshot_win.cc",
       SRC_ROOT.."/snapshot/win/memory_map_region_snapshot_win.cc",
-      SRC_ROOT.."/snapshot/win/memory_snapshot_win.cc",
       SRC_ROOT.."/snapshot/win/module_snapshot_win.cc",
       SRC_ROOT.."/snapshot/win/pe_image_annotations_reader.cc",
       SRC_ROOT.."/snapshot/win/pe_image_reader.cc",
@@ -650,6 +673,7 @@ project "crashpad_handler"
 
   filter "system:linux"
     files {
+      SRC_ROOT.."/handler/linux/capture_snapshot.cc",
       SRC_ROOT.."/handler/linux/crash_report_exception_handler.cc",
       SRC_ROOT.."/handler/linux/exception_handler_server.cc",
     }
@@ -678,47 +702,50 @@ project "crashpad_handler"
 
   disable_for_android()
 
-project "crashpad_zlib"
-    kind "StaticLib"
-    crashpad_common()
 
-    files {
-      "./src/empty.c"
+project "crashpad_zlib"
+  kind "StaticLib"
+  crashpad_common()
+
+  files {
+    "./src/empty.c"
+  }
+
+  filter "system:windows"
+    defines {
+      "HAVE_STDARG_H"
     }
 
-    filter "system:windows"
-      defines {
-        "__clang__",
-      }
-      buildoptions {
-        "/wd4131", -- uses old-style declarator
-        "/wd4244", -- conversion from 't1' to 't2', possible loss of data
-        "/wd4245", -- conversion from 't1' to 't2', signed/unsigned mismatch
-        "/wd4267", -- conversion from 'size_t' to 't', possible loss of data
-        "/wd4324", -- structure was padded due to alignment specifier
-        "/wd4702", -- unreachable code
-      }
-      files {
-        SRC_ROOT.."/third_party/zlib/zlib/adler32.c",
-        SRC_ROOT.."/third_party/zlib/zlib/compress.c",
-        SRC_ROOT.."/third_party/zlib/zlib/crc32.c",
-        SRC_ROOT.."/third_party/zlib/zlib/deflate.c",
-        SRC_ROOT.."/third_party/zlib/zlib/gzclose.c",
-        SRC_ROOT.."/third_party/zlib/zlib/gzlib.c",
-        SRC_ROOT.."/third_party/zlib/zlib/gzread.c",
-        SRC_ROOT.."/third_party/zlib/zlib/gzwrite.c",
-        SRC_ROOT.."/third_party/zlib/zlib/infback.c",
-        SRC_ROOT.."/third_party/zlib/zlib/inffast.c",
-        SRC_ROOT.."/third_party/zlib/zlib/inflate.c",
-        SRC_ROOT.."/third_party/zlib/zlib/inftrees.c",
-        SRC_ROOT.."/third_party/zlib/zlib/trees.c",
-        SRC_ROOT.."/third_party/zlib/zlib/uncompr.c",
-        SRC_ROOT.."/third_party/zlib/zlib/zutil.c",
+    buildoptions {
+      "/wd4131", -- uses old-style declarator
+      "/wd4244", -- conversion from 't1' to 't2', possible loss of data
+      "/wd4245", -- conversion from 't1' to 't2', signed/unsigned mismatch
+      "/wd4267", -- conversion from 'size_t' to 't', possible loss of data
+      "/wd4324", -- structure was padded due to alignment specifier
+      "/wd4702", -- unreachable code
+    }
 
-        SRC_ROOT.."/third_party/zlib/zlib/crc_folding.c",
-        SRC_ROOT.."/third_party/zlib/zlib/fill_window_sse.c",
-        SRC_ROOT.."/third_party/zlib/zlib/x86.c",
-      }
+    files {
+      SRC_ROOT.."/third_party/zlib/zlib/adler32.c",
+      SRC_ROOT.."/third_party/zlib/zlib/compress.c",
+      SRC_ROOT.."/third_party/zlib/zlib/crc32.c",
+      SRC_ROOT.."/third_party/zlib/zlib/deflate.c",
+      SRC_ROOT.."/third_party/zlib/zlib/gzclose.c",
+      SRC_ROOT.."/third_party/zlib/zlib/gzlib.c",
+      SRC_ROOT.."/third_party/zlib/zlib/gzread.c",
+      SRC_ROOT.."/third_party/zlib/zlib/gzwrite.c",
+      SRC_ROOT.."/third_party/zlib/zlib/infback.c",
+      SRC_ROOT.."/third_party/zlib/zlib/inffast.c",
+      SRC_ROOT.."/third_party/zlib/zlib/inflate.c",
+      SRC_ROOT.."/third_party/zlib/zlib/inftrees.c",
+      SRC_ROOT.."/third_party/zlib/zlib/trees.c",
+      SRC_ROOT.."/third_party/zlib/zlib/uncompr.c",
+      SRC_ROOT.."/third_party/zlib/zlib/zutil.c",
+
+      SRC_ROOT.."/third_party/zlib/zlib/crc_folding.c",
+      SRC_ROOT.."/third_party/zlib/zlib/fill_window_sse.c",
+      SRC_ROOT.."/third_party/zlib/zlib/x86.c",
+    }
 
 
 project "crashpad_crash"
@@ -754,7 +781,10 @@ project "crashpad_crash"
     files {
       EXAMPLES_DIR.."/linux/crash.cc",
     }
-    links {"pthread"}
+    links {
+      "pthread",
+      "dl",
+    }
 
   filter "system:windows"
     files {
