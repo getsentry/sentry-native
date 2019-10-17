@@ -62,52 +62,6 @@ function sentry_native_library()
       "SENTRY_WITH_LIBCURL_TRANSPORT",
     }
 
-  filter "system:android"
-    includedirs {
-      SRC_ROOT.."/external/libunwindstack-ndk",
-      SRC_ROOT.."/external/libunwindstack-ndk/include",
-    }
-    files {
-      SRC_ROOT.."/external/libunwindstack-ndk/ArmExidx.cpp",
-      SRC_ROOT.."/external/libunwindstack-ndk/ArmExidx.cpp",
-      SRC_ROOT.."/external/libunwindstack-ndk/DwarfCfa.cpp",
-      --SRC_ROOT.."/external/libunwindstack-ndk/DwarfEhFrame.cpp",
-      SRC_ROOT.."/external/libunwindstack-ndk/DwarfMemory.cpp",
-      SRC_ROOT.."/external/libunwindstack-ndk/DwarfOp.cpp",
-      SRC_ROOT.."/external/libunwindstack-ndk/DwarfSection.cpp",
-      SRC_ROOT.."/external/libunwindstack-ndk/Elf.cpp",
-      SRC_ROOT.."/external/libunwindstack-ndk/ElfInterface.cpp",
-      SRC_ROOT.."/external/libunwindstack-ndk/Log.cpp",
-      SRC_ROOT.."/external/libunwindstack-ndk/MapInfo.cpp",
-      SRC_ROOT.."/external/libunwindstack-ndk/Maps.cpp",
-      SRC_ROOT.."/external/libunwindstack-ndk/Memory.cpp",
-      SRC_ROOT.."/external/libunwindstack-ndk/Regs.cpp",
-      SRC_ROOT.."/external/libunwindstack-ndk/Symbols.cpp",
-      SRC_ROOT.."/external/libunwindstack-ndk/ElfInterfaceArm.cpp",
-      SRC_ROOT.."/external/libunwindstack-ndk/android-base/stringprintf.cpp",
-      SRC_ROOT.."/external/libunwindstack-ndk/RegsArm.cpp",
-      SRC_ROOT.."/external/libunwindstack-ndk/RegsArm64.cpp",
-      SRC_ROOT.."/external/libunwindstack-ndk/RegsX86.cpp",
-      SRC_ROOT.."/external/libunwindstack-ndk/RegsX86_64.cpp",
-      SRC_ROOT.."/external/libunwindstack-ndk/DwarfEhFrameWithHdr.cpp",
-    }
-    defines {
-      "EM_ARM=40",
-    }
-    links {
-      "log",
-    }
-
-  filter { "system:android", "architecture:x86" }
-    files {
-      SRC_ROOT.."/external/libunwindstack-ndk/AsmGetRegsX86.S",
-    }
-
-  filter { "system:android", "architecture:x86_64" }
-    files {
-      SRC_ROOT.."/external/libunwindstack-ndk/AsmGetRegsX86_64.S",
-    }
-
   filter "system:windows"
     links {
       "winhttp.lib",
