@@ -52,12 +52,12 @@ void WinHttpTransport::send_envelope(Envelope envelope) {
         envelope.for_each_request([this](PreparedHttpRequest prepared_request) {
             const sentry_options_t *opts = sentry_get_options();
             if (opts->dsn.disabled()) {
-                return;
+                return false;
             }
 
             ULONGLONG now = GetTickCount64();
             if (now < m_disabled_until) {
-                return;
+                return false;
             }
 
             if (!m_session) {
@@ -96,7 +96,7 @@ void WinHttpTransport::send_envelope(Envelope envelope) {
             url_components.lpszUrlPath = url_path;
             url_components.dwUrlPathLength = 1024;
 
-            WinHttpCrackUrl(prepared_request.url.c_str(), 0, 0,
+            WinHttpCrackUrl(store_url.c_str(), 0, 0,
                             &url_components);
             if (!m_connect) {
                 m_connect = WinHttpConnect(
@@ -113,17 +113,16 @@ void WinHttpTransport::send_envelope(Envelope envelope) {
                 WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES,
                 opts->dsn.is_secure() ? WINHTTP_FLAG_SECURE : 0);
 
-            std::string payload = event.to_json();
             std::wstringstream h;
             for (auto iter = prepared_request.headers.begin();
                  iter != prepared_request.headers.end(); ++iter) {
-                h << *iter << "\r\n";
+                h << iter->c_str() << "\r\n";
             }
             std::wstring headers = h.str();
 
             if (WinHttpSendRequest(request, headers.c_str(), headers.size(),
-                                   (LPVOID)payload.c_str(), payload.size(),
-                                   payload.size(), 0)) {
+                                   (LPVOID)prepared_request.payload.c_str(), prepared_request.payload.size(),
+                                   prepared_request.payload.size(), 0)) {
                 DWORD status_code = 0;
                 DWORD status_code_size = sizeof(DWORD);
 
@@ -150,6 +149,7 @@ void WinHttpTransport::send_envelope(Envelope envelope) {
                 WinHttpReceiveResponse(request, nullptr);
             }
             WinHttpCloseHandle(request);
+            return true;
         });
     });
 }
