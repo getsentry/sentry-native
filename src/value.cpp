@@ -84,7 +84,7 @@ void Value::to_msgpack(mpack_writer_t *writer) const {
             mpack_write_bool(writer, this->as_bool());
             break;
         case SENTRY_VALUE_TYPE_INT32:
-            mpack_write_int(writer, (int64_t)this->as_int32());
+            mpack_write_i32(writer, this->as_int32());
             break;
         case SENTRY_VALUE_TYPE_DOUBLE:
             mpack_write_double(writer, this->as_double());
@@ -114,6 +114,10 @@ void Value::to_msgpack(mpack_writer_t *writer) const {
             mpack_finish_map(writer);
             break;
         }
+        default:
+            // Be defensive to avoid invalid msgpack.
+            mpack_write_nil(writer);
+            break;
     }
 }
 
@@ -134,7 +138,7 @@ void json_serialize_string(const char *ptr, Out &out) {
     for (; *ptr; ptr++) {
         switch (*ptr) {
             case '\\':
-                out << "\\";
+                out << "\\\\";
                 break;
             case '"':
                 out << "\\\"";
@@ -238,7 +242,7 @@ Value Value::new_string(const wchar_t *s) {
 #endif
 
 Value Value::new_uuid(const sentry_uuid_t *uuid) {
-    char buf[100];
+    char buf[100] = {0};
     sentry_uuid_as_string(uuid, buf);
     return Value::new_string(buf);
 }

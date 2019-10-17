@@ -233,6 +233,34 @@ premake5 vs2017
 The last command will create a Visual Studio 2017 solution (`Sentry-Native.sln`)
 that contains all variants of the Sentry Native library projects, and example projects.
 
+**Android**:
+
+To run tests on Android, Android SDK is also required. The preferred way is to install it
+via [Android Studio].
+
+*NOTE:* various Android tools used for initializing and running emulators
+require Java 8. The recommended way to install it is via [AdoptOpenJDK] project.
+If you have another, more recent system-wide Java installation on your machine,
+set `JAVA8_HOME` environment variable with the path to your Java 8 JDK
+installation directory.
+
+To generate build files:
+
+```sh
+make android-configure
+```
+
+...creates `./premake/*.mk` build files.
+
+To build the project and run tests:
+
+```sh
+# Build only
+make android-build
+# Build and run tests
+make android-test
+```
+
 ### Running Tests
 
 The SDK ships with a test suite based on `catch.hpp`. Tests are built as
@@ -256,3 +284,5 @@ make test
 [downloads]: #downloads
 [development]: #development
 [android ndk]: https://developer.android.com/ndk/downloads/
+[android studio]: https://developer.android.com/studio/
+[adoptopenjdk]: https://adoptopenjdk.net/

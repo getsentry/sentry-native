@@ -17,7 +17,7 @@ workspace "Sentry-Native"
 
   -- Android
   ndkabi "all"
-  ndkplatform "android-16"
+  ndkplatform "android-21"
   ndkstl "c++_static"
 
   targetdir "bin/%{cfg.architecture}/%{cfg.buildcfg}"

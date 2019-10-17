@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.1.2
+
+- Fix SafeSEH builds on Win32
+- Fix a potential error when shutting down after unloading libsentry on macOS
+
+## 0.1.1
+
+- Update Crashpad
+- Fix compilation on Windows with VS 2019
+- Fix a bug in the JSON serializer causing invalid escapes
+- Fix a bug in the Crashpad backend causing invalid events
+- Reduce data event data sent along with minidumps
+- Experimental support for Android NDK
+
 ## 0.1.0
 
 - Support for capturing messages

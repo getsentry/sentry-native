@@ -41,3 +41,7 @@ Thumbs.db
 
 # Env files
 .env
+
+# cmake
+CMakeFiles/
+CMakeCache.txt

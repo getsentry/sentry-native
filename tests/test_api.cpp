@@ -300,10 +300,12 @@ TEST_CASE("send basic stacktrace", "[api]") {
             event_out.navigate("threads.0.stacktrace.frames.0");
         REQUIRE(frame.get_by_key("instruction_addr") ==
                 sentry::Value::new_addr((uint64_t)addr));
+#if !defined(__ANDROID__)
         REQUIRE(frame.get_by_key("symbol_addr") ==
                 sentry::Value::new_addr((uint64_t)(void *)&dummy_function));
         REQUIRE(strstr(frame.get_by_key("function").as_cstr(),
                        "dummy_function") != nullptr);
+#endif
     }
 }
 
@@ -313,6 +315,7 @@ TEST_CASE("send basic stacktrace", "[api]") {
 #define OS_MAIN_FUNC "main"
 #endif
 
+#if !defined(__ANDROID__)
 TEST_CASE("send basic stacktrace (unwound)", "[api]") {
     WITH_MOCK_TRANSPORT(nullptr) {
         sentry_value_t msg_event = sentry_value_new_message_event(
@@ -343,3 +346,4 @@ TEST_CASE("send basic stacktrace (unwound)", "[api]") {
                 std::string("sentry_event_value_add_stacktrace"));
     }
 }
+#endif
