@@ -50,6 +50,7 @@ class Dsn {
     const char *get_store_url() const {
         return m_store_url.c_str();
     }
+    std::string get_attachment_url(const sentry_uuid_t *event_id) const;
     const char *get_auth_header() const {
         return m_auth_header.c_str();
     }

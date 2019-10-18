@@ -172,7 +172,7 @@ void json_serialize_string(const char *ptr, Out &out) {
 }
 }  // namespace
 
-void Value::to_json(std::stringstream &out) const {
+void Value::to_json(std::ostream &out) const {
     switch (this->type()) {
         case SENTRY_VALUE_TYPE_NULL:
             out << "null";
@@ -376,6 +376,15 @@ uint64_t Value::as_addr() const {
         }
     } else {
         return 0;
+    }
+}
+
+sentry_uuid_t Value::as_uuid() const {
+    const char *s = as_cstr();
+    if (!*s) {
+        return sentry_uuid_nil();
+    } else {
+        return sentry_uuid_from_string(s);
     }
 }
 

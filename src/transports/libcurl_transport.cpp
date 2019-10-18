@@ -59,62 +59,64 @@ size_t header_callback(char *buffer,
     return bytes;
 }
 
-void LibcurlTransport::send_event(Value event) {
-    const char *event_id = event.get_by_key("event_id").as_cstr();
-    SENTRY_LOGF("Sending event %s", *event_id ? event_id : "<no client id>");
-    m_worker.submit_task([this, event]() {
-        const sentry_options_t *opts = sentry_get_options();
-        if (opts->dsn.disabled()) {
-            return;
-        }
-
-        std::string url = opts->dsn.get_store_url();
-        std::string payload = event.to_json();
-        std::string auth =
-            std::string("x-sentry-auth:") + opts->dsn.get_auth_header();
-
-        struct curl_slist *headers = nullptr;
-        headers = curl_slist_append(headers, "expect:");
-        headers = curl_slist_append(headers, auth.c_str());
-        headers = curl_slist_append(headers, "content-type:application/json");
-
-        curl_easy_reset(this->m_curl);
-        curl_easy_setopt(this->m_curl, CURLOPT_URL, url.c_str());
-        curl_easy_setopt(this->m_curl, CURLOPT_POST, (long)1);
-        curl_easy_setopt(this->m_curl, CURLOPT_HTTPHEADER, headers);
-        curl_easy_setopt(this->m_curl, CURLOPT_POSTFIELDS, payload.c_str());
-        curl_easy_setopt(this->m_curl, CURLOPT_POSTFIELDSIZE,
-                         (long)payload.size());
-        curl_easy_setopt(this->m_curl, CURLOPT_USERAGENT,
-                         SENTRY_SDK_USER_AGENT);
-        curl_easy_setopt(this->m_curl, CURLOPT_WRITEFUNCTION, swallow_data);
-
-        HeaderInfo info = {0};
-        curl_easy_setopt(this->m_curl, CURLOPT_HEADERDATA, (void *)&info);
-        curl_easy_setopt(this->m_curl, CURLOPT_HEADERFUNCTION, header_callback);
-
-        if (!opts->http_proxy.empty()) {
-            curl_easy_setopt(this->m_curl, CURLOPT_PROXY,
-                             opts->http_proxy.c_str());
-        }
-        if (!opts->ca_certs.empty()) {
-            curl_easy_setopt(this->m_curl, CURLOPT_CAPATH,
-                             opts->ca_certs.c_str());
-        }
-
-        CURLcode rv = curl_easy_perform(this->m_curl);
-
-        if (rv == CURLE_OK) {
-            long response_code;
-            curl_easy_getinfo(this->m_curl, CURLINFO_RESPONSE_CODE,
-                              &response_code);
-            if (response_code == 429) {
-                m_disabled_until = std::chrono::system_clock::now() +
-                                   std::chrono::seconds(info.retry_after);
+void LibcurlTransport::send_envelope(Envelope envelope) {
+    this->m_worker.submit_task([this, envelope]() {
+        envelope.for_each_request([this](PreparedHttpRequest prepared_request) {
+            const sentry_options_t *opts = sentry_get_options();
+            if (opts->dsn.disabled()) {
+                return false;
             }
-        }
 
-        curl_slist_free_all(headers);
+            struct curl_slist *headers = nullptr;
+            headers = curl_slist_append(headers, "expect:");
+            for (auto iter = prepared_request.headers.begin();
+                 iter != prepared_request.headers.end(); ++iter) {
+                headers = curl_slist_append(headers, iter->c_str());
+            }
+
+            curl_easy_reset(this->m_curl);
+            curl_easy_setopt(this->m_curl, CURLOPT_URL,
+                             prepared_request.url.c_str());
+            curl_easy_setopt(this->m_curl, CURLOPT_POST, (long)1);
+            curl_easy_setopt(this->m_curl, CURLOPT_HTTPHEADER, headers);
+            curl_easy_setopt(this->m_curl, CURLOPT_POSTFIELDS,
+                             prepared_request.payload.c_str());
+            curl_easy_setopt(this->m_curl, CURLOPT_POSTFIELDSIZE,
+                             (long)prepared_request.payload.size());
+            curl_easy_setopt(this->m_curl, CURLOPT_USERAGENT,
+                             SENTRY_SDK_USER_AGENT);
+            curl_easy_setopt(this->m_curl, CURLOPT_WRITEFUNCTION, swallow_data);
+
+            HeaderInfo info = {0};
+            curl_easy_setopt(this->m_curl, CURLOPT_HEADERDATA, (void *)&info);
+            curl_easy_setopt(this->m_curl, CURLOPT_HEADERFUNCTION,
+                             header_callback);
+
+            if (!opts->http_proxy.empty()) {
+                curl_easy_setopt(this->m_curl, CURLOPT_PROXY,
+                                 opts->http_proxy.c_str());
+            }
+            if (!opts->ca_certs.empty()) {
+                curl_easy_setopt(this->m_curl, CURLOPT_CAPATH,
+                                 opts->ca_certs.c_str());
+            }
+
+            CURLcode rv = curl_easy_perform(this->m_curl);
+
+            if (rv == CURLE_OK) {
+                long response_code;
+                curl_easy_getinfo(this->m_curl, CURLINFO_RESPONSE_CODE,
+                                  &response_code);
+                if (response_code == 429) {
+                    m_disabled_until = std::chrono::system_clock::now() +
+                                       std::chrono::seconds(info.retry_after);
+                }
+            }
+
+            curl_slist_free_all(headers);
+            return true;
+        });
     });
 }
+
 #endif

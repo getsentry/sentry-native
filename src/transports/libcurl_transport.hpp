@@ -16,7 +16,7 @@ class LibcurlTransport : public Transport {
     ~LibcurlTransport();
     void start();
     void shutdown();
-    void send_event(sentry::Value value);
+    void send_envelope(Envelope envelope);
 
    private:
     BackgroundWorker m_worker;
