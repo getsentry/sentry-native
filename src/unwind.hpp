@@ -1,6 +1,8 @@
 #ifndef SENTRY_UNWINDERS_BASE_HPP_INCLUDED
 #define SENTRY_UNWINDERS_BASE_HPP_INCLUDED
 
+/* if the null unwinder is explicitly selected we disable all unwinders */
+#ifndef SENTRY_WITH_NULL_UNWINDER
 #ifdef _WIN32
 #define SENTRY_WITH_WINDOWS_UNWINDER
 #elif defined(__ANDROID__)
@@ -9,6 +11,7 @@
 #define SENTRY_WITH_BACKTRACE_UNWINDER
 #else
 #define SENTRY_WITH_NULL_UNWINDER
+#endif
 #endif
 
 #include <functional>

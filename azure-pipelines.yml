@@ -37,7 +37,6 @@ stages:
   - stage: build_per_platform
     displayName: Build All
     jobs:
-
       # MacOS
       - template: azure-pipelines/build-platform.yml
         parameters:
@@ -101,18 +100,16 @@ stages:
             ./bin/x86_64/Release/test_sentry.exe
 
       # Android
-      # this is disabled because it will be tested through sentry-android
-      #
-      #- template: azure-pipelines/build-platform.yml
-      #  parameters:
-      #    vmImage: "macos-10.13"
-      #    platform: "android"
-      #    buildSystem: "androidmk"
-      #    buildScript: |
-      #      make -C .. android-build
-      #    testScript: |
-      #      # Do not run "configure" because we already have the build files
-      #      make -C .. android-test ANDROID_NO_CONFIGURE=1
+      - template: azure-pipelines/build-platform.yml
+        parameters:
+          vmImage: "macos-10.13"
+          platform: "android"
+          buildSystem: "androidmk"
+          buildScript: |
+            make -C .. android-build
+          testScript: |
+            # Do not run "configure" because we already have the build files
+            make -C .. android-test ANDROID_NO_CONFIGURE=1
 
   - stage: package_all
     displayName: Package the final archive
@@ -135,7 +132,7 @@ stages:
               cd out
               unzip -q "../${ARTIFACT_DIR}/sp-sources.zip"
 
-              PLATFORMS=(macosx windows linux)
+              PLATFORMS=(macosx windows linux android)
 
               # Copy gen_* directories from available archives
               for PLATFORM in "${PLATFORMS[@]}"; do
