@@ -28,6 +28,9 @@ function disable_for_android()
     removefiles {
       SRC_ROOT.."/**",
     }
+    defines {
+      "SENTRY_WITH_NULL_UNWINDER",
+    }
   filter {}
 end
 
@@ -79,13 +82,6 @@ project "sentry"
   kind "SharedLib"
   sentry_native_common()
   sentry_native_library()
-
-  -- the android unwinder needs cmake.  make this work with premake as
-  -- a fallback for now.
-  filter "system:android"
-    defines {
-      "SENTRY_WITH_NULL_UNWINDER"
-    }
 
 project "sentry_crashpad"
   kind "SharedLib"
