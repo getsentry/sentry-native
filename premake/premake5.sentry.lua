@@ -152,6 +152,11 @@ project "sentry_breakpad"
     defines {
     }
 
+  filter "system:android"
+    defines {
+      "SENTRY_WITH_NULL_UNWINDER",
+    }
+
   filter {}
 
 project "example"
