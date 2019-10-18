@@ -18,6 +18,14 @@ function sentry_native_common()
       "/wd4201",  -- nonstandard extension used : nameless struct/union
     }
 
+  filter "system:android"
+    defines {
+      "SENTRY_WITH_NULL_UNWINDER",
+    }
+    links {
+      "log",
+    }
+
   filter {}
 end
 
@@ -27,9 +35,6 @@ function disable_for_android()
     kind "SharedLib"
     removefiles {
       SRC_ROOT.."/**",
-    }
-    defines {
-      "SENTRY_WITH_NULL_UNWINDER",
     }
   filter {}
 end
@@ -152,11 +157,6 @@ project "sentry_breakpad"
     defines {
     }
 
-  filter "system:android"
-    defines {
-      "SENTRY_WITH_NULL_UNWINDER",
-    }
-
   filter {}
 
 project "example"
@@ -232,7 +232,5 @@ project "test_sentry"
   filter "system:linux"
     -- -E is needed on linux to make dladdr work on the main executable
     linkoptions { "-Wl,--build-id=uuid,-E" }
-
-  filter "system:android"
 
   filter {}

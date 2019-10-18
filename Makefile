@@ -116,7 +116,7 @@ android-build:
 ifneq ("${ANDROID_NO_CONFIGURE}","1")
 	@$(MAKE) android-configure
 endif
-	cd $(PREMAKE_DIR) && ndk-build NDK_APPLICATION_MK=./$(SOLUTION_NAME)_Application.mk NDK_PROJECT_PATH=. PM5_CONFIG=release -j$(CPUS)
+	cd $(PREMAKE_DIR) && ndk-build V=1 NDK_APPLICATION_MK=./$(SOLUTION_NAME)_Application.mk NDK_PROJECT_PATH=. PM5_CONFIG=release -j$(CPUS)
 .PHONY: android-build
 
 android-test: android-build
