@@ -82,6 +82,8 @@ fetch_sentry_native() {
         git checkout -f "$SENTRY_NATIVE_REVISION"
     fi
     make git-setup
+    # Work-around for a non-existing file
+    rm -f external/libunwindstack-ndk/.clang-format
 
     SENTRY_NATIVE_SRC=(
         "examples" "include" "src" "premake" "README.md" "Makefile"
