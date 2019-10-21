@@ -308,8 +308,32 @@ SENTRY_API void sentry_uuid_as_string(const sentry_uuid_t *uuid, char str[37]);
 struct sentry_options_s;
 typedef struct sentry_options_s sentry_options_t;
 
+struct sentry_envelope_s;
+typedef struct sentry_envelope_s sentry_envelope_t;
+
+/* given an envelope returns the embedded event if there is one */
+SENTRY_API sentry_value_t
+sentry_envelope_get_event(const sentry_envelope_t *envelope);
+
+/*
+ * serializes the envelope
+ *
+ * The return value needs to be freed with sentry_string_free().
+ */
+SENTRY_API char *sentry_envelope_serialize(const sentry_envelope_t *envelope,
+                                           size_t *size_out);
+
+/*
+ * serializes the envelope into a file
+ *
+ * returns 0 on success.
+ */
+SENTRY_API int sentry_envelope_write_to_file(const sentry_envelope_t *envelope,
+                                             const char *path);
+
 /* type of the callback for transports */
-typedef void (*sentry_transport_function_t)(sentry_value_t event, void *data);
+typedef void (*sentry_transport_function_t)(const sentry_envelope_t *envelope,
+                                            void *data);
 
 /* type of the callback for modifying events */
 typedef sentry_value_t (*sentry_event_function_t)(sentry_value_t event,

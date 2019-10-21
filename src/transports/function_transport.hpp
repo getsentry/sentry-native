@@ -8,13 +8,12 @@ namespace sentry {
 namespace transports {
 class FunctionTransport : public Transport {
    public:
-    FunctionTransport(std::function<void(sentry::Value)> func) : m_func(func) {
+    FunctionTransport(std::function<void(Envelope)> func) : m_func(func) {
     }
-    void send_event(sentry::Value value);
     void send_envelope(Envelope envelope);
 
    private:
-    std::function<void(sentry::Value)> m_func;
+    std::function<void(Envelope)> m_func;
 };
 }  // namespace transports
 }  // namespace sentry

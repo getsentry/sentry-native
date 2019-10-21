@@ -11,8 +11,9 @@ struct MockTransportData {
 
 extern MockTransportData mock_transport;
 
-static void send_event(sentry_value_t event, void *data) {
-    mock_transport.events.push_back(sentry::Value(event));
+static void send_envelope(const sentry_envelope_t *envelope, void *data) {
+    mock_transport.events.push_back(
+        sentry::Value::consume(sentry_envelope_get_event(envelope)));
 }
 
 struct SentryGuard {
@@ -22,7 +23,7 @@ struct SentryGuard {
             sentry_options_set_dsn(options, "https://publickey@127.0.0.1/1");
         }
         mock_transport = MockTransportData();
-        sentry_options_set_transport(options, send_event, nullptr);
+        sentry_options_set_transport(options, send_envelope, nullptr);
         sentry_init(options);
         m_done = false;
     }
