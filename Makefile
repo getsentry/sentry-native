@@ -28,6 +28,11 @@ help:
 	@echo "   test"
 .PHONY: help
 
+git-setup:
+	git submodule init
+	git submodule update
+.PHONY: git-setup
+
 # Dependency Download
 
 fetch: fetch-breakpad fetch-crashpad
@@ -105,18 +110,31 @@ linux-shell:
 
 ### Android ###
 
+CMAKE_BUILD_DIR := cmake-build
+
 $(PREMAKE_DIR)/$(SOLUTION_NAME)_Application.mk: $(PREMAKE_DIR)/$(PREMAKE) $(wildcard $(PREMAKE_DIR)/*.lua)
 	@cd $(PREMAKE_DIR) && ./$(PREMAKE) --os=android androidmk
 	@touch $@
 
-android-configure: $(PREMAKE_DIR)/$(SOLUTION_NAME)_Application.mk
+$(CMAKE_BUILD_DIR):
+	mkdir -p $(CMAKE_BUILD_DIR)
+
+$(CMAKE_BUILD_DIR)/Makefile: $(CMAKE_BUILD_DIR) CMakeLists.txt
+	cd $(CMAKE_BUILD_DIR) && \
+	cmake \
+		-DANDROID_ABI=x86 \
+		-DCMAKE_TOOLCHAIN_FILE=${ANDROID_NDK_HOME}/build/cmake/android.toolchain.cmake \
+		-DANDROID_PLATFORM=android-21 ..
+
+android-configure: $(CMAKE_BUILD_DIR)/Makefile
+
 .PHONY: android-configure
 
 android-build:
 ifneq ("${ANDROID_NO_CONFIGURE}","1")
 	@$(MAKE) android-configure
 endif
-	cd $(PREMAKE_DIR) && ndk-build V=1 NDK_APPLICATION_MK=./$(SOLUTION_NAME)_Application.mk NDK_PROJECT_PATH=. PM5_CONFIG=release -j$(CPUS)
+	cd $(CMAKE_BUILD_DIR) && make -j$(CPUS)
 .PHONY: android-build
 
 android-test: android-build

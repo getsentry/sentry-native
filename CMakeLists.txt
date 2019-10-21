@@ -39,3 +39,4 @@ add_executable("test_sentry"
     ${SENTRY_NATIVE_SOURCES}
     ${SENTRY_TEST_SOURCES}
 )
+target_link_libraries("test_sentry" ${LINK_LIBRARIES})

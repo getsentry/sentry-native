@@ -2,7 +2,7 @@
 set -eu
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-cd $SCRIPT_DIR/..
+cd $SCRIPT_DIR/../../cmake-build
 
 if [ -z "${ANDROID_HOME:-}" ]; then
     echo "ANDROID_HOME is not set. Please point it to your Android SDK directory."
@@ -14,14 +14,16 @@ fi
 
 ARCH="x86"
 AVD_EMULATOR_NAME="android_${ARCH}"
+DEVICE_PARAMS="system-images;android-27;google_apis;${ARCH}"
 
 
 start_emulator() {
+
     # Install AVD files
-    echo "y" | $ANDROID_HOME/tools/bin/sdkmanager --install "system-images;android-27;google_apis;${ARCH}"
+    echo "y" | $ANDROID_HOME/tools/bin/sdkmanager --install "${DEVICE_PARAMS}"
 
     # Create an Android Virtual Device
-    echo "no" | $ANDROID_HOME/tools/bin/avdmanager create avd -n $AVD_EMULATOR_NAME -k 'system-images;android-27;google_apis;x86' --force
+    echo "no" | $ANDROID_HOME/tools/bin/avdmanager create avd -n $AVD_EMULATOR_NAME -k "${DEVICE_PARAMS}" --force
 
     $ANDROID_HOME/emulator/emulator -list-avds
 
@@ -60,8 +62,8 @@ run_tests() {
     fi
 
     DEVICE_DIR="/data/local/tmp"
-    $ANDROID_HOME/platform-tools/adb push libs/ "${DEVICE_DIR}"
-    $ANDROID_HOME/platform-tools/adb shell "${DEVICE_DIR}/libs/${ARCH}/test_sentry"
+    $ANDROID_HOME/platform-tools/adb push test_sentry libsentry.so "${DEVICE_DIR}"
+    $ANDROID_HOME/platform-tools/adb shell "${DEVICE_DIR}/test_sentry"
 }
 
 show_help() {

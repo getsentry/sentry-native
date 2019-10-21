@@ -45,3 +45,4 @@ Thumbs.db
 # cmake
 CMakeFiles/
 CMakeCache.txt
+cmake-build/

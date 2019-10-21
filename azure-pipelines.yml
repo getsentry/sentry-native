@@ -106,6 +106,7 @@ stages:
           platform: "android"
           buildSystem: "androidmk"
           buildScript: |
+            # NOTE: We currently use Cmake for Android
             make -C .. android-build
           testScript: |
             # Do not run "configure" because we already have the build files
