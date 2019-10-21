@@ -315,7 +315,7 @@ TEST_CASE("send basic stacktrace", "[api]") {
 #define OS_MAIN_FUNC "main"
 #endif
 
-#if !defined(__ANDROID__)
+#ifndef __ANDROID__
 TEST_CASE("send basic stacktrace (unwound)", "[api]") {
     WITH_MOCK_TRANSPORT(nullptr) {
         sentry_value_t msg_event = sentry_value_new_message_event(
@@ -331,19 +331,19 @@ TEST_CASE("send basic stacktrace (unwound)", "[api]") {
         REQUIRE(frames.length() > 5);
 
         bool found_main = false;
+        bool found_add_stacktrace = false;
         for (size_t i = 0; i < frames.length(); i++) {
             sentry::Value main_frame = frames.get_by_index(i);
             const char *func = main_frame.get_by_key("function").as_cstr();
             if (func == std::string(OS_MAIN_FUNC)) {
                 found_main = true;
-                break;
+            } else if (func ==
+                       std::string("sentry_event_value_add_stacktrace")) {
+                found_add_stacktrace = true;
             }
         }
         REQUIRE(found_main);
-
-        sentry::Value api_func_frame = frames.get_by_index(frames.length() - 2);
-        REQUIRE(api_func_frame.get_by_key("function").as_cstr() ==
-                std::string("sentry_event_value_add_stacktrace"));
+        REQUIRE(found_add_stacktrace);
     }
 }
 #endif

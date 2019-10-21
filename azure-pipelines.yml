@@ -37,7 +37,6 @@ stages:
   - stage: build_per_platform
     displayName: Build All
     jobs:
-
       # MacOS
       - template: azure-pipelines/build-platform.yml
         parameters:
