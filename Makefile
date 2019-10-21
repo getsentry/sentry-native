@@ -134,7 +134,7 @@ android-build:
 ifneq ("${ANDROID_NO_CONFIGURE}","1")
 	@$(MAKE) android-configure
 endif
-	cd $(CMAKE_BUILD_DIR) && make -j$(CPUS)
+	cd $(CMAKE_BUILD_DIR) && $(MAKE) -j$(CPUS)
 .PHONY: android-build
 
 android-test: android-build

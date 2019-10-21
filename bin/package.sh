@@ -81,10 +81,11 @@ fetch_sentry_native() {
         cd "$SENTRY_NATIVE_IN_DIR"
         git checkout -f "$SENTRY_NATIVE_REVISION"
     fi
+    make git-setup
 
     SENTRY_NATIVE_SRC=(
         "examples" "include" "src" "premake" "README.md" "Makefile"
-        "tests" "Dockerfile" ".dockerignore" "vendor"
+        "tests" "Dockerfile" ".dockerignore" "vendor" "CMakeLists.txt" "external"
     )
 
     # Copy files
