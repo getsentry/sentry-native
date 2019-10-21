@@ -35,3 +35,35 @@ TEST_CASE("value from hexstring", "[value]") {
     sentry::Value val = sentry::Value::new_hexstring(bytes, 16);
     REQUIRE(val.as_cstr() == std::string("f391fdc0bb2743b18c0c183bc217d42b"));
 }
+
+TEST_CASE("value refcounting", "[value]") {
+    // we start out with a refcount of 1
+    sentry::Value val = sentry::Value::new_object();
+    REQUIRE(val.refcount() == 1);
+    val.set_by_key("key1", sentry::Value::new_string("value1"));
+
+    // if i make a second value the refcount increases
+    sentry::Value val2(val);
+    REQUIRE(val.refcount() == 2);
+    REQUIRE(val2.refcount() == 2);
+
+    // when i lower to the value_t type the refcount stays the same
+    // but the specific instance lowered nulls out.
+    sentry_value_t val_l = val2.lower();
+    REQUIRE(val.refcount() == 2);
+    REQUIRE(val2.is_null());
+
+    // using the CABI to access a value bumps the refcount:
+    sentry_value_t child_val_l = sentry_value_get_by_key(val_l, "key1");
+    REQUIRE(!sentry_value_is_null(child_val_l));
+
+    // refcount is 3: 1 for the value itself, 2 for the return value of
+    // get_by_key and one because we call sentry::Value on it to get the
+    // refcount which bumps it by one as well.
+    REQUIRE(sentry::Value(child_val_l).refcount() == 3);
+
+    // when I consume a value it inherits the refcount.
+    val2 = sentry::Value::consume(val_l);
+    REQUIRE(val.refcount() == 2);
+    REQUIRE(val2.refcount() == 2);
+}

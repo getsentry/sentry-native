@@ -90,6 +90,12 @@ typedef union sentry_value_u sentry_value_t;
 /* frees an allocated value */
 SENTRY_API void sentry_value_free(sentry_value_t value);
 
+/* increments the reference count on the value */
+SENTRY_API void sentry_value_incref(sentry_value_t value);
+
+/* decrements the reference count on the value */
+SENTRY_API void sentry_value_decref(sentry_value_t value);
+
 /* creates a null value */
 SENTRY_API sentry_value_t sentry_value_new_null(void);
 
@@ -157,6 +163,10 @@ SENTRY_API int sentry_value_remove_by_index(sentry_value_t value, size_t index);
    `sentry_value_free`. */
 SENTRY_API sentry_value_t sentry_value_get_by_key(sentry_value_t value,
                                                   const char *k);
+
+/* like `sentry_value_get_by_key` but borrows the value instead */
+SENTRY_API sentry_value_t sentry_value_get_by_key_b(sentry_value_t value,
+                                                    const char *k);
 
 /* looks up a value in a list by index.  If missing a null value is returned.
 

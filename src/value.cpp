@@ -420,6 +420,14 @@ void sentry_value_free(sentry_value_t value) {
     Value::consume(value);
 }
 
+void sentry_value_incref(sentry_value_t value) {
+    Value(value).incref();
+}
+
+void sentry_value_decref(sentry_value_t value) {
+    Value::consume(value);
+}
+
 sentry_value_type_t sentry_value_get_type(sentry_value_t value) {
     return Value(value).type();
 }
@@ -450,6 +458,10 @@ int sentry_value_remove_by_index(sentry_value_t value, size_t index) {
 
 sentry_value_t sentry_value_get_by_key(sentry_value_t value, const char *k) {
     return Value(value).get_by_key(k).lower();
+}
+
+sentry_value_t sentry_value_get_by_key_b(sentry_value_t value, const char *k) {
+    return Value(value).get_by_key(k).lower_decref();
 }
 
 sentry_value_t sentry_value_get_by_index(sentry_value_t value, size_t index) {

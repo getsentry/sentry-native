@@ -55,6 +55,10 @@ class Thing {
         }
     }
 
+    size_t refcount() const {
+        return m_refcount;
+    }
+
     ThingType type() const {
         return m_type;
     }
@@ -177,6 +181,15 @@ class Value {
         Thing *thing = as_thing();
         if (thing) {
             thing->decref();
+        }
+    }
+
+    size_t refcount() const {
+        Thing *thing = as_thing();
+        if (thing) {
+            return thing->refcount();
+        } else {
+            return (size_t)-1;
         }
     }
 
@@ -470,6 +483,15 @@ class Value {
 
     sentry_value_t lower() {
         sentry_value_t rv;
+        rv._bits = m_repr._bits;
+        set_null_unsafe();
+        return rv;
+    }
+
+    sentry_value_t lower_decref() {
+        sentry_value_t rv;
+        // if we're a thing, decref
+        decref();
         rv._bits = m_repr._bits;
         set_null_unsafe();
         return rv;
