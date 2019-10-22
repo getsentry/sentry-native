@@ -327,7 +327,9 @@ typedef struct sentry_options_s sentry_options_t;
 struct sentry_envelope_s;
 typedef struct sentry_envelope_s sentry_envelope_t;
 
-/* given an envelope returns the embedded event if there is one */
+/* given an envelope returns the embedded event if there is one.
+
+   This returns a borrowed value to the event in the envelope. */
 SENTRY_API sentry_value_t
 sentry_envelope_get_event(const sentry_envelope_t *envelope);
 
