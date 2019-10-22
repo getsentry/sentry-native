@@ -41,6 +41,11 @@ TEST_CASE("value refcounting", "[value]") {
     sentry::Value val = sentry::Value::new_object();
     REQUIRE(val.refcount() == 1);
     val.set_by_key("key1", sentry::Value::new_string("value1"));
+    sentry::Value list = sentry::Value::new_list();
+    list.append(sentry::Value::new_string("1"));
+    list.append(sentry::Value::new_string("2"));
+    list.append(sentry::Value::new_string("3"));
+    val.set_by_key("key2", list);
 
     // if i make a second value the refcount increases
     sentry::Value val2(val);
@@ -67,6 +72,16 @@ TEST_CASE("value refcounting", "[value]") {
     REQUIRE(sentry::Value(child_val_l).refcount() == 3);
     sentry_value_decref(child_val_l);
     REQUIRE(sentry::Value(child_val_l).refcount() == 2);
+
+    // same with lists.
+    child_val_l = sentry_value_get_by_key(val_l, "key2");
+    child_val2_l = sentry_value_get_by_index(child_val_l, 0);
+    REQUIRE(sentry::Value(child_val2_l).refcount() == 2);
+    REQUIRE(sentry::Value(child_val2_l).refcount() == 2);
+
+    child_val2_l = sentry_value_get_by_index_owned(child_val_l, 0);
+    REQUIRE(sentry::Value(child_val2_l).refcount() == 3);
+    sentry_value_decref(child_val2_l);
 
     // when I consume a value it inherits the refcount.
     val2 = sentry::Value::consume(val_l);
