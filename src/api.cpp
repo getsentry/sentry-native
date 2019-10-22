@@ -209,7 +209,7 @@ size_t sentry_unwind_stack(void *addr, void **stacktrace_out, size_t max_len) {
 
 sentry_value_t sentry_envelope_get_event(const sentry_envelope_t *envelope) {
     const transports::Envelope *e = (const transports::Envelope *)envelope;
-    return e->get_event().lower();
+    return e->get_event().lower_decref();
 }
 
 char *sentry_envelope_serialize(const sentry_envelope_t *envelope,

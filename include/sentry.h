@@ -77,18 +77,16 @@ void sentry_string_free(char *str);
  * The members of this type should never be accessed.  They are only here
  * so that alignment for the type can be properly determined.
  *
- * Values must be freed with `sentry_value_free`.  Note that internally
- * values are reference counted and freeing a value just decrements that
- * reference count.
+ * Values must be released with `sentry_value_decref`.  This lowers the
+ * internal refcount by one.  If the refcount hits zero it's freed.  Some
+ * values like primitives have no refcount (like null) so operations on
+ * those are no-ops.
  */
 union sentry_value_u {
     uint64_t _bits;
     double _double;
 };
 typedef union sentry_value_u sentry_value_t;
-
-/* frees an allocated value */
-SENTRY_API void sentry_value_free(sentry_value_t value);
 
 /* increments the reference count on the value */
 SENTRY_API void sentry_value_incref(sentry_value_t value);
@@ -124,7 +122,7 @@ SENTRY_API sentry_value_type_t sentry_value_get_type(sentry_value_t value);
  * sets a key to a value in the map.
  *
  * This moves the ownership of the value into the map.  The caller does not
- * have to call` sentry_value_free` on it.
+ * have to call `sentry_value_decref` on it.
  */
 SENTRY_API int sentry_value_set_by_key(sentry_value_t value,
                                        const char *k,
@@ -137,7 +135,7 @@ SENTRY_API int sentry_value_remove_by_key(sentry_value_t value, const char *k);
  * appends a value to a list.
  *
  * This moves the ownership of the value into the list.  The caller does not
- * have to call` sentry_value_free` on it.
+ * have to call `sentry_value_decref` on it.
  */
 SENTRY_API int sentry_value_append(sentry_value_t value, sentry_value_t v);
 
@@ -145,7 +143,7 @@ SENTRY_API int sentry_value_append(sentry_value_t value, sentry_value_t v);
  * inserts a value into the list at a certain position.
  *
  * This moves the ownership of the value into the list.  The caller does not
- * have to call` sentry_value_free` on it.
+ * have to call `sentry_value_decref` on it.
  *
  * If the list is shorter than the given index it's automatically extended
  * and filled with `null` values.
@@ -158,22 +156,30 @@ SENTRY_API int sentry_value_set_by_index(sentry_value_t value,
 SENTRY_API int sentry_value_remove_by_index(sentry_value_t value, size_t index);
 
 /* looks up a value in a map by key.  If missing a null value is returned.
-
-   If the caller no longer needs the value it must be freed with
-   `sentry_value_free`. */
+   The returned value is borrowed. */
 SENTRY_API sentry_value_t sentry_value_get_by_key(sentry_value_t value,
                                                   const char *k);
 
-/* like `sentry_value_get_by_key` but borrows the value instead */
-SENTRY_API sentry_value_t sentry_value_get_by_key_b(sentry_value_t value,
-                                                    const char *k);
+/* looks up a value in a map by key.  If missing a null value is returned.
+   The returned value is owned.
+
+   If the caller no longer needs the value it must be released with
+   `sentry_value_decref`. */
+SENTRY_API sentry_value_t sentry_value_get_by_key_owned(sentry_value_t value,
+                                                        const char *k);
 
 /* looks up a value in a list by index.  If missing a null value is returned.
-
-   If the caller no longer needs the value it must be freed with
-   `sentry_value_free`. */
+   The returned value is borrowed. */
 SENTRY_API sentry_value_t sentry_value_get_by_index(sentry_value_t value,
                                                     size_t index);
+
+/* looks up a value in a list by index.  If missing a null value is returned.
+   The returned value is owned.
+
+   If the caller no longer needs the value it must be released with
+   `sentry_value_decref`. */
+SENTRY_API sentry_value_t sentry_value_get_by_index_owned(sentry_value_t value,
+                                                          size_t index);
 
 /* returns the length of the given map or list */
 SENTRY_API size_t sentry_value_get_length(sentry_value_t value);

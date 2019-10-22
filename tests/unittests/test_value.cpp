@@ -53,14 +53,20 @@ TEST_CASE("value refcounting", "[value]") {
     REQUIRE(val.refcount() == 2);
     REQUIRE(val2.is_null());
 
-    // using the CABI to access a value bumps the refcount:
+    // using the CABI to access a value doesn't bump the refcount
     sentry_value_t child_val_l = sentry_value_get_by_key(val_l, "key1");
+    sentry_value_t child_val2_l = sentry_value_get_by_key(val_l, "key1");
     REQUIRE(!sentry_value_is_null(child_val_l));
+    REQUIRE(sentry::Value(child_val_l).refcount() == 2);
+    REQUIRE(!sentry_value_is_null(child_val2_l));
+    REQUIRE(sentry::Value(child_val2_l).refcount() == 2);
 
-    // refcount is 3: 1 for the value itself, 2 for the return value of
-    // get_by_key and one because we call sentry::Value on it to get the
-    // refcount which bumps it by one as well.
+    // but if we look up owned it's bumped
+    child_val_l = sentry_value_get_by_key_owned(val_l, "key1");
+    REQUIRE(!sentry_value_is_null(child_val_l));
     REQUIRE(sentry::Value(child_val_l).refcount() == 3);
+    sentry_value_decref(child_val_l);
+    REQUIRE(sentry::Value(child_val_l).refcount() == 2);
 
     // when I consume a value it inherits the refcount.
     val2 = sentry::Value::consume(val_l);

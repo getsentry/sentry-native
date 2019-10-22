@@ -416,10 +416,6 @@ sentry_value_t sentry_value_new_object() {
     return Value::new_object().lower();
 }
 
-void sentry_value_free(sentry_value_t value) {
-    Value::consume(value);
-}
-
 void sentry_value_incref(sentry_value_t value) {
     Value(value).incref();
 }
@@ -457,14 +453,20 @@ int sentry_value_remove_by_index(sentry_value_t value, size_t index) {
 }
 
 sentry_value_t sentry_value_get_by_key(sentry_value_t value, const char *k) {
-    return Value(value).get_by_key(k).lower();
-}
-
-sentry_value_t sentry_value_get_by_key_b(sentry_value_t value, const char *k) {
     return Value(value).get_by_key(k).lower_decref();
 }
 
+sentry_value_t sentry_value_get_by_key_owned(sentry_value_t value,
+                                             const char *k) {
+    return Value(value).get_by_key(k).lower();
+}
+
 sentry_value_t sentry_value_get_by_index(sentry_value_t value, size_t index) {
+    return Value(value).get_by_index(index).lower_decref();
+}
+
+sentry_value_t sentry_value_get_by_index_owned(sentry_value_t value,
+                                               size_t index) {
     return Value(value).get_by_index(index).lower();
 }
 
