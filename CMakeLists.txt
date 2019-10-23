@@ -33,10 +33,16 @@ target_link_libraries("sentry" ${LINK_LIBRARIES})
 
 
 ### Tests
-include_directories("src")
-add_definitions(-D SENTRY_WITH_TESTS -D SENTRY_WITH_NULL_UNWINDER)
 add_executable("test_sentry"
     ${SENTRY_NATIVE_SOURCES}
     ${SENTRY_TEST_SOURCES}
 )
+
+target_include_directories("test_sentry" PRIVATE
+    "src"
+)
+target_compile_definitions("test_sentry" PRIVATE
+    -D SENTRY_WITH_TESTS -D SENTRY_WITH_NULL_UNWINDER
+)
+
 target_link_libraries("test_sentry" ${LINK_LIBRARIES})
