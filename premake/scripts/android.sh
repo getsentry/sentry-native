@@ -18,9 +18,10 @@ DEVICE_PARAMS="system-images;android-27;google_apis;${ARCH}"
 
 
 start_emulator() {
+    set -x
 
     # Install AVD files
-    echo "y" | $ANDROID_HOME/tools/bin/sdkmanager --install "${DEVICE_PARAMS}"
+    echo "y" | $ANDROID_HOME/tools/bin/sdkmanager --install "${DEVICE_PARAMS}" | grep -v == || true
 
     # Create an Android Virtual Device
     echo "no" | $ANDROID_HOME/tools/bin/avdmanager create avd -n $AVD_EMULATOR_NAME -k "${DEVICE_PARAMS}" --force
@@ -34,6 +35,7 @@ start_emulator() {
     $ANDROID_HOME/platform-tools/adb wait-for-device shell 'while [[ -z $(getprop sys.boot_completed | tr -d '\r') ]]; do sleep 1; done; input keyevent 82'
     $ANDROID_HOME/platform-tools/adb devices
 
+    set +x
     echo "Emulator started."
 }
 

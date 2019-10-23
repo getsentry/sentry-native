@@ -127,7 +127,6 @@ $(CMAKE_BUILD_DIR)/Makefile: $(CMAKE_BUILD_DIR) CMakeLists.txt
 		-DANDROID_PLATFORM=android-21 ..
 
 android-configure: $(CMAKE_BUILD_DIR)/Makefile
-
 .PHONY: android-configure
 
 android-build:
@@ -140,3 +139,6 @@ endif
 android-test: android-build
 	./$(PREMAKE_DIR)/scripts/android.sh run-tests
 .PHONY: android-test
+
+android-clean:
+	rm -rf $(CMAKE_BUILD_DIR)
