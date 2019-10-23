@@ -111,6 +111,8 @@ linux-shell:
 ### Android ###
 
 CMAKE_BUILD_DIR := cmake-build
+ANDROID_PLATFORM := android-21
+ANDROID_ABI := x86
 
 $(PREMAKE_DIR)/$(SOLUTION_NAME)_Application.mk: $(PREMAKE_DIR)/$(PREMAKE) $(wildcard $(PREMAKE_DIR)/*.lua)
 	@cd $(PREMAKE_DIR) && ./$(PREMAKE) --os=android androidmk
@@ -122,9 +124,9 @@ $(CMAKE_BUILD_DIR):
 $(CMAKE_BUILD_DIR)/Makefile: $(CMAKE_BUILD_DIR) CMakeLists.txt
 	cd $(CMAKE_BUILD_DIR) && \
 	cmake \
-		-DANDROID_ABI=x86 \
+		-DANDROID_ABI=${ANDROID_ABI} \
 		-DCMAKE_TOOLCHAIN_FILE=${ANDROID_NDK_HOME}/build/cmake/android.toolchain.cmake \
-		-DANDROID_PLATFORM=android-21 ..
+		-DANDROID_PLATFORM=${ANDROID_PLATFORM} ..
 
 android-configure: $(CMAKE_BUILD_DIR)/Makefile
 .PHONY: android-configure
