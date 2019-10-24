@@ -26,7 +26,7 @@ TEST_CASE("primitive null behavior", "[value]") {
     REQUIRE(sentry_value_is_true(val) == false);
     REQUIRE_VALUE_JSON(val, "null");
     REQUIRE_VALUE_MSGPACK(val, "\xc0");
-    sentry_value_free(val);
+    sentry_value_decref(val);
 }
 
 TEST_CASE("primitive bool behavior", "[value]") {
@@ -37,7 +37,7 @@ TEST_CASE("primitive bool behavior", "[value]") {
     REQUIRE(sentry_value_is_true(val) == true);
     REQUIRE_VALUE_JSON(val, "true");
     REQUIRE_VALUE_MSGPACK(val, "\xc3");
-    sentry_value_free(val);
+    sentry_value_decref(val);
 
     val = sentry_value_new_bool(false);
     REQUIRE(sentry_value_get_type(val) == SENTRY_VALUE_TYPE_BOOL);
@@ -46,7 +46,7 @@ TEST_CASE("primitive bool behavior", "[value]") {
     REQUIRE(sentry_value_is_true(val) == false);
     REQUIRE_VALUE_JSON(val, "false");
     REQUIRE_VALUE_MSGPACK(val, "\xc2");
-    sentry_value_free(val);
+    sentry_value_decref(val);
 }
 
 TEST_CASE("primitive int32 behavior", "[value]") {
@@ -57,14 +57,14 @@ TEST_CASE("primitive int32 behavior", "[value]") {
     REQUIRE(sentry_value_is_true(val) == true);
     REQUIRE_VALUE_JSON(val, "42");
     REQUIRE_VALUE_MSGPACK(val, "*");
-    sentry_value_free(val);
+    sentry_value_decref(val);
 
     val = sentry_value_new_int32(-1);
     REQUIRE(sentry_value_get_type(val) == SENTRY_VALUE_TYPE_INT32);
     REQUIRE(sentry_value_as_int32(val) == -1);
     REQUIRE(sentry_value_is_true(val) == true);
     REQUIRE_VALUE_MSGPACK(val, "\xff");
-    sentry_value_free(val);
+    sentry_value_decref(val);
 }
 
 TEST_CASE("primitive double behavior", "[value]") {
@@ -76,7 +76,7 @@ TEST_CASE("primitive double behavior", "[value]") {
     REQUIRE_VALUE_MSGPACK(val,
                           "\xcb@E\x06"
                           "fffff");
-    sentry_value_free(val);
+    sentry_value_decref(val);
 }
 
 TEST_CASE("primitive string behavior", "[value]") {
@@ -86,7 +86,7 @@ TEST_CASE("primitive string behavior", "[value]") {
     REQUIRE(sentry_value_as_string(val) == std::string("Hello World!\n\t\r\f"));
     REQUIRE_VALUE_JSON(val, "\"Hello World!\\n\\t\\r\\f\"");
     REQUIRE_VALUE_MSGPACK(val, "\xb0Hello World!\n\t\r\x0c");
-    sentry_value_free(val);
+    sentry_value_decref(val);
 }
 
 TEST_CASE("list value behavior", "[value]") {
@@ -107,13 +107,13 @@ TEST_CASE("list value behavior", "[value]") {
     REQUIRE(sentry_value_is_true(val) == true);
     REQUIRE_VALUE_JSON(val, "[0,1,2,3,4,5,6,7,8,9]");
     REQUIRE_VALUE_MSGPACK(val, "\x9a\x00\x01\x02\x03\x04\x05\x06\x07\x08\t");
-    sentry_value_free(val);
+    sentry_value_decref(val);
 
     val = sentry_value_new_list();
     REQUIRE(sentry_value_is_true(val) == false);
     REQUIRE_VALUE_JSON(val, "[]");
     REQUIRE_VALUE_MSGPACK(val, "\x90");
-    sentry_value_free(val);
+    sentry_value_decref(val);
 
     val = sentry_value_new_list();
     sentry_value_set_by_index(val, 5, sentry_value_new_int32(100));
@@ -121,7 +121,7 @@ TEST_CASE("list value behavior", "[value]") {
     REQUIRE_VALUE_JSON(val, "[null,null,10,null,null,100]");
     sentry_value_remove_by_index(val, 2);
     REQUIRE_VALUE_JSON(val, "[null,null,null,null,100]");
-    sentry_value_free(val);
+    sentry_value_decref(val);
 }
 
 TEST_CASE("object value behavior", "[value]") {
@@ -152,11 +152,11 @@ TEST_CASE("object value behavior", "[value]") {
         val,
         "\x8a\xa4key0\x00\xa4key1\x01\xa4key2\x02\xa4key3\x03\xa4key4\x04\xa4ke"
         "y5\x05\xa4key6\x06\xa4key7\x07\xa4key8\x08\xa4key9\t");
-    sentry_value_free(val);
+    sentry_value_decref(val);
 
     val = sentry_value_new_object();
     REQUIRE(sentry_value_is_true(val) == false);
     REQUIRE_VALUE_JSON(val, "{}");
     REQUIRE_VALUE_MSGPACK(val, "\x80");
-    sentry_value_free(val);
+    sentry_value_decref(val);
 }

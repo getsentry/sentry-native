@@ -69,6 +69,11 @@ test: configure
 	$(PREMAKE_DIR)/bin/Release/test_sentry
 .PHONY: test
 
+lldb-test: configure
+	$(MAKE) -C $(PREMAKE_DIR) -j$(CPUS) config=debug test_sentry
+	lldb $(PREMAKE_DIR)/bin/Debug/test_sentry
+.PHONY: lldb-test
+
 $(PREMAKE_DIR)/Makefile: $(PREMAKE_DIR)/$(PREMAKE) $(wildcard $(PREMAKE_DIR)/*.lua)
 	@cd $(PREMAKE_DIR) && ./$(PREMAKE) gmake2
 	@touch $@

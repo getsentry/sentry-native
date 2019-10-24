@@ -53,7 +53,9 @@ void sentry_options_set_transport(sentry_options_t *opts,
                                   void *data) {
     delete opts->transport;
     opts->transport = new sentry::transports::FunctionTransport(
-        [func, data](sentry::Value value) { func(value.lower(), data); });
+        [func, data](sentry::transports::Envelope envelope) {
+            func((const sentry_envelope_t *)&envelope, data);
+        });
 }
 
 void sentry_options_set_before_send(sentry_options_t *opts,

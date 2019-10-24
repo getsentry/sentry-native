@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <stdarg.h>
+#include <fstream>
 #include <mutex>
 #include "attachment.hpp"
 #include "cleanup.hpp"
@@ -7,6 +8,7 @@
 #include "modulefinder.hpp"
 #include "options.hpp"
 #include "scope.hpp"
+#include "transports/base_transport.hpp"
 #include "unwind.hpp"
 #include "uuid.hpp"
 #include "value.hpp"
@@ -203,4 +205,33 @@ void sentry_string_free(char *str) {
 
 size_t sentry_unwind_stack(void *addr, void **stacktrace_out, size_t max_len) {
     return unwind_stack(addr, stacktrace_out, max_len);
+}
+
+sentry_value_t sentry_envelope_get_event(const sentry_envelope_t *envelope) {
+    const transports::Envelope *e = (const transports::Envelope *)envelope;
+    return e->get_event().lower_decref();
+}
+
+char *sentry_envelope_serialize(const sentry_envelope_t *envelope,
+                                size_t *size_out) {
+    std::stringstream ss;
+    const transports::Envelope *e = (const transports::Envelope *)envelope;
+    e->serialize_into(ss);
+    std::string s = ss.str();
+    char *rv = (char *)malloc(s.size() + 1);
+    memcpy(rv, s.c_str(), s.size() + 1);
+    return rv;
+}
+
+int sentry_envelope_write_to_file(const sentry_envelope_t *envelope,
+                                  const char *path) {
+    const transports::Envelope *e = (const transports::Envelope *)envelope;
+    std::ofstream f;
+    f.open(path,
+           std::ofstream::out | std::ofstream::binary | std::ofstream::trunc);
+    if (f.fail()) {
+        return 1;
+    }
+    e->serialize_into(f);
+    return 0;
 }
