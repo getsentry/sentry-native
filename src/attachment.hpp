@@ -1,6 +1,7 @@
 #ifndef SENTRY_ATTACHMENT_HPP_INCLUDED
 #define SENTRY_ATTACHMENT_HPP_INCLUDED
 #include <string>
+
 #include "internal.hpp"
 #include "path.hpp"
 

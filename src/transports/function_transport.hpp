@@ -2,6 +2,7 @@
 #define SENTRY_TRANSPORTS_FUNCTION_HPP_INCLUDED
 
 #include <functional>
+
 #include "base_transport.hpp"
 
 namespace sentry {

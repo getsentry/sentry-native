@@ -1,8 +1,9 @@
 #include "../symbolize.hpp"
 #ifdef SENTRY_WITH_WINDOWS_SYMBOLIZER
+#include <mutex>
+
 #include <dbghelp.h>
 #include <malloc.h>
-#include <mutex>
 
 using namespace sentry;
 using namespace symbolizers;

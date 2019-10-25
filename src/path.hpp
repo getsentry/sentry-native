@@ -4,7 +4,6 @@
 #include <cctype>
 #include <cstdio>
 #include <string>
-#include "internal.hpp"
 
 #ifdef _WIN32
 #include <shlobj_core.h>
@@ -13,6 +12,8 @@
 #include <dirent.h>
 #include <sys/types.h>
 #endif
+
+#include "internal.hpp"
 
 namespace sentry {
 

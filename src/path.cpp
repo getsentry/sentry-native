@@ -1,6 +1,3 @@
-#include "path.hpp"
-#include "internal.hpp"
-
 #ifdef _WIN32
 #include <Windows.h>
 #include <shellapi.h>
@@ -21,6 +18,10 @@ static std::wstring cstr_to_wstr(const char *s) {
 #define stat_func stat
 #define STAT stat
 #endif
+
+#include "internal.hpp"
+
+#include "path.hpp"
 
 namespace sentry {
 #ifdef _WIN32

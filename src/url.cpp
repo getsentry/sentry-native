@@ -1,8 +1,9 @@
-#include "url.hpp"
 #include <stdlib.h>
 #include <algorithm>
 #include <cstdlib>
 #include <cstring>
+
+#include "url.hpp"
 
 #define SKIP_WHILE_NOT(ptr, c)           \
     do {                                 \

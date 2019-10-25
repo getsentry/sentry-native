@@ -1,6 +1,7 @@
 #ifndef SENTRY_DSN_HPP_INCLUDED
 #define SENTRY_DSN_HPP_INCLUDED
 #include <string>
+
 #include "internal.hpp"
 
 namespace sentry {

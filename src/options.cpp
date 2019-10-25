@@ -1,8 +1,8 @@
-#include "options.hpp"
 #include <cstdlib>
 #include <ctime>
 #include <random>
 #include <sstream>
+
 #ifdef SENTRY_WITH_CRASHPAD_BACKEND
 #include "backends/crashpad_backend.hpp"
 #elif defined(SENTRY_WITH_BREAKPAD_BACKEND)
@@ -10,6 +10,8 @@
 #endif
 #include "transports/base_transport.hpp"
 #include "transports/function_transport.hpp"
+
+#include "options.hpp"
 
 static const char *getenv_or_empty(const char *key) {
     const char *rv = getenv(key);

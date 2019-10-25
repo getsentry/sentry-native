@@ -6,8 +6,9 @@
 #define _SENTRY_INTERNAL
 
 #include <errno.h>
-#include <sentry.h>
 #include <stdio.h>
+
+#include <sentry.h>
 
 #define SENTRY_SDK_NAME "sentry-native"
 #define SENTRY_SDK_VERSION "0.1.2"

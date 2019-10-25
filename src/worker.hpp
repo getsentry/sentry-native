@@ -6,6 +6,7 @@
 #include <functional>
 #include <mutex>
 #include <thread>
+
 #include "internal.hpp"
 
 namespace sentry {

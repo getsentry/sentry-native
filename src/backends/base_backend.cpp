@@ -1,5 +1,6 @@
-#include "base_backend.hpp"
 #include "../scope.hpp"
+
+#include "base_backend.hpp"
 
 using namespace sentry;
 using namespace backends;

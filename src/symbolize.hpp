@@ -8,6 +8,7 @@
 #endif
 
 #include <functional>
+
 #include "internal.hpp"
 
 namespace sentry {

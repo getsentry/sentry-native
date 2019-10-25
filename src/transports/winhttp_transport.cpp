@@ -1,9 +1,11 @@
 #ifdef SENTRY_WITH_WINHTTP_TRANSPORT
-#include "winhttp_transport.hpp"
 #include <codecvt>
 #include <iostream>
 #include <locale>
+
 #include "../options.hpp"
+
+#include "winhttp_transport.hpp"
 
 using namespace sentry;
 using namespace transports;
@@ -96,8 +98,7 @@ void WinHttpTransport::send_envelope(Envelope envelope) {
             url_components.lpszUrlPath = url_path;
             url_components.dwUrlPathLength = 1024;
 
-            WinHttpCrackUrl(store_url.c_str(), 0, 0,
-                            &url_components);
+            WinHttpCrackUrl(store_url.c_str(), 0, 0, &url_components);
             if (!m_connect) {
                 m_connect = WinHttpConnect(
                     m_session,
@@ -121,7 +122,8 @@ void WinHttpTransport::send_envelope(Envelope envelope) {
             std::wstring headers = h.str();
 
             if (WinHttpSendRequest(request, headers.c_str(), headers.size(),
-                                   (LPVOID)prepared_request.payload.c_str(), prepared_request.payload.size(),
+                                   (LPVOID)prepared_request.payload.c_str(),
+                                   prepared_request.payload.size(),
                                    prepared_request.payload.size(), 0)) {
                 DWORD status_code = 0;
                 DWORD status_code_size = sizeof(DWORD);

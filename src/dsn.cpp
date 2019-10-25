@@ -1,8 +1,10 @@
-#include "dsn.hpp"
 #include <cstring>
 #include <sstream>
+
 #include "url.hpp"
 #include "uuid.hpp"
+
+#include "dsn.hpp"
 
 using namespace sentry;
 

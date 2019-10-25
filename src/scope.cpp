@@ -1,7 +1,8 @@
-#include "scope.hpp"
 #include "modulefinder.hpp"
 #include "options.hpp"
 #include "symbolize.hpp"
+
+#include "scope.hpp"
 
 using namespace sentry;
 

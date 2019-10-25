@@ -2,9 +2,8 @@
 #define SENTRY_TRANSPORTS_WINHTTP_HPP_INCLUDED
 #ifdef SENTRY_WITH_WINHTTP_TRANSPORT
 
-#include <Windows.h>
-
 #include <WinHttp.h>
+
 #include "../worker.hpp"
 #include "base_transport.hpp"
 

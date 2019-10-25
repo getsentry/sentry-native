@@ -1,8 +1,10 @@
 #ifdef SENTRY_WITH_LIBCURL_TRANSPORT
-#include "libcurl_transport.hpp"
 #include <algorithm>
 #include <cctype>
+
 #include "../options.hpp"
+
+#include "libcurl_transport.hpp"
 
 using namespace sentry;
 using namespace transports;

@@ -1,10 +1,12 @@
 #include "../modulefinder.hpp"
 #ifdef SENTRY_WITH_WINDOWS_MODULEFINDER
+#include <mutex>
+#include <sstream>
+
 #include <dbghelp.h>
 #include <tlhelp32.h>
 #include <windows.h>
-#include <mutex>
-#include <sstream>
+
 #include "../uuid.hpp"
 
 using namespace sentry;
@@ -58,7 +60,8 @@ static void extract_pdb_info(uintptr_t module_addr, Value &module) {
         return;
     }
 
-    module.set_by_key("debug_file", Value::new_string(debug_info->pdb_filename));
+    module.set_by_key("debug_file",
+                      Value::new_string(debug_info->pdb_filename));
 
     sentry_uuid_t debug_id_base;
     debug_id_base.native_uuid = debug_info->pdb_signature;
@@ -92,14 +95,11 @@ static void load_modules() {
                                                   sizeof(vmem_info)) &&
                 vmem_info.State == MEM_COMMIT) {
                 Value rv = Value::new_object();
-                rv.set_by_key(
-                    "image_addr",
-                    Value::new_addr((uint64_t)module.modBaseAddr));
-                rv.set_by_key(
-                    "image_size",
-                    Value::new_int32((int32_t)module.modBaseSize));
-                rv.set_by_key("code_file",
-                                  Value::new_string(module.szExePath));
+                rv.set_by_key("image_addr",
+                              Value::new_addr((uint64_t)module.modBaseAddr));
+                rv.set_by_key("image_size",
+                              Value::new_int32((int32_t)module.modBaseSize));
+                rv.set_by_key("code_file", Value::new_string(module.szExePath));
                 extract_pdb_info((uintptr_t)module.modBaseAddr, rv);
                 g_modules.append(rv);
             }

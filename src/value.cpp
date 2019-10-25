@@ -1,4 +1,3 @@
-#include "value.hpp"
 #include <inttypes.h>
 #include <stdlib.h>
 #include <cmath>
@@ -6,7 +5,10 @@
 #include <ctime>
 #include <locale>
 #include <sstream>
+
 #include "unwind.hpp"
+
+#include "value.hpp"
 
 using namespace sentry;
 

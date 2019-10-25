@@ -1,6 +1,7 @@
-#include "cleanup.hpp"
 #include "options.hpp"
 #include "path.hpp"
+
+#include "cleanup.hpp"
 
 void sentry::cleanup_old_runs() {
     const sentry_options_t *options = sentry_get_options();

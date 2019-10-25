@@ -1,6 +1,7 @@
 #ifndef SENTRY_URL_HPP_INCLUDED
 #define SENTRY_URL_HPP_INCLUDED
 #include <string>
+
 #include "internal.hpp"
 
 namespace sentry {

@@ -1,5 +1,6 @@
-#include "uuid.hpp"
 #include <cstdio>
+
+#include "uuid.hpp"
 
 #if defined(SENTRY_UUID_WINDOWS)
 sentry_uuid_t sentry_uuid_nil() {

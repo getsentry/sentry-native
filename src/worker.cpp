@@ -1,5 +1,6 @@
-#include "worker.hpp"
 #include <chrono>
+
+#include "worker.hpp"
 
 using namespace sentry;
 
