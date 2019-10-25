@@ -50,6 +50,13 @@ extern "C" {
 #include <uuid/uuid.h>
 #endif
 
+/* context type dependencies */
+#ifdef _WIN32
+#include <winnt.h>
+#else
+#include <signal.h>
+#endif
+
 /*
  * type type of a sentry value.
  */
@@ -261,6 +268,16 @@ SENTRY_EXPERIMENTAL_API char *sentry_value_to_msgpack(sentry_value_t value,
 SENTRY_EXPERIMENTAL_API void sentry_event_value_add_stacktrace(
     sentry_value_t event, void **ips, size_t len);
 
+/* context types */
+typedef struct sentry_ucontext_s {
+#ifdef _WIN32
+    EXCEPTION_POINTERS exception_ptrs;
+#else
+    siginfo_t *siginfo;
+    ucontext_t *user_context;
+#endif
+} sentry_ucontext_t;
+
 /*
  * Unwinds the stack from the given address.
  *
@@ -272,6 +289,15 @@ SENTRY_EXPERIMENTAL_API void sentry_event_value_add_stacktrace(
 SENTRY_EXPERIMENTAL_API size_t sentry_unwind_stack(void *addr,
                                                    void **stacktrace_out,
                                                    size_t max_len);
+
+/*
+ * Unwinds the stack from the given context.
+ *
+ * The stacktrace is written to `stacktrace_out` with upt o `max_len` frames
+ * being written.  The actual number of unwound stackframes is returned.
+ */
+SENTRY_EXPERIMENTAL_API size_t sentry_unwind_stack_from_ucontext(
+    const sentry_ucontext_t *uctx, void **stacktrace_out, size_t max_len);
 
 /*
  * A UUID
