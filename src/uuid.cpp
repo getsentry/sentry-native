@@ -58,17 +58,20 @@ sentry_uuid_t sentry_uuid_nil() {
 }
 
 sentry_uuid_t sentry_uuid_new_v4() {
-    FILE *fd = fopen("/proc/sys/kernel/random/uuid", "r");
+    /* in theory we can read /proc/sys/kernel/random/uuid but on some
+       devices this seems to give a permission error */
+    FILE *fd = fopen("/dev/urandom", "r");
     if (!fd) {
         return sentry_uuid_nil();
     }
-
-    char buf[37];
+    char buf[16];
     size_t read = fread(buf, 1, sizeof(buf), fd);
-    buf[read] = 0;
+    if (read != sizeof(buf)) {
+        return sentry_uuid_nil();
+    }
     fclose(fd);
-
-    return sentry_uuid_from_string(buf);
+    buf[6] = buf[6] & 0x0f | 0x40;
+    return sentry_uuid_from_bytes(buf);
 }
 
 sentry_uuid_t sentry_uuid_from_string(const char *str) {
