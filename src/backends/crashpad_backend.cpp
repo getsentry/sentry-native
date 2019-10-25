@@ -59,6 +59,10 @@ void CrashpadBackend::start() {
     std::map<std::string, std::string> annotations;
     std::map<std::string, base::FilePath> file_attachments;
 
+    if (sentry_options_get_release(options)) {
+        annotations["sentry[release]"] = sentry_options_get_release(options);
+    }
+
     for (const sentry::Attachment &attachment : options->attachments) {
         file_attachments.emplace(attachment.name(),
                                  base::FilePath(attachment.path().as_osstr()));
