@@ -205,7 +205,13 @@ void sentry_string_free(char *str) {
 }
 
 size_t sentry_unwind_stack(void *addr, void **stacktrace_out, size_t max_len) {
-    return unwind_stack(addr, stacktrace_out, max_len);
+    return unwind_stack(addr, nullptr, stacktrace_out, max_len);
+}
+
+size_t sentry_unwind_stack_from_ucontext(const sentry_ucontext_t *uctx,
+                                         void **stacktrace_out,
+                                         size_t max_len) {
+    return unwind_stack(nullptr, uctx, stacktrace_out, max_len);
 }
 
 sentry_value_t sentry_envelope_get_event(const sentry_envelope_t *envelope) {

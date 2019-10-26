@@ -3,13 +3,16 @@
 using namespace sentry;
 using namespace unwinders;
 
-size_t sentry::unwind_stack(void *addr, void **ptrs, size_t max_frames) {
-#define TRY_UNWINDER(Func)                        \
-    do {                                          \
-        size_t rv = Func(addr, ptrs, max_frames); \
-        if (rv > 0) {                             \
-            return rv;                            \
-        }                                         \
+size_t sentry::unwind_stack(void *addr,
+                            const sentry_ucontext_t *uctx,
+                            void **ptrs,
+                            size_t max_frames) {
+#define TRY_UNWINDER(Func)                              \
+    do {                                                \
+        size_t rv = Func(addr, uctx, ptrs, max_frames); \
+        if (rv > 0) {                                   \
+            return rv;                                  \
+        }                                               \
     } while (0)
 #ifdef SENTRY_WITH_WINDOWS_UNWINDER
     TRY_UNWINDER(unwind_stack_windows);
