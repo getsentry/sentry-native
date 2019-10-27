@@ -8,15 +8,27 @@
 #include <unwindstack/Memory.h>
 #include <unwindstack/Regs.h>
 #include <unwindstack/RegsGetLocal.h>
+#include <memory>
 
 using namespace sentry;
 
 size_t unwinders::unwind_stack_libunwindstack(void *addr,
+                                              const sentry_ucontext_t *uctx,
                                               void **ptrs,
                                               size_t max_frames) {
-    std::unique_ptr<unwindstack::Regs> regs(
-        unwindstack::Regs::CreateFromLocal());
-    unwindstack::RegsGetLocal(regs.get());
+    std::unique_ptr<unwindstack::Regs> regs;
+
+    if (uctx) {
+        regs = std::unique_ptr<unwindstack::Regs>(
+            unwindstack::Regs::CreateFromUcontext(
+                unwindstack::Regs::CurrentArch(), uctx->user_context));
+    } else if (!addr) {
+        regs = std::unique_ptr<unwindstack::Regs>(
+            unwindstack::Regs::CreateFromLocal());
+        unwindstack::RegsGetLocal(regs.get());
+    } else {
+        return 0;
+    }
 
     unwindstack::LocalMaps maps;
     if (!maps.Parse()) {

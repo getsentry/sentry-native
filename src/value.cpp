@@ -544,7 +544,7 @@ void sentry_event_value_add_stacktrace(sentry_value_t value,
 
     // if nobody gave us a backtrace, walk now.
     if (!ips) {
-        len = unwind_stack(nullptr, walked_backtrace, 256);
+        len = unwind_stack(nullptr, nullptr, walked_backtrace, 256);
         ips = walked_backtrace;
     }
 
