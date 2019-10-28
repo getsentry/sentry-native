@@ -19,9 +19,8 @@
 using namespace sentry;
 using namespace backends;
 
-CrashpadBackend::CrashpadBackend() {
-    breadcrumb_fileid = 0;
-    breadcrumbs_in_segment = 0;
+CrashpadBackend::CrashpadBackend()
+    : breadcrumb_fileid(0), breadcrumbs_in_segment(0) {
 }
 
 void CrashpadBackend::start() {
@@ -89,7 +88,7 @@ void CrashpadBackend::start() {
 void CrashpadBackend::flush_scope(const sentry::Scope &scope) {
     mpack_writer_t writer;
     mpack_writer_init_stdfile(&writer, event_filename.open("wb"), true);
-    Value event = Value::new_event();
+    Value event = Value::new_object();
     scope.apply_to_event(event, SENTRY_SCOPE_NONE);
     event.to_msgpack(&writer);
     mpack_error_t err = mpack_writer_destroy(&writer);
