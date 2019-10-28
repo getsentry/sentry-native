@@ -2,7 +2,6 @@
 #include <stdio.h>
 #include <atomic>
 #include <map>
-#include <mutex>
 #include <string>
 #include <vector>
 
@@ -12,9 +11,7 @@
 #include "client/settings.h"
 
 #include "../attachment.hpp"
-#include "../internal.hpp"
 #include "../options.hpp"
-#include "../path.hpp"
 #include "../value.hpp"
 
 #include "crashpad_backend.hpp"
@@ -22,28 +19,9 @@
 using namespace sentry;
 using namespace backends;
 
-class backends::CrashpadBackendImpl {
-   public:
-    CrashpadBackendImpl();
-
-    Path event_filename;
-    Path breadcrumb_filename;
-    std::mutex breadcrumb_lock;
-    int breadcrumb_fileid;
-    int breadcrumbs_in_segment;
-};
-
-CrashpadBackendImpl::CrashpadBackendImpl() {
+CrashpadBackend::CrashpadBackend() {
     breadcrumb_fileid = 0;
     breadcrumbs_in_segment = 0;
-}
-
-CrashpadBackend::CrashpadBackend()
-    : m_impl(new backends::CrashpadBackendImpl()) {
-}
-
-CrashpadBackend::~CrashpadBackend() {
-    delete m_impl;
 }
 
 void CrashpadBackend::start() {
@@ -64,7 +42,7 @@ void CrashpadBackend::start() {
                                  base::FilePath(attachment.path().as_osstr()));
     }
 
-    m_impl->event_filename = current_run_folder.join(SENTRY_EVENT_FILE);
+    event_filename = current_run_folder.join(SENTRY_EVENT_FILE);
     file_attachments.emplace(
         SENTRY_EVENT_FILE,
         base::FilePath(current_run_folder.join(SENTRY_EVENT_FILE).as_osstr()));
@@ -110,7 +88,7 @@ void CrashpadBackend::start() {
 
 void CrashpadBackend::flush_scope(const sentry::Scope &scope) {
     mpack_writer_t writer;
-    mpack_writer_init_stdfile(&writer, m_impl->event_filename.open("wb"), true);
+    mpack_writer_init_stdfile(&writer, event_filename.open("wb"), true);
     Value event = Value::new_event();
     scope.apply_to_event(event, SENTRY_SCOPE_NONE);
     event.to_msgpack(&writer);
@@ -122,28 +100,27 @@ void CrashpadBackend::flush_scope(const sentry::Scope &scope) {
 }
 
 void CrashpadBackend::add_breadcrumb(sentry::Value breadcrumb) {
-    std::lock_guard<std::mutex> _blck(m_impl->breadcrumb_lock);
+    std::lock_guard<std::mutex> _blck(breadcrumb_lock);
     const sentry_options_t *opts = sentry_get_options();
 
-    if (m_impl->breadcrumbs_in_segment == 0 ||
-        m_impl->breadcrumbs_in_segment == SENTRY_BREADCRUMBS_MAX) {
-        m_impl->breadcrumb_fileid = m_impl->breadcrumb_fileid == 0 ? 1 : 0;
-        m_impl->breadcrumbs_in_segment = 0;
-        m_impl->breadcrumb_filename =
+    if (breadcrumbs_in_segment == 0 ||
+        breadcrumbs_in_segment == SENTRY_BREADCRUMBS_MAX) {
+        breadcrumb_fileid = breadcrumb_fileid == 0 ? 1 : 0;
+        breadcrumbs_in_segment = 0;
+        breadcrumb_filename =
             opts->runs_folder.join(opts->run_id.c_str())
-                .join(m_impl->breadcrumb_fileid == 0
-                          ? SENTRY_BREADCRUMBS1_FILE
-                          : SENTRY_BREADCRUMBS2_FILE);
+                .join(breadcrumb_fileid == 0 ? SENTRY_BREADCRUMBS1_FILE
+                                             : SENTRY_BREADCRUMBS2_FILE);
     }
 
     std::string mpack = breadcrumb.to_msgpack();
-    FILE *file = m_impl->breadcrumb_filename.open(
-        m_impl->breadcrumbs_in_segment == 0 ? "wb" : "a");
+    FILE *file =
+        breadcrumb_filename.open(breadcrumbs_in_segment == 0 ? "wb" : "a");
     if (file) {
         fwrite(mpack.c_str(), 1, mpack.size(), file);
         fclose(file);
     }
 
-    m_impl->breadcrumbs_in_segment++;
+    breadcrumbs_in_segment++;
 }
 #endif

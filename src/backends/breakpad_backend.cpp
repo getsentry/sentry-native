@@ -4,20 +4,7 @@
 using namespace sentry;
 using namespace backends;
 
-class backends::BreakpadBackendImpl {
-   public:
-    BreakpadBackendImpl();
-};
-
-BreakpadBackendImpl::BreakpadBackendImpl() {
-}
-
-BreakpadBackend::BreakpadBackend()
-    : m_impl(new backends::BreakpadBackendImpl()) {
-}
-
-BreakpadBackend::~BreakpadBackend() {
-    delete m_impl;
+BreakpadBackend::BreakpadBackend() {
 }
 
 void BreakpadBackend::start() {
