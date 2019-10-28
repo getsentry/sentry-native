@@ -109,7 +109,7 @@ void CrashpadBackend::start() {
     }
 }
 
-void CrashpadBackend::flush_scope_state(const sentry::Scope &scope) {
+void CrashpadBackend::flush_scope(const sentry::Scope &scope) {
     mpack_writer_t writer;
     mpack_writer_init_stdfile(&writer, m_impl->event_filename.open("wb"), true);
     Value event = Value::new_event();
