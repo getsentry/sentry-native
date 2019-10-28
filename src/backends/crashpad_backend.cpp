@@ -64,19 +64,18 @@ void CrashpadBackend::start() {
                                  base::FilePath(attachment.path().as_osstr()));
     }
 
-    m_impl->event_filename = current_run_folder.join(SENTRY_EVENT_FILE_NAME);
+    m_impl->event_filename = current_run_folder.join(SENTRY_EVENT_FILE);
     file_attachments.emplace(
-        SENTRY_EVENT_FILE_ATTACHMENT_NAME,
-        base::FilePath(
-            current_run_folder.join(SENTRY_EVENT_FILE_NAME).as_osstr()));
+        SENTRY_EVENT_FILE,
+        base::FilePath(current_run_folder.join(SENTRY_EVENT_FILE).as_osstr()));
     file_attachments.emplace(
-        SENTRY_BREADCRUMB1_FILE_ATTACHMENT_NAME,
+        SENTRY_BREADCRUMBS1_FILE,
         base::FilePath(
-            current_run_folder.join(SENTRY_BREADCRUMB1_FILE).as_osstr()));
+            current_run_folder.join(SENTRY_BREADCRUMBS1_FILE).as_osstr()));
     file_attachments.emplace(
-        SENTRY_BREADCRUMB2_FILE_ATTACHMENT_NAME,
+        SENTRY_BREADCRUMBS2_FILE,
         base::FilePath(
-            current_run_folder.join(SENTRY_BREADCRUMB2_FILE).as_osstr()));
+            current_run_folder.join(SENTRY_BREADCRUMBS2_FILE).as_osstr()));
 
     std::vector<std::string> arguments;
     arguments.push_back("--no-rate-limit");
@@ -132,8 +131,9 @@ void CrashpadBackend::add_breadcrumb(sentry::Value breadcrumb) {
         m_impl->breadcrumbs_in_segment = 0;
         m_impl->breadcrumb_filename =
             opts->runs_folder.join(opts->run_id.c_str())
-                .join(m_impl->breadcrumb_fileid == 0 ? SENTRY_BREADCRUMB1_FILE
-                                                     : SENTRY_BREADCRUMB2_FILE);
+                .join(m_impl->breadcrumb_fileid == 0
+                          ? SENTRY_BREADCRUMBS1_FILE
+                          : SENTRY_BREADCRUMBS2_FILE);
     }
 
     std::string mpack = breadcrumb.to_msgpack();
