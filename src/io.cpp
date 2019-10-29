@@ -1,6 +1,13 @@
-#include "io.hpp"
-#include <fnctl.h>
 #include <cstdlib>
+
+#include "internal.hpp"
+#include "io.hpp"
+#include "path.hpp"
+
+#ifndef _WIN32
+#include <fcntl.h>
+#include <unistd.h>
+#endif
 
 using namespace sentry;
 
@@ -10,16 +17,28 @@ IoWriter::IoWriter() {
 IoWriter::~IoWriter() {
 }
 
-FileIoWriter::FileIoWriter() : m_buflen(0), m_fd(0) {
+FileIoWriter::FileIoWriter() : m_buflen(0) {
+    // on non win32 platforms we only use open/write/close so that
+    // we can achieve something close to being async safe so we can
+    // use this class in crashing situations.
+#ifdef _WIN32
+    m_file = nullptr;
+#else
+    m_fd = -1;
+#endif
 }
 
 FileIoWriter::~FileIoWriter() {
-    flush();
+    close();
 }
 
 bool FileIoWriter::open(const Path &path) {
-    m_fd = open(path.as_osstr(), O_WRONLY | O_CREAT);
-    return true;
+#ifdef _WIN32
+    m_file = path.open("wb");
+#else
+    m_fd = ::open(path.as_osstr(), O_WRONLY | O_CREAT);
+#endif
+    return m_fd >= 0;
 }
 
 void FileIoWriter::write(const char *buf, size_t len) {
@@ -36,7 +55,22 @@ void FileIoWriter::write(const char *buf, size_t len) {
 }
 
 void FileIoWriter::flush() {
+#ifdef _WIN32
+    fwrite(m_buf, 1, m_buflen, m_file);
+    fflush(m_file);
+#else
     ::write(m_fd, m_buf, m_buflen);
+#endif
+    m_buflen = 0;
+}
+
+void FileIoWriter::close() {
+    flush();
+#ifdef _WIN32
+    fclose(m_file);
+#else
+    ::close(m_fd);
+#endif
     m_buflen = 0;
 }
 
@@ -57,9 +91,6 @@ void MemoryIoWriter::write(const char *buf, size_t len) {
 
     memcpy(m_buf + m_buflen, buf, len);
     m_buflen += len;
-}
-
-void MemoryIoWriter::flush() {
 }
 
 char *MemoryIoWriter::take() {

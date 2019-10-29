@@ -221,24 +221,17 @@ sentry_value_t sentry_envelope_get_event(const sentry_envelope_t *envelope) {
 
 char *sentry_envelope_serialize(const sentry_envelope_t *envelope,
                                 size_t *size_out) {
-    std::stringstream ss;
     const transports::Envelope *e = (const transports::Envelope *)envelope;
-    e->serialize_into(ss);
-    std::string s = ss.str();
-    char *rv = (char *)malloc(s.size() + 1);
-    memcpy(rv, s.c_str(), s.size() + 1);
-    return rv;
+    return e->serialize(size_out);
 }
 
 int sentry_envelope_write_to_file(const sentry_envelope_t *envelope,
                                   const char *path) {
     const transports::Envelope *e = (const transports::Envelope *)envelope;
-    std::ofstream f;
-    f.open(path,
-           std::ofstream::out | std::ofstream::binary | std::ofstream::trunc);
-    if (f.fail()) {
+    FileIoWriter writer;
+    if (!writer.open(path)) {
         return 1;
     }
-    e->serialize_into(f);
+    e->serialize_into(writer);
     return 0;
 }

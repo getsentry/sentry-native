@@ -6,8 +6,8 @@
 #include <locale>
 #include <sstream>
 
+#include "io.hpp"
 #include "unwind.hpp"
-
 #include "value.hpp"
 
 using namespace sentry;
@@ -123,116 +123,114 @@ void Value::to_msgpack(mpack_writer_t *writer) const {
     }
 }
 
-std::string Value::to_msgpack() const {
+char *Value::to_msgpack_string(size_t *size_out) const {
     mpack_writer_t writer;
     char *buf;
     size_t size;
     mpack_writer_init_growable(&writer, &buf, &size);
     to_msgpack(&writer);
     mpack_writer_destroy(&writer);
-    return std::string(buf, size);
+    *size_out = size;
+    return buf;
 }
 
-namespace {
-template <typename Out>
-void json_serialize_string(const char *ptr, Out &out) {
-    out << "\"";
+static void json_serialize_string(const char *ptr, IoWriter &writer) {
+    writer.write_char('"');
     for (; *ptr; ptr++) {
         switch (*ptr) {
             case '\\':
-                out << "\\\\";
+                writer.write_str("\\\\");
                 break;
             case '"':
-                out << "\\\"";
+                writer.write_str("\\\"");
                 break;
             case '\b':
-                out << "\\b";
+                writer.write_str("\\b");
                 break;
             case '\f':
-                out << "\\f";
+                writer.write_str("\\f");
                 break;
             case '\n':
-                out << "\\n";
+                writer.write_str("\\n");
                 break;
             case '\r':
-                out << "\\r";
+                writer.write_str("\\r");
                 break;
             case '\t':
-                out << "\\t";
+                writer.write_str("\\t");
                 break;
             default:
                 if (*ptr < 32) {
                     char buf[10];
                     sprintf(buf, "u%04x", *ptr);
-                    out << buf;
+                    writer.write_str(buf);
                 } else {
-                    out << *ptr;
+                    writer.write_char(*ptr);
                 }
         }
     }
-    out << "\"";
+    writer.write_char('"');
 }
-}  // namespace
 
-void Value::to_json(std::ostream &out) const {
+void Value::to_json(IoWriter &writer) const {
     switch (this->type()) {
         case SENTRY_VALUE_TYPE_NULL:
-            out << "null";
+            writer.write_str("null");
             break;
         case SENTRY_VALUE_TYPE_BOOL:
-            out << (this->as_bool() ? "true" : "false");
+            writer.write_str(this->as_bool() ? "true" : "false");
             break;
         case SENTRY_VALUE_TYPE_INT32:
-            out << this->as_int32();
+            writer.write_fmt(this->as_int32());
             break;
         case SENTRY_VALUE_TYPE_DOUBLE: {
             double val = this->as_double();
             if (std::isnan(val) || std::isinf(val)) {
-                out << "null";
+                writer.write_str("null");
             } else {
-                out << val;
+                writer.write_fmt(val);
             }
             break;
         }
         case SENTRY_VALUE_TYPE_STRING: {
-            json_serialize_string(as_cstr(), out);
+            json_serialize_string(as_cstr(), writer);
             break;
         }
         case SENTRY_VALUE_TYPE_LIST: {
             const List *list = (const List *)as_thing()->ptr();
-            out << "[";
+            writer.write_char('[');
             for (List::const_iterator iter = list->begin(); iter != list->end();
                  ++iter) {
                 if (iter != list->begin()) {
-                    out << ",";
+                    writer.write_char(',');
                 }
-                iter->to_json(out);
+                iter->to_json(writer);
             }
-            out << "]";
+            writer.write_char(']');
             break;
         }
         case SENTRY_VALUE_TYPE_OBJECT: {
             const Object *object = (const Object *)as_thing()->ptr();
-            out << "{";
+            writer.write_char('{');
             for (Object::const_iterator iter = object->begin();
                  iter != object->end(); ++iter) {
                 if (iter != object->begin()) {
-                    out << ",";
+                    writer.write_char(',');
                 }
-                json_serialize_string(iter->first.c_str(), out);
-                out << ":";
-                iter->second.to_json(out);
+                json_serialize_string(iter->first.c_str(), writer);
+                writer.write_char(':');
+                iter->second.to_json(writer);
             }
-            out << "}";
+            writer.write_char('}');
             break;
         }
     }
 }
 
-std::string Value::to_json() const {
-    std::stringstream ss;
-    to_json(ss);
-    return ss.str();
+char *Value::to_json() const {
+    MemoryIoWriter writer;
+    to_json(writer);
+    return writer.take();
 }
 
 #ifdef _WIN32
@@ -527,13 +525,7 @@ char *sentry_value_to_json(sentry_value_t value) {
 }
 
 char *sentry_value_to_msgpack(sentry_value_t value, size_t *size_out) {
-    std::string out = Value(value).to_msgpack();
-    char *rv = (char *)malloc(out.length());
-    memcpy(rv, out.c_str(), out.length());
-    if (size_out) {
-        *size_out = (size_t)out.length();
-    }
-    return rv;
+    return Value(value).to_msgpack_string(size_out);
 }
 
 void sentry_event_value_add_stacktrace(sentry_value_t value,
