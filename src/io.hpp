@@ -20,8 +20,10 @@ class IoWriter {
         write(s.c_str(), s.size());
     }
     template <typename T>
-    void write_fmt(T val) {
-        std::string s = std::to_string(val);
+    void write_fmt(const T &val) {
+        std::stringstream ss;
+        ss << val;
+        std::string s = ss.str();
         write_str(s);
     }
 
@@ -53,13 +55,16 @@ class FileIoWriter : public IoWriter {
 class MemoryIoWriter : public IoWriter {
    public:
     MemoryIoWriter(size_t bufsize = 128);
+    ~MemoryIoWriter();
     void write(const char *buf, size_t len);
+    void flush();
 
     char *take();
     const char *buf() const;
     size_t len() const;
 
    private:
+    bool m_terminated;
     char *m_buf;
     size_t m_bufcap;
     size_t m_buflen;

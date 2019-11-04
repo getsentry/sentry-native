@@ -75,12 +75,27 @@ void FileIoWriter::close() {
 }
 
 MemoryIoWriter::MemoryIoWriter(size_t bufsize)
-    : m_buflen(0), m_bufcap(bufsize), m_buf((char *)malloc(bufsize)) {
+    : m_terminated(false),
+      m_buflen(0),
+      m_bufcap(bufsize),
+      m_buf((char *)malloc(bufsize)) {
+}
+
+MemoryIoWriter::~MemoryIoWriter() {
+    free(m_buf);
+}
+
+void MemoryIoWriter::flush() {
+    if (!m_terminated) {
+        write_char(0);
+        m_buflen -= 1;
+        m_terminated = true;
+    }
 }
 
 void MemoryIoWriter::write(const char *buf, size_t len) {
     size_t size_needed = m_buflen + len;
-    if (size_needed < m_bufcap) {
+    if (size_needed > m_bufcap) {
         size_t new_bufcap = m_bufcap;
         while (new_bufcap < size_needed) {
             new_bufcap *= 1.3;
@@ -91,9 +106,11 @@ void MemoryIoWriter::write(const char *buf, size_t len) {
 
     memcpy(m_buf + m_buflen, buf, len);
     m_buflen += len;
+    m_terminated = false;
 }
 
 char *MemoryIoWriter::take() {
+    flush();
     char *rv = m_buf;
     m_buf = nullptr;
     return rv;
