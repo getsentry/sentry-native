@@ -1,8 +1,6 @@
 #ifndef SENTRY_IO_HPP_INCLUDED
 #define SENTRY_IO_HPP_INCLUDED
 
-#include <sstream>
-
 namespace sentry {
 
 class Path;
@@ -16,15 +14,21 @@ class IoWriter {
     void write_char(char c) {
         write(&c, 1);
     }
+
     void write_str(const std::string &s) {
         write(s.c_str(), s.size());
     }
-    template <typename T>
-    void write_fmt(const T &val) {
-        std::stringstream ss;
-        ss << val;
-        std::string s = ss.str();
-        write_str(s);
+
+    void write_int32(int32_t val) {
+        char buf[40];
+        size_t len = snprintf(buf, sizeof(buf), "%lld", (long long)val);
+        write(buf, len);
+    }
+
+    void write_double(double val) {
+        char buf[50];
+        size_t len = snprintf(buf, sizeof(buf), "%g", val);
+        write(buf, len);
     }
 
     virtual void flush(){};

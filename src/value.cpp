@@ -181,14 +181,14 @@ void Value::to_json(IoWriter &writer) const {
             writer.write_str(this->as_bool() ? "true" : "false");
             break;
         case SENTRY_VALUE_TYPE_INT32:
-            writer.write_fmt(this->as_int32());
+            writer.write_int32(this->as_int32());
             break;
         case SENTRY_VALUE_TYPE_DOUBLE: {
             double val = this->as_double();
             if (std::isnan(val) || std::isinf(val)) {
                 writer.write_str("null");
             } else {
-                writer.write_fmt(val);
+                writer.write_double(val);
             }
             break;
         }
