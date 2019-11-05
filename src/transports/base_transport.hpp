@@ -5,6 +5,7 @@
 #include <sstream>
 
 #include "../internal.hpp"
+#include "../io.hpp"
 #include "../path.hpp"
 #include "../value.hpp"
 
@@ -52,7 +53,7 @@ class EnvelopeItem {
         return m_bytes;
     }
 
-    void serialize_into(std::ostream &out) const;
+    void serialize_into(IoWriter &writer) const;
 
    protected:
     EnvelopeItem();
@@ -76,8 +77,8 @@ class Envelope {
     void for_each_request(
         std::function<bool(PreparedHttpRequest &&)> func) const;
 
-    void serialize_into(std::ostream &out) const;
-    std::string serialize() const;
+    void serialize_into(IoWriter &writer) const;
+    char *serialize(size_t *size_out) const;
 
    protected:
     sentry::Value m_headers;

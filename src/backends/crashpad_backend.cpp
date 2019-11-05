@@ -112,13 +112,15 @@ void CrashpadBackend::add_breadcrumb(sentry::Value breadcrumb) {
                                              : SENTRY_BREADCRUMBS2_FILE);
     }
 
-    std::string mpack = breadcrumb.to_msgpack();
+    size_t mpack_size;
+    char *mpack = breadcrumb.to_msgpack_string(&mpack_size);
     FILE *file =
         breadcrumb_filename.open(breadcrumbs_in_segment == 0 ? "wb" : "a");
     if (file) {
-        fwrite(mpack.c_str(), 1, mpack.size(), file);
+        fwrite(mpack, 1, mpack_size, file);
         fclose(file);
     }
+    free(mpack);
 
     breadcrumbs_in_segment++;
 }
