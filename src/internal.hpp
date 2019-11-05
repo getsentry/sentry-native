@@ -47,14 +47,10 @@
 
 #define SENTRY_BREADCRUMBS_MAX 100
 static const char *SENTRY_RUNS_FOLDER = "sentry-runs";
-static const char *SENTRY_EVENT_FILE_NAME = "sentry-event.mp";
-static const char *SENTRY_BREADCRUMB1_FILE = "sentry-breadcrumb1.mp";
-static const char *SENTRY_BREADCRUMB2_FILE = "sentry-breadcrumb2.mp";
-static const char *SENTRY_EVENT_FILE_ATTACHMENT_NAME = "__sentry-event";
-static const char *SENTRY_BREADCRUMB1_FILE_ATTACHMENT_NAME =
-    "__sentry-breadcrumb1";
-static const char *SENTRY_BREADCRUMB2_FILE_ATTACHMENT_NAME =
-    "__sentry-breadcrumb2";
+static const char *SENTRY_PENDING_FOLDER = "sentry-pending";
+static const char *SENTRY_EVENT_FILE = "__sentry-event";
+static const char *SENTRY_BREADCRUMBS1_FILE = "__sentry-breadcrumb1";
+static const char *SENTRY_BREADCRUMBS2_FILE = "__sentry-breadcrumb2";
 
 #include "value.hpp"
 

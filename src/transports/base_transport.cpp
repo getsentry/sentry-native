@@ -51,11 +51,11 @@ EnvelopeItem::EnvelopeItem(const char *bytes, size_t length, const char *type)
     m_headers.set_by_key("type", Value::new_string(type));
 }
 
-void EnvelopeItem::serialize_into(std::ostream &out) const {
-    m_headers.to_json(out);
-    out << "\n";
-    out << m_bytes;
-    out << "\n";
+void EnvelopeItem::serialize_into(IoWriter &writer) const {
+    m_headers.to_json(writer);
+    writer.write_char('\n');
+    writer.write_str(m_bytes);
+    writer.write_char('\n');
 }
 
 void EnvelopeItem::set_header(const char *key, sentry::Value value) {
@@ -142,11 +142,11 @@ void Envelope::add_item(EnvelopeItem item) {
     m_items.push_back(item);
 }
 
-void Envelope::serialize_into(std::ostream &out) const {
-    m_headers.to_json(out);
-    out << "\n";
+void Envelope::serialize_into(IoWriter &writer) const {
+    m_headers.to_json(writer);
+    writer.write_char('\n');
     for (auto iter = m_items.begin(); iter != m_items.end(); ++iter) {
-        iter->serialize_into(out);
+        iter->serialize_into(writer);
     }
 }
 
@@ -244,10 +244,11 @@ void Envelope::for_each_request(
                                        content_type.c_str(), payload)));
 }
 
-std::string Envelope::serialize() const {
-    std::stringstream rv;
-    serialize_into(rv);
-    return rv.str();
+char *Envelope::serialize(size_t *size_out) const {
+    MemoryIoWriter writer;
+    serialize_into(writer);
+    *size_out = writer.len();
+    return writer.take();
 }
 
 Transport::Transport() {

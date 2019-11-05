@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "internal.hpp"
+#include "io.hpp"
 #include "uuid.hpp"
 #include "vendor/mpack.h"
 
@@ -478,9 +479,9 @@ class Value {
     }
 
     void to_msgpack(mpack_writer_t *writer) const;
-    std::string to_msgpack() const;
-    void to_json(std::ostream &out) const;
-    std::string to_json() const;
+    char *to_msgpack_string(size_t *size_out) const;
+    void to_json(sentry::IoWriter &out) const;
+    char *to_json() const;
 
     sentry_value_t lower() {
         sentry_value_t rv;
@@ -522,9 +523,9 @@ class Value {
 
 template <typename Os>
 Os &operator<<(Os &os, const sentry::Value &value) {
-    std::stringstream ss;
-    value.to_json(ss);
-    os << ss.str();
+    sentry::MemoryIoWriter writer;
+    value.to_json(writer);
+    os << writer.buf();
     return os;
 }
 
