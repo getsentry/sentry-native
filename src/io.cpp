@@ -35,6 +35,7 @@ FileIoWriter::~FileIoWriter() {
 bool FileIoWriter::open(const Path &path, const char *mode) {
 #ifdef _WIN32
     m_file = path.open(mode);
+    return m_file != nullptr;
 #else
     int flags = 0;
     for (; *mode; mode++) {
@@ -57,8 +58,8 @@ bool FileIoWriter::open(const Path &path, const char *mode) {
         }
     }
     m_fd = ::open(path.as_osstr(), flags);
-#endif
     return m_fd >= 0;
+#endif
 }
 
 void FileIoWriter::write(const char *buf, size_t len) {
