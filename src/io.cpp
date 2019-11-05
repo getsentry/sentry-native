@@ -32,11 +32,31 @@ FileIoWriter::~FileIoWriter() {
     close();
 }
 
-bool FileIoWriter::open(const Path &path) {
+bool FileIoWriter::open(const Path &path, const char *mode) {
 #ifdef _WIN32
-    m_file = path.open("wb");
+    m_file = path.open(mode);
 #else
-    m_fd = ::open(path.as_osstr(), O_WRONLY | O_CREAT);
+    int flags = 0;
+    for (; *mode; mode++) {
+        switch (*mode) {
+            case 'r':
+                flags |= O_RDONLY;
+                break;
+            case 'w':
+                flags |= O_WRONLY | O_CREAT | O_TRUNC;
+                break;
+            case 'a':
+                flags |= O_WRONLY | O_CREAT | O_APPEND;
+                break;
+            case 'b':
+                break;
+            case '+':
+                flags |= O_RDWR;
+                break;
+            default:;
+        }
+    }
+    m_fd = ::open(path.as_osstr(), flags);
 #endif
     return m_fd >= 0;
 }

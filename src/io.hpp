@@ -39,7 +39,7 @@ class FileIoWriter : public IoWriter {
    public:
     FileIoWriter();
     ~FileIoWriter();
-    bool open(const Path &path);
+    bool open(const Path &path, const char *mode = "wb");
     bool is_closed() const;
     void write(const char *buf, size_t len);
     void flush();
