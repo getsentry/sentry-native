@@ -1,7 +1,9 @@
 #include "inproc_backend.hpp"
 #ifdef SENTRY_WITH_INPROC_BACKEND
 
+#include "../scope.hpp"
 #include "../unwind.hpp"
+#include "../signalsupport.hpp"
 
 using namespace sentry;
 using namespace backends;
@@ -16,6 +18,7 @@ struct SignalSlot {
 };
 
 static const size_t MAX_FRAMES = 128;
+static Value g_event;
 
 // we need quite a bit of space for backtrace generation
 static const size_t SIGNAL_COUNT = 6;
@@ -63,9 +66,22 @@ static void handle_signal(int signum, siginfo_t *info, void *user_context) {
     uctx.siginfo = info;
     uctx.user_context = (ucontext_t *)user_context;
 
+    sentry::enter_terminating_signal_handler();
+
     void *backtrace[MAX_FRAMES];
     size_t frames = unwinders::unwind_stack_backtrace(
         nullptr, &uctx, &backtrace[0], MAX_FRAMES);
+
+    Value stacktrace = Value::new_list();
+    for (size_t i = 0; i < frames; i++) {
+        Value frame = Value::new_object();
+        frame.set_by_key("instruction_addr",
+                         Value::new_addr((uint64_t)backtrace[i]));
+        stacktrace.append(frame);
+    }
+    g_event.set_by_key("stacktrace", stacktrace);
+
+    Scope::with_scope([](Scope &scope) { scope.apply_to_event(g_event); });
 
     reset_signal_handlers();
     invoke_signal_handler(signum, info, user_context);
@@ -86,6 +102,8 @@ InprocBackend::~InprocBackend() {
 
 void InprocBackend::start() {
     sigaltstack(&g_signal_stack, 0);
+
+    g_event = Value::new_event();
 
     for (size_t i = 0; i < SIGNAL_COUNT; ++i) {
         if (sigaction(SIGNAL_DEFINITIONS[i].signum, nullptr,

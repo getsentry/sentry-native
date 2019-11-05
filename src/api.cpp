@@ -17,10 +17,6 @@
 using namespace sentry;
 
 static sentry_options_t *g_options;
-static Scope g_scope;
-static std::mutex scope_lock;
-
-#define WITH_LOCKED_SCOPE std::lock_guard<std::mutex> _slck(scope_lock)
 
 static bool sdk_disabled() {
     return !g_options || g_options->dsn.disabled();
@@ -28,7 +24,8 @@ static bool sdk_disabled() {
 
 static void flush_scope() {
     if (!sdk_disabled() && g_options->backend) {
-        g_options->backend->flush_scope_state(g_scope);
+        Scope::with_scope(
+            [](Scope &scope) { g_options->backend->flush_scope_state(scope); });
     }
 }
 
@@ -83,10 +80,7 @@ sentry_uuid_t sentry_capture_event(sentry_value_t evt) {
         uuid = sentry_uuid_from_string(event_id.as_cstr());
     }
 
-    {
-        WITH_LOCKED_SCOPE;
-        g_scope.apply_to_event(event);
-    }
+    Scope::with_scope([&event](Scope &scope) { scope.apply_to_event(event); });
 
     const sentry_options_t *opts = sentry_get_options();
     if (opts->before_send) {
@@ -106,11 +100,10 @@ void sentry_add_breadcrumb(sentry_value_t breadcrumb) {
         return;
     }
 
-    {
-        WITH_LOCKED_SCOPE;
-        g_scope.breadcrumbs.append_bounded(breadcrumb_value,
-                                           SENTRY_BREADCRUMBS_MAX);
-    }
+    Scope::with_scope([breadcrumb_value](Scope &scope) {
+        scope.breadcrumbs.append_bounded(breadcrumb_value,
+                                         SENTRY_BREADCRUMBS_MAX);
+    });
 
     if (g_options->backend) {
         g_options->backend->add_breadcrumb(breadcrumb_value);
@@ -118,50 +111,51 @@ void sentry_add_breadcrumb(sentry_value_t breadcrumb) {
 }
 
 void sentry_set_user(sentry_value_t value) {
-    WITH_LOCKED_SCOPE;
-    g_scope.user = Value::consume(value);
+    Scope::with_scope(
+        [value](Scope &scope) { scope.user = Value::consume(value); });
     flush_scope();
 }
 
 void sentry_remove_user() {
-    WITH_LOCKED_SCOPE;
-    g_scope.user = Value();
+    Scope::with_scope([](Scope &scope) { scope.user = Value(); });
     flush_scope();
 }
 
 void sentry_set_tag(const char *key, const char *value) {
-    WITH_LOCKED_SCOPE;
-    g_scope.tags.set_by_key(key, Value::new_string(value));
+    Scope::with_scope([key, value](Scope &scope) {
+        scope.tags.set_by_key(key, Value::new_string(value));
+    });
     flush_scope();
 }
 
 void sentry_remove_tag(const char *key) {
-    WITH_LOCKED_SCOPE;
-    g_scope.tags.remove_by_key(key);
+    Scope::with_scope([key](Scope &scope) { scope.tags.remove_by_key(key); });
     flush_scope();
 }
 
 void sentry_set_extra(const char *key, sentry_value_t value) {
-    WITH_LOCKED_SCOPE;
-    g_scope.extra.set_by_key(key, Value::consume(value));
+    Scope::with_scope([key, value](Scope &scope) {
+        scope.extra.set_by_key(key, Value::consume(value));
+    });
     flush_scope();
 }
 
 void sentry_remove_extra(const char *key) {
-    WITH_LOCKED_SCOPE;
-    g_scope.extra.remove_by_key(key);
+    Scope::with_scope([key](Scope &scope) { scope.extra.remove_by_key(key); });
     flush_scope();
 }
 
 void sentry_set_context(const char *key, sentry_value_t value) {
-    WITH_LOCKED_SCOPE;
-    g_scope.contexts.set_by_key(key, Value::consume(value));
+    Scope::with_scope([key, value](Scope &scope) {
+        scope.contexts.set_by_key(key, Value::consume(value));
+    });
     flush_scope();
 }
 
 void sentry_remove_context(const char *key) {
-    WITH_LOCKED_SCOPE;
-    g_scope.contexts.remove_by_key(key);
+    Scope::with_scope([key](Scope &scope) {
+        scope.contexts.remove_by_key(key);
+    });
     flush_scope();
 }
 
@@ -175,8 +169,9 @@ void sentry_set_fingerprint(const char *fingerprint, ...) {
     }
     va_end(va);
 
-    WITH_LOCKED_SCOPE;
-    g_scope.fingerprint = fingerprint_value;
+    Scope::with_scope([fingerprint_value](Scope &scope) {
+        scope.fingerprint = fingerprint_value;
+    });
     flush_scope();
 }
 
@@ -185,8 +180,9 @@ void sentry_remove_fingerprint(void) {
 }
 
 void sentry_set_transaction(const char *transaction) {
-    WITH_LOCKED_SCOPE;
-    g_scope.transaction = transaction;
+    Scope::with_scope([transaction](Scope &scope) {
+        scope.transaction = transaction;
+    });
     flush_scope();
 }
 
@@ -195,8 +191,9 @@ void sentry_remove_transaction() {
 }
 
 void sentry_set_level(sentry_level_t level) {
-    WITH_LOCKED_SCOPE;
-    g_scope.level = level;
+    Scope::with_scope([level](Scope &scope) {
+        scope.level = level;
+    });
     flush_scope();
 }
 

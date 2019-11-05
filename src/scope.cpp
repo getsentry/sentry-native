@@ -1,3 +1,5 @@
+#include <mutex>
+
 #include "modulefinder.hpp"
 #include "options.hpp"
 #include "symbolize.hpp"
@@ -5,6 +7,14 @@
 #include "scope.hpp"
 
 using namespace sentry;
+
+static Scope g_scope;
+static std::mutex scope_lock;
+
+void Scope::with_scope(std::function<void(Scope &)> func) {
+    std::lock_guard<std::mutex> _slck(scope_lock);
+    func(g_scope);
+}
 
 static std::vector<Value> find_stacktraces_in_event(Value event) {
     std::vector<Value> rv;

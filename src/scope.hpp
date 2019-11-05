@@ -1,6 +1,7 @@
 #ifndef SENTRY_SCOPE_HPP_INCLUDED
 #define SENTRY_SCOPE_HPP_INCLUDED
 
+#include <functional>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -26,6 +27,8 @@ struct Scope {
           breadcrumbs(Value::new_list()),
           fingerprint(Value::new_list()) {
     }
+
+    static void with_scope(std::function<void(Scope &)> func);
 
     void apply_to_event(Value &event, ScopeMode mode) const;
     void apply_to_event(Value &event) const {
