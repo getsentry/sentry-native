@@ -17,6 +17,7 @@
 
 namespace sentry {
 
+class JsonWriter;
 class Value;
 typedef std::vector<Value> List;
 typedef std::map<std::string, Value> Object;
@@ -481,6 +482,7 @@ class Value {
     void to_msgpack(mpack_writer_t *writer) const;
     char *to_msgpack_string(size_t *size_out) const;
     void to_json(sentry::IoWriter &out) const;
+    void to_json(sentry::JsonWriter &out) const;
     char *to_json() const;
 
     sentry_value_t lower() {
