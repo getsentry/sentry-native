@@ -2,8 +2,8 @@
 #ifdef SENTRY_WITH_INPROC_BACKEND
 
 #include "../scope.hpp"
-#include "../unwind.hpp"
 #include "../signalsupport.hpp"
+#include "../unwind.hpp"
 
 using namespace sentry;
 using namespace backends;
