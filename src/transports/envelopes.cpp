@@ -14,7 +14,6 @@ EnvelopeItem::EnvelopeItem(Value event) : EnvelopeItem() {
     m_bytes = m_event.to_json();
     m_headers.set_by_key("length", Value::new_int32((int32_t)m_bytes.size()));
     m_headers.set_by_key("type", Value::new_string("event"));
-    m_headers.set_by_key("event_id", event.get_by_key("event_id"));
 }
 
 EnvelopeItem::EnvelopeItem(const sentry::Path &path, const char *type)
@@ -124,6 +123,7 @@ Envelope::Envelope(Value event) : Envelope() {
         sentry_uuid_t event_id = sentry_uuid_new_v4();
         event.set_by_key("event_id", Value::new_uuid(&event_id));
     }
+    m_headers.set_by_key("event_id", event.get_by_key("event_id"));
     add_item(EnvelopeItem(event));
 }
 
