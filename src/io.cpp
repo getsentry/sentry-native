@@ -69,6 +69,7 @@ void FileIoWriter::write(const char *buf, size_t len) {
         memcpy(m_buf + m_buflen, buf, can_write);
         m_buflen += can_write;
         to_write -= can_write;
+        buf += can_write;
         if (m_buflen == BUF_SIZE) {
             flush();
         }
