@@ -63,8 +63,9 @@ int dl_iterate_callback(struct dl_phdr_info *dl_info, size_t size, void *data) {
                 offset += (size_t)nhdr->n_descsz;
                 align(alignment, &offset);
                 if (nhdr->n_type == NT_GNU_BUILD_ID) {
-                    module.set_by_key(
-                        "code_id", Value::new_hexstring(note, nhdr->n_descsz));
+                    Value code_id = Value::new_hexstring(note, nhdr->n_descsz);
+                    module.set_by_key("code_id", code_id);
+                    module.set_by_key("debug_id", code_id);
                     sentry_uuid_t uuid = sentry_uuid_from_bytes(note);
 
                     char *uuid_bytes = (char *)&uuid.native_uuid;

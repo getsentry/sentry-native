@@ -111,6 +111,7 @@ InprocBackend::~InprocBackend() {
 void InprocBackend::start() {
     sigaltstack(&g_signal_stack, 0);
 
+    // HACK HACK HACK
     g_event = Value::new_event();
     Scope::with_scope(
         [](Scope &scope) { scope.apply_to_event(g_event, SENTRY_SCOPE_ALL); });
@@ -131,6 +132,7 @@ void InprocBackend::start() {
 }
 
 void InprocBackend::flush_scope(const sentry::Scope &scope) {
+    // HACK HACK HACK
     g_event = Value::new_event();
     scope.apply_to_event(g_event, SENTRY_SCOPE_ALL);
 }
