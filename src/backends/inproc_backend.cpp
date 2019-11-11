@@ -74,6 +74,12 @@ static void handle_signal(int signum, siginfo_t *info, void *user_context) {
 
     // this entire part is not yet async safe but must become
     {
+        Value exc = Value::new_object();
+        exc.set_by_key("type",
+                       Value::new_string(SIGNAL_DEFINITIONS[signum].signame));
+        exc.set_by_key("value",
+                       Value::new_string(SIGNAL_DEFINITIONS[signum].sigdesc));
+
         void *backtrace[MAX_FRAMES];
         size_t frames = unwind_stack(nullptr, &uctx, &backtrace[0], MAX_FRAMES);
 
@@ -84,7 +90,13 @@ static void handle_signal(int signum, siginfo_t *info, void *user_context) {
                              Value::new_addr((uint64_t)backtrace[i]));
             stacktrace.append(frame);
         }
-        g_event.set_by_key("stacktrace", stacktrace);
+        exc.set_by_key("stacktrace", stacktrace);
+
+        Value exceptions = Value::new_object();
+        Value values = Value::new_list();
+        exceptions.set_by_key("values", values);
+        values.append(exc);
+        g_event.set_by_key("exception", exceptions);
 
         Envelope e(g_event);
         const sentry_options_t *opts = sentry_get_options();
