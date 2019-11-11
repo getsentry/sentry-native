@@ -15,7 +15,7 @@ class InprocBackend : public Backend {
     InprocBackend();
     ~InprocBackend();
     void start();
-    void flush_scope_state(const sentry::Scope &scope);
+    void flush_scope(const sentry::Scope &scope);
     void add_breadcrumb(sentry::Value breadcrumb);
 
     static const size_t SIGNAL_COUNT = 6;

@@ -1,12 +1,16 @@
 #include "inproc_backend.hpp"
 #ifdef SENTRY_WITH_INPROC_BACKEND
 
+#include "../io.hpp"
+#include "../options.hpp"
 #include "../scope.hpp"
 #include "../signalsupport.hpp"
+#include "../transports/envelopes.hpp"
 #include "../unwind.hpp"
 
 using namespace sentry;
 using namespace backends;
+using namespace transports;
 
 #define SIGNAL_DEF(Sig, Desc) \
     { Sig, #Sig, Desc }
@@ -68,20 +72,24 @@ static void handle_signal(int signum, siginfo_t *info, void *user_context) {
 
     sentry::enter_terminating_signal_handler();
 
-    void *backtrace[MAX_FRAMES];
-    size_t frames = unwinders::unwind_stack_backtrace(
-        nullptr, &uctx, &backtrace[0], MAX_FRAMES);
+    // this entire part is not yet async safe but must become
+    {
+        void *backtrace[MAX_FRAMES];
+        size_t frames = unwind_stack(nullptr, &uctx, &backtrace[0], MAX_FRAMES);
 
-    Value stacktrace = Value::new_list();
-    for (size_t i = 0; i < frames; i++) {
-        Value frame = Value::new_object();
-        frame.set_by_key("instruction_addr",
-                         Value::new_addr((uint64_t)backtrace[i]));
-        stacktrace.append(frame);
+        Value stacktrace = Value::new_list();
+        for (size_t i = 0; i < frames; i++) {
+            Value frame = Value::new_object();
+            frame.set_by_key("instruction_addr",
+                             Value::new_addr((uint64_t)backtrace[i]));
+            stacktrace.append(frame);
+        }
+        g_event.set_by_key("stacktrace", stacktrace);
+
+        Envelope e(g_event);
+        const sentry_options_t *opts = sentry_get_options();
+        opts->transport->send_envelope(e);
     }
-    g_event.set_by_key("stacktrace", stacktrace);
-
-    Scope::with_scope([](Scope &scope) { scope.apply_to_event(g_event); });
 
     reset_signal_handlers();
     invoke_signal_handler(signum, info, user_context);
@@ -120,7 +128,9 @@ void InprocBackend::start() {
     std::atomic_signal_fence(std::memory_order_release);
 }
 
-void InprocBackend::flush_scope_state(const sentry::Scope &scope) {
+void InprocBackend::flush_scope(const sentry::Scope &scope) {
+    g_event = Value::new_event();
+    scope.apply_to_event(g_event);
 }
 
 void InprocBackend::add_breadcrumb(sentry::Value breadcrumb) {

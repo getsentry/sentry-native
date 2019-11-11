@@ -33,7 +33,7 @@ sentry_options_s::sentry_options_s()
       transport(sentry::transports::create_default_transport()),
 #ifdef SENTRY_WITH_INPROC_BACKEND
       backend(new sentry::backends::InprocBackend()),
-#elifdef SENTRY_WITH_CRASHPAD_BACKEND
+#elif defined(SENTRY_WITH_CRASHPAD_BACKEND)
       backend(new sentry::backends::CrashpadBackend()),
 #elif defined(SENTRY_WITH_BREAKPAD_BACKEND)
       backend(new sentry::backends::BreakpadBackend()),

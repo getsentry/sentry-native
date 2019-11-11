@@ -11,7 +11,7 @@ extern std::atomic_bool g_is_in_terminating_signal_handler;
 void enter_terminating_signal_handler();
 
 /* are we in a terminating signal handler */
-bool is_in_terminating_signal_handler() {
+inline bool is_in_terminating_signal_handler() {
     return g_is_in_terminating_signal_handler.load();
 }
 }  // namespace sentry
