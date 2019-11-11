@@ -88,3 +88,20 @@ TEST_CASE("value refcounting", "[value]") {
     REQUIRE(val.refcount() == 2);
     REQUIRE(val2.refcount() == 2);
 }
+
+TEST_CASE("value json writing", "[value]") {
+    sentry::Value event = sentry::Value::new_object();
+    sentry::Value stacktrace = sentry::Value::new_list();
+    sentry::Value frame = sentry::Value::new_object();
+    frame.set_by_key("instruction_addr", sentry::Value::new_addr(0));
+    stacktrace.append(frame);
+    stacktrace.append(frame);
+    stacktrace.append(frame);
+    event.set_by_key("stacktrace", stacktrace);
+    event.set_by_key("extra_stuff", sentry::Value::new_int32(0));
+    REQUIRE(
+        event.to_json() ==
+        std::string(
+            "{\"extra_stuff\":0,\"stacktrace\":[{\"instruction_addr\":\"0x0\"},"
+            "{\"instruction_addr\":\"0x0\"},{\"instruction_addr\":\"0x0\"}]}"));
+}

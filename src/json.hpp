@@ -148,7 +148,7 @@ class JsonWriter {
         if (val) {
             m_want_comma |= 1ULL << m_depth;
         } else {
-            m_want_comma &= (1ULL << m_depth);
+            m_want_comma &= ~(1ULL << m_depth);
         }
     }
 
