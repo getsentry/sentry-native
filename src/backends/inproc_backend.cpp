@@ -112,6 +112,8 @@ void InprocBackend::start() {
     sigaltstack(&g_signal_stack, 0);
 
     g_event = Value::new_event();
+    Scope::with_scope(
+        [](Scope &scope) { scope.apply_to_event(g_event, SENTRY_SCOPE_ALL); });
 
     for (size_t i = 0; i < SIGNAL_COUNT; ++i) {
         if (sigaction(SIGNAL_DEFINITIONS[i].signum, nullptr,
@@ -130,7 +132,7 @@ void InprocBackend::start() {
 
 void InprocBackend::flush_scope(const sentry::Scope &scope) {
     g_event = Value::new_event();
-    scope.apply_to_event(g_event);
+    scope.apply_to_event(g_event, SENTRY_SCOPE_ALL);
 }
 
 void InprocBackend::add_breadcrumb(sentry::Value breadcrumb) {
