@@ -135,8 +135,10 @@ void Scope::apply_to_event(Value &event, ScopeMode mode) const {
         event.set_by_key("fingerprint", fingerprint);
     }
 
+    // make sure to clone the breadcrumbs so that concurrent modifications
+    // on the list after the scope lock was released do not cause a crash.
     if ((mode & SENTRY_SCOPE_BREADCRUMBS) && breadcrumbs.length() > 0) {
-        event.merge_key("breadcrumbs", breadcrumbs);
+        event.merge_key("breadcrumbs", breadcrumbs.clone());
     }
 
     static Value shared_sdk_info;
