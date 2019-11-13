@@ -81,15 +81,20 @@ static void handle_signal(int signum, siginfo_t *info, void *user_context) {
                        Value::new_string(SIGNAL_DEFINITIONS[signum].sigdesc));
 
         void *backtrace[MAX_FRAMES];
-        size_t frames = unwind_stack(nullptr, &uctx, &backtrace[0], MAX_FRAMES);
+        size_t frame_count = unwind_stack(nullptr, &uctx, &backtrace[0], MAX_FRAMES);
 
-        Value stacktrace = Value::new_list();
-        for (size_t i = 0; i < frames; i++) {
+        Value frames = Value::new_list();
+        for (size_t i = 0; i < frame_count; i++) {
             Value frame = Value::new_object();
             frame.set_by_key("instruction_addr",
                              Value::new_addr((uint64_t)backtrace[i]));
-            stacktrace.append(frame);
+            frames.append(frame);
         }
+        frames.reverse();
+
+        Value stacktrace = Value::new_object();
+        stacktrace.set_by_key("frames", frames);
+
         exc.set_by_key("stacktrace", stacktrace);
 
         Value exceptions = Value::new_object();
