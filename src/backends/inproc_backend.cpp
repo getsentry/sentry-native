@@ -130,6 +130,8 @@ void InprocBackend::start() {
 
     // HACK HACK HACK
     g_event = Value::new_event();
+    g_event.set_by_key("level", Value::new_level(SENTRY_LEVEL_FATAL));
+
     Scope::with_scope(
         [](Scope &scope) { scope.apply_to_event(g_event, SENTRY_SCOPE_ALL); });
 
