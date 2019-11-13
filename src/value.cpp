@@ -45,7 +45,7 @@ bool Thing::operator==(const Thing &rhs) const {
 }
 
 Value Value::clone() const {
-    Thing *thing = as_thing();
+    ThingPtr thing = as_thing();
     if (thing) {
         Value clone;
         switch (thing->type()) {
@@ -78,7 +78,7 @@ Value Value::clone() const {
 }
 
 void Value::freeze() {
-    Thing *thing = as_thing();
+    ThingPtr thing = as_thing();
     if (!thing) {
         return;
     }
