@@ -101,6 +101,12 @@ SENTRY_API void sentry_value_incref(sentry_value_t value);
 /* decrements the reference count on the value */
 SENTRY_API void sentry_value_decref(sentry_value_t value);
 
+/* freezes a value */
+SENTRY_API void sentry_value_freeze(sentry_value_t value);
+
+/* checks if a value is frozen */
+SENTRY_API int sentry_value_is_frozen(sentry_value_t value);
+
 /* creates a null value */
 SENTRY_API sentry_value_t sentry_value_new_null(void);
 

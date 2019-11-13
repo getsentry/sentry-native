@@ -142,6 +142,7 @@ void Scope::apply_to_event(Value &event, ScopeMode mode) const {
         Value packages = Value::new_list();
         packages.append(package);
         sdk_info.set_by_key("packages", packages);
+        sdk_info.freeze();
         shared_sdk_info = sdk_info;
     }
 

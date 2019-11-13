@@ -30,7 +30,7 @@ enum ThingType {
 class Thing {
    public:
     Thing(void *ptr, ThingType type)
-        : m_payload(ptr), m_type(type), m_refcount(1) {
+        : m_payload(ptr), m_type(type), m_refcount(1), m_frozen(false) {
     }
 
     ~Thing() {
@@ -57,8 +57,16 @@ class Thing {
         }
     }
 
+    void freeze() {
+        m_frozen = true;
+    }
+
     size_t refcount() const {
         return m_refcount;
+    }
+
+    bool is_frozen() const {
+        return m_frozen;
     }
 
     ThingType type() const {
@@ -95,6 +103,7 @@ class Thing {
 
     void *m_payload;
     ThingType m_type;
+    bool m_frozen;
     std::atomic_size_t m_refcount;
 };
 
@@ -114,6 +123,11 @@ class Value {
         } else {
             return nullptr;
         }
+    }
+
+    Thing *as_unfrozen_thing() const {
+        Thing *rv = as_thing();
+        return (rv && !rv->is_frozen()) ? rv : nullptr;
     }
 
     void set_null_unsafe() {
@@ -185,6 +199,13 @@ class Value {
             thing->decref();
         }
     }
+
+    bool is_frozen() const {
+        Thing *thing = as_thing();
+        return !thing || thing->is_frozen();
+    }
+
+    void freeze();
 
     size_t refcount() const {
         Thing *thing = as_thing();
@@ -364,7 +385,7 @@ class Value {
     bool merge_key(const char *key, Value value);
 
     bool append_bounded(Value value, size_t maxItems) {
-        Thing *thing = as_thing();
+        Thing *thing = as_unfrozen_thing();
         if (thing && thing->type() == THING_TYPE_LIST) {
             List *list = (List *)thing->ptr();
             if (list->size() >= maxItems) {
@@ -379,7 +400,7 @@ class Value {
     }
 
     bool reverse() {
-        Thing *thing = as_thing();
+        Thing *thing = as_unfrozen_thing();
         if (thing && thing->type() == THING_TYPE_LIST) {
             List *list = (List *)thing->ptr();
             std::reverse(list->begin(), list->end());
@@ -395,7 +416,7 @@ class Value {
     Value navigate(const char *path) const;
 
     bool set_by_key(const char *key, Value value) {
-        Thing *thing = as_thing();
+        Thing *thing = as_unfrozen_thing();
         if (thing && thing->type() == THING_TYPE_OBJECT) {
             Object *obj = (Object *)thing->ptr();
             (*obj)[key] = value;
@@ -405,7 +426,7 @@ class Value {
     }
 
     bool remove_by_key(const char *key) {
-        Thing *thing = as_thing();
+        Thing *thing = as_unfrozen_thing();
         if (thing && thing->type() == THING_TYPE_OBJECT) {
             Object *object = (Object *)thing->ptr();
             Object::iterator iter = object->find(key);
@@ -418,7 +439,7 @@ class Value {
     }
 
     bool set_by_index(size_t index, Value value) {
-        Thing *thing = as_thing();
+        Thing *thing = as_unfrozen_thing();
         if (thing && thing->type() == THING_TYPE_LIST) {
             List *list = (List *)thing->ptr();
             if (index >= list->size()) {
@@ -431,7 +452,7 @@ class Value {
     }
 
     bool remove_by_index(size_t index) {
-        Thing *thing = as_thing();
+        Thing *thing = as_unfrozen_thing();
         if (thing && thing->type() == THING_TYPE_LIST) {
             List *list = (List *)thing->ptr();
             if (index >= list->size()) {

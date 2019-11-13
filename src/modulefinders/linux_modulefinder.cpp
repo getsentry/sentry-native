@@ -108,6 +108,7 @@ Value modulefinders::get_module_list() {
     if (!g_initialized) {
         g_modules = Value::new_list();
         dl_iterate_phdr(dl_iterate_callback, nullptr);
+        g_modules.freeze();
         g_initialized = true;
     }
     return g_modules;
