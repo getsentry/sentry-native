@@ -86,6 +86,21 @@ static void handle_signal(int signum, siginfo_t *info, void *user_context) {
         exc.set_by_key("value", Value::new_string(sig_slot ? sig_slot->sigdesc
                                                            : "UnknownSignal"));
 
+        Value mechanism = Value::new_object();
+        Value mechanism_meta = Value::new_object();
+        Value signal_meta = Value::new_object();
+        if (sig_slot) {
+            signal_meta.set_by_key("name",
+                                   Value::new_string(sig_slot->signame));
+            signal_meta.set_by_key("number",
+                                   Value::new_int32((int32_t)sig_slot->signum));
+        }
+        mechanism_meta.set_by_key("signal", signal_meta);
+        mechanism.set_by_key("type", Value::new_string("signalhandler"));
+        mechanism.set_by_key("synthetic", Value::new_bool(true));
+        mechanism.set_by_key("handled", Value::new_bool(false));
+        mechanism.set_by_key("meta", mechanism_meta);
+
         void *backtrace[MAX_FRAMES];
         size_t frame_count =
             unwind_stack(nullptr, &uctx, &backtrace[0], MAX_FRAMES);
