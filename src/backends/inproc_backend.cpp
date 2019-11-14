@@ -68,16 +68,23 @@ static void handle_signal(int signum, siginfo_t *info, void *user_context) {
     uctx.siginfo = info;
     uctx.user_context = (ucontext_t *)user_context;
 
+    const SignalSlot *sig_slot = nullptr;
+    for (int i = 0; i < SIGNAL_COUNT; ++i) {
+        if (SIGNAL_DEFINITIONS[i].signum == signum) {
+            sig_slot = &SIGNAL_DEFINITIONS[i];
+        }
+    }
+
     // this entire part is not yet async safe but must become
     {
         Value event = Value::new_event();
         event.set_by_key("level", Value::new_level(SENTRY_LEVEL_FATAL));
 
         Value exc = Value::new_object();
-        exc.set_by_key("type",
-                       Value::new_string(SIGNAL_DEFINITIONS[signum].signame));
-        exc.set_by_key("value",
-                       Value::new_string(SIGNAL_DEFINITIONS[signum].sigdesc));
+        exc.set_by_key("type", Value::new_string(sig_slot ? sig_slot->signame
+                                                          : "UNKNOWN_SIGNAL"));
+        exc.set_by_key("value", Value::new_string(sig_slot ? sig_slot->sigdesc
+                                                           : "UnknownSignal"));
 
         void *backtrace[MAX_FRAMES];
         size_t frame_count =
