@@ -129,21 +129,24 @@ class ThingPtr {
     }
 
     ThingPtr &operator=(const ThingPtr &other) {
-        if (m_thing) {
-            m_thing->m_lock.unlock();
-        }
-
-        m_thing = other.m_thing;
-        if (m_thing) {
-            m_thing->m_lock.lock();
+        if (m_thing != other.m_thing) {
+            m_thing = other.m_thing;
+            if (m_thing) {
+                m_thing->m_lock.lock();
+            }
         }
 
         return *this;
     }
 
     ThingPtr &operator=(ThingPtr &&other) {
+        if (m_thing) {
+            m_thing->m_lock.unlock();
+        }
+
         m_thing = other.m_thing;
         other.m_thing = nullptr;
+
         return *this;
     }
 
