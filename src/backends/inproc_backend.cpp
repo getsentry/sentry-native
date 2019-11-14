@@ -4,7 +4,6 @@
 #include "../io.hpp"
 #include "../options.hpp"
 #include "../scope.hpp"
-#include "../signalsupport.hpp"
 #include "../transports/envelopes.hpp"
 #include "../unwind.hpp"
 
@@ -68,8 +67,6 @@ static void handle_signal(int signum, siginfo_t *info, void *user_context) {
     sentry_ucontext_t uctx;
     uctx.siginfo = info;
     uctx.user_context = (ucontext_t *)user_context;
-
-    sentry::enter_terminating_signal_handler();
 
     // this entire part is not yet async safe but must become
     {
