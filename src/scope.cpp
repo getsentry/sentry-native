@@ -108,6 +108,10 @@ static void postprocess_stacktrace(Value stacktrace) {
 void Scope::apply_to_event(Value &event, ScopeMode mode) const {
     const sentry_options_t *options = sentry_get_options();
 
+    if (event.get_by_key("platform").is_null()) {
+        event.set_by_key("platform", Value::new_string("native"));
+    }
+
     if (!options->release.empty()) {
         event.set_by_key("release",
                          Value::new_string(options->release.c_str()));
