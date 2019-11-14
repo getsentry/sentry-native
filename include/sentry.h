@@ -199,7 +199,9 @@ SENTRY_API sentry_value_t sentry_value_get_by_index(sentry_value_t value,
 SENTRY_API sentry_value_t sentry_value_get_by_index_owned(sentry_value_t value,
                                                           size_t index);
 
-/* returns the length of the given map or list */
+/* returns the length of the given map or list.
+
+   If an item is not a list or map the return value is 0. */
 SENTRY_API size_t sentry_value_get_length(sentry_value_t value);
 
 /* converts a value into a 32bit signed integer */
