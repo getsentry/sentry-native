@@ -73,3 +73,29 @@ TEST_CASE("empty dsn parsing", "[dsn]") {
     REQUIRE(dsn.disabled() == true);
     REQUIRE(dsn.valid() == true);
 }
+
+TEST_CASE("canonical dsn", "[dsn]") {
+    sentry::Dsn dsn("");
+    REQUIRE(dsn.raw() == std::string(""));
+
+    dsn = sentry::Dsn("http://foo@bar.com:1234/a/42");
+    REQUIRE(dsn.raw() == std::string("http://foo:@bar.com:1234/a/42"));
+
+    dsn = sentry::Dsn("http://foo@bar.com:1234/a/42/");
+    REQUIRE(dsn.raw() == std::string("http://foo:@bar.com:1234/a/42"));
+
+    dsn = sentry::Dsn("http://foo@bar.com:80/a/42/");
+    REQUIRE(dsn.raw() == std::string("http://foo:@bar.com/a/42"));
+
+    dsn = sentry::Dsn("https://foo@bar.com:443/a/42/");
+    REQUIRE(dsn.raw() == std::string("https://foo:@bar.com/a/42"));
+
+    dsn = sentry::Dsn("https://foo@bar.com/a/42/");
+    REQUIRE(dsn.raw() == std::string("https://foo:@bar.com/a/42"));
+
+    dsn = sentry::Dsn("https://foo@bar.com/23");
+    REQUIRE(dsn.raw() == std::string("https://foo:@bar.com/23"));
+
+    dsn = sentry::Dsn("https://foo:faa@bar.com/23?crap_here");
+    REQUIRE(dsn.raw() == std::string("https://foo:faa@bar.com/23"));
+}
