@@ -98,4 +98,7 @@ TEST_CASE("canonical dsn", "[dsn]") {
 
     dsn = sentry::Dsn("https://foo:faa@bar.com/23?crap_here");
     REQUIRE(dsn.raw() == std::string("https://foo:faa@bar.com/23"));
+
+    dsn = sentry::Dsn("https://foo@BARBARBAR/23");
+    REQUIRE(dsn.raw() == std::string("https://foo:@barbarbar/23"));
 }

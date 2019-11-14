@@ -67,8 +67,11 @@ Dsn::Dsn(const char *dsn)
 
     // make raw a canonical dsn
     ss.str("");
-    ss << scheme() << "://" << m_public_key << ":" << m_private_key << "@"
-       << m_host;
+    ss << scheme() << "://" << m_public_key << ":" << m_private_key << "@";
+    const char *ptr = m_host.c_str();
+    while (*ptr) {
+        ss << (char)std::tolower(*ptr++);
+    }
     if (!((is_secure() && m_port == 443) || (!is_secure() && m_port == 80))) {
         ss << ":" << m_port;
     }
