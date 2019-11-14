@@ -45,7 +45,7 @@ bool Thing::operator==(const Thing &rhs) const {
 }
 
 Value Value::clone() const {
-    Thing *thing = as_thing();
+    ThingPtr thing = as_thing();
     if (thing) {
         Value clone;
         switch (thing->type()) {
@@ -74,6 +74,34 @@ Value Value::clone() const {
         return clone;
     } else {
         return *this;
+    }
+}
+
+void Value::freeze() {
+    ThingPtr thing = as_thing();
+    if (!thing) {
+        return;
+    }
+    thing->freeze();
+    switch (thing->type()) {
+        case THING_TYPE_LIST: {
+            List *list = (List *)as_thing()->ptr();
+            for (List::iterator iter = list->begin(); iter != list->end();
+                 ++iter) {
+                iter->freeze();
+            }
+            break;
+        }
+        case THING_TYPE_OBJECT: {
+            Object *obj = (Object *)as_thing()->ptr();
+            for (Object::iterator iter = obj->begin(); iter != obj->end();
+                 ++iter) {
+                iter->second.freeze();
+            }
+            break;
+        }
+        case THING_TYPE_STRING: {
+        }
     }
 }
 
@@ -422,6 +450,14 @@ void sentry_value_incref(sentry_value_t value) {
 
 void sentry_value_decref(sentry_value_t value) {
     Value::consume(value);
+}
+
+void sentry_value_freeze(sentry_value_t value) {
+    Value(value).freeze();
+}
+
+int sentry_value_is_frozen(sentry_value_t value) {
+    return Value(value).is_frozen();
 }
 
 sentry_value_type_t sentry_value_get_type(sentry_value_t value) {

@@ -19,14 +19,10 @@ static std::vector<Value> find_stacktraces_in_event(Value event) {
         threads = threads.get_by_key("values");
     }
 
-    List *thread_list = threads.as_list();
-    if (thread_list) {
-        for (auto iter = thread_list->begin(); iter != thread_list->end();
-             ++iter) {
-            Value stacktrace = iter->get_by_key("stacktrace");
-            if (stacktrace.type() == SENTRY_VALUE_TYPE_OBJECT) {
-                rv.push_back(stacktrace);
-            }
+    for (size_t i = 0, n = threads.length(); i < n; i++) {
+        Value stacktrace = threads.get_by_index(i).get_by_key("stacktrace");
+        if (stacktrace.type() == SENTRY_VALUE_TYPE_OBJECT) {
+            rv.push_back(stacktrace);
         }
     }
 
@@ -38,14 +34,10 @@ static std::vector<Value> find_stacktraces_in_event(Value event) {
         }
     }
 
-    List *exception_list = exc.as_list();
-    if (exception_list) {
-        for (auto iter = exception_list->begin(); iter != exception_list->end();
-             ++iter) {
-            Value stacktrace = iter->get_by_key("stacktrace");
-            if (stacktrace.type() == SENTRY_VALUE_TYPE_OBJECT) {
-                rv.push_back(stacktrace);
-            }
+    for (size_t i = 0, n = exc.length(); i < n; i++) {
+        Value stacktrace = exc.get_by_index(i).get_by_key("stacktrace");
+        if (stacktrace.type() == SENTRY_VALUE_TYPE_OBJECT) {
+            rv.push_back(stacktrace);
         }
     }
 
@@ -53,13 +45,13 @@ static std::vector<Value> find_stacktraces_in_event(Value event) {
 }
 
 static void postprocess_stacktrace(Value stacktrace) {
-    List *frames = stacktrace.get_by_key("frames").as_list();
-    if (!frames) {
+    Value frames = stacktrace.get_by_key("frames");
+    if (frames.is_null() || frames.length() == 0) {
         return;
     }
 
-    for (auto iter = frames->begin(); iter != frames->end(); ++iter) {
-        Value frame = *iter;
+    for (size_t i = 0, n = frames.length(); i < n; i++) {
+        Value frame = frames.get_by_index(i);
         Value addr_value = frame.get_by_key("instruction_addr");
         if (addr_value.is_null()) {
             continue;
@@ -142,6 +134,7 @@ void Scope::apply_to_event(Value &event, ScopeMode mode) const {
         Value packages = Value::new_list();
         packages.append(package);
         sdk_info.set_by_key("packages", packages);
+        sdk_info.freeze();
         shared_sdk_info = sdk_info;
     }
 

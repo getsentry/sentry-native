@@ -88,6 +88,11 @@ void sentry_string_free(char *str);
  * internal refcount by one.  If the refcount hits zero it's freed.  Some
  * values like primitives have no refcount (like null) so operations on
  * those are no-ops.
+ *
+ * In addition values can be frozen.  Some values like primitives are always
+ * frozen but lists and dicts are not and can be frozen on demand.  This
+ * automatically happens for some shared values in the event payload like
+ * the module list.
  */
 union sentry_value_u {
     uint64_t _bits;
@@ -100,6 +105,12 @@ SENTRY_API void sentry_value_incref(sentry_value_t value);
 
 /* decrements the reference count on the value */
 SENTRY_API void sentry_value_decref(sentry_value_t value);
+
+/* freezes a value */
+SENTRY_API void sentry_value_freeze(sentry_value_t value);
+
+/* checks if a value is frozen */
+SENTRY_API int sentry_value_is_frozen(sentry_value_t value);
 
 /* creates a null value */
 SENTRY_API sentry_value_t sentry_value_new_null(void);
@@ -188,7 +199,9 @@ SENTRY_API sentry_value_t sentry_value_get_by_index(sentry_value_t value,
 SENTRY_API sentry_value_t sentry_value_get_by_index_owned(sentry_value_t value,
                                                           size_t index);
 
-/* returns the length of the given map or list */
+/* returns the length of the given map or list.
+
+   If an item is not a list or map the return value is 0. */
 SENTRY_API size_t sentry_value_get_length(sentry_value_t value);
 
 /* converts a value into a 32bit signed integer */
