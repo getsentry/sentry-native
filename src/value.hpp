@@ -184,14 +184,18 @@ class Value {
     static const uint64_t TAG_INT32 = 0xfff9000000000000ULL;
     static const uint64_t TAG_CONST = 0xfffa000000000000ULL;
 
-    ThingPtr as_thing() const {
+    Thing *as_thing_unlocked_unsafe() const {
         if (m_repr._bits <= MAX_DOUBLE) {
-            return ThingPtr();
+            return nullptr;
         } else if ((m_repr._bits & TAG_THING) == TAG_THING) {
-            return ThingPtr((Thing *)((m_repr._bits << 2) & ~TAG_THING));
+            return (Thing *)((m_repr._bits << 2) & ~TAG_THING);
         } else {
-            return ThingPtr();
+            return nullptr;
         }
+    }
+
+    ThingPtr as_thing() const {
+        return ThingPtr(as_thing_unlocked_unsafe());
     }
 
     ThingPtr as_unfrozen_thing() const {
@@ -256,14 +260,14 @@ class Value {
     }
 
     void incref() const {
-        ThingPtr thing = as_thing();
+        Thing *thing = as_thing_unlocked_unsafe();
         if (thing) {
             thing->incref();
         }
     }
 
     void decref() const {
-        ThingPtr thing = as_thing();
+        Thing *thing = as_thing_unlocked_unsafe();
         if (thing) {
             thing->decref();
         }
