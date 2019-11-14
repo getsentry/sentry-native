@@ -1,3 +1,5 @@
+#include <mutex>
+
 #include "modulefinder.hpp"
 #include "options.hpp"
 #include "symbolize.hpp"
@@ -5,6 +7,25 @@
 #include "scope.hpp"
 
 using namespace sentry;
+
+static Scope g_scope;
+static std::mutex scope_lock;
+
+void Scope::with_scope(std::function<void(const Scope &)> func) {
+    std::lock_guard<std::mutex> _slck(scope_lock);
+    func(g_scope);
+}
+
+void Scope::with_scope_mut(std::function<void(Scope &)> func) {
+    std::lock_guard<std::mutex> _slck(scope_lock);
+    const sentry_options_t *opts = sentry_get_options();
+    if (opts && !opts->dsn.disabled()) {
+        func(g_scope);
+        if (opts->backend) {
+            opts->backend->flush_scope(g_scope);
+        }
+    }
+}
 
 static std::vector<Value> find_stacktraces_in_event(Value event) {
     std::vector<Value> rv;
@@ -117,8 +138,10 @@ void Scope::apply_to_event(Value &event, ScopeMode mode) const {
         event.set_by_key("fingerprint", fingerprint);
     }
 
+    // make sure to clone the breadcrumbs so that concurrent modifications
+    // on the list after the scope lock was released do not cause a crash.
     if ((mode & SENTRY_SCOPE_BREADCRUMBS) && breadcrumbs.length() > 0) {
-        event.merge_key("breadcrumbs", breadcrumbs);
+        event.merge_key("breadcrumbs", breadcrumbs.clone());
     }
 
     static Value shared_sdk_info;

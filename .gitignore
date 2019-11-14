@@ -1,4 +1,5 @@
 .vscode/ipch
+.idea/
 .venv/
 .sentryclirc
 
@@ -21,6 +22,7 @@ crashpad_wrapper
 out/
 tmp/
 premake/.vs
+cmake-build-debug/
 
 # Example files
 example
