@@ -137,7 +137,7 @@ TEST_CASE("send event with breadcrumbs disabled", "[api]") {
         sentry::Value event_out = mock_transport.events[0];
         sentry::Value crumbs_out = event_out.navigate("breadcrumbs");
 
-        REQUIRE(crumbs_out.length() == -1);
+        REQUIRE(crumbs_out.length() == 0);
     }
 }
 
