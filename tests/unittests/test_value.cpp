@@ -108,4 +108,7 @@ TEST_CASE("value freezing", "[value]") {
     sentry::Value list_clone_val = list_val.clone();
     REQUIRE(list_clone_val.is_frozen() == false);
     REQUIRE(list_val.get_by_index(0).is_frozen() == true);
+
+    sentry::Value string_val = sentry::Value::new_string("hello");
+    REQUIRE(string_val.is_frozen() == true);
 }

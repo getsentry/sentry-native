@@ -31,7 +31,10 @@ enum ThingType {
 class Thing {
    public:
     Thing(void *ptr, ThingType type)
-        : m_payload(ptr), m_type(type), m_refcount(1), m_frozen(false) {
+        : m_payload(ptr),
+          m_type(type),
+          m_refcount(1),
+          m_frozen(type == THING_TYPE_STRING) {
     }
 
     ~Thing() {

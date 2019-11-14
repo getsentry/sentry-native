@@ -88,6 +88,11 @@ void sentry_string_free(char *str);
  * internal refcount by one.  If the refcount hits zero it's freed.  Some
  * values like primitives have no refcount (like null) so operations on
  * those are no-ops.
+ *
+ * In addition values can be frozen.  Some values like primitives are always
+ * frozen but lists and dicts are not and can be frozen on demand.  This
+ * automatically happens for some shared values in the event payload like
+ * the module list.
  */
 union sentry_value_u {
     uint64_t _bits;
