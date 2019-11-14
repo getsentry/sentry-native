@@ -121,6 +121,32 @@ class ThingPtr {
         }
     }
 
+    ThingPtr(const ThingPtr &other) : ThingPtr(other.m_thing) {
+    }
+
+    ThingPtr(ThingPtr &&other) : m_thing(other.m_thing) {
+        other.m_thing = nullptr;
+    }
+
+    ThingPtr &operator=(const ThingPtr &other) {
+        if (m_thing) {
+            m_thing->m_lock.unlock();
+        }
+
+        m_thing = other.m_thing;
+        if (m_thing) {
+            m_thing->m_lock.lock();
+        }
+
+        return *this;
+    }
+
+    ThingPtr &operator=(ThingPtr &&other) {
+        m_thing = other.m_thing;
+        other.m_thing = nullptr;
+        return *this;
+    }
+
     ~ThingPtr() {
         if (m_thing) {
             m_thing->m_lock.unlock();
