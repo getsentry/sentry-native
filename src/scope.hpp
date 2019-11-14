@@ -28,7 +28,8 @@ struct Scope {
           fingerprint(Value::new_list()) {
     }
 
-    static void with_scope(std::function<void(Scope &)> func);
+    static void with_scope(std::function<void(const Scope &)> func);
+    static void with_scope_mut(std::function<void(Scope &)> func);
 
     void apply_to_event(Value &event, ScopeMode mode) const;
     void apply_to_event(Value &event) const {

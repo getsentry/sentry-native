@@ -22,13 +22,6 @@ static bool sdk_disabled() {
     return !g_options || g_options->dsn.disabled();
 }
 
-static void flush_scope() {
-    if (!sdk_disabled() && g_options->backend) {
-        Scope::with_scope(
-            [](Scope &scope) { g_options->backend->flush_scope(scope); });
-    }
-}
-
 int sentry_init(sentry_options_t *options) {
     assert(!g_options);
     g_options = options;
@@ -80,7 +73,8 @@ sentry_uuid_t sentry_capture_event(sentry_value_t evt) {
         uuid = sentry_uuid_from_string(event_id.as_cstr());
     }
 
-    Scope::with_scope([&event](Scope &scope) { scope.apply_to_event(event); });
+    Scope::with_scope(
+        [&event](const Scope &scope) { scope.apply_to_event(event); });
 
     const sentry_options_t *opts = sentry_get_options();
     if (opts->before_send) {
@@ -100,7 +94,7 @@ void sentry_add_breadcrumb(sentry_value_t breadcrumb) {
         return;
     }
 
-    Scope::with_scope([breadcrumb_value](Scope &scope) {
+    Scope::with_scope_mut([breadcrumb_value](Scope &scope) {
         scope.breadcrumbs.append_bounded(breadcrumb_value,
                                          SENTRY_BREADCRUMBS_MAX);
     });
@@ -111,52 +105,45 @@ void sentry_add_breadcrumb(sentry_value_t breadcrumb) {
 }
 
 void sentry_set_user(sentry_value_t value) {
-    Scope::with_scope(
+    Scope::with_scope_mut(
         [value](Scope &scope) { scope.user = Value::consume(value); });
-    flush_scope();
 }
 
 void sentry_remove_user() {
-    Scope::with_scope([](Scope &scope) { scope.user = Value(); });
-    flush_scope();
+    Scope::with_scope_mut([](Scope &scope) { scope.user = Value(); });
 }
 
 void sentry_set_tag(const char *key, const char *value) {
-    Scope::with_scope([key, value](Scope &scope) {
+    Scope::with_scope_mut([key, value](Scope &scope) {
         scope.tags.set_by_key(key, Value::new_string(value));
     });
-    flush_scope();
 }
 
 void sentry_remove_tag(const char *key) {
-    Scope::with_scope([key](Scope &scope) { scope.tags.remove_by_key(key); });
-    flush_scope();
+    Scope::with_scope_mut(
+        [key](Scope &scope) { scope.tags.remove_by_key(key); });
 }
 
 void sentry_set_extra(const char *key, sentry_value_t value) {
-    Scope::with_scope([key, value](Scope &scope) {
+    Scope::with_scope_mut([key, value](Scope &scope) {
         scope.extra.set_by_key(key, Value::consume(value));
     });
-    flush_scope();
 }
 
 void sentry_remove_extra(const char *key) {
-    Scope::with_scope([key](Scope &scope) { scope.extra.remove_by_key(key); });
-    flush_scope();
+    Scope::with_scope_mut(
+        [key](Scope &scope) { scope.extra.remove_by_key(key); });
 }
 
 void sentry_set_context(const char *key, sentry_value_t value) {
-    Scope::with_scope([key, value](Scope &scope) {
+    Scope::with_scope_mut([key, value](Scope &scope) {
         scope.contexts.set_by_key(key, Value::consume(value));
     });
-    flush_scope();
 }
 
 void sentry_remove_context(const char *key) {
-    Scope::with_scope([key](Scope &scope) {
-        scope.contexts.remove_by_key(key);
-    });
-    flush_scope();
+    Scope::with_scope_mut(
+        [key](Scope &scope) { scope.contexts.remove_by_key(key); });
 }
 
 void sentry_set_fingerprint(const char *fingerprint, ...) {
@@ -169,10 +156,9 @@ void sentry_set_fingerprint(const char *fingerprint, ...) {
     }
     va_end(va);
 
-    Scope::with_scope([fingerprint_value](Scope &scope) {
+    Scope::with_scope_mut([fingerprint_value](Scope &scope) {
         scope.fingerprint = fingerprint_value;
     });
-    flush_scope();
 }
 
 void sentry_remove_fingerprint(void) {
@@ -180,10 +166,8 @@ void sentry_remove_fingerprint(void) {
 }
 
 void sentry_set_transaction(const char *transaction) {
-    Scope::with_scope([transaction](Scope &scope) {
-        scope.transaction = transaction;
-    });
-    flush_scope();
+    Scope::with_scope_mut(
+        [transaction](Scope &scope) { scope.transaction = transaction; });
 }
 
 void sentry_remove_transaction() {
@@ -191,10 +175,7 @@ void sentry_remove_transaction() {
 }
 
 void sentry_set_level(sentry_level_t level) {
-    Scope::with_scope([level](Scope &scope) {
-        scope.level = level;
-    });
-    flush_scope();
+    Scope::with_scope_mut([level](Scope &scope) { scope.level = level; });
 }
 
 void sentry_string_free(char *str) {

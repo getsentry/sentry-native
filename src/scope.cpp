@@ -11,9 +11,20 @@ using namespace sentry;
 static Scope g_scope;
 static std::mutex scope_lock;
 
-void Scope::with_scope(std::function<void(Scope &)> func) {
+void Scope::with_scope(std::function<void(const Scope &)> func) {
     std::lock_guard<std::mutex> _slck(scope_lock);
     func(g_scope);
+}
+
+void Scope::with_scope_mut(std::function<void(Scope &)> func) {
+    std::lock_guard<std::mutex> _slck(scope_lock);
+    const sentry_options_t *opts = sentry_get_options();
+    if (opts && !opts->dsn.disabled()) {
+        func(g_scope);
+        if (opts->backend) {
+            opts->backend->flush_scope(g_scope);
+        }
+    }
 }
 
 static std::vector<Value> find_stacktraces_in_event(Value event) {
