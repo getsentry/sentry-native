@@ -22,7 +22,6 @@ struct SignalSlot {
 };
 
 static const size_t MAX_FRAMES = 128;
-static Value g_event;
 
 // we need quite a bit of space for backtrace generation
 static const size_t SIGNAL_COUNT = 6;
@@ -74,6 +73,9 @@ static void handle_signal(int signum, siginfo_t *info, void *user_context) {
 
     // this entire part is not yet async safe but must become
     {
+        Value event = Value::new_event();
+        event.set_by_key("level", Value::new_level(SENTRY_LEVEL_FATAL));
+
         Value exc = Value::new_object();
         exc.set_by_key("type",
                        Value::new_string(SIGNAL_DEFINITIONS[signum].signame));
@@ -81,7 +83,8 @@ static void handle_signal(int signum, siginfo_t *info, void *user_context) {
                        Value::new_string(SIGNAL_DEFINITIONS[signum].sigdesc));
 
         void *backtrace[MAX_FRAMES];
-        size_t frame_count = unwind_stack(nullptr, &uctx, &backtrace[0], MAX_FRAMES);
+        size_t frame_count =
+            unwind_stack(nullptr, &uctx, &backtrace[0], MAX_FRAMES);
 
         Value frames = Value::new_list();
         for (size_t i = 0; i < frame_count; i++) {
@@ -101,9 +104,13 @@ static void handle_signal(int signum, siginfo_t *info, void *user_context) {
         Value values = Value::new_list();
         exceptions.set_by_key("values", values);
         values.append(exc);
-        g_event.set_by_key("exception", exceptions);
+        event.set_by_key("exception", exceptions);
 
-        Envelope e(g_event);
+        Scope::with_scope([](Scope &scope) {
+            scope.apply_to_event(event, SENTRY_SCOPE_ALL);
+        });
+
+        Envelope e(event);
         const sentry_options_t *opts = sentry_get_options();
         opts->transport->send_envelope(e);
     }
@@ -128,13 +135,6 @@ InprocBackend::~InprocBackend() {
 void InprocBackend::start() {
     sigaltstack(&g_signal_stack, 0);
 
-    // HACK HACK HACK
-    g_event = Value::new_event();
-    g_event.set_by_key("level", Value::new_level(SENTRY_LEVEL_FATAL));
-
-    Scope::with_scope(
-        [](Scope &scope) { scope.apply_to_event(g_event, SENTRY_SCOPE_ALL); });
-
     for (size_t i = 0; i < SIGNAL_COUNT; ++i) {
         if (sigaction(SIGNAL_DEFINITIONS[i].signum, nullptr,
                       &g_previous_handlers[i]) == -1) {
@@ -148,15 +148,6 @@ void InprocBackend::start() {
 
     // not that any of this matters ...
     std::atomic_signal_fence(std::memory_order_release);
-}
-
-void InprocBackend::flush_scope(const sentry::Scope &scope) {
-    // HACK HACK HACK
-    g_event = Value::new_event();
-    scope.apply_to_event(g_event, SENTRY_SCOPE_ALL);
-}
-
-void InprocBackend::add_breadcrumb(sentry::Value breadcrumb) {
 }
 
 #endif
