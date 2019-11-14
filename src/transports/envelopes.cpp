@@ -118,12 +118,16 @@ Envelope::Envelope() : m_headers(Value::new_object()) {
 }
 
 Envelope::Envelope(Value event) : Envelope() {
+    const sentry_options_t *opts = sentry_get_options();
     // envelopes require an event_id.
     if (event.get_by_key("event_id").is_null()) {
         sentry_uuid_t event_id = sentry_uuid_new_v4();
         event.set_by_key("event_id", Value::new_uuid(&event_id));
     }
     m_headers.set_by_key("event_id", event.get_by_key("event_id"));
+    if (opts) {
+        m_headers.set_by_key("dsn", Value::new_string(opts->dsn.raw()));
+    }
     add_item(EnvelopeItem(event));
 }
 
