@@ -78,13 +78,15 @@ int dl_iterate_callback(struct dl_phdr_info *dl_info, size_t size, void *data) {
                     module.set_by_key("debug_id", Value::new_uuid(&uuid));
                     have_build_id = true;
                     break;
-                } else {
-                    // happens for a few modules and can error on the backend
-                    sentry_uuid_t empty_id = sentry_uuid_nil();
-                    module.set_by_key("debug_id", Value::new_uuid(&empty_id));
                 }
             }
         }
+    }
+
+    if (module.get_by_key("debug_id").is_null()) {
+        // happens for a few modules and can error on the backend
+        sentry_uuid_t empty_id = sentry_uuid_nil();
+        module.set_by_key("debug_id", Value::new_uuid(&empty_id));
     }
 
     module.set_by_key("type", Value::new_string("elf"));
