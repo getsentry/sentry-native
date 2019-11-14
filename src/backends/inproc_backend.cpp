@@ -106,7 +106,7 @@ static void handle_signal(int signum, siginfo_t *info, void *user_context) {
         values.append(exc);
         event.set_by_key("exception", exceptions);
 
-        Scope::with_scope([](Scope &scope) {
+        Scope::with_scope([&event](Scope &scope) {
             scope.apply_to_event(event, SENTRY_SCOPE_ALL);
         });
 
