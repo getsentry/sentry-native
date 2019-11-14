@@ -81,6 +81,13 @@ void WinHttpTransport::send_envelope(Envelope envelope) {
                     m_session = WinHttpOpen(
                         user_agent.c_str(), WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
                         WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
+                    // On windows 7, WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY does not work
+                    // on error we fallback to WINHTTP_ACCESS_TYPE_NO_PROXY
+                    if (!m_session) {
+                        m_session = WinHttpOpen(
+                            user_agent.c_str(), WINHTTP_ACCESS_TYPE_NO_PROXY,
+                            WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
+                    }
                 }
             }
 
