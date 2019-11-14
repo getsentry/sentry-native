@@ -6,6 +6,7 @@
 #include <atomic>
 #include <cmath>
 #include <map>
+#include <mutex>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -31,7 +32,10 @@ enum ThingType {
 class Thing {
    public:
     Thing(void *ptr, ThingType type)
-        : m_payload(ptr), m_type(type), m_refcount(1) {
+        : m_payload(ptr),
+          m_type(type),
+          m_refcount(1),
+          m_frozen(type == THING_TYPE_STRING) {
     }
 
     ~Thing() {
@@ -58,8 +62,16 @@ class Thing {
         }
     }
 
+    void freeze() {
+        m_frozen = true;
+    }
+
     size_t refcount() const {
         return m_refcount;
+    }
+
+    bool is_frozen() const {
+        return m_frozen;
     }
 
     ThingType type() const {
@@ -93,10 +105,79 @@ class Thing {
     Thing() = delete;
     Thing(const Thing &other) = delete;
     Thing &operator=(const Thing &other) = delete;
+    friend class ThingPtr;
 
     void *m_payload;
     ThingType m_type;
+    bool m_frozen;
     std::atomic_size_t m_refcount;
+    std::recursive_mutex m_lock;
+};
+
+class ThingPtr {
+   public:
+    ThingPtr() : m_thing(nullptr) {
+    }
+
+    explicit ThingPtr(Thing *thing) : m_thing(thing) {
+        if (m_thing) {
+            m_thing->m_lock.lock();
+        }
+    }
+
+    ThingPtr(const ThingPtr &other) : ThingPtr(other.m_thing) {
+    }
+
+    ThingPtr(ThingPtr &&other) : m_thing(other.m_thing) {
+        other.m_thing = nullptr;
+    }
+
+    ThingPtr &operator=(const ThingPtr &other) {
+        if (m_thing != other.m_thing) {
+            m_thing = other.m_thing;
+            if (m_thing) {
+                m_thing->m_lock.lock();
+            }
+        }
+
+        return *this;
+    }
+
+    ThingPtr &operator=(ThingPtr &&other) {
+        if (m_thing) {
+            m_thing->m_lock.unlock();
+        }
+
+        m_thing = other.m_thing;
+        other.m_thing = nullptr;
+
+        return *this;
+    }
+
+    ~ThingPtr() {
+        if (m_thing) {
+            m_thing->m_lock.unlock();
+        }
+    }
+
+    Thing &operator*() {
+        return *m_thing;
+    }
+
+    Thing *operator->() {
+        return m_thing;
+    }
+
+    bool operator!() const {
+        return !m_thing;
+    }
+
+    operator bool() const {
+        return m_thing;
+    }
+
+   private:
+    Thing *m_thing;
 };
 
 class Value {
@@ -107,7 +188,7 @@ class Value {
     static const uint64_t TAG_INT32 = 0xfff9000000000000ULL;
     static const uint64_t TAG_CONST = 0xfffa000000000000ULL;
 
-    Thing *as_thing() const {
+    Thing *as_thing_unlocked_unsafe() const {
         if (m_repr._bits <= MAX_DOUBLE) {
             return nullptr;
         } else if ((m_repr._bits & TAG_THING) == TAG_THING) {
@@ -115,6 +196,15 @@ class Value {
         } else {
             return nullptr;
         }
+    }
+
+    ThingPtr as_thing() const {
+        return ThingPtr(as_thing_unlocked_unsafe());
+    }
+
+    ThingPtr as_unfrozen_thing() const {
+        ThingPtr rv = as_thing();
+        return (rv && !rv->is_frozen()) ? rv : ThingPtr();
     }
 
     void set_null_unsafe() {
@@ -174,21 +264,28 @@ class Value {
     }
 
     void incref() const {
-        Thing *thing = as_thing();
+        Thing *thing = as_thing_unlocked_unsafe();
         if (thing) {
             thing->incref();
         }
     }
 
     void decref() const {
-        Thing *thing = as_thing();
+        Thing *thing = as_thing_unlocked_unsafe();
         if (thing) {
             thing->decref();
         }
     }
 
+    bool is_frozen() const {
+        ThingPtr thing = as_thing();
+        return !thing || thing->is_frozen();
+    }
+
+    void freeze();
+
     size_t refcount() const {
-        Thing *thing = as_thing();
+        ThingPtr thing = as_thing();
         if (thing) {
             return thing->refcount();
         } else {
@@ -299,37 +396,10 @@ class Value {
     sentry_uuid_t as_uuid() const;
 
     const char *as_cstr() const {
-        Thing *thing = as_thing();
+        ThingPtr thing = as_thing();
         return thing && thing->type() == THING_TYPE_STRING
                    ? ((std::string *)thing->ptr())->c_str()
                    : "";
-    }
-
-    List *as_list() {
-        Thing *thing = as_thing();
-        return thing && thing->type() == THING_TYPE_LIST ? (List *)thing->ptr()
-                                                         : nullptr;
-    }
-
-    const List *as_list() const {
-        Thing *thing = as_thing();
-        return thing && thing->type() == THING_TYPE_LIST
-                   ? (const List *)thing->ptr()
-                   : nullptr;
-    }
-
-    Object *as_object() {
-        Thing *thing = as_thing();
-        return thing && thing->type() == THING_TYPE_OBJECT
-                   ? (Object *)thing->ptr()
-                   : nullptr;
-    }
-
-    const Object *as_object() const {
-        Thing *thing = as_thing();
-        return thing && thing->type() == THING_TYPE_OBJECT
-                   ? (const Object *)thing->ptr()
-                   : nullptr;
     }
 
     bool as_bool() const {
@@ -365,7 +435,7 @@ class Value {
     bool merge_key(const char *key, Value value);
 
     bool append_bounded(Value value, size_t maxItems) {
-        Thing *thing = as_thing();
+        ThingPtr thing = as_unfrozen_thing();
         if (thing && thing->type() == THING_TYPE_LIST) {
             List *list = (List *)thing->ptr();
             if (list->size() >= maxItems) {
@@ -380,7 +450,7 @@ class Value {
     }
 
     bool reverse() {
-        Thing *thing = as_thing();
+        ThingPtr thing = as_unfrozen_thing();
         if (thing && thing->type() == THING_TYPE_LIST) {
             List *list = (List *)thing->ptr();
             std::reverse(list->begin(), list->end());
@@ -396,7 +466,7 @@ class Value {
     Value navigate(const char *path) const;
 
     bool set_by_key(const char *key, Value value) {
-        Thing *thing = as_thing();
+        ThingPtr thing = as_unfrozen_thing();
         if (thing && thing->type() == THING_TYPE_OBJECT) {
             Object *obj = (Object *)thing->ptr();
             (*obj)[key] = value;
@@ -406,7 +476,7 @@ class Value {
     }
 
     bool remove_by_key(const char *key) {
-        Thing *thing = as_thing();
+        ThingPtr thing = as_unfrozen_thing();
         if (thing && thing->type() == THING_TYPE_OBJECT) {
             Object *object = (Object *)thing->ptr();
             Object::iterator iter = object->find(key);
@@ -419,7 +489,7 @@ class Value {
     }
 
     bool set_by_index(size_t index, Value value) {
-        Thing *thing = as_thing();
+        ThingPtr thing = as_unfrozen_thing();
         if (thing && thing->type() == THING_TYPE_LIST) {
             List *list = (List *)thing->ptr();
             if (index >= list->size()) {
@@ -432,7 +502,7 @@ class Value {
     }
 
     bool remove_by_index(size_t index) {
-        Thing *thing = as_thing();
+        ThingPtr thing = as_unfrozen_thing();
         if (thing && thing->type() == THING_TYPE_LIST) {
             List *list = (List *)thing->ptr();
             if (index >= list->size()) {
@@ -445,7 +515,7 @@ class Value {
     }
 
     Value get_by_key(const char *key) const {
-        Thing *thing = as_thing();
+        ThingPtr thing = as_thing();
         if (thing && thing->type() == THING_TYPE_OBJECT) {
             const Object *object = (const Object *)thing->ptr();
             Object::const_iterator iter = object->find(key);
@@ -457,7 +527,7 @@ class Value {
     }
 
     Value get_by_index(size_t index) const {
-        Thing *thing = as_thing();
+        ThingPtr thing = as_thing();
         if (thing && thing->type() == THING_TYPE_LIST) {
             const List *list = (const List *)thing->ptr();
             if (index < list->size()) {
@@ -468,7 +538,7 @@ class Value {
     }
 
     size_t length() const {
-        Thing *thing = as_thing();
+        ThingPtr thing = as_thing();
         if (thing && thing->type() == THING_TYPE_LIST) {
             return ((const List *)thing->ptr())->size();
         } else if (thing && thing->type() == THING_TYPE_OBJECT) {
@@ -476,7 +546,7 @@ class Value {
         } else if (thing && thing->type() == THING_TYPE_STRING) {
             return ((const std::string *)thing->ptr())->size();
         }
-        return -1;
+        return 0;
     }
 
     void to_msgpack(mpack_writer_t *writer) const;
@@ -505,8 +575,8 @@ class Value {
         if (type() != rhs.type()) {
             return false;
         }
-        Thing *thisThing = as_thing();
-        Thing *otherThing = rhs.as_thing();
+        ThingPtr thisThing = as_thing();
+        ThingPtr otherThing = rhs.as_thing();
 
         if (!thisThing) {
             if (otherThing) {
