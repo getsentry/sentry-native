@@ -114,7 +114,7 @@ void remove_image(const mach_header *mh, intptr_t vmaddr_slide) {
     }
 
     char ref_addr[100];
-    sprintf(ref_addr, "0x%llx", (long long)info.dli_fbase);
+    snprintf(ref_addr, sizeof(ref_addr), "0x%llx", (long long)info.dli_fbase);
     Value new_modules = Value::new_list();
 
     for (size_t i = 0; i < g_modules.length(); i++) {
