@@ -68,11 +68,11 @@ int dl_iterate_callback(struct dl_phdr_info *dl_info, size_t size, void *data) {
                     sentry_uuid_t uuid = sentry_uuid_from_bytes(note);
 
                     char *uuid_bytes = (char *)&uuid.native_uuid;
-                    uint32_t *a = (uint32_t *)&uuid_bytes;
+                    uint32_t *a = (uint32_t *)uuid_bytes;
                     *a = htonl(*a);
-                    uint16_t *b = (uint16_t *)&uuid_bytes + 4;
+                    uint16_t *b = (uint16_t *)(uuid_bytes + 4);
                     *b = htons(*b);
-                    uint16_t *c = (uint16_t *)&uuid_bytes + 6;
+                    uint16_t *c = (uint16_t *)(uuid_bytes + 6);
                     *c = htons(*c);
 
                     module.set_by_key("debug_id", Value::new_uuid(&uuid));
