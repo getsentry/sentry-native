@@ -238,7 +238,7 @@ bool Path::create_directories() const {
     char *p = strdup(path);
     char *ptr;
     for (ptr = p; *ptr; ptr++) {
-        if (*ptr == '/') {
+        if (*ptr == '/' && ptr != p) {
             *ptr = 0;
             _TRY_MAKE_DIR;
             *ptr = '/';
