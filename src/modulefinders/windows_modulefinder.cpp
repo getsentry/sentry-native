@@ -71,7 +71,7 @@ static void extract_pdb_info(uintptr_t module_addr, Value &module) {
     snprintf(id_buf + 37, 10, "%x", debug_info->pdb_age);
     module.set_by_key("debug_id", Value::new_string(id_buf));
 
-    snprintf(id_buf, size_of(id_buf), "%08x%X",
+    snprintf(id_buf, sizeof(id_buf), "%08x%X",
              nt_headers->FileHeader.TimeDateStamp,
              nt_headers->OptionalHeader.SizeOfImage);
     module.set_by_key("code_id", Value::new_string(id_buf));
