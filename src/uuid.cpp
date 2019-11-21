@@ -71,7 +71,7 @@ sentry_uuid_t sentry_uuid_new_v4() {
         return sentry_uuid_nil();
     }
     fclose(fd);
-    buf[6] = buf[6] & 0x0f | 0x40;
+    buf[6] = (buf[6] & 0x0f) | 0x40;
     return sentry_uuid_from_bytes(buf);
 }
 

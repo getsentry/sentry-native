@@ -7,6 +7,7 @@
 #include <sstream>
 
 #include "io.hpp"
+#include "json.hpp"
 #include "unwind.hpp"
 #include "value.hpp"
 
@@ -45,7 +46,7 @@ bool Thing::operator==(const Thing &rhs) const {
 }
 
 Value Value::clone() const {
-    Thing *thing = as_thing();
+    ThingPtr thing = as_thing();
     if (thing) {
         Value clone;
         switch (thing->type()) {
@@ -74,6 +75,34 @@ Value Value::clone() const {
         return clone;
     } else {
         return *this;
+    }
+}
+
+void Value::freeze() {
+    ThingPtr thing = as_thing();
+    if (!thing) {
+        return;
+    }
+    thing->freeze();
+    switch (thing->type()) {
+        case THING_TYPE_LIST: {
+            List *list = (List *)as_thing()->ptr();
+            for (List::iterator iter = list->begin(); iter != list->end();
+                 ++iter) {
+                iter->freeze();
+            }
+            break;
+        }
+        case THING_TYPE_OBJECT: {
+            Object *obj = (Object *)as_thing()->ptr();
+            for (Object::iterator iter = obj->begin(); iter != obj->end();
+                 ++iter) {
+                iter->second.freeze();
+            }
+            break;
+        }
+        case THING_TYPE_STRING: {
+        }
     }
 }
 
@@ -134,94 +163,49 @@ char *Value::to_msgpack_string(size_t *size_out) const {
     return buf;
 }
 
-static void json_serialize_string(const char *ptr, IoWriter &writer) {
-    writer.write_char('"');
-    for (; *ptr; ptr++) {
-        switch (*ptr) {
-            case '\\':
-                writer.write_str("\\\\");
-                break;
-            case '"':
-                writer.write_str("\\\"");
-                break;
-            case '\b':
-                writer.write_str("\\b");
-                break;
-            case '\f':
-                writer.write_str("\\f");
-                break;
-            case '\n':
-                writer.write_str("\\n");
-                break;
-            case '\r':
-                writer.write_str("\\r");
-                break;
-            case '\t':
-                writer.write_str("\\t");
-                break;
-            default:
-                if (*ptr < 32) {
-                    char buf[10];
-                    sprintf(buf, "u%04x", *ptr);
-                    writer.write_str(buf);
-                } else {
-                    writer.write_char(*ptr);
-                }
-        }
-    }
-    writer.write_char('"');
+void Value::to_json(IoWriter &writer) const {
+    JsonWriter jw(writer);
+    to_json(jw);
 }
 
-void Value::to_json(IoWriter &writer) const {
+void Value::to_json(JsonWriter &jw) const {
     switch (this->type()) {
         case SENTRY_VALUE_TYPE_NULL:
-            writer.write_str("null");
+            jw.write_null();
             break;
         case SENTRY_VALUE_TYPE_BOOL:
-            writer.write_str(this->as_bool() ? "true" : "false");
+            jw.write_bool(this->as_bool());
             break;
         case SENTRY_VALUE_TYPE_INT32:
-            writer.write_int32(this->as_int32());
+            jw.write_int32(this->as_int32());
             break;
         case SENTRY_VALUE_TYPE_DOUBLE: {
-            double val = this->as_double();
-            if (std::isnan(val) || std::isinf(val)) {
-                writer.write_str("null");
-            } else {
-                writer.write_double(val);
-            }
+            jw.write_double(this->as_double());
             break;
         }
         case SENTRY_VALUE_TYPE_STRING: {
-            json_serialize_string(as_cstr(), writer);
+            jw.write_str(as_cstr());
             break;
         }
         case SENTRY_VALUE_TYPE_LIST: {
             const List *list = (const List *)as_thing()->ptr();
-            writer.write_char('[');
+            jw.write_list_start();
             for (List::const_iterator iter = list->begin(); iter != list->end();
                  ++iter) {
-                if (iter != list->begin()) {
-                    writer.write_char(',');
-                }
-                iter->to_json(writer);
+                iter->to_json(jw);
             }
-            writer.write_char(']');
+            jw.write_list_end();
             break;
         }
         case SENTRY_VALUE_TYPE_OBJECT: {
+            jw.write_object_start();
             const Object *object = (const Object *)as_thing()->ptr();
-            writer.write_char('{');
             for (Object::const_iterator iter = object->begin();
                  iter != object->end(); ++iter) {
-                if (iter != object->begin()) {
-                    writer.write_char(',');
-                }
-                json_serialize_string(iter->first.c_str(), writer);
-                writer.write_char(':');
-                iter->second.to_json(writer);
+                jw.write_key(iter->first.c_str());
+                iter->second.to_json(jw);
             }
-            writer.write_char('}');
+            jw.write_object_end();
             break;
         }
     }
@@ -422,6 +406,14 @@ void sentry_value_incref(sentry_value_t value) {
 
 void sentry_value_decref(sentry_value_t value) {
     Value::consume(value);
+}
+
+void sentry_value_freeze(sentry_value_t value) {
+    Value(value).freeze();
+}
+
+int sentry_value_is_frozen(sentry_value_t value) {
+    return Value(value).is_frozen();
 }
 
 sentry_value_type_t sentry_value_get_type(sentry_value_t value) {

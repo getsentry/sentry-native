@@ -63,16 +63,16 @@ int dl_iterate_callback(struct dl_phdr_info *dl_info, size_t size, void *data) {
                 offset += (size_t)nhdr->n_descsz;
                 align(alignment, &offset);
                 if (nhdr->n_type == NT_GNU_BUILD_ID) {
-                    module.set_by_key(
-                        "code_id", Value::new_hexstring(note, nhdr->n_descsz));
+                    Value code_id = Value::new_hexstring(note, nhdr->n_descsz);
+                    module.set_by_key("code_id", code_id);
                     sentry_uuid_t uuid = sentry_uuid_from_bytes(note);
 
                     char *uuid_bytes = (char *)&uuid.native_uuid;
-                    uint32_t *a = (uint32_t *)&uuid_bytes;
+                    uint32_t *a = (uint32_t *)uuid_bytes;
                     *a = htonl(*a);
-                    uint16_t *b = (uint16_t *)&uuid_bytes + 4;
+                    uint16_t *b = (uint16_t *)(uuid_bytes + 4);
                     *b = htons(*b);
-                    uint16_t *c = (uint16_t *)&uuid_bytes + 6;
+                    uint16_t *c = (uint16_t *)(uuid_bytes + 6);
                     *c = htons(*c);
 
                     module.set_by_key("debug_id", Value::new_uuid(&uuid));
@@ -81,6 +81,12 @@ int dl_iterate_callback(struct dl_phdr_info *dl_info, size_t size, void *data) {
                 }
             }
         }
+    }
+
+    if (module.get_by_key("debug_id").is_null()) {
+        // happens for a few modules and can error on the backend
+        sentry_uuid_t empty_id = sentry_uuid_nil();
+        module.set_by_key("debug_id", Value::new_uuid(&empty_id));
     }
 
     module.set_by_key("type", Value::new_string("elf"));
@@ -108,6 +114,7 @@ Value modulefinders::get_module_list() {
     if (!g_initialized) {
         g_modules = Value::new_list();
         dl_iterate_phdr(dl_iterate_callback, nullptr);
+        g_modules.freeze();
         g_initialized = true;
     }
     return g_modules;

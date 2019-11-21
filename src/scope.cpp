@@ -1,3 +1,5 @@
+#include <mutex>
+
 #include "modulefinder.hpp"
 #include "options.hpp"
 #include "symbolize.hpp"
@@ -5,6 +7,25 @@
 #include "scope.hpp"
 
 using namespace sentry;
+
+static Scope g_scope;
+static std::mutex scope_lock;
+
+void Scope::with_scope(std::function<void(const Scope &)> func) {
+    std::lock_guard<std::mutex> _slck(scope_lock);
+    func(g_scope);
+}
+
+void Scope::with_scope_mut(std::function<void(Scope &)> func) {
+    std::lock_guard<std::mutex> _slck(scope_lock);
+    const sentry_options_t *opts = sentry_get_options();
+    if (opts && !opts->dsn.disabled()) {
+        func(g_scope);
+        if (opts->backend) {
+            opts->backend->flush_scope(g_scope);
+        }
+    }
+}
 
 static std::vector<Value> find_stacktraces_in_event(Value event) {
     std::vector<Value> rv;
@@ -19,14 +40,10 @@ static std::vector<Value> find_stacktraces_in_event(Value event) {
         threads = threads.get_by_key("values");
     }
 
-    List *thread_list = threads.as_list();
-    if (thread_list) {
-        for (auto iter = thread_list->begin(); iter != thread_list->end();
-             ++iter) {
-            Value stacktrace = iter->get_by_key("stacktrace");
-            if (stacktrace.type() == SENTRY_VALUE_TYPE_OBJECT) {
-                rv.push_back(stacktrace);
-            }
+    for (size_t i = 0, n = threads.length(); i < n; i++) {
+        Value stacktrace = threads.get_by_index(i).get_by_key("stacktrace");
+        if (stacktrace.type() == SENTRY_VALUE_TYPE_OBJECT) {
+            rv.push_back(stacktrace);
         }
     }
 
@@ -38,14 +55,10 @@ static std::vector<Value> find_stacktraces_in_event(Value event) {
         }
     }
 
-    List *exception_list = exc.as_list();
-    if (exception_list) {
-        for (auto iter = exception_list->begin(); iter != exception_list->end();
-             ++iter) {
-            Value stacktrace = iter->get_by_key("stacktrace");
-            if (stacktrace.type() == SENTRY_VALUE_TYPE_OBJECT) {
-                rv.push_back(stacktrace);
-            }
+    for (size_t i = 0, n = exc.length(); i < n; i++) {
+        Value stacktrace = exc.get_by_index(i).get_by_key("stacktrace");
+        if (stacktrace.type() == SENTRY_VALUE_TYPE_OBJECT) {
+            rv.push_back(stacktrace);
         }
     }
 
@@ -53,13 +66,13 @@ static std::vector<Value> find_stacktraces_in_event(Value event) {
 }
 
 static void postprocess_stacktrace(Value stacktrace) {
-    List *frames = stacktrace.get_by_key("frames").as_list();
-    if (!frames) {
+    Value frames = stacktrace.get_by_key("frames");
+    if (frames.is_null() || frames.length() == 0) {
         return;
     }
 
-    for (auto iter = frames->begin(); iter != frames->end(); ++iter) {
-        Value frame = *iter;
+    for (size_t i = 0, n = frames.length(); i < n; i++) {
+        Value frame = frames.get_by_index(i);
         Value addr_value = frame.get_by_key("instruction_addr");
         if (addr_value.is_null()) {
             continue;
@@ -95,6 +108,10 @@ static void postprocess_stacktrace(Value stacktrace) {
 void Scope::apply_to_event(Value &event, ScopeMode mode) const {
     const sentry_options_t *options = sentry_get_options();
 
+    if (event.get_by_key("platform").is_null()) {
+        event.set_by_key("platform", Value::new_string("native"));
+    }
+
     if (!options->release.empty()) {
         event.set_by_key("release",
                          Value::new_string(options->release.c_str()));
@@ -125,8 +142,10 @@ void Scope::apply_to_event(Value &event, ScopeMode mode) const {
         event.set_by_key("fingerprint", fingerprint);
     }
 
+    // make sure to clone the breadcrumbs so that concurrent modifications
+    // on the list after the scope lock was released do not cause a crash.
     if ((mode & SENTRY_SCOPE_BREADCRUMBS) && breadcrumbs.length() > 0) {
-        event.merge_key("breadcrumbs", breadcrumbs);
+        event.merge_key("breadcrumbs", breadcrumbs.clone());
     }
 
     static Value shared_sdk_info;
@@ -142,6 +161,7 @@ void Scope::apply_to_event(Value &event, ScopeMode mode) const {
         Value packages = Value::new_list();
         packages.append(package);
         sdk_info.set_by_key("packages", packages);
+        sdk_info.freeze();
         shared_sdk_info = sdk_info;
     }
 

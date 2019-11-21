@@ -88,3 +88,44 @@ TEST_CASE("value refcounting", "[value]") {
     REQUIRE(val.refcount() == 2);
     REQUIRE(val2.refcount() == 2);
 }
+
+TEST_CASE("value json writing", "[value]") {
+    sentry::Value event = sentry::Value::new_object();
+    sentry::Value stacktrace = sentry::Value::new_list();
+    sentry::Value frame = sentry::Value::new_object();
+    frame.set_by_key("instruction_addr", sentry::Value::new_addr(0));
+    stacktrace.append(frame);
+    stacktrace.append(frame);
+    stacktrace.append(frame);
+    event.set_by_key("stacktrace", stacktrace);
+    event.set_by_key("extra_stuff", sentry::Value::new_int32(0));
+    REQUIRE(
+        event.to_json() ==
+        std::string(
+            "{\"extra_stuff\":0,\"stacktrace\":[{\"instruction_addr\":\"0x0\"},"
+            "{\"instruction_addr\":\"0x0\"},{\"instruction_addr\":\"0x0\"}]}"));
+}
+
+TEST_CASE("value freezing", "[value]") {
+    sentry::Value int_val = sentry::Value::new_int32(42);
+    REQUIRE(int_val.is_frozen() == true);
+
+    sentry::Value list_val = sentry::Value::new_list();
+    REQUIRE(list_val.is_frozen() == false);
+    list_val.append(sentry::Value::new_object());
+    list_val.append(sentry::Value::new_int32(0));
+    list_val.append(sentry::Value::new_int32(1));
+    list_val.append(sentry::Value::new_int32(2));
+    REQUIRE(list_val.get_by_index(0).is_frozen() == false);
+    REQUIRE(list_val.is_frozen() == false);
+    list_val.freeze();
+    REQUIRE(list_val.is_frozen() == true);
+    REQUIRE(list_val.get_by_index(0).is_frozen() == true);
+
+    sentry::Value list_clone_val = list_val.clone();
+    REQUIRE(list_clone_val.is_frozen() == false);
+    REQUIRE(list_val.get_by_index(0).is_frozen() == true);
+
+    sentry::Value string_val = sentry::Value::new_string("hello");
+    REQUIRE(string_val.is_frozen() == true);
+}

@@ -39,6 +39,13 @@ class Url {
         return m_password.c_str();
     }
 
+    void trim_trailing_slashes() {
+        while (!m_path.empty() && m_path != "/" &&
+               m_path[m_path.size() - 1] == '/') {
+            m_path.resize(m_path.size() - 1);
+        }
+    }
+
    private:
     std::string m_scheme;
     std::string m_host;

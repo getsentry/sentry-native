@@ -57,7 +57,8 @@ bool FileIoWriter::open(const Path &path, const char *mode) {
             default:;
         }
     }
-    m_fd = ::open(path.as_osstr(), flags);
+    m_fd = ::open(path.as_osstr(), flags,
+                  S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH);
     return m_fd >= 0;
 #endif
 }
@@ -69,6 +70,7 @@ void FileIoWriter::write(const char *buf, size_t len) {
         memcpy(m_buf + m_buflen, buf, can_write);
         m_buflen += can_write;
         to_write -= can_write;
+        buf += can_write;
         if (m_buflen == BUF_SIZE) {
             flush();
         }

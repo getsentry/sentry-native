@@ -21,6 +21,7 @@ function sentry_native_common()
   filter "system:android"
     defines {
       "SENTRY_WITH_NULL_UNWINDER",
+      "SENTRY_WITH_INPROC_BACKEND",
     }
     links {
       "log",

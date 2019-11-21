@@ -1,3 +1,4 @@
+#include <cctype>
 #include <cstring>
 #include <sstream>
 
@@ -24,6 +25,7 @@ Dsn::Dsn(const char *dsn)
     }
 
     Url url(dsn);
+    url.trim_trailing_slashes();
     if (!url.valid()) {
         return;
     }
@@ -63,6 +65,19 @@ Dsn::Dsn(const char *dsn)
     ss << "Sentry sentry_key=" << m_public_key << ", sentry_version=7, "
        << "sentry_client=" << SENTRY_SDK_USER_AGENT;
     m_auth_header = ss.str();
+
+    // make raw a canonical dsn
+    ss.str("");
+    ss << scheme() << "://" << m_public_key << ":" << m_private_key << "@";
+    const char *ptr = m_host.c_str();
+    while (*ptr) {
+        ss << (char)std::tolower(*ptr++);
+    }
+    if (!((is_secure() && m_port == 443) || (!is_secure() && m_port == 80))) {
+        ss << ":" << m_port;
+    }
+    ss << "/" << m_path << m_project_id;
+    m_raw = ss.str();
 }
 
 std::string Dsn::get_attachment_url(const sentry_uuid_t *event_id) const {

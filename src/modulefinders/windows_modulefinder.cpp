@@ -115,6 +115,7 @@ Value modulefinders::get_module_list() {
     if (!g_initialized) {
         load_modules();
         g_initialized = true;
+        g_modules.freeze();
     }
     return g_modules;
 }
