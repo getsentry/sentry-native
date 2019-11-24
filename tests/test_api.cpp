@@ -116,7 +116,7 @@ TEST_CASE("send message event", "[api]") {
 
         REQUIRE(event_out.get_by_key("level").as_cstr() ==
                 std::string("warning"));
-        REQUIRE(event_out.get_by_key("message").as_cstr() ==
+        REQUIRE(event_out.navigate("message.formatted").as_cstr() ==
                 std::string("Hello World!"));
         REQUIRE(event_out.get_by_key("logger").as_cstr() ==
                 std::string("root_logger"));
