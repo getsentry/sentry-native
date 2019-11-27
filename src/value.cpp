@@ -499,7 +499,9 @@ sentry_value_t sentry_value_new_message_event(sentry_level_t level,
         event.set_by_key("logger", Value::new_string(logger));
     }
     if (text) {
-        event.set_by_key("message", Value::new_string(text));
+        Value container = Value::new_object();
+        container.set_by_key("formatted", Value::new_string(text));
+        event.set_by_key("message", container);
     }
     return event.lower();
 }
