@@ -129,7 +129,7 @@ bool Path::create_directories() const {
         rv == ERROR_FILE_EXISTS) {
         return true;
     } else {
-        SENTRY_LOGF("mkdir (%s) failed: %d", p, rv);
+        SENTRY_LOGF("mkdir (%S) failed: %d", m_path.c_str(), rv);
         return false;
     }
 }
