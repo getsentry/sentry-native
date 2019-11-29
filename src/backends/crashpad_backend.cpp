@@ -86,8 +86,13 @@ void CrashpadBackend::start() {
 }
 
 void CrashpadBackend::flush_scope(const sentry::Scope &scope) {
+    // if we can't open the file, fail silently.
+    FILE *f = event_filename.open("wb");
+    if (!f) {
+        return;
+    }
     mpack_writer_t writer;
-    mpack_writer_init_stdfile(&writer, event_filename.open("wb"), true);
+    mpack_writer_init_stdfile(&writer, f, true);
     Value event = Value::new_object();
     scope.apply_to_event(event, SENTRY_SCOPE_NONE);
     event.to_msgpack(&writer);
