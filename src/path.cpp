@@ -140,17 +140,24 @@ FILE *Path::open(const char *mode) const {
 }
 
 bool Path::filename_matches(const char *other) const {
-    const wchar_t *ptr = wcsrchr(m_path.c_str(), L'/');
-    if (!ptr) {
-        ptr = wcsrchr(m_path.c_str(), L'\\');
+    const wchar_t *s = m_path.c_str();
+    const wchar_t *ptr = s;
+    size_t idx = m_path.size();
+
+    while (true) {
+        if (s[idx] == L'/' || s[idx] == '\\') {
+            ptr = s + idx;
+            break;
+        }
+        if (idx > 0) {
+            idx -= 1;
+        } else {
+            break;
+        }
     }
-    if (!ptr) {
-        ptr = m_path.c_str();
-    } else {
-        ptr++;
-    }
+
     std::wstring wother = cstr_to_wstr(other);
-    return wcscmp(ptr, wother.c_str()) == 0;
+    return _wcsicmp(ptr, wother.c_str()) == 0;
 }
 #else
 PathIterator::PathIterator(const Path *path) {
