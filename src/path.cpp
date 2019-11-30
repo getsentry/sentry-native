@@ -146,7 +146,7 @@ bool Path::filename_matches(const char *other) const {
 
     while (true) {
         if (s[idx] == L'/' || s[idx] == '\\') {
-            ptr = s + idx;
+            ptr = s + idx + 1;
             break;
         }
         if (idx > 0) {
