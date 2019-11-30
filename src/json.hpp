@@ -114,7 +114,7 @@ class JsonWriter {
                 default:
                     if (*ptr < 32) {
                         char buf[10];
-                        sprintf(buf, "u%04x", *ptr);
+                        snprintf(buf, sizeof(buf), "u%04x", *ptr);
                         m_writer.write_str(buf);
                     } else {
                         m_writer.write_char(*ptr);
