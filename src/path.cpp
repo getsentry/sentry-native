@@ -125,8 +125,13 @@ bool Path::create_directories() const {
     }
 
     int rv = SHCreateDirectoryExW(nullptr, abs_path, nullptr);
-    return rv == ERROR_SUCCESS || rv == ERROR_ALREADY_EXISTS ||
-           rv == ERROR_FILE_EXISTS;
+    if (rv == ERROR_SUCCESS || rv == ERROR_ALREADY_EXISTS ||
+        rv == ERROR_FILE_EXISTS) {
+        return true;
+    } else {
+        SENTRY_LOGF("mkdir (%S) failed: %d", m_path.c_str(), rv);
+        return false;
+    }
 }
 
 FILE *Path::open(const char *mode) const {
@@ -224,13 +229,14 @@ Path Path::join(const char *other) const {
 
 bool Path::create_directories() const {
     bool success = true;
-#define _TRY_MAKE_DIR                     \
-    do {                                  \
-        rv = mkdir(p, 0700);              \
-        if (rv != 0 && errno != EEXIST) { \
-            success = false;              \
-            goto done;                    \
-        }                                 \
+#define _TRY_MAKE_DIR                                       \
+    do {                                                    \
+        rv = mkdir(p, 0700);                                \
+        if (rv != 0 && errno != EEXIST) {                   \
+            SENTRY_LOGF("mkdir (%s) failed: %d", p, errno); \
+            success = false;                                \
+            goto done;                                      \
+        }                                                   \
     } while (0)
 
     const char *path = m_path.c_str();
