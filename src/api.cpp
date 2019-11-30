@@ -38,6 +38,10 @@ int sentry_init(sentry_options_t *options) {
     }
     cleanup_old_runs();
 
+    // make sure that the scopes are at least flushed once after the backend
+    // is started for the initial data to be written.
+    Scope::with_scope_mut([](Scope &_scope) { /* run for side effect */ });
+
     if (g_options->transport) {
         g_options->transport->start();
     }
