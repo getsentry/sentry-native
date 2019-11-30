@@ -68,11 +68,12 @@ static void extract_pdb_info(uintptr_t module_addr, Value &module) {
     char id_buf[50];
     sentry_uuid_as_string(&debug_id_base, id_buf);
     id_buf[36] = '-';
-    sprintf(id_buf + 37, "%x", debug_info->pdb_age);
+    snprintf(id_buf + 37, 10, "%x", debug_info->pdb_age);
     module.set_by_key("debug_id", Value::new_string(id_buf));
 
-    sprintf(id_buf, "%08x%X", nt_headers->FileHeader.TimeDateStamp,
-            nt_headers->OptionalHeader.SizeOfImage);
+    snprintf(id_buf, sizeof(id_buf), "%08x%X",
+             nt_headers->FileHeader.TimeDateStamp,
+             nt_headers->OptionalHeader.SizeOfImage);
     module.set_by_key("code_id", Value::new_string(id_buf));
     module.set_by_key("type", Value::new_string("pe"));
 }
