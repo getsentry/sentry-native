@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.3
+
+- Stack unwinding on Android
+- Fix UUID generation on Android
+- Fix concurrently captured events leaking data in some cases
+- Fix crashes when the database path contains both slashes and backslashes
+- More robust error handling when creating the database folder
+- Fix wrong initialization of CA info for the curl backend
+- Disable the system crash handler on macOS for faster crashes
+
 ## 0.1.2
 
 - Fix SafeSEH builds on Win32

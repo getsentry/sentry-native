@@ -11,7 +11,7 @@
 #include <sentry.h>
 
 #define SENTRY_SDK_NAME "sentry-native"
-#define SENTRY_SDK_VERSION "0.1.2"
+#define SENTRY_SDK_VERSION "0.1.3"
 #define SENTRY_SDK_USER_AGENT (SENTRY_SDK_NAME "/" SENTRY_SDK_VERSION)
 
 #define SENTRY_LOGF(message, ...)                                   \
