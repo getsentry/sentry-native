@@ -15,7 +15,7 @@ parameters:
 
 jobs:
   - job: sentry_native_${{ parameters.platform }}_{{ parameters.vmImage }}
-    displayName: Sentry-Native (${{ parameters.platform }}, {{ parameters.vmImage }})
+    displayName: Sentry-Native (${{ parameters.platform }} {{ parameters.vmImage }})
     continueOnError: ${{ parameters.continueOnError }}
     pool:
       vmImage: ${{ parameters.vmImage }}
