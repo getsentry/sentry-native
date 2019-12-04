@@ -48,7 +48,7 @@ jobs:
         displayName: "Package generated build files"
 
       - task: PublishBuildArtifacts@1
-        condition: ${{ not($parameters.skipPublish) }}
+        condition: ${{ not(parameters.skipPublish) }}
         inputs:
           pathtoPublish: "sentry-native-$(PLATFORM).zip"
           artifactName: $(ARTIFACT_DIR)
