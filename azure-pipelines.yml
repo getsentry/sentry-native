@@ -81,6 +81,31 @@ stages:
             # Run tests
             ./bin/Release/test_sentry
 
+      # Linux newer libc
+      - template: azure-pipelines/build-platform.yml
+        parameters:
+          vmImage: "ubuntu-19.10"
+          platform: "linux"
+          buildSystem: "gmake2"
+          installScript: |
+            BUILDER_IMAGE="us.gcr.io/sentryio/sentry-native:builder"
+            docker pull ${BUILDER_IMAGE} || true
+            make linux-build-env DOCKER_BUILD_ARGS="--cache-from ${BUILDER_IMAGE}"
+          buildScript: |
+            cd ..
+            CPUS=$(getconf _NPROCESSORS_ONLN)
+            # Run the commands inside a Docker container
+            make linux-run CMD="make -C premake help"
+            make linux-run CMD="make -C premake -j${CPUS}"
+          testScript: |
+            # Smoke tests
+            ./bin/Release/example || true
+            ./bin/Release/example_breakpad || true
+            ./bin/Release/example_breakpad || true
+
+            # Run tests
+            ./bin/Release/test_sentry
+
       # Windows
       - template: azure-pipelines/build-platform.yml
         parameters:
