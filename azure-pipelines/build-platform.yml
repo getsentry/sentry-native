@@ -2,6 +2,7 @@ parameters:
   vmImage: "macos-10.13"
   platform: "macosx"
   buildSystem: "gmake2"
+  skipPublish: false
   installScript: |
     echo "Skipping Install Step"
   buildScript: |
@@ -13,8 +14,8 @@ parameters:
   packageDirectory: "sentry-native"
 
 jobs:
-  - job: sentry_native_${{ parameters.platform }}
-    displayName: Sentry-Native (${{ parameters.platform }})
+  - job: sentry_native_${{ parameters.platform }}_{{ parameters.vmImage }}
+    displayName: Sentry-Native (${{ parameters.platform }}, {{ parameters.vmImage }})
     continueOnError: ${{ parameters.continueOnError }}
     pool:
       vmImage: ${{ parameters.vmImage }}
@@ -47,6 +48,7 @@ jobs:
         displayName: "Package generated build files"
 
       - task: PublishBuildArtifacts@1
+        condition: ${{ not($parameters.skipPublish) }}
         inputs:
           pathtoPublish: "sentry-native-$(PLATFORM).zip"
           artifactName: $(ARTIFACT_DIR)
