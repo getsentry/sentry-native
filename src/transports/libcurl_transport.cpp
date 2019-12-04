@@ -99,7 +99,7 @@ void LibcurlTransport::send_envelope(Envelope envelope) {
                                  opts->http_proxy.c_str());
             }
             if (!opts->ca_certs.empty()) {
-                curl_easy_setopt(this->m_curl, CURLOPT_CAPATH,
+                curl_easy_setopt(this->m_curl, CURLOPT_CAINFO,
                                  opts->ca_certs.c_str());
             }
 
