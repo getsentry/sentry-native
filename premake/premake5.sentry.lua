@@ -3,6 +3,7 @@ workspace "Sentry-Native"
 function sentry_native_common()
   language "C++"
   cppdialect "C++14"
+  warnings "extra"
 
   includedirs {
     SRC_ROOT.."/include",

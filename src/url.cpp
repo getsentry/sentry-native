@@ -25,7 +25,7 @@ static bool is_scheme_valid(const std::string &scheme_name) {
 }
 
 namespace sentry {
-Url::Url(const char *url) : m_valid(false), m_port(0) {
+Url::Url(const char *url) : m_port(0), m_valid(false) {
     // scheme
     const char *tmp = strchr(url, ':');
 

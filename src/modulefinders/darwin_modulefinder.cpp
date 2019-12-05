@@ -52,7 +52,7 @@ static bool g_initialized = false;
         }                                                                    \
     } while (0)
 
-void add_image(const mach_header *mh, intptr_t vmaddr_slide) {
+static void add_image(const mach_header *mh, intptr_t vmaddr_slide) {
     SAFE_LOCK_OR({ return; });
 
     const platform_mach_header *header = (const platform_mach_header *)(mh);
@@ -100,7 +100,7 @@ void add_image(const mach_header *mh, intptr_t vmaddr_slide) {
     g_modules = new_modules;
 }
 
-void remove_image(const mach_header *mh, intptr_t vmaddr_slide) {
+static void remove_image(const mach_header *mh, intptr_t vmaddr_slide) {
     SAFE_LOCK_OR({ return; });
 
     if (g_modules.is_null() || g_modules.length() == 0) {

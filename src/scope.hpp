@@ -20,12 +20,12 @@ enum ScopeMode {
 
 struct Scope {
     Scope()
-        : level(SENTRY_LEVEL_ERROR),
-          extra(Value::new_object()),
+        : fingerprint(Value::new_list()),
           tags(Value::new_object()),
+          extra(Value::new_object()),
           contexts(Value::new_object()),
           breadcrumbs(Value::new_list()),
-          fingerprint(Value::new_list()) {
+          level(SENTRY_LEVEL_ERROR) {
     }
 
     static void with_scope(std::function<void(const Scope &)> func);
