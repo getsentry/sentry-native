@@ -26,6 +26,7 @@ static const char *empty_str_null(const char *s) {
 
 sentry_options_s::sentry_options_s()
     : debug(false),
+      system_crash_reporter_enabled(false),
       database_path("./.sentry-native"),
       dsn(getenv_or_empty("SENTRY_DSN")),
       environment(getenv_or_empty("SENTRY_ENVIRONMENT")),
@@ -167,3 +168,8 @@ void sentry_options_set_database_pathw(sentry_options_t *opts,
     opts->database_path = path;
 }
 #endif
+
+void sentry_options_set_system_crash_reporter_enabled(sentry_options_t *opts,
+                                                      int enabled) {
+    opts->system_crash_reporter_enabled = !!enabled;
+}

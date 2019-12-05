@@ -532,6 +532,17 @@ SENTRY_API void sentry_options_set_database_pathw(sentry_options_t *opts,
 #endif
 
 /*
+ * Enables forwarding to the system crash reporter. Disabled by default.
+ *
+ * This setting only has an effect when using Crashpad on macOS. If enabled,
+ * Crashpad forwards crashes to the macOS system crash reporter. Depending on
+ * the crash, this may impact the crash time. Even if enabled, Crashpad may
+ * choose not to forward certain crashes.
+ */
+SENTRY_API void sentry_options_set_system_crash_reporter_enabled(
+    sentry_options_t *opts, int enabled);
+
+/*
  * Initializes the Sentry SDK with the specified options.
  *
  * This takes ownership of the options.  After the options have been set they

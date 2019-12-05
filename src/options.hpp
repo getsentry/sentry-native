@@ -25,6 +25,7 @@ struct sentry_options_s {
     std::vector<sentry::Attachment> attachments;
     sentry::Path handler_path;
     sentry::Path database_path;
+    bool system_crash_reporter_enabled;
 
     std::function<sentry::Value(sentry::Value, void *hint)> before_send;
     sentry::transports::Transport *transport;
