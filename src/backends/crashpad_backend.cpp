@@ -77,12 +77,14 @@ void CrashpadBackend::start() {
         return;
     }
 
-    // Disable the system crash reporter. Especially on macOS, it takes
-    // substantial time *after* crashpad has done its job.
-    crashpad::CrashpadInfo *crashpad_info =
-        crashpad::CrashpadInfo::GetCrashpadInfo();
-    crashpad_info->set_system_crash_reporter_forwarding(
-        crashpad::TriState::kDisabled);
+    if (!options->system_crash_reporter_enabled) {
+        // Disable the system crash reporter. Especially on macOS, it takes
+        // substantial time *after* crashpad has done its job.
+        crashpad::CrashpadInfo *crashpad_info =
+            crashpad::CrashpadInfo::GetCrashpadInfo();
+        crashpad_info->set_system_crash_reporter_forwarding(
+            crashpad::TriState::kDisabled);
+    }
 
     std::unique_ptr<crashpad::CrashReportDatabase> db =
         crashpad::CrashReportDatabase::Initialize(database);
