@@ -15,6 +15,7 @@ Dsn::Dsn(const char *dsn)
       m_public_key(""),
       m_private_key(""),
       m_host(""),
+      m_port(0),
       m_path(""),
       m_project_id(""),
       m_valid(false) {

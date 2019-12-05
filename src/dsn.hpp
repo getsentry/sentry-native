@@ -7,8 +7,9 @@
 namespace sentry {
 class Dsn {
    public:
-    Dsn() : m_valid(false) {
+    Dsn() : m_https(false), m_port(0), m_valid(false) {
     }
+
     Dsn(const char *dsn);
 
     const char *scheme() const {
