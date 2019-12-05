@@ -58,7 +58,7 @@ extern "C" {
 #endif
 
 /*
- * type type of a sentry value.
+ * Type of a sentry value.
  */
 typedef enum {
     SENTRY_VALUE_TYPE_NULL,

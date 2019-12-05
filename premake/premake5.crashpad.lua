@@ -66,8 +66,8 @@ function crashpad_common()
       SRC_ROOT.."/compat/non_elf",
     }
 
-    buildoptions {
-      "/wd4201",  -- nonstandard extension used : nameless struct/union
+    disablewarnings {
+      "4201",  -- nonstandard extension used : nameless struct/union
     }
 
     -- System stuff
@@ -617,13 +617,6 @@ project "crashpad_minidump"
     SRC_ROOT.."/minidump/minidump_writer_util.cc",
   }
 
-  filter "system:windows"
-    -- cflags = [
-    --   "/wd4324",  # 'struct' : structure was padded due to __declspec(align())
-    -- ]
-
-  filter {}
-
   disable_for_android()
 
 project "crashpad_handler"
@@ -716,13 +709,13 @@ project "crashpad_zlib"
       "HAVE_STDARG_H"
     }
 
-    buildoptions {
-      "/wd4131", -- uses old-style declarator
-      "/wd4244", -- conversion from 't1' to 't2', possible loss of data
-      "/wd4245", -- conversion from 't1' to 't2', signed/unsigned mismatch
-      "/wd4267", -- conversion from 'size_t' to 't', possible loss of data
-      "/wd4324", -- structure was padded due to alignment specifier
-      "/wd4702", -- unreachable code
+    disablewarnings {
+      "4131",  -- uses old-style declarator
+      "4244",  -- conversion from 't1' to 't2', possible loss of data
+      "4245",  -- conversion from 't1' to 't2', signed/unsigned mismatch
+      "4267",  -- conversion from 'size_t' to 't', possible loss of data
+      "4324",  -- structure was padded due to alignment specifier
+      "4702",  -- unreachable code
     }
 
     files {
