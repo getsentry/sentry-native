@@ -3,7 +3,6 @@ workspace "Sentry-Native"
 function sentry_native_common()
   language "C++"
   cppdialect "C++14"
-  warnings "extra"
 
   includedirs {
     SRC_ROOT.."/include",
@@ -13,6 +12,9 @@ function sentry_native_common()
 
   filter "system:macosx or linux"
     toolset("clang")
+
+  filter "system:macos"
+    warnings "extra"
 
   filter "system:windows"
     disablewarnings {
