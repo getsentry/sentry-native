@@ -13,7 +13,7 @@ bool symbolizers::symbolize(void *addr,
         return false;
     }
 
-    FrameInfo frame_info = {0};
+    FrameInfo frame_info = {0, 0, 0, 0, 0, 0, 0};
     frame_info.load_addr = info.dli_fbase;
     frame_info.symbol_addr = info.dli_saddr;
     frame_info.instruction_addr = addr;
