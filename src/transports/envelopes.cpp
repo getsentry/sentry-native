@@ -5,7 +5,7 @@ using namespace sentry;
 using namespace transports;
 
 EnvelopeItem::EnvelopeItem()
-    : m_is_event(false), m_headers(Value::new_object()) {
+    : m_headers(Value::new_object()), m_is_event(false) {
 }
 
 EnvelopeItem::EnvelopeItem(Value event) : EnvelopeItem() {
@@ -199,9 +199,8 @@ void Envelope::for_each_request(
 
     for (auto iter = m_items.begin(); iter != m_items.end(); ++iter) {
         if (iter->is_event()) {
-            if (!func(std::move(
-                    PreparedHttpRequest(&event_id, ENDPOINT_TYPE_STORE,
-                                        "application/json", iter->bytes())))) {
+            if (!func(PreparedHttpRequest(&event_id, ENDPOINT_TYPE_STORE,
+                                          "application/json", iter->bytes()))) {
                 return;
             }
         } else if (iter->is_attachment()) {
@@ -242,8 +241,8 @@ void Envelope::for_each_request(
     std::string content_type = content_type_ss.str();
     std::string payload = payload_ss.str();
 
-    func(std::move(PreparedHttpRequest(&event_id, ENDPOINT_TYPE_STORE,
-                                       content_type.c_str(), payload)));
+    func(PreparedHttpRequest(&event_id, ENDPOINT_TYPE_STORE,
+                             content_type.c_str(), payload));
 }
 
 char *Envelope::serialize(size_t *size_out) const {

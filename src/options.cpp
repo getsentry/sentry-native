@@ -25,23 +25,24 @@ static const char *empty_str_null(const char *s) {
 }
 
 sentry_options_s::sentry_options_s()
-    : debug(false),
-      system_crash_reporter_enabled(false),
-      database_path("./.sentry-native"),
-      dsn(getenv_or_empty("SENTRY_DSN")),
-      environment(getenv_or_empty("SENTRY_ENVIRONMENT")),
+    : dsn(getenv_or_empty("SENTRY_DSN")),
       release(getenv_or_empty("SENTRY_RELEASE")),
+      environment(getenv_or_empty("SENTRY_ENVIRONMENT")),
+      debug(false),
+      database_path("./.sentry-native"),
+      system_crash_reporter_enabled(false),
+      before_send([](sentry::Value event, void *) { return event; }),
       transport(sentry::transports::create_default_transport()),
 #ifdef SENTRY_WITH_INPROC_BACKEND
-      backend(new sentry::backends::InprocBackend()),
+      backend(new sentry::backends::InprocBackend())
 #elif defined(SENTRY_WITH_CRASHPAD_BACKEND)
-      backend(new sentry::backends::CrashpadBackend()),
+      backend(new sentry::backends::CrashpadBackend())
 #elif defined(SENTRY_WITH_BREAKPAD_BACKEND)
-      backend(new sentry::backends::BreakpadBackend()),
+      backend(new sentry::backends::BreakpadBackend())
 #else
-      backend(nullptr),
+      backend(nullptr)
 #endif
-      before_send([](sentry::Value event, void *hint) { return event; }) {
+{
     std::random_device seed;
     std::default_random_engine engine(seed());
     std::uniform_int_distribution<int> uniform_dist(0, INT32_MAX);

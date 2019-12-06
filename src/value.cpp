@@ -34,11 +34,11 @@ bool Thing::operator==(const Thing &rhs) const {
         return false;
     }
     switch (m_type) {
-        case THING_TYPE_LIST:
+        case ThingType::List:
             return *(List *)ptr() == *(List *)rhs.ptr();
-        case THING_TYPE_OBJECT:
+        case ThingType::Object:
             return *(Object *)ptr() == *(Object *)rhs.ptr();
-        case THING_TYPE_STRING:
+        case ThingType::String:
             return *(std::string *)ptr() == *(std::string *)rhs.ptr();
         default:
             abort();
@@ -50,7 +50,7 @@ Value Value::clone() const {
     if (thing) {
         Value clone;
         switch (thing->type()) {
-            case THING_TYPE_LIST: {
+            case ThingType::List: {
                 const List *list = (const List *)as_thing()->ptr();
                 clone = Value::new_list();
                 for (List::const_iterator iter = list->begin();
@@ -59,7 +59,7 @@ Value Value::clone() const {
                 }
                 break;
             }
-            case THING_TYPE_OBJECT: {
+            case ThingType::Object: {
                 const Object *obj = (const Object *)as_thing()->ptr();
                 clone = Value::new_list();
                 for (Object::const_iterator iter = obj->begin();
@@ -68,7 +68,7 @@ Value Value::clone() const {
                 }
                 break;
             }
-            case THING_TYPE_STRING: {
+            case ThingType::String: {
                 clone = *this;
             }
         }
@@ -85,7 +85,7 @@ void Value::freeze() {
     }
     thing->freeze();
     switch (thing->type()) {
-        case THING_TYPE_LIST: {
+        case ThingType::List: {
             List *list = (List *)as_thing()->ptr();
             for (List::iterator iter = list->begin(); iter != list->end();
                  ++iter) {
@@ -93,7 +93,7 @@ void Value::freeze() {
             }
             break;
         }
-        case THING_TYPE_OBJECT: {
+        case ThingType::Object: {
             Object *obj = (Object *)as_thing()->ptr();
             for (Object::iterator iter = obj->begin(); iter != obj->end();
                  ++iter) {
@@ -101,7 +101,7 @@ void Value::freeze() {
             }
             break;
         }
-        case THING_TYPE_STRING: {
+        case ThingType::String: {
         }
     }
 }
@@ -405,7 +405,7 @@ void sentry_value_incref(sentry_value_t value) {
 }
 
 void sentry_value_decref(sentry_value_t value) {
-    Value::consume(value);
+    Value _ = Value::consume(value);
 }
 
 void sentry_value_freeze(sentry_value_t value) {
@@ -514,7 +514,9 @@ sentry_value_t sentry_value_new_breadcrumb(const char *type,
 char *sentry_value_to_json(sentry_value_t value) {
     std::string out = Value(value).to_json();
     char *rv = (char *)malloc(out.length() + 1);
-    memcpy(rv, out.c_str(), out.length() + 1);
+    if (rv) {
+        memcpy(rv, out.c_str(), out.length() + 1);
+    }
     return rv;
 }
 

@@ -58,7 +58,7 @@ extern "C" {
 #endif
 
 /*
- * type type of a sentry value.
+ * Type of a sentry value.
  */
 typedef enum {
     SENTRY_VALUE_TYPE_NULL,
@@ -485,7 +485,7 @@ SENTRY_API void sentry_options_set_ca_certs(sentry_options_t *opts,
 /*
  * returns the configured path for ca certificates.
  */
-SENTRY_API const char sentry_options_get_ca_certs(void);
+SENTRY_API const char *sentry_options_get_ca_certs(void);
 
 /*
  * enables or disables debug printing mode

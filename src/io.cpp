@@ -99,9 +99,9 @@ void FileIoWriter::close() {
 
 MemoryIoWriter::MemoryIoWriter(size_t bufsize)
     : m_terminated(false),
-      m_buflen(0),
+      m_buf((char *)malloc(bufsize)),
       m_bufcap(bufsize),
-      m_buf((char *)malloc(bufsize)) {
+      m_buflen(0) {
 }
 
 MemoryIoWriter::~MemoryIoWriter() {

@@ -10,10 +10,10 @@ BreakpadBackend::BreakpadBackend() {
 void BreakpadBackend::start() {
 }
 
-void BreakpadBackend::flush_scope(const sentry::Scope &scope) {
+void BreakpadBackend::flush_scope(const sentry::Scope &) {
 }
 
-void BreakpadBackend::add_breadcrumb(sentry::Value breadcrumb) {
+void BreakpadBackend::add_breadcrumb(sentry::Value) {
 }
 
 #endif

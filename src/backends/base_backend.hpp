@@ -17,9 +17,9 @@ class Backend {
     }
     virtual void shutdown() {
     }
-    virtual void flush_scope(const sentry::Scope &scope) {
+    virtual void flush_scope(const sentry::Scope &) {
     }
-    virtual void add_breadcrumb(sentry::Value breadcrumb) {
+    virtual void add_breadcrumb(sentry::Value) {
     }
 
    private:

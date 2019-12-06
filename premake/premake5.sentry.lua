@@ -13,9 +13,14 @@ function sentry_native_common()
   filter "system:macosx or linux"
     toolset("clang")
 
+  filter "system:macos"
+    warnings "extra"
+
   filter "system:windows"
-    buildoptions {
-      "/wd4201",  -- nonstandard extension used : nameless struct/union
+    disablewarnings {
+      "4201",   -- nonstandard extension used : nameless struct/union
+      "26110",  -- Locking annotations
+      "26812",  -- Unscoped enums in C files
     }
 
   filter "system:android"

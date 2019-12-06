@@ -23,10 +23,10 @@ class Value;
 typedef std::vector<Value> List;
 typedef std::map<std::string, Value> Object;
 
-enum ThingType {
-    THING_TYPE_STRING,
-    THING_TYPE_LIST,
-    THING_TYPE_OBJECT,
+enum class ThingType {
+    String,
+    List,
+    Object,
 };
 
 class Thing {
@@ -34,19 +34,19 @@ class Thing {
     Thing(void *ptr, ThingType type)
         : m_payload(ptr),
           m_type(type),
-          m_refcount(1),
-          m_frozen(type == THING_TYPE_STRING) {
+          m_frozen(type == ThingType::String),
+          m_refcount(1) {
     }
 
     ~Thing() {
         switch (m_type) {
-            case THING_TYPE_STRING:
+            case ThingType::String:
                 delete (std::string *)m_payload;
                 break;
-            case THING_TYPE_LIST:
+            case ThingType::List:
                 delete (List *)m_payload;
                 break;
-            case THING_TYPE_OBJECT:
+            case ThingType::Object:
                 delete (Object *)m_payload;
                 break;
         }
@@ -80,11 +80,11 @@ class Thing {
 
     sentry_value_type_t value_type() const {
         switch (m_type) {
-            case THING_TYPE_LIST:
+            case ThingType::List:
                 return SENTRY_VALUE_TYPE_LIST;
-            case THING_TYPE_OBJECT:
+            case ThingType::Object:
                 return SENTRY_VALUE_TYPE_OBJECT;
-            case THING_TYPE_STRING:
+            case ThingType::String:
                 return SENTRY_VALUE_TYPE_STRING;
             default:
                 abort();
@@ -128,7 +128,7 @@ class ThingPtr {
     ThingPtr(const ThingPtr &other) : ThingPtr(other.m_thing) {
     }
 
-    ThingPtr(ThingPtr &&other) : m_thing(other.m_thing) {
+    ThingPtr(ThingPtr &&other) noexcept : m_thing(other.m_thing) {
         other.m_thing = nullptr;
     }
 
@@ -143,7 +143,7 @@ class ThingPtr {
         return *this;
     }
 
-    ThingPtr &operator=(ThingPtr &&other) {
+    ThingPtr &operator=(ThingPtr &&other) noexcept {
         if (m_thing) {
             m_thing->m_lock.unlock();
         }
@@ -235,7 +235,7 @@ class Value {
         *this = other;
     }
 
-    Value(Value &&other) : Value() {
+    Value(Value &&other) noexcept : Value() {
         *this = other;
     }
 
@@ -249,7 +249,7 @@ class Value {
         return *this;
     }
 
-    Value &operator=(Value &&other) {
+    Value &operator=(Value &&other) noexcept {
         if (this != &other) {
             decref();
             this->m_repr = other.m_repr;
@@ -326,19 +326,19 @@ class Value {
     }
 
     static Value new_list() {
-        return Value(new List(), THING_TYPE_LIST);
+        return Value(new List(), ThingType::List);
     }
 
     static Value new_object() {
-        return Value(new Object(), THING_TYPE_OBJECT);
+        return Value(new Object(), ThingType::Object);
     }
 
     static Value new_string(const char *s) {
-        return Value(new std::string(s), THING_TYPE_STRING);
+        return Value(new std::string(s), ThingType::String);
     }
 
     static Value new_string(const char *s, size_t len) {
-        return Value(new std::string(s, len), THING_TYPE_STRING);
+        return Value(new std::string(s, len), ThingType::String);
     }
 
 #ifdef _WIN32
@@ -380,7 +380,7 @@ class Value {
         } else if ((m_repr._bits & TAG_INT32) == TAG_INT32) {
             return (double)as_int32();
         } else {
-            return NAN;
+            return nan("");
         }
     }
 
@@ -397,7 +397,7 @@ class Value {
 
     const char *as_cstr() const {
         ThingPtr thing = as_thing();
-        return thing && thing->type() == THING_TYPE_STRING
+        return thing && thing->type() == ThingType::String
                    ? ((std::string *)thing->ptr())->c_str()
                    : "";
     }
@@ -436,7 +436,7 @@ class Value {
 
     bool append_bounded(Value value, size_t maxItems) {
         ThingPtr thing = as_unfrozen_thing();
-        if (thing && thing->type() == THING_TYPE_LIST) {
+        if (thing && thing->type() == ThingType::List) {
             List *list = (List *)thing->ptr();
             if (list->size() >= maxItems) {
                 size_t overhead = list->size() - maxItems + 1;
@@ -451,11 +451,11 @@ class Value {
 
     bool reverse() {
         ThingPtr thing = as_unfrozen_thing();
-        if (thing && thing->type() == THING_TYPE_LIST) {
+        if (thing && thing->type() == ThingType::List) {
             List *list = (List *)thing->ptr();
             std::reverse(list->begin(), list->end());
             return true;
-        } else if (thing && thing->type() == THING_TYPE_STRING) {
+        } else if (thing && thing->type() == ThingType::String) {
             std::string *str = (std::string *)thing->ptr();
             std::reverse(str->begin(), str->end());
             return true;
@@ -467,7 +467,7 @@ class Value {
 
     bool set_by_key(const char *key, Value value) {
         ThingPtr thing = as_unfrozen_thing();
-        if (thing && thing->type() == THING_TYPE_OBJECT) {
+        if (thing && thing->type() == ThingType::Object) {
             Object *obj = (Object *)thing->ptr();
             (*obj)[key] = value;
             return true;
@@ -477,7 +477,7 @@ class Value {
 
     bool remove_by_key(const char *key) {
         ThingPtr thing = as_unfrozen_thing();
-        if (thing && thing->type() == THING_TYPE_OBJECT) {
+        if (thing && thing->type() == ThingType::Object) {
             Object *object = (Object *)thing->ptr();
             Object::iterator iter = object->find(key);
             if (iter != object->end()) {
@@ -490,7 +490,7 @@ class Value {
 
     bool set_by_index(size_t index, Value value) {
         ThingPtr thing = as_unfrozen_thing();
-        if (thing && thing->type() == THING_TYPE_LIST) {
+        if (thing && thing->type() == ThingType::List) {
             List *list = (List *)thing->ptr();
             if (index >= list->size()) {
                 list->resize(index + 1);
@@ -503,7 +503,7 @@ class Value {
 
     bool remove_by_index(size_t index) {
         ThingPtr thing = as_unfrozen_thing();
-        if (thing && thing->type() == THING_TYPE_LIST) {
+        if (thing && thing->type() == ThingType::List) {
             List *list = (List *)thing->ptr();
             if (index >= list->size()) {
                 return true;
@@ -516,7 +516,7 @@ class Value {
 
     Value get_by_key(const char *key) const {
         ThingPtr thing = as_thing();
-        if (thing && thing->type() == THING_TYPE_OBJECT) {
+        if (thing && thing->type() == ThingType::Object) {
             const Object *object = (const Object *)thing->ptr();
             Object::const_iterator iter = object->find(key);
             if (iter != object->end()) {
@@ -528,7 +528,7 @@ class Value {
 
     Value get_by_index(size_t index) const {
         ThingPtr thing = as_thing();
-        if (thing && thing->type() == THING_TYPE_LIST) {
+        if (thing && thing->type() == ThingType::List) {
             const List *list = (const List *)thing->ptr();
             if (index < list->size()) {
                 return (*list)[index];
@@ -539,11 +539,11 @@ class Value {
 
     size_t length() const {
         ThingPtr thing = as_thing();
-        if (thing && thing->type() == THING_TYPE_LIST) {
+        if (thing && thing->type() == ThingType::List) {
             return ((const List *)thing->ptr())->size();
-        } else if (thing && thing->type() == THING_TYPE_OBJECT) {
+        } else if (thing && thing->type() == ThingType::Object) {
             return ((const Object *)thing->ptr())->size();
-        } else if (thing && thing->type() == THING_TYPE_STRING) {
+        } else if (thing && thing->type() == ThingType::String) {
             return ((const std::string *)thing->ptr())->size();
         }
         return 0;

@@ -32,7 +32,7 @@ void LibcurlTransport::shutdown() {
     m_worker.shutdown();
 }
 
-size_t swallow_data(void *buffer, size_t size, size_t nmemb, void *userp) {
+size_t swallow_data(void *, size_t size, size_t nmemb, void *) {
     return size * nmemb;
 }
 

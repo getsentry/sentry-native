@@ -7,7 +7,7 @@
 namespace sentry {
 class Url {
    public:
-    Url() : m_valid(false) {
+    Url() : m_port(0), m_valid(false) {
     }
     Url(const char *url);
 
