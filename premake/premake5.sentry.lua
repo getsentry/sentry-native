@@ -17,6 +17,8 @@ function sentry_native_common()
     warnings "extra"
 
   filter "system:windows"
+    warnings "default"
+
     disablewarnings {
       "4201",   -- nonstandard extension used : nameless struct/union
       "26110",  -- Locking annotations
