@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.4
+
+- Add an option to enable the system crash reporter
+- Fix compilation warnings
+
 ## 0.1.3
 
 - Stack unwinding on Android
