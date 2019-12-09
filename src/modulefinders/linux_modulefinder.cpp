@@ -22,7 +22,7 @@ void align(size_t alignment, size_t *offset) {
     }
 }
 
-int dl_iterate_callback(struct dl_phdr_info *dl_info, size_t size, void *data) {
+int dl_iterate_callback(struct dl_phdr_info *dl_info, size_t, void *) {
     if (dl_info->dlpi_phnum <= 0) {
         return 0;
     }

@@ -12,8 +12,6 @@ function sentry_native_common()
 
   filter "system:macosx or linux"
     toolset("clang")
-
-  filter "system:macos"
     warnings "extra"
 
   filter "system:windows"
