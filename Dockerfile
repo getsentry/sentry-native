@@ -4,7 +4,7 @@ FROM ubuntu:19.04
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
     git make curl wget ca-certificates less vim \
-    clang uuid-dev libcurl-openssl-dev zlib1g-dev \
+    clang uuid-dev libcurl4-openssl-dev zlib1g-dev \
   && rm -rf /var/lib/apt/lists/*
 
 #RUN update-alternatives --install /usr/bin/clang clang /usr/bin/clang-3.9 370 \
