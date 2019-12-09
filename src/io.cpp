@@ -121,7 +121,7 @@ void MemoryIoWriter::write(const char *buf, size_t len) {
     if (size_needed > m_bufcap) {
         size_t new_bufcap = m_bufcap;
         while (new_bufcap < size_needed) {
-            new_bufcap *= 1.3;
+            new_bufcap = (size_t) (new_bufcap * 1.3);
         }
         m_buf = (char *)realloc(m_buf, new_bufcap);
         m_bufcap = new_bufcap;

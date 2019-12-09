@@ -5,15 +5,19 @@
 #include <string>
 #include <vector>
 
+#ifdef __GNUC__
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-parameter"
+#endif
 
 #include "client/crash_report_database.h"
 #include "client/crashpad_client.h"
 #include "client/crashpad_info.h"
 #include "client/settings.h"
 
+#ifdef __GNUC__
 #pragma GCC diagnostic pop
+#endif
 
 #include "../attachment.hpp"
 #include "../options.hpp"
