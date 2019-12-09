@@ -17,6 +17,8 @@ function sentry_native_common()
     warnings "extra"
 
   filter "system:windows"
+    warnings "default"
+
     disablewarnings {
       "4201",   -- nonstandard extension used : nameless struct/union
       "26110",  -- Locking annotations
@@ -142,9 +144,7 @@ project "sentry_breakpad"
   defines {
     "SENTRY_WITH_BREAKPAD_BACKEND"
   }
-  buildoptions {
-    "-fvisibility=hidden",
-  }
+
   includedirs {
     BREAKPAD_PKG.."/src",
   }
@@ -153,6 +153,11 @@ project "sentry_breakpad"
   links {
     "breakpad_client",
   }
+
+  filter "system:macosx or linux"
+    buildoptions {
+      "-fvisibility=hidden",
+    }
 
   filter "system:macosx"
     -- System

@@ -68,6 +68,7 @@ function crashpad_common()
 
     disablewarnings {
       "4201",  -- nonstandard extension used : nameless struct/union
+      "4996",  -- use of deprecated APIs: GetVersion, open
     }
 
     -- System stuff
