@@ -144,9 +144,7 @@ project "sentry_breakpad"
   defines {
     "SENTRY_WITH_BREAKPAD_BACKEND"
   }
-  buildoptions {
-    "-fvisibility=hidden",
-  }
+
   includedirs {
     BREAKPAD_PKG.."/src",
   }
@@ -155,6 +153,11 @@ project "sentry_breakpad"
   links {
     "breakpad_client",
   }
+
+  filter "system:macosx or linux"
+    buildoptions {
+      "-fvisibility=hidden",
+    }
 
   filter "system:macosx"
     -- System
