@@ -38,6 +38,12 @@ int sentry_init(sentry_options_t *options) {
     }
     cleanup_old_runs();
 
+    // Check for user consent
+    sentry::Path consent_path = database_path.join("user-consent-given");
+    if (consent_path.is_file()) {
+        // read file
+    }
+
     // make sure that the scopes are at least flushed once after the backend
     // is started for the initial data to be written.
     Scope::with_scope_mut([](Scope &) { /* run for side effect */ });

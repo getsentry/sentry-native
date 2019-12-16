@@ -14,6 +14,7 @@
 #include "transports/function_transport.hpp"
 
 #include "options.hpp"
+#include "path.hpp"
 
 static const char *getenv_or_empty(const char *key) {
     const char *rv = getenv(key);
@@ -31,18 +32,19 @@ sentry_options_s::sentry_options_s()
       debug(false),
       database_path("./.sentry-native"),
       system_crash_reporter_enabled(false),
+      require_user_consent(false),
       before_send([](sentry::Value event, void *) { return event; }),
       transport(sentry::transports::create_default_transport()),
 #ifdef SENTRY_WITH_INPROC_BACKEND
-      backend(new sentry::backends::InprocBackend())
+      backend(new sentry::backends::InprocBackend()),
 #elif defined(SENTRY_WITH_CRASHPAD_BACKEND)
-      backend(new sentry::backends::CrashpadBackend())
+      backend(new sentry::backends::CrashpadBackend()),
 #elif defined(SENTRY_WITH_BREAKPAD_BACKEND)
-      backend(new sentry::backends::BreakpadBackend())
+      backend(new sentry::backends::BreakpadBackend()),
 #else
-      backend(nullptr)
+      backend(nullptr),
 #endif
-{
+      user_consent(SENTRY_USER_CONSENT_UNKNOWN) {
     std::random_device seed;
     std::default_random_engine engine(seed());
     std::uniform_int_distribution<int> uniform_dist(0, INT32_MAX);
@@ -135,6 +137,14 @@ void sentry_options_set_debug(sentry_options_t *opts, int debug) {
 
 int sentry_options_get_debug(const sentry_options_t *opts) {
     return opts->debug;
+}
+
+void sentry_options_set_require_user_consent(sentry_options_t *opts, int val) {
+    opts->require_user_consent = !!val;
+}
+
+int sentry_options_get_require_user_consent(const sentry_options_t *opts) {
+    return opts->require_user_consent;
 }
 
 void sentry_options_add_attachment(sentry_options_t *opts,

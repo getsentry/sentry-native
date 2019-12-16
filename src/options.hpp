@@ -26,6 +26,7 @@ struct sentry_options_s {
     sentry::Path handler_path;
     sentry::Path database_path;
     bool system_crash_reporter_enabled;
+    bool require_user_consent;
 
     std::function<sentry::Value(sentry::Value, void *hint)> before_send;
     sentry::transports::Transport *transport;
@@ -34,6 +35,7 @@ struct sentry_options_s {
     // internal options
     std::string run_id;
     sentry::Path runs_folder;
+    sentry_user_consent_t user_consent;
 };
 
 #endif
