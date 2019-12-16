@@ -76,7 +76,7 @@ TEST_CASE("send event with debug images", "[api]") {
 }
 
 static sentry_value_t dummy_before_send(sentry_value_t event,
-                                        void *hint,
+                                        void *,
                                         void *data) {
     sentry_value_t extra = sentry_value_new_object();
     sentry_value_set_by_key(extra, "foo",

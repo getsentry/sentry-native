@@ -11,7 +11,7 @@ struct MockTransportData {
 
 extern MockTransportData mock_transport;
 
-static void send_envelope(const sentry_envelope_t *envelope, void *data) {
+static void send_envelope(const sentry_envelope_t *envelope, void *) {
     mock_transport.events.push_back(
         sentry::Value(sentry_envelope_get_event(envelope)));
 }
