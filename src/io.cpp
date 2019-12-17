@@ -32,11 +32,7 @@ FileIoWriter::~FileIoWriter() {
     close();
 }
 
-bool FileIoWriter::open(const Path &path, const char *mode) {
-#ifdef _WIN32
-    m_file = path.open(mode);
-    return m_file != nullptr;
-#else
+int mode_to_flags(const char *mode) {
     int flags = 0;
     for (; *mode; mode++) {
         switch (*mode) {
@@ -57,7 +53,15 @@ bool FileIoWriter::open(const Path &path, const char *mode) {
             default:;
         }
     }
-    m_fd = ::open(path.as_osstr(), flags,
+    return flags;
+}
+
+bool FileIoWriter::open(const Path &path, const char *mode) {
+#ifdef _WIN32
+    m_file = path.open(mode);
+    return m_file != nullptr;
+#else
+    m_fd = ::open(path.as_osstr(), mode_to_flags(mode),
                   S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH);
     return m_fd >= 0;
 #endif
@@ -121,7 +125,7 @@ void MemoryIoWriter::write(const char *buf, size_t len) {
     if (size_needed > m_bufcap) {
         size_t new_bufcap = m_bufcap;
         while (new_bufcap < size_needed) {
-            new_bufcap = (size_t) (new_bufcap * 1.3);
+            new_bufcap = (size_t)(new_bufcap * 1.3);
         }
         m_buf = (char *)realloc(m_buf, new_bufcap);
         m_bufcap = new_bufcap;
@@ -145,4 +149,60 @@ const char *MemoryIoWriter::buf() const {
 
 size_t MemoryIoWriter::len() const {
     return m_buflen;
+}
+
+IoReader::IoReader() {
+}
+
+IoReader::~IoReader() {
+}
+
+FileIoReader::FileIoReader() : m_bufoff(0), m_buflen(0) {
+}
+
+FileIoReader::~FileIoReader() {
+}
+
+bool FileIoReader::open(const Path &path, const char *mode) {
+#ifdef _WIN32
+    m_file = path.open(mode);
+    return m_file != nullptr;
+#else
+    m_fd = ::open(path.as_osstr(), mode_to_flags(mode),
+                  S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH);
+    return m_fd >= 0;
+#endif
+}
+
+void FileIoReader::close() {
+#ifdef _WIN32
+    fclose(m_file);
+#else
+    ::close(m_fd);
+#endif
+}
+
+size_t FileIoReader::read_into(char *buf, size_t len) {
+    if (m_buflen - m_bufoff == 0) {
+#ifdef _WIN32
+        m_buflen = fread(m_buf, 1, BUF_SIZE, m_file);
+        m_bufoff = 0;
+#else
+        ssize_t rv = read(m_fd, m_buf, BUF_SIZE);
+        if (rv < 0) {
+            return 0;
+        }
+        m_buflen = (size_t)rv;
+        m_bufoff = 0;
+#endif
+    }
+
+    if (m_buflen - m_bufoff >= 0) {
+        size_t n = std::min(m_buflen - m_bufoff, len);
+        memcpy(buf, m_buf + m_bufoff, n);
+        m_bufoff += n;
+        return n;
+    } else {
+        return 0;
+    }
 }

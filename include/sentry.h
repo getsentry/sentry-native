@@ -595,6 +595,11 @@ SENTRY_API void sentry_user_consent_give(void);
 SENTRY_API void sentry_user_consent_revoke(void);
 
 /*
+ * Resets the user consent (back to unknown)
+ */
+SENTRY_API void sentry_user_consent_reset(void);
+
+/*
  * Checks the current state of user consent.
  */
 SENTRY_API sentry_user_consent_t sentry_user_consent_get(void);
