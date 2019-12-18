@@ -32,6 +32,7 @@ FileIoWriter::~FileIoWriter() {
     close();
 }
 
+#ifndef _WIN32
 int mode_to_flags(const char *mode) {
     int flags = 0;
     for (; *mode; mode++) {
@@ -55,6 +56,7 @@ int mode_to_flags(const char *mode) {
     }
     return flags;
 }
+#endif
 
 bool FileIoWriter::open(const Path &path, const char *mode) {
 #ifdef _WIN32
