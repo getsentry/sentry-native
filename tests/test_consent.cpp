@@ -11,6 +11,8 @@ static void init_consenting_sentry() {
 }
 
 TEST_CASE("basic consent tracking", "[api]") {
+    sentry::Path(".test-db").remove_all();
+
     init_consenting_sentry();
     REQUIRE(sentry_user_consent_get() == SENTRY_USER_CONSENT_UNKNOWN);
     sentry_shutdown();

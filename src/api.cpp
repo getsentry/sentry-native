@@ -78,7 +78,11 @@ void sentry_user_consent_give(void) {
     sentry::FileIoWriter w;
     if (w.open(consent_path)) {
         w.write_char('1');
+        w.write_char('\n');
         g_options->user_consent = SENTRY_USER_CONSENT_GIVEN;
+        if (g_options->backend) {
+            g_options->backend->user_consent_changed();
+        }
     }
 }
 
@@ -88,7 +92,11 @@ void sentry_user_consent_revoke(void) {
     sentry::FileIoWriter w;
     if (w.open(consent_path)) {
         w.write_char('0');
+        w.write_char('\n');
         g_options->user_consent = SENTRY_USER_CONSENT_REVOKED;
+        if (g_options->backend) {
+            g_options->backend->user_consent_changed();
+        }
     }
 }
 
@@ -96,6 +104,9 @@ void sentry_user_consent_reset(void) {
     sentry::Path consent_path = g_options->database_path.join("user-consent");
     consent_path.remove();
     g_options->user_consent = SENTRY_USER_CONSENT_UNKNOWN;
+    if (g_options->backend) {
+        g_options->backend->user_consent_changed();
+    }
 }
 
 sentry_user_consent_t sentry_user_consent_get(void) {

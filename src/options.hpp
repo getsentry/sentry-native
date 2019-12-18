@@ -36,6 +36,11 @@ struct sentry_options_s {
     std::string run_id;
     sentry::Path runs_folder;
     sentry_user_consent_t user_consent;
+
+    bool should_upload() const {
+        return !require_user_consent ||
+               user_consent == SENTRY_USER_CONSENT_GIVEN;
+    }
 };
 
 #endif

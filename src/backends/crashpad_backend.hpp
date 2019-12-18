@@ -20,6 +20,7 @@ class CrashpadBackend : public Backend {
     void start();
     void flush_scope(const sentry::Scope &scope);
     void add_breadcrumb(sentry::Value breadcrumb);
+    void user_consent_changed();
 
    private:
     Path event_filename;
