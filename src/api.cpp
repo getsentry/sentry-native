@@ -73,6 +73,7 @@ void sentry_shutdown(void) {
 }
 
 void sentry_user_consent_give(void) {
+    g_options->database_path.create_directories();
     sentry::Path consent_path = g_options->database_path.join("user-consent");
     sentry::FileIoWriter w;
     if (w.open(consent_path)) {
@@ -82,6 +83,7 @@ void sentry_user_consent_give(void) {
 }
 
 void sentry_user_consent_revoke(void) {
+    g_options->database_path.create_directories();
     sentry::Path consent_path = g_options->database_path.join("user-consent");
     sentry::FileIoWriter w;
     if (w.open(consent_path)) {
@@ -93,6 +95,7 @@ void sentry_user_consent_revoke(void) {
 void sentry_user_consent_reset(void) {
     sentry::Path consent_path = g_options->database_path.join("user-consent");
     consent_path.remove();
+    g_options->user_consent = SENTRY_USER_CONSENT_UNKNOWN;
 }
 
 sentry_user_consent_t sentry_user_consent_get(void) {
