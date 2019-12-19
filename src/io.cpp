@@ -103,6 +103,14 @@ void FileIoWriter::close() {
     m_buflen = 0;
 }
 
+bool FileIoWriter::is_closed() const {
+#ifdef _WIN32
+    return m_file == nullptr;
+#else
+    return m_fd == 0;
+#endif
+}
+
 MemoryIoWriter::MemoryIoWriter(size_t bufsize)
     : m_terminated(false),
       m_buf((char *)malloc(bufsize)),
@@ -163,6 +171,7 @@ FileIoReader::FileIoReader() : m_bufoff(0), m_buflen(0) {
 }
 
 FileIoReader::~FileIoReader() {
+    close();
 }
 
 bool FileIoReader::open(const Path &path, const char *mode) {
@@ -176,11 +185,24 @@ bool FileIoReader::open(const Path &path, const char *mode) {
 #endif
 }
 
+bool FileIoReader::is_closed() const {
+#ifdef _WIN32
+    return m_file == nullptr;
+#else
+    return m_fd == 0;
+#endif
+}
+
 void FileIoReader::close() {
+    if (is_closed()) {
+        return;
+    }
 #ifdef _WIN32
     fclose(m_file);
+    m_file = nullptr;
 #else
     ::close(m_fd);
+    m_fd = 0;
 #endif
 }
 

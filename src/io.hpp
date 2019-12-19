@@ -43,6 +43,7 @@ class FileIoWriter : public IoWriter {
     void write(const char *buf, size_t len);
     void flush();
     void close();
+    bool is_closed() const;
 
    private:
     static const size_t BUF_SIZE = 1024;
@@ -94,6 +95,7 @@ class FileIoReader : public IoReader {
 
     bool open(const Path &path, const char *mode = "rb");
     void close();
+    bool is_closed() const;
     size_t read_into(char *buf, size_t len);
 
    private:
