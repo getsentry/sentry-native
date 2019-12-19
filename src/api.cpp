@@ -6,6 +6,7 @@
 #include "attachment.hpp"
 #include "cleanup.hpp"
 #include "internal.hpp"
+#include "io.hpp"
 #include "modulefinder.hpp"
 #include "options.hpp"
 #include "scope.hpp"
@@ -38,6 +39,18 @@ int sentry_init(sentry_options_t *options) {
     }
     cleanup_old_runs();
 
+    // Check for stored user consent
+    sentry::Path consent_path = options->database_path.join("user-consent");
+    sentry::FileIoReader r;
+    if (r.open(consent_path)) {
+        char c = r.read_char();
+        if (c == '1') {
+            options->user_consent = SENTRY_USER_CONSENT_GIVEN;
+        } else if (c == '0') {
+            options->user_consent = SENTRY_USER_CONSENT_REVOKED;
+        }
+    }
+
     // make sure that the scopes are at least flushed once after the backend
     // is started for the initial data to be written.
     Scope::with_scope_mut([](Scope &) { /* run for side effect */ });
@@ -57,6 +70,47 @@ void sentry_shutdown(void) {
         sentry_options_free(g_options);
     }
     g_options = nullptr;
+}
+
+void sentry_user_consent_give(void) {
+    g_options->database_path.create_directories();
+    sentry::Path consent_path = g_options->database_path.join("user-consent");
+    sentry::FileIoWriter w;
+    if (w.open(consent_path)) {
+        w.write_char('1');
+        w.write_char('\n');
+        g_options->user_consent = SENTRY_USER_CONSENT_GIVEN;
+        if (g_options->backend) {
+            g_options->backend->user_consent_changed();
+        }
+    }
+}
+
+void sentry_user_consent_revoke(void) {
+    g_options->database_path.create_directories();
+    sentry::Path consent_path = g_options->database_path.join("user-consent");
+    sentry::FileIoWriter w;
+    if (w.open(consent_path)) {
+        w.write_char('0');
+        w.write_char('\n');
+        g_options->user_consent = SENTRY_USER_CONSENT_REVOKED;
+        if (g_options->backend) {
+            g_options->backend->user_consent_changed();
+        }
+    }
+}
+
+void sentry_user_consent_reset(void) {
+    sentry::Path consent_path = g_options->database_path.join("user-consent");
+    consent_path.remove();
+    g_options->user_consent = SENTRY_USER_CONSENT_UNKNOWN;
+    if (g_options->backend) {
+        g_options->backend->user_consent_changed();
+    }
+}
+
+sentry_user_consent_t sentry_user_consent_get(void) {
+    return g_options->user_consent;
 }
 
 const sentry_options_t *sentry_get_options(void) {

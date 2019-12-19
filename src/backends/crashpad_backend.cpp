@@ -28,6 +28,8 @@
 using namespace sentry;
 using namespace backends;
 
+static std::unique_ptr<crashpad::CrashReportDatabase> g_db;
+
 CrashpadBackend::CrashpadBackend()
     : breadcrumb_fileid(0), breadcrumbs_in_segment(0) {
 }
@@ -71,6 +73,12 @@ void CrashpadBackend::start() {
     arguments.push_back("--no-upload-gzip");
 #endif
 
+    // initialize database first and check for user consent.  This is going
+    // to change the setting persisted into the crashpad database.  The
+    // update to the consent change is then reflected when the handler starts.
+    g_db = crashpad::CrashReportDatabase::Initialize(database);
+    user_consent_changed();
+
     crashpad::CrashpadClient client;
     std::string url = options->dsn.get_minidump_url();
     bool success = client.StartHandlerWithAttachments(
@@ -93,13 +101,6 @@ void CrashpadBackend::start() {
             crashpad::CrashpadInfo::GetCrashpadInfo();
         crashpad_info->set_system_crash_reporter_forwarding(
             crashpad::TriState::kDisabled);
-    }
-
-    std::unique_ptr<crashpad::CrashReportDatabase> db =
-        crashpad::CrashReportDatabase::Initialize(database);
-
-    if (db != nullptr && db->GetSettings() != nullptr) {
-        db->GetSettings()->SetUploadsEnabled(true);
     }
 }
 
@@ -147,4 +148,16 @@ void CrashpadBackend::add_breadcrumb(sentry::Value breadcrumb) {
 
     breadcrumbs_in_segment++;
 }
+
+void CrashpadBackend::user_consent_changed() {
+    if (!g_db || !g_db->GetSettings()) {
+        return;
+    }
+
+    const sentry_options_t *opts = sentry_get_options();
+    if (opts) {
+        g_db->GetSettings()->SetUploadsEnabled(opts->should_upload());
+    }
+}
+
 #endif

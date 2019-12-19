@@ -40,10 +40,10 @@ class FileIoWriter : public IoWriter {
     FileIoWriter();
     ~FileIoWriter();
     bool open(const Path &path, const char *mode = "wb");
-    bool is_closed() const;
     void write(const char *buf, size_t len);
     void flush();
     void close();
+    bool is_closed() const;
 
    private:
     static const size_t BUF_SIZE = 1024;
@@ -71,6 +71,42 @@ class MemoryIoWriter : public IoWriter {
     bool m_terminated;
     char *m_buf;
     size_t m_bufcap;
+    size_t m_buflen;
+};
+
+class IoReader {
+   public:
+    IoReader();
+    virtual ~IoReader();
+
+    virtual size_t read_into(char *buf, size_t len) = 0;
+    virtual char read_char() {
+        char buf[1] = {0};
+        read_into(buf, 1);
+        return buf[0];
+    }
+    virtual void close(){};
+};
+
+class FileIoReader : public IoReader {
+   public:
+    FileIoReader();
+    ~FileIoReader();
+
+    bool open(const Path &path, const char *mode = "rb");
+    void close();
+    bool is_closed() const;
+    size_t read_into(char *buf, size_t len);
+
+   private:
+    static const size_t BUF_SIZE = 1024;
+#ifdef _WIN32
+    FILE *m_file;
+#else
+    int m_fd;
+#endif
+    char m_buf[BUF_SIZE];
+    size_t m_bufoff;
     size_t m_buflen;
 };
 

@@ -21,6 +21,8 @@ class Backend {
     }
     virtual void add_breadcrumb(sentry::Value) {
     }
+    virtual void user_consent_changed() {
+    }
 
    private:
     Backend(const Backend &) = delete;

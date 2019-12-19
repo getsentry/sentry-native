@@ -53,7 +53,7 @@ void WinHttpTransport::send_envelope(Envelope envelope) {
     this->m_worker.submit_task([this, envelope]() {
         envelope.for_each_request([this](PreparedHttpRequest prepared_request) {
             const sentry_options_t *opts = sentry_get_options();
-            if (opts->dsn.disabled()) {
+            if (opts->dsn.disabled() || !opts->should_upload()) {
                 return false;
             }
 
@@ -81,8 +81,9 @@ void WinHttpTransport::send_envelope(Envelope envelope) {
                     m_session = WinHttpOpen(
                         user_agent.c_str(), WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
                         WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
-                    // On windows 7, WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY does not work
-                    // on error we fallback to WINHTTP_ACCESS_TYPE_NO_PROXY
+                    // On windows 7, WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY does
+                    // not work on error we fallback to
+                    // WINHTTP_ACCESS_TYPE_NO_PROXY
                     if (!m_session) {
                         m_session = WinHttpOpen(
                             user_agent.c_str(), WINHTTP_ACCESS_TYPE_NO_PROXY,

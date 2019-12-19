@@ -65,7 +65,7 @@ void LibcurlTransport::send_envelope(Envelope envelope) {
     this->m_worker.submit_task([this, envelope]() {
         envelope.for_each_request([this](PreparedHttpRequest prepared_request) {
             const sentry_options_t *opts = sentry_get_options();
-            if (opts->dsn.disabled()) {
+            if (opts->dsn.disabled() || opts->should_upload()) {
                 return false;
             }
 

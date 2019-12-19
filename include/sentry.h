@@ -239,6 +239,15 @@ typedef enum sentry_level_e {
 } sentry_level_t;
 
 /*
+ * The state of user consent.
+ */
+typedef enum {
+    SENTRY_USER_CONSENT_UNKNOWN = -1,
+    SENTRY_USER_CONSENT_GIVEN = 1,
+    SENTRY_USER_CONSENT_REVOKED = 0,
+} sentry_user_consent_t;
+
+/*
  * creates a new empty event value.
  */
 SENTRY_API sentry_value_t sentry_value_new_event(void);
@@ -498,6 +507,21 @@ SENTRY_API void sentry_options_set_debug(sentry_options_t *opts, int debug);
 SENTRY_API int sentry_options_get_debug(const sentry_options_t *opts);
 
 /*
+ * Enables or disabled user consent requirements for uploads.
+ *
+ * This disables uploads until the user has given the consent to the SDK.
+ * Consent itself is given with `sentry_user_consent_give` and
+ * `sentry_user_consent_revoke`.
+ */
+SENTRY_API void sentry_options_set_require_user_consent(sentry_options_t *opts,
+                                                        int val);
+/*
+ * returns true if user consent is required.
+ */
+SENTRY_API int sentry_options_get_require_user_consent(
+    const sentry_options_t *opts);
+
+/*
  * adds a new attachment to be sent along
  */
 SENTRY_API void sentry_options_add_attachment(sentry_options_t *opts,
@@ -559,6 +583,26 @@ SENTRY_API void sentry_shutdown(void);
  * Returns the client options.
  */
 SENTRY_API const sentry_options_t *sentry_get_options(void);
+
+/*
+ * Gives user consent
+ */
+SENTRY_API void sentry_user_consent_give(void);
+
+/*
+ * Revokes user consent
+ */
+SENTRY_API void sentry_user_consent_revoke(void);
+
+/*
+ * Resets the user consent (back to unknown)
+ */
+SENTRY_API void sentry_user_consent_reset(void);
+
+/*
+ * Checks the current state of user consent.
+ */
+SENTRY_API sentry_user_consent_t sentry_user_consent_get(void);
 
 /*
  * Sends a sentry event.
