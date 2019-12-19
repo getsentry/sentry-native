@@ -4,19 +4,19 @@
 
 static void init_consenting_sentry() {
 #ifdef __ANDROID__
-#define PREFIX "/data/local/tmp"
+#define PREFIX "/data/local/tmp/"
 #else
-#define PREFIX "."
+#define PREFIX ""
 #endif
     sentry_options_t *opts = sentry_options_new();
-    sentry_options_set_database_path(opts, PREFIX "/.test-db");
+    sentry_options_set_database_path(opts, PREFIX ".test-db");
     sentry_options_set_dsn(opts, "http://foo@127.0.0.1/42");
     sentry_options_set_require_user_consent(opts, true);
     sentry_init(opts);
 }
 
 TEST_CASE("basic consent tracking", "[api]") {
-    sentry::Path(".test-db").remove_all();
+    sentry::Path(PREFIX ".test-db").remove_all();
 
     init_consenting_sentry();
     REQUIRE(sentry_user_consent_get() == SENTRY_USER_CONSENT_UNKNOWN);
@@ -42,5 +42,5 @@ TEST_CASE("basic consent tracking", "[api]") {
     REQUIRE(sentry_user_consent_get() == SENTRY_USER_CONSENT_UNKNOWN);
     sentry_shutdown();
 
-    sentry::Path(".test-db").remove_all();
+    sentry::Path(PREFIX ".test-db").remove_all();
 }
