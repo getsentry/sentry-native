@@ -3,8 +3,13 @@
 #include <vendor/catch.hpp>
 
 static void init_consenting_sentry() {
+#ifdef __ANDROID__
+#define PREFIX "/data/local/tmp"
+#else
+#define PREFIX "."
+#endif
     sentry_options_t *opts = sentry_options_new();
-    sentry_options_set_database_path(opts, ".test-db");
+    sentry_options_set_database_path(opts, PREFIX "/.test-db");
     sentry_options_set_dsn(opts, "http://foo@127.0.0.1/42");
     sentry_options_set_require_user_consent(opts, true);
     sentry_init(opts);
