@@ -68,6 +68,10 @@ void CrashpadBackend::start() {
     std::vector<std::string> arguments;
     arguments.push_back("--no-rate-limit");
 
+    if (!options->primary) {
+        arguments.push_back("--no-periodic-tasks");
+    }
+
 #ifdef _WIN32
     // Temporary fix for Windows
     arguments.push_back("--no-upload-gzip");

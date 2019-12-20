@@ -30,6 +30,7 @@ sentry_options_s::sentry_options_s()
       release(getenv_or_empty("SENTRY_RELEASE")),
       environment(getenv_or_empty("SENTRY_ENVIRONMENT")),
       debug(false),
+      primary(true),
       database_path("./.sentry-native"),
       system_crash_reporter_enabled(false),
       require_user_consent(false),
@@ -145,6 +146,14 @@ void sentry_options_set_require_user_consent(sentry_options_t *opts, int val) {
 
 int sentry_options_get_require_user_consent(const sentry_options_t *opts) {
     return opts->require_user_consent;
+}
+
+void sentry_options_set_primary(sentry_options_t *opts, int val) {
+    opts->primary = !!val;
+}
+
+int sentry_options_get_primary(const sentry_options_t *opts) {
+    return opts->primary;
 }
 
 void sentry_options_add_attachment(sentry_options_t *opts,

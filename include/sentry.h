@@ -522,6 +522,16 @@ SENTRY_API int sentry_options_get_require_user_consent(
     const sentry_options_t *opts);
 
 /*
+ * Sets that this is the primary sentry instance
+ */
+SENTRY_API void sentry_options_set_primary(sentry_options_t *opts, int primary);
+
+/*
+ * returns whether this is the primary sentry instance
+ */
+SENTRY_API int sentry_options_get_primary(const sentry_options_t *opts);
+
+/*
  * adds a new attachment to be sent along
  */
 SENTRY_API void sentry_options_add_attachment(sentry_options_t *opts,

@@ -22,6 +22,7 @@ struct sentry_options_s {
     std::string http_proxy;
     std::string ca_certs;
     bool debug;
+    bool primary;
     std::vector<sentry::Attachment> attachments;
     sentry::Path handler_path;
     sentry::Path database_path;
