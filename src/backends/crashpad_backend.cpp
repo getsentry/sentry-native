@@ -56,14 +56,18 @@ void CrashpadBackend::start() {
     file_attachments.emplace(
         SENTRY_EVENT_FILE,
         base::FilePath(current_run_folder.join(SENTRY_EVENT_FILE).as_osstr()));
-    file_attachments.emplace(
-        SENTRY_BREADCRUMBS1_FILE,
-        base::FilePath(
-            current_run_folder.join(SENTRY_BREADCRUMBS1_FILE).as_osstr()));
-    file_attachments.emplace(
-        SENTRY_BREADCRUMBS2_FILE,
-        base::FilePath(
-            current_run_folder.join(SENTRY_BREADCRUMBS2_FILE).as_osstr()));
+
+    // create both breadcrumbs files so that crashpad does not log an error
+    // if they are missing.
+    Path bc1 = current_run_folder.join(SENTRY_BREADCRUMBS1_FILE);
+    bc1.touch();
+    Path bc2 = current_run_folder.join(SENTRY_BREADCRUMBS2_FILE);
+    bc2.touch();
+
+    file_attachments.emplace(SENTRY_BREADCRUMBS1_FILE,
+                             base::FilePath(bc1.as_osstr()));
+    file_attachments.emplace(SENTRY_BREADCRUMBS2_FILE,
+                             base::FilePath(bc2.as_osstr()));
 
     std::vector<std::string> arguments;
     arguments.push_back("--no-rate-limit");
