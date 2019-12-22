@@ -1,5 +1,6 @@
 #include "sentry_utils.h"
 #include "sentry_string.h"
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -192,4 +193,71 @@ sentry_url_cleanup(sentry_url_t *url)
     sentry_free(url->fragment);
     sentry_free(url->username);
     sentry_free(url->password);
+}
+
+int
+sentry_dsn_parse(sentry_dsn_t *dsn_out, const char *dsn)
+{
+    sentry_url_t url;
+    size_t path_len;
+    char *tmp;
+    char *end;
+
+    memset(dsn_out, 0, sizeof(sentry_dsn_t));
+
+    if (sentry_url_parse(&url, dsn) != 0) {
+        return 1;
+    }
+
+    if (strcmp(url.scheme, "https") == 0) {
+        dsn_out->is_secure = 1;
+    } else if (strcmp(url.scheme, "http") == 0) {
+        dsn_out->is_secure = 0;
+    } else {
+        goto error;
+    }
+
+    dsn_out->host = url.host;
+    url.host = NULL;
+    dsn_out->public_key = url.username;
+    url.username = NULL;
+    dsn_out->secret_key = url.password;
+    url.password = NULL;
+    dsn_out->port = url.port;
+
+    path_len = strlen(url.path);
+    while (path_len > 0 && url.path[path_len - 1] == '/') {
+        url.path[path_len - 1] = '\0';
+        path_len--;
+    }
+
+    tmp = strrchr(url.path, '/');
+    if (!tmp) {
+        goto error;
+    }
+
+    dsn_out->project_id = (uint64_t)strtoll(tmp + 1, &end, 10);
+    if (end != tmp + strlen(tmp)) {
+        goto error;
+    }
+    *tmp = 0;
+    dsn_out->path = url.path;
+    url.path = NULL;
+
+    sentry_url_cleanup(&url);
+    return 0;
+
+error:
+    sentry_url_cleanup(&url);
+    sentry_dsn_cleanup(dsn_out);
+    return 1;
+}
+
+void
+sentry_dsn_cleanup(sentry_dsn_t *dsn)
+{
+    sentry_free(dsn->host);
+    sentry_free(dsn->path);
+    sentry_free(dsn->public_key);
+    sentry_free(dsn->secret_key);
 }

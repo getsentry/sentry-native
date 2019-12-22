@@ -6,6 +6,7 @@
 #include "sentry_alloc.h"
 #include "sentry_json.h"
 #include "sentry_string.h"
+#include "sentry_utils.h"
 
 static const uint64_t MAX_DOUBLE = 0xfff8000000000000ULL;
 static const uint64_t TAG_THING = 0xfffc000000000000ULL;
@@ -21,7 +22,7 @@ static const char THING_TYPE_MASK = 0x7f;
 
 typedef struct {
     void *payload;
-    size_t refcount;
+    int refcount;
     char type;
 } thing_t;
 
@@ -125,7 +126,7 @@ sentry_value_incref(sentry_value_t value)
 {
     thing_t *thing = value_as_thing(value);
     if (thing) {
-        thing->refcount++;
+        sentry__atomic_fetch_and_add(&thing->refcount, 1);
     }
 }
 
@@ -133,7 +134,7 @@ void
 sentry_value_decref(sentry_value_t value)
 {
     thing_t *thing = value_as_thing(value);
-    if (thing && --thing->refcount == 0) {
+    if (thing && sentry__atomic_fetch_and_add(&thing->refcount, -1) == 1) {
         thing_free(thing);
     }
 }
@@ -141,8 +142,8 @@ sentry_value_decref(sentry_value_t value)
 size_t
 sentry_value_refcount(sentry_value_t value)
 {
-    const thing_t *thing = value_as_thing(value);
-    return thing ? thing->refcount : 1;
+    thing_t *thing = value_as_thing(value);
+    return thing ? (size_t)sentry__atomic_fetch(&thing->refcount) : 1;
 }
 
 void

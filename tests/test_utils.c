@@ -41,3 +41,28 @@ SENTRY_TEST(url_parsing_invalid)
     sentry_url_t url;
     assert_int_equal(sentry_url_parse(&url, "http:"), 1);
 }
+
+SENTRY_TEST(dsn_parsing_complete)
+{
+    sentry_dsn_t dsn;
+    assert_int_equal(
+        sentry_dsn_parse(
+            &dsn, "http://username:password@example.com/foo/bar/42?x=y#z"),
+        0);
+    assert_false(dsn.is_secure);
+    assert_string_equal(dsn.host, "example.com");
+    assert_int_equal(dsn.port, 80);
+    assert_string_equal(dsn.public_key, "username");
+    assert_string_equal(dsn.secret_key, "password");
+    assert_string_equal(dsn.path, "/foo/bar");
+    assert_int_equal((int)dsn.project_id, 42);
+    sentry_dsn_cleanup(&dsn);
+}
+
+SENTRY_TEST(dsn_parsing_invalid)
+{
+    sentry_dsn_t dsn;
+    assert_int_equal(sentry_dsn_parse(&dsn,
+                         "http://username:password@example.com/foo/bar?x=y#z"),
+        1);
+}
