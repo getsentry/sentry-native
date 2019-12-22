@@ -4,7 +4,7 @@
 
 SENTRY_TEST(url_parsing_complete)
 {
-    sentry__url_t url;
+    sentry_url_t url;
     assert_int_equal(sentry__url_parse(&url,
                          "http://username:password@example.com/foo/bar?x=y#z"),
         0);
@@ -21,7 +21,7 @@ SENTRY_TEST(url_parsing_complete)
 
 SENTRY_TEST(url_parsing_partial)
 {
-    sentry__url_t url;
+    sentry_url_t url;
     assert_int_equal(
         sentry__url_parse(&url, "http://username:password@example.com/foo/bar"),
         0);
@@ -38,13 +38,13 @@ SENTRY_TEST(url_parsing_partial)
 
 SENTRY_TEST(url_parsing_invalid)
 {
-    sentry__url_t url;
+    sentry_url_t url;
     assert_int_equal(sentry__url_parse(&url, "http:"), 1);
 }
 
 SENTRY_TEST(dsn_parsing_complete)
 {
-    sentry__dsn_t dsn;
+    sentry_dsn_t dsn;
     assert_int_equal(
         sentry__dsn_parse(
             &dsn, "http://username:password@example.com/foo/bar/42?x=y#z"),
@@ -61,7 +61,7 @@ SENTRY_TEST(dsn_parsing_complete)
 
 SENTRY_TEST(dsn_parsing_invalid)
 {
-    sentry__dsn_t dsn;
+    sentry_dsn_t dsn;
     assert_int_equal(sentry__dsn_parse(&dsn,
                          "http://username:password@example.com/foo/bar?x=y#z"),
         1);

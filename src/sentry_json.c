@@ -7,9 +7,9 @@
 
 #define DST_MODE_SB 1
 
-struct sentry__jsonwriter_s {
+struct sentry_jsonwriter_s {
     union {
-        sentry__stringbuilder_t *sb;
+        sentry_stringbuilder_t *sb;
     } dst;
     uint64_t want_comma;
     uint32_t depth;
@@ -17,14 +17,14 @@ struct sentry__jsonwriter_s {
     char dst_mode;
 };
 
-sentry__jsonwriter_t *
+sentry_jsonwriter_t *
 sentry__jsonwriter_new_in_memory(void)
 {
-    sentry__jsonwriter_t *rv = SENTRY_MAKE(sentry__jsonwriter_t);
+    sentry_jsonwriter_t *rv = SENTRY_MAKE(sentry_jsonwriter_t);
     if (!rv) {
         return NULL;
     }
-    rv->dst.sb = SENTRY_MAKE(sentry__stringbuilder_t);
+    rv->dst.sb = SENTRY_MAKE(sentry_stringbuilder_t);
     if (!rv->dst.sb) {
         sentry_free(rv);
         return NULL;
@@ -38,7 +38,7 @@ sentry__jsonwriter_new_in_memory(void)
 }
 
 void
-sentry__jsonwriter_free(sentry__jsonwriter_t *jw)
+sentry__jsonwriter_free(sentry_jsonwriter_t *jw)
 {
     if (!jw) {
         return;
@@ -51,7 +51,7 @@ sentry__jsonwriter_free(sentry__jsonwriter_t *jw)
 }
 
 char *
-sentry__jsonwriter_into_string(sentry__jsonwriter_t *jw)
+sentry__jsonwriter_into_string(sentry_jsonwriter_t *jw)
 {
     switch (jw->dst_mode) {
     case DST_MODE_SB:
@@ -61,13 +61,13 @@ sentry__jsonwriter_into_string(sentry__jsonwriter_t *jw)
 }
 
 static bool
-at_max_depth(const sentry__jsonwriter_t *jw)
+at_max_depth(const sentry_jsonwriter_t *jw)
 {
     return jw->depth >= 64;
 }
 
 static void
-set_comma(sentry__jsonwriter_t *jw, bool val)
+set_comma(sentry_jsonwriter_t *jw, bool val)
 {
     if (at_max_depth(jw)) {
         return;
@@ -80,7 +80,7 @@ set_comma(sentry__jsonwriter_t *jw, bool val)
 }
 
 static void
-write_char(sentry__jsonwriter_t *jw, char c)
+write_char(sentry_jsonwriter_t *jw, char c)
 {
     switch (jw->dst_mode) {
     case DST_MODE_SB:
@@ -89,7 +89,7 @@ write_char(sentry__jsonwriter_t *jw, char c)
 }
 
 static void
-write_str(sentry__jsonwriter_t *jw, const char *str)
+write_str(sentry_jsonwriter_t *jw, const char *str)
 {
     switch (jw->dst_mode) {
     case DST_MODE_SB:
@@ -98,7 +98,7 @@ write_str(sentry__jsonwriter_t *jw, const char *str)
 }
 
 static void
-write_json_str(sentry__jsonwriter_t *jw, const char *str)
+write_json_str(sentry_jsonwriter_t *jw, const char *str)
 {
     const char *ptr = str;
     write_char(jw, '"');
@@ -139,7 +139,7 @@ write_json_str(sentry__jsonwriter_t *jw, const char *str)
 }
 
 static bool
-can_write_item(sentry__jsonwriter_t *jw)
+can_write_item(sentry_jsonwriter_t *jw)
 {
     if (at_max_depth(jw)) {
         return false;
@@ -157,7 +157,7 @@ can_write_item(sentry__jsonwriter_t *jw)
 }
 
 void
-sentry__jsonwriter_write_null(sentry__jsonwriter_t *jw)
+sentry__jsonwriter_write_null(sentry_jsonwriter_t *jw)
 {
     if (can_write_item(jw)) {
         write_str(jw, "null");
@@ -165,7 +165,7 @@ sentry__jsonwriter_write_null(sentry__jsonwriter_t *jw)
 }
 
 void
-sentry__jsonwriter_write_bool(sentry__jsonwriter_t *jw, bool val)
+sentry__jsonwriter_write_bool(sentry_jsonwriter_t *jw, bool val)
 {
     if (can_write_item(jw)) {
         write_str(jw, val ? "true" : "false");
@@ -173,7 +173,7 @@ sentry__jsonwriter_write_bool(sentry__jsonwriter_t *jw, bool val)
 }
 
 void
-sentry__jsonwriter_write_int32(sentry__jsonwriter_t *jw, int32_t val)
+sentry__jsonwriter_write_int32(sentry_jsonwriter_t *jw, int32_t val)
 {
     if (can_write_item(jw)) {
         char buf[16];
@@ -183,7 +183,7 @@ sentry__jsonwriter_write_int32(sentry__jsonwriter_t *jw, int32_t val)
 }
 
 void
-sentry__jsonwriter_write_double(sentry__jsonwriter_t *jw, double val)
+sentry__jsonwriter_write_double(sentry_jsonwriter_t *jw, double val)
 {
     if (can_write_item(jw)) {
         char buf[50];
@@ -193,7 +193,7 @@ sentry__jsonwriter_write_double(sentry__jsonwriter_t *jw, double val)
 }
 
 void
-sentry__jsonwriter_write_str(sentry__jsonwriter_t *jw, const char *val)
+sentry__jsonwriter_write_str(sentry_jsonwriter_t *jw, const char *val)
 {
     if (can_write_item(jw)) {
         write_json_str(jw, val);
@@ -201,7 +201,7 @@ sentry__jsonwriter_write_str(sentry__jsonwriter_t *jw, const char *val)
 }
 
 void
-sentry__jsonwriter_write_key(sentry__jsonwriter_t *jw, const char *val)
+sentry__jsonwriter_write_key(sentry_jsonwriter_t *jw, const char *val)
 {
     if (can_write_item(jw)) {
         write_json_str(jw, val);
@@ -211,7 +211,7 @@ sentry__jsonwriter_write_key(sentry__jsonwriter_t *jw, const char *val)
 }
 
 void
-sentry__jsonwriter_write_list_start(sentry__jsonwriter_t *jw)
+sentry__jsonwriter_write_list_start(sentry_jsonwriter_t *jw)
 {
     if (!can_write_item(jw)) {
         return;
@@ -222,14 +222,14 @@ sentry__jsonwriter_write_list_start(sentry__jsonwriter_t *jw)
 }
 
 void
-sentry__jsonwriter_write_list_end(sentry__jsonwriter_t *jw)
+sentry__jsonwriter_write_list_end(sentry_jsonwriter_t *jw)
 {
     write_char(jw, ']');
     jw->depth -= 1;
 }
 
 void
-sentry__jsonwriter_write_object_start(sentry__jsonwriter_t *jw)
+sentry__jsonwriter_write_object_start(sentry_jsonwriter_t *jw)
 {
     if (!can_write_item(jw)) {
         return;
@@ -240,7 +240,7 @@ sentry__jsonwriter_write_object_start(sentry__jsonwriter_t *jw)
 }
 
 void
-sentry__jsonwriter_write_object_end(sentry__jsonwriter_t *jw)
+sentry__jsonwriter_write_object_end(sentry_jsonwriter_t *jw)
 {
     write_char(jw, '}');
     jw->depth -= 1;

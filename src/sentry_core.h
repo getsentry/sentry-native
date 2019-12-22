@@ -6,7 +6,7 @@
 
 struct sentry_options_s {
     char *raw_dsn;
-    sentry__dsn_t dsn;
+    sentry_dsn_t dsn;
     char *release;
     char *environment;
     char *dist;

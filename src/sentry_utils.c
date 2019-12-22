@@ -17,7 +17,7 @@ is_scheme_valid(const char *scheme_name)
 }
 
 int
-sentry__url_parse(sentry__url_t *url_out, const char *url)
+sentry__url_parse(sentry_url_t *url_out, const char *url)
 {
     bool has_username;
     int result = 0;
@@ -25,7 +25,7 @@ sentry__url_parse(sentry__url_t *url_out, const char *url)
     char *ptr = scratch;
     char *tmp;
     char *aux_buf = 0;
-    memset(url_out, 0, sizeof(sentry__url_t));
+    memset(url_out, 0, sizeof(sentry_url_t));
 
 #define SKIP_WHILE_NOT(ptr, c)                                                 \
     do {                                                                       \
@@ -184,7 +184,7 @@ cleanup:
 }
 
 void
-sentry__url_cleanup(sentry__url_t *url)
+sentry__url_cleanup(sentry_url_t *url)
 {
     sentry_free(url->scheme);
     sentry_free(url->host);
@@ -196,14 +196,14 @@ sentry__url_cleanup(sentry__url_t *url)
 }
 
 int
-sentry__dsn_parse(sentry__dsn_t *dsn_out, const char *dsn)
+sentry__dsn_parse(sentry_dsn_t *dsn_out, const char *dsn)
 {
-    sentry__url_t url;
+    sentry_url_t url;
     size_t path_len;
     char *tmp;
     char *end;
 
-    memset(dsn_out, 0, sizeof(sentry__dsn_t));
+    memset(dsn_out, 0, sizeof(sentry_dsn_t));
 
     if (!dsn || !dsn[0]) {
         dsn_out->empty = true;
@@ -260,7 +260,7 @@ error:
 }
 
 void
-sentry__dsn_cleanup(sentry__dsn_t *dsn)
+sentry__dsn_cleanup(sentry_dsn_t *dsn)
 {
     sentry_free(dsn->host);
     sentry_free(dsn->path);

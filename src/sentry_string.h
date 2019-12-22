@@ -5,32 +5,32 @@
 #include <sentry.h>
 
 /* a string builder can be used to concatenate bytes together. */
-typedef struct sentry__stringbuilder_s {
+typedef struct sentry_stringbuilder_s {
     char *buf;
     size_t allocated;
     size_t len;
-} sentry__stringbuilder_t;
+} sentry_stringbuilder_t;
 
 /* creates a new string builder */
-void sentry__stringbuilder_init(sentry__stringbuilder_t *sb);
+void sentry__stringbuilder_init(sentry_stringbuilder_t *sb);
 
 /* appends a zero terminated string to the builder */
-int sentry__stringbuilder_append(sentry__stringbuilder_t *sb, const char *s);
+int sentry__stringbuilder_append(sentry_stringbuilder_t *sb, const char *s);
 
 /* appends a character */
-int sentry__stringbuilder_append_char(sentry__stringbuilder_t *sb, char c);
+int sentry__stringbuilder_append_char(sentry_stringbuilder_t *sb, char c);
 
 /* detaches the buffer from the string builder and deallocates it */
-char *sentry__stringbuilder_into_string(sentry__stringbuilder_t *sb);
+char *sentry__stringbuilder_into_string(sentry_stringbuilder_t *sb);
 
 /* detaches the buffer from the string builder */
-char *sentry__stringbuilder_take_string(sentry__stringbuilder_t *sb);
+char *sentry_stringbuilder_take_string(sentry_stringbuilder_t *sb);
 
 /* deallocates the string builder */
-void sentry__stringbuilder_cleanup(sentry__stringbuilder_t *sb);
+void sentry__stringbuilder_cleanup(sentry_stringbuilder_t *sb);
 
 /* returns the number of bytes in the string builder */
-size_t sentry__stringbuilder_len(const sentry__stringbuilder_t *sb);
+size_t sentry__stringbuilder_len(const sentry_stringbuilder_t *sb);
 
 /* duplicates a zero terminated string */
 char *sentry__string_dup(const char *str);

@@ -6,7 +6,7 @@
 #define INITIAL_BUFFER_SIZE 128
 
 void
-sentry__stringbuilder_init(sentry__stringbuilder_t *sb)
+sentry__stringbuilder_init(sentry_stringbuilder_t *sb)
 {
     sb->buf = NULL;
     sb->allocated = 0;
@@ -14,7 +14,7 @@ sentry__stringbuilder_init(sentry__stringbuilder_t *sb)
 }
 
 static int
-append(sentry__stringbuilder_t *sb, const char *s, size_t len)
+append(sentry_stringbuilder_t *sb, const char *s, size_t len)
 {
     size_t needed = sb->len + len + 1;
     if (needed > sb->allocated) {
@@ -38,20 +38,20 @@ append(sentry__stringbuilder_t *sb, const char *s, size_t len)
 }
 
 int
-sentry__stringbuilder_append(sentry__stringbuilder_t *sb, const char *s)
+sentry__stringbuilder_append(sentry_stringbuilder_t *sb, const char *s)
 {
     return append(sb, s, strlen(s));
 }
 
 int
-sentry__stringbuilder_append_char(sentry__stringbuilder_t *sb, char c)
+sentry__stringbuilder_append_char(sentry_stringbuilder_t *sb, char c)
 {
     char s[2] = { c, 0 };
     return append(sb, s, 1);
 }
 
 char *
-sentry__stringbuilder_take_string(sentry__stringbuilder_t *sb)
+sentry_stringbuilder_take_string(sentry_stringbuilder_t *sb)
 {
     char *rv = sb->buf;
     if (!rv) {
@@ -64,21 +64,21 @@ sentry__stringbuilder_take_string(sentry__stringbuilder_t *sb)
 }
 
 char *
-sentry__stringbuilder_into_string(sentry__stringbuilder_t *sb)
+sentry__stringbuilder_into_string(sentry_stringbuilder_t *sb)
 {
-    char *rv = sentry__stringbuilder_take_string(sb);
+    char *rv = sentry_stringbuilder_take_string(sb);
     sentry__stringbuilder_cleanup(sb);
     return rv;
 }
 
 void
-sentry__stringbuilder_cleanup(sentry__stringbuilder_t *sb)
+sentry__stringbuilder_cleanup(sentry_stringbuilder_t *sb)
 {
     sentry_free(sb->buf);
 }
 
 size_t
-sentry__stringbuilder_len(const sentry__stringbuilder_t *sb)
+sentry__stringbuilder_len(const sentry_stringbuilder_t *sb)
 {
     return sb->len;
 }

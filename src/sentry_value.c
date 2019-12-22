@@ -501,7 +501,7 @@ sentry_value_is_null(sentry_value_t value)
 }
 
 static void
-value_to_json(sentry__jsonwriter_t *jw, sentry_value_t value)
+value_to_json(sentry_jsonwriter_t *jw, sentry_value_t value)
 {
     switch (sentry_value_get_type(value)) {
     case SENTRY_VALUE_TYPE_NULL:
@@ -544,7 +544,7 @@ value_to_json(sentry__jsonwriter_t *jw, sentry_value_t value)
 char *
 sentry_value_to_json(sentry_value_t value)
 {
-    sentry__jsonwriter_t *jw = sentry__jsonwriter_new_in_memory();
+    sentry_jsonwriter_t *jw = sentry__jsonwriter_new_in_memory();
     value_to_json(jw, value);
     return sentry__jsonwriter_into_string(jw);
 }
