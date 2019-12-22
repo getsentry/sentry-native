@@ -39,7 +39,7 @@ static inline int
 sentry__atomic_fetch_and_add(volatile int *val, int diff)
 {
 #if SENTRY_PLATFORM == SENTRY_PLATFORM_WINDOWS
-    return ::InterlockedExchangeAdd32(ptr, value);
+    return ::InterlockedExchangeAdd(ptr, value);
 #else
     return __sync_fetch_and_add(val, diff);
 #endif

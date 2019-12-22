@@ -42,7 +42,7 @@ sentry_url_parse(sentry_url_t *url_out, const char *url)
         goto error;
     }
 
-    // scheme
+    /* scheme */
     tmp = strchr(ptr, ':');
     if (!tmp) {
         goto error;
@@ -56,7 +56,7 @@ sentry_url_parse(sentry_url_t *url_out, const char *url)
 
     ptr = tmp + 1;
 
-    // scheme trailer
+    /* scheme trailer */
     if (*ptr++ != '/') {
         goto error;
     }
@@ -95,7 +95,7 @@ sentry_url_parse(sentry_url_t *url_out, const char *url)
         ptr++;
     }
 
-    // host
+    /* host */
     bool is_ipv6 = *ptr == '[';
     tmp = ptr;
     while (*tmp) {
@@ -111,7 +111,7 @@ sentry_url_parse(sentry_url_t *url_out, const char *url)
 
     url_out->host = sentry__string_dupn(ptr, tmp - ptr);
 
-    // port
+    /* port */
     ptr = tmp;
     if (*ptr == ':') {
         ptr++;
@@ -132,18 +132,18 @@ sentry_url_parse(sentry_url_t *url_out, const char *url)
         goto error;
     }
 
-    // end of netloc
+    /* end of netloc */
     if (*ptr != '/') {
         goto error;
     }
 
-    // path
+    /* path */
     tmp = ptr;
     SKIP_WHILE_NOT2(tmp, '#', '?');
     url_out->path = sentry__string_dupn(ptr, tmp - ptr);
     ptr = tmp;
 
-    // query
+    /* query */
     if (*ptr == '?') {
         ptr++;
         tmp = ptr;
@@ -152,7 +152,7 @@ sentry_url_parse(sentry_url_t *url_out, const char *url)
         ptr = tmp;
     }
 
-    // fragment
+    /* fragment */
     if (*ptr == '#') {
         ptr++;
         tmp = ptr;
