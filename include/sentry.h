@@ -425,7 +425,7 @@ SENTRY_API void sentry_options_set_transport(
  * sets the before send callback
  */
 SENTRY_API void sentry_options_set_before_send(
-    sentry_options_t *opts, sentry_event_function_t func, void *closure);
+    sentry_options_t *opts, sentry_event_function_t func, void *data);
 
 /*
  * deallocates previously allocated sentry options

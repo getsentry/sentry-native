@@ -75,6 +75,22 @@ sentry_options_free(sentry_options_t *opts)
 }
 
 void
+sentry_options_set_transport(
+    sentry_options_t *opts, sentry_transport_function_t func, void *data)
+{
+    opts->transport_func = func;
+    opts->transport_data = data;
+}
+
+void
+sentry_options_set_before_send(
+    sentry_options_t *opts, sentry_event_function_t func, void *data)
+{
+    opts->before_send_func = func;
+    opts->before_send_data = data;
+}
+
+void
 sentry_options_set_dsn(sentry_options_t *opts, const char *dsn)
 {
     sentry__dsn_cleanup(&opts->dsn);

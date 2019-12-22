@@ -1,16 +1,22 @@
+all: test
+
 update-test-discovery:
-	perl -ne 'print if s/SENTRY_TEST\(([^)]+)\)/XX(\1)/' tests/*.c | sort | uniq > tests/tests.inc
+	@perl -ne 'print if s/SENTRY_TEST\(([^)]+)\)/XX(\1)/' tests/*.c | sort | uniq > tests/tests.inc
 .PHONY: update-test-discovery
 
 build/Makefile: CMakeLists.txt
-	mkdir -p build
-	cd build; cmake ..
+	@mkdir -p build
+	@cd build; cmake ..
 
 test: build/Makefile update-test-discovery
-	$(MAKE) -C build
-	./build/sentry_tests
+	@$(MAKE) -C build
+	@./build/sentry_tests
 .PHONY: test
 
+clean: build/Makefile
+	@$(MAKE) -C build clean
+.PHONY: clean
+
 format:
-	clang-format -i src/*.c src/*.h tests/*.c tests/*.h
+	@clang-format -i src/*.c src/*.h tests/*.c tests/*.h
 .PHONY: format

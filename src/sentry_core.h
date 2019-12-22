@@ -14,6 +14,11 @@ struct sentry_options_s {
     char *ca_certs;
     bool debug;
 
+    sentry_transport_function_t transport_func;
+    void *transport_data;
+    sentry_event_function_t before_send_func;
+    void *before_send_data;
+
     /* everything from here on down are options which are stored here but
        not exposed through the options API */
     sentry_user_consent_t user_consent;
