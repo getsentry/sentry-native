@@ -7,6 +7,7 @@
 #include "sentry_alloc.h"
 #include "sentry_json.h"
 #include "sentry_string.h"
+#include "sentry_sync.h"
 #include "sentry_utils.h"
 #include "sentry_value.h"
 

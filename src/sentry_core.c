@@ -1,20 +1,29 @@
 #include "sentry_core.h"
 #include "sentry_alloc.h"
 #include "sentry_string.h"
+#include "sentry_sync.h"
 #include <string.h>
 
 static sentry_options_t *g_options;
+static sentry_mutex_t g_options_mutex = SENTRY__MUTEX_INIT;
 
 int
 sentry_init(sentry_options_t *options)
 {
+    sentry_shutdown();
+    sentry__mutex_lock(&g_options_mutex);
     g_options = options;
+    sentry__mutex_unlock(&g_options_mutex);
     return 0;
 }
 
 void
 sentry_shutdown(void)
 {
+    sentry__mutex_lock(&g_options_mutex);
+    sentry_options_free(g_options);
+    g_options = NULL;
+    sentry__mutex_unlock(&g_options_mutex);
 }
 
 const sentry_options_t *

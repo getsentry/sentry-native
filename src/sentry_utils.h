@@ -36,22 +36,6 @@ int sentry__dsn_parse(sentry_dsn_t *dsn_out, const char *dsn);
 
 void sentry__dsn_cleanup(sentry_dsn_t *dsn);
 
-static inline int
-sentry__atomic_fetch_and_add(volatile int *val, int diff)
-{
-#if SENTRY_PLATFORM == SENTRY_PLATFORM_WINDOWS
-    return ::InterlockedExchangeAdd(ptr, value);
-#else
-    return __sync_fetch_and_add(val, diff);
-#endif
-}
-
-static inline int
-sentry__atomic_fetch(volatile int *val)
-{
-    return sentry__atomic_fetch_and_add(val, 0);
-}
-
 #if SENTRY_PLATFORM == SENTRY_PLATFORM_WINDOWS
 #    define EINTR_RETRY(X, Y)                                                  \
         do {                                                                   \
