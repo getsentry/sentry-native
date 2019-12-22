@@ -1,0 +1,6 @@
+BasedOnStyle: WebKit
+IndentWidth: 4
+IndentPPDirectives: AfterHash
+ColumnLimit: 80
+AlwaysBreakAfterDefinitionReturnType: All
+PointerAlignment: Right

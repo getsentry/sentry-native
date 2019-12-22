@@ -1,0 +1,95 @@
+#include <string.h>
+
+#include "sentry_alloc.h"
+#include "sentry_string.h"
+
+#define INITIAL_BUFFER_SIZE 128
+
+void
+sentry__stringbuilder_init(sentry__stringbuilder_t *sb)
+{
+    sb->buf = NULL;
+    sb->allocated = 0;
+    sb->len = 0;
+}
+
+static int
+append(sentry__stringbuilder_t *sb, const char *s, size_t len)
+{
+    size_t needed = sb->len + len + 1;
+    if (needed > sb->allocated) {
+        size_t new_alloc_size = sb->allocated;
+        if (new_alloc_size == 0) {
+            new_alloc_size = INITIAL_BUFFER_SIZE;
+        }
+        while (new_alloc_size < needed) {
+            new_alloc_size = new_alloc_size * 2;
+        }
+        char *new_buf = sentry_realloc(sb->buf, new_alloc_size);
+        if (!new_buf) {
+            return 1;
+        }
+        sb->buf = new_buf;
+        sb->allocated = new_alloc_size;
+    }
+    memcpy(sb->buf + sb->len, s, len + 1);
+    sb->len += len;
+    return 0;
+}
+
+int
+sentry__stringbuilder_append(sentry__stringbuilder_t *sb, const char *s)
+{
+    return append(sb, s, strlen(s));
+}
+
+int
+sentry__stringbuilder_append_char(sentry__stringbuilder_t *sb, char c)
+{
+    char s[2] = { c, 0 };
+    return append(sb, s, 1);
+}
+
+char *
+sentry__stringbuilder_take_string(sentry__stringbuilder_t *sb)
+{
+    char *rv = sb->buf;
+    if (!rv) {
+        rv = sentry__string_dup("");
+    }
+    sb->buf = 0;
+    sb->allocated = 0;
+    sb->len = 0;
+    return rv;
+}
+
+char *
+sentry__stringbuilder_into_string(sentry__stringbuilder_t *sb)
+{
+    char *rv = sentry__stringbuilder_take_string(sb);
+    sentry__stringbuilder_cleanup(sb);
+    return rv;
+}
+
+void
+sentry__stringbuilder_cleanup(sentry__stringbuilder_t *sb)
+{
+    sentry_free(sb->buf);
+}
+
+size_t
+sentry__stringbuilder_len(const sentry__stringbuilder_t *sb)
+{
+    return sb->len;
+}
+
+char *
+sentry__string_dup(const char *str)
+{
+    size_t len = strlen(str) + 1;
+    char *rv = sentry_malloc(len);
+    if (rv) {
+        memcpy(rv, str, len);
+    }
+    return rv;
+}
