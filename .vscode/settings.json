@@ -105,7 +105,8 @@
         "*.ipp": "cpp",
         "__functional_base_03": "cpp",
         "simd": "cpp",
-        "filesystem": "cpp"
+        "filesystem": "cpp",
+        "sentry_path.h": "c"
     },
     "python.pythonPath": ".venv/bin/python2.7",
     "editor.formatOnSave": true

@@ -1,5 +1,7 @@
 XX(dsn_parsing_complete)
 XX(dsn_parsing_invalid)
+XX(path_basics)
+XX(path_joining_unix)
 XX(url_parsing_complete)
 XX(url_parsing_invalid)
 XX(url_parsing_partial)

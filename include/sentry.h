@@ -543,7 +543,7 @@ SENTRY_API void sentry_options_set_handler_path(
 SENTRY_API void sentry_options_set_database_path(
     sentry_options_t *opts, const char *path);
 
-#ifdef _WIN32
+#if SENTRY_PLATFORM == SENTRY_PLATFORM_WINDOWS
 /* wide char version of `sentry_options_add_attachment` */
 SENTRY_API void sentry_options_add_attachmentw(
     sentry_options_t *opts, const char *name, const wchar_t *path);

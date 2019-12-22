@@ -183,3 +183,52 @@ sentry_options_get_debug(const sentry_options_t *opts)
 {
     return opts->debug;
 }
+
+void
+sentry_options_set_require_user_consent(sentry_options_t *opts, int val)
+{
+    opts->require_user_consent = true;
+}
+
+int
+sentry_options_get_require_user_consent(const sentry_options_t *opts)
+{
+    return opts->require_user_consent;
+}
+
+void
+sentry_options_set_system_crash_reporter_enabled(
+    sentry_options_t *opts, int enabled)
+{
+    /* TODO: implement */
+}
+
+void
+sentry_options_set_handler_path(sentry_options_t *opts, const char *path)
+{
+    sentry__path_free(opts->handler_path);
+    opts->handler_path = sentry__path_from_str(path);
+}
+
+void
+sentry_options_set_database_path(sentry_options_t *opts, const char *path)
+{
+    sentry__path_free(opts->database_path);
+    opts->database_path = sentry__path_from_str(path);
+}
+
+#if SENTRY_PLATFORM == SENTRY_PLATFORM_WINDOWS
+void
+sentry_options_set_handler_pathw(sentry_options_t *opts, const wchar_t *path)
+{
+    sentry__path_free(opts->handler_path);
+    opts->handler_path = sentry__path_from_wstr(path);
+}
+
+void
+sentry_options_set_database_pathw(sentry_options_t *opts, const wchar_t *path)
+{
+    sentry__path_free(opts->database_path);
+    opts->database_path = sentry__path_from_wstr(path);
+}
+#endif

@@ -52,4 +52,25 @@ sentry__atomic_fetch(volatile int *val)
     return sentry__atomic_fetch_and_add(val, 0);
 }
 
+#if SENTRY_PLATFORM == SENTRY_PLATFORM_WINDOWS
+#    define EINTR_RETRY(X, Y)                                                  \
+        do {                                                                   \
+            int _tmp = (X);                                                    \
+            if (Y) {                                                           \
+                *(int *)Y = _tmp;                                              \
+            }                                                                  \
+        } while (false)
+#else
+#    define EINTR_RETRY(X, Y)                                                  \
+        do {                                                                   \
+            int _tmp;                                                          \
+            do {                                                               \
+                _tmp = (X);                                                    \
+            } while (_tmp == -1 && errno == EINTR);                            \
+            if (Y) {                                                           \
+                *(int *)Y = _tmp;                                              \
+            }                                                                  \
+        } while (false)
+#endif
+
 #endif

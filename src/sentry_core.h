@@ -1,6 +1,7 @@
 #ifndef SENTRY_CORE_H_INCLUDED
 #define SENTRY_CORE_H_INCLUDED
 
+#include "sentry_path.h"
 #include "sentry_utils.h"
 #include <sentry.h>
 
@@ -12,7 +13,10 @@ struct sentry_options_s {
     char *dist;
     char *http_proxy;
     char *ca_certs;
+    sentry_path_t *database_path;
+    sentry_path_t *handler_path;
     bool debug;
+    bool require_user_consent;
 
     sentry_transport_function_t transport_func;
     void *transport_data;
