@@ -86,7 +86,7 @@ sentry__stringbuilder_len(const sentry__stringbuilder_t *sb)
 char *
 sentry__string_dup(const char *str)
 {
-    return sentry__string_dupn(str, strlen(str));
+    return str ? sentry__string_dupn(str, strlen(str)) : NULL;
 }
 
 char *

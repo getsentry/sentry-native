@@ -17,7 +17,7 @@ is_scheme_valid(const char *scheme_name)
 }
 
 int
-sentry_url_parse(sentry_url_t *url_out, const char *url)
+sentry__url_parse(sentry__url_t *url_out, const char *url)
 {
     bool has_username;
     int result = 0;
@@ -25,7 +25,7 @@ sentry_url_parse(sentry_url_t *url_out, const char *url)
     char *ptr = scratch;
     char *tmp;
     char *aux_buf = 0;
-    memset(url_out, 0, sizeof(sentry_url_t));
+    memset(url_out, 0, sizeof(sentry__url_t));
 
 #define SKIP_WHILE_NOT(ptr, c)                                                 \
     do {                                                                       \
@@ -174,7 +174,7 @@ sentry_url_parse(sentry_url_t *url_out, const char *url)
 
 error:
     result = 1;
-    sentry_url_cleanup(url_out);
+    sentry__url_cleanup(url_out);
     goto cleanup;
 
 cleanup:
@@ -184,7 +184,7 @@ cleanup:
 }
 
 void
-sentry_url_cleanup(sentry_url_t *url)
+sentry__url_cleanup(sentry__url_t *url)
 {
     sentry_free(url->scheme);
     sentry_free(url->host);
@@ -196,16 +196,21 @@ sentry_url_cleanup(sentry_url_t *url)
 }
 
 int
-sentry_dsn_parse(sentry_dsn_t *dsn_out, const char *dsn)
+sentry__dsn_parse(sentry__dsn_t *dsn_out, const char *dsn)
 {
-    sentry_url_t url;
+    sentry__url_t url;
     size_t path_len;
     char *tmp;
     char *end;
 
-    memset(dsn_out, 0, sizeof(sentry_dsn_t));
+    memset(dsn_out, 0, sizeof(sentry__dsn_t));
 
-    if (sentry_url_parse(&url, dsn) != 0) {
+    if (!dsn || !dsn[0]) {
+        dsn_out->empty = true;
+        return 0;
+    }
+
+    if (sentry__url_parse(&url, dsn) != 0) {
         return 1;
     }
 
@@ -243,18 +248,19 @@ sentry_dsn_parse(sentry_dsn_t *dsn_out, const char *dsn)
     *tmp = 0;
     dsn_out->path = url.path;
     url.path = NULL;
+    dsn_out->empty = false;
 
-    sentry_url_cleanup(&url);
+    sentry__url_cleanup(&url);
     return 0;
 
 error:
-    sentry_url_cleanup(&url);
-    sentry_dsn_cleanup(dsn_out);
+    sentry__url_cleanup(&url);
+    sentry__dsn_cleanup(dsn_out);
     return 1;
 }
 
 void
-sentry_dsn_cleanup(sentry_dsn_t *dsn)
+sentry__dsn_cleanup(sentry__dsn_t *dsn)
 {
     sentry_free(dsn->host);
     sentry_free(dsn->path);

@@ -4,8 +4,8 @@
 
 SENTRY_TEST(url_parsing_complete)
 {
-    sentry_url_t url;
-    assert_int_equal(sentry_url_parse(&url,
+    sentry__url_t url;
+    assert_int_equal(sentry__url_parse(&url,
                          "http://username:password@example.com/foo/bar?x=y#z"),
         0);
     assert_string_equal(url.scheme, "http");
@@ -16,14 +16,14 @@ SENTRY_TEST(url_parsing_complete)
     assert_string_equal(url.path, "/foo/bar");
     assert_string_equal(url.query, "x=y");
     assert_string_equal(url.fragment, "z");
-    sentry_url_cleanup(&url);
+    sentry__url_cleanup(&url);
 }
 
 SENTRY_TEST(url_parsing_partial)
 {
-    sentry_url_t url;
+    sentry__url_t url;
     assert_int_equal(
-        sentry_url_parse(&url, "http://username:password@example.com/foo/bar"),
+        sentry__url_parse(&url, "http://username:password@example.com/foo/bar"),
         0);
     assert_string_equal(url.scheme, "http");
     assert_string_equal(url.host, "example.com");
@@ -33,20 +33,20 @@ SENTRY_TEST(url_parsing_partial)
     assert_string_equal(url.path, "/foo/bar");
     assert_true(url.query == NULL);
     assert_true(url.fragment == NULL);
-    sentry_url_cleanup(&url);
+    sentry__url_cleanup(&url);
 }
 
 SENTRY_TEST(url_parsing_invalid)
 {
-    sentry_url_t url;
-    assert_int_equal(sentry_url_parse(&url, "http:"), 1);
+    sentry__url_t url;
+    assert_int_equal(sentry__url_parse(&url, "http:"), 1);
 }
 
 SENTRY_TEST(dsn_parsing_complete)
 {
-    sentry_dsn_t dsn;
+    sentry__dsn_t dsn;
     assert_int_equal(
-        sentry_dsn_parse(
+        sentry__dsn_parse(
             &dsn, "http://username:password@example.com/foo/bar/42?x=y#z"),
         0);
     assert_false(dsn.is_secure);
@@ -56,13 +56,13 @@ SENTRY_TEST(dsn_parsing_complete)
     assert_string_equal(dsn.secret_key, "password");
     assert_string_equal(dsn.path, "/foo/bar");
     assert_int_equal((int)dsn.project_id, 42);
-    sentry_dsn_cleanup(&dsn);
+    sentry__dsn_cleanup(&dsn);
 }
 
 SENTRY_TEST(dsn_parsing_invalid)
 {
-    sentry_dsn_t dsn;
-    assert_int_equal(sentry_dsn_parse(&dsn,
+    sentry__dsn_t dsn;
+    assert_int_equal(sentry__dsn_parse(&dsn,
                          "http://username:password@example.com/foo/bar?x=y#z"),
         1);
 }

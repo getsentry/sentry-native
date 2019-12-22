@@ -15,11 +15,11 @@ typedef struct {
     char *fragment;
     char *username;
     char *password;
-} sentry_url_t;
+} sentry__url_t;
 
-int sentry_url_parse(sentry_url_t *url_out, const char *url);
+int sentry__url_parse(sentry__url_t *url_out, const char *url);
 
-void sentry_url_cleanup(sentry_url_t *url);
+void sentry__url_cleanup(sentry__url_t *url);
 
 typedef struct {
     bool is_secure;
@@ -29,11 +29,12 @@ typedef struct {
     char *public_key;
     uint64_t project_id;
     char *path;
-} sentry_dsn_t;
+    bool empty;
+} sentry__dsn_t;
 
-int sentry_dsn_parse(sentry_dsn_t *dsn_out, const char *dsn);
+int sentry__dsn_parse(sentry__dsn_t *dsn_out, const char *dsn);
 
-void sentry_dsn_cleanup(sentry_dsn_t *dsn);
+void sentry__dsn_cleanup(sentry__dsn_t *dsn);
 
 static inline int
 sentry__atomic_fetch_and_add(volatile int *val, int diff)
