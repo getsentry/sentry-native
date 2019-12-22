@@ -86,10 +86,17 @@ sentry__stringbuilder_len(const sentry__stringbuilder_t *sb)
 char *
 sentry__string_dup(const char *str)
 {
-    size_t len = strlen(str) + 1;
+    return sentry__string_dupn(str, strlen(str));
+}
+
+char *
+sentry__string_dupn(const char *str, size_t n)
+{
+    size_t len = n + 1;
     char *rv = sentry_malloc(len);
     if (rv) {
-        memcpy(rv, str, len);
+        memcpy(rv, str, n);
     }
+    rv[n] = 0;
     return rv;
 }

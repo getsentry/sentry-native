@@ -1,6 +1,7 @@
 #ifndef SENTRY_STRING_H_INCLUDED
 #define SENTRY_STRING_H_INCLUDED
 
+#include <ctype.h>
 #include <sentry.h>
 
 /* a string builder can be used to concatenate bytes together. */
@@ -33,5 +34,17 @@ size_t sentry__stringbuilder_len(const sentry__stringbuilder_t *sb);
 
 /* duplicates a zero terminated string */
 char *sentry__string_dup(const char *str);
+
+/* duplicates a zero terminated string with a length limit */
+char *sentry__string_dupn(const char *str, size_t n);
+
+/* converts a string to lowercase */
+static inline void
+sentry__string_ascii_lower(char *s)
+{
+    for (; *s; s++) {
+        *s = (char)tolower((char)*s);
+    }
+}
 
 #endif

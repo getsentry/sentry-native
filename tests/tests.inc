@@ -1,3 +1,6 @@
+XX(url_parsing_complete)
+XX(url_parsing_invalid)
+XX(url_parsing_partial)
 XX(uuid_api)
 XX(uuid_v4)
 XX(value_bool)

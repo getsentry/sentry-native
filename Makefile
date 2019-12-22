@@ -9,3 +9,8 @@ build/Makefile: CMakeLists.txt
 test: build/Makefile update-test-discovery
 	$(MAKE) -C build
 	./build/sentry_tests
+.PHONY: test
+
+format:
+	clang-format -i src/*.c src/*.h tests/*.c tests/*.h
+.PHONY: format
