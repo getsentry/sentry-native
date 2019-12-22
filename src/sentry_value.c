@@ -1,12 +1,14 @@
 #include <assert.h>
 #include <sentry.h>
 #include <stdbool.h>
+#include <stdio.h>
 #include <string.h>
 
 #include "sentry_alloc.h"
 #include "sentry_json.h"
 #include "sentry_string.h"
 #include "sentry_utils.h"
+#include "sentry_value.h"
 
 static const uint64_t MAX_DOUBLE = 0xfff8000000000000ULL;
 static const uint64_t TAG_THING = 0xfffc000000000000ULL;
@@ -200,7 +202,7 @@ sentry_value_new_string(const char *value)
     if (!s) {
         return sentry_value_new_null();
     }
-    return new_thing_value(s, THING_TYPE_STRING);
+    return sentry__value_new_string_owned(s);
 }
 
 sentry_value_t
@@ -545,4 +547,43 @@ sentry_value_to_json(sentry_value_t value)
     sentry__jsonwriter_t *jw = sentry__jsonwriter_new_in_memory();
     value_to_json(jw, value);
     return sentry__jsonwriter_into_string(jw);
+}
+
+sentry_value_t
+sentry__value_new_string_owned(char *s)
+{
+    return new_thing_value(s, THING_TYPE_STRING);
+}
+
+sentry_value_t
+sentry__value_new_addr(uint64_t addr)
+{
+    char buf[100];
+    snprintf(buf, sizeof(buf), "0x%llx", (unsigned long long)addr);
+    return sentry_value_new_string(buf);
+}
+
+sentry_value_t
+sentry__value_new_hexstring(const char *bytes, size_t len)
+{
+    char *buf = sentry_malloc(len * 2 + 1);
+    if (!buf) {
+        return sentry_value_new_null();
+    }
+    char *ptr;
+    for (size_t i = 0; i < len; i++) {
+        ptr += snprintf(ptr, 3, "%02hhx", bytes[i]);
+    }
+    return sentry__value_new_string_owned(buf);
+}
+
+sentry_value_t
+sentry__value_new_uuid(const sentry_uuid_t *uuid)
+{
+    char *buf = sentry_malloc(37);
+    if (!buf) {
+        return sentry_value_new_null();
+    }
+    sentry_uuid_as_string(uuid, buf);
+    return sentry__value_new_string_owned(buf);
 }
