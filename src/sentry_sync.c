@@ -70,11 +70,13 @@ worker_thread(void *data)
         sentry__mutex_unlock(&bgw->task_lock);
 
         if (is_done) {
+            sentry__cond_wake(&bgw->done_signal);
             break;
         } else if (!task) {
             sentry__mutex_lock(&bgw->submit_signal_lock);
             sentry__cond_wait_timeout(
                 &bgw->submit_signal, &bgw->submit_signal_lock, 1000);
+            sentry__mutex_unlock(&bgw->submit_signal_lock);
         } else {
             task->exec_func(task->data);
             if (task->cleanup_func) {
@@ -84,8 +86,8 @@ worker_thread(void *data)
 
             sentry__mutex_lock(&bgw->task_lock);
             bgw->task_count--;
-            sentry__cond_wake(&bgw->done_signal);
             sentry__mutex_unlock(&bgw->task_lock);
+            sentry__cond_wake(&bgw->done_signal);
         }
     }
     return 0;
@@ -120,7 +122,8 @@ sentry__bgworker_shutdown(sentry_bgworker_t *bgw)
         }
         sentry__mutex_lock(&bgw->done_signal_lock);
         sentry__cond_wait_timeout(
-            &bgw->done_signal, &bgw->done_signal_lock, 1000);
+            &bgw->done_signal, &bgw->done_signal_lock, 250);
+        sentry__mutex_unlock(&bgw->done_signal_lock);
         uint64_t now = sentry__msec_time();
         if (now - started > 5000) {
             return 1;
@@ -178,8 +181,8 @@ sentry__bgworker_submit(sentry_bgworker_t *bgw,
     }
     bgw->last_task = task;
     bgw->task_count++;
-    sentry__cond_wake(&bgw->submit_signal);
     sentry__mutex_unlock(&bgw->task_lock);
+    sentry__cond_wake(&bgw->submit_signal);
 
     return 0;
 }
