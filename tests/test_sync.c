@@ -2,7 +2,7 @@
 #include "sentry_testsupport.h"
 
 struct task_state {
-    bool executed;
+    int executed;
     bool running;
 };
 
@@ -10,7 +10,7 @@ static void
 task_func(void *data)
 {
     struct task_state *state = data;
-    state->executed = true;
+    state->executed++;
 }
 
 static void
@@ -31,13 +31,15 @@ SENTRY_TEST(background_worker)
         struct task_state ts;
         ts.executed = false;
         ts.running = true;
-        sentry__bgworker_submit(bgw, task_func, cleanup_func, &ts);
+        for (size_t j = 0; j < 10; j++) {
+            sentry__bgworker_submit(bgw, task_func, cleanup_func, &ts);
+        }
 
         assert_int_equal(sentry__bgworker_shutdown(bgw), 0);
         sentry__bgworker_free(bgw);
 
         __sync_synchronize();
-        assert_true(ts.executed);
+        assert_int_equal(ts.executed, 10);
         assert_false(ts.running);
     }
 }

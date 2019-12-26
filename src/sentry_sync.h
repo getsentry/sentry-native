@@ -1,6 +1,7 @@
 #ifndef SENTRY_SYNC_H_INCLUDED
 #define SENTRY_SYNC_H_INCLUDED
 
+#include <assert.h>
 #include <sentry.h>
 #include <stdio.h>
 
@@ -35,16 +36,16 @@ sentry__winmutex_lock(volatile struct sentry__winmutex_s *mutex)
 
 typedef HANDLE sentry_threadid_t;
 typedef struct sentry__winmutex_s sentry_mutex_t;
-typedef CONDITION_VARIABLE sentry_condvar_t;
+typedef CONDITION_VARIABLE sentry_cond_t;
 #    define SENTRY__MUTEX_INIT NULL
 #    define sentry__mutex_lock(Lock) sentry__winmutex_lock(&(Lock))
 #    define sentry__mutex_unlock(Lock)                                         \
         LeaveCriticalSection(&(Lock)->critical_section)
-#    define sentry__condvar_wait_timeout(CondVar, Lock, Timeout)               \
+#    define sentry__cond_wait_timeout(CondVar, Lock, Timeout)                  \
         SleepConditionVariableCS(CondVar, &Lock->critical_section, Timeout)
-#    define sentry__condvar_wait(CondVar, Lock)                                \
-        sentry__condvar_wait_timeout(CondVar, Lock, INFINITE)
-#    define sentry__condvar_wake pthread_cond_wake WakeConditionVariable
+#    define sentry__cond_wait(CondVar, Lock)                                   \
+        sentry__cond_wait_timeout(CondVar, Lock, INFINITE)
+#    define sentry__cond_wake pthread_cond_wake WakeConditionVariable
 #    define sentry__thread_spawn(ThreadId, Func, Data)                         \
         CreateThread(NULL, 0, Func, Data, 0, ThreadId)
 #    define sentry__thread_join(ThreadId)                                      \
@@ -54,19 +55,24 @@ typedef CONDITION_VARIABLE sentry_condvar_t;
 #    include <sys/time.h>
 typedef pthread_t sentry_threadid_t;
 typedef pthread_mutex_t sentry_mutex_t;
-typedef pthread_cond_t sentry_condvar_t;
+typedef pthread_cond_t sentry_cond_t;
 #    define SENTRY__MUTEX_INIT PTHREAD_RECURSIVE_MUTEX_INITIALIZER
-#    define sentry__mutex_lock pthread_mutex_lock
+#    define sentry__mutex_lock(Mutex)                                          \
+        do {                                                                   \
+            int _rv = pthread_mutex_lock(Mutex);                               \
+            assert(_rv == 0);                                                  \
+        } while (0)
 #    define sentry__mutex_unlock pthread_mutex_unlock
-#    define sentry__condvar_wait pthread_cond_wait
-#    define sentry__condvar_wake pthread_cond_signal
+#    define SENTRY__COND_INIT PTHREAD_COND_INITIALIZER
+#    define sentry__cond_wait pthread_cond_wait
+#    define sentry__cond_wake pthread_cond_signal
 #    define sentry__thread_spawn(ThreadId, Func, Data)                         \
         (pthread_create(ThreadId, NULL, (void *(*)(void *))Func, Data) == 0)
 #    define sentry__thread_join(ThreadId) pthread_join(ThreadId, NULL)
 
 static inline int
-sentry__condvar_wait_timeout(
-    sentry_condvar_t *cv, sentry_mutex_t *mutex, u_int64_t msecs)
+sentry__cond_wait_timeout(
+    sentry_cond_t *cv, sentry_mutex_t *mutex, u_int64_t msecs)
 {
     struct timeval now;
     struct timespec lock_time;
@@ -76,6 +82,16 @@ sentry__condvar_wait_timeout(
     return pthread_cond_timedwait(cv, mutex, &lock_time);
 }
 #endif
+#define sentry__mutex_init(Mutex)                                              \
+    do {                                                                       \
+        sentry_mutex_t tmp = SENTRY__MUTEX_INIT;                               \
+        *(Mutex) = tmp;                                                        \
+    } while (0)
+#define sentry__cond_init(CondVar)                                             \
+    do {                                                                       \
+        sentry_cond_t tmp = SENTRY__COND_INIT;                                 \
+        *(CondVar) = tmp;                                                      \
+    } while (0)
 
 static inline int
 sentry__atomic_fetch_and_add(volatile int *val, int diff)
