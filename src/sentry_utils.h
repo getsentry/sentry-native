@@ -4,6 +4,8 @@
 #include <sentry.h>
 #if SENTRY_PLATFORM == SENTRY_PLATFORM_WINDOWS
 #    include <winnt.h>
+#else
+#    include <sys/time.h>
 #endif
 
 typedef struct {
@@ -56,5 +58,28 @@ void sentry__dsn_cleanup(sentry_dsn_t *dsn);
             }                                                                  \
         } while (false)
 #endif
+
+/* returns the number of milliseconds since epoch. */
+static inline uint64_t
+sentry__msec_time()
+{
+#if SENTRY_PLATFORM == SENTRY_PLATFORM_WINDOWS
+    SYSTEMTIME st;
+    FILETIME file_time;
+    GetSystemTime(&st);
+    SystemTimeToFileTime(&system_time, &file_time);
+    return (((uint64_t)file_time.dwLowDateTime
+                    + (uint64_t)file_time.dwHighDateTime
+                << 32)
+               - 116444736000000000ULL)
+        / 10000000ULL
+        + system_time.wMilliseconds;
+#else
+    struct timeval tv;
+    return (gettimeofday(&tv, NULL) == 0)
+        ? (uint64_t)tv.tv_sec * 1000 + tv.tv_usec / 1000
+        : 0;
+#endif
+}
 
 #endif

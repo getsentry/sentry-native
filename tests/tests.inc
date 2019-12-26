@@ -1,3 +1,4 @@
+XX(background_worker)
 XX(dsn_parsing_complete)
 XX(dsn_parsing_invalid)
 XX(path_basics)

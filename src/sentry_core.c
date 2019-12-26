@@ -35,25 +35,34 @@ sentry_get_options(void)
 void
 sentry_user_consent_give(void)
 {
+    sentry__mutex_lock(&g_options_mutex);
     g_options->user_consent = SENTRY_USER_CONSENT_GIVEN;
+    sentry__mutex_unlock(&g_options_mutex);
 }
 
 void
 sentry_user_consent_revoke(void)
 {
+    sentry__mutex_lock(&g_options_mutex);
     g_options->user_consent = SENTRY_USER_CONSENT_REVOKED;
+    sentry__mutex_unlock(&g_options_mutex);
 }
 
 void
 sentry_user_consent_reset(void)
 {
+    sentry__mutex_lock(&g_options_mutex);
     g_options->user_consent = SENTRY_USER_CONSENT_UNKNOWN;
+    sentry__mutex_unlock(&g_options_mutex);
 }
 
 sentry_user_consent_t
 sentry_user_consent_get(void)
 {
-    return g_options->user_consent;
+    sentry__mutex_lock(&g_options_mutex);
+    sentry_user_consent_t rv = g_options->user_consent;
+    sentry__mutex_unlock(&g_options_mutex);
+    return rv;
 }
 
 sentry_options_t *

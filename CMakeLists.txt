@@ -6,6 +6,12 @@ find_package(CMocka REQUIRED)
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Werror=implicit-function-declaration -Werror=incompatible-function-pointer-types")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 
+OPTION(WITH_ASAN_OPTION "Build sentry-native with asan" OFF)
+if(WITH_ASAN_OPTION)
+	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -fsanitize=address -fno-omit-frame-pointer")
+	set(CMAKE_LD_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=address")
+endif()
+
 include_directories("include" ${CMOCKA_INCLUDE_DIR})
 
 set(SENTRY_NATIVE_SOURCE_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/src)
