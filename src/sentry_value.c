@@ -16,10 +16,11 @@ static const uint64_t TAG_THING = 0xfffc000000000000ULL;
 static const uint64_t TAG_INT32 = 0xfff9000000000000ULL;
 static const uint64_t TAG_CONST = 0xfffa000000000000ULL;
 
-static const char THING_TYPE_STRING = 0;
+static const char THING_TYPE_MASK = 0x7f;
+static const char THING_TYPE_FROZEN = 0x80;
 static const char THING_TYPE_LIST = 1;
 static const char THING_TYPE_OBJECT = 2;
-static const char THING_TYPE_MASK = 0x7f;
+static const char THING_TYPE_STRING = 0;
 
 /* internal value helpers */
 
@@ -77,9 +78,10 @@ thing_free(thing_t *thing)
     sentry_free(thing);
 }
 
-static void
-thing_freeze(thing_t *thing)
+static int
+thing_get_type(const thing_t *thing)
 {
+    return thing->type & THING_TYPE_MASK;
 }
 
 static int
@@ -88,10 +90,30 @@ thing_is_frozen(const thing_t *thing)
     return (thing->type >> 7) != 0;
 }
 
-static int
-thing_get_type(const thing_t *thing)
+static void
+thing_freeze(thing_t *thing)
 {
-    return thing->type & THING_TYPE_MASK;
+    if (thing_is_frozen(thing)) {
+        return;
+    }
+    thing->type |= 0x80;
+    switch (thing_get_type(thing)) {
+    case THING_TYPE_LIST: {
+        const list_t *l = thing->payload;
+        for (size_t i = 0; i < l->len; i++) {
+            sentry_value_freeze(l->items[i]);
+        }
+        break;
+    }
+    case THING_TYPE_OBJECT: {
+        const obj_t *o = thing->payload;
+        for (size_t i = 0; i < o->len; i++) {
+            sentry_value_freeze(o->pairs[i].v);
+        }
+        break;
+    }
+    default:;
+    }
 }
 
 static sentry_value_t
@@ -120,6 +142,13 @@ value_as_thing(sentry_value_t value)
     } else {
         return NULL;
     }
+}
+
+static thing_t *
+value_as_unfrozen_thing(sentry_value_t value)
+{
+    thing_t *thing = value_as_thing(value);
+    return thing && !thing_is_frozen(thing) ? thing : NULL;
 }
 
 /* public api implementations */
@@ -156,6 +185,13 @@ sentry_value_freeze(sentry_value_t value)
     if (thing) {
         thing_freeze(thing);
     }
+}
+
+int
+sentry_value_is_frozen(sentry_value_t value)
+{
+    const thing_t *thing = value_as_thing(value);
+    return thing ? thing_is_frozen(thing) : true;
 }
 
 sentry_value_t
@@ -266,7 +302,7 @@ sentry_value_get_type(sentry_value_t value)
 int
 sentry_value_set_by_key(sentry_value_t value, const char *k, sentry_value_t v)
 {
-    thing_t *thing = value_as_thing(value);
+    thing_t *thing = value_as_unfrozen_thing(value);
     if (!thing || thing_get_type(thing) != THING_TYPE_OBJECT) {
         return 1;
     }
@@ -298,7 +334,7 @@ sentry_value_set_by_key(sentry_value_t value, const char *k, sentry_value_t v)
 int
 sentry_value_remove_by_key(sentry_value_t value, const char *k)
 {
-    thing_t *thing = value_as_thing(value);
+    thing_t *thing = value_as_unfrozen_thing(value);
     if (!thing || thing_get_type(thing) != THING_TYPE_OBJECT) {
         return 0;
     }
@@ -319,10 +355,11 @@ sentry_value_remove_by_key(sentry_value_t value, const char *k)
 int
 sentry_value_append(sentry_value_t value, sentry_value_t v)
 {
-    thing_t *thing = value_as_thing(value);
+    thing_t *thing = value_as_unfrozen_thing(value);
     if (!thing || thing_get_type(thing) != THING_TYPE_LIST) {
         return 1;
     }
+
     list_t *l = thing->payload;
 
     if (!reserve((void **)&l->items, sizeof(l->items[0]), &l->allocated,
@@ -337,7 +374,7 @@ sentry_value_append(sentry_value_t value, sentry_value_t v)
 int
 sentry_value_set_by_index(sentry_value_t value, size_t index, sentry_value_t v)
 {
-    thing_t *thing = value_as_thing(value);
+    thing_t *thing = value_as_unfrozen_thing(value);
     if (!thing || thing_get_type(thing) != THING_TYPE_LIST) {
         return 1;
     }
@@ -363,7 +400,7 @@ sentry_value_set_by_index(sentry_value_t value, size_t index, sentry_value_t v)
 int
 sentry_value_remove_by_index(sentry_value_t value, size_t index)
 {
-    thing_t *thing = value_as_thing(value);
+    thing_t *thing = value_as_unfrozen_thing(value);
     if (!thing || thing_get_type(thing) != THING_TYPE_LIST) {
         return 1;
     }
@@ -553,7 +590,7 @@ sentry_value_to_json(sentry_value_t value)
 sentry_value_t
 sentry__value_new_string_owned(char *s)
 {
-    return new_thing_value(s, THING_TYPE_STRING);
+    return new_thing_value(s, THING_TYPE_STRING | THING_TYPE_FROZEN);
 }
 
 sentry_value_t

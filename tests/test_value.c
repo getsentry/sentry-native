@@ -12,6 +12,7 @@ SENTRY_TEST(value_null)
     assert_true(sentry_value_refcount(val) == 1);
     sentry_value_decref(val);
     assert_true(sentry_value_refcount(val) == 1);
+    assert_true(sentry_value_is_frozen(val));
 }
 
 SENTRY_TEST(value_bool)
@@ -24,6 +25,7 @@ SENTRY_TEST(value_bool)
     assert_true(sentry_value_refcount(val) == 1);
     sentry_value_decref(val);
     assert_true(sentry_value_refcount(val) == 1);
+    assert_true(sentry_value_is_frozen(val));
 
     val = sentry_value_new_bool(false);
     assert_true(sentry_value_get_type(val) == SENTRY_VALUE_TYPE_BOOL);
@@ -33,6 +35,7 @@ SENTRY_TEST(value_bool)
     assert_true(sentry_value_refcount(val) == 1);
     sentry_value_decref(val);
     assert_true(sentry_value_refcount(val) == 1);
+    assert_true(sentry_value_is_frozen(val));
 }
 
 SENTRY_TEST(value_int32)
@@ -60,6 +63,7 @@ SENTRY_TEST(value_int32)
     assert_true(sentry_value_refcount(val) == 1);
     sentry_value_decref(val);
     assert_true(sentry_value_refcount(val) == 1);
+    assert_true(sentry_value_is_frozen(val));
 }
 
 SENTRY_TEST(value_double)
@@ -72,6 +76,7 @@ SENTRY_TEST(value_double)
     assert_true(sentry_value_refcount(val) == 1);
     sentry_value_decref(val);
     assert_true(sentry_value_refcount(val) == 1);
+    assert_true(sentry_value_is_frozen(val));
 }
 
 SENTRY_TEST(value_string)
@@ -82,6 +87,7 @@ SENTRY_TEST(value_string)
     assert_string_equal(sentry_value_as_string(val), "Hello World!\n\t\r\f");
     assert_json_value(val, "\"Hello World!\\n\\t\\r\\f\"");
     assert_true(sentry_value_refcount(val) == 1);
+    assert_true(sentry_value_is_frozen(val));
     sentry_value_decref(val);
 }
 
@@ -119,6 +125,9 @@ SENTRY_TEST(value_list)
     assert_json_value(val, "[null,null,10,null,null,100]");
     sentry_value_remove_by_index(val, 2);
     assert_json_value(val, "[null,null,null,null,100]");
+    assert_false(sentry_value_is_frozen(val));
+    sentry_value_freeze(val);
+    assert_true(sentry_value_is_frozen(val));
     sentry_value_decref(val);
 }
 
@@ -151,5 +160,29 @@ SENTRY_TEST(value_object)
     val = sentry_value_new_object();
     assert_true(sentry_value_is_true(val) == false);
     assert_json_value(val, "{}");
+    assert_false(sentry_value_is_frozen(val));
+    sentry_value_freeze(val);
+    assert_true(sentry_value_is_frozen(val));
+    sentry_value_decref(val);
+}
+
+SENTRY_TEST(value_freezing)
+{
+    sentry_value_t val = sentry_value_new_list();
+    sentry_value_t inner = sentry_value_new_object();
+    sentry_value_append(val, inner);
+    assert_false(sentry_value_is_frozen(val));
+    assert_false(sentry_value_is_frozen(inner));
+    sentry_value_freeze(val);
+    assert_true(sentry_value_is_frozen(val));
+    assert_true(sentry_value_is_frozen(inner));
+
+    assert_int_equal(sentry_value_append(val, sentry_value_new_bool(1)), 1);
+    assert_int_equal(sentry_value_get_length(val), 1);
+
+    assert_int_equal(
+        sentry_value_set_by_key(inner, "foo", sentry_value_new_bool(1)), 1);
+    assert_int_equal(sentry_value_get_length(inner), 0);
+
     sentry_value_decref(val);
 }

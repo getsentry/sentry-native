@@ -86,8 +86,8 @@ worker_thread(void *data)
 
             sentry__mutex_lock(&bgw->task_lock);
             bgw->task_count--;
-            sentry__mutex_unlock(&bgw->task_lock);
             sentry__cond_wake(&bgw->done_signal);
+            sentry__mutex_unlock(&bgw->task_lock);
         }
     }
     return 0;
@@ -181,8 +181,8 @@ sentry__bgworker_submit(sentry_bgworker_t *bgw,
     }
     bgw->last_task = task;
     bgw->task_count++;
-    sentry__mutex_unlock(&bgw->task_lock);
     sentry__cond_wake(&bgw->submit_signal);
+    sentry__mutex_unlock(&bgw->task_lock);
 
     return 0;
 }
