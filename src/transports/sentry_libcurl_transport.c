@@ -110,8 +110,8 @@ for_each_request_callback(sentry_prepared_http_request_t *req,
 {
     struct task_state *ts = data;
     const sentry_options_t *opts = sentry_get_options();
-    /* TODO: check consent */
-    if (!opts || opts->dsn.empty) {
+
+    if (!opts || opts->dsn.empty || sentry__should_skip_upload()) {
         return false;
     }
 

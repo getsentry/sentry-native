@@ -29,6 +29,18 @@ load_user_consent(sentry_options_t *opts)
     sentry_free(contents);
 }
 
+bool
+sentry__should_skip_upload(void)
+{
+    sentry__mutex_lock(&g_options_mutex);
+    const sentry_options_t *opts = sentry_get_options();
+    bool skip = !opts
+        || (opts->require_user_consent
+               && opts->user_consent != SENTRY_USER_CONSENT_GIVEN);
+    sentry__mutex_unlock(&g_options_mutex);
+    return skip;
+}
+
 int
 sentry_init(sentry_options_t *options)
 {
@@ -62,11 +74,11 @@ sentry_user_consent_give(void)
 {
     sentry__mutex_lock(&g_options_mutex);
     g_options->user_consent = SENTRY_USER_CONSENT_GIVEN;
+    sentry__mutex_unlock(&g_options_mutex);
     sentry_path_t *consent_path
         = sentry__path_join_str(g_options->database_path, "user-consent");
     sentry__path_write_buffer(consent_path, "1\n", 2);
     sentry__path_free(consent_path);
-    sentry__mutex_unlock(&g_options_mutex);
 }
 
 void
@@ -74,11 +86,11 @@ sentry_user_consent_revoke(void)
 {
     sentry__mutex_lock(&g_options_mutex);
     g_options->user_consent = SENTRY_USER_CONSENT_REVOKED;
+    sentry__mutex_unlock(&g_options_mutex);
     sentry_path_t *consent_path
         = sentry__path_join_str(g_options->database_path, "user-consent");
     sentry__path_write_buffer(consent_path, "0\n", 2);
     sentry__path_free(consent_path);
-    sentry__mutex_unlock(&g_options_mutex);
 }
 
 void
@@ -86,11 +98,11 @@ sentry_user_consent_reset(void)
 {
     sentry__mutex_lock(&g_options_mutex);
     g_options->user_consent = SENTRY_USER_CONSENT_UNKNOWN;
+    sentry__mutex_unlock(&g_options_mutex);
     sentry_path_t *consent_path
         = sentry__path_join_str(g_options->database_path, "user-consent");
     sentry__path_remove(consent_path);
     sentry__path_free(consent_path);
-    sentry__mutex_unlock(&g_options_mutex);
 }
 
 sentry_user_consent_t

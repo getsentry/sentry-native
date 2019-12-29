@@ -31,4 +31,6 @@ struct sentry_options_s {
     sentry_user_consent_t user_consent;
 };
 
+bool sentry__should_skip_upload(void);
+
 #endif
