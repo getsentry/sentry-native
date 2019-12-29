@@ -47,6 +47,24 @@ typedef struct {
     size_t allocated;
 } obj_t;
 
+static const char *
+level_as_string(sentry_level_t level)
+{
+    switch (level) {
+    case SENTRY_LEVEL_DEBUG:
+        return "debug";
+    case SENTRY_LEVEL_WARNING:
+        return "warning";
+    case SENTRY_LEVEL_ERROR:
+        return "error";
+    case SENTRY_LEVEL_FATAL:
+        return "fatal";
+    case SENTRY_LEVEL_INFO:
+    default:
+        return "info";
+    }
+}
+
 static bool
 reserve(void **buf, size_t item_size, size_t *allocated, size_t *len,
     size_t min_len)
@@ -624,4 +642,65 @@ sentry__value_new_uuid(const sentry_uuid_t *uuid)
     }
     sentry_uuid_as_string(uuid, buf);
     return sentry__value_new_string_owned(buf);
+}
+
+sentry_value_t
+sentry__value_new_level(sentry_level_t level)
+{
+    return sentry_value_new_string(level_as_string(level));
+}
+
+sentry_value_t
+sentry_value_new_event(void)
+{
+    sentry_value_t rv = sentry_value_new_object();
+
+    sentry_uuid_t uuid = sentry_uuid_new_v4();
+    sentry_value_set_by_key(rv, "event_id", sentry__value_new_uuid(&uuid));
+
+    time_t now;
+    time(&now);
+    char buf[255];
+    strftime(buf, sizeof buf, "%FT%TZ", gmtime(&now));
+    sentry_value_set_by_key(rv, "timestamp", sentry_value_new_string(buf));
+
+    return rv;
+}
+
+sentry_value_t
+sentry_value_new_message_event(
+    sentry_level_t level, const char *logger, const char *text)
+{
+    sentry_value_t rv = sentry_value_new_event();
+    sentry_value_set_by_key(rv, "level", sentry__value_new_level(level));
+    if (logger) {
+        sentry_value_set_by_key(rv, "logger", sentry_value_new_string(logger));
+    }
+    if (text) {
+        sentry_value_t container = sentry_value_new_object();
+        sentry_value_set_by_key(
+            container, "formatted", sentry_value_new_string(text));
+        sentry_value_set_by_key(rv, "message", container);
+    }
+    return rv;
+}
+
+sentry_value_t
+sentry_value_new_breadcrumb(const char *type, const char *message)
+{
+    sentry_value_t rv = sentry_value_new_object();
+    time_t now;
+    time(&now);
+    char buf[255];
+    strftime(buf, sizeof buf, "%FT%TZ", gmtime(&now));
+    sentry_value_set_by_key(rv, "timestamp", sentry_value_new_string(buf));
+
+    if (type) {
+        sentry_value_set_by_key(rv, "type", sentry_value_new_string(type));
+    }
+    if (message) {
+        sentry_value_set_by_key(
+            rv, "message", sentry_value_new_string(message));
+    }
+    return rv;
 }
