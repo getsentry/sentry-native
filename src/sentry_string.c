@@ -32,8 +32,10 @@ append(sentry_stringbuilder_t *sb, const char *s, size_t len)
         sb->buf = new_buf;
         sb->allocated = new_alloc_size;
     }
-    memcpy(sb->buf + sb->len, s, len + 1);
+    memcpy(sb->buf + sb->len, s, len);
     sb->len += len;
+    /* make sure we're always zero terminated */
+    sb->buf[sb->len] = '\0';
     return 0;
 }
 
@@ -44,10 +46,16 @@ sentry__stringbuilder_append(sentry_stringbuilder_t *sb, const char *s)
 }
 
 int
+sentry__stringbuilder_append_buf(
+    sentry_stringbuilder_t *sb, const char *s, size_t len)
+{
+    return append(sb, s, len);
+}
+
+int
 sentry__stringbuilder_append_char(sentry_stringbuilder_t *sb, char c)
 {
-    char s[2] = { c, 0 };
-    return append(sb, s, 1);
+    return append(sb, &c, 1);
 }
 
 char *

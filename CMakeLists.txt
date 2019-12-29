@@ -3,7 +3,7 @@ project (Sentry-Native LANGUAGES C CXX ASM)
 
 find_package(CMocka REQUIRED)
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Werror=implicit-function-declaration -Werror=incompatible-function-pointer-types")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Werror=implicit-function-declaration -Werror=incompatible-function-pointer-types -Wall")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 
 OPTION(WITH_ASAN_OPTION "Build sentry-native with address sanitizer" OFF)

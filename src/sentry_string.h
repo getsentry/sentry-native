@@ -18,6 +18,10 @@ void sentry__stringbuilder_init(sentry_stringbuilder_t *sb);
 /* appends a zero terminated string to the builder */
 int sentry__stringbuilder_append(sentry_stringbuilder_t *sb, const char *s);
 
+/* appends a buffer */
+int sentry__stringbuilder_append_buf(
+    sentry_stringbuilder_t *sb, const char *s, size_t len);
+
 /* appends a character */
 int sentry__stringbuilder_append_char(sentry_stringbuilder_t *sb, char c);
 

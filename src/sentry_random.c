@@ -11,7 +11,6 @@ getrandom_devurandom(void *dst, size_t bytes)
     char *d = dst;
     size_t to_read = bytes;
     int fd, res;
-    unsigned int i;
 
     fd = open("/dev/urandom", O_RDONLY);
     if (fd < 0) {

@@ -69,7 +69,6 @@ free_transport(sentry_transport_t *transport)
 static void
 task_exec_func(void *data)
 {
-    struct task_state *state = data;
 }
 
 static void

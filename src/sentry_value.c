@@ -608,7 +608,7 @@ sentry__value_new_hexstring(const char *bytes, size_t len)
     if (!buf) {
         return sentry_value_new_null();
     }
-    char *ptr;
+    char *ptr = buf;
     for (size_t i = 0; i < len; i++) {
         ptr += snprintf(ptr, 3, "%02hhx", bytes[i]);
     }
