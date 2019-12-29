@@ -89,15 +89,28 @@ sentry_options_free(sentry_options_t *opts)
     sentry_free(opts->dist);
     sentry_free(opts->http_proxy);
     sentry_free(opts->ca_certs);
+    sentry_transport_free(opts->transport);
     sentry_free(opts);
 }
 
 void
-sentry_options_set_transport(
-    sentry_options_t *opts, sentry_transport_function_t func, void *data)
+sentry_transport_free(sentry_transport_t *transport)
 {
-    opts->transport_func = func;
-    opts->transport_data = data;
+    if (!transport) {
+        return;
+    }
+    if (transport->free_func) {
+        transport->free_func(transport);
+    }
+    sentry_free(transport);
+}
+
+void
+sentry_options_set_transport(
+    sentry_options_t *opts, sentry_transport_t *transport)
+{
+    sentry_transport_free(opts->transport);
+    opts->transport = transport;
 }
 
 void

@@ -35,7 +35,7 @@ SENTRY_TEST(background_worker)
             sentry__bgworker_submit(bgw, task_func, cleanup_func, &ts);
         }
 
-        assert_int_equal(sentry__bgworker_shutdown(bgw), 0);
+        assert_int_equal(sentry__bgworker_shutdown(bgw, 5000), 0);
         sentry__bgworker_free(bgw);
 
         __sync_synchronize();

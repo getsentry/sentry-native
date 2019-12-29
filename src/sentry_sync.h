@@ -117,7 +117,7 @@ typedef void (*sentry_task_function_t)(void *data);
 sentry_bgworker_t *sentry__bgworker_new(void);
 void sentry__bgworker_free(sentry_bgworker_t *bgw);
 void sentry__bgworker_start(sentry_bgworker_t *bgw);
-int sentry__bgworker_shutdown(sentry_bgworker_t *bgw);
+int sentry__bgworker_shutdown(sentry_bgworker_t *bgw, uint64_t timeout);
 int sentry__bgworker_submit(sentry_bgworker_t *bgw,
     sentry_task_function_t exec_func, sentry_task_function_t cleanup_func,
     void *data);

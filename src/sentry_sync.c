@@ -103,7 +103,7 @@ sentry__bgworker_start(sentry_bgworker_t *bgw)
 }
 
 int
-sentry__bgworker_shutdown(sentry_bgworker_t *bgw)
+sentry__bgworker_shutdown(sentry_bgworker_t *bgw, uint64_t timeout)
 {
     assert(bgw->running);
 
@@ -125,7 +125,7 @@ sentry__bgworker_shutdown(sentry_bgworker_t *bgw)
             &bgw->done_signal, &bgw->done_signal_lock, 250);
         sentry__mutex_unlock(&bgw->done_signal_lock);
         uint64_t now = sentry__msec_time();
-        if (now - started > 5000) {
+        if (now - started > timeout) {
             return 1;
         }
     }

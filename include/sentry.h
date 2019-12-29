@@ -380,6 +380,9 @@ typedef struct sentry_options_s sentry_options_t;
 struct sentry_envelope_s;
 typedef struct sentry_envelope_s sentry_envelope_t;
 
+/* frees an envelope */
+SENTRY_API void sentry_envelope_free(sentry_envelope_t *envelope);
+
 /* given an envelope returns the embedded event if there is one.
 
    This returns a borrowed value to the event in the envelope. */
@@ -406,6 +409,19 @@ SENTRY_API int sentry_envelope_write_to_file(
 typedef void (*sentry_transport_function_t)(
     const sentry_envelope_t *envelope, void *data);
 
+struct sentry_transport_s;
+typedef struct sentry_transport_s {
+    void (*send_envelope_func)(
+        struct sentry_transport_s *, sentry_envelope_t *envelope);
+    void (*startup_func)(struct sentry_transport_s *);
+    void (*shutdown_func)(struct sentry_transport_s *);
+    void (*free_func)(struct sentry_transport_s *);
+    void *data;
+} sentry_transport_t;
+
+/* generic way to free a transport */
+SENTRY_API void sentry_transport_free(sentry_transport_t *transport);
+
 /* type of the callback for modifying events */
 typedef sentry_value_t (*sentry_event_function_t)(
     sentry_value_t event, void *hint, void *closure);
@@ -416,10 +432,10 @@ typedef sentry_value_t (*sentry_event_function_t)(
 SENTRY_API sentry_options_t *sentry_options_new(void);
 
 /*
- * sets a new transport function
+ * sets a transport.
  */
 SENTRY_API void sentry_options_set_transport(
-    sentry_options_t *opts, sentry_transport_function_t func, void *data);
+    sentry_options_t *opts, sentry_transport_t *transport);
 
 /*
  * sets the before send callback

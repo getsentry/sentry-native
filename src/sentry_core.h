@@ -18,8 +18,7 @@ struct sentry_options_s {
     bool debug;
     bool require_user_consent;
 
-    sentry_transport_function_t transport_func;
-    void *transport_data;
+    sentry_transport_t *transport;
     sentry_event_function_t before_send_func;
     void *before_send_data;
 
