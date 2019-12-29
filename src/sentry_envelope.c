@@ -46,7 +46,9 @@ sentry__prepared_http_request_free(sentry_prepared_http_request_t *req)
         sentry_free(req->headers[i].value);
     }
     sentry_free(req->headers);
-    sentry_free(req->payload);
+    if (req->payload_owned) {
+        sentry_free(req->payload);
+    }
     sentry_free(req);
 }
 
@@ -259,8 +261,8 @@ sentry__envelope_add_from_disk(
 
 static sentry_prepared_http_request_t *
 prepare_http_request(const sentry_uuid_t *event_id,
-    endpoint_type_t endpoint_type, const char *content_type,
-    const char *payload, size_t payload_len)
+    endpoint_type_t endpoint_type, const char *content_type, char *payload,
+    size_t payload_len, bool payload_owned)
 {
     const sentry_options_t *options = sentry_get_options();
     if (!options) {
@@ -273,6 +275,7 @@ prepare_http_request(const sentry_uuid_t *event_id,
         return NULL;
     }
 
+    rv->method = "POST";
     rv->headers = sentry_malloc(
         sizeof(sentry_prepared_http_header_t) * MAX_HTTP_HEADERS);
     if (!rv->headers) {
@@ -311,6 +314,10 @@ prepare_http_request(const sentry_uuid_t *event_id,
         rv->url = NULL;
     }
 
+    rv->payload = payload;
+    rv->payload_len = payload_len;
+    rv->payload_owned = payload_owned;
+
     return rv;
 }
 
@@ -331,7 +338,7 @@ sentry__envelope_for_each_request(const sentry_envelope_t *envelope,
         switch (envelope_item_get_type(item)) {
         case ENVELOPE_ITEM_TYPE_EVENT: {
             req = prepare_http_request(&event_id, ENDPOINT_TYPE_STORE,
-                "application/json", item->payload, item->payload_len);
+                "application/json", item->payload, item->payload_len, false);
             if (!req || !callback(req, envelope, data)) {
                 return;
             }
@@ -354,6 +361,10 @@ sentry__envelope_for_each_request(const sentry_envelope_t *envelope,
     if (minidump) {
         attachments[attachment_count++] = minidump;
         endpoint_type = ENDPOINT_TYPE_MINIDUMP;
+    }
+
+    if (attachment_count == 0) {
+        return;
     }
 
     char boundary[50];
@@ -393,7 +404,7 @@ sentry__envelope_for_each_request(const sentry_envelope_t *envelope,
     char *content_type = sentry__stringbuilder_into_string(&sb);
 
     req = prepare_http_request(
-        &event_id, endpoint_type, content_type, body, body_len);
+        &event_id, endpoint_type, content_type, body, body_len, true);
     sentry_free(content_type);
 
     callback(req, envelope, data);

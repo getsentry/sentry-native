@@ -19,6 +19,7 @@ typedef struct sentry_prepared_http_request_s {
     size_t headers_len;
     char *payload;
     size_t payload_len;
+    bool payload_owned;
 } sentry_prepared_http_request_t;
 
 void sentry__prepared_http_request_free(sentry_prepared_http_request_t *req);

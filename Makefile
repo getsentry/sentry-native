@@ -8,8 +8,11 @@ build/Makefile: CMakeLists.txt
 	@mkdir -p build
 	@cd build; cmake ..
 
-test: build/Makefile update-test-discovery
+build: build/Makefile
 	@$(MAKE) -C build
+.PHONY: build
+
+test: build update-test-discovery
 	@./build/sentry_tests
 .PHONY: test
 
