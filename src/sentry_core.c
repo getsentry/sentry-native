@@ -1,5 +1,6 @@
 #include "sentry_core.h"
 #include "sentry_alloc.h"
+#include "sentry_path.h"
 #include "sentry_string.h"
 #include "sentry_sync.h"
 #include <string.h>
@@ -7,13 +8,37 @@
 static sentry_options_t *g_options;
 static sentry_mutex_t g_options_mutex = SENTRY__MUTEX_INIT;
 
+static void
+load_user_consent(sentry_options_t *opts)
+{
+    sentry_path_t *consent_path
+        = sentry__path_join_str(opts->database_path, "user-consent");
+    char *contents = sentry__path_read_to_buffer(consent_path, NULL);
+    sentry__path_free(consent_path);
+    switch (contents ? contents[0] : 0) {
+    case '1':
+        opts->user_consent = SENTRY_USER_CONSENT_GIVEN;
+        break;
+    case '0':
+        opts->user_consent = SENTRY_USER_CONSENT_REVOKED;
+        break;
+    default:
+        opts->user_consent = SENTRY_USER_CONSENT_UNKNOWN;
+        break;
+    }
+    sentry_free(contents);
+}
+
 int
 sentry_init(sentry_options_t *options)
 {
     sentry_shutdown();
     sentry__mutex_lock(&g_options_mutex);
     g_options = options;
+    sentry__path_create_dir_all(options->database_path);
+    load_user_consent(options);
     sentry__mutex_unlock(&g_options_mutex);
+
     return 0;
 }
 
@@ -37,6 +62,10 @@ sentry_user_consent_give(void)
 {
     sentry__mutex_lock(&g_options_mutex);
     g_options->user_consent = SENTRY_USER_CONSENT_GIVEN;
+    sentry_path_t *consent_path
+        = sentry__path_join_str(g_options->database_path, "user-consent");
+    sentry__path_write_buffer(consent_path, "1\n", 2);
+    sentry__path_free(consent_path);
     sentry__mutex_unlock(&g_options_mutex);
 }
 
@@ -45,6 +74,10 @@ sentry_user_consent_revoke(void)
 {
     sentry__mutex_lock(&g_options_mutex);
     g_options->user_consent = SENTRY_USER_CONSENT_REVOKED;
+    sentry_path_t *consent_path
+        = sentry__path_join_str(g_options->database_path, "user-consent");
+    sentry__path_write_buffer(consent_path, "0\n", 2);
+    sentry__path_free(consent_path);
     sentry__mutex_unlock(&g_options_mutex);
 }
 
@@ -53,6 +86,10 @@ sentry_user_consent_reset(void)
 {
     sentry__mutex_lock(&g_options_mutex);
     g_options->user_consent = SENTRY_USER_CONSENT_UNKNOWN;
+    sentry_path_t *consent_path
+        = sentry__path_join_str(g_options->database_path, "user-consent");
+    sentry__path_remove(consent_path);
+    sentry__path_free(consent_path);
     sentry__mutex_unlock(&g_options_mutex);
 }
 
@@ -73,6 +110,8 @@ sentry_options_new(void)
         return NULL;
     }
     memset(opts, 0, sizeof(sentry_options_t));
+    opts->database_path = sentry__path_from_str("./.sentry-native");
+    opts->user_consent = SENTRY_USER_CONSENT_UNKNOWN;
     return opts;
 }
 

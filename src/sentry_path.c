@@ -39,6 +39,9 @@ sentry__path_read_to_buffer(const sentry_path_t *path, size_t *size_out)
         fclose(f);
         char *rv = sentry_malloc(1);
         rv[0] = '\0';
+        if (size_out) {
+            *size_out = 0;
+        }
         return rv;
     } else if (len > MAX_READ_TO_BUFFER) {
         fclose(f);
@@ -55,5 +58,22 @@ sentry__path_read_to_buffer(const sentry_path_t *path, size_t *size_out)
     size_t read = fread(rv, 1, len, f);
     rv[read] = '\0';
     fclose(f);
+    if (size_out) {
+        *size_out = read;
+    }
     return rv;
+}
+
+int
+sentry__path_write_buffer(
+    const sentry_path_t *path, const char *buf, size_t buf_len)
+{
+    /* TODO: make async safe */
+    FILE *f = sentry__path_open(path, "wb");
+    if (!f) {
+        return 1;
+    }
+    size_t written = fwrite(buf, 1, buf_len, f);
+    fclose(f);
+    return written == buf_len ? 0 : 1;
 }

@@ -1,4 +1,5 @@
 XX(background_worker)
+XX(basic_consent_tracking)
 XX(basic_http_request_preparation_for_event)
 XX(basic_http_request_preparation_for_event_with_attachment)
 XX(basic_http_request_preparation_for_minidump)
