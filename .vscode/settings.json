@@ -107,7 +107,9 @@
         "simd": "cpp",
         "filesystem": "cpp",
         "sentry_path.h": "c",
-        "sentry_alloc.h": "c"
+        "sentry_alloc.h": "c",
+        "sentry_core.h": "c",
+        "sentry_utils.h": "c"
     },
     "python.pythonPath": ".venv/bin/python2.7",
     "editor.formatOnSave": true

@@ -1,4 +1,5 @@
 #include "sentry_utils.h"
+#include "sentry_core.h"
 #include "sentry_string.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -266,4 +267,75 @@ sentry__dsn_cleanup(sentry_dsn_t *dsn)
     sentry_free(dsn->path);
     sentry_free(dsn->public_key);
     sentry_free(dsn->secret_key);
+}
+
+char *
+sentry__dsn_get_auth_header(const sentry_dsn_t *dsn)
+{
+    if (!dsn || dsn->empty) {
+        return NULL;
+    }
+    sentry_stringbuilder_t sb;
+    sentry__stringbuilder_init(&sb);
+    sentry__stringbuilder_append(&sb, "Sentry sentry_key=");
+    sentry__stringbuilder_append(&sb, dsn->public_key);
+    sentry__stringbuilder_append(&sb, ", sentry_version=7, sentry_client=");
+    sentry__stringbuilder_append(&sb, SENTRY_SDK_USER_AGENT);
+    return sentry__stringbuilder_into_string(&sb);
+}
+
+static void
+init_string_builder_for_url(sentry_stringbuilder_t *sb, const sentry_dsn_t *dsn)
+{
+    sentry__stringbuilder_init(sb);
+    sentry__stringbuilder_append(sb, dsn->is_secure ? "https" : "http");
+    sentry__stringbuilder_append(sb, "://");
+    sentry__stringbuilder_append(sb, dsn->host);
+    sentry__stringbuilder_append(sb, ":");
+    sentry__stringbuilder_append_int64(sb, (int64_t)dsn->port);
+    sentry__stringbuilder_append(sb, dsn->path);
+    sentry__stringbuilder_append(sb, "/api/");
+    sentry__stringbuilder_append_int64(sb, (int64_t)dsn->project_id);
+}
+
+char *
+sentry__dsn_get_store_url(const sentry_dsn_t *dsn)
+{
+    if (!dsn || dsn->empty) {
+        return NULL;
+    }
+    sentry_stringbuilder_t sb;
+    init_string_builder_for_url(&sb, dsn);
+    sentry__stringbuilder_append(&sb, "/store/");
+    return sentry__stringbuilder_into_string(&sb);
+}
+
+char *
+sentry__dsn_get_minidump_url(const sentry_dsn_t *dsn)
+{
+    if (!dsn || dsn->empty) {
+        return NULL;
+    }
+    sentry_stringbuilder_t sb;
+    init_string_builder_for_url(&sb, dsn);
+    sentry__stringbuilder_append(&sb, "/minidump/?sentry_key=");
+    sentry__stringbuilder_append(&sb, dsn->public_key);
+    return sentry__stringbuilder_into_string(&sb);
+}
+
+char *
+sentry__dsn_get_attachment_url(
+    const sentry_dsn_t *dsn, const sentry_uuid_t *event_id)
+{
+    if (!dsn || dsn->empty) {
+        return NULL;
+    }
+    sentry_stringbuilder_t sb;
+    char event_id_buf[37];
+    sentry_uuid_as_string(event_id, event_id_buf);
+    init_string_builder_for_url(&sb, dsn);
+    sentry__stringbuilder_append(&sb, "/events/");
+    sentry__stringbuilder_append(&sb, event_id_buf);
+    sentry__stringbuilder_append(&sb, "/attachments/");
+    return sentry__stringbuilder_into_string(&sb);
 }

@@ -3,6 +3,7 @@
 
 #include <ctype.h>
 #include <sentry.h>
+#include <stdio.h>
 
 /* a string builder can be used to concatenate bytes together. */
 typedef struct sentry_stringbuilder_s {
@@ -19,6 +20,15 @@ int sentry__stringbuilder_append(sentry_stringbuilder_t *sb, const char *s);
 
 /* appends a character */
 int sentry__stringbuilder_append_char(sentry_stringbuilder_t *sb, char c);
+
+/* appends an int64 */
+static inline int
+sentry__stringbuilder_append_int64(sentry_stringbuilder_t *sb, int64_t val)
+{
+    char buf[24];
+    snprintf(buf, sizeof(buf), "%" PRId64, val);
+    return sentry__stringbuilder_append(sb, buf);
+}
 
 /* detaches the buffer from the string builder and deallocates it */
 char *sentry__stringbuilder_into_string(sentry_stringbuilder_t *sb);
@@ -45,6 +55,15 @@ sentry__string_ascii_lower(char *s)
     for (; *s; s++) {
         *s = (char)tolower((char)*s);
     }
+}
+
+/* converts an int64_t into a string */
+static inline char *
+sentry__int64_to_string(int64_t val)
+{
+    char buf[24];
+    snprintf(buf, sizeof(buf), "%" PRId64, val);
+    return sentry__string_dup(buf);
 }
 
 #endif

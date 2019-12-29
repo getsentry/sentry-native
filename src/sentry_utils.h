@@ -35,8 +35,12 @@ typedef struct {
 } sentry_dsn_t;
 
 int sentry__dsn_parse(sentry_dsn_t *dsn_out, const char *dsn);
-
 void sentry__dsn_cleanup(sentry_dsn_t *dsn);
+char *sentry__dsn_get_auth_header(const sentry_dsn_t *dsn);
+char *sentry__dsn_get_store_url(const sentry_dsn_t *dsn);
+char *sentry__dsn_get_minidump_url(const sentry_dsn_t *dsn);
+char *sentry__dsn_get_attachment_url(
+    const sentry_dsn_t *dsn, const sentry_uuid_t *event_id);
 
 #if SENTRY_PLATFORM == SENTRY_PLATFORM_WINDOWS
 #    define EINTR_RETRY(X, Y)                                                  \

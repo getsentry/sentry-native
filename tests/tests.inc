@@ -1,6 +1,8 @@
 XX(background_worker)
 XX(dsn_parsing_complete)
 XX(dsn_parsing_invalid)
+XX(dsn_store_url_with_path)
+XX(dsn_store_url_without_path)
 XX(path_basics)
 XX(path_joining_unix)
 XX(url_parsing_complete)

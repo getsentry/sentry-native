@@ -69,6 +69,17 @@ sentry__path_is_file(const sentry_path_t *path)
     return stat(path->path, &buf) == 0 && S_ISREG(buf.st_mode);
 }
 
+size_t
+sentry__path_get_size(const sentry_path_t *path)
+{
+    struct stat buf;
+    if (stat(path->path, &buf) == 0 && S_ISREG(buf.st_mode)) {
+        return (size_t)buf.st_size;
+    } else {
+        return 0;
+    }
+}
+
 sentry_path_t *
 sentry__path_join_str(const sentry_path_t *base, const char *other)
 {

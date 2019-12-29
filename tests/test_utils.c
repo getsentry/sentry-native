@@ -66,3 +66,50 @@ SENTRY_TEST(dsn_parsing_invalid)
                          "http://username:password@example.com/foo/bar?x=y#z"),
         1);
 }
+
+SENTRY_TEST(dsn_store_url_with_path)
+{
+    sentry_uuid_t uuid
+        = sentry_uuid_from_string("4c7e771a-f17d-4220-bc8f-5b1edcdb5faa");
+    sentry_dsn_t dsn;
+    assert_int_equal(
+        sentry__dsn_parse(
+            &dsn, "http://username:password@example.com/foo/bar/42?x=y#z"),
+        0);
+    char *url = sentry__dsn_get_store_url(&dsn);
+    assert_string_equal(url, "http://example.com:80/foo/bar/api/42/store/");
+    sentry_free(url);
+    url = sentry__dsn_get_minidump_url(&dsn);
+    assert_string_equal(url,
+        "http://example.com:80/foo/bar/api/42/minidump/?sentry_key=username");
+    sentry_free(url);
+    url = sentry__dsn_get_attachment_url(&dsn, &uuid);
+    assert_string_equal(url,
+        "http://example.com:80/foo/bar/api/42/events/"
+        "4c7e771a-f17d-4220-bc8f-5b1edcdb5faa/attachments/");
+    sentry_free(url);
+    sentry__dsn_cleanup(&dsn);
+}
+
+SENTRY_TEST(dsn_store_url_without_path)
+{
+    sentry_uuid_t uuid
+        = sentry_uuid_from_string("4c7e771a-f17d-4220-bc8f-5b1edcdb5faa");
+    sentry_dsn_t dsn;
+    assert_int_equal(sentry__dsn_parse(
+                         &dsn, "http://username:password@example.com/42?x=y#z"),
+        0);
+    char *url = sentry__dsn_get_store_url(&dsn);
+    assert_string_equal(url, "http://example.com:80/api/42/store/");
+    sentry_free(url);
+    url = sentry__dsn_get_minidump_url(&dsn);
+    assert_string_equal(
+        url, "http://example.com:80/api/42/minidump/?sentry_key=username");
+    sentry_free(url);
+    url = sentry__dsn_get_attachment_url(&dsn, &uuid);
+    assert_string_equal(url,
+        "http://example.com:80/api/42/events/"
+        "4c7e771a-f17d-4220-bc8f-5b1edcdb5faa/attachments/");
+    sentry_free(url);
+    sentry__dsn_cleanup(&dsn);
+}
