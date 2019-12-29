@@ -1,5 +1,6 @@
 XX(background_worker)
 XX(basic_http_request_preparation_for_event)
+XX(basic_http_request_preparation_for_event_with_attachment)
 XX(dsn_parsing_complete)
 XX(dsn_parsing_invalid)
 XX(dsn_store_url_with_path)

@@ -28,8 +28,11 @@ sentry_envelope_t *sentry__envelope_new(void);
 sentry_uuid_t sentry__envelope_get_event_id(const sentry_envelope_t *envelope);
 sentry_envelope_item_t *sentry__envelope_add_event(
     sentry_envelope_t *envelope, sentry_value_t event);
-sentry_envelope_item_t *sentry__envelope_add_from_disk(
+sentry_envelope_item_t *sentry__envelope_add_from_path(
     sentry_envelope_t *envelope, const sentry_path_t *path, const char *type);
+sentry_envelope_item_t *sentry__envelope_add_from_buffer(
+    sentry_envelope_t *envelope, const char *buf, size_t buf_len,
+    const char *type);
 void sentry__envelope_for_each_request(const sentry_envelope_t *envelope,
     bool (*callback)(sentry_prepared_http_request_t *,
         const sentry_envelope_t *, void *data),

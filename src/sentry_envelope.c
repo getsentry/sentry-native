@@ -235,28 +235,48 @@ sentry__envelope_add_event(sentry_envelope_t *envelope, sentry_value_t event)
     return item;
 }
 
-sentry_envelope_item_t *
-sentry__envelope_add_from_disk(
-    sentry_envelope_t *envelope, const sentry_path_t *path, const char *type)
+static sentry_envelope_item_t *
+envelope_add_from_owned_buffer(
+    sentry_envelope_t *envelope, char *buf, size_t buf_len, const char *type)
 {
     sentry_envelope_item_t *item = envelope_add_item(envelope);
-    if (!item) {
-        return NULL;
-    }
-
-    size_t size_out;
-    char *buf = sentry__path_read_to_buffer(path, &size_out);
-    if (!buf) {
+    if (!item || !buf) {
         return NULL;
     }
 
     item->payload = buf;
-    item->payload_len = size_out;
-    sentry_value_t length = sentry_value_new_int32((int32_t)size_out);
+    item->payload_len = buf_len;
+    sentry_value_t length = sentry_value_new_int32((int32_t)buf_len);
     envelope_item_set_header(item, "type", sentry_value_new_string(type));
     envelope_item_set_header(item, "length", length);
 
     return item;
+}
+
+sentry_envelope_item_t *
+sentry__envelope_add_from_buffer(sentry_envelope_t *envelope, const char *buf,
+    size_t buf_len, const char *type)
+{
+    return envelope_add_from_owned_buffer(
+        envelope, sentry__string_dupn(buf, buf_len), buf_len, type);
+}
+
+sentry_envelope_item_t *
+sentry__envelope_add_from_path(
+    sentry_envelope_t *envelope, const sentry_path_t *path, const char *type)
+{
+    size_t buf_len;
+    char *buf = sentry__path_read_to_buffer(path, &buf_len);
+    if (!buf) {
+        return NULL;
+    }
+    sentry_envelope_item_t *rv
+        = envelope_add_from_owned_buffer(envelope, buf, buf_len, type);
+    if (!rv) {
+        sentry_free(buf);
+        return NULL;
+    }
+    return rv;
 }
 
 static sentry_prepared_http_request_t *
