@@ -341,6 +341,19 @@ prepare_http_request(const sentry_uuid_t *event_id,
     return rv;
 }
 
+static void
+gen_boundary(char *boundary)
+{
+#if SENTRY_UNITTEST
+    sentry_uuid_t boundary_id
+        = sentry_uuid_from_string("0220b54a-d050-42ef-954a-ac481dc924db");
+#else
+    sentry_uuid_t boundary_id = sentry_uuid_new_v4();
+#endif
+    sentry_uuid_as_string(&boundary_id, boundary);
+    strcat(boundary, "-boundary-");
+}
+
 void
 sentry__envelope_for_each_request(const sentry_envelope_t *envelope,
     bool (*callback)(sentry_prepared_http_request_t *,
@@ -388,9 +401,7 @@ sentry__envelope_for_each_request(const sentry_envelope_t *envelope,
     }
 
     char boundary[50];
-    sentry_uuid_t boundary_id = sentry_uuid_new_v4();
-    sentry_uuid_as_string(&boundary_id, boundary);
-    strcat(boundary, "-boundary-");
+    gen_boundary(boundary);
 
     sentry_stringbuilder_t sb;
     sentry__stringbuilder_init(&sb);

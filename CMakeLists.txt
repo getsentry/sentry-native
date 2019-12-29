@@ -64,7 +64,11 @@ add_library("sentry" SHARED
 )
 target_link_libraries("sentry" ${LINK_LIBRARIES})
 
+# compile tests separately and pass an extra preprocessor define so we can
+# switch some internal modes for the unittests.
 add_executable("sentry_tests"
+	${SENTRY_NATIVE_ALL_SOURCES}
 	${SENTRY_NATIVE_TEST_SOURCES}
 )
-target_link_libraries("sentry_tests" "sentry" ${CMOCKA_LIBRARY})
+target_compile_definitions("sentry_tests" PUBLIC -DSENTRY_UNITTEST)
+target_link_libraries("sentry_tests" ${CMOCKA_LIBRARY} ${LINK_LIBRARIES})
