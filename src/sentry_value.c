@@ -5,6 +5,7 @@
 #include <string.h>
 
 #include "sentry_alloc.h"
+#include "sentry_core.h"
 #include "sentry_json.h"
 #include "sentry_string.h"
 #include "sentry_sync.h"
@@ -655,7 +656,7 @@ sentry_value_new_event(void)
 {
     sentry_value_t rv = sentry_value_new_object();
 
-    sentry_uuid_t uuid = sentry_uuid_new_v4();
+    sentry_uuid_t uuid = sentry__new_event_id();
     sentry_value_set_by_key(rv, "event_id", sentry__value_new_uuid(&uuid));
 
     time_t now;

@@ -179,7 +179,7 @@ task_cleanup_func(void *data)
     sentry_free(ts);
 }
 
-void
+static void
 send_envelope(struct sentry_transport_s *transport, sentry_envelope_t *envelope)
 {
     struct transport_state *state = transport->data;
@@ -195,7 +195,7 @@ send_envelope(struct sentry_transport_s *transport, sentry_envelope_t *envelope)
 }
 
 sentry_transport_t *
-sentry__libcurl_new_transport(void)
+sentry__new_libcurl_transport(void)
 {
     sentry_transport_t *transport = SENTRY_MAKE(sentry_transport_t);
     if (!transport) {

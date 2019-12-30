@@ -1,8 +1,10 @@
 #include "sentry_core.h"
 #include "sentry_alloc.h"
+#include "sentry_envelope.h"
 #include "sentry_path.h"
 #include "sentry_string.h"
 #include "sentry_sync.h"
+#include "sentry_value.h"
 #include <string.h>
 
 static sentry_options_t *g_options;
@@ -51,6 +53,11 @@ sentry_init(sentry_options_t *options)
     load_user_consent(options);
     sentry__mutex_unlock(&g_options_mutex);
 
+    sentry_transport_t *transport = g_options->transport;
+    if (transport && transport->startup_func) {
+        transport->startup_func(transport);
+    }
+
     return 0;
 }
 
@@ -58,6 +65,10 @@ void
 sentry_shutdown(void)
 {
     sentry__mutex_lock(&g_options_mutex);
+    if (g_options && g_options->transport
+        && g_options->transport->shutdown_func) {
+        g_options->transport->shutdown_func(g_options->transport);
+    }
     sentry_options_free(g_options);
     g_options = NULL;
     sentry__mutex_unlock(&g_options_mutex);
@@ -112,6 +123,28 @@ sentry_user_consent_get(void)
     sentry_user_consent_t rv = g_options->user_consent;
     sentry__mutex_unlock(&g_options_mutex);
     return rv;
+}
+
+sentry_uuid_t
+sentry_capture_event(sentry_value_t event)
+{
+    sentry_uuid_t event_id;
+    sentry__ensure_event_id(event, &event_id);
+
+    const sentry_options_t *opts = sentry_get_options();
+    if (opts->before_send_func) {
+        event = opts->before_send_func(event, NULL, opts->before_send_data);
+    }
+    if (opts->transport && !sentry_value_is_null(event)) {
+        sentry_envelope_t *envelope = sentry__envelope_new();
+        if (sentry__envelope_add_event(envelope, event)) {
+            opts->transport->send_envelope_func(opts->transport, envelope);
+        } else {
+            sentry_envelope_free(envelope);
+        }
+    }
+
+    return event_id;
 }
 
 sentry_options_t *
@@ -314,3 +347,30 @@ sentry_options_set_database_pathw(sentry_options_t *opts, const wchar_t *path)
     opts->database_path = sentry__path_from_wstr(path);
 }
 #endif
+
+sentry_uuid_t
+sentry__new_event_id(void)
+{
+#if SENTRY_UNITTEST
+    return sentry_uuid_from_string("4c035723-8638-4c3a-923f-2ab9d08b4018");
+#else
+    return sentry_uuid_new_v4();
+#endif
+}
+
+sentry_value_t
+sentry__ensure_event_id(sentry_value_t event, sentry_uuid_t *uuid_out)
+{
+    sentry_value_t event_id = sentry_value_get_by_key(event, "event_id");
+    const char *uuid_str = sentry_value_as_string(event_id);
+    sentry_uuid_t uuid = sentry_uuid_from_string(uuid_str);
+    if (sentry_uuid_is_nil(&uuid)) {
+        uuid = sentry__new_event_id();
+        event_id = sentry__value_new_uuid(&uuid);
+        sentry_value_set_by_key(event, "event_id", event_id);
+    }
+    if (uuid_out) {
+        *uuid_out = uuid;
+    }
+    return event_id;
+}

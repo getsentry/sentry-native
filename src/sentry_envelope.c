@@ -213,14 +213,7 @@ sentry__envelope_add_event(sentry_envelope_t *envelope, sentry_value_t event)
         return NULL;
     }
 
-    sentry_value_t event_id = sentry_value_get_by_key(event, "event_id");
-    const char *uuid_str = sentry_value_as_string(event_id);
-    sentry_uuid_t uuid = sentry_uuid_from_string(uuid_str);
-    if (sentry_uuid_is_nil(&uuid)) {
-        uuid = sentry_uuid_new_v4();
-        event_id = sentry__value_new_uuid(&uuid);
-        sentry_value_set_by_key(event, "event_id", event_id);
-    }
+    sentry_value_t event_id = sentry__ensure_event_id(event, NULL);
 
     item->event = event;
     item->payload = sentry_value_to_json(event);

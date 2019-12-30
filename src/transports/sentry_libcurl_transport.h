@@ -3,6 +3,6 @@
 
 #include <sentry.h>
 
-sentry_transport_t *sentry__libcurl_new_transport(void);
+sentry_transport_t *sentry__new_libcurl_transport(void);
 
 #endif
