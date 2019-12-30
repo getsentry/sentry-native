@@ -381,6 +381,69 @@ sentry__ensure_event_id(sentry_value_t event, sentry_uuid_t *uuid_out)
     }
     return event_id;
 }
+void
+sentry_set_user(sentry_value_t user)
+{
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry_value_decref(scope->user);
+        scope->user = user;
+    }
+}
+
+void
+sentry_remove_user(void)
+{
+    sentry_set_user(sentry_value_new_null());
+}
+
+void
+sentry_set_tag(const char *key, const char *value)
+{
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry_value_set_by_key(
+            scope->tags, key, sentry_value_new_string(value));
+    }
+}
+
+void
+sentry_remove_tag(const char *key)
+{
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry_value_remove_by_key(scope->tags, key);
+    }
+}
+
+void
+sentry_set_extra(const char *key, sentry_value_t value)
+{
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry_value_set_by_key(scope->extra, key, value);
+    }
+}
+
+void
+sentry_remove_extra(const char *key)
+{
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry_value_remove_by_key(scope->extra, key);
+    }
+}
+
+void
+sentry_set_context(const char *key, sentry_value_t value)
+{
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry_value_set_by_key(scope->contexts, key, value);
+    }
+}
+
+void
+sentry_remove_context(const char *key)
+{
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry_value_remove_by_key(scope->contexts, key);
+    }
+}
 
 void
 sentry_set_fingerprint(const char *fingerprint, ...)
