@@ -41,7 +41,7 @@ sentry__should_skip_upload(void)
     const sentry_options_t *opts = sentry_get_options();
     bool skip = !opts
         || (opts->require_user_consent
-               && opts->user_consent != SENTRY_USER_CONSENT_GIVEN);
+            && opts->user_consent != SENTRY_USER_CONSENT_GIVEN);
     sentry__mutex_unlock(&g_options_mutex);
     return skip;
 }
@@ -394,6 +394,15 @@ void
 sentry_remove_user(void)
 {
     sentry_set_user(sentry_value_new_null());
+}
+
+void
+sentry_add_breadcrumb(sentry_value_t breadcrumb)
+{
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry__value_append_bounded(
+            scope->breadcrumbs, breadcrumb, SENTRY_BREADCRUMBS_MAX);
+    }
 }
 
 void

@@ -9,4 +9,7 @@ sentry_value_t sentry__value_new_hexstring(const char *bytes, size_t len);
 sentry_value_t sentry__value_new_uuid(const sentry_uuid_t *uuid);
 sentry_value_t sentry__value_new_level(sentry_level_t level);
 
+int sentry__value_append_bounded(
+    sentry_value_t value, sentry_value_t v, size_t max);
+
 #endif

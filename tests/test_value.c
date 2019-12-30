@@ -1,3 +1,4 @@
+#include "../src/sentry_value.h"
 #include "sentry_testsupport.h"
 #include <sentry.h>
 
@@ -128,6 +129,21 @@ SENTRY_TEST(value_list)
     assert_false(sentry_value_is_frozen(val));
     sentry_value_freeze(val);
     assert_true(sentry_value_is_frozen(val));
+    sentry_value_decref(val);
+
+    val = sentry_value_new_list();
+    for (uint32_t i = 1; i <= 10; i++) {
+        sentry_value_append(val, sentry_value_new_int32(i));
+    }
+    sentry__value_append_bounded(val, sentry_value_new_int32(1010), 5);
+#define ASSERT_IDX(Idx, Val)                                                   \
+    assert_int_equal(                                                          \
+        sentry_value_as_int32(sentry_value_get_by_index(val, Idx)), Val)
+    ASSERT_IDX(0, 7);
+    ASSERT_IDX(1, 8);
+    ASSERT_IDX(2, 9);
+    ASSERT_IDX(3, 10);
+    ASSERT_IDX(4, 1010);
     sentry_value_decref(val);
 }
 

@@ -391,6 +391,34 @@ sentry_value_append(sentry_value_t value, sentry_value_t v)
 }
 
 int
+sentry__value_append_bounded(sentry_value_t value, sentry_value_t v, size_t max)
+{
+    thing_t *thing = value_as_unfrozen_thing(value);
+    if (!thing || thing_get_type(thing) != THING_TYPE_LIST) {
+        return 1;
+    }
+
+    list_t *l = thing->payload;
+
+    if (l->len < max) {
+        return sentry_value_append(value, v);
+    }
+
+    // len: 120
+    // max: 100
+    // move to 0
+    //   move 99 items (len - 1)
+    //   from 20
+
+    size_t to_move = max - 1;
+    memmove(
+        l->items, l->items + (l->len - to_move), to_move * sizeof(l->items[0]));
+    l->items[max - 1] = v;
+    l->len = max;
+    return 0;
+}
+
+int
 sentry_value_set_by_index(sentry_value_t value, size_t index, sentry_value_t v)
 {
     thing_t *thing = value_as_unfrozen_thing(value);
