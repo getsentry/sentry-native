@@ -16,6 +16,12 @@ send_envelope(sentry_envelope_t *envelope, void *data)
     const char *msg = sentry_value_as_string(sentry_value_get_by_key(
         sentry_value_get_by_key(event, "message"), "formatted"));
     assert_string_equal(msg, "Hello World!");
+    const char *release
+        = sentry_value_as_string(sentry_value_get_by_key(event, "release"));
+    assert_string_equal(release, "prod");
+    const char *trans
+        = sentry_value_as_string(sentry_value_get_by_key(event, "transaction"));
+    assert_string_equal(trans, "demo-trans");
 }
 
 SENTRY_TEST(basic_function_transport)
@@ -26,7 +32,10 @@ SENTRY_TEST(basic_function_transport)
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
     sentry_options_set_transport(
         options, sentry__new_function_transport(send_envelope, &called));
+    sentry_options_set_release(options, "prod");
     sentry_init(options);
+
+    sentry_set_transaction("demo-trans");
 
     sentry_capture_event(sentry_value_new_message_event(
         SENTRY_LEVEL_INFO, "root", "Hello World!"));

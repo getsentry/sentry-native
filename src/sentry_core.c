@@ -1,11 +1,14 @@
-#include "sentry_core.h"
+#include <stdarg.h>
+#include <string.h>
+
 #include "sentry_alloc.h"
+#include "sentry_core.h"
 #include "sentry_envelope.h"
 #include "sentry_path.h"
+#include "sentry_scope.h"
 #include "sentry_string.h"
 #include "sentry_sync.h"
 #include "sentry_value.h"
-#include <string.h>
 
 static sentry_options_t *g_options;
 static sentry_mutex_t g_options_mutex = SENTRY__MUTEX_INIT;
@@ -130,6 +133,10 @@ sentry_capture_event(sentry_value_t event)
 {
     sentry_uuid_t event_id;
     sentry__ensure_event_id(event, &event_id);
+
+    SENTRY_WITH_SCOPE (scope) {
+        sentry__scope_apply_to_event(scope, event);
+    }
 
     const sentry_options_t *opts = sentry_get_options();
     if (opts->before_send_func) {
@@ -373,4 +380,55 @@ sentry__ensure_event_id(sentry_value_t event, sentry_uuid_t *uuid_out)
         *uuid_out = uuid;
     }
     return event_id;
+}
+
+void
+sentry_set_fingerprint(const char *fingerprint, ...)
+{
+    sentry_value_t fingerprint_value = sentry_value_new_list();
+
+    va_list va;
+    va_start(va, fingerprint);
+    for (; fingerprint; fingerprint = va_arg(va, const char *)) {
+        sentry_value_append(
+            fingerprint_value, sentry_value_new_string(fingerprint));
+    }
+    va_end(va);
+
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry_value_decref(scope->fingerprint);
+        scope->fingerprint = fingerprint_value;
+    };
+}
+
+void
+sentry_remove_fingerprint(void)
+{
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry_value_decref(scope->fingerprint);
+        scope->fingerprint = sentry_value_new_null();
+    };
+}
+
+void
+sentry_set_transaction(const char *transaction)
+{
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry_free(scope->transaction);
+        scope->transaction = sentry__string_dup(transaction);
+    }
+}
+
+void
+sentry_remove_transaction(void)
+{
+    sentry_set_transaction(NULL);
+}
+
+void
+sentry_set_level(sentry_level_t level)
+{
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        scope->level = level;
+    }
 }
