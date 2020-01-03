@@ -34,6 +34,8 @@ file(GLOB SENTRY_NATIVE_SOURCES
     ${SENTRY_NATIVE_SOURCE_ROOT}/*.cpp
     ${SENTRY_NATIVE_SOURCE_ROOT}/transports/*.c
     ${SENTRY_NATIVE_SOURCE_ROOT}/transports/*.cpp
+    ${SENTRY_NATIVE_SOURCE_ROOT}/backends/*.c
+    ${SENTRY_NATIVE_SOURCE_ROOT}/backends/*.cpp
 )
 
 # todo: module finders are platform specific
