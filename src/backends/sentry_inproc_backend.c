@@ -3,6 +3,7 @@
 #include "../sentry_core.h"
 #include "../sentry_envelope.h"
 #include "../sentry_scope.h"
+#include "../sentry_sync.h"
 #include "../unix/sentry_unix_pageallocator.h"
 #include <string.h>
 
@@ -95,12 +96,10 @@ handle_signal(int signum, siginfo_t *info, void *user_context)
     }
 
     /* give us an allocator we can use safely in signals before we tear down.
-
-       TODO: we need to disable all the mutexes on unix that we might acquire
-       indirectly.  A way around this would be to detect that we entered the
-       signal code and convert all acquires into noops that instead spin on a
-       spinlock. */
+       We also disable our own mutexes here which will fall back to spinning on
+       a spinlock. */
     sentry__page_allocator_enable();
+    sentry__disable_mutexes();
 
     // this entire part is not yet async safe but must become
     {

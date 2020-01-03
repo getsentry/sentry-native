@@ -186,3 +186,19 @@ sentry__bgworker_submit(sentry_bgworker_t *bgw,
 
     return 0;
 }
+
+#if SENTRY_PLATFORM != SENTRY_PLATFORM_WINDOWS
+static bool g_mutexes_disabled = false;
+
+void
+sentry__disable_mutexes(void)
+{
+    g_mutexes_disabled = true;
+}
+
+bool
+sentry__mutexes_disabled(void)
+{
+    return g_mutexes_disabled;
+}
+#endif
