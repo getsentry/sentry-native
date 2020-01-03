@@ -771,3 +771,33 @@ sentry_value_new_breadcrumb(const char *type, const char *message)
     }
     return rv;
 }
+
+void
+sentry_event_value_add_stacktrace(sentry_value_t event, void **ips, size_t len)
+{
+    void *walked_backtrace[256];
+
+    // if nobody gave us a backtrace, walk now.
+    if (!ips) {
+        len = sentry_unwind_stack(NULL, walked_backtrace, 256);
+        ips = walked_backtrace;
+    }
+
+    sentry_value_t frames = sentry_value_new_list();
+    for (size_t i = 0; i < len; i++) {
+        sentry_value_t frame = sentry_value_new_object();
+        sentry_value_set_by_key(frame, "instruction_addr",
+            sentry__value_new_addr((uint64_t)ips[len - i - 1]));
+        sentry_value_append(frames, frame);
+    }
+
+    sentry_value_t stacktrace = sentry_value_new_object();
+    sentry_value_set_by_key(stacktrace, "frames", frames);
+
+    sentry_value_t threads = sentry_value_new_list();
+    sentry_value_t thread = sentry_value_new_object();
+    sentry_value_set_by_key(thread, "stacktrace", stacktrace);
+    sentry_value_append(threads, thread);
+
+    sentry_value_set_by_key(event, "threads", threads);
+}
