@@ -1,5 +1,6 @@
 #include "sentry_scope.h"
 #include "sentry_core.h"
+#include "sentry_modulefinder.h"
 #include "sentry_sync.h"
 
 static bool g_scope_initialized;
@@ -84,6 +85,14 @@ sentry__scope_apply_to_event(const sentry_scope_t *scope, sentry_value_t event)
     PLACE_VALUE("tags", scope->tags);
     PLACE_VALUE("extra", scope->extra);
     PLACE_VALUE("contexts", scope->contexts);
+
+    sentry_value_t modules = sentry__modules_get_list();
+    if (!sentry_value_is_null(modules)) {
+        sentry_value_t debug_meta = sentry_value_new_object();
+        sentry_value_incref(modules);
+        sentry_value_set_by_key(debug_meta, "images", modules);
+        PLACE_VALUE("debug_meta", debug_meta);
+    }
 
 #undef PLACE_STRING
 #undef IS_NULL

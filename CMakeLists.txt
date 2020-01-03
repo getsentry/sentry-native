@@ -36,6 +36,7 @@ file(GLOB SENTRY_NATIVE_SOURCES
     ${SENTRY_NATIVE_SOURCE_ROOT}/transports/*.cpp
 )
 
+# todo: module finders are platform specific
 file(GLOB SENTRY_NATIVE_UNIX_SOURCES
     ${SENTRY_NATIVE_SOURCE_ROOT}/unix/*.c
     ${SENTRY_NATIVE_SOURCE_ROOT}/unix/*.cpp

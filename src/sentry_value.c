@@ -390,6 +390,44 @@ sentry_value_append(sentry_value_t value, sentry_value_t v)
     return 0;
 }
 
+sentry_value_t
+sentry__value_clone(sentry_value_t value)
+{
+    const thing_t *thing = value_as_thing(value);
+    if (!thing) {
+        return value;
+    }
+    switch (thing_get_type(thing)) {
+    case THING_TYPE_LIST: {
+        sentry_value_t rv = sentry_value_new_list();
+        const list_t *list = thing->payload;
+        for (size_t i = 0; i < list->len; i++) {
+            sentry_value_incref(list->items[i]);
+            sentry_value_append(rv, list->items[i]);
+        }
+        return rv;
+    }
+    case THING_TYPE_OBJECT: {
+        sentry_value_t rv = sentry_value_new_object();
+        const obj_t *obj = thing->payload;
+        for (size_t i = 0; i < obj->len; i++) {
+            char *key = sentry__string_dup(obj->pairs[i].k);
+            if (!key) {
+                continue;
+            }
+            sentry_value_incref(obj->pairs[i].v);
+            sentry_value_set_by_key(rv, key, obj->pairs[i].v);
+        }
+        return rv;
+    }
+    case THING_TYPE_STRING:
+        sentry_value_incref(value);
+        return value;
+    default:
+        return sentry_value_new_null();
+    }
+}
+
 int
 sentry__value_append_bounded(sentry_value_t value, sentry_value_t v, size_t max)
 {
