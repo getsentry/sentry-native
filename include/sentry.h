@@ -78,11 +78,17 @@ typedef enum {
     SENTRY_VALUE_TYPE_OBJECT,
 } sentry_value_type_t;
 
+/* the library internally uses the system malloc and free functions to manage
+   memory.  It does not use realloc.  The reason for this is that on unix
+   platforms we fall back to a simplistic page allocator once we have
+   encountered a SIGSEGV or other terminating signal as malloc is no longer
+   safe to use.  Since we cannot portably reallocate allocations made on the
+   pre-existing allocator we're instead not using realloc.
+
+   Note also that after SIGSEGV sentry_free() becomes a noop. */
+
 /* allocates memory with the underlying allocator */
 void *sentry_malloc(size_t size);
-
-/* reallocates memory with the underlying allocator */
-void *sentry_realloc(void *ptr, size_t size);
 
 /* releases memory allocated from the underlying allocator */
 void sentry_free(void *ptr);

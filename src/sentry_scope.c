@@ -91,7 +91,7 @@ sentry__scope_apply_to_event(const sentry_scope_t *scope, sentry_value_t event)
         sentry_value_t debug_meta = sentry_value_new_object();
         sentry_value_incref(modules);
         sentry_value_set_by_key(debug_meta, "images", modules);
-        PLACE_VALUE("debug_meta", debug_meta);
+        sentry_value_set_by_key(event, "debug_meta", debug_meta);
     }
 
 #undef PLACE_STRING

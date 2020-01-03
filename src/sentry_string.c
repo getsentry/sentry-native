@@ -25,9 +25,13 @@ append(sentry_stringbuilder_t *sb, const char *s, size_t len)
         while (new_alloc_size < needed) {
             new_alloc_size = new_alloc_size * 2;
         }
-        char *new_buf = sentry_realloc(sb->buf, new_alloc_size);
+        char *new_buf = sentry_malloc(new_alloc_size);
         if (!new_buf) {
             return 1;
+        }
+        if (sb->buf) {
+            memcpy(new_buf, sb->buf, sb->allocated);
+            sentry_free(sb->buf);
         }
         sb->buf = new_buf;
         sb->allocated = new_alloc_size;

@@ -81,11 +81,15 @@ reserve(void **buf, size_t item_size, size_t *allocated, size_t *len,
         new_allocated *= 2;
     }
 
-    void *new_buf = sentry_realloc(*buf, new_allocated * item_size);
+    void *new_buf = sentry_malloc(new_allocated * item_size);
     if (!new_buf) {
         return false;
     }
 
+    if (*buf) {
+        memcpy(new_buf, *buf, *allocated * sizeof(obj_pair_t));
+        sentry_free(*buf);
+    }
     *buf = new_buf;
     *allocated = new_allocated;
     return true;

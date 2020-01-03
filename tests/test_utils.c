@@ -2,6 +2,10 @@
 #include "sentry_testsupport.h"
 #include <sentry.h>
 
+#if SENTRY_PLATFORM != SENTRY_PLATFORM_WINDOWS
+#    include "../src/unix/sentry_unix_pageallocator.h"
+#endif
+
 SENTRY_TEST(url_parsing_complete)
 {
     sentry_url_t url;
@@ -112,4 +116,34 @@ SENTRY_TEST(dsn_store_url_without_path)
         "4c7e771a-f17d-4220-bc8f-5b1edcdb5faa/attachments/");
     sentry_free(url);
     sentry__dsn_cleanup(&dsn);
+}
+
+SENTRY_TEST(page_allocator)
+{
+#if SENTRY_PLATFORM == SENTRY_PLATFORM_WINDOWS
+    skip();
+#else
+    const size_t size = 4096;
+    char *p_before = sentry_malloc(size);
+    for (size_t i = 0; i < size; i++) {
+        p_before[i] = i % 255;
+    }
+    sentry__page_allocator_enable();
+
+    char *p_after = sentry_malloc(size);
+    for (size_t i = 0; i < size; i++) {
+        p_after[i] = (i + 10) % 255;
+    }
+
+    /* free is a noop after page allocator was enabled */
+    sentry_free(p_before);
+    sentry_free(p_after);
+
+    for (size_t i = 0; i < size; i++) {
+        assert_int_equal((unsigned char)p_before[i], i % 255);
+        assert_int_equal((unsigned char)p_after[i], (i + 10) % 255);
+    }
+
+    sentry__page_allocator_disable();
+#endif
 }
