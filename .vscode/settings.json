@@ -110,7 +110,8 @@
         "sentry_alloc.h": "c",
         "sentry_core.h": "c",
         "sentry_utils.h": "c",
-        "sentry_testsupport.h": "c"
+        "sentry_testsupport.h": "c",
+        "sentry_sync.h": "c"
     },
     "python.pythonPath": ".venv/bin/python2.7",
     "editor.formatOnSave": true
