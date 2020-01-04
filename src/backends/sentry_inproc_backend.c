@@ -81,26 +81,10 @@ startup_inproc_backend(sentry_backend_t *backend)
     }
 }
 
-static void
-handle_signal(int signum, siginfo_t *info, void *user_context)
+static sentry_value_t
+make_signal_event(
+    const struct signal_slot *sig_slot, const sentry_ucontext_t *uctx)
 {
-    sentry_ucontext_t uctx;
-    uctx.siginfo = info;
-    uctx.user_context = (ucontext_t *)user_context;
-
-    const struct signal_slot *sig_slot = NULL;
-    for (int i = 0; i < SIGNAL_COUNT; ++i) {
-        if (SIGNAL_DEFINITIONS[i].signum == signum) {
-            sig_slot = &SIGNAL_DEFINITIONS[i];
-        }
-    }
-
-    // give us an allocator we can use safely in signals before we tear down.
-    // We also disable our own mutexes here which will fall back to spinning on
-    // a spinlock.
-    sentry__page_allocator_enable();
-    sentry__enter_signal_handler();
-
     sentry_value_t event = sentry_value_new_event();
     sentry_value_set_by_key(
         event, "level", sentry__value_new_level(SENTRY_LEVEL_FATAL));
@@ -134,7 +118,7 @@ handle_signal(int signum, siginfo_t *info, void *user_context)
 
     void *backtrace[MAX_FRAMES];
     size_t frame_count
-        = sentry_unwind_stack_from_ucontext(&uctx, &backtrace[0], MAX_FRAMES);
+        = sentry_unwind_stack_from_ucontext(uctx, &backtrace[0], MAX_FRAMES);
 
     sentry_value_t frames = sentry__value_new_list_with_size(frame_count);
     for (size_t i = 0; i < frame_count; i++) {
@@ -155,7 +139,30 @@ handle_signal(int signum, siginfo_t *info, void *user_context)
     sentry_value_append(values, exc);
     sentry_value_set_by_key(event, "exception", exceptions);
 
-    sentry_capture_event(event);
+    return event;
+}
+
+static void
+handle_signal(int signum, siginfo_t *info, void *user_context)
+{
+    sentry_ucontext_t uctx;
+    uctx.siginfo = info;
+    uctx.user_context = (ucontext_t *)user_context;
+
+    const struct signal_slot *sig_slot = NULL;
+    for (int i = 0; i < SIGNAL_COUNT; ++i) {
+        if (SIGNAL_DEFINITIONS[i].signum == signum) {
+            sig_slot = &SIGNAL_DEFINITIONS[i];
+        }
+    }
+
+    // give us an allocator we can use safely in signals before we tear down.
+    // We also disable our own mutexes here which will fall back to spinning on
+    // a spinlock.
+    sentry__page_allocator_enable();
+    sentry__enter_signal_handler();
+
+    sentry_capture_event(make_signal_event(sig_slot, &uctx));
 
     reset_signal_handlers();
     sentry__leave_signal_handler();
