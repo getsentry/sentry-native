@@ -6,8 +6,8 @@
 #include <sentry.h>
 #include <string.h>
 
-const size_t MAX_ENVELOPE_ITEMS = 10;
-const size_t MAX_HTTP_HEADERS = 5;
+static const size_t MAX_ENVELOPE_ITEMS = 10;
+static const size_t MAX_HTTP_HEADERS = 5;
 
 typedef enum {
     ENDPOINT_TYPE_STORE,

@@ -4,10 +4,14 @@
 #include "../sentry_utils.h"
 
 #include <dirent.h>
+#include <fcntl.h>
 #include <string.h>
 #include <sys/errno.h>
 #include <sys/stat.h>
 #include <unistd.h>
+
+// only read this many bytes to memory ever
+static const size_t MAX_READ_TO_BUFFER = 134217728;
 
 struct sentry_pathiter_s {
     const sentry_path_t *parent;
@@ -222,4 +226,99 @@ sentry__pathiter_free(sentry_pathiter_t *piter)
     }
     sentry__path_free(piter->current);
     sentry_free(piter);
+}
+
+int
+sentry__path_touch(const sentry_path_t *path)
+{
+    int fd = open(path->path, O_WRONLY | O_CREAT | O_APPEND);
+    if (fd < 0) {
+        return 1;
+    } else {
+        close(fd);
+        return 0;
+    }
+}
+
+char *
+sentry__path_read_to_buffer(const sentry_path_t *path, size_t *size_out)
+{
+    int fd = open(path->path, O_RDONLY);
+    if (fd < 0) {
+        return NULL;
+    }
+    size_t len = sentry__path_get_size(path);
+    if (len == 0) {
+        close(fd);
+        char *rv = sentry_malloc(1);
+        rv[0] = '\0';
+        if (size_out) {
+            *size_out = 0;
+        }
+        return rv;
+    } else if (len > MAX_READ_TO_BUFFER) {
+        close(fd);
+        return NULL;
+    }
+
+    // this is completely not sane in concurrent situations but hey
+    char *rv = sentry_malloc(len + 1);
+    if (!rv) {
+        close(fd);
+        return NULL;
+    }
+
+    size_t remaining = len;
+    size_t offset = 0;
+    while (true) {
+        ssize_t n = read(fd, rv + offset, remaining);
+        if (n <= 0) {
+            if (errno == EAGAIN || errno == EINTR) {
+                continue;
+            }
+            break;
+        }
+        offset += n;
+        remaining -= n;
+    }
+
+    rv[offset] = '\0';
+    close(fd);
+
+    if (size_out) {
+        *size_out = offset;
+    }
+    return rv;
+}
+
+int
+sentry__path_write_buffer(
+    const sentry_path_t *path, const char *buf, size_t buf_len)
+{
+    int fd = open(path->path, O_RDWR | O_CREAT | O_TRUNC,
+        S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH);
+    if (fd < 0) {
+        return 1;
+    }
+
+    size_t offset = 0;
+    size_t remaining = buf_len;
+
+    while (true) {
+        if (remaining == 0) {
+            break;
+        }
+        ssize_t n = write(fd, buf + offset, remaining);
+        if (n <= 0) {
+            if (errno == EAGAIN || errno == EINTR) {
+                continue;
+            }
+            break;
+        }
+        offset += n;
+        remaining -= n;
+    }
+
+    close(fd);
+    return remaining == 0 ? 0 : 1;
 }
