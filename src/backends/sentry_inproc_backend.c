@@ -99,7 +99,7 @@ handle_signal(int signum, siginfo_t *info, void *user_context)
        We also disable our own mutexes here which will fall back to spinning on
        a spinlock. */
     sentry__page_allocator_enable();
-    sentry__disable_mutexes();
+    sentry__enter_signal_handler();
 
     // this entire part is not yet async safe but must become
     {
@@ -173,6 +173,7 @@ handle_signal(int signum, siginfo_t *info, void *user_context)
     }
 
     reset_signal_handlers();
+    sentry__leave_signal_handler();
     invoke_signal_handler(signum, info, user_context);
 }
 

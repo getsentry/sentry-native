@@ -51,64 +51,65 @@ typedef CONDITION_VARIABLE sentry_cond_t;
 #    define sentry__thread_join(ThreadId)                                      \
         WaitForSingleObject(ThreadId, INFINITE)
 #else
-#    include "unix/sentry_unix_spinlock.h"
 #    include <errno.h>
 #    include <pthread.h>
 #    include <sys/time.h>
-bool sentry__mutexes_disabled(void);
-void sentry__disable_mutexes(void);
+
+/* on unix systems signal handlers can interrupt anything which means that
+   we're restricted in what we can do.  In particular it's possible that
+   we would end up dead locking outselves.  While we cannot fully prevent
+   races we have a logic here that while the signal handler is active we're
+   disabling our mutexes so that our signal handler can access what otherwise
+   would be protected by the mutex but everyone else needs to wait for the
+   signal handler to finish.  This is not without risk because another thread
+   might still access what the mutex protects.
+
+   We are thus taking care that whatever such mutexes protect will not make
+   us crash under concurrent modifications.  The mutexes we're likely going
+   to hit are the options and scope lock. */
+void sentry__block_for_signal_handler(void);
+void sentry__enter_signal_handler(void);
+void sentry__leave_signal_handler(void);
+
 typedef pthread_t sentry_threadid_t;
-typedef struct {
-    sentry_spinlock_t spinlock;
-    pthread_mutex_t mutex;
-} sentry_mutex_t;
+typedef pthread_mutex_t sentry_mutex_t;
 typedef pthread_cond_t sentry_cond_t;
-#    define SENTRY__MUTEX_INIT                                                 \
-        {                                                                      \
-            SENTRY__SPINLOCK_INIT, PTHREAD_RECURSIVE_MUTEX_INITIALIZER         \
-        }
+#    define SENTRY__MUTEX_INIT PTHREAD_RECURSIVE_MUTEX_INITIALIZER
 #    define sentry__mutex_lock(Mutex)                                          \
         do {                                                                   \
-            if (!sentry__mutexes_disabled()) {                                 \
-                int _rv = pthread_mutex_lock(&(Mutex)->mutex);                 \
-                assert(_rv == 0);                                              \
-            } else {                                                           \
-                sentry__spinlock_lock(&(Mutex)->spinlock);                     \
-            }                                                                  \
+            sentry__block_for_signal_handler();                                \
+            int _rv = pthread_mutex_lock(Mutex);                               \
+            assert(_rv == 0);                                                  \
         } while (0)
 #    define sentry__mutex_unlock(Mutex)                                        \
         do {                                                                   \
-            if (!sentry__mutexes_disabled()) {                                 \
-                pthread_mutex_unlock(&(Mutex)->mutex);                         \
-            } else {                                                           \
-                sentry__spinlock_unlock(&(Mutex)->spinlock);                   \
-            }                                                                  \
+            sentry__block_for_signal_handler();                                \
+            pthread_mutex_unlock(Mutex);                                       \
         } while (0)
 #    define SENTRY__COND_INIT PTHREAD_COND_INITIALIZER
 #    define sentry__cond_wait(Cond, Mutex)                                     \
         do {                                                                   \
-            if (!sentry__mutexes_disabled()) {                                 \
-                pthread_cond_wait(Cond, &(Mutex)->mutex);                      \
-            }                                                                  \
+            sentry__block_for_signal_handler();                                \
+            pthread_cond_wait(Cond, Mutex);                                    \
         } while (0)
 #    define sentry__cond_wake pthread_cond_signal
 #    define sentry__thread_spawn(ThreadId, Func, Data)                         \
         (pthread_create(ThreadId, NULL, (void *(*)(void *))Func, Data) == 0)
 #    define sentry__thread_join(ThreadId) pthread_join(ThreadId, NULL)
+#    define sentry__threadid_equal pthread_equal
+#    define sentry__current_thread pthread_self
 
 static inline int
 sentry__cond_wait_timeout(
     sentry_cond_t *cv, sentry_mutex_t *mutex, u_int64_t msecs)
 {
-    if (sentry__mutexes_disabled()) {
-        return EINVAL;
-    }
+    sentry__block_for_signal_handler();
     struct timeval now;
     struct timespec lock_time;
     gettimeofday(&now, NULL);
     lock_time.tv_sec = now.tv_sec + msecs / 1000ULL;
     lock_time.tv_nsec = (now.tv_usec + 1000ULL * (msecs % 1000)) * 1000ULL;
-    return pthread_cond_timedwait(cv, &mutex->mutex, &lock_time);
+    return pthread_cond_timedwait(cv, mutex, &lock_time);
 }
 #endif
 #define sentry__mutex_init(Mutex)                                              \

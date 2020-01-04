@@ -188,17 +188,33 @@ sentry__bgworker_submit(sentry_bgworker_t *bgw,
 }
 
 #if SENTRY_PLATFORM != SENTRY_PLATFORM_WINDOWS
-static bool g_mutexes_disabled = false;
+#    include "unix/sentry_unix_spinlock.h"
+
+static sig_atomic_t g_in_signal_handler = 0;
+static sentry_threadid_t g_signal_handling_thread;
 
 void
-sentry__disable_mutexes(void)
+sentry__block_for_signal_handler(void)
 {
-    g_mutexes_disabled = true;
+    while (__sync_fetch_and_add(&g_in_signal_handler, 0)) {
+        if (sentry__threadid_equal(
+                sentry__current_thread(), g_signal_handling_thread)) {
+            return;
+        }
+        sentry__cpu_relax();
+    }
 }
 
-bool
-sentry__mutexes_disabled(void)
+void
+sentry__enter_signal_handler(void)
 {
-    return g_mutexes_disabled;
+    __sync_fetch_and_or(&g_in_signal_handler, 1);
+    g_signal_handling_thread = sentry__current_thread();
+}
+
+void
+sentry__leave_signal_handler(void)
+{
+    __sync_fetch_and_and(&g_in_signal_handler, 0);
 }
 #endif
