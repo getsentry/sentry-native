@@ -114,7 +114,7 @@ handle_signal(int signum, siginfo_t *info, void *user_context)
             sig_slot ? sig_slot->sigdesc : "UnknownSignal"));
 
     sentry_value_t mechanism = sentry_value_new_object();
-    sentry_value_set_by_key(exc, "mechamis", mechanism);
+    sentry_value_set_by_key(exc, "mechanism", mechanism);
 
     sentry_value_t mechanism_meta = sentry_value_new_object();
     sentry_value_t signal_meta = sentry_value_new_object();
