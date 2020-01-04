@@ -101,76 +101,61 @@ handle_signal(int signum, siginfo_t *info, void *user_context)
     sentry__page_allocator_enable();
     sentry__enter_signal_handler();
 
-    // this entire part is not yet async safe but must become
-    {
-        sentry_value_t event = sentry_value_new_event();
+    sentry_value_t event = sentry_value_new_event();
+    sentry_value_set_by_key(
+        event, "level", sentry__value_new_level(SENTRY_LEVEL_FATAL));
+
+    sentry_value_t exc = sentry_value_new_object();
+    sentry_value_set_by_key(exc, "type",
+        sentry_value_new_string(
+            sig_slot ? sig_slot->signame : "UNKNOWN_SIGNAL"));
+    sentry_value_set_by_key(exc, "value",
+        sentry_value_new_string(
+            sig_slot ? sig_slot->sigdesc : "UnknownSignal"));
+
+    sentry_value_t mechanism = sentry_value_new_object();
+    sentry_value_set_by_key(exc, "mechamis", mechanism);
+
+    sentry_value_t mechanism_meta = sentry_value_new_object();
+    sentry_value_t signal_meta = sentry_value_new_object();
+    if (sig_slot) {
         sentry_value_set_by_key(
-            event, "level", sentry__value_new_level(SENTRY_LEVEL_FATAL));
-
-        sentry_value_t exc = sentry_value_new_object();
-        sentry_value_set_by_key(exc, "type",
-            sentry_value_new_string(
-                sig_slot ? sig_slot->signame : "UNKNOWN_SIGNAL"));
-        sentry_value_set_by_key(exc, "value",
-            sentry_value_new_string(
-                sig_slot ? sig_slot->sigdesc : "UnknownSignal"));
-
-        sentry_value_t mechanism = sentry_value_new_object();
-        sentry_value_set_by_key(exc, "mechamis", mechanism);
-
-        sentry_value_t mechanism_meta = sentry_value_new_object();
-        sentry_value_t signal_meta = sentry_value_new_object();
-        if (sig_slot) {
-            sentry_value_set_by_key(signal_meta, "name",
-                sentry_value_new_string(sig_slot->signame));
-            sentry_value_set_by_key(signal_meta, "number",
-                sentry_value_new_int32((int32_t)sig_slot->signum));
-        }
-        sentry_value_set_by_key(mechanism_meta, "signal", signal_meta);
-        sentry_value_set_by_key(
-            mechanism, "type", sentry_value_new_string("signalhandler"));
-        sentry_value_set_by_key(
-            mechanism, "synthetic", sentry_value_new_bool(true));
-        sentry_value_set_by_key(
-            mechanism, "handled", sentry_value_new_bool(false));
-        sentry_value_set_by_key(mechanism, "meta", mechanism_meta);
-
-        void *backtrace[MAX_FRAMES];
-        size_t frame_count = sentry_unwind_stack_from_ucontext(
-            &uctx, &backtrace[0], MAX_FRAMES);
-
-        sentry_value_t frames = sentry_value_new_list();
-        for (size_t i = 0; i < frame_count; i++) {
-            sentry_value_t frame = sentry_value_new_object();
-            sentry_value_set_by_key(frame, "instruction_addr",
-                sentry__value_new_addr(
-                    (uint64_t)backtrace[frame_count - i - 1]));
-            sentry_value_append(frames, frame);
-        }
-
-        sentry_value_t stacktrace = sentry_value_new_object();
-        sentry_value_set_by_key(stacktrace, "frames", frames);
-
-        sentry_value_set_by_key(exc, "stacktrace", stacktrace);
-
-        sentry_value_t exceptions = sentry_value_new_object();
-        sentry_value_t values = sentry_value_new_list();
-        sentry_value_set_by_key(exceptions, "values", values);
-        sentry_value_append(values, exc);
-        sentry_value_set_by_key(event, "exception", exceptions);
-
-        SENTRY_WITH_SCOPE (scope) {
-            sentry__scope_apply_to_event(scope, event);
-        }
-
-        const sentry_options_t *opts = sentry_get_options();
-        sentry_envelope_t *envelope = sentry__envelope_new();
-        if (sentry__envelope_add_event(envelope, event)) {
-            opts->transport->send_envelope_func(opts->transport, envelope);
-        } else {
-            sentry_envelope_free(envelope);
-        }
+            signal_meta, "name", sentry_value_new_string(sig_slot->signame));
+        sentry_value_set_by_key(signal_meta, "number",
+            sentry_value_new_int32((int32_t)sig_slot->signum));
     }
+    sentry_value_set_by_key(mechanism_meta, "signal", signal_meta);
+    sentry_value_set_by_key(
+        mechanism, "type", sentry_value_new_string("signalhandler"));
+    sentry_value_set_by_key(
+        mechanism, "synthetic", sentry_value_new_bool(true));
+    sentry_value_set_by_key(mechanism, "handled", sentry_value_new_bool(false));
+    sentry_value_set_by_key(mechanism, "meta", mechanism_meta);
+
+    void *backtrace[MAX_FRAMES];
+    size_t frame_count
+        = sentry_unwind_stack_from_ucontext(&uctx, &backtrace[0], MAX_FRAMES);
+
+    sentry_value_t frames = sentry_value_new_list();
+    for (size_t i = 0; i < frame_count; i++) {
+        sentry_value_t frame = sentry_value_new_object();
+        sentry_value_set_by_key(frame, "instruction_addr",
+            sentry__value_new_addr((uint64_t)backtrace[frame_count - i - 1]));
+        sentry_value_append(frames, frame);
+    }
+
+    sentry_value_t stacktrace = sentry_value_new_object();
+    sentry_value_set_by_key(stacktrace, "frames", frames);
+
+    sentry_value_set_by_key(exc, "stacktrace", stacktrace);
+
+    sentry_value_t exceptions = sentry_value_new_object();
+    sentry_value_t values = sentry_value_new_list();
+    sentry_value_set_by_key(exceptions, "values", values);
+    sentry_value_append(values, exc);
+    sentry_value_set_by_key(event, "exception", exceptions);
+
+    sentry_capture_event(event);
 
     reset_signal_handlers();
     sentry__leave_signal_handler();
