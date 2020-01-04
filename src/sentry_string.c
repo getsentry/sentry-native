@@ -38,7 +38,8 @@ append(sentry_stringbuilder_t *sb, const char *s, size_t len)
     }
     memcpy(sb->buf + sb->len, s, len);
     sb->len += len;
-    /* make sure we're always zero terminated */
+
+    // make sure we're always zero terminated
     sb->buf[sb->len] = '\0';
     return 0;
 }

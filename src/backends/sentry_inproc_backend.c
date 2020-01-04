@@ -55,7 +55,7 @@ invoke_signal_handler(int signum, siginfo_t *info, void *user_context)
             } else if (handler->sa_flags & SA_SIGINFO) {
                 handler->sa_sigaction(signum, info, user_context);
             } else if (handler->sa_handler != SIG_IGN) {
-                /* This handler can only handle to signal number (ANSI C) */
+                // This handler can only handle to signal number (ANSI C)
                 void (*func)(int) = handler->sa_handler;
                 func(signum);
             }
@@ -95,9 +95,9 @@ handle_signal(int signum, siginfo_t *info, void *user_context)
         }
     }
 
-    /* give us an allocator we can use safely in signals before we tear down.
-       We also disable our own mutexes here which will fall back to spinning on
-       a spinlock. */
+    // give us an allocator we can use safely in signals before we tear down.
+    // We also disable our own mutexes here which will fall back to spinning on
+    // a spinlock.
     sentry__page_allocator_enable();
     sentry__enter_signal_handler();
 

@@ -85,7 +85,7 @@ sentry__scope_apply_to_event(const sentry_scope_t *scope, sentry_value_t event)
     PLACE_VALUE("fingerprint", scope->fingerprint);
     PLACE_STRING("transaction", scope->transaction);
 
-    /* TODO: these should merge */
+    // TODO: these should merge
     PLACE_VALUE("tags", scope->tags);
     PLACE_VALUE("extra", scope->extra);
     PLACE_VALUE("contexts", scope->contexts);

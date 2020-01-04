@@ -5,7 +5,7 @@
 #include <sentry.h>
 #include <stdio.h>
 
-/* define a recursive mutex for all platforms */
+// define a recursive mutex for all platforms
 #if SENTRY_PLATFORM == SENTRY_PLATFORM_WINDOWS
 #    include <synchapi.h>
 #    include <winnt.h>

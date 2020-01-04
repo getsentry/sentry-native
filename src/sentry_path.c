@@ -1,7 +1,7 @@
 #include "sentry_path.h"
 #include "sentry_alloc.h"
 
-/* only read this many bytes to memory ever */
+// only read this many bytes to memory ever
 const size_t MAX_READ_TO_BUFFER = 134217728;
 
 void
@@ -17,7 +17,7 @@ sentry__path_free(sentry_path_t *path)
 int
 sentry__path_touch(const sentry_path_t *path)
 {
-    /* TODO: make async safe */
+    // TODO: make async safe
     FILE *f = sentry__path_open(path, "a");
     if (f) {
         fclose(f);
@@ -29,7 +29,7 @@ sentry__path_touch(const sentry_path_t *path)
 char *
 sentry__path_read_to_buffer(const sentry_path_t *path, size_t *size_out)
 {
-    /* TODO: make async safe */
+    // TODO: make async safe
     FILE *f = sentry__path_open(path, "rb");
     if (!f) {
         return NULL;
@@ -48,7 +48,7 @@ sentry__path_read_to_buffer(const sentry_path_t *path, size_t *size_out)
         return NULL;
     }
 
-    /* this is completely not sane in concurrent situations but hey */
+    // this is completely not sane in concurrent situations but hey
     char *rv = sentry_malloc(len + 1);
     if (!rv) {
         fclose(f);
@@ -68,7 +68,7 @@ int
 sentry__path_write_buffer(
     const sentry_path_t *path, const char *buf, size_t buf_len)
 {
-    /* TODO: make async safe */
+    // TODO: make async safe
     FILE *f = sentry__path_open(path, "wb");
     if (!f) {
         return 1;
