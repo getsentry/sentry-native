@@ -157,13 +157,24 @@ handle_signal(int signum, siginfo_t *info, void *user_context)
     }
 
     // give us an allocator we can use safely in signals before we tear down.
-    // We also disable our own mutexes here which will fall back to spinning on
-    // a spinlock.
     sentry__page_allocator_enable();
+
+    // inform the sentry_sync system that we're in a signal hanlder.  This will
+    // make mutexes spin on a spinlock instead as it's no longer safe to use a
+    // pthread mutex.
     sentry__enter_signal_handler();
 
+    // now create an capture an event.  Note that this assumes the transport
+    // only dumps to disk at the moment.
+    //
+    // TODO: this should be refactored so that it will always go to disk
+    // independent of the actual transport configured.
     sentry_capture_event(make_signal_event(sig_slot, &uctx));
 
+    // reset signal handlers and invoke the original ones.  This will then tear
+    // down the process.  In theory someone might have some other handler here
+    // which recovers the process but this will cause a memory leak going
+    // forward as we're not restoring the page allocator.
     reset_signal_handlers();
     sentry__leave_signal_handler();
     invoke_signal_handler(signum, info, user_context);
