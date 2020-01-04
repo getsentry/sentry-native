@@ -1,4 +1,5 @@
 #include "sentry_scope.h"
+#include "sentry_backend.h"
 #include "sentry_core.h"
 #include "sentry_modulefinder.h"
 #include "sentry_sync.h"
@@ -44,7 +45,10 @@ sentry__scope_unlock(void)
 void
 sentry__scope_flush(const sentry_scope_t *scope)
 {
-    /* TODO: flush to backend */
+    const sentry_options_t *options = sentry_get_options();
+    if (options && options->backend && options->backend->flush_scope_func) {
+        options->backend->flush_scope_func(options->backend, scope);
+    }
 }
 
 void

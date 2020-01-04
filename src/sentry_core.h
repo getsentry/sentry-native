@@ -10,6 +10,8 @@
 #define SENTRY_SDK_USER_AGENT (SENTRY_SDK_NAME "/" SENTRY_SDK_VERSION)
 #define SENTRY_BREADCRUMBS_MAX 100
 
+struct sentry_backend_s;
+
 struct sentry_options_s {
     char *raw_dsn;
     sentry_dsn_t dsn;
@@ -29,6 +31,7 @@ struct sentry_options_s {
 
     /* everything from here on down are options which are stored here but
        not exposed through the options API */
+    struct sentry_backend_s *backend;
     sentry_user_consent_t user_consent;
 };
 

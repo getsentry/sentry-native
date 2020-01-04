@@ -2,6 +2,7 @@
 #include <string.h>
 
 #include "sentry_alloc.h"
+#include "sentry_backend.h"
 #include "sentry_core.h"
 #include "sentry_envelope.h"
 #include "sentry_path.h"
@@ -41,7 +42,7 @@ sentry__should_skip_upload(void)
     const sentry_options_t *opts = sentry_get_options();
     bool skip = !opts
         || (opts->require_user_consent
-            && opts->user_consent != SENTRY_USER_CONSENT_GIVEN);
+               && opts->user_consent != SENTRY_USER_CONSENT_GIVEN);
     sentry__mutex_unlock(&g_options_mutex);
     return skip;
 }
@@ -61,6 +62,11 @@ sentry_init(sentry_options_t *options)
         transport->startup_func(transport);
     }
 
+    sentry_backend_t *backend = g_options->backend;
+    if (backend && backend->startup_func) {
+        backend->startup_func(backend);
+    }
+
     return 0;
 }
 
@@ -71,6 +77,9 @@ sentry_shutdown(void)
     if (g_options && g_options->transport
         && g_options->transport->shutdown_func) {
         g_options->transport->shutdown_func(g_options->transport);
+    }
+    if (g_options && g_options->backend && g_options->backend->shutdown_func) {
+        g_options->backend->shutdown_func(g_options->backend);
     }
     sentry_options_free(g_options);
     g_options = NULL;
@@ -83,40 +92,48 @@ sentry_get_options(void)
     return g_options;
 }
 
-void
-sentry_user_consent_give(void)
+static void
+set_user_consent(sentry_user_consent_t new_val)
 {
     sentry__mutex_lock(&g_options_mutex);
-    g_options->user_consent = SENTRY_USER_CONSENT_GIVEN;
+    g_options->user_consent = new_val;
     sentry__mutex_unlock(&g_options_mutex);
     sentry_path_t *consent_path
         = sentry__path_join_str(g_options->database_path, "user-consent");
-    sentry__path_write_buffer(consent_path, "1\n", 2);
+    switch (new_val) {
+    case SENTRY_USER_CONSENT_GIVEN:
+        sentry__path_write_buffer(consent_path, "1\n", 2);
+        break;
+    case SENTRY_USER_CONSENT_REVOKED:
+        sentry__path_write_buffer(consent_path, "0\n", 2);
+        break;
+    case SENTRY_USER_CONSENT_UNKNOWN:
+        sentry__path_remove(consent_path);
+        break;
+    }
     sentry__path_free(consent_path);
+
+    if (g_options->backend && g_options->backend->user_consent_changed_func) {
+        g_options->backend->user_consent_changed_func(g_options->backend);
+    }
+}
+
+void
+sentry_user_consent_give(void)
+{
+    set_user_consent(SENTRY_USER_CONSENT_GIVEN);
 }
 
 void
 sentry_user_consent_revoke(void)
 {
-    sentry__mutex_lock(&g_options_mutex);
-    g_options->user_consent = SENTRY_USER_CONSENT_REVOKED;
-    sentry__mutex_unlock(&g_options_mutex);
-    sentry_path_t *consent_path
-        = sentry__path_join_str(g_options->database_path, "user-consent");
-    sentry__path_write_buffer(consent_path, "0\n", 2);
-    sentry__path_free(consent_path);
+    set_user_consent(SENTRY_USER_CONSENT_REVOKED);
 }
 
 void
 sentry_user_consent_reset(void)
 {
-    sentry__mutex_lock(&g_options_mutex);
-    g_options->user_consent = SENTRY_USER_CONSENT_UNKNOWN;
-    sentry__mutex_unlock(&g_options_mutex);
-    sentry_path_t *consent_path
-        = sentry__path_join_str(g_options->database_path, "user-consent");
-    sentry__path_remove(consent_path);
-    sentry__path_free(consent_path);
+    set_user_consent(SENTRY_USER_CONSENT_UNKNOWN);
 }
 
 sentry_user_consent_t
@@ -164,6 +181,7 @@ sentry_options_new(void)
     memset(opts, 0, sizeof(sentry_options_t));
     opts->database_path = sentry__path_from_str("./.sentry-native");
     opts->user_consent = SENTRY_USER_CONSENT_UNKNOWN;
+    opts->backend = sentry__backend_new_default();
     return opts;
 }
 
@@ -181,6 +199,7 @@ sentry_options_free(sentry_options_t *opts)
     sentry_free(opts->http_proxy);
     sentry_free(opts->ca_certs);
     sentry_transport_free(opts->transport);
+    sentry__backend_free(opts->backend);
     sentry_free(opts);
 }
 
@@ -399,9 +418,16 @@ sentry_remove_user(void)
 void
 sentry_add_breadcrumb(sentry_value_t breadcrumb)
 {
+    sentry_value_incref(breadcrumb);
     SENTRY_WITH_SCOPE_MUT (scope) {
         sentry__value_append_bounded(
             scope->breadcrumbs, breadcrumb, SENTRY_BREADCRUMBS_MAX);
+    }
+
+    if (g_options->backend && g_options->backend->add_breadcrumb_func) {
+        g_options->backend->add_breadcrumb_func(g_options->backend, breadcrumb);
+    } else {
+        sentry_value_decref(breadcrumb);
     }
 }
 

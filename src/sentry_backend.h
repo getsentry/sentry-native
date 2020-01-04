@@ -18,5 +18,6 @@ typedef struct sentry_backend_s {
 } sentry_backend_t;
 
 void sentry__backend_free(sentry_backend_t *backend);
+sentry_backend_t *sentry__backend_new_default(void);
 
 #endif
