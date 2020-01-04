@@ -1,5 +1,17 @@
 #include "sentry_random.h"
 
+#if SENTRY_PLATFORM == SENTRY_PLATFORM_MACOS
+#    include <stdlib.h>
+
+static int
+getrandom_arc4random(void *dst, size_t bytes)
+{
+    arc4random_buf(dst, bytes);
+    return 0;
+}
+#    define HAVE_ARC4RANDOM
+
+#endif
 #if SENTRY_PLATFORM != SENTRY_PLATFORM_WINDOWS
 #    include <errno.h>
 #    include <fcntl.h>
@@ -40,6 +52,11 @@ getrandom_devurandom(void *dst, size_t bytes)
 int
 sentry__getrandom(void *dst, size_t len)
 {
+#ifdef HAVE_ARC4RANDOM
+    if (getrandom_arc4random(dst, len) == 0) {
+        return 0;
+    }
+#endif
 #ifdef HAVE_URANDOM
     if (getrandom_devurandom(dst, len) == 0) {
         return 0;
