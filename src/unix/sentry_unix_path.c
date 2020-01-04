@@ -169,12 +169,6 @@ done:
     return rv;
 }
 
-FILE *
-sentry__path_open(const sentry_path_t *path, const char *mode)
-{
-    return fopen(path->path, mode);
-}
-
 sentry_pathiter_t *
 sentry__path_iter_directory(const sentry_path_t *path)
 {

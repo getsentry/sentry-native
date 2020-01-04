@@ -34,7 +34,6 @@ bool sentry__path_is_file(const sentry_path_t *path);
 int sentry__path_remove(const sentry_path_t *path);
 int sentry__path_remove_all(const sentry_path_t *path);
 int sentry__path_create_dir_all(const sentry_path_t *path);
-FILE *sentry__path_open(const sentry_path_t *path, const char *mode);
 int sentry__path_touch(const sentry_path_t *path);
 size_t sentry__path_get_size(const sentry_path_t *path);
 char *sentry__path_read_to_buffer(const sentry_path_t *path, size_t *size_out);
