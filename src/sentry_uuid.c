@@ -90,15 +90,11 @@ sentry_uuid_as_bytes(const sentry_uuid_t *uuid, char bytes[16])
 void
 sentry_uuid_as_string(const sentry_uuid_t *uuid, char str[37])
 {
+#define B(X) (unsigned char)uuid->bytes[X]
     snprintf(str, 37,
         "%02hhx%02hhx%02hhx%02hhx-%02hhx%02hhx-%02hhx%02hhx-%02hhx%02hhx-%"
         "02hhx%02hhx%02hhx%02hhx%02hhx%02hhx",
-        (unsigned char)uuid->bytes[0], (unsigned char)uuid->bytes[1],
-        (unsigned char)uuid->bytes[2], (unsigned char)uuid->bytes[3],
-        (unsigned char)uuid->bytes[4], (unsigned char)uuid->bytes[5],
-        (unsigned char)uuid->bytes[6], (unsigned char)uuid->bytes[7],
-        (unsigned char)uuid->bytes[8], (unsigned char)uuid->bytes[9],
-        (unsigned char)uuid->bytes[10], (unsigned char)uuid->bytes[11],
-        (unsigned char)uuid->bytes[12], (unsigned char)uuid->bytes[13],
-        (unsigned char)uuid->bytes[14], (unsigned char)uuid->bytes[15]);
+        B(0), B(1), B(2), B(3), B(4), B(5), B(6), B(7), B(8), B(9), B(10),
+        B(11), B(12), B(13), B(14), B(15));
+#undef B
 }
