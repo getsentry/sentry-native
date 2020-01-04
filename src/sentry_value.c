@@ -278,12 +278,48 @@ sentry_value_new_list(void)
 }
 
 sentry_value_t
+sentry__value_new_list_with_size(size_t size)
+{
+    list_t *l = SENTRY_MAKE(list_t);
+    if (l) {
+        memset(l, 0, sizeof(list_t));
+        l->allocated = size;
+        l->items = sentry_malloc(sizeof(sentry_value_t) * size);
+        if (!l->items) {
+            sentry_free(l);
+            return sentry_value_new_null();
+        }
+        return new_thing_value(l, THING_TYPE_LIST);
+    } else {
+        return sentry_value_new_null();
+    }
+}
+
+sentry_value_t
 sentry_value_new_object(void)
 {
     obj_t *o = SENTRY_MAKE(obj_t);
     if (o) {
         memset(o, 0, sizeof(obj_t));
         return new_thing_value(o, THING_TYPE_OBJECT);
+    } else {
+        return sentry_value_new_null();
+    }
+}
+
+sentry_value_t
+sentry__value_new_object_with_size(size_t size)
+{
+    obj_t *l = SENTRY_MAKE(obj_t);
+    if (l) {
+        memset(l, 0, sizeof(obj_t));
+        l->allocated = size;
+        l->pairs = sentry_malloc(sizeof(obj_pair_t) * size);
+        if (!l->pairs) {
+            sentry_free(l);
+            return sentry_value_new_null();
+        }
+        return new_thing_value(l, THING_TYPE_OBJECT);
     } else {
         return sentry_value_new_null();
     }
@@ -403,8 +439,8 @@ sentry__value_clone(sentry_value_t value)
     }
     switch (thing_get_type(thing)) {
     case THING_TYPE_LIST: {
-        sentry_value_t rv = sentry_value_new_list();
         const list_t *list = thing->payload;
+        sentry_value_t rv = sentry__value_new_list_with_size(list->len);
         for (size_t i = 0; i < list->len; i++) {
             sentry_value_incref(list->items[i]);
             sentry_value_append(rv, list->items[i]);
@@ -412,8 +448,8 @@ sentry__value_clone(sentry_value_t value)
         return rv;
     }
     case THING_TYPE_OBJECT: {
-        sentry_value_t rv = sentry_value_new_object();
         const obj_t *obj = thing->payload;
+        sentry_value_t rv = sentry__value_new_object_with_size(obj->len);
         for (size_t i = 0; i < obj->len; i++) {
             char *key = sentry__string_dup(obj->pairs[i].k);
             if (!key) {
@@ -787,7 +823,7 @@ sentry_event_value_add_stacktrace(sentry_value_t event, void **ips, size_t len)
         ips = walked_backtrace;
     }
 
-    sentry_value_t frames = sentry_value_new_list();
+    sentry_value_t frames = sentry__value_new_list_with_size(len);
     for (size_t i = 0; i < len; i++) {
         sentry_value_t frame = sentry_value_new_object();
         sentry_value_set_by_key(frame, "instruction_addr",

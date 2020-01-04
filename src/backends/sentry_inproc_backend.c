@@ -136,7 +136,7 @@ handle_signal(int signum, siginfo_t *info, void *user_context)
     size_t frame_count
         = sentry_unwind_stack_from_ucontext(&uctx, &backtrace[0], MAX_FRAMES);
 
-    sentry_value_t frames = sentry_value_new_list();
+    sentry_value_t frames = sentry__value_new_list_with_size(frame_count);
     for (size_t i = 0; i < frame_count; i++) {
         sentry_value_t frame = sentry_value_new_object();
         sentry_value_set_by_key(frame, "instruction_addr",

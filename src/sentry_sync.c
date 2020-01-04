@@ -208,8 +208,8 @@ sentry__block_for_signal_handler(void)
 void
 sentry__enter_signal_handler(void)
 {
-    __sync_fetch_and_or(&g_in_signal_handler, 1);
     g_signal_handling_thread = sentry__current_thread();
+    __sync_fetch_and_or(&g_in_signal_handler, 1);
 }
 
 void
