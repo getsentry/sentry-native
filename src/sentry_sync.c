@@ -189,7 +189,7 @@ sentry__bgworker_submit(sentry_bgworker_t *bgw,
     return 0;
 }
 
-#if SENTRY_PLATFORM != SENTRY_PLATFORM_WINDOWS
+#ifdef SENTRY_PLATFORM_UNIX
 #    include "unix/sentry_unix_spinlock.h"
 
 static sig_atomic_t g_in_signal_handler = 0;

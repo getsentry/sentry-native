@@ -24,7 +24,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
 	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wl,--build-id=uuid,-E")
 endif()
 
-include_directories("include" ${CMOCKA_INCLUDE_DIR})
+include_directories("include")
 
 set(SENTRY_NATIVE_SOURCE_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/src)
 set(SENTRY_EXTRA_LIBS)
@@ -93,4 +93,4 @@ add_executable("sentry_tests"
 	${SENTRY_NATIVE_TEST_SOURCES}
 )
 target_compile_definitions("sentry_tests" PUBLIC -DSENTRY_UNITTEST)
-target_link_libraries("sentry_tests" ${CMOCKA_LIBRARY} ${LINK_LIBRARIES})
+target_link_libraries("sentry_tests" ${LINK_LIBRARIES})

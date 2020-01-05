@@ -9,19 +9,19 @@ send_envelope(sentry_envelope_t *envelope, void *data)
     *called += 1;
 
     sentry_value_t event = sentry_envelope_get_event(envelope);
-    assert_false(sentry_value_is_null(event));
+    TEST_ASSERT(!sentry_value_is_null(event));
     const char *event_id
         = sentry_value_as_string(sentry_value_get_by_key(event, "event_id"));
-    assert_string_equal(event_id, "4c035723-8638-4c3a-923f-2ab9d08b4018");
+    ASSERT_STRING_EQUAL(event_id, "4c035723-8638-4c3a-923f-2ab9d08b4018");
     const char *msg = sentry_value_as_string(sentry_value_get_by_key(
         sentry_value_get_by_key(event, "message"), "formatted"));
-    assert_string_equal(msg, "Hello World!");
+    ASSERT_STRING_EQUAL(msg, "Hello World!");
     const char *release
         = sentry_value_as_string(sentry_value_get_by_key(event, "release"));
-    assert_string_equal(release, "prod");
+    ASSERT_STRING_EQUAL(release, "prod");
     const char *trans
         = sentry_value_as_string(sentry_value_get_by_key(event, "transaction"));
-    assert_string_equal(trans, "demo-trans");
+    ASSERT_STRING_EQUAL(trans, "demo-trans");
 }
 
 SENTRY_TEST(basic_function_transport)
@@ -42,5 +42,5 @@ SENTRY_TEST(basic_function_transport)
 
     sentry_shutdown();
 
-    assert_int_equal(called, 1);
+    ASSERT_INT_EQUAL(called, 1);
 }

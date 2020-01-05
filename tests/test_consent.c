@@ -23,27 +23,27 @@ SENTRY_TEST(basic_consent_tracking)
     sentry__path_remove_all(path);
 
     init_consenting_sentry();
-    assert_int_equal(sentry_user_consent_get(), SENTRY_USER_CONSENT_UNKNOWN);
+    ASSERT_INT_EQUAL(sentry_user_consent_get(), SENTRY_USER_CONSENT_UNKNOWN);
     sentry_shutdown();
 
     init_consenting_sentry();
     sentry_user_consent_give();
-    assert_int_equal(sentry_user_consent_get(), SENTRY_USER_CONSENT_GIVEN);
+    ASSERT_INT_EQUAL(sentry_user_consent_get(), SENTRY_USER_CONSENT_GIVEN);
     sentry_shutdown();
     init_consenting_sentry();
-    assert_int_equal(sentry_user_consent_get(), SENTRY_USER_CONSENT_GIVEN);
+    ASSERT_INT_EQUAL(sentry_user_consent_get(), SENTRY_USER_CONSENT_GIVEN);
 
     sentry_user_consent_revoke();
-    assert_int_equal(sentry_user_consent_get(), SENTRY_USER_CONSENT_REVOKED);
+    ASSERT_INT_EQUAL(sentry_user_consent_get(), SENTRY_USER_CONSENT_REVOKED);
     sentry_shutdown();
     init_consenting_sentry();
-    assert_int_equal(sentry_user_consent_get(), SENTRY_USER_CONSENT_REVOKED);
+    ASSERT_INT_EQUAL(sentry_user_consent_get(), SENTRY_USER_CONSENT_REVOKED);
 
     sentry_user_consent_reset();
-    assert_int_equal(sentry_user_consent_get(), SENTRY_USER_CONSENT_UNKNOWN);
+    ASSERT_INT_EQUAL(sentry_user_consent_get(), SENTRY_USER_CONSENT_UNKNOWN);
     sentry_shutdown();
     init_consenting_sentry();
-    assert_int_equal(sentry_user_consent_get(), SENTRY_USER_CONSENT_UNKNOWN);
+    ASSERT_INT_EQUAL(sentry_user_consent_get(), SENTRY_USER_CONSENT_UNKNOWN);
     sentry_shutdown();
 
     sentry__path_remove_all(path);

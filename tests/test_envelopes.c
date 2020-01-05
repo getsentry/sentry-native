@@ -10,11 +10,11 @@ basic_event_request_callback(sentry_prepared_http_request_t *req,
     uint64_t *called = data;
     *called += 1;
 
-    assert_string_equal(req->method, "POST");
-    assert_string_equal(req->url, "https://sentry.invalid:443/api/42/store/");
-    assert_string_equal(req->payload,
+    ASSERT_STRING_EQUAL(req->method, "POST");
+    ASSERT_STRING_EQUAL(req->url, "https://sentry.invalid:443/api/42/store/");
+    ASSERT_STRING_EQUAL(req->payload,
         "{\"event_id\":\"c993afb6-b4ac-48a6-b61b-2558e601d65d\"}");
-    assert_false(req->payload_owned);
+    TEST_ASSERT(!req->payload_owned);
 
     sentry__prepared_http_request_free(req);
 
@@ -38,7 +38,7 @@ SENTRY_TEST(basic_http_request_preparation_for_event)
     sentry__envelope_for_each_request(
         envelope, basic_event_request_callback, &called);
     sentry_envelope_free(envelope);
-    assert_int_equal(called, 1);
+    ASSERT_INT_EQUAL(called, 1);
 
     sentry_shutdown();
 }
@@ -51,25 +51,25 @@ with_attachment_request_callback(sentry_prepared_http_request_t *req,
     *called += 1;
 
     if (*called == 1) {
-        assert_string_equal(req->method, "POST");
-        assert_string_equal(
+        ASSERT_STRING_EQUAL(req->method, "POST");
+        ASSERT_STRING_EQUAL(
             req->url, "https://sentry.invalid:443/api/42/store/");
-        assert_string_equal(req->payload,
+        ASSERT_STRING_EQUAL(req->payload,
             "{\"event_id\":\"c993afb6-b4ac-48a6-b61b-2558e601d65d\"}");
-        assert_false(req->payload_owned);
+        TEST_ASSERT(!req->payload_owned);
     } else {
-        assert_string_equal(req->method, "POST");
-        assert_string_equal(req->url,
+        ASSERT_STRING_EQUAL(req->method, "POST");
+        ASSERT_STRING_EQUAL(req->url,
             "https://sentry.invalid:443/api/42/events/"
             "c993afb6-b4ac-48a6-b61b-2558e601d65d/attachments/");
-        assert_string_equal(
+        ASSERT_STRING_EQUAL(
             req->payload, "--0220b54a-d050-42ef-954a-ac481dc924db-boundary-\r\n\
 content-type:application/octet-stream\r\n\
 content-disposition:form-data;name=\"attachment\";filename=\"attachment.bin\"\r\n\
 \r\n\
 Hello World!\r\n\
 --0220b54a-d050-42ef-954a-ac481dc924db-boundary---");
-        assert_true(req->payload_owned);
+        TEST_ASSERT(req->payload_owned);
     }
 
     sentry__prepared_http_request_free(req);
@@ -97,7 +97,7 @@ SENTRY_TEST(basic_http_request_preparation_for_event_with_attachment)
     sentry__envelope_for_each_request(
         envelope, with_attachment_request_callback, &called);
     sentry_envelope_free(envelope);
-    assert_int_equal(called, 2);
+    ASSERT_INT_EQUAL(called, 2);
 
     sentry_shutdown();
 }
@@ -109,10 +109,10 @@ minidump_request_callback(sentry_prepared_http_request_t *req,
     uint64_t *called = data;
     *called += 1;
 
-    assert_string_equal(req->method, "POST");
-    assert_string_equal(
+    ASSERT_STRING_EQUAL(req->method, "POST");
+    ASSERT_STRING_EQUAL(
         req->url, "https://sentry.invalid:443/api/42/minidump/?sentry_key=foo");
-    assert_string_equal(
+    ASSERT_STRING_EQUAL(
         req->payload, "--0220b54a-d050-42ef-954a-ac481dc924db-boundary-\r\n\
 content-type:application/octet-stream\r\n\
 content-disposition:form-data;name=\"attachment\";filename=\"attachment.bin\"\r\n\
@@ -124,7 +124,7 @@ content-disposition:form-data;name=\"uploaded_file_minidump\";filename=\"minidum
 \r\n\
 MDMP\r\n\
 --0220b54a-d050-42ef-954a-ac481dc924db-boundary---");
-    assert_true(req->payload_owned);
+    TEST_ASSERT(req->payload_owned);
 
     sentry__prepared_http_request_free(req);
 
@@ -148,7 +148,7 @@ SENTRY_TEST(basic_http_request_preparation_for_minidump)
     sentry__envelope_for_each_request(
         envelope, minidump_request_callback, &called);
     sentry_envelope_free(envelope);
-    assert_int_equal(called, 1);
+    ASSERT_INT_EQUAL(called, 1);
 
     sentry_shutdown();
 }

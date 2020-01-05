@@ -1,5 +1,5 @@
 #include "sentry_backend.h"
-#if SENTRY_PLATFORM != SENTRY_PLATFORM_WINDOWS
+#ifdef SENTRY_PLATFORM_UNIX
 #    include "backends/sentry_inproc_backend.h"
 #endif
 
@@ -18,7 +18,7 @@ sentry__backend_free(sentry_backend_t *backend)
 sentry_backend_t *
 sentry__backend_new_default(void)
 {
-#if SENTRY_PLATFORM != SENTRY_PLATFORM_WINDOWS
+#ifdef SENTRY_PLATFORM_UNIX
     return sentry__new_inproc_backend();
 #else
     return NULL;

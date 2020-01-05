@@ -7,7 +7,7 @@
 #include <stdio.h>
 
 // define a recursive mutex for all platforms
-#if SENTRY_PLATFORM == SENTRY_PLATFORM_WINDOWS
+#ifdef SENTRY_PLATFORM_WINDOWS
 #    include <synchapi.h>
 #    include <winnt.h>
 struct sentry__winmutex_s {
@@ -75,7 +75,7 @@ void sentry__leave_signal_handler(void);
 typedef pthread_t sentry_threadid_t;
 typedef pthread_mutex_t sentry_mutex_t;
 typedef pthread_cond_t sentry_cond_t;
-#    if SENTRY_PLATFORM == SENTRY_PLATFORM_LINUX
+#    ifdef SENTRY_PLATFORM_LINUX
 #        define SENTRY__MUTEX_INIT PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP
 #    else
 #        define SENTRY__MUTEX_INIT PTHREAD_RECURSIVE_MUTEX_INITIALIZER
@@ -133,7 +133,7 @@ sentry__cond_wait_timeout(
 static inline int
 sentry__atomic_fetch_and_add(volatile int *val, int diff)
 {
-#if SENTRY_PLATFORM == SENTRY_PLATFORM_WINDOWS
+#ifdef SENTRY_PLATFORM_WINDOWS
     return ::InterlockedExchangeAdd(ptr, value);
 #else
     return __sync_fetch_and_add(val, diff);

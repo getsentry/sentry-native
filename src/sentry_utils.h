@@ -3,7 +3,7 @@
 
 #include "sentry_boot.h"
 
-#if SENTRY_PLATFORM == SENTRY_PLATFORM_WINDOWS
+#ifdef SENTRY_PLATFORM_WINDOWS
 #    include <winnt.h>
 #else
 #    include <sys/time.h>
@@ -43,7 +43,7 @@ char *sentry__dsn_get_minidump_url(const sentry_dsn_t *dsn);
 char *sentry__dsn_get_attachment_url(
     const sentry_dsn_t *dsn, const sentry_uuid_t *event_id);
 
-#if SENTRY_PLATFORM == SENTRY_PLATFORM_WINDOWS
+#ifdef SENTRY_PLATFORM_WINDOWS
 #    define EINTR_RETRY(X, Y)                                                  \
         do {                                                                   \
             int _tmp = (X);                                                    \
@@ -68,7 +68,7 @@ char *sentry__dsn_get_attachment_url(
 static inline uint64_t
 sentry__msec_time()
 {
-#if SENTRY_PLATFORM == SENTRY_PLATFORM_WINDOWS
+#ifdef SENTRY_PLATFORM_WINDOWS
     SYSTEMTIME st;
     FILETIME file_time;
     GetSystemTime(&st);

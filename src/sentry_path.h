@@ -5,7 +5,7 @@
 
 #include <stdio.h>
 
-#if SENTRY_PLATFORM == SENTRY_PLATFORM_WINDOWS
+#ifdef SENTRY_PLATFORM_WINDOWS
 typedef wchar_t sentry_pathchar_t;
 #    define SENTRY_PATH_PRI "S"
 #else
@@ -46,7 +46,7 @@ const sentry_path_t *sentry__pathiter_next(sentry_pathiter_t *piter);
 void sentry__pathiter_free(sentry_pathiter_t *piter);
 
 /* windows specific API additions */
-#if SENTRY_PLATFORM == SENTRY_PLATFORM_WINDOWS
+#ifdef SENTRY_PLATFORM_WINDOWS
 sentry_path_t *sentry__path_from_wstr(const wchar_t *s);
 sentry_path_t *sentry__path_join_wstr(
     const sentry_path_t *base, const wchar_t *other);
@@ -56,7 +56,7 @@ sentry_path_t *sentry__path_join_wstr(
 static inline sentry_path_t *
 sentry__path_new(sentry_pathchar_t *s)
 {
-#if SENTRY_PLATFORM == SENTRY_PLATFORM_WINDOWS
+#ifdef SENTRY_PLATFORM_WINDOWS
     return sentry__path_from_wstr(s);
 #else
     return sentry__path_from_str(s);

@@ -1,19 +1,16 @@
+#define SENTRY_TEST_DEFINE_MAIN
+
 #include "sentry_testsupport.h"
 
-#define XX(Name) void CONCAT(test_sentry_, Name)(void **state);
+#define XX(Name) void CONCAT(test_sentry_, Name)(void);
 #include "tests.inc"
 #undef XX
 
-static const struct CMUnitTest tests[] = {
-#define DECLARE_TEST(Name) cmocka_unit_test(Name)
-#define XX(Name) DECLARE_TEST(CONCAT(test_sentry_, Name)),
+TEST_LIST = {
+#define DECLARE_TEST(Name, Func) { Name, Func },
+#define XX(Name) DECLARE_TEST(#Name, CONCAT(test_sentry_, Name))
 #include "tests.inc"
 #undef XX
 #undef DECLARE_TEST
+    { 0 }
 };
-
-int
-main(void)
-{
-    return cmocka_run_group_tests(tests, NULL, NULL);
-}

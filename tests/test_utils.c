@@ -2,71 +2,71 @@
 #include "sentry_testsupport.h"
 #include <sentry.h>
 
-#if SENTRY_PLATFORM != SENTRY_PLATFORM_WINDOWS
+#ifdef SENTRY_PLATFORM_UNIX
 #    include "../src/unix/sentry_unix_pageallocator.h"
 #endif
 
 SENTRY_TEST(url_parsing_complete)
 {
     sentry_url_t url;
-    assert_int_equal(sentry__url_parse(&url,
+    ASSERT_INT_EQUAL(sentry__url_parse(&url,
                          "http://username:password@example.com/foo/bar?x=y#z"),
         0);
-    assert_string_equal(url.scheme, "http");
-    assert_string_equal(url.host, "example.com");
-    assert_int_equal(url.port, 80);
-    assert_string_equal(url.username, "username");
-    assert_string_equal(url.password, "password");
-    assert_string_equal(url.path, "/foo/bar");
-    assert_string_equal(url.query, "x=y");
-    assert_string_equal(url.fragment, "z");
+    ASSERT_STRING_EQUAL(url.scheme, "http");
+    ASSERT_STRING_EQUAL(url.host, "example.com");
+    ASSERT_INT_EQUAL(url.port, 80);
+    ASSERT_STRING_EQUAL(url.username, "username");
+    ASSERT_STRING_EQUAL(url.password, "password");
+    ASSERT_STRING_EQUAL(url.path, "/foo/bar");
+    ASSERT_STRING_EQUAL(url.query, "x=y");
+    ASSERT_STRING_EQUAL(url.fragment, "z");
     sentry__url_cleanup(&url);
 }
 
 SENTRY_TEST(url_parsing_partial)
 {
     sentry_url_t url;
-    assert_int_equal(
+    ASSERT_INT_EQUAL(
         sentry__url_parse(&url, "http://username:password@example.com/foo/bar"),
         0);
-    assert_string_equal(url.scheme, "http");
-    assert_string_equal(url.host, "example.com");
-    assert_int_equal(url.port, 80);
-    assert_string_equal(url.username, "username");
-    assert_string_equal(url.password, "password");
-    assert_string_equal(url.path, "/foo/bar");
-    assert_true(url.query == NULL);
-    assert_true(url.fragment == NULL);
+    ASSERT_STRING_EQUAL(url.scheme, "http");
+    ASSERT_STRING_EQUAL(url.host, "example.com");
+    ASSERT_INT_EQUAL(url.port, 80);
+    ASSERT_STRING_EQUAL(url.username, "username");
+    ASSERT_STRING_EQUAL(url.password, "password");
+    ASSERT_STRING_EQUAL(url.path, "/foo/bar");
+    TEST_ASSERT(url.query == NULL);
+    TEST_ASSERT(url.fragment == NULL);
     sentry__url_cleanup(&url);
 }
 
 SENTRY_TEST(url_parsing_invalid)
 {
     sentry_url_t url;
-    assert_int_equal(sentry__url_parse(&url, "http:"), 1);
+    ASSERT_INT_EQUAL(sentry__url_parse(&url, "http:"), 1);
 }
 
 SENTRY_TEST(dsn_parsing_complete)
 {
     sentry_dsn_t dsn;
-    assert_int_equal(
+    ASSERT_INT_EQUAL(
         sentry__dsn_parse(
             &dsn, "http://username:password@example.com/foo/bar/42?x=y#z"),
         0);
-    assert_false(dsn.is_secure);
-    assert_string_equal(dsn.host, "example.com");
-    assert_int_equal(dsn.port, 80);
-    assert_string_equal(dsn.public_key, "username");
-    assert_string_equal(dsn.secret_key, "password");
-    assert_string_equal(dsn.path, "/foo/bar");
-    assert_int_equal((int)dsn.project_id, 42);
+    TEST_ASSERT(!dsn.is_secure);
+    ASSERT_STRING_EQUAL(dsn.host, "example.com");
+    ASSERT_INT_EQUAL(dsn.port, 80);
+    ASSERT_STRING_EQUAL(dsn.public_key, "username");
+    ASSERT_STRING_EQUAL(dsn.secret_key, "password");
+    ASSERT_STRING_EQUAL(dsn.path, "/foo/bar");
+    ASSERT_INT_EQUAL((int)dsn.project_id, 42);
     sentry__dsn_cleanup(&dsn);
 }
 
 SENTRY_TEST(dsn_parsing_invalid)
 {
     sentry_dsn_t dsn;
-    assert_int_equal(sentry__dsn_parse(&dsn,
+    ASSERT_INT_EQUAL(sentry__dsn_parse(&dsn,
                          "http://username:password@example.com/foo/bar?x=y#z"),
         1);
 }
@@ -76,19 +76,19 @@ SENTRY_TEST(dsn_store_url_with_path)
     sentry_uuid_t uuid
         = sentry_uuid_from_string("4c7e771a-f17d-4220-bc8f-5b1edcdb5faa");
     sentry_dsn_t dsn;
-    assert_int_equal(
+    ASSERT_INT_EQUAL(
         sentry__dsn_parse(
             &dsn, "http://username:password@example.com/foo/bar/42?x=y#z"),
         0);
     char *url = sentry__dsn_get_store_url(&dsn);
-    assert_string_equal(url, "http://example.com:80/foo/bar/api/42/store/");
+    ASSERT_STRING_EQUAL(url, "http://example.com:80/foo/bar/api/42/store/");
     sentry_free(url);
     url = sentry__dsn_get_minidump_url(&dsn);
-    assert_string_equal(url,
+    ASSERT_STRING_EQUAL(url,
         "http://example.com:80/foo/bar/api/42/minidump/?sentry_key=username");
     sentry_free(url);
     url = sentry__dsn_get_attachment_url(&dsn, &uuid);
-    assert_string_equal(url,
+    ASSERT_STRING_EQUAL(url,
         "http://example.com:80/foo/bar/api/42/events/"
         "4c7e771a-f17d-4220-bc8f-5b1edcdb5faa/attachments/");
     sentry_free(url);
@@ -100,18 +100,18 @@ SENTRY_TEST(dsn_store_url_without_path)
     sentry_uuid_t uuid
         = sentry_uuid_from_string("4c7e771a-f17d-4220-bc8f-5b1edcdb5faa");
     sentry_dsn_t dsn;
-    assert_int_equal(sentry__dsn_parse(
+    ASSERT_INT_EQUAL(sentry__dsn_parse(
                          &dsn, "http://username:password@example.com/42?x=y#z"),
         0);
     char *url = sentry__dsn_get_store_url(&dsn);
-    assert_string_equal(url, "http://example.com:80/api/42/store/");
+    ASSERT_STRING_EQUAL(url, "http://example.com:80/api/42/store/");
     sentry_free(url);
     url = sentry__dsn_get_minidump_url(&dsn);
-    assert_string_equal(
+    ASSERT_STRING_EQUAL(
         url, "http://example.com:80/api/42/minidump/?sentry_key=username");
     sentry_free(url);
     url = sentry__dsn_get_attachment_url(&dsn, &uuid);
-    assert_string_equal(url,
+    ASSERT_STRING_EQUAL(url,
         "http://example.com:80/api/42/events/"
         "4c7e771a-f17d-4220-bc8f-5b1edcdb5faa/attachments/");
     sentry_free(url);
@@ -120,7 +120,7 @@ SENTRY_TEST(dsn_store_url_without_path)
 
 SENTRY_TEST(page_allocator)
 {
-#if SENTRY_PLATFORM == SENTRY_PLATFORM_WINDOWS
+#ifndef SENTRY_PLATFORM_UNIX
     skip();
 #else
     const size_t size = 4096;
@@ -140,8 +140,8 @@ SENTRY_TEST(page_allocator)
     sentry_free(p_after);
 
     for (size_t i = 0; i < size; i++) {
-        assert_int_equal((unsigned char)p_before[i], i % 255);
-        assert_int_equal((unsigned char)p_after[i], (i + 10) % 255);
+        ASSERT_INT_EQUAL((unsigned char)p_before[i], i % 255);
+        ASSERT_INT_EQUAL((unsigned char)p_after[i], (i + 10) % 255);
     }
 
     sentry__page_allocator_disable();

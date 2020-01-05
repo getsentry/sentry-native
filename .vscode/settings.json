@@ -114,7 +114,9 @@
         "sentry_sync.h": "c",
         "sentry_backend.h": "c",
         "sentry_unix_symbolizer_dladdr.h": "c",
-        "sentry_boot.h": "c"
+        "sentry_boot.h": "c",
+        "acutest.h": "c",
+        "stdio.h": "c"
     },
     "python.pythonPath": ".venv/bin/python2.7",
     "editor.formatOnSave": true

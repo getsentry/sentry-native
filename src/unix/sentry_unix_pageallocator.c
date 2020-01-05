@@ -4,6 +4,11 @@
 #include <sys/mman.h>
 #include <unistd.h>
 
+// some macos versions do not have this yet
+#if !defined(MAP_ANONYMOUS) && defined(SENTRY_PLATFORM_DARWIN)
+#    define MAP_ANONYMOUS MAP_ANON
+#endif
+
 struct page_header;
 struct page_header {
     struct page_header *next;

@@ -12,20 +12,20 @@
 extern "C" {
 #endif
 
-/* platform markers */
-#define SENTRY_PLATFORM_LINUX 1
-#define SENTRY_PLATFORM_MACOS 2
-#define SENTRY_PLATFORM_WINDOWS 3
-#define SENTRY_PLATFORM_ANDROID 4
-
+/* common platform detection */
 #ifdef _WIN32
-#    define SENTRY_PLATFORM SENTRY_PLATFORM_WINDOWS
+#    define SENTRY_PLATFORM_WINDOWS
 #elif defined(__APPLE__)
-#    define SENTRY_PLATFORM SENTRY_PLATFORM_MACOS
+#    define SENTRY_PLATFORM_MACOS
+#    define SENTRY_PLATFORM_DARWIN
+#    define SENTRY_PLATFORM_UNIX
 #elif defined(__ANDROID__)
-#    define SENTRY_PLATFORM SENTRY_PLATFORM_ANDROID
+#    define SENTRY_PLATFORM_ANDROID
+#    define SENTRY_PLATFORM_LINUX
+#    define SENTRY_PLATFORM_UNIX
 #elif defined(__linux) || defined(__linux__)
-#    define SENTRY_PLATFORM SENTRY_PLATFORM_LINUX
+#    define SENTRY_PLATFORM_LINUX
+#    define SENTRY_PLATFORM_UNIX
 #else
 #    error unsupported platform
 #endif
@@ -571,7 +571,7 @@ SENTRY_API void sentry_options_set_handler_path(
 SENTRY_API void sentry_options_set_database_path(
     sentry_options_t *opts, const char *path);
 
-#if SENTRY_PLATFORM == SENTRY_PLATFORM_WINDOWS
+#ifdef SENTRY_PLATFORM_WINDOWS
 /* wide char version of `sentry_options_add_attachment` */
 SENTRY_API void sentry_options_add_attachmentw(
     sentry_options_t *opts, const char *name, const wchar_t *path);

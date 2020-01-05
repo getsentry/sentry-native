@@ -1,6 +1,6 @@
 #include "sentry_random.h"
 
-#if SENTRY_PLATFORM == SENTRY_PLATFORM_MACOS
+#ifdef SENTRY_PLATFORM_DARWIN
 #    include <stdlib.h>
 
 static int
@@ -12,7 +12,7 @@ getrandom_arc4random(void *dst, size_t bytes)
 #    define HAVE_ARC4RANDOM
 
 #endif
-#if SENTRY_PLATFORM != SENTRY_PLATFORM_WINDOWS
+#ifdef SENTRY_PLATFORM_UNIX
 #    include <errno.h>
 #    include <fcntl.h>
 #    include <unistd.h>

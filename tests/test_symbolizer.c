@@ -12,12 +12,12 @@ static void
 asserter(const sentry_frame_info_t *info, void *data)
 {
     int *called = data;
-    assert_true(info->symbol);
-    assert_string_equal(info->symbol, "test_function");
-    assert_true(info->object_name);
-    assert_true(strstr(info->object_name, "sentry_tests"));
-    assert_int_equal(info->symbol_addr, &test_function);
-    assert_int_equal(info->instruction_addr, (void *)&test_function + 1);
+    TEST_ASSERT(!!info->symbol);
+    ASSERT_STRING_EQUAL(info->symbol, "test_function");
+    TEST_ASSERT(!!info->object_name);
+    TEST_ASSERT(strstr(info->object_name, "sentry_tests") != 0);
+    TEST_ASSERT(info->symbol_addr == &test_function);
+    TEST_ASSERT(info->instruction_addr == (void *)&test_function + 1);
     *called += 1;
 }
 
@@ -25,5 +25,5 @@ SENTRY_TEST(test_symbolizer)
 {
     int called = 0;
     sentry__symbolize((void *)&test_function + 1, asserter, &called);
-    assert_int_equal(called, 1);
+    ASSERT_INT_EQUAL(called, 1);
 }

@@ -360,7 +360,7 @@ sentry_options_set_database_path(sentry_options_t *opts, const char *path)
     opts->database_path = sentry__path_from_str(path);
 }
 
-#if SENTRY_PLATFORM == SENTRY_PLATFORM_WINDOWS
+#ifdef SENTRY_PLATFORM_WINDOWS
 void
 sentry_options_set_handler_pathw(sentry_options_t *opts, const wchar_t *path)
 {

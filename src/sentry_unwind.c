@@ -1,6 +1,6 @@
 #include "sentry_boot.h"
 
-#if SENTRY_PLATFORM == SENTRY_PLATFORM_DARWIN
+#ifdef SENTRY_PLATFORM_DARWIN
 #    include "unix/sentry_unix_unwinder_libbacktrace.h"
 #endif
 
@@ -16,7 +16,7 @@ static size_t
 unwind_stack(
     void *addr, const sentry_ucontext_t *uctx, void **ptrs, size_t max_frames)
 {
-#if SENTRY_PLATFORM == SENTRY_PLATFORM_DARWIN
+#ifdef SENTRY_PLATFORM_DARWIN
     TRY_UNWINDER(sentry__unwind_stack_backtrace);
 #endif
     return 0;
