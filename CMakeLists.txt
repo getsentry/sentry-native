@@ -1,8 +1,6 @@
 cmake_minimum_required (VERSION 3.0)
 project (Sentry-Native LANGUAGES C CXX ASM)
 
-find_package(CMocka REQUIRED)
-
 #set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Werror=implicit-function-declaration -Werror=incompatible-function-pointer-types -Wall -fvisibility=hidden")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -fvisibility=hidden")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
