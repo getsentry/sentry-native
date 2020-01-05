@@ -38,7 +38,6 @@ SENTRY_TEST(background_worker)
         TEST_CHECK_INT_EQUAL(sentry__bgworker_shutdown(bgw, 5000), 0);
         sentry__bgworker_free(bgw);
 
-        __sync_synchronize();
         TEST_CHECK_INT_EQUAL(ts.executed, 10);
         TEST_CHECK(!ts.running);
     }
