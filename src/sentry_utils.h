@@ -69,13 +69,12 @@ static inline uint64_t
 sentry__msec_time()
 {
 #ifdef SENTRY_PLATFORM_WINDOWS
-    SYSTEMTIME st;
+    SYSTEMTIME system_time;
     FILETIME file_time;
-    GetSystemTime(&st);
+    GetSystemTime(&system_time);
     SystemTimeToFileTime(&system_time, &file_time);
     return (((uint64_t)file_time.dwLowDateTime
-                    + (uint64_t)file_time.dwHighDateTime
-                << 32)
+                + ((uint64_t)file_time.dwHighDateTime << 32))
                - 116444736000000000ULL)
         / 10000000ULL
         + system_time.wMilliseconds;

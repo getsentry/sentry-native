@@ -2,6 +2,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 
 #include "sentry_alloc.h"
 #include "sentry_core.h"

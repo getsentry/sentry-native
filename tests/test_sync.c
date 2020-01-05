@@ -24,7 +24,7 @@ SENTRY_TEST(background_worker)
 {
     for (size_t i = 0; i < 100; i++) {
         sentry_bgworker_t *bgw = sentry__bgworker_new();
-        TEST_ASSERT(!!bgw);
+        TEST_CHECK(!!bgw);
 
         sentry__bgworker_start(bgw);
 
@@ -35,11 +35,11 @@ SENTRY_TEST(background_worker)
             sentry__bgworker_submit(bgw, task_func, cleanup_func, &ts);
         }
 
-        ASSERT_INT_EQUAL(sentry__bgworker_shutdown(bgw, 5000), 0);
+        TEST_CHECK_INT_EQUAL(sentry__bgworker_shutdown(bgw, 5000), 0);
         sentry__bgworker_free(bgw);
 
         __sync_synchronize();
-        ASSERT_INT_EQUAL(ts.executed, 10);
-        TEST_ASSERT(!ts.running);
+        TEST_CHECK_INT_EQUAL(ts.executed, 10);
+        TEST_CHECK(!ts.running);
     }
 }

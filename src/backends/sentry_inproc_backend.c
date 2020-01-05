@@ -1,4 +1,5 @@
 #include "sentry_inproc_backend.h"
+
 #include "../sentry_alloc.h"
 #include "../sentry_core.h"
 #include "../sentry_envelope.h"

@@ -2,8 +2,10 @@ cmake_minimum_required (VERSION 3.0)
 project (Sentry-Native LANGUAGES C CXX ASM)
 
 #set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Werror=implicit-function-declaration -Werror=incompatible-function-pointer-types -Wall -fvisibility=hidden")
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -fvisibility=hidden")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
+if(NOT WIN32)
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -fvisibility=hidden")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
+endif()
 
 OPTION(WITH_ASAN_OPTION "Build sentry-native with address sanitizer" OFF)
 if(WITH_ASAN_OPTION)
@@ -27,6 +29,8 @@ include_directories("include")
 set(SENTRY_NATIVE_SOURCE_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/src)
 set(SENTRY_EXTRA_LIBS)
 
+add_definitions(-DSENTRY_BUILD_SHARED)
+
 FIND_PACKAGE(CURL)
 if(CURL_FOUND)
 	include_directories(${CURL_INCLUDE_DIR})
@@ -35,26 +39,27 @@ endif()
 
 file(GLOB SENTRY_NATIVE_SOURCES
     ${SENTRY_NATIVE_SOURCE_ROOT}/*.c
-    ${SENTRY_NATIVE_SOURCE_ROOT}/*.cpp
-    ${SENTRY_NATIVE_SOURCE_ROOT}/transports/*.c
-    ${SENTRY_NATIVE_SOURCE_ROOT}/transports/*.cpp
-    ${SENTRY_NATIVE_SOURCE_ROOT}/backends/*.c
-    ${SENTRY_NATIVE_SOURCE_ROOT}/backends/*.cpp
+    ${SENTRY_NATIVE_SOURCE_ROOT}/transports/sentry_function_transport.c
+)
+
+file(GLOB SENTRY_NATIVE_LIBCURL_TRANSPORT_SOURCES
+    ${SENTRY_NATIVE_SOURCE_ROOT}/transports/sentry_libcurl_transport.c
+)
+
+file(GLOB SENTRY_NATIVE_INPROC_BACKEND_SOURCES
+	${SENTRY_NATIVE_SOURCE_ROOT}/backends/sentry_inproc_*.c
 )
 
 file(GLOB SENTRY_NATIVE_UNIX_SOURCES
     ${SENTRY_NATIVE_SOURCE_ROOT}/unix/*.c
-    ${SENTRY_NATIVE_SOURCE_ROOT}/unix/*.cpp
 )
 
 file(GLOB SENTRY_NATIVE_DARWIN_SOURCES
 	${SENTRY_NATIVE_SOURCE_ROOT}/darwin/*.c
-    ${SENTRY_NATIVE_SOURCE_ROOT}/darwin/*.cpp
 )
 
 file(GLOB SENTRY_NATIVE_WINDOWS_SOURCES
     ${SENTRY_NATIVE_SOURCE_ROOT}/windows/*.c
-    ${SENTRY_NATIVE_SOURCE_ROOT}/windows/*.cpp
 )
 
 file(GLOB_RECURSE SENTRY_NATIVE_TEST_SOURCES
@@ -67,7 +72,12 @@ if(WIN32)
 		${SENTRY_NATIVE_WINDOWS_SOURCES})
 else()
 	set(SENTRY_NATIVE_ALL_SOURCES ${SENTRY_NATIVE_ALL_SOURCES}
-		${SENTRY_NATIVE_UNIX_SOURCES})
+		${SENTRY_NATIVE_UNIX_SOURCES} ${SENTRY_NATIVE_INPROC_BACKEND_SOURCES})
+endif()
+
+if(CURL_FOUND)
+	set(SENTRY_NATIVE_ALL_SOURCES ${SENTRY_NATIVE_ALL_SOURCES}
+		${SENTRY_NATIVE_LIBCURL_TRANSPORT_SOURCES})
 endif()
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")

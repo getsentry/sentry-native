@@ -14,22 +14,25 @@
 
 #define CONCAT(A, B) A##B
 #define SENTRY_TEST(Name) void CONCAT(test_sentry_, Name)(void **state)
+#define SKIP_TEST() (void)0
 
-#define ASSERT_STRING_EQUAL(Val, ReferenceJson)                                \
+#define TEST_CHECK_STRING_EQUAL(Val, ReferenceVal)                             \
     do {                                                                       \
-        TEST_ASSERT(strcmp(Val, ReferenceJson) == 0);                          \
+        TEST_CHECK(strcmp(Val, ReferenceVal) == 0);                            \
+        TEST_MSG("Expected: %s", ReferenceVal);                                \
+        TEST_MSG("Received: %s", Val);                                         \
     } while (0)
 
-#define ASSERT_JSON_VALUE(Val, ReferenceJson)                                  \
+#define TEST_CHECK_JSON_VALUE(Val, ReferenceJson)                              \
     do {                                                                       \
         char *json = sentry_value_to_json(Val);                                \
-        ASSERT_STRING_EQUAL(json, ReferenceJson);                              \
+        TEST_CHECK_STRING_EQUAL(json, ReferenceJson);                          \
         sentry_free(json);                                                     \
     } while (0)
 
-#define ASSERT_INT_EQUAL(A, B)                                                 \
+#define TEST_CHECK_INT_EQUAL(A, B)                                             \
     do {                                                                       \
         int _a = A;                                                            \
         int _b = B;                                                            \
-        TEST_ASSERT_(_a == _b, "%d == %d", _a, _b);                            \
+        TEST_CHECK_(_a == _b, "%d == %d", _a, _b);                             \
     } while (0)

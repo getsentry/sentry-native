@@ -15,40 +15,44 @@ struct sentry__winmutex_s {
     CRITICAL_SECTION critical_section;
 };
 
-static inline bool CALLBACK
+static inline BOOL CALLBACK
 sentry__winmutex_init(PINIT_ONCE InitOnce, PVOID Parameter, PVOID *lpContext)
 {
-    InitializeCriticalSection(lpContext);
+    InitializeCriticalSection((LPCRITICAL_SECTION)*lpContext);
     return true;
 }
 
 static inline void
-sentry__winmutex_lock(volatile struct sentry__winmutex_s *mutex)
+sentry__winmutex_lock(struct sentry__winmutex_s *mutex)
 {
     PVOID lpContext = &mutex->critical_section;
     InitOnceExecuteOnce(
         &mutex->init_once, sentry__winmutex_init, NULL, lpContext);
-    if (!InterlockedExchangeAdd(mutex->initialized, 0)) {
-        CRITICAL_SECTION s;
-        InitializeCriticalSection(&s);
-    }
-    EnterCriticalSection(&mutex->section);
+    EnterCriticalSection(&mutex->critical_section);
 }
 
 typedef HANDLE sentry_threadid_t;
 typedef struct sentry__winmutex_s sentry_mutex_t;
 typedef CONDITION_VARIABLE sentry_cond_t;
-#    define SENTRY__MUTEX_INIT NULL
-#    define sentry__mutex_lock(Lock) sentry__winmutex_lock(&(Lock))
+#    define SENTRY__MUTEX_INIT                                                 \
+        {                                                                      \
+            0                                                                  \
+        }
+#    define sentry__mutex_lock(Lock) sentry__winmutex_lock(Lock)
 #    define sentry__mutex_unlock(Lock)                                         \
         LeaveCriticalSection(&(Lock)->critical_section)
+#    define SENTRY__COND_INIT                                                  \
+        {                                                                      \
+            0                                                                  \
+        }
 #    define sentry__cond_wait_timeout(CondVar, Lock, Timeout)                  \
-        SleepConditionVariableCS(CondVar, &Lock->critical_section, Timeout)
+        SleepConditionVariableCS(CondVar, &(Lock)->critical_section, Timeout)
 #    define sentry__cond_wait(CondVar, Lock)                                   \
         sentry__cond_wait_timeout(CondVar, Lock, INFINITE)
-#    define sentry__cond_wake pthread_cond_wake WakeConditionVariable
+#    define sentry__cond_wake WakeConditionVariable
 #    define sentry__thread_spawn(ThreadId, Func, Data)                         \
-        CreateThread(NULL, 0, Func, Data, 0, ThreadId)
+        (*ThreadId = CreateThread(NULL, 0, Func, Data, 0, NULL),               \
+            *ThreadId == INVALID_HANDLE_VALUE ? 1 : 0)
 #    define sentry__thread_join(ThreadId)                                      \
         WaitForSingleObject(ThreadId, INFINITE)
 #else
@@ -134,7 +138,7 @@ static inline int
 sentry__atomic_fetch_and_add(volatile int *val, int diff)
 {
 #ifdef SENTRY_PLATFORM_WINDOWS
-    return ::InterlockedExchangeAdd(ptr, value);
+    return InterlockedExchangeAdd(val, diff);
 #else
     return __sync_fetch_and_add(val, diff);
 #endif

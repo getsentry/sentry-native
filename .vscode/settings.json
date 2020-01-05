@@ -116,7 +116,8 @@
         "sentry_unix_symbolizer_dladdr.h": "c",
         "sentry_boot.h": "c",
         "acutest.h": "c",
-        "stdio.h": "c"
+        "stdio.h": "c",
+        "stdlib.h": "c"
     },
     "python.pythonPath": ".venv/bin/python2.7",
     "editor.formatOnSave": true
