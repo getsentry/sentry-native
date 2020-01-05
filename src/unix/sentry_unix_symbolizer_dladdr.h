@@ -5,8 +5,7 @@
 
 #include "../sentry_symbolizer.h"
 
-bool
-sentry__symbolize_dladdr(
+bool sentry__symbolize_dladdr(
     void *addr, void (*func)(const sentry_frame_info_t *, void *), void *data);
 
 #endif

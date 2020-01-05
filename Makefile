@@ -21,5 +21,5 @@ clean: build/Makefile
 .PHONY: clean
 
 format:
-	@clang-format -i src/*.c src/*.h tests/*.c tests/*.h
+	@clang-format -i src/*.c src/*.h src/*/*.c src/*/*.h tests/*.c tests/*.h
 .PHONY: format
