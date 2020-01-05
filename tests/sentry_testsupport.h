@@ -32,7 +32,7 @@
 
 #define TEST_CHECK_INT_EQUAL(A, B)                                             \
     do {                                                                       \
-        int _a = A;                                                            \
-        int _b = B;                                                            \
-        TEST_CHECK_(_a == _b, "%d == %d", _a, _b);                             \
+        long long _a = (long long)(A);                                         \
+        long long _b = (long long)(B);                                         \
+        TEST_CHECK_(_a == _b, "%lld == %lld", _a, _b);                         \
     } while (0)
