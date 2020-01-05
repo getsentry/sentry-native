@@ -4,14 +4,6 @@
 #include <sys/mman.h>
 #include <unistd.h>
 
-#ifdef __APPLE__
-#    define sys_mmap mmap
-#    define sys_munmap munmap
-#    define MAP_ANONYMOUS MAP_ANON
-#else
-#    include <syscalls.h>
-#endif
-
 struct page_header;
 struct page_header {
     struct page_header *next;
@@ -54,7 +46,7 @@ sentry__page_allocator_enable(void)
 static void *
 get_pages(size_t num_pages)
 {
-    void *rv = sys_mmap(NULL, g_alloc->page_size * num_pages,
+    void *rv = mmap(NULL, g_alloc->page_size * num_pages,
         PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     if (rv == MAP_FAILED) {
         return NULL;
@@ -126,7 +118,7 @@ sentry__page_allocator_disable(void)
     struct page_header *next;
     for (struct page_header *cur = g_alloc->last_page; cur; cur = next) {
         next = cur->next;
-        sys_munmap(cur, cur->num_pages * g_alloc->page_size);
+        munmap(cur, cur->num_pages * g_alloc->page_size);
     }
     g_alloc = NULL;
 }

@@ -1,9 +1,10 @@
 #ifndef SENTRY_CORE_H_INCLUDED
 #define SENTRY_CORE_H_INCLUDED
 
+#include "sentry_boot.h"
+
 #include "sentry_path.h"
 #include "sentry_utils.h"
-#include <sentry.h>
 
 #define SENTRY_SDK_NAME "sentry-native"
 #define SENTRY_SDK_VERSION "0.2.0"

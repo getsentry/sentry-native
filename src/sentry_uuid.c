@@ -1,5 +1,6 @@
+#include "sentry_boot.h"
+
 #include "sentry_random.h"
-#include <sentry.h>
 #include <stdio.h>
 #include <string.h>
 

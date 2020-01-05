@@ -1,5 +1,4 @@
 #include <assert.h>
-#include <sentry.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
@@ -12,16 +11,16 @@
 #include "sentry_utils.h"
 #include "sentry_value.h"
 
-static const uint64_t MAX_DOUBLE = 0xfff8000000000000ULL;
-static const uint64_t TAG_THING = 0xfffc000000000000ULL;
-static const uint64_t TAG_INT32 = 0xfff9000000000000ULL;
-static const uint64_t TAG_CONST = 0xfffa000000000000ULL;
+#define MAX_DOUBLE 0xfff8000000000000ULL
+#define TAG_THING 0xfffc000000000000ULL
+#define TAG_INT32 0xfff9000000000000ULL
+#define TAG_CONST 0xfffa000000000000ULL
 
-static const char THING_TYPE_MASK = 0x7f;
-static const char THING_TYPE_FROZEN = 0x80;
-static const char THING_TYPE_LIST = 1;
-static const char THING_TYPE_OBJECT = 2;
-static const char THING_TYPE_STRING = 0;
+#define THING_TYPE_MASK 0x7f
+#define THING_TYPE_FROZEN 0x80
+#define THING_TYPE_LIST 1
+#define THING_TYPE_OBJECT 2
+#define THING_TYPE_STRING 0
 
 /* internal value helpers */
 
@@ -104,7 +103,7 @@ thing_free(thing_t *thing)
 static int
 thing_get_type(const thing_t *thing)
 {
-    return thing->type & THING_TYPE_MASK;
+    return thing->type & (char)THING_TYPE_MASK;
 }
 
 static int
@@ -140,7 +139,7 @@ thing_freeze(thing_t *thing)
 }
 
 static sentry_value_t
-new_thing_value(void *ptr, char thing_type)
+new_thing_value(void *ptr, int thing_type)
 {
     sentry_value_t rv;
     thing_t *thing = sentry_malloc(sizeof(thing_t));

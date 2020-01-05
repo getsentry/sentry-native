@@ -1,8 +1,9 @@
 #ifndef SENTRY_STRING_H_INCLUDED
 #define SENTRY_STRING_H_INCLUDED
 
+#include "sentry_boot.h"
+
 #include <ctype.h>
-#include <sentry.h>
 #include <stdio.h>
 
 /* a string builder can be used to concatenate bytes together. */

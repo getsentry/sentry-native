@@ -3,11 +3,10 @@
 #include "sentry_core.h"
 #include "sentry_string.h"
 #include "sentry_value.h"
-#include <sentry.h>
 #include <string.h>
 
-static const size_t MAX_ENVELOPE_ITEMS = 10;
-static const size_t MAX_HTTP_HEADERS = 5;
+#define MAX_ENVELOPE_ITEMS 10
+#define MAX_HTTP_HEADERS 5
 
 typedef enum {
     ENDPOINT_TYPE_STORE,

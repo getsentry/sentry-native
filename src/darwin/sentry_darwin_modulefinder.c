@@ -1,4 +1,4 @@
-#include "sentry_unix_modulefinder_darwin.h"
+#include "sentry_darwin_modulefinder.h"
 #include "../sentry_sync.h"
 #include "../sentry_value.h"
 

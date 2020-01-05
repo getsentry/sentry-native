@@ -1,8 +1,9 @@
 #ifndef SENTRY_SCOPE_H_INCLUDED
 #define SENTRY_SCOPE_H_INCLUDED
 
+#include "sentry_boot.h"
+
 #include "sentry_value.h"
-#include <sentry.h>
 
 typedef struct sentry_scope_s {
     char *transaction;

@@ -1,7 +1,7 @@
 #ifndef SENTRY_TRANSPORTS_LIBCURL_TRANSPORT_H_INCLUDED
 #define SENTRY_TRANSPORTS_LIBCURL_TRANSPORT_H_INCLUDED
 
-#include <sentry.h>
+#include "../sentry_boot.h"
 
 sentry_transport_t *sentry__new_libcurl_transport(void);
 

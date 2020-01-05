@@ -1,7 +1,8 @@
 #ifndef SENTRY_PATH_H_INCLUDED
 #define SENTRY_PATH_H_INCLUDED
 
-#include <sentry.h>
+#include "sentry_boot.h"
+
 #include <stdio.h>
 
 #if SENTRY_PLATFORM == SENTRY_PLATFORM_WINDOWS

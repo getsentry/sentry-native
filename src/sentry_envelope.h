@@ -1,8 +1,9 @@
 #ifndef SENTRY_ENVELOPE_H_INCLUDED
 #define SENTRY_ENVELOPE_H_INCLUDED
 
+#include "sentry_boot.h"
+
 #include "sentry_path.h"
-#include <sentry.h>
 
 struct sentry_envelope_item_s;
 typedef struct sentry_envelope_item_s sentry_envelope_item_t;

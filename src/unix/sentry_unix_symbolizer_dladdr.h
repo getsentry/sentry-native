@@ -1,6 +1,8 @@
 #ifndef SENTRY_UNIX_SYMBOLIZER_DLADDR_H_INCLUDED
 #define SENTRY_UNIX_SYMBOLIZER_DLADDR_H_INCLUDED
 
+#include "../sentry_boot.h"
+
 #include "../sentry_symbolizer.h"
 
 bool

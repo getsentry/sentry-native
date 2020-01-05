@@ -18,11 +18,11 @@ struct signal_slot {
     const char *sigdesc;
 };
 
-static const size_t MAX_FRAMES = 128;
+#define MAX_FRAMES 128
 
 // we need quite a bit of space for backtrace generation
-static const size_t SIGNAL_COUNT = 6;
-static const size_t SIGNAL_STACK_SIZE = 65536;
+#define SIGNAL_COUNT 6
+#define SIGNAL_STACK_SIZE 65536
 static struct sigaction g_sigaction;
 static struct sigaction g_previous_handlers[SIGNAL_COUNT];
 stack_t g_signal_stack;

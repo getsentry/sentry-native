@@ -1,8 +1,9 @@
 #ifndef SENTRY_BACKEND_H_INCLUDED
 #define SENTRY_BACKEND_H_INCLUDED
 
+#include "sentry_boot.h"
+
 #include "sentry_scope.h"
-#include <sentry.h>
 
 struct sentry_backend_s;
 typedef struct sentry_backend_s {

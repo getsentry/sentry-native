@@ -3,19 +3,25 @@ project (Sentry-Native LANGUAGES C CXX ASM)
 
 find_package(CMocka REQUIRED)
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Werror=implicit-function-declaration -Werror=incompatible-function-pointer-types -Wall -fvisibility=hidden")
+#set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Werror=implicit-function-declaration -Werror=incompatible-function-pointer-types -Wall -fvisibility=hidden")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -fvisibility=hidden")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 
 OPTION(WITH_ASAN_OPTION "Build sentry-native with address sanitizer" OFF)
 if(WITH_ASAN_OPTION)
 	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -fsanitize=address -fno-omit-frame-pointer")
-	set(CMAKE_LD_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=address")
+	link_libraries("-fsanitize=address")
 endif()
 
 OPTION(WITH_TSAN_OPTION "Build sentry-native with thread sanitizer" OFF)
 if(WITH_TSAN_OPTION)
 	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -fsanitize=thread -fno-omit-frame-pointer")
-	set(CMAKE_LD_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=thread")
+	link_libraries("-fsanitize=thread")
+endif()
+
+# to fix some issues with tests (dladdr can't find functions otherwise)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wl,--build-id=uuid,-E")
 endif()
 
 include_directories("include" ${CMOCKA_INCLUDE_DIR})
@@ -38,10 +44,14 @@ file(GLOB SENTRY_NATIVE_SOURCES
     ${SENTRY_NATIVE_SOURCE_ROOT}/backends/*.cpp
 )
 
-# todo: module finders are platform specific
 file(GLOB SENTRY_NATIVE_UNIX_SOURCES
     ${SENTRY_NATIVE_SOURCE_ROOT}/unix/*.c
     ${SENTRY_NATIVE_SOURCE_ROOT}/unix/*.cpp
+)
+
+file(GLOB SENTRY_NATIVE_DARWIN_SOURCES
+	${SENTRY_NATIVE_SOURCE_ROOT}/darwin/*.c
+    ${SENTRY_NATIVE_SOURCE_ROOT}/darwin/*.cpp
 )
 
 file(GLOB SENTRY_NATIVE_WINDOWS_SOURCES
@@ -60,6 +70,15 @@ if(WIN32)
 else()
 	set(SENTRY_NATIVE_ALL_SOURCES ${SENTRY_NATIVE_ALL_SOURCES}
 		${SENTRY_NATIVE_UNIX_SOURCES})
+endif()
+
+if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+	set(SENTRY_NATIVE_ALL_SOURCES ${SENTRY_NATIVE_ALL_SOURCES}
+		${SENTRY_NATIVE_DARWIN_SOURCES})
+endif()
+
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+	set(LINK_LIBRARIES ${LINK_LIBRARIES} "pthread" "dl")
 endif()
 
 add_library("sentry" SHARED

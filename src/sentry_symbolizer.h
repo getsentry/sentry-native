@@ -1,7 +1,7 @@
 #ifndef SENTRY_SYMBOLIZER_H_INCLUDED
 #define SENTRY_SYMBOLIZER_H_INCLUDED
 
-#include <sentry.h>
+#include "sentry_boot.h"
 
 typedef struct sentry_frame_info_s {
     void *load_addr;

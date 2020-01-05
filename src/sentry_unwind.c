@@ -1,4 +1,4 @@
-#include <sentry.h>
+#include "sentry_boot.h"
 
 #if SENTRY_PLATFORM == SENTRY_PLATFORM_DARWIN
 #    include "unix/sentry_unix_unwinder_libbacktrace.h"

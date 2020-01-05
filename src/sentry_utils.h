@@ -1,7 +1,8 @@
 #ifndef SENTRY_UTILS_H_INCLUDED
 #define SENTRY_UTILS_H_INCLUDED
 
-#include <sentry.h>
+#include "sentry_boot.h"
+
 #if SENTRY_PLATFORM == SENTRY_PLATFORM_WINDOWS
 #    include <winnt.h>
 #else
@@ -57,7 +58,7 @@ char *sentry__dsn_get_attachment_url(
             do {                                                               \
                 _tmp = (X);                                                    \
             } while (_tmp == -1 && errno == EINTR);                            \
-            if (Y) {                                                           \
+            if (Y != 0) {                                                      \
                 *(int *)Y = _tmp;                                              \
             }                                                                  \
         } while (false)

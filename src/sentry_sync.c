@@ -98,7 +98,9 @@ sentry__bgworker_start(sentry_bgworker_t *bgw)
 {
     sentry__mutex_lock(&bgw->task_lock);
     bgw->running = true;
-    sentry__thread_spawn(&bgw->thread_id, &worker_thread, bgw);
+    if (sentry__thread_spawn(&bgw->thread_id, &worker_thread, bgw) != 0) {
+        bgw->running = false;
+    }
     sentry__mutex_unlock(&bgw->task_lock);
 }
 

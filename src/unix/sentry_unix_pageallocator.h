@@ -1,7 +1,7 @@
 #ifndef SENTRY_UNIX_PAGEALLOCATOR_H_INCLUDED
 #define SENTRY_UNIX_PAGEALLOCATOR_H_INCLUDED
 
-#include <sentry.h>
+#include "../sentry_boot.h"
 
 bool sentry__page_allocator_enabled(void);
 void sentry__page_allocator_enable(void);

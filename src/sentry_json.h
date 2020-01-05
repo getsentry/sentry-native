@@ -1,7 +1,7 @@
 #ifndef SENTRY_JSON_H_INCLUDED
 #define SENTRY_JSON_H_INCLUDED
 
-#include <sentry.h>
+#include "sentry_boot.h"
 
 struct sentry_jsonwriter_s;
 typedef struct sentry_jsonwriter_s sentry_jsonwriter_t;

@@ -1,8 +1,9 @@
 #ifndef SENTRY_SYNC_H_INCLUDED
 #define SENTRY_SYNC_H_INCLUDED
 
+#include "sentry_boot.h"
+
 #include <assert.h>
-#include <sentry.h>
 #include <stdio.h>
 
 // define a recursive mutex for all platforms
@@ -74,7 +75,11 @@ void sentry__leave_signal_handler(void);
 typedef pthread_t sentry_threadid_t;
 typedef pthread_mutex_t sentry_mutex_t;
 typedef pthread_cond_t sentry_cond_t;
-#    define SENTRY__MUTEX_INIT PTHREAD_RECURSIVE_MUTEX_INITIALIZER
+#    if SENTRY_PLATFORM == SENTRY_PLATFORM_LINUX
+#        define SENTRY__MUTEX_INIT PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP
+#    else
+#        define SENTRY__MUTEX_INIT PTHREAD_RECURSIVE_MUTEX_INITIALIZER
+#    endif
 #    define sentry__mutex_lock(Mutex)                                          \
         do {                                                                   \
             sentry__block_for_signal_handler();                                \
@@ -94,14 +99,16 @@ typedef pthread_cond_t sentry_cond_t;
         } while (0)
 #    define sentry__cond_wake pthread_cond_signal
 #    define sentry__thread_spawn(ThreadId, Func, Data)                         \
-        (pthread_create(ThreadId, NULL, (void *(*)(void *))Func, Data) == 0)
+        (pthread_create(ThreadId, NULL, (void *(*)(void *))Func, Data) == 0    \
+                ? 0                                                            \
+                : 1)
 #    define sentry__thread_join(ThreadId) pthread_join(ThreadId, NULL)
 #    define sentry__threadid_equal pthread_equal
 #    define sentry__current_thread pthread_self
 
 static inline int
 sentry__cond_wait_timeout(
-    sentry_cond_t *cv, sentry_mutex_t *mutex, u_int64_t msecs)
+    sentry_cond_t *cv, sentry_mutex_t *mutex, uint64_t msecs)
 {
     sentry__block_for_signal_handler();
     struct timeval now;

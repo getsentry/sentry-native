@@ -1,3 +1,5 @@
+#include "sentry_boot.h"
+
 #include <stdarg.h>
 #include <string.h>
 
