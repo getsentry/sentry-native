@@ -18,16 +18,16 @@ struct sentry__winmutex_s {
 static inline BOOL CALLBACK
 sentry__winmutex_init(PINIT_ONCE InitOnce, PVOID Parameter, PVOID *lpContext)
 {
-    InitializeCriticalSection((LPCRITICAL_SECTION)*lpContext);
+    InitializeCriticalSection(Parameter);
     return true;
 }
 
 static inline void
 sentry__winmutex_lock(struct sentry__winmutex_s *mutex)
 {
-    PVOID lpContext = &mutex->critical_section;
-    InitOnceExecuteOnce(
-        &mutex->init_once, sentry__winmutex_init, NULL, lpContext);
+    InitOnceInitialize(&mutex->init_once);
+	InitOnceExecuteOnce(
+        &mutex->init_once, sentry__winmutex_init, &mutex->critical_section, NULL);
     EnterCriticalSection(&mutex->critical_section);
 }
 

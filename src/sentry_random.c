@@ -1,4 +1,7 @@
+#include "sentry_boot.h"
+
 #include "sentry_random.h"
+#include "sentry_utils.h"
 
 #ifdef SENTRY_PLATFORM_DARWIN
 #    include <stdlib.h>
@@ -48,6 +51,33 @@ getrandom_devurandom(void *dst, size_t bytes)
 
 #    define HAVE_URANDOM
 #endif
+#ifdef SENTRY_PLATFORM_WINDOWS
+typedef BOOLEAN(WINAPI *sRtlGenRandom)(PVOID Buffer, ULONG BufferLength);
+
+static sRtlGenRandom pRtlGenRandom;
+
+SENTRY_CTOR (init_winapi) {
+    HANDLE advapi32_module = GetModuleHandleA("advapi32.dll");
+    if (advapi32_module != NULL) {
+        pRtlGenRandom = (sRtlGenRandom)GetProcAddress(
+            advapi32_module, "SystemFunction036");
+    }
+}
+
+static int
+getrandom_rtlgenrandom(void *dst, size_t bytes)
+{
+    if (pRtlGenRandom == NULL) {
+        return 1;
+    }
+    if (pRtlGenRandom(dst, (ULONG)bytes) == FALSE) {
+        return 1;
+    }
+    return 0;
+}
+
+#    define HAVE_RTLGENRANDOM
+#endif
 
 int
 sentry__getrandom(void *dst, size_t len)
@@ -59,6 +89,11 @@ sentry__getrandom(void *dst, size_t len)
 #endif
 #ifdef HAVE_URANDOM
     if (getrandom_devurandom(dst, len) == 0) {
+        return 0;
+    }
+#endif
+#ifdef HAVE_RTLGENRANDOM
+    if (getrandom_rtlgenrandom(dst, len) == 0) {
         return 0;
     }
 #endif

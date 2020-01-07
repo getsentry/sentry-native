@@ -27,6 +27,7 @@ sentry_uuid_t
 sentry_uuid_from_string(const char *str)
 {
     sentry_uuid_t rv;
+    memset(&rv, 0, sizeof(rv));
 
     size_t i = 0;
     size_t len = strlen(str);
