@@ -91,6 +91,7 @@ sentry__msec_time()
 
 /* utility to declare a constructor function */
 #ifdef _MSC_VER
+#    pragma section(".CRT$XIU", long, read)
 #    define SENTRY_CTOR(Name)                                                  \
         static void Name(void);                                                \
         static int SENTRY_CONCAT(_ctor_1_, Name)(void)                         \

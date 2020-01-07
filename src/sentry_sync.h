@@ -16,18 +16,17 @@ struct sentry__winmutex_s {
 };
 
 static inline BOOL CALLBACK
-sentry__winmutex_init(PINIT_ONCE InitOnce, PVOID Parameter, PVOID *lpContext)
+sentry__winmutex_init(PINIT_ONCE InitOnce, PVOID cs, PVOID *lpContext)
 {
-    InitializeCriticalSection(Parameter);
-    return true;
+    InitializeCriticalSection(cs);
+    return TRUE;
 }
 
 static inline void
 sentry__winmutex_lock(struct sentry__winmutex_s *mutex)
 {
-    InitOnceInitialize(&mutex->init_once);
-	InitOnceExecuteOnce(
-        &mutex->init_once, sentry__winmutex_init, &mutex->critical_section, NULL);
+    InitOnceExecuteOnce(&mutex->init_once, sentry__winmutex_init,
+        &mutex->critical_section, NULL);
     EnterCriticalSection(&mutex->critical_section);
 }
 
@@ -36,7 +35,7 @@ typedef struct sentry__winmutex_s sentry_mutex_t;
 typedef CONDITION_VARIABLE sentry_cond_t;
 #    define SENTRY__MUTEX_INIT                                                 \
         {                                                                      \
-            0                                                                  \
+            INIT_ONCE_STATIC_INIT, { 0 }                                       \
         }
 #    define sentry__mutex_lock(Lock) sentry__winmutex_lock(Lock)
 #    define sentry__mutex_unlock(Lock)                                         \

@@ -57,7 +57,7 @@ typedef BOOLEAN(WINAPI *sRtlGenRandom)(PVOID Buffer, ULONG BufferLength);
 static sRtlGenRandom pRtlGenRandom;
 
 SENTRY_CTOR (init_winapi) {
-    HANDLE advapi32_module = GetModuleHandleA("advapi32.dll");
+    HANDLE advapi32_module = LoadLibraryA("advapi32.dll");
     if (advapi32_module != NULL) {
         pRtlGenRandom = (sRtlGenRandom)GetProcAddress(
             advapi32_module, "SystemFunction036");
