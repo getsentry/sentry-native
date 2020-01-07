@@ -195,16 +195,17 @@ sentry__bgworker_submit(sentry_bgworker_t *bgw,
 static sig_atomic_t g_in_signal_handler = 0;
 static sentry_threadid_t g_signal_handling_thread;
 
-void
+bool
 sentry__block_for_signal_handler(void)
 {
     while (__sync_fetch_and_add(&g_in_signal_handler, 0)) {
         if (sentry__threadid_equal(
                 sentry__current_thread(), g_signal_handling_thread)) {
-            return;
+            return false;
         }
         sentry__cpu_relax();
     }
+    return true;
 }
 
 void

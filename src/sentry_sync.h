@@ -72,7 +72,7 @@ typedef CONDITION_VARIABLE sentry_cond_t;
    We are thus taking care that whatever such mutexes protect will not make
    us crash under concurrent modifications.  The mutexes we're likely going
    to hit are the options and scope lock. */
-void sentry__block_for_signal_handler(void);
+bool sentry__block_for_signal_handler(void);
 void sentry__enter_signal_handler(void);
 void sentry__leave_signal_handler(void);
 
@@ -86,20 +86,23 @@ typedef pthread_cond_t sentry_cond_t;
 #    endif
 #    define sentry__mutex_lock(Mutex)                                          \
         do {                                                                   \
-            sentry__block_for_signal_handler();                                \
-            int _rv = pthread_mutex_lock(Mutex);                               \
-            assert(_rv == 0);                                                  \
+            if (sentry__block_for_signal_handler()) {                          \
+                int _rv = pthread_mutex_lock(Mutex);                           \
+                assert(_rv == 0);                                              \
+            }                                                                  \
         } while (0)
 #    define sentry__mutex_unlock(Mutex)                                        \
         do {                                                                   \
-            sentry__block_for_signal_handler();                                \
-            pthread_mutex_unlock(Mutex);                                       \
+            if (sentry__block_for_signal_handler()) {                          \
+                pthread_mutex_unlock(Mutex);                                   \
+            }                                                                  \
         } while (0)
 #    define SENTRY__COND_INIT PTHREAD_COND_INITIALIZER
 #    define sentry__cond_wait(Cond, Mutex)                                     \
         do {                                                                   \
-            sentry__block_for_signal_handler();                                \
-            pthread_cond_wait(Cond, Mutex);                                    \
+            if (sentry__block_for_signal_handler()) {                          \
+                pthread_cond_wait(Cond, Mutex);                                \
+            }                                                                  \
         } while (0)
 #    define sentry__cond_wake pthread_cond_signal
 #    define sentry__thread_spawn(ThreadId, Func, Data)                         \
@@ -114,7 +117,9 @@ static inline int
 sentry__cond_wait_timeout(
     sentry_cond_t *cv, sentry_mutex_t *mutex, uint64_t msecs)
 {
-    sentry__block_for_signal_handler();
+    if (!sentry__block_for_signal_handler()) {
+        return 0;
+    }
     struct timeval now;
     struct timespec lock_time;
     gettimeofday(&now, NULL);
