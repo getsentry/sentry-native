@@ -5,7 +5,7 @@
 #    define HAVE_DLADDR
 #endif
 #ifdef SENTRY_PLATFORM_WINDOWS
-#    include "windows/sentry_windows_symbolizer_dbghelp.h"
+#    include "windows/sentry_windows_dbghelp.h"
 #    define HAVE_DBGHELP
 #endif
 

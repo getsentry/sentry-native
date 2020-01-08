@@ -2,6 +2,11 @@
 
 #ifdef SENTRY_PLATFORM_DARWIN
 #    include "unix/sentry_unix_unwinder_libbacktrace.h"
+#    define HAVE_LIBBACKTRACE
+#endif
+#ifdef SENTRY_PLATFORM_WINDOWS
+#    include "windows/sentry_windows_dbghelp.h"
+#    define HAVE_DBGHELP
 #endif
 
 #define TRY_UNWINDER(Func)                                                     \
@@ -16,8 +21,11 @@ static size_t
 unwind_stack(
     void *addr, const sentry_ucontext_t *uctx, void **ptrs, size_t max_frames)
 {
-#ifdef SENTRY_PLATFORM_DARWIN
+#ifdef HAVE_LIBBACKTRACE
     TRY_UNWINDER(sentry__unwind_stack_backtrace);
+#endif
+#ifdef HAVE_DBGHELP
+    TRY_UNWINDER(sentry__unwind_stack_dbghelp);
 #endif
     return 0;
 }
