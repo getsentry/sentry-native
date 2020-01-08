@@ -35,8 +35,7 @@ sentry__symbolize_dbghelp(
     }
 
     char mod_name[MAX_PATH];
-    HMODULE mod
-        = GetModuleFileNameA((HMODULE)sym->ModBase, mod_name, sizeof(mod_name));
+    GetModuleFileNameA((HMODULE)sym->ModBase, mod_name, sizeof(mod_name));
 
     sentry_frame_info_t frame_info;
     memset(&frame_info, 0, sizeof(sentry_frame_info_t));

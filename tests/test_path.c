@@ -77,7 +77,7 @@ SENTRY_TEST(path_basics)
 {
     size_t items = 0;
     const sentry_path_t *p;
-    sentry_path_t *path = sentry__path_from_str("./src");
+    sentry_path_t *path = sentry__path_from_str(".");
     TEST_CHECK(!!path);
 
     sentry_pathiter_t *piter = sentry__path_iter_directory(path);
