@@ -89,6 +89,10 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
 	set(LINK_LIBRARIES ${LINK_LIBRARIES} "pthread" "dl")
 endif()
 
+if(WIN32)
+	set(LINK_LIBRARIES ${LINK_LIBRARIES} "dbghelp.lib")
+endif()
+
 add_library("sentry" SHARED
 	${SENTRY_NATIVE_ALL_SOURCES}
 )

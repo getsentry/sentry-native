@@ -117,7 +117,9 @@
         "sentry_boot.h": "c",
         "acutest.h": "c",
         "stdio.h": "c",
-        "stdlib.h": "c"
+        "stdlib.h": "c",
+        "sentry_windows_symbolizer_dbghelp.h": "c",
+        "sentry_symbolizer.h": "c"
     },
     "python.pythonPath": ".venv/bin/python2.7",
     "editor.formatOnSave": true
