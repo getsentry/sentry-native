@@ -86,6 +86,7 @@ sentry_shutdown(void)
     sentry_options_free(g_options);
     g_options = NULL;
     sentry__mutex_unlock(&g_options_mutex);
+    sentry__scope_cleanup();
 }
 
 const sentry_options_t *

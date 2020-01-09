@@ -17,7 +17,7 @@ test: build update-test-discovery
 .PHONY: test
 
 test-leaks: build update-test-discovery
-	@ASAN_OPTIONS=detect_leaks=1 ./build/sentry_tests
+	@ASAN_OPTIONS=detect_leaks=1 LSAN_OPTIONS=suppressions=leak-suppressions.txt ./build/sentry_tests
 .PHONY: test-leaks
 
 clean: build/Makefile

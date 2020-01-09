@@ -19,6 +19,8 @@ typedef struct sentry_scope_s {
 sentry_scope_t *sentry__scope_lock(void);
 void sentry__scope_unlock(void);
 
+void sentry__scope_cleanup(void);
+
 void sentry__scope_flush(const sentry_scope_t *scope);
 void sentry__scope_apply_to_event(
     const sentry_scope_t *scope, sentry_value_t event);

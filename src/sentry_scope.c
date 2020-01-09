@@ -29,6 +29,23 @@ get_scope(void)
     return &g_scope;
 }
 
+void
+sentry__scope_cleanup(void)
+{
+    sentry__mutex_lock(&g_lock);
+    if (g_scope_initialized) {
+        g_scope_initialized = false;
+        sentry_free(g_scope.transaction);
+        sentry_value_decref(g_scope.fingerprint);
+        sentry_value_decref(g_scope.user);
+        sentry_value_decref(g_scope.tags);
+        sentry_value_decref(g_scope.extra);
+        sentry_value_decref(g_scope.contexts);
+        sentry_value_decref(g_scope.breadcrumbs);
+    }
+    sentry__mutex_unlock(&g_lock);
+}
+
 sentry_scope_t *
 sentry__scope_lock(void)
 {

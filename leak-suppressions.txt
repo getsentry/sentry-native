@@ -1,0 +1,2 @@
+# module finders are allocating memory once and never cleaning it up.
+leak:sentry_modulefinder.c
