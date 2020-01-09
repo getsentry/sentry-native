@@ -12,12 +12,15 @@ build: build/Makefile
 	@$(MAKE) -C build
 .PHONY: build
 
-test: build update-test-discovery
+test: update-test-discovery build
 	@./build/sentry_tests
 .PHONY: test
 
-test-leaks: build update-test-discovery
-	@ASAN_OPTIONS=detect_leaks=1 LSAN_OPTIONS=suppressions=leak-suppressions.txt ./build/sentry_tests
+test-leaks: update-test-discovery CMakeLists.txt
+	@mkdir -p leak-build
+	@cd leak-build; cmake -DWITH_ASAN_OPTION=ON -DCMAKE_C_COMPILER=/usr/local/opt/llvm/bin/clang -DCMAKE_CXX_COMPILER=/usr/local/opt/llvm/bin/clang++ -DCMAKE_LINKER=/usr/local/opt/llvm/bin/clang ..
+	@$(MAKE) -C leak-build sentry_tests
+	@ASAN_OPTIONS=detect_leaks=1 LSAN_OPTIONS=suppressions=leak-suppressions.txt ./leak-build/sentry_tests
 .PHONY: test-leaks
 
 clean: build/Makefile

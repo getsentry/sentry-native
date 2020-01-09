@@ -1,2 +1,6 @@
 # module finders are allocating memory once and never cleaning it up.
 leak:sentry_modulefinder.c
+
+# this is a test artifact from the forking code in acutest
+leak:ImageLoader::processInitializers
+leak:ImageLoader::recursiveInitialization

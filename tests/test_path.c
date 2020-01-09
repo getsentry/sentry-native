@@ -90,4 +90,5 @@ SENTRY_TEST(path_basics)
     TEST_CHECK(items > 0);
 
     sentry__pathiter_free(piter);
+    sentry__path_free(path);
 }

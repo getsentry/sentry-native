@@ -147,5 +147,8 @@ SENTRY_TEST(page_allocator)
     }
 
     sentry__page_allocator_disable();
+
+    /* now we can free p_before though */
+    sentry_free(p_before);
 #endif
 }
