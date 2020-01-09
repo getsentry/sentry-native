@@ -46,6 +46,8 @@ sentry__jsonwriter_free(sentry_jsonwriter_t *jw)
     switch (jw->dst_mode) {
     case DST_MODE_SB:
         sentry__stringbuilder_cleanup(jw->dst.sb);
+        sentry_free(jw->dst.sb);
+        break;
     }
     sentry_free(jw);
 }
@@ -53,11 +55,14 @@ sentry__jsonwriter_free(sentry_jsonwriter_t *jw)
 char *
 sentry__jsonwriter_into_string(sentry_jsonwriter_t *jw)
 {
+    char *rv = NULL;
     switch (jw->dst_mode) {
     case DST_MODE_SB:
-        return sentry__stringbuilder_into_string(jw->dst.sb);
+        rv = sentry__stringbuilder_into_string(jw->dst.sb);
+        break;
     }
-    return NULL;
+    sentry__jsonwriter_free(jw);
+    return rv;
 }
 
 static bool

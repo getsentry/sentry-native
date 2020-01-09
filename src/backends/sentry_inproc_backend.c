@@ -181,6 +181,14 @@ handle_signal(int signum, siginfo_t *info, void *user_context)
     invoke_signal_handler(signum, info, user_context);
 }
 
+static void
+free_backend(sentry_backend_t *backend)
+{
+    g_signal_stack.ss_flags = SS_DISABLE;
+    sigaltstack(&g_signal_stack, 0);
+    sentry_free(g_signal_stack.ss_sp);
+}
+
 sentry_backend_t *
 sentry__new_inproc_backend(void)
 {
@@ -199,7 +207,7 @@ sentry__new_inproc_backend(void)
 
     backend->startup_func = startup_inproc_backend;
     backend->shutdown_func = NULL;
-    backend->free_func = NULL;
+    backend->free_func = free_backend;
     backend->flush_scope_func = NULL;
     backend->add_breadcrumb_func = NULL;
     backend->user_consent_changed_func = NULL;

@@ -97,16 +97,41 @@ reserve(void **buf, size_t item_size, size_t *allocated, size_t *len,
     return true;
 }
 
-static void
-thing_free(thing_t *thing)
-{
-    sentry_free(thing);
-}
-
 static int
 thing_get_type(const thing_t *thing)
 {
     return thing->type & (char)THING_TYPE_MASK;
+}
+
+static void
+thing_free(thing_t *thing)
+{
+    switch (thing_get_type(thing)) {
+    case THING_TYPE_LIST: {
+        list_t *list = thing->payload;
+        for (size_t i = 0; i < list->len; i++) {
+            sentry_value_decref(list->items[i]);
+        }
+        sentry_free(list->items);
+        sentry_free(list);
+        break;
+    }
+    case THING_TYPE_OBJECT: {
+        obj_t *obj = thing->payload;
+        for (size_t i = 0; i < obj->len; i++) {
+            sentry_free(obj->pairs[i].k);
+            sentry_value_decref(obj->pairs[i].v);
+        }
+        sentry_free(obj->pairs);
+        sentry_free(obj);
+        break;
+    }
+    case THING_TYPE_STRING: {
+        sentry_free(thing->payload);
+        break;
+    }
+    }
+    sentry_free(thing);
 }
 
 static int

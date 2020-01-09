@@ -44,7 +44,7 @@ sentry__should_skip_upload(void)
     const sentry_options_t *opts = sentry_get_options();
     bool skip = !opts
         || (opts->require_user_consent
-            && opts->user_consent != SENTRY_USER_CONSENT_GIVEN);
+               && opts->user_consent != SENTRY_USER_CONSENT_GIVEN);
     sentry__mutex_unlock(&g_options_mutex);
     return skip;
 }
@@ -200,6 +200,8 @@ sentry_options_free(sentry_options_t *opts)
     sentry_free(opts->dist);
     sentry_free(opts->http_proxy);
     sentry_free(opts->ca_certs);
+    sentry__path_free(opts->database_path);
+    sentry__path_free(opts->handler_path);
     sentry_transport_free(opts->transport);
     sentry__backend_free(opts->backend);
     sentry_free(opts);

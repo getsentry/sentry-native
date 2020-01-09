@@ -16,6 +16,10 @@ test: build update-test-discovery
 	@./build/sentry_tests
 .PHONY: test
 
+test-leaks: build update-test-discovery
+	@ASAN_OPTIONS=detect_leaks=1 ./build/sentry_tests
+.PHONY: test-leaks
+
 clean: build/Makefile
 	@$(MAKE) -C build clean
 .PHONY: clean
