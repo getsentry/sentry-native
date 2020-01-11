@@ -745,6 +745,15 @@ sentry__value_new_string_owned(char *s)
     return new_thing_value(s, THING_TYPE_STRING | THING_TYPE_FROZEN);
 }
 
+#ifdef SENTRY_PLATFORM_WINDOWS
+sentry_value_t
+sentry__value_new_string_from_wstr(wchar_t *s)
+{
+    char *rv = sentry__string_from_wstr(s);
+    return rv ? sentry__value_new_string_owned(rv) : sentry_value_new_null();
+}
+#endif
+
 sentry_value_t
 sentry__value_new_addr(uint64_t addr)
 {

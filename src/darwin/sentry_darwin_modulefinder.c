@@ -34,18 +34,16 @@ static sentry_value_t g_modules;
 static void
 add_image(const struct mach_header *mh, intptr_t vmaddr_slide)
 {
-    sentry__mutex_lock(&g_mutex);
-
     const platform_mach_header *header = (const platform_mach_header *)mh;
     Dl_info info;
     if (!dladdr(header, &info)) {
         return;
     }
 
+    sentry__mutex_lock(&g_mutex);
+
     sentry_value_t modules = g_modules;
-    sentry_value_t new_modules = sentry_value_is_null(modules)
-        ? sentry_value_new_list()
-        : sentry__value_clone(modules);
+    sentry_value_t new_modules = sentry__value_clone(modules);
     sentry_value_t module = sentry_value_new_object();
     sentry_value_set_by_key(
         module, "code_file", sentry_value_new_string(info.dli_fname));
@@ -101,7 +99,7 @@ remove_image(const struct mach_header *mh, intptr_t vmaddr_slide)
     const platform_mach_header *header = (const platform_mach_header *)(mh);
     Dl_info info;
     if (!dladdr(header, &info)) {
-        return;
+        goto done;
     }
 
     char ref_addr[100];
@@ -131,6 +129,7 @@ sentry__darwin_modules_get_list(void)
 {
     sentry__mutex_lock(&g_mutex);
     if (!g_initialized) {
+        g_modules = sentry_value_new_list();
         _dyld_register_func_for_add_image(add_image);
         _dyld_register_func_for_remove_image(remove_image);
         g_initialized = true;

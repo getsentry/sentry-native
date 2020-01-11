@@ -100,3 +100,28 @@ sentry_uuid_as_string(const sentry_uuid_t *uuid, char str[37])
         B(11), B(12), B(13), B(14), B(15));
 #undef B
 }
+
+#ifdef SENTRY_PLATFORM_WINDOWS
+sentry_uuid_t
+sentry__uuid_from_native(const GUID *guid)
+{
+    sentry_uuid_t rv;
+    rv.bytes[0] = (char)(guid->Data1 >> 24);
+    rv.bytes[1] = (char)(guid->Data1 >> 16);
+    rv.bytes[2] = (char)(guid->Data1 >> 8);
+    rv.bytes[3] = (char)(guid->Data1 >> 0);
+    rv.bytes[4] = (char)(guid->Data2 >> 8);
+    rv.bytes[5] = (char)(guid->Data2 >> 0);
+    rv.bytes[6] = (char)(guid->Data3 >> 8);
+    rv.bytes[7] = (char)(guid->Data3 >> 0);
+    rv.bytes[8] = guid->Data4[0];
+    rv.bytes[9] = guid->Data4[1];
+    rv.bytes[10] = guid->Data4[2];
+    rv.bytes[11] = guid->Data4[3];
+    rv.bytes[12] = guid->Data4[4];
+    rv.bytes[13] = guid->Data4[5];
+    rv.bytes[14] = guid->Data4[6];
+    rv.bytes[15] = guid->Data4[7];
+    return rv;
+}
+#endif

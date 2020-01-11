@@ -71,4 +71,9 @@ sentry__int64_to_string(int64_t val)
     return sentry__string_dup(buf);
 }
 
+#ifdef SENTRY_PLATFORM_WINDOWS
+/* create a string from a wstr */
+char *sentry__string_from_wstr(wchar_t *s);
+#endif
+
 #endif
