@@ -1,10 +1,7 @@
-BasedOnStyle: Google
----
-Language: Cpp
+BasedOnStyle: WebKit
 IndentWidth: 4
-DerivePointerAlignment: false
+IndentPPDirectives: AfterHash
+ColumnLimit: 80
+AlwaysBreakAfterDefinitionReturnType: All
 PointerAlignment: Right
-AllowShortFunctionsOnASingleLine: None
-BinPackParameters: false
----
-
+ForEachMacros: ['SENTRY_WITH_SCOPE', 'SENTRY_WITH_SCOPE_MUT', 'SENTRY_CTOR']

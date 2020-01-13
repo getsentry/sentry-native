@@ -105,7 +105,21 @@
         "*.ipp": "cpp",
         "__functional_base_03": "cpp",
         "simd": "cpp",
-        "filesystem": "cpp"
+        "filesystem": "cpp",
+        "sentry_path.h": "c",
+        "sentry_alloc.h": "c",
+        "sentry_core.h": "c",
+        "sentry_utils.h": "c",
+        "sentry_testsupport.h": "c",
+        "sentry_sync.h": "c",
+        "sentry_backend.h": "c",
+        "sentry_unix_symbolizer_dladdr.h": "c",
+        "sentry_boot.h": "c",
+        "acutest.h": "c",
+        "stdio.h": "c",
+        "stdlib.h": "c",
+        "sentry_windows_symbolizer_dbghelp.h": "c",
+        "sentry_symbolizer.h": "c"
     },
     "python.pythonPath": ".venv/bin/python2.7",
     "editor.formatOnSave": true

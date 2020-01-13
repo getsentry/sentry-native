@@ -1,28 +1,22 @@
 {
-  "configurations": [
-    {
-      "name": "Mac",
-      "includePath": [
-        "${workspaceFolder}/include",
-        "${workspaceFolder}/crashpad/build/crashpad",
-        "${workspaceFolder}/crashpad/build/crashpad/third_party/mini_chromium/mini_chromium",
-        "${workspaceFolder}/breakpad/build/breakpad/src"
-      ],
-      "macFrameworkPath": [
-        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.14.sdk/System/Library/Frameworks"
-      ],
-      "compilerPath": "/usr/bin/clang",
-      "cStandard": "c11",
-      "cppStandard": "c++11",
-      "intelliSenseMode": "clang-x64",
-      "defines": [
-        "SENTRY_WITH_LIBCURL_TRANSPORT",
-        "SENTRY_WITH_DARWIN_MODULEFINDER",
-        "SENTRY_WITH_INPROC_BACKEND",
-        "SENTRY_WITH_CRASHPAD_BACKEND",
-        "SENTRY_WITH_BREAKPAD_BACKEND"
-      ]
-    }
-  ],
-  "version": 4
+    "configurations": [
+        {
+            "name": "Mac",
+            "includePath": [
+                "${workspaceFolder}/include",
+                "${workspaceFolder}/src"
+            ],
+            "macFrameworkPath": [
+                "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.14.sdk/System/Library/Frameworks"
+            ],
+            "compilerPath": "/usr/bin/clang",
+            "cStandard": "c11",
+            "cppStandard": "c++11",
+            "intelliSenseMode": "clang-x64",
+            "defines": [],
+            "configurationProvider": "vector-of-bool.cmake-tools",
+            "compileCommands": "${workspaceFolder}/build/compile_commands.json"
+        }
+    ],
+    "version": 4
 }
