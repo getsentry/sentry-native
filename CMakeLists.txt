@@ -106,3 +106,6 @@ add_executable("sentry_tests"
 )
 target_compile_definitions("sentry_tests" PUBLIC -DSENTRY_UNITTEST)
 target_link_libraries("sentry_tests" ${LINK_LIBRARIES})
+
+add_executable("example" "./examples/example.c")
+target_link_libraries("example" "sentry")
