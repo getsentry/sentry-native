@@ -33,6 +33,7 @@ add_definitions(-DSENTRY_BUILD_SHARED)
 
 FIND_PACKAGE(CURL)
 if(CURL_FOUND)
+	add_definitions(-DSENTRY_WITH_LIBCURL_TRANSPORT)
 	include_directories(${CURL_INCLUDE_DIR})
 	set(LINK_LIBRARIES ${LINK_LIBRARIES} ${CURL_LIBRARIES})
 endif()
