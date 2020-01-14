@@ -11,6 +11,7 @@
 #include "sentry_scope.h"
 #include "sentry_string.h"
 #include "sentry_sync.h"
+#include "sentry_transport.h"
 #include "sentry_value.h"
 
 static sentry_options_t *g_options;
@@ -44,7 +45,7 @@ sentry__should_skip_upload(void)
     const sentry_options_t *opts = sentry_get_options();
     bool skip = !opts
         || (opts->require_user_consent
-            && opts->user_consent != SENTRY_USER_CONSENT_GIVEN);
+               && opts->user_consent != SENTRY_USER_CONSENT_GIVEN);
     sentry__mutex_unlock(&g_options_mutex);
     return skip;
 }
@@ -76,13 +77,16 @@ void
 sentry_shutdown(void)
 {
     sentry__mutex_lock(&g_options_mutex);
-    if (g_options && g_options->transport
-        && g_options->transport->shutdown_func) {
-        g_options->transport->shutdown_func(g_options->transport);
+    sentry_options_t *options = g_options;
+    sentry__mutex_unlock(&g_options_mutex);
+
+    if (options && options->transport && options->transport->shutdown_func) {
+        options->transport->shutdown_func(options->transport);
     }
-    if (g_options && g_options->backend && g_options->backend->shutdown_func) {
-        g_options->backend->shutdown_func(g_options->backend);
+    if (options && options->backend && options->backend->shutdown_func) {
+        options->backend->shutdown_func(options->backend);
     }
+    sentry__mutex_lock(&g_options_mutex);
     sentry_options_free(g_options);
     g_options = NULL;
     sentry__mutex_unlock(&g_options_mutex);
@@ -185,6 +189,7 @@ sentry_options_new(void)
     opts->database_path = sentry__path_from_str("./.sentry-native");
     opts->user_consent = SENTRY_USER_CONSENT_UNKNOWN;
     opts->backend = sentry__backend_new_default();
+    opts->transport = sentry__transport_new_default();
     return opts;
 }
 

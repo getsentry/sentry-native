@@ -126,6 +126,9 @@ for_each_request_callback(sentry_prepared_http_request_t *req,
 
     CURL *curl = ts->transport_state->curl_handle;
     curl_easy_reset(curl);
+    if (opts->debug) {
+        curl_easy_setopt(curl, CURLOPT_VERBOSE, 1);
+    }
     curl_easy_setopt(curl, CURLOPT_URL, req->url);
     curl_easy_setopt(curl, CURLOPT_POST, (long)1);
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
