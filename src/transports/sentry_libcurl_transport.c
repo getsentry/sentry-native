@@ -112,6 +112,7 @@ for_each_request_callback(sentry_prepared_http_request_t *req,
     const sentry_options_t *opts = sentry_get_options();
 
     if (!opts || opts->dsn.empty || sentry__should_skip_upload()) {
+        SENTRY_DEBUG("skipping event upload");
         return false;
     }
 
@@ -200,6 +201,7 @@ send_envelope(struct sentry_transport_s *transport, sentry_envelope_t *envelope)
 sentry_transport_t *
 sentry__new_libcurl_transport(void)
 {
+    SENTRY_DEBUG("initializing curl transport");
     sentry_transport_t *transport = SENTRY_MAKE(sentry_transport_t);
     if (!transport) {
         return NULL;

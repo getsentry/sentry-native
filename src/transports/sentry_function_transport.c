@@ -28,6 +28,7 @@ sentry_transport_t *
 sentry__new_function_transport(
     void (*func)(sentry_envelope_t *envelope, void *data), void *data)
 {
+    SENTRY_DEBUG("initializing function transport");
     sentry_transport_t *transport = SENTRY_MAKE(sentry_transport_t);
     if (!transport) {
         return NULL;

@@ -62,11 +62,13 @@ sentry_init(sentry_options_t *options)
 
     sentry_transport_t *transport = g_options->transport;
     if (transport && transport->startup_func) {
+        SENTRY_TRACE("starting transport");
         transport->startup_func(transport);
     }
 
     sentry_backend_t *backend = g_options->backend;
     if (backend && backend->startup_func) {
+        SENTRY_TRACE("starting backend");
         backend->startup_func(backend);
     }
 
@@ -81,9 +83,11 @@ sentry_shutdown(void)
     sentry__mutex_unlock(&g_options_mutex);
 
     if (options && options->transport && options->transport->shutdown_func) {
+        SENTRY_TRACE("shutting down transport");
         options->transport->shutdown_func(options->transport);
     }
     if (options && options->backend && options->backend->shutdown_func) {
+        SENTRY_TRACE("shutting down backend");
         options->backend->shutdown_func(options->backend);
     }
     sentry__mutex_lock(&g_options_mutex);
@@ -155,6 +159,7 @@ sentry_user_consent_get(void)
 sentry_uuid_t
 sentry_capture_event(sentry_value_t event)
 {
+    SENTRY_DEBUG("capturing event");
     sentry_uuid_t event_id;
     sentry__ensure_event_id(event, &event_id);
 
@@ -169,6 +174,7 @@ sentry_capture_event(sentry_value_t event)
     if (opts->transport && !sentry_value_is_null(event)) {
         sentry_envelope_t *envelope = sentry__envelope_new();
         if (sentry__envelope_add_event(envelope, event)) {
+            SENTRY_TRACE("sending envelope");
             opts->transport->send_envelope_func(opts->transport, envelope);
         } else {
             sentry_envelope_free(envelope);
