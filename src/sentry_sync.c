@@ -1,5 +1,6 @@
 #include "sentry_sync.h"
 #include "sentry_alloc.h"
+#include "sentry_core.h"
 #include "sentry_utils.h"
 #include <assert.h>
 #include <stdio.h>
@@ -56,6 +57,7 @@ static int
 worker_thread(void *data)
 {
     sentry_bgworker_t *bgw = data;
+    SENTRY_TRACE("background worker thread started");
     while (true) {
         struct sentry_bgworker_task_s *task = NULL;
         sentry__mutex_lock(&bgw->task_lock);
@@ -78,6 +80,7 @@ worker_thread(void *data)
                 &bgw->submit_signal, &bgw->submit_signal_lock, 1000);
             sentry__mutex_unlock(&bgw->submit_signal_lock);
         } else {
+            SENTRY_TRACE("executing task on worker thread");
             task->exec_func(task->data);
             if (task->cleanup_func) {
                 task->cleanup_func(task->data);
@@ -90,12 +93,14 @@ worker_thread(void *data)
             sentry__mutex_unlock(&bgw->task_lock);
         }
     }
+    SENTRY_TRACE("background worker thread shut down");
     return 0;
 }
 
 void
 sentry__bgworker_start(sentry_bgworker_t *bgw)
 {
+    SENTRY_TRACE("starting background worker thread");
     sentry__mutex_lock(&bgw->task_lock);
     bgw->running = true;
     if (sentry__thread_spawn(&bgw->thread_id, &worker_thread, bgw) != 0) {
@@ -107,6 +112,7 @@ sentry__bgworker_start(sentry_bgworker_t *bgw)
 int
 sentry__bgworker_shutdown(sentry_bgworker_t *bgw, uint64_t timeout)
 {
+    SENTRY_TRACE("shutting down background worker thread");
     assert(bgw->running);
 
     /* submit a task to shut down the queue */
@@ -122,6 +128,7 @@ sentry__bgworker_shutdown(sentry_bgworker_t *bgw, uint64_t timeout)
             sentry__thread_join(bgw->thread_id);
             return 0;
         }
+        SENTRY_TRACE("... waiting for background worker thread to shut down");
         sentry__mutex_lock(&bgw->done_signal_lock);
         sentry__cond_wait_timeout(
             &bgw->done_signal, &bgw->done_signal_lock, 250);
@@ -168,6 +175,7 @@ sentry__bgworker_submit(sentry_bgworker_t *bgw,
         return 1;
     }
 
+    SENTRY_TRACE("submitting task to background worker thread");
     task->exec_func = exec_func;
     task->cleanup_func = cleanup_func;
     task->data = data;
