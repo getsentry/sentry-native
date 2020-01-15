@@ -25,7 +25,6 @@ jobs:
       PLATFORM_BUILD_DIR: ${{ parameters.packageDirectory }}/premake
     steps:
       - template: prescript-common.yml
-      - template: install-premake.yml
       - task: DownloadBuildArtifacts@0
         inputs:
           buildType: "current"

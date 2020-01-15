@@ -83,8 +83,8 @@ fetch_sentry_native() {
     fi
 
     SENTRY_NATIVE_SRC=(
-        "examples" "include" "src" "premake" "README.md" "Makefile"
-        "tests" "Dockerfile" ".dockerignore" "vendor"
+        "examples" "include" "src" "README.md" "CMakeLists.txt"
+        "tests" "vendor"
     )
 
     # Copy files
