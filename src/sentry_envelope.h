@@ -4,6 +4,7 @@
 #include "sentry_boot.h"
 
 #include "sentry_path.h"
+#include "sentry_string.h"
 
 struct sentry_envelope_item_s;
 typedef struct sentry_envelope_item_s sentry_envelope_item_t;
@@ -38,5 +39,8 @@ void sentry__envelope_for_each_request(const sentry_envelope_t *envelope,
     bool (*callback)(sentry_prepared_http_request_t *,
         const sentry_envelope_t *, void *data),
     void *data);
+
+void sentry__envelope_serialize_into_stringbuilder(
+    const sentry_envelope_t *envelope, sentry_stringbuilder_t *sb);
 
 #endif

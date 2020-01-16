@@ -1,6 +1,8 @@
 #include "sentry_envelope.h"
 #include "sentry_alloc.h"
 #include "sentry_core.h"
+#include "sentry_json.h"
+#include "sentry_path.h"
 #include "sentry_string.h"
 #include "sentry_value.h"
 #include <string.h>
@@ -163,6 +165,13 @@ sentry_envelope_free(sentry_envelope_t *envelope)
     sentry_free(envelope);
 }
 
+static void
+sentry__envelope_set_header(
+    sentry_envelope_t *envelope, const char *key, sentry_value_t value)
+{
+    sentry_value_set_by_key(envelope->headers, key, value);
+}
+
 sentry_envelope_t *
 sentry__envelope_new(void)
 {
@@ -174,7 +183,11 @@ sentry__envelope_new(void)
     rv->item_count = 0;
     rv->headers = sentry_value_new_object();
 
-    /* TODO: add dsn as default header */
+    const sentry_options_t *options = sentry_get_options();
+    if (options && !options->dsn.empty) {
+        sentry__envelope_set_header(rv, "dsn",
+            sentry_value_new_string(sentry_options_get_dsn(options)));
+    }
 
     return rv;
 }
@@ -184,13 +197,6 @@ sentry__envelope_get_event_id(const sentry_envelope_t *envelope)
 {
     return sentry_uuid_from_string(sentry_value_as_string(
         sentry_value_get_by_key(envelope->headers, "event_id")));
-}
-
-static void
-sentry__envelope_set_header(
-    sentry_envelope_t *envelope, const char *key, sentry_value_t value)
-{
-    sentry_value_set_by_key(envelope->headers, key, value);
 }
 
 sentry_value_t
@@ -433,16 +439,46 @@ sentry__envelope_for_each_request(const sentry_envelope_t *envelope,
     callback(req, envelope, data);
 }
 
+void
+sentry__envelope_serialize_into_stringbuilder(
+    const sentry_envelope_t *envelope, sentry_stringbuilder_t *sb)
+{
+    char *buf = sentry_value_to_json(envelope->headers);
+    sentry__stringbuilder_append(sb, buf);
+    sentry_free(buf);
+
+    for (size_t i = 0; i < envelope->item_count; i++) {
+        const sentry_envelope_item_t *item = &envelope->items[i];
+
+        sentry__stringbuilder_append_char(sb, '\n');
+        buf = sentry_value_to_json(item->headers);
+        sentry__stringbuilder_append(sb, buf);
+        sentry__stringbuilder_append_char(sb, '\n');
+        sentry_free(buf);
+
+        sentry__stringbuilder_append_buf(sb, item->payload, item->payload_len);
+    }
+}
+
 int
 sentry_envelope_write_to_file(
     const sentry_envelope_t *envelope, const char *path)
 {
-    // const sentry_path_t *path_obj = sentry_path_from_str(path);
+    // TODO: This currently builds the whole buffer in-memory.
+    // It would be nice to actually stream this to a file.
+    sentry_stringbuilder_t sb;
+    sentry__stringbuilder_init(&sb);
 
-    // TODO: actually implement serializing envelopes to file :-)
-    // const rv = sentry__path_write_buffer(path_obj);
+    sentry__envelope_serialize_into_stringbuilder(envelope, &sb);
 
-    // sentry__path_free(path_obj);
+    sentry_path_t *path_obj = sentry__path_from_str(path);
+    size_t buf_len = sentry__stringbuilder_len(&sb);
+    char *buf = sentry__stringbuilder_into_string(&sb);
 
-    return 0;
+    int rv = sentry__path_write_buffer(path_obj, buf, buf_len);
+
+    sentry_free(buf);
+    sentry__path_free(path_obj);
+
+    return rv;
 }
