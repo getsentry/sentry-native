@@ -432,3 +432,17 @@ sentry__envelope_for_each_request(const sentry_envelope_t *envelope,
 
     callback(req, envelope, data);
 }
+
+int
+sentry_envelope_write_to_file(
+    const sentry_envelope_t *envelope, const char *path)
+{
+    // const sentry_path_t *path_obj = sentry_path_from_str(path);
+
+    // TODO: actually implement serializing envelopes to file :-)
+    // const rv = sentry__path_write_buffer(path_obj);
+
+    // sentry__path_free(path_obj);
+
+    return 0;
+}

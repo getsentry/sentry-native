@@ -428,6 +428,9 @@ typedef struct sentry_transport_s {
 struct sentry_backend_s;
 typedef struct sentry_backend_s sentry_backend_t;
 
+SENTRY_API sentry_transport_t *sentry_new_function_transport(
+    void (*func)(sentry_envelope_t *envelope, void *data), void *data);
+
 /* generic way to free a transport */
 SENTRY_API void sentry_transport_free(sentry_transport_t *transport);
 
