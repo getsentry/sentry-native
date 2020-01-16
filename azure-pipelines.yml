@@ -1,11 +1,3 @@
----
-trigger:
-  - "master"
-  - "*-ci"
-
-pr:
-  - "master"
-
 variables:
   ARTIFACT_DIR: "sentry-native-data"
 
@@ -42,26 +34,22 @@ stages:
         parameters:
           vmImage: "macos-10.13"
           platform: "macosx"
-          buildSystem: "gmake2"
           buildScript: |
-            CPUS=$(getconf _NPROCESSORS_ONLN)
-            make help
-            make -j${CPUS}
+            pwd
+            cmake ..
+            cmake --build . --parallel
           testScript: |
-            # Smoke tests
-            ./bin/Release/example || true
-            ./bin/Release/example_crashpad || true
-            ./bin/Release/example_breakpad || true
-
             # Run tests
-            ./bin/Release/test_sentry
+            ./sentry_tests
+
+            # Smoke tests
+            ./example || true
 
       # Linux
       - template: azure-pipelines/build-platform.yml
         parameters:
           vmImage: "ubuntu-16.04"
           platform: "linux"
-          buildSystem: "gmake2"
           installScript: |
             BUILDER_IMAGE="us.gcr.io/sentryio/sentry-native:builder"
             docker pull ${BUILDER_IMAGE} || true
@@ -86,7 +74,6 @@ stages:
         parameters:
           vmImage: "vs2017-win2016"
           platform: "windows"
-          buildSystem: "vs2017"
           buildScript: |
             MSBUILD="/c/Program Files (x86)/Microsoft Visual Studio/2017/Enterprise/MSBuild/15.0/Bin/MSBuild.exe"
             "$MSBUILD" Sentry-Native.sln //m //p:Configuration=Release //p:Platform=x64 //t:Clean,Build
@@ -104,49 +91,8 @@ stages:
         parameters:
           vmImage: "macos-10.13"
           platform: "android"
-          buildSystem: "androidmk"
           buildScript: |
             make -C .. android-build
           testScript: |
             # Do not run "configure" because we already have the build files
             make -C .. android-test ANDROID_NO_CONFIGURE=1
-
-  - stage: package_all
-    displayName: Package the final archive
-    jobs:
-      - job: package_all
-        displayName: Package all platforms
-        pool:
-          vmImage: "macos-10.13"
-        steps:
-          - task: DownloadBuildArtifacts@0
-            inputs:
-              buildType: "current"
-              downloadType: "single"
-              artifactName: $(ARTIFACT_DIR)
-              downloadPath: "."
-          - bash: |
-              set -eux
-
-              mkdir out
-              cd out
-              unzip -q "../${ARTIFACT_DIR}/sp-sources.zip"
-
-              PLATFORMS=(macosx windows linux android)
-
-              # Copy gen_* directories from available archives
-              for PLATFORM in "${PLATFORMS[@]}"; do
-                rm -rf ./sentry-native
-                unzip -q "../${ARTIFACT_DIR}/sentry-native-${PLATFORM}.zip"
-                rm -rf "./sp-sources/gen_${PLATFORM}"
-                mv "sentry-native/premake" "./sp-sources/gen_${PLATFORM}"
-              done
-              rm -rf ./sentry-native
-
-              mv sp-sources sentry-native
-              zip -r sentry-native-all sentry-native/
-
-          - task: PublishBuildArtifacts@1
-            inputs:
-              pathtoPublish: "out/sentry-native-all.zip"
-              artifactName: $(ARTIFACT_DIR)

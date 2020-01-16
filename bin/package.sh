@@ -83,7 +83,7 @@ fetch_sentry_native() {
     fi
 
     SENTRY_NATIVE_SRC=(
-        "examples" "include" "src" "premake" "README.md" "Makefile"
+        "examples" "include" "src" "README.md" "CMakeLists.txt"
         "tests" "Dockerfile" ".dockerignore" "vendor"
     )
 

@@ -1,7 +1,6 @@
 parameters:
   vmImage: "macos-10.13"
   platform: "macosx"
-  buildSystem: "gmake2"
   installScript: |
     echo "Skipping Install Step"
   buildScript: |
@@ -19,13 +18,10 @@ jobs:
     pool:
       vmImage: ${{ parameters.vmImage }}
     variables:
-      PLATFORM: ${{ parameters.platform }}
-      BUILD_SYSTEM: ${{ parameters.buildSystem }}
       PACKAGE_DIR: ${{ parameters.packageDirectory }}
-      PLATFORM_BUILD_DIR: ${{ parameters.packageDirectory }}/premake
+      PLATFORM_BUILD_DIR: ${{ parameters.packageDirectory }}/build
     steps:
       - template: prescript-common.yml
-      - template: install-premake.yml
       - task: DownloadBuildArtifacts@0
         inputs:
           buildType: "current"
@@ -40,16 +36,7 @@ jobs:
 
           unzip -q ./${ARTIFACT_DIR}/sp-sources.zip
           mv sp-sources "${PACKAGE_DIR}"
-          cd "${PACKAGE_DIR}/premake"
-          premake5 "${BUILD_SYSTEM}" --os="${PLATFORM}"
-          cd ../..
-          $ZIP "sentry-native-${PLATFORM}.zip" "${PACKAGE_DIR}"
         displayName: "Package generated build files"
-
-      - task: PublishBuildArtifacts@1
-        inputs:
-          pathtoPublish: "sentry-native-$(PLATFORM).zip"
-          artifactName: $(ARTIFACT_DIR)
 
       - bash: |
           set -eux
@@ -60,6 +47,7 @@ jobs:
       - bash: |
           set -eux
 
+          mkdir -p "${PLATFORM_BUILD_DIR}"
           cd "${PLATFORM_BUILD_DIR}"
 
           ${{ parameters.buildScript }}
