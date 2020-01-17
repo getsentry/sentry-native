@@ -4,6 +4,8 @@
 
 SENTRY_TEST(test_module_finder)
 {
+// the module finder is not yet implemented on linux
+#if defined(SENTRY_PLATFORM_DARWIN) || defined(SENTRY_PLATFORM_WINDOWS)
     sentry_value_t modules = sentry__modules_get_list();
     TEST_CHECK(sentry_value_get_length(modules) > 0);
 
@@ -18,4 +20,5 @@ SENTRY_TEST(test_module_finder)
     }
 
     TEST_CHECK(found_test);
+#endif
 }
