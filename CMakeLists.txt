@@ -40,6 +40,7 @@ endif()
 
 file(GLOB SENTRY_NATIVE_SOURCES
     ${SENTRY_NATIVE_SOURCE_ROOT}/*.c
+    ${SENTRY_NATIVE_SOURCE_ROOT}/transports/sentry_disk_transport.c
     ${SENTRY_NATIVE_SOURCE_ROOT}/transports/sentry_function_transport.c
 )
 

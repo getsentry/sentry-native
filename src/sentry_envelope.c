@@ -461,8 +461,8 @@ sentry__envelope_serialize_into_stringbuilder(
 }
 
 int
-sentry_envelope_write_to_file(
-    const sentry_envelope_t *envelope, const char *path)
+sentry_envelope_write_to_path(
+    const sentry_envelope_t *envelope, const sentry_path_t *path)
 {
     // TODO: This currently builds the whole buffer in-memory.
     // It would be nice to actually stream this to a file.
@@ -471,13 +471,24 @@ sentry_envelope_write_to_file(
 
     sentry__envelope_serialize_into_stringbuilder(envelope, &sb);
 
-    sentry_path_t *path_obj = sentry__path_from_str(path);
     size_t buf_len = sentry__stringbuilder_len(&sb);
     char *buf = sentry__stringbuilder_into_string(&sb);
 
-    int rv = sentry__path_write_buffer(path_obj, buf, buf_len);
+    int rv = sentry__path_write_buffer(path, buf, buf_len);
 
     sentry_free(buf);
+
+    return rv;
+}
+
+int
+sentry_envelope_write_to_file(
+    const sentry_envelope_t *envelope, const char *path)
+{
+    sentry_path_t *path_obj = sentry__path_from_str(path);
+
+    int rv = sentry_envelope_write_to_path(envelope, path_obj);
+
     sentry__path_free(path_obj);
 
     return rv;

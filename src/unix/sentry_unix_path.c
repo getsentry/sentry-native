@@ -104,6 +104,17 @@ sentry__path_join_str(const sentry_path_t *base, const char *other)
     return sentry__path_from_str_owned(sentry__stringbuilder_into_string(&sb));
 }
 
+sentry_path_t *
+sentry__path_clone(const sentry_path_t *path)
+{
+    sentry_path_t *rv = SENTRY_MAKE(sentry_path_t);
+    if (!rv) {
+        return NULL;
+    }
+    rv->path = sentry__string_dup(path->path);
+    return rv;
+}
+
 int
 sentry__path_remove(const sentry_path_t *path)
 {
@@ -226,7 +237,7 @@ int
 sentry__path_touch(const sentry_path_t *path)
 {
     int fd = open(path->path, O_WRONLY | O_CREAT | O_APPEND,
-                  S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH);
+        S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH);
     if (fd < 0) {
         return 1;
     } else {

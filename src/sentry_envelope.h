@@ -43,4 +43,7 @@ void sentry__envelope_for_each_request(const sentry_envelope_t *envelope,
 void sentry__envelope_serialize_into_stringbuilder(
     const sentry_envelope_t *envelope, sentry_stringbuilder_t *sb);
 
+int sentry_envelope_write_to_path(
+    const sentry_envelope_t *envelope, const sentry_path_t *path);
+
 #endif

@@ -24,6 +24,7 @@ sentry_path_t *sentry__path_from_str(const char *s);
 sentry_path_t *sentry__path_from_str_owned(char *s);
 sentry_path_t *sentry__path_join_str(
     const sentry_path_t *base, const char *other);
+sentry_path_t *sentry__path_clone(const sentry_path_t *path);
 void sentry__path_free(sentry_path_t *path);
 
 const sentry_pathchar_t *sentry__path_filename(const sentry_path_t *path);

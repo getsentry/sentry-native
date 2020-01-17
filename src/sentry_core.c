@@ -13,6 +13,7 @@
 #include "sentry_sync.h"
 #include "sentry_transport.h"
 #include "sentry_value.h"
+#include "transports/sentry_disk_transport.h"
 
 static sentry_options_t *g_options;
 static sentry_mutex_t g_options_mutex = SENTRY__MUTEX_INIT;
@@ -229,6 +230,15 @@ sentry_transport_free(sentry_transport_t *transport)
         transport->free_func(transport);
     }
     sentry_free(transport);
+}
+
+void
+sentry__enforce_disk_transport()
+{
+    // Freeing the old transport would, in the case of the curl transport, try
+    // to flush its send queue, which I’m not sure we can do in the signal
+    // handler. So rather we just leak it.
+    g_options->transport = sentry_new_disk_transport(g_options->database_path);
 }
 
 void

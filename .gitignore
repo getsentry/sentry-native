@@ -1,3 +1,4 @@
+.sentry-native
 build
 build-linux
 leak-build
