@@ -31,7 +31,7 @@ SENTRY_TEST(basic_function_transport)
     sentry_options_t *options = sentry_options_new();
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
     sentry_options_set_transport(
-        options, sentry__new_function_transport(send_envelope, &called));
+        options, sentry_new_function_transport(send_envelope, &called));
     sentry_options_set_release(options, "prod");
     sentry_init(options);
 

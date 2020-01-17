@@ -225,7 +225,8 @@ sentry__pathiter_free(sentry_pathiter_t *piter)
 int
 sentry__path_touch(const sentry_path_t *path)
 {
-    int fd = open(path->path, O_WRONLY | O_CREAT | O_APPEND);
+    int fd = open(path->path, O_WRONLY | O_CREAT | O_APPEND,
+                  S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH);
     if (fd < 0) {
         return 1;
     } else {

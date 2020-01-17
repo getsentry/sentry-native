@@ -25,7 +25,7 @@ send_envelope(struct sentry_transport_s *transport, sentry_envelope_t *envelope)
 }
 
 sentry_transport_t *
-sentry__new_function_transport(
+sentry_new_function_transport(
     void (*func)(sentry_envelope_t *envelope, void *data), void *data)
 {
     SENTRY_DEBUG("initializing function transport");
