@@ -39,13 +39,13 @@ if(CURL_FOUND)
 endif()
 
 file(GLOB SENTRY_NATIVE_SOURCES
-    ${SENTRY_NATIVE_SOURCE_ROOT}/*.c
-    ${SENTRY_NATIVE_SOURCE_ROOT}/transports/sentry_disk_transport.c
-    ${SENTRY_NATIVE_SOURCE_ROOT}/transports/sentry_function_transport.c
+	${SENTRY_NATIVE_SOURCE_ROOT}/*.c
+	${SENTRY_NATIVE_SOURCE_ROOT}/transports/sentry_disk_transport.c
+	${SENTRY_NATIVE_SOURCE_ROOT}/transports/sentry_function_transport.c
 )
 
 file(GLOB SENTRY_NATIVE_LIBCURL_TRANSPORT_SOURCES
-    ${SENTRY_NATIVE_SOURCE_ROOT}/transports/sentry_libcurl_transport.c
+	${SENTRY_NATIVE_SOURCE_ROOT}/transports/sentry_libcurl_transport.c
 )
 
 file(GLOB SENTRY_NATIVE_INPROC_BACKEND_SOURCES
@@ -53,15 +53,19 @@ file(GLOB SENTRY_NATIVE_INPROC_BACKEND_SOURCES
 )
 
 file(GLOB SENTRY_NATIVE_UNIX_SOURCES
-    ${SENTRY_NATIVE_SOURCE_ROOT}/unix/*.c
+	${SENTRY_NATIVE_SOURCE_ROOT}/unix/*.c
 )
 
 file(GLOB SENTRY_NATIVE_DARWIN_SOURCES
 	${SENTRY_NATIVE_SOURCE_ROOT}/darwin/*.c
 )
 
+file(GLOB SENTRY_NATIVE_ANDROID_SOURCES
+	${SENTRY_NATIVE_SOURCE_ROOT}/unix/sentry_unix_unwinder_libunwindstack.cpp
+)
+
 file(GLOB SENTRY_NATIVE_WINDOWS_SOURCES
-    ${SENTRY_NATIVE_SOURCE_ROOT}/windows/*.c
+	${SENTRY_NATIVE_SOURCE_ROOT}/windows/*.c
 )
 
 file(GLOB_RECURSE SENTRY_NATIVE_TEST_SOURCES
@@ -89,6 +93,15 @@ endif()
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
 	set(LINK_LIBRARIES ${LINK_LIBRARIES} "pthread" "dl")
+endif()
+
+if(CMAKE_SYSTEM_NAME STREQUAL "Android")
+	include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/libunwindstack-ndk/include)
+	add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/external/libunwindstack-ndk/cmake)
+	set(LINK_LIBRARIES ${LINK_LIBRARIES} "unwindstack")
+
+	set(SENTRY_NATIVE_ALL_SOURCES ${SENTRY_NATIVE_ALL_SOURCES}
+		${SENTRY_NATIVE_ANDROID_SOURCES})
 endif()
 
 if(WIN32)

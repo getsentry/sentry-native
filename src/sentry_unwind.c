@@ -4,6 +4,10 @@
 #    include "unix/sentry_unix_unwinder_libbacktrace.h"
 #    define HAVE_LIBBACKTRACE
 #endif
+#ifdef SENTRY_PLATFORM_ANDROID
+#    include "unix/sentry_unix_unwinder_libunwindstack.h"
+#    define HAVE_LIBUNWINDSTACK
+#endif
 #ifdef SENTRY_PLATFORM_WINDOWS
 #    include "windows/sentry_windows_dbghelp.h"
 #    define HAVE_DBGHELP
@@ -23,6 +27,9 @@ unwind_stack(
 {
 #ifdef HAVE_LIBBACKTRACE
     TRY_UNWINDER(sentry__unwind_stack_backtrace);
+#endif
+#ifdef HAVE_LIBUNWINDSTACK
+    TRY_UNWINDER(sentry__unwind_stack_unwindstack);
 #endif
 #ifdef HAVE_DBGHELP
     TRY_UNWINDER(sentry__unwind_stack_dbghelp);
