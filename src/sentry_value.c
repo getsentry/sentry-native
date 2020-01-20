@@ -285,7 +285,7 @@ sentry_value_new_bool(int value)
 sentry_value_t
 sentry_value_new_string(const char *value)
 {
-    char *s = sentry__string_dup(value);
+    char *s = sentry__string_clone(value);
     if (!s) {
         return sentry_value_new_null();
     }
@@ -408,7 +408,7 @@ sentry_value_set_by_key(sentry_value_t value, const char *k, sentry_value_t v)
     }
 
     obj_pair_t pair;
-    pair.k = sentry__string_dup(k);
+    pair.k = sentry__string_clone(k);
     if (!pair.k) {
         return 1;
     }
@@ -478,7 +478,7 @@ sentry__value_clone(sentry_value_t value)
         const obj_t *obj = thing->payload;
         sentry_value_t rv = sentry__value_new_object_with_size(obj->len);
         for (size_t i = 0; i < obj->len; i++) {
-            char *key = sentry__string_dup(obj->pairs[i].k);
+            char *key = sentry__string_clone(obj->pairs[i].k);
             if (!key) {
                 continue;
             }

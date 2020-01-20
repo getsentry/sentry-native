@@ -165,11 +165,12 @@ handle_signal(int signum, siginfo_t *info, void *user_context)
     // pthread mutex.
     sentry__enter_signal_handler();
 
+    // since we can’t use HTTP in signal handlers, we will swap out the
+    // transport here to one that serializes the envelope to disk
+    sentry__enforce_disk_transport();
+
     // now create an capture an event.  Note that this assumes the transport
     // only dumps to disk at the moment.
-    //
-    // TODO: this should be refactored so that it will always go to disk
-    // independent of the actual transport configured.
     sentry_capture_event(make_signal_event(sig_slot, &uctx));
 
     // reset signal handlers and invoke the original ones.  This will then tear

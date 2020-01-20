@@ -182,6 +182,17 @@ sentry__path_join_str(const sentry_path_t *base, const char *other)
     return rv;
 }
 
+sentry_path_t *
+sentry__path_clone(const sentry_path_t *path)
+{
+    sentry_path_t *rv = SENTRY_MAKE(sentry_path_t);
+    if (!rv) {
+        return NULL;
+    }
+    rv->path = wcsdup(path->path);
+    return rv;
+}
+
 int
 sentry__path_remove(const sentry_path_t *path)
 {

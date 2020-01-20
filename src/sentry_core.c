@@ -13,6 +13,7 @@
 #include "sentry_sync.h"
 #include "sentry_transport.h"
 #include "sentry_value.h"
+#include "transports/sentry_disk_transport.h"
 
 static sentry_options_t *g_options;
 static sentry_mutex_t g_options_mutex = SENTRY__MUTEX_INIT;
@@ -232,6 +233,15 @@ sentry_transport_free(sentry_transport_t *transport)
 }
 
 void
+sentry__enforce_disk_transport()
+{
+    // Freeing the old transport would, in the case of the curl transport, try
+    // to flush its send queue, which I’m not sure we can do in the signal
+    // handler. So rather we just leak it.
+    g_options->transport = sentry_new_disk_transport(g_options->database_path);
+}
+
+void
 sentry_options_set_transport(
     sentry_options_t *opts, sentry_transport_t *transport)
 {
@@ -255,7 +265,7 @@ sentry_options_set_dsn(sentry_options_t *opts, const char *dsn)
     sentry_free(opts->raw_dsn);
     sentry__dsn_parse(&opts->dsn, dsn);
     /* TODO: canonicalize DSN */
-    opts->raw_dsn = sentry__string_dup(dsn);
+    opts->raw_dsn = sentry__string_clone(dsn);
 }
 
 const char *
@@ -268,7 +278,7 @@ void
 sentry_options_set_release(sentry_options_t *opts, const char *release)
 {
     sentry_free(opts->release);
-    opts->release = sentry__string_dup(release);
+    opts->release = sentry__string_clone(release);
 }
 
 const char *
@@ -281,7 +291,7 @@ void
 sentry_options_set_environment(sentry_options_t *opts, const char *environment)
 {
     sentry_free(opts->release);
-    opts->release = sentry__string_dup(environment);
+    opts->release = sentry__string_clone(environment);
 }
 
 const char *
@@ -294,7 +304,7 @@ void
 sentry_options_set_dist(sentry_options_t *opts, const char *dist)
 {
     sentry_free(opts->dist);
-    opts->dist = sentry__string_dup(dist);
+    opts->dist = sentry__string_clone(dist);
 }
 
 const char *
@@ -307,7 +317,7 @@ void
 sentry_options_set_http_proxy(sentry_options_t *opts, const char *proxy)
 {
     sentry_free(opts->http_proxy);
-    opts->http_proxy = sentry__string_dup(proxy);
+    opts->http_proxy = sentry__string_clone(proxy);
 }
 
 const char *
@@ -320,7 +330,7 @@ void
 sentry_options_set_ca_certs(sentry_options_t *opts, const char *path)
 {
     sentry_free(opts->ca_certs);
-    opts->ca_certs = sentry__string_dup(path);
+    opts->ca_certs = sentry__string_clone(path);
 }
 
 const char *
@@ -529,7 +539,7 @@ sentry_set_transaction(const char *transaction)
 {
     SENTRY_WITH_SCOPE_MUT (scope) {
         sentry_free(scope->transaction);
-        scope->transaction = sentry__string_dup(transaction);
+        scope->transaction = sentry__string_clone(transaction);
     }
 }
 
