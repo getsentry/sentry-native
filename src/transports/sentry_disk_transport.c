@@ -23,7 +23,12 @@ send_envelope(sentry_transport_t *transport, sentry_envelope_t *envelope)
     sentry_path_t *output_path
         = sentry__path_join_str(database_path, event_id_str);
 
-    sentry_envelope_write_to_path(envelope, output_path);
+    int rv = sentry_envelope_write_to_path(envelope, output_path);
+
+    if (rv) {
+        SENTRY_DEBUG("writing envelope to file failed");
+    }
+
     sentry__path_free(output_path);
     sentry_envelope_free(envelope);
 }

@@ -25,6 +25,14 @@
 #define SENTRY_TRACEF(message, ...) SENTRY_DEBUGF(message, __VA_ARGS__)
 #define SENTRY_TRACE(message) SENTRY_DEBUG(message)
 
+#if defined(__GNUC__) && (__GNUC__ >= 4)
+#    define MUST_USE __attribute__((warn_unused_result))
+#elif defined(_MSC_VER) && (_MSC_VER >= 1700)
+#    define MUST_USE _Check_return_
+#else
+#    define MUST_USE
+#endif
+
 struct sentry_backend_s;
 
 struct sentry_options_s {

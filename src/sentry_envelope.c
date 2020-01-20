@@ -460,7 +460,7 @@ sentry__envelope_serialize_into_stringbuilder(
     }
 }
 
-int
+MUST_USE int
 sentry_envelope_write_to_path(
     const sentry_envelope_t *envelope, const sentry_path_t *path)
 {
