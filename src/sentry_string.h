@@ -48,10 +48,10 @@ void sentry__stringbuilder_cleanup(sentry_stringbuilder_t *sb);
 size_t sentry__stringbuilder_len(const sentry_stringbuilder_t *sb);
 
 /* duplicates a zero terminated string */
-char *sentry__string_dup(const char *str);
+char *sentry__string_clone(const char *str);
 
 /* duplicates a zero terminated string with a length limit */
-char *sentry__string_dupn(const char *str, size_t n);
+char *sentry__string_clonen(const char *str, size_t n);
 
 /* converts a string to lowercase */
 static inline void
@@ -68,7 +68,7 @@ sentry__int64_to_string(int64_t val)
 {
     char buf[24];
     snprintf(buf, sizeof(buf), "%" PRId64, val);
-    return sentry__string_dup(buf);
+    return sentry__string_clone(buf);
 }
 
 #ifdef SENTRY_PLATFORM_WINDOWS

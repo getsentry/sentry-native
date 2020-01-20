@@ -256,7 +256,7 @@ sentry__envelope_add_from_buffer(sentry_envelope_t *envelope, const char *buf,
     size_t buf_len, const char *type)
 {
     return envelope_add_from_owned_buffer(
-        envelope, sentry__string_dupn(buf, buf_len), buf_len, type);
+        envelope, sentry__string_clonen(buf, buf_len), buf_len, type);
 }
 
 sentry_envelope_item_t *
@@ -311,7 +311,7 @@ prepare_http_request(const sentry_uuid_t *event_id,
 
     h = &rv->headers[rv->headers_len++];
     h->key = "content-type";
-    h->value = sentry__string_dup(content_type);
+    h->value = sentry__string_clone(content_type);
 
     h = &rv->headers[rv->headers_len++];
     h->key = "content-length";

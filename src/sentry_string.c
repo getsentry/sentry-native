@@ -68,7 +68,7 @@ sentry_stringbuilder_take_string(sentry_stringbuilder_t *sb)
 {
     char *rv = sb->buf;
     if (!rv) {
-        rv = sentry__string_dup("");
+        rv = sentry__string_clone("");
     }
     sb->buf = 0;
     sb->allocated = 0;
@@ -97,13 +97,13 @@ sentry__stringbuilder_len(const sentry_stringbuilder_t *sb)
 }
 
 char *
-sentry__string_dup(const char *str)
+sentry__string_clone(const char *str)
 {
-    return str ? sentry__string_dupn(str, strlen(str)) : NULL;
+    return str ? sentry__string_clonen(str, strlen(str)) : NULL;
 }
 
 char *
-sentry__string_dupn(const char *str, size_t n)
+sentry__string_clonen(const char *str, size_t n)
 {
     size_t len = n + 1;
     char *rv = sentry_malloc(len);

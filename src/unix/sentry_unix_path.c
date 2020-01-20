@@ -22,7 +22,7 @@ struct sentry_pathiter_s {
 sentry_path_t *
 sentry__path_from_str(const char *s)
 {
-    char *path = sentry__string_dup(s);
+    char *path = sentry__string_clone(s);
     sentry_path_t *rv = NULL;
     if (!path) {
         return NULL;
@@ -111,7 +111,7 @@ sentry__path_clone(const sentry_path_t *path)
     if (!rv) {
         return NULL;
     }
-    rv->path = sentry__string_dup(path->path);
+    rv->path = sentry__string_clone(path->path);
     return rv;
 }
 
@@ -164,7 +164,7 @@ sentry__path_create_dir_all(const sentry_path_t *path)
         }                                                                      \
     } while (0)
 
-    p = sentry__string_dup(path->path);
+    p = sentry__string_clone(path->path);
     for (ptr = p; *ptr; ptr++) {
         if (*ptr == '/' && ptr != p) {
             *ptr = 0;
