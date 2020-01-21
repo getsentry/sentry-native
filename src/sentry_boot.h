@@ -11,7 +11,7 @@
 // It also includes sentry.h since this is commonly used.
 
 // we use some non portable extensions
-#if defined(__linux__)
+#if !defined(_GNU_SOURCE) && defined(__linux__)
 #    define _GNU_SOURCE
 #endif
 
