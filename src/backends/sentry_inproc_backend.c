@@ -120,7 +120,6 @@ make_signal_event(
     void *backtrace[MAX_FRAMES];
     size_t frame_count
         = sentry_unwind_stack_from_ucontext(uctx, &backtrace[0], MAX_FRAMES);
-
     SENTRY_TRACEF("captured backtrace with %zu frames", frame_count);
 
     sentry_value_t frames = sentry__value_new_list_with_size(frame_count);

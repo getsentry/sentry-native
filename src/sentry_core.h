@@ -11,11 +11,20 @@
 #define SENTRY_SDK_USER_AGENT (SENTRY_SDK_NAME "/" SENTRY_SDK_VERSION)
 #define SENTRY_BREADCRUMBS_MAX 100
 
+#ifdef SENTRY_PLATFORM_ANDROID
+#    include <android/log.h>
+#    define SENTRY_FPRINTF(fd, message, ...)                                   \
+        __android_log_print(                                                   \
+            ANDROID_LOG_INFO, "sentry-native", message, __VA_ARGS__)
+#else
+#    define SENTRY_FPRINTF(fd, message, ...)                                   \
+        fprintf(fd, "[sentry] " message, __VA_ARGS__)
+#endif
 #define SENTRY_DEBUGF(message, ...)                                            \
     do {                                                                       \
         const sentry_options_t *_options = sentry_get_options();               \
         if (_options && sentry_options_get_debug(_options)) {                  \
-            fprintf(stderr, "[sentry] " message "\n", __VA_ARGS__);            \
+            SENTRY_FPRINTF(stderr, message "\n", __VA_ARGS__);                 \
         }                                                                      \
     } while (0)
 

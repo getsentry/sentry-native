@@ -443,6 +443,7 @@ void
 sentry__envelope_serialize_into_stringbuilder(
     const sentry_envelope_t *envelope, sentry_stringbuilder_t *sb)
 {
+    SENTRY_TRACE("serializing envelope into buffer");
     char *buf = sentry_value_to_json(envelope->headers);
     sentry__stringbuilder_append(sb, buf);
     sentry_free(buf);
