@@ -165,6 +165,7 @@ sentry_capture_event(sentry_value_t event)
     sentry__ensure_event_id(event, &event_id);
 
     SENTRY_WITH_SCOPE (scope) {
+        SENTRY_TRACE("merging scope into event");
         sentry__scope_apply_to_event(scope, event);
     }
 

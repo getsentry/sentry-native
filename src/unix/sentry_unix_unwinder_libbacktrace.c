@@ -1,6 +1,6 @@
 #include "sentry_unix_unwinder_libbacktrace.h"
 #ifndef SENTRY_PLATFORM_ANDROID
-#include <execinfo.h>
+#    include <execinfo.h>
 #endif
 
 size_t
@@ -11,9 +11,9 @@ sentry__unwind_stack_backtrace(
     return 0;
 #else
     if (addr) {
-#ifdef MAC_OS_X_VERSION_10_14
+#    ifdef MAC_OS_X_VERSION_10_14
         return backtrace_from_fp(addr, ptrs, max_frames);
-#endif
+#    endif
         return 0;
     } else if (uctx) {
         return 0;

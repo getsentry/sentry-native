@@ -1,4 +1,5 @@
 #include "../sentry_alloc.h"
+#include "../sentry_core.h"
 #include "../sentry_path.h"
 #include "../sentry_string.h"
 #include "../sentry_utils.h"
@@ -304,6 +305,7 @@ sentry__path_write_buffer(
     int fd = open(path->path, O_RDWR | O_CREAT | O_TRUNC,
         S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH);
     if (fd < 0) {
+        SENTRY_TRACEF("failed to open file \"%s\" for writing", path->path);
         return 1;
     }
 

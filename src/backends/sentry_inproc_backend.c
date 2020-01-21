@@ -120,6 +120,7 @@ make_signal_event(
     void *backtrace[MAX_FRAMES];
     size_t frame_count
         = sentry_unwind_stack_from_ucontext(uctx, &backtrace[0], MAX_FRAMES);
+    SENTRY_TRACEF("captured backtrace with %zu frames", frame_count);
 
     sentry_value_t frames = sentry__value_new_list_with_size(frame_count);
     for (size_t i = 0; i < frame_count; i++) {
@@ -171,6 +172,7 @@ handle_signal(int signum, siginfo_t *info, void *user_context)
 
     // now create an capture an event.  Note that this assumes the transport
     // only dumps to disk at the moment.
+    SENTRY_DEBUG("capturing event from signal");
     sentry_capture_event(make_signal_event(sig_slot, &uctx));
 
     // reset signal handlers and invoke the original ones.  This will then tear

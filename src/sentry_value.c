@@ -312,7 +312,7 @@ sentry__value_new_list_with_size(size_t size)
         memset(l, 0, sizeof(list_t));
         l->allocated = size;
         l->items = sentry_malloc(sizeof(sentry_value_t) * size);
-        if (!l->items) {
+        if (size > 0 && !l->items) {
             sentry_free(l);
             return sentry_value_new_null();
         }
@@ -342,7 +342,7 @@ sentry__value_new_object_with_size(size_t size)
         memset(l, 0, sizeof(obj_t));
         l->allocated = size;
         l->pairs = sentry_malloc(sizeof(obj_pair_t) * size);
-        if (!l->pairs) {
+        if (size > 0 && !l->pairs) {
             sentry_free(l);
             return sentry_value_new_null();
         }
