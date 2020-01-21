@@ -39,7 +39,7 @@ sentry__unwind_stack_unwindstack(
     int rv = 0;
     for (int i = 0; i < max_frames; i++) {
         ptrs[rv++] = (void *)regs->pc();
-        unwindstack::MapInfo *const map_info = maps.Find(regs->pc());
+        const unwindstack::MapInfo *map_info = maps.Find(regs->pc());
         if (!map_info) {
             break;
         }
@@ -47,7 +47,7 @@ sentry__unwind_stack_unwindstack(
         // the boolean false parameter disables debugdata loading which we don't
         // want due to size constraints.  Also that data is unlikely to be
         // useful anyways.
-        unwindstack::Elf *const elf = map_info->GetElf(process_memory, false);
+        const unwindstack::Elf *elf = map_info->GetElf(process_memory, false);
         if (!elf) {
             break;
         }
