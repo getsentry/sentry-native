@@ -1,3 +1,9 @@
+#include "sentry_procmaps_modulefinder.h"
+#include "../sentry_core.h"
+#include "../sentry_path.h"
+#include "../sentry_string.h"
+#include "../sentry_sync.h"
+#include "../sentry_value.h"
 #include <arpa/inet.h>
 #include <elf.h>
 #include <fcntl.h>
@@ -5,13 +11,6 @@
 #include <string.h>
 #include <sys/auxv.h>
 #include <unistd.h>
-
-#include "../sentry_core.h"
-#include "../sentry_path.h"
-#include "../sentry_string.h"
-#include "../sentry_sync.h"
-#include "../sentry_value.h"
-#include "sentry_procmaps_modulefinder.h"
 
 static bool g_initialized = false;
 static sentry_mutex_t g_mutex = SENTRY__MUTEX_INIT;
@@ -32,8 +31,8 @@ sentry__procmaps_parse_module_line(char *line, sentry_module_t *module)
     if (sscanf(line,
             "%" SCNxPTR "-%" SCNxPTR " %4c %" SCNx64 " %hhx:%hhx %" SCNd64
             " %n",
-            &module->start, &module->end, permissions, &offset, &major_device,
-            &minor_device, &inode, &consumed)
+            (uintptr_t *)&module->start, (uintptr_t *)&module->end, permissions,
+            &offset, &major_device, &minor_device, &inode, &consumed)
         < 7) {
         return 0;
     }
@@ -238,7 +237,7 @@ load_modules(void)
     char *current_line = contents;
 
     // See http://man7.org/linux/man-pages/man7/vdso.7.html
-    void *linux_vdso = (uintptr_t)getauxval(AT_SYSINFO_EHDR);
+    void *linux_vdso = (void *)getauxval(AT_SYSINFO_EHDR);
 
     // we have multiple memory maps per file, and we need to merge their offsets
     // based on the filename. Luckily, the maps are ordered by filename, so yay
@@ -252,8 +251,8 @@ load_modules(void)
             break;
         }
         // skip over anonymous mappings, but keep the one for the linux vdso
-        if (module.start != linux_vdso && !module.file
-            || module.file[0] == '[') {
+        if (module.start != linux_vdso
+            && (!module.file || module.file[0] == '[')) {
             continue;
         }
 
