@@ -4,8 +4,8 @@
 #include "../sentry_boot.h"
 
 struct sentry_module_s {
-    uint64_t start;
-    uint64_t end;
+    void *start;
+    void *end;
     char *file;
 };
 typedef struct sentry_module_s sentry_module_t;

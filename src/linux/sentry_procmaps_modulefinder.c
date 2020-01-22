@@ -1,15 +1,17 @@
-#include "sentry_procmaps_modulefinder.h"
-#include "../sentry_core.h"
-#include "../sentry_path.h"
-#include "../sentry_string.h"
-#include "../sentry_sync.h"
-#include "../sentry_value.h"
 #include <arpa/inet.h>
 #include <elf.h>
 #include <fcntl.h>
 #include <inttypes.h>
 #include <string.h>
+#include <sys/auxv.h>
 #include <unistd.h>
+
+#include "../sentry_core.h"
+#include "../sentry_path.h"
+#include "../sentry_string.h"
+#include "../sentry_sync.h"
+#include "../sentry_value.h"
+#include "sentry_procmaps_modulefinder.h"
 
 static bool g_initialized = false;
 static sentry_mutex_t g_mutex = SENTRY__MUTEX_INIT;
@@ -28,7 +30,8 @@ sentry__procmaps_parse_module_line(char *line, sentry_module_t *module)
     // this has been copied from the breakpad source:
     // https://github.com/google/breakpad/blob/13c1568702e8804bc3ebcfbb435a2786a3e335cf/src/processor/proc_maps_linux.cc#L66
     if (sscanf(line,
-            "%" SCNx64 "-%" SCNx64 " %4c %" SCNx64 " %hhx:%hhx %" SCNd64 " %n",
+            "%" SCNxPTR "-%" SCNxPTR " %4c %" SCNx64 " %hhx:%hhx %" SCNd64
+            " %n",
             &module->start, &module->end, permissions, &offset, &major_device,
             &minor_device, &inode, &consumed)
         < 7) {
@@ -53,24 +56,27 @@ sentry__procmaps_parse_module_line(char *line, sentry_module_t *module)
 }
 
 void
-align(size_t alignment, const char **offset)
+align(size_t alignment, void **offset)
 {
     size_t diff = (size_t)*offset % alignment;
     if (diff != 0) {
-        *offset += alignment - diff;
+        *(size_t *)offset += alignment - diff;
     }
 }
 
-static char *
-get_debug_id_from_notes(size_t alignment, const char *offset, const char *end)
+static const uint8_t *
+get_code_id_from_notes(
+    size_t alignment, void *start, void *end, size_t *size_out)
 {
+    *size_out = 0;
     if (alignment < 4) {
         alignment = 4;
     } else if (alignment != 4 && alignment != 8) {
         return NULL;
     }
 
-    while (offset < end) {
+    const uint8_t *offset = start;
+    while (offset < (uint8_t *)end) {
         // The note header size is independant of the architecture, so we just
         // use the `Elf64_Nhdr` variant.
         const Elf64_Nhdr *note = (const Elf64_Nhdr *)offset;
@@ -79,34 +85,36 @@ get_debug_id_from_notes(size_t alignment, const char *offset, const char *end)
 
         offset += sizeof(Elf64_Nhdr);
         offset += note->n_namesz;
-        align(alignment, &offset);
-        const char *description = offset;
+        align(alignment, (void **)&offset);
         if (note->n_type == NT_GNU_BUILD_ID) {
-            return sentry__string_clonen(description, note->n_descsz);
+            *size_out = note->n_descsz;
+            return offset;
         }
         offset += note->n_descsz;
-        align(alignment, &offset);
+        align(alignment, (void **)&offset);
     }
     return NULL;
 }
 
 static bool
-is_elf_module(const char *addr)
+is_elf_module(void *addr)
 {
     // we try to interpret `addr` as an ELF file, which should start with a
     // magic number…
-    const unsigned char *e_ident = (const unsigned char *)addr;
+    const unsigned char *e_ident = addr;
     return e_ident[EI_MAG0] == ELFMAG0 && e_ident[EI_MAG1] == ELFMAG1
         && e_ident[EI_MAG2] == ELFMAG2 && e_ident[EI_MAG3] == ELFMAG3;
 }
 
-static char *
-get_debug_id_from_elf(const char *addr)
+static const uint8_t *
+get_code_id_from_elf(void *base, size_t *size_out)
 {
-    const unsigned char *e_ident = (const unsigned char *)addr;
+    *size_out = 0;
+    const uint8_t *addr = base;
+    const unsigned char *e_ident = addr;
     // iterate over all the program headers, for 32/64 bit separately
     if (e_ident[EI_CLASS] == ELFCLASS64) {
-        const Elf64_Ehdr *elf = (const Elf64_Ehdr *)addr;
+        const Elf64_Ehdr *elf = base;
         for (int i = 0; i < elf->e_phnum; i++) {
             const Elf64_Phdr *header = (const Elf64_Phdr *)(addr + elf->e_phoff
                 + elf->e_phentsize * i);
@@ -114,22 +122,28 @@ get_debug_id_from_elf(const char *addr)
             if (header->p_type != PT_NOTE) {
                 continue;
             }
-            return get_debug_id_from_notes(header->p_align,
-                (const char *)(addr + header->p_vaddr),
-                (const char *)(addr + header->p_vaddr + header->p_memsz));
+            const uint8_t *code_id = get_code_id_from_notes(header->p_align,
+                (void *)(addr + header->p_vaddr),
+                (void *)(addr + header->p_vaddr + header->p_memsz), size_out);
+            if (code_id) {
+                return code_id;
+            }
         }
     } else {
-        const Elf32_Ehdr *elf = (const Elf32_Ehdr *)addr;
+        const Elf32_Ehdr *elf = base;
         for (int i = 0; i < elf->e_phnum; i++) {
-            const Elf64_Phdr *header = (const Elf64_Phdr *)(addr + elf->e_phoff
+            const Elf32_Phdr *header = (const Elf32_Phdr *)(addr + elf->e_phoff
                 + elf->e_phentsize * i);
             // we are only interested in notes
             if (header->p_type != PT_NOTE) {
                 continue;
             }
-            return get_debug_id_from_notes(header->p_align,
-                (const char *)(addr + header->p_vaddr),
-                (const char *)(addr + header->p_vaddr + header->p_memsz));
+            const uint8_t *code_id = get_code_id_from_notes(header->p_align,
+                (void *)(addr + header->p_vaddr),
+                (void *)(addr + header->p_vaddr + header->p_memsz), size_out);
+            if (code_id) {
+                return code_id;
+            }
         }
     }
     return NULL;
@@ -149,19 +163,18 @@ module_to_value(const sentry_module_t *module)
 
     // and try to get the debug id from the elf headers of the loaded
     // modules
-    char *debug_id = get_debug_id_from_elf((const char *)module->start);
-    if (debug_id) {
-
+    size_t code_id_size;
+    const uint8_t *code_id = get_code_id_from_elf(module->start, &code_id_size);
+    if (code_id) {
         // the usage of these is described here:
         // https://getsentry.github.io/symbolicator/advanced/symbol-server-compatibility/#identifiers
         // in particular, the debug_id is a `little-endian GUID`, so we have to
         // do appropriate byte-flipping
-        sentry_value_t code_id
-            = sentry__value_new_hexstring(debug_id, strlen(debug_id));
-        sentry_value_set_by_key(mod_val, "code_id", code_id);
+        sentry_value_set_by_key(mod_val, "code_id",
+            sentry__value_new_hexstring((const char *)code_id, code_id_size));
 
-        sentry_uuid_t uuid = sentry_uuid_from_bytes(debug_id);
-        char *uuid_bytes = (char *)uuid.bytes;
+        sentry_uuid_t uuid = sentry_uuid_from_bytes((char *)code_id);
+        char *uuid_bytes = uuid.bytes;
         uint32_t *a = (uint32_t *)uuid_bytes;
         *a = htonl(*a);
         uint16_t *b = (uint16_t *)(uuid_bytes + 4);
@@ -180,16 +193,13 @@ module_to_value(const sentry_module_t *module)
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 
 static void
-try_append_module(sentry_value_t *modules, const sentry_module_t *module)
+try_append_module(sentry_value_t modules, const sentry_module_t *module)
 {
-    if (!is_elf_module((const char *)module->start)) {
+    if (!is_elf_module(module->start) || !module->file) {
         return;
     }
 
-    if (!module->file) {
-        return;
-    }
-    sentry_value_append(*modules, module_to_value(module));
+    sentry_value_append(modules, module_to_value(module));
 }
 
 static void
@@ -206,7 +216,7 @@ load_modules(void)
     char buf[4096];
     sentry_stringbuilder_t sb;
     sentry__stringbuilder_init(&sb);
-    while (1) {
+    while (true) {
         ssize_t n = read(fd, buf, 4096);
         if (n <= 0) {
             if (errno == EAGAIN || errno == EINTR) {
@@ -214,16 +224,25 @@ load_modules(void)
             }
             break;
         }
-        sentry__stringbuilder_append_buf(&sb, buf, n);
+        if (sentry__stringbuilder_append_buf(&sb, buf, n)) {
+            close(fd);
+            goto done;
+        }
     }
     close(fd);
 
     char *contents = sentry__stringbuilder_into_string(&sb);
+    if (!contents) {
+        goto done;
+    }
     char *current_line = contents;
+
+    // See http://man7.org/linux/man-pages/man7/vdso.7.html
+    void *linux_vdso = (uintptr_t)getauxval(AT_SYSINFO_EHDR);
 
     // we have multiple memory maps per file, and we need to merge their offsets
     // based on the filename. Luckily, the maps are ordered by filename, so yay
-    sentry_module_t last_module = { SIZE_MAX, 0, NULL };
+    sentry_module_t last_module = { (void *)SIZE_MAX, 0, NULL };
     while (true) {
         sentry_module_t module = { 0, 0, NULL };
         int read = sentry__procmaps_parse_module_line(current_line, &module);
@@ -232,14 +251,14 @@ load_modules(void)
         if (!read) {
             break;
         }
-        // skip over anonymous mappings
-        if (!module.file
-            || (module.file[0] == '[' && strcmp("[vdso]", module.file) != 0)) {
+        // skip over anonymous mappings, but keep the one for the linux vdso
+        if (module.start != linux_vdso && !module.file
+            || module.file[0] == '[') {
             continue;
         }
 
         if (last_module.file && strcmp(last_module.file, module.file) != 0) {
-            try_append_module(&g_modules, &last_module);
+            try_append_module(g_modules, &last_module);
             last_module = module;
         } else {
             // otherwise merge it
@@ -249,11 +268,10 @@ load_modules(void)
             last_module.file = module.file;
         }
     }
-    try_append_module(&g_modules, &last_module);
+    try_append_module(g_modules, &last_module);
     sentry_free(contents);
 
 done:
-
     SENTRY_TRACEF("read %zu modules from /proc/self/maps",
         sentry_value_get_length(g_modules));
 

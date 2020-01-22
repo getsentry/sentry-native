@@ -47,30 +47,30 @@ SENTRY_TEST(test_procmaps_parser)
     read = sentry__procmaps_parse_module_line(lines, &mod);
     lines += read;
     TEST_CHECK(read);
-    TEST_CHECK(mod.start == 140579994132480);
-    TEST_CHECK(mod.end == 140579996127232);
+    TEST_CHECK(mod.start == (void*)0x7fdb549ce000);
+    TEST_CHECK(mod.end == (void*)0x7fdb54bb5000);
     TEST_CHECK_STRING_EQUAL(mod.file, "/lib/x86_64-linux-gnu/libc-2.27.so");
     sentry_free(mod.file);
 
     read = sentry__procmaps_parse_module_line(lines, &mod);
     lines += read;
     TEST_CHECK(read);
-    TEST_CHECK(mod.start == 139725843062784);
-    TEST_CHECK(mod.end == 139725845159936);
+    TEST_CHECK(mod.start == (void*)0x7f14753de000);
+    TEST_CHECK(mod.end == (void*)0x7f14755de000);
     sentry_free(mod.file);
 
     read = sentry__procmaps_parse_module_line(lines, &mod);
     lines += read;
     TEST_CHECK(read);
-    TEST_CHECK(mod.start == 140630454513664);
-    TEST_CHECK(mod.end == 140630454517760);
+    TEST_CHECK(mod.start == (void*)0x7fe714493000);
+    TEST_CHECK(mod.end == (void*)0x7fe714494000);
     TEST_CHECK(mod.file == NULL);
 
     read = sentry__procmaps_parse_module_line(lines, &mod);
     lines += read;
     TEST_CHECK(read);
-    TEST_CHECK(mod.start == 140735553105920);
-    TEST_CHECK(mod.end == 140735553241088);
+    TEST_CHECK(mod.start == (void*)0x7fff8ca67000);
+    TEST_CHECK(mod.end == (void*)0x7fff8ca88000);
     TEST_CHECK_STRING_EQUAL(mod.file, "[vdso]");
     sentry_free(mod.file);
 
