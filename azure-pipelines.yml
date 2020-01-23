@@ -71,24 +71,34 @@ stages:
           # The Android emulator is currently only available on macos, see:
           # https://docs.microsoft.com/en-us/azure/devops/pipelines/ecosystems/android?view=azure-devops#test-on-the-android-emulator
           vmImage: "macOs-latest"
+        variables:
+          ANDROID_NDK: 21.0.6113669
+          ANDROID_ARCH: x86
+          ANDROID_IMAGE: system-images;android-27;google_apis;$(ANDROID_ARCH)
         steps:
           - checkout: none
           - download: current
-          - script: $ANDROID_HOME/tools/bin/sdkmanager --install "ndk;21.0.6113669"
+          - script: |
+              echo "y" | $ANDROID_HOME/tools/bin/sdkmanager --install \
+                "ndk;$(ANDROID_NDK)" "$(ANDROID_IMAGE)" | \
+                grep -v "\[=" || true # suppress the progress bar, so we get meaningful logs
             displayName: Installing Android SDK Dependencies
           # See: https://developer.android.com/ndk/guides/cmake
           - script: |
               mkdir build && cd build
               cmake \
-                -DCMAKE_TOOLCHAIN_FILE=$ANDROID_HOME/ndk/21.0.6113669/build/cmake/android.toolchain.cmake \
-                -DANDROID_ABI=x86 \
+                -DCMAKE_TOOLCHAIN_FILE=$ANDROID_HOME/ndk/$(ANDROID_NDK)/build/cmake/android.toolchain.cmake \
+                -DANDROID_ABI=$(ANDROID_ARCH) \
                 -DANDROID_NATIVE_API_LEVEL=27 \
                 ..
               cmake --build . --parallel
             displayName: Build
           - script: |
               bash scripts/start-android.sh
+            timeoutInMinutes: 2 # because gettings things wrong here can hang the job for up to an hour…
+            displayName: Starting Android Simulator
+          - script: |
               export DEVICE_DIR="/data/local/tmp"
               $ANDROID_HOME/platform-tools/adb push ./build "${DEVICE_DIR}"
-              $ANDROID_HOME/platform-tools/adb shell "${DEVICE_DIR}/build/sentry_tests"
+              $ANDROID_HOME/platform-tools/adb shell "cd ${DEVICE_DIR}/build && ./sentry_tests"
             displayName: Test

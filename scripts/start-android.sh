@@ -1,16 +1,14 @@
 #!/usr/bin/env bash
 
-ARCH="x86"
-AVD_EMULATOR_NAME="sentry_android_${ARCH}"
-
 # Adapted from:
 # https://docs.microsoft.com/en-us/azure/devops/pipelines/ecosystems/android?view=azure-devops#test-on-the-android-emulator
 
-# Install AVD files
-echo "y" | $ANDROID_HOME/tools/bin/sdkmanager --install "system-images;android-27;google_apis;${ARCH}"
+ARCH=${ANDROID_ARCH:-"x86"}
+AVD_EMULATOR_NAME="sentry_android_${ARCH}"
+IMAGE=${ANDROID_IMAGE:-"system-images;android-27;google_apis;${ARCH}"}
 
 # Create an Android Virtual Device
-echo "no" | $ANDROID_HOME/tools/bin/avdmanager create avd -n $AVD_EMULATOR_NAME -k 'system-images;android-27;google_apis;x86' --force
+echo "no" | $ANDROID_HOME/tools/bin/avdmanager create avd -n $AVD_EMULATOR_NAME -k "$IMAGE" --force
 
 $ANDROID_HOME/emulator/emulator -list-avds
 
