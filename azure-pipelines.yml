@@ -8,10 +8,15 @@ stages:
           - checkout: self
             fetchDepth: 5
             submodules: true
-          # TODO: rethink how external dependencies are fetched
-          #- bash: bash scripts/fetch-dependencies.sh
+          - script: |
+              # the submodule contains an invalid symlink for whatever reason,
+              # which trips up Azure…
+              rm external/libunwindstack-ndk/.clang-format
+              # TODO: rethink how external dependencies are fetched
+              #bash scripts/fetch-dependencies.sh
+            displayName: Fetching External Dependencies
           - publish: .
-            artifact: sources
+            artifact: s
 
   - stage: test
     dependsOn: package
@@ -24,11 +29,7 @@ stages:
           vmImage: "ubuntu-latest"
         steps:
           - checkout: none
-          - task: DownloadPipelineArtifact@2
-            inputs:
-              artifact: sources
-              path: $(System.DefaultWorkingDirectory)
-
+          - download: current
           - script: |
               mkdir -p build && cd build
               cmake ..
@@ -42,10 +43,7 @@ stages:
           vmImage: "macOs-latest"
         steps:
           - checkout: none
-          - task: DownloadPipelineArtifact@2
-            inputs:
-              artifact: sources
-              path: $(System.DefaultWorkingDirectory)
+          - download: current
           - script: |
               mkdir -p build && cd build
               cmake ..
@@ -59,10 +57,7 @@ stages:
           vmImage: "windows-latest"
         steps:
           - checkout: none
-          - task: DownloadPipelineArtifact@2
-            inputs:
-              artifact: sources
-              path: $(System.DefaultWorkingDirectory)
+          - download: current
           - script: |
               mkdir build && cd build
               cmake ..
@@ -78,10 +73,7 @@ stages:
           vmImage: "macOs-latest"
         steps:
           - checkout: none
-          - task: DownloadPipelineArtifact@2
-            inputs:
-              artifact: sources
-              path: $(System.DefaultWorkingDirectory)
+          - download: current
           # See: https://developer.android.com/ndk/guides/cmake
           - script: |
               mkdir build && cd build
