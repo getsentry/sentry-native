@@ -75,7 +75,7 @@ get_code_id_from_notes(
     }
 
     const uint8_t *offset = start;
-    while (offset < (uint8_t *)end) {
+    while (offset < (const uint8_t *)end) {
         // The note header size is independant of the architecture, so we just
         // use the `Elf64_Nhdr` variant.
         const Elf64_Nhdr *note = (const Elf64_Nhdr *)offset;
@@ -172,7 +172,7 @@ module_to_value(const sentry_module_t *module)
         sentry_value_set_by_key(mod_val, "code_id",
             sentry__value_new_hexstring((const char *)code_id, code_id_size));
 
-        sentry_uuid_t uuid = sentry_uuid_from_bytes((char *)code_id);
+        sentry_uuid_t uuid = sentry_uuid_from_bytes((const char *)code_id);
         char *uuid_bytes = uuid.bytes;
         uint32_t *a = (uint32_t *)uuid_bytes;
         *a = htonl(*a);
@@ -194,7 +194,7 @@ module_to_value(const sentry_module_t *module)
 static void
 try_append_module(sentry_value_t modules, const sentry_module_t *module)
 {
-    if (!is_elf_module(module->start) || !module->file) {
+    if (!module->file || !is_elf_module(module->start)) {
         return;
     }
 
@@ -202,13 +202,11 @@ try_append_module(sentry_value_t modules, const sentry_module_t *module)
 }
 
 static void
-load_modules(void)
+load_modules(sentry_value_t modules)
 {
-    g_modules = sentry_value_new_list();
-
     int fd = open("/proc/self/maps", O_RDONLY);
     if (fd < 0) {
-        goto done;
+        return;
     }
 
     // just read the whole map at once, maybe do it line-by-line as a followup…
@@ -225,14 +223,14 @@ load_modules(void)
         }
         if (sentry__stringbuilder_append_buf(&sb, buf, n)) {
             close(fd);
-            goto done;
+            return;
         }
     }
     close(fd);
 
     char *contents = sentry__stringbuilder_into_string(&sb);
     if (!contents) {
-        goto done;
+        return;
     }
     char *current_line = contents;
 
@@ -246,18 +244,22 @@ load_modules(void)
         sentry_module_t module = { 0, 0, NULL };
         int read = sentry__procmaps_parse_module_line(current_line, &module);
         current_line += read;
-
         if (!read) {
             break;
         }
-        // skip over anonymous mappings, but keep the one for the linux vdso
-        if (module.start != linux_vdso
-            && (!module.file || module.file[0] == '[')) {
+
+        // for the vdso, we use the special filename `linux-gate.so`
+        if (module.start == linux_vdso) {
+            sentry_free(module.file);
+            module.file = sentry__string_clone("linux-gate.so");
+        }
+        // skip over anonymous mappings
+        if (!module.file || module.file[0] == '[') {
             continue;
         }
 
         if (last_module.file && strcmp(last_module.file, module.file) != 0) {
-            try_append_module(g_modules, &last_module);
+            try_append_module(modules, &last_module);
             last_module = module;
         } else {
             // otherwise merge it
@@ -267,14 +269,8 @@ load_modules(void)
             last_module.file = module.file;
         }
     }
-    try_append_module(g_modules, &last_module);
+    try_append_module(modules, &last_module);
     sentry_free(contents);
-
-done:
-    SENTRY_TRACEF("read %zu modules from /proc/self/maps",
-        sentry_value_get_length(g_modules));
-
-    sentry_value_freeze(g_modules);
 }
 
 sentry_value_t
@@ -282,7 +278,11 @@ sentry__procmaps_modules_get_list(void)
 {
     sentry__mutex_lock(&g_mutex);
     if (!g_initialized) {
-        load_modules();
+        g_modules = sentry_value_new_list();
+        load_modules(g_modules);
+        SENTRY_TRACEF("read %zu modules from /proc/self/maps",
+            sentry_value_get_length(g_modules));
+        sentry_value_freeze(g_modules);
         g_initialized = true;
     }
     sentry__mutex_unlock(&g_mutex);
