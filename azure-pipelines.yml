@@ -74,11 +74,13 @@ stages:
         steps:
           - checkout: none
           - download: current
+          - script: $ANDROID_HOME/tools/bin/sdkmanager --install "ndk;21.0.6113669"
+            displayName: Installing Android SDK Dependencies
           # See: https://developer.android.com/ndk/guides/cmake
           - script: |
               mkdir build && cd build
               cmake \
-                -DCMAKE_TOOLCHAIN_FILE=$NDK/build/cmake/android.toolchain.cmake \
+                -DCMAKE_TOOLCHAIN_FILE=$ANDROID_HOME/ndk/21.0.6113669/build/cmake/android.toolchain.cmake \
                 -DANDROID_ABI=x86 \
                 -DANDROID_NATIVE_API_LEVEL=27 \
                 ..
