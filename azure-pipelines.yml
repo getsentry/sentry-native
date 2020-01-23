@@ -8,15 +8,9 @@ stages:
           - checkout: self
             fetchDepth: 5
             submodules: true
-          - bash: |
-              set -eux
-
-              # For compatibility between branch and PR builds.
-              # $REVISION will always point at the tip of the tested branch.
-              REVISION="${SYSTEM_PULLREQUEST_SOURCECOMMITID:-$BUILD_SOURCEVERSION}"
-              bash bin/package.sh "$REVISION"
-
-          - publish: out
+          # TODO: rethink how external dependencies are fetched
+          #- bash: bash scripts/fetch-dependencies.sh
+          - publish: .
             artifact: sources
 
   - stage: test
@@ -60,26 +54,47 @@ stages:
           - script: ./build/sentry_tests
             displayName: Test
 
-      # - job: windows
-      #   pool:
-      #     vmImage: "windows-latest"
-      #   steps:
-      #     - checkout: none
-      #     - task: DownloadPipelineArtifact@2
-      #       inputs:
-      #         artifact: sources
-      #         path: $(System.DefaultWorkingDirectory)
-      #     - bash: |
-      #         ls
+      - job: windows
+        pool:
+          vmImage: "windows-latest"
+        steps:
+          - checkout: none
+          - task: DownloadPipelineArtifact@2
+            inputs:
+              artifact: sources
+              path: $(System.DefaultWorkingDirectory)
+          - script: |
+              mkdir build && cd build
+              cmake ..
+              cmake --build . --parallel
+            displayName: Build
+          - script: .\build\Debug\sentry_tests.exe
+            displayName: Test
 
-      # - job: android
-      #   pool:
-      #     vmImage: "ubuntu-latest"
-      #   steps:
-      #     - checkout: none
-      #     - task: DownloadPipelineArtifact@2
-      #       inputs:
-      #         artifact: sources
-      #         path: $(System.DefaultWorkingDirectory)
-      #     - bash: |
-      #         ls
+      - job: android
+        pool:
+          # The Android emulator is currently only available on macos, see:
+          # https://docs.microsoft.com/en-us/azure/devops/pipelines/ecosystems/android?view=azure-devops#test-on-the-android-emulator
+          vmImage: "macOs-latest"
+        steps:
+          - checkout: none
+          - task: DownloadPipelineArtifact@2
+            inputs:
+              artifact: sources
+              path: $(System.DefaultWorkingDirectory)
+          # See: https://developer.android.com/ndk/guides/cmake
+          - script: |
+              mkdir build && cd build
+              cmake \
+                -DCMAKE_TOOLCHAIN_FILE=$NDK/build/cmake/android.toolchain.cmake \
+                -DANDROID_ABI=x86 \
+                -DANDROID_NATIVE_API_LEVEL=27 \
+                ..
+              cmake --build . --parallel
+            displayName: Build
+          - script: |
+              bash scripts/start-android.sh
+              export DEVICE_DIR="/data/local/tmp"
+              $ANDROID_HOME/platform-tools/adb push ./build "${DEVICE_DIR}"
+              $ANDROID_HOME/platform-tools/adb shell "${DEVICE_DIR}/build/sentry_tests"
+            displayName: Test
