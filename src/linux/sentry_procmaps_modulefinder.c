@@ -17,7 +17,7 @@ static sentry_mutex_t g_mutex = SENTRY__MUTEX_INIT;
 static sentry_value_t g_modules;
 
 int
-sentry__procmaps_parse_module_line(char *line, sentry_module_t *module)
+sentry__procmaps_parse_module_line(const char *line, sentry_module_t *module)
 {
     char permissions[5] = { 0 };
     uint64_t offset;
@@ -39,15 +39,19 @@ sentry__procmaps_parse_module_line(char *line, sentry_module_t *module)
 
     // copy the filename up to a newline
     line += consumed;
+    module->file.ptr = line;
+    module->file.len = 0;
     char *nl = strchr(line, '\n');
+    // `consumed` skips over whitespace (the trailing newline), so we have to
+    // check for that explicitly
     if (consumed && (line - 1)[0] == '\n') {
-        module->file = NULL;
+        module->file.ptr = NULL;
     } else if (nl) {
-        module->file = sentry__string_clonen(line, nl - line);
+        module->file.len = nl - line;
         consumed += nl - line + 1;
     } else {
-        module->file = sentry__string_clone(line);
-        consumed += strlen(line);
+        module->file.len = strlen(line);
+        consumed += module->file.len;
     }
 
     // and return the consumed chars…
@@ -157,8 +161,8 @@ module_to_value(const sentry_module_t *module)
         mod_val, "image_addr", sentry__value_new_addr((uint64_t)module->start));
     sentry_value_set_by_key(mod_val, "image_size",
         sentry_value_new_int32((int32_t)(module->end - module->start)));
-    sentry_value_set_by_key(
-        mod_val, "code_file", sentry__value_new_string_owned(module->file));
+    sentry_value_set_by_key(mod_val, "code_file",
+        sentry__value_new_string_owned(sentry__slice_to_owned(module->file)));
 
     // and try to get the debug id from the elf headers of the loaded
     // modules
@@ -194,12 +198,14 @@ module_to_value(const sentry_module_t *module)
 static void
 try_append_module(sentry_value_t modules, const sentry_module_t *module)
 {
-    if (!module->file || !is_elf_module(module->start)) {
+    if (!module->file.ptr || !is_elf_module(module->start)) {
         return;
     }
 
     sentry_value_append(modules, module_to_value(module));
 }
+
+static sentry_slice_t LINUX_GATE = { "linux-gate.so", 13 };
 
 static void
 load_modules(sentry_value_t modules)
@@ -239,9 +245,9 @@ load_modules(sentry_value_t modules)
 
     // we have multiple memory maps per file, and we need to merge their offsets
     // based on the filename. Luckily, the maps are ordered by filename, so yay
-    sentry_module_t last_module = { (void *)SIZE_MAX, 0, NULL };
+    sentry_module_t last_module = { (void *)SIZE_MAX, 0, { NULL, 0 } };
     while (true) {
-        sentry_module_t module = { 0, 0, NULL };
+        sentry_module_t module = { 0, 0, { NULL, 0 } };
         int read = sentry__procmaps_parse_module_line(current_line, &module);
         current_line += read;
         if (!read) {
@@ -250,22 +256,21 @@ load_modules(sentry_value_t modules)
 
         // for the vdso, we use the special filename `linux-gate.so`
         if (module.start == linux_vdso) {
-            sentry_free(module.file);
-            module.file = sentry__string_clone("linux-gate.so");
+            module.file = LINUX_GATE;
         }
         // skip over anonymous mappings
-        if (!module.file || module.file[0] == '[') {
+        if (!module.file.len || module.file.ptr[0] == '[') {
             continue;
         }
 
-        if (last_module.file && strcmp(last_module.file, module.file) != 0) {
+        if (last_module.file.len
+            && sentry__slice_cmp(last_module.file, module.file) != 0) {
             try_append_module(modules, &last_module);
             last_module = module;
         } else {
             // otherwise merge it
             last_module.start = MIN(last_module.start, module.start);
             last_module.end = MAX(last_module.end, module.end);
-            sentry_free(last_module.file);
             last_module.file = module.file;
         }
     }

@@ -2,15 +2,16 @@
 #define SENTRY_PROCMAPS_MODULEFINDER_H_INCLUDED
 
 #include "../sentry_boot.h"
+#include "../sentry_slice.h"
 
-struct sentry_module_s {
+typedef struct {
     void *start;
     void *end;
-    char *file;
-};
-typedef struct sentry_module_s sentry_module_t;
+    sentry_slice_t file;
+} sentry_module_t;
 
-int sentry__procmaps_parse_module_line(char *line, sentry_module_t *module);
+int sentry__procmaps_parse_module_line(
+    const char *line, sentry_module_t *module);
 
 sentry_value_t sentry__procmaps_modules_get_list(void);
 
