@@ -88,10 +88,13 @@ typedef enum {
    Note also that after SIGSEGV sentry_free() becomes a noop. */
 
 /* allocates memory with the underlying allocator */
-void *sentry_malloc(size_t size);
+SENTRY_API void *sentry_malloc(size_t size);
 
 /* releases memory allocated from the underlying allocator */
-void sentry_free(void *ptr);
+SENTRY_API void sentry_free(void *ptr);
+
+/* legacy function.  Alias for `sentry_free`. */
+#define sentry_string_free sentry_free
 
 /* -- Protocol Value API -- */
 
