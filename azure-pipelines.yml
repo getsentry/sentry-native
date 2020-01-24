@@ -24,7 +24,7 @@ stages:
 
     jobs:
 
-      - job: linux
+      - job: Linux
         pool:
           vmImage: "ubuntu-latest"
         steps:
@@ -38,7 +38,7 @@ stages:
           - script: ./build/sentry_tests
             displayName: Test
 
-      - job: macos
+      - job: macOS
         pool:
           vmImage: "macOs-latest"
         steps:
@@ -52,7 +52,7 @@ stages:
           - script: ./build/sentry_tests
             displayName: Test
 
-      - job: windows
+      - job: Windows
         pool:
           vmImage: "windows-latest"
         steps:
@@ -66,13 +66,20 @@ stages:
           - script: .\build\Debug\sentry_tests.exe
             displayName: Test
 
-      - job: android
+      - job: Android
+        strategy:
+          matrix:
+            #NDK16:
+            #  ANDROID_NDK: 16.1.4479499
+            NDK19:
+              ANDROID_NDK: 19.2.5345600
+            NDK21:
+              ANDROID_NDK: 21.0.6113669
         pool:
           # The Android emulator is currently only available on macos, see:
           # https://docs.microsoft.com/en-us/azure/devops/pipelines/ecosystems/android?view=azure-devops#test-on-the-android-emulator
           vmImage: "macOs-latest"
         variables:
-          ANDROID_NDK: 21.0.6113669
           ANDROID_ARCH: x86
           ANDROID_IMAGE: system-images;android-27;google_apis;$(ANDROID_ARCH)
         steps:
