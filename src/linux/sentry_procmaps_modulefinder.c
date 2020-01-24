@@ -103,7 +103,7 @@ static bool
 is_elf_module(void *addr)
 {
     // we try to interpret `addr` as an ELF file, which should start with a
-    // magic number…
+    // magic number...
     const unsigned char *e_ident = addr;
     return e_ident[EI_MAG0] == ELFMAG0 && e_ident[EI_MAG1] == ELFMAG1
         && e_ident[EI_MAG2] == ELFMAG2 && e_ident[EI_MAG3] == ELFMAG3;
@@ -113,9 +113,19 @@ static const uint8_t *
 get_code_id_from_elf(void *base, size_t *size_out)
 {
     *size_out = 0;
+
+    // now this is interesting:
+    // `p_offset` is defined as the offset of the section relative to the file,
+    // and `p_vaddr` is supposed to be the memory location.
+    // interestingly though, when compiled with gcc 7.4, both are the same,
+    // because apparently it does not really patch up the `p_vaddr`. gcc 5.4
+    // however does, so `p_vaddr` is an actual pointer, and not an offset to
+    // be added to the `base`. So we are using `p_offset` here, since it seems
+    // to be the correct offset relative to `base` using both compilers.
     const uint8_t *addr = base;
-    const unsigned char *e_ident = addr;
+
     // iterate over all the program headers, for 32/64 bit separately
+    const unsigned char *e_ident = addr;
     if (e_ident[EI_CLASS] == ELFCLASS64) {
         const Elf64_Ehdr *elf = base;
         for (int i = 0; i < elf->e_phnum; i++) {
@@ -126,8 +136,8 @@ get_code_id_from_elf(void *base, size_t *size_out)
                 continue;
             }
             const uint8_t *code_id = get_code_id_from_notes(header->p_align,
-                (void *)(addr + header->p_vaddr),
-                (void *)(addr + header->p_vaddr + header->p_memsz), size_out);
+                (void *)(addr + header->p_offset),
+                (void *)(addr + header->p_offset + header->p_memsz), size_out);
             if (code_id) {
                 return code_id;
             }
@@ -142,8 +152,8 @@ get_code_id_from_elf(void *base, size_t *size_out)
                 continue;
             }
             const uint8_t *code_id = get_code_id_from_notes(header->p_align,
-                (void *)(addr + header->p_vaddr),
-                (void *)(addr + header->p_vaddr + header->p_memsz), size_out);
+                (void *)(addr + header->p_offset),
+                (void *)(addr + header->p_offset + header->p_memsz), size_out);
             if (code_id) {
                 return code_id;
             }
