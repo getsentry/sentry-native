@@ -1,6 +1,0 @@
-steps:
-  - bash: |
-      set -eux
-      env
-      python --version
-    displayName: Agent information
