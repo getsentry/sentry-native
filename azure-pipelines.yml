@@ -69,11 +69,11 @@ stages:
       - job: Android
         strategy:
           matrix:
-            #NDK16:
-            #  ANDROID_NDK: 16.1.4479499
-            NDK19:
-              ANDROID_NDK: 19.2.5345600
-            NDK21:
+            #API18:
+            #  ANDROID_API: 18
+            #  ANDROID_NDK: 19.2.5345600
+            API29:
+              ANDROID_API: 29
               ANDROID_NDK: 21.0.6113669
         pool:
           # The Android emulator is currently only available on macos, see:
@@ -81,7 +81,7 @@ stages:
           vmImage: "macOs-latest"
         variables:
           ANDROID_ARCH: x86
-          ANDROID_IMAGE: system-images;android-27;google_apis;$(ANDROID_ARCH)
+          ANDROID_IMAGE: system-images;android-$(ANDROID_API);google_apis;$(ANDROID_ARCH)
         steps:
           - checkout: none
           - download: current
@@ -96,7 +96,7 @@ stages:
               cmake \
                 -DCMAKE_TOOLCHAIN_FILE=$ANDROID_HOME/ndk/$(ANDROID_NDK)/build/cmake/android.toolchain.cmake \
                 -DANDROID_ABI=$(ANDROID_ARCH) \
-                -DANDROID_NATIVE_API_LEVEL=27 \
+                -DANDROID_NATIVE_API_LEVEL=$(ANDROID_API) \
                 ..
               cmake --build . --parallel
             displayName: Build
