@@ -1,5 +1,8 @@
 #include "sentry_modulefinder.h"
 
+#ifdef SENTRY_PLATFORM_LINUX
+#    include "linux/sentry_procmaps_modulefinder.h"
+#endif
 #ifdef SENTRY_PLATFORM_DARWIN
 #    include "darwin/sentry_darwin_modulefinder.h"
 #endif
@@ -18,6 +21,9 @@
 sentry_value_t
 sentry__modules_get_list(void)
 {
+#ifdef SENTRY_PLATFORM_LINUX
+    TRY_MODULEFINDER(sentry__procmaps_modules_get_list);
+#endif
 #ifdef SENTRY_PLATFORM_DARWIN
     TRY_MODULEFINDER(sentry__darwin_modules_get_list);
 #endif
