@@ -69,9 +69,9 @@ stages:
       - job: Android
         strategy:
           matrix:
-            #API18:
-            #  ANDROID_API: 18
-            #  ANDROID_NDK: 19.2.5345600
+            API18:
+             ANDROID_API: 18
+             ANDROID_NDK: 19.2.5345600
             API29:
               ANDROID_API: 29
               ANDROID_NDK: 21.0.6113669
