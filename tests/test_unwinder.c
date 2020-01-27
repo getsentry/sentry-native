@@ -33,6 +33,7 @@ find_frame(const sentry_frame_info_t *info, void *data)
 
 SENTRY_TEST(test_unwinder)
 {
+#ifndef SENTRY_PLATFORM_WINDOWS
     void **backtrace = invoke_unwinder();
 
     int found_frame = 0;
@@ -44,4 +45,5 @@ SENTRY_TEST(test_unwinder)
     sentry_free(backtrace);
 
     TEST_CHECK_INT_EQUAL(found_frame, 1);
+#endif
 }
