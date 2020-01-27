@@ -1,14 +1,12 @@
 #include "sentry_boot.h"
 
-#ifdef SENTRY_PLATFORM_DARWIN
-#    include "unix/sentry_unix_unwinder_libbacktrace.h"
-#    define HAVE_LIBBACKTRACE
-#endif
 #ifdef SENTRY_PLATFORM_ANDROID
 #    include "unix/sentry_unix_unwinder_libunwindstack.h"
 #    define HAVE_LIBUNWINDSTACK
-#endif
-#ifdef SENTRY_PLATFORM_WINDOWS
+#elif defined(SENTRY_PLATFORM_DARWIN) || defined(SENTRY_PLATFORM_LINUX)
+#    include "unix/sentry_unix_unwinder_libbacktrace.h"
+#    define HAVE_LIBBACKTRACE
+#elif defined(SENTRY_PLATFORM_WINDOWS)
 #    include "windows/sentry_windows_dbghelp.h"
 #    define HAVE_DBGHELP
 #endif
