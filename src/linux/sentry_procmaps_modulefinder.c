@@ -264,12 +264,18 @@ load_modules(sentry_value_t modules)
             break;
         }
 
-        // for the vdso, we use the special filename `linux-gate.so`
+        // for the vdso, we use the special filename `linux-gate.so`,
+        // otherwise we check that we have a valid pathname (with a `/` inside),
+        // and skip over things that end in `)`, because entries marked as
+        // `(deleted)` might crash when dereferencing, trying to check if its
+        // a valid elf file.
+        char *slash;
         if (module.start == linux_vdso) {
             module.file = LINUX_GATE;
-        }
-        // skip over anonymous mappings
-        if (!module.file.len || module.file.ptr[0] == '[') {
+        } else if (!module.file.len
+            || module.file.ptr[module.file.len - 1] == ')'
+            || (slash = strchr(module.file.ptr, '/')) == NULL
+            || slash > module.file.ptr + module.file.len) {
             continue;
         }
 
@@ -294,6 +300,7 @@ sentry__procmaps_modules_get_list(void)
     sentry__mutex_lock(&g_mutex);
     if (!g_initialized) {
         g_modules = sentry_value_new_list();
+        SENTRY_TRACE("trying to read modules from /proc/self/maps");
         load_modules(g_modules);
         SENTRY_TRACEF("read %zu modules from /proc/self/maps",
             sentry_value_get_length(g_modules));
