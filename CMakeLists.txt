@@ -128,7 +128,7 @@ target_link_libraries("sentry_tests" ${LINK_LIBRARIES})
 
 # to fix some issues with tests (dladdr can't find functions otherwise)
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux" OR CMAKE_SYSTEM_NAME STREQUAL "Android")
-	target_link_libraries("sentry_tests" "-Wl,--build-id=uuid,-E")
+	target_link_libraries("sentry_tests" "-Wl,--build-id=sha1,-E")
 endif()
 
 
