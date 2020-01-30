@@ -196,6 +196,10 @@ module_to_value(const sentry_module_t *module)
 
         sentry_value_set_by_key(
             mod_val, "debug_id", sentry__value_new_uuid(&uuid));
+    } else {
+        sentry_uuid_t empty_uuid = sentry_uuid_nil();
+        sentry_value_set_by_key(
+            mod_val, "debug_id", sentry__value_new_uuid(&empty_uuid));
     }
 
     return mod_val;
