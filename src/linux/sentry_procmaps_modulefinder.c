@@ -309,7 +309,8 @@ load_modules(sentry_value_t modules)
             || module.file.ptr[module.file.len - 1] == ')'
             || (slash = strchr(module.file.ptr, '/')) == NULL
             || slash > module.file.ptr + module.file.len
-            || strncmp("/dev/", module.file.ptr, module.file.len) == 0) {
+            || (module.file.len >= 5
+                && memcmp("/dev/", module.file.ptr, 5) == 0)) {
             continue;
         }
 
