@@ -284,7 +284,7 @@ load_modules(sentry_value_t modules)
     }
     char *current_line = contents;
 
-    void *linux_vdso = (void *)get_linux_vdso();
+    void *linux_vdso = get_linux_vdso();
 
     // we have multiple memory maps per file, and we need to merge their offsets
     // based on the filename. Luckily, the maps are ordered by filename, so yay
@@ -303,9 +303,9 @@ load_modules(sentry_value_t modules)
         // `(deleted)` might crash when dereferencing, trying to check if its
         // a valid elf file.
         char *slash;
-        if (module.start == linux_vdso) {
+        if (module.start && module.start == linux_vdso) {
             module.file = LINUX_GATE;
-        } else if (!module.file.len
+        } else if (!module.start || !module.file.len
             || module.file.ptr[module.file.len - 1] == ')'
             || (slash = strchr(module.file.ptr, '/')) == NULL
             || slash > module.file.ptr + module.file.len
