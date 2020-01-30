@@ -69,8 +69,8 @@ stages:
       - job: Android
         strategy:
           matrix:
-            API18:
-             ANDROID_API: 18
+            API16:
+             ANDROID_API: 16
              ANDROID_NDK: 19.2.5345600
             API29:
               ANDROID_API: 29
@@ -86,6 +86,7 @@ stages:
           - checkout: none
           - download: current
           - script: |
+              echo "Downloading ndk;$(ANDROID_NDK) and $(ANDROID_IMAGE)"
               echo "y" | $ANDROID_HOME/tools/bin/sdkmanager --install \
                 "ndk;$(ANDROID_NDK)" "$(ANDROID_IMAGE)" | \
                 grep -v "\[=" || true # suppress the progress bar, so we get meaningful logs
