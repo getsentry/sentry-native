@@ -9,7 +9,6 @@
 #include <fcntl.h>
 #include <inttypes.h>
 #include <string.h>
-#include <sys/auxv.h>
 #include <unistd.h>
 
 static bool g_initialized = false;
@@ -217,6 +216,41 @@ try_append_module(sentry_value_t modules, const sentry_module_t *module)
 
 static sentry_slice_t LINUX_GATE = { "linux-gate.so", 13 };
 
+// copied from:
+// https://github.com/google/breakpad/blob/216cea7bca53fa441a3ee0d0f5fd339a3a894224/src/client/linux/minidump_writer/linux_dumper.h#L61-L70
+#if defined(__i386) || defined(__ARM_EABI__)                                   \
+    || (defined(__mips__) && _MIPS_SIM == _ABIO32)
+typedef Elf32_auxv_t elf_aux_entry;
+#elif defined(__x86_64) || defined(__aarch64__)                                \
+    || (defined(__mips__) && _MIPS_SIM != _ABIO32)
+typedef Elf64_auxv_t elf_aux_entry;
+#endif
+
+// See http://man7.org/linux/man-pages/man7/vdso.7.html
+static void *
+get_linux_vdso(void)
+{
+    // this is adapted from:
+    // https://github.com/google/breakpad/blob/79ba6a494fb2097b39f76fe6a4b4b4f407e32a02/src/client/linux/minidump_writer/linux_dumper.cc#L548-L572
+
+    int fd = open("/proc/self/auxv", O_RDONLY);
+    if (fd < 0) {
+        return false;
+    }
+
+    elf_aux_entry one_aux_entry;
+    while (
+        read(fd, &one_aux_entry, sizeof(elf_aux_entry)) == sizeof(elf_aux_entry)
+        && one_aux_entry.a_type != AT_NULL) {
+        if (one_aux_entry.a_type == AT_SYSINFO_EHDR) {
+            close(fd);
+            return (void *)one_aux_entry.a_un.a_val;
+        }
+    }
+    close(fd);
+    return NULL;
+}
+
 static void
 load_modules(sentry_value_t modules)
 {
@@ -250,12 +284,11 @@ load_modules(sentry_value_t modules)
     }
     char *current_line = contents;
 
-    // See http://man7.org/linux/man-pages/man7/vdso.7.html
-    void *linux_vdso = (void *)getauxval(AT_SYSINFO_EHDR);
+    void *linux_vdso = (void *)get_linux_vdso();
 
     // we have multiple memory maps per file, and we need to merge their offsets
     // based on the filename. Luckily, the maps are ordered by filename, so yay
-    sentry_module_t last_module = { (void *)SIZE_MAX, 0, { NULL, 0 } };
+    sentry_module_t last_module = { (void *)-1, 0, { NULL, 0 } };
     while (true) {
         sentry_module_t module = { 0, 0, { NULL, 0 } };
         int read = sentry__procmaps_parse_module_line(current_line, &module);
@@ -275,7 +308,8 @@ load_modules(sentry_value_t modules)
         } else if (!module.file.len
             || module.file.ptr[module.file.len - 1] == ')'
             || (slash = strchr(module.file.ptr, '/')) == NULL
-            || slash > module.file.ptr + module.file.len) {
+            || slash > module.file.ptr + module.file.len
+            || strncmp("/dev/", module.file.ptr, module.file.len) == 0) {
             continue;
         }
 
