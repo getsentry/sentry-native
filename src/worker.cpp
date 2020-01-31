@@ -32,6 +32,7 @@ void BackgroundWorker::start() {
                 m_wake.wait_for(lock, std::chrono::seconds(5));
             } else if (task) {
                 (*task)();
+                delete task;
             } else {
                 m_running = false;
                 m_wake.notify_one();
