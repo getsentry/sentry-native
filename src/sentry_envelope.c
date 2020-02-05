@@ -92,8 +92,8 @@ envelope_item_get_type(const sentry_envelope_item_t *item)
     }
 }
 
-static void
-envelope_item_set_header(
+void
+sentry__envelope_item_set_header(
     sentry_envelope_item_t *item, const char *key, sentry_value_t value)
 {
     sentry_value_set_by_key(item->headers, key, value);
@@ -223,9 +223,10 @@ sentry__envelope_add_event(sentry_envelope_t *envelope, sentry_value_t event)
     item->event = event;
     item->payload = sentry_value_to_json(event);
     item->payload_len = strlen(item->payload);
-    envelope_item_set_header(item, "type", sentry_value_new_string("event"));
+    sentry__envelope_item_set_header(
+        item, "type", sentry_value_new_string("event"));
     sentry_value_t length = sentry_value_new_int32((int32_t)item->payload_len);
-    envelope_item_set_header(item, "length", length);
+    sentry__envelope_item_set_header(item, "length", length);
 
     sentry_value_incref(event_id);
     sentry__envelope_set_header(envelope, "event_id", event_id);
@@ -245,8 +246,9 @@ envelope_add_from_owned_buffer(
     item->payload = buf;
     item->payload_len = buf_len;
     sentry_value_t length = sentry_value_new_int32((int32_t)buf_len);
-    envelope_item_set_header(item, "type", sentry_value_new_string(type));
-    envelope_item_set_header(item, "length", length);
+    sentry__envelope_item_set_header(
+        item, "type", sentry_value_new_string(type));
+    sentry__envelope_item_set_header(item, "length", length);
 
     return item;
 }

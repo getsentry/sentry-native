@@ -44,6 +44,14 @@
 
 struct sentry_backend_s;
 
+// We save the attachments as a linked list basically
+typedef struct sentry_attachment_s sentry_attachment_t;
+struct sentry_attachment_s {
+    char *name;
+    sentry_path_t *path;
+    sentry_attachment_t *next;
+};
+
 struct sentry_options_s {
     char *raw_dsn;
     sentry_dsn_t dsn;
@@ -56,6 +64,8 @@ struct sentry_options_s {
     sentry_path_t *handler_path;
     bool debug;
     bool require_user_consent;
+
+    sentry_attachment_t *attachments;
 
     sentry_transport_t *transport;
     sentry_event_function_t before_send_func;
