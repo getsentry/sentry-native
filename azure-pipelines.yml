@@ -23,7 +23,6 @@ stages:
     displayName: Build & Test
 
     jobs:
-
       - job: Linux
         pool:
           vmImage: "ubuntu-latest"
@@ -33,10 +32,17 @@ stages:
           - script: |
               mkdir -p build && cd build
               cmake ..
-              cmake --build . --parallel
+              cmake --build . --parallel --target sentry_tests
             displayName: Build
           - script: ./build/sentry_tests
             displayName: Test
+          - script: |
+              rm -rf build
+              mkdir -p build && cd build
+              cmake -DBUILD_SHARED_LIBS=OFF ..
+              cmake --build . --parallel --target example
+              ! (ldd example | grep -q libsentry)
+            displayName: Test static library build
 
       - job: macOS
         pool:
@@ -47,7 +53,7 @@ stages:
           - script: |
               mkdir -p build && cd build
               cmake ..
-              cmake --build . --parallel
+              cmake --build . --parallel --target sentry_tests
             displayName: Build
           - script: ./build/sentry_tests
             displayName: Test
@@ -61,7 +67,7 @@ stages:
           - script: |
               mkdir build && cd build
               cmake ..
-              cmake --build . --parallel
+              cmake --build . --parallel --target sentry_tests
             displayName: Build
           - script: .\build\Debug\sentry_tests.exe
             displayName: Test
@@ -70,8 +76,8 @@ stages:
         strategy:
           matrix:
             API16:
-             ANDROID_API: 16
-             ANDROID_NDK: 19.2.5345600
+              ANDROID_API: 16
+              ANDROID_NDK: 19.2.5345600
             API29:
               ANDROID_API: 29
               ANDROID_NDK: 21.0.6113669
@@ -99,7 +105,7 @@ stages:
                 -DANDROID_ABI=$(ANDROID_ARCH) \
                 -DANDROID_NATIVE_API_LEVEL=$(ANDROID_API) \
                 ..
-              cmake --build . --parallel
+              cmake --build . --parallel --target sentry_tests
             displayName: Build
           - script: |
               bash scripts/start-android.sh
