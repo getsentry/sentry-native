@@ -1,11 +1,7 @@
 cmake_minimum_required (VERSION 3.0)
 project (Sentry-Native LANGUAGES C CXX ASM)
 
-#set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Werror=implicit-function-declaration -Werror=incompatible-function-pointer-types -Wall -fvisibility=hidden")
-if(NOT WIN32)
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -fvisibility=hidden")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
-endif()
+OPTION(BUILD_SHARED_LIBS "Build shared libraries (.dll/.so) instead of static ones (.lib/.a)" ON)
 
 OPTION(WITH_ASAN_OPTION "Build sentry-native with address sanitizer" OFF)
 if(WITH_ASAN_OPTION)
@@ -24,13 +20,23 @@ include_directories("include")
 set(SENTRY_NATIVE_SOURCE_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/src)
 set(SENTRY_EXTRA_LIBS)
 
-add_definitions(-DSENTRY_BUILD_SHARED)
+if(BUILD_SHARED_LIBS)
+	add_definitions(-DSENTRY_BUILD_SHARED)
+else()
+	add_definitions(-DSENTRY_BUILD_STATIC)
+endif()
 
 FIND_PACKAGE(CURL)
 if(CURL_FOUND)
 	add_definitions(-DSENTRY_WITH_LIBCURL_TRANSPORT)
 	include_directories(${CURL_INCLUDE_DIR})
 	set(LINK_LIBRARIES ${LINK_LIBRARIES} ${CURL_LIBRARIES})
+endif()
+
+#set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Werror=implicit-function-declaration -Werror=incompatible-function-pointer-types -Wall -fvisibility=hidden")
+if(NOT WIN32)
+	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -fvisibility=hidden")
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 endif()
 
 file(GLOB SENTRY_NATIVE_SOURCES
@@ -112,14 +118,16 @@ if(WIN32)
 	set(LINK_LIBRARIES ${LINK_LIBRARIES} "dbghelp.lib")
 endif()
 
-add_library("sentry" SHARED
-	${SENTRY_NATIVE_ALL_SOURCES}
-)
+# ===== sentry library =====
+
+add_library("sentry" ${SENTRY_NATIVE_ALL_SOURCES})
 target_link_libraries("sentry" ${LINK_LIBRARIES})
+
+# ===== tests =====
 
 # compile tests separately and pass an extra preprocessor define so we can
 # switch some internal modes for the unittests.
-add_executable("sentry_tests"
+add_executable("sentry_tests" EXCLUDE_FROM_ALL
 	${SENTRY_NATIVE_ALL_SOURCES}
 	${SENTRY_NATIVE_TEST_SOURCES}
 )
@@ -131,6 +139,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" OR CMAKE_SYSTEM_NAME STREQUAL "Android")
 	target_link_libraries("sentry_tests" "-Wl,--build-id=sha1,-E")
 endif()
 
+# ===== examples =====
 
-add_executable("example" "./examples/example.c")
+add_executable("example" EXCLUDE_FROM_ALL "./examples/example.c")
 target_link_libraries("example" "sentry")

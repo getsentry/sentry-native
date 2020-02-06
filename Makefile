@@ -12,7 +12,10 @@ build: build/Makefile
 	@$(MAKE) -C build
 .PHONY: build
 
-test: update-test-discovery build
+build/sentry_tests: build
+	@$(MAKE) -C build sentry_tests
+
+test: update-test-discovery build/sentry_tests
 	@./build/sentry_tests
 .PHONY: test
 
