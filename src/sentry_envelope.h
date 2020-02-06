@@ -36,6 +36,8 @@ sentry_envelope_item_t *sentry__envelope_add_from_path(
 sentry_envelope_item_t *sentry__envelope_add_from_buffer(
     sentry_envelope_t *envelope, const char *buf, size_t buf_len,
     const char *type);
+void sentry__envelope_item_set_header(
+    sentry_envelope_item_t *item, const char *key, sentry_value_t value);
 void sentry__envelope_for_each_request(const sentry_envelope_t *envelope,
     bool (*callback)(sentry_prepared_http_request_t *,
         const sentry_envelope_t *, void *data),

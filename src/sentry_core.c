@@ -46,7 +46,7 @@ sentry__should_skip_upload(void)
     const sentry_options_t *opts = sentry_get_options();
     bool skip = !opts
         || (opts->require_user_consent
-               && opts->user_consent != SENTRY_USER_CONSENT_GIVEN);
+            && opts->user_consent != SENTRY_USER_CONSENT_GIVEN);
     sentry__mutex_unlock(&g_options_mutex);
     return skip;
 }
@@ -175,6 +175,22 @@ sentry_capture_event(sentry_value_t event)
     }
     if (opts->transport && !sentry_value_is_null(event)) {
         sentry_envelope_t *envelope = sentry__envelope_new();
+        if (!envelope) {
+            return event_id;
+        }
+
+        SENTRY_TRACE("adding attachments to envelope");
+        for (sentry_attachment_t *attachment = opts->attachments; attachment;
+             attachment = attachment->next) {
+            sentry_envelope_item_t *item = sentry__envelope_add_from_path(
+                envelope, attachment->path, "attachment");
+            if (!item) {
+                continue;
+            }
+            sentry__envelope_item_set_header(
+                item, "name", sentry_value_new_string(attachment->name));
+        }
+
         if (sentry__envelope_add_event(envelope, event)) {
             SENTRY_TRACE("sending envelope");
             opts->transport->send_envelope_func(opts->transport, envelope);
@@ -202,6 +218,14 @@ sentry_options_new(void)
 }
 
 void
+sentry__attachment_free(sentry_attachment_t *attachment)
+{
+    sentry__path_free(attachment->path);
+    sentry_free(attachment->name);
+    sentry_free(attachment);
+}
+
+void
 sentry_options_free(sentry_options_t *opts)
 {
     if (!opts) {
@@ -218,6 +242,15 @@ sentry_options_free(sentry_options_t *opts)
     sentry__path_free(opts->handler_path);
     sentry_transport_free(opts->transport);
     sentry__backend_free(opts->backend);
+
+    sentry_attachment_t *next_attachment = opts->attachments;
+    while (next_attachment) {
+        sentry_attachment_t *attachment = next_attachment;
+        next_attachment = attachment->next;
+
+        sentry__attachment_free(attachment);
+    }
+
     sentry_free(opts);
 }
 
@@ -371,6 +404,37 @@ sentry_options_set_system_crash_reporter_enabled(
     /* TODO: implement */
 }
 
+static void
+add_attachment(
+    sentry_options_t *opts, const char *orig_name, sentry_path_t *path)
+{
+    if (!path) {
+        return;
+    }
+    char *name = sentry__string_clone(orig_name);
+    if (!name) {
+        sentry__path_free(path);
+        return;
+    }
+    sentry_attachment_t *attachment = SENTRY_MAKE(sentry_attachment_t);
+    if (!attachment) {
+        sentry_free(name);
+        sentry__path_free(path);
+        return;
+    }
+    attachment->name = name;
+    attachment->path = path;
+    attachment->next = opts->attachments;
+    opts->attachments = attachment;
+}
+
+void
+sentry_options_add_attachment(
+    sentry_options_t *opts, const char *name, const char *path)
+{
+    add_attachment(opts, name, sentry__path_from_str(path));
+}
+
 void
 sentry_options_set_handler_path(sentry_options_t *opts, const char *path)
 {
@@ -386,6 +450,13 @@ sentry_options_set_database_path(sentry_options_t *opts, const char *path)
 }
 
 #ifdef SENTRY_PLATFORM_WINDOWS
+void
+sentry_options_add_attachmentw(
+    sentry_options_t *opts, const char *name, const wchar_t *path)
+{
+    add_attachment(opts, name, sentry__path_from_wstr(path));
+}
+
 void
 sentry_options_set_handler_pathw(sentry_options_t *opts, const wchar_t *path)
 {
