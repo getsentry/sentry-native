@@ -175,6 +175,9 @@ sentry_capture_event(sentry_value_t event)
     }
     if (opts->transport && !sentry_value_is_null(event)) {
         sentry_envelope_t *envelope = sentry__envelope_new();
+        if (!envelope) {
+            return event_id;
+        }
 
         SENTRY_TRACE("adding attachments to envelope");
         for (sentry_attachment_t *attachment = opts->attachments; attachment;
@@ -182,7 +185,7 @@ sentry_capture_event(sentry_value_t event)
             sentry_envelope_item_t *item = sentry__envelope_add_from_path(
                 envelope, attachment->path, "attachment");
             if (!item) {
-                sentry_envelope_free(envelope);
+                continue;
             }
             sentry__envelope_item_set_header(
                 item, "name", sentry_value_new_string(attachment->name));
@@ -215,6 +218,14 @@ sentry_options_new(void)
 }
 
 void
+sentry__attachment_free(sentry_attachment_t *attachment)
+{
+    sentry__path_free(attachment->path);
+    sentry_free(attachment->name);
+    sentry_free(attachment);
+}
+
+void
 sentry_options_free(sentry_options_t *opts)
 {
     if (!opts) {
@@ -237,9 +248,7 @@ sentry_options_free(sentry_options_t *opts)
         sentry_attachment_t *attachment = next_attachment;
         next_attachment = attachment->next;
 
-        sentry__path_free(attachment->path);
-        sentry_free(attachment->name);
-        sentry_free(attachment);
+        sentry__attachment_free(attachment);
     }
 
     sentry_free(opts);

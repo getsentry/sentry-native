@@ -77,6 +77,8 @@ struct sentry_options_s {
     sentry_user_consent_t user_consent;
 };
 
+void sentry__attachment_free(sentry_attachment_t *attachment);
+
 bool sentry__should_skip_upload(void);
 
 void sentry__enforce_disk_transport(void);

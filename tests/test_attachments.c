@@ -38,41 +38,56 @@ SENTRY_TEST(lazy_attachments)
     sentry_options_set_release(options, "prod");
 
     sentry_options_add_attachment(
-        options, "my-attachment-name", PREFIX ".test-file-attachment");
-    sentry_path_t *path = sentry__path_from_str(PREFIX ".test-file-attachment");
+        options, "existing-attachment", PREFIX ".existing-file-attachment");
+    sentry_options_add_attachment(options, "non-existing-attachment",
+        PREFIX ".non-existing-file-attachment");
+    sentry_path_t *existing
+        = sentry__path_from_str(PREFIX ".existing-file-attachment");
+    sentry_path_t *non_existing
+        = sentry__path_from_str(PREFIX ".non-existing-file-attachment");
 
     sentry_init(options);
 
-    sentry__path_write_buffer(path, "foo", 3);
+    sentry__path_write_buffer(existing, "foo", 3);
     sentry_capture_event(sentry_value_new_message_event(
         SENTRY_LEVEL_INFO, "root", "Hello World!"));
 
     char *serialized
         = sentry_stringbuilder_take_string(&testdata.serialized_envelope);
     TEST_CHECK(strstr(serialized,
-                   "{\"type\":\"attachment\",\"length\":3,\"name\":\"my-"
-                   "attachment-name\"}"
+                   "{\"type\":\"attachment\",\"length\":3,\"name\":\"existing-"
+                   "attachment\"}"
                    "\nfoo\n")
         != NULL);
+    TEST_CHECK(
+        strstr(serialized, "\"name\":\"non-existing-attachment\"") == NULL);
     sentry_free(serialized);
 
-    sentry__path_write_buffer(path, "foobar", 6);
+    sentry__path_write_buffer(existing, "foobar", 6);
+    sentry__path_write_buffer(non_existing, "it exists", 9);
     sentry_capture_event(sentry_value_new_message_event(
         SENTRY_LEVEL_INFO, "root", "Hello World!"));
 
     serialized
         = sentry_stringbuilder_take_string(&testdata.serialized_envelope);
     TEST_CHECK(strstr(serialized,
-                   "{\"type\":\"attachment\",\"length\":6,\"name\":\"my-"
-                   "attachment-name\"}"
+                   "{\"type\":\"attachment\",\"length\":6,\"name\":\"existing-"
+                   "attachment\"}"
                    "\nfoobar\n")
+        != NULL);
+    TEST_CHECK(strstr(serialized,
+                   "{\"type\":\"attachment\",\"length\":9,\"name\":\"non-"
+                   "existing-attachment\"}"
+                   "\nit exists\n")
         != NULL);
     sentry_free(serialized);
 
     sentry_shutdown();
 
-    sentry__path_remove_all(path);
-    sentry__path_free(path);
+    sentry__path_remove_all(existing);
+    sentry__path_remove_all(non_existing);
+    sentry__path_free(existing);
+    sentry__path_free(non_existing);
 
     TEST_CHECK_INT_EQUAL(testdata.called, 2);
 }
