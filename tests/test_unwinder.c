@@ -4,9 +4,7 @@
 
 #define MAX_FRAMES 128
 
-// NOTE: marking this as `SENTRY_API` will make the symbol public on linux
-// in order for `dladdr` to correctly find its name and offset
-SENTRY_API void **
+TEST_VISIBLE void **
 invoke_unwinder()
 {
     void **backtrace = sentry_malloc(sizeof(void *) * MAX_FRAMES);
@@ -26,14 +24,20 @@ find_frame(const sentry_frame_info_t *info, void *data)
 {
     int *found_frame = data;
     // we will specifically check for the unwinder function
-    if (info->symbol_addr == &invoke_unwinder) {
+    // Now this is strange. We have a separate test that asserts that our
+    // symbolizer works correctly. However on windows, the `symbol_addr` we get
+    // here does not match our function.
+    // For example, in one invocation, I got
+    // `0x7FF757613C60` as `symbol_addr`, but
+    // `0x7FF75761136B` for `&invoke_unwinder`. No idea why?
+    //  if (info->symbol_addr == &invoke_unwinder) {
+    if (info->symbol && strstr(info->symbol, "invoke_unwinder") != 0) {
         *found_frame += 1;
     }
 }
 
 SENTRY_TEST(test_unwinder)
 {
-#ifndef SENTRY_PLATFORM_WINDOWS
     void **backtrace = invoke_unwinder();
 
     int found_frame = 0;
@@ -45,5 +49,4 @@ SENTRY_TEST(test_unwinder)
     sentry_free(backtrace);
 
     TEST_CHECK_INT_EQUAL(found_frame, 1);
-#endif
 }

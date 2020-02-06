@@ -36,3 +36,11 @@
         long long _b = (long long)(B);                                         \
         TEST_CHECK_(_a == _b, "%lld == %lld", _a, _b);                         \
     } while (0)
+
+// NOTE: on linux, certain functions need to be made explicitly visible
+// in order for `dladdr` to correctly find their name and offset
+#if __GNUC__ >= 4
+#    define TEST_VISIBLE __attribute__((visibility("default")))
+#else
+#    define TEST_VISIBLE
+#endif
