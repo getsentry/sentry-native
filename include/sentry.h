@@ -60,7 +60,7 @@ extern "C" {
 
 /* context type dependencies */
 #ifdef _WIN32
-#    include <windows.h>
+#    include <wtypes.h>
 #else
 #    include <signal.h>
 #endif

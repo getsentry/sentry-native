@@ -189,7 +189,7 @@ sentry__path_clone(const sentry_path_t *path)
     if (!rv) {
         return NULL;
     }
-    rv->path = wcsdup(path->path);
+    rv->path = _wcsdup(path->path);
     return rv;
 }
 
