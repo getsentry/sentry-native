@@ -78,6 +78,9 @@ void sentry_options_set_before_send(sentry_options_t *opts,
 
 void sentry_options_free(sentry_options_t *opts) {
     if (opts) {
+        if(opts->transport) {
+	    delete opts->transport;
+	}
         delete opts;
     }
 }
