@@ -17,6 +17,9 @@ typedef enum {
 } endpoint_type_t;
 
 typedef enum {
+    // When loading an envelope from disk, we don’t really want to parse it,
+    // but just pipe it through as a raw buffer
+    ENVELOPE_ITEM_TYPE_ENVELOPE,
     ENVELOPE_ITEM_TYPE_EVENT,
     ENVELOPE_ITEM_TYPE_MINIDUMP,
     ENVELOPE_ITEM_TYPE_ATTACHMENT,
@@ -81,7 +84,9 @@ envelope_item_get_type(const sentry_envelope_item_t *item)
 {
     const char *ty = sentry_value_as_string(
         sentry_value_get_by_key(item->headers, "type"));
-    if (strcmp(ty, "event") == 0) {
+    if (strcmp(ty, "envelope") == 0) {
+        return ENVELOPE_ITEM_TYPE_ENVELOPE;
+    } else if (strcmp(ty, "event") == 0) {
         return ENVELOPE_ITEM_TYPE_EVENT;
     } else if (strcmp(ty, "minidump") == 0) {
         return ENVELOPE_ITEM_TYPE_MINIDUMP;
@@ -90,6 +95,14 @@ envelope_item_get_type(const sentry_envelope_item_t *item)
     } else {
         return ENVELOPE_ITEM_TYPE_UNKNOWN;
     }
+}
+
+static bool
+is_raw_envelope(const sentry_envelope_t *envelope)
+{
+    return envelope->item_count == 1
+        && envelope_item_get_type(&envelope->items[0])
+        == ENVELOPE_ITEM_TYPE_ENVELOPE;
 }
 
 void
@@ -106,6 +119,8 @@ envelope_item_get_content_type(const sentry_envelope_item_t *item)
         = sentry_value_get_by_key(item->headers, "content_type");
     if (sentry_value_is_null(content_type)) {
         switch (envelope_item_get_type(item)) {
+        case ENVELOPE_ITEM_TYPE_ENVELOPE:
+            return "application/x-sentry-envelope";
         case ENVELOPE_ITEM_TYPE_MINIDUMP:
             return "application/x-minidump";
         case ENVELOPE_ITEM_TYPE_EVENT:
@@ -123,6 +138,8 @@ envelope_item_get_name(const sentry_envelope_item_t *item)
     sentry_value_t name = sentry_value_get_by_key(item->headers, "name");
     if (sentry_value_is_null(name)) {
         switch (envelope_item_get_type(item)) {
+        case ENVELOPE_ITEM_TYPE_ENVELOPE:
+            return "envelope";
         case ENVELOPE_ITEM_TYPE_MINIDUMP:
             return "uploaded_file_minidump";
         case ENVELOPE_ITEM_TYPE_EVENT:
@@ -141,6 +158,8 @@ envelope_item_get_filename(const sentry_envelope_item_t *item)
         = sentry_value_get_by_key(item->headers, "filename");
     if (sentry_value_is_null(filename)) {
         switch (envelope_item_get_type(item)) {
+        case ENVELOPE_ITEM_TYPE_ENVELOPE:
+            return "envelope.bin";
         case ENVELOPE_ITEM_TYPE_MINIDUMP:
             return "minidump.dmp";
         case ENVELOPE_ITEM_TYPE_EVENT:
@@ -190,6 +209,19 @@ sentry__envelope_new(void)
     }
 
     return rv;
+}
+
+sentry_envelope_t *
+sentry__envelope_from_disk(const sentry_path_t *path)
+{
+    sentry_envelope_t *envelope = sentry__envelope_new();
+    if (!envelope) {
+        return NULL;
+    }
+
+    sentry__envelope_add_from_path(envelope, path, "envelope");
+
+    return envelope;
 }
 
 sentry_uuid_t
@@ -368,10 +400,15 @@ sentry__envelope_for_each_request(const sentry_envelope_t *envelope,
 
     for (size_t i = 0; i < envelope->item_count; i++) {
         const sentry_envelope_item_t *item = &envelope->items[i];
-        switch (envelope_item_get_type(item)) {
+        envelope_item_type_t type = envelope_item_get_type(item);
+        switch (type) {
+        case ENVELOPE_ITEM_TYPE_ENVELOPE:
         case ENVELOPE_ITEM_TYPE_EVENT: {
+            const char *content_type = type == ENVELOPE_ITEM_TYPE_ENVELOPE
+                ? "application/x-sentry-envelope"
+                : "application/json";
             req = prepare_http_request(&event_id, ENDPOINT_TYPE_STORE,
-                "application/json", item->payload, item->payload_len, false);
+                content_type, item->payload, item->payload_len, false);
             if (!req || !callback(req, envelope, data)) {
                 return;
             }
@@ -445,6 +482,12 @@ void
 sentry__envelope_serialize_into_stringbuilder(
     const sentry_envelope_t *envelope, sentry_stringbuilder_t *sb)
 {
+    if (is_raw_envelope(envelope)) {
+        const sentry_envelope_item_t *item = &envelope->items[0];
+        sentry__stringbuilder_append_buf(sb, item->payload, item->payload_len);
+        return;
+    }
+
     SENTRY_TRACE("serializing envelope into buffer");
     char *buf = sentry_value_to_json(envelope->headers);
     sentry__stringbuilder_append(sb, buf);
