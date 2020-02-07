@@ -79,7 +79,7 @@ class Envelope {
         std::function<bool(PreparedHttpRequest &&)> func) const;
 
     void serialize_into(IoWriter &writer) const;
-    char *serialize(size_t *size_out) const;
+    std::string serialize(size_t *size_out) const;
 
    protected:
     sentry::Value m_headers;

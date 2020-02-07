@@ -146,11 +146,9 @@ void MemoryIoWriter::write(const char *buf, size_t len) {
     m_terminated = false;
 }
 
-char *MemoryIoWriter::take() {
+std::string MemoryIoWriter::take() {
     flush();
-    char *rv = m_buf;
-    m_buf = nullptr;
-    return rv;
+    return std::string(m_buf, m_buflen);
 }
 
 const char *MemoryIoWriter::buf() const {

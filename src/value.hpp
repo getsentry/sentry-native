@@ -553,7 +553,7 @@ class Value {
     char *to_msgpack_string(size_t *size_out) const;
     void to_json(sentry::IoWriter &out) const;
     void to_json(sentry::JsonWriter &out) const;
-    char *to_json() const;
+    std::string to_json() const;
 
     sentry_value_t lower() {
         sentry_value_t rv;

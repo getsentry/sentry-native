@@ -258,7 +258,13 @@ sentry_value_t sentry_envelope_get_event(const sentry_envelope_t *envelope) {
 char *sentry_envelope_serialize(const sentry_envelope_t *envelope,
                                 size_t *size_out) {
     const transports::Envelope *e = (const transports::Envelope *)envelope;
-    return e->serialize(size_out);
+
+    std::string data = e->serialize(size_out);
+    char* pdata = (char*)calloc(data.size() + 1, sizeof(char));
+    if(pdata) {
+        memcpy(pdata, data.c_str(), data.size());
+    }
+    return pdata;
 }
 
 int sentry_envelope_write_to_file(const sentry_envelope_t *envelope,

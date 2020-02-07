@@ -63,7 +63,7 @@ class MemoryIoWriter : public IoWriter {
     void write(const char *buf, size_t len);
     void flush();
 
-    char *take();
+    std::string take();
     const char *buf() const;
     size_t len() const;
 

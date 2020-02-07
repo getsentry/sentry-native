@@ -211,7 +211,7 @@ void Value::to_json(JsonWriter &jw) const {
     }
 }
 
-char *Value::to_json() const {
+std::string Value::to_json() const {
     MemoryIoWriter writer;
     to_json(writer);
     return writer.take();
@@ -513,9 +513,9 @@ sentry_value_t sentry_value_new_breadcrumb(const char *type,
 
 char *sentry_value_to_json(sentry_value_t value) {
     std::string out = Value(value).to_json();
-    char *rv = (char *)malloc(out.length() + 1);
+    char *rv = (char *)calloc(out.length() + 1, sizeof(char));
     if (rv) {
-        memcpy(rv, out.c_str(), out.length() + 1);
+        memcpy(rv, out.c_str(), out.length());
     }
     return rv;
 }

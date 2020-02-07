@@ -245,7 +245,7 @@ void Envelope::for_each_request(
                              content_type.c_str(), payload));
 }
 
-char *Envelope::serialize(size_t *size_out) const {
+std::string Envelope::serialize(size_t *size_out) const {
     MemoryIoWriter writer;
     serialize_into(writer);
     *size_out = writer.len();
