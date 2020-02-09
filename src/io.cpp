@@ -165,7 +165,7 @@ IoReader::IoReader() {
 IoReader::~IoReader() {
 }
 
-FileIoReader::FileIoReader() : m_bufoff(0), m_buflen(0) {
+FileIoReader::FileIoReader() : m_fd(-1), m_bufoff(0), m_buflen(0) {
 }
 
 FileIoReader::~FileIoReader() {
@@ -187,7 +187,7 @@ bool FileIoReader::is_closed() const {
 #ifdef _WIN32
     return m_file == nullptr;
 #else
-    return m_fd == 0;
+    return m_fd < 0;
 #endif
 }
 
@@ -200,7 +200,7 @@ void FileIoReader::close() {
     m_file = nullptr;
 #else
     ::close(m_fd);
-    m_fd = 0;
+    m_fd = -1;
 #endif
 }
 
