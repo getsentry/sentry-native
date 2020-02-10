@@ -69,15 +69,14 @@ level_as_string(sentry_level_t level)
 }
 
 static bool
-reserve(void **buf, size_t item_size, size_t *allocated, size_t *len,
-    size_t min_len)
+reserve(void **buf, size_t item_size, size_t *allocated, size_t min_len)
 {
     if (*allocated >= min_len) {
         return true;
     }
     size_t new_allocated = *allocated;
     if (new_allocated == 0) {
-        new_allocated = 10;
+        new_allocated = 16;
     }
     while (new_allocated < min_len) {
         new_allocated *= 2;
@@ -89,7 +88,7 @@ reserve(void **buf, size_t item_size, size_t *allocated, size_t *len,
     }
 
     if (*buf) {
-        memcpy(new_buf, *buf, *allocated * sizeof(obj_pair_t));
+        memcpy(new_buf, *buf, *allocated * item_size);
         sentry_free(*buf);
     }
     *buf = new_buf;
@@ -403,7 +402,7 @@ sentry_value_set_by_key(sentry_value_t value, const char *k, sentry_value_t v)
     }
 
     if (!reserve((void **)&o->pairs, sizeof(o->pairs[0]), &o->allocated,
-            &o->len, o->len + 1)) {
+            o->len + 1)) {
         return 1;
     }
 
@@ -449,7 +448,7 @@ sentry_value_append(sentry_value_t value, sentry_value_t v)
     list_t *l = thing->payload;
 
     if (!reserve((void **)&l->items, sizeof(l->items[0]), &l->allocated,
-            &l->len, l->len + 1)) {
+            l->len + 1)) {
         return 1;
     }
 
@@ -532,8 +531,8 @@ sentry_value_set_by_index(sentry_value_t value, size_t index, sentry_value_t v)
     }
 
     list_t *l = thing->payload;
-    if (!reserve((void *)&l->items, sizeof(l->items[0]), &l->allocated, &l->len,
-            index + 1)) {
+    if (!reserve(
+            (void *)&l->items, sizeof(l->items[0]), &l->allocated, index + 1)) {
         return 1;
     }
 
