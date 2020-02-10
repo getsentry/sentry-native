@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.0 (unreleased)
+
+- Complete rewrite in C
+- Build system was switched to cmake
+- Add attachment support
+
 ## 0.1.4
 
 - Add an option to enable the system crash reporter
