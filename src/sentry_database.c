@@ -39,7 +39,7 @@ sentry__run_write_envelope(const sentry_run_t *run, sentry_envelope_t *envelope)
     char envelope_filename[37 + 9];
     sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
     sentry_uuid_as_string(&event_id, envelope_filename);
-    strncpy(&envelope_filename[36], ".envelope", 10);
+    strcpy(&envelope_filename[36], ".envelope");
 
     sentry_path_t *output_path
         = sentry__path_join_str(run->run_path, envelope_filename);
@@ -66,7 +66,8 @@ sentry__enqueue_unsent_envelopes(const sentry_options_t *options)
         const sentry_path_t *envelope_file;
         while ((envelope_file = sentry__pathiter_next(run_iter)) != NULL) {
 
-            if (options->transport) {
+            if (options->transport
+                && sentry__path_ends_with(envelope_file, ".envelope")) {
                 sentry_envelope_t *envelope
                     = sentry__envelope_from_disk(envelope_file);
                 options->transport->send_envelope_func(
