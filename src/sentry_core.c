@@ -73,6 +73,12 @@ sentry_init(sentry_options_t *options)
         backend->startup_func(backend);
     }
 
+    // after initializing the transport, we will submit all the unsent envelopes
+    sentry__enqueue_unsent_envelopes(options);
+    // and then create our new run, so it will not interfere with enumerating
+    // all the past runs
+    options->run = sentry__run_new(options->database_path);
+
     return 0;
 }
 
@@ -250,6 +256,7 @@ sentry_options_free(sentry_options_t *opts)
 
         sentry__attachment_free(attachment);
     }
+    sentry__run_free(opts->run);
 
     sentry_free(opts);
 }
@@ -272,7 +279,7 @@ sentry__enforce_disk_transport()
     // Freeing the old transport would, in the case of the curl transport, try
     // to flush its send queue, which I’m not sure we can do in the signal
     // handler. So rather we just leak it.
-    g_options->transport = sentry_new_disk_transport(g_options->database_path);
+    g_options->transport = sentry_new_disk_transport(g_options->run);
 }
 
 void
