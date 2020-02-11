@@ -20,6 +20,7 @@ Please see [Known Issues](#known-issues).
 - [Downloads](#downloads)
 - [Distributions](#distributions)
   - [What is Inside](#what-is-inside)
+  - [Platform Support](#platform-support)
 - [Building and Installation](#building-and-installation)
   - [Compile-Time Options](#compile-time-options)
   - [Build Targets](#build-targets)
@@ -63,6 +64,14 @@ The SDK bundle contains the following folders:
   directory or copy the header file to your source tree so that it is available
   during the build.
 - `src`: Sources of the Sentry SDK required for building.
+
+### Platform Support
+
+The SDK currently supports and is tested on Linux, Windows and macOS as well as
+Android.
+
+The support target for Android is as low as API 16, with build support on
+NDK 19, which is also verified via tests.
 
 ## Building and Installation
 
