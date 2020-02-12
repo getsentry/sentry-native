@@ -111,7 +111,6 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Android")
 	include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/libunwindstack-ndk/include)
 	add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/external/libunwindstack-ndk/cmake)
 	set(LINK_LIBRARIES ${LINK_LIBRARIES} "unwindstack")
-
 endif()
 
 if(WIN32)
@@ -121,7 +120,9 @@ endif()
 # ===== sentry library =====
 
 add_library("sentry" ${SENTRY_NATIVE_ALL_SOURCES})
+set_target_properties("sentry" PROPERTIES PUBLIC_HEADER "include/sentry.h")
 target_link_libraries("sentry" ${LINK_LIBRARIES})
+install(TARGETS "sentry")
 
 # ===== tests =====
 

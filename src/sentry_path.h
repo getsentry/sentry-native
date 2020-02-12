@@ -30,6 +30,7 @@ void sentry__path_free(sentry_path_t *path);
 const sentry_pathchar_t *sentry__path_filename(const sentry_path_t *path);
 bool sentry__path_filename_matches(
     const sentry_path_t *path, const char *filename);
+bool sentry__path_ends_with(const sentry_path_t *path, const char *suffix);
 
 bool sentry__path_is_dir(const sentry_path_t *path);
 bool sentry__path_is_file(const sentry_path_t *path);

@@ -3,6 +3,7 @@
 
 #include "sentry_boot.h"
 
+#include "sentry_database.h"
 #include "sentry_path.h"
 #include "sentry_utils.h"
 
@@ -66,6 +67,7 @@ struct sentry_options_s {
     bool require_user_consent;
 
     sentry_attachment_t *attachments;
+    sentry_run_t *run;
 
     sentry_transport_t *transport;
     sentry_event_function_t before_send_func;

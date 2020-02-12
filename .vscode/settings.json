@@ -119,7 +119,8 @@
         "stdio.h": "c",
         "stdlib.h": "c",
         "sentry_windows_symbolizer_dbghelp.h": "c",
-        "sentry_symbolizer.h": "c"
+        "sentry_symbolizer.h": "c",
+        "memory_resource": "c"
     },
     "python.pythonPath": ".venv/bin/python2.7",
     "editor.formatOnSave": true

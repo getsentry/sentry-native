@@ -28,6 +28,7 @@ typedef struct sentry_prepared_http_request_s {
 void sentry__prepared_http_request_free(sentry_prepared_http_request_t *req);
 
 sentry_envelope_t *sentry__envelope_new(void);
+sentry_envelope_t *sentry__envelope_from_disk(const sentry_path_t *path);
 sentry_uuid_t sentry__envelope_get_event_id(const sentry_envelope_t *envelope);
 sentry_envelope_item_t *sentry__envelope_add_event(
     sentry_envelope_t *envelope, sentry_value_t event);

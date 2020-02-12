@@ -146,6 +146,22 @@ sentry__path_filename_matches(const sentry_path_t *path, const char *filename)
 }
 
 bool
+sentry__path_ends_with(const sentry_path_t *path, const char *suffix)
+{
+    sentry_path_t *s = sentry__path_from_str(suffix);
+    int pathlen = wcslen(path->path);
+    int suffixlen = wcslen(s->path);
+    if (suffixlen > pathlen) {
+        sentry__path_free(s);
+        return false;
+    }
+
+    bool matches = _wcsicmp(&path->path[pathlen - suffixlen], s->path) == 0;
+    sentry__path_free(s);
+    return matches;
+}
+
+bool
 sentry__path_is_dir(const sentry_path_t *path)
 {
     struct _stat buf;
