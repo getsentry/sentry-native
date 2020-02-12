@@ -2,10 +2,8 @@
 #include "sentry_testsupport.h"
 #include <sentry.h>
 
-// NOTE: marking this as `SENTRY_API` will make the symbol public on linux
-// in order for `dladdr` to correctly find its name and offset
-SENTRY_API void
-test_function()
+TEST_VISIBLE void
+test_function(void)
 {
     printf("Something here\n");
 }

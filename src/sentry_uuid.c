@@ -5,7 +5,7 @@
 #include <string.h>
 
 sentry_uuid_t
-sentry_uuid_nil()
+sentry_uuid_nil(void)
 {
     sentry_uuid_t rv;
     memset(rv.bytes, 0, 16);
@@ -13,7 +13,7 @@ sentry_uuid_nil()
 }
 
 sentry_uuid_t
-sentry_uuid_new_v4()
+sentry_uuid_new_v4(void)
 {
     char buf[16];
     if (sentry__getrandom(buf, sizeof(buf)) != 0) {

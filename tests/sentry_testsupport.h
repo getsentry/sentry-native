@@ -36,3 +36,16 @@
         long long _b = (long long)(B);                                         \
         TEST_CHECK_(_a == _b, "%lld == %lld", _a, _b);                         \
     } while (0)
+
+#if __GNUC__ >= 4
+// NOTE: on linux, certain functions need to be made explicitly visible
+// in order for `dladdr` to correctly find their name and offset
+#    define TEST_VISIBLE __attribute__((visibility("default")))
+#elif _WIN32
+// NOTE: On Windows, pointers to non-static functions seem to resolve
+// to an indirection table. This causes a mismatch in tests. With static
+// functions, this does not happen.
+#    define TEST_VISIBLE static
+#else
+#    define TEST_VISIBLE
+#endif

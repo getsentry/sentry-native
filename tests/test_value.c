@@ -153,7 +153,7 @@ SENTRY_TEST(value_object)
     for (size_t i = 0; i < 10; i++) {
         char key[100];
         sprintf(key, "key%d", (int)i);
-        sentry_value_set_by_key(val, key, sentry_value_new_int32(i));
+        sentry_value_set_by_key(val, key, sentry_value_new_int32((int32_t)i));
     }
     for (size_t i = 0; i < 20; i++) {
         char key[100];

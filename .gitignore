@@ -1,5 +1,12 @@
+# Editors and OS
 .DS_Store
-.sentry-native
+.vs
+CMakeSettings.json
+
+# CMake builds
 build
 build*
 leak-build
+
+# Run files
+.sentry-native

@@ -274,7 +274,7 @@ sentry_transport_free(sentry_transport_t *transport)
 }
 
 void
-sentry__enforce_disk_transport()
+sentry__enforce_disk_transport(void)
 {
     // Freeing the old transport would, in the case of the curl transport, try
     // to flush its send queue, which I’m not sure we can do in the signal

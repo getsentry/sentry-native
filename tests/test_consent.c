@@ -3,7 +3,7 @@
 #include <sentry.h>
 
 static void
-init_consenting_sentry()
+init_consenting_sentry(void)
 {
 #ifdef __ANDROID__
 #    define PREFIX "/data/local/tmp/"

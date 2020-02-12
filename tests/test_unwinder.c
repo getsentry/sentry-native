@@ -4,10 +4,8 @@
 
 #define MAX_FRAMES 128
 
-// NOTE: marking this as `SENTRY_API` will make the symbol public on linux
-// in order for `dladdr` to correctly find its name and offset
-SENTRY_API void **
-invoke_unwinder()
+TEST_VISIBLE void **
+invoke_unwinder(void)
 {
     void **backtrace = sentry_malloc(sizeof(void *) * MAX_FRAMES);
     memset(backtrace, 0, sizeof(void *) * MAX_FRAMES);
@@ -33,7 +31,6 @@ find_frame(const sentry_frame_info_t *info, void *data)
 
 SENTRY_TEST(test_unwinder)
 {
-#ifndef SENTRY_PLATFORM_WINDOWS
     void **backtrace = invoke_unwinder();
 
     int found_frame = 0;
@@ -45,5 +42,4 @@ SENTRY_TEST(test_unwinder)
     sentry_free(backtrace);
 
     TEST_CHECK_INT_EQUAL(found_frame, 1);
-#endif
 }

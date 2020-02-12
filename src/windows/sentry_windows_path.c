@@ -149,8 +149,8 @@ bool
 sentry__path_ends_with(const sentry_path_t *path, const char *suffix)
 {
     sentry_path_t *s = sentry__path_from_str(suffix);
-    int pathlen = wcslen(path->path);
-    int suffixlen = wcslen(s->path);
+    size_t pathlen = wcslen(path->path);
+    size_t suffixlen = wcslen(s->path);
     if (suffixlen > pathlen) {
         sentry__path_free(s);
         return false;
@@ -205,7 +205,7 @@ sentry__path_clone(const sentry_path_t *path)
     if (!rv) {
         return NULL;
     }
-    rv->path = wcsdup(path->path);
+    rv->path = _wcsdup(path->path);
     return rv;
 }
 
