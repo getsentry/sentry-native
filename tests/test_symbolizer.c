@@ -3,7 +3,7 @@
 #include <sentry.h>
 
 TEST_VISIBLE void
-test_function()
+test_function(void)
 {
     printf("Something here\n");
 }

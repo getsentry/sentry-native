@@ -38,7 +38,7 @@ static const struct signal_slot SIGNAL_DEFINITIONS[SIGNAL_COUNT] = {
 };
 
 static void
-reset_signal_handlers()
+reset_signal_handlers(void)
 {
     for (size_t i = 0; i < SIGNAL_COUNT; i++) {
         sigaction(SIGNAL_DEFINITIONS[i].signum, &g_previous_handlers[i], 0);

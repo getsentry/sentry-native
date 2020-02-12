@@ -66,7 +66,7 @@ char *sentry__dsn_get_attachment_url(
 
 /* returns the number of milliseconds since epoch. */
 static inline uint64_t
-sentry__msec_time()
+sentry__msec_time(void)
 {
 #ifdef SENTRY_PLATFORM_WINDOWS
     SYSTEMTIME system_time;
