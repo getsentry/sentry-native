@@ -7,7 +7,7 @@ stages:
         steps:
           - checkout: self
             fetchDepth: 5
-            submodules: true
+            submodules: recursive
           - script: |
               # the submodule contains an invalid symlink for whatever reason,
               # which trips up Azure…

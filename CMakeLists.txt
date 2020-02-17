@@ -3,6 +3,8 @@ project (Sentry-Native LANGUAGES C CXX ASM)
 
 OPTION(BUILD_SHARED_LIBS "Build shared libraries (.dll/.so) instead of static ones (.lib/.a)" ON)
 
+OPTION(WITH_CRASHPAD "Build and use the Crashpad integration" ON)
+
 OPTION(WITH_ASAN_OPTION "Build sentry-native with address sanitizer" OFF)
 if(WITH_ASAN_OPTION)
 	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -fsanitize=address -fno-omit-frame-pointer")
@@ -115,6 +117,12 @@ endif()
 
 if(WIN32)
 	set(LINK_LIBRARIES ${LINK_LIBRARIES} "dbghelp.lib")
+endif()
+
+if(WITH_CRASHPAD)
+	add_subdirectory(external/crashpad)
+	set(LINK_LIBRARIES ${LINK_LIBRARIES} crashpad_client crashpad_util)
+	install(TARGETS "crashpad_handler")
 endif()
 
 # ===== sentry library =====
