@@ -2,7 +2,6 @@ cmake_minimum_required (VERSION 3.0)
 project (Sentry-Native LANGUAGES C CXX ASM)
 
 OPTION(BUILD_SHARED_LIBS "Build shared libraries (.dll/.so) instead of static ones (.lib/.a)" ON)
-
 OPTION(WITH_CRASHPAD "Build and use the Crashpad integration" ON)
 
 OPTION(WITH_ASAN_OPTION "Build sentry-native with address sanitizer" OFF)
@@ -20,7 +19,6 @@ endif()
 include_directories("include")
 
 set(SENTRY_NATIVE_SOURCE_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/src)
-set(SENTRY_EXTRA_LIBS)
 
 if(BUILD_SHARED_LIBS)
 	add_definitions(-DSENTRY_BUILD_SHARED)
@@ -35,10 +33,15 @@ if(CURL_FOUND)
 	set(LINK_LIBRARIES ${LINK_LIBRARIES} ${CURL_LIBRARIES})
 endif()
 
+if(WITH_CRASHPAD)
+	set(CMAKE_CXX_STANDARD 14)
+else()
+	set(CMAKE_CXX_STANDARD 11)
+endif()
+
 #set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Werror=implicit-function-declaration -Werror=incompatible-function-pointer-types -Wall -fvisibility=hidden")
 if(NOT WIN32)
 	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -fvisibility=hidden")
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 endif()
 
 file(GLOB SENTRY_NATIVE_SOURCES
@@ -121,7 +124,11 @@ endif()
 
 if(WITH_CRASHPAD)
 	add_subdirectory(external/crashpad)
+	include_directories(external/crashpad external/crashpad/third_party/mini_chromium/mini_chromium)
+	add_definitions(-DSENTRY_WITH_CRASHPAD_BACKEND)
 	set(LINK_LIBRARIES ${LINK_LIBRARIES} crashpad_client crashpad_util)
+	set(SENTRY_NATIVE_ALL_SOURCES ${SENTRY_NATIVE_ALL_SOURCES}
+		${SENTRY_NATIVE_SOURCE_ROOT}/backends/sentry_crashpad_backend.cpp)
 	install(TARGETS "crashpad_handler")
 endif()
 
