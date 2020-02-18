@@ -175,6 +175,10 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" OR CMAKE_SYSTEM_NAME STREQUAL "Android")
 	target_link_libraries("sentry_tests" "-Wl,--build-id=sha1,-E")
 endif()
 
+if(WITH_CRASHPAD)
+	add_dependencies("sentry_tests" "crashpad_handler")
+endif()
+
 # ===== examples =====
 
 add_executable("example" EXCLUDE_FROM_ALL "./examples/example.c")
