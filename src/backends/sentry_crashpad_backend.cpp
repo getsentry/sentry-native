@@ -3,6 +3,9 @@
 extern "C" {
 #include "../sentry_alloc.h"
 #include "../sentry_core.h"
+#include "../sentry_database.h"
+#include "../sentry_path.h"
+#include "../sentry_utils.h"
 }
 
 #include "client/crash_report_database.h"
@@ -15,22 +18,34 @@ extern "C" {
 static std::unique_ptr<crashpad::CrashReportDatabase> g_db;
 
 static void
+user_consent_changed(struct sentry_backend_s *)
+{
+    if (!g_db || !g_db->GetSettings()) {
+        return;
+    }
+    g_db->GetSettings()->SetUploadsEnabled(!sentry__should_skip_upload());
+}
+
+static void
 startup_crashpad_backend(sentry_backend_t *backend)
 {
-    /*
     const sentry_options_t *options = sentry_get_options();
+    if (!options->handler_path
+        || !sentry__path_is_file(options->handler_path)) {
+        SENTRY_DEBUG("unable to start crashpad backend, invalid handler_path");
+        return;
+    }
 
-    Path current_run_folder
-        = options->runs_folder.join(options->run_id.c_str());
-    current_run_folder.create_directories();
+    SENTRY_TRACE("starting crashpad backend");
+    sentry_path_t *current_run_folder = options->run->run_path;
 
-    base::FilePath database(options->database_path.as_osstr());
-    base::FilePath handler(options->handler_path.as_osstr());
+    base::FilePath database(options->database_path->path);
+    base::FilePath handler(options->handler_path->path);
 
     std::map<std::string, std::string> annotations;
     std::map<std::string, base::FilePath> file_attachments;
 
-    for (const sentry::Attachment &attachment : options->attachments) {
+    /*for (const sentry::Attachment &attachment : options->attachments) {
         file_attachments.emplace(
             attachment.name(), base::FilePath(attachment.path().as_osstr()));
     }
@@ -50,7 +65,7 @@ startup_crashpad_backend(sentry_backend_t *backend)
         SENTRY_BREADCRUMBS1_FILE, base::FilePath(bc1.as_osstr()));
     file_attachments.emplace(
         SENTRY_BREADCRUMBS2_FILE, base::FilePath(bc2.as_osstr()));
-
+*/
     std::vector<std::string> arguments;
     arguments.push_back("--no-rate-limit");
 
@@ -63,37 +78,30 @@ startup_crashpad_backend(sentry_backend_t *backend)
     // to change the setting persisted into the crashpad database.  The
     // update to the consent change is then reflected when the handler starts.
     g_db = crashpad::CrashReportDatabase::Initialize(database);
-    user_consent_changed();
+    user_consent_changed(backend);
 
     crashpad::CrashpadClient client;
-    std::string url = options->dsn.get_minidump_url();
+    std::string url(sentry__dsn_get_minidump_url(&options->dsn));
     bool success = client.StartHandlerWithAttachments(handler, database,
         database, url, annotations, file_attachments, arguments,
-*/
-    //        /* restartable */ true,
-    //        /* asynchronous_start */ false);
-    /*
-        if (success) {
-            SENTRY_LOG("started client handler.");
-        } else {
-            SENTRY_LOG("failed to start client handler.");
-            return;
-        }
+        /* restartable */ true,
+        /* asynchronous_start */ false);
 
-        if (!options->system_crash_reporter_enabled) {
-            // Disable the system crash reporter. Especially on macOS, it takes
-            // substantial time *after* crashpad has done its job.
-            crashpad::CrashpadInfo *crashpad_info
-                = crashpad::CrashpadInfo::GetCrashpadInfo();
-            crashpad_info->set_system_crash_reporter_forwarding(
-                crashpad::TriState::kDisabled);
-        }
-    */
-}
+    if (success) {
+        SENTRY_DEBUG("started crashpad client handler.");
+    } else {
+        SENTRY_DEBUG("failed to start crashpad client handler.");
+        return;
+    }
 
-static void
-free_backend(sentry_backend_t *backend)
-{
+    if (!options->system_crash_reporter_enabled) {
+        // Disable the system crash reporter. Especially on macOS, it takes
+        // substantial time *after* crashpad has done its job.
+        crashpad::CrashpadInfo *crashpad_info
+            = crashpad::CrashpadInfo::GetCrashpadInfo();
+        crashpad_info->set_system_crash_reporter_forwarding(
+            crashpad::TriState::kDisabled);
+    }
 }
 
 static void
@@ -147,15 +155,6 @@ add_breadcrumb(struct sentry_backend_s *, sentry_value_t breadcrumb)
 
     breadcrumbs_in_segment++;
     */
-}
-
-static void
-user_consent_changed(struct sentry_backend_s *)
-{
-    if (!g_db || !g_db->GetSettings()) {
-        return;
-    }
-    g_db->GetSettings()->SetUploadsEnabled(!sentry__should_skip_upload());
 }
 
 sentry_backend_t *

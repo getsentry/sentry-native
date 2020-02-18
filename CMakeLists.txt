@@ -1,8 +1,14 @@
 cmake_minimum_required (VERSION 3.0)
 project (Sentry-Native LANGUAGES C CXX ASM)
 
+include(CMakeDependentOption)
+
 OPTION(BUILD_SHARED_LIBS "Build shared libraries (.dll/.so) instead of static ones (.lib/.a)" ON)
-OPTION(WITH_CRASHPAD "Build and use the Crashpad integration" ON)
+CMAKE_DEPENDENT_OPTION(WITH_CRASHPAD "Build and use the Crashpad integration" ON "APPLE" OFF)
+
+if(WITH_CRASHPAD AND NOT APPLE)
+	message(WARNING "The Crashpad backend is currently only supported on macOS")
+endif()
 
 OPTION(WITH_ASAN_OPTION "Build sentry-native with address sanitizer" OFF)
 if(WITH_ASAN_OPTION)
@@ -122,8 +128,18 @@ if(WIN32)
 	set(LINK_LIBRARIES ${LINK_LIBRARIES} "dbghelp.lib")
 endif()
 
+SET(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR})
+SET(CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG ${PROJECT_BINARY_DIR})
+SET(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE ${PROJECT_BINARY_DIR})
+SET(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR})
+SET(CMAKE_LIBRARY_OUTPUT_DIRECTORY_DEBUG ${PROJECT_BINARY_DIR})
+SET(CMAKE_LIBRARY_OUTPUT_DIRECTORY_RELEASE ${PROJECT_BINARY_DIR})
+SET(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR})
+SET(CMAKE_ARCHIVE_OUTPUT_DIRECTORY_DEBUG ${PROJECT_BINARY_DIR})
+SET(CMAKE_ARCHIVE_OUTPUT_DIRECTORY_RELEASE ${PROJECT_BINARY_DIR})
+
 if(WITH_CRASHPAD)
-	add_subdirectory(external/crashpad)
+	add_subdirectory(external/crashpad EXCLUDE_FROM_ALL)
 	include_directories(external/crashpad external/crashpad/third_party/mini_chromium/mini_chromium)
 	add_definitions(-DSENTRY_WITH_CRASHPAD_BACKEND)
 	set(LINK_LIBRARIES ${LINK_LIBRARIES} crashpad_client crashpad_util)
@@ -138,6 +154,10 @@ add_library("sentry" ${SENTRY_NATIVE_ALL_SOURCES})
 set_target_properties("sentry" PROPERTIES PUBLIC_HEADER "include/sentry.h")
 target_link_libraries("sentry" ${LINK_LIBRARIES})
 install(TARGETS "sentry")
+
+if(WITH_CRASHPAD)
+	add_dependencies("sentry" "crashpad_handler")
+endif()
 
 # ===== tests =====
 

@@ -69,7 +69,7 @@ stages:
               cmake ..
               cmake --build . --parallel --target sentry_tests
             displayName: Build
-          - script: .\build\Debug\sentry_tests.exe
+          - script: .\build\sentry_tests.exe
             displayName: Test
 
       - job: Android

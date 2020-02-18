@@ -6,10 +6,15 @@
 
 #include <dirent.h>
 #include <fcntl.h>
+#include <libgen.h>
 #include <string.h>
 #include <sys/errno.h>
 #include <sys/stat.h>
 #include <unistd.h>
+
+#ifdef SENTRY_PLATFORM_DARWIN
+#    include <mach-o/dyld.h>
+#endif
 
 // only read this many bytes to memory ever
 static const size_t MAX_READ_TO_BUFFER = 134217728;
@@ -19,6 +24,50 @@ struct sentry_pathiter_s {
     sentry_path_t *current;
     DIR *dir_handle;
 };
+
+sentry_path_t *
+sentry__path_current_exe(void)
+{
+#ifdef SENTRY_PLATFORM_DARWIN
+    // inspired by:
+    // https://github.com/rust-lang/rust/blob/0176a9eef845e7421b7e2f7ef015333a41a7c027/src/libstd/sys/unix/os.rs#L339-L358
+    uint32_t buf_size = 0;
+    _NSGetExecutablePath(NULL, &buf_size);
+    char *buf = sentry_malloc(buf_size);
+    if (!buf) {
+        return NULL;
+    }
+    int err = _NSGetExecutablePath(buf, &buf_size);
+    if (err) {
+        sentry_free(buf);
+        return NULL;
+    }
+    return sentry__path_from_str_owned(buf);
+#elif defined(SENTRY_PLATFORM_LINUX)
+    // inspired by:
+    // https://github.com/rust-lang/rust/blob/0176a9eef845e7421b7e2f7ef015333a41a7c027/src/libstd/sys/unix/os.rs#L328-L337
+    char buf[4096];
+    readlink("/proc/self/exe", buf, 4096);
+    return sentry__path_from_str(buf);
+#endif
+    return NULL;
+}
+
+sentry_path_t *
+sentry__path_dir(sentry_path_t *path)
+{
+    // dirname can modify its argument, and may return pointers to static memory
+    // that we are not allowed to free.
+    char *buf = path->path;
+    char *dir = dirname(buf);
+    path->path = sentry__string_clone(dir);
+    if (!path->path) {
+        sentry__path_free(path);
+        path = NULL;
+    }
+    sentry_free(buf);
+    return path;
+}
 
 sentry_path_t *
 sentry__path_from_str(const char *s)
