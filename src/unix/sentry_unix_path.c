@@ -358,12 +358,12 @@ sentry__path_read_to_buffer(const sentry_path_t *path, size_t *size_out)
     return rv;
 }
 
-int
-sentry__path_write_buffer(
-    const sentry_path_t *path, const char *buf, size_t buf_len)
+static int
+write_buffer_with_flags(
+    const sentry_path_t *path, const char *buf, size_t buf_len, int flags)
 {
-    int fd = open(path->path, O_RDWR | O_CREAT | O_TRUNC,
-        S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH);
+    int fd = open(
+        path->path, flags, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH);
     if (fd < 0) {
         SENTRY_TRACEF("failed to open file \"%s\" for writing", path->path);
         return 1;
@@ -389,4 +389,20 @@ sentry__path_write_buffer(
 
     close(fd);
     return remaining == 0 ? 0 : 1;
+}
+
+int
+sentry__path_write_buffer(
+    const sentry_path_t *path, const char *buf, size_t buf_len)
+{
+    return write_buffer_with_flags(
+        path, buf, buf_len, O_RDWR | O_CREAT | O_TRUNC);
+}
+
+int
+sentry__path_append_buffer(
+    const sentry_path_t *path, const char *buf, size_t buf_len)
+{
+    return write_buffer_with_flags(
+        path, buf, buf_len, O_RDWR | O_CREAT | O_APPEND);
 }

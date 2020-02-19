@@ -128,7 +128,6 @@ sentry__bgworker_shutdown(sentry_bgworker_t *bgw, uint64_t timeout)
             sentry__thread_join(bgw->thread_id);
             return 0;
         }
-        SENTRY_TRACE("... waiting for background worker thread to shut down");
         sentry__mutex_lock(&bgw->done_signal_lock);
         sentry__cond_wait_timeout(
             &bgw->done_signal, &bgw->done_signal_lock, 250);

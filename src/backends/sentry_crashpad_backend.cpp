@@ -15,10 +15,17 @@ extern "C" {
 #include <map>
 #include <vector>
 
+typedef struct {
+    sentry_path_t *event_path;
+    sentry_path_t *breadcrumb1_path;
+    sentry_path_t *breadcrumb2_path;
+    size_t num_breadcrumbs;
+} crashpad_state_t;
+
 static std::unique_ptr<crashpad::CrashReportDatabase> g_db;
 
 static void
-user_consent_changed(struct sentry_backend_s *)
+user_consent_changed(sentry_backend_t *backend)
 {
     if (!g_db || !g_db->GetSettings()) {
         return;
@@ -29,6 +36,7 @@ user_consent_changed(struct sentry_backend_s *)
 static void
 startup_crashpad_backend(sentry_backend_t *backend)
 {
+    // TODO: backends should really get the options as argument
     const sentry_options_t *options = sentry_get_options();
     if (!options->handler_path
         || !sentry__path_is_file(options->handler_path)) {
@@ -38,6 +46,7 @@ startup_crashpad_backend(sentry_backend_t *backend)
 
     SENTRY_TRACE("starting crashpad backend");
     sentry_path_t *current_run_folder = options->run->run_path;
+    crashpad_state_t *data = (crashpad_state_t *)backend->data;
 
     base::FilePath database(options->database_path->path);
     base::FilePath handler(options->handler_path->path);
@@ -45,27 +54,33 @@ startup_crashpad_backend(sentry_backend_t *backend)
     std::map<std::string, std::string> annotations;
     std::map<std::string, base::FilePath> file_attachments;
 
-    /*for (const sentry::Attachment &attachment : options->attachments) {
+    // register attachments
+    for (sentry_attachment_t *attachment = options->attachments; attachment;
+         attachment = attachment->next) {
         file_attachments.emplace(
-            attachment.name(), base::FilePath(attachment.path().as_osstr()));
+            attachment->name, base::FilePath(attachment->path->path));
     }
 
-    event_filename = current_run_folder.join(SENTRY_EVENT_FILE);
-    file_attachments.emplace(SENTRY_EVENT_FILE,
-        base::FilePath(current_run_folder.join(SENTRY_EVENT_FILE).as_osstr()));
+    // and add the serialized event, and two rotating breadcrumb files
+    // as attachments and make sure the files exist
+    data->event_path
+        = sentry__path_join_str(current_run_folder, "__sentry-event");
+    data->breadcrumb1_path
+        = sentry__path_join_str(current_run_folder, "__sentry-breadcrumb1");
+    data->breadcrumb2_path
+        = sentry__path_join_str(current_run_folder, "__sentry-breadcrumb2");
 
-    // create both breadcrumbs files so that crashpad does not log an error
-    // if they are missing.
-    Path bc1 = current_run_folder.join(SENTRY_BREADCRUMBS1_FILE);
-    bc1.touch();
-    Path bc2 = current_run_folder.join(SENTRY_BREADCRUMBS2_FILE);
-    bc2.touch();
+    sentry__path_touch(data->event_path);
+    sentry__path_touch(data->breadcrumb1_path);
+    sentry__path_touch(data->breadcrumb2_path);
 
     file_attachments.emplace(
-        SENTRY_BREADCRUMBS1_FILE, base::FilePath(bc1.as_osstr()));
+        "__sentry-event", base::FilePath(data->event_path->path));
     file_attachments.emplace(
-        SENTRY_BREADCRUMBS2_FILE, base::FilePath(bc2.as_osstr()));
-*/
+        "__sentry-breadcrumb1", base::FilePath(data->breadcrumb1_path->path));
+    file_attachments.emplace(
+        "__sentry-breadcrumb2", base::FilePath(data->breadcrumb2_path->path));
+
     std::vector<std::string> arguments;
     arguments.push_back("--no-rate-limit");
 
@@ -105,56 +120,56 @@ startup_crashpad_backend(sentry_backend_t *backend)
 }
 
 static void
-flush_scope(struct sentry_backend_s *, const sentry_scope_t *scope)
+flush_scope(sentry_backend_t *backend, const sentry_scope_t *scope)
 {
-    /*
-    // if we can't open the file, fail silently.
-    FILE *f = event_filename.open("wb");
-    if (!f) {
-        return;
-    }
-    mpack_writer_t writer;
-    mpack_writer_init_stdfile(&writer, f, true);
-    Value event = Value::new_object();
-    scope.apply_to_event(event, SENTRY_SCOPE_NONE);
-    event.to_msgpack(&writer);
-    mpack_error_t err = mpack_writer_destroy(&writer);
-    if (err != mpack_ok) {
-        SENTRY_LOGF("an error occurred encoding the data. Code: %d", err);
-        return;
-    }
-    */
-}
-
-static void
-add_breadcrumb(struct sentry_backend_s *, sentry_value_t breadcrumb)
-{
-    /*
-    std::lock_guard<std::mutex> _blck(breadcrumb_lock);
-    const sentry_options_t *opts = sentry_get_options();
-
-    if (breadcrumbs_in_segment == 0
-        || breadcrumbs_in_segment == SENTRY_BREADCRUMBS_MAX) {
-        breadcrumb_fileid = breadcrumb_fileid == 0 ? 1 : 0;
-        breadcrumbs_in_segment = 0;
-        breadcrumb_filename
-            = opts->runs_folder.join(opts->run_id.c_str())
-                  .join(breadcrumb_fileid == 0 ? SENTRY_BREADCRUMBS1_FILE
-                                               : SENTRY_BREADCRUMBS2_FILE);
+    sentry_value_t event = sentry_value_new_object();
+    SENTRY_WITH_SCOPE (scope) {
+        sentry__scope_apply_to_event(scope, event);
     }
 
     size_t mpack_size;
-    char *mpack = breadcrumb.to_msgpack_string(&mpack_size);
-    FILE *file
-        = breadcrumb_filename.open(breadcrumbs_in_segment == 0 ? "wb" : "a");
-    if (file) {
-        fwrite(mpack, 1, mpack_size, file);
-        fclose(file);
-    }
-    free(mpack);
+    char *mpack = sentry_value_to_msgpack(event, &mpack_size);
+    sentry_value_decref(event);
 
-    breadcrumbs_in_segment++;
-    */
+    crashpad_state_t *data = (crashpad_state_t *)backend->data;
+    int _rv = sentry__path_write_buffer(data->event_path, mpack, mpack_size);
+    // TODO: check rv?
+}
+
+static void
+add_breadcrumb(sentry_backend_t *backend, sentry_value_t breadcrumb)
+{
+    crashpad_state_t *data = (crashpad_state_t *)backend->data;
+
+    bool first_breadcrumb = data->num_breadcrumbs % SENTRY_BREADCRUMBS_MAX == 0;
+
+    sentry_path_t *breadcrumb_file
+        = data->num_breadcrumbs % (SENTRY_BREADCRUMBS_MAX * 2)
+            < SENTRY_BREADCRUMBS_MAX
+        ? data->breadcrumb1_path
+        : data->breadcrumb2_path;
+
+    size_t mpack_size;
+    char *mpack = sentry_value_to_msgpack(breadcrumb, &mpack_size);
+
+    int _rv = first_breadcrumb
+        ? sentry__path_write_buffer(breadcrumb_file, mpack, mpack_size)
+        : sentry__path_append_buffer(breadcrumb_file, mpack, mpack_size);
+    // TODO: check rv?
+
+    sentry_free(mpack);
+
+    data->num_breadcrumbs++;
+}
+
+static void
+backend_free(sentry_backend_t *backend)
+{
+    crashpad_state_t *data = (crashpad_state_t *)backend->data;
+    sentry__path_free(data->event_path);
+    sentry__path_free(data->breadcrumb1_path);
+    sentry__path_free(data->breadcrumb2_path);
+    sentry_free(data);
 }
 
 sentry_backend_t *
@@ -164,14 +179,20 @@ sentry__new_crashpad_backend(void)
     if (!backend) {
         return NULL;
     }
+    crashpad_state_t *data = SENTRY_MAKE(crashpad_state_t);
+    if (!data) {
+        sentry_free(backend);
+        return NULL;
+    }
+    data->num_breadcrumbs = 0;
 
     backend->startup_func = startup_crashpad_backend;
     backend->shutdown_func = NULL;
-    backend->free_func = NULL;
+    backend->free_func = backend_free;
     backend->flush_scope_func = flush_scope;
     backend->add_breadcrumb_func = add_breadcrumb;
     backend->user_consent_changed_func = user_consent_changed;
-    backend->data = NULL;
+    backend->data = data;
 
     return backend;
 }

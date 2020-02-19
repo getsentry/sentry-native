@@ -44,6 +44,8 @@ size_t sentry__path_get_size(const sentry_path_t *path);
 char *sentry__path_read_to_buffer(const sentry_path_t *path, size_t *size_out);
 int sentry__path_write_buffer(
     const sentry_path_t *path, const char *buf, size_t buf_len);
+int sentry__path_append_buffer(
+    const sentry_path_t *path, const char *buf, size_t buf_len);
 
 sentry_pathiter_t *sentry__path_iter_directory(const sentry_path_t *path);
 const sentry_path_t *sentry__pathiter_next(sentry_pathiter_t *piter);

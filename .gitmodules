@@ -4,3 +4,6 @@
 [submodule "external/crashpad"]
 	path = external/crashpad
 	url = https://github.com/getsentry/crashpad.git
+[submodule "external/msgpack-c"]
+	path = external/msgpack-c
+	url = https://github.com/msgpack/msgpack-c.git

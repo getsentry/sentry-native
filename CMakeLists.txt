@@ -148,6 +148,17 @@ if(WITH_CRASHPAD)
 	install(TARGETS "crashpad_handler")
 endif()
 
+# msgpack
+set(MSGPACK_ENABLE_CXX OFF)
+set(MSGPACK_ENABLE_STATIC ON)
+set(TEMP_BUILD_SHARED_LIBS ${BUILD_SHARED_LIBS})
+set(BUILD_SHARED_LIBS OFF)
+add_subdirectory(external/msgpack-c EXCLUDE_FROM_ALL)
+set(BUILD_SHARED_LIBS ${TEMP_BUILD_SHARED_LIBS})
+
+include_directories(external/msgpack-c/include)
+set(LINK_LIBRARIES ${LINK_LIBRARIES} msgpackc)
+
 # ===== sentry library =====
 
 add_library("sentry" ${SENTRY_NATIVE_ALL_SOURCES})
@@ -183,3 +194,6 @@ endif()
 
 add_executable("example" EXCLUDE_FROM_ALL "./examples/example.c")
 target_link_libraries("example" "sentry")
+
+add_executable("example_crashpad" EXCLUDE_FROM_ALL "./examples/example_crashpad.c")
+target_link_libraries("example_crashpad" "sentry")

@@ -1,6 +1,7 @@
 #include "sentry_boot.h"
 
 #include <assert.h>
+#include <msgpack.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
@@ -736,6 +737,71 @@ sentry_value_to_json(sentry_value_t value)
     sentry_jsonwriter_t *jw = sentry__jsonwriter_new_in_memory();
     value_to_json(jw, value);
     return sentry__jsonwriter_into_string(jw);
+}
+
+static void
+value_to_msgpack(msgpack_packer *pk, sentry_value_t value)
+{
+    switch (sentry_value_get_type(value)) {
+    case SENTRY_VALUE_TYPE_NULL:
+        msgpack_pack_nil(pk);
+        break;
+    case SENTRY_VALUE_TYPE_BOOL:
+        if (sentry_value_is_true(value)) {
+            msgpack_pack_true(pk);
+        } else {
+            msgpack_pack_false(pk);
+        }
+        break;
+    case SENTRY_VALUE_TYPE_INT32:
+        msgpack_pack_int32(pk, sentry_value_as_int32(value));
+        break;
+    case SENTRY_VALUE_TYPE_DOUBLE:
+        msgpack_pack_double(pk, sentry_value_as_double(value));
+        break;
+    case SENTRY_VALUE_TYPE_STRING: {
+        const char *s = sentry_value_as_string(value);
+        int len = strlen(s);
+        msgpack_pack_str(pk, len);
+        msgpack_pack_str_body(pk, s, len);
+        break;
+    }
+    case SENTRY_VALUE_TYPE_LIST: {
+        const list_t *l = value_as_thing(value)->payload;
+
+        msgpack_pack_array(pk, l->len);
+        for (size_t i = 0; i < l->len; i++) {
+            value_to_msgpack(pk, l->items[i]);
+        }
+        break;
+    }
+    case SENTRY_VALUE_TYPE_OBJECT: {
+        const obj_t *o = value_as_thing(value)->payload;
+        msgpack_pack_map(pk, o->len);
+        for (size_t i = 0; i < o->len; i++) {
+            int klen = strlen(o->pairs[i].k);
+            msgpack_pack_str(pk, klen);
+            msgpack_pack_str_body(pk, o->pairs[i].k, klen);
+            value_to_msgpack(pk, o->pairs[i].v);
+        }
+        break;
+    }
+    }
+}
+
+char *
+sentry_value_to_msgpack(sentry_value_t value, size_t *size_out)
+{
+    msgpack_sbuffer sbuf;
+    msgpack_packer pk;
+
+    msgpack_sbuffer_init(&sbuf);
+    msgpack_packer_init(&pk, &sbuf, msgpack_sbuffer_write);
+
+    value_to_msgpack(&pk, value);
+
+    *size_out = sbuf.size;
+    return sbuf.data;
 }
 
 sentry_value_t

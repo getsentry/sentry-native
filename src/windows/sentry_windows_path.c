@@ -385,11 +385,11 @@ sentry__path_read_to_buffer(const sentry_path_t *path, size_t *size_out)
     return rv;
 }
 
-int
-sentry__path_write_buffer(
-    const sentry_path_t *path, const char *buf, size_t buf_len)
+static int
+write_buffer_with_mode(const sentry_path_t *path, const char *buf,
+    size_t buf_len, const wchar_t *mode)
 {
-    FILE *f = _wfopen(path->path, L"wb");
+    FILE *f = _wfopen(path->path, mode);
     if (!f) {
         return 1;
     }
@@ -411,4 +411,18 @@ sentry__path_write_buffer(
 
     fclose(f);
     return remaining == 0 ? 0 : 1;
+}
+
+int
+sentry__path_write_buffer(
+    const sentry_path_t *path, const char *buf, size_t buf_len)
+{
+    return write_buffer_with_mode(path, buf, buf_len, L"wb");
+}
+
+int
+sentry__path_append_buffer(
+    const sentry_path_t *path, const char *buf, size_t buf_len)
+{
+    return write_buffer_with_mode(path, buf, buf_len, L"a");
 }
