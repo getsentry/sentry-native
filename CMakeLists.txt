@@ -125,7 +125,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Android")
 endif()
 
 if(WIN32)
-	set(LINK_LIBRARIES ${LINK_LIBRARIES} "dbghelp.lib")
+	set(LINK_LIBRARIES ${LINK_LIBRARIES} "dbghelp.lib" "pathcch.lib")
 endif()
 
 SET(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR})

@@ -36,6 +36,24 @@ path_with_len(size_t len)
 }
 
 sentry_path_t *
+sentry__path_current_exe(void)
+{
+    // inspired by:
+    // https://github.com/rust-lang/rust/blob/183e893aaae581bd0ab499ba56b6c5e118557dc7/src/libstd/sys/windows/os.rs#L234-L239
+    sentry_path_t *path = path_with_len(MAX_PATH);
+    size_t _len = GetModuleFileNameW(NULL, path->path, MAX_PATH);
+    // TODO: check _len
+    return path;
+}
+
+sentry_path_t *
+sentry__path_dir(sentry_path_t *path)
+{
+    PathCchRemoveFileSpec(path->path, wcslen(path->path));
+    return path;
+}
+
+sentry_path_t *
 sentry__path_from_wstr(const wchar_t *s)
 {
     size_t len = wcslen(s) + 1;
