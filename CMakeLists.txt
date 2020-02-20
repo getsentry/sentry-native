@@ -4,10 +4,10 @@ project (Sentry-Native LANGUAGES C CXX ASM)
 include(CMakeDependentOption)
 
 OPTION(BUILD_SHARED_LIBS "Build shared libraries (.dll/.so) instead of static ones (.lib/.a)" ON)
-CMAKE_DEPENDENT_OPTION(WITH_CRASHPAD "Build and use the Crashpad integration" ON "APPLE" OFF)
+CMAKE_DEPENDENT_OPTION(WITH_CRASHPAD "Build and use the Crashpad integration" ON "APPLE OR WIN32" OFF)
 
-if(WITH_CRASHPAD AND NOT APPLE)
-	message(WARNING "The Crashpad backend is currently only supported on macOS")
+if(WITH_CRASHPAD AND NOT APPLE AND NOT WIN32)
+	message(WARNING "The Crashpad backend is currently only supported on macOS and Windows")
 endif()
 
 OPTION(WITH_ASAN_OPTION "Build sentry-native with address sanitizer" OFF)
@@ -48,6 +48,10 @@ endif()
 #set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Werror=implicit-function-declaration -Werror=incompatible-function-pointer-types -Wall -fvisibility=hidden")
 if(NOT WIN32)
 	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -fvisibility=hidden")
+endif()
+
+if(WIN32)
+	add_definitions(/wd4005)
 endif()
 
 file(GLOB SENTRY_NATIVE_SOURCES
