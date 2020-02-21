@@ -16,14 +16,22 @@ typedef struct sentry_scope_s {
     sentry_level_t level;
 } sentry_scope_t;
 
+typedef enum {
+    SENTRY_SCOPE_NONE = 0x0,
+    SENTRY_SCOPE_BREADCRUMBS = 0x1,
+    SENTRY_SCOPE_MODULES = 0x2,
+    // TODO: SENTRY_SCOPE_STACKTRACES = 0x4,
+    SENTRY_SCOPE_ALL = 0x7,
+} sentry_scope_mode_t;
+
 sentry_scope_t *sentry__scope_lock(void);
 void sentry__scope_unlock(void);
 
 void sentry__scope_cleanup(void);
 
 void sentry__scope_flush(const sentry_scope_t *scope);
-void sentry__scope_apply_to_event(
-    const sentry_scope_t *scope, sentry_value_t event);
+void sentry__scope_apply_to_event(const sentry_scope_t *scope,
+    sentry_value_t event, sentry_scope_mode_t mode);
 
 #define SENTRY_WITH_SCOPE(Scope)                                               \
     for (const sentry_scope_t *Scope = sentry__scope_lock(); Scope;            \
@@ -31,5 +39,8 @@ void sentry__scope_apply_to_event(
 #define SENTRY_WITH_SCOPE_MUT(Scope)                                           \
     for (sentry_scope_t *Scope = sentry__scope_lock(); Scope;                  \
          sentry__scope_unlock(), sentry__scope_flush(scope), Scope = NULL)
+#define SENTRY_WITH_SCOPE_MUT_NO_FLUSH(Scope)                                  \
+    for (sentry_scope_t *Scope = sentry__scope_lock(); Scope;                  \
+         sentry__scope_unlock(), Scope = NULL)
 
 #endif

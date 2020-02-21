@@ -124,7 +124,8 @@ flush_scope(sentry_backend_t *backend, const sentry_scope_t *scope)
 {
     sentry_value_t event = sentry_value_new_object();
     SENTRY_WITH_SCOPE (scope) {
-        sentry__scope_apply_to_event(scope, event);
+        // we want the scope without any modules or breadcrumbs
+        sentry__scope_apply_to_event(scope, event, SENTRY_SCOPE_NONE);
     }
 
     size_t mpack_size;

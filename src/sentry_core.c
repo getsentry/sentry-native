@@ -173,7 +173,7 @@ sentry_capture_event(sentry_value_t event)
 
     SENTRY_WITH_SCOPE (scope) {
         SENTRY_TRACE("merging scope into event");
-        sentry__scope_apply_to_event(scope, event);
+        sentry__scope_apply_to_event(scope, event, SENTRY_SCOPE_ALL);
     }
 
     const sentry_options_t *opts = sentry_get_options();
@@ -538,7 +538,10 @@ void
 sentry_add_breadcrumb(sentry_value_t breadcrumb)
 {
     sentry_value_incref(breadcrumb);
-    SENTRY_WITH_SCOPE_MUT (scope) {
+    // the `no_flush` will avoid triggering *both* scope-change and
+    // breadcrumb-add events.
+    SENTRY_WITH_SCOPE_MUT_NO_FLUSH(scope)
+    {
         sentry__value_append_bounded(
             scope->breadcrumbs, breadcrumb, SENTRY_BREADCRUMBS_MAX);
     }
