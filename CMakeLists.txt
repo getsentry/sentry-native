@@ -153,15 +153,8 @@ if(WITH_CRASHPAD)
 endif()
 
 # msgpack
-set(MSGPACK_ENABLE_CXX OFF)
-set(MSGPACK_ENABLE_STATIC ON)
-set(TEMP_BUILD_SHARED_LIBS ${BUILD_SHARED_LIBS})
-set(BUILD_SHARED_LIBS OFF)
-add_subdirectory(external/msgpack-c EXCLUDE_FROM_ALL)
-set(BUILD_SHARED_LIBS ${TEMP_BUILD_SHARED_LIBS})
-
-include_directories(external/msgpack-c/include)
-set(LINK_LIBRARIES ${LINK_LIBRARIES} msgpackc)
+include_directories(vendor)
+set(SENTRY_NATIVE_ALL_SOURCES ${SENTRY_NATIVE_ALL_SOURCES} vendor/mpack.c)
 
 # ===== sentry library =====
 

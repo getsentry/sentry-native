@@ -1,7 +1,7 @@
 #include "sentry_boot.h"
 
 #include <assert.h>
-#include <msgpack.h>
+#include <mpack.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
@@ -740,50 +740,43 @@ sentry_value_to_json(sentry_value_t value)
 }
 
 static void
-value_to_msgpack(msgpack_packer *pk, sentry_value_t value)
+value_to_msgpack(mpack_writer_t *writer, sentry_value_t value)
 {
     switch (sentry_value_get_type(value)) {
     case SENTRY_VALUE_TYPE_NULL:
-        msgpack_pack_nil(pk);
+        mpack_write_nil(writer);
         break;
     case SENTRY_VALUE_TYPE_BOOL:
-        if (sentry_value_is_true(value)) {
-            msgpack_pack_true(pk);
-        } else {
-            msgpack_pack_false(pk);
-        }
+        mpack_write_bool(writer, sentry_value_is_true(value) ? true : false);
         break;
     case SENTRY_VALUE_TYPE_INT32:
-        msgpack_pack_int32(pk, sentry_value_as_int32(value));
+        mpack_write_i32(writer, sentry_value_as_int32(value));
         break;
     case SENTRY_VALUE_TYPE_DOUBLE:
-        msgpack_pack_double(pk, sentry_value_as_double(value));
+        mpack_write_double(writer, sentry_value_as_double(value));
         break;
     case SENTRY_VALUE_TYPE_STRING: {
-        const char *s = sentry_value_as_string(value);
-        int len = strlen(s);
-        msgpack_pack_str(pk, len);
-        msgpack_pack_str_body(pk, s, len);
+        mpack_write_cstr_or_nil(writer, sentry_value_as_string(value));
         break;
     }
     case SENTRY_VALUE_TYPE_LIST: {
         const list_t *l = value_as_thing(value)->payload;
 
-        msgpack_pack_array(pk, l->len);
+        mpack_start_array(writer, l->len);
         for (size_t i = 0; i < l->len; i++) {
-            value_to_msgpack(pk, l->items[i]);
+            value_to_msgpack(writer, l->items[i]);
         }
+        mpack_finish_array(writer);
         break;
     }
     case SENTRY_VALUE_TYPE_OBJECT: {
         const obj_t *o = value_as_thing(value)->payload;
-        msgpack_pack_map(pk, o->len);
+        mpack_start_map(writer, o->len);
         for (size_t i = 0; i < o->len; i++) {
-            int klen = strlen(o->pairs[i].k);
-            msgpack_pack_str(pk, klen);
-            msgpack_pack_str_body(pk, o->pairs[i].k, klen);
-            value_to_msgpack(pk, o->pairs[i].v);
+            mpack_write_cstr(writer, o->pairs[i].k);
+            value_to_msgpack(writer, o->pairs[i].v);
         }
+        mpack_finish_map(writer);
         break;
     }
     }
@@ -792,16 +785,14 @@ value_to_msgpack(msgpack_packer *pk, sentry_value_t value)
 char *
 sentry_value_to_msgpack(sentry_value_t value, size_t *size_out)
 {
-    msgpack_sbuffer sbuf;
-    msgpack_packer pk;
-
-    msgpack_sbuffer_init(&sbuf);
-    msgpack_packer_init(&pk, &sbuf, msgpack_sbuffer_write);
-
-    value_to_msgpack(&pk, value);
-
-    *size_out = sbuf.size;
-    return sbuf.data;
+    mpack_writer_t writer;
+    char *buf;
+    size_t size;
+    mpack_writer_init_growable(&writer, &buf, &size);
+    value_to_msgpack(&writer, value);
+    mpack_writer_destroy(&writer);
+    *size_out = size;
+    return buf;
 }
 
 sentry_value_t
