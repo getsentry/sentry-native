@@ -1,5 +1,5 @@
-#include "../src/transports/sentry_function_transport.h"
 #include "sentry_testsupport.h"
+#include "transports/sentry_function_transport.h"
 #include <sentry.h>
 
 static void

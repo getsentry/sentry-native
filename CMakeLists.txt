@@ -3,6 +3,10 @@ project (Sentry-Native LANGUAGES C CXX ASM)
 
 include(CMakeDependentOption)
 
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+	set(LINUX TRUE)
+endif()
+
 OPTION(BUILD_SHARED_LIBS "Build shared libraries (.dll/.so) instead of static ones (.lib/.a)" ON)
 CMAKE_DEPENDENT_OPTION(WITH_CRASHPAD "Build and use the Crashpad integration" ON "APPLE OR WIN32" OFF)
 
@@ -22,10 +26,6 @@ if(WITH_TSAN_OPTION)
 	link_libraries("-fsanitize=thread")
 endif()
 
-include_directories("include")
-
-set(SENTRY_NATIVE_SOURCE_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/src)
-
 if(BUILD_SHARED_LIBS)
 	add_definitions(-DSENTRY_BUILD_SHARED)
 else()
@@ -34,6 +34,7 @@ endif()
 
 FIND_PACKAGE(CURL)
 if(CURL_FOUND)
+	set(WITH_CURL TRUE)
 	add_definitions(-DSENTRY_WITH_LIBCURL_TRANSPORT)
 	include_directories(${CURL_INCLUDE_DIR})
 	set(LINK_LIBRARIES ${LINK_LIBRARIES} ${CURL_LIBRARIES})
@@ -56,75 +57,24 @@ if(WITH_CRASHPAD AND WIN32)
 	add_definitions(/wd4005)
 endif()
 
-file(GLOB SENTRY_NATIVE_SOURCES
-	${SENTRY_NATIVE_SOURCE_ROOT}/*.c
-	${SENTRY_NATIVE_SOURCE_ROOT}/transports/sentry_disk_transport.c
-	${SENTRY_NATIVE_SOURCE_ROOT}/transports/sentry_function_transport.c
-)
+if(ANDROID)
+	set(WITH_LIBUNWINDSTACK TRUE)
+elseif(NOT WIN32)
+	set(WITH_LIBBACKTRACE TRUE)
+endif()
 
-file(GLOB SENTRY_NATIVE_LIBCURL_TRANSPORT_SOURCES
-	${SENTRY_NATIVE_SOURCE_ROOT}/transports/sentry_libcurl_transport.c
-)
-
-file(GLOB SENTRY_NATIVE_INPROC_BACKEND_SOURCES
-	${SENTRY_NATIVE_SOURCE_ROOT}/backends/sentry_inproc_*.c
-)
-
-file(GLOB SENTRY_NATIVE_UNIX_SOURCES
-	${SENTRY_NATIVE_SOURCE_ROOT}/unix/*.c
-)
-
-file(GLOB SENTRY_NATIVE_LINUX_SOURCES
-	${SENTRY_NATIVE_SOURCE_ROOT}/linux/*.c
-)
-
-file(GLOB SENTRY_NATIVE_DARWIN_SOURCES
-	${SENTRY_NATIVE_SOURCE_ROOT}/darwin/*.c
-)
-
-file(GLOB SENTRY_NATIVE_ANDROID_SOURCES
-	${SENTRY_NATIVE_SOURCE_ROOT}/linux/sentry_procmaps_modulefinder.c
-	${SENTRY_NATIVE_SOURCE_ROOT}/unix/sentry_unix_unwinder_libunwindstack.cpp
-)
-
-file(GLOB SENTRY_NATIVE_WINDOWS_SOURCES
-	${SENTRY_NATIVE_SOURCE_ROOT}/windows/*.c
-)
+include_directories("include")
+include_directories("src")
 
 file(GLOB_RECURSE SENTRY_NATIVE_TEST_SOURCES
 	${CMAKE_CURRENT_SOURCE_DIR}/tests/*.c
 )
 
-set(SENTRY_NATIVE_ALL_SOURCES ${SENTRY_NATIVE_SOURCES})
-if(WIN32)
-	set(SENTRY_NATIVE_ALL_SOURCES ${SENTRY_NATIVE_ALL_SOURCES}
-		${SENTRY_NATIVE_WINDOWS_SOURCES})
-else()
-	set(SENTRY_NATIVE_ALL_SOURCES ${SENTRY_NATIVE_ALL_SOURCES}
-		${SENTRY_NATIVE_UNIX_SOURCES} ${SENTRY_NATIVE_INPROC_BACKEND_SOURCES})
-endif()
-
-if(CURL_FOUND)
-	set(SENTRY_NATIVE_ALL_SOURCES ${SENTRY_NATIVE_ALL_SOURCES}
-		${SENTRY_NATIVE_LIBCURL_TRANSPORT_SOURCES})
-endif()
-
-if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
-	set(SENTRY_NATIVE_ALL_SOURCES ${SENTRY_NATIVE_ALL_SOURCES}
-		${SENTRY_NATIVE_DARWIN_SOURCES})
-endif()
-
-if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-	set(SENTRY_NATIVE_ALL_SOURCES ${SENTRY_NATIVE_ALL_SOURCES}
-		${SENTRY_NATIVE_LINUX_SOURCES})
-
+if(LINUX)
 	set(LINK_LIBRARIES ${LINK_LIBRARIES} "pthread" "dl")
 endif()
 
-if(CMAKE_SYSTEM_NAME STREQUAL "Android")
-	set(SENTRY_NATIVE_ALL_SOURCES ${SENTRY_NATIVE_ALL_SOURCES}
-			${SENTRY_NATIVE_ANDROID_SOURCES})
-
+if(WITH_LIBUNWINDSTACK)
 	include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/libunwindstack-ndk/include)
 	add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/external/libunwindstack-ndk/cmake)
 	set(LINK_LIBRARIES ${LINK_LIBRARIES} "unwindstack")
@@ -149,17 +99,14 @@ if(WITH_CRASHPAD)
 	include_directories(external/crashpad external/crashpad/third_party/mini_chromium/mini_chromium)
 	add_definitions(-DSENTRY_WITH_CRASHPAD_BACKEND)
 	set(LINK_LIBRARIES ${LINK_LIBRARIES} crashpad_client crashpad_util)
-	set(SENTRY_NATIVE_ALL_SOURCES ${SENTRY_NATIVE_ALL_SOURCES}
-		${SENTRY_NATIVE_SOURCE_ROOT}/backends/sentry_crashpad_backend.cpp)
 	install(TARGETS "crashpad_handler")
 endif()
 
-# msgpack
-set(SENTRY_NATIVE_ALL_SOURCES ${SENTRY_NATIVE_ALL_SOURCES} vendor/mpack.c)
-
 # ===== sentry library =====
 
-add_library("sentry" ${SENTRY_NATIVE_ALL_SOURCES})
+add_library("sentry" "vendor/mpack.c")
+add_subdirectory(src)
+
 set_target_properties("sentry" PROPERTIES PUBLIC_HEADER "include/sentry.h")
 target_link_libraries("sentry" ${LINK_LIBRARIES})
 install(TARGETS "sentry")
@@ -172,11 +119,14 @@ endif()
 
 # compile tests separately and pass an extra preprocessor define so we can
 # switch some internal modes for the unittests.
+# TODO: get sources from "sentry"
+get_target_property(SENTRY_NATIVE_ALL_SOURCES sentry SOURCES)
 add_executable("sentry_tests" EXCLUDE_FROM_ALL
 	${SENTRY_NATIVE_ALL_SOURCES}
 	${SENTRY_NATIVE_TEST_SOURCES}
 )
-target_compile_definitions("sentry_tests" PUBLIC -DSENTRY_UNITTEST)
+get_target_property(SENTRY_DEFS sentry COMPILE_DEFINITIONS)
+target_compile_definitions("sentry_tests" PUBLIC SENTRY_UNITTEST ${SENTRY_DEFS})
 target_link_libraries("sentry_tests" ${LINK_LIBRARIES})
 
 # to fix some issues with tests (dladdr can't find functions otherwise)

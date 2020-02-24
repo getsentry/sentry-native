@@ -197,7 +197,7 @@ sentry__bgworker_submit(sentry_bgworker_t *bgw,
 }
 
 #ifdef SENTRY_PLATFORM_UNIX
-#    include "unix/sentry_unix_spinlock.h"
+#    include "sentry_unix_spinlock.h"
 
 static sig_atomic_t g_in_signal_handler = 0;
 static sentry_threadid_t g_signal_handling_thread;

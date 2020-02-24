@@ -1,7 +1,7 @@
 #ifndef SENTRY_UNIX_SPINLOCK_H_INCLUDED
 #define SENTRY_UNIX_SPINLOCK_H_INCLUDED
 
-#include "../sentry_boot.h"
+#include "sentry_boot.h"
 
 typedef volatile sig_atomic_t sentry_spinlock_t;
 

@@ -1,4 +1,4 @@
-#include "../src/sentry_boot.h"
+#include "sentry_boot.h"
 
 #include <inttypes.h>
 #include <setjmp.h>

@@ -1,9 +1,11 @@
-#include "sentry_procmaps_modulefinder.h"
-#include "../sentry_core.h"
-#include "../sentry_path.h"
-#include "../sentry_string.h"
-#include "../sentry_sync.h"
-#include "../sentry_value.h"
+#include "sentry_modulefinder_linux.h"
+
+#include "sentry_core.h"
+#include "sentry_path.h"
+#include "sentry_string.h"
+#include "sentry_sync.h"
+#include "sentry_value.h"
+
 #include <arpa/inet.h>
 #include <elf.h>
 #include <fcntl.h>
@@ -334,7 +336,7 @@ load_modules(sentry_value_t modules)
 }
 
 sentry_value_t
-sentry__procmaps_modules_get_list(void)
+sentry__modules_get_list(void)
 {
     sentry__mutex_lock(&g_mutex);
     if (!g_initialized) {

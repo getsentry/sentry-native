@@ -1,36 +1,33 @@
 #include "sentry_boot.h"
 
-#ifdef SENTRY_PLATFORM_ANDROID
-#    include "unix/sentry_unix_unwinder_libunwindstack.h"
-#    define HAVE_LIBUNWINDSTACK
-#elif defined(SENTRY_PLATFORM_DARWIN) || defined(SENTRY_PLATFORM_LINUX)
-#    include "unix/sentry_unix_unwinder_libbacktrace.h"
-#    define HAVE_LIBBACKTRACE
-#elif defined(SENTRY_PLATFORM_WINDOWS)
-#    include "windows/sentry_windows_dbghelp.h"
-#    define HAVE_DBGHELP
-#endif
+#define DEFINE_UNWINDER(Func)                                                  \
+    size_t sentry__unwind_stack_##Func(void *addr,                             \
+        const sentry_ucontext_t *uctx, void **ptrs, size_t max_frames)
 
 #define TRY_UNWINDER(Func)                                                     \
     do {                                                                       \
-        size_t rv = Func(addr, uctx, ptrs, max_frames);                        \
+        size_t rv = sentry__unwind_stack_##Func(addr, uctx, ptrs, max_frames); \
         if (rv > 0) {                                                          \
             return rv;                                                         \
         }                                                                      \
     } while (0)
 
+DEFINE_UNWINDER(libunwindstack);
+DEFINE_UNWINDER(libbacktrace);
+DEFINE_UNWINDER(dbghelp);
+
 static size_t
 unwind_stack(
     void *addr, const sentry_ucontext_t *uctx, void **ptrs, size_t max_frames)
 {
-#ifdef HAVE_LIBBACKTRACE
-    TRY_UNWINDER(sentry__unwind_stack_backtrace);
+#ifdef SENTRY_WITH_UNWINDER_LIBUNWINDSTACK
+    TRY_UNWINDER(libunwindstack);
 #endif
-#ifdef HAVE_LIBUNWINDSTACK
-    TRY_UNWINDER(sentry__unwind_stack_unwindstack);
+#ifdef SENTRY_WITH_UNWINDER_LIBBACKTRACE
+    TRY_UNWINDER(libbacktrace);
 #endif
-#ifdef HAVE_DBGHELP
-    TRY_UNWINDER(sentry__unwind_stack_dbghelp);
+#ifdef SENTRY_WITH_UNWINDER_DBGHELP
+    TRY_UNWINDER(dbghelp);
 #endif
     return 0;
 }

@@ -1,11 +1,11 @@
 #include "sentry_crashpad_backend.h"
 
 extern "C" {
-#include "../sentry_alloc.h"
-#include "../sentry_core.h"
-#include "../sentry_database.h"
-#include "../sentry_path.h"
-#include "../sentry_utils.h"
+#include "sentry_alloc.h"
+#include "sentry_core.h"
+#include "sentry_database.h"
+#include "sentry_path.h"
+#include "sentry_utils.h"
 }
 
 #include <map>

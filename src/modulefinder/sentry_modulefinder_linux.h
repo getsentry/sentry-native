@@ -1,8 +1,8 @@
 #ifndef SENTRY_PROCMAPS_MODULEFINDER_H_INCLUDED
 #define SENTRY_PROCMAPS_MODULEFINDER_H_INCLUDED
 
-#include "../sentry_boot.h"
-#include "../sentry_slice.h"
+#include "sentry_boot.h"
+#include "sentry_slice.h"
 
 typedef struct {
     void *start;

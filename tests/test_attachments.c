@@ -1,8 +1,8 @@
-#include "../src/sentry_envelope.h"
-#include "../src/sentry_path.h"
-#include "../src/sentry_string.h"
-#include "../src/transports/sentry_function_transport.h"
+#include "sentry_envelope.h"
+#include "sentry_path.h"
+#include "sentry_string.h"
 #include "sentry_testsupport.h"
+#include "transports/sentry_function_transport.h"
 #include <sentry.h>
 
 typedef struct {

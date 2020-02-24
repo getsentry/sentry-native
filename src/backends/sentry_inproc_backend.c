@@ -1,11 +1,11 @@
 #include "sentry_inproc_backend.h"
 
-#include "../sentry_alloc.h"
-#include "../sentry_core.h"
-#include "../sentry_envelope.h"
-#include "../sentry_scope.h"
-#include "../sentry_sync.h"
-#include "../unix/sentry_unix_pageallocator.h"
+#include "sentry_alloc.h"
+#include "sentry_core.h"
+#include "sentry_envelope.h"
+#include "sentry_scope.h"
+#include "sentry_sync.h"
+#include "sentry_unix_pageallocator.h"
 #include <string.h>
 
 #define SIGNAL_DEF(Sig, Desc)                                                  \

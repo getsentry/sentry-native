@@ -1,9 +1,9 @@
 #include "sentry_function_transport.h"
-#include "../sentry_alloc.h"
-#include "../sentry_core.h"
-#include "../sentry_envelope.h"
-#include "../sentry_string.h"
-#include "../sentry_sync.h"
+#include "sentry_alloc.h"
+#include "sentry_core.h"
+#include "sentry_envelope.h"
+#include "sentry_string.h"
+#include "sentry_sync.h"
 
 struct transport_state {
     void (*func)(sentry_envelope_t *envelope, void *data);

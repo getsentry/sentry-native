@@ -5,9 +5,9 @@
 extern "C" {
 #endif
 
-#include "../sentry_boot.h"
+#include "sentry_boot.h"
 
-#include "../sentry_backend.h"
+#include "sentry_backend.h"
 
 sentry_backend_t *sentry__new_crashpad_backend(void);
 
