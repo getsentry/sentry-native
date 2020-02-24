@@ -1,6 +1,7 @@
 #include "../sentry_boot.h"
 
 #include "../sentry_alloc.h"
+#include "../sentry_core.h"
 #include "../sentry_path.h"
 #include "../sentry_string.h"
 #include "../sentry_utils.h"
@@ -41,8 +42,12 @@ sentry__path_current_exe(void)
     // inspired by:
     // https://github.com/rust-lang/rust/blob/183e893aaae581bd0ab499ba56b6c5e118557dc7/src/libstd/sys/windows/os.rs#L234-L239
     sentry_path_t *path = path_with_len(MAX_PATH);
-    size_t _len = GetModuleFileNameW(NULL, path->path, MAX_PATH);
-    // TODO: check _len
+    size_t len = GetModuleFileNameW(NULL, path->path, MAX_PATH);
+    if (!len) {
+        SENTRY_DEBUG("unable to get current exe path");
+        sentry__path_free(path);
+        return NULL;
+    }
     return path;
 }
 

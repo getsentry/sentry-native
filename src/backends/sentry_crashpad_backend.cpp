@@ -8,12 +8,13 @@ extern "C" {
 #include "../sentry_utils.h"
 }
 
+#include <map>
+#include <vector>
+
 #include "client/crash_report_database.h"
 #include "client/crashpad_client.h"
 #include "client/crashpad_info.h"
 #include "client/settings.h"
-#include <map>
-#include <vector>
 
 typedef struct {
     sentry_path_t *event_path;
@@ -25,7 +26,7 @@ typedef struct {
 static std::unique_ptr<crashpad::CrashReportDatabase> g_db;
 
 static void
-user_consent_changed(sentry_backend_t *backend)
+sentry__crashpad_backend_user_consent_changed(sentry_backend_t *backend)
 {
     if (!g_db || !g_db->GetSettings()) {
         return;
@@ -34,7 +35,7 @@ user_consent_changed(sentry_backend_t *backend)
 }
 
 static void
-startup_crashpad_backend(sentry_backend_t *backend)
+sentry__crashpad_backend_startup(sentry_backend_t *backend)
 {
     // TODO: backends should really get the options as argument
     const sentry_options_t *options = sentry_get_options();
@@ -93,10 +94,12 @@ startup_crashpad_backend(sentry_backend_t *backend)
     // to change the setting persisted into the crashpad database.  The
     // update to the consent change is then reflected when the handler starts.
     g_db = crashpad::CrashReportDatabase::Initialize(database);
-    user_consent_changed(backend);
+    sentry__crashpad_backend_user_consent_changed(backend);
 
     crashpad::CrashpadClient client;
-    std::string url(sentry__dsn_get_minidump_url(&options->dsn));
+    char *minidump_url = sentry__dsn_get_minidump_url(&options->dsn);
+    std::string url(minidump_url);
+    sentry_free(minidump_url);
     bool success = client.StartHandlerWithAttachments(handler, database,
         database, url, annotations, file_attachments, arguments,
         /* restartable */ true,
@@ -120,8 +123,12 @@ startup_crashpad_backend(sentry_backend_t *backend)
 }
 
 static void
-flush_scope(sentry_backend_t *backend, const sentry_scope_t *scope)
+sentry__crashpad_backend_flush_scope(
+    sentry_backend_t *backend, const sentry_scope_t *scope)
 {
+    // This here is an empty object that we copy the scope into.
+    // Even though the API is specific to `event`, an `event` has a few default
+    // properties that we do not want here.
     sentry_value_t event = sentry_value_new_object();
     SENTRY_WITH_SCOPE (scope) {
         // we want the scope without any modules or breadcrumbs
@@ -131,40 +138,53 @@ flush_scope(sentry_backend_t *backend, const sentry_scope_t *scope)
     size_t mpack_size;
     char *mpack = sentry_value_to_msgpack(event, &mpack_size);
     sentry_value_decref(event);
+    if (!mpack) {
+        return;
+    }
 
-    crashpad_state_t *data = (crashpad_state_t *)backend->data;
-    int _rv = sentry__path_write_buffer(data->event_path, mpack, mpack_size);
-    // TODO: check rv?
+    const crashpad_state_t *data = (crashpad_state_t *)backend->data;
+    int rv = sentry__path_write_buffer(data->event_path, mpack, mpack_size);
+    sentry_free(mpack);
+
+    if (rv != 0) {
+        SENTRY_DEBUG("flushing scope to msgpack failed");
+    }
 }
 
 static void
-add_breadcrumb(sentry_backend_t *backend, sentry_value_t breadcrumb)
+sentry__crashpad_backend_add_breadcrumb(
+    sentry_backend_t *backend, sentry_value_t breadcrumb)
 {
     crashpad_state_t *data = (crashpad_state_t *)backend->data;
 
     bool first_breadcrumb = data->num_breadcrumbs % SENTRY_BREADCRUMBS_MAX == 0;
 
-    sentry_path_t *breadcrumb_file
+    const sentry_path_t *breadcrumb_file
         = data->num_breadcrumbs % (SENTRY_BREADCRUMBS_MAX * 2)
             < SENTRY_BREADCRUMBS_MAX
         ? data->breadcrumb1_path
         : data->breadcrumb2_path;
+    data->num_breadcrumbs++;
 
     size_t mpack_size;
     char *mpack = sentry_value_to_msgpack(breadcrumb, &mpack_size);
+    sentry_value_decref(breadcrumb);
+    if (!mpack) {
+        return;
+    }
 
-    int _rv = first_breadcrumb
+    int rv = first_breadcrumb
         ? sentry__path_write_buffer(breadcrumb_file, mpack, mpack_size)
         : sentry__path_append_buffer(breadcrumb_file, mpack, mpack_size);
-    // TODO: check rv?
-
     sentry_free(mpack);
 
-    data->num_breadcrumbs++;
+    if (rv != 0) {
+        SENTRY_DEBUG("flushing scope to msgpack failed");
+    }
 }
 
 static void
-backend_free(sentry_backend_t *backend)
+sentry__crashpad_backend_free(sentry_backend_t *backend)
 {
     crashpad_state_t *data = (crashpad_state_t *)backend->data;
     sentry__path_free(data->event_path);
@@ -187,12 +207,13 @@ sentry__new_crashpad_backend(void)
     }
     data->num_breadcrumbs = 0;
 
-    backend->startup_func = startup_crashpad_backend;
+    backend->startup_func = sentry__crashpad_backend_startup;
     backend->shutdown_func = NULL;
-    backend->free_func = backend_free;
-    backend->flush_scope_func = flush_scope;
-    backend->add_breadcrumb_func = add_breadcrumb;
-    backend->user_consent_changed_func = user_consent_changed;
+    backend->free_func = sentry__crashpad_backend_free;
+    backend->flush_scope_func = sentry__crashpad_backend_flush_scope;
+    backend->add_breadcrumb_func = sentry__crashpad_backend_add_breadcrumb;
+    backend->user_consent_changed_func
+        = sentry__crashpad_backend_user_consent_changed;
     backend->data = data;
 
     return backend;

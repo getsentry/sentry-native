@@ -56,10 +56,7 @@ Due to limitations of Crashpad on Linux, we recommend to use Breakpad for Linux.
 
 The SDK bundle contains the following folders:
 
-- `breakpad`, `crashpad`: Contain headers and sources of the Breakpad and
-  Crashpad libraries. These are required to build the SDK in its respective
-  distributions. To build the standalone distribution of the SDK, these folders
-  can be discarded.
+- `external`: These are external projects which are consumed via git submodules.
 - `include`: Contains the Sentry header file. Set the include path to this
   directory or copy the header file to your source tree so that it is available
   during the build.
@@ -80,6 +77,8 @@ CMake will pick an appropriate compiler and buildsystem toolchain automatically
 per platform, and can also be configured for cross-compilation.
 System-wide installation of the resulting sentry library is also possible via
 CMake.
+
+Building the Crashpad Backend requires a `C++14` compatible compiler.
 
 Please refer to the CMake Manual for more details.
 

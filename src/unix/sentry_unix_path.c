@@ -47,26 +47,32 @@ sentry__path_current_exe(void)
     // inspired by:
     // https://github.com/rust-lang/rust/blob/0176a9eef845e7421b7e2f7ef015333a41a7c027/src/libstd/sys/unix/os.rs#L328-L337
     char buf[4096];
-    readlink("/proc/self/exe", buf, 4096);
+    ssize_t len = readlink("/proc/self/exe", buf, sizeof(buf) - 1);
+    if (len < 0) {
+        return NULL;
+    }
+    buf[len] = 0;
     return sentry__path_from_str(buf);
 #endif
     return NULL;
 }
 
 sentry_path_t *
-sentry__path_dir(sentry_path_t *path)
+sentry__path_dir(const sentry_path_t *path)
 {
+    char *buf = sentry__string_clone(path->path);
+    if (!buf) {
+        return NULL;
+    }
     // dirname can modify its argument, and may return pointers to static memory
     // that we are not allowed to free.
-    char *buf = path->path;
     char *dir = dirname(buf);
-    path->path = sentry__string_clone(dir);
-    if (!path->path) {
-        sentry__path_free(path);
-        path = NULL;
-    }
+    char *newpathbuf = sentry__string_clone(dir);
     sentry_free(buf);
-    return path;
+    if (!newpathbuf) {
+        return NULL;
+    }
+    return sentry__path_from_str_owned(newpathbuf);
 }
 
 sentry_path_t *

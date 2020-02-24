@@ -118,6 +118,9 @@ SENTRY_TEST(value_list)
     val = sentry_value_new_list();
     TEST_CHECK(sentry_value_is_true(val) == false);
     TEST_CHECK_JSON_VALUE(val, "[]");
+    sentry_value_t copy = sentry__value_clone(val);
+    TEST_CHECK_JSON_VALUE(copy, "[]");
+    sentry_value_decref(copy);
     sentry_value_decref(val);
 
     val = sentry_value_new_list();

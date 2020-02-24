@@ -76,6 +76,8 @@ sentry__enqueue_unsent_envelopes(const sentry_options_t *options)
 
             sentry__path_remove_all(envelope_file);
         }
+        sentry__pathiter_free(run_iter);
         sentry__path_remove_all(run_dir);
     }
+    sentry__pathiter_free(db_iter);
 }

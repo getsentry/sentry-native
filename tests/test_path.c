@@ -92,3 +92,10 @@ SENTRY_TEST(path_basics)
     sentry__pathiter_free(piter);
     sentry__path_free(path);
 }
+
+SENTRY_TEST(path_current_exe)
+{
+    sentry_path_t *path = sentry__path_current_exe();
+    TEST_CHECK(sentry__path_is_file(path));
+    sentry__path_free(path);
+}

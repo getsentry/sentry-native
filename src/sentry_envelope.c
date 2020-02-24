@@ -177,6 +177,7 @@ sentry_envelope_free(sentry_envelope_t *envelope)
     }
     if (envelope->is_raw) {
         sentry_free(envelope->contents.raw.payload);
+        sentry_free(envelope);
         return;
     }
     sentry_value_decref(envelope->contents.items.headers);
@@ -220,18 +221,18 @@ sentry__envelope_new(void)
 sentry_envelope_t *
 sentry__envelope_from_disk(const sentry_path_t *path)
 {
-
     size_t buf_len;
     char *buf = sentry__path_read_to_buffer(path, &buf_len);
     if (!buf) {
         return NULL;
     }
 
-    sentry_envelope_t *envelope = sentry__envelope_new();
+    sentry_envelope_t *envelope = SENTRY_MAKE(sentry_envelope_t);
     if (!envelope) {
         sentry_free(buf);
         return NULL;
     }
+
     envelope->is_raw = true;
     envelope->contents.raw.payload = buf;
     envelope->contents.raw.payload_len = buf_len;

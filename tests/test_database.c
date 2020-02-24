@@ -78,15 +78,10 @@ SENTRY_TEST(enumerating_database)
         options, sentry_new_function_transport(send_envelope, &testdata));
     sentry_init(options);
 
-    sentry_uuid_t event_id
-        = sentry_uuid_from_string("c993afb6-b4ac-48a6-b61b-2558e601d65d");
-    sentry_envelope_t *envelope = sentry__envelope_new();
-    sentry_value_t event = sentry_value_new_object();
-    sentry_value_set_by_key(
-        event, "event_id", sentry__value_new_uuid(&event_id));
-    sentry__envelope_add_event(envelope, event);
-
     // force the disk transport so we flush the event to disk, and shutdown.
+    // but free the function transport before so leak sanitizer does not
+    // complain, as the enforce_disk_transport leaks intentionally ;-)
+    sentry_transport_free(options->transport);
     sentry__enforce_disk_transport();
     sentry_capture_event(sentry_value_new_message_event(
         SENTRY_LEVEL_INFO, "root", "Hello World!"));

@@ -109,7 +109,10 @@ sentry__scope_apply_to_event(
     PLACE_VALUE("contexts", scope->contexts);
 
     if (mode & SENTRY_SCOPE_BREADCRUMBS) {
-        PLACE_VALUE("breadcrumbs", sentry__value_clone(scope->breadcrumbs));
+        sentry_value_t breadcrumbs = sentry__value_clone(scope->breadcrumbs);
+        PLACE_VALUE("breadcrumbs", breadcrumbs);
+        // because `PLACE_VALUE` adds a new ref, and we would otherwise leak
+        sentry_value_decref(breadcrumbs);
     }
 
     if (mode & SENTRY_SCOPE_MODULES) {

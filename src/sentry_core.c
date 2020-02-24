@@ -219,19 +219,24 @@ sentry_options_new(void)
     memset(opts, 0, sizeof(sentry_options_t));
     opts->database_path = sentry__path_from_str("./.sentry-native");
 
-    sentry_path_t *exe_dir = sentry__path_current_exe();
-    exe_dir = sentry__path_dir(exe_dir);
-    if (exe_dir) {
-        opts->handler_path = sentry__path_join_str(exe_dir,
+    sentry_path_t *current_exe = sentry__path_current_exe();
+    if (current_exe) {
+        sentry_path_t *exe_dir = sentry__path_dir(current_exe);
+        sentry__path_free(current_exe);
+        if (exe_dir) {
+            opts->handler_path = sentry__path_join_str(exe_dir,
 #ifdef SENTRY_PLATFORM_WINDOWS
-            "crashpad_handler.exe"
+                "crashpad_handler.exe"
 #else
-            "crashpad_handler"
+                "crashpad_handler"
 #endif
-        );
+            );
+            sentry__path_free(exe_dir);
+        }
     }
 
     opts->user_consent = SENTRY_USER_CONSENT_UNKNOWN;
+    opts->system_crash_reporter_enabled = false;
     opts->backend = sentry__backend_new_default();
     opts->transport = sentry__transport_new_default();
     return opts;

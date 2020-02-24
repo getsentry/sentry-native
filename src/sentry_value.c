@@ -1,12 +1,12 @@
 #include "sentry_boot.h"
 
 #include <assert.h>
-#include <mpack.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
 
+#include "../vendor/mpack.h"
 #include "sentry_alloc.h"
 #include "sentry_core.h"
 #include "sentry_json.h"
@@ -311,10 +311,12 @@ sentry__value_new_list_with_size(size_t size)
     if (l) {
         memset(l, 0, sizeof(list_t));
         l->allocated = size;
-        l->items = sentry_malloc(sizeof(sentry_value_t) * size);
-        if (size > 0 && !l->items) {
-            sentry_free(l);
-            return sentry_value_new_null();
+        if (size) {
+            l->items = sentry_malloc(sizeof(sentry_value_t) * size);
+            if (!l->items) {
+                sentry_free(l);
+                return sentry_value_new_null();
+            }
         }
         return new_thing_value(l, THING_TYPE_LIST);
     } else {
@@ -341,10 +343,12 @@ sentry__value_new_object_with_size(size_t size)
     if (l) {
         memset(l, 0, sizeof(obj_t));
         l->allocated = size;
-        l->pairs = sentry_malloc(sizeof(obj_pair_t) * size);
-        if (size > 0 && !l->pairs) {
-            sentry_free(l);
-            return sentry_value_new_null();
+        if (size) {
+            l->pairs = sentry_malloc(sizeof(obj_pair_t) * size);
+            if (!l->pairs) {
+                sentry_free(l);
+                return sentry_value_new_null();
+            }
         }
         return new_thing_value(l, THING_TYPE_OBJECT);
     } else {

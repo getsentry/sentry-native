@@ -21,7 +21,7 @@ typedef enum {
     SENTRY_SCOPE_BREADCRUMBS = 0x1,
     SENTRY_SCOPE_MODULES = 0x2,
     // TODO: SENTRY_SCOPE_STACKTRACES = 0x4,
-    SENTRY_SCOPE_ALL = 0x7,
+    SENTRY_SCOPE_ALL = ~0,
 } sentry_scope_mode_t;
 
 sentry_scope_t *sentry__scope_lock(void);

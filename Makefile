@@ -22,13 +22,18 @@ test: update-test-discovery build/sentry_tests
 test-leaks: update-test-discovery CMakeLists.txt
 	@mkdir -p leak-build
 	@cd leak-build; cmake -DWITH_ASAN_OPTION=ON -DCMAKE_C_COMPILER=/usr/local/opt/llvm/bin/clang -DCMAKE_CXX_COMPILER=/usr/local/opt/llvm/bin/clang++ -DCMAKE_LINKER=/usr/local/opt/llvm/bin/clang ..
-	@$(MAKE) -C leak-build sentry_tests
+	@cmake --build leak-build --target sentry_tests --parallel
 	@ASAN_OPTIONS=detect_leaks=1 LSAN_OPTIONS=suppressions=leak-suppressions.txt ./leak-build/sentry_tests
 .PHONY: test-leaks
 
 clean: build/Makefile
 	@$(MAKE) -C build clean
 .PHONY: clean
+
+setup: setup-git
+setup-git:
+	git submodule update --init --recursive
+.PHONY: setup setup-git
 
 format:
 	@clang-format -i src/*.c src/*.h src/*/*.c src/*/*.h tests/*.c tests/*.h

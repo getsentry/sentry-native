@@ -50,7 +50,9 @@ if(NOT WIN32)
 	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -fvisibility=hidden")
 endif()
 
-if(WIN32)
+if(WITH_CRASHPAD AND WIN32)
+	# Disable duplicate-define warnings, as the crashpad build defines all the
+	# "slim windows.h" defines, which sentry_boot also defines.
 	add_definitions(/wd4005)
 endif()
 
@@ -153,7 +155,6 @@ if(WITH_CRASHPAD)
 endif()
 
 # msgpack
-include_directories(vendor)
 set(SENTRY_NATIVE_ALL_SOURCES ${SENTRY_NATIVE_ALL_SOURCES} vendor/mpack.c)
 
 # ===== sentry library =====

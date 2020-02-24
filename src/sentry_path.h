@@ -21,7 +21,7 @@ typedef struct sentry_path_s sentry_path_t;
 typedef struct sentry_pathiter_s sentry_pathiter_t;
 
 sentry_path_t *sentry__path_current_exe(void);
-sentry_path_t *sentry__path_dir(sentry_path_t *path);
+sentry_path_t *sentry__path_dir(const sentry_path_t *path);
 sentry_path_t *sentry__path_from_str(const char *s);
 sentry_path_t *sentry__path_from_str_owned(char *s);
 sentry_path_t *sentry__path_join_str(

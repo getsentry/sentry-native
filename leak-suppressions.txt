@@ -4,3 +4,7 @@ leak:sentry_modulefinder.c
 # this is a test artifact from the forking code in acutest
 leak:ImageLoader::processInitializers
 leak:ImageLoader::recursiveInitialization
+
+# crashpad is initialized as a global and leaked
+leak:crashpad::
+leak:CFNetwork
