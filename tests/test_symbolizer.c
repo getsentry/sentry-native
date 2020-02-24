@@ -1,4 +1,4 @@
-#include "../src/sentry_symbolizer.h"
+#include "sentry_symbolizer.h"
 #include "sentry_testsupport.h"
 #include <sentry.h>
 

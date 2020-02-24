@@ -1,8 +1,8 @@
-#include "sentry_windows_modulefinder.h"
+#include "sentry_boot.h"
 
-#include "../sentry_sync.h"
-#include "../sentry_uuid.h"
-#include "../sentry_value.h"
+#include "sentry_sync.h"
+#include "sentry_uuid.h"
+#include "sentry_value.h"
 
 #include <dbghelp.h>
 #include <tlhelp32.h>
@@ -116,7 +116,7 @@ load_modules(void)
 }
 
 sentry_value_t
-sentry__windows_modules_get_list(void)
+sentry__modules_get_list(void)
 {
     sentry__mutex_lock(&g_mutex);
     if (!g_initialized) {

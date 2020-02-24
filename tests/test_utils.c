@@ -1,9 +1,9 @@
-#include "../src/sentry_utils.h"
 #include "sentry_testsupport.h"
+#include "sentry_utils.h"
 #include <sentry.h>
 
 #ifdef SENTRY_PLATFORM_UNIX
-#    include "../src/unix/sentry_unix_pageallocator.h"
+#    include "sentry_unix_pageallocator.h"
 #endif
 
 SENTRY_TEST(url_parsing_complete)

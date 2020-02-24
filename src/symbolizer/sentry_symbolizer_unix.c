@@ -1,10 +1,12 @@
-#include "sentry_unix_symbolizer_dladdr.h"
+#include "sentry_boot.h"
+
+#include "sentry_symbolizer.h"
 
 #include <dlfcn.h>
 #include <string.h>
 
 bool
-sentry__symbolize_dladdr(
+sentry__symbolize(
     void *addr, void (*func)(const sentry_frame_info_t *, void *), void *data)
 {
     Dl_info info;

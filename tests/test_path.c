@@ -1,4 +1,4 @@
-#include "../src/sentry_path.h"
+#include "sentry_path.h"
 #include "sentry_testsupport.h"
 #include <sentry.h>
 

@@ -1,8 +1,8 @@
-#include "../sentry_alloc.h"
-#include "../sentry_core.h"
-#include "../sentry_path.h"
-#include "../sentry_string.h"
-#include "../sentry_utils.h"
+#include "sentry_alloc.h"
+#include "sentry_core.h"
+#include "sentry_path.h"
+#include "sentry_string.h"
+#include "sentry_utils.h"
 
 #include <dirent.h>
 #include <fcntl.h>

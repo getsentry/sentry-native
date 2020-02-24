@@ -1,9 +1,9 @@
-#include "../src/sentry_modulefinder.h"
+#include "sentry_modulefinder.h"
 #include "sentry_testsupport.h"
 #include <sentry.h>
 
 #ifdef SENTRY_PLATFORM_LINUX
-#    include "../src/linux/sentry_procmaps_modulefinder.h"
+#    include "modulefinder/sentry_modulefinder_linux.h"
 #endif
 
 SENTRY_TEST(test_module_finder)

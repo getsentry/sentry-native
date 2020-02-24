@@ -1,9 +1,9 @@
 #include "sentry_libcurl_transport.h"
-#include "../sentry_alloc.h"
-#include "../sentry_core.h"
-#include "../sentry_envelope.h"
-#include "../sentry_string.h"
-#include "../sentry_sync.h"
+#include "sentry_alloc.h"
+#include "sentry_core.h"
+#include "sentry_envelope.h"
+#include "sentry_string.h"
+#include "sentry_sync.h"
 #include <curl/curl.h>
 #include <curl/easy.h>
 #include <stdlib.h>

@@ -1,6 +1,6 @@
-#include "../src/sentry_envelope.h"
-#include "../src/sentry_value.h"
+#include "sentry_envelope.h"
 #include "sentry_testsupport.h"
+#include "sentry_value.h"
 #include <sentry.h>
 
 typedef struct {

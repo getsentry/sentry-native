@@ -1,4 +1,4 @@
-#include "../src/sentry_sync.h"
+#include "sentry_sync.h"
 #include "sentry_testsupport.h"
 
 struct task_state {

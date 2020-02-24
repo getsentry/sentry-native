@@ -1,9 +1,9 @@
 #include "sentry_disk_transport.h"
-#include "../sentry_alloc.h"
-#include "../sentry_core.h"
-#include "../sentry_envelope.h"
-#include "../sentry_path.h"
-#include "../sentry_string.h"
+#include "sentry_alloc.h"
+#include "sentry_core.h"
+#include "sentry_envelope.h"
+#include "sentry_path.h"
+#include "sentry_string.h"
 
 static void
 send_envelope(sentry_transport_t *transport, sentry_envelope_t *envelope)

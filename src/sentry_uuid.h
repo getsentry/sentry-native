@@ -1,4 +1,3 @@
-
 #ifndef SENTRY_UUID_H_INCLUDED
 #define SENTRY_UUID_H_INCLUDED
 

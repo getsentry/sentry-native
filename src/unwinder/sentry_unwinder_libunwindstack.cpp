@@ -1,4 +1,6 @@
-#include "sentry_unix_unwinder_libunwindstack.h"
+extern "C" {
+#include "sentry_boot.h"
+}
 
 #include <memory>
 #include <ucontext.h>
@@ -10,7 +12,7 @@
 #include <unwindstack/RegsGetLocal.h>
 
 size_t
-sentry__unwind_stack_unwindstack(
+sentry__unwind_stack_libunwindstack(
     void *addr, const sentry_ucontext_t *uctx, void **ptrs, size_t max_frames)
 {
     std::unique_ptr<unwindstack::Regs> regs;
