@@ -11,6 +11,8 @@ extern "C" {
 #include <unwindstack/Regs.h>
 #include <unwindstack/RegsGetLocal.h>
 
+extern "C" {
+
 size_t
 sentry__unwind_stack_libunwindstack(
     void *addr, const sentry_ucontext_t *uctx, void **ptrs, size_t max_frames)
@@ -64,4 +66,5 @@ sentry__unwind_stack_libunwindstack(
     }
 
     return rv;
+}
 }

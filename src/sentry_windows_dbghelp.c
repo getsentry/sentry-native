@@ -8,7 +8,7 @@ static sentry_mutex_t g_sym_mutex = SENTRY__MUTEX_INIT;
 static bool g_initialized;
 static HANDLE g_proc = INVALID_HANDLE_VALUE;
 
-void
+HANDLE
 sentry__init_dbghelp(void)
 {
     sentry__mutex_lock(&g_sym_mutex);
@@ -20,4 +20,5 @@ sentry__init_dbghelp(void)
         g_initialized = true;
     }
     sentry__mutex_unlock(&g_sym_mutex);
+    return g_proc;
 }

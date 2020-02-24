@@ -3,6 +3,6 @@
 
 #include "sentry_boot.h"
 
-void sentry__init_dbghelp(void);
+HANDLE sentry__init_dbghelp(void);
 
 #endif

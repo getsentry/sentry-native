@@ -12,14 +12,14 @@ bool
 sentry__symbolize(
     void *addr, void (*func)(const sentry_frame_info_t *, void *), void *data)
 {
-    sentry__init_dbghelp();
+    HANDLE proc = sentry__init_dbghelp();
 
     SYMBOL_INFO *sym = (SYMBOL_INFO *)_alloca(sizeof(SYMBOL_INFO) + MAX_SYM);
     memset(sym, 0, sizeof(SYMBOL_INFO) + MAX_SYM);
     sym->MaxNameLen = MAX_SYM;
     sym->SizeOfStruct = sizeof(SYMBOL_INFO);
 
-    if (!SymFromAddr(g_proc, (DWORD64)addr, 0, sym)) {
+    if (!SymFromAddr(proc, (DWORD64)addr, 0, sym)) {
         return false;
     }
 
