@@ -67,17 +67,18 @@ sentry_init(sentry_options_t *options)
         transport->startup_func(transport);
     }
 
-    sentry_backend_t *backend = g_options->backend;
-    if (backend && backend->startup_func) {
-        SENTRY_TRACE("starting backend");
-        backend->startup_func(backend);
-    }
-
     // after initializing the transport, we will submit all the unsent envelopes
     sentry__enqueue_unsent_envelopes(options);
     // and then create our new run, so it will not interfere with enumerating
     // all the past runs
     options->run = sentry__run_new(options->database_path);
+
+    // and then we will start the backend, since it requires a valid run
+    sentry_backend_t *backend = g_options->backend;
+    if (backend && backend->startup_func) {
+        SENTRY_TRACE("starting backend");
+        backend->startup_func(backend);
+    }
 
     return 0;
 }
@@ -172,7 +173,7 @@ sentry_capture_event(sentry_value_t event)
 
     SENTRY_WITH_SCOPE (scope) {
         SENTRY_TRACE("merging scope into event");
-        sentry__scope_apply_to_event(scope, event);
+        sentry__scope_apply_to_event(scope, event, SENTRY_SCOPE_ALL);
     }
 
     const sentry_options_t *opts = sentry_get_options();
@@ -218,6 +219,7 @@ sentry_options_new(void)
     memset(opts, 0, sizeof(sentry_options_t));
     opts->database_path = sentry__path_from_str("./.sentry-native");
     opts->user_consent = SENTRY_USER_CONSENT_UNKNOWN;
+    opts->system_crash_reporter_enabled = false;
     opts->backend = sentry__backend_new_default();
     opts->transport = sentry__transport_new_default();
     return opts;
@@ -408,7 +410,7 @@ void
 sentry_options_set_system_crash_reporter_enabled(
     sentry_options_t *opts, int enabled)
 {
-    /* TODO: implement */
+    opts->system_crash_reporter_enabled = !!enabled;
 }
 
 static void
@@ -524,7 +526,10 @@ void
 sentry_add_breadcrumb(sentry_value_t breadcrumb)
 {
     sentry_value_incref(breadcrumb);
-    SENTRY_WITH_SCOPE_MUT (scope) {
+    // the `no_flush` will avoid triggering *both* scope-change and
+    // breadcrumb-add events.
+    SENTRY_WITH_SCOPE_MUT_NO_FLUSH(scope)
+    {
         sentry__value_append_bounded(
             scope->breadcrumbs, breadcrumb, SENTRY_BREADCRUMBS_MAX);
     }

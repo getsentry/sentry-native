@@ -6,10 +6,15 @@
 
 #include <dirent.h>
 #include <fcntl.h>
+#include <libgen.h>
 #include <string.h>
 #include <sys/errno.h>
 #include <sys/stat.h>
 #include <unistd.h>
+
+#ifdef SENTRY_PLATFORM_DARWIN
+#    include <mach-o/dyld.h>
+#endif
 
 // only read this many bytes to memory ever
 static const size_t MAX_READ_TO_BUFFER = 134217728;
@@ -19,6 +24,56 @@ struct sentry_pathiter_s {
     sentry_path_t *current;
     DIR *dir_handle;
 };
+
+sentry_path_t *
+sentry__path_current_exe(void)
+{
+#ifdef SENTRY_PLATFORM_DARWIN
+    // inspired by:
+    // https://github.com/rust-lang/rust/blob/0176a9eef845e7421b7e2f7ef015333a41a7c027/src/libstd/sys/unix/os.rs#L339-L358
+    uint32_t buf_size = 0;
+    _NSGetExecutablePath(NULL, &buf_size);
+    char *buf = sentry_malloc(buf_size);
+    if (!buf) {
+        return NULL;
+    }
+    int err = _NSGetExecutablePath(buf, &buf_size);
+    if (err) {
+        sentry_free(buf);
+        return NULL;
+    }
+    return sentry__path_from_str_owned(buf);
+#elif defined(SENTRY_PLATFORM_LINUX)
+    // inspired by:
+    // https://github.com/rust-lang/rust/blob/0176a9eef845e7421b7e2f7ef015333a41a7c027/src/libstd/sys/unix/os.rs#L328-L337
+    char buf[4096];
+    ssize_t len = readlink("/proc/self/exe", buf, sizeof(buf) - 1);
+    if (len < 0) {
+        return NULL;
+    }
+    buf[len] = 0;
+    return sentry__path_from_str(buf);
+#endif
+    return NULL;
+}
+
+sentry_path_t *
+sentry__path_dir(const sentry_path_t *path)
+{
+    char *buf = sentry__string_clone(path->path);
+    if (!buf) {
+        return NULL;
+    }
+    // dirname can modify its argument, and may return pointers to static memory
+    // that we are not allowed to free.
+    char *dir = dirname(buf);
+    char *newpathbuf = sentry__string_clone(dir);
+    sentry_free(buf);
+    if (!newpathbuf) {
+        return NULL;
+    }
+    return sentry__path_from_str_owned(newpathbuf);
+}
 
 sentry_path_t *
 sentry__path_from_str(const char *s)
@@ -309,12 +364,12 @@ sentry__path_read_to_buffer(const sentry_path_t *path, size_t *size_out)
     return rv;
 }
 
-int
-sentry__path_write_buffer(
-    const sentry_path_t *path, const char *buf, size_t buf_len)
+static int
+write_buffer_with_flags(
+    const sentry_path_t *path, const char *buf, size_t buf_len, int flags)
 {
-    int fd = open(path->path, O_RDWR | O_CREAT | O_TRUNC,
-        S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH);
+    int fd = open(
+        path->path, flags, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH);
     if (fd < 0) {
         SENTRY_TRACEF("failed to open file \"%s\" for writing", path->path);
         return 1;
@@ -340,4 +395,20 @@ sentry__path_write_buffer(
 
     close(fd);
     return remaining == 0 ? 0 : 1;
+}
+
+int
+sentry__path_write_buffer(
+    const sentry_path_t *path, const char *buf, size_t buf_len)
+{
+    return write_buffer_with_flags(
+        path, buf, buf_len, O_RDWR | O_CREAT | O_TRUNC);
+}
+
+int
+sentry__path_append_buffer(
+    const sentry_path_t *path, const char *buf, size_t buf_len)
+{
+    return write_buffer_with_flags(
+        path, buf, buf_len, O_RDWR | O_CREAT | O_APPEND);
 }

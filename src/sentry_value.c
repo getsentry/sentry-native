@@ -6,6 +6,7 @@
 #include <string.h>
 #include <time.h>
 
+#include "../vendor/mpack.h"
 #include "sentry_alloc.h"
 #include "sentry_core.h"
 #include "sentry_json.h"
@@ -310,10 +311,12 @@ sentry__value_new_list_with_size(size_t size)
     if (l) {
         memset(l, 0, sizeof(list_t));
         l->allocated = size;
-        l->items = sentry_malloc(sizeof(sentry_value_t) * size);
-        if (size > 0 && !l->items) {
-            sentry_free(l);
-            return sentry_value_new_null();
+        if (size) {
+            l->items = sentry_malloc(sizeof(sentry_value_t) * size);
+            if (!l->items) {
+                sentry_free(l);
+                return sentry_value_new_null();
+            }
         }
         return new_thing_value(l, THING_TYPE_LIST);
     } else {
@@ -340,10 +343,12 @@ sentry__value_new_object_with_size(size_t size)
     if (l) {
         memset(l, 0, sizeof(obj_t));
         l->allocated = size;
-        l->pairs = sentry_malloc(sizeof(obj_pair_t) * size);
-        if (size > 0 && !l->pairs) {
-            sentry_free(l);
-            return sentry_value_new_null();
+        if (size) {
+            l->pairs = sentry_malloc(sizeof(obj_pair_t) * size);
+            if (!l->pairs) {
+                sentry_free(l);
+                return sentry_value_new_null();
+            }
         }
         return new_thing_value(l, THING_TYPE_OBJECT);
     } else {
@@ -736,6 +741,62 @@ sentry_value_to_json(sentry_value_t value)
     sentry_jsonwriter_t *jw = sentry__jsonwriter_new_in_memory();
     value_to_json(jw, value);
     return sentry__jsonwriter_into_string(jw);
+}
+
+static void
+value_to_msgpack(mpack_writer_t *writer, sentry_value_t value)
+{
+    switch (sentry_value_get_type(value)) {
+    case SENTRY_VALUE_TYPE_NULL:
+        mpack_write_nil(writer);
+        break;
+    case SENTRY_VALUE_TYPE_BOOL:
+        mpack_write_bool(writer, sentry_value_is_true(value) ? true : false);
+        break;
+    case SENTRY_VALUE_TYPE_INT32:
+        mpack_write_i32(writer, sentry_value_as_int32(value));
+        break;
+    case SENTRY_VALUE_TYPE_DOUBLE:
+        mpack_write_double(writer, sentry_value_as_double(value));
+        break;
+    case SENTRY_VALUE_TYPE_STRING: {
+        mpack_write_cstr_or_nil(writer, sentry_value_as_string(value));
+        break;
+    }
+    case SENTRY_VALUE_TYPE_LIST: {
+        const list_t *l = value_as_thing(value)->payload;
+
+        mpack_start_array(writer, l->len);
+        for (size_t i = 0; i < l->len; i++) {
+            value_to_msgpack(writer, l->items[i]);
+        }
+        mpack_finish_array(writer);
+        break;
+    }
+    case SENTRY_VALUE_TYPE_OBJECT: {
+        const obj_t *o = value_as_thing(value)->payload;
+        mpack_start_map(writer, o->len);
+        for (size_t i = 0; i < o->len; i++) {
+            mpack_write_cstr(writer, o->pairs[i].k);
+            value_to_msgpack(writer, o->pairs[i].v);
+        }
+        mpack_finish_map(writer);
+        break;
+    }
+    }
+}
+
+char *
+sentry_value_to_msgpack(sentry_value_t value, size_t *size_out)
+{
+    mpack_writer_t writer;
+    char *buf;
+    size_t size;
+    mpack_writer_init_growable(&writer, &buf, &size);
+    value_to_msgpack(&writer, value);
+    mpack_writer_destroy(&writer);
+    *size_out = size;
+    return buf;
 }
 
 sentry_value_t

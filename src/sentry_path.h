@@ -20,6 +20,8 @@ struct sentry_path_s {
 typedef struct sentry_path_s sentry_path_t;
 typedef struct sentry_pathiter_s sentry_pathiter_t;
 
+sentry_path_t *sentry__path_current_exe(void);
+sentry_path_t *sentry__path_dir(const sentry_path_t *path);
 sentry_path_t *sentry__path_from_str(const char *s);
 sentry_path_t *sentry__path_from_str_owned(char *s);
 sentry_path_t *sentry__path_join_str(
@@ -41,6 +43,8 @@ int sentry__path_touch(const sentry_path_t *path);
 size_t sentry__path_get_size(const sentry_path_t *path);
 char *sentry__path_read_to_buffer(const sentry_path_t *path, size_t *size_out);
 int sentry__path_write_buffer(
+    const sentry_path_t *path, const char *buf, size_t buf_len);
+int sentry__path_append_buffer(
     const sentry_path_t *path, const char *buf, size_t buf_len);
 
 sentry_pathiter_t *sentry__path_iter_directory(const sentry_path_t *path);

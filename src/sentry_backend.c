@@ -2,6 +2,9 @@
 #ifdef SENTRY_PLATFORM_UNIX
 #    include "backends/sentry_inproc_backend.h"
 #endif
+#ifdef SENTRY_WITH_CRASHPAD_BACKEND
+#    include "backends/sentry_crashpad_backend.h"
+#endif
 
 void
 sentry__backend_free(sentry_backend_t *backend)
@@ -18,7 +21,9 @@ sentry__backend_free(sentry_backend_t *backend)
 sentry_backend_t *
 sentry__backend_new_default(void)
 {
-#ifdef SENTRY_PLATFORM_UNIX
+#ifdef SENTRY_WITH_CRASHPAD_BACKEND
+    return sentry__new_crashpad_backend();
+#elif defined(SENTRY_PLATFORM_UNIX)
     return sentry__new_inproc_backend();
 #else
     return NULL;

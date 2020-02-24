@@ -1,10 +1,12 @@
 #include "../sentry_boot.h"
 
 #include "../sentry_alloc.h"
+#include "../sentry_core.h"
 #include "../sentry_path.h"
 #include "../sentry_string.h"
 #include "../sentry_utils.h"
 
+#include <Pathcch.h>
 #include <Shlobj.h>
 #include <shellapi.h>
 #include <shlwapi.h>
@@ -33,6 +35,32 @@ path_with_len(size_t len)
         return NULL;
     }
     return rv;
+}
+
+sentry_path_t *
+sentry__path_current_exe(void)
+{
+    // inspired by:
+    // https://github.com/rust-lang/rust/blob/183e893aaae581bd0ab499ba56b6c5e118557dc7/src/libstd/sys/windows/os.rs#L234-L239
+    sentry_path_t *path = path_with_len(MAX_PATH);
+    size_t len = GetModuleFileNameW(NULL, path->path, MAX_PATH);
+    if (!len) {
+        SENTRY_DEBUG("unable to get current exe path");
+        sentry__path_free(path);
+        return NULL;
+    }
+    return path;
+}
+
+sentry_path_t *
+sentry__path_dir(const sentry_path_t *path)
+{
+    sentry_path_t *dir_path = sentry__path_clone(path);
+    if (!dir_path) {
+        return NULL;
+    }
+    PathCchRemoveFileSpec(dir_path->path, wcslen(dir_path->path));
+    return dir_path;
 }
 
 sentry_path_t *
@@ -385,11 +413,11 @@ sentry__path_read_to_buffer(const sentry_path_t *path, size_t *size_out)
     return rv;
 }
 
-int
-sentry__path_write_buffer(
-    const sentry_path_t *path, const char *buf, size_t buf_len)
+static int
+write_buffer_with_mode(const sentry_path_t *path, const char *buf,
+    size_t buf_len, const wchar_t *mode)
 {
-    FILE *f = _wfopen(path->path, L"wb");
+    FILE *f = _wfopen(path->path, mode);
     if (!f) {
         return 1;
     }
@@ -411,4 +439,18 @@ sentry__path_write_buffer(
 
     fclose(f);
     return remaining == 0 ? 0 : 1;
+}
+
+int
+sentry__path_write_buffer(
+    const sentry_path_t *path, const char *buf, size_t buf_len)
+{
+    return write_buffer_with_mode(path, buf, buf_len, L"wb");
+}
+
+int
+sentry__path_append_buffer(
+    const sentry_path_t *path, const char *buf, size_t buf_len)
+{
+    return write_buffer_with_mode(path, buf, buf_len, L"a");
 }

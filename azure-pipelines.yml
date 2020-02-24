@@ -7,7 +7,7 @@ stages:
         steps:
           - checkout: self
             fetchDepth: 5
-            submodules: true
+            submodules: recursive
           - script: |
               # the submodule contains an invalid symlink for whatever reason,
               # which trips up Azure…
@@ -69,7 +69,7 @@ stages:
               cmake ..
               cmake --build . --parallel --target sentry_tests
             displayName: Build
-          - script: .\build\Debug\sentry_tests.exe
+          - script: .\build\sentry_tests.exe
             displayName: Test
 
       - job: Android

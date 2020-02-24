@@ -69,7 +69,8 @@ sentry__scope_flush(const sentry_scope_t *scope)
 }
 
 void
-sentry__scope_apply_to_event(const sentry_scope_t *scope, sentry_value_t event)
+sentry__scope_apply_to_event(
+    const sentry_scope_t *scope, sentry_value_t event, sentry_scope_mode_t mode)
 {
     const sentry_options_t *options = sentry_get_options();
 
@@ -107,12 +108,21 @@ sentry__scope_apply_to_event(const sentry_scope_t *scope, sentry_value_t event)
     PLACE_VALUE("extra", scope->extra);
     PLACE_VALUE("contexts", scope->contexts);
 
-    sentry_value_t modules = sentry__modules_get_list();
-    if (!sentry_value_is_null(modules)) {
-        sentry_value_t debug_meta = sentry_value_new_object();
-        sentry_value_incref(modules);
-        sentry_value_set_by_key(debug_meta, "images", modules);
-        sentry_value_set_by_key(event, "debug_meta", debug_meta);
+    if (mode & SENTRY_SCOPE_BREADCRUMBS) {
+        sentry_value_t breadcrumbs = sentry__value_clone(scope->breadcrumbs);
+        PLACE_VALUE("breadcrumbs", breadcrumbs);
+        // because `PLACE_VALUE` adds a new ref, and we would otherwise leak
+        sentry_value_decref(breadcrumbs);
+    }
+
+    if (mode & SENTRY_SCOPE_MODULES) {
+        sentry_value_t modules = sentry__modules_get_list();
+        if (!sentry_value_is_null(modules)) {
+            sentry_value_t debug_meta = sentry_value_new_object();
+            sentry_value_incref(modules);
+            sentry_value_set_by_key(debug_meta, "images", modules);
+            sentry_value_set_by_key(event, "debug_meta", debug_meta);
+        }
     }
 
 #undef PLACE_STRING

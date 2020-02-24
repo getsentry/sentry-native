@@ -63,27 +63,25 @@ send_envelope(sentry_envelope_t *envelope, void *_data)
 
 SENTRY_TEST(enumerating_database)
 {
+    sentry_path_t *path = sentry__path_from_str(PREFIX ".test-db");
+    sentry__path_remove_all(path);
+
     sentry_attachments_testdata_t testdata;
     testdata.called_envelope = 0;
     testdata.called_request = 0;
     sentry__stringbuilder_init(&testdata.serialized_envelope);
 
     sentry_options_t *options = sentry_options_new();
-    sentry_options_set_database_path(options, PREFIX ".sentry-test");
+    sentry_options_set_database_path(options, PREFIX ".test-db");
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
     sentry_options_set_transport(
         options, sentry_new_function_transport(send_envelope, &testdata));
     sentry_init(options);
 
-    sentry_uuid_t event_id
-        = sentry_uuid_from_string("c993afb6-b4ac-48a6-b61b-2558e601d65d");
-    sentry_envelope_t *envelope = sentry__envelope_new();
-    sentry_value_t event = sentry_value_new_object();
-    sentry_value_set_by_key(
-        event, "event_id", sentry__value_new_uuid(&event_id));
-    sentry__envelope_add_event(envelope, event);
-
     // force the disk transport so we flush the event to disk, and shutdown.
+    // but free the function transport before so leak sanitizer does not
+    // complain, as the enforce_disk_transport leaks intentionally ;-)
+    sentry_transport_free(options->transport);
     sentry__enforce_disk_transport();
     sentry_capture_event(sentry_value_new_message_event(
         SENTRY_LEVEL_INFO, "root", "Hello World!"));
@@ -91,7 +89,7 @@ SENTRY_TEST(enumerating_database)
 
     // start up again, which should enqueue the event we flushed to disk
     options = sentry_options_new();
-    sentry_options_set_database_path(options, PREFIX ".sentry-test");
+    sentry_options_set_database_path(options, PREFIX ".test-db");
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
     sentry_options_set_transport(
         options, sentry_new_function_transport(send_envelope, &testdata));
@@ -111,4 +109,6 @@ SENTRY_TEST(enumerating_database)
     sentry_free(serialized);
 
     sentry_shutdown();
+    sentry__path_remove_all(path);
+    sentry__path_free(path);
 }
