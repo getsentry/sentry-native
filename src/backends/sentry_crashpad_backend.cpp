@@ -39,8 +39,27 @@ sentry__crashpad_backend_startup(sentry_backend_t *backend)
 {
     // TODO: backends should really get the options as argument
     const sentry_options_t *options = sentry_get_options();
-    if (!options->handler_path
-        || !sentry__path_is_file(options->handler_path)) {
+
+    sentry_path_t *handler_path = options->handler_path;
+    if (!handler_path) {
+        sentry_path_t *current_exe = sentry__path_current_exe();
+        if (current_exe) {
+            sentry_path_t *exe_dir = sentry__path_dir(current_exe);
+            sentry__path_free(current_exe);
+            if (exe_dir) {
+                handler_path = sentry__path_join_str(exe_dir,
+#ifdef SENTRY_PLATFORM_WINDOWS
+                    "crashpad_handler.exe"
+#else
+                    "crashpad_handler"
+#endif
+                );
+                sentry__path_free(exe_dir);
+            }
+        }
+    }
+
+    if (!handler_path || !sentry__path_is_file(handler_path)) {
         SENTRY_DEBUG("unable to start crashpad backend, invalid handler_path");
         return;
     }
@@ -50,7 +69,7 @@ sentry__crashpad_backend_startup(sentry_backend_t *backend)
     crashpad_state_t *data = (crashpad_state_t *)backend->data;
 
     base::FilePath database(options->database_path->path);
-    base::FilePath handler(options->handler_path->path);
+    base::FilePath handler(handler_path->path);
 
     std::map<std::string, std::string> annotations;
     std::map<std::string, base::FilePath> file_attachments;
