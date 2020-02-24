@@ -6,6 +6,7 @@
 #include "../sentry_string.h"
 #include "../sentry_utils.h"
 
+#include <Pathcch.h>
 #include <Shlobj.h>
 #include <shellapi.h>
 #include <shlwapi.h>
@@ -52,10 +53,14 @@ sentry__path_current_exe(void)
 }
 
 sentry_path_t *
-sentry__path_dir(sentry_path_t *path)
+sentry__path_dir(const sentry_path_t *path)
 {
-    PathCchRemoveFileSpec(path->path, wcslen(path->path));
-    return path;
+    sentry_path_t *dir_path = sentry__path_clone(path);
+    if (!dir_path) {
+        return NULL;
+    }
+    PathCchRemoveFileSpec(dir_path->path, wcslen(dir_path->path));
+    return dir_path;
 }
 
 sentry_path_t *
