@@ -1,10 +1,33 @@
 # Changelog
 
-## 0.2.0 (unreleased)
+## 0.2.0
 
 - Complete rewrite in C
-- Build system was switched to cmake
+- Build system was switched to CMake
 - Add attachment support
+- Better support for custom transports
+- The crashpad backend will automatically look for a `crashpad_handler`
+  executable next to the running program if no `handler_path` is set.
+
+### Breaking Changes
+
+- The `sentry_uuid_t` struct is now always a `char bytes[16]` instead of a
+  platform specific type.
+- `sentry_remove_context`: The second parameter was removed.
+- `sentry_options_set_transport`:
+  This function now takes a pointer to the new `sentry_transport_t` type.
+  Migrating from the old API can be done by wrapping with
+  `sentry_new_function_transport`, like this:
+  ```c
+  sentry_options_set_transport(
+        options, sentry_new_function_transport(send_envelope_func, &closure_data));
+  ```
+
+### Other API Additions
+
+- `size_t sentry_value_refcount(sentry_value_t value)`
+- `void sentry_envelope_free(sentry_envelope_t *envelope)`
+- `void sentry_backend_free(sentry_backend_t *backend)`
 
 ## 0.1.4
 

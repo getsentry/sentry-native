@@ -83,12 +83,12 @@ if(WITH_CURL)
 endif()
 
 # backends
-if(WITH_CRASHPAD)
+if(BACKEND_CRASHPAD)
     list(APPEND SENTRY_SOURCES
         backends/sentry_crashpad_backend.cpp
         backends/sentry_crashpad_backend.h
     )
-elseif(NOT WIN32)
+elseif(BACKEND_INPROC)
     list(APPEND SENTRY_SOURCES
         backends/sentry_inproc_backend.c
         backends/sentry_inproc_backend.h

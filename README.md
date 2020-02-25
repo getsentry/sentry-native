@@ -18,9 +18,8 @@ Please see [Known Issues](#known-issues).
 ## Table of Contents <!-- omit in toc -->
 
 - [Downloads](#downloads)
-- [Distributions](#distributions)
   - [What is Inside](#what-is-inside)
-  - [Platform Support](#platform-support)
+- [Platform and Feature Support](#platform-and-feature-support)
 - [Building and Installation](#building-and-installation)
   - [Compile-Time Options](#compile-time-options)
   - [Build Targets](#build-targets)
@@ -36,39 +35,31 @@ changelog of every version.
 
 [releases]: https://github.com/getsentry/sentry-native/releases
 
-## Distributions
-
-TODO: revise this section
-
-The release archive contains three distributions of the SDK:
-
-![SDK distributions](https://user-images.githubusercontent.com/1433023/65526140-dc3ccc00-def0-11e9-8271-6876afe400cc.png)
-
-\* _Adding stack traces and capturing application crashes requires you to add an
-unwind library and hook into signal handlers of your process. The Standalone
-distribution currently does not contain integrations that perform this
-automatically._
-
-**Note**: On Windows and macOS, we strongly encourage the Crashpad distribution.
-Due to limitations of Crashpad on Linux, we recommend to use Breakpad for Linux.
-
 ### What is Inside
 
 The SDK bundle contains the following folders:
 
-- `external`: These are external projects which are consumed via git submodules.
+- `external`: These are external projects which are consumed via
+  `git submodules`.
 - `include`: Contains the Sentry header file. Set the include path to this
   directory or copy the header file to your source tree so that it is available
   during the build.
 - `src`: Sources of the Sentry SDK required for building.
 
-### Platform Support
+## Platform and Feature Support
 
 The SDK currently supports and is tested on Linux, Windows and macOS as well as
 Android.
 
 The support target for Android is as low as API 16, with build support on
 NDK 19, which is also verified via tests.
+
+The SDK supports different features on the target platform:
+
+- **HTTP Transport** is currently only supported on Linux and macOS,
+  using `libcurl`. On other platforms, library users need to implement their
+  own transport, based on the `function transport` API.
+- **Crashpad Backend** is currently only supported on Windows and macOS.
 
 ## Building and Installation
 
@@ -79,6 +70,26 @@ System-wide installation of the resulting sentry library is also possible via
 CMake.
 
 Building the Crashpad Backend requires a `C++14` compatible compiler.
+
+**Build example**:
+
+```sh
+# configure the cmake build into the `build` directory, with crashpad (on macOS)
+$ cmake -B build -DSENTRY_BACKEND=crashpad
+# build the project
+$ cmake --build build --parallel
+# install the resulting artifacts into a specific prefix
+$ cmake --install build --prefix install
+# which will result in the following (on macOS):
+$ exa --tree install
+install
+├── bin
+│  └── crashpad_handler
+├── include
+│  └── sentry.h
+└── lib
+   └── libsentry.dylib
+```
 
 Please refer to the CMake Manual for more details.
 
@@ -99,10 +110,19 @@ using `cmake -DBUILD_SHARED_LIBS=OFF ..`.
 - `BUILD_SHARED_LIBS` (Default: ON):
   By default, `sentry` is built as a shared library. Setting this option to
   `OFF` will build `sentry` as a static library instead.
+- `SENTRY_BACKEND` (Default: depending on platform):
+  Sentry can use different backends depending on platform.
+  **crashpad**: This uses the out-of-process crashpad handler. It is currently
+  only supported on Windows and macOS, and used as the default there.
+  **inproc**: A small in-process handler which is supported on all platforms
+  except Windows, and is used as default on Linux and Android.
 
 ### Build Targets
 
 - `sentry`: This is the main library and the only default build target.
+- `crashpad_handler`: When configured with the `crashpad` backend, this is
+  the out of process crash handler, which will need to be installed along with
+  the projects executable.
 - `sentry_tests`: These are the main unit-tests, which are conveniently built
   also by the toplevel makefile.
 - `example`: This is a very small example program highlighting the API.
@@ -118,22 +138,20 @@ using `cmake -DBUILD_SHARED_LIBS=OFF ..`.
 
 [event attachments]: https://docs.sentry.io/platforms/native/#event-attachments-preview
 
-## Sample Application
-
-TODO: get meaningful example working
-
-The build commands produce the Sentry Native libraries (e.g.
-`./bin/Release/libsentry.dylib` on MacOS), and sample crashing applications. You
-can run them by passing your Sentry DSN key via an environment variable:
-
-```sh
-# MacOS
-SENTRY_DSN=https://XXXXX@sentry.io/YYYYY ./bin/Release/example
-```
-
-The example sends a message event to Sentry.
-
 ## Development
+
+Some external dependencies, such as `crashpad` are used via `git submodules`.
+When working with this repository, make sure to check out the submodules
+recursively.
+
+    $ git clone --recurse-submodules https://github.com/getsentry/sentry-native.git
+
+Or when working with an existing clone:
+
+    $ git submodule update --init --recursive
+
+Alternatively, the `make setup` target will do that for you, and might be
+extended in the future if other dependencies are added.
 
 ### Running Tests
 

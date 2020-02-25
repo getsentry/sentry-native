@@ -7,11 +7,30 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
 	set(LINUX TRUE)
 endif()
 
-OPTION(BUILD_SHARED_LIBS "Build shared libraries (.dll/.so) instead of static ones (.lib/.a)" ON)
-CMAKE_DEPENDENT_OPTION(WITH_CRASHPAD "Build and use the Crashpad integration" ON "APPLE OR WIN32" OFF)
+if(APPLE OR WIN32)
+	set(SENTRY_DEFAULT_BACKEND "crashpad")
+else()
+	set(SENTRY_DEFAULT_BACKEND "inproc")
+endif()
 
-if(WITH_CRASHPAD AND NOT APPLE AND NOT WIN32)
-	message(WARNING "The Crashpad backend is currently only supported on macOS and Windows")
+OPTION(BUILD_SHARED_LIBS "Build shared libraries (.dll/.so) instead of static ones (.lib/.a)" ON)
+
+set(SENTRY_BACKEND ${SENTRY_DEFAULT_BACKEND} CACHE STRING
+  "The sentry backend responsible for reporting crashes, can be either 'inproc' or 'crashpad'.")
+
+if(SENTRY_BACKEND STREQUAL "crashpad")
+	set(BACKEND_CRASHPAD TRUE)
+elseif(SENTRY_BACKEND STREQUAL "inproc")
+	set(BACKEND_INPROC TRUE)
+else()
+	message(FATAL_ERROR "SENTRY_BACKEND must be one of 'inproc' or 'crashpad'")
+endif()
+
+if(BACKEND_CRASHPAD AND NOT APPLE AND NOT WIN32)
+	message(FATAL_ERROR "The Crashpad backend is currently only supported on macOS and Windows")
+endif()
+if(BACKEND_INPROC AND WIN32)
+	message(FATAL_ERROR "The in-process backend is not supported on Windows")
 endif()
 
 OPTION(WITH_ASAN_OPTION "Build sentry-native with address sanitizer" OFF)
@@ -40,7 +59,7 @@ if(CURL_FOUND)
 	set(LINK_LIBRARIES ${LINK_LIBRARIES} ${CURL_LIBRARIES})
 endif()
 
-if(WITH_CRASHPAD)
+if(BACKEND_CRASHPAD)
 	set(CMAKE_CXX_STANDARD 14)
 else()
 	set(CMAKE_CXX_STANDARD 11)
@@ -51,7 +70,7 @@ if(NOT WIN32)
 	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -fvisibility=hidden")
 endif()
 
-if(WITH_CRASHPAD AND WIN32)
+if(BACKEND_CRASHPAD AND WIN32)
 	# Disable duplicate-define warnings, as the crashpad build defines all the
 	# "slim windows.h" defines, which sentry_boot also defines.
 	add_definitions(/wd4005)
@@ -94,12 +113,14 @@ SET(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR})
 SET(CMAKE_ARCHIVE_OUTPUT_DIRECTORY_DEBUG ${PROJECT_BINARY_DIR})
 SET(CMAKE_ARCHIVE_OUTPUT_DIRECTORY_RELEASE ${PROJECT_BINARY_DIR})
 
-if(WITH_CRASHPAD)
+if(BACKEND_CRASHPAD)
 	add_subdirectory(external/crashpad EXCLUDE_FROM_ALL)
 	include_directories(external/crashpad external/crashpad/third_party/mini_chromium/mini_chromium)
 	add_definitions(-DSENTRY_WITH_CRASHPAD_BACKEND)
 	set(LINK_LIBRARIES ${LINK_LIBRARIES} crashpad_client crashpad_util)
 	install(TARGETS "crashpad_handler")
+elseif(BACKEND_INPROC)
+	add_definitions(-DSENTRY_WITH_INPROC_BACKEND)
 endif()
 
 # ===== sentry library =====
@@ -111,7 +132,7 @@ set_target_properties("sentry" PROPERTIES PUBLIC_HEADER "include/sentry.h")
 target_link_libraries("sentry" ${LINK_LIBRARIES})
 install(TARGETS "sentry")
 
-if(WITH_CRASHPAD)
+if(BACKEND_CRASHPAD)
 	add_dependencies("sentry" "crashpad_handler")
 endif()
 
@@ -134,7 +155,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" OR CMAKE_SYSTEM_NAME STREQUAL "Android")
 	target_link_libraries("sentry_tests" "-Wl,--build-id=sha1,-E")
 endif()
 
-if(WITH_CRASHPAD)
+if(BACKEND_CRASHPAD)
 	add_dependencies("sentry_tests" "crashpad_handler")
 endif()
 
