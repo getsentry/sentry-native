@@ -31,10 +31,12 @@ stages:
                 build
                 .git*
                 **/.git*
+                .sentry-native
           - task: ArchiveFiles@2
             displayName: Create source archive
             inputs:
               rootFolderOrFile: $(Build.SourcesDirectory)
+              includeRootFolder: false
               archiveFile: "$(Build.ArtifactStagingDirectory)/sentry-native-source.zip"
           - task: PublishBuildArtifacts@1
             displayName: Publish source archive to Azure
