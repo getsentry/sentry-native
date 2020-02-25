@@ -147,6 +147,9 @@ Or when working with an existing clone:
 
     $ git submodule update --init --recursive
 
+Alternatively, the `make setup` target will do that for you, and might be
+extended in the future if other dependencies are added.
+
 ### Running Tests
 
 The SDK ships with a test suite based on [acutest]. Tests are built as a
