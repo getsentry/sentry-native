@@ -75,7 +75,7 @@ Building the Crashpad Backend requires a `C++14` compatible compiler.
 
 ```sh
 # configure the cmake build into the `build` directory, with crashpad (on macOS)
-$ cmake -B build -DWITH_CRASHPAD=ON
+$ cmake -B build -DSENTRY_BACKEND=crashpad
 # build the project
 $ cmake --build build --parallel
 # install the resulting artifacts into a specific prefix
@@ -110,14 +110,17 @@ using `cmake -DBUILD_SHARED_LIBS=OFF ..`.
 - `BUILD_SHARED_LIBS` (Default: ON):
   By default, `sentry` is built as a shared library. Setting this option to
   `OFF` will build `sentry` as a static library instead.
-- `WITH_CRASHPAD` (Default: ON for Windows and macOS):
-  When enabled, this will build an additional `crashpad_handler` executable,
-  which acts as an out-of-process crash reporter.
+- `SENTRY_BACKEND` (Default: depending on platform):
+  Sentry can use different backends depending on platform.
+  **crashpad**: This uses the out-of-process crashpad handler. It is currently
+  only supported on Windows and macOS, and used as the default there.
+  **inproc**: A small in-process handler which is supported on all platforms
+  except Windows, and is used as default on Linux and Android.
 
 ### Build Targets
 
 - `sentry`: This is the main library and the only default build target.
-- `crashpad_handler`: When configured with the `WITH_CRASHPAD` option, this is
+- `crashpad_handler`: When configured with the `crashpad` backend, this is
   the out of process crash handler, which will need to be installed along with
   the projects executable.
 - `sentry_tests`: These are the main unit-tests, which are conveniently built
