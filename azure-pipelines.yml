@@ -24,6 +24,22 @@ stages:
               cmake --build . --parallel --target example
               ! (ldd example | grep -q libsentry)
             displayName: Test static library build
+          - task: DeleteFiles@1
+            displayName: Remove all files not belonging in source archive
+            inputs:
+              contents: |
+                build
+                .git*
+                **/.git*
+          - task: ArchiveFiles@2
+            displayName: Create source archive
+            inputs:
+              rootFolderOrFile: $(Build.SourcesDirectory)
+              archiveFile: "$(Build.ArtifactStagingDirectory)/sentry-native-source.zip"
+          - task: PublishBuildArtifacts@1
+            displayName: Publish source archive to Azure
+            inputs:
+              pathtoPublish: "$(Build.ArtifactStagingDirectory)/sentry-native-source.zip"
 
       - job: macOS
         pool:
