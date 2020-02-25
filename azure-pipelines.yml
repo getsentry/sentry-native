@@ -1,25 +1,5 @@
 stages:
-  - stage: package
-    displayName: Prepare & Bundle Sources
-    jobs:
-      - job: package
-        displayName: Prepare & Bundle Sources
-        steps:
-          - checkout: self
-            fetchDepth: 5
-            submodules: recursive
-          - script: |
-              # the submodule contains an invalid symlink for whatever reason,
-              # which trips up Azure…
-              rm external/libunwindstack-ndk/.clang-format
-              # TODO: rethink how external dependencies are fetched
-              #bash scripts/fetch-dependencies.sh
-            displayName: Fetching External Dependencies
-          - publish: .
-            artifact: s
-
   - stage: test
-    dependsOn: package
     displayName: Build & Test
 
     jobs:
@@ -27,8 +7,9 @@ stages:
         pool:
           vmImage: "ubuntu-latest"
         steps:
-          - checkout: none
-          - download: current
+          - checkout: self
+            fetchDepth: 5
+            submodules: recursive
           - script: |
               mkdir -p build && cd build
               cmake ..
@@ -43,13 +24,32 @@ stages:
               cmake --build . --parallel --target example
               ! (ldd example | grep -q libsentry)
             displayName: Test static library build
+          - task: DeleteFiles@1
+            displayName: Remove all files not belonging in source archive
+            inputs:
+              contents: |
+                build
+                .git*
+                **/.git*
+                .sentry-native
+          - task: ArchiveFiles@2
+            displayName: Create source archive
+            inputs:
+              rootFolderOrFile: $(Build.SourcesDirectory)
+              includeRootFolder: false
+              archiveFile: "$(Build.ArtifactStagingDirectory)/sentry-native-source.zip"
+          - task: PublishBuildArtifacts@1
+            displayName: Publish source archive to Azure
+            inputs:
+              pathtoPublish: "$(Build.ArtifactStagingDirectory)/sentry-native-source.zip"
 
       - job: macOS
         pool:
           vmImage: "macOs-latest"
         steps:
-          - checkout: none
-          - download: current
+          - checkout: self
+            fetchDepth: 5
+            submodules: recursive
           - script: |
               mkdir -p build && cd build
               cmake ..
@@ -62,8 +62,9 @@ stages:
         pool:
           vmImage: "windows-latest"
         steps:
-          - checkout: none
-          - download: current
+          - checkout: self
+            fetchDepth: 5
+            submodules: recursive
           - script: |
               mkdir build && cd build
               cmake ..
@@ -89,8 +90,9 @@ stages:
           ANDROID_ARCH: x86
           ANDROID_IMAGE: system-images;android-$(ANDROID_API);google_apis;$(ANDROID_ARCH)
         steps:
-          - checkout: none
-          - download: current
+          - checkout: self
+            fetchDepth: 5
+            submodules: recursive
           - script: |
               echo "Downloading ndk;$(ANDROID_NDK) and $(ANDROID_IMAGE)"
               echo "y" | $ANDROID_HOME/tools/bin/sdkmanager --install \
