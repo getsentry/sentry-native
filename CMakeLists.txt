@@ -125,7 +125,7 @@ endif()
 
 # ===== sentry library =====
 
-add_library("sentry" "vendor/mpack.c")
+add_library("sentry" "${CMAKE_CURRENT_SOURCE_DIR}/vendor/mpack.c")
 add_subdirectory(src)
 
 set_target_properties("sentry" PROPERTIES PUBLIC_HEADER "include/sentry.h")
@@ -140,7 +140,6 @@ endif()
 
 # compile tests separately and pass an extra preprocessor define so we can
 # switch some internal modes for the unittests.
-# TODO: get sources from "sentry"
 get_target_property(SENTRY_NATIVE_ALL_SOURCES sentry SOURCES)
 add_executable("sentry_tests" EXCLUDE_FROM_ALL
 	${SENTRY_NATIVE_ALL_SOURCES}

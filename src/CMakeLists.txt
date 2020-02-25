@@ -117,5 +117,5 @@ endif()
 
 # make paths absolute
 list(TRANSFORM SENTRY_SOURCES PREPEND "${CMAKE_CURRENT_SOURCE_DIR}/")
-target_sources(sentry PUBLIC ${SENTRY_SOURCES})
-target_compile_definitions(sentry PUBLIC )
+get_target_property(SENTRY_OLD_SOURCES sentry SOURCES)
+target_sources(sentry PUBLIC ${SENTRY_OLD_SOURCES} ${SENTRY_SOURCES})
