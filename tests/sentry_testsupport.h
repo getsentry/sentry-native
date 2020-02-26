@@ -40,7 +40,9 @@
 #if __GNUC__ >= 4
 // NOTE: on linux, certain functions need to be made explicitly visible
 // in order for `dladdr` to correctly find their name and offset
-#    define TEST_VISIBLE __attribute__((visibility("default")))
+// also, force them not to be inlined
+#    define TEST_VISIBLE                                                       \
+        __attribute__((visibility("default"))) __attribute__((noinline))
 #elif _WIN32
 // NOTE: On Windows, pointers to non-static functions seem to resolve
 // to an indirection table. This causes a mismatch in tests. With static
