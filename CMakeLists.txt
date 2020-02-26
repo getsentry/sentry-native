@@ -192,6 +192,9 @@ if(BACKEND_CRASHPAD)
 	add_dependencies("sentry_test_unit" "crashpad_handler")
 endif()
 
+add_executable("sentry_test_integration" EXCLUDE_FROM_ALL "./tests/test_integration.c")
+target_link_libraries("sentry_test_integration" "sentry")
+
 # ===== examples =====
 
 add_executable("example" EXCLUDE_FROM_ALL "./examples/example.c")

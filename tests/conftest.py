@@ -2,6 +2,7 @@ import pytest
 import subprocess
 import os
 import re
+from . import cmake
 
 def enumerate_unittests():
     regexp = re.compile("XX\((.*?)\)")
@@ -18,17 +19,6 @@ def pytest_generate_tests(metafunc):
     if "unittest" in metafunc.fixturenames:
         metafunc.parametrize("unittest", enumerate_unittests())
 
-def cmake(cwd, targets, options=[]):
-    configcmd = ["cmake"]
-    for option in options:
-        configcmd.extend(["-D", option])
-    configcmd.append(os.getcwd())
-    subprocess.run(configcmd, cwd=cwd, check=True)
-
-    buildcmd = ["cmake", "--build", ".", "--parallel"]
-    for target in targets:
-        buildcmd.extend(["--target", target])
-    subprocess.run(buildcmd, cwd=cwd, check=True)
 
 class Unittests:
     def __init__(self, dir):
