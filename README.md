@@ -88,7 +88,8 @@ install
 ├── include
 │  └── sentry.h
 └── lib
-   └── libsentry.dylib
+   ├── libsentry.dylib
+   └── libsentry.dylib.dSYM
 ```
 
 Please refer to the CMake Manual for more details.

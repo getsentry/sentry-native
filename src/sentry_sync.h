@@ -86,8 +86,9 @@ typedef pthread_cond_t sentry_cond_t;
 #    define sentry__mutex_lock(Mutex)                                          \
         do {                                                                   \
             if (sentry__block_for_signal_handler()) {                          \
-                int _rv = pthread_mutex_lock(Mutex);                           \
-                assert(_rv == 0);                                              \
+                int rv = pthread_mutex_lock(Mutex);                            \
+                (void)rv;                                                      \
+                assert(rv == 0);                                               \
             }                                                                  \
         } while (0)
 #    define sentry__mutex_unlock(Mutex)                                        \
