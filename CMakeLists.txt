@@ -111,7 +111,7 @@ include_directories("include")
 include_directories("src")
 
 file(GLOB_RECURSE SENTRY_NATIVE_TEST_SOURCES
-	${CMAKE_CURRENT_SOURCE_DIR}/tests/*.c
+	${CMAKE_CURRENT_SOURCE_DIR}/tests/unit/*.c
 )
 
 if(LINUX)
@@ -175,21 +175,21 @@ endif()
 # compile tests separately and pass an extra preprocessor define so we can
 # switch some internal modes for the unittests.
 get_target_property(SENTRY_NATIVE_ALL_SOURCES sentry SOURCES)
-add_executable("sentry_tests" EXCLUDE_FROM_ALL
+add_executable("sentry_test_unit" EXCLUDE_FROM_ALL
 	${SENTRY_NATIVE_ALL_SOURCES}
 	${SENTRY_NATIVE_TEST_SOURCES}
 )
 get_target_property(SENTRY_DEFS sentry COMPILE_DEFINITIONS)
-target_compile_definitions("sentry_tests" PUBLIC SENTRY_UNITTEST ${SENTRY_DEFS})
-target_link_libraries("sentry_tests" ${LINK_LIBRARIES})
+target_compile_definitions("sentry_test_unit" PUBLIC SENTRY_UNITTEST ${SENTRY_DEFS})
+target_link_libraries("sentry_test_unit" ${LINK_LIBRARIES})
 
 # to fix some issues with tests (dladdr can't find functions otherwise)
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux" OR CMAKE_SYSTEM_NAME STREQUAL "Android")
-	target_link_libraries("sentry_tests" "-Wl,--build-id=sha1,-E")
+	target_link_libraries("sentry_test_unit" "-Wl,--build-id=sha1,-E")
 endif()
 
 if(BACKEND_CRASHPAD)
-	add_dependencies("sentry_tests" "crashpad_handler")
+	add_dependencies("sentry_test_unit" "crashpad_handler")
 endif()
 
 # ===== examples =====

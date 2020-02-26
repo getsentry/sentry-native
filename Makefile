@@ -1,7 +1,9 @@
+export SENTRY_NATIVE_PYTHON_VERSION := python3.7
+
 all: test
 
 update-test-discovery:
-	@perl -ne 'print if s/SENTRY_TEST\(([^)]+)\)/XX(\1)/' tests/*.c | sort | uniq > tests/tests.inc
+	@perl -ne 'print if s/SENTRY_TEST\(([^)]+)\)/XX(\1)/' tests/unit/*.c | sort | uniq > tests/unit/tests.inc
 .PHONY: update-test-discovery
 
 build/Makefile: CMakeLists.txt
@@ -15,9 +17,12 @@ build: build/Makefile
 build/sentry_tests: build
 	@cmake --build build --target sentry_tests --parallel
 
-test: update-test-discovery build/sentry_tests
-	@./build/sentry_tests
+test: update-test-discovery test-integration
 .PHONY: test
+
+test-integration: setup-venv
+	.venv/bin/pytest tests -v
+.PHONY: test-integration
 
 test-leaks: update-test-discovery CMakeLists.txt
 	@mkdir -p leak-build
@@ -31,9 +36,20 @@ clean: build/Makefile
 .PHONY: clean
 
 setup: setup-git
+.PHONY: setup
+
 setup-git:
 	git submodule update --init --recursive
-.PHONY: setup setup-git
+.PHONY: setup-git
+
+setup-venv: .venv/bin/python
+.PHONY: setup-venv
+
+.venv/bin/python: Makefile integration-test-requirements.txt
+	@rm -rf .venv
+	@which virtualenv || sudo pip install virtualenv
+	virtualenv -p $$SENTRY_NATIVE_PYTHON_VERSION .venv
+	.venv/bin/pip install -U -r integration-test-requirements.txt
 
 format:
 	@clang-format -i src/*.c src/*.h src/*/*.c src/*/*.h tests/*.c tests/*.h

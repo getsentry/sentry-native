@@ -29,7 +29,7 @@ find_frame(const sentry_frame_info_t *info, void *data)
     }
 }
 
-SENTRY_TEST(test_unwinder)
+SENTRY_TEST(unwinder)
 {
     void **backtrace = invoke_unwinder();
 

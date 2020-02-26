@@ -10,3 +10,7 @@ leak-build
 
 # Run files
 .sentry-native
+
+# Python
+.venv
+__pycache__
