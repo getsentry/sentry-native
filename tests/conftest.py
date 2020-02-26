@@ -35,7 +35,7 @@ class Unittests:
         cmake(dir, ["sentry_test_unit"], ["SENTRY_BACKEND=inproc"])
         self.dir = dir
     def run(self, test):
-        subprocess.run(["sentry_test_unit", test], cwd=self.dir, check=True)
+        subprocess.run(["./sentry_test_unit", test], cwd=self.dir, check=True)
 
 @pytest.fixture(scope="session")
 def unittests(tmp_path_factory):

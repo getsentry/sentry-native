@@ -21,7 +21,7 @@ test: update-test-discovery test-integration
 .PHONY: test
 
 test-integration: setup-venv
-	.venv/bin/pytest tests -v
+	.venv/bin/pytest tests --verbose
 .PHONY: test-integration
 
 test-leaks: update-test-discovery CMakeLists.txt
@@ -49,7 +49,7 @@ setup-venv: .venv/bin/python
 	@rm -rf .venv
 	@which virtualenv || sudo pip install virtualenv
 	virtualenv -p $$SENTRY_NATIVE_PYTHON_VERSION .venv
-	.venv/bin/pip install -U -r integration-test-requirements.txt
+	.venv/bin/pip install --upgrade --requirement integration-test-requirements.txt
 
 format:
 	@clang-format -i src/*.c src/*.h src/*/*.c src/*/*.h tests/*.c tests/*.h
