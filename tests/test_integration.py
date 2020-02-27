@@ -1,4 +1,6 @@
+import pytest
 import subprocess
+import sys
 import json
 from . import cmake
 
@@ -41,24 +43,26 @@ def assert_crash(output):
     assert b'"level":"fatal","exception":' in output
     assert b'"stacktrace":{"frames":[' in output
 
+test_exe = "./sentry_test_integration" if sys.platform != "win32" else "sentry_test_integration.exe"
 
 def test_capture_stdout(tmp_path):
     # backend does not matter, but we want to keep compile times down
-    cmake(tmp_path, ["sentry_test_integration"], ["SENTRY_BACKEND=inproc"])
+    cmake(tmp_path, ["sentry_test_integration"], ["SENTRY_BACKEND=none"])
 
-    output = subprocess.check_output(["./sentry_test_integration", "stdout", "attachment", "capture-event"], cwd=tmp_path)
+    output = subprocess.check_output([test_exe, "stdout", "attachment", "capture-event"], cwd=tmp_path)
     assert_meta(output)
     assert_breadcrumb(output)
     assert_attachment(output)
     assert_event(output)
 
+@pytest.mark.skipif(sys.platform == "win32", reason="no inproc backend on windows")
 def test_inproc_enqueue_stdout(tmp_path):
     cmake(tmp_path, ["sentry_test_integration"], ["SENTRY_BACKEND=inproc"])
 
-    child = subprocess.run(["./sentry_test_integration", "attachment", "crash"], cwd=tmp_path)
+    child = subprocess.run([test_exe, "attachment", "crash"], cwd=tmp_path)
     assert child.returncode # well, its a crash after all
 
-    output = subprocess.check_output(["./sentry_test_integration", "stdout", "no-setup"], cwd=tmp_path)
+    output = subprocess.check_output([test_exe, "stdout", "no-setup"], cwd=tmp_path)
     assert_meta(output)
     assert_breadcrumb(output)
     assert_attachment(output)

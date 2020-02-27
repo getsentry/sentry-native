@@ -2,6 +2,7 @@ import pytest
 import subprocess
 import os
 import re
+import sys
 from . import cmake
 
 def enumerate_unittests():
@@ -22,10 +23,12 @@ def pytest_generate_tests(metafunc):
 
 class Unittests:
     def __init__(self, dir):
-        cmake(dir, ["sentry_test_unit"], ["SENTRY_BACKEND=inproc"])
+        # for unit tests, the backend does not matter, and we want to keep
+        # the compile-times down
+        cmake(dir, ["sentry_test_unit"], ["SENTRY_BACKEND=none"])
         self.dir = dir
     def run(self, test):
-        subprocess.run(["./sentry_test_unit", test], cwd=self.dir, check=True)
+        subprocess.run(["./sentry_test_unit" if sys.platform != "win32" else "sentry_test_unit.exe", test], cwd=self.dir, check=True)
 
 @pytest.fixture(scope="session")
 def unittests(tmp_path_factory):

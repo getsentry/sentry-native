@@ -1,8 +1,6 @@
 cmake_minimum_required (VERSION 3.0)
 project (Sentry-Native LANGUAGES C CXX ASM)
 
-include(CMakeDependentOption)
-
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
 	set(LINUX TRUE)
 endif()
@@ -20,14 +18,16 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 set(SENTRY_BACKEND ${SENTRY_DEFAULT_BACKEND} CACHE STRING
-  "The sentry backend responsible for reporting crashes, can be either 'inproc' or 'crashpad'.")
+  "The sentry backend responsible for reporting crashes, can be either 'none', 'inproc' or 'crashpad'.")
 
 if(SENTRY_BACKEND STREQUAL "crashpad")
 	set(BACKEND_CRASHPAD TRUE)
 elseif(SENTRY_BACKEND STREQUAL "inproc")
 	set(BACKEND_INPROC TRUE)
+elseif(SENTRY_BACKEND STREQUAL "none")
+	set(BACKEND_NONE TRUE)
 else()
-	message(FATAL_ERROR "SENTRY_BACKEND must be one of 'inproc' or 'crashpad'")
+	message(FATAL_ERROR "SENTRY_BACKEND must be one of 'none', 'inproc' or 'crashpad'")
 endif()
 
 if(BACKEND_CRASHPAD AND NOT APPLE AND NOT WIN32)
