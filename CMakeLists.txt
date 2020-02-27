@@ -37,6 +37,13 @@ if(BACKEND_INPROC AND WIN32)
 	message(FATAL_ERROR "The in-process backend is not supported on Windows")
 endif()
 
+# use -O3 when doing `RelWithDebInfo` builds
+foreach(lang ASM C CXX)
+	# unix-like syntax
+	string(REPLACE "-O2" "-O3" CMAKE_${lang}_FLAGS_RELWITHDEBINFO "${CMAKE_${lang}_FLAGS_RELWITHDEBINFO}")
+	# windows-like syntax
+	string(REPLACE "/O2" "/O3" CMAKE_${lang}_FLAGS_RELWITHDEBINFO "${CMAKE_${lang}_FLAGS_RELWITHDEBINFO}")
+endforeach()
 
 # https://gitlab.kitware.com/cmake/cmake/issues/20256
 if(APPLE)
