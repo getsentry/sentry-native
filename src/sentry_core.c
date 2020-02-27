@@ -1,6 +1,7 @@
 #include "sentry_boot.h"
 
 #include <stdarg.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "sentry_alloc.h"
@@ -218,6 +219,9 @@ sentry_options_new(void)
     }
     memset(opts, 0, sizeof(sentry_options_t));
     opts->database_path = sentry__path_from_str("./.sentry-native");
+    sentry_options_set_dsn(opts, getenv("SENTRY_DSN"));
+    opts->release = sentry__string_clone(getenv("SENTRY_RELEASE"));
+    opts->environment = sentry__string_clone(getenv("SENTRY_ENVIRONMENT"));
     opts->user_consent = SENTRY_USER_CONSENT_UNKNOWN;
     opts->system_crash_reporter_enabled = false;
     opts->backend = sentry__backend_new_default();
@@ -333,8 +337,8 @@ sentry_options_get_release(const sentry_options_t *opts)
 void
 sentry_options_set_environment(sentry_options_t *opts, const char *environment)
 {
-    sentry_free(opts->release);
-    opts->release = sentry__string_clone(environment);
+    sentry_free(opts->environment);
+    opts->environment = sentry__string_clone(environment);
 }
 
 const char *
