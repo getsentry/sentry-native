@@ -111,7 +111,7 @@ stages:
             displayName: Build
           - script: |
               bash scripts/start-android.sh
-            timeoutInMinutes: 2 # because gettings things wrong here can hang the job for up to an hour…
+            timeoutInMinutes: 5 # because gettings things wrong here can hang the job for up to an hour…
             displayName: Starting Android Simulator
           - script: |
               export DEVICE_DIR="/data/local/tmp"
