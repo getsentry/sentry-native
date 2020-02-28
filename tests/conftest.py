@@ -3,7 +3,7 @@ import subprocess
 import os
 import re
 import sys
-from . import cmake
+from . import cmake, run
 
 def enumerate_unittests():
     regexp = re.compile("XX\((.*?)\)")
@@ -26,7 +26,7 @@ class Unittests:
         cmake(dir, ["sentry_test_unit"], ["SENTRY_BACKEND=none"])
         self.dir = dir
     def run(self, test):
-        subprocess.run(["./sentry_test_unit" if sys.platform != "win32" else "sentry_test_unit.exe", test], cwd=self.dir, check=True)
+        run(self.dir, "sentry_test_unit", [test], check=True)
 
 @pytest.fixture(scope="session")
 def unittests(tmp_path_factory):

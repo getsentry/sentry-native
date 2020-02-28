@@ -2,6 +2,18 @@ import subprocess
 import os
 import io
 import json
+import sys
+
+def run(cwd, exe, args, **kwargs):
+    cmd = "./{}".format(exe) if sys.platform != "win32" else "{}\\{}.exe".format(cwd, exe)
+    return subprocess.run([cmd, *args], cwd=cwd, **kwargs)
+
+def check_output(*args):
+    stdout = run(*args, check=True, stdout=subprocess.PIPE).stdout
+    # capturing stdout on windows actually encodes "\n" as "\r\n", which we
+    # revert, because it messes with envelope decoding
+    stdout = stdout.replace(b"\r\n", b"\n")
+    return stdout
 
 def cmake(cwd, targets, options=[]):
     configcmd = ["cmake"]

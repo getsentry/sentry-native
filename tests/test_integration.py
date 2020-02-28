@@ -2,7 +2,7 @@ import pytest
 import subprocess
 import sys
 import json
-from . import cmake, Envelope
+from . import cmake, check_output, run, Envelope
 
 # TODO:
 # * with inproc backend:
@@ -67,13 +67,11 @@ def assert_crash(envelope):
     # we have an exception, with at least an empty stacktrace
     assert isinstance(event["exception"]["values"][0]["stacktrace"]["frames"], list)
 
-test_exe = "./sentry_test_integration" if sys.platform != "win32" else "sentry_test_integration.exe"
-
 def test_capture_stdout(tmp_path):
     # backend does not matter, but we want to keep compile times down
     cmake(tmp_path, ["sentry_test_integration"], ["SENTRY_BACKEND=none"])
 
-    output = subprocess.check_output([test_exe, "stdout", "attachment", "capture-event"], cwd=tmp_path)
+    output = check_output(tmp_path, "sentry_test_integration", ["stdout", "attachment", "capture-event"])
     envelope = Envelope.deserialize(output)
 
     assert_meta(envelope)
@@ -86,10 +84,10 @@ def test_capture_stdout(tmp_path):
 def test_inproc_enqueue_stdout(tmp_path):
     cmake(tmp_path, ["sentry_test_integration"], ["SENTRY_BACKEND=inproc"])
 
-    child = subprocess.run([test_exe, "attachment", "crash"], cwd=tmp_path)
+    child = run(tmp_path, "sentry_test_integration", ["attachment", "crash"])
     assert child.returncode # well, its a crash after all
 
-    output = subprocess.check_output([test_exe, "stdout", "no-setup"], cwd=tmp_path)
+    output = check_output(tmp_path, "sentry_test_integration", ["stdout", "no-setup"])
     envelope = Envelope.deserialize(output)
 
     assert_meta(envelope)
