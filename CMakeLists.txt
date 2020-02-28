@@ -15,6 +15,10 @@ endif()
 
 OPTION(BUILD_SHARED_LIBS "Build shared libraries (.dll/.so) instead of static ones (.lib/.a)" ON)
 
+if(NOT CMAKE_BUILD_TYPE)
+	set(CMAKE_BUILD_TYPE "RelWithDebInfo")
+endif()
+
 set(SENTRY_BACKEND ${SENTRY_DEFAULT_BACKEND} CACHE STRING
   "The sentry backend responsible for reporting crashes, can be either 'inproc' or 'crashpad'.")
 
@@ -32,6 +36,27 @@ endif()
 if(BACKEND_INPROC AND WIN32)
 	message(FATAL_ERROR "The in-process backend is not supported on Windows")
 endif()
+
+# use -O3 when doing `RelWithDebInfo` builds
+foreach(lang ASM C CXX)
+	# unix-like syntax
+	string(REPLACE "-O2" "-O3" CMAKE_${lang}_FLAGS_RELWITHDEBINFO "${CMAKE_${lang}_FLAGS_RELWITHDEBINFO}")
+	# windows-like syntax
+	string(REPLACE "/O2" "/O3" CMAKE_${lang}_FLAGS_RELWITHDEBINFO "${CMAKE_${lang}_FLAGS_RELWITHDEBINFO}")
+endforeach()
+
+# https://gitlab.kitware.com/cmake/cmake/issues/20256
+if(APPLE)
+	find_program(DSYMUTIL_PROGRAM dsymutil)
+	if(DSYMUTIL_PROGRAM)
+		foreach(lang C CXX)
+			foreach(var LINK_EXECUTABLE CREATE_SHARED_LIBRARY)
+				set(CMAKE_${lang}_${var} "${CMAKE_${lang}_${var}}" "${DSYMUTIL_PROGRAM} <TARGET>")
+			endforeach()
+		endforeach()
+	endif()
+endif()
+
 
 OPTION(WITH_ASAN_OPTION "Build sentry-native with address sanitizer" OFF)
 if(WITH_ASAN_OPTION)
@@ -131,6 +156,15 @@ add_subdirectory(src)
 set_target_properties("sentry" PROPERTIES PUBLIC_HEADER "include/sentry.h")
 target_link_libraries("sentry" ${LINK_LIBRARIES})
 install(TARGETS "sentry")
+
+# https://gitlab.kitware.com/cmake/cmake/issues/18393
+if(BUILD_SHARED_LIBS)
+	if(APPLE)
+		install(FILES "$<TARGET_FILE:sentry>.dSYM" DESTINATION lib)
+	elseif(WIN32)
+		install(FILES $<TARGET_PDB_FILE:sentry> DESTINATION lib)
+	endif()
+endif()
 
 if(BACKEND_CRASHPAD)
 	add_dependencies("sentry" "crashpad_handler")
