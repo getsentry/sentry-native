@@ -62,11 +62,8 @@ stages:
             fetchDepth: 5
             submodules: recursive
           - script: |
-              mkdir build && cd build
-              cmake ..
-              cmake --build . --parallel --target sentry_test_unit
-            displayName: Build
-          - script: .\build\sentry_test_unit.exe
+              pip install --upgrade --requirement integration-test-requirements.txt
+              pytest tests --verbose
             displayName: Test
 
       - job: Android

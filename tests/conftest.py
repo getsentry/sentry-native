@@ -7,14 +7,12 @@ from . import cmake
 
 def enumerate_unittests():
     regexp = re.compile("XX\((.*?)\)")
-    tests = []
     # TODO: actually generate the `tests.inc` file with python
     with open('tests/unit/tests.inc', 'r') as testsfile:
         for line in testsfile:
             match = regexp.match(line)
             if match:
-                tests.append(match.group(1))
-    return tests
+                yield match.group(1)
 
 def pytest_generate_tests(metafunc):
     if "unittest" in metafunc.fixturenames:
