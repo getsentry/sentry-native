@@ -2,7 +2,7 @@ import pytest
 import subprocess
 import sys
 import json
-from . import cmake
+from . import cmake, Envelope
 
 # TODO:
 # * with inproc backend:
@@ -20,28 +20,52 @@ from . import cmake
 #   - with http
 #   - with stdout
 
-# TODO: maybe do some very rudimentary envelope parsing?
+def matches(actual, expected):
+    return {k:v for (k,v) in actual.items() if k in expected.keys()} == expected
 
-def assert_meta(output):
-    assert b'"platform":"native"' in output
-    assert b'"release":"integration-test-release"' in output
-    assert b'"user":{"id":42,"username":"some_name"}' in output
-    assert b'"transaction":"test-transaction","tags":{"expected-tag":"some value"},"extra":{"extra stuff":"some value"},' in output
-    assert b'/sentry_test_integration","image_addr":"' in output
+def assert_meta(envelope):
+    event = envelope.get_event()
 
-def assert_breadcrumb(output):
-    assert b',"type":"http","message":"debug crumb","category":"example!","level":"debug"}' in output
+    expected = {
+        "platform": "native",
+        "release": "integration-test-release",
+        "user": { "id": 42, "username": "some_name" },
+        "transaction": "test-transaction",
+        "tags": { "expected-tag": "some value" },
+        "extra": { "extra stuff": "some value" },
+    }
+    assert matches(event, expected)
+    assert any("sentry_test_integration" in image["code_file"] for image in event["debug_meta"]["images"])
 
-def assert_attachment(output):
-    assert b'{"type":"attachment",' in output
-    assert b',"name":"CMakeCache.txt"}' in output
+def assert_breadcrumb(envelope):
+    event = envelope.get_event()
 
-def assert_event(output):
-    assert b'"level":"info","logger":"my-logger","message":{"formatted":"Hello World!"}' in output
+    expected = {
+        "type": "http",
+        "message": "debug crumb",
+        "category": "example!",
+        "level": "debug",
+    }
+    assert any(matches(b, expected) for b in event["breadcrumbs"])
 
-def assert_crash(output):
-    assert b'"level":"fatal","exception":' in output
-    assert b'"stacktrace":{"frames":[' in output
+def assert_attachment(envelope):
+    expected = { "type": "attachment", "name": "CMakeCache.txt" }
+    assert any(matches(item.headers, expected) for item in envelope)
+
+def assert_event(envelope):
+    event = envelope.get_event()
+    expected = {
+        "level": "info",
+        "logger": "my-logger",
+        "message": { "formatted":"Hello World!" },
+    }
+    assert matches(event, expected)
+
+def assert_crash(envelope):
+    event = envelope.get_event()
+    assert matches(event, { "level": "fatal" })
+    # we have an exception, with at least an empty stacktrace
+    assert isinstance(event["exception"]["values"][0]["stacktrace"]["frames"], list)
 
 test_exe = "./sentry_test_integration" if sys.platform != "win32" else "sentry_test_integration.exe"
 
@@ -50,10 +74,13 @@ def test_capture_stdout(tmp_path):
     cmake(tmp_path, ["sentry_test_integration"], ["SENTRY_BACKEND=none"])
 
     output = subprocess.check_output([test_exe, "stdout", "attachment", "capture-event"], cwd=tmp_path)
-    assert_meta(output)
-    assert_breadcrumb(output)
-    assert_attachment(output)
-    assert_event(output)
+    envelope = Envelope.deserialize(output)
+
+    assert_meta(envelope)
+    assert_breadcrumb(envelope)
+    assert_attachment(envelope)
+
+    assert_event(envelope)
 
 @pytest.mark.skipif(sys.platform == "win32", reason="no inproc backend on windows")
 def test_inproc_enqueue_stdout(tmp_path):
@@ -63,7 +90,10 @@ def test_inproc_enqueue_stdout(tmp_path):
     assert child.returncode # well, its a crash after all
 
     output = subprocess.check_output([test_exe, "stdout", "no-setup"], cwd=tmp_path)
-    assert_meta(output)
-    assert_breadcrumb(output)
-    assert_attachment(output)
-    assert_crash(output)
+    envelope = Envelope.deserialize(output)
+
+    assert_meta(envelope)
+    assert_breadcrumb(envelope)
+    assert_attachment(envelope)
+
+    assert_crash(envelope)
