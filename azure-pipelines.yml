@@ -10,12 +10,10 @@ stages:
           - checkout: self
             fetchDepth: 5
             submodules: recursive
+          - task: UsePythonVersion@0
           - script: |
-              mkdir -p build && cd build
-              cmake ..
-              cmake --build . --parallel --target sentry_tests
-            displayName: Build
-          - script: ./build/sentry_tests
+              pip install --upgrade --requirement integration-test-requirements.txt
+              pytest tests --verbose
             displayName: Test
           - script: |
               rm -rf build
@@ -50,12 +48,10 @@ stages:
           - checkout: self
             fetchDepth: 5
             submodules: recursive
+          - task: UsePythonVersion@0
           - script: |
-              mkdir -p build && cd build
-              cmake ..
-              cmake --build . --parallel --target sentry_tests
-            displayName: Build
-          - script: ./build/sentry_tests
+              pip install --upgrade --requirement integration-test-requirements.txt
+              pytest tests --verbose
             displayName: Test
 
       - job: Windows
@@ -65,12 +61,10 @@ stages:
           - checkout: self
             fetchDepth: 5
             submodules: recursive
+          - task: UsePythonVersion@0
           - script: |
-              mkdir build && cd build
-              cmake ..
-              cmake --build . --parallel --target sentry_tests
-            displayName: Build
-          - script: .\build\sentry_tests.exe
+              pip install --upgrade --requirement integration-test-requirements.txt
+              pytest tests --verbose
             displayName: Test
 
       - job: Android
@@ -107,7 +101,7 @@ stages:
                 -DANDROID_ABI=$(ANDROID_ARCH) \
                 -DANDROID_NATIVE_API_LEVEL=$(ANDROID_API) \
                 ..
-              cmake --build . --parallel --target sentry_tests
+              cmake --build . --parallel --target sentry_test_unit
             displayName: Build
           - script: |
               bash scripts/start-android.sh
@@ -116,5 +110,5 @@ stages:
           - script: |
               export DEVICE_DIR="/data/local/tmp"
               $ANDROID_HOME/platform-tools/adb push ./build "${DEVICE_DIR}"
-              $ANDROID_HOME/platform-tools/adb shell "cd ${DEVICE_DIR}/build && ./sentry_tests"
+              $ANDROID_HOME/platform-tools/adb shell "cd ${DEVICE_DIR}/build && ./sentry_test_unit"
             displayName: Test

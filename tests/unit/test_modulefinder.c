@@ -6,7 +6,7 @@
 #    include "modulefinder/sentry_modulefinder_linux.h"
 #endif
 
-SENTRY_TEST(test_module_finder)
+SENTRY_TEST(module_finder)
 {
     sentry_value_t modules = sentry__modules_get_list();
     TEST_CHECK(sentry_value_get_length(modules) > 0);
@@ -16,7 +16,7 @@ SENTRY_TEST(test_module_finder)
         sentry_value_t mod = sentry_value_get_by_index(modules, i);
         sentry_value_t name = sentry_value_get_by_key(mod, "code_file");
         const char *name_str = sentry_value_as_string(name);
-        if (strstr(name_str, "sentry_tests")) {
+        if (strstr(name_str, "sentry_test_unit")) {
             // our tests should also have at least a debug_id on all platforms
             sentry_value_t debug_id = sentry_value_get_by_key(mod, "debug_id");
             TEST_CHECK(
@@ -29,7 +29,7 @@ SENTRY_TEST(test_module_finder)
     TEST_CHECK(found_test);
 }
 
-SENTRY_TEST(test_procmaps_parser)
+SENTRY_TEST(procmaps_parser)
 {
 #ifdef SENTRY_PLATFORM_LINUX
     sentry_module_t mod;
