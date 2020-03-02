@@ -1,4 +1,4 @@
-cmake_minimum_required (VERSION 3.0)
+cmake_minimum_required (VERSION 3.10)
 project (Sentry-Native LANGUAGES C CXX ASM)
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
@@ -138,6 +138,18 @@ SET(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR})
 SET(CMAKE_ARCHIVE_OUTPUT_DIRECTORY_DEBUG ${PROJECT_BINARY_DIR})
 SET(CMAKE_ARCHIVE_OUTPUT_DIRECTORY_RELEASE ${PROJECT_BINARY_DIR})
 
+# builtin `list(TRANSFORM)` (https://cmake.org/cmake/help/latest/command/list.html#transform)
+# was only added in cmake 3.12, but we target 3.10, so we define a custom
+# functions which can prepend a prefix to all list elements.
+# copied from https://stackoverflow.com/a/27630120
+FUNCTION(PREPEND var prefix)
+	SET(listVar "")
+	FOREACH(f ${ARGN})
+		LIST(APPEND listVar "${prefix}/${f}")
+	ENDFOREACH(f)
+	SET(${var} "${listVar}" PARENT_SCOPE)
+ENDFUNCTION(PREPEND)
+
 if(BACKEND_CRASHPAD)
 	add_subdirectory(external/crashpad EXCLUDE_FROM_ALL)
 	include_directories(external/crashpad external/crashpad/third_party/mini_chromium/mini_chromium)
@@ -155,7 +167,10 @@ add_subdirectory(src)
 
 set_target_properties("sentry" PROPERTIES PUBLIC_HEADER "include/sentry.h")
 target_link_libraries("sentry" ${LINK_LIBRARIES})
-install(TARGETS "sentry")
+install(TARGETS "sentry"
+	ARCHIVE DESTINATION lib
+	LIBRARY DESTINATION lib
+	PUBLIC_HEADER DESTINATION include)
 
 # https://gitlab.kitware.com/cmake/cmake/issues/18393
 if(BUILD_SHARED_LIBS)
