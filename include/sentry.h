@@ -59,6 +59,9 @@ extern "C" {
 #    define SENTRY_EXPERIMENTAL_API SENTRY_API
 #endif
 
+#ifndef __STDC_FORMAT_MACROS
+#    define __STDC_FORMAT_MACROS
+#endif
 #include <inttypes.h>
 #include <stdbool.h>
 #include <stddef.h>

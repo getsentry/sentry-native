@@ -9,7 +9,6 @@
 #include <arpa/inet.h>
 #include <elf.h>
 #include <fcntl.h>
-#include <inttypes.h>
 #include <string.h>
 #include <unistd.h>
 

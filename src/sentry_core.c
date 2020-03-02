@@ -224,7 +224,7 @@ sentry_options_new(void)
     opts->environment = sentry__string_clone(getenv("SENTRY_ENVIRONMENT"));
     opts->user_consent = SENTRY_USER_CONSENT_UNKNOWN;
     opts->system_crash_reporter_enabled = false;
-    opts->backend = sentry__backend_new_default();
+    opts->backend = sentry__backend_new();
     opts->transport = sentry__transport_new_default();
     return opts;
 }
