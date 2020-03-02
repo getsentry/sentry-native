@@ -28,6 +28,8 @@ def assert_meta(envelope):
 
     expected = {
         "platform": "native",
+        "environment": "Production",
+        "contexts": { "runtime": { "type": "runtime", "name": "testing-runtime" } },
         "release": "integration-test-release",
         "user": { "id": 42, "username": "some_name" },
         "transaction": "test-transaction",

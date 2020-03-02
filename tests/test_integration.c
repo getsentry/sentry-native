@@ -52,6 +52,13 @@ main(int argc, char **argv)
         sentry_set_tag("not-expected-tag", "some value");
         sentry_remove_tag("not-expected-tag");
 
+        sentry_value_t context = sentry_value_new_object();
+        sentry_value_set_by_key(
+            context, "type", sentry_value_new_string("runtime"));
+        sentry_value_set_by_key(
+            context, "name", sentry_value_new_string("testing-runtime"));
+        sentry_set_context("runtime", context);
+
         sentry_value_t user = sentry_value_new_object();
         sentry_value_set_by_key(user, "id", sentry_value_new_int32(42));
         sentry_value_set_by_key(
