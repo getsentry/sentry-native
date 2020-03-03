@@ -109,8 +109,8 @@ sentry__string_clonen(const char *str, size_t n)
     char *rv = sentry_malloc(len);
     if (rv) {
         memcpy(rv, str, n);
+        rv[n] = 0;
     }
-    rv[n] = 0;
     return rv;
 }
 
@@ -122,6 +122,17 @@ sentry__string_from_wstr(wchar_t *s)
     char *rv = sentry_malloc(len);
     if (rv) {
         WideCharToMultiByte(CP_UTF8, 0, s, -1, rv, len, NULL, NULL);
+    }
+    return rv;
+}
+
+wchar_t *
+sentry__string_to_wstr(const char *s)
+{
+    size_t len = MultiByteToWideChar(CP_UTF8, 0, s, -1, NULL, 0);
+    wchar_t *rv = sentry_malloc(sizeof(wchar_t) * len);
+    if (rv) {
+        MultiByteToWideChar(CP_UTF8, 0, s, -1, rv, (int)len);
     }
     return rv;
 }

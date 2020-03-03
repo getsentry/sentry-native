@@ -81,6 +81,12 @@ if(WITH_CURL)
         transports/sentry_libcurl_transport.h
     )
 endif()
+if(WIN32)
+    list(APPEND SENTRY_SOURCES
+        transports/sentry_winhttp_transport.c
+        transports/sentry_winhttp_transport.h
+    )
+endif()
 
 # backends
 if(BACKEND_CRASHPAD)
