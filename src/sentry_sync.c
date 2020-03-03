@@ -132,7 +132,7 @@ sentry__bgworker_shutdown(sentry_bgworker_t *bgw, uint64_t timeout)
             &bgw->done_signal, &bgw->done_signal_lock, 250);
         sentry__mutex_unlock(&bgw->done_signal_lock);
         uint64_t now = sentry__msec_time();
-        if (now - started > timeout) {
+        if (now > started && now - started > timeout) {
             return 1;
         }
     }
