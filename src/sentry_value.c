@@ -766,7 +766,7 @@ value_to_msgpack(mpack_writer_t *writer, sentry_value_t value)
     case SENTRY_VALUE_TYPE_LIST: {
         const list_t *l = value_as_thing(value)->payload;
 
-        mpack_start_array(writer, l->len);
+        mpack_start_array(writer, (uint32_t)l->len);
         for (size_t i = 0; i < l->len; i++) {
             value_to_msgpack(writer, l->items[i]);
         }
@@ -775,7 +775,8 @@ value_to_msgpack(mpack_writer_t *writer, sentry_value_t value)
     }
     case SENTRY_VALUE_TYPE_OBJECT: {
         const obj_t *o = value_as_thing(value)->payload;
-        mpack_start_map(writer, o->len);
+
+        mpack_start_map(writer, (uint32_t)o->len);
         for (size_t i = 0; i < o->len; i++) {
             mpack_write_cstr(writer, o->pairs[i].k);
             value_to_msgpack(writer, o->pairs[i].v);
