@@ -8,6 +8,34 @@ static bool g_scope_initialized;
 static sentry_scope_t g_scope;
 static sentry_mutex_t g_lock = SENTRY__MUTEX_INIT;
 
+static sentry_value_t
+get_client_sdk(void)
+{
+    sentry_value_t client_sdk = sentry_value_new_object();
+
+    sentry_value_t name = sentry_value_new_string(SENTRY_SDK_NAME);
+    sentry_value_set_by_key(client_sdk, "name", name);
+
+    sentry_value_t version = sentry_value_new_string(SENTRY_SDK_VERSION);
+    sentry_value_set_by_key(client_sdk, "version", version);
+
+    sentry_value_t package = sentry_value_new_object();
+
+    sentry_value_t package_name
+        = sentry_value_new_string("github:getsentry/sentry-native");
+    sentry_value_set_by_key(package, "name", package_name);
+
+    sentry_value_incref(version);
+    sentry_value_set_by_key(package, "version", version);
+
+    sentry_value_t packages = sentry_value_new_list();
+    sentry_value_append(packages, package);
+    sentry_value_set_by_key(client_sdk, "packages", packages);
+
+    sentry_value_freeze(client_sdk);
+    return client_sdk;
+}
+
 static sentry_scope_t *
 get_scope(void)
 {
@@ -23,6 +51,7 @@ get_scope(void)
     g_scope.contexts = sentry_value_new_object();
     g_scope.breadcrumbs = sentry_value_new_list();
     g_scope.level = SENTRY_LEVEL_ERROR;
+    g_scope.client_sdk = get_client_sdk();
 
     g_scope_initialized = true;
 
@@ -42,6 +71,7 @@ sentry__scope_cleanup(void)
         sentry_value_decref(g_scope.extra);
         sentry_value_decref(g_scope.contexts);
         sentry_value_decref(g_scope.breadcrumbs);
+        sentry_value_decref(g_scope.client_sdk);
     }
     sentry__mutex_unlock(&g_lock);
 }
@@ -102,6 +132,7 @@ sentry__scope_apply_to_event(
     PLACE_VALUE("user", scope->user);
     PLACE_VALUE("fingerprint", scope->fingerprint);
     PLACE_STRING("transaction", scope->transaction);
+    PLACE_VALUE("sdk", scope->client_sdk);
 
     // TODO: these should merge
     PLACE_VALUE("tags", scope->tags);

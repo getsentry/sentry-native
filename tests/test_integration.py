@@ -35,6 +35,16 @@ def assert_meta(envelope):
         "transaction": "test-transaction",
         "tags": { "expected-tag": "some value" },
         "extra": { "extra stuff": "some value" },
+        "sdk": {
+            "name": "sentry-native",
+            "version": "0.2.0",
+            "packages": [
+                {
+                    "name": "github:getsentry/sentry-native",
+                    "version": "0.2.0",
+                },
+            ],
+        },
     }
     assert matches(event, expected)
     assert any("sentry_test_integration" in image["code_file"] for image in event["debug_meta"]["images"])
