@@ -27,9 +27,13 @@ stages:
             inputs:
               contents: |
                 build
-                .git*
+                .*
                 **/.git*
-                .sentry-native
+                azure*
+                leak*
+                scripts
+                Makefile
+                integration*
           - task: ArchiveFiles@2
             displayName: Create source archive
             inputs:
