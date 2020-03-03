@@ -12,7 +12,6 @@ struct sentry_bgworker_task_s {
     sentry_task_function_t cleanup_func;
     void *data;
     struct sentry_bgworker_task_s *next_task;
-    struct sentry_bgworker_task_s *prev_task;
 };
 
 struct sentry_bgworker_s {
@@ -63,7 +62,7 @@ worker_thread(void *data)
         sentry__mutex_lock(&bgw->task_lock);
         if (bgw->first_task) {
             task = bgw->first_task;
-            bgw->first_task = task->prev_task;
+            bgw->first_task = task->next_task;
             if (task == bgw->last_task) {
                 bgw->last_task = NULL;
             }
@@ -122,7 +121,7 @@ sentry__bgworker_shutdown(sentry_bgworker_t *bgw, uint64_t timeout)
     uint64_t started = sentry__msec_time();
     while (true) {
         sentry__mutex_lock(&bgw->task_lock);
-        bool done = bgw->task_count == 0 || !bgw->running;
+        bool done = bgw->task_count == 0 && !bgw->running;
         sentry__mutex_unlock(&bgw->task_lock);
         if (done) {
             sentry__thread_join(bgw->thread_id);
@@ -133,7 +132,7 @@ sentry__bgworker_shutdown(sentry_bgworker_t *bgw, uint64_t timeout)
             &bgw->done_signal, &bgw->done_signal_lock, 250);
         sentry__mutex_unlock(&bgw->done_signal_lock);
         uint64_t now = sentry__msec_time();
-        if (now - started > timeout) {
+        if (now > started && now - started > timeout) {
             return 1;
         }
     }
@@ -150,12 +149,12 @@ sentry__bgworker_free(sentry_bgworker_t *bgw)
 
     struct sentry_bgworker_task_s *task = bgw->first_task;
     while (task) {
-        struct sentry_bgworker_task_s *prev_task = task->prev_task;
+        struct sentry_bgworker_task_s *next_task = task->next_task;
         if (task->cleanup_func) {
             task->cleanup_func(task->data);
         }
         sentry_free(task);
-        task = prev_task;
+        task = next_task;
     }
 
     sentry_free(bgw);
@@ -178,15 +177,14 @@ sentry__bgworker_submit(sentry_bgworker_t *bgw,
     task->exec_func = exec_func;
     task->cleanup_func = cleanup_func;
     task->data = data;
+    task->next_task = NULL;
 
     sentry__mutex_lock(&bgw->task_lock);
-    task->prev_task = NULL;
-    task->next_task = bgw->last_task;
     if (!bgw->first_task) {
         bgw->first_task = task;
     }
     if (bgw->last_task) {
-        bgw->last_task->prev_task = task;
+        bgw->last_task->next_task = task;
     }
     bgw->last_task = task;
     bgw->task_count++;
