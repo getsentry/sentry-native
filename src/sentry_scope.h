@@ -14,6 +14,7 @@ typedef struct sentry_scope_s {
     sentry_value_t contexts;
     sentry_value_t breadcrumbs;
     sentry_level_t level;
+    sentry_value_t client_sdk;
 } sentry_scope_t;
 
 typedef enum {
