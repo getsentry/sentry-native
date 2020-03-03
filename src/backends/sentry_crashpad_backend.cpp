@@ -61,6 +61,7 @@ sentry__crashpad_backend_startup(sentry_backend_t *backend)
 
     if (!handler_path || !sentry__path_is_file(handler_path)) {
         SENTRY_DEBUG("unable to start crashpad backend, invalid handler_path");
+        sentry__path_free(handler_path);
         return;
     }
 
@@ -70,6 +71,7 @@ sentry__crashpad_backend_startup(sentry_backend_t *backend)
 
     base::FilePath database(options->database_path->path);
     base::FilePath handler(handler_path->path);
+    sentry__path_free(handler_path);
 
     std::map<std::string, std::string> annotations;
     std::map<std::string, base::FilePath> file_attachments;
