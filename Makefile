@@ -14,8 +14,8 @@ build: build/Makefile
 	@cmake --build build --parallel
 .PHONY: build
 
-build/sentry_tests: build
-	@cmake --build build --target sentry_tests --parallel
+build/sentry_test_unit: build
+	@cmake --build build --target sentry_test_unit --parallel
 
 test: update-test-discovery test-integration
 .PHONY: test
@@ -27,8 +27,8 @@ test-integration: setup-venv
 test-leaks: update-test-discovery CMakeLists.txt
 	@mkdir -p leak-build
 	@cd leak-build; cmake -DWITH_ASAN_OPTION=ON -DCMAKE_C_COMPILER=/usr/local/opt/llvm/bin/clang -DCMAKE_CXX_COMPILER=/usr/local/opt/llvm/bin/clang++ -DCMAKE_LINKER=/usr/local/opt/llvm/bin/clang ..
-	@cmake --build leak-build --target sentry_tests --parallel
-	@ASAN_OPTIONS=detect_leaks=1 LSAN_OPTIONS=suppressions=leak-suppressions.txt ./leak-build/sentry_tests
+	@cmake --build leak-build --target sentry_test_unit --parallel
+	@ASAN_OPTIONS=detect_leaks=1 LSAN_OPTIONS=suppressions=leak-suppressions.txt ./leak-build/sentry_test_unit
 .PHONY: test-leaks
 
 clean: build/Makefile
