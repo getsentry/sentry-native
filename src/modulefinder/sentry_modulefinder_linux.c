@@ -321,7 +321,7 @@ load_modules(sentry_value_t modules)
         }
 
         if (last_module.file.len
-            && sentry__slice_cmp(last_module.file, module.file) != 0) {
+            && !sentry__slice_eq(last_module.file, module.file)) {
             try_append_module(modules, &last_module);
             last_module = module;
         } else {
