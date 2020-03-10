@@ -93,7 +93,12 @@ def assert_crash(envelope):
 
 def test_capture_stdout(tmp_path):
     # backend does not matter, but we want to keep compile times down
-    cmake(tmp_path, ["sentry_example"], ["SENTRY_BACKEND=none"])
+    cmake(tmp_path, ["sentry_example"], ["SENTRY_BACKEND=none", "BUILD_SHARED_LIBS=OFF"])
+
+    # on linux we can use `ldd` to check that we don’t link to `libsentry.so`
+    if sys.platform == "linux":
+        output = subprocess.check_output("ldd sentry_example", cwd=tmp_path, shell=True)
+        assert "libsentry.so" not in output
 
     output = check_output(tmp_path, "sentry_example", ["stdout", "attachment", "capture-event", "add-stacktrace"])
     envelope = Envelope.deserialize(output)

@@ -15,13 +15,6 @@ stages:
               pip install --upgrade --requirement tests/requirements.txt
               pytest tests --verbose
             displayName: Test
-          - script: |
-              rm -rf build
-              mkdir -p build && cd build
-              cmake -DBUILD_SHARED_LIBS=OFF ..
-              cmake --build . --parallel --target example
-              ! (ldd example | grep -q libsentry)
-            displayName: Test static library build
           - task: DeleteFiles@1
             displayName: Remove all files not belonging in source archive
             inputs:
