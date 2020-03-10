@@ -7,9 +7,6 @@
 #include "sentry_path.h"
 #include "sentry_utils.h"
 
-#define SENTRY_SDK_NAME "sentry-native"
-#define SENTRY_SDK_VERSION "0.2.0"
-#define SENTRY_SDK_USER_AGENT (SENTRY_SDK_NAME "/" SENTRY_SDK_VERSION)
 #define SENTRY_BREADCRUMBS_MAX 100
 
 #ifdef SENTRY_PLATFORM_ANDROID
