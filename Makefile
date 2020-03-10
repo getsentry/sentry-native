@@ -45,11 +45,11 @@ setup-git:
 setup-venv: .venv/bin/python
 .PHONY: setup-venv
 
-.venv/bin/python: Makefile integration-test-requirements.txt
+.venv/bin/python: Makefile tests/requirements.txt
 	@rm -rf .venv
 	@which virtualenv || sudo pip install virtualenv
 	virtualenv -p $$SENTRY_NATIVE_PYTHON_VERSION .venv
-	.venv/bin/pip install --upgrade --requirement integration-test-requirements.txt
+	.venv/bin/pip install --upgrade --requirement tests/requirements.txt
 
 format:
 	@clang-format -i src/*.c src/*.h src/*/*.c src/*/*.h tests/*.c tests/*.h

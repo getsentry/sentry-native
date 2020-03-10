@@ -105,7 +105,8 @@ write_str(sentry_jsonwriter_t *jw, const char *str)
 static void
 write_json_str(sentry_jsonwriter_t *jw, const char *str)
 {
-    const char *ptr = str;
+    // using unsigned here because utf-8 is > 127 :-)
+    const unsigned char *ptr = (const unsigned char *)str;
     write_char(jw, '"');
     for (; *ptr; ptr++) {
         switch (*ptr) {
@@ -131,9 +132,12 @@ write_json_str(sentry_jsonwriter_t *jw, const char *str)
             write_str(jw, "\\t");
             break;
         default:
+            // See https://tools.ietf.org/html/rfc8259#section-7
+            // We only need to escape the control characters, otherwise we
+            // assume that `str` is valid utf-8
             if (*ptr < 32) {
                 char buf[10];
-                snprintf(buf, sizeof(buf), "u%04x", *ptr);
+                snprintf(buf, sizeof(buf), "\\u%04x", *ptr);
                 write_str(jw, buf);
             } else {
                 write_char(jw, *ptr);

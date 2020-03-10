@@ -931,10 +931,14 @@ sentry_event_value_add_stacktrace(sentry_value_t event, void **ips, size_t len)
     sentry_value_t stacktrace = sentry_value_new_object();
     sentry_value_set_by_key(stacktrace, "frames", frames);
 
-    sentry_value_t threads = sentry_value_new_list();
     sentry_value_t thread = sentry_value_new_object();
     sentry_value_set_by_key(thread, "stacktrace", stacktrace);
-    sentry_value_append(threads, thread);
+
+    sentry_value_t values = sentry_value_new_list();
+    sentry_value_append(values, thread);
+
+    sentry_value_t threads = sentry_value_new_object();
+    sentry_value_set_by_key(threads, "values", values);
 
     sentry_value_set_by_key(event, "threads", threads);
 }
