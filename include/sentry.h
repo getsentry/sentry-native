@@ -12,6 +12,11 @@
 extern "C" {
 #endif
 
+/* SDK Version */
+#define SENTRY_SDK_NAME "sentry-native"
+#define SENTRY_SDK_VERSION "0.2.0"
+#define SENTRY_SDK_USER_AGENT (SENTRY_SDK_NAME "/" SENTRY_SDK_VERSION)
+
 /* common platform detection */
 #ifdef _WIN32
 #    define SENTRY_PLATFORM_WINDOWS
