@@ -93,6 +93,23 @@ SENTRY_TEST(value_string)
     sentry_value_decref(val);
 }
 
+SENTRY_TEST(value_unicode)
+{
+    // https://xkcd.com/1813/ :-)
+    sentry_value_t val
+        = sentry_value_new_string("őá…–🤮🚀¿ 한글 테스트 \a\v");
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(val),
+        "őá…–🤮🚀¿ 한글 테스트 \a\v");
+    // json does not need to escape unicode, except for control characters
+    TEST_CHECK_JSON_VALUE(
+        val, "\"őá…–🤮🚀¿ 한글 테스트 \\u0007\\u000b\"");
+    sentry_value_decref(val);
+    char zalgo[] = "z̴̢̈͜ä̴̺̟́ͅl̸̛̦͎̺͂̃̚͝g̷̦̲͊͋̄̌͝o̸͇̞̪͙̞͌̇̀̓̏͜";
+    val = sentry_value_new_string(zalgo);
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(val), zalgo);
+    sentry_value_decref(val);
+}
+
 SENTRY_TEST(value_list)
 {
     sentry_value_t val = sentry_value_new_list();

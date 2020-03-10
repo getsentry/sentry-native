@@ -12,7 +12,7 @@ stages:
             submodules: recursive
           - task: UsePythonVersion@0
           - script: |
-              pip install --upgrade --requirement integration-test-requirements.txt
+              pip install --upgrade --requirement tests/requirements.txt
               pytest tests --verbose
             displayName: Test
           - script: |
@@ -54,7 +54,7 @@ stages:
             submodules: recursive
           - task: UsePythonVersion@0
           - script: |
-              pip install --upgrade --requirement integration-test-requirements.txt
+              pip install --upgrade --requirement tests/requirements.txt
               pytest tests --verbose
             displayName: Test
 
@@ -67,7 +67,7 @@ stages:
             submodules: recursive
           - task: UsePythonVersion@0
           - script: |
-              pip install --upgrade --requirement integration-test-requirements.txt
+              pip install --upgrade --requirement tests/requirements.txt
               pytest tests --verbose
             displayName: Test
 

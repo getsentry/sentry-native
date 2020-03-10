@@ -106,7 +106,7 @@ or use it on the command line.
 ### Compile-Time Options
 
 The following options can be set when running the cmake generator, for example
-using `cmake -DBUILD_SHARED_LIBS=OFF ..`.
+using `cmake -D BUILD_SHARED_LIBS=OFF ..`.
 
 - `BUILD_SHARED_LIBS` (Default: ON):
   By default, `sentry` is built as a shared library. Setting this option to
@@ -117,6 +117,8 @@ using `cmake -DBUILD_SHARED_LIBS=OFF ..`.
   only supported on Windows and macOS, and used as the default there.
   **inproc**: A small in-process handler which is supported on all platforms
   except Windows, and is used as default on Linux and Android.
+  **none**: This builds `sentry-native` without a backend, so it does not handle
+  crashes at all. It is primarily used for tests.
 
 ### Build Targets
 
@@ -124,9 +126,11 @@ using `cmake -DBUILD_SHARED_LIBS=OFF ..`.
 - `crashpad_handler`: When configured with the `crashpad` backend, this is
   the out of process crash handler, which will need to be installed along with
   the projects executable.
-- `sentry_tests`: These are the main unit-tests, which are conveniently built
+- `sentry_test_unit`: These are the main unit-tests, which are conveniently built
   also by the toplevel makefile.
-- `example`: This is a very small example program highlighting the API.
+- `sentry_example`: This is a small example program highlighting the API, which
+  can be controlled via command-line parameters, and is also used for
+  integration tests.
 
 ## Known Issues
 
@@ -156,9 +160,10 @@ extended in the future if other dependencies are added.
 
 ### Running Tests
 
-The SDK ships with a test suite based on [acutest]. Tests are built as a
-separate test target, `sentry_tests`. You can build and run the
-test target to execute tests.
+The SDK ships with a unit-test suite based on [acutest]. Additionally, the
+`sentry_example` executable is also used for integration tests which are run
+via `pytest`.
+The unit-tests are built as a separate `sentry_test_unit` executable.
 
 On macOS and Linux, the _top-level Makefile_ contains a convenience command to
 run tests:
