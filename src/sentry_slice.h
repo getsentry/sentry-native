@@ -1,6 +1,7 @@
 #ifndef SENTRY_SLICE_H_INCLUDED
 #define SENTRY_SLICE_H_INCLUDED
 
+#include <stdbool.h>
 #include <stddef.h>
 
 typedef struct {
@@ -9,6 +10,6 @@ typedef struct {
 } sentry_slice_t;
 
 char *sentry__slice_to_owned(sentry_slice_t slice);
-int sentry__slice_cmp(sentry_slice_t a, sentry_slice_t b);
+bool sentry__slice_eq(sentry_slice_t a, sentry_slice_t b);
 
 #endif
