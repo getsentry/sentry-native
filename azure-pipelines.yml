@@ -26,7 +26,6 @@ stages:
                 leak*
                 scripts
                 Makefile
-                integration*
           - task: ArchiveFiles@2
             displayName: Create source archive
             inputs:
