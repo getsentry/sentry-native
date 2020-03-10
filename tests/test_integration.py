@@ -98,7 +98,7 @@ def test_capture_stdout(tmp_path):
     # on linux we can use `ldd` to check that we don’t link to `libsentry.so`
     if sys.platform == "linux":
         output = subprocess.check_output("ldd sentry_example", cwd=tmp_path, shell=True)
-        assert "libsentry.so" not in output
+        assert b"libsentry.so" not in output
 
     output = check_output(tmp_path, "sentry_example", ["stdout", "attachment", "capture-event", "add-stacktrace"])
     envelope = Envelope.deserialize(output)
