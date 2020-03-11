@@ -197,6 +197,13 @@ sentry_capture_event(sentry_value_t event)
             }
             sentry__envelope_item_set_header(
                 item, "name", sentry_value_new_string(attachment->name));
+            sentry__envelope_item_set_header(item, "filename",
+#if SENTRY_PLATFORM_WINDOWS
+                sentry__value_new_string_from_wstr(
+#else
+                sentry_value_new_string(
+#endif
+                    sentry__path_filename(attachment->path)));
         }
 
         if (sentry__envelope_add_event(envelope, event)) {

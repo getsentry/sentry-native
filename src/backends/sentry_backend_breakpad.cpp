@@ -27,11 +27,22 @@ sentry__breakpad_backend_send_envelope(
     if (!dump_path) {
         return;
     }
+    // NOTE: there is a special `minidump` envelope item type, however, when
+    // serializing the envelope to disk, and later sending it as a single
+    // `x-sentry-envelope`, the minidump needs to be a regular attachment,
+    // with special headers:
+    // `name: upload_file_minidump; attachment_type: event.minidump`
     sentry_envelope_item_t *item
-        = sentry__envelope_add_from_path(envelope, dump_path, "minidump");
+        = sentry__envelope_add_from_path(envelope, dump_path, "attachment");
     if (!item) {
         return;
     }
+    sentry__envelope_item_set_header(
+        item, "name", sentry_value_new_string("upload_file_minidump"));
+    sentry__envelope_item_set_header(
+        item, "attachment_type", sentry_value_new_string("event.minidump"));
+    sentry__envelope_item_set_header(item, "filename",
+        sentry_value_new_string(sentry__path_filename(dump_path)));
 
     sentry__run_write_envelope(state->run, envelope);
     sentry_envelope_free(envelope);
