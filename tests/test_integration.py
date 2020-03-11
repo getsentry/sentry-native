@@ -72,7 +72,11 @@ def assert_breadcrumb(envelope):
     assert any(matches(b, expected) for b in event["breadcrumbs"])
 
 def assert_attachment(envelope):
-    expected = { "type": "attachment", "name": "CMakeCache.txt" }
+    expected = { "type": "attachment", "name": "CMakeCache.txt", "filename": "CMakeCache.txt" }
+    assert any(matches(item.headers, expected) for item in envelope)
+
+def assert_minidump(envelope):
+    expected = { "type": "attachment", "name": "upload_file_minidump", "attachment_type": "event.minidump" }
     assert any(matches(item.headers, expected) for item in envelope)
 
 def assert_event(envelope):
@@ -125,3 +129,19 @@ def test_inproc_enqueue_stdout(tmp_path):
     assert_attachment(envelope)
 
     assert_crash(envelope)
+
+@pytest.mark.skipif(sys.platform != "linux", reason="breakpad only supported on linux")
+def test_breakpad_enqueue_stdout(tmp_path):
+    cmake(tmp_path, ["sentry_example"], ["SENTRY_BACKEND=breakpad"])
+
+    child = run(tmp_path, "sentry_example", ["attachment", "crash"])
+    assert child.returncode # well, its a crash after all
+
+    output = check_output(tmp_path, "sentry_example", ["stdout", "no-setup"])
+    envelope = Envelope.deserialize(output)
+
+    assert_meta(envelope)
+    assert_breadcrumb(envelope)
+    assert_attachment(envelope)
+
+    assert_minidump(envelope)
