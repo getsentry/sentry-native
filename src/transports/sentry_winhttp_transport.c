@@ -6,7 +6,7 @@
 #include "sentry_string.h"
 #include "sentry_sync.h"
 
-#include <WinHttp.h>
+#include <winhttp.h>
 #include <stdlib.h>
 #include <string.h>
 
