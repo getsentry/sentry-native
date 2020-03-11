@@ -16,6 +16,13 @@ endif()
 
 option(BUILD_SHARED_LIBS "Build shared libraries (.dll/.so) instead of static ones (.lib/.a)" ON)
 
+option(SENTRY_BUILD_TESTS "Build sentry-native tests" ON)
+option(SENTRY_BUILD_EXAMPLES "Build sentry-native example(s)" ON)
+
+if(SENTRY_BUILD_TESTS OR SENTRY_BUILD_EXAMPLES)
+	enable_testing()
+endif()
+
 if("${CMAKE_SOURCE_DIR}" STREQUAL "${PROJECT_SOURCE_DIR}")
 	set(SENTRY_MAIN_PROJECT ON)
 endif()
@@ -66,7 +73,7 @@ if(APPLE)
 	if(DSYMUTIL_PROGRAM)
 		foreach(lang C CXX)
 			foreach(var LINK_EXECUTABLE CREATE_SHARED_LIBRARY)
-				#set(CMAKE_${lang}_${var} "${CMAKE_${lang}_${var}}" "${DSYMUTIL_PROGRAM} <TARGET>")
+				set(CMAKE_${lang}_${var} "${CMAKE_${lang}_${var}}" "${DSYMUTIL_PROGRAM} <TARGET>")
 			endforeach()
 		endforeach()
 	endif()
@@ -161,6 +168,10 @@ target_include_directories(sentry PUBLIC
 	"$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>"
 )
 
+# Without this, dladdr can't find functions
+target_link_libraries(sentry INTERFACE
+	"$<$<OR:$<PLATFORM_ID:Linux>,$<PLATFORM_ID:Android>>:-Wl,--build-id=sha1,-E>")
+
 if(LINUX)
 	target_link_libraries(sentry PRIVATE pthread dl)
 endif()
@@ -196,6 +207,9 @@ if(BACKEND_CRASHPAD)
 			ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
 		)
 	endif()
+	sentry_install(TARGETS crashpad_handler
+		RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+	)
 elseif(BACKEND_INPROC)
 	target_compile_definitions(sentry PRIVATE SENTRY_WITH_INPROC_BACKEND)
 endif()
@@ -217,34 +231,14 @@ sentry_install(FILES "${PROJECT_BINARY_DIR}/sentry-config.cmake"
 
 # ===== tests =====
 
-# compile tests separately and pass an extra preprocessor define so we can
-# switch some internal modes for the unittests.
-
-get_target_property(SENTRY_NATIVE_ALL_SOURCES sentry SOURCES)
-get_target_property(SENTRY_COMPILE_DEFINITIONS sentry COMPILE_DEFINITIONS)
-get_target_property(SENTRY_INTERFACE_INCLUDE_DIRECTORIES sentry INTERFACE_INCLUDE_DIRECTORIES)
-get_target_property(SENTRY_INCLUDE_DIRECTORIES sentry INCLUDE_DIRECTORIES)
-get_target_property(SENTRY_LINK_LIBRARIES sentry LINK_LIBRARIES)
-
-add_executable(sentry_test_unit EXCLUDE_FROM_ALL ${SENTRY_NATIVE_ALL_SOURCES})
-add_subdirectory(tests/unit)
-
-target_compile_definitions(sentry_test_unit PRIVATE ${SENTRY_COMPILE_DEFINITIONS})
-target_include_directories(sentry_test_unit PRIVATE ${SENTRY_INTERFACE_INCLUDE_DIRECTORIES} ${SENTRY_INCLUDE_DIRECTORIES})
-target_link_libraries(sentry_test_unit PRIVATE ${SENTRY_LINK_LIBRARIES})
-
-target_compile_definitions(sentry_test_unit PRIVATE SENTRY_UNITTEST)
-
-enable_testing()
-add_test(NAME sentry_test_unit COMMAND sentry_test_unit)
-
-# to fix some issues with tests (dladdr can't find functions otherwise)
-if(CMAKE_SYSTEM_NAME STREQUAL "Linux" OR CMAKE_SYSTEM_NAME STREQUAL "Android")
-	target_link_libraries(sentry_test_unit PRIVATE -Wl,--build-id=sha1,-E)
+if(SENTRY_BUILD_TESTS)
+	add_subdirectory(tests/unit)
 endif()
 
 # ===== example, also used as integration test =====
 
-add_executable(sentry_example EXCLUDE_FROM_ALL examples/example.c)
-target_link_libraries(sentry_example sentry)
-add_test(NAME sentry_example COMMAND sentry_example)
+if(SENTRY_BUILD_EXAMPLES)
+	add_executable(sentry_example examples/example.c)
+	target_link_libraries(sentry_example sentry)
+	add_test(NAME sentry_example COMMAND sentry_example)
+endif()

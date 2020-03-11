@@ -1,4 +1,12 @@
-set(SENTRY_NATIVE_TEST_SOURCES
+get_target_property(SENTRY_NATIVE_ALL_SOURCES sentry SOURCES)
+get_target_property(SENTRY_COMPILE_DEFINITIONS sentry COMPILE_DEFINITIONS)
+get_target_property(SENTRY_INTERFACE_INCLUDE_DIRECTORIES sentry INTERFACE_INCLUDE_DIRECTORIES)
+get_target_property(SENTRY_INCLUDE_DIRECTORIES sentry INCLUDE_DIRECTORIES)
+get_target_property(SENTRY_LINK_LIBRARIES sentry LINK_LIBRARIES)
+get_target_property(SENTRY_INTERFACE_LINK_LIBRARIES sentry INTERFACE_LINK_LIBRARIES)
+
+add_executable(sentry_test_unit
+	${SENTRY_NATIVE_ALL_SOURCES}
 	main.c
 	sentry_testsupport.h
 	test_attachments.c
@@ -16,8 +24,18 @@ set(SENTRY_NATIVE_TEST_SOURCES
 	test_utils.c
 	test_uuid.c
 	test_value.c
+	)
+
+target_compile_definitions(sentry_test_unit PRIVATE ${SENTRY_COMPILE_DEFINITIONS})
+target_include_directories(sentry_test_unit PRIVATE
+	${SENTRY_INTERFACE_INCLUDE_DIRECTORIES}
+	${SENTRY_INCLUDE_DIRECTORIES}
+)
+target_link_libraries(sentry_test_unit PRIVATE
+	${SENTRY_LINK_LIBRARIES}
+	${SENTRY_INTERFACE_LINK_LIBRARIES}
 )
 
-# make paths absolute
-PREPEND(SENTRY_NATIVE_TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/" ${SENTRY_NATIVE_TEST_SOURCES})
-target_sources(sentry_test_unit PRIVATE ${SENTRY_NATIVE_TEST_SOURCES})
+target_compile_definitions(sentry_test_unit PRIVATE SENTRY_UNITTEST)
+
+add_test(NAME sentry_test_unit COMMAND sentry_test_unit)
