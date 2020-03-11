@@ -137,7 +137,10 @@ if(SENTRY_CURL_SUPPORT)
 endif()
 
 if(WIN32)
-	target_compile_definitions(sentry PUBLIC SENTRY_WITH_WINHTTP_TRANSPORT)
+	target_compile_definitions(sentry
+		PRIVATE WINVER=0x0603 NTDDI_VERSION=0x06030000
+		PUBLIC SENTRY_WITH_WINHTTP_TRANSPORT
+	)
 	target_link_libraries(sentry PRIVATE winhttp)
 endif()
 
