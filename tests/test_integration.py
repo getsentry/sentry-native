@@ -36,7 +36,7 @@ def assert_meta(envelope):
         "tags": { "expected-tag": "some value" },
         "extra": { "extra stuff": "some value", "…unicode key…": "őá…–🤮🚀¿ 한글 테스트" },
         "sdk": {
-            "name": "sentry-native",
+            "name": "sentry.native",
             "version": "0.2.0",
             "packages": [
                 {

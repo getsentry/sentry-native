@@ -106,7 +106,7 @@ const sentry_pathchar_t *
 sentry__path_filename(const sentry_path_t *path)
 {
     const char *c = strrchr(path->path, '/');
-    return c ? c + 1 : NULL;
+    return c ? c + 1 : path->path;
 }
 
 bool

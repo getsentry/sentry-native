@@ -73,6 +73,12 @@ SENTRY_TEST(path_joining_windows)
 #endif
 }
 
+SENTRY_TEST(path_relative_filename)
+{
+    sentry_path_t *path = sentry__path_from_str("foobar.txt");
+    TEST_CHECK_STRING_EQUAL(sentry__path_filename(path), "foobar.txt");
+}
+
 SENTRY_TEST(path_basics)
 {
     size_t items = 0;
