@@ -24,7 +24,7 @@ add_executable(sentry_test_unit
 	test_utils.c
 	test_uuid.c
 	test_value.c
-	)
+)
 
 target_compile_definitions(sentry_test_unit PRIVATE ${SENTRY_COMPILE_DEFINITIONS})
 target_include_directories(sentry_test_unit PRIVATE
