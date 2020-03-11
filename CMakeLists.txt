@@ -110,6 +110,7 @@ endfunction()
 add_library(sentry "${PROJECT_SOURCE_DIR}/vendor/mpack.c")
 add_library(sentry::sentry ALIAS sentry)
 add_subdirectory(src)
+
 set_target_properties(sentry PROPERTIES PUBLIC_HEADER "include/sentry.h")
 
 # https://gitlab.kitware.com/cmake/cmake/issues/18393
@@ -141,12 +142,12 @@ if(WIN32)
 endif()
 
 #set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Werror=implicit-function-declaration -Werror=incompatible-function-pointer-types -Wall -fvisibility=hidden")
+set_property(TARGET sentry PROPERTY C_VISIBILITY_PRESET hidden)
 if(MSVC)
 	if(CMAKE_SIZEOF_VOID_P EQUAL 4)
 		set(CMAKE_ASM_MASM_FLAGS "${CMAKE_ASM_MASM_FLAGS} /safeseh")
 	endif()
 else()
-	#set_property(TARGET sentry PROPERTY C_VISIBILITY_PRESET hidden)
 	target_compile_options(sentry PUBLIC $<BUILD_INTERFACE:-Wall>)
 endif()
 
