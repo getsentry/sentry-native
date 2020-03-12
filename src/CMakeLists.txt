@@ -1,4 +1,4 @@
-list(APPEND SENTRY_SOURCES
+sentry_target_sources_cwd(sentry
 	sentry_alloc.c
 	sentry_alloc.h
 	sentry_backend.c
@@ -43,14 +43,14 @@ list(APPEND SENTRY_SOURCES
 
 # generic platform / path / symbolizer
 if(WIN32)
-	list(APPEND SENTRY_SOURCES
+	sentry_target_sources_cwd(sentry
 		sentry_windows_dbghelp.c
 		sentry_windows_dbghelp.h
 		path/sentry_path_windows.c
 		symbolizer/sentry_symbolizer_windows.c
 	)
 else()
-	list(APPEND SENTRY_SOURCES
+	sentry_target_sources_cwd(sentry
 		sentry_unix_pageallocator.c
 		sentry_unix_pageallocator.h
 		sentry_unix_spinlock.h
@@ -61,28 +61,28 @@ endif()
 
 # module finder
 if(WIN32)
-	list(APPEND SENTRY_SOURCES
+	sentry_target_sources_cwd(sentry
 		modulefinder/sentry_modulefinder_windows.c
 	)
 elseif(APPLE)
-	list(APPEND SENTRY_SOURCES
+	sentry_target_sources_cwd(sentry
 		modulefinder/sentry_modulefinder_apple.c
 	)
 elseif(LINUX OR ANDROID)
-	list(APPEND SENTRY_SOURCES
+	sentry_target_sources_cwd(sentry
 		modulefinder/sentry_modulefinder_linux.c
 	)
 endif()
 
 # curl transport
 if(SENTRY_CURL_SUPPORT)
-	list(APPEND SENTRY_SOURCES
+	sentry_target_sources_cwd(sentry
 		transports/sentry_libcurl_transport.c
 		transports/sentry_libcurl_transport.h
 	)
 endif()
 if(WIN32)
-	list(APPEND SENTRY_SOURCES
+	sentry_target_sources_cwd(sentry
 		transports/sentry_winhttp_transport.c
 		transports/sentry_winhttp_transport.h
 	)
@@ -90,19 +90,19 @@ endif()
 
 # backends
 if(BACKEND_CRASHPAD)
-    list(APPEND SENTRY_SOURCES
+    sentry_target_sources_cwd(sentry
         backends/sentry_backend_crashpad.cpp
     )
 elseif(BACKEND_BREAKPAD)
-    list(APPEND SENTRY_SOURCES
+    sentry_target_sources_cwd(sentry
         backends/sentry_backend_breakpad.cpp
     )
 elseif(BACKEND_INPROC)
-    list(APPEND SENTRY_SOURCES
+    sentry_target_sources_cwd(sentry
         backends/sentry_backend_inproc.c
     )
 elseif(BACKEND_NONE)
-    list(APPEND SENTRY_SOURCES
+    sentry_target_sources_cwd(sentry
         backends/sentry_backend_none.c
     )
 endif()
@@ -110,23 +110,19 @@ endif()
 # unwinder
 if(WITH_LIBBACKTRACE)
 	target_compile_definitions(sentry PUBLIC SENTRY_WITH_UNWINDER_LIBBACKTRACE)
-	list(APPEND SENTRY_SOURCES
+	sentry_target_sources_cwd(sentry
 		unwinder/sentry_unwinder_libbacktrace.c
 	)
 endif()
 if(WITH_LIBUNWINDSTACK)
 	target_compile_definitions(sentry PUBLIC SENTRY_WITH_UNWINDER_LIBUNWINDSTACK)
-	list(APPEND SENTRY_SOURCES
+	sentry_target_sources_cwd(sentry
 		unwinder/sentry_unwinder_libunwindstack.cpp
 	)
 endif()
 if(WIN32)
 	target_compile_definitions(sentry PUBLIC SENTRY_WITH_UNWINDER_DBGHELP)
-	list(APPEND SENTRY_SOURCES
+	sentry_target_sources_cwd(sentry
 		unwinder/sentry_unwinder_dbghelp.c
 	)
 endif()
-
-# make paths absolute
-PREPEND(SENTRY_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/" ${SENTRY_SOURCES})
-target_sources(sentry PRIVATE ${SENTRY_SOURCES})

@@ -34,6 +34,7 @@ add_executable(sentry_test_unit
 	test_value.c
 )
 
+# FIXME: cmake 3.13 introduced target_link_options
 target_compile_definitions(sentry_test_unit PRIVATE ${SENTRY_COMPILE_DEFINITIONS})
 target_include_directories(sentry_test_unit PRIVATE
 	${SENTRY_INTERFACE_INCLUDE_DIRECTORIES}
@@ -42,6 +43,7 @@ target_include_directories(sentry_test_unit PRIVATE
 target_link_libraries(sentry_test_unit PRIVATE
 	${SENTRY_LINK_LIBRARIES}
 	${SENTRY_INTERFACE_LINK_LIBRARIES}
+	"$<$<OR:$<PLATFORM_ID:Linux>,$<PLATFORM_ID:Android>>:-Wl,-E>"
 )
 
 target_compile_definitions(sentry_test_unit PRIVATE SENTRY_UNITTEST)

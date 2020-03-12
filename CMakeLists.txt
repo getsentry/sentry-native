@@ -106,16 +106,16 @@ endif()
 
 option(SENTRY_CURL_SUPPORT "Builds sentry-native with curl support" ON)
 
-# builtin `list(TRANSFORM)` (https://cmake.org/cmake/help/latest/command/list.html#transform)
-# was only added in cmake 3.12, but we target 3.10, so we define a custom
-# functions which can prepend a prefix to all list elements.
-# copied from https://stackoverflow.com/a/27630120
-function(PREPEND var prefix)
-	set(listVar "")
-	foreach(f ${ARGN})
-		list(APPEND listVar "${prefix}/${f}")
-	endforeach(f)
-	set(${var} "${listVar}" PARENT_SCOPE)
+# helper function to add sources to existing TARGET prepended with ${CMAKE_CURRENT_SOURCE_DIR}/${SUBDIR}
+function(sentry_target_sources_cwd TARGET)
+	cmake_parse_arguments(STSC "" "SUBDIR" "" ${ARGN})
+	foreach(src ${STSC_UNPARSED_ARGUMENTS})
+		if(IS_ABSOLUTE "${src}")
+			target_sources(${TARGET} PRIVATE ${src})
+		else()
+			target_sources(${TARGET} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/${STSC_SUBDIR}/${src}")
+		endif()
+	endforeach()
 endfunction()
 
 # ===== sentry library =====
@@ -179,8 +179,9 @@ target_include_directories(sentry PUBLIC
 )
 
 # Without this, dladdr can't find functions
+# FIXME: cmake 3.13 introduced target_link_options
 target_link_libraries(sentry INTERFACE
-	"$<$<OR:$<PLATFORM_ID:Linux>,$<PLATFORM_ID:Android>>:-Wl,--build-id=sha1,-E>")
+	"$<$<OR:$<PLATFORM_ID:Linux>,$<PLATFORM_ID:Android>>:-Wl,--build-id=sha1>")
 
 if(LINUX)
 	target_link_libraries(sentry PRIVATE pthread dl)
