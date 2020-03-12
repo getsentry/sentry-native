@@ -13,7 +13,7 @@ stages:
           - task: UsePythonVersion@0
           - script: |
               pip install --upgrade --requirement tests/requirements.txt
-              pytest tests --verbose
+              pytest --capture=no --verbose tests
             displayName: Test
           - task: DeleteFiles@1
             displayName: Remove all files not belonging in source archive
@@ -47,7 +47,7 @@ stages:
           - task: UsePythonVersion@0
           - script: |
               pip install --upgrade --requirement tests/requirements.txt
-              pytest tests --verbose
+              pytest --capture=no --verbose tests
             displayName: Test
 
       - job: Windows
@@ -60,7 +60,7 @@ stages:
           - task: UsePythonVersion@0
           - script: |
               pip install --upgrade --requirement tests/requirements.txt
-              pytest tests --verbose
+              pytest --capture=no --verbose tests
             displayName: Test
 
       - job: Android

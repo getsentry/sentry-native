@@ -26,7 +26,7 @@ class Unittests:
         cmake(dir, ["sentry_test_unit"], ["SENTRY_BACKEND=none"])
         self.dir = dir
     def run(self, test):
-        run(self.dir, "sentry_test_unit", [test], check=True)
+        run(self.dir, "sentry_test_unit", ["--quiet", test], check=True)
 
 @pytest.fixture(scope="session")
 def unittests(tmp_path_factory):
