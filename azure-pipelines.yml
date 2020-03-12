@@ -8,9 +8,15 @@ stages:
           matrix:
             Linux:
               vmImage: "ubuntu-latest"
+            Linux (clang):
+              vmImage: "ubuntu-latest"
+              CC: clang
+              CXX: clang++
             macOS:
               vmImage: "macOs-latest"
-            Windows:
+            Windows (VS2017):
+              vmImage: "vs2017-win2016"
+            Windows (latest):
               vmImage: "windows-latest"
         pool:
           vmImage: $(vmImage)
@@ -22,6 +28,9 @@ stages:
           - script: |
               pip install --upgrade --requirement tests/requirements.txt
               pytest --capture=no --verbose tests
+            env:
+              CC: $(CC)
+              CXX: $(CXX)
             displayName: Test
 
       - job: Android
