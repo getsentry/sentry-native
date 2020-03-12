@@ -131,7 +131,7 @@ def test_inproc_enqueue_stdout(tmp_path):
 
 @pytest.mark.skipif(sys.platform != "linux", reason="breakpad only supported on linux")
 def test_breakpad_enqueue_stdout(tmp_path):
-    cmake(tmp_path, ["sentry_example"], ["SENTRY_BACKEND=breakpad"])
+    cmake(tmp_path, ["sentry_example"], {"SENTRY_BACKEND":"breakpad"})
 
     child = run(tmp_path, "sentry_example", ["attachment", "crash"])
     assert child.returncode # well, its a crash after all
@@ -148,4 +148,4 @@ def test_breakpad_enqueue_stdout(tmp_path):
 @pytest.mark.skipif(sys.platform == "linux" or sys.platform == "win32",
     reason="crashpad not supported on linux, building is broken in VS2017")
 def test_crashpad_build(tmp_path):
-    cmake(tmp_path, ["sentry_example"], ["SENTRY_BACKEND=crashpad"])
+    cmake(tmp_path, ["sentry_example"], {"SENTRY_BACKEND":"crashpad"})
