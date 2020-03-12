@@ -228,9 +228,12 @@ elseif(BACKEND_BREAKPAD)
 	target_link_libraries(sentry PRIVATE
 		breakpad_client
 	)
-	# because breakpad has an include to `third_party/lss` FIXME: should be fixed in breakpad_client
-	#include_directories(external)
-	#set(LINK_LIBRARIES ${LINK_LIBRARIES} breakpad_client)
+	if(NOT BUILD_SHARED_LIBS)
+		sentry_install(TARGETS breakpad_client EXPORT sentry
+			LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+			ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+		)
+	endif()
 
 elseif(BACKEND_INPROC)
 	target_compile_definitions(sentry PRIVATE SENTRY_WITH_INPROC_BACKEND)

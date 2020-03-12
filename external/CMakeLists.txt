@@ -46,10 +46,14 @@ endif()
 
 PREPEND(BREAKPAD_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/breakpad/" ${BREAKPAD_SOURCES})
 
-add_library(breakpad_client EXCLUDE_FROM_ALL STATIC ${BREAKPAD_SOURCES})
+add_library(breakpad_client STATIC ${BREAKPAD_SOURCES})
 set_property(TARGET breakpad_client PROPERTY POSITION_INDEPENDENT_CODE ON)
-target_include_directories(breakpad_client PRIVATE "breakpad/src/")
 # breakpad has includes directly to `third_party/lss/...`,
 # which are being resolved correctly when we add the current directory to
 # the include directories. A giant hack, yes, but it works
-target_include_directories(breakpad_client PRIVATE ".")
+target_include_directories(breakpad_client
+	PRIVATE
+		"$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/breakpad/src/>"
+	PUBLIC
+		"$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>"
+)
