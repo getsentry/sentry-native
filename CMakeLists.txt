@@ -91,7 +91,7 @@ if(WITH_TSAN_OPTION)
 	link_libraries(-fsanitize=thread)
 endif()
 
-option(SENTRY_CURL_SUPPORT "Buils sentry-native with curl support" ON)
+option(SENTRY_CURL_SUPPORT "Builds sentry-native with curl support" ON)
 
 # builtin `list(TRANSFORM)` (https://cmake.org/cmake/help/latest/command/list.html#transform)
 # was only added in cmake 3.12, but we target 3.10, so we define a custom
@@ -126,14 +126,19 @@ endif()
 if(BUILD_SHARED_LIBS)
 	target_compile_definitions(sentry PRIVATE SENTRY_BUILD_SHARED)
 else()
-	target_compile_definitions(sentry PRIVATE SENTRY_BUILD_STATIC)
+	target_compile_definitions(sentry PUBLIC SENTRY_BUILD_STATIC)
 endif()
 
 if(SENTRY_CURL_SUPPORT)
 	find_package(CURL REQUIRED)
 	target_compile_definitions(sentry PUBLIC SENTRY_WITH_LIBCURL_TRANSPORT)
 	target_include_directories(sentry PRIVATE ${CURL_INCLUDE_DIR})
-	target_link_libraries(sentry PRIVATE $<BUILD_INTERFACE:${CURL_LIBRARIES}>)
+	# The exported sentry target must not contain any path of the build machine, therefore use generator expressions
+	# FIXME: cmake 3.12 introduced the target CURL::libcurl
+	string(REPLACE ";" "$<SEMICOLON>" GENEX_CURL_LIBRARIES "${CURL_LIBRARIES}")
+	string(REPLACE ";" "$<SEMICOLON>" GENEX_CURL_COMPILE_DEFINITIONS "${CURL_COMPILE_DEFINITIONS}")
+	target_link_libraries(sentry PRIVATE $<BUILD_INTERFACE:${GENEX_CURL_LIBRARIES}>)
+	target_compile_definitions(sentry PRIVATE $<BUILD_INTERFACE:${GENEX_CURL_COMPILE_DEFINITIONS}>)
 endif()
 
 if(WIN32)
@@ -152,12 +157,6 @@ if(MSVC)
 	endif()
 else()
 	target_compile_options(sentry PUBLIC $<BUILD_INTERFACE:-Wall>)
-endif()
-
-if(BACKEND_CRASHPAD AND MSVC)
-	# Disable duplicate-define warnings, as the crashpad build defines all the
-	# "slim windows.h" defines, which sentry_boot also defines.
-	target_compile_options(sentry PUBLIC $<BUILD_INTERFACE:/wd4005>)
 endif()
 
 if(ANDROID)
@@ -214,6 +213,7 @@ if(BACKEND_CRASHPAD)
 	sentry_install(TARGETS crashpad_handler
 		RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 	)
+	add_dependencies(sentry crashpad_handler)
 elseif(BACKEND_INPROC)
 	target_compile_definitions(sentry PRIVATE SENTRY_WITH_INPROC_BACKEND)
 endif()
