@@ -15,6 +15,10 @@
 #    define _GNU_SOURCE
 #endif
 
+#ifndef __STDC_FORMAT_MACROS
+#    define __STDC_FORMAT_MACROS
+#endif
+
 // make sure on windows we pull in a minimal Windows.h
 #if defined(_WIN32)
 #    if !defined(WIN32_LEAN_AND_MEAN)

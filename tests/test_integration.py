@@ -35,7 +35,7 @@ def assert_meta(envelope):
         "tags": { "expected-tag": "some value" },
         "extra": { "extra stuff": "some value", "…unicode key…": "őá…–🤮🚀¿ 한글 테스트" },
         "sdk": {
-            "name": "sentry-native",
+            "name": "sentry.native",
             "version": "0.2.0",
             "packages": [
                 {
@@ -71,7 +71,11 @@ def assert_breadcrumb(envelope):
     assert any(matches(b, expected) for b in event["breadcrumbs"])
 
 def assert_attachment(envelope):
-    expected = { "type": "attachment", "name": "CMakeCache.txt" }
+    expected = { "type": "attachment", "name": "CMakeCache.txt", "filename": "CMakeCache.txt" }
+    assert any(matches(item.headers, expected) for item in envelope)
+
+def assert_minidump(envelope):
+    expected = { "type": "attachment", "name": "upload_file_minidump", "attachment_type": "event.minidump" }
     assert any(matches(item.headers, expected) for item in envelope)
 
 def assert_event(envelope):
@@ -124,3 +128,24 @@ def test_inproc_enqueue_stdout(tmp_path):
     assert_attachment(envelope)
 
     assert_crash(envelope)
+
+@pytest.mark.skipif(sys.platform != "linux", reason="breakpad only supported on linux")
+def test_breakpad_enqueue_stdout(tmp_path):
+    cmake(tmp_path, ["sentry_example"], ["SENTRY_BACKEND=breakpad"])
+
+    child = run(tmp_path, "sentry_example", ["attachment", "crash"])
+    assert child.returncode # well, its a crash after all
+
+    output = check_output(tmp_path, "sentry_example", ["stdout", "no-setup"])
+    envelope = Envelope.deserialize(output)
+
+    assert_meta(envelope)
+    assert_breadcrumb(envelope)
+    assert_attachment(envelope)
+
+    assert_minidump(envelope)
+
+@pytest.mark.skipif(sys.platform == "linux" or sys.platform == "win32",
+    reason="crashpad not supported on linux, building is broken in VS2017")
+def test_crashpad_build(tmp_path):
+    cmake(tmp_path, ["sentry_example"], ["SENTRY_BACKEND=crashpad"])

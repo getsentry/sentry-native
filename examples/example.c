@@ -31,6 +31,10 @@ main(int argc, char **argv)
     sentry_options_set_environment(options, "Production");
     sentry_options_set_release(options, "test-example-release");
 
+    if (has_arg(argc, argv, "log")) {
+        sentry_options_set_debug(options, 1);
+    }
+
     if (has_arg(argc, argv, "attachment")) {
         // assuming the example / test is run directly from the cmake build
         // directory
@@ -85,7 +89,7 @@ main(int argc, char **argv)
     if (has_arg(argc, argv, "overflow-breadcrumbs")) {
         for (size_t i = 0; i < 101; i++) {
             char buffer[4];
-            sprintf(buffer, "%zu", i);
+            snprintf(buffer, 4, "%zu", i);
             sentry_add_breadcrumb(sentry_value_new_breadcrumb(0, buffer));
         }
     }

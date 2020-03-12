@@ -53,13 +53,12 @@ shutdown_task(void *data)
 }
 
 #ifdef _MSC_VER
-#define THREAD_FUNCTION_API __stdcall
+#    define THREAD_FUNCTION_API __stdcall
 #else
-#define THREAD_FUNCTION_API
+#    define THREAD_FUNCTION_API
 #endif
 
-static int
-THREAD_FUNCTION_API
+static int THREAD_FUNCTION_API
 worker_thread(void *data)
 {
     sentry_bgworker_t *bgw = data;

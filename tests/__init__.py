@@ -27,11 +27,13 @@ def cmake(cwd, targets, options=None):
     for key, value in options.items():
         configcmd.extend(["-D{}={}".format(key, value)])
     configcmd.append(os.getcwd())
+    print("\n{} > {}".format(cwd, " ".join(configcmd)), flush=True)
     subprocess.run(configcmd, cwd=cwd, check=True)
 
     buildcmd = ["cmake", "--build", ".", "--parallel"]
     for target in targets:
         buildcmd.extend(["--target", target])
+    print("{} > {}".format(cwd, " ".join(buildcmd)), flush=True)
     subprocess.run(buildcmd, cwd=cwd, check=True)
 
 # Adapted from: https://raw.githubusercontent.com/getsentry/sentry-python/276acae955ee13f7ac3a7728003626eff6d943a8/sentry_sdk/envelope.py

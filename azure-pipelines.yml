@@ -3,9 +3,23 @@ stages:
     displayName: Build & Test
 
     jobs:
-      - job: Linux
+      - job:
+        strategy:
+          matrix:
+            Linux:
+              vmImage: "ubuntu-latest"
+            Linux (clang):
+              vmImage: "ubuntu-latest"
+              CC: clang
+              CXX: clang++
+            macOS:
+              vmImage: "macOs-latest"
+            Windows (VS2017):
+              vmImage: "vs2017-win2016"
+            Windows (latest):
+              vmImage: "windows-latest"
         pool:
-          vmImage: "ubuntu-latest"
+          vmImage: $(vmImage)
         steps:
           - checkout: self
             fetchDepth: 5
@@ -13,54 +27,7 @@ stages:
           - task: UsePythonVersion@0
           - script: |
               pip install --upgrade --requirement tests/requirements.txt
-              pytest tests --verbose
-            displayName: Test
-          - task: DeleteFiles@1
-            displayName: Remove all files not belonging in source archive
-            inputs:
-              contents: |
-                build
-                .*
-                **/.git*
-                azure*
-                leak*
-                scripts
-                Makefile
-          - task: ArchiveFiles@2
-            displayName: Create source archive
-            inputs:
-              rootFolderOrFile: $(Build.SourcesDirectory)
-              includeRootFolder: false
-              archiveFile: "$(Build.ArtifactStagingDirectory)/sentry-native-source.zip"
-          - task: PublishBuildArtifacts@1
-            displayName: Publish source archive to Azure
-            inputs:
-              pathtoPublish: "$(Build.ArtifactStagingDirectory)/sentry-native-source.zip"
-
-      - job: macOS
-        pool:
-          vmImage: "macOs-latest"
-        steps:
-          - checkout: self
-            fetchDepth: 5
-            submodules: recursive
-          - task: UsePythonVersion@0
-          - script: |
-              pip install --upgrade --requirement tests/requirements.txt
-              pytest tests --verbose
-            displayName: Test
-
-      - job: Windows
-        pool:
-          vmImage: "windows-latest"
-        steps:
-          - checkout: self
-            fetchDepth: 5
-            submodules: recursive
-          - task: UsePythonVersion@0
-          - script: |
-              pip install --upgrade --requirement tests/requirements.txt
-              pytest tests --verbose
+              pytest --capture=no --verbose tests
             displayName: Test
 
       - job: Android
@@ -110,3 +77,36 @@ stages:
               $ANDROID_HOME/platform-tools/adb push ./build "${DEVICE_DIR}"
               $ANDROID_HOME/platform-tools/adb shell "cd ${DEVICE_DIR}/build && ./sentry_test_unit"
             displayName: Test
+
+  - stage: package
+    displayName: Create Release Archive
+    dependsOn: test
+    jobs:
+      - job:
+        pool:
+          vmImage: "ubuntu-latest"
+        steps:
+          - checkout: self
+            fetchDepth: 5
+            submodules: recursive
+          - task: DeleteFiles@1
+            displayName: Remove all files not belonging in source archive
+            inputs:
+              contents: |
+                build
+                .*
+                **/.git*
+                azure*
+                leak*
+                scripts
+                Makefile
+          - task: ArchiveFiles@2
+            displayName: Create source archive
+            inputs:
+              rootFolderOrFile: $(Build.SourcesDirectory)
+              includeRootFolder: false
+              archiveFile: "$(Build.ArtifactStagingDirectory)/sentry-native-source.zip"
+          - task: PublishBuildArtifacts@1
+            displayName: Publish source archive to Azure
+            inputs:
+              pathtoPublish: "$(Build.ArtifactStagingDirectory)/sentry-native-source.zip"

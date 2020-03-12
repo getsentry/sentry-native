@@ -197,6 +197,13 @@ sentry_capture_event(sentry_value_t event)
             }
             sentry__envelope_item_set_header(
                 item, "name", sentry_value_new_string(attachment->name));
+            sentry__envelope_item_set_header(item, "filename",
+#ifdef SENTRY_PLATFORM_WINDOWS
+                sentry__value_new_string_from_wstr(
+#else
+                sentry_value_new_string(
+#endif
+                    sentry__path_filename(attachment->path)));
         }
 
         if (sentry__envelope_add_event(envelope, event)) {
@@ -224,7 +231,7 @@ sentry_options_new(void)
     opts->environment = sentry__string_clone(getenv("SENTRY_ENVIRONMENT"));
     opts->user_consent = SENTRY_USER_CONSENT_UNKNOWN;
     opts->system_crash_reporter_enabled = false;
-    opts->backend = sentry__backend_new_default();
+    opts->backend = sentry__backend_new();
     opts->transport = sentry__transport_new_default();
     return opts;
 }

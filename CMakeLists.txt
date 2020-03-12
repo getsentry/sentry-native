@@ -10,6 +10,8 @@ endif()
 
 if(APPLE OR WIN32)
 	set(SENTRY_DEFAULT_BACKEND "crashpad")
+elseif(LINUX)
+	set(SENTRY_DEFAULT_BACKEND "breakpad")
 else()
 	set(SENTRY_DEFAULT_BACKEND "inproc")
 endif()
@@ -40,20 +42,25 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 set(SENTRY_BACKEND ${SENTRY_DEFAULT_BACKEND} CACHE STRING
-  "The sentry backend responsible for reporting crashes, can be either 'none', 'inproc' or 'crashpad'.")
+  "The sentry backend responsible for reporting crashes, can be either 'none', 'inproc', 'breakpad' or 'crashpad'.")
 
 if(SENTRY_BACKEND STREQUAL "crashpad")
 	set(BACKEND_CRASHPAD TRUE)
 elseif(SENTRY_BACKEND STREQUAL "inproc")
 	set(BACKEND_INPROC TRUE)
+elseif(SENTRY_BACKEND STREQUAL "breakpad")
+	set(BACKEND_BREAKPAD TRUE)
 elseif(SENTRY_BACKEND STREQUAL "none")
 	set(BACKEND_NONE TRUE)
 else()
-	message(FATAL_ERROR "SENTRY_BACKEND must be one of 'none', 'inproc' or 'crashpad'")
+	message(FATAL_ERROR "SENTRY_BACKEND must be one of 'crashpad', 'inproc', 'breakpad' or 'none'")
 endif()
 
 if(BACKEND_CRASHPAD AND NOT (APPLE OR WIN32))
 	message(FATAL_ERROR "The Crashpad backend is currently only supported on macOS and Windows")
+endif()
+if(BACKEND_BREAKPAD AND NOT (LINUX OR ANDROID))
+	message(FATAL_ERROR "The Breakpad backend is currently only supported on Linux and Android")
 endif()
 if(BACKEND_INPROC AND WIN32)
 	message(FATAL_ERROR "The in-process backend is not supported on Windows")
@@ -202,7 +209,6 @@ if(BACKEND_CRASHPAD)
 		"$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/crashpad>"
 		"$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/crashpad/third_party/mini_chromium/mini_chromium>"
 	)
-	target_compile_definitions(sentry PRIVATE SENTRY_WITH_CRASHPAD_BACKEND)
 	target_link_libraries(sentry PRIVATE crashpad_client crashpad_util)
 	if(NOT BUILD_SHARED_LIBS)
 		sentry_install(TARGETS crashpad_client crashpad_util crashpad_compat getopt mini_chromium zlib EXPORT sentry
@@ -214,6 +220,18 @@ if(BACKEND_CRASHPAD)
 		RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 	)
 	add_dependencies(sentry crashpad_handler)
+elseif(BACKEND_BREAKPAD)
+	add_subdirectory(external)
+	target_include_directories(sentry PRIVATE
+		"$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/breakpad/src>"
+	)
+	target_link_libraries(sentry PRIVATE
+		breakpad_client
+	)
+	# because breakpad has an include to `third_party/lss` FIXME: should be fixed in breakpad_client
+	#include_directories(external)
+	#set(LINK_LIBRARIES ${LINK_LIBRARIES} breakpad_client)
+
 elseif(BACKEND_INPROC)
 	target_compile_definitions(sentry PRIVATE SENTRY_WITH_INPROC_BACKEND)
 endif()

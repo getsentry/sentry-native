@@ -1,4 +1,5 @@
 #include "sentry_path.h"
+#include "sentry_string.h"
 #include "sentry_testsupport.h"
 #include <sentry.h>
 
@@ -70,6 +71,18 @@ SENTRY_TEST(path_joining_windows)
     sentry__path_free(awinpath);
     sentry__path_free(winpath);
     sentry__path_free(path);
+#endif
+}
+
+SENTRY_TEST(path_relative_filename)
+{
+    sentry_path_t *path = sentry__path_from_str("foobar.txt");
+#ifdef SENTRY_PLATFORM_WINDOWS
+    char *filename = sentry__string_from_wstr(sentry__path_filename(path));
+    TEST_CHECK_STRING_EQUAL(filename, "foobar.txt");
+    sentry_free(filename);
+#else
+    TEST_CHECK_STRING_EQUAL(sentry__path_filename(path), "foobar.txt");
 #endif
 }
 

@@ -1,6 +1,7 @@
-#include "sentry_inproc_backend.h"
+#include "sentry_boot.h"
 
 #include "sentry_alloc.h"
+#include "sentry_backend.h"
 #include "sentry_core.h"
 #include "sentry_envelope.h"
 #include "sentry_scope.h"
@@ -193,7 +194,7 @@ free_backend(sentry_backend_t *backend)
 }
 
 sentry_backend_t *
-sentry__new_inproc_backend(void)
+sentry__backend_new(void)
 {
     sentry_backend_t *backend = SENTRY_MAKE(sentry_backend_t);
     if (!backend) {

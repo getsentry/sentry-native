@@ -4,3 +4,9 @@
 [submodule "external/crashpad"]
 	path = external/crashpad
 	url = https://github.com/getsentry/crashpad.git
+[submodule "external/breakpad"]
+	path = external/breakpad
+	url = https://chromium.googlesource.com/breakpad/breakpad.git
+[submodule "external/third_party/lss"]
+	path = external/third_party/lss
+	url = https://chromium.googlesource.com/linux-syscall-support
