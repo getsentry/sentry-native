@@ -1,7 +1,8 @@
-#include "sentry_crashpad_backend.h"
-
 extern "C" {
+#include "sentry_boot.h"
+
 #include "sentry_alloc.h"
+#include "sentry_backend.h"
 #include "sentry_core.h"
 #include "sentry_database.h"
 #include "sentry_path.h"
@@ -15,6 +16,8 @@ extern "C" {
 #include "client/crashpad_client.h"
 #include "client/crashpad_info.h"
 #include "client/settings.h"
+
+extern "C" {
 
 typedef struct {
     sentry_path_t *event_path;
@@ -217,7 +220,7 @@ sentry__crashpad_backend_free(sentry_backend_t *backend)
 }
 
 sentry_backend_t *
-sentry__new_crashpad_backend(void)
+sentry__backend_new(void)
 {
     sentry_backend_t *backend = SENTRY_MAKE(sentry_backend_t);
     if (!backend) {
@@ -240,4 +243,5 @@ sentry__new_crashpad_backend(void)
     backend->data = data;
 
     return backend;
+}
 }

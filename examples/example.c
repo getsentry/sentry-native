@@ -31,6 +31,10 @@ main(int argc, char **argv)
     sentry_options_set_environment(options, "Production");
     sentry_options_set_release(options, "test-example-release");
 
+    if (has_arg(argc, argv, "log")) {
+        sentry_options_set_debug(options, 1);
+    }
+
     if (has_arg(argc, argv, "attachment")) {
         // assuming the example / test is run directly from the cmake build
         // directory

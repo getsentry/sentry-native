@@ -1,6 +1,5 @@
 #include "sentry_boot.h"
 
-#include <inttypes.h>
 #include <setjmp.h>
 #include <stdarg.h>
 #include <stddef.h>

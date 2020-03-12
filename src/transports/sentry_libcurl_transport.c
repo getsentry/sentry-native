@@ -129,6 +129,10 @@ for_each_request_callback(sentry_prepared_http_request_t *req,
     curl_easy_reset(curl);
     if (opts->debug) {
         curl_easy_setopt(curl, CURLOPT_VERBOSE, 1);
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, stderr);
+        // CURLOPT_WRITEFUNCTION will `fwrite` by default
+    } else {
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, swallow_data);
     }
     curl_easy_setopt(curl, CURLOPT_URL, req->url);
     curl_easy_setopt(curl, CURLOPT_POST, (long)1);
@@ -136,7 +140,6 @@ for_each_request_callback(sentry_prepared_http_request_t *req,
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, req->payload);
     curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, (long)req->payload_len);
     curl_easy_setopt(curl, CURLOPT_USERAGENT, SENTRY_SDK_USER_AGENT);
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, swallow_data);
 
     struct header_info info;
     info.retry_after = 0;

@@ -91,13 +91,19 @@ endif()
 # backends
 if(BACKEND_CRASHPAD)
     list(APPEND SENTRY_SOURCES
-        backends/sentry_crashpad_backend.cpp
-        backends/sentry_crashpad_backend.h
+        backends/sentry_backend_crashpad.cpp
+    )
+elseif(BACKEND_BREAKPAD)
+    list(APPEND SENTRY_SOURCES
+        backends/sentry_backend_breakpad.cpp
     )
 elseif(BACKEND_INPROC)
     list(APPEND SENTRY_SOURCES
-        backends/sentry_inproc_backend.c
-        backends/sentry_inproc_backend.h
+        backends/sentry_backend_inproc.c
+    )
+elseif(BACKEND_NONE)
+    list(APPEND SENTRY_SOURCES
+        backends/sentry_backend_none.c
     )
 endif()
 
