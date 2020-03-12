@@ -59,6 +59,12 @@ if(BACKEND_INPROC AND WIN32)
 	message(FATAL_ERROR "The in-process backend is not supported on Windows")
 endif()
 
+if(ANDROID)
+	set(WITH_LIBUNWINDSTACK TRUE)
+elseif(NOT WIN32)
+	set(WITH_LIBBACKTRACE TRUE)
+endif()
+
 # use -O3 when doing `RelWithDebInfo` builds
 foreach(lang ASM C CXX)
 	# unix-like syntax
@@ -157,12 +163,6 @@ if(MSVC)
 	endif()
 else()
 	target_compile_options(sentry PUBLIC $<BUILD_INTERFACE:-Wall>)
-endif()
-
-if(ANDROID)
-	set(WITH_LIBUNWINDSTACK TRUE)
-elseif(NOT WIN32)
-	set(WITH_LIBBACKTRACE TRUE)
 endif()
 
 target_include_directories(sentry PUBLIC
