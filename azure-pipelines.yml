@@ -28,9 +28,6 @@ stages:
           - script: |
               pip install --upgrade --requirement tests/requirements.txt
               pytest --capture=no --verbose tests
-            env:
-              CC: $(CC)
-              CXX: $(CXX)
             displayName: Test
 
       - job: Android
