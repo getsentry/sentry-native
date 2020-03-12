@@ -1,12 +1,20 @@
-get_target_property(SENTRY_NATIVE_ALL_SOURCES sentry SOURCES)
-get_target_property(SENTRY_COMPILE_DEFINITIONS sentry COMPILE_DEFINITIONS)
-get_target_property(SENTRY_INTERFACE_INCLUDE_DIRECTORIES sentry INTERFACE_INCLUDE_DIRECTORIES)
-get_target_property(SENTRY_INCLUDE_DIRECTORIES sentry INCLUDE_DIRECTORIES)
-get_target_property(SENTRY_LINK_LIBRARIES sentry LINK_LIBRARIES)
-get_target_property(SENTRY_INTERFACE_LINK_LIBRARIES sentry INTERFACE_LINK_LIBRARIES)
+function(sentry_get_property NAME)
+	get_target_property(prop sentry "${NAME}")
+	if(NOT prop)
+		set(prop)
+	endif()
+	set("SENTRY_${NAME}" "${prop}" PARENT_SCOPE)
+endfunction()
+
+sentry_get_property(SOURCES)
+sentry_get_property(COMPILE_DEFINITIONS)
+sentry_get_property(INTERFACE_INCLUDE_DIRECTORIES)
+sentry_get_property(INCLUDE_DIRECTORIES)
+sentry_get_property(LINK_LIBRARIES)
+sentry_get_property(INTERFACE_LINK_LIBRARIES)
 
 add_executable(sentry_test_unit
-	${SENTRY_NATIVE_ALL_SOURCES}
+	${SENTRY_SOURCES}
 	main.c
 	sentry_testsupport.h
 	test_attachments.c
