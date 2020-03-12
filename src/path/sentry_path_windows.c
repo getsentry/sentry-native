@@ -6,8 +6,8 @@
 #include "sentry_string.h"
 #include "sentry_utils.h"
 
-#include <Pathcch.h>
-#include <Shlobj.h>
+#include <pathcch.h>
+#include <shlobj.h>
 #include <shellapi.h>
 #include <shlwapi.h>
 #include <sys/stat.h>

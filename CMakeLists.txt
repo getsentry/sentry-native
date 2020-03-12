@@ -1,5 +1,8 @@
 cmake_minimum_required (VERSION 3.10)
-project (Sentry-Native LANGUAGES C CXX ASM)
+project(Sentry-Native LANGUAGES C CXX ASM)
+
+include(GNUInstallDirs)
+set(CMAKE_INSTALL_CMAKEDIR "${CMAKE_INSTALL_LIBDIR}/cmake/sentry")
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
 	set(LINUX TRUE)
@@ -13,7 +16,26 @@ else()
 	set(SENTRY_DEFAULT_BACKEND "inproc")
 endif()
 
-OPTION(BUILD_SHARED_LIBS "Build shared libraries (.dll/.so) instead of static ones (.lib/.a)" ON)
+option(BUILD_SHARED_LIBS "Build shared libraries (.dll/.so) instead of static ones (.lib/.a)" ON)
+
+option(SENTRY_BUILD_TESTS "Build sentry-native tests" ON)
+option(SENTRY_BUILD_EXAMPLES "Build sentry-native example(s)" ON)
+
+if(SENTRY_BUILD_TESTS OR SENTRY_BUILD_EXAMPLES)
+	enable_testing()
+endif()
+
+if("${CMAKE_SOURCE_DIR}" STREQUAL "${PROJECT_SOURCE_DIR}")
+	set(SENTRY_MAIN_PROJECT ON)
+endif()
+
+option(SENTRY_ENABLE_INSTALL "Enable sentry installation" "${SENTRY_MAIN_PROJECT}")
+
+function(sentry_install)
+	if(SENTRY_ENABLE_INSTALL)
+		install(${ARGN})
+	endif()
+endfunction()
 
 if(NOT CMAKE_BUILD_TYPE)
 	set(CMAKE_BUILD_TYPE "RelWithDebInfo")
@@ -31,17 +53,23 @@ elseif(SENTRY_BACKEND STREQUAL "breakpad")
 elseif(SENTRY_BACKEND STREQUAL "none")
 	set(BACKEND_NONE TRUE)
 else()
-	message(FATAL_ERROR "SENTRY_BACKEND must be one of 'none', 'inproc' or 'crashpad'")
+	message(FATAL_ERROR "SENTRY_BACKEND must be one of 'crashpad', 'inproc', 'breakpad' or 'none'")
 endif()
 
-if(BACKEND_CRASHPAD AND NOT APPLE AND NOT WIN32)
+if(BACKEND_CRASHPAD AND NOT (APPLE OR WIN32))
 	message(FATAL_ERROR "The Crashpad backend is currently only supported on macOS and Windows")
 endif()
-if(BACKEND_BREAKPAD AND NOT LINUX AND NOT ANDROID)
+if(BACKEND_BREAKPAD AND NOT (LINUX OR ANDROID))
 	message(FATAL_ERROR "The Breakpad backend is currently only supported on Linux and Android")
 endif()
 if(BACKEND_INPROC AND WIN32)
 	message(FATAL_ERROR "The in-process backend is not supported on Windows")
+endif()
+
+if(ANDROID)
+	set(WITH_LIBUNWINDSTACK TRUE)
+elseif(NOT WIN32)
+	set(WITH_LIBBACKTRACE TRUE)
 endif()
 
 # use -O3 when doing `RelWithDebInfo` builds
@@ -64,164 +92,181 @@ if(APPLE)
 	endif()
 endif()
 
-
-OPTION(WITH_ASAN_OPTION "Build sentry-native with address sanitizer" OFF)
+option(WITH_ASAN_OPTION "Build sentry-native with address sanitizer" OFF)
 if(WITH_ASAN_OPTION)
-	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -fsanitize=address -fno-omit-frame-pointer")
-	link_libraries("-fsanitize=address")
+	add_compile_options(-g -fsanitize=address -fno-omit-frame-pointer)
+	link_libraries(-fsanitize=address)
 endif()
 
-OPTION(WITH_TSAN_OPTION "Build sentry-native with thread sanitizer" OFF)
+option(WITH_TSAN_OPTION "Build sentry-native with thread sanitizer" OFF)
 if(WITH_TSAN_OPTION)
-	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -fsanitize=thread -fno-omit-frame-pointer")
-	link_libraries("-fsanitize=thread")
+	add_compile_options(-g -fsanitize=thread -fno-omit-frame-pointer)
+	link_libraries(-fsanitize=thread)
 endif()
 
-if(BUILD_SHARED_LIBS)
-	add_definitions(-DSENTRY_BUILD_SHARED)
-else()
-	add_definitions(-DSENTRY_BUILD_STATIC)
-endif()
+option(SENTRY_CURL_SUPPORT "Builds sentry-native with curl support" ON)
 
-FIND_PACKAGE(CURL)
-if(CURL_FOUND)
-	set(WITH_CURL TRUE)
-	add_definitions(-DSENTRY_WITH_LIBCURL_TRANSPORT)
-	include_directories(${CURL_INCLUDE_DIR})
-	set(LINK_LIBRARIES ${LINK_LIBRARIES} ${CURL_LIBRARIES})
-endif()
-if(WIN32)
-	add_definitions(-DSENTRY_WITH_WINHTTP_TRANSPORT)
-	set(LINK_LIBRARIES ${LINK_LIBRARIES} "winhttp.lib")
-endif()
-
-if(BACKEND_CRASHPAD)
-	set(CMAKE_CXX_STANDARD 14)
-else()
-	set(CMAKE_CXX_STANDARD 11)
-endif()
-
-#set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Werror=implicit-function-declaration -Werror=incompatible-function-pointer-types -Wall -fvisibility=hidden")
-if(NOT WIN32)
-	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -Wpedantic -fvisibility=hidden")
-endif()
-
-if(BACKEND_CRASHPAD AND WIN32)
-	# Disable duplicate-define warnings, as the crashpad build defines all the
-	# "slim windows.h" defines, which sentry_boot also defines.
-	add_definitions(/wd4005)
-endif()
-
-if(ANDROID)
-	set(WITH_LIBUNWINDSTACK TRUE)
-elseif(NOT WIN32)
-	set(WITH_LIBBACKTRACE TRUE)
-endif()
-
-include_directories("include")
-include_directories("src")
-
-file(GLOB_RECURSE SENTRY_NATIVE_TEST_SOURCES
-	${CMAKE_CURRENT_SOURCE_DIR}/tests/unit/*.c
-)
-
-if(LINUX)
-	set(LINK_LIBRARIES ${LINK_LIBRARIES} "pthread" "dl")
-endif()
-
-if(WITH_LIBUNWINDSTACK)
-	include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/libunwindstack-ndk/include)
-	add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/external/libunwindstack-ndk/cmake)
-	set(LINK_LIBRARIES ${LINK_LIBRARIES} "unwindstack")
-endif()
-
-if(WIN32)
-	set(LINK_LIBRARIES ${LINK_LIBRARIES} "dbghelp.lib" "pathcch.lib")
-endif()
-
-SET(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR})
-SET(CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG ${PROJECT_BINARY_DIR})
-SET(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE ${PROJECT_BINARY_DIR})
-SET(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR})
-SET(CMAKE_LIBRARY_OUTPUT_DIRECTORY_DEBUG ${PROJECT_BINARY_DIR})
-SET(CMAKE_LIBRARY_OUTPUT_DIRECTORY_RELEASE ${PROJECT_BINARY_DIR})
-SET(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR})
-SET(CMAKE_ARCHIVE_OUTPUT_DIRECTORY_DEBUG ${PROJECT_BINARY_DIR})
-SET(CMAKE_ARCHIVE_OUTPUT_DIRECTORY_RELEASE ${PROJECT_BINARY_DIR})
-
-# builtin `list(TRANSFORM)` (https://cmake.org/cmake/help/latest/command/list.html#transform)
-# was only added in cmake 3.12, but we target 3.10, so we define a custom
-# functions which can prepend a prefix to all list elements.
-# copied from https://stackoverflow.com/a/27630120
-FUNCTION(PREPEND var prefix)
-	SET(listVar "")
-	FOREACH(f ${ARGN})
-		LIST(APPEND listVar "${prefix}/${f}")
-	ENDFOREACH(f)
-	SET(${var} "${listVar}" PARENT_SCOPE)
-ENDFUNCTION(PREPEND)
-
-if(BACKEND_CRASHPAD)
-	add_subdirectory(external/crashpad EXCLUDE_FROM_ALL)
-	include_directories(external/crashpad external/crashpad/third_party/mini_chromium/mini_chromium)
-	set(LINK_LIBRARIES ${LINK_LIBRARIES} crashpad_client crashpad_util)
-	install(TARGETS "crashpad_handler")
-elseif(BACKEND_BREAKPAD)
-	add_subdirectory(external)
-	include_directories(external/breakpad/src)
-	# because breakpad has an include to `third_party/lss`
-	include_directories(external)
-	set(LINK_LIBRARIES ${LINK_LIBRARIES} breakpad_client)
-endif()
+# helper function to add sources to existing TARGET prepended with ${CMAKE_CURRENT_SOURCE_DIR}/${SUBDIR}
+function(sentry_target_sources_cwd TARGET)
+	cmake_parse_arguments(STSC "" "SUBDIR" "" ${ARGN})
+	foreach(src ${STSC_UNPARSED_ARGUMENTS})
+		if(IS_ABSOLUTE "${src}")
+			target_sources(${TARGET} PRIVATE ${src})
+		else()
+			target_sources(${TARGET} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/${STSC_SUBDIR}/${src}")
+		endif()
+	endforeach()
+endfunction()
 
 # ===== sentry library =====
 
-add_library("sentry" "${CMAKE_CURRENT_SOURCE_DIR}/vendor/mpack.c")
+add_library(sentry "${PROJECT_SOURCE_DIR}/vendor/mpack.c")
+add_library(sentry::sentry ALIAS sentry)
 add_subdirectory(src)
 
-set_target_properties("sentry" PROPERTIES PUBLIC_HEADER "include/sentry.h")
-target_link_libraries("sentry" ${LINK_LIBRARIES})
-install(TARGETS "sentry"
-	ARCHIVE DESTINATION lib
-	LIBRARY DESTINATION lib
-	PUBLIC_HEADER DESTINATION include)
+set_target_properties(sentry PROPERTIES PUBLIC_HEADER "include/sentry.h")
 
 # https://gitlab.kitware.com/cmake/cmake/issues/18393
 if(BUILD_SHARED_LIBS)
 	if(APPLE)
-		install(FILES "$<TARGET_FILE:sentry>.dSYM" DESTINATION lib)
-	elseif(WIN32)
-		install(FILES $<TARGET_PDB_FILE:sentry> DESTINATION lib)
+		sentry_install(FILES "$<TARGET_FILE:sentry>.dSYM" DESTINATION "${CMAKE_INSTALL_LIBDIR}")
+	elseif(MSVC)
+		sentry_install(FILES "$<$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>:$<TARGET_PDB_FILE:sentry>>"
+			DESTINATION "${CMAKE_INSTALL_BINDIR}")
 	endif()
 endif()
 
-if(BACKEND_CRASHPAD)
-	add_dependencies("sentry" "crashpad_handler")
+if(BUILD_SHARED_LIBS)
+	target_compile_definitions(sentry PRIVATE SENTRY_BUILD_SHARED)
+else()
+	target_compile_definitions(sentry PUBLIC SENTRY_BUILD_STATIC)
 endif()
+
+if(SENTRY_CURL_SUPPORT)
+	find_package(CURL REQUIRED)
+	target_compile_definitions(sentry PUBLIC SENTRY_WITH_LIBCURL_TRANSPORT)
+	target_include_directories(sentry PRIVATE ${CURL_INCLUDE_DIR})
+	# The exported sentry target must not contain any path of the build machine, therefore use generator expressions
+	# FIXME: cmake 3.12 introduced the target CURL::libcurl
+	string(REPLACE ";" "$<SEMICOLON>" GENEX_CURL_LIBRARIES "${CURL_LIBRARIES}")
+	string(REPLACE ";" "$<SEMICOLON>" GENEX_CURL_COMPILE_DEFINITIONS "${CURL_COMPILE_DEFINITIONS}")
+	target_link_libraries(sentry PRIVATE $<BUILD_INTERFACE:${GENEX_CURL_LIBRARIES}>)
+	target_compile_definitions(sentry PRIVATE $<BUILD_INTERFACE:${GENEX_CURL_COMPILE_DEFINITIONS}>)
+endif()
+
+if(WIN32)
+	target_compile_definitions(sentry
+		PRIVATE WINVER=0x0603 NTDDI_VERSION=0x06030000
+		PUBLIC SENTRY_WITH_WINHTTP_TRANSPORT
+	)
+	target_link_libraries(sentry PRIVATE winhttp)
+endif()
+
+#set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Werror=implicit-function-declaration -Werror=incompatible-function-pointer-types -Wall -fvisibility=hidden")
+set_property(TARGET sentry PROPERTY C_VISIBILITY_PRESET hidden)
+if(MSVC)
+	if(CMAKE_SIZEOF_VOID_P EQUAL 4)
+		set(CMAKE_ASM_MASM_FLAGS "${CMAKE_ASM_MASM_FLAGS} /safeseh")
+	endif()
+else()
+	target_compile_options(sentry PUBLIC $<BUILD_INTERFACE:-Wall>)
+endif()
+
+target_include_directories(sentry PUBLIC
+	"$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>"
+	"$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>"
+	"$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>"
+)
+
+# Without this, dladdr can't find functions
+# FIXME: cmake 3.13 introduced target_link_options
+target_link_libraries(sentry INTERFACE
+	"$<$<OR:$<PLATFORM_ID:Linux>,$<PLATFORM_ID:Android>>:-Wl,--build-id=sha1>")
+
+if(LINUX)
+	target_link_libraries(sentry PRIVATE pthread dl)
+endif()
+
+if(WITH_LIBUNWINDSTACK)
+	target_include_directories(sentry PRIVATE
+		"$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/libunwindstack-ndk/include>")
+	add_subdirectory("${PROJECT_SOURCE_DIR}/external/libunwindstack-ndk/cmake")
+	target_link_libraries(sentry PRIVATE unwindstack)
+	if(NOT BUILD_SHARED_LIBS)
+		sentry_install(TARGETS unwindstack EXPORT sentry
+			LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+			ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+		)
+	endif()
+endif()
+
+if(WIN32)
+	target_link_libraries(sentry PRIVATE dbghelp pathcch)
+endif()
+
+if(BACKEND_CRASHPAD)
+	add_subdirectory(external/crashpad EXCLUDE_FROM_ALL)
+	target_include_directories(sentry PRIVATE
+		"$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/crashpad>"
+		"$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/crashpad/third_party/mini_chromium/mini_chromium>"
+	)
+	# FIXME: this should be applied to mini_chromium (or at least to crashpad_client/crashpad_handler)
+	target_compile_features(sentry PUBLIC cxx_std_11)
+	target_link_libraries(sentry PRIVATE crashpad_client crashpad_util)
+	if(NOT BUILD_SHARED_LIBS)
+		sentry_install(TARGETS crashpad_client crashpad_util crashpad_compat getopt mini_chromium zlib EXPORT sentry
+			LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+			ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+		)
+	endif()
+	sentry_install(TARGETS crashpad_handler
+		RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+	)
+	add_dependencies(sentry crashpad_handler)
+elseif(BACKEND_BREAKPAD)
+	add_subdirectory(external)
+	target_include_directories(sentry PRIVATE
+		"$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/breakpad/src>"
+	)
+	target_link_libraries(sentry PRIVATE
+		breakpad_client
+	)
+	if(NOT BUILD_SHARED_LIBS)
+		sentry_install(TARGETS breakpad_client EXPORT sentry
+			LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+			ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+		)
+	endif()
+
+elseif(BACKEND_INPROC)
+	target_compile_definitions(sentry PRIVATE SENTRY_WITH_INPROC_BACKEND)
+endif()
+
+include(CMakePackageConfigHelpers)
+configure_package_config_file(sentry-config.cmake.in sentry-config.cmake
+	INSTALL_DESTINATION "${CMAKE_INSTALL_CMAKEDIR}")
+
+sentry_install(TARGETS sentry EXPORT sentry
+	ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+	LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+	RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
+	PUBLIC_HEADER DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
+)
+sentry_install(EXPORT sentry NAMESPACE sentry:: FILE sentry-targets.cmake
+	DESTINATION "${CMAKE_INSTALL_CMAKEDIR}")
+sentry_install(FILES "${PROJECT_BINARY_DIR}/sentry-config.cmake"
+	DESTINATION "${CMAKE_INSTALL_CMAKEDIR}")
 
 # ===== tests =====
 
-# compile tests separately and pass an extra preprocessor define so we can
-# switch some internal modes for the unittests.
-get_target_property(SENTRY_NATIVE_ALL_SOURCES sentry SOURCES)
-add_executable("sentry_test_unit" EXCLUDE_FROM_ALL
-	${SENTRY_NATIVE_ALL_SOURCES}
-	${SENTRY_NATIVE_TEST_SOURCES}
-)
-get_target_property(SENTRY_DEFS sentry COMPILE_DEFINITIONS)
-target_compile_definitions("sentry_test_unit" PUBLIC SENTRY_UNITTEST ${SENTRY_DEFS})
-target_link_libraries("sentry_test_unit" ${LINK_LIBRARIES})
-
-# to fix some issues with tests (dladdr can't find functions otherwise)
-if(CMAKE_SYSTEM_NAME STREQUAL "Linux" OR CMAKE_SYSTEM_NAME STREQUAL "Android")
-	target_link_libraries("sentry_test_unit" "-Wl,--build-id=sha1,-E")
-endif()
-
-if(BACKEND_CRASHPAD)
-	add_dependencies("sentry_test_unit" "crashpad_handler")
+if(SENTRY_BUILD_TESTS)
+	add_subdirectory(tests/unit)
 endif()
 
 # ===== example, also used as integration test =====
 
-add_executable("sentry_example" EXCLUDE_FROM_ALL "./examples/example.c")
-target_link_libraries("sentry_example" "sentry")
+if(SENTRY_BUILD_EXAMPLES)
+	add_executable(sentry_example examples/example.c)
+	target_link_libraries(sentry_example sentry)
+	add_test(NAME sentry_example COMMAND sentry_example)
+endif()

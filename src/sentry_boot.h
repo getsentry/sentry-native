@@ -21,10 +21,16 @@
 
 // make sure on windows we pull in a minimal Windows.h
 #if defined(_WIN32)
-#    define WIN32_LEAN_AND_MEAN
-#    define NOMINMAX
-#    define _CRT_SECURE_NO_WARNINGS
-#    include <Windows.h>
+#    if !defined(WIN32_LEAN_AND_MEAN)
+#        define WIN32_LEAN_AND_MEAN
+#    endif
+#    if !defined(NOMINMAX)
+#        define NOMINMAX
+#    endif
+#    if !defined(_CRT_SECURE_NO_WARNINGS)
+#        define _CRT_SECURE_NO_WARNINGS
+#    endif
+#    include <windows.h>
 #endif
 
 #include <sentry.h>

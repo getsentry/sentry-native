@@ -113,11 +113,11 @@ using `cmake -D BUILD_SHARED_LIBS=OFF ..`.
   `OFF` will build `sentry` as a static library instead.
 - `SENTRY_BACKEND` (Default: depending on platform):
   Sentry can use different backends depending on platform.
-  **crashpad**: This uses the out-of-process crashpad handler. It is currently
+  - **crashpad**: This uses the out-of-process crashpad handler. It is currently
   only supported on Windows and macOS, and used as the default there.
-  **inproc**: A small in-process handler which is supported on all platforms
+  - **inproc**: A small in-process handler which is supported on all platforms
   except Windows, and is used as default on Linux and Android.
-  **none**: This builds `sentry-native` without a backend, so it does not handle
+  - **none**: This builds `sentry-native` without a backend, so it does not handle
   crashes at all. It is primarily used for tests.
 
 ### Build Targets

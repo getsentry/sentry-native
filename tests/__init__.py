@@ -15,10 +15,17 @@ def check_output(*args, **kwargs):
     stdout = stdout.replace(b"\r\n", b"\n")
     return stdout
 
-def cmake(cwd, targets, options=[]):
+def cmake(cwd, targets, options=None):
+    if options is None:
+        options = {}
+    options.update({
+        "CMAKE_RUNTIME_OUTPUT_DIRECTORY": cwd,
+        "CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG": cwd,
+        "CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE": cwd,
+    })
     configcmd = ["cmake"]
-    for option in options:
-        configcmd.extend(["-D", option])
+    for key, value in options.items():
+        configcmd.extend(["-D{}={}".format(key, value)])
     configcmd.append(os.getcwd())
     print("\n{} > {}".format(cwd, " ".join(configcmd)), flush=True)
     subprocess.run(configcmd, cwd=cwd, check=True)

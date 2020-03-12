@@ -1,8 +1,5 @@
 import pytest
-import subprocess
-import os
 import re
-import sys
 from . import cmake, run
 
 def enumerate_unittests():
@@ -23,7 +20,7 @@ class Unittests:
     def __init__(self, dir):
         # for unit tests, the backend does not matter, and we want to keep
         # the compile-times down
-        cmake(dir, ["sentry_test_unit"], ["SENTRY_BACKEND=none"])
+        cmake(dir, ["sentry_test_unit"], {"SENTRY_BACKEND":"none", "SENTRY_CURL_SUPPORT":"OFF",})
         self.dir = dir
     def run(self, test):
         run(self.dir, "sentry_test_unit", ["--quiet", test], check=True)
