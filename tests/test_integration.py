@@ -146,6 +146,7 @@ def test_breakpad_enqueue_stdout(tmp_path):
 
     assert_minidump(envelope)
 
-@pytest.mark.skipif(sys.platform == "linux", reason="crashpad not supported on linux")
+@pytest.mark.skipif(sys.platform == "linux" or sys.platform == "win32",
+    reason="crashpad not supported on linux, building is broken in VS2017")
 def test_crashpad_build(tmp_path):
     cmake(tmp_path, ["sentry_example"], ["SENTRY_BACKEND=crashpad"])
