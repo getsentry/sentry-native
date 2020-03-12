@@ -181,8 +181,8 @@ endif()
 
 if(WITH_LIBUNWINDSTACK)
 	target_include_directories(sentry PRIVATE
-		"$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/libunwindstack-ndk/include)>")
-	add_subdirectory(${PROJECT_SOURCE_DIR}/external/libunwindstack-ndk/cmake)
+		"$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/libunwindstack-ndk/include>")
+	add_subdirectory("${PROJECT_SOURCE_DIR}/external/libunwindstack-ndk/cmake")
 	target_link_libraries(sentry PRIVATE unwindstack)
 	if(NOT BUILD_SHARED_LIBS)
 		sentry_install(TARGETS unwindstack EXPORT sentry
