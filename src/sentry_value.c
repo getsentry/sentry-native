@@ -808,7 +808,7 @@ sentry__value_new_string_owned(char *s)
 
 #ifdef SENTRY_PLATFORM_WINDOWS
 sentry_value_t
-sentry__value_new_string_from_wstr(wchar_t *s)
+sentry__value_new_string_from_wstr(const wchar_t *s)
 {
     char *rv = sentry__string_from_wstr(s);
     return rv ? sentry__value_new_string_owned(rv) : sentry_value_new_null();

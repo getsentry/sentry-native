@@ -116,7 +116,7 @@ sentry__string_clonen(const char *str, size_t n)
 
 #ifdef SENTRY_PLATFORM_WINDOWS
 char *
-sentry__string_from_wstr(wchar_t *s)
+sentry__string_from_wstr(const wchar_t *s)
 {
     int len = WideCharToMultiByte(CP_UTF8, 0, s, -1, NULL, 0, NULL, NULL);
     char *rv = sentry_malloc(len);

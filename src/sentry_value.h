@@ -5,7 +5,7 @@
 
 sentry_value_t sentry__value_new_string_owned(char *s);
 #ifdef SENTRY_PLATFORM_WINDOWS
-sentry_value_t sentry__value_new_string_from_wstr(wchar_t *s);
+sentry_value_t sentry__value_new_string_from_wstr(const wchar_t *s);
 #endif
 sentry_value_t sentry__value_new_addr(uint64_t addr);
 sentry_value_t sentry__value_new_hexstring(const char *bytes, size_t len);
