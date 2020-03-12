@@ -54,7 +54,6 @@ SENTRY_TEST(lazy_attachments)
 
     char *serialized
         = sentry_stringbuilder_take_string(&testdata.serialized_envelope);
-    printf("%s", serialized);
     TEST_CHECK(strstr(serialized,
                    "{\"type\":\"attachment\",\"length\":3,\"name\":\"existing-"
                    "attachment\",\"filename\":\".existing-file-attachment\"}"
