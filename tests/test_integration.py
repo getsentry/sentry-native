@@ -1,7 +1,6 @@
 import pytest
 import subprocess
 import sys
-import json
 from . import cmake, check_output, run, Envelope
 
 # TODO:
@@ -93,7 +92,7 @@ def assert_crash(envelope):
 
 def test_capture_stdout(tmp_path):
     # backend does not matter, but we want to keep compile times down
-    cmake(tmp_path, ["sentry_example"], ["SENTRY_BACKEND=none", "BUILD_SHARED_LIBS=OFF"])
+    cmake(tmp_path, ["sentry_example"], {"SENTRY_BACKEND": "none", "BUILD_SHARED_LIBS":"OFF", "SENTRY_CURL_SUPPORT":"OFF"})
 
     # on linux we can use `ldd` to check that we don’t link to `libsentry.so`
     if sys.platform == "linux":
@@ -112,7 +111,7 @@ def test_capture_stdout(tmp_path):
 
 @pytest.mark.skipif(sys.platform == "win32", reason="no inproc backend on windows")
 def test_inproc_enqueue_stdout(tmp_path):
-    cmake(tmp_path, ["sentry_example"], ["SENTRY_BACKEND=inproc"])
+    cmake(tmp_path, ["sentry_example"], {"SENTRY_BACKEND":"inproc", "SENTRY_CURL_SUPPORT":"OFF"})
 
     child = run(tmp_path, "sentry_example", ["attachment", "crash"])
     assert child.returncode # well, its a crash after all
