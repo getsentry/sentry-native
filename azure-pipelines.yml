@@ -14,8 +14,8 @@ stages:
               CXX: clang++
             macOS:
               vmImage: "macOs-latest"
-            Windows (VS2017):
-              vmImage: "vs2017-win2016"
+            #Windows (VS2017):
+            #  vmImage: "vs2017-win2016"
             Windows (latest):
               vmImage: "windows-latest"
         pool:
