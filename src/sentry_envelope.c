@@ -17,9 +17,6 @@ typedef enum {
 } endpoint_type_t;
 
 typedef enum {
-    // When loading an envelope from disk, we don’t really want to parse it,
-    // but just pipe it through as a raw buffer
-    ENVELOPE_ITEM_TYPE_ENVELOPE,
     ENVELOPE_ITEM_TYPE_EVENT,
     ENVELOPE_ITEM_TYPE_MINIDUMP,
     ENVELOPE_ITEM_TYPE_ATTACHMENT,
