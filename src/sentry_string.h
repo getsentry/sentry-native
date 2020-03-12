@@ -73,7 +73,7 @@ sentry__int64_to_string(int64_t val)
 
 #ifdef SENTRY_PLATFORM_WINDOWS
 /* create a string from a wstr */
-char *sentry__string_from_wstr(wchar_t *s);
+char *sentry__string_from_wstr(const wchar_t *s);
 /* convert a normal string to a wstr */
 wchar_t *sentry__string_to_wstr(const char *s);
 #endif
