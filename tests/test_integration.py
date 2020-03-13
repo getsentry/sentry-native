@@ -102,10 +102,14 @@ def test_capture_stdout(tmp_path):
     if sys.platform == "linux":
         output = subprocess.check_output("ldd sentry_example", cwd=tmp_path, shell=True)
         assert b"libsentry.so" not in output
-    # on windows 32-bit, we use `sigcheck` to check that the exe is actuall 32-bit
+    # on windows 32-bit, we use `sigcheck` to check that the exe is actually 32-bit
     if sys.platform == "win32" and os.environ["X32"]:
-        output = subprocess.check_output("sigcheck sentry_example.dll", cwd=tmp_path, shell=True)
+        output = subprocess.check_output("sigcheck sentry_example.exe", cwd=tmp_path, shell=True)
         assert b"32-bit" in output
+    # similarly, we use `file` to check for 32-bit on linux
+    if sys.platform == "linux" and os.environ["X32"]:
+        output = subprocess.check_output("file sentry_example", cwd=tmp_path, shell=True)
+        assert b"ELF 32-bit" in output
 
     output = check_output(tmp_path, "sentry_example", ["stdout", "attachment", "capture-event", "add-stacktrace"])
     envelope = Envelope.deserialize(output)

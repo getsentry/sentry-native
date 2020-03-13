@@ -6,6 +6,11 @@ stages:
       - job:
         strategy:
           matrix:
+            Linux (gcc 7, 32-bit):
+              vmImage: "ubuntu-latest"
+              CC: gcc-7 -m32
+              CXX: g++-7 -m32
+              X32: 1
             Linux (gcc 7):
               vmImage: "ubuntu-latest"
               CC: gcc-7
