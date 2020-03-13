@@ -31,7 +31,9 @@ SENTRY_TEST(module_finder)
 
 SENTRY_TEST(procmaps_parser)
 {
-#ifdef SENTRY_PLATFORM_LINUX
+#if !defined(SENTRY_PLATFORM_LINUX) || __SIZEOF_POINTER__ != 8
+    SKIP_TEST();
+#else
     sentry_module_t mod;
     char contents[]
         = "7fdb549ce000-7fdb54bb5000 r-xp 00000000 08:01 3803938       "

@@ -1,6 +1,7 @@
 import pytest
 import subprocess
 import sys
+import os
 from . import cmake, check_output, run, Envelope
 
 # TODO:

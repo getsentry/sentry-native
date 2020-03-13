@@ -200,8 +200,8 @@ if(WITH_LIBUNWINDSTACK)
 	target_link_libraries(sentry PRIVATE unwindstack)
 	if(NOT BUILD_SHARED_LIBS)
 		sentry_install(TARGETS unwindstack EXPORT sentry
-			LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-			ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+			LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+			ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
 		)
 	endif()
 endif()
@@ -217,11 +217,11 @@ if(BACKEND_CRASHPAD)
 	target_link_libraries(sentry PRIVATE crashpad_client crashpad_util)
 	if(NOT BUILD_SHARED_LIBS)
 		sentry_install(TARGETS crashpad_client crashpad_util crashpad_compat getopt mini_chromium zlib EXPORT sentry
-			LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-			ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+			LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+			ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
 		)
 	endif()
-	sentry_install(TARGETS crashpad_handler
+	sentry_install(TARGETS crashpad_handler EXPORT sentry
 		RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 	)
 	add_dependencies(sentry crashpad_handler)
@@ -235,8 +235,8 @@ elseif(BACKEND_BREAKPAD)
 	)
 	if(NOT BUILD_SHARED_LIBS)
 		sentry_install(TARGETS breakpad_client EXPORT sentry
-			LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-			ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+			LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+			ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
 		)
 	endif()
 elseif(BACKEND_INPROC)
