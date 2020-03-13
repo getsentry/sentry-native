@@ -25,8 +25,11 @@ def cmake(cwd, targets, options=None):
     })
     configcmd = ["cmake"]
     for key, value in options.items():
-        configcmd.extend(["-D{}={}".format(key, value)])
+        configcmd.append("-D{}={}".format(key, value))
+    if sys.platform == "win32" and os.environ["X32"]:
+        configcmd.append("-AWin32")
     configcmd.append(os.getcwd())
+
     print("\n{} > {}".format(cwd, " ".join(configcmd)), flush=True)
     subprocess.run(configcmd, cwd=cwd, check=True)
 

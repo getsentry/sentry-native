@@ -54,7 +54,8 @@ The SDK currently supports and is tested on the following OS/Compiler variations
 - 64bit Linux with GCC 9
 - 64bit Linux with clang 9
 - 64bit Windows with MSVC 2019
-- 64bit Windows with MSVC 2017 (crashpad backend currently not supported)
+- 64bit Windows with MSVC 2017
+- 32bit Windows with MSVC 2017 (cross compiled from 64bit host)
 - macOS Catalina with most recent Compiler toolchain
 - Android API16 built by NDK19 toolchain
 - Android API29 built by NDK21 toolchain

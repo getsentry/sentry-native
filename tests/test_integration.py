@@ -102,6 +102,10 @@ def test_capture_stdout(tmp_path):
     if sys.platform == "linux":
         output = subprocess.check_output("ldd sentry_example", cwd=tmp_path, shell=True)
         assert b"libsentry.so" not in output
+    # on windows 32-bit, we use `sigcheck` to check that the exe is actuall 32-bit
+    if sys.platform == "win32" and os.environ["X32"]:
+        output = subprocess.check_output("sigcheck sentry_example.dll", cwd=tmp_path, shell=True)
+        assert b"32-bit" in output
 
     output = check_output(tmp_path, "sentry_example", ["stdout", "attachment", "capture-event", "add-stacktrace"])
     envelope = Envelope.deserialize(output)
@@ -145,7 +149,6 @@ def test_breakpad_enqueue_stdout(tmp_path):
 
     assert_minidump(envelope)
 
-@pytest.mark.skipif(sys.platform == "linux" or sys.platform == "win32",
-    reason="crashpad not supported on linux, building is broken in VS2017")
+@pytest.mark.skipif(sys.platform == "linux", reason="crashpad not supported on linux")
 def test_crashpad_build(tmp_path):
     cmake(tmp_path, ["sentry_example"], {"SENTRY_BACKEND":"crashpad","SENTRY_CURL_SUPPORT":"OFF"})

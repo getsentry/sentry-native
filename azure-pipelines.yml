@@ -22,6 +22,9 @@ stages:
               vmImage: "macOs-latest"
             Windows (VS2017):
               vmImage: "vs2017-win2016"
+            Windows (VS2017, 32bit):
+              vmImage: "vs2017-win2016"
+              X32: 1
             Windows (latest):
               vmImage: "windows-latest"
         pool:
@@ -31,6 +34,9 @@ stages:
             fetchDepth: 5
             submodules: recursive
           - task: UsePythonVersion@0
+          # ignoring checksums: choco has 2.72, whereas upstream is 2.73
+          - script: choco install sigcheck --ignore-checksums
+            condition: eq( variables['Agent.OS'], 'Windows_NT' )
           - script: |
               pip install --upgrade --requirement tests/requirements.txt
               pytest --capture=no --verbose tests
