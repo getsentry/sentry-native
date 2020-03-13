@@ -154,6 +154,6 @@ def test_breakpad_enqueue_stdout(tmp_path):
 
     assert_minidump(envelope)
 
-@pytest.mark.skipif(sys.platform == "linux", reason="crashpad not supported on linux")
+@pytest.mark.skipif(sys.platform == "linux" or os.environ.get("ANDROID_API"), reason="crashpad not supported on linux")
 def test_crashpad_build(tmp_path):
     cmake(tmp_path, ["sentry_example"], {"SENTRY_BACKEND":"crashpad","SENTRY_CURL_SUPPORT":"OFF"})

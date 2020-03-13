@@ -32,6 +32,16 @@ stages:
               X32: 1
             Windows (latest):
               vmImage: "windows-latest"
+            # The Android emulator is currently only available on macos, see:
+            # https://docs.microsoft.com/en-us/azure/devops/pipelines/ecosystems/android?view=azure-devops#test-on-the-android-emulator
+            Android (API 16, NDK 19):
+              vmImage: "macOs-latest"
+              ANDROID_API: 16
+              ANDROID_NDK: 19.2.5345600
+            Android (API 29 NDK 21):
+              vmImage: "macOs-latest"
+              ANDROID_API: 29
+              ANDROID_NDK: 21.0.6113669
         pool:
           vmImage: $(vmImage)
         steps:
@@ -42,57 +52,23 @@ stages:
           # ignoring checksums: choco has 2.72, whereas upstream is 2.73
           - script: choco install sigcheck --ignore-checksums
             condition: eq( variables['Agent.OS'], 'Windows_NT' )
+            displayName: Installing Windows Dependencies
           - script: |
-              pip install --upgrade --requirement tests/requirements.txt
-              pytest --capture=no --verbose tests
-            displayName: Test
-
-      - job: Android
-        strategy:
-          matrix:
-            API16:
-              ANDROID_API: 16
-              ANDROID_NDK: 19.2.5345600
-            API29:
-              ANDROID_API: 29
-              ANDROID_NDK: 21.0.6113669
-        pool:
-          # The Android emulator is currently only available on macos, see:
-          # https://docs.microsoft.com/en-us/azure/devops/pipelines/ecosystems/android?view=azure-devops#test-on-the-android-emulator
-          vmImage: "macOs-latest"
-        variables:
-          ANDROID_ARCH: x86
-          ANDROID_IMAGE: system-images;android-$(ANDROID_API);google_apis;$(ANDROID_ARCH)
-        steps:
-          - checkout: self
-            fetchDepth: 5
-            submodules: recursive
-          - script: |
-              echo "Downloading ndk;$(ANDROID_NDK) and $(ANDROID_IMAGE)"
+              export ANDROID_IMAGE="system-images;android-$(ANDROID_API);google_apis;x86"
+              echo "Downloading ndk;$(ANDROID_NDK) and $ANDROID_IMAGE"
               echo "y" | $ANDROID_HOME/tools/bin/sdkmanager --install \
-                "ndk;$(ANDROID_NDK)" "$(ANDROID_IMAGE)" | \
+                "ndk;$(ANDROID_NDK)" "$ANDROID_IMAGE" | \
                 grep -v "\[=" || true # suppress the progress bar, so we get meaningful logs
+            condition: variables['ANDROID_API']
             displayName: Installing Android SDK Dependencies
-          # See: https://developer.android.com/ndk/guides/cmake
-          - script: |
-              mkdir build && cd build
-              cmake \
-                -DCMAKE_TOOLCHAIN_FILE=$ANDROID_HOME/ndk/$(ANDROID_NDK)/build/cmake/android.toolchain.cmake \
-                -DANDROID_ABI=$(ANDROID_ARCH) \
-                -DANDROID_NATIVE_API_LEVEL=$(ANDROID_API) \
-                -DCMAKE_RUNTIME_OUTPUT_DIRECTORY=$PWD \
-                -DSENTRY_CURL_SUPPORT=OFF \
-                ..
-              cmake --build . --parallel --target sentry_test_unit
-            displayName: Build
           - script: |
               bash scripts/start-android.sh
             timeoutInMinutes: 5 # because gettings things wrong here can hang the job for up to an hour…
+            condition: variables['ANDROID_API']
             displayName: Starting Android Simulator
           - script: |
-              export DEVICE_DIR="/data/local/tmp"
-              $ANDROID_HOME/platform-tools/adb push ./build "${DEVICE_DIR}"
-              $ANDROID_HOME/platform-tools/adb shell "cd ${DEVICE_DIR}/build && ./sentry_test_unit"
+              pip install --upgrade --requirement tests/requirements.txt
+              pytest --capture=no --verbose tests
             displayName: Test
 
   - stage: package
