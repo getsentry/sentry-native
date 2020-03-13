@@ -103,14 +103,15 @@ def test_capture_stdout(tmp_path):
     if sys.platform == "linux":
         output = subprocess.check_output("ldd sentry_example", cwd=tmp_path, shell=True)
         assert b"libsentry.so" not in output
-    # on windows 32-bit, we use `sigcheck` to check that the exe is actually 32-bit
-    if sys.platform == "win32" and os.environ.get("X32"):
-        output = subprocess.check_output("sigcheck sentry_example.exe", cwd=tmp_path, shell=True)
-        assert b"32-bit" in output
-    # similarly, we use `file` to check for 32-bit on linux
-    if sys.platform == "linux" and os.environ.get("X32"):
+
+    # on windows, we use `sigcheck` to check that the exe is compiled correctly
+    if sys.platform == "win32":
+        output = subprocess.output("sigcheck sentry_example.exe", cwd=tmp_path, shell=True)
+        assert (b"32-bit" if os.environ.get("X32") else "64-bit") in output
+    # similarly, we use `file` on linux
+    if sys.platform == "linux":
         output = subprocess.check_output("file sentry_example", cwd=tmp_path, shell=True)
-        assert b"ELF 32-bit" in output
+        assert (b"ELF 32-bit" if os.environ.get("X32") else "ELF 64-bit") in output
 
     output = check_output(tmp_path, "sentry_example", ["stdout", "attachment", "capture-event", "add-stacktrace"])
     envelope = Envelope.deserialize(output)
@@ -127,7 +128,9 @@ def test_inproc_enqueue_stdout(tmp_path):
     cmake(tmp_path, ["sentry_example"], {"SENTRY_BACKEND":"inproc","SENTRY_CURL_SUPPORT":"OFF"})
 
     child = run(tmp_path, "sentry_example", ["attachment", "crash"])
-    assert child.returncode # well, its a crash after all
+    # older android emulators do not correctly pass down the returncode
+    if not os.environ.get("ANDROID_API"):
+        assert child.returncode # well, its a crash after all
 
     output = check_output(tmp_path, "sentry_example", ["stdout", "no-setup"])
     envelope = Envelope.deserialize(output)

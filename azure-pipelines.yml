@@ -49,9 +49,12 @@ stages:
             fetchDepth: 5
             submodules: recursive
           - task: UsePythonVersion@0
+          - script: sudo apt install gcc-multilib g++-multilib
+            condition: and(eq(variables['Agent.OS'], 'Linux'), variables['X32'])
+            displayName: Installing Linux 32-bit Dependencies
           # ignoring checksums: choco has 2.72, whereas upstream is 2.73
           - script: choco install sigcheck --ignore-checksums
-            condition: eq( variables['Agent.OS'], 'Windows_NT' )
+            condition: eq(variables['Agent.OS'], 'Windows_NT')
             displayName: Installing Windows Dependencies
           - script: |
               export ANDROID_IMAGE="system-images;android-$(ANDROID_API);google_apis;x86"
