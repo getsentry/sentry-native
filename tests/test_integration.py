@@ -107,11 +107,11 @@ def test_capture_stdout(tmp_path):
     # on windows, we use `sigcheck` to check that the exe is compiled correctly
     if sys.platform == "win32":
         output = subprocess.output("sigcheck sentry_example.exe", cwd=tmp_path, shell=True)
-        assert (b"32-bit" if os.environ.get("X32") else "64-bit") in output
+        assert (b"32-bit" if os.environ.get("X32") else b"64-bit") in output
     # similarly, we use `file` on linux
     if sys.platform == "linux":
         output = subprocess.check_output("file sentry_example", cwd=tmp_path, shell=True)
-        assert (b"ELF 32-bit" if os.environ.get("X32") else "ELF 64-bit") in output
+        assert (b"ELF 32-bit" if os.environ.get("X32") else b"ELF 64-bit") in output
 
     output = check_output(tmp_path, "sentry_example", ["stdout", "attachment", "capture-event", "add-stacktrace"])
     envelope = Envelope.deserialize(output)
