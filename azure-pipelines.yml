@@ -6,12 +6,18 @@ stages:
       - job:
         strategy:
           matrix:
-            Linux:
+            Linux (gcc 7):
               vmImage: "ubuntu-latest"
-            Linux (clang):
+              CC: gcc-7
+              CXX: g++-7
+            Linux (gcc 9):
               vmImage: "ubuntu-latest"
-              CC: clang
-              CXX: clang++
+              CC: gcc-9
+              CXX: g++-9
+            Linux (clang 9):
+              vmImage: "ubuntu-latest"
+              CC: clang-9
+              CXX: clang++-9
             macOS:
               vmImage: "macOs-latest"
             Windows (VS2017):
