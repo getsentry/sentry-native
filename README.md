@@ -51,6 +51,7 @@ The SDK bundle contains the following folders:
 The SDK currently supports and is tested on the following OS/Compiler variations:
 
 - 64bit Linux with GCC 7
+- 32bit Linux with GCC 7 (cross compiled from 64bit host)
 - 64bit Linux with GCC 9
 - 64bit Linux with clang 9
 - 64bit Windows with MSVC 2019
@@ -62,7 +63,7 @@ The SDK currently supports and is tested on the following OS/Compiler variations
 
 The SDK supports different features on the target platform:
 
-- **HTTP Transport** is currently only supported on Windows, or platforms that
+- **HTTP Transport** is currently only supported on Windows and platforms that
   have the `curl` library available. On other platforms, library users need to
   implement their own transport, based on the `function transport` API.
 - **Crashpad Backend** is currently only supported on Windows and macOS.
@@ -118,6 +119,9 @@ using `cmake -D BUILD_SHARED_LIBS=OFF ..`.
 - `BUILD_SHARED_LIBS` (Default: ON):
   By default, `sentry` is built as a shared library. Setting this option to
   `OFF` will build `sentry` as a static library instead.
+- `SENTRY_CURL_SUPPORT` (Default: ON on all non-Windows platforms):
+  On non-Windows platforms, sentry will try to use `curl` by default for http
+  requests. CMake will raise a hard error if it is not found.
 - `SENTRY_BACKEND` (Default: depending on platform):
   Sentry can use different backends depending on platform.
   - **crashpad**: This uses the out-of-process crashpad handler. It is currently
@@ -145,8 +149,6 @@ using `cmake -D BUILD_SHARED_LIBS=OFF ..`.
 
 - Sentry with Crashpad cannot upload minidumps on Linux. This is due to a
   limitation in the upstream Crashpad project.
-- Sentry with Breakpad cannot upload minidumps. The uploader was temporarily
-  removed and will be restored in a future version.
 - Attachments are currently in _Preview_ and may not be available to your
   organization. Please see [Event Attachments] for more information.
 
