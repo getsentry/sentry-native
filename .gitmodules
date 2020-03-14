@@ -7,3 +7,7 @@
 [submodule "external/third_party/lss"]
 	path = external/third_party/lss
 	url = https://chromium.googlesource.com/linux-syscall-support
+[submodule "external/crashpad"]
+	path = external/crashpad
+	url = https://github.com/Amphaal/crashpad.git
+	branch = getsentry
