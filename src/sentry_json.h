@@ -2,6 +2,7 @@
 #define SENTRY_JSON_H_INCLUDED
 
 #include "sentry_boot.h"
+#include "sentry_utils.h"
 
 struct sentry_jsonwriter_s;
 typedef struct sentry_jsonwriter_s sentry_jsonwriter_t;
@@ -15,6 +16,10 @@ void sentry__jsonwriter_write_bool(sentry_jsonwriter_t *jw, bool val);
 void sentry__jsonwriter_write_int32(sentry_jsonwriter_t *jw, int32_t val);
 void sentry__jsonwriter_write_double(sentry_jsonwriter_t *jw, double val);
 void sentry__jsonwriter_write_str(sentry_jsonwriter_t *jw, const char *val);
+void sentry__jsonwriter_write_uuid(
+    sentry_jsonwriter_t *jw, const sentry_uuid_t *uuid);
+void sentry__jsonwriter_write_timestamp(
+    sentry_jsonwriter_t *jw, const struct tm *time);
 void sentry__jsonwriter_write_key(sentry_jsonwriter_t *jw, const char *val);
 void sentry__jsonwriter_write_list_start(sentry_jsonwriter_t *jw);
 void sentry__jsonwriter_write_list_end(sentry_jsonwriter_t *jw);

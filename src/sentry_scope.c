@@ -52,6 +52,7 @@ get_scope(void)
     g_scope.breadcrumbs = sentry_value_new_list();
     g_scope.level = SENTRY_LEVEL_ERROR;
     g_scope.client_sdk = get_client_sdk();
+    g_scope.session = NULL;
 
     g_scope_initialized = true;
 

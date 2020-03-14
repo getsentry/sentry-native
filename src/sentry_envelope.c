@@ -113,7 +113,7 @@ sentry__envelope_item_set_header(
     sentry_value_set_by_key(item->headers, key, value);
 }
 
-const char *
+static const char *
 envelope_item_get_content_type(const sentry_envelope_item_t *item)
 {
     sentry_value_t content_type
@@ -131,7 +131,7 @@ envelope_item_get_content_type(const sentry_envelope_item_t *item)
     return sentry_value_as_string(content_type);
 }
 
-const char *
+static const char *
 envelope_item_get_name(const sentry_envelope_item_t *item)
 {
     sentry_value_t name = sentry_value_get_by_key(item->headers, "name");
@@ -148,7 +148,7 @@ envelope_item_get_name(const sentry_envelope_item_t *item)
     return sentry_value_as_string(name);
 }
 
-const char *
+static const char *
 envelope_item_get_filename(const sentry_envelope_item_t *item)
 {
     sentry_value_t filename
@@ -164,6 +164,26 @@ envelope_item_get_filename(const sentry_envelope_item_t *item)
         }
     }
     return sentry_value_as_string(filename);
+}
+
+static sentry_envelope_item_t *
+envelope_add_from_owned_buffer(
+    sentry_envelope_t *envelope, char *buf, size_t buf_len, const char *type)
+{
+    sentry_envelope_item_t *item = envelope_add_item(envelope);
+    if (!item || !buf) {
+        sentry_free(buf);
+        return NULL;
+    }
+
+    item->payload = buf;
+    item->payload_len = buf_len;
+    sentry_value_t length = sentry_value_new_int32((int32_t)buf_len);
+    sentry__envelope_item_set_header(
+        item, "type", sentry_value_new_string(type));
+    sentry__envelope_item_set_header(item, "length", length);
+
+    return item;
 }
 
 void
@@ -285,23 +305,17 @@ sentry__envelope_add_event(sentry_envelope_t *envelope, sentry_value_t event)
     return item;
 }
 
-static sentry_envelope_item_t *
-envelope_add_from_owned_buffer(
-    sentry_envelope_t *envelope, char *buf, size_t buf_len, const char *type)
+sentry_envelope_item_t *
+sentry__envelope_add_session(
+    sentry_envelope_t *envelope, const sentry_session_t *session)
 {
-    sentry_envelope_item_t *item = envelope_add_item(envelope);
-    if (!item || !buf) {
-        return NULL;
-    }
+    sentry_jsonwriter_t *jw = sentry__jsonwriter_new_in_memory();
+    sentry__session_to_json(session, jw);
+    char *payload = sentry__jsonwriter_into_string(jw);
+    size_t payload_len = strlen(payload);
 
-    item->payload = buf;
-    item->payload_len = buf_len;
-    sentry_value_t length = sentry_value_new_int32((int32_t)buf_len);
-    sentry__envelope_item_set_header(
-        item, "type", sentry_value_new_string(type));
-    sentry__envelope_item_set_header(item, "length", length);
-
-    return item;
+    return envelope_add_from_owned_buffer(
+        envelope, payload, payload_len, "session");
 }
 
 sentry_envelope_item_t *
@@ -425,8 +439,10 @@ sentry__envelope_for_each_request(const sentry_envelope_t *envelope,
     }
 
     const sentry_envelope_item_t *attachments[MAX_ENVELOPE_ITEMS];
+    const sentry_envelope_item_t *other[MAX_ENVELOPE_ITEMS];
     const sentry_envelope_item_t *minidump = NULL;
     size_t attachment_count = 0;
+    size_t other_count = 0;
 
     for (size_t i = 0; i < envelope->contents.items.item_count; i++) {
         const sentry_envelope_item_t *item = &envelope->contents.items.items[i];
@@ -448,6 +464,10 @@ sentry__envelope_for_each_request(const sentry_envelope_t *envelope,
             minidump = item;
             break;
         }
+        case ENVELOPE_ITEM_TYPE_UNKNOWN: {
+            other[other_count++] = item;
+            break;
+        }
         default:
             continue;
         }
@@ -459,49 +479,85 @@ sentry__envelope_for_each_request(const sentry_envelope_t *envelope,
         endpoint_type = ENDPOINT_TYPE_MINIDUMP;
     }
 
-    if (attachment_count == 0) {
-        return;
+    if (other_count > 0) {
+        sentry_stringbuilder_t sb;
+        sentry__stringbuilder_init(&sb);
+        sentry__envelope_serialize_headers_into_stringbuilder(envelope, &sb);
+        for (size_t i = 0; i < other_count; i++) {
+            sentry__envelope_serialize_item_into_stringbuilder(other[i], &sb);
+        }
+        size_t body_len = sentry__stringbuilder_len(&sb);
+        char *body = sentry__stringbuilder_into_string(&sb);
+        req = prepare_http_request(&event_id, endpoint_type,
+            "application/x-sentry-envelope", body, body_len, true);
+        callback(req, envelope, data);
     }
 
-    char boundary[50];
-    gen_boundary(boundary);
+    if (attachment_count > 0) {
+        char boundary[50];
+        gen_boundary(boundary);
 
-    sentry_stringbuilder_t sb;
-    sentry__stringbuilder_init(&sb);
+        sentry_stringbuilder_t sb;
+        sentry__stringbuilder_init(&sb);
 
-    for (size_t i = 0; i < attachment_count; i++) {
-        const sentry_envelope_item_t *item = attachments[i];
+        for (size_t i = 0; i < attachment_count; i++) {
+            const sentry_envelope_item_t *item = attachments[i];
+            sentry__stringbuilder_append(&sb, "--");
+            sentry__stringbuilder_append(&sb, boundary);
+            sentry__stringbuilder_append(&sb, "\r\ncontent-type:");
+            sentry__stringbuilder_append(
+                &sb, envelope_item_get_content_type(item));
+            sentry__stringbuilder_append(
+                &sb, "\r\ncontent-disposition:form-data;name=\"");
+            sentry__stringbuilder_append(&sb, envelope_item_get_name(item));
+            sentry__stringbuilder_append(&sb, "\";filename=\"");
+            sentry__stringbuilder_append(&sb, envelope_item_get_filename(item));
+            sentry__stringbuilder_append(&sb, "\"\r\n\r\n");
+            sentry__stringbuilder_append_buf(
+                &sb, item->payload, item->payload_len);
+            sentry__stringbuilder_append(&sb, "\r\n");
+        }
         sentry__stringbuilder_append(&sb, "--");
         sentry__stringbuilder_append(&sb, boundary);
-        sentry__stringbuilder_append(&sb, "\r\ncontent-type:");
-        sentry__stringbuilder_append(&sb, envelope_item_get_content_type(item));
-        sentry__stringbuilder_append(
-            &sb, "\r\ncontent-disposition:form-data;name=\"");
-        sentry__stringbuilder_append(&sb, envelope_item_get_name(item));
-        sentry__stringbuilder_append(&sb, "\";filename=\"");
-        sentry__stringbuilder_append(&sb, envelope_item_get_filename(item));
-        sentry__stringbuilder_append(&sb, "\"\r\n\r\n");
-        sentry__stringbuilder_append_buf(&sb, item->payload, item->payload_len);
-        sentry__stringbuilder_append(&sb, "\r\n");
+        sentry__stringbuilder_append(&sb, "--");
+
+        size_t body_len = sentry__stringbuilder_len(&sb);
+        char *body = sentry__stringbuilder_into_string(&sb);
+
+        sentry__stringbuilder_init(&sb);
+        sentry__stringbuilder_append(&sb, "multipart/form-data;boundary=\"");
+        sentry__stringbuilder_append(&sb, boundary);
+        sentry__stringbuilder_append(&sb, "\"");
+        char *content_type = sentry__stringbuilder_into_string(&sb);
+
+        req = prepare_http_request(
+            &event_id, endpoint_type, content_type, body, body_len, true);
+        sentry_free(content_type);
+
+        callback(req, envelope, data);
     }
-    sentry__stringbuilder_append(&sb, "--");
-    sentry__stringbuilder_append(&sb, boundary);
-    sentry__stringbuilder_append(&sb, "--");
+}
 
-    size_t body_len = sentry__stringbuilder_len(&sb);
-    char *body = sentry__stringbuilder_into_string(&sb);
+void
+sentry__envelope_serialize_headers_into_stringbuilder(
+    const sentry_envelope_t *envelope, sentry_stringbuilder_t *sb)
+{
+    char *buf = sentry_value_to_json(envelope->contents.items.headers);
+    sentry__stringbuilder_append(sb, buf);
+    sentry_free(buf);
+}
 
-    sentry__stringbuilder_init(&sb);
-    sentry__stringbuilder_append(&sb, "multipart/form-data;boundary=\"");
-    sentry__stringbuilder_append(&sb, boundary);
-    sentry__stringbuilder_append(&sb, "\"");
-    char *content_type = sentry__stringbuilder_into_string(&sb);
+void
+sentry__envelope_serialize_item_into_stringbuilder(
+    const sentry_envelope_item_t *item, sentry_stringbuilder_t *sb)
+{
+    sentry__stringbuilder_append_char(sb, '\n');
+    char *buf = sentry_value_to_json(item->headers);
+    sentry__stringbuilder_append(sb, buf);
+    sentry__stringbuilder_append_char(sb, '\n');
+    sentry_free(buf);
 
-    req = prepare_http_request(
-        &event_id, endpoint_type, content_type, body, body_len, true);
-    sentry_free(content_type);
-
-    callback(req, envelope, data);
+    sentry__stringbuilder_append_buf(sb, item->payload, item->payload_len);
 }
 
 void
@@ -515,20 +571,11 @@ sentry__envelope_serialize_into_stringbuilder(
     }
 
     SENTRY_TRACE("serializing envelope into buffer");
-    char *buf = sentry_value_to_json(envelope->contents.items.headers);
-    sentry__stringbuilder_append(sb, buf);
-    sentry_free(buf);
+    sentry__envelope_serialize_headers_into_stringbuilder(envelope, sb);
 
     for (size_t i = 0; i < envelope->contents.items.item_count; i++) {
         const sentry_envelope_item_t *item = &envelope->contents.items.items[i];
-
-        sentry__stringbuilder_append_char(sb, '\n');
-        buf = sentry_value_to_json(item->headers);
-        sentry__stringbuilder_append(sb, buf);
-        sentry__stringbuilder_append_char(sb, '\n');
-        sentry_free(buf);
-
-        sentry__stringbuilder_append_buf(sb, item->payload, item->payload_len);
+        sentry__envelope_serialize_item_into_stringbuilder(item, sb);
     }
 }
 

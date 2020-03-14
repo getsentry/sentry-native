@@ -64,6 +64,12 @@ char *sentry__dsn_get_attachment_url(
         } while (false)
 #endif
 
+/* returns the UTC time as struct tm * that must be freed */
+void sentry__utcnow(struct tm *tm_out);
+
+/* format a time to ISO format */
+char *sentry__time_to_iso8601(const struct tm *time);
+
 /* returns the number of milliseconds since epoch. */
 static inline uint64_t
 sentry__msec_time(void)

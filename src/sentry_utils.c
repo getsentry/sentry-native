@@ -1,6 +1,7 @@
 #include "sentry_utils.h"
 #include "sentry_core.h"
 #include "sentry_string.h"
+#include "sentry_alloc.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -338,4 +339,27 @@ sentry__dsn_get_attachment_url(
     sentry__stringbuilder_append(&sb, event_id_buf);
     sentry__stringbuilder_append(&sb, "/attachments/");
     return sentry__stringbuilder_into_string(&sb);
+}
+
+void
+sentry__utcnow(struct tm *tm_out)
+{
+    time_t now;
+    time(&now);
+    struct tm *rv;
+#ifdef SENTRY_PLATFORM_WINDOWS
+    rv = gmtime(&now);
+#else
+    struct tm buf;
+    rv = gmtime_r(&now, &buf);
+#endif
+    *tm_out = *rv;
+}
+
+char *
+sentry__time_to_iso8601(const struct tm *time)
+{
+    char buf[255];
+    strftime(buf, sizeof buf, "%FT%TZ", time);
+    return sentry__string_clone(buf);
 }

@@ -70,8 +70,7 @@ sentry__enqueue_unsent_envelopes(const sentry_options_t *options)
                 && sentry__path_ends_with(envelope_file, ".envelope")) {
                 sentry_envelope_t *envelope
                     = sentry__envelope_from_disk(envelope_file);
-                options->transport->send_envelope_func(
-                    options->transport, envelope);
+                sentry__capture_envelope(envelope);
             }
 
             sentry__path_remove_all(envelope_file);

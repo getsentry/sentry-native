@@ -14,6 +14,7 @@
 #include "sentry_sync.h"
 #include "sentry_transport.h"
 #include "sentry_value.h"
+#include "sentry_sessions.h"
 #include "transports/sentry_disk_transport.h"
 
 static sentry_options_t *g_options;
@@ -165,6 +166,16 @@ sentry_user_consent_get(void)
     return rv;
 }
 
+void
+sentry__capture_envelope(sentry_envelope_t *envelope)
+{
+    const sentry_options_t *opts = sentry_get_options();
+    if (opts->transport) {
+        SENTRY_TRACE("sending envelope");
+        opts->transport->send_envelope_func(opts->transport, envelope);
+    }
+}
+
 sentry_uuid_t
 sentry_capture_event(sentry_value_t event)
 {
@@ -206,9 +217,11 @@ sentry_capture_event(sentry_value_t event)
                     sentry__path_filename(attachment->path)));
         }
 
+        sentry__record_errors_on_current_session(1);
+        sentry__add_current_session_to_envelope(envelope);
+
         if (sentry__envelope_add_event(envelope, event)) {
-            SENTRY_TRACE("sending envelope");
-            opts->transport->send_envelope_func(opts->transport, envelope);
+            sentry__capture_envelope(envelope);
         } else {
             sentry_envelope_free(envelope);
         }

@@ -6,6 +6,7 @@
 
 #include "sentry_path.h"
 #include "sentry_string.h"
+#include "sentry_sessions.h"
 
 struct sentry_envelope_item_s;
 typedef struct sentry_envelope_item_s sentry_envelope_item_t;
@@ -32,6 +33,8 @@ sentry_envelope_t *sentry__envelope_from_disk(const sentry_path_t *path);
 sentry_uuid_t sentry__envelope_get_event_id(const sentry_envelope_t *envelope);
 sentry_envelope_item_t *sentry__envelope_add_event(
     sentry_envelope_t *envelope, sentry_value_t event);
+sentry_envelope_item_t *sentry__envelope_add_session(
+    sentry_envelope_t *envelope, const sentry_session_t *session);
 sentry_envelope_item_t *sentry__envelope_add_from_path(
     sentry_envelope_t *envelope, const sentry_path_t *path, const char *type);
 sentry_envelope_item_t *sentry__envelope_add_from_buffer(
@@ -44,6 +47,10 @@ void sentry__envelope_for_each_request(const sentry_envelope_t *envelope,
         const sentry_envelope_t *, void *data),
     void *data);
 
+void sentry__envelope_serialize_headers_into_stringbuilder(
+    const sentry_envelope_t *envelope, sentry_stringbuilder_t *sb);
+void sentry__envelope_serialize_item_into_stringbuilder(
+    const sentry_envelope_item_t *item, sentry_stringbuilder_t *sb);
 void sentry__envelope_serialize_into_stringbuilder(
     const sentry_envelope_t *envelope, sentry_stringbuilder_t *sb);
 

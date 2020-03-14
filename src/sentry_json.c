@@ -204,9 +204,35 @@ sentry__jsonwriter_write_double(sentry_jsonwriter_t *jw, double val)
 void
 sentry__jsonwriter_write_str(sentry_jsonwriter_t *jw, const char *val)
 {
+    if (!val) {
+        sentry__jsonwriter_write_null(jw);
+        return;
+    }
     if (can_write_item(jw)) {
         write_json_str(jw, val);
     }
+}
+
+void
+sentry__jsonwriter_write_uuid(
+    sentry_jsonwriter_t *jw, const sentry_uuid_t *uuid)
+{
+    if (!uuid) {
+        sentry__jsonwriter_write_null(jw);
+        return;
+    }
+    char buf[37];
+    sentry_uuid_as_string(uuid, buf);
+    sentry__jsonwriter_write_str(jw, buf);
+}
+
+void
+sentry__jsonwriter_write_timestamp(
+    sentry_jsonwriter_t *jw, const struct tm *time)
+{
+    char *formatted = sentry__time_to_iso8601(time);
+    sentry__jsonwriter_write_str(jw, formatted);
+    sentry_free(formatted);
 }
 
 void
