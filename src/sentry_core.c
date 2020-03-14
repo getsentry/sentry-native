@@ -71,6 +71,7 @@ sentry_init(sentry_options_t *options)
 
     // after initializing the transport, we will submit all the unsent envelopes
     sentry__enqueue_unsent_envelopes(options);
+
     // and then create our new run, so it will not interfere with enumerating
     // all the past runs
     options->run = sentry__run_new(options->database_path);

@@ -9,7 +9,7 @@ typedef struct sentry_jsonwriter_s sentry_jsonwriter_t;
 
 sentry_jsonwriter_t *sentry__jsonwriter_new_in_memory(void);
 void sentry__jsonwriter_free(sentry_jsonwriter_t *jw);
-char *sentry__jsonwriter_into_string(sentry_jsonwriter_t *jw);
+char *sentry__jsonwriter_into_string(sentry_jsonwriter_t *jw, size_t *len_out);
 
 void sentry__jsonwriter_write_null(sentry_jsonwriter_t *jw);
 void sentry__jsonwriter_write_bool(sentry_jsonwriter_t *jw, bool val);

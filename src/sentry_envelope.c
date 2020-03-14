@@ -311,8 +311,8 @@ sentry__envelope_add_session(
 {
     sentry_jsonwriter_t *jw = sentry__jsonwriter_new_in_memory();
     sentry__session_to_json(session, jw);
-    char *payload = sentry__jsonwriter_into_string(jw);
-    size_t payload_len = strlen(payload);
+    size_t payload_len;
+    char *payload = sentry__jsonwriter_into_string(jw, &payload_len);
 
     return envelope_add_from_owned_buffer(
         envelope, payload, payload_len, "session");

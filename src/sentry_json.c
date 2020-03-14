@@ -56,14 +56,32 @@ sentry__jsonwriter_free(sentry_jsonwriter_t *jw)
     sentry_free(jw);
 }
 
+size_t
+sentry__jsonwriter_get_length(const sentry_jsonwriter_t *jw)
+{
+    switch (jw->dst_mode) {
+    case DST_MODE_SB: {
+        const sentry_stringbuilder_t *sb = jw->dst.sb;
+        return sb->len;
+    }
+    default:
+        return 0;
+    }
+}
+
 char *
-sentry__jsonwriter_into_string(sentry_jsonwriter_t *jw)
+sentry__jsonwriter_into_string(sentry_jsonwriter_t *jw, size_t *len_out)
 {
     char *rv = NULL;
     switch (jw->dst_mode) {
-    case DST_MODE_SB:
-        rv = sentry__stringbuilder_into_string(jw->dst.sb);
+    case DST_MODE_SB: {
+        sentry_stringbuilder_t *sb = jw->dst.sb;
+        if (len_out) {
+            *len_out = sb->len;
+        }
+        rv = sentry__stringbuilder_into_string(sb);
         break;
+    }
     }
     sentry__jsonwriter_free(jw);
     return rv;

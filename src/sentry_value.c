@@ -740,7 +740,7 @@ sentry_value_to_json(sentry_value_t value)
 {
     sentry_jsonwriter_t *jw = sentry__jsonwriter_new_in_memory();
     value_to_json(jw, value);
-    return sentry__jsonwriter_into_string(jw);
+    return sentry__jsonwriter_into_string(jw, NULL);
 }
 
 static void

@@ -1,6 +1,7 @@
 #include "sentry_database.h"
 #include "sentry_alloc.h"
 #include "sentry_envelope.h"
+#include "sentry_json.h"
 #include <string.h>
 
 sentry_run_t *
@@ -52,6 +53,36 @@ sentry__run_write_envelope(const sentry_run_t *run, sentry_envelope_t *envelope)
     }
 
     // the `write_to_path` returns > 0 on failure, but we would like a real bool
+    return !rv;
+}
+
+bool
+sentry__run_write_session(
+    const sentry_run_t *run, const sentry_session_t *session)
+{
+    sentry_path_t *output_path
+        = sentry__path_join_str(run->run_path, "session.json");
+
+    sentry_jsonwriter_t *jw = sentry__jsonwriter_new_in_memory();
+    sentry__session_to_json(session, jw);
+    size_t buf_len;
+    char *buf = sentry__jsonwriter_into_string(jw, &buf_len);
+
+    int rv = sentry__path_write_buffer(output_path, buf, buf_len);
+
+    sentry__path_free(output_path);
+    sentry_free(buf);
+
+    return !rv;
+}
+
+bool
+sentry__run_clear_session(const sentry_run_t *run)
+{
+    sentry_path_t *output_path
+        = sentry__path_join_str(run->run_path, "session.json");
+    int rv = sentry__path_remove(output_path);
+    sentry__path_free(output_path);
     return !rv;
 }
 

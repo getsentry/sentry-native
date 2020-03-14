@@ -97,6 +97,11 @@ sentry__scope_flush(const sentry_scope_t *scope)
     if (options && options->backend && options->backend->flush_scope_func) {
         options->backend->flush_scope_func(options->backend, scope);
     }
+    if (scope->session) {
+        sentry__run_write_session(options->run, scope->session);
+    } else {
+        sentry__run_clear_session(options->run);
+    }
 }
 
 void
