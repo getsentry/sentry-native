@@ -8,6 +8,7 @@
 #include "sentry_json.h"
 #include "sentry_string.h"
 #include "sentry_value.h"
+#include "sentry_utils.h"
 
 #define DST_MODE_SB 1
 

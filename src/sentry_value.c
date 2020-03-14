@@ -461,6 +461,17 @@ sentry_value_append(sentry_value_t value, sentry_value_t v)
     return 0;
 }
 
+sentry_uuid_t
+sentry__value_as_uuid(sentry_value_t value)
+{
+    const char *val = sentry_value_as_string(value);
+    if (val) {
+        return sentry_uuid_from_string(val);
+    } else {
+        return sentry_uuid_nil();
+    }
+}
+
 sentry_value_t
 sentry__value_clone(sentry_value_t value)
 {

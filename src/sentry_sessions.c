@@ -5,7 +5,9 @@
 #include "sentry_scope.h"
 #include "sentry_string.h"
 #include "sentry_utils.h"
+#include "sentry_value.h"
 
+#include <string.h>
 #include <assert.h>
 
 static const char *
@@ -82,6 +84,49 @@ sentry__session_to_json(
     sentry__jsonwriter_write_object_end(jw);
 
     sentry__jsonwriter_write_object_end(jw);
+}
+
+sentry_session_t *
+sentry__session_from_json(const char *buf)
+{
+    size_t buflen = strlen(buf);
+    sentry_value_t value = sentry__value_from_json(buf, buflen);
+    if (sentry_value_is_null(value)) {
+        return NULL;
+    }
+
+    sentry_session_t *rv = SENTRY_MAKE(sentry_session_t);
+    rv->session_id
+        = sentry__value_as_uuid(sentry_value_get_by_key(value, "sid"));
+
+    sentry_value_t distinct_id = sentry_value_get_by_key(value, "did");
+    if (sentry_value_is_null(distinct_id)) {
+        rv->distinct_id = NULL;
+    } else {
+        rv->distinct_id
+            = sentry__string_clone(sentry_value_as_string(distinct_id));
+    }
+
+    const char *status
+        = sentry_value_as_string(sentry_value_get_by_key(value, "status"));
+    if (strcmp(status, "ok") == 0) {
+        rv->status = SENTRY_SESSION_STATUS_OK;
+    } else if (strcmp(status, "exited") == 0) {
+        rv->status = SENTRY_SESSION_STATUS_EXITED;
+    } else if (strcmp(status, "crashed") == 0) {
+        rv->status = SENTRY_SESSION_STATUS_CRASHED;
+    } else {
+        rv->status = SENTRY_SESSION_STATUS_ABNORMAL;
+    }
+
+    rv->init = sentry_value_is_true(sentry_value_get_by_key(value, "init"));
+    rv->errors = (int64_t)sentry_value_as_int32(
+        sentry_value_get_by_key(value, "errors"));
+    rv->started_ms = (int64_t)(
+        sentry_value_as_double(sentry_value_get_by_key(value, "started"))
+        * 1000);
+
+    return rv;
 }
 
 void
