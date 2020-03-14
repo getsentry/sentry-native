@@ -1,9 +1,6 @@
 [submodule "external/libunwindstack-ndk"]
 	path = external/libunwindstack-ndk
 	url = https://github.com/getsentry/libunwindstack-ndk
-[submodule "external/crashpad"]
-	path = external/crashpad
-	url = https://github.com/getsentry/crashpad.git
 [submodule "external/breakpad"]
 	path = external/breakpad
 	url = https://chromium.googlesource.com/breakpad/breakpad.git
