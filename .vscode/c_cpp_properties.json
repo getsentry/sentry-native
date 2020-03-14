@@ -21,6 +21,7 @@
             "name": "Win32",
             "browse": {
                 "path": [
+                    "C:/msys64/mingw64/include/c++/9.3.0",
                     "C:/msys64/mingw64/include/c++",
                     "C:/msys64/mingw64/include",
                     "C:/msys64/mingw64/lib"

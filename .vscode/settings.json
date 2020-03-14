@@ -1,11 +1,4 @@
 {
-  "editor.formatOnPaste": true,
-  "editor.formatOnSave": true,
-  "editor.formatOnType": true,
-  "files.trimTrailingWhitespace": true,
-  "files.insertFinalNewline": true,
-  // C++ Extension
-  "C_Cpp.autoAddFileAssociations": false,
   "terminal.integrated.shell.windows": "C:/msys64/usr/bin/bash.exe",
   "terminal.integrated.shellArgs.windows": [
     "--login",
@@ -17,5 +10,8 @@
     "CHERE_INVOKING": "1",
     "MSVSCODE": "1"
   },
-  "terminal.integrated.scrollback": 10000
+  "terminal.integrated.scrollback": 10000,
+  "files.associations": {
+    "shlwapi.h": "c"
+  }
 }

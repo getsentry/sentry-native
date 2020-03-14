@@ -31,7 +31,7 @@
       },
       "type": "shell",
       "windows": {
-        "command": "git submodule update --init --recursive; rm -rf out; cmake -GNinja -Bbuild -H. -DCMAKE_BUILD_TYPE=Debug"
+        "command": "git submodule update --init --recursive; rm -rf out; cmake -GNinja -Bbuild -H. -DCMAKE_BUILD_TYPE=Debug -DCMAKE_TOOLCHAIN_FILE=clang-toolchain.cmake"
       }
     },
     {

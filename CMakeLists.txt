@@ -200,8 +200,11 @@ if(WITH_LIBUNWINDSTACK)
 	endif()
 endif()
 
-if(WIN32)
+if(MSVC)
 	target_link_libraries(sentry PRIVATE dbghelp pathcch)
+elseif(MINGW)
+	target_compile_definitions(sentry PRIVATE __LP64__) #force 64bits flag to remove some -Wincompatible-pointer-types errors 
+	target_link_libraries(sentry PRIVATE dbghelp shlwapi)
 endif()
 
 if(BACKEND_CRASHPAD)
