@@ -26,4 +26,6 @@ void sentry__jsonwriter_write_list_end(sentry_jsonwriter_t *jw);
 void sentry__jsonwriter_write_object_start(sentry_jsonwriter_t *jw);
 void sentry__jsonwriter_write_object_end(sentry_jsonwriter_t *jw);
 
+sentry_value_t sentry__value_from_json(const char *buf, size_t buflen);
+
 #endif

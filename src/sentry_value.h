@@ -20,4 +20,7 @@ sentry_value_t sentry__value_clone(sentry_value_t value);
 int sentry__value_append_bounded(
     sentry_value_t value, sentry_value_t v, size_t max);
 
+// this is actually declared in sentry_json.h
+sentry_value_t sentry__value_from_json(const char *buf, size_t buflen);
+
 #endif
