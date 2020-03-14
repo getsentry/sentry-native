@@ -862,10 +862,9 @@ sentry_value_new_event(void)
     sentry_uuid_t uuid = sentry__new_event_id();
     sentry_value_set_by_key(rv, "event_id", sentry__value_new_uuid(&uuid));
 
-    struct tm now;
-    sentry__utcnow(&now);
     sentry_value_set_by_key(rv, "timestamp",
-        sentry__value_new_string_owned(sentry__time_to_iso8601(&now)));
+        sentry__value_new_string_owned(
+            sentry__msec_time_to_iso8601(sentry__msec_time())));
 
     return rv;
 }
@@ -892,10 +891,9 @@ sentry_value_t
 sentry_value_new_breadcrumb(const char *type, const char *message)
 {
     sentry_value_t rv = sentry_value_new_object();
-    struct tm now;
-    sentry__utcnow(&now);
     sentry_value_set_by_key(rv, "timestamp",
-        sentry__value_new_string_owned(sentry__time_to_iso8601(&now)));
+        sentry__value_new_string_owned(
+            sentry__msec_time_to_iso8601(sentry__msec_time())));
 
     if (type) {
         sentry_value_set_by_key(rv, "type", sentry_value_new_string(type));

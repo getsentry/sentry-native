@@ -34,7 +34,6 @@ sentry__session_new(void)
     rv->status = SENTRY_SESSION_STATUS_OK;
     rv->init = true;
     rv->errors = 0;
-    sentry__utcnow(&rv->started);
     rv->started_ms = sentry__msec_time();
 
     return rv;
@@ -65,7 +64,7 @@ sentry__session_to_json(
         sentry__jsonwriter_write_str(jw, session->distinct_id);
     }
     sentry__jsonwriter_write_key(jw, "started");
-    sentry__jsonwriter_write_timestamp(jw, &session->started);
+    sentry__jsonwriter_write_msec_timestamp(jw, session->started_ms);
     sentry__jsonwriter_write_key(jw, "errors");
     sentry__jsonwriter_write_int32(jw, (int32_t)session->errors);
 

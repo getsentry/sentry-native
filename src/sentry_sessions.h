@@ -17,7 +17,6 @@ typedef enum {
 typedef struct sentry_session_s {
     sentry_uuid_t session_id;
     char *distinct_id;
-    struct tm started;
     uint64_t started_ms;
     bool init;
     uint64_t errors;

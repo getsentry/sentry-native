@@ -341,25 +341,33 @@ sentry__dsn_get_attachment_url(
     return sentry__stringbuilder_into_string(&sb);
 }
 
-void
-sentry__utcnow(struct tm *tm_out)
-{
-    time_t now;
-    time(&now);
-    struct tm *rv;
-#ifdef SENTRY_PLATFORM_WINDOWS
-    rv = gmtime(&now);
-#else
-    struct tm buf;
-    rv = gmtime_r(&now, &buf);
-#endif
-    *tm_out = *rv;
-}
-
 char *
 sentry__time_to_iso8601(const struct tm *time)
 {
     char buf[255];
     strftime(buf, sizeof buf, "%FT%TZ", time);
+    return sentry__string_clone(buf);
+}
+
+char *
+sentry__msec_time_to_iso8601(uint64_t time)
+{
+    char buf[255];
+    time_t secs = time / 1000;
+    struct tm *tm;
+#ifdef SENTRY_PLATFORM_WINDOWS
+    tm = gmtime(&secs);
+#else
+    struct tm tm_buf;
+    tm = gmtime_r(&secs, &tm_buf);
+#endif
+    size_t end = strftime(buf, sizeof buf, "%FT%T", tm);
+
+    int msecs = time % 1000;
+    if (msecs) {
+        snprintf(buf + end, 10, "%03d000", msecs);
+    }
+
+    strcpy(buf, "Z");
     return sentry__string_clone(buf);
 }

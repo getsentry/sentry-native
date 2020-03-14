@@ -249,10 +249,9 @@ sentry__jsonwriter_write_uuid(
 }
 
 void
-sentry__jsonwriter_write_timestamp(
-    sentry_jsonwriter_t *jw, const struct tm *time)
+sentry__jsonwriter_write_msec_timestamp(sentry_jsonwriter_t *jw, uint64_t time)
 {
-    char *formatted = sentry__time_to_iso8601(time);
+    char *formatted = sentry__msec_time_to_iso8601(time);
     sentry__jsonwriter_write_str(jw, formatted);
     sentry_free(formatted);
 }
