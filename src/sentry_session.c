@@ -148,6 +148,7 @@ sentry_start_session(void)
     sentry_end_session();
     SENTRY_WITH_SCOPE_MUT (scope) {
         scope->session = sentry__session_new();
+        sentry__scope_session_sync(scope);
     }
 }
 

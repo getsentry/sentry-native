@@ -541,6 +541,7 @@ sentry_set_user(sentry_value_t user)
     SENTRY_WITH_SCOPE_MUT (scope) {
         sentry_value_decref(scope->user);
         scope->user = user;
+        sentry__scope_session_sync(scope);
     }
 }
 

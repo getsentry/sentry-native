@@ -472,6 +472,24 @@ sentry__value_as_uuid(sentry_value_t value)
     }
 }
 
+char *
+sentry__value_stringify(sentry_value_t value)
+{
+    switch (sentry_value_get_type(value)) {
+    case SENTRY_VALUE_TYPE_LIST:
+    case SENTRY_VALUE_TYPE_OBJECT:
+    case SENTRY_VALUE_TYPE_NULL:
+        return sentry__string_clone("");
+    case SENTRY_VALUE_TYPE_STRING:
+        return sentry__string_clone(sentry_value_as_string(value));
+    default: {
+        char buf[50];
+        snprintf(buf, sizeof(buf), "%g", sentry_value_as_double(value));
+        return sentry__string_clone(buf);
+    }
+    }
+}
+
 sentry_value_t
 sentry__value_clone(sentry_value_t value)
 {
