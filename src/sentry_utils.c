@@ -368,6 +368,6 @@ sentry__msec_time_to_iso8601(uint64_t time)
         snprintf(buf + end, 10, "%03d000", msecs);
     }
 
-    strcpy(buf, "Z");
+    strcat(buf, "Z");
     return sentry__string_clone(buf);
 }

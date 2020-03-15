@@ -95,7 +95,10 @@ void
 sentry__scope_flush(const sentry_scope_t *scope)
 {
     const sentry_options_t *options = sentry_get_options();
-    if (options && options->backend && options->backend->flush_scope_func) {
+    if (!options) {
+        return;
+    }
+    if (options->backend && options->backend->flush_scope_func) {
         options->backend->flush_scope_func(options->backend, scope);
     }
     if (scope->session) {
