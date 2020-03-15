@@ -62,6 +62,7 @@ sentry__session_free(sentry_session_t *session)
     if (!session) {
         return;
     }
+    sentry_free(session->distinct_id);
     sentry_free(session);
 }
 
