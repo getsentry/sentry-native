@@ -27,6 +27,20 @@ status_as_string(sentry_session_status_t status)
     }
 }
 
+static sentry_session_status_t
+status_from_string(const char *status)
+{
+    if (strcmp(status, "ok") == 0) {
+        return SENTRY_SESSION_STATUS_OK;
+    } else if (strcmp(status, "exited") == 0) {
+        return SENTRY_SESSION_STATUS_EXITED;
+    } else if (strcmp(status, "crashed") == 0) {
+        return SENTRY_SESSION_STATUS_CRASHED;
+    } else {
+        return SENTRY_SESSION_STATUS_ABNORMAL;
+    }
+}
+
 sentry_session_t *
 sentry__session_new(void)
 {
@@ -116,15 +130,7 @@ sentry__session_from_json(const char *buf, size_t buflen)
 
     const char *status
         = sentry_value_as_string(sentry_value_get_by_key(value, "status"));
-    if (strcmp(status, "ok") == 0) {
-        rv->status = SENTRY_SESSION_STATUS_OK;
-    } else if (strcmp(status, "exited") == 0) {
-        rv->status = SENTRY_SESSION_STATUS_EXITED;
-    } else if (strcmp(status, "crashed") == 0) {
-        rv->status = SENTRY_SESSION_STATUS_CRASHED;
-    } else {
-        rv->status = SENTRY_SESSION_STATUS_ABNORMAL;
-    }
+    rv->status = status_from_string(status);
 
     rv->init = sentry_value_is_true(sentry_value_get_by_key(value, "init"));
     rv->errors = (int64_t)sentry_value_as_int32(
