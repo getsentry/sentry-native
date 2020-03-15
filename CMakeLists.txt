@@ -118,6 +118,23 @@ function(sentry_target_sources_cwd TARGET)
 	endforeach()
 endfunction()
 
+#respect CMAKE_SYSTEM_VERSION
+if(WIN32)
+    if(${CMAKE_SYSTEM_VERSION} EQUAL 10)
+        add_definitions(-D_WIN32_WINNT=0x0A00)
+    elseif(${CMAKE_SYSTEM_VERSION} EQUAL 6.3)
+        add_definitions(-D_WIN32_WINNT=0x0603)
+    elseif(${CMAKE_SYSTEM_VERSION} EQUAL 6.2)
+        add_definitions(-D_WIN32_WINNT=0x0602)
+    elseif(${CMAKE_SYSTEM_VERSION} EQUAL 6.1)
+        add_definitions(-D_WIN32_WINNT=0x0601)
+    elseif(${CMAKE_SYSTEM_VERSION} EQUAL 6.0)
+        add_definitions(-D_WIN32_WINNT=0x0600)
+    else()
+        add_definitions(-D_WIN32_WINNT=0x0501)
+    endif()
+endif()
+
 # ===== sentry library =====
 
 add_library(sentry "${PROJECT_SOURCE_DIR}/vendor/mpack.c")
@@ -156,10 +173,9 @@ endif()
 
 if(WIN32)
 	target_compile_definitions(sentry
-		PRIVATE WINVER=0x0603 NTDDI_VERSION=0x06030000
 		PUBLIC SENTRY_WITH_WINHTTP_TRANSPORT
 	)
-	target_link_libraries(sentry PRIVATE winhttp)
+	target_link_libraries(sentry PRIVATE winhttp shlwapi)
 endif()
 
 #set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Werror=implicit-function-declaration -Werror=incompatible-function-pointer-types -Wall -fvisibility=hidden")
