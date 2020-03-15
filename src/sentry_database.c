@@ -2,6 +2,7 @@
 #include "sentry_alloc.h"
 #include "sentry_envelope.h"
 #include "sentry_json.h"
+#include "sentry_session.h"
 #include <string.h>
 
 sentry_run_t *
@@ -87,27 +88,46 @@ sentry__run_clear_session(const sentry_run_t *run)
 }
 
 void
-sentry__enqueue_unsent_envelopes(const sentry_options_t *options)
+sentry__process_old_runs(const sentry_options_t *options)
 {
     sentry_pathiter_t *db_iter
         = sentry__path_iter_directory(options->database_path);
     const sentry_path_t *run_dir;
+    sentry_envelope_t *session_envelope = NULL;
+
     while ((run_dir = sentry__pathiter_next(db_iter)) != NULL) {
         sentry_pathiter_t *run_iter = sentry__path_iter_directory(run_dir);
-        const sentry_path_t *envelope_file;
-        while ((envelope_file = sentry__pathiter_next(run_iter)) != NULL) {
-
-            if (options->transport
-                && sentry__path_ends_with(envelope_file, ".envelope")) {
-                sentry_envelope_t *envelope
-                    = sentry__envelope_from_disk(envelope_file);
-                sentry__capture_envelope(envelope);
+        const sentry_path_t *file;
+        while ((file = sentry__pathiter_next(run_iter)) != NULL) {
+            if (options->transport) {
+                if (sentry__path_filename_matches(file, "session.json")) {
+                    if (!session_envelope) {
+                        session_envelope = sentry__envelope_new();
+                    }
+                    sentry_session_t *session = sentry__session_from_path(file);
+                    if (session->status == SENTRY_SESSION_STATUS_OK) {
+                        session->status = SENTRY_SESSION_STATUS_ABNORMAL;
+                    }
+                    sentry__envelope_add_session(session_envelope, session);
+                    sentry__session_free(session);
+                } else if (sentry__path_ends_with(file, ".envelope")) {
+                    sentry_envelope_t *envelope
+                        = sentry__envelope_from_path(file);
+                    if (envelope) {
+                        sentry__capture_envelope(envelope);
+                    }
+                }
             }
 
-            sentry__path_remove_all(envelope_file);
+            sentry__path_remove_all(file);
         }
         sentry__pathiter_free(run_iter);
         sentry__path_remove_all(run_dir);
     }
+
+    if (session_envelope) {
+        sentry__capture_envelope(session_envelope);
+    }
+
     sentry__pathiter_free(db_iter);
 }

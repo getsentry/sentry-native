@@ -3,7 +3,7 @@
 
 #include "sentry_boot.h"
 
-#include "sentry_sessions.h"
+#include "sentry_session.h"
 #include "sentry_value.h"
 
 typedef struct sentry_scope_s {

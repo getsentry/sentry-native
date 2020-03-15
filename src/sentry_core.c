@@ -14,7 +14,7 @@
 #include "sentry_sync.h"
 #include "sentry_transport.h"
 #include "sentry_value.h"
-#include "sentry_sessions.h"
+#include "sentry_session.h"
 #include "transports/sentry_disk_transport.h"
 
 static sentry_options_t *g_options;
@@ -70,7 +70,8 @@ sentry_init(sentry_options_t *options)
     }
 
     // after initializing the transport, we will submit all the unsent envelopes
-    sentry__enqueue_unsent_envelopes(options);
+    // and handle remaining sessions.
+    sentry__process_old_runs(options);
 
     // and then create our new run, so it will not interfere with enumerating
     // all the past runs
@@ -89,6 +90,8 @@ sentry_init(sentry_options_t *options)
 void
 sentry_shutdown(void)
 {
+    sentry_end_session();
+
     sentry__mutex_lock(&g_options_mutex);
     sentry_options_t *options = g_options;
     sentry__mutex_unlock(&g_options_mutex);

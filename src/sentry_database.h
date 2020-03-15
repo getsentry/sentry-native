@@ -4,7 +4,7 @@
 #include "sentry_boot.h"
 
 #include "sentry_path.h"
-#include "sentry_sessions.h"
+#include "sentry_session.h"
 
 typedef struct {
     sentry_uuid_t uuid;
@@ -21,6 +21,6 @@ bool sentry__run_write_session(
     const sentry_run_t *run, const sentry_session_t *session);
 bool sentry__run_clear_session(const sentry_run_t *run);
 
-void sentry__enqueue_unsent_envelopes(const sentry_options_t *options);
+void sentry__process_old_runs(const sentry_options_t *options);
 
 #endif

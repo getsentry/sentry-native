@@ -236,7 +236,7 @@ sentry__envelope_new(void)
 }
 
 sentry_envelope_t *
-sentry__envelope_from_disk(const sentry_path_t *path)
+sentry__envelope_from_path(const sentry_path_t *path)
 {
     size_t buf_len;
     char *buf = sentry__path_read_to_buffer(path, &buf_len);

@@ -1,4 +1,4 @@
-#include "sentry_sessions.h"
+#include "sentry_session.h"
 #include "sentry_alloc.h"
 #include "sentry_envelope.h"
 #include "sentry_json.h"
@@ -87,9 +87,8 @@ sentry__session_to_json(
 }
 
 sentry_session_t *
-sentry__session_from_json(const char *buf)
+sentry__session_from_json(const char *buf, size_t buflen)
 {
-    size_t buflen = strlen(buf);
     sentry_value_t value = sentry__value_from_json(buf, buflen);
     if (sentry_value_is_null(value)) {
         return NULL;
@@ -126,6 +125,20 @@ sentry__session_from_json(const char *buf)
         sentry_value_as_double(sentry_value_get_by_key(value, "started"))
         * 1000);
 
+    return rv;
+}
+
+sentry_session_t *
+sentry__session_from_path(const sentry_path_t *path)
+{
+    size_t buf_len;
+    char *buf = sentry__path_read_to_buffer(path, &buf_len);
+    if (!buf) {
+        return NULL;
+    }
+
+    sentry_session_t *rv = sentry__session_from_json(buf, buf_len);
+    sentry_free(buf);
     return rv;
 }
 
@@ -166,6 +179,9 @@ sentry_end_session(void)
 
     SENTRY_WITH_SCOPE_MUT (scope) {
         if (scope->session) {
+            if (scope->session->status == SENTRY_SESSION_STATUS_OK) {
+                scope->session->status = SENTRY_SESSION_STATUS_EXITED;
+            }
             envelope = sentry__envelope_new();
             sentry__envelope_add_session(envelope, scope->session);
             sentry__session_free(scope->session);

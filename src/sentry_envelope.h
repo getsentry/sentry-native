@@ -6,7 +6,7 @@
 
 #include "sentry_path.h"
 #include "sentry_string.h"
-#include "sentry_sessions.h"
+#include "sentry_session.h"
 
 struct sentry_envelope_item_s;
 typedef struct sentry_envelope_item_s sentry_envelope_item_t;
@@ -29,7 +29,7 @@ typedef struct sentry_prepared_http_request_s {
 void sentry__prepared_http_request_free(sentry_prepared_http_request_t *req);
 
 sentry_envelope_t *sentry__envelope_new(void);
-sentry_envelope_t *sentry__envelope_from_disk(const sentry_path_t *path);
+sentry_envelope_t *sentry__envelope_from_path(const sentry_path_t *path);
 sentry_uuid_t sentry__envelope_get_event_id(const sentry_envelope_t *envelope);
 sentry_envelope_item_t *sentry__envelope_add_event(
     sentry_envelope_t *envelope, sentry_value_t event);

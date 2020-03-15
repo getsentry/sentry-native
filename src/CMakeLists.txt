@@ -18,8 +18,8 @@ sentry_target_sources_cwd(sentry
 	sentry_random.h
 	sentry_scope.c
 	sentry_scope.h
-	sentry_sessions.c
-	sentry_sessions.h
+	sentry_session.c
+	sentry_session.h
 	sentry_slice.c
 	sentry_slice.h
 	sentry_string.c
