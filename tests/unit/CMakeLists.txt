@@ -46,6 +46,10 @@ target_link_libraries(sentry_test_unit PRIVATE
 	"$<$<OR:$<PLATFORM_ID:Linux>,$<PLATFORM_ID:Android>>:-Wl,-E>"
 )
 
+if(MINGW)
+	target_compile_options(sentry_test_unit PRIVATE -Wno-unused-variable)
+endif()
+
 target_compile_definitions(sentry_test_unit PRIVATE SENTRY_UNITTEST)
 
 add_test(NAME sentry_test_unit COMMAND sentry_test_unit)
