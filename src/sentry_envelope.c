@@ -96,11 +96,11 @@ envelope_item_get_type(const sentry_envelope_item_t *item)
 {
     const char *ty = sentry_value_as_string(
         sentry_value_get_by_key(item->headers, "type"));
-    if (strcmp(ty, "event") == 0) {
+    if (sentry__string_eq(ty, "event")) {
         return ENVELOPE_ITEM_TYPE_EVENT;
-    } else if (strcmp(ty, "minidump") == 0) {
+    } else if (sentry__string_eq(ty, "minidump")) {
         return ENVELOPE_ITEM_TYPE_MINIDUMP;
-    } else if (strcmp(ty, "attachment") == 0) {
+    } else if (sentry__string_eq(ty, "attachment")) {
         return ENVELOPE_ITEM_TYPE_ATTACHMENT;
     } else {
         return ENVELOPE_ITEM_TYPE_UNKNOWN;
@@ -172,9 +172,9 @@ envelope_item_get_category(const sentry_envelope_item_t *item)
 {
     const char *ty = sentry_value_as_string(
         sentry_value_get_by_key(item->headers, "type"));
-    if (strcmp(ty, "session") == 0) {
+    if (sentry__string_eq(ty, "session")) {
         return SENTRY_RL_CATEGORY_SESSION;
-    } else if (strcmp(ty, "transaction") == 0) {
+    } else if (sentry__string_eq(ty, "transaction")) {
         return SENTRY_RL_CATEGORY_TRANSACTION;
     }
     return SENTRY_RL_CATEGORY_ERROR;

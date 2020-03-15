@@ -97,9 +97,9 @@ header_callback(char *buffer, size_t size, size_t nitems, void *userdata)
     if (sep) {
         *sep = '\0';
         sentry__string_ascii_lower(header);
-        if (strcmp(header, "retry-after") == 0) {
+        if (sentry__string_eq(header, "retry-after")) {
             info->retry_after = sentry__string_clone(sep + 1);
-        } else if (strcmp(header, "x-sentry-rate-limits") == 0) {
+        } else if (sentry__string_eq(header, "x-sentry-rate-limits")) {
             info->x_sentry_rate_limits = sentry__string_clone(sep + 1);
         }
     }

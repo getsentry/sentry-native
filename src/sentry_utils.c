@@ -164,9 +164,9 @@ sentry__url_parse(sentry_url_t *url_out, const char *url)
     }
 
     if (url_out->port == 0) {
-        if (strcmp(url_out->scheme, "https") == 0) {
+        if (sentry__string_eq(url_out->scheme, "https")) {
             url_out->port = 443;
-        } else if (strcmp(url_out->scheme, "http") == 0) {
+        } else if (sentry__string_eq(url_out->scheme, "http")) {
             url_out->port = 80;
         }
     }
@@ -216,9 +216,9 @@ sentry__dsn_parse(sentry_dsn_t *dsn_out, const char *dsn)
         return 1;
     }
 
-    if (strcmp(url.scheme, "https") == 0) {
+    if (sentry__string_eq(url.scheme, "https")) {
         dsn_out->is_secure = 1;
-    } else if (strcmp(url.scheme, "http") == 0) {
+    } else if (sentry__string_eq(url.scheme, "http")) {
         dsn_out->is_secure = 0;
     } else {
         goto error;

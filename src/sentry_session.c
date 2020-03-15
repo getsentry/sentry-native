@@ -30,11 +30,11 @@ status_as_string(sentry_session_status_t status)
 static sentry_session_status_t
 status_from_string(const char *status)
 {
-    if (strcmp(status, "ok") == 0) {
+    if (sentry__string_eq(status, "ok")) {
         return SENTRY_SESSION_STATUS_OK;
-    } else if (strcmp(status, "exited") == 0) {
+    } else if (sentry__string_eq(status, "exited")) {
         return SENTRY_SESSION_STATUS_EXITED;
-    } else if (strcmp(status, "crashed") == 0) {
+    } else if (sentry__string_eq(status, "crashed")) {
         return SENTRY_SESSION_STATUS_CRASHED;
     } else {
         return SENTRY_SESSION_STATUS_ABNORMAL;

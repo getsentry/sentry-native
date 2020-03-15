@@ -5,6 +5,7 @@
 
 #include <ctype.h>
 #include <stdio.h>
+#include <string.h>
 
 /* a string builder can be used to concatenate bytes together. */
 typedef struct sentry_stringbuilder_s {
@@ -63,6 +64,13 @@ sentry__string_ascii_lower(char *s)
     for (; *s; s++) {
         *s = (char)tolower((char)*s);
     }
+}
+
+/* shortcut for string compare */
+static inline bool
+sentry__string_eq(const char *a, const char *b)
+{
+    return strcmp(a, b) == 0;
 }
 
 /* converts an int64_t into a string */

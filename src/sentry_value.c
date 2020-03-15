@@ -399,7 +399,7 @@ sentry_value_set_by_key(sentry_value_t value, const char *k, sentry_value_t v)
     obj_t *o = thing->payload;
     for (size_t i = 0; i < o->len; i++) {
         obj_pair_t *pair = &o->pairs[i];
-        if (strcmp(pair->k, k) == 0) {
+        if (sentry__string_eq(pair->k, k)) {
             sentry_value_decref(pair->v);
             pair->v = v;
             return 0;
@@ -431,7 +431,7 @@ sentry_value_remove_by_key(sentry_value_t value, const char *k)
     obj_t *o = thing->payload;
     for (size_t i = 0; i < o->len; i++) {
         obj_pair_t *pair = &o->pairs[i];
-        if (strcmp(pair->k, k) == 0) {
+        if (sentry__string_eq(pair->k, k)) {
             memmove(o->pairs + i, o->pairs + i + 1,
                 (o->len - i - 1) * sizeof(o->pairs[0]));
             sentry_value_decref(pair->v);
@@ -610,7 +610,7 @@ sentry_value_get_by_key(sentry_value_t value, const char *k)
         obj_t *o = thing->payload;
         for (size_t i = 0; i < o->len; i++) {
             obj_pair_t *pair = &o->pairs[i];
-            if (strcmp(pair->k, k) == 0) {
+            if (sentry__string_eq(pair->k, k)) {
                 return pair->v;
             }
         }
