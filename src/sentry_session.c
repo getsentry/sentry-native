@@ -37,6 +37,7 @@ sentry__session_new(void)
     rv->init = true;
     rv->errors = 0;
     rv->started_ms = sentry__msec_time();
+    rv->duration_ms = (uint64_t)-1;
 
     return rv;
 }
@@ -70,9 +71,16 @@ sentry__session_to_json(
     sentry__jsonwriter_write_key(jw, "errors");
     sentry__jsonwriter_write_int32(jw, (int32_t)session->errors);
 
+    // if there is a duration stored on the struct (that happens after
+    // reading back from disk) we use that, otherwise we calculate the
+    // difference to the start time.
     sentry__jsonwriter_write_key(jw, "duration");
-    double duration
-        = (double)(sentry__msec_time() - session->started_ms) / 1000.0;
+    double duration;
+    if (session->duration_ms != (uint64_t)-1) {
+        duration = (double)session->duration_ms / 1000.0;
+    } else {
+        duration = (double)(sentry__msec_time() - session->started_ms) / 1000.0;
+    }
     sentry__jsonwriter_write_double(jw, duration);
 
     sentry__jsonwriter_write_key(jw, "attrs");
@@ -121,7 +129,10 @@ sentry__session_from_json(const char *buf, size_t buflen)
     rv->init = sentry_value_is_true(sentry_value_get_by_key(value, "init"));
     rv->errors = (int64_t)sentry_value_as_int32(
         sentry_value_get_by_key(value, "errors"));
-    rv->started_ms = (int64_t)(
+    rv->duration_ms = (uint64_t)(
+        sentry_value_as_double(sentry_value_get_by_key(value, "duration"))
+        * 1000);
+    rv->started_ms = (uint64_t)(
         sentry_value_as_double(sentry_value_get_by_key(value, "started"))
         * 1000);
 

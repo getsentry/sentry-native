@@ -19,6 +19,7 @@ typedef struct sentry_session_s {
     sentry_uuid_t session_id;
     char *distinct_id;
     uint64_t started_ms;
+    uint64_t duration_ms;
     bool init;
     uint64_t errors;
     sentry_session_status_t status;
