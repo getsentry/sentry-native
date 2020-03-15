@@ -207,7 +207,7 @@ task_exec_func(void *data)
 {
     struct task_state *ts = data;
     sentry__envelope_for_each_request(
-        ts->envelope, for_each_request_callback, data);
+        ts->envelope, for_each_request_callback, NULL, data);
 }
 
 static void

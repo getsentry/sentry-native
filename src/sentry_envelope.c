@@ -1,3 +1,4 @@
+#include "sentry_transport.h"
 #include "sentry_envelope.h"
 #include "sentry_alloc.h"
 #include "sentry_core.h"
@@ -164,6 +165,19 @@ envelope_item_get_filename(const sentry_envelope_item_t *item)
         }
     }
     return sentry_value_as_string(filename);
+}
+
+static int
+envelope_item_get_category(const sentry_envelope_item_t *item)
+{
+    const char *ty = sentry_value_as_string(
+        sentry_value_get_by_key(item->headers, "type"));
+    if (strcmp(ty, "session") == 0) {
+        return SENTRY_RL_CATEGORY_SESSION;
+    } else if (strcmp(ty, "transaction") == 0) {
+        return SENTRY_RL_CATEGORY_TRANSACTION;
+    }
+    return SENTRY_RL_CATEGORY_ERROR;
 }
 
 static sentry_envelope_item_t *
@@ -423,7 +437,7 @@ void
 sentry__envelope_for_each_request(const sentry_envelope_t *envelope,
     bool (*callback)(sentry_prepared_http_request_t *,
         const sentry_envelope_t *, void *data),
-    void *data)
+    const sentry_rate_limiter_t *rl, void *data)
 {
     sentry_prepared_http_request_t *req;
     sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
@@ -446,6 +460,13 @@ sentry__envelope_for_each_request(const sentry_envelope_t *envelope,
 
     for (size_t i = 0; i < envelope->contents.items.item_count; i++) {
         const sentry_envelope_item_t *item = &envelope->contents.items.items[i];
+        if (rl) {
+            int category = envelope_item_get_category(item);
+            if (sentry__rate_limiter_is_disabled(rl, category)) {
+                continue;
+            }
+        }
+
         envelope_item_type_t type = envelope_item_get_type(item);
         switch (type) {
         case ENVELOPE_ITEM_TYPE_EVENT: {
