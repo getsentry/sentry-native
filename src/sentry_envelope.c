@@ -619,3 +619,36 @@ sentry_envelope_write_to_file(
 
     return rv;
 }
+
+#if SENTRY_UNITTEST
+size_t
+sentry__envelope_get_item_count(const sentry_envelope_t *envelope)
+{
+    return envelope->is_raw ? 0 : envelope->contents.items.item_count;
+}
+
+const sentry_envelope_item_t *
+sentry__envelope_get_item(const sentry_envelope_t *envelope, size_t idx)
+{
+    return !envelope->is_raw && idx < envelope->contents.items.item_count
+        ? &envelope->contents.items.items[idx]
+        : NULL;
+}
+
+sentry_value_t
+sentry__envelope_item_get_header(
+    const sentry_envelope_item_t *item, const char *key)
+{
+    return sentry_value_get_by_key(item->headers, key);
+}
+
+const char *
+sentry__envelope_item_get_payload(
+    const sentry_envelope_item_t *item, size_t *payload_len_out)
+{
+    if (payload_len_out) {
+        *payload_len_out = item->payload_len;
+    }
+    return item->payload;
+}
+#endif

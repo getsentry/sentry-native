@@ -57,4 +57,15 @@ void sentry__envelope_serialize_into_stringbuilder(
 MUST_USE int sentry_envelope_write_to_path(
     const sentry_envelope_t *envelope, const sentry_path_t *path);
 
+// these for now are only needed for tests
+#if SENTRY_UNITTEST
+size_t sentry__envelope_get_item_count(const sentry_envelope_t *envelope);
+const sentry_envelope_item_t *sentry__envelope_get_item(
+    const sentry_envelope_t *envelope, size_t idx);
+sentry_value_t sentry__envelope_item_get_header(
+    const sentry_envelope_item_t *item, const char *key);
+const char *sentry__envelope_item_get_payload(
+    const sentry_envelope_item_t *item, size_t *payload_len_out);
+#endif
+
 #endif
