@@ -213,7 +213,7 @@ if(BACKEND_CRASHPAD)
 		"$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/crashpad/third_party/mini_chromium/mini_chromium>"
 	)
 	# FIXME: this should be applied to mini_chromium (or at least to crashpad_client/crashpad_handler)
-	target_compile_features(sentry PUBLIC cxx_std_11)
+	target_compile_features(sentry PUBLIC cxx_std_14)
 	target_link_libraries(sentry PRIVATE crashpad_client crashpad_util)
 	if(NOT BUILD_SHARED_LIBS)
 		sentry_install(TARGETS crashpad_client crashpad_util crashpad_compat getopt mini_chromium zlib EXPORT sentry
