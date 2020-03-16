@@ -162,8 +162,8 @@ get_code_id_from_elf(void *base, size_t *size_out)
     return NULL;
 }
 
-static sentry_value_t
-module_to_value(const sentry_module_t *module)
+sentry_value_t
+sentry__procmaps_module_to_value(const sentry_module_t *module)
 {
     sentry_value_t mod_val = sentry_value_new_object();
     sentry_value_set_by_key(mod_val, "type", sentry_value_new_string("elf"));
@@ -216,7 +216,7 @@ try_append_module(sentry_value_t modules, const sentry_module_t *module)
         return;
     }
 
-    sentry_value_append(modules, module_to_value(module));
+    sentry_value_append(modules, sentry__procmaps_module_to_value(module));
 }
 
 static sentry_slice_t LINUX_GATE = { "linux-gate.so", 13 };

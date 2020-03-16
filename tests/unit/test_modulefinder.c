@@ -1,4 +1,5 @@
 #include "sentry_modulefinder.h"
+#include "sentry_path.h"
 #include "sentry_testsupport.h"
 #include <sentry.h>
 
@@ -77,5 +78,58 @@ SENTRY_TEST(procmaps_parser)
 
     read = sentry__procmaps_parse_module_line(lines, &mod);
     TEST_CHECK(!read);
+#endif
+}
+
+SENTRY_TEST(buildid_fallback)
+{
+#ifndef SENTRY_PLATFORM_LINUX
+    SKIP_TEST();
+#else
+    sentry_path_t *path = sentry__path_new(__FILE__);
+    sentry_path_t *dir = sentry__path_dir(path);
+    sentry__path_free(path);
+
+    sentry_path_t *with_id_path
+        = sentry__path_join_str(dir, "../fixtures/with-buildid.so");
+    size_t with_id_len = 0;
+    char *with_id = sentry__path_read_to_buffer(with_id_path, &with_id_len);
+    sentry__path_free(with_id_path);
+
+    sentry_module_t with_id_mod
+        = { with_id, with_id + with_id_len, { "with-buildid.so", 15 } };
+    sentry_value_t with_id_val = sentry__procmaps_module_to_value(&with_id_mod);
+
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(with_id_val, "code_id")),
+        "1c304742f114215453a8a777f6cdb3a2b8505e11");
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
+                                with_id_val, "debug_id")),
+        "4247301c-14f1-5421-53a8-a777f6cdb3a2");
+    sentry_value_decref(with_id_val);
+
+    sentry_path_t *without_id_path
+        = sentry__path_join_str(dir, "../fixtures/without-buildid.so");
+    size_t without_id_len = 0;
+    char *without_id
+        = sentry__path_read_to_buffer(without_id_path, &without_id_len);
+    sentry__path_free(without_id_path);
+
+    sentry_module_t without_id_mod = { without_id, without_id + without_id_len,
+        { "without-buildid.so", 18 } };
+    sentry_value_t without_id_val
+        = sentry__procmaps_module_to_value(&without_id_mod);
+
+    TEST_CHECK(sentry_value_is_null(
+        sentry_value_get_by_key(without_id_val, "code_id")));
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
+                                without_id_val, "debug_id")),
+        "29271919-a2ef-129d-9aac-be85a0948d9c");
+    sentry_value_decref(without_id_val);
+
+    sentry_free(with_id);
+    sentry_free(without_id);
+
+    sentry__path_free(dir);
 #endif
 }
