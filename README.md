@@ -48,18 +48,24 @@ The SDK bundle contains the following folders:
 
 ## Platform and Feature Support
 
-The SDK currently supports and is tested on Linux, Windows and macOS as well as
-Android.
+The SDK currently supports and is tested on the following OS/Compiler variations:
 
-The support target for Android is as low as API 16, with build support on
-NDK 19, which is also verified via tests.
+- 64bit Linux with GCC 9
+- 64bit Linux with clang 9
+- 32bit Linux with GCC 7 (cross compiled from 64bit host)
+- 64bit Windows with MSVC 2019
+- 32bit Windows with MSVC 2017
+- macOS Catalina with most recent Compiler toolchain
+- Android API16 built by NDK19 toolchain
+- Android API29 built by NDK21 toolchain
 
 The SDK supports different features on the target platform:
 
-- **HTTP Transport** is currently only supported on Linux and macOS,
-  using `libcurl`. On other platforms, library users need to implement their
-  own transport, based on the `function transport` API.
+- **HTTP Transport** is currently only supported on Windows and platforms that
+  have the `curl` library available. On other platforms, library users need to
+  implement their own transport, based on the `function transport` API.
 - **Crashpad Backend** is currently only supported on Windows and macOS.
+- **Breakpad Backend** is currently only supported on Linux.
 
 ## Building and Installation
 
@@ -78,8 +84,8 @@ Building the Crashpad Backend requires a `C++14` compatible compiler.
 $ cmake -B build -DSENTRY_BACKEND=crashpad
 # build the project
 $ cmake --build build --parallel
-# install the resulting artifacts into a specific prefix
-$ cmake --install build --prefix install
+# install the resulting artifacts into a specific prefix (use the correct config on windows)
+$ cmake --install build --prefix install --config Debug
 # which will result in the following (on macOS):
 $ exa --tree install
 install
@@ -111,14 +117,19 @@ using `cmake -D BUILD_SHARED_LIBS=OFF ..`.
 - `BUILD_SHARED_LIBS` (Default: ON):
   By default, `sentry` is built as a shared library. Setting this option to
   `OFF` will build `sentry` as a static library instead.
+- `SENTRY_CURL_SUPPORT` (Default: ON on all non-Windows platforms):
+  On non-Windows platforms, sentry will try to use `curl` by default for http
+  requests. CMake will raise a hard error if it is not found.
 - `SENTRY_BACKEND` (Default: depending on platform):
   Sentry can use different backends depending on platform.
   - **crashpad**: This uses the out-of-process crashpad handler. It is currently
-  only supported on Windows and macOS, and used as the default there.
+    only supported on Windows and macOS, and used as the default there.
+  - **breakpad**: This uses the in-process breakpad handler. It is currently
+    only supported on Linux, and used as the default there.
   - **inproc**: A small in-process handler which is supported on all platforms
-  except Windows, and is used as default on Linux and Android.
+    except Windows, and is used as default on Linux and Android.
   - **none**: This builds `sentry-native` without a backend, so it does not handle
-  crashes at all. It is primarily used for tests.
+    crashes at all. It is primarily used for tests.
 
 ### Build Targets
 
@@ -134,10 +145,6 @@ using `cmake -D BUILD_SHARED_LIBS=OFF ..`.
 
 ## Known Issues
 
-- Sentry with Crashpad cannot upload minidumps on Linux. This is due to a
-  limitation in the upstream Crashpad project.
-- Sentry with Breakpad cannot upload minidumps. The uploader was temporarily
-  removed and will be restored in a future version.
 - Attachments are currently in _Preview_ and may not be available to your
   organization. Please see [Event Attachments] for more information.
 

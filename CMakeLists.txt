@@ -8,18 +8,17 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
 	set(LINUX TRUE)
 endif()
 
-if(APPLE OR WIN32)
-	set(SENTRY_DEFAULT_BACKEND "crashpad")
-elseif(LINUX)
-	set(SENTRY_DEFAULT_BACKEND "breakpad")
-else()
-	set(SENTRY_DEFAULT_BACKEND "inproc")
-endif()
-
 option(BUILD_SHARED_LIBS "Build shared libraries (.dll/.so) instead of static ones (.lib/.a)" ON)
 
 option(SENTRY_BUILD_TESTS "Build sentry-native tests" ON)
 option(SENTRY_BUILD_EXAMPLES "Build sentry-native example(s)" ON)
+
+set(SENTRY_CURL_DEFAULT ON)
+if(WIN32)
+	set(SENTRY_CURL_DEFAULT OFF)
+endif()
+
+option(SENTRY_CURL_SUPPORT "Builds sentry-native with curl support" ${SENTRY_CURL_DEFAULT})
 
 if(SENTRY_BUILD_TESTS OR SENTRY_BUILD_EXAMPLES)
 	enable_testing()
@@ -31,14 +30,12 @@ endif()
 
 option(SENTRY_ENABLE_INSTALL "Enable sentry installation" "${SENTRY_MAIN_PROJECT}")
 
-function(sentry_install)
-	if(SENTRY_ENABLE_INSTALL)
-		install(${ARGN})
-	endif()
-endfunction()
-
-if(NOT CMAKE_BUILD_TYPE)
-	set(CMAKE_BUILD_TYPE "RelWithDebInfo")
+if(APPLE OR WIN32)
+	set(SENTRY_DEFAULT_BACKEND "crashpad")
+elseif(LINUX)
+	set(SENTRY_DEFAULT_BACKEND "breakpad")
+else()
+	set(SENTRY_DEFAULT_BACKEND "inproc")
 endif()
 
 set(SENTRY_BACKEND ${SENTRY_DEFAULT_BACKEND} CACHE STRING
@@ -59,8 +56,8 @@ endif()
 if(BACKEND_CRASHPAD AND NOT (APPLE OR WIN32))
 	message(FATAL_ERROR "The Crashpad backend is currently only supported on macOS and Windows")
 endif()
-if(BACKEND_BREAKPAD AND NOT (LINUX OR ANDROID))
-	message(FATAL_ERROR "The Breakpad backend is currently only supported on Linux and Android")
+if(BACKEND_BREAKPAD AND NOT LINUX)
+	message(FATAL_ERROR "The Breakpad backend is currently only supported on Linux")
 endif()
 if(BACKEND_INPROC AND WIN32)
 	message(FATAL_ERROR "The in-process backend is not supported on Windows")
@@ -70,6 +67,22 @@ if(ANDROID)
 	set(WITH_LIBUNWINDSTACK TRUE)
 elseif(NOT WIN32)
 	set(WITH_LIBBACKTRACE TRUE)
+endif()
+
+option(WITH_ASAN_OPTION "Build sentry-native with address sanitizer" OFF)
+if(WITH_ASAN_OPTION)
+	add_compile_options(-g -fsanitize=address -fno-omit-frame-pointer)
+	link_libraries(-fsanitize=address)
+endif()
+
+option(WITH_TSAN_OPTION "Build sentry-native with thread sanitizer" OFF)
+if(WITH_TSAN_OPTION)
+	add_compile_options(-g -fsanitize=thread -fno-omit-frame-pointer)
+	link_libraries(-fsanitize=thread)
+endif()
+
+if(NOT CMAKE_BUILD_TYPE)
+	set(CMAKE_BUILD_TYPE "RelWithDebInfo")
 endif()
 
 # use -O3 when doing `RelWithDebInfo` builds
@@ -92,19 +105,11 @@ if(APPLE)
 	endif()
 endif()
 
-option(WITH_ASAN_OPTION "Build sentry-native with address sanitizer" OFF)
-if(WITH_ASAN_OPTION)
-	add_compile_options(-g -fsanitize=address -fno-omit-frame-pointer)
-	link_libraries(-fsanitize=address)
-endif()
-
-option(WITH_TSAN_OPTION "Build sentry-native with thread sanitizer" OFF)
-if(WITH_TSAN_OPTION)
-	add_compile_options(-g -fsanitize=thread -fno-omit-frame-pointer)
-	link_libraries(-fsanitize=thread)
-endif()
-
-option(SENTRY_CURL_SUPPORT "Builds sentry-native with curl support" ON)
+function(sentry_install)
+	if(SENTRY_ENABLE_INSTALL)
+		install(${ARGN})
+	endif()
+endfunction()
 
 # helper function to add sources to existing TARGET prepended with ${CMAKE_CURRENT_SOURCE_DIR}/${SUBDIR}
 function(sentry_target_sources_cwd TARGET)
@@ -178,14 +183,13 @@ if(WIN32)
 	target_link_libraries(sentry PRIVATE winhttp shlwapi)
 endif()
 
-#set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Werror=implicit-function-declaration -Werror=incompatible-function-pointer-types -Wall -fvisibility=hidden")
 set_property(TARGET sentry PROPERTY C_VISIBILITY_PRESET hidden)
 if(MSVC)
 	if(CMAKE_SIZEOF_VOID_P EQUAL 4)
 		set(CMAKE_ASM_MASM_FLAGS "${CMAKE_ASM_MASM_FLAGS} /safeseh")
 	endif()
 else()
-	target_compile_options(sentry PUBLIC $<BUILD_INTERFACE:-Wall>)
+	target_compile_options(sentry PUBLIC $<BUILD_INTERFACE:-Wall -Wextra -Wpedantic>)
 endif()
 
 target_include_directories(sentry PUBLIC
@@ -201,6 +205,8 @@ target_link_libraries(sentry INTERFACE
 
 if(LINUX)
 	target_link_libraries(sentry PRIVATE pthread dl)
+elseif(WIN32)
+	target_link_libraries(sentry PRIVATE dbghelp pathcch)
 endif()
 
 if(WITH_LIBUNWINDSTACK)
@@ -210,14 +216,10 @@ if(WITH_LIBUNWINDSTACK)
 	target_link_libraries(sentry PRIVATE unwindstack)
 	if(NOT BUILD_SHARED_LIBS)
 		sentry_install(TARGETS unwindstack EXPORT sentry
-			LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-			ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+			LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+			ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
 		)
 	endif()
-endif()
-
-if(WIN32)
-	target_link_libraries(sentry PRIVATE dbghelp pathcch)
 endif()
 
 if(BACKEND_CRASHPAD)
@@ -226,16 +228,16 @@ if(BACKEND_CRASHPAD)
 		"$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/crashpad>"
 		"$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/crashpad/third_party/mini_chromium/mini_chromium>"
 	)
-	# FIXME: this should be applied to mini_chromium (or at least to crashpad_client/crashpad_handler)
-	target_compile_features(sentry PUBLIC cxx_std_11)
+	# we include a crashpad header, which itself needs C++14 support
+	target_compile_features(sentry PUBLIC cxx_std_14)
 	target_link_libraries(sentry PRIVATE crashpad_client crashpad_util)
 	if(NOT BUILD_SHARED_LIBS)
 		sentry_install(TARGETS crashpad_client crashpad_util crashpad_compat getopt mini_chromium zlib EXPORT sentry
-			LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-			ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+			LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+			ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
 		)
 	endif()
-	sentry_install(TARGETS crashpad_handler
+	sentry_install(TARGETS crashpad_handler EXPORT sentry
 		RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 	)
 	add_dependencies(sentry crashpad_handler)
@@ -249,11 +251,10 @@ elseif(BACKEND_BREAKPAD)
 	)
 	if(NOT BUILD_SHARED_LIBS)
 		sentry_install(TARGETS breakpad_client EXPORT sentry
-			LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-			ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+			LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+			ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
 		)
 	endif()
-
 elseif(BACKEND_INPROC)
 	target_compile_definitions(sentry PRIVATE SENTRY_WITH_INPROC_BACKEND)
 endif()

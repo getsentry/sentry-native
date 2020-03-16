@@ -351,7 +351,7 @@ sentry_options_set_environment(sentry_options_t *opts, const char *environment)
 const char *
 sentry_options_get_environment(const sentry_options_t *opts)
 {
-    return opts->release;
+    return opts->environment;
 }
 
 void
