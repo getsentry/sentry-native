@@ -145,8 +145,6 @@ using `cmake -D BUILD_SHARED_LIBS=OFF ..`.
 
 ## Known Issues
 
-- Sentry with Crashpad cannot upload minidumps on Linux. This is due to a
-  limitation in the upstream Crashpad project.
 - Attachments are currently in _Preview_ and may not be available to your
   organization. Please see [Event Attachments] for more information.
 

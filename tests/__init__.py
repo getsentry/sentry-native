@@ -41,7 +41,7 @@ def cmake(cwd, targets, options=None):
     configcmd = ["cmake"]
     for key, value in options.items():
         configcmd.append("-D{}={}".format(key, value))
-    if sys.platform == "win32" and os.environ.get("X32"):
+    if sys.platform == "win32" and os.environ.get("TEST_X86"):
         configcmd.append("-AWin32")
     configcmd.append(os.getcwd())
 

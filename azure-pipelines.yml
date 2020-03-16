@@ -10,7 +10,7 @@ stages:
               vmImage: "ubuntu-18.04"
               CC: gcc-7 -m32
               CXX: g++-7 -m32
-              X32: 1
+              TEST_X86: 1
             Linux (gcc 9):
               vmImage: "ubuntu-latest"
               CC: gcc-9
@@ -23,7 +23,7 @@ stages:
               vmImage: "macOs-latest"
             Windows (VS2017, 32bit):
               vmImage: "vs2017-win2016"
-              X32: 1
+              TEST_X86: 1
             Windows (latest):
               vmImage: "windows-latest"
             # The Android emulator is currently only available on macos, see:
@@ -44,7 +44,7 @@ stages:
             submodules: recursive
           - task: UsePythonVersion@0
           - script: sudo apt update && sudo apt install gcc-multilib g++-multilib
-            condition: and(eq(variables['Agent.OS'], 'Linux'), variables['X32'])
+            condition: and(eq(variables['Agent.OS'], 'Linux'), variables['TEST_X86'])
             displayName: Installing Linux 32-bit Dependencies
           # ignoring checksums: choco has 2.72, whereas upstream is 2.73
           - script: choco install sigcheck --ignore-checksums
