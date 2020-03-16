@@ -74,6 +74,7 @@ free_transport(sentry_transport_t *transport)
     struct transport_state *state = transport->data;
     curl_easy_cleanup(state->curl_handle);
     sentry__bgworker_free(state->bgworker);
+    sentry__rate_limiter_free(state->rl);
     sentry_free(state);
 }
 
