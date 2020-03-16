@@ -480,6 +480,9 @@ sentry__value_stringify(sentry_value_t value)
     case SENTRY_VALUE_TYPE_OBJECT:
     case SENTRY_VALUE_TYPE_NULL:
         return sentry__string_clone("");
+    case SENTRY_VALUE_TYPE_BOOL:
+        return sentry__string_clone(
+            sentry_value_is_true(value) ? "true" : "false");
     case SENTRY_VALUE_TYPE_STRING:
         return sentry__string_clone(sentry_value_as_string(value));
     default: {
