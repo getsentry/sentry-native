@@ -143,6 +143,8 @@ sentry__session_from_json(const char *buf, size_t buflen)
         sentry_value_as_double(sentry_value_get_by_key(value, "started"))
         * 1000);
 
+    sentry_value_decref(value);
+
     return rv;
 }
 
@@ -219,6 +221,9 @@ sentry__add_current_session_to_envelope(sentry_envelope_t *envelope)
     SENTRY_WITH_SCOPE_MUT (scope) {
         if (scope->session) {
             sentry__envelope_add_session(envelope, scope->session);
+            // we're assuming that if a session is added to an envelope it
+            // will be sent onwards.  This means we now need to set the init
+            // flag to false because we're no longer the initial session update.
             scope->session->init = false;
         }
     }

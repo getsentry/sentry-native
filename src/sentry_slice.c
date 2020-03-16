@@ -78,6 +78,7 @@ sentry__slice_trim(sentry_slice_t a)
 bool
 sentry__slice_pop_uint64(sentry_slice_t *a, uint64_t *num_out)
 {
+    bool rv = false;
     char *buf = sentry_malloc(a->len + 1);
     memcpy(buf, a->ptr, a->len);
     buf[a->len] = 0;
@@ -87,8 +88,8 @@ sentry__slice_pop_uint64(sentry_slice_t *a, uint64_t *num_out)
         size_t diff = (uintptr_t)end - (uintptr_t)buf;
         a->len -= diff;
         a->ptr += diff;
-        return true;
-    } else {
-        return false;
+        rv = true;
     }
+    sentry_free(buf);
+    return rv;
 }
