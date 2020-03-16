@@ -12,6 +12,9 @@
 #include <string.h>
 #include <unistd.h>
 
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
+#define MIN(a, b) ((a) < (b) ? (a) : (b))
+
 static bool g_initialized = false;
 static sentry_mutex_t g_mutex = SENTRY__MUTEX_INIT;
 static sentry_value_t g_modules;
@@ -162,6 +165,61 @@ get_code_id_from_elf(void *base, size_t *size_out)
     return NULL;
 }
 
+static sentry_uuid_t
+get_code_id_from_text_fallback(void *base)
+{
+    const uint8_t *text = NULL;
+    size_t text_size = 0;
+
+    const uint8_t *addr = base;
+    // iterate over all the program headers, for 32/64 bit separately
+    const unsigned char *e_ident = addr;
+    if (e_ident[EI_CLASS] == ELFCLASS64) {
+        const Elf64_Ehdr *elf = base;
+        const Elf64_Shdr *strheader = (const Elf64_Shdr *)(addr + elf->e_shoff
+            + elf->e_shentsize * elf->e_shstrndx);
+
+        const char *names = (const char *)(addr + strheader->sh_offset);
+        for (int i = 0; i < elf->e_shnum; i++) {
+            const Elf64_Shdr *header = (const Elf64_Shdr *)(addr + elf->e_shoff
+                + elf->e_shentsize * i);
+            const char *name = names + 1 + header->sh_name;
+            if (header->sh_type == SHT_PROGBITS && strcmp(name, "text") == 0) {
+                text = addr + header->sh_offset;
+                text_size = header->sh_size;
+                break;
+            }
+        }
+    } else {
+        const Elf32_Ehdr *elf = base;
+        const Elf32_Shdr *strheader = (const Elf32_Shdr *)(addr + elf->e_shoff
+            + elf->e_shentsize * elf->e_shstrndx);
+
+        const char *names = (const char *)(addr + strheader->sh_offset);
+        for (int i = 0; i < elf->e_shnum; i++) {
+            const Elf32_Shdr *header = (const Elf32_Shdr *)(addr + elf->e_shoff
+                + elf->e_shentsize * i);
+            const char *name = names + 1 + header->sh_name;
+            if (header->sh_type == SHT_PROGBITS && strcmp(name, "text") == 0) {
+                text = addr + header->sh_offset;
+                text_size = header->sh_size;
+                break;
+            }
+        }
+    }
+
+    sentry_uuid_t uuid = sentry_uuid_nil();
+
+    // adapted from
+    // https://github.com/getsentry/symbolic/blob/8f9a01756e48dcbba2e42917a064f495d74058b7/debuginfo/src/elf.rs#L100-L110
+    size_t max = MAX(text_size, _SC_PAGESIZE);
+    for (size_t i = 0; i < max; i++) {
+        uuid.bytes[i % 16] ^= text[i];
+    }
+
+    return uuid;
+}
+
 sentry_value_t
 sentry__procmaps_module_to_value(const sentry_module_t *module)
 {
@@ -178,36 +236,32 @@ sentry__procmaps_module_to_value(const sentry_module_t *module)
     // modules
     size_t code_id_size;
     const uint8_t *code_id = get_code_id_from_elf(module->start, &code_id_size);
+    sentry_uuid_t uuid = sentry_uuid_nil();
     if (code_id) {
         // the usage of these is described here:
         // https://getsentry.github.io/symbolicator/advanced/symbol-server-compatibility/#identifiers
-        // in particular, the debug_id is a `little-endian GUID`, so we have to
-        // do appropriate byte-flipping
+        // in particular, the debug_id is a `little-endian GUID`, so we
+        // have to do appropriate byte-flipping
         sentry_value_set_by_key(mod_val, "code_id",
             sentry__value_new_hexstring((const char *)code_id, code_id_size));
 
-        sentry_uuid_t uuid = sentry_uuid_from_bytes((const char *)code_id);
-        char *uuid_bytes = uuid.bytes;
-        uint32_t *a = (uint32_t *)uuid_bytes;
-        *a = htonl(*a);
-        uint16_t *b = (uint16_t *)(uuid_bytes + 4);
-        *b = htons(*b);
-        uint16_t *c = (uint16_t *)(uuid_bytes + 6);
-        *c = htons(*c);
-
-        sentry_value_set_by_key(
-            mod_val, "debug_id", sentry__value_new_uuid(&uuid));
+        uuid = sentry_uuid_from_bytes((const char *)code_id);
     } else {
-        sentry_uuid_t empty_uuid = sentry_uuid_nil();
-        sentry_value_set_by_key(
-            mod_val, "debug_id", sentry__value_new_uuid(&empty_uuid));
+        uuid = get_code_id_from_text_fallback(module->start);
     }
+
+    char *uuid_bytes = uuid.bytes;
+    uint32_t *a = (uint32_t *)uuid_bytes;
+    *a = htonl(*a);
+    uint16_t *b = (uint16_t *)(uuid_bytes + 4);
+    *b = htons(*b);
+    uint16_t *c = (uint16_t *)(uuid_bytes + 6);
+    *c = htons(*c);
+
+    sentry_value_set_by_key(mod_val, "debug_id", sentry__value_new_uuid(&uuid));
 
     return mod_val;
 }
-
-#define MAX(a, b) ((a) > (b) ? (a) : (b))
-#define MIN(a, b) ((a) < (b) ? (a) : (b))
 
 static void
 try_append_module(sentry_value_t modules, const sentry_module_t *module)
