@@ -50,13 +50,11 @@ The SDK bundle contains the following folders:
 
 The SDK currently supports and is tested on the following OS/Compiler variations:
 
-- 64bit Linux with GCC 7
-- 32bit Linux with GCC 7 (cross compiled from 64bit host)
 - 64bit Linux with GCC 9
 - 64bit Linux with clang 9
+- 32bit Linux with GCC 7 (cross compiled from 64bit host)
 - 64bit Windows with MSVC 2019
-- 64bit Windows with MSVC 2017
-- 32bit Windows with MSVC 2017 (cross compiled from 64bit host)
+- 32bit Windows with MSVC 2017
 - macOS Catalina with most recent Compiler toolchain
 - Android API16 built by NDK19 toolchain
 - Android API29 built by NDK21 toolchain
@@ -86,8 +84,8 @@ Building the Crashpad Backend requires a `C++14` compatible compiler.
 $ cmake -B build -DSENTRY_BACKEND=crashpad
 # build the project
 $ cmake --build build --parallel
-# install the resulting artifacts into a specific prefix
-$ cmake --install build --prefix install
+# install the resulting artifacts into a specific prefix (use the correct config on windows)
+$ cmake --install build --prefix install --config Debug
 # which will result in the following (on macOS):
 $ exa --tree install
 install
