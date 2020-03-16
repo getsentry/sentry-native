@@ -342,14 +342,6 @@ sentry__dsn_get_attachment_url(
 }
 
 char *
-sentry__time_to_iso8601(const struct tm *time)
-{
-    char buf[255];
-    strftime(buf, sizeof buf, "%FT%TZ", time);
-    return sentry__string_clone(buf);
-}
-
-char *
 sentry__msec_time_to_iso8601(uint64_t time)
 {
     char buf[255];
