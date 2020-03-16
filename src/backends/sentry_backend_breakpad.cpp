@@ -97,6 +97,7 @@ sentry__breakpad_backend_callback(
     // after the transport is set up, we will capture an event, which will
     // create an envelope with all the scope, attachments, etc.
     sentry_value_t event = sentry_value_new_event();
+    sentry__end_current_session_with_status(SENTRY_SESSION_STATUS_CRASHED);
     sentry_capture_event(event);
 
     return succeeded;

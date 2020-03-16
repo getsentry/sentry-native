@@ -180,6 +180,21 @@ sentry__capture_envelope(sentry_envelope_t *envelope)
     }
 }
 
+static bool
+event_is_considered_error(sentry_value_t event)
+{
+    const char *level
+        = sentry_value_as_string(sentry_value_get_by_key(event, "level"));
+    if (sentry__string_eq(level, "fatal")
+        || sentry__string_eq(level, "error")) {
+        return true;
+    }
+    if (!sentry_value_is_null(sentry_value_get_by_key(event, "exception"))) {
+        return true;
+    }
+    return false;
+}
+
 sentry_uuid_t
 sentry_capture_event(sentry_value_t event)
 {
@@ -221,7 +236,9 @@ sentry_capture_event(sentry_value_t event)
                     sentry__path_filename(attachment->path)));
         }
 
-        sentry__record_errors_on_current_session(1);
+        if (event_is_considered_error(sentry_envelope_get_event(envelope))) {
+            sentry__record_errors_on_current_session(1);
+        }
         sentry__add_current_session_to_envelope(envelope);
 
         if (sentry__envelope_add_event(envelope, event)) {
