@@ -223,7 +223,7 @@ get_code_id_from_text_fallback(void *base)
 }
 
 sentry_value_t
-sentry__procmaps_module_to_value(const sentry_module_t *module)
+sentry__procmaps_module_to_value(const sentry_module_t *module, void *addr)
 {
     sentry_value_t mod_val = sentry_value_new_object();
     sentry_value_set_by_key(mod_val, "type", sentry_value_new_string("elf"));
@@ -237,7 +237,7 @@ sentry__procmaps_module_to_value(const sentry_module_t *module)
     // and try to get the debug id from the elf headers of the loaded
     // modules
     size_t code_id_size;
-    const uint8_t *code_id = get_code_id_from_elf(module->start, &code_id_size);
+    const uint8_t *code_id = get_code_id_from_elf(addr, &code_id_size);
     sentry_uuid_t uuid = sentry_uuid_nil();
     if (code_id) {
         sentry_value_set_by_key(mod_val, "code_id",
@@ -245,28 +245,7 @@ sentry__procmaps_module_to_value(const sentry_module_t *module)
 
         uuid = sentry_uuid_from_bytes((const char *)code_id);
     } else {
-        // At least on the android API-16, x86 simulator, the linker apparently
-        // does not load the complete file into memory. Or at least, the section
-        // headers which are located at the end of the file are not loaded, and
-        // we are poking into invalid memory. The notes above are apparently at
-        // the beginning of the file, and we can read them just fine. It is only
-        // the fallback path which creates problems.
-        // Well, except for the vdso, which has its elf headers mapped, but
-        // which is not an actual file on disk.
-        if (sentry__slice_eq(module->file, LINUX_GATE)) {
-            uuid = get_code_id_from_text_fallback(module->start);
-        } else {
-            sentry_path_t *file = sentry__path_from_str(sentry_value_as_string(
-                sentry_value_get_by_key(mod_val, "code_file")));
-            if (file) {
-                char *buf = sentry__path_read_to_buffer(file, NULL);
-                sentry__path_free(file);
-                if (buf) {
-                    uuid = get_code_id_from_text_fallback(buf);
-                }
-                sentry_free(buf);
-            }
-        }
+        uuid = get_code_id_from_text_fallback(addr);
     }
 
     // the usage of these is described here:
@@ -293,7 +272,33 @@ try_append_module(sentry_value_t modules, const sentry_module_t *module)
         return;
     }
 
-    sentry_value_append(modules, sentry__procmaps_module_to_value(module));
+    // At least on the android API-16, x86 simulator, the linker apparently
+    // does not load the complete file into memory. Or at least, the section
+    // headers which are located at the end of the file are not loaded, and
+    // we would be poking into invalid memory. To be safe, we load the file
+    // from disk, so we have the on-disk layout, and are independent of how the
+    // runtime linker would load or re-order any sections. The exception here is
+    // the linux-gate, which is not an actual file on disk, so we actually poke
+    // at its memory.
+    sentry_value_t mod = sentry_value_new_null();
+
+    if (sentry__slice_eq(module->file, LINUX_GATE)) {
+        mod = sentry__procmaps_module_to_value(module, module->start);
+    } else {
+        char *filename = sentry__slice_to_owned(module->file);
+        sentry_path_t *file = sentry__path_from_str_owned(filename);
+        if (file) {
+            char *buf = sentry__path_read_to_buffer(file, NULL);
+            sentry__path_free(file);
+            if (buf) {
+                mod = sentry__procmaps_module_to_value(module, buf);
+                sentry_free(buf);
+            }
+        }
+    }
+    if (!sentry_value_is_null(mod)) {
+        sentry_value_append(modules, mod);
+    }
 }
 
 // copied from:

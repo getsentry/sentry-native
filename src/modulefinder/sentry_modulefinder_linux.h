@@ -11,7 +11,8 @@ typedef struct {
 } sentry_module_t;
 
 #if SENTRY_UNITTEST
-sentry_value_t sentry__procmaps_module_to_value(const sentry_module_t *module);
+sentry_value_t sentry__procmaps_module_to_value(
+    const sentry_module_t *module, void *addr);
 
 int sentry__procmaps_parse_module_line(
     const char *line, sentry_module_t *module);

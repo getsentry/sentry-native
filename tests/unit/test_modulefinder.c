@@ -99,7 +99,8 @@ SENTRY_TEST(buildid_fallback)
 
     sentry_module_t with_id_mod
         = { with_id, with_id + with_id_len, { "with-buildid.so", 15 } };
-    sentry_value_t with_id_val = sentry__procmaps_module_to_value(&with_id_mod);
+    sentry_value_t with_id_val
+        = sentry__procmaps_module_to_value(&with_id_mod, with_id);
 
     TEST_CHECK_STRING_EQUAL(
         sentry_value_as_string(sentry_value_get_by_key(with_id_val, "code_id")),
@@ -118,7 +119,8 @@ SENTRY_TEST(buildid_fallback)
 
     sentry_module_t x86_exe_mod
         = { x86_exe, x86_exe + x86_exe_len, { "sentry_example", 14 } };
-    sentry_value_t x86_exe_val = sentry__procmaps_module_to_value(&x86_exe_mod);
+    sentry_value_t x86_exe_val
+        = sentry__procmaps_module_to_value(&x86_exe_mod, x86_exe);
 
     TEST_CHECK_STRING_EQUAL(
         sentry_value_as_string(sentry_value_get_by_key(x86_exe_val, "code_id")),
@@ -139,7 +141,7 @@ SENTRY_TEST(buildid_fallback)
     sentry_module_t without_id_mod = { without_id, without_id + without_id_len,
         { "without-buildid.so", 18 } };
     sentry_value_t without_id_val
-        = sentry__procmaps_module_to_value(&without_id_mod);
+        = sentry__procmaps_module_to_value(&without_id_mod, without_id);
 
     TEST_CHECK(sentry_value_is_null(
         sentry_value_get_by_key(without_id_val, "code_id")));
@@ -157,7 +159,8 @@ SENTRY_TEST(buildid_fallback)
 
     sentry_module_t x86_lib_mod
         = { x86_lib, x86_lib + x86_lib_len, { "foobar", 6 } };
-    sentry_value_t x86_lib_val = sentry__procmaps_module_to_value(&x86_lib_mod);
+    sentry_value_t x86_lib_val
+        = sentry__procmaps_module_to_value(&x86_lib_mod, x86_lib);
 
     TEST_CHECK(
         sentry_value_is_null(sentry_value_get_by_key(x86_lib_val, "code_id")));
