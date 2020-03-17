@@ -108,6 +108,26 @@ SENTRY_TEST(buildid_fallback)
                                 with_id_val, "debug_id")),
         "4247301c-14f1-5421-53a8-a777f6cdb3a2");
     sentry_value_decref(with_id_val);
+    sentry_free(with_id);
+
+    sentry_path_t *x86_exe_path
+        = sentry__path_join_str(dir, "../fixtures/sentry_example");
+    size_t x86_exe_len = 0;
+    char *x86_exe = sentry__path_read_to_buffer(x86_exe_path, &x86_exe_len);
+    sentry__path_free(x86_exe_path);
+
+    sentry_module_t x86_exe_mod
+        = { x86_exe, x86_exe + x86_exe_len, { "sentry_example", 14 } };
+    sentry_value_t x86_exe_val = sentry__procmaps_module_to_value(&x86_exe_mod);
+
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(x86_exe_val, "code_id")),
+        "b4c24a6cc995c17fb18a65184a65863cfc01c673");
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
+                                x86_exe_val, "debug_id")),
+        "6c4ac2b4-95c9-7fc1-b18a-65184a65863c");
+    sentry_value_decref(x86_exe_val);
+    sentry_free(x86_exe);
 
     sentry_path_t *without_id_path
         = sentry__path_join_str(dir, "../fixtures/without-buildid.so");
@@ -127,9 +147,25 @@ SENTRY_TEST(buildid_fallback)
                                 without_id_val, "debug_id")),
         "29271919-a2ef-129d-9aac-be85a0948d9c");
     sentry_value_decref(without_id_val);
-
-    sentry_free(with_id);
     sentry_free(without_id);
+
+    sentry_path_t *x86_lib_path
+        = sentry__path_join_str(dir, "../fixtures/libstdc++.so");
+    size_t x86_lib_len = 0;
+    char *x86_lib = sentry__path_read_to_buffer(x86_lib_path, &x86_lib_len);
+    sentry__path_free(x86_lib_path);
+
+    sentry_module_t x86_lib_mod
+        = { x86_lib, x86_lib + x86_lib_len, { "foobar", 6 } };
+    sentry_value_t x86_lib_val = sentry__procmaps_module_to_value(&x86_lib_mod);
+
+    TEST_CHECK(
+        sentry_value_is_null(sentry_value_get_by_key(x86_lib_val, "code_id")));
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
+                                x86_lib_val, "debug_id")),
+        "7fa824da-38f1-b87c-04df-718fda64990c");
+    sentry_value_decref(x86_lib_val);
+    sentry_free(x86_lib);
 
     sentry__path_free(dir);
 #endif
