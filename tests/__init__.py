@@ -6,11 +6,23 @@ import sys
 
 def run(cwd, exe, args, **kwargs):
     if os.environ.get("ANDROID_API"):
-        return subprocess.run([
+        # older android emulators do not correctly pass down the returncode
+        # so we basically echo the return code, and parse it manually
+        child = subprocess.run([
             "{}/platform-tools/adb".format(os.environ["ANDROID_HOME"]),
             "shell",
-            "cd /data/local/tmp && LD_LIBRARY_PATH=. ./{} {}".format(exe, " ".join(args))
-        ], **kwargs)
+            "cd /data/local/tmp && LD_LIBRARY_PATH=. ./{} {}; echo -n ret:$?".format(exe, " ".join(args))
+        ], **kwargs, stdout=subprocess.PIPE)
+        stdout = child.stdout
+        child.returncode = int(stdout[stdout.rfind(b"ret:"):][4:])
+        child.stdout = stdout[:stdout.rfind(b"ret:")]
+        if kwargs.get("stdout") != subprocess.PIPE:
+            print(child.stdout)
+        if kwargs.get("check") and child.returncode:
+            raise CalledProcessError(child.returncode, child.args,
+                                     output=child.stdout, stderr=child.stderr)
+        return child
+
     cmd = "./{}".format(exe) if sys.platform != "win32" else "{}\\{}.exe".format(cwd, exe)
     return subprocess.run([cmd, *args], cwd=cwd, **kwargs)
 

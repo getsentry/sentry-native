@@ -183,8 +183,8 @@ get_code_id_from_text_fallback(void *base)
         for (int i = 0; i < elf->e_shnum; i++) {
             const Elf64_Shdr *header = (const Elf64_Shdr *)(addr + elf->e_shoff
                 + elf->e_shentsize * i);
-            const char *name = names + 1 + header->sh_name;
-            if (header->sh_type == SHT_PROGBITS && strcmp(name, "text") == 0) {
+            const char *name = names + header->sh_name;
+            if (header->sh_type == SHT_PROGBITS && strcmp(name, ".text") == 0) {
                 text = addr + header->sh_offset;
                 text_size = header->sh_size;
                 break;
@@ -199,8 +199,8 @@ get_code_id_from_text_fallback(void *base)
         for (int i = 0; i < elf->e_shnum; i++) {
             const Elf32_Shdr *header = (const Elf32_Shdr *)(addr + elf->e_shoff
                 + elf->e_shentsize * i);
-            const char *name = names + 1 + header->sh_name;
-            if (header->sh_type == SHT_PROGBITS && strcmp(name, "text") == 0) {
+            const char *name = names + header->sh_name;
+            if (header->sh_type == SHT_PROGBITS && strcmp(name, ".text") == 0) {
                 text = addr + header->sh_offset;
                 text_size = header->sh_size;
                 break;
@@ -212,7 +212,7 @@ get_code_id_from_text_fallback(void *base)
 
     // adapted from
     // https://github.com/getsentry/symbolic/blob/8f9a01756e48dcbba2e42917a064f495d74058b7/debuginfo/src/elf.rs#L100-L110
-    size_t max = MAX(text_size, _SC_PAGESIZE);
+    size_t max = MIN(text_size, 4096);
     for (size_t i = 0; i < max; i++) {
         uuid.bytes[i % 16] ^= text[i];
     }
@@ -238,10 +238,6 @@ sentry__procmaps_module_to_value(const sentry_module_t *module)
     const uint8_t *code_id = get_code_id_from_elf(module->start, &code_id_size);
     sentry_uuid_t uuid = sentry_uuid_nil();
     if (code_id) {
-        // the usage of these is described here:
-        // https://getsentry.github.io/symbolicator/advanced/symbol-server-compatibility/#identifiers
-        // in particular, the debug_id is a `little-endian GUID`, so we
-        // have to do appropriate byte-flipping
         sentry_value_set_by_key(mod_val, "code_id",
             sentry__value_new_hexstring((const char *)code_id, code_id_size));
 
@@ -250,6 +246,10 @@ sentry__procmaps_module_to_value(const sentry_module_t *module)
         uuid = get_code_id_from_text_fallback(module->start);
     }
 
+    // the usage of these is described here:
+    // https://getsentry.github.io/symbolicator/advanced/symbol-server-compatibility/#identifiers
+    // in particular, the debug_id is a `little-endian GUID`, so we
+    // have to do appropriate byte-flipping
     char *uuid_bytes = uuid.bytes;
     uint32_t *a = (uint32_t *)uuid_bytes;
     *a = htonl(*a);
