@@ -8,18 +8,20 @@ def run(cwd, exe, args, **kwargs):
     if os.environ.get("ANDROID_API"):
         # older android emulators do not correctly pass down the returncode
         # so we basically echo the return code, and parse it manually
+        is_pipe = kwargs.get("stdout") == subprocess.PIPE
+        kwargs["stdout"] = subprocess.PIPE
         child = subprocess.run([
             "{}/platform-tools/adb".format(os.environ["ANDROID_HOME"]),
             "shell",
             "cd /data/local/tmp && LD_LIBRARY_PATH=. ./{} {}; echo -n ret:$?".format(exe, " ".join(args))
-        ], **kwargs, stdout=subprocess.PIPE)
+        ], **kwargs)
         stdout = child.stdout
         child.returncode = int(stdout[stdout.rfind(b"ret:"):][4:])
         child.stdout = stdout[:stdout.rfind(b"ret:")]
-        if kwargs.get("stdout") != subprocess.PIPE:
-            print(child.stdout)
+        if not is_pipe:
+            sys.stdout.buffer.write(child.stdout)
         if kwargs.get("check") and child.returncode:
-            raise CalledProcessError(child.returncode, child.args,
+            raise subprocess.CalledProcessError(child.returncode, child.args,
                                      output=child.stdout, stderr=child.stderr)
         return child
 

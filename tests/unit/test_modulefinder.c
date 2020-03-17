@@ -83,7 +83,8 @@ SENTRY_TEST(procmaps_parser)
 
 SENTRY_TEST(buildid_fallback)
 {
-#ifndef SENTRY_PLATFORM_LINUX
+    // skipping this on android because it does not have access to the fixtures
+#if !defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
     SKIP_TEST();
 #else
     sentry_path_t *path = sentry__path_new(__FILE__);

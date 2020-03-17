@@ -53,6 +53,7 @@ def assert_meta(envelope):
 def assert_stacktrace(envelope, inside_exception=False, check_size=False):
     event = envelope.get_event()
 
+    print(event)
     frames = (event["exception"] if inside_exception else event["threads"])["values"][0]["stacktrace"]["frames"]
     assert isinstance(frames, list)
 
