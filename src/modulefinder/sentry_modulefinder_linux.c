@@ -19,6 +19,8 @@ static bool g_initialized = false;
 static sentry_mutex_t g_mutex = SENTRY__MUTEX_INIT;
 static sentry_value_t g_modules;
 
+static sentry_slice_t LINUX_GATE = { "linux-gate.so", 13 };
+
 int
 sentry__procmaps_parse_module_line(const char *line, sentry_module_t *module)
 {
@@ -239,11 +241,32 @@ sentry__procmaps_module_to_value(const sentry_module_t *module)
     sentry_uuid_t uuid = sentry_uuid_nil();
     if (code_id) {
         sentry_value_set_by_key(mod_val, "code_id",
-            sentry__value_new_hexstring((const char *)code_id, code_id_size));
+            sentry__value_new_hexstring(code_id, code_id_size));
 
         uuid = sentry_uuid_from_bytes((const char *)code_id);
     } else {
-        uuid = get_code_id_from_text_fallback(module->start);
+        // At least on the android API-16, x86 simulator, the linker apparently
+        // does not load the complete file into memory. Or at least, the section
+        // headers which are located at the end of the file are not loaded, and
+        // we are poking into invalid memory. The notes above are apparently at
+        // the beginning of the file, and we can read them just fine. It is only
+        // the fallback path which creates problems.
+        // Well, except for the vdso, which has its elf headers mapped, but
+        // which is not an actual file on disk.
+        if (sentry__slice_eq(module->file, LINUX_GATE)) {
+            uuid = get_code_id_from_text_fallback(module->start);
+        } else {
+            sentry_path_t *file = sentry__path_from_str(sentry_value_as_string(
+                sentry_value_get_by_key(mod_val, "code_file")));
+            if (file) {
+                char *buf = sentry__path_read_to_buffer(file, NULL);
+                sentry__path_free(file);
+                if (buf) {
+                    uuid = get_code_id_from_text_fallback(buf);
+                }
+                sentry_free(buf);
+            }
+        }
     }
 
     // the usage of these is described here:
@@ -272,8 +295,6 @@ try_append_module(sentry_value_t modules, const sentry_module_t *module)
 
     sentry_value_append(modules, sentry__procmaps_module_to_value(module));
 }
-
-static sentry_slice_t LINUX_GATE = { "linux-gate.so", 13 };
 
 // copied from:
 // https://github.com/google/breakpad/blob/216cea7bca53fa441a3ee0d0f5fd339a3a894224/src/client/linux/minidump_writer/linux_dumper.h#L61-L70

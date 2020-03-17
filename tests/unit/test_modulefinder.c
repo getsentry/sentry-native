@@ -87,7 +87,7 @@ SENTRY_TEST(buildid_fallback)
 #if !defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
     SKIP_TEST();
 #else
-    sentry_path_t *path = sentry__path_new(__FILE__);
+    sentry_path_t *path = sentry__path_from_str(__FILE__);
     sentry_path_t *dir = sentry__path_dir(path);
     sentry__path_free(path);
 
