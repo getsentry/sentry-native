@@ -37,11 +37,11 @@ def assert_meta(envelope):
         "extra": { "extra stuff": "some value", "…unicode key…": "őá…–🤮🚀¿ 한글 테스트" },
         "sdk": {
             "name": "sentry.native",
-            "version": "0.2.0",
+            "version": "0.2.1",
             "packages": [
                 {
                     "name": "github:getsentry/sentry-native",
-                    "version": "0.2.0",
+                    "version": "0.2.1",
                 },
             ],
         },
