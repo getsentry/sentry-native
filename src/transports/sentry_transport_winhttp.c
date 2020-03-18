@@ -1,14 +1,13 @@
-#include "sentry_winhttp_transport.h"
-
 #include "sentry_alloc.h"
 #include "sentry_core.h"
 #include "sentry_envelope.h"
 #include "sentry_string.h"
 #include "sentry_sync.h"
+#include "sentry_transport.h"
 
-#include <winhttp.h>
 #include <stdlib.h>
 #include <string.h>
+#include <winhttp.h>
 
 typedef struct {
     sentry_bgworker_t *bgworker;
@@ -235,7 +234,7 @@ winhttp_transport_send_envelope(
 }
 
 sentry_transport_t *
-sentry__new_winhttp_transport(void)
+sentry__transport_new_default(void)
 {
     SENTRY_DEBUG("initializing winhttp transport");
     sentry_transport_t *transport = SENTRY_MAKE(sentry_transport_t);
