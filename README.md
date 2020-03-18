@@ -136,6 +136,25 @@ using `cmake -D BUILD_SHARED_LIBS=OFF ..`.
   - **none**: This builds `sentry-native` without a backend, so it does not handle
     crashes at all. It is primarily used for tests.
 
+| Feature    | Windows | macOS | Linux | Android |
+| ---------- | ------- | ----- | ----- | ------- |
+| Transports |         |       |       |         |
+| - curl     |         | ☑     | ☑     | ✓       |
+| - winhttp  | ☑       |       |       |         |
+| - none     | ✓       | ✓     | ✓     | ☑       |
+|            |         |       |       |         |
+| Backends   |         |       |       |         |
+| - inproc   |         | ✓     | ✓     | ☑       |
+| - crashpad | ☑       | ☑     |       |         |
+| - breakpad |         |       | ☑     |         |
+| - none     | ✓       | ✓     | ✓     | ✓       |
+
+Legend:
+
+- ☑ default
+- ✓ supported
+- unsupported
+
 ### Build Targets
 
 - `sentry`: This is the main library and the only default build target.

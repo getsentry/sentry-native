@@ -15,10 +15,10 @@ option(SENTRY_BUILD_EXAMPLES "Build sentry-native example(s)" ON)
 
 if(WIN32)
 	set(SENTRY_DEFAULT_TRANSPORT "winhttp")
-elseif(ANDROID)
-	set(SENTRY_DEFAULT_TRANSPORT "none")
-else()
+elseif(APPLE OR LINUX)
 	set(SENTRY_DEFAULT_TRANSPORT "curl")
+else()
+	set(SENTRY_DEFAULT_TRANSPORT "none")
 endif()
 
 set(SENTRY_TRANSPORT ${SENTRY_DEFAULT_TRANSPORT} CACHE STRING
