@@ -90,6 +90,8 @@ stages:
                 leak*
                 scripts
                 Makefile
+                external/breakpad/src/tools
+                external/breakpad/src/processor
           - task: ArchiveFiles@2
             displayName: Create source archive
             inputs:
