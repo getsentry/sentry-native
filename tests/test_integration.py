@@ -128,9 +128,7 @@ def test_inproc_enqueue_stdout(tmp_path):
     cmake(tmp_path, ["sentry_example"], {"SENTRY_BACKEND":"inproc","SENTRY_CURL_SUPPORT":"OFF"})
 
     child = run(tmp_path, "sentry_example", ["attachment", "crash"])
-    # older android emulators do not correctly pass down the returncode
-    if not os.environ.get("ANDROID_API"):
-        assert child.returncode # well, its a crash after all
+    assert child.returncode # well, its a crash after all
 
     output = check_output(tmp_path, "sentry_example", ["stdout", "no-setup"])
     envelope = Envelope.deserialize(output)
@@ -146,9 +144,7 @@ def test_breakpad_enqueue_stdout(tmp_path):
     cmake(tmp_path, ["sentry_example"], {"SENTRY_BACKEND":"breakpad","SENTRY_CURL_SUPPORT":"OFF"})
 
     child = run(tmp_path, "sentry_example", ["attachment", "crash"])
-    # older android emulators do not correctly pass down the returncode
-    if not os.environ.get("ANDROID_API"):
-        assert child.returncode # well, its a crash after all
+    assert child.returncode # well, its a crash after all
 
     output = check_output(tmp_path, "sentry_example", ["stdout", "no-setup"])
     envelope = Envelope.deserialize(output)
