@@ -91,16 +91,16 @@ SENTRY_TEST(buildid_fallback)
     sentry_path_t *dir = sentry__path_dir(path);
     sentry__path_free(path);
 
+    sentry_value_t with_id_val = sentry_value_new_object();
+    sentry_mmap_t with_id_map;
     sentry_path_t *with_id_path
         = sentry__path_join_str(dir, "../fixtures/with-buildid.so");
-    size_t with_id_len = 0;
-    char *with_id = sentry__path_read_to_buffer(with_id_path, &with_id_len);
+    TEST_CHECK(sentry__mmap_file(&with_id_map, with_id_path->path));
     sentry__path_free(with_id_path);
 
-    sentry_module_t with_id_mod
-        = { with_id, with_id + with_id_len, { "with-buildid.so", 15 } };
-    sentry_value_t with_id_val
-        = sentry__procmaps_module_to_value(&with_id_mod, with_id);
+    TEST_CHECK(
+        sentry__procmaps_read_ids_from_elf(with_id_val, with_id_map.ptr));
+    sentry__mmap_close(&with_id_map);
 
     TEST_CHECK_STRING_EQUAL(
         sentry_value_as_string(sentry_value_get_by_key(with_id_val, "code_id")),
@@ -109,18 +109,17 @@ SENTRY_TEST(buildid_fallback)
                                 with_id_val, "debug_id")),
         "4247301c-14f1-5421-53a8-a777f6cdb3a2");
     sentry_value_decref(with_id_val);
-    sentry_free(with_id);
 
+    sentry_value_t x86_exe_val = sentry_value_new_object();
+    sentry_mmap_t x86_exe_map;
     sentry_path_t *x86_exe_path
         = sentry__path_join_str(dir, "../fixtures/sentry_example");
-    size_t x86_exe_len = 0;
-    char *x86_exe = sentry__path_read_to_buffer(x86_exe_path, &x86_exe_len);
+    TEST_CHECK(sentry__mmap_file(&x86_exe_map, x86_exe_path->path));
     sentry__path_free(x86_exe_path);
 
-    sentry_module_t x86_exe_mod
-        = { x86_exe, x86_exe + x86_exe_len, { "sentry_example", 14 } };
-    sentry_value_t x86_exe_val
-        = sentry__procmaps_module_to_value(&x86_exe_mod, x86_exe);
+    TEST_CHECK(
+        sentry__procmaps_read_ids_from_elf(x86_exe_val, x86_exe_map.ptr));
+    sentry__mmap_close(&x86_exe_map);
 
     TEST_CHECK_STRING_EQUAL(
         sentry_value_as_string(sentry_value_get_by_key(x86_exe_val, "code_id")),
@@ -129,19 +128,17 @@ SENTRY_TEST(buildid_fallback)
                                 x86_exe_val, "debug_id")),
         "6c4ac2b4-95c9-7fc1-b18a-65184a65863c");
     sentry_value_decref(x86_exe_val);
-    sentry_free(x86_exe);
 
+    sentry_value_t without_id_val = sentry_value_new_object();
+    sentry_mmap_t without_id_map;
     sentry_path_t *without_id_path
         = sentry__path_join_str(dir, "../fixtures/without-buildid.so");
-    size_t without_id_len = 0;
-    char *without_id
-        = sentry__path_read_to_buffer(without_id_path, &without_id_len);
+    TEST_CHECK(sentry__mmap_file(&without_id_map, without_id_path->path));
     sentry__path_free(without_id_path);
 
-    sentry_module_t without_id_mod = { without_id, without_id + without_id_len,
-        { "without-buildid.so", 18 } };
-    sentry_value_t without_id_val
-        = sentry__procmaps_module_to_value(&without_id_mod, without_id);
+    TEST_CHECK(
+        sentry__procmaps_read_ids_from_elf(without_id_val, without_id_map.ptr));
+    sentry__mmap_close(&without_id_map);
 
     TEST_CHECK(sentry_value_is_null(
         sentry_value_get_by_key(without_id_val, "code_id")));
@@ -149,18 +146,17 @@ SENTRY_TEST(buildid_fallback)
                                 without_id_val, "debug_id")),
         "29271919-a2ef-129d-9aac-be85a0948d9c");
     sentry_value_decref(without_id_val);
-    sentry_free(without_id);
 
+    sentry_value_t x86_lib_val = sentry_value_new_object();
+    sentry_mmap_t x86_lib_map;
     sentry_path_t *x86_lib_path
         = sentry__path_join_str(dir, "../fixtures/libstdc++.so");
-    size_t x86_lib_len = 0;
-    char *x86_lib = sentry__path_read_to_buffer(x86_lib_path, &x86_lib_len);
+    TEST_CHECK(sentry__mmap_file(&x86_lib_map, x86_lib_path->path));
     sentry__path_free(x86_lib_path);
 
-    sentry_module_t x86_lib_mod
-        = { x86_lib, x86_lib + x86_lib_len, { "foobar", 6 } };
-    sentry_value_t x86_lib_val
-        = sentry__procmaps_module_to_value(&x86_lib_mod, x86_lib);
+    TEST_CHECK(
+        sentry__procmaps_read_ids_from_elf(x86_lib_val, x86_lib_map.ptr));
+    sentry__mmap_close(&x86_lib_map);
 
     TEST_CHECK(
         sentry_value_is_null(sentry_value_get_by_key(x86_lib_val, "code_id")));
@@ -168,7 +164,6 @@ SENTRY_TEST(buildid_fallback)
                                 x86_lib_val, "debug_id")),
         "7fa824da-38f1-b87c-04df-718fda64990c");
     sentry_value_decref(x86_lib_val);
-    sentry_free(x86_lib);
 
     sentry__path_free(dir);
 #endif

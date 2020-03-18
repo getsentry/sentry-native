@@ -10,6 +10,9 @@
 #include <elf.h>
 #include <fcntl.h>
 #include <string.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 #include <unistd.h>
 
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
@@ -61,6 +64,53 @@ sentry__procmaps_parse_module_line(const char *line, sentry_module_t *module)
 
     // and return the consumed chars…
     return consumed;
+}
+
+bool
+sentry__mmap_file(sentry_mmap_t *rv, const char *path)
+{
+    rv->fd = open(path, O_RDONLY);
+    if (rv->fd < 0) {
+        goto fail;
+    }
+
+    struct stat sb;
+    if (stat(path, &sb) != 0 || !S_ISREG(sb.st_mode)) {
+        goto fail;
+    }
+
+    rv->len = sb.st_size;
+    if (rv->len == 0) {
+        goto fail;
+    }
+
+    rv->ptr = mmap(NULL, rv->len, PROT_READ, MAP_PRIVATE, rv->fd, 0);
+    if (rv->ptr == MAP_FAILED) {
+        goto fail;
+    }
+
+    return true;
+
+fail:
+    if (rv->fd > 0) {
+        close(rv->fd);
+    }
+    rv->fd = 0;
+    rv->ptr = NULL;
+    rv->len = 0;
+    return false;
+
+    return rv;
+}
+
+void
+sentry__mmap_close(sentry_mmap_t *m)
+{
+    munmap(m->ptr, m->len);
+    close(m->fd);
+    m->ptr = NULL;
+    m->len = 0;
+    m->fd = 0;
 }
 
 void
@@ -222,30 +272,21 @@ get_code_id_from_text_fallback(void *base)
     return uuid;
 }
 
-sentry_value_t
-sentry__procmaps_module_to_value(const sentry_module_t *module, void *addr)
+bool
+sentry__procmaps_read_ids_from_elf(sentry_value_t value, void *elf_ptr)
 {
-    sentry_value_t mod_val = sentry_value_new_object();
-    sentry_value_set_by_key(mod_val, "type", sentry_value_new_string("elf"));
-    sentry_value_set_by_key(
-        mod_val, "image_addr", sentry__value_new_addr((uint64_t)module->start));
-    sentry_value_set_by_key(mod_val, "image_size",
-        sentry_value_new_int32((int32_t)(module->end - module->start)));
-    sentry_value_set_by_key(mod_val, "code_file",
-        sentry__value_new_string_owned(sentry__slice_to_owned(module->file)));
-
     // and try to get the debug id from the elf headers of the loaded
     // modules
     size_t code_id_size;
-    const uint8_t *code_id = get_code_id_from_elf(addr, &code_id_size);
+    const uint8_t *code_id = get_code_id_from_elf(elf_ptr, &code_id_size);
     sentry_uuid_t uuid = sentry_uuid_nil();
     if (code_id) {
-        sentry_value_set_by_key(mod_val, "code_id",
+        sentry_value_set_by_key(value, "code_id",
             sentry__value_new_hexstring(code_id, code_id_size));
 
         uuid = sentry_uuid_from_bytes((const char *)code_id);
     } else {
-        uuid = get_code_id_from_text_fallback(addr);
+        uuid = get_code_id_from_text_fallback(elf_ptr);
     }
 
     // the usage of these is described here:
@@ -260,7 +301,45 @@ sentry__procmaps_module_to_value(const sentry_module_t *module, void *addr)
     uint16_t *c = (uint16_t *)(uuid_bytes + 6);
     *c = htons(*c);
 
-    sentry_value_set_by_key(mod_val, "debug_id", sentry__value_new_uuid(&uuid));
+    sentry_value_set_by_key(value, "debug_id", sentry__value_new_uuid(&uuid));
+    return true;
+}
+
+sentry_value_t
+sentry__procmaps_module_to_value(const sentry_module_t *module)
+{
+    sentry_value_t mod_val = sentry_value_new_object();
+    sentry_value_set_by_key(mod_val, "type", sentry_value_new_string("elf"));
+    sentry_value_set_by_key(
+        mod_val, "image_addr", sentry__value_new_addr((uint64_t)module->start));
+    sentry_value_set_by_key(mod_val, "image_size",
+        sentry_value_new_int32((int32_t)(module->end - module->start)));
+    sentry_value_set_by_key(mod_val, "code_file",
+        sentry__value_new_string_owned(sentry__slice_to_owned(module->file)));
+
+    // At least on the android API-16, x86 simulator, the linker apparently
+    // does not load the complete file into memory. Or at least, the section
+    // headers which are located at the end of the file are not loaded, and
+    // we would be poking into invalid memory. To be safe, we mmap the complete
+    // file from disk, so we have the on-disk layout, and are independent of how
+    // the runtime linker would load or re-order any sections. The exception
+    // here is the linux-gate, which is not an actual file on disk, so we
+    // actually poke at its memory.
+    if (sentry__slice_eq(module->file, LINUX_GATE)) {
+        sentry__procmaps_read_ids_from_elf(mod_val, module->start);
+    } else {
+        char *filename = sentry__slice_to_owned(module->file);
+        sentry_mmap_t mm;
+        if (!sentry__mmap_file(&mm, filename)) {
+            sentry_free(filename);
+            return mod_val;
+        }
+        sentry_free(filename);
+
+        sentry__procmaps_read_ids_from_elf(mod_val, mm.ptr);
+
+        sentry__mmap_close(&mm);
+    }
 
     return mod_val;
 }
@@ -272,33 +351,7 @@ try_append_module(sentry_value_t modules, const sentry_module_t *module)
         return;
     }
 
-    // At least on the android API-16, x86 simulator, the linker apparently
-    // does not load the complete file into memory. Or at least, the section
-    // headers which are located at the end of the file are not loaded, and
-    // we would be poking into invalid memory. To be safe, we load the file
-    // from disk, so we have the on-disk layout, and are independent of how the
-    // runtime linker would load or re-order any sections. The exception here is
-    // the linux-gate, which is not an actual file on disk, so we actually poke
-    // at its memory.
-    sentry_value_t mod = sentry_value_new_null();
-
-    if (sentry__slice_eq(module->file, LINUX_GATE)) {
-        mod = sentry__procmaps_module_to_value(module, module->start);
-    } else {
-        char *filename = sentry__slice_to_owned(module->file);
-        sentry_path_t *file = sentry__path_from_str_owned(filename);
-        if (file) {
-            char *buf = sentry__path_read_to_buffer(file, NULL);
-            sentry__path_free(file);
-            if (buf) {
-                mod = sentry__procmaps_module_to_value(module, buf);
-                sentry_free(buf);
-            }
-        }
-    }
-    if (!sentry_value_is_null(mod)) {
-        sentry_value_append(modules, mod);
-    }
+    sentry_value_append(modules, sentry__procmaps_module_to_value(module));
 }
 
 // copied from:
