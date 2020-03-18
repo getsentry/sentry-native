@@ -1,5 +1,3 @@
-#include "sentry_boot.h"
-
 #include "sentry_backend.h"
 
 sentry_backend_t *

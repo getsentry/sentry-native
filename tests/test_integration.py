@@ -97,7 +97,7 @@ def assert_crash(envelope):
 
 def test_capture_stdout(tmp_path):
     # backend does not matter, but we want to keep compile times down
-    cmake(tmp_path, ["sentry_example"], {"SENTRY_BACKEND": "none", "BUILD_SHARED_LIBS":"OFF", "SENTRY_CURL_SUPPORT":"OFF"})
+    cmake(tmp_path, ["sentry_example"], {"SENTRY_BACKEND": "none", "SENTRY_TRANSPORT":"none", "BUILD_SHARED_LIBS":"OFF"})
 
     # on linux we can use `ldd` to check that we don’t link to `libsentry.so`
     if sys.platform == "linux":
@@ -125,7 +125,7 @@ def test_capture_stdout(tmp_path):
 
 @pytest.mark.skipif(sys.platform == "win32", reason="no inproc backend on windows")
 def test_inproc_enqueue_stdout(tmp_path):
-    cmake(tmp_path, ["sentry_example"], {"SENTRY_BACKEND":"inproc","SENTRY_CURL_SUPPORT":"OFF"})
+    cmake(tmp_path, ["sentry_example"], {"SENTRY_BACKEND":"inproc", "SENTRY_TRANSPORT":"none"})
 
     child = run(tmp_path, "sentry_example", ["attachment", "crash"])
     assert child.returncode # well, its a crash after all
@@ -141,7 +141,7 @@ def test_inproc_enqueue_stdout(tmp_path):
 
 @pytest.mark.skipif(sys.platform != "linux", reason="breakpad only supported on linux")
 def test_breakpad_enqueue_stdout(tmp_path):
-    cmake(tmp_path, ["sentry_example"], {"SENTRY_BACKEND":"breakpad","SENTRY_CURL_SUPPORT":"OFF"})
+    cmake(tmp_path, ["sentry_example"], {"SENTRY_BACKEND":"breakpad", "SENTRY_TRANSPORT":"none"})
 
     child = run(tmp_path, "sentry_example", ["attachment", "crash"])
     assert child.returncode # well, its a crash after all
@@ -157,4 +157,4 @@ def test_breakpad_enqueue_stdout(tmp_path):
 
 @pytest.mark.skipif(sys.platform == "linux" or os.environ.get("ANDROID_API"), reason="crashpad not supported on linux")
 def test_crashpad_build(tmp_path):
-    cmake(tmp_path, ["sentry_example"], {"SENTRY_BACKEND":"crashpad","SENTRY_CURL_SUPPORT":"OFF"})
+    cmake(tmp_path, ["sentry_example"], {"SENTRY_BACKEND":"crashpad", "SENTRY_TRANSPORT":"none"})

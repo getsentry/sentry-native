@@ -1,9 +1,10 @@
-#include "sentry_libcurl_transport.h"
 #include "sentry_alloc.h"
 #include "sentry_core.h"
 #include "sentry_envelope.h"
 #include "sentry_string.h"
 #include "sentry_sync.h"
+#include "sentry_transport.h"
+
 #include <curl/curl.h>
 #include <curl/easy.h>
 #include <stdlib.h>
@@ -202,7 +203,7 @@ send_envelope(struct sentry_transport_s *transport, sentry_envelope_t *envelope)
 }
 
 sentry_transport_t *
-sentry__new_libcurl_transport(void)
+sentry__transport_new_default(void)
 {
     SENTRY_DEBUG("initializing curl transport");
     sentry_transport_t *transport = SENTRY_MAKE(sentry_transport_t);

@@ -49,7 +49,7 @@ target_link_libraries(sentry_test_unit PRIVATE
 # This is a bit unfortunate: Building the unit tests also builds and links the
 # backend, which is unnecessary for the unit tests themselves,
 # and takes a long time to compile.
-if(BACKEND_CRASHPAD)
+if(SENTRY_BACKEND_CRASHPAD)
 	target_compile_features(sentry_test_unit PUBLIC cxx_std_14)
 endif()
 

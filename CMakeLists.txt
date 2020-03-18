@@ -13,12 +13,30 @@ option(BUILD_SHARED_LIBS "Build shared libraries (.dll/.so) instead of static on
 option(SENTRY_BUILD_TESTS "Build sentry-native tests" ON)
 option(SENTRY_BUILD_EXAMPLES "Build sentry-native example(s)" ON)
 
-set(SENTRY_CURL_DEFAULT ON)
 if(WIN32)
-	set(SENTRY_CURL_DEFAULT OFF)
+	set(SENTRY_DEFAULT_TRANSPORT "winhttp")
+elseif(APPLE OR LINUX)
+	set(SENTRY_DEFAULT_TRANSPORT "curl")
+else()
+	set(SENTRY_DEFAULT_TRANSPORT "none")
 endif()
 
-option(SENTRY_CURL_SUPPORT "Builds sentry-native with curl support" ${SENTRY_CURL_DEFAULT})
+set(SENTRY_TRANSPORT ${SENTRY_DEFAULT_TRANSPORT} CACHE STRING
+  "The HTTP transport that sentry uses to submit events to the sentry server, can be either 'none', 'curl' or 'winhttp' on windows.")
+
+if(SENTRY_TRANSPORT STREQUAL "winhttp")
+	set(SENTRY_TRANSPORT_WINHTTP TRUE)
+elseif(SENTRY_TRANSPORT STREQUAL "curl")
+	set(SENTRY_TRANSPORT_CURL TRUE)
+elseif(SENTRY_TRANSPORT STREQUAL "none")
+	set(SENTRY_TRANSPORT_NONE TRUE)
+else()
+	message(FATAL_ERROR "SENTRY_TRANSPORT must be one of 'none', 'curl' or 'winhttp'")
+endif()
+
+if(SENTRY_TRANSPORT_WINHTTP AND NOT WIN32)
+	message(FATAL_ERROR "The winhttp transport is only supported on Windows.")
+endif()
 
 if(SENTRY_BUILD_TESTS OR SENTRY_BUILD_EXAMPLES)
 	enable_testing()
@@ -42,31 +60,34 @@ set(SENTRY_BACKEND ${SENTRY_DEFAULT_BACKEND} CACHE STRING
   "The sentry backend responsible for reporting crashes, can be either 'none', 'inproc', 'breakpad' or 'crashpad'.")
 
 if(SENTRY_BACKEND STREQUAL "crashpad")
-	set(BACKEND_CRASHPAD TRUE)
+	set(SENTRY_BACKEND_CRASHPAD TRUE)
 elseif(SENTRY_BACKEND STREQUAL "inproc")
-	set(BACKEND_INPROC TRUE)
+	set(SENTRY_BACKEND_INPROC TRUE)
 elseif(SENTRY_BACKEND STREQUAL "breakpad")
-	set(BACKEND_BREAKPAD TRUE)
+	set(SENTRY_BACKEND_BREAKPAD TRUE)
 elseif(SENTRY_BACKEND STREQUAL "none")
-	set(BACKEND_NONE TRUE)
+	set(SENTRY_BACKEND_NONE TRUE)
 else()
 	message(FATAL_ERROR "SENTRY_BACKEND must be one of 'crashpad', 'inproc', 'breakpad' or 'none'")
 endif()
 
-if(BACKEND_CRASHPAD AND NOT (APPLE OR WIN32))
+if(SENTRY_BACKEND_CRASHPAD AND NOT (APPLE OR WIN32))
 	message(FATAL_ERROR "The Crashpad backend is currently only supported on macOS and Windows")
 endif()
-if(BACKEND_BREAKPAD AND NOT LINUX)
+if(SENTRY_BACKEND_BREAKPAD AND NOT LINUX)
 	message(FATAL_ERROR "The Breakpad backend is currently only supported on Linux")
 endif()
-if(BACKEND_INPROC AND WIN32)
+if(SENTRY_BACKEND_INPROC AND WIN32)
 	message(FATAL_ERROR "The in-process backend is not supported on Windows")
 endif()
 
+message(STATUS "SENTRY_TRANSPORT=${SENTRY_TRANSPORT}")
+message(STATUS "SENTRY_BACKEND=${SENTRY_BACKEND}")
+
 if(ANDROID)
-	set(WITH_LIBUNWINDSTACK TRUE)
+	set(SENTRY_WITH_LIBUNWINDSTACK TRUE)
 elseif(NOT WIN32)
-	set(WITH_LIBBACKTRACE TRUE)
+	set(SENTRY_WITH_LIBBACKTRACE TRUE)
 endif()
 
 option(WITH_ASAN_OPTION "Build sentry-native with address sanitizer" OFF)
@@ -164,9 +185,8 @@ else()
 	target_compile_definitions(sentry PUBLIC SENTRY_BUILD_STATIC)
 endif()
 
-if(SENTRY_CURL_SUPPORT)
+if(SENTRY_TRANSPORT_CURL)
 	find_package(CURL REQUIRED)
-	target_compile_definitions(sentry PUBLIC SENTRY_WITH_LIBCURL_TRANSPORT)
 	target_include_directories(sentry PRIVATE ${CURL_INCLUDE_DIR})
 	# The exported sentry target must not contain any path of the build machine, therefore use generator expressions
 	# FIXME: cmake 3.12 introduced the target CURL::libcurl
@@ -174,12 +194,7 @@ if(SENTRY_CURL_SUPPORT)
 	string(REPLACE ";" "$<SEMICOLON>" GENEX_CURL_COMPILE_DEFINITIONS "${CURL_COMPILE_DEFINITIONS}")
 	target_link_libraries(sentry PRIVATE $<BUILD_INTERFACE:${GENEX_CURL_LIBRARIES}>)
 	target_compile_definitions(sentry PRIVATE $<BUILD_INTERFACE:${GENEX_CURL_COMPILE_DEFINITIONS}>)
-endif()
-
-if(WIN32)
-	target_compile_definitions(sentry
-		PUBLIC SENTRY_WITH_WINHTTP_TRANSPORT
-	)
+elseif(SENTRY_TRANSPORT_WINHTTP)
 	target_link_libraries(sentry PRIVATE winhttp shlwapi)
 endif()
 
@@ -209,7 +224,7 @@ elseif(WIN32)
 	target_link_libraries(sentry PRIVATE dbghelp pathcch)
 endif()
 
-if(WITH_LIBUNWINDSTACK)
+if(SENTRY_WITH_LIBUNWINDSTACK)
 	target_include_directories(sentry PRIVATE
 		"$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/libunwindstack-ndk/include>")
 	add_subdirectory("${PROJECT_SOURCE_DIR}/external/libunwindstack-ndk/cmake")
@@ -222,7 +237,7 @@ if(WITH_LIBUNWINDSTACK)
 	endif()
 endif()
 
-if(BACKEND_CRASHPAD)
+if(SENTRY_BACKEND_CRASHPAD)
 	add_subdirectory(external/crashpad EXCLUDE_FROM_ALL)
 	target_include_directories(sentry PRIVATE
 		"$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/crashpad>"
@@ -241,7 +256,7 @@ if(BACKEND_CRASHPAD)
 		RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 	)
 	add_dependencies(sentry crashpad_handler)
-elseif(BACKEND_BREAKPAD)
+elseif(SENTRY_BACKEND_BREAKPAD)
 	add_subdirectory(external)
 	target_include_directories(sentry PRIVATE
 		"$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/breakpad/src>"
@@ -255,7 +270,7 @@ elseif(BACKEND_BREAKPAD)
 			ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
 		)
 	endif()
-elseif(BACKEND_INPROC)
+elseif(SENTRY_BACKEND_INPROC)
 	target_compile_definitions(sentry PRIVATE SENTRY_WITH_INPROC_BACKEND)
 endif()
 

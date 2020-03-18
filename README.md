@@ -117,9 +117,14 @@ using `cmake -D BUILD_SHARED_LIBS=OFF ..`.
 - `BUILD_SHARED_LIBS` (Default: ON):
   By default, `sentry` is built as a shared library. Setting this option to
   `OFF` will build `sentry` as a static library instead.
-- `SENTRY_CURL_SUPPORT` (Default: ON on all non-Windows platforms):
-  On non-Windows platforms, sentry will try to use `curl` by default for http
-  requests. CMake will raise a hard error if it is not found.
+- `SENTRY_TRANSPORT` (Default: depending on platform):
+  Sentry can use different http libraries to send reports to the server.
+  - **curl**: This uses the `curl` library for HTTP handling. This requires
+    that the development version of the package is available.
+  - **winhttp**: This uses the `winhttp` system library, is only supported on
+    Windows and is the default there.
+  - **none**: Do not build any http transport. This should be used if users
+    want to handle uploads themselves
 - `SENTRY_BACKEND` (Default: depending on platform):
   Sentry can use different backends depending on platform.
   - **crashpad**: This uses the out-of-process crashpad handler. It is currently
@@ -130,6 +135,25 @@ using `cmake -D BUILD_SHARED_LIBS=OFF ..`.
     except Windows, and is used as default on Linux and Android.
   - **none**: This builds `sentry-native` without a backend, so it does not handle
     crashes at all. It is primarily used for tests.
+
+| Feature    | Windows | macOS | Linux | Android |
+| ---------- | ------- | ----- | ----- | ------- |
+| Transports |         |       |       |         |
+| - curl     |         | ☑     | ☑     | ✓       |
+| - winhttp  | ☑       |       |       |         |
+| - none     | ✓       | ✓     | ✓     | ☑       |
+|            |         |       |       |         |
+| Backends   |         |       |       |         |
+| - inproc   |         | ✓     | ✓     | ☑       |
+| - crashpad | ☑       | ☑     |       |         |
+| - breakpad |         |       | ☑     |         |
+| - none     | ✓       | ✓     | ✓     | ✓       |
+
+Legend:
+
+- ☑ default
+- ✓ supported
+- unsupported
 
 ### Build Targets
 
