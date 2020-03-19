@@ -391,7 +391,7 @@ decode_string_inplace(char *buf)
     return true;
 }
 
-static ssize_t
+static size_t
 tokens_to_value(jsmntok_t *tokens, size_t token_count, const char *buf,
     sentry_value_t *value_out)
 {
@@ -400,9 +400,9 @@ tokens_to_value(jsmntok_t *tokens, size_t token_count, const char *buf,
 #define POP() (offset < token_count ? &tokens[offset++] : NULL)
 #define NESTED_PARSE(Target)                                                   \
     do {                                                                       \
-        ssize_t child_consumed = tokens_to_value(                              \
+        size_t child_consumed = tokens_to_value(                               \
             tokens + offset, token_count - offset, buf, Target);               \
-        if (child_consumed < 0) {                                              \
+        if (child_consumed == (size_t)-1) {                                    \
             goto error;                                                        \
         }                                                                      \
         offset += child_consumed;                                              \
@@ -488,7 +488,7 @@ tokens_to_value(jsmntok_t *tokens, size_t token_count, const char *buf,
 
 error:
     sentry_value_decref(rv);
-    return -1;
+    return (size_t)-1;
 }
 
 sentry_value_t
@@ -508,11 +508,11 @@ sentry__value_from_json(const char *buf, size_t buflen)
     token_count = jsmn_parse(&jsmn_p, buf, buflen, tokens, token_count);
 
     sentry_value_t value_out;
-    ssize_t tokens_consumed
+    size_t tokens_consumed
         = tokens_to_value(tokens, (size_t)token_count, buf, &value_out);
     sentry_free(tokens);
 
-    if ((size_t)tokens_consumed == (size_t)token_count) {
+    if (tokens_consumed == (size_t)token_count) {
         return value_out;
     } else {
         return sentry_value_new_null();
