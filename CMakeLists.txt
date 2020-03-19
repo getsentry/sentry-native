@@ -195,7 +195,7 @@ if(SENTRY_TRANSPORT_CURL)
 	target_link_libraries(sentry PRIVATE $<BUILD_INTERFACE:${GENEX_CURL_LIBRARIES}>)
 	target_compile_definitions(sentry PRIVATE $<BUILD_INTERFACE:${GENEX_CURL_COMPILE_DEFINITIONS}>)
 elseif(SENTRY_TRANSPORT_WINHTTP)
-	target_link_libraries(sentry PRIVATE winhttp shlwapi)
+	target_link_libraries(sentry PRIVATE winhttp)
 endif()
 
 set_property(TARGET sentry PROPERTY C_VISIBILITY_PRESET hidden)
@@ -221,7 +221,7 @@ target_link_libraries(sentry INTERFACE
 if(LINUX)
 	target_link_libraries(sentry PRIVATE pthread dl)
 elseif(WIN32)
-	target_link_libraries(sentry PRIVATE dbghelp pathcch)
+	target_link_libraries(sentry PRIVATE dbghelp pathcch shlwapi)
 endif()
 
 if(SENTRY_WITH_LIBUNWINDSTACK)

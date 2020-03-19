@@ -12,10 +12,21 @@ extern "C" {
 #include <map>
 #include <vector>
 
+#ifdef __GNUC__
+#    pragma GCC diagnostic push
+#    pragma GCC diagnostic ignored "-Wunused-parameter"
+#    pragma GCC diagnostic ignored "-Wgnu-zero-variadic-macro-arguments"
+#    pragma GCC diagnostic ignored "-Wfour-char-constants"
+#endif
+
 #include "client/crash_report_database.h"
 #include "client/crashpad_client.h"
 #include "client/crashpad_info.h"
 #include "client/settings.h"
+
+#ifdef __GNUC__
+#    pragma GCC diagnostic pop
+#endif
 
 extern "C" {
 
@@ -29,7 +40,7 @@ typedef struct {
 static std::unique_ptr<crashpad::CrashReportDatabase> g_db;
 
 static void
-sentry__crashpad_backend_user_consent_changed(sentry_backend_t *backend)
+sentry__crashpad_backend_user_consent_changed(sentry_backend_t *UNUSED(backend))
 {
     if (!g_db || !g_db->GetSettings()) {
         return;
