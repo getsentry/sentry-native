@@ -76,47 +76,48 @@ elseif(LINUX OR ANDROID)
 	)
 endif()
 
-# curl transport
-if(SENTRY_CURL_SUPPORT)
+# transport
+if(SENTRY_TRANSPORT_CURL)
 	sentry_target_sources_cwd(sentry
-		transports/sentry_libcurl_transport.c
-		transports/sentry_libcurl_transport.h
+		transports/sentry_transport_curl.c
 	)
-endif()
-if(WIN32)
+elseif(SENTRY_TRANSPORT_WINHTTP)
 	sentry_target_sources_cwd(sentry
-		transports/sentry_winhttp_transport.c
-		transports/sentry_winhttp_transport.h
+		transports/sentry_transport_winhttp.c
+	)
+elseif(SENTRY_TRANSPORT_NONE)
+	sentry_target_sources_cwd(sentry
+		transports/sentry_transport_none.c
 	)
 endif()
 
 # backends
-if(BACKEND_CRASHPAD)
+if(SENTRY_BACKEND_CRASHPAD)
     sentry_target_sources_cwd(sentry
         backends/sentry_backend_crashpad.cpp
     )
-elseif(BACKEND_BREAKPAD)
+elseif(SENTRY_BACKEND_BREAKPAD)
     sentry_target_sources_cwd(sentry
         backends/sentry_backend_breakpad.cpp
     )
-elseif(BACKEND_INPROC)
+elseif(SENTRY_BACKEND_INPROC)
     sentry_target_sources_cwd(sentry
         backends/sentry_backend_inproc.c
     )
-elseif(BACKEND_NONE)
+elseif(SENTRY_BACKEND_NONE)
     sentry_target_sources_cwd(sentry
         backends/sentry_backend_none.c
     )
 endif()
 
 # unwinder
-if(WITH_LIBBACKTRACE)
+if(SENTRY_WITH_LIBBACKTRACE)
 	target_compile_definitions(sentry PUBLIC SENTRY_WITH_UNWINDER_LIBBACKTRACE)
 	sentry_target_sources_cwd(sentry
 		unwinder/sentry_unwinder_libbacktrace.c
 	)
 endif()
-if(WITH_LIBUNWINDSTACK)
+if(SENTRY_WITH_LIBUNWINDSTACK)
 	target_compile_definitions(sentry PUBLIC SENTRY_WITH_UNWINDER_LIBUNWINDSTACK)
 	sentry_target_sources_cwd(sentry
 		unwinder/sentry_unwinder_libunwindstack.cpp

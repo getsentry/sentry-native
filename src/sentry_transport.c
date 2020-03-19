@@ -1,27 +1,8 @@
-#include "sentry_boot.h"
-#include "sentry_alloc.h"
 #include "sentry_transport.h"
-#include "sentry_utils.h"
+#include "sentry_alloc.h"
 #include "sentry_slice.h"
+#include "sentry_utils.h"
 
-#ifdef SENTRY_WITH_LIBCURL_TRANSPORT
-#    include "transports/sentry_libcurl_transport.h"
-#endif
-#ifdef SENTRY_WITH_WINHTTP_TRANSPORT
-#    include "transports/sentry_winhttp_transport.h"
-#endif
-
-sentry_transport_t *
-sentry__transport_new_default(void)
-{
-#ifdef SENTRY_WITH_LIBCURL_TRANSPORT
-    return sentry__new_libcurl_transport();
-#endif
-#ifdef SENTRY_WITH_WINHTTP_TRANSPORT
-    return sentry__new_winhttp_transport();
-#endif
-    return NULL;
-}
 #define MAX_RATE_LIMITS 4
 
 struct sentry_rate_limiter_s {

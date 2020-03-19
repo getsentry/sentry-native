@@ -856,7 +856,7 @@ sentry__value_new_addr(uint64_t addr)
 }
 
 sentry_value_t
-sentry__value_new_hexstring(const char *bytes, size_t len)
+sentry__value_new_hexstring(const uint8_t *bytes, size_t len)
 {
     char *buf = sentry_malloc(len * 2 + 1);
     if (!buf) {

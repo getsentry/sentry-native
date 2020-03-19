@@ -59,7 +59,11 @@ sentry__path_dir(const sentry_path_t *path)
     if (!dir_path) {
         return NULL;
     }
+#if _WIN32_WINNT >= 0x0602
     PathCchRemoveFileSpec(dir_path->path, wcslen(dir_path->path));
+#else
+    PathRemoveFileSpecW(dir_path->path);
+#endif
     return dir_path;
 }
 
