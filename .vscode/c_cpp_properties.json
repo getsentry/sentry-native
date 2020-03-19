@@ -30,7 +30,8 @@
             },
             "includePath": [
                 "${workspaceFolder}/**",
-                "${workspaceFolder}/third_party/mini_chromium/mini_chromium"
+                "${workspaceFolder}/third_party/mini_chromium/mini_chromium",
+                "C:/msys64/mingw64/include/c++/9.3.0"
             ],
             "defines": [
                 "_DEBUG",

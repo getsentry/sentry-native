@@ -12,6 +12,14 @@
   },
   "terminal.integrated.scrollback": 10000,
   "files.associations": {
-    "shlwapi.h": "c"
+    "shlwapi.h": "c",
+    "iostream": "c",
+    "ostream": "c",
+    "c++config.h": "c",
+    "os_defines.h": "c",
+    "cpu_defines.h": "c",
+    "stat.h": "c",
+    "crtdefs.h": "c",
+    "io.h": "c"
   }
 }
