@@ -1,6 +1,6 @@
-#include "sentry_testsupport.h"
-#include "sentry_session.h"
 #include "sentry_envelope.h"
+#include "sentry_session.h"
+#include "sentry_testsupport.h"
 #include "sentry_value.h"
 #include <sentry.h>
 
@@ -32,9 +32,11 @@ send_envelope(sentry_envelope_t *envelope, void *data)
         "foo@blabla.invalid");
     TEST_CHECK_INT_EQUAL(
         sentry_value_as_int32(sentry_value_get_by_key(session, "errors")), 0);
-    TEST_CHECK_INT_EQUAL(
-        sentry_value_get_type(sentry_value_get_by_key(session, "duration")),
-        SENTRY_VALUE_TYPE_DOUBLE);
+
+    sentry_value_type_t duration_type
+        = sentry_value_get_type(sentry_value_get_by_key(session, "duration"));
+    TEST_CHECK(duration_type == SENTRY_VALUE_TYPE_DOUBLE
+        || duration_type == SENTRY_VALUE_TYPE_INT32);
 
     sentry_value_t attrs = sentry_value_get_by_key(session, "attrs");
     TEST_CHECK_STRING_EQUAL(
