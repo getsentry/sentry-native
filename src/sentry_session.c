@@ -7,8 +7,8 @@
 #include "sentry_utils.h"
 #include "sentry_value.h"
 
-#include <string.h>
 #include <assert.h>
+#include <string.h>
 
 static const char *
 status_as_string(sentry_session_status_t status)
@@ -24,6 +24,7 @@ status_as_string(sentry_session_status_t status)
         return "exited";
     default:
         assert(!"should not happen");
+        return "";
     }
 }
 

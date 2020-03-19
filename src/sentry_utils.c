@@ -1,10 +1,11 @@
 #include "sentry_utils.h"
+#include "sentry_alloc.h"
 #include "sentry_core.h"
 #include "sentry_string.h"
-#include "sentry_alloc.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 static bool
 is_scheme_valid(const char *scheme_name)

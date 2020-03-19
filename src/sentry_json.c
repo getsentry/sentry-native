@@ -1,14 +1,14 @@
 #include <stdio.h>
-#include <string.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "../vendor/jsmn.h"
 
 #include "sentry_alloc.h"
 #include "sentry_json.h"
 #include "sentry_string.h"
-#include "sentry_value.h"
 #include "sentry_utils.h"
+#include "sentry_value.h"
 
 #define DST_MODE_SB 1
 
@@ -366,7 +366,8 @@ decode_string_inplace(char *buf)
                 }
                 input += 2;
                 int32_t trail = read_escaped_unicode_char(input);
-                if (trail == (size_t)-1 || !sentry__is_trail_surrogate(trail)) {
+                if (trail == (int32_t)-1
+                    || !sentry__is_trail_surrogate(trail)) {
                     return false;
                 }
                 uchar = sentry__surrogate_value(lead, trail);
@@ -446,7 +447,7 @@ tokens_to_value(jsmntok_t *tokens, size_t token_count, const char *buf,
     }
     case JSMN_OBJECT: {
         rv = sentry_value_new_object();
-        for (size_t i = 0; i < root->size; i++) {
+        for (int i = 0; i < root->size; i++) {
             jsmntok_t *token = POP();
             if (!token || token->type != JSMN_STRING) {
                 goto error;
@@ -468,7 +469,7 @@ tokens_to_value(jsmntok_t *tokens, size_t token_count, const char *buf,
     }
     case JSMN_ARRAY: {
         rv = sentry_value_new_list();
-        for (size_t i = 0; i < root->size; i++) {
+        for (int i = 0; i < root->size; i++) {
             sentry_value_t child;
             NESTED_PARSE(&child);
             sentry_value_append(rv, child);
@@ -511,7 +512,7 @@ sentry__value_from_json(const char *buf, size_t buflen)
         = tokens_to_value(tokens, (size_t)token_count, buf, &value_out);
     sentry_free(tokens);
 
-    if ((size_t)tokens_consumed == token_count) {
+    if ((size_t)tokens_consumed == (size_t)token_count) {
         return value_out;
     } else {
         return sentry_value_new_null();
