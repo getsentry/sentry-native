@@ -17,7 +17,7 @@
       "name": "(gdb) Lancer",
       "type": "cppdbg",
       "request": "launch",
-      "program": "${workspaceFolder}/build/sentry_example.exe",
+      "program": "${workspaceFolder}/build/tests/unit/sentry_test_unit.exe",
       "args": [],
       "stopAtEntry": false,
       "cwd": "${workspaceFolder}",
