@@ -43,6 +43,9 @@ stages:
             fetchDepth: 5
             submodules: recursive
           - task: UsePythonVersion@0
+          - script: sudo apt update && sudo apt install libcurl4 libcurl4-openssl-dev
+            condition: eq(variables['Agent.OS'], 'Linux')
+            displayName: Installing Linux Dependencies
           - script: sudo apt update && sudo apt install gcc-multilib g++-multilib
             condition: and(eq(variables['Agent.OS'], 'Linux'), variables['TEST_X86'])
             displayName: Installing Linux 32-bit Dependencies

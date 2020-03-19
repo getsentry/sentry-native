@@ -119,7 +119,8 @@ def test_capture_stdout(tmp_path):
 
     assert_event(envelope)
 
-@pytest.mark.skipif(os.environ.get("ANDROID_API"), reason="Android has no default http transport")
+@pytest.mark.skipif(os.environ.get("ANDROID_API") or os.environ.get("TEST_X86"),
+    reason="Android has no default http transport")
 def test_capture_http(tmp_path, httpserver):
     # we want to have the default transport
     cmake(tmp_path, ["sentry_example"], {"SENTRY_BACKEND": "none"})
