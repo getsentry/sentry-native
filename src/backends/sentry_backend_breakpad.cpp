@@ -9,7 +9,17 @@ extern "C" {
 #include "sentry_transport.h"
 }
 
+#ifdef __GNUC__
+#    pragma GCC diagnostic push
+#    pragma GCC diagnostic ignored "-Wpedantic"
+#    pragma GCC diagnostic ignored "-Wvariadic-macros"
+#endif
+
 #include "client/linux/handler/exception_handler.h"
+
+#ifdef __GNUC__
+#    pragma GCC diagnostic pop
+#endif
 
 typedef struct {
     sentry_run_t *run;
@@ -83,8 +93,8 @@ sentry__enforce_breakpad_transport(
 
 static bool
 sentry__breakpad_backend_callback(
-    const google_breakpad::MinidumpDescriptor &descriptor, void *context,
-    bool succeeded)
+    const google_breakpad::MinidumpDescriptor &descriptor,
+    void *UNUSED(context), bool succeeded)
 {
     const sentry_options_t *options = sentry_get_options();
     const char *dump_path = descriptor.path();
