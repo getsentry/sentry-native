@@ -2,7 +2,7 @@ import pytest
 import subprocess
 import sys
 import os
-from . import cmake, check_output, run, Envelope
+from . import cmake, make_dsn, check_output, run, event_envelope, Envelope
 
 # TODO:
 # * with inproc backend:
@@ -15,10 +15,6 @@ from . import cmake, check_output, run, Envelope
 #   - breadcrumbs, attachments, etc
 #   - crash
 #   - expect report via http
-#
-# * test normal event submission
-#   - with http
-#   - with stdout
 
 def matches(actual, expected):
     return {k:v for (k,v) in actual.items() if k in expected.keys()} == expected
@@ -119,6 +115,31 @@ def test_capture_stdout(tmp_path):
     assert_meta(envelope)
     assert_breadcrumb(envelope)
     assert_attachment(envelope)
+    assert_stacktrace(envelope)
+
+    assert_event(envelope)
+
+@pytest.mark.skipif(os.environ.get("ANDROID_API"), reason="Android has no default http transport")
+def test_capture_http(tmp_path, httpserver):
+    # we want to have the default transport
+    cmake(tmp_path, ["sentry_example"], {"SENTRY_BACKEND": "none"})
+
+    httpserver.expect_oneshot_request(
+        "/api/123456/store/", headers={
+            "x-sentry-auth": "Sentry sentry_key=uiaeosnrtdy, sentry_version=7, sentry_client=sentry.native/0.2.1"
+        }).respond_with_data('OK')
+
+    with httpserver.wait(raise_assertions=True, stop_on_nohandler=True) as waiting:
+        run(tmp_path, "sentry_example", ["capture-event", "add-stacktrace"],
+            check=True, env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)))
+
+    assert waiting.result
+
+    output = httpserver.log[0][0].get_data()
+    envelope = event_envelope(output)
+
+    assert_meta(envelope)
+    assert_breadcrumb(envelope)
     assert_stacktrace(envelope)
 
     assert_event(envelope)
