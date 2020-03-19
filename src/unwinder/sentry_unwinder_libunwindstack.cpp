@@ -41,7 +41,7 @@ sentry__unwind_stack_libunwindstack(
         new unwindstack::MemoryLocal);
 
     int rv = 0;
-    for (int i = 0; i < max_frames; i++) {
+    for (size_t i = 0; i < max_frames; i++) {
         ptrs[rv++] = (void *)regs->pc();
         unwindstack::MapInfo *map_info = maps.Find(regs->pc());
         if (!map_info) {

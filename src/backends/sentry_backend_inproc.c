@@ -66,7 +66,7 @@ invoke_signal_handler(int signum, siginfo_t *info, void *user_context)
 }
 
 static void
-startup_inproc_backend(sentry_backend_t *backend)
+startup_inproc_backend(sentry_backend_t *UNUSED(backend))
 {
     sigaltstack(&g_signal_stack, 0);
 
@@ -186,7 +186,7 @@ handle_signal(int signum, siginfo_t *info, void *user_context)
 }
 
 static void
-free_backend(sentry_backend_t *backend)
+free_backend(sentry_backend_t *UNUSED(backend))
 {
     g_signal_stack.ss_flags = SS_DISABLE;
     sigaltstack(&g_signal_stack, 0);

@@ -408,7 +408,7 @@ sentry_options_get_debug(const sentry_options_t *opts)
 void
 sentry_options_set_require_user_consent(sentry_options_t *opts, int val)
 {
-    opts->require_user_consent = true;
+    opts->require_user_consent = !!val;
 }
 
 int

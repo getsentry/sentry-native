@@ -1,5 +1,6 @@
 #include "sentry_boot.h"
 
+#include "sentry_core.h"
 #include "sentry_sync.h"
 #include "sentry_value.h"
 
@@ -33,7 +34,7 @@ static sentry_mutex_t g_mutex = SENTRY__MUTEX_INIT;
 static sentry_value_t g_modules;
 
 static void
-add_image(const struct mach_header *mh, intptr_t vmaddr_slide)
+add_image(const struct mach_header *mh, intptr_t UNUSED(vmaddr_slide))
 {
     const platform_mach_header *header = (const platform_mach_header *)mh;
     Dl_info info;
@@ -88,7 +89,7 @@ add_image(const struct mach_header *mh, intptr_t vmaddr_slide)
 }
 
 static void
-remove_image(const struct mach_header *mh, intptr_t vmaddr_slide)
+remove_image(const struct mach_header *mh, intptr_t UNUSED(vmaddr_slide))
 {
     sentry__mutex_lock(&g_mutex);
 
