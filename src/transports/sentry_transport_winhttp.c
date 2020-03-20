@@ -189,11 +189,14 @@ for_each_request_callback(sentry_prepared_http_request_t *req,
                 lpOutBuffer = sentry_malloc(dwSize);
 
                 // Now, use WinHttpQueryHeaders to retrieve the header.
-                if (WinHttpQueryHeaders(request, WINHTTP_QUERY_RAW_HEADERS_CRLF,
+                if (lpOutBuffer
+                    && WinHttpQueryHeaders(request,
+                        WINHTTP_QUERY_RAW_HEADERS_CRLF,
                         WINHTTP_HEADER_NAME_BY_INDEX, lpOutBuffer, &dwSize,
                         WINHTTP_NO_HEADER_INDEX)) {
                     SENTRY_TRACEF("Received Response:\n%S", lpOutBuffer);
                 }
+                sentry_free(lpOutBuffer);
             }
         }
 
