@@ -22,26 +22,6 @@
         "example-crashpad-mac"
       ],
       "group": "build"
-    },
-    {
-      "label": "1. Generate Project files",
-      "group": {
-        "isDefault": true,
-        "kind": "test"
-      },
-      "type": "shell",
-      "windows": {
-        "command": "git submodule update --init --recursive; rm -rf out; cmake -GNinja -Bbuild -H. -DCMAKE_BUILD_TYPE=Debug -DCMAKE_TOOLCHAIN_FILE=clang-toolchain.cmake"
-      }
-    },
-    {
-      "label": "2. Build",
-      "type": "shell",
-      "command": "ninja",
-      "options": {
-        "cwd": "${workspaceRoot}/build"
-      },
-      "problemMatcher": []
     }
   ]
 }

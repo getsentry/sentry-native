@@ -16,32 +16,6 @@
             "defines": [],
             "configurationProvider": "vector-of-bool.cmake-tools",
             "compileCommands": "${workspaceFolder}/build/compile_commands.json"
-        },
-        {
-            "name": "Win32",
-            "browse": {
-                "path": [
-                    "C:/msys64/mingw64/include/c++/9.3.0",
-                    "C:/msys64/mingw64/include/c++",
-                    "C:/msys64/mingw64/include",
-                    "C:/msys64/mingw64/lib"
-                ],
-                "limitSymbolsToIncludedHeaders": true
-            },
-            "includePath": [
-                "${workspaceFolder}/**",
-                "${workspaceFolder}/third_party/mini_chromium/mini_chromium",
-                "C:/msys64/mingw64/include/c++/9.3.0"
-            ],
-            "defines": [
-                "_DEBUG",
-                "UNICODE",
-                "_UNICODE"
-            ],
-            "compilerPath": "C:/msys64/mingw64/bin/clang++.exe",
-            "cStandard": "c11",
-            "cppStandard": "c++17",
-            "intelliSenseMode": "clang-x64"
         }
     ],
     "version": 4
