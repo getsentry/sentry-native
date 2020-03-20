@@ -203,16 +203,19 @@ endif()
 if(MSVC)
 	target_link_libraries(sentry PRIVATE dbghelp pathcch)
 elseif(MINGW)
+	
 	target_compile_definitions(sentry PRIVATE 
 		__LP64__ #force 64bits flag to remove some -Wincompatible-pointer-types errors 
 	)
 	target_link_libraries(sentry PRIVATE dbghelp shlwapi) #shlwapi as replacement for newer and unimplemented pathcch
 	target_compile_options(sentry PRIVATE -Wno-unused-variable)
+	
 	if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
 		target_compile_definitions(sentry PRIVATE 
 			__USE_MINGW_ANSI_STDIO=1 #prevent a bunch of -Wformat= errors
 		)
 	endif()
+
 endif()
 
 if(BACKEND_CRASHPAD)

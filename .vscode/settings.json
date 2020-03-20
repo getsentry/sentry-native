@@ -80,6 +80,9 @@
     "thread": "cpp",
     "cinttypes": "cpp",
     "typeinfo": "cpp",
-    "*.inc": "c"
+    "*.inc": "c",
+    "sentry_windows_dbghelp.h": "c",
+    "sentry_boot.h": "c",
+    "_dbg_load_image.h": "c"
   }
 }

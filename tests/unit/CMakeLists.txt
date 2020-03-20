@@ -47,6 +47,11 @@ target_link_libraries(sentry_test_unit PRIVATE
 )
 
 if(MINGW)
+	IF(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+		target_link_options(sentry_test_unit PRIVATE -Wl,-pdb=) # IMPORTANT ! MUST generate pdb files
+	else()
+		message(WARNING "Tests will not pass on MinGW if your compiler cannot generate .pdb files ! Please use Clang instead")
+	endif()
 	target_compile_options(sentry_test_unit PRIVATE -Wno-unused-variable)
 endif()
 
