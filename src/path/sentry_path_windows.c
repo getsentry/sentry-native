@@ -15,10 +15,12 @@
 
 // only read this many bytes to memory ever
 static const size_t MAX_READ_TO_BUFFER = 134217728;
+
 #ifndef __MINGW32__
-#    define S_ISREG(m) (((m)&_S_IFMT) == _S_IFREG)
-#    define S_ISDIR(m) (((m)&_S_IFMT) == _S_IFDIR)
+#define S_ISREG(m) (((m)&_S_IFMT) == _S_IFREG)
+#define S_ISDIR(m) (((m)&_S_IFMT) == _S_IFDIR)
 #endif
+
 struct sentry_pathiter_s {
     HANDLE dir_handle;
     const sentry_path_t *parent;
@@ -59,11 +61,11 @@ sentry__path_dir(const sentry_path_t *path)
     if (!dir_path) {
         return NULL;
     }
-    #ifdef __MINGW32__
-    PathRemoveFileSpecW(dir_path->path);
-    #else
+#if _WIN32_WINNT >= 0x0602 && !defined(__MINGW32__)
     PathCchRemoveFileSpec(dir_path->path, wcslen(dir_path->path));
-    #endif
+#else
+    PathRemoveFileSpecW(dir_path->path);
+#endif
     return dir_path;
 }
 
