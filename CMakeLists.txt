@@ -8,18 +8,35 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
 	set(LINUX TRUE)
 endif()
 
-if(APPLE OR WIN32)
-	set(SENTRY_DEFAULT_BACKEND "crashpad")
-elseif(LINUX)
-	set(SENTRY_DEFAULT_BACKEND "breakpad")
-else()
-	set(SENTRY_DEFAULT_BACKEND "inproc")
-endif()
-
 option(BUILD_SHARED_LIBS "Build shared libraries (.dll/.so) instead of static ones (.lib/.a)" ON)
 
 option(SENTRY_BUILD_TESTS "Build sentry-native tests" ON)
 option(SENTRY_BUILD_EXAMPLES "Build sentry-native example(s)" ON)
+
+if(WIN32)
+	set(SENTRY_DEFAULT_TRANSPORT "winhttp")
+elseif(APPLE OR LINUX)
+	set(SENTRY_DEFAULT_TRANSPORT "curl")
+else()
+	set(SENTRY_DEFAULT_TRANSPORT "none")
+endif()
+
+set(SENTRY_TRANSPORT ${SENTRY_DEFAULT_TRANSPORT} CACHE STRING
+  "The HTTP transport that sentry uses to submit events to the sentry server, can be either 'none', 'curl' or 'winhttp' on windows.")
+
+if(SENTRY_TRANSPORT STREQUAL "winhttp")
+	set(SENTRY_TRANSPORT_WINHTTP TRUE)
+elseif(SENTRY_TRANSPORT STREQUAL "curl")
+	set(SENTRY_TRANSPORT_CURL TRUE)
+elseif(SENTRY_TRANSPORT STREQUAL "none")
+	set(SENTRY_TRANSPORT_NONE TRUE)
+else()
+	message(FATAL_ERROR "SENTRY_TRANSPORT must be one of 'none', 'curl' or 'winhttp'")
+endif()
+
+if(SENTRY_TRANSPORT_WINHTTP AND NOT WIN32)
+	message(FATAL_ERROR "The winhttp transport is only supported on Windows.")
+endif()
 
 if(SENTRY_BUILD_TESTS OR SENTRY_BUILD_EXAMPLES)
 	enable_testing()
@@ -31,45 +48,62 @@ endif()
 
 option(SENTRY_ENABLE_INSTALL "Enable sentry installation" "${SENTRY_MAIN_PROJECT}")
 
-function(sentry_install)
-	if(SENTRY_ENABLE_INSTALL)
-		install(${ARGN})
-	endif()
-endfunction()
-
-if(NOT CMAKE_BUILD_TYPE)
-	set(CMAKE_BUILD_TYPE "RelWithDebInfo")
+if(APPLE OR WIN32)
+	set(SENTRY_DEFAULT_BACKEND "crashpad")
+elseif(LINUX)
+	set(SENTRY_DEFAULT_BACKEND "breakpad")
+else()
+	set(SENTRY_DEFAULT_BACKEND "inproc")
 endif()
 
 set(SENTRY_BACKEND ${SENTRY_DEFAULT_BACKEND} CACHE STRING
   "The sentry backend responsible for reporting crashes, can be either 'none', 'inproc', 'breakpad' or 'crashpad'.")
 
 if(SENTRY_BACKEND STREQUAL "crashpad")
-	set(BACKEND_CRASHPAD TRUE)
+	set(SENTRY_BACKEND_CRASHPAD TRUE)
 elseif(SENTRY_BACKEND STREQUAL "inproc")
-	set(BACKEND_INPROC TRUE)
+	set(SENTRY_BACKEND_INPROC TRUE)
 elseif(SENTRY_BACKEND STREQUAL "breakpad")
-	set(BACKEND_BREAKPAD TRUE)
+	set(SENTRY_BACKEND_BREAKPAD TRUE)
 elseif(SENTRY_BACKEND STREQUAL "none")
-	set(BACKEND_NONE TRUE)
+	set(SENTRY_BACKEND_NONE TRUE)
 else()
 	message(FATAL_ERROR "SENTRY_BACKEND must be one of 'crashpad', 'inproc', 'breakpad' or 'none'")
 endif()
 
-if(BACKEND_CRASHPAD AND NOT (APPLE OR WIN32))
+if(SENTRY_BACKEND_CRASHPAD AND NOT (APPLE OR WIN32))
 	message(FATAL_ERROR "The Crashpad backend is currently only supported on macOS and Windows")
 endif()
-if(BACKEND_BREAKPAD AND NOT (LINUX OR ANDROID))
-	message(FATAL_ERROR "The Breakpad backend is currently only supported on Linux and Android")
+if(SENTRY_BACKEND_BREAKPAD AND NOT LINUX)
+	message(FATAL_ERROR "The Breakpad backend is currently only supported on Linux")
 endif()
-if(BACKEND_INPROC AND WIN32)
+if(SENTRY_BACKEND_INPROC AND WIN32)
 	message(FATAL_ERROR "The in-process backend is not supported on Windows")
 endif()
 
+message(STATUS "SENTRY_TRANSPORT=${SENTRY_TRANSPORT}")
+message(STATUS "SENTRY_BACKEND=${SENTRY_BACKEND}")
+
 if(ANDROID)
-	set(WITH_LIBUNWINDSTACK TRUE)
+	set(SENTRY_WITH_LIBUNWINDSTACK TRUE)
 elseif(NOT WIN32)
-	set(WITH_LIBBACKTRACE TRUE)
+	set(SENTRY_WITH_LIBBACKTRACE TRUE)
+endif()
+
+option(WITH_ASAN_OPTION "Build sentry-native with address sanitizer" OFF)
+if(WITH_ASAN_OPTION)
+	add_compile_options(-g -fsanitize=address -fno-omit-frame-pointer)
+	link_libraries(-fsanitize=address)
+endif()
+
+option(WITH_TSAN_OPTION "Build sentry-native with thread sanitizer" OFF)
+if(WITH_TSAN_OPTION)
+	add_compile_options(-g -fsanitize=thread -fno-omit-frame-pointer)
+	link_libraries(-fsanitize=thread)
+endif()
+
+if(NOT CMAKE_BUILD_TYPE)
+	set(CMAKE_BUILD_TYPE "RelWithDebInfo")
 endif()
 
 # use -O3 when doing `RelWithDebInfo` builds
@@ -92,19 +126,11 @@ if(APPLE)
 	endif()
 endif()
 
-option(WITH_ASAN_OPTION "Build sentry-native with address sanitizer" OFF)
-if(WITH_ASAN_OPTION)
-	add_compile_options(-g -fsanitize=address -fno-omit-frame-pointer)
-	link_libraries(-fsanitize=address)
-endif()
-
-option(WITH_TSAN_OPTION "Build sentry-native with thread sanitizer" OFF)
-if(WITH_TSAN_OPTION)
-	add_compile_options(-g -fsanitize=thread -fno-omit-frame-pointer)
-	link_libraries(-fsanitize=thread)
-endif()
-
-option(SENTRY_CURL_SUPPORT "Builds sentry-native with curl support" ON)
+function(sentry_install)
+	if(SENTRY_ENABLE_INSTALL)
+		install(${ARGN})
+	endif()
+endfunction()
 
 # helper function to add sources to existing TARGET prepended with ${CMAKE_CURRENT_SOURCE_DIR}/${SUBDIR}
 function(sentry_target_sources_cwd TARGET)
@@ -117,6 +143,23 @@ function(sentry_target_sources_cwd TARGET)
 		endif()
 	endforeach()
 endfunction()
+
+#respect CMAKE_SYSTEM_VERSION
+if(WIN32)
+    if(${CMAKE_SYSTEM_VERSION} EQUAL 10)
+        add_definitions(-D_WIN32_WINNT=0x0A00)
+    elseif(${CMAKE_SYSTEM_VERSION} EQUAL 6.3)
+        add_definitions(-D_WIN32_WINNT=0x0603)
+    elseif(${CMAKE_SYSTEM_VERSION} EQUAL 6.2)
+        add_definitions(-D_WIN32_WINNT=0x0602)
+    elseif(${CMAKE_SYSTEM_VERSION} EQUAL 6.1)
+        add_definitions(-D_WIN32_WINNT=0x0601)
+    elseif(${CMAKE_SYSTEM_VERSION} EQUAL 6.0)
+        add_definitions(-D_WIN32_WINNT=0x0600)
+    else()
+        add_definitions(-D_WIN32_WINNT=0x0501)
+    endif()
+endif()
 
 # ===== sentry library =====
 
@@ -142,9 +185,8 @@ else()
 	target_compile_definitions(sentry PUBLIC SENTRY_BUILD_STATIC)
 endif()
 
-if(SENTRY_CURL_SUPPORT)
+if(SENTRY_TRANSPORT_CURL)
 	find_package(CURL REQUIRED)
-	target_compile_definitions(sentry PUBLIC SENTRY_WITH_LIBCURL_TRANSPORT)
 	target_include_directories(sentry PRIVATE ${CURL_INCLUDE_DIR})
 	# The exported sentry target must not contain any path of the build machine, therefore use generator expressions
 	# FIXME: cmake 3.12 introduced the target CURL::libcurl
@@ -152,24 +194,17 @@ if(SENTRY_CURL_SUPPORT)
 	string(REPLACE ";" "$<SEMICOLON>" GENEX_CURL_COMPILE_DEFINITIONS "${CURL_COMPILE_DEFINITIONS}")
 	target_link_libraries(sentry PRIVATE $<BUILD_INTERFACE:${GENEX_CURL_LIBRARIES}>)
 	target_compile_definitions(sentry PRIVATE $<BUILD_INTERFACE:${GENEX_CURL_COMPILE_DEFINITIONS}>)
-endif()
-
-if(WIN32)
-	target_compile_definitions(sentry
-		PRIVATE WINVER=0x0603 NTDDI_VERSION=0x06030000
-		PUBLIC SENTRY_WITH_WINHTTP_TRANSPORT
-	)
+elseif(SENTRY_TRANSPORT_WINHTTP)
 	target_link_libraries(sentry PRIVATE winhttp)
 endif()
 
-#set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Werror=implicit-function-declaration -Werror=incompatible-function-pointer-types -Wall -fvisibility=hidden")
 set_property(TARGET sentry PROPERTY C_VISIBILITY_PRESET hidden)
 if(MSVC)
 	if(CMAKE_SIZEOF_VOID_P EQUAL 4)
 		set(CMAKE_ASM_MASM_FLAGS "${CMAKE_ASM_MASM_FLAGS} /safeseh")
 	endif()
 else()
-	target_compile_options(sentry PUBLIC $<BUILD_INTERFACE:-Wall>)
+	target_compile_options(sentry PUBLIC $<BUILD_INTERFACE:-Wall -Wextra -Wpedantic>)
 endif()
 
 target_include_directories(sentry PUBLIC
@@ -185,59 +220,46 @@ target_link_libraries(sentry INTERFACE
 
 if(LINUX)
 	target_link_libraries(sentry PRIVATE pthread dl)
+elseif(MSVC)
+	target_link_libraries(sentry PRIVATE dbghelp pathcch shlwapi)
+elseif(MINGW)
+	target_link_libraries(sentry PRIVATE dbghelp shlwapi) #unimplemented pathcch
+	target_compile_options(sentry PRIVATE -Wno-unused-variable -Wno-unused-parameter)
 endif()
 
-if(WITH_LIBUNWINDSTACK)
+if(SENTRY_WITH_LIBUNWINDSTACK)
 	target_include_directories(sentry PRIVATE
 		"$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/libunwindstack-ndk/include>")
 	add_subdirectory("${PROJECT_SOURCE_DIR}/external/libunwindstack-ndk/cmake")
 	target_link_libraries(sentry PRIVATE unwindstack)
 	if(NOT BUILD_SHARED_LIBS)
 		sentry_install(TARGETS unwindstack EXPORT sentry
-			LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-			ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+			LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+			ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
 		)
 	endif()
 endif()
 
-if(MSVC)
-	target_link_libraries(sentry PRIVATE dbghelp pathcch)
-elseif(MINGW)
-	
-	target_compile_definitions(sentry PRIVATE 
-		__LP64__ #force 64bits flag to remove some -Wincompatible-pointer-types errors 
-	)
-	target_link_libraries(sentry PRIVATE dbghelp shlwapi) #shlwapi as replacement for newer and unimplemented pathcch
-	target_compile_options(sentry PRIVATE -Wno-unused-variable)
-	
-	if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-		target_compile_definitions(sentry PRIVATE 
-			__USE_MINGW_ANSI_STDIO=1 #prevent a bunch of -Wformat= errors
-		)
-	endif()
-
-endif()
-
-if(BACKEND_CRASHPAD)
+if(SENTRY_BACKEND_CRASHPAD)
 	add_subdirectory(external/crashpad EXCLUDE_FROM_ALL)
 	target_include_directories(sentry PRIVATE
 		"$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/crashpad>"
 		"$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/crashpad/third_party/mini_chromium/mini_chromium>"
 	)
-	# FIXME: this should be applied to mini_chromium (or at least to crashpad_client/crashpad_handler)
-	target_compile_features(sentry PUBLIC cxx_std_11)
+	# we include a crashpad header, which itself needs C++14 support
+	target_compile_features(sentry PUBLIC cxx_std_14)
 	target_link_libraries(sentry PRIVATE crashpad_client crashpad_util)
 	if(NOT BUILD_SHARED_LIBS)
 		sentry_install(TARGETS crashpad_client crashpad_util crashpad_compat getopt mini_chromium zlib EXPORT sentry
-			LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-			ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+			LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+			ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
 		)
 	endif()
-	sentry_install(TARGETS crashpad_handler
+	sentry_install(TARGETS crashpad_handler EXPORT sentry
 		RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 	)
 	add_dependencies(sentry crashpad_handler)
-elseif(BACKEND_BREAKPAD)
+elseif(SENTRY_BACKEND_BREAKPAD)
 	add_subdirectory(external)
 	target_include_directories(sentry PRIVATE
 		"$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/breakpad/src>"
@@ -247,12 +269,11 @@ elseif(BACKEND_BREAKPAD)
 	)
 	if(NOT BUILD_SHARED_LIBS)
 		sentry_install(TARGETS breakpad_client EXPORT sentry
-			LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-			ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+			LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+			ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
 		)
 	endif()
-
-elseif(BACKEND_INPROC)
+elseif(SENTRY_BACKEND_INPROC)
 	target_compile_definitions(sentry PRIVATE SENTRY_WITH_INPROC_BACKEND)
 endif()
 
