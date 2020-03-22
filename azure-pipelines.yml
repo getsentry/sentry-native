@@ -55,5 +55,5 @@ stages:
             displayName: Build
             failOnStderr: true
             env: {
-              "PATH" : '$(MSYS_BIN);$(MSYS2_CACHE)\mingw64\bin'
+              "PATH" : 'C:/tools/msys64/usr/bin;C:/tools/msys64/mingw64/bin'
             }
