@@ -7,7 +7,8 @@ stages:
         pool:
           vmImage: "windows-latest"
         variables:
-          PACMAN_PACKAGES: C:\tools\msys64\var\cache\pacman\pkg
+          MSYS2_CACHE: C:\tools\msys64
+          MSYS_BIN: C:\tools\msys64\usr\bin
         steps:
           - checkout: self
             fetchDepth: 5
@@ -17,7 +18,7 @@ stages:
           - script: |
               pacman -Sy
               pacman --noconfirm -S pacman-mirrors
-            workingDirectory: C:\tools\msys64\usr\bin\
+            workingDirectory: $(MSYS_BIN)
             displayName: Check pacman
           - script: | 
               pacman --noconfirm -S ^
@@ -25,16 +26,15 @@ stages:
                 mingw-w64-x86_64-clang ^
                 mingw-w64-x86_64-ninja ^
                 mingw-w64-x86_64-cmake
-            workingDirectory: C:\tools\msys64\usr\bin\
+            workingDirectory: $(MSYS_BIN)
             displayName: 'Install requirements'
           - task: CacheBeta@1
             inputs:
-              key: pacman
-              restoreKeys: pacman
-              path: $(PACMAN_PACKAGES)
-            displayName: 'Cache pacman packages'
+              key: msys2
+              restoreKeys: msys2
+              path: $(MSYS2_CACHE)
+            displayName: 'Cache msys2'
           - script: |
-              mkdir build && cd build
               cmake ^
                 -GNinja ^
                 -B$(Build.SourcesDirectory)/build ^
@@ -45,4 +45,4 @@ stages:
                 -DCMAKE_CXX_COMPILER=clang++
               cd build && ninja -C$(Build.SourcesDirectory)/build
             displayName: Build
-            workingDirectory: C:\tools\msys64\usr\bin\
+            workingDirectory: $(MSYS_BIN)
