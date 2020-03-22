@@ -29,7 +29,49 @@ stages:
               pip install --upgrade --requirement tests/requirements.txt
               pytest --capture=no --verbose tests
             displayName: Test
-
+      - job: MSYS2MinGW
+        pool:
+          vmImage: "windows-latest"
+        variables:
+          PACMAN_PACKAGES: C:\tools\msys64\var\cache\pacman\pkg
+        steps:
+          - checkout: self
+            fetchDepth: 5
+            submodules: recursive
+          - script: choco install --no-progress msys2
+            displayName: Install MSYS2
+          - script: |
+              pacman -Sy
+              pacman --noconfirm -S pacman-mirrors
+            workingDirectory: C:\tools\msys64\usr\bin\
+            displayName: Check pacman
+          - script: | 
+              pacman --noconfirm -S \
+                mingw-w64-x86_64-uasm \
+                mingw-w64-x86_64-clang \
+                mingw-w64-x86_64-ninja \
+                mingw-w64-x86_64-cmake
+            workingDirectory: C:\tools\msys64\usr\bin\
+            displayName: 'Install requirements'
+          - task: Cache@2
+            inputs:
+              key: pacman
+              restoreKeys: pacman
+              path: $(PACMAN_PACKAGES)
+            displayName: 'Cache pacman packages'
+          - script: |
+              mkdir build && cd build
+              cmake \
+                -GNinja \
+                -B$(Build.SourcesDirectory)/build \
+                -H$(Build.SourcesDirectory) \
+                -DCMAKE_C_FLAGS="-fuse-ld=lld -Wfatal-errors -Wall" \
+                -DCMAKE_CXX_FLAGS="-fuse-ld=lld -Wfatal-errors -Wall" \
+                -DCMAKE_C_COMPILER=clang \
+                -DCMAKE_CXX_COMPILER=clang++
+              cd build && ninja -C$(Build.SourcesDirectory)/build
+            displayName: Build
+            workingDirectory: C:\tools\msys64\usr\bin\
       - job: Android
         strategy:
           matrix:
