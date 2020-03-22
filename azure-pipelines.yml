@@ -9,12 +9,19 @@ stages:
         variables:
           MSYS2_CACHE: C:\tools\msys64
           MSYS_BIN: C:\tools\msys64\usr\bin
+          CHOCO_CACHE: C:\ProgramData\chocolatey
         steps:
           - checkout: self
             fetchDepth: 5
             submodules: recursive
           - script: choco install --no-progress msys2
             displayName: Install MSYS2
+          - task: CacheBeta@1
+            inputs:
+              key: msys2_choco
+              restoreKeys: msys2_choco
+              path: $(CHOCO_CACHE)
+            displayName: 'Cache msys2 choco install'
           - script: |
               pacman -Sy
               pacman --noconfirm -S pacman-mirrors
@@ -35,6 +42,7 @@ stages:
               path: $(MSYS2_CACHE)
             displayName: 'Cache msys2'
           - script: |
+              set PATH=$(MSYS_BIN);$(MSYS2_CACHE)\mingw64\bin;%PATH%
               cmake ^
                 -GNinja ^
                 -B$(Build.SourcesDirectory)/build ^
