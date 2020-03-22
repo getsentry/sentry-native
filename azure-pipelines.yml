@@ -44,14 +44,14 @@ stages:
           - bash: |
               cmake \
                 -GNinja \
-                -B$(Build.SourcesDirectory)/build \
-                -H$(Build.SourcesDirectory) \
+                -Bbuild \
+                -H. \
                 -DCMAKE_C_FLAGS="-fuse-ld=lld -Wfatal-errors -Wall" \
                 -DCMAKE_CXX_FLAGS="-fuse-ld=lld -Wfatal-errors -Wall" \
                 -DCMAKE_C_COMPILER=clang \
                 -DCMAKE_CXX_COMPILER=clang++
-              ninja -C$(Build.SourcesDirectory)/build
-            workingDirectory: $(MSYS_BIN)
+              cd build && ninja
+            workingDirectory: (Build.SourcesDirectory)
             displayName: Build
             failOnStderr: true
             env: {
