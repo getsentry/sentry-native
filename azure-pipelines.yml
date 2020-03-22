@@ -27,8 +27,7 @@ stages:
                 mingw-w64-x86_64-cmake
             workingDirectory: C:\tools\msys64\usr\bin\
             displayName: 'Install requirements'
-          - task: Cache@2
-            securityNamespace: cache
+          - task: CacheBeta@1
             inputs:
               key: pacman
               restoreKeys: pacman
