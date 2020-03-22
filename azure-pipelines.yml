@@ -51,7 +51,7 @@ stages:
                 -DCMAKE_C_COMPILER=clang \
                 -DCMAKE_CXX_COMPILER=clang++
               cd build && ninja
-            workingDirectory: (Build.SourcesDirectory)
+            workingDirectory: $(Build.SourcesDirectory)
             displayName: Build
             failOnStderr: true
             env: {
