@@ -41,16 +41,19 @@ stages:
               restoreKeys: msys2
               path: $(MSYS2_CACHE)
             displayName: 'Cache msys2'
-          - script: |
-              set PATH=$(MSYS_BIN);$(MSYS2_CACHE)\mingw64\bin;%PATH%
+          - bash: |
               cmake ^
                 -GNinja ^
-                -B$(Build.SourcesDirectory)/build ^
-                -H$(Build.SourcesDirectory) ^
-                -DCMAKE_C_FLAGS="-fuse-ld=lld -Wfatal-errors -Wall" ^
-                -DCMAKE_CXX_FLAGS="-fuse-ld=lld -Wfatal-errors -Wall" ^
-                -DCMAKE_C_COMPILER=clang ^
+                -B$(Build.SourcesDirectory)/build \
+                -H$(Build.SourcesDirectory) \
+                -DCMAKE_C_FLAGS="-fuse-ld=lld -Wfatal-errors -Wall" \
+                -DCMAKE_CXX_FLAGS="-fuse-ld=lld -Wfatal-errors -Wall" \
+                -DCMAKE_C_COMPILER=clang \
                 -DCMAKE_CXX_COMPILER=clang++
-              cd build && ninja -C$(Build.SourcesDirectory)/build
-            displayName: Build
+              ninja -C$(Build.SourcesDirectory)/build
             workingDirectory: $(MSYS_BIN)
+            displayName: Build
+            failOnStderr: true
+            env: {
+              "PATH" : '$(MSYS_BIN);$(MSYS2_CACHE)\mingw64\bin'
+            }
