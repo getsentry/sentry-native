@@ -3,58 +3,104 @@ stages:
     displayName: Build & Test
 
     jobs:
-      - job: MSYS2MinGW
+      - job:
+        strategy:
+          matrix:
+            Linux (gcc 7, 32-bit):
+              vmImage: "ubuntu-18.04"
+              CC: gcc-7 -m32
+              CXX: g++-7 -m32
+              TEST_X86: 1
+            Linux (gcc 9):
+              vmImage: "ubuntu-latest"
+              CC: gcc-9
+              CXX: g++-9
+            Linux (clang 9):
+              vmImage: "ubuntu-latest"
+              CC: clang-9
+              CXX: clang++-9
+            macOS:
+              vmImage: "macOs-latest"
+            Windows (VS2017, 32bit):
+              vmImage: "vs2017-win2016"
+              TEST_X86: 1
+            Windows (latest):
+              vmImage: "windows-latest"
+            # The Android emulator is currently only available on macos, see:
+            # https://docs.microsoft.com/en-us/azure/devops/pipelines/ecosystems/android?view=azure-devops#test-on-the-android-emulator
+            Android (API 16, NDK 19):
+              vmImage: "macOs-latest"
+              ANDROID_API: 16
+              ANDROID_NDK: 19.2.5345600
+            Android (API 29 NDK 21):
+              vmImage: "macOs-latest"
+              ANDROID_API: 29
+              ANDROID_NDK: 21.0.6113669
         pool:
-          vmImage: "windows-latest"
-        variables:
-          MSYS2_CACHE: C:\tools\msys64
-          MSYS_BIN: C:\tools\msys64\usr\bin
-          CHOCO_CACHE: C:\ProgramData\chocolatey
+          vmImage: $(vmImage)
         steps:
           - checkout: self
             fetchDepth: 5
             submodules: recursive
-          - script: choco install --no-progress msys2
-            displayName: Install MSYS2
-          - task: CacheBeta@1
-            inputs:
-              key: msys2_choco
-              restoreKeys: msys2_choco
-              path: $(CHOCO_CACHE)
-            displayName: 'Cache msys2 choco install'
+          - task: UsePythonVersion@0
+          - script: sudo apt update && sudo apt install libcurl4 libcurl4-openssl-dev
+            condition: eq(variables['Agent.OS'], 'Linux')
+            displayName: Installing Linux Dependencies
+          - script: sudo apt update && sudo apt install gcc-multilib g++-multilib
+            condition: and(eq(variables['Agent.OS'], 'Linux'), variables['TEST_X86'])
+            displayName: Installing Linux 32-bit Dependencies
+          # ignoring checksums: choco has 2.72, whereas upstream is 2.73
+          - script: choco install sigcheck --ignore-checksums
+            condition: eq(variables['Agent.OS'], 'Windows_NT')
+            displayName: Installing Windows Dependencies
           - script: |
-              pacman -Sy
-              pacman --noconfirm -S pacman-mirrors
-            workingDirectory: $(MSYS_BIN)
-            displayName: Check pacman
-          - script: | 
-              pacman --noconfirm -S ^
-                mingw-w64-x86_64-uasm ^
-                mingw-w64-x86_64-clang ^
-                mingw-w64-x86_64-lld ^
-                mingw-w64-x86_64-ninja ^
-                mingw-w64-x86_64-cmake
-            workingDirectory: $(MSYS_BIN)
-            displayName: 'Install requirements'
-          - task: CacheBeta@1
+              export ANDROID_IMAGE="system-images;android-$(ANDROID_API);google_apis;x86"
+              echo "Downloading ndk;$(ANDROID_NDK) and $ANDROID_IMAGE"
+              echo "y" | $ANDROID_HOME/tools/bin/sdkmanager --install \
+                "ndk;$(ANDROID_NDK)" "$ANDROID_IMAGE" | \
+                grep -v "\[=" || true # suppress the progress bar, so we get meaningful logs
+            condition: variables['ANDROID_API']
+            displayName: Installing Android SDK Dependencies
+          - script: |
+              bash scripts/start-android.sh
+            timeoutInMinutes: 5 # because gettings things wrong here can hang the job for up to an hour…
+            condition: variables['ANDROID_API']
+            displayName: Starting Android Simulator
+          - script: |
+              pip install --upgrade --requirement tests/requirements.txt
+              pytest --capture=no --verbose tests
+            displayName: Test
+  - stage: package
+    displayName: Create Release Archive
+    dependsOn: test
+    jobs:
+      - job:
+        pool:
+          vmImage: "ubuntu-latest"
+        steps:
+          - checkout: self
+            fetchDepth: 5
+            submodules: recursive
+          - task: DeleteFiles@1
+            displayName: Remove all files not belonging in source archive
             inputs:
-              key: msys2
-              restoreKeys: msys2
-              path: $(MSYS2_CACHE)
-            displayName: 'Cache msys2'
-          - bash: |
-              cmake \
-                -GNinja \
-                -Bbuild \
-                -H. \
-                -DCMAKE_C_FLAGS="-fuse-ld=lld -Wfatal-errors -Wall" \
-                -DCMAKE_CXX_FLAGS="-fuse-ld=lld -Wfatal-errors -Wall" \
-                -DCMAKE_C_COMPILER=clang \
-                -DCMAKE_CXX_COMPILER=clang++
-              cd build && ninja
-            workingDirectory: $(Build.SourcesDirectory)
-            displayName: Build
-            failOnStderr: true
-            env: {
-              "PATH" : 'C:/tools/msys64/usr/bin;C:/tools/msys64/mingw64/bin'
-            }
+              contents: |
+                build
+                .*
+                **/.git*
+                azure*
+                leak*
+                scripts
+                Makefile
+                external/breakpad/src/tools
+                external/breakpad/src/processor
+          - task: ArchiveFiles@2
+            displayName: Create source archive
+            inputs:
+              rootFolderOrFile: $(Build.SourcesDirectory)
+              includeRootFolder: false
+              archiveFile: "$(Build.ArtifactStagingDirectory)/sentry-native-source.zip"
+          - task: PublishBuildArtifacts@1
+            displayName: Publish source archive to Azure
+            inputs:
+              pathtoPublish: "$(Build.ArtifactStagingDirectory)/sentry-native-source.zip"
