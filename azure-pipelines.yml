@@ -42,8 +42,8 @@ stages:
               path: $(MSYS2_CACHE)
             displayName: 'Cache msys2'
           - bash: |
-              cmake ^
-                -GNinja ^
+              cmake \
+                -GNinja \
                 -B$(Build.SourcesDirectory)/build \
                 -H$(Build.SourcesDirectory) \
                 -DCMAKE_C_FLAGS="-fuse-ld=lld -Wfatal-errors -Wall" \
