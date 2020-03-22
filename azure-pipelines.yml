@@ -20,10 +20,10 @@ stages:
             workingDirectory: C:\tools\msys64\usr\bin\
             displayName: Check pacman
           - script: | 
-              pacman --noconfirm -S \
-                mingw-w64-x86_64-uasm \
-                mingw-w64-x86_64-clang \
-                mingw-w64-x86_64-ninja \
+              pacman --noconfirm -S ^
+                mingw-w64-x86_64-uasm ^
+                mingw-w64-x86_64-clang ^
+                mingw-w64-x86_64-ninja ^
                 mingw-w64-x86_64-cmake
             workingDirectory: C:\tools\msys64\usr\bin\
             displayName: 'Install requirements'
@@ -35,13 +35,13 @@ stages:
             displayName: 'Cache pacman packages'
           - script: |
               mkdir build && cd build
-              cmake \
-                -GNinja \
-                -B$(Build.SourcesDirectory)/build \
-                -H$(Build.SourcesDirectory) \
-                -DCMAKE_C_FLAGS="-fuse-ld=lld -Wfatal-errors -Wall" \
-                -DCMAKE_CXX_FLAGS="-fuse-ld=lld -Wfatal-errors -Wall" \
-                -DCMAKE_C_COMPILER=clang \
+              cmake ^
+                -GNinja ^
+                -B$(Build.SourcesDirectory)/build ^
+                -H$(Build.SourcesDirectory) ^
+                -DCMAKE_C_FLAGS="-fuse-ld=lld -Wfatal-errors -Wall" ^
+                -DCMAKE_CXX_FLAGS="-fuse-ld=lld -Wfatal-errors -Wall" ^
+                -DCMAKE_C_COMPILER=clang ^
                 -DCMAKE_CXX_COMPILER=clang++
               cd build && ninja -C$(Build.SourcesDirectory)/build
             displayName: Build
