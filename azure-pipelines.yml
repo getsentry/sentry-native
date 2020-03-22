@@ -28,6 +28,7 @@ stages:
             workingDirectory: C:\tools\msys64\usr\bin\
             displayName: 'Install requirements'
           - task: Cache@2
+            securityNamespace: cache
             inputs:
               key: pacman
               restoreKeys: pacman
