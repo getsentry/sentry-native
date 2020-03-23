@@ -84,6 +84,7 @@ SENTRY_TEST(path_relative_filename)
 #else
     TEST_CHECK_STRING_EQUAL(sentry__path_filename(path), "foobar.txt");
 #endif
+    sentry__path_free(path);
 }
 
 SENTRY_TEST(path_basics)

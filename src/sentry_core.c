@@ -8,6 +8,7 @@
 #include "sentry_backend.h"
 #include "sentry_core.h"
 #include "sentry_envelope.h"
+#include "sentry_modulefinder.h"
 #include "sentry_path.h"
 #include "sentry_scope.h"
 #include "sentry_string.h"
@@ -104,6 +105,7 @@ sentry_shutdown(void)
     g_options = NULL;
     sentry__mutex_unlock(&g_options_mutex);
     sentry__scope_cleanup();
+    sentry__modulefinder_cleanup();
 }
 
 const sentry_options_t *

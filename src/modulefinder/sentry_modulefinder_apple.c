@@ -132,10 +132,25 @@ sentry__modules_get_list(void)
     sentry__mutex_lock(&g_mutex);
     if (!g_initialized) {
         g_modules = sentry_value_new_list();
+        // TODO: maybe use `_dyld_image_count` and `_dyld_get_image_header`?
+        // Those functions are documented to not be thread-safe, though using
+        // the `register_X` functions are also unsafe because they lack a
+        // corresponding `unregister` function, and will thus crash when sentry
+        // itself is unloaded.
         _dyld_register_func_for_add_image(add_image);
         _dyld_register_func_for_remove_image(remove_image);
         g_initialized = true;
     }
     sentry__mutex_unlock(&g_mutex);
     return g_modules;
+}
+
+void
+sentry__modulefinder_cleanup(void)
+{
+    sentry__mutex_lock(&g_mutex);
+    sentry_value_decref(g_modules);
+    g_modules = sentry_value_new_null();
+    g_initialized = false;
+    sentry__mutex_unlock(&g_mutex);
 }
