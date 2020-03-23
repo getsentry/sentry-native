@@ -10,11 +10,19 @@
 #include <elf.h>
 #include <fcntl.h>
 #include <string.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 #include <unistd.h>
+
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
+#define MIN(a, b) ((a) < (b) ? (a) : (b))
 
 static bool g_initialized = false;
 static sentry_mutex_t g_mutex = SENTRY__MUTEX_INIT;
 static sentry_value_t g_modules;
+
+static sentry_slice_t LINUX_GATE = { "linux-gate.so", 13 };
 
 int
 sentry__procmaps_parse_module_line(const char *line, sentry_module_t *module)
@@ -29,7 +37,7 @@ sentry__procmaps_parse_module_line(const char *line, sentry_module_t *module)
     // this has been copied from the breakpad source:
     // https://github.com/google/breakpad/blob/13c1568702e8804bc3ebcfbb435a2786a3e335cf/src/processor/proc_maps_linux.cc#L66
     if (sscanf(line,
-            "%" SCNxPTR "-%" SCNxPTR " %4c %" SCNx64 " %hhx:%hhx %" SCNd64
+            "%" SCNxPTR "-%" SCNxPTR " %4c %" SCNx64 " %hhx:%hhx %" SCNu64
             " %n",
             (uintptr_t *)&module->start, (uintptr_t *)&module->end, permissions,
             &offset, &major_device, &minor_device, &inode, &consumed)
@@ -56,6 +64,53 @@ sentry__procmaps_parse_module_line(const char *line, sentry_module_t *module)
 
     // and return the consumed chars…
     return consumed;
+}
+
+bool
+sentry__mmap_file(sentry_mmap_t *rv, const char *path)
+{
+    rv->fd = open(path, O_RDONLY);
+    if (rv->fd < 0) {
+        goto fail;
+    }
+
+    struct stat sb;
+    if (stat(path, &sb) != 0 || !S_ISREG(sb.st_mode)) {
+        goto fail;
+    }
+
+    rv->len = sb.st_size;
+    if (rv->len == 0) {
+        goto fail;
+    }
+
+    rv->ptr = mmap(NULL, rv->len, PROT_READ, MAP_PRIVATE, rv->fd, 0);
+    if (rv->ptr == MAP_FAILED) {
+        goto fail;
+    }
+
+    return true;
+
+fail:
+    if (rv->fd > 0) {
+        close(rv->fd);
+    }
+    rv->fd = 0;
+    rv->ptr = NULL;
+    rv->len = 0;
+    return false;
+
+    return rv;
+}
+
+void
+sentry__mmap_close(sentry_mmap_t *m)
+{
+    munmap(m->ptr, m->len);
+    close(m->fd);
+    m->ptr = NULL;
+    m->len = 0;
+    m->fd = 0;
 }
 
 void
@@ -162,52 +217,133 @@ get_code_id_from_elf(void *base, size_t *size_out)
     return NULL;
 }
 
-static sentry_value_t
-module_to_value(const sentry_module_t *module)
+static sentry_uuid_t
+get_code_id_from_text_fallback(void *base)
+{
+    const uint8_t *text = NULL;
+    size_t text_size = 0;
+
+    const uint8_t *addr = base;
+    // iterate over all the program headers, for 32/64 bit separately
+    const unsigned char *e_ident = addr;
+    if (e_ident[EI_CLASS] == ELFCLASS64) {
+        const Elf64_Ehdr *elf = base;
+        const Elf64_Shdr *strheader = (const Elf64_Shdr *)(addr + elf->e_shoff
+            + elf->e_shentsize * elf->e_shstrndx);
+
+        const char *names = (const char *)(addr + strheader->sh_offset);
+        for (int i = 0; i < elf->e_shnum; i++) {
+            const Elf64_Shdr *header = (const Elf64_Shdr *)(addr + elf->e_shoff
+                + elf->e_shentsize * i);
+            const char *name = names + header->sh_name;
+            if (header->sh_type == SHT_PROGBITS && strcmp(name, ".text") == 0) {
+                text = addr + header->sh_offset;
+                text_size = header->sh_size;
+                break;
+            }
+        }
+    } else {
+        const Elf32_Ehdr *elf = base;
+        const Elf32_Shdr *strheader = (const Elf32_Shdr *)(addr + elf->e_shoff
+            + elf->e_shentsize * elf->e_shstrndx);
+
+        const char *names = (const char *)(addr + strheader->sh_offset);
+        for (int i = 0; i < elf->e_shnum; i++) {
+            const Elf32_Shdr *header = (const Elf32_Shdr *)(addr + elf->e_shoff
+                + elf->e_shentsize * i);
+            const char *name = names + header->sh_name;
+            if (header->sh_type == SHT_PROGBITS && strcmp(name, ".text") == 0) {
+                text = addr + header->sh_offset;
+                text_size = header->sh_size;
+                break;
+            }
+        }
+    }
+
+    sentry_uuid_t uuid = sentry_uuid_nil();
+
+    // adapted from
+    // https://github.com/getsentry/symbolic/blob/8f9a01756e48dcbba2e42917a064f495d74058b7/debuginfo/src/elf.rs#L100-L110
+    size_t max = MIN(text_size, 4096);
+    for (size_t i = 0; i < max; i++) {
+        uuid.bytes[i % 16] ^= text[i];
+    }
+
+    return uuid;
+}
+
+bool
+sentry__procmaps_read_ids_from_elf(sentry_value_t value, void *elf_ptr)
+{
+    // and try to get the debug id from the elf headers of the loaded
+    // modules
+    size_t code_id_size;
+    const uint8_t *code_id = get_code_id_from_elf(elf_ptr, &code_id_size);
+    sentry_uuid_t uuid = sentry_uuid_nil();
+    if (code_id) {
+        sentry_value_set_by_key(value, "code_id",
+            sentry__value_new_hexstring(code_id, code_id_size));
+
+        uuid = sentry_uuid_from_bytes((const char *)code_id);
+    } else {
+        uuid = get_code_id_from_text_fallback(elf_ptr);
+    }
+
+    // the usage of these is described here:
+    // https://getsentry.github.io/symbolicator/advanced/symbol-server-compatibility/#identifiers
+    // in particular, the debug_id is a `little-endian GUID`, so we
+    // have to do appropriate byte-flipping
+    char *uuid_bytes = uuid.bytes;
+    uint32_t *a = (uint32_t *)uuid_bytes;
+    *a = htonl(*a);
+    uint16_t *b = (uint16_t *)(uuid_bytes + 4);
+    *b = htons(*b);
+    uint16_t *c = (uint16_t *)(uuid_bytes + 6);
+    *c = htons(*c);
+
+    sentry_value_set_by_key(value, "debug_id", sentry__value_new_uuid(&uuid));
+    return true;
+}
+
+sentry_value_t
+sentry__procmaps_module_to_value(const sentry_module_t *module)
 {
     sentry_value_t mod_val = sentry_value_new_object();
     sentry_value_set_by_key(mod_val, "type", sentry_value_new_string("elf"));
     sentry_value_set_by_key(
         mod_val, "image_addr", sentry__value_new_addr((uint64_t)module->start));
     sentry_value_set_by_key(mod_val, "image_size",
-        sentry_value_new_int32((int32_t)(module->end - module->start)));
+        sentry_value_new_int32(
+            (int32_t)((size_t)module->end - (size_t)module->start)));
     sentry_value_set_by_key(mod_val, "code_file",
         sentry__value_new_string_owned(sentry__slice_to_owned(module->file)));
 
-    // and try to get the debug id from the elf headers of the loaded
-    // modules
-    size_t code_id_size;
-    const uint8_t *code_id = get_code_id_from_elf(module->start, &code_id_size);
-    if (code_id) {
-        // the usage of these is described here:
-        // https://getsentry.github.io/symbolicator/advanced/symbol-server-compatibility/#identifiers
-        // in particular, the debug_id is a `little-endian GUID`, so we have to
-        // do appropriate byte-flipping
-        sentry_value_set_by_key(mod_val, "code_id",
-            sentry__value_new_hexstring((const char *)code_id, code_id_size));
-
-        sentry_uuid_t uuid = sentry_uuid_from_bytes((const char *)code_id);
-        char *uuid_bytes = uuid.bytes;
-        uint32_t *a = (uint32_t *)uuid_bytes;
-        *a = htonl(*a);
-        uint16_t *b = (uint16_t *)(uuid_bytes + 4);
-        *b = htons(*b);
-        uint16_t *c = (uint16_t *)(uuid_bytes + 6);
-        *c = htons(*c);
-
-        sentry_value_set_by_key(
-            mod_val, "debug_id", sentry__value_new_uuid(&uuid));
+    // At least on the android API-16, x86 simulator, the linker apparently
+    // does not load the complete file into memory. Or at least, the section
+    // headers which are located at the end of the file are not loaded, and
+    // we would be poking into invalid memory. To be safe, we mmap the complete
+    // file from disk, so we have the on-disk layout, and are independent of how
+    // the runtime linker would load or re-order any sections. The exception
+    // here is the linux-gate, which is not an actual file on disk, so we
+    // actually poke at its memory.
+    if (sentry__slice_eq(module->file, LINUX_GATE)) {
+        sentry__procmaps_read_ids_from_elf(mod_val, module->start);
     } else {
-        sentry_uuid_t empty_uuid = sentry_uuid_nil();
-        sentry_value_set_by_key(
-            mod_val, "debug_id", sentry__value_new_uuid(&empty_uuid));
+        char *filename = sentry__slice_to_owned(module->file);
+        sentry_mmap_t mm;
+        if (!sentry__mmap_file(&mm, filename)) {
+            sentry_free(filename);
+            return mod_val;
+        }
+        sentry_free(filename);
+
+        sentry__procmaps_read_ids_from_elf(mod_val, mm.ptr);
+
+        sentry__mmap_close(&mm);
     }
 
     return mod_val;
 }
-
-#define MAX(a, b) ((a) > (b) ? (a) : (b))
-#define MIN(a, b) ((a) < (b) ? (a) : (b))
 
 static void
 try_append_module(sentry_value_t modules, const sentry_module_t *module)
@@ -216,10 +352,8 @@ try_append_module(sentry_value_t modules, const sentry_module_t *module)
         return;
     }
 
-    sentry_value_append(modules, module_to_value(module));
+    sentry_value_append(modules, sentry__procmaps_module_to_value(module));
 }
-
-static sentry_slice_t LINUX_GATE = { "linux-gate.so", 13 };
 
 // copied from:
 // https://github.com/google/breakpad/blob/216cea7bca53fa441a3ee0d0f5fd339a3a894224/src/client/linux/minidump_writer/linux_dumper.h#L61-L70

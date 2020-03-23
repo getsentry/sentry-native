@@ -1,9 +1,10 @@
-#include "sentry_libcurl_transport.h"
 #include "sentry_alloc.h"
 #include "sentry_core.h"
 #include "sentry_envelope.h"
 #include "sentry_string.h"
 #include "sentry_sync.h"
+#include "sentry_transport.h"
+
 #include <curl/curl.h>
 #include <curl/easy.h>
 #include <stdlib.h>
@@ -76,7 +77,8 @@ free_transport(sentry_transport_t *transport)
 }
 
 static size_t
-swallow_data(char *ptr, size_t size, size_t nmemb, void *userdata)
+swallow_data(
+    char *UNUSED(ptr), size_t size, size_t nmemb, void *UNUSED(userdata))
 {
     return size * nmemb;
 }
@@ -106,7 +108,7 @@ header_callback(char *buffer, size_t size, size_t nitems, void *userdata)
 
 static bool
 for_each_request_callback(sentry_prepared_http_request_t *req,
-    const sentry_envelope_t *envelope, void *data)
+    const sentry_envelope_t *UNUSED(envelope), void *data)
 {
     struct task_state *ts = data;
     const sentry_options_t *opts = sentry_get_options();
@@ -202,7 +204,7 @@ send_envelope(struct sentry_transport_s *transport, sentry_envelope_t *envelope)
 }
 
 sentry_transport_t *
-sentry__new_libcurl_transport(void)
+sentry__transport_new_default(void)
 {
     SENTRY_DEBUG("initializing curl transport");
     sentry_transport_t *transport = SENTRY_MAKE(sentry_transport_t);

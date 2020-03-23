@@ -7,8 +7,8 @@
 #include "sentry_utils.h"
 
 #include <pathcch.h>
-#include <shlobj.h>
 #include <shellapi.h>
+#include <shlobj.h>
 #include <shlwapi.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -17,8 +17,8 @@
 static const size_t MAX_READ_TO_BUFFER = 134217728;
 
 #ifndef __MINGW32__
-#define S_ISREG(m) (((m)&_S_IFMT) == _S_IFREG)
-#define S_ISDIR(m) (((m)&_S_IFMT) == _S_IFDIR)
+#    define S_ISREG(m) (((m)&_S_IFMT) == _S_IFREG)
+#    define S_ISDIR(m) (((m)&_S_IFMT) == _S_IFDIR)
 #endif
 
 struct sentry_pathiter_s {

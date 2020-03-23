@@ -61,6 +61,13 @@ if(MINGW)
 	)
 endif()
 
+# This is a bit unfortunate: Building the unit tests also builds and links the
+# backend, which is unnecessary for the unit tests themselves,
+# and takes a long time to compile.
+if(SENTRY_BACKEND_CRASHPAD)
+	target_compile_features(sentry_test_unit PUBLIC cxx_std_14)
+endif()
+
 target_compile_definitions(sentry_test_unit PRIVATE SENTRY_UNITTEST)
 
 add_test(NAME sentry_test_unit COMMAND sentry_test_unit)

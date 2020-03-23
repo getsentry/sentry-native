@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.2.1
+
+- Added Breakpad support on Linux
+- Implemented fallback `debug-id` on Linux and Android for modules that are
+  built without a `build-id`
+- Fixes issues and added CI for more platforms/compilers, including 32-bit Linux
+  and 32-bit VS2017
+- Further improvements to the CMake configuration (thanks @madebr
+  [#168](https://github.com/getsentry/sentry-native/pull/168))
+- Added a new `SENTRY_TRANSPORT` CMake option to customize the default HTTP transport
+
 ## 0.2.0
 
 - Complete rewrite in C

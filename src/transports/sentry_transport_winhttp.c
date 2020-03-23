@@ -1,14 +1,13 @@
-#include "sentry_winhttp_transport.h"
-
 #include "sentry_alloc.h"
 #include "sentry_core.h"
 #include "sentry_envelope.h"
 #include "sentry_string.h"
 #include "sentry_sync.h"
+#include "sentry_transport.h"
 
-#include <winhttp.h>
 #include <stdlib.h>
 #include <string.h>
+#include <winhttp.h>
 
 typedef struct {
     sentry_bgworker_t *bgworker;
@@ -169,14 +168,42 @@ for_each_request_callback(sentry_prepared_http_request_t *req,
     wchar_t *headers = sentry__string_to_wstr(buf);
     sentry_free(buf);
 
+    SENTRY_TRACEF(
+        "sending request using winhttp to %s:\n%S", req->url, headers);
+
     if (WinHttpSendRequest(request, headers, -1, (LPVOID)req->payload,
             (DWORD)req->payload_len, (DWORD)req->payload_len, 0)) {
         WinHttpReceiveResponse(request, NULL);
 
+        if (opts->debug) {
+            // this is basically the example from:
+            // https://docs.microsoft.com/en-us/windows/win32/api/winhttp/nf-winhttp-winhttpqueryheaders#examples
+            DWORD dwSize = 0;
+            LPVOID lpOutBuffer = NULL;
+            WinHttpQueryHeaders(request, WINHTTP_QUERY_RAW_HEADERS_CRLF,
+                WINHTTP_HEADER_NAME_BY_INDEX, NULL, &dwSize,
+                WINHTTP_NO_HEADER_INDEX);
+
+            // Allocate memory for the buffer.
+            if (GetLastError() == ERROR_INSUFFICIENT_BUFFER) {
+                lpOutBuffer = sentry_malloc(dwSize);
+
+                // Now, use WinHttpQueryHeaders to retrieve the header.
+                if (lpOutBuffer
+                    && WinHttpQueryHeaders(request,
+                        WINHTTP_QUERY_RAW_HEADERS_CRLF,
+                        WINHTTP_HEADER_NAME_BY_INDEX, lpOutBuffer, &dwSize,
+                        WINHTTP_NO_HEADER_INDEX)) {
+                    SENTRY_TRACEF("Received Response:\n%S", lpOutBuffer);
+                }
+                sentry_free(lpOutBuffer);
+            }
+        }
+
         DWORD status_code = 0;
         DWORD status_code_size = sizeof(DWORD);
 
-        bool foo = WinHttpQueryHeaders(request,
+        WinHttpQueryHeaders(request,
             WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
             WINHTTP_HEADER_NAME_BY_INDEX, &status_code, &status_code_size,
             WINHTTP_NO_HEADER_INDEX);
@@ -193,6 +220,8 @@ for_each_request_callback(sentry_prepared_http_request_t *req,
                     = GetTickCount64() + retry_after * 1000;
             }
         }
+    } else {
+        SENTRY_DEBUGF("http request failed with error: %d", GetLastError());
     }
     WinHttpCloseHandle(request);
     sentry_free(url);
@@ -235,7 +264,7 @@ winhttp_transport_send_envelope(
 }
 
 sentry_transport_t *
-sentry__new_winhttp_transport(void)
+sentry__transport_new_default(void)
 {
     SENTRY_DEBUG("initializing winhttp transport");
     sentry_transport_t *transport = SENTRY_MAKE(sentry_transport_t);

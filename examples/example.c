@@ -4,8 +4,9 @@
 #include <string.h>
 
 static void
-print_envelope(sentry_envelope_t *envelope, void *_data)
+print_envelope(sentry_envelope_t *envelope, void *unused_data)
 {
+    (void)unused_data;
     size_t size_out = 0;
     char *s = sentry_envelope_serialize(envelope, &size_out);
     printf("%s", s);
