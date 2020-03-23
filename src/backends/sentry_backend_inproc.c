@@ -163,7 +163,7 @@ handle_signal(int signum, siginfo_t *info, void *user_context)
     // give us an allocator we can use safely in signals before we tear down.
     sentry__page_allocator_enable();
 
-    // inform the sentry_sync system that we're in a signal hanlder.  This will
+    // inform the sentry_sync system that we're in a signal handler.  This will
     // make mutexes spin on a spinlock instead as it's no longer safe to use a
     // pthread mutex.
     sentry__enter_signal_handler();
@@ -181,7 +181,9 @@ handle_signal(int signum, siginfo_t *info, void *user_context)
 
     // after capturing the crash event, try to dump all the in-flight data of
     // the previous transport
-    sentry__transport_dump_queue(transport);
+    if (transport) {
+        sentry__transport_dump_queue(transport);
+    }
 
     // reset signal handlers and invoke the original ones.  This will then tear
     // down the process.  In theory someone might have some other handler here

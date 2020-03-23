@@ -287,7 +287,30 @@ sentry__transport_new_default(void)
     return transport;
 }
 
-void
-sentry__transport_dump_queue(sentry_transport_t *UNUSED(transport))
+static bool
+sentry__winhttp_dump(void *task_data, void *UNUSED(data))
 {
+    struct task_state *ts = task_data;
+    const sentry_options_t *opts = sentry_get_options();
+
+    sentry__run_write_envelope(opts->run, ts->envelope);
+
+    return true;
+}
+
+void
+sentry__transport_dump_queue(sentry_transport_t *transport)
+{
+    // make sure to only dump when it is actually *this* transport which is in
+    // use
+    if (transport->send_envelope_func != winhttp_transport_send_envelope) {
+        return;
+    }
+
+    sentry_bgworker_t *bgworker
+        = ((winhttp_transport_state_t *)transport->data)->bgworker;
+
+    size_t dumped = sentry__bgworker_foreach_matching(
+        bgworker, task_exec_func, sentry__winhttp_dump, NULL);
+    SENTRY_TRACEF("Dumped %zu in-flight envelopes to disk", dumped);
 }

@@ -61,7 +61,7 @@ typedef CONDITION_VARIABLE sentry_cond_t;
 
 /* on unix systems signal handlers can interrupt anything which means that
    we're restricted in what we can do.  In particular it's possible that
-   we would end up dead locking outselves.  While we cannot fully prevent
+   we would end up dead locking ourselves.  While we cannot fully prevent
    races we have a logic here that while the signal handler is active we're
    disabling our mutexes so that our signal handler can access what otherwise
    would be protected by the mutex but everyone else needs to wait for the

@@ -112,7 +112,9 @@ sentry__breakpad_backend_callback(
 
     // after capturing the crash event, try to dump all the in-flight data of
     // the previous transport
-    sentry__transport_dump_queue(transport);
+    if (transport) {
+        sentry__transport_dump_queue(transport);
+    }
 
     return succeeded;
 }
