@@ -40,8 +40,18 @@ target_include_directories(sentry_test_unit PRIVATE
 	${SENTRY_INTERFACE_INCLUDE_DIRECTORIES}
 	${SENTRY_INCLUDE_DIRECTORIES}
 )
+target_link_libraries(sentry_test_unit PRIVATE
+	${SENTRY_LINK_LIBRARIES}
+	${SENTRY_INTERFACE_LINK_LIBRARIES}
+	"$<$<OR:$<PLATFORM_ID:Linux>,$<PLATFORM_ID:Android>>:-Wl,-E>"
+)
 
 if(MINGW)
+	IF(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+		target_link_options(sentry_test_unit PRIVATE -Wl,-pdb=) # IMPORTANT ! MUST generate pdb files
+	else()
+		message(FATAL_ERROR "Tests will not pass on MinGW if your compiler cannot generate .pdb files ! Please use Clang instead")
+	endif()
 	target_compile_options(sentry_test_unit PRIVATE
 		-Wno-unused-variable
 		-Wno-unused-parameter
@@ -49,19 +59,6 @@ if(MINGW)
 		-Wno-incompatible-pointer-types
 		-Wno-incompatible-function-pointer-types
 	)
-endif()
-
-target_link_libraries(sentry_test_unit PRIVATE
-	${SENTRY_LINK_LIBRARIES}
-	${SENTRY_INTERFACE_LINK_LIBRARIES}
-	"$<$<OR:$<PLATFORM_ID:Linux>,$<PLATFORM_ID:Android>>:-Wl,-E>"
-)
-
-# This is a bit unfortunate: Building the unit tests also builds and links the
-# backend, which is unnecessary for the unit tests themselves,
-# and takes a long time to compile.
-if(SENTRY_BACKEND_CRASHPAD)
-	target_compile_features(sentry_test_unit PUBLIC cxx_std_14)
 endif()
 
 target_compile_definitions(sentry_test_unit PRIVATE SENTRY_UNITTEST)
