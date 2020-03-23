@@ -140,8 +140,8 @@ sentry__crashpad_backend_startup(sentry_backend_t *backend)
     sentry__crashpad_backend_user_consent_changed(backend);
 
     crashpad::CrashpadClient client;
-    auto minidump_url = sentry__dsn_get_minidump_url(&options->dsn);
-    auto url = minidump_url ? std::string(minidump_url) : std::string();
+    char *minidump_url = sentry__dsn_get_minidump_url(&options->dsn);
+    std::string url = minidump_url ? std::string(minidump_url) : std::string();
     sentry_free(minidump_url);
     bool success = client.StartHandlerWithAttachments(handler, database,
         database, url, annotations, file_attachments, arguments,
