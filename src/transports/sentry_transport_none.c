@@ -1,3 +1,4 @@
+#include "sentry_core.h"
 #include "sentry_transport.h"
 
 sentry_transport_t *
