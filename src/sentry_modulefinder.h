@@ -5,4 +5,6 @@
 
 sentry_value_t sentry__modules_get_list(void);
 
+void sentry__modulefinder_cleanup(void);
+
 #endif

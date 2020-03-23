@@ -484,3 +484,13 @@ sentry__modules_get_list(void)
     sentry__mutex_unlock(&g_mutex);
     return g_modules;
 }
+
+void
+sentry__modulefinder_cleanup(void)
+{
+    sentry__mutex_lock(&g_mutex);
+    sentry_value_decref(g_modules);
+    g_modules = sentry_value_new_null();
+    g_initialized = false;
+    sentry__mutex_unlock(&g_mutex);
+}

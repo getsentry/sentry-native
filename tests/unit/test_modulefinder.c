@@ -9,6 +9,10 @@
 
 SENTRY_TEST(module_finder)
 {
+    // make sure that we are able to do multiple cleanup cycles
+    sentry__modules_get_list();
+    sentry__modulefinder_cleanup();
+
     sentry_value_t modules = sentry__modules_get_list();
     TEST_CHECK(sentry_value_get_length(modules) > 0);
 
@@ -28,6 +32,8 @@ SENTRY_TEST(module_finder)
     }
 
     TEST_CHECK(found_test);
+
+    sentry__modulefinder_cleanup();
 }
 
 SENTRY_TEST(procmaps_parser)
