@@ -6,6 +6,7 @@
 #include "sentry_envelope.h"
 #include "sentry_scope.h"
 #include "sentry_sync.h"
+#include "sentry_transport.h"
 #include "sentry_unix_pageallocator.h"
 #include <string.h>
 
@@ -169,12 +170,18 @@ handle_signal(int signum, siginfo_t *info, void *user_context)
 
     // since we can’t use HTTP in signal handlers, we will swap out the
     // transport here to one that serializes the envelope to disk
+    const sentry_options_t *opts = sentry_get_options();
+    sentry_transport_t *transport = opts->transport;
     sentry__enforce_disk_transport();
 
     // now create an capture an event.  Note that this assumes the transport
     // only dumps to disk at the moment.
     SENTRY_DEBUG("capturing event from signal");
     sentry_capture_event(make_signal_event(sig_slot, &uctx));
+
+    // after capturing the crash event, try to dump all the in-flight data of
+    // the previous transport
+    sentry__transport_dump_queue(transport);
 
     // reset signal handlers and invoke the original ones.  This will then tear
     // down the process.  In theory someone might have some other handler here

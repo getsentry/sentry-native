@@ -5,4 +5,6 @@
 
 sentry_transport_t *sentry__transport_new_default(void);
 
+void sentry__transport_dump_queue(sentry_transport_t *transport);
+
 #endif

@@ -102,12 +102,17 @@ sentry__breakpad_backend_callback(
     // almost identical to enforcing the disk transport, the breakpad
     // transport will serialize the envelope to disk, but will attach the
     // captured minidump as an additional attachment
+    sentry_transport_t *transport = options->transport;
     sentry__enforce_breakpad_transport(options, dump_path);
 
     // after the transport is set up, we will capture an event, which will
     // create an envelope with all the scope, attachments, etc.
     sentry_value_t event = sentry_value_new_event();
     sentry_capture_event(event);
+
+    // after capturing the crash event, try to dump all the in-flight data of
+    // the previous transport
+    sentry__transport_dump_queue(transport);
 
     return succeeded;
 }

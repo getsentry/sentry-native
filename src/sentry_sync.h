@@ -167,5 +167,8 @@ int sentry__bgworker_shutdown(sentry_bgworker_t *bgw, uint64_t timeout);
 int sentry__bgworker_submit(sentry_bgworker_t *bgw,
     sentry_task_function_t exec_func, sentry_task_function_t cleanup_func,
     void *data);
+int sentry__bgworker_foreach_matching(sentry_bgworker_t *bgw,
+    sentry_task_function_t exec_func,
+    bool (*callback)(void *task_data, void *data), void *data);
 
 #endif

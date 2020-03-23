@@ -34,7 +34,7 @@ def test_capture_stdout(tmp_path):
     assert_event(envelope)
 
 @pytest.mark.skipif(sys.platform == "win32", reason="no inproc backend on windows")
-def test_inproc_enqueue_stdout(tmp_path):
+def test_inproc_crash_stdout(tmp_path):
     cmake(tmp_path, ["sentry_example"], {"SENTRY_BACKEND":"inproc", "SENTRY_TRANSPORT":"none"})
 
     child = run(tmp_path, "sentry_example", ["attachment", "crash"])
@@ -50,7 +50,7 @@ def test_inproc_enqueue_stdout(tmp_path):
     assert_crash(envelope)
 
 @pytest.mark.skipif(sys.platform != "linux", reason="breakpad only supported on linux")
-def test_breakpad_enqueue_stdout(tmp_path):
+def test_breakpad_crash_stdout(tmp_path):
     cmake(tmp_path, ["sentry_example"], {"SENTRY_BACKEND":"breakpad", "SENTRY_TRANSPORT":"none"})
 
     child = run(tmp_path, "sentry_example", ["attachment", "crash"])
