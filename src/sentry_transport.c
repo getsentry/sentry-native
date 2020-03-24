@@ -29,18 +29,11 @@ sentry__rate_limiter_update_from_header(
     while (true) {
         slice = sentry__slice_trim(slice);
         uint64_t retry_after = 0;
-        if (sentry__slice_pop_front_if(&slice, '+')) {
-            if (!sentry__slice_pop_uint64(&slice, &retry_after)) {
-                return false;
-            }
-            retry_after *= 1000;
-            retry_after += sentry__msec_time();
-        } else {
-            if (!sentry__slice_pop_uint64(&slice, &retry_after)) {
-                return false;
-            }
-            retry_after *= 1000;
+        if (!sentry__slice_pop_uint64(&slice, &retry_after)) {
+            return false;
         }
+        retry_after *= 1000;
+        retry_after += sentry__msec_time();
 
         if (!sentry__slice_pop_front_if(&slice, ':')) {
             return false;

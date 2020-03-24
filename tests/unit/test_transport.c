@@ -12,13 +12,13 @@ SENTRY_TEST(rate_limit_parsing)
 
     TEST_CHECK(
         sentry__rate_limiter_get_disabled_until(rl, SENTRY_RL_CATEGORY_ERROR)
-        == 120000);
+        >= now + 120000);
     TEST_CHECK(sentry__rate_limiter_get_disabled_until(
                    rl, SENTRY_RL_CATEGORY_TRANSACTION)
         == 0);
     TEST_CHECK(
         sentry__rate_limiter_get_disabled_until(rl, SENTRY_RL_CATEGORY_SESSION)
-        == 60000);
+        >= now + 60000);
     TEST_CHECK(
         sentry__rate_limiter_get_disabled_until(rl, SENTRY_RL_CATEGORY_ANY)
         >= now + 30000);
