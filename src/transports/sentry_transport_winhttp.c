@@ -13,7 +13,7 @@ typedef struct {
     sentry_bgworker_t *bgworker;
     wchar_t *user_agent;
     wchar_t *proxy;
-    ULONGLONG disabled_until;
+    sentry_rate_limiter_t *rl;
     HINTERNET session;
     HINTERNET connect;
 
@@ -23,10 +23,6 @@ typedef struct {
 struct task_state {
     winhttp_transport_state_t *transport_state;
     sentry_envelope_t *envelope;
-};
-
-struct header_info {
-    int retry_after;
 };
 
 static winhttp_transport_state_t *
@@ -43,11 +39,11 @@ new_transport_state(void)
         return NULL;
     }
 
-    state->disabled_until = 0;
     state->connect = NULL;
     state->session = NULL;
     state->user_agent = NULL;
     state->proxy = NULL;
+    state->rl = sentry__rate_limiter_new();
 
     return state;
 }
@@ -106,6 +102,7 @@ winhttp_transport_free(sentry_transport_t *transport)
 {
     winhttp_transport_state_t *state = transport->data;
     sentry__bgworker_free(state->bgworker);
+    sentry__rate_limiter_free(state->rl);
     WinHttpCloseHandle(state->connect);
     WinHttpCloseHandle(state->session);
     sentry_free(state->user_agent);
@@ -123,11 +120,6 @@ for_each_request_callback(sentry_prepared_http_request_t *req,
 
     if (!opts || opts->dsn.empty || sentry__should_skip_upload()) {
         SENTRY_DEBUG("skipping event upload");
-        return false;
-    }
-
-    ULONGLONG now = GetTickCount64();
-    if (now < state->disabled_until) {
         return false;
     }
 
@@ -216,8 +208,10 @@ for_each_request_callback(sentry_prepared_http_request_t *req,
                     WINHTTP_QUERY_RETRY_AFTER | WINHTTP_QUERY_FLAG_NUMBER,
                     WINHTTP_HEADER_NAME_BY_INDEX, &retry_after,
                     &retry_after_size, WINHTTP_NO_HEADER_INDEX)) {
-                ts->transport_state->disabled_until
-                    = GetTickCount64() + retry_after * 1000;
+                char buf[100];
+                snprintf(buf, 100, "%d", retry_after);
+                sentry__rate_limiter_update_from_http_retry_after(
+                    ts->transport_state->rl, buf);
             }
         }
     } else {
@@ -236,7 +230,7 @@ task_exec_func(void *data)
 {
     struct task_state *ts = data;
     sentry__envelope_for_each_request(
-        ts->envelope, for_each_request_callback, NULL, data);
+        ts->envelope, for_each_request_callback, ts->transport_state->rl, data);
 }
 
 static void
