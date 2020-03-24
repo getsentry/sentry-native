@@ -96,6 +96,9 @@ sentry__breakpad_backend_callback(
     const google_breakpad::MinidumpDescriptor &descriptor,
     void *UNUSED(context), bool succeeded)
 {
+    sentry__page_allocator_enable();
+    sentry__enter_signal_handler();
+
     const sentry_options_t *options = sentry_get_options();
     const char *dump_path = descriptor.path();
 
@@ -116,6 +119,7 @@ sentry__breakpad_backend_callback(
         sentry__transport_dump_queue(transport);
     }
 
+    sentry__leave_signal_handler();
     return succeeded;
 }
 
