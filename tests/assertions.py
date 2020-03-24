@@ -1,3 +1,5 @@
+import datetime
+
 def matches(actual, expected):
     return {k:v for (k,v) in actual.items() if k in expected.keys()} == expected
 
@@ -65,6 +67,7 @@ def assert_event(envelope):
         "message": { "formatted":"Hello World!" },
     }
     assert matches(event, expected)
+    assert event["timestamp"][:11] == datetime.datetime.utcnow().isoformat()[:11]
 
 def assert_crash(envelope):
     event = envelope.get_event()

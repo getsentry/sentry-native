@@ -69,15 +69,19 @@ static inline uint64_t
 sentry__msec_time(void)
 {
 #ifdef SENTRY_PLATFORM_WINDOWS
-    SYSTEMTIME system_time;
+    // Contains a 64-bit value representing the number of 100-nanosecond
+    // intervals since January 1, 1601 (UTC).
     FILETIME file_time;
+    SYSTEMTIME system_time;
     GetSystemTime(&system_time);
     SystemTimeToFileTime(&system_time, &file_time);
-    return (((uint64_t)file_time.dwLowDateTime
-                + ((uint64_t)file_time.dwHighDateTime << 32))
-               - 116444736000000000ULL)
-        / 10000000ULL
-        + system_time.wMilliseconds;
+
+    uint64_t timestamp = (uint64_t)file_time.dwLowDateTime
+        + ((uint64_t)file_time.dwHighDateTime << 32);
+    timestamp -= 116444736000000000LL; // convert to unix epoch
+    timestamp /= 10000LL; // 100ns -> 1ms
+
+    return timestamp;
 #else
     struct timeval tv;
     return (gettimeofday(&tv, NULL) == 0)
