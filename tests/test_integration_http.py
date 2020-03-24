@@ -3,10 +3,12 @@ import subprocess
 import sys
 import os
 from . import cmake, make_dsn, check_output, run, event_envelope, Envelope
+from .conditions import has_http, has_inproc, has_breakpad
 from .assertions import assert_attachment, assert_meta, assert_breadcrumb, assert_stacktrace, assert_event, assert_crash, assert_minidump
 
-@pytest.mark.skipif(os.environ.get("ANDROID_API") or os.environ.get("TEST_X86"),
-    reason="Android has no default http transport")
+if not has_http:
+    pytest.skip("tests need http", allow_module_level=True)
+
 def test_capture_http(tmp_path, httpserver):
     # we want to have the default transport
     cmake(tmp_path, ["sentry_example"], {"SENTRY_BACKEND": "none"})
@@ -31,8 +33,7 @@ def test_capture_http(tmp_path, httpserver):
 
     assert_event(envelope)
 
-@pytest.mark.skipif(sys.platform == "win32" or os.environ.get("ANDROID_API") or os.environ.get("TEST_X86"),
-    reason="Android has no default http transport, Windows has no inproc backend")
+@pytest.mark.skipif(not has_inproc, reason="test needs inproc backend")
 def test_inproc_crash_http(tmp_path, httpserver):
     cmake(tmp_path, ["sentry_example"], {"SENTRY_BACKEND": "inproc"})
 
@@ -59,8 +60,7 @@ def test_inproc_crash_http(tmp_path, httpserver):
 
     assert_crash(envelope)
 
-@pytest.mark.skipif(sys.platform == "win32" or os.environ.get("ANDROID_API") or os.environ.get("TEST_X86"),
-    reason="Android has no default http transport, Windows has no inproc backend")
+@pytest.mark.skipif(not has_inproc, reason="test needs inproc backend")
 def test_inproc_dump_inflight(tmp_path, httpserver):
     cmake(tmp_path, ["sentry_example"], {"SENTRY_BACKEND": "inproc"})
 
@@ -79,8 +79,7 @@ def test_inproc_dump_inflight(tmp_path, httpserver):
     # we trigger 10 normal events, and 1 crash
     assert len(httpserver.log) >= 11
 
-@pytest.mark.skipif(sys.platform != "linux" or os.environ.get("TEST_X86"),
-    reason="breadpad only supported on linux")
+@pytest.mark.skipif(not has_breakpad, reason="test needs breakpad backend")
 def test_breakpad_crash_http(tmp_path, httpserver):
     cmake(tmp_path, ["sentry_example"], {"SENTRY_BACKEND": "breakpad"})
 
@@ -107,8 +106,7 @@ def test_breakpad_crash_http(tmp_path, httpserver):
 
     assert_minidump(envelope)
 
-@pytest.mark.skipif(sys.platform != "linux" or os.environ.get("TEST_X86"),
-    reason="breadpad only supported on linux")
+@pytest.mark.skipif(not has_breakpad, reason="test needs breakpad backend")
 def test_breakpad_dump_inflight(tmp_path, httpserver):
     cmake(tmp_path, ["sentry_example"], {"SENTRY_BACKEND": "breakpad"})
 

@@ -3,6 +3,7 @@ import subprocess
 import sys
 import os
 from . import cmake, check_output, run, Envelope
+from .conditions import has_inproc, has_breakpad
 from .assertions import assert_attachment, assert_meta, assert_breadcrumb, assert_stacktrace, assert_event, assert_crash, assert_minidump
 
 def test_capture_stdout(tmp_path):
@@ -33,7 +34,7 @@ def test_capture_stdout(tmp_path):
 
     assert_event(envelope)
 
-@pytest.mark.skipif(sys.platform == "win32", reason="no inproc backend on windows")
+@pytest.mark.skipif(not has_inproc, reason="test needs inproc backend")
 def test_inproc_crash_stdout(tmp_path):
     cmake(tmp_path, ["sentry_example"], {"SENTRY_BACKEND":"inproc", "SENTRY_TRANSPORT":"none"})
 
@@ -49,7 +50,7 @@ def test_inproc_crash_stdout(tmp_path):
 
     assert_crash(envelope)
 
-@pytest.mark.skipif(sys.platform != "linux", reason="breakpad only supported on linux")
+@pytest.mark.skipif(not has_breakpad, reason="test needs breakpad backend")
 def test_breakpad_crash_stdout(tmp_path):
     cmake(tmp_path, ["sentry_example"], {"SENTRY_BACKEND":"breakpad", "SENTRY_TRANSPORT":"none"})
 
