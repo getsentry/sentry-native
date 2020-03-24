@@ -90,7 +90,6 @@ stages:
                 .*
                 **/.git*
                 azure*
-                leak*
                 scripts
                 Makefile
                 external/breakpad/src/tools
