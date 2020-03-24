@@ -12,10 +12,21 @@ extern "C" {
 #include <map>
 #include <vector>
 
+#ifdef __GNUC__
+#    pragma GCC diagnostic push
+#    pragma GCC diagnostic ignored "-Wunused-parameter"
+#    pragma GCC diagnostic ignored "-Wgnu-zero-variadic-macro-arguments"
+#    pragma GCC diagnostic ignored "-Wfour-char-constants"
+#endif
+
 #include "client/crash_report_database.h"
 #include "client/crashpad_client.h"
 #include "client/crashpad_info.h"
 #include "client/settings.h"
+
+#ifdef __GNUC__
+#    pragma GCC diagnostic pop
+#endif
 
 extern "C" {
 
@@ -29,12 +40,18 @@ typedef struct {
 static std::unique_ptr<crashpad::CrashReportDatabase> g_db;
 
 static void
-sentry__crashpad_backend_user_consent_changed(sentry_backend_t *backend)
+sentry__crashpad_backend_user_consent_changed(sentry_backend_t *UNUSED(backend))
 {
     if (!g_db || !g_db->GetSettings()) {
         return;
     }
     g_db->GetSettings()->SetUploadsEnabled(!sentry__should_skip_upload());
+}
+
+static void
+sentry__crashpad_backend_shutdown(sentry_backend_t *UNUSED(backend))
+{
+    g_db = nullptr;
 }
 
 static void
@@ -124,7 +141,7 @@ sentry__crashpad_backend_startup(sentry_backend_t *backend)
 
     crashpad::CrashpadClient client;
     char *minidump_url = sentry__dsn_get_minidump_url(&options->dsn);
-    std::string url(minidump_url);
+    std::string url = minidump_url ? std::string(minidump_url) : std::string();
     sentry_free(minidump_url);
     bool success = client.StartHandlerWithAttachments(handler, database,
         database, url, annotations, file_attachments, arguments,
@@ -150,8 +167,13 @@ sentry__crashpad_backend_startup(sentry_backend_t *backend)
 
 static void
 sentry__crashpad_backend_flush_scope(
-    sentry_backend_t *backend, const sentry_scope_t *scope)
+    sentry_backend_t *backend, const sentry_scope_t *UNUSED(scope))
 {
+    const crashpad_state_t *data = (crashpad_state_t *)backend->data;
+    if (!data->event_path) {
+        return;
+    }
+
     // This here is an empty object that we copy the scope into.
     // Even though the API is specific to `event`, an `event` has a few default
     // properties that we do not want here.
@@ -168,7 +190,6 @@ sentry__crashpad_backend_flush_scope(
         return;
     }
 
-    const crashpad_state_t *data = (crashpad_state_t *)backend->data;
     int rv = sentry__path_write_buffer(data->event_path, mpack, mpack_size);
     sentry_free(mpack);
 
@@ -191,6 +212,9 @@ sentry__crashpad_backend_add_breadcrumb(
         ? data->breadcrumb1_path
         : data->breadcrumb2_path;
     data->num_breadcrumbs++;
+    if (!breadcrumb_file) {
+        return;
+    }
 
     size_t mpack_size;
     char *mpack = sentry_value_to_msgpack(breadcrumb, &mpack_size);
@@ -205,7 +229,7 @@ sentry__crashpad_backend_add_breadcrumb(
     sentry_free(mpack);
 
     if (rv != 0) {
-        SENTRY_DEBUG("flushing scope to msgpack failed");
+        SENTRY_DEBUG("flushing breadcrumb to msgpack failed");
     }
 }
 
@@ -231,10 +255,10 @@ sentry__backend_new(void)
         sentry_free(backend);
         return NULL;
     }
-    data->num_breadcrumbs = 0;
+    memset(data, 0, sizeof(crashpad_state_t));
 
     backend->startup_func = sentry__crashpad_backend_startup;
-    backend->shutdown_func = NULL;
+    backend->shutdown_func = sentry__crashpad_backend_shutdown;
     backend->free_func = sentry__crashpad_backend_free;
     backend->flush_scope_func = sentry__crashpad_backend_flush_scope;
     backend->add_breadcrumb_func = sentry__crashpad_backend_add_breadcrumb;

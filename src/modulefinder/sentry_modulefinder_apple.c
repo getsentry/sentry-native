@@ -1,5 +1,6 @@
 #include "sentry_boot.h"
 
+#include "sentry_core.h"
 #include "sentry_sync.h"
 #include "sentry_value.h"
 #include "sentry_string.h"
@@ -34,7 +35,7 @@ static sentry_mutex_t g_mutex = SENTRY__MUTEX_INIT;
 static sentry_value_t g_modules;
 
 static void
-add_image(const struct mach_header *mh, intptr_t vmaddr_slide)
+add_image(const struct mach_header *mh, intptr_t UNUSED(vmaddr_slide))
 {
     const platform_mach_header *header = (const platform_mach_header *)mh;
     Dl_info info;
@@ -89,7 +90,7 @@ add_image(const struct mach_header *mh, intptr_t vmaddr_slide)
 }
 
 static void
-remove_image(const struct mach_header *mh, intptr_t vmaddr_slide)
+remove_image(const struct mach_header *mh, intptr_t UNUSED(vmaddr_slide))
 {
     sentry__mutex_lock(&g_mutex);
 
@@ -132,10 +133,25 @@ sentry__modules_get_list(void)
     sentry__mutex_lock(&g_mutex);
     if (!g_initialized) {
         g_modules = sentry_value_new_list();
+        // TODO: maybe use `_dyld_image_count` and `_dyld_get_image_header`?
+        // Those functions are documented to not be thread-safe, though using
+        // the `register_X` functions are also unsafe because they lack a
+        // corresponding `unregister` function, and will thus crash when sentry
+        // itself is unloaded.
         _dyld_register_func_for_add_image(add_image);
         _dyld_register_func_for_remove_image(remove_image);
         g_initialized = true;
     }
     sentry__mutex_unlock(&g_mutex);
     return g_modules;
+}
+
+void
+sentry__modulefinder_cleanup(void)
+{
+    sentry__mutex_lock(&g_mutex);
+    sentry_value_decref(g_modules);
+    g_modules = sentry_value_new_null();
+    g_initialized = false;
+    sentry__mutex_unlock(&g_mutex);
 }

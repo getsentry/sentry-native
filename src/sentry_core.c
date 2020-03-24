@@ -8,6 +8,7 @@
 #include "sentry_backend.h"
 #include "sentry_core.h"
 #include "sentry_envelope.h"
+#include "sentry_modulefinder.h"
 #include "sentry_path.h"
 #include "sentry_scope.h"
 #include "sentry_string.h"
@@ -109,6 +110,7 @@ sentry_shutdown(void)
     g_options = NULL;
     sentry__mutex_unlock(&g_options_mutex);
     sentry__scope_cleanup();
+    sentry__modulefinder_cleanup();
 }
 
 const sentry_options_t *
@@ -442,7 +444,7 @@ sentry_options_get_debug(const sentry_options_t *opts)
 void
 sentry_options_set_require_user_consent(sentry_options_t *opts, int val)
 {
-    opts->require_user_consent = true;
+    opts->require_user_consent = !!val;
 }
 
 int

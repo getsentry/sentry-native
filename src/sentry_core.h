@@ -40,6 +40,12 @@
 #    define MUST_USE
 #endif
 
+#ifdef __GNUC__
+#    define UNUSED(x) UNUSED_##x __attribute__((__unused__))
+#else
+#    define UNUSED(x) UNUSED_##x
+#endif
+
 struct sentry_backend_s;
 
 // We save the attachments as a linked list basically

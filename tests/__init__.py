@@ -3,6 +3,17 @@ import os
 import io
 import json
 import sys
+import urllib
+
+def make_dsn(httpserver, auth="uiaeosnrtdy", id=123456):
+    url = urllib.parse.urlsplit(httpserver.url_for("/{}".format(id)))
+    return urllib.parse.urlunsplit((
+        url.scheme,
+        "{}@{}".format(auth, url.netloc),
+        url.path,
+        url.query,
+        url.fragment,
+        ))
 
 def run(cwd, exe, args, **kwargs):
     if os.environ.get("ANDROID_API"):
@@ -78,6 +89,11 @@ def cmake(cwd, targets, options=None):
         ], cwd=cwd, check=True)
 
 # Adapted from: https://raw.githubusercontent.com/getsentry/sentry-python/276acae955ee13f7ac3a7728003626eff6d943a8/sentry_sdk/envelope.py
+
+def event_envelope(jsonstr):
+    j = json.loads(jsonstr)
+    item = Item(headers={"type":"event"}, payload=PayloadRef(json=j))
+    return Envelope(items=[item])
 
 class Envelope(object):
     def __init__(

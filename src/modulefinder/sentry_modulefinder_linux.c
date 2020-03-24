@@ -37,7 +37,7 @@ sentry__procmaps_parse_module_line(const char *line, sentry_module_t *module)
     // this has been copied from the breakpad source:
     // https://github.com/google/breakpad/blob/13c1568702e8804bc3ebcfbb435a2786a3e335cf/src/processor/proc_maps_linux.cc#L66
     if (sscanf(line,
-            "%" SCNxPTR "-%" SCNxPTR " %4c %" SCNx64 " %hhx:%hhx %" SCNd64
+            "%" SCNxPTR "-%" SCNxPTR " %4c %" SCNx64 " %hhx:%hhx %" SCNu64
             " %n",
             (uintptr_t *)&module->start, (uintptr_t *)&module->end, permissions,
             &offset, &major_device, &minor_device, &inode, &consumed)
@@ -483,4 +483,14 @@ sentry__modules_get_list(void)
     }
     sentry__mutex_unlock(&g_mutex);
     return g_modules;
+}
+
+void
+sentry__modulefinder_cleanup(void)
+{
+    sentry__mutex_lock(&g_mutex);
+    sentry_value_decref(g_modules);
+    g_modules = sentry_value_new_null();
+    g_initialized = false;
+    sentry__mutex_unlock(&g_mutex);
 }
