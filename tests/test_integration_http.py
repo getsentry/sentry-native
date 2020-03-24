@@ -3,10 +3,12 @@ import subprocess
 import sys
 import os
 from . import cmake, make_dsn, check_output, run, event_envelope, Envelope
+from .conditions import has_http, has_inproc, has_breakpad
 from .assertions import assert_attachment, assert_meta, assert_breadcrumb, assert_stacktrace, assert_event, assert_crash, assert_minidump
 
-@pytest.mark.skipif(os.environ.get("ANDROID_API") or os.environ.get("TEST_X86"),
-    reason="Android has no default http transport")
+if not has_http:
+    pytest.skip("tests need http", allow_module_level=True)
+
 def test_capture_http(tmp_path, httpserver):
     # we want to have the default transport
     cmake(tmp_path, ["sentry_example"], {"SENTRY_BACKEND": "none"})
@@ -31,9 +33,8 @@ def test_capture_http(tmp_path, httpserver):
 
     assert_event(envelope)
 
-@pytest.mark.skipif(sys.platform == "win32" or os.environ.get("ANDROID_API") or os.environ.get("TEST_X86"),
-    reason="Android has no default http transport, Windows has no inproc backend")
-def test_inproc_enqueue_http(tmp_path, httpserver):
+@pytest.mark.skipif(not has_inproc, reason="test needs inproc backend")
+def test_inproc_crash_http(tmp_path, httpserver):
     cmake(tmp_path, ["sentry_example"], {"SENTRY_BACKEND": "inproc"})
 
     child = run(tmp_path, "sentry_example", ["attachment", "crash"])
@@ -59,9 +60,8 @@ def test_inproc_enqueue_http(tmp_path, httpserver):
 
     assert_crash(envelope)
 
-@pytest.mark.skipif(sys.platform != "linux" or os.environ.get("TEST_X86"),
-    reason="breadpad only supported on linux")
-def test_breakpad_enqueue_http(tmp_path, httpserver):
+@pytest.mark.skipif(not has_breakpad, reason="test needs breakpad backend")
+def test_breakpad_crash_http(tmp_path, httpserver):
     cmake(tmp_path, ["sentry_example"], {"SENTRY_BACKEND": "breakpad"})
 
     child = run(tmp_path, "sentry_example", ["attachment", "crash"])

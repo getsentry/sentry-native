@@ -95,6 +95,17 @@ main(int argc, char **argv)
         }
     }
 
+    if (has_arg(argc, argv, "capture-multiple")) {
+        for (size_t i = 0; i < 10; i++) {
+            char buffer[10];
+            snprintf(buffer, 10, "Event #%zu", i);
+
+            sentry_value_t event = sentry_value_new_message_event(
+                SENTRY_LEVEL_INFO, NULL, buffer);
+            sentry_capture_event(event);
+        }
+    }
+
     if (has_arg(argc, argv, "crash")) {
         memset((char *)0x0, 1, 100);
     }
