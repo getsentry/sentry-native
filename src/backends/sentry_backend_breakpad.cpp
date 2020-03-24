@@ -6,7 +6,9 @@ extern "C" {
 #include "sentry_core.h"
 #include "sentry_envelope.h"
 #include "sentry_path.h"
+#include "sentry_sync.h"
 #include "sentry_transport.h"
+#include "sentry_unix_pageallocator.h"
 }
 
 #ifdef __GNUC__
