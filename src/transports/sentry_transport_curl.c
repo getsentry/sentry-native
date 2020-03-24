@@ -163,16 +163,12 @@ for_each_request_callback(sentry_prepared_http_request_t *req,
     CURLcode rv = curl_easy_perform(curl);
 
     if (rv == CURLE_OK) {
-        long response_code;
-        curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response_code);
-        if (response_code == 429) {
-            if (info.x_sentry_rate_limits) {
-                sentry__rate_limiter_update_from_header(
-                    ts->transport_state->rl, info.x_sentry_rate_limits);
-            } else if (info.retry_after) {
-                sentry__rate_limiter_update_from_http_retry_after(
-                    ts->transport_state->rl, info.retry_after);
-            }
+        if (info.x_sentry_rate_limits) {
+            sentry__rate_limiter_update_from_header(
+                ts->transport_state->rl, info.x_sentry_rate_limits);
+        } else if (info.retry_after) {
+            sentry__rate_limiter_update_from_http_retry_after(
+                ts->transport_state->rl, info.retry_after);
         }
     }
 

@@ -186,32 +186,33 @@ for_each_request_callback(sentry_prepared_http_request_t *req,
                         WINHTTP_QUERY_RAW_HEADERS_CRLF,
                         WINHTTP_HEADER_NAME_BY_INDEX, lpOutBuffer, &dwSize,
                         WINHTTP_NO_HEADER_INDEX)) {
-                    SENTRY_TRACEF("Received Response:\n%S", lpOutBuffer);
+                    SENTRY_TRACEF(
+                        "Received Response:\n%S", (wchar_t *)lpOutBuffer);
                 }
                 sentry_free(lpOutBuffer);
             }
         }
 
-        DWORD status_code = 0;
-        DWORD status_code_size = sizeof(DWORD);
-
-        WinHttpQueryHeaders(request,
-            WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
-            WINHTTP_HEADER_NAME_BY_INDEX, &status_code, &status_code_size,
-            WINHTTP_NO_HEADER_INDEX);
-        DWORD err = GetLastError();
-
-        if (status_code == 429) {
-            DWORD retry_after = 0;
-            DWORD retry_after_size = sizeof(DWORD);
-            if (WinHttpQueryHeaders(request,
-                    WINHTTP_QUERY_RETRY_AFTER | WINHTTP_QUERY_FLAG_NUMBER,
-                    WINHTTP_HEADER_NAME_BY_INDEX, &retry_after,
-                    &retry_after_size, WINHTTP_NO_HEADER_INDEX)) {
-                char buf[100];
-                snprintf(buf, 100, "%d", retry_after);
+        // lets just assume we won’t have headers > 2k
+        wchar_t buf[2048];
+        DWORD buf_size = sizeof(buf);
+        if (WinHttpQueryHeaders(request, WINHTTP_QUERY_CUSTOM, L"retry-after",
+                buf, &buf_size, WINHTTP_NO_HEADER_INDEX)) {
+            char *h = sentry__string_from_wstr(buf);
+            if (h) {
                 sentry__rate_limiter_update_from_http_retry_after(
-                    ts->transport_state->rl, buf);
+                    ts->transport_state->rl, h);
+                sentry_free(h);
+            }
+        }
+        if (WinHttpQueryHeaders(request, WINHTTP_QUERY_CUSTOM,
+                L"x-sentry-rate-limits", buf, &buf_size,
+                WINHTTP_NO_HEADER_INDEX)) {
+            char *h = sentry__string_from_wstr(buf);
+            if (h) {
+                sentry__rate_limiter_update_from_header(
+                    ts->transport_state->rl, h);
+                sentry_free(h);
             }
         }
     } else {
