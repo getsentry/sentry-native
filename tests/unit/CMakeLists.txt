@@ -46,6 +46,21 @@ target_link_libraries(sentry_test_unit PRIVATE
 	"$<$<OR:$<PLATFORM_ID:Linux>,$<PLATFORM_ID:Android>>:-Wl,-E>"
 )
 
+if(MINGW)
+	if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+		target_link_options(sentry_test_unit PRIVATE -Wl,-pdb=) # IMPORTANT ! MUST generate pdb files
+	else()
+		message(FATAL_ERROR "Tests will not pass on MinGW if your compiler cannot generate .pdb files ! Please use Clang instead")
+	endif()
+	target_compile_options(sentry_test_unit PRIVATE
+		-Wno-unused-variable
+		-Wno-unused-parameter
+		-Wno-format
+		-Wno-incompatible-pointer-types
+		-Wno-incompatible-function-pointer-types
+	)
+endif()
+
 # This is a bit unfortunate: Building the unit tests also builds and links the
 # backend, which is unnecessary for the unit tests themselves,
 # and takes a long time to compile.

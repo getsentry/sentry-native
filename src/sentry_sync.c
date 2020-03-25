@@ -58,7 +58,13 @@ shutdown_task(void *data)
 #    define THREAD_FUNCTION_API
 #endif
 
-static int THREAD_FUNCTION_API
+#ifdef __MINGW32__
+#define UNSIGNED_MINGW unsigned
+#else 
+#define UNSIGNED_MINGW
+#endif
+
+static UNSIGNED_MINGW int THREAD_FUNCTION_API
 worker_thread(void *data)
 {
     sentry_bgworker_t *bgw = data;
