@@ -23,8 +23,8 @@ status_as_string(sentry_session_status_t status)
     case SENTRY_SESSION_STATUS_EXITED:
         return "exited";
     default:
-        assert(!"should not happen");
-        return "";
+        assert(!"invalid session status");
+        return "invalid";
     }
 }
 
@@ -37,8 +37,10 @@ status_from_string(const char *status)
         return SENTRY_SESSION_STATUS_EXITED;
     } else if (sentry__string_eq(status, "crashed")) {
         return SENTRY_SESSION_STATUS_CRASHED;
-    } else {
+    } else if (sentry__string_eq(status, "abnormal")) {
         return SENTRY_SESSION_STATUS_ABNORMAL;
+    } else {
+        return SENTRY_SESSION_STATUS_OK;
     }
 }
 
@@ -47,7 +49,7 @@ sentry__session_new(void)
 {
     sentry_session_t *rv = SENTRY_MAKE(sentry_session_t);
     rv->session_id = sentry_uuid_new_v4();
-    rv->distinct_id = NULL;
+    rv->distinct_id = sentry_value_new_null();
     rv->status = SENTRY_SESSION_STATUS_OK;
     rv->init = true;
     rv->errors = 0;
@@ -63,7 +65,7 @@ sentry__session_free(sentry_session_t *session)
     if (!session) {
         return;
     }
-    sentry_free(session->distinct_id);
+    sentry_value_decref(session->distinct_id);
     sentry_free(session);
 }
 
@@ -78,9 +80,13 @@ sentry__session_to_json(
     sentry__jsonwriter_write_uuid(jw, &session->session_id);
     sentry__jsonwriter_write_key(jw, "status");
     sentry__jsonwriter_write_str(jw, status_as_string(session->status));
-    if (session->distinct_id) {
-        sentry__jsonwriter_write_key(jw, "did");
-        sentry__jsonwriter_write_str(jw, session->distinct_id);
+    if (!sentry_value_is_null(session->distinct_id)) {
+        char *did = sentry__value_stringify(session->distinct_id);
+        if (did) {
+            sentry__jsonwriter_write_key(jw, "did");
+            sentry__jsonwriter_write_str(jw, did);
+            sentry_free(did);
+        }
     }
     sentry__jsonwriter_write_key(jw, "started");
     sentry__jsonwriter_write_msec_timestamp(jw, session->started_ms);
@@ -119,16 +125,13 @@ sentry__session_from_json(const char *buf, size_t buflen)
     }
 
     sentry_session_t *rv = SENTRY_MAKE(sentry_session_t);
+    if (!rv) {
+        return NULL;
+    }
     rv->session_id
         = sentry__value_as_uuid(sentry_value_get_by_key(value, "sid"));
 
-    sentry_value_t distinct_id = sentry_value_get_by_key(value, "did");
-    if (sentry_value_is_null(distinct_id)) {
-        rv->distinct_id = NULL;
-    } else {
-        rv->distinct_id
-            = sentry__string_clone(sentry_value_as_string(distinct_id));
-    }
+    rv->distinct_id = sentry_value_get_by_key_owned(value, "did");
 
     const char *status
         = sentry_value_as_string(sentry_value_get_by_key(value, "status"));

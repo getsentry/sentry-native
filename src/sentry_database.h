@@ -9,6 +9,7 @@
 typedef struct {
     sentry_uuid_t uuid;
     sentry_path_t *run_path;
+    sentry_path_t *session_path;
 } sentry_run_t;
 
 sentry_run_t *sentry__run_new(const sentry_path_t *database_path);
@@ -16,7 +17,7 @@ sentry_run_t *sentry__run_new(const sentry_path_t *database_path);
 void sentry__run_free(sentry_run_t *run);
 
 bool sentry__run_write_envelope(
-    const sentry_run_t *run, sentry_envelope_t *envelope);
+    const sentry_run_t *run, const sentry_envelope_t *envelope);
 bool sentry__run_write_session(
     const sentry_run_t *run, const sentry_session_t *session);
 bool sentry__run_clear_session(const sentry_run_t *run);

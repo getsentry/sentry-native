@@ -1,9 +1,9 @@
 #include "sentry_boot.h"
 
 #include "sentry_core.h"
+#include "sentry_string.h"
 #include "sentry_sync.h"
 #include "sentry_value.h"
-#include "sentry_string.h"
 
 #include <dlfcn.h>
 #include <limits.h>
@@ -113,7 +113,7 @@ remove_image(const struct mach_header *mh, intptr_t UNUSED(vmaddr_slide))
         sentry_value_t module = sentry_value_get_by_index(g_modules, i);
         const char *addr = sentry_value_as_string(
             sentry_value_get_by_key(module, "image_addr"));
-        if (!addr || sentry__string_eq(addr, ref_addr)) {
+        if (!addr || !sentry__string_eq(addr, ref_addr)) {
             sentry_value_incref(module);
             sentry_value_append(new_modules, module);
         }

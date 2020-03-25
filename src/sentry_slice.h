@@ -26,7 +26,7 @@ size_t sentry__slice_find(sentry_slice_t a, char c);
 sentry_slice_t sentry__slice_trim(sentry_slice_t a);
 
 static inline bool
-sentry__slice_pop_front_if(sentry_slice_t *a, char c)
+sentry__slice_consume_if(sentry_slice_t *a, char c)
 {
     if (a->len > 0 && a->ptr[0] == c) {
         a->ptr++;
@@ -37,7 +37,7 @@ sentry__slice_pop_front_if(sentry_slice_t *a, char c)
     }
 }
 
-bool sentry__slice_pop_uint64(sentry_slice_t *a, uint64_t *num_out);
+bool sentry__slice_consume_uint64(sentry_slice_t *a, uint64_t *num_out);
 
 static inline sentry_slice_t
 sentry__slice_advance(sentry_slice_t s, size_t bytes)

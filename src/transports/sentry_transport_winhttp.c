@@ -196,21 +196,21 @@ for_each_request_callback(sentry_prepared_http_request_t *req,
         // lets just assume we won’t have headers > 2k
         wchar_t buf[2048];
         DWORD buf_size = sizeof(buf);
-        if (WinHttpQueryHeaders(request, WINHTTP_QUERY_CUSTOM, L"retry-after",
-                buf, &buf_size, WINHTTP_NO_HEADER_INDEX)) {
-            char *h = sentry__string_from_wstr(buf);
-            if (h) {
-                sentry__rate_limiter_update_from_http_retry_after(
-                    ts->transport_state->rl, h);
-                sentry_free(h);
-            }
-        }
         if (WinHttpQueryHeaders(request, WINHTTP_QUERY_CUSTOM,
                 L"x-sentry-rate-limits", buf, &buf_size,
                 WINHTTP_NO_HEADER_INDEX)) {
             char *h = sentry__string_from_wstr(buf);
             if (h) {
                 sentry__rate_limiter_update_from_header(
+                    ts->transport_state->rl, h);
+                sentry_free(h);
+            }
+        } else if (WinHttpQueryHeaders(request, WINHTTP_QUERY_CUSTOM,
+                       L"retry-after", buf, &buf_size,
+                       WINHTTP_NO_HEADER_INDEX)) {
+            char *h = sentry__string_from_wstr(buf);
+            if (h) {
+                sentry__rate_limiter_update_from_http_retry_after(
                     ts->transport_state->rl, h);
                 sentry_free(h);
             }

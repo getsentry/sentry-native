@@ -29,13 +29,13 @@ sentry__rate_limiter_update_from_header(
     while (true) {
         slice = sentry__slice_trim(slice);
         uint64_t retry_after = 0;
-        if (!sentry__slice_pop_uint64(&slice, &retry_after)) {
+        if (!sentry__slice_consume_uint64(&slice, &retry_after)) {
             return false;
         }
         retry_after *= 1000;
         retry_after += sentry__msec_time();
 
-        if (!sentry__slice_pop_front_if(&slice, ':')) {
+        if (!sentry__slice_consume_if(&slice, ':')) {
             return false;
         }
 
@@ -75,7 +75,7 @@ sentry__rate_limiter_update_from_http_retry_after(
 {
     sentry_slice_t slice = sentry__slice_from_str(retry_after);
     uint64_t eta = 60;
-    sentry__slice_pop_uint64(&slice, &eta);
+    sentry__slice_consume_uint64(&slice, &eta);
     rl->disabled_until[SENTRY_RL_CATEGORY_ANY]
         = sentry__msec_time() + eta * 1000;
     return true;

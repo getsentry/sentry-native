@@ -723,12 +723,12 @@ SENTRY_API void sentry_set_level(sentry_level_t level);
 /*
  * Starts a new session.
  */
-SENTRY_API void sentry_start_session(void);
+SENTRY_EXPERIMENTAL_API void sentry_start_session(void);
 
 /*
  * Ends a session
  */
-SENTRY_API void sentry_end_session(void);
+SENTRY_EXPERIMENTAL_API void sentry_end_session(void);
 
 #ifdef __cplusplus
 }

@@ -1,10 +1,10 @@
-#include "sentry_transport.h"
 #include "sentry_envelope.h"
 #include "sentry_alloc.h"
 #include "sentry_core.h"
 #include "sentry_json.h"
 #include "sentry_path.h"
 #include "sentry_string.h"
+#include "sentry_transport.h"
 #include "sentry_value.h"
 #include <string.h>
 
@@ -177,6 +177,8 @@ envelope_item_get_category(const sentry_envelope_item_t *item)
     } else if (sentry__string_eq(ty, "transaction")) {
         return SENTRY_RL_CATEGORY_TRANSACTION;
     }
+    // NOTE: the `type` here can be `event`, `minidump` or `attachment`.
+    // Ideally, attachments should have their own RL_CATEGORY.
     return SENTRY_RL_CATEGORY_ERROR;
 }
 
@@ -324,9 +326,15 @@ sentry__envelope_add_session(
     sentry_envelope_t *envelope, const sentry_session_t *session)
 {
     sentry_jsonwriter_t *jw = sentry__jsonwriter_new_in_memory();
+    if (!jw) {
+        return NULL;
+    }
     sentry__session_to_json(session, jw);
     size_t payload_len;
     char *payload = sentry__jsonwriter_into_string(jw, &payload_len);
+    if (!payload) {
+        return NULL;
+    }
 
     return envelope_add_from_owned_buffer(
         envelope, payload, payload_len, "session");

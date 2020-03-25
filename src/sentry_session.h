@@ -3,8 +3,8 @@
 
 #include "sentry_boot.h"
 
-#include "sentry_utils.h"
 #include "sentry_path.h"
+#include "sentry_utils.h"
 
 struct sentry_jsonwriter_s;
 
@@ -17,12 +17,12 @@ typedef enum {
 
 typedef struct sentry_session_s {
     sentry_uuid_t session_id;
-    char *distinct_id;
+    sentry_value_t distinct_id;
     uint64_t started_ms;
     uint64_t duration_ms;
-    bool init;
     uint64_t errors;
     sentry_session_status_t status;
+    bool init;
 } sentry_session_t;
 
 sentry_session_t *sentry__session_new(void);

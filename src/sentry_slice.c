@@ -76,7 +76,7 @@ sentry__slice_trim(sentry_slice_t a)
 }
 
 bool
-sentry__slice_pop_uint64(sentry_slice_t *a, uint64_t *num_out)
+sentry__slice_consume_uint64(sentry_slice_t *a, uint64_t *num_out)
 {
     bool rv = false;
     char *buf = sentry_malloc(a->len + 1);

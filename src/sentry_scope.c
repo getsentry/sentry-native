@@ -2,8 +2,8 @@
 #include "sentry_backend.h"
 #include "sentry_core.h"
 #include "sentry_modulefinder.h"
-#include "sentry_sync.h"
 #include "sentry_string.h"
+#include "sentry_sync.h"
 
 static bool g_scope_initialized;
 static sentry_scope_t g_scope;
@@ -186,11 +186,8 @@ sentry__scope_session_sync(sentry_scope_t *scope)
         if (sentry_value_is_null(did)) {
             did = sentry_value_get_by_key(scope->user, "username");
         }
-        sentry_free(scope->session->distinct_id);
-        if (!sentry_value_is_null(did)) {
-            scope->session->distinct_id = sentry__value_stringify(did);
-        } else {
-            scope->session->distinct_id = NULL;
-        }
+        sentry_value_decref(scope->session->distinct_id);
+        sentry_value_incref(did);
+        scope->session->distinct_id = did;
     }
 }
