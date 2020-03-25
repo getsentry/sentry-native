@@ -8,7 +8,6 @@
 #include "sentry_value.h"
 #include <string.h>
 
-#define MAX_ENVELOPE_ITEMS 10
 #define MAX_HTTP_HEADERS 5
 
 typedef enum {
@@ -36,7 +35,7 @@ struct sentry_envelope_s {
     union {
         struct {
             sentry_value_t headers;
-            sentry_envelope_item_t items[MAX_ENVELOPE_ITEMS];
+            sentry_envelope_item_t items[SENTRY_MAX_ENVELOPE_ITEMS];
             size_t item_count;
         } items;
         struct {
@@ -69,7 +68,7 @@ envelope_add_item(sentry_envelope_t *envelope)
     if (envelope->is_raw) {
         return NULL;
     }
-    if (envelope->contents.items.item_count >= MAX_ENVELOPE_ITEMS) {
+    if (envelope->contents.items.item_count >= SENTRY_MAX_ENVELOPE_ITEMS) {
         return NULL;
     }
 
@@ -460,8 +459,8 @@ sentry__envelope_for_each_request(const sentry_envelope_t *envelope,
         return;
     }
 
-    const sentry_envelope_item_t *attachments[MAX_ENVELOPE_ITEMS];
-    const sentry_envelope_item_t *other[MAX_ENVELOPE_ITEMS];
+    const sentry_envelope_item_t *attachments[SENTRY_MAX_ENVELOPE_ITEMS];
+    const sentry_envelope_item_t *other[SENTRY_MAX_ENVELOPE_ITEMS];
     const sentry_envelope_item_t *minidump = NULL;
     size_t attachment_count = 0;
     size_t other_count = 0;

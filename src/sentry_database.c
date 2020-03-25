@@ -116,6 +116,7 @@ sentry__process_old_runs(const sentry_options_t *options)
     }
     const sentry_path_t *run_dir;
     sentry_envelope_t *session_envelope = NULL;
+    size_t session_num = 0;
 
     while ((run_dir = sentry__pathiter_next(db_iter)) != NULL) {
         sentry_pathiter_t *run_iter = sentry__path_iter_directory(run_dir);
@@ -132,6 +133,11 @@ sentry__process_old_runs(const sentry_options_t *options)
                     }
                     sentry__envelope_add_session(session_envelope, session);
                     sentry__session_free(session);
+                    if ((++session_num) >= SENTRY_MAX_ENVELOPE_ITEMS) {
+                        sentry__capture_envelope(session_envelope);
+                        session_envelope = NULL;
+                        session_num = 0;
+                    }
                 } else if (sentry__path_ends_with(file, ".envelope")) {
                     sentry_envelope_t *envelope
                         = sentry__envelope_from_path(file);

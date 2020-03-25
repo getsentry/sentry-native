@@ -5,8 +5,10 @@
 #include "sentry_core.h"
 
 #include "sentry_path.h"
-#include "sentry_string.h"
 #include "sentry_session.h"
+#include "sentry_string.h"
+
+#define SENTRY_MAX_ENVELOPE_ITEMS 10
 
 struct sentry_rate_limiter_s;
 struct sentry_envelope_item_s;
