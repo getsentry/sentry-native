@@ -1,2 +1,2 @@
-pytest
-pytest-httpserver
+pytest==5.4.1
+pytest-httpserver==0.3.4
