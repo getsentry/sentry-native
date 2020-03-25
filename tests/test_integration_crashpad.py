@@ -1,6 +1,5 @@
 import pytest
-import sys
-import os
+from .conditions import has_crashpad
 from . import cmake
 
 # TODO:
@@ -9,6 +8,6 @@ from . import cmake
 #   - crash
 #   - expect report via http
 
-@pytest.mark.skipif(sys.platform == "linux" or os.environ.get("ANDROID_API"), reason="crashpad not supported on linux")
+@pytest.mark.skipif(not has_crashpad, reason="test needs crashpad backend")
 def test_crashpad_build(tmp_path):
     cmake(tmp_path, ["sentry_example"], {"SENTRY_BACKEND":"crashpad", "SENTRY_TRANSPORT":"none"})

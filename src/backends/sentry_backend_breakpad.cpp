@@ -6,7 +6,9 @@ extern "C" {
 #include "sentry_core.h"
 #include "sentry_envelope.h"
 #include "sentry_path.h"
+#include "sentry_sync.h"
 #include "sentry_transport.h"
+#include "sentry_unix_pageallocator.h"
 }
 
 #ifdef __GNUC__
@@ -96,12 +98,16 @@ sentry__breakpad_backend_callback(
     const google_breakpad::MinidumpDescriptor &descriptor,
     void *UNUSED(context), bool succeeded)
 {
+    sentry__page_allocator_enable();
+    sentry__enter_signal_handler();
+
     const sentry_options_t *options = sentry_get_options();
     const char *dump_path = descriptor.path();
 
     // almost identical to enforcing the disk transport, the breakpad
     // transport will serialize the envelope to disk, but will attach the
     // captured minidump as an additional attachment
+    sentry_transport_t *transport = options->transport;
     sentry__enforce_breakpad_transport(options, dump_path);
 
     // after the transport is set up, we will capture an event, which will
@@ -109,6 +115,13 @@ sentry__breakpad_backend_callback(
     sentry_value_t event = sentry_value_new_event();
     sentry_capture_event(event);
 
+    // after capturing the crash event, try to dump all the in-flight data of
+    // the previous transport
+    if (transport) {
+        sentry__transport_dump_queue(transport);
+    }
+
+    sentry__leave_signal_handler();
     return succeeded;
 }
 

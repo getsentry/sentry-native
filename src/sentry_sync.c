@@ -64,15 +64,8 @@ worker_thread(void *data)
     sentry_bgworker_t *bgw = data;
     SENTRY_TRACE("background worker thread started");
     while (true) {
-        struct sentry_bgworker_task_s *task = NULL;
         sentry__mutex_lock(&bgw->task_lock);
-        if (bgw->first_task) {
-            task = bgw->first_task;
-            bgw->first_task = task->next_task;
-            if (task == bgw->last_task) {
-                bgw->last_task = NULL;
-            }
-        }
+        struct sentry_bgworker_task_s *task = bgw->first_task;
         bool is_done = !bgw->running && bgw->task_count == 0 && !task;
         sentry__mutex_unlock(&bgw->task_lock);
 
@@ -87,15 +80,21 @@ worker_thread(void *data)
         } else {
             SENTRY_TRACE("executing task on worker thread");
             task->exec_func(task->data);
+
+            sentry__mutex_lock(&bgw->task_lock);
+            bgw->first_task = task->next_task;
+            if (task == bgw->last_task) {
+                bgw->last_task = NULL;
+            }
+
+            bgw->task_count--;
+            sentry__cond_wake(&bgw->done_signal);
+            sentry__mutex_unlock(&bgw->task_lock);
+
             if (task->cleanup_func) {
                 task->cleanup_func(task->data);
             }
             sentry_free(task);
-
-            sentry__mutex_lock(&bgw->task_lock);
-            bgw->task_count--;
-            sentry__cond_wake(&bgw->done_signal);
-            sentry__mutex_unlock(&bgw->task_lock);
         }
     }
     SENTRY_TRACE("background worker thread shut down");
@@ -198,6 +197,51 @@ sentry__bgworker_submit(sentry_bgworker_t *bgw,
     sentry__mutex_unlock(&bgw->task_lock);
 
     return 0;
+}
+
+int
+sentry__bgworker_foreach_matching(sentry_bgworker_t *bgw,
+    sentry_task_function_t exec_func,
+    bool (*callback)(void *task_data, void *data), void *data)
+{
+    sentry__mutex_lock(&bgw->task_lock);
+    struct sentry_bgworker_task_s *task = bgw->first_task;
+    struct sentry_bgworker_task_s *prev_task = NULL;
+
+    size_t dropped = 0;
+
+    while (task) {
+        bool drop_task = false;
+        // only consider tasks matching this exec_func
+        if (task->exec_func == exec_func) {
+            drop_task = callback(task->data, data);
+        }
+
+        struct sentry_bgworker_task_s *next_task = task->next_task;
+        if (drop_task) {
+            if (task == bgw->first_task) {
+                bgw->first_task = next_task;
+            }
+
+            if (task->cleanup_func) {
+                task->cleanup_func(task->data);
+            }
+            sentry_free(task);
+            bgw->task_count--;
+            dropped++;
+        } else {
+            prev_task->next_task = task;
+            prev_task = task;
+        }
+
+        task = next_task;
+    }
+
+    bgw->last_task = prev_task;
+
+    sentry__mutex_unlock(&bgw->task_lock);
+
+    return dropped;
 }
 
 #ifdef SENTRY_PLATFORM_UNIX
