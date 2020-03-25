@@ -11,11 +11,11 @@
 #include "sentry_modulefinder.h"
 #include "sentry_path.h"
 #include "sentry_scope.h"
+#include "sentry_session.h"
 #include "sentry_string.h"
 #include "sentry_sync.h"
 #include "sentry_transport.h"
 #include "sentry_value.h"
-#include "sentry_session.h"
 #include "transports/sentry_disk_transport.h"
 
 static sentry_options_t *g_options;

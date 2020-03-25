@@ -59,9 +59,9 @@ shutdown_task(void *data)
 #endif
 
 #ifdef __MINGW32__
-#define UNSIGNED_MINGW unsigned
-#else 
-#define UNSIGNED_MINGW
+#    define UNSIGNED_MINGW unsigned
+#else
+#    define UNSIGNED_MINGW
 #endif
 
 static UNSIGNED_MINGW int THREAD_FUNCTION_API
