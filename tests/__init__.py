@@ -4,6 +4,12 @@ import io
 import json
 import sys
 import urllib
+import pytest
+
+
+# https://docs.pytest.org/en/latest/assert.html#assert-details
+pytest.register_assert_rewrite("tests.assertions")
+
 
 def make_dsn(httpserver, auth="uiaeosnrtdy", id=123456):
     url = urllib.parse.urlsplit(httpserver.url_for("/{}".format(id)))
