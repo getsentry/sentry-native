@@ -1,6 +1,11 @@
 cmake_minimum_required (VERSION 3.10)
 project(Sentry-Native LANGUAGES C CXX ASM)
 
+set(SENTRY_MAIN_PROJECT OFF)
+if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
+	set(SENTRY_MAIN_PROJECT ON)
+endif()
+
 include(GNUInstallDirs)
 set(CMAKE_INSTALL_CMAKEDIR "${CMAKE_INSTALL_LIBDIR}/cmake/sentry")
 
@@ -10,8 +15,8 @@ endif()
 
 option(BUILD_SHARED_LIBS "Build shared libraries (.dll/.so) instead of static ones (.lib/.a)" ON)
 
-option(SENTRY_BUILD_TESTS "Build sentry-native tests" ON)
-option(SENTRY_BUILD_EXAMPLES "Build sentry-native example(s)" ON)
+option(SENTRY_BUILD_TESTS "Build sentry-native tests" "${SENTRY_MAIN_PROJECT}")
+option(SENTRY_BUILD_EXAMPLES "Build sentry-native example(s)" "${SENTRY_MAIN_PROJECT}")
 
 if(WIN32)
 	set(SENTRY_DEFAULT_TRANSPORT "winhttp")
