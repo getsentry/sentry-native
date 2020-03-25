@@ -60,6 +60,25 @@ def test_inproc_crash_http(tmp_path, httpserver):
 
     assert_crash(envelope)
 
+@pytest.mark.skipif(not has_inproc, reason="test needs inproc backend")
+def test_inproc_dump_inflight(tmp_path, httpserver):
+    cmake(tmp_path, ["sentry_example"], {"SENTRY_BACKEND": "inproc"})
+
+    httpserver.expect_request(
+        "/api/123456/store/", headers={
+            "x-sentry-auth": "Sentry sentry_key=uiaeosnrtdy, sentry_version=7, sentry_client=sentry.native/0.2.1"
+        }).respond_with_data('OK')
+
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+    child = run(tmp_path, "sentry_example", ["capture-multiple", "crash"], env=env)
+    assert child.returncode # well, its a crash after all
+
+    run(tmp_path, "sentry_example", ["no-setup"],
+        check=True, env=env)
+
+    # we trigger 10 normal events, and 1 crash
+    assert len(httpserver.log) >= 11
+
 @pytest.mark.skipif(not has_breakpad, reason="test needs breakpad backend")
 def test_breakpad_crash_http(tmp_path, httpserver):
     cmake(tmp_path, ["sentry_example"], {"SENTRY_BACKEND": "breakpad"})
@@ -86,3 +105,22 @@ def test_breakpad_crash_http(tmp_path, httpserver):
     assert_attachment(envelope)
 
     assert_minidump(envelope)
+
+@pytest.mark.skipif(not has_breakpad, reason="test needs breakpad backend")
+def test_breakpad_dump_inflight(tmp_path, httpserver):
+    cmake(tmp_path, ["sentry_example"], {"SENTRY_BACKEND": "breakpad"})
+
+    httpserver.expect_request(
+        "/api/123456/store/", headers={
+            "x-sentry-auth": "Sentry sentry_key=uiaeosnrtdy, sentry_version=7, sentry_client=sentry.native/0.2.1"
+        }).respond_with_data('OK')
+
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+    child = run(tmp_path, "sentry_example", ["capture-multiple", "crash"], env=env)
+    assert child.returncode # well, its a crash after all
+
+    run(tmp_path, "sentry_example", ["no-setup"],
+        check=True, env=env)
+
+    # we trigger 10 normal events, and 1 crash
+    assert len(httpserver.log) >= 11

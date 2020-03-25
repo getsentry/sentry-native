@@ -5,6 +5,8 @@
 
 sentry_transport_t *sentry__transport_new_default(void);
 
+void sentry__transport_dump_queue(sentry_transport_t *transport);
+
 #define SENTRY_RL_CATEGORY_ANY 0
 #define SENTRY_RL_CATEGORY_ERROR 1
 #define SENTRY_RL_CATEGORY_SESSION 2

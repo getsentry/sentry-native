@@ -220,8 +220,17 @@ target_link_libraries(sentry INTERFACE
 
 if(LINUX)
 	target_link_libraries(sentry PRIVATE pthread dl)
-elseif(WIN32)
+elseif(MSVC)
 	target_link_libraries(sentry PRIVATE dbghelp pathcch shlwapi)
+elseif(MINGW)
+	target_link_libraries(sentry PRIVATE dbghelp shlwapi) #unimplemented pathcch
+	target_compile_options(sentry PRIVATE
+		-Wno-unused-variable
+		-Wno-unused-parameter
+		-Wno-format
+		-Wno-incompatible-pointer-types
+		-Wno-incompatible-function-pointer-types
+	)
 endif()
 
 if(SENTRY_WITH_LIBUNWINDSTACK)

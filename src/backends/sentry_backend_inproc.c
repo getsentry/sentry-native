@@ -6,6 +6,7 @@
 #include "sentry_envelope.h"
 #include "sentry_scope.h"
 #include "sentry_sync.h"
+#include "sentry_transport.h"
 #include "sentry_unix_pageallocator.h"
 #include <string.h>
 
@@ -162,13 +163,15 @@ handle_signal(int signum, siginfo_t *info, void *user_context)
     // give us an allocator we can use safely in signals before we tear down.
     sentry__page_allocator_enable();
 
-    // inform the sentry_sync system that we're in a signal hanlder.  This will
+    // inform the sentry_sync system that we're in a signal handler.  This will
     // make mutexes spin on a spinlock instead as it's no longer safe to use a
     // pthread mutex.
     sentry__enter_signal_handler();
 
     // since we can’t use HTTP in signal handlers, we will swap out the
     // transport here to one that serializes the envelope to disk
+    const sentry_options_t *opts = sentry_get_options();
+    sentry_transport_t *transport = opts->transport;
     sentry__enforce_disk_transport();
 
     // now create an capture an event.  Note that this assumes the transport
@@ -176,6 +179,12 @@ handle_signal(int signum, siginfo_t *info, void *user_context)
     SENTRY_DEBUG("capturing event from signal");
     sentry__end_current_session_with_status(SENTRY_SESSION_STATUS_CRASHED);
     sentry_capture_event(make_signal_event(sig_slot, &uctx));
+
+    // after capturing the crash event, try to dump all the in-flight data of
+    // the previous transport
+    if (transport) {
+        sentry__transport_dump_queue(transport);
+    }
 
     // reset signal handlers and invoke the original ones.  This will then tear
     // down the process.  In theory someone might have some other handler here
