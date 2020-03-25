@@ -68,3 +68,7 @@ format: setup-venv
 		tests/unit/*.h
 	@.venv/bin/black tests
 .PHONY: format
+
+style: setup-venv
+	@.venv/bin/black --check tests
+.PHONY: style
