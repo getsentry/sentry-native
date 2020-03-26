@@ -102,6 +102,7 @@ sentry__breakpad_backend_callback(
     sentry__enter_signal_handler();
 
     const sentry_options_t *options = sentry_get_options();
+    sentry__write_crash_marker(options);
     const char *dump_path = descriptor.path();
 
     // almost identical to enforcing the disk transport, the breakpad

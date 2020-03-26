@@ -168,9 +168,11 @@ handle_signal(int signum, siginfo_t *info, void *user_context)
     // pthread mutex.
     sentry__enter_signal_handler();
 
+    const sentry_options_t *opts = sentry_get_options();
+    sentry__write_crash_marker(opts);
+
     // since we can’t use HTTP in signal handlers, we will swap out the
     // transport here to one that serializes the envelope to disk
-    const sentry_options_t *opts = sentry_get_options();
     sentry_transport_t *transport = opts->transport;
     sentry__enforce_disk_transport();
 
