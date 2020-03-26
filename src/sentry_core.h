@@ -89,6 +89,8 @@ bool sentry__should_skip_upload(void);
 
 void sentry__enforce_disk_transport(void);
 
+void sentry__capture_envelope(sentry_envelope_t *envelope);
+
 sentry_uuid_t sentry__new_event_id(void);
 sentry_value_t sentry__ensure_event_id(
     sentry_value_t event, sentry_uuid_t *uuid_out);

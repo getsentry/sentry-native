@@ -13,7 +13,7 @@
 struct transport_state {
     bool initialized;
     CURL *curl_handle;
-    uint64_t disabled_until;
+    sentry_rate_limiter_t *rl;
     sentry_bgworker_t *bgworker;
 };
 
@@ -23,7 +23,8 @@ struct task_state {
 };
 
 struct header_info {
-    int retry_after;
+    char *x_sentry_rate_limits;
+    char *retry_after;
 };
 
 static struct transport_state *
@@ -48,7 +49,7 @@ new_transport_state(void)
 
     state->initialized = false;
     state->curl_handle = curl_easy_init();
-    state->disabled_until = 0;
+    state->rl = sentry__rate_limiter_new();
 
     return state;
 }
@@ -73,6 +74,7 @@ free_transport(sentry_transport_t *transport)
     struct transport_state *state = transport->data;
     curl_easy_cleanup(state->curl_handle);
     sentry__bgworker_free(state->bgworker);
+    sentry__rate_limiter_free(state->rl);
     sentry_free(state);
 }
 
@@ -97,8 +99,10 @@ header_callback(char *buffer, size_t size, size_t nitems, void *userdata)
     if (sep) {
         *sep = '\0';
         sentry__string_ascii_lower(header);
-        if (strcmp(header, "retry-after") == 0) {
-            info->retry_after = strtol(sep + 1, NULL, 10);
+        if (sentry__string_eq(header, "retry-after")) {
+            info->retry_after = sentry__string_clone(sep + 1);
+        } else if (sentry__string_eq(header, "x-sentry-rate-limits")) {
+            info->x_sentry_rate_limits = sentry__string_clone(sep + 1);
         }
     }
 
@@ -144,7 +148,8 @@ for_each_request_callback(sentry_prepared_http_request_t *req,
     curl_easy_setopt(curl, CURLOPT_USERAGENT, SENTRY_SDK_USER_AGENT);
 
     struct header_info info;
-    info.retry_after = 0;
+    info.retry_after = NULL;
+    info.x_sentry_rate_limits = NULL;
     curl_easy_setopt(curl, CURLOPT_HEADERDATA, (void *)&info);
     curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, header_callback);
 
@@ -158,17 +163,20 @@ for_each_request_callback(sentry_prepared_http_request_t *req,
     CURLcode rv = curl_easy_perform(curl);
 
     if (rv == CURLE_OK) {
-        long response_code;
-        curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response_code);
-        if (response_code == 429 && ts->transport_state->disabled_until) {
-            ts->transport_state->disabled_until
-                = sentry__msec_time() + info.retry_after * 1000;
+        if (info.x_sentry_rate_limits) {
+            sentry__rate_limiter_update_from_header(
+                ts->transport_state->rl, info.x_sentry_rate_limits);
+        } else if (info.retry_after) {
+            sentry__rate_limiter_update_from_http_retry_after(
+                ts->transport_state->rl, info.retry_after);
         }
     }
 
     curl_slist_free_all(headers);
-
+    sentry_free(info.retry_after);
+    sentry_free(info.x_sentry_rate_limits);
     sentry__prepared_http_request_free(req);
+
     return true;
 }
 
@@ -177,7 +185,7 @@ task_exec_func(void *data)
 {
     struct task_state *ts = data;
     sentry__envelope_for_each_request(
-        ts->envelope, for_each_request_callback, data);
+        ts->envelope, for_each_request_callback, ts->transport_state->rl, data);
 }
 
 static void

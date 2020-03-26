@@ -1,9 +1,11 @@
 #include "sentry_utils.h"
+#include "sentry_alloc.h"
 #include "sentry_core.h"
 #include "sentry_string.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 static bool
 is_scheme_valid(const char *scheme_name)
@@ -163,9 +165,9 @@ sentry__url_parse(sentry_url_t *url_out, const char *url)
     }
 
     if (url_out->port == 0) {
-        if (strcmp(url_out->scheme, "https") == 0) {
+        if (sentry__string_eq(url_out->scheme, "https")) {
             url_out->port = 443;
-        } else if (strcmp(url_out->scheme, "http") == 0) {
+        } else if (sentry__string_eq(url_out->scheme, "http")) {
             url_out->port = 80;
         }
     }
@@ -215,9 +217,9 @@ sentry__dsn_parse(sentry_dsn_t *dsn_out, const char *dsn)
         return 1;
     }
 
-    if (strcmp(url.scheme, "https") == 0) {
+    if (sentry__string_eq(url.scheme, "https")) {
         dsn_out->is_secure = 1;
-    } else if (strcmp(url.scheme, "http") == 0) {
+    } else if (sentry__string_eq(url.scheme, "http")) {
         dsn_out->is_secure = 0;
     } else {
         goto error;
@@ -338,4 +340,27 @@ sentry__dsn_get_attachment_url(
     sentry__stringbuilder_append(&sb, event_id_buf);
     sentry__stringbuilder_append(&sb, "/attachments/");
     return sentry__stringbuilder_into_string(&sb);
+}
+
+char *
+sentry__msec_time_to_iso8601(uint64_t time)
+{
+    char buf[255];
+    time_t secs = time / 1000;
+    struct tm *tm;
+#ifdef SENTRY_PLATFORM_WINDOWS
+    tm = gmtime(&secs);
+#else
+    struct tm tm_buf;
+    tm = gmtime_r(&secs, &tm_buf);
+#endif
+    size_t end = strftime(buf, sizeof buf, "%FT%T", tm);
+
+    int msecs = time % 1000;
+    if (msecs) {
+        snprintf(buf + end, 10, ".%03d000", msecs);
+    }
+
+    strcat(buf, "Z");
+    return sentry__string_clone(buf);
 }

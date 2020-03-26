@@ -37,7 +37,7 @@ SENTRY_TEST(basic_http_request_preparation_for_event)
         event, "event_id", sentry__value_new_uuid(&event_id));
     sentry__envelope_add_event(envelope, event);
     sentry__envelope_for_each_request(
-        envelope, basic_event_request_callback, &called);
+        envelope, basic_event_request_callback, NULL, &called);
     sentry_envelope_free(envelope);
     TEST_CHECK_INT_EQUAL(called, 1);
 
@@ -96,7 +96,7 @@ SENTRY_TEST(basic_http_request_preparation_for_event_with_attachment)
     sentry__envelope_add_from_buffer(
         envelope, msg, sizeof(msg) - 1, "attachment");
     sentry__envelope_for_each_request(
-        envelope, with_attachment_request_callback, &called);
+        envelope, with_attachment_request_callback, NULL, &called);
     sentry_envelope_free(envelope);
     TEST_CHECK_INT_EQUAL(called, 2);
 
@@ -147,7 +147,7 @@ SENTRY_TEST(basic_http_request_preparation_for_minidump)
     sentry__envelope_add_from_buffer(
         envelope, msg, sizeof(msg) - 1, "attachment");
     sentry__envelope_for_each_request(
-        envelope, minidump_request_callback, &called);
+        envelope, minidump_request_callback, NULL, &called);
     sentry_envelope_free(envelope);
     TEST_CHECK_INT_EQUAL(called, 1);
 

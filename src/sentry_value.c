@@ -399,7 +399,7 @@ sentry_value_set_by_key(sentry_value_t value, const char *k, sentry_value_t v)
     obj_t *o = thing->payload;
     for (size_t i = 0; i < o->len; i++) {
         obj_pair_t *pair = &o->pairs[i];
-        if (strcmp(pair->k, k) == 0) {
+        if (sentry__string_eq(pair->k, k)) {
             sentry_value_decref(pair->v);
             pair->v = v;
             return 0;
@@ -431,7 +431,7 @@ sentry_value_remove_by_key(sentry_value_t value, const char *k)
     obj_t *o = thing->payload;
     for (size_t i = 0; i < o->len; i++) {
         obj_pair_t *pair = &o->pairs[i];
-        if (strcmp(pair->k, k) == 0) {
+        if (sentry__string_eq(pair->k, k)) {
             memmove(o->pairs + i, o->pairs + i + 1,
                 (o->len - i - 1) * sizeof(o->pairs[0]));
             sentry_value_decref(pair->v);
@@ -459,6 +459,38 @@ sentry_value_append(sentry_value_t value, sentry_value_t v)
 
     l->items[l->len++] = v;
     return 0;
+}
+
+sentry_uuid_t
+sentry__value_as_uuid(sentry_value_t value)
+{
+    const char *val = sentry_value_as_string(value);
+    if (val) {
+        return sentry_uuid_from_string(val);
+    } else {
+        return sentry_uuid_nil();
+    }
+}
+
+char *
+sentry__value_stringify(sentry_value_t value)
+{
+    switch (sentry_value_get_type(value)) {
+    case SENTRY_VALUE_TYPE_LIST:
+    case SENTRY_VALUE_TYPE_OBJECT:
+    case SENTRY_VALUE_TYPE_NULL:
+        return sentry__string_clone("");
+    case SENTRY_VALUE_TYPE_BOOL:
+        return sentry__string_clone(
+            sentry_value_is_true(value) ? "true" : "false");
+    case SENTRY_VALUE_TYPE_STRING:
+        return sentry__string_clone(sentry_value_as_string(value));
+    default: {
+        char buf[50];
+        snprintf(buf, sizeof(buf), "%g", sentry_value_as_double(value));
+        return sentry__string_clone(buf);
+    }
+    }
 }
 
 sentry_value_t
@@ -581,7 +613,7 @@ sentry_value_get_by_key(sentry_value_t value, const char *k)
         obj_t *o = thing->payload;
         for (size_t i = 0; i < o->len; i++) {
             obj_pair_t *pair = &o->pairs[i];
-            if (strcmp(pair->k, k) == 0) {
+            if (sentry__string_eq(pair->k, k)) {
                 return pair->v;
             }
         }
@@ -740,7 +772,7 @@ sentry_value_to_json(sentry_value_t value)
 {
     sentry_jsonwriter_t *jw = sentry__jsonwriter_new_in_memory();
     value_to_json(jw, value);
-    return sentry__jsonwriter_into_string(jw);
+    return sentry__jsonwriter_into_string(jw, NULL);
 }
 
 static void
@@ -862,11 +894,9 @@ sentry_value_new_event(void)
     sentry_uuid_t uuid = sentry__new_event_id();
     sentry_value_set_by_key(rv, "event_id", sentry__value_new_uuid(&uuid));
 
-    time_t now;
-    time(&now);
-    char buf[255];
-    strftime(buf, sizeof buf, "%FT%TZ", gmtime(&now));
-    sentry_value_set_by_key(rv, "timestamp", sentry_value_new_string(buf));
+    sentry_value_set_by_key(rv, "timestamp",
+        sentry__value_new_string_owned(
+            sentry__msec_time_to_iso8601(sentry__msec_time())));
 
     return rv;
 }
@@ -893,11 +923,9 @@ sentry_value_t
 sentry_value_new_breadcrumb(const char *type, const char *message)
 {
     sentry_value_t rv = sentry_value_new_object();
-    time_t now;
-    time(&now);
-    char buf[255];
-    strftime(buf, sizeof buf, "%FT%TZ", gmtime(&now));
-    sentry_value_set_by_key(rv, "timestamp", sentry_value_new_string(buf));
+    sentry_value_set_by_key(rv, "timestamp",
+        sentry__value_new_string_owned(
+            sentry__msec_time_to_iso8601(sentry__msec_time())));
 
     if (type) {
         sentry_value_set_by_key(rv, "type", sentry_value_new_string(type));

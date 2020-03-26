@@ -1,2 +1,3 @@
-pytest
-pytest-httpserver
+black==19.10b0
+pytest==5.4.1
+pytest-httpserver==0.3.4

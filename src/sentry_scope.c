@@ -2,6 +2,7 @@
 #include "sentry_backend.h"
 #include "sentry_core.h"
 #include "sentry_modulefinder.h"
+#include "sentry_string.h"
 #include "sentry_sync.h"
 
 static bool g_scope_initialized;
@@ -52,6 +53,7 @@ get_scope(void)
     g_scope.breadcrumbs = sentry_value_new_list();
     g_scope.level = SENTRY_LEVEL_ERROR;
     g_scope.client_sdk = get_client_sdk();
+    g_scope.session = NULL;
 
     g_scope_initialized = true;
 
@@ -93,8 +95,16 @@ void
 sentry__scope_flush(const sentry_scope_t *scope)
 {
     const sentry_options_t *options = sentry_get_options();
-    if (options && options->backend && options->backend->flush_scope_func) {
+    if (!options) {
+        return;
+    }
+    if (options->backend && options->backend->flush_scope_func) {
         options->backend->flush_scope_func(options->backend, scope);
+    }
+    if (scope->session) {
+        sentry__run_write_session(options->run, scope->session);
+    } else {
+        sentry__run_clear_session(options->run);
     }
 }
 
@@ -159,4 +169,25 @@ sentry__scope_apply_to_event(
 #undef PLACE_STRING
 #undef IS_NULL
 #undef SET
+}
+
+void
+sentry__scope_session_sync(sentry_scope_t *scope)
+{
+    if (!scope->session) {
+        return;
+    }
+
+    if (!sentry_value_is_null(scope->user)) {
+        sentry_value_t did = sentry_value_get_by_key(scope->user, "id");
+        if (sentry_value_is_null(did)) {
+            did = sentry_value_get_by_key(scope->user, "email");
+        }
+        if (sentry_value_is_null(did)) {
+            did = sentry_value_get_by_key(scope->user, "username");
+        }
+        sentry_value_decref(scope->session->distinct_id);
+        sentry_value_incref(did);
+        scope->session->distinct_id = did;
+    }
 }

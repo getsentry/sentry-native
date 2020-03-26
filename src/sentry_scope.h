@@ -3,6 +3,7 @@
 
 #include "sentry_boot.h"
 
+#include "sentry_session.h"
 #include "sentry_value.h"
 
 typedef struct sentry_scope_s {
@@ -15,6 +16,7 @@ typedef struct sentry_scope_s {
     sentry_value_t breadcrumbs;
     sentry_level_t level;
     sentry_value_t client_sdk;
+    sentry_session_t *session;
 } sentry_scope_t;
 
 typedef enum {
@@ -33,6 +35,7 @@ void sentry__scope_cleanup(void);
 void sentry__scope_flush(const sentry_scope_t *scope);
 void sentry__scope_apply_to_event(const sentry_scope_t *scope,
     sentry_value_t event, sentry_scope_mode_t mode);
+void sentry__scope_session_sync(sentry_scope_t *scope);
 
 #define SENTRY_WITH_SCOPE(Scope)                                               \
     for (const sentry_scope_t *Scope = sentry__scope_lock(); Scope;            \

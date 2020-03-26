@@ -720,6 +720,16 @@ SENTRY_API void sentry_remove_transaction(void);
  */
 SENTRY_API void sentry_set_level(sentry_level_t level);
 
+/*
+ * Starts a new session.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_start_session(void);
+
+/*
+ * Ends a session
+ */
+SENTRY_EXPERIMENTAL_API void sentry_end_session(void);
+
 #ifdef __cplusplus
 }
 #endif

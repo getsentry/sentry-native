@@ -49,7 +49,7 @@ send_envelope(sentry_envelope_t *envelope, void *_data)
     data->called_envelope += 1;
 
     sentry__envelope_for_each_request(
-        envelope, envelope_request_callback, _data);
+        envelope, envelope_request_callback, NULL, _data);
 
     sentry__envelope_serialize_into_stringbuilder(
         envelope, &data->serialized_envelope);

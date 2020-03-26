@@ -112,7 +112,7 @@ sentry__path_filename(const sentry_path_t *path)
 bool
 sentry__path_filename_matches(const sentry_path_t *path, const char *filename)
 {
-    return strcmp(sentry__path_filename(path), filename) == 0;
+    return sentry__string_eq(sentry__path_filename(path), filename);
 }
 
 bool
@@ -123,7 +123,7 @@ sentry__path_ends_with(const sentry_path_t *path, const char *suffix)
     if (suffixlen > pathlen) {
         return false;
     }
-    return strcmp(&path->path[pathlen - suffixlen], suffix) == 0;
+    return sentry__string_eq(&path->path[pathlen - suffixlen], suffix);
 }
 
 bool
@@ -274,8 +274,8 @@ sentry__pathiter_next(sentry_pathiter_t *piter)
         if (!entry) {
             return NULL;
         }
-        if (strcmp(entry->d_name, ".") == 0
-            || strcmp(entry->d_name, "..") == 0) {
+        if (sentry__string_eq(entry->d_name, ".")
+            || sentry__string_eq(entry->d_name, "..")) {
             continue;
         }
         break;

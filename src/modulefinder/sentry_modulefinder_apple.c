@@ -1,6 +1,7 @@
 #include "sentry_boot.h"
 
 #include "sentry_core.h"
+#include "sentry_string.h"
 #include "sentry_sync.h"
 #include "sentry_value.h"
 
@@ -64,7 +65,7 @@ add_image(const struct mach_header *mh, intptr_t UNUSED(vmaddr_slide))
             const mach_segment_command_type *seg
                 = (const mach_segment_command_type *)cmd;
 
-            if (strcmp(seg->segname, "__TEXT") == 0) {
+            if (sentry__string_eq(seg->segname, "__TEXT")) {
                 sentry_value_set_by_key(module, "image_size",
                     sentry_value_new_int32((uint32_t)seg->vmsize));
                 has_size = true;
@@ -112,7 +113,7 @@ remove_image(const struct mach_header *mh, intptr_t UNUSED(vmaddr_slide))
         sentry_value_t module = sentry_value_get_by_index(g_modules, i);
         const char *addr = sentry_value_as_string(
             sentry_value_get_by_key(module, "image_addr"));
-        if (!addr || strcmp(addr, ref_addr) != 0) {
+        if (!addr || !sentry__string_eq(addr, ref_addr)) {
             sentry_value_incref(module);
             sentry_value_append(new_modules, module);
         }

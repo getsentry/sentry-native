@@ -177,6 +177,7 @@ handle_signal(int signum, siginfo_t *info, void *user_context)
     // now create an capture an event.  Note that this assumes the transport
     // only dumps to disk at the moment.
     SENTRY_DEBUG("capturing event from signal");
+    sentry__end_current_session_with_status(SENTRY_SESSION_STATUS_CRASHED);
     sentry_capture_event(make_signal_event(sig_slot, &uctx));
 
     // after capturing the crash event, try to dump all the in-flight data of

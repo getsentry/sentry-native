@@ -18,6 +18,8 @@ sentry_target_sources_cwd(sentry
 	sentry_random.h
 	sentry_scope.c
 	sentry_scope.h
+	sentry_session.c
+	sentry_session.h
 	sentry_slice.c
 	sentry_slice.h
 	sentry_string.c
@@ -25,6 +27,7 @@ sentry_target_sources_cwd(sentry
 	sentry_symbolizer.h
 	sentry_sync.c
 	sentry_sync.h
+	sentry_transport.c
 	sentry_transport.h
 	sentry_utils.c
 	sentry_utils.h

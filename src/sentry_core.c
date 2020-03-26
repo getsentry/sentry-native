@@ -11,6 +11,7 @@
 #include "sentry_modulefinder.h"
 #include "sentry_path.h"
 #include "sentry_scope.h"
+#include "sentry_session.h"
 #include "sentry_string.h"
 #include "sentry_sync.h"
 #include "sentry_transport.h"
@@ -70,7 +71,9 @@ sentry_init(sentry_options_t *options)
     }
 
     // after initializing the transport, we will submit all the unsent envelopes
-    sentry__enqueue_unsent_envelopes(options);
+    // and handle remaining sessions.
+    sentry__process_old_runs(options);
+
     // and then create our new run, so it will not interfere with enumerating
     // all the past runs
     options->run = sentry__run_new(options->database_path);
@@ -88,6 +91,8 @@ sentry_init(sentry_options_t *options)
 void
 sentry_shutdown(void)
 {
+    sentry_end_session();
+
     sentry__mutex_lock(&g_options_mutex);
     sentry_options_t *options = g_options;
     sentry__mutex_unlock(&g_options_mutex);
@@ -167,6 +172,31 @@ sentry_user_consent_get(void)
     return rv;
 }
 
+void
+sentry__capture_envelope(sentry_envelope_t *envelope)
+{
+    const sentry_options_t *opts = sentry_get_options();
+    if (opts->transport) {
+        SENTRY_TRACE("sending envelope");
+        opts->transport->send_envelope_func(opts->transport, envelope);
+    }
+}
+
+static bool
+event_is_considered_error(sentry_value_t event)
+{
+    const char *level
+        = sentry_value_as_string(sentry_value_get_by_key(event, "level"));
+    if (sentry__string_eq(level, "fatal")
+        || sentry__string_eq(level, "error")) {
+        return true;
+    }
+    if (!sentry_value_is_null(sentry_value_get_by_key(event, "exception"))) {
+        return true;
+    }
+    return false;
+}
+
 sentry_uuid_t
 sentry_capture_event(sentry_value_t event)
 {
@@ -208,9 +238,13 @@ sentry_capture_event(sentry_value_t event)
                     sentry__path_filename(attachment->path)));
         }
 
+        if (event_is_considered_error(sentry_envelope_get_event(envelope))) {
+            sentry__record_errors_on_current_session(1);
+        }
+        sentry__add_current_session_to_envelope(envelope);
+
         if (sentry__envelope_add_event(envelope, event)) {
-            SENTRY_TRACE("sending envelope");
-            opts->transport->send_envelope_func(opts->transport, envelope);
+            sentry__capture_envelope(envelope);
         } else {
             sentry_envelope_free(envelope);
         }
@@ -526,6 +560,7 @@ sentry_set_user(sentry_value_t user)
     SENTRY_WITH_SCOPE_MUT (scope) {
         sentry_value_decref(scope->user);
         scope->user = user;
+        sentry__scope_session_sync(scope);
     }
 }
 

@@ -222,3 +222,21 @@ SENTRY_TEST(value_freezing)
 
     sentry_value_decref(val);
 }
+
+#define STRING(X) X, (sizeof(X) - 1)
+
+SENTRY_TEST(value_json_parsing)
+{
+    sentry_value_t rv = sentry__value_from_json(STRING("[42, \"foo\\u2603\"]"));
+    TEST_CHECK_INT_EQUAL(
+        sentry_value_as_int32(sentry_value_get_by_index(rv, 0)), 42);
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_index(rv, 1)),
+        "foo\xe2\x98\x83");
+    sentry_value_decref(rv);
+
+    rv = sentry__value_from_json(
+        STRING("[42, \"foo\\u2603\", \"bar\", {\"foo\": 42}]"));
+    TEST_CHECK_JSON_VALUE(rv, "[42,\"foo☃\",\"bar\",{\"foo\":42}]");
+    sentry_value_decref(rv);
+}

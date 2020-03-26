@@ -58,6 +58,17 @@ setup-venv: .venv/bin/python
 	virtualenv -p $$SENTRY_NATIVE_PYTHON_VERSION .venv
 	.venv/bin/pip install --upgrade --requirement tests/requirements.txt
 
-format:
-	@clang-format -i src/*.c src/*.h src/*/*.c src/*/*.h tests/*.c tests/*.h
+format: setup-venv
+	@clang-format -i \
+		src/*.c \
+		src/*.h \
+		src/*/*.c \
+		src/*/*.h \
+		tests/unit/*.c \
+		tests/unit/*.h
+	@.venv/bin/black tests
 .PHONY: format
+
+style: setup-venv
+	@.venv/bin/black --check tests
+.PHONY: style

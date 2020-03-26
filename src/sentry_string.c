@@ -63,6 +63,14 @@ sentry__stringbuilder_append_char(sentry_stringbuilder_t *sb, char c)
     return append(sb, &c, 1);
 }
 
+int
+sentry__stringbuilder_append_char32(sentry_stringbuilder_t *sb, uint32_t c)
+{
+    char buf[4];
+    size_t len = sentry__unichar_to_utf8(c, buf);
+    return sentry__stringbuilder_append_buf(sb, buf, len);
+}
+
 char *
 sentry_stringbuilder_take_string(sentry_stringbuilder_t *sb)
 {
@@ -137,3 +145,33 @@ sentry__string_to_wstr(const char *s)
     return rv;
 }
 #endif
+
+size_t
+sentry__unichar_to_utf8(uint32_t c, char *buf)
+{
+    size_t i, len;
+    int first;
+
+    if (c < 0x80) {
+        first = 0;
+        len = 1;
+    } else if (c < 0x800) {
+        first = 0xc0;
+        len = 2;
+    } else if (c < 0x10000) {
+        first = 0xe0;
+        len = 3;
+    } else if (c <= 0x10FFFF) {
+        first = 0xf0;
+        len = 4;
+    } else {
+        return 0;
+    }
+
+    for (i = len - 1; i > 0; --i) {
+        buf[i] = (c & 0x3f) | 0x80;
+        c >>= 6;
+    }
+    buf[0] = c | first;
+    return len;
+}
