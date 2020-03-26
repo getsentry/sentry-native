@@ -209,7 +209,7 @@ if(MSVC)
 		set(CMAKE_ASM_MASM_FLAGS "${CMAKE_ASM_MASM_FLAGS} /safeseh")
 	endif()
 else()
-	target_compile_options(sentry PUBLIC $<BUILD_INTERFACE:-Wall -Wextra -Wpedantic>)
+	target_compile_options(sentry PRIVATE $<BUILD_INTERFACE:-Wall -Wextra -Wpedantic>)
 endif()
 
 target_include_directories(sentry PUBLIC
