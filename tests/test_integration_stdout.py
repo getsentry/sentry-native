@@ -3,7 +3,7 @@ import subprocess
 import sys
 import os
 from . import cmake, check_output, run, Envelope
-from .conditions import has_inproc, has_breakpad
+from .conditions import has_inproc, has_breakpad, is_android
 from .assertions import (
     assert_attachment,
     assert_meta,
@@ -80,10 +80,12 @@ def test_inproc_crash_stdout(tmp_path):
     output = check_output(tmp_path, "sentry_example", ["stdout", "no-setup"])
     envelope = Envelope.deserialize(output)
 
-    # the crash file should survive a `sentry_init` and should still be there even after restarts
-    with open("{}/.sentry-native/last_crash".format(tmp_path)) as f:
-        crash_timestamp = f.read()
-    assert_timestamp(crash_timestamp)
+    # The crash file should survive a `sentry_init` and should still be there
+    # even after restarts. On Android, we can’t look inside the emulator.
+    if not is_android:
+        with open("{}/.sentry-native/last_crash".format(tmp_path)) as f:
+            crash_timestamp = f.read()
+        assert_timestamp(crash_timestamp)
 
     assert_meta(envelope)
     assert_breadcrumb(envelope)
