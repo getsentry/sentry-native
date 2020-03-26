@@ -24,4 +24,10 @@ bool sentry__run_clear_session(const sentry_run_t *run);
 
 void sentry__process_old_runs(const sentry_options_t *options);
 
+/**
+ * This will write the current timestamp (ISO formatted) into the
+ * `${database_path}/last_crash` file.
+ */
+bool sentry__write_crash_marker(const sentry_options_t *options);
+
 #endif

@@ -75,6 +75,10 @@ def assert_minidump(envelope):
     assert any(matches(item.headers, expected) for item in envelope)
 
 
+def assert_timestamp(ts, now=datetime.datetime.utcnow()):
+    assert ts[:11] == now.isoformat()[:11]
+
+
 def assert_event(envelope):
     event = envelope.get_event()
     expected = {
@@ -83,7 +87,7 @@ def assert_event(envelope):
         "message": {"formatted": "Hello World!"},
     }
     assert matches(event, expected)
-    assert event["timestamp"][:11] == datetime.datetime.utcnow().isoformat()[:11]
+    assert_timestamp(event["timestamp"])
 
 
 def assert_crash(envelope):

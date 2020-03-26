@@ -119,6 +119,11 @@ sentry__process_old_runs(const sentry_options_t *options)
     size_t session_num = 0;
 
     while ((run_dir = sentry__pathiter_next(db_iter)) != NULL) {
+        // skip over other files such as the saved consent or the last_crash
+        // timestamp
+        if (!sentry__path_is_dir(run_dir)) {
+            continue;
+        }
         sentry_pathiter_t *run_iter = sentry__path_iter_directory(run_dir);
         const sentry_path_t *file;
         while ((file = sentry__pathiter_next(run_iter)) != NULL) {
@@ -158,4 +163,30 @@ sentry__process_old_runs(const sentry_options_t *options)
     }
 
     sentry__pathiter_free(db_iter);
+}
+
+bool
+sentry__write_crash_marker(const sentry_options_t *options)
+{
+    char *iso_time = sentry__msec_time_to_iso8601(sentry__msec_time());
+    if (!iso_time) {
+        return false;
+    }
+
+    sentry_path_t *marker_path
+        = sentry__path_join_str(options->database_path, "last_crash");
+    if (!marker_path) {
+        sentry_free(iso_time);
+        return false;
+    }
+
+    size_t iso_time_len = strlen(iso_time);
+    int rv = sentry__path_write_buffer(marker_path, iso_time, iso_time_len);
+    sentry_free(iso_time);
+    sentry__path_free(marker_path);
+
+    if (rv) {
+        SENTRY_DEBUG("writing crash timestamp to file failed");
+    }
+    return !rv;
 }
