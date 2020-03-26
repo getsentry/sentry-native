@@ -26,14 +26,14 @@ stages:
               TEST_X86: 1
             Windows (latest):
               vmImage: "windows-latest"
+            # MSYS2MinGW:
+            #   vmImage: "windows-latest"
+            #   CC: clang -fuse-ld=lld
+            #   CXX: clang++ -fuse-ld=lld
+            #   CMAKE_GENERATOR: Ninja
+            #   MSYS_PATH : C:\tools\msys64
             # The Android emulator is currently only available on macos, see:
             # https://docs.microsoft.com/en-us/azure/devops/pipelines/ecosystems/android?view=azure-devops#test-on-the-android-emulator
-            MSYS2MinGW:
-              vmImage: "windows-latest"
-              CC: clang -fuse-ld=lld
-              CXX: clang++ -fuse-ld=lld
-              CMAKE_GENERATOR: Ninja
-              MSYS_PATH : C:\tools\msys64
             Android (API 16, NDK 19):
               vmImage: "macOs-latest"
               ANDROID_API: 16
@@ -72,23 +72,23 @@ stages:
             timeoutInMinutes: 5 # because gettings things wrong here can hang the job for up to an hour…
             condition: variables['ANDROID_API']
             displayName: Starting Android Simulator
-          - script: choco install --no-progress msys2
-            condition: variables['MSYS_PATH']
-            displayName: Install MSYS2
-          - powershell: |
-                echo '##vso[task.prependpath]$(MSYS_PATH)\mingw64\bin'
-                echo '##vso[task.prependpath]$(MSYS_PATH)\usr\bin'
-            condition: variables['MSYS_PATH']
-            displayName: Update path with MSYS2
-          - script: |
-                pacman --noconfirm -S ^
-                  mingw-w64-x86_64-uasm ^
-                  mingw-w64-x86_64-clang ^
-                  mingw-w64-x86_64-lld ^
-                  mingw-w64-x86_64-ninja ^
-                  mingw-w64-x86_64-cmake
-            condition: variables['MSYS_PATH']
-            displayName: Install MSYS2 packages
+          # - script: choco install --no-progress msys2
+          #   condition: variables['MSYS_PATH']
+          #   displayName: Install MSYS2
+          # - powershell: |
+          #       echo '##vso[task.prependpath]$(MSYS_PATH)\mingw64\bin'
+          #       echo '##vso[task.prependpath]$(MSYS_PATH)\usr\bin'
+          #   condition: variables['MSYS_PATH']
+          #   displayName: Update path with MSYS2
+          # - script: |
+          #       pacman --noconfirm -S ^
+          #         mingw-w64-x86_64-uasm ^
+          #         mingw-w64-x86_64-clang ^
+          #         mingw-w64-x86_64-lld ^
+          #         mingw-w64-x86_64-ninja ^
+          #         mingw-w64-x86_64-cmake
+          #   condition: variables['MSYS_PATH']
+          #   displayName: Install MSYS2 packages
           - script: |
               pip install --upgrade --requirement tests/requirements.txt
               pytest --capture=no --verbose tests
