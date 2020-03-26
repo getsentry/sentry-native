@@ -187,7 +187,7 @@ endif()
 if(BUILD_SHARED_LIBS)
 	target_compile_definitions(sentry PRIVATE SENTRY_BUILD_SHARED)
 else()
-	target_compile_definitions(sentry PUBLIC SENTRY_BUILD_STATIC)
+	target_compile_definitions(sentry PRIVATE SENTRY_BUILD_STATIC)
 endif()
 
 if(SENTRY_TRANSPORT_CURL)
@@ -258,7 +258,6 @@ if(SENTRY_BACKEND_CRASHPAD)
 		"$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/crashpad/third_party/mini_chromium/mini_chromium>"
 	)
 	# we include a crashpad header, which itself needs C++14 support
-	target_compile_features(sentry PUBLIC cxx_std_14)
 	target_link_libraries(sentry PRIVATE crashpad_client crashpad_util)
 	if(NOT BUILD_SHARED_LIBS)
 		sentry_install(TARGETS crashpad_client crashpad_util crashpad_compat getopt mini_chromium zlib EXPORT sentry
