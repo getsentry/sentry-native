@@ -253,11 +253,11 @@ sentry_capture_event(sentry_value_t event)
     return event_id;
 }
 
-void sentry_handle_exception(sentry_ucontext_t *context)
+void sentry_handle_exception(sentry_ucontext_t *uctx)
 {
     SENTRY_DEBUG("handling exception");
     if (g_options->backend && g_options->backend->except_func) {
-        g_options->backend->except_func(g_options->backend, context);
+        g_options->backend->except_func(g_options->backend, uctx);
     }
 }
 

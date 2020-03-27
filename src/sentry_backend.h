@@ -6,7 +6,6 @@
 #include "sentry_scope.h"
 
 struct sentry_backend_s;
-struct sentry_ucontext_s;
 typedef struct sentry_backend_s {
     void (*startup_func)(struct sentry_backend_s *);
     void (*shutdown_func)(struct sentry_backend_s *);
