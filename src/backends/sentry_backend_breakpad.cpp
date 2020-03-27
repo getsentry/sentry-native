@@ -146,6 +146,14 @@ sentry__breakpad_backend_shutdown(sentry_backend_t *backend)
     delete eh;
 }
 
+static void sentry__breakpad_backend_except(
+    sentry_backend_t *UNUSED(backend), sentry_ucontext_t *context)
+{
+    google_breakpad::ExceptionHandler *eh
+        = (google_breakpad::ExceptionHandler *)backend->data;
+    eh->HandleSignal(context->signum, context->siginfo, context->user_context);
+}
+
 extern "C" {
 
 sentry_backend_t *
@@ -158,6 +166,7 @@ sentry__backend_new(void)
 
     backend->startup_func = sentry__breakpad_backend_startup;
     backend->shutdown_func = sentry__breakpad_backend_shutdown;
+    backend->except_func = sentry__breakpad_backend_except;
     backend->free_func = NULL;
     backend->flush_scope_func = NULL;
     backend->add_breadcrumb_func = NULL;

@@ -150,12 +150,18 @@ static void
 handle_signal(int signum, siginfo_t *info, void *user_context)
 {
     sentry_ucontext_t uctx;
+    uctx.signum = signum;
     uctx.siginfo = info;
     uctx.user_context = (ucontext_t *)user_context;
+    handle_ucontext(&uctx);
+}
 
+static void
+handle_ucontext(sentry_ucontext_t* uctx)
+{
     const struct signal_slot *sig_slot = NULL;
     for (int i = 0; i < SIGNAL_COUNT; ++i) {
-        if (SIGNAL_DEFINITIONS[i].signum == signum) {
+        if (SIGNAL_DEFINITIONS[i].signum == uctx->signum) {
             sig_slot = &SIGNAL_DEFINITIONS[i];
         }
     }
@@ -178,7 +184,7 @@ handle_signal(int signum, siginfo_t *info, void *user_context)
     // only dumps to disk at the moment.
     SENTRY_DEBUG("capturing event from signal");
     sentry__end_current_session_with_status(SENTRY_SESSION_STATUS_CRASHED);
-    sentry_capture_event(make_signal_event(sig_slot, &uctx));
+    sentry_capture_event(make_signal_event(sig_slot, uctx));
 
     // after capturing the crash event, try to dump all the in-flight data of
     // the previous transport
@@ -221,6 +227,7 @@ sentry__backend_new(void)
 
     backend->startup_func = startup_inproc_backend;
     backend->shutdown_func = NULL;
+    backend->except_func = handle_ucontext;
     backend->free_func = free_backend;
     backend->flush_scope_func = NULL;
     backend->add_breadcrumb_func = NULL;

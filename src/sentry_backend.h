@@ -6,10 +6,12 @@
 #include "sentry_scope.h"
 
 struct sentry_backend_s;
+struct sentry_ucontext_s;
 typedef struct sentry_backend_s {
     void (*startup_func)(struct sentry_backend_s *);
     void (*shutdown_func)(struct sentry_backend_s *);
     void (*free_func)(struct sentry_backend_s *);
+    void (*except_func)(struct sentry_backend_s *, struct sentry_ucontext_s *);
     void (*flush_scope_func)(
         struct sentry_backend_s *, const sentry_scope_t *scope);
     void (*add_breadcrumb_func)(
