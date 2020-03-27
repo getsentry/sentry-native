@@ -248,6 +248,10 @@ static void sentry__crashpad_backend_except(
 {
 #ifdef SENTRY_PLATFORM_WINDOWS
     crashpad::CrashpadClient::DumpAndCrash(&context->exception_ptrs);
+#else
+    // TODO: Crashpad has the ability to do this on linux / mac but the
+    // method interface is not exposed for it, a patch would be required
+    (void)context;
 #endif
 }
 
