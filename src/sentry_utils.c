@@ -358,7 +358,7 @@ sentry__msec_time_to_iso8601(uint64_t time)
 
     int msecs = time % 1000;
     if (msecs) {
-        snprintf(buf + end, 10, ".%03d000", msecs);
+        snprintf(buf + end, 10, ".%03d", msecs);
     }
 
     strcat(buf, "Z");
