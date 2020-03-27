@@ -203,7 +203,7 @@ sentry_capture_event(sentry_value_t event)
 {
     const sentry_options_t *opts = sentry_get_options();
     uint64_t rnd;
-    if (opts->sample_rate < 1.0 && !sentry__getrandom(&rnd, 8)
+    if (opts->sample_rate < 1.0 && !sentry__getrandom(&rnd, sizeof(rnd))
         && ((double)rnd / (double)UINT64_MAX) > opts->sample_rate) {
         SENTRY_DEBUG("throwing away event due to sample rate");
         sentry_value_decref(event);
@@ -377,6 +377,11 @@ sentry_options_get_dsn(const sentry_options_t *opts)
 void
 sentry_options_set_sample_rate(sentry_options_t *opts, double sample_rate)
 {
+    if (sample_rate < 0.0) {
+        sample_rate = 0.0;
+    } else if (sample_rate > 1.0) {
+        sample_rate = 1.0;
+    }
     opts->sample_rate = sample_rate;
 }
 
