@@ -10,6 +10,7 @@
 #include "sentry_envelope.h"
 #include "sentry_modulefinder.h"
 #include "sentry_path.h"
+#include "sentry_random.h"
 #include "sentry_scope.h"
 #include "sentry_session.h"
 #include "sentry_string.h"
@@ -200,6 +201,15 @@ event_is_considered_error(sentry_value_t event)
 sentry_uuid_t
 sentry_capture_event(sentry_value_t event)
 {
+    const sentry_options_t *opts = sentry_get_options();
+    uint64_t rnd;
+    if (opts->sample_rate < 1.0 && !sentry__getrandom(&rnd, 8)
+        && ((double)rnd / (double)UINT64_MAX) > opts->sample_rate) {
+        SENTRY_DEBUG("throwing away event due to sample rate");
+        sentry_value_decref(event);
+        return sentry_uuid_nil();
+    }
+
     SENTRY_DEBUG("capturing event");
     sentry_uuid_t event_id;
     sentry__ensure_event_id(event, &event_id);
@@ -209,7 +219,6 @@ sentry_capture_event(sentry_value_t event)
         sentry__scope_apply_to_event(scope, event, SENTRY_SCOPE_ALL);
     }
 
-    const sentry_options_t *opts = sentry_get_options();
     if (opts->before_send_func) {
         event = opts->before_send_func(event, NULL, opts->before_send_data);
     }
@@ -269,6 +278,7 @@ sentry_options_new(void)
     opts->system_crash_reporter_enabled = false;
     opts->backend = sentry__backend_new();
     opts->transport = sentry__transport_new_default();
+    opts->sample_rate = 1.0;
     return opts;
 }
 
@@ -362,6 +372,18 @@ const char *
 sentry_options_get_dsn(const sentry_options_t *opts)
 {
     return opts->raw_dsn;
+}
+
+void
+sentry_options_set_sample_rate(sentry_options_t *opts, double sample_rate)
+{
+    opts->sample_rate = sample_rate;
+}
+
+double
+sentry_options_get_sample_rate(const sentry_options_t *opts)
+{
+    return opts->sample_rate;
 }
 
 void

@@ -1,3 +1,4 @@
+#include "sentry_core.h"
 #include "sentry_testsupport.h"
 #include "transports/sentry_function_transport.h"
 #include <sentry.h>
@@ -43,4 +44,39 @@ SENTRY_TEST(basic_function_transport)
     sentry_shutdown();
 
     TEST_CHECK_INT_EQUAL(called, 1);
+}
+
+static sentry_value_t
+before_send(sentry_value_t event, void *UNUSED(hint), void *data)
+{
+    uint64_t *called = data;
+    *called += 1;
+
+    sentry_value_decref(event);
+    return sentry_value_new_null();
+}
+
+SENTRY_TEST(sampling_before_send)
+{
+    uint64_t called_beforesend = 0;
+    uint64_t called_transport = 0;
+
+    sentry_options_t *options = sentry_options_new();
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_transport(options,
+        sentry_new_function_transport(send_envelope, &called_transport));
+    sentry_options_set_before_send(options, before_send, &called_beforesend);
+    sentry_options_set_sample_rate(options, 0.75);
+    sentry_init(options);
+
+    for (int i = 0; i < 100; i++) {
+        sentry_capture_event(
+            sentry_value_new_message_event(SENTRY_LEVEL_INFO, NULL, "foo"));
+    }
+
+    sentry_shutdown();
+
+    TEST_CHECK_INT_EQUAL(called_transport, 0);
+    // well, its random after all
+    TEST_CHECK(called_beforesend > 50 && called_beforesend < 100);
 }

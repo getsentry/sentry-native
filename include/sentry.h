@@ -455,6 +455,11 @@ typedef sentry_value_t (*sentry_event_function_t)(
 SENTRY_API sentry_options_t *sentry_options_new(void);
 
 /*
+ * deallocates previously allocated sentry options
+ */
+SENTRY_API void sentry_options_free(sentry_options_t *opts);
+
+/*
  * sets a transport.
  */
 SENTRY_API void sentry_options_set_transport(
@@ -467,11 +472,6 @@ SENTRY_API void sentry_options_set_before_send(
     sentry_options_t *opts, sentry_event_function_t func, void *data);
 
 /*
- * deallocates previously allocated sentry options
- */
-SENTRY_API void sentry_options_free(sentry_options_t *opts);
-
-/*
  * sets the DSN
  */
 SENTRY_API void sentry_options_set_dsn(sentry_options_t *opts, const char *dsn);
@@ -480,6 +480,19 @@ SENTRY_API void sentry_options_set_dsn(sentry_options_t *opts, const char *dsn);
  * gets the DSN
  */
 SENTRY_API const char *sentry_options_get_dsn(const sentry_options_t *opts);
+
+/*
+ * Sets the sample rate, which should be a double between `0.0` and `1.0`.
+ * Sentry will randomly discard any event that is captured using
+ * `sentry_capture_event` when a sample rate < 1 is set.
+ */
+SENTRY_API void sentry_options_set_sample_rate(
+    sentry_options_t *opts, double sample_rate);
+
+/*
+ * Gets the sample rate
+ */
+SENTRY_API double sentry_options_get_sample_rate(const sentry_options_t *opts);
 
 /*
  * sets the release
