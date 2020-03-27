@@ -54,19 +54,20 @@ getrandom_devurandom(void *dst, size_t bytes)
 #ifdef SENTRY_PLATFORM_WINDOWS
 typedef BOOLEAN(WINAPI *sRtlGenRandom)(PVOID Buffer, ULONG BufferLength);
 
-static sRtlGenRandom pRtlGenRandom;
-
-SENTRY_CTOR (init_winapi) {
-    HANDLE advapi32_module = LoadLibraryA("advapi32.dll");
-    if (advapi32_module != NULL) {
-        pRtlGenRandom = (sRtlGenRandom)GetProcAddress(
-            advapi32_module, "SystemFunction036");
-    }
-}
+static sRtlGenRandom pRtlGenRandom = NULL;
+static bool sRtlGenRandomLoaded = false;
 
 static int
 getrandom_rtlgenrandom(void *dst, size_t bytes)
 {
+    if (sRtlGenRandomLoaded == false) {
+        HANDLE advapi32_module = LoadLibraryA("advapi32.dll");
+        if (advapi32_module != NULL) {
+            pRtlGenRandom = (sRtlGenRandom)GetProcAddress(
+                advapi32_module, "SystemFunction036");
+        }
+        sRtlGenRandomLoaded = true;
+    }
     if (pRtlGenRandom == NULL) {
         return 1;
     }
