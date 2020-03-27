@@ -147,16 +147,6 @@ make_signal_event(
 }
 
 static void
-handle_signal(int signum, siginfo_t *info, void *user_context)
-{
-    sentry_ucontext_t uctx;
-    uctx.signum = signum;
-    uctx.siginfo = info;
-    uctx.user_context = (ucontext_t *)user_context;
-    handle_ucontext(&uctx);
-}
-
-static void
 handle_ucontext(sentry_ucontext_t* uctx)
 {
     const struct signal_slot *sig_slot = NULL;
@@ -198,7 +188,23 @@ handle_ucontext(sentry_ucontext_t* uctx)
     // forward as we're not restoring the page allocator.
     reset_signal_handlers();
     sentry__leave_signal_handler();
-    invoke_signal_handler(signum, info, user_context);
+    invoke_signal_handler(uctx->signum, uctx->info, (void *)uctx->user_context);
+}
+
+static void
+handle_signal(int signum, siginfo_t *info, void *user_context)
+{
+    sentry_ucontext_t uctx;
+    uctx.signum = signum;
+    uctx.siginfo = info;
+    uctx.user_context = (ucontext_t *)user_context;
+    handle_ucontext(&uctx);
+}
+
+static void handle_except(
+    sentry_backend_t *UNUSED(backend), sentry_ucontext_t *uctx)
+{
+    handle_ucontext(uctx);
 }
 
 static void
@@ -227,7 +233,7 @@ sentry__backend_new(void)
 
     backend->startup_func = startup_inproc_backend;
     backend->shutdown_func = NULL;
-    backend->except_func = handle_ucontext;
+    backend->except_func = handle_except;
     backend->free_func = free_backend;
     backend->flush_scope_func = NULL;
     backend->add_breadcrumb_func = NULL;
