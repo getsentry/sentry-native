@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.2.2
+
+- Implement experimental Session handling
+- Implement more fine grained Rate Limiting for HTTP requests
+- Implement `sample_rate` option
+- In-process and Breakpad backend will not lose events queued for HTTP
+  submission on crash
+- `sentry_shutdown` will better clean up after itself
+- Add Experimental MinGW build support (thanks @Amphaal
+  [189](https://github.com/getsentry/sentry-native/pull/189))
+- Various other fixes and improvements
+
 ## 0.2.1
 
 - Added Breakpad support on Linux
