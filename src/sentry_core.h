@@ -59,6 +59,7 @@ struct sentry_attachment_s {
 struct sentry_options_s {
     char *raw_dsn;
     sentry_dsn_t dsn;
+    double sample_rate;
     char *release;
     char *environment;
     char *dist;
