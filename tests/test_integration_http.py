@@ -25,7 +25,7 @@ def test_capture_http(tmp_path, httpserver):
     httpserver.expect_oneshot_request(
         "/api/123456/store/",
         headers={
-            "x-sentry-auth": "Sentry sentry_key=uiaeosnrtdy, sentry_version=7, sentry_client=sentry.native/0.2.1"
+            "x-sentry-auth": "Sentry sentry_key=uiaeosnrtdy, sentry_version=7, sentry_client=sentry.native/0.2.2"
         },
     ).respond_with_data("OK")
 
@@ -60,7 +60,7 @@ def test_inproc_crash_http(tmp_path, httpserver):
     httpserver.expect_oneshot_request(
         "/api/123456/store/",
         headers={
-            "x-sentry-auth": "Sentry sentry_key=uiaeosnrtdy, sentry_version=7, sentry_client=sentry.native/0.2.1"
+            "x-sentry-auth": "Sentry sentry_key=uiaeosnrtdy, sentry_version=7, sentry_client=sentry.native/0.2.2"
         },
     ).respond_with_data("OK")
 
@@ -92,7 +92,7 @@ def test_inproc_dump_inflight(tmp_path, httpserver):
     httpserver.expect_request(
         "/api/123456/store/",
         headers={
-            "x-sentry-auth": "Sentry sentry_key=uiaeosnrtdy, sentry_version=7, sentry_client=sentry.native/0.2.1"
+            "x-sentry-auth": "Sentry sentry_key=uiaeosnrtdy, sentry_version=7, sentry_client=sentry.native/0.2.2"
         },
     ).respond_with_data("OK")
 
@@ -116,7 +116,7 @@ def test_breakpad_crash_http(tmp_path, httpserver):
     httpserver.expect_oneshot_request(
         "/api/123456/store/",
         headers={
-            "x-sentry-auth": "Sentry sentry_key=uiaeosnrtdy, sentry_version=7, sentry_client=sentry.native/0.2.1"
+            "x-sentry-auth": "Sentry sentry_key=uiaeosnrtdy, sentry_version=7, sentry_client=sentry.native/0.2.2"
         },
     ).respond_with_data("OK")
 
@@ -148,7 +148,7 @@ def test_breakpad_dump_inflight(tmp_path, httpserver):
     httpserver.expect_request(
         "/api/123456/store/",
         headers={
-            "x-sentry-auth": "Sentry sentry_key=uiaeosnrtdy, sentry_version=7, sentry_client=sentry.native/0.2.1"
+            "x-sentry-auth": "Sentry sentry_key=uiaeosnrtdy, sentry_version=7, sentry_client=sentry.native/0.2.2"
         },
     ).respond_with_data("OK")
 
