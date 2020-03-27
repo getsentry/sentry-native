@@ -654,7 +654,7 @@ SENTRY_API sentry_uuid_t sentry_capture_event(sentry_value_t event);
 /*
  * Captures an exception to be handled by the backend.
  */
-SENTRY_API void sentry_handle_exception(sentry_ucontext_t *context);
+SENTRY_EXPERIMENTAL_API void sentry_handle_exception(sentry_ucontext_t *context);
 
 /*
  * Adds the breadcrumb to be sent in case of an event.
