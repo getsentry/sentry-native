@@ -131,6 +131,7 @@ using `cmake -D BUILD_SHARED_LIBS=OFF ..`.
     - `10`  (Windows 10 / Server 2016 / Server 2019)
 
   ​	For Windows versions below than `6.0` it is also necessary to use XP toolchain in case of MSVC compiler (pass `-T v141_xp` to CMake command line).
+   Also, you are not able to use Crashpad with XP toolchains, no crashes will be handled at all. 
 
 - `SENTRY_TRANSPORT` (Default: depending on platform):
   Sentry can use different http libraries to send reports to the server.

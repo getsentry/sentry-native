@@ -53,7 +53,10 @@ endif()
 
 option(SENTRY_ENABLE_INSTALL "Enable sentry installation" "${SENTRY_MAIN_PROJECT}")
 
-if(APPLE OR WIN32)
+if(MSVC AND CMAKE_GENERATOR_TOOLSET MATCHES "_xp$")
+	message(WARNING "Crashpad is not supported for MSVC with XP toolset. Default backend was switched to 'none'")
+	set(SENTRY_DEFAULT_BACKEND "none")
+elseif(APPLE OR WIN32)
 	set(SENTRY_DEFAULT_BACKEND "crashpad")
 elseif(LINUX)
 	set(SENTRY_DEFAULT_BACKEND "breakpad")
@@ -165,6 +168,10 @@ if(WIN32)
 		add_definitions(-D_WIN32_WINNT=0x0502)
 	elseif(${CMAKE_SYSTEM_VERSION} MATCHES "^5.1")
 		add_definitions(-D_WIN32_WINNT=0x0501)
+
+	#crashpad does not support Windows XP toolset
+	if(MSVC AND CMAKE_GENERATOR_TOOLSET MATCHES "_xp$" AND SENTRY_BACKEND_CRASHPAD)
+		message(FATAL_ERROR "MSVC XP toolset does not support Crashpad")
 	endif()
 endif()
 
