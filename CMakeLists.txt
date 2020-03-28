@@ -115,12 +115,11 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 # use -O3 when doing `RelWithDebInfo` builds
-foreach(lang ASM C CXX)
-	# unix-like syntax
-	string(REPLACE "-O2" "-O3" CMAKE_${lang}_FLAGS_RELWITHDEBINFO "${CMAKE_${lang}_FLAGS_RELWITHDEBINFO}")
-	# windows-like syntax
-	string(REPLACE "/O2" "/O3" CMAKE_${lang}_FLAGS_RELWITHDEBINFO "${CMAKE_${lang}_FLAGS_RELWITHDEBINFO}")
-endforeach()
+if(NOT MSVC)
+	foreach(lang ASM C CXX)
+		string(REPLACE "-O2" "-O3" CMAKE_${lang}_FLAGS_RELWITHDEBINFO "${CMAKE_${lang}_FLAGS_RELWITHDEBINFO}")
+	endforeach()
+endif()
 
 # https://gitlab.kitware.com/cmake/cmake/issues/20256
 if(APPLE)
