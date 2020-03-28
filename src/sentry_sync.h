@@ -8,8 +8,51 @@
 
 // define a recursive mutex for all platforms
 #ifdef SENTRY_PLATFORM_WINDOWS
-#    include <synchapi.h>
+#    if _WIN32_WINNT >= 0x0600
+#        include <synchapi.h>
+#    endif
 #    include <winnt.h>
+
+#if _WIN32_WINNT < 0x0600
+
+#define INIT_ONCE_STATIC_INIT {0}
+
+typedef union {
+    PVOID Ptr;
+} INIT_ONCE, *PINIT_ONCE;
+
+typedef BOOL(WINAPI *PINIT_ONCE_FN)(
+    PINIT_ONCE InitOnce, PVOID Parameter, PVOID *Context);
+
+inline BOOL
+InitOnceExecuteOnce(
+    PINIT_ONCE InitOnce, PINIT_ONCE_FN InitFn, PVOID Parameter, LPVOID *Context)
+{
+    for (;;) {
+        switch ((ULONG_PTR)InitOnce->Ptr) {
+        case 0: // not started
+            if (InterlockedCompareExchangePointer(&InitOnce->Ptr, (PVOID)1, (PVOID)0) != 0) {
+                break;
+            }
+            if (InitFn(InitOnce, Parameter, Context)) {
+                InitOnce->Ptr = (PVOID)2;
+                return TRUE;
+            }
+            InitOnce->Ptr = 0;
+            return FALSE;
+        case 1: // in progress
+            Sleep(1);
+            break;
+        case 2: // completed
+            return TRUE;
+        default: // unexpecterd value
+            return FALSE;
+        }
+    }
+}
+
+#endif
+
 struct sentry__winmutex_s {
     INIT_ONCE init_once;
     CRITICAL_SECTION critical_section;
