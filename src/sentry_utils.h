@@ -96,23 +96,4 @@ char *sentry__msec_time_to_iso8601(uint64_t time);
 #define SENTRY_CONCAT_IMPL(A, B) A##B
 #define SENTRY_CONCAT(A, B) SENTRY_CONCAT_IMPL(A, B)
 
-/* utility to declare a constructor function */
-#ifdef _MSC_VER
-#    pragma section(".CRT$XIU", long, read)
-#    define SENTRY_CTOR(Name)                                                  \
-        static void Name(void);                                                \
-        static int SENTRY_CONCAT(_ctor_1_, Name)(void)                         \
-        {                                                                      \
-            Name();                                                            \
-            return 0;                                                          \
-        }                                                                      \
-        __pragma(data_seg(".CRT$XIU")) static int (                            \
-            *SENTRY_CONCAT(_ctor_2_, Name))()                                  \
-            = SENTRY_CONCAT(_ctor_1_, Name);                                   \
-        __pragma(data_seg()) static void Name(void)
-#else
-#    define SENTRY_CTOR(Name)                                                  \
-        __attribute__((constructor)) static void Name(void)
-#endif
-
 #endif
