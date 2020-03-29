@@ -21,6 +21,13 @@ typedef union {
     PVOID Ptr;
 } INIT_ONCE, *PINIT_ONCE;
 
+typedef struct {
+    HANDLE Semaphore;
+    HANDLE ContinueEvent;
+    LONG Waiters;
+    LONG Target;
+} CONDITION_VARIABLE_PREVISTA, *PCONDITION_VARIABLE_PREVISTA;      
+
 typedef BOOL(WINAPI *PINIT_ONCE_FN)(
     PINIT_ONCE InitOnce, PVOID Parameter, PVOID *Context);
 
@@ -51,7 +58,56 @@ InitOnceExecuteOnce(
     }
 }
 
-#endif
+inline void
+InitializeConditionVariable_PREVISTA(PCONDITION_VARIABLE_PREVISTA ConditionVariable)
+{
+    ConditionVariable->Target = 0;
+    ConditionVariable->Waiters = 0;
+    ConditionVariable->Semaphore = CreateSemaphoreW(NULL, 0, MAXLONG, NULL);
+    ConditionVariable->ContinueEvent = CreateEventW(NULL, FALSE, FALSE, NULL);
+}
+
+
+inline BOOL
+SleepConditionVariableCS_PREVISTA(
+    PCONDITION_VARIABLE_PREVISTA cv, PCRITICAL_SECTION cs, DWORD timeout)
+{
+    DWORD result = 0;
+
+    LeaveCriticalSection(cs);
+
+    InterlockedIncrement((LONG *)&cv->Waiters);
+    result = WaitForSingleObject(cv->Semaphore, timeout);
+
+    // send event only on target
+    if (InterlockedDecrement((LONG *)&cv->Waiters) == cv->Target
+        && result == WAIT_OBJECT_0) {
+        SetEvent(cv->ContinueEvent);
+    }
+
+    EnterCriticalSection(cs);
+
+    return result;
+}
+
+inline void
+WakeConditionVariable_PREVISTA(PCONDITION_VARIABLE_PREVISTA ConditionVariable)
+{
+    if (!ConditionVariable) {
+        return;
+    }
+
+    if (ConditionVariable->Waiters == 0) {
+        return;
+    }
+
+    //set target for continue event, alert it on first occurance
+    ConditionVariable->Target = ConditionVariable->Waiters - 1;
+
+    SignalObjectAndWait(ConditionVariable->Semaphore, ConditionVariable->ContinueEvent, INFINITE, FALSE);
+}
+
+#endif /* _WIN32_WINNT < 0x0600 */
 
 struct sentry__winmutex_s {
     INIT_ONCE init_once;
@@ -75,7 +131,6 @@ sentry__winmutex_lock(struct sentry__winmutex_s *mutex)
 
 typedef HANDLE sentry_threadid_t;
 typedef struct sentry__winmutex_s sentry_mutex_t;
-typedef CONDITION_VARIABLE sentry_cond_t;
 #    define SENTRY__MUTEX_INIT                                                 \
         {                                                                      \
             INIT_ONCE_STATIC_INIT, { 0 }                                       \
@@ -83,20 +138,34 @@ typedef CONDITION_VARIABLE sentry_cond_t;
 #    define sentry__mutex_lock(Lock) sentry__winmutex_lock(Lock)
 #    define sentry__mutex_unlock(Lock)                                         \
         LeaveCriticalSection(&(Lock)->critical_section)
-#    define SENTRY__COND_INIT                                                  \
-        {                                                                      \
-            0                                                                  \
-        }
-#    define sentry__cond_wait_timeout(CondVar, Lock, Timeout)                  \
-        SleepConditionVariableCS(CondVar, &(Lock)->critical_section, Timeout)
-#    define sentry__cond_wait(CondVar, Lock)                                   \
-        sentry__cond_wait_timeout(CondVar, Lock, INFINITE)
-#    define sentry__cond_wake WakeConditionVariable
+
 #    define sentry__thread_spawn(ThreadId, Func, Data)                         \
         (*ThreadId = CreateThread(NULL, 0, Func, Data, 0, NULL),               \
             *ThreadId == INVALID_HANDLE_VALUE ? 1 : 0)
 #    define sentry__thread_join(ThreadId)                                      \
         WaitForSingleObject(ThreadId, INFINITE)
+
+#    if _WIN32_WINNT < 0x0600
+        typedef CONDITION_VARIABLE_PREVISTA sentry_cond_t;
+#       define sentry__cond_init(CondVar)                                     \
+            InitializeConditionVariable_PREVISTA(CondVar)
+#       define sentry__cond_wake WakeConditionVariable_PREVISTA
+#       define sentry__cond_wait_timeout(CondVar, Lock, Timeout)              \
+            SleepConditionVariableCS_PREVISTA(                                 \
+                CondVar, &(Lock)->critical_section, Timeout)
+#    else
+        typedef CONDITION_VARIABLE sentry_cond_t;
+#       define sentry__cond_init(CondVar)                                     \
+            InitializeConditionVariable(CondVar)
+#       define sentry__cond_wake WakeConditionVariable
+#       define sentry__cond_wait_timeout(CondVar, Lock, Timeout)              \
+            SleepConditionVariableCS(                                          \
+                CondVar, &(Lock)->critical_section, Timeout)
+#    endif
+#    define sentry__cond_wait(CondVar, Lock)                                   \
+        sentry__cond_wait_timeout(CondVar, Lock, INFINITE)
+
+
 #else
 #    include <errno.h>
 #    include <pthread.h>
@@ -140,7 +209,11 @@ typedef pthread_cond_t sentry_cond_t;
                 pthread_mutex_unlock(Mutex);                                   \
             }                                                                  \
         } while (0)
-#    define SENTRY__COND_INIT PTHREAD_COND_INITIALIZER
+#    define sentry__cond_init(CondVar)                                         \
+        do {                                                                   \
+            sentry_cond_t tmp = PTHREAD_COND_INITIALIZER;                      \
+            *(CondVar) = tmp;                                                  \
+        } while (0)
 #    define sentry__cond_wait(Cond, Mutex)                                     \
         do {                                                                   \
             if (sentry__block_for_signal_handler()) {                          \
@@ -175,11 +248,6 @@ sentry__cond_wait_timeout(
     do {                                                                       \
         sentry_mutex_t tmp = SENTRY__MUTEX_INIT;                               \
         *(Mutex) = tmp;                                                        \
-    } while (0)
-#define sentry__cond_init(CondVar)                                             \
-    do {                                                                       \
-        sentry_cond_t tmp = SENTRY__COND_INIT;                                 \
-        *(CondVar) = tmp;                                                      \
     } while (0)
 
 static inline int
