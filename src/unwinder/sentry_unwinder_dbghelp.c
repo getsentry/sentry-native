@@ -2,12 +2,36 @@
 
 #include <dbghelp.h>
 
+#if _WIN32_WINNT && _WIN32_WINNT < 0x0600
+typedef WORD(NTAPI *RtlCaptureStackBackTraceProc)(DWORD FramesToSkip,
+    DWORD FramesToCapture, PVOID *BackTrace, PDWORD BackTraceHash);
+#endif
+
 size_t
 sentry__unwind_stack_dbghelp(
     void *addr, const sentry_ucontext_t *uctx, void **ptrs, size_t max_frames)
 {
     if (!uctx && !addr) {
+#if _WIN32_WINNT && _WIN32_WINNT < 0x0600
+        HMODULE ntdll = NULL;
+        RtlCaptureStackBackTraceProc proc = NULL;
+
+        if (!(ntdll = LoadLibraryW(L"ntdll.dll"))) {
+            return 0;
+        }
+        if (!(proc = (RtlCaptureStackBackTraceProc)GetProcAddress(ntdll, "RtlCaptureStackBackTrace"))) {
+            return 0;
+        }
+
+        //sum of frames to skip and frames to captures must be less than 63 for XP/2003
+        if (max_frames > 61) {
+            max_frames = 61;
+        }
+
+        return (size_t)proc(1, (DWORD)max_frames, ptrs, 0);
+#else
         return (size_t)CaptureStackBackTrace(1, (ULONG)max_frames, ptrs, 0);
+#endif
     }
 
     sentry__init_dbghelp();
