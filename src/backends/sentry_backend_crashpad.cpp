@@ -243,6 +243,18 @@ sentry__crashpad_backend_free(sentry_backend_t *backend)
     sentry_free(data);
 }
 
+static void sentry__crashpad_backend_except(
+    sentry_backend_t *UNUSED(backend), sentry_ucontext_t *context)
+{
+#ifdef SENTRY_PLATFORM_WINDOWS
+    crashpad::CrashpadClient::DumpAndCrash(&context->exception_ptrs);
+#else
+    // TODO: Crashpad has the ability to do this on linux / mac but the
+    // method interface is not exposed for it, a patch would be required
+    (void)context;
+#endif
+}
+
 sentry_backend_t *
 sentry__backend_new(void)
 {
@@ -259,6 +271,7 @@ sentry__backend_new(void)
 
     backend->startup_func = sentry__crashpad_backend_startup;
     backend->shutdown_func = sentry__crashpad_backend_shutdown;
+    backend->except_func = sentry__crashpad_backend_except;
     backend->free_func = sentry__crashpad_backend_free;
     backend->flush_scope_func = sentry__crashpad_backend_flush_scope;
     backend->add_breadcrumb_func = sentry__crashpad_backend_add_breadcrumb;
