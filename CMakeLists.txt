@@ -277,10 +277,16 @@ if(SENTRY_BACKEND_CRASHPAD)
 	target_compile_features(sentry PUBLIC cxx_std_14)
 	target_link_libraries(sentry PRIVATE crashpad_client crashpad_util)
 	if(NOT BUILD_SHARED_LIBS)
-		sentry_install(TARGETS crashpad_client crashpad_util crashpad_compat getopt mini_chromium zlib EXPORT sentry
+		sentry_install(TARGETS crashpad_client crashpad_util crashpad_compat mini_chromium EXPORT sentry
 			LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
 			ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
 		)
+		if(WIN32)
+			sentry_install(TARGETS getopt zlib EXPORT sentry
+				LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+				ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+			)
+		endif()
 	endif()
 	sentry_install(TARGETS crashpad_handler EXPORT sentry
 		RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
