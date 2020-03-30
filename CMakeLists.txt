@@ -53,7 +53,10 @@ endif()
 
 option(SENTRY_ENABLE_INSTALL "Enable sentry installation" "${SENTRY_MAIN_PROJECT}")
 
-if(APPLE OR WIN32)
+if(MSVC AND CMAKE_GENERATOR_TOOLSET MATCHES "_xp$")
+	message(WARNING "Crashpad is not supported for MSVC with XP toolset. Default backend was switched to 'none'")
+	set(SENTRY_DEFAULT_BACKEND "none")
+elseif(APPLE OR WIN32)
 	set(SENTRY_DEFAULT_BACKEND "crashpad")
 elseif(LINUX)
 	set(SENTRY_DEFAULT_BACKEND "breakpad")
@@ -112,12 +115,11 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 # use -O3 when doing `RelWithDebInfo` builds
-foreach(lang ASM C CXX)
-	# unix-like syntax
-	string(REPLACE "-O2" "-O3" CMAKE_${lang}_FLAGS_RELWITHDEBINFO "${CMAKE_${lang}_FLAGS_RELWITHDEBINFO}")
-	# windows-like syntax
-	string(REPLACE "/O2" "/O3" CMAKE_${lang}_FLAGS_RELWITHDEBINFO "${CMAKE_${lang}_FLAGS_RELWITHDEBINFO}")
-endforeach()
+if(NOT MSVC)
+	foreach(lang ASM C CXX)
+		string(REPLACE "-O2" "-O3" CMAKE_${lang}_FLAGS_RELWITHDEBINFO "${CMAKE_${lang}_FLAGS_RELWITHDEBINFO}")
+	endforeach()
+endif()
 
 # https://gitlab.kitware.com/cmake/cmake/issues/20256
 if(APPLE)
@@ -148,23 +150,6 @@ function(sentry_target_sources_cwd TARGET)
 		endif()
 	endforeach()
 endfunction()
-
-#respect CMAKE_SYSTEM_VERSION
-if(WIN32)
-    if(${CMAKE_SYSTEM_VERSION} EQUAL 10)
-        add_definitions(-D_WIN32_WINNT=0x0A00)
-    elseif(${CMAKE_SYSTEM_VERSION} EQUAL 6.3)
-        add_definitions(-D_WIN32_WINNT=0x0603)
-    elseif(${CMAKE_SYSTEM_VERSION} EQUAL 6.2)
-        add_definitions(-D_WIN32_WINNT=0x0602)
-    elseif(${CMAKE_SYSTEM_VERSION} EQUAL 6.1)
-        add_definitions(-D_WIN32_WINNT=0x0601)
-    elseif(${CMAKE_SYSTEM_VERSION} EQUAL 6.0)
-        add_definitions(-D_WIN32_WINNT=0x0600)
-    else()
-        add_definitions(-D_WIN32_WINNT=0x0501)
-    endif()
-endif()
 
 # ===== sentry library =====
 
@@ -223,12 +208,43 @@ target_include_directories(sentry PUBLIC
 target_link_libraries(sentry INTERFACE
 	"$<$<OR:$<PLATFORM_ID:Linux>,$<PLATFORM_ID:Android>>:-Wl,--build-id=sha1>")
 
+#respect CMAKE_SYSTEM_VERSION
+if(WIN32)
+	if(${CMAKE_SYSTEM_VERSION} MATCHES "^10")
+		target_compile_definitions(sentry PRIVATE "-D_WIN32_WINNT=0x0A00")
+		target_link_libraries(sentry PRIVATE pathcch)
+	elseif(${CMAKE_SYSTEM_VERSION} MATCHES "^6.3")
+		target_compile_definitions(sentry PRIVATE "-D_WIN32_WINNT=0x0603")
+		target_link_libraries(sentry PRIVATE pathcch)
+	elseif(${CMAKE_SYSTEM_VERSION} MATCHES "^6.2")
+		target_compile_definitions(sentry PRIVATE "-D_WIN32_WINNT=0x0602")
+		target_link_libraries(sentry PRIVATE pathcch)
+	elseif(${CMAKE_SYSTEM_VERSION} MATCHES "^6.1")
+		target_compile_definitions(sentry PRIVATE "-D_WIN32_WINNT=0x0601")
+		target_link_libraries(sentry PRIVATE shlwapi)
+	elseif(${CMAKE_SYSTEM_VERSION} MATCHES "^6.0")
+		target_compile_definitions(sentry PRIVATE "-D_WIN32_WINNT=0x0600")
+		target_link_libraries(sentry PRIVATE shlwapi)
+	elseif(${CMAKE_SYSTEM_VERSION} MATCHES "^5.2")
+		target_compile_definitions(sentry PRIVATE "-D_WIN32_WINNT=0x0502")
+		target_link_libraries(sentry PRIVATE shlwapi)
+	elseif(${CMAKE_SYSTEM_VERSION} MATCHES "^5.1")
+		target_compile_definitions(sentry PRIVATE "-D_WIN32_WINNT=0x0501")
+		target_link_libraries(sentry PRIVATE shlwapi)
+	endif()
+
+	#crashpad does not support Windows XP toolset
+	if(MSVC AND CMAKE_GENERATOR_TOOLSET MATCHES "_xp$" AND SENTRY_BACKEND_CRASHPAD)
+		message(FATAL_ERROR "MSVC XP toolset does not support Crashpad")
+	endif()
+endif()
+
 if(LINUX)
 	target_link_libraries(sentry PRIVATE pthread dl)
 elseif(MSVC)
-	target_link_libraries(sentry PRIVATE dbghelp pathcch shlwapi)
+	target_link_libraries(sentry PRIVATE dbghelp)
 elseif(MINGW)
-	target_link_libraries(sentry PRIVATE dbghelp shlwapi) #unimplemented pathcch
+	target_link_libraries(sentry PRIVATE dbghelp)
 	target_compile_options(sentry PRIVATE
 		-Wno-unused-variable
 		-Wno-unused-parameter

@@ -6,7 +6,9 @@
 #include "sentry_string.h"
 #include "sentry_utils.h"
 
+#if _WIN32_WINNT >= 0x0602
 #include <pathcch.h>
+#endif
 #include <shellapi.h>
 #include <shlobj.h>
 #include <shlwapi.h>

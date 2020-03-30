@@ -74,15 +74,16 @@ winhttp_transport_start(sentry_transport_t *transport)
             = WinHttpOpen(state->user_agent, WINHTTP_ACCESS_TYPE_NAMED_PROXY,
                 state->proxy, WINHTTP_NO_PROXY_BYPASS, 0);
     } else {
+#if _WIN32_WINNT >= 0x0603
         state->session = WinHttpOpen(state->user_agent,
             WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY, WINHTTP_NO_PROXY_NAME,
             WINHTTP_NO_PROXY_BYPASS, 0);
-        // On windows 7, WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY does
-        // not work on error we fallback to
-        // WINHTTP_ACCESS_TYPE_NO_PROXY
+#endif
+        // On windows 8.0 or lower, WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY does
+        // not work on error we fallback to WINHTTP_ACCESS_TYPE_DEFAULT_PROXY
         if (!state->session) {
             state->session
-                = WinHttpOpen(state->user_agent, WINHTTP_ACCESS_TYPE_NO_PROXY,
+                = WinHttpOpen(state->user_agent, WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
                     WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
         }
     }

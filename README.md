@@ -118,6 +118,21 @@ using `cmake -D BUILD_SHARED_LIBS=OFF ..`.
 - `BUILD_SHARED_LIBS` (Default: ON):
   By default, `sentry` is built as a shared library. Setting this option to
   `OFF` will build `sentry` as a static library instead.
+  
+- `CMAKE_SYSTEM_VERSION`: (Default: depending on Windows SDK version):
+  Sets up a minimal version of Windows where sentry-native can be guaranteed to run. 
+  Possible values: 
+    - `5.1` (Windows XP)
+    - `5.2` (Windows XP 64-bit / Server 2003 / Server 2003 R2)
+    - `6.0` (Windows Vista / Server 2008)
+    - `6.1` (Windows 7 / Server 2008 R2)
+    - `6.2` (Windows 8.0 / Server 2012)
+    - `6.3` (Windows 8.1 / Server 2012 R2)
+    - `10`  (Windows 10 / Server 2016 / Server 2019)
+
+  ​	For Windows versions below than `6.0` it is also necessary to use XP toolchain in case of MSVC compiler (pass `-T v141_xp` to CMake command line).
+   Also, you are not able to use Crashpad with XP toolchains, no crashes will be handled at all. 
+
 - `SENTRY_TRANSPORT` (Default: depending on platform):
   Sentry can use different http libraries to send reports to the server.
   - **curl**: This uses the `curl` library for HTTP handling. This requires
