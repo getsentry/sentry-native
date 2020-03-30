@@ -182,6 +182,8 @@ if(BUILD_SHARED_LIBS)
 		sentry_install(FILES "$<$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>:$<TARGET_PDB_FILE:sentry>>"
 			DESTINATION "${CMAKE_INSTALL_BINDIR}")
 	endif()
+elseif(LINUX)
+	target_compile_options(sentry PRIVATE -fPIC)
 endif()
 
 if(BUILD_SHARED_LIBS)
