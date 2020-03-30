@@ -4,4 +4,4 @@ IndentPPDirectives: AfterHash
 ColumnLimit: 80
 AlwaysBreakAfterDefinitionReturnType: All
 PointerAlignment: Right
-ForEachMacros: ['SENTRY_WITH_SCOPE', 'SENTRY_WITH_SCOPE_MUT', 'SENTRY_CTOR']
+ForEachMacros: ['SENTRY_WITH_SCOPE', 'SENTRY_WITH_SCOPE_MUT']
