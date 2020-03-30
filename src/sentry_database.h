@@ -10,10 +10,15 @@ typedef struct {
     sentry_uuid_t uuid;
     sentry_path_t *run_path;
     sentry_path_t *session_path;
+    sentry_filelock_t lock;
 } sentry_run_t;
 
 sentry_run_t *sentry__run_new(const sentry_path_t *database_path);
 
+/**
+ * This will clean up all the files belonging to this to this run.
+ */
+void sentry__run_clean(sentry_run_t *run);
 void sentry__run_free(sentry_run_t *run);
 
 bool sentry__run_write_envelope(

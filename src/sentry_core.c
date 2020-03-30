@@ -106,6 +106,11 @@ sentry_shutdown(void)
         SENTRY_TRACE("shutting down backend");
         options->backend->shutdown_func(options->backend);
     }
+
+    if (options) {
+        sentry__run_clean(options->run);
+    }
+
     sentry__mutex_lock(&g_options_mutex);
     sentry_options_free(g_options);
     g_options = NULL;
@@ -262,7 +267,8 @@ sentry_capture_event(sentry_value_t event)
     return event_id;
 }
 
-void sentry_handle_exception(sentry_ucontext_t *uctx)
+void
+sentry_handle_exception(sentry_ucontext_t *uctx)
 {
     SENTRY_DEBUG("handling exception");
     if (g_options->backend && g_options->backend->except_func) {

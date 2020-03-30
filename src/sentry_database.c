@@ -9,12 +9,14 @@ sentry_run_t *
 sentry__run_new(const sentry_path_t *database_path)
 {
     sentry_uuid_t uuid = sentry_uuid_new_v4();
-    char uuid_str[37];
-    sentry_uuid_as_string(&uuid, uuid_str);
-    sentry_path_t *run_path = sentry__path_join_str(database_path, uuid_str);
+    char run_name[41];
+    sentry_uuid_as_string(&uuid, run_name);
+    strcpy(&run_name[36], ".run");
+    sentry_path_t *run_path = sentry__path_join_str(database_path, run_name);
     if (!run_path) {
         return NULL;
     }
+
     sentry_path_t *session_path
         = sentry__path_join_str(run_path, "session.json");
     if (!session_path) {
@@ -22,10 +24,18 @@ sentry__run_new(const sentry_path_t *database_path)
         return NULL;
     }
 
+    sentry_path_t *lock_path = sentry__path_join_str(run_path, ".lock");
+    if (!lock_path) {
+        sentry__path_free(run_path);
+        sentry__path_free(session_path);
+        return NULL;
+    }
+
     sentry_run_t *run = SENTRY_MAKE(sentry_run_t);
     if (!run) {
         sentry__path_free(run_path);
         sentry__path_free(session_path);
+        sentry__path_free(lock_path);
         return NULL;
     }
 
@@ -34,8 +44,17 @@ sentry__run_new(const sentry_path_t *database_path)
     run->session_path = session_path;
 
     sentry__path_create_dir_all(run->run_path);
+    run->lock = sentry__path_lock(lock_path);
+    sentry__path_free(lock_path);
 
     return run;
+}
+
+void
+sentry__run_clean(sentry_run_t *run)
+{
+    sentry__path_unlock(run->lock);
+    sentry__path_remove_all(run->run_path);
 }
 
 void
@@ -45,6 +64,7 @@ sentry__run_free(sentry_run_t *run)
         return;
     }
     sentry__path_free(run->run_path);
+    sentry__path_free(run->session_path);
     sentry_free(run);
 }
 
@@ -121,7 +141,14 @@ sentry__process_old_runs(const sentry_options_t *options)
     while ((run_dir = sentry__pathiter_next(db_iter)) != NULL) {
         // skip over other files such as the saved consent or the last_crash
         // timestamp
-        if (!sentry__path_is_dir(run_dir)) {
+        if (!sentry__path_is_dir(run_dir)
+            || !sentry__path_ends_with(run_dir, ".run")) {
+            continue;
+        }
+        sentry_path_t *lockfile = sentry__path_join_str(run_dir, ".lock");
+        bool is_locked = lockfile && sentry__path_is_locked(lockfile);
+        sentry__path_free(lockfile);
+        if (is_locked) {
             continue;
         }
         sentry_pathiter_t *run_iter = sentry__path_iter_directory(run_dir);
@@ -157,12 +184,11 @@ sentry__process_old_runs(const sentry_options_t *options)
         sentry__pathiter_free(run_iter);
         sentry__path_remove_all(run_dir);
     }
+    sentry__pathiter_free(db_iter);
 
     if (session_envelope) {
         sentry__capture_envelope(session_envelope);
     }
-
-    sentry__pathiter_free(db_iter);
 }
 
 bool

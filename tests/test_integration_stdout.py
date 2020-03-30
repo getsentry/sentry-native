@@ -2,6 +2,7 @@ import pytest
 import subprocess
 import sys
 import os
+import time
 from . import cmake, check_output, run, Envelope
 from .conditions import has_inproc, has_breakpad, is_android
 from .assertions import (
@@ -64,6 +65,35 @@ def test_capture_stdout(tmp_path):
     assert_stacktrace(envelope)
 
     assert_event(envelope)
+
+def test_multi_process(tmp_path):
+    cmake(
+        tmp_path,
+        ["sentry_example"],
+        {"SENTRY_BACKEND": "none", "SENTRY_TRANSPORT": "none"},
+    )
+    cwd = tmp_path
+    exe = "sentry_example"
+    cmd = "./{}".format(exe) if sys.platform != "win32" else "{}\\{}.exe".format(cwd, exe)
+
+    child1 = subprocess.Popen([cmd, "sleep"], cwd=cwd)
+    time.sleep(0.1)
+    child2 = subprocess.Popen([cmd, "sleep"], cwd=cwd)
+    time.sleep(0.1)
+
+    # while the processes are running, we expect two runs
+    runs = [run for run in os.listdir(os.path.join(cwd,".sentry-native")) if run.endswith(".run")]
+    assert len(runs) == 2
+
+    # kill the children
+    child1.terminate()
+    child2.terminate()
+
+    # and start another process that cleans up the old runs
+    run(tmp_path, "sentry_example", [])
+
+    runs = [run for run in os.listdir(os.path.join(cwd,".sentry-native")) if run.endswith(".run")]
+    assert len(runs) == 0
 
 
 @pytest.mark.skipif(not has_inproc, reason="test needs inproc backend")

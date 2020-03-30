@@ -3,6 +3,12 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef SENTRY_PLATFORM_WINDOWS
+#    include <Windows.h>
+#else
+#    include <unistd.h>
+#endif
+
 static void
 print_envelope(sentry_envelope_t *envelope, void *unused_data)
 {
@@ -104,6 +110,14 @@ main(int argc, char **argv)
                 SENTRY_LEVEL_INFO, NULL, buffer);
             sentry_capture_event(event);
         }
+    }
+
+    if (has_arg(argc, argv, "sleep")) {
+#ifdef SENTRY_PLATFORM_WINDOWS
+        Sleep(10 * 1000);
+#else
+        sleep(10);
+#endif
     }
 
     if (has_arg(argc, argv, "crash")) {

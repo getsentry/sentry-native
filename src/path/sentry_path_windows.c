@@ -7,7 +7,7 @@
 #include "sentry_utils.h"
 
 #if _WIN32_WINNT >= 0x0602
-#include <pathcch.h>
+#    include <pathcch.h>
 #endif
 #include <shellapi.h>
 #include <shlobj.h>
@@ -270,6 +270,7 @@ sentry__path_remove_all(const sentry_path_t *path)
     }
     size_t path_len = wcslen(path->path);
     wchar_t *pp = sentry_malloc(sizeof(wchar_t) * (path_len + 2));
+    memcpy(pp, path->path, path_len * sizeof(wchar_t));
     pp[path_len] = '\0';
     pp[path_len + 1] = '\0';
     SHFILEOPSTRUCTW shfo = { NULL, FO_DELETE, pp, L"",
