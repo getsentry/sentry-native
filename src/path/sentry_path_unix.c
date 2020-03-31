@@ -7,8 +7,10 @@
 #include <dirent.h>
 #include <fcntl.h>
 #include <libgen.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/errno.h>
+#include <sys/file.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -24,6 +26,84 @@ struct sentry_pathiter_s {
     sentry_path_t *current;
     DIR *dir_handle;
 };
+
+static size_t
+write_loop(int fd, const char *buf, size_t buf_len)
+{
+    size_t offset = 0;
+    size_t remaining = buf_len;
+
+    while (true) {
+        if (remaining == 0) {
+            break;
+        }
+        ssize_t n = write(fd, buf + offset, remaining);
+        if (n <= 0) {
+            if (errno == EAGAIN || errno == EINTR) {
+                continue;
+            }
+            break;
+        }
+        offset += n;
+        remaining -= n;
+    }
+
+    return remaining;
+}
+
+bool
+sentry__filelock_try_lock(sentry_filelock_t *lock)
+{
+    int fd = open(lock->path->path, O_RDWR | O_CREAT | O_EXCL,
+        S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH);
+
+    if (fd < 0) {
+        if (errno == EEXIST) {
+            // check if the pid inside the lockfile still exists
+            char *contents = sentry__path_read_to_buffer(lock->path, NULL);
+            if (contents) {
+                int filepid = strtol(contents, NULL, 10);
+                bool process_exists
+                    = !(kill(filepid, 0) == -1 && errno == ESRCH);
+
+                if (!process_exists) {
+                    sentry__path_remove(lock->path);
+                    return sentry__filelock_try_lock(lock);
+                }
+            }
+        }
+        lock->is_locked = false;
+        return false;
+    }
+
+    flock(lock->fd, LOCK_EX | LOCK_NB);
+
+    lock->fd = fd;
+    lock->is_locked = true;
+
+    pid_t pid = getpid();
+    char buf[256];
+    size_t buf_len = snprintf(buf, 256, "%d", pid);
+    size_t remaining = write_loop(fd, buf, buf_len);
+
+    if (remaining) {
+        sentry__filelock_unlock(lock);
+        return false;
+    }
+
+    return true;
+}
+
+void
+sentry__filelock_unlock(sentry_filelock_t *lock)
+{
+    if (!lock->is_locked) {
+        return;
+    }
+    close(lock->fd);
+    lock->is_locked = false;
+    sentry__path_remove(lock->path);
+}
 
 sentry_path_t *
 sentry__path_current_exe(void)
@@ -375,23 +455,7 @@ write_buffer_with_flags(
         return 1;
     }
 
-    size_t offset = 0;
-    size_t remaining = buf_len;
-
-    while (true) {
-        if (remaining == 0) {
-            break;
-        }
-        ssize_t n = write(fd, buf + offset, remaining);
-        if (n <= 0) {
-            if (errno == EAGAIN || errno == EINTR) {
-                continue;
-            }
-            break;
-        }
-        offset += n;
-        remaining -= n;
-    }
+    size_t remaining = write_loop(fd, buf, buf_len);
 
     close(fd);
     return remaining == 0 ? 0 : 1;

@@ -44,8 +44,11 @@ sentry__run_new(const sentry_path_t *database_path)
     run->session_path = session_path;
 
     sentry__path_create_dir_all(run->run_path);
-    run->lock = sentry__path_lock(lock_path);
-    sentry__path_free(lock_path);
+    run->lock = sentry__filelock_new(lock_path);
+    if (!run->lock || !sentry__filelock_try_lock(run->lock)) {
+        sentry__run_free(run);
+        return NULL;
+    }
 
     return run;
 }
@@ -53,7 +56,7 @@ sentry__run_new(const sentry_path_t *database_path)
 void
 sentry__run_clean(sentry_run_t *run)
 {
-    sentry__path_unlock(run->lock);
+    sentry__filelock_unlock(run->lock);
     sentry__path_remove_all(run->run_path);
 }
 
@@ -146,9 +149,14 @@ sentry__process_old_runs(const sentry_options_t *options)
             continue;
         }
         sentry_path_t *lockfile = sentry__path_join_str(run_dir, ".lock");
-        bool is_locked = lockfile && sentry__path_is_locked(lockfile);
-        sentry__path_free(lockfile);
-        if (is_locked) {
+        sentry_filelock_t *lock;
+        if (!lockfile || !(lock = sentry__filelock_new(lockfile))) {
+            continue;
+        }
+        bool did_lock = sentry__filelock_try_lock(lock);
+        // the file is locked by another process
+        if (!did_lock) {
+            sentry__filelock_free(lock);
             continue;
         }
         sentry_pathiter_t *run_iter = sentry__path_iter_directory(run_dir);
@@ -182,6 +190,10 @@ sentry__process_old_runs(const sentry_options_t *options)
             sentry__path_remove_all(file);
         }
         sentry__pathiter_free(run_iter);
+
+        sentry__filelock_unlock(lock);
+        sentry__filelock_free(lock);
+
         sentry__path_remove_all(run_dir);
     }
     sentry__pathiter_free(db_iter);

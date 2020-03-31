@@ -10,7 +10,7 @@ typedef struct {
     sentry_uuid_t uuid;
     sentry_path_t *run_path;
     sentry_path_t *session_path;
-    sentry_filelock_t lock;
+    sentry_filelock_t *lock;
 } sentry_run_t;
 
 sentry_run_t *sentry__run_new(const sentry_path_t *database_path);

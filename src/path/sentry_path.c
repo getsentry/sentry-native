@@ -11,22 +11,23 @@ sentry__path_free(sentry_path_t *path)
     sentry_free(path);
 }
 
-// TODO: create proper platform dependent implementations
-bool
-sentry__path_is_locked(const sentry_path_t *path)
+sentry_filelock_t *
+sentry__filelock_new(sentry_path_t *path)
 {
-    return false;
-}
+    sentry_filelock_t *rv = SENTRY_MAKE(sentry_filelock_t);
+    if (!rv) {
+        sentry__path_free(path);
+        return NULL;
+    }
+    rv->path = path;
+    rv->is_locked = false;
 
-sentry_filelock_t
-sentry__path_lock(const sentry_path_t *path)
-{
-    sentry_filelock_t lock;
-    lock._todo = NULL;
-    return lock;
+    return rv;
 }
 
 void
-sentry__path_unlock(sentry_filelock_t lock)
+sentry__filelock_free(sentry_filelock_t *lock)
 {
+    sentry__filelock_unlock(lock);
+    sentry__path_free(lock->path);
 }
