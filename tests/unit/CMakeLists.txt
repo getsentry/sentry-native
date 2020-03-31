@@ -20,7 +20,6 @@ add_executable(sentry_test_unit
 	test_attachments.c
 	test_basic.c
 	test_consent.c
-	test_database.c
 	test_envelopes.c
 	test_modulefinder.c
 	test_path.c
