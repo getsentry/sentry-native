@@ -264,24 +264,29 @@ if(SENTRY_WITH_LIBUNWINDSTACK)
 endif()
 
 if(SENTRY_BACKEND_CRASHPAD)
-	add_subdirectory(external/crashpad EXCLUDE_FROM_ALL)
-	target_include_directories(sentry PRIVATE
-		"$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/crashpad>"
-		"$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/crashpad/third_party/mini_chromium/mini_chromium>"
-	)
-	# we include a crashpad header, which itself needs C++14 support
-	target_compile_features(sentry PUBLIC cxx_std_14)
-	target_link_libraries(sentry PRIVATE crashpad_client crashpad_util)
-	if(NOT BUILD_SHARED_LIBS)
-		sentry_install(TARGETS crashpad_client crashpad_util crashpad_compat getopt mini_chromium zlib EXPORT sentry
-			LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
-			ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+	option(SENTRY_CRASHPAD_SYSTEM "Use system crashpad" OFF)
+	if(SENTRY_CRASHPAD_SYSTEM)
+		find_package(crashpad REQUIRED)
+		target_link_libraries(sentry PUBLIC crashpad::client)
+	else()
+		# FIXME: required for cmake 3.12 and lower:
+		# - NEW behavior lets normal variable override option
+		cmake_policy(SET CMP0077 NEW)
+		if(BUILD_SHARED_LIBS)
+			set(CRASHPAD_ENABLE_INSTALL OFF CACHE BOOL "Enable crashpad installation" FORCE)
+		else()
+			set(CRASHPAD_ENABLE_INSTALL ON CACHE BOOL "Enable crashpad installation" FORCE)
+		endif()
+		add_subdirectory(external/crashpad crashpad_build)
+		target_link_libraries(sentry PUBLIC
+			$<BUILD_INTERFACE:crashpad::client>
+			$<INSTALL_INTERFACE:sentry_crashpad::client>
+		)
+		install(EXPORT crashpad_export NAMESPACE sentry_crashpad:: FILE sentry_crashpad-targets.cmake
+			DESTINATION "${CMAKE_INSTALL_CMAKEDIR}"
 		)
 	endif()
-	sentry_install(TARGETS crashpad_handler EXPORT sentry
-		RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-	)
-	add_dependencies(sentry crashpad_handler)
+	add_dependencies(sentry crashpad::handler)
 elseif(SENTRY_BACKEND_BREAKPAD)
 	add_subdirectory(external)
 	target_include_directories(sentry PRIVATE
