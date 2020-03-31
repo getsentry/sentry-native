@@ -29,6 +29,89 @@ struct sentry_pathiter_s {
     sentry_path_t *current;
 };
 
+static size_t
+write_loop(FILE *f, const char *buf, size_t buf_len)
+{
+    size_t offset = 0;
+    size_t remaining = buf_len;
+    while (true) {
+        if (remaining == 0) {
+            break;
+        }
+        size_t n = fwrite(buf + offset, 1, remaining, f);
+        if (n == 0) {
+            break;
+        }
+        offset += n;
+        remaining -= n;
+    }
+    return remaining;
+}
+
+static bool
+is_process_running(DWORD pid)
+{
+    HANDLE handle = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, pid);
+    if (!handle) {
+        return false;
+    }
+
+    DWORD exitCode = 0;
+    if (!GetExitCodeProcess(handle, &exitCode)) {
+        exitCode = 0;
+    }
+    CloseHandle(handle);
+    return exitCode == STILL_ACTIVE;
+}
+
+bool
+sentry__filelock_try_lock(sentry_filelock_t *lock)
+{
+    HANDLE handle = CreateFile2(lock->path->path, GENERIC_READ | GENERIC_WRITE,
+        FILE_SHARE_READ, CREATE_NEW, NULL);
+    if (handle == INVALID_HANDLE_VALUE) {
+        // check if the pid inside the lockfile still exists
+        char *contents = sentry__path_read_to_buffer(lock->path, NULL);
+        if (contents) {
+            DWORD filepid = strtol(contents, NULL, 10);
+            bool process_exists = is_process_running(filepid);
+
+            if (!process_exists) {
+                sentry__path_remove(lock->path);
+                return sentry__filelock_try_lock(lock);
+            }
+        }
+        lock->is_locked = false;
+        return false;
+    }
+
+    lock->handle = handle;
+    lock->is_locked = true;
+
+    DWORD pid = GetCurrentProcessId();
+    char buf[256];
+    DWORD buf_len = snprintf(buf, 256, "%d", pid);
+
+    if (!WriteFile(handle, buf, buf_len, NULL, NULL)
+        || !FlushFileBuffers(handle)) {
+        sentry__filelock_unlock(lock);
+        return false;
+    }
+
+    return true;
+}
+
+void
+sentry__filelock_unlock(sentry_filelock_t *lock)
+{
+    if (!lock->is_locked) {
+        return;
+    }
+    CloseHandle(lock->handle);
+    lock->is_locked = false;
+    sentry__path_remove(lock->path);
+}
+
 static sentry_path_t *
 path_with_len(size_t len)
 {
@@ -431,20 +514,7 @@ write_buffer_with_mode(const sentry_path_t *path, const char *buf,
         return 1;
     }
 
-    size_t offset = 0;
-    size_t remaining = buf_len;
-
-    while (true) {
-        if (remaining == 0) {
-            break;
-        }
-        size_t n = fwrite(buf + offset, 1, remaining, f);
-        if (n == 0) {
-            break;
-        }
-        offset += n;
-        remaining -= n;
-    }
+    size_t remaining = write_loop(f, buf, buf_len);
 
     fclose(f);
     return remaining == 0 ? 0 : 1;

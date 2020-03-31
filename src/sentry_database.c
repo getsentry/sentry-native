@@ -5,8 +5,8 @@
 #include "sentry_session.h"
 #include <string.h>
 
-sentry_run_t *
-sentry__run_new(const sentry_path_t *database_path)
+static sentry_run_t *
+sentry__run_new_try(const sentry_path_t *database_path, int retries)
 {
     sentry_uuid_t uuid = sentry_uuid_new_v4();
     char run_name[41];
@@ -42,15 +42,31 @@ sentry__run_new(const sentry_path_t *database_path)
     run->uuid = uuid;
     run->run_path = run_path;
     run->session_path = session_path;
+    run->lock = sentry__filelock_new(lock_path);
 
     sentry__path_create_dir_all(run->run_path);
-    run->lock = sentry__filelock_new(lock_path);
     if (!run->lock || !sentry__filelock_try_lock(run->lock)) {
+        // The code in `sentry__process_old_runs` actually aquires a lock when
+        // iterating runs in a different process, and can race with the
+        // create/lock here. One thing we can do here is to just try again with
+        // a different directory.
+        if (retries) {
+            return sentry__run_new_try(database_path, --retries);
+        }
+        SENTRY_DEBUGF(
+            "failed to create and lock run directory \"%" SENTRY_PATH_PRI "\"",
+            run->lock ? run->lock->path->path : run->run_path->path);
         sentry__run_free(run);
         return NULL;
     }
 
     return run;
+}
+
+sentry_run_t *
+sentry__run_new(const sentry_path_t *database_path)
+{
+    return sentry__run_new_try(database_path, 1);
 }
 
 void
@@ -191,9 +207,7 @@ sentry__process_old_runs(const sentry_options_t *options)
         }
         sentry__pathiter_free(run_iter);
 
-        sentry__filelock_unlock(lock);
         sentry__filelock_free(lock);
-
         sentry__path_remove_all(run_dir);
     }
     sentry__pathiter_free(db_iter);
