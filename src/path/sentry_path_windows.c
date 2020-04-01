@@ -6,9 +6,6 @@
 #include "sentry_string.h"
 #include "sentry_utils.h"
 
-#if _WIN32_WINNT >= 0x0602
-#    include <pathcch.h>
-#endif
 #include <shellapi.h>
 #include <shlobj.h>
 #include <shlwapi.h>
@@ -146,11 +143,7 @@ sentry__path_dir(const sentry_path_t *path)
     if (!dir_path) {
         return NULL;
     }
-#if _WIN32_WINNT >= 0x0602 && !defined(__MINGW32__)
-    PathCchRemoveFileSpec(dir_path->path, wcslen(dir_path->path));
-#else
     PathRemoveFileSpecW(dir_path->path);
-#endif
     return dir_path;
 }
 
