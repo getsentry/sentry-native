@@ -80,7 +80,7 @@ def test_multi_process(tmp_path):
         "./{}".format(exe) if sys.platform != "win32" else "{}\\{}.exe".format(cwd, exe)
     )
 
-    child1 = subprocess.Popen([cmd, "log", "sleep"], cwd=cwd)
+    child1 = subprocess.Popen([cmd, "sleep"], cwd=cwd)
     child2 = subprocess.Popen([cmd, "sleep"], cwd=cwd)
     time.sleep(0.5)
 
@@ -104,7 +104,7 @@ def test_multi_process(tmp_path):
     runs = [
         run
         for run in os.listdir(os.path.join(cwd, ".sentry-native"))
-        if run.endswith(".run")
+        if run.endswith(".run") or run.endswith(".lock")
     ]
     assert len(runs) == 0
 

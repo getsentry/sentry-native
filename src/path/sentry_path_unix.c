@@ -59,27 +59,29 @@ sentry__filelock_try_lock(sentry_filelock_t *lock)
     while (true) {
         fd = open(lock->path->path, O_RDWR | O_CREAT | O_EXCL,
             S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH);
-
-        if (fd < 0) {
-            if (errno == EEXIST) {
-                // check if the pid inside the lockfile still exists
-                char *contents = sentry__path_read_to_buffer(lock->path, NULL);
-                int filepid = contents ? strtol(contents, NULL, 10) : 0;
-                sentry_free(contents);
-
-                bool process_dead
-                    = filepid && kill(filepid, 0) == -1 && errno == ESRCH;
-                if (process_dead) {
-                    sentry__path_remove(lock->path);
-                    // try the lock again
-                    continue;
-                }
-            }
-            return false;
+        if (fd >= 0) {
+            break;
         }
+
+        if (errno == EEXIST) {
+            // check if the pid inside the lockfile still exists
+            char *contents = sentry__path_read_to_buffer(lock->path, NULL);
+            int filepid = contents ? strtol(contents, NULL, 10) : 0;
+            sentry_free(contents);
+
+            bool process_dead
+                = filepid && kill(filepid, 0) == -1 && errno == ESRCH;
+
+            if (process_dead) {
+                sentry__path_remove(lock->path);
+                // try the lock again
+                continue;
+            }
+        }
+        return false;
     }
 
-    if (flock(lock->fd, LOCK_EX | LOCK_NB) != 0) {
+    if (flock(fd, LOCK_EX | LOCK_NB) != 0) {
         close(fd);
         return false;
     }
@@ -93,7 +95,7 @@ sentry__filelock_try_lock(sentry_filelock_t *lock)
     struct stat st1;
     fstat(fd, &st0);
     stat(lock->path->path, &st1);
-    if (st0.st_ino == st1.st_ino) {
+    if (st0.st_ino != st1.st_ino) {
         close(fd);
         return false;
     }

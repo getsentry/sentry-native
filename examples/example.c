@@ -4,9 +4,11 @@
 #include <string.h>
 
 #ifdef SENTRY_PLATFORM_WINDOWS
-#    include <Windows.h>
+#    include <windows.h>
+#    define sleep_s(SECONDS) Sleep((SECONDS)*1000)
 #else
 #    include <unistd.h>
+#    define sleep_s(SECONDS) sleep(SECONDS)
 #endif
 
 static void
@@ -113,11 +115,7 @@ main(int argc, char **argv)
     }
 
     if (has_arg(argc, argv, "sleep")) {
-#ifdef SENTRY_PLATFORM_WINDOWS
-        Sleep(10 * 1000);
-#else
-        sleep(10);
-#endif
+        sleep_s(10);
     }
 
     if (has_arg(argc, argv, "crash")) {

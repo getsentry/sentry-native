@@ -70,20 +70,21 @@ sentry__filelock_try_lock(sentry_filelock_t *lock)
     while (true) {
         handle = CreateFile2(lock->path->path, GENERIC_READ | GENERIC_WRITE,
             FILE_SHARE_READ, CREATE_NEW, NULL);
-
-        if (handle == INVALID_HANDLE_VALUE) {
-            // check if the pid inside the lockfile still exists
-            char *contents = sentry__path_read_to_buffer(lock->path, NULL);
-            DWORD filepid = contents ? strtol(contents, NULL, 10) : 0;
-            sentry_free(contents);
-            bool process_dead = filepid && !is_process_running(filepid);
-
-            if (process_dead) {
-                sentry__path_remove(lock->path);
-                continue;
-            }
-            return false;
+        if (handle != INVALID_HANDLE_VALUE) {
+            break;
         }
+
+        // check if the pid inside the lockfile still exists
+        char *contents = sentry__path_read_to_buffer(lock->path, NULL);
+        DWORD filepid = contents ? strtol(contents, NULL, 10) : 0;
+        sentry_free(contents);
+
+        bool process_dead = filepid && !is_process_running(filepid);
+        if (process_dead) {
+            sentry__path_remove(lock->path);
+            continue;
+        }
+        return false;
     }
 
     lock->handle = handle;
@@ -108,9 +109,9 @@ sentry__filelock_unlock(sentry_filelock_t *lock)
     if (!lock->is_locked) {
         return;
     }
-    sentry__path_remove(lock->path);
     CloseHandle(lock->handle);
     lock->is_locked = false;
+    sentry__path_remove(lock->path);
 }
 
 static sentry_path_t *
