@@ -4,7 +4,7 @@ import sys
 import os
 import time
 from . import cmake, check_output, run, Envelope
-from .conditions import has_inproc, has_breakpad, is_android
+from .conditions import has_inproc, has_breakpad, has_files
 from .assertions import (
     assert_attachment,
     assert_meta,
@@ -67,6 +67,7 @@ def test_capture_stdout(tmp_path):
     assert_event(envelope)
 
 
+@pytest.mark.skipif(not has_files, reason="test needs a local filesystem")
 def test_multi_process(tmp_path):
     cmake(
         tmp_path,
@@ -123,8 +124,8 @@ def test_inproc_crash_stdout(tmp_path):
     envelope = Envelope.deserialize(output)
 
     # The crash file should survive a `sentry_init` and should still be there
-    # even after restarts. On Android, we can’t look inside the emulator.
-    if not is_android:
+    # even after restarts.
+    if has_files:
         with open("{}/.sentry-native/last_crash".format(tmp_path)) as f:
             crash_timestamp = f.read()
         assert_timestamp(crash_timestamp)

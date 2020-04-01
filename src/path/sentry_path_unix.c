@@ -38,10 +38,9 @@ write_loop(int fd, const char *buf, size_t buf_len)
             break;
         }
         ssize_t n = write(fd, buf + offset, remaining);
-        if (n <= 0) {
-            if (errno == EAGAIN || errno == EINTR) {
-                continue;
-            }
+        if (n < 0 && (errno == EAGAIN || errno == EINTR)) {
+            continue;
+        } else if (n <= 0) {
             break;
         }
         offset += n;
@@ -54,29 +53,50 @@ write_loop(int fd, const char *buf, size_t buf_len)
 bool
 sentry__filelock_try_lock(sentry_filelock_t *lock)
 {
-    int fd = open(lock->path->path, O_RDWR | O_CREAT | O_EXCL,
-        S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH);
+    lock->is_locked = false;
 
-    if (fd < 0) {
-        if (errno == EEXIST) {
-            // check if the pid inside the lockfile still exists
-            char *contents = sentry__path_read_to_buffer(lock->path, NULL);
-            if (contents) {
-                int filepid = strtol(contents, NULL, 10);
-                bool process_exists
-                    = !(kill(filepid, 0) == -1 && errno == ESRCH);
+    int fd;
+    while (true) {
+        fd = open(lock->path->path, O_RDWR | O_CREAT | O_EXCL,
+            S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH);
 
-                if (!process_exists) {
+        if (fd < 0) {
+            if (errno == EEXIST) {
+                // check if the pid inside the lockfile still exists
+                char *contents = sentry__path_read_to_buffer(lock->path, NULL);
+                int filepid = contents ? strtol(contents, NULL, 10) : 0;
+                sentry_free(contents);
+
+                bool process_dead
+                    = filepid && kill(filepid, 0) == -1 && errno == ESRCH;
+                if (process_dead) {
                     sentry__path_remove(lock->path);
-                    return sentry__filelock_try_lock(lock);
+                    // try the lock again
+                    continue;
                 }
             }
+            return false;
         }
-        lock->is_locked = false;
+    }
+
+    if (flock(lock->fd, LOCK_EX | LOCK_NB) != 0) {
+        close(fd);
         return false;
     }
 
-    flock(lock->fd, LOCK_EX | LOCK_NB);
+    // There is possible race between the `open` and the `flock` call, in which
+    // other processes could remove the file, and create a new one with the same
+    // name. So we double-check *after* having the lock, that the actual file on
+    // disk is actually the one we just locked. See:
+    // https://stackoverflow.com/questions/17708885/flock-removing-locked-file-without-race-condition
+    struct stat st0;
+    struct stat st1;
+    fstat(fd, &st0);
+    stat(lock->path->path, &st1);
+    if (st0.st_ino == st1.st_ino) {
+        close(fd);
+        return false;
+    }
 
     lock->fd = fd;
     lock->is_locked = true;
@@ -100,9 +120,10 @@ sentry__filelock_unlock(sentry_filelock_t *lock)
     if (!lock->is_locked) {
         return;
     }
+    sentry__path_remove(lock->path);
+    flock(lock->fd, LOCK_UN);
     close(lock->fd);
     lock->is_locked = false;
-    sentry__path_remove(lock->path);
 }
 
 sentry_path_t *
