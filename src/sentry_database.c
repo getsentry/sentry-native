@@ -5,29 +5,34 @@
 #include "sentry_session.h"
 #include <string.h>
 
-static sentry_run_t *
-sentry__run_new_try(const sentry_path_t *database_path, int retries)
+sentry_run_t *
+sentry__run_new(const sentry_path_t *database_path)
 {
     sentry_uuid_t uuid = sentry_uuid_new_v4();
-    char run_name[41];
+    char run_name[46];
     sentry_uuid_as_string(&uuid, run_name);
+
+    // `<db>/<uuid>.run`
     strcpy(&run_name[36], ".run");
     sentry_path_t *run_path = sentry__path_join_str(database_path, run_name);
     if (!run_path) {
         return NULL;
     }
 
-    sentry_path_t *session_path
-        = sentry__path_join_str(run_path, "session.json");
-    if (!session_path) {
+    // `<db>/<uuid>.run.lock`
+    strcpy(&run_name[40], ".lock");
+    sentry_path_t *lock_path = sentry__path_join_str(database_path, run_name);
+    if (!lock_path) {
         sentry__path_free(run_path);
         return NULL;
     }
 
-    sentry_path_t *lock_path = sentry__path_join_str(run_path, ".lock");
-    if (!lock_path) {
+    // `<db>/<uuid>.run/session.json`
+    sentry_path_t *session_path
+        = sentry__path_join_str(run_path, "session.json");
+    if (!session_path) {
         sentry__path_free(run_path);
-        sentry__path_free(session_path);
+        sentry__path_free(lock_path);
         return NULL;
     }
 
@@ -43,37 +48,20 @@ sentry__run_new_try(const sentry_path_t *database_path, int retries)
     run->run_path = run_path;
     run->session_path = session_path;
     run->lock = sentry__filelock_new(lock_path);
-
-    sentry__path_create_dir_all(run->run_path);
     if (!run->lock || !sentry__filelock_try_lock(run->lock)) {
-        // The code in `sentry__process_old_runs` actually aquires a lock when
-        // iterating runs in a different process, and can race with the
-        // create/lock here. One thing we can do here is to just try again with
-        // a different directory.
-        if (retries) {
-            return sentry__run_new_try(database_path, --retries);
-        }
-        SENTRY_DEBUGF(
-            "failed to create and lock run directory \"%" SENTRY_PATH_PRI "\"",
-            run->lock ? run->lock->path->path : run->run_path->path);
         sentry__run_free(run);
         return NULL;
     }
 
+    sentry__path_create_dir_all(run->run_path);
     return run;
-}
-
-sentry_run_t *
-sentry__run_new(const sentry_path_t *database_path)
-{
-    return sentry__run_new_try(database_path, 1);
 }
 
 void
 sentry__run_clean(sentry_run_t *run)
 {
-    sentry__filelock_unlock(run->lock);
     sentry__path_remove_all(run->run_path);
+    sentry__filelock_unlock(run->lock);
 }
 
 void
@@ -84,6 +72,7 @@ sentry__run_free(sentry_run_t *run)
     }
     sentry__path_free(run->run_path);
     sentry__path_free(run->session_path);
+    sentry__filelock_free(run->lock);
     sentry_free(run);
 }
 
@@ -164,7 +153,28 @@ sentry__process_old_runs(const sentry_options_t *options)
             || !sentry__path_ends_with(run_dir, ".run")) {
             continue;
         }
-        sentry_path_t *lockfile = sentry__path_join_str(run_dir, ".lock");
+
+        sentry_stringbuilder_t sb;
+        sentry__stringbuilder_init(&sb);
+        const sentry_pathchar_t *filename = sentry__path_filename(run_dir);
+#ifdef SENTRY_PLATFORM_WINDOWS
+        char *filename_c = sentry__string_from_wstr(filename);
+        if (filename_c) {
+            sentry__stringbuilder_append(&sb, filename_c);
+            sentry_free(filename_c);
+        }
+#else
+        sentry__stringbuilder_append(&sb, filename);
+#endif
+        // `<db>/<uuid>.run.lock`
+        sentry__stringbuilder_append(&sb, ".lock");
+        char *lockfile_s = sentry__stringbuilder_into_string(&sb);
+        if (!lockfile_s) {
+            continue;
+        }
+        sentry_path_t *lockfile
+            = sentry__path_join_str(options->database_path, lockfile_s);
+        sentry_free(lockfile_s);
         sentry_filelock_t *lock;
         if (!lockfile || !(lock = sentry__filelock_new(lockfile))) {
             continue;
@@ -207,8 +217,8 @@ sentry__process_old_runs(const sentry_options_t *options)
         }
         sentry__pathiter_free(run_iter);
 
-        sentry__filelock_free(lock);
         sentry__path_remove_all(run_dir);
+        sentry__filelock_free(lock);
     }
     sentry__pathiter_free(db_iter);
 
