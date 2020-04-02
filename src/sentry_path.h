@@ -19,11 +19,7 @@ struct sentry_path_s {
 
 struct sentry_filelock_s {
     struct sentry_path_s *path;
-#ifdef SENTRY_PLATFORM_WINDOWS
-    HANDLE handle;
-#else
     int fd;
-#endif
     bool is_locked;
 };
 

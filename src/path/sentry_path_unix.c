@@ -55,29 +55,9 @@ sentry__filelock_try_lock(sentry_filelock_t *lock)
 {
     lock->is_locked = false;
 
-    int fd;
-    while (true) {
-        fd = open(lock->path->path, O_RDWR | O_CREAT | O_EXCL,
-            S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH);
-        if (fd >= 0) {
-            break;
-        }
-
-        if (errno == EEXIST) {
-            // check if the pid inside the lockfile still exists
-            char *contents = sentry__path_read_to_buffer(lock->path, NULL);
-            int filepid = contents ? strtol(contents, NULL, 10) : 0;
-            sentry_free(contents);
-
-            bool process_dead
-                = filepid && kill(filepid, 0) == -1 && errno == ESRCH;
-
-            if (process_dead) {
-                sentry__path_remove(lock->path);
-                // try the lock again
-                continue;
-            }
-        }
+    int fd = open(lock->path->path, O_RDWR | O_CREAT | O_TRUNC,
+        S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH);
+    if (fd < 0) {
         return false;
     }
 
@@ -102,17 +82,6 @@ sentry__filelock_try_lock(sentry_filelock_t *lock)
 
     lock->fd = fd;
     lock->is_locked = true;
-
-    pid_t pid = getpid();
-    char buf[256];
-    size_t buf_len = snprintf(buf, 256, "%d", pid);
-    size_t remaining = write_loop(fd, buf, buf_len);
-
-    if (remaining) {
-        sentry__filelock_unlock(lock);
-        return false;
-    }
-
     return true;
 }
 

@@ -6,9 +6,12 @@
 #include "sentry_string.h"
 #include "sentry_utils.h"
 
+#include <fcntl.h>
+#include <io.h>
 #include <shellapi.h>
 #include <shlobj.h>
 #include <shlwapi.h>
+#include <sys/locking.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 
@@ -45,61 +48,24 @@ write_loop(FILE *f, const char *buf, size_t buf_len)
     return remaining;
 }
 
-static bool
-is_process_running(DWORD pid)
-{
-    HANDLE handle = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, pid);
-    if (!handle) {
-        return false;
-    }
-
-    DWORD exitCode = 0;
-    if (!GetExitCodeProcess(handle, &exitCode)) {
-        exitCode = 0;
-    }
-    CloseHandle(handle);
-    return exitCode == STILL_ACTIVE;
-}
-
 bool
 sentry__filelock_try_lock(sentry_filelock_t *lock)
 {
     lock->is_locked = false;
 
-    HANDLE handle;
-    while (true) {
-        handle = CreateFile2(lock->path->path, GENERIC_READ | GENERIC_WRITE,
-            FILE_SHARE_READ, CREATE_NEW, NULL);
-        if (handle != INVALID_HANDLE_VALUE) {
-            break;
-        }
-
-        // check if the pid inside the lockfile still exists
-        char *contents = sentry__path_read_to_buffer(lock->path, NULL);
-        DWORD filepid = contents ? strtol(contents, NULL, 10) : 0;
-        sentry_free(contents);
-
-        bool process_dead = filepid && !is_process_running(filepid);
-        if (process_dead) {
-            sentry__path_remove(lock->path);
-            continue;
-        }
+    int fd = _wopen(
+        lock->path->path, _O_RDWR | _O_CREAT | _O_TRUNC, _S_IREAD | _S_IWRITE);
+    if (fd < 0) {
         return false;
     }
 
-    lock->handle = handle;
+    if (_locking(fd, _LK_NBLCK, 1) != 0) {
+        _close(fd);
+        return false;
+    }
+
+    lock->fd = fd;
     lock->is_locked = true;
-
-    DWORD pid = GetCurrentProcessId();
-    char buf[256];
-    DWORD buf_len = snprintf(buf, 256, "%d", pid);
-
-    if (!WriteFile(handle, buf, buf_len, NULL, NULL)
-        || !FlushFileBuffers(handle)) {
-        sentry__filelock_unlock(lock);
-        return false;
-    }
-
     return true;
 }
 
@@ -109,9 +75,11 @@ sentry__filelock_unlock(sentry_filelock_t *lock)
     if (!lock->is_locked) {
         return;
     }
-    CloseHandle(lock->handle);
-    lock->is_locked = false;
+    _locking(lock->fd, LK_UNLCK, 1);
+    _close(lock->fd);
+    // remove the file *after* closing, otherwise remove will fail
     sentry__path_remove(lock->path);
+    lock->is_locked = false;
 }
 
 static sentry_path_t *
