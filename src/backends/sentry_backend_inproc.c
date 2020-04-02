@@ -147,7 +147,7 @@ make_signal_event(
 }
 
 static void
-handle_ucontext(sentry_ucontext_t* uctx)
+handle_ucontext(sentry_ucontext_t *uctx)
 {
     const struct signal_slot *sig_slot = NULL;
     for (int i = 0; i < SIGNAL_COUNT; ++i) {
@@ -190,7 +190,8 @@ handle_ucontext(sentry_ucontext_t* uctx)
     // forward as we're not restoring the page allocator.
     reset_signal_handlers();
     sentry__leave_signal_handler();
-    invoke_signal_handler(uctx->signum, uctx->siginfo, (void *)uctx->user_context);
+    invoke_signal_handler(
+        uctx->signum, uctx->siginfo, (void *)uctx->user_context);
 }
 
 static void
@@ -203,8 +204,8 @@ handle_signal(int signum, siginfo_t *info, void *user_context)
     handle_ucontext(&uctx);
 }
 
-static void handle_except(
-    sentry_backend_t *UNUSED(backend), sentry_ucontext_t *uctx)
+static void
+handle_except(sentry_backend_t *UNUSED(backend), sentry_ucontext_t *uctx)
 {
     handle_ucontext(uctx);
 }

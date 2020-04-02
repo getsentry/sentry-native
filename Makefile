@@ -68,6 +68,7 @@ format: setup-venv
 		src/*.c \
 		src/*.h \
 		src/*/*.c \
+		src/*/*.cpp \
 		src/*/*.h \
 		tests/unit/*.c \
 		tests/unit/*.h
