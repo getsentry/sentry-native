@@ -1,6 +1,14 @@
 set(SENTRY_BACKEND @SENTRY_BACKEND@)
 set(SENTRY_TRANSPORT @SENTRY_TRANSPORT@)
 
+if(SENTRY_BACKEND STREQUAL "crashpad")
+	if(@SENTRY_CRASHPAD_SYSTEM@)
+		find_package(crashpad REQUIRED)
+	else()
+		include("${CMAKE_CURRENT_LIST_DIR}/sentry_crashpad-targets.cmake")
+	endif()
+endif()
+
 include("${CMAKE_CURRENT_LIST_DIR}/sentry-targets.cmake")
 
 if(SENTRY_TRANSPORT STREQUAL "curl" AND NOT @BUILD_SHARED_LIBS@)

@@ -1,3 +1,4 @@
+import os
 import pytest
 import re
 from . import cmake, run
@@ -6,7 +7,8 @@ from . import cmake, run
 def enumerate_unittests():
     regexp = re.compile("XX\((.*?)\)")
     # TODO: actually generate the `tests.inc` file with python
-    with open("tests/unit/tests.inc", "r") as testsfile:
+    curdir = os.path.dirname(os.path.realpath(__file__))
+    with open(os.path.join(curdir, "unit/tests.inc"), "r") as testsfile:
         for line in testsfile:
             match = regexp.match(line)
             if match:
