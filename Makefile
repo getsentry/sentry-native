@@ -45,12 +45,15 @@ clean: build/Makefile
 setup: setup-git
 .PHONY: setup
 
-setup-git:
+setup-git: .git/hooks/pre-commit
 	git submodule update --init --recursive
 .PHONY: setup-git
 
 setup-venv: .venv/bin/python
 .PHONY: setup-venv
+
+.git/hooks/pre-commit:
+	@cd .git/hooks && ln -sf ../../scripts/git-precommit-hook.sh pre-commit
 
 .venv/bin/python: Makefile tests/requirements.txt
 	@rm -rf .venv
@@ -60,6 +63,8 @@ setup-venv: .venv/bin/python
 
 format: setup-venv
 	@clang-format -i \
+		examples/*.c \
+		include/*.h \
 		src/*.c \
 		src/*.h \
 		src/*/*.c \
@@ -70,5 +75,6 @@ format: setup-venv
 .PHONY: format
 
 style: setup-venv
+	@.venv/bin/python ./scripts/run-clang-format.py -r examples include src tests/unit
 	@.venv/bin/black --check tests
 .PHONY: style
