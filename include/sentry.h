@@ -538,7 +538,8 @@ SENTRY_API void sentry_options_set_http_proxy(
 /*
  * returns the configured http proxy
  */
-SENTRY_API const char *sentry_options_get_http_proxy(sentry_options_t *opts);
+SENTRY_API const char *sentry_options_get_http_proxy(
+    const sentry_options_t *opts);
 
 /*
  * configures the path to a file containing ssl certificates for
@@ -633,6 +634,15 @@ SENTRY_API int sentry_init(sentry_options_t *options);
  * Shuts down the sentry client and forces transports to flush out.
  */
 SENTRY_API void sentry_shutdown(void);
+
+/**
+ * For performance reasons, sentry will cache the list of loaded libraries when
+ * capturing events. This cache can get out-of-date when loading or unloading
+ * libraries at runtime. It is therefore recommended to call
+ * `sentry_clear_modulecache` when doing so, to make sure that the next call to
+ * `sentry_capture_event` will have an up-to-date module list.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_clear_modulecache(void);
 
 /*
  * Returns the client options.

@@ -114,6 +114,12 @@ sentry_shutdown(void)
     sentry__modulefinder_cleanup();
 }
 
+void
+sentry_clear_modulecache(void)
+{
+    sentry__modulefinder_cleanup();
+}
+
 const sentry_options_t *
 sentry_get_options(void)
 {
@@ -262,7 +268,8 @@ sentry_capture_event(sentry_value_t event)
     return event_id;
 }
 
-void sentry_handle_exception(sentry_ucontext_t *uctx)
+void
+sentry_handle_exception(sentry_ucontext_t *uctx)
 {
     SENTRY_DEBUG("handling exception");
     if (g_options->backend && g_options->backend->except_func) {
@@ -446,7 +453,7 @@ sentry_options_set_http_proxy(sentry_options_t *opts, const char *proxy)
 }
 
 const char *
-sentry_options_get_http_proxy(sentry_options_t *opts)
+sentry_options_get_http_proxy(const sentry_options_t *opts)
 {
     return opts->http_proxy;
 }
