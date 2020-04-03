@@ -14,9 +14,17 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
 endif()
 
 option(BUILD_SHARED_LIBS "Build shared libraries (.dll/.so) instead of static ones (.lib/.a)" ON)
+option(SENTRY_PIC "Build sentry (and dependent) libraries as position independent libraries" ON)
 
 option(SENTRY_BUILD_TESTS "Build sentry-native tests" "${SENTRY_MAIN_PROJECT}")
 option(SENTRY_BUILD_EXAMPLES "Build sentry-native example(s)" "${SENTRY_MAIN_PROJECT}")
+
+# CMAKE_POSITION_INDEPENDENT_CODE must be set BEFORE adding any libraries (including subprojects)
+if(SENTRY_PIC)
+	set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+else()
+	set(CMAKE_POSITION_INDEPENDENT_CODE OFF)
+endif()
 
 if(WIN32)
 	set(SENTRY_DEFAULT_TRANSPORT "winhttp")
@@ -167,8 +175,6 @@ if(BUILD_SHARED_LIBS)
 		sentry_install(FILES "$<$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>:$<TARGET_PDB_FILE:sentry>>"
 			DESTINATION "${CMAKE_INSTALL_BINDIR}")
 	endif()
-elseif(LINUX)
-	target_compile_options(sentry PRIVATE -fPIC)
 endif()
 
 if(BUILD_SHARED_LIBS)
