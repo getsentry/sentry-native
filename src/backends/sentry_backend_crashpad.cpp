@@ -243,7 +243,8 @@ sentry__crashpad_backend_free(sentry_backend_t *backend)
     sentry_free(data);
 }
 
-static void sentry__crashpad_backend_except(
+static void
+sentry__crashpad_backend_except(
     sentry_backend_t *UNUSED(backend), sentry_ucontext_t *context)
 {
 #ifdef SENTRY_PLATFORM_WINDOWS

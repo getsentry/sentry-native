@@ -19,11 +19,13 @@ sentry__unwind_stack_dbghelp(
         if (!(ntdll = LoadLibraryW(L"ntdll.dll"))) {
             return 0;
         }
-        if (!(proc = (RtlCaptureStackBackTraceProc)GetProcAddress(ntdll, "RtlCaptureStackBackTrace"))) {
+        if (!(proc = (RtlCaptureStackBackTraceProc)GetProcAddress(
+                  ntdll, "RtlCaptureStackBackTrace"))) {
             return 0;
         }
 
-        //sum of frames to skip and frames to captures must be less than 63 for XP/2003
+        // sum of frames to skip and frames to captures must be less than 63 for
+        // XP/2003
         if (max_frames > 61) {
             max_frames = 61;
         }

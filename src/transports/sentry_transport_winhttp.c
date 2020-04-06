@@ -82,9 +82,9 @@ winhttp_transport_start(sentry_transport_t *transport)
         // On windows 8.0 or lower, WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY does
         // not work on error we fallback to WINHTTP_ACCESS_TYPE_DEFAULT_PROXY
         if (!state->session) {
-            state->session
-                = WinHttpOpen(state->user_agent, WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
-                    WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
+            state->session = WinHttpOpen(state->user_agent,
+                WINHTTP_ACCESS_TYPE_DEFAULT_PROXY, WINHTTP_NO_PROXY_NAME,
+                WINHTTP_NO_PROXY_BYPASS, 0);
         }
     }
 
