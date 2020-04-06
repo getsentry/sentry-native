@@ -119,6 +119,12 @@ sentry_shutdown(void)
     sentry__modulefinder_cleanup();
 }
 
+void
+sentry_clear_modulecache(void)
+{
+    sentry__modulefinder_cleanup();
+}
+
 const sentry_options_t *
 sentry_get_options(void)
 {
@@ -452,7 +458,7 @@ sentry_options_set_http_proxy(sentry_options_t *opts, const char *proxy)
 }
 
 const char *
-sentry_options_get_http_proxy(sentry_options_t *opts)
+sentry_options_get_http_proxy(const sentry_options_t *opts)
 {
     return opts->http_proxy;
 }

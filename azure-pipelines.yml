@@ -69,7 +69,6 @@ stages:
             displayName: Installing Android SDK Dependencies
           - script: |
               bash scripts/start-android.sh
-            timeoutInMinutes: 5 # because gettings things wrong here can hang the job for up to an hour…
             condition: variables['ANDROID_API']
             displayName: Starting Android Simulator
           # - script: choco install --no-progress msys2
