@@ -44,4 +44,5 @@ sentry__filelock_free(sentry_filelock_t *lock)
 {
     sentry__filelock_unlock(lock);
     sentry__path_free(lock->path);
+    sentry_free(lock);
 }
