@@ -76,6 +76,6 @@ format: setup-venv
 .PHONY: format
 
 style: setup-venv
-	@.venv/bin/python ./scripts/run-clang-format.py -r examples include src tests/unit
+	@.venv/bin/python ./scripts/check-clang-format.py -r examples include src tests/unit
 	@.venv/bin/black --check tests
 .PHONY: style
