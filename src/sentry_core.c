@@ -98,16 +98,15 @@ sentry_shutdown(void)
     sentry_options_t *options = g_options;
     sentry__mutex_unlock(&g_options_mutex);
 
-    if (options && options->transport && options->transport->shutdown_func) {
-        SENTRY_TRACE("shutting down transport");
-        options->transport->shutdown_func(options->transport);
-    }
-    if (options && options->backend && options->backend->shutdown_func) {
-        SENTRY_TRACE("shutting down backend");
-        options->backend->shutdown_func(options->backend);
-    }
-
     if (options) {
+        if (options->transport && options->transport->shutdown_func) {
+            SENTRY_TRACE("shutting down transport");
+            options->transport->shutdown_func(options->transport);
+        }
+        if (options->backend && options->backend->shutdown_func) {
+            SENTRY_TRACE("shutting down backend");
+            options->backend->shutdown_func(options->backend);
+        }
         sentry__run_clean(options->run);
     }
 

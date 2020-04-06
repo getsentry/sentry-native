@@ -30,20 +30,18 @@ struct sentry_pathiter_s {
 static size_t
 write_loop(FILE *f, const char *buf, size_t buf_len)
 {
-    size_t offset = 0;
-    size_t remaining = buf_len;
-    while (true) {
-        if (remaining == 0) {
+    while (buf_len > 0) {
+        size_t n = fwrite(buf, 1, buf_len, f);
+        if (n == 0 && errno == EINVAL) {
+            continue;
+        } else if (n < buf_len) {
             break;
         }
-        size_t n = fwrite(buf + offset, 1, remaining, f);
-        if (n == 0) {
-            break;
-        }
-        offset += n;
-        remaining -= n;
+        buf += n;
+        buf_len -= n;
     }
-    return remaining;
+    fflush(f);
+    return buf_len;
 }
 
 bool
@@ -75,7 +73,8 @@ sentry__filelock_unlock(sentry_filelock_t *lock)
     }
     _locking(lock->fd, LK_UNLCK, 1);
     _close(lock->fd);
-    // remove the file *after* closing, otherwise remove will fail
+    // the remove function will fail if we, or any other process still has an
+    // open handle to the file.
     sentry__path_remove(lock->path);
     lock->is_locked = false;
 }
@@ -312,8 +311,8 @@ sentry__path_remove(const sentry_path_t *path)
 int
 sentry__path_create_dir_all(const sentry_path_t *path)
 {
-    // CreateDirectoryW
-    wchar_t *p, *ptr;
+    wchar_t *p = NULL;
+    wchar_t *ptr = NULL;
     int rv = 0;
 #define _TRY_MAKE_DIR                                                          \
     do {                                                                       \

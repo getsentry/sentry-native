@@ -30,24 +30,18 @@ struct sentry_pathiter_s {
 static size_t
 write_loop(int fd, const char *buf, size_t buf_len)
 {
-    size_t offset = 0;
-    size_t remaining = buf_len;
-
-    while (true) {
-        if (remaining == 0) {
-            break;
-        }
-        ssize_t n = write(fd, buf + offset, remaining);
+    while (buf_len > 0) {
+        ssize_t n = write(fd, buf, buf_len);
         if (n < 0 && (errno == EAGAIN || errno == EINTR)) {
             continue;
         } else if (n <= 0) {
             break;
         }
-        offset += n;
-        remaining -= n;
+        buf += n;
+        buf_len -= n;
     }
 
-    return remaining;
+    return buf_len;
 }
 
 bool
@@ -55,8 +49,8 @@ sentry__filelock_try_lock(sentry_filelock_t *lock)
 {
     lock->is_locked = false;
 
-    int fd = open(lock->path->path, O_RDWR | O_CREAT | O_TRUNC,
-        S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH);
+    int fd = open(lock->path->path, O_RDONLY | O_CREAT | O_TRUNC,
+        S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH);
     if (fd < 0) {
         return false;
     }
