@@ -4,6 +4,16 @@ stages:
 
     jobs:
       - job:
+        displayName: Lint
+        pool:
+          vmImage: "ubuntu-latest"
+        steps:
+          - checkout: self
+          - task: UsePythonVersion@0
+          - script: make SENTRY_NATIVE_PYTHON_VERSION=python3.8 style
+            displayName: Lint
+
+      - job:
         strategy:
           matrix:
             Linux (gcc 7, 32-bit):
