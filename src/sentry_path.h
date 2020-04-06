@@ -17,8 +17,15 @@ struct sentry_path_s {
     sentry_pathchar_t *path;
 };
 
+struct sentry_filelock_s {
+    struct sentry_path_s *path;
+    int fd;
+    bool is_locked;
+};
+
 typedef struct sentry_path_s sentry_path_t;
 typedef struct sentry_pathiter_s sentry_pathiter_t;
+typedef struct sentry_filelock_s sentry_filelock_t;
 
 sentry_path_t *sentry__path_current_exe(void);
 sentry_path_t *sentry__path_dir(const sentry_path_t *path);
@@ -50,6 +57,11 @@ int sentry__path_append_buffer(
 sentry_pathiter_t *sentry__path_iter_directory(const sentry_path_t *path);
 const sentry_path_t *sentry__pathiter_next(sentry_pathiter_t *piter);
 void sentry__pathiter_free(sentry_pathiter_t *piter);
+
+sentry_filelock_t *sentry__filelock_new(sentry_path_t *path);
+bool sentry__filelock_try_lock(sentry_filelock_t *lock);
+void sentry__filelock_unlock(sentry_filelock_t *lock);
+void sentry__filelock_free(sentry_filelock_t *lock);
 
 /* windows specific API additions */
 #ifdef SENTRY_PLATFORM_WINDOWS

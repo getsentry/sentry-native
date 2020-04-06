@@ -85,8 +85,8 @@ SENTRY_TEST(lazy_attachments)
 
     sentry_shutdown();
 
-    sentry__path_remove_all(existing);
-    sentry__path_remove_all(non_existing);
+    sentry__path_remove(existing);
+    sentry__path_remove(non_existing);
     sentry__path_free(existing);
     sentry__path_free(non_existing);
 

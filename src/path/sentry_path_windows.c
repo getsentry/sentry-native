@@ -6,9 +6,10 @@
 #include "sentry_string.h"
 #include "sentry_utils.h"
 
-#include <shellapi.h>
-#include <shlobj.h>
+#include <fcntl.h>
+#include <io.h>
 #include <shlwapi.h>
+#include <sys/locking.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 
@@ -25,6 +26,58 @@ struct sentry_pathiter_s {
     const sentry_path_t *parent;
     sentry_path_t *current;
 };
+
+static size_t
+write_loop(FILE *f, const char *buf, size_t buf_len)
+{
+    while (buf_len > 0) {
+        size_t n = fwrite(buf, 1, buf_len, f);
+        if (n == 0 && errno == EINVAL) {
+            continue;
+        } else if (n < buf_len) {
+            break;
+        }
+        buf += n;
+        buf_len -= n;
+    }
+    fflush(f);
+    return buf_len;
+}
+
+bool
+sentry__filelock_try_lock(sentry_filelock_t *lock)
+{
+    lock->is_locked = false;
+
+    int fd = _wopen(
+        lock->path->path, _O_RDWR | _O_CREAT | _O_TRUNC, _S_IREAD | _S_IWRITE);
+    if (fd < 0) {
+        return false;
+    }
+
+    if (_locking(fd, _LK_NBLCK, 1) != 0) {
+        _close(fd);
+        return false;
+    }
+
+    lock->fd = fd;
+    lock->is_locked = true;
+    return true;
+}
+
+void
+sentry__filelock_unlock(sentry_filelock_t *lock)
+{
+    if (!lock->is_locked) {
+        return;
+    }
+    _locking(lock->fd, LK_UNLCK, 1);
+    _close(lock->fd);
+    // the remove function will fail if we, or any other process still has an
+    // open handle to the file.
+    sentry__path_remove(lock->path);
+    lock->is_locked = false;
+}
 
 static sentry_path_t *
 path_with_len(size_t len)
@@ -256,37 +309,37 @@ sentry__path_remove(const sentry_path_t *path)
 }
 
 int
-sentry__path_remove_all(const sentry_path_t *path)
-{
-    if (!sentry__path_is_dir(path)) {
-        return sentry__path_remove(path);
-    }
-    size_t path_len = wcslen(path->path);
-    wchar_t *pp = sentry_malloc(sizeof(wchar_t) * (path_len + 2));
-    pp[path_len] = '\0';
-    pp[path_len + 1] = '\0';
-    SHFILEOPSTRUCTW shfo = { NULL, FO_DELETE, pp, L"",
-        FOF_SILENT | FOF_NOERRORUI | FOF_NOCONFIRMATION, FALSE, 0, L"" };
-    int rv = SHFileOperationW(&shfo);
-    sentry_free(pp);
-    return rv == 0 || rv == ERROR_FILE_NOT_FOUND ? 0 : 1;
-}
-
-int
 sentry__path_create_dir_all(const sentry_path_t *path)
 {
-    wchar_t abs_path[_MAX_PATH];
-    if (_wfullpath(abs_path, path->path, _MAX_PATH) == NULL) {
-        return 1;
-    }
+    wchar_t *p = NULL;
+    wchar_t *ptr = NULL;
+    int rv = 0;
+#define _TRY_MAKE_DIR                                                          \
+    do {                                                                       \
+        if (!CreateDirectoryW(p, NULL)                                         \
+            && GetLastError() != ERROR_ALREADY_EXISTS) {                       \
+            rv = 1;                                                            \
+            goto done;                                                         \
+        }                                                                      \
+    } while (0)
 
-    int rv = SHCreateDirectoryExW(NULL, abs_path, NULL);
-    if (rv == ERROR_SUCCESS || rv == ERROR_ALREADY_EXISTS
-        || rv == ERROR_FILE_EXISTS) {
-        return 0;
-    } else {
-        return 1;
+    size_t len = wcslen(path->path) + 1;
+    p = sentry_malloc(sizeof(wchar_t) * len);
+    memcpy(p, path->path, len * sizeof(wchar_t));
+
+    for (ptr = p; *ptr; ptr++) {
+        if (*ptr == '\\' && ptr != p) {
+            *ptr = 0;
+            _TRY_MAKE_DIR;
+            *ptr = '\\';
+        }
     }
+    _TRY_MAKE_DIR;
+#undef _TRY_MAKE_DIR
+
+done:
+    sentry_free(p);
+    return rv;
 }
 
 sentry_pathiter_t *
@@ -423,20 +476,7 @@ write_buffer_with_mode(const sentry_path_t *path, const char *buf,
         return 1;
     }
 
-    size_t offset = 0;
-    size_t remaining = buf_len;
-
-    while (true) {
-        if (remaining == 0) {
-            break;
-        }
-        size_t n = fwrite(buf + offset, 1, remaining, f);
-        if (n == 0) {
-            break;
-        }
-        offset += n;
-        remaining -= n;
-    }
+    size_t remaining = write_loop(f, buf, buf_len);
 
     fclose(f);
     return remaining == 0 ? 0 : 1;

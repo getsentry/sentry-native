@@ -98,14 +98,18 @@ sentry_shutdown(void)
     sentry_options_t *options = g_options;
     sentry__mutex_unlock(&g_options_mutex);
 
-    if (options && options->transport && options->transport->shutdown_func) {
-        SENTRY_TRACE("shutting down transport");
-        options->transport->shutdown_func(options->transport);
+    if (options) {
+        if (options->transport && options->transport->shutdown_func) {
+            SENTRY_TRACE("shutting down transport");
+            options->transport->shutdown_func(options->transport);
+        }
+        if (options->backend && options->backend->shutdown_func) {
+            SENTRY_TRACE("shutting down backend");
+            options->backend->shutdown_func(options->backend);
+        }
+        sentry__run_clean(options->run);
     }
-    if (options && options->backend && options->backend->shutdown_func) {
-        SENTRY_TRACE("shutting down backend");
-        options->backend->shutdown_func(options->backend);
-    }
+
     sentry__mutex_lock(&g_options_mutex);
     sentry_options_free(g_options);
     g_options = NULL;
@@ -285,7 +289,7 @@ sentry_options_new(void)
         return NULL;
     }
     memset(opts, 0, sizeof(sentry_options_t));
-    opts->database_path = sentry__path_from_str("./.sentry-native");
+    opts->database_path = sentry__path_from_str(".sentry-native");
     sentry_options_set_dsn(opts, getenv("SENTRY_DSN"));
     opts->release = sentry__string_clone(getenv("SENTRY_RELEASE"));
     opts->environment = sentry__string_clone(getenv("SENTRY_ENVIRONMENT"));

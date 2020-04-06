@@ -3,6 +3,14 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef SENTRY_PLATFORM_WINDOWS
+#    include <windows.h>
+#    define sleep_s(SECONDS) Sleep((SECONDS)*1000)
+#else
+#    include <unistd.h>
+#    define sleep_s(SECONDS) sleep(SECONDS)
+#endif
+
 static void
 print_envelope(sentry_envelope_t *envelope, void *unused_data)
 {
@@ -28,6 +36,7 @@ int
 main(int argc, char **argv)
 {
     sentry_options_t *options = sentry_options_new();
+    sentry_options_set_database_path(options, ".sentry-native");
 
     sentry_options_set_environment(options, "Production");
     sentry_options_set_release(options, "test-example-release");
@@ -104,6 +113,10 @@ main(int argc, char **argv)
                 SENTRY_LEVEL_INFO, NULL, buffer);
             sentry_capture_event(event);
         }
+    }
+
+    if (has_arg(argc, argv, "sleep")) {
+        sleep_s(10);
     }
 
     if (has_arg(argc, argv, "crash")) {

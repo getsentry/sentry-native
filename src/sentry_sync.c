@@ -205,7 +205,7 @@ sentry__bgworker_submit(sentry_bgworker_t *bgw,
     return 0;
 }
 
-int
+size_t
 sentry__bgworker_foreach_matching(sentry_bgworker_t *bgw,
     sentry_task_function_t exec_func,
     bool (*callback)(void *task_data, void *data), void *data)

@@ -3,6 +3,32 @@
 #include "sentry_testsupport.h"
 #include <sentry.h>
 
+SENTRY_TEST(recursive_paths)
+{
+    sentry_path_t *base = sentry__path_from_str(".foo");
+    sentry_path_t *nested = sentry__path_join_str(base, "bar");
+    sentry_path_t *nested2 = sentry__path_join_str(nested, "baz");
+    sentry_path_t *file = sentry__path_join_str(nested2, "qux.txt");
+
+    sentry__path_create_dir_all(nested2);
+    sentry__path_touch(file);
+
+    TEST_CHECK(sentry__path_is_file(file));
+
+    sentry__path_remove_all(nested);
+
+    TEST_CHECK(!sentry__path_is_file(file));
+    TEST_CHECK(!sentry__path_is_file(nested));
+    TEST_CHECK(sentry__path_is_dir(base));
+
+    sentry__path_remove_all(base);
+
+    sentry__path_free(file);
+    sentry__path_free(nested2);
+    sentry__path_free(nested);
+    sentry__path_free(base);
+}
+
 SENTRY_TEST(path_joining_unix)
 {
 #ifndef SENTRY_PLATFORM_UNIX

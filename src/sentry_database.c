@@ -9,16 +9,30 @@ sentry_run_t *
 sentry__run_new(const sentry_path_t *database_path)
 {
     sentry_uuid_t uuid = sentry_uuid_new_v4();
-    char uuid_str[37];
-    sentry_uuid_as_string(&uuid, uuid_str);
-    sentry_path_t *run_path = sentry__path_join_str(database_path, uuid_str);
+    char run_name[46];
+    sentry_uuid_as_string(&uuid, run_name);
+
+    // `<db>/<uuid>.run`
+    strcpy(&run_name[36], ".run");
+    sentry_path_t *run_path = sentry__path_join_str(database_path, run_name);
     if (!run_path) {
         return NULL;
     }
+
+    // `<db>/<uuid>.run.lock`
+    strcpy(&run_name[40], ".lock");
+    sentry_path_t *lock_path = sentry__path_join_str(database_path, run_name);
+    if (!lock_path) {
+        sentry__path_free(run_path);
+        return NULL;
+    }
+
+    // `<db>/<uuid>.run/session.json`
     sentry_path_t *session_path
         = sentry__path_join_str(run_path, "session.json");
     if (!session_path) {
         sentry__path_free(run_path);
+        sentry__path_free(lock_path);
         return NULL;
     }
 
@@ -26,16 +40,28 @@ sentry__run_new(const sentry_path_t *database_path)
     if (!run) {
         sentry__path_free(run_path);
         sentry__path_free(session_path);
+        sentry__path_free(lock_path);
         return NULL;
     }
 
     run->uuid = uuid;
     run->run_path = run_path;
     run->session_path = session_path;
+    run->lock = sentry__filelock_new(lock_path);
+    if (!run->lock || !sentry__filelock_try_lock(run->lock)) {
+        sentry__run_free(run);
+        return NULL;
+    }
 
     sentry__path_create_dir_all(run->run_path);
-
     return run;
+}
+
+void
+sentry__run_clean(sentry_run_t *run)
+{
+    sentry__path_remove_all(run->run_path);
+    sentry__filelock_unlock(run->lock);
 }
 
 void
@@ -45,6 +71,8 @@ sentry__run_free(sentry_run_t *run)
         return;
     }
     sentry__path_free(run->run_path);
+    sentry__path_free(run->session_path);
+    sentry__filelock_free(run->lock);
     sentry_free(run);
 }
 
@@ -121,7 +149,40 @@ sentry__process_old_runs(const sentry_options_t *options)
     while ((run_dir = sentry__pathiter_next(db_iter)) != NULL) {
         // skip over other files such as the saved consent or the last_crash
         // timestamp
-        if (!sentry__path_is_dir(run_dir)) {
+        if (!sentry__path_is_dir(run_dir)
+            || !sentry__path_ends_with(run_dir, ".run")) {
+            continue;
+        }
+
+        sentry_stringbuilder_t sb;
+        sentry__stringbuilder_init(&sb);
+        const sentry_pathchar_t *filename = sentry__path_filename(run_dir);
+#ifdef SENTRY_PLATFORM_WINDOWS
+        char *filename_c = sentry__string_from_wstr(filename);
+        if (filename_c) {
+            sentry__stringbuilder_append(&sb, filename_c);
+            sentry_free(filename_c);
+        }
+#else
+        sentry__stringbuilder_append(&sb, filename);
+#endif
+        // `<db>/<uuid>.run.lock`
+        sentry__stringbuilder_append(&sb, ".lock");
+        char *lockfile_s = sentry__stringbuilder_into_string(&sb);
+        if (!lockfile_s) {
+            continue;
+        }
+        sentry_path_t *lockfile
+            = sentry__path_join_str(options->database_path, lockfile_s);
+        sentry_free(lockfile_s);
+        sentry_filelock_t *lock;
+        if (!lockfile || !(lock = sentry__filelock_new(lockfile))) {
+            continue;
+        }
+        bool did_lock = sentry__filelock_try_lock(lock);
+        // the file is locked by another process
+        if (!did_lock) {
+            sentry__filelock_free(lock);
             continue;
         }
         sentry_pathiter_t *run_iter = sentry__path_iter_directory(run_dir);
@@ -152,17 +213,18 @@ sentry__process_old_runs(const sentry_options_t *options)
                 }
             }
 
-            sentry__path_remove_all(file);
+            sentry__path_remove(file);
         }
         sentry__pathiter_free(run_iter);
+
         sentry__path_remove_all(run_dir);
+        sentry__filelock_free(lock);
     }
+    sentry__pathiter_free(db_iter);
 
     if (session_envelope) {
         sentry__capture_envelope(session_envelope);
     }
-
-    sentry__pathiter_free(db_iter);
 }
 
 bool
