@@ -7,30 +7,44 @@
 #include <stdio.h>
 #include <string.h>
 
-/* a string builder can be used to concatenate bytes together. */
+/**
+ * A string builder, which can be used as a mutable, growable string buffer.
+ */
 typedef struct sentry_stringbuilder_s {
     char *buf;
     size_t allocated;
     size_t len;
 } sentry_stringbuilder_t;
 
-/* creates a new string builder */
+/**
+ * Initializes a new string builder, which is typically allocated on the stack.
+ */
 void sentry__stringbuilder_init(sentry_stringbuilder_t *sb);
 
-/* appends a zero terminated string to the builder */
+/**
+ * Appends a zero terminated string to the builder.
+ */
 int sentry__stringbuilder_append(sentry_stringbuilder_t *sb, const char *s);
 
-/* appends a buffer */
+/**
+ * Appends a sized buffer.
+ */
 int sentry__stringbuilder_append_buf(
     sentry_stringbuilder_t *sb, const char *s, size_t len);
 
-/* appends a character */
+/**
+ * Appends a single character.
+ */
 int sentry__stringbuilder_append_char(sentry_stringbuilder_t *sb, char c);
 
-/* appends a utf32 character */
+/**
+ * Appends a utf-32 character.
+ */
 int sentry__stringbuilder_append_char32(sentry_stringbuilder_t *sb, uint32_t c);
 
-/* appends an int64 */
+/**
+ * Appends an int64 value.
+ */
 static inline int
 sentry__stringbuilder_append_int64(sentry_stringbuilder_t *sb, int64_t val)
 {
@@ -39,25 +53,39 @@ sentry__stringbuilder_append_int64(sentry_stringbuilder_t *sb, int64_t val)
     return sentry__stringbuilder_append(sb, buf);
 }
 
-/* detaches the buffer from the string builder and deallocates it */
+/**
+ * Detaches the buffer from the string builder and deallocates it.
+ */
 char *sentry__stringbuilder_into_string(sentry_stringbuilder_t *sb);
 
-/* detaches the buffer from the string builder */
+/**
+ * Detaches the buffer from the string builder.
+ */
 char *sentry_stringbuilder_take_string(sentry_stringbuilder_t *sb);
 
-/* deallocates the string builder */
+/**
+ * Deallocates the string builder.
+ */
 void sentry__stringbuilder_cleanup(sentry_stringbuilder_t *sb);
 
-/* returns the number of bytes in the string builder */
+/**
+ * Returns the number of bytes in the string builder.
+ */
 size_t sentry__stringbuilder_len(const sentry_stringbuilder_t *sb);
 
-/* duplicates a zero terminated string */
+/**
+ * Duplicates a zero terminated string.
+ */
 char *sentry__string_clone(const char *str);
 
-/* duplicates a zero terminated string with a length limit */
+/**
+ * Duplicates a zero terminated string with a length limit.
+ */
 char *sentry__string_clonen(const char *str, size_t n);
 
-/* converts a string to lowercase */
+/**
+ * Converts a string to lowercase.
+ */
 static inline void
 sentry__string_ascii_lower(char *s)
 {
@@ -66,14 +94,18 @@ sentry__string_ascii_lower(char *s)
     }
 }
 
-/* shortcut for string compare */
+/**
+ * Shortcut for string compare.
+ */
 static inline bool
 sentry__string_eq(const char *a, const char *b)
 {
     return strcmp(a, b) == 0;
 }
 
-/* converts an int64_t into a string */
+/**
+ * Converts an int64_t into a string.
+ */
 static inline char *
 sentry__int64_to_string(int64_t val)
 {
@@ -83,12 +115,20 @@ sentry__int64_to_string(int64_t val)
 }
 
 #ifdef SENTRY_PLATFORM_WINDOWS
-/* create a string from a wstr */
+/**
+ * Create a utf-8 string from a Wide String.
+ */
 char *sentry__string_from_wstr(const wchar_t *s);
-/* convert a normal string to a wstr */
+/**
+ * Convert a normal string to a Wide String.
+ */
 wchar_t *sentry__string_to_wstr(const char *s);
 #endif
 
+/**
+ * Writes the utf-8 encoding of unicode character `c` into `buf`, and returns
+ * the number of bytes written.
+ */
 size_t sentry__unichar_to_utf8(uint32_t c, char *buf);
 
 #define sentry__is_lead_surrogate(c) ((c) >= 0xd800 && (c) < 0xdc00)

@@ -275,13 +275,42 @@ typedef struct sentry_bgworker_s sentry_bgworker_t;
 
 typedef void (*sentry_task_function_t)(void *data);
 
+/**
+ *  Creates a new background worker thread.
+ */
 sentry_bgworker_t *sentry__bgworker_new(void);
+
+/**
+ * Free the background worker.
+ */
 void sentry__bgworker_free(sentry_bgworker_t *bgw);
+
+/**
+ * Start a new background worker thread associated with `bgw`.
+ */
 void sentry__bgworker_start(sentry_bgworker_t *bgw);
+
+/**
+ * This will try to shut down the background worker thread, with a `timeout`.
+ * Returns 0 on success.
+ */
 int sentry__bgworker_shutdown(sentry_bgworker_t *bgw, uint64_t timeout);
+
+/**
+ * This will submit a new task to the background thread.
+ * Returns 0 on success.
+ */
 int sentry__bgworker_submit(sentry_bgworker_t *bgw,
     sentry_task_function_t exec_func, sentry_task_function_t cleanup_func,
     void *data);
+
+/**
+ * This function will iterate through all the current tasks of the worker
+ * thread, and will call the `callback` function for each task with a matching
+ * `exec_func`. The callback can return `true` to indicate if the current task
+ * should be dropped from the queue.
+ * The function will return the number of dropped tasks.
+ */
 size_t sentry__bgworker_foreach_matching(sentry_bgworker_t *bgw,
     sentry_task_function_t exec_func,
     bool (*callback)(void *task_data, void *data), void *data);

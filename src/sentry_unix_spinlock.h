@@ -5,6 +5,12 @@
 
 typedef volatile sig_atomic_t sentry_spinlock_t;
 
+/**
+ * On UNIX Systems, inside the signal handler, sentry will switch from standard
+ * `malloc` to a custom page-based allocator, which is protected by this special
+ * spinlock.
+ */
+
 #if (defined(__i386__) || defined(__amd64__))
 #    define sentry__cpu_relax() __asm__ __volatile__("pause\n")
 #else

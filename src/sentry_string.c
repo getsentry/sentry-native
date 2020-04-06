@@ -78,7 +78,7 @@ sentry_stringbuilder_take_string(sentry_stringbuilder_t *sb)
     if (!rv) {
         rv = sentry__string_clone("");
     }
-    sb->buf = 0;
+    sb->buf = NULL;
     sb->allocated = 0;
     sb->len = 0;
     return rv;

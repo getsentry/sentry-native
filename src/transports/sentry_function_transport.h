@@ -3,6 +3,9 @@
 
 #include "sentry_boot.h"
 
+/**
+ * Create a new simple function transport.
+ */
 sentry_transport_t *sentry_new_function_transport(
     void (*func)(sentry_envelope_t *envelope, void *data), void *data);
 
