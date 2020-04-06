@@ -213,7 +213,7 @@ sentry__process_old_runs(const sentry_options_t *options)
                 }
             }
 
-            sentry__path_remove_all(file);
+            sentry__path_remove(file);
         }
         sentry__pathiter_free(run_iter);
 

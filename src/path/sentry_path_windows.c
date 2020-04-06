@@ -8,8 +8,6 @@
 
 #include <fcntl.h>
 #include <io.h>
-#include <shellapi.h>
-#include <shlobj.h>
 #include <shlwapi.h>
 #include <sys/locking.h>
 #include <sys/stat.h>
@@ -312,38 +310,37 @@ sentry__path_remove(const sentry_path_t *path)
 }
 
 int
-sentry__path_remove_all(const sentry_path_t *path)
-{
-    if (!sentry__path_is_dir(path)) {
-        return sentry__path_remove(path);
-    }
-    size_t path_len = wcslen(path->path);
-    wchar_t *pp = sentry_malloc(sizeof(wchar_t) * (path_len + 2));
-    memcpy(pp, path->path, path_len * sizeof(wchar_t));
-    pp[path_len] = '\0';
-    pp[path_len + 1] = '\0';
-    SHFILEOPSTRUCTW shfo = { NULL, FO_DELETE, pp, L"",
-        FOF_SILENT | FOF_NOERRORUI | FOF_NOCONFIRMATION, FALSE, 0, L"" };
-    int rv = SHFileOperationW(&shfo);
-    sentry_free(pp);
-    return rv == 0 || rv == ERROR_FILE_NOT_FOUND ? 0 : 1;
-}
-
-int
 sentry__path_create_dir_all(const sentry_path_t *path)
 {
-    wchar_t abs_path[_MAX_PATH];
-    if (_wfullpath(abs_path, path->path, _MAX_PATH) == NULL) {
-        return 1;
-    }
+    // CreateDirectoryW
+    wchar_t *p, *ptr;
+    int rv = 0;
+#define _TRY_MAKE_DIR                                                          \
+    do {                                                                       \
+        if (!CreateDirectoryW(p, NULL)                                         \
+            && GetLastError() != ERROR_ALREADY_EXISTS) {                       \
+            rv = 1;                                                            \
+            goto done;                                                         \
+        }                                                                      \
+    } while (0)
 
-    int rv = SHCreateDirectoryExW(NULL, abs_path, NULL);
-    if (rv == ERROR_SUCCESS || rv == ERROR_ALREADY_EXISTS
-        || rv == ERROR_FILE_EXISTS) {
-        return 0;
-    } else {
-        return 1;
+    size_t len = wcslen(path->path) + 1;
+    p = sentry_malloc(sizeof(wchar_t) * len);
+    memcpy(p, path->path, len * sizeof(wchar_t));
+
+    for (ptr = p; *ptr; ptr++) {
+        if (*ptr == '\\' && ptr != p) {
+            *ptr = 0;
+            _TRY_MAKE_DIR;
+            *ptr = '\\';
+        }
     }
+    _TRY_MAKE_DIR;
+#undef _TRY_MAKE_DIR
+
+done:
+    sentry_free(p);
+    return rv;
 }
 
 sentry_pathiter_t *

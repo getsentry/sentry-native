@@ -290,7 +290,7 @@ sentry_options_new(void)
         return NULL;
     }
     memset(opts, 0, sizeof(sentry_options_t));
-    opts->database_path = sentry__path_from_str("./.sentry-native");
+    opts->database_path = sentry__path_from_str(".sentry-native");
     sentry_options_set_dsn(opts, getenv("SENTRY_DSN"));
     opts->release = sentry__string_clone(getenv("SENTRY_RELEASE"));
     opts->environment = sentry__string_clone(getenv("SENTRY_ENVIRONMENT"));
