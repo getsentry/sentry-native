@@ -122,6 +122,7 @@ sentry__breakpad_backend_callback(
     if (transport) {
         sentry__transport_dump_queue(transport);
     }
+    SENTRY_DEBUG("crash has been captured");
 
     sentry__leave_signal_handler();
     return succeeded;
