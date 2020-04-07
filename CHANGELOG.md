@@ -1,5 +1,36 @@
 # Changelog
 
+## 0.2.3
+
+### Important upgrade notice
+
+All `0.2.x` versions prior to this one were affected by a bug that could
+potentially lead to serious data-loss on Windows platforms. We encourage
+everyone to update as quickly as possible.
+See [#220](https://github.com/getsentry/sentry-native/issues/220) for details.
+
+### Deprecations
+
+- `sentry_transport_t` will be replaced by an opaque struct with setter methods
+  in a future release.
+- `sentry_backend_free` and `sentry_backend_t` are deprecated and will be
+  removed in a future release.
+
+### Other changes
+
+- Further improvements to the cmake build system (huge thanks to @madebr
+  [#207](https://github.com/getsentry/sentry-native/pull/207))
+- Improved support for older Windows versions, as low as Windows XP SP3 (thanks
+  to @Mixaill [#203](https://github.com/getsentry/sentry-native/pull/203),
+  @cammm [#202](https://github.com/getsentry/sentry-native/pull/202) and
+  @jblazquez [#212](https://github.com/getsentry/sentry-native/pull/212))
+- Improved documentation
+- Cleaned up sentry database handling
+- Added new `sentry_handle_exception` function to explicitly capture a crash
+  (thanks @cammm [#201](https://github.com/getsentry/sentry-native/pull/201))
+- Added new `sentry_clear_modulecache` function to clear the list of loaded
+  modules. Use this function when dynamically loading libraries at runtime.
+
 ## 0.2.2
 
 - Implement experimental Session handling
@@ -9,7 +40,7 @@
   submission on crash
 - `sentry_shutdown` will better clean up after itself
 - Add Experimental MinGW build support (thanks @Amphaal
-  [189](https://github.com/getsentry/sentry-native/pull/189))
+  [#189](https://github.com/getsentry/sentry-native/pull/189))
 - Various other fixes and improvements
 
 ## 0.2.1

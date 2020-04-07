@@ -14,7 +14,7 @@ extern "C" {
 
 /* SDK Version */
 #define SENTRY_SDK_NAME "sentry.native"
-#define SENTRY_SDK_VERSION "0.2.2"
+#define SENTRY_SDK_VERSION "0.2.3"
 #define SENTRY_SDK_USER_AGENT (SENTRY_SDK_NAME "/" SENTRY_SDK_VERSION)
 
 /* common platform detection */
