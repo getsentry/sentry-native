@@ -48,7 +48,10 @@
 
 struct sentry_backend_s;
 
-// We save the attachments as a linked list basically
+/**
+ * This is a linked list of all the attachments registered via
+ * `sentry_options_add_attachment`.
+ */
 typedef struct sentry_attachment_s sentry_attachment_t;
 struct sentry_attachment_s {
     char *name;
@@ -56,6 +59,10 @@ struct sentry_attachment_s {
     sentry_attachment_t *next;
 };
 
+/**
+ * This is the main options struct, which is being accessed throughout all of
+ * the sentry internals.
+ */
 struct sentry_options_s {
     char *raw_dsn;
     sentry_dsn_t dsn;
@@ -84,15 +91,39 @@ struct sentry_options_s {
     sentry_user_consent_t user_consent;
 };
 
+/**
+ * This will free a previously allocated attachment.
+ */
 void sentry__attachment_free(sentry_attachment_t *attachment);
 
+/**
+ * This function will check the user consent, and return `true` if uploads
+ * should *not* be sent to the sentry server, and be discarded instead.
+ */
 bool sentry__should_skip_upload(void);
 
+/**
+ * This function is essential to capture reports in the case of a hard crash.
+ * It will set a special transport that will dump events to disk.
+ * See `sentry__run_write_envelope`.
+ */
 void sentry__enforce_disk_transport(void);
 
+/**
+ * This function will submit the given `envelope` to the configured transport.
+ */
 void sentry__capture_envelope(sentry_envelope_t *envelope);
 
+/**
+ * Generates a new random UUID for events.
+ */
 sentry_uuid_t sentry__new_event_id(void);
+
+/**
+ * This will ensure that the given `event` has a UUID, generating a new one on
+ * demand. It will return a serialized UUID as `sentry_value_t` and also write
+ * it into the `uuid_out` parameter.
+ */
 sentry_value_t sentry__ensure_event_id(
     sentry_value_t event, sentry_uuid_t *uuid_out);
 

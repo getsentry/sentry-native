@@ -9,6 +9,9 @@
 #    include <sys/time.h>
 #endif
 
+/**
+ * This represents a URL parsed into its different parts.
+ */
 typedef struct {
     char *scheme;
     char *host;
@@ -20,10 +23,21 @@ typedef struct {
     char *password;
 } sentry_url_t;
 
+/**
+ * Parse the given `url` into the pre-allocated `url_out` parameter.
+ * Returns 0 on success.
+ */
 int sentry__url_parse(sentry_url_t *url_out, const char *url);
 
+/**
+ * This will free all the internal members of `url`, but not `url` itself, as
+ * that might have been stack allocated.
+ */
 void sentry__url_cleanup(sentry_url_t *url);
 
+/**
+ * This is the internal representation of a parsed DSN.
+ */
 typedef struct {
     bool is_secure;
     char *host;
@@ -35,36 +49,45 @@ typedef struct {
     bool empty;
 } sentry_dsn_t;
 
+/**
+ * This will parse the DSN URL given in `dsn` into the pre-allocated `dsn_out`.
+ * Returns 0 on success.
+ */
 int sentry__dsn_parse(sentry_dsn_t *dsn_out, const char *dsn);
+
+/**
+ * This will free all the internal members of `dsn`, but not `dsn` itself, as
+ * that might have been stack allocated.
+ */
 void sentry__dsn_cleanup(sentry_dsn_t *dsn);
+
+/**
+ * This will create a new string, with the contents of the `X-Sentry-Auth`, as
+ * described here:
+ * https://docs.sentry.io/development/sdk-dev/overview/#authentication
+ */
 char *sentry__dsn_get_auth_header(const sentry_dsn_t *dsn);
+
+/**
+ * This returns a new string, with the URL for normal event and envelope
+ * uploads.
+ */
 char *sentry__dsn_get_store_url(const sentry_dsn_t *dsn);
+
+/**
+ * This returns a new string, with the URL for minidump uploads.
+ */
 char *sentry__dsn_get_minidump_url(const sentry_dsn_t *dsn);
+
+/**
+ * This returns a new string, with the URL for attachment uploads.
+ */
 char *sentry__dsn_get_attachment_url(
     const sentry_dsn_t *dsn, const sentry_uuid_t *event_id);
 
-#ifdef SENTRY_PLATFORM_WINDOWS
-#    define EINTR_RETRY(X, Y)                                                  \
-        do {                                                                   \
-            int _tmp = (X);                                                    \
-            if (Y) {                                                           \
-                *(int *)Y = _tmp;                                              \
-            }                                                                  \
-        } while (false)
-#else
-#    define EINTR_RETRY(X, Y)                                                  \
-        do {                                                                   \
-            int _tmp;                                                          \
-            do {                                                               \
-                _tmp = (X);                                                    \
-            } while (_tmp == -1 && errno == EINTR);                            \
-            if (Y != 0) {                                                      \
-                *(int *)Y = _tmp;                                              \
-            }                                                                  \
-        } while (false)
-#endif
-
-/* returns the number of milliseconds since epoch. */
+/**
+ * Returns the number of milliseconds since the unix epoch.
+ */
 static inline uint64_t
 sentry__msec_time(void)
 {
@@ -90,10 +113,9 @@ sentry__msec_time(void)
 #endif
 }
 
-/* formats a timestamp (milliseconds since epoch). */
+/**
+ * Formats a timestamp (milliseconds since epoch) into ISO8601 format.
+ */
 char *sentry__msec_time_to_iso8601(uint64_t time);
-
-#define SENTRY_CONCAT_IMPL(A, B) A##B
-#define SENTRY_CONCAT(A, B) SENTRY_CONCAT_IMPL(A, B)
 
 #endif

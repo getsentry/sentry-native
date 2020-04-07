@@ -3,7 +3,9 @@
 
 #include "sentry_boot.h"
 
-/* utility function to get random bytes */
+/**
+ * Utility function to get random bytes.
+ */
 int sentry__getrandom(void *dst, size_t len);
 
 #endif

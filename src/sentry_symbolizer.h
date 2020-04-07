@@ -13,6 +13,10 @@ typedef struct sentry_frame_info_s {
     uint32_t lineno;
 } sentry_frame_info_t;
 
+/**
+ * This will symbolize the provided `addr`, and call `func` with a populated
+ * frame info and the given `data`.
+ */
 bool sentry__symbolize(
     void *addr, void (*func)(const sentry_frame_info_t *, void *), void *data);
 

@@ -259,6 +259,17 @@ sentry__path_clone(const sentry_path_t *path)
     return rv;
 }
 
+#define EINTR_RETRY(X, Y)                                                      \
+    do {                                                                       \
+        int _tmp;                                                              \
+        do {                                                                   \
+            _tmp = (X);                                                        \
+        } while (_tmp == -1 && errno == EINTR);                                \
+        if (Y != 0) {                                                          \
+            *(int *)Y = _tmp;                                                  \
+        }                                                                      \
+    } while (false)
+
 int
 sentry__path_remove(const sentry_path_t *path)
 {
