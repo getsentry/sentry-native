@@ -55,10 +55,15 @@ The SDK currently supports and is tested on the following OS/Compiler variations
 - 32bit Linux with GCC 7 (cross compiled from 64bit host)
 - 64bit Windows with MSVC 2019
 - 32bit Windows with MSVC 2017
-- ~~64bit Windows with MSYS2 + MinGW + Clang~~ _(currently untested)_
 - macOS Catalina with most recent Compiler toolchain
 - Android API29 built by NDK21 toolchain
 - Android API16 built by NDK19 toolchain
+
+Additionally, the SDK should support the following platforms, although they are
+not automatically tested, so breakage may occur:
+
+- Windows Versions lower than Windows 10 / Windows Server 2016
+- Windows builds with the MSYS2 + MinGW + Clang toolchain
 
 The SDK supports different features on the target platform:
 
@@ -118,20 +123,25 @@ using `cmake -D BUILD_SHARED_LIBS=OFF ..`.
 - `BUILD_SHARED_LIBS` (Default: ON):
   By default, `sentry` is built as a shared library. Setting this option to
   `OFF` will build `sentry` as a static library instead.
-  
-- `CMAKE_SYSTEM_VERSION`: (Default: depending on Windows SDK version):
-  Sets up a minimal version of Windows where sentry-native can be guaranteed to run. 
-  Possible values: 
-    - `5.1` (Windows XP)
-    - `5.2` (Windows XP 64-bit / Server 2003 / Server 2003 R2)
-    - `6.0` (Windows Vista / Server 2008)
-    - `6.1` (Windows 7 / Server 2008 R2)
-    - `6.2` (Windows 8.0 / Server 2012)
-    - `6.3` (Windows 8.1 / Server 2012 R2)
-    - `10`  (Windows 10 / Server 2016 / Server 2019)
 
-  ​	For Windows versions below than `6.0` it is also necessary to use XP toolchain in case of MSVC compiler (pass `-T v141_xp` to CMake command line).
-   Also, you are not able to use Crashpad with XP toolchains, no crashes will be handled at all. 
+- `SENTRY_PIC` (Default: ON):
+  By default, `sentry` is built as a position independent library.
+
+- `CMAKE_SYSTEM_VERSION`: (Default: depending on Windows SDK version):
+  Sets up a minimal version of Windows where sentry-native can be guaranteed to run.
+  Possible values:
+
+  - `5.1` (Windows XP)
+  - `5.2` (Windows XP 64-bit / Server 2003 / Server 2003 R2)
+  - `6.0` (Windows Vista / Server 2008)
+  - `6.1` (Windows 7 / Server 2008 R2)
+  - `6.2` (Windows 8.0 / Server 2012)
+  - `6.3` (Windows 8.1 / Server 2012 R2)
+  - `10` (Windows 10 / Server 2016 / Server 2019)
+
+  For Windows versions below than `6.0` it is also necessary to use XP toolchain
+  in case of MSVC compiler (pass `-T v141_xp` to CMake command line).
+  Also, you are not able to use Crashpad with XP toolchains, no crashes will be handled at all.
 
 - `SENTRY_TRANSPORT` (Default: depending on platform):
   Sentry can use different http libraries to send reports to the server.
@@ -185,6 +195,11 @@ Legend:
 
 ## Known Issues
 
+- The SDK currently depends on the hosted version on
+  [sentry.io](https://sentry.io). The latest on-premise version of Sentry (10.0)
+  does not provide server-side support for events sent by `sentry-native`.
+  Full support for `sentry-native` will be made available to all on-premise
+  customers with the next release.
 - Attachments are currently in _Preview_ and may not be available to your
   organization. Please see [Event Attachments] for more information.
 
