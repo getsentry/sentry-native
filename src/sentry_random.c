@@ -23,30 +23,26 @@ getrandom_arc4random(void *dst, size_t bytes)
 static int
 getrandom_devurandom(void *dst, size_t bytes)
 {
-    char *d = dst;
-    size_t to_read = bytes;
-    int fd, res;
-
-    fd = open("/dev/urandom", O_RDONLY);
+    int fd = open("/dev/urandom", O_RDONLY);
     if (fd < 0) {
         return 1;
     }
 
+    size_t to_read = bytes;
+    char *d = dst;
     while (to_read > 0) {
-        res = read(fd, d, to_read);
-        if (res > 0) {
-            to_read -= res;
-            d += res;
-        } else if (errno == EINTR) {
+        ssize_t n = read(fd, d, to_read);
+        if (n < 0 && (errno == EAGAIN || errno == EINTR)) {
             continue;
-        } else {
-            close(fd);
-            return 1;
+        } else if (n <= 0) {
+            break;
         }
+        d += n;
+        to_read -= n;
     }
 
     close(fd);
-    return 0;
+    return to_read > 0;
 }
 
 #    define HAVE_URANDOM
