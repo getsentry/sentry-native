@@ -406,12 +406,11 @@ sentry__path_read_to_buffer(const sentry_path_t *path, size_t *size_out)
 
     size_t remaining = len;
     size_t offset = 0;
-    while (true) {
+    while (remaining > 0) {
         ssize_t n = read(fd, rv + offset, remaining);
-        if (n <= 0) {
-            if (errno == EAGAIN || errno == EINTR) {
-                continue;
-            }
+        if (n < 0 && (errno == EAGAIN || errno == EINTR)) {
+            continue;
+        } else if (n <= 0) {
             break;
         }
         offset += n;

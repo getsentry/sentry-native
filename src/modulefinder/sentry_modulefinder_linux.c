@@ -403,12 +403,10 @@ load_modules(sentry_value_t modules)
     sentry_stringbuilder_t sb;
     sentry__stringbuilder_init(&sb);
     while (true) {
-        errno = 0;
         ssize_t n = read(fd, buf, 4096);
-        if (n <= 0) {
-            if (errno == EAGAIN || errno == EINTR) {
-                continue;
-            }
+        if (n < 0 && (errno == EAGAIN || errno == EINTR)) {
+            continue;
+        } else if (n <= 0) {
             break;
         }
         if (sentry__stringbuilder_append_buf(&sb, buf, n)) {
