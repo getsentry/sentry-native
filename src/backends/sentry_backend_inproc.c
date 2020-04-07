@@ -183,6 +183,7 @@ handle_ucontext(sentry_ucontext_t *uctx)
     if (transport) {
         sentry__transport_dump_queue(transport);
     }
+    SENTRY_DEBUG("crash has been captured");
 
     // reset signal handlers and invoke the original ones.  This will then tear
     // down the process.  In theory someone might have some other handler here

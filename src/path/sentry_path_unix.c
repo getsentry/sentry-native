@@ -7,6 +7,7 @@
 #include <dirent.h>
 #include <fcntl.h>
 #include <libgen.h>
+#include <limits.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/errno.h>
@@ -89,6 +90,16 @@ sentry__filelock_unlock(sentry_filelock_t *lock)
     flock(lock->fd, LOCK_UN);
     close(lock->fd);
     lock->is_locked = false;
+}
+
+sentry_path_t *
+sentry__path_absolute(const sentry_path_t *path)
+{
+    char full[PATH_MAX];
+    if (!realpath(path->path, full)) {
+        return NULL;
+    }
+    return sentry__path_from_str(full);
 }
 
 sentry_path_t *
