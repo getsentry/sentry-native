@@ -680,12 +680,30 @@ SENTRY_API void sentry_options_add_attachment(
 
 /**
  * Sets the path to the crashpad handler if the crashpad backend is used.
+ *
+ * The path defaults to the `crashpad_handler`/`crashpad_handler.exe`
+ * executable, depending on platform, which is expected to be present in the
+ * same directory as the app executable.
+ *
+ * It is recommended that library users set an explicit handler path, depending
+ * on the directory/executable structure of their app.
  */
 SENTRY_API void sentry_options_set_handler_path(
     sentry_options_t *opts, const char *path);
 
 /**
- * Sets the path to the sentry-native/crashpad/breakpad database.
+ * Sets the path to the Sentry Database Directory.
+ *
+ * Sentry will use this path to persist user consent, sessions, and other
+ * artifacts in case of a crash. This will also be used by the crashpad backend
+ * if it is configured.
+ *
+ * The path defaults to `.sentry-native` in the current working directory, will
+ * be created if it does not exist, and will be resolved to an absolute path
+ * inside of `sentry_init`.
+ *
+ * It is recommended that library users set an explicit absolute path, depending
+ * on their own apps directory.
  */
 SENTRY_API void sentry_options_set_database_path(
     sentry_options_t *opts, const char *path);
