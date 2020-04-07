@@ -92,6 +92,16 @@ path_with_len(size_t len)
 }
 
 sentry_path_t *
+sentry__path_absolute(const sentry_path_t *path)
+{
+    wchar_t full[_MAX_PATH];
+    if (!_wfullpath(full, path->path, _MAX_PATH)) {
+        return NULL;
+    }
+    return sentry__path_from_wstr(full);
+}
+
+sentry_path_t *
 sentry__path_current_exe(void)
 {
     // inspired by:

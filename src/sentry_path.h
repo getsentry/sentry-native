@@ -27,6 +27,11 @@ typedef struct sentry_path_s sentry_path_t;
 typedef struct sentry_pathiter_s sentry_pathiter_t;
 typedef struct sentry_filelock_s sentry_filelock_t;
 
+/**
+ * Creates a new path by making `path` into an absolute path.
+ */
+sentry_path_t *sentry__path_absolute(const sentry_path_t *path);
+
 sentry_path_t *sentry__path_current_exe(void);
 sentry_path_t *sentry__path_dir(const sentry_path_t *path);
 sentry_path_t *sentry__path_from_str(const char *s);

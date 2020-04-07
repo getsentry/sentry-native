@@ -61,6 +61,17 @@ sentry_init(sentry_options_t *options)
     sentry_shutdown();
     sentry__mutex_lock(&g_options_mutex);
     g_options = options;
+
+    sentry_path_t *database_path = options->database_path;
+    options->database_path = sentry__path_absolute(database_path);
+    if (options->database_path) {
+        sentry__path_free(database_path);
+    } else {
+        options->database_path = database_path;
+    }
+    SENTRY_DEBUGF("Using database path \"%" SENTRY_PATH_PRI "\"",
+        options->database_path->path);
+
     sentry__path_create_dir_all(options->database_path);
     load_user_consent(options);
     sentry__mutex_unlock(&g_options_mutex);
