@@ -68,6 +68,7 @@ sentry_init(sentry_options_t *options)
     if (options->database_path) {
         sentry__path_free(database_path);
     } else {
+        SENTRY_DEBUG("falling back to non-absolute database path");
         options->database_path = database_path;
     }
     SENTRY_DEBUGF("Using database path \"%" SENTRY_PATH_PRI "\"",
