@@ -112,19 +112,19 @@ endif()
 
 # unwinder
 if(SENTRY_WITH_LIBBACKTRACE)
-	target_compile_definitions(sentry PUBLIC SENTRY_WITH_UNWINDER_LIBBACKTRACE)
+	target_compile_definitions(sentry PRIVATE SENTRY_WITH_UNWINDER_LIBBACKTRACE)
 	sentry_target_sources_cwd(sentry
 		unwinder/sentry_unwinder_libbacktrace.c
 	)
 endif()
 if(SENTRY_WITH_LIBUNWINDSTACK)
-	target_compile_definitions(sentry PUBLIC SENTRY_WITH_UNWINDER_LIBUNWINDSTACK)
+	target_compile_definitions(sentry PRIVATE SENTRY_WITH_UNWINDER_LIBUNWINDSTACK)
 	sentry_target_sources_cwd(sentry
 		unwinder/sentry_unwinder_libunwindstack.cpp
 	)
 endif()
 if(WIN32)
-	target_compile_definitions(sentry PUBLIC SENTRY_WITH_UNWINDER_DBGHELP)
+	target_compile_definitions(sentry PRIVATE SENTRY_WITH_UNWINDER_DBGHELP)
 	sentry_target_sources_cwd(sentry
 		unwinder/sentry_unwinder_dbghelp.c
 	)
