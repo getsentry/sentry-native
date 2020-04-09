@@ -284,7 +284,7 @@ if(SENTRY_BACKEND_CRASHPAD)
 			set(CRASHPAD_ENABLE_INSTALL ON CACHE BOOL "Enable crashpad installation" FORCE)
 		endif()
 		add_subdirectory(external/crashpad crashpad_build)
-		target_link_libraries(sentry PUBLIC
+		target_link_libraries(sentry PRIVATE
 			$<BUILD_INTERFACE:crashpad::client>
 			$<INSTALL_INTERFACE:sentry_crashpad::client>
 		)
