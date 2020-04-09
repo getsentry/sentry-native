@@ -202,13 +202,15 @@ if(MSVC)
 		set(CMAKE_ASM_MASM_FLAGS "${CMAKE_ASM_MASM_FLAGS} /safeseh")
 	endif()
 else()
-	target_compile_options(sentry PUBLIC $<BUILD_INTERFACE:-Wall -Wextra -Wpedantic>)
+	target_compile_options(sentry PRIVATE $<BUILD_INTERFACE:-Wall -Wextra -Wpedantic>)
 endif()
 
-target_include_directories(sentry PUBLIC
-	"$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>"
-	"$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>"
-	"$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>"
+target_include_directories(sentry
+	PUBLIC
+		"$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>"
+		"$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>"
+	PRIVATE
+		"$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>"
 )
 
 # Without this, dladdr can't find functions
