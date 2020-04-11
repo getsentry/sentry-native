@@ -202,13 +202,15 @@ if(MSVC)
 		set(CMAKE_ASM_MASM_FLAGS "${CMAKE_ASM_MASM_FLAGS} /safeseh")
 	endif()
 else()
-	target_compile_options(sentry PUBLIC $<BUILD_INTERFACE:-Wall -Wextra -Wpedantic>)
+	target_compile_options(sentry PRIVATE $<BUILD_INTERFACE:-Wall -Wextra -Wpedantic>)
 endif()
 
-target_include_directories(sentry PUBLIC
-	"$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>"
-	"$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>"
-	"$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>"
+target_include_directories(sentry
+	PUBLIC
+		"$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>"
+		"$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>"
+	PRIVATE
+		"$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>"
 )
 
 # Without this, dladdr can't find functions
@@ -219,19 +221,19 @@ target_link_libraries(sentry INTERFACE
 #respect CMAKE_SYSTEM_VERSION
 if(WIN32)
 	if(${CMAKE_SYSTEM_VERSION} MATCHES "^10")
-		target_compile_definitions(sentry PRIVATE "-D_WIN32_WINNT=0x0A00")
+		target_compile_definitions(sentry PRIVATE "_WIN32_WINNT=0x0A00")
 	elseif(${CMAKE_SYSTEM_VERSION} MATCHES "^6.3")
-		target_compile_definitions(sentry PRIVATE "-D_WIN32_WINNT=0x0603")
+		target_compile_definitions(sentry PRIVATE "_WIN32_WINNT=0x0603")
 	elseif(${CMAKE_SYSTEM_VERSION} MATCHES "^6.2")
-		target_compile_definitions(sentry PRIVATE "-D_WIN32_WINNT=0x0602")
+		target_compile_definitions(sentry PRIVATE "_WIN32_WINNT=0x0602")
 	elseif(${CMAKE_SYSTEM_VERSION} MATCHES "^6.1")
-		target_compile_definitions(sentry PRIVATE "-D_WIN32_WINNT=0x0601")
+		target_compile_definitions(sentry PRIVATE "_WIN32_WINNT=0x0601")
 	elseif(${CMAKE_SYSTEM_VERSION} MATCHES "^6.0")
-		target_compile_definitions(sentry PRIVATE "-D_WIN32_WINNT=0x0600")
+		target_compile_definitions(sentry PRIVATE "_WIN32_WINNT=0x0600")
 	elseif(${CMAKE_SYSTEM_VERSION} MATCHES "^5.2")
-		target_compile_definitions(sentry PRIVATE "-D_WIN32_WINNT=0x0502")
+		target_compile_definitions(sentry PRIVATE "_WIN32_WINNT=0x0502")
 	elseif(${CMAKE_SYSTEM_VERSION} MATCHES "^5.1")
-		target_compile_definitions(sentry PRIVATE "-D_WIN32_WINNT=0x0501")
+		target_compile_definitions(sentry PRIVATE "_WIN32_WINNT=0x0501")
 	endif()
 
 	target_link_libraries(sentry PRIVATE shlwapi)
@@ -284,7 +286,7 @@ if(SENTRY_BACKEND_CRASHPAD)
 			set(CRASHPAD_ENABLE_INSTALL ON CACHE BOOL "Enable crashpad installation" FORCE)
 		endif()
 		add_subdirectory(external/crashpad crashpad_build)
-		target_link_libraries(sentry PUBLIC
+		target_link_libraries(sentry PRIVATE
 			$<BUILD_INTERFACE:crashpad::client>
 			$<INSTALL_INTERFACE:sentry_crashpad::client>
 		)
