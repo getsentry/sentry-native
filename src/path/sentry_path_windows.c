@@ -6,6 +6,7 @@
 #include "sentry_string.h"
 #include "sentry_utils.h"
 
+#include <errno.h>
 #include <fcntl.h>
 #include <io.h>
 #include <shlwapi.h>
