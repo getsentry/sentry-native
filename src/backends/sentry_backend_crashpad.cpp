@@ -17,6 +17,7 @@ extern "C" {
 #    pragma GCC diagnostic ignored "-Wunused-parameter"
 #    pragma GCC diagnostic ignored "-Wgnu-zero-variadic-macro-arguments"
 #    pragma GCC diagnostic ignored "-Wfour-char-constants"
+#    pragma GCC diagnostic ignored "-Wgnu-include-next"
 #endif
 
 #include "client/crash_report_database.h"
