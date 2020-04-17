@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.4
+
+- Avoid unsafe reads in the linux module finder.
+- Update to latest crashpad snapshot.
+- Yet more CMake improvements (thanks @madebr and @Amphaal).
+
 ## 0.2.3
 
 ### Important upgrade notice
