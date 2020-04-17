@@ -115,6 +115,19 @@ or use it on the command line.
 [cmake]: https://cmake.org/cmake/help/latest/
 [cmake guide]: https://developer.android.com/ndk/guides/cmake
 
+**MinGW**:
+
+If you use MSYS2, make sure to :
+- Create an environement variable `MINGW64_ROOT` (ex : `C:/msys64/mingw64`)
+- Run from `mingw64.exe` : `pacman -S --needed - < ./toolchains/msys2-pkglist.txt`
+
+```sh
+# Configure with Ninja as generator and use the MSYS2 toolchain file
+$ cmake -GNinja -Bbuild -H. -DCMAKE_TOOLCHAIN_FILE=toolchains/msys2.cmake
+# build with Ninja
+$ ninja -C build
+```
+
 ### Compile-Time Options
 
 The following options can be set when running the cmake generator, for example
