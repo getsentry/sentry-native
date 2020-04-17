@@ -333,7 +333,8 @@ sentry__procmaps_module_to_value(const sentry_module_t *module)
         sentry_mmap_t mm;
         if (!sentry__mmap_file(&mm, filename)) {
             sentry_free(filename);
-            return mod_val;
+            sentry_value_decref(mod_val);
+            return sentry_value_new_null();
         }
         sentry_free(filename);
 
@@ -348,11 +349,14 @@ sentry__procmaps_module_to_value(const sentry_module_t *module)
 static void
 try_append_module(sentry_value_t modules, const sentry_module_t *module)
 {
-    if (!module->file.ptr || !is_elf_module(module->start)) {
+    if (!module->file.ptr) {
         return;
     }
 
-    sentry_value_append(modules, sentry__procmaps_module_to_value(module));
+    sentry_value_t mod_val = sentry__procmaps_module_to_value(module);
+    if (!sentry_value_is_null(mod_val)) {
+        sentry_value_append(modules, mod_val);
+    }
 }
 
 // copied from:
