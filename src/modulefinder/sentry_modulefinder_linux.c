@@ -327,15 +327,23 @@ sentry__procmaps_module_to_value(const sentry_module_t *module)
     // here is the linux-gate, which is not an actual file on disk, so we
     // actually poke at its memory.
     if (sentry__slice_eq(module->file, LINUX_GATE)) {
+        if (!is_elf_module(module->start)) {
+            goto fail;
+        }
         sentry__procmaps_read_ids_from_elf(mod_val, module->start);
     } else {
         char *filename = sentry__slice_to_owned(module->file);
         sentry_mmap_t mm;
         if (!sentry__mmap_file(&mm, filename)) {
             sentry_free(filename);
-            return mod_val;
+            goto fail;
         }
         sentry_free(filename);
+
+        if (!is_elf_module(mm.ptr)) {
+            sentry__mmap_close(&mm);
+            goto fail;
+        }
 
         sentry__procmaps_read_ids_from_elf(mod_val, mm.ptr);
 
@@ -343,16 +351,25 @@ sentry__procmaps_module_to_value(const sentry_module_t *module)
     }
 
     return mod_val;
+
+fail:
+    sentry_value_decref(mod_val);
+    return sentry_value_new_null();
 }
 
 static void
 try_append_module(sentry_value_t modules, const sentry_module_t *module)
 {
-    if (!module->file.ptr || !is_elf_module(module->start)) {
+    if (!module->file.ptr) {
         return;
     }
 
-    sentry_value_append(modules, sentry__procmaps_module_to_value(module));
+    SENTRY_TRACEF(
+        "inspecting module \"%.*s\"", module->file.len, module->file.ptr);
+    sentry_value_t mod_val = sentry__procmaps_module_to_value(module);
+    if (!sentry_value_is_null(mod_val)) {
+        sentry_value_append(modules, mod_val);
+    }
 }
 
 // copied from:
