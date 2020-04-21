@@ -1,7 +1,13 @@
-if(NOT DEFINED ENV{MINGW64_ROOT})
-    message(FATAL_ERROR "Required ENV variable MINGW64_ROOT does not exists. Please check README.md for more details !")
-else()
-    SET(MINGW64_ROOT $ENV{MINGW64_ROOT})
+if(NOT DEFINED MINGW_ROOT)
+    if(DEFINED ENV{MINGW_ROOT})
+        SET(MINGW_ROOT $ENV{MINGW_ROOT})
+    elseif(DEFINED ENV{MINGW64_ROOT})
+        SET(MINGW_ROOT $ENV{MINGW64_ROOT})
+    elseif(DEFINED ENV{MINGW32_ROOT})
+        SET(MINGW_ROOT $ENV{MINGW32_ROOT})
+    else()
+        message(FATAL_ERROR "Required variable MINGW_ROOT is not defined. Please check README.md for more details !")
+    endif()
 endif()
 
 # search for programs in the build host directories
@@ -13,8 +19,7 @@ set (CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
 set (CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)
 
 list(APPEND CMAKE_PREFIX_PATH
-    ${MINGW64_ROOT}/x86_64-w64-mingw32
-    ${MINGW64_ROOT}
+    ${MINGW_ROOT}
 )
 
 SET (CMAKE_ASM_MASM_COMPILER    "uasm")

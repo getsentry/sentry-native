@@ -1,0 +1,5 @@
+mingw32/mingw-w64-i686-uasm
+mingw32/mingw-w64-i686-clang
+mingw32/mingw-w64-i686-lld
+mingw32/mingw-w64-i686-ninja
+mingw32/mingw-w64-i686-cmake
