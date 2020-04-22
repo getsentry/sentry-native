@@ -69,18 +69,22 @@ void sentry__dsn_cleanup(sentry_dsn_t *dsn);
 char *sentry__dsn_get_auth_header(const sentry_dsn_t *dsn);
 
 /**
- * This returns a new string, with the URL for normal event and envelope
- * uploads.
+ * Returns a new string with the URL for normal event uploads.
  */
 char *sentry__dsn_get_store_url(const sentry_dsn_t *dsn);
 
 /**
- * This returns a new string, with the URL for minidump uploads.
+ * Returns a new string with the URL for envelope uploads.
+ */
+char *sentry__dsn_get_envelope_url(const sentry_dsn_t *dsn);
+
+/**
+ * Returns a new string with the URL for minidump uploads.
  */
 char *sentry__dsn_get_minidump_url(const sentry_dsn_t *dsn);
 
 /**
- * This returns a new string, with the URL for attachment uploads.
+ * Returns a new string with the URL for attachment uploads.
  */
 char *sentry__dsn_get_attachment_url(
     const sentry_dsn_t *dsn, const sentry_uuid_t *event_id);

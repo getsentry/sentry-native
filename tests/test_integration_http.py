@@ -11,6 +11,7 @@ from .assertions import (
     assert_stacktrace,
     assert_event,
     assert_crash,
+    assert_session,
     assert_minidump,
 )
 
@@ -51,22 +52,19 @@ def test_capture_http(tmp_path, httpserver):
     assert_event(envelope)
 
 
-@pytest.mark.skipif(not has_inproc, reason="test needs inproc backend")
-def test_inproc_crash_http(tmp_path, httpserver):
-    cmake(tmp_path, ["sentry_example"], {"SENTRY_BACKEND": "inproc"})
-
-    child = run(tmp_path, "sentry_example", ["attachment", "crash"])
-    assert child.returncode  # well, its a crash after all
+def test_session_http(tmp_path, httpserver):
+    # we want to have the default transport
+    cmake(tmp_path, ["sentry_example"], {"SENTRY_BACKEND": "none"})
 
     httpserver.expect_oneshot_request(
-        "/api/123456/store/", headers={"x-sentry-auth": auth_header},
+        "/api/123456/envelope/", headers={"x-sentry-auth": auth_header},
     ).respond_with_data("OK")
 
     with httpserver.wait(raise_assertions=True, stop_on_nohandler=True) as waiting:
         run(
             tmp_path,
             "sentry_example",
-            ["no-setup"],
+            ["start-session"],
             check=True,
             env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
         )
@@ -74,6 +72,38 @@ def test_inproc_crash_http(tmp_path, httpserver):
     assert waiting.result
 
     output = httpserver.log[0][0].get_data()
+    envelope = Envelope.deserialize(output)
+
+    assert_session(envelope, {"status": "exited", "errors": 0})
+
+
+@pytest.mark.skipif(not has_inproc, reason="test needs inproc backend")
+def test_inproc_crash_http(tmp_path, httpserver):
+    cmake(tmp_path, ["sentry_example"], {"SENTRY_BACKEND": "inproc"})
+
+    child = run(tmp_path, "sentry_example", ["start-session", "attachment", "crash"])
+    assert child.returncode  # well, its a crash after all
+
+    httpserver.expect_request(
+        "/api/123456/envelope/", headers={"x-sentry-auth": auth_header},
+    ).respond_with_data("OK")
+
+    run(
+        tmp_path,
+        "sentry_example",
+        ["no-setup"],
+        check=True,
+        env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+    )
+
+    assert len(httpserver.log) == 2
+
+    # the session comes first
+    output = httpserver.log[0][0].get_data()
+    envelope = Envelope.deserialize(output)
+    assert_session(envelope, {"status": "crashed", "errors": 0})
+
+    output = httpserver.log[1][0].get_data()
     envelope = Envelope.deserialize(output)
 
     assert_meta(envelope)
@@ -88,7 +118,7 @@ def test_inproc_dump_inflight(tmp_path, httpserver):
     cmake(tmp_path, ["sentry_example"], {"SENTRY_BACKEND": "inproc"})
 
     httpserver.expect_request(
-        "/api/123456/store/", headers={"x-sentry-auth": auth_header},
+        "/api/123456/envelope/", headers={"x-sentry-auth": auth_header},
     ).respond_with_data("OK")
 
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
@@ -105,23 +135,27 @@ def test_inproc_dump_inflight(tmp_path, httpserver):
 def test_breakpad_crash_http(tmp_path, httpserver):
     cmake(tmp_path, ["sentry_example"], {"SENTRY_BACKEND": "breakpad"})
 
-    child = run(tmp_path, "sentry_example", ["attachment", "crash"])
+    child = run(tmp_path, "sentry_example", ["start-session", "attachment", "crash"])
     assert child.returncode  # well, its a crash after all
 
-    httpserver.expect_oneshot_request(
-        "/api/123456/store/", headers={"x-sentry-auth": auth_header},
+    httpserver.expect_request(
+        "/api/123456/envelope/", headers={"x-sentry-auth": auth_header},
     ).respond_with_data("OK")
 
-    with httpserver.wait(raise_assertions=True, stop_on_nohandler=True) as waiting:
-        run(
-            tmp_path,
-            "sentry_example",
-            ["no-setup"],
-            check=True,
-            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
-        )
+    run(
+        tmp_path,
+        "sentry_example",
+        ["no-setup"],
+        check=True,
+        env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+    )
 
-    assert waiting.result
+    assert len(httpserver.log) == 2
+
+    # the session comes first
+    output = httpserver.log[0][0].get_data()
+    envelope = Envelope.deserialize(output)
+    assert_session(envelope, {"status": "crashed", "errors": 0})
 
     output = httpserver.log[0][0].get_data()
     envelope = Envelope.deserialize(output)
@@ -138,7 +172,7 @@ def test_breakpad_dump_inflight(tmp_path, httpserver):
     cmake(tmp_path, ["sentry_example"], {"SENTRY_BACKEND": "breakpad"})
 
     httpserver.expect_request(
-        "/api/123456/store/", headers={"x-sentry-auth": auth_header},
+        "/api/123456/envelope/", headers={"x-sentry-auth": auth_header},
     ).respond_with_data("OK")
 
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))

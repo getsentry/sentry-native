@@ -146,8 +146,8 @@ class Envelope(object):
 
     def get_event(self):
         # type: (...) -> Optional[Event]
-        for items in self.items:
-            event = items.get_event()
+        for item in self.items:
+            event = item.get_event()
             if event is not None:
                 return event
         return None
@@ -232,7 +232,7 @@ class Item(object):
         headers = json.loads(line)
         length = headers["length"]
         payload = f.read(length)
-        if headers.get("type") == "event":
+        if headers.get("type") == "event" or headers.get("type") == "session":
             rv = cls(headers=headers, payload=PayloadRef(json=json.loads(payload)))
         else:
             rv = cls(headers=headers, payload=payload)

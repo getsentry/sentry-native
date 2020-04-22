@@ -313,6 +313,18 @@ sentry__dsn_get_store_url(const sentry_dsn_t *dsn)
 }
 
 char *
+sentry__dsn_get_envelope_url(const sentry_dsn_t *dsn)
+{
+    if (!dsn || dsn->empty) {
+        return NULL;
+    }
+    sentry_stringbuilder_t sb;
+    init_string_builder_for_url(&sb, dsn);
+    sentry__stringbuilder_append(&sb, "/envelope/");
+    return sentry__stringbuilder_into_string(&sb);
+}
+
+char *
 sentry__dsn_get_minidump_url(const sentry_dsn_t *dsn)
 {
     if (!dsn || dsn->empty) {
