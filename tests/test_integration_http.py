@@ -97,15 +97,15 @@ def test_inproc_crash_http(tmp_path, httpserver):
     )
 
     assert len(httpserver.log) == 2
+    outputs = (httpserver.log[0][0].get_data(), httpserver.log[1][0].get_data())
+    session, event = (
+        outputs if b'"type":"session"' in outputs[0] else (outputs[1], outputs[0])
+    )
 
-    # the session comes first
-    output = httpserver.log[0][0].get_data()
-    envelope = Envelope.deserialize(output)
+    envelope = Envelope.deserialize(session)
     assert_session(envelope, {"status": "crashed", "errors": 0})
 
-    output = httpserver.log[1][0].get_data()
-    envelope = Envelope.deserialize(output)
-
+    envelope = Envelope.deserialize(event)
     assert_meta(envelope)
     assert_breadcrumb(envelope)
     assert_attachment(envelope)
@@ -151,14 +151,15 @@ def test_breakpad_crash_http(tmp_path, httpserver):
     )
 
     assert len(httpserver.log) == 2
+    outputs = (httpserver.log[0][0].get_data(), httpserver.log[1][0].get_data())
+    session, event = (
+        outputs if b'"type":"session"' in outputs[0] else (outputs[1], outputs[0])
+    )
 
-    # the session comes first
-    output = httpserver.log[0][0].get_data()
-    envelope = Envelope.deserialize(output)
+    envelope = Envelope.deserialize(session)
     assert_session(envelope, {"status": "crashed", "errors": 0})
 
-    output = httpserver.log[0][0].get_data()
-    envelope = Envelope.deserialize(output)
+    envelope = Envelope.deserialize(event)
 
     assert_meta(envelope)
     assert_breadcrumb(envelope)

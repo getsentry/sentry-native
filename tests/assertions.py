@@ -6,6 +6,7 @@ def matches(actual, expected):
 
 
 def assert_session(envelope, extra_assertion=None):
+    session = None
     for item in envelope:
         if item.headers.get("type") == "session" and item.payload.json is not None:
             session = item.payload.json
@@ -84,7 +85,6 @@ def assert_attachment(envelope):
 def assert_minidump(envelope):
     expected = {
         "type": "attachment",
-        "name": "upload_file_minidump",
         "attachment_type": "event.minidump",
     }
     assert any(matches(item.headers, expected) for item in envelope)

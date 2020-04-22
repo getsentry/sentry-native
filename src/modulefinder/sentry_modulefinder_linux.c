@@ -365,7 +365,7 @@ try_append_module(sentry_value_t modules, const sentry_module_t *module)
     }
 
     SENTRY_TRACEF(
-        "inspecting module \"%.*s\"", module->file.len, module->file.ptr);
+        "inspecting module \"%.*s\"", (int)module->file.len, module->file.ptr);
     sentry_value_t mod_val = sentry__procmaps_module_to_value(module);
     if (!sentry_value_is_null(mod_val)) {
         sentry_value_append(modules, mod_val);
