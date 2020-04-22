@@ -203,6 +203,13 @@ if(MSVC)
 	endif()
 else()
 	target_compile_options(sentry PRIVATE $<BUILD_INTERFACE:-Wall -Wextra -Wpedantic>)
+	# ignore all warnings for mpack
+	set_source_files_properties(
+		"${PROJECT_SOURCE_DIR}/vendor/mpack.c"
+		PROPERTIES
+		COMPILE_FLAGS
+		"-w"
+	)
 endif()
 
 target_include_directories(sentry
