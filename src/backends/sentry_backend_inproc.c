@@ -28,7 +28,7 @@ struct signal_slot {
 #define SIGNAL_STACK_SIZE 65536
 static struct sigaction g_sigaction;
 static struct sigaction g_previous_handlers[SIGNAL_COUNT];
-stack_t g_signal_stack;
+static stack_t g_signal_stack;
 
 static const struct signal_slot SIGNAL_DEFINITIONS[SIGNAL_COUNT] = {
     SIGNAL_DEF(SIGILL, "IllegalInstruction"),
