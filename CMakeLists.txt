@@ -203,6 +203,13 @@ if(MSVC)
 	endif()
 else()
 	target_compile_options(sentry PRIVATE $<BUILD_INTERFACE:-Wall -Wextra -Wpedantic>)
+	# ignore all warnings for mpack
+	set_source_files_properties(
+		"${PROJECT_SOURCE_DIR}/vendor/mpack.c"
+		PROPERTIES
+		COMPILE_FLAGS
+		"-w"
+	)
 endif()
 
 target_include_directories(sentry
@@ -245,6 +252,8 @@ endif()
 
 if(LINUX)
 	target_link_libraries(sentry PRIVATE pthread dl)
+elseif(ANDROID)
+	target_link_libraries(sentry PRIVATE dl log)
 elseif(MSVC)
 	target_link_libraries(sentry PRIVATE dbghelp)
 elseif(MINGW)
@@ -338,6 +347,6 @@ endif()
 
 if(SENTRY_BUILD_EXAMPLES)
 	add_executable(sentry_example examples/example.c)
-	target_link_libraries(sentry_example sentry)
+	target_link_libraries(sentry_example PRIVATE sentry)
 	add_test(NAME sentry_example COMMAND sentry_example)
 endif()
