@@ -96,6 +96,10 @@ main(int argc, char **argv)
         sentry_add_breadcrumb(debug_crumb);
     }
 
+    if (has_arg(argc, argv, "start-session")) {
+        sentry_start_session();
+    }
+
     if (has_arg(argc, argv, "overflow-breadcrumbs")) {
         for (size_t i = 0; i < 101; i++) {
             char buffer[4];

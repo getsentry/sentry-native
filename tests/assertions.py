@@ -5,6 +5,22 @@ def matches(actual, expected):
     return {k: v for (k, v) in actual.items() if k in expected.keys()} == expected
 
 
+def assert_session(envelope, extra_assertion=None):
+    session = None
+    for item in envelope:
+        if item.headers.get("type") == "session" and item.payload.json is not None:
+            session = item.payload.json
+
+    assert session is not None
+    assert session["did"] == "42"
+    assert session["attrs"] == {
+        "release": "test-example-release",
+        "environment": "Production",
+    }
+    if extra_assertion:
+        assert matches(session, extra_assertion)
+
+
 def assert_meta(envelope):
     event = envelope.get_event()
 
@@ -69,7 +85,6 @@ def assert_attachment(envelope):
 def assert_minidump(envelope):
     expected = {
         "type": "attachment",
-        "name": "upload_file_minidump",
         "attachment_type": "event.minidump",
     }
     assert any(matches(item.headers, expected) for item in envelope)

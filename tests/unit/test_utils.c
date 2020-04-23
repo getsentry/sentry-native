@@ -85,6 +85,10 @@ SENTRY_TEST(dsn_store_url_with_path)
     char *url = sentry__dsn_get_store_url(&dsn);
     TEST_CHECK_STRING_EQUAL(url, "http://example.com:80/foo/bar/api/42/store/");
     sentry_free(url);
+    url = sentry__dsn_get_envelope_url(&dsn);
+    TEST_CHECK_STRING_EQUAL(
+        url, "http://example.com:80/foo/bar/api/42/envelope/");
+    sentry_free(url);
     url = sentry__dsn_get_minidump_url(&dsn);
     TEST_CHECK_STRING_EQUAL(url,
         "http://example.com:80/foo/bar/api/42/minidump/?sentry_key=username");
@@ -107,6 +111,9 @@ SENTRY_TEST(dsn_store_url_without_path)
         0);
     char *url = sentry__dsn_get_store_url(&dsn);
     TEST_CHECK_STRING_EQUAL(url, "http://example.com:80/api/42/store/");
+    sentry_free(url);
+    url = sentry__dsn_get_envelope_url(&dsn);
+    TEST_CHECK_STRING_EQUAL(url, "http://example.com:80/api/42/envelope/");
     sentry_free(url);
     url = sentry__dsn_get_minidump_url(&dsn);
     TEST_CHECK_STRING_EQUAL(
