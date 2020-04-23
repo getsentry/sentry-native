@@ -32,7 +32,7 @@ extern "C" {
 extern "C" {
 
 typedef struct {
-    std::unique_ptr<crashpad::CrashReportDatabase> db;
+    crashpad::CrashReportDatabase *db;
     sentry_path_t *event_path;
     sentry_path_t *breadcrumb1_path;
     sentry_path_t *breadcrumb2_path;
@@ -43,7 +43,7 @@ static void
 sentry__crashpad_backend_user_consent_changed(sentry_backend_t *backend)
 {
     crashpad_state_t *data = (crashpad_state_t *)backend->data;
-    if (!data->db->GetSettings()) {
+    if (!data->db || !data->db->GetSettings()) {
         return;
     }
     data->db->GetSettings()->SetUploadsEnabled(!sentry__should_skip_upload());
@@ -53,6 +53,7 @@ static void
 sentry__crashpad_backend_shutdown(sentry_backend_t *backend)
 {
     crashpad_state_t *data = (crashpad_state_t *)backend->data;
+    delete data->db;
     data->db = nullptr;
 }
 
@@ -138,7 +139,7 @@ sentry__crashpad_backend_startup(sentry_backend_t *backend)
     // initialize database first and check for user consent.  This is going
     // to change the setting persisted into the crashpad database.  The
     // update to the consent change is then reflected when the handler starts.
-    data->db = crashpad::CrashReportDatabase::Initialize(database);
+    data->db = crashpad::CrashReportDatabase::Initialize(database).release();
     sentry__crashpad_backend_user_consent_changed(backend);
 
     crashpad::CrashpadClient client;
