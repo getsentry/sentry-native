@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.5
+
+- Send sessions to the correct sentry endpoint and make sure they work.
+- Smaller cleanups.
+
 ## 0.2.4
 
 - Avoid unsafe reads in the linux module finder.

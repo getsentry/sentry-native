@@ -38,7 +38,7 @@ main(int argc, char **argv)
     sentry_options_t *options = sentry_options_new();
     sentry_options_set_database_path(options, ".sentry-native");
 
-    sentry_options_set_environment(options, "Production");
+    sentry_options_set_environment(options, "development");
     sentry_options_set_release(options, "test-example-release");
 
     if (has_arg(argc, argv, "log")) {
