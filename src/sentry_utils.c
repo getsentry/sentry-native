@@ -376,3 +376,43 @@ sentry__msec_time_to_iso8601(uint64_t time)
     strcat(buf, "Z");
     return sentry__string_clone(buf);
 }
+
+uint64_t
+sentry__iso8601_to_msec(const char *iso)
+{
+    int len = strlen(iso);
+    // The code is adapted from: https://stackoverflow.com/a/26896792
+    int y, M, d, h, m, s, msec = 0;
+    int consumed = 0;
+    if (sscanf(iso, "%d-%d-%dT%d:%d:%d%n", &y, &M, &d, &h, &m, &s, &consumed)
+        < 6) {
+        return 0;
+    }
+    // we must have a tail, either `Z` or starting with `.`
+    if (consumed >= len || (iso[consumed] != 'Z' && iso[consumed] != '.')) {
+        return 0;
+    }
+    if (iso[consumed] == '.') {
+        if (sscanf(&iso[consumed], ".%dZ", &msec) < 1) {
+            return 0;
+        }
+    }
+
+    struct tm tm;
+    tm.tm_year = y - 1900;
+    tm.tm_mon = M - 1;
+    tm.tm_mday = d;
+    tm.tm_hour = h;
+    tm.tm_min = m;
+    tm.tm_sec = s;
+    // a negative value means `mktime` should infer it
+    tm.tm_isdst = -1;
+    time_t time = mktime(&tm);
+    if (time == -1) {
+        return 0;
+    }
+    // add the UTC offset, since mktime assumes local time
+    time += tm.tm_gmtoff;
+
+    return (uint64_t)time * 1000 + msec;
+}

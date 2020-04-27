@@ -74,7 +74,7 @@ def test_session_http(tmp_path, httpserver):
     output = httpserver.log[0][0].get_data()
     envelope = Envelope.deserialize(output)
 
-    assert_session(envelope, {"status": "exited", "errors": 0})
+    assert_session(envelope, {"init": True, "status": "exited", "errors": 0})
 
 
 @pytest.mark.skipif(not has_inproc, reason="test needs inproc backend")
@@ -103,7 +103,7 @@ def test_inproc_crash_http(tmp_path, httpserver):
     )
 
     envelope = Envelope.deserialize(session)
-    assert_session(envelope, {"status": "crashed", "errors": 0})
+    assert_session(envelope, {"init": True, "status": "crashed", "errors": 0})
 
     envelope = Envelope.deserialize(event)
     assert_meta(envelope)
@@ -157,7 +157,7 @@ def test_breakpad_crash_http(tmp_path, httpserver):
     )
 
     envelope = Envelope.deserialize(session)
-    assert_session(envelope, {"status": "crashed", "errors": 0})
+    assert_session(envelope, {"init": True, "status": "crashed", "errors": 0})
 
     envelope = Envelope.deserialize(event)
 
