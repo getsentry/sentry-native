@@ -407,12 +407,16 @@ sentry__iso8601_to_msec(const char *iso)
     tm.tm_sec = s;
     // a negative value means `mktime` should infer it
     tm.tm_isdst = -1;
-    time_t time = mktime(&tm);
+#ifdef SENTRY_PLATFORM_WINDOWS
+    time_t time = _mkgmtime(&tm);
+#else
+    // add the UTC offset, since mktime assumes local time
+    tm.tm_gmtoff = 0;
+    time_t time = mktime(&tm) + tm.tm_gmtoff;
+#endif
     if (time == -1) {
         return 0;
     }
-    // add the UTC offset, since mktime assumes local time
-    time += tm.tm_gmtoff;
 
     return (uint64_t)time * 1000 + msec;
 }
