@@ -376,3 +376,50 @@ sentry__msec_time_to_iso8601(uint64_t time)
     strcat(buf, "Z");
     return sentry__string_clone(buf);
 }
+
+uint64_t
+sentry__iso8601_to_msec(const char *iso)
+{
+    int len = strlen(iso);
+    if (len != 20 && len != 24) {
+        return 0;
+    }
+    // The code is adapted from: https://stackoverflow.com/a/26896792
+    int y, M, d, h, m, s, msec = 0;
+    int consumed = 0;
+    if (sscanf(iso, "%d-%d-%dT%d:%d:%d%n", &y, &M, &d, &h, &m, &s, &consumed)
+            < 6
+        || consumed != 19) {
+        return 0;
+    }
+    iso += consumed;
+    // we optionally have millisecond precision
+    if (iso[0] == '.') {
+        if (sscanf(iso, ".%d%n", &msec, &consumed) < 1 || consumed != 4) {
+            return 0;
+        }
+        iso += consumed;
+    }
+    // the string is terminated by `Z`
+    if (iso[0] != 'Z') {
+        return 0;
+    }
+
+    struct tm tm;
+    tm.tm_year = y - 1900;
+    tm.tm_mon = M - 1;
+    tm.tm_mday = d;
+    tm.tm_hour = h;
+    tm.tm_min = m;
+    tm.tm_sec = s;
+#ifdef SENTRY_PLATFORM_WINDOWS
+    time_t time = _mkgmtime(&tm);
+#else
+    time_t time = timegm(&tm);
+#endif
+    if (time == -1) {
+        return 0;
+    }
+
+    return (uint64_t)time * 1000 + msec;
+}
