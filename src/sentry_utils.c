@@ -381,21 +381,28 @@ uint64_t
 sentry__iso8601_to_msec(const char *iso)
 {
     int len = strlen(iso);
+    if (len != 20 && len != 24) {
+        return 0;
+    }
     // The code is adapted from: https://stackoverflow.com/a/26896792
     int y, M, d, h, m, s, msec = 0;
     int consumed = 0;
     if (sscanf(iso, "%d-%d-%dT%d:%d:%d%n", &y, &M, &d, &h, &m, &s, &consumed)
-        < 6) {
+            < 6
+        || consumed != 19) {
         return 0;
     }
-    // we must have a tail, either `Z` or starting with `.`
-    if (consumed >= len || (iso[consumed] != 'Z' && iso[consumed] != '.')) {
-        return 0;
-    }
-    if (iso[consumed] == '.') {
-        if (sscanf(&iso[consumed], ".%dZ", &msec) < 1) {
+    iso += consumed;
+    // we optionally have millisecond precision
+    if (iso[0] == '.') {
+        if (sscanf(iso, ".%d%n", &msec, &consumed) < 1 || consumed != 4) {
             return 0;
         }
+        iso += consumed;
+    }
+    // the string is terminated by `Z`
+    if (iso[0] != 'Z') {
+        return 0;
     }
 
     struct tm tm;
@@ -405,14 +412,10 @@ sentry__iso8601_to_msec(const char *iso)
     tm.tm_hour = h;
     tm.tm_min = m;
     tm.tm_sec = s;
-    // a negative value means `mktime` should infer it
-    tm.tm_isdst = -1;
 #ifdef SENTRY_PLATFORM_WINDOWS
     time_t time = _mkgmtime(&tm);
 #else
-    // add the UTC offset, since mktime assumes local time
-    tm.tm_gmtoff = 0;
-    time_t time = mktime(&tm) + tm.tm_gmtoff;
+    time_t time = timegm(&tm);
 #endif
     if (time == -1) {
         return 0;
