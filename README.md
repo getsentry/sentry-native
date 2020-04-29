@@ -17,16 +17,16 @@ Please see [Known Issues](#known-issues).
 
 ## Table of Contents <!-- omit in toc -->
 
--   [Downloads](#downloads)
-    -   [What is Inside](#what-is-inside)
--   [Platform and Feature Support](#platform-and-feature-support)
--   [Building and Installation](#building-and-installation)
-    -   [Compile-Time Options](#compile-time-options)
-    -   [Build Targets](#build-targets)
--   [Known Issues](#known-issues)
--   [Sample Application](#sample-application)
--   [Development](#development)
-    -   [Running Tests](#running-tests)
+- [Downloads](#downloads)
+  - [What is Inside](#what-is-inside)
+- [Platform and Feature Support](#platform-and-feature-support)
+- [Building and Installation](#building-and-installation)
+  - [Compile-Time Options](#compile-time-options)
+  - [Build Targets](#build-targets)
+- [Known Issues](#known-issues)
+- [Sample Application](#sample-application)
+- [Development](#development)
+  - [Running Tests](#running-tests)
 
 ## Downloads
 
@@ -39,39 +39,39 @@ changelog of every version.
 
 The SDK bundle contains the following folders:
 
--   `external`: These are external projects which are consumed via
-    `git submodules`.
--   `include`: Contains the Sentry header file. Set the include path to this
-    directory or copy the header file to your source tree so that it is available
-    during the build.
--   `src`: Sources of the Sentry SDK required for building.
+- `external`: These are external projects which are consumed via
+  `git submodules`.
+- `include`: Contains the Sentry header file. Set the include path to this
+  directory or copy the header file to your source tree so that it is available
+  during the build.
+- `src`: Sources of the Sentry SDK required for building.
 
 ## Platform and Feature Support
 
 The SDK currently supports and is tested on the following OS/Compiler variations:
 
--   64bit Linux with GCC 9
--   64bit Linux with clang 9
--   32bit Linux with GCC 7 (cross compiled from 64bit host)
--   64bit Windows with MSVC 2019
--   32bit Windows with MSVC 2017
--   macOS Catalina with most recent Compiler toolchain
--   Android API29 built by NDK21 toolchain
--   Android API16 built by NDK19 toolchain
+- 64bit Linux with GCC 9
+- 64bit Linux with clang 9
+- 32bit Linux with GCC 7 (cross compiled from 64bit host)
+- 64bit Windows with MSVC 2019
+- 32bit Windows with MSVC 2017
+- macOS Catalina with most recent Compiler toolchain
+- Android API29 built by NDK21 toolchain
+- Android API16 built by NDK19 toolchain
 
 Additionally, the SDK should support the following platforms, although they are
 not automatically tested, so breakage may occur:
 
--   Windows Versions lower than Windows 10 / Windows Server 2016
--   Windows builds with the MSYS2 + MinGW + Clang toolchain
+- Windows Versions lower than Windows 10 / Windows Server 2016
+- Windows builds with the MSYS2 + MinGW + Clang toolchain
 
 The SDK supports different features on the target platform:
 
--   **HTTP Transport** is currently only supported on Windows and platforms that
-    have the `curl` library available. On other platforms, library users need to
-    implement their own transport, based on the `function transport` API.
--   **Crashpad Backend** is currently only supported on Windows and macOS.
--   **Breakpad Backend** is currently only supported on Linux.
+- **HTTP Transport** is currently only supported on Windows and platforms that
+  have the `curl` library available. On other platforms, library users need to
+  implement their own transport, based on the `function transport` API.
+- **Crashpad Backend** is currently only supported on Windows and macOS.
+- **Breakpad Backend** is currently only supported on Linux.
 
 ## Building and Installation
 
@@ -113,7 +113,6 @@ see the dedicated [CMake Guide] for details on how to integrate it with gradle
 or use it on the command line.
 
 [cmake]: https://cmake.org/cmake/help/latest/
-
 [cmake guide]: https://developer.android.com/ndk/guides/cmake
 
 **MinGW**:
@@ -141,48 +140,47 @@ $ ninja -C build
 The following options can be set when running the cmake generator, for example
 using `cmake -D BUILD_SHARED_LIBS=OFF ..`.
 
--   `BUILD_SHARED_LIBS` (Default: ON):
-    By default, `sentry` is built as a shared library. Setting this option to
-    `OFF` will build `sentry` as a static library instead.
+- `BUILD_SHARED_LIBS` (Default: ON):
+  By default, `sentry` is built as a shared library. Setting this option to
+  `OFF` will build `sentry` as a static library instead.
 
--   `SENTRY_PIC` (Default: ON):
-    By default, `sentry` is built as a position independent library.
+- `SENTRY_PIC` (Default: ON):
+  By default, `sentry` is built as a position independent library.
 
--   `CMAKE_SYSTEM_VERSION`: (Default: depending on Windows SDK version):
-    Sets up a minimal version of Windows where sentry-native can be guaranteed to run.
-    Possible values:
+- `CMAKE_SYSTEM_VERSION`: (Default: depending on Windows SDK version):
+  Sets up a minimal version of Windows where sentry-native can be guaranteed to run.
+  Possible values:
 
-    -   `5.1` (Windows XP)
-    -   `5.2` (Windows XP 64-bit / Server 2003 / Server 2003 R2)
-    -   `6.0` (Windows Vista / Server 2008)
-    -   `6.1` (Windows 7 / Server 2008 R2)
-    -   `6.2` (Windows 8.0 / Server 2012)
-    -   `6.3` (Windows 8.1 / Server 2012 R2)
-    -   `10` (Windows 10 / Server 2016 / Server 2019)
+  - `5.1` (Windows XP)
+  - `5.2` (Windows XP 64-bit / Server 2003 / Server 2003 R2)
+  - `6.0` (Windows Vista / Server 2008)
+  - `6.1` (Windows 7 / Server 2008 R2)
+  - `6.2` (Windows 8.0 / Server 2012)
+  - `6.3` (Windows 8.1 / Server 2012 R2)
+  - `10` (Windows 10 / Server 2016 / Server 2019)
 
-    For Windows versions below than `6.0` it is also necessary to use XP toolchain
-    in case of MSVC compiler (pass `-T v141_xp` to CMake command line).
-    Also, you are not able to use Crashpad with XP toolchains, no crashes will be handled at all.
+  For Windows versions below than `6.0` it is also necessary to use XP toolchain
+  in case of MSVC compiler (pass `-T v141_xp` to CMake command line).
+  Also, you are not able to use Crashpad with XP toolchains, no crashes will be handled at all.
 
--   `SENTRY_TRANSPORT` (Default: depending on platform):
-    Sentry can use different http libraries to send reports to the server.
-    -   **curl**: This uses the `curl` library for HTTP handling. This requires
-        that the development version of the package is available.
-    -   **winhttp**: This uses the `winhttp` system library, is only supported on
-        Windows and is the default there.
-    -   **none**: Do not build any http transport. This should be used if users
-        want to handle uploads themselves
-
--   `SENTRY_BACKEND` (Default: depending on platform):
-    Sentry can use different backends depending on platform.
-    -   **crashpad**: This uses the out-of-process crashpad handler. It is currently
-        only supported on Windows and macOS, and used as the default there.
-    -   **breakpad**: This uses the in-process breakpad handler. It is currently
-        only supported on Linux, and used as the default there.
-    -   **inproc**: A small in-process handler which is supported on all platforms
-        except Windows, and is used as default on Linux and Android.
-    -   **none**: This builds `sentry-native` without a backend, so it does not handle
-        crashes at all. It is primarily used for tests.
+- `SENTRY_TRANSPORT` (Default: depending on platform):
+  Sentry can use different http libraries to send reports to the server.
+  - **curl**: This uses the `curl` library for HTTP handling. This requires
+    that the development version of the package is available.
+  - **winhttp**: This uses the `winhttp` system library, is only supported on
+    Windows and is the default there.
+  - **none**: Do not build any http transport. This should be used if users
+    want to handle uploads themselves
+- `SENTRY_BACKEND` (Default: depending on platform):
+  Sentry can use different backends depending on platform.
+  - **crashpad**: This uses the out-of-process crashpad handler. It is currently
+    only supported on Windows and macOS, and used as the default there.
+  - **breakpad**: This uses the in-process breakpad handler. It is currently
+    only supported on Linux, and used as the default there.
+  - **inproc**: A small in-process handler which is supported on all platforms
+    except Windows, and is used as default on Linux and Android.
+  - **none**: This builds `sentry-native` without a backend, so it does not handle
+    crashes at all. It is primarily used for tests.
 
 | Feature    | Windows | macOS | Linux | Android |
 | ---------- | ------- | ----- | ----- | ------- |
@@ -199,31 +197,31 @@ using `cmake -D BUILD_SHARED_LIBS=OFF ..`.
 
 Legend:
 
--   ☑ default
--   ✓ supported
--   unsupported
+- ☑ default
+- ✓ supported
+- unsupported
 
 ### Build Targets
 
--   `sentry`: This is the main library and the only default build target.
--   `crashpad_handler`: When configured with the `crashpad` backend, this is
-    the out of process crash handler, which will need to be installed along with
-    the projects executable.
--   `sentry_test_unit`: These are the main unit-tests, which are conveniently built
-    also by the toplevel makefile.
--   `sentry_example`: This is a small example program highlighting the API, which
-    can be controlled via command-line parameters, and is also used for
-    integration tests.
+- `sentry`: This is the main library and the only default build target.
+- `crashpad_handler`: When configured with the `crashpad` backend, this is
+  the out of process crash handler, which will need to be installed along with
+  the projects executable.
+- `sentry_test_unit`: These are the main unit-tests, which are conveniently built
+  also by the toplevel makefile.
+- `sentry_example`: This is a small example program highlighting the API, which
+  can be controlled via command-line parameters, and is also used for
+  integration tests.
 
 ## Known Issues
 
--   The SDK currently depends on the hosted version on
-    [sentry.io](https://sentry.io). The latest on-premise version of Sentry (10.0)
-    does not provide server-side support for events sent by `sentry-native`.
-    Full support for `sentry-native` will be made available to all on-premise
-    customers with the next release.
--   Attachments are currently in _Preview_ and may not be available to your
-    organization. Please see [Event Attachments] for more information.
+- The SDK currently depends on the hosted version on
+  [sentry.io](https://sentry.io). The latest on-premise version of Sentry (10.0)
+  does not provide server-side support for events sent by `sentry-native`.
+  Full support for `sentry-native` will be made available to all on-premise
+  customers with the next release.
+- Attachments are currently in _Preview_ and may not be available to your
+  organization. Please see [Event Attachments] for more information.
 
 [event attachments]: https://docs.sentry.io/platforms/native/#event-attachments-preview
 
