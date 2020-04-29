@@ -41,9 +41,8 @@ sentry__breakpad_backend_send_envelope(
         return;
     }
     // when serializing the envelope to disk, and later sending it as a single
-    // `x-sentry-envelope`, the minidump needs to be a regular attachment,
-    // with special headers:
-    // `name: upload_file_minidump; attachment_type: event.minidump`
+    // `x-sentry-envelope`, the minidump needs to be an attachment, with type
+    // `event.minidump`
     sentry_envelope_item_t *item
         = sentry__envelope_add_from_path(envelope, dump_path, "attachment");
     if (!item) {
@@ -51,8 +50,6 @@ sentry__breakpad_backend_send_envelope(
         sentry_envelope_free(envelope);
         return;
     }
-    sentry__envelope_item_set_header(
-        item, "name", sentry_value_new_string("upload_file_minidump"));
     sentry__envelope_item_set_header(
         item, "attachment_type", sentry_value_new_string("event.minidump"));
     sentry__envelope_item_set_header(item, "filename",
@@ -105,6 +102,11 @@ sentry__breakpad_backend_callback(
     sentry__write_crash_marker(options);
     const char *dump_path = descriptor.path();
 
+    // Ending the session will send an envelope, which we *don’t* want to route
+    // through the special transport. It will be dumped to disk with the rest of
+    // the send queue.
+    sentry__end_current_session_with_status(SENTRY_SESSION_STATUS_CRASHED);
+
     // almost identical to enforcing the disk transport, the breakpad
     // transport will serialize the envelope to disk, but will attach the
     // captured minidump as an additional attachment
@@ -114,7 +116,6 @@ sentry__breakpad_backend_callback(
     // after the transport is set up, we will capture an event, which will
     // create an envelope with all the scope, attachments, etc.
     sentry_value_t event = sentry_value_new_event();
-    sentry__end_current_session_with_status(SENTRY_SESSION_STATUS_CRASHED);
     sentry_capture_event(event);
 
     // after capturing the crash event, try to dump all the in-flight data of

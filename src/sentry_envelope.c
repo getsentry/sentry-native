@@ -11,6 +11,7 @@
 #define MAX_HTTP_HEADERS 5
 
 typedef enum {
+    ENDPOINT_TYPE_ENVELOPE,
     ENDPOINT_TYPE_STORE,
     ENDPOINT_TYPE_MINIDUMP,
     ENDPOINT_TYPE_ATTACHMENT,
@@ -406,6 +407,9 @@ prepare_http_request(const sentry_uuid_t *event_id,
     h->value = sentry__int64_to_string((int64_t)payload_len);
 
     switch (endpoint_type) {
+    case ENDPOINT_TYPE_ENVELOPE:
+        rv->url = sentry__dsn_get_envelope_url(&options->dsn);
+        break;
     case ENDPOINT_TYPE_STORE:
         rv->url = sentry__dsn_get_store_url(&options->dsn);
         break;
@@ -450,7 +454,7 @@ sentry__envelope_for_each_request(const sentry_envelope_t *envelope,
     sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
 
     if (envelope->is_raw) {
-        req = prepare_http_request(&event_id, ENDPOINT_TYPE_STORE,
+        req = prepare_http_request(&event_id, ENDPOINT_TYPE_ENVELOPE,
             "application/x-sentry-envelope", envelope->contents.raw.payload,
             envelope->contents.raw.payload_len, false);
         if (req) {
@@ -501,12 +505,7 @@ sentry__envelope_for_each_request(const sentry_envelope_t *envelope,
         }
     }
 
-    endpoint_type_t endpoint_type = ENDPOINT_TYPE_ATTACHMENT;
-    if (minidump) {
-        attachments[attachment_count++] = minidump;
-        endpoint_type = ENDPOINT_TYPE_MINIDUMP;
-    }
-
+    // Unknown items are sent together as a single envelope
     if (other_count > 0) {
         sentry_stringbuilder_t sb;
         sentry__stringbuilder_init(&sb);
@@ -516,9 +515,17 @@ sentry__envelope_for_each_request(const sentry_envelope_t *envelope,
         }
         size_t body_len = sentry__stringbuilder_len(&sb);
         char *body = sentry__stringbuilder_into_string(&sb);
-        req = prepare_http_request(&event_id, endpoint_type,
+        req = prepare_http_request(&event_id, ENDPOINT_TYPE_ENVELOPE,
             "application/x-sentry-envelope", body, body_len, true);
         callback(req, envelope, data);
+    }
+
+    // Minidumps and attachments are both treated as multipart requests,
+    // but go to different endpoints.
+    endpoint_type_t endpoint_type = ENDPOINT_TYPE_ATTACHMENT;
+    if (minidump) {
+        attachments[attachment_count++] = minidump;
+        endpoint_type = ENDPOINT_TYPE_MINIDUMP;
     }
 
     if (attachment_count > 0) {

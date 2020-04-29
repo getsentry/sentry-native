@@ -38,7 +38,7 @@ main(int argc, char **argv)
     sentry_options_t *options = sentry_options_new();
     sentry_options_set_database_path(options, ".sentry-native");
 
-    sentry_options_set_environment(options, "Production");
+    sentry_options_set_environment(options, "development");
     sentry_options_set_release(options, "test-example-release");
 
     if (has_arg(argc, argv, "log")) {
@@ -94,6 +94,10 @@ main(int argc, char **argv)
         sentry_value_set_by_key(
             debug_crumb, "level", sentry_value_new_string("debug"));
         sentry_add_breadcrumb(debug_crumb);
+    }
+
+    if (has_arg(argc, argv, "start-session")) {
+        sentry_start_session();
     }
 
     if (has_arg(argc, argv, "overflow-breadcrumbs")) {

@@ -6,6 +6,26 @@
 #    include "sentry_unix_pageallocator.h"
 #endif
 
+SENTRY_TEST(iso_time)
+{
+    uint64_t msec;
+    char *str;
+
+    msec = sentry__iso8601_to_msec("1970-01-01T00:00:10Z");
+    TEST_CHECK_INT_EQUAL(msec, 10 * 1000);
+    msec = sentry__iso8601_to_msec("2020-04-27T11:02:36.050Z");
+    TEST_CHECK_INT_EQUAL(msec, 1587985356050);
+    str = sentry__msec_time_to_iso8601(msec);
+    TEST_CHECK_STRING_EQUAL(str, "2020-04-27T11:02:36.050Z");
+    sentry_free(str);
+
+    msec = sentry__msec_time();
+    str = sentry__msec_time_to_iso8601(msec);
+    uint64_t roundtrip = sentry__iso8601_to_msec(str);
+    sentry_free(str);
+    TEST_CHECK_INT_EQUAL(roundtrip, msec);
+}
+
 SENTRY_TEST(url_parsing_complete)
 {
     sentry_url_t url;
@@ -85,6 +105,10 @@ SENTRY_TEST(dsn_store_url_with_path)
     char *url = sentry__dsn_get_store_url(&dsn);
     TEST_CHECK_STRING_EQUAL(url, "http://example.com:80/foo/bar/api/42/store/");
     sentry_free(url);
+    url = sentry__dsn_get_envelope_url(&dsn);
+    TEST_CHECK_STRING_EQUAL(
+        url, "http://example.com:80/foo/bar/api/42/envelope/");
+    sentry_free(url);
     url = sentry__dsn_get_minidump_url(&dsn);
     TEST_CHECK_STRING_EQUAL(url,
         "http://example.com:80/foo/bar/api/42/minidump/?sentry_key=username");
@@ -107,6 +131,9 @@ SENTRY_TEST(dsn_store_url_without_path)
         0);
     char *url = sentry__dsn_get_store_url(&dsn);
     TEST_CHECK_STRING_EQUAL(url, "http://example.com:80/api/42/store/");
+    sentry_free(url);
+    url = sentry__dsn_get_envelope_url(&dsn);
+    TEST_CHECK_STRING_EQUAL(url, "http://example.com:80/api/42/envelope/");
     sentry_free(url);
     url = sentry__dsn_get_minidump_url(&dsn);
     TEST_CHECK_STRING_EQUAL(

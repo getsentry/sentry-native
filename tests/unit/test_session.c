@@ -21,6 +21,7 @@ send_envelope(sentry_envelope_t *envelope, void *data)
     const char *buf = sentry__envelope_item_get_payload(item, &buf_len);
     sentry_value_t session = sentry__value_from_json(buf, buf_len);
 
+    TEST_CHECK(sentry_value_is_true(sentry_value_get_by_key(session, "init")));
     TEST_CHECK_INT_EQUAL(
         sentry_value_get_type(sentry_value_get_by_key(session, "sid")),
         SENTRY_VALUE_TYPE_STRING);
@@ -32,6 +33,9 @@ send_envelope(sentry_envelope_t *envelope, void *data)
         "foo@blabla.invalid");
     TEST_CHECK_INT_EQUAL(
         sentry_value_as_int32(sentry_value_get_by_key(session, "errors")), 0);
+    TEST_CHECK_INT_EQUAL(
+        sentry_value_get_type(sentry_value_get_by_key(session, "started")),
+        SENTRY_VALUE_TYPE_STRING);
 
     sentry_value_type_t duration_type
         = sentry_value_get_type(sentry_value_get_by_key(session, "duration"));

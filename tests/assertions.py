@@ -5,12 +5,28 @@ def matches(actual, expected):
     return {k: v for (k, v) in actual.items() if k in expected.keys()} == expected
 
 
+def assert_session(envelope, extra_assertion=None):
+    session = None
+    for item in envelope:
+        if item.headers.get("type") == "session" and item.payload.json is not None:
+            session = item.payload.json
+
+    assert session is not None
+    assert session["did"] == "42"
+    assert session["attrs"] == {
+        "release": "test-example-release",
+        "environment": "development",
+    }
+    if extra_assertion:
+        assert matches(session, extra_assertion)
+
+
 def assert_meta(envelope):
     event = envelope.get_event()
 
     expected = {
         "platform": "native",
-        "environment": "Production",
+        "environment": "development",
         "contexts": {"runtime": {"type": "runtime", "name": "testing-runtime"}},
         "release": "test-example-release",
         "user": {"id": 42, "username": "some_name"},
@@ -19,9 +35,9 @@ def assert_meta(envelope):
         "extra": {"extra stuff": "some value", "…unicode key…": "őá…–🤮🚀¿ 한글 테스트"},
         "sdk": {
             "name": "sentry.native",
-            "version": "0.2.4",
+            "version": "0.2.5",
             "packages": [
-                {"name": "github:getsentry/sentry-native", "version": "0.2.4",},
+                {"name": "github:getsentry/sentry-native", "version": "0.2.5"},
             ],
         },
     }
@@ -69,7 +85,6 @@ def assert_attachment(envelope):
 def assert_minidump(envelope):
     expected = {
         "type": "attachment",
-        "name": "upload_file_minidump",
         "attachment_type": "event.minidump",
     }
     assert any(matches(item.headers, expected) for item in envelope)

@@ -34,6 +34,13 @@ def run(cwd, exe, args, **kwargs):
             [
                 "{}/platform-tools/adb".format(os.environ["ANDROID_HOME"]),
                 "shell",
+                # Android by default only searches for libraries in system
+                # directories and the app directory, and only supports RUNPATH
+                # since API-24.
+                # Since we are no "app" in that sense, we can use
+                # `LD_LIBRARY_PATH` to force the android dynamic loader to
+                # load `libsentry.so` from the correct library.
+                # See https://android.googlesource.com/platform/bionic/+/master/android-changes-for-ndk-developers.md#dt_runpath-support-available-in-api-level-24
                 "cd /data/local/tmp && LD_LIBRARY_PATH=. ./{} {}; echo -n ret:$?".format(
                     exe, " ".join(args)
                 ),
@@ -146,8 +153,8 @@ class Envelope(object):
 
     def get_event(self):
         # type: (...) -> Optional[Event]
-        for items in self.items:
-            event = items.get_event()
+        for item in self.items:
+            event = item.get_event()
             if event is not None:
                 return event
         return None
@@ -232,7 +239,7 @@ class Item(object):
         headers = json.loads(line)
         length = headers["length"]
         payload = f.read(length)
-        if headers.get("type") == "event":
+        if headers.get("type") == "event" or headers.get("type") == "session":
             rv = cls(headers=headers, payload=PayloadRef(json=json.loads(payload)))
         else:
             rv = cls(headers=headers, payload=payload)

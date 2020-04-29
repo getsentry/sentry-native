@@ -188,7 +188,7 @@ for_each_request_callback(sentry_prepared_http_request_t *req,
                         WINHTTP_HEADER_NAME_BY_INDEX, lpOutBuffer, &dwSize,
                         WINHTTP_NO_HEADER_INDEX)) {
                     SENTRY_TRACEF(
-                        "Received Response:\n%S", (wchar_t *)lpOutBuffer);
+                        "received response:\n%S", (wchar_t *)lpOutBuffer);
                 }
                 sentry_free(lpOutBuffer);
             }
@@ -308,5 +308,5 @@ sentry__transport_dump_queue(sentry_transport_t *transport)
 
     size_t dumped = sentry__bgworker_foreach_matching(
         bgworker, task_exec_func, sentry__winhttp_dump, NULL);
-    SENTRY_TRACEF("Dumped %zu in-flight envelopes to disk", dumped);
+    SENTRY_TRACEF("dumped %zu in-flight envelopes to disk", dumped);
 }

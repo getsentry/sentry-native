@@ -32,27 +32,29 @@ extern "C" {
 extern "C" {
 
 typedef struct {
+    crashpad::CrashReportDatabase *db;
     sentry_path_t *event_path;
     sentry_path_t *breadcrumb1_path;
     sentry_path_t *breadcrumb2_path;
     size_t num_breadcrumbs;
 } crashpad_state_t;
 
-static std::unique_ptr<crashpad::CrashReportDatabase> g_db;
-
 static void
-sentry__crashpad_backend_user_consent_changed(sentry_backend_t *UNUSED(backend))
+sentry__crashpad_backend_user_consent_changed(sentry_backend_t *backend)
 {
-    if (!g_db || !g_db->GetSettings()) {
+    crashpad_state_t *data = (crashpad_state_t *)backend->data;
+    if (!data->db || !data->db->GetSettings()) {
         return;
     }
-    g_db->GetSettings()->SetUploadsEnabled(!sentry__should_skip_upload());
+    data->db->GetSettings()->SetUploadsEnabled(!sentry__should_skip_upload());
 }
 
 static void
-sentry__crashpad_backend_shutdown(sentry_backend_t *UNUSED(backend))
+sentry__crashpad_backend_shutdown(sentry_backend_t *backend)
 {
-    g_db = nullptr;
+    crashpad_state_t *data = (crashpad_state_t *)backend->data;
+    delete data->db;
+    data->db = nullptr;
 }
 
 static void
@@ -82,19 +84,28 @@ sentry__crashpad_backend_startup(sentry_backend_t *backend)
         }
     }
 
-    if (!handler_path || !sentry__path_is_file(handler_path)) {
+    // The crashpad client uses shell lookup rules (absolute path, relative
+    // path, or bare executable name that is looked up in $PATH).
+    // However, it crashes hard when it cant resolve the handler, so we make
+    // sure to resolve and check for it first.
+    sentry_path_t *absolute_handler_path = sentry__path_absolute(handler_path);
+    sentry__path_free(owned_handler_path);
+    if (!absolute_handler_path
+        || !sentry__path_is_file(absolute_handler_path)) {
         SENTRY_DEBUG("unable to start crashpad backend, invalid handler_path");
-        sentry__path_free(owned_handler_path);
+        sentry__path_free(absolute_handler_path);
         return;
     }
 
-    SENTRY_TRACE("starting crashpad backend");
+    SENTRY_TRACEF("starting crashpad backend with handler "
+                  "\"%" SENTRY_PATH_PRI "\"",
+        absolute_handler_path->path);
     sentry_path_t *current_run_folder = options->run->run_path;
     crashpad_state_t *data = (crashpad_state_t *)backend->data;
 
     base::FilePath database(options->database_path->path);
-    base::FilePath handler(handler_path->path);
-    sentry__path_free(owned_handler_path);
+    base::FilePath handler(absolute_handler_path->path);
+    sentry__path_free(absolute_handler_path);
 
     std::map<std::string, std::string> annotations;
     std::map<std::string, base::FilePath> file_attachments;
@@ -137,7 +148,7 @@ sentry__crashpad_backend_startup(sentry_backend_t *backend)
     // initialize database first and check for user consent.  This is going
     // to change the setting persisted into the crashpad database.  The
     // update to the consent change is then reflected when the handler starts.
-    g_db = crashpad::CrashReportDatabase::Initialize(database);
+    data->db = crashpad::CrashReportDatabase::Initialize(database).release();
     sentry__crashpad_backend_user_consent_changed(backend);
 
     crashpad::CrashpadClient client;
@@ -150,9 +161,9 @@ sentry__crashpad_backend_startup(sentry_backend_t *backend)
         /* asynchronous_start */ false);
 
     if (success) {
-        SENTRY_DEBUG("started crashpad client handler.");
+        SENTRY_DEBUG("started crashpad client handler");
     } else {
-        SENTRY_DEBUG("failed to start crashpad client handler.");
+        SENTRY_DEBUG("failed to start crashpad client handler");
         return;
     }
 
