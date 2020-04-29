@@ -27,9 +27,9 @@ typedef struct sentry_prepared_http_request_s {
     const char *method;
     sentry_prepared_http_header_t *headers;
     size_t headers_len;
-    char *payload;
-    size_t payload_len;
-    bool payload_owned;
+    char *body;
+    size_t body_len;
+    bool body_owned;
 } sentry_prepared_http_request_t;
 
 /**

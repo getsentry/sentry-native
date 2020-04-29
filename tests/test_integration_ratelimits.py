@@ -14,13 +14,13 @@ def test_retry_after(tmp_path, httpserver):
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
 
     # should respect retry-after also with `200` requests
-    httpserver.expect_oneshot_request("/api/123456/store/").respond_with_data(
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data(
         "OK", 200, {"retry-after": "60"}
     )
     run(tmp_path, "sentry_example", ["capture-multiple"], check=True, env=env)
     assert len(httpserver.log) == 1
 
-    httpserver.expect_oneshot_request("/api/123456/store/").respond_with_data(
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data(
         "OK", 429, {"retry-after": "60"}
     )
     run(tmp_path, "sentry_example", ["capture-multiple"], check=True, env=env)
@@ -33,13 +33,13 @@ def test_rate_limits(tmp_path, httpserver):
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
     headers = {"X-Sentry-Rate-Limits": "60::organization"}
 
-    httpserver.expect_oneshot_request("/api/123456/store/").respond_with_data(
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data(
         "OK", 200, headers
     )
     run(tmp_path, "sentry_example", ["capture-multiple"], check=True, env=env)
     assert len(httpserver.log) == 1
 
-    httpserver.expect_oneshot_request("/api/123456/store/").respond_with_data(
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data(
         "OK", 429, headers
     )
     run(tmp_path, "sentry_example", ["capture-multiple"], check=True, env=env)

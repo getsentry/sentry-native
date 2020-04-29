@@ -76,7 +76,6 @@ def assert_breadcrumb(envelope):
 def assert_attachment(envelope):
     expected = {
         "type": "attachment",
-        "name": "CMakeCache.txt",
         "filename": "CMakeCache.txt",
     }
     assert any(matches(item.headers, expected) for item in envelope)

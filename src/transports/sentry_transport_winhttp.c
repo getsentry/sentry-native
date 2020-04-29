@@ -164,8 +164,8 @@ for_each_request_callback(sentry_prepared_http_request_t *req,
     SENTRY_TRACEF(
         "sending request using winhttp to %s:\n%S", req->url, headers);
 
-    if (WinHttpSendRequest(request, headers, -1, (LPVOID)req->payload,
-            (DWORD)req->payload_len, (DWORD)req->payload_len, 0)) {
+    if (WinHttpSendRequest(request, headers, -1, (LPVOID)req->body,
+            (DWORD)req->body_len, (DWORD)req->body_len, 0)) {
         WinHttpReceiveResponse(request, NULL);
 
         if (opts->debug) {

@@ -102,9 +102,7 @@ SENTRY_TEST(dsn_store_url_with_path)
         sentry__dsn_parse(
             &dsn, "http://username:password@example.com/foo/bar/42?x=y#z"),
         0);
-    char *url = sentry__dsn_get_store_url(&dsn);
-    TEST_CHECK_STRING_EQUAL(url, "http://example.com:80/foo/bar/api/42/store/");
-    sentry_free(url);
+    char *url;
     url = sentry__dsn_get_envelope_url(&dsn);
     TEST_CHECK_STRING_EQUAL(
         url, "http://example.com:80/foo/bar/api/42/envelope/");
@@ -112,11 +110,6 @@ SENTRY_TEST(dsn_store_url_with_path)
     url = sentry__dsn_get_minidump_url(&dsn);
     TEST_CHECK_STRING_EQUAL(url,
         "http://example.com:80/foo/bar/api/42/minidump/?sentry_key=username");
-    sentry_free(url);
-    url = sentry__dsn_get_attachment_url(&dsn, &uuid);
-    TEST_CHECK_STRING_EQUAL(url,
-        "http://example.com:80/foo/bar/api/42/events/"
-        "4c7e771a-f17d-4220-bc8f-5b1edcdb5faa/attachments/");
     sentry_free(url);
     sentry__dsn_cleanup(&dsn);
 }
@@ -129,20 +122,13 @@ SENTRY_TEST(dsn_store_url_without_path)
     TEST_CHECK_INT_EQUAL(sentry__dsn_parse(&dsn,
                              "http://username:password@example.com/42?x=y#z"),
         0);
-    char *url = sentry__dsn_get_store_url(&dsn);
-    TEST_CHECK_STRING_EQUAL(url, "http://example.com:80/api/42/store/");
-    sentry_free(url);
+    char *url;
     url = sentry__dsn_get_envelope_url(&dsn);
     TEST_CHECK_STRING_EQUAL(url, "http://example.com:80/api/42/envelope/");
     sentry_free(url);
     url = sentry__dsn_get_minidump_url(&dsn);
     TEST_CHECK_STRING_EQUAL(
         url, "http://example.com:80/api/42/minidump/?sentry_key=username");
-    sentry_free(url);
-    url = sentry__dsn_get_attachment_url(&dsn, &uuid);
-    TEST_CHECK_STRING_EQUAL(url,
-        "http://example.com:80/api/42/events/"
-        "4c7e771a-f17d-4220-bc8f-5b1edcdb5faa/attachments/");
     sentry_free(url);
     sentry__dsn_cleanup(&dsn);
 }

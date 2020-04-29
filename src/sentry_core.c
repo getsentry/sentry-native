@@ -258,8 +258,6 @@ sentry_capture_event(sentry_value_t event)
             if (!item) {
                 continue;
             }
-            sentry__envelope_item_set_header(
-                item, "name", sentry_value_new_string(attachment->name));
             sentry__envelope_item_set_header(item, "filename",
 #ifdef SENTRY_PLATFORM_WINDOWS
                 sentry__value_new_string_from_wstr(
