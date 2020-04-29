@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.6
+
+- Avoid crash with invalid crashpad handler path.
+
 ## 0.2.5
 
 - Send sessions to the correct sentry endpoint and make sure they work.
