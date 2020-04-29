@@ -84,19 +84,28 @@ sentry__crashpad_backend_startup(sentry_backend_t *backend)
         }
     }
 
-    if (!handler_path || !sentry__path_is_file(handler_path)) {
+    // The crashpad client uses shell lookup rules (absolute path, relative
+    // path, or bare executable name that is looked up in $PATH).
+    // However, it crashes hard when it cant resolve the handler, so we make
+    // sure to resolve and check for it first.
+    sentry_path_t *absolute_handler_path = sentry__path_absolute(handler_path);
+    sentry__path_free(owned_handler_path);
+    if (!absolute_handler_path
+        || !sentry__path_is_file(absolute_handler_path)) {
         SENTRY_DEBUG("unable to start crashpad backend, invalid handler_path");
-        sentry__path_free(owned_handler_path);
+        sentry__path_free(absolute_handler_path);
         return;
     }
 
-    SENTRY_TRACE("starting crashpad backend");
+    SENTRY_TRACEF("starting crashpad backend with handler "
+                  "\"%" SENTRY_PATH_PRI "\"",
+        absolute_handler_path->path);
     sentry_path_t *current_run_folder = options->run->run_path;
     crashpad_state_t *data = (crashpad_state_t *)backend->data;
 
     base::FilePath database(options->database_path->path);
-    base::FilePath handler(handler_path->path);
-    sentry__path_free(owned_handler_path);
+    base::FilePath handler(absolute_handler_path->path);
+    sentry__path_free(absolute_handler_path);
 
     std::map<std::string, std::string> annotations;
     std::map<std::string, base::FilePath> file_attachments;
@@ -152,9 +161,9 @@ sentry__crashpad_backend_startup(sentry_backend_t *backend)
         /* asynchronous_start */ false);
 
     if (success) {
-        SENTRY_DEBUG("started crashpad client handler.");
+        SENTRY_DEBUG("started crashpad client handler");
     } else {
-        SENTRY_DEBUG("failed to start crashpad client handler.");
+        SENTRY_DEBUG("failed to start crashpad client handler");
         return;
     }
 

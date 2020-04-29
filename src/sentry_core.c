@@ -71,7 +71,7 @@ sentry_init(sentry_options_t *options)
         SENTRY_DEBUG("falling back to non-absolute database path");
         options->database_path = database_path;
     }
-    SENTRY_DEBUGF("Using database path \"%" SENTRY_PATH_PRI "\"",
+    SENTRY_DEBUGF("using database path \"%" SENTRY_PATH_PRI "\"",
         options->database_path->path);
 
     load_user_consent(options);
@@ -303,6 +303,8 @@ sentry_options_new(void)
     memset(opts, 0, sizeof(sentry_options_t));
     opts->database_path = sentry__path_from_str(".sentry-native");
     sentry_options_set_dsn(opts, getenv("SENTRY_DSN"));
+    const char *debug = getenv("SENTRY_DEBUG");
+    opts->debug = debug && sentry__string_eq(debug, "1");
     opts->release = sentry__string_clone(getenv("SENTRY_RELEASE"));
     opts->environment = sentry__string_clone(getenv("SENTRY_ENVIRONMENT"));
     opts->user_consent = SENTRY_USER_CONSENT_UNKNOWN;
