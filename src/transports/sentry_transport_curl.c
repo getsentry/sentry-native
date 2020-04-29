@@ -260,5 +260,5 @@ sentry__transport_dump_queue(sentry_transport_t *transport)
 
     size_t dumped = sentry__bgworker_foreach_matching(
         bgworker, task_exec_func, sentry__curl_dump, NULL);
-    SENTRY_TRACEF("Dumped %zu in-flight envelopes to disk", dumped);
+    SENTRY_TRACEF("dumped %zu in-flight envelopes to disk", dumped);
 }
