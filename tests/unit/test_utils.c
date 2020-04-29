@@ -95,8 +95,6 @@ SENTRY_TEST(dsn_parsing_invalid)
 
 SENTRY_TEST(dsn_store_url_with_path)
 {
-    sentry_uuid_t uuid
-        = sentry_uuid_from_string("4c7e771a-f17d-4220-bc8f-5b1edcdb5faa");
     sentry_dsn_t dsn;
     TEST_CHECK_INT_EQUAL(
         sentry__dsn_parse(
@@ -116,8 +114,6 @@ SENTRY_TEST(dsn_store_url_with_path)
 
 SENTRY_TEST(dsn_store_url_without_path)
 {
-    sentry_uuid_t uuid
-        = sentry_uuid_from_string("4c7e771a-f17d-4220-bc8f-5b1edcdb5faa");
     sentry_dsn_t dsn;
     TEST_CHECK_INT_EQUAL(sentry__dsn_parse(&dsn,
                              "http://username:password@example.com/42?x=y#z"),

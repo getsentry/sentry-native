@@ -110,16 +110,24 @@ header_callback(char *buffer, size_t size, size_t nitems, void *userdata)
     return bytes;
 }
 
-static bool
-for_each_request_callback(sentry_prepared_http_request_t *req,
-    const sentry_envelope_t *UNUSED(envelope), void *data)
+static void
+task_exec_func(void *data)
 {
     struct task_state *ts = data;
+
+    sentry_prepared_http_request_t *req
+        = sentry__prepare_http_request(ts->envelope, ts->transport_state->rl);
+    ts->envelope = NULL;
+    if (!req) {
+        return;
+    }
+
     const sentry_options_t *opts = sentry_get_options();
 
     if (!opts || opts->dsn.empty || sentry__should_skip_upload()) {
         SENTRY_DEBUG("skipping event upload");
-        return false;
+        sentry__prepared_http_request_free(req);
+        return;
     }
 
     struct curl_slist *headers = NULL;
@@ -176,23 +184,12 @@ for_each_request_callback(sentry_prepared_http_request_t *req,
     sentry_free(info.retry_after);
     sentry_free(info.x_sentry_rate_limits);
     sentry__prepared_http_request_free(req);
-
-    return true;
-}
-
-static void
-task_exec_func(void *data)
-{
-    struct task_state *ts = data;
-    sentry__envelope_for_each_request(
-        ts->envelope, for_each_request_callback, ts->transport_state->rl, data);
 }
 
 static void
 task_cleanup_func(void *data)
 {
     struct task_state *ts = data;
-    sentry_envelope_free(ts->envelope);
     sentry_free(ts);
 }
 

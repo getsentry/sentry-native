@@ -9,10 +9,6 @@
 #include "sentry_value.h"
 #include <string.h>
 
-#define ENVELOPE_MIME "application/x-sentry-envelope"
-// The headers we use are: `x-sentry-auth`, `content-type`, `content-length`
-#define MAX_HTTP_HEADERS 3
-
 struct sentry_envelope_item_s {
     sentry_value_t headers;
     sentry_value_t event;
@@ -34,23 +30,6 @@ struct sentry_envelope_s {
         } raw;
     } contents;
 };
-
-void
-sentry__prepared_http_request_free(sentry_prepared_http_request_t *req)
-{
-    if (!req) {
-        return;
-    }
-    sentry_free(req->url);
-    for (size_t i = 0; i < req->headers_len; i++) {
-        sentry_free(req->headers[i].value);
-    }
-    sentry_free(req->headers);
-    if (req->body_owned) {
-        sentry_free(req->body);
-    }
-    sentry_free(req);
-}
 
 static sentry_envelope_item_t *
 envelope_add_item(sentry_envelope_t *envelope)
@@ -88,7 +67,7 @@ sentry__envelope_item_set_header(
 }
 
 static int
-envelope_item_get_category(const sentry_envelope_item_t *item)
+envelope_item_get_ratelimiter_category(const sentry_envelope_item_t *item)
 {
     const char *ty = sentry_value_as_string(
         sentry_value_get_by_key(item->headers, "type"));
@@ -286,99 +265,39 @@ sentry__envelope_add_from_path(
     return rv;
 }
 
-static sentry_prepared_http_request_t *
-prepare_http_request(char *body, size_t payload_len, bool body_owned)
+sentry_envelope_t *
+sentry__envelope_ratelimit_items(
+    sentry_envelope_t *envelope, const sentry_rate_limiter_t *rl)
 {
-    const sentry_options_t *options = sentry_get_options();
-    if (!options) {
-        return NULL;
-    }
-
-    sentry_prepared_http_request_t *rv
-        = SENTRY_MAKE(sentry_prepared_http_request_t);
-    if (!rv) {
-        return NULL;
-    }
-    rv->headers = sentry_malloc(
-        sizeof(sentry_prepared_http_header_t) * MAX_HTTP_HEADERS);
-    if (!rv->headers) {
-        sentry_free(rv);
-        return NULL;
-    }
-    rv->headers_len = 0;
-
-    rv->method = "POST";
-    rv->url = sentry__dsn_get_envelope_url(&options->dsn);
-
-    sentry_prepared_http_header_t *h;
-    if (!options->dsn.empty) {
-        h = &rv->headers[rv->headers_len++];
-        h->key = "x-sentry-auth";
-        h->value = sentry__dsn_get_auth_header(&options->dsn);
-    }
-
-    h = &rv->headers[rv->headers_len++];
-    h->key = "content-type";
-    h->value = sentry__string_clone(ENVELOPE_MIME);
-
-    h = &rv->headers[rv->headers_len++];
-    h->key = "content-length";
-    h->value = sentry__int64_to_string((int64_t)payload_len);
-
-    rv->body = body;
-    rv->body_len = payload_len;
-    rv->body_owned = body_owned;
-
-    return rv;
-}
-
-void
-sentry__envelope_for_each_request(const sentry_envelope_t *envelope,
-    bool (*callback)(sentry_prepared_http_request_t *,
-        const sentry_envelope_t *, void *data),
-    const sentry_rate_limiter_t *rl, void *data)
-{
-    sentry_prepared_http_request_t *req;
-
     if (envelope->is_raw) {
-        req = prepare_http_request(envelope->contents.raw.payload,
-            envelope->contents.raw.payload_len, false);
-        if (req) {
-            callback(req, envelope, data);
-        }
-        return;
+        return envelope;
     }
 
-    sentry_stringbuilder_t sb;
-    sentry__stringbuilder_init(&sb);
-    sentry__envelope_serialize_headers_into_stringbuilder(envelope, &sb);
-
-    size_t serialized_items = 0;
+    size_t item_count = 0;
+    sentry_envelope_item_t *items = envelope->contents.items.items;
     for (size_t i = 0; i < envelope->contents.items.item_count; i++) {
-        const sentry_envelope_item_t *item = &envelope->contents.items.items[i];
-        if (rl) {
-            int category = envelope_item_get_category(item);
-            if (sentry__rate_limiter_is_disabled(rl, category)) {
-                continue;
+        sentry_envelope_item_t *item = &items[i];
+        int category = envelope_item_get_ratelimiter_category(item);
+        if (sentry__rate_limiter_is_disabled(rl, category)) {
+            envelope_item_cleanup(item);
+        } else {
+            if (item_count < i) {
+                memmove(&items[item_count], &items[i],
+                    sizeof(sentry_envelope_item_t));
             }
+            item_count += 1;
         }
-        sentry__envelope_serialize_item_into_stringbuilder(item, &sb);
-        serialized_items += 1;
     }
+    envelope->contents.items.item_count = item_count;
 
-    size_t body_len = sentry__stringbuilder_len(&sb);
-    char *body = sentry__stringbuilder_into_string(&sb);
-
-    if (!serialized_items) {
-        // all items were rate limited, so we throw away the whole envelope
-        sentry_free(body);
-    } else {
-        req = prepare_http_request(body, body_len, true);
-        callback(req, envelope, data);
+    if (item_count) {
+        return envelope;
     }
+    sentry_envelope_free(envelope);
+    return NULL;
 }
 
-void
+static void
 sentry__envelope_serialize_headers_into_stringbuilder(
     const sentry_envelope_t *envelope, sentry_stringbuilder_t *sb)
 {
@@ -387,7 +306,7 @@ sentry__envelope_serialize_headers_into_stringbuilder(
     sentry_free(buf);
 }
 
-void
+static void
 sentry__envelope_serialize_item_into_stringbuilder(
     const sentry_envelope_item_t *item, sentry_stringbuilder_t *sb)
 {
@@ -417,6 +336,21 @@ sentry__envelope_serialize_into_stringbuilder(
         const sentry_envelope_item_t *item = &envelope->contents.items.items[i];
         sentry__envelope_serialize_item_into_stringbuilder(item, sb);
     }
+}
+
+char *
+sentry_envelope_serialize_consume(sentry_envelope_t *envelope, size_t *size_out)
+{
+    char *rv;
+    if (envelope->is_raw) {
+        rv = envelope->contents.raw.payload;
+        envelope->contents.raw.payload = NULL;
+        *size_out = envelope->contents.raw.payload_len;
+    } else {
+        rv = sentry_envelope_serialize(envelope, size_out);
+    }
+    sentry_envelope_free(envelope);
+    return rv;
 }
 
 char *

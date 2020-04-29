@@ -202,6 +202,8 @@ sentry__capture_envelope(sentry_envelope_t *envelope)
     if (opts->transport) {
         SENTRY_TRACE("sending envelope");
         opts->transport->send_envelope_func(opts->transport, envelope);
+    } else {
+        sentry_envelope_free(envelope);
     }
 }
 
