@@ -1,5 +1,5 @@
+#include "sentry_ratelimiter.h"
 #include "sentry_testsupport.h"
-#include "sentry_transport.h"
 #include "sentry_utils.h"
 #include <sentry.h>
 

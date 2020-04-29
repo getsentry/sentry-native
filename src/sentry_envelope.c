@@ -3,6 +3,7 @@
 #include "sentry_core.h"
 #include "sentry_json.h"
 #include "sentry_path.h"
+#include "sentry_ratelimiter.h"
 #include "sentry_string.h"
 #include "sentry_transport.h"
 #include "sentry_value.h"
