@@ -118,10 +118,15 @@ or use it on the command line.
 
 **MinGW**:
 
-If you use MSYS2, make sure to :
+64-bits is the only plateform supported for now.
+LLVM + Clang are mandatory here : they are required to generate .pdb files, used by Crashpad for the report generation.
+For your application to generate the appropriate .pdb output, you need to activate CodeView file format generation on your application target. To do so, update your own CMakeLists.txt with something like `target_compile_options(${yourApplicationTarget} PRIVATE -gcodeview)`.
 
--   Create an environement variable `MINGW_ROOT` (ex : `C:/msys64/mingw{arch}`)
--   Run from `mingw{arch}.exe` : `pacman -S --needed - < ./toolchains/msys2-mingw{arch}-pkglist.txt`
+If you use a MSYS2 environement to compile with MinGW, make sure to :
+
+-   Create an environement variable `MINGW_ROOT` (ex : `C:/msys64/mingw64`)
+-   Run from `mingw64.exe` : `pacman -S --needed - < ./toolchains/msys2-mingw64-pkglist.txt`
+-   Build as :
 
 ```sh
 # Configure with Ninja as generator and use the MSYS2 toolchain file
