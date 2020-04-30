@@ -63,19 +63,13 @@ void sentry__envelope_item_set_header(
     sentry_envelope_item_t *item, const char *key, sentry_value_t value);
 
 /**
- * Rate limits the items according to the given rate limiter.
- * This consumes the given envelope and might return NULL in case all items have
- * been rate-limited.
+ * Serialize the envelope while applying the rate limits from `rl`.
+ * Returns `NULL` when all items have been rate-limited, and might return a
+ * pointer to borrowed data in case of a raw envelope, in which case `owned_out`
+ * will be set to `false`.
  */
-sentry_envelope_t *sentry__envelope_ratelimit_items(
-    sentry_envelope_t *envelope, const sentry_rate_limiter_t *rl);
-
-/**
- * Serialize and consume the given envelope. This is an optimization that can
- * avoid a copy in case of raw envelopes.
- */
-char *sentry_envelope_serialize_consume(
-    sentry_envelope_t *envelope, size_t *size_out);
+char *sentry_envelope_serialize_ratelimited(const sentry_envelope_t *envelope,
+    const sentry_rate_limiter_t *rl, size_t *size_out, bool *owned_out);
 
 /**
  * Serialize a complete envelope with all its items into the given string

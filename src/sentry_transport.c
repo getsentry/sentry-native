@@ -11,31 +11,34 @@ sentry_prepared_http_request_t *
 sentry__prepare_http_request(
     sentry_envelope_t *envelope, const sentry_rate_limiter_t *rl)
 {
-    if (rl) {
-        envelope = sentry__envelope_ratelimit_items(envelope, rl);
-    }
-    if (!envelope) {
-        return NULL;
-    }
     const sentry_options_t *options = sentry_get_options();
     if (!options) {
-        sentry_envelope_free(envelope);
         return NULL;
     }
 
     size_t body_len = 0;
-    char *body = sentry_envelope_serialize_consume(envelope, &body_len);
+    bool body_owned = true;
+    char *body = sentry_envelope_serialize_ratelimited(
+        envelope, rl, &body_len, &body_owned);
+    if (!body) {
+        return NULL;
+    }
 
     sentry_prepared_http_request_t *req
         = SENTRY_MAKE(sentry_prepared_http_request_t);
     if (!req) {
-        sentry_free(body);
+        if (body_owned) {
+            sentry_free(body);
+        }
         return NULL;
     }
     req->headers = sentry_malloc(
         sizeof(sentry_prepared_http_header_t) * MAX_HTTP_HEADERS);
     if (!req->headers) {
         sentry_free(req);
+        if (body_owned) {
+            sentry_free(body);
+        }
         return NULL;
     }
     req->headers_len = 0;
@@ -60,6 +63,7 @@ sentry__prepare_http_request(
 
     req->body = body;
     req->body_len = body_len;
+    req->body_owned = body_owned;
 
     return req;
 }
@@ -75,6 +79,8 @@ sentry__prepared_http_request_free(sentry_prepared_http_request_t *req)
         sentry_free(req->headers[i].value);
     }
     sentry_free(req->headers);
-    sentry_free(req->body);
+    if (req->body_owned) {
+        sentry_free(req->body);
+    }
     sentry_free(req);
 }

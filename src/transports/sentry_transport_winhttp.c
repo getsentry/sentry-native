@@ -115,21 +115,18 @@ winhttp_transport_free(sentry_transport_t *transport)
 static void
 task_exec_func(void *data)
 {
+    const sentry_options_t *opts = sentry_get_options();
+    if (!opts || opts->dsn.empty || sentry__should_skip_upload()) {
+        SENTRY_DEBUG("skipping event upload");
+        return;
+    }
+
     struct task_state *ts = data;
     winhttp_transport_state_t *state = ts->transport_state;
 
     sentry_prepared_http_request_t *req
-        = sentry__prepare_http_request(ts->envelope, ts->transport_state->rl);
-    ts->envelope = NULL;
+        = sentry__prepare_http_request(ts->envelope, state->rl);
     if (!req) {
-        return;
-    }
-
-    const sentry_options_t *opts = sentry_get_options();
-
-    if (!opts || opts->dsn.empty || sentry__should_skip_upload()) {
-        SENTRY_DEBUG("skipping event upload");
-        sentry__prepared_http_request_free(req);
         return;
     }
 
@@ -239,6 +236,7 @@ static void
 task_cleanup_func(void *data)
 {
     struct task_state *ts = data;
+    sentry_envelope_free(ts->envelope);
     sentry_free(ts);
 }
 

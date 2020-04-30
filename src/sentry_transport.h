@@ -31,6 +31,7 @@ typedef struct sentry_prepared_http_request_s {
     size_t headers_len;
     char *body;
     size_t body_len;
+    bool body_owned;
 } sentry_prepared_http_request_t;
 
 /**

@@ -265,38 +265,6 @@ sentry__envelope_add_from_path(
     return rv;
 }
 
-sentry_envelope_t *
-sentry__envelope_ratelimit_items(
-    sentry_envelope_t *envelope, const sentry_rate_limiter_t *rl)
-{
-    if (envelope->is_raw) {
-        return envelope;
-    }
-
-    size_t item_count = 0;
-    sentry_envelope_item_t *items = envelope->contents.items.items;
-    for (size_t i = 0; i < envelope->contents.items.item_count; i++) {
-        sentry_envelope_item_t *item = &items[i];
-        int category = envelope_item_get_ratelimiter_category(item);
-        if (sentry__rate_limiter_is_disabled(rl, category)) {
-            envelope_item_cleanup(item);
-        } else {
-            if (item_count < i) {
-                memmove(&items[item_count], &items[i],
-                    sizeof(sentry_envelope_item_t));
-            }
-            item_count += 1;
-        }
-    }
-    envelope->contents.items.item_count = item_count;
-
-    if (item_count) {
-        return envelope;
-    }
-    sentry_envelope_free(envelope);
-    return NULL;
-}
-
 static void
 sentry__envelope_serialize_headers_into_stringbuilder(
     const sentry_envelope_t *envelope, sentry_stringbuilder_t *sb)
@@ -339,18 +307,41 @@ sentry__envelope_serialize_into_stringbuilder(
 }
 
 char *
-sentry_envelope_serialize_consume(sentry_envelope_t *envelope, size_t *size_out)
+sentry_envelope_serialize_ratelimited(const sentry_envelope_t *envelope,
+    const sentry_rate_limiter_t *rl, size_t *size_out, bool *owned_out)
 {
-    char *rv;
     if (envelope->is_raw) {
-        rv = envelope->contents.raw.payload;
-        envelope->contents.raw.payload = NULL;
         *size_out = envelope->contents.raw.payload_len;
-    } else {
-        rv = sentry_envelope_serialize(envelope, size_out);
+        *owned_out = false;
+        return envelope->contents.raw.payload;
     }
-    sentry_envelope_free(envelope);
-    return rv;
+    *owned_out = true;
+
+    sentry_stringbuilder_t sb;
+    sentry__stringbuilder_init(&sb);
+    sentry__envelope_serialize_headers_into_stringbuilder(envelope, &sb);
+
+    size_t serialized_items = 0;
+    for (size_t i = 0; i < envelope->contents.items.item_count; i++) {
+        const sentry_envelope_item_t *item = &envelope->contents.items.items[i];
+        if (rl) {
+            int category = envelope_item_get_ratelimiter_category(item);
+            if (sentry__rate_limiter_is_disabled(rl, category)) {
+                continue;
+            }
+        }
+        sentry__envelope_serialize_item_into_stringbuilder(item, &sb);
+        serialized_items += 1;
+    }
+
+    if (!serialized_items) {
+        sentry__stringbuilder_cleanup(&sb);
+        *size_out = 0;
+        return NULL;
+    }
+
+    *size_out = sentry__stringbuilder_len(&sb);
+    return sentry__stringbuilder_into_string(&sb);
 }
 
 char *

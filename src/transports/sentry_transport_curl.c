@@ -1,6 +1,7 @@
 #include "sentry_alloc.h"
 #include "sentry_core.h"
 #include "sentry_envelope.h"
+#include "sentry_ratelimiter.h"
 #include "sentry_string.h"
 #include "sentry_sync.h"
 #include "sentry_transport.h"
@@ -10,15 +11,15 @@
 #include <stdlib.h>
 #include <string.h>
 
-struct transport_state {
+typedef struct curl_transport_state_s {
     bool initialized;
     CURL *curl_handle;
     sentry_rate_limiter_t *rl;
     sentry_bgworker_t *bgworker;
-};
+} curl_transport_state_t;
 
 struct task_state {
-    struct transport_state *transport_state;
+    curl_transport_state_t *transport_state;
     sentry_envelope_t *envelope;
 };
 
@@ -27,12 +28,12 @@ struct header_info {
     char *retry_after;
 };
 
-static struct transport_state *
+static curl_transport_state_t *
 new_transport_state(void)
 {
     static bool curl_initialized = false;
 
-    struct transport_state *state = SENTRY_MAKE(struct transport_state);
+    curl_transport_state_t *state = SENTRY_MAKE(curl_transport_state_t);
     if (!state) {
         return NULL;
     }
@@ -57,21 +58,21 @@ new_transport_state(void)
 static void
 start_transport(sentry_transport_t *transport)
 {
-    struct transport_state *state = transport->data;
+    curl_transport_state_t *state = transport->data;
     sentry__bgworker_start(state->bgworker);
 }
 
 static void
 shutdown_transport(sentry_transport_t *transport)
 {
-    struct transport_state *state = transport->data;
+    curl_transport_state_t *state = transport->data;
     sentry__bgworker_shutdown(state->bgworker, 5000);
 }
 
 static void
 free_transport(sentry_transport_t *transport)
 {
-    struct transport_state *state = transport->data;
+    curl_transport_state_t *state = transport->data;
     curl_easy_cleanup(state->curl_handle);
     sentry__bgworker_free(state->bgworker);
     sentry__rate_limiter_free(state->rl);
@@ -114,19 +115,17 @@ static void
 task_exec_func(void *data)
 {
     struct task_state *ts = data;
+    curl_transport_state_t *state = ts->transport_state;
 
-    sentry_prepared_http_request_t *req
-        = sentry__prepare_http_request(ts->envelope, ts->transport_state->rl);
-    ts->envelope = NULL;
-    if (!req) {
+    const sentry_options_t *opts = sentry_get_options();
+    if (!opts || opts->dsn.empty || sentry__should_skip_upload()) {
+        SENTRY_DEBUG("skipping event upload");
         return;
     }
 
-    const sentry_options_t *opts = sentry_get_options();
-
-    if (!opts || opts->dsn.empty || sentry__should_skip_upload()) {
-        SENTRY_DEBUG("skipping event upload");
-        sentry__prepared_http_request_free(req);
+    sentry_prepared_http_request_t *req
+        = sentry__prepare_http_request(ts->envelope, state->rl);
+    if (!req) {
         return;
     }
 
@@ -139,7 +138,7 @@ task_exec_func(void *data)
         headers = curl_slist_append(headers, buf);
     }
 
-    CURL *curl = ts->transport_state->curl_handle;
+    CURL *curl = state->curl_handle;
     curl_easy_reset(curl);
     if (opts->debug) {
         curl_easy_setopt(curl, CURLOPT_VERBOSE, 1);
@@ -173,10 +172,10 @@ task_exec_func(void *data)
     if (rv == CURLE_OK) {
         if (info.x_sentry_rate_limits) {
             sentry__rate_limiter_update_from_header(
-                ts->transport_state->rl, info.x_sentry_rate_limits);
+                state->rl, info.x_sentry_rate_limits);
         } else if (info.retry_after) {
             sentry__rate_limiter_update_from_http_retry_after(
-                ts->transport_state->rl, info.retry_after);
+                state->rl, info.retry_after);
         }
     }
 
@@ -190,13 +189,14 @@ static void
 task_cleanup_func(void *data)
 {
     struct task_state *ts = data;
+    sentry_envelope_free(ts->envelope);
     sentry_free(ts);
 }
 
 static void
 send_envelope(struct sentry_transport_s *transport, sentry_envelope_t *envelope)
 {
-    struct transport_state *state = transport->data;
+    curl_transport_state_t *state = transport->data;
     struct task_state *ts = SENTRY_MAKE(struct task_state);
     if (!ts) {
         sentry_envelope_free(envelope);
@@ -217,7 +217,7 @@ sentry__transport_new_default(void)
         return NULL;
     }
 
-    struct transport_state *state = new_transport_state();
+    curl_transport_state_t *state = new_transport_state();
     if (!state) {
         sentry_free(transport);
         return NULL;
@@ -253,7 +253,7 @@ sentry__transport_dump_queue(sentry_transport_t *transport)
     }
 
     sentry_bgworker_t *bgworker
-        = ((struct transport_state *)transport->data)->bgworker;
+        = ((curl_transport_state_t *)transport->data)->bgworker;
 
     size_t dumped = sentry__bgworker_foreach_matching(
         bgworker, task_exec_func, sentry__curl_dump, NULL);
