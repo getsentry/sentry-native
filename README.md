@@ -117,7 +117,7 @@ or use it on the command line.
 
 **MinGW**:
 
-64-bits is the only plateform supported for now.
+64-bits is the only platform supported for now.
 LLVM + Clang are mandatory here : they are required to generate .pdb files, used by Crashpad for the report generation.
 
 For your application to generate the appropriate .pdb output, you need to activate CodeView file format generation on your application target. To do so, update your own CMakeLists.txt with something like `target_compile_options(${yourApplicationTarget} PRIVATE -gcodeview)`.
