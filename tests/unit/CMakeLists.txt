@@ -49,7 +49,8 @@ target_link_libraries(sentry_test_unit PRIVATE
 
 if(MINGW)
 	if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-		target_link_options(sentry_test_unit PRIVATE -Wl,-pdb=) # IMPORTANT ! MUST generate pdb files
+		target_link_options(sentry_test_unit PRIVATE -Wl,-pdb=) # IMPORTANT ! LLD must generate pdb files
+		target_compile_options(sentry_test_unit PRIVATE -gcodeview) # IMPORTANT ! Clang must generate pdb to CodeView format
 	else()
 		message(FATAL_ERROR "Tests will not pass on MinGW if your compiler cannot generate .pdb files ! Please use Clang instead")
 	endif()

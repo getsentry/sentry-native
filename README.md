@@ -115,6 +115,26 @@ or use it on the command line.
 [cmake]: https://cmake.org/cmake/help/latest/
 [cmake guide]: https://developer.android.com/ndk/guides/cmake
 
+**MinGW**:
+
+64-bits is the only platform supported for now.
+LLVM + Clang are mandatory here : they are required to generate .pdb files, used by Crashpad for the report generation.
+
+For your application to generate the appropriate .pdb output, you need to activate CodeView file format generation on your application target. To do so, update your own CMakeLists.txt with something like `target_compile_options(${yourApplicationTarget} PRIVATE -gcodeview)`.
+
+If you use a MSYS2 environement to compile with MinGW, make sure to :
+
+-   Create an environement variable `MINGW_ROOT` (ex : `C:/msys64/mingw64`)
+-   Run from `mingw64.exe` : `pacman -S --needed - < ./toolchains/msys2-mingw64-pkglist.txt`
+-   Build as :
+
+```sh
+# Configure with Ninja as generator and use the MSYS2 toolchain file
+$ cmake -GNinja -Bbuild -H. -DCMAKE_TOOLCHAIN_FILE=toolchains/msys2.cmake
+# build with Ninja
+$ ninja -C build
+```
+
 ### Compile-Time Options
 
 The following options can be set when running the cmake generator, for example
