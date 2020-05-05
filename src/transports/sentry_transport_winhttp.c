@@ -1,6 +1,7 @@
 #include "sentry_alloc.h"
 #include "sentry_core.h"
 #include "sentry_envelope.h"
+#include "sentry_ratelimiter.h"
 #include "sentry_string.h"
 #include "sentry_sync.h"
 #include "sentry_transport.h"
@@ -111,17 +112,22 @@ winhttp_transport_free(sentry_transport_t *transport)
     sentry_free(state);
 }
 
-static bool
-for_each_request_callback(sentry_prepared_http_request_t *req,
-    const sentry_envelope_t *envelope, void *data)
+static void
+task_exec_func(void *data)
 {
-    struct task_state *ts = data;
-    winhttp_transport_state_t *state = ts->transport_state;
     const sentry_options_t *opts = sentry_get_options();
-
     if (!opts || opts->dsn.empty || sentry__should_skip_upload()) {
         SENTRY_DEBUG("skipping event upload");
-        return false;
+        return;
+    }
+
+    struct task_state *ts = data;
+    winhttp_transport_state_t *state = ts->transport_state;
+
+    sentry_prepared_http_request_t *req
+        = sentry__prepare_http_request(ts->envelope, state->rl);
+    if (!req) {
+        return;
     }
 
     wchar_t *url = sentry__string_to_wstr(req->url);
@@ -164,8 +170,8 @@ for_each_request_callback(sentry_prepared_http_request_t *req,
     SENTRY_TRACEF(
         "sending request using winhttp to %s:\n%S", req->url, headers);
 
-    if (WinHttpSendRequest(request, headers, -1, (LPVOID)req->payload,
-            (DWORD)req->payload_len, (DWORD)req->payload_len, 0)) {
+    if (WinHttpSendRequest(request, headers, -1, (LPVOID)req->body,
+            (DWORD)req->body_len, (DWORD)req->body_len, 0)) {
         WinHttpReceiveResponse(request, NULL);
 
         if (opts->debug) {
@@ -219,20 +225,11 @@ for_each_request_callback(sentry_prepared_http_request_t *req,
     } else {
         SENTRY_DEBUGF("http request failed with error: %d", GetLastError());
     }
+
     WinHttpCloseHandle(request);
     sentry_free(url);
     sentry_free(headers);
-
     sentry__prepared_http_request_free(req);
-    return true;
-}
-
-static void
-task_exec_func(void *data)
-{
-    struct task_state *ts = data;
-    sentry__envelope_for_each_request(
-        ts->envelope, for_each_request_callback, ts->transport_state->rl, data);
 }
 
 static void

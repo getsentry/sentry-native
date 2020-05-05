@@ -202,6 +202,8 @@ sentry__capture_envelope(sentry_envelope_t *envelope)
     if (opts->transport) {
         SENTRY_TRACE("sending envelope");
         opts->transport->send_envelope_func(opts->transport, envelope);
+    } else {
+        sentry_envelope_free(envelope);
     }
 }
 
@@ -258,8 +260,6 @@ sentry_capture_event(sentry_value_t event)
             if (!item) {
                 continue;
             }
-            sentry__envelope_item_set_header(
-                item, "name", sentry_value_new_string(attachment->name));
             sentry__envelope_item_set_header(item, "filename",
 #ifdef SENTRY_PLATFORM_WINDOWS
                 sentry__value_new_string_from_wstr(

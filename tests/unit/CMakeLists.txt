@@ -23,16 +23,16 @@ add_executable(sentry_test_unit
 	test_envelopes.c
 	test_modulefinder.c
 	test_path.c
-	tests.inc
+	test_ratelimiter.c
+	test_session.c
 	test_slice.c
 	test_symbolizer.c
 	test_sync.c
-	test_session.c
-	test_transport.c
 	test_unwinder.c
 	test_utils.c
 	test_uuid.c
 	test_value.c
+	tests.inc
 )
 
 # FIXME: cmake 3.13 introduced target_link_options

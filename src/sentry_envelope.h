@@ -10,32 +10,8 @@
 
 #define SENTRY_MAX_ENVELOPE_ITEMS 10
 
-struct sentry_rate_limiter_s;
-struct sentry_envelope_item_s;
 typedef struct sentry_envelope_item_s sentry_envelope_item_t;
-
-typedef struct sentry_prepared_http_header_s {
-    const char *key;
-    char *value;
-} sentry_prepared_http_header_t;
-
-/**
- * This represents a HTTP request, with method, url, headers and a body.
- */
-typedef struct sentry_prepared_http_request_s {
-    char *url;
-    const char *method;
-    sentry_prepared_http_header_t *headers;
-    size_t headers_len;
-    char *payload;
-    size_t payload_len;
-    bool payload_owned;
-} sentry_prepared_http_request_t;
-
-/**
- * Free a previously allocated HTTP request.
- */
-void sentry__prepared_http_request_free(sentry_prepared_http_request_t *req);
+typedef struct sentry_rate_limiter_s sentry_rate_limiter_t;
 
 /**
  * Create a new empty envelope.
@@ -87,27 +63,13 @@ void sentry__envelope_item_set_header(
     sentry_envelope_item_t *item, const char *key, sentry_value_t value);
 
 /**
- * This will call the provided `callback` once for each HTTP request that an
- * envelope generates. The callback will be called zero or more times, depending
- * on the envelope items, and the rate limits enforced by `rl`. Rate limited
- * items will be skipped.
+ * Serialize the envelope while applying the rate limits from `rl`.
+ * Returns `NULL` when all items have been rate-limited, and might return a
+ * pointer to borrowed data in case of a raw envelope, in which case `owned_out`
+ * will be set to `false`.
  */
-void sentry__envelope_for_each_request(const sentry_envelope_t *envelope,
-    bool (*callback)(sentry_prepared_http_request_t *,
-        const sentry_envelope_t *, void *data),
-    const struct sentry_rate_limiter_s *rl, void *data);
-
-/**
- * Serialize the envelope header into the given string builder.
- */
-void sentry__envelope_serialize_headers_into_stringbuilder(
-    const sentry_envelope_t *envelope, sentry_stringbuilder_t *sb);
-
-/**
- * Serialize a single envelope item into the given string builder.
- */
-void sentry__envelope_serialize_item_into_stringbuilder(
-    const sentry_envelope_item_t *item, sentry_stringbuilder_t *sb);
+char *sentry_envelope_serialize_ratelimited(const sentry_envelope_t *envelope,
+    const sentry_rate_limiter_t *rl, size_t *size_out, bool *owned_out);
 
 /**
  * Serialize a complete envelope with all its items into the given string

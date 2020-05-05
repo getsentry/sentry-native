@@ -16,6 +16,8 @@ sentry_target_sources_cwd(sentry
 	sentry_path.h
 	sentry_random.c
 	sentry_random.h
+	sentry_ratelimiter.c
+	sentry_ratelimiter.h
 	sentry_scope.c
 	sentry_scope.h
 	sentry_session.c

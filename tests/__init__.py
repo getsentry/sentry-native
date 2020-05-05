@@ -129,12 +129,6 @@ def cmake(cwd, targets, options=None):
 # Adapted from: https://raw.githubusercontent.com/getsentry/sentry-python/276acae955ee13f7ac3a7728003626eff6d943a8/sentry_sdk/envelope.py
 
 
-def event_envelope(jsonstr):
-    j = json.loads(jsonstr)
-    item = Item(headers={"type": "event"}, payload=PayloadRef(json=j))
-    return Envelope(items=[item])
-
-
 class Envelope(object):
     def __init__(
         self,

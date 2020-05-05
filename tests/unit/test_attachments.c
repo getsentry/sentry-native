@@ -55,12 +55,12 @@ SENTRY_TEST(lazy_attachments)
     char *serialized
         = sentry_stringbuilder_take_string(&testdata.serialized_envelope);
     TEST_CHECK(strstr(serialized,
-                   "{\"type\":\"attachment\",\"length\":3,\"name\":\"existing-"
-                   "attachment\",\"filename\":\".existing-file-attachment\"}"
-                   "\nfoo\n")
+                   "{\"type\":\"attachment\",\"length\":3,"
+                   "\"filename\":\".existing-file-attachment\"}\n"
+                   "foo\n")
         != NULL);
     TEST_CHECK(
-        strstr(serialized, "\"name\":\"non-existing-attachment\"") == NULL);
+        strstr(serialized, "\"filename\":\"non-existing-attachment\"") == NULL);
     sentry_free(serialized);
 
     sentry__path_write_buffer(existing, "foobar", 6);
@@ -71,15 +71,14 @@ SENTRY_TEST(lazy_attachments)
     serialized
         = sentry_stringbuilder_take_string(&testdata.serialized_envelope);
     TEST_CHECK(strstr(serialized,
-                   "{\"type\":\"attachment\",\"length\":6,\"name\":\"existing-"
-                   "attachment\",\"filename\":\".existing-file-attachment\"}"
-                   "\nfoobar\n")
+                   "{\"type\":\"attachment\",\"length\":6,"
+                   "\"filename\":\".existing-file-attachment\"}\n"
+                   "foobar\n")
         != NULL);
     TEST_CHECK(strstr(serialized,
-                   "{\"type\":\"attachment\",\"length\":9,\"name\":\"non-"
-                   "existing-attachment\",\"filename\":\".non-existing-file-"
-                   "attachment\"}"
-                   "\nit exists\n")
+                   "{\"type\":\"attachment\",\"length\":9,"
+                   "\"filename\":\".non-existing-file-attachment\"}\n"
+                   "it exists\n")
         != NULL);
     sentry_free(serialized);
 

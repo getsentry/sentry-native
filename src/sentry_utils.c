@@ -301,18 +301,6 @@ init_string_builder_for_url(sentry_stringbuilder_t *sb, const sentry_dsn_t *dsn)
 }
 
 char *
-sentry__dsn_get_store_url(const sentry_dsn_t *dsn)
-{
-    if (!dsn || dsn->empty) {
-        return NULL;
-    }
-    sentry_stringbuilder_t sb;
-    init_string_builder_for_url(&sb, dsn);
-    sentry__stringbuilder_append(&sb, "/store/");
-    return sentry__stringbuilder_into_string(&sb);
-}
-
-char *
 sentry__dsn_get_envelope_url(const sentry_dsn_t *dsn)
 {
     if (!dsn || dsn->empty) {
@@ -334,23 +322,6 @@ sentry__dsn_get_minidump_url(const sentry_dsn_t *dsn)
     init_string_builder_for_url(&sb, dsn);
     sentry__stringbuilder_append(&sb, "/minidump/?sentry_key=");
     sentry__stringbuilder_append(&sb, dsn->public_key);
-    return sentry__stringbuilder_into_string(&sb);
-}
-
-char *
-sentry__dsn_get_attachment_url(
-    const sentry_dsn_t *dsn, const sentry_uuid_t *event_id)
-{
-    if (!dsn || dsn->empty) {
-        return NULL;
-    }
-    sentry_stringbuilder_t sb;
-    char event_id_buf[37];
-    sentry_uuid_as_string(event_id, event_id_buf);
-    init_string_builder_for_url(&sb, dsn);
-    sentry__stringbuilder_append(&sb, "/events/");
-    sentry__stringbuilder_append(&sb, event_id_buf);
-    sentry__stringbuilder_append(&sb, "/attachments/");
     return sentry__stringbuilder_into_string(&sb);
 }
 
@@ -380,7 +351,7 @@ sentry__msec_time_to_iso8601(uint64_t time)
 uint64_t
 sentry__iso8601_to_msec(const char *iso)
 {
-    int len = strlen(iso);
+    size_t len = strlen(iso);
     if (len != 20 && len != 24) {
         return 0;
     }

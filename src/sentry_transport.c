@@ -1,108 +1,86 @@
 #include "sentry_transport.h"
 #include "sentry_alloc.h"
-#include "sentry_slice.h"
-#include "sentry_utils.h"
+#include "sentry_envelope.h"
+#include "sentry_ratelimiter.h"
 
-#define MAX_RATE_LIMITS 4
+#define ENVELOPE_MIME "application/x-sentry-envelope"
+// The headers we use are: `x-sentry-auth`, `content-type`, `content-length`
+#define MAX_HTTP_HEADERS 3
 
-struct sentry_rate_limiter_s {
-    uint64_t disabled_until[MAX_RATE_LIMITS];
-};
-
-sentry_rate_limiter_t *
-sentry__rate_limiter_new(void)
+sentry_prepared_http_request_t *
+sentry__prepare_http_request(
+    sentry_envelope_t *envelope, const sentry_rate_limiter_t *rl)
 {
-    sentry_rate_limiter_t *rl = SENTRY_MAKE(sentry_rate_limiter_t);
-    rl->disabled_until[SENTRY_RL_CATEGORY_ANY] = 0;
-    rl->disabled_until[SENTRY_RL_CATEGORY_ERROR] = 0;
-    rl->disabled_until[SENTRY_RL_CATEGORY_SESSION] = 0;
-    rl->disabled_until[SENTRY_RL_CATEGORY_TRANSACTION] = 0;
-    return rl;
-}
-
-bool
-sentry__rate_limiter_update_from_header(
-    sentry_rate_limiter_t *rl, const char *sentry_header)
-{
-    sentry_slice_t slice = sentry__slice_from_str(sentry_header);
-
-    while (true) {
-        slice = sentry__slice_trim(slice);
-        uint64_t retry_after = 0;
-        if (!sentry__slice_consume_uint64(&slice, &retry_after)) {
-            return false;
-        }
-        retry_after *= 1000;
-        retry_after += sentry__msec_time();
-
-        if (!sentry__slice_consume_if(&slice, ':')) {
-            return false;
-        }
-
-        sentry_slice_t categories = sentry__slice_split_at(slice, ':');
-        if (categories.len == 0) {
-            rl->disabled_until[SENTRY_RL_CATEGORY_ANY] = retry_after;
-        }
-
-        while (categories.len > 0) {
-            sentry_slice_t category = sentry__slice_split_at(categories, ';');
-            if (sentry__slice_eqs(category, "error")) {
-                rl->disabled_until[SENTRY_RL_CATEGORY_ERROR] = retry_after;
-            } else if (sentry__slice_eqs(category, "session")) {
-                rl->disabled_until[SENTRY_RL_CATEGORY_SESSION] = retry_after;
-            } else if (sentry__slice_eqs(category, "transaction")) {
-                rl->disabled_until[SENTRY_RL_CATEGORY_TRANSACTION]
-                    = retry_after;
-            }
-
-            categories = sentry__slice_advance(categories, category.len);
-        }
-
-        size_t next = sentry__slice_find(slice, ',');
-        if (next != (size_t)-1) {
-            slice = sentry__slice_advance(slice, next + 1);
-        } else {
-            break;
-        }
+    const sentry_options_t *options = sentry_get_options();
+    if (!options) {
+        return NULL;
     }
 
-    return true;
-}
+    size_t body_len = 0;
+    bool body_owned = true;
+    char *body = sentry_envelope_serialize_ratelimited(
+        envelope, rl, &body_len, &body_owned);
+    if (!body) {
+        return NULL;
+    }
 
-bool
-sentry__rate_limiter_update_from_http_retry_after(
-    sentry_rate_limiter_t *rl, const char *retry_after)
-{
-    sentry_slice_t slice = sentry__slice_from_str(retry_after);
-    uint64_t eta = 60;
-    sentry__slice_consume_uint64(&slice, &eta);
-    rl->disabled_until[SENTRY_RL_CATEGORY_ANY]
-        = sentry__msec_time() + eta * 1000;
-    return true;
-}
+    sentry_prepared_http_request_t *req
+        = SENTRY_MAKE(sentry_prepared_http_request_t);
+    if (!req) {
+        if (body_owned) {
+            sentry_free(body);
+        }
+        return NULL;
+    }
+    req->headers = sentry_malloc(
+        sizeof(sentry_prepared_http_header_t) * MAX_HTTP_HEADERS);
+    if (!req->headers) {
+        sentry_free(req);
+        if (body_owned) {
+            sentry_free(body);
+        }
+        return NULL;
+    }
+    req->headers_len = 0;
 
-bool
-sentry__rate_limiter_is_disabled(const sentry_rate_limiter_t *rl, int category)
-{
-    uint64_t now = sentry__msec_time();
-    return rl->disabled_until[SENTRY_RL_CATEGORY_ANY] > now
-        || rl->disabled_until[category] > now;
+    req->method = "POST";
+    req->url = sentry__dsn_get_envelope_url(&options->dsn);
+
+    sentry_prepared_http_header_t *h;
+    if (!options->dsn.empty) {
+        h = &req->headers[req->headers_len++];
+        h->key = "x-sentry-auth";
+        h->value = sentry__dsn_get_auth_header(&options->dsn);
+    }
+
+    h = &req->headers[req->headers_len++];
+    h->key = "content-type";
+    h->value = sentry__string_clone(ENVELOPE_MIME);
+
+    h = &req->headers[req->headers_len++];
+    h->key = "content-length";
+    h->value = sentry__int64_to_string((int64_t)body_len);
+
+    req->body = body;
+    req->body_len = body_len;
+    req->body_owned = body_owned;
+
+    return req;
 }
 
 void
-sentry__rate_limiter_free(sentry_rate_limiter_t *rl)
+sentry__prepared_http_request_free(sentry_prepared_http_request_t *req)
 {
-    if (!rl) {
+    if (!req) {
         return;
     }
-    sentry_free(rl);
+    sentry_free(req->url);
+    for (size_t i = 0; i < req->headers_len; i++) {
+        sentry_free(req->headers[i].value);
+    }
+    sentry_free(req->headers);
+    if (req->body_owned) {
+        sentry_free(req->body);
+    }
+    sentry_free(req);
 }
-
-#if SENTRY_UNITTEST
-uint64_t
-sentry__rate_limiter_get_disabled_until(
-    const sentry_rate_limiter_t *rl, int category)
-{
-    return rl->disabled_until[category];
-}
-#endif

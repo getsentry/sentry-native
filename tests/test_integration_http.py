@@ -2,7 +2,7 @@ import pytest
 import subprocess
 import sys
 import os
-from . import cmake, make_dsn, check_output, run, event_envelope, Envelope
+from . import cmake, make_dsn, check_output, run, Envelope
 from .conditions import has_http, has_inproc, has_breakpad
 from .assertions import (
     assert_attachment,
@@ -28,7 +28,7 @@ def test_capture_http(tmp_path, httpserver):
     cmake(tmp_path, ["sentry_example"], {"SENTRY_BACKEND": "none"})
 
     httpserver.expect_oneshot_request(
-        "/api/123456/store/", headers={"x-sentry-auth": auth_header},
+        "/api/123456/envelope/", headers={"x-sentry-auth": auth_header},
     ).respond_with_data("OK")
 
     with httpserver.wait(raise_assertions=True, stop_on_nohandler=True) as waiting:
@@ -43,7 +43,7 @@ def test_capture_http(tmp_path, httpserver):
     assert waiting.result
 
     output = httpserver.log[0][0].get_data()
-    envelope = event_envelope(output)
+    envelope = Envelope.deserialize(output)
 
     assert_meta(envelope)
     assert_breadcrumb(envelope)
@@ -75,6 +75,34 @@ def test_session_http(tmp_path, httpserver):
     envelope = Envelope.deserialize(output)
 
     assert_session(envelope, {"init": True, "status": "exited", "errors": 0})
+
+
+def test_capture_and_session_http(tmp_path, httpserver):
+    # we want to have the default transport
+    cmake(tmp_path, ["sentry_example"], {"SENTRY_BACKEND": "none"})
+
+    httpserver.expect_request(
+        "/api/123456/envelope/", headers={"x-sentry-auth": auth_header},
+    ).respond_with_data("OK")
+
+    run(
+        tmp_path,
+        "sentry_example",
+        ["start-session", "capture-event"],
+        check=True,
+        env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+    )
+
+    assert len(httpserver.log) == 2
+    output = httpserver.log[0][0].get_data()
+    envelope = Envelope.deserialize(output)
+
+    assert_event(envelope)
+    assert_session(envelope, {"init": True, "status": "ok", "errors": 0})
+
+    output = httpserver.log[1][0].get_data()
+    envelope = Envelope.deserialize(output)
+    assert_session(envelope, {"status": "exited", "errors": 0})
 
 
 @pytest.mark.skipif(not has_inproc, reason="test needs inproc backend")
