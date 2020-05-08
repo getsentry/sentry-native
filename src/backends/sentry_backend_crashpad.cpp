@@ -5,6 +5,7 @@ extern "C" {
 #include "sentry_backend.h"
 #include "sentry_core.h"
 #include "sentry_database.h"
+#include "sentry_options.h"
 #include "sentry_path.h"
 #include "sentry_utils.h"
 }

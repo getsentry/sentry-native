@@ -1,6 +1,7 @@
 #include "sentry_disk_transport.h"
 #include "sentry_alloc.h"
 #include "sentry_core.h"
+#include "sentry_database.h"
 #include "sentry_envelope.h"
 #include "sentry_path.h"
 #include "sentry_string.h"

@@ -6,7 +6,7 @@
 #include "sentry_path.h"
 #include "sentry_session.h"
 
-typedef struct {
+typedef struct sentry_run_s {
     sentry_uuid_t uuid;
     sentry_path_t *run_path;
     sentry_path_t *session_path;

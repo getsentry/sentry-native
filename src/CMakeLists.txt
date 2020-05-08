@@ -13,6 +13,8 @@ sentry_target_sources_cwd(sentry
 	sentry_json.c
 	sentry_json.h
 	sentry_modulefinder.h
+	sentry_options.c
+	sentry_options.h
 	sentry_path.h
 	sentry_random.c
 	sentry_random.h
