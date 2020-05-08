@@ -69,15 +69,21 @@ def test_capture_stdout(tmp_path):
 
 @pytest.mark.skipif(not has_files, reason="test needs a local filesystem")
 def test_multi_process(tmp_path):
+    # NOTE: It would have been nice to do *everything* in a unicode-named
+    # directory, but apparently cmake does not like that either.
     cmake(
         tmp_path,
         ["sentry_example"],
         {"SENTRY_BACKEND": "none", "SENTRY_TRANSPORT": "none"},
     )
-    cwd = tmp_path
+
+    cwd = tmp_path.joinpath("unicode ❤️ Юля")
+    cwd.mkdir()
     exe = "sentry_example"
     cmd = (
-        "./{}".format(exe) if sys.platform != "win32" else "{}\\{}.exe".format(cwd, exe)
+        "../{}".format(exe)
+        if sys.platform != "win32"
+        else "{}\\{}.exe".format(tmp_path, exe)
     )
 
     child1 = subprocess.Popen([cmd, "sleep"], cwd=cwd)
@@ -99,7 +105,7 @@ def test_multi_process(tmp_path):
     child2.wait()
 
     # and start another process that cleans up the old runs
-    run(tmp_path, "sentry_example", [])
+    subprocess.run([cmd], cwd=cwd)
 
     runs = [
         run

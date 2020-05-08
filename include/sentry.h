@@ -4,7 +4,16 @@
  * sentry-native is a C client to send events to native from
  * C and C++ applications.  It can work together with breakpad/crashpad
  * but also send events on its own.
+ *
+ * NOTE on encodings:
+ *
+ * Sentry will assume an encoding of UTF-8 for all string data that is captured
+ * and being sent to sentry as an Event.
+ * All the functions that are dealing with *paths* will assume an OS-specific
+ * encoding, typically ANSI on Windows, and UTF-8 on Unix; and they provide
+ * wchar-compatible alternatives on Windows.
  */
+
 #ifndef SENTRY_H_INCLUDED
 #define SENTRY_H_INCLUDED
 
