@@ -2,6 +2,7 @@
 #include "sentry_alloc.h"
 #include "sentry_core.h"
 #include "sentry_json.h"
+#include "sentry_options.h"
 #include "sentry_path.h"
 #include "sentry_ratelimiter.h"
 #include "sentry_string.h"

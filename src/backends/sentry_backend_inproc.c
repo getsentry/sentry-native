@@ -4,6 +4,7 @@
 #include "sentry_backend.h"
 #include "sentry_core.h"
 #include "sentry_envelope.h"
+#include "sentry_options.h"
 #include "sentry_scope.h"
 #include "sentry_sync.h"
 #include "sentry_transport.h"

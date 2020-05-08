@@ -1,6 +1,8 @@
 #include "sentry_alloc.h"
 #include "sentry_core.h"
+#include "sentry_database.h"
 #include "sentry_envelope.h"
+#include "sentry_options.h"
 #include "sentry_ratelimiter.h"
 #include "sentry_string.h"
 #include "sentry_sync.h"

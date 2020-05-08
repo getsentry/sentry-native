@@ -2,6 +2,7 @@
 #include "sentry_alloc.h"
 #include "sentry_envelope.h"
 #include "sentry_json.h"
+#include "sentry_options.h"
 #include "sentry_session.h"
 #include <string.h>
 

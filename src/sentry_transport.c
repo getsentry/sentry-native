@@ -1,6 +1,7 @@
 #include "sentry_transport.h"
 #include "sentry_alloc.h"
 #include "sentry_envelope.h"
+#include "sentry_options.h"
 #include "sentry_ratelimiter.h"
 
 #define ENVELOPE_MIME "application/x-sentry-envelope"

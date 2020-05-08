@@ -1,7 +1,9 @@
 #include "sentry_scope.h"
 #include "sentry_backend.h"
 #include "sentry_core.h"
+#include "sentry_database.h"
 #include "sentry_modulefinder.h"
+#include "sentry_options.h"
 #include "sentry_string.h"
 #include "sentry_sync.h"
 
