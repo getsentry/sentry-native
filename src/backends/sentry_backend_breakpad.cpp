@@ -33,7 +33,8 @@ typedef struct {
 static void
 sentry__breakpad_backend_send_envelope(void *data, sentry_envelope_t *envelope)
 {
-    const breakpad_transport_state_t *state = data;
+    const breakpad_transport_state_t *state
+        = (const breakpad_transport_state_t *)data;
 
     sentry_path_t *dump_path = sentry__path_from_str(state->dump_path);
     if (!dump_path) {
@@ -81,7 +82,7 @@ sentry__enforce_breakpad_transport(
         sentry_free(state);
         return;
     }
-    sentry_transport_set_free_func(sentry_free);
+    sentry_transport_set_free_func(transport, sentry_free);
 
     ((sentry_options_t *)options)->transport = transport;
 }
