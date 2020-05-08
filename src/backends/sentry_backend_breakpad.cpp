@@ -31,11 +31,9 @@ typedef struct {
 } breakpad_transport_state_t;
 
 static void
-sentry__breakpad_backend_send_envelope(
-    sentry_transport_t *transport, sentry_envelope_t *envelope)
+sentry__breakpad_backend_send_envelope(void *data, sentry_envelope_t *envelope)
 {
-    const breakpad_transport_state_t *state
-        = (const breakpad_transport_state_t *)transport->data;
+    const breakpad_transport_state_t *state = data;
 
     sentry_path_t *dump_path = sentry__path_from_str(state->dump_path);
     if (!dump_path) {
@@ -70,24 +68,20 @@ static void
 sentry__enforce_breakpad_transport(
     const sentry_options_t *options, const char *dump_path)
 {
-    sentry_transport_t *transport = SENTRY_MAKE(sentry_transport_t);
-    if (!transport) {
-        return;
-    }
     breakpad_transport_state_t *state = SENTRY_MAKE(breakpad_transport_state_t);
     if (!state) {
-        sentry_free(transport);
         return;
     }
-
     state->run = options->run;
     state->dump_path = dump_path;
 
-    transport->data = state;
-    transport->free_func = NULL;
-    transport->send_envelope_func = sentry__breakpad_backend_send_envelope;
-    transport->startup_func = NULL;
-    transport->shutdown_func = NULL;
+    sentry_transport_t *transport
+        = sentry_transport_new(sentry__breakpad_backend_send_envelope, state);
+    if (!transport) {
+        sentry_free(state);
+        return;
+    }
+    sentry_transport_set_free_func(sentry_free);
 
     ((sentry_options_t *)options)->transport = transport;
 }

@@ -5,7 +5,7 @@
 #include <sentry.h>
 
 static void
-send_envelope(sentry_envelope_t *envelope, void *data)
+send_envelope(void *data, sentry_envelope_t *envelope)
 {
     uint64_t *called = data;
     *called += 1;
@@ -51,6 +51,7 @@ send_envelope(sentry_envelope_t *envelope, void *data)
         "my_environment");
 
     sentry_value_decref(session);
+    sentry_envelope_free(envelope);
 }
 
 SENTRY_TEST(session_basics)
@@ -59,7 +60,7 @@ SENTRY_TEST(session_basics)
     sentry_options_t *options = sentry_options_new();
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
     sentry_options_set_transport(
-        options, sentry_new_function_transport(send_envelope, &called));
+        options, sentry_transport_new(send_envelope, &called));
     sentry_options_set_release(options, "my_release");
     sentry_options_set_environment(options, "my_environment");
     sentry_init(options);

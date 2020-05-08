@@ -81,7 +81,7 @@ sentry_init(sentry_options_t *options)
     sentry_transport_t *transport = g_options->transport;
     if (transport && transport->startup_func) {
         SENTRY_TRACE("starting transport");
-        transport->startup_func(transport);
+        transport->startup_func(transport->data);
     }
 
     // after initializing the transport, we will submit all the unsent envelopes
@@ -114,7 +114,15 @@ sentry_shutdown(void)
     if (options) {
         if (options->transport && options->transport->shutdown_func) {
             SENTRY_TRACE("shutting down transport");
-            options->transport->shutdown_func(options->transport);
+            // TODO: make this configurable
+            // Ideally, it should default to 2s as per
+            // https://docs.sentry.io/error-reporting/configuration/?platform=rust#shutdown-timeout
+            // but we hit that timeout in our own integration tests, so rather
+            // increase it to 5s, as it was before.
+            if (!options->transport->shutdown_func(
+                    options->transport->data, 5000)) {
+                SENTRY_DEBUG("transport did not shut down cleanly");
+            }
         }
         if (options->backend && options->backend->shutdown_func) {
             SENTRY_TRACE("shutting down backend");
@@ -202,7 +210,7 @@ sentry__capture_envelope(sentry_envelope_t *envelope)
     const sentry_options_t *opts = sentry_get_options();
     if (opts->transport) {
         SENTRY_TRACE("sending envelope");
-        opts->transport->send_envelope_func(opts->transport, envelope);
+        opts->transport->send_envelope_func(opts->transport->data, envelope);
     } else {
         sentry_envelope_free(envelope);
     }
@@ -292,18 +300,6 @@ sentry_handle_exception(sentry_ucontext_t *uctx)
     if (g_options->backend && g_options->backend->except_func) {
         g_options->backend->except_func(g_options->backend, uctx);
     }
-}
-
-void
-sentry_transport_free(sentry_transport_t *transport)
-{
-    if (!transport) {
-        return;
-    }
-    if (transport->free_func) {
-        transport->free_func(transport);
-    }
-    sentry_free(transport);
 }
 
 void

@@ -6,6 +6,19 @@
 typedef struct sentry_rate_limiter_s sentry_rate_limiter_t;
 
 /**
+ * The transport interface of sentry.
+ */
+// TODO: make this completely opaque, and rather use explicit functions from
+// core
+typedef struct sentry_transport_s {
+    void (*send_envelope_func)(void *data, sentry_envelope_t *envelope);
+    void (*startup_func)(void *data);
+    bool (*shutdown_func)(void *data, uint64_t timeout);
+    void (*free_func)(void *data);
+    void *data;
+} sentry_transport_t;
+
+/**
  * This will create a new platform specific HTTP transport.
  */
 sentry_transport_t *sentry__transport_new_default(void);

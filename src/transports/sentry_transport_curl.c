@@ -58,23 +58,23 @@ new_transport_state(void)
 }
 
 static void
-start_transport(sentry_transport_t *transport)
+start_transport(void *data)
 {
-    curl_transport_state_t *state = transport->data;
+    curl_transport_state_t *state = data;
     sentry__bgworker_start(state->bgworker);
 }
 
-static void
-shutdown_transport(sentry_transport_t *transport)
+static bool
+shutdown_transport(void *data, uint64_t timeout)
 {
-    curl_transport_state_t *state = transport->data;
-    sentry__bgworker_shutdown(state->bgworker, 5000);
+    curl_transport_state_t *state = data;
+    return !sentry__bgworker_shutdown(state->bgworker, timeout);
 }
 
 static void
-free_transport(sentry_transport_t *transport)
+free_transport(void *data)
 {
-    curl_transport_state_t *state = transport->data;
+    curl_transport_state_t *state = data;
     curl_easy_cleanup(state->curl_handle);
     sentry__bgworker_free(state->bgworker);
     sentry__rate_limiter_free(state->rl);
@@ -196,9 +196,9 @@ task_cleanup_func(void *data)
 }
 
 static void
-send_envelope(struct sentry_transport_s *transport, sentry_envelope_t *envelope)
+send_envelope(void *data, sentry_envelope_t *envelope)
 {
-    curl_transport_state_t *state = transport->data;
+    curl_transport_state_t *state = data;
     struct task_state *ts = SENTRY_MAKE(struct task_state);
     if (!ts) {
         sentry_envelope_free(envelope);
@@ -214,22 +214,18 @@ sentry_transport_t *
 sentry__transport_new_default(void)
 {
     SENTRY_DEBUG("initializing curl transport");
-    sentry_transport_t *transport = SENTRY_MAKE(sentry_transport_t);
-    if (!transport) {
-        return NULL;
-    }
-
     curl_transport_state_t *state = new_transport_state();
     if (!state) {
-        sentry_free(transport);
         return NULL;
     }
-
-    transport->data = state;
-    transport->free_func = free_transport;
-    transport->send_envelope_func = send_envelope;
-    transport->startup_func = start_transport;
-    transport->shutdown_func = shutdown_transport;
+    sentry_transport_t *transport = sentry_transport_new(send_envelope, state);
+    if (!transport) {
+        free_transport(state);
+        return NULL;
+    }
+    sentry_transport_set_free_func(transport, free_transport);
+    sentry_transport_set_startup_func(transport, start_transport);
+    sentry_transport_set_shutdown_func(transport, shutdown_transport);
 
     return transport;
 }

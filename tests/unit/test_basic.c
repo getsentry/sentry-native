@@ -1,10 +1,9 @@
 #include "sentry_core.h"
 #include "sentry_testsupport.h"
-#include "transports/sentry_function_transport.h"
 #include <sentry.h>
 
 static void
-send_envelope(sentry_envelope_t *envelope, void *data)
+send_envelope(void *data, sentry_envelope_t *envelope)
 {
     uint64_t *called = data;
     *called += 1;
@@ -23,6 +22,7 @@ send_envelope(sentry_envelope_t *envelope, void *data)
     const char *trans
         = sentry_value_as_string(sentry_value_get_by_key(event, "transaction"));
     TEST_CHECK_STRING_EQUAL(trans, "demo-trans");
+    sentry_envelope_free(envelope);
 }
 
 SENTRY_TEST(basic_function_transport)
@@ -32,7 +32,7 @@ SENTRY_TEST(basic_function_transport)
     sentry_options_t *options = sentry_options_new();
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
     sentry_options_set_transport(
-        options, sentry_new_function_transport(send_envelope, &called));
+        options, sentry_transport_new(send_envelope, &called));
     sentry_options_set_release(options, "prod");
     sentry_init(options);
 
@@ -63,8 +63,8 @@ SENTRY_TEST(sampling_before_send)
 
     sentry_options_t *options = sentry_options_new();
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
-    sentry_options_set_transport(options,
-        sentry_new_function_transport(send_envelope, &called_transport));
+    sentry_options_set_transport(
+        options, sentry_transport_new(send_envelope, &called_transport));
     sentry_options_set_before_send(options, before_send, &called_beforesend);
     sentry_options_set_sample_rate(options, 0.75);
     sentry_init(options);

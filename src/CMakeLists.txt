@@ -42,8 +42,6 @@ sentry_target_sources_cwd(sentry
 	path/sentry_path.c
 	transports/sentry_disk_transport.c
 	transports/sentry_disk_transport.h
-	transports/sentry_function_transport.c
-	transports/sentry_function_transport.h
 	unwinder/sentry_unwinder.c
 )
 

@@ -477,32 +477,60 @@ SENTRY_API int sentry_envelope_write_to_file(
     const sentry_envelope_t *envelope, const char *path);
 
 /**
- * Type of the callback for transports.
- */
-typedef void (*sentry_transport_function_t)(
-    const sentry_envelope_t *envelope, void *data);
-
-/**
  * This represents an interface for user-defined transports.
  *
- * This type is *deprecated*, and will be replaced by an opaque pointer type and
- * builder methods in a future version.
+ * Transports are responsible for sending envelopes to sentry and are the last
+ * step in the event pipeline. A transport has the following hooks:
+ *
+ * * `send_func`: This function will take ownership of an envelope, and is
+ *   responsible for freeing it via `sentry_envelope_free`.
+ * * `startup_func`: This hook will be called by sentry and instructs the
+ *   transport to initialize itself.
+ * * `shutdown_func`: Instructs the transport to flush its queue and shut down.
+ *   This hook receives a millisecond-resolution `timeout` parameter and should
+ *   return `true` when the transport was flushed and shut down successfully.
+ *   In case of `false`, sentry will log an error, but continue with freeing the
+ *   transport.
+ * * `free_func`: Frees the provided `data`. This hook might be called even
+ *   though `shudown_func` returned `false` previously.
+ *
+ * The transport interface might be extended in the future with hooks to flush
+ * its internal queue without shutting down, and to dump its internal queue to
+ * disk in case of a crash.
  */
 struct sentry_transport_s;
-typedef struct sentry_transport_s {
-    void (*send_envelope_func)(
-        struct sentry_transport_s *, sentry_envelope_t *envelope);
-    void (*startup_func)(struct sentry_transport_s *);
-    void (*shutdown_func)(struct sentry_transport_s *);
-    void (*free_func)(struct sentry_transport_s *);
-    void *data;
-} sentry_transport_t;
+typedef struct sentry_transport_s sentry_transport_t;
 
 /**
- * Creates a new function transport.
+ * Creates a new transport.
+ *
+ * This sets both the send hook, as well as the user-provided `data`.
  */
-SENTRY_API sentry_transport_t *sentry_new_function_transport(
-    void (*func)(sentry_envelope_t *envelope, void *data), void *data);
+SENTRY_API sentry_transport_t *sentry_transport_new(
+    void (*send_func)(void *data, sentry_envelope_t *envelope), void *data);
+
+/**
+ * Sets the transport hook to free the transport `data`.
+ */
+SENTRY_API void sentry_transport_set_free_func(
+    sentry_transport_t *transport, void (*free_func)(void *data));
+
+/**
+ * Sets the transport startup hook.
+ */
+SENTRY_API void sentry_transport_set_startup_func(
+    sentry_transport_t *transport, void (*startup_func)(void *data));
+
+/**
+ * Sets the transport shutdown hook.
+ *
+ * This hook will receive a millisecond-resolution timeout; it should return
+ * `true` in case all the pending envelopes have been sent within the timeout,
+ * or `false` if the timeout was hit.
+ */
+SENTRY_API void sentry_transport_set_shutdown_func(
+    sentry_transport_t *transport,
+    bool (*shutdown_func)(void *data, uint64_t timeout));
 
 /**
  * Generic way to free a transport.
