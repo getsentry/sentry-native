@@ -18,5 +18,10 @@ send_envelope(sentry_envelope_t *envelope, void *state)
 sentry_transport_t *
 sentry_new_disk_transport(const sentry_run_t *run)
 {
-    return sentry_transport_new(send_envelope, (void *)run);
+    sentry_transport_t *transport = sentry_transport_new(send_envelope);
+    if (!transport) {
+        return NULL;
+    }
+    sentry_transport_set_state(transport, run);
+    return transport
 }

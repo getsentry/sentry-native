@@ -481,9 +481,9 @@ SENTRY_API int sentry_envelope_write_to_file(
  *
  * Transports are responsible for sending envelopes to sentry and are the last
  * step in the event pipeline. A transport has the following hooks, all of which
- * take the user provided `state` as last parameter. The transport state
- * typically holds handles and other information that can be reused accross
- * requests.
+ * take the user provided `state` as last parameter. The transport state needs
+ * to be set with `sentry_transport_set_state` and typically holds handles and
+ * other information that can be reused across requests.
  *
  * * `send_func`: This function will take ownership of an envelope, and is
  *   responsible for freeing it via `sentry_envelope_free`.
@@ -505,14 +505,19 @@ struct sentry_transport_s;
 typedef struct sentry_transport_s sentry_transport_t;
 
 /**
- * Creates a new transport.
+ * Creates a new transport with an initial `send_func`.
+ */
+SENTRY_API sentry_transport_t *sentry_transport_new(
+    void (*send_func)(sentry_envelope_t *envelope, void *state));
+
+/**
+ * Sets the transport `state`.
  *
- * This sets both the send hook, as well as the user-provided `state`.
  * If the state is owned by the transport and needs to be freed, use
  * `sentry_transport_set_free_func` to set an appropriate hook.
  */
-SENTRY_API sentry_transport_t *sentry_transport_new(
-    void (*send_func)(sentry_envelope_t *envelope, void *state), void *state);
+SENTRY_API void sentry_transport_set_state(
+    sentry_transport_t *transport, void *state);
 
 /**
  * Sets the transport hook to free the transport `state`.
@@ -541,6 +546,20 @@ SENTRY_API void sentry_transport_set_shutdown_func(
  * Generic way to free a transport.
  */
 SENTRY_API void sentry_transport_free(sentry_transport_t *transport);
+
+/**
+ * Create a new function transport.
+ *
+ * It is a convenience function which works with a borrowed `data`, and will
+ * automatically free the envelope, so the user provided function does not need
+ * to do that.
+ *
+ * This function is *deprecated* and will be removed in a future version.
+ * It is here for backwards compatibility. Users should migrate to the
+ * `sentry_transport_new` API.
+ */
+SENTRY_API sentry_transport_t *sentry_new_function_transport(
+    void (*func)(sentry_envelope_t *envelope, void *data), void *data);
 
 /**
  * Type of the callback for modifying events.

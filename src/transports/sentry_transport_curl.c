@@ -235,11 +235,12 @@ sentry__transport_new_default(void)
     if (!state) {
         return NULL;
     }
-    sentry_transport_t *transport = sentry_transport_new(send_envelope, state);
+    sentry_transport_t *transport = sentry_transport_new(send_envelope);
     if (!transport) {
         free_transport(state);
         return NULL;
     }
+    sentry_transport_set_state(transport, state);
     sentry_transport_set_free_func(transport, free_transport);
     sentry_transport_set_startup_func(transport, start_transport);
     sentry_transport_set_shutdown_func(transport, shutdown_transport);

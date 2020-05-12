@@ -19,7 +19,7 @@ typedef struct sentry_transport_s {
 
 sentry_transport_t *
 sentry_transport_new(
-    void (*send_func)(sentry_envelope_t *envelope, void *state), void *state)
+    void (*send_func)(sentry_envelope_t *envelope, void *state))
 {
     sentry_transport_t *transport = SENTRY_MAKE(sentry_transport_t);
     if (!transport) {
@@ -27,11 +27,14 @@ sentry_transport_new(
     }
     memset(transport, 0, sizeof(sentry_transport_t));
     transport->send_envelope_func = send_func;
-    transport->state = state;
 
     return transport;
 }
-
+void
+sentry_transport_set_state(sentry_transport_t *transport, void *state)
+{
+    transport->state = state;
+}
 void
 sentry_transport_set_free_func(
     sentry_transport_t *transport, void (*free_func)(void *state))

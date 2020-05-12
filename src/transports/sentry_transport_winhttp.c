@@ -285,12 +285,13 @@ sentry__transport_new_default(void)
     }
 
     sentry_transport_t *transport
-        = sentry_transport_new(winhttp_transport_send_envelope, state);
+        = sentry_transport_new(winhttp_transport_send_envelope);
 
     if (!transport) {
         winhttp_transport_free(state);
         return NULL;
     }
+    sentry_transport_set_state(transport, state);
     sentry_transport_set_free_func(transport, winhttp_transport_free);
     sentry_transport_set_startup_func(transport, winhttp_transport_start);
     sentry_transport_set_shutdown_func(transport, winhttp_transport_shutdown);

@@ -55,7 +55,7 @@ main(int argc, char **argv)
 
     if (has_arg(argc, argv, "stdout")) {
         sentry_options_set_transport(
-            options, sentry_transport_new(print_envelope, NULL));
+            options, sentry_transport_new(print_envelope));
     }
 
     sentry_init(options);

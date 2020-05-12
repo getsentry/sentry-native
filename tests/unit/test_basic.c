@@ -3,9 +3,9 @@
 #include <sentry.h>
 
 static void
-send_envelope(sentry_envelope_t *envelope, void *state)
+send_envelope(sentry_envelope_t *envelope, void *data)
 {
-    uint64_t *called = state;
+    uint64_t *called = data;
     *called += 1;
 
     sentry_value_t event = sentry_envelope_get_event(envelope);
@@ -32,7 +32,7 @@ SENTRY_TEST(basic_function_transport)
     sentry_options_t *options = sentry_options_new();
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
     sentry_options_set_transport(
-        options, sentry_transport_new(send_envelope, &called));
+        options, sentry_new_function_transport(send_envelope, &called));
     sentry_options_set_release(options, "prod");
     sentry_init(options);
 
@@ -63,8 +63,8 @@ SENTRY_TEST(sampling_before_send)
 
     sentry_options_t *options = sentry_options_new();
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
-    sentry_options_set_transport(
-        options, sentry_transport_new(send_envelope, &called_transport));
+    sentry_options_set_transport(options,
+        sentry_new_function_transport(send_envelope, &called_transport));
     sentry_options_set_before_send(options, before_send, &called_beforesend);
     sentry_options_set_sample_rate(options, 0.75);
     sentry_init(options);

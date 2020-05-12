@@ -78,11 +78,12 @@ sentry__enforce_breakpad_transport(
     state->dump_path = dump_path;
 
     sentry_transport_t *transport
-        = sentry_transport_new(sentry__breakpad_backend_send_envelope, state);
+        = sentry_transport_new(sentry__breakpad_backend_send_envelope);
     if (!transport) {
         sentry_free(state);
         return;
     }
+    sentry_transport_set_state(transport, state);
     sentry_transport_set_free_func(transport, sentry_free);
 
     ((sentry_options_t *)options)->transport = transport;

@@ -10,13 +10,12 @@ typedef struct {
 } sentry_attachments_testdata_t;
 
 static void
-send_envelope(sentry_envelope_t *envelope, void *state)
+send_envelope(sentry_envelope_t *envelope, void *_data)
 {
-    sentry_attachments_testdata_t *data = state;
+    sentry_attachments_testdata_t *data = _data;
     data->called += 1;
     sentry__envelope_serialize_into_stringbuilder(
         envelope, &data->serialized_envelope);
-    sentry_envelope_free(envelope);
 }
 
 #ifdef __ANDROID__
@@ -34,7 +33,7 @@ SENTRY_TEST(lazy_attachments)
     sentry_options_t *options = sentry_options_new();
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
     sentry_options_set_transport(
-        options, sentry_transport_new(send_envelope, &testdata));
+        options, sentry_new_function_transport(send_envelope, &testdata));
     sentry_options_set_release(options, "prod");
 
     sentry_options_add_attachment(

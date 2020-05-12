@@ -5,9 +5,9 @@
 #include <sentry.h>
 
 static void
-send_envelope(sentry_envelope_t *envelope, void *state)
+send_envelope(sentry_envelope_t *envelope, void *data)
 {
-    uint64_t *called = state;
+    uint64_t *called = data;
     *called += 1;
 
     TEST_CHECK_INT_EQUAL(sentry__envelope_get_item_count(envelope), 1);
@@ -60,7 +60,7 @@ SENTRY_TEST(session_basics)
     sentry_options_t *options = sentry_options_new();
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
     sentry_options_set_transport(
-        options, sentry_transport_new(send_envelope, &called));
+        options, sentry_new_function_transport(send_envelope, &called));
     sentry_options_set_release(options, "my_release");
     sentry_options_set_environment(options, "my_environment");
     sentry_init(options);
