@@ -229,6 +229,18 @@ sentry__path_get_size(const sentry_path_t *path)
 }
 
 sentry_path_t *
+sentry__path_append_str(const sentry_path_t *base, const char *suffix)
+{
+    sentry_stringbuilder_t sb;
+
+    sentry__stringbuilder_init(&sb);
+    sentry__stringbuilder_append(&sb, base->path);
+    sentry__stringbuilder_append(&sb, suffix);
+
+    return sentry__path_from_str_owned(sentry__stringbuilder_into_string(&sb));
+}
+
+sentry_path_t *
 sentry__path_join_str(const sentry_path_t *base, const char *other)
 {
     sentry_stringbuilder_t sb;

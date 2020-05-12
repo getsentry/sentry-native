@@ -32,12 +32,13 @@ def test_capture_http(tmp_path, httpserver):
     ).respond_with_data("OK")
 
     with httpserver.wait(raise_assertions=True, stop_on_nohandler=True) as waiting:
+        env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_RELEASE="🤮🚀")
         run(
             tmp_path,
             "sentry_example",
-            ["capture-event", "add-stacktrace"],
+            ["release-env", "capture-event", "add-stacktrace"],
             check=True,
-            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+            env=env,
         )
 
     assert waiting.result
@@ -45,7 +46,7 @@ def test_capture_http(tmp_path, httpserver):
     output = httpserver.log[0][0].get_data()
     envelope = Envelope.deserialize(output)
 
-    assert_meta(envelope)
+    assert_meta(envelope, "🤮🚀")
     assert_breadcrumb(envelope)
     assert_stacktrace(envelope)
 

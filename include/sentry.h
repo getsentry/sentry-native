@@ -4,7 +4,17 @@
  * sentry-native is a C client to send events to native from
  * C and C++ applications.  It can work together with breakpad/crashpad
  * but also send events on its own.
+ *
+ * NOTE on encodings:
+ *
+ * Sentry will assume an encoding of UTF-8 for all string data that is captured
+ * and being sent to sentry as an Event.
+ * All the functions that are dealing with *paths* will assume an OS-specific
+ * encoding, typically ANSI on Windows, UTF-8 macOS, and the locale encoding on
+ * Linux; and they provide wchar-compatible alternatives on Windows which are
+ * preferred.
  */
+
 #ifndef SENTRY_H_INCLUDED
 #define SENTRY_H_INCLUDED
 
@@ -441,9 +451,13 @@ SENTRY_API void sentry_uuid_as_bytes(const sentry_uuid_t *uuid, char bytes[16]);
  */
 SENTRY_API void sentry_uuid_as_string(const sentry_uuid_t *uuid, char str[37]);
 
-struct sentry_options_s;
-typedef struct sentry_options_s sentry_options_t;
-
+/**
+ * A Sentry Envelope.
+ *
+ * The Envelope is an abstract type which represents a payload being sent to
+ * sentry. It can contain one or more items, typically an Event.
+ * See https://develop.sentry.dev/sdk/envelopes/
+ */
 struct sentry_envelope_s;
 typedef struct sentry_envelope_s sentry_envelope_t;
 
@@ -469,9 +483,11 @@ SENTRY_API char *sentry_envelope_serialize(
     const sentry_envelope_t *envelope, size_t *size_out);
 
 /**
- * serializes the envelope into a file.
+ * Serializes the envelope into a file.
  *
- * returns 0 on success.
+ * `path` is assumed to be in platform-specific filesystem path encoding.
+ *
+ * Returns 0 on success.
  */
 SENTRY_API int sentry_envelope_write_to_file(
     const sentry_envelope_t *envelope, const char *path);
@@ -525,6 +541,14 @@ typedef enum {
     SENTRY_USER_CONSENT_GIVEN = 1,
     SENTRY_USER_CONSENT_REVOKED = 0,
 } sentry_user_consent_t;
+
+/**
+ * The Sentry Client Options.
+ *
+ * See https://docs.sentry.io/error-reporting/configuration/
+ */
+struct sentry_options_s;
+typedef struct sentry_options_s sentry_options_t;
 
 /**
  * Creates a new options struct.
@@ -659,6 +683,10 @@ SENTRY_API int sentry_options_get_require_user_consent(
 
 /**
  * Adds a new attachment to be sent along.
+ *
+ * `path` is assumed to be in platform-specific filesystem path encoding.
+ * API Users on windows are encouraged to use `sentry_options_add_attachmentw`
+ * instead.
  */
 SENTRY_API void sentry_options_add_attachment(
     sentry_options_t *opts, const char *name, const char *path);
@@ -672,6 +700,10 @@ SENTRY_API void sentry_options_add_attachment(
  *
  * It is recommended that library users set an explicit handler path, depending
  * on the directory/executable structure of their app.
+ *
+ * `path` is assumed to be in platform-specific filesystem path encoding.
+ * API Users on windows are encouraged to use `sentry_options_set_handler_pathw`
+ * instead.
  */
 SENTRY_API void sentry_options_set_handler_path(
     sentry_options_t *opts, const char *path);
@@ -688,7 +720,11 @@ SENTRY_API void sentry_options_set_handler_path(
  * inside of `sentry_init`.
  *
  * It is recommended that library users set an explicit absolute path, depending
- * on their own apps directory.
+ * on their apps runtime directory.
+ *
+ * `path` is assumed to be in platform-specific filesystem path encoding.
+ * API Users on windows are encouraged to use
+ * `sentry_options_set_database_pathw` instead.
  */
 SENTRY_API void sentry_options_set_database_path(
     sentry_options_t *opts, const char *path);
