@@ -24,7 +24,8 @@ void sentry__transport_send_envelope(
 /**
  * Calls the transports startup hook.
  */
-void sentry__transport_startup(sentry_transport_t *transport);
+void sentry__transport_startup(
+    sentry_transport_t *transport, const sentry_options_t *options);
 
 /**
  * Instructs the transport to shut down.

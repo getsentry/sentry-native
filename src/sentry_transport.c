@@ -10,7 +10,7 @@
 
 typedef struct sentry_transport_s {
     void (*send_envelope_func)(sentry_envelope_t *envelope, void *state);
-    void (*startup_func)(void *state);
+    void (*startup_func)(const sentry_options_t *options, void *state);
     bool (*shutdown_func)(uint64_t timeout, void *state);
     void (*free_func)(void *state);
     size_t (*dump_func)(void *state);
@@ -43,8 +43,8 @@ sentry_transport_set_free_func(
 }
 
 void
-sentry_transport_set_startup_func(
-    sentry_transport_t *transport, void (*startup_func)(void *state))
+sentry_transport_set_startup_func(sentry_transport_t *transport,
+    void (*startup_func)(const sentry_options_t *options, void *state))
 {
     transport->startup_func = startup_func;
 }
@@ -65,11 +65,12 @@ sentry__transport_send_envelope(
 }
 
 void
-sentry__transport_startup(sentry_transport_t *transport)
+sentry__transport_startup(
+    sentry_transport_t *transport, const sentry_options_t *options)
 {
     if (transport->startup_func) {
         SENTRY_TRACE("starting transport");
-        transport->startup_func(transport->state);
+        transport->startup_func(options, transport->state);
     }
 }
 

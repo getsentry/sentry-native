@@ -51,7 +51,6 @@ send_envelope(sentry_envelope_t *envelope, void *data)
         "my_environment");
 
     sentry_value_decref(session);
-    sentry_envelope_free(envelope);
 }
 
 SENTRY_TEST(session_basics)

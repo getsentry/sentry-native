@@ -22,6 +22,6 @@ sentry_new_disk_transport(const sentry_run_t *run)
     if (!transport) {
         return NULL;
     }
-    sentry_transport_set_state(transport, run);
-    return transport
+    sentry_transport_set_state(transport, (void *)run);
+    return transport;
 }

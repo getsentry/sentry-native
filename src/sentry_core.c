@@ -78,9 +78,9 @@ sentry_init(sentry_options_t *options)
     load_user_consent(options);
     sentry__mutex_unlock(&g_options_mutex);
 
-    sentry_transport_t *transport = g_options->transport;
+    sentry_transport_t *transport = options->transport;
     if (transport) {
-        sentry__transport_startup(transport);
+        sentry__transport_startup(transport, options);
     }
 
     // after initializing the transport, we will submit all the unsent envelopes
@@ -92,7 +92,7 @@ sentry_init(sentry_options_t *options)
     options->run = sentry__run_new(options->database_path);
 
     // and then we will start the backend, since it requires a valid run
-    sentry_backend_t *backend = g_options->backend;
+    sentry_backend_t *backend = options->backend;
     if (backend && backend->startup_func) {
         SENTRY_TRACE("starting backend");
         backend->startup_func(backend);

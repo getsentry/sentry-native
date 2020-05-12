@@ -22,7 +22,6 @@ send_envelope(sentry_envelope_t *envelope, void *data)
     const char *trans
         = sentry_value_as_string(sentry_value_get_by_key(event, "transaction"));
     TEST_CHECK_STRING_EQUAL(trans, "demo-trans");
-    sentry_envelope_free(envelope);
 }
 
 SENTRY_TEST(basic_function_transport)

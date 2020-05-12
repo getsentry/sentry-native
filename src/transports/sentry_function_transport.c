@@ -1,4 +1,3 @@
-#include "sentry_function_transport.h"
 #include "sentry_alloc.h"
 #include "sentry_core.h"
 #include "sentry_envelope.h"
@@ -9,12 +8,6 @@ struct transport_state {
     void (*func)(sentry_envelope_t *envelope, void *data);
     void *data;
 };
-
-static void
-free_transport(void *state)
-{
-    sentry_free(state);
-}
 
 static void
 send_envelope(sentry_envelope_t *envelope, void *_state)
@@ -42,7 +35,7 @@ sentry_new_function_transport(
         return NULL;
     }
     sentry_transport_set_state(transport, state);
-    sentry_transport_set_free_func(transport, free_transport);
+    sentry_transport_set_free_func(transport, sentry_free);
 
     return transport;
 }
