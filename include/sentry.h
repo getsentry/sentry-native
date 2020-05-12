@@ -465,19 +465,19 @@ typedef struct sentry_path_s sentry_path_t;
  * Usage of this function is discouraged on windows in favor of
  * `sentry_path_from_wstr`.
  */
-sentry_path_t *sentry_path_from_str(const char *s);
+SENTRY_API sentry_path_t *sentry_path_from_str(const char *s);
 
 #ifdef SENTRY_PLATFORM_WINDOWS
 /**
  * Create a new path from a Wide String.
  */
-sentry_path_t *sentry_path_from_wstr(const wchar_t *s);
+SENTRY_API sentry_path_t *sentry_path_from_wstr(const wchar_t *s);
 #endif
 
 /**
  * Free the path instance.
  */
-void sentry_path_free(sentry_path_t *path);
+SENTRY_API void sentry_path_free(sentry_path_t *path);
 
 /**
  * A Sentry Envelope.

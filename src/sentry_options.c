@@ -16,11 +16,18 @@ sentry_options_new(void)
     }
     memset(opts, 0, sizeof(sentry_options_t));
     opts->database_path = sentry_path_from_str(".sentry-native");
+    // we assume the DSN to be ASCII only
     sentry_options_set_dsn(opts, getenv("SENTRY_DSN"));
     const char *debug = getenv("SENTRY_DEBUG");
     opts->debug = debug && sentry__string_eq(debug, "1");
+#ifdef SENTRY_PLATFORM_WINDOWS
+    opts->release = sentry__string_from_wstr(_wgetenv(L"SENTRY_RELEASE"));
+    opts->environment
+        = sentry__string_from_wstr(_wgetenv(L"SENTRY_ENVIRONMENT"));
+#else
     opts->release = sentry__string_clone(getenv("SENTRY_RELEASE"));
     opts->environment = sentry__string_clone(getenv("SENTRY_ENVIRONMENT"));
+#endif
     opts->user_consent = SENTRY_USER_CONSENT_UNKNOWN;
     opts->system_crash_reporter_enabled = false;
     opts->backend = sentry__backend_new();
