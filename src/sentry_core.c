@@ -205,12 +205,11 @@ sentry_user_consent_reset(void)
 sentry_user_consent_t
 sentry_user_consent_get(void)
 {
+    sentry_user_consent_t rv = SENTRY_USER_CONSENT_UNKNOWN;
     sentry__mutex_lock(&g_options_mutex);
-    if (!g_options) {
-        sentry__mutex_unlock(&g_options_mutex);
-        return SENTRY_USER_CONSENT_UNKNOWN;
+    if (g_options) {
+        rv = g_options->user_consent;
     }
-    sentry_user_consent_t rv = g_options->user_consent;
     sentry__mutex_unlock(&g_options_mutex);
     return rv;
 }
@@ -308,7 +307,7 @@ sentry_capture_event(sentry_value_t event)
 }
 
 void
-sentry_handle_exception(sentry_ucontext_t *uctx)
+sentry_handle_exception(const sentry_ucontext_t *uctx)
 {
     const sentry_options_t *opts = sentry_get_options();
     if (!opts) {

@@ -258,7 +258,7 @@ sentry__crashpad_backend_free(sentry_backend_t *backend)
 
 static void
 sentry__crashpad_backend_except(
-    sentry_backend_t *UNUSED(backend), sentry_ucontext_t *context)
+    sentry_backend_t *UNUSED(backend), const sentry_ucontext_t *context)
 {
 #ifdef SENTRY_PLATFORM_WINDOWS
     crashpad::CrashpadClient::DumpAndCrash(&context->exception_ptrs);
