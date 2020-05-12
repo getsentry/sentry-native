@@ -10,7 +10,7 @@ typedef struct {
 } sentry_attachments_testdata_t;
 
 static void
-send_envelope(sentry_envelope_t *envelope, void *_data)
+send_envelope(const sentry_envelope_t *envelope, void *_data)
 {
     sentry_attachments_testdata_t *data = _data;
     data->called += 1;

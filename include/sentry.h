@@ -559,7 +559,7 @@ SENTRY_API void sentry_transport_free(sentry_transport_t *transport);
  * `sentry_transport_new` API.
  */
 SENTRY_API sentry_transport_t *sentry_new_function_transport(
-    void (*func)(sentry_envelope_t *envelope, void *data), void *data);
+    void (*func)(const sentry_envelope_t *envelope, void *data), void *data);
 
 /**
  * Type of the callback for modifying events.
