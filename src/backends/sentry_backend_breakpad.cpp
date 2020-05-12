@@ -31,10 +31,11 @@ typedef struct {
 } breakpad_transport_state_t;
 
 static void
-sentry__breakpad_backend_send_envelope(void *data, sentry_envelope_t *envelope)
+sentry__breakpad_backend_send_envelope(
+    sentry_envelope_t *envelope, void *_state)
 {
     const breakpad_transport_state_t *state
-        = (const breakpad_transport_state_t *)data;
+        = (const breakpad_transport_state_t *)_state;
 
     sentry_path_t *dump_path = sentry__path_from_str(state->dump_path);
     if (!dump_path) {

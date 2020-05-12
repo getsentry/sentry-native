@@ -12,9 +12,9 @@
 #endif
 
 static void
-print_envelope(void *unused_data, sentry_envelope_t *envelope)
+print_envelope(sentry_envelope_t *envelope, void *unused_state)
 {
-    (void)unused_data;
+    (void)unused_state;
     size_t size_out = 0;
     char *s = sentry_envelope_serialize(envelope, &size_out);
     printf("%s", s);

@@ -79,9 +79,8 @@ sentry_init(sentry_options_t *options)
     sentry__mutex_unlock(&g_options_mutex);
 
     sentry_transport_t *transport = g_options->transport;
-    if (transport && transport->startup_func) {
-        SENTRY_TRACE("starting transport");
-        transport->startup_func(transport->data);
+    if (transport) {
+        sentry__transport_startup(transport);
     }
 
     // after initializing the transport, we will submit all the unsent envelopes
@@ -112,15 +111,13 @@ sentry_shutdown(void)
     sentry__mutex_unlock(&g_options_mutex);
 
     if (options) {
-        if (options->transport && options->transport->shutdown_func) {
-            SENTRY_TRACE("shutting down transport");
+        if (options->transport) {
             // TODO: make this configurable
             // Ideally, it should default to 2s as per
             // https://docs.sentry.io/error-reporting/configuration/?platform=rust#shutdown-timeout
             // but we hit that timeout in our own integration tests, so rather
             // increase it to 5s, as it was before.
-            if (!options->transport->shutdown_func(
-                    options->transport->data, 5000)) {
+            if (!sentry__transport_shutdown(options->transport, 5000)) {
                 SENTRY_DEBUG("transport did not shut down cleanly");
             }
         }
@@ -209,8 +206,7 @@ sentry__capture_envelope(sentry_envelope_t *envelope)
 {
     const sentry_options_t *opts = sentry_get_options();
     if (opts->transport) {
-        SENTRY_TRACE("sending envelope");
-        opts->transport->send_envelope_func(opts->transport->data, envelope);
+        sentry__transport_send_envelope(opts->transport, envelope);
     } else {
         sentry_envelope_free(envelope);
     }

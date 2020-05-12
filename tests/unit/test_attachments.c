@@ -10,9 +10,9 @@ typedef struct {
 } sentry_attachments_testdata_t;
 
 static void
-send_envelope(void *_data, sentry_envelope_t *envelope)
+send_envelope(sentry_envelope_t *envelope, void *state)
 {
-    sentry_attachments_testdata_t *data = _data;
+    sentry_attachments_testdata_t *data = state;
     data->called += 1;
     sentry__envelope_serialize_into_stringbuilder(
         envelope, &data->serialized_envelope);

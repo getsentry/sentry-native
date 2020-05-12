@@ -5,9 +5,9 @@
 #include <sentry.h>
 
 static void
-send_envelope(void *data, sentry_envelope_t *envelope)
+send_envelope(sentry_envelope_t *envelope, void *state)
 {
-    uint64_t *called = data;
+    uint64_t *called = state;
     *called += 1;
 
     TEST_CHECK_INT_EQUAL(sentry__envelope_get_item_count(envelope), 1);

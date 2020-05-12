@@ -480,7 +480,10 @@ SENTRY_API int sentry_envelope_write_to_file(
  * This represents an interface for user-defined transports.
  *
  * Transports are responsible for sending envelopes to sentry and are the last
- * step in the event pipeline. A transport has the following hooks:
+ * step in the event pipeline. A transport has the following hooks, all of which
+ * take the user provided `state` as last parameter. The transport state
+ * typically holds handles and other information that can be reused accross
+ * requests.
  *
  * * `send_func`: This function will take ownership of an envelope, and is
  *   responsible for freeing it via `sentry_envelope_free`.
@@ -491,12 +494,12 @@ SENTRY_API int sentry_envelope_write_to_file(
  *   return `true` when the transport was flushed and shut down successfully.
  *   In case of `false`, sentry will log an error, but continue with freeing the
  *   transport.
- * * `free_func`: Frees the provided `data`. This hook might be called even
+ * * `free_func`: Frees the transports `state`. This hook might be called even
  *   though `shudown_func` returned `false` previously.
  *
  * The transport interface might be extended in the future with hooks to flush
  * its internal queue without shutting down, and to dump its internal queue to
- * disk in case of a crash.
+ * disk in case of a hard crash.
  */
 struct sentry_transport_s;
 typedef struct sentry_transport_s sentry_transport_t;
@@ -504,22 +507,24 @@ typedef struct sentry_transport_s sentry_transport_t;
 /**
  * Creates a new transport.
  *
- * This sets both the send hook, as well as the user-provided `data`.
+ * This sets both the send hook, as well as the user-provided `state`.
+ * If the state is owned by the transport and needs to be freed, use
+ * `sentry_transport_set_free_func` to set an appropriate hook.
  */
 SENTRY_API sentry_transport_t *sentry_transport_new(
-    void (*send_func)(void *data, sentry_envelope_t *envelope), void *data);
+    void (*send_func)(sentry_envelope_t *envelope, void *state), void *state);
 
 /**
- * Sets the transport hook to free the transport `data`.
+ * Sets the transport hook to free the transport `state`.
  */
 SENTRY_API void sentry_transport_set_free_func(
-    sentry_transport_t *transport, void (*free_func)(void *data));
+    sentry_transport_t *transport, void (*free_func)(void *state));
 
 /**
  * Sets the transport startup hook.
  */
 SENTRY_API void sentry_transport_set_startup_func(
-    sentry_transport_t *transport, void (*startup_func)(void *data));
+    sentry_transport_t *transport, void (*startup_func)(void *state));
 
 /**
  * Sets the transport shutdown hook.
@@ -530,7 +535,7 @@ SENTRY_API void sentry_transport_set_startup_func(
  */
 SENTRY_API void sentry_transport_set_shutdown_func(
     sentry_transport_t *transport,
-    bool (*shutdown_func)(void *data, uint64_t timeout));
+    bool (*shutdown_func)(uint64_t timeout, void *state));
 
 /**
  * Generic way to free a transport.

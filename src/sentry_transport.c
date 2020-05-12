@@ -8,9 +8,18 @@
 // The headers we use are: `x-sentry-auth`, `content-type`, `content-length`
 #define MAX_HTTP_HEADERS 3
 
+typedef struct sentry_transport_s {
+    void (*send_envelope_func)(sentry_envelope_t *envelope, void *state);
+    void (*startup_func)(void *state);
+    bool (*shutdown_func)(uint64_t timeout, void *state);
+    void (*free_func)(void *state);
+    size_t (*dump_func)(void *state);
+    void *state;
+} sentry_transport_t;
+
 sentry_transport_t *
 sentry_transport_new(
-    void (*send_func)(void *data, sentry_envelope_t *envelope), void *data)
+    void (*send_func)(sentry_envelope_t *envelope, void *state), void *state)
 {
     sentry_transport_t *transport = SENTRY_MAKE(sentry_transport_t);
     if (!transport) {
@@ -18,30 +27,75 @@ sentry_transport_new(
     }
     memset(transport, 0, sizeof(sentry_transport_t));
     transport->send_envelope_func = send_func;
-    transport->data = data;
+    transport->state = state;
 
     return transport;
 }
 
 void
 sentry_transport_set_free_func(
-    sentry_transport_t *transport, void (*free_func)(void *data))
+    sentry_transport_t *transport, void (*free_func)(void *state))
 {
     transport->free_func = free_func;
 }
 
 void
 sentry_transport_set_startup_func(
-    sentry_transport_t *transport, void (*startup_func)(void *data))
+    sentry_transport_t *transport, void (*startup_func)(void *state))
 {
     transport->startup_func = startup_func;
 }
 
 void
 sentry_transport_set_shutdown_func(sentry_transport_t *transport,
-    bool (*shutdown_func)(void *data, uint64_t timeout))
+    bool (*shutdown_func)(uint64_t timeout, void *state))
 {
     transport->shutdown_func = shutdown_func;
+}
+
+void
+sentry__transport_send_envelope(
+    sentry_transport_t *transport, sentry_envelope_t *envelope)
+{
+    SENTRY_TRACE("sending envelope");
+    transport->send_envelope_func(envelope, transport->state);
+}
+
+void
+sentry__transport_startup(sentry_transport_t *transport)
+{
+    if (transport->startup_func) {
+        SENTRY_TRACE("starting transport");
+        transport->startup_func(transport->state);
+    }
+}
+
+bool
+sentry__transport_shutdown(sentry_transport_t *transport, uint64_t timeout)
+{
+    if (transport->shutdown_func) {
+        SENTRY_TRACE("shutting down transport");
+        return transport->shutdown_func(timeout, transport->state);
+    }
+    return true;
+}
+
+void
+sentry__transport_set_dump_func(
+    sentry_transport_t *transport, size_t (*dump_func)(void *state))
+{
+    transport->dump_func = dump_func;
+}
+
+size_t
+sentry__transport_dump_queue(sentry_transport_t *transport)
+{
+    if (!transport->dump_func) {
+        return 0;
+    }
+    size_t dumped = transport->dump_func(transport->state);
+    SENTRY_TRACEF("dumped %zu in-flight envelopes to disk", dumped);
+    return dumped;
 }
 
 void
@@ -51,7 +105,7 @@ sentry_transport_free(sentry_transport_t *transport)
         return;
     }
     if (transport->free_func) {
-        transport->free_func(transport->data);
+        transport->free_func(transport->state);
     }
     sentry_free(transport);
 }

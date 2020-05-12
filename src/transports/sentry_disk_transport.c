@@ -7,9 +7,9 @@
 #include "sentry_string.h"
 
 static void
-send_envelope(void *data, sentry_envelope_t *envelope)
+send_envelope(sentry_envelope_t *envelope, void *state)
 {
-    const sentry_run_t *run = data;
+    const sentry_run_t *run = state;
 
     sentry__run_write_envelope(run, envelope);
     sentry_envelope_free(envelope);

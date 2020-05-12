@@ -3,9 +3,9 @@
 #include <sentry.h>
 
 static void
-send_envelope(void *data, sentry_envelope_t *envelope)
+send_envelope(sentry_envelope_t *envelope, void *state)
 {
-    uint64_t *called = data;
+    uint64_t *called = state;
     *called += 1;
 
     sentry_value_t event = sentry_envelope_get_event(envelope);
