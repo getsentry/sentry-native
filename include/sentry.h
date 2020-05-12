@@ -526,21 +526,6 @@ SENTRY_API sentry_transport_t *sentry_new_function_transport(
 SENTRY_API void sentry_transport_free(sentry_transport_t *transport);
 
 /**
- * This represents an opaque backend.
- *
- * This declaration is *deprecated* and will be removed in a future version.
- */
-struct sentry_backend_s;
-typedef struct sentry_backend_s sentry_backend_t;
-
-/**
- * Generic way to free a backend.
- *
- * This function is *deprecated* and will be removed in a future version.
- */
-SENTRY_API void sentry_backend_free(sentry_backend_t *backend);
-
-/**
  * Type of the callback for modifying events.
  */
 typedef sentry_value_t (*sentry_event_function_t)(
