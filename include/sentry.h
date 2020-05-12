@@ -10,7 +10,7 @@
  * Sentry will assume an encoding of UTF-8 for all string data that is captured
  * and being sent to sentry as an Event.
  * All the functions that are dealing with *paths* will assume an OS-specific
- * encoding, typically ANSI on Windows, UTF-8 macOS, and the local encoding on
+ * encoding, typically ANSI on Windows, UTF-8 macOS, and the locale encoding on
  * Linux; and they provide wchar-compatible alternatives on Windows which are
  * preferred.
  */

@@ -69,7 +69,7 @@ sentry_path_t *sentry__path_join_str(
 /**
  * Return a new path with the given suffix appended.
  * This is different to `sentry__path_join_str` as it does not create a new path
-segment.
+ * segment.
  */
 sentry_path_t *sentry__path_append_str(
     const sentry_path_t *base, const char *suffix);
