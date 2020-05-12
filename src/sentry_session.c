@@ -112,10 +112,12 @@ sentry__session_to_json(
 
     sentry__jsonwriter_write_key(jw, "attrs");
     sentry__jsonwriter_write_object_start(jw);
-    sentry__jsonwriter_write_key(jw, "release");
-    sentry__jsonwriter_write_str(jw, sentry_options_get_release(opts));
-    sentry__jsonwriter_write_key(jw, "environment");
-    sentry__jsonwriter_write_str(jw, sentry_options_get_environment(opts));
+    if (opts) {
+        sentry__jsonwriter_write_key(jw, "release");
+        sentry__jsonwriter_write_str(jw, sentry_options_get_release(opts));
+        sentry__jsonwriter_write_key(jw, "environment");
+        sentry__jsonwriter_write_str(jw, sentry_options_get_environment(opts));
+    }
     sentry__jsonwriter_write_object_end(jw);
 
     sentry__jsonwriter_write_object_end(jw);

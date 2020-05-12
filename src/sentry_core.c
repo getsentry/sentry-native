@@ -20,7 +20,7 @@
 #include "sentry_value.h"
 #include "transports/sentry_disk_transport.h"
 
-static sentry_options_t *g_options;
+static sentry_options_t *g_options = NULL;
 static sentry_mutex_t g_options_mutex = SENTRY__MUTEX_INIT;
 
 static void
@@ -60,10 +60,11 @@ int
 sentry_init(sentry_options_t *options)
 {
     sentry_shutdown();
-    sentry__mutex_lock(&g_options_mutex);
-    g_options = options;
 
-    sentry__path_create_dir_all(options->database_path);
+    if (sentry__path_create_dir_all(options->database_path)) {
+        sentry_options_free(options);
+        return 1;
+    }
     sentry_path_t *database_path = options->database_path;
     options->database_path = sentry__path_absolute(database_path);
     if (options->database_path) {
@@ -75,10 +76,24 @@ sentry_init(sentry_options_t *options)
     SENTRY_DEBUGF("using database path \"%" SENTRY_PATH_PRI "\"",
         options->database_path->path);
 
+    // try to create and lock our run folder as early as possibly, since it is
+    // fallible. since it does locking, it will not interfere with run folder
+    // enumeration.
+    options->run = sentry__run_new(options->database_path);
+    if (!options->run) {
+        sentry_options_free(options);
+        return 1;
+    }
+
     load_user_consent(options);
+
+    // we "activate" the options here, since the transport and backend might try
+    // to access them
+    sentry__mutex_lock(&g_options_mutex);
+    g_options = options;
     sentry__mutex_unlock(&g_options_mutex);
 
-    sentry_transport_t *transport = g_options->transport;
+    sentry_transport_t *transport = options->transport;
     if (transport && transport->startup_func) {
         SENTRY_TRACE("starting transport");
         transport->startup_func(transport);
@@ -88,12 +103,8 @@ sentry_init(sentry_options_t *options)
     // and handle remaining sessions.
     sentry__process_old_runs(options);
 
-    // and then create our new run, so it will not interfere with enumerating
-    // all the past runs
-    options->run = sentry__run_new(options->database_path);
-
     // and then we will start the backend, since it requires a valid run
-    sentry_backend_t *backend = g_options->backend;
+    sentry_backend_t *backend = options->backend;
     if (backend && backend->startup_func) {
         SENTRY_TRACE("starting backend");
         backend->startup_func(backend);
@@ -124,7 +135,7 @@ sentry_shutdown(void)
     }
 
     sentry__mutex_lock(&g_options_mutex);
-    sentry_options_free(g_options);
+    sentry_options_free(options);
     g_options = NULL;
     sentry__mutex_unlock(&g_options_mutex);
     sentry__scope_cleanup();
@@ -147,6 +158,10 @@ static void
 set_user_consent(sentry_user_consent_t new_val)
 {
     sentry__mutex_lock(&g_options_mutex);
+    if (!g_options) {
+        sentry__mutex_unlock(&g_options_mutex);
+        return;
+    }
     g_options->user_consent = new_val;
     sentry__mutex_unlock(&g_options_mutex);
     sentry_path_t *consent_path
@@ -191,6 +206,10 @@ sentry_user_consent_t
 sentry_user_consent_get(void)
 {
     sentry__mutex_lock(&g_options_mutex);
+    if (!g_options) {
+        sentry__mutex_unlock(&g_options_mutex);
+        return SENTRY_USER_CONSENT_UNKNOWN;
+    }
     sentry_user_consent_t rv = g_options->user_consent;
     sentry__mutex_unlock(&g_options_mutex);
     return rv;
@@ -200,7 +219,7 @@ void
 sentry__capture_envelope(sentry_envelope_t *envelope)
 {
     const sentry_options_t *opts = sentry_get_options();
-    if (opts->transport) {
+    if (opts && opts->transport) {
         SENTRY_TRACE("sending envelope");
         opts->transport->send_envelope_func(opts->transport, envelope);
     } else {
@@ -227,6 +246,9 @@ sentry_uuid_t
 sentry_capture_event(sentry_value_t event)
 {
     const sentry_options_t *opts = sentry_get_options();
+    if (!opts) {
+        return sentry_uuid_nil();
+    }
     uint64_t rnd;
     if (opts->sample_rate < 1.0 && !sentry__getrandom(&rnd, sizeof(rnd))
         && ((double)rnd / (double)UINT64_MAX) > opts->sample_rate) {
@@ -288,9 +310,13 @@ sentry_capture_event(sentry_value_t event)
 void
 sentry_handle_exception(sentry_ucontext_t *uctx)
 {
+    const sentry_options_t *opts = sentry_get_options();
+    if (!opts) {
+        return;
+    }
     SENTRY_DEBUG("handling exception");
-    if (g_options->backend && g_options->backend->except_func) {
-        g_options->backend->except_func(g_options->backend, uctx);
+    if (opts->backend && opts->backend->except_func) {
+        opts->backend->except_func(opts->backend, uctx);
     }
 }
 
@@ -370,7 +396,8 @@ sentry_add_breadcrumb(sentry_value_t breadcrumb)
             scope->breadcrumbs, breadcrumb, SENTRY_BREADCRUMBS_MAX);
     }
 
-    if (g_options->backend && g_options->backend->add_breadcrumb_func) {
+    if (g_options && g_options->backend
+        && g_options->backend->add_breadcrumb_func) {
         g_options->backend->add_breadcrumb_func(g_options->backend, breadcrumb);
     } else {
         sentry_value_decref(breadcrumb);
