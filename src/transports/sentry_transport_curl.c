@@ -218,7 +218,7 @@ sentry__curl_dump(void *task_data, void *run)
     return true;
 }
 
-void
+size_t
 sentry__curl_dump_queue(void *state)
 {
     sentry_bgworker_t *bgworker = ((curl_transport_state_t *)state)->bgworker;
