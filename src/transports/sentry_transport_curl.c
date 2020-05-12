@@ -165,8 +165,8 @@ task_exec_func(void *data)
     if (opts->http_proxy && *opts->http_proxy) {
         curl_easy_setopt(curl, CURLOPT_PROXY, opts->http_proxy);
     }
-    if (opts->ca_certs && *opts->ca_certs) {
-        curl_easy_setopt(curl, CURLOPT_CAINFO, opts->ca_certs);
+    if (opts->ca_certs && *opts->ca_certs->path) {
+        curl_easy_setopt(curl, CURLOPT_CAINFO, opts->ca_certs->path);
     }
 
     CURLcode rv = curl_easy_perform(curl);

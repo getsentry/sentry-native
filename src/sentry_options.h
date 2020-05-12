@@ -32,7 +32,7 @@ typedef struct sentry_options_s {
     char *environment;
     char *dist;
     char *http_proxy;
-    char *ca_certs;
+    sentry_path_t *ca_certs;
     sentry_path_t *database_path;
     sentry_path_t *handler_path;
     bool debug;

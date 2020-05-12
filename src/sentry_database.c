@@ -24,7 +24,7 @@ sentry__run_new(const sentry_path_t *database_path)
     strcpy(&run_name[40], ".lock");
     sentry_path_t *lock_path = sentry__path_join_str(database_path, run_name);
     if (!lock_path) {
-        sentry__path_free(run_path);
+        sentry_path_free(run_path);
         return NULL;
     }
 
@@ -32,16 +32,16 @@ sentry__run_new(const sentry_path_t *database_path)
     sentry_path_t *session_path
         = sentry__path_join_str(run_path, "session.json");
     if (!session_path) {
-        sentry__path_free(run_path);
-        sentry__path_free(lock_path);
+        sentry_path_free(run_path);
+        sentry_path_free(lock_path);
         return NULL;
     }
 
     sentry_run_t *run = SENTRY_MAKE(sentry_run_t);
     if (!run) {
-        sentry__path_free(run_path);
-        sentry__path_free(session_path);
-        sentry__path_free(lock_path);
+        sentry_path_free(run_path);
+        sentry_path_free(session_path);
+        sentry_path_free(lock_path);
         return NULL;
     }
 
@@ -71,8 +71,8 @@ sentry__run_free(sentry_run_t *run)
     if (!run) {
         return;
     }
-    sentry__path_free(run->run_path);
-    sentry__path_free(run->session_path);
+    sentry_path_free(run->run_path);
+    sentry_path_free(run->session_path);
     sentry__filelock_free(run->lock);
     sentry_free(run);
 }
@@ -94,7 +94,7 @@ sentry__run_write_envelope(
     }
 
     int rv = sentry_envelope_write_to_path(envelope, output_path);
-    sentry__path_free(output_path);
+    sentry_path_free(output_path);
 
     if (rv) {
         SENTRY_DEBUG("writing envelope to file failed");
@@ -226,7 +226,7 @@ sentry__write_crash_marker(const sentry_options_t *options)
     size_t iso_time_len = strlen(iso_time);
     int rv = sentry__path_write_buffer(marker_path, iso_time, iso_time_len);
     sentry_free(iso_time);
-    sentry__path_free(marker_path);
+    sentry_path_free(marker_path);
 
     if (rv) {
         SENTRY_DEBUG("writing crash timestamp to file failed");

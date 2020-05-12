@@ -373,19 +373,6 @@ sentry_envelope_write_to_path(
     return rv;
 }
 
-int
-sentry_envelope_write_to_file(
-    const sentry_envelope_t *envelope, const char *path)
-{
-    sentry_path_t *path_obj = sentry__path_from_str(path);
-
-    int rv = sentry_envelope_write_to_path(envelope, path_obj);
-
-    sentry__path_free(path_obj);
-
-    return rv;
-}
-
 #if SENTRY_UNITTEST
 size_t
 sentry__envelope_get_item_count(const sentry_envelope_t *envelope)

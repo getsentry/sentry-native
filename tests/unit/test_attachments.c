@@ -37,14 +37,14 @@ SENTRY_TEST(lazy_attachments)
         options, sentry_new_function_transport(send_envelope, &testdata));
     sentry_options_set_release(options, "prod");
 
-    sentry_options_add_attachment(
-        options, "existing-attachment", PREFIX ".existing-file-attachment");
+    sentry_options_add_attachment(options, "existing-attachment",
+        sentry_path_from_str(PREFIX ".existing-file-attachment"));
     sentry_options_add_attachment(options, "non-existing-attachment",
-        PREFIX ".non-existing-file-attachment");
+        sentry_path_from_str(PREFIX ".non-existing-file-attachment"));
     sentry_path_t *existing
-        = sentry__path_from_str(PREFIX ".existing-file-attachment");
+        = sentry_path_from_str(PREFIX ".existing-file-attachment");
     sentry_path_t *non_existing
-        = sentry__path_from_str(PREFIX ".non-existing-file-attachment");
+        = sentry_path_from_str(PREFIX ".non-existing-file-attachment");
 
     sentry_init(options);
 
@@ -86,8 +86,8 @@ SENTRY_TEST(lazy_attachments)
 
     sentry__path_remove(existing);
     sentry__path_remove(non_existing);
-    sentry__path_free(existing);
-    sentry__path_free(non_existing);
+    sentry_path_free(existing);
+    sentry_path_free(non_existing);
 
     TEST_CHECK_INT_EQUAL(testdata.called, 2);
 }

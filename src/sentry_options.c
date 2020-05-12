@@ -15,7 +15,7 @@ sentry_options_new(void)
         return NULL;
     }
     memset(opts, 0, sizeof(sentry_options_t));
-    opts->database_path = sentry__path_from_str(".sentry-native");
+    opts->database_path = sentry_path_from_str(".sentry-native");
     sentry_options_set_dsn(opts, getenv("SENTRY_DSN"));
     const char *debug = getenv("SENTRY_DEBUG");
     opts->debug = debug && sentry__string_eq(debug, "1");
@@ -32,7 +32,7 @@ sentry_options_new(void)
 void
 sentry__attachment_free(sentry_attachment_t *attachment)
 {
-    sentry__path_free(attachment->path);
+    sentry_path_free(attachment->path);
     sentry_free(attachment->name);
     sentry_free(attachment);
 }
@@ -49,9 +49,9 @@ sentry_options_free(sentry_options_t *opts)
     sentry_free(opts->environment);
     sentry_free(opts->dist);
     sentry_free(opts->http_proxy);
-    sentry_free(opts->ca_certs);
-    sentry__path_free(opts->database_path);
-    sentry__path_free(opts->handler_path);
+    sentry_path_free(opts->ca_certs);
+    sentry_path_free(opts->database_path);
+    sentry_path_free(opts->handler_path);
     sentry_transport_free(opts->transport);
     sentry__backend_free(opts->backend);
 
@@ -170,13 +170,13 @@ sentry_options_get_http_proxy(const sentry_options_t *opts)
 }
 
 void
-sentry_options_set_ca_certs(sentry_options_t *opts, const char *path)
+sentry_options_set_ca_certs(sentry_options_t *opts, sentry_path_t *path)
 {
-    sentry_free(opts->ca_certs);
-    opts->ca_certs = sentry__string_clone(path);
+    sentry_path_free(opts->ca_certs);
+    opts->ca_certs = path;
 }
 
-const char *
+const sentry_path_t *
 sentry_options_get_ca_certs(const sentry_options_t *opts)
 {
     return opts->ca_certs;
@@ -222,13 +222,13 @@ add_attachment(
     }
     char *name = sentry__string_clone(orig_name);
     if (!name) {
-        sentry__path_free(path);
+        sentry_path_free(path);
         return;
     }
     sentry_attachment_t *attachment = SENTRY_MAKE(sentry_attachment_t);
     if (!attachment) {
         sentry_free(name);
-        sentry__path_free(path);
+        sentry_path_free(path);
         return;
     }
     attachment->name = name;
@@ -239,44 +239,21 @@ add_attachment(
 
 void
 sentry_options_add_attachment(
-    sentry_options_t *opts, const char *name, const char *path)
+    sentry_options_t *opts, const char *name, sentry_path_t *path)
 {
-    add_attachment(opts, name, sentry__path_from_str(path));
+    add_attachment(opts, name, path);
 }
 
 void
-sentry_options_set_handler_path(sentry_options_t *opts, const char *path)
+sentry_options_set_handler_path(sentry_options_t *opts, sentry_path_t *path)
 {
-    sentry__path_free(opts->handler_path);
-    opts->handler_path = sentry__path_from_str(path);
+    sentry_path_free(opts->handler_path);
+    opts->handler_path = path;
 }
 
 void
-sentry_options_set_database_path(sentry_options_t *opts, const char *path)
+sentry_options_set_database_path(sentry_options_t *opts, sentry_path_t *path)
 {
-    sentry__path_free(opts->database_path);
-    opts->database_path = sentry__path_from_str(path);
+    sentry_path_free(opts->database_path);
+    opts->database_path = path;
 }
-
-#ifdef SENTRY_PLATFORM_WINDOWS
-void
-sentry_options_add_attachmentw(
-    sentry_options_t *opts, const char *name, const wchar_t *path)
-{
-    add_attachment(opts, name, sentry__path_from_wstr(path));
-}
-
-void
-sentry_options_set_handler_pathw(sentry_options_t *opts, const wchar_t *path)
-{
-    sentry__path_free(opts->handler_path);
-    opts->handler_path = sentry__path_from_wstr(path);
-}
-
-void
-sentry_options_set_database_pathw(sentry_options_t *opts, const wchar_t *path)
-{
-    sentry__path_free(opts->database_path);
-    opts->database_path = sentry__path_from_wstr(path);
-}
-#endif

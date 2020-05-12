@@ -99,7 +99,7 @@ sentry__path_absolute(const sentry_path_t *path)
     if (!realpath(path->path, full)) {
         return NULL;
     }
-    return sentry__path_from_str(full);
+    return sentry_path_from_str(full);
 }
 
 sentry_path_t *
@@ -129,7 +129,7 @@ sentry__path_current_exe(void)
         return NULL;
     }
     buf[len] = 0;
-    return sentry__path_from_str(buf);
+    return sentry_path_from_str(buf);
 #endif
     return NULL;
 }
@@ -153,7 +153,7 @@ sentry__path_dir(const sentry_path_t *path)
 }
 
 sentry_path_t *
-sentry__path_from_str(const char *s)
+sentry_path_from_str(const char *s)
 {
     char *path = sentry__string_clone(s);
     sentry_path_t *rv = NULL;
@@ -246,7 +246,7 @@ sentry__path_join_str(const sentry_path_t *base, const char *other)
     sentry_stringbuilder_t sb;
 
     if (*other == '/') {
-        return sentry__path_from_str(other);
+        return sentry_path_from_str(other);
     }
 
     sentry__stringbuilder_init(&sb);
@@ -367,7 +367,7 @@ sentry__pathiter_next(sentry_pathiter_t *piter)
         break;
     }
 
-    sentry__path_free(piter->current);
+    sentry_path_free(piter->current);
     piter->current = sentry__path_join_str(piter->parent, entry->d_name);
 
     return piter->current;
@@ -382,7 +382,7 @@ sentry__pathiter_free(sentry_pathiter_t *piter)
     if (piter->dir_handle) {
         closedir(piter->dir_handle);
     }
-    sentry__path_free(piter->current);
+    sentry_path_free(piter->current);
     sentry_free(piter);
 }
 

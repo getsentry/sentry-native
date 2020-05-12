@@ -70,7 +70,7 @@ sentry__crashpad_backend_startup(sentry_backend_t *backend)
         sentry_path_t *current_exe = sentry__path_current_exe();
         if (current_exe) {
             sentry_path_t *exe_dir = sentry__path_dir(current_exe);
-            sentry__path_free(current_exe);
+            sentry_path_free(current_exe);
             if (exe_dir) {
                 handler_path = sentry__path_join_str(exe_dir,
 #ifdef SENTRY_PLATFORM_WINDOWS
@@ -80,7 +80,7 @@ sentry__crashpad_backend_startup(sentry_backend_t *backend)
 #endif
                 );
                 owned_handler_path = handler_path;
-                sentry__path_free(exe_dir);
+                sentry_path_free(exe_dir);
             }
         }
     }
@@ -90,11 +90,11 @@ sentry__crashpad_backend_startup(sentry_backend_t *backend)
     // However, it crashes hard when it cant resolve the handler, so we make
     // sure to resolve and check for it first.
     sentry_path_t *absolute_handler_path = sentry__path_absolute(handler_path);
-    sentry__path_free(owned_handler_path);
+    sentry_path_free(owned_handler_path);
     if (!absolute_handler_path
         || !sentry__path_is_file(absolute_handler_path)) {
         SENTRY_DEBUG("unable to start crashpad backend, invalid handler_path");
-        sentry__path_free(absolute_handler_path);
+        sentry_path_free(absolute_handler_path);
         return;
     }
 
@@ -106,7 +106,7 @@ sentry__crashpad_backend_startup(sentry_backend_t *backend)
 
     base::FilePath database(options->database_path->path);
     base::FilePath handler(absolute_handler_path->path);
-    sentry__path_free(absolute_handler_path);
+    sentry_path_free(absolute_handler_path);
 
     std::map<std::string, std::string> annotations;
     std::map<std::string, base::FilePath> file_attachments;
@@ -250,9 +250,9 @@ static void
 sentry__crashpad_backend_free(sentry_backend_t *backend)
 {
     crashpad_state_t *data = (crashpad_state_t *)backend->data;
-    sentry__path_free(data->event_path);
-    sentry__path_free(data->breadcrumb1_path);
-    sentry__path_free(data->breadcrumb2_path);
+    sentry_path_free(data->event_path);
+    sentry_path_free(data->breadcrumb1_path);
+    sentry_path_free(data->breadcrumb2_path);
     sentry_free(data);
 }
 

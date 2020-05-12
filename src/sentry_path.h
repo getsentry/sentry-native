@@ -51,11 +51,6 @@ sentry_path_t *sentry__path_dir(const sentry_path_t *path);
 
 /**
  * Create a new path from the given string.
- */
-sentry_path_t *sentry__path_from_str(const char *s);
-
-/**
- * Create a new path from the given string.
  * The string is moved into the returned path instead of copied.
  */
 sentry_path_t *sentry__path_from_str_owned(char *s);
@@ -78,11 +73,6 @@ sentry_path_t *sentry__path_append_str(
  * Creates a copy of the path.
  */
 sentry_path_t *sentry__path_clone(const sentry_path_t *path);
-
-/**
- * Free the path instance.
- */
-void sentry__path_free(sentry_path_t *path);
 
 /**
  * This will return a copy of the last path segment, which is typically the file
@@ -202,11 +192,6 @@ void sentry__filelock_free(sentry_filelock_t *lock);
 /* windows specific API additions */
 #ifdef SENTRY_PLATFORM_WINDOWS
 /**
- * Create a new path from a Wide String.
- */
-sentry_path_t *sentry__path_from_wstr(const wchar_t *s);
-
-/**
  * Create another path by appending a new path segment.
  */
 sentry_path_t *sentry__path_join_wstr(
@@ -220,9 +205,9 @@ static inline sentry_path_t *
 sentry__path_new(sentry_pathchar_t *s)
 {
 #ifdef SENTRY_PLATFORM_WINDOWS
-    return sentry__path_from_wstr(s);
+    return sentry_path_from_wstr(s);
 #else
-    return sentry__path_from_str(s);
+    return sentry_path_from_str(s);
 #endif
 }
 

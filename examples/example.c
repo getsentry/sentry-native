@@ -36,7 +36,8 @@ int
 main(int argc, char **argv)
 {
     sentry_options_t *options = sentry_options_new();
-    sentry_options_set_database_path(options, ".sentry-native");
+    sentry_options_set_database_path(
+        options, sentry_path_from_str(".sentry-native"));
 
     sentry_options_set_environment(options, "development");
     sentry_options_set_release(options, "test-example-release");
@@ -48,8 +49,8 @@ main(int argc, char **argv)
     if (has_arg(argc, argv, "attachment")) {
         // assuming the example / test is run directly from the cmake build
         // directory
-        sentry_options_add_attachment(
-            options, "CMakeCache.txt", "./CMakeCache.txt");
+        sentry_options_add_attachment(options, "CMakeCache.txt",
+            sentry_path_from_str("./CMakeCache.txt"));
     }
 
     if (has_arg(argc, argv, "stdout")) {

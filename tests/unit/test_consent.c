@@ -11,7 +11,8 @@ init_consenting_sentry(void)
 #    define PREFIX ""
 #endif
     sentry_options_t *opts = sentry_options_new();
-    sentry_options_set_database_path(opts, PREFIX ".test-db");
+    sentry_options_set_database_path(
+        opts, sentry_path_from_str(PREFIX ".test-db"));
     sentry_options_set_dsn(opts, "http://foo@127.0.0.1/42");
     sentry_options_set_require_user_consent(opts, true);
     sentry_init(opts);
@@ -19,7 +20,7 @@ init_consenting_sentry(void)
 
 SENTRY_TEST(basic_consent_tracking)
 {
-    sentry_path_t *path = sentry__path_from_str(PREFIX ".test-db");
+    sentry_path_t *path = sentry_path_from_str(PREFIX ".test-db");
     sentry__path_remove_all(path);
 
     init_consenting_sentry();
@@ -52,5 +53,5 @@ SENTRY_TEST(basic_consent_tracking)
     sentry_shutdown();
 
     sentry__path_remove_all(path);
-    sentry__path_free(path);
+    sentry_path_free(path);
 }
