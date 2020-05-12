@@ -118,7 +118,7 @@ sentry__prepare_http_request(
     sentry_envelope_t *envelope, const sentry_rate_limiter_t *rl)
 {
     const sentry_options_t *options = sentry_get_options();
-    if (!options) {
+    if (!options || options->dsn.empty) {
         return NULL;
     }
 

@@ -205,9 +205,14 @@ void
 sentry__capture_envelope(sentry_envelope_t *envelope)
 {
     const sentry_options_t *opts = sentry_get_options();
-    if (opts->transport) {
+    if (opts->transport || !sentry__should_skip_upload()) {
         sentry__transport_send_envelope(opts->transport, envelope);
     } else {
+        if (opts->transport) {
+            SENTRY_TRACE("discarding envelope due to user missing consent");
+        } else {
+            SENTRY_TRACE("discarding envelope due to invalid transport");
+        }
         sentry_envelope_free(envelope);
     }
 }

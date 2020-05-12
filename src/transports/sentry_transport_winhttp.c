@@ -21,6 +21,7 @@ typedef struct {
     HINTERNET connect;
 
     bool initialized;
+    bool debug;
 } winhttp_transport_state_t;
 
 struct task_state {
@@ -52,13 +53,12 @@ new_transport_state(void)
 }
 
 static void
-winhttp_transport_start(void *_state)
+winhttp_transport_start(const sentry_options_t *opts, void *_state)
 {
     winhttp_transport_state_t *state = _state;
 
-    const sentry_options_t *opts = sentry_get_options();
-
     state->user_agent = sentry__string_to_wstr(SENTRY_SDK_USER_AGENT);
+    state->debug = opts->debug;
 
     if (opts->http_proxy && strstr(opts->http_proxy, "http://") == 0) {
         const char *ptr = opts->http_proxy + 7;
@@ -117,12 +117,6 @@ winhttp_transport_free(void *_state)
 static void
 task_exec_func(void *data)
 {
-    const sentry_options_t *opts = sentry_get_options();
-    if (!opts || opts->dsn.empty || sentry__should_skip_upload()) {
-        SENTRY_DEBUG("skipping event upload");
-        return;
-    }
-
     struct task_state *ts = data;
     winhttp_transport_state_t *state = ts->transport_state;
 
@@ -176,7 +170,7 @@ task_exec_func(void *data)
             (DWORD)req->body_len, (DWORD)req->body_len, 0)) {
         WinHttpReceiveResponse(request, NULL);
 
-        if (opts->debug) {
+        if (state->debug) {
             // this is basically the example from:
             // https://docs.microsoft.com/en-us/windows/win32/api/winhttp/nf-winhttp-winhttpqueryheaders#examples
             DWORD dwSize = 0;

@@ -528,8 +528,8 @@ SENTRY_API void sentry_transport_set_free_func(
 /**
  * Sets the transport startup hook.
  */
-SENTRY_API void sentry_transport_set_startup_func(
-    sentry_transport_t *transport, void (*startup_func)(void *state));
+SENTRY_API void sentry_transport_set_startup_func(sentry_transport_t *transport,
+    void (*startup_func)(const sentry_options_t *options, void *state));
 
 /**
  * Sets the transport shutdown hook.

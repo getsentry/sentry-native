@@ -15,7 +15,10 @@
 
 typedef struct curl_transport_state_s {
     bool initialized;
+    bool debug;
     CURL *curl_handle;
+    const char *http_proxy;
+    const char *ca_certs;
     sentry_rate_limiter_t *rl;
     sentry_bgworker_t *bgworker;
 } curl_transport_state_t;
@@ -58,9 +61,12 @@ new_transport_state(void)
 }
 
 static void
-start_transport(void *_state)
+start_transport(const sentry_options_t *options, void *_state)
 {
     curl_transport_state_t *state = _state;
+    state->debug = options->debug;
+    state->http_proxy = options->http_proxy;
+    state->ca_certs = options->ca_certs;
     sentry__bgworker_start(state->bgworker);
 }
 
@@ -119,12 +125,6 @@ task_exec_func(void *data)
     struct task_state *ts = data;
     curl_transport_state_t *state = ts->transport_state;
 
-    const sentry_options_t *opts = sentry_get_options();
-    if (!opts || opts->dsn.empty || sentry__should_skip_upload()) {
-        SENTRY_DEBUG("skipping event upload");
-        return;
-    }
-
     sentry_prepared_http_request_t *req
         = sentry__prepare_http_request(ts->envelope, state->rl);
     if (!req) {
@@ -142,7 +142,7 @@ task_exec_func(void *data)
 
     CURL *curl = state->curl_handle;
     curl_easy_reset(curl);
-    if (opts->debug) {
+    if (state->debug) {
         curl_easy_setopt(curl, CURLOPT_VERBOSE, 1);
         curl_easy_setopt(curl, CURLOPT_WRITEDATA, stderr);
         // CURLOPT_WRITEFUNCTION will `fwrite` by default
@@ -162,11 +162,11 @@ task_exec_func(void *data)
     curl_easy_setopt(curl, CURLOPT_HEADERDATA, (void *)&info);
     curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, header_callback);
 
-    if (opts->http_proxy && *opts->http_proxy) {
-        curl_easy_setopt(curl, CURLOPT_PROXY, opts->http_proxy);
+    if (state->http_proxy) {
+        curl_easy_setopt(curl, CURLOPT_PROXY, state->http_proxy);
     }
-    if (opts->ca_certs && *opts->ca_certs) {
-        curl_easy_setopt(curl, CURLOPT_CAINFO, opts->ca_certs);
+    if (state->ca_certs) {
+        curl_easy_setopt(curl, CURLOPT_CAINFO, state->ca_certs);
     }
 
     CURLcode rv = curl_easy_perform(curl);
