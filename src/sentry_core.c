@@ -29,7 +29,7 @@ load_user_consent(sentry_options_t *opts)
     sentry_path_t *consent_path
         = sentry__path_join_str(opts->database_path, "user-consent");
     char *contents = sentry__path_read_to_buffer(consent_path, NULL);
-    sentry_path_free(consent_path);
+    sentry__path_free(consent_path);
     switch (contents ? contents[0] : 0) {
     case '1':
         opts->user_consent = SENTRY_USER_CONSENT_GIVEN;
@@ -67,7 +67,7 @@ sentry_init(sentry_options_t *options)
     sentry_path_t *database_path = options->database_path;
     options->database_path = sentry__path_absolute(database_path);
     if (options->database_path) {
-        sentry_path_free(database_path);
+        sentry__path_free(database_path);
     } else {
         SENTRY_DEBUG("falling back to non-absolute database path");
         options->database_path = database_path;
@@ -162,7 +162,7 @@ set_user_consent(sentry_user_consent_t new_val)
         sentry__path_remove(consent_path);
         break;
     }
-    sentry_path_free(consent_path);
+    sentry__path_free(consent_path);
 
     if (g_options->backend && g_options->backend->user_consent_changed_func) {
         g_options->backend->user_consent_changed_func(g_options->backend);

@@ -99,7 +99,7 @@ sentry__path_absolute(const sentry_path_t *path)
     if (!_wfullpath(full, path->path, _MAX_PATH)) {
         return NULL;
     }
-    return sentry_path_from_wstr(full);
+    return sentry__path_from_wstr(full);
 }
 
 sentry_path_t *
@@ -111,7 +111,7 @@ sentry__path_current_exe(void)
     size_t len = GetModuleFileNameW(NULL, path->path, MAX_PATH);
     if (!len) {
         SENTRY_DEBUG("unable to get current exe path");
-        sentry_path_free(path);
+        sentry__path_free(path);
         return NULL;
     }
     return path;
@@ -129,7 +129,7 @@ sentry__path_dir(const sentry_path_t *path)
 }
 
 sentry_path_t *
-sentry_path_from_wstr(const wchar_t *s)
+sentry__path_from_wstr(const wchar_t *s)
 {
     size_t len = wcslen(s) + 1;
     sentry_path_t *rv = path_with_len(len);
@@ -143,7 +143,7 @@ sentry_path_t *
 sentry__path_join_wstr(const sentry_path_t *base, const wchar_t *other)
 {
     if (isalpha(other[0]) && other[1] == L':') {
-        return sentry_path_from_wstr(other);
+        return sentry__path_from_wstr(other);
     } else if (other[0] == L'/' || other[0] == L'\\') {
         if (isalpha(base->path[0]) && base->path[1] == L':') {
             size_t len = wcslen(other) + 3;
@@ -156,7 +156,7 @@ sentry__path_join_wstr(const sentry_path_t *base, const wchar_t *other)
             memcpy(rv->path + 2, other, sizeof(wchar_t) * len);
             return rv;
         } else {
-            return sentry_path_from_wstr(other);
+            return sentry__path_from_wstr(other);
         }
     } else {
         size_t base_len = wcslen(base->path);
@@ -183,7 +183,7 @@ sentry__path_join_wstr(const sentry_path_t *base, const wchar_t *other)
 }
 
 sentry_path_t *
-sentry_path_from_str(const char *s)
+sentry__path_from_str(const char *s)
 {
     size_t len = MultiByteToWideChar(CP_ACP, 0, s, -1, NULL, 0);
     sentry_path_t *rv = SENTRY_MAKE(sentry_path_t);
@@ -202,7 +202,7 @@ sentry_path_from_str(const char *s)
 sentry_path_t *
 sentry__path_from_str_owned(char *s)
 {
-    sentry_path_t *rv = sentry_path_from_str(s);
+    sentry_path_t *rv = sentry__path_from_str(s);
     sentry_free(s);
     return rv;
 }
@@ -232,25 +232,25 @@ sentry__path_filename(const sentry_path_t *path)
 bool
 sentry__path_filename_matches(const sentry_path_t *path, const char *filename)
 {
-    sentry_path_t *fn = sentry_path_from_str(filename);
+    sentry_path_t *fn = sentry__path_from_str(filename);
     bool matches = _wcsicmp(sentry__path_filename(path), fn->path) == 0;
-    sentry_path_free(fn);
+    sentry__path_free(fn);
     return matches;
 }
 
 bool
 sentry__path_ends_with(const sentry_path_t *path, const char *suffix)
 {
-    sentry_path_t *s = sentry_path_from_str(suffix);
+    sentry_path_t *s = sentry__path_from_str(suffix);
     size_t pathlen = wcslen(path->path);
     size_t suffixlen = wcslen(s->path);
     if (suffixlen > pathlen) {
-        sentry_path_free(s);
+        sentry__path_free(s);
         return false;
     }
 
     bool matches = _wcsicmp(&path->path[pathlen - suffixlen], s->path) == 0;
-    sentry_path_free(s);
+    sentry__path_free(s);
     return matches;
 }
 
@@ -283,7 +283,7 @@ sentry_path_t *
 sentry__path_append_str(const sentry_path_t *base, const char *suffix)
 {
     // convert to wstr
-    sentry_path_t *suffix_path = sentry_path_from_str(suffix);
+    sentry_path_t *suffix_path = sentry__path_from_str(suffix);
     if (!suffix_path) {
         return NULL;
     }
@@ -298,7 +298,7 @@ sentry__path_append_str(const sentry_path_t *base, const char *suffix)
         memcpy(rv->path + len_base, suffix_path->path,
             (len_suffix + 1) * sizeof(wchar_t));
     }
-    sentry_path_free(suffix_path);
+    sentry__path_free(suffix_path);
 
     return rv;
 }
@@ -306,12 +306,12 @@ sentry__path_append_str(const sentry_path_t *base, const char *suffix)
 sentry_path_t *
 sentry__path_join_str(const sentry_path_t *base, const char *other)
 {
-    sentry_path_t *other_path = sentry_path_from_str(other);
+    sentry_path_t *other_path = sentry__path_from_str(other);
     if (!other_path) {
         return NULL;
     }
     sentry_path_t *rv = sentry__path_join_wstr(base, other_path->path);
-    sentry_path_free(other_path);
+    sentry__path_free(other_path);
     return rv;
 }
 
@@ -424,7 +424,7 @@ sentry__pathiter_next(sentry_pathiter_t *piter)
     }
 
     if (piter->current) {
-        sentry_path_free(piter->current);
+        sentry__path_free(piter->current);
     }
     piter->current = sentry__path_join_wstr(piter->parent, data.cFileName);
     return piter->current;
@@ -439,7 +439,7 @@ sentry__pathiter_free(sentry_pathiter_t *piter)
     if (piter->dir_handle != INVALID_HANDLE_VALUE) {
         FindClose(piter->dir_handle);
     }
-    sentry_path_free(piter->current);
+    sentry__path_free(piter->current);
     sentry_free(piter);
 }
 

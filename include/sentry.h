@@ -10,8 +10,9 @@
  * Sentry will assume an encoding of UTF-8 for all string data that is captured
  * and being sent to sentry as an Event.
  * All the functions that are dealing with *paths* will assume an OS-specific
- * encoding, typically ANSI on Windows, and UTF-8 on Unix; and they provide
- * wchar-compatible alternatives on Windows which are preferred.
+ * encoding, typically ANSI on Windows, UTF-8 macOS, and the local encoding on
+ * Linux; and they provide wchar-compatible alternatives on Windows which are
+ * preferred.
  */
 
 #ifndef SENTRY_H_INCLUDED
@@ -451,35 +452,6 @@ SENTRY_API void sentry_uuid_as_bytes(const sentry_uuid_t *uuid, char bytes[16]);
 SENTRY_API void sentry_uuid_as_string(const sentry_uuid_t *uuid, char str[37]);
 
 /**
- * Sentry Path abstraction.
- *
- * This type abstracts over platform specific filesystem paths.
- */
-struct sentry_path_s;
-typedef struct sentry_path_s sentry_path_t;
-
-/**
- * Create a new path from the given string.
- *
- * The string is assumed to be in platform-specific filesystem path encoding.
- * Usage of this function is discouraged on windows in favor of
- * `sentry_path_from_wstr`.
- */
-SENTRY_API sentry_path_t *sentry_path_from_str(const char *s);
-
-#ifdef SENTRY_PLATFORM_WINDOWS
-/**
- * Create a new path from a Wide String.
- */
-SENTRY_API sentry_path_t *sentry_path_from_wstr(const wchar_t *s);
-#endif
-
-/**
- * Free the path instance.
- */
-SENTRY_API void sentry_path_free(sentry_path_t *path);
-
-/**
  * A Sentry Envelope.
  *
  * The Envelope is an abstract type which represents a payload being sent to
@@ -513,10 +485,12 @@ SENTRY_API char *sentry_envelope_serialize(
 /**
  * Serializes the envelope into a file.
  *
- * returns 0 on success.
+ * `path` is assumed to be in platform-specific filesystem path encoding.
+ *
+ * Returns 0 on success.
  */
-SENTRY_API int sentry_envelope_write_to_path(
-    const sentry_envelope_t *envelope, const sentry_path_t *path);
+SENTRY_API int sentry_envelope_write_to_file(
+    const sentry_envelope_t *envelope, const char *path);
 
 /**
  * Type of the callback for transports.
@@ -686,16 +660,14 @@ SENTRY_API const char *sentry_options_get_http_proxy(
 /**
  * Configures the path to a file containing ssl certificates for
  * verification.
- *
- * Takes ownership of `path`, which does not need to be freed separately.
  */
 SENTRY_API void sentry_options_set_ca_certs(
-    sentry_options_t *opts, sentry_path_t *path);
+    sentry_options_t *opts, const char *path);
 
 /**
  * Returns the configured path for ca certificates.
  */
-SENTRY_API const sentry_path_t *sentry_options_get_ca_certs(
+SENTRY_API const char *sentry_options_get_ca_certs(
     const sentry_options_t *opts);
 
 /**
@@ -727,10 +699,12 @@ SENTRY_API int sentry_options_get_require_user_consent(
 /**
  * Adds a new attachment to be sent along.
  *
- * Takes ownership of `path`, which does not need to be freed separately.
+ * `path` is assumed to be in platform-specific filesystem path encoding.
+ * API Users on windows are encouraged to use `sentry_options_add_attachmentw`
+ * instead.
  */
 SENTRY_API void sentry_options_add_attachment(
-    sentry_options_t *opts, const char *name, sentry_path_t *path);
+    sentry_options_t *opts, const char *name, const char *path);
 
 /**
  * Sets the path to the crashpad handler if the crashpad backend is used.
@@ -742,10 +716,12 @@ SENTRY_API void sentry_options_add_attachment(
  * It is recommended that library users set an explicit handler path, depending
  * on the directory/executable structure of their app.
  *
- * Takes ownership of `path`, which does not need to be freed separately.
+ * `path` is assumed to be in platform-specific filesystem path encoding.
+ * API Users on windows are encouraged to use `sentry_options_set_handler_pathw`
+ * instead.
  */
 SENTRY_API void sentry_options_set_handler_path(
-    sentry_options_t *opts, sentry_path_t *path);
+    sentry_options_t *opts, const char *path);
 
 /**
  * Sets the path to the Sentry Database Directory.
@@ -761,10 +737,32 @@ SENTRY_API void sentry_options_set_handler_path(
  * It is recommended that library users set an explicit absolute path, depending
  * on their apps runtime directory.
  *
- * Takes ownership of `path`, which does not need to be freed separately.
+ * `path` is assumed to be in platform-specific filesystem path encoding.
+ * API Users on windows are encouraged to use
+ * `sentry_options_set_database_pathw` instead.
  */
 SENTRY_API void sentry_options_set_database_path(
-    sentry_options_t *opts, sentry_path_t *path);
+    sentry_options_t *opts, const char *path);
+
+#ifdef SENTRY_PLATFORM_WINDOWS
+/**
+ * Wide char version of `sentry_options_add_attachment`.
+ */
+SENTRY_API void sentry_options_add_attachmentw(
+    sentry_options_t *opts, const char *name, const wchar_t *path);
+
+/**
+ * Wide char version of `sentry_options_set_handler_path`.
+ */
+SENTRY_API void sentry_options_set_handler_pathw(
+    sentry_options_t *opts, const wchar_t *path);
+
+/**
+ * Wide char version of `sentry_options_set_database_path`.
+ */
+SENTRY_API void sentry_options_set_database_pathw(
+    sentry_options_t *opts, const wchar_t *path);
+#endif
 
 /**
  * Enables forwarding to the system crash reporter. Disabled by default.

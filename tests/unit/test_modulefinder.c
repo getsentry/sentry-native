@@ -93,16 +93,16 @@ SENTRY_TEST(buildid_fallback)
 #if !defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
     SKIP_TEST();
 #else
-    sentry_path_t *path = sentry_path_from_str(__FILE__);
+    sentry_path_t *path = sentry__path_from_str(__FILE__);
     sentry_path_t *dir = sentry__path_dir(path);
-    sentry_path_free(path);
+    sentry__path_free(path);
 
     sentry_value_t with_id_val = sentry_value_new_object();
     sentry_mmap_t with_id_map;
     sentry_path_t *with_id_path
         = sentry__path_join_str(dir, "../fixtures/with-buildid.so");
     TEST_CHECK(sentry__mmap_file(&with_id_map, with_id_path->path));
-    sentry_path_free(with_id_path);
+    sentry__path_free(with_id_path);
 
     TEST_CHECK(
         sentry__procmaps_read_ids_from_elf(with_id_val, with_id_map.ptr));
@@ -121,7 +121,7 @@ SENTRY_TEST(buildid_fallback)
     sentry_path_t *x86_exe_path
         = sentry__path_join_str(dir, "../fixtures/sentry_example");
     TEST_CHECK(sentry__mmap_file(&x86_exe_map, x86_exe_path->path));
-    sentry_path_free(x86_exe_path);
+    sentry__path_free(x86_exe_path);
 
     TEST_CHECK(
         sentry__procmaps_read_ids_from_elf(x86_exe_val, x86_exe_map.ptr));
@@ -140,7 +140,7 @@ SENTRY_TEST(buildid_fallback)
     sentry_path_t *without_id_path
         = sentry__path_join_str(dir, "../fixtures/without-buildid.so");
     TEST_CHECK(sentry__mmap_file(&without_id_map, without_id_path->path));
-    sentry_path_free(without_id_path);
+    sentry__path_free(without_id_path);
 
     TEST_CHECK(
         sentry__procmaps_read_ids_from_elf(without_id_val, without_id_map.ptr));
@@ -158,7 +158,7 @@ SENTRY_TEST(buildid_fallback)
     sentry_path_t *x86_lib_path
         = sentry__path_join_str(dir, "../fixtures/libstdc++.so");
     TEST_CHECK(sentry__mmap_file(&x86_lib_map, x86_lib_path->path));
-    sentry_path_free(x86_lib_path);
+    sentry__path_free(x86_lib_path);
 
     TEST_CHECK(
         sentry__procmaps_read_ids_from_elf(x86_lib_val, x86_lib_map.ptr));
@@ -171,6 +171,6 @@ SENTRY_TEST(buildid_fallback)
         "7fa824da-38f1-b87c-04df-718fda64990c");
     sentry_value_decref(x86_lib_val);
 
-    sentry_path_free(dir);
+    sentry__path_free(dir);
 #endif
 }

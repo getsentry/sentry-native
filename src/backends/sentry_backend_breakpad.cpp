@@ -37,7 +37,7 @@ sentry__breakpad_backend_send_envelope(
     const breakpad_transport_state_t *state
         = (const breakpad_transport_state_t *)transport->data;
 
-    sentry_path_t *dump_path = sentry_path_from_str(state->dump_path);
+    sentry_path_t *dump_path = sentry__path_from_str(state->dump_path);
     if (!dump_path) {
         sentry_envelope_free(envelope);
         return;
@@ -48,7 +48,7 @@ sentry__breakpad_backend_send_envelope(
     sentry_envelope_item_t *item
         = sentry__envelope_add_from_path(envelope, dump_path, "attachment");
     if (!item) {
-        sentry_path_free(dump_path);
+        sentry__path_free(dump_path);
         sentry_envelope_free(envelope);
         return;
     }
@@ -63,7 +63,7 @@ sentry__breakpad_backend_send_envelope(
     // now that the envelope was written, we can remove the temporary
     // minidump file
     sentry__path_remove(dump_path);
-    sentry_path_free(dump_path);
+    sentry__path_free(dump_path);
 }
 
 static void
