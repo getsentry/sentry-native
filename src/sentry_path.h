@@ -28,6 +28,13 @@ typedef struct sentry_pathiter_s sentry_pathiter_t;
 typedef struct sentry_filelock_s sentry_filelock_t;
 
 /**
+ * NOTE on encodings:
+ *
+ * When not stated otherwise, all `char` functions defined here will assume an
+ * OS-specific encoding, typically ANSI on Windows, and UTF-8 on Unix.
+ */
+
+/**
  * Creates a new path by making `path` into an absolute path.
  */
 sentry_path_t *sentry__path_absolute(const sentry_path_t *path);
@@ -58,6 +65,14 @@ sentry_path_t *sentry__path_from_str_owned(char *s);
  */
 sentry_path_t *sentry__path_join_str(
     const sentry_path_t *base, const char *other);
+
+/**
+ * Return a new path with the given suffix appended.
+ * This is different to `sentry__path_join_str` as it does not create a new path
+ * segment.
+ */
+sentry_path_t *sentry__path_append_str(
+    const sentry_path_t *base, const char *suffix);
 
 /**
  * Creates a copy of the path.

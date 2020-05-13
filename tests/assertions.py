@@ -21,14 +21,14 @@ def assert_session(envelope, extra_assertion=None):
         assert matches(session, extra_assertion)
 
 
-def assert_meta(envelope):
+def assert_meta(envelope, release="test-example-release"):
     event = envelope.get_event()
 
     expected = {
         "platform": "native",
         "environment": "development",
         "contexts": {"runtime": {"type": "runtime", "name": "testing-runtime"}},
-        "release": "test-example-release",
+        "release": release,
         "user": {"id": 42, "username": "some_name"},
         "transaction": "test-transaction",
         "tags": {"expected-tag": "some value"},

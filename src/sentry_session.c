@@ -74,6 +74,9 @@ sentry__session_to_json(
     const sentry_session_t *session, sentry_jsonwriter_t *jw)
 {
     const sentry_options_t *opts = sentry_get_options();
+    if (!opts) {
+        return;
+    }
 
     sentry__jsonwriter_write_object_start(jw);
     if (session->init) {

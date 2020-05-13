@@ -150,7 +150,7 @@ sentry__breakpad_backend_shutdown(sentry_backend_t *backend)
 
 static void
 sentry__breakpad_backend_except(
-    sentry_backend_t *backend, sentry_ucontext_t *context)
+    sentry_backend_t *backend, const sentry_ucontext_t *context)
 {
     google_breakpad::ExceptionHandler *eh
         = (google_breakpad::ExceptionHandler *)backend->data;

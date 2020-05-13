@@ -155,27 +155,7 @@ sentry__process_old_runs(const sentry_options_t *options)
             continue;
         }
 
-        sentry_stringbuilder_t sb;
-        sentry__stringbuilder_init(&sb);
-        const sentry_pathchar_t *filename = sentry__path_filename(run_dir);
-#ifdef SENTRY_PLATFORM_WINDOWS
-        char *filename_c = sentry__string_from_wstr(filename);
-        if (filename_c) {
-            sentry__stringbuilder_append(&sb, filename_c);
-            sentry_free(filename_c);
-        }
-#else
-        sentry__stringbuilder_append(&sb, filename);
-#endif
-        // `<db>/<uuid>.run.lock`
-        sentry__stringbuilder_append(&sb, ".lock");
-        char *lockfile_s = sentry__stringbuilder_into_string(&sb);
-        if (!lockfile_s) {
-            continue;
-        }
-        sentry_path_t *lockfile
-            = sentry__path_join_str(options->database_path, lockfile_s);
-        sentry_free(lockfile_s);
+        sentry_path_t *lockfile = sentry__path_append_str(run_dir, ".lock");
         sentry_filelock_t *lock;
         if (!lockfile || !(lock = sentry__filelock_new(lockfile))) {
             continue;

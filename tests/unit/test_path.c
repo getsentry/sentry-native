@@ -8,7 +8,12 @@ SENTRY_TEST(recursive_paths)
     sentry_path_t *base = sentry__path_from_str(".foo");
     sentry_path_t *nested = sentry__path_join_str(base, "bar");
     sentry_path_t *nested2 = sentry__path_join_str(nested, "baz");
-    sentry_path_t *file = sentry__path_join_str(nested2, "qux.txt");
+    sentry_path_t *file =
+#ifdef SENTRY_PLATFORM_WINDOWS
+        sentry__path_join_wstr(nested2, L"unicode ❤️ Юля.txt");
+#else
+        sentry__path_join_str(nested2, "unicode ❤️ Юля.txt");
+#endif
 
     sentry__path_create_dir_all(nested2);
     sentry__path_touch(file);

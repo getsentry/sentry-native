@@ -149,7 +149,7 @@ make_signal_event(
 }
 
 static void
-handle_ucontext(sentry_ucontext_t *uctx)
+handle_ucontext(const sentry_ucontext_t *uctx)
 {
     const struct signal_slot *sig_slot = NULL;
     for (int i = 0; i < SIGNAL_COUNT; ++i) {
@@ -208,7 +208,7 @@ handle_signal(int signum, siginfo_t *info, void *user_context)
 }
 
 static void
-handle_except(sentry_backend_t *UNUSED(backend), sentry_ucontext_t *uctx)
+handle_except(sentry_backend_t *UNUSED(backend), const sentry_ucontext_t *uctx)
 {
     handle_ucontext(uctx);
 }

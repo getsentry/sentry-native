@@ -40,7 +40,10 @@ main(int argc, char **argv)
     sentry_options_set_database_path(options, ".sentry-native");
 
     sentry_options_set_environment(options, "development");
-    sentry_options_set_release(options, "test-example-release");
+    // sentry defaults this to the `SENTRY_RELEASE` env variable
+    if (!has_arg(argc, argv, "release-env")) {
+        sentry_options_set_release(options, "test-example-release");
+    }
 
     if (has_arg(argc, argv, "log")) {
         sentry_options_set_debug(options, 1);
