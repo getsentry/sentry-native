@@ -21,6 +21,7 @@ typedef struct {
     HINTERNET connect;
 
     bool initialized;
+    bool debug;
 } winhttp_transport_state_t;
 
 struct task_state {
@@ -52,13 +53,12 @@ new_transport_state(void)
 }
 
 static void
-winhttp_transport_start(sentry_transport_t *transport)
+winhttp_transport_start(const sentry_options_t *opts, void *_state)
 {
-    winhttp_transport_state_t *state = transport->data;
-
-    const sentry_options_t *opts = sentry_get_options();
+    winhttp_transport_state_t *state = _state;
 
     state->user_agent = sentry__string_to_wstr(SENTRY_SDK_USER_AGENT);
+    state->debug = opts->debug;
 
     if (opts->http_proxy && strstr(opts->http_proxy, "http://") == 0) {
         const char *ptr = opts->http_proxy + 7;
@@ -94,17 +94,17 @@ winhttp_transport_start(sentry_transport_t *transport)
     sentry__bgworker_start(state->bgworker);
 }
 
-static void
-winhttp_transport_shutdown(sentry_transport_t *transport)
+static bool
+winhttp_transport_shutdown(uint64_t timeout, void *_state)
 {
-    winhttp_transport_state_t *state = transport->data;
-    sentry__bgworker_shutdown(state->bgworker, 5000);
+    winhttp_transport_state_t *state = _state;
+    return !sentry__bgworker_shutdown(state->bgworker, timeout);
 }
 
 static void
-winhttp_transport_free(sentry_transport_t *transport)
+winhttp_transport_free(void *_state)
 {
-    winhttp_transport_state_t *state = transport->data;
+    winhttp_transport_state_t *state = _state;
     sentry__bgworker_free(state->bgworker);
     sentry__rate_limiter_free(state->rl);
     WinHttpCloseHandle(state->connect);
@@ -117,12 +117,6 @@ winhttp_transport_free(sentry_transport_t *transport)
 static void
 task_exec_func(void *data)
 {
-    const sentry_options_t *opts = sentry_get_options();
-    if (!opts || opts->dsn.empty || sentry__should_skip_upload()) {
-        SENTRY_DEBUG("skipping event upload");
-        return;
-    }
-
     struct task_state *ts = data;
     winhttp_transport_state_t *state = ts->transport_state;
 
@@ -170,13 +164,13 @@ task_exec_func(void *data)
     sentry_free(buf);
 
     SENTRY_TRACEF(
-        "sending request using winhttp to %s:\n%S", req->url, headers);
+        "sending request using winhttp to \"%s\":\n%S", req->url, headers);
 
     if (WinHttpSendRequest(request, headers, -1, (LPVOID)req->body,
             (DWORD)req->body_len, (DWORD)req->body_len, 0)) {
         WinHttpReceiveResponse(request, NULL);
 
-        if (opts->debug) {
+        if (state->debug) {
             // this is basically the example from:
             // https://docs.microsoft.com/en-us/windows/win32/api/winhttp/nf-winhttp-winhttpqueryheaders#examples
             DWORD dwSize = 0;
@@ -243,10 +237,9 @@ task_cleanup_func(void *data)
 }
 
 static void
-winhttp_transport_send_envelope(
-    struct sentry_transport_s *transport, sentry_envelope_t *envelope)
+winhttp_transport_send_envelope(sentry_envelope_t *envelope, void *_state)
 {
-    winhttp_transport_state_t *state = transport->data;
+    winhttp_transport_state_t *state = _state;
     struct task_state *ts = SENTRY_MAKE(struct task_state);
     if (!ts) {
         sentry_envelope_free(envelope);
@@ -258,54 +251,45 @@ winhttp_transport_send_envelope(
         state->bgworker, task_exec_func, task_cleanup_func, ts);
 }
 
+static bool
+sentry__winhttp_dump(void *task_data, void *run)
+{
+    struct task_state *ts = task_data;
+    sentry__run_write_envelope((sentry_run_t *)run, ts->envelope);
+    return true;
+}
+
+size_t
+sentry__winhttp_dump_queue(void *state)
+{
+    sentry_bgworker_t *bgworker
+        = ((winhttp_transport_state_t *)state)->bgworker;
+
+    return sentry__bgworker_foreach_matching(bgworker, task_exec_func,
+        sentry__winhttp_dump, sentry_get_options()->run);
+}
+
 sentry_transport_t *
 sentry__transport_new_default(void)
 {
     SENTRY_DEBUG("initializing winhttp transport");
-    sentry_transport_t *transport = SENTRY_MAKE(sentry_transport_t);
-    if (!transport) {
-        return NULL;
-    }
-
     winhttp_transport_state_t *state = new_transport_state();
     if (!state) {
-        sentry_free(transport);
         return NULL;
     }
 
-    transport->data = state;
-    transport->free_func = winhttp_transport_free;
-    transport->send_envelope_func = winhttp_transport_send_envelope;
-    transport->startup_func = winhttp_transport_start;
-    transport->shutdown_func = winhttp_transport_shutdown;
+    sentry_transport_t *transport
+        = sentry_transport_new(winhttp_transport_send_envelope);
+
+    if (!transport) {
+        winhttp_transport_free(state);
+        return NULL;
+    }
+    sentry_transport_set_state(transport, state);
+    sentry_transport_set_free_func(transport, winhttp_transport_free);
+    sentry_transport_set_startup_func(transport, winhttp_transport_start);
+    sentry_transport_set_shutdown_func(transport, winhttp_transport_shutdown);
+    sentry__transport_set_dump_func(transport, sentry__winhttp_dump_queue);
 
     return transport;
-}
-
-static bool
-sentry__winhttp_dump(void *task_data, void *UNUSED(data))
-{
-    struct task_state *ts = task_data;
-    const sentry_options_t *opts = sentry_get_options();
-
-    sentry__run_write_envelope(opts->run, ts->envelope);
-
-    return true;
-}
-
-void
-sentry__transport_dump_queue(sentry_transport_t *transport)
-{
-    // make sure to only dump when it is actually *this* transport which is in
-    // use
-    if (transport->send_envelope_func != winhttp_transport_send_envelope) {
-        return;
-    }
-
-    sentry_bgworker_t *bgworker
-        = ((winhttp_transport_state_t *)transport->data)->bgworker;
-
-    size_t dumped = sentry__bgworker_foreach_matching(
-        bgworker, task_exec_func, sentry__winhttp_dump, NULL);
-    SENTRY_TRACEF("dumped %zu in-flight envelopes to disk", dumped);
 }

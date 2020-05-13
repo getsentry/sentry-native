@@ -1,10 +1,9 @@
 #include "sentry_core.h"
 #include "sentry_testsupport.h"
-#include "transports/sentry_function_transport.h"
 #include <sentry.h>
 
 static void
-send_envelope(sentry_envelope_t *envelope, void *data)
+send_envelope(const sentry_envelope_t *envelope, void *data)
 {
     uint64_t *called = data;
     *called += 1;

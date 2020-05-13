@@ -7,9 +7,9 @@
 #include "sentry_string.h"
 
 static void
-send_envelope(sentry_transport_t *transport, sentry_envelope_t *envelope)
+send_envelope(sentry_envelope_t *envelope, void *state)
 {
-    const sentry_run_t *run = transport->data;
+    const sentry_run_t *run = state;
 
     sentry__run_write_envelope(run, envelope);
     sentry_envelope_free(envelope);
@@ -18,16 +18,10 @@ send_envelope(sentry_transport_t *transport, sentry_envelope_t *envelope)
 sentry_transport_t *
 sentry_new_disk_transport(const sentry_run_t *run)
 {
-    sentry_transport_t *transport = SENTRY_MAKE(sentry_transport_t);
+    sentry_transport_t *transport = sentry_transport_new(send_envelope);
     if (!transport) {
         return NULL;
     }
-
-    transport->data = (void *)run;
-    transport->free_func = NULL;
-    transport->send_envelope_func = send_envelope;
-    transport->startup_func = NULL;
-    transport->shutdown_func = NULL;
-
+    sentry_transport_set_state(transport, (void *)run);
     return transport;
 }

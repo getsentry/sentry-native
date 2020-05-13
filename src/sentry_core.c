@@ -94,9 +94,8 @@ sentry_init(sentry_options_t *options)
     sentry__mutex_unlock(&g_options_mutex);
 
     sentry_transport_t *transport = options->transport;
-    if (transport && transport->startup_func) {
-        SENTRY_TRACE("starting transport");
-        transport->startup_func(transport);
+    if (transport) {
+        sentry__transport_startup(transport, options);
     }
 
     // after initializing the transport, we will submit all the unsent envelopes
@@ -123,9 +122,15 @@ sentry_shutdown(void)
     sentry__mutex_unlock(&g_options_mutex);
 
     if (options) {
-        if (options->transport && options->transport->shutdown_func) {
-            SENTRY_TRACE("shutting down transport");
-            options->transport->shutdown_func(options->transport);
+        if (options->transport) {
+            // TODO: make this configurable
+            // Ideally, it should default to 2s as per
+            // https://docs.sentry.io/error-reporting/configuration/?platform=rust#shutdown-timeout
+            // but we hit that timeout in our own integration tests, so rather
+            // increase it to 5s, as it was before.
+            if (!sentry__transport_shutdown(options->transport, 5000)) {
+                SENTRY_DEBUG("transport did not shut down cleanly");
+            }
         }
         if (options->backend && options->backend->shutdown_func) {
             SENTRY_TRACE("shutting down backend");
@@ -218,10 +223,15 @@ void
 sentry__capture_envelope(sentry_envelope_t *envelope)
 {
     const sentry_options_t *opts = sentry_get_options();
-    if (opts && opts->transport) {
-        SENTRY_TRACE("sending envelope");
-        opts->transport->send_envelope_func(opts->transport, envelope);
+    bool has_consent = !sentry__should_skip_upload();
+    if (opts && opts->transport && has_consent) {
+        sentry__transport_send_envelope(opts->transport, envelope);
     } else {
+        if (!has_consent) {
+            SENTRY_TRACE("discarding envelope due to missing user consent");
+        } else {
+            SENTRY_TRACE("discarding envelope due to invalid transport");
+        }
         sentry_envelope_free(envelope);
     }
 }
@@ -317,18 +327,6 @@ sentry_handle_exception(const sentry_ucontext_t *uctx)
     if (opts->backend && opts->backend->except_func) {
         opts->backend->except_func(opts->backend, uctx);
     }
-}
-
-void
-sentry_transport_free(sentry_transport_t *transport)
-{
-    if (!transport) {
-        return;
-    }
-    if (transport->free_func) {
-        transport->free_func(transport);
-    }
-    sentry_free(transport);
 }
 
 void

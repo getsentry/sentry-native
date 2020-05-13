@@ -12,13 +12,14 @@
 #endif
 
 static void
-print_envelope(sentry_envelope_t *envelope, void *unused_data)
+print_envelope(sentry_envelope_t *envelope, void *unused_state)
 {
-    (void)unused_data;
+    (void)unused_state;
     size_t size_out = 0;
     char *s = sentry_envelope_serialize(envelope, &size_out);
     printf("%s", s);
     sentry_free(s);
+    sentry_envelope_free(envelope);
 }
 
 static bool
@@ -57,7 +58,7 @@ main(int argc, char **argv)
 
     if (has_arg(argc, argv, "stdout")) {
         sentry_options_set_transport(
-            options, sentry_new_function_transport(print_envelope, NULL));
+            options, sentry_transport_new(print_envelope));
     }
 
     sentry_init(options);
