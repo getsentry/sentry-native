@@ -57,21 +57,27 @@ def test_session_http(tmp_path, httpserver):
     # we want to have the default transport
     cmake(tmp_path, ["sentry_example"], {"SENTRY_BACKEND": "none"})
 
-    httpserver.expect_oneshot_request(
+    httpserver.expect_request(
         "/api/123456/envelope/", headers={"x-sentry-auth": auth_header},
     ).respond_with_data("OK")
 
-    with httpserver.wait(raise_assertions=True, stop_on_nohandler=True) as waiting:
-        run(
-            tmp_path,
-            "sentry_example",
-            ["start-session"],
-            check=True,
-            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
-        )
+    # start once without a release, but with a session
+    run(
+        tmp_path,
+        "sentry_example",
+        ["release-env", "start-session"],
+        check=True,
+        env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+    )
+    run(
+        tmp_path,
+        "sentry_example",
+        ["start-session"],
+        check=True,
+        env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+    )
 
-    assert waiting.result
-
+    assert len(httpserver.log) == 1
     output = httpserver.log[0][0].get_data()
     envelope = Envelope.deserialize(output)
 
