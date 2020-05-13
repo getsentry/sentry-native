@@ -823,7 +823,8 @@ SENTRY_API sentry_uuid_t sentry_capture_event(sentry_value_t event);
  *
  * This is safe to be called from a crashing thread and may not return.
  */
-SENTRY_EXPERIMENTAL_API void sentry_handle_exception(sentry_ucontext_t *uctx);
+SENTRY_EXPERIMENTAL_API void sentry_handle_exception(
+    const sentry_ucontext_t *uctx);
 
 /**
  * Adds the breadcrumb to be sent in case of an event.
@@ -872,6 +873,9 @@ SENTRY_API void sentry_remove_context(const char *key);
 
 /**
  * Sets the event fingerprint.
+ *
+ * This accepts a variable number of arguments, and needs to be terminated by a
+ * trailing `NULL`.
  */
 SENTRY_API void sentry_set_fingerprint(const char *fingerprint, ...);
 
