@@ -493,6 +493,14 @@ SENTRY_API int sentry_envelope_write_to_file(
     const sentry_envelope_t *envelope, const char *path);
 
 /**
+ * The Sentry Client Options.
+ *
+ * See https://docs.sentry.io/error-reporting/configuration/
+ */
+struct sentry_options_s;
+typedef struct sentry_options_s sentry_options_t;
+
+/**
  * This represents an interface for user-defined transports.
  *
  * Transports are responsible for sending envelopes to sentry and are the last
@@ -593,14 +601,6 @@ typedef enum {
     SENTRY_USER_CONSENT_GIVEN = 1,
     SENTRY_USER_CONSENT_REVOKED = 0,
 } sentry_user_consent_t;
-
-/**
- * The Sentry Client Options.
- *
- * See https://docs.sentry.io/error-reporting/configuration/
- */
-struct sentry_options_s;
-typedef struct sentry_options_s sentry_options_t;
 
 /**
  * Creates a new options struct.
