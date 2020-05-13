@@ -20,6 +20,8 @@ typedef enum {
  * metadata.
  */
 typedef struct sentry_session_s {
+    const char *release;
+    const char *environment;
     sentry_uuid_t session_id;
     sentry_value_t distinct_id;
     uint64_t started_ms;

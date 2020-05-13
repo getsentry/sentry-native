@@ -47,7 +47,19 @@ status_from_string(const char *status)
 sentry_session_t *
 sentry__session_new(void)
 {
+    const sentry_options_t *opts = sentry_get_options();
+    if (!opts) {
+        return NULL;
+    }
+    const char *release = sentry_options_get_release(opts);
+    const char *environment = sentry_options_get_environment(opts);
+    if (!release) {
+        return NULL;
+    }
+
     sentry_session_t *rv = SENTRY_MAKE(sentry_session_t);
+    rv->release = release;
+    rv->environment = environment;
     rv->session_id = sentry_uuid_new_v4();
     rv->distinct_id = sentry_value_new_null();
     rv->status = SENTRY_SESSION_STATUS_OK;
@@ -73,11 +85,6 @@ void
 sentry__session_to_json(
     const sentry_session_t *session, sentry_jsonwriter_t *jw)
 {
-    const sentry_options_t *opts = sentry_get_options();
-    if (!opts) {
-        return;
-    }
-
     sentry__jsonwriter_write_object_start(jw);
     if (session->init) {
         sentry__jsonwriter_write_key(jw, "init");
@@ -116,9 +123,9 @@ sentry__session_to_json(
     sentry__jsonwriter_write_key(jw, "attrs");
     sentry__jsonwriter_write_object_start(jw);
     sentry__jsonwriter_write_key(jw, "release");
-    sentry__jsonwriter_write_str(jw, sentry_options_get_release(opts));
+    sentry__jsonwriter_write_str(jw, session->release);
     sentry__jsonwriter_write_key(jw, "environment");
-    sentry__jsonwriter_write_str(jw, sentry_options_get_environment(opts));
+    sentry__jsonwriter_write_str(jw, session->environment);
     sentry__jsonwriter_write_object_end(jw);
 
     sentry__jsonwriter_write_object_end(jw);
