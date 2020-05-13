@@ -62,16 +62,11 @@ setup-venv: .venv/bin/python
 	.venv/bin/pip install --upgrade --requirement tests/requirements.txt
 
 format: setup-venv
-	@clang-format -i \
-		examples/*.c \
-		include/*.h \
-		src/*.c \
-		src/*.h \
-		src/*/*.c \
-		src/*/*.cpp \
-		src/*/*.h \
-		tests/unit/*.c \
-		tests/unit/*.h
+	@find . -type f \
+		-name "*.h" \
+        -o -name "*.c" \
+        -o -name "*.cpp" \
+        | xargs clang-format -i -style=file
 	@.venv/bin/black tests
 .PHONY: format
 

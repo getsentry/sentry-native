@@ -1,18 +1,18 @@
 /**
  * The MIT License (MIT)
- * 
+ *
  * Copyright (c) 2015-2018 Nicholas Fraser
- * 
+ *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
  * in the Software without restriction, including without limitation the rights
  * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
  * copies of the Software, and to permit persons to whom the Software is
  * furnished to do so, subject to the following conditions:
- * 
- * The above copyright notice and this permission notice shall be included in all
- * copies or substantial portions of the Software.
- * 
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -20,7 +20,7 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
- * 
+ *
  */
 
 /*
@@ -34,9 +34,7 @@
 
 #include "mpack.h"
 
-
 /* mpack/mpack-platform.c.c */
-
 
 // We define MPACK_EMIT_INLINE_DEFS and include mpack.h to emit
 // standalone definitions of all (non-static) inline functions in MPack.
@@ -47,17 +45,16 @@
 /* #include "mpack-platform.h" */
 /* #include "mpack.h" */
 
-
 #if MPACK_DEBUG && MPACK_STDIO
-#include <stdarg.h>
+#    include <stdarg.h>
 #endif
-
-
 
 #if MPACK_DEBUG
 
-#if MPACK_STDIO
-void mpack_assert_fail_format(const char* format, ...) {
+#    if MPACK_STDIO
+void
+mpack_assert_fail_format(const char *format, ...)
+{
     char buffer[512];
     va_list args;
     va_start(args, format);
@@ -67,7 +64,9 @@ void mpack_assert_fail_format(const char* format, ...) {
     mpack_assert_fail_wrapper(buffer);
 }
 
-void mpack_break_hit_format(const char* format, ...) {
+void
+mpack_break_hit_format(const char *format, ...)
+{
     char buffer[512];
     va_list args;
     va_start(args, format);
@@ -76,52 +75,56 @@ void mpack_break_hit_format(const char* format, ...) {
     buffer[sizeof(buffer) - 1] = 0;
     mpack_break_hit(buffer);
 }
-#endif
+#    endif
 
-#if !MPACK_CUSTOM_ASSERT
-void mpack_assert_fail(const char* message) {
+#    if !MPACK_CUSTOM_ASSERT
+void
+mpack_assert_fail(const char *message)
+{
     MPACK_UNUSED(message);
 
-    #if MPACK_STDIO
+#        if MPACK_STDIO
     fprintf(stderr, "%s\n", message);
-    #endif
+#        endif
 }
-#endif
+#    endif
 
 // We split the assert failure from the wrapper so that a
 // custom assert function can return.
-void mpack_assert_fail_wrapper(const char* message) {
+void
+mpack_assert_fail_wrapper(const char *message)
+{
 
-    #ifdef MPACK_GCOV
+#    ifdef MPACK_GCOV
     // gcov marks even __builtin_unreachable() as an uncovered line. this
     // silences it.
     (mpack_assert_fail(message), __builtin_unreachable());
 
-    #else
+#    else
     mpack_assert_fail(message);
 
     // mpack_assert_fail() is not supposed to return. in case it does, we
     // abort.
 
-    #if !MPACK_NO_BUILTINS
-    #if defined(__GNUC__) || defined(__clang__)
+#        if !MPACK_NO_BUILTINS
+#            if defined(__GNUC__) || defined(__clang__)
     __builtin_trap();
-    #elif defined(WIN32)
+#            elif defined(WIN32)
     __debugbreak();
-    #endif
-    #endif
+#            endif
+#        endif
 
-    #if (defined(__GNUC__) || defined(__clang__)) && !MPACK_NO_BUILTINS
+#        if (defined(__GNUC__) || defined(__clang__)) && !MPACK_NO_BUILTINS
     __builtin_abort();
-    #elif MPACK_STDLIB
+#        elif MPACK_STDLIB
     abort();
-    #endif
+#        endif
 
     MPACK_UNREACHABLE;
-    #endif
+#    endif
 }
 
-#if !MPACK_CUSTOM_BREAK
+#    if !MPACK_CUSTOM_BREAK
 
 // If we have a custom assert handler, break wraps it by default.
 // This allows users of MPack to only implement mpack_assert_fail() without
@@ -131,55 +134,61 @@ void mpack_assert_fail_wrapper(const char* message) {
 // (which is needed by the unit test suite), but this is not offered in
 // mpack-config.h for simplicity.
 
-#if MPACK_CUSTOM_ASSERT
-void mpack_break_hit(const char* message) {
+#        if MPACK_CUSTOM_ASSERT
+void
+mpack_break_hit(const char *message)
+{
     mpack_assert_fail_wrapper(message);
 }
-#else
-void mpack_break_hit(const char* message) {
+#        else
+void
+mpack_break_hit(const char *message)
+{
     MPACK_UNUSED(message);
 
-    #if MPACK_STDIO
+#            if MPACK_STDIO
     fprintf(stderr, "%s\n", message);
-    #endif
+#            endif
 
-    #if defined(__GNUC__) || defined(__clang__) && !MPACK_NO_BUILTINS
+#            if defined(__GNUC__) || defined(__clang__) && !MPACK_NO_BUILTINS
     __builtin_trap();
-    #elif defined(WIN32) && !MPACK_NO_BUILTINS
+#            elif defined(WIN32) && !MPACK_NO_BUILTINS
     __debugbreak();
-    #elif MPACK_STDLIB
+#            elif MPACK_STDLIB
     abort();
-    #endif
+#            endif
 }
-#endif
+#        endif
+
+#    endif
 
 #endif
-
-#endif
-
-
 
 // The below are adapted from the C wikibook:
 //     https://en.wikibooks.org/wiki/C_Programming/Strings
 
 #ifndef mpack_memcmp
-int mpack_memcmp(const void* s1, const void* s2, size_t n) {
-     const unsigned char *us1 = (const unsigned char *) s1;
-     const unsigned char *us2 = (const unsigned char *) s2;
-     while (n-- != 0) {
-         if (*us1 != *us2)
-             return (*us1 < *us2) ? -1 : +1;
-         us1++;
-         us2++;
-     }
-     return 0;
+int
+mpack_memcmp(const void *s1, const void *s2, size_t n)
+{
+    const unsigned char *us1 = (const unsigned char *)s1;
+    const unsigned char *us2 = (const unsigned char *)s2;
+    while (n-- != 0) {
+        if (*us1 != *us2)
+            return (*us1 < *us2) ? -1 : +1;
+        us1++;
+        us2++;
+    }
+    return 0;
 }
 #endif
 
 #ifndef mpack_memcpy
-void* mpack_memcpy(void* MPACK_RESTRICT s1, const void* MPACK_RESTRICT s2, size_t n) {
-    char* MPACK_RESTRICT dst = (char *)s1;
-    const char* MPACK_RESTRICT src = (const char *)s2;
+void *
+mpack_memcpy(void *MPACK_RESTRICT s1, const void *MPACK_RESTRICT s2, size_t n)
+{
+    char *MPACK_RESTRICT dst = (char *)s1;
+    const char *MPACK_RESTRICT src = (const char *)s2;
     while (n-- != 0)
         *dst++ = *src++;
     return s1;
@@ -187,7 +196,9 @@ void* mpack_memcpy(void* MPACK_RESTRICT s1, const void* MPACK_RESTRICT s2, size_
 #endif
 
 #ifndef mpack_memmove
-void* mpack_memmove(void* s1, const void* s2, size_t n) {
+void *
+mpack_memmove(void *s1, const void *s2, size_t n)
+{
     char *p1 = (char *)s1;
     const char *p2 = (const char *)s2;
     if (p2 < p1 && p1 < p2 + n) {
@@ -203,7 +214,9 @@ void* mpack_memmove(void* s1, const void* s2, size_t n) {
 #endif
 
 #ifndef mpack_memset
-void* mpack_memset(void* s, int c, size_t n) {
+void *
+mpack_memset(void *s, int c, size_t n)
+{
     unsigned char *us = (unsigned char *)s;
     unsigned char uc = (unsigned char)c;
     while (n-- != 0)
@@ -213,25 +226,27 @@ void* mpack_memset(void* s, int c, size_t n) {
 #endif
 
 #ifndef mpack_strlen
-size_t mpack_strlen(const char* s) {
-    const char* p = s;
+size_t
+mpack_strlen(const char *s)
+{
+    const char *p = s;
     while (*p != '\0')
         p++;
     return (size_t)(p - s);
 }
 #endif
 
-
-
 #if defined(MPACK_MALLOC) && !defined(MPACK_REALLOC)
-void* mpack_realloc(void* old_ptr, size_t used_size, size_t new_size) {
+void *
+mpack_realloc(void *old_ptr, size_t used_size, size_t new_size)
+{
     if (new_size == 0) {
         if (old_ptr)
             MPACK_FREE(old_ptr);
         return NULL;
     }
 
-    void* new_ptr = MPACK_MALLOC(new_size);
+    void *new_ptr = MPACK_MALLOC(new_size);
     if (new_ptr == NULL)
         return NULL;
 
@@ -248,13 +263,17 @@ void* mpack_realloc(void* old_ptr, size_t used_size, size_t new_size) {
 /* #include "mpack-common.h" */
 
 #if MPACK_DEBUG && MPACK_STDIO
-#include <stdarg.h>
+#    include <stdarg.h>
 #endif
 
-const char* mpack_error_to_string(mpack_error_t error) {
-    #if MPACK_STRINGS
+const char *
+mpack_error_to_string(mpack_error_t error)
+{
+#if MPACK_STRINGS
     switch (error) {
-        #define MPACK_ERROR_STRING_CASE(e) case e: return #e
+#    define MPACK_ERROR_STRING_CASE(e)                                         \
+    case e:                                                                    \
+        return #e
         MPACK_ERROR_STRING_CASE(mpack_ok);
         MPACK_ERROR_STRING_CASE(mpack_error_io);
         MPACK_ERROR_STRING_CASE(mpack_error_invalid);
@@ -265,20 +284,24 @@ const char* mpack_error_to_string(mpack_error_t error) {
         MPACK_ERROR_STRING_CASE(mpack_error_bug);
         MPACK_ERROR_STRING_CASE(mpack_error_data);
         MPACK_ERROR_STRING_CASE(mpack_error_eof);
-        #undef MPACK_ERROR_STRING_CASE
+#    undef MPACK_ERROR_STRING_CASE
     }
     mpack_assert(0, "unrecognized error %i", (int)error);
     return "(unknown mpack_error_t)";
-    #else
+#else
     MPACK_UNUSED(error);
     return "";
-    #endif
+#endif
 }
 
-const char* mpack_type_to_string(mpack_type_t type) {
-    #if MPACK_STRINGS
+const char *
+mpack_type_to_string(mpack_type_t type)
+{
+#if MPACK_STRINGS
     switch (type) {
-        #define MPACK_TYPE_STRING_CASE(e) case e: return #e
+#    define MPACK_TYPE_STRING_CASE(e)                                          \
+    case e:                                                                    \
+        return #e
         MPACK_TYPE_STRING_CASE(mpack_type_missing);
         MPACK_TYPE_STRING_CASE(mpack_type_nil);
         MPACK_TYPE_STRING_CASE(mpack_type_bool);
@@ -290,20 +313,22 @@ const char* mpack_type_to_string(mpack_type_t type) {
         MPACK_TYPE_STRING_CASE(mpack_type_bin);
         MPACK_TYPE_STRING_CASE(mpack_type_array);
         MPACK_TYPE_STRING_CASE(mpack_type_map);
-        #if MPACK_EXTENSIONS
+#    if MPACK_EXTENSIONS
         MPACK_TYPE_STRING_CASE(mpack_type_ext);
-        #endif
-        #undef MPACK_TYPE_STRING_CASE
+#    endif
+#    undef MPACK_TYPE_STRING_CASE
     }
     mpack_assert(0, "unrecognized type %i", (int)type);
     return "(unknown mpack_type_t)";
-    #else
+#else
     MPACK_UNUSED(type);
     return "";
-    #endif
+#endif
 }
 
-int mpack_tag_cmp(mpack_tag_t left, mpack_tag_t right) {
+int
+mpack_tag_cmp(mpack_tag_t left, mpack_tag_t right)
+{
 
     // positive numbers may be stored as int; convert to uint
     if (left.type == mpack_type_int && left.v.i >= 0) {
@@ -319,60 +344,60 @@ int mpack_tag_cmp(mpack_tag_t left, mpack_tag_t right) {
         return ((int)left.type < (int)right.type) ? -1 : 1;
 
     switch (left.type) {
-        case mpack_type_missing: // fallthrough
-        case mpack_type_nil:
+    case mpack_type_missing: // fallthrough
+    case mpack_type_nil:
+        return 0;
+
+    case mpack_type_bool:
+        return (int)left.v.b - (int)right.v.b;
+
+    case mpack_type_int:
+        if (left.v.i == right.v.i)
             return 0;
+        return (left.v.i < right.v.i) ? -1 : 1;
 
-        case mpack_type_bool:
-            return (int)left.v.b - (int)right.v.b;
+    case mpack_type_uint:
+        if (left.v.u == right.v.u)
+            return 0;
+        return (left.v.u < right.v.u) ? -1 : 1;
 
-        case mpack_type_int:
-            if (left.v.i == right.v.i)
-                return 0;
-            return (left.v.i < right.v.i) ? -1 : 1;
+    case mpack_type_array:
+    case mpack_type_map:
+        if (left.v.n == right.v.n)
+            return 0;
+        return (left.v.n < right.v.n) ? -1 : 1;
 
-        case mpack_type_uint:
-            if (left.v.u == right.v.u)
-                return 0;
-            return (left.v.u < right.v.u) ? -1 : 1;
+    case mpack_type_str:
+    case mpack_type_bin:
+        if (left.v.l == right.v.l)
+            return 0;
+        return (left.v.l < right.v.l) ? -1 : 1;
 
-        case mpack_type_array:
-        case mpack_type_map:
-            if (left.v.n == right.v.n)
-                return 0;
-            return (left.v.n < right.v.n) ? -1 : 1;
-
-        case mpack_type_str:
-        case mpack_type_bin:
+#if MPACK_EXTENSIONS
+    case mpack_type_ext:
+        if (left.exttype == right.exttype) {
             if (left.v.l == right.v.l)
                 return 0;
             return (left.v.l < right.v.l) ? -1 : 1;
+        }
+        return (int)left.exttype - (int)right.exttype;
+#endif
 
-        #if MPACK_EXTENSIONS
-        case mpack_type_ext:
-            if (left.exttype == right.exttype) {
-                if (left.v.l == right.v.l)
-                    return 0;
-                return (left.v.l < right.v.l) ? -1 : 1;
-            }
-            return (int)left.exttype - (int)right.exttype;
-        #endif
-
-        // floats should not normally be compared for equality. we compare
-        // with memcmp() to silence compiler warnings, but this will return
-        // equal if both are NaNs with the same representation (though we may
-        // want this, for instance if you are for some bizarre reason using
-        // floats as map keys.) i'm not sure what the right thing to
-        // do is here. check for NaN first? always return false if the type
-        // is float? use operator== and pragmas to silence compiler warning?
-        // please send me your suggestions.
-        // note also that we don't convert floats to doubles, so when this is
-        // used for ordering purposes, all floats are ordered before all
-        // doubles.
-        case mpack_type_float:
-            return mpack_memcmp(&left.v.f, &right.v.f, sizeof(left.v.f));
-        case mpack_type_double:
-            return mpack_memcmp(&left.v.d, &right.v.d, sizeof(left.v.d));
+    // floats should not normally be compared for equality. we compare
+    // with memcmp() to silence compiler warnings, but this will return
+    // equal if both are NaNs with the same representation (though we may
+    // want this, for instance if you are for some bizarre reason using
+    // floats as map keys.) i'm not sure what the right thing to
+    // do is here. check for NaN first? always return false if the type
+    // is float? use operator== and pragmas to silence compiler warning?
+    // please send me your suggestions.
+    // note also that we don't convert floats to doubles, so when this is
+    // used for ordering purposes, all floats are ordered before all
+    // doubles.
+    case mpack_type_float:
+        return mpack_memcmp(&left.v.f, &right.v.f, sizeof(left.v.f));
+    case mpack_type_double:
+        return mpack_memcmp(&left.v.d, &right.v.d, sizeof(left.v.d));
     }
 
     mpack_assert(0, "unrecognized type %i", (int)left.type);
@@ -380,12 +405,16 @@ int mpack_tag_cmp(mpack_tag_t left, mpack_tag_t right) {
 }
 
 #if MPACK_DEBUG && MPACK_STDIO
-static char mpack_hex_char(uint8_t hex_value) {
-    return (hex_value < 10) ? (char)('0' + hex_value) : (char)('a' + (hex_value - 10));
+static char
+mpack_hex_char(uint8_t hex_value)
+{
+    return (hex_value < 10) ? (char)('0' + hex_value)
+                            : (char)('a' + (hex_value - 10));
 }
 
-static void mpack_tag_debug_complete_bin_ext(mpack_tag_t tag, size_t string_length, char* buffer, size_t buffer_size,
-        const char* prefix, size_t prefix_size)
+static void
+mpack_tag_debug_complete_bin_ext(mpack_tag_t tag, size_t string_length,
+    char *buffer, size_t buffer_size, const char *prefix, size_t prefix_size)
 {
     // If at any point in this function we run out of space in the buffer, we
     // bail out. The outer tag print wrapper will make sure we have a
@@ -409,7 +438,9 @@ static void mpack_tag_debug_complete_bin_ext(mpack_tag_t tag, size_t string_leng
     buffer_size -= 2;
 
     size_t hex_bytes = 0;
-    for (size_t i = 0; i < MPACK_PRINT_BYTE_COUNT && i < prefix_size && buffer_size > 2; ++i) {
+    for (size_t i = 0;
+         i < MPACK_PRINT_BYTE_COUNT && i < prefix_size && buffer_size > 2;
+         ++i) {
         uint8_t byte = (uint8_t)prefix[i];
         buffer[0] = mpack_hex_char((uint8_t)(byte >> 4));
         buffer[1] = mpack_hex_char((uint8_t)(byte & 0xfu));
@@ -419,137 +450,155 @@ static void mpack_tag_debug_complete_bin_ext(mpack_tag_t tag, size_t string_leng
     }
 
     if (buffer_size != 0)
-        mpack_snprintf(buffer, buffer_size, "%s>", (total > hex_bytes) ? "..." : "");
+        mpack_snprintf(
+            buffer, buffer_size, "%s>", (total > hex_bytes) ? "..." : "");
 }
 
-static void mpack_tag_debug_pseudo_json_bin(mpack_tag_t tag, char* buffer, size_t buffer_size,
-        const char* prefix, size_t prefix_size)
+static void
+mpack_tag_debug_pseudo_json_bin(mpack_tag_t tag, char *buffer,
+    size_t buffer_size, const char *prefix, size_t prefix_size)
 {
     mpack_assert(mpack_tag_type(&tag) == mpack_type_bin);
-    size_t length = (size_t)mpack_snprintf(buffer, buffer_size, "<binary data of length %u", tag.v.l);
-    mpack_tag_debug_complete_bin_ext(tag, length, buffer, buffer_size, prefix, prefix_size);
+    size_t length = (size_t)mpack_snprintf(
+        buffer, buffer_size, "<binary data of length %u", tag.v.l);
+    mpack_tag_debug_complete_bin_ext(
+        tag, length, buffer, buffer_size, prefix, prefix_size);
 }
 
-#if MPACK_EXTENSIONS
-static void mpack_tag_debug_pseudo_json_ext(mpack_tag_t tag, char* buffer, size_t buffer_size,
-        const char* prefix, size_t prefix_size)
+#    if MPACK_EXTENSIONS
+static void
+mpack_tag_debug_pseudo_json_ext(mpack_tag_t tag, char *buffer,
+    size_t buffer_size, const char *prefix, size_t prefix_size)
 {
     mpack_assert(mpack_tag_type(&tag) == mpack_type_ext);
-    size_t length = (size_t)mpack_snprintf(buffer, buffer_size, "<ext data of type %i and length %u",
-            mpack_tag_ext_exttype(&tag), mpack_tag_ext_length(&tag));
-    mpack_tag_debug_complete_bin_ext(tag, length, buffer, buffer_size, prefix, prefix_size);
+    size_t length = (size_t)mpack_snprintf(buffer, buffer_size,
+        "<ext data of type %i and length %u", mpack_tag_ext_exttype(&tag),
+        mpack_tag_ext_length(&tag));
+    mpack_tag_debug_complete_bin_ext(
+        tag, length, buffer, buffer_size, prefix, prefix_size);
 }
-#endif
+#    endif
 
-static void mpack_tag_debug_pseudo_json_impl(mpack_tag_t tag, char* buffer, size_t buffer_size,
-        const char* prefix, size_t prefix_size)
+static void
+mpack_tag_debug_pseudo_json_impl(mpack_tag_t tag, char *buffer,
+    size_t buffer_size, const char *prefix, size_t prefix_size)
 {
     switch (tag.type) {
-        case mpack_type_missing:
-            mpack_snprintf(buffer, buffer_size, "<missing!>");
-            return;
-        case mpack_type_nil:
-            mpack_snprintf(buffer, buffer_size, "null");
-            return;
-        case mpack_type_bool:
-            mpack_snprintf(buffer, buffer_size, tag.v.b ? "true" : "false");
-            return;
-        case mpack_type_int:
-            mpack_snprintf(buffer, buffer_size, "%" PRIi64, tag.v.i);
-            return;
-        case mpack_type_uint:
-            mpack_snprintf(buffer, buffer_size, "%" PRIu64, tag.v.u);
-            return;
-        case mpack_type_float:
-            mpack_snprintf(buffer, buffer_size, "%f", tag.v.f);
-            return;
-        case mpack_type_double:
-            mpack_snprintf(buffer, buffer_size, "%f", tag.v.d);
-            return;
+    case mpack_type_missing:
+        mpack_snprintf(buffer, buffer_size, "<missing!>");
+        return;
+    case mpack_type_nil:
+        mpack_snprintf(buffer, buffer_size, "null");
+        return;
+    case mpack_type_bool:
+        mpack_snprintf(buffer, buffer_size, tag.v.b ? "true" : "false");
+        return;
+    case mpack_type_int:
+        mpack_snprintf(buffer, buffer_size, "%" PRIi64, tag.v.i);
+        return;
+    case mpack_type_uint:
+        mpack_snprintf(buffer, buffer_size, "%" PRIu64, tag.v.u);
+        return;
+    case mpack_type_float:
+        mpack_snprintf(buffer, buffer_size, "%f", tag.v.f);
+        return;
+    case mpack_type_double:
+        mpack_snprintf(buffer, buffer_size, "%f", tag.v.d);
+        return;
 
-        case mpack_type_str:
-            mpack_snprintf(buffer, buffer_size, "<string of %u bytes>", tag.v.l);
-            return;
-        case mpack_type_bin:
-            mpack_tag_debug_pseudo_json_bin(tag, buffer, buffer_size, prefix, prefix_size);
-            return;
-        #if MPACK_EXTENSIONS
-        case mpack_type_ext:
-            mpack_tag_debug_pseudo_json_ext(tag, buffer, buffer_size, prefix, prefix_size);
-            return;
-        #endif
+    case mpack_type_str:
+        mpack_snprintf(buffer, buffer_size, "<string of %u bytes>", tag.v.l);
+        return;
+    case mpack_type_bin:
+        mpack_tag_debug_pseudo_json_bin(
+            tag, buffer, buffer_size, prefix, prefix_size);
+        return;
+#    if MPACK_EXTENSIONS
+    case mpack_type_ext:
+        mpack_tag_debug_pseudo_json_ext(
+            tag, buffer, buffer_size, prefix, prefix_size);
+        return;
+#    endif
 
-        case mpack_type_array:
-            mpack_snprintf(buffer, buffer_size, "<array of %u elements>", tag.v.n);
-            return;
-        case mpack_type_map:
-            mpack_snprintf(buffer, buffer_size, "<map of %u key-value pairs>", tag.v.n);
-            return;
+    case mpack_type_array:
+        mpack_snprintf(buffer, buffer_size, "<array of %u elements>", tag.v.n);
+        return;
+    case mpack_type_map:
+        mpack_snprintf(
+            buffer, buffer_size, "<map of %u key-value pairs>", tag.v.n);
+        return;
     }
 
     mpack_snprintf(buffer, buffer_size, "<unknown!>");
 }
 
-void mpack_tag_debug_pseudo_json(mpack_tag_t tag, char* buffer, size_t buffer_size,
-        const char* prefix, size_t prefix_size)
+void
+mpack_tag_debug_pseudo_json(mpack_tag_t tag, char *buffer, size_t buffer_size,
+    const char *prefix, size_t prefix_size)
 {
     mpack_assert(buffer_size > 0, "buffer size cannot be zero!");
     buffer[0] = 0;
 
-    mpack_tag_debug_pseudo_json_impl(tag, buffer, buffer_size, prefix, prefix_size);
+    mpack_tag_debug_pseudo_json_impl(
+        tag, buffer, buffer_size, prefix, prefix_size);
 
     // We always null-terminate the buffer manually just in case the snprintf()
     // function doesn't null-terminate when the string doesn't fit.
     buffer[buffer_size - 1] = 0;
 }
 
-static void mpack_tag_debug_describe_impl(mpack_tag_t tag, char* buffer, size_t buffer_size) {
+static void
+mpack_tag_debug_describe_impl(mpack_tag_t tag, char *buffer, size_t buffer_size)
+{
     switch (tag.type) {
-        case mpack_type_missing:
-            mpack_snprintf(buffer, buffer_size, "missing");
-            return;
-        case mpack_type_nil:
-            mpack_snprintf(buffer, buffer_size, "nil");
-            return;
-        case mpack_type_bool:
-            mpack_snprintf(buffer, buffer_size, tag.v.b ? "true" : "false");
-            return;
-        case mpack_type_int:
-            mpack_snprintf(buffer, buffer_size, "int %" PRIi64, tag.v.i);
-            return;
-        case mpack_type_uint:
-            mpack_snprintf(buffer, buffer_size, "uint %" PRIu64, tag.v.u);
-            return;
-        case mpack_type_float:
-            mpack_snprintf(buffer, buffer_size, "float %f", tag.v.f);
-            return;
-        case mpack_type_double:
-            mpack_snprintf(buffer, buffer_size, "double %f", tag.v.d);
-            return;
-        case mpack_type_str:
-            mpack_snprintf(buffer, buffer_size, "str of %u bytes", tag.v.l);
-            return;
-        case mpack_type_bin:
-            mpack_snprintf(buffer, buffer_size, "bin of %u bytes", tag.v.l);
-            return;
-        #if MPACK_EXTENSIONS
-        case mpack_type_ext:
-            mpack_snprintf(buffer, buffer_size, "ext of type %i, %u bytes",
-                    mpack_tag_ext_exttype(&tag), mpack_tag_ext_length(&tag));
-            return;
-        #endif
-        case mpack_type_array:
-            mpack_snprintf(buffer, buffer_size, "array of %u elements", tag.v.n);
-            return;
-        case mpack_type_map:
-            mpack_snprintf(buffer, buffer_size, "map of %u key-value pairs", tag.v.n);
-            return;
+    case mpack_type_missing:
+        mpack_snprintf(buffer, buffer_size, "missing");
+        return;
+    case mpack_type_nil:
+        mpack_snprintf(buffer, buffer_size, "nil");
+        return;
+    case mpack_type_bool:
+        mpack_snprintf(buffer, buffer_size, tag.v.b ? "true" : "false");
+        return;
+    case mpack_type_int:
+        mpack_snprintf(buffer, buffer_size, "int %" PRIi64, tag.v.i);
+        return;
+    case mpack_type_uint:
+        mpack_snprintf(buffer, buffer_size, "uint %" PRIu64, tag.v.u);
+        return;
+    case mpack_type_float:
+        mpack_snprintf(buffer, buffer_size, "float %f", tag.v.f);
+        return;
+    case mpack_type_double:
+        mpack_snprintf(buffer, buffer_size, "double %f", tag.v.d);
+        return;
+    case mpack_type_str:
+        mpack_snprintf(buffer, buffer_size, "str of %u bytes", tag.v.l);
+        return;
+    case mpack_type_bin:
+        mpack_snprintf(buffer, buffer_size, "bin of %u bytes", tag.v.l);
+        return;
+#    if MPACK_EXTENSIONS
+    case mpack_type_ext:
+        mpack_snprintf(buffer, buffer_size, "ext of type %i, %u bytes",
+            mpack_tag_ext_exttype(&tag), mpack_tag_ext_length(&tag));
+        return;
+#    endif
+    case mpack_type_array:
+        mpack_snprintf(buffer, buffer_size, "array of %u elements", tag.v.n);
+        return;
+    case mpack_type_map:
+        mpack_snprintf(
+            buffer, buffer_size, "map of %u key-value pairs", tag.v.n);
+        return;
     }
 
     mpack_snprintf(buffer, buffer_size, "unknown!");
 }
 
-void mpack_tag_debug_describe(mpack_tag_t tag, char* buffer, size_t buffer_size) {
+void
+mpack_tag_debug_describe(mpack_tag_t tag, char *buffer, size_t buffer_size)
+{
     mpack_assert(buffer_size > 0, "buffer size cannot be zero!");
     buffer[0] = 0;
 
@@ -561,33 +610,38 @@ void mpack_tag_debug_describe(mpack_tag_t tag, char* buffer, size_t buffer_size)
 }
 #endif
 
-
-
 #if MPACK_READ_TRACKING || MPACK_WRITE_TRACKING
 
-#ifndef MPACK_TRACKING_INITIAL_CAPACITY
+#    ifndef MPACK_TRACKING_INITIAL_CAPACITY
 // seems like a reasonable number. we grow by doubling, and it only
 // needs to be as long as the maximum depth of the message.
-#define MPACK_TRACKING_INITIAL_CAPACITY 8
-#endif
+#        define MPACK_TRACKING_INITIAL_CAPACITY 8
+#    endif
 
-mpack_error_t mpack_track_init(mpack_track_t* track) {
+mpack_error_t
+mpack_track_init(mpack_track_t *track)
+{
     track->count = 0;
     track->capacity = MPACK_TRACKING_INITIAL_CAPACITY;
-    track->elements = (mpack_track_element_t*)MPACK_MALLOC(sizeof(mpack_track_element_t) * track->capacity);
+    track->elements = (mpack_track_element_t *)MPACK_MALLOC(
+        sizeof(mpack_track_element_t) * track->capacity);
     if (track->elements == NULL)
         return mpack_error_memory;
     return mpack_ok;
 }
 
-mpack_error_t mpack_track_grow(mpack_track_t* track) {
+mpack_error_t
+mpack_track_grow(mpack_track_t *track)
+{
     mpack_assert(track->elements, "null track elements!");
     mpack_assert(track->count == track->capacity, "incorrect growing?");
 
     size_t new_capacity = track->capacity * 2;
 
-    mpack_track_element_t* new_elements = (mpack_track_element_t*)mpack_realloc(track->elements,
-            sizeof(mpack_track_element_t) * track->count, sizeof(mpack_track_element_t) * new_capacity);
+    mpack_track_element_t *new_elements
+        = (mpack_track_element_t *)mpack_realloc(track->elements,
+            sizeof(mpack_track_element_t) * track->count,
+            sizeof(mpack_track_element_t) * new_capacity);
     if (new_elements == NULL)
         return mpack_error_memory;
 
@@ -596,9 +650,12 @@ mpack_error_t mpack_track_grow(mpack_track_t* track) {
     return mpack_ok;
 }
 
-mpack_error_t mpack_track_push(mpack_track_t* track, mpack_type_t type, uint64_t count) {
+mpack_error_t
+mpack_track_push(mpack_track_t *track, mpack_type_t type, uint64_t count)
+{
     mpack_assert(track->elements, "null track elements!");
-    mpack_log("track pushing %s count %i\n", mpack_type_to_string(type), (int)count);
+    mpack_log(
+        "track pushing %s count %i\n", mpack_type_to_string(type), (int)count);
 
     // maps have twice the number of elements (key/value pairs)
     if (type == mpack_type_map)
@@ -618,27 +675,32 @@ mpack_error_t mpack_track_push(mpack_track_t* track, mpack_type_t type, uint64_t
     return mpack_ok;
 }
 
-mpack_error_t mpack_track_pop(mpack_track_t* track, mpack_type_t type) {
+mpack_error_t
+mpack_track_pop(mpack_track_t *track, mpack_type_t type)
+{
     mpack_assert(track->elements, "null track elements!");
     mpack_log("track popping %s\n", mpack_type_to_string(type));
 
     if (track->count == 0) {
-        mpack_break("attempting to close a %s but nothing was opened!", mpack_type_to_string(type));
+        mpack_break("attempting to close a %s but nothing was opened!",
+            mpack_type_to_string(type));
         return mpack_error_bug;
     }
 
-    mpack_track_element_t* element = &track->elements[track->count - 1];
+    mpack_track_element_t *element = &track->elements[track->count - 1];
 
     if (element->type != type) {
         mpack_break("attempting to close a %s but the open element is a %s!",
-                mpack_type_to_string(type), mpack_type_to_string(element->type));
+            mpack_type_to_string(type), mpack_type_to_string(element->type));
         return mpack_error_bug;
     }
 
     if (element->left != 0) {
-        mpack_break("attempting to close a %s but there are %" PRIu64 " %s left",
-                mpack_type_to_string(type), element->left,
-                (type == mpack_type_map || type == mpack_type_array) ? "elements" : "bytes");
+        mpack_break("attempting to close a %s but there are %" PRIu64
+                    " %s left",
+            mpack_type_to_string(type), element->left,
+            (type == mpack_type_map || type == mpack_type_array) ? "elements"
+                                                                 : "bytes");
         return mpack_error_bug;
     }
 
@@ -646,58 +708,66 @@ mpack_error_t mpack_track_pop(mpack_track_t* track, mpack_type_t type) {
     return mpack_ok;
 }
 
-mpack_error_t mpack_track_peek_element(mpack_track_t* track, bool read) {
+mpack_error_t
+mpack_track_peek_element(mpack_track_t *track, bool read)
+{
     MPACK_UNUSED(read);
     mpack_assert(track->elements, "null track elements!");
 
-    // if there are no open elements, that's fine, we can read/write elements at will
+    // if there are no open elements, that's fine, we can read/write elements at
+    // will
     if (track->count == 0)
         return mpack_ok;
 
-    mpack_track_element_t* element = &track->elements[track->count - 1];
+    mpack_track_element_t *element = &track->elements[track->count - 1];
 
     if (element->type != mpack_type_map && element->type != mpack_type_array) {
-        mpack_break("elements cannot be %s within an %s", read ? "read" : "written",
-                mpack_type_to_string(element->type));
+        mpack_break("elements cannot be %s within an %s",
+            read ? "read" : "written", mpack_type_to_string(element->type));
         return mpack_error_bug;
     }
 
     if (element->left == 0) {
         mpack_break("too many elements %s for %s", read ? "read" : "written",
-                mpack_type_to_string(element->type));
+            mpack_type_to_string(element->type));
         return mpack_error_bug;
     }
 
     return mpack_ok;
 }
 
-mpack_error_t mpack_track_element(mpack_track_t* track, bool read) {
+mpack_error_t
+mpack_track_element(mpack_track_t *track, bool read)
+{
     mpack_error_t error = mpack_track_peek_element(track, read);
     if (track->count > 0 && error == mpack_ok)
         --track->elements[track->count - 1].left;
     return error;
 }
 
-mpack_error_t mpack_track_bytes(mpack_track_t* track, bool read, uint64_t count) {
+mpack_error_t
+mpack_track_bytes(mpack_track_t *track, bool read, uint64_t count)
+{
     MPACK_UNUSED(read);
     mpack_assert(track->elements, "null track elements!");
 
     if (track->count == 0) {
-        mpack_break("bytes cannot be %s with no open bin, str or ext", read ? "read" : "written");
+        mpack_break("bytes cannot be %s with no open bin, str or ext",
+            read ? "read" : "written");
         return mpack_error_bug;
     }
 
-    mpack_track_element_t* element = &track->elements[track->count - 1];
+    mpack_track_element_t *element = &track->elements[track->count - 1];
 
     if (element->type == mpack_type_map || element->type == mpack_type_array) {
-        mpack_break("bytes cannot be %s within an %s", read ? "read" : "written",
-                mpack_type_to_string(element->type));
+        mpack_break("bytes cannot be %s within an %s",
+            read ? "read" : "written", mpack_type_to_string(element->type));
         return mpack_error_bug;
     }
 
     if (element->left < count) {
         mpack_break("too many bytes %s for %s", read ? "read" : "written",
-                mpack_type_to_string(element->type));
+            mpack_type_to_string(element->type));
         return mpack_error_bug;
     }
 
@@ -705,35 +775,44 @@ mpack_error_t mpack_track_bytes(mpack_track_t* track, bool read, uint64_t count)
     return mpack_ok;
 }
 
-mpack_error_t mpack_track_str_bytes_all(mpack_track_t* track, bool read, uint64_t count) {
+mpack_error_t
+mpack_track_str_bytes_all(mpack_track_t *track, bool read, uint64_t count)
+{
     mpack_error_t error = mpack_track_bytes(track, read, count);
     if (error != mpack_ok)
         return error;
 
-    mpack_track_element_t* element = &track->elements[track->count - 1];
+    mpack_track_element_t *element = &track->elements[track->count - 1];
 
     if (element->type != mpack_type_str) {
-        mpack_break("the open type must be a string, not a %s", mpack_type_to_string(element->type));
+        mpack_break("the open type must be a string, not a %s",
+            mpack_type_to_string(element->type));
         return mpack_error_bug;
     }
 
     if (element->left != 0) {
-        mpack_break("not all bytes were read; the wrong byte count was requested for a string read.");
+        mpack_break("not all bytes were read; the wrong byte count was "
+                    "requested for a string read.");
         return mpack_error_bug;
     }
 
     return mpack_ok;
 }
 
-mpack_error_t mpack_track_check_empty(mpack_track_t* track) {
+mpack_error_t
+mpack_track_check_empty(mpack_track_t *track)
+{
     if (track->count != 0) {
-        mpack_break("unclosed %s", mpack_type_to_string(track->elements[0].type));
+        mpack_break(
+            "unclosed %s", mpack_type_to_string(track->elements[0].type));
         return mpack_error_bug;
     }
     return mpack_ok;
 }
 
-mpack_error_t mpack_track_destroy(mpack_track_t* track, bool cancel) {
+mpack_error_t
+mpack_track_destroy(mpack_track_t *track, bool cancel)
+{
     mpack_error_t error = cancel ? mpack_ok : mpack_track_check_empty(track);
     if (track->elements) {
         MPACK_FREE(track->elements);
@@ -743,14 +822,15 @@ mpack_error_t mpack_track_destroy(mpack_track_t* track, bool cancel) {
 }
 #endif
 
-
-
-static bool mpack_utf8_check_impl(const uint8_t* str, size_t count, bool allow_null) {
+static bool
+mpack_utf8_check_impl(const uint8_t *str, size_t count, bool allow_null)
+{
     while (count > 0) {
         uint8_t lead = str[0];
 
         // NUL
-        if (!allow_null && lead == '\0') // we don't allow NUL bytes in MPack C-strings
+        if (!allow_null
+            && lead == '\0') // we don't allow NUL bytes in MPack C-strings
             return false;
 
         // ASCII
@@ -758,7 +838,7 @@ static bool mpack_utf8_check_impl(const uint8_t* str, size_t count, bool allow_n
             ++str;
             --count;
 
-        // 2-byte sequence
+            // 2-byte sequence
         } else if ((lead & 0xE0) == 0xC0) {
             if (count < 2) // truncated sequence
                 return false;
@@ -770,13 +850,13 @@ static bool mpack_utf8_check_impl(const uint8_t* str, size_t count, bool allow_n
             str += 2;
             count -= 2;
 
-            uint32_t z = ((uint32_t)(lead & ~0xE0) << 6) |
-                          (uint32_t)(cont & ~0xC0);
+            uint32_t z
+                = ((uint32_t)(lead & ~0xE0) << 6) | (uint32_t)(cont & ~0xC0);
 
             if (z < 0x80) // overlong sequence
                 return false;
 
-        // 3-byte sequence
+            // 3-byte sequence
         } else if ((lead & 0xF0) == 0xE0) {
             if (count < 3) // truncated sequence
                 return false;
@@ -791,16 +871,15 @@ static bool mpack_utf8_check_impl(const uint8_t* str, size_t count, bool allow_n
             str += 3;
             count -= 3;
 
-            uint32_t z = ((uint32_t)(lead  & ~0xF0) << 12) |
-                         ((uint32_t)(cont1 & ~0xC0) <<  6) |
-                          (uint32_t)(cont2 & ~0xC0);
+            uint32_t z = ((uint32_t)(lead & ~0xF0) << 12)
+                | ((uint32_t)(cont1 & ~0xC0) << 6) | (uint32_t)(cont2 & ~0xC0);
 
             if (z < 0x800) // overlong sequence
                 return false;
             if (z >= 0xD800 && z <= 0xDFFF) // surrogate
                 return false;
 
-        // 4-byte sequence
+            // 4-byte sequence
         } else if ((lead & 0xF8) == 0xF0) {
             if (count < 4) // truncated sequence
                 return false;
@@ -818,10 +897,9 @@ static bool mpack_utf8_check_impl(const uint8_t* str, size_t count, bool allow_n
             str += 4;
             count -= 4;
 
-            uint32_t z = ((uint32_t)(lead  & ~0xF8) << 18) |
-                         ((uint32_t)(cont1 & ~0xC0) << 12) |
-                         ((uint32_t)(cont2 & ~0xC0) <<  6) |
-                          (uint32_t)(cont3 & ~0xC0);
+            uint32_t z = ((uint32_t)(lead & ~0xF8) << 18)
+                | ((uint32_t)(cont1 & ~0xC0) << 12)
+                | ((uint32_t)(cont2 & ~0xC0) << 6) | (uint32_t)(cont3 & ~0xC0);
 
             if (z < 0x10000) // overlong sequence
                 return false;
@@ -829,21 +907,28 @@ static bool mpack_utf8_check_impl(const uint8_t* str, size_t count, bool allow_n
                 return false;
 
         } else {
-            return false; // continuation byte without a lead, or lead for a 5-byte sequence or longer
+            return false; // continuation byte without a lead, or lead for a
+                          // 5-byte sequence or longer
         }
     }
     return true;
 }
 
-bool mpack_utf8_check(const char* str, size_t bytes) {
-    return mpack_utf8_check_impl((const uint8_t*)str, bytes, true);
+bool
+mpack_utf8_check(const char *str, size_t bytes)
+{
+    return mpack_utf8_check_impl((const uint8_t *)str, bytes, true);
 }
 
-bool mpack_utf8_check_no_null(const char* str, size_t bytes) {
-    return mpack_utf8_check_impl((const uint8_t*)str, bytes, false);
+bool
+mpack_utf8_check_no_null(const char *str, size_t bytes)
+{
+    return mpack_utf8_check_impl((const uint8_t *)str, bytes, false);
 }
 
-bool mpack_str_check_no_null(const char* str, size_t bytes) {
+bool
+mpack_str_check_no_null(const char *str, size_t bytes)
+{
     for (size_t i = 0; i < bytes; ++i)
         if (str[i] == '\0')
             return false;
@@ -851,7 +936,9 @@ bool mpack_str_check_no_null(const char* str, size_t bytes) {
 }
 
 #if MPACK_DEBUG && MPACK_STDIO
-void mpack_print_append(mpack_print_t* print, const char* data, size_t count) {
+void
+mpack_print_append(mpack_print_t *print, const char *data, size_t count)
+{
 
     // copy whatever fits into the buffer
     size_t copy = print->size - print->count;
@@ -878,18 +965,21 @@ void mpack_print_append(mpack_print_t* print, const char* data, size_t count) {
         mpack_memcpy(print->buffer, data, count);
         print->count = count;
     }
-
 }
 
-void mpack_print_flush(mpack_print_t* print) {
+void
+mpack_print_flush(mpack_print_t *print)
+{
     if (print->count > 0 && print->callback != NULL) {
         print->callback(print->context, print->buffer, print->count);
         print->count = 0;
     }
 }
 
-void mpack_print_file_callback(void* context, const char* data, size_t count) {
-    FILE* file = (FILE*)context;
+void
+mpack_print_file_callback(void *context, const char *data, size_t count)
+{
+    FILE *file = (FILE *)context;
     fwrite(data, 1, count, file);
 }
 #endif
@@ -902,37 +992,54 @@ void mpack_print_file_callback(void* context, const char* data, size_t count) {
 
 #if MPACK_WRITER
 
-#if MPACK_WRITE_TRACKING
-static void mpack_writer_flag_if_error(mpack_writer_t* writer, mpack_error_t error) {
+#    if MPACK_WRITE_TRACKING
+static void
+mpack_writer_flag_if_error(mpack_writer_t *writer, mpack_error_t error)
+{
     if (error != mpack_ok)
         mpack_writer_flag_error(writer, error);
 }
 
-void mpack_writer_track_push(mpack_writer_t* writer, mpack_type_t type, uint64_t count) {
+void
+mpack_writer_track_push(
+    mpack_writer_t *writer, mpack_type_t type, uint64_t count)
+{
     if (writer->error == mpack_ok)
-        mpack_writer_flag_if_error(writer, mpack_track_push(&writer->track, type, count));
+        mpack_writer_flag_if_error(
+            writer, mpack_track_push(&writer->track, type, count));
 }
 
-void mpack_writer_track_pop(mpack_writer_t* writer, mpack_type_t type) {
+void
+mpack_writer_track_pop(mpack_writer_t *writer, mpack_type_t type)
+{
     if (writer->error == mpack_ok)
-        mpack_writer_flag_if_error(writer, mpack_track_pop(&writer->track, type));
+        mpack_writer_flag_if_error(
+            writer, mpack_track_pop(&writer->track, type));
 }
 
-void mpack_writer_track_element(mpack_writer_t* writer) {
+void
+mpack_writer_track_element(mpack_writer_t *writer)
+{
     if (writer->error == mpack_ok)
-        mpack_writer_flag_if_error(writer, mpack_track_element(&writer->track, false));
+        mpack_writer_flag_if_error(
+            writer, mpack_track_element(&writer->track, false));
 }
 
-void mpack_writer_track_bytes(mpack_writer_t* writer, size_t count) {
+void
+mpack_writer_track_bytes(mpack_writer_t *writer, size_t count)
+{
     if (writer->error == mpack_ok)
-        mpack_writer_flag_if_error(writer, mpack_track_bytes(&writer->track, false, count));
+        mpack_writer_flag_if_error(
+            writer, mpack_track_bytes(&writer->track, false, count));
 }
-#endif
+#    endif
 
-static void mpack_writer_clear(mpack_writer_t* writer) {
-    #if MPACK_COMPATIBILITY
+static void
+mpack_writer_clear(mpack_writer_t *writer)
+{
+#    if MPACK_COMPATIBILITY
     writer->version = mpack_version_current;
-    #endif
+#    endif
     writer->flush = NULL;
     writer->error_fn = NULL;
     writer->teardown = NULL;
@@ -943,27 +1050,31 @@ static void mpack_writer_clear(mpack_writer_t* writer) {
     writer->end = NULL;
     writer->error = mpack_ok;
 
-    #if MPACK_WRITE_TRACKING
+#    if MPACK_WRITE_TRACKING
     mpack_memset(&writer->track, 0, sizeof(writer->track));
-    #endif
+#    endif
 }
 
-void mpack_writer_init(mpack_writer_t* writer, char* buffer, size_t size) {
+void
+mpack_writer_init(mpack_writer_t *writer, char *buffer, size_t size)
+{
     mpack_assert(buffer != NULL, "cannot initialize writer with empty buffer");
     mpack_writer_clear(writer);
     writer->buffer = buffer;
     writer->current = buffer;
     writer->end = writer->buffer + size;
 
-    #if MPACK_WRITE_TRACKING
+#    if MPACK_WRITE_TRACKING
     mpack_writer_flag_if_error(writer, mpack_track_init(&writer->track));
-    #endif
+#    endif
 
     mpack_log("===========================\n");
     mpack_log("initializing writer with buffer size %i\n", (int)size);
 }
 
-void mpack_writer_init_error(mpack_writer_t* writer, mpack_error_t error) {
+void
+mpack_writer_init_error(mpack_writer_t *writer, mpack_error_t error)
+{
     mpack_writer_clear(writer);
     writer->error = error;
 
@@ -971,15 +1082,21 @@ void mpack_writer_init_error(mpack_writer_t* writer, mpack_error_t error) {
     mpack_log("initializing writer in error state %i\n", (int)error);
 }
 
-void mpack_writer_set_flush(mpack_writer_t* writer, mpack_writer_flush_t flush) {
-    MPACK_STATIC_ASSERT(MPACK_WRITER_MINIMUM_BUFFER_SIZE >= MPACK_MAXIMUM_TAG_SIZE,
-            "minimum buffer size must fit any tag!");
-    MPACK_STATIC_ASSERT(31 + MPACK_TAG_SIZE_FIXSTR >= MPACK_WRITER_MINIMUM_BUFFER_SIZE,
-            "minimum buffer size must fit the largest possible fixstr!");
+void
+mpack_writer_set_flush(mpack_writer_t *writer, mpack_writer_flush_t flush)
+{
+    MPACK_STATIC_ASSERT(
+        MPACK_WRITER_MINIMUM_BUFFER_SIZE >= MPACK_MAXIMUM_TAG_SIZE,
+        "minimum buffer size must fit any tag!");
+    MPACK_STATIC_ASSERT(
+        31 + MPACK_TAG_SIZE_FIXSTR >= MPACK_WRITER_MINIMUM_BUFFER_SIZE,
+        "minimum buffer size must fit the largest possible fixstr!");
 
     if (mpack_writer_buffer_size(writer) < MPACK_WRITER_MINIMUM_BUFFER_SIZE) {
-        mpack_break("buffer size is %i, but minimum buffer size for flush is %i",
-                (int)mpack_writer_buffer_size(writer), MPACK_WRITER_MINIMUM_BUFFER_SIZE);
+        mpack_break(
+            "buffer size is %i, but minimum buffer size for flush is %i",
+            (int)mpack_writer_buffer_size(writer),
+            MPACK_WRITER_MINIMUM_BUFFER_SIZE);
         mpack_writer_flag_error(writer, mpack_error_bug);
         return;
     }
@@ -987,20 +1104,25 @@ void mpack_writer_set_flush(mpack_writer_t* writer, mpack_writer_flush_t flush) 
     writer->flush = flush;
 }
 
-#ifdef MPACK_MALLOC
+#    ifdef MPACK_MALLOC
 typedef struct mpack_growable_writer_t {
-    char** target_data;
-    size_t* target_size;
+    char **target_data;
+    size_t *target_size;
 } mpack_growable_writer_t;
 
-static char* mpack_writer_get_reserved(mpack_writer_t* writer) {
+static char *
+mpack_writer_get_reserved(mpack_writer_t *writer)
+{
     // This is in a separate function in order to avoid false strict aliasing
     // warnings. We aren't actually violating strict aliasing (the reserved
     // space is only ever dereferenced as an mpack_growable_writer_t.)
-    return (char*)writer->reserved;
+    return (char *)writer->reserved;
 }
 
-static void mpack_growable_writer_flush(mpack_writer_t* writer, const char* data, size_t count) {
+static void
+mpack_growable_writer_flush(
+    mpack_writer_t *writer, const char *data, size_t count)
+{
 
     // This is an intrusive flush function which modifies the writer's buffer
     // in response to a flush instead of emptying it in order to add more
@@ -1008,9 +1130,12 @@ static void mpack_growable_writer_flush(mpack_writer_t* writer, const char* data
     // into a growable one, improving performance.
     //
     // There are three ways flush can be called:
-    //   - flushing the buffer during writing (used is zero, count is all data, data is buffer)
-    //   - flushing extra data during writing (used is all flushed data, count is extra data, data is not buffer)
-    //   - flushing during teardown (used and count are both all flushed data, data is buffer)
+    //   - flushing the buffer during writing (used is zero, count is all data,
+    //   data is buffer)
+    //   - flushing extra data during writing (used is all flushed data, count
+    //   is extra data, data is not buffer)
+    //   - flushing during teardown (used and count are both all flushed data,
+    //   data is buffer)
     //
     // In the first two cases, we grow the buffer by at least double, enough
     // to ensure that new data will fit. We ignore the teardown flush.
@@ -1029,12 +1154,13 @@ static void mpack_growable_writer_flush(mpack_writer_t* writer, const char* data
     size_t used = mpack_writer_buffer_used(writer);
     size_t size = mpack_writer_buffer_size(writer);
 
-    mpack_log("flush size %i used %i data %p buffer %p\n",
-            (int)count, (int)used, data, writer->buffer);
+    mpack_log("flush size %i used %i data %p buffer %p\n", (int)count,
+        (int)used, data, writer->buffer);
 
     mpack_assert(data == writer->buffer || used + count > size,
-            "extra flush for %i but there is %i space left in the buffer! (%i/%i)",
-            (int)count, (int)mpack_writer_buffer_left(writer), (int)used, (int)size);
+        "extra flush for %i but there is %i space left in the buffer! (%i/%i)",
+        (int)count, (int)mpack_writer_buffer_left(writer), (int)used,
+        (int)size);
 
     // grow to fit the data
     // TODO: this really needs to correctly test for overflow
@@ -1042,10 +1168,11 @@ static void mpack_growable_writer_flush(mpack_writer_t* writer, const char* data
     while (new_size < used + count)
         new_size *= 2;
 
-    mpack_log("flush growing buffer size from %i to %i\n", (int)size, (int)new_size);
+    mpack_log(
+        "flush growing buffer size from %i to %i\n", (int)size, (int)new_size);
 
     // grow the buffer
-    char* new_buffer = (char*)mpack_realloc(writer->buffer, used, new_size);
+    char *new_buffer = (char *)mpack_realloc(writer->buffer, used, new_size);
     if (new_buffer == NULL) {
         mpack_writer_flag_error(writer, mpack_error_memory);
         return;
@@ -1060,17 +1187,22 @@ static void mpack_growable_writer_flush(mpack_writer_t* writer, const char* data
         writer->current += count;
     }
 
-    mpack_log("new buffer %p, used %i\n", new_buffer, (int)mpack_writer_buffer_used(writer));
+    mpack_log("new buffer %p, used %i\n", new_buffer,
+        (int)mpack_writer_buffer_used(writer));
 }
 
-static void mpack_growable_writer_teardown(mpack_writer_t* writer) {
-    mpack_growable_writer_t* growable_writer = (mpack_growable_writer_t*)mpack_writer_get_reserved(writer);
+static void
+mpack_growable_writer_teardown(mpack_writer_t *writer)
+{
+    mpack_growable_writer_t *growable_writer
+        = (mpack_growable_writer_t *)mpack_writer_get_reserved(writer);
 
     if (mpack_writer_error(writer) == mpack_ok) {
 
         // shrink the buffer to an appropriate size if the data is
         // much smaller than the buffer
-        if (mpack_writer_buffer_used(writer) < mpack_writer_buffer_size(writer) / 2) {
+        if (mpack_writer_buffer_used(writer)
+            < mpack_writer_buffer_size(writer) / 2) {
             size_t used = mpack_writer_buffer_used(writer);
 
             // We always return a non-null pointer that must be freed, even if
@@ -1078,7 +1210,7 @@ static void mpack_growable_writer_teardown(mpack_writer_t* writer) {
             // do this so we enforce it ourselves.
             size_t size = (used != 0) ? used : 1;
 
-            char* buffer = (char*)mpack_realloc(writer->buffer, used, size);
+            char *buffer = (char *)mpack_realloc(writer->buffer, used, size);
             if (!buffer) {
                 MPACK_FREE(writer->buffer);
                 mpack_writer_flag_error(writer, mpack_error_memory);
@@ -1100,22 +1232,29 @@ static void mpack_growable_writer_teardown(mpack_writer_t* writer) {
     writer->context = NULL;
 }
 
-void mpack_writer_init_growable(mpack_writer_t* writer, char** target_data, size_t* target_size) {
-    mpack_assert(target_data != NULL, "cannot initialize writer without a destination for the data");
-    mpack_assert(target_size != NULL, "cannot initialize writer without a destination for the size");
+void
+mpack_writer_init_growable(
+    mpack_writer_t *writer, char **target_data, size_t *target_size)
+{
+    mpack_assert(target_data != NULL,
+        "cannot initialize writer without a destination for the data");
+    mpack_assert(target_size != NULL,
+        "cannot initialize writer without a destination for the size");
 
     *target_data = NULL;
     *target_size = 0;
 
-    MPACK_STATIC_ASSERT(sizeof(mpack_growable_writer_t) <= sizeof(writer->reserved),
-            "not enough reserved space for growable writer!");
-    mpack_growable_writer_t* growable_writer = (mpack_growable_writer_t*)mpack_writer_get_reserved(writer);
+    MPACK_STATIC_ASSERT(
+        sizeof(mpack_growable_writer_t) <= sizeof(writer->reserved),
+        "not enough reserved space for growable writer!");
+    mpack_growable_writer_t *growable_writer
+        = (mpack_growable_writer_t *)mpack_writer_get_reserved(writer);
 
     growable_writer->target_data = target_data;
     growable_writer->target_size = target_size;
 
     size_t capacity = MPACK_BUFFER_SIZE;
-    char* buffer = (char*)MPACK_MALLOC(capacity);
+    char *buffer = (char *)MPACK_MALLOC(capacity);
     if (buffer == NULL) {
         mpack_writer_init_error(writer, mpack_error_memory);
         return;
@@ -1125,24 +1264,31 @@ void mpack_writer_init_growable(mpack_writer_t* writer, char** target_data, size
     mpack_writer_set_flush(writer, mpack_growable_writer_flush);
     mpack_writer_set_teardown(writer, mpack_growable_writer_teardown);
 }
-#endif
+#    endif
 
-#if MPACK_STDIO
-static void mpack_file_writer_flush(mpack_writer_t* writer, const char* buffer, size_t count) {
-    FILE* file = (FILE*)writer->context;
-    size_t written = fwrite((const void*)buffer, 1, count, file);
+#    if MPACK_STDIO
+static void
+mpack_file_writer_flush(
+    mpack_writer_t *writer, const char *buffer, size_t count)
+{
+    FILE *file = (FILE *)writer->context;
+    size_t written = fwrite((const void *)buffer, 1, count, file);
     if (written != count)
         mpack_writer_flag_error(writer, mpack_error_io);
 }
 
-static void mpack_file_writer_teardown(mpack_writer_t* writer) {
+static void
+mpack_file_writer_teardown(mpack_writer_t *writer)
+{
     MPACK_FREE(writer->buffer);
     writer->buffer = NULL;
     writer->context = NULL;
 }
 
-static void mpack_file_writer_teardown_close(mpack_writer_t* writer) {
-    FILE* file = (FILE*)writer->context;
+static void
+mpack_file_writer_teardown_close(mpack_writer_t *writer)
+{
+    FILE *file = (FILE *)writer->context;
 
     if (file) {
         int ret = fclose(file);
@@ -1153,11 +1299,14 @@ static void mpack_file_writer_teardown_close(mpack_writer_t* writer) {
     mpack_file_writer_teardown(writer);
 }
 
-void mpack_writer_init_stdfile(mpack_writer_t* writer, FILE* file, bool close_when_done) {
+void
+mpack_writer_init_stdfile(
+    mpack_writer_t *writer, FILE *file, bool close_when_done)
+{
     mpack_assert(file != NULL, "file is NULL");
 
     size_t capacity = MPACK_BUFFER_SIZE;
-    char* buffer = (char*)MPACK_MALLOC(capacity);
+    char *buffer = (char *)MPACK_MALLOC(capacity);
     if (buffer == NULL) {
         mpack_writer_init_error(writer, mpack_error_memory);
         if (close_when_done) {
@@ -1169,15 +1318,17 @@ void mpack_writer_init_stdfile(mpack_writer_t* writer, FILE* file, bool close_wh
     mpack_writer_init(writer, buffer, capacity);
     mpack_writer_set_context(writer, file);
     mpack_writer_set_flush(writer, mpack_file_writer_flush);
-    mpack_writer_set_teardown(writer, close_when_done ?
-            mpack_file_writer_teardown_close :
-            mpack_file_writer_teardown);
+    mpack_writer_set_teardown(writer,
+        close_when_done ? mpack_file_writer_teardown_close
+                        : mpack_file_writer_teardown);
 }
 
-void mpack_writer_init_filename(mpack_writer_t* writer, const char* filename) {
+void
+mpack_writer_init_filename(mpack_writer_t *writer, const char *filename)
+{
     mpack_assert(filename != NULL, "filename is NULL");
 
-    FILE* file = fopen(filename, "wb");
+    FILE *file = fopen(filename, "wb");
     if (file == NULL) {
         mpack_writer_init_error(writer, mpack_error_io);
         return;
@@ -1185,10 +1336,13 @@ void mpack_writer_init_filename(mpack_writer_t* writer, const char* filename) {
 
     mpack_writer_init_stdfile(writer, file, true);
 }
-#endif
+#    endif
 
-void mpack_writer_flag_error(mpack_writer_t* writer, mpack_error_t error) {
-    mpack_log("writer %p setting error %i: %s\n", writer, (int)error, mpack_error_to_string(error));
+void
+mpack_writer_flag_error(mpack_writer_t *writer, mpack_error_t error)
+{
+    mpack_log("writer %p setting error %i: %s\n", writer, (int)error,
+        mpack_error_to_string(error));
 
     if (writer->error == mpack_ok) {
         writer->error = error;
@@ -1197,7 +1351,9 @@ void mpack_writer_flag_error(mpack_writer_t* writer, mpack_error_t error) {
     }
 }
 
-MPACK_STATIC_INLINE void mpack_writer_flush_unchecked(mpack_writer_t* writer) {
+MPACK_STATIC_INLINE void
+mpack_writer_flush_unchecked(mpack_writer_t *writer)
+{
     // This is a bit ugly; we reset used before calling flush so that
     // a flush function can distinguish between flushing the buffer
     // versus flushing external data. see mpack_growable_writer_flush()
@@ -1206,18 +1362,21 @@ MPACK_STATIC_INLINE void mpack_writer_flush_unchecked(mpack_writer_t* writer) {
     writer->flush(writer, writer->buffer, used);
 }
 
-void mpack_writer_flush_message(mpack_writer_t* writer) {
+void
+mpack_writer_flush_message(mpack_writer_t *writer)
+{
     if (writer->error != mpack_ok)
         return;
 
-    #if MPACK_WRITE_TRACKING
+#    if MPACK_WRITE_TRACKING
     mpack_writer_flag_if_error(writer, mpack_track_check_empty(&writer->track));
     if (writer->error != mpack_ok)
         return;
-    #endif
+#    endif
 
     if (writer->flush == NULL) {
-        mpack_break("cannot call mpack_writer_flush_message() without a flush function!");
+        mpack_break("cannot call mpack_writer_flush_message() without a flush "
+                    "function!");
         mpack_writer_flag_error(writer, mpack_error_bug);
         return;
     }
@@ -1229,16 +1388,20 @@ void mpack_writer_flush_message(mpack_writer_t* writer) {
 // Ensures there are at least count bytes free in the buffer. This
 // will flag an error if the flush function fails to make enough
 // room in the buffer.
-MPACK_NOINLINE static bool mpack_writer_ensure(mpack_writer_t* writer, size_t count) {
+MPACK_NOINLINE static bool
+mpack_writer_ensure(mpack_writer_t *writer, size_t count)
+{
     mpack_assert(count != 0, "cannot ensure zero bytes!");
     mpack_assert(count <= MPACK_WRITER_MINIMUM_BUFFER_SIZE,
-            "cannot ensure %i bytes, this is more than the minimum buffer size %i!",
-            (int)count, (int)MPACK_WRITER_MINIMUM_BUFFER_SIZE);
+        "cannot ensure %i bytes, this is more than the minimum buffer size %i!",
+        (int)count, (int)MPACK_WRITER_MINIMUM_BUFFER_SIZE);
     mpack_assert(count > mpack_writer_buffer_left(writer),
-            "request to ensure %i bytes but there are already %i left in the buffer!",
-            (int)count, (int)mpack_writer_buffer_left(writer));
+        "request to ensure %i bytes but there are already %i left in the "
+        "buffer!",
+        (int)count, (int)mpack_writer_buffer_left(writer));
 
-    mpack_log("ensuring %i bytes, %i left\n", (int)count, (int)mpack_writer_buffer_left(writer));
+    mpack_log("ensuring %i bytes, %i left\n", (int)count,
+        (int)mpack_writer_buffer_left(writer));
 
     if (mpack_writer_error(writer) != mpack_ok)
         return false;
@@ -1263,17 +1426,20 @@ MPACK_NOINLINE static bool mpack_writer_ensure(mpack_writer_t* writer, size_t co
 // does not fit in the buffer (i.e. it straddles the edge of the
 // buffer.) If there is a flush function, it is guaranteed to be
 // called; otherwise mpack_error_too_big is raised.
-MPACK_NOINLINE static void mpack_write_native_straddle(mpack_writer_t* writer, const char* p, size_t count) {
-    mpack_assert(count == 0 || p != NULL, "data pointer for %i bytes is NULL", (int)count);
+MPACK_NOINLINE static void
+mpack_write_native_straddle(mpack_writer_t *writer, const char *p, size_t count)
+{
+    mpack_assert(count == 0 || p != NULL, "data pointer for %i bytes is NULL",
+        (int)count);
 
     if (mpack_writer_error(writer) != mpack_ok)
         return;
     mpack_log("big write for %i bytes from %p, %i space left in buffer\n",
-            (int)count, p, (int)mpack_writer_buffer_left(writer));
+        (int)count, p, (int)mpack_writer_buffer_left(writer));
     mpack_assert(count > mpack_writer_buffer_left(writer),
-            "big write requested for %i bytes, but there is %i available "
-            "space in buffer. should have called mpack_write_native() instead",
-            (int)count, (int)(mpack_writer_buffer_left(writer)));
+        "big write requested for %i bytes, but there is %i available "
+        "space in buffer. should have called mpack_write_native() instead",
+        (int)count, (int)(mpack_writer_buffer_left(writer)));
 
     // we'll need a flush function
     if (!writer->flush) {
@@ -1286,9 +1452,10 @@ MPACK_NOINLINE static void mpack_write_native_straddle(mpack_writer_t* writer, c
     if (mpack_writer_error(writer) != mpack_ok)
         return;
 
-    // note that an intrusive flush function (such as mpack_growable_writer_flush())
-    // may have changed size and/or reset used to a non-zero value. we treat both as
-    // though they may have changed, and there may still be data in the buffer.
+    // note that an intrusive flush function (such as
+    // mpack_growable_writer_flush()) may have changed size and/or reset used to
+    // a non-zero value. we treat both as though they may have changed, and
+    // there may still be data in the buffer.
 
     // flush the extra data directly if it doesn't fit in the buffer
     if (count > mpack_writer_buffer_left(writer)) {
@@ -1302,8 +1469,11 @@ MPACK_NOINLINE static void mpack_write_native_straddle(mpack_writer_t* writer, c
 }
 
 // Writes encoded bytes to the buffer, flushing if necessary.
-MPACK_STATIC_INLINE void mpack_write_native(mpack_writer_t* writer, const char* p, size_t count) {
-    mpack_assert(count == 0 || p != NULL, "data pointer for %i bytes is NULL", (int)count);
+MPACK_STATIC_INLINE void
+mpack_write_native(mpack_writer_t *writer, const char *p, size_t count)
+{
+    mpack_assert(count == 0 || p != NULL, "data pointer for %i bytes is NULL",
+        (int)count);
 
     if (mpack_writer_buffer_left(writer) < count) {
         mpack_write_native_straddle(writer, p, count);
@@ -1313,15 +1483,18 @@ MPACK_STATIC_INLINE void mpack_write_native(mpack_writer_t* writer, const char* 
     }
 }
 
-mpack_error_t mpack_writer_destroy(mpack_writer_t* writer) {
+mpack_error_t
+mpack_writer_destroy(mpack_writer_t *writer)
+{
 
-    // clean up tracking, asserting if we're not already in an error state
-    #if MPACK_WRITE_TRACKING
+// clean up tracking, asserting if we're not already in an error state
+#    if MPACK_WRITE_TRACKING
     mpack_track_destroy(&writer->track, writer->error != mpack_ok);
-    #endif
+#    endif
 
     // flush any outstanding data
-    if (mpack_writer_error(writer) == mpack_ok && mpack_writer_buffer_used(writer) != 0 && writer->flush != NULL) {
+    if (mpack_writer_error(writer) == mpack_ok
+        && mpack_writer_buffer_used(writer) != 0 && writer->flush != NULL) {
         writer->flush(writer, writer->buffer, mpack_writer_buffer_used(writer));
         writer->flush = NULL;
     }
@@ -1334,60 +1507,96 @@ mpack_error_t mpack_writer_destroy(mpack_writer_t* writer) {
     return writer->error;
 }
 
-void mpack_write_tag(mpack_writer_t* writer, mpack_tag_t value) {
+void
+mpack_write_tag(mpack_writer_t *writer, mpack_tag_t value)
+{
     switch (value.type) {
-        case mpack_type_missing:
-            mpack_break("cannot write a missing value!");
-            mpack_writer_flag_error(writer, mpack_error_bug);
-            return;
+    case mpack_type_missing:
+        mpack_break("cannot write a missing value!");
+        mpack_writer_flag_error(writer, mpack_error_bug);
+        return;
 
-        case mpack_type_nil:    mpack_write_nil   (writer);            return;
-        case mpack_type_bool:   mpack_write_bool  (writer, value.v.b); return;
-        case mpack_type_float:  mpack_write_float (writer, value.v.f); return;
-        case mpack_type_double: mpack_write_double(writer, value.v.d); return;
-        case mpack_type_int:    mpack_write_int   (writer, value.v.i); return;
-        case mpack_type_uint:   mpack_write_uint  (writer, value.v.u); return;
+    case mpack_type_nil:
+        mpack_write_nil(writer);
+        return;
+    case mpack_type_bool:
+        mpack_write_bool(writer, value.v.b);
+        return;
+    case mpack_type_float:
+        mpack_write_float(writer, value.v.f);
+        return;
+    case mpack_type_double:
+        mpack_write_double(writer, value.v.d);
+        return;
+    case mpack_type_int:
+        mpack_write_int(writer, value.v.i);
+        return;
+    case mpack_type_uint:
+        mpack_write_uint(writer, value.v.u);
+        return;
 
-        case mpack_type_str: mpack_start_str(writer, value.v.l); return;
-        case mpack_type_bin: mpack_start_bin(writer, value.v.l); return;
+    case mpack_type_str:
+        mpack_start_str(writer, value.v.l);
+        return;
+    case mpack_type_bin:
+        mpack_start_bin(writer, value.v.l);
+        return;
 
-        #if MPACK_EXTENSIONS
-        case mpack_type_ext:
-            mpack_start_ext(writer, mpack_tag_ext_exttype(&value), mpack_tag_ext_length(&value));
-            return;
-        #endif
+#    if MPACK_EXTENSIONS
+    case mpack_type_ext:
+        mpack_start_ext(writer, mpack_tag_ext_exttype(&value),
+            mpack_tag_ext_length(&value));
+        return;
+#    endif
 
-        case mpack_type_array: mpack_start_array(writer, value.v.n); return;
-        case mpack_type_map:   mpack_start_map(writer, value.v.n);   return;
+    case mpack_type_array:
+        mpack_start_array(writer, value.v.n);
+        return;
+    case mpack_type_map:
+        mpack_start_map(writer, value.v.n);
+        return;
     }
 
     mpack_break("unrecognized type %i", (int)value.type);
     mpack_writer_flag_error(writer, mpack_error_bug);
 }
 
-MPACK_STATIC_INLINE void mpack_write_byte_element(mpack_writer_t* writer, char value) {
+MPACK_STATIC_INLINE void
+mpack_write_byte_element(mpack_writer_t *writer, char value)
+{
     mpack_writer_track_element(writer);
-    if (MPACK_LIKELY(mpack_writer_buffer_left(writer) >= 1) || mpack_writer_ensure(writer, 1))
+    if (MPACK_LIKELY(mpack_writer_buffer_left(writer) >= 1)
+        || mpack_writer_ensure(writer, 1))
         *(writer->current++) = value;
 }
 
-void mpack_write_nil(mpack_writer_t* writer) {
+void
+mpack_write_nil(mpack_writer_t *writer)
+{
     mpack_write_byte_element(writer, (char)0xc0);
 }
 
-void mpack_write_bool(mpack_writer_t* writer, bool value) {
+void
+mpack_write_bool(mpack_writer_t *writer, bool value)
+{
     mpack_write_byte_element(writer, (char)(0xc2 | (value ? 1 : 0)));
 }
 
-void mpack_write_true(mpack_writer_t* writer) {
+void
+mpack_write_true(mpack_writer_t *writer)
+{
     mpack_write_byte_element(writer, (char)0xc3);
 }
 
-void mpack_write_false(mpack_writer_t* writer) {
+void
+mpack_write_false(mpack_writer_t *writer)
+{
     mpack_write_byte_element(writer, (char)0xc2);
 }
 
-void mpack_write_object_bytes(mpack_writer_t* writer, const char* data, size_t bytes) {
+void
+mpack_write_object_bytes(mpack_writer_t *writer, const char *data, size_t bytes)
+{
     mpack_writer_track_element(writer);
     mpack_write_native(writer, data, bytes);
 }
@@ -1396,121 +1605,163 @@ void mpack_write_object_bytes(mpack_writer_t* writer, const char* data, size_t b
  * Encode functions
  */
 
-MPACK_STATIC_INLINE void mpack_encode_fixuint(char* p, uint8_t value) {
+MPACK_STATIC_INLINE void
+mpack_encode_fixuint(char *p, uint8_t value)
+{
     mpack_assert(value <= 127);
     mpack_store_u8(p, value);
 }
 
-MPACK_STATIC_INLINE void mpack_encode_u8(char* p, uint8_t value) {
+MPACK_STATIC_INLINE void
+mpack_encode_u8(char *p, uint8_t value)
+{
     mpack_assert(value > 127);
     mpack_store_u8(p, 0xcc);
     mpack_store_u8(p + 1, value);
 }
 
-MPACK_STATIC_INLINE void mpack_encode_u16(char* p, uint16_t value) {
+MPACK_STATIC_INLINE void
+mpack_encode_u16(char *p, uint16_t value)
+{
     mpack_assert(value > UINT8_MAX);
     mpack_store_u8(p, 0xcd);
     mpack_store_u16(p + 1, value);
 }
 
-MPACK_STATIC_INLINE void mpack_encode_u32(char* p, uint32_t value) {
+MPACK_STATIC_INLINE void
+mpack_encode_u32(char *p, uint32_t value)
+{
     mpack_assert(value > UINT16_MAX);
     mpack_store_u8(p, 0xce);
     mpack_store_u32(p + 1, value);
 }
 
-MPACK_STATIC_INLINE void mpack_encode_u64(char* p, uint64_t value) {
+MPACK_STATIC_INLINE void
+mpack_encode_u64(char *p, uint64_t value)
+{
     mpack_assert(value > UINT32_MAX);
     mpack_store_u8(p, 0xcf);
     mpack_store_u64(p + 1, value);
 }
 
-MPACK_STATIC_INLINE void mpack_encode_fixint(char* p, int8_t value) {
+MPACK_STATIC_INLINE void
+mpack_encode_fixint(char *p, int8_t value)
+{
     // this can encode positive or negative fixints
     mpack_assert(value >= -32);
     mpack_store_i8(p, value);
 }
 
-MPACK_STATIC_INLINE void mpack_encode_i8(char* p, int8_t value) {
+MPACK_STATIC_INLINE void
+mpack_encode_i8(char *p, int8_t value)
+{
     mpack_assert(value < -32);
     mpack_store_u8(p, 0xd0);
     mpack_store_i8(p + 1, value);
 }
 
-MPACK_STATIC_INLINE void mpack_encode_i16(char* p, int16_t value) {
+MPACK_STATIC_INLINE void
+mpack_encode_i16(char *p, int16_t value)
+{
     mpack_assert(value < INT8_MIN);
     mpack_store_u8(p, 0xd1);
     mpack_store_i16(p + 1, value);
 }
 
-MPACK_STATIC_INLINE void mpack_encode_i32(char* p, int32_t value) {
+MPACK_STATIC_INLINE void
+mpack_encode_i32(char *p, int32_t value)
+{
     mpack_assert(value < INT16_MIN);
     mpack_store_u8(p, 0xd2);
     mpack_store_i32(p + 1, value);
 }
 
-MPACK_STATIC_INLINE void mpack_encode_i64(char* p, int64_t value) {
+MPACK_STATIC_INLINE void
+mpack_encode_i64(char *p, int64_t value)
+{
     mpack_assert(value < INT32_MIN);
     mpack_store_u8(p, 0xd3);
     mpack_store_i64(p + 1, value);
 }
 
-MPACK_STATIC_INLINE void mpack_encode_float(char* p, float value) {
+MPACK_STATIC_INLINE void
+mpack_encode_float(char *p, float value)
+{
     mpack_store_u8(p, 0xca);
     mpack_store_float(p + 1, value);
 }
 
-MPACK_STATIC_INLINE void mpack_encode_double(char* p, double value) {
+MPACK_STATIC_INLINE void
+mpack_encode_double(char *p, double value)
+{
     mpack_store_u8(p, 0xcb);
     mpack_store_double(p + 1, value);
 }
 
-MPACK_STATIC_INLINE void mpack_encode_fixarray(char* p, uint8_t count) {
+MPACK_STATIC_INLINE void
+mpack_encode_fixarray(char *p, uint8_t count)
+{
     mpack_assert(count <= 15);
     mpack_store_u8(p, (uint8_t)(0x90 | count));
 }
 
-MPACK_STATIC_INLINE void mpack_encode_array16(char* p, uint16_t count) {
+MPACK_STATIC_INLINE void
+mpack_encode_array16(char *p, uint16_t count)
+{
     mpack_assert(count > 15);
     mpack_store_u8(p, 0xdc);
     mpack_store_u16(p + 1, count);
 }
 
-MPACK_STATIC_INLINE void mpack_encode_array32(char* p, uint32_t count) {
+MPACK_STATIC_INLINE void
+mpack_encode_array32(char *p, uint32_t count)
+{
     mpack_assert(count > UINT16_MAX);
     mpack_store_u8(p, 0xdd);
     mpack_store_u32(p + 1, count);
 }
 
-MPACK_STATIC_INLINE void mpack_encode_fixmap(char* p, uint8_t count) {
+MPACK_STATIC_INLINE void
+mpack_encode_fixmap(char *p, uint8_t count)
+{
     mpack_assert(count <= 15);
     mpack_store_u8(p, (uint8_t)(0x80 | count));
 }
 
-MPACK_STATIC_INLINE void mpack_encode_map16(char* p, uint16_t count) {
+MPACK_STATIC_INLINE void
+mpack_encode_map16(char *p, uint16_t count)
+{
     mpack_assert(count > 15);
     mpack_store_u8(p, 0xde);
     mpack_store_u16(p + 1, count);
 }
 
-MPACK_STATIC_INLINE void mpack_encode_map32(char* p, uint32_t count) {
+MPACK_STATIC_INLINE void
+mpack_encode_map32(char *p, uint32_t count)
+{
     mpack_assert(count > UINT16_MAX);
     mpack_store_u8(p, 0xdf);
     mpack_store_u32(p + 1, count);
 }
 
-MPACK_STATIC_INLINE void mpack_encode_fixstr(char* p, uint8_t count) {
+MPACK_STATIC_INLINE void
+mpack_encode_fixstr(char *p, uint8_t count)
+{
     mpack_assert(count <= 31);
     mpack_store_u8(p, (uint8_t)(0xa0 | count));
 }
 
-MPACK_STATIC_INLINE void mpack_encode_str8(char* p, uint8_t count) {
+MPACK_STATIC_INLINE void
+mpack_encode_str8(char *p, uint8_t count)
+{
     mpack_assert(count > 31);
     mpack_store_u8(p, 0xd9);
     mpack_store_u8(p + 1, count);
 }
 
-MPACK_STATIC_INLINE void mpack_encode_str16(char* p, uint16_t count) {
+MPACK_STATIC_INLINE void
+mpack_encode_str16(char *p, uint16_t count)
+{
     // we might be encoding a raw in compatibility mode, so we
     // allow count to be in the range [32, UINT8_MAX].
     mpack_assert(count > 31);
@@ -1518,97 +1769,126 @@ MPACK_STATIC_INLINE void mpack_encode_str16(char* p, uint16_t count) {
     mpack_store_u16(p + 1, count);
 }
 
-MPACK_STATIC_INLINE void mpack_encode_str32(char* p, uint32_t count) {
+MPACK_STATIC_INLINE void
+mpack_encode_str32(char *p, uint32_t count)
+{
     mpack_assert(count > UINT16_MAX);
     mpack_store_u8(p, 0xdb);
     mpack_store_u32(p + 1, count);
 }
 
-MPACK_STATIC_INLINE void mpack_encode_bin8(char* p, uint8_t count) {
+MPACK_STATIC_INLINE void
+mpack_encode_bin8(char *p, uint8_t count)
+{
     mpack_store_u8(p, 0xc4);
     mpack_store_u8(p + 1, count);
 }
 
-MPACK_STATIC_INLINE void mpack_encode_bin16(char* p, uint16_t count) {
+MPACK_STATIC_INLINE void
+mpack_encode_bin16(char *p, uint16_t count)
+{
     mpack_assert(count > UINT8_MAX);
     mpack_store_u8(p, 0xc5);
     mpack_store_u16(p + 1, count);
 }
 
-MPACK_STATIC_INLINE void mpack_encode_bin32(char* p, uint32_t count) {
+MPACK_STATIC_INLINE void
+mpack_encode_bin32(char *p, uint32_t count)
+{
     mpack_assert(count > UINT16_MAX);
     mpack_store_u8(p, 0xc6);
     mpack_store_u32(p + 1, count);
 }
 
-#if MPACK_EXTENSIONS
-MPACK_STATIC_INLINE void mpack_encode_fixext1(char* p, int8_t exttype) {
+#    if MPACK_EXTENSIONS
+MPACK_STATIC_INLINE void
+mpack_encode_fixext1(char *p, int8_t exttype)
+{
     mpack_store_u8(p, 0xd4);
     mpack_store_i8(p + 1, exttype);
 }
 
-MPACK_STATIC_INLINE void mpack_encode_fixext2(char* p, int8_t exttype) {
+MPACK_STATIC_INLINE void
+mpack_encode_fixext2(char *p, int8_t exttype)
+{
     mpack_store_u8(p, 0xd5);
     mpack_store_i8(p + 1, exttype);
 }
 
-MPACK_STATIC_INLINE void mpack_encode_fixext4(char* p, int8_t exttype) {
+MPACK_STATIC_INLINE void
+mpack_encode_fixext4(char *p, int8_t exttype)
+{
     mpack_store_u8(p, 0xd6);
     mpack_store_i8(p + 1, exttype);
 }
 
-MPACK_STATIC_INLINE void mpack_encode_fixext8(char* p, int8_t exttype) {
+MPACK_STATIC_INLINE void
+mpack_encode_fixext8(char *p, int8_t exttype)
+{
     mpack_store_u8(p, 0xd7);
     mpack_store_i8(p + 1, exttype);
 }
 
-MPACK_STATIC_INLINE void mpack_encode_fixext16(char* p, int8_t exttype) {
+MPACK_STATIC_INLINE void
+mpack_encode_fixext16(char *p, int8_t exttype)
+{
     mpack_store_u8(p, 0xd8);
     mpack_store_i8(p + 1, exttype);
 }
 
-MPACK_STATIC_INLINE void mpack_encode_ext8(char* p, int8_t exttype, uint8_t count) {
-    mpack_assert(count != 1 && count != 2 && count != 4 && count != 8 && count != 16);
+MPACK_STATIC_INLINE void
+mpack_encode_ext8(char *p, int8_t exttype, uint8_t count)
+{
+    mpack_assert(
+        count != 1 && count != 2 && count != 4 && count != 8 && count != 16);
     mpack_store_u8(p, 0xc7);
     mpack_store_u8(p + 1, count);
     mpack_store_i8(p + 2, exttype);
 }
 
-MPACK_STATIC_INLINE void mpack_encode_ext16(char* p, int8_t exttype, uint16_t count) {
+MPACK_STATIC_INLINE void
+mpack_encode_ext16(char *p, int8_t exttype, uint16_t count)
+{
     mpack_assert(count > UINT8_MAX);
     mpack_store_u8(p, 0xc8);
     mpack_store_u16(p + 1, count);
     mpack_store_i8(p + 3, exttype);
 }
 
-MPACK_STATIC_INLINE void mpack_encode_ext32(char* p, int8_t exttype, uint32_t count) {
+MPACK_STATIC_INLINE void
+mpack_encode_ext32(char *p, int8_t exttype, uint32_t count)
+{
     mpack_assert(count > UINT16_MAX);
     mpack_store_u8(p, 0xc9);
     mpack_store_u32(p + 1, count);
     mpack_store_i8(p + 5, exttype);
 }
 
-MPACK_STATIC_INLINE void mpack_encode_timestamp_4(char* p, uint32_t seconds) {
+MPACK_STATIC_INLINE void
+mpack_encode_timestamp_4(char *p, uint32_t seconds)
+{
     mpack_encode_fixext4(p, MPACK_EXTTYPE_TIMESTAMP);
     mpack_store_u32(p + MPACK_TAG_SIZE_FIXEXT4, seconds);
 }
 
-MPACK_STATIC_INLINE void mpack_encode_timestamp_8(char* p, int64_t seconds, uint32_t nanoseconds) {
+MPACK_STATIC_INLINE void
+mpack_encode_timestamp_8(char *p, int64_t seconds, uint32_t nanoseconds)
+{
     mpack_assert(nanoseconds <= MPACK_TIMESTAMP_NANOSECONDS_MAX);
     mpack_encode_fixext8(p, MPACK_EXTTYPE_TIMESTAMP);
     uint64_t encoded = ((uint64_t)nanoseconds << 34) | (uint64_t)seconds;
     mpack_store_u64(p + MPACK_TAG_SIZE_FIXEXT8, encoded);
 }
 
-MPACK_STATIC_INLINE void mpack_encode_timestamp_12(char* p, int64_t seconds, uint32_t nanoseconds) {
+MPACK_STATIC_INLINE void
+mpack_encode_timestamp_12(char *p, int64_t seconds, uint32_t nanoseconds)
+{
     mpack_assert(nanoseconds <= MPACK_TIMESTAMP_NANOSECONDS_MAX);
     mpack_encode_ext8(p, MPACK_EXTTYPE_TIMESTAMP, 12);
     mpack_store_u32(p + MPACK_TAG_SIZE_EXT8, nanoseconds);
     mpack_store_i64(p + MPACK_TAG_SIZE_EXT8 + 4, seconds);
 }
-#endif
-
-
+#    endif
 
 /*
  * Write functions
@@ -1617,192 +1897,244 @@ MPACK_STATIC_INLINE void mpack_encode_timestamp_12(char* p, int64_t seconds, uin
 // This is a macro wrapper to the encode functions to encode
 // directly into the buffer. If mpack_writer_ensure() fails
 // it will flag an error so we don't have to do anything.
-#define MPACK_WRITE_ENCODED(encode_fn, size, ...) do {                                                 \
-    if (MPACK_LIKELY(mpack_writer_buffer_left(writer) >= size) || mpack_writer_ensure(writer, size)) { \
-        MPACK_EXPAND(encode_fn(writer->current, __VA_ARGS__));                                         \
-        writer->current += size;                                                                       \
-    }                                                                                                  \
-} while (0)
+#    define MPACK_WRITE_ENCODED(encode_fn, size, ...)                          \
+        do {                                                                   \
+            if (MPACK_LIKELY(mpack_writer_buffer_left(writer) >= size)         \
+                || mpack_writer_ensure(writer, size)) {                        \
+                MPACK_EXPAND(encode_fn(writer->current, __VA_ARGS__));         \
+                writer->current += size;                                       \
+            }                                                                  \
+        } while (0)
 
-void mpack_write_u8(mpack_writer_t* writer, uint8_t value) {
-    #if MPACK_OPTIMIZE_FOR_SIZE
+void
+mpack_write_u8(mpack_writer_t *writer, uint8_t value)
+{
+#    if MPACK_OPTIMIZE_FOR_SIZE
     mpack_write_u64(writer, value);
-    #else
+#    else
     mpack_writer_track_element(writer);
     if (value <= 127) {
-        MPACK_WRITE_ENCODED(mpack_encode_fixuint, MPACK_TAG_SIZE_FIXUINT, value);
+        MPACK_WRITE_ENCODED(
+            mpack_encode_fixuint, MPACK_TAG_SIZE_FIXUINT, value);
     } else {
         MPACK_WRITE_ENCODED(mpack_encode_u8, MPACK_TAG_SIZE_U8, value);
     }
-    #endif
+#    endif
 }
 
-void mpack_write_u16(mpack_writer_t* writer, uint16_t value) {
-    #if MPACK_OPTIMIZE_FOR_SIZE
+void
+mpack_write_u16(mpack_writer_t *writer, uint16_t value)
+{
+#    if MPACK_OPTIMIZE_FOR_SIZE
     mpack_write_u64(writer, value);
-    #else
+#    else
     mpack_writer_track_element(writer);
     if (value <= 127) {
-        MPACK_WRITE_ENCODED(mpack_encode_fixuint, MPACK_TAG_SIZE_FIXUINT, (uint8_t)value);
+        MPACK_WRITE_ENCODED(
+            mpack_encode_fixuint, MPACK_TAG_SIZE_FIXUINT, (uint8_t)value);
     } else if (value <= UINT8_MAX) {
         MPACK_WRITE_ENCODED(mpack_encode_u8, MPACK_TAG_SIZE_U8, (uint8_t)value);
     } else {
         MPACK_WRITE_ENCODED(mpack_encode_u16, MPACK_TAG_SIZE_U16, value);
     }
-    #endif
+#    endif
 }
 
-void mpack_write_u32(mpack_writer_t* writer, uint32_t value) {
-    #if MPACK_OPTIMIZE_FOR_SIZE
+void
+mpack_write_u32(mpack_writer_t *writer, uint32_t value)
+{
+#    if MPACK_OPTIMIZE_FOR_SIZE
     mpack_write_u64(writer, value);
-    #else
+#    else
     mpack_writer_track_element(writer);
     if (value <= 127) {
-        MPACK_WRITE_ENCODED(mpack_encode_fixuint, MPACK_TAG_SIZE_FIXUINT, (uint8_t)value);
+        MPACK_WRITE_ENCODED(
+            mpack_encode_fixuint, MPACK_TAG_SIZE_FIXUINT, (uint8_t)value);
     } else if (value <= UINT8_MAX) {
         MPACK_WRITE_ENCODED(mpack_encode_u8, MPACK_TAG_SIZE_U8, (uint8_t)value);
     } else if (value <= UINT16_MAX) {
-        MPACK_WRITE_ENCODED(mpack_encode_u16, MPACK_TAG_SIZE_U16, (uint16_t)value);
+        MPACK_WRITE_ENCODED(
+            mpack_encode_u16, MPACK_TAG_SIZE_U16, (uint16_t)value);
     } else {
         MPACK_WRITE_ENCODED(mpack_encode_u32, MPACK_TAG_SIZE_U32, value);
     }
-    #endif
+#    endif
 }
 
-void mpack_write_u64(mpack_writer_t* writer, uint64_t value) {
+void
+mpack_write_u64(mpack_writer_t *writer, uint64_t value)
+{
     mpack_writer_track_element(writer);
 
     if (value <= 127) {
-        MPACK_WRITE_ENCODED(mpack_encode_fixuint, MPACK_TAG_SIZE_FIXUINT, (uint8_t)value);
+        MPACK_WRITE_ENCODED(
+            mpack_encode_fixuint, MPACK_TAG_SIZE_FIXUINT, (uint8_t)value);
     } else if (value <= UINT8_MAX) {
         MPACK_WRITE_ENCODED(mpack_encode_u8, MPACK_TAG_SIZE_U8, (uint8_t)value);
     } else if (value <= UINT16_MAX) {
-        MPACK_WRITE_ENCODED(mpack_encode_u16, MPACK_TAG_SIZE_U16, (uint16_t)value);
+        MPACK_WRITE_ENCODED(
+            mpack_encode_u16, MPACK_TAG_SIZE_U16, (uint16_t)value);
     } else if (value <= UINT32_MAX) {
-        MPACK_WRITE_ENCODED(mpack_encode_u32, MPACK_TAG_SIZE_U32, (uint32_t)value);
+        MPACK_WRITE_ENCODED(
+            mpack_encode_u32, MPACK_TAG_SIZE_U32, (uint32_t)value);
     } else {
         MPACK_WRITE_ENCODED(mpack_encode_u64, MPACK_TAG_SIZE_U64, value);
     }
 }
 
-void mpack_write_i8(mpack_writer_t* writer, int8_t value) {
-    #if MPACK_OPTIMIZE_FOR_SIZE
+void
+mpack_write_i8(mpack_writer_t *writer, int8_t value)
+{
+#    if MPACK_OPTIMIZE_FOR_SIZE
     mpack_write_i64(writer, value);
-    #else
+#    else
     mpack_writer_track_element(writer);
     if (value >= -32) {
         // we encode positive and negative fixints together
-        MPACK_WRITE_ENCODED(mpack_encode_fixint, MPACK_TAG_SIZE_FIXINT, (int8_t)value);
+        MPACK_WRITE_ENCODED(
+            mpack_encode_fixint, MPACK_TAG_SIZE_FIXINT, (int8_t)value);
     } else {
         MPACK_WRITE_ENCODED(mpack_encode_i8, MPACK_TAG_SIZE_I8, (int8_t)value);
     }
-    #endif
+#    endif
 }
 
-void mpack_write_i16(mpack_writer_t* writer, int16_t value) {
-    #if MPACK_OPTIMIZE_FOR_SIZE
+void
+mpack_write_i16(mpack_writer_t *writer, int16_t value)
+{
+#    if MPACK_OPTIMIZE_FOR_SIZE
     mpack_write_i64(writer, value);
-    #else
+#    else
     mpack_writer_track_element(writer);
     if (value >= -32) {
         if (value <= 127) {
             // we encode positive and negative fixints together
-            MPACK_WRITE_ENCODED(mpack_encode_fixint, MPACK_TAG_SIZE_FIXINT, (int8_t)value);
+            MPACK_WRITE_ENCODED(
+                mpack_encode_fixint, MPACK_TAG_SIZE_FIXINT, (int8_t)value);
         } else if (value <= UINT8_MAX) {
-            MPACK_WRITE_ENCODED(mpack_encode_u8, MPACK_TAG_SIZE_U8, (uint8_t)value);
+            MPACK_WRITE_ENCODED(
+                mpack_encode_u8, MPACK_TAG_SIZE_U8, (uint8_t)value);
         } else {
-            MPACK_WRITE_ENCODED(mpack_encode_u16, MPACK_TAG_SIZE_U16, (uint16_t)value);
+            MPACK_WRITE_ENCODED(
+                mpack_encode_u16, MPACK_TAG_SIZE_U16, (uint16_t)value);
         }
     } else if (value >= INT8_MIN) {
         MPACK_WRITE_ENCODED(mpack_encode_i8, MPACK_TAG_SIZE_I8, (int8_t)value);
     } else {
-        MPACK_WRITE_ENCODED(mpack_encode_i16, MPACK_TAG_SIZE_I16, (int16_t)value);
+        MPACK_WRITE_ENCODED(
+            mpack_encode_i16, MPACK_TAG_SIZE_I16, (int16_t)value);
     }
-    #endif
+#    endif
 }
 
-void mpack_write_i32(mpack_writer_t* writer, int32_t value) {
-    #if MPACK_OPTIMIZE_FOR_SIZE
+void
+mpack_write_i32(mpack_writer_t *writer, int32_t value)
+{
+#    if MPACK_OPTIMIZE_FOR_SIZE
     mpack_write_i64(writer, value);
-    #else
+#    else
     mpack_writer_track_element(writer);
     if (value >= -32) {
         if (value <= 127) {
             // we encode positive and negative fixints together
-            MPACK_WRITE_ENCODED(mpack_encode_fixint, MPACK_TAG_SIZE_FIXINT, (int8_t)value);
+            MPACK_WRITE_ENCODED(
+                mpack_encode_fixint, MPACK_TAG_SIZE_FIXINT, (int8_t)value);
         } else if (value <= UINT8_MAX) {
-            MPACK_WRITE_ENCODED(mpack_encode_u8, MPACK_TAG_SIZE_U8, (uint8_t)value);
+            MPACK_WRITE_ENCODED(
+                mpack_encode_u8, MPACK_TAG_SIZE_U8, (uint8_t)value);
         } else if (value <= UINT16_MAX) {
-            MPACK_WRITE_ENCODED(mpack_encode_u16, MPACK_TAG_SIZE_U16, (uint16_t)value);
+            MPACK_WRITE_ENCODED(
+                mpack_encode_u16, MPACK_TAG_SIZE_U16, (uint16_t)value);
         } else {
-            MPACK_WRITE_ENCODED(mpack_encode_u32, MPACK_TAG_SIZE_U32, (uint32_t)value);
+            MPACK_WRITE_ENCODED(
+                mpack_encode_u32, MPACK_TAG_SIZE_U32, (uint32_t)value);
         }
     } else if (value >= INT8_MIN) {
         MPACK_WRITE_ENCODED(mpack_encode_i8, MPACK_TAG_SIZE_I8, (int8_t)value);
     } else if (value >= INT16_MIN) {
-        MPACK_WRITE_ENCODED(mpack_encode_i16, MPACK_TAG_SIZE_I16, (int16_t)value);
+        MPACK_WRITE_ENCODED(
+            mpack_encode_i16, MPACK_TAG_SIZE_I16, (int16_t)value);
     } else {
         MPACK_WRITE_ENCODED(mpack_encode_i32, MPACK_TAG_SIZE_I32, value);
     }
-    #endif
+#    endif
 }
 
-void mpack_write_i64(mpack_writer_t* writer, int64_t value) {
-    #if MPACK_OPTIMIZE_FOR_SIZE
+void
+mpack_write_i64(mpack_writer_t *writer, int64_t value)
+{
+#    if MPACK_OPTIMIZE_FOR_SIZE
     if (value > 127) {
         // for non-fix positive ints we call the u64 writer to save space
         mpack_write_u64(writer, (uint64_t)value);
         return;
     }
-    #endif
+#    endif
 
     mpack_writer_track_element(writer);
     if (value >= -32) {
-        #if MPACK_OPTIMIZE_FOR_SIZE
-        MPACK_WRITE_ENCODED(mpack_encode_fixint, MPACK_TAG_SIZE_FIXINT, (int8_t)value);
-        #else
+#    if MPACK_OPTIMIZE_FOR_SIZE
+        MPACK_WRITE_ENCODED(
+            mpack_encode_fixint, MPACK_TAG_SIZE_FIXINT, (int8_t)value);
+#    else
         if (value <= 127) {
-            MPACK_WRITE_ENCODED(mpack_encode_fixint, MPACK_TAG_SIZE_FIXINT, (int8_t)value);
+            MPACK_WRITE_ENCODED(
+                mpack_encode_fixint, MPACK_TAG_SIZE_FIXINT, (int8_t)value);
         } else if (value <= UINT8_MAX) {
-            MPACK_WRITE_ENCODED(mpack_encode_u8, MPACK_TAG_SIZE_U8, (uint8_t)value);
+            MPACK_WRITE_ENCODED(
+                mpack_encode_u8, MPACK_TAG_SIZE_U8, (uint8_t)value);
         } else if (value <= UINT16_MAX) {
-            MPACK_WRITE_ENCODED(mpack_encode_u16, MPACK_TAG_SIZE_U16, (uint16_t)value);
+            MPACK_WRITE_ENCODED(
+                mpack_encode_u16, MPACK_TAG_SIZE_U16, (uint16_t)value);
         } else if (value <= UINT32_MAX) {
-            MPACK_WRITE_ENCODED(mpack_encode_u32, MPACK_TAG_SIZE_U32, (uint32_t)value);
+            MPACK_WRITE_ENCODED(
+                mpack_encode_u32, MPACK_TAG_SIZE_U32, (uint32_t)value);
         } else {
-            MPACK_WRITE_ENCODED(mpack_encode_u64, MPACK_TAG_SIZE_U64, (uint64_t)value);
+            MPACK_WRITE_ENCODED(
+                mpack_encode_u64, MPACK_TAG_SIZE_U64, (uint64_t)value);
         }
-        #endif
+#    endif
     } else if (value >= INT8_MIN) {
         MPACK_WRITE_ENCODED(mpack_encode_i8, MPACK_TAG_SIZE_I8, (int8_t)value);
     } else if (value >= INT16_MIN) {
-        MPACK_WRITE_ENCODED(mpack_encode_i16, MPACK_TAG_SIZE_I16, (int16_t)value);
+        MPACK_WRITE_ENCODED(
+            mpack_encode_i16, MPACK_TAG_SIZE_I16, (int16_t)value);
     } else if (value >= INT32_MIN) {
-        MPACK_WRITE_ENCODED(mpack_encode_i32, MPACK_TAG_SIZE_I32, (int32_t)value);
+        MPACK_WRITE_ENCODED(
+            mpack_encode_i32, MPACK_TAG_SIZE_I32, (int32_t)value);
     } else {
         MPACK_WRITE_ENCODED(mpack_encode_i64, MPACK_TAG_SIZE_I64, value);
     }
 }
 
-void mpack_write_float(mpack_writer_t* writer, float value) {
+void
+mpack_write_float(mpack_writer_t *writer, float value)
+{
     mpack_writer_track_element(writer);
     MPACK_WRITE_ENCODED(mpack_encode_float, MPACK_TAG_SIZE_FLOAT, value);
 }
 
-void mpack_write_double(mpack_writer_t* writer, double value) {
+void
+mpack_write_double(mpack_writer_t *writer, double value)
+{
     mpack_writer_track_element(writer);
     MPACK_WRITE_ENCODED(mpack_encode_double, MPACK_TAG_SIZE_DOUBLE, value);
 }
 
-#if MPACK_EXTENSIONS
-void mpack_write_timestamp(mpack_writer_t* writer, int64_t seconds, uint32_t nanoseconds) {
-    #if MPACK_COMPATIBILITY
+#    if MPACK_EXTENSIONS
+void
+mpack_write_timestamp(
+    mpack_writer_t *writer, int64_t seconds, uint32_t nanoseconds)
+{
+#        if MPACK_COMPATIBILITY
     if (writer->version <= mpack_version_v4) {
-        mpack_break("Timestamps require spec version v5 or later. This writer is in v%i mode.", (int)writer->version);
+        mpack_break("Timestamps require spec version v5 or later. This writer "
+                    "is in v%i mode.",
+            (int)writer->version);
         mpack_writer_flag_error(writer, mpack_error_bug);
         return;
     }
-    #endif
+#        endif
 
     if (nanoseconds > MPACK_TIMESTAMP_NANOSECONDS_MAX) {
         mpack_break("timestamp nanoseconds out of bounds: %u", nanoseconds);
@@ -1813,64 +2145,85 @@ void mpack_write_timestamp(mpack_writer_t* writer, int64_t seconds, uint32_t nan
     mpack_writer_track_element(writer);
 
     if (seconds < 0 || seconds >= (INT64_C(1) << 34)) {
-        MPACK_WRITE_ENCODED(mpack_encode_timestamp_12, MPACK_EXT_SIZE_TIMESTAMP12, seconds, nanoseconds);
+        MPACK_WRITE_ENCODED(mpack_encode_timestamp_12,
+            MPACK_EXT_SIZE_TIMESTAMP12, seconds, nanoseconds);
     } else if (seconds > UINT32_MAX || nanoseconds > 0) {
-        MPACK_WRITE_ENCODED(mpack_encode_timestamp_8, MPACK_EXT_SIZE_TIMESTAMP8, seconds, nanoseconds);
+        MPACK_WRITE_ENCODED(mpack_encode_timestamp_8, MPACK_EXT_SIZE_TIMESTAMP8,
+            seconds, nanoseconds);
     } else {
-        MPACK_WRITE_ENCODED(mpack_encode_timestamp_4, MPACK_EXT_SIZE_TIMESTAMP4, (uint32_t)seconds);
+        MPACK_WRITE_ENCODED(mpack_encode_timestamp_4, MPACK_EXT_SIZE_TIMESTAMP4,
+            (uint32_t)seconds);
     }
 }
-#endif
+#    endif
 
-void mpack_start_array(mpack_writer_t* writer, uint32_t count) {
+void
+mpack_start_array(mpack_writer_t *writer, uint32_t count)
+{
     mpack_writer_track_element(writer);
 
     if (count <= 15) {
-        MPACK_WRITE_ENCODED(mpack_encode_fixarray, MPACK_TAG_SIZE_FIXARRAY, (uint8_t)count);
+        MPACK_WRITE_ENCODED(
+            mpack_encode_fixarray, MPACK_TAG_SIZE_FIXARRAY, (uint8_t)count);
     } else if (count <= UINT16_MAX) {
-        MPACK_WRITE_ENCODED(mpack_encode_array16, MPACK_TAG_SIZE_ARRAY16, (uint16_t)count);
+        MPACK_WRITE_ENCODED(
+            mpack_encode_array16, MPACK_TAG_SIZE_ARRAY16, (uint16_t)count);
     } else {
-        MPACK_WRITE_ENCODED(mpack_encode_array32, MPACK_TAG_SIZE_ARRAY32, (uint32_t)count);
+        MPACK_WRITE_ENCODED(
+            mpack_encode_array32, MPACK_TAG_SIZE_ARRAY32, (uint32_t)count);
     }
 
     mpack_writer_track_push(writer, mpack_type_array, count);
 }
 
-void mpack_start_map(mpack_writer_t* writer, uint32_t count) {
+void
+mpack_start_map(mpack_writer_t *writer, uint32_t count)
+{
     mpack_writer_track_element(writer);
 
     if (count <= 15) {
-        MPACK_WRITE_ENCODED(mpack_encode_fixmap, MPACK_TAG_SIZE_FIXMAP, (uint8_t)count);
+        MPACK_WRITE_ENCODED(
+            mpack_encode_fixmap, MPACK_TAG_SIZE_FIXMAP, (uint8_t)count);
     } else if (count <= UINT16_MAX) {
-        MPACK_WRITE_ENCODED(mpack_encode_map16, MPACK_TAG_SIZE_MAP16, (uint16_t)count);
+        MPACK_WRITE_ENCODED(
+            mpack_encode_map16, MPACK_TAG_SIZE_MAP16, (uint16_t)count);
     } else {
-        MPACK_WRITE_ENCODED(mpack_encode_map32, MPACK_TAG_SIZE_MAP32, (uint32_t)count);
+        MPACK_WRITE_ENCODED(
+            mpack_encode_map32, MPACK_TAG_SIZE_MAP32, (uint32_t)count);
     }
 
     mpack_writer_track_push(writer, mpack_type_map, count);
 }
 
-static void mpack_start_str_notrack(mpack_writer_t* writer, uint32_t count) {
+static void
+mpack_start_str_notrack(mpack_writer_t *writer, uint32_t count)
+{
     if (count <= 31) {
-        MPACK_WRITE_ENCODED(mpack_encode_fixstr, MPACK_TAG_SIZE_FIXSTR, (uint8_t)count);
+        MPACK_WRITE_ENCODED(
+            mpack_encode_fixstr, MPACK_TAG_SIZE_FIXSTR, (uint8_t)count);
 
-    // str8 is only supported in v5 or later.
+        // str8 is only supported in v5 or later.
     } else if (count <= UINT8_MAX
-            #if MPACK_COMPATIBILITY
-            && writer->version >= mpack_version_v5
-            #endif
-            ) {
-        MPACK_WRITE_ENCODED(mpack_encode_str8, MPACK_TAG_SIZE_STR8, (uint8_t)count);
+#    if MPACK_COMPATIBILITY
+        && writer->version >= mpack_version_v5
+#    endif
+    ) {
+        MPACK_WRITE_ENCODED(
+            mpack_encode_str8, MPACK_TAG_SIZE_STR8, (uint8_t)count);
 
     } else if (count <= UINT16_MAX) {
-        MPACK_WRITE_ENCODED(mpack_encode_str16, MPACK_TAG_SIZE_STR16, (uint16_t)count);
+        MPACK_WRITE_ENCODED(
+            mpack_encode_str16, MPACK_TAG_SIZE_STR16, (uint16_t)count);
     } else {
-        MPACK_WRITE_ENCODED(mpack_encode_str32, MPACK_TAG_SIZE_STR32, (uint32_t)count);
+        MPACK_WRITE_ENCODED(
+            mpack_encode_str32, MPACK_TAG_SIZE_STR32, (uint32_t)count);
     }
 }
 
-static void mpack_start_bin_notrack(mpack_writer_t* writer, uint32_t count) {
-    #if MPACK_COMPATIBILITY
+static void
+mpack_start_bin_notrack(mpack_writer_t *writer, uint32_t count)
+{
+#    if MPACK_COMPATIBILITY
     // In the v4 spec, there was only the raw type for any kind of
     // variable-length data. In v4 mode, we support the bin functions,
     // but we produce an old-style raw.
@@ -1878,77 +2231,97 @@ static void mpack_start_bin_notrack(mpack_writer_t* writer, uint32_t count) {
         mpack_start_str_notrack(writer, count);
         return;
     }
-    #endif
+#    endif
 
     if (count <= UINT8_MAX) {
-        MPACK_WRITE_ENCODED(mpack_encode_bin8, MPACK_TAG_SIZE_BIN8, (uint8_t)count);
+        MPACK_WRITE_ENCODED(
+            mpack_encode_bin8, MPACK_TAG_SIZE_BIN8, (uint8_t)count);
     } else if (count <= UINT16_MAX) {
-        MPACK_WRITE_ENCODED(mpack_encode_bin16, MPACK_TAG_SIZE_BIN16, (uint16_t)count);
+        MPACK_WRITE_ENCODED(
+            mpack_encode_bin16, MPACK_TAG_SIZE_BIN16, (uint16_t)count);
     } else {
-        MPACK_WRITE_ENCODED(mpack_encode_bin32, MPACK_TAG_SIZE_BIN32, (uint32_t)count);
+        MPACK_WRITE_ENCODED(
+            mpack_encode_bin32, MPACK_TAG_SIZE_BIN32, (uint32_t)count);
     }
 }
 
-void mpack_start_str(mpack_writer_t* writer, uint32_t count) {
+void
+mpack_start_str(mpack_writer_t *writer, uint32_t count)
+{
     mpack_writer_track_element(writer);
     mpack_start_str_notrack(writer, count);
     mpack_writer_track_push(writer, mpack_type_str, count);
 }
 
-void mpack_start_bin(mpack_writer_t* writer, uint32_t count) {
+void
+mpack_start_bin(mpack_writer_t *writer, uint32_t count)
+{
     mpack_writer_track_element(writer);
     mpack_start_bin_notrack(writer, count);
     mpack_writer_track_push(writer, mpack_type_bin, count);
 }
 
-#if MPACK_EXTENSIONS
-void mpack_start_ext(mpack_writer_t* writer, int8_t exttype, uint32_t count) {
-    #if MPACK_COMPATIBILITY
+#    if MPACK_EXTENSIONS
+void
+mpack_start_ext(mpack_writer_t *writer, int8_t exttype, uint32_t count)
+{
+#        if MPACK_COMPATIBILITY
     if (writer->version <= mpack_version_v4) {
-        mpack_break("Ext types require spec version v5 or later. This writer is in v%i mode.", (int)writer->version);
+        mpack_break("Ext types require spec version v5 or later. This writer "
+                    "is in v%i mode.",
+            (int)writer->version);
         mpack_writer_flag_error(writer, mpack_error_bug);
         return;
     }
-    #endif
+#        endif
 
     mpack_writer_track_element(writer);
 
     if (count == 1) {
-        MPACK_WRITE_ENCODED(mpack_encode_fixext1, MPACK_TAG_SIZE_FIXEXT1, exttype);
+        MPACK_WRITE_ENCODED(
+            mpack_encode_fixext1, MPACK_TAG_SIZE_FIXEXT1, exttype);
     } else if (count == 2) {
-        MPACK_WRITE_ENCODED(mpack_encode_fixext2, MPACK_TAG_SIZE_FIXEXT2, exttype);
+        MPACK_WRITE_ENCODED(
+            mpack_encode_fixext2, MPACK_TAG_SIZE_FIXEXT2, exttype);
     } else if (count == 4) {
-        MPACK_WRITE_ENCODED(mpack_encode_fixext4, MPACK_TAG_SIZE_FIXEXT4, exttype);
+        MPACK_WRITE_ENCODED(
+            mpack_encode_fixext4, MPACK_TAG_SIZE_FIXEXT4, exttype);
     } else if (count == 8) {
-        MPACK_WRITE_ENCODED(mpack_encode_fixext8, MPACK_TAG_SIZE_FIXEXT8, exttype);
+        MPACK_WRITE_ENCODED(
+            mpack_encode_fixext8, MPACK_TAG_SIZE_FIXEXT8, exttype);
     } else if (count == 16) {
-        MPACK_WRITE_ENCODED(mpack_encode_fixext16, MPACK_TAG_SIZE_FIXEXT16, exttype);
+        MPACK_WRITE_ENCODED(
+            mpack_encode_fixext16, MPACK_TAG_SIZE_FIXEXT16, exttype);
     } else if (count <= UINT8_MAX) {
-        MPACK_WRITE_ENCODED(mpack_encode_ext8, MPACK_TAG_SIZE_EXT8, exttype, (uint8_t)count);
+        MPACK_WRITE_ENCODED(
+            mpack_encode_ext8, MPACK_TAG_SIZE_EXT8, exttype, (uint8_t)count);
     } else if (count <= UINT16_MAX) {
-        MPACK_WRITE_ENCODED(mpack_encode_ext16, MPACK_TAG_SIZE_EXT16, exttype, (uint16_t)count);
+        MPACK_WRITE_ENCODED(
+            mpack_encode_ext16, MPACK_TAG_SIZE_EXT16, exttype, (uint16_t)count);
     } else {
-        MPACK_WRITE_ENCODED(mpack_encode_ext32, MPACK_TAG_SIZE_EXT32, exttype, (uint32_t)count);
+        MPACK_WRITE_ENCODED(
+            mpack_encode_ext32, MPACK_TAG_SIZE_EXT32, exttype, (uint32_t)count);
     }
 
     mpack_writer_track_push(writer, mpack_type_ext, count);
 }
-#endif
-
-
+#    endif
 
 /*
  * Compound helpers and other functions
  */
 
-void mpack_write_str(mpack_writer_t* writer, const char* data, uint32_t count) {
-    mpack_assert(data != NULL, "data for string of length %i is NULL", (int)count);
+void
+mpack_write_str(mpack_writer_t *writer, const char *data, uint32_t count)
+{
+    mpack_assert(
+        data != NULL, "data for string of length %i is NULL", (int)count);
 
-    #if MPACK_OPTIMIZE_FOR_SIZE
+#    if MPACK_OPTIMIZE_FOR_SIZE
     mpack_writer_track_element(writer);
     mpack_start_str_notrack(writer, count);
     mpack_write_native(writer, data, count);
-    #else
+#    else
 
     mpack_writer_track_element(writer);
 
@@ -1956,8 +2329,9 @@ void mpack_write_str(mpack_writer_t* writer, const char* data, uint32_t count) {
         // The minimum buffer size when using a flush function is guaranteed to
         // fit the largest possible fixstr.
         size_t size = count + MPACK_TAG_SIZE_FIXSTR;
-        if (MPACK_LIKELY(mpack_writer_buffer_left(writer) >= size) || mpack_writer_ensure(writer, size)) {
-            char* MPACK_RESTRICT p = writer->current;
+        if (MPACK_LIKELY(mpack_writer_buffer_left(writer) >= size)
+            || mpack_writer_ensure(writer, size)) {
+            char *MPACK_RESTRICT p = writer->current;
             mpack_encode_fixstr(p, (uint8_t)count);
             mpack_memcpy(p + MPACK_TAG_SIZE_FIXSTR, data, count);
             writer->current += count + MPACK_TAG_SIZE_FIXSTR;
@@ -1966,17 +2340,18 @@ void mpack_write_str(mpack_writer_t* writer, const char* data, uint32_t count) {
     }
 
     if (count <= UINT8_MAX
-            #if MPACK_COMPATIBILITY
-            && writer->version >= mpack_version_v5
-            #endif
-            ) {
+#        if MPACK_COMPATIBILITY
+        && writer->version >= mpack_version_v5
+#        endif
+    ) {
         if (count + MPACK_TAG_SIZE_STR8 <= mpack_writer_buffer_left(writer)) {
-            char* MPACK_RESTRICT p = writer->current;
+            char *MPACK_RESTRICT p = writer->current;
             mpack_encode_str8(p, (uint8_t)count);
             mpack_memcpy(p + MPACK_TAG_SIZE_STR8, data, count);
             writer->current += count + MPACK_TAG_SIZE_STR8;
         } else {
-            MPACK_WRITE_ENCODED(mpack_encode_str8, MPACK_TAG_SIZE_STR8, (uint8_t)count);
+            MPACK_WRITE_ENCODED(
+                mpack_encode_str8, MPACK_TAG_SIZE_STR8, (uint8_t)count);
             mpack_write_native(writer, data, count);
         }
         return;
@@ -1986,39 +2361,53 @@ void mpack_write_str(mpack_writer_t* writer, const char* data, uint32_t count) {
     // size, so we don't bother with a combined space check in order to
     // minimize code size.
     if (count <= UINT16_MAX) {
-        MPACK_WRITE_ENCODED(mpack_encode_str16, MPACK_TAG_SIZE_STR16, (uint16_t)count);
+        MPACK_WRITE_ENCODED(
+            mpack_encode_str16, MPACK_TAG_SIZE_STR16, (uint16_t)count);
         mpack_write_native(writer, data, count);
     } else {
-        MPACK_WRITE_ENCODED(mpack_encode_str32, MPACK_TAG_SIZE_STR32, (uint32_t)count);
+        MPACK_WRITE_ENCODED(
+            mpack_encode_str32, MPACK_TAG_SIZE_STR32, (uint32_t)count);
         mpack_write_native(writer, data, count);
     }
 
-    #endif
+#    endif
 }
 
-void mpack_write_bin(mpack_writer_t* writer, const char* data, uint32_t count) {
-    mpack_assert(data != NULL, "data pointer for bin of %i bytes is NULL", (int)count);
+void
+mpack_write_bin(mpack_writer_t *writer, const char *data, uint32_t count)
+{
+    mpack_assert(
+        data != NULL, "data pointer for bin of %i bytes is NULL", (int)count);
     mpack_start_bin(writer, count);
     mpack_write_bytes(writer, data, count);
     mpack_finish_bin(writer);
 }
 
-#if MPACK_EXTENSIONS
-void mpack_write_ext(mpack_writer_t* writer, int8_t exttype, const char* data, uint32_t count) {
-    mpack_assert(data != NULL, "data pointer for ext of type %i and %i bytes is NULL", exttype, (int)count);
+#    if MPACK_EXTENSIONS
+void
+mpack_write_ext(
+    mpack_writer_t *writer, int8_t exttype, const char *data, uint32_t count)
+{
+    mpack_assert(data != NULL,
+        "data pointer for ext of type %i and %i bytes is NULL", exttype,
+        (int)count);
     mpack_start_ext(writer, exttype, count);
     mpack_write_bytes(writer, data, count);
     mpack_finish_ext(writer);
 }
-#endif
+#    endif
 
-void mpack_write_bytes(mpack_writer_t* writer, const char* data, size_t count) {
+void
+mpack_write_bytes(mpack_writer_t *writer, const char *data, size_t count)
+{
     mpack_assert(data != NULL, "data pointer for %i bytes is NULL", (int)count);
     mpack_writer_track_bytes(writer, count);
     mpack_write_native(writer, data, count);
 }
 
-void mpack_write_cstr(mpack_writer_t* writer, const char* cstr) {
+void
+mpack_write_cstr(mpack_writer_t *writer, const char *cstr)
+{
     mpack_assert(cstr != NULL, "cstr pointer is NULL");
     size_t length = mpack_strlen(cstr);
     if (length > UINT32_MAX)
@@ -2026,15 +2415,20 @@ void mpack_write_cstr(mpack_writer_t* writer, const char* cstr) {
     mpack_write_str(writer, cstr, (uint32_t)length);
 }
 
-void mpack_write_cstr_or_nil(mpack_writer_t* writer, const char* cstr) {
+void
+mpack_write_cstr_or_nil(mpack_writer_t *writer, const char *cstr)
+{
     if (cstr)
         mpack_write_cstr(writer, cstr);
     else
         mpack_write_nil(writer);
 }
 
-void mpack_write_utf8(mpack_writer_t* writer, const char* str, uint32_t length) {
-    mpack_assert(str != NULL, "data for string of length %i is NULL", (int)length);
+void
+mpack_write_utf8(mpack_writer_t *writer, const char *str, uint32_t length)
+{
+    mpack_assert(
+        str != NULL, "data for string of length %i is NULL", (int)length);
     if (!mpack_utf8_check(str, length)) {
         mpack_writer_flag_error(writer, mpack_error_invalid);
         return;
@@ -2042,7 +2436,9 @@ void mpack_write_utf8(mpack_writer_t* writer, const char* str, uint32_t length) 
     mpack_write_str(writer, str, length);
 }
 
-void mpack_write_utf8_cstr(mpack_writer_t* writer, const char* cstr) {
+void
+mpack_write_utf8_cstr(mpack_writer_t *writer, const char *cstr)
+{
     mpack_assert(cstr != NULL, "cstr pointer is NULL");
     size_t length = mpack_strlen(cstr);
     if (length > UINT32_MAX) {
@@ -2052,7 +2448,9 @@ void mpack_write_utf8_cstr(mpack_writer_t* writer, const char* cstr) {
     mpack_write_utf8(writer, cstr, (uint32_t)length);
 }
 
-void mpack_write_utf8_cstr_or_nil(mpack_writer_t* writer, const char* cstr) {
+void
+mpack_write_utf8_cstr_or_nil(mpack_writer_t *writer, const char *cstr)
+{
     if (cstr)
         mpack_write_utf8_cstr(writer, cstr);
     else
@@ -2060,7 +2458,6 @@ void mpack_write_utf8_cstr_or_nil(mpack_writer_t* writer, const char* cstr) {
 }
 
 #endif
-
 
 /* mpack/mpack-reader.c.c */
 
@@ -2070,9 +2467,12 @@ void mpack_write_utf8_cstr_or_nil(mpack_writer_t* writer, const char* cstr) {
 
 #if MPACK_READER
 
-static void mpack_reader_skip_using_fill(mpack_reader_t* reader, size_t count);
+static void mpack_reader_skip_using_fill(mpack_reader_t *reader, size_t count);
 
-void mpack_reader_init(mpack_reader_t* reader, char* buffer, size_t size, size_t count) {
+void
+mpack_reader_init(
+    mpack_reader_t *reader, char *buffer, size_t size, size_t count)
+{
     mpack_assert(buffer != NULL, "buffer is NULL");
 
     mpack_memset(reader, 0, sizeof(*reader));
@@ -2081,15 +2481,17 @@ void mpack_reader_init(mpack_reader_t* reader, char* buffer, size_t size, size_t
     reader->data = buffer;
     reader->end = buffer + count;
 
-    #if MPACK_READ_TRACKING
+#    if MPACK_READ_TRACKING
     mpack_reader_flag_if_error(reader, mpack_track_init(&reader->track));
-    #endif
+#    endif
 
     mpack_log("===========================\n");
     mpack_log("initializing reader with buffer size %i\n", (int)size);
 }
 
-void mpack_reader_init_error(mpack_reader_t* reader, mpack_error_t error) {
+void
+mpack_reader_init_error(mpack_reader_t *reader, mpack_error_t error)
+{
     mpack_memset(reader, 0, sizeof(*reader));
     reader->error = error;
 
@@ -2097,24 +2499,29 @@ void mpack_reader_init_error(mpack_reader_t* reader, mpack_error_t error) {
     mpack_log("initializing reader error state %i\n", (int)error);
 }
 
-void mpack_reader_init_data(mpack_reader_t* reader, const char* data, size_t count) {
+void
+mpack_reader_init_data(mpack_reader_t *reader, const char *data, size_t count)
+{
     mpack_assert(data != NULL, "data is NULL");
 
     mpack_memset(reader, 0, sizeof(*reader));
     reader->data = data;
     reader->end = data + count;
 
-    #if MPACK_READ_TRACKING
+#    if MPACK_READ_TRACKING
     mpack_reader_flag_if_error(reader, mpack_track_init(&reader->track));
-    #endif
+#    endif
 
     mpack_log("===========================\n");
     mpack_log("initializing reader with data size %i\n", (int)count);
 }
 
-void mpack_reader_set_fill(mpack_reader_t* reader, mpack_reader_fill_t fill) {
-    MPACK_STATIC_ASSERT(MPACK_READER_MINIMUM_BUFFER_SIZE >= MPACK_MAXIMUM_TAG_SIZE,
-            "minimum buffer size must fit any tag!");
+void
+mpack_reader_set_fill(mpack_reader_t *reader, mpack_reader_fill_t fill)
+{
+    MPACK_STATIC_ASSERT(
+        MPACK_READER_MINIMUM_BUFFER_SIZE >= MPACK_MAXIMUM_TAG_SIZE,
+        "minimum buffer size must fit any tag!");
 
     if (reader->size == 0) {
         mpack_break("cannot use fill function without a writeable buffer!");
@@ -2124,7 +2531,7 @@ void mpack_reader_set_fill(mpack_reader_t* reader, mpack_reader_fill_t fill) {
 
     if (reader->size < MPACK_READER_MINIMUM_BUFFER_SIZE) {
         mpack_break("buffer size is %i, but minimum buffer size for fill is %i",
-                (int)reader->size, MPACK_READER_MINIMUM_BUFFER_SIZE);
+            (int)reader->size, MPACK_READER_MINIMUM_BUFFER_SIZE);
         mpack_reader_flag_error(reader, mpack_error_bug);
         return;
     }
@@ -2132,24 +2539,31 @@ void mpack_reader_set_fill(mpack_reader_t* reader, mpack_reader_fill_t fill) {
     reader->fill = fill;
 }
 
-void mpack_reader_set_skip(mpack_reader_t* reader, mpack_reader_skip_t skip) {
-    mpack_assert(reader->size != 0, "cannot use skip function without a writeable buffer!");
+void
+mpack_reader_set_skip(mpack_reader_t *reader, mpack_reader_skip_t skip)
+{
+    mpack_assert(reader->size != 0,
+        "cannot use skip function without a writeable buffer!");
     reader->skip = skip;
 }
 
-#if MPACK_STDIO
-static size_t mpack_file_reader_fill(mpack_reader_t* reader, char* buffer, size_t count) {
+#    if MPACK_STDIO
+static size_t
+mpack_file_reader_fill(mpack_reader_t *reader, char *buffer, size_t count)
+{
     if (feof((FILE *)reader->context)) {
-       mpack_reader_flag_error(reader, mpack_error_eof);
-       return 0;
+        mpack_reader_flag_error(reader, mpack_error_eof);
+        return 0;
     }
-    return fread((void*)buffer, 1, count, (FILE*)reader->context);
+    return fread((void *)buffer, 1, count, (FILE *)reader->context);
 }
 
-static void mpack_file_reader_skip(mpack_reader_t* reader, size_t count) {
+static void
+mpack_file_reader_skip(mpack_reader_t *reader, size_t count)
+{
     if (mpack_reader_error(reader) != mpack_ok)
         return;
-    FILE* file = (FILE*)reader->context;
+    FILE *file = (FILE *)reader->context;
 
     // We call ftell() to test whether the stream is seekable
     // without causing a file error.
@@ -2168,7 +2582,9 @@ static void mpack_file_reader_skip(mpack_reader_t* reader, size_t count) {
     mpack_reader_skip_using_fill(reader, count);
 }
 
-static void mpack_file_reader_teardown(mpack_reader_t* reader) {
+static void
+mpack_file_reader_teardown(mpack_reader_t *reader)
+{
     MPACK_FREE(reader->buffer);
     reader->buffer = NULL;
     reader->context = NULL;
@@ -2178,8 +2594,10 @@ static void mpack_file_reader_teardown(mpack_reader_t* reader) {
     reader->teardown = NULL;
 }
 
-static void mpack_file_reader_teardown_close(mpack_reader_t* reader) {
-    FILE* file = (FILE*)reader->context;
+static void
+mpack_file_reader_teardown_close(mpack_reader_t *reader)
+{
+    FILE *file = (FILE *)reader->context;
 
     if (file) {
         int ret = fclose(file);
@@ -2190,11 +2608,14 @@ static void mpack_file_reader_teardown_close(mpack_reader_t* reader) {
     mpack_file_reader_teardown(reader);
 }
 
-void mpack_reader_init_stdfile(mpack_reader_t* reader, FILE* file, bool close_when_done) {
+void
+mpack_reader_init_stdfile(
+    mpack_reader_t *reader, FILE *file, bool close_when_done)
+{
     mpack_assert(file != NULL, "file is NULL");
 
     size_t capacity = MPACK_BUFFER_SIZE;
-    char* buffer = (char*)MPACK_MALLOC(capacity);
+    char *buffer = (char *)MPACK_MALLOC(capacity);
     if (buffer == NULL) {
         mpack_reader_init_error(reader, mpack_error_memory);
         if (close_when_done) {
@@ -2207,15 +2628,17 @@ void mpack_reader_init_stdfile(mpack_reader_t* reader, FILE* file, bool close_wh
     mpack_reader_set_context(reader, file);
     mpack_reader_set_fill(reader, mpack_file_reader_fill);
     mpack_reader_set_skip(reader, mpack_file_reader_skip);
-    mpack_reader_set_teardown(reader, close_when_done ?
-            mpack_file_reader_teardown_close :
-            mpack_file_reader_teardown);
+    mpack_reader_set_teardown(reader,
+        close_when_done ? mpack_file_reader_teardown_close
+                        : mpack_file_reader_teardown);
 }
 
-void mpack_reader_init_filename(mpack_reader_t* reader, const char* filename) {
+void
+mpack_reader_init_filename(mpack_reader_t *reader, const char *filename)
+{
     mpack_assert(filename != NULL, "filename is NULL");
 
-    FILE* file = fopen(filename, "rb");
+    FILE *file = fopen(filename, "rb");
     if (file == NULL) {
         mpack_reader_init_error(reader, mpack_error_io);
         return;
@@ -2223,14 +2646,18 @@ void mpack_reader_init_filename(mpack_reader_t* reader, const char* filename) {
 
     mpack_reader_init_stdfile(reader, file, true);
 }
-#endif
+#    endif
 
-mpack_error_t mpack_reader_destroy(mpack_reader_t* reader) {
+mpack_error_t
+mpack_reader_destroy(mpack_reader_t *reader)
+{
 
-    // clean up tracking, asserting if we're not already in an error state
-    #if MPACK_READ_TRACKING
-    mpack_reader_flag_if_error(reader, mpack_track_destroy(&reader->track, mpack_reader_error(reader) != mpack_ok));
-    #endif
+// clean up tracking, asserting if we're not already in an error state
+#    if MPACK_READ_TRACKING
+    mpack_reader_flag_if_error(reader,
+        mpack_track_destroy(
+            &reader->track, mpack_reader_error(reader) != mpack_ok));
+#    endif
 
     if (reader->teardown)
         reader->teardown(reader);
@@ -2239,22 +2666,29 @@ mpack_error_t mpack_reader_destroy(mpack_reader_t* reader) {
     return reader->error;
 }
 
-size_t mpack_reader_remaining(mpack_reader_t* reader, const char** data) {
+size_t
+mpack_reader_remaining(mpack_reader_t *reader, const char **data)
+{
     if (mpack_reader_error(reader) != mpack_ok)
         return 0;
 
-    #if MPACK_READ_TRACKING
-    if (mpack_reader_flag_if_error(reader, mpack_track_check_empty(&reader->track)) != mpack_ok)
+#    if MPACK_READ_TRACKING
+    if (mpack_reader_flag_if_error(
+            reader, mpack_track_check_empty(&reader->track))
+        != mpack_ok)
         return 0;
-    #endif
+#    endif
 
     if (data)
         *data = reader->data;
     return (size_t)(reader->end - reader->data);
 }
 
-void mpack_reader_flag_error(mpack_reader_t* reader, mpack_error_t error) {
-    mpack_log("reader %p setting error %i: %s\n", reader, (int)error, mpack_error_to_string(error));
+void
+mpack_reader_flag_error(mpack_reader_t *reader, mpack_error_t error)
+{
+    mpack_log("reader %p setting error %i: %s\n", reader, (int)error,
+        mpack_error_to_string(error));
 
     if (reader->error == mpack_ok) {
         reader->error = error;
@@ -2266,11 +2700,16 @@ void mpack_reader_flag_error(mpack_reader_t* reader, mpack_error_t error) {
 
 // Loops on the fill function, reading between the minimum and
 // maximum number of bytes and flagging an error if it fails.
-MPACK_NOINLINE static size_t mpack_fill_range(mpack_reader_t* reader, char* p, size_t min_bytes, size_t max_bytes) {
-    mpack_assert(reader->fill != NULL, "mpack_fill_range() called with no fill function?");
+MPACK_NOINLINE static size_t
+mpack_fill_range(
+    mpack_reader_t *reader, char *p, size_t min_bytes, size_t max_bytes)
+{
+    mpack_assert(reader->fill != NULL,
+        "mpack_fill_range() called with no fill function?");
     mpack_assert(min_bytes > 0, "cannot fill zero bytes!");
-    mpack_assert(max_bytes >= min_bytes, "min_bytes %i cannot be larger than max_bytes %i!",
-            (int)min_bytes, (int)max_bytes);
+    mpack_assert(max_bytes >= min_bytes,
+        "min_bytes %i cannot be larger than max_bytes %i!", (int)min_bytes,
+        (int)max_bytes);
 
     size_t count = 0;
     while (count < min_bytes) {
@@ -2290,14 +2729,17 @@ MPACK_NOINLINE static size_t mpack_fill_range(mpack_reader_t* reader, char* p, s
     return count;
 }
 
-MPACK_NOINLINE bool mpack_reader_ensure_straddle(mpack_reader_t* reader, size_t count) {
+MPACK_NOINLINE bool
+mpack_reader_ensure_straddle(mpack_reader_t *reader, size_t count)
+{
     mpack_assert(count != 0, "cannot ensure zero bytes!");
-    mpack_assert(reader->error == mpack_ok, "reader cannot be in an error state!");
+    mpack_assert(
+        reader->error == mpack_ok, "reader cannot be in an error state!");
 
     mpack_assert(count > (size_t)(reader->end - reader->data),
-            "straddling ensure requested for %i bytes, but there are %i bytes "
-            "left in buffer. call mpack_reader_ensure() instead",
-            (int)count, (int)(reader->end - reader->data));
+        "straddling ensure requested for %i bytes, but there are %i bytes "
+        "left in buffer. call mpack_reader_ensure() instead",
+        (int)count, (int)(reader->end - reader->data));
 
     // we'll need a fill function to get more data. if there's no
     // fill function, the buffer should contain an entire MessagePack
@@ -2324,8 +2766,8 @@ MPACK_NOINLINE bool mpack_reader_ensure_straddle(mpack_reader_t* reader, size_t 
 
     // read at least the necessary number of bytes, accepting up to the
     // buffer size
-    size_t read = mpack_fill_range(reader, reader->buffer + left,
-            count - left, reader->size - left);
+    size_t read = mpack_fill_range(
+        reader, reader->buffer + left, count - left, reader->size - left);
     if (mpack_reader_error(reader) != mpack_ok)
         return false;
     reader->end += read;
@@ -2334,8 +2776,11 @@ MPACK_NOINLINE bool mpack_reader_ensure_straddle(mpack_reader_t* reader, size_t 
 
 // Reads count bytes into p. Used when there are not enough bytes
 // left in the buffer to satisfy a read.
-MPACK_NOINLINE void mpack_read_native_straddle(mpack_reader_t* reader, char* p, size_t count) {
-    mpack_assert(count == 0 || p != NULL, "data pointer for %i bytes is NULL", (int)count);
+MPACK_NOINLINE void
+mpack_read_native_straddle(mpack_reader_t *reader, char *p, size_t count)
+{
+    mpack_assert(count == 0 || p != NULL, "data pointer for %i bytes is NULL",
+        (int)count);
 
     if (mpack_reader_error(reader) != mpack_ok) {
         mpack_memset(p, 0, count);
@@ -2343,14 +2788,15 @@ MPACK_NOINLINE void mpack_read_native_straddle(mpack_reader_t* reader, char* p, 
     }
 
     size_t left = (size_t)(reader->end - reader->data);
-    mpack_log("big read for %i bytes into %p, %i left in buffer, buffer size %i\n",
-            (int)count, p, (int)left, (int)reader->size);
+    mpack_log(
+        "big read for %i bytes into %p, %i left in buffer, buffer size %i\n",
+        (int)count, p, (int)left, (int)reader->size);
 
     if (count <= left) {
         mpack_assert(0,
-                "big read requested for %i bytes, but there are %i bytes "
-                "left in buffer. call mpack_read_native() instead",
-                (int)count, (int)left);
+            "big read requested for %i bytes, but there are %i bytes "
+            "left in buffer. call mpack_read_native() instead",
+            (int)count, (int)left);
         mpack_reader_flag_error(reader, mpack_error_bug);
         mpack_memset(p, 0, count);
         return;
@@ -2390,21 +2836,24 @@ MPACK_NOINLINE void mpack_read_native_straddle(mpack_reader_t* reader, char* p, 
     // buffer size, we'll try to fill the buffer as much as possible
     // and copy the needed data out.
     if (count <= reader->size / MPACK_READER_SMALL_FRACTION_DENOMINATOR) {
-        size_t read = mpack_fill_range(reader, reader->buffer, count, reader->size);
+        size_t read
+            = mpack_fill_range(reader, reader->buffer, count, reader->size);
         if (mpack_reader_error(reader) != mpack_ok)
             return;
         mpack_memcpy(p, reader->buffer, count);
         reader->data = reader->buffer + count;
         reader->end = reader->buffer + read;
 
-    // otherwise we read the remaining data directly into the target.
+        // otherwise we read the remaining data directly into the target.
     } else {
         mpack_log("reading %i additional bytes\n", (int)count);
         mpack_fill_range(reader, p, count, count);
     }
 }
 
-MPACK_NOINLINE static void mpack_skip_bytes_straddle(mpack_reader_t* reader, size_t count) {
+MPACK_NOINLINE static void
+mpack_skip_bytes_straddle(mpack_reader_t *reader, size_t count)
+{
 
     // we'll need at least a fill function to skip more data. if there's
     // no fill function, the buffer should contain an entire MessagePack
@@ -2435,7 +2884,9 @@ MPACK_NOINLINE static void mpack_skip_bytes_straddle(mpack_reader_t* reader, siz
     mpack_reader_skip_using_fill(reader, count);
 }
 
-void mpack_skip_bytes(mpack_reader_t* reader, size_t count) {
+void
+mpack_skip_bytes(mpack_reader_t *reader, size_t count)
+{
     if (mpack_reader_error(reader) != mpack_ok)
         return;
     mpack_log("skip requested for %i bytes\n", (int)count);
@@ -2452,16 +2903,22 @@ void mpack_skip_bytes(mpack_reader_t* reader, size_t count) {
     mpack_skip_bytes_straddle(reader, count);
 }
 
-MPACK_NOINLINE static void mpack_reader_skip_using_fill(mpack_reader_t* reader, size_t count) {
+MPACK_NOINLINE static void
+mpack_reader_skip_using_fill(mpack_reader_t *reader, size_t count)
+{
     mpack_assert(reader->fill != NULL, "missing fill function!");
-    mpack_assert(reader->data == reader->end, "there are bytes left in the buffer!");
-    mpack_assert(reader->error == mpack_ok, "should not have called this in an error state (%i)", reader->error);
+    mpack_assert(
+        reader->data == reader->end, "there are bytes left in the buffer!");
+    mpack_assert(reader->error == mpack_ok,
+        "should not have called this in an error state (%i)", reader->error);
     mpack_log("skip using fill for %i bytes\n", (int)count);
 
     // fill and discard multiples of the buffer size
     while (count > reader->size) {
-        mpack_log("filling and discarding buffer of %i bytes\n", (int)reader->size);
-        if (mpack_fill_range(reader, reader->buffer, reader->size, reader->size) < reader->size) {
+        mpack_log(
+            "filling and discarding buffer of %i bytes\n", (int)reader->size);
+        if (mpack_fill_range(reader, reader->buffer, reader->size, reader->size)
+            < reader->size) {
             mpack_reader_flag_error(reader, mpack_error_io);
             return;
         }
@@ -2476,28 +2933,42 @@ MPACK_NOINLINE static void mpack_reader_skip_using_fill(mpack_reader_t* reader, 
         return;
     }
     reader->end = reader->data + read;
-    mpack_log("filled %i bytes into buffer; discarding %i bytes\n", (int)read, (int)count);
+    mpack_log("filled %i bytes into buffer; discarding %i bytes\n", (int)read,
+        (int)count);
     reader->data += count;
 }
 
-void mpack_read_bytes(mpack_reader_t* reader, char* p, size_t count) {
-    mpack_assert(p != NULL, "destination for read of %i bytes is NULL", (int)count);
+void
+mpack_read_bytes(mpack_reader_t *reader, char *p, size_t count)
+{
+    mpack_assert(
+        p != NULL, "destination for read of %i bytes is NULL", (int)count);
     mpack_reader_track_bytes(reader, count);
     mpack_read_native(reader, p, count);
 }
 
-void mpack_read_utf8(mpack_reader_t* reader, char* p, size_t byte_count) {
-    mpack_assert(p != NULL, "destination for read of %i bytes is NULL", (int)byte_count);
+void
+mpack_read_utf8(mpack_reader_t *reader, char *p, size_t byte_count)
+{
+    mpack_assert(
+        p != NULL, "destination for read of %i bytes is NULL", (int)byte_count);
     mpack_reader_track_str_bytes_all(reader, byte_count);
     mpack_read_native(reader, p, byte_count);
 
-    if (mpack_reader_error(reader) == mpack_ok && !mpack_utf8_check(p, byte_count))
+    if (mpack_reader_error(reader) == mpack_ok
+        && !mpack_utf8_check(p, byte_count))
         mpack_reader_flag_error(reader, mpack_error_type);
 }
 
-static void mpack_read_cstr_unchecked(mpack_reader_t* reader, char* buf, size_t buffer_size, size_t byte_count) {
-    mpack_assert(buf != NULL, "destination for read of %i bytes is NULL", (int)byte_count);
-    mpack_assert(buffer_size >= 1, "buffer size is zero; you must have room for at least a null-terminator");
+static void
+mpack_read_cstr_unchecked(
+    mpack_reader_t *reader, char *buf, size_t buffer_size, size_t byte_count)
+{
+    mpack_assert(buf != NULL, "destination for read of %i bytes is NULL",
+        (int)byte_count);
+    mpack_assert(buffer_size >= 1,
+        "buffer size is zero; you must have room for at least a "
+        "null-terminator");
 
     if (mpack_reader_error(reader)) {
         buf[0] = 0;
@@ -2515,39 +2986,54 @@ static void mpack_read_cstr_unchecked(mpack_reader_t* reader, char* buf, size_t 
     buf[byte_count] = 0;
 }
 
-void mpack_read_cstr(mpack_reader_t* reader, char* buf, size_t buffer_size, size_t byte_count) {
+void
+mpack_read_cstr(
+    mpack_reader_t *reader, char *buf, size_t buffer_size, size_t byte_count)
+{
     mpack_read_cstr_unchecked(reader, buf, buffer_size, byte_count);
 
     // check for null bytes
-    if (mpack_reader_error(reader) == mpack_ok && !mpack_str_check_no_null(buf, byte_count)) {
+    if (mpack_reader_error(reader) == mpack_ok
+        && !mpack_str_check_no_null(buf, byte_count)) {
         buf[0] = 0;
         mpack_reader_flag_error(reader, mpack_error_type);
     }
 }
 
-void mpack_read_utf8_cstr(mpack_reader_t* reader, char* buf, size_t buffer_size, size_t byte_count) {
+void
+mpack_read_utf8_cstr(
+    mpack_reader_t *reader, char *buf, size_t buffer_size, size_t byte_count)
+{
     mpack_read_cstr_unchecked(reader, buf, buffer_size, byte_count);
 
     // check encoding
-    if (mpack_reader_error(reader) == mpack_ok && !mpack_utf8_check_no_null(buf, byte_count)) {
+    if (mpack_reader_error(reader) == mpack_ok
+        && !mpack_utf8_check_no_null(buf, byte_count)) {
         buf[0] = 0;
         mpack_reader_flag_error(reader, mpack_error_type);
     }
 }
 
-#ifdef MPACK_MALLOC
-// Reads native bytes with error callback disabled. This allows MPack reader functions
-// to hold an allocated buffer and read native data into it without leaking it in
-// case of a non-local jump (longjmp, throw) out of an error handler.
-static void mpack_read_native_noerrorfn(mpack_reader_t* reader, char* p, size_t count) {
-    mpack_assert(reader->error == mpack_ok, "cannot call if an error is already flagged!");
+#    ifdef MPACK_MALLOC
+// Reads native bytes with error callback disabled. This allows MPack reader
+// functions to hold an allocated buffer and read native data into it without
+// leaking it in case of a non-local jump (longjmp, throw) out of an error
+// handler.
+static void
+mpack_read_native_noerrorfn(mpack_reader_t *reader, char *p, size_t count)
+{
+    mpack_assert(reader->error == mpack_ok,
+        "cannot call if an error is already flagged!");
     mpack_reader_error_t error_fn = reader->error_fn;
     reader->error_fn = NULL;
     mpack_read_native(reader, p, count);
     reader->error_fn = error_fn;
 }
 
-char* mpack_read_bytes_alloc_impl(mpack_reader_t* reader, size_t count, bool null_terminated) {
+char *
+mpack_read_bytes_alloc_impl(
+    mpack_reader_t *reader, size_t count, bool null_terminated)
+{
 
     // track the bytes first in case it jumps
     mpack_reader_track_bytes(reader, count);
@@ -2559,7 +3045,8 @@ char* mpack_read_bytes_alloc_impl(mpack_reader_t* reader, size_t count, bool nul
         return NULL;
 
     // allocate data
-    char* data = (char*)MPACK_MALLOC(count + (null_terminated ? 1 : 0)); // TODO: can this overflow?
+    char *data = (char *)MPACK_MALLOC(
+        count + (null_terminated ? 1 : 0)); // TODO: can this overflow?
     if (data == NULL) {
         mpack_reader_flag_error(reader, mpack_error_memory);
         return NULL;
@@ -2580,17 +3067,19 @@ char* mpack_read_bytes_alloc_impl(mpack_reader_t* reader, size_t count, bool nul
         data[count] = '\0';
     return data;
 }
-#endif
+#    endif
 
 // read inplace without tracking (since there are different
 // tracking modes for different inplace readers)
-static const char* mpack_read_bytes_inplace_notrack(mpack_reader_t* reader, size_t count) {
+static const char *
+mpack_read_bytes_inplace_notrack(mpack_reader_t *reader, size_t count)
+{
     if (mpack_reader_error(reader) != mpack_ok)
         return NULL;
 
     // if we have enough bytes already in the buffer, we can return it directly.
     if ((size_t)(reader->end - reader->data) >= count) {
-        const char* bytes = reader->data;
+        const char *bytes = reader->data;
         reader->data += count;
         return bytes;
     }
@@ -2598,21 +3087,26 @@ static const char* mpack_read_bytes_inplace_notrack(mpack_reader_t* reader, size
     if (!mpack_reader_ensure(reader, count))
         return NULL;
 
-    const char* bytes = reader->data;
+    const char *bytes = reader->data;
     reader->data += count;
     return bytes;
 }
 
-const char* mpack_read_bytes_inplace(mpack_reader_t* reader, size_t count) {
+const char *
+mpack_read_bytes_inplace(mpack_reader_t *reader, size_t count)
+{
     mpack_reader_track_bytes(reader, count);
     return mpack_read_bytes_inplace_notrack(reader, count);
 }
 
-const char* mpack_read_utf8_inplace(mpack_reader_t* reader, size_t count) {
+const char *
+mpack_read_utf8_inplace(mpack_reader_t *reader, size_t count)
+{
     mpack_reader_track_str_bytes_all(reader, count);
-    const char* str = mpack_read_bytes_inplace_notrack(reader, count);
+    const char *str = mpack_read_bytes_inplace_notrack(reader, count);
 
-    if (mpack_reader_error(reader) == mpack_ok && !mpack_utf8_check(str, count)) {
+    if (mpack_reader_error(reader) == mpack_ok
+        && !mpack_utf8_check(str, count)) {
         mpack_reader_flag_error(reader, mpack_error_type);
         return NULL;
     }
@@ -2620,8 +3114,11 @@ const char* mpack_read_utf8_inplace(mpack_reader_t* reader, size_t count) {
     return str;
 }
 
-static size_t mpack_parse_tag(mpack_reader_t* reader, mpack_tag_t* tag) {
-    mpack_assert(reader->error == mpack_ok, "reader cannot be in an error state!");
+static size_t
+mpack_parse_tag(mpack_reader_t *reader, mpack_tag_t *tag)
+{
+    mpack_assert(
+        reader->error == mpack_ok, "reader cannot be in an error state!");
 
     if (!mpack_reader_ensure(reader, 1))
         return 0;
@@ -2634,337 +3131,546 @@ static size_t mpack_parse_tag(mpack_reader_t* reader, mpack_tag_t* tag) {
     // in size-optimized builds, we switch on the top four bits first to
     // handle most infix types with a smaller jump table to save space.
 
-    #if MPACK_OPTIMIZE_FOR_SIZE
+#    if MPACK_OPTIMIZE_FOR_SIZE
     switch (type >> 4) {
 
-        // positive fixnum
-        case 0x0: case 0x1: case 0x2: case 0x3:
-        case 0x4: case 0x5: case 0x6: case 0x7:
-            *tag = mpack_tag_make_uint(type);
-            return 1;
+    // positive fixnum
+    case 0x0:
+    case 0x1:
+    case 0x2:
+    case 0x3:
+    case 0x4:
+    case 0x5:
+    case 0x6:
+    case 0x7:
+        *tag = mpack_tag_make_uint(type);
+        return 1;
 
-        // negative fixnum
-        case 0xe: case 0xf:
-            *tag = mpack_tag_make_int((int8_t)type);
-            return 1;
+    // negative fixnum
+    case 0xe:
+    case 0xf:
+        *tag = mpack_tag_make_int((int8_t)type);
+        return 1;
 
-        // fixmap
-        case 0x8:
-            *tag = mpack_tag_make_map(type & ~0xf0u);
-            return 1;
+    // fixmap
+    case 0x8:
+        *tag = mpack_tag_make_map(type & ~0xf0u);
+        return 1;
 
-        // fixarray
-        case 0x9:
-            *tag = mpack_tag_make_array(type & ~0xf0u);
-            return 1;
+    // fixarray
+    case 0x9:
+        *tag = mpack_tag_make_array(type & ~0xf0u);
+        return 1;
 
-        // fixstr
-        case 0xa: case 0xb:
-            *tag = mpack_tag_make_str(type & ~0xe0u);
-            return 1;
+    // fixstr
+    case 0xa:
+    case 0xb:
+        *tag = mpack_tag_make_str(type & ~0xe0u);
+        return 1;
 
-        // not one of the common infix types
-        default:
-            break;
-
+    // not one of the common infix types
+    default:
+        break;
     }
-    #endif
+#    endif
 
     // handle individual type tags
     switch (type) {
 
-        #if !MPACK_OPTIMIZE_FOR_SIZE
-        // positive fixnum
-        case 0x00: case 0x01: case 0x02: case 0x03: case 0x04: case 0x05: case 0x06: case 0x07:
-        case 0x08: case 0x09: case 0x0a: case 0x0b: case 0x0c: case 0x0d: case 0x0e: case 0x0f:
-        case 0x10: case 0x11: case 0x12: case 0x13: case 0x14: case 0x15: case 0x16: case 0x17:
-        case 0x18: case 0x19: case 0x1a: case 0x1b: case 0x1c: case 0x1d: case 0x1e: case 0x1f:
-        case 0x20: case 0x21: case 0x22: case 0x23: case 0x24: case 0x25: case 0x26: case 0x27:
-        case 0x28: case 0x29: case 0x2a: case 0x2b: case 0x2c: case 0x2d: case 0x2e: case 0x2f:
-        case 0x30: case 0x31: case 0x32: case 0x33: case 0x34: case 0x35: case 0x36: case 0x37:
-        case 0x38: case 0x39: case 0x3a: case 0x3b: case 0x3c: case 0x3d: case 0x3e: case 0x3f:
-        case 0x40: case 0x41: case 0x42: case 0x43: case 0x44: case 0x45: case 0x46: case 0x47:
-        case 0x48: case 0x49: case 0x4a: case 0x4b: case 0x4c: case 0x4d: case 0x4e: case 0x4f:
-        case 0x50: case 0x51: case 0x52: case 0x53: case 0x54: case 0x55: case 0x56: case 0x57:
-        case 0x58: case 0x59: case 0x5a: case 0x5b: case 0x5c: case 0x5d: case 0x5e: case 0x5f:
-        case 0x60: case 0x61: case 0x62: case 0x63: case 0x64: case 0x65: case 0x66: case 0x67:
-        case 0x68: case 0x69: case 0x6a: case 0x6b: case 0x6c: case 0x6d: case 0x6e: case 0x6f:
-        case 0x70: case 0x71: case 0x72: case 0x73: case 0x74: case 0x75: case 0x76: case 0x77:
-        case 0x78: case 0x79: case 0x7a: case 0x7b: case 0x7c: case 0x7d: case 0x7e: case 0x7f:
-            *tag = mpack_tag_make_uint(type);
-            return 1;
+#    if !MPACK_OPTIMIZE_FOR_SIZE
+    // positive fixnum
+    case 0x00:
+    case 0x01:
+    case 0x02:
+    case 0x03:
+    case 0x04:
+    case 0x05:
+    case 0x06:
+    case 0x07:
+    case 0x08:
+    case 0x09:
+    case 0x0a:
+    case 0x0b:
+    case 0x0c:
+    case 0x0d:
+    case 0x0e:
+    case 0x0f:
+    case 0x10:
+    case 0x11:
+    case 0x12:
+    case 0x13:
+    case 0x14:
+    case 0x15:
+    case 0x16:
+    case 0x17:
+    case 0x18:
+    case 0x19:
+    case 0x1a:
+    case 0x1b:
+    case 0x1c:
+    case 0x1d:
+    case 0x1e:
+    case 0x1f:
+    case 0x20:
+    case 0x21:
+    case 0x22:
+    case 0x23:
+    case 0x24:
+    case 0x25:
+    case 0x26:
+    case 0x27:
+    case 0x28:
+    case 0x29:
+    case 0x2a:
+    case 0x2b:
+    case 0x2c:
+    case 0x2d:
+    case 0x2e:
+    case 0x2f:
+    case 0x30:
+    case 0x31:
+    case 0x32:
+    case 0x33:
+    case 0x34:
+    case 0x35:
+    case 0x36:
+    case 0x37:
+    case 0x38:
+    case 0x39:
+    case 0x3a:
+    case 0x3b:
+    case 0x3c:
+    case 0x3d:
+    case 0x3e:
+    case 0x3f:
+    case 0x40:
+    case 0x41:
+    case 0x42:
+    case 0x43:
+    case 0x44:
+    case 0x45:
+    case 0x46:
+    case 0x47:
+    case 0x48:
+    case 0x49:
+    case 0x4a:
+    case 0x4b:
+    case 0x4c:
+    case 0x4d:
+    case 0x4e:
+    case 0x4f:
+    case 0x50:
+    case 0x51:
+    case 0x52:
+    case 0x53:
+    case 0x54:
+    case 0x55:
+    case 0x56:
+    case 0x57:
+    case 0x58:
+    case 0x59:
+    case 0x5a:
+    case 0x5b:
+    case 0x5c:
+    case 0x5d:
+    case 0x5e:
+    case 0x5f:
+    case 0x60:
+    case 0x61:
+    case 0x62:
+    case 0x63:
+    case 0x64:
+    case 0x65:
+    case 0x66:
+    case 0x67:
+    case 0x68:
+    case 0x69:
+    case 0x6a:
+    case 0x6b:
+    case 0x6c:
+    case 0x6d:
+    case 0x6e:
+    case 0x6f:
+    case 0x70:
+    case 0x71:
+    case 0x72:
+    case 0x73:
+    case 0x74:
+    case 0x75:
+    case 0x76:
+    case 0x77:
+    case 0x78:
+    case 0x79:
+    case 0x7a:
+    case 0x7b:
+    case 0x7c:
+    case 0x7d:
+    case 0x7e:
+    case 0x7f:
+        *tag = mpack_tag_make_uint(type);
+        return 1;
 
-        // negative fixnum
-        case 0xe0: case 0xe1: case 0xe2: case 0xe3: case 0xe4: case 0xe5: case 0xe6: case 0xe7:
-        case 0xe8: case 0xe9: case 0xea: case 0xeb: case 0xec: case 0xed: case 0xee: case 0xef:
-        case 0xf0: case 0xf1: case 0xf2: case 0xf3: case 0xf4: case 0xf5: case 0xf6: case 0xf7:
-        case 0xf8: case 0xf9: case 0xfa: case 0xfb: case 0xfc: case 0xfd: case 0xfe: case 0xff:
-            *tag = mpack_tag_make_int((int8_t)type);
-            return 1;
+    // negative fixnum
+    case 0xe0:
+    case 0xe1:
+    case 0xe2:
+    case 0xe3:
+    case 0xe4:
+    case 0xe5:
+    case 0xe6:
+    case 0xe7:
+    case 0xe8:
+    case 0xe9:
+    case 0xea:
+    case 0xeb:
+    case 0xec:
+    case 0xed:
+    case 0xee:
+    case 0xef:
+    case 0xf0:
+    case 0xf1:
+    case 0xf2:
+    case 0xf3:
+    case 0xf4:
+    case 0xf5:
+    case 0xf6:
+    case 0xf7:
+    case 0xf8:
+    case 0xf9:
+    case 0xfa:
+    case 0xfb:
+    case 0xfc:
+    case 0xfd:
+    case 0xfe:
+    case 0xff:
+        *tag = mpack_tag_make_int((int8_t)type);
+        return 1;
 
-        // fixmap
-        case 0x80: case 0x81: case 0x82: case 0x83: case 0x84: case 0x85: case 0x86: case 0x87:
-        case 0x88: case 0x89: case 0x8a: case 0x8b: case 0x8c: case 0x8d: case 0x8e: case 0x8f:
-            *tag = mpack_tag_make_map(type & ~0xf0u);
-            return 1;
+    // fixmap
+    case 0x80:
+    case 0x81:
+    case 0x82:
+    case 0x83:
+    case 0x84:
+    case 0x85:
+    case 0x86:
+    case 0x87:
+    case 0x88:
+    case 0x89:
+    case 0x8a:
+    case 0x8b:
+    case 0x8c:
+    case 0x8d:
+    case 0x8e:
+    case 0x8f:
+        *tag = mpack_tag_make_map(type & ~0xf0u);
+        return 1;
 
-        // fixarray
-        case 0x90: case 0x91: case 0x92: case 0x93: case 0x94: case 0x95: case 0x96: case 0x97:
-        case 0x98: case 0x99: case 0x9a: case 0x9b: case 0x9c: case 0x9d: case 0x9e: case 0x9f:
-            *tag = mpack_tag_make_array(type & ~0xf0u);
-            return 1;
+    // fixarray
+    case 0x90:
+    case 0x91:
+    case 0x92:
+    case 0x93:
+    case 0x94:
+    case 0x95:
+    case 0x96:
+    case 0x97:
+    case 0x98:
+    case 0x99:
+    case 0x9a:
+    case 0x9b:
+    case 0x9c:
+    case 0x9d:
+    case 0x9e:
+    case 0x9f:
+        *tag = mpack_tag_make_array(type & ~0xf0u);
+        return 1;
 
-        // fixstr
-        case 0xa0: case 0xa1: case 0xa2: case 0xa3: case 0xa4: case 0xa5: case 0xa6: case 0xa7:
-        case 0xa8: case 0xa9: case 0xaa: case 0xab: case 0xac: case 0xad: case 0xae: case 0xaf:
-        case 0xb0: case 0xb1: case 0xb2: case 0xb3: case 0xb4: case 0xb5: case 0xb6: case 0xb7:
-        case 0xb8: case 0xb9: case 0xba: case 0xbb: case 0xbc: case 0xbd: case 0xbe: case 0xbf:
-            *tag = mpack_tag_make_str(type & ~0xe0u);
-            return 1;
-        #endif
+    // fixstr
+    case 0xa0:
+    case 0xa1:
+    case 0xa2:
+    case 0xa3:
+    case 0xa4:
+    case 0xa5:
+    case 0xa6:
+    case 0xa7:
+    case 0xa8:
+    case 0xa9:
+    case 0xaa:
+    case 0xab:
+    case 0xac:
+    case 0xad:
+    case 0xae:
+    case 0xaf:
+    case 0xb0:
+    case 0xb1:
+    case 0xb2:
+    case 0xb3:
+    case 0xb4:
+    case 0xb5:
+    case 0xb6:
+    case 0xb7:
+    case 0xb8:
+    case 0xb9:
+    case 0xba:
+    case 0xbb:
+    case 0xbc:
+    case 0xbd:
+    case 0xbe:
+    case 0xbf:
+        *tag = mpack_tag_make_str(type & ~0xe0u);
+        return 1;
+#    endif
 
-        // nil
-        case 0xc0:
-            *tag = mpack_tag_make_nil();
-            return 1;
+    // nil
+    case 0xc0:
+        *tag = mpack_tag_make_nil();
+        return 1;
 
-        // bool
-        case 0xc2: case 0xc3:
-            *tag = mpack_tag_make_bool((bool)(type & 1));
-            return 1;
+    // bool
+    case 0xc2:
+    case 0xc3:
+        *tag = mpack_tag_make_bool((bool)(type & 1));
+        return 1;
 
-        // bin8
-        case 0xc4:
-            if (!mpack_reader_ensure(reader, MPACK_TAG_SIZE_BIN8))
-                return 0;
-            *tag = mpack_tag_make_bin(mpack_load_u8(reader->data + 1));
-            return MPACK_TAG_SIZE_BIN8;
-
-        // bin16
-        case 0xc5:
-            if (!mpack_reader_ensure(reader, MPACK_TAG_SIZE_BIN16))
-                return 0;
-            *tag = mpack_tag_make_bin(mpack_load_u16(reader->data + 1));
-            return MPACK_TAG_SIZE_BIN16;
-
-        // bin32
-        case 0xc6:
-            if (!mpack_reader_ensure(reader, MPACK_TAG_SIZE_BIN32))
-                return 0;
-            *tag = mpack_tag_make_bin(mpack_load_u32(reader->data + 1));
-            return MPACK_TAG_SIZE_BIN32;
-
-        #if MPACK_EXTENSIONS
-        // ext8
-        case 0xc7:
-            if (!mpack_reader_ensure(reader, MPACK_TAG_SIZE_EXT8))
-                return 0;
-            *tag = mpack_tag_make_ext(mpack_load_i8(reader->data + 2), mpack_load_u8(reader->data + 1));
-            return MPACK_TAG_SIZE_EXT8;
-
-        // ext16
-        case 0xc8:
-            if (!mpack_reader_ensure(reader, MPACK_TAG_SIZE_EXT16))
-                return 0;
-            *tag = mpack_tag_make_ext(mpack_load_i8(reader->data + 3), mpack_load_u16(reader->data + 1));
-            return MPACK_TAG_SIZE_EXT16;
-
-        // ext32
-        case 0xc9:
-            if (!mpack_reader_ensure(reader, MPACK_TAG_SIZE_EXT32))
-                return 0;
-            *tag = mpack_tag_make_ext(mpack_load_i8(reader->data + 5), mpack_load_u32(reader->data + 1));
-            return MPACK_TAG_SIZE_EXT32;
-        #endif
-
-        // float
-        case 0xca:
-            if (!mpack_reader_ensure(reader, MPACK_TAG_SIZE_FLOAT))
-                return 0;
-            *tag = mpack_tag_make_float(mpack_load_float(reader->data + 1));
-            return MPACK_TAG_SIZE_FLOAT;
-
-        // double
-        case 0xcb:
-            if (!mpack_reader_ensure(reader, MPACK_TAG_SIZE_DOUBLE))
-                return 0;
-            *tag = mpack_tag_make_double(mpack_load_double(reader->data + 1));
-            return MPACK_TAG_SIZE_DOUBLE;
-
-        // uint8
-        case 0xcc:
-            if (!mpack_reader_ensure(reader, MPACK_TAG_SIZE_U8))
-                return 0;
-            *tag = mpack_tag_make_uint(mpack_load_u8(reader->data + 1));
-            return MPACK_TAG_SIZE_U8;
-
-        // uint16
-        case 0xcd:
-            if (!mpack_reader_ensure(reader, MPACK_TAG_SIZE_U16))
-                return 0;
-            *tag = mpack_tag_make_uint(mpack_load_u16(reader->data + 1));
-            return MPACK_TAG_SIZE_U16;
-
-        // uint32
-        case 0xce:
-            if (!mpack_reader_ensure(reader, MPACK_TAG_SIZE_U32))
-                return 0;
-            *tag = mpack_tag_make_uint(mpack_load_u32(reader->data + 1));
-            return MPACK_TAG_SIZE_U32;
-
-        // uint64
-        case 0xcf:
-            if (!mpack_reader_ensure(reader, MPACK_TAG_SIZE_U64))
-                return 0;
-            *tag = mpack_tag_make_uint(mpack_load_u64(reader->data + 1));
-            return MPACK_TAG_SIZE_U64;
-
-        // int8
-        case 0xd0:
-            if (!mpack_reader_ensure(reader, MPACK_TAG_SIZE_I8))
-                return 0;
-            *tag = mpack_tag_make_int(mpack_load_i8(reader->data + 1));
-            return MPACK_TAG_SIZE_I8;
-
-        // int16
-        case 0xd1:
-            if (!mpack_reader_ensure(reader, MPACK_TAG_SIZE_I16))
-                return 0;
-            *tag = mpack_tag_make_int(mpack_load_i16(reader->data + 1));
-            return MPACK_TAG_SIZE_I16;
-
-        // int32
-        case 0xd2:
-            if (!mpack_reader_ensure(reader, MPACK_TAG_SIZE_I32))
-                return 0;
-            *tag = mpack_tag_make_int(mpack_load_i32(reader->data + 1));
-            return MPACK_TAG_SIZE_I32;
-
-        // int64
-        case 0xd3:
-            if (!mpack_reader_ensure(reader, MPACK_TAG_SIZE_I64))
-                return 0;
-            *tag = mpack_tag_make_int(mpack_load_i64(reader->data + 1));
-            return MPACK_TAG_SIZE_I64;
-
-        #if MPACK_EXTENSIONS
-        // fixext1
-        case 0xd4:
-            if (!mpack_reader_ensure(reader, MPACK_TAG_SIZE_FIXEXT1))
-                return 0;
-            *tag = mpack_tag_make_ext(mpack_load_i8(reader->data + 1), 1);
-            return MPACK_TAG_SIZE_FIXEXT1;
-
-        // fixext2
-        case 0xd5:
-            if (!mpack_reader_ensure(reader, MPACK_TAG_SIZE_FIXEXT2))
-                return 0;
-            *tag = mpack_tag_make_ext(mpack_load_i8(reader->data + 1), 2);
-            return MPACK_TAG_SIZE_FIXEXT2;
-
-        // fixext4
-        case 0xd6:
-            if (!mpack_reader_ensure(reader, MPACK_TAG_SIZE_FIXEXT4))
-                return 0;
-            *tag = mpack_tag_make_ext(mpack_load_i8(reader->data + 1), 4);
-            return 2;
-
-        // fixext8
-        case 0xd7:
-            if (!mpack_reader_ensure(reader, MPACK_TAG_SIZE_FIXEXT8))
-                return 0;
-            *tag = mpack_tag_make_ext(mpack_load_i8(reader->data + 1), 8);
-            return MPACK_TAG_SIZE_FIXEXT8;
-
-        // fixext16
-        case 0xd8:
-            if (!mpack_reader_ensure(reader, MPACK_TAG_SIZE_FIXEXT16))
-                return 0;
-            *tag = mpack_tag_make_ext(mpack_load_i8(reader->data + 1), 16);
-            return MPACK_TAG_SIZE_FIXEXT16;
-        #endif
-
-        // str8
-        case 0xd9:
-            if (!mpack_reader_ensure(reader, MPACK_TAG_SIZE_STR8))
-                return 0;
-            *tag = mpack_tag_make_str(mpack_load_u8(reader->data + 1));
-            return MPACK_TAG_SIZE_STR8;
-
-        // str16
-        case 0xda:
-            if (!mpack_reader_ensure(reader, MPACK_TAG_SIZE_STR16))
-                return 0;
-            *tag = mpack_tag_make_str(mpack_load_u16(reader->data + 1));
-            return MPACK_TAG_SIZE_STR16;
-
-        // str32
-        case 0xdb:
-            if (!mpack_reader_ensure(reader, MPACK_TAG_SIZE_STR32))
-                return 0;
-            *tag = mpack_tag_make_str(mpack_load_u32(reader->data + 1));
-            return MPACK_TAG_SIZE_STR32;
-
-        // array16
-        case 0xdc:
-            if (!mpack_reader_ensure(reader, MPACK_TAG_SIZE_ARRAY16))
-                return 0;
-            *tag = mpack_tag_make_array(mpack_load_u16(reader->data + 1));
-            return MPACK_TAG_SIZE_ARRAY16;
-
-        // array32
-        case 0xdd:
-            if (!mpack_reader_ensure(reader, MPACK_TAG_SIZE_ARRAY32))
-                return 0;
-            *tag = mpack_tag_make_array(mpack_load_u32(reader->data + 1));
-            return MPACK_TAG_SIZE_ARRAY32;
-
-        // map16
-        case 0xde:
-            if (!mpack_reader_ensure(reader, MPACK_TAG_SIZE_MAP16))
-                return 0;
-            *tag = mpack_tag_make_map(mpack_load_u16(reader->data + 1));
-            return MPACK_TAG_SIZE_MAP16;
-
-        // map32
-        case 0xdf:
-            if (!mpack_reader_ensure(reader, MPACK_TAG_SIZE_MAP32))
-                return 0;
-            *tag = mpack_tag_make_map(mpack_load_u32(reader->data + 1));
-            return MPACK_TAG_SIZE_MAP32;
-
-        // reserved
-        case 0xc1:
-            mpack_reader_flag_error(reader, mpack_error_invalid);
+    // bin8
+    case 0xc4:
+        if (!mpack_reader_ensure(reader, MPACK_TAG_SIZE_BIN8))
             return 0;
+        *tag = mpack_tag_make_bin(mpack_load_u8(reader->data + 1));
+        return MPACK_TAG_SIZE_BIN8;
 
-        #if !MPACK_EXTENSIONS
-        // ext
-        case 0xc7: // fallthrough
-        case 0xc8: // fallthrough
-        case 0xc9: // fallthrough
-        // fixext
-        case 0xd4: // fallthrough
-        case 0xd5: // fallthrough
-        case 0xd6: // fallthrough
-        case 0xd7: // fallthrough
-        case 0xd8:
-            mpack_reader_flag_error(reader, mpack_error_unsupported);
+    // bin16
+    case 0xc5:
+        if (!mpack_reader_ensure(reader, MPACK_TAG_SIZE_BIN16))
             return 0;
-        #endif
+        *tag = mpack_tag_make_bin(mpack_load_u16(reader->data + 1));
+        return MPACK_TAG_SIZE_BIN16;
 
-        #if MPACK_OPTIMIZE_FOR_SIZE
-        // any other bytes should have been handled by the infix switch
-        default:
-            break;
-        #endif
+    // bin32
+    case 0xc6:
+        if (!mpack_reader_ensure(reader, MPACK_TAG_SIZE_BIN32))
+            return 0;
+        *tag = mpack_tag_make_bin(mpack_load_u32(reader->data + 1));
+        return MPACK_TAG_SIZE_BIN32;
+
+#    if MPACK_EXTENSIONS
+    // ext8
+    case 0xc7:
+        if (!mpack_reader_ensure(reader, MPACK_TAG_SIZE_EXT8))
+            return 0;
+        *tag = mpack_tag_make_ext(
+            mpack_load_i8(reader->data + 2), mpack_load_u8(reader->data + 1));
+        return MPACK_TAG_SIZE_EXT8;
+
+    // ext16
+    case 0xc8:
+        if (!mpack_reader_ensure(reader, MPACK_TAG_SIZE_EXT16))
+            return 0;
+        *tag = mpack_tag_make_ext(
+            mpack_load_i8(reader->data + 3), mpack_load_u16(reader->data + 1));
+        return MPACK_TAG_SIZE_EXT16;
+
+    // ext32
+    case 0xc9:
+        if (!mpack_reader_ensure(reader, MPACK_TAG_SIZE_EXT32))
+            return 0;
+        *tag = mpack_tag_make_ext(
+            mpack_load_i8(reader->data + 5), mpack_load_u32(reader->data + 1));
+        return MPACK_TAG_SIZE_EXT32;
+#    endif
+
+    // float
+    case 0xca:
+        if (!mpack_reader_ensure(reader, MPACK_TAG_SIZE_FLOAT))
+            return 0;
+        *tag = mpack_tag_make_float(mpack_load_float(reader->data + 1));
+        return MPACK_TAG_SIZE_FLOAT;
+
+    // double
+    case 0xcb:
+        if (!mpack_reader_ensure(reader, MPACK_TAG_SIZE_DOUBLE))
+            return 0;
+        *tag = mpack_tag_make_double(mpack_load_double(reader->data + 1));
+        return MPACK_TAG_SIZE_DOUBLE;
+
+    // uint8
+    case 0xcc:
+        if (!mpack_reader_ensure(reader, MPACK_TAG_SIZE_U8))
+            return 0;
+        *tag = mpack_tag_make_uint(mpack_load_u8(reader->data + 1));
+        return MPACK_TAG_SIZE_U8;
+
+    // uint16
+    case 0xcd:
+        if (!mpack_reader_ensure(reader, MPACK_TAG_SIZE_U16))
+            return 0;
+        *tag = mpack_tag_make_uint(mpack_load_u16(reader->data + 1));
+        return MPACK_TAG_SIZE_U16;
+
+    // uint32
+    case 0xce:
+        if (!mpack_reader_ensure(reader, MPACK_TAG_SIZE_U32))
+            return 0;
+        *tag = mpack_tag_make_uint(mpack_load_u32(reader->data + 1));
+        return MPACK_TAG_SIZE_U32;
+
+    // uint64
+    case 0xcf:
+        if (!mpack_reader_ensure(reader, MPACK_TAG_SIZE_U64))
+            return 0;
+        *tag = mpack_tag_make_uint(mpack_load_u64(reader->data + 1));
+        return MPACK_TAG_SIZE_U64;
+
+    // int8
+    case 0xd0:
+        if (!mpack_reader_ensure(reader, MPACK_TAG_SIZE_I8))
+            return 0;
+        *tag = mpack_tag_make_int(mpack_load_i8(reader->data + 1));
+        return MPACK_TAG_SIZE_I8;
+
+    // int16
+    case 0xd1:
+        if (!mpack_reader_ensure(reader, MPACK_TAG_SIZE_I16))
+            return 0;
+        *tag = mpack_tag_make_int(mpack_load_i16(reader->data + 1));
+        return MPACK_TAG_SIZE_I16;
+
+    // int32
+    case 0xd2:
+        if (!mpack_reader_ensure(reader, MPACK_TAG_SIZE_I32))
+            return 0;
+        *tag = mpack_tag_make_int(mpack_load_i32(reader->data + 1));
+        return MPACK_TAG_SIZE_I32;
+
+    // int64
+    case 0xd3:
+        if (!mpack_reader_ensure(reader, MPACK_TAG_SIZE_I64))
+            return 0;
+        *tag = mpack_tag_make_int(mpack_load_i64(reader->data + 1));
+        return MPACK_TAG_SIZE_I64;
+
+#    if MPACK_EXTENSIONS
+    // fixext1
+    case 0xd4:
+        if (!mpack_reader_ensure(reader, MPACK_TAG_SIZE_FIXEXT1))
+            return 0;
+        *tag = mpack_tag_make_ext(mpack_load_i8(reader->data + 1), 1);
+        return MPACK_TAG_SIZE_FIXEXT1;
+
+    // fixext2
+    case 0xd5:
+        if (!mpack_reader_ensure(reader, MPACK_TAG_SIZE_FIXEXT2))
+            return 0;
+        *tag = mpack_tag_make_ext(mpack_load_i8(reader->data + 1), 2);
+        return MPACK_TAG_SIZE_FIXEXT2;
+
+    // fixext4
+    case 0xd6:
+        if (!mpack_reader_ensure(reader, MPACK_TAG_SIZE_FIXEXT4))
+            return 0;
+        *tag = mpack_tag_make_ext(mpack_load_i8(reader->data + 1), 4);
+        return 2;
+
+    // fixext8
+    case 0xd7:
+        if (!mpack_reader_ensure(reader, MPACK_TAG_SIZE_FIXEXT8))
+            return 0;
+        *tag = mpack_tag_make_ext(mpack_load_i8(reader->data + 1), 8);
+        return MPACK_TAG_SIZE_FIXEXT8;
+
+    // fixext16
+    case 0xd8:
+        if (!mpack_reader_ensure(reader, MPACK_TAG_SIZE_FIXEXT16))
+            return 0;
+        *tag = mpack_tag_make_ext(mpack_load_i8(reader->data + 1), 16);
+        return MPACK_TAG_SIZE_FIXEXT16;
+#    endif
+
+    // str8
+    case 0xd9:
+        if (!mpack_reader_ensure(reader, MPACK_TAG_SIZE_STR8))
+            return 0;
+        *tag = mpack_tag_make_str(mpack_load_u8(reader->data + 1));
+        return MPACK_TAG_SIZE_STR8;
+
+    // str16
+    case 0xda:
+        if (!mpack_reader_ensure(reader, MPACK_TAG_SIZE_STR16))
+            return 0;
+        *tag = mpack_tag_make_str(mpack_load_u16(reader->data + 1));
+        return MPACK_TAG_SIZE_STR16;
+
+    // str32
+    case 0xdb:
+        if (!mpack_reader_ensure(reader, MPACK_TAG_SIZE_STR32))
+            return 0;
+        *tag = mpack_tag_make_str(mpack_load_u32(reader->data + 1));
+        return MPACK_TAG_SIZE_STR32;
+
+    // array16
+    case 0xdc:
+        if (!mpack_reader_ensure(reader, MPACK_TAG_SIZE_ARRAY16))
+            return 0;
+        *tag = mpack_tag_make_array(mpack_load_u16(reader->data + 1));
+        return MPACK_TAG_SIZE_ARRAY16;
+
+    // array32
+    case 0xdd:
+        if (!mpack_reader_ensure(reader, MPACK_TAG_SIZE_ARRAY32))
+            return 0;
+        *tag = mpack_tag_make_array(mpack_load_u32(reader->data + 1));
+        return MPACK_TAG_SIZE_ARRAY32;
+
+    // map16
+    case 0xde:
+        if (!mpack_reader_ensure(reader, MPACK_TAG_SIZE_MAP16))
+            return 0;
+        *tag = mpack_tag_make_map(mpack_load_u16(reader->data + 1));
+        return MPACK_TAG_SIZE_MAP16;
+
+    // map32
+    case 0xdf:
+        if (!mpack_reader_ensure(reader, MPACK_TAG_SIZE_MAP32))
+            return 0;
+        *tag = mpack_tag_make_map(mpack_load_u32(reader->data + 1));
+        return MPACK_TAG_SIZE_MAP32;
+
+    // reserved
+    case 0xc1:
+        mpack_reader_flag_error(reader, mpack_error_invalid);
+        return 0;
+
+#    if !MPACK_EXTENSIONS
+    // ext
+    case 0xc7: // fallthrough
+    case 0xc8: // fallthrough
+    case 0xc9: // fallthrough
+    // fixext
+    case 0xd4: // fallthrough
+    case 0xd5: // fallthrough
+    case 0xd6: // fallthrough
+    case 0xd7: // fallthrough
+    case 0xd8:
+        mpack_reader_flag_error(reader, mpack_error_unsupported);
+        return 0;
+#    endif
+
+#    if MPACK_OPTIMIZE_FOR_SIZE
+    // any other bytes should have been handled by the infix switch
+    default:
+        break;
+#    endif
     }
 
     mpack_assert(0, "unreachable");
     return 0;
 }
 
-mpack_tag_t mpack_read_tag(mpack_reader_t* reader) {
+mpack_tag_t
+mpack_read_tag(mpack_reader_t *reader)
+{
     mpack_log("reading tag\n");
 
     // make sure we can read a tag
@@ -2978,36 +3684,38 @@ mpack_tag_t mpack_read_tag(mpack_reader_t* reader) {
     if (count == 0)
         return mpack_tag_nil();
 
-    #if MPACK_READ_TRACKING
+#    if MPACK_READ_TRACKING
     mpack_error_t track_error = mpack_ok;
 
     switch (tag.type) {
-        case mpack_type_map:
-        case mpack_type_array:
-            track_error = mpack_track_push(&reader->track, tag.type, tag.v.n);
-            break;
-        #if MPACK_EXTENSIONS
-        case mpack_type_ext:
-        #endif
-        case mpack_type_str:
-        case mpack_type_bin:
-            track_error = mpack_track_push(&reader->track, tag.type, tag.v.l);
-            break;
-        default:
-            break;
+    case mpack_type_map:
+    case mpack_type_array:
+        track_error = mpack_track_push(&reader->track, tag.type, tag.v.n);
+        break;
+#        if MPACK_EXTENSIONS
+    case mpack_type_ext:
+#        endif
+    case mpack_type_str:
+    case mpack_type_bin:
+        track_error = mpack_track_push(&reader->track, tag.type, tag.v.l);
+        break;
+    default:
+        break;
     }
 
     if (track_error != mpack_ok) {
         mpack_reader_flag_error(reader, track_error);
         return mpack_tag_nil();
     }
-    #endif
+#    endif
 
     reader->data += count;
     return tag;
 }
 
-mpack_tag_t mpack_peek_tag(mpack_reader_t* reader) {
+mpack_tag_t
+mpack_peek_tag(mpack_reader_t *reader)
+{
     mpack_log("peeking tag\n");
 
     // make sure we can peek a tag
@@ -3022,52 +3730,56 @@ mpack_tag_t mpack_peek_tag(mpack_reader_t* reader) {
     return tag;
 }
 
-void mpack_discard(mpack_reader_t* reader) {
+void
+mpack_discard(mpack_reader_t *reader)
+{
     mpack_tag_t var = mpack_read_tag(reader);
     if (mpack_reader_error(reader))
         return;
     switch (var.type) {
-        case mpack_type_str:
-            mpack_skip_bytes(reader, var.v.l);
-            mpack_done_str(reader);
-            break;
-        case mpack_type_bin:
-            mpack_skip_bytes(reader, var.v.l);
-            mpack_done_bin(reader);
-            break;
-        #if MPACK_EXTENSIONS
-        case mpack_type_ext:
-            mpack_skip_bytes(reader, var.v.l);
-            mpack_done_ext(reader);
-            break;
-        #endif
-        case mpack_type_array: {
-            for (; var.v.n > 0; --var.v.n) {
-                mpack_discard(reader);
-                if (mpack_reader_error(reader))
-                    break;
-            }
-            mpack_done_array(reader);
-            break;
+    case mpack_type_str:
+        mpack_skip_bytes(reader, var.v.l);
+        mpack_done_str(reader);
+        break;
+    case mpack_type_bin:
+        mpack_skip_bytes(reader, var.v.l);
+        mpack_done_bin(reader);
+        break;
+#    if MPACK_EXTENSIONS
+    case mpack_type_ext:
+        mpack_skip_bytes(reader, var.v.l);
+        mpack_done_ext(reader);
+        break;
+#    endif
+    case mpack_type_array: {
+        for (; var.v.n > 0; --var.v.n) {
+            mpack_discard(reader);
+            if (mpack_reader_error(reader))
+                break;
         }
-        case mpack_type_map: {
-            for (; var.v.n > 0; --var.v.n) {
-                mpack_discard(reader);
-                mpack_discard(reader);
-                if (mpack_reader_error(reader))
-                    break;
-            }
-            mpack_done_map(reader);
-            break;
+        mpack_done_array(reader);
+        break;
+    }
+    case mpack_type_map: {
+        for (; var.v.n > 0; --var.v.n) {
+            mpack_discard(reader);
+            mpack_discard(reader);
+            if (mpack_reader_error(reader))
+                break;
         }
-        default:
-            break;
+        mpack_done_map(reader);
+        break;
+    }
+    default:
+        break;
     }
 }
 
-#if MPACK_EXTENSIONS
-mpack_timestamp_t mpack_read_timestamp(mpack_reader_t* reader, size_t size) {
-    mpack_timestamp_t timestamp = {0, 0};
+#    if MPACK_EXTENSIONS
+mpack_timestamp_t
+mpack_read_timestamp(mpack_reader_t *reader, size_t size)
+{
+    mpack_timestamp_t timestamp = { 0, 0 };
 
     if (size != 4 && size != 8 && size != 12) {
         mpack_reader_flag_error(reader, mpack_error_invalid);
@@ -3081,46 +3793,52 @@ mpack_timestamp_t mpack_read_timestamp(mpack_reader_t* reader, size_t size) {
         return timestamp;
 
     switch (size) {
-        case 4:
-            timestamp.seconds = (int64_t)(uint64_t)mpack_load_u32(buf);
-            break;
+    case 4:
+        timestamp.seconds = (int64_t)(uint64_t)mpack_load_u32(buf);
+        break;
 
-        case 8: {
-            uint64_t packed = mpack_load_u64(buf);
-            timestamp.seconds = (int64_t)(packed & ((UINT64_C(1) << 34) - 1));
-            timestamp.nanoseconds = (uint32_t)(packed >> 34);
-            break;
-        }
+    case 8: {
+        uint64_t packed = mpack_load_u64(buf);
+        timestamp.seconds = (int64_t)(packed & ((UINT64_C(1) << 34) - 1));
+        timestamp.nanoseconds = (uint32_t)(packed >> 34);
+        break;
+    }
 
-        case 12:
-            timestamp.nanoseconds = mpack_load_u32(buf);
-            timestamp.seconds = mpack_load_i64(buf + 4);
-            break;
+    case 12:
+        timestamp.nanoseconds = mpack_load_u32(buf);
+        timestamp.seconds = mpack_load_i64(buf + 4);
+        break;
 
-        default:
-            mpack_assert(false, "unreachable");
-            break;
+    default:
+        mpack_assert(false, "unreachable");
+        break;
     }
 
     if (timestamp.nanoseconds > MPACK_TIMESTAMP_NANOSECONDS_MAX) {
         mpack_reader_flag_error(reader, mpack_error_invalid);
-        mpack_timestamp_t zero = {0, 0};
+        mpack_timestamp_t zero = { 0, 0 };
         return zero;
     }
 
     return timestamp;
 }
-#endif
+#    endif
 
-#if MPACK_READ_TRACKING
-void mpack_done_type(mpack_reader_t* reader, mpack_type_t type) {
+#    if MPACK_READ_TRACKING
+void
+mpack_done_type(mpack_reader_t *reader, mpack_type_t type)
+{
     if (mpack_reader_error(reader) == mpack_ok)
-        mpack_reader_flag_if_error(reader, mpack_track_pop(&reader->track, type));
+        mpack_reader_flag_if_error(
+            reader, mpack_track_pop(&reader->track, type));
 }
-#endif
+#    endif
 
-#if MPACK_DEBUG && MPACK_STDIO
-static size_t mpack_print_read_prefix(mpack_reader_t* reader, size_t length, char* buffer, size_t buffer_size) {
+#    if MPACK_DEBUG && MPACK_STDIO
+static size_t
+mpack_print_read_prefix(
+    mpack_reader_t *reader, size_t length, char *buffer, size_t buffer_size)
+{
     if (length == 0)
         return 0;
 
@@ -3133,7 +3851,9 @@ static size_t mpack_print_read_prefix(mpack_reader_t* reader, size_t length, cha
     return read;
 }
 
-static void mpack_print_element(mpack_reader_t* reader, mpack_print_t* print, size_t depth) {
+static void
+mpack_print_element(mpack_reader_t *reader, mpack_print_t *print, size_t depth)
+{
     mpack_tag_t val = mpack_read_tag(reader);
     if (mpack_reader_error(reader) != mpack_ok)
         return;
@@ -3143,81 +3863,91 @@ static void mpack_print_element(mpack_reader_t* reader, mpack_print_t* print, si
     size_t count = 0;
 
     switch (val.type) {
-        case mpack_type_str:
-            mpack_print_append_cstr(print, "\"");
-            for (size_t i = 0; i < val.v.l; ++i) {
-                char c;
-                mpack_read_bytes(reader, &c, 1);
-                if (mpack_reader_error(reader) != mpack_ok)
-                    return;
-                switch (c) {
-                    case '\n': mpack_print_append_cstr(print, "\\n"); break;
-                    case '\\': mpack_print_append_cstr(print, "\\\\"); break;
-                    case '"': mpack_print_append_cstr(print, "\\\""); break;
-                    default: mpack_print_append(print, &c, 1); break;
-                }
+    case mpack_type_str:
+        mpack_print_append_cstr(print, "\"");
+        for (size_t i = 0; i < val.v.l; ++i) {
+            char c;
+            mpack_read_bytes(reader, &c, 1);
+            if (mpack_reader_error(reader) != mpack_ok)
+                return;
+            switch (c) {
+            case '\n':
+                mpack_print_append_cstr(print, "\\n");
+                break;
+            case '\\':
+                mpack_print_append_cstr(print, "\\\\");
+                break;
+            case '"':
+                mpack_print_append_cstr(print, "\\\"");
+                break;
+            default:
+                mpack_print_append(print, &c, 1);
+                break;
             }
-            mpack_print_append_cstr(print, "\"");
-            mpack_done_str(reader);
-            return;
+        }
+        mpack_print_append_cstr(print, "\"");
+        mpack_done_str(reader);
+        return;
 
-        case mpack_type_array:
-            mpack_print_append_cstr(print, "[\n");
-            for (size_t i = 0; i < val.v.n; ++i) {
-                for (size_t j = 0; j < depth + 1; ++j)
-                    mpack_print_append_cstr(print, "    ");
-                mpack_print_element(reader, print, depth + 1);
-                if (mpack_reader_error(reader) != mpack_ok)
-                    return;
-                if (i != val.v.n - 1)
-                    mpack_print_append_cstr(print, ",");
-                mpack_print_append_cstr(print, "\n");
-            }
-            for (size_t i = 0; i < depth; ++i)
+    case mpack_type_array:
+        mpack_print_append_cstr(print, "[\n");
+        for (size_t i = 0; i < val.v.n; ++i) {
+            for (size_t j = 0; j < depth + 1; ++j)
                 mpack_print_append_cstr(print, "    ");
-            mpack_print_append_cstr(print, "]");
-            mpack_done_array(reader);
-            return;
+            mpack_print_element(reader, print, depth + 1);
+            if (mpack_reader_error(reader) != mpack_ok)
+                return;
+            if (i != val.v.n - 1)
+                mpack_print_append_cstr(print, ",");
+            mpack_print_append_cstr(print, "\n");
+        }
+        for (size_t i = 0; i < depth; ++i)
+            mpack_print_append_cstr(print, "    ");
+        mpack_print_append_cstr(print, "]");
+        mpack_done_array(reader);
+        return;
 
-        case mpack_type_map:
-            mpack_print_append_cstr(print, "{\n");
-            for (size_t i = 0; i < val.v.n; ++i) {
-                for (size_t j = 0; j < depth + 1; ++j)
-                    mpack_print_append_cstr(print, "    ");
-                mpack_print_element(reader, print, depth + 1);
-                if (mpack_reader_error(reader) != mpack_ok)
-                    return;
-                mpack_print_append_cstr(print, ": ");
-                mpack_print_element(reader, print, depth + 1);
-                if (mpack_reader_error(reader) != mpack_ok)
-                    return;
-                if (i != val.v.n - 1)
-                    mpack_print_append_cstr(print, ",");
-                mpack_print_append_cstr(print, "\n");
-            }
-            for (size_t i = 0; i < depth; ++i)
+    case mpack_type_map:
+        mpack_print_append_cstr(print, "{\n");
+        for (size_t i = 0; i < val.v.n; ++i) {
+            for (size_t j = 0; j < depth + 1; ++j)
                 mpack_print_append_cstr(print, "    ");
-            mpack_print_append_cstr(print, "}");
-            mpack_done_map(reader);
-            return;
+            mpack_print_element(reader, print, depth + 1);
+            if (mpack_reader_error(reader) != mpack_ok)
+                return;
+            mpack_print_append_cstr(print, ": ");
+            mpack_print_element(reader, print, depth + 1);
+            if (mpack_reader_error(reader) != mpack_ok)
+                return;
+            if (i != val.v.n - 1)
+                mpack_print_append_cstr(print, ",");
+            mpack_print_append_cstr(print, "\n");
+        }
+        for (size_t i = 0; i < depth; ++i)
+            mpack_print_append_cstr(print, "    ");
+        mpack_print_append_cstr(print, "}");
+        mpack_done_map(reader);
+        return;
 
         // The above cases return so as not to print a pseudo-json value. The
         // below cases break and print pseudo-json.
 
-        case mpack_type_bin:
-            count = mpack_print_read_prefix(reader, mpack_tag_bin_length(&val), buffer, sizeof(buffer));
-            mpack_done_bin(reader);
-            break;
+    case mpack_type_bin:
+        count = mpack_print_read_prefix(
+            reader, mpack_tag_bin_length(&val), buffer, sizeof(buffer));
+        mpack_done_bin(reader);
+        break;
 
-        #if MPACK_EXTENSIONS
-        case mpack_type_ext:
-            count = mpack_print_read_prefix(reader, mpack_tag_ext_length(&val), buffer, sizeof(buffer));
-            mpack_done_ext(reader);
-            break;
-        #endif
+#        if MPACK_EXTENSIONS
+    case mpack_type_ext:
+        count = mpack_print_read_prefix(
+            reader, mpack_tag_ext_length(&val), buffer, sizeof(buffer));
+        mpack_done_ext(reader);
+        break;
+#        endif
 
-        default:
-            break;
+    default:
+        break;
     }
 
     char buf[256];
@@ -3225,7 +3955,10 @@ static void mpack_print_element(mpack_reader_t* reader, mpack_print_t* print, si
     mpack_print_append_cstr(print, buf);
 }
 
-static void mpack_print_and_destroy(mpack_reader_t* reader, mpack_print_t* print, size_t depth) {
+static void
+mpack_print_and_destroy(
+    mpack_reader_t *reader, mpack_print_t *print, size_t depth)
+{
     for (size_t i = 0; i < depth; ++i)
         mpack_print_append_cstr(print, "    ");
     mpack_print_element(reader, print, depth);
@@ -3234,23 +3967,31 @@ static void mpack_print_and_destroy(mpack_reader_t* reader, mpack_print_t* print
 
     char buf[256];
     if (mpack_reader_destroy(reader) != mpack_ok) {
-        mpack_snprintf(buf, sizeof(buf), "\n<mpack parsing error %s>", mpack_error_to_string(mpack_reader_error(reader)));
+        mpack_snprintf(buf, sizeof(buf), "\n<mpack parsing error %s>",
+            mpack_error_to_string(mpack_reader_error(reader)));
         buf[sizeof(buf) - 1] = '\0';
         mpack_print_append_cstr(print, buf);
     } else if (remaining > 0) {
-        mpack_snprintf(buf, sizeof(buf), "\n<%i extra bytes at end of message>", (int)remaining);
+        mpack_snprintf(buf, sizeof(buf), "\n<%i extra bytes at end of message>",
+            (int)remaining);
         buf[sizeof(buf) - 1] = '\0';
         mpack_print_append_cstr(print, buf);
     }
 }
 
-static void mpack_print_data(const char* data, size_t len, mpack_print_t* print, size_t depth) {
+static void
+mpack_print_data(
+    const char *data, size_t len, mpack_print_t *print, size_t depth)
+{
     mpack_reader_t reader;
     mpack_reader_init_data(&reader, data, len);
     mpack_print_and_destroy(&reader, print, depth);
 }
 
-void mpack_print_data_to_buffer(const char* data, size_t data_size, char* buffer, size_t buffer_size) {
+void
+mpack_print_data_to_buffer(
+    const char *data, size_t data_size, char *buffer, size_t buffer_size)
+{
     if (buffer_size == 0) {
         mpack_assert(false, "buffer size is zero!");
         return;
@@ -3261,7 +4002,7 @@ void mpack_print_data_to_buffer(const char* data, size_t data_size, char* buffer
     print.buffer = buffer;
     print.size = buffer_size;
     mpack_print_data(data, data_size, &print, 0);
-    mpack_print_append(&print, "",  1); // null-terminator
+    mpack_print_append(&print, "", 1); // null-terminator
     mpack_print_flush(&print);
 
     // we always make sure there's a null-terminator at the end of the buffer
@@ -3269,7 +4010,10 @@ void mpack_print_data_to_buffer(const char* data, size_t data_size, char* buffer
     print.buffer[print.size - 1] = '\0';
 }
 
-void mpack_print_data_to_callback(const char* data, size_t size, mpack_print_callback_t callback, void* context) {
+void
+mpack_print_data_to_callback(const char *data, size_t size,
+    mpack_print_callback_t callback, void *context)
+{
     char buffer[1024];
     mpack_print_t print;
     mpack_memset(&print, 0, sizeof(print));
@@ -3281,7 +4025,9 @@ void mpack_print_data_to_callback(const char* data, size_t size, mpack_print_cal
     mpack_print_flush(&print);
 }
 
-void mpack_print_data_to_file(const char* data, size_t len, FILE* file) {
+void
+mpack_print_data_to_file(const char *data, size_t len, FILE *file)
+{
     mpack_assert(data != NULL, "data is NULL");
     mpack_assert(file != NULL, "file is NULL");
 
@@ -3298,7 +4044,10 @@ void mpack_print_data_to_file(const char* data, size_t len, FILE* file) {
     mpack_print_flush(&print);
 }
 
-void mpack_print_stdfile_to_callback(FILE* file, mpack_print_callback_t callback, void* context) {
+void
+mpack_print_stdfile_to_callback(
+    FILE *file, mpack_print_callback_t callback, void *context)
+{
     char buffer[1024];
     mpack_print_t print;
     mpack_memset(&print, 0, sizeof(print));
@@ -3312,7 +4061,7 @@ void mpack_print_stdfile_to_callback(FILE* file, mpack_print_callback_t callback
     mpack_print_and_destroy(&reader, &print, 0);
     mpack_print_flush(&print);
 }
-#endif
+#    endif
 
 #endif
 
@@ -3324,10 +4073,11 @@ void mpack_print_stdfile_to_callback(FILE* file, mpack_print_callback_t callback
 
 #if MPACK_EXPECT
 
-
 // Helpers
 
-MPACK_STATIC_INLINE uint8_t mpack_expect_native_u8(mpack_reader_t* reader) {
+MPACK_STATIC_INLINE uint8_t
+mpack_expect_native_u8(mpack_reader_t *reader)
+{
     if (mpack_reader_error(reader) != mpack_ok)
         return 0;
     uint8_t type;
@@ -3338,8 +4088,10 @@ MPACK_STATIC_INLINE uint8_t mpack_expect_native_u8(mpack_reader_t* reader) {
     return type;
 }
 
-#if !MPACK_OPTIMIZE_FOR_SIZE
-MPACK_STATIC_INLINE uint16_t mpack_expect_native_u16(mpack_reader_t* reader) {
+#    if !MPACK_OPTIMIZE_FOR_SIZE
+MPACK_STATIC_INLINE uint16_t
+mpack_expect_native_u16(mpack_reader_t *reader)
+{
     if (mpack_reader_error(reader) != mpack_ok)
         return 0;
     uint16_t type;
@@ -3350,7 +4102,9 @@ MPACK_STATIC_INLINE uint16_t mpack_expect_native_u16(mpack_reader_t* reader) {
     return type;
 }
 
-MPACK_STATIC_INLINE uint32_t mpack_expect_native_u32(mpack_reader_t* reader) {
+MPACK_STATIC_INLINE uint32_t
+mpack_expect_native_u32(mpack_reader_t *reader)
+{
     if (mpack_reader_error(reader) != mpack_ok)
         return 0;
     uint32_t type;
@@ -3360,17 +4114,20 @@ MPACK_STATIC_INLINE uint32_t mpack_expect_native_u32(mpack_reader_t* reader) {
     reader->data += sizeof(type);
     return type;
 }
-#endif
+#    endif
 
-MPACK_STATIC_INLINE uint8_t mpack_expect_type_byte(mpack_reader_t* reader) {
+MPACK_STATIC_INLINE uint8_t
+mpack_expect_type_byte(mpack_reader_t *reader)
+{
     mpack_reader_track_element(reader);
     return mpack_expect_native_u8(reader);
 }
 
-
 // Basic Number Functions
 
-uint8_t mpack_expect_u8(mpack_reader_t* reader) {
+uint8_t
+mpack_expect_u8(mpack_reader_t *reader)
+{
     mpack_tag_t var = mpack_read_tag(reader);
     if (var.type == mpack_type_uint) {
         if (var.v.u <= UINT8_MAX)
@@ -3383,7 +4140,9 @@ uint8_t mpack_expect_u8(mpack_reader_t* reader) {
     return 0;
 }
 
-uint16_t mpack_expect_u16(mpack_reader_t* reader) {
+uint16_t
+mpack_expect_u16(mpack_reader_t *reader)
+{
     mpack_tag_t var = mpack_read_tag(reader);
     if (var.type == mpack_type_uint) {
         if (var.v.u <= UINT16_MAX)
@@ -3396,7 +4155,9 @@ uint16_t mpack_expect_u16(mpack_reader_t* reader) {
     return 0;
 }
 
-uint32_t mpack_expect_u32(mpack_reader_t* reader) {
+uint32_t
+mpack_expect_u32(mpack_reader_t *reader)
+{
     mpack_tag_t var = mpack_read_tag(reader);
     if (var.type == mpack_type_uint) {
         if (var.v.u <= UINT32_MAX)
@@ -3409,7 +4170,9 @@ uint32_t mpack_expect_u32(mpack_reader_t* reader) {
     return 0;
 }
 
-uint64_t mpack_expect_u64(mpack_reader_t* reader) {
+uint64_t
+mpack_expect_u64(mpack_reader_t *reader)
+{
     mpack_tag_t var = mpack_read_tag(reader);
     if (var.type == mpack_type_uint) {
         return var.v.u;
@@ -3421,7 +4184,9 @@ uint64_t mpack_expect_u64(mpack_reader_t* reader) {
     return 0;
 }
 
-int8_t mpack_expect_i8(mpack_reader_t* reader) {
+int8_t
+mpack_expect_i8(mpack_reader_t *reader)
+{
     mpack_tag_t var = mpack_read_tag(reader);
     if (var.type == mpack_type_uint) {
         if (var.v.u <= INT8_MAX)
@@ -3434,7 +4199,9 @@ int8_t mpack_expect_i8(mpack_reader_t* reader) {
     return 0;
 }
 
-int16_t mpack_expect_i16(mpack_reader_t* reader) {
+int16_t
+mpack_expect_i16(mpack_reader_t *reader)
+{
     mpack_tag_t var = mpack_read_tag(reader);
     if (var.type == mpack_type_uint) {
         if (var.v.u <= INT16_MAX)
@@ -3447,7 +4214,9 @@ int16_t mpack_expect_i16(mpack_reader_t* reader) {
     return 0;
 }
 
-int32_t mpack_expect_i32(mpack_reader_t* reader) {
+int32_t
+mpack_expect_i32(mpack_reader_t *reader)
+{
     mpack_tag_t var = mpack_read_tag(reader);
     if (var.type == mpack_type_uint) {
         if (var.v.u <= INT32_MAX)
@@ -3460,7 +4229,9 @@ int32_t mpack_expect_i32(mpack_reader_t* reader) {
     return 0;
 }
 
-int64_t mpack_expect_i64(mpack_reader_t* reader) {
+int64_t
+mpack_expect_i64(mpack_reader_t *reader)
+{
     mpack_tag_t var = mpack_read_tag(reader);
     if (var.type == mpack_type_uint) {
         if (var.v.u <= INT64_MAX)
@@ -3472,7 +4243,9 @@ int64_t mpack_expect_i64(mpack_reader_t* reader) {
     return 0;
 }
 
-float mpack_expect_float(mpack_reader_t* reader) {
+float
+mpack_expect_float(mpack_reader_t *reader)
+{
     mpack_tag_t var = mpack_read_tag(reader);
     if (var.type == mpack_type_uint)
         return (float)var.v.u;
@@ -3486,7 +4259,9 @@ float mpack_expect_float(mpack_reader_t* reader) {
     return 0.0f;
 }
 
-double mpack_expect_double(mpack_reader_t* reader) {
+double
+mpack_expect_double(mpack_reader_t *reader)
+{
     mpack_tag_t var = mpack_read_tag(reader);
     if (var.type == mpack_type_uint)
         return (double)var.v.u;
@@ -3500,7 +4275,9 @@ double mpack_expect_double(mpack_reader_t* reader) {
     return 0.0;
 }
 
-float mpack_expect_float_strict(mpack_reader_t* reader) {
+float
+mpack_expect_float_strict(mpack_reader_t *reader)
+{
     mpack_tag_t var = mpack_read_tag(reader);
     if (var.type == mpack_type_float)
         return var.v.f;
@@ -3508,7 +4285,9 @@ float mpack_expect_float_strict(mpack_reader_t* reader) {
     return 0.0f;
 }
 
-double mpack_expect_double_strict(mpack_reader_t* reader) {
+double
+mpack_expect_double_strict(mpack_reader_t *reader)
+{
     mpack_tag_t var = mpack_read_tag(reader);
     if (var.type == mpack_type_float)
         return (double)var.v.f;
@@ -3518,90 +4297,125 @@ double mpack_expect_double_strict(mpack_reader_t* reader) {
     return 0.0;
 }
 
-
 // Ranged Number Functions
 //
 // All ranged functions are identical other than the type, so we
 // define their content with a macro. The prototypes are still written
 // out in full to support ctags/IDE tools.
 
-#define MPACK_EXPECT_RANGE_IMPL(name, type_t)                           \
-                                                                        \
-    /* make sure the range is sensible */                               \
-    mpack_assert(min_value <= max_value,                                \
-            "min_value %i must be less than or equal to max_value %i",  \
-            min_value, max_value);                                      \
-                                                                        \
-    /* read the value */                                                \
-    type_t val = mpack_expect_##name(reader);                           \
-    if (mpack_reader_error(reader) != mpack_ok)                         \
-        return min_value;                                               \
-                                                                        \
-    /* make sure it fits */                                             \
-    if (val < min_value || val > max_value) {                           \
-        mpack_reader_flag_error(reader, mpack_error_type);              \
-        return min_value;                                               \
-    }                                                                   \
-                                                                        \
-    return val;
+#    define MPACK_EXPECT_RANGE_IMPL(name, type_t)                              \
+                                                                               \
+        /* make sure the range is sensible */                                  \
+        mpack_assert(min_value <= max_value,                                   \
+            "min_value %i must be less than or equal to max_value %i",         \
+            min_value, max_value);                                             \
+                                                                               \
+        /* read the value */                                                   \
+        type_t val = mpack_expect_##name(reader);                              \
+        if (mpack_reader_error(reader) != mpack_ok)                            \
+            return min_value;                                                  \
+                                                                               \
+        /* make sure it fits */                                                \
+        if (val < min_value || val > max_value) {                              \
+            mpack_reader_flag_error(reader, mpack_error_type);                 \
+            return min_value;                                                  \
+        }                                                                      \
+                                                                               \
+        return val;
 
-uint8_t mpack_expect_u8_range(mpack_reader_t* reader, uint8_t min_value, uint8_t max_value) {MPACK_EXPECT_RANGE_IMPL(u8, uint8_t)}
-uint16_t mpack_expect_u16_range(mpack_reader_t* reader, uint16_t min_value, uint16_t max_value) {MPACK_EXPECT_RANGE_IMPL(u16, uint16_t)}
-uint32_t mpack_expect_u32_range(mpack_reader_t* reader, uint32_t min_value, uint32_t max_value) {MPACK_EXPECT_RANGE_IMPL(u32, uint32_t)}
-uint64_t mpack_expect_u64_range(mpack_reader_t* reader, uint64_t min_value, uint64_t max_value) {MPACK_EXPECT_RANGE_IMPL(u64, uint64_t)}
+uint8_t
+mpack_expect_u8_range(mpack_reader_t *reader, uint8_t min_value,
+    uint8_t max_value) { MPACK_EXPECT_RANGE_IMPL(u8, uint8_t) } uint16_t
+    mpack_expect_u16_range(mpack_reader_t *reader, uint16_t min_value,
+        uint16_t max_value) { MPACK_EXPECT_RANGE_IMPL(u16, uint16_t) } uint32_t
+    mpack_expect_u32_range(mpack_reader_t *reader, uint32_t min_value,
+        uint32_t max_value) { MPACK_EXPECT_RANGE_IMPL(u32, uint32_t) } uint64_t
+    mpack_expect_u64_range(mpack_reader_t *reader, uint64_t min_value,
+        uint64_t max_value) { MPACK_EXPECT_RANGE_IMPL(u64, uint64_t) }
 
-int8_t mpack_expect_i8_range(mpack_reader_t* reader, int8_t min_value, int8_t max_value) {MPACK_EXPECT_RANGE_IMPL(i8, int8_t)}
-int16_t mpack_expect_i16_range(mpack_reader_t* reader, int16_t min_value, int16_t max_value) {MPACK_EXPECT_RANGE_IMPL(i16, int16_t)}
-int32_t mpack_expect_i32_range(mpack_reader_t* reader, int32_t min_value, int32_t max_value) {MPACK_EXPECT_RANGE_IMPL(i32, int32_t)}
-int64_t mpack_expect_i64_range(mpack_reader_t* reader, int64_t min_value, int64_t max_value) {MPACK_EXPECT_RANGE_IMPL(i64, int64_t)}
+int8_t mpack_expect_i8_range(mpack_reader_t *reader, int8_t min_value,
+    int8_t max_value) { MPACK_EXPECT_RANGE_IMPL(i8, int8_t) } int16_t
+    mpack_expect_i16_range(mpack_reader_t *reader, int16_t min_value,
+        int16_t max_value) { MPACK_EXPECT_RANGE_IMPL(i16, int16_t) } int32_t
+    mpack_expect_i32_range(mpack_reader_t *reader, int32_t min_value,
+        int32_t max_value) { MPACK_EXPECT_RANGE_IMPL(i32, int32_t) } int64_t
+    mpack_expect_i64_range(
+        mpack_reader_t *reader, int64_t min_value, int64_t max_value)
+{
+    MPACK_EXPECT_RANGE_IMPL(i64, int64_t)
+}
 
-float mpack_expect_float_range(mpack_reader_t* reader, float min_value, float max_value) {MPACK_EXPECT_RANGE_IMPL(float, float)}
-double mpack_expect_double_range(mpack_reader_t* reader, double min_value, double max_value) {MPACK_EXPECT_RANGE_IMPL(double, double)}
+float
+mpack_expect_float_range(
+    mpack_reader_t *reader, float min_value, float max_value)
+{
+    MPACK_EXPECT_RANGE_IMPL(float, float)
+}
+double
+mpack_expect_double_range(mpack_reader_t *reader, double min_value,
+    double max_value) { MPACK_EXPECT_RANGE_IMPL(double, double) }
 
-uint32_t mpack_expect_map_range(mpack_reader_t* reader, uint32_t min_value, uint32_t max_value) {MPACK_EXPECT_RANGE_IMPL(map, uint32_t)}
-uint32_t mpack_expect_array_range(mpack_reader_t* reader, uint32_t min_value, uint32_t max_value) {MPACK_EXPECT_RANGE_IMPL(array, uint32_t)}
-
+uint32_t mpack_expect_map_range(mpack_reader_t *reader, uint32_t min_value,
+    uint32_t max_value) { MPACK_EXPECT_RANGE_IMPL(map, uint32_t) } uint32_t
+    mpack_expect_array_range(
+        mpack_reader_t *reader, uint32_t min_value, uint32_t max_value)
+{
+    MPACK_EXPECT_RANGE_IMPL(array, uint32_t)
+}
 
 // Matching Number Functions
 
-void mpack_expect_uint_match(mpack_reader_t* reader, uint64_t value) {
+void
+mpack_expect_uint_match(mpack_reader_t *reader, uint64_t value)
+{
     if (mpack_expect_u64(reader) != value)
         mpack_reader_flag_error(reader, mpack_error_type);
 }
 
-void mpack_expect_int_match(mpack_reader_t* reader, int64_t value) {
+void
+mpack_expect_int_match(mpack_reader_t *reader, int64_t value)
+{
     if (mpack_expect_i64(reader) != value)
         mpack_reader_flag_error(reader, mpack_error_type);
 }
 
-
 // Other Basic Types
 
-void mpack_expect_nil(mpack_reader_t* reader) {
+void
+mpack_expect_nil(mpack_reader_t *reader)
+{
     if (mpack_expect_type_byte(reader) != 0xc0)
         mpack_reader_flag_error(reader, mpack_error_type);
 }
 
-bool mpack_expect_bool(mpack_reader_t* reader) {
+bool
+mpack_expect_bool(mpack_reader_t *reader)
+{
     uint8_t type = mpack_expect_type_byte(reader);
     if ((type & ~1) != 0xc2)
         mpack_reader_flag_error(reader, mpack_error_type);
     return (bool)(type & 1);
 }
 
-void mpack_expect_true(mpack_reader_t* reader) {
+void
+mpack_expect_true(mpack_reader_t *reader)
+{
     if (mpack_expect_bool(reader) != true)
         mpack_reader_flag_error(reader, mpack_error_type);
 }
 
-void mpack_expect_false(mpack_reader_t* reader) {
+void
+mpack_expect_false(mpack_reader_t *reader)
+{
     if (mpack_expect_bool(reader) != false)
         mpack_reader_flag_error(reader, mpack_error_type);
 }
 
-#if MPACK_EXTENSIONS
-mpack_timestamp_t mpack_expect_timestamp(mpack_reader_t* reader) {
-    mpack_timestamp_t zero = {0, 0};
+#    if MPACK_EXTENSIONS
+mpack_timestamp_t
+mpack_expect_timestamp(mpack_reader_t *reader)
+{
+    mpack_timestamp_t zero = { 0, 0 };
 
     mpack_tag_t tag = mpack_read_tag(reader);
     if (tag.type != mpack_type_ext) {
@@ -3616,15 +4430,18 @@ mpack_timestamp_t mpack_expect_timestamp(mpack_reader_t* reader) {
     return mpack_read_timestamp(reader, mpack_tag_ext_length(&tag));
 }
 
-int64_t mpack_expect_timestamp_truncate(mpack_reader_t* reader) {
+int64_t
+mpack_expect_timestamp_truncate(mpack_reader_t *reader)
+{
     return mpack_expect_timestamp(reader).seconds;
 }
-#endif
-
+#    endif
 
 // Compound Types
 
-uint32_t mpack_expect_map(mpack_reader_t* reader) {
+uint32_t
+mpack_expect_map(mpack_reader_t *reader)
+{
     mpack_tag_t var = mpack_read_tag(reader);
     if (var.type == mpack_type_map)
         return var.v.n;
@@ -3632,12 +4449,16 @@ uint32_t mpack_expect_map(mpack_reader_t* reader) {
     return 0;
 }
 
-void mpack_expect_map_match(mpack_reader_t* reader, uint32_t count) {
+void
+mpack_expect_map_match(mpack_reader_t *reader, uint32_t count)
+{
     if (mpack_expect_map(reader) != count)
         mpack_reader_flag_error(reader, mpack_error_type);
 }
 
-bool mpack_expect_map_or_nil(mpack_reader_t* reader, uint32_t* count) {
+bool
+mpack_expect_map_or_nil(mpack_reader_t *reader, uint32_t *count)
+{
     mpack_assert(count != NULL, "count cannot be NULL");
 
     mpack_tag_t var = mpack_read_tag(reader);
@@ -3654,7 +4475,10 @@ bool mpack_expect_map_or_nil(mpack_reader_t* reader, uint32_t* count) {
     return false;
 }
 
-bool mpack_expect_map_max_or_nil(mpack_reader_t* reader, uint32_t max_count, uint32_t* count) {
+bool
+mpack_expect_map_max_or_nil(
+    mpack_reader_t *reader, uint32_t max_count, uint32_t *count)
+{
     mpack_assert(count != NULL, "count cannot be NULL");
 
     bool has_map = mpack_expect_map_or_nil(reader, count);
@@ -3666,7 +4490,9 @@ bool mpack_expect_map_max_or_nil(mpack_reader_t* reader, uint32_t max_count, uin
     return has_map;
 }
 
-uint32_t mpack_expect_array(mpack_reader_t* reader) {
+uint32_t
+mpack_expect_array(mpack_reader_t *reader)
+{
     mpack_tag_t var = mpack_read_tag(reader);
     if (var.type == mpack_type_array)
         return var.v.n;
@@ -3674,12 +4500,16 @@ uint32_t mpack_expect_array(mpack_reader_t* reader) {
     return 0;
 }
 
-void mpack_expect_array_match(mpack_reader_t* reader, uint32_t count) {
+void
+mpack_expect_array_match(mpack_reader_t *reader, uint32_t count)
+{
     if (mpack_expect_array(reader) != count)
         mpack_reader_flag_error(reader, mpack_error_type);
 }
 
-bool mpack_expect_array_or_nil(mpack_reader_t* reader, uint32_t* count) {
+bool
+mpack_expect_array_or_nil(mpack_reader_t *reader, uint32_t *count)
+{
     mpack_assert(count != NULL, "count cannot be NULL");
 
     mpack_tag_t var = mpack_read_tag(reader);
@@ -3696,7 +4526,10 @@ bool mpack_expect_array_or_nil(mpack_reader_t* reader, uint32_t* count) {
     return false;
 }
 
-bool mpack_expect_array_max_or_nil(mpack_reader_t* reader, uint32_t max_count, uint32_t* count) {
+bool
+mpack_expect_array_max_or_nil(
+    mpack_reader_t *reader, uint32_t max_count, uint32_t *count)
+{
     mpack_assert(count != NULL, "count cannot be NULL");
 
     bool has_array = mpack_expect_array_or_nil(reader, count);
@@ -3708,8 +4541,11 @@ bool mpack_expect_array_max_or_nil(mpack_reader_t* reader, uint32_t max_count, u
     return has_array;
 }
 
-#ifdef MPACK_MALLOC
-void* mpack_expect_array_alloc_impl(mpack_reader_t* reader, size_t element_size, uint32_t max_count, uint32_t* out_count, bool allow_nil) {
+#    ifdef MPACK_MALLOC
+void *
+mpack_expect_array_alloc_impl(mpack_reader_t *reader, size_t element_size,
+    uint32_t max_count, uint32_t *out_count, bool allow_nil)
+{
     mpack_assert(out_count != NULL, "out_count cannot be NULL");
     *out_count = 0;
 
@@ -3732,7 +4568,7 @@ void* mpack_expect_array_alloc_impl(mpack_reader_t* reader, size_t element_size,
         return NULL;
     }
 
-    void* p = MPACK_MALLOC(element_size * count);
+    void *p = MPACK_MALLOC(element_size * count);
     if (p == NULL) {
         mpack_reader_flag_error(reader, mpack_error_memory);
         return NULL;
@@ -3741,19 +4577,20 @@ void* mpack_expect_array_alloc_impl(mpack_reader_t* reader, size_t element_size,
     *out_count = count;
     return p;
 }
-#endif
-
+#    endif
 
 // Str, Bin and Ext Functions
 
-uint32_t mpack_expect_str(mpack_reader_t* reader) {
-    #if MPACK_OPTIMIZE_FOR_SIZE
+uint32_t
+mpack_expect_str(mpack_reader_t *reader)
+{
+#    if MPACK_OPTIMIZE_FOR_SIZE
     mpack_tag_t var = mpack_read_tag(reader);
     if (var.type == mpack_type_str)
         return var.v.l;
     mpack_reader_flag_error(reader, mpack_error_type);
     return 0;
-    #else
+#    else
     uint8_t type = mpack_expect_type_byte(reader);
     uint32_t count;
 
@@ -3770,14 +4607,17 @@ uint32_t mpack_expect_str(mpack_reader_t* reader) {
         return 0;
     }
 
-    #if MPACK_READ_TRACKING
-    mpack_reader_flag_if_error(reader, mpack_track_push(&reader->track, mpack_type_str, count));
-    #endif
+#        if MPACK_READ_TRACKING
+    mpack_reader_flag_if_error(
+        reader, mpack_track_push(&reader->track, mpack_type_str, count));
+#        endif
     return count;
-    #endif
+#    endif
 }
 
-size_t mpack_expect_str_buf(mpack_reader_t* reader, char* buf, size_t bufsize) {
+size_t
+mpack_expect_str_buf(mpack_reader_t *reader, char *buf, size_t bufsize)
+{
     mpack_assert(buf != NULL, "buf cannot be NULL");
 
     size_t length = mpack_expect_str(reader);
@@ -3797,7 +4637,9 @@ size_t mpack_expect_str_buf(mpack_reader_t* reader, char* buf, size_t bufsize) {
     return length;
 }
 
-size_t mpack_expect_utf8(mpack_reader_t* reader, char* buf, size_t size) {
+size_t
+mpack_expect_utf8(mpack_reader_t *reader, char *buf, size_t size)
+{
     mpack_assert(buf != NULL, "buf cannot be NULL");
 
     size_t length = mpack_expect_str_buf(reader, buf, size);
@@ -3810,7 +4652,9 @@ size_t mpack_expect_utf8(mpack_reader_t* reader, char* buf, size_t size) {
     return length;
 }
 
-uint32_t mpack_expect_bin(mpack_reader_t* reader) {
+uint32_t
+mpack_expect_bin(mpack_reader_t *reader)
+{
     mpack_tag_t var = mpack_read_tag(reader);
     if (var.type == mpack_type_bin)
         return var.v.l;
@@ -3818,7 +4662,9 @@ uint32_t mpack_expect_bin(mpack_reader_t* reader) {
     return 0;
 }
 
-size_t mpack_expect_bin_buf(mpack_reader_t* reader, char* buf, size_t bufsize) {
+size_t
+mpack_expect_bin_buf(mpack_reader_t *reader, char *buf, size_t bufsize)
+{
     mpack_assert(buf != NULL, "buf cannot be NULL");
 
     size_t binsize = mpack_expect_bin(reader);
@@ -3835,8 +4681,10 @@ size_t mpack_expect_bin_buf(mpack_reader_t* reader, char* buf, size_t bufsize) {
     return binsize;
 }
 
-#if MPACK_EXTENSIONS
-uint32_t mpack_expect_ext(mpack_reader_t* reader, int8_t* type) {
+#    if MPACK_EXTENSIONS
+uint32_t
+mpack_expect_ext(mpack_reader_t *reader, int8_t *type)
+{
     mpack_tag_t var = mpack_read_tag(reader);
     if (var.type == mpack_type_ext) {
         *type = mpack_tag_ext_exttype(&var);
@@ -3847,7 +4695,10 @@ uint32_t mpack_expect_ext(mpack_reader_t* reader, int8_t* type) {
     return 0;
 }
 
-size_t mpack_expect_ext_buf(mpack_reader_t* reader, int8_t* type, char* buf, size_t bufsize) {
+size_t
+mpack_expect_ext_buf(
+    mpack_reader_t *reader, int8_t *type, char *buf, size_t bufsize)
+{
     mpack_assert(buf != NULL, "buf cannot be NULL");
 
     size_t extsize = mpack_expect_ext(reader, type);
@@ -3866,28 +4717,36 @@ size_t mpack_expect_ext_buf(mpack_reader_t* reader, int8_t* type, char* buf, siz
     mpack_done_ext(reader);
     return extsize;
 }
-#endif
+#    endif
 
-void mpack_expect_cstr(mpack_reader_t* reader, char* buf, size_t bufsize) {
+void
+mpack_expect_cstr(mpack_reader_t *reader, char *buf, size_t bufsize)
+{
     uint32_t length = mpack_expect_str(reader);
     mpack_read_cstr(reader, buf, bufsize, length);
     mpack_done_str(reader);
 }
 
-void mpack_expect_utf8_cstr(mpack_reader_t* reader, char* buf, size_t bufsize) {
+void
+mpack_expect_utf8_cstr(mpack_reader_t *reader, char *buf, size_t bufsize)
+{
     uint32_t length = mpack_expect_str(reader);
     mpack_read_utf8_cstr(reader, buf, bufsize, length);
     mpack_done_str(reader);
 }
 
-#ifdef MPACK_MALLOC
-static char* mpack_expect_cstr_alloc_unchecked(mpack_reader_t* reader, size_t maxsize, size_t* out_length) {
+#    ifdef MPACK_MALLOC
+static char *
+mpack_expect_cstr_alloc_unchecked(
+    mpack_reader_t *reader, size_t maxsize, size_t *out_length)
+{
     mpack_assert(out_length != NULL, "out_length cannot be NULL");
     *out_length = 0;
 
     // make sure argument makes sense
     if (maxsize < 1) {
-        mpack_break("maxsize is zero; you must have room for at least a null-terminator");
+        mpack_break("maxsize is zero; you must have room for at least a "
+                    "null-terminator");
         mpack_reader_flag_error(reader, mpack_error_bug);
         return NULL;
     }
@@ -3896,7 +4755,7 @@ static char* mpack_expect_cstr_alloc_unchecked(mpack_reader_t* reader, size_t ma
         maxsize = UINT32_MAX;
 
     size_t length = mpack_expect_str_max(reader, (uint32_t)maxsize - 1);
-    char* str = mpack_read_bytes_alloc_impl(reader, length, true);
+    char *str = mpack_read_bytes_alloc_impl(reader, length, true);
     mpack_done_str(reader);
 
     if (str)
@@ -3904,9 +4763,11 @@ static char* mpack_expect_cstr_alloc_unchecked(mpack_reader_t* reader, size_t ma
     return str;
 }
 
-char* mpack_expect_cstr_alloc(mpack_reader_t* reader, size_t maxsize) {
+char *
+mpack_expect_cstr_alloc(mpack_reader_t *reader, size_t maxsize)
+{
     size_t length;
-    char* str = mpack_expect_cstr_alloc_unchecked(reader, maxsize, &length);
+    char *str = mpack_expect_cstr_alloc_unchecked(reader, maxsize, &length);
 
     if (str && !mpack_str_check_no_null(str, length)) {
         MPACK_FREE(str);
@@ -3917,9 +4778,11 @@ char* mpack_expect_cstr_alloc(mpack_reader_t* reader, size_t maxsize) {
     return str;
 }
 
-char* mpack_expect_utf8_cstr_alloc(mpack_reader_t* reader, size_t maxsize) {
+char *
+mpack_expect_utf8_cstr_alloc(mpack_reader_t *reader, size_t maxsize)
+{
     size_t length;
-    char* str = mpack_expect_cstr_alloc_unchecked(reader, maxsize, &length);
+    char *str = mpack_expect_cstr_alloc_unchecked(reader, maxsize, &length);
 
     if (str && !mpack_utf8_check_no_null(str, length)) {
         MPACK_FREE(str);
@@ -3929,9 +4792,11 @@ char* mpack_expect_utf8_cstr_alloc(mpack_reader_t* reader, size_t maxsize) {
 
     return str;
 }
-#endif
+#    endif
 
-void mpack_expect_str_match(mpack_reader_t* reader, const char* str, size_t len) {
+void
+mpack_expect_str_match(mpack_reader_t *reader, const char *str, size_t len)
+{
     mpack_assert(str != NULL, "str cannot be NULL");
 
     // expect a str the correct length
@@ -3953,14 +4818,18 @@ void mpack_expect_str_match(mpack_reader_t* reader, const char* str, size_t len)
     mpack_done_str(reader);
 }
 
-void mpack_expect_tag(mpack_reader_t* reader, mpack_tag_t expected) {
+void
+mpack_expect_tag(mpack_reader_t *reader, mpack_tag_t expected)
+{
     mpack_tag_t actual = mpack_read_tag(reader);
     if (!mpack_tag_equal(actual, expected))
         mpack_reader_flag_error(reader, mpack_error_type);
 }
 
-#ifdef MPACK_MALLOC
-char* mpack_expect_bin_alloc(mpack_reader_t* reader, size_t maxsize, size_t* size) {
+#    ifdef MPACK_MALLOC
+char *
+mpack_expect_bin_alloc(mpack_reader_t *reader, size_t maxsize, size_t *size)
+{
     mpack_assert(size != NULL, "size cannot be NULL");
     *size = 0;
 
@@ -3971,17 +4840,20 @@ char* mpack_expect_bin_alloc(mpack_reader_t* reader, size_t maxsize, size_t* siz
     if (mpack_reader_error(reader))
         return NULL;
 
-    char* data = mpack_read_bytes_alloc(reader, length);
+    char *data = mpack_read_bytes_alloc(reader, length);
     mpack_done_bin(reader);
 
     if (data)
         *size = length;
     return data;
 }
-#endif
+#    endif
 
-#if MPACK_EXTENSIONS && defined(MPACK_MALLOC)
-char* mpack_expect_ext_alloc(mpack_reader_t* reader, int8_t* type, size_t maxsize, size_t* size) {
+#    if MPACK_EXTENSIONS && defined(MPACK_MALLOC)
+char *
+mpack_expect_ext_alloc(
+    mpack_reader_t *reader, int8_t *type, size_t maxsize, size_t *size)
+{
     mpack_assert(size != NULL, "size cannot be NULL");
     *size = 0;
 
@@ -3992,7 +4864,7 @@ char* mpack_expect_ext_alloc(mpack_reader_t* reader, int8_t* type, size_t maxsiz
     if (mpack_reader_error(reader))
         return NULL;
 
-    char* data = mpack_read_bytes_alloc(reader, length);
+    char *data = mpack_read_bytes_alloc(reader, length);
     mpack_done_ext(reader);
 
     if (data) {
@@ -4002,20 +4874,22 @@ char* mpack_expect_ext_alloc(mpack_reader_t* reader, int8_t* type, size_t maxsiz
     }
     return data;
 }
-#endif
+#    endif
 
-size_t mpack_expect_enum(mpack_reader_t* reader, const char* strings[], size_t count) {
+size_t
+mpack_expect_enum(mpack_reader_t *reader, const char *strings[], size_t count)
+{
 
     // read the string in-place
     size_t keylen = mpack_expect_str(reader);
-    const char* key = mpack_read_bytes_inplace(reader, keylen);
+    const char *key = mpack_read_bytes_inplace(reader, keylen);
     mpack_done_str(reader);
     if (mpack_reader_error(reader) != mpack_ok)
         return count;
 
     // find what key it matches
     for (size_t i = 0; i < count; ++i) {
-        const char* other = strings[i];
+        const char *other = strings[i];
         size_t otherlen = mpack_strlen(other);
         if (keylen == otherlen && mpack_memcmp(key, other, keylen) == 0)
             return i;
@@ -4026,7 +4900,10 @@ size_t mpack_expect_enum(mpack_reader_t* reader, const char* strings[], size_t c
     return count;
 }
 
-size_t mpack_expect_enum_optional(mpack_reader_t* reader, const char* strings[], size_t count) {
+size_t
+mpack_expect_enum_optional(
+    mpack_reader_t *reader, const char *strings[], size_t count)
+{
     if (mpack_reader_error(reader) != mpack_ok)
         return count;
 
@@ -4041,14 +4918,14 @@ size_t mpack_expect_enum_optional(mpack_reader_t* reader, const char* strings[],
 
     // read the string in-place
     size_t keylen = mpack_expect_str(reader);
-    const char* key = mpack_read_bytes_inplace(reader, keylen);
+    const char *key = mpack_read_bytes_inplace(reader, keylen);
     mpack_done_str(reader);
     if (mpack_reader_error(reader) != mpack_ok)
         return count;
 
     // find what key it matches
     for (size_t i = 0; i < count; ++i) {
-        const char* other = strings[i];
+        const char *other = strings[i];
         size_t otherlen = mpack_strlen(other);
         if (keylen == otherlen && mpack_memcmp(key, other, keylen) == 0)
             return i;
@@ -4058,7 +4935,9 @@ size_t mpack_expect_enum_optional(mpack_reader_t* reader, const char* strings[],
     return count;
 }
 
-size_t mpack_expect_key_uint(mpack_reader_t* reader, bool found[], size_t count) {
+size_t
+mpack_expect_key_uint(mpack_reader_t *reader, bool found[], size_t count)
+{
     if (mpack_reader_error(reader) != mpack_ok)
         return count;
 
@@ -4094,7 +4973,10 @@ size_t mpack_expect_key_uint(mpack_reader_t* reader, bool found[], size_t count)
     return (size_t)value;
 }
 
-size_t mpack_expect_key_cstr(mpack_reader_t* reader, const char* keys[], bool found[], size_t count) {
+size_t
+mpack_expect_key_cstr(
+    mpack_reader_t *reader, const char *keys[], bool found[], size_t count)
+{
     size_t i = mpack_expect_enum_optional(reader, keys, count);
 
     // unrecognized keys are fine, we just return count
@@ -4114,7 +4996,6 @@ size_t mpack_expect_key_cstr(mpack_reader_t* reader, const char* keys[], bool fo
 
 #endif
 
-
 /* mpack/mpack-node.c.c */
 
 #define MPACK_INTERNAL 1
@@ -4123,66 +5004,79 @@ size_t mpack_expect_key_cstr(mpack_reader_t* reader, const char* keys[], bool fo
 
 #if MPACK_NODE
 
-MPACK_STATIC_INLINE const char* mpack_node_data_unchecked(mpack_node_t node) {
-    mpack_assert(mpack_node_error(node) == mpack_ok, "tree is in an error state!");
+MPACK_STATIC_INLINE const char *
+mpack_node_data_unchecked(mpack_node_t node)
+{
+    mpack_assert(
+        mpack_node_error(node) == mpack_ok, "tree is in an error state!");
 
     mpack_type_t type = node.data->type;
     MPACK_UNUSED(type);
-    #if MPACK_EXTENSIONS
-    mpack_assert(type == mpack_type_str || type == mpack_type_bin || type == mpack_type_ext,
-            "node of type %i (%s) is not a data type!", type, mpack_type_to_string(type));
-    #else
+#    if MPACK_EXTENSIONS
+    mpack_assert(type == mpack_type_str || type == mpack_type_bin
+            || type == mpack_type_ext,
+        "node of type %i (%s) is not a data type!", type,
+        mpack_type_to_string(type));
+#    else
     mpack_assert(type == mpack_type_str || type == mpack_type_bin,
-            "node of type %i (%s) is not a data type!", type, mpack_type_to_string(type));
-    #endif
+        "node of type %i (%s) is not a data type!", type,
+        mpack_type_to_string(type));
+#    endif
 
     return node.tree->data + node.data->value.offset;
 }
 
-#if MPACK_EXTENSIONS
-MPACK_STATIC_INLINE int8_t mpack_node_exttype_unchecked(mpack_node_t node) {
-    mpack_assert(mpack_node_error(node) == mpack_ok, "tree is in an error state!");
+#    if MPACK_EXTENSIONS
+MPACK_STATIC_INLINE int8_t
+mpack_node_exttype_unchecked(mpack_node_t node)
+{
+    mpack_assert(
+        mpack_node_error(node) == mpack_ok, "tree is in an error state!");
 
     mpack_type_t type = node.data->type;
     MPACK_UNUSED(type);
-    mpack_assert(type == mpack_type_ext, "node of type %i (%s) is not an ext type!",
-            type, mpack_type_to_string(type));
+    mpack_assert(type == mpack_type_ext,
+        "node of type %i (%s) is not an ext type!", type,
+        mpack_type_to_string(type));
 
     // the exttype of an ext node is stored in the byte preceding the data
     return mpack_load_i8(mpack_node_data_unchecked(node) - 1);
 }
-#endif
-
-
+#    endif
 
 /*
  * Tree Parsing
  */
 
-#ifdef MPACK_MALLOC
+#    ifdef MPACK_MALLOC
 
 // fix up the alloc size to make sure it exactly fits the
 // maximum number of nodes it can contain (the allocator will
 // waste it back anyway, but we round it down just in case)
 
-#define MPACK_NODES_PER_PAGE \
-    ((MPACK_NODE_PAGE_SIZE - sizeof(mpack_tree_page_t)) / sizeof(mpack_node_data_t) + 1)
+#        define MPACK_NODES_PER_PAGE                                           \
+            ((MPACK_NODE_PAGE_SIZE - sizeof(mpack_tree_page_t))                \
+                    / sizeof(mpack_node_data_t)                                \
+                + 1)
 
-#define MPACK_PAGE_ALLOC_SIZE \
-    (sizeof(mpack_tree_page_t) + sizeof(mpack_node_data_t) * (MPACK_NODES_PER_PAGE - 1))
+#        define MPACK_PAGE_ALLOC_SIZE                                          \
+            (sizeof(mpack_tree_page_t)                                         \
+                + sizeof(mpack_node_data_t) * (MPACK_NODES_PER_PAGE - 1))
 
-#endif
+#    endif
 
-#ifdef MPACK_MALLOC
+#    ifdef MPACK_MALLOC
 /*
  * Fills the tree until we have at least enough bytes for the current node.
  */
-static bool mpack_tree_reserve_fill(mpack_tree_t* tree) {
+static bool
+mpack_tree_reserve_fill(mpack_tree_t *tree)
+{
     mpack_assert(tree->parser.state == mpack_tree_parse_state_in_progress);
 
     size_t bytes = tree->parser.current_node_reserved;
     mpack_assert(bytes > tree->parser.possible_nodes_left,
-            "there are already enough bytes! call mpack_tree_ensure() instead.");
+        "there are already enough bytes! call mpack_tree_ensure() instead.");
     mpack_log("filling to reserve %i bytes\n", (int)bytes);
 
     // if the necessary bytes would put us over the maximum tree
@@ -4206,19 +5100,23 @@ static bool mpack_tree_reserve_fill(mpack_tree_t* tree) {
     if (tree->data_length + bytes > tree->buffer_capacity) {
 
         // TODO: check for overflow?
-        size_t new_capacity = (tree->buffer_capacity == 0) ? MPACK_BUFFER_SIZE : tree->buffer_capacity;
+        size_t new_capacity = (tree->buffer_capacity == 0)
+            ? MPACK_BUFFER_SIZE
+            : tree->buffer_capacity;
         while (new_capacity < tree->data_length + bytes)
             new_capacity *= 2;
         if (new_capacity > tree->max_size)
             new_capacity = tree->max_size;
 
-        mpack_log("expanding buffer from %i to %i\n", (int)tree->buffer_capacity, (int)new_capacity);
+        mpack_log("expanding buffer from %i to %i\n",
+            (int)tree->buffer_capacity, (int)new_capacity);
 
-        char* new_buffer;
+        char *new_buffer;
         if (tree->buffer == NULL)
-            new_buffer = (char*)MPACK_MALLOC(new_capacity);
+            new_buffer = (char *)MPACK_MALLOC(new_capacity);
         else
-            new_buffer = (char*)mpack_realloc(tree->buffer, tree->data_length, new_capacity);
+            new_buffer = (char *)mpack_realloc(
+                tree->buffer, tree->data_length, new_capacity);
 
         if (new_buffer == NULL) {
             mpack_tree_flag_error(tree, mpack_error_memory);
@@ -4233,7 +5131,8 @@ static bool mpack_tree_reserve_fill(mpack_tree_t* tree) {
     // request as much data as possible, looping until we have
     // all the data we need
     do {
-        size_t read = tree->read_fn(tree, tree->buffer + tree->data_length, tree->buffer_capacity - tree->data_length);
+        size_t read = tree->read_fn(tree, tree->buffer + tree->data_length,
+            tree->buffer_capacity - tree->data_length);
 
         // If the fill function encounters an error, it should flag an error on
         // the tree.
@@ -4260,7 +5159,7 @@ static bool mpack_tree_reserve_fill(mpack_tree_t* tree) {
 
     return true;
 }
-#endif
+#    endif
 
 /*
  * Ensures there are enough additional bytes in the tree for the current node
@@ -4276,7 +5175,9 @@ static bool mpack_tree_reserve_fill(mpack_tree_t* tree) {
  *
  * Returns false if not enough bytes could be read.
  */
-MPACK_STATIC_INLINE bool mpack_tree_reserve_bytes(mpack_tree_t* tree, size_t extra_bytes) {
+MPACK_STATIC_INLINE bool
+mpack_tree_reserve_bytes(mpack_tree_t *tree, size_t extra_bytes)
+{
     mpack_assert(tree->parser.state == mpack_tree_parse_state_in_progress);
 
     // We guard against overflow here. A compound type could declare more than
@@ -4285,7 +5186,8 @@ MPACK_STATIC_INLINE bool mpack_tree_reserve_bytes(mpack_tree_t* tree, size_t ext
     // more likely that the message is corrupt than that the data is valid but
     // not parseable on this architecture (see test_read_node_possible() in
     // test-node.c .)
-    if ((uint64_t)tree->parser.current_node_reserved + (uint64_t)extra_bytes > SIZE_MAX) {
+    if ((uint64_t)tree->parser.current_node_reserved + (uint64_t)extra_bytes
+        > SIZE_MAX) {
         mpack_tree_flag_error(tree, mpack_error_invalid);
         return false;
     }
@@ -4298,23 +5200,28 @@ MPACK_STATIC_INLINE bool mpack_tree_reserve_bytes(mpack_tree_t* tree, size_t ext
     if (tree->parser.current_node_reserved <= tree->parser.possible_nodes_left)
         return true;
 
-    #ifdef MPACK_MALLOC
+#    ifdef MPACK_MALLOC
     return mpack_tree_reserve_fill(tree);
-    #else
+#    else
     return false;
-    #endif
+#    endif
 }
 
-MPACK_STATIC_INLINE size_t mpack_tree_parser_stack_capacity(mpack_tree_t* tree) {
-    #ifdef MPACK_MALLOC
+MPACK_STATIC_INLINE size_t
+mpack_tree_parser_stack_capacity(mpack_tree_t *tree)
+{
+#    ifdef MPACK_MALLOC
     return tree->parser.stack_capacity;
-    #else
+#    else
     return sizeof(tree->parser.stack) / sizeof(tree->parser.stack[0]);
-    #endif
+#    endif
 }
 
-static bool mpack_tree_push_stack(mpack_tree_t* tree, mpack_node_data_t* first_child, size_t total) {
-    mpack_tree_parser_t* parser = &tree->parser;
+static bool
+mpack_tree_push_stack(
+    mpack_tree_t *tree, mpack_node_data_t *first_child, size_t total)
+{
+    mpack_tree_parser_t *parser = &tree->parser;
     mpack_assert(parser->state == mpack_tree_parse_state_in_progress);
 
     // No need to push empty containers
@@ -4323,25 +5230,28 @@ static bool mpack_tree_push_stack(mpack_tree_t* tree, mpack_node_data_t* first_c
 
     // Make sure we have enough room in the stack
     if (parser->level + 1 == mpack_tree_parser_stack_capacity(tree)) {
-        #ifdef MPACK_MALLOC
+#    ifdef MPACK_MALLOC
         size_t new_capacity = parser->stack_capacity * 2;
         mpack_log("growing parse stack to capacity %i\n", (int)new_capacity);
 
         // Replace the stack-allocated parsing stack
         if (!parser->stack_owned) {
-            mpack_level_t* new_stack = (mpack_level_t*)MPACK_MALLOC(sizeof(mpack_level_t) * new_capacity);
+            mpack_level_t *new_stack = (mpack_level_t *)MPACK_MALLOC(
+                sizeof(mpack_level_t) * new_capacity);
             if (!new_stack) {
                 mpack_tree_flag_error(tree, mpack_error_memory);
                 return false;
             }
-            mpack_memcpy(new_stack, parser->stack, sizeof(mpack_level_t) * parser->stack_capacity);
+            mpack_memcpy(new_stack, parser->stack,
+                sizeof(mpack_level_t) * parser->stack_capacity);
             parser->stack = new_stack;
             parser->stack_owned = true;
 
-        // Realloc the allocated parsing stack
+            // Realloc the allocated parsing stack
         } else {
-            mpack_level_t* new_stack = (mpack_level_t*)mpack_realloc(parser->stack,
-                    sizeof(mpack_level_t) * parser->stack_capacity, sizeof(mpack_level_t) * new_capacity);
+            mpack_level_t *new_stack = (mpack_level_t *)mpack_realloc(
+                parser->stack, sizeof(mpack_level_t) * parser->stack_capacity,
+                sizeof(mpack_level_t) * new_capacity);
             if (!new_stack) {
                 mpack_tree_flag_error(tree, mpack_error_memory);
                 return false;
@@ -4349,10 +5259,10 @@ static bool mpack_tree_push_stack(mpack_tree_t* tree, mpack_node_data_t* first_c
             parser->stack = new_stack;
         }
         parser->stack_capacity = new_capacity;
-        #else
+#    else
         mpack_tree_flag_error(tree, mpack_error_too_big);
         return false;
-        #endif
+#    endif
     }
 
     // Push the contents of this node onto the parsing stack
@@ -4362,8 +5272,10 @@ static bool mpack_tree_push_stack(mpack_tree_t* tree, mpack_node_data_t* first_c
     return true;
 }
 
-static bool mpack_tree_parse_children(mpack_tree_t* tree, mpack_node_data_t* node) {
-    mpack_tree_parser_t* parser = &tree->parser;
+static bool
+mpack_tree_parse_children(mpack_tree_t *tree, mpack_node_data_t *node)
+{
+    mpack_tree_parser_t *parser = &tree->parser;
     mpack_assert(parser->state == mpack_tree_parse_state_in_progress);
 
     mpack_type_t type = node->type;
@@ -4398,46 +5310,52 @@ static bool mpack_tree_parse_children(mpack_tree_t* tree, mpack_node_data_t* nod
 
     } else {
 
-        #ifdef MPACK_MALLOC
+#    ifdef MPACK_MALLOC
 
-        // We can't grow if we're using a fixed pool (i.e. we didn't start with a page)
+        // We can't grow if we're using a fixed pool (i.e. we didn't start with
+        // a page)
         if (!tree->next) {
             mpack_tree_flag_error(tree, mpack_error_too_big);
             return false;
         }
 
-        // Otherwise we need to grow, and the node's children need to be contiguous.
-        // This is a heuristic to decide whether we should waste the remaining space
-        // in the current page and start a new one, or give the children their
-        // own page. With a fraction of 1/8, this causes at most 12% additional
-        // waste. Note that reducing this too much causes less cache coherence and
-        // more malloc() overhead due to smaller allocations, so there's a tradeoff
-        // here. This heuristic could use some improvement, especially with custom
-        // page sizes.
+        // Otherwise we need to grow, and the node's children need to be
+        // contiguous. This is a heuristic to decide whether we should waste the
+        // remaining space in the current page and start a new one, or give the
+        // children their own page. With a fraction of 1/8, this causes at most
+        // 12% additional waste. Note that reducing this too much causes less
+        // cache coherence and more malloc() overhead due to smaller
+        // allocations, so there's a tradeoff here. This heuristic could use
+        // some improvement, especially with custom page sizes.
 
-        mpack_tree_page_t* page;
+        mpack_tree_page_t *page;
 
-        if (total > MPACK_NODES_PER_PAGE || parser->nodes_left > MPACK_NODES_PER_PAGE / 8) {
+        if (total > MPACK_NODES_PER_PAGE
+            || parser->nodes_left > MPACK_NODES_PER_PAGE / 8) {
             // TODO: this should check for overflow
-            page = (mpack_tree_page_t*)MPACK_MALLOC(
-                    sizeof(mpack_tree_page_t) + sizeof(mpack_node_data_t) * (total - 1));
+            page = (mpack_tree_page_t *)MPACK_MALLOC(sizeof(mpack_tree_page_t)
+                + sizeof(mpack_node_data_t) * (total - 1));
             if (page == NULL) {
                 mpack_tree_flag_error(tree, mpack_error_memory);
                 return false;
             }
-            mpack_log("allocated seperate page %p for %i children, %i left in page of %i total\n",
-                    page, (int)total, (int)parser->nodes_left, (int)MPACK_NODES_PER_PAGE);
+            mpack_log("allocated seperate page %p for %i children, %i left in "
+                      "page of %i total\n",
+                page, (int)total, (int)parser->nodes_left,
+                (int)MPACK_NODES_PER_PAGE);
 
             node->value.children = page->nodes;
 
         } else {
-            page = (mpack_tree_page_t*)MPACK_MALLOC(MPACK_PAGE_ALLOC_SIZE);
+            page = (mpack_tree_page_t *)MPACK_MALLOC(MPACK_PAGE_ALLOC_SIZE);
             if (page == NULL) {
                 mpack_tree_flag_error(tree, mpack_error_memory);
                 return false;
             }
-            mpack_log("allocated new page %p for %i children, wasting %i in page of %i total\n",
-                    page, (int)total, (int)parser->nodes_left, (int)MPACK_NODES_PER_PAGE);
+            mpack_log("allocated new page %p for %i children, wasting %i in "
+                      "page of %i total\n",
+                page, (int)total, (int)parser->nodes_left,
+                (int)MPACK_NODES_PER_PAGE);
 
             node->value.children = page->nodes;
             parser->nodes = page->nodes + total;
@@ -4447,31 +5365,37 @@ static bool mpack_tree_parse_children(mpack_tree_t* tree, mpack_node_data_t* nod
         page->next = tree->next;
         tree->next = page;
 
-        #else
+#    else
         // We can't grow if we don't have an allocator
         mpack_tree_flag_error(tree, mpack_error_too_big);
         return false;
-        #endif
+#    endif
     }
 
     return mpack_tree_push_stack(tree, node->value.children, total);
 }
 
-static bool mpack_tree_parse_bytes(mpack_tree_t* tree, mpack_node_data_t* node) {
+static bool
+mpack_tree_parse_bytes(mpack_tree_t *tree, mpack_node_data_t *node)
+{
     node->value.offset = tree->size + tree->parser.current_node_reserved + 1;
     return mpack_tree_reserve_bytes(tree, node->len);
 }
 
-#if MPACK_EXTENSIONS
-static bool mpack_tree_parse_ext(mpack_tree_t* tree, mpack_node_data_t* node) {
+#    if MPACK_EXTENSIONS
+static bool
+mpack_tree_parse_ext(mpack_tree_t *tree, mpack_node_data_t *node)
+{
     // reserve space for exttype
     tree->parser.current_node_reserved += sizeof(int8_t);
     node->type = mpack_type_ext;
     return mpack_tree_parse_bytes(tree, node);
 }
-#endif
+#    endif
 
-static bool mpack_tree_parse_node_contents(mpack_tree_t* tree, mpack_node_data_t* node) {
+static bool
+mpack_tree_parse_node_contents(mpack_tree_t *tree, mpack_node_data_t *node)
+{
     mpack_assert(tree->parser.state == mpack_tree_parse_state_in_progress);
     mpack_assert(node != NULL, "null node?");
 
@@ -4487,358 +5411,565 @@ static bool mpack_tree_parse_node_contents(mpack_tree_t* tree, mpack_node_data_t
     // on the first byte, and to explicitly list every possible byte. we switch
     // on the first four bits in size-optimized builds.
 
-    #if MPACK_OPTIMIZE_FOR_SIZE
+#    if MPACK_OPTIMIZE_FOR_SIZE
     switch (type >> 4) {
 
-        // positive fixnum
-        case 0x0: case 0x1: case 0x2: case 0x3:
-        case 0x4: case 0x5: case 0x6: case 0x7:
-            node->type = mpack_type_uint;
-            node->value.u = type;
-            return true;
+    // positive fixnum
+    case 0x0:
+    case 0x1:
+    case 0x2:
+    case 0x3:
+    case 0x4:
+    case 0x5:
+    case 0x6:
+    case 0x7:
+        node->type = mpack_type_uint;
+        node->value.u = type;
+        return true;
 
-        // negative fixnum
-        case 0xe: case 0xf:
-            node->type = mpack_type_int;
-            node->value.i = (int8_t)type;
-            return true;
+    // negative fixnum
+    case 0xe:
+    case 0xf:
+        node->type = mpack_type_int;
+        node->value.i = (int8_t)type;
+        return true;
 
-        // fixmap
-        case 0x8:
-            node->type = mpack_type_map;
-            node->len = (uint32_t)(type & ~0xf0);
-            return mpack_tree_parse_children(tree, node);
+    // fixmap
+    case 0x8:
+        node->type = mpack_type_map;
+        node->len = (uint32_t)(type & ~0xf0);
+        return mpack_tree_parse_children(tree, node);
 
-        // fixarray
-        case 0x9:
-            node->type = mpack_type_array;
-            node->len = (uint32_t)(type & ~0xf0);
-            return mpack_tree_parse_children(tree, node);
+    // fixarray
+    case 0x9:
+        node->type = mpack_type_array;
+        node->len = (uint32_t)(type & ~0xf0);
+        return mpack_tree_parse_children(tree, node);
 
-        // fixstr
-        case 0xa: case 0xb:
-            node->type = mpack_type_str;
-            node->len = (uint32_t)(type & ~0xe0);
-            return mpack_tree_parse_bytes(tree, node);
+    // fixstr
+    case 0xa:
+    case 0xb:
+        node->type = mpack_type_str;
+        node->len = (uint32_t)(type & ~0xe0);
+        return mpack_tree_parse_bytes(tree, node);
 
-        // not one of the common infix types
-        default:
-            break;
+    // not one of the common infix types
+    default:
+        break;
     }
-    #endif
+#    endif
 
     switch (type) {
 
-        #if !MPACK_OPTIMIZE_FOR_SIZE
-        // positive fixnum
-        case 0x00: case 0x01: case 0x02: case 0x03: case 0x04: case 0x05: case 0x06: case 0x07:
-        case 0x08: case 0x09: case 0x0a: case 0x0b: case 0x0c: case 0x0d: case 0x0e: case 0x0f:
-        case 0x10: case 0x11: case 0x12: case 0x13: case 0x14: case 0x15: case 0x16: case 0x17:
-        case 0x18: case 0x19: case 0x1a: case 0x1b: case 0x1c: case 0x1d: case 0x1e: case 0x1f:
-        case 0x20: case 0x21: case 0x22: case 0x23: case 0x24: case 0x25: case 0x26: case 0x27:
-        case 0x28: case 0x29: case 0x2a: case 0x2b: case 0x2c: case 0x2d: case 0x2e: case 0x2f:
-        case 0x30: case 0x31: case 0x32: case 0x33: case 0x34: case 0x35: case 0x36: case 0x37:
-        case 0x38: case 0x39: case 0x3a: case 0x3b: case 0x3c: case 0x3d: case 0x3e: case 0x3f:
-        case 0x40: case 0x41: case 0x42: case 0x43: case 0x44: case 0x45: case 0x46: case 0x47:
-        case 0x48: case 0x49: case 0x4a: case 0x4b: case 0x4c: case 0x4d: case 0x4e: case 0x4f:
-        case 0x50: case 0x51: case 0x52: case 0x53: case 0x54: case 0x55: case 0x56: case 0x57:
-        case 0x58: case 0x59: case 0x5a: case 0x5b: case 0x5c: case 0x5d: case 0x5e: case 0x5f:
-        case 0x60: case 0x61: case 0x62: case 0x63: case 0x64: case 0x65: case 0x66: case 0x67:
-        case 0x68: case 0x69: case 0x6a: case 0x6b: case 0x6c: case 0x6d: case 0x6e: case 0x6f:
-        case 0x70: case 0x71: case 0x72: case 0x73: case 0x74: case 0x75: case 0x76: case 0x77:
-        case 0x78: case 0x79: case 0x7a: case 0x7b: case 0x7c: case 0x7d: case 0x7e: case 0x7f:
-            node->type = mpack_type_uint;
-            node->value.u = type;
-            return true;
+#    if !MPACK_OPTIMIZE_FOR_SIZE
+    // positive fixnum
+    case 0x00:
+    case 0x01:
+    case 0x02:
+    case 0x03:
+    case 0x04:
+    case 0x05:
+    case 0x06:
+    case 0x07:
+    case 0x08:
+    case 0x09:
+    case 0x0a:
+    case 0x0b:
+    case 0x0c:
+    case 0x0d:
+    case 0x0e:
+    case 0x0f:
+    case 0x10:
+    case 0x11:
+    case 0x12:
+    case 0x13:
+    case 0x14:
+    case 0x15:
+    case 0x16:
+    case 0x17:
+    case 0x18:
+    case 0x19:
+    case 0x1a:
+    case 0x1b:
+    case 0x1c:
+    case 0x1d:
+    case 0x1e:
+    case 0x1f:
+    case 0x20:
+    case 0x21:
+    case 0x22:
+    case 0x23:
+    case 0x24:
+    case 0x25:
+    case 0x26:
+    case 0x27:
+    case 0x28:
+    case 0x29:
+    case 0x2a:
+    case 0x2b:
+    case 0x2c:
+    case 0x2d:
+    case 0x2e:
+    case 0x2f:
+    case 0x30:
+    case 0x31:
+    case 0x32:
+    case 0x33:
+    case 0x34:
+    case 0x35:
+    case 0x36:
+    case 0x37:
+    case 0x38:
+    case 0x39:
+    case 0x3a:
+    case 0x3b:
+    case 0x3c:
+    case 0x3d:
+    case 0x3e:
+    case 0x3f:
+    case 0x40:
+    case 0x41:
+    case 0x42:
+    case 0x43:
+    case 0x44:
+    case 0x45:
+    case 0x46:
+    case 0x47:
+    case 0x48:
+    case 0x49:
+    case 0x4a:
+    case 0x4b:
+    case 0x4c:
+    case 0x4d:
+    case 0x4e:
+    case 0x4f:
+    case 0x50:
+    case 0x51:
+    case 0x52:
+    case 0x53:
+    case 0x54:
+    case 0x55:
+    case 0x56:
+    case 0x57:
+    case 0x58:
+    case 0x59:
+    case 0x5a:
+    case 0x5b:
+    case 0x5c:
+    case 0x5d:
+    case 0x5e:
+    case 0x5f:
+    case 0x60:
+    case 0x61:
+    case 0x62:
+    case 0x63:
+    case 0x64:
+    case 0x65:
+    case 0x66:
+    case 0x67:
+    case 0x68:
+    case 0x69:
+    case 0x6a:
+    case 0x6b:
+    case 0x6c:
+    case 0x6d:
+    case 0x6e:
+    case 0x6f:
+    case 0x70:
+    case 0x71:
+    case 0x72:
+    case 0x73:
+    case 0x74:
+    case 0x75:
+    case 0x76:
+    case 0x77:
+    case 0x78:
+    case 0x79:
+    case 0x7a:
+    case 0x7b:
+    case 0x7c:
+    case 0x7d:
+    case 0x7e:
+    case 0x7f:
+        node->type = mpack_type_uint;
+        node->value.u = type;
+        return true;
 
-        // negative fixnum
-        case 0xe0: case 0xe1: case 0xe2: case 0xe3: case 0xe4: case 0xe5: case 0xe6: case 0xe7:
-        case 0xe8: case 0xe9: case 0xea: case 0xeb: case 0xec: case 0xed: case 0xee: case 0xef:
-        case 0xf0: case 0xf1: case 0xf2: case 0xf3: case 0xf4: case 0xf5: case 0xf6: case 0xf7:
-        case 0xf8: case 0xf9: case 0xfa: case 0xfb: case 0xfc: case 0xfd: case 0xfe: case 0xff:
-            node->type = mpack_type_int;
-            node->value.i = (int8_t)type;
-            return true;
+    // negative fixnum
+    case 0xe0:
+    case 0xe1:
+    case 0xe2:
+    case 0xe3:
+    case 0xe4:
+    case 0xe5:
+    case 0xe6:
+    case 0xe7:
+    case 0xe8:
+    case 0xe9:
+    case 0xea:
+    case 0xeb:
+    case 0xec:
+    case 0xed:
+    case 0xee:
+    case 0xef:
+    case 0xf0:
+    case 0xf1:
+    case 0xf2:
+    case 0xf3:
+    case 0xf4:
+    case 0xf5:
+    case 0xf6:
+    case 0xf7:
+    case 0xf8:
+    case 0xf9:
+    case 0xfa:
+    case 0xfb:
+    case 0xfc:
+    case 0xfd:
+    case 0xfe:
+    case 0xff:
+        node->type = mpack_type_int;
+        node->value.i = (int8_t)type;
+        return true;
 
-        // fixmap
-        case 0x80: case 0x81: case 0x82: case 0x83: case 0x84: case 0x85: case 0x86: case 0x87:
-        case 0x88: case 0x89: case 0x8a: case 0x8b: case 0x8c: case 0x8d: case 0x8e: case 0x8f:
-            node->type = mpack_type_map;
-            node->len = (uint32_t)(type & ~0xf0);
-            return mpack_tree_parse_children(tree, node);
+    // fixmap
+    case 0x80:
+    case 0x81:
+    case 0x82:
+    case 0x83:
+    case 0x84:
+    case 0x85:
+    case 0x86:
+    case 0x87:
+    case 0x88:
+    case 0x89:
+    case 0x8a:
+    case 0x8b:
+    case 0x8c:
+    case 0x8d:
+    case 0x8e:
+    case 0x8f:
+        node->type = mpack_type_map;
+        node->len = (uint32_t)(type & ~0xf0);
+        return mpack_tree_parse_children(tree, node);
 
-        // fixarray
-        case 0x90: case 0x91: case 0x92: case 0x93: case 0x94: case 0x95: case 0x96: case 0x97:
-        case 0x98: case 0x99: case 0x9a: case 0x9b: case 0x9c: case 0x9d: case 0x9e: case 0x9f:
-            node->type = mpack_type_array;
-            node->len = (uint32_t)(type & ~0xf0);
-            return mpack_tree_parse_children(tree, node);
+    // fixarray
+    case 0x90:
+    case 0x91:
+    case 0x92:
+    case 0x93:
+    case 0x94:
+    case 0x95:
+    case 0x96:
+    case 0x97:
+    case 0x98:
+    case 0x99:
+    case 0x9a:
+    case 0x9b:
+    case 0x9c:
+    case 0x9d:
+    case 0x9e:
+    case 0x9f:
+        node->type = mpack_type_array;
+        node->len = (uint32_t)(type & ~0xf0);
+        return mpack_tree_parse_children(tree, node);
 
-        // fixstr
-        case 0xa0: case 0xa1: case 0xa2: case 0xa3: case 0xa4: case 0xa5: case 0xa6: case 0xa7:
-        case 0xa8: case 0xa9: case 0xaa: case 0xab: case 0xac: case 0xad: case 0xae: case 0xaf:
-        case 0xb0: case 0xb1: case 0xb2: case 0xb3: case 0xb4: case 0xb5: case 0xb6: case 0xb7:
-        case 0xb8: case 0xb9: case 0xba: case 0xbb: case 0xbc: case 0xbd: case 0xbe: case 0xbf:
-            node->type = mpack_type_str;
-            node->len = (uint32_t)(type & ~0xe0);
-            return mpack_tree_parse_bytes(tree, node);
-        #endif
+    // fixstr
+    case 0xa0:
+    case 0xa1:
+    case 0xa2:
+    case 0xa3:
+    case 0xa4:
+    case 0xa5:
+    case 0xa6:
+    case 0xa7:
+    case 0xa8:
+    case 0xa9:
+    case 0xaa:
+    case 0xab:
+    case 0xac:
+    case 0xad:
+    case 0xae:
+    case 0xaf:
+    case 0xb0:
+    case 0xb1:
+    case 0xb2:
+    case 0xb3:
+    case 0xb4:
+    case 0xb5:
+    case 0xb6:
+    case 0xb7:
+    case 0xb8:
+    case 0xb9:
+    case 0xba:
+    case 0xbb:
+    case 0xbc:
+    case 0xbd:
+    case 0xbe:
+    case 0xbf:
+        node->type = mpack_type_str;
+        node->len = (uint32_t)(type & ~0xe0);
+        return mpack_tree_parse_bytes(tree, node);
+#    endif
 
-        // nil
-        case 0xc0:
-            node->type = mpack_type_nil;
-            return true;
+    // nil
+    case 0xc0:
+        node->type = mpack_type_nil;
+        return true;
 
-        // bool
-        case 0xc2: case 0xc3:
-            node->type = mpack_type_bool;
-            node->value.b = type & 1;
-            return true;
+    // bool
+    case 0xc2:
+    case 0xc3:
+        node->type = mpack_type_bool;
+        node->value.b = type & 1;
+        return true;
 
-        // bin8
-        case 0xc4:
-            node->type = mpack_type_bin;
-            if (!mpack_tree_reserve_bytes(tree, sizeof(uint8_t)))
-                return false;
-            node->len = mpack_load_u8(tree->data + tree->size + 1);
-            return mpack_tree_parse_bytes(tree, node);
-
-        // bin16
-        case 0xc5:
-            node->type = mpack_type_bin;
-            if (!mpack_tree_reserve_bytes(tree, sizeof(uint16_t)))
-                return false;
-            node->len = mpack_load_u16(tree->data + tree->size + 1);
-            return mpack_tree_parse_bytes(tree, node);
-
-        // bin32
-        case 0xc6:
-            node->type = mpack_type_bin;
-            if (!mpack_tree_reserve_bytes(tree, sizeof(uint32_t)))
-                return false;
-            node->len = mpack_load_u32(tree->data + tree->size + 1);
-            return mpack_tree_parse_bytes(tree, node);
-
-        #if MPACK_EXTENSIONS
-        // ext8
-        case 0xc7:
-            if (!mpack_tree_reserve_bytes(tree, sizeof(uint8_t)))
-                return false;
-            node->len = mpack_load_u8(tree->data + tree->size + 1);
-            return mpack_tree_parse_ext(tree, node);
-
-        // ext16
-        case 0xc8:
-            if (!mpack_tree_reserve_bytes(tree, sizeof(uint16_t)))
-                return false;
-            node->len = mpack_load_u16(tree->data + tree->size + 1);
-            return mpack_tree_parse_ext(tree, node);
-
-        // ext32
-        case 0xc9:
-            if (!mpack_tree_reserve_bytes(tree, sizeof(uint32_t)))
-                return false;
-            node->len = mpack_load_u32(tree->data + tree->size + 1);
-            return mpack_tree_parse_ext(tree, node);
-        #endif
-
-        // float
-        case 0xca:
-            if (!mpack_tree_reserve_bytes(tree, sizeof(float)))
-                return false;
-            node->value.f = mpack_load_float(tree->data + tree->size + 1);
-            node->type = mpack_type_float;
-            return true;
-
-        // double
-        case 0xcb:
-            if (!mpack_tree_reserve_bytes(tree, sizeof(double)))
-                return false;
-            node->value.d = mpack_load_double(tree->data + tree->size + 1);
-            node->type = mpack_type_double;
-            return true;
-
-        // uint8
-        case 0xcc:
-            node->type = mpack_type_uint;
-            if (!mpack_tree_reserve_bytes(tree, sizeof(uint8_t)))
-                return false;
-            node->value.u = mpack_load_u8(tree->data + tree->size + 1);
-            return true;
-
-        // uint16
-        case 0xcd:
-            node->type = mpack_type_uint;
-            if (!mpack_tree_reserve_bytes(tree, sizeof(uint16_t)))
-                return false;
-            node->value.u = mpack_load_u16(tree->data + tree->size + 1);
-            return true;
-
-        // uint32
-        case 0xce:
-            node->type = mpack_type_uint;
-            if (!mpack_tree_reserve_bytes(tree, sizeof(uint32_t)))
-                return false;
-            node->value.u = mpack_load_u32(tree->data + tree->size + 1);
-            return true;
-
-        // uint64
-        case 0xcf:
-            node->type = mpack_type_uint;
-            if (!mpack_tree_reserve_bytes(tree, sizeof(uint64_t)))
-                return false;
-            node->value.u = mpack_load_u64(tree->data + tree->size + 1);
-            return true;
-
-        // int8
-        case 0xd0:
-            node->type = mpack_type_int;
-            if (!mpack_tree_reserve_bytes(tree, sizeof(int8_t)))
-                return false;
-            node->value.i = mpack_load_i8(tree->data + tree->size + 1);
-            return true;
-
-        // int16
-        case 0xd1:
-            node->type = mpack_type_int;
-            if (!mpack_tree_reserve_bytes(tree, sizeof(int16_t)))
-                return false;
-            node->value.i = mpack_load_i16(tree->data + tree->size + 1);
-            return true;
-
-        // int32
-        case 0xd2:
-            node->type = mpack_type_int;
-            if (!mpack_tree_reserve_bytes(tree, sizeof(int32_t)))
-                return false;
-            node->value.i = mpack_load_i32(tree->data + tree->size + 1);
-            return true;
-
-        // int64
-        case 0xd3:
-            node->type = mpack_type_int;
-            if (!mpack_tree_reserve_bytes(tree, sizeof(int64_t)))
-                return false;
-            node->value.i = mpack_load_i64(tree->data + tree->size + 1);
-            return true;
-
-        #if MPACK_EXTENSIONS
-        // fixext1
-        case 0xd4:
-            node->len = 1;
-            return mpack_tree_parse_ext(tree, node);
-
-        // fixext2
-        case 0xd5:
-            node->len = 2;
-            return mpack_tree_parse_ext(tree, node);
-
-        // fixext4
-        case 0xd6:
-            node->len = 4;
-            return mpack_tree_parse_ext(tree, node);
-
-        // fixext8
-        case 0xd7:
-            node->len = 8;
-            return mpack_tree_parse_ext(tree, node);
-
-        // fixext16
-        case 0xd8:
-            node->len = 16;
-            return mpack_tree_parse_ext(tree, node);
-        #endif
-
-        // str8
-        case 0xd9:
-            if (!mpack_tree_reserve_bytes(tree, sizeof(uint8_t)))
-                return false;
-            node->len = mpack_load_u8(tree->data + tree->size + 1);
-            node->type = mpack_type_str;
-            return mpack_tree_parse_bytes(tree, node);
-
-        // str16
-        case 0xda:
-            if (!mpack_tree_reserve_bytes(tree, sizeof(uint16_t)))
-                return false;
-            node->len = mpack_load_u16(tree->data + tree->size + 1);
-            node->type = mpack_type_str;
-            return mpack_tree_parse_bytes(tree, node);
-
-        // str32
-        case 0xdb:
-            if (!mpack_tree_reserve_bytes(tree, sizeof(uint32_t)))
-                return false;
-            node->len = mpack_load_u32(tree->data + tree->size + 1);
-            node->type = mpack_type_str;
-            return mpack_tree_parse_bytes(tree, node);
-
-        // array16
-        case 0xdc:
-            if (!mpack_tree_reserve_bytes(tree, sizeof(uint16_t)))
-                return false;
-            node->len = mpack_load_u16(tree->data + tree->size + 1);
-            node->type = mpack_type_array;
-            return mpack_tree_parse_children(tree, node);
-
-        // array32
-        case 0xdd:
-            if (!mpack_tree_reserve_bytes(tree, sizeof(uint32_t)))
-                return false;
-            node->len = mpack_load_u32(tree->data + tree->size + 1);
-            node->type = mpack_type_array;
-            return mpack_tree_parse_children(tree, node);
-
-        // map16
-        case 0xde:
-            if (!mpack_tree_reserve_bytes(tree, sizeof(uint16_t)))
-                return false;
-            node->len = mpack_load_u16(tree->data + tree->size + 1);
-            node->type = mpack_type_map;
-            return mpack_tree_parse_children(tree, node);
-
-        // map32
-        case 0xdf:
-            if (!mpack_tree_reserve_bytes(tree, sizeof(uint32_t)))
-                return false;
-            node->len = mpack_load_u32(tree->data + tree->size + 1);
-            node->type = mpack_type_map;
-            return mpack_tree_parse_children(tree, node);
-
-        // reserved
-        case 0xc1:
-            mpack_tree_flag_error(tree, mpack_error_invalid);
+    // bin8
+    case 0xc4:
+        node->type = mpack_type_bin;
+        if (!mpack_tree_reserve_bytes(tree, sizeof(uint8_t)))
             return false;
+        node->len = mpack_load_u8(tree->data + tree->size + 1);
+        return mpack_tree_parse_bytes(tree, node);
 
-        #if !MPACK_EXTENSIONS
-        // ext
-        case 0xc7: // fallthrough
-        case 0xc8: // fallthrough
-        case 0xc9: // fallthrough
-        // fixext
-        case 0xd4: // fallthrough
-        case 0xd5: // fallthrough
-        case 0xd6: // fallthrough
-        case 0xd7: // fallthrough
-        case 0xd8:
-            mpack_tree_flag_error(tree, mpack_error_unsupported);
+    // bin16
+    case 0xc5:
+        node->type = mpack_type_bin;
+        if (!mpack_tree_reserve_bytes(tree, sizeof(uint16_t)))
             return false;
-        #endif
+        node->len = mpack_load_u16(tree->data + tree->size + 1);
+        return mpack_tree_parse_bytes(tree, node);
 
-        #if MPACK_OPTIMIZE_FOR_SIZE
-        // any other bytes should have been handled by the infix switch
-        default:
-            break;
-        #endif
+    // bin32
+    case 0xc6:
+        node->type = mpack_type_bin;
+        if (!mpack_tree_reserve_bytes(tree, sizeof(uint32_t)))
+            return false;
+        node->len = mpack_load_u32(tree->data + tree->size + 1);
+        return mpack_tree_parse_bytes(tree, node);
+
+#    if MPACK_EXTENSIONS
+    // ext8
+    case 0xc7:
+        if (!mpack_tree_reserve_bytes(tree, sizeof(uint8_t)))
+            return false;
+        node->len = mpack_load_u8(tree->data + tree->size + 1);
+        return mpack_tree_parse_ext(tree, node);
+
+    // ext16
+    case 0xc8:
+        if (!mpack_tree_reserve_bytes(tree, sizeof(uint16_t)))
+            return false;
+        node->len = mpack_load_u16(tree->data + tree->size + 1);
+        return mpack_tree_parse_ext(tree, node);
+
+    // ext32
+    case 0xc9:
+        if (!mpack_tree_reserve_bytes(tree, sizeof(uint32_t)))
+            return false;
+        node->len = mpack_load_u32(tree->data + tree->size + 1);
+        return mpack_tree_parse_ext(tree, node);
+#    endif
+
+    // float
+    case 0xca:
+        if (!mpack_tree_reserve_bytes(tree, sizeof(float)))
+            return false;
+        node->value.f = mpack_load_float(tree->data + tree->size + 1);
+        node->type = mpack_type_float;
+        return true;
+
+    // double
+    case 0xcb:
+        if (!mpack_tree_reserve_bytes(tree, sizeof(double)))
+            return false;
+        node->value.d = mpack_load_double(tree->data + tree->size + 1);
+        node->type = mpack_type_double;
+        return true;
+
+    // uint8
+    case 0xcc:
+        node->type = mpack_type_uint;
+        if (!mpack_tree_reserve_bytes(tree, sizeof(uint8_t)))
+            return false;
+        node->value.u = mpack_load_u8(tree->data + tree->size + 1);
+        return true;
+
+    // uint16
+    case 0xcd:
+        node->type = mpack_type_uint;
+        if (!mpack_tree_reserve_bytes(tree, sizeof(uint16_t)))
+            return false;
+        node->value.u = mpack_load_u16(tree->data + tree->size + 1);
+        return true;
+
+    // uint32
+    case 0xce:
+        node->type = mpack_type_uint;
+        if (!mpack_tree_reserve_bytes(tree, sizeof(uint32_t)))
+            return false;
+        node->value.u = mpack_load_u32(tree->data + tree->size + 1);
+        return true;
+
+    // uint64
+    case 0xcf:
+        node->type = mpack_type_uint;
+        if (!mpack_tree_reserve_bytes(tree, sizeof(uint64_t)))
+            return false;
+        node->value.u = mpack_load_u64(tree->data + tree->size + 1);
+        return true;
+
+    // int8
+    case 0xd0:
+        node->type = mpack_type_int;
+        if (!mpack_tree_reserve_bytes(tree, sizeof(int8_t)))
+            return false;
+        node->value.i = mpack_load_i8(tree->data + tree->size + 1);
+        return true;
+
+    // int16
+    case 0xd1:
+        node->type = mpack_type_int;
+        if (!mpack_tree_reserve_bytes(tree, sizeof(int16_t)))
+            return false;
+        node->value.i = mpack_load_i16(tree->data + tree->size + 1);
+        return true;
+
+    // int32
+    case 0xd2:
+        node->type = mpack_type_int;
+        if (!mpack_tree_reserve_bytes(tree, sizeof(int32_t)))
+            return false;
+        node->value.i = mpack_load_i32(tree->data + tree->size + 1);
+        return true;
+
+    // int64
+    case 0xd3:
+        node->type = mpack_type_int;
+        if (!mpack_tree_reserve_bytes(tree, sizeof(int64_t)))
+            return false;
+        node->value.i = mpack_load_i64(tree->data + tree->size + 1);
+        return true;
+
+#    if MPACK_EXTENSIONS
+    // fixext1
+    case 0xd4:
+        node->len = 1;
+        return mpack_tree_parse_ext(tree, node);
+
+    // fixext2
+    case 0xd5:
+        node->len = 2;
+        return mpack_tree_parse_ext(tree, node);
+
+    // fixext4
+    case 0xd6:
+        node->len = 4;
+        return mpack_tree_parse_ext(tree, node);
+
+    // fixext8
+    case 0xd7:
+        node->len = 8;
+        return mpack_tree_parse_ext(tree, node);
+
+    // fixext16
+    case 0xd8:
+        node->len = 16;
+        return mpack_tree_parse_ext(tree, node);
+#    endif
+
+    // str8
+    case 0xd9:
+        if (!mpack_tree_reserve_bytes(tree, sizeof(uint8_t)))
+            return false;
+        node->len = mpack_load_u8(tree->data + tree->size + 1);
+        node->type = mpack_type_str;
+        return mpack_tree_parse_bytes(tree, node);
+
+    // str16
+    case 0xda:
+        if (!mpack_tree_reserve_bytes(tree, sizeof(uint16_t)))
+            return false;
+        node->len = mpack_load_u16(tree->data + tree->size + 1);
+        node->type = mpack_type_str;
+        return mpack_tree_parse_bytes(tree, node);
+
+    // str32
+    case 0xdb:
+        if (!mpack_tree_reserve_bytes(tree, sizeof(uint32_t)))
+            return false;
+        node->len = mpack_load_u32(tree->data + tree->size + 1);
+        node->type = mpack_type_str;
+        return mpack_tree_parse_bytes(tree, node);
+
+    // array16
+    case 0xdc:
+        if (!mpack_tree_reserve_bytes(tree, sizeof(uint16_t)))
+            return false;
+        node->len = mpack_load_u16(tree->data + tree->size + 1);
+        node->type = mpack_type_array;
+        return mpack_tree_parse_children(tree, node);
+
+    // array32
+    case 0xdd:
+        if (!mpack_tree_reserve_bytes(tree, sizeof(uint32_t)))
+            return false;
+        node->len = mpack_load_u32(tree->data + tree->size + 1);
+        node->type = mpack_type_array;
+        return mpack_tree_parse_children(tree, node);
+
+    // map16
+    case 0xde:
+        if (!mpack_tree_reserve_bytes(tree, sizeof(uint16_t)))
+            return false;
+        node->len = mpack_load_u16(tree->data + tree->size + 1);
+        node->type = mpack_type_map;
+        return mpack_tree_parse_children(tree, node);
+
+    // map32
+    case 0xdf:
+        if (!mpack_tree_reserve_bytes(tree, sizeof(uint32_t)))
+            return false;
+        node->len = mpack_load_u32(tree->data + tree->size + 1);
+        node->type = mpack_type_map;
+        return mpack_tree_parse_children(tree, node);
+
+    // reserved
+    case 0xc1:
+        mpack_tree_flag_error(tree, mpack_error_invalid);
+        return false;
+
+#    if !MPACK_EXTENSIONS
+    // ext
+    case 0xc7: // fallthrough
+    case 0xc8: // fallthrough
+    case 0xc9: // fallthrough
+    // fixext
+    case 0xd4: // fallthrough
+    case 0xd5: // fallthrough
+    case 0xd6: // fallthrough
+    case 0xd7: // fallthrough
+    case 0xd8:
+        mpack_tree_flag_error(tree, mpack_error_unsupported);
+        return false;
+#    endif
+
+#    if MPACK_OPTIMIZE_FOR_SIZE
+    // any other bytes should have been handled by the infix switch
+    default:
+        break;
+#    endif
     }
 
     mpack_assert(0, "unreachable");
     return false;
 }
 
-static bool mpack_tree_parse_node(mpack_tree_t* tree, mpack_node_data_t* node) {
-    mpack_log("parsing a node at position %i in level %i\n",
-            (int)tree->size, (int)tree->parser.level);
+static bool
+mpack_tree_parse_node(mpack_tree_t *tree, mpack_node_data_t *node)
+{
+    mpack_log("parsing a node at position %i in level %i\n", (int)tree->size,
+        (int)tree->parser.level);
 
     if (!mpack_tree_parse_node_contents(tree, node)) {
         mpack_log("node parsing returned false\n");
@@ -4861,9 +5992,9 @@ static bool mpack_tree_parse_node(mpack_tree_t* tree, mpack_node_data_t* node) {
     tree->size += node_size;
 
     mpack_log("parsed a node of type %s of %i bytes and "
-            "%i additional bytes reserved for children.\n",
-            mpack_type_to_string(node->type), (int)node_size,
-            (int)tree->parser.current_node_reserved + 1 - (int)node_size);
+              "%i additional bytes reserved for children.\n",
+        mpack_type_to_string(node->type), (int)node_size,
+        (int)tree->parser.current_node_reserved + 1 - (int)node_size);
 
     return true;
 }
@@ -4873,18 +6004,21 @@ static bool mpack_tree_parse_node(mpack_tree_t* tree, mpack_node_data_t* node) {
  * stack holds the amount of children left to read in each level of the tree.
  * Parsing can pause and resume when more data becomes available.
  */
-static bool mpack_tree_continue_parsing(mpack_tree_t* tree) {
+static bool
+mpack_tree_continue_parsing(mpack_tree_t *tree)
+{
     if (mpack_tree_error(tree) != mpack_ok)
         return false;
 
-    mpack_tree_parser_t* parser = &tree->parser;
+    mpack_tree_parser_t *parser = &tree->parser;
     mpack_assert(parser->state == mpack_tree_parse_state_in_progress);
-    mpack_log("parsing tree elements, %i bytes in buffer\n", (int)tree->data_length);
+    mpack_log(
+        "parsing tree elements, %i bytes in buffer\n", (int)tree->data_length);
 
     // we loop parsing nodes until the parse stack is empty. we break
     // by returning out of the function.
     while (true) {
-        mpack_node_data_t* node = parser->stack[parser->level].child;
+        mpack_node_data_t *node = parser->stack[parser->level].child;
         size_t level = parser->level;
         if (!mpack_tree_parse_node(tree, node))
             return false;
@@ -4892,14 +6026,14 @@ static bool mpack_tree_continue_parsing(mpack_tree_t* tree) {
         ++parser->stack[level].child;
 
         mpack_assert(mpack_tree_error(tree) == mpack_ok,
-                "mpack_tree_parse_node() should have returned false due to error!");
+            "mpack_tree_parse_node() should have returned false due to error!");
 
-        // pop empty stack levels, exiting the outer loop when the stack is empty.
-        // (we could tail-optimize containers by pre-emptively popping empty
-        // stack levels before reading the new element, this way we wouldn't
-        // have to loop. but we eventually want to use the parse stack to give
-        // better error messages that contain the location of the error, so
-        // it needs to be complete.)
+        // pop empty stack levels, exiting the outer loop when the stack is
+        // empty. (we could tail-optimize containers by pre-emptively popping
+        // empty stack levels before reading the new element, this way we
+        // wouldn't have to loop. but we eventually want to use the parse stack
+        // to give better error messages that contain the location of the error,
+        // so it needs to be complete.)
         while (parser->stack[parser->level].left == 0) {
             if (parser->level == 0)
                 return true;
@@ -4908,34 +6042,38 @@ static bool mpack_tree_continue_parsing(mpack_tree_t* tree) {
     }
 }
 
-static void mpack_tree_cleanup(mpack_tree_t* tree) {
+static void
+mpack_tree_cleanup(mpack_tree_t *tree)
+{
     MPACK_UNUSED(tree);
 
-    #ifdef MPACK_MALLOC
+#    ifdef MPACK_MALLOC
     if (tree->parser.stack_owned) {
         MPACK_FREE(tree->parser.stack);
         tree->parser.stack = NULL;
         tree->parser.stack_owned = false;
     }
 
-    mpack_tree_page_t* page = tree->next;
+    mpack_tree_page_t *page = tree->next;
     while (page != NULL) {
-        mpack_tree_page_t* next = page->next;
+        mpack_tree_page_t *next = page->next;
         mpack_log("freeing page %p\n", page);
         MPACK_FREE(page);
         page = next;
     }
     tree->next = NULL;
-    #endif
+#    endif
 }
 
-static bool mpack_tree_parse_start(mpack_tree_t* tree) {
+static bool
+mpack_tree_parse_start(mpack_tree_t *tree)
+{
     if (mpack_tree_error(tree) != mpack_ok)
         return false;
 
-    mpack_tree_parser_t* parser = &tree->parser;
+    mpack_tree_parser_t *parser = &tree->parser;
     mpack_assert(parser->state != mpack_tree_parse_state_in_progress,
-            "previous parsing was not finished!");
+        "previous parsing was not finished!");
 
     if (parser->state == mpack_tree_parse_state_parsed)
         mpack_tree_cleanup(tree);
@@ -4946,7 +6084,7 @@ static bool mpack_tree_parse_start(mpack_tree_t* tree) {
 
     // check if we previously parsed a tree
     if (tree->size > 0) {
-        #ifdef MPACK_MALLOC
+#    ifdef MPACK_MALLOC
         // if we're buffered, move the remaining data back to the
         // start of the buffer
         // TODO: This is not ideal performance-wise. We should only move data
@@ -4956,10 +6094,10 @@ static bool mpack_tree_parse_start(mpack_tree_t* tree) {
         // the buffer size or if messages take up less than a quarter of the
         // buffer size. Maybe this should be configurable.
         if (tree->buffer != NULL) {
-            mpack_memmove(tree->buffer, tree->buffer + tree->size, tree->data_length - tree->size);
-        }
-        else
-        #endif
+            mpack_memmove(tree->buffer, tree->buffer + tree->size,
+                tree->data_length - tree->size);
+        } else
+#    endif
         // otherwise advance past the parsed data
         {
             tree->data += tree->size;
@@ -4975,21 +6113,24 @@ static bool mpack_tree_parse_start(mpack_tree_t* tree) {
         tree->parser.state = mpack_tree_parse_state_not_started;
         return false;
     }
-    mpack_log("parsing tree at %p starting with byte %x\n", tree->data, (uint8_t)tree->data[0]);
+    mpack_log("parsing tree at %p starting with byte %x\n", tree->data,
+        (uint8_t)tree->data[0]);
     parser->possible_nodes_left -= 1;
     tree->node_count = 1;
 
-    #ifdef MPACK_MALLOC
+#    ifdef MPACK_MALLOC
     parser->stack = parser->stack_local;
     parser->stack_owned = false;
-    parser->stack_capacity = sizeof(parser->stack_local) / sizeof(*parser->stack_local);
+    parser->stack_capacity
+        = sizeof(parser->stack_local) / sizeof(*parser->stack_local);
 
     if (tree->pool == NULL) {
 
         // allocate first page
-        mpack_tree_page_t* page = (mpack_tree_page_t*)MPACK_MALLOC(MPACK_PAGE_ALLOC_SIZE);
-        mpack_log("allocated initial page %p of size %i count %i\n",
-                page, (int)MPACK_PAGE_ALLOC_SIZE, (int)MPACK_NODES_PER_PAGE);
+        mpack_tree_page_t *page
+            = (mpack_tree_page_t *)MPACK_MALLOC(MPACK_PAGE_ALLOC_SIZE);
+        mpack_log("allocated initial page %p of size %i count %i\n", page,
+            (int)MPACK_PAGE_ALLOC_SIZE, (int)MPACK_NODES_PER_PAGE);
         if (page == NULL) {
             tree->error = mpack_error_memory;
             return false;
@@ -4999,9 +6140,8 @@ static bool mpack_tree_parse_start(mpack_tree_t* tree) {
 
         parser->nodes = page->nodes;
         parser->nodes_left = MPACK_NODES_PER_PAGE;
-    }
-    else
-    #endif
+    } else
+#    endif
     {
         // otherwise use the provided pool
         mpack_assert(tree->pool != NULL, "no pool provided?");
@@ -5020,14 +6160,16 @@ static bool mpack_tree_parse_start(mpack_tree_t* tree) {
     return true;
 }
 
-void mpack_tree_parse(mpack_tree_t* tree) {
+void
+mpack_tree_parse(mpack_tree_t *tree)
+{
     if (mpack_tree_error(tree) != mpack_ok)
         return;
 
     if (tree->parser.state != mpack_tree_parse_state_in_progress) {
         if (!mpack_tree_parse_start(tree)) {
-            mpack_tree_flag_error(tree, (tree->read_fn == NULL) ?
-                    mpack_error_invalid : mpack_error_io);
+            mpack_tree_flag_error(tree,
+                (tree->read_fn == NULL) ? mpack_error_invalid : mpack_error_io);
             return;
         }
     }
@@ -5039,19 +6181,22 @@ void mpack_tree_parse(mpack_tree_t* tree) {
         // We're parsing synchronously on a blocking fill function. If we
         // didn't completely finish parsing the tree, it's an error.
         mpack_log("tree parsing incomplete. flagging error.\n");
-        mpack_tree_flag_error(tree, (tree->read_fn == NULL) ?
-                mpack_error_invalid : mpack_error_io);
+        mpack_tree_flag_error(tree,
+            (tree->read_fn == NULL) ? mpack_error_invalid : mpack_error_io);
         return;
     }
 
     mpack_assert(mpack_tree_error(tree) == mpack_ok);
     mpack_assert(tree->parser.level == 0);
     tree->parser.state = mpack_tree_parse_state_parsed;
-    mpack_log("parsed tree of %i bytes, %i bytes left\n", (int)tree->size, (int)tree->parser.possible_nodes_left);
+    mpack_log("parsed tree of %i bytes, %i bytes left\n", (int)tree->size,
+        (int)tree->parser.possible_nodes_left);
     mpack_log("%i nodes in final page\n", (int)tree->parser.nodes_left);
 }
 
-bool mpack_tree_try_parse(mpack_tree_t* tree) {
+bool
+mpack_tree_try_parse(mpack_tree_t *tree)
+{
     if (mpack_tree_error(tree) != mpack_ok)
         return false;
 
@@ -5068,13 +6213,13 @@ bool mpack_tree_try_parse(mpack_tree_t* tree) {
     return true;
 }
 
-
-
 /*
  * Tree functions
  */
 
-mpack_node_t mpack_tree_root(mpack_tree_t* tree) {
+mpack_node_t
+mpack_tree_root(mpack_tree_t *tree)
+{
     if (mpack_tree_error(tree) != mpack_ok)
         return mpack_tree_nil_node(tree);
 
@@ -5082,8 +6227,9 @@ mpack_node_t mpack_tree_root(mpack_tree_t* tree) {
     // call mpack_tree_parse() (or mpack_tree_try_parse() with a success
     // result) in order to access the root node.
     if (tree->parser.state != mpack_tree_parse_state_parsed) {
-        mpack_break("Tree has not been parsed! "
-                "Did you call mpack_tree_parse() or mpack_tree_try_parse()?");
+        mpack_break(
+            "Tree has not been parsed! "
+            "Did you call mpack_tree_parse() or mpack_tree_try_parse()?");
         mpack_tree_flag_error(tree, mpack_error_bug);
         return mpack_tree_nil_node(tree);
     }
@@ -5091,7 +6237,9 @@ mpack_node_t mpack_tree_root(mpack_tree_t* tree) {
     return mpack_node(tree, tree->root);
 }
 
-static void mpack_tree_init_clear(mpack_tree_t* tree) {
+static void
+mpack_tree_init_clear(mpack_tree_t *tree)
+{
     mpack_memset(tree, 0, sizeof(*tree));
     tree->nil_node.type = mpack_type_nil;
     tree->missing_node.type = mpack_type_missing;
@@ -5099,15 +6247,17 @@ static void mpack_tree_init_clear(mpack_tree_t* tree) {
     tree->max_nodes = SIZE_MAX;
 }
 
-#ifdef MPACK_MALLOC
-void mpack_tree_init_data(mpack_tree_t* tree, const char* data, size_t length) {
+#    ifdef MPACK_MALLOC
+void
+mpack_tree_init_data(mpack_tree_t *tree, const char *data, size_t length)
+{
     mpack_tree_init_clear(tree);
 
     MPACK_STATIC_ASSERT(MPACK_NODE_PAGE_SIZE >= sizeof(mpack_tree_page_t),
-            "MPACK_NODE_PAGE_SIZE is too small");
+        "MPACK_NODE_PAGE_SIZE is too small");
 
     MPACK_STATIC_ASSERT(MPACK_PAGE_ALLOC_SIZE <= MPACK_NODE_PAGE_SIZE,
-            "incorrect page rounding?");
+        "incorrect page rounding?");
 
     tree->data = data;
     tree->data_length = length;
@@ -5118,15 +6268,16 @@ void mpack_tree_init_data(mpack_tree_t* tree, const char* data, size_t length) {
     mpack_log("===========================\n");
     mpack_log("initializing tree with data of size %i\n", (int)length);
 }
-#endif
+#    endif
 
-void mpack_tree_init_pool(mpack_tree_t* tree, const char* data, size_t length,
-        mpack_node_data_t* node_pool, size_t node_pool_count)
+void
+mpack_tree_init_pool(mpack_tree_t *tree, const char *data, size_t length,
+    mpack_node_data_t *node_pool, size_t node_pool_count)
 {
     mpack_tree_init_clear(tree);
-    #ifdef MPACK_MALLOC
+#    ifdef MPACK_MALLOC
     tree->next = NULL;
-    #endif
+#    endif
 
     if (node_pool_count == 0) {
         mpack_break("initial page has no nodes!");
@@ -5141,10 +6292,12 @@ void mpack_tree_init_pool(mpack_tree_t* tree, const char* data, size_t length,
 
     mpack_log("===========================\n");
     mpack_log("initializing tree with data of size %i and pool of count %i\n",
-            (int)length, (int)node_pool_count);
+        (int)length, (int)node_pool_count);
 }
 
-void mpack_tree_init_error(mpack_tree_t* tree, mpack_error_t error) {
+void
+mpack_tree_init_error(mpack_tree_t *tree, mpack_error_t error)
+{
     mpack_tree_init_clear(tree);
     tree->error = error;
 
@@ -5152,9 +6305,11 @@ void mpack_tree_init_error(mpack_tree_t* tree, mpack_error_t error) {
     mpack_log("initializing tree error state %i\n", (int)error);
 }
 
-#ifdef MPACK_MALLOC
-void mpack_tree_init_stream(mpack_tree_t* tree, mpack_tree_read_t read_fn, void* context,
-        size_t max_message_size, size_t max_message_nodes) {
+#    ifdef MPACK_MALLOC
+void
+mpack_tree_init_stream(mpack_tree_t *tree, mpack_tree_read_t read_fn,
+    void *context, size_t max_message_size, size_t max_message_nodes)
+{
     mpack_tree_init_clear(tree);
 
     tree->read_fn = read_fn;
@@ -5166,31 +6321,39 @@ void mpack_tree_init_stream(mpack_tree_t* tree, mpack_tree_read_t read_fn, void*
 
     mpack_log("===========================\n");
     mpack_log("initializing tree with stream, max size %i max nodes %i\n",
-            (int)max_message_size, (int)max_message_nodes);
+        (int)max_message_size, (int)max_message_nodes);
 }
-#endif
+#    endif
 
-void mpack_tree_set_limits(mpack_tree_t* tree, size_t max_message_size, size_t max_message_nodes) {
+void
+mpack_tree_set_limits(
+    mpack_tree_t *tree, size_t max_message_size, size_t max_message_nodes)
+{
     mpack_assert(max_message_size > 0);
     mpack_assert(max_message_nodes > 0);
     tree->max_size = max_message_size;
     tree->max_nodes = max_message_nodes;
 }
 
-#if MPACK_STDIO
+#    if MPACK_STDIO
 typedef struct mpack_file_tree_t {
-    char* data;
+    char *data;
     size_t size;
     char buffer[MPACK_BUFFER_SIZE];
 } mpack_file_tree_t;
 
-static void mpack_file_tree_teardown(mpack_tree_t* tree) {
-    mpack_file_tree_t* file_tree = (mpack_file_tree_t*)tree->context;
+static void
+mpack_file_tree_teardown(mpack_tree_t *tree)
+{
+    mpack_file_tree_t *file_tree = (mpack_file_tree_t *)tree->context;
     MPACK_FREE(file_tree->data);
     MPACK_FREE(file_tree);
 }
 
-static bool mpack_file_tree_read(mpack_tree_t* tree, mpack_file_tree_t* file_tree, FILE* file, size_t max_bytes) {
+static bool
+mpack_file_tree_read(mpack_tree_t *tree, mpack_file_tree_t *file_tree,
+    FILE *file, size_t max_bytes)
+{
 
     // get the file size
     errno = 0;
@@ -5213,14 +6376,17 @@ static bool mpack_file_tree_read(mpack_tree_t* tree, mpack_file_tree_t* file_tre
     }
 
     // make sure the size is less than max_bytes
-    // (this mess exists to safely convert between long and size_t regardless of their widths)
-    if (max_bytes != 0 && (((uint64_t)LONG_MAX > (uint64_t)SIZE_MAX && size > (long)SIZE_MAX) || (size_t)size > max_bytes)) {
+    // (this mess exists to safely convert between long and size_t regardless of
+    // their widths)
+    if (max_bytes != 0
+        && (((uint64_t)LONG_MAX > (uint64_t)SIZE_MAX && size > (long)SIZE_MAX)
+            || (size_t)size > max_bytes)) {
         mpack_tree_init_error(tree, mpack_error_too_big);
         return false;
     }
 
     // allocate data
-    file_tree->data = (char*)MPACK_MALLOC((size_t)size);
+    file_tree->data = (char *)MPACK_MALLOC((size_t)size);
     if (file_tree->data == NULL) {
         mpack_tree_init_error(tree, mpack_error_memory);
         return false;
@@ -5229,7 +6395,8 @@ static bool mpack_file_tree_read(mpack_tree_t* tree, mpack_file_tree_t* file_tre
     // read the file
     long total = 0;
     while (total < size) {
-        size_t read = fread(file_tree->data + total, 1, (size_t)(size - total), file);
+        size_t read
+            = fread(file_tree->data + total, 1, (size_t)(size - total), file);
         if (read <= 0) {
             mpack_tree_init_error(tree, mpack_error_io);
             MPACK_FREE(file_tree->data);
@@ -5242,11 +6409,14 @@ static bool mpack_file_tree_read(mpack_tree_t* tree, mpack_file_tree_t* file_tre
     return true;
 }
 
-static bool mpack_tree_file_check_max_bytes(mpack_tree_t* tree, size_t max_bytes) {
+static bool
+mpack_tree_file_check_max_bytes(mpack_tree_t *tree, size_t max_bytes)
+{
 
     // the C STDIO family of file functions use long (e.g. ftell)
     if (max_bytes > LONG_MAX) {
-        mpack_break("max_bytes of %" PRIu64 " is invalid, maximum is LONG_MAX", (uint64_t)max_bytes);
+        mpack_break("max_bytes of %" PRIu64 " is invalid, maximum is LONG_MAX",
+            (uint64_t)max_bytes);
         mpack_tree_init_error(tree, mpack_error_bug);
         return false;
     }
@@ -5254,10 +6424,14 @@ static bool mpack_tree_file_check_max_bytes(mpack_tree_t* tree, size_t max_bytes
     return true;
 }
 
-static void mpack_tree_init_stdfile_noclose(mpack_tree_t* tree, FILE* stdfile, size_t max_bytes) {
+static void
+mpack_tree_init_stdfile_noclose(
+    mpack_tree_t *tree, FILE *stdfile, size_t max_bytes)
+{
 
     // allocate file tree
-    mpack_file_tree_t* file_tree = (mpack_file_tree_t*) MPACK_MALLOC(sizeof(mpack_file_tree_t));
+    mpack_file_tree_t *file_tree
+        = (mpack_file_tree_t *)MPACK_MALLOC(sizeof(mpack_file_tree_t));
     if (file_tree == NULL) {
         mpack_tree_init_error(tree, mpack_error_memory);
         return;
@@ -5274,7 +6448,10 @@ static void mpack_tree_init_stdfile_noclose(mpack_tree_t* tree, FILE* stdfile, s
     mpack_tree_set_teardown(tree, mpack_file_tree_teardown);
 }
 
-void mpack_tree_init_stdfile(mpack_tree_t* tree, FILE* stdfile, size_t max_bytes, bool close_when_done) {
+void
+mpack_tree_init_stdfile(
+    mpack_tree_t *tree, FILE *stdfile, size_t max_bytes, bool close_when_done)
+{
     if (!mpack_tree_file_check_max_bytes(tree, max_bytes))
         return;
 
@@ -5284,12 +6461,15 @@ void mpack_tree_init_stdfile(mpack_tree_t* tree, FILE* stdfile, size_t max_bytes
         fclose(stdfile);
 }
 
-void mpack_tree_init_filename(mpack_tree_t* tree, const char* filename, size_t max_bytes) {
+void
+mpack_tree_init_filename(
+    mpack_tree_t *tree, const char *filename, size_t max_bytes)
+{
     if (!mpack_tree_file_check_max_bytes(tree, max_bytes))
         return;
 
     // open the file
-    FILE* file = fopen(filename, "rb");
+    FILE *file = fopen(filename, "rb");
     if (!file) {
         mpack_tree_init_error(tree, mpack_error_io);
         return;
@@ -5297,15 +6477,17 @@ void mpack_tree_init_filename(mpack_tree_t* tree, const char* filename, size_t m
 
     mpack_tree_init_stdfile(tree, file, max_bytes, true);
 }
-#endif
+#    endif
 
-mpack_error_t mpack_tree_destroy(mpack_tree_t* tree) {
+mpack_error_t
+mpack_tree_destroy(mpack_tree_t *tree)
+{
     mpack_tree_cleanup(tree);
 
-    #ifdef MPACK_MALLOC
+#    ifdef MPACK_MALLOC
     if (tree->buffer)
         MPACK_FREE(tree->buffer);
-    #endif
+#    endif
 
     if (tree->teardown)
         tree->teardown(tree);
@@ -5314,27 +6496,31 @@ mpack_error_t mpack_tree_destroy(mpack_tree_t* tree) {
     return tree->error;
 }
 
-void mpack_tree_flag_error(mpack_tree_t* tree, mpack_error_t error) {
+void
+mpack_tree_flag_error(mpack_tree_t *tree, mpack_error_t error)
+{
     if (tree->error == mpack_ok) {
-        mpack_log("tree %p setting error %i: %s\n", tree, (int)error, mpack_error_to_string(error));
+        mpack_log("tree %p setting error %i: %s\n", tree, (int)error,
+            mpack_error_to_string(error));
         tree->error = error;
         if (tree->error_fn)
             tree->error_fn(tree, error);
     }
-
 }
-
-
 
 /*
  * Node misc functions
  */
 
-void mpack_node_flag_error(mpack_node_t node, mpack_error_t error) {
+void
+mpack_node_flag_error(mpack_node_t node, mpack_error_t error)
+{
     mpack_tree_flag_error(node.tree, error);
 }
 
-mpack_tag_t mpack_node_tag(mpack_node_t node) {
+mpack_tag_t
+mpack_node_tag(mpack_node_t node)
+{
     if (mpack_node_error(node) != mpack_ok)
         return mpack_tag_nil();
 
@@ -5342,115 +6528,146 @@ mpack_tag_t mpack_node_tag(mpack_node_t node) {
 
     tag.type = node.data->type;
     switch (node.data->type) {
-        case mpack_type_missing:
-            // If a node is missing, I don't know if it makes sense to ask for
-            // a tag for it. We'll return a missing tag to match the missing
-            // node I guess, but attempting to use the tag for anything (like
-            // writing it for example) will flag mpack_error_bug.
-            break;
-        case mpack_type_nil:                                            break;
-        case mpack_type_bool:    tag.v.b = node.data->value.b;          break;
-        case mpack_type_float:   tag.v.f = node.data->value.f;          break;
-        case mpack_type_double:  tag.v.d = node.data->value.d;          break;
-        case mpack_type_int:     tag.v.i = node.data->value.i;          break;
-        case mpack_type_uint:    tag.v.u = node.data->value.u;          break;
+    case mpack_type_missing:
+        // If a node is missing, I don't know if it makes sense to ask for
+        // a tag for it. We'll return a missing tag to match the missing
+        // node I guess, but attempting to use the tag for anything (like
+        // writing it for example) will flag mpack_error_bug.
+        break;
+    case mpack_type_nil:
+        break;
+    case mpack_type_bool:
+        tag.v.b = node.data->value.b;
+        break;
+    case mpack_type_float:
+        tag.v.f = node.data->value.f;
+        break;
+    case mpack_type_double:
+        tag.v.d = node.data->value.d;
+        break;
+    case mpack_type_int:
+        tag.v.i = node.data->value.i;
+        break;
+    case mpack_type_uint:
+        tag.v.u = node.data->value.u;
+        break;
 
-        case mpack_type_str:     tag.v.l = node.data->len;     break;
-        case mpack_type_bin:     tag.v.l = node.data->len;     break;
+    case mpack_type_str:
+        tag.v.l = node.data->len;
+        break;
+    case mpack_type_bin:
+        tag.v.l = node.data->len;
+        break;
 
-        #if MPACK_EXTENSIONS
-        case mpack_type_ext:
-            tag.v.l = node.data->len;
-            tag.exttype = mpack_node_exttype_unchecked(node);
-            break;
-        #endif
+#    if MPACK_EXTENSIONS
+    case mpack_type_ext:
+        tag.v.l = node.data->len;
+        tag.exttype = mpack_node_exttype_unchecked(node);
+        break;
+#    endif
 
-        case mpack_type_array:   tag.v.n = node.data->len;  break;
-        case mpack_type_map:     tag.v.n = node.data->len;  break;
+    case mpack_type_array:
+        tag.v.n = node.data->len;
+        break;
+    case mpack_type_map:
+        tag.v.n = node.data->len;
+        break;
 
-        default:
-            mpack_assert(0, "unrecognized type %i", (int)node.data->type);
-            break;
+    default:
+        mpack_assert(0, "unrecognized type %i", (int)node.data->type);
+        break;
     }
     return tag;
 }
 
-#if MPACK_DEBUG && MPACK_STDIO
-static void mpack_node_print_element(mpack_node_t node, mpack_print_t* print, size_t depth) {
-    mpack_node_data_t* data = node.data;
+#    if MPACK_DEBUG && MPACK_STDIO
+static void
+mpack_node_print_element(mpack_node_t node, mpack_print_t *print, size_t depth)
+{
+    mpack_node_data_t *data = node.data;
     switch (data->type) {
-        case mpack_type_str:
-            {
-                mpack_print_append_cstr(print, "\"");
-                const char* bytes = mpack_node_data_unchecked(node);
-                for (size_t i = 0; i < data->len; ++i) {
-                    char c = bytes[i];
-                    switch (c) {
-                        case '\n': mpack_print_append_cstr(print, "\\n"); break;
-                        case '\\': mpack_print_append_cstr(print, "\\\\"); break;
-                        case '"': mpack_print_append_cstr(print, "\\\""); break;
-                        default: mpack_print_append(print, &c, 1); break;
-                    }
-                }
-                mpack_print_append_cstr(print, "\"");
+    case mpack_type_str: {
+        mpack_print_append_cstr(print, "\"");
+        const char *bytes = mpack_node_data_unchecked(node);
+        for (size_t i = 0; i < data->len; ++i) {
+            char c = bytes[i];
+            switch (c) {
+            case '\n':
+                mpack_print_append_cstr(print, "\\n");
+                break;
+            case '\\':
+                mpack_print_append_cstr(print, "\\\\");
+                break;
+            case '"':
+                mpack_print_append_cstr(print, "\\\"");
+                break;
+            default:
+                mpack_print_append(print, &c, 1);
+                break;
             }
-            break;
+        }
+        mpack_print_append_cstr(print, "\"");
+    } break;
 
-        case mpack_type_array:
-            mpack_print_append_cstr(print, "[\n");
-            for (size_t i = 0; i < data->len; ++i) {
-                for (size_t j = 0; j < depth + 1; ++j)
-                    mpack_print_append_cstr(print, "    ");
-                mpack_node_print_element(mpack_node_array_at(node, i), print, depth + 1);
-                if (i != data->len - 1)
-                    mpack_print_append_cstr(print, ",");
-                mpack_print_append_cstr(print, "\n");
-            }
-            for (size_t i = 0; i < depth; ++i)
+    case mpack_type_array:
+        mpack_print_append_cstr(print, "[\n");
+        for (size_t i = 0; i < data->len; ++i) {
+            for (size_t j = 0; j < depth + 1; ++j)
                 mpack_print_append_cstr(print, "    ");
-            mpack_print_append_cstr(print, "]");
-            break;
+            mpack_node_print_element(
+                mpack_node_array_at(node, i), print, depth + 1);
+            if (i != data->len - 1)
+                mpack_print_append_cstr(print, ",");
+            mpack_print_append_cstr(print, "\n");
+        }
+        for (size_t i = 0; i < depth; ++i)
+            mpack_print_append_cstr(print, "    ");
+        mpack_print_append_cstr(print, "]");
+        break;
 
-        case mpack_type_map:
-            mpack_print_append_cstr(print, "{\n");
-            for (size_t i = 0; i < data->len; ++i) {
-                for (size_t j = 0; j < depth + 1; ++j)
-                    mpack_print_append_cstr(print, "    ");
-                mpack_node_print_element(mpack_node_map_key_at(node, i), print, depth + 1);
-                mpack_print_append_cstr(print, ": ");
-                mpack_node_print_element(mpack_node_map_value_at(node, i), print, depth + 1);
-                if (i != data->len - 1)
-                    mpack_print_append_cstr(print, ",");
-                mpack_print_append_cstr(print, "\n");
-            }
-            for (size_t i = 0; i < depth; ++i)
+    case mpack_type_map:
+        mpack_print_append_cstr(print, "{\n");
+        for (size_t i = 0; i < data->len; ++i) {
+            for (size_t j = 0; j < depth + 1; ++j)
                 mpack_print_append_cstr(print, "    ");
-            mpack_print_append_cstr(print, "}");
-            break;
+            mpack_node_print_element(
+                mpack_node_map_key_at(node, i), print, depth + 1);
+            mpack_print_append_cstr(print, ": ");
+            mpack_node_print_element(
+                mpack_node_map_value_at(node, i), print, depth + 1);
+            if (i != data->len - 1)
+                mpack_print_append_cstr(print, ",");
+            mpack_print_append_cstr(print, "\n");
+        }
+        for (size_t i = 0; i < depth; ++i)
+            mpack_print_append_cstr(print, "    ");
+        mpack_print_append_cstr(print, "}");
+        break;
 
-        default:
-            {
-                const char* prefix = NULL;
-                size_t prefix_length = 0;
-                if (mpack_node_type(node) == mpack_type_bin
-                        #if MPACK_EXTENSIONS
-                        || mpack_node_type(node) == mpack_type_ext
-                        #endif
-                ) {
-                    prefix = mpack_node_data(node);
-                    prefix_length = mpack_node_data_len(node);
-                }
+    default: {
+        const char *prefix = NULL;
+        size_t prefix_length = 0;
+        if (mpack_node_type(node) == mpack_type_bin
+#        if MPACK_EXTENSIONS
+            || mpack_node_type(node) == mpack_type_ext
+#        endif
+        ) {
+            prefix = mpack_node_data(node);
+            prefix_length = mpack_node_data_len(node);
+        }
 
-                char buf[256];
-                mpack_tag_t tag = mpack_node_tag(node);
-                mpack_tag_debug_pseudo_json(tag, buf, sizeof(buf), prefix, prefix_length);
-                mpack_print_append_cstr(print, buf);
-            }
-            break;
+        char buf[256];
+        mpack_tag_t tag = mpack_node_tag(node);
+        mpack_tag_debug_pseudo_json(
+            tag, buf, sizeof(buf), prefix, prefix_length);
+        mpack_print_append_cstr(print, buf);
+    } break;
     }
 }
 
-void mpack_node_print_to_buffer(mpack_node_t node, char* buffer, size_t buffer_size) {
+void
+mpack_node_print_to_buffer(mpack_node_t node, char *buffer, size_t buffer_size)
+{
     if (buffer_size == 0) {
         mpack_assert(false, "buffer size is zero!");
         return;
@@ -5461,7 +6678,7 @@ void mpack_node_print_to_buffer(mpack_node_t node, char* buffer, size_t buffer_s
     print.buffer = buffer;
     print.size = buffer_size;
     mpack_node_print_element(node, &print, 0);
-    mpack_print_append(&print, "",  1); // null-terminator
+    mpack_print_append(&print, "", 1); // null-terminator
     mpack_print_flush(&print);
 
     // we always make sure there's a null-terminator at the end of the buffer
@@ -5469,7 +6686,10 @@ void mpack_node_print_to_buffer(mpack_node_t node, char* buffer, size_t buffer_s
     print.buffer[print.size - 1] = '\0';
 }
 
-void mpack_node_print_to_callback(mpack_node_t node, mpack_print_callback_t callback, void* context) {
+void
+mpack_node_print_to_callback(
+    mpack_node_t node, mpack_print_callback_t callback, void *context)
+{
     char buffer[1024];
     mpack_print_t print;
     mpack_memset(&print, 0, sizeof(print));
@@ -5481,7 +6701,9 @@ void mpack_node_print_to_callback(mpack_node_t node, mpack_print_callback_t call
     mpack_print_flush(&print);
 }
 
-void mpack_node_print_to_file(mpack_node_t node, FILE* file) {
+void
+mpack_node_print_to_file(mpack_node_t node, FILE *file)
+{
     mpack_assert(file != NULL, "file is NULL");
 
     char buffer[1024];
@@ -5499,17 +6721,17 @@ void mpack_node_print_to_file(mpack_node_t node, FILE* file) {
     mpack_print_append_cstr(&print, "\n");
     mpack_print_flush(&print);
 }
-#endif
- 
+#    endif
 
- 
 /*
  * Node Value Functions
  */
 
-#if MPACK_EXTENSIONS
-mpack_timestamp_t mpack_node_timestamp(mpack_node_t node) {
-    mpack_timestamp_t timestamp = {0, 0};
+#    if MPACK_EXTENSIONS
+mpack_timestamp_t
+mpack_node_timestamp(mpack_node_t node)
+{
+    mpack_timestamp_t timestamp = { 0, 0 };
 
     // we'll let mpack_node_exttype() do most checks
     if (mpack_node_exttype(node) != MPACK_EXTTYPE_TIMESTAMP) {
@@ -5518,82 +6740,94 @@ mpack_timestamp_t mpack_node_timestamp(mpack_node_t node) {
         return timestamp;
     }
 
-    const char* p = mpack_node_data_unchecked(node);
+    const char *p = mpack_node_data_unchecked(node);
 
     switch (node.data->len) {
-        case 4:
-            timestamp.nanoseconds = 0;
-            timestamp.seconds = mpack_load_u32(p);
-            break;
+    case 4:
+        timestamp.nanoseconds = 0;
+        timestamp.seconds = mpack_load_u32(p);
+        break;
 
-        case 8: {
-            uint64_t value = mpack_load_u64(p);
-            timestamp.nanoseconds = (uint32_t)(value >> 34);
-            timestamp.seconds = value & ((UINT64_C(1) << 34) - 1);
-            break;
-        }
+    case 8: {
+        uint64_t value = mpack_load_u64(p);
+        timestamp.nanoseconds = (uint32_t)(value >> 34);
+        timestamp.seconds = value & ((UINT64_C(1) << 34) - 1);
+        break;
+    }
 
-        case 12:
-            timestamp.nanoseconds = mpack_load_u32(p);
-            timestamp.seconds = mpack_load_i64(p + 4);
-            break;
+    case 12:
+        timestamp.nanoseconds = mpack_load_u32(p);
+        timestamp.seconds = mpack_load_i64(p + 4);
+        break;
 
-        default:
-            mpack_tree_flag_error(node.tree, mpack_error_invalid);
-            return timestamp;
+    default:
+        mpack_tree_flag_error(node.tree, mpack_error_invalid);
+        return timestamp;
     }
 
     if (timestamp.nanoseconds > MPACK_TIMESTAMP_NANOSECONDS_MAX) {
         mpack_tree_flag_error(node.tree, mpack_error_invalid);
-        mpack_timestamp_t zero = {0, 0};
+        mpack_timestamp_t zero = { 0, 0 };
         return zero;
     }
 
     return timestamp;
 }
 
-int64_t mpack_node_timestamp_seconds(mpack_node_t node) {
+int64_t
+mpack_node_timestamp_seconds(mpack_node_t node)
+{
     return mpack_node_timestamp(node).seconds;
 }
 
-uint32_t mpack_node_timestamp_nanoseconds(mpack_node_t node) {
+uint32_t
+mpack_node_timestamp_nanoseconds(mpack_node_t node)
+{
     return mpack_node_timestamp(node).nanoseconds;
 }
-#endif
-
-
+#    endif
 
 /*
  * Node Data Functions
  */
 
-void mpack_node_check_utf8(mpack_node_t node) {
+void
+mpack_node_check_utf8(mpack_node_t node)
+{
     if (mpack_node_error(node) != mpack_ok)
         return;
-    mpack_node_data_t* data = node.data;
-    if (data->type != mpack_type_str || !mpack_utf8_check(mpack_node_data_unchecked(node), data->len))
+    mpack_node_data_t *data = node.data;
+    if (data->type != mpack_type_str
+        || !mpack_utf8_check(mpack_node_data_unchecked(node), data->len))
         mpack_node_flag_error(node, mpack_error_type);
 }
 
-void mpack_node_check_utf8_cstr(mpack_node_t node) {
+void
+mpack_node_check_utf8_cstr(mpack_node_t node)
+{
     if (mpack_node_error(node) != mpack_ok)
         return;
-    mpack_node_data_t* data = node.data;
-    if (data->type != mpack_type_str || !mpack_utf8_check_no_null(mpack_node_data_unchecked(node), data->len))
+    mpack_node_data_t *data = node.data;
+    if (data->type != mpack_type_str
+        || !mpack_utf8_check_no_null(
+            mpack_node_data_unchecked(node), data->len))
         mpack_node_flag_error(node, mpack_error_type);
 }
 
-size_t mpack_node_copy_data(mpack_node_t node, char* buffer, size_t bufsize) {
+size_t
+mpack_node_copy_data(mpack_node_t node, char *buffer, size_t bufsize)
+{
     if (mpack_node_error(node) != mpack_ok)
         return 0;
 
-    mpack_assert(bufsize == 0 || buffer != NULL, "buffer is NULL for maximum of %i bytes", (int)bufsize);
+    mpack_assert(bufsize == 0 || buffer != NULL,
+        "buffer is NULL for maximum of %i bytes", (int)bufsize);
 
     mpack_type_t type = node.data->type;
     if (type != mpack_type_str && type != mpack_type_bin
-            #if MPACK_EXTENSIONS
-            && type != mpack_type_ext
-            #endif
+#    if MPACK_EXTENSIONS
+        && type != mpack_type_ext
+#    endif
     ) {
         mpack_node_flag_error(node, mpack_error_type);
         return 0;
@@ -5608,11 +6842,14 @@ size_t mpack_node_copy_data(mpack_node_t node, char* buffer, size_t bufsize) {
     return (size_t)node.data->len;
 }
 
-size_t mpack_node_copy_utf8(mpack_node_t node, char* buffer, size_t bufsize) {
+size_t
+mpack_node_copy_utf8(mpack_node_t node, char *buffer, size_t bufsize)
+{
     if (mpack_node_error(node) != mpack_ok)
         return 0;
 
-    mpack_assert(bufsize == 0 || buffer != NULL, "buffer is NULL for maximum of %i bytes", (int)bufsize);
+    mpack_assert(bufsize == 0 || buffer != NULL,
+        "buffer is NULL for maximum of %i bytes", (int)bufsize);
 
     mpack_type_t type = node.data->type;
     if (type != mpack_type_str) {
@@ -5634,12 +6871,16 @@ size_t mpack_node_copy_utf8(mpack_node_t node, char* buffer, size_t bufsize) {
     return (size_t)node.data->len;
 }
 
-void mpack_node_copy_cstr(mpack_node_t node, char* buffer, size_t bufsize) {
+void
+mpack_node_copy_cstr(mpack_node_t node, char *buffer, size_t bufsize)
+{
 
     // we can't break here because the error isn't recoverable; we
     // have to add a null-terminator.
     mpack_assert(buffer != NULL, "buffer is NULL");
-    mpack_assert(bufsize >= 1, "buffer size is zero; you must have room for at least a null-terminator");
+    mpack_assert(bufsize >= 1,
+        "buffer size is zero; you must have room for at least a "
+        "null-terminator");
 
     if (mpack_node_error(node) != mpack_ok) {
         buffer[0] = '\0';
@@ -5658,7 +6899,8 @@ void mpack_node_copy_cstr(mpack_node_t node, char* buffer, size_t bufsize) {
         return;
     }
 
-    if (!mpack_str_check_no_null(mpack_node_data_unchecked(node), node.data->len)) {
+    if (!mpack_str_check_no_null(
+            mpack_node_data_unchecked(node), node.data->len)) {
         buffer[0] = '\0';
         mpack_node_flag_error(node, mpack_error_type);
         return;
@@ -5668,12 +6910,16 @@ void mpack_node_copy_cstr(mpack_node_t node, char* buffer, size_t bufsize) {
     buffer[node.data->len] = '\0';
 }
 
-void mpack_node_copy_utf8_cstr(mpack_node_t node, char* buffer, size_t bufsize) {
+void
+mpack_node_copy_utf8_cstr(mpack_node_t node, char *buffer, size_t bufsize)
+{
 
     // we can't break here because the error isn't recoverable; we
     // have to add a null-terminator.
     mpack_assert(buffer != NULL, "buffer is NULL");
-    mpack_assert(bufsize >= 1, "buffer size is zero; you must have room for at least a null-terminator");
+    mpack_assert(bufsize >= 1,
+        "buffer size is zero; you must have room for at least a "
+        "null-terminator");
 
     if (mpack_node_error(node) != mpack_ok) {
         buffer[0] = '\0';
@@ -5692,7 +6938,8 @@ void mpack_node_copy_utf8_cstr(mpack_node_t node, char* buffer, size_t bufsize) 
         return;
     }
 
-    if (!mpack_utf8_check_no_null(mpack_node_data_unchecked(node), node.data->len)) {
+    if (!mpack_utf8_check_no_null(
+            mpack_node_data_unchecked(node), node.data->len)) {
         buffer[0] = '\0';
         mpack_node_flag_error(node, mpack_error_type);
         return;
@@ -5702,17 +6949,19 @@ void mpack_node_copy_utf8_cstr(mpack_node_t node, char* buffer, size_t bufsize) 
     buffer[node.data->len] = '\0';
 }
 
-#ifdef MPACK_MALLOC
-char* mpack_node_data_alloc(mpack_node_t node, size_t maxlen) {
+#    ifdef MPACK_MALLOC
+char *
+mpack_node_data_alloc(mpack_node_t node, size_t maxlen)
+{
     if (mpack_node_error(node) != mpack_ok)
         return NULL;
 
     // make sure this is a valid data type
     mpack_type_t type = node.data->type;
     if (type != mpack_type_str && type != mpack_type_bin
-            #if MPACK_EXTENSIONS
-            && type != mpack_type_ext
-            #endif
+#        if MPACK_EXTENSIONS
+        && type != mpack_type_ext
+#        endif
     ) {
         mpack_node_flag_error(node, mpack_error_type);
         return NULL;
@@ -5723,7 +6972,7 @@ char* mpack_node_data_alloc(mpack_node_t node, size_t maxlen) {
         return NULL;
     }
 
-    char* ret = (char*) MPACK_MALLOC((size_t)node.data->len);
+    char *ret = (char *)MPACK_MALLOC((size_t)node.data->len);
     if (ret == NULL) {
         mpack_node_flag_error(node, mpack_error_memory);
         return NULL;
@@ -5733,13 +6982,16 @@ char* mpack_node_data_alloc(mpack_node_t node, size_t maxlen) {
     return ret;
 }
 
-char* mpack_node_cstr_alloc(mpack_node_t node, size_t maxlen) {
+char *
+mpack_node_cstr_alloc(mpack_node_t node, size_t maxlen)
+{
     if (mpack_node_error(node) != mpack_ok)
         return NULL;
 
     // make sure maxlen makes sense
     if (maxlen < 1) {
-        mpack_break("maxlen is zero; you must have room for at least a null-terminator");
+        mpack_break("maxlen is zero; you must have room for at least a "
+                    "null-terminator");
         mpack_node_flag_error(node, mpack_error_bug);
         return NULL;
     }
@@ -5754,12 +7006,13 @@ char* mpack_node_cstr_alloc(mpack_node_t node, size_t maxlen) {
         return NULL;
     }
 
-    if (!mpack_str_check_no_null(mpack_node_data_unchecked(node), node.data->len)) {
+    if (!mpack_str_check_no_null(
+            mpack_node_data_unchecked(node), node.data->len)) {
         mpack_node_flag_error(node, mpack_error_type);
         return NULL;
     }
 
-    char* ret = (char*) MPACK_MALLOC((size_t)(node.data->len + 1));
+    char *ret = (char *)MPACK_MALLOC((size_t)(node.data->len + 1));
     if (ret == NULL) {
         mpack_node_flag_error(node, mpack_error_memory);
         return NULL;
@@ -5770,13 +7023,16 @@ char* mpack_node_cstr_alloc(mpack_node_t node, size_t maxlen) {
     return ret;
 }
 
-char* mpack_node_utf8_cstr_alloc(mpack_node_t node, size_t maxlen) {
+char *
+mpack_node_utf8_cstr_alloc(mpack_node_t node, size_t maxlen)
+{
     if (mpack_node_error(node) != mpack_ok)
         return NULL;
 
     // make sure maxlen makes sense
     if (maxlen < 1) {
-        mpack_break("maxlen is zero; you must have room for at least a null-terminator");
+        mpack_break("maxlen is zero; you must have room for at least a "
+                    "null-terminator");
         mpack_node_flag_error(node, mpack_error_bug);
         return NULL;
     }
@@ -5791,12 +7047,13 @@ char* mpack_node_utf8_cstr_alloc(mpack_node_t node, size_t maxlen) {
         return NULL;
     }
 
-    if (!mpack_utf8_check_no_null(mpack_node_data_unchecked(node), node.data->len)) {
+    if (!mpack_utf8_check_no_null(
+            mpack_node_data_unchecked(node), node.data->len)) {
         mpack_node_flag_error(node, mpack_error_type);
         return NULL;
     }
 
-    char* ret = (char*) MPACK_MALLOC((size_t)(node.data->len + 1));
+    char *ret = (char *)MPACK_MALLOC((size_t)(node.data->len + 1));
     if (ret == NULL) {
         mpack_node_flag_error(node, mpack_error_memory);
         return NULL;
@@ -5806,14 +7063,15 @@ char* mpack_node_utf8_cstr_alloc(mpack_node_t node, size_t maxlen) {
     ret[node.data->len] = '\0';
     return ret;
 }
-#endif
-
+#    endif
 
 /*
  * Compound Node Functions
  */
 
-static mpack_node_data_t* mpack_node_map_int_impl(mpack_node_t node, int64_t num) {
+static mpack_node_data_t *
+mpack_node_map_int_impl(mpack_node_t node, int64_t num)
+{
     if (mpack_node_error(node) != mpack_ok)
         return NULL;
 
@@ -5822,14 +7080,14 @@ static mpack_node_data_t* mpack_node_map_int_impl(mpack_node_t node, int64_t num
         return NULL;
     }
 
-    mpack_node_data_t* found = NULL;
+    mpack_node_data_t *found = NULL;
 
     for (size_t i = 0; i < node.data->len; ++i) {
-        mpack_node_data_t* key = mpack_node_child(node, i * 2);
+        mpack_node_data_t *key = mpack_node_child(node, i * 2);
 
-        if ((key->type == mpack_type_int && key->value.i == num) ||
-            (key->type == mpack_type_uint && num >= 0 && key->value.u == (uint64_t)num))
-        {
+        if ((key->type == mpack_type_int && key->value.i == num)
+            || (key->type == mpack_type_uint && num >= 0
+                && key->value.u == (uint64_t)num)) {
             if (found) {
                 mpack_node_flag_error(node, mpack_error_data);
                 return NULL;
@@ -5844,7 +7102,9 @@ static mpack_node_data_t* mpack_node_map_int_impl(mpack_node_t node, int64_t num
     return NULL;
 }
 
-static mpack_node_data_t* mpack_node_map_uint_impl(mpack_node_t node, uint64_t num) {
+static mpack_node_data_t *
+mpack_node_map_uint_impl(mpack_node_t node, uint64_t num)
+{
     if (mpack_node_error(node) != mpack_ok)
         return NULL;
 
@@ -5853,14 +7113,14 @@ static mpack_node_data_t* mpack_node_map_uint_impl(mpack_node_t node, uint64_t n
         return NULL;
     }
 
-    mpack_node_data_t* found = NULL;
+    mpack_node_data_t *found = NULL;
 
     for (size_t i = 0; i < node.data->len; ++i) {
-        mpack_node_data_t* key = mpack_node_child(node, i * 2);
+        mpack_node_data_t *key = mpack_node_child(node, i * 2);
 
-        if ((key->type == mpack_type_uint && key->value.u == num) ||
-            (key->type == mpack_type_int && key->value.i >= 0 && (uint64_t)key->value.i == num))
-        {
+        if ((key->type == mpack_type_uint && key->value.u == num)
+            || (key->type == mpack_type_int && key->value.i >= 0
+                && (uint64_t)key->value.i == num)) {
             if (found) {
                 mpack_node_flag_error(node, mpack_error_data);
                 return NULL;
@@ -5875,25 +7135,30 @@ static mpack_node_data_t* mpack_node_map_uint_impl(mpack_node_t node, uint64_t n
     return NULL;
 }
 
-static mpack_node_data_t* mpack_node_map_str_impl(mpack_node_t node, const char* str, size_t length) {
+static mpack_node_data_t *
+mpack_node_map_str_impl(mpack_node_t node, const char *str, size_t length)
+{
     if (mpack_node_error(node) != mpack_ok)
         return NULL;
 
-    mpack_assert(length == 0 || str != NULL, "str of length %i is NULL", (int)length);
+    mpack_assert(
+        length == 0 || str != NULL, "str of length %i is NULL", (int)length);
 
     if (node.data->type != mpack_type_map) {
         mpack_node_flag_error(node, mpack_error_type);
         return NULL;
     }
 
-    mpack_tree_t* tree = node.tree;
-    mpack_node_data_t* found = NULL;
+    mpack_tree_t *tree = node.tree;
+    mpack_node_data_t *found = NULL;
 
     for (size_t i = 0; i < node.data->len; ++i) {
-        mpack_node_data_t* key = mpack_node_child(node, i * 2);
+        mpack_node_data_t *key = mpack_node_child(node, i * 2);
 
-        if (key->type == mpack_type_str && key->len == length &&
-                mpack_memcmp(str, mpack_node_data_unchecked(mpack_node(tree, key)), length) == 0) {
+        if (key->type == mpack_type_str && key->len == length
+            && mpack_memcmp(str,
+                   mpack_node_data_unchecked(mpack_node(tree, key)), length)
+                == 0) {
             if (found) {
                 mpack_node_flag_error(node, mpack_error_data);
                 return NULL;
@@ -5908,7 +7173,9 @@ static mpack_node_data_t* mpack_node_map_str_impl(mpack_node_t node, const char*
     return NULL;
 }
 
-static mpack_node_t mpack_node_wrap_lookup(mpack_tree_t* tree, mpack_node_data_t* data) {
+static mpack_node_t
+mpack_node_wrap_lookup(mpack_tree_t *tree, mpack_node_data_t *data)
+{
     if (!data) {
         if (tree->error == mpack_ok)
             mpack_tree_flag_error(tree, mpack_error_data);
@@ -5917,7 +7184,9 @@ static mpack_node_t mpack_node_wrap_lookup(mpack_tree_t* tree, mpack_node_data_t
     return mpack_node(tree, data);
 }
 
-static mpack_node_t mpack_node_wrap_lookup_optional(mpack_tree_t* tree, mpack_node_data_t* data) {
+static mpack_node_t
+mpack_node_wrap_lookup_optional(mpack_tree_t *tree, mpack_node_data_t *data)
+{
     if (!data) {
         if (tree->error == mpack_ok)
             return mpack_tree_missing_node(tree);
@@ -5926,58 +7195,90 @@ static mpack_node_t mpack_node_wrap_lookup_optional(mpack_tree_t* tree, mpack_no
     return mpack_node(tree, data);
 }
 
-mpack_node_t mpack_node_map_int(mpack_node_t node, int64_t num) {
-    return mpack_node_wrap_lookup(node.tree, mpack_node_map_int_impl(node, num));
+mpack_node_t
+mpack_node_map_int(mpack_node_t node, int64_t num)
+{
+    return mpack_node_wrap_lookup(
+        node.tree, mpack_node_map_int_impl(node, num));
 }
 
-mpack_node_t mpack_node_map_int_optional(mpack_node_t node, int64_t num) {
-    return mpack_node_wrap_lookup_optional(node.tree, mpack_node_map_int_impl(node, num));
+mpack_node_t
+mpack_node_map_int_optional(mpack_node_t node, int64_t num)
+{
+    return mpack_node_wrap_lookup_optional(
+        node.tree, mpack_node_map_int_impl(node, num));
 }
 
-mpack_node_t mpack_node_map_uint(mpack_node_t node, uint64_t num) {
-    return mpack_node_wrap_lookup(node.tree, mpack_node_map_uint_impl(node, num));
+mpack_node_t
+mpack_node_map_uint(mpack_node_t node, uint64_t num)
+{
+    return mpack_node_wrap_lookup(
+        node.tree, mpack_node_map_uint_impl(node, num));
 }
 
-mpack_node_t mpack_node_map_uint_optional(mpack_node_t node, uint64_t num) {
-    return mpack_node_wrap_lookup_optional(node.tree, mpack_node_map_uint_impl(node, num));
+mpack_node_t
+mpack_node_map_uint_optional(mpack_node_t node, uint64_t num)
+{
+    return mpack_node_wrap_lookup_optional(
+        node.tree, mpack_node_map_uint_impl(node, num));
 }
 
-mpack_node_t mpack_node_map_str(mpack_node_t node, const char* str, size_t length) {
-    return mpack_node_wrap_lookup(node.tree, mpack_node_map_str_impl(node, str, length));
+mpack_node_t
+mpack_node_map_str(mpack_node_t node, const char *str, size_t length)
+{
+    return mpack_node_wrap_lookup(
+        node.tree, mpack_node_map_str_impl(node, str, length));
 }
 
-mpack_node_t mpack_node_map_str_optional(mpack_node_t node, const char* str, size_t length) {
-    return mpack_node_wrap_lookup_optional(node.tree, mpack_node_map_str_impl(node, str, length));
+mpack_node_t
+mpack_node_map_str_optional(mpack_node_t node, const char *str, size_t length)
+{
+    return mpack_node_wrap_lookup_optional(
+        node.tree, mpack_node_map_str_impl(node, str, length));
 }
 
-mpack_node_t mpack_node_map_cstr(mpack_node_t node, const char* cstr) {
+mpack_node_t
+mpack_node_map_cstr(mpack_node_t node, const char *cstr)
+{
     mpack_assert(cstr != NULL, "cstr is NULL");
     return mpack_node_map_str(node, cstr, mpack_strlen(cstr));
 }
 
-mpack_node_t mpack_node_map_cstr_optional(mpack_node_t node, const char* cstr) {
+mpack_node_t
+mpack_node_map_cstr_optional(mpack_node_t node, const char *cstr)
+{
     mpack_assert(cstr != NULL, "cstr is NULL");
     return mpack_node_map_str_optional(node, cstr, mpack_strlen(cstr));
 }
 
-bool mpack_node_map_contains_int(mpack_node_t node, int64_t num) {
+bool
+mpack_node_map_contains_int(mpack_node_t node, int64_t num)
+{
     return mpack_node_map_int_impl(node, num) != NULL;
 }
 
-bool mpack_node_map_contains_uint(mpack_node_t node, uint64_t num) {
+bool
+mpack_node_map_contains_uint(mpack_node_t node, uint64_t num)
+{
     return mpack_node_map_uint_impl(node, num) != NULL;
 }
 
-bool mpack_node_map_contains_str(mpack_node_t node, const char* str, size_t length) {
+bool
+mpack_node_map_contains_str(mpack_node_t node, const char *str, size_t length)
+{
     return mpack_node_map_str_impl(node, str, length) != NULL;
 }
 
-bool mpack_node_map_contains_cstr(mpack_node_t node, const char* cstr) {
+bool
+mpack_node_map_contains_cstr(mpack_node_t node, const char *cstr)
+{
     mpack_assert(cstr != NULL, "cstr is NULL");
     return mpack_node_map_contains_str(node, cstr, mpack_strlen(cstr));
 }
 
-size_t mpack_node_enum_optional(mpack_node_t node, const char* strings[], size_t count) {
+size_t
+mpack_node_enum_optional(mpack_node_t node, const char *strings[], size_t count)
+{
     if (mpack_node_error(node) != mpack_ok)
         return count;
 
@@ -5986,13 +7287,13 @@ size_t mpack_node_enum_optional(mpack_node_t node, const char* strings[], size_t
         return count;
 
     // fetch the string
-    const char* key = mpack_node_str(node);
+    const char *key = mpack_node_str(node);
     size_t keylen = mpack_node_strlen(node);
     mpack_assert(mpack_node_error(node) == mpack_ok, "these should not fail");
 
     // find what key it matches
     for (size_t i = 0; i < count; ++i) {
-        const char* other = strings[i];
+        const char *other = strings[i];
         size_t otherlen = mpack_strlen(other);
         if (keylen == otherlen && mpack_memcmp(key, other, keylen) == 0)
             return i;
@@ -6002,20 +7303,26 @@ size_t mpack_node_enum_optional(mpack_node_t node, const char* strings[], size_t
     return count;
 }
 
-size_t mpack_node_enum(mpack_node_t node, const char* strings[], size_t count) {
+size_t
+mpack_node_enum(mpack_node_t node, const char *strings[], size_t count)
+{
     size_t value = mpack_node_enum_optional(node, strings, count);
     if (value == count)
         mpack_node_flag_error(node, mpack_error_type);
     return value;
 }
 
-mpack_type_t mpack_node_type(mpack_node_t node) {
+mpack_type_t
+mpack_node_type(mpack_node_t node)
+{
     if (mpack_node_error(node) != mpack_ok)
         return mpack_type_nil;
     return node.data->type;
 }
 
-bool mpack_node_is_nil(mpack_node_t node) {
+bool
+mpack_node_is_nil(mpack_node_t node)
+{
     if (mpack_node_error(node) != mpack_ok) {
         // All nodes are treated as nil nodes when we are in error.
         return true;
@@ -6023,7 +7330,9 @@ bool mpack_node_is_nil(mpack_node_t node) {
     return node.data->type == mpack_type_nil;
 }
 
-bool mpack_node_is_missing(mpack_node_t node) {
+bool
+mpack_node_is_missing(mpack_node_t node)
+{
     if (mpack_node_error(node) != mpack_ok) {
         // errors still return nil nodes, not missing nodes.
         return false;
@@ -6031,21 +7340,27 @@ bool mpack_node_is_missing(mpack_node_t node) {
     return node.data->type == mpack_type_missing;
 }
 
-void mpack_node_nil(mpack_node_t node) {
+void
+mpack_node_nil(mpack_node_t node)
+{
     if (mpack_node_error(node) != mpack_ok)
         return;
     if (node.data->type != mpack_type_nil)
         mpack_node_flag_error(node, mpack_error_type);
 }
 
-void mpack_node_missing(mpack_node_t node) {
+void
+mpack_node_missing(mpack_node_t node)
+{
     if (mpack_node_error(node) != mpack_ok)
         return;
     if (node.data->type != mpack_type_missing)
         mpack_node_flag_error(node, mpack_error_type);
 }
 
-bool mpack_node_bool(mpack_node_t node) {
+bool
+mpack_node_bool(mpack_node_t node)
+{
     if (mpack_node_error(node) != mpack_ok)
         return false;
 
@@ -6056,17 +7371,23 @@ bool mpack_node_bool(mpack_node_t node) {
     return false;
 }
 
-void mpack_node_true(mpack_node_t node) {
+void
+mpack_node_true(mpack_node_t node)
+{
     if (mpack_node_bool(node) != true)
         mpack_node_flag_error(node, mpack_error_type);
 }
 
-void mpack_node_false(mpack_node_t node) {
+void
+mpack_node_false(mpack_node_t node)
+{
     if (mpack_node_bool(node) != false)
         mpack_node_flag_error(node, mpack_error_type);
 }
 
-uint8_t mpack_node_u8(mpack_node_t node) {
+uint8_t
+mpack_node_u8(mpack_node_t node)
+{
     if (mpack_node_error(node) != mpack_ok)
         return 0;
 
@@ -6082,7 +7403,9 @@ uint8_t mpack_node_u8(mpack_node_t node) {
     return 0;
 }
 
-int8_t mpack_node_i8(mpack_node_t node) {
+int8_t
+mpack_node_i8(mpack_node_t node)
+{
     if (mpack_node_error(node) != mpack_ok)
         return 0;
 
@@ -6098,7 +7421,9 @@ int8_t mpack_node_i8(mpack_node_t node) {
     return 0;
 }
 
-uint16_t mpack_node_u16(mpack_node_t node) {
+uint16_t
+mpack_node_u16(mpack_node_t node)
+{
     if (mpack_node_error(node) != mpack_ok)
         return 0;
 
@@ -6114,7 +7439,9 @@ uint16_t mpack_node_u16(mpack_node_t node) {
     return 0;
 }
 
-int16_t mpack_node_i16(mpack_node_t node) {
+int16_t
+mpack_node_i16(mpack_node_t node)
+{
     if (mpack_node_error(node) != mpack_ok)
         return 0;
 
@@ -6130,7 +7457,9 @@ int16_t mpack_node_i16(mpack_node_t node) {
     return 0;
 }
 
-uint32_t mpack_node_u32(mpack_node_t node) {
+uint32_t
+mpack_node_u32(mpack_node_t node)
+{
     if (mpack_node_error(node) != mpack_ok)
         return 0;
 
@@ -6146,7 +7475,9 @@ uint32_t mpack_node_u32(mpack_node_t node) {
     return 0;
 }
 
-int32_t mpack_node_i32(mpack_node_t node) {
+int32_t
+mpack_node_i32(mpack_node_t node)
+{
     if (mpack_node_error(node) != mpack_ok)
         return 0;
 
@@ -6162,7 +7493,9 @@ int32_t mpack_node_i32(mpack_node_t node) {
     return 0;
 }
 
-uint64_t mpack_node_u64(mpack_node_t node) {
+uint64_t
+mpack_node_u64(mpack_node_t node)
+{
     if (mpack_node_error(node) != mpack_ok)
         return 0;
 
@@ -6177,7 +7510,9 @@ uint64_t mpack_node_u64(mpack_node_t node) {
     return 0;
 }
 
-int64_t mpack_node_i64(mpack_node_t node) {
+int64_t
+mpack_node_i64(mpack_node_t node)
+{
     if (mpack_node_error(node) != mpack_ok)
         return 0;
 
@@ -6192,9 +7527,12 @@ int64_t mpack_node_i64(mpack_node_t node) {
     return 0;
 }
 
-unsigned int mpack_node_uint(mpack_node_t node) {
+unsigned int
+mpack_node_uint(mpack_node_t node)
+{
 
-    // This should be true at compile-time, so this just wraps the 32-bit function.
+    // This should be true at compile-time, so this just wraps the 32-bit
+    // function.
     if (sizeof(unsigned int) == 4)
         return (unsigned int)mpack_node_u32(node);
 
@@ -6207,9 +7545,12 @@ unsigned int mpack_node_uint(mpack_node_t node) {
     return 0;
 }
 
-int mpack_node_int(mpack_node_t node) {
+int
+mpack_node_int(mpack_node_t node)
+{
 
-    // This should be true at compile-time, so this just wraps the 32-bit function.
+    // This should be true at compile-time, so this just wraps the 32-bit
+    // function.
     if (sizeof(int) == 4)
         return (int)mpack_node_i32(node);
 
@@ -6222,7 +7563,9 @@ int mpack_node_int(mpack_node_t node) {
     return 0;
 }
 
-float mpack_node_float(mpack_node_t node) {
+float
+mpack_node_float(mpack_node_t node)
+{
     if (mpack_node_error(node) != mpack_ok)
         return 0.0f;
 
@@ -6239,7 +7582,9 @@ float mpack_node_float(mpack_node_t node) {
     return 0.0f;
 }
 
-double mpack_node_double(mpack_node_t node) {
+double
+mpack_node_double(mpack_node_t node)
+{
     if (mpack_node_error(node) != mpack_ok)
         return 0.0;
 
@@ -6256,7 +7601,9 @@ double mpack_node_double(mpack_node_t node) {
     return 0.0;
 }
 
-float mpack_node_float_strict(mpack_node_t node) {
+float
+mpack_node_float_strict(mpack_node_t node)
+{
     if (mpack_node_error(node) != mpack_ok)
         return 0.0f;
 
@@ -6267,7 +7614,9 @@ float mpack_node_float_strict(mpack_node_t node) {
     return 0.0f;
 }
 
-double mpack_node_double_strict(mpack_node_t node) {
+double
+mpack_node_double_strict(mpack_node_t node)
+{
     if (mpack_node_error(node) != mpack_ok)
         return 0.0;
 
@@ -6280,8 +7629,10 @@ double mpack_node_double_strict(mpack_node_t node) {
     return 0.0;
 }
 
-#if MPACK_EXTENSIONS
-int8_t mpack_node_exttype(mpack_node_t node) {
+#    if MPACK_EXTENSIONS
+int8_t
+mpack_node_exttype(mpack_node_t node)
+{
     if (mpack_node_error(node) != mpack_ok)
         return 0;
 
@@ -6291,25 +7642,29 @@ int8_t mpack_node_exttype(mpack_node_t node) {
     mpack_node_flag_error(node, mpack_error_type);
     return 0;
 }
-#endif
+#    endif
 
-uint32_t mpack_node_data_len(mpack_node_t node) {
+uint32_t
+mpack_node_data_len(mpack_node_t node)
+{
     if (mpack_node_error(node) != mpack_ok)
         return 0;
 
     mpack_type_t type = node.data->type;
     if (type == mpack_type_str || type == mpack_type_bin
-            #if MPACK_EXTENSIONS
-            || type == mpack_type_ext
-            #endif
-            )
+#    if MPACK_EXTENSIONS
+        || type == mpack_type_ext
+#    endif
+    )
         return (uint32_t)node.data->len;
 
     mpack_node_flag_error(node, mpack_error_type);
     return 0;
 }
 
-size_t mpack_node_strlen(mpack_node_t node) {
+size_t
+mpack_node_strlen(mpack_node_t node)
+{
     if (mpack_node_error(node) != mpack_ok)
         return 0;
 
@@ -6320,7 +7675,9 @@ size_t mpack_node_strlen(mpack_node_t node) {
     return 0;
 }
 
-const char* mpack_node_str(mpack_node_t node) {
+const char *
+mpack_node_str(mpack_node_t node)
+{
     if (mpack_node_error(node) != mpack_ok)
         return NULL;
 
@@ -6332,23 +7689,27 @@ const char* mpack_node_str(mpack_node_t node) {
     return NULL;
 }
 
-const char* mpack_node_data(mpack_node_t node) {
+const char *
+mpack_node_data(mpack_node_t node)
+{
     if (mpack_node_error(node) != mpack_ok)
         return NULL;
 
     mpack_type_t type = node.data->type;
     if (type == mpack_type_str || type == mpack_type_bin
-            #if MPACK_EXTENSIONS
-            || type == mpack_type_ext
-            #endif
-            )
+#    if MPACK_EXTENSIONS
+        || type == mpack_type_ext
+#    endif
+    )
         return mpack_node_data_unchecked(node);
 
     mpack_node_flag_error(node, mpack_error_type);
     return NULL;
 }
 
-const char* mpack_node_bin_data(mpack_node_t node) {
+const char *
+mpack_node_bin_data(mpack_node_t node)
+{
     if (mpack_node_error(node) != mpack_ok)
         return NULL;
 
@@ -6359,7 +7720,9 @@ const char* mpack_node_bin_data(mpack_node_t node) {
     return NULL;
 }
 
-size_t mpack_node_bin_size(mpack_node_t node) {
+size_t
+mpack_node_bin_size(mpack_node_t node)
+{
     if (mpack_node_error(node) != mpack_ok)
         return 0;
 
@@ -6370,7 +7733,9 @@ size_t mpack_node_bin_size(mpack_node_t node) {
     return 0;
 }
 
-size_t mpack_node_array_length(mpack_node_t node) {
+size_t
+mpack_node_array_length(mpack_node_t node)
+{
     if (mpack_node_error(node) != mpack_ok)
         return 0;
 
@@ -6382,7 +7747,9 @@ size_t mpack_node_array_length(mpack_node_t node) {
     return (size_t)node.data->len;
 }
 
-mpack_node_t mpack_node_array_at(mpack_node_t node, size_t index) {
+mpack_node_t
+mpack_node_array_at(mpack_node_t node, size_t index)
+{
     if (mpack_node_error(node) != mpack_ok)
         return mpack_tree_nil_node(node.tree);
 
@@ -6399,7 +7766,9 @@ mpack_node_t mpack_node_array_at(mpack_node_t node, size_t index) {
     return mpack_node(node.tree, mpack_node_child(node, index));
 }
 
-size_t mpack_node_map_count(mpack_node_t node) {
+size_t
+mpack_node_map_count(mpack_node_t node)
+{
     if (mpack_node_error(node) != mpack_ok)
         return 0;
 
@@ -6412,7 +7781,9 @@ size_t mpack_node_map_count(mpack_node_t node) {
 }
 
 // internal node map lookup
-static mpack_node_t mpack_node_map_at(mpack_node_t node, size_t index, size_t offset) {
+static mpack_node_t
+mpack_node_map_at(mpack_node_t node, size_t index, size_t offset)
+{
     if (mpack_node_error(node) != mpack_ok)
         return mpack_tree_nil_node(node.tree);
 
@@ -6429,11 +7800,15 @@ static mpack_node_t mpack_node_map_at(mpack_node_t node, size_t index, size_t of
     return mpack_node(node.tree, mpack_node_child(node, index * 2 + offset));
 }
 
-mpack_node_t mpack_node_map_key_at(mpack_node_t node, size_t index) {
+mpack_node_t
+mpack_node_map_key_at(mpack_node_t node, size_t index)
+{
     return mpack_node_map_at(node, index, 0);
 }
 
-mpack_node_t mpack_node_map_value_at(mpack_node_t node, size_t index) {
+mpack_node_t
+mpack_node_map_value_at(mpack_node_t node, size_t index)
+{
     return mpack_node_map_at(node, index, 1);
 }
 
