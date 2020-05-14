@@ -1,5 +1,39 @@
 # Changelog
 
+## 0.3.0
+
+- Always send the newer `x-sentry-envelope` format, which makes this
+  incompatible with older on-premise installations.
+- Better document and handle non-ASCII paths. Users on windows should use the
+  `w` version of the appropriate APIs.
+- Avoid segfaults due to failed sentry initialization.
+- Avoid creating invalid sessions without a `release`.
+- Make `sentry_transport_t` opaque, and instead expose APIs to configure it.
+  More functionality related to creating custom transports will be exposed in
+  future versions.
+
+### Breaking changes
+
+- The `sentry_backend_free` function was removed.
+- The `sentry_backend_t` type was removed.
+- The `sentry_transport_t` type is now opaque. Use the following new API to
+  create a custom transport.
+
+### New API
+
+- `sentry_transport_new`
+- `sentry_transport_set_state`
+- `sentry_transport_set_free_func`
+- `sentry_transport_set_startup_func`
+- `sentry_transport_set_shutdown_func`
+
+See `sentry.h` for more documentation.
+
+### Deprecations
+
+- `sentry_new_function_transport` has been deprecated in favor of the new
+  transport builder functions.
+
 ## 0.2.6
 
 - Avoid crash with invalid crashpad handler path.
