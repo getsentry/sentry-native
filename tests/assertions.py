@@ -49,7 +49,7 @@ def assert_meta(envelope, release="test-example-release"):
     )
 
 
-def assert_stacktrace(envelope, inside_exception=False, check_size=False):
+def assert_stacktrace(envelope, inside_exception=False, check_size=True):
     event = envelope.get_event()
 
     parent = event["exception"] if inside_exception else event["threads"]
@@ -59,6 +59,7 @@ def assert_stacktrace(envelope, inside_exception=False, check_size=False):
     if check_size:
         assert len(frames) > 0
         assert all(frame["instruction_addr"].startswith("0x") for frame in frames)
+        assert any(frame["function"] and frame["package"] for frame in frames)
 
 
 def assert_breadcrumb(envelope):
@@ -109,4 +110,4 @@ def assert_crash(envelope):
     assert matches(event, {"level": "fatal"})
     # depending on the unwinder, we currently don’t get any stack frames from
     # a `ucontext`
-    assert_stacktrace(envelope, inside_exception=True)
+    assert_stacktrace(envelope, inside_exception=True, check_size=False)

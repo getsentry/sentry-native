@@ -5,7 +5,9 @@
 #include "sentry_modulefinder.h"
 #include "sentry_options.h"
 #include "sentry_string.h"
+#include "sentry_symbolizer.h"
 #include "sentry_sync.h"
+#include <stdlib.h>
 
 static bool g_scope_initialized;
 static sentry_scope_t g_scope;
@@ -110,6 +112,107 @@ sentry__scope_flush(const sentry_scope_t *scope)
     }
 }
 
+static void
+sentry__foreach_stacktrace(
+    sentry_value_t event, void (*func)(sentry_value_t stacktrace))
+{
+    // We have stacktraces at the following locations:
+    // * `exception[.values].X.stacktrace`:
+    //   https://develop.sentry.dev/sdk/event-payloads/exception/
+    // * `threads[.values].X.stacktrace`:
+    //   https://develop.sentry.dev/sdk/event-payloads/threads/
+
+    sentry_value_t exception = sentry_value_get_by_key(event, "exception");
+    if (sentry_value_get_type(exception) == SENTRY_VALUE_TYPE_OBJECT) {
+        exception = sentry_value_get_by_key(exception, "values");
+    }
+    if (sentry_value_get_type(exception) == SENTRY_VALUE_TYPE_LIST) {
+        size_t len = sentry_value_get_length(exception);
+        for (size_t i = 0; i < len; i++) {
+            sentry_value_t stacktrace = sentry_value_get_by_key(
+                sentry_value_get_by_index(exception, i), "stacktrace");
+            if (!sentry_value_is_null(stacktrace)) {
+                func(stacktrace);
+            }
+        }
+    }
+
+    sentry_value_t threads = sentry_value_get_by_key(event, "threads");
+    if (sentry_value_get_type(threads) == SENTRY_VALUE_TYPE_OBJECT) {
+        threads = sentry_value_get_by_key(threads, "values");
+    }
+    if (sentry_value_get_type(threads) == SENTRY_VALUE_TYPE_LIST) {
+        size_t len = sentry_value_get_length(threads);
+        for (size_t i = 0; i < len; i++) {
+            sentry_value_t stacktrace = sentry_value_get_by_key(
+                sentry_value_get_by_index(threads, i), "stacktrace");
+            if (!sentry_value_is_null(stacktrace)) {
+                func(stacktrace);
+            }
+        }
+    }
+}
+
+static void
+sentry__symbolize_frame(const sentry_frame_info_t *info, void *data)
+{
+    // See https://develop.sentry.dev/sdk/event-payloads/stacktrace/
+    sentry_value_t frame = *(sentry_value_t *)data;
+
+    if (info->symbol
+        && sentry_value_is_null(sentry_value_get_by_key(frame, "function"))) {
+        sentry_value_set_by_key(
+            frame, "function", sentry_value_new_string(info->symbol));
+    }
+
+    if (info->object_name
+        && sentry_value_is_null(sentry_value_get_by_key(frame, "package"))) {
+        sentry_value_set_by_key(
+            frame, "package", sentry_value_new_string(info->object_name));
+    }
+
+    if (info->symbol_addr
+        && sentry_value_is_null(
+            sentry_value_get_by_key(frame, "symbol_addr"))) {
+        sentry_value_set_by_key(frame, "symbol_addr",
+            sentry__value_new_addr((uint64_t)info->symbol_addr));
+    }
+
+    if (info->load_addr
+        && sentry_value_is_null(sentry_value_get_by_key(frame, "image_addr"))) {
+        sentry_value_set_by_key(frame, "image_addr",
+            sentry__value_new_addr((uint64_t)info->load_addr));
+    }
+}
+
+static void
+sentry__symbolize_stacktrace(sentry_value_t stacktrace)
+{
+    sentry_value_t frames = sentry_value_get_by_key(stacktrace, "frames");
+    if (sentry_value_get_type(frames) != SENTRY_VALUE_TYPE_LIST) {
+        return;
+    }
+
+    size_t len = sentry_value_get_length(frames);
+    for (size_t i = 0; i < len; i++) {
+        sentry_value_t frame = sentry_value_get_by_index(frames, i);
+
+        sentry_value_t addr_value
+            = sentry_value_get_by_key(frame, "instruction_addr");
+        if (sentry_value_is_null(addr_value)) {
+            continue;
+        }
+
+        // The addr is saved as a hex-number inside the value.
+        uint64_t addr
+            = (uint64_t)strtoll(sentry_value_as_string(addr_value), NULL, 0);
+        if (!addr) {
+            continue;
+        }
+        sentry__symbolize((void *)addr, sentry__symbolize_frame, &frame);
+    }
+}
+
 void
 sentry__scope_apply_to_event(
     const sentry_scope_t *scope, sentry_value_t event, sentry_scope_mode_t mode)
@@ -166,6 +269,10 @@ sentry__scope_apply_to_event(
             sentry_value_set_by_key(debug_meta, "images", modules);
             sentry_value_set_by_key(event, "debug_meta", debug_meta);
         }
+    }
+
+    if (mode & SENTRY_SCOPE_STACKTRACES) {
+        sentry__foreach_stacktrace(event, sentry__symbolize_stacktrace);
     }
 
 #undef PLACE_STRING
