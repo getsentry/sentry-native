@@ -131,11 +131,6 @@ sentry__crashpad_backend_startup(sentry_backend_t *backend)
     std::vector<std::string> arguments;
     arguments.push_back("--no-rate-limit");
 
-#ifdef _WIN32
-    // Temporary fix for Windows
-    arguments.push_back("--no-upload-gzip");
-#endif
-
     // initialize database first and check for user consent.  This is going
     // to change the setting persisted into the crashpad database.  The
     // update to the consent change is then reflected when the handler starts.
