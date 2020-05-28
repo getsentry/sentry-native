@@ -284,7 +284,7 @@ sentry__procmaps_read_ids_from_elf(sentry_value_t value, void *elf_ptr)
         sentry_value_set_by_key(value, "code_id",
             sentry__value_new_hexstring(code_id, code_id_size));
 
-        memcpy(uuid.bytes, codeid, MIN(code_id_size, 16));
+        memcpy(uuid.bytes, code_id, MIN(code_id_size, 16));
     } else {
         uuid = get_code_id_from_text_fallback(elf_ptr);
     }
