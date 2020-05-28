@@ -272,7 +272,11 @@ sentry_capture_event(sentry_value_t event)
 
     SENTRY_WITH_SCOPE (scope) {
         SENTRY_TRACE("merging scope into event");
-        sentry__scope_apply_to_event(scope, event, SENTRY_SCOPE_ALL);
+        sentry_scope_mode_t mode = SENTRY_SCOPE_ALL;
+        if (!opts->symbolize_stacktraces) {
+            mode &= ~SENTRY_SCOPE_STACKTRACES;
+        }
+        sentry__scope_apply_to_event(scope, event, mode);
     }
 
     if (opts->before_send_func) {

@@ -37,7 +37,10 @@ int
 main(int argc, char **argv)
 {
     sentry_options_t *options = sentry_options_new();
+
     sentry_options_set_database_path(options, ".sentry-native");
+
+    sentry_options_set_symbolize_stacktraces(options, true);
 
     sentry_options_set_environment(options, "development");
     // sentry defaults this to the `SENTRY_RELEASE` env variable

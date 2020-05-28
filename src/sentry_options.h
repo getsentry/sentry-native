@@ -37,6 +37,7 @@ typedef struct sentry_options_s {
     sentry_path_t *handler_path;
     bool debug;
     bool require_user_consent;
+    bool symbolize_stacktraces;
     bool system_crash_reporter_enabled;
 
     sentry_attachment_t *attachments;
