@@ -59,7 +59,10 @@ def assert_stacktrace(envelope, inside_exception=False, check_size=True):
     if check_size:
         assert len(frames) > 0
         assert all(frame["instruction_addr"].startswith("0x") for frame in frames)
-        assert any(frame["function"] and frame["package"] for frame in frames)
+        assert any(
+            frame.get("function") is not None and frame.get("package") is not None
+            for frame in frames
+        )
 
 
 def assert_breadcrumb(envelope):
