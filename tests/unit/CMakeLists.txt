@@ -45,7 +45,6 @@ target_include_directories(sentry_test_unit PRIVATE
 target_link_libraries(sentry_test_unit PRIVATE
 	${SENTRY_LINK_LIBRARIES}
 	${SENTRY_INTERFACE_LINK_LIBRARIES}
-	"$<$<OR:$<PLATFORM_ID:Linux>,$<PLATFORM_ID:Android>>:-Wl,-E>"
 )
 
 if(MINGW)

@@ -8,9 +8,7 @@ typedef struct sentry_frame_info_s {
     void *symbol_addr;
     void *instruction_addr;
     const char *symbol;
-    const char *filename;
     const char *object_name;
-    uint32_t lineno;
 } sentry_frame_info_t;
 
 /**

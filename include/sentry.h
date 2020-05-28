@@ -718,7 +718,7 @@ SENTRY_API void sentry_options_set_debug(sentry_options_t *opts, int debug);
 SENTRY_API int sentry_options_get_debug(const sentry_options_t *opts);
 
 /**
- * Enables or disabled user consent requirements for uploads.
+ * Enables or disables user consent requirements for uploads.
  *
  * This disables uploads until the user has given the consent to the SDK.
  * Consent itself is given with `sentry_user_consent_give` and
@@ -731,6 +731,23 @@ SENTRY_API void sentry_options_set_require_user_consent(
  * Returns true if user consent is required.
  */
 SENTRY_API int sentry_options_get_require_user_consent(
+    const sentry_options_t *opts);
+
+/**
+ * Enables or disables on-device symbolication of stack traces.
+ *
+ * This feature can have a performance impact, and is enabled by default on
+ * Android. It is usually only needed when it is not possible to provide debug
+ * information files for system libraries which are needed for serverside
+ * symbolication.
+ */
+SENTRY_API void sentry_options_set_symbolize_stacktraces(
+    sentry_options_t *opts, int val);
+
+/**
+ * Returns true if on-device symbolication of stack traces is enabled.
+ */
+SENTRY_API int sentry_options_get_symbolize_stacktraces(
     const sentry_options_t *opts);
 
 /**

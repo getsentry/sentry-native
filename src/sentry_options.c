@@ -30,6 +30,12 @@ sentry_options_new(void)
 #endif
     opts->user_consent = SENTRY_USER_CONSENT_UNKNOWN;
     opts->system_crash_reporter_enabled = false;
+    opts->symbolize_stacktraces =
+#ifdef SENTRY_PLATFORM_ANDROID
+        true;
+#else
+        false;
+#endif
     opts->backend = sentry__backend_new();
     opts->transport = sentry__transport_new_default();
     opts->sample_rate = 1.0;
@@ -211,6 +217,18 @@ int
 sentry_options_get_require_user_consent(const sentry_options_t *opts)
 {
     return opts->require_user_consent;
+}
+
+void
+sentry_options_set_symbolize_stacktraces(sentry_options_t *opts, int val)
+{
+    opts->symbolize_stacktraces = !!val;
+}
+
+int
+sentry_options_get_symbolize_stacktraces(const sentry_options_t *opts)
+{
+    return opts->symbolize_stacktraces;
 }
 
 void
