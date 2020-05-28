@@ -224,10 +224,13 @@ target_include_directories(sentry
 		"$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>"
 )
 
-# Without this, dladdr can't find functions
+# The modulefinder and symbolizer need these two settings, and they are exported
+# as `PUBLIC`, so libraries that depend on sentry get these too:
+# `-E`: To have all symbols in the dynamic symbol table.
+# `--build-id`: To have a build-id in the ELF object.
 # FIXME: cmake 3.13 introduced target_link_options
-target_link_libraries(sentry INTERFACE
-	"$<$<OR:$<PLATFORM_ID:Linux>,$<PLATFORM_ID:Android>>:-Wl,--build-id=sha1>")
+target_link_libraries(sentry PUBLIC
+	"$<$<OR:$<PLATFORM_ID:Linux>,$<PLATFORM_ID:Android>>:-Wl,-E,--build-id=sha1>")
 
 #respect CMAKE_SYSTEM_VERSION
 if(WIN32)
