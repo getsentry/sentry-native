@@ -17,8 +17,8 @@
 #include <mach/task_info.h>
 
 #if UINTPTR_MAX == 0xffffffffULL
-typedef mach_header platform_mach_header;
-typedef segment_command mach_segment_command_type;
+typedef struct mach_header platform_mach_header;
+typedef struct segment_command mach_segment_command_type;
 #    define MACHO_MAGIC_NUMBER MH_MAGIC
 #    define CMD_SEGMENT LC_SEGMENT
 #    define seg_size uint32_t
