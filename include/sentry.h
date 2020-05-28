@@ -734,7 +734,7 @@ SENTRY_API int sentry_options_get_require_user_consent(
     const sentry_options_t *opts);
 
 /**
- * Enables or disables on-device symbolication of stacktraces.
+ * Enables or disables on-device symbolication of stack traces.
  *
  * This feature can have a performance impact, and is enabled by default on
  * Android. It is usually only needed when it is not possible to provide debug
@@ -745,7 +745,7 @@ SENTRY_API void sentry_options_set_symbolize_stacktraces(
     sentry_options_t *opts, int val);
 
 /**
- * Returns true if user consent is required.
+ * Returns true if on-device symbolication of stack traces is enabled.
  */
 SENTRY_API int sentry_options_get_symbolize_stacktraces(
     const sentry_options_t *opts);
