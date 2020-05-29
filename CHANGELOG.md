@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.1
+
+- Add support for on-device symbolication, which is enabled by default on
+  Android. Use `sentry_options_set_symbolize_stacktraces` to customize.
+- Enable gzip compressed crashpad minidumps on windows.
+- Correctly 0-pad short `build-id`s.
+- Fix build for 32bit Apple targets.
+
 ## 0.3.0
 
 - Always send the newer `x-sentry-envelope` format, which makes this
