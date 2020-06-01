@@ -60,7 +60,7 @@ get_pages(size_t num_pages)
 
 #if defined(__has_feature)
 #    if __has_feature(memory_sanitizer)
-    __msan_unpoison(a, page_size_ * num_pages);
+    __msan_unpoison(rv, g_alloc->page_size * num_pages);
 #    endif
 #endif
 
