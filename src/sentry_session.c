@@ -65,7 +65,7 @@ sentry__session_new(void)
         = sentry__string_clone(sentry_options_get_environment(opts));
 
     rv->release = release;
-    rv->environment = sentry__string_clone(environment);
+    rv->environment = environment;
     rv->session_id = sentry_uuid_new_v4();
     rv->distinct_id = sentry_value_new_null();
     rv->status = SENTRY_SESSION_STATUS_OK;
