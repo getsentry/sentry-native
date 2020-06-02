@@ -3,6 +3,7 @@ import subprocess
 import sys
 import os
 import time
+import json
 from . import cmake, check_output, run, Envelope
 from .conditions import has_inproc, has_breakpad, has_files
 from .assertions import (
@@ -14,6 +15,7 @@ from .assertions import (
     assert_crash,
     assert_minidump,
     assert_timestamp,
+    assert_session,
 )
 
 
@@ -113,6 +115,42 @@ def test_multi_process(tmp_path):
         if run.endswith(".run") or run.endswith(".lock")
     ]
     assert len(runs) == 0
+
+
+@pytest.mark.skipif(not has_files, reason="test needs a local filesystem")
+def test_abnormal_session(tmp_path):
+    cmake(
+        tmp_path,
+        ["sentry_example"],
+        {"SENTRY_BACKEND": "none", "SENTRY_TRANSPORT": "none"},
+    )
+
+    # create a bogus session file
+    db_dir = tmp_path.joinpath(".sentry-native")
+    db_dir.mkdir()
+    run_dir = db_dir.joinpath("foobar.run")
+    run_dir.mkdir()
+    with open(run_dir.joinpath("session.json"), "w") as session_file:
+        json.dump(
+            {
+                "sid": "00000000-0000-0000-0000-000000000000",
+                "did": "42",
+                "status": "started",
+                "errors": 0,
+                "started": "2020-06-02T10:04:53.680Z",
+                "duration": 10,
+                "attrs": {
+                    "release": "test-example-release",
+                    "environment": "development",
+                },
+            },
+            session_file,
+        )
+
+    output = check_output(tmp_path, "sentry_example", ["stdout", "no-setup"])
+    envelope = Envelope.deserialize(output)
+
+    assert_session(envelope, {"status": "abnormal", "errors": 0, "duration": 10})
 
 
 @pytest.mark.skipif(not has_inproc, reason="test needs inproc backend")
