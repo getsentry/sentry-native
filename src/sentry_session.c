@@ -51,15 +51,21 @@ sentry__session_new(void)
     if (!opts) {
         return NULL;
     }
-    const char *release = sentry_options_get_release(opts);
-    const char *environment = sentry_options_get_environment(opts);
+    char *release = sentry__string_clone(sentry_options_get_release(opts));
     if (!release) {
         return NULL;
     }
 
     sentry_session_t *rv = SENTRY_MAKE(sentry_session_t);
+    if (!rv) {
+        return NULL;
+    }
+
+    char *environment
+        = sentry__string_clone(sentry_options_get_environment(opts));
+
     rv->release = release;
-    rv->environment = environment;
+    rv->environment = sentry__string_clone(environment);
     rv->session_id = sentry_uuid_new_v4();
     rv->distinct_id = sentry_value_new_null();
     rv->status = SENTRY_SESSION_STATUS_OK;
@@ -78,6 +84,8 @@ sentry__session_free(sentry_session_t *session)
         return;
     }
     sentry_value_decref(session->distinct_id);
+    sentry_free(session->release);
+    sentry_free(session->environment);
     sentry_free(session);
 }
 
@@ -139,6 +147,16 @@ sentry__session_from_json(const char *buf, size_t buflen)
         return NULL;
     }
 
+    sentry_value_t attrs = sentry_value_get_by_key(value, "attrs");
+    if (sentry_value_is_null(attrs)) {
+        return NULL;
+    }
+    char *release = sentry__string_clone(
+        sentry_value_as_string(sentry_value_get_by_key(attrs, "release")));
+    if (!release) {
+        return NULL;
+    }
+
     sentry_session_t *rv = SENTRY_MAKE(sentry_session_t);
     if (!rv) {
         return NULL;
@@ -148,11 +166,16 @@ sentry__session_from_json(const char *buf, size_t buflen)
 
     rv->distinct_id = sentry_value_get_by_key_owned(value, "did");
 
+    rv->release = release;
+    rv->environment = sentry__string_clone(
+        sentry_value_as_string(sentry_value_get_by_key(attrs, "environment")));
+
     const char *status
         = sentry_value_as_string(sentry_value_get_by_key(value, "status"));
     rv->status = status_from_string(status);
 
     rv->init = sentry_value_is_true(sentry_value_get_by_key(value, "init"));
+
     rv->errors = (int64_t)sentry_value_as_int32(
         sentry_value_get_by_key(value, "errors"));
     rv->started_ms = sentry__iso8601_to_msec(
