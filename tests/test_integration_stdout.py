@@ -150,9 +150,7 @@ def test_abnormal_session(tmp_path):
     output = check_output(tmp_path, "sentry_example", ["stdout", "no-setup"])
     envelope = Envelope.deserialize(output)
 
-    assert_session(
-        envelope, {"status": "abnormal", "errors": 0, "duration": 10}
-    )
+    assert_session(envelope, {"status": "abnormal", "errors": 0, "duration": 10})
 
 
 @pytest.mark.skipif(not has_inproc, reason="test needs inproc backend")
