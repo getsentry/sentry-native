@@ -411,6 +411,10 @@ tokens_to_value(jsmntok_t *tokens, size_t token_count, const char *buf,
     jsmntok_t *root = POP();
     sentry_value_t rv = sentry_value_new_null();
 
+    if (!root) {
+        goto error;
+    }
+
     switch (root->type) {
     case JSMN_PRIMITIVE: {
         switch (buf[root->start]) {
