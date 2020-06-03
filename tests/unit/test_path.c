@@ -144,3 +144,35 @@ SENTRY_TEST(path_current_exe)
     TEST_CHECK(sentry__path_is_file(path));
     sentry__path_free(path);
 }
+
+SENTRY_TEST(path_directory)
+{
+    sentry_path_t *path_1 = sentry__path_from_str("foo");
+    sentry_path_t *path_2 = sentry__path_from_str("foo/bar");
+    sentry_path_t *path_3 = sentry__path_from_str("foo/bar\\baz");
+
+    // create single directory
+    sentry__path_create_dir_all(path_1);
+    TEST_CHECK(sentry__path_is_dir(path_1));
+
+    sentry__path_remove(path_1);
+    TEST_CHECK(!sentry__path_is_dir(path_1));
+
+    // create directories by path with forward slash
+    sentry__path_create_dir_all(path_2);
+    TEST_CHECK(sentry__path_is_dir(path_2));
+
+    sentry__path_remove_all(path_2);
+    TEST_CHECK(!sentry__path_is_dir(path_2));
+
+    // create directories by path with forward slash and backward slashes
+    sentry__path_create_dir_all(path_3);
+    TEST_CHECK(sentry__path_is_dir(path_3));
+
+    sentry__path_remove_all(path_3);
+    TEST_CHECK(!sentry__path_is_dir(path_3));
+
+    sentry__path_free(path_1);
+    sentry__path_free(path_2);
+    sentry__path_free(path_3);
+}
