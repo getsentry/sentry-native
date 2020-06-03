@@ -236,7 +236,9 @@ sentry__bgworker_foreach_matching(sentry_bgworker_t *bgw,
             bgw->task_count--;
             dropped++;
         } else {
-            prev_task->next_task = task;
+            if (prev_task) {
+                prev_task->next_task = task;
+            }
             prev_task = task;
         }
 
