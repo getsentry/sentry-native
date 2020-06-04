@@ -15,3 +15,5 @@ else
 fi
 
 sed -i '' -e "s/^#define SENTRY_SDK_VERSION.*/#define SENTRY_SDK_VERSION \"${NEW_VERSION}\"/" include/sentry.h
+sed -i '' -e "s/\"version\": \"${OLD_VERSION}\"/\"version\": \"${NEW_VERSION}\"/" tests/assertions.py
+sed -i '' -e "s/sentry.native\/${OLD_VERSION}\"/sentry.native\/${NEW_VERSION}\"/" tests/test_integration_http.py
