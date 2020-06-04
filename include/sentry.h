@@ -70,6 +70,7 @@ extern "C" {
 #endif
 
 #include <inttypes.h>
+#include <stdarg.h>
 #include <stdbool.h>
 #include <stddef.h>
 
@@ -716,6 +717,14 @@ SENTRY_API void sentry_options_set_debug(sentry_options_t *opts, int debug);
  * Returns the current value of the debug flag.
  */
 SENTRY_API int sentry_options_get_debug(const sentry_options_t *opts);
+
+/**
+ * Sets the sentry-native logger function.
+ * Used for logging debug events when the `debug` option is set to true.
+ */
+SENTRY_API void sentry_options_set_logger(sentry_options_t *opts,
+    void (*logger_func)(
+        sentry_level_t level, const char *message, va_list args));
 
 /**
  * Enables or disables user consent requirements for uploads.

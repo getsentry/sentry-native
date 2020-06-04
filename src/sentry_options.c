@@ -2,6 +2,7 @@
 #include "sentry_alloc.h"
 #include "sentry_backend.h"
 #include "sentry_database.h"
+#include "sentry_logger.h"
 #include "sentry_path.h"
 #include "sentry_string.h"
 #include "sentry_transport.h"
@@ -20,6 +21,7 @@ sentry_options_new(void)
     sentry_options_set_dsn(opts, getenv("SENTRY_DSN"));
     const char *debug = getenv("SENTRY_DEBUG");
     opts->debug = debug && sentry__string_eq(debug, "1");
+    opts->logger = sentry__logger_defaultlogger;
 #ifdef SENTRY_PLATFORM_WINDOWS
     opts->release = sentry__string_from_wstr(_wgetenv(L"SENTRY_RELEASE"));
     opts->environment
@@ -205,6 +207,14 @@ int
 sentry_options_get_debug(const sentry_options_t *opts)
 {
     return opts->debug;
+}
+
+void
+sentry_options_set_logger(sentry_options_t *opts,
+    void (*logger_func)(
+        sentry_level_t level, const char *message, va_list args))
+{
+    opts->logger = logger_func;
 }
 
 void
