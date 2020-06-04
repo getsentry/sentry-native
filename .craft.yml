@@ -3,10 +3,12 @@ github:
   owner: getsentry
   repo: sentry-native
 changelogPolicy: simple
+
 statusProvider:
   name: github
 artifactProvider:
   name: zeus
+
 targets:
   - name: github
   - name: registry
@@ -22,3 +24,6 @@ targets:
       - path: /sentry-native/latest/
         metadata:
           cacheControl: "public, max-age=600"
+
+requireNames:
+  - /^sentry-native.zip$/
