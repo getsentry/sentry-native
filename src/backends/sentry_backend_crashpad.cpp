@@ -51,6 +51,39 @@ sentry__crashpad_backend_user_consent_changed(sentry_backend_t *backend)
 }
 
 static void
+sentry__crashpad_backend_flush_scope(
+    sentry_backend_t *backend, const sentry_scope_t *UNUSED(scope))
+{
+    const crashpad_state_t *data = (crashpad_state_t *)backend->data;
+    if (!data->event_path) {
+        return;
+    }
+
+    // This here is an empty object that we copy the scope into.
+    // Even though the API is specific to `event`, an `event` has a few default
+    // properties that we do not want here.
+    sentry_value_t event = sentry_value_new_object();
+    SENTRY_WITH_SCOPE (scope) {
+        // we want the scope without any modules or breadcrumbs
+        sentry__scope_apply_to_event(scope, event, SENTRY_SCOPE_NONE);
+    }
+
+    size_t mpack_size;
+    char *mpack = sentry_value_to_msgpack(event, &mpack_size);
+    sentry_value_decref(event);
+    if (!mpack) {
+        return;
+    }
+
+    int rv = sentry__path_write_buffer(data->event_path, mpack, mpack_size);
+    sentry_free(mpack);
+
+    if (rv != 0) {
+        SENTRY_DEBUG("flushing scope to msgpack failed");
+    }
+}
+
+static void
 sentry__crashpad_backend_shutdown(sentry_backend_t *backend)
 {
     crashpad_state_t *data = (crashpad_state_t *)backend->data;
@@ -131,6 +164,12 @@ sentry__crashpad_backend_startup(sentry_backend_t *backend)
     sentry__path_touch(data->breadcrumb1_path);
     sentry__path_touch(data->breadcrumb2_path);
 
+    // now that we have the files, we flush the scope into the event right away,
+    // so that we do have something in case we crash without triggering a scope
+    // flush through other methods. The `scope` param is unused, so its safe
+    // to pass `NULL` here.
+    sentry__crashpad_backend_flush_scope(backend, NULL);
+
     file_attachments.emplace(
         "__sentry-event", base::FilePath(data->event_path->path));
     file_attachments.emplace(
@@ -170,39 +209,6 @@ sentry__crashpad_backend_startup(sentry_backend_t *backend)
             = crashpad::CrashpadInfo::GetCrashpadInfo();
         crashpad_info->set_system_crash_reporter_forwarding(
             crashpad::TriState::kDisabled);
-    }
-}
-
-static void
-sentry__crashpad_backend_flush_scope(
-    sentry_backend_t *backend, const sentry_scope_t *UNUSED(scope))
-{
-    const crashpad_state_t *data = (crashpad_state_t *)backend->data;
-    if (!data->event_path) {
-        return;
-    }
-
-    // This here is an empty object that we copy the scope into.
-    // Even though the API is specific to `event`, an `event` has a few default
-    // properties that we do not want here.
-    sentry_value_t event = sentry_value_new_object();
-    SENTRY_WITH_SCOPE (scope) {
-        // we want the scope without any modules or breadcrumbs
-        sentry__scope_apply_to_event(scope, event, SENTRY_SCOPE_NONE);
-    }
-
-    size_t mpack_size;
-    char *mpack = sentry_value_to_msgpack(event, &mpack_size);
-    sentry_value_decref(event);
-    if (!mpack) {
-        return;
-    }
-
-    int rv = sentry__path_write_buffer(data->event_path, mpack, mpack_size);
-    sentry_free(mpack);
-
-    if (rv != 0) {
-        SENTRY_DEBUG("flushing scope to msgpack failed");
     }
 }
 
