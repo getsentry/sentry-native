@@ -137,5 +137,5 @@ stages:
             inputs:
               pathtoPublish: "$(Build.ArtifactStagingDirectory)/sentry-native-source.zip"
           - script: |
-              npx @zeus-ci/cli job update --build $(Build.BuildId) --job $(System.JobId) --ref $(Build.SourceVersion) --build-label "$(Build.BuildNumber)" --job-label "$(System.JobDisplayName)" --status passed
-              npx @zeus-ci/cli upload --build $(Build.BuildId) --job $(System.JobId) --type "application/zip" --name "sentry-native.zip" "$(Build.ArtifactStagingDirectory)/sentry-native-source.zip"
+              npx "@zeus-ci/cli" job update --build $(Build.BuildId) --job $(System.JobId) --ref $(Build.SourceVersion) --build-label "$(Build.BuildNumber)" --job-label "$(System.JobDisplayName)" --status passed
+              npx "@zeus-ci/cli" upload --build $(Build.BuildId) --job $(System.JobId) --type "application/zip" --name "sentry-native.zip" "$(Build.ArtifactStagingDirectory)/sentry-native-source.zip"
