@@ -258,7 +258,7 @@ static inline long
 sentry__atomic_fetch_and_add(volatile long *val, long diff)
 {
 #ifdef SENTRY_PLATFORM_WINDOWS
-    return InterlockedExchangeAdd((unsigned int*)val, diff);
+    return InterlockedExchangeAdd((unsigned int *)val, diff);
 #else
     return __sync_fetch_and_add(val, diff);
 #endif

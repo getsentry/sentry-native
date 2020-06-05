@@ -21,9 +21,9 @@ extern "C" {
 #endif
 
 #ifdef SENTRY_PLATFORM_WINDOWS
-#include "client/windows/handler/exception_handler.h"
+#    include "client/windows/handler/exception_handler.h"
 #else
-#include "client/linux/handler/exception_handler.h"
+#    include "client/linux/handler/exception_handler.h"
 #endif
 
 #ifdef __GNUC__
@@ -49,8 +49,8 @@ sentry__breakpad_backend_send_envelope(
     // when serializing the envelope to disk, and later sending it as a single
     // `x-sentry-envelope`, the minidump needs to be an attachment, with type
     // `event.minidump`
-    sentry_envelope_item_t *item
-        = sentry__envelope_add_from_path(envelope, state->dump_path, "attachment");
+    sentry_envelope_item_t *item = sentry__envelope_add_from_path(
+        envelope, state->dump_path, "attachment");
     if (!item) {
         sentry_envelope_free(envelope);
         return;
@@ -157,7 +157,6 @@ sentry__breakpad_backend_callback(
     return succeeded;
 }
 
-
 static void
 sentry__breakpad_backend_startup(sentry_backend_t *backend)
 {
@@ -165,8 +164,8 @@ sentry__breakpad_backend_startup(sentry_backend_t *backend)
     sentry_path_t *current_run_folder = options->run->run_path;
 
 #ifdef SENTRY_PLATFORM_WINDOWS
-    backend->data
-        = new google_breakpad::ExceptionHandler(current_run_folder->path, NULL, sentry__breakpad_backend_callback, NULL,
+    backend->data = new google_breakpad::ExceptionHandler(
+        current_run_folder->path, NULL, sentry__breakpad_backend_callback, NULL,
         google_breakpad::ExceptionHandler::HANDLER_EXCEPTION);
 #else
     google_breakpad::MinidumpDescriptor descriptor(current_run_folder->path);
@@ -183,7 +182,6 @@ sentry__breakpad_backend_shutdown(sentry_backend_t *backend)
     backend->data = NULL;
     delete eh;
 }
-
 
 static void
 sentry__breakpad_backend_except(
