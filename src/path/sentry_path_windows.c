@@ -365,7 +365,9 @@ sentry__path_create_dir_all(const sentry_path_t *path)
     for (ptr = p; *ptr; ptr++) {
         if (*ptr == '\\' && ptr != p) {
             *ptr = 0;
-            if(!(first_comp && wcschr(p, ':') != NULL))  //skip drive letter on first string component
+            if (!(first_comp
+                    && wcschr(p, ':')
+                        != NULL)) // skip drive letter on first string component
             {
                 _TRY_MAKE_DIR;
             }
