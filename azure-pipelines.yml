@@ -29,6 +29,9 @@ stages:
               vmImage: "ubuntu-latest"
               CC: clang-9
               CXX: clang++-9
+              CFLAGS: -Werror
+              CXXFlags: -Werror
+              SCAN_BUILD: 1
             macOS:
               vmImage: "macOs-latest"
             Windows (VS2017, 32bit):

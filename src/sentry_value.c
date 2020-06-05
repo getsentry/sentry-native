@@ -6,14 +6,7 @@
 #include <string.h>
 #include <time.h>
 
-#ifdef __GNUC__
-#    pragma GCC diagnostic push
-#    pragma GCC diagnostic ignored "-Wstatic-in-inline"
-#endif
 #include "../vendor/mpack.h"
-#ifdef __GNUC__
-#    pragma GCC diagnostic pop
-#endif
 
 #include "sentry_alloc.h"
 #include "sentry_core.h"

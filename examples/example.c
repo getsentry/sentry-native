@@ -33,6 +33,16 @@ has_arg(int argc, char **argv, const char *arg)
     return false;
 }
 
+static void *invalid_mem = (void *)1;
+
+static void
+trigger_crash()
+{
+    // Triggers a segfault by writing to `NULL`. We actually do a `1 - 1` to
+    // defeat static analyzers which would warn for the trivial case.
+    memset((char *)(invalid_mem - 1), 1, 100);
+}
+
 int
 main(int argc, char **argv)
 {
@@ -131,7 +141,7 @@ main(int argc, char **argv)
     }
 
     if (has_arg(argc, argv, "crash")) {
-        memset((char *)0x0, 1, 100);
+        trigger_crash();
     }
 
     if (has_arg(argc, argv, "capture-event")) {

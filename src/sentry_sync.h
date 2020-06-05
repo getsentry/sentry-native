@@ -226,9 +226,7 @@ typedef pthread_cond_t sentry_cond_t;
         } while (0)
 #    define sentry__cond_wake pthread_cond_signal
 #    define sentry__thread_spawn(ThreadId, Func, Data)                         \
-        (pthread_create(ThreadId, NULL, (void *(*)(void *))Func, Data) == 0    \
-                ? 0                                                            \
-                : 1)
+        (pthread_create(ThreadId, NULL, Func, Data) == 0 ? 0 : 1)
 #    define sentry__thread_join(ThreadId) pthread_join(ThreadId, NULL)
 #    define sentry__threadid_equal pthread_equal
 #    define sentry__current_thread pthread_self

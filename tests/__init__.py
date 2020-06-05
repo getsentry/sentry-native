@@ -94,7 +94,10 @@ def cmake(cwd, targets, options=None):
                 "ANDROID_NATIVE_API_LEVEL": os.environ["ANDROID_API"],
             }
         )
-    configcmd = ["cmake"]
+    cmake = ["cmake"]
+    if os.environ.get("SCAN_BUILD"):
+        cmake = ["scan-build", "cmake"]
+    configcmd = [*cmake]
     for key, value in options.items():
         configcmd.append("-D{}={}".format(key, value))
     if sys.platform == "win32" and os.environ.get("TEST_X86"):
@@ -106,7 +109,7 @@ def cmake(cwd, targets, options=None):
     print("\n{} > {}".format(cwd, " ".join(configcmd)), flush=True)
     subprocess.run(configcmd, cwd=cwd, check=True)
 
-    buildcmd = ["cmake", "--build", ".", "--parallel"]
+    buildcmd = [*cmake, "--build", ".", "--parallel"]
     for target in targets:
         buildcmd.extend(["--target", target])
     print("{} > {}".format(cwd, " ".join(buildcmd)), flush=True)
