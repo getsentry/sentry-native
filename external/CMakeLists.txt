@@ -20,6 +20,9 @@ set(BREAKPAD_SOURCES_COMMON_LINUX
     breakpad/src/common/linux/linux_libc_support.cc 
     breakpad/src/common/linux/memory_mapped_file.cc 
     breakpad/src/common/linux/safe_readlink.cc
+)
+
+set(BREAKPAD_SOURCES_COMMON_LINUX_GETCONTEXT
     breakpad/src/common/linux/breakpad_getcontext.S
 )
 
@@ -71,6 +74,15 @@ target_sources(breakpad_client PRIVATE ${BREAKPAD_SOURCES_COMMON})
 
 if(LINUX OR ANDROID)
     target_sources(breakpad_client PRIVATE ${BREAKPAD_SOURCES_COMMON_LINUX} ${BREAKPAD_SOURCES_CLIENT_LINUX})
+
+    include(CheckFunctionExists)
+    check_function_exists(getcontext HAVE_GETCONTEXT)
+    if(HAVE_GETCONTEXT)
+        target_compile_definitions(breakpad_client PRIVATE HAVE_GETCONTEXT)
+    else()
+        target_sources(breakpad_client PRIVATE ${BREAKPAD_SOURCES_COMMON_LINUX_GETCONTEXT})
+    endif()
+
 	set_property(TARGET breakpad_client PROPERTY POSITION_INDEPENDENT_CODE ON)
 endif()
 
