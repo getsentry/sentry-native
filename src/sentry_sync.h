@@ -125,7 +125,7 @@ static inline BOOL CALLBACK
 sentry__winmutex_init(
     PINIT_ONCE UNUSED(InitOnce), PVOID cs, PVOID *UNUSED(lpContext))
 {
-    InitializeCriticalSection(cs);
+    InitializeCriticalSection((LPCRITICAL_SECTION)cs);
     return TRUE;
 }
 
@@ -258,7 +258,7 @@ static inline long
 sentry__atomic_fetch_and_add(volatile long *val, long diff)
 {
 #ifdef SENTRY_PLATFORM_WINDOWS
-    return InterlockedExchangeAdd(val, diff);
+    return InterlockedExchangeAdd((unsigned int*)val, diff);
 #else
     return __sync_fetch_and_add(val, diff);
 #endif
