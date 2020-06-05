@@ -8,6 +8,7 @@ extern "C" {
 #include "sentry_envelope.h"
 #include "sentry_options.h"
 #include "sentry_path.h"
+#include "sentry_string.h"
 #include "sentry_sync.h"
 #include "sentry_transport.h"
 #include "sentry_unix_pageallocator.h"
@@ -19,7 +20,11 @@ extern "C" {
 #    pragma GCC diagnostic ignored "-Wvariadic-macros"
 #endif
 
+#ifdef SENTRY_PLATFORM_WINDOWS
+#include "client/windows/handler/exception_handler.h"
+#else
 #include "client/linux/handler/exception_handler.h"
+#endif
 
 #ifdef __GNUC__
 #    pragma GCC diagnostic pop
@@ -27,7 +32,7 @@ extern "C" {
 
 typedef struct {
     sentry_run_t *run;
-    const char *dump_path;
+    const sentry_path_t *dump_path;
 } breakpad_transport_state_t;
 
 static void
@@ -37,8 +42,7 @@ sentry__breakpad_backend_send_envelope(
     const breakpad_transport_state_t *state
         = (const breakpad_transport_state_t *)_state;
 
-    sentry_path_t *dump_path = sentry__path_from_str(state->dump_path);
-    if (!dump_path) {
+    if (!state->dump_path) {
         sentry_envelope_free(envelope);
         return;
     }
@@ -46,29 +50,35 @@ sentry__breakpad_backend_send_envelope(
     // `x-sentry-envelope`, the minidump needs to be an attachment, with type
     // `event.minidump`
     sentry_envelope_item_t *item
-        = sentry__envelope_add_from_path(envelope, dump_path, "attachment");
+        = sentry__envelope_add_from_path(envelope, state->dump_path, "attachment");
     if (!item) {
-        sentry__path_free(dump_path);
         sentry_envelope_free(envelope);
         return;
     }
     sentry__envelope_item_set_header(
         item, "attachment_type", sentry_value_new_string("event.minidump"));
-    sentry__envelope_item_set_header(item, "filename",
-        sentry_value_new_string(sentry__path_filename(dump_path)));
+
+#ifdef SENTRY_PLATFORM_WINDOWS
+    char *file_path = sentry__string_from_wstr(state->dump_path->path);
+    sentry__envelope_item_set_header(
+        item, "filename", sentry_value_new_string(file_path));
+    sentry_free(file_path);
+#else
+    sentry__envelope_item_set_header(
+        item, "filename", sentry_value_new_string(state->dump_path->path));
+#endif
 
     sentry__run_write_envelope(state->run, envelope);
     sentry_envelope_free(envelope);
 
     // now that the envelope was written, we can remove the temporary
     // minidump file
-    sentry__path_remove(dump_path);
-    sentry__path_free(dump_path);
+    sentry__path_remove(state->dump_path);
 }
 
 static void
 sentry__enforce_breakpad_transport(
-    const sentry_options_t *options, const char *dump_path)
+    const sentry_options_t *options, sentry_path_t *dump_path)
 {
     breakpad_transport_state_t *state = SENTRY_MAKE(breakpad_transport_state_t);
     if (!state) {
@@ -89,17 +99,34 @@ sentry__enforce_breakpad_transport(
     ((sentry_options_t *)options)->transport = transport;
 }
 
+#ifdef SENTRY_PLATFORM_WINDOWS
+static bool
+sentry__breakpad_backend_callback(const wchar_t *breakpad_dump_path,
+    const wchar_t *minidump_id, void *context, EXCEPTION_POINTERS *exinfo,
+    MDRawAssertionInfo *assertion, bool succeeded)
+#else
 static bool
 sentry__breakpad_backend_callback(
     const google_breakpad::MinidumpDescriptor &descriptor,
     void *UNUSED(context), bool succeeded)
+#endif
 {
+#ifndef SENTRY_PLATFORM_WINDOWS
     sentry__page_allocator_enable();
     sentry__enter_signal_handler();
+#endif
 
     const sentry_options_t *options = sentry_get_options();
     sentry__write_crash_marker(options);
-    const char *dump_path = descriptor.path();
+
+    sentry_path_t *dump_path = nullptr;
+#ifdef SENTRY_PLATFORM_WINDOWS
+    dump_path = sentry__path_new(breakpad_dump_path);
+    dump_path = sentry__path_join_wstr(dump_path, minidump_id);
+    dump_path = sentry__path_append_str(dump_path, ".dmp");
+#else
+    dump_path = sentry__path_new(descriptor.path());
+#endif
 
     // Ending the session will send an envelope, which we *don’t* want to route
     // through the special transport. It will be dumped to disk with the rest of
@@ -124,9 +151,12 @@ sentry__breakpad_backend_callback(
     }
     SENTRY_DEBUG("crash has been captured");
 
+#ifndef SENTRY_PLATFORM_WINDOWS
     sentry__leave_signal_handler();
+#endif
     return succeeded;
 }
+
 
 static void
 sentry__breakpad_backend_startup(sentry_backend_t *backend)
@@ -134,9 +164,15 @@ sentry__breakpad_backend_startup(sentry_backend_t *backend)
     const sentry_options_t *options = sentry_get_options();
     sentry_path_t *current_run_folder = options->run->run_path;
 
+#ifdef SENTRY_PLATFORM_WINDOWS
+    backend->data
+        = new google_breakpad::ExceptionHandler(current_run_folder->path, NULL, sentry__breakpad_backend_callback, NULL,
+        google_breakpad::ExceptionHandler::HANDLER_EXCEPTION);
+#else
     google_breakpad::MinidumpDescriptor descriptor(current_run_folder->path);
     backend->data = new google_breakpad::ExceptionHandler(
         descriptor, NULL, sentry__breakpad_backend_callback, NULL, true, -1);
+#endif
 }
 
 static void
@@ -148,13 +184,20 @@ sentry__breakpad_backend_shutdown(sentry_backend_t *backend)
     delete eh;
 }
 
+
 static void
 sentry__breakpad_backend_except(
     sentry_backend_t *backend, const sentry_ucontext_t *context)
 {
     google_breakpad::ExceptionHandler *eh
         = (google_breakpad::ExceptionHandler *)backend->data;
+
+#ifdef SENTRY_PLATFORM_WINDOWS
+    eh->WriteMinidumpForException(
+        const_cast<EXCEPTION_POINTERS *>(&context->exception_ptrs));
+#else
     eh->HandleSignal(context->signum, context->siginfo, context->user_context);
+#endif
 }
 
 extern "C" {
