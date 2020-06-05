@@ -71,7 +71,7 @@ The SDK supports different features on the target platform:
   have the `curl` library available. On other platforms, library users need to
   implement their own transport, based on the `function transport` API.
 - **Crashpad Backend** is currently only supported on Windows and macOS.
-- **Breakpad Backend** is currently only supported on Linux.
+- **Breakpad Backend** is currently only supported on Linux and Windows.
 
 ## Building and Installation
 
@@ -170,7 +170,6 @@ using `cmake -D BUILD_SHARED_LIBS=OFF ..`.
 
   For Windows versions below than `6.0` it is also necessary to use XP toolchain
   in case of MSVC compiler (pass `-T v141_xp` to CMake command line).
-  Also, you are not able to use Crashpad with XP toolchains, no crashes will be handled at all.
 
 - `SENTRY_TRANSPORT` (Default: depending on platform):
   Sentry can use different http libraries to send reports to the server.
@@ -185,7 +184,7 @@ using `cmake -D BUILD_SHARED_LIBS=OFF ..`.
   - **crashpad**: This uses the out-of-process crashpad handler. It is currently
     only supported on Windows and macOS, and used as the default there.
   - **breakpad**: This uses the in-process breakpad handler. It is currently
-    only supported on Linux, and used as the default there.
+    only supported on Linux and Windows, and used as the default on Linux.
   - **inproc**: A small in-process handler which is supported on all platforms
     except Windows, and is used as default on Linux and Android.
   - **none**: This builds `sentry-native` without a backend, so it does not handle
@@ -201,7 +200,7 @@ using `cmake -D BUILD_SHARED_LIBS=OFF ..`.
 | Backends   |         |       |       |         |
 | - inproc   |         | ✓     | ✓     | ☑       |
 | - crashpad | ☑       | ☑     |       |         |
-| - breakpad |         |       | ☑     |         |
+| - breakpad | ✓       |       | ☑     |         |
 | - none     | ✓       | ✓     | ✓     | ✓       |
 
 Legend:
