@@ -217,7 +217,7 @@ sentry_path_t *sentry__path_join_wstr(
  * Create a new path from the platform native string type.
  */
 static inline sentry_path_t *
-sentry__path_new(sentry_pathchar_t *s)
+sentry__path_new(const sentry_pathchar_t *s)
 {
 #ifdef SENTRY_PLATFORM_WINDOWS
     return sentry__path_from_wstr(s);
