@@ -91,8 +91,8 @@ endif()
 option(SENTRY_ENABLE_INSTALL "Enable sentry installation" "${SENTRY_MAIN_PROJECT}")
 
 if(MSVC AND CMAKE_GENERATOR_TOOLSET MATCHES "_xp$")
-	message(WARNING "Crashpad is not supported for MSVC with XP toolset. Default backend was switched to 'none'")
-	set(SENTRY_DEFAULT_BACKEND "none")
+	message(WARNING "Crashpad is not supported for MSVC with XP toolset. Default backend was switched to 'breakpad'")
+	set(SENTRY_DEFAULT_BACKEND "breakpad")
 elseif(APPLE OR WIN32)
 	set(SENTRY_DEFAULT_BACKEND "crashpad")
 elseif(LINUX)
@@ -278,7 +278,10 @@ endif()
 
 #respect CMAKE_SYSTEM_VERSION
 if(WIN32)
-	if(${CMAKE_SYSTEM_VERSION} MATCHES "^10")
+	if(MSVC AND CMAKE_GENERATOR_TOOLSET MATCHES "_xp$")
+		#force WINNT to 5.1 for Windows XP toolchain
+		target_compile_definitions(sentry PRIVATE "_WIN32_WINNT=0x0501")
+	elseif(${CMAKE_SYSTEM_VERSION} MATCHES "^10")
 		target_compile_definitions(sentry PRIVATE "_WIN32_WINNT=0x0A00")
 	elseif(${CMAKE_SYSTEM_VERSION} MATCHES "^6.3")
 		target_compile_definitions(sentry PRIVATE "_WIN32_WINNT=0x0603")
