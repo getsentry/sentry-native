@@ -361,11 +361,17 @@ sentry__path_create_dir_all(const sentry_path_t *path)
     size_t len = wcslen(path->path) + 1;
     p = sentry_malloc(sizeof(wchar_t) * len);
     memcpy(p, path->path, len * sizeof(wchar_t));
-
+    bool first_comp = false;
     for (ptr = p; *ptr; ptr++) {
         if (*ptr == '\\' && ptr != p) {
             *ptr = 0;
-            _TRY_MAKE_DIR;
+
+            if (!first_comp && strchr(p, ':') != NULL) { //skip drive letter  on first string component
+                _TRY_MAKE_DIR;
+            }
+            if (!first_comp) {
+                first_comp = true;
+            }
             *ptr = '\\';
         }
     }
