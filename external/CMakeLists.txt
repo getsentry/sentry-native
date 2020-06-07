@@ -54,18 +54,10 @@ set(BREAKPAD_SOURCES_CLIENT_LINUX
 )
 
 set(BREAKPAD_SOURCES_CLIENT_WINDOWS
-    breakpad/src/client/windows/crash_generation/client_info.cc
-    breakpad/src/client/windows/crash_generation/client_info.h
     breakpad/src/client/windows/crash_generation/crash_generation_client.cc
     breakpad/src/client/windows/crash_generation/crash_generation_client.h
-    breakpad/src/client/windows/crash_generation/crash_generation_server.cc
-    breakpad/src/client/windows/crash_generation/crash_generation_server.h
-    breakpad/src/client/windows/crash_generation/minidump_generator.cc
-    breakpad/src/client/windows/crash_generation/minidump_generator.h
     breakpad/src/client/windows/handler/exception_handler.cc
     breakpad/src/client/windows/handler/exception_handler.h
-    breakpad/src/client/windows/sender/crash_report_sender.cc
-    breakpad/src/client/windows/sender/crash_report_sender.h
 )
 
 
