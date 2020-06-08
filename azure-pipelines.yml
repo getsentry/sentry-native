@@ -106,9 +106,9 @@ stages:
   - stage: package
     displayName: Create Release Archive
     dependsOn: test
+    condition: eq(variables['System.PullRequest.IsFork'], 'False')
     jobs:
       - job:
-        condition: eq(variables['System.PullRequest.IsFork'], 'False')
         pool:
           vmImage: "ubuntu-latest"
         steps:
