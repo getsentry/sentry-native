@@ -58,15 +58,13 @@ sentry__breakpad_backend_send_envelope(
     sentry__envelope_item_set_header(
         item, "attachment_type", sentry_value_new_string("event.minidump"));
 
+    sentry__envelope_item_set_header(item, "filename",
 #ifdef SENTRY_PLATFORM_WINDOWS
-    char *file_path = sentry__string_from_wstr(state->dump_path->path);
-    sentry__envelope_item_set_header(
-        item, "filename", sentry_value_new_string(file_path));
-    sentry_free(file_path);
+        sentry__value_new_string_from_wstr(
 #else
-    sentry__envelope_item_set_header(
-        item, "filename", sentry_value_new_string(state->dump_path->path));
+        sentry_value_new_string(
 #endif
+            sentry__path_filename(state->dump_path)));
 
     sentry__run_write_envelope(state->run, envelope);
     sentry_envelope_free(envelope);
