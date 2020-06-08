@@ -85,8 +85,8 @@ sentry_path_t *sentry__path_clone(const sentry_path_t *path);
 void sentry__path_free(sentry_path_t *path);
 
 /**
- * This will return a copy of the last path segment, which is typically the file
- * or directory name.
+ * This will return a pointer to the last path segment, which is typically the
+ * file or directory name
  */
 const sentry_pathchar_t *sentry__path_filename(const sentry_path_t *path);
 
