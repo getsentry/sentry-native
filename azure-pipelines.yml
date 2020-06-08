@@ -106,11 +106,9 @@ stages:
   - stage: package
     displayName: Create Release Archive
     dependsOn: test
-    variables:
-      ZEUS_HOOK_BASE: $(ZEUS_HOOK_BASE)
     jobs:
       - job:
-        condition: variables['ZEUS_HOOK_BASE']
+        condition: not(variables['System.PullRequest.IsFork'])
         pool:
           vmImage: "ubuntu-latest"
         steps:
