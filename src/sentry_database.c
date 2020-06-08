@@ -156,8 +156,11 @@ sentry__process_old_runs(const sentry_options_t *options)
         }
 
         sentry_path_t *lockfile = sentry__path_append_str(run_dir, ".lock");
-        sentry_filelock_t *lock;
-        if (!lockfile || !(lock = sentry__filelock_new(lockfile))) {
+        if (!lockfile) {
+            continue;
+        }
+        sentry_filelock_t *lock = sentry__filelock_new(lockfile);
+        if (!lock) {
             continue;
         }
         bool did_lock = sentry__filelock_try_lock(lock);

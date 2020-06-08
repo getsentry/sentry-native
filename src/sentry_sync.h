@@ -2,6 +2,7 @@
 #define SENTRY_SYNC_H_INCLUDED
 
 #include "sentry_boot.h"
+#include "sentry_core.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -121,7 +122,8 @@ struct sentry__winmutex_s {
 };
 
 static inline BOOL CALLBACK
-sentry__winmutex_init(PINIT_ONCE InitOnce, PVOID cs, PVOID *lpContext)
+sentry__winmutex_init(
+    PINIT_ONCE UNUSED(InitOnce), PVOID cs, PVOID *UNUSED(lpContext))
 {
     InitializeCriticalSection(cs);
     return TRUE;
@@ -256,7 +258,7 @@ static inline int
 sentry__atomic_fetch_and_add(volatile int *val, int diff)
 {
 #ifdef SENTRY_PLATFORM_WINDOWS
-    return InterlockedExchangeAdd(val, diff);
+    return (int)InterlockedExchangeAdd((volatile LONG *)val, (LONG)diff);
 #else
     return __sync_fetch_and_add(val, diff);
 #endif

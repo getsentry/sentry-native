@@ -13,12 +13,15 @@ extern "C" {
 #include <map>
 #include <vector>
 
-#ifdef __GNUC__
+#if defined(__GNUC__)
 #    pragma GCC diagnostic push
 #    pragma GCC diagnostic ignored "-Wunused-parameter"
 #    pragma GCC diagnostic ignored "-Wgnu-zero-variadic-macro-arguments"
 #    pragma GCC diagnostic ignored "-Wfour-char-constants"
 #    pragma GCC diagnostic ignored "-Wgnu-include-next"
+#elif defined(_MSC_VER)
+#    pragma warning(push)
+#    pragma warning(disable : 4100) // unreferenced formal parameter
 #endif
 
 #include "client/crash_report_database.h"
@@ -26,8 +29,10 @@ extern "C" {
 #include "client/crashpad_info.h"
 #include "client/settings.h"
 
-#ifdef __GNUC__
+#if defined(__GNUC__)
 #    pragma GCC diagnostic pop
+#elif defined(_MSC_VER)
+#    pragma warning(pop)
 #endif
 
 extern "C" {

@@ -33,7 +33,7 @@ sentry_uuid_from_string(const char *str)
     size_t len = strlen(str);
     size_t pos = 0;
     bool is_nibble = true;
-    char nibble;
+    char nibble = 0;
 
     for (i = 0; i < len && pos < 16; i++) {
         char c = str[i];

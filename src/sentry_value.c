@@ -6,7 +6,16 @@
 #include <string.h>
 #include <time.h>
 
+#if defined(_MSC_VER)
+#    pragma warning(push)
+#    pragma warning(disable : 4127) // conditional expression is constant
+#endif
+
 #include "../vendor/mpack.h"
+
+#if defined(_MSC_VER)
+#    pragma warning(pop)
+#endif
 
 #include "sentry_alloc.h"
 #include "sentry_core.h"
@@ -178,7 +187,7 @@ new_thing_value(void *ptr, int thing_type)
 
     thing->payload = ptr;
     thing->refcount = 1;
-    thing->type = thing_type;
+    thing->type = (char)thing_type;
     rv._bits = (((uint64_t)thing) >> 2) | TAG_THING;
     return rv;
 }

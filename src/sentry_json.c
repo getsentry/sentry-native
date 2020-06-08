@@ -360,7 +360,7 @@ decode_string_inplace(char *buf)
             input += 4;
 
             if (sentry__is_lead_surrogate(uchar)) {
-                uint16_t lead = uchar;
+                uint16_t lead = (uint16_t)uchar;
                 if (input[0] != '\\' || input[1] != 'u') {
                     return false;
                 }

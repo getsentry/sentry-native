@@ -340,7 +340,6 @@ sentry__path_remove(const sentry_path_t *path)
         }
         return 1;
     }
-    return 1;
 }
 
 int
