@@ -106,6 +106,7 @@ stages:
   - stage: package
     displayName: Create Release Archive
     dependsOn: test
+    condition: eq(variables['System.PullRequest.IsFork'], 'False')
     jobs:
       - job:
         pool:
