@@ -106,8 +106,15 @@ def cmake(cwd, targets, options=None):
     cmakelists_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
     configcmd.append(cmakelists_dir)
 
+    # we have to set `-Werror` for this cmake invocation only, otherwise
+    # completely unrelated things will break
+    env = dict(os.environ)
+    if os.environ.get("ERROR_ON_WARNINGS"):
+        env["CFLAGS"] = "-Werror"
+        env["CXXFLAGS"] = "-Werror"
+
     print("\n{} > {}".format(cwd, " ".join(configcmd)), flush=True)
-    subprocess.run(configcmd, cwd=cwd, check=True)
+    subprocess.run(configcmd, cwd=cwd, env=env, check=True)
 
     buildcmd = [*cmake, "--build", ".", "--parallel"]
     for target in targets:
