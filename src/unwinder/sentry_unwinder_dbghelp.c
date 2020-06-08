@@ -66,7 +66,7 @@ sentry__unwind_stack_dbghelp(
                &stack_frame, &ctx, NULL, SymFunctionTableAccess64,
                SymGetModuleBase64, NULL)
         && size < max_frames) {
-        ptrs[size++] = (void *)stack_frame.AddrPC.Offset;
+        ptrs[size++] = (void *)(intptr_t)stack_frame.AddrPC.Offset;
     }
 
     return size;

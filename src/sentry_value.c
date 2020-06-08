@@ -188,7 +188,7 @@ new_thing_value(void *ptr, int thing_type)
     thing->payload = ptr;
     thing->refcount = 1;
     thing->type = (char)thing_type;
-    rv._bits = (((uint64_t)thing) >> 2) | TAG_THING;
+    rv._bits = (((uint64_t)(intptr_t)thing) >> 2) | TAG_THING;
     return rv;
 }
 
@@ -198,7 +198,7 @@ value_as_thing(sentry_value_t value)
     if (value._bits <= MAX_DOUBLE) {
         return NULL;
     } else if ((value._bits & TAG_THING) == TAG_THING) {
-        return (thing_t *)((value._bits << 2) & ~TAG_THING);
+        return (thing_t *)(intptr_t)((value._bits << 2) & ~TAG_THING);
     } else {
         return NULL;
     }
@@ -962,7 +962,7 @@ sentry_event_value_add_stacktrace(sentry_value_t event, void **ips, size_t len)
     for (size_t i = 0; i < len; i++) {
         sentry_value_t frame = sentry_value_new_object();
         sentry_value_set_by_key(frame, "instruction_addr",
-            sentry__value_new_addr((uint64_t)ips[len - i - 1]));
+            sentry__value_new_addr((uint64_t)(intptr_t)ips[len - i - 1]));
         sentry_value_append(frames, frame);
     }
 

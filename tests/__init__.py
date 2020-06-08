@@ -110,13 +110,11 @@ def cmake(cwd, targets, options=None):
     # completely unrelated things will break
     env = dict(os.environ)
     if os.environ.get("ERROR_ON_WARNINGS"):
-        env["CFLAGS"] = "-Werror"
-        env["CXXFLAGS"] = "-Werror"
+        env["CFLAGS"] = env["CXXFLAGS"] = "-Werror"
     if sys.platform == "win32":
-        cpus = os.cpu_count()
         # MP = object level parallelism, WX = warnings as errors
-        env["CFLAGS"] = "/WX /MP{}".format(cpus)
-        env["CXXFLAGS"] = "/WX /MP{}".format(cpus)
+        cpus = os.cpu_count()
+        env["CFLAGS"] = env["CXXFLAGS"] = "/WX /MP{}".format(cpus)
 
     print("\n{} > {}".format(cwd, " ".join(configcmd)), flush=True)
     subprocess.run(configcmd, cwd=cwd, env=env, check=True)

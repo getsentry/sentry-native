@@ -1,8 +1,8 @@
-#include <stdio.h>
-#include <string.h>
-
 #include "sentry_logger.h"
 #include "sentry_options.h"
+
+#include <stdio.h>
+#include <string.h>
 
 #if defined(SENTRY_PLATFORM_ANDROID)
 
@@ -46,9 +46,9 @@ sentry__logger_defaultlogger(
     size_t len = strlen(prefix) + strlen(priority) + strlen(message) + 1;
     char *format = sentry_malloc(len);
 
-    strcpy_s(format, len, prefix);
-    strcat_s(format, len, priority);
-    strcat_s(format, len, message);
+    strncpy(format, prefix, strlen(prefix));
+    strncat(format, priority, strlen(priority));
+    strncat(format, message, strlen(message));
 
     vfprintf(stderr, format, args);
 

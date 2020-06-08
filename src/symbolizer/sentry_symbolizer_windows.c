@@ -24,13 +24,14 @@ sentry__symbolize(
     }
 
     char mod_name[MAX_PATH];
-    GetModuleFileNameA((HMODULE)sym->ModBase, mod_name, sizeof(mod_name));
+    GetModuleFileNameA(
+        (HMODULE)(intptr_t)sym->ModBase, mod_name, sizeof(mod_name));
 
     sentry_frame_info_t frame_info;
     memset(&frame_info, 0, sizeof(sentry_frame_info_t));
-    frame_info.load_addr = (void *)sym->ModBase;
+    frame_info.load_addr = (void *)(intptr_t)sym->ModBase;
     frame_info.instruction_addr = addr;
-    frame_info.symbol_addr = (void *)sym->Address;
+    frame_info.symbol_addr = (void *)(intptr_t)sym->Address;
     frame_info.symbol = sym->Name;
     frame_info.object_name = mod_name;
     func(&frame_info, data);
