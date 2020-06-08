@@ -10,6 +10,8 @@
 #    define MAP_ANONYMOUS MAP_ANON
 #endif
 
+#define ALIGN 8
+
 struct page_header;
 struct page_header {
     struct page_header *next;
@@ -80,6 +82,10 @@ sentry__page_allocator_alloc(size_t size)
     if (!size) {
         return NULL;
     }
+
+    // make sure the requested size is correctly aligned
+    size_t diff = size % ALIGN;
+    size = size + ALIGN - diff;
 
     char *rv = NULL;
 

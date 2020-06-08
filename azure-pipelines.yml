@@ -30,10 +30,13 @@ stages:
               CC: clang-9
               CXX: clang++-9
               CFLAGS: -Werror
-              CXXFlags: -Werror
-              SCAN_BUILD: 1
+              CXXFLAGS: -Werror
+              # TODO: install `clang-tools`
+              #SCAN_BUILD: 1
             macOS:
               vmImage: "macOs-latest"
+              CFLAGS: -Werror
+              CXXFLAGS: -Werror
             Windows (VS2017, 32bit):
               vmImage: "vs2017-win2016"
               TEST_X86: 1
