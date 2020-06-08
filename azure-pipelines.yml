@@ -106,6 +106,7 @@ stages:
   - stage: package
     displayName: Create Release Archive
     dependsOn: test
+    condition: variables['ZEUS_HOOK_BASE']
     jobs:
       - job:
         pool:
