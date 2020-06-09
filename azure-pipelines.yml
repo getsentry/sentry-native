@@ -55,7 +55,7 @@ stages:
             Android (API 29 NDK 21):
               vmImage: "macOs-latest"
               ANDROID_API: 29
-              ANDROID_NDK: 21.0.6113669
+              ANDROID_NDK: 21.2.6472646
         pool:
           vmImage: $(vmImage)
         steps:
