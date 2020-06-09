@@ -204,13 +204,12 @@ sentry__symbolize_stacktrace(sentry_value_t stacktrace)
         }
 
         // The addr is saved as a hex-number inside the value.
-        uint64_t addr
-            = (uint64_t)strtoll(sentry_value_as_string(addr_value), NULL, 0);
+        size_t addr
+            = (size_t)strtoll(sentry_value_as_string(addr_value), NULL, 0);
         if (!addr) {
             continue;
         }
-        sentry__symbolize(
-            (void *)(size_t)addr, sentry__symbolize_frame, &frame);
+        sentry__symbolize((void *)addr, sentry__symbolize_frame, &frame);
     }
 }
 

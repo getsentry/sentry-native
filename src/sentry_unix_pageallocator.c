@@ -102,17 +102,18 @@ sentry__page_allocator_alloc(size_t size)
         }
     } else {
         // allocate new pages
+
+        size_t requested_size = size + sizeof(struct page_header);
         size_t pages
-            = (size + sizeof(struct page_header) + g_alloc->page_size - 1)
-            / g_alloc->page_size;
+            = (requested_size + g_alloc->page_size - 1) / g_alloc->page_size;
+        size_t actual_size = g_alloc->page_size * pages;
+
         rv = get_pages(pages);
 
         if (rv) {
+            size_t diff = actual_size - requested_size;
             g_alloc->page_offset
-                = (g_alloc->page_size
-                      - (g_alloc->page_size * pages
-                          - (size + sizeof(struct page_header))))
-                % g_alloc->page_size;
+                = (g_alloc->page_size - diff) % g_alloc->page_size;
             g_alloc->current_page = g_alloc->page_offset
                 ? rv + g_alloc->page_size * (pages - 1)
                 : NULL;
