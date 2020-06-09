@@ -311,7 +311,7 @@ sentry__procmaps_module_to_value(const sentry_module_t *module)
     sentry_value_t mod_val = sentry_value_new_object();
     sentry_value_set_by_key(mod_val, "type", sentry_value_new_string("elf"));
     sentry_value_set_by_key(mod_val, "image_addr",
-        sentry__value_new_addr((uint64_t)(intptr_t)module->start));
+        sentry__value_new_addr((uint64_t)(size_t)module->start));
     sentry_value_set_by_key(mod_val, "image_size",
         sentry_value_new_int32(
             (int32_t)((size_t)module->end - (size_t)module->start)));
