@@ -71,6 +71,14 @@ invoke_signal_handler(int signum, siginfo_t *info, void *user_context)
 static void
 startup_inproc_backend(sentry_backend_t *UNUSED(backend))
 {
+    g_signal_stack.ss_sp = sentry_malloc(SIGNAL_STACK_SIZE);
+    g_signal_stack.ss_size = SIGNAL_STACK_SIZE;
+    g_signal_stack.ss_flags = 0;
+    memset(g_previous_handlers, 0, sizeof(g_previous_handlers));
+    sigemptyset(&g_sigaction.sa_mask);
+    g_sigaction.sa_sigaction = handle_signal;
+    g_sigaction.sa_flags = SA_SIGINFO | SA_ONSTACK;
+
     sigaltstack(&g_signal_stack, 0);
 
     for (size_t i = 0; i < SIGNAL_COUNT; ++i) {
@@ -84,6 +92,14 @@ startup_inproc_backend(sentry_backend_t *UNUSED(backend))
     for (size_t i = 0; i < SIGNAL_COUNT; ++i) {
         sigaction(SIGNAL_DEFINITIONS[i].signum, &g_sigaction, NULL);
     }
+}
+
+static void
+shutdown_inproc_backend(sentry_backend_t *UNUSED(backend))
+{
+    g_signal_stack.ss_flags = SS_DISABLE;
+    sigaltstack(&g_signal_stack, 0);
+    sentry_free(g_signal_stack.ss_sp);
 }
 
 static sentry_value_t
@@ -213,14 +229,6 @@ handle_except(sentry_backend_t *UNUSED(backend), const sentry_ucontext_t *uctx)
     handle_ucontext(uctx);
 }
 
-static void
-free_backend(sentry_backend_t *UNUSED(backend))
-{
-    g_signal_stack.ss_flags = SS_DISABLE;
-    sigaltstack(&g_signal_stack, 0);
-    sentry_free(g_signal_stack.ss_sp);
-}
-
 sentry_backend_t *
 sentry__backend_new(void)
 {
@@ -229,18 +237,10 @@ sentry__backend_new(void)
         return NULL;
     }
 
-    g_signal_stack.ss_sp = sentry_malloc(SIGNAL_STACK_SIZE);
-    g_signal_stack.ss_size = SIGNAL_STACK_SIZE;
-    g_signal_stack.ss_flags = 0;
-    memset(g_previous_handlers, 0, sizeof(g_previous_handlers));
-    sigemptyset(&g_sigaction.sa_mask);
-    g_sigaction.sa_sigaction = handle_signal;
-    g_sigaction.sa_flags = SA_SIGINFO | SA_ONSTACK;
-
     backend->startup_func = startup_inproc_backend;
-    backend->shutdown_func = NULL;
+    backend->shutdown_func = shutdown_inproc_backend;
     backend->except_func = handle_except;
-    backend->free_func = free_backend;
+    backend->free_func = NULL;
     backend->flush_scope_func = NULL;
     backend->add_breadcrumb_func = NULL;
     backend->user_consent_changed_func = NULL;
