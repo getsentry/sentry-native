@@ -147,6 +147,9 @@ using `cmake -D BUILD_SHARED_LIBS=OFF ..`.
 - `SENTRY_PIC` (Default: ON):
   By default, `sentry` is built as a position independent library.
 
+- `SENTRY_BUILD_RUNTIMESTATIC` (Default: OFF):
+  Enables linking with the static MSVC runtime. Has no effect if the compiler is not MSVC.
+
 - `CMAKE_SYSTEM_VERSION`: (Default: depending on Windows SDK version):
   Sets up a minimal version of Windows where sentry-native can be guaranteed to run.
   Possible values:
