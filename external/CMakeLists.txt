@@ -43,6 +43,26 @@ if (ANDROID)
         breakpad/src/common/android/breakpad_getcontext.S
     )
 endif()
+if( WIN32 )
+    list(APPEND BREAKPAD_SOURCES
+        breakpad/src/common/windows/guid_string.cc
+        breakpad/src/common/windows/http_upload.cc
+        breakpad/src/common/windows/string_utils.cc
+        breakpad/src/client/windows/crash_generation/client_info.cc
+        breakpad/src/client/windows/crash_generation/crash_generation_server.cc
+        breakpad/src/client/windows/crash_generation/crash_generation_client.cc
+        breakpad/src/client/windows/handler/exception_handler.cc
+        breakpad/src/client/windows/sender/crash_report_sender.cc
+        breakpad/src/processor/basic_code_modules.cc
+        breakpad/src/processor/convert_old_arm64_context.cc
+        breakpad/src/processor/dump_context.cc
+        breakpad/src/processor/dump_object.cc
+        breakpad/src/processor/logging.cc
+        breakpad/src/processor/minidump.cc
+        breakpad/src/processor/pathname_stripper.cc
+        breakpad/src/processor/proc_maps_linux.cc
+    )
+endif()
 
 add_library(breakpad_client STATIC ${BREAKPAD_SOURCES})
 set_property(TARGET breakpad_client PROPERTY POSITION_INDEPENDENT_CODE ON)
@@ -55,3 +75,7 @@ target_include_directories(breakpad_client
 	PUBLIC
 		"$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>"
 )
+if(WIN32)
+    target_compile_definitions(breakpad_client PRIVATE -DUNICODE)
+    target_link_libraries(breakpad_client psapi)
+endif()
