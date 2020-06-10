@@ -80,7 +80,12 @@ endif()
 
 if(WIN32)
     target_sources(breakpad_client PRIVATE ${BREAKPAD_SOURCES_COMMON_WINDOWS} ${BREAKPAD_SOURCES_CLIENT_WINDOWS})
-	target_compile_definitions(breakpad_client PRIVATE _UNICODE)
+    target_compile_definitions(breakpad_client PRIVATE _UNICODE)
+
+    # set static runtime if enabled
+    if(SENTRY_BUILD_RUNTIMESTATIC AND MSVC)
+        set_property(TARGET breakpad_client PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+    endif()
 endif()
 
 # breakpad has includes directly to `third_party/lss/...`,
