@@ -254,18 +254,18 @@ sentry__cond_wait_timeout(
         *(Mutex) = tmp;                                                        \
     } while (0)
 
-static inline int
-sentry__atomic_fetch_and_add(volatile int *val, int diff)
+static inline long
+sentry__atomic_fetch_and_add(volatile long *val, long diff)
 {
 #ifdef SENTRY_PLATFORM_WINDOWS
-    return (int)InterlockedExchangeAdd((volatile LONG *)val, (LONG)diff);
+    return InterlockedExchangeAdd(val, diff);
 #else
     return __sync_fetch_and_add(val, diff);
 #endif
 }
 
-static inline int
-sentry__atomic_fetch(volatile int *val)
+static inline long
+sentry__atomic_fetch(volatile long *val)
 {
     return sentry__atomic_fetch_and_add(val, 0);
 }

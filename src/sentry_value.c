@@ -40,7 +40,7 @@
 
 typedef struct {
     void *payload;
-    int refcount;
+    long refcount;
     char type;
 } thing_t;
 
