@@ -161,7 +161,6 @@ sentry__url_parse(sentry_url_t *url_out, const char *url)
         tmp = ptr;
         SKIP_WHILE_NOT(tmp, 0);
         url_out->fragment = sentry__string_clonen(ptr, tmp - ptr);
-        ptr = tmp;
     }
 
     if (url_out->port == 0) {

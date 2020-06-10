@@ -152,8 +152,8 @@ sentry__string_to_wstr(const char *s)
 size_t
 sentry__unichar_to_utf8(uint32_t c, char *buf)
 {
-    size_t i, len;
-    int first;
+    size_t i, len = 1;
+    uint32_t first;
 
     if (c < 0x80) {
         first = 0;
@@ -172,9 +172,9 @@ sentry__unichar_to_utf8(uint32_t c, char *buf)
     }
 
     for (i = len - 1; i > 0; --i) {
-        buf[i] = (c & 0x3f) | 0x80;
+        buf[i] = (char)(c & 0x3f) | 0x80;
         c >>= 6;
     }
-    buf[0] = c | first;
+    buf[0] = (char)(c | first);
     return len;
 }

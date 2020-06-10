@@ -175,13 +175,13 @@ sentry__symbolize_frame(const sentry_frame_info_t *info, void *data)
         && sentry_value_is_null(
             sentry_value_get_by_key(frame, "symbol_addr"))) {
         sentry_value_set_by_key(frame, "symbol_addr",
-            sentry__value_new_addr((uint64_t)info->symbol_addr));
+            sentry__value_new_addr((uint64_t)(size_t)info->symbol_addr));
     }
 
     if (info->load_addr
         && sentry_value_is_null(sentry_value_get_by_key(frame, "image_addr"))) {
         sentry_value_set_by_key(frame, "image_addr",
-            sentry__value_new_addr((uint64_t)info->load_addr));
+            sentry__value_new_addr((uint64_t)(size_t)info->load_addr));
     }
 }
 
@@ -204,8 +204,8 @@ sentry__symbolize_stacktrace(sentry_value_t stacktrace)
         }
 
         // The addr is saved as a hex-number inside the value.
-        uint64_t addr
-            = (uint64_t)strtoll(sentry_value_as_string(addr_value), NULL, 0);
+        size_t addr
+            = (size_t)strtoll(sentry_value_as_string(addr_value), NULL, 0);
         if (!addr) {
             continue;
         }

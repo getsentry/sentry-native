@@ -218,6 +218,16 @@ if(MSVC)
 		set(CMAKE_ASM_MASM_FLAGS "${CMAKE_ASM_MASM_FLAGS} /safeseh")
 	endif()
 
+	# using `/Wall` is not feasible, as it spews tons of warnings from windows headers
+	target_compile_options(sentry PRIVATE $<BUILD_INTERFACE:/W4>)
+	# ignore all warnings for mpack
+	set_source_files_properties(
+		"${PROJECT_SOURCE_DIR}/vendor/mpack.c"
+		PROPERTIES
+		COMPILE_FLAGS
+		"/W0"
+	)
+
 	# set static runtime if enabled
 	if(SENTRY_BUILD_RUNTIMESTATIC)
 		set_property(TARGET sentry PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")

@@ -92,7 +92,10 @@ def cmake(cwd, targets, options=None):
                 "ANDROID_NATIVE_API_LEVEL": os.environ["ANDROID_API"],
             }
         )
-    configcmd = ["cmake"]
+    cmake = ["cmake"]
+    if os.environ.get("SCAN_BUILD"):
+        cmake = ["scan-build", "cmake"]
+    configcmd = [*cmake]
     for key, value in options.items():
         configcmd.append("-D{}={}".format(key, value))
     if sys.platform == "win32" and os.environ.get("TEST_X86"):
@@ -101,10 +104,20 @@ def cmake(cwd, targets, options=None):
     cmakelists_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
     configcmd.append(cmakelists_dir)
 
-    print("\n{} > {}".format(cwd, " ".join(configcmd)), flush=True)
-    subprocess.run(configcmd, cwd=cwd, check=True)
+    # we have to set `-Werror` for this cmake invocation only, otherwise
+    # completely unrelated things will break
+    env = dict(os.environ)
+    if os.environ.get("ERROR_ON_WARNINGS"):
+        env["CFLAGS"] = env["CXXFLAGS"] = "-Werror"
+    if sys.platform == "win32":
+        # MP = object level parallelism, WX = warnings as errors
+        cpus = os.cpu_count()
+        env["CFLAGS"] = env["CXXFLAGS"] = "/WX /MP{}".format(cpus)
 
-    buildcmd = ["cmake", "--build", ".", "--parallel"]
+    print("\n{} > {}".format(cwd, " ".join(configcmd)), flush=True)
+    subprocess.run(configcmd, cwd=cwd, env=env, check=True)
+
+    buildcmd = [*cmake, "--build", ".", "--parallel"]
     for target in targets:
         buildcmd.extend(["--target", target])
     print("{} > {}".format(cwd, " ".join(buildcmd)), flush=True)

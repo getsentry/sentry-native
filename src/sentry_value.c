@@ -6,13 +6,15 @@
 #include <string.h>
 #include <time.h>
 
-#ifdef __GNUC__
-#    pragma GCC diagnostic push
-#    pragma GCC diagnostic ignored "-Wstatic-in-inline"
+#if defined(_MSC_VER)
+#    pragma warning(push)
+#    pragma warning(disable : 4127) // conditional expression is constant
 #endif
+
 #include "../vendor/mpack.h"
-#ifdef __GNUC__
-#    pragma GCC diagnostic pop
+
+#if defined(_MSC_VER)
+#    pragma warning(pop)
 #endif
 
 #include "sentry_alloc.h"
@@ -38,7 +40,7 @@
 
 typedef struct {
     void *payload;
-    int refcount;
+    long refcount;
     char type;
 } thing_t;
 
@@ -185,8 +187,8 @@ new_thing_value(void *ptr, int thing_type)
 
     thing->payload = ptr;
     thing->refcount = 1;
-    thing->type = thing_type;
-    rv._bits = (((uint64_t)thing) >> 2) | TAG_THING;
+    thing->type = (char)thing_type;
+    rv._bits = (((uint64_t)(size_t)thing) >> 2) | TAG_THING;
     return rv;
 }
 
@@ -196,7 +198,7 @@ value_as_thing(sentry_value_t value)
     if (value._bits <= MAX_DOUBLE) {
         return NULL;
     } else if ((value._bits & TAG_THING) == TAG_THING) {
-        return (thing_t *)((value._bits << 2) & ~TAG_THING);
+        return (thing_t *)(size_t)((value._bits << 2) & ~TAG_THING);
     } else {
         return NULL;
     }
@@ -960,7 +962,7 @@ sentry_event_value_add_stacktrace(sentry_value_t event, void **ips, size_t len)
     for (size_t i = 0; i < len; i++) {
         sentry_value_t frame = sentry_value_new_object();
         sentry_value_set_by_key(frame, "instruction_addr",
-            sentry__value_new_addr((uint64_t)ips[len - i - 1]));
+            sentry__value_new_addr((uint64_t)(size_t)ips[len - i - 1]));
         sentry_value_append(frames, frame);
     }
 

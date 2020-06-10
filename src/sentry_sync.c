@@ -64,7 +64,12 @@ shutdown_task(void *data)
 #    define UNSIGNED_MINGW
 #endif
 
-static UNSIGNED_MINGW int THREAD_FUNCTION_API
+// pthreads use `void *` return types, whereas windows uses `DWORD`
+#ifdef SENTRY_PLATFORM_WINDOWS
+static UNSIGNED_MINGW DWORD THREAD_FUNCTION_API
+#else
+static void *
+#endif
 worker_thread(void *data)
 {
     sentry_bgworker_t *bgw = data;

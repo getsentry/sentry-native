@@ -1,8 +1,8 @@
-#include <stdio.h>
-#include <string.h>
-
 #include "sentry_logger.h"
 #include "sentry_options.h"
+
+#include <stdio.h>
+#include <string.h>
 
 #if defined(SENTRY_PLATFORM_ANDROID)
 
@@ -43,11 +43,19 @@ sentry__logger_defaultlogger(
     const char *prefix = "[sentry] ";
     const char *priority = sentry__logger_describe(level);
 
-    char *format = sentry_malloc(
-        strlen(prefix) + strlen(priority) + strlen(message) + 1);
-    strcpy(format, prefix);
-    strcat(format, priority);
-    strcat(format, message);
+    size_t len = strlen(prefix) + strlen(priority) + strlen(message) + 1;
+    char *format = sentry_malloc(len);
+
+    // Some compilers/tools, such as MSVC warn for using `strcpy` and friends.
+    // However, there are not really any good alternatives:
+    // * `strcpy_s` is only available on Windows
+    // * `strlcpy` is apparently a BSD thing
+    // * `strscpy` is a linux kernel thing
+    // * `strncpy` is not really a good choice either, but tools do not mark it
+    //   as "unsafe".
+    strncpy(format, prefix, strlen(prefix));
+    strncat(format, priority, strlen(priority));
+    strncat(format, message, strlen(message));
 
     vfprintf(stderr, format, args);
 
