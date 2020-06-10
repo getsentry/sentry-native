@@ -159,14 +159,14 @@ task_exec_func(void *data)
         sentry__stringbuilder_append(&sb, "\r\n");
     }
 
-    char *buf = sentry__stringbuilder_into_string(&sb);
-    wchar_t *headers = sentry__string_to_wstr(buf);
-    sentry_free(buf);
+    char *headers_buf = sentry__stringbuilder_into_string(&sb);
+    wchar_t *headers = sentry__string_to_wstr(headers_buf);
+    sentry_free(headers_buf);
 
     SENTRY_TRACEF(
         "sending request using winhttp to \"%s\":\n%S", req->url, headers);
 
-    if (WinHttpSendRequest(request, headers, -1, (LPVOID)req->body,
+    if (WinHttpSendRequest(request, headers, (DWORD)-1, (LPVOID)req->body,
             (DWORD)req->body_len, (DWORD)req->body_len, 0)) {
         WinHttpReceiveResponse(request, NULL);
 

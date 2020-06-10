@@ -2,6 +2,7 @@
 #define SENTRY_SYNC_H_INCLUDED
 
 #include "sentry_boot.h"
+#include "sentry_core.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -121,7 +122,8 @@ struct sentry__winmutex_s {
 };
 
 static inline BOOL CALLBACK
-sentry__winmutex_init(PINIT_ONCE InitOnce, PVOID cs, PVOID *lpContext)
+sentry__winmutex_init(
+    PINIT_ONCE UNUSED(InitOnce), PVOID cs, PVOID *UNUSED(lpContext))
 {
     InitializeCriticalSection(cs);
     return TRUE;
@@ -226,9 +228,7 @@ typedef pthread_cond_t sentry_cond_t;
         } while (0)
 #    define sentry__cond_wake pthread_cond_signal
 #    define sentry__thread_spawn(ThreadId, Func, Data)                         \
-        (pthread_create(ThreadId, NULL, (void *(*)(void *))Func, Data) == 0    \
-                ? 0                                                            \
-                : 1)
+        (pthread_create(ThreadId, NULL, Func, Data) == 0 ? 0 : 1)
 #    define sentry__thread_join(ThreadId) pthread_join(ThreadId, NULL)
 #    define sentry__threadid_equal pthread_equal
 #    define sentry__current_thread pthread_self
@@ -254,8 +254,8 @@ sentry__cond_wait_timeout(
         *(Mutex) = tmp;                                                        \
     } while (0)
 
-static inline int
-sentry__atomic_fetch_and_add(volatile int *val, int diff)
+static inline long
+sentry__atomic_fetch_and_add(volatile long *val, long diff)
 {
 #ifdef SENTRY_PLATFORM_WINDOWS
     return InterlockedExchangeAdd(val, diff);
@@ -264,8 +264,8 @@ sentry__atomic_fetch_and_add(volatile int *val, int diff)
 #endif
 }
 
-static inline int
-sentry__atomic_fetch(volatile int *val)
+static inline long
+sentry__atomic_fetch(volatile long *val)
 {
     return sentry__atomic_fetch_and_add(val, 0);
 }

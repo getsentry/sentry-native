@@ -14,8 +14,10 @@
 #    define MUST_USE
 #endif
 
-#ifdef __GNUC__
+#if defined(__GNUC__)
 #    define UNUSED(x) UNUSED_##x __attribute__((__unused__))
+#elif defined(_MSC_VER)
+#    define UNUSED(x) UNUSED_##x __pragma(warning(suppress : 4100))
 #else
 #    define UNUSED(x) UNUSED_##x
 #endif

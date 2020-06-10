@@ -29,8 +29,12 @@ stages:
               vmImage: "ubuntu-latest"
               CC: clang-9
               CXX: clang++-9
+              ERROR_ON_WARNINGS: 1
+              # TODO: install `clang-tools`
+              #SCAN_BUILD: 1
             macOS:
               vmImage: "macOs-latest"
+              ERROR_ON_WARNINGS: 1
             Windows (VS2017, 32bit):
               vmImage: "vs2017-win2016"
               TEST_X86: 1
@@ -51,7 +55,7 @@ stages:
             Android (API 29 NDK 21):
               vmImage: "macOs-latest"
               ANDROID_API: 29
-              ANDROID_NDK: 21.0.6113669
+              ANDROID_NDK: 21.2.6472646
         pool:
           vmImage: $(vmImage)
         steps:

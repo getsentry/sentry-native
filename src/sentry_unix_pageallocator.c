@@ -10,6 +10,8 @@
 #    define MAP_ANONYMOUS MAP_ANON
 #endif
 
+#define ALIGN 8
+
 struct page_header;
 struct page_header {
     struct page_header *next;
@@ -81,10 +83,15 @@ sentry__page_allocator_alloc(size_t size)
         return NULL;
     }
 
+    // make sure the requested size is correctly aligned
+    size_t diff = size % ALIGN;
+    size = size + ALIGN - diff;
+
     char *rv = NULL;
 
     sentry__spinlock_lock(&g_lock);
 
+    // current page is large enough
     if (g_alloc->current_page
         && g_alloc->page_size - g_alloc->page_offset >= size) {
         rv = g_alloc->current_page + g_alloc->page_offset;
@@ -93,21 +100,25 @@ sentry__page_allocator_alloc(size_t size)
             g_alloc->page_offset = 0;
             g_alloc->current_page = NULL;
         }
-    }
+    } else {
+        // allocate new pages
 
-    size_t pages = (size + sizeof(struct page_header) + g_alloc->page_size - 1)
-        / g_alloc->page_size;
-    rv = get_pages(pages);
+        size_t requested_size = size + sizeof(struct page_header);
+        size_t pages
+            = (requested_size + g_alloc->page_size - 1) / g_alloc->page_size;
+        size_t actual_size = g_alloc->page_size * pages;
 
-    if (rv) {
-        g_alloc->page_offset = (g_alloc->page_size
-                                   - (g_alloc->page_size * pages
-                                       - (size + sizeof(struct page_header))))
-            % g_alloc->page_size;
-        g_alloc->current_page = g_alloc->page_offset
-            ? rv + g_alloc->page_size * (pages - 1)
-            : NULL;
-        rv += sizeof(struct page_header);
+        rv = get_pages(pages);
+
+        if (rv) {
+            size_t diff = actual_size - requested_size;
+            g_alloc->page_offset
+                = (g_alloc->page_size - diff) % g_alloc->page_size;
+            g_alloc->current_page = g_alloc->page_offset
+                ? rv + g_alloc->page_size * (pages - 1)
+                : NULL;
+            rv += sizeof(struct page_header);
+        }
     }
 
     sentry__spinlock_unlock(&g_lock);

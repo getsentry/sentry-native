@@ -1,4 +1,4 @@
-#include "sentry.h"
+#include "sentry_boot.h"
 
 void sentry__logger_defaultlogger(
     sentry_level_t level, const char *message, va_list args);
