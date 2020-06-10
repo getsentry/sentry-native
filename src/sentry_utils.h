@@ -119,7 +119,26 @@ static inline uint64_t
 sentry__monotonic_time(void)
 {
 #ifdef SENTRY_PLATFORM_WINDOWS
-    return GetTickCount64();
+    static int64_t qpc_frequency = 0;
+    int64_t qpc_counter = 0;
+
+    if (!qpc_frequency) {
+        QueryPerformanceFrequency(&qpc_frequency);
+    }
+
+    // Fallback to GetTickCount() on QPC fail
+    if (!qpc_frequency) {
+#    if _WIN32_WINNT >= 0x0600
+        return GetTickCount64();
+#    else
+        return GetTickCount();
+#    endif
+    }
+
+    QueryPerformanceCounter(&qpc_counter);
+    qpc_counter *= 1000;
+    qpc_counter /= qpc_frequency;
+    return qpc_counter;
 #else
     struct timespec tv;
     return (clock_gettime(CLOCK_MONOTONIC, &tv) == 0)
