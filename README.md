@@ -146,6 +146,9 @@ using `cmake -D BUILD_SHARED_LIBS=OFF ..`.
 
 - `SENTRY_PIC` (Default: ON):
   By default, `sentry` is built as a position independent library.
+  
+- `SENTRY_EXPORT_SYMBOLS` (Default: ON):
+  By default, `sentry` exposes all symbols in the dynamic symbol table. You might want to disable it in case the program intends to `dlopen` third-party shared libraries and avoid symbol collisions.
 
 - `CMAKE_SYSTEM_VERSION`: (Default: depending on Windows SDK version):
   Sets up a minimal version of Windows where sentry-native can be guaranteed to run.
@@ -200,9 +203,6 @@ Legend:
 - ☑ default
 - ✓ supported
 - unsupported
-
-- `SENTRY_EXPORT_SYMBOLS` (Default: ON):
-  By default, `sentry` exposes all symbols in the dynamic symbol table. You might want to disable it in case the program intends to `dlopen` third-party shared libraries and avoid symbol collisions.
 
 ### Build Targets
 
