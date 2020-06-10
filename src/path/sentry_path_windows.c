@@ -362,10 +362,10 @@ sentry__path_create_dir_all(const sentry_path_t *path)
     memcpy(p, path->path, len * sizeof(wchar_t));
 
     for (ptr = p; *ptr; ptr++) {
-        if (*ptr == '\\' && ptr != p) {
+        if ((*ptr == L'\\' || *ptr == L'/') && ptr != p) {
             *ptr = 0;
             _TRY_MAKE_DIR;
-            *ptr = '\\';
+            *ptr = L'\\';
         }
     }
     _TRY_MAKE_DIR;

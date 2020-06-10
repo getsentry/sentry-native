@@ -110,6 +110,7 @@ stages:
   - stage: package
     displayName: Create Release Archive
     dependsOn: test
+    condition: eq(variables['System.PullRequest.IsFork'], 'False')
     jobs:
       - job:
         pool:
@@ -140,3 +141,8 @@ stages:
             displayName: Publish source archive to Azure
             inputs:
               pathtoPublish: "$(Build.ArtifactStagingDirectory)/sentry-native-source.zip"
+          - script: |
+              npx -p "@zeus-ci/cli" zeus job update --build $(Build.BuildId) --job $(System.JobId) --ref $(Build.SourceVersion) --build-label "$(Build.BuildNumber)" --job-label "$(System.JobDisplayName)" --status passed
+              npx -p "@zeus-ci/cli" zeus upload --build $(Build.BuildId) --job $(System.JobId) --type "application/zip" --name "sentry-native.zip" "$(Build.ArtifactStagingDirectory)/sentry-native-source.zip"
+            env:
+              ZEUS_HOOK_BASE: $(ZEUS_HOOK_BASE)
