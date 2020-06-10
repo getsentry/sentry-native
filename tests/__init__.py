@@ -18,13 +18,7 @@ def make_dsn(httpserver, auth="uiaeosnrtdy", id=123456):
     # after a timeout of 2 seconds, falling back to the ipv4 loopback instead.
     host = url.netloc.replace("localhost", "127.0.0.1")
     return urllib.parse.urlunsplit(
-        (
-            url.scheme,
-            "{}@{}".format(auth, host),
-            url.path,
-            url.query,
-            url.fragment,
-        )
+        (url.scheme, "{}@{}".format(auth, host), url.path, url.query, url.fragment,)
     )
 
 
