@@ -151,7 +151,16 @@ SENTRY_TEST(path_directory)
     sentry_path_t *path_2 = sentry__path_from_str("foo/bar");
 #ifdef SENTRY_PLATFORM_WINDOWS
     sentry_path_t *path_3 = sentry__path_from_str("foo/bar\\baz");
+
+    // %TEMP%\\sentry_test_unit\\ 
+    wchar_t temp_folder[MAX_PATH];
+    GetEnvironmentVariableW(L"TEMP", temp_folder, sizeof(temp_folder));
+    sentry_path_t *path_4 = sentry__path_from_wstr(temp_folder);
+    path_4 = sentry__path_join_str(path_4, "sentry_test_unit");
 #endif
+
+    // cleanup before tests
+    sentry__path_remove_all(path_1);
 
     // create single directory
     sentry__path_create_dir_all(path_1);
@@ -167,14 +176,22 @@ SENTRY_TEST(path_directory)
     sentry__path_remove_all(path_2);
     TEST_CHECK(!sentry__path_is_dir(path_2));
 
-    // create directories by path with forward slash and backward slashes
 #ifdef SENTRY_PLATFORM_WINDOWS
+    // create directories by path with forward slash and backward slashes
     sentry__path_create_dir_all(path_3);
     TEST_CHECK(sentry__path_is_dir(path_3));
 
     sentry__path_remove_all(path_3);
     TEST_CHECK(!sentry__path_is_dir(path_3));
     sentry__path_free(path_3);
+
+    // create directories with absolute path
+    sentry__path_create_dir_all(path_4);
+    TEST_CHECK(sentry__path_is_dir(path_4));
+
+    sentry__path_remove_all(path_4);
+    TEST_CHECK(!sentry__path_is_dir(path_4));
+    sentry__path_free(path_4);
 #endif
 
     sentry__path_free(path_1);
