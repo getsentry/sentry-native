@@ -126,8 +126,12 @@ sentry_shutdown(void)
             // TODO: make this configurable
             // Ideally, it should default to 2s as per
             // https://docs.sentry.io/error-reporting/configuration/?platform=rust#shutdown-timeout
-            // but we hit that timeout in our own integration tests, so rather
-            // increase it to 5s, as it was before.
+            // but we hit that timeout in our own integration tests on windows,
+            // because the *first* `WinHttpSendRequest` consistently takes
+            // exactly 2000ms in local testing, with subsequent requests being
+            // essentially instant.
+            // So increase this to 5s, which is enough to pass integration
+            // tests on windows.
             if (!sentry__transport_shutdown(options->transport, 5000)) {
                 SENTRY_DEBUG("transport did not shut down cleanly");
             }

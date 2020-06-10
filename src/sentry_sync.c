@@ -128,8 +128,7 @@ sentry__bgworker_shutdown(sentry_bgworker_t *bgw, uint64_t timeout)
     /* submit a task to shut down the queue */
     sentry__bgworker_submit(bgw, shutdown_task, NULL, bgw);
 
-    /* TODO: this is dangerous and should be monotonic time */
-    uint64_t started = sentry__msec_time();
+    uint64_t started = sentry__monotonic_time();
     while (true) {
         sentry__mutex_lock(&bgw->task_lock);
         bool done = bgw->task_count == 0 && !bgw->running;
@@ -142,7 +141,7 @@ sentry__bgworker_shutdown(sentry_bgworker_t *bgw, uint64_t timeout)
         sentry__cond_wait_timeout(
             &bgw->done_signal, &bgw->done_signal_lock, 250);
         sentry__mutex_unlock(&bgw->done_signal_lock);
-        uint64_t now = sentry__msec_time();
+        uint64_t now = sentry__monotonic_time();
         if (now > started && now - started > timeout) {
             return 1;
         }

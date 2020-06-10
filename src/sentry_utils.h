@@ -109,6 +109,25 @@ sentry__msec_time(void)
 }
 
 /**
+ * Returns a monotonic millisecond resolution time.
+ *
+ * This should be used for timeouts and similar.
+ * For timestamps, use `sentry__msec_time` instead.
+ */
+static inline uint64_t
+sentry__monotonic_time(void)
+{
+#ifdef SENTRY_PLATFORM_WINDOWS
+    return GetTickCount64();
+#else
+    struct timespec tv;
+    return (clock_gettime(CLOCK_MONOTONIC, &tv) == 0)
+        ? (uint64_t)tv.tv_sec * 1000 + tv.tv_nsec / 1000000
+        : 0;
+#endif
+}
+
+/**
  * Formats a timestamp (milliseconds since epoch) into ISO8601 format.
  */
 char *sentry__msec_time_to_iso8601(uint64_t time);

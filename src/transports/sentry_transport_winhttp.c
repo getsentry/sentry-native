@@ -120,6 +120,8 @@ task_exec_func(void *data)
     struct task_state *ts = data;
     winhttp_transport_state_t *state = ts->transport_state;
 
+    uint64_t started = sentry__monotonic_time();
+
     sentry_prepared_http_request_t *req
         = sentry__prepare_http_request(ts->envelope, state->rl);
     if (!req) {
@@ -226,6 +228,9 @@ task_exec_func(void *data)
     sentry_free(url);
     sentry_free(headers);
     sentry__prepared_http_request_free(req);
+
+    uint64_t now = sentry__monotonic_time();
+    SENTRY_TRACEF("request handled in %llums", now - started);
 }
 
 static void
