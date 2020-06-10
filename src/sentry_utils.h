@@ -7,6 +7,7 @@
 #    include <winnt.h>
 #else
 #    include <sys/time.h>
+#    include <time.h>
 #endif
 
 /**
