@@ -337,7 +337,7 @@ sentry__msec_time_to_iso8601(uint64_t time)
     struct tm tm_buf;
     tm = gmtime_r(&secs, &tm_buf);
 #endif
-    size_t end = strftime(buf, sizeof buf, "%FT%T", tm);
+    size_t end = strftime(buf, sizeof buf, "%Y-%m-%dT%H:%M:%S", tm);
 
     int msecs = time % 1000;
     if (msecs) {
