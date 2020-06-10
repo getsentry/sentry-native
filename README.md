@@ -201,6 +201,9 @@ Legend:
 - ✓ supported
 - unsupported
 
+- `SENTRY_EXPORT_SYMBOLS` (Default: ON):
+  By default, `sentry` exposes all symbols in the dynamic symbol table. You might want to disable it in case the program intends to `dlopen` third-party shared libraries and avoid symbol collisions.
+
 ### Build Targets
 
 - `sentry`: This is the main library and the only default build target.
