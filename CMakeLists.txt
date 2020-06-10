@@ -18,6 +18,10 @@ if(NOT CMAKE_C_STANDARD)
   set(CMAKE_C_STANDARD 11)
 endif()
 
+if(NOT CMAKE_CXX_STANDARD)
+  set(CMAKE_CXX_STANDARD 11)
+endif()
+
 include(GNUInstallDirs)
 set(CMAKE_INSTALL_CMAKEDIR "${CMAKE_INSTALL_LIBDIR}/cmake/sentry")
 
