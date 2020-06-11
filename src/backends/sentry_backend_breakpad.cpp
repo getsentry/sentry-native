@@ -100,8 +100,9 @@ sentry__enforce_breakpad_transport(
 #ifdef SENTRY_PLATFORM_WINDOWS
 static bool
 sentry__breakpad_backend_callback(const wchar_t *breakpad_dump_path,
-    const wchar_t *minidump_id, void *context, EXCEPTION_POINTERS *exinfo,
-    MDRawAssertionInfo *assertion, bool succeeded)
+    const wchar_t *minidump_id, void *UNUSED(context),
+    EXCEPTION_POINTERS *UNUSED(exinfo), MDRawAssertionInfo *UNUSED(assertion),
+    bool succeeded)
 #else
 static bool
 sentry__breakpad_backend_callback(
