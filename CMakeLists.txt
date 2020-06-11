@@ -196,6 +196,10 @@ add_subdirectory(src)
 
 set_target_properties(sentry PROPERTIES PUBLIC_HEADER "include/sentry.h")
 
+# check size type
+include(CheckTypeSize)
+check_type_size("long" CMAKE_SIZEOF_LONG)
+
 # https://gitlab.kitware.com/cmake/cmake/issues/18393
 if(BUILD_SHARED_LIBS)
 	if(APPLE)
@@ -211,6 +215,7 @@ if(BUILD_SHARED_LIBS)
 else()
 	target_compile_definitions(sentry PUBLIC SENTRY_BUILD_STATIC)
 endif()
+target_compile_definitions(sentry PRIVATE SIZEOF_LONG=${CMAKE_SIZEOF_LONG})
 
 if(SENTRY_TRANSPORT_CURL)
 	find_package(CURL REQUIRED)

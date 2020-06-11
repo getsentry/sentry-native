@@ -258,7 +258,11 @@ static inline long
 sentry__atomic_fetch_and_add(volatile long *val, long diff)
 {
 #ifdef SENTRY_PLATFORM_WINDOWS
-    return InterlockedExchangeAdd((unsigned int *)val, diff);
+#    if SIZEOF_LONG == 8
+    return InterlockedExchangeAdd64((LONG64 *)val, diff);
+#    else
+    return InterlockedExchangeAdd((LONG *)val, diff);
+#    endif
 #else
     return __sync_fetch_and_add(val, diff);
 #endif
