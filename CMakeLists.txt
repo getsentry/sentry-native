@@ -261,8 +261,11 @@ target_include_directories(sentry
 # `-E`: To have all symbols in the dynamic symbol table.
 # `--build-id`: To have a build-id in the ELF object.
 # FIXME: cmake 3.13 introduced target_link_options
-target_link_libraries(sentry PUBLIC
-	"$<$<OR:$<PLATFORM_ID:Linux>,$<PLATFORM_ID:Android>>:-Wl,-E,--build-id=sha1>")
+option(SENTRY_EXPORT_SYMBOLS "Export symbols for modulefinder and symbolizer" ON)
+if(SENTRY_EXPORT_SYMBOLS)
+	target_link_libraries(sentry PUBLIC
+		"$<$<OR:$<PLATFORM_ID:Linux>,$<PLATFORM_ID:Android>>:-Wl,-E,--build-id=sha1>")
+endif()
 
 #respect CMAKE_SYSTEM_VERSION
 if(WIN32)
