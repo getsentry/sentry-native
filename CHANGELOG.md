@@ -4,16 +4,16 @@
 
 **Features**:
 
-- Implement a new logger hook ([#267](https://github.com/getsentry/sentry-native/pull/267))
-  This adds the new `sentry_options_set_logger` function, which can be used to
-  customize the sentry-internal logging, for example to integrate into an apps
-  own logging system, or to stream logs to a file.
+- Implement a new logger hook. ([#267](https://github.com/getsentry/sentry-native/pull/267))
+
+  This adds the new `sentry_options_set_logger` function, which can be used to customize the sentry-internal logging, for example to integrate into an app’s own logging system, or to stream logs to a file.
+
 - New CMake options: `SENTRY_LINK_PTHREAD`, `SENTRY_BUILD_RUNTIMESTATIC` and `SENTRY_EXPORT_SYMBOLS` along with other CMake improvements.
 
 **Fixes**:
 
-- Avoid memory unsafety when loading session from disk ([#270](https://github.com/getsentry/sentry-native/pull/270))
-- Flush scope immediately when starting Crashpad Backend ([#272](https://github.com/getsentry/sentry-native/pull/272))
+- Avoid memory unsafety when loading session from disk. ([#270](https://github.com/getsentry/sentry-native/pull/270))
+- Avoid Errors in Crashpad Backend without prior scope changes. ([#272](https://github.com/getsentry/sentry-native/pull/272))
 - Fix absolute paths on Windows, and allow using forward-slashes as directory separators. ([#266](https://github.com/getsentry/sentry-native/pull/266), [#289](https://github.com/getsentry/sentry-native/pull/289))
 - Various fixes uncovered by static analysis tools, notably excessive allocations by the page-allocator used inside signal handlers.
 - Build fixes for MinGW and other compilers.
