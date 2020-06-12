@@ -124,9 +124,9 @@ For your application to generate the appropriate .pdb output, you need to activa
 
 If you use a MSYS2 environement to compile with MinGW, make sure to :
 
--   Create an environement variable `MINGW_ROOT` (ex : `C:/msys64/mingw64`)
--   Run from `mingw64.exe` : `pacman -S --needed - < ./toolchains/msys2-mingw64-pkglist.txt`
--   Build as :
+- Create an environement variable `MINGW_ROOT` (ex : `C:/msys64/mingw64`)
+- Run from `mingw64.exe` : `pacman -S --needed - < ./toolchains/msys2-mingw64-pkglist.txt`
+- Build as :
 
 ```sh
 # Configure with Ninja as generator and use the MSYS2 toolchain file
@@ -146,12 +146,15 @@ using `cmake -D BUILD_SHARED_LIBS=OFF ..`.
 
 - `SENTRY_PIC` (Default: ON):
   By default, `sentry` is built as a position independent library.
-  
+
 - `SENTRY_EXPORT_SYMBOLS` (Default: ON):
   By default, `sentry` exposes all symbols in the dynamic symbol table. You might want to disable it in case the program intends to `dlopen` third-party shared libraries and avoid symbol collisions.
 
 - `SENTRY_BUILD_RUNTIMESTATIC` (Default: OFF):
   Enables linking with the static MSVC runtime. Has no effect if the compiler is not MSVC.
+
+- `SENTRY_LINK_PTHREAD` (Default: ON):
+  Links to the `pthread` library on unix targets.
 
 - `CMAKE_SYSTEM_VERSION`: (Default: depending on Windows SDK version):
   Sets up a minimal version of Windows where sentry-native can be guaranteed to run.
