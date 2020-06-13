@@ -127,6 +127,11 @@ sentry__breakpad_backend_callback(
     dump_path = sentry__path_new(descriptor.path());
 #endif
 
+    // since we can’t use HTTP in crash handlers, we will swap out the
+    // transport here to one that serializes the envelope to disk
+    sentry_transport_t *transport_original = options->transport;
+    sentry__enforce_disk_transport();
+
     // Ending the session will send an envelope, which we *don’t* want to route
     // through the special transport. It will be dumped to disk with the rest of
     // the send queue.
@@ -135,7 +140,7 @@ sentry__breakpad_backend_callback(
     // almost identical to enforcing the disk transport, the breakpad
     // transport will serialize the envelope to disk, but will attach the
     // captured minidump as an additional attachment
-    sentry_transport_t *transport = options->transport;
+    sentry_transport_t *transport_disk = options->transport;
     sentry__enforce_breakpad_transport(options, dump_path);
 
     // after the transport is set up, we will capture an event, which will
@@ -144,9 +149,12 @@ sentry__breakpad_backend_callback(
     sentry_capture_event(event);
 
     // after capturing the crash event, try to dump all the in-flight data of
-    // the previous transport
-    if (transport) {
-        sentry__transport_dump_queue(transport);
+    // the previous transports
+    if (transport_disk) {
+        sentry__transport_dump_queue(transport_disk);
+    }
+    if (transport_original) {
+        sentry__transport_dump_queue(transport_original);
     }
     SENTRY_DEBUG("crash has been captured");
 
