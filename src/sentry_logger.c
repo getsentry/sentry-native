@@ -46,6 +46,8 @@ sentry__logger_defaultlogger(
     size_t len = strlen(prefix) + strlen(priority) + strlen(message) + 1;
     char *format = sentry_malloc(len);
 
+    memset(format, '\0', len);
+
     // Some compilers/tools, such as MSVC warn for using `strcpy` and friends.
     // However, there are not really any good alternatives:
     // * `strcpy_s` is only available on Windows
