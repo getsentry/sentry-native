@@ -211,7 +211,8 @@ sentry_options_get_debug(const sentry_options_t *opts)
 }
 
 void
-sentry_options_set_logger(sentry_options_t *opts, sentry_logger_function_t func, void *data)
+sentry_options_set_logger(
+    sentry_options_t *opts, sentry_logger_function_t func, void *data)
 {
     opts->logger_func = func;
     opts->logger_data = data;
