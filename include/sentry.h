@@ -721,7 +721,7 @@ SENTRY_API int sentry_options_get_debug(const sentry_options_t *opts);
 /**
  * Type of the callback for logger function.
  */
-typedef void(*sentry_logger_function_t)(
+typedef void (*sentry_logger_function_t)(
     sentry_level_t level, const char *message, va_list args, void *userdata);
 
 /**
