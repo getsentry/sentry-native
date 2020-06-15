@@ -719,12 +719,17 @@ SENTRY_API void sentry_options_set_debug(sentry_options_t *opts, int debug);
 SENTRY_API int sentry_options_get_debug(const sentry_options_t *opts);
 
 /**
+ * Type of the callback for logger function.
+ */
+typedef void(*sentry_logger_function_t)(
+    sentry_level_t level, const char *message, va_list args, void *userdata);
+
+/**
  * Sets the sentry-native logger function.
  * Used for logging debug events when the `debug` option is set to true.
  */
-SENTRY_API void sentry_options_set_logger(sentry_options_t *opts,
-    void (*logger_func)(
-        sentry_level_t level, const char *message, va_list args), void *userdata);
+SENTRY_API void sentry_options_set_logger(
+    sentry_options_t *opts, sentry_logger_function_t func, void *userdata);
 
 /**
  * Enables or disables user consent requirements for uploads.

@@ -35,8 +35,8 @@ typedef struct sentry_options_s {
     char *ca_certs;
     sentry_path_t *database_path;
     sentry_path_t *handler_path;
-    void (*logger)(sentry_level_t level, const char *message, va_list args, void *userdata);
-    void *logger_userdata;
+    sentry_logger_function_t logger_func;
+    void *logger_data;
     bool debug;
     bool require_user_consent;
     bool symbolize_stacktraces;
