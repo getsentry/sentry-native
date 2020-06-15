@@ -22,6 +22,7 @@ sentry_options_new(void)
     const char *debug = getenv("SENTRY_DEBUG");
     opts->debug = debug && sentry__string_eq(debug, "1");
     opts->logger = sentry__logger_defaultlogger;
+    opts->logger_userdata = NULL;
 #ifdef SENTRY_PLATFORM_WINDOWS
     opts->release = sentry__string_from_wstr(_wgetenv(L"SENTRY_RELEASE"));
     opts->environment
@@ -212,9 +213,10 @@ sentry_options_get_debug(const sentry_options_t *opts)
 void
 sentry_options_set_logger(sentry_options_t *opts,
     void (*logger_func)(
-        sentry_level_t level, const char *message, va_list args))
+        sentry_level_t level, const char *message, va_list args), void * userdata)
 {
     opts->logger = logger_func;
+    opts->logger_userdata = userdata;
 }
 
 void
