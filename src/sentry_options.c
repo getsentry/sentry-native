@@ -213,7 +213,7 @@ sentry_options_get_debug(const sentry_options_t *opts)
 void
 sentry_options_set_logger(sentry_options_t *opts,
     void (*logger_func)(
-        sentry_level_t level, const char *message, va_list args), void * userdata)
+        sentry_level_t level, const char *message, va_list args), void *userdata)
 {
     opts->logger = logger_func;
     opts->logger_userdata = userdata;
