@@ -442,9 +442,10 @@ sentry_value_remove_by_key(sentry_value_t value, const char *k)
     for (size_t i = 0; i < o->len; i++) {
         obj_pair_t *pair = &o->pairs[i];
         if (sentry__string_eq(pair->k, k)) {
+            sentry_free(pair->k);
+            sentry_value_decref(pair->v);
             memmove(o->pairs + i, o->pairs + i + 1,
                 (o->len - i - 1) * sizeof(o->pairs[0]));
-            sentry_value_decref(pair->v);
             o->len--;
             return 0;
         }

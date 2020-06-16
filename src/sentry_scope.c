@@ -217,8 +217,6 @@ void
 sentry__scope_apply_to_event(
     const sentry_scope_t *scope, sentry_value_t event, sentry_scope_mode_t mode)
 {
-    const sentry_options_t *options = sentry_get_options();
-
 #define IS_NULL(Key) sentry_value_is_null(sentry_value_get_by_key(event, Key))
 #define SET(Key, Value) sentry_value_set_by_key(event, Key, Value)
 #define PLACE_STRING(Key, Source)                                              \
@@ -236,9 +234,13 @@ sentry__scope_apply_to_event(
     } while (0)
 
     PLACE_STRING("platform", "native");
-    PLACE_STRING("release", options->release);
-    PLACE_STRING("dist", options->dist);
-    PLACE_STRING("environment", options->environment);
+
+    const sentry_options_t *options = sentry_get_options();
+    if (options) {
+        PLACE_STRING("release", options->release);
+        PLACE_STRING("dist", options->dist);
+        PLACE_STRING("environment", options->environment);
+    }
 
     if (IS_NULL("level")) {
         SET("level", sentry__value_new_level(scope->level));

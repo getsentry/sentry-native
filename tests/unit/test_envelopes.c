@@ -29,6 +29,7 @@ SENTRY_TEST(basic_http_request_preparation_for_event)
         "{\"type\":\"event\",\"length\":51}\n"
         "{\"event_id\":\"c993afb6-b4ac-48a6-b61b-2558e601d65d\"}");
     sentry__prepared_http_request_free(req);
+    sentry_envelope_free(envelope);
 
     sentry_shutdown();
 }
@@ -63,6 +64,7 @@ SENTRY_TEST(basic_http_request_preparation_for_event_with_attachment)
         "{\"type\":\"attachment\",\"length\":12}\n"
         "Hello World!");
     sentry__prepared_http_request_free(req);
+    sentry_envelope_free(envelope);
 
     sentry_shutdown();
 }
@@ -93,6 +95,7 @@ SENTRY_TEST(basic_http_request_preparation_for_minidump)
         "{\"type\":\"attachment\",\"length\":12}\n"
         "Hello World!");
     sentry__prepared_http_request_free(req);
+    sentry_envelope_free(envelope);
 
     sentry_shutdown();
 }

@@ -185,12 +185,24 @@ SENTRY_TEST(value_object)
             TEST_CHECK(sentry_value_is_null(child));
         }
     }
+
     TEST_CHECK(sentry_value_get_length(val) == 10);
     TEST_CHECK(sentry_value_get_type(val) == SENTRY_VALUE_TYPE_OBJECT);
     TEST_CHECK(sentry_value_is_true(val) == true);
     TEST_CHECK_JSON_VALUE(val,
         "{\"key0\":0,\"key1\":1,\"key2\":2,\"key3\":3,\"key4\":4,\"key5\":5,"
         "\"key6\":6,\"key7\":7,\"key8\":8,\"key9\":9}");
+
+    for (size_t i = 0; i < 10; i += 2) {
+        char key[100];
+        sprintf(key, "key%d", (int)i);
+        sentry_value_remove_by_key(val, key);
+    }
+
+    TEST_CHECK(sentry_value_get_length(val) == 5);
+    TEST_CHECK_JSON_VALUE(
+        val, "{\"key1\":1,\"key3\":3,\"key5\":5,\"key7\":7,\"key9\":9}");
+
     sentry_value_decref(val);
 
     val = sentry_value_new_object();

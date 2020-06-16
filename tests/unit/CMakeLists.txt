@@ -22,6 +22,7 @@ add_executable(sentry_test_unit
 	test_consent.c
 	test_envelopes.c
 	test_modulefinder.c
+	test_mpack.c
 	test_path.c
 	test_ratelimiter.c
 	test_session.c
