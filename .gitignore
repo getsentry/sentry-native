@@ -14,3 +14,6 @@ leak-build
 # Python
 .venv
 __pycache__
+
+# Devtools
+CodeChecker
