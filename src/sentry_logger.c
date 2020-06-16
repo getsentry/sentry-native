@@ -41,23 +41,17 @@ sentry__logger_defaultlogger(
     sentry_level_t level, const char *message, va_list args)
 {
     const char *prefix = "[sentry] ";
+    size_t len_prefix = strlen(prefix);
     const char *priority = sentry__logger_describe(level);
+    size_t len_priority = strlen(priority);
+    size_t len_msg = strlen(message);
 
-    size_t len = strlen(prefix) + strlen(priority) + strlen(message) + 1;
-    char *format = sentry_malloc(len);
-
-    memset(format, '\0', len);
-
-    // Some compilers/tools, such as MSVC warn for using `strcpy` and friends.
-    // However, there are not really any good alternatives:
-    // * `strcpy_s` is only available on Windows
-    // * `strlcpy` is apparently a BSD thing
-    // * `strscpy` is a linux kernel thing
-    // * `strncpy` is not really a good choice either, but tools do not mark it
-    //   as "unsafe".
-    strncpy(format, prefix, strlen(prefix));
-    strncat(format, priority, strlen(priority));
-    strncat(format, message, strlen(message));
+    char *format = sentry_malloc(len_prefix + len_priority + len_msg + 2);
+    memcpy(format, prefix, len_prefix);
+    memcpy(format + len_prefix, priority, len_priority);
+    memcpy(format + len_prefix + len_priority, message, len_msg);
+    format[len_prefix + len_priority + len_msg] = '\n';
+    format[len_prefix + len_priority + len_msg + 1] = '\0';
 
     vfprintf(stderr, format, args);
 
