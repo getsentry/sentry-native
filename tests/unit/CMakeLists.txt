@@ -46,6 +46,7 @@ target_include_directories(sentry_test_unit PRIVATE
 target_link_libraries(sentry_test_unit PRIVATE
 	${SENTRY_LINK_LIBRARIES}
 	${SENTRY_INTERFACE_LINK_LIBRARIES}
+	"$<$<PLATFORM_ID:Linux>:rt>"
 )
 
 if(MINGW)
