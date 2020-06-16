@@ -256,6 +256,7 @@ sentry_capture_event(sentry_value_t event)
 {
     const sentry_options_t *opts = sentry_get_options();
     if (!opts) {
+        sentry_value_decref(event);
         return sentry_uuid_nil();
     }
     uint64_t rnd;
