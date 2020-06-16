@@ -102,7 +102,7 @@ def cmake(cwd, targets, options=None):
         configcmd.append("-D{}={}".format(key, value))
     if sys.platform == "win32" and os.environ.get("TEST_X86"):
         configcmd.append("-AWin32")
-    else if sys.platform == "linux" and os.environ.get("TEST_X86"):
+    elif sys.platform == "linux" and os.environ.get("TEST_X86"):
         configcmd.append("-DSENTRY_BUILD_FORCE32=ON")
 
     cmakelists_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
