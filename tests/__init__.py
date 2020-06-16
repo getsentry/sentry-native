@@ -24,7 +24,7 @@ def make_dsn(httpserver, auth="uiaeosnrtdy", id=123456):
     )
 
 
-def run(cwd, exe, args, **kwargs):
+def run(cwd, exe, args, env=dict(os.environ), **kwargs):
     if os.environ.get("ANDROID_API"):
         # older android emulators do not correctly pass down the returncode
         # so we basically echo the return code, and parse it manually
@@ -61,7 +61,9 @@ def run(cwd, exe, args, **kwargs):
     cmd = (
         "./{}".format(exe) if sys.platform != "win32" else "{}\\{}.exe".format(cwd, exe)
     )
-    return subprocess.run([cmd, *args], cwd=cwd, **kwargs)
+    if "asan" in os.environ.get("RUN_ANALYZER", ""):
+        env["ASAN_OPTIONS"] = "detect_leaks=1"
+    return subprocess.run([cmd, *args], cwd=cwd, env=env, **kwargs)
 
 
 def check_output(*args, **kwargs):
@@ -95,7 +97,7 @@ def cmake(cwd, targets, options=None):
             }
         )
     cmake = ["cmake"]
-    if os.environ.get("SCAN_BUILD"):
+    if "scan-build" in os.environ.get("RUN_ANALYZER", ""):
         cmake = ["scan-build", "cmake"]
     configcmd = [*cmake]
     for key, value in options.items():
@@ -104,6 +106,8 @@ def cmake(cwd, targets, options=None):
         configcmd.append("-AWin32")
     elif sys.platform == "linux" and os.environ.get("TEST_X86"):
         configcmd.append("-DSENTRY_BUILD_FORCE32=ON")
+    if "asan" in os.environ.get("RUN_ANALYZER", ""):
+        configcmd.append("-DWITH_ASAN_OPTION=ON")
 
     cmakelists_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
     configcmd.append(cmakelists_dir)
@@ -117,6 +121,8 @@ def cmake(cwd, targets, options=None):
         # MP = object level parallelism, WX = warnings as errors
         cpus = os.cpu_count()
         env["CFLAGS"] = env["CXXFLAGS"] = "/WX /MP{}".format(cpus)
+    if "gcc" in os.environ.get("RUN_ANALYZER", ""):
+        env["CFLAGS"] = env["CXXFLAGS"] = "{} -fanalyzer".format(env["CFLAGS"])
 
     print("\n{} > {}".format(cwd, " ".join(configcmd)), flush=True)
     subprocess.run(configcmd, cwd=cwd, env=env, check=True)
