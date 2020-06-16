@@ -18,8 +18,8 @@ stages:
           matrix:
             Linux (gcc 7, 32-bit):
               vmImage: "ubuntu-18.04"
-              CC: gcc-7 -m32
-              CXX: g++-7 -m32
+              CC: gcc-7
+              CXX: g++-7
               TEST_X86: 1
             Linux (gcc 9):
               vmImage: "ubuntu-latest"
