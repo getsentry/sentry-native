@@ -91,8 +91,8 @@ endif()
 option(SENTRY_ENABLE_INSTALL "Enable sentry installation" "${SENTRY_MAIN_PROJECT}")
 
 if(MSVC AND CMAKE_GENERATOR_TOOLSET MATCHES "_xp$")
-	message(WARNING "Crashpad is not supported for MSVC with XP toolset. Default backend was switched to 'none'")
-	set(SENTRY_DEFAULT_BACKEND "none")
+	message(WARNING "Crashpad is not supported for MSVC with XP toolset. Default backend was switched to 'breakpad'")
+	set(SENTRY_DEFAULT_BACKEND "breakpad")
 elseif(APPLE OR WIN32)
 	set(SENTRY_DEFAULT_BACKEND "crashpad")
 elseif(LINUX)
@@ -119,8 +119,8 @@ endif()
 if(SENTRY_BACKEND_CRASHPAD AND NOT (APPLE OR WIN32))
 	message(FATAL_ERROR "The Crashpad backend is currently only supported on macOS and Windows")
 endif()
-if(SENTRY_BACKEND_BREAKPAD AND NOT LINUX)
-	message(FATAL_ERROR "The Breakpad backend is currently only supported on Linux")
+if(SENTRY_BACKEND_BREAKPAD AND NOT (LINUX OR WIN32))
+	message(FATAL_ERROR "The Breakpad backend is currently only supported on Linux and Windows")
 endif()
 if(SENTRY_BACKEND_INPROC AND WIN32)
 	message(FATAL_ERROR "The in-process backend is not supported on Windows")
@@ -196,6 +196,10 @@ add_subdirectory(src)
 
 set_target_properties(sentry PROPERTIES PUBLIC_HEADER "include/sentry.h")
 
+# check size type
+include(CheckTypeSize)
+check_type_size("long" CMAKE_SIZEOF_LONG)
+
 # https://gitlab.kitware.com/cmake/cmake/issues/18393
 if(BUILD_SHARED_LIBS)
 	if(APPLE)
@@ -211,6 +215,7 @@ if(BUILD_SHARED_LIBS)
 else()
 	target_compile_definitions(sentry PUBLIC SENTRY_BUILD_STATIC)
 endif()
+target_compile_definitions(sentry PRIVATE SIZEOF_LONG=${CMAKE_SIZEOF_LONG})
 
 if(SENTRY_TRANSPORT_CURL)
 	find_package(CURL REQUIRED)
@@ -278,7 +283,10 @@ endif()
 
 #respect CMAKE_SYSTEM_VERSION
 if(WIN32)
-	if(${CMAKE_SYSTEM_VERSION} MATCHES "^10")
+	if(MSVC AND CMAKE_GENERATOR_TOOLSET MATCHES "_xp$")
+		#force WINNT to 5.1 for Windows XP toolchain
+		target_compile_definitions(sentry PRIVATE "_WIN32_WINNT=0x0501")
+	elseif(${CMAKE_SYSTEM_VERSION} MATCHES "^10")
 		target_compile_definitions(sentry PRIVATE "_WIN32_WINNT=0x0A00")
 	elseif(${CMAKE_SYSTEM_VERSION} MATCHES "^6.3")
 		target_compile_definitions(sentry PRIVATE "_WIN32_WINNT=0x0603")
