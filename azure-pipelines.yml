@@ -21,17 +21,24 @@ stages:
               CC: gcc-7
               CXX: g++-7
               TEST_X86: 1
-            Linux (gcc 9):
-              vmImage: "ubuntu-latest"
-              CC: gcc-9
-              CXX: g++-9
-            Linux (clang 9):
-              vmImage: "ubuntu-latest"
-              CC: clang-9
-              CXX: clang++-9
+            Linux (gcc 10):
+              vmImage: "ubuntu-20.04"
+              CC: gcc-10
+              CXX: g++-10
+              # GCC does not respect the `-Wvariadic-macros` suppression right now
+              # ERROR_ON_WARNINGS: 1
+              # The GCC analyzer 10.0.1 (as on CI) has an internal compiler error
+              # currently, and is not stable enough to activate.
+              # RUN_ANALYZER: gcc
+            Linux (clang 10 + asan):
+              vmImage: "ubuntu-20.04"
+              CC: clang-10
+              CXX: clang++-10
               ERROR_ON_WARNINGS: 1
-              # TODO: install `clang-tools`
-              #SCAN_BUILD: 1
+              RUN_ANALYZER: asan
+            Linux (scan-build):
+              vmImage: "ubuntu-20.04"
+              RUN_ANALYZER: scan-build
             macOS:
               vmImage: "macOs-latest"
               ERROR_ON_WARNINGS: 1
@@ -63,8 +70,8 @@ stages:
             fetchDepth: 5
             submodules: recursive
           - task: UsePythonVersion@0
-          - script: sudo apt update && sudo apt install libcurl4 libcurl4-openssl-dev
-            condition: eq(variables['Agent.OS'], 'Linux')
+          - script: sudo apt update && sudo apt install libcurl4 libcurl4-openssl-dev kcov g++-10 clang-10 clang-tools
+            condition: and(eq(variables['Agent.OS'], 'Linux'), not(variables['TEST_X86']))
             displayName: Installing Linux Dependencies
           - script: sudo apt update && sudo apt install gcc-multilib g++-multilib
             condition: and(eq(variables['Agent.OS'], 'Linux'), variables['TEST_X86'])

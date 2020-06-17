@@ -32,7 +32,8 @@ class Unittests:
         self.dir = dir
 
     def run(self, test):
-        run(self.dir, "sentry_test_unit", ["--no-summary", test], check=True)
+        env = dict(os.environ)
+        run(self.dir, "sentry_test_unit", ["--no-summary", test], check=True, env=env)
 
 
 @pytest.fixture(scope="session")
