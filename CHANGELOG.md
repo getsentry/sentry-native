@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+**Fixes**:
+
+- Fix a memory unsafety issue when calling `sentry_value_remove_by_key`. ([#297](https://github.com/getsentry/sentry-native/pull/297))
+- Improvements to internal logging. ([#301](https://github.com/getsentry/sentry-native/pull/301), [#302](https://github.com/getsentry/sentry-native/pull/302))
+- Better handling of timeouts. ([#284](https://github.com/getsentry/sentry-native/pull/284))
+- Better 32-bit build support. ([#291](https://github.com/getsentry/sentry-native/pull/291))
+- Run more checks on CI. ([#299](https://github.com/getsentry/sentry-native/pull/299))
+
+**Thank you**:
+
+Fixes in this release have been contributed by:
+
+- [@eakoli](https://github.com/eakoli)
+
 ## 0.3.2
 
 **Features**:
