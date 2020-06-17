@@ -76,7 +76,7 @@ def cmake(cwd, targets, options=None):
     print("\n{} > {}".format(cwd, " ".join(configcmd)), flush=True)
     try:
         subprocess.run(configcmd, cwd=cwd, env=env, check=True)
-    except CalledProcessError:
+    except subprocess.CalledProcessError:
         pytest.fail("cmake configure failed")
 
     buildcmd = [*cmake, "--build", ".", "--parallel"]
@@ -85,7 +85,7 @@ def cmake(cwd, targets, options=None):
     print("{} > {}".format(cwd, " ".join(buildcmd)), flush=True)
     try:
         subprocess.run(buildcmd, cwd=cwd, check=True)
-    except CalledProcessError:
+    except subprocess.CalledProcessError:
         pytest.fail("cmake build failed")
 
     if os.environ.get("ANDROID_API"):
