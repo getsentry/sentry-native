@@ -1,7 +1,11 @@
+#ifndef SENTRY_LOGGER_H_INCLUDED
+#define SENTRY_LOGGER_H_INCLUDED
+
 #include "sentry_boot.h"
 
 typedef struct {
-    void (*logger)(sentry_level_t level, const char *message, va_list args);
+    sentry_logger_function_t logger_func;
+    void *logger_data;
 } sentry_logger_t;
 
 void sentry__logger_set_global(sentry_logger_t logger);
@@ -27,3 +31,5 @@ void sentry__logger_log(sentry_level_t level, const char *message, ...);
     sentry__logger_log(SENTRY_LEVEL_WARNING, message, __VA_ARGS__)
 
 #define SENTRY_WARN(message) sentry__logger_log(SENTRY_LEVEL_WARNING, message)
+
+#endif

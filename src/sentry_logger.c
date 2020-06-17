@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include <string.h>
 
-static sentry_logger_t g_logger = { NULL };
+static sentry_logger_t g_logger = { NULL, NULL };
 
 void
 sentry__logger_set_global(sentry_logger_t logger)
@@ -86,10 +86,10 @@ void
 sentry__logger_log(sentry_level_t level, const char *message, ...)
 {
     sentry_logger_t logger = g_logger;
-    if (logger.logger) {
+    if (logger.logger_func) {
         va_list args;
         va_start(args, message);
-        logger.logger(level, message, args);
+        logger.logger_func(level, message, args, logger.logger_data);
         va_end(args);
     }
 }

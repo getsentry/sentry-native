@@ -61,9 +61,10 @@ sentry_init(sentry_options_t *options)
 {
     sentry_shutdown();
 
-    sentry_logger_t logger = { NULL };
+    sentry_logger_t logger = { NULL, NULL };
     if (options->debug) {
-        logger.logger = options->logger;
+        logger.logger_func = options->logger_func;
+        logger.logger_data = options->logger_data;
     }
     sentry__logger_set_global(logger);
 
