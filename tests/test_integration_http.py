@@ -23,9 +23,8 @@ auth_header = (
 )
 
 
-def test_capture_http(tmp_path, httpserver):
-    # we want to have the default transport
-    cmake(tmp_path, ["sentry_example"], {"SENTRY_BACKEND": "none"})
+def test_capture_http(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
 
     httpserver.expect_oneshot_request(
         "/api/123456/envelope/", headers={"x-sentry-auth": auth_header},
@@ -53,9 +52,8 @@ def test_capture_http(tmp_path, httpserver):
     assert_event(envelope)
 
 
-def test_session_http(tmp_path, httpserver):
-    # we want to have the default transport
-    cmake(tmp_path, ["sentry_example"], {"SENTRY_BACKEND": "none"})
+def test_session_http(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
 
     httpserver.expect_request(
         "/api/123456/envelope/", headers={"x-sentry-auth": auth_header},
@@ -84,9 +82,8 @@ def test_session_http(tmp_path, httpserver):
     assert_session(envelope, {"init": True, "status": "exited", "errors": 0})
 
 
-def test_capture_and_session_http(tmp_path, httpserver):
-    # we want to have the default transport
-    cmake(tmp_path, ["sentry_example"], {"SENTRY_BACKEND": "none"})
+def test_capture_and_session_http(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
 
     httpserver.expect_request(
         "/api/123456/envelope/", headers={"x-sentry-auth": auth_header},
@@ -113,8 +110,8 @@ def test_capture_and_session_http(tmp_path, httpserver):
 
 
 @pytest.mark.skipif(not has_inproc, reason="test needs inproc backend")
-def test_inproc_crash_http(tmp_path, httpserver):
-    cmake(tmp_path, ["sentry_example"], {"SENTRY_BACKEND": "inproc"})
+def test_inproc_crash_http(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "inproc"})
 
     child = run(tmp_path, "sentry_example", ["start-session", "attachment", "crash"])
     assert child.returncode  # well, its a crash after all
@@ -149,8 +146,8 @@ def test_inproc_crash_http(tmp_path, httpserver):
 
 
 @pytest.mark.skipif(not has_inproc, reason="test needs inproc backend")
-def test_inproc_dump_inflight(tmp_path, httpserver):
-    cmake(tmp_path, ["sentry_example"], {"SENTRY_BACKEND": "inproc"})
+def test_inproc_dump_inflight(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "inproc"})
 
     httpserver.expect_request(
         "/api/123456/envelope/", headers={"x-sentry-auth": auth_header},
@@ -167,8 +164,8 @@ def test_inproc_dump_inflight(tmp_path, httpserver):
 
 
 @pytest.mark.skipif(not has_breakpad, reason="test needs breakpad backend")
-def test_breakpad_crash_http(tmp_path, httpserver):
-    cmake(tmp_path, ["sentry_example"], {"SENTRY_BACKEND": "breakpad"})
+def test_breakpad_crash_http(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "breakpad"})
 
     child = run(tmp_path, "sentry_example", ["start-session", "attachment", "crash"])
     assert child.returncode  # well, its a crash after all
@@ -204,8 +201,8 @@ def test_breakpad_crash_http(tmp_path, httpserver):
 
 
 @pytest.mark.skipif(not has_breakpad, reason="test needs breakpad backend")
-def test_breakpad_dump_inflight(tmp_path, httpserver):
-    cmake(tmp_path, ["sentry_example"], {"SENTRY_BACKEND": "breakpad"})
+def test_breakpad_dump_inflight(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "breakpad"})
 
     httpserver.expect_request(
         "/api/123456/envelope/", headers={"x-sentry-auth": auth_header},
