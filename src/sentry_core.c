@@ -124,9 +124,8 @@ sentry_shutdown(void)
     if (options) {
         if (options->transport) {
             // TODO: make this configurable
-            // Defaults to 2s as per
-            // https://docs.sentry.io/error-reporting/configuration/?platform=rust#shutdown-timeout
-            if (!sentry__transport_shutdown(options->transport, 2000)) {
+            if (!sentry__transport_shutdown(
+                    options->transport, SENTRY_DEFAULT_SHUTDOWN_TIMEOUT)) {
                 SENTRY_DEBUG("transport did not shut down cleanly");
             }
         }
