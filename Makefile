@@ -77,5 +77,5 @@ format: setup-venv
 
 style: setup-venv
 	@.venv/bin/python ./scripts/check-clang-format.py -r examples include src tests/unit
-	@.venv/bin/black --check tests
+	@.venv/bin/black --diff --check tests
 .PHONY: style
