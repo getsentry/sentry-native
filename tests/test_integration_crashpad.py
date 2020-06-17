@@ -1,6 +1,5 @@
 import pytest
 from .conditions import has_crashpad
-from . import cmake
 
 # TODO:
 # * with crashpad backend:
@@ -10,9 +9,7 @@ from . import cmake
 
 
 @pytest.mark.skipif(not has_crashpad, reason="test needs crashpad backend")
-def test_crashpad_build(tmp_path):
+def test_crashpad_build(cmake):
     cmake(
-        tmp_path,
-        ["sentry_example"],
-        {"SENTRY_BACKEND": "crashpad", "SENTRY_TRANSPORT": "none"},
+        ["sentry_example"], {"SENTRY_BACKEND": "crashpad", "SENTRY_TRANSPORT": "none"},
     )

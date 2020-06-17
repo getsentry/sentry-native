@@ -1,7 +1,8 @@
 import os
 import pytest
 import re
-from . import cmake, run
+from . import run
+from .cmake import CMake
 
 
 def enumerate_unittests():
@@ -20,23 +21,8 @@ def pytest_generate_tests(metafunc):
         metafunc.parametrize("unittest", enumerate_unittests())
 
 
-class Unittests:
-    def __init__(self, dir):
-        # for unit tests, the backend does not matter, and we want to keep
-        # the compile-times down
-        cmake(
-            dir,
-            ["sentry_test_unit"],
-            {"SENTRY_BACKEND": "none", "SENTRY_TRANSPORT": "none"},
-        )
-        self.dir = dir
-
-    def run(self, test):
-        env = dict(os.environ)
-        run(self.dir, "sentry_test_unit", ["--no-summary", test], check=True, env=env)
-
-
 @pytest.fixture(scope="session")
-def unittests(tmp_path_factory):
-    tmpdir = tmp_path_factory.mktemp("unittests")
-    return Unittests(tmpdir)
+def cmake(tmp_path_factory):
+    cmake = CMake(tmp_path_factory)
+
+    return cmake.compile

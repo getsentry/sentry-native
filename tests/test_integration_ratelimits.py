@@ -1,15 +1,14 @@
 import pytest
 import os
-from . import cmake, make_dsn, run
+from . import make_dsn, run
 from .conditions import has_http
 
 if not has_http:
     pytest.skip("tests need http", allow_module_level=True)
 
 
-def test_retry_after(tmp_path, httpserver):
-    # we want to have the default transport
-    cmake(tmp_path, ["sentry_example"], {"SENTRY_BACKEND": "none"})
+def test_retry_after(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
 
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
 
@@ -27,8 +26,8 @@ def test_retry_after(tmp_path, httpserver):
     assert len(httpserver.log) == 2
 
 
-def test_rate_limits(tmp_path, httpserver):
-    cmake(tmp_path, ["sentry_example"], {"SENTRY_BACKEND": "none"})
+def test_rate_limits(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
 
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
     headers = {"X-Sentry-Rate-Limits": "60::organization"}
