@@ -8,7 +8,9 @@ class CMake:
         self.runs = dict()
         self.factory = factory
 
-    def compile(self, targets, options={}):
+    def compile(self, targets, options=None):
+        if options is None:
+            options = dict()
         key = (
             ";".join(targets),
             ";".join(f"{k}={v}" for k, v in options.items()),
