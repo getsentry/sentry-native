@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+**Fixes**:
+
+- Fix a memory unsafety issue when calling `sentry_value_remove_by_key`.
+- Improvements to internal logging.
+- Better handling of timeouts.
+- Better 32-bit build support.
+
+**Thank you**:
+
+Fixes in this release have been contributed by:
+
+- [@eakoli](https://github.com/eakoli)
+
 ## 0.3.2
 
 **Features**:

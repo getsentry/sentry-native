@@ -156,7 +156,10 @@ using `cmake -D BUILD_SHARED_LIBS=OFF ..`.
 - `SENTRY_LINK_PTHREAD` (Default: ON):
   Links to the `pthread` library on unix targets.
 
-- `CMAKE_SYSTEM_VERSION`: (Default: depending on Windows SDK version):
+- `SENTRY_BUILD_FORCE32` (Default: OFF):
+  Forces cross-compilation from 64-bit host to 32-bit target. Only has an effect on Linux.
+
+- `CMAKE_SYSTEM_VERSION` (Default: depending on Windows SDK version):
   Sets up a minimal version of Windows where sentry-native can be guaranteed to run.
   Possible values:
 
@@ -174,12 +177,14 @@ using `cmake -D BUILD_SHARED_LIBS=OFF ..`.
 
 - `SENTRY_TRANSPORT` (Default: depending on platform):
   Sentry can use different http libraries to send reports to the server.
+
   - **curl**: This uses the `curl` library for HTTP handling. This requires
     that the development version of the package is available.
   - **winhttp**: This uses the `winhttp` system library, is only supported on
     Windows and is the default there.
   - **none**: Do not build any http transport. This should be used if users
     want to handle uploads themselves
+
 - `SENTRY_BACKEND` (Default: depending on platform):
   Sentry can use different backends depending on platform.
   - **crashpad**: This uses the out-of-process crashpad handler. It is currently
