@@ -41,17 +41,11 @@ sentry__logger_defaultlogger(
     sentry_level_t level, const char *message, va_list args)
 {
     const char *prefix = "[sentry] ";
-    size_t len_prefix = strlen(prefix);
     const char *priority = sentry__logger_describe(level);
-    size_t len_priority = strlen(priority);
-    size_t len_msg = strlen(message);
 
-    char *format = sentry_malloc(len_prefix + len_priority + len_msg + 2);
-    memcpy(format, prefix, len_prefix);
-    memcpy(format + len_prefix, priority, len_priority);
-    memcpy(format + len_prefix + len_priority, message, len_msg);
-    format[len_prefix + len_priority + len_msg] = '\n';
-    format[len_prefix + len_priority + len_msg + 1] = '\0';
+    size_t len = strlen(prefix) + strlen(priority) + strlen(message) + 2;
+    char *format = sentry_malloc(len);
+    snprintf("%s%s%s\n", len, prefix, priority, message);
 
     vfprintf(stderr, format, args);
 
