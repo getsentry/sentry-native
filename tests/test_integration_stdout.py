@@ -4,7 +4,7 @@ import sys
 import os
 import time
 import json
-from . import cmake, check_output, run, Envelope
+from . import check_output, run, Envelope
 from .conditions import has_inproc, has_breakpad, has_files
 from .assertions import (
     assert_attachment,

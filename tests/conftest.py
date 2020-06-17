@@ -1,7 +1,7 @@
 import os
 import pytest
 import re
-from . import cmake, run
+from . import run
 from .cmake import CMake
 
 
@@ -25,7 +25,4 @@ def pytest_generate_tests(metafunc):
 def cmake(tmp_path_factory):
     cmake = CMake(tmp_path_factory)
 
-    def compile(*args, **kwargs):
-        return cmake.compile(*args, **kwargs)
-
-    return compile
+    return cmake.compile

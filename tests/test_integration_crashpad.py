@@ -1,6 +1,5 @@
 import pytest
 from .conditions import has_crashpad
-from . import cmake
 
 # TODO:
 # * with crashpad backend:

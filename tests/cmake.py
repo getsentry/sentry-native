@@ -8,10 +8,10 @@ class CMake:
         self.runs = dict()
         self.factory = factory
 
-    def compile(self, targets, options=None):
+    def compile(self, targets, options={}):
         key = (
             ";".join(targets),
-            ";".join(["{}={}".format(k, options[k]) for k in options]),
+            ";".join(f"{k}={v}" for k, v in options.items()),
         )
 
         if key not in self.runs:

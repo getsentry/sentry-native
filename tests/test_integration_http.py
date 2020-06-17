@@ -2,7 +2,7 @@ import pytest
 import subprocess
 import sys
 import os
-from . import cmake, make_dsn, check_output, run, Envelope
+from . import make_dsn, check_output, run, Envelope
 from .conditions import has_http, has_inproc, has_breakpad
 from .assertions import (
     assert_attachment,

@@ -1,6 +1,6 @@
 import pytest
 import os
-from . import cmake, make_dsn, run
+from . import make_dsn, run
 from .conditions import has_http
 
 if not has_http:
