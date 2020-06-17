@@ -13,14 +13,12 @@ pytest.register_assert_rewrite("tests.assertions")
 
 def make_dsn(httpserver, auth="uiaeosnrtdy", id=123456):
     url = urllib.parse.urlsplit(httpserver.url_for("/{}".format(id)))
+    # We explicitly use `127.0.0.1` here, because on Windows, `localhost` will
+    # first try `::1` (the ipv6 loopback), retry a couple times and give up
+    # after a timeout of 2 seconds, falling back to the ipv4 loopback instead.
+    host = url.netloc.replace("localhost", "127.0.0.1")
     return urllib.parse.urlunsplit(
-        (
-            url.scheme,
-            "{}@{}".format(auth, url.netloc),
-            url.path,
-            url.query,
-            url.fragment,
-        )
+        (url.scheme, "{}@{}".format(auth, host), url.path, url.query, url.fragment,)
     )
 
 
