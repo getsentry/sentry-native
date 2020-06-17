@@ -7,6 +7,7 @@
 #    include <winnt.h>
 #else
 #    include <sys/time.h>
+#    include <time.h>
 #endif
 
 /**
@@ -104,6 +105,42 @@ sentry__msec_time(void)
     struct timeval tv;
     return (gettimeofday(&tv, NULL) == 0)
         ? (uint64_t)tv.tv_sec * 1000 + tv.tv_usec / 1000
+        : 0;
+#endif
+}
+
+/**
+ * Returns a monotonic millisecond resolution time.
+ *
+ * This should be used for timeouts and similar.
+ * For timestamps, use `sentry__msec_time` instead.
+ */
+static inline uint64_t
+sentry__monotonic_time(void)
+{
+#ifdef SENTRY_PLATFORM_WINDOWS
+    static LARGE_INTEGER qpc_frequency = { 0 };
+
+    if (!qpc_frequency.QuadPart) {
+        QueryPerformanceFrequency(&qpc_frequency);
+    }
+
+    // Fallback to GetTickCount() on QPC fail
+    if (!qpc_frequency.QuadPart) {
+#    if _WIN32_WINNT >= 0x0600
+        return GetTickCount64();
+#    else
+        return GetTickCount();
+#    endif
+    }
+
+    LARGE_INTEGER qpc_counter;
+    QueryPerformanceCounter(&qpc_counter);
+    return qpc_counter.QuadPart * 1000 / qpc_frequency.QuadPart;
+#else
+    struct timespec tv;
+    return (clock_gettime(CLOCK_MONOTONIC, &tv) == 0)
+        ? (uint64_t)tv.tv_sec * 1000 + tv.tv_nsec / 1000000
         : 0;
 #endif
 }

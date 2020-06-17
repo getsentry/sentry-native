@@ -5,6 +5,10 @@
 
 #include "sentry_utils.h"
 
+// Defaults to 2s as per
+// https://docs.sentry.io/error-reporting/configuration/?platform=native#shutdown-timeout
+#define SENTRY_DEFAULT_SHUTDOWN_TIMEOUT 2000
+
 typedef struct sentry_path_s sentry_path_t;
 typedef struct sentry_run_s sentry_run_t;
 struct sentry_backend_s;
