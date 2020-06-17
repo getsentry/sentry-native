@@ -41,7 +41,6 @@ sentry__logger_defaultlogger(
     sentry_level_t level, const char *message, va_list args)
 {
     const char *prefix = "[sentry] ";
-    size_t len_prefix = strlen(prefix);
     const char *priority = sentry__logger_describe(level);
 
     size_t len = strlen(prefix) + strlen(priority) + strlen(message) + 2;
