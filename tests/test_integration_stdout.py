@@ -127,7 +127,7 @@ def test_abnormal_session(cmake):
 
     # create a bogus session file
     db_dir = tmp_path.joinpath(".sentry-native")
-    db_dir.mkdir()
+    db_dir.mkdir(exist_ok=True)
     run_dir = db_dir.joinpath("foobar.run")
     run_dir.mkdir()
     with open(run_dir.joinpath("session.json"), "w") as session_file:
