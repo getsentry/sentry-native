@@ -5,6 +5,14 @@
 #include <stdio.h>
 #include <string.h>
 
+static sentry_logger_t g_logger = { NULL };
+
+void
+sentry__logger_set_global(sentry_logger_t logger)
+{
+    g_logger = logger;
+}
+
 #if defined(SENTRY_PLATFORM_ANDROID)
 
 #    include <android/log.h>
@@ -77,14 +85,11 @@ sentry__logger_describe(sentry_level_t level)
 void
 sentry__logger_log(sentry_level_t level, const char *message, ...)
 {
-    const sentry_options_t *options = sentry_get_options();
-    if (options && options->logger_func && sentry_options_get_debug(options)) {
-
+    sentry_logger_t logger = g_logger;
+    if (logger.logger) {
         va_list args;
         va_start(args, message);
-
-        options->logger_func(level, message, args, options->logger_data);
-
+        logger.logger(level, message, args);
         va_end(args);
     }
 }
