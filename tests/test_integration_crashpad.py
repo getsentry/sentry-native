@@ -55,6 +55,8 @@ def test_crashpad_crash(cmake, httpserver):
         env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
     )
 
+    time.sleep(2)  # lets wait a bit for crashpad sending in the background
+
     assert len(httpserver.log) == 2
     outputs = (httpserver.log[0][0].get_data(), httpserver.log[1][0].get_data())
     session, multipart = (
