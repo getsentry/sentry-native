@@ -19,7 +19,7 @@ if not has_http:
     pytest.skip("tests need http", allow_module_level=True)
 
 auth_header = (
-    "Sentry sentry_key=uiaeosnrtdy, sentry_version=7, sentry_client=sentry.native/0.3.3"
+    "Sentry sentry_key=uiaeosnrtdy, sentry_version=7, sentry_client=sentry.native/0.3.4"
 )
 
 
