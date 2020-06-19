@@ -53,7 +53,7 @@ sentry__logger_defaultlogger(
 
     size_t len = strlen(prefix) + strlen(priority) + strlen(message) + 2;
     char *format = sentry_malloc(len);
-    snprintf("%s%s%s\n", len, prefix, priority, message);
+    snprintf(format, len, "%s%s%s\n", prefix, priority, message);
 
     vfprintf(stderr, format, args);
 
