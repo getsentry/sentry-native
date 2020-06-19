@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- Breakpad support for Windows. This allows you to use `sentry-native` even on Windows XP! ([#278](https://github.com/getsentry/sentry-native/pull/278))
+- Add an in-process backend for Windows. As opposed to Breakpad, stack traces are generated on the device and sent to Sentry for symbolication. ([#287](https://github.com/getsentry/sentry-native/pull/287))
+
+**Thank you**:
+
+Features, fixes and improvements in this release have been contributed by:
+
+- [@eakoli](https://github.com/eakoli)
+- [@Mixaill](https://github.com/Mixaill)
+
+## 0.3.4
+
+**Fixes**:
+
+- Invalid memory access when `sentry_options_set_debug(1)` is set, leading to an application crash. This bug was introduced in version `0.3.3`. ([#310](https://github.com/getsentry/sentry-native/pull/310)).
+
 ## 0.3.3
 
 **Fixes**:
