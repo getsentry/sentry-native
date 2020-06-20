@@ -191,7 +191,7 @@ using `cmake -D BUILD_SHARED_LIBS=OFF ..`.
   - **breakpad**: This uses the in-process breakpad handler. It is currently
     only supported on Linux and Windows, and used as the default on Linux.
   - **inproc**: A small in-process handler which is supported on all platforms, 
-    and is used as default on Linux and Android.
+    and is used as default on Android.
   - **none**: This builds `sentry-native` without a backend, so it does not handle
     crashes at all. It is primarily used for tests.
 
