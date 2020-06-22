@@ -1,3 +1,7 @@
+trigger:
+  - master
+  - release/*
+
 stages:
   - stage: test
     displayName: Build & Test
@@ -10,7 +14,7 @@ stages:
         steps:
           - checkout: self
           - task: UsePythonVersion@0
-          - script: make SENTRY_NATIVE_PYTHON_VERSION=python3.8 style
+          - script: make style
             displayName: Lint
 
       - job:
