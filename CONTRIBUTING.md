@@ -2,7 +2,7 @@
 
 We love and welcome contributions!
 
-In order to maintain a high quality, we run a great number of checks on
+In order to maintain a high quality, we run a number of checks on
 different OS / Compiler combinations, and using different analysis tools.
 
 ## Prerequisites
@@ -12,6 +12,8 @@ Building and testing `sentry-native` currently requires the following tools:
 - **CMake** and a supported C/C++ compiler, to actually build the code.
 - **python** and **pytest**, to run integration tests.
 - **clang-format** and **black**, to format the C/C++ and python code respectively.
+
+`pytest` and `black` are installed as virtualenv dependencies automatically.
 
 ## Setting up Git Hooks
 
@@ -24,7 +26,7 @@ Installs a pre-commit hook, and initializes/updates the necessary git submodules
     $ make format
 
 This should be done automatically as part of the pre-commit hook, but can also
-done manually.
+be done manually.
 
     $ black tests
 
@@ -59,7 +61,7 @@ their own.
 
 ## How to interpret CI failures
 
-The way that tests are run unfortunately does not make immediately obvious from
+The way that tests are run unfortunately does not make it immediately obvious from
 the summary what the actual failure is, especially for compile-time failures.
 In such cases, it is good to scan the test output _from top to bottom_ and find
 the offending compile error.
@@ -100,11 +102,11 @@ Some of its behavior is controlled by env-variables:
     $ cmake --build build --target sentry_example
     $ ./build/sentry_example log capture-event
 
-The example can be run manually with a variety of flags to test different
+The example can be run manually with a variety of commands to test different
 scenarios. Additionally, it will use the `SENTRY_DSN` env-variable, and can thus
 also be used to capture events/crashes directly to sentry.
 
-The example currently supports the following flags:
+The example currently supports the following commends:
 
 - `capture-event`: Captures an event.
 - `crash`: Triggers a crash to be captured.
