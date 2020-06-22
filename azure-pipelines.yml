@@ -10,7 +10,7 @@ stages:
         steps:
           - checkout: self
           - task: UsePythonVersion@0
-          - script: make SENTRY_NATIVE_PYTHON_VERSION=python3.8 style
+          - script: make style
             displayName: Lint
 
       - job:
@@ -36,10 +36,8 @@ stages:
               CXX: clang++-10
               ERROR_ON_WARNINGS: 1
               RUN_ANALYZER: asan
-            Linux (clang 10 + code-checker):
+            Linux (code-checker):
               vmImage: "ubuntu-20.04"
-              CC: clang-10
-              CXX: clang++-10
               RUN_ANALYZER: code-checker
             macOS:
               vmImage: "macOs-latest"

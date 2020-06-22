@@ -2,6 +2,7 @@ import os
 import json
 import sys
 import subprocess
+import pytest
 
 
 class CMake:
@@ -105,13 +106,12 @@ def cmake(cwd, targets, options=None):
         buildcmd = [
             "CodeChecker",
             "log",
-            "--build",
-            " ".join(buildcmd),
             "--output",
             "compilation.json",
+            "--build",
+            " ".join(buildcmd),
         ]
-    # if "code-checker" in os.environ.get("RUN_ANALYZER", ""):
-    #    buildcmd = ["CodeChecker", "check", "--ctu-all", "--build", " ".join(buildcmd)]
+
     print("{} > {}".format(cwd, " ".join(buildcmd)), flush=True)
     try:
         subprocess.run(buildcmd, cwd=cwd, check=True)
@@ -145,13 +145,14 @@ def cmake(cwd, targets, options=None):
             "--ctu-all",
             # TODO: we currently get >300 reports with `enable-all`
             # "--enable-all",
-            # *disables,
+            *disables,
             "--print-steps",
             "--ignore",
             os.path.join(source_dir, ".codechecker-ignore"),
             "--logfile",
             "compilation.json",
         ]
+        print("{} > {}".format(cwd, " ".join(checkcmd)), flush=True)
         child = subprocess.run(checkcmd, stdout=subprocess.PIPE, cwd=cwd, check=True)
         sys.stdout.buffer.write(child.stdout)
         marker = b"Total number of reports: "
