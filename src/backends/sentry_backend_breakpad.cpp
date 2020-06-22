@@ -129,7 +129,7 @@ sentry__breakpad_backend_callback(
 
     sentry_path_t *dump_path = nullptr;
 #ifdef SENTRY_PLATFORM_WINDOWS
-    sentry_path_t tmp_path = sentry__path_new(breakpad_dump_path);
+    sentry_path_t *tmp_path = sentry__path_new(breakpad_dump_path);
     dump_path = sentry__path_join_wstr(tmp_path, minidump_id);
     sentry__path_free(tmp_path);
     tmp_path = dump_path;
