@@ -1,3 +1,7 @@
+trigger:
+  - master
+  - release/*
+
 stages:
   - stage: test
     displayName: Build & Test

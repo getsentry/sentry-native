@@ -190,7 +190,7 @@ using `cmake -D BUILD_SHARED_LIBS=OFF ..`.
     only supported on Windows and macOS, and used as the default there.
   - **breakpad**: This uses the in-process breakpad handler. It is currently
     only supported on Linux and Windows, and used as the default on Linux.
-  - **inproc**: A small in-process handler which is supported on all platforms, 
+  - **inproc**: A small in-process handler which is supported on all platforms,
     and is used as default on Android.
   - **none**: This builds `sentry-native` without a backend, so it does not handle
     crashes at all. It is primarily used for tests.
@@ -240,31 +240,4 @@ Legend:
 
 ## Development
 
-Some external dependencies, such as `crashpad` are used via `git submodules`.
-When working with this repository, make sure to check out the submodules
-recursively.
-
-    $ git clone --recurse-submodules https://github.com/getsentry/sentry-native.git
-
-Or when working with an existing clone:
-
-    $ git submodule update --init --recursive
-
-Alternatively, the `make setup` target will do that for you, and might be
-extended in the future if other dependencies are added.
-
-### Running Tests
-
-The SDK ships with a unit-test suite based on [acutest]. Additionally, the
-`sentry_example` executable is also used for integration tests which are run
-via `pytest`.
-The unit-tests are built as a separate `sentry_test_unit` executable.
-
-On macOS and Linux, the _top-level Makefile_ contains a convenience command to
-run tests:
-
-```sh
-make test
-```
-
-[acutest]: https://github.com/mity/acutest
+Please see the [contribution guide](./CONTRIBUTING.md).
