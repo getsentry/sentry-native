@@ -1,5 +1,3 @@
-export SENTRY_NATIVE_PYTHON_VERSION := python3.7
-
 all: test
 
 update-test-discovery:
@@ -42,7 +40,7 @@ clean: build/Makefile
 	@$(MAKE) -C build clean
 .PHONY: clean
 
-setup: setup-git
+setup: setup-git setup-venv
 .PHONY: setup
 
 setup-git: .git/hooks/pre-commit
@@ -58,7 +56,7 @@ setup-venv: .venv/bin/python
 .venv/bin/python: Makefile tests/requirements.txt
 	@rm -rf .venv
 	@which virtualenv || sudo pip install virtualenv
-	virtualenv -p $$SENTRY_NATIVE_PYTHON_VERSION .venv
+	virtualenv -p python3 .venv
 	.venv/bin/pip install --upgrade --requirement tests/requirements.txt
 
 format: setup-venv
