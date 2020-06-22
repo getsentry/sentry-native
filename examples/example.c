@@ -38,9 +38,7 @@ static void *invalid_mem = (void *)1;
 static void
 trigger_crash()
 {
-    // Triggers a segfault by writing to `NULL`. We actually do a `1 - 1` to
-    // defeat static analyzers which would warn for the trivial case.
-    memset((char *)invalid_mem - 1, 1, 100);
+    memset((char *)invalid_mem, 1, 100);
 }
 
 int
