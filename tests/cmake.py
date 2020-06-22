@@ -142,7 +142,8 @@ def cmake(cwd, targets, options=None):
             "check",
             "--jobs",
             str(os.cpu_count()),
-            "--ctu-all",
+            # NOTE: The clang version on CI does not support CTU :-(
+            # "--ctu-all",
             # TODO: we currently get >300 reports with `enable-all`
             # "--enable-all",
             *disables,
