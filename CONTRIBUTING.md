@@ -15,11 +15,12 @@ Building and testing `sentry-native` currently requires the following tools:
 
 `pytest` and `black` are installed as virtualenv dependencies automatically.
 
-## Setting up Git Hooks
+## Setting up Environment
 
     $ make setup
 
-Installs a pre-commit hook, and initializes/updates the necessary git submodules.
+This sets up both git, including a pre-commit hook and submodules, and installs
+a python virtualenv which is used to run tests and formatting.
 
 ## Formatting Code
 
@@ -34,11 +35,7 @@ be done manually.
 
     $ make test
 
-Creates a virtualenv with python, and runs all the tests through `pytest`.
-
-The Makefile currently assumes python 3.7, but this can be overridden manually:
-
-    $ make SENTRY_NATIVE_PYTHON_VERSION=python3.8 setup-venv
+Creates a python virtualenv, and runs all the tests through `pytest`.
 
 **Running integration-tests manually**:
 
