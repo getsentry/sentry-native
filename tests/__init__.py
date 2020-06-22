@@ -44,7 +44,7 @@ def run(cwd, exe, args, env=dict(os.environ), **kwargs):
                     exe, " ".join(args)
                 ),
             ],
-            **kwargs
+            **kwargs,
         )
         stdout = child.stdout
         child.returncode = int(stdout[stdout.rfind(b"ret:") :][4:])
@@ -62,7 +62,12 @@ def run(cwd, exe, args, env=dict(os.environ), **kwargs):
     )
     if "asan" in os.environ.get("RUN_ANALYZER", ""):
         env["ASAN_OPTIONS"] = "detect_leaks=1"
-    return subprocess.run([cmd, *args], cwd=cwd, env=env, **kwargs)
+    try:
+        return subprocess.run([cmd, *args], cwd=cwd, env=env, **kwargs)
+    except subprocess.CalledProcessError:
+        args = " ".join(args)
+        cmd = f"{cmd} {args}"
+        pytest.fail("running command failed: {cmd}")
 
 
 def check_output(*args, **kwargs):

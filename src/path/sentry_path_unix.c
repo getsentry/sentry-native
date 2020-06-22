@@ -156,16 +156,11 @@ sentry_path_t *
 sentry__path_from_str(const char *s)
 {
     char *path = sentry__string_clone(s);
-    sentry_path_t *rv = NULL;
     if (!path) {
         return NULL;
     }
-    rv = sentry__path_from_str_owned(path);
-    if (rv) {
-        return rv;
-    }
-    sentry_free(path);
-    return NULL;
+    // NOTE: function will free `path` an error
+    return sentry__path_from_str_owned(path);
 }
 
 sentry_path_t *
@@ -173,6 +168,7 @@ sentry__path_from_str_owned(char *s)
 {
     sentry_path_t *rv = SENTRY_MAKE(sentry_path_t);
     if (!rv) {
+        sentry_free(s);
         return NULL;
     }
     rv->path = s;

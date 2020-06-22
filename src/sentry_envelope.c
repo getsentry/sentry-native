@@ -86,8 +86,11 @@ static sentry_envelope_item_t *
 envelope_add_from_owned_buffer(
     sentry_envelope_t *envelope, char *buf, size_t buf_len, const char *type)
 {
+    if (!buf) {
+        return NULL;
+    }
     sentry_envelope_item_t *item = envelope_add_item(envelope);
-    if (!item || !buf) {
+    if (!item) {
         sentry_free(buf);
         return NULL;
     }
@@ -230,12 +233,10 @@ sentry__envelope_add_session(
         return NULL;
     }
     sentry__session_to_json(session, jw);
-    size_t payload_len;
+    size_t payload_len = 0;
     char *payload = sentry__jsonwriter_into_string(jw, &payload_len);
-    if (!payload) {
-        return NULL;
-    }
 
+    // NOTE: function will check for `payload` internally
     return envelope_add_from_owned_buffer(
         envelope, payload, payload_len, "session");
 }
@@ -244,6 +245,7 @@ sentry_envelope_item_t *
 sentry__envelope_add_from_buffer(sentry_envelope_t *envelope, const char *buf,
     size_t buf_len, const char *type)
 {
+    // NOTE: the function frees `buf` on error
     return envelope_add_from_owned_buffer(
         envelope, sentry__string_clonen(buf, buf_len), buf_len, type);
 }
@@ -257,13 +259,8 @@ sentry__envelope_add_from_path(
     if (!buf) {
         return NULL;
     }
-    sentry_envelope_item_t *rv
-        = envelope_add_from_owned_buffer(envelope, buf, buf_len, type);
-    if (!rv) {
-        sentry_free(buf);
-        return NULL;
-    }
-    return rv;
+    // NOTE: the function frees `buf` on error
+    return envelope_add_from_owned_buffer(envelope, buf, buf_len, type);
 }
 
 static void
