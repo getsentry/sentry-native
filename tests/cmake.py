@@ -23,7 +23,7 @@ class CMake:
 
         return self.runs[key]
 
-    def __del__(self):
+    def destroy(self):
         if "kcov" in os.environ.get("RUN_ANALYZER", ""):
             coverage_dirs = [
                 d
