@@ -125,7 +125,7 @@ stages:
             displayName: Test
           - script: |
               ls -lah
-              bash <(curl -s https://codecov.io/bash) -s coverage
+              bash <(curl -s https://codecov.io/bash) -s coverage -C $(Build.SourceVersion)
             condition: contains(variables['RUN_ANALYZER'], 'cov')
             displayName: "Upload to codecov.io"
             env:
