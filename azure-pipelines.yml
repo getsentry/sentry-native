@@ -40,6 +40,12 @@ stages:
               CXX: clang++-10
               ERROR_ON_WARNINGS: 1
               RUN_ANALYZER: asan
+            Linux (clang 10 + kcov):
+              vmImage: "ubuntu-20.04"
+              CC: clang-10
+              CXX: clang++-10
+              ERROR_ON_WARNINGS: 1
+              RUN_ANALYZER: kcov
             Linux (scan-build):
               vmImage: "ubuntu-20.04"
               RUN_ANALYZER: scan-build
@@ -117,6 +123,13 @@ stages:
               pip install --upgrade --requirement tests/requirements.txt
               pytest --capture=no --verbose tests
             displayName: Test
+          - script: |
+              ls -lah
+              bash <(curl -s https://codecov.io/bash) -s coverage -C $(Build.SourceVersion)
+            condition: contains(variables['RUN_ANALYZER'], 'cov')
+            displayName: "Upload to codecov.io"
+            env:
+              CODECOV_TOKEN: $(CODECOV_TOKEN)
 
   - stage: package
     displayName: Create Release Archive
