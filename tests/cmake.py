@@ -23,6 +23,25 @@ class CMake:
 
         return self.runs[key]
 
+    def __del__(self):
+        if "kcov" in os.environ.get("RUN_ANALYZER", ""):
+            coverage_dirs = [
+                d
+                for d in [d.joinpath("coverage") for d in self.runs.values()]
+                if d.exists()
+            ]
+            sourcedir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+            if len(coverage_dirs) > 0:
+                subprocess.run(
+                    [
+                        "kcov",
+                        "--clean",
+                        "--merge",
+                        os.path.join(sourcedir, "coverage"),
+                        *coverage_dirs,
+                    ]
+                )
+
 
 def cmake(cwd, targets, options=None):
     __tracebackhide__ = True
