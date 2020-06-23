@@ -34,12 +34,18 @@ stages:
               # The GCC analyzer 10.0.1 (as on CI) has an internal compiler error
               # currently, and is not stable enough to activate.
               # RUN_ANALYZER: gcc
-            Linux (clang 10 + asan + kcov):
+            Linux (clang 10 + asan):
               vmImage: "ubuntu-20.04"
               CC: clang-10
               CXX: clang++-10
               ERROR_ON_WARNINGS: 1
-              RUN_ANALYZER: asan,kcov
+              RUN_ANALYZER: asan
+            Linux (clang 10 + kcov):
+              vmImage: "ubuntu-20.04"
+              CC: clang-10
+              CXX: clang++-10
+              ERROR_ON_WARNINGS: 1
+              RUN_ANALYZER: kcov
             Linux (scan-build):
               vmImage: "ubuntu-20.04"
               RUN_ANALYZER: scan-build
@@ -117,6 +123,11 @@ stages:
               pip install --upgrade --requirement tests/requirements.txt
               pytest --capture=no --verbose tests
             displayName: Test
+          - script: |
+              ls -lah
+              bash <(curl -s https://codecov.io/bash) -s coverage
+            condition: contains(variables['RUN_ANALYZER'], 'kcov')
+            displayName: "Upload to codecov.io"
 
   - stage: package
     displayName: Create Release Archive
