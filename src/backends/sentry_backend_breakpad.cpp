@@ -31,8 +31,8 @@ extern "C" {
 #endif
 
 typedef struct {
-    sentry_run_t *run;
-    const sentry_path_t *dump_path;
+    const sentry_run_t *run;
+    sentry_path_t *dump_path;
 } breakpad_transport_state_t;
 
 static void
@@ -75,11 +75,20 @@ sentry__breakpad_backend_send_envelope(
 }
 
 static void
+sentry__breakpad_transport_free(void *_state)
+{
+    breakpad_transport_state_t *state = (breakpad_transport_state_t *)_state;
+    sentry__path_free(state->dump_path);
+    sentry_free(state);
+}
+
+static void
 sentry__enforce_breakpad_transport(
     const sentry_options_t *options, sentry_path_t *dump_path)
 {
     breakpad_transport_state_t *state = SENTRY_MAKE(breakpad_transport_state_t);
     if (!state) {
+        sentry__path_free(dump_path);
         return;
     }
     state->run = options->run;
@@ -88,11 +97,11 @@ sentry__enforce_breakpad_transport(
     sentry_transport_t *transport
         = sentry_transport_new(sentry__breakpad_backend_send_envelope);
     if (!transport) {
-        sentry_free(state);
+        sentry__breakpad_transport_free(state);
         return;
     }
     sentry_transport_set_state(transport, state);
-    sentry_transport_set_free_func(transport, sentry_free);
+    sentry_transport_set_free_func(transport, sentry__breakpad_transport_free);
 
     ((sentry_options_t *)options)->transport = transport;
 }
@@ -120,9 +129,12 @@ sentry__breakpad_backend_callback(
 
     sentry_path_t *dump_path = nullptr;
 #ifdef SENTRY_PLATFORM_WINDOWS
-    dump_path = sentry__path_new(breakpad_dump_path);
-    dump_path = sentry__path_join_wstr(dump_path, minidump_id);
-    dump_path = sentry__path_append_str(dump_path, ".dmp");
+    sentry_path_t *tmp_path = sentry__path_new(breakpad_dump_path);
+    dump_path = sentry__path_join_wstr(tmp_path, minidump_id);
+    sentry__path_free(tmp_path);
+    tmp_path = dump_path;
+    dump_path = sentry__path_append_str(tmp_path, ".dmp");
+    sentry__path_free(tmp_path);
 #else
     dump_path = sentry__path_new(descriptor.path());
 #endif
