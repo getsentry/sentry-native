@@ -133,10 +133,7 @@ def cmake(cwd, targets, options=None):
             "cppcoreguidelines-avoid-magic-numbers",
             "readability-else-after-return",
         ]
-        disables = []
-        for d in disable:
-            disables.append("--disable")
-            disables.append(d)
+        disables = ["--disable={}".format(d) for d in disable]
         checkcmd = [
             "CodeChecker",
             "check",
