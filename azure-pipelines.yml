@@ -126,8 +126,10 @@ stages:
           - script: |
               ls -lah
               bash <(curl -s https://codecov.io/bash) -s coverage
-            condition: contains(variables['RUN_ANALYZER'], 'kcov')
+            condition: contains(variables['RUN_ANALYZER'], 'cov')
             displayName: "Upload to codecov.io"
+            env:
+              CODECOV_TOKEN: $(CODECOV_TOKEN)
 
   - stage: package
     displayName: Create Release Archive
