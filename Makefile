@@ -40,7 +40,7 @@ clean: build/Makefile
 	@$(MAKE) -C build clean
 .PHONY: clean
 
-setup: setup-git
+setup: setup-git setup-venv
 .PHONY: setup
 
 setup-git: .git/hooks/pre-commit

@@ -6,6 +6,8 @@ import sys
 import urllib
 import pytest
 
+sourcedir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+
 
 # https://docs.pytest.org/en/latest/assert.html#assert-details
 pytest.register_assert_rewrite("tests.assertions")
@@ -57,14 +59,23 @@ def run(cwd, exe, args, env=dict(os.environ), **kwargs):
             )
         return child
 
-    cmd = (
+    cmd = [
         "./{}".format(exe) if sys.platform != "win32" else "{}\\{}.exe".format(cwd, exe)
-    )
+    ]
     if "asan" in os.environ.get("RUN_ANALYZER", ""):
         env["ASAN_OPTIONS"] = "detect_leaks=1"
+    if "kcov" in os.environ.get("RUN_ANALYZER", ""):
+        coverage_dir = os.path.join(cwd, "coverage")
+        cmd = [
+            "kcov",
+            "--include-path={}".format(os.path.join(sourcedir, "src")),
+            coverage_dir,
+            *cmd,
+        ]
     try:
-        return subprocess.run([cmd, *args], cwd=cwd, env=env, **kwargs)
+        return subprocess.run([*cmd, *args], cwd=cwd, env=env, **kwargs)
     except subprocess.CalledProcessError:
+        cmd = " ".join(cmd)
         args = " ".join(args)
         cmd = f"{cmd} {args}"
         pytest.fail("running command failed: {cmd}")

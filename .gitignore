@@ -17,3 +17,6 @@ __pycache__
 
 # Devtools
 CodeChecker
+
+# Coverage
+coverage

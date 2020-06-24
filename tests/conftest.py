@@ -25,4 +25,6 @@ def pytest_generate_tests(metafunc):
 def cmake(tmp_path_factory):
     cmake = CMake(tmp_path_factory)
 
-    return cmake.compile
+    yield cmake.compile
+
+    cmake.destroy()
