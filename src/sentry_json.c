@@ -370,6 +370,7 @@ decode_string_inplace(char *buf)
                     || !sentry__is_trail_surrogate(trail)) {
                     return false;
                 }
+                input += 4;
                 uchar = sentry__surrogate_value(lead, trail);
             } else if (sentry__is_trail_surrogate(uchar)) {
                 return false;
