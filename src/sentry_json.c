@@ -446,6 +446,7 @@ tokens_to_value(jsmntok_t *tokens, size_t token_count, const char *buf,
         if (decode_string_inplace(string)) {
             rv = sentry__value_new_string_owned(string);
         } else {
+            sentry_free(string);
             rv = sentry_value_new_null();
         }
         break;
