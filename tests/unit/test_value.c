@@ -274,4 +274,8 @@ SENTRY_TEST(value_json_parsing)
     // unmatched surrogates don’t parse
     rv = sentry__value_from_json(STRING("\"\\uD801\""));
     TEST_CHECK(sentry_value_is_null(rv));
+    rv = sentry__value_from_json(
+        STRING("{\"valid key\": true, \"invalid key \\uD801\": false}"));
+    TEST_CHECK_JSON_VALUE(rv, "{\"valid key\":true}");
+    sentry_value_decref(rv);
 }
