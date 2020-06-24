@@ -10,6 +10,7 @@ from .assertions import (
     assert_breadcrumb,
     assert_stacktrace,
     assert_event,
+    assert_exception,
     assert_crash,
     assert_session,
     assert_minidump,
@@ -107,6 +108,33 @@ def test_capture_and_session_http(cmake, httpserver):
     output = httpserver.log[1][0].get_data()
     envelope = Envelope.deserialize(output)
     assert_session(envelope, {"status": "exited", "errors": 0})
+
+
+def test_exception_and_session_http(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+
+    httpserver.expect_request(
+        "/api/123456/envelope/", headers={"x-sentry-auth": auth_header},
+    ).respond_with_data("OK")
+
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "start-session", "capture-exception"],
+        check=True,
+        env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+    )
+
+    assert len(httpserver.log) == 2
+    output = httpserver.log[0][0].get_data()
+    envelope = Envelope.deserialize(output)
+
+    assert_exception(envelope)
+    assert_session(envelope, {"init": True, "status": "ok", "errors": 1})
+
+    output = httpserver.log[1][0].get_data()
+    envelope = Envelope.deserialize(output)
+    assert_session(envelope, {"status": "exited", "errors": 1})
 
 
 @pytest.mark.skipif(not has_inproc, reason="test needs inproc backend")

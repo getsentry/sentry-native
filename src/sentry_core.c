@@ -311,7 +311,7 @@ sentry_capture_event(sentry_value_t event)
                     sentry__path_filename(attachment->path)));
         }
 
-        if (event_is_considered_error(sentry_envelope_get_event(envelope))) {
+        if (event_is_considered_error(event)) {
             sentry__record_errors_on_current_session(1);
         }
         sentry__add_current_session_to_envelope(envelope);

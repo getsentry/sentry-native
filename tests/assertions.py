@@ -108,6 +108,17 @@ def assert_event(envelope):
     assert_timestamp(event["timestamp"])
 
 
+def assert_exception(envelope):
+    event = envelope.get_event()
+    exception = {
+        "type": "ExceptionType",
+        "value": "Some exception message",
+    }
+    expected = {"exception": {"values": [exception]}}
+    assert matches(event, expected)
+    assert_timestamp(event["timestamp"])
+
+
 def assert_crash(envelope):
     event = envelope.get_event()
     assert matches(event, {"level": "fatal"})
