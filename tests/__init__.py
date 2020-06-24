@@ -73,12 +73,15 @@ def run(cwd, exe, args, env=dict(os.environ), **kwargs):
             *cmd,
         ]
     try:
+        failed = False
         return subprocess.run([*cmd, *args], cwd=cwd, env=env, **kwargs)
     except subprocess.CalledProcessError:
         cmd = " ".join(cmd)
         args = " ".join(args)
         cmd = f"{cmd} {args}"
-        pytest.fail("running command failed: {cmd}")
+        failed = True
+    if failed:
+        pytest.fail(f'running command failed: "{cmd}"')
 
 
 def check_output(*args, **kwargs):

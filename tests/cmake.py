@@ -111,8 +111,11 @@ def cmake(cwd, targets, options=None):
 
     print("\n{} > {}".format(cwd, " ".join(configcmd)), flush=True)
     try:
+        failed = False
         subprocess.run(configcmd, cwd=cwd, env=env, check=True)
     except subprocess.CalledProcessError:
+        failed = True
+    if failed:
         pytest.fail("cmake configure failed")
 
     # CodeChecker invocations and options are documented here:
@@ -133,8 +136,11 @@ def cmake(cwd, targets, options=None):
 
     print("{} > {}".format(cwd, " ".join(buildcmd)), flush=True)
     try:
+        failed = False
         subprocess.run(buildcmd, cwd=cwd, check=True)
     except subprocess.CalledProcessError:
+        failed = True
+    if failed:
         pytest.fail("cmake build failed")
 
     if "code-checker" in os.environ.get("RUN_ANALYZER", ""):
