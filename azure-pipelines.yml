@@ -34,12 +34,12 @@ stages:
               # The GCC analyzer 10.0.1 (as on CI) has an internal compiler error
               # currently, and is not stable enough to activate.
               # RUN_ANALYZER: gcc
-            Linux (clang 10 + asan):
+            Linux (clang 10 + asan + llvm-cov):
               vmImage: "ubuntu-20.04"
               CC: clang-10
               CXX: clang++-10
               ERROR_ON_WARNINGS: 1
-              RUN_ANALYZER: asan
+              RUN_ANALYZER: asan,llvm-cov
             Linux (clang 10 + kcov):
               vmImage: "ubuntu-20.04"
               CC: clang-10
@@ -49,9 +49,15 @@ stages:
             Linux (scan-build):
               vmImage: "ubuntu-20.04"
               RUN_ANALYZER: scan-build
-            macOS:
+            macOS (xcode llvm):
               vmImage: "macOs-latest"
               ERROR_ON_WARNINGS: 1
+            macOS (clang 10 + asan + llvm-cov):
+              vmImage: "macOs-latest"
+              CC: clang
+              CXX: clang++
+              ERROR_ON_WARNINGS: 1
+              RUN_ANALYZER: asan,llvm-cov
             Windows (VS2017, 32bit):
               vmImage: "vs2017-win2016"
               TEST_X86: 1
@@ -80,12 +86,15 @@ stages:
             fetchDepth: 5
             submodules: recursive
           - task: UsePythonVersion@0
-          - script: sudo apt update && sudo apt install libcurl4 libcurl4-openssl-dev kcov g++-10 clang-10 clang-tools
+          - script: sudo apt update && sudo apt install libcurl4 libcurl4-openssl-dev kcov g++-10 clang-10 clang-tools llvm
             condition: and(eq(variables['Agent.OS'], 'Linux'), not(variables['TEST_X86']))
             displayName: Installing Linux Dependencies
           - script: sudo apt update && sudo apt install gcc-multilib g++-multilib
             condition: and(eq(variables['Agent.OS'], 'Linux'), variables['TEST_X86'])
             displayName: Installing Linux 32-bit Dependencies
+          - script: echo "##vso[task.prependpath]/usr/local/opt/llvm/bin/"
+            condition: eq(variables['Agent.OS'], 'Darwin')
+            displayName: Expose llvm PATH for Mac
           # ignoring checksums: choco has 2.72, whereas upstream is 2.73
           - script: choco install sigcheck --ignore-checksums
             condition: eq(variables['Agent.OS'], 'Windows_NT')

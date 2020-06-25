@@ -46,7 +46,7 @@ def run(cwd, exe, args, env=dict(os.environ), **kwargs):
                     exe, " ".join(args)
                 ),
             ],
-            **kwargs
+            **kwargs,
         )
         stdout = child.stdout
         child.returncode = int(stdout[stdout.rfind(b"ret:") :][4:])
@@ -64,6 +64,10 @@ def run(cwd, exe, args, env=dict(os.environ), **kwargs):
     ]
     if "asan" in os.environ.get("RUN_ANALYZER", ""):
         env["ASAN_OPTIONS"] = "detect_leaks=1"
+    if "llvm-cov" in os.environ.get("RUN_ANALYZER", ""):
+        # continuous mode is only supported on mac right now
+        continuous = "%c" if sys.platform == "darwin" else ""
+        env["LLVM_PROFILE_FILE"] = f"coverage-%p{continuous}.profraw"
     if "kcov" in os.environ.get("RUN_ANALYZER", ""):
         coverage_dir = os.path.join(cwd, "coverage")
         cmd = [
