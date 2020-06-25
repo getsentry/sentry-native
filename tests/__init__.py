@@ -64,6 +64,8 @@ def run(cwd, exe, args, env=dict(os.environ), **kwargs):
     ]
     if "asan" in os.environ.get("RUN_ANALYZER", ""):
         env["ASAN_OPTIONS"] = "detect_leaks=1"
+    if "llvm-cov" in os.environ.get("RUN_ANALYZER", ""):
+        env["LLVM_PROFILE_FILE"] = "coverage-%m%c.profraw"
     if "kcov" in os.environ.get("RUN_ANALYZER", ""):
         coverage_dir = os.path.join(cwd, "coverage")
         cmd = [

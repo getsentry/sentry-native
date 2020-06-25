@@ -34,12 +34,12 @@ stages:
               # The GCC analyzer 10.0.1 (as on CI) has an internal compiler error
               # currently, and is not stable enough to activate.
               # RUN_ANALYZER: gcc
-            Linux (clang 10 + asan):
+            Linux (clang 10 + asan + llvm-cov):
               vmImage: "ubuntu-20.04"
               CC: clang-10
               CXX: clang++-10
               ERROR_ON_WARNINGS: 1
-              RUN_ANALYZER: asan
+              RUN_ANALYZER: asan,llvm-cov
             Linux (clang 10 + kcov):
               vmImage: "ubuntu-20.04"
               CC: clang-10
@@ -49,9 +49,15 @@ stages:
             Linux (scan-build):
               vmImage: "ubuntu-20.04"
               RUN_ANALYZER: scan-build
-            macOS:
+            macOS (xcode llvm):
               vmImage: "macOs-latest"
               ERROR_ON_WARNINGS: 1
+            macOS (clang 10 + asan + llvm-cov):
+              vmImage: "macOs-latest"
+              CC: /usr/local/opt/llvm/bin/clang
+              CXX: /usr/local/opt/llvm/bin/clang++
+              ERROR_ON_WARNINGS: 1
+              RUN_ANALYZER: asan,llvm-cov
             Windows (VS2017, 32bit):
               vmImage: "vs2017-win2016"
               TEST_X86: 1
