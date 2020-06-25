@@ -67,7 +67,7 @@ def run(cwd, exe, args, env=dict(os.environ), **kwargs):
     if "llvm-cov" in os.environ.get("RUN_ANALYZER", ""):
         # continuous mode is only supported on mac right now
         continuous = "%c" if sys.platform == "darwin" else ""
-        env["LLVM_PROFILE_FILE"] = f"coverage-%m{continuous}.profraw"
+        env["LLVM_PROFILE_FILE"] = f"coverage-%p{continuous}.profraw"
     if "kcov" in os.environ.get("RUN_ANALYZER", ""):
         coverage_dir = os.path.join(cwd, "coverage")
         cmd = [
