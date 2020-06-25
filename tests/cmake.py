@@ -2,6 +2,7 @@ import os
 import sys
 import subprocess
 import pytest
+import shutil
 
 
 class CMake:
@@ -25,22 +26,56 @@ class CMake:
         return self.runs[key]
 
     def destroy(self):
+        sourcedir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+        coveragedir = os.path.join(sourcedir, "coverage")
+        shutil.rmtree(coveragedir, ignore_errors=True)
+        os.mkdir(coveragedir)
+
+        if "llvm-cov" in os.environ.get("RUN_ANALYZER", ""):
+            for i, d in enumerate(self.runs.values()):
+                # first merge the raw profiling runs
+                files = [f for f in os.listdir(d) if f.endswith(".profraw")]
+                if len(files) == 0:
+                    continue
+                cmd = [
+                    "llvm-profdata",
+                    "merge",
+                    "-sparse",
+                    "-o=sentry.profdata",
+                    *files,
+                ]
+                print("{} > {}".format(d, " ".join(cmd)))
+                subprocess.run(cmd, cwd=d)
+
+                # then export lcov from the profiling data, since this needs access
+                # to the object files, we need to do it per-test
+                objects = [
+                    "sentry_example",
+                    "sentry_test_unit",
+                    "libsentry.dylib" if sys.platform == "darwin" else "libsentry.so",
+                ]
+                cmd = [
+                    "llvm-cov",
+                    "export",
+                    "-format=lcov",
+                    "-instr-profile=sentry.profdata",
+                    "--ignore-filename-regex=(external|vendor|tests|examples)",
+                    *[f"-object={o}" for o in objects if d.joinpath(o).exists()],
+                ]
+                lcov = os.path.join(coveragedir, f"run-{i}.lcov")
+                with open(lcov, "w") as lcov_file:
+                    print("{} > {} > {}".format(d, " ".join(cmd), lcov))
+                    subprocess.run(cmd, stdout=lcov_file, cwd=d)
+
         if "kcov" in os.environ.get("RUN_ANALYZER", ""):
             coverage_dirs = [
                 d
                 for d in [d.joinpath("coverage") for d in self.runs.values()]
                 if d.exists()
             ]
-            sourcedir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
             if len(coverage_dirs) > 0:
                 subprocess.run(
-                    [
-                        "kcov",
-                        "--clean",
-                        "--merge",
-                        os.path.join(sourcedir, "coverage"),
-                        *coverage_dirs,
-                    ]
+                    ["kcov", "--clean", "--merge", coveragedir, *coverage_dirs,]
                 )
 
 
@@ -85,15 +120,19 @@ def cmake(cwd, targets, options=None):
 
     # we have to set `-Werror` for this cmake invocation only, otherwise
     # completely unrelated things will break
-    env = dict(os.environ)
+    cflags = []
     if os.environ.get("ERROR_ON_WARNINGS"):
-        env["CFLAGS"] = env["CXXFLAGS"] = "-Werror"
+        cflags.append("-Werror")
     if sys.platform == "win32":
         # MP = object level parallelism, WX = warnings as errors
         cpus = os.cpu_count()
-        env["CFLAGS"] = env["CXXFLAGS"] = "/WX /MP{}".format(cpus)
+        cflags.append("/WX /MP{}".format(cpus))
     if "gcc" in os.environ.get("RUN_ANALYZER", ""):
-        env["CFLAGS"] = env["CXXFLAGS"] = "{} -fanalyzer".format(env["CFLAGS"])
+        cflags.append("-fanalyzer")
+    if "llvm-cov" in os.environ.get("RUN_ANALYZER", ""):
+        cflags.append("-fprofile-instr-generate -fcoverage-mapping")
+    env = dict(os.environ)
+    env["CFLAGS"] = env["CXXFLAGS"] = " ".join(cflags)
 
     print("\n{} > {}".format(cwd, " ".join(configcmd)), flush=True)
     try:
