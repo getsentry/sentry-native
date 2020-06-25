@@ -53,7 +53,7 @@ class CMake:
                             "export",
                             "-format=lcov",
                             "-instr-profile=sentry.profdata",
-                            "--ignore-filename-regex=(external|vendor)",
+                            "--ignore-filename-regex=(external|vendor|tests|examples)",
                             *[
                                 f"-object={o}"
                                 for o in objects
