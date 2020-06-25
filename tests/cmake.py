@@ -35,10 +35,16 @@ class CMake:
             for i, d in enumerate(self.runs.values()):
                 # first merge the raw profiling runs
                 files = [f for f in os.listdir(d) if f.endswith(".profraw")]
-                subprocess.run(
-                    ["llvm-profdata", "merge", "-sparse", "-o=sentry.profdata", *files],
-                    cwd=d,
-                )
+                cmd = [
+                    "llvm-profdata",
+                    "merge",
+                    "-sparse",
+                    "-o=sentry.profdata",
+                    *files,
+                ]
+                print("{} > {}".format(d, " ".join(cmd)))
+                subprocess.run(cmd, cwd=d)
+
                 # then export lcov from the profiling data, since this needs access
                 # to the object files, we need to do it per-test
                 objects = [
@@ -46,23 +52,18 @@ class CMake:
                     "sentry_test_unit",
                     "libsentry.dylib" if sys.platform == "darwin" else "libsentry.so",
                 ]
-                with open(os.path.join(coveragedir, f"run-{i}.lcov"), "w") as lcov_file:
-                    subprocess.run(
-                        [
-                            "llvm-cov",
-                            "export",
-                            "-format=lcov",
-                            "-instr-profile=sentry.profdata",
-                            "--ignore-filename-regex=(external|vendor|tests|examples)",
-                            *[
-                                f"-object={o}"
-                                for o in objects
-                                if d.joinpath(o).exists()
-                            ],
-                        ],
-                        stdout=lcov_file,
-                        cwd=d,
-                    )
+                cmd = [
+                    "llvm-cov",
+                    "export",
+                    "-format=lcov",
+                    "-instr-profile=sentry.profdata",
+                    "--ignore-filename-regex=(external|vendor|tests|examples)",
+                    *[f"-object={o}" for o in objects if d.joinpath(o).exists()],
+                ]
+                lcov = os.path.join(coveragedir, f"run-{i}.lcov")
+                with open(lcov, "w") as lcov_file:
+                    print("{} > {} > {}".format(d, " ".join(cmd), lcov))
+                    subprocess.run(cmd, stdout=lcov_file, cwd=d)
 
         if "kcov" in os.environ.get("RUN_ANALYZER", ""):
             coverage_dirs = [
