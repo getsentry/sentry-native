@@ -35,6 +35,8 @@ class CMake:
             for i, d in enumerate(self.runs.values()):
                 # first merge the raw profiling runs
                 files = [f for f in os.listdir(d) if f.endswith(".profraw")]
+                if len(files) == 0:
+                    continue
                 cmd = [
                     "llvm-profdata",
                     "merge",
