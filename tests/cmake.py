@@ -117,21 +117,19 @@ def cmake(cwd, targets, options=None):
 
     # we have to set `-Werror` for this cmake invocation only, otherwise
     # completely unrelated things will break
-    env = dict(os.environ)
+    cflags = []
     if os.environ.get("ERROR_ON_WARNINGS"):
-        env["CFLAGS"] = env["CXXFLAGS"] = "-Werror"
+        cflags.append("-Werror")
     if sys.platform == "win32":
         # MP = object level parallelism, WX = warnings as errors
         cpus = os.cpu_count()
-        env["CFLAGS"] = env["CXXFLAGS"] = "/WX /MP{}".format(cpus)
+        cflags.append("/WX /MP{}".format(cpus))
     if "gcc" in os.environ.get("RUN_ANALYZER", ""):
-        env["CFLAGS"] = env["CXXFLAGS"] = "{} -fanalyzer".format(env["CFLAGS"])
+        cflags.append("-fanalyzer")
     if "llvm-cov" in os.environ.get("RUN_ANALYZER", ""):
-        env["CFLAGS"] = env[
-            "CXXFLAGS"
-        ] = "{} -fprofile-instr-generate -fcoverage-mapping".format(
-            env.get("CFLAGS", "")
-        )
+        cflags.append("-fprofile-instr-generate -fcoverage-mapping")
+    env = dict(os.environ)
+    env["CFLAGS"] = env["CXXFLAGS"] = " ".join(cflags)
 
     print("\n{} > {}".format(cwd, " ".join(configcmd)), flush=True)
     try:
