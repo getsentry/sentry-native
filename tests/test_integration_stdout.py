@@ -4,7 +4,7 @@ import sys
 import os
 import time
 import json
-from . import cmake, check_output, run, Envelope
+from . import check_output, run, Envelope
 from .conditions import has_inproc, has_breakpad, has_files
 from .assertions import (
     assert_attachment,
@@ -19,10 +19,8 @@ from .assertions import (
 )
 
 
-def test_capture_stdout(tmp_path):
-    # backend does not matter, but we want to keep compile times down
-    cmake(
-        tmp_path,
+def test_static_lib(cmake):
+    tmp_path = cmake(
         ["sentry_example"],
         {
             "SENTRY_BACKEND": "none",
@@ -54,6 +52,12 @@ def test_capture_stdout(tmp_path):
             b"ELF 32-bit" if os.environ.get("TEST_X86") else b"ELF 64-bit"
         ) in output
 
+
+def test_capture_stdout(cmake):
+    tmp_path = cmake(
+        ["sentry_example"], {"SENTRY_BACKEND": "none", "SENTRY_TRANSPORT": "none",},
+    )
+
     output = check_output(
         tmp_path,
         "sentry_example",
@@ -70,13 +74,11 @@ def test_capture_stdout(tmp_path):
 
 
 @pytest.mark.skipif(not has_files, reason="test needs a local filesystem")
-def test_multi_process(tmp_path):
+def test_multi_process(cmake):
     # NOTE: It would have been nice to do *everything* in a unicode-named
     # directory, but apparently cmake does not like that either.
-    cmake(
-        tmp_path,
-        ["sentry_example"],
-        {"SENTRY_BACKEND": "none", "SENTRY_TRANSPORT": "none"},
+    tmp_path = cmake(
+        ["sentry_example"], {"SENTRY_BACKEND": "none", "SENTRY_TRANSPORT": "none"},
     )
 
     cwd = tmp_path.joinpath("unicode ❤️ Юля")
@@ -118,16 +120,14 @@ def test_multi_process(tmp_path):
 
 
 @pytest.mark.skipif(not has_files, reason="test needs a local filesystem")
-def test_abnormal_session(tmp_path):
-    cmake(
-        tmp_path,
-        ["sentry_example"],
-        {"SENTRY_BACKEND": "none", "SENTRY_TRANSPORT": "none"},
+def test_abnormal_session(cmake):
+    tmp_path = cmake(
+        ["sentry_example"], {"SENTRY_BACKEND": "none", "SENTRY_TRANSPORT": "none"},
     )
 
     # create a bogus session file
     db_dir = tmp_path.joinpath(".sentry-native")
-    db_dir.mkdir()
+    db_dir.mkdir(exist_ok=True)
     run_dir = db_dir.joinpath("foobar.run")
     run_dir.mkdir()
     with open(run_dir.joinpath("session.json"), "w") as session_file:
@@ -154,11 +154,9 @@ def test_abnormal_session(tmp_path):
 
 
 @pytest.mark.skipif(not has_inproc, reason="test needs inproc backend")
-def test_inproc_crash_stdout(tmp_path):
-    cmake(
-        tmp_path,
-        ["sentry_example"],
-        {"SENTRY_BACKEND": "inproc", "SENTRY_TRANSPORT": "none"},
+def test_inproc_crash_stdout(cmake):
+    tmp_path = cmake(
+        ["sentry_example"], {"SENTRY_BACKEND": "inproc", "SENTRY_TRANSPORT": "none"},
     )
 
     child = run(tmp_path, "sentry_example", ["attachment", "crash"])
@@ -182,11 +180,9 @@ def test_inproc_crash_stdout(tmp_path):
 
 
 @pytest.mark.skipif(not has_breakpad, reason="test needs breakpad backend")
-def test_breakpad_crash_stdout(tmp_path):
-    cmake(
-        tmp_path,
-        ["sentry_example"],
-        {"SENTRY_BACKEND": "breakpad", "SENTRY_TRANSPORT": "none"},
+def test_breakpad_crash_stdout(cmake):
+    tmp_path = cmake(
+        ["sentry_example"], {"SENTRY_BACKEND": "breakpad", "SENTRY_TRANSPORT": "none"},
     )
 
     child = run(tmp_path, "sentry_example", ["attachment", "crash"])

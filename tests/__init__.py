@@ -6,6 +6,8 @@ import sys
 import urllib
 import pytest
 
+sourcedir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+
 
 # https://docs.pytest.org/en/latest/assert.html#assert-details
 pytest.register_assert_rewrite("tests.assertions")
@@ -23,6 +25,7 @@ def make_dsn(httpserver, auth="uiaeosnrtdy", id=123456):
 
 
 def run(cwd, exe, args, env=dict(os.environ), **kwargs):
+    __tracebackhide__ = True
     if os.environ.get("ANDROID_API"):
         # older android emulators do not correctly pass down the returncode
         # so we basically echo the return code, and parse it manually
@@ -43,7 +46,7 @@ def run(cwd, exe, args, env=dict(os.environ), **kwargs):
                     exe, " ".join(args)
                 ),
             ],
-            **kwargs
+            **kwargs,
         )
         stdout = child.stdout
         child.returncode = int(stdout[stdout.rfind(b"ret:") :][4:])
@@ -56,12 +59,24 @@ def run(cwd, exe, args, env=dict(os.environ), **kwargs):
             )
         return child
 
-    cmd = (
+    cmd = [
         "./{}".format(exe) if sys.platform != "win32" else "{}\\{}.exe".format(cwd, exe)
-    )
+    ]
     if "asan" in os.environ.get("RUN_ANALYZER", ""):
         env["ASAN_OPTIONS"] = "detect_leaks=1"
-    return subprocess.run([cmd, *args], cwd=cwd, env=env, **kwargs)
+    if "llvm-cov" in os.environ.get("RUN_ANALYZER", ""):
+        # continuous mode is only supported on mac right now
+        continuous = "%c" if sys.platform == "darwin" else ""
+        env["LLVM_PROFILE_FILE"] = f"coverage-%p{continuous}.profraw"
+    if "kcov" in os.environ.get("RUN_ANALYZER", ""):
+        coverage_dir = os.path.join(cwd, "coverage")
+        cmd = [
+            "kcov",
+            "--include-path={}".format(os.path.join(sourcedir, "src")),
+            coverage_dir,
+            *cmd,
+        ]
+    return subprocess.run([*cmd, *args], cwd=cwd, env=env, **kwargs)
 
 
 def check_output(*args, **kwargs):
@@ -70,79 +85,6 @@ def check_output(*args, **kwargs):
     # revert, because it messes with envelope decoding
     stdout = stdout.replace(b"\r\n", b"\n")
     return stdout
-
-
-def cmake(cwd, targets, options=None):
-    if options is None:
-        options = {}
-    options.update(
-        {
-            "CMAKE_RUNTIME_OUTPUT_DIRECTORY": cwd,
-            "CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG": cwd,
-            "CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE": cwd,
-        }
-    )
-    if os.environ.get("ANDROID_API") and os.environ.get("ANDROID_NDK"):
-        # See: https://developer.android.com/ndk/guides/cmake
-        toolchain = "{}/ndk/{}/build/cmake/android.toolchain.cmake".format(
-            os.environ["ANDROID_HOME"], os.environ["ANDROID_NDK"]
-        )
-        options.update(
-            {
-                "CMAKE_TOOLCHAIN_FILE": toolchain,
-                "ANDROID_ABI": os.environ.get("ANDROID_ARCH") or "x86",
-                "ANDROID_NATIVE_API_LEVEL": os.environ["ANDROID_API"],
-            }
-        )
-    cmake = ["cmake"]
-    if "scan-build" in os.environ.get("RUN_ANALYZER", ""):
-        cmake = ["scan-build", "cmake"]
-    configcmd = [*cmake]
-    for key, value in options.items():
-        configcmd.append("-D{}={}".format(key, value))
-    if sys.platform == "win32" and os.environ.get("TEST_X86"):
-        configcmd.append("-AWin32")
-    elif sys.platform == "linux" and os.environ.get("TEST_X86"):
-        configcmd.append("-DSENTRY_BUILD_FORCE32=ON")
-    if "asan" in os.environ.get("RUN_ANALYZER", ""):
-        configcmd.append("-DWITH_ASAN_OPTION=ON")
-
-    cmakelists_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
-    configcmd.append(cmakelists_dir)
-
-    # we have to set `-Werror` for this cmake invocation only, otherwise
-    # completely unrelated things will break
-    env = dict(os.environ)
-    if os.environ.get("ERROR_ON_WARNINGS"):
-        env["CFLAGS"] = env["CXXFLAGS"] = "-Werror"
-    if sys.platform == "win32":
-        # MP = object level parallelism, WX = warnings as errors
-        cpus = os.cpu_count()
-        env["CFLAGS"] = env["CXXFLAGS"] = "/WX /MP{}".format(cpus)
-    if "gcc" in os.environ.get("RUN_ANALYZER", ""):
-        env["CFLAGS"] = env["CXXFLAGS"] = "{} -fanalyzer".format(env["CFLAGS"])
-
-    print("\n{} > {}".format(cwd, " ".join(configcmd)), flush=True)
-    subprocess.run(configcmd, cwd=cwd, env=env, check=True)
-
-    buildcmd = [*cmake, "--build", ".", "--parallel"]
-    for target in targets:
-        buildcmd.extend(["--target", target])
-    print("{} > {}".format(cwd, " ".join(buildcmd)), flush=True)
-    subprocess.run(buildcmd, cwd=cwd, check=True)
-
-    if os.environ.get("ANDROID_API"):
-        # copy the output to the android image via adb
-        subprocess.run(
-            [
-                "{}/platform-tools/adb".format(os.environ["ANDROID_HOME"]),
-                "push",
-                "./",
-                "/data/local/tmp",
-            ],
-            cwd=cwd,
-            check=True,
-        )
 
 
 # Adapted from: https://raw.githubusercontent.com/getsentry/sentry-python/276acae955ee13f7ac3a7728003626eff6d943a8/sentry_sdk/envelope.py
