@@ -33,6 +33,13 @@
 #    include <windows.h>
 #endif
 
+#if defined(__GNUC__)
+#    pragma GCC diagnostic push
+#    pragma GCC diagnostic ignored "-Wgnu-include-next"
+#endif
 #include <sentry.h>
+#if defined(__GNUC__)
+#    pragma GCC diagnostic pop
+#endif
 
 #endif
