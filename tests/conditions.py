@@ -5,7 +5,8 @@ is_android = os.environ.get("ANDROID_API")
 is_x86 = os.environ.get("TEST_X86")
 is_kcov = "kcov" in os.environ.get("RUN_ANALYZER", "")
 
-has_crashpad = not is_android
+# crashpad requires http
+has_crashpad = has_http and not is_android
 # 32-bit linux has no proper curl support
 has_http = not is_android and not is_x86
 has_inproc = True
