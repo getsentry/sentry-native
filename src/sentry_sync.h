@@ -152,6 +152,7 @@ typedef struct sentry__winmutex_s sentry_mutex_t;
             *ThreadId == INVALID_HANDLE_VALUE ? 1 : 0)
 #    define sentry__thread_join(ThreadId)                                      \
         WaitForSingleObject(ThreadId, INFINITE)
+#    define sentry__thread_cancel(ThreadId) TerminateThread(ThreadId, 1)
 
 #    if _WIN32_WINNT < 0x0600
 typedef CONDITION_VARIABLE_PREVISTA sentry_cond_t;
@@ -230,6 +231,7 @@ typedef pthread_cond_t sentry_cond_t;
 #    define sentry__thread_spawn(ThreadId, Func, Data)                         \
         (pthread_create(ThreadId, NULL, Func, Data) == 0 ? 0 : 1)
 #    define sentry__thread_join(ThreadId) pthread_join(ThreadId, NULL)
+#    define sentry__thread_cancel(ThreadId) pthread_cancel(ThreadId)
 #    define sentry__threadid_equal pthread_equal
 #    define sentry__current_thread pthread_self
 

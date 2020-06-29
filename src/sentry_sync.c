@@ -89,18 +89,25 @@ worker_thread(void *data)
                 &bgw->submit_signal, &bgw->submit_signal_lock, 1000);
             sentry__mutex_unlock(&bgw->submit_signal_lock);
         } else {
-            SENTRY_TRACE("executing task on worker thread");
-            task->exec_func(task->data);
-
             sentry__mutex_lock(&bgw->task_lock);
+            if (bgw->first_task != task) {
+                // we just had a race, so try again
+                sentry__mutex_unlock(&bgw->task_lock);
+                continue;
+            }
+            // We pop the task immediately, and execute it afterwards.
+            // This means we will lose the current in-flight envelope in the
+            // case of the crash, but will still dump the rest of the queue.
             bgw->first_task = task->next_task;
             if (task == bgw->last_task) {
                 bgw->last_task = NULL;
             }
-
             bgw->task_count--;
             sentry__cond_wake(&bgw->done_signal);
             sentry__mutex_unlock(&bgw->task_lock);
+
+            SENTRY_TRACE("executing task on worker thread");
+            task->exec_func(task->data);
 
             if (task->cleanup_func) {
                 task->cleanup_func(task->data);
@@ -148,6 +155,13 @@ sentry__bgworker_shutdown(sentry_bgworker_t *bgw, uint64_t timeout)
         sentry__mutex_unlock(&bgw->done_signal_lock);
         uint64_t now = sentry__monotonic_time();
         if (now > started && now - started > timeout) {
+            SENTRY_WARN(
+                "background thread failed to shutdown cleanly within timeout");
+            sentry__thread_cancel(bgw->thread_id);
+
+            sentry__mutex_lock(&bgw->task_lock);
+            bgw->running = false;
+            sentry__mutex_unlock(&bgw->task_lock);
             return 1;
         }
     }
@@ -159,9 +173,9 @@ sentry__bgworker_free(sentry_bgworker_t *bgw)
     if (!bgw) {
         return;
     }
+    assert(!bgw->running);
 
-    assert(!bgw->running && bgw->task_count == 0);
-
+    sentry__mutex_lock(&bgw->task_lock);
     struct sentry_bgworker_task_s *task = bgw->first_task;
     while (task) {
         struct sentry_bgworker_task_s *next_task = task->next_task;
@@ -171,6 +185,10 @@ sentry__bgworker_free(sentry_bgworker_t *bgw)
         sentry_free(task);
         task = next_task;
     }
+    bgw->first_task = NULL;
+    bgw->last_task = NULL;
+    bgw->task_count = 0;
+    sentry__mutex_unlock(&bgw->task_lock);
 
     sentry_free(bgw);
 }
