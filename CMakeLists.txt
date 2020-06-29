@@ -248,7 +248,8 @@ if(MSVC)
 		set_property(TARGET sentry PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 	endif()
 else()
-	target_compile_options(sentry PRIVATE $<BUILD_INTERFACE:-Wall -Wextra -Wpedantic>)
+	# ignore `gnu-include-next`, since the crashpad compat layer uses that
+	target_compile_options(sentry PRIVATE $<BUILD_INTERFACE:-Wall -Wextra -Wpedantic -Wno-gnu-include-next>)
 	# ignore all warnings for mpack
 	set_source_files_properties(
 		"${PROJECT_SOURCE_DIR}/vendor/mpack.c"

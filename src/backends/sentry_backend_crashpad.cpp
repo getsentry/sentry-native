@@ -18,7 +18,6 @@ extern "C" {
 #    pragma GCC diagnostic ignored "-Wunused-parameter"
 #    pragma GCC diagnostic ignored "-Wgnu-zero-variadic-macro-arguments"
 #    pragma GCC diagnostic ignored "-Wfour-char-constants"
-#    pragma GCC diagnostic ignored "-Wgnu-include-next"
 #elif defined(_MSC_VER)
 #    pragma warning(push)
 #    pragma warning(disable : 4100) // unreferenced formal parameter
