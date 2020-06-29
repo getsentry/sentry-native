@@ -156,12 +156,7 @@ sentry__bgworker_shutdown(sentry_bgworker_t *bgw, uint64_t timeout)
         uint64_t now = sentry__monotonic_time();
         if (now > started && now - started > timeout) {
             SENTRY_WARN(
-                "background thread failed to shutdown cleanly within timeout");
-            sentry__thread_cancel(bgw->thread_id);
-
-            sentry__mutex_lock(&bgw->task_lock);
-            bgw->running = false;
-            sentry__mutex_unlock(&bgw->task_lock);
+                "background thread failed to shut down cleanly within timeout");
             return 1;
         }
     }
@@ -173,7 +168,6 @@ sentry__bgworker_free(sentry_bgworker_t *bgw)
     if (!bgw) {
         return;
     }
-    assert(!bgw->running);
 
     sentry__mutex_lock(&bgw->task_lock);
     struct sentry_bgworker_task_s *task = bgw->first_task;
@@ -190,7 +184,11 @@ sentry__bgworker_free(sentry_bgworker_t *bgw)
     bgw->task_count = 0;
     sentry__mutex_unlock(&bgw->task_lock);
 
-    sentry_free(bgw);
+    // When the thread did not shut down cleanly, we rather leak it than to risk
+    // use-after-free
+    if (!bgw->running) {
+        sentry_free(bgw);
+    }
 }
 
 int

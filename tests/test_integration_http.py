@@ -163,8 +163,8 @@ def test_inproc_dump_inflight(cmake, httpserver):
 
     run(tmp_path, "sentry_example", ["log", "no-setup"], check=True, env=env)
 
-    # we trigger 10 normal events, and 1 crash
-    assert len(httpserver.log) >= 11
+    # we trigger 10 normal events, and 1 crash, maybe losing 1 in-flight request
+    assert len(httpserver.log) >= 10
 
 
 @pytest.mark.skipif(not has_breakpad, reason="test needs breakpad backend")
@@ -222,5 +222,5 @@ def test_breakpad_dump_inflight(cmake, httpserver):
 
     run(tmp_path, "sentry_example", ["log", "no-setup"], check=True, env=env)
 
-    # we trigger 10 normal events, and 1 crash
-    assert len(httpserver.log) >= 11
+    # we trigger 10 normal events, and 1 crash, maybe losing 1 in-flight request
+    assert len(httpserver.log) >= 10
