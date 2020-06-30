@@ -3,6 +3,7 @@
 
 #include "sentry_boot.h"
 
+typedef struct sentry_run_s sentry_run_t;
 typedef struct sentry_rate_limiter_s sentry_rate_limiter_t;
 
 /**
@@ -12,8 +13,8 @@ typedef struct sentry_rate_limiter_s sentry_rate_limiter_t;
  * to disk, using `sentry__run_write_envelope`. The function runs inside a
  * signal handler, and appropriate restrictions apply.
  */
-void sentry__transport_set_dump_func(
-    sentry_transport_t *transport, size_t (*dump_func)(void *state));
+void sentry__transport_set_dump_func(sentry_transport_t *transport,
+    size_t (*dump_func)(sentry_run_t *run, void *state));
 
 /**
  * Submit the given envelope to the transport.
@@ -42,7 +43,8 @@ sentry_transport_t *sentry__transport_new_default(void);
  * This function will instruct the platform specific transport to dump all the
  * envelopes in its send queue to disk.
  */
-size_t sentry__transport_dump_queue(sentry_transport_t *transport);
+size_t sentry__transport_dump_queue(
+    sentry_transport_t *transport, sentry_run_t *run);
 
 typedef struct sentry_prepared_http_header_s {
     const char *key;

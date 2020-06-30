@@ -13,7 +13,7 @@ typedef struct sentry_transport_s {
     void (*startup_func)(const sentry_options_t *options, void *state);
     bool (*shutdown_func)(uint64_t timeout, void *state);
     void (*free_func)(void *state);
-    size_t (*dump_func)(void *state);
+    size_t (*dump_func)(sentry_run_t *run, void *state);
     void *state;
 } sentry_transport_t;
 
@@ -85,19 +85,19 @@ sentry__transport_shutdown(sentry_transport_t *transport, uint64_t timeout)
 }
 
 void
-sentry__transport_set_dump_func(
-    sentry_transport_t *transport, size_t (*dump_func)(void *state))
+sentry__transport_set_dump_func(sentry_transport_t *transport,
+    size_t (*dump_func)(sentry_run_t *run, void *state))
 {
     transport->dump_func = dump_func;
 }
 
 size_t
-sentry__transport_dump_queue(sentry_transport_t *transport)
+sentry__transport_dump_queue(sentry_transport_t *transport, sentry_run_t *run)
 {
     if (!transport->dump_func) {
         return 0;
     }
-    size_t dumped = transport->dump_func(transport->state);
+    size_t dumped = transport->dump_func(run, transport->state);
     SENTRY_TRACEF("dumped %zu in-flight envelopes to disk", dumped);
     return dumped;
 }

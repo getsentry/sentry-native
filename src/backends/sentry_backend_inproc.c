@@ -72,7 +72,8 @@ invoke_signal_handler(int signum, siginfo_t *info, void *user_context)
 }
 
 static void
-startup_inproc_backend(sentry_backend_t *UNUSED(backend))
+startup_inproc_backend(
+    sentry_backend_t *UNUSED(backend), const sentry_options_t *UNUSED(options))
 {
     g_signal_stack.ss_sp = sentry_malloc(SIGNAL_STACK_SIZE);
     g_signal_stack.ss_size = SIGNAL_STACK_SIZE;
@@ -265,7 +266,7 @@ handle_ucontext(const sentry_ucontext_t *uctx)
     // after capturing the crash event, try to dump all the in-flight data of
     // the previous transport
     if (transport) {
-        sentry__transport_dump_queue(transport);
+        sentry__transport_dump_queue(transport, opts->run);
     }
     SENTRY_DEBUG("crash has been captured");
 
