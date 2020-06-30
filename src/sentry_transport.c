@@ -122,6 +122,7 @@ sentry__prepare_http_request(
     if (!options || options->dsn.empty) {
         return NULL;
     }
+    sentry_dsn_t dsn = options->dsn;
 
     size_t body_len = 0;
     bool body_owned = true;
@@ -151,14 +152,12 @@ sentry__prepare_http_request(
     req->headers_len = 0;
 
     req->method = "POST";
-    req->url = sentry__dsn_get_envelope_url(&options->dsn);
+    req->url = sentry__dsn_get_envelope_url(&dsn);
 
     sentry_prepared_http_header_t *h;
-    if (!options->dsn.empty) {
-        h = &req->headers[req->headers_len++];
-        h->key = "x-sentry-auth";
-        h->value = sentry__dsn_get_auth_header(&options->dsn);
-    }
+    h = &req->headers[req->headers_len++];
+    h->key = "x-sentry-auth";
+    h->value = sentry__dsn_get_auth_header(&dsn);
 
     h = &req->headers[req->headers_len++];
     h->key = "content-type";
