@@ -143,7 +143,8 @@ static const struct signal_slot SIGNAL_DEFINITIONS[SIGNAL_COUNT] = {
 static LONG WINAPI handle_exception(EXCEPTION_POINTERS *);
 
 static void
-startup_inproc_backend(sentry_backend_t *UNUSED(backend))
+startup_inproc_backend(
+    sentry_backend_t *UNUSED(backend), const sentry_options_t *UNUSED(options))
 {
     g_previous_handler = SetUnhandledExceptionFilter(&handle_exception);
     SetErrorMode(SEM_FAILCRITICALERRORS);
