@@ -105,13 +105,16 @@ static void
 winhttp_transport_free(void *_state)
 {
     winhttp_transport_state_t *state = _state;
-    sentry__bgworker_free(state->bgworker);
-    sentry__rate_limiter_free(state->rl);
-    WinHttpCloseHandle(state->connect);
-    WinHttpCloseHandle(state->session);
-    sentry_free(state->user_agent);
-    sentry_free(state->proxy);
-    sentry_free(state);
+    // We intentionally leak the transport state here, because otherwise the
+    // still running background thread could run into use-after-free.
+    if (sentry__bgworker_free(state->bgworker)) {
+        WinHttpCloseHandle(state->connect);
+        WinHttpCloseHandle(state->session);
+        sentry__rate_limiter_free(state->rl);
+        sentry_free(state->user_agent);
+        sentry_free(state->proxy);
+        sentry_free(state);
+    }
 }
 
 static void

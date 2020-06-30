@@ -286,8 +286,12 @@ sentry_bgworker_t *sentry__bgworker_new(void);
 
 /**
  * Free the background worker.
+ *
+ * This can return `false` in case the background worker has not been shut down
+ * correctly. In which case the allocation is not freed, to avoid potential
+ * use-after-free hazards.
  */
-void sentry__bgworker_free(sentry_bgworker_t *bgw);
+bool sentry__bgworker_free(sentry_bgworker_t *bgw);
 
 /**
  * Start a new background worker thread associated with `bgw`.

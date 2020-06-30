@@ -2,8 +2,9 @@ import pytest
 import subprocess
 import sys
 import os
+import time
 from . import make_dsn, check_output, run, Envelope
-from .conditions import has_http, has_inproc, has_breakpad
+from .conditions import is_asan, has_http, has_inproc, has_breakpad
 from .assertions import (
     assert_attachment,
     assert_meta,
@@ -224,3 +225,17 @@ def test_breakpad_dump_inflight(cmake, httpserver):
 
     # we trigger 10 normal events, and 1 crash, maybe losing 1 in-flight request
     assert len(httpserver.log) >= 10
+
+
+@pytest.mark.skipif(is_asan, reason="test intentionally leaks")
+def test_shutdown_timeout(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+
+    httpserver.expect_request(
+        "/api/123456/envelope/", headers={"x-sentry-auth": auth_header},
+    ).respond_with_handler(lambda req: time.sleep(2.5))
+
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+    child = run(
+        tmp_path, "sentry_example", ["log", "capture-event"], env=env, check=True
+    )

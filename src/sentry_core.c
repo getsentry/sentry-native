@@ -133,7 +133,7 @@ sentry_shutdown(void)
             // TODO: make this configurable
             if (!sentry__transport_shutdown(
                     options->transport, SENTRY_DEFAULT_SHUTDOWN_TIMEOUT)) {
-                SENTRY_DEBUG("transport did not shut down cleanly");
+                SENTRY_WARN("transport did not shut down cleanly");
             }
         }
         if (options->backend && options->backend->shutdown_func) {

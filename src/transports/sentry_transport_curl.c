@@ -17,8 +17,8 @@ typedef struct curl_transport_state_s {
     bool initialized;
     bool debug;
     CURL *curl_handle;
-    const char *http_proxy;
-    const char *ca_certs;
+    char *http_proxy;
+    char *ca_certs;
     sentry_rate_limiter_t *rl;
     sentry_bgworker_t *bgworker;
 } curl_transport_state_t;
@@ -54,6 +54,8 @@ new_transport_state(void)
     }
 
     state->initialized = false;
+    state->http_proxy = NULL;
+    state->ca_certs = NULL;
     state->curl_handle = curl_easy_init();
     state->rl = sentry__rate_limiter_new();
 
@@ -65,8 +67,8 @@ start_transport(const sentry_options_t *options, void *_state)
 {
     curl_transport_state_t *state = _state;
     state->debug = options->debug;
-    state->http_proxy = options->http_proxy;
-    state->ca_certs = options->ca_certs;
+    state->http_proxy = sentry__string_clone(options->http_proxy);
+    state->ca_certs = sentry__string_clone(options->ca_certs);
     sentry__bgworker_start(state->bgworker);
 }
 
@@ -81,10 +83,15 @@ static void
 free_transport(void *_state)
 {
     curl_transport_state_t *state = _state;
-    curl_easy_cleanup(state->curl_handle);
-    sentry__bgworker_free(state->bgworker);
-    sentry__rate_limiter_free(state->rl);
-    sentry_free(state);
+    // We intentionally leak the transport state here, because otherwise the
+    // still running background thread could run into use-after-free.
+    if (sentry__bgworker_free(state->bgworker)) {
+        curl_easy_cleanup(state->curl_handle);
+        sentry__rate_limiter_free(state->rl);
+        sentry_free(state->ca_certs);
+        sentry_free(state->http_proxy);
+        sentry_free(state);
+    }
 }
 
 static size_t

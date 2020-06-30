@@ -3,6 +3,7 @@ import os
 
 is_android = os.environ.get("ANDROID_API")
 is_x86 = os.environ.get("TEST_X86")
+is_asan = "asan" in os.environ.get("RUN_ANALYZER", "")
 is_kcov = "kcov" in os.environ.get("RUN_ANALYZER", "")
 
 has_crashpad = sys.platform != "linux" and not is_android

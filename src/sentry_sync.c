@@ -162,11 +162,11 @@ sentry__bgworker_shutdown(sentry_bgworker_t *bgw, uint64_t timeout)
     }
 }
 
-void
+bool
 sentry__bgworker_free(sentry_bgworker_t *bgw)
 {
     if (!bgw) {
-        return;
+        return true;
     }
 
     sentry__mutex_lock(&bgw->task_lock);
@@ -189,6 +189,7 @@ sentry__bgworker_free(sentry_bgworker_t *bgw)
     if (!bgw->running) {
         sentry_free(bgw);
     }
+    return !bgw->running;
 }
 
 int
