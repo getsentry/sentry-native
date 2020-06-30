@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Breaking Changes**:
+
+- The `sentry_options_set_logger` function now accepts a `userdata` parameter.
+
 **Features**:
 
 - Breakpad support for Windows. This allows you to use `sentry-native` even on Windows XP! ([#278](https://github.com/getsentry/sentry-native/pull/278))
@@ -13,6 +17,7 @@ Features, fixes and improvements in this release have been contributed by:
 
 - [@eakoli](https://github.com/eakoli)
 - [@Mixaill](https://github.com/Mixaill)
+- [@irov](https://github.com/irov)
 
 ## 0.3.4
 
