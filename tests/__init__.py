@@ -76,6 +76,8 @@ def run(cwd, exe, args, env=dict(os.environ), **kwargs):
             coverage_dir,
             *cmd,
         ]
+    if "valgrind" in os.environ.get("RUN_ANALYZER", ""):
+        cmd = ["valgrind", "--leak-check=yes", *cmd]
     try:
         return subprocess.run([*cmd, *args], cwd=cwd, env=env, **kwargs)
     except subprocess.CalledProcessError:
