@@ -231,11 +231,17 @@ def test_breakpad_dump_inflight(cmake, httpserver):
 def test_shutdown_timeout(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
 
+    def delayed(req):
+        time.sleep(2.25)
+        return "{}"
+
     httpserver.expect_request(
         "/api/123456/envelope/", headers={"x-sentry-auth": auth_header},
-    ).respond_with_handler(lambda req: time.sleep(2.5))
+    ).respond_with_handler(delayed)
 
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
     child = run(
         tmp_path, "sentry_example", ["log", "capture-event"], env=env, check=True
     )
+
+    time.sleep(0.5)

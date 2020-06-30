@@ -186,10 +186,11 @@ sentry__bgworker_free(sentry_bgworker_t *bgw)
 
     // When the thread did not shut down cleanly, we rather leak it than to risk
     // use-after-free
-    if (!bgw->running) {
+    bool is_shutdown = !bgw->running;
+    if (is_shutdown) {
         sentry_free(bgw);
     }
-    return !bgw->running;
+    return is_shutdown;
 }
 
 int
