@@ -189,6 +189,7 @@ using `cmake -D BUILD_SHARED_LIBS=OFF ..`.
 
 - `SENTRY_BACKEND` (Default: depending on platform):
   Sentry can use different backends depending on platform.
+
   - **crashpad**: This uses the out-of-process crashpad handler. It is currently
     only supported on Windows and macOS, and used as the default there.
   - **breakpad**: This uses the in-process breakpad handler. It is currently
@@ -197,6 +198,13 @@ using `cmake -D BUILD_SHARED_LIBS=OFF ..`.
     and is used as default on Android.
   - **none**: This builds `sentry-native` without a backend, so it does not handle
     crashes at all. It is primarily used for tests.
+
+- `SENTRY_BREAKPAD_SYSTEM` / `SENTRY_CRASHPAD_SYSTEM` (Default: OFF):
+  This instructs the build system to use system-installed breakpad or crashpad
+  libraries instead of using the in-tree version. This is generally not recommended
+  for crashpad, as sentry uses a patched version that has attachment support.
+  This is being worked on upstream as well, and a future version might work with
+  an unmodified crashpad version as well.
 
 | Feature    | Windows | macOS | Linux | Android |
 | ---------- | ------- | ----- | ----- | ------- |

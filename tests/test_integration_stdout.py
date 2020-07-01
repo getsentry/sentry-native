@@ -19,40 +19,6 @@ from .assertions import (
 )
 
 
-def test_static_lib(cmake):
-    tmp_path = cmake(
-        ["sentry_example"],
-        {
-            "SENTRY_BACKEND": "none",
-            "SENTRY_TRANSPORT": "none",
-            "BUILD_SHARED_LIBS": "OFF",
-        },
-    )
-
-    # on linux we can use `ldd` to check that we don’t link to `libsentry.so`
-    if sys.platform == "linux":
-        output = subprocess.check_output("ldd sentry_example", cwd=tmp_path, shell=True)
-        assert b"libsentry.so" not in output
-
-    # on windows, we use `sigcheck` to check that the exe is compiled correctly
-    if sys.platform == "win32":
-        output = subprocess.run(
-            "sigcheck sentry_example.exe",
-            cwd=tmp_path,
-            shell=True,
-            stdout=subprocess.PIPE,
-        ).stdout
-        assert (b"32-bit" if os.environ.get("TEST_X86") else b"64-bit") in output
-    # similarly, we use `file` on linux
-    if sys.platform == "linux":
-        output = subprocess.check_output(
-            "file sentry_example", cwd=tmp_path, shell=True
-        )
-        assert (
-            b"ELF 32-bit" if os.environ.get("TEST_X86") else b"ELF 64-bit"
-        ) in output
-
-
 def test_capture_stdout(cmake):
     tmp_path = cmake(
         ["sentry_example"], {"SENTRY_BACKEND": "none", "SENTRY_TRANSPORT": "none",},
