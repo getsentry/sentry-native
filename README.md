@@ -15,6 +15,11 @@ and arbitrary custom context to enrich error reports.
 to check for updates regularly to benefit from latest features and bug fixes.
 Please see [Known Issues](#known-issues).
 
+## Resources
+
+- [Discord](https://discord.gg/ez5KZN7) server for project discussions.
+- Follow [@getsentry](https://twitter.com/getsentry) on Twitter for updates
+
 ## Table of Contents <!-- omit in toc -->
 
 - [Downloads](#downloads)
@@ -24,9 +29,7 @@ Please see [Known Issues](#known-issues).
   - [Compile-Time Options](#compile-time-options)
   - [Build Targets](#build-targets)
 - [Known Issues](#known-issues)
-- [Sample Application](#sample-application)
 - [Development](#development)
-  - [Running Tests](#running-tests)
 
 ## Downloads
 
@@ -228,11 +231,6 @@ Legend:
 
 ## Known Issues
 
-- The SDK currently depends on the hosted version on
-  [sentry.io](https://sentry.io). The latest on-premise version of Sentry (10.0)
-  does not provide server-side support for events sent by `sentry-native`.
-  Full support for `sentry-native` will be made available to all on-premise
-  customers with the next release.
 - Attachments are currently in _Preview_ and may not be available to your
   organization. Please see [Event Attachments] for more information.
 
