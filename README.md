@@ -15,6 +15,11 @@ and arbitrary custom context to enrich error reports.
 to check for updates regularly to benefit from latest features and bug fixes.
 Please see [Known Issues](#known-issues).
 
+## Resources
+
+- [Discord](https://discord.gg/ez5KZN7) server for project discussions.
+- Follow [@getsentry](https://twitter.com/getsentry) on Twitter for updates
+
 ## Table of Contents <!-- omit in toc -->
 
 - [Downloads](#downloads)
@@ -24,9 +29,7 @@ Please see [Known Issues](#known-issues).
   - [Compile-Time Options](#compile-time-options)
   - [Build Targets](#build-targets)
 - [Known Issues](#known-issues)
-- [Sample Application](#sample-application)
 - [Development](#development)
-  - [Running Tests](#running-tests)
 
 ## Downloads
 
@@ -186,6 +189,7 @@ using `cmake -D BUILD_SHARED_LIBS=OFF ..`.
 
 - `SENTRY_BACKEND` (Default: depending on platform):
   Sentry can use different backends depending on platform.
+
   - **crashpad**: This uses the out-of-process crashpad handler. It is currently
     only supported on Windows and macOS, and used as the default there.
   - **breakpad**: This uses the in-process breakpad handler. It is currently
@@ -194,6 +198,13 @@ using `cmake -D BUILD_SHARED_LIBS=OFF ..`.
     and is used as default on Android.
   - **none**: This builds `sentry-native` without a backend, so it does not handle
     crashes at all. It is primarily used for tests.
+
+- `SENTRY_BREAKPAD_SYSTEM` / `SENTRY_CRASHPAD_SYSTEM` (Default: OFF):
+  This instructs the build system to use system-installed breakpad or crashpad
+  libraries instead of using the in-tree version. This is generally not recommended
+  for crashpad, as sentry uses a patched version that has attachment support.
+  This is being worked on upstream as well, and a future version might work with
+  an unmodified crashpad version as well.
 
 | Feature    | Windows | macOS | Linux | Android |
 | ---------- | ------- | ----- | ----- | ------- |
@@ -228,11 +239,6 @@ Legend:
 
 ## Known Issues
 
-- The SDK currently depends on the hosted version on
-  [sentry.io](https://sentry.io). The latest on-premise version of Sentry (10.0)
-  does not provide server-side support for events sent by `sentry-native`.
-  Full support for `sentry-native` will be made available to all on-premise
-  customers with the next release.
 - Attachments are currently in _Preview_ and may not be available to your
   organization. Please see [Event Attachments] for more information.
 

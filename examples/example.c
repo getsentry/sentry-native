@@ -63,8 +63,7 @@ main(int argc, char **argv)
     if (has_arg(argc, argv, "attachment")) {
         // assuming the example / test is run directly from the cmake build
         // directory
-        sentry_options_add_attachment(
-            options, "CMakeCache.txt", "./CMakeCache.txt");
+        sentry_options_add_attachment(options, "./CMakeCache.txt");
     }
 
     if (has_arg(argc, argv, "stdout")) {

@@ -1,10 +1,11 @@
 #include "sentry_logger.h"
+#include "sentry_core.h"
 #include "sentry_options.h"
 
 #include <stdio.h>
 #include <string.h>
 
-static sentry_logger_t g_logger = { NULL };
+static sentry_logger_t g_logger = { NULL, NULL };
 
 void
 sentry__logger_set_global(sentry_logger_t logger)
@@ -17,7 +18,7 @@ sentry__logger_set_global(sentry_logger_t logger)
 #    include <android/log.h>
 void
 sentry__logger_defaultlogger(
-    sentry_level_t level, const char *message, va_list args)
+    sentry_level_t level, const char *message, va_list args, void *UNUSED(data))
 {
     android_LogPriority priority = ANDROID_LOG_UNKNOWN;
     switch (level) {
@@ -46,7 +47,7 @@ sentry__logger_defaultlogger(
 
 void
 sentry__logger_defaultlogger(
-    sentry_level_t level, const char *message, va_list args)
+    sentry_level_t level, const char *message, va_list args, void *UNUSED(data))
 {
     const char *prefix = "[sentry] ";
     const char *priority = sentry__logger_describe(level);
@@ -85,10 +86,10 @@ void
 sentry__logger_log(sentry_level_t level, const char *message, ...)
 {
     sentry_logger_t logger = g_logger;
-    if (logger.logger) {
+    if (logger.logger_func) {
         va_list args;
         va_start(args, message);
-        logger.logger(level, message, args);
+        logger.logger_func(level, message, args, logger.logger_data);
         va_end(args);
     }
 }

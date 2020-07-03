@@ -3,6 +3,7 @@
 
 #include "sentry_boot.h"
 
+#include "sentry_logger.h"
 #include "sentry_utils.h"
 
 // Defaults to 2s as per
@@ -19,7 +20,6 @@ struct sentry_backend_s;
  */
 typedef struct sentry_attachment_s sentry_attachment_t;
 struct sentry_attachment_s {
-    char *name;
     sentry_path_t *path;
     sentry_attachment_t *next;
 };
@@ -39,7 +39,7 @@ typedef struct sentry_options_s {
     char *ca_certs;
     sentry_path_t *database_path;
     sentry_path_t *handler_path;
-    void (*logger)(sentry_level_t level, const char *message, va_list args);
+    sentry_logger_t logger;
     bool debug;
     bool require_user_consent;
     bool symbolize_stacktraces;

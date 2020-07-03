@@ -163,10 +163,10 @@ sentry__breakpad_backend_callback(
     // after capturing the crash event, try to dump all the in-flight data of
     // the previous transports
     if (transport_disk) {
-        sentry__transport_dump_queue(transport_disk);
+        sentry__transport_dump_queue(transport_disk, options->run);
     }
     if (transport_original) {
-        sentry__transport_dump_queue(transport_original);
+        sentry__transport_dump_queue(transport_original, options->run);
     }
     SENTRY_DEBUG("crash has been captured");
 
@@ -177,9 +177,9 @@ sentry__breakpad_backend_callback(
 }
 
 static void
-sentry__breakpad_backend_startup(sentry_backend_t *backend)
+sentry__breakpad_backend_startup(
+    sentry_backend_t *backend, const sentry_options_t *options)
 {
-    const sentry_options_t *options = sentry_get_options();
     sentry_path_t *current_run_folder = options->run->run_path;
 
 #ifdef SENTRY_PLATFORM_WINDOWS

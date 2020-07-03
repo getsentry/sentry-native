@@ -61,9 +61,9 @@ sentry_init(sentry_options_t *options)
 {
     sentry_shutdown();
 
-    sentry_logger_t logger = { NULL };
+    sentry_logger_t logger = { NULL, NULL };
     if (options->debug) {
-        logger.logger = options->logger;
+        logger = options->logger;
     }
     sentry__logger_set_global(logger);
 
@@ -114,7 +114,7 @@ sentry_init(sentry_options_t *options)
     sentry_backend_t *backend = options->backend;
     if (backend && backend->startup_func) {
         SENTRY_TRACE("starting backend");
-        backend->startup_func(backend);
+        backend->startup_func(backend, options);
     }
 
     return 0;
