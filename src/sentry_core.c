@@ -113,7 +113,7 @@ sentry_init(sentry_options_t *options)
     sentry_backend_t *backend = options->backend;
     if (backend && backend->startup_func) {
         SENTRY_TRACE("starting backend");
-        backend->startup_func(backend);
+        backend->startup_func(backend, options);
     }
 
     return 0;

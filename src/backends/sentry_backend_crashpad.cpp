@@ -96,11 +96,9 @@ sentry__crashpad_backend_shutdown(sentry_backend_t *backend)
 }
 
 static void
-sentry__crashpad_backend_startup(sentry_backend_t *backend)
+sentry__crashpad_backend_startup(
+    sentry_backend_t *backend, const sentry_options_t *options)
 {
-    // TODO: backends should really get the options as argument
-    const sentry_options_t *options = sentry_get_options();
-
     sentry_path_t *owned_handler_path = NULL;
     sentry_path_t *handler_path = options->handler_path;
     if (!handler_path) {

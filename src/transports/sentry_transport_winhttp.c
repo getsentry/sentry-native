@@ -265,13 +265,13 @@ sentry__winhttp_dump(void *task_data, void *run)
 }
 
 size_t
-sentry__winhttp_dump_queue(void *state)
+sentry__winhttp_dump_queue(sentry_run_t *run, void *state)
 {
     sentry_bgworker_t *bgworker
         = ((winhttp_transport_state_t *)state)->bgworker;
 
-    return sentry__bgworker_foreach_matching(bgworker, task_exec_func,
-        sentry__winhttp_dump, sentry_get_options()->run);
+    return sentry__bgworker_foreach_matching(
+        bgworker, task_exec_func, sentry__winhttp_dump, run);
 }
 
 sentry_transport_t *
