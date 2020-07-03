@@ -20,7 +20,6 @@ struct sentry_backend_s;
  */
 typedef struct sentry_attachment_s sentry_attachment_t;
 struct sentry_attachment_s {
-    char *name;
     sentry_path_t *path;
     sentry_attachment_t *next;
 };

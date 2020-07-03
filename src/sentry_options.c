@@ -49,7 +49,6 @@ void
 sentry__attachment_free(sentry_attachment_t *attachment)
 {
     sentry__path_free(attachment->path);
-    sentry_free(attachment->name);
     sentry_free(attachment);
 }
 
@@ -250,34 +249,25 @@ sentry_options_set_system_crash_reporter_enabled(
 }
 
 static void
-add_attachment(
-    sentry_options_t *opts, const char *orig_name, sentry_path_t *path)
+add_attachment(sentry_options_t *opts, sentry_path_t *path)
 {
     if (!path) {
         return;
     }
-    char *name = sentry__string_clone(orig_name);
-    if (!name) {
-        sentry__path_free(path);
-        return;
-    }
     sentry_attachment_t *attachment = SENTRY_MAKE(sentry_attachment_t);
     if (!attachment) {
-        sentry_free(name);
         sentry__path_free(path);
         return;
     }
-    attachment->name = name;
     attachment->path = path;
     attachment->next = opts->attachments;
     opts->attachments = attachment;
 }
 
 void
-sentry_options_add_attachment(
-    sentry_options_t *opts, const char *name, const char *path)
+sentry_options_add_attachment(sentry_options_t *opts, const char *path)
 {
-    add_attachment(opts, name, sentry__path_from_str(path));
+    add_attachment(opts, sentry__path_from_str(path));
 }
 
 void
@@ -296,10 +286,9 @@ sentry_options_set_database_path(sentry_options_t *opts, const char *path)
 
 #ifdef SENTRY_PLATFORM_WINDOWS
 void
-sentry_options_add_attachmentw(
-    sentry_options_t *opts, const char *name, const wchar_t *path)
+sentry_options_add_attachmentw(sentry_options_t *opts, const wchar_t *path)
 {
-    add_attachment(opts, name, sentry__path_from_wstr(path));
+    add_attachment(opts, sentry__path_from_wstr(path));
 }
 
 void

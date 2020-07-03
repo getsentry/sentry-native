@@ -36,10 +36,9 @@ SENTRY_TEST(lazy_attachments)
         options, sentry_new_function_transport(send_envelope, &testdata));
     sentry_options_set_release(options, "prod");
 
+    sentry_options_add_attachment(options, PREFIX ".existing-file-attachment");
     sentry_options_add_attachment(
-        options, "existing-attachment", PREFIX ".existing-file-attachment");
-    sentry_options_add_attachment(options, "non-existing-attachment",
-        PREFIX ".non-existing-file-attachment");
+        options, PREFIX ".non-existing-file-attachment");
     sentry_path_t *existing
         = sentry__path_from_str(PREFIX ".existing-file-attachment");
     sentry_path_t *non_existing
@@ -59,7 +58,8 @@ SENTRY_TEST(lazy_attachments)
                    "foo\n")
         != NULL);
     TEST_CHECK(
-        strstr(serialized, "\"filename\":\"non-existing-attachment\"") == NULL);
+        strstr(serialized, "\"filename\":\".non-existing-file-attachment\"")
+        == NULL);
     sentry_free(serialized);
 
     sentry__path_write_buffer(existing, "foobar", 6);
