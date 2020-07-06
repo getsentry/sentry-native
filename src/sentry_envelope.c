@@ -248,7 +248,8 @@ sentry_envelope_item_t *
 sentry__envelope_add_from_buffer(sentry_envelope_t *envelope, const char *buf,
     size_t buf_len, const char *type)
 {
-    // NOTE: function will check for `payload` internally and free it on error
+    // NOTE: function will check for the clone of `buf` internally and free it
+    // on error
     return envelope_add_from_owned_buffer(
         envelope, sentry__string_clonen(buf, buf_len), buf_len, type);
 }
