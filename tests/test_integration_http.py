@@ -164,8 +164,8 @@ def test_inproc_dump_inflight(cmake, httpserver):
 
     run(tmp_path, "sentry_example", ["log", "no-setup"], check=True, env=env)
 
-    # we trigger 10 normal events, and 1 crash, maybe losing 1 in-flight request
-    assert len(httpserver.log) >= 10
+    # we trigger 10 normal events, and 1 crash
+    assert len(httpserver.log) >= 11
 
 
 @pytest.mark.skipif(not has_breakpad, reason="test needs breakpad backend")
@@ -223,8 +223,8 @@ def test_breakpad_dump_inflight(cmake, httpserver):
 
     run(tmp_path, "sentry_example", ["log", "no-setup"], check=True, env=env)
 
-    # we trigger 10 normal events, and 1 crash, maybe losing 1 in-flight request
-    assert len(httpserver.log) >= 10
+    # we trigger 10 normal events, and 1 crash
+    assert len(httpserver.log) >= 11
 
 
 @pytest.mark.skipif(is_asan, reason="test intentionally leaks")
@@ -241,7 +241,17 @@ def test_shutdown_timeout(cmake, httpserver):
 
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
     child = run(
-        tmp_path, "sentry_example", ["log", "capture-event"], env=env, check=True
+        tmp_path, "sentry_example", ["log", "capture-multiple"], env=env, check=True
     )
-
     time.sleep(0.5)
+
+    httpserver.clear_all_handlers()
+    httpserver.clear_log()
+
+    httpserver.expect_request(
+        "/api/123456/envelope/", headers={"x-sentry-auth": auth_header},
+    ).respond_with_data("OK")
+
+    run(tmp_path, "sentry_example", ["log", "no-setup"], check=True, env=env)
+
+    assert len(httpserver.log) == 10

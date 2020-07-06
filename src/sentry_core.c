@@ -130,18 +130,24 @@ sentry_shutdown(void)
     sentry__mutex_unlock(&g_options_mutex);
 
     if (options) {
+        bool clean_shutdown = true;
         if (options->transport) {
             // TODO: make this configurable
             if (!sentry__transport_shutdown(
                     options->transport, SENTRY_DEFAULT_SHUTDOWN_TIMEOUT)) {
                 SENTRY_WARN("transport did not shut down cleanly");
+                clean_shutdown = false;
             }
         }
         if (options->backend && options->backend->shutdown_func) {
             SENTRY_TRACE("shutting down backend");
             options->backend->shutdown_func(options->backend);
         }
-        sentry__run_clean(options->run);
+        if (clean_shutdown) {
+            sentry__run_clean(options->run);
+        } else {
+            sentry__transport_dump_queue(options->transport, options->run);
+        }
     }
 
     sentry__mutex_lock(&g_options_mutex);

@@ -6,13 +6,25 @@
 #include <stdio.h>
 #include <string.h>
 
+/**
+ * Task locking and refcounts:
+ *
+ * The task list is arranged as an intrusive linked list. Whenever the list
+ * itself is accessed or modified, the `task_lock` must be locked.
+ * Additionally, each task has an atomic refcount, which indicates that the
+ * task is _inside the list_ and _is currently being executed_.
+ * That way, a task can be removed from the list, even though it is currently
+ * being executed concurrently.
+ */
+
 struct sentry_bgworker_task_s;
-struct sentry_bgworker_task_s {
+typedef struct sentry_bgworker_task_s {
+    struct sentry_bgworker_task_s *next_task;
+    long refcount;
     sentry_task_function_t exec_func;
     sentry_task_function_t cleanup_func;
     void *data;
-    struct sentry_bgworker_task_s *next_task;
-};
+} sentry_bgworker_task_t;
 
 struct sentry_bgworker_s {
     sentry_cond_t submit_signal;
@@ -21,10 +33,11 @@ struct sentry_bgworker_s {
     sentry_mutex_t done_signal_lock;
     sentry_mutex_t task_lock;
     sentry_threadid_t thread_id;
-    struct sentry_bgworker_task_s *first_task;
-    struct sentry_bgworker_task_s *last_task;
+    sentry_bgworker_task_t *first_task;
+    sentry_bgworker_task_t *last_task;
     size_t task_count;
     bool running;
+    bool free_self;
 };
 
 sentry_bgworker_t *
@@ -41,6 +54,23 @@ sentry__bgworker_new(void)
     sentry__cond_init(&rv->submit_signal);
     sentry__cond_init(&rv->done_signal);
     return rv;
+}
+
+static void
+sentry__task_incref(sentry_bgworker_task_t *task)
+{
+    sentry__atomic_fetch_and_add(&task->refcount, 1);
+}
+
+static void
+sentry__task_decref(sentry_bgworker_task_t *task)
+{
+    if (sentry__atomic_fetch_and_add(&task->refcount, -1) == 1) {
+        if (task->cleanup_func) {
+            task->cleanup_func(task->data);
+        }
+        sentry_free(task);
+    }
 }
 
 static void
@@ -76,8 +106,11 @@ worker_thread(void *data)
     SENTRY_TRACE("background worker thread started");
     while (true) {
         sentry__mutex_lock(&bgw->task_lock);
-        struct sentry_bgworker_task_s *task = bgw->first_task;
+        sentry_bgworker_task_t *task = bgw->first_task;
         bool is_done = !bgw->running && bgw->task_count == 0 && !task;
+        if (task) {
+            sentry__task_incref(task);
+        }
         sentry__mutex_unlock(&bgw->task_lock);
 
         if (is_done) {
@@ -89,31 +122,25 @@ worker_thread(void *data)
                 &bgw->submit_signal, &bgw->submit_signal_lock, 1000);
             sentry__mutex_unlock(&bgw->submit_signal_lock);
         } else {
-            sentry__mutex_lock(&bgw->task_lock);
-            if (bgw->first_task != task) {
-                // we just had a race, so try again
-                sentry__mutex_unlock(&bgw->task_lock);
-                continue;
-            }
-            // We pop the task immediately, and execute it afterwards.
-            // This means we will lose the current in-flight envelope in the
-            // case of the crash, but will still dump the rest of the queue.
-            bgw->first_task = task->next_task;
-            if (task == bgw->last_task) {
-                bgw->last_task = NULL;
-            }
-            bgw->task_count--;
-            sentry__cond_wake(&bgw->done_signal);
-            sentry__mutex_unlock(&bgw->task_lock);
-
             SENTRY_TRACE("executing task on worker thread");
             task->exec_func(task->data);
+            sentry__task_decref(task);
 
-            if (task->cleanup_func) {
-                task->cleanup_func(task->data);
+            sentry__mutex_lock(&bgw->task_lock);
+            if (bgw->first_task == task) {
+                bgw->first_task = task->next_task;
+                if (task == bgw->last_task) {
+                    bgw->last_task = NULL;
+                }
+                sentry__task_decref(task);
+                bgw->task_count--;
             }
-            sentry_free(task);
+            sentry__cond_wake(&bgw->done_signal);
+            sentry__mutex_unlock(&bgw->task_lock);
         }
+    }
+    if (bgw->free_self) {
+        sentry_free(bgw);
     }
     SENTRY_TRACE("background worker thread shut down");
     return 0;
@@ -170,13 +197,10 @@ sentry__bgworker_free(sentry_bgworker_t *bgw)
     }
 
     sentry__mutex_lock(&bgw->task_lock);
-    struct sentry_bgworker_task_s *task = bgw->first_task;
+    sentry_bgworker_task_t *task = bgw->first_task;
     while (task) {
-        struct sentry_bgworker_task_s *next_task = task->next_task;
-        if (task->cleanup_func) {
-            task->cleanup_func(task->data);
-        }
-        sentry_free(task);
+        sentry_bgworker_task_t *next_task = task->next_task;
+        sentry__task_decref(task);
         task = next_task;
     }
     bgw->first_task = NULL;
@@ -189,6 +213,8 @@ sentry__bgworker_free(sentry_bgworker_t *bgw)
     bool is_shutdown = !bgw->running;
     if (is_shutdown) {
         sentry_free(bgw);
+    } else {
+        bgw->free_self = true;
     }
     return is_shutdown;
 }
@@ -200,18 +226,17 @@ sentry__bgworker_submit(sentry_bgworker_t *bgw,
 {
     assert(bgw->running);
 
-    struct sentry_bgworker_task_s *task
-        = SENTRY_MAKE(struct sentry_bgworker_task_s);
+    sentry_bgworker_task_t *task = SENTRY_MAKE(sentry_bgworker_task_t);
     if (!task) {
         return 1;
     }
-
-    SENTRY_TRACE("submitting task to background worker thread");
+    task->next_task = NULL;
+    task->refcount = 1;
     task->exec_func = exec_func;
     task->cleanup_func = cleanup_func;
     task->data = data;
-    task->next_task = NULL;
 
+    SENTRY_TRACE("submitting task to background worker thread");
     sentry__mutex_lock(&bgw->task_lock);
     if (!bgw->first_task) {
         bgw->first_task = task;
@@ -233,8 +258,8 @@ sentry__bgworker_foreach_matching(sentry_bgworker_t *bgw,
     bool (*callback)(void *task_data, void *data), void *data)
 {
     sentry__mutex_lock(&bgw->task_lock);
-    struct sentry_bgworker_task_s *task = bgw->first_task;
-    struct sentry_bgworker_task_s *prev_task = NULL;
+    sentry_bgworker_task_t *task = bgw->first_task;
+    sentry_bgworker_task_t *prev_task = NULL;
 
     size_t dropped = 0;
 
@@ -245,16 +270,13 @@ sentry__bgworker_foreach_matching(sentry_bgworker_t *bgw,
             drop_task = callback(task->data, data);
         }
 
-        struct sentry_bgworker_task_s *next_task = task->next_task;
+        sentry_bgworker_task_t *next_task = task->next_task;
         if (drop_task) {
             if (task == bgw->first_task) {
                 bgw->first_task = next_task;
             }
 
-            if (task->cleanup_func) {
-                task->cleanup_func(task->data);
-            }
-            sentry_free(task);
+            sentry__task_decref(task);
             bgw->task_count--;
             dropped++;
         } else {
