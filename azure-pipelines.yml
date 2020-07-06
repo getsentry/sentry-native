@@ -46,9 +46,9 @@ stages:
               CXX: clang++-10
               ERROR_ON_WARNINGS: 1
               RUN_ANALYZER: kcov
-            Linux (scan-build):
+            Linux (code-checker):
               vmImage: "ubuntu-20.04"
-              RUN_ANALYZER: scan-build
+              RUN_ANALYZER: code-checker
             macOS (xcode llvm):
               vmImage: "macOs-latest"
               ERROR_ON_WARNINGS: 1
@@ -89,6 +89,14 @@ stages:
           - script: sudo apt update && sudo apt install libcurl4 libcurl4-openssl-dev kcov g++-10 clang-10 clang-tools llvm
             condition: and(eq(variables['Agent.OS'], 'Linux'), not(variables['TEST_X86']))
             displayName: Installing Linux Dependencies
+          - script: |
+              sudo apt install clang-tidy clang-tools curl doxygen gcc-multilib python3-dev python3-virtualenv
+              git clone https://github.com/Ericsson/CodeChecker.git --depth 1
+              cd CodeChecker
+              BUILD_LOGGER_64_BIT_ONLY=YES make standalone_package
+              echo "##vso[task.prependpath]$PWD/build/CodeChecker/bin"
+            condition: contains(variables['RUN_ANALYZER'], 'code-checker')
+            displayName: Installing CodeChecker
           - script: sudo apt update && sudo apt install gcc-multilib g++-multilib
             condition: and(eq(variables['Agent.OS'], 'Linux'), variables['TEST_X86'])
             displayName: Installing Linux 32-bit Dependencies

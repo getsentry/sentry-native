@@ -1,4 +1,5 @@
 #include "sentry_boot.h"
+#include "sentry_core.h"
 
 #include <setjmp.h>
 #include <stdarg.h>
@@ -12,7 +13,7 @@
 #include "../vendor/acutest.h"
 
 #define CONCAT(A, B) A##B
-#define SENTRY_TEST(Name) void CONCAT(test_sentry_, Name)(void **state)
+#define SENTRY_TEST(Name) void CONCAT(test_sentry_, Name)(void **UNUSED(state))
 #define SKIP_TEST() (void)0
 
 #define TEST_CHECK_STRING_EQUAL(Val, ReferenceVal)                             \

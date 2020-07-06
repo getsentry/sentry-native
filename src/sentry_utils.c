@@ -52,7 +52,7 @@ sentry__url_parse(sentry_url_t *url_out, const char *url)
     }
     url_out->scheme = sentry__string_clonen(ptr, tmp - ptr);
 
-    if (!is_scheme_valid(url_out->scheme)) {
+    if (!url_out->scheme || !is_scheme_valid(url_out->scheme)) {
         goto error;
     }
     sentry__string_ascii_lower(url_out->scheme);

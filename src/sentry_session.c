@@ -58,6 +58,7 @@ sentry__session_new(void)
 
     sentry_session_t *rv = SENTRY_MAKE(sentry_session_t);
     if (!rv) {
+        sentry_free(release);
         return NULL;
     }
 
@@ -159,6 +160,7 @@ sentry__session_from_json(const char *buf, size_t buflen)
 
     sentry_session_t *rv = SENTRY_MAKE(sentry_session_t);
     if (!rv) {
+        sentry_free(release);
         return NULL;
     }
     rv->session_id

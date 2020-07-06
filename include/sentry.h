@@ -719,12 +719,18 @@ SENTRY_API void sentry_options_set_debug(sentry_options_t *opts, int debug);
 SENTRY_API int sentry_options_get_debug(const sentry_options_t *opts);
 
 /**
+ * Type of the callback for logger function.
+ */
+typedef void (*sentry_logger_function_t)(
+    sentry_level_t level, const char *message, va_list args, void *userdata);
+
+/**
  * Sets the sentry-native logger function.
+ *
  * Used for logging debug events when the `debug` option is set to true.
  */
-SENTRY_API void sentry_options_set_logger(sentry_options_t *opts,
-    void (*logger_func)(
-        sentry_level_t level, const char *message, va_list args));
+SENTRY_API void sentry_options_set_logger(
+    sentry_options_t *opts, sentry_logger_function_t func, void *userdata);
 
 /**
  * Enables or disables user consent requirements for uploads.
@@ -767,7 +773,7 @@ SENTRY_API int sentry_options_get_symbolize_stacktraces(
  * instead.
  */
 SENTRY_API void sentry_options_add_attachment(
-    sentry_options_t *opts, const char *name, const char *path);
+    sentry_options_t *opts, const char *path);
 
 /**
  * Sets the path to the crashpad handler if the crashpad backend is used.
@@ -812,7 +818,7 @@ SENTRY_API void sentry_options_set_database_path(
  * Wide char version of `sentry_options_add_attachment`.
  */
 SENTRY_API void sentry_options_add_attachmentw(
-    sentry_options_t *opts, const char *name, const wchar_t *path);
+    sentry_options_t *opts, const wchar_t *path);
 
 /**
  * Wide char version of `sentry_options_set_handler_path`.

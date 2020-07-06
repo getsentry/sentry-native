@@ -76,7 +76,14 @@ def run(cwd, exe, args, env=dict(os.environ), **kwargs):
             coverage_dir,
             *cmd,
         ]
-    return subprocess.run([*cmd, *args], cwd=cwd, env=env, **kwargs)
+    try:
+        return subprocess.run([*cmd, *args], cwd=cwd, env=env, **kwargs)
+    except subprocess.CalledProcessError:
+        raise pytest.fail.Exception(
+            "running command failed: {cmd} {args}".format(
+                cmd=" ".join(cmd), args=" ".join(args)
+            )
+        ) from None
 
 
 def check_output(*args, **kwargs):

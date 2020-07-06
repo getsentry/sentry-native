@@ -116,8 +116,8 @@ else()
 	message(FATAL_ERROR "SENTRY_BACKEND must be one of 'crashpad', 'inproc', 'breakpad' or 'none'")
 endif()
 
-if(SENTRY_BACKEND_CRASHPAD AND NOT (APPLE OR WIN32))
-	message(FATAL_ERROR "The Crashpad backend is currently only supported on macOS and Windows")
+if(SENTRY_BACKEND_CRASHPAD AND ANDROID)
+	message(FATAL_ERROR "The Crashpad backend is not currently supported on Android")
 endif()
 if(SENTRY_BACKEND_BREAKPAD AND NOT (LINUX OR WIN32))
 	message(FATAL_ERROR "The Breakpad backend is currently only supported on Linux and Windows")
@@ -249,6 +249,7 @@ if(MSVC)
 	endif()
 else()
 	target_compile_options(sentry PRIVATE $<BUILD_INTERFACE:-Wall -Wextra -Wpedantic>)
+	target_compile_options(sentry PRIVATE $<BUILD_INTERFACE:-Wno-variadic-macros -Wno-gnu-include-next>)
 	# ignore all warnings for mpack
 	set_source_files_properties(
 		"${PROJECT_SOURCE_DIR}/vendor/mpack.c"
@@ -380,18 +381,26 @@ if(SENTRY_BACKEND_CRASHPAD)
 	endif()
 	add_dependencies(sentry crashpad::handler)
 elseif(SENTRY_BACKEND_BREAKPAD)
-	add_subdirectory(external)
-	target_include_directories(sentry PRIVATE
-		"$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/breakpad/src>"
-	)
-	target_link_libraries(sentry PRIVATE
-		breakpad_client
-	)
-	if(NOT BUILD_SHARED_LIBS)
-		sentry_install(TARGETS breakpad_client EXPORT sentry
-			LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
-			ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+	option(SENTRY_BREAKPAD_SYSTEM "Use system breakpad" OFF)
+	if(SENTRY_BREAKPAD_SYSTEM)
+		# system breakpad is using pkg-config, see `external/breakpad/breakpad-client.pc.in`
+		find_package(PkgConfig REQUIRED)
+		pkg_check_modules(BREAKPAD REQUIRED IMPORTED_TARGET breakpad-client)
+		target_link_libraries(sentry PUBLIC PkgConfig::BREAKPAD)
+	else()
+		add_subdirectory(external)
+		target_include_directories(sentry PRIVATE
+			"$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/breakpad/src>"
 		)
+		target_link_libraries(sentry PRIVATE
+			breakpad_client
+		)
+		if(NOT BUILD_SHARED_LIBS)
+			sentry_install(TARGETS breakpad_client EXPORT sentry
+				LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+				ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+			)
+		endif()
 	endif()
 elseif(SENTRY_BACKEND_INPROC)
 	target_compile_definitions(sentry PRIVATE SENTRY_WITH_INPROC_BACKEND)

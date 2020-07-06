@@ -13,7 +13,8 @@
  */
 struct sentry_backend_s;
 typedef struct sentry_backend_s {
-    void (*startup_func)(struct sentry_backend_s *);
+    void (*startup_func)(
+        struct sentry_backend_s *, const sentry_options_t *options);
     void (*shutdown_func)(struct sentry_backend_s *);
     void (*free_func)(struct sentry_backend_s *);
     void (*except_func)(

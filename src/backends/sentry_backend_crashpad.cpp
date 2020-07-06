@@ -18,7 +18,6 @@ extern "C" {
 #    pragma GCC diagnostic ignored "-Wunused-parameter"
 #    pragma GCC diagnostic ignored "-Wgnu-zero-variadic-macro-arguments"
 #    pragma GCC diagnostic ignored "-Wfour-char-constants"
-#    pragma GCC diagnostic ignored "-Wgnu-include-next"
 #elif defined(_MSC_VER)
 #    pragma warning(push)
 #    pragma warning(disable : 4100) // unreferenced formal parameter
@@ -97,11 +96,9 @@ sentry__crashpad_backend_shutdown(sentry_backend_t *backend)
 }
 
 static void
-sentry__crashpad_backend_startup(sentry_backend_t *backend)
+sentry__crashpad_backend_startup(
+    sentry_backend_t *backend, const sentry_options_t *options)
 {
-    // TODO: backends should really get the options as argument
-    const sentry_options_t *options = sentry_get_options();
-
     sentry_path_t *owned_handler_path = NULL;
     sentry_path_t *handler_path = options->handler_path;
     if (!handler_path) {
@@ -147,13 +144,12 @@ sentry__crashpad_backend_startup(sentry_backend_t *backend)
     sentry__path_free(absolute_handler_path);
 
     std::map<std::string, std::string> annotations;
-    std::map<std::string, base::FilePath> file_attachments;
+    std::vector<base::FilePath> attachments;
 
     // register attachments
     for (sentry_attachment_t *attachment = options->attachments; attachment;
          attachment = attachment->next) {
-        file_attachments.emplace(
-            attachment->name, base::FilePath(attachment->path->path));
+        attachments.push_back(base::FilePath(attachment->path->path));
     }
 
     // and add the serialized event, and two rotating breadcrumb files
@@ -175,12 +171,9 @@ sentry__crashpad_backend_startup(sentry_backend_t *backend)
     // to pass `NULL` here.
     sentry__crashpad_backend_flush_scope(backend, NULL);
 
-    file_attachments.emplace(
-        "__sentry-event", base::FilePath(data->event_path->path));
-    file_attachments.emplace(
-        "__sentry-breadcrumb1", base::FilePath(data->breadcrumb1_path->path));
-    file_attachments.emplace(
-        "__sentry-breadcrumb2", base::FilePath(data->breadcrumb2_path->path));
+    attachments.push_back(base::FilePath(data->event_path->path));
+    attachments.push_back(base::FilePath(data->breadcrumb1_path->path));
+    attachments.push_back(base::FilePath(data->breadcrumb2_path->path));
 
     std::vector<std::string> arguments;
     arguments.push_back("--no-rate-limit");
@@ -195,10 +188,9 @@ sentry__crashpad_backend_startup(sentry_backend_t *backend)
     char *minidump_url = sentry__dsn_get_minidump_url(&options->dsn);
     std::string url = minidump_url ? std::string(minidump_url) : std::string();
     sentry_free(minidump_url);
-    bool success = client.StartHandlerWithAttachments(handler, database,
-        database, url, annotations, file_attachments, arguments,
-        /* restartable */ true,
-        /* asynchronous_start */ false);
+    bool success = client.StartHandler(handler, database, database, url,
+        annotations, arguments, /* restartable */ true,
+        /* asynchronous_start */ false, attachments);
 
     if (success) {
         SENTRY_DEBUG("started crashpad client handler");

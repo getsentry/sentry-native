@@ -17,7 +17,7 @@ static int
 append(sentry_stringbuilder_t *sb, const char *s, size_t len)
 {
     size_t needed = sb->len + len + 1;
-    if (needed > sb->allocated) {
+    if (!sb->buf || needed > sb->allocated) {
         size_t new_alloc_size = sb->allocated;
         if (new_alloc_size == 0) {
             new_alloc_size = INITIAL_BUFFER_SIZE;
@@ -41,6 +41,7 @@ append(sentry_stringbuilder_t *sb, const char *s, size_t len)
 
     // make sure we're always zero terminated
     sb->buf[sb->len] = '\0';
+
     return 0;
 }
 

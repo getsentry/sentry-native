@@ -38,9 +38,7 @@ static void *invalid_mem = (void *)1;
 static void
 trigger_crash()
 {
-    // Triggers a segfault by writing to `NULL`. We actually do a `1 - 1` to
-    // defeat static analyzers which would warn for the trivial case.
-    memset((char *)invalid_mem - 1, 1, 100);
+    memset((char *)invalid_mem, 1, 100);
 }
 
 int
@@ -65,8 +63,7 @@ main(int argc, char **argv)
     if (has_arg(argc, argv, "attachment")) {
         // assuming the example / test is run directly from the cmake build
         // directory
-        sentry_options_add_attachment(
-            options, "CMakeCache.txt", "./CMakeCache.txt");
+        sentry_options_add_attachment(options, "./CMakeCache.txt");
     }
 
     if (has_arg(argc, argv, "stdout")) {

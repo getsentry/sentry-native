@@ -2,19 +2,14 @@ import pytest
 import os
 import time
 from . import make_dsn, run, Envelope
-from .conditions import has_crashpad, has_http
+from .conditions import has_crashpad
 from .assertions import assert_session
 
 # TODO:
-# * with crashpad backend:
-#   - breadcrumbs, attachments, etc
-#   - crash
-#   - expect report via http
+# Actually assert that we get a correct event/breadcrumbs payload
 
 
-@pytest.mark.skipif(
-    not has_http or not has_crashpad, reason="test needs crashpad backend"
-)
+@pytest.mark.skipif(not has_crashpad, reason="test needs crashpad backend")
 def test_crashpad_capture(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "crashpad"})
 
@@ -31,9 +26,7 @@ def test_crashpad_capture(cmake, httpserver):
     assert len(httpserver.log) == 2
 
 
-@pytest.mark.skipif(
-    not has_http or not has_crashpad, reason="test needs crashpad backend"
-)
+@pytest.mark.skipif(not has_crashpad, reason="test needs crashpad backend")
 def test_crashpad_crash(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "crashpad"})
 

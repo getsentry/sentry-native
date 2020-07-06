@@ -226,12 +226,12 @@ sentry__curl_dump(void *task_data, void *run)
 }
 
 size_t
-sentry__curl_dump_queue(void *state)
+sentry__curl_dump_queue(sentry_run_t *run, void *state)
 {
     sentry_bgworker_t *bgworker = ((curl_transport_state_t *)state)->bgworker;
 
     return sentry__bgworker_foreach_matching(
-        bgworker, task_exec_func, sentry__curl_dump, sentry_get_options()->run);
+        bgworker, task_exec_func, sentry__curl_dump, run);
 }
 
 sentry_transport_t *
