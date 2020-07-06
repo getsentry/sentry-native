@@ -30,7 +30,7 @@ send_envelope(const sentry_envelope_t *envelope, void *data)
         "exited");
     TEST_CHECK_STRING_EQUAL(
         sentry_value_as_string(sentry_value_get_by_key(session, "did")),
-        "foo@blabla.invalid");
+        *called == 1 ? "foo@blabla.invalid" : "swatinem");
     TEST_CHECK_INT_EQUAL(
         sentry_value_as_int32(sentry_value_get_by_key(session, "errors")), 0);
     TEST_CHECK_INT_EQUAL(
@@ -71,7 +71,15 @@ SENTRY_TEST(session_basics)
         user, "email", sentry_value_new_string("foo@blabla.invalid"));
     sentry_set_user(user);
 
+    sentry_end_session();
+    sentry_start_session();
+
+    user = sentry_value_new_object();
+    sentry_value_set_by_key(
+        user, "username", sentry_value_new_string("swatinem"));
+    sentry_set_user(user);
+
     sentry_shutdown();
 
-    TEST_CHECK_INT_EQUAL(called, 1);
+    TEST_CHECK_INT_EQUAL(called, 2);
 }

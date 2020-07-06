@@ -193,6 +193,11 @@ SENTRY_TEST(value_object)
         "{\"key0\":0,\"key1\":1,\"key2\":2,\"key3\":3,\"key4\":4,\"key5\":5,"
         "\"key6\":6,\"key7\":7,\"key8\":8,\"key9\":9}");
 
+    sentry_value_t val2 = sentry__value_clone(val);
+    sentry_value_decref(val);
+    val = val2;
+    sentry_value_set_by_key(val, "key1", sentry_value_new_int32(100));
+
     for (size_t i = 0; i < 10; i += 2) {
         char key[100];
         sprintf(key, "key%d", (int)i);
@@ -201,7 +206,7 @@ SENTRY_TEST(value_object)
 
     TEST_CHECK(sentry_value_get_length(val) == 5);
     TEST_CHECK_JSON_VALUE(
-        val, "{\"key1\":1,\"key3\":3,\"key5\":5,\"key7\":7,\"key9\":9}");
+        val, "{\"key1\":100,\"key3\":3,\"key5\":5,\"key7\":7,\"key9\":9}");
 
     sentry_value_decref(val);
 
@@ -248,7 +253,63 @@ SENTRY_TEST(value_json_parsing)
     sentry_value_decref(rv);
 
     rv = sentry__value_from_json(
-        STRING("[42, \"foo\\u2603\", \"bar\", {\"foo\": 42}]"));
-    TEST_CHECK_JSON_VALUE(rv, "[42,\"foo☃\",\"bar\",{\"foo\":42}]");
+        STRING("[false, 42, \"foo\\u2603\", \"bar\", {\"foo\": 42}]"));
+    TEST_CHECK_JSON_VALUE(rv, "[false,42,\"foo☃\",\"bar\",{\"foo\":42}]");
+    sentry_value_decref(rv);
+
+    rv = sentry__value_from_json(
+        STRING("{\"escapes\": "
+               "\"quot: \\\", backslash: \\\\, slash: \\/, backspace: \\b, "
+               "formfeed: \\f, linefeed: \\n, carriage: \\r, tab: \\t\", "
+               "\"surrogates\": "
+               "\"\\uD801\\udc37\"}"));
+    // escaped forward slashes are parsed, but not generated
+    TEST_CHECK_JSON_VALUE(rv,
+        "{\"escapes\":"
+        "\"quot: \\\", backslash: \\\\, slash: /, backspace: \\b, "
+        "formfeed: \\f, linefeed: \\n, carriage: \\r, tab: \\t\","
+        "\"surrogates\":\"𐐷\"}");
+    sentry_value_decref(rv);
+
+    // unmatched surrogates don’t parse
+    rv = sentry__value_from_json(STRING("\"\\uD801\""));
+    TEST_CHECK(sentry_value_is_null(rv));
+    rv = sentry__value_from_json(
+        STRING("{\"valid key\": true, \"invalid key \\uD801\": false}"));
+    TEST_CHECK_JSON_VALUE(rv, "{\"valid key\":true}");
+    sentry_value_decref(rv);
+}
+
+SENTRY_TEST(value_json_escaping)
+{
+    sentry_value_t rv = sentry__value_from_json(
+        STRING("{\"escapes\": "
+               "\"quot: \\\", backslash: \\\\, slash: \\/, backspace: \\b, "
+               "formfeed: \\f, linefeed: \\n, carriage: \\r, tab: \\t\"}"));
+    // escaped forward slashes are parsed, but not generated
+    TEST_CHECK_JSON_VALUE(rv,
+        "{\"escapes\":"
+        "\"quot: \\\", backslash: \\\\, slash: /, backspace: \\b, "
+        "formfeed: \\f, linefeed: \\n, carriage: \\r, tab: \\t\"}");
+    sentry_value_decref(rv);
+
+    // trailing blackslash
+    rv = sentry__value_from_json(STRING("\"\\\""));
+    TEST_CHECK(sentry_value_is_null(rv));
+}
+
+SENTRY_TEST(value_json_surrogates)
+{
+    sentry_value_t rv = sentry__value_from_json(
+        STRING("{\"surrogates\": \"oh \\uD801\\udc37 hi\"}"));
+    TEST_CHECK_JSON_VALUE(rv, "{\"surrogates\":\"oh 𐐷 hi\"}");
+    sentry_value_decref(rv);
+
+    // unmatched surrogates don’t parse
+    rv = sentry__value_from_json(STRING("\"\\uD801\""));
+    TEST_CHECK(sentry_value_is_null(rv));
+    rv = sentry__value_from_json(
+        STRING("{\"valid key\": true, \"invalid key \\uD801\": false}"));
+    TEST_CHECK_JSON_VALUE(rv, "{\"valid key\":true}");
     sentry_value_decref(rv);
 }
