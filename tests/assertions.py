@@ -111,8 +111,8 @@ def assert_event(envelope):
 def assert_exception(envelope):
     event = envelope.get_event()
     exception = {
-        "type": "ExceptionType",
-        "value": "Some exception message",
+        "type": "ParseIntError",
+        "value": "invalid digit found in string",
     }
     expected = {"exception": {"values": [exception]}}
     assert matches(event, expected)
