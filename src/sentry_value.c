@@ -308,7 +308,11 @@ sentry_value_new_list(void)
     list_t *l = SENTRY_MAKE(list_t);
     if (l) {
         memset(l, 0, sizeof(list_t));
-        return new_thing_value(l, THING_TYPE_LIST);
+        sentry_value_t rv = new_thing_value(l, THING_TYPE_LIST);
+        if (sentry_value_is_null(rv)) {
+            sentry_free(l);
+        }
+        return rv;
     } else {
         return sentry_value_new_null();
     }
@@ -328,7 +332,12 @@ sentry__value_new_list_with_size(size_t size)
                 return sentry_value_new_null();
             }
         }
-        return new_thing_value(l, THING_TYPE_LIST);
+        sentry_value_t rv = new_thing_value(l, THING_TYPE_LIST);
+        if (sentry_value_is_null(rv)) {
+            sentry_free(l->items);
+            sentry_free(l);
+        }
+        return rv;
     } else {
         return sentry_value_new_null();
     }
@@ -340,7 +349,11 @@ sentry_value_new_object(void)
     obj_t *o = SENTRY_MAKE(obj_t);
     if (o) {
         memset(o, 0, sizeof(obj_t));
-        return new_thing_value(o, THING_TYPE_OBJECT);
+        sentry_value_t rv = new_thing_value(o, THING_TYPE_OBJECT);
+        if (sentry_value_is_null(rv)) {
+            sentry_free(o);
+        }
+        return rv;
     } else {
         return sentry_value_new_null();
     }
@@ -349,18 +362,23 @@ sentry_value_new_object(void)
 sentry_value_t
 sentry__value_new_object_with_size(size_t size)
 {
-    obj_t *l = SENTRY_MAKE(obj_t);
-    if (l) {
-        memset(l, 0, sizeof(obj_t));
-        l->allocated = size;
+    obj_t *o = SENTRY_MAKE(obj_t);
+    if (o) {
+        memset(o, 0, sizeof(obj_t));
+        o->allocated = size;
         if (size) {
-            l->pairs = sentry_malloc(sizeof(obj_pair_t) * size);
-            if (!l->pairs) {
-                sentry_free(l);
+            o->pairs = sentry_malloc(sizeof(obj_pair_t) * size);
+            if (!o->pairs) {
+                sentry_free(o);
                 return sentry_value_new_null();
             }
         }
-        return new_thing_value(l, THING_TYPE_OBJECT);
+        sentry_value_t rv = new_thing_value(o, THING_TYPE_OBJECT);
+        if (sentry_value_is_null(rv)) {
+            sentry_free(o->pairs);
+            sentry_free(o);
+        }
+        return rv;
     } else {
         return sentry_value_new_null();
     }
@@ -404,7 +422,7 @@ sentry_value_set_by_key(sentry_value_t value, const char *k, sentry_value_t v)
 {
     thing_t *thing = value_as_unfrozen_thing(value);
     if (!thing || thing_get_type(thing) != THING_TYPE_OBJECT) {
-        return 1;
+        goto fail;
     }
     obj_t *o = thing->payload;
     for (size_t i = 0; i < o->len; i++) {
@@ -418,17 +436,21 @@ sentry_value_set_by_key(sentry_value_t value, const char *k, sentry_value_t v)
 
     if (!reserve((void **)&o->pairs, sizeof(o->pairs[0]), &o->allocated,
             o->len + 1)) {
-        return 1;
+        goto fail;
     }
 
     obj_pair_t pair;
     pair.k = sentry__string_clone(k);
     if (!pair.k) {
-        return 1;
+        goto fail;
     }
     pair.v = v;
     o->pairs[o->len++] = pair;
     return 0;
+
+fail:
+    sentry_value_decref(v);
+    return 1;
 }
 
 int
@@ -525,12 +547,8 @@ sentry__value_clone(sentry_value_t value)
         const obj_t *obj = thing->payload;
         sentry_value_t rv = sentry__value_new_object_with_size(obj->len);
         for (size_t i = 0; i < obj->len; i++) {
-            char *key = sentry__string_clone(obj->pairs[i].k);
-            if (!key) {
-                continue;
-            }
             sentry_value_incref(obj->pairs[i].v);
-            sentry_value_set_by_key(rv, key, obj->pairs[i].v);
+            sentry_value_set_by_key(rv, obj->pairs[i].k, obj->pairs[i].v);
         }
         return rv;
     }
@@ -846,7 +864,12 @@ sentry_value_to_msgpack(sentry_value_t value, size_t *size_out)
 sentry_value_t
 sentry__value_new_string_owned(char *s)
 {
-    return new_thing_value(s, THING_TYPE_STRING | THING_TYPE_FROZEN);
+    sentry_value_t rv
+        = new_thing_value(s, THING_TYPE_STRING | THING_TYPE_FROZEN);
+    if (sentry_value_is_null(rv)) {
+        sentry_free(s);
+    }
+    return rv;
 }
 
 #ifdef SENTRY_PLATFORM_WINDOWS

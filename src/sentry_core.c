@@ -67,6 +67,12 @@ sentry_init(sentry_options_t *options)
     }
     sentry__logger_set_global(logger);
 
+    // we need to ensure the dir exists, otherwise `path_absolute` will fail.
+    if (sentry__path_create_dir_all(options->database_path)) {
+        sentry_options_free(options);
+        return 1;
+    }
+
     sentry_path_t *database_path = options->database_path;
     options->database_path = sentry__path_absolute(database_path);
     if (options->database_path) {
@@ -77,11 +83,6 @@ sentry_init(sentry_options_t *options)
     }
     SENTRY_DEBUGF("using database path \"%" SENTRY_PATH_PRI "\"",
         options->database_path->path);
-
-    if (sentry__path_create_dir_all(options->database_path)) {
-        sentry_options_free(options);
-        return 1;
-    }
 
     // try to create and lock our run folder as early as possibly, since it is
     // fallible. since it does locking, it will not interfere with run folder

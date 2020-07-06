@@ -427,6 +427,7 @@ load_modules(sentry_value_t modules)
             break;
         }
         if (sentry__stringbuilder_append_buf(&sb, buf, n)) {
+            sentry__stringbuilder_cleanup(&sb);
             close(fd);
             return;
         }
