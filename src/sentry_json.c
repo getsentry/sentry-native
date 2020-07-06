@@ -370,6 +370,7 @@ decode_string_inplace(char *buf)
                     || !sentry__is_trail_surrogate(trail)) {
                     return false;
                 }
+                input += 4;
                 uchar = sentry__surrogate_value(lead, trail);
             } else if (sentry__is_trail_surrogate(uchar)) {
                 return false;
@@ -445,6 +446,7 @@ tokens_to_value(jsmntok_t *tokens, size_t token_count, const char *buf,
         if (decode_string_inplace(string)) {
             rv = sentry__value_new_string_owned(string);
         } else {
+            sentry_free(string);
             rv = sentry_value_new_null();
         }
         break;

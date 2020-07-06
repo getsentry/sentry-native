@@ -311,7 +311,7 @@ sentry_capture_event(sentry_value_t event)
                     sentry__path_filename(attachment->path)));
         }
 
-        if (event_is_considered_error(sentry_envelope_get_event(envelope))) {
+        if (event_is_considered_error(event)) {
             sentry__record_errors_on_current_session(1);
         }
         sentry__add_current_session_to_envelope(envelope);
@@ -362,8 +362,7 @@ sentry_value_t
 sentry__ensure_event_id(sentry_value_t event, sentry_uuid_t *uuid_out)
 {
     sentry_value_t event_id = sentry_value_get_by_key(event, "event_id");
-    const char *uuid_str = sentry_value_as_string(event_id);
-    sentry_uuid_t uuid = sentry_uuid_from_string(uuid_str);
+    sentry_uuid_t uuid = sentry__value_as_uuid(event_id);
     if (sentry_uuid_is_nil(&uuid)) {
         uuid = sentry__new_event_id();
         event_id = sentry__value_new_uuid(&uuid);
