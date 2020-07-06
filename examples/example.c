@@ -155,10 +155,11 @@ main(int argc, char **argv)
         // See also https://github.com/getsentry/sentry-native/issues/235
         sentry_value_t event = sentry_value_new_event();
         sentry_value_t exception = sentry_value_new_object();
+        // for example:
         sentry_value_set_by_key(
-            exception, "type", sentry_value_new_string("ExceptionType"));
+            exception, "type", sentry_value_new_string("ParseIntError"));
         sentry_value_set_by_key(exception, "value",
-            sentry_value_new_string("Some exception message"));
+            sentry_value_new_string("invalid digit found in string"));
         sentry_value_t exceptions = sentry_value_new_list();
         sentry_value_append(exceptions, exception);
         sentry_value_t values = sentry_value_new_object();
