@@ -90,7 +90,7 @@ static inline void
 sentry__string_ascii_lower(char *s)
 {
     for (; *s; s++) {
-        *s = (char)tolower((unsigned char)*s);
+        *s = (char)tolower((char)*s);
     }
 }
 
