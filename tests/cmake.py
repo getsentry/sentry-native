@@ -120,7 +120,7 @@ def cmake(cwd, targets, options=None):
             "cmake",
         ]
 
-    configcmd = [*cmake]
+    configcmd = cmake.copy()
     for key, value in options.items():
         configcmd.append("-D{}={}".format(key, value))
     if sys.platform == "win32" and os.environ.get("TEST_X86"):
@@ -150,12 +150,9 @@ def cmake(cwd, targets, options=None):
 
     print("\n{} > {}".format(cwd, " ".join(configcmd)), flush=True)
     try:
-        failed = False
         subprocess.run(configcmd, cwd=cwd, env=env, check=True)
     except subprocess.CalledProcessError:
-        failed = True
-    if failed:
-        pytest.fail("cmake configure failed")
+        raise pytest.fail.Exception("cmake configure failed") from None
 
     # CodeChecker invocations and options are documented here:
     # https://github.com/Ericsson/codechecker/blob/master/docs/analyzer/user_guide.md
@@ -175,12 +172,9 @@ def cmake(cwd, targets, options=None):
 
     print("{} > {}".format(cwd, " ".join(buildcmd)), flush=True)
     try:
-        failed = False
         subprocess.run(buildcmd, cwd=cwd, check=True)
     except subprocess.CalledProcessError:
-        failed = True
-    if failed:
-        pytest.fail("cmake build failed")
+        raise pytest.fail.Exception("cmake build failed") from None
 
     if "code-checker" in os.environ.get("RUN_ANALYZER", ""):
         # For whatever reason, the compilation summary contains duplicate entries,

@@ -84,6 +84,8 @@ Some of its behavior is controlled by env-variables:
     tool for builds.
   - `kcov`: Uses [`kcov`](https://github.com/SimonKagstrom/kcov) to collect
     code-coverage statistics.
+  - `valgrind`: Uses [`valgrind`](https://valgrind.org/) to check for memory
+    issues such as leaks.
   - `gcc`: Use the `-fanalyzer` flag of `gcc > 10`.
     This is currently not stable enough to use, as it leads to false positives
     and internal compiler errors.
@@ -92,6 +94,15 @@ Some of its behavior is controlled by env-variables:
   build using the given Android `NDK` version, targeting the given `API` and
   `ARCH`. The test runner assumes an already running simulator matching the
   `ARCH`, and will run the tests on that.
+
+**Analyzer Requirements**:
+
+Some tools, such as `kcov` and `valgrind` have their own distribution packages.
+Clang-based tools may require an up-to-date clang, and a separate `clang-tools`
+packages.
+`CodeChecker` has its own
+[install instructions](https://github.com/Ericsson/codechecker#install-guide)
+with a list of needed dependencies.
 
 **Running examples manually**:
 

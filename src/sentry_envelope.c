@@ -160,6 +160,9 @@ sentry__envelope_from_path(const sentry_path_t *path)
     size_t buf_len;
     char *buf = sentry__path_read_to_buffer(path, &buf_len);
     if (!buf) {
+        SENTRY_WARNF("failed to read raw envelope from \"%" SENTRY_PATH_PRI
+                     "\"",
+            path->path);
         return NULL;
     }
 
@@ -236,7 +239,7 @@ sentry__envelope_add_session(
     size_t payload_len = 0;
     char *payload = sentry__jsonwriter_into_string(jw, &payload_len);
 
-    // NOTE: function will check for `payload` internally
+    // NOTE: function will check for `payload` internally and free it on error
     return envelope_add_from_owned_buffer(
         envelope, payload, payload_len, "session");
 }
@@ -245,7 +248,7 @@ sentry_envelope_item_t *
 sentry__envelope_add_from_buffer(sentry_envelope_t *envelope, const char *buf,
     size_t buf_len, const char *type)
 {
-    // NOTE: the function frees `buf` on error
+    // NOTE: function will check for `payload` internally and free it on error
     return envelope_add_from_owned_buffer(
         envelope, sentry__string_clonen(buf, buf_len), buf_len, type);
 }
@@ -257,9 +260,12 @@ sentry__envelope_add_from_path(
     size_t buf_len;
     char *buf = sentry__path_read_to_buffer(path, &buf_len);
     if (!buf) {
+        SENTRY_WARNF("failed to read envelope item from \"%" SENTRY_PATH_PRI
+                     "\"",
+            path->path);
         return NULL;
     }
-    // NOTE: the function frees `buf` on error
+    // NOTE: function will free `buf` on error
     return envelope_add_from_owned_buffer(envelope, buf, buf_len, type);
 }
 
