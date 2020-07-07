@@ -29,7 +29,7 @@ stages:
               vmImage: "ubuntu-20.04"
               CC: gcc-10
               CXX: g++-10
-              ERROR_ON_WARNINGS: 1
+              # ERROR_ON_WARNINGS: 1
               # The GCC analyzer 10.0.1 (as on CI) has an internal compiler error
               # currently, and is not stable enough to activate.
               # RUN_ANALYZER: gcc
