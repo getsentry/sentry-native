@@ -322,7 +322,11 @@ def test_shutdown_timeout(cmake, httpserver):
     # Using `sleep-after-shutdown` here means that the background worker will
     # deref/free itself, so we will not leak in that case!
     child = run(
-        tmp_path, "sentry_example", ["log", "capture-multiple", "sleep-after-shutdown"], env=env, check=True
+        tmp_path,
+        "sentry_example",
+        ["log", "capture-multiple", "sleep-after-shutdown"],
+        env=env,
+        check=True,
     )
 
     httpserver.clear_all_handlers()
