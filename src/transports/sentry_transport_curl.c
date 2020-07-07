@@ -14,18 +14,12 @@
 #include <string.h>
 
 typedef struct curl_transport_state_s {
-    bool debug;
     CURL *curl_handle;
     char *http_proxy;
     char *ca_certs;
     sentry_rate_limiter_t *ratelimiter;
-    sentry_bgworker_t *bgworker;
+    bool debug;
 } curl_transport_state_t;
-
-struct task_state {
-    curl_transport_state_t *transport_state;
-    sentry_envelope_t *envelope;
-};
 
 struct header_info {
     char *x_sentry_rate_limits;
@@ -33,23 +27,11 @@ struct header_info {
 };
 
 static curl_transport_state_t *
-new_transport_state(void)
+sentry__curl_state_new(void)
 {
-    static bool curl_initialized = false;
-
     curl_transport_state_t *state = SENTRY_MAKE(curl_transport_state_t);
     if (!state) {
         return NULL;
-    }
-
-    state->bgworker = sentry__bgworker_new();
-    if (!state->bgworker) {
-        sentry_free(state);
-        return NULL;
-    }
-
-    if (!curl_initialized) {
-        curl_global_init(CURL_GLOBAL_ALL);
     }
 
     state->http_proxy = NULL;
@@ -61,35 +43,37 @@ new_transport_state(void)
 }
 
 static void
-start_transport(const sentry_options_t *options, void *_state)
+sentry__curl_transport_start(const sentry_options_t *options, void *bgworker)
 {
-    curl_transport_state_t *state = _state;
+    static bool curl_initialized = false;
+    if (!curl_initialized) {
+        curl_global_init(CURL_GLOBAL_ALL);
+    }
+
+    curl_transport_state_t *state = sentry__bgworker_get_state(bgworker);
+
     state->debug = options->debug;
     state->http_proxy = sentry__string_clone(options->http_proxy);
     state->ca_certs = sentry__string_clone(options->ca_certs);
-    sentry__bgworker_start(state->bgworker);
+
+    sentry__bgworker_start(bgworker);
 }
 
 static bool
-shutdown_transport(uint64_t timeout, void *_state)
+sentry__curl_transport_shutdown(uint64_t timeout, void *bgworker)
 {
-    curl_transport_state_t *state = _state;
-    return !sentry__bgworker_shutdown(state->bgworker, timeout);
+    return !sentry__bgworker_shutdown(bgworker, timeout);
 }
 
 static void
-free_transport(void *_state)
+sentry__curl_state_free(void *_state)
 {
     curl_transport_state_t *state = _state;
-    // We intentionally leak the transport state here, because otherwise the
-    // still running background thread could run into use-after-free.
-    if (sentry__bgworker_free(state->bgworker)) {
-        curl_easy_cleanup(state->curl_handle);
-        sentry__rate_limiter_free(state->ratelimiter);
-        sentry_free(state->ca_certs);
-        sentry_free(state->http_proxy);
-        sentry_free(state);
-    }
+    curl_easy_cleanup(state->curl_handle);
+    sentry__rate_limiter_free(state->ratelimiter);
+    sentry_free(state->ca_certs);
+    sentry_free(state->http_proxy);
+    sentry_free(state);
 }
 
 static size_t
@@ -125,13 +109,13 @@ header_callback(char *buffer, size_t size, size_t nitems, void *userdata)
 }
 
 static void
-task_exec_func(void *data)
+sentry__curl_send_task(void *_envelope, void *_state)
 {
-    struct task_state *ts = data;
-    curl_transport_state_t *state = ts->transport_state;
+    sentry_envelope_t *envelope = (sentry_envelope_t *)_envelope;
+    curl_transport_state_t *state = (curl_transport_state_t *)_state;
 
     sentry_prepared_http_request_t *req
-        = sentry__prepare_http_request(ts->envelope, state->ratelimiter);
+        = sentry__prepare_http_request(envelope, state->ratelimiter);
     if (!req) {
         return;
     }
@@ -193,62 +177,56 @@ task_exec_func(void *data)
 }
 
 static void
-task_cleanup_func(void *data)
+sentry__curl_transport_send_envelope(
+    sentry_envelope_t *envelope, void *bgworker)
 {
-    struct task_state *ts = data;
-    sentry_envelope_free(ts->envelope);
-    sentry_free(ts);
-}
-
-static void
-send_envelope(sentry_envelope_t *envelope, void *_state)
-{
-    curl_transport_state_t *state = _state;
-    struct task_state *ts = SENTRY_MAKE(struct task_state);
-    if (!ts) {
-        sentry_envelope_free(envelope);
-        return;
-    }
-    ts->transport_state = state;
-    ts->envelope = envelope;
-    sentry__bgworker_submit(
-        state->bgworker, task_exec_func, task_cleanup_func, ts);
+    sentry__bgworker_submit((sentry_bgworker_t *)bgworker,
+        sentry__curl_send_task, (void (*)(void *))sentry_envelope_free,
+        envelope);
 }
 
 static bool
-sentry__curl_dump(void *task_data, void *run)
+sentry__curl_dump_task(void *envelope, void *run)
 {
-    struct task_state *ts = task_data;
-    sentry__run_write_envelope((sentry_run_t *)run, ts->envelope);
+    sentry__run_write_envelope(
+        (sentry_run_t *)run, (sentry_envelope_t *)envelope);
     return true;
 }
 
 size_t
-sentry__curl_dump_queue(sentry_run_t *run, void *state)
+sentry__curl_dump_queue(sentry_run_t *run, void *bgworker)
 {
-    sentry_bgworker_t *bgworker = ((curl_transport_state_t *)state)->bgworker;
-
-    return sentry__bgworker_foreach_matching(
-        bgworker, task_exec_func, sentry__curl_dump, run);
+    return sentry__bgworker_foreach_matching((sentry_bgworker_t *)bgworker,
+        sentry__curl_send_task, sentry__curl_dump_task, run);
 }
 
 sentry_transport_t *
 sentry__transport_new_default(void)
 {
     SENTRY_DEBUG("initializing curl transport");
-    curl_transport_state_t *state = new_transport_state();
+    curl_transport_state_t *state = sentry__curl_state_new();
     if (!state) {
         return NULL;
     }
-    sentry_transport_t *transport = sentry_transport_new(send_envelope);
-    if (!transport) {
-        free_transport(state);
+
+    sentry_bgworker_t *bgworker
+        = sentry__bgworker_new(state, sentry__curl_state_free);
+    if (!bgworker) {
         return NULL;
     }
-    sentry_transport_set_state(transport, state);
-    sentry_transport_set_free_func(transport, free_transport);
-    sentry_transport_set_startup_func(transport, start_transport);
-    sentry_transport_set_shutdown_func(transport, shutdown_transport);
+
+    sentry_transport_t *transport
+        = sentry_transport_new(sentry__curl_transport_send_envelope);
+    if (!transport) {
+        sentry__bgworker_decref(bgworker);
+        return NULL;
+    }
+    sentry_transport_set_state(transport, bgworker);
+    sentry_transport_set_free_func(
+        transport, (void (*)(void *))sentry__bgworker_decref);
+    sentry_transport_set_startup_func(transport, sentry__curl_transport_start);
+    sentry_transport_set_shutdown_func(
+        transport, sentry__curl_transport_shutdown);
     sentry__transport_set_dump_func(transport, sentry__curl_dump_queue);
 
     return transport;
