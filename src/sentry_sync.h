@@ -277,21 +277,26 @@ sentry__atomic_fetch(volatile long *val)
 struct sentry_bgworker_s;
 typedef struct sentry_bgworker_s sentry_bgworker_t;
 
-typedef void (*sentry_task_function_t)(void *data);
+typedef void (*sentry_task_exec_func_t)(void *task_data, void *state);
 
 /**
- *  Creates a new background worker thread.
- */
-sentry_bgworker_t *sentry__bgworker_new(void);
-
-/**
- * Free the background worker.
+ * Creates a new background worker thread.
  *
- * This can return `false` in case the background worker has not been shut down
- * correctly. In which case the allocation is not freed, to avoid potential
- * use-after-free hazards.
+ * This moves ownership of `state` into the background worker, which uses the
+ * given `free_state` function to free that state.
  */
-bool sentry__bgworker_free(sentry_bgworker_t *bgw);
+sentry_bgworker_t *sentry__bgworker_new(
+    void *state, void (*free_state)(void *state));
+
+/**
+ * Returns a reference to the state of the worker.
+ */
+void *sentry__bgworker_get_state(sentry_bgworker_t *bgw);
+
+/**
+ * Drops the reference to the background worker.
+ */
+void sentry__bgworker_decref(sentry_bgworker_t *bgw);
 
 /**
  * Start a new background worker thread associated with `bgw`.
@@ -306,11 +311,13 @@ int sentry__bgworker_shutdown(sentry_bgworker_t *bgw, uint64_t timeout);
 
 /**
  * This will submit a new task to the background thread.
+ *
+ * Takes ownership of `data`, freeing it using the provided `cleanup_func`.
  * Returns 0 on success.
  */
 int sentry__bgworker_submit(sentry_bgworker_t *bgw,
-    sentry_task_function_t exec_func, sentry_task_function_t cleanup_func,
-    void *data);
+    sentry_task_exec_func_t exec_func, void (*cleanup_func)(void *task_data),
+    void *task_data);
 
 /**
  * This function will iterate through all the current tasks of the worker
@@ -320,7 +327,7 @@ int sentry__bgworker_submit(sentry_bgworker_t *bgw,
  * The function will return the number of dropped tasks.
  */
 size_t sentry__bgworker_foreach_matching(sentry_bgworker_t *bgw,
-    sentry_task_function_t exec_func,
+    sentry_task_exec_func_t exec_func,
     bool (*callback)(void *task_data, void *data), void *data);
 
 #endif

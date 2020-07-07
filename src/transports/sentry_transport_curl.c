@@ -14,12 +14,11 @@
 #include <string.h>
 
 typedef struct curl_transport_state_s {
-    bool initialized;
     bool debug;
     CURL *curl_handle;
     char *http_proxy;
     char *ca_certs;
-    sentry_rate_limiter_t *rl;
+    sentry_rate_limiter_t *ratelimiter;
     sentry_bgworker_t *bgworker;
 } curl_transport_state_t;
 
@@ -53,11 +52,10 @@ new_transport_state(void)
         curl_global_init(CURL_GLOBAL_ALL);
     }
 
-    state->initialized = false;
     state->http_proxy = NULL;
     state->ca_certs = NULL;
     state->curl_handle = curl_easy_init();
-    state->rl = sentry__rate_limiter_new();
+    state->ratelimiter = sentry__rate_limiter_new();
 
     return state;
 }
@@ -87,7 +85,7 @@ free_transport(void *_state)
     // still running background thread could run into use-after-free.
     if (sentry__bgworker_free(state->bgworker)) {
         curl_easy_cleanup(state->curl_handle);
-        sentry__rate_limiter_free(state->rl);
+        sentry__rate_limiter_free(state->ratelimiter);
         sentry_free(state->ca_certs);
         sentry_free(state->http_proxy);
         sentry_free(state);
@@ -133,7 +131,7 @@ task_exec_func(void *data)
     curl_transport_state_t *state = ts->transport_state;
 
     sentry_prepared_http_request_t *req
-        = sentry__prepare_http_request(ts->envelope, state->rl);
+        = sentry__prepare_http_request(ts->envelope, state->ratelimiter);
     if (!req) {
         return;
     }
@@ -181,10 +179,10 @@ task_exec_func(void *data)
     if (rv == CURLE_OK) {
         if (info.x_sentry_rate_limits) {
             sentry__rate_limiter_update_from_header(
-                state->rl, info.x_sentry_rate_limits);
+                state->ratelimiter, info.x_sentry_rate_limits);
         } else if (info.retry_after) {
             sentry__rate_limiter_update_from_http_retry_after(
-                state->rl, info.retry_after);
+                state->ratelimiter, info.retry_after);
         }
     }
 

@@ -133,11 +133,8 @@ sentry_shutdown(void)
         bool clean_shutdown = true;
         if (options->transport) {
             // TODO: make this configurable
-            if (!sentry__transport_shutdown(
-                    options->transport, SENTRY_DEFAULT_SHUTDOWN_TIMEOUT)) {
-                SENTRY_WARN("transport did not shut down cleanly");
-                clean_shutdown = false;
-            }
+            clean_shutdown = sentry__transport_shutdown(
+                options->transport, SENTRY_DEFAULT_SHUTDOWN_TIMEOUT);
         }
         if (options->backend && options->backend->shutdown_func) {
             SENTRY_TRACE("shutting down backend");
@@ -146,6 +143,8 @@ sentry_shutdown(void)
         if (clean_shutdown) {
             sentry__run_clean(options->run);
         } else {
+            SENTRY_WARN(
+                "transport did not shut down cleanly, dumping send queue");
             sentry__transport_dump_queue(options->transport, options->run);
         }
     }

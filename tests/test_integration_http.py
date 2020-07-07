@@ -307,12 +307,11 @@ def test_breakpad_dump_inflight(cmake, httpserver):
     assert len(httpserver.log) >= 11
 
 
-@pytest.mark.skipif(is_asan, reason="test intentionally leaks")
 def test_shutdown_timeout(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
 
     def delayed(req):
-        time.sleep(2.25)
+        time.sleep(2.5)
         return "{}"
 
     httpserver.expect_request(
@@ -320,10 +319,11 @@ def test_shutdown_timeout(cmake, httpserver):
     ).respond_with_handler(delayed)
 
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+    # Using `sleep-after-shutdown` here means that the background worker will
+    # deref/free itself, so we will not leak in that case!
     child = run(
-        tmp_path, "sentry_example", ["log", "capture-multiple"], env=env, check=True
+        tmp_path, "sentry_example", ["log", "capture-multiple", "sleep-after-shutdown"], env=env, check=True
     )
-    time.sleep(0.5)
 
     httpserver.clear_all_handlers()
     httpserver.clear_log()
