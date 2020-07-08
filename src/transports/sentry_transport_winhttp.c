@@ -19,12 +19,12 @@ typedef struct {
     HINTERNET session;
     HINTERNET connect;
     bool debug;
-} winhttp_transport_state_t;
+} winhttp_bgworker_state_t;
 
-static winhttp_transport_state_t *
-sentry__winhttp_state_new(void)
+static winhttp_bgworker_state_t *
+sentry__winhttp_bgworker_state_new(void)
 {
-    winhttp_transport_state_t *state = SENTRY_MAKE(winhttp_transport_state_t);
+    winhttp_bgworker_state_t *state = SENTRY_MAKE(winhttp_bgworker_state_t);
     if (!state) {
         return NULL;
     }
@@ -39,9 +39,23 @@ sentry__winhttp_state_new(void)
 }
 
 static void
-sentry__winhttp_transport_start(const sentry_options_t *opts, void *bgworker)
+sentry__winhttp_bgworker_state_free(void *_state)
 {
-    winhttp_transport_state_t *state = sentry__bgworker_get_state(bgworker);
+    winhttp_bgworker_state_t *state = _state;
+    WinHttpCloseHandle(state->connect);
+    WinHttpCloseHandle(state->session);
+    sentry__rate_limiter_free(state->ratelimiter);
+    sentry_free(state->user_agent);
+    sentry_free(state->proxy);
+    sentry_free(state);
+}
+
+static void
+sentry__winhttp_transport_start(
+    const sentry_options_t *opts, void *transport_state)
+{
+    sentry_bgworker_t *bgworker = (sentry_bgworker_t *)transport_state;
+    winhttp_bgworker_state_t *state = sentry__bgworker_get_state(bgworker);
 
     state->user_agent = sentry__string_to_wstr(SENTRY_SDK_USER_AGENT);
     state->debug = opts->debug;
@@ -81,28 +95,17 @@ sentry__winhttp_transport_start(const sentry_options_t *opts, void *bgworker)
 }
 
 static bool
-sentry__winhttp_transport_shutdown(uint64_t timeout, void *bgworker)
+sentry__winhttp_transport_shutdown(uint64_t timeout, void *transport_state)
 {
+    sentry_bgworker_t *bgworker = (sentry_bgworker_t *)transport_state;
     return !sentry__bgworker_shutdown(bgworker, timeout);
-}
-
-static void
-sentry__winhttp_state_free(void *_state)
-{
-    winhttp_transport_state_t *state = _state;
-    WinHttpCloseHandle(state->connect);
-    WinHttpCloseHandle(state->session);
-    sentry__rate_limiter_free(state->ratelimiter);
-    sentry_free(state->user_agent);
-    sentry_free(state->proxy);
-    sentry_free(state);
 }
 
 static void
 sentry__winhttp_send_task(void *_envelope, void *_state)
 {
     sentry_envelope_t *envelope = (sentry_envelope_t *)_envelope;
-    winhttp_transport_state_t *state = (winhttp_transport_state_t *)_state;
+    winhttp_bgworker_state_t *state = (winhttp_bgworker_state_t *)_state;
 
     uint64_t started = sentry__monotonic_time();
 
@@ -218,11 +221,11 @@ sentry__winhttp_send_task(void *_envelope, void *_state)
 
 static void
 sentry__winhttp_transport_send_envelope(
-    sentry_envelope_t *envelope, void *bgworker)
+    sentry_envelope_t *envelope, void *transport_state)
 {
-    sentry__bgworker_submit((sentry_bgworker_t *)bgworker,
-        sentry__winhttp_send_task, (void (*)(void *))sentry_envelope_free,
-        envelope);
+    sentry_bgworker_t *bgworker = (sentry_bgworker_t *)transport_state;
+    sentry__bgworker_submit(bgworker, sentry__winhttp_send_task,
+        (void (*)(void *))sentry_envelope_free, envelope);
 }
 
 static bool
@@ -234,23 +237,24 @@ sentry__winhttp_dump_task(void *envelope, void *run)
 }
 
 static size_t
-sentry__winhttp_dump_queue(sentry_run_t *run, void *bgworker)
+sentry__winhttp_dump_queue(sentry_run_t *run, void *transport_state)
 {
-    return sentry__bgworker_foreach_matching((sentry_bgworker_t *)bgworker,
-        sentry__winhttp_send_task, sentry__winhttp_dump_task, run);
+    sentry_bgworker_t *bgworker = (sentry_bgworker_t *)transport_state;
+    return sentry__bgworker_foreach_matching(
+        bgworker, sentry__winhttp_send_task, sentry__winhttp_dump_task, run);
 }
 
 sentry_transport_t *
 sentry__transport_new_default(void)
 {
     SENTRY_DEBUG("initializing winhttp transport");
-    winhttp_transport_state_t *state = sentry__winhttp_state_new();
+    winhttp_bgworker_state_t *state = sentry__winhttp_bgworker_state_new();
     if (!state) {
         return NULL;
     }
 
     sentry_bgworker_t *bgworker
-        = sentry__bgworker_new(state, sentry__winhttp_state_free);
+        = sentry__bgworker_new(state, sentry__winhttp_bgworker_state_free);
     if (!bgworker) {
         return NULL;
     }
