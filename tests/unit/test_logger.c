@@ -42,4 +42,9 @@ SENTRY_TEST(custom_logger)
     sentry_shutdown();
 
     TEST_CHECK_INT_EQUAL(data.called, 1);
+
+    // *really* clear the logger instance
+    options = sentry_options_new();
+    sentry_init(options);
+    sentry_shutdown();
 }

@@ -29,9 +29,8 @@ struct sentry_attachment_s {
  * the sentry internals.
  */
 typedef struct sentry_options_s {
-    char *raw_dsn;
-    sentry_dsn_t dsn;
     double sample_rate;
+    sentry_dsn_t *dsn;
     char *release;
     char *environment;
     char *dist;

@@ -7,12 +7,14 @@
 #include "sentry_string.h"
 #include "sentry_sync.h"
 #include "sentry_transport.h"
+#include "sentry_utils.h"
 
 #include <stdlib.h>
 #include <string.h>
 #include <winhttp.h>
 
 typedef struct {
+    sentry_dsn_t *dsn;
     wchar_t *user_agent;
     wchar_t *proxy;
     sentry_rate_limiter_t *ratelimiter;
@@ -28,11 +30,8 @@ sentry__winhttp_bgworker_state_new(void)
     if (!state) {
         return NULL;
     }
+    memset(state, 0, sizeof(winhttp_bgworker_state_t));
 
-    state->connect = NULL;
-    state->session = NULL;
-    state->user_agent = NULL;
-    state->proxy = NULL;
     state->ratelimiter = sentry__rate_limiter_new();
 
     return state;
@@ -48,6 +47,7 @@ sentry__winhttp_bgworker_state_free(void *_state)
     if (state->session) {
         WinHttpCloseHandle(state->session);
     }
+    sentry__dsn_decref(state->dsn);
     sentry__rate_limiter_free(state->ratelimiter);
     sentry_free(state->user_agent);
     sentry_free(state->proxy);
@@ -61,6 +61,7 @@ sentry__winhttp_transport_start(
     sentry_bgworker_t *bgworker = (sentry_bgworker_t *)transport_state;
     winhttp_bgworker_state_t *state = sentry__bgworker_get_state(bgworker);
 
+    state->dsn = sentry__dsn_incref(opts->dsn);
     state->user_agent = sentry__string_to_wstr(SENTRY_SDK_USER_AGENT);
     state->debug = opts->debug;
 
@@ -116,8 +117,8 @@ sentry__winhttp_send_task(void *_envelope, void *_state)
 
     uint64_t started = sentry__monotonic_time();
 
-    sentry_prepared_http_request_t *req
-        = sentry__prepare_http_request(envelope, state->ratelimiter);
+    sentry_prepared_http_request_t *req = sentry__prepare_http_request(
+        envelope, state->dsn, state->ratelimiter);
     if (!req) {
         return;
     }

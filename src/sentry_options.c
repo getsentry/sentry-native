@@ -59,8 +59,7 @@ sentry_options_free(sentry_options_t *opts)
     if (!opts) {
         return;
     }
-    sentry_free(opts->raw_dsn);
-    sentry__dsn_cleanup(&opts->dsn);
+    sentry__dsn_decref(opts->dsn);
     sentry_free(opts->release);
     sentry_free(opts->environment);
     sentry_free(opts->dist);
@@ -100,20 +99,16 @@ sentry_options_set_before_send(
 }
 
 void
-sentry_options_set_dsn(sentry_options_t *opts, const char *dsn)
+sentry_options_set_dsn(sentry_options_t *opts, const char *raw_dsn)
 {
-    sentry__dsn_cleanup(&opts->dsn);
-    /* XXX: log warning here or propagate parsing error */
-    sentry_free(opts->raw_dsn);
-    sentry__dsn_parse(&opts->dsn, dsn);
-    /* TODO: canonicalize DSN */
-    opts->raw_dsn = sentry__string_clone(dsn);
+    sentry__dsn_decref(opts->dsn);
+    opts->dsn = sentry__dsn_new(raw_dsn);
 }
 
 const char *
 sentry_options_get_dsn(const sentry_options_t *opts)
 {
-    return opts->raw_dsn;
+    return opts->dsn ? opts->dsn->raw : NULL;
 }
 
 void

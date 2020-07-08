@@ -177,7 +177,8 @@ sentry__crashpad_backend_startup(
     data->db = crashpad::CrashReportDatabase::Initialize(database).release();
 
     crashpad::CrashpadClient client;
-    char *minidump_url = sentry__dsn_get_minidump_url(&options->dsn);
+    char *minidump_url = sentry__dsn_get_minidump_url(options->dsn);
+    SENTRY_TRACEF("using minidump url \"%s\"", minidump_url);
     std::string url = minidump_url ? std::string(minidump_url) : std::string();
     sentry_free(minidump_url);
     bool success = client.StartHandler(handler, database, database, url,

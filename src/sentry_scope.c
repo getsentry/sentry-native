@@ -98,17 +98,15 @@ sentry__scope_unlock(void)
 void
 sentry__scope_flush(const sentry_scope_t *scope)
 {
-    const sentry_options_t *options = sentry_get_options();
-    if (!options) {
-        return;
-    }
-    if (options->backend && options->backend->flush_scope_func) {
-        options->backend->flush_scope_func(options->backend, scope);
-    }
-    if (scope->session) {
-        sentry__run_write_session(options->run, scope->session);
-    } else {
-        sentry__run_clear_session(options->run);
+    SENTRY_WITH_OPTIONS (options) {
+        if (options->backend && options->backend->flush_scope_func) {
+            options->backend->flush_scope_func(options->backend, scope);
+        }
+        if (scope->session) {
+            sentry__run_write_session(options->run, scope->session);
+        } else {
+            sentry__run_clear_session(options->run);
+        }
     }
 }
 
@@ -235,8 +233,7 @@ sentry__scope_apply_to_event(
 
     PLACE_STRING("platform", "native");
 
-    const sentry_options_t *options = sentry_get_options();
-    if (options) {
+    SENTRY_WITH_OPTIONS (options) {
         PLACE_STRING("release", options->release);
         PLACE_STRING("dist", options->dist);
         PLACE_STRING("environment", options->environment);

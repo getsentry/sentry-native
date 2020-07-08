@@ -99,7 +99,7 @@ sentry__transport_set_dump_func(sentry_transport_t *transport,
 size_t
 sentry__transport_dump_queue(sentry_transport_t *transport, sentry_run_t *run)
 {
-    if (!transport->dump_func) {
+    if (!transport || !transport->dump_func) {
         return 0;
     }
     size_t dumped = transport->dump_func(run, transport->state);
@@ -122,14 +122,12 @@ sentry_transport_free(sentry_transport_t *transport)
 }
 
 sentry_prepared_http_request_t *
-sentry__prepare_http_request(
-    sentry_envelope_t *envelope, const sentry_rate_limiter_t *rl)
+sentry__prepare_http_request(sentry_envelope_t *envelope,
+    const sentry_dsn_t *dsn, const sentry_rate_limiter_t *rl)
 {
-    const sentry_options_t *options = sentry_get_options();
-    if (!options || options->dsn.empty) {
+    if (!dsn || !dsn->is_valid) {
         return NULL;
     }
-    sentry_dsn_t dsn = options->dsn;
 
     size_t body_len = 0;
     bool body_owned = true;
@@ -159,12 +157,12 @@ sentry__prepare_http_request(
     req->headers_len = 0;
 
     req->method = "POST";
-    req->url = sentry__dsn_get_envelope_url(&dsn);
+    req->url = sentry__dsn_get_envelope_url(dsn);
 
     sentry_prepared_http_header_t *h;
     h = &req->headers[req->headers_len++];
     h->key = "x-sentry-auth";
-    h->value = sentry__dsn_get_auth_header(&dsn);
+    h->value = sentry__dsn_get_auth_header(dsn);
 
     h = &req->headers[req->headers_len++];
     h->key = "content-type";

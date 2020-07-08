@@ -32,20 +32,18 @@ def test_crashpad_crash(cmake, httpserver):
 
     httpserver.expect_request("/api/123456/minidump/").respond_with_data("OK")
     httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
 
     child = run(
         tmp_path,
         "sentry_example",
         ["log", "start-session", "attachment", "overflow-breadcrumbs", "crash"],
+        env=env,
     )
     assert child.returncode  # well, its a crash after all
 
     run(
-        tmp_path,
-        "sentry_example",
-        ["log", "no-setup"],
-        check=True,
-        env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+        tmp_path, "sentry_example", ["log", "no-setup"], check=True, env=env,
     )
 
     time.sleep(2)  # lets wait a bit for crashpad sending in the background

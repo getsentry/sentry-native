@@ -233,6 +233,8 @@ make_signal_event(
 static void
 handle_ucontext(const sentry_ucontext_t *uctx)
 {
+    SENTRY_DEBUG("entering signal handler");
+
     const struct signal_slot *sig_slot = NULL;
     for (int i = 0; i < SIGNAL_COUNT; ++i) {
 #ifdef SENTRY_PLATFORM_UNIX
@@ -257,26 +259,25 @@ handle_ucontext(const sentry_ucontext_t *uctx)
     sentry__enter_signal_handler();
 #endif
 
-    const sentry_options_t *opts = sentry_get_options();
-    sentry__write_crash_marker(opts);
+    SENTRY_WITH_OPTIONS (options) {
+        sentry__write_crash_marker(options);
 
-    // since we can’t use HTTP in signal handlers, we will swap out the
-    // transport here to one that serializes the envelope to disk
-    sentry_transport_t *transport = opts->transport;
-    sentry__enforce_disk_transport();
+        // since we can’t use HTTP in signal handlers, we will swap out the
+        // transport here to one that serializes the envelope to disk
+        sentry_transport_t *transport = sentry__swap_disk_transport(options);
 
-    // now create an capture an event.  Note that this assumes the transport
-    // only dumps to disk at the moment.
-    SENTRY_DEBUG("capturing event from signal");
-    sentry__end_current_session_with_status(SENTRY_SESSION_STATUS_CRASHED);
-    sentry_capture_event(make_signal_event(sig_slot, uctx));
+        // now create an capture an event.
+        sentry__end_current_session_with_status(SENTRY_SESSION_STATUS_CRASHED);
+        sentry_capture_event(make_signal_event(sig_slot, uctx));
 
-    // after capturing the crash event, try to dump all the in-flight data of
-    // the previous transport
-    if (transport) {
-        sentry__transport_dump_queue(transport, opts->run);
+        // after capturing the crash event, dump all the envelopes to disk
+        sentry__transport_dump_queue(options->transport, options->run);
+        sentry__transport_dump_queue(transport, options->run);
+        // and restore the old transport
+        sentry_transport_free(options->transport);
+        options->transport = transport;
+        SENTRY_DEBUG("crash has been captured");
     }
-    SENTRY_DEBUG("crash has been captured");
 
 #ifdef SENTRY_PLATFORM_UNIX
     // reset signal handlers and invoke the original ones.  This will then tear

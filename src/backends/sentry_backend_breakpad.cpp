@@ -82,14 +82,14 @@ sentry__breakpad_transport_free(void *_state)
     sentry_free(state);
 }
 
-static void
-sentry__enforce_breakpad_transport(
+static sentry_transport_t *
+sentry__breakpad_transport_new(
     const sentry_options_t *options, sentry_path_t *dump_path)
 {
     breakpad_transport_state_t *state = SENTRY_MAKE(breakpad_transport_state_t);
     if (!state) {
         sentry__path_free(dump_path);
-        return;
+        return NULL;
     }
     state->run = options->run;
     state->dump_path = dump_path;
@@ -98,12 +98,22 @@ sentry__enforce_breakpad_transport(
         = sentry_transport_new(sentry__breakpad_backend_send_envelope);
     if (!transport) {
         sentry__breakpad_transport_free(state);
-        return;
+        return NULL;
     }
     sentry_transport_set_state(transport, state);
     sentry_transport_set_free_func(transport, sentry__breakpad_transport_free);
+    return transport;
+}
 
-    ((sentry_options_t *)options)->transport = transport;
+static sentry_transport_t *
+sentry__swap_breakpad_transport(
+    sentry_options_t *options, sentry_path_t *dump_path)
+{
+    sentry_transport_t *breakpad_transport
+        = sentry__breakpad_transport_new(options, dump_path);
+    sentry_transport_t *transport = options->transport;
+    options->transport = breakpad_transport;
+    return transport;
 }
 
 #ifdef SENTRY_PLATFORM_WINDOWS
@@ -119,13 +129,12 @@ sentry__breakpad_backend_callback(
     void *UNUSED(context), bool succeeded)
 #endif
 {
+    SENTRY_DEBUG("entering breakpad minidump callback");
+
 #ifndef SENTRY_PLATFORM_WINDOWS
     sentry__page_allocator_enable();
     sentry__enter_signal_handler();
 #endif
-
-    const sentry_options_t *options = sentry_get_options();
-    sentry__write_crash_marker(options);
 
     sentry_path_t *dump_path = nullptr;
 #ifdef SENTRY_PLATFORM_WINDOWS
@@ -139,36 +148,41 @@ sentry__breakpad_backend_callback(
     dump_path = sentry__path_new(descriptor.path());
 #endif
 
-    // since we can’t use HTTP in crash handlers, we will swap out the
-    // transport here to one that serializes the envelope to disk
-    sentry_transport_t *transport_original = options->transport;
-    sentry__enforce_disk_transport();
+    SENTRY_WITH_OPTIONS (options) {
+        sentry__write_crash_marker(options);
 
-    // Ending the session will send an envelope, which we *don’t* want to route
-    // through the special transport. It will be dumped to disk with the rest of
-    // the send queue.
-    sentry__end_current_session_with_status(SENTRY_SESSION_STATUS_CRASHED);
+        // since we can’t use HTTP in crash handlers, we will swap out the
+        // transport here to one that serializes the envelope to disk
+        sentry_transport_t *transport_original
+            = sentry__swap_disk_transport(options);
 
-    // almost identical to enforcing the disk transport, the breakpad
-    // transport will serialize the envelope to disk, but will attach the
-    // captured minidump as an additional attachment
-    sentry_transport_t *transport_disk = options->transport;
-    sentry__enforce_breakpad_transport(options, dump_path);
+        // Ending the session will send an envelope, which we *don’t* want to
+        // route through the special transport. It will be dumped to disk with
+        // the rest of the send queue.
+        sentry__end_current_session_with_status(SENTRY_SESSION_STATUS_CRASHED);
 
-    // after the transport is set up, we will capture an event, which will
-    // create an envelope with all the scope, attachments, etc.
-    sentry_value_t event = sentry_value_new_event();
-    sentry_capture_event(event);
+        // almost identical to enforcing the disk transport, the breakpad
+        // transport will serialize the envelope to disk, but will attach
+        // the captured minidump as an additional attachment
+        sentry_transport_t *transport_disk
+            = sentry__swap_breakpad_transport(options, dump_path);
 
-    // after capturing the crash event, try to dump all the in-flight data of
-    // the previous transports
-    if (transport_disk) {
+        // after the transport is set up, we will capture an event, which
+        // will create an envelope with all the scope, attachments, etc.
+        sentry_value_t event = sentry_value_new_event();
+        sentry_capture_event(event);
+
+        // after capturing the crash event, try to dump all the in-flight
+        // data of the previous transports
+        sentry__transport_dump_queue(options->transport, options->run);
         sentry__transport_dump_queue(transport_disk, options->run);
-    }
-    if (transport_original) {
         sentry__transport_dump_queue(transport_original, options->run);
+        // and restore the old transport
+        sentry_transport_free(options->transport);
+        sentry_transport_free(transport_disk);
+        options->transport = transport_original;
+        SENTRY_DEBUG("crash has been captured");
     }
-    SENTRY_DEBUG("crash has been captured");
 
 #ifndef SENTRY_PLATFORM_WINDOWS
     sentry__leave_signal_handler();

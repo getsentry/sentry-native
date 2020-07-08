@@ -906,9 +906,11 @@ SENTRY_API int sentry_shutdown(void);
 SENTRY_EXPERIMENTAL_API void sentry_clear_modulecache(void);
 
 /**
- * Returns the client options.
+ * Returns the currently active client options.
  *
  * This might return NULL if sentry is not yet initialized.
+ * The returned options pointer is not synchronized, and calling
+ * `sentry_shutdown` concurrently can lead to use-after-free situations.
  */
 SENTRY_API const sentry_options_t *sentry_get_options(void);
 

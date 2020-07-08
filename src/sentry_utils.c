@@ -2,6 +2,7 @@
 #include "sentry_alloc.h"
 #include "sentry_core.h"
 #include "sentry_string.h"
+#include "sentry_sync.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -197,40 +198,42 @@ sentry__url_cleanup(sentry_url_t *url)
     sentry_free(url->password);
 }
 
-int
-sentry__dsn_parse(sentry_dsn_t *dsn_out, const char *dsn)
+sentry_dsn_t *
+sentry__dsn_new(const char *raw_dsn)
 {
     sentry_url_t url;
+    memset(&url, 0, sizeof(sentry_url_t));
     size_t path_len;
     char *tmp;
     char *end;
 
-    memset(dsn_out, 0, sizeof(sentry_dsn_t));
-
-    if (!dsn || !dsn[0]) {
-        dsn_out->empty = true;
-        return 0;
+    sentry_dsn_t *dsn = SENTRY_MAKE(sentry_dsn_t);
+    if (!dsn) {
+        return NULL;
     }
+    memset(dsn, 0, sizeof(sentry_dsn_t));
+    dsn->refcount = 1;
 
-    if (sentry__url_parse(&url, dsn) != 0) {
-        return 1;
+    dsn->raw = sentry__string_clone(raw_dsn);
+    if (!dsn->raw || !dsn->raw[0] || sentry__url_parse(&url, dsn->raw) != 0) {
+        goto exit;
     }
 
     if (sentry__string_eq(url.scheme, "https")) {
-        dsn_out->is_secure = 1;
+        dsn->is_secure = 1;
     } else if (sentry__string_eq(url.scheme, "http")) {
-        dsn_out->is_secure = 0;
+        dsn->is_secure = 0;
     } else {
-        goto error;
+        goto exit;
     }
 
-    dsn_out->host = url.host;
+    dsn->host = url.host;
     url.host = NULL;
-    dsn_out->public_key = url.username;
+    dsn->public_key = url.username;
     url.username = NULL;
-    dsn_out->secret_key = url.password;
+    dsn->secret_key = url.password;
     url.password = NULL;
-    dsn_out->port = url.port;
+    dsn->port = url.port;
 
     path_len = strlen(url.path);
     while (path_len > 0 && url.path[path_len - 1] == '/') {
@@ -240,40 +243,53 @@ sentry__dsn_parse(sentry_dsn_t *dsn_out, const char *dsn)
 
     tmp = strrchr(url.path, '/');
     if (!tmp) {
-        goto error;
+        goto exit;
     }
 
-    dsn_out->project_id = (uint64_t)strtoll(tmp + 1, &end, 10);
+    dsn->project_id = (uint64_t)strtoll(tmp + 1, &end, 10);
     if (end != tmp + strlen(tmp)) {
-        goto error;
+        goto exit;
     }
     *tmp = 0;
-    dsn_out->path = url.path;
+    dsn->path = url.path;
     url.path = NULL;
-    dsn_out->empty = false;
+    dsn->is_valid = true;
 
+exit:
     sentry__url_cleanup(&url);
-    return 0;
+    return dsn;
+}
 
-error:
-    sentry__url_cleanup(&url);
-    sentry__dsn_cleanup(dsn_out);
-    return 1;
+sentry_dsn_t *
+sentry__dsn_incref(sentry_dsn_t *dsn)
+{
+    if (!dsn) {
+        return NULL;
+    }
+    sentry__atomic_fetch_and_add(&dsn->refcount, 1);
+    return dsn;
 }
 
 void
-sentry__dsn_cleanup(sentry_dsn_t *dsn)
+sentry__dsn_decref(sentry_dsn_t *dsn)
 {
-    sentry_free(dsn->host);
-    sentry_free(dsn->path);
-    sentry_free(dsn->public_key);
-    sentry_free(dsn->secret_key);
+    if (!dsn) {
+        return;
+    }
+    if (sentry__atomic_fetch_and_add(&dsn->refcount, -1) == 1) {
+        sentry_free(dsn->raw);
+        sentry_free(dsn->host);
+        sentry_free(dsn->path);
+        sentry_free(dsn->public_key);
+        sentry_free(dsn->secret_key);
+        sentry_free(dsn);
+    }
 }
 
 char *
 sentry__dsn_get_auth_header(const sentry_dsn_t *dsn)
 {
-    if (!dsn || dsn->empty) {
+    if (!dsn || !dsn->is_valid) {
         return NULL;
     }
     sentry_stringbuilder_t sb;
@@ -302,7 +318,7 @@ init_string_builder_for_url(sentry_stringbuilder_t *sb, const sentry_dsn_t *dsn)
 char *
 sentry__dsn_get_envelope_url(const sentry_dsn_t *dsn)
 {
-    if (!dsn || dsn->empty) {
+    if (!dsn || !dsn->is_valid) {
         return NULL;
     }
     sentry_stringbuilder_t sb;
@@ -314,7 +330,7 @@ sentry__dsn_get_envelope_url(const sentry_dsn_t *dsn)
 char *
 sentry__dsn_get_minidump_url(const sentry_dsn_t *dsn)
 {
-    if (!dsn || dsn->empty) {
+    if (!dsn || !dsn->is_valid) {
         return NULL;
     }
     sentry_stringbuilder_t sb;

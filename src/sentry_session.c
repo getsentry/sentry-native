@@ -47,23 +47,25 @@ status_from_string(const char *status)
 sentry_session_t *
 sentry__session_new(void)
 {
-    const sentry_options_t *opts = sentry_get_options();
-    if (!opts) {
-        return NULL;
+    char *release = NULL;
+    char *environment = NULL;
+    SENTRY_WITH_OPTIONS (options) {
+        release = sentry__string_clone(sentry_options_get_release(options));
+        environment
+            = sentry__string_clone(sentry_options_get_environment(options));
     }
-    char *release = sentry__string_clone(sentry_options_get_release(opts));
+
     if (!release) {
+        sentry_free(environment);
         return NULL;
     }
 
     sentry_session_t *rv = SENTRY_MAKE(sentry_session_t);
     if (!rv) {
         sentry_free(release);
+        sentry_free(environment);
         return NULL;
     }
-
-    char *environment
-        = sentry__string_clone(sentry_options_get_environment(opts));
 
     rv->release = release;
     rv->environment = environment;

@@ -145,10 +145,11 @@ sentry__envelope_new(void)
     rv->contents.items.item_count = 0;
     rv->contents.items.headers = sentry_value_new_object();
 
-    const sentry_options_t *options = sentry_get_options();
-    if (options && !options->dsn.empty) {
-        sentry__envelope_set_header(rv, "dsn",
-            sentry_value_new_string(sentry_options_get_dsn(options)));
+    SENTRY_WITH_OPTIONS (options) {
+        if (options->dsn && options->dsn->is_valid) {
+            sentry__envelope_set_header(rv, "dsn",
+                sentry_value_new_string(sentry_options_get_dsn(options)));
+        }
     }
 
     return rv;
