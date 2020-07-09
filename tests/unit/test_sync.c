@@ -88,6 +88,10 @@ collect(void *task, void *data)
 SENTRY_TEST(task_queue)
 {
     sentry_bgworker_t *bgw = sentry__bgworker_new(NULL, NULL);
+    sentry__bgworker_submit(bgw, sleep_task, NULL, NULL);
+    sentry__bgworker_decref(bgw);
+
+    bgw = sentry__bgworker_new(NULL, NULL);
 
     // submit before starting
     for (size_t i = 0; i < 20; i++) {

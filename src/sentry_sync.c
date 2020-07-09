@@ -20,10 +20,9 @@
  * removed from the queue (either after being executed, or when the task was
  * concurrently removed from the queue).
  *
- * Each access to the queue itself must be done using the `task_lock`, and that
- * lock is also chained to the `task_signal`, which signals either the "main"
- * thread that a task has been executed, or the worker thread that a new task
- * was added.
+ * Each access to the queue itself must be done using the `task_lock`.
+ * There are two signals, `submit` *to* the worker, signaling a new task, and
+ * `done` *from* the worker signaling that it will close down and can be joined.
  */
 
 struct sentry_bgworker_task_s;
@@ -54,7 +53,8 @@ sentry__task_decref(sentry_bgworker_task_t *task)
 
 struct sentry_bgworker_s {
     sentry_threadid_t thread_id;
-    sentry_cond_t task_signal;
+    sentry_cond_t submit_signal;
+    sentry_cond_t done_signal;
     sentry_mutex_t task_lock;
     sentry_bgworker_task_t *first_task;
     sentry_bgworker_task_t *last_task;
@@ -76,7 +76,8 @@ sentry__bgworker_new(void *state, void (*free_state)(void *state))
     }
     memset(bgw, 0, sizeof(sentry_bgworker_t));
     sentry__mutex_init(&bgw->task_lock);
-    sentry__cond_init(&bgw->task_signal);
+    sentry__cond_init(&bgw->submit_signal);
+    sentry__cond_init(&bgw->done_signal);
     bgw->state = state;
     bgw->free_state = free_state;
     bgw->refcount = 1;
@@ -152,7 +153,7 @@ worker_thread(void *data)
     sentry__mutex_lock(&bgw->task_lock);
     while (true) {
         if (sentry__bgworker_is_done(bgw)) {
-            sentry__cond_wake(&bgw->task_signal);
+            sentry__cond_wake(&bgw->done_signal);
             sentry__mutex_unlock(&bgw->task_lock);
             break;
         }
@@ -160,7 +161,8 @@ worker_thread(void *data)
         sentry_bgworker_task_t *task = bgw->first_task;
         if (!task) {
             // this will implicitly release the lock, and re-acquire on wake
-            sentry__cond_wait_timeout(&bgw->task_signal, &bgw->task_lock, 1000);
+            sentry__cond_wait_timeout(
+                &bgw->submit_signal, &bgw->task_lock, 1000);
             continue;
         }
 
@@ -242,7 +244,7 @@ sentry__bgworker_shutdown(sentry_bgworker_t *bgw, uint64_t timeout)
         }
 
         // this will implicitly release the lock, and re-acquire on wake
-        sentry__cond_wait_timeout(&bgw->task_signal, &bgw->task_lock, 250);
+        sentry__cond_wait_timeout(&bgw->done_signal, &bgw->task_lock, 250);
     }
 }
 
@@ -273,7 +275,7 @@ sentry__bgworker_submit(sentry_bgworker_t *bgw,
         bgw->last_task->next_task = task;
     }
     bgw->last_task = task;
-    sentry__cond_wake(&bgw->task_signal);
+    sentry__cond_wake(&bgw->submit_signal);
     sentry__mutex_unlock(&bgw->task_lock);
 
     return 0;
@@ -298,11 +300,10 @@ sentry__bgworker_foreach_matching(sentry_bgworker_t *bgw,
 
         sentry_bgworker_task_t *next_task = task->next_task;
         if (drop_task) {
-            if (task == bgw->first_task) {
-                bgw->first_task = next_task;
-            }
             if (prev_task) {
                 prev_task->next_task = next_task;
+            } else {
+                bgw->first_task = next_task;
             }
             sentry__task_decref(task);
             dropped++;
@@ -313,8 +314,6 @@ sentry__bgworker_foreach_matching(sentry_bgworker_t *bgw,
         task = next_task;
     }
     bgw->last_task = prev_task;
-
-    sentry__cond_wake(&bgw->task_signal);
     sentry__mutex_unlock(&bgw->task_lock);
 
     return dropped;
