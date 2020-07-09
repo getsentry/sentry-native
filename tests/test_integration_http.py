@@ -2,10 +2,11 @@ import pytest
 import subprocess
 import sys
 import os
+import time
 import itertools
 import json
 from . import make_dsn, check_output, run, Envelope
-from .conditions import has_http, has_inproc, has_breakpad, has_files
+from .conditions import is_asan, has_http, has_inproc, has_breakpad, has_files
 from .assertions import (
     assert_attachment,
     assert_meta,
@@ -304,3 +305,37 @@ def test_breakpad_dump_inflight(cmake, httpserver):
 
     # we trigger 10 normal events, and 1 crash
     assert len(httpserver.log) >= 11
+
+
+def test_shutdown_timeout(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+
+    def delayed(req):
+        time.sleep(2.5)
+        return "{}"
+
+    httpserver.expect_request(
+        "/api/123456/envelope/", headers={"x-sentry-auth": auth_header},
+    ).respond_with_handler(delayed)
+
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+    # Using `sleep-after-shutdown` here means that the background worker will
+    # deref/free itself, so we will not leak in that case!
+    child = run(
+        tmp_path,
+        "sentry_example",
+        ["log", "capture-multiple", "sleep-after-shutdown"],
+        env=env,
+        check=True,
+    )
+
+    httpserver.clear_all_handlers()
+    httpserver.clear_log()
+
+    httpserver.expect_request(
+        "/api/123456/envelope/", headers={"x-sentry-auth": auth_header},
+    ).respond_with_data("OK")
+
+    run(tmp_path, "sentry_example", ["log", "no-setup"], check=True, env=env)
+
+    assert len(httpserver.log) == 10
