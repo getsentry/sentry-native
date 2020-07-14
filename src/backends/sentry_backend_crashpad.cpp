@@ -5,9 +5,14 @@ extern "C" {
 #include "sentry_backend.h"
 #include "sentry_core.h"
 #include "sentry_database.h"
+#include "sentry_envelope.h"
 #include "sentry_options.h"
 #include "sentry_path.h"
+#include "sentry_sync.h"
+#include "sentry_transport.h"
+#include "sentry_unix_pageallocator.h"
 #include "sentry_utils.h"
+#include "transports/sentry_disk_transport.h"
 }
 
 #include <map>
@@ -87,13 +92,46 @@ sentry__crashpad_backend_flush_scope(
     }
 }
 
-static void
-sentry__crashpad_backend_shutdown(sentry_backend_t *backend)
+#if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_WINDOWS)
+#    ifdef SENTRY_PLATFORM_WINDOWS
+static bool
+sentry__crashpad_handler(EXCEPTION_POINTERS *UNUSED(ExceptionInfo))
 {
-    crashpad_state_t *data = (crashpad_state_t *)backend->data;
-    delete data->db;
-    data->db = nullptr;
+#    else
+static bool
+sentry__crashpad_handler(int UNUSED(signum), siginfo_t *UNUSED(info),
+    ucontext_t *UNUSED(user_context))
+{
+    sentry__page_allocator_enable();
+    sentry__enter_signal_handler();
+#    endif
+    SENTRY_DEBUG("flushing session and state before crashpad handler");
+
+    SENTRY_WITH_OPTIONS (options) {
+        sentry__write_crash_marker(options);
+
+        sentry_envelope_t *envelope = sentry__envelope_new();
+        sentry__record_errors_on_current_session(1);
+        sentry_session_t *session = sentry__end_current_session_with_status(
+            SENTRY_SESSION_STATUS_CRASHED);
+        sentry__envelope_add_session(envelope, session);
+
+        // capture the envelope with the disk transport
+        sentry_transport_t *disk_transport
+            = sentry_new_disk_transport(options->run);
+        sentry__capture_envelope(disk_transport, envelope);
+        sentry__transport_dump_queue(disk_transport, options->run);
+        sentry_transport_free(disk_transport);
+    }
+
+    SENTRY_DEBUG("handling control over to crashpad");
+#    ifndef SENTRY_PLATFORM_WINDOWS
+    sentry__leave_signal_handler();
+#    endif
+    // we did not "handle" the signal, so crashpad should do that.
+    return false;
 }
+#endif
 
 static int
 sentry__crashpad_backend_startup(
@@ -195,6 +233,11 @@ sentry__crashpad_backend_startup(
         return 1;
     }
 
+#if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_WINDOWS)
+    crashpad::CrashpadClient::SetFirstChanceExceptionHandler(
+        &sentry__crashpad_handler);
+#endif
+
     if (!options->system_crash_reporter_enabled) {
         // Disable the system crash reporter. Especially on macOS, it takes
         // substantial time *after* crashpad has done its job.
@@ -204,6 +247,14 @@ sentry__crashpad_backend_startup(
             crashpad::TriState::kDisabled);
     }
     return 0;
+}
+
+static void
+sentry__crashpad_backend_shutdown(sentry_backend_t *backend)
+{
+    crashpad_state_t *data = (crashpad_state_t *)backend->data;
+    delete data->db;
+    data->db = nullptr;
 }
 
 static void

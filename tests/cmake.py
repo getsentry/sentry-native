@@ -21,8 +21,8 @@ class CMake:
 
         if key not in self.runs:
             cwd = self.factory.mktemp("cmake")
-            cmake(cwd, targets, options)
             self.runs[key] = cwd
+            cmake(cwd, targets, options)
 
         return self.runs[key]
 
