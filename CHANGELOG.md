@@ -5,13 +5,22 @@
 **Breaking Changes**:
 
 - The `sentry_options_set_logger` function now accepts a `userdata` parameter.
-- The `name` parameter of `sentry_options_add_attachment(w)` was removed, it will
-  now be inferred from the filename of `path`.
+- The `name` parameter of `sentry_options_add_attachment(w)` was removed, it will now be inferred from the filename of `path`.
 
 **Features**:
 
+- Release Health (Sessions) is now stable, and automatic session handling is enabled by default. Use `sentry_options_set_auto_session_tracking` to change the behavior.
 - Breakpad support for Windows. This allows you to use `sentry-native` even on Windows XP! ([#278](https://github.com/getsentry/sentry-native/pull/278))
 - Add an in-process backend for Windows. As opposed to Breakpad, stack traces are generated on the device and sent to Sentry for symbolication. ([#287](https://github.com/getsentry/sentry-native/pull/287))
+- Support for the crashpad backend was fixed and enabled for Linux. ([#320](https://github.com/getsentry/sentry-native/pull/320))
+- A new `SENTRY_BREAKPAD_SYSTEM` CMake option was added to link to the system-installed breakpad client instead of building it as part of sentry.
+
+**Fixes**:
+
+- Reworked thread synchronization code and logic in `sentry_shutdown`, avoiding memory unsafety in case of an unclean shutdown. ([#323](https://github.com/getsentry/sentry-native/pull/323))
+- Similarly, reworked options locking, avoiding thread safety issues. ([#333](https://github.com/getsentry/sentry-native/pull/333))
+- Fixed errors not being properly recorded in sessions. ([#317](https://github.com/getsentry/sentry-native/pull/317))
+- Enabled code coverage and static analyzers, and fixed potential issues that have been uncovered. ([#304](https://github.com/getsentry/sentry-native/pull/304) and others)
 
 **Thank you**:
 
@@ -20,6 +29,8 @@ Features, fixes and improvements in this release have been contributed by:
 - [@eakoli](https://github.com/eakoli)
 - [@Mixaill](https://github.com/Mixaill)
 - [@irov](https://github.com/irov)
+- [@jblazquez](https://github.com/jblazquez)
+- [@daxpedda](https://github.com/daxpedda)
 
 ## 0.3.4
 

@@ -621,7 +621,10 @@ SENTRY_API void sentry_options_set_transport(
     sentry_options_t *opts, sentry_transport_t *transport);
 
 /**
- * Sets the before send callback.
+ * Sets the `before_send` callback.
+ *
+ * The `before_send` hook may be invoked inside of a signal handler, and must
+ * therefore be signal safe.
  */
 SENTRY_API void sentry_options_set_before_send(
     sentry_options_t *opts, sentry_event_function_t func, void *data);
@@ -731,6 +734,23 @@ typedef void (*sentry_logger_function_t)(
  */
 SENTRY_API void sentry_options_set_logger(
     sentry_options_t *opts, sentry_logger_function_t func, void *userdata);
+
+/**
+ * Enables or disables automatic session tracking.
+ *
+ * Automatic session tracking is enabled by default and is equivalent to calling
+ * `sentry_start_session` after startup. A running session will always be closed
+ * implicitly by `sentry_shutdown` if not done manually by calling
+ * `sentry_end_session`.
+ */
+SENTRY_API void sentry_options_set_auto_session_tracking(
+    sentry_options_t *opts, int val);
+
+/**
+ * Returns true if automatic session tracking is enabled.
+ */
+SENTRY_API int sentry_options_get_auto_session_tracking(
+    const sentry_options_t *opts);
 
 /**
  * Enables or disables user consent requirements for uploads.
@@ -986,12 +1006,12 @@ SENTRY_API void sentry_set_level(sentry_level_t level);
 /**
  * Starts a new session.
  */
-SENTRY_EXPERIMENTAL_API void sentry_start_session(void);
+SENTRY_API void sentry_start_session(void);
 
 /**
  * Ends a session.
  */
-SENTRY_EXPERIMENTAL_API void sentry_end_session(void);
+SENTRY_API void sentry_end_session(void);
 
 #ifdef __cplusplus
 }
