@@ -41,6 +41,7 @@ typedef struct sentry_options_s {
     sentry_path_t *handler_path;
     sentry_logger_t logger;
     bool debug;
+    bool auto_session_tracking;
     bool require_user_consent;
     bool symbolize_stacktraces;
     bool system_crash_reporter_enabled;

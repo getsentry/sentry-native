@@ -31,6 +31,7 @@ SENTRY_TEST(lazy_attachments)
     sentry__stringbuilder_init(&testdata.serialized_envelope);
 
     sentry_options_t *options = sentry_options_new();
+    sentry_options_set_auto_session_tracking(options, false);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
     sentry_options_set_transport(
         options, sentry_new_function_transport(send_envelope, &testdata));

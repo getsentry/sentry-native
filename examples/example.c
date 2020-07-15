@@ -48,6 +48,7 @@ main(int argc, char **argv)
 
     sentry_options_set_database_path(options, ".sentry-native");
 
+    sentry_options_set_auto_session_tracking(options, false);
     sentry_options_set_symbolize_stacktraces(options, true);
 
     sentry_options_set_environment(options, "development");

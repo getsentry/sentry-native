@@ -28,7 +28,7 @@ Please see [Known Issues](#known-issues).
 - [Building and Installation](#building-and-installation)
   - [Compile-Time Options](#compile-time-options)
   - [Build Targets](#build-targets)
-- [Known Issues](#known-issues)
+- [Known Limitations](#known-limitations)
 - [Development](#development)
 
 ## Downloads
@@ -73,7 +73,7 @@ The SDK supports different features on the target platform:
 - **HTTP Transport** is currently only supported on Windows and platforms that
   have the `curl` library available. On other platforms, library users need to
   implement their own transport, based on the `function transport` API.
-- **Crashpad Backend** is currently only supported on Windows and macOS.
+- **Crashpad Backend** is currently only supported on Linux, Windows and macOS.
 - **Breakpad Backend** is currently only supported on Linux and Windows.
 
 ## Building and Installation
@@ -209,13 +209,13 @@ using `cmake -D BUILD_SHARED_LIBS=OFF ..`.
 | Feature    | Windows | macOS | Linux | Android |
 | ---------- | ------- | ----- | ----- | ------- |
 | Transports |         |       |       |         |
-| - curl     |         | ☑     | ☑     | ✓       |
+| - curl     |         | ☑     | ☑     | (✓)     |
 | - winhttp  | ☑       |       |       |         |
 | - none     | ✓       | ✓     | ✓     | ☑       |
 |            |         |       |       |         |
 | Backends   |         |       |       |         |
 | - inproc   | ✓       | ✓     | ✓     | ☑       |
-| - crashpad | ☑       | ☑     |       |         |
+| - crashpad | ☑       | ☑     | ✓     |         |
 | - breakpad | ✓       |       | ☑     |         |
 | - none     | ✓       | ✓     | ✓     | ✓       |
 
@@ -237,12 +237,12 @@ Legend:
   can be controlled via command-line parameters, and is also used for
   integration tests.
 
-## Known Issues
+## Known Limitations
 
-- Attachments are currently in _Preview_ and may not be available to your
-  organization. Please see [Event Attachments] for more information.
-
-[event attachments]: https://docs.sentry.io/platforms/native/#event-attachments-preview
+- The crashpad backend currently has no support for notifying the crashing
+  process, and can thus not properly terminate sessions or call the registered
+  `before_send` hook. It will also lose any events that have been queued for
+  sending at time of crash.
 
 ## Development
 

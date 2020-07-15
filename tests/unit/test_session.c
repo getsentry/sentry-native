@@ -64,8 +64,7 @@ SENTRY_TEST(session_basics)
     sentry_options_set_environment(options, "my_environment");
     sentry_init(options);
 
-    sentry_start_session();
-
+    // a session was already started by automatic session tracking
     sentry_value_t user = sentry_value_new_object();
     sentry_value_set_by_key(
         user, "email", sentry_value_new_string("foo@blabla.invalid"));

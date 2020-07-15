@@ -117,6 +117,10 @@ sentry_init(sentry_options_t *options)
         backend->startup_func(backend, options);
     }
 
+    if (options->auto_session_tracking) {
+        sentry_start_session();
+    }
+
     return 0;
 }
 
