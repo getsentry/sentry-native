@@ -28,7 +28,7 @@ Please see [Known Issues](#known-issues).
 - [Building and Installation](#building-and-installation)
   - [Compile-Time Options](#compile-time-options)
   - [Build Targets](#build-targets)
-- [Known Issues](#known-issues)
+- [Known Limitations](#known-limitations)
 - [Development](#development)
 
 ## Downloads
@@ -237,16 +237,12 @@ Legend:
   can be controlled via command-line parameters, and is also used for
   integration tests.
 
-## Known Issues
+## Known Limitations
 
 - The crashpad backend currently has no support for notifying the crashing
   process, and can thus not properly terminate sessions or call the registered
   `before_send` hook. It will also lose any events that have been queued for
   sending at time of crash.
-- Attachments are currently in _Preview_ and may not be available to your
-  organization. Please see [Event Attachments] for more information.
-
-[event attachments]: https://docs.sentry.io/platforms/native/#event-attachments-preview
 
 ## Development
 

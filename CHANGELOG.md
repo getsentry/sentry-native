@@ -7,20 +7,29 @@
 - The `sentry_options_set_logger` function now accepts a `userdata` parameter.
 - The `name` parameter of `sentry_options_add_attachment(w)` was removed, it will now be inferred from the filename of `path`.
 
+```c
+// before
+sentry_options_set_logger(options, my_custom_logger);
+sentry_options_add_attachment(options, "some-attachment", "/path/to/some-attachment.txt");
+// after
+sentry_options_set_logger(options, my_custom_logger, NULL);
+sentry_options_add_attachment(options, "/path/to/some-attachment.txt");
+```
+
 **Features**:
 
-- Release Health (Sessions) is now stable, and automatic session handling is enabled by default. Use `sentry_options_set_auto_session_tracking` to change the behavior.
+- [Release Health](https://docs.sentry.io/workflow/releases/health/) support is now stable and enabled by default. After the update, you will see the number of crash free sessions and crash free users on the Releases page in Sentry. To disable automatic session tracking, use `sentry_options_set_auto_session_tracking`.
 - Breakpad support for Windows. This allows you to use `sentry-native` even on Windows XP! ([#278](https://github.com/getsentry/sentry-native/pull/278))
 - Add an in-process backend for Windows. As opposed to Breakpad, stack traces are generated on the device and sent to Sentry for symbolication. ([#287](https://github.com/getsentry/sentry-native/pull/287))
-- Support for the crashpad backend was fixed and enabled for Linux. ([#320](https://github.com/getsentry/sentry-native/pull/320))
+- Support for the Crashpad backend was fixed and enabled for Linux. ([#320](https://github.com/getsentry/sentry-native/pull/320))
 - A new `SENTRY_BREAKPAD_SYSTEM` CMake option was added to link to the system-installed breakpad client instead of building it as part of sentry.
 
 **Fixes**:
 
-- Reworked thread synchronization code and logic in `sentry_shutdown`, avoiding memory unsafety in case of an unclean shutdown. ([#323](https://github.com/getsentry/sentry-native/pull/323))
+- Reworked thread synchronization code and logic in `sentry_shutdown`, avoiding an abort in case of an unclean shutdown. ([#323](https://github.com/getsentry/sentry-native/pull/323))
 - Similarly, reworked options locking, avoiding thread safety issues. ([#333](https://github.com/getsentry/sentry-native/pull/333))
 - Fixed errors not being properly recorded in sessions. ([#317](https://github.com/getsentry/sentry-native/pull/317))
-- Enabled code coverage and static analyzers, and fixed potential issues that have been uncovered. ([#304](https://github.com/getsentry/sentry-native/pull/304) and others)
+- Fixed some potential memory leaks and other issues. ([#304](https://github.com/getsentry/sentry-native/pull/304) and others)
 
 **Thank you**:
 
