@@ -24,7 +24,7 @@ assignees: ""
 
 - OS: [e.g. Windows 10, 64-bit]
 - Compiler: [e.g. MSVC 19]
-- CMake config: [e.g. SENTRY_BACKEND=inproc]
+- CMake version and config: [e.g. 3.17.2, SENTRY_BACKEND=inproc]
 
 **Steps To Reproduce**
 

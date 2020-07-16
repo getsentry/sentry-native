@@ -4,6 +4,7 @@
 
 **Breaking Changes**:
 
+- The minimum CMake version required to build on windows was raised to `3.16.4` to avoid potential build failures on older versions.
 - The `sentry_options_set_logger` function now accepts a `userdata` parameter.
 - The `name` parameter of `sentry_options_add_attachment(w)` was removed, it will now be inferred from the filename of `path`.
 
