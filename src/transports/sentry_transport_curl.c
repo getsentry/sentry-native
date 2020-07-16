@@ -36,7 +36,7 @@ sentry__curl_bgworker_state_new(void)
 
     state->http_proxy = NULL;
     state->ca_certs = NULL;
-    state->curl_handle = curl_easy_init();
+    state->curl_handle = NULL;
     state->ratelimiter = sentry__rate_limiter_new();
 
     return state;
@@ -46,7 +46,9 @@ static void
 sentry__curl_bgworker_state_free(void *_state)
 {
     curl_bgworker_state_t *state = _state;
-    curl_easy_cleanup(state->curl_handle);
+    if (state->curl_handle) {
+        curl_easy_cleanup(state->curl_handle);
+    }
     sentry__rate_limiter_free(state->ratelimiter);
     sentry_free(state->ca_certs);
     sentry_free(state->http_proxy);
@@ -59,7 +61,10 @@ sentry__curl_transport_start(
 {
     static bool curl_initialized = false;
     if (!curl_initialized) {
-        curl_global_init(CURL_GLOBAL_ALL);
+        CURLcode rv = curl_global_init(CURL_GLOBAL_ALL);
+        if (rv != CURLE_OK) {
+            SENTRY_WARNF("`curl_global_init` failed with code `%d`", (int)rv);
+        }
     }
 
     sentry_bgworker_t *bgworker = (sentry_bgworker_t *)transport_state;
@@ -68,8 +73,15 @@ sentry__curl_transport_start(
     state->debug = options->debug;
     state->http_proxy = sentry__string_clone(options->http_proxy);
     state->ca_certs = sentry__string_clone(options->ca_certs);
+    state->curl_handle = curl_easy_init();
 
-    sentry__bgworker_start(bgworker);
+    if (!state->curl_handle) {
+        // In this case we don’t start the worker at all, which means we can
+        // still dump all unsent envelopes to disk on shutdown.
+        SENTRY_WARN("`curl_easy_init` failed");
+    } else {
+        sentry__bgworker_start(bgworker);
+    }
 }
 
 static bool
@@ -171,6 +183,9 @@ sentry__curl_send_task(void *_envelope, void *_state)
             sentry__rate_limiter_update_from_http_retry_after(
                 state->ratelimiter, info.retry_after);
         }
+    } else {
+        SENTRY_WARNF(
+            "sending via `curl_easy_perform` failed with code `%d`", (int)rv);
     }
 
     curl_slist_free_all(headers);

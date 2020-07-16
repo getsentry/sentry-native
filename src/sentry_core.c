@@ -134,22 +134,22 @@ sentry_shutdown(void)
     sentry__mutex_unlock(&g_options_mutex);
 
     if (options) {
-        bool clean_shutdown = true;
+        size_t dumped_envelopes = 0;
         if (options->transport) {
             // TODO: make this configurable
-            clean_shutdown = sentry__transport_shutdown(
-                options->transport, SENTRY_DEFAULT_SHUTDOWN_TIMEOUT);
+            if (!sentry__transport_shutdown(
+                    options->transport, SENTRY_DEFAULT_SHUTDOWN_TIMEOUT)) {
+                SENTRY_WARN("transport did not shut down cleanly");
+            }
+            dumped_envelopes = sentry__transport_dump_queue(
+                options->transport, options->run);
         }
         if (options->backend && options->backend->shutdown_func) {
             SENTRY_TRACE("shutting down backend");
             options->backend->shutdown_func(options->backend);
         }
-        if (clean_shutdown) {
+        if (!dumped_envelopes) {
             sentry__run_clean(options->run);
-        } else {
-            SENTRY_WARN(
-                "transport did not shut down cleanly, dumping send queue");
-            sentry__transport_dump_queue(options->transport, options->run);
         }
     }
 

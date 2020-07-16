@@ -98,7 +98,9 @@ sentry__transport_dump_queue(sentry_transport_t *transport, sentry_run_t *run)
         return 0;
     }
     size_t dumped = transport->dump_func(run, transport->state);
-    SENTRY_TRACEF("dumped %zu in-flight envelopes to disk", dumped);
+    if (dumped) {
+        SENTRY_TRACEF("dumped %zu in-flight envelopes to disk", dumped);
+    }
     return dumped;
 }
 

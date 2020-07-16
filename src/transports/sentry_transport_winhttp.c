@@ -90,8 +90,11 @@ sentry__winhttp_transport_start(
                 WINHTTP_NO_PROXY_BYPASS, 0);
         }
     }
-
-    sentry__bgworker_start(bgworker);
+    if (!state->session) {
+        SENTRY_WARN("`WinHttpOpen` failed");
+    } else {
+        sentry__bgworker_start(bgworker);
+    }
 }
 
 static bool
@@ -116,6 +119,8 @@ sentry__winhttp_send_task(void *_envelope, void *_state)
     }
 
     wchar_t *url = sentry__string_to_wstr(req->url);
+    wchar_t *headers = NULL;
+    HINTERNET request = NULL;
 
     URL_COMPONENTS url_components;
     wchar_t hostname[128];
@@ -132,11 +137,20 @@ sentry__winhttp_send_task(void *_envelope, void *_state)
         state->connect = WinHttpConnect(state->session,
             url_components.lpszHostName, url_components.nPort, 0);
     }
+    if (!state->connect) {
+        SENTRY_WARNF("`WinHttpConnect` failed with code `%d`", GetLastError());
+        goto exit;
+    }
 
     bool is_secure = strstr(req->url, "https") == req->url;
-    HINTERNET request = WinHttpOpenRequest(state->connect, L"POST",
+    request = WinHttpOpenRequest(state->connect, L"POST",
         url_components.lpszUrlPath, NULL, WINHTTP_NO_REFERER,
         WINHTTP_DEFAULT_ACCEPT_TYPES, is_secure ? WINHTTP_FLAG_SECURE : 0);
+    if (!request) {
+        SENTRY_WARNF(
+            "`WinHttpOpenRequest` failed with code `%d`", GetLastError());
+        goto exit;
+    }
 
     sentry_stringbuilder_t sb;
     sentry__stringbuilder_init(&sb);
@@ -149,7 +163,7 @@ sentry__winhttp_send_task(void *_envelope, void *_state)
     }
 
     char *headers_buf = sentry__stringbuilder_into_string(&sb);
-    wchar_t *headers = sentry__string_to_wstr(headers_buf);
+    headers = sentry__string_to_wstr(headers_buf);
     sentry_free(headers_buf);
 
     SENTRY_TRACEF(
@@ -207,16 +221,18 @@ sentry__winhttp_send_task(void *_envelope, void *_state)
             }
         }
     } else {
-        SENTRY_DEBUGF("http request failed with error: %d", GetLastError());
+        SENTRY_DEBUGF(
+            "`WinHttpSendRequest` failed with code `%d`", GetLastError());
     }
 
+    uint64_t now = sentry__monotonic_time();
+    SENTRY_TRACEF("request handled in %llums", now - started);
+
+exit:
     WinHttpCloseHandle(request);
     sentry_free(url);
     sentry_free(headers);
     sentry__prepared_http_request_free(req);
-
-    uint64_t now = sentry__monotonic_time();
-    SENTRY_TRACEF("request handled in %llums", now - started);
 }
 
 static void

@@ -872,6 +872,8 @@ SENTRY_API void sentry_options_set_system_crash_reporter_enabled(
  *
  * This takes ownership of the options.  After the options have been set
  * they cannot be modified any more.
+ * Depending on the configured transport and backend, this function might not be
+ * fully thread-safe.
  */
 SENTRY_API int sentry_init(sentry_options_t *options);
 
