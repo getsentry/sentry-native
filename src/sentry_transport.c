@@ -10,11 +10,12 @@
 
 typedef struct sentry_transport_s {
     void (*send_envelope_func)(sentry_envelope_t *envelope, void *state);
-    void (*startup_func)(const sentry_options_t *options, void *state);
+    bool (*startup_func)(const sentry_options_t *options, void *state);
     bool (*shutdown_func)(uint64_t timeout, void *state);
     void (*free_func)(void *state);
     size_t (*dump_func)(sentry_run_t *run, void *state);
     void *state;
+    bool was_started;
 } sentry_transport_t;
 
 sentry_transport_t *
@@ -44,7 +45,7 @@ sentry_transport_set_free_func(
 
 void
 sentry_transport_set_startup_func(sentry_transport_t *transport,
-    void (*startup_func)(const sentry_options_t *options, void *state))
+    bool (*startup_func)(const sentry_options_t *options, void *state))
 {
     transport->startup_func = startup_func;
 }
@@ -64,20 +65,23 @@ sentry__transport_send_envelope(
     transport->send_envelope_func(envelope, transport->state);
 }
 
-void
+bool
 sentry__transport_startup(
     sentry_transport_t *transport, const sentry_options_t *options)
 {
     if (transport->startup_func) {
         SENTRY_TRACE("starting transport");
-        transport->startup_func(options, transport->state);
+        transport->was_started
+            = transport->startup_func(options, transport->state);
+        return transport->was_started;
     }
+    return true;
 }
 
 bool
 sentry__transport_shutdown(sentry_transport_t *transport, uint64_t timeout)
 {
-    if (transport->shutdown_func) {
+    if (transport->shutdown_func && transport->was_started) {
         SENTRY_TRACE("shutting down transport");
         return transport->shutdown_func(timeout, transport->state);
     }

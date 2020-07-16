@@ -55,7 +55,7 @@ sentry__curl_bgworker_state_free(void *_state)
     sentry_free(state);
 }
 
-static void
+static bool
 sentry__curl_transport_start(
     const sentry_options_t *options, void *transport_state)
 {
@@ -64,6 +64,7 @@ sentry__curl_transport_start(
         CURLcode rv = curl_global_init(CURL_GLOBAL_ALL);
         if (rv != CURLE_OK) {
             SENTRY_WARNF("`curl_global_init` failed with code `%d`", (int)rv);
+            return false;
         }
     }
 
@@ -79,9 +80,10 @@ sentry__curl_transport_start(
         // In this case we don’t start the worker at all, which means we can
         // still dump all unsent envelopes to disk on shutdown.
         SENTRY_WARN("`curl_easy_init` failed");
-    } else {
-        sentry__bgworker_start(bgworker);
+        return false;
     }
+    sentry__bgworker_start(bgworker);
+    return true;
 }
 
 static bool

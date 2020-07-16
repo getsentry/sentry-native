@@ -505,15 +505,21 @@ typedef struct sentry_options_s sentry_options_t;
  * This represents an interface for user-defined transports.
  *
  * Transports are responsible for sending envelopes to sentry and are the last
- * step in the event pipeline. A transport has the following hooks, all of which
+ * step in the event pipeline.
+ *
+ * Envelopes will be submitted to the transport in a _fire and forget_ fashion,
+ * and the transport must send those envelopes _in order_.
+ *
+ * A transport has the following hooks, all of which
  * take the user provided `state` as last parameter. The transport state needs
  * to be set with `sentry_transport_set_state` and typically holds handles and
  * other information that can be reused across requests.
  *
  * * `send_func`: This function will take ownership of an envelope, and is
  *   responsible for freeing it via `sentry_envelope_free`.
- * * `startup_func`: This hook will be called by sentry and instructs the
- *   transport to initialize itself.
+ * * `startup_func`: This hook will be called by sentry inside of `sentry_init`
+ *   and instructs the transport to initialize itself. Failures will bubble up
+ *   to `sentry_init`.
  * * `shutdown_func`: Instructs the transport to flush its queue and shut down.
  *   This hook receives a millisecond-resolution `timeout` parameter and should
  *   return `true` when the transport was flushed and shut down successfully.
@@ -552,9 +558,14 @@ SENTRY_API void sentry_transport_set_free_func(
 
 /**
  * Sets the transport startup hook.
+ *
+ * This hook is called from within `sentry_init` and will get a reference to the
+ * options which can be used to initialize a transports internal state.
+ * Returning `false` from this hook will signal failure and will bubble up to
+ * `sentry_init`.
  */
 SENTRY_API void sentry_transport_set_startup_func(sentry_transport_t *transport,
-    void (*startup_func)(const sentry_options_t *options, void *state));
+    bool (*startup_func)(const sentry_options_t *options, void *state));
 
 /**
  * Sets the transport shutdown hook.

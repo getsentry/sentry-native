@@ -72,6 +72,7 @@ sentry_init(sentry_options_t *options)
         sentry_options_free(options);
         return 1;
     }
+    sentry_transport_t *transport = options->transport;
 
     sentry_path_t *database_path = options->database_path;
     options->database_path = sentry__path_absolute(database_path);
@@ -89,39 +90,50 @@ sentry_init(sentry_options_t *options)
     // enumeration.
     options->run = sentry__run_new(options->database_path);
     if (!options->run) {
-        sentry_options_free(options);
-        return 1;
+        SENTRY_WARN("failed to initialize run directory");
+        goto fail;
     }
 
     load_user_consent(options);
 
-    // we "activate" the options here, since the transport and backend might try
-    // to access them
-    sentry__mutex_lock(&g_options_mutex);
-    g_options = options;
-    sentry__mutex_unlock(&g_options_mutex);
-
-    sentry_transport_t *transport = options->transport;
     if (transport) {
-        sentry__transport_startup(transport, options);
+        if (!sentry__transport_startup(transport, options)) {
+            SENTRY_WARN("failed to initialize transport");
+            goto fail;
+        }
     }
-
-    // after initializing the transport, we will submit all the unsent envelopes
-    // and handle remaining sessions.
-    sentry__process_old_runs(options);
 
     // and then we will start the backend, since it requires a valid run
     sentry_backend_t *backend = options->backend;
     if (backend && backend->startup_func) {
         SENTRY_TRACE("starting backend");
-        backend->startup_func(backend, options);
+        if (!backend->startup_func(backend, options)) {
+            SENTRY_WARN("failed to initialize backend");
+            goto fail;
+        }
     }
+
+    sentry__mutex_lock(&g_options_mutex);
+    g_options = options;
+    sentry__mutex_unlock(&g_options_mutex);
+
+    // after initializing the transport, we will submit all the unsent envelopes
+    // and handle remaining sessions.
+    sentry__process_old_runs(options);
 
     if (options->auto_session_tracking) {
         sentry_start_session();
     }
 
     return 0;
+
+fail:
+    SENTRY_WARN("`sentry_init` failed");
+    if (transport) {
+        sentry__transport_shutdown(transport, 0);
+    }
+    sentry_options_free(options);
+    return 1;
 }
 
 void

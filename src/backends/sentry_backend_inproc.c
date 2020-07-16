@@ -71,31 +71,36 @@ invoke_signal_handler(int signum, siginfo_t *info, void *user_context)
     }
 }
 
-static void
+static bool
 startup_inproc_backend(
     sentry_backend_t *UNUSED(backend), const sentry_options_t *UNUSED(options))
 {
-    g_signal_stack.ss_sp = sentry_malloc(SIGNAL_STACK_SIZE);
-    g_signal_stack.ss_size = SIGNAL_STACK_SIZE;
-    g_signal_stack.ss_flags = 0;
+    // save the old signal handlers
     memset(g_previous_handlers, 0, sizeof(g_previous_handlers));
-    sigemptyset(&g_sigaction.sa_mask);
-    g_sigaction.sa_sigaction = handle_signal;
-    g_sigaction.sa_flags = SA_SIGINFO | SA_ONSTACK;
-
-    sigaltstack(&g_signal_stack, 0);
-
     for (size_t i = 0; i < SIGNAL_COUNT; ++i) {
         if (sigaction(
                 SIGNAL_DEFINITIONS[i].signum, NULL, &g_previous_handlers[i])
             == -1) {
-            return;
+            return false;
         }
     }
 
+    // install our own signal handler
+    g_signal_stack.ss_sp = sentry_malloc(SIGNAL_STACK_SIZE);
+    if (!g_signal_stack.ss_sp) {
+        return false;
+    }
+    g_signal_stack.ss_size = SIGNAL_STACK_SIZE;
+    g_signal_stack.ss_flags = 0;
+    sigaltstack(&g_signal_stack, 0);
+
+    sigemptyset(&g_sigaction.sa_mask);
+    g_sigaction.sa_sigaction = handle_signal;
+    g_sigaction.sa_flags = SA_SIGINFO | SA_ONSTACK;
     for (size_t i = 0; i < SIGNAL_COUNT; ++i) {
         sigaction(SIGNAL_DEFINITIONS[i].signum, &g_sigaction, NULL);
     }
+    return true;
 }
 
 static void
@@ -104,6 +109,7 @@ shutdown_inproc_backend(sentry_backend_t *UNUSED(backend))
     g_signal_stack.ss_flags = SS_DISABLE;
     sigaltstack(&g_signal_stack, 0);
     sentry_free(g_signal_stack.ss_sp);
+    g_signal_stack.ss_sp = NULL;
 }
 
 #elif defined SENTRY_PLATFORM_WINDOWS
@@ -142,12 +148,13 @@ static const struct signal_slot SIGNAL_DEFINITIONS[SIGNAL_COUNT] = {
 
 static LONG WINAPI handle_exception(EXCEPTION_POINTERS *);
 
-static void
+static bool
 startup_inproc_backend(
     sentry_backend_t *UNUSED(backend), const sentry_options_t *UNUSED(options))
 {
     g_previous_handler = SetUnhandledExceptionFilter(&handle_exception);
     SetErrorMode(SEM_FAILCRITICALERRORS);
+    return true;
 }
 
 static void

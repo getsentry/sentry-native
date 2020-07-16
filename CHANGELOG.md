@@ -6,6 +6,7 @@
 
 - The `sentry_options_set_logger` function now accepts a `userdata` parameter.
 - The `name` parameter of `sentry_options_add_attachment(w)` was removed, it will now be inferred from the filename of `path`.
+- The transport startup hook that is set via `sentry_transport_set_startup_func` now needs to return a `bool`, and a failure will propagate to `sentry_init`.
 
 ```c
 // before

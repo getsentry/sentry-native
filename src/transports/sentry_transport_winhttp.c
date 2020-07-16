@@ -50,7 +50,7 @@ sentry__winhttp_bgworker_state_free(void *_state)
     sentry_free(state);
 }
 
-static void
+static bool
 sentry__winhttp_transport_start(
     const sentry_options_t *opts, void *transport_state)
 {
@@ -92,9 +92,10 @@ sentry__winhttp_transport_start(
     }
     if (!state->session) {
         SENTRY_WARN("`WinHttpOpen` failed");
-    } else {
-        sentry__bgworker_start(bgworker);
+        return false;
     }
+    sentry__bgworker_start(bgworker);
+    return true;
 }
 
 static bool
