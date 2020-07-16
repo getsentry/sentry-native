@@ -4,8 +4,8 @@
 CMakeSettings.json
 
 # CMake builds
-build
-build*
+/build
+/build*
 leak-build
 
 # Run files
