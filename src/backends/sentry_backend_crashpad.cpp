@@ -165,12 +165,6 @@ sentry__crashpad_backend_startup(
     sentry__path_touch(data->breadcrumb1_path);
     sentry__path_touch(data->breadcrumb2_path);
 
-    // now that we have the files, we flush the scope into the event right away,
-    // so that we do have something in case we crash without triggering a scope
-    // flush through other methods. The `scope` param is unused, so its safe
-    // to pass `NULL` here.
-    sentry__crashpad_backend_flush_scope(backend, NULL);
-
     attachments.push_back(base::FilePath(data->event_path->path));
     attachments.push_back(base::FilePath(data->breadcrumb1_path->path));
     attachments.push_back(base::FilePath(data->breadcrumb2_path->path));
@@ -178,11 +172,9 @@ sentry__crashpad_backend_startup(
     std::vector<std::string> arguments;
     arguments.push_back("--no-rate-limit");
 
-    // initialize database first and check for user consent.  This is going
-    // to change the setting persisted into the crashpad database.  The
-    // update to the consent change is then reflected when the handler starts.
+    // Initialize database first, flushing the consent later on as part of
+    // `sentry_init` will persist the upload flag.
     data->db = crashpad::CrashReportDatabase::Initialize(database).release();
-    sentry__crashpad_backend_user_consent_changed(backend);
 
     crashpad::CrashpadClient client;
     char *minidump_url = sentry__dsn_get_minidump_url(&options->dsn);

@@ -117,6 +117,17 @@ sentry_init(sentry_options_t *options)
     g_options = options;
     sentry__mutex_unlock(&g_options_mutex);
 
+    // *after* setting the global options, trigger a scope and consent flush,
+    // since at least crashpad needs that.
+    // the only way to get a reference to the scope is by locking it, the macro
+    // does all that at once, including invoking the backends scope flush hook
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        (void)scope;
+    }
+    if (backend && backend->user_consent_changed_func) {
+        backend->user_consent_changed_func(backend);
+    }
+
     // after initializing the transport, we will submit all the unsent envelopes
     // and handle remaining sessions.
     sentry__process_old_runs(options);
