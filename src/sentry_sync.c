@@ -194,7 +194,7 @@ worker_thread(void *data)
     return 0;
 }
 
-void
+int
 sentry__bgworker_start(sentry_bgworker_t *bgw)
 {
     SENTRY_TRACE("starting background worker thread");
@@ -204,7 +204,9 @@ sentry__bgworker_start(sentry_bgworker_t *bgw)
     if (sentry__thread_spawn(&bgw->thread_id, &worker_thread, bgw) != 0) {
         sentry__atomic_fetch_and_add(&bgw->running, -1);
         sentry__bgworker_decref(bgw);
+        return 1;
     }
+    return 0;
 }
 
 static void

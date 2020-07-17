@@ -71,7 +71,7 @@ invoke_signal_handler(int signum, siginfo_t *info, void *user_context)
     }
 }
 
-static bool
+static int
 startup_inproc_backend(
     sentry_backend_t *UNUSED(backend), const sentry_options_t *UNUSED(options))
 {
@@ -81,14 +81,14 @@ startup_inproc_backend(
         if (sigaction(
                 SIGNAL_DEFINITIONS[i].signum, NULL, &g_previous_handlers[i])
             == -1) {
-            return false;
+            return 1;
         }
     }
 
     // install our own signal handler
     g_signal_stack.ss_sp = sentry_malloc(SIGNAL_STACK_SIZE);
     if (!g_signal_stack.ss_sp) {
-        return false;
+        return 1;
     }
     g_signal_stack.ss_size = SIGNAL_STACK_SIZE;
     g_signal_stack.ss_flags = 0;
@@ -100,7 +100,7 @@ startup_inproc_backend(
     for (size_t i = 0; i < SIGNAL_COUNT; ++i) {
         sigaction(SIGNAL_DEFINITIONS[i].signum, &g_sigaction, NULL);
     }
-    return true;
+    return 0;
 }
 
 static void
@@ -148,13 +148,13 @@ static const struct signal_slot SIGNAL_DEFINITIONS[SIGNAL_COUNT] = {
 
 static LONG WINAPI handle_exception(EXCEPTION_POINTERS *);
 
-static bool
+static int
 startup_inproc_backend(
     sentry_backend_t *UNUSED(backend), const sentry_options_t *UNUSED(options))
 {
     g_previous_handler = SetUnhandledExceptionFilter(&handle_exception);
     SetErrorMode(SEM_FAILCRITICALERRORS);
-    return true;
+    return 0;
 }
 
 static void

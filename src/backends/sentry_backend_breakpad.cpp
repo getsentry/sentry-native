@@ -176,7 +176,7 @@ sentry__breakpad_backend_callback(
     return succeeded;
 }
 
-static bool
+static int
 sentry__breakpad_backend_startup(
     sentry_backend_t *backend, const sentry_options_t *options)
 {
@@ -191,7 +191,7 @@ sentry__breakpad_backend_startup(
     backend->data = new google_breakpad::ExceptionHandler(
         descriptor, NULL, sentry__breakpad_backend_callback, NULL, true, -1);
 #endif
-    return backend->data != NULL;
+    return backend->data == NULL;
 }
 
 static void

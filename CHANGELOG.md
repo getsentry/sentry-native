@@ -6,15 +6,36 @@
 
 - The `sentry_options_set_logger` function now accepts a `userdata` parameter.
 - The `name` parameter of `sentry_options_add_attachment(w)` was removed, it will now be inferred from the filename of `path`.
-- The transport startup hook that is set via `sentry_transport_set_startup_func` now needs to return a `bool`, and a failure will propagate to `sentry_init`.
+- The transport startup hook that is set via `sentry_transport_set_startup_func` now needs to return an `int`, and a failure will propagate to `sentry_init`.
+- The return value of the transport shutdown hook set via `sentry_transport_set_shutdown_func` was also changed to return an `int`.
+- Both functions should return _0_ on success, and a non-zero error code on failure, as does `sentry_init`.
+- Similarly, the return value of `sentry_shutdown` was also changed to an `int`, and will return _0_ on success and a non-zero error code on unclean shutdown.
 
 ```c
 // before
 sentry_options_set_logger(options, my_custom_logger);
 sentry_options_add_attachment(options, "some-attachment", "/path/to/some-attachment.txt");
+
+void transport_startup(sentry_options_t *options, void*state) {
+}
+sentry_transport_set_startup_func(transport, transport_startup);
+bool transport_shutdown(uint64_t timeout, void*state) {
+  return true;
+}
+sentry_transport_set_shutdown_func(transport, transport_shutdown);
+
 // after
 sentry_options_set_logger(options, my_custom_logger, NULL);
 sentry_options_add_attachment(options, "/path/to/some-attachment.txt");
+
+int transport_startup(sentry_options_t *options, void*state) {
+  return 0;
+}
+sentry_transport_set_startup_func(transport, transport_startup);
+int transport_shutdown(uint64_t timeout, void*state) {
+  return 0;
+}
+sentry_transport_set_shutdown_func(transport, transport_shutdown);
 ```
 
 **Features**:

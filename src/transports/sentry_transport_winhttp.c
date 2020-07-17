@@ -42,15 +42,19 @@ static void
 sentry__winhttp_bgworker_state_free(void *_state)
 {
     winhttp_bgworker_state_t *state = _state;
-    WinHttpCloseHandle(state->connect);
-    WinHttpCloseHandle(state->session);
+    if (state->connect) {
+        WinHttpCloseHandle(state->connect);
+    }
+    if (state->session) {
+        WinHttpCloseHandle(state->session);
+    }
     sentry__rate_limiter_free(state->ratelimiter);
     sentry_free(state->user_agent);
     sentry_free(state->proxy);
     sentry_free(state);
 }
 
-static bool
+static int
 sentry__winhttp_transport_start(
     const sentry_options_t *opts, void *transport_state)
 {
@@ -92,17 +96,16 @@ sentry__winhttp_transport_start(
     }
     if (!state->session) {
         SENTRY_WARN("`WinHttpOpen` failed");
-        return false;
+        return 1;
     }
-    sentry__bgworker_start(bgworker);
-    return true;
+    return sentry__bgworker_start(bgworker);
 }
 
-static bool
+static int
 sentry__winhttp_transport_shutdown(uint64_t timeout, void *transport_state)
 {
     sentry_bgworker_t *bgworker = (sentry_bgworker_t *)transport_state;
-    return !sentry__bgworker_shutdown(bgworker, timeout);
+    return sentry__bgworker_shutdown(bgworker, timeout);
 }
 
 static void
@@ -230,7 +233,9 @@ sentry__winhttp_send_task(void *_envelope, void *_state)
     SENTRY_TRACEF("request handled in %llums", now - started);
 
 exit:
-    WinHttpCloseHandle(request);
+    if (request) {
+        WinHttpCloseHandle(request);
+    }
     sentry_free(url);
     sentry_free(headers);
     sentry__prepared_http_request_free(req);

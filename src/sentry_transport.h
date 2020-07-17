@@ -24,15 +24,18 @@ void sentry__transport_send_envelope(
 
 /**
  * Calls the transports startup hook.
+ *
+ * Returns 0 on success.
  */
-bool sentry__transport_startup(
+int sentry__transport_startup(
     sentry_transport_t *transport, const sentry_options_t *options);
 
 /**
  * Instructs the transport to shut down.
+ *
+ * Returns 0 on success.
  */
-bool sentry__transport_shutdown(
-    sentry_transport_t *transport, uint64_t timeout);
+int sentry__transport_shutdown(sentry_transport_t *transport, uint64_t timeout);
 
 /**
  * This will create a new platform specific HTTP transport.

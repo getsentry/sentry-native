@@ -95,7 +95,7 @@ sentry__crashpad_backend_shutdown(sentry_backend_t *backend)
     data->db = nullptr;
 }
 
-static bool
+static int
 sentry__crashpad_backend_startup(
     sentry_backend_t *backend, const sentry_options_t *options)
 {
@@ -130,7 +130,7 @@ sentry__crashpad_backend_startup(
         || !sentry__path_is_file(absolute_handler_path)) {
         SENTRY_WARN("unable to start crashpad backend, invalid handler_path");
         sentry__path_free(absolute_handler_path);
-        return false;
+        return 1;
     }
 
     SENTRY_TRACEF("starting crashpad backend with handler "
@@ -191,7 +191,7 @@ sentry__crashpad_backend_startup(
         // not calling `shutdown`
         delete data->db;
         data->db = nullptr;
-        return false;
+        return 1;
     }
 
     if (!options->system_crash_reporter_enabled) {
@@ -202,7 +202,7 @@ sentry__crashpad_backend_startup(
         crashpad_info->set_system_crash_reporter_forwarding(
             crashpad::TriState::kDisabled);
     }
-    return true;
+    return 0;
 }
 
 static void

@@ -71,7 +71,6 @@ extern "C" {
 
 #include <inttypes.h>
 #include <stdarg.h>
-#include <stdbool.h>
 #include <stddef.h>
 
 /* context type dependencies */
@@ -561,22 +560,21 @@ SENTRY_API void sentry_transport_set_free_func(
  *
  * This hook is called from within `sentry_init` and will get a reference to the
  * options which can be used to initialize a transports internal state.
- * Returning `false` from this hook will signal failure and will bubble up to
- * `sentry_init`.
+ * It should return `0` on success. A failure will bubble up to `sentry_init`.
  */
 SENTRY_API void sentry_transport_set_startup_func(sentry_transport_t *transport,
-    bool (*startup_func)(const sentry_options_t *options, void *state));
+    int (*startup_func)(const sentry_options_t *options, void *state));
 
 /**
  * Sets the transport shutdown hook.
  *
- * This hook will receive a millisecond-resolution timeout; it should return
- * `true` in case all the pending envelopes have been sent within the timeout,
- * or `false` if the timeout was hit.
+ * This hook will receive a millisecond-resolution timeout.
+ * It should return `0` on success in case all the pending envelopes have been
+ * sent within the timeout, or `1` if the timeout was hit.
  */
 SENTRY_API void sentry_transport_set_shutdown_func(
     sentry_transport_t *transport,
-    bool (*shutdown_func)(uint64_t timeout, void *state));
+    int (*shutdown_func)(uint64_t timeout, void *state));
 
 /**
  * Generic way to free a transport.
@@ -885,13 +883,16 @@ SENTRY_API void sentry_options_set_system_crash_reporter_enabled(
  * they cannot be modified any more.
  * Depending on the configured transport and backend, this function might not be
  * fully thread-safe.
+ * Returns 0 on success.
  */
 SENTRY_API int sentry_init(sentry_options_t *options);
 
 /**
  * Shuts down the sentry client and forces transports to flush out.
+ *
+ * Returns 0 on success.
  */
-SENTRY_API void sentry_shutdown(void);
+SENTRY_API int sentry_shutdown(void);
 
 /**
  * Clears the internal module cache.

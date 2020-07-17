@@ -97,7 +97,7 @@ sentry_init(sentry_options_t *options)
     load_user_consent(options);
 
     if (transport) {
-        if (!sentry__transport_startup(transport, options)) {
+        if (sentry__transport_startup(transport, options) != 0) {
             SENTRY_WARN("failed to initialize transport");
             goto fail;
         }
@@ -107,7 +107,7 @@ sentry_init(sentry_options_t *options)
     sentry_backend_t *backend = options->backend;
     if (backend && backend->startup_func) {
         SENTRY_TRACE("starting backend");
-        if (!backend->startup_func(backend, options)) {
+        if (backend->startup_func(backend, options) != 0) {
             SENTRY_WARN("failed to initialize backend");
             goto fail;
         }
@@ -147,7 +147,7 @@ fail:
     return 1;
 }
 
-void
+int
 sentry_shutdown(void)
 {
     sentry_end_session();
@@ -156,20 +156,21 @@ sentry_shutdown(void)
     sentry_options_t *options = g_options;
     sentry__mutex_unlock(&g_options_mutex);
 
+    size_t dumped_envelopes = 0;
     if (options) {
-        size_t dumped_envelopes = 0;
+        if (options->backend && options->backend->shutdown_func) {
+            SENTRY_TRACE("shutting down backend");
+            options->backend->shutdown_func(options->backend);
+        }
         if (options->transport) {
             // TODO: make this configurable
-            if (!sentry__transport_shutdown(
-                    options->transport, SENTRY_DEFAULT_SHUTDOWN_TIMEOUT)) {
+            if (sentry__transport_shutdown(
+                    options->transport, SENTRY_DEFAULT_SHUTDOWN_TIMEOUT)
+                != 0) {
                 SENTRY_WARN("transport did not shut down cleanly");
             }
             dumped_envelopes = sentry__transport_dump_queue(
                 options->transport, options->run);
-        }
-        if (options->backend && options->backend->shutdown_func) {
-            SENTRY_TRACE("shutting down backend");
-            options->backend->shutdown_func(options->backend);
         }
         if (!dumped_envelopes) {
             sentry__run_clean(options->run);
@@ -182,6 +183,7 @@ sentry_shutdown(void)
     sentry__mutex_unlock(&g_options_mutex);
     sentry__scope_cleanup();
     sentry__modulefinder_cleanup();
+    return (int)dumped_envelopes;
 }
 
 void

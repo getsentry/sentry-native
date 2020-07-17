@@ -300,8 +300,9 @@ void sentry__bgworker_decref(sentry_bgworker_t *bgw);
 
 /**
  * Start a new background worker thread associated with `bgw`.
+ * Returns 0 on success.
  */
-void sentry__bgworker_start(sentry_bgworker_t *bgw);
+int sentry__bgworker_start(sentry_bgworker_t *bgw);
 
 /**
  * This will try to shut down the background worker thread, with a `timeout`.

@@ -2,11 +2,11 @@
 #include "sentry_testsupport.h"
 #include <sentry.h>
 
-static bool
+static int
 transport_startup_fail(
     const sentry_options_t *UNUSED(options), void *UNUSED(state))
 {
-    return false;
+    return 1;
 }
 
 static void
