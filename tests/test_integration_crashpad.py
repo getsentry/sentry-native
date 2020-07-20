@@ -48,9 +48,9 @@ def test_crashpad_crash(cmake, httpserver):
     )
     assert child.returncode  # well, its a crash after all
 
-    run(tmp_path, "sentry_example", ["log", "no-setup"], check=True, env=env)
-
     time.sleep(2)  # lets wait a bit for crashpad sending in the background
+
+    run(tmp_path, "sentry_example", ["log", "no-setup"], check=True, env=env)
 
     assert len(httpserver.log) == 2
     outputs = (httpserver.log[0][0].get_data(), httpserver.log[1][0].get_data())
@@ -59,13 +59,7 @@ def test_crashpad_crash(cmake, httpserver):
     )
 
     envelope = Envelope.deserialize(session)
-    assert_session(
-        envelope,
-        {
-            "status": "crashed" if flushes_state else "abnormal",
-            "errors": 1 if flushes_state else 0,
-        },
-    )
+    assert_session(envelope, {"status": "crashed", "errors": 1})
 
     # TODO: crashpad actually sends a compressed multipart request,
     # which we don’t parse / assert right now.

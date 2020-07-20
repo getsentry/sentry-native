@@ -24,6 +24,7 @@ typedef struct sentry_backend_s {
     void (*add_breadcrumb_func)(
         struct sentry_backend_s *, sentry_value_t breadcrumb);
     void (*user_consent_changed_func)(struct sentry_backend_s *);
+    uint64_t (*get_last_crash_func)(struct sentry_backend_s *);
     void *data;
 } sentry_backend_t;
 
