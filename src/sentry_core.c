@@ -118,6 +118,8 @@ sentry_init(sentry_options_t *options)
         }
     }
 
+    uint64_t last_crash = 0;
+
     // and then we will start the backend, since it requires a valid run
     sentry_backend_t *backend = options->backend;
     if (backend && backend->startup_func) {
@@ -126,6 +128,9 @@ sentry_init(sentry_options_t *options)
             SENTRY_WARN("failed to initialize backend");
             goto fail;
         }
+    }
+    if (backend && backend->get_last_crash_func) {
+        last_crash = backend->get_last_crash_func(backend);
     }
 
     sentry__mutex_lock(&g_options_lock);
@@ -145,7 +150,7 @@ sentry_init(sentry_options_t *options)
 
     // after initializing the transport, we will submit all the unsent envelopes
     // and handle remaining sessions.
-    sentry__process_old_runs(options);
+    sentry__process_old_runs(options, last_crash);
 
     if (options->auto_session_tracking) {
         sentry_start_session();

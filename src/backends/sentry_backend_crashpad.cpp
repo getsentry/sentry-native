@@ -316,6 +316,47 @@ sentry__crashpad_backend_except(
 #endif
 }
 
+static void
+report_crash_time(
+    uint64_t *crash_time, const crashpad::CrashReportDatabase::Report &report)
+{
+    // we do a `+ 1` here, because crashpad timestamps are second resolution,
+    // but our sessions are ms resolution. at least in our integration tests, we
+    // can have a session that starts at, eg. `0.471`, whereas the crashpad
+    // report will be `0`, which would mean our heuristic does not trigger due
+    // to rounding.
+    uint64_t time = ((uint64_t)report.creation_time + 1) * 1000;
+    if (time > *crash_time) {
+        *crash_time = time;
+    }
+}
+
+static uint64_t
+sentry__crashpad_backend_last_crash(sentry_backend_t *backend)
+{
+    crashpad_state_t *data = (crashpad_state_t *)backend->data;
+
+    uint64_t crash_time = 0;
+
+    std::vector<crashpad::CrashReportDatabase::Report> reports;
+    if (data->db->GetPendingReports(&reports)
+        == crashpad::CrashReportDatabase::kNoError) {
+        for (const crashpad::CrashReportDatabase::Report &report : reports) {
+            report_crash_time(&crash_time, report);
+        }
+    }
+
+    reports.clear();
+    if (data->db->GetCompletedReports(&reports)
+        == crashpad::CrashReportDatabase::kNoError) {
+        for (const crashpad::CrashReportDatabase::Report &report : reports) {
+            report_crash_time(&crash_time, report);
+        }
+    }
+
+    return crash_time;
+}
+
 sentry_backend_t *
 sentry__backend_new(void)
 {
@@ -338,6 +379,7 @@ sentry__backend_new(void)
     backend->add_breadcrumb_func = sentry__crashpad_backend_add_breadcrumb;
     backend->user_consent_changed_func
         = sentry__crashpad_backend_user_consent_changed;
+    backend->get_last_crash_func = sentry__crashpad_backend_last_crash;
     backend->data = data;
 
     return backend;
