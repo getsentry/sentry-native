@@ -95,7 +95,7 @@ sentry__crashpad_backend_shutdown(sentry_backend_t *backend)
     data->db = nullptr;
 }
 
-static void
+static int
 sentry__crashpad_backend_startup(
     sentry_backend_t *backend, const sentry_options_t *options)
 {
@@ -128,9 +128,9 @@ sentry__crashpad_backend_startup(
     sentry__path_free(owned_handler_path);
     if (!absolute_handler_path
         || !sentry__path_is_file(absolute_handler_path)) {
-        SENTRY_DEBUG("unable to start crashpad backend, invalid handler_path");
+        SENTRY_WARN("unable to start crashpad backend, invalid handler_path");
         sentry__path_free(absolute_handler_path);
-        return;
+        return 1;
     }
 
     SENTRY_TRACEF("starting crashpad backend with handler "
@@ -165,12 +165,6 @@ sentry__crashpad_backend_startup(
     sentry__path_touch(data->breadcrumb1_path);
     sentry__path_touch(data->breadcrumb2_path);
 
-    // now that we have the files, we flush the scope into the event right away,
-    // so that we do have something in case we crash without triggering a scope
-    // flush through other methods. The `scope` param is unused, so its safe
-    // to pass `NULL` here.
-    sentry__crashpad_backend_flush_scope(backend, NULL);
-
     attachments.push_back(base::FilePath(data->event_path->path));
     attachments.push_back(base::FilePath(data->breadcrumb1_path->path));
     attachments.push_back(base::FilePath(data->breadcrumb2_path->path));
@@ -178,11 +172,9 @@ sentry__crashpad_backend_startup(
     std::vector<std::string> arguments;
     arguments.push_back("--no-rate-limit");
 
-    // initialize database first and check for user consent.  This is going
-    // to change the setting persisted into the crashpad database.  The
-    // update to the consent change is then reflected when the handler starts.
+    // Initialize database first, flushing the consent later on as part of
+    // `sentry_init` will persist the upload flag.
     data->db = crashpad::CrashReportDatabase::Initialize(database).release();
-    sentry__crashpad_backend_user_consent_changed(backend);
 
     crashpad::CrashpadClient client;
     char *minidump_url = sentry__dsn_get_minidump_url(&options->dsn);
@@ -195,8 +187,11 @@ sentry__crashpad_backend_startup(
     if (success) {
         SENTRY_DEBUG("started crashpad client handler");
     } else {
-        SENTRY_DEBUG("failed to start crashpad client handler");
-        return;
+        SENTRY_WARN("failed to start crashpad client handler");
+        // not calling `shutdown`
+        delete data->db;
+        data->db = nullptr;
+        return 1;
     }
 
     if (!options->system_crash_reporter_enabled) {
@@ -207,6 +202,7 @@ sentry__crashpad_backend_startup(
         crashpad_info->set_system_crash_reporter_forwarding(
             crashpad::TriState::kDisabled);
     }
+    return 0;
 }
 
 static void

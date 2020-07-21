@@ -36,4 +36,5 @@ assignees: ""
 For build-related problems, paste the relevant CMake output.
 For runtime problems, please use `sentry_options_set_debug(options, true)` and
 paste the log output coming from sentry.
- -->
+When doing so, please make sure to remove or censor your DSN from the http log output.
+-->

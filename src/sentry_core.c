@@ -72,6 +72,7 @@ sentry_init(sentry_options_t *options)
         sentry_options_free(options);
         return 1;
     }
+    sentry_transport_t *transport = options->transport;
 
     sentry_path_t *database_path = options->database_path;
     options->database_path = sentry__path_absolute(database_path);
@@ -89,42 +90,64 @@ sentry_init(sentry_options_t *options)
     // enumeration.
     options->run = sentry__run_new(options->database_path);
     if (!options->run) {
-        sentry_options_free(options);
-        return 1;
+        SENTRY_WARN("failed to initialize run directory");
+        goto fail;
     }
 
     load_user_consent(options);
 
-    // we "activate" the options here, since the transport and backend might try
-    // to access them
+    if (transport) {
+        if (sentry__transport_startup(transport, options) != 0) {
+            SENTRY_WARN("failed to initialize transport");
+            goto fail;
+        }
+    }
+
+    // and then we will start the backend, since it requires a valid run
+    sentry_backend_t *backend = options->backend;
+    if (backend && backend->startup_func) {
+        SENTRY_TRACE("starting backend");
+        if (backend->startup_func(backend, options) != 0) {
+            SENTRY_WARN("failed to initialize backend");
+            goto fail;
+        }
+    }
+
     sentry__mutex_lock(&g_options_mutex);
     g_options = options;
     sentry__mutex_unlock(&g_options_mutex);
 
-    sentry_transport_t *transport = options->transport;
-    if (transport) {
-        sentry__transport_startup(transport, options);
+    // *after* setting the global options, trigger a scope and consent flush,
+    // since at least crashpad needs that.
+    // the only way to get a reference to the scope is by locking it, the macro
+    // does all that at once, including invoking the backends scope flush hook
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        (void)scope;
+    }
+    if (backend && backend->user_consent_changed_func) {
+        backend->user_consent_changed_func(backend);
     }
 
     // after initializing the transport, we will submit all the unsent envelopes
     // and handle remaining sessions.
     sentry__process_old_runs(options);
 
-    // and then we will start the backend, since it requires a valid run
-    sentry_backend_t *backend = options->backend;
-    if (backend && backend->startup_func) {
-        SENTRY_TRACE("starting backend");
-        backend->startup_func(backend, options);
-    }
-
     if (options->auto_session_tracking) {
         sentry_start_session();
     }
 
     return 0;
+
+fail:
+    SENTRY_WARN("`sentry_init` failed");
+    if (transport) {
+        sentry__transport_shutdown(transport, 0);
+    }
+    sentry_options_free(options);
+    return 1;
 }
 
-void
+int
 sentry_shutdown(void)
 {
     sentry_end_session();
@@ -133,23 +156,24 @@ sentry_shutdown(void)
     sentry_options_t *options = g_options;
     sentry__mutex_unlock(&g_options_mutex);
 
+    size_t dumped_envelopes = 0;
     if (options) {
-        bool clean_shutdown = true;
-        if (options->transport) {
-            // TODO: make this configurable
-            clean_shutdown = sentry__transport_shutdown(
-                options->transport, SENTRY_DEFAULT_SHUTDOWN_TIMEOUT);
-        }
         if (options->backend && options->backend->shutdown_func) {
             SENTRY_TRACE("shutting down backend");
             options->backend->shutdown_func(options->backend);
         }
-        if (clean_shutdown) {
+        if (options->transport) {
+            // TODO: make this configurable
+            if (sentry__transport_shutdown(
+                    options->transport, SENTRY_DEFAULT_SHUTDOWN_TIMEOUT)
+                != 0) {
+                SENTRY_WARN("transport did not shut down cleanly");
+            }
+            dumped_envelopes = sentry__transport_dump_queue(
+                options->transport, options->run);
+        }
+        if (!dumped_envelopes) {
             sentry__run_clean(options->run);
-        } else {
-            SENTRY_WARN(
-                "transport did not shut down cleanly, dumping send queue");
-            sentry__transport_dump_queue(options->transport, options->run);
         }
     }
 
@@ -159,6 +183,7 @@ sentry_shutdown(void)
     sentry__mutex_unlock(&g_options_mutex);
     sentry__scope_cleanup();
     sentry__modulefinder_cleanup();
+    return (int)dumped_envelopes;
 }
 
 void

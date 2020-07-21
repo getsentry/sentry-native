@@ -10,11 +10,12 @@
 
 typedef struct sentry_transport_s {
     void (*send_envelope_func)(sentry_envelope_t *envelope, void *state);
-    void (*startup_func)(const sentry_options_t *options, void *state);
-    bool (*shutdown_func)(uint64_t timeout, void *state);
+    int (*startup_func)(const sentry_options_t *options, void *state);
+    int (*shutdown_func)(uint64_t timeout, void *state);
     void (*free_func)(void *state);
     size_t (*dump_func)(sentry_run_t *run, void *state);
     void *state;
+    bool running;
 } sentry_transport_t;
 
 sentry_transport_t *
@@ -44,14 +45,14 @@ sentry_transport_set_free_func(
 
 void
 sentry_transport_set_startup_func(sentry_transport_t *transport,
-    void (*startup_func)(const sentry_options_t *options, void *state))
+    int (*startup_func)(const sentry_options_t *options, void *state))
 {
     transport->startup_func = startup_func;
 }
 
 void
 sentry_transport_set_shutdown_func(sentry_transport_t *transport,
-    bool (*shutdown_func)(uint64_t timeout, void *state))
+    int (*shutdown_func)(uint64_t timeout, void *state))
 {
     transport->shutdown_func = shutdown_func;
 }
@@ -64,24 +65,28 @@ sentry__transport_send_envelope(
     transport->send_envelope_func(envelope, transport->state);
 }
 
-void
+int
 sentry__transport_startup(
     sentry_transport_t *transport, const sentry_options_t *options)
 {
     if (transport->startup_func) {
         SENTRY_TRACE("starting transport");
-        transport->startup_func(options, transport->state);
+        int rv = transport->startup_func(options, transport->state);
+        transport->running = rv == 0;
+        return rv;
     }
+    return 0;
 }
 
-bool
+int
 sentry__transport_shutdown(sentry_transport_t *transport, uint64_t timeout)
 {
-    if (transport->shutdown_func) {
+    if (transport->shutdown_func && transport->running) {
         SENTRY_TRACE("shutting down transport");
+        transport->running = false;
         return transport->shutdown_func(timeout, transport->state);
     }
-    return true;
+    return 0;
 }
 
 void
@@ -98,7 +103,9 @@ sentry__transport_dump_queue(sentry_transport_t *transport, sentry_run_t *run)
         return 0;
     }
     size_t dumped = transport->dump_func(run, transport->state);
-    SENTRY_TRACEF("dumped %zu in-flight envelopes to disk", dumped);
+    if (dumped) {
+        SENTRY_TRACEF("dumped %zu in-flight envelopes to disk", dumped);
+    }
     return dumped;
 }
 
