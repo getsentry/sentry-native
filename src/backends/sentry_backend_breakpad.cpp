@@ -131,6 +131,11 @@ sentry__breakpad_backend_callback(
 {
     SENTRY_DEBUG("entering breakpad minidump callback");
 
+    if (!succeeded) {
+        SENTRY_WARN("breakpad failed creating minidump");
+        return succeeded;
+    }
+
 #ifndef SENTRY_PLATFORM_WINDOWS
     sentry__page_allocator_enable();
     sentry__enter_signal_handler();
