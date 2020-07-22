@@ -46,10 +46,18 @@ sentry__breakpad_backend_callback(
 {
     SENTRY_DEBUG("entering breakpad minidump callback");
 
-    if (!succeeded) {
-        SENTRY_WARN("breakpad failed creating minidump");
-        return succeeded;
-    }
+    // this is a bit strange, according to docs, `succeeded` should be true when
+    // a minidump file was successfully generated. however, when running our
+    // integration tests on linux, we do receive `false` here even though the
+    // minidump file exists and has a valid minidump magic. in either case, we
+    // are in a crashing state, so we should capture a crash no matter what.
+    // See:
+    // https://github.com/google/breakpad/blob/428a01e8dea2555e037570a0b854137029a78cbf/src/client/linux/handler/exception_handler.h#L90-L102
+    // https://github.com/google/breakpad/blob/428a01e8dea2555e037570a0b854137029a78cbf/src/client/linux/handler/exception_handler.cc#L564-L567
+    // if (!succeeded) {
+    //     SENTRY_WARN("breakpad failed creating minidump");
+    //     return succeeded;
+    // }
 
 #ifndef SENTRY_PLATFORM_WINDOWS
     sentry__page_allocator_enable();
@@ -74,6 +82,8 @@ sentry__breakpad_backend_callback(
         sentry_value_t event = sentry_value_new_event();
         sentry_envelope_t *envelope
             = sentry__prepare_event(options, event, NULL);
+        // the event we just prepared is empty, so no error is recorded for it
+        sentry__record_errors_on_current_session(1);
         sentry_session_t *session = sentry__end_current_session_with_status(
             SENTRY_SESSION_STATUS_CRASHED);
         sentry__envelope_add_session(envelope, session);

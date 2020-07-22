@@ -67,6 +67,7 @@ sentry__transport_send_envelope(
     if (!transport) {
         SENTRY_TRACE("discarding envelope due to invalid transport");
         sentry_envelope_free(envelope);
+        return;
     }
     SENTRY_TRACE("sending envelope");
     transport->send_envelope_func(envelope, transport->state);

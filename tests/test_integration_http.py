@@ -261,7 +261,7 @@ def test_breakpad_crash_http(cmake, httpserver):
     assert len(httpserver.log) == 1
     envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
 
-    assert_session(envelope, {"init": True, "status": "crashed", "errors": 0})
+    assert_session(envelope, {"init": True, "status": "crashed", "errors": 1})
 
     assert_meta(envelope)
     assert_breadcrumb(envelope)
