@@ -71,6 +71,7 @@ sentry__breakpad_backend_callback(
     SENTRY_WITH_OPTIONS (options) {
         sentry__write_crash_marker(options);
 
+        sentry_value_t event = sentry_value_new_event();
         sentry_envelope_t *envelope
             = sentry__prepare_event(options, event, NULL);
         sentry_session_t *session = sentry__end_current_session_with_status(
@@ -78,8 +79,8 @@ sentry__breakpad_backend_callback(
         sentry__envelope_add_session(envelope, session);
 
         // the minidump is added as an attachment, with type `event.minidump`
-        sentry_envelope_item_t *item = sentry__envelope_add_from_path(
-            envelope, state->dump_path, "attachment");
+        sentry_envelope_item_t *item
+            = sentry__envelope_add_from_path(envelope, dump_path, "attachment");
         if (item) {
             sentry__envelope_item_set_header(item, "attachment_type",
                 sentry_value_new_string("event.minidump"));
@@ -90,7 +91,7 @@ sentry__breakpad_backend_callback(
 #else
                 sentry_value_new_string(
 #endif
-                    sentry__path_filename(state->dump_path)));
+                    sentry__path_filename(dump_path)));
         }
 
         // capture the envelope with the disk transport
