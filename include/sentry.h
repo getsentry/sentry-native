@@ -595,12 +595,6 @@ SENTRY_API void sentry_transport_free(sentry_transport_t *transport);
 SENTRY_API sentry_transport_t *sentry_new_function_transport(
     void (*func)(const sentry_envelope_t *envelope, void *data), void *data);
 
-/**
- * Type of the callback for modifying events.
- */
-typedef sentry_value_t (*sentry_event_function_t)(
-    sentry_value_t event, void *hint, void *closure);
-
 /* -- Options APIs -- */
 
 /**
@@ -630,10 +624,22 @@ SENTRY_API void sentry_options_set_transport(
     sentry_options_t *opts, sentry_transport_t *transport);
 
 /**
+ * Type of the `before_send` callback.
+ *
+ * The callback taken ownership of the `event`, and will usually return that
+ * same event. In the case the event should be discarded, the callback needs to
+ * call `sentry_value_decref` on the provided event, and return a
+ * `sentry_value_new_null` instead.
+ * This function may be invoked inside of a signal handler and must be safe for
+ * that purpose.
+ */
+typedef sentry_value_t (*sentry_event_function_t)(
+    sentry_value_t event, void *hint, void *closure);
+
+/**
  * Sets the `before_send` callback.
  *
- * The `before_send` hook may be invoked inside of a signal handler, and must
- * therefore be signal safe.
+ * See the `sentry_event_function_t` typedef above for more information.
  */
 SENTRY_API void sentry_options_set_before_send(
     sentry_options_t *opts, sentry_event_function_t func, void *data);
@@ -904,15 +910,6 @@ SENTRY_API int sentry_shutdown(void);
  * `sentry_capture_event` will have an up-to-date module list.
  */
 SENTRY_EXPERIMENTAL_API void sentry_clear_modulecache(void);
-
-/**
- * Returns the currently active client options.
- *
- * This might return NULL if sentry is not yet initialized.
- * The returned options pointer is not synchronized, and calling
- * `sentry_shutdown` concurrently can lead to use-after-free situations.
- */
-SENTRY_API const sentry_options_t *sentry_get_options(void);
 
 /**
  * Gives user consent.

@@ -2,6 +2,7 @@
 #include "sentry_alloc.h"
 #include "sentry_envelope.h"
 #include "sentry_json.h"
+#include "sentry_options.h"
 #include "sentry_scope.h"
 #include "sentry_string.h"
 #include "sentry_utils.h"
@@ -218,17 +219,6 @@ sentry_start_session(void)
 }
 
 void
-sentry__end_current_session_with_status(sentry_session_status_t status)
-{
-    SENTRY_WITH_SCOPE_MUT (scope) {
-        if (scope->session) {
-            scope->session->status = status;
-        }
-    }
-    sentry_end_session();
-}
-
-void
 sentry__record_errors_on_current_session(uint32_t error_count)
 {
     SENTRY_WITH_SCOPE_MUT (scope) {
@@ -238,25 +228,45 @@ sentry__record_errors_on_current_session(uint32_t error_count)
     }
 }
 
+static sentry_session_t *
+sentry__end_session_internal(void)
+{
+    sentry_session_t *session = NULL;
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        session = scope->session;
+        scope->session = NULL;
+    }
+
+    if (session && session->status == SENTRY_SESSION_STATUS_OK) {
+        session->status = SENTRY_SESSION_STATUS_EXITED;
+    }
+    return session;
+}
+
+sentry_session_t *
+sentry__end_current_session_with_status(sentry_session_status_t status)
+{
+    sentry_session_t *session = sentry__end_session_internal();
+    if (session) {
+        session->status = status;
+    }
+    return session;
+}
+
 void
 sentry_end_session(void)
 {
-    sentry_envelope_t *envelope = NULL;
-
-    SENTRY_WITH_SCOPE_MUT (scope) {
-        if (scope->session) {
-            if (scope->session->status == SENTRY_SESSION_STATUS_OK) {
-                scope->session->status = SENTRY_SESSION_STATUS_EXITED;
-            }
-            envelope = sentry__envelope_new();
-            sentry__envelope_add_session(envelope, scope->session);
-            sentry__session_free(scope->session);
-            scope->session = NULL;
-        }
+    sentry_session_t *session = sentry__end_session_internal();
+    if (!session) {
+        return;
     }
 
-    if (envelope) {
-        sentry__capture_envelope(envelope);
+    sentry_envelope_t *envelope = sentry__envelope_new();
+    sentry__envelope_add_session(envelope, session);
+    sentry__session_free(session);
+
+    SENTRY_WITH_OPTIONS (options) {
+        sentry__capture_envelope(options->transport, envelope);
     }
 }
 

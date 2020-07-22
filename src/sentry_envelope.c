@@ -232,6 +232,9 @@ sentry_envelope_item_t *
 sentry__envelope_add_session(
     sentry_envelope_t *envelope, const sentry_session_t *session)
 {
+    if (!envelope || !session) {
+        return NULL;
+    }
     sentry_jsonwriter_t *jw = sentry__jsonwriter_new_in_memory();
     if (!jw) {
         return NULL;
@@ -259,6 +262,9 @@ sentry_envelope_item_t *
 sentry__envelope_add_from_path(
     sentry_envelope_t *envelope, const sentry_path_t *path, const char *type)
 {
+    if (!envelope) {
+        return NULL;
+    }
     size_t buf_len;
     char *buf = sentry__path_read_to_buffer(path, &buf_len);
     if (!buf) {

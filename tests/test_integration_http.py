@@ -205,16 +205,11 @@ def test_inproc_crash_http(cmake, httpserver):
         tmp_path, "sentry_example", ["log", "no-setup"], check=True, env=env,
     )
 
-    assert len(httpserver.log) == 2
-    outputs = (httpserver.log[0][0].get_data(), httpserver.log[1][0].get_data())
-    session, event = (
-        outputs if b'"type":"session"' in outputs[0] else (outputs[1], outputs[0])
-    )
+    assert len(httpserver.log) == 1
+    envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
 
-    envelope = Envelope.deserialize(session)
-    assert_session(envelope, {"init": True, "status": "crashed", "errors": 0})
+    assert_session(envelope, {"init": True, "status": "crashed", "errors": 1})
 
-    envelope = Envelope.deserialize(event)
     assert_meta(envelope)
     assert_breadcrumb(envelope)
     assert_attachment(envelope)
@@ -263,16 +258,10 @@ def test_breakpad_crash_http(cmake, httpserver):
         tmp_path, "sentry_example", ["log", "no-setup"], check=True, env=env,
     )
 
-    assert len(httpserver.log) == 2
-    outputs = (httpserver.log[0][0].get_data(), httpserver.log[1][0].get_data())
-    session, event = (
-        outputs if b'"type":"session"' in outputs[0] else (outputs[1], outputs[0])
-    )
+    assert len(httpserver.log) == 1
+    envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
 
-    envelope = Envelope.deserialize(session)
     assert_session(envelope, {"init": True, "status": "crashed", "errors": 0})
-
-    envelope = Envelope.deserialize(event)
 
     assert_meta(envelope)
     assert_breadcrumb(envelope)

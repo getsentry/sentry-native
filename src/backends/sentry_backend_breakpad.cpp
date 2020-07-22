@@ -12,6 +12,7 @@ extern "C" {
 #include "sentry_sync.h"
 #include "sentry_transport.h"
 #include "sentry_unix_pageallocator.h"
+#include "transports/sentry_disk_transport.h"
 }
 
 #ifdef __GNUC__
@@ -29,92 +30,6 @@ extern "C" {
 #ifdef __GNUC__
 #    pragma GCC diagnostic pop
 #endif
-
-typedef struct {
-    const sentry_run_t *run;
-    sentry_path_t *dump_path;
-} breakpad_transport_state_t;
-
-static void
-sentry__breakpad_backend_send_envelope(
-    sentry_envelope_t *envelope, void *_state)
-{
-    const breakpad_transport_state_t *state
-        = (const breakpad_transport_state_t *)_state;
-
-    if (!state->dump_path) {
-        sentry_envelope_free(envelope);
-        return;
-    }
-    // when serializing the envelope to disk, and later sending it as a single
-    // `x-sentry-envelope`, the minidump needs to be an attachment, with type
-    // `event.minidump`
-    sentry_envelope_item_t *item = sentry__envelope_add_from_path(
-        envelope, state->dump_path, "attachment");
-    if (!item) {
-        sentry_envelope_free(envelope);
-        return;
-    }
-    sentry__envelope_item_set_header(
-        item, "attachment_type", sentry_value_new_string("event.minidump"));
-
-    sentry__envelope_item_set_header(item, "filename",
-#ifdef SENTRY_PLATFORM_WINDOWS
-        sentry__value_new_string_from_wstr(
-#else
-        sentry_value_new_string(
-#endif
-            sentry__path_filename(state->dump_path)));
-
-    sentry__run_write_envelope(state->run, envelope);
-    sentry_envelope_free(envelope);
-
-    // now that the envelope was written, we can remove the temporary
-    // minidump file
-    sentry__path_remove(state->dump_path);
-}
-
-static void
-sentry__breakpad_transport_free(void *_state)
-{
-    breakpad_transport_state_t *state = (breakpad_transport_state_t *)_state;
-    sentry__path_free(state->dump_path);
-    sentry_free(state);
-}
-
-static sentry_transport_t *
-sentry__breakpad_transport_new(
-    const sentry_options_t *options, sentry_path_t *dump_path)
-{
-    breakpad_transport_state_t *state = SENTRY_MAKE(breakpad_transport_state_t);
-    if (!state) {
-        sentry__path_free(dump_path);
-        return NULL;
-    }
-    state->run = options->run;
-    state->dump_path = dump_path;
-
-    sentry_transport_t *transport
-        = sentry_transport_new(sentry__breakpad_backend_send_envelope);
-    if (!transport) {
-        sentry__breakpad_transport_free(state);
-        return NULL;
-    }
-    sentry_transport_set_state(transport, state);
-    sentry_transport_set_free_func(transport, sentry__breakpad_transport_free);
-    return transport;
-}
-
-static sentry_transport_t *
-sentry__swap_breakpad_transport(
-    sentry_options_t *options, sentry_path_t *dump_path)
-{
-    sentry_transport_t *breakpad_transport
-        = sentry__breakpad_transport_new(options, dump_path);
-    sentry_transport_t *transport = options->transport;
-    options->transport = breakpad_transport;
-    return transport;
-}
 
 #ifdef SENTRY_PLATFORM_WINDOWS
 static bool
@@ -156,38 +71,46 @@ sentry__breakpad_backend_callback(
     SENTRY_WITH_OPTIONS (options) {
         sentry__write_crash_marker(options);
 
-        // since we can’t use HTTP in crash handlers, we will swap out the
-        // transport here to one that serializes the envelope to disk
-        sentry_transport_t *transport_original
-            = sentry__swap_disk_transport(options);
+        sentry_envelope_t *envelope
+            = sentry__prepare_event(options, event, NULL);
+        sentry_session_t *session = sentry__end_current_session_with_status(
+            SENTRY_SESSION_STATUS_CRASHED);
+        sentry__envelope_add_session(envelope, session);
 
-        // Ending the session will send an envelope, which we *don’t* want to
-        // route through the special transport. It will be dumped to disk with
-        // the rest of the send queue.
-        sentry__end_current_session_with_status(SENTRY_SESSION_STATUS_CRASHED);
+        // the minidump is added as an attachment, with type `event.minidump`
+        sentry_envelope_item_t *item = sentry__envelope_add_from_path(
+            envelope, state->dump_path, "attachment");
+        if (item) {
+            sentry__envelope_item_set_header(item, "attachment_type",
+                sentry_value_new_string("event.minidump"));
 
-        // almost identical to enforcing the disk transport, the breakpad
-        // transport will serialize the envelope to disk, but will attach
-        // the captured minidump as an additional attachment
-        sentry_transport_t *transport_disk
-            = sentry__swap_breakpad_transport(options, dump_path);
+            sentry__envelope_item_set_header(item, "filename",
+#ifdef SENTRY_PLATFORM_WINDOWS
+                sentry__value_new_string_from_wstr(
+#else
+                sentry_value_new_string(
+#endif
+                    sentry__path_filename(state->dump_path)));
+        }
 
-        // after the transport is set up, we will capture an event, which
-        // will create an envelope with all the scope, attachments, etc.
-        sentry_value_t event = sentry_value_new_event();
-        sentry_capture_event(event);
+        // capture the envelope with the disk transport
+        sentry_transport_t *disk_transport
+            = sentry_new_disk_transport(options->run);
+        sentry__capture_envelope(disk_transport, envelope);
+        sentry__transport_dump_queue(disk_transport, options->run);
+        sentry_transport_free(disk_transport);
+
+        // now that the envelope was written, we can remove the temporary
+        // minidump file
+        sentry__path_remove(dump_path);
+        sentry__path_free(dump_path);
 
         // after capturing the crash event, try to dump all the in-flight
         // data of the previous transports
         sentry__transport_dump_queue(options->transport, options->run);
-        sentry__transport_dump_queue(transport_disk, options->run);
-        sentry__transport_dump_queue(transport_original, options->run);
         // and restore the old transport
-        sentry_transport_free(options->transport);
-        sentry_transport_free(transport_disk);
-        options->transport = transport_original;
-        SENTRY_DEBUG("crash has been captured");
     }
+    SENTRY_DEBUG("crash has been captured");
 
 #ifndef SENTRY_PLATFORM_WINDOWS
     sentry__leave_signal_handler();

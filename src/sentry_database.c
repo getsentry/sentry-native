@@ -172,29 +172,27 @@ sentry__process_old_runs(const sentry_options_t *options)
         sentry_pathiter_t *run_iter = sentry__path_iter_directory(run_dir);
         const sentry_path_t *file;
         while ((file = sentry__pathiter_next(run_iter)) != NULL) {
-            if (options->transport) {
-                if (sentry__path_filename_matches(file, "session.json")) {
-                    if (!session_envelope) {
-                        session_envelope = sentry__envelope_new();
-                    }
-                    sentry_session_t *session = sentry__session_from_path(file);
-                    if (session->status == SENTRY_SESSION_STATUS_OK) {
-                        session->status = SENTRY_SESSION_STATUS_ABNORMAL;
-                    }
-                    sentry__envelope_add_session(session_envelope, session);
-                    sentry__session_free(session);
-                    if ((++session_num) >= SENTRY_MAX_ENVELOPE_ITEMS) {
-                        sentry__capture_envelope(session_envelope);
-                        session_envelope = NULL;
-                        session_num = 0;
-                    }
-                } else if (sentry__path_ends_with(file, ".envelope")) {
-                    sentry_envelope_t *envelope
-                        = sentry__envelope_from_path(file);
-                    if (envelope) {
-                        sentry__capture_envelope(envelope);
-                    }
+            if (sentry__path_filename_matches(file, "session.json")) {
+                sentry_session_t *session = sentry__session_from_path(file);
+                if (session->status == SENTRY_SESSION_STATUS_OK) {
+                    session->status = SENTRY_SESSION_STATUS_ABNORMAL;
                 }
+                if (!session_envelope) {
+                    session_envelope = sentry__envelope_new();
+                }
+                if (session_envelope) {
+                    sentry__envelope_add_session(session_envelope, session);
+                }
+                sentry__session_free(session);
+                if ((++session_num) >= SENTRY_MAX_ENVELOPE_ITEMS) {
+                    sentry__capture_envelope(
+                        options->transport, session_envelope);
+                    session_envelope = NULL;
+                    session_num = 0;
+                }
+            } else if (sentry__path_ends_with(file, ".envelope")) {
+                sentry_envelope_t *envelope = sentry__envelope_from_path(file);
+                sentry__capture_envelope(options->transport, envelope);
             }
 
             sentry__path_remove(file);
@@ -206,9 +204,7 @@ sentry__process_old_runs(const sentry_options_t *options)
     }
     sentry__pathiter_free(db_iter);
 
-    if (session_envelope) {
-        sentry__capture_envelope(session_envelope);
-    }
+    sentry__capture_envelope(options->transport, session_envelope);
 }
 
 bool

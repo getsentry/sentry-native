@@ -55,7 +55,14 @@ typedef struct sentry_options_s {
     /* everything from here on down are options which are stored here but
        not exposed through the options API */
     struct sentry_backend_s *backend;
-    sentry_user_consent_t user_consent;
+
+    long user_consent;
+    long refcount;
 } sentry_options_t;
+
+/**
+ * Increments the reference count and returns the options.
+ */
+sentry_options_t *sentry__options_incref(sentry_options_t *options);
 
 #endif

@@ -5,6 +5,7 @@
 #include "sentry_logger.h"
 #include "sentry_path.h"
 #include "sentry_string.h"
+#include "sentry_sync.h"
 #include "sentry_transport.h"
 #include <stdlib.h>
 
@@ -43,7 +44,18 @@ sentry_options_new(void)
     opts->backend = sentry__backend_new();
     opts->transport = sentry__transport_new_default();
     opts->sample_rate = 1.0;
+    opts->refcount = 1;
     return opts;
+}
+
+sentry_options_t *
+sentry__options_incref(sentry_options_t *options)
+{
+    if (!options) {
+        return NULL;
+    }
+    sentry__atomic_fetch_and_add(&options->refcount, 1);
+    return options;
 }
 
 void
@@ -56,7 +68,7 @@ sentry__attachment_free(sentry_attachment_t *attachment)
 void
 sentry_options_free(sentry_options_t *opts)
 {
-    if (!opts) {
+    if (!opts || sentry__atomic_fetch_and_add(&opts->refcount, -1) != 1) {
         return;
     }
     sentry__dsn_decref(opts->dsn);

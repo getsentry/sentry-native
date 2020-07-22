@@ -10,6 +10,7 @@
 #include "sentry_sync.h"
 #include "sentry_transport.h"
 #include "sentry_unix_pageallocator.h"
+#include "transports/sentry_disk_transport.h"
 #include <string.h>
 
 #define SIGNAL_DEF(Sig, Desc)                                                  \
@@ -259,25 +260,30 @@ handle_ucontext(const sentry_ucontext_t *uctx)
     sentry__enter_signal_handler();
 #endif
 
+    sentry_value_t event = make_signal_event(sig_slot, uctx);
+
     SENTRY_WITH_OPTIONS (options) {
         sentry__write_crash_marker(options);
 
-        // since we can’t use HTTP in signal handlers, we will swap out the
-        // transport here to one that serializes the envelope to disk
-        sentry_transport_t *transport = sentry__swap_disk_transport(options);
+        sentry_envelope_t *envelope
+            = sentry__prepare_event(options, event, NULL);
 
-        // now create an capture an event.
-        sentry__end_current_session_with_status(SENTRY_SESSION_STATUS_CRASHED);
-        sentry_capture_event(make_signal_event(sig_slot, uctx));
+        sentry_session_t *session = sentry__end_current_session_with_status(
+            SENTRY_SESSION_STATUS_CRASHED);
+        sentry__envelope_add_session(envelope, session);
+
+        // capture the envelope with the disk transport
+        sentry_transport_t *disk_transport
+            = sentry_new_disk_transport(options->run);
+        sentry__capture_envelope(disk_transport, envelope);
+        sentry__transport_dump_queue(disk_transport, options->run);
+        sentry_transport_free(disk_transport);
 
         // after capturing the crash event, dump all the envelopes to disk
         sentry__transport_dump_queue(options->transport, options->run);
-        sentry__transport_dump_queue(transport, options->run);
-        // and restore the old transport
-        sentry_transport_free(options->transport);
-        options->transport = transport;
-        SENTRY_DEBUG("crash has been captured");
     }
+
+    SENTRY_DEBUG("crash has been captured");
 
 #ifdef SENTRY_PLATFORM_UNIX
     // reset signal handlers and invoke the original ones.  This will then tear

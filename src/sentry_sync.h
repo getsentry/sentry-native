@@ -264,7 +264,21 @@ sentry__atomic_fetch_and_add(volatile long *val, long diff)
     return InterlockedExchangeAdd((LONG *)val, diff);
 #    endif
 #else
-    return __sync_fetch_and_add(val, diff);
+    return __atomic_fetch_add(val, diff, __ATOMIC_SEQ_CST);
+#endif
+}
+
+static inline long
+sentry__atomic_store(volatile long *val, long value)
+{
+#ifdef SENTRY_PLATFORM_WINDOWS
+#    if SIZEOF_LONG == 8
+    return InterlockedExchange64((LONG64 *)val, value);
+#    else
+    return InterlockedExchange((LONG *)val, value);
+#    endif
+#else
+    return __atomic_exchange_n(val, value, __ATOMIC_SEQ_CST);
 #endif
 }
 
