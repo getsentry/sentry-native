@@ -105,7 +105,7 @@ sentry__crashpad_handler(int UNUSED(signum), siginfo_t *UNUSED(info),
     sentry__page_allocator_enable();
     sentry__enter_signal_handler();
 #    endif
-    SENTRY_DEBUG("flushing session and state before crashpad handler");
+    SENTRY_DEBUG("flushing session and queue before crashpad handler");
 
     SENTRY_WITH_OPTIONS (options) {
         sentry__write_crash_marker(options);
@@ -122,9 +122,11 @@ sentry__crashpad_handler(int UNUSED(signum), siginfo_t *UNUSED(info),
         sentry__capture_envelope(disk_transport, envelope);
         sentry__transport_dump_queue(disk_transport, options->run);
         sentry_transport_free(disk_transport);
+
+        sentry__transport_dump_queue(options->transport, options->run);
     }
 
-    SENTRY_DEBUG("handling control over to crashpad");
+    SENTRY_DEBUG("handing control over to crashpad");
 #    ifndef SENTRY_PLATFORM_WINDOWS
     sentry__leave_signal_handler();
 #    endif
