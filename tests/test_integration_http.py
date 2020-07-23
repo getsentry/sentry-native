@@ -293,8 +293,16 @@ def test_breakpad_dump_inflight(cmake, httpserver):
 def test_shutdown_timeout(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
 
+    # the timings here are:
+    # * the process waits 2s for the background thread to shut down, which fails
+    # * it then dumps everything and waits another 1s before terminating the process
+    # * the python runner waits for 2.4s in total to close the request, which
+    #   will cleanly terminate the background worker.
+    # the assumption here is that 2s < 2.4s < 2s+1s. but since those timers
+    # run in different processes, this has the potential of being flaky
+
     def delayed(req):
-        time.sleep(2.5)
+        time.sleep(2.4)
         return "{}"
 
     httpserver.expect_request(
