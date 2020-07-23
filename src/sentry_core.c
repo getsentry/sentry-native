@@ -61,7 +61,6 @@ sentry__should_skip_upload(void)
     SENTRY_WITH_OPTIONS (options) {
         skip = options->require_user_consent
             && sentry__atomic_fetch((long *)&options->user_consent)
-
                 != SENTRY_USER_CONSENT_GIVEN;
     }
     return skip;
@@ -212,7 +211,11 @@ static void
 set_user_consent(sentry_user_consent_t new_val)
 {
     SENTRY_WITH_OPTIONS (options) {
-        sentry__atomic_store((long *)&options->user_consent, new_val);
+        if (sentry__atomic_store((long *)&options->user_consent, new_val)
+            == new_val) {
+            // nothing was changed
+            break; // SENTRY_WITH_OPTIONS
+        }
 
         if (options->backend && options->backend->user_consent_changed_func) {
             options->backend->user_consent_changed_func(options->backend);

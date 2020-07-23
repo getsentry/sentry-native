@@ -51,10 +51,9 @@ sentry_options_new(void)
 sentry_options_t *
 sentry__options_incref(sentry_options_t *options)
 {
-    if (!options) {
-        return NULL;
+    if (options) {
+        sentry__atomic_fetch_and_add(&options->refcount, 1);
     }
-    sentry__atomic_fetch_and_add(&options->refcount, 1);
     return options;
 }
 

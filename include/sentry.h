@@ -626,12 +626,12 @@ SENTRY_API void sentry_options_set_transport(
 /**
  * Type of the `before_send` callback.
  *
- * The callback taken ownership of the `event`, and will usually return that
- * same event. In the case the event should be discarded, the callback needs to
+ * The callback takes ownership of the `event`, and should usually return that
+ * same event. In case the event should be discarded, the callback needs to
  * call `sentry_value_decref` on the provided event, and return a
- * `sentry_value_new_null` instead.
+ * `sentry_value_new_null()` instead.
  * This function may be invoked inside of a signal handler and must be safe for
- * that purpose.
+ * that purpose, see https://man7.org/linux/man-pages/man7/signal-safety.7.html.
  */
 typedef sentry_value_t (*sentry_event_function_t)(
     sentry_value_t event, void *hint, void *closure);

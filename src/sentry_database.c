@@ -180,9 +180,7 @@ sentry__process_old_runs(const sentry_options_t *options)
                 if (!session_envelope) {
                     session_envelope = sentry__envelope_new();
                 }
-                if (session_envelope) {
-                    sentry__envelope_add_session(session_envelope, session);
-                }
+                sentry__envelope_add_session(session_envelope, session);
                 sentry__session_free(session);
                 if ((++session_num) >= SENTRY_MAX_ENVELOPE_ITEMS) {
                     sentry__capture_envelope(
