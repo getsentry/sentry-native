@@ -69,64 +69,64 @@ SENTRY_TEST(url_parsing_invalid)
 
 SENTRY_TEST(dsn_parsing_complete)
 {
-    sentry_dsn_t dsn;
-    TEST_CHECK_INT_EQUAL(
-        sentry__dsn_parse(
-            &dsn, "http://username:password@example.com/foo/bar/42?x=y#z"),
-        0);
-    TEST_CHECK(!dsn.is_secure);
-    TEST_CHECK_STRING_EQUAL(dsn.host, "example.com");
-    TEST_CHECK_INT_EQUAL(dsn.port, 80);
-    TEST_CHECK_STRING_EQUAL(dsn.public_key, "username");
-    TEST_CHECK_STRING_EQUAL(dsn.secret_key, "password");
-    TEST_CHECK_STRING_EQUAL(dsn.path, "/foo/bar");
-    TEST_CHECK_INT_EQUAL((int)dsn.project_id, 42);
-    sentry__dsn_cleanup(&dsn);
+    sentry_dsn_t *dsn = sentry__dsn_new(
+        "http://username:password@example.com/foo/bar/42?x=y#z");
+    TEST_CHECK(!!dsn);
+    if (!dsn) {
+        return;
+    }
+    TEST_CHECK(dsn->is_valid);
+    TEST_CHECK(!dsn->is_secure);
+    TEST_CHECK_STRING_EQUAL(dsn->host, "example.com");
+    TEST_CHECK_INT_EQUAL(dsn->port, 80);
+    TEST_CHECK_STRING_EQUAL(dsn->public_key, "username");
+    TEST_CHECK_STRING_EQUAL(dsn->secret_key, "password");
+    TEST_CHECK_STRING_EQUAL(dsn->path, "/foo/bar");
+    TEST_CHECK_INT_EQUAL((int)dsn->project_id, 42);
+    sentry__dsn_decref(dsn);
 }
 
 SENTRY_TEST(dsn_parsing_invalid)
 {
-    sentry_dsn_t dsn;
-    TEST_CHECK_INT_EQUAL(
-        sentry__dsn_parse(
-            &dsn, "http://username:password@example.com/foo/bar?x=y#z"),
-        1);
+    sentry_dsn_t *dsn
+        = sentry__dsn_new("http://username:password@example.com/foo/bar?x=y#z");
+    TEST_CHECK(!!dsn);
+    if (!dsn) {
+        return;
+    }
+    TEST_CHECK(!dsn->is_valid);
+    sentry__dsn_decref(dsn);
 }
 
 SENTRY_TEST(dsn_store_url_with_path)
 {
-    sentry_dsn_t dsn;
-    TEST_CHECK_INT_EQUAL(
-        sentry__dsn_parse(
-            &dsn, "http://username:password@example.com/foo/bar/42?x=y#z"),
-        0);
+    sentry_dsn_t *dsn = sentry__dsn_new(
+        "http://username:password@example.com/foo/bar/42?x=y#z");
     char *url;
-    url = sentry__dsn_get_envelope_url(&dsn);
+    url = sentry__dsn_get_envelope_url(dsn);
     TEST_CHECK_STRING_EQUAL(
         url, "http://example.com:80/foo/bar/api/42/envelope/");
     sentry_free(url);
-    url = sentry__dsn_get_minidump_url(&dsn);
+    url = sentry__dsn_get_minidump_url(dsn);
     TEST_CHECK_STRING_EQUAL(url,
         "http://example.com:80/foo/bar/api/42/minidump/?sentry_key=username");
     sentry_free(url);
-    sentry__dsn_cleanup(&dsn);
+    sentry__dsn_decref(dsn);
 }
 
 SENTRY_TEST(dsn_store_url_without_path)
 {
-    sentry_dsn_t dsn;
-    TEST_CHECK_INT_EQUAL(sentry__dsn_parse(&dsn,
-                             "http://username:password@example.com/42?x=y#z"),
-        0);
+    sentry_dsn_t *dsn
+        = sentry__dsn_new("http://username:password@example.com/42?x=y#z");
     char *url;
-    url = sentry__dsn_get_envelope_url(&dsn);
+    url = sentry__dsn_get_envelope_url(dsn);
     TEST_CHECK_STRING_EQUAL(url, "http://example.com:80/api/42/envelope/");
     sentry_free(url);
-    url = sentry__dsn_get_minidump_url(&dsn);
+    url = sentry__dsn_get_minidump_url(dsn);
     TEST_CHECK_STRING_EQUAL(
         url, "http://example.com:80/api/42/minidump/?sentry_key=username");
     sentry_free(url);
-    sentry__dsn_cleanup(&dsn);
+    sentry__dsn_decref(dsn);
 }
 
 SENTRY_TEST(page_allocator)

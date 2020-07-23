@@ -10,6 +10,7 @@
 #include "sentry_sync.h"
 #include "sentry_transport.h"
 #include "sentry_unix_pageallocator.h"
+#include "transports/sentry_disk_transport.h"
 #include <string.h>
 
 #define SIGNAL_DEF(Sig, Desc)                                                  \
@@ -233,6 +234,8 @@ make_signal_event(
 static void
 handle_ucontext(const sentry_ucontext_t *uctx)
 {
+    SENTRY_DEBUG("entering signal handler");
+
     const struct signal_slot *sig_slot = NULL;
     for (int i = 0; i < SIGNAL_COUNT; ++i) {
 #ifdef SENTRY_PLATFORM_UNIX
@@ -257,25 +260,29 @@ handle_ucontext(const sentry_ucontext_t *uctx)
     sentry__enter_signal_handler();
 #endif
 
-    const sentry_options_t *opts = sentry_get_options();
-    sentry__write_crash_marker(opts);
+    sentry_value_t event = make_signal_event(sig_slot, uctx);
 
-    // since we can’t use HTTP in signal handlers, we will swap out the
-    // transport here to one that serializes the envelope to disk
-    sentry_transport_t *transport = opts->transport;
-    sentry__enforce_disk_transport();
+    SENTRY_WITH_OPTIONS (options) {
+        sentry__write_crash_marker(options);
 
-    // now create an capture an event.  Note that this assumes the transport
-    // only dumps to disk at the moment.
-    SENTRY_DEBUG("capturing event from signal");
-    sentry__end_current_session_with_status(SENTRY_SESSION_STATUS_CRASHED);
-    sentry_capture_event(make_signal_event(sig_slot, uctx));
+        sentry_envelope_t *envelope
+            = sentry__prepare_event(options, event, NULL);
 
-    // after capturing the crash event, try to dump all the in-flight data of
-    // the previous transport
-    if (transport) {
-        sentry__transport_dump_queue(transport, opts->run);
+        sentry_session_t *session = sentry__end_current_session_with_status(
+            SENTRY_SESSION_STATUS_CRASHED);
+        sentry__envelope_add_session(envelope, session);
+
+        // capture the envelope with the disk transport
+        sentry_transport_t *disk_transport
+            = sentry_new_disk_transport(options->run);
+        sentry__capture_envelope(disk_transport, envelope);
+        sentry__transport_dump_queue(disk_transport, options->run);
+        sentry_transport_free(disk_transport);
+
+        // after capturing the crash event, dump all the envelopes to disk
+        sentry__transport_dump_queue(options->transport, options->run);
     }
+
     SENTRY_DEBUG("crash has been captured");
 
 #ifdef SENTRY_PLATFORM_UNIX

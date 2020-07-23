@@ -56,7 +56,7 @@ SENTRY_TEST(lazy_attachments)
     TEST_CHECK(strstr(serialized,
                    "{\"type\":\"attachment\",\"length\":3,"
                    "\"filename\":\".existing-file-attachment\"}\n"
-                   "foo\n")
+                   "foo")
         != NULL);
     TEST_CHECK(
         strstr(serialized, "\"filename\":\".non-existing-file-attachment\"")
@@ -73,12 +73,12 @@ SENTRY_TEST(lazy_attachments)
     TEST_CHECK(strstr(serialized,
                    "{\"type\":\"attachment\",\"length\":6,"
                    "\"filename\":\".existing-file-attachment\"}\n"
-                   "foobar\n")
+                   "foobar")
         != NULL);
     TEST_CHECK(strstr(serialized,
                    "{\"type\":\"attachment\",\"length\":9,"
                    "\"filename\":\".non-existing-file-attachment\"}\n"
-                   "it exists\n")
+                   "it exists")
         != NULL);
     sentry_free(serialized);
 

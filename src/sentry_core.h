@@ -29,16 +29,28 @@
 bool sentry__should_skip_upload(void);
 
 /**
- * This function is essential to capture reports in the case of a hard crash.
- * It will set a special transport that will dump events to disk.
- * See `sentry__run_write_envelope`.
+ * Convert the given event into an envelope.
+ *
+ * More specifically, it will do the following things:
+ * - sample the event, possibly discarding it,
+ * - apply the scope to it,
+ * - call the before_send hook on it,
+ * - add the event to a new envelope,
+ * - record errors on the current session,
+ * - add any attachments to the envelope as well
+ *
+ * The function will ensure the event has a UUID and write it into the
+ * `event_id` out-parameter.
  */
-void sentry__enforce_disk_transport(void);
+sentry_envelope_t *sentry__prepare_event(const sentry_options_t *options,
+    sentry_value_t event, sentry_uuid_t *event_id);
 
 /**
- * This function will submit the given `envelope` to the configured transport.
+ * This function will submit the `envelope` to the given `transport`, first
+ * checking for consent.
  */
-void sentry__capture_envelope(sentry_envelope_t *envelope);
+void sentry__capture_envelope(
+    sentry_transport_t *transport, sentry_envelope_t *envelope);
 
 /**
  * Generates a new random UUID for events.
@@ -52,5 +64,19 @@ sentry_uuid_t sentry__new_event_id(void);
  */
 sentry_value_t sentry__ensure_event_id(
     sentry_value_t event, sentry_uuid_t *uuid_out);
+
+/**
+ * This will return an owned reference to the global options.
+ */
+const sentry_options_t *sentry__options_getref(void);
+
+/**
+ * Release the lock on the global options.
+ */
+void sentry__options_unlock(void);
+
+#define SENTRY_WITH_OPTIONS(Options)                                           \
+    for (const sentry_options_t *Options = sentry__options_getref(); Options;  \
+         sentry_options_free((sentry_options_t *)Options), Options = NULL)
 
 #endif

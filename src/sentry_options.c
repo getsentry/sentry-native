@@ -5,6 +5,7 @@
 #include "sentry_logger.h"
 #include "sentry_path.h"
 #include "sentry_string.h"
+#include "sentry_sync.h"
 #include "sentry_transport.h"
 #include <stdlib.h>
 
@@ -43,7 +44,17 @@ sentry_options_new(void)
     opts->backend = sentry__backend_new();
     opts->transport = sentry__transport_new_default();
     opts->sample_rate = 1.0;
+    opts->refcount = 1;
     return opts;
+}
+
+sentry_options_t *
+sentry__options_incref(sentry_options_t *options)
+{
+    if (options) {
+        sentry__atomic_fetch_and_add(&options->refcount, 1);
+    }
+    return options;
 }
 
 void
@@ -56,11 +67,10 @@ sentry__attachment_free(sentry_attachment_t *attachment)
 void
 sentry_options_free(sentry_options_t *opts)
 {
-    if (!opts) {
+    if (!opts || sentry__atomic_fetch_and_add(&opts->refcount, -1) != 1) {
         return;
     }
-    sentry_free(opts->raw_dsn);
-    sentry__dsn_cleanup(&opts->dsn);
+    sentry__dsn_decref(opts->dsn);
     sentry_free(opts->release);
     sentry_free(opts->environment);
     sentry_free(opts->dist);
@@ -100,20 +110,16 @@ sentry_options_set_before_send(
 }
 
 void
-sentry_options_set_dsn(sentry_options_t *opts, const char *dsn)
+sentry_options_set_dsn(sentry_options_t *opts, const char *raw_dsn)
 {
-    sentry__dsn_cleanup(&opts->dsn);
-    /* XXX: log warning here or propagate parsing error */
-    sentry_free(opts->raw_dsn);
-    sentry__dsn_parse(&opts->dsn, dsn);
-    /* TODO: canonicalize DSN */
-    opts->raw_dsn = sentry__string_clone(dsn);
+    sentry__dsn_decref(opts->dsn);
+    opts->dsn = sentry__dsn_new(raw_dsn);
 }
 
 const char *
 sentry_options_get_dsn(const sentry_options_t *opts)
 {
-    return opts->raw_dsn;
+    return opts->dsn ? opts->dsn->raw : NULL;
 }
 
 void

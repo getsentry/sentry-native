@@ -5,6 +5,7 @@
 **Breaking Changes**:
 
 - The minimum CMake version required to build on windows was raised to `3.16.4` to avoid potential build failures on older versions.
+- The `sentry_get_options` function was removed, as it was unsafe to use after a `sentry_shutdown` call.
 - The `sentry_options_set_logger` function now accepts a `userdata` parameter.
 - The `name` parameter of `sentry_options_add_attachment(w)` was removed, it will now be inferred from the filename of `path`.
 - The transport startup hook that is set via `sentry_transport_set_startup_func` now needs to return an `int`, and a failure will propagate to `sentry_init`.
@@ -50,7 +51,7 @@ sentry_transport_set_shutdown_func(transport, transport_shutdown);
 **Fixes**:
 
 - Reworked thread synchronization code and logic in `sentry_shutdown`, avoiding an abort in case of an unclean shutdown. ([#323](https://github.com/getsentry/sentry-native/pull/323))
-- Similarly, reworked options locking, avoiding thread safety issues. ([#333](https://github.com/getsentry/sentry-native/pull/333))
+- Similarly, reworked global options handling, avoiding thread safety issues. ([#333](https://github.com/getsentry/sentry-native/pull/333))
 - Fixed errors not being properly recorded in sessions. ([#317](https://github.com/getsentry/sentry-native/pull/317))
 - Fixed some potential memory leaks and other issues. ([#304](https://github.com/getsentry/sentry-native/pull/304) and others)
 

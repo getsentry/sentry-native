@@ -39,28 +39,36 @@ void sentry__url_cleanup(sentry_url_t *url);
 /**
  * This is the internal representation of a parsed DSN.
  */
-typedef struct {
-    bool is_secure;
+typedef struct sentry_dsn_s {
+    char *raw;
     char *host;
-    int port;
+    char *path;
     char *secret_key;
     char *public_key;
     uint64_t project_id;
-    char *path;
-    bool empty;
+    int port;
+    long refcount;
+    bool is_valid;
+    bool is_secure;
 } sentry_dsn_t;
 
 /**
- * This will parse the DSN URL given in `dsn` into the pre-allocated `dsn_out`.
- * Returns 0 on success.
+ * This will parse the DSN URL given in `dsn`.
+ *
+ * The returned `sentry_dsn_t` will have have its `is_valid` flag set when the
+ * DSN has been successfully parsed.
  */
-int sentry__dsn_parse(sentry_dsn_t *dsn_out, const char *dsn);
+sentry_dsn_t *sentry__dsn_new(const char *dsn);
 
 /**
- * This will free all the internal members of `dsn`, but not `dsn` itself, as
- * that might have been stack allocated.
+ * Increases the reference-count of the DSN.
  */
-void sentry__dsn_cleanup(sentry_dsn_t *dsn);
+sentry_dsn_t *sentry__dsn_incref(sentry_dsn_t *dsn);
+
+/**
+ * Decrements the reference-count of the DSN.
+ */
+void sentry__dsn_decref(sentry_dsn_t *dsn);
 
 /**
  * This will create a new string, with the contents of the `X-Sentry-Auth`, as

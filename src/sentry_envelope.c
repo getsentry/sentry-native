@@ -145,10 +145,11 @@ sentry__envelope_new(void)
     rv->contents.items.item_count = 0;
     rv->contents.items.headers = sentry_value_new_object();
 
-    const sentry_options_t *options = sentry_get_options();
-    if (options && !options->dsn.empty) {
-        sentry__envelope_set_header(rv, "dsn",
-            sentry_value_new_string(sentry_options_get_dsn(options)));
+    SENTRY_WITH_OPTIONS (options) {
+        if (options->dsn && options->dsn->is_valid) {
+            sentry__envelope_set_header(rv, "dsn",
+                sentry_value_new_string(sentry_options_get_dsn(options)));
+        }
     }
 
     return rv;
@@ -231,6 +232,9 @@ sentry_envelope_item_t *
 sentry__envelope_add_session(
     sentry_envelope_t *envelope, const sentry_session_t *session)
 {
+    if (!envelope || !session) {
+        return NULL;
+    }
     sentry_jsonwriter_t *jw = sentry__jsonwriter_new_in_memory();
     if (!jw) {
         return NULL;
@@ -258,6 +262,9 @@ sentry_envelope_item_t *
 sentry__envelope_add_from_path(
     sentry_envelope_t *envelope, const sentry_path_t *path, const char *type)
 {
+    if (!envelope) {
+        return NULL;
+    }
     size_t buf_len;
     char *buf = sentry__path_read_to_buffer(path, &buf_len);
     if (!buf) {

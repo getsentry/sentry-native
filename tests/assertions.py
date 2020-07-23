@@ -90,7 +90,9 @@ def assert_minidump(envelope):
         "type": "attachment",
         "attachment_type": "event.minidump",
     }
-    assert any(matches(item.headers, expected) for item in envelope)
+    minidump = next(item for item in envelope if matches(item.headers, expected))
+    assert minidump.headers["length"] > 4
+    assert minidump.payload.bytes.startswith(b"MDMP")
 
 
 def assert_timestamp(ts, now=datetime.datetime.utcnow()):

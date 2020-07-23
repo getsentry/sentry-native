@@ -1,14 +1,13 @@
 #include "sentry_envelope.h"
 #include "sentry_testsupport.h"
 #include "sentry_transport.h"
+#include "sentry_utils.h"
 #include "sentry_value.h"
 #include <sentry.h>
 
 SENTRY_TEST(basic_http_request_preparation_for_event)
 {
-    sentry_options_t *options = sentry_options_new();
-    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
-    sentry_init(options);
+    sentry_dsn_t *dsn = sentry__dsn_new("https://foo@sentry.invalid/42");
 
     sentry_uuid_t event_id
         = sentry_uuid_from_string("c993afb6-b4ac-48a6-b61b-2558e601d65d");
@@ -19,26 +18,23 @@ SENTRY_TEST(basic_http_request_preparation_for_event)
     sentry__envelope_add_event(envelope, event);
 
     sentry_prepared_http_request_t *req
-        = sentry__prepare_http_request(envelope, NULL);
+        = sentry__prepare_http_request(envelope, dsn, NULL);
     TEST_CHECK_STRING_EQUAL(req->method, "POST");
     TEST_CHECK_STRING_EQUAL(
         req->url, "https://sentry.invalid:443/api/42/envelope/");
     TEST_CHECK_STRING_EQUAL(req->body,
-        "{\"dsn\":\"https://foo@sentry.invalid/42\","
-        "\"event_id\":\"c993afb6-b4ac-48a6-b61b-2558e601d65d\"}\n"
+        "{\"event_id\":\"c993afb6-b4ac-48a6-b61b-2558e601d65d\"}\n"
         "{\"type\":\"event\",\"length\":51}\n"
         "{\"event_id\":\"c993afb6-b4ac-48a6-b61b-2558e601d65d\"}");
     sentry__prepared_http_request_free(req);
     sentry_envelope_free(envelope);
 
-    sentry_shutdown();
+    sentry__dsn_decref(dsn);
 }
 
 SENTRY_TEST(basic_http_request_preparation_for_event_with_attachment)
 {
-    sentry_options_t *options = sentry_options_new();
-    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
-    sentry_init(options);
+    sentry_dsn_t *dsn = sentry__dsn_new("https://foo@sentry.invalid/42");
 
     sentry_uuid_t event_id
         = sentry_uuid_from_string("c993afb6-b4ac-48a6-b61b-2558e601d65d");
@@ -52,13 +48,12 @@ SENTRY_TEST(basic_http_request_preparation_for_event_with_attachment)
         envelope, msg, sizeof(msg) - 1, "attachment");
 
     sentry_prepared_http_request_t *req
-        = sentry__prepare_http_request(envelope, NULL);
+        = sentry__prepare_http_request(envelope, dsn, NULL);
     TEST_CHECK_STRING_EQUAL(req->method, "POST");
     TEST_CHECK_STRING_EQUAL(
         req->url, "https://sentry.invalid:443/api/42/envelope/");
     TEST_CHECK_STRING_EQUAL(req->body,
-        "{\"dsn\":\"https://foo@sentry.invalid/42\","
-        "\"event_id\":\"c993afb6-b4ac-48a6-b61b-2558e601d65d\"}\n"
+        "{\"event_id\":\"c993afb6-b4ac-48a6-b61b-2558e601d65d\"}\n"
         "{\"type\":\"event\",\"length\":51}\n"
         "{\"event_id\":\"c993afb6-b4ac-48a6-b61b-2558e601d65d\"}\n"
         "{\"type\":\"attachment\",\"length\":12}\n"
@@ -66,14 +61,12 @@ SENTRY_TEST(basic_http_request_preparation_for_event_with_attachment)
     sentry__prepared_http_request_free(req);
     sentry_envelope_free(envelope);
 
-    sentry_shutdown();
+    sentry__dsn_decref(dsn);
 }
 
 SENTRY_TEST(basic_http_request_preparation_for_minidump)
 {
-    sentry_options_t *options = sentry_options_new();
-    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
-    sentry_init(options);
+    sentry_dsn_t *dsn = sentry__dsn_new("https://foo@sentry.invalid/42");
 
     sentry_envelope_t *envelope = sentry__envelope_new();
     char dmp[] = "MDMP";
@@ -84,12 +77,12 @@ SENTRY_TEST(basic_http_request_preparation_for_minidump)
         envelope, msg, sizeof(msg) - 1, "attachment");
 
     sentry_prepared_http_request_t *req
-        = sentry__prepare_http_request(envelope, NULL);
+        = sentry__prepare_http_request(envelope, dsn, NULL);
     TEST_CHECK_STRING_EQUAL(req->method, "POST");
     TEST_CHECK_STRING_EQUAL(
         req->url, "https://sentry.invalid:443/api/42/envelope/");
     TEST_CHECK_STRING_EQUAL(req->body,
-        "{\"dsn\":\"https://foo@sentry.invalid/42\"}\n"
+        "{}\n"
         "{\"type\":\"minidump\",\"length\":4}\n"
         "MDMP\n"
         "{\"type\":\"attachment\",\"length\":12}\n"
@@ -97,7 +90,7 @@ SENTRY_TEST(basic_http_request_preparation_for_minidump)
     sentry__prepared_http_request_free(req);
     sentry_envelope_free(envelope);
 
-    sentry_shutdown();
+    sentry__dsn_decref(dsn);
 }
 
 SENTRY_TEST(serialize_envelope)
