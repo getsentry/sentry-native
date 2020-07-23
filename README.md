@@ -13,7 +13,7 @@ and arbitrary custom context to enrich error reports.
 
 **Note**: This SDK is being actively developed and still in Beta. We recommend
 to check for updates regularly to benefit from latest features and bug fixes.
-Please see [Known Issues](#known-issues).
+Please see [Known Limitations](#known-limitations).
 
 ## Resources
 
