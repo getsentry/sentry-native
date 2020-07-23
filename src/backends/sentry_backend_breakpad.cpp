@@ -180,15 +180,11 @@ sentry__backend_new(void)
     if (!backend) {
         return NULL;
     }
+    memset(backend, 0, sizeof(sentry_backend_t));
 
     backend->startup_func = sentry__breakpad_backend_startup;
     backend->shutdown_func = sentry__breakpad_backend_shutdown;
     backend->except_func = sentry__breakpad_backend_except;
-    backend->free_func = NULL;
-    backend->flush_scope_func = NULL;
-    backend->add_breadcrumb_func = NULL;
-    backend->user_consent_changed_func = NULL;
-    backend->data = NULL;
 
     return backend;
 }

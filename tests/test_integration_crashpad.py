@@ -79,9 +79,9 @@ def test_crashpad_dump_inflight(cmake, httpserver):
     )
     assert child.returncode  # well, its a crash after all
 
-    run(tmp_path, "sentry_example", ["log", "no-setup"], check=True, env=env)
-
     time.sleep(2)  # lets wait a bit for crashpad sending in the background
+
+    run(tmp_path, "sentry_example", ["log", "no-setup"], check=True, env=env)
 
     # we trigger 10 normal events, and 1 crash
     assert len(httpserver.log) >= 11

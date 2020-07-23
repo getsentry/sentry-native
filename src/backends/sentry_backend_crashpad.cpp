@@ -364,6 +364,8 @@ sentry__backend_new(void)
     if (!backend) {
         return NULL;
     }
+    memset(backend, 0, sizeof(sentry_backend_t));
+
     crashpad_state_t *data = SENTRY_MAKE(crashpad_state_t);
     if (!data) {
         sentry_free(backend);

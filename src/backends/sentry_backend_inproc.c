@@ -338,15 +338,11 @@ sentry__backend_new(void)
     if (!backend) {
         return NULL;
     }
+    memset(backend, 0, sizeof(sentry_backend_t));
 
     backend->startup_func = startup_inproc_backend;
     backend->shutdown_func = shutdown_inproc_backend;
     backend->except_func = handle_except;
-    backend->free_func = NULL;
-    backend->flush_scope_func = NULL;
-    backend->add_breadcrumb_func = NULL;
-    backend->user_consent_changed_func = NULL;
-    backend->data = NULL;
 
     return backend;
 }
