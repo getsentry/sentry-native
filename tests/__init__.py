@@ -64,6 +64,9 @@ def run(cwd, exe, args, env=dict(os.environ), **kwargs):
     ]
     if "asan" in os.environ.get("RUN_ANALYZER", ""):
         env["ASAN_OPTIONS"] = "detect_leaks=1"
+        env["LSAN_OPTIONS"] = "suppressions={}".format(
+            os.path.join(sourcedir, "tests", "leaks.txt")
+        )
     if "llvm-cov" in os.environ.get("RUN_ANALYZER", ""):
         # continuous mode is only supported on mac right now
         continuous = "%c" if sys.platform == "darwin" else ""
