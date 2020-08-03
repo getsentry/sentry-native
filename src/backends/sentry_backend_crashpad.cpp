@@ -41,6 +41,11 @@ extern "C" {
 
 extern "C" {
 
+#ifdef SENTRY_PLATFORM_LINUX
+#    define SIGNAL_STACK_SIZE 65536
+static stack_t g_signal_stack;
+#endif
+
 typedef struct {
     crashpad::CrashReportDatabase *db;
     sentry_path_t *event_path;
@@ -239,6 +244,18 @@ sentry__crashpad_backend_startup(
     crashpad::CrashpadClient::SetFirstChanceExceptionHandler(
         &sentry__crashpad_handler);
 #endif
+#ifdef SENTRY_PLATFORM_LINUX
+    // Crashpad was recently changed to register its own signal stack, which for
+    // whatever reason is not compatible with our own handler. so we override
+    // that stack yet again to be able to correctly flush things out.
+    // https://github.com/getsentry/crashpad/commit/06a688ddc1bc8be6f410e69e4fb413fc19594d04
+    g_signal_stack.ss_sp = sentry_malloc(SIGNAL_STACK_SIZE);
+    if (g_signal_stack.ss_sp) {
+        g_signal_stack.ss_size = SIGNAL_STACK_SIZE;
+        g_signal_stack.ss_flags = 0;
+        sigaltstack(&g_signal_stack, 0);
+    }
+#endif
 
     if (!options->system_crash_reporter_enabled) {
         // Disable the system crash reporter. Especially on macOS, it takes
@@ -257,6 +274,13 @@ sentry__crashpad_backend_shutdown(sentry_backend_t *backend)
     crashpad_state_t *data = (crashpad_state_t *)backend->data;
     delete data->db;
     data->db = nullptr;
+
+#ifdef SENTRY_PLATFORM_LINUX
+    g_signal_stack.ss_flags = SS_DISABLE;
+    sigaltstack(&g_signal_stack, 0);
+    sentry_free(g_signal_stack.ss_sp);
+    g_signal_stack.ss_sp = NULL;
+#endif
 }
 
 static void
