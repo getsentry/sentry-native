@@ -174,19 +174,21 @@ sentry__process_old_runs(const sentry_options_t *options)
         while ((file = sentry__pathiter_next(run_iter)) != NULL) {
             if (sentry__path_filename_matches(file, "session.json")) {
                 sentry_session_t *session = sentry__session_from_path(file);
-                if (session->status == SENTRY_SESSION_STATUS_OK) {
-                    session->status = SENTRY_SESSION_STATUS_ABNORMAL;
-                }
-                if (!session_envelope) {
-                    session_envelope = sentry__envelope_new();
-                }
-                sentry__envelope_add_session(session_envelope, session);
-                sentry__session_free(session);
-                if ((++session_num) >= SENTRY_MAX_ENVELOPE_ITEMS) {
-                    sentry__capture_envelope(
-                        options->transport, session_envelope);
-                    session_envelope = NULL;
-                    session_num = 0;
+                if (session) {
+                    if (session->status == SENTRY_SESSION_STATUS_OK) {
+                        session->status = SENTRY_SESSION_STATUS_ABNORMAL;
+                    }
+                    if (!session_envelope) {
+                        session_envelope = sentry__envelope_new();
+                    }
+                    sentry__envelope_add_session(session_envelope, session);
+                    sentry__session_free(session);
+                    if ((++session_num) >= SENTRY_MAX_ENVELOPE_ITEMS) {
+                        sentry__capture_envelope(
+                            options->transport, session_envelope);
+                        session_envelope = NULL;
+                        session_num = 0;
+                    }
                 }
             } else if (sentry__path_ends_with(file, ".envelope")) {
                 sentry_envelope_t *envelope = sentry__envelope_from_path(file);
