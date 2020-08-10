@@ -55,9 +55,10 @@ void sentry__scope_cleanup(void);
 
 /**
  * This will notify any backend of scope changes, and persist session
- * information to disk.
+ * information to disk. This function must be called while holding the scope
+ * lock, and it will be unlocked internally.
  */
-void sentry__scope_flush(const sentry_scope_t *scope);
+void sentry__scope_flush_unlock(const sentry_scope_t *scope);
 
 /**
  * This will merge the requested data which is in the given `scope` to the given
@@ -83,7 +84,7 @@ void sentry__scope_session_sync(sentry_scope_t *scope);
          sentry__scope_unlock(), Scope = NULL)
 #define SENTRY_WITH_SCOPE_MUT(Scope)                                           \
     for (sentry_scope_t *Scope = sentry__scope_lock(); Scope;                  \
-         sentry__scope_flush(Scope), sentry__scope_unlock(), Scope = NULL)
+         sentry__scope_flush_unlock(Scope), Scope = NULL)
 #define SENTRY_WITH_SCOPE_MUT_NO_FLUSH(Scope)                                  \
     for (sentry_scope_t *Scope = sentry__scope_lock(); Scope;                  \
          sentry__scope_unlock(), Scope = NULL)

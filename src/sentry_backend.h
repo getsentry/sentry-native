@@ -19,8 +19,7 @@ typedef struct sentry_backend_s {
     void (*free_func)(struct sentry_backend_s *);
     void (*except_func)(
         struct sentry_backend_s *, const struct sentry_ucontext_s *);
-    void (*flush_scope_func)(
-        struct sentry_backend_s *, const sentry_scope_t *scope);
+    void (*flush_scope_func)(struct sentry_backend_s *);
     void (*add_breadcrumb_func)(
         struct sentry_backend_s *, sentry_value_t breadcrumb);
     void (*user_consent_changed_func)(struct sentry_backend_s *);
