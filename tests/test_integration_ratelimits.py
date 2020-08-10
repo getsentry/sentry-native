@@ -3,8 +3,7 @@ import os
 from . import make_dsn, run
 from .conditions import has_http
 
-if not has_http:
-    pytest.skip("tests need http", allow_module_level=True)
+pytestmark = pytest.mark.skipif(not has_http, reason="tests need http")
 
 
 def test_retry_after(cmake, httpserver):
