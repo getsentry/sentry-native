@@ -5,9 +5,14 @@ extern "C" {
 #include "sentry_backend.h"
 #include "sentry_core.h"
 #include "sentry_database.h"
+#include "sentry_envelope.h"
 #include "sentry_options.h"
 #include "sentry_path.h"
+#include "sentry_sync.h"
+#include "sentry_transport.h"
+#include "sentry_unix_pageallocator.h"
 #include "sentry_utils.h"
+#include "transports/sentry_disk_transport.h"
 }
 
 #include <map>
@@ -35,6 +40,11 @@ extern "C" {
 #endif
 
 extern "C" {
+
+#ifdef SENTRY_PLATFORM_LINUX
+#    define SIGNAL_STACK_SIZE 65536
+static stack_t g_signal_stack;
+#endif
 
 typedef struct {
     crashpad::CrashReportDatabase *db;
@@ -87,13 +97,48 @@ sentry__crashpad_backend_flush_scope(
     }
 }
 
-static void
-sentry__crashpad_backend_shutdown(sentry_backend_t *backend)
+#if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_WINDOWS)
+#    ifdef SENTRY_PLATFORM_WINDOWS
+static bool
+sentry__crashpad_handler(EXCEPTION_POINTERS *UNUSED(ExceptionInfo))
 {
-    crashpad_state_t *data = (crashpad_state_t *)backend->data;
-    delete data->db;
-    data->db = nullptr;
+#    else
+static bool
+sentry__crashpad_handler(int UNUSED(signum), siginfo_t *UNUSED(info),
+    ucontext_t *UNUSED(user_context))
+{
+    sentry__page_allocator_enable();
+    sentry__enter_signal_handler();
+#    endif
+    SENTRY_DEBUG("flushing session and queue before crashpad handler");
+
+    SENTRY_WITH_OPTIONS (options) {
+        sentry__write_crash_marker(options);
+
+        sentry_envelope_t *envelope = sentry__envelope_new();
+        sentry__record_errors_on_current_session(1);
+        sentry_session_t *session = sentry__end_current_session_with_status(
+            SENTRY_SESSION_STATUS_CRASHED);
+        sentry__envelope_add_session(envelope, session);
+
+        // capture the envelope with the disk transport
+        sentry_transport_t *disk_transport
+            = sentry_new_disk_transport(options->run);
+        sentry__capture_envelope(disk_transport, envelope);
+        sentry__transport_dump_queue(disk_transport, options->run);
+        sentry_transport_free(disk_transport);
+
+        sentry__transport_dump_queue(options->transport, options->run);
+    }
+
+    SENTRY_DEBUG("handing control over to crashpad");
+#    ifndef SENTRY_PLATFORM_WINDOWS
+    sentry__leave_signal_handler();
+#    endif
+    // we did not "handle" the signal, so crashpad should do that.
+    return false;
 }
+#endif
 
 static int
 sentry__crashpad_backend_startup(
@@ -195,6 +240,23 @@ sentry__crashpad_backend_startup(
         return 1;
     }
 
+#if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_WINDOWS)
+    crashpad::CrashpadClient::SetFirstChanceExceptionHandler(
+        &sentry__crashpad_handler);
+#endif
+#ifdef SENTRY_PLATFORM_LINUX
+    // Crashpad was recently changed to register its own signal stack, which for
+    // whatever reason is not compatible with our own handler. so we override
+    // that stack yet again to be able to correctly flush things out.
+    // https://github.com/getsentry/crashpad/commit/06a688ddc1bc8be6f410e69e4fb413fc19594d04
+    g_signal_stack.ss_sp = sentry_malloc(SIGNAL_STACK_SIZE);
+    if (g_signal_stack.ss_sp) {
+        g_signal_stack.ss_size = SIGNAL_STACK_SIZE;
+        g_signal_stack.ss_flags = 0;
+        sigaltstack(&g_signal_stack, 0);
+    }
+#endif
+
     if (!options->system_crash_reporter_enabled) {
         // Disable the system crash reporter. Especially on macOS, it takes
         // substantial time *after* crashpad has done its job.
@@ -204,6 +266,21 @@ sentry__crashpad_backend_startup(
             crashpad::TriState::kDisabled);
     }
     return 0;
+}
+
+static void
+sentry__crashpad_backend_shutdown(sentry_backend_t *backend)
+{
+    crashpad_state_t *data = (crashpad_state_t *)backend->data;
+    delete data->db;
+    data->db = nullptr;
+
+#ifdef SENTRY_PLATFORM_LINUX
+    g_signal_stack.ss_flags = SS_DISABLE;
+    sigaltstack(&g_signal_stack, 0);
+    sentry_free(g_signal_stack.ss_sp);
+    g_signal_stack.ss_sp = NULL;
+#endif
 }
 
 static void
@@ -265,6 +342,47 @@ sentry__crashpad_backend_except(
 #endif
 }
 
+static void
+report_crash_time(
+    uint64_t *crash_time, const crashpad::CrashReportDatabase::Report &report)
+{
+    // we do a `+ 1` here, because crashpad timestamps are second resolution,
+    // but our sessions are ms resolution. at least in our integration tests, we
+    // can have a session that starts at, eg. `0.471`, whereas the crashpad
+    // report will be `0`, which would mean our heuristic does not trigger due
+    // to rounding.
+    uint64_t time = ((uint64_t)report.creation_time + 1) * 1000;
+    if (time > *crash_time) {
+        *crash_time = time;
+    }
+}
+
+static uint64_t
+sentry__crashpad_backend_last_crash(sentry_backend_t *backend)
+{
+    crashpad_state_t *data = (crashpad_state_t *)backend->data;
+
+    uint64_t crash_time = 0;
+
+    std::vector<crashpad::CrashReportDatabase::Report> reports;
+    if (data->db->GetPendingReports(&reports)
+        == crashpad::CrashReportDatabase::kNoError) {
+        for (const crashpad::CrashReportDatabase::Report &report : reports) {
+            report_crash_time(&crash_time, report);
+        }
+    }
+
+    reports.clear();
+    if (data->db->GetCompletedReports(&reports)
+        == crashpad::CrashReportDatabase::kNoError) {
+        for (const crashpad::CrashReportDatabase::Report &report : reports) {
+            report_crash_time(&crash_time, report);
+        }
+    }
+
+    return crash_time;
+}
+
 sentry_backend_t *
 sentry__backend_new(void)
 {
@@ -272,6 +390,8 @@ sentry__backend_new(void)
     if (!backend) {
         return NULL;
     }
+    memset(backend, 0, sizeof(sentry_backend_t));
+
     crashpad_state_t *data = SENTRY_MAKE(crashpad_state_t);
     if (!data) {
         sentry_free(backend);
@@ -287,6 +407,7 @@ sentry__backend_new(void)
     backend->add_breadcrumb_func = sentry__crashpad_backend_add_breadcrumb;
     backend->user_consent_changed_func
         = sentry__crashpad_backend_user_consent_changed;
+    backend->get_last_crash_func = sentry__crashpad_backend_last_crash;
     backend->data = data;
 
     return backend;
