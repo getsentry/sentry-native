@@ -177,34 +177,38 @@ sentry__process_old_runs(const sentry_options_t *options, uint64_t last_crash)
                     session_envelope = sentry__envelope_new();
                 }
                 sentry_session_t *session = sentry__session_from_path(file);
-                // this is just a heuristic: whenever the session was not
-                // closed properly, and we do have a crash that happened
-                // *after* the session was started, we will assume that the
-                // crash corresponds to the session and flag it as crashed.
-                // this should only happen when using crashpad, and there
-                // should normally be only a single unclosed session at a
-                // time.
-                if (session->status == SENTRY_SESSION_STATUS_OK) {
-                    bool was_crash
-                        = last_crash && last_crash > session->started_ms;
-                    if (was_crash) {
-                        session->duration_ms = last_crash - session->started_ms;
-                        session->errors += 1;
-                        // we only set at most one unclosed session as crashed
-                        last_crash = 0;
+                if (session) {
+                    // this is just a heuristic: whenever the session was not
+                    // closed properly, and we do have a crash that happened
+                    // *after* the session was started, we will assume that the
+                    // crash corresponds to the session and flag it as crashed.
+                    // this should only happen when using crashpad, and there
+                    // should normally be only a single unclosed session at a
+                    // time.
+                    if (session->status == SENTRY_SESSION_STATUS_OK) {
+                        bool was_crash
+                            = last_crash && last_crash > session->started_ms;
+                        if (was_crash) {
+                            session->duration_ms
+                                = last_crash - session->started_ms;
+                            session->errors += 1;
+                            // we only set at most one unclosed session as
+                            // crashed
+                            last_crash = 0;
+                        }
+                        session->status = was_crash
+                            ? SENTRY_SESSION_STATUS_CRASHED
+                            : SENTRY_SESSION_STATUS_ABNORMAL;
                     }
-                    session->status = was_crash
-                        ? SENTRY_SESSION_STATUS_CRASHED
-                        : SENTRY_SESSION_STATUS_ABNORMAL;
-                }
-                sentry__envelope_add_session(session_envelope, session);
+                    sentry__envelope_add_session(session_envelope, session);
 
-                sentry__session_free(session);
-                if ((++session_num) >= SENTRY_MAX_ENVELOPE_ITEMS) {
-                    sentry__capture_envelope(
-                        options->transport, session_envelope);
-                    session_envelope = NULL;
-                    session_num = 0;
+                    sentry__session_free(session);
+                    if ((++session_num) >= SENTRY_MAX_ENVELOPE_ITEMS) {
+                        sentry__capture_envelope(
+                            options->transport, session_envelope);
+                        session_envelope = NULL;
+                        session_num = 0;
+                    }
                 }
             } else if (sentry__path_ends_with(file, ".envelope")) {
                 sentry_envelope_t *envelope = sentry__envelope_from_path(file);
