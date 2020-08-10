@@ -6,9 +6,7 @@ from . import make_dsn, run, Envelope
 from .conditions import has_crashpad
 from .assertions import assert_session
 
-if not has_crashpad:
-    pytest.skip("test needs crashpad backend", allow_module_level=True)
-
+pytestmark = pytest.mark.skipif(not has_crashpad, reason="tests need crashpad backend")
 
 # TODO:
 # Actually assert that we get a correct event/breadcrumbs payload
