@@ -12,6 +12,7 @@
 - The return value of the transport shutdown hook set via `sentry_transport_set_shutdown_func` was also changed to return an `int`.
 - Both functions should return _0_ on success, and a non-zero error code on failure, as does `sentry_init`.
 - Similarly, the return value of `sentry_shutdown` was also changed to an `int`, and will return _0_ on success and a non-zero error code on unclean shutdown.
+- Documentation for custom transports was updated to highlight the ordering requirements of submitted envelopes, which is important for release health.
 
 ```c
 // before

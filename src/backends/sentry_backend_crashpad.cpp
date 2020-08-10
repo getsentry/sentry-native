@@ -56,7 +56,7 @@ sentry__crashpad_backend_user_consent_changed(sentry_backend_t *backend)
 
 static void
 sentry__crashpad_backend_flush_scope(
-    sentry_backend_t *backend, const sentry_scope_t *UNUSED(scope))
+    sentry_backend_t *backend, const sentry_scope_t *scope)
 {
     const crashpad_state_t *data = (crashpad_state_t *)backend->data;
     if (!data->event_path) {
@@ -67,10 +67,8 @@ sentry__crashpad_backend_flush_scope(
     // Even though the API is specific to `event`, an `event` has a few default
     // properties that we do not want here.
     sentry_value_t event = sentry_value_new_object();
-    SENTRY_WITH_SCOPE (scope) {
-        // we want the scope without any modules or breadcrumbs
-        sentry__scope_apply_to_event(scope, event, SENTRY_SCOPE_NONE);
-    }
+    // we want the scope without any modules or breadcrumbs
+    sentry__scope_apply_to_event(scope, event, SENTRY_SCOPE_NONE);
 
     size_t mpack_size;
     char *mpack = sentry_value_to_msgpack(event, &mpack_size);

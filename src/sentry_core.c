@@ -108,7 +108,8 @@ sentry_init(sentry_options_t *options)
 
     if (!options->dsn || !options->dsn->is_valid) {
         const char *raw_dsn = sentry_options_get_dsn(options);
-        SENTRY_WARNF("the provided DSN \"%s\" is not valid", raw_dsn || "");
+        SENTRY_WARNF(
+            "the provided DSN \"%s\" is not valid", raw_dsn ? raw_dsn : "");
     }
 
     if (transport) {
