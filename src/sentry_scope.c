@@ -96,17 +96,26 @@ sentry__scope_unlock(void)
 }
 
 void
-sentry__scope_flush(const sentry_scope_t *scope)
+sentry__scope_flush_unlock(const sentry_scope_t *scope)
 {
+    bool did_unlock = false;
     SENTRY_WITH_OPTIONS (options) {
-        if (options->backend && options->backend->flush_scope_func) {
-            options->backend->flush_scope_func(options->backend, scope);
-        }
         if (scope->session) {
             sentry__run_write_session(options->run, scope->session);
+            sentry__scope_unlock();
         } else {
+            sentry__scope_unlock();
             sentry__run_clear_session(options->run);
         }
+        did_unlock = true;
+        // we try to unlock the scope/session lock as soon as possible. The
+        // backend will do its own `WITH_SCOPE` internally.
+        if (options->backend && options->backend->flush_scope_func) {
+            options->backend->flush_scope_func(options->backend);
+        }
+    }
+    if (!did_unlock) {
+        sentry__scope_unlock();
     }
 }
 

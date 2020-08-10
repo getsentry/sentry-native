@@ -703,6 +703,8 @@ SENTRY_API const char *sentry_options_get_dist(const sentry_options_t *opts);
 
 /**
  * Configures the http proxy.
+ *
+ * The given proxy has to include the full scheme, eg. `http://some.proxy/`.
  */
 SENTRY_API void sentry_options_set_http_proxy(
     sentry_options_t *opts, const char *proxy);

@@ -65,8 +65,7 @@ sentry__crashpad_backend_user_consent_changed(sentry_backend_t *backend)
 }
 
 static void
-sentry__crashpad_backend_flush_scope(
-    sentry_backend_t *backend, const sentry_scope_t *UNUSED(scope))
+sentry__crashpad_backend_flush_scope(sentry_backend_t *backend)
 {
     const crashpad_state_t *data = (crashpad_state_t *)backend->data;
     if (!data->event_path) {

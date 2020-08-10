@@ -31,3 +31,48 @@ SENTRY_TEST(uninitialized)
     sentry_end_session();
     sentry_shutdown();
 }
+
+SENTRY_TEST(empty_transport)
+{
+    sentry_options_t *options = sentry_options_new();
+    sentry_options_set_transport(options, NULL);
+
+    TEST_CHECK(sentry_init(options) == 0);
+
+    sentry_value_t event = sentry_value_new_message_event(
+        SENTRY_LEVEL_WARNING, NULL, "some message");
+    sentry_uuid_t id = sentry_capture_event(event);
+    TEST_CHECK(!sentry_uuid_is_nil(&id));
+
+    sentry_shutdown();
+}
+
+SENTRY_TEST(invalid_dsn)
+{
+    sentry_options_t *options = sentry_options_new();
+    sentry_options_set_dsn(options, "not a valid dsn");
+
+    TEST_CHECK(sentry_init(options) == 0);
+
+    sentry_value_t event = sentry_value_new_message_event(
+        SENTRY_LEVEL_WARNING, NULL, "some message");
+    sentry_uuid_t id = sentry_capture_event(event);
+    TEST_CHECK(!sentry_uuid_is_nil(&id));
+
+    sentry_shutdown();
+}
+
+SENTRY_TEST(invalid_proxy)
+{
+    sentry_options_t *options = sentry_options_new();
+    sentry_options_set_http_proxy(options, "invalid");
+
+    TEST_CHECK(sentry_init(options) == 0);
+
+    sentry_value_t event = sentry_value_new_message_event(
+        SENTRY_LEVEL_WARNING, NULL, "some message");
+    sentry_uuid_t id = sentry_capture_event(event);
+    TEST_CHECK(!sentry_uuid_is_nil(&id));
+
+    sentry_shutdown();
+}
