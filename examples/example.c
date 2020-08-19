@@ -47,6 +47,8 @@ main(int argc, char **argv)
 {
     sentry_options_t *options = sentry_options_new();
 
+    // this is an example. for real usage, make sure to set this explicitly to
+    // an app specific cache location.
     sentry_options_set_database_path(options, ".sentry-native");
 
     sentry_options_set_auto_session_tracking(options, false);
