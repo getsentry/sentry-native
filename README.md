@@ -240,7 +240,7 @@ Legend:
 
 ## Runtime Configuration
 
-The minimum working example looks like this:
+A minimal working example looks like this. For a more elaborate example see the [example.c](examples/example.c) file which is also used to run sentries integration tests.
 
 ```c
 sentry_options_t *options = sentry_options_new();
@@ -254,9 +254,10 @@ sentry_shutdown();
 
 Other important configuration options include:
 
-- `sentry_options_set_database_path`: Sentry needs to persist some cache data across application restarts, especially for proper handling of release health sessions. It is recommended to set an explicit absolute path corresponding to the applications cache directory (equivalent to `AppData/Local` on Windows, and `XDG_CACHE_HOME` on Linux). When not set explicitly, sentry will create and use the `.sentry-native` directory inside of the current working directory.
+- `sentry_options_set_database_path`: Sentry needs to persist some cache data across application restarts, especially for proper handling of release health sessions. It is recommended to set an explicit absolute path corresponding to the applications cache directory (equivalent to `AppData/Local` on Windows, and `XDG_CACHE_HOME` on Linux). Sentry should be given its own directory which is not shared with other application data, as the SDK will enumerate and possibly delete files in that directory. An example might be `$XDG_CACHE_HOME/your-app/sentry`.
+  When not set explicitly, sentry will create and use the `.sentry-native` directory inside of the current working directory.
 - `sentry_options_set_handler_path`: When using the crashpad backend, sentry will look for a `crashpad_handler` executable in the same directory as the running executable. It is recommended to set this as an explicit absolute path based on the applications install location.
-- `sentry_options_set_release`: Some features in sentry, including release health need to have a release version set. This corresponds to the applications version and needs to be set explicitly. See [Releases](https://docs.sentry.io/product/releases/) for more information.
+- `sentry_options_set_release`: Some features in sentry, including release health, need to have a release version set. This corresponds to the application’s version and needs to be set explicitly. See [Releases](https://docs.sentry.io/product/releases/) for more information.
 
 ## Known Limitations
 
