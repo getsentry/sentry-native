@@ -837,12 +837,20 @@ SENTRY_API void sentry_options_set_handler_path(
  * artifacts in case of a crash. This will also be used by the crashpad backend
  * if it is configured.
  *
- * The path defaults to `.sentry-native` in the current working directory, will
- * be created if it does not exist, and will be resolved to an absolute path
- * inside of `sentry_init`.
+ * The directory is used for "cached" data, which needs to persist accross
+ * application restarts to ensure proper flagging of release-health sessions,
+ * but might otherwise be safely purged regularly.
  *
- * It is recommended that library users set an explicit absolute path, depending
- * on their apps runtime directory.
+ * It is roughly equivalent to the type of `AppData/Local` on Windows and
+ * `XDG_CACHE_HOME` on Linux, and equivalent runtime directories on other
+ * platforms.
+ *
+ * It is recommended that users set an explicit absolute path, depending
+ * on their apps runtime directory. The path will be created if it does not
+ * exist, and will be resolved to an absolute path inside of `sentry_init`.
+ *
+ * If no explicit path it set, sentry-native will default to `.sentry-native` in
+ * the current working directory, with no specific platform-specific handling.
  *
  * `path` is assumed to be in platform-specific filesystem path encoding.
  * API Users on windows are encouraged to use
