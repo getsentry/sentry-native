@@ -6,7 +6,8 @@ update-test-discovery:
 
 build/Makefile: CMakeLists.txt
 	@mkdir -p build
-	@cd build; cmake ..
+	@cd build; cmake .. \
+	-DCMAKE_RUNTIME_OUTPUT_DIRECTORY=$(PWD)/build \
 
 build: build/Makefile
 	@cmake --build build --parallel

@@ -837,7 +837,7 @@ SENTRY_API void sentry_options_set_handler_path(
  * artifacts in case of a crash. This will also be used by the crashpad backend
  * if it is configured.
  *
- * The directory is used for "cached" data, which needs to persist accross
+ * The directory is used for "cached" data, which needs to persist across
  * application restarts to ensure proper flagging of release-health sessions,
  * but might otherwise be safely purged regularly.
  *
