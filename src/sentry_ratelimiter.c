@@ -56,6 +56,7 @@ sentry__rate_limiter_update_from_header(
             }
 
             categories = sentry__slice_advance(categories, category.len);
+            sentry__slice_consume_if(&categories, ';');
         }
 
         size_t next = sentry__slice_find(slice, ',');

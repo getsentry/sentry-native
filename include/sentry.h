@@ -837,7 +837,7 @@ SENTRY_API void sentry_options_set_handler_path(
  * artifacts in case of a crash. This will also be used by the crashpad backend
  * if it is configured.
  *
- * The directory is used for "cached" data, which needs to persist accross
+ * The directory is used for "cached" data, which needs to persist across
  * application restarts to ensure proper flagging of release-health sessions,
  * but might otherwise be safely purged regularly.
  *
@@ -847,7 +847,10 @@ SENTRY_API void sentry_options_set_handler_path(
  *
  * It is recommended that users set an explicit absolute path, depending
  * on their apps runtime directory. The path will be created if it does not
- * exist, and will be resolved to an absolute path inside of `sentry_init`.
+ * exist, and will be resolved to an absolute path inside of `sentry_init`. The
+ * directory should not be shared with other application data/configuration, as
+ * sentry-native will enumerate and possibly delete files in that directory. An
+ * example might be `$XDG_CACHE_HOME/your-app/sentry`
  *
  * If no explicit path it set, sentry-native will default to `.sentry-native` in
  * the current working directory, with no specific platform-specific handling.
