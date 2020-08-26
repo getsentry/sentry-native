@@ -25,10 +25,26 @@
 #include "sentry_utils.h"
 #include "sentry_value.h"
 
+/**
+ * NaN-boxing of sentry_value_t
+ *
+ * We do encode 32-bit values as well as some constants and pointers into the
+ * NaN-space of 64-bit floating-point numbers, like so:
+ *
+ * 11111111 11111000 00000000 00000000 00000000 00000000 00000000 00000000
+ *               |||
+ *               001 - INT32
+ *               010 - CONST
+ *               100 - THING
+ *
+ * `THING` (pointers) are expected to be at least 4-byte aligned, as they are
+ * shifted by 2 bits, which means we can encode pointers with up to *52* bits.
+ */
+
 #define MAX_DOUBLE 0xfff8000000000000ULL
-#define TAG_THING 0xfffc000000000000ULL
 #define TAG_INT32 0xfff9000000000000ULL
 #define TAG_CONST 0xfffa000000000000ULL
+#define TAG_THING 0xfffc000000000000ULL
 
 #define THING_TYPE_MASK 0x7f
 #define THING_TYPE_FROZEN 0x80
@@ -198,7 +214,7 @@ value_as_thing(sentry_value_t value)
     if (value._bits <= MAX_DOUBLE) {
         return NULL;
     } else if ((value._bits & TAG_THING) == TAG_THING) {
-        return (thing_t *)(size_t)((value._bits << 2) & ~TAG_THING);
+        return (thing_t *)(size_t)((value._bits & ~TAG_THING) << 2);
     } else {
         return NULL;
     }
