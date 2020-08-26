@@ -338,11 +338,19 @@ target_include_directories(sentry
 # as `PUBLIC`, so libraries that depend on sentry get these too:
 # `-E`: To have all symbols in the dynamic symbol table.
 # `--build-id`: To have a build-id in the ELF object.
+# `--version-script`: The given script makes sure only `sentry_*` symbols are exported
 # FIXME: cmake 3.13 introduced target_link_options
+target_link_libraries(sentry PUBLIC
+	"$<$<OR:$<PLATFORM_ID:Linux>,$<PLATFORM_ID:Android>>:-Wl,--build-id=sha1,--version-script=${PROJECT_SOURCE_DIR}/src/exports.map>")
+
 option(SENTRY_EXPORT_SYMBOLS "Export symbols for modulefinder and symbolizer" ON)
 if(SENTRY_EXPORT_SYMBOLS)
 	target_link_libraries(sentry PUBLIC
-		"$<$<OR:$<PLATFORM_ID:Linux>,$<PLATFORM_ID:Android>>:-Wl,-E,--build-id=sha1>")
+		"$<$<OR:$<PLATFORM_ID:Linux>,$<PLATFORM_ID:Android>>:-Wl,-E>")
+else()
+	set(CMAKE_C_VISIBILITY_PRESET hidden)
+	set(CMAKE_CXX_VISIBILITY_PRESET hidden)
+	set(CMAKE_VISIBILITY_INLINES_HIDDEN 1)
 endif()
 
 #respect CMAKE_SYSTEM_VERSION
