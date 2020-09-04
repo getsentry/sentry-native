@@ -82,3 +82,63 @@ SENTRY_TEST(session_basics)
 
     TEST_CHECK_INT_EQUAL(called, 2);
 }
+
+typedef struct {
+    bool assert_session;
+    uint64_t called;
+} session_assertion_t;
+
+static void
+send_sampled_envelope(const sentry_envelope_t *envelope, void *data)
+{
+    session_assertion_t *assertion = data;
+
+    if (assertion->assert_session) {
+        assertion->called += 1;
+
+        TEST_CHECK_INT_EQUAL(sentry__envelope_get_item_count(envelope), 1);
+
+        const sentry_envelope_item_t *item
+            = sentry__envelope_get_item(envelope, 0);
+        TEST_CHECK_STRING_EQUAL(
+            sentry_value_as_string(
+                sentry__envelope_item_get_header(item, "type")),
+            "session");
+
+        size_t buf_len;
+        const char *buf = sentry__envelope_item_get_payload(item, &buf_len);
+        sentry_value_t session = sentry__value_from_json(buf, buf_len);
+
+        TEST_CHECK_STRING_EQUAL(
+            sentry_value_as_string(sentry_value_get_by_key(session, "status")),
+            "exited");
+        TEST_CHECK_INT_EQUAL(
+            sentry_value_as_int32(sentry_value_get_by_key(session, "errors")),
+            100);
+
+        sentry_value_decref(session);
+    }
+}
+
+SENTRY_TEST(count_sampled_events)
+{
+    session_assertion_t assertion = { false, 0 };
+
+    sentry_options_t *options = sentry_options_new();
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_transport(options,
+        sentry_new_function_transport(send_sampled_envelope, &assertion));
+    sentry_options_set_release(options, "my_release");
+    sentry_options_set_sample_rate(options, 0.5);
+    sentry_init(options);
+
+    for (int i = 0; i < 100; i++) {
+        sentry_capture_event(
+            sentry_value_new_message_event(SENTRY_LEVEL_ERROR, NULL, "foo"));
+    }
+
+    assertion.assert_session = true;
+    sentry_shutdown();
+
+    TEST_CHECK_INT_EQUAL(assertion.called, 1);
+}
