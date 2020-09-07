@@ -754,6 +754,9 @@ MPACK_HEADER_START
 
 /* Static assert */
 
+#include <assert.h>
+#define MPACK_STATIC_ASSERT static_assert
+
 #ifndef MPACK_STATIC_ASSERT
     #if defined(__cplusplus)
         #if __cplusplus >= 201103L

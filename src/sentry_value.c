@@ -11,11 +11,6 @@
 #    pragma warning(disable : 4127) // conditional expression is constant
 #endif
 
-// work around compile failures on windows:
-// `error LNK2019: unresolved external symbol _Static_assert referenced in
-// function mpack_XXX`
-#define MPACK_STATIC_ASSERT(expr, str)                                         \
-    (MPACK_UNUSED(sizeof(char[1 - 2 * !(expr)])))
 #include "../vendor/mpack.h"
 
 #if defined(_MSC_VER)
