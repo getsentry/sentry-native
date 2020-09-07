@@ -11,6 +11,7 @@
 #    pragma warning(disable : 4127) // conditional expression is constant
 #endif
 
+#define MPACK_STATIC_ASSERT static_assert
 #include "../vendor/mpack.h"
 
 #if defined(_MSC_VER)
