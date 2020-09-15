@@ -754,16 +754,14 @@ MPACK_HEADER_START
 
 /* Static assert */
 
-#include <assert.h>
-#define MPACK_STATIC_ASSERT static_assert
-
 #ifndef MPACK_STATIC_ASSERT
     #if defined(__cplusplus)
         #if __cplusplus >= 201103L
             #define MPACK_STATIC_ASSERT static_assert
         #endif
     #elif defined(__STDC_VERSION__)
-        #if __STDC_VERSION__ >= 201112L
+        /* MSVC 19.27 advertises C11, but has no `_Static_assert` */
+        #if __STDC_VERSION__ >= 201112L && !defined(_MSC_VER)
             #define MPACK_STATIC_ASSERT _Static_assert
         #endif
     #endif
