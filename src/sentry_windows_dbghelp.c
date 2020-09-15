@@ -5,7 +5,7 @@
 #include <dbghelp.h>
 
 static sentry_mutex_t g_sym_mutex = SENTRY__MUTEX_INIT;
-static bool g_initialized;
+static bool g_initialized = false;
 static HANDLE g_proc = INVALID_HANDLE_VALUE;
 
 HANDLE

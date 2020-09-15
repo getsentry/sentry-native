@@ -26,7 +26,7 @@ struct page_allocator_s {
     size_t pages_allocated;
 };
 
-static struct page_allocator_s g_page_allocator_backing;
+static struct page_allocator_s g_page_allocator_backing = { 0 };
 static struct page_allocator_s *g_alloc = NULL;
 static sentry_spinlock_t g_lock = SENTRY__SPINLOCK_INIT;
 

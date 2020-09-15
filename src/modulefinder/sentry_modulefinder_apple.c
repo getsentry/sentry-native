@@ -32,7 +32,7 @@ typedef struct segment_command_64 mach_segment_command_type;
 
 static bool g_initialized = false;
 static sentry_mutex_t g_mutex = SENTRY__MUTEX_INIT;
-static sentry_value_t g_modules;
+static sentry_value_t g_modules = { 0 };
 
 static void
 add_image(const struct mach_header *mh, intptr_t UNUSED(vmaddr_slide))
