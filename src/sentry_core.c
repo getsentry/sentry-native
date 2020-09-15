@@ -327,6 +327,10 @@ sentry__prepare_event(const sentry_options_t *options, sentry_value_t event,
 {
     sentry_envelope_t *envelope = NULL;
 
+    if (event_is_considered_error(event)) {
+        sentry__record_errors_on_current_session(1);
+    }
+
     uint64_t rnd;
     if (options->sample_rate < 1.0 && !sentry__getrandom(&rnd, sizeof(rnd))
         && ((double)rnd / (double)UINT64_MAX) > options->sample_rate) {
@@ -354,10 +358,6 @@ sentry__prepare_event(const sentry_options_t *options, sentry_value_t event,
     }
 
     sentry__ensure_event_id(event, event_id);
-    if (event_is_considered_error(event)) {
-        sentry__record_errors_on_current_session(1);
-    }
-
     envelope = sentry__envelope_new();
     if (!envelope || !sentry__envelope_add_event(envelope, event)) {
         goto fail;
