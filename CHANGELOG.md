@@ -1,8 +1,15 @@
 # Changelog
 
+## Unreleased
+
+**Fixes**:
+
+- Sampled (discarded) events still contribute to a sessions `errors` count.
+- Initialize all static data structures.
+
 ## 0.4.1
 
-**Fixes**
+**Fixes**:
 
 - Fix parsing rate limit headers with multiple categories.
 
