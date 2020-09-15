@@ -325,7 +325,7 @@ sentry__bgworker_foreach_matching(sentry_bgworker_t *bgw,
 #    include "sentry_unix_spinlock.h"
 
 static sig_atomic_t g_in_signal_handler = 0;
-static sentry_threadid_t g_signal_handling_thread;
+static sentry_threadid_t g_signal_handling_thread = { 0 };
 
 bool
 sentry__block_for_signal_handler(void)

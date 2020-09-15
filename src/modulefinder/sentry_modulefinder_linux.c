@@ -20,7 +20,7 @@
 
 static bool g_initialized = false;
 static sentry_mutex_t g_mutex = SENTRY__MUTEX_INIT;
-static sentry_value_t g_modules;
+static sentry_value_t g_modules = { 0 };
 
 static sentry_slice_t LINUX_GATE = { "linux-gate.so", 13 };
 

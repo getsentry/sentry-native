@@ -9,8 +9,8 @@
 #include "sentry_sync.h"
 #include <stdlib.h>
 
-static bool g_scope_initialized;
-static sentry_scope_t g_scope;
+static bool g_scope_initialized = false;
+static sentry_scope_t g_scope = { 0 };
 static sentry_mutex_t g_lock = SENTRY__MUTEX_INIT;
 
 static sentry_value_t
@@ -48,6 +48,7 @@ get_scope(void)
         return &g_scope;
     }
 
+    memset(&g_scope, 0, sizeof(sentry_scope_t));
     g_scope.transaction = NULL;
     g_scope.fingerprint = sentry_value_new_null();
     g_scope.user = sentry_value_new_null();

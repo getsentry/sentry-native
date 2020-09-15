@@ -30,9 +30,9 @@ struct signal_slot {
 // we need quite a bit of space for backtrace generation
 #    define SIGNAL_COUNT 6
 #    define SIGNAL_STACK_SIZE 65536
-static struct sigaction g_sigaction;
-static struct sigaction g_previous_handlers[SIGNAL_COUNT];
-static stack_t g_signal_stack;
+static struct sigaction g_sigaction = { 0 };
+static struct sigaction g_previous_handlers[SIGNAL_COUNT] = { 0 };
+static stack_t g_signal_stack = { 0 };
 
 static const struct signal_slot SIGNAL_DEFINITIONS[SIGNAL_COUNT] = {
     SIGNAL_DEF(SIGILL, "IllegalInstruction"),

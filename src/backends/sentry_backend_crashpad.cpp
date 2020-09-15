@@ -43,7 +43,7 @@ extern "C" {
 
 #ifdef SENTRY_PLATFORM_LINUX
 #    define SIGNAL_STACK_SIZE 65536
-static stack_t g_signal_stack;
+static stack_t g_signal_stack = { 0 };
 #endif
 
 typedef struct {
