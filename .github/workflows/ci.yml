@@ -97,7 +97,6 @@ jobs:
           sudo add-apt-repository 'deb http://apt.llvm.org/focal llvm-toolchain-focal-10 main' -y
           sudo apt update
           sudo apt install kcov g++-10 valgrind libcurl4 libcurl4-openssl-dev
-          sudo apt search clang
           sudo apt install clang-10 clang-tools llvm
 
       - name: Installing Linux 32-bit Dependencies
