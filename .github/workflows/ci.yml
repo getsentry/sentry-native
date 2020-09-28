@@ -21,12 +21,12 @@ jobs:
       matrix:
         include:
           - name: Linux (gcc 7, 32-bit)
-            os: "ubuntu-18.04"
+            os: ubuntu-18.04
             CC: gcc-7
             CXX: g++-7
             TEST_X86: 1
           - name: Linux (gcc 10)
-            os: "ubuntu-20.04"
+            os: ubuntu-20.04
             CC: gcc-10
             CXX: g++-10
             # ERROR_ON_WARNINGS: 1
@@ -34,47 +34,56 @@ jobs:
             # currently, and is not stable enough to activate.
             # RUN_ANALYZER: gcc
           - name: Linux (clang 10 + asan + llvm-cov)
-            os: "ubuntu-20.04"
+            os: ubuntu-20.04
             CC: clang-10
             CXX: clang++-10
             ERROR_ON_WARNINGS: 1
             RUN_ANALYZER: asan,llvm-cov
           - name: Linux (clang 10 + kcov)
-            os: "ubuntu-20.04"
+            os: ubuntu-20.04
             CC: clang-10
             CXX: clang++-10
             ERROR_ON_WARNINGS: 1
             RUN_ANALYZER: kcov
           - name: Linux (code-checker + valgrind)
-            os: "ubuntu-20.04"
+            os: ubuntu-20.04
             RUN_ANALYZER: code-checker,valgrind
           - name: macOS (xcode llvm)
-            os: "macOs-latest"
+            os: macOs-latest
             ERROR_ON_WARNINGS: 1
           - name: macOS (clang 10 + asan + llvm-cov)
-            os: "macOs-latest"
+            os: macOs-latest
             CC: clang
             CXX: clang++
             ERROR_ON_WARNINGS: 1
             RUN_ANALYZER: asan,llvm-cov
           - name: Windows (VS2017, 32bit)
-            os: "vs2017-win2016"
+            os: vs2017-win2016
             TEST_X86: 1
           - name: Windows (latest)
-            os: "windows-latest"
+            os: windows-latest
           # The Android emulator is currently only available on macos, see:
           # https://docs.microsoft.com/en-us/azure/devops/pipelines/ecosystems/android?view=azure-devops#test-on-the-android-emulator
           - name: Android (API 16, NDK 19)
-            os: "macOs-latest"
+            os: macOs-latest
             ANDROID_API: 16
             ANDROID_NDK: 19.2.5345600
           - name: Android (API 30 NDK 21)
-            os: "macOs-latest"
+            os: macOs-latest
             ANDROID_API: 30
             ANDROID_NDK: 21.3.6528147
 
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
+
+    env:
+      CC: ${{ matrix.CC }}
+      CXX: ${{ matrix.CXX }}
+      TEST_X86: ${{ matrix.TEST_X86 }}
+      ERROR_ON_WARNINGS: ${{ matrix.ERROR_ON_WARNINGS }}
+      RUN_ANALYZER: ${{ matrix.RUN_ANALYZER }}
+      ANDROID_API: ${{ matrix.ANDROID_API }}
+      ANDROID_NDK: ${{ matrix.ANDROID_NDK }}
 
     steps:
       - uses: actions/checkout@v2
