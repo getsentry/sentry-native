@@ -136,6 +136,7 @@ jobs:
         run: bash scripts/start-android.sh
 
       - name: Test
+        shell: bash
         run: |
           pip install --upgrade --requirement tests/requirements.txt
           [ "${{ matrix.CC }}" ] && export CC="${{ matrix.CC }}"
