@@ -20,15 +20,19 @@ def test_static_lib(cmake):
         output = subprocess.check_output("ldd sentry_example", cwd=tmp_path, shell=True)
         assert b"libsentry.so" not in output
 
-    # on windows, we use `sigcheck` to check that the exe is compiled correctly
+    # on windows, we use `dumpbin` to check that the exe is compiled correctly
     if sys.platform == "win32":
         output = subprocess.run(
-            "sigcheck sentry_example.exe",
+            "dumpbin /headers sentry_example.exe",
             cwd=tmp_path,
             shell=True,
             stdout=subprocess.PIPE,
         ).stdout
-        assert (b"32-bit" if os.environ.get("TEST_X86") else b"64-bit") in output
+        assert (
+            b"14C machine (x86)"
+            if os.environ.get("TEST_X86")
+            else b"8664 machine (x64)"
+        ) in output
     # similarly, we use `file` on linux
     if sys.platform == "linux":
         output = subprocess.check_output(

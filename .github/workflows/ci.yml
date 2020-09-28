@@ -103,11 +103,6 @@ jobs:
         if: ${{ runner.os == 'Linux' && env['TEST_X86'] }}
         run: sudo apt update && sudo apt install gcc-multilib g++-multilib
 
-      # ignoring checksums: choco has 2.72, whereas upstream is 2.73
-      - name: Installing Windows Dependencies
-        if: ${{ runner.os == 'Windows' }}
-        run: choco install sigcheck --ignore-checksums
-
       - name: Installing CodeChecker
         if: ${{ contains(env['RUN_ANALYZER'], 'code-checker') }}
         run: |
