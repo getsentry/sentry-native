@@ -77,8 +77,6 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     env:
-      CC: ${{ matrix.CC }}
-      CXX: ${{ matrix.CXX }}
       TEST_X86: ${{ matrix.TEST_X86 }}
       ERROR_ON_WARNINGS: ${{ matrix.ERROR_ON_WARNINGS }}
       RUN_ANALYZER: ${{ matrix.RUN_ANALYZER }}
@@ -133,6 +131,8 @@ jobs:
       - name: Test
         run: |
           pip install --upgrade --requirement tests/requirements.txt
+          [ "${{ matrix.CC }}" ] && export CC="${{ matrix.CC }}"
+          [ "${{ matrix.CXX }}" ] && export CXX="${{ matrix.CXX }}"
           pytest --capture=no --verbose tests
 
       - name: "Upload to codecov.io"
@@ -171,9 +171,9 @@ jobs:
           name: sentry-native-source
           path: sentry-native-source.zip
 
-      # - name: Upload archive to zeus
-      #   run: |
-      #     npx -p "@zeus-ci/cli" zeus job update --build $(Build.BuildId) --job $(System.JobId) --ref $(Build.SourceVersion) --build-label "$(Build.BuildNumber)" --job-label "$(System.JobDisplayName)" --status passed
-      #     npx -p "@zeus-ci/cli" zeus upload --build $(Build.BuildId) --job $(System.JobId) --type "application/zip" --name "sentry-native.zip" "$(Build.ArtifactStagingDirectory)/sentry-native-source.zip"
-      #   env:
-      #     ZEUS_HOOK_BASE: $(ZEUS_HOOK_BASE)
+      - name: Upload archive to zeus
+        run: |
+          npx -p "@zeus-ci/cli" zeus job update --build ${{ github.run_id }} --job ${{ github.job }} --ref ${{ github.sha }} --status passed
+          npx -p "@zeus-ci/cli" zeus upload --build ${{ github.run_id }} --job ${{ github.job }} --type "application/zip" --name "sentry-native.zip" "sentry-native-source.zip"
+        env:
+          ZEUS_HOOK_BASE: ${{ secrets.ZEUS_HOOK_BASE }}
