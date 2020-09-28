@@ -83,7 +83,7 @@ jobs:
       - uses: actions/setup-python@v2
 
       - name: Installing Linux Dependencies
-        if: ${{ runner.os == 'Linux' && !env.['TEST_X86'] }}
+        if: ${{ runner.os == 'Linux' && !env['TEST_X86'] }}
         run: sudo apt update && sudo apt install clang-10 clang-tools libcurl4 libcurl4-openssl-dev kcov g++-10 llvm valgrind
 
       - name: Installing Linux 32-bit Dependencies
