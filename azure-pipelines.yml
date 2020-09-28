@@ -85,7 +85,7 @@ stages:
             fetchDepth: 5
             submodules: recursive
           - task: UsePythonVersion@0
-          - script: sudo apt update && sudo apt install libcurl4 libcurl4-openssl-dev kcov g++-10 clang-10 clang-tools llvm valgrind
+          - script: sudo apt update && sudo apt install libcurl4 libcurl4-openssl-dev kcov g++-10 clang-10 clang-tools clang-tools-10 llvm valgrind
             condition: and(eq(variables['Agent.OS'], 'Linux'), not(variables['TEST_X86']))
             displayName: Installing Linux Dependencies
           - script: |
