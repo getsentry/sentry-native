@@ -155,7 +155,7 @@ jobs:
 
       - name: Remove unneeded files
         shell: bash
-        run: rm -rf build .* **/.git* azure* scripts Makefile external/breakpad/src/tools external/breakpad/src/processor
+        run: rm -rf build .c* .e* .git* scripts Makefile external/breakpad/src/tools external/breakpad/src/processor
 
       # https://github.com/actions/upload-artifact#zipped-artifact-downloads
       - name: Upload source artifact
