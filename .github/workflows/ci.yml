@@ -172,7 +172,8 @@ jobs:
 
       - name: Upload archive to zeus
         run: |
-          npx -p "@zeus-ci/cli" zeus job update --build ${{ github.run_id }} --job ${{ github.job }} --ref ${{ github.sha }} --status passed
+          npx -p "@zeus-ci/cli" zeus job update --build ${{ github.run_id }} --job ${{ github.job }} --ref ${{ github.sha }}
           npx -p "@zeus-ci/cli" zeus upload --build ${{ github.run_id }} --job ${{ github.job }} --type "application/zip" --name "sentry-native.zip" "sentry-native-source.zip"
+          npx -p "@zeus-ci/cli" zeus job update --build ${{ github.run_id }} --job ${{ github.job }} --status passed
         env:
           ZEUS_HOOK_BASE: ${{ secrets.ZEUS_HOOK_BASE }}
