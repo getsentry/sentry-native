@@ -15,139 +15,139 @@ jobs:
       - uses: actions/checkout@v2
       - run: make style
 
-  test:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: Linux (gcc 7, 32-bit)
-            os: ubuntu-18.04
-            CC: gcc-7
-            CXX: g++-7
-            TEST_X86: 1
-          - name: Linux (gcc 10)
-            os: ubuntu-20.04
-            CC: gcc-10
-            CXX: g++-10
-            # ERROR_ON_WARNINGS: 1
-            # The GCC analyzer 10.0.1 (as on CI) has an internal compiler error
-            # currently, and is not stable enough to activate.
-            # RUN_ANALYZER: gcc
-          - name: Linux (clang 10 + asan + llvm-cov)
-            os: ubuntu-20.04
-            CC: clang-10
-            CXX: clang++-10
-            ERROR_ON_WARNINGS: 1
-            RUN_ANALYZER: asan,llvm-cov
-          - name: Linux (clang 10 + kcov)
-            os: ubuntu-20.04
-            CC: clang-10
-            CXX: clang++-10
-            ERROR_ON_WARNINGS: 1
-            RUN_ANALYZER: kcov
-          - name: Linux (code-checker + valgrind)
-            os: ubuntu-20.04
-            RUN_ANALYZER: code-checker,valgrind
-          - name: macOS (xcode llvm)
-            os: macOs-latest
-            ERROR_ON_WARNINGS: 1
-          - name: macOS (clang 10 + asan + llvm-cov)
-            os: macOs-latest
-            CC: clang
-            CXX: clang++
-            ERROR_ON_WARNINGS: 1
-            RUN_ANALYZER: asan,llvm-cov
-          - name: Windows (VS2017, 32bit)
-            os: vs2017-win2016
-            TEST_X86: 1
-          - name: Windows (latest)
-            os: windows-latest
-          # The Android emulator is currently only available on macos, see:
-          # https://docs.microsoft.com/en-us/azure/devops/pipelines/ecosystems/android?view=azure-devops#test-on-the-android-emulator
-          - name: Android (API 16, NDK 19)
-            os: macOs-latest
-            ANDROID_API: 16
-            ANDROID_NDK: 19.2.5345600
-          - name: Android (API 30 NDK 21)
-            os: macOs-latest
-            ANDROID_API: 30
-            ANDROID_NDK: 21.3.6528147
+  # test:
+  #   strategy:
+  #     fail-fast: false
+  #     matrix:
+  #       include:
+  #         - name: Linux (gcc 7, 32-bit)
+  #           os: ubuntu-18.04
+  #           CC: gcc-7
+  #           CXX: g++-7
+  #           TEST_X86: 1
+  #         - name: Linux (gcc 10)
+  #           os: ubuntu-20.04
+  #           CC: gcc-10
+  #           CXX: g++-10
+  #           # ERROR_ON_WARNINGS: 1
+  #           # The GCC analyzer 10.0.1 (as on CI) has an internal compiler error
+  #           # currently, and is not stable enough to activate.
+  #           # RUN_ANALYZER: gcc
+  #         - name: Linux (clang 10 + asan + llvm-cov)
+  #           os: ubuntu-20.04
+  #           CC: clang-10
+  #           CXX: clang++-10
+  #           ERROR_ON_WARNINGS: 1
+  #           RUN_ANALYZER: asan,llvm-cov
+  #         - name: Linux (clang 10 + kcov)
+  #           os: ubuntu-20.04
+  #           CC: clang-10
+  #           CXX: clang++-10
+  #           ERROR_ON_WARNINGS: 1
+  #           RUN_ANALYZER: kcov
+  #         - name: Linux (code-checker + valgrind)
+  #           os: ubuntu-20.04
+  #           RUN_ANALYZER: code-checker,valgrind
+  #         - name: macOS (xcode llvm)
+  #           os: macOs-latest
+  #           ERROR_ON_WARNINGS: 1
+  #         - name: macOS (clang 10 + asan + llvm-cov)
+  #           os: macOs-latest
+  #           CC: clang
+  #           CXX: clang++
+  #           ERROR_ON_WARNINGS: 1
+  #           RUN_ANALYZER: asan,llvm-cov
+  #         - name: Windows (VS2017, 32bit)
+  #           os: vs2017-win2016
+  #           TEST_X86: 1
+  #         - name: Windows (latest)
+  #           os: windows-latest
+  #         # The Android emulator is currently only available on macos, see:
+  #         # https://docs.microsoft.com/en-us/azure/devops/pipelines/ecosystems/android?view=azure-devops#test-on-the-android-emulator
+  #         - name: Android (API 16, NDK 19)
+  #           os: macOs-latest
+  #           ANDROID_API: 16
+  #           ANDROID_NDK: 19.2.5345600
+  #         - name: Android (API 30 NDK 21)
+  #           os: macOs-latest
+  #           ANDROID_API: 30
+  #           ANDROID_NDK: 21.3.6528147
 
-    name: ${{ matrix.name }}
-    runs-on: ${{ matrix.os }}
+  #   name: ${{ matrix.name }}
+  #   runs-on: ${{ matrix.os }}
 
-    env:
-      TEST_X86: ${{ matrix.TEST_X86 }}
-      ERROR_ON_WARNINGS: ${{ matrix.ERROR_ON_WARNINGS }}
-      RUN_ANALYZER: ${{ matrix.RUN_ANALYZER }}
-      ANDROID_API: ${{ matrix.ANDROID_API }}
-      ANDROID_NDK: ${{ matrix.ANDROID_NDK }}
+  #   env:
+  #     TEST_X86: ${{ matrix.TEST_X86 }}
+  #     ERROR_ON_WARNINGS: ${{ matrix.ERROR_ON_WARNINGS }}
+  #     RUN_ANALYZER: ${{ matrix.RUN_ANALYZER }}
+  #     ANDROID_API: ${{ matrix.ANDROID_API }}
+  #     ANDROID_NDK: ${{ matrix.ANDROID_NDK }}
 
-    steps:
-      - uses: actions/checkout@v2
-        with:
-          submodules: recursive
-      - uses: actions/setup-python@v2
+  #   steps:
+  #     - uses: actions/checkout@v2
+  #       with:
+  #         submodules: recursive
+  #     - uses: actions/setup-python@v2
 
-      - name: Installing Linux Dependencies
-        if: ${{ runner.os == 'Linux' && !env['TEST_X86'] }}
-        # workaround: https://github.com/actions/virtual-environments/issues/1536#issuecomment-698537248
-        run: |
-          wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key 2>/dev/null | sudo apt-key add -
-          sudo add-apt-repository 'deb http://apt.llvm.org/focal llvm-toolchain-focal-10 main' -y
-          sudo apt update
-          sudo apt install kcov g++-10 valgrind libcurl4 libcurl4-openssl-dev
-          sudo apt install clang-10 clang-tools llvm
+  #     - name: Installing Linux Dependencies
+  #       if: ${{ runner.os == 'Linux' && !env['TEST_X86'] }}
+  #       # workaround: https://github.com/actions/virtual-environments/issues/1536#issuecomment-698537248
+  #       run: |
+  #         wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key 2>/dev/null | sudo apt-key add -
+  #         sudo add-apt-repository 'deb http://apt.llvm.org/focal llvm-toolchain-focal-10 main' -y
+  #         sudo apt update
+  #         sudo apt install kcov g++-10 valgrind libcurl4 libcurl4-openssl-dev
+  #         sudo apt install clang-10 clang-tools llvm
 
-      - name: Installing Linux 32-bit Dependencies
-        if: ${{ runner.os == 'Linux' && env['TEST_X86'] }}
-        run: sudo apt update && sudo apt install gcc-multilib g++-multilib
+  #     - name: Installing Linux 32-bit Dependencies
+  #       if: ${{ runner.os == 'Linux' && env['TEST_X86'] }}
+  #       run: sudo apt update && sudo apt install gcc-multilib g++-multilib
 
-      - name: Installing CodeChecker
-        if: ${{ contains(env['RUN_ANALYZER'], 'code-checker') }}
-        run: |
-          sudo apt install clang-tidy curl doxygen gcc-multilib python3-dev python3-virtualenv
-          git clone https://github.com/Ericsson/CodeChecker.git --depth 1
-          cd CodeChecker
-          BUILD_LOGGER_64_BIT_ONLY=YES make standalone_package
-          echo "::add-path::$PWD/build/CodeChecker/bin"
+  #     - name: Installing CodeChecker
+  #       if: ${{ contains(env['RUN_ANALYZER'], 'code-checker') }}
+  #       run: |
+  #         sudo apt install clang-tidy curl doxygen gcc-multilib python3-dev python3-virtualenv
+  #         git clone https://github.com/Ericsson/CodeChecker.git --depth 1
+  #         cd CodeChecker
+  #         BUILD_LOGGER_64_BIT_ONLY=YES make standalone_package
+  #         echo "::add-path::$PWD/build/CodeChecker/bin"
 
-      - name: Expose llvm PATH for Mac
-        if: ${{ runner.os == 'macOS' }}
-        run: echo "::add-path::/usr/local/opt/llvm/bin/"
+  #     - name: Expose llvm PATH for Mac
+  #       if: ${{ runner.os == 'macOS' }}
+  #       run: echo "::add-path::/usr/local/opt/llvm/bin/"
 
-      - name: Installing Android SDK Dependencies
-        if: ${{ env['ANDROID_API'] }}
-        run: |
-          export ANDROID_IMAGE="system-images;android-$ANDROID_API;google_apis;x86"
-          echo "Downloading ndk;$ANDROID_NDK and $ANDROID_IMAGE"
-          echo "y" | $ANDROID_HOME/tools/bin/sdkmanager --install \
-            "ndk;$ANDROID_NDK" "$ANDROID_IMAGE" | \
-            grep -v "\[=" || true # suppress the progress bar, so we get meaningful logs
+  #     - name: Installing Android SDK Dependencies
+  #       if: ${{ env['ANDROID_API'] }}
+  #       run: |
+  #         export ANDROID_IMAGE="system-images;android-$ANDROID_API;google_apis;x86"
+  #         echo "Downloading ndk;$ANDROID_NDK and $ANDROID_IMAGE"
+  #         echo "y" | $ANDROID_HOME/tools/bin/sdkmanager --install \
+  #           "ndk;$ANDROID_NDK" "$ANDROID_IMAGE" | \
+  #           grep -v "\[=" || true # suppress the progress bar, so we get meaningful logs
 
-      - name: Starting Android Simulator
-        if: ${{ env['ANDROID_API'] }}
-        run: bash scripts/start-android.sh
+  #     - name: Starting Android Simulator
+  #       if: ${{ env['ANDROID_API'] }}
+  #       run: bash scripts/start-android.sh
 
-      - name: Test
-        shell: bash
-        run: |
-          pip install --upgrade --requirement tests/requirements.txt
-          [ "${{ matrix.CC }}" ] && export CC="${{ matrix.CC }}"
-          [ "${{ matrix.CXX }}" ] && export CXX="${{ matrix.CXX }}"
-          pytest --capture=no --verbose tests
+  #     - name: Test
+  #       shell: bash
+  #       run: |
+  #         pip install --upgrade --requirement tests/requirements.txt
+  #         [ "${{ matrix.CC }}" ] && export CC="${{ matrix.CC }}"
+  #         [ "${{ matrix.CXX }}" ] && export CXX="${{ matrix.CXX }}"
+  #         pytest --capture=no --verbose tests
 
-      - name: "Upload to codecov.io"
-        if: ${{ contains(env['RUN_ANALYZER'], 'cov') }}
-        uses: codecov/codecov-action@v1
-        with:
-          directory: coverage
+  #     - name: "Upload to codecov.io"
+  #       if: ${{ contains(env['RUN_ANALYZER'], 'cov') }}
+  #       uses: codecov/codecov-action@v1
+  #       with:
+  #         directory: coverage
 
   archive:
     name: Create Release Archive
     runs-on: ubuntu-latest
-    needs: [lint, test]
-    if: ${{ needs.test.result == 'success' && github.repository_owner == 'getsentry' }}
+    #needs: [lint, test]
+    #if: ${{ needs.test.result == 'success' && github.repository_owner == 'getsentry' }}
     steps:
       - uses: actions/checkout@v2
         with:
@@ -157,15 +157,7 @@ jobs:
         uses: thedoctor0/zip-release@master
         with:
           filename: sentry-native-source.zip
-          exclusions: |
-            build
-            .*
-            **/.git*
-            azure*
-            scripts
-            Makefile
-            external/breakpad/src/tools
-            external/breakpad/src/processor
+          exclusions: build .* **/.git* azure* scripts Makefile external/breakpad/src/tools external/breakpad/src/processor
 
       - name: Upload source archive
         uses: actions/upload-artifact@v2
