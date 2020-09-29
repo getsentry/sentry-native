@@ -153,17 +153,22 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Create source archive
-        uses: thedoctor0/zip-release@master
-        with:
-          filename: sentry-native-source.zip
-          exclusions: build .* **/.git* azure* scripts Makefile external/breakpad/src/tools external/breakpad/src/processor
+      - name: Remove unneeded files
+        shell: bash
+        run: rm -rf build .* **/.git* azure* scripts Makefile external/breakpad/src/tools external/breakpad/src/processor
 
-      - name: Upload source archive
+      # https://github.com/actions/upload-artifact#zipped-artifact-downloads
+      - name: Upload source artifact
         uses: actions/upload-artifact@v2
         with:
           name: sentry-native-source
-          path: sentry-native-source.zip
+          path: .
+
+      - name: Create source archive
+        shell: python
+        run: |
+          import shutil
+          shutil.make_archive("sentry-native-source", "zip", ".")
 
       - name: Upload archive to zeus
         run: |
