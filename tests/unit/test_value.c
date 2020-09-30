@@ -11,9 +11,9 @@ SENTRY_TEST(value_null)
     TEST_CHECK(!sentry_value_is_true(val));
     TEST_CHECK_JSON_VALUE(val, "null");
     TEST_CHECK(sentry_value_refcount(val) == 1);
+    TEST_CHECK(sentry_value_is_frozen(val));
     sentry_value_decref(val);
     TEST_CHECK(sentry_value_refcount(val) == 1);
-    TEST_CHECK(sentry_value_is_frozen(val));
 }
 
 SENTRY_TEST(value_bool)
@@ -34,9 +34,9 @@ SENTRY_TEST(value_bool)
     TEST_CHECK(!sentry_value_is_true(val));
     TEST_CHECK_JSON_VALUE(val, "false");
     TEST_CHECK(sentry_value_refcount(val) == 1);
+    TEST_CHECK(sentry_value_is_frozen(val));
     sentry_value_decref(val);
     TEST_CHECK(sentry_value_refcount(val) == 1);
-    TEST_CHECK(sentry_value_is_frozen(val));
 }
 
 SENTRY_TEST(value_int32)
@@ -62,9 +62,9 @@ SENTRY_TEST(value_int32)
     TEST_CHECK(sentry_value_as_int32(val) == -1);
     TEST_CHECK(sentry_value_is_true(val) == true);
     TEST_CHECK(sentry_value_refcount(val) == 1);
+    TEST_CHECK(sentry_value_is_frozen(val));
     sentry_value_decref(val);
     TEST_CHECK(sentry_value_refcount(val) == 1);
-    TEST_CHECK(sentry_value_is_frozen(val));
 }
 
 SENTRY_TEST(value_double)
@@ -75,9 +75,8 @@ SENTRY_TEST(value_double)
     TEST_CHECK(sentry_value_is_true(val));
     TEST_CHECK_JSON_VALUE(val, "42.05");
     TEST_CHECK(sentry_value_refcount(val) == 1);
-    sentry_value_decref(val);
-    TEST_CHECK(sentry_value_refcount(val) == 1);
     TEST_CHECK(sentry_value_is_frozen(val));
+    sentry_value_decref(val);
 }
 
 SENTRY_TEST(value_string)
