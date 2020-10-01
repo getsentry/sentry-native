@@ -213,6 +213,22 @@ sentry_clear_modulecache(void)
     sentry__modulefinder_cleanup();
 }
 
+int
+sentry_reset_backend(void)
+{
+    sentry_backend_t *backend = g_options->backend;
+    if (backend && backend->shutdown_func) {
+        backend->shutdown_func(backend);
+    }
+
+    if (backend && backend->startup_func) {
+        if (g_options->backend->startup_func(g_options->backend, g_options)) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 static void
 set_user_consent(sentry_user_consent_t new_val)
 {

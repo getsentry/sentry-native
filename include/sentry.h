@@ -925,6 +925,16 @@ SENTRY_API int sentry_shutdown(void);
 SENTRY_EXPERIMENTAL_API void sentry_clear_modulecache(void);
 
 /**
+ * Re-initializes the Sentry backend
+ *
+ * This is mainly meant for if a third-party library hijacks Sentry's signal
+ * handler and we need to reinstall it.
+ *
+ * Returns 0 on success.
+ */
+SENTRY_API int sentry_reset_backend(void);
+
+/**
  * Gives user consent.
  */
 SENTRY_API void sentry_user_consent_give(void);
