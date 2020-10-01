@@ -194,7 +194,7 @@ make_signal_event(
         sentry_value_set_by_key(
             signal_meta, "name", sentry_value_new_string(sig_slot->signame));
         sentry_value_set_by_key(signal_meta, "number",
-            sentry_value_new_int32((int32_t)sig_slot->signum));
+            sentry_value_new_uint32((uint32_t)sig_slot->signum));
     }
     sentry_value_set_by_key(mechanism_meta, "signal", signal_meta);
     sentry_value_set_by_key(

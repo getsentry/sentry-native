@@ -38,21 +38,23 @@
  *                                                                      ||
  *               Pointer to a `thing_t`, a refcounted heap allocation - 00
  * xxxxxxxx xxxxxxxx xxxxxxxx xxxxxxxx -   A `int32_t` shifted by 32  - 01
- *                                                     CONST as below - 10
- *                                                            false - 0010
- *                                                             true - 0110
- *                                                             null - 1010
+ * xxxxxxxx xxxxxxxx xxxxxxxx xxxxxxxx -  A `uint32_t` shifted by 32  - 10
+ *                                                     CONST as below - 11
+ *                                                            false - 0011
+ *                                                             true - 0111
+ *                                                             null - 1011
  */
 
 #define TAG_MASK 0x3
 #define TAG_INT32 0x1
-#define TAG_CONST 0x2
+#define TAG_UINT32 0x2
+#define TAG_CONST 0x3
 
 #define NAN 0xfff8000000000000ULL
 
-#define CONST_FALSE 0x2
-#define CONST_TRUE 0x6
-#define CONST_NULL 0xa
+#define CONST_FALSE 0x3
+#define CONST_TRUE 0x7
+#define CONST_NULL 0xb
 
 #define THING_TYPE_MASK 0x7f
 #define THING_TYPE_FROZEN 0x80
@@ -296,6 +298,14 @@ sentry_value_new_int32(int32_t value)
 }
 
 sentry_value_t
+sentry_value_new_uint32(uint32_t value)
+{
+    sentry_value_t rv;
+    rv._bits = ((uint64_t)value) << 32 | TAG_UINT32;
+    return rv;
+}
+
+sentry_value_t
 sentry_value_new_double(double value)
 {
     thing_t *thing = sentry_malloc(sizeof(thing_t));
@@ -434,6 +444,8 @@ sentry_value_get_type(sentry_value_t value)
         return SENTRY_VALUE_TYPE_BOOL;
     } else if ((value._bits & TAG_MASK) == TAG_INT32) {
         return SENTRY_VALUE_TYPE_INT32;
+    } else if ((value._bits & TAG_MASK) == TAG_UINT32) {
+        return SENTRY_VALUE_TYPE_UINT32;
     }
     assert(!"unreachable");
     return SENTRY_VALUE_TYPE_NULL;
@@ -729,11 +741,23 @@ sentry_value_as_int32(sentry_value_t value)
     }
 }
 
+uint32_t
+sentry_value_as_uint32(sentry_value_t value)
+{
+    if ((value._bits & TAG_MASK) == TAG_UINT32) {
+        return (uint32_t)((int64_t)value._bits >> 32);
+    } else {
+        return 0;
+    }
+}
+
 double
 sentry_value_as_double(sentry_value_t value)
 {
     if ((value._bits & TAG_MASK) == TAG_INT32) {
         return (double)sentry_value_as_int32(value);
+    } else if ((value._bits & TAG_MASK) == TAG_UINT32) {
+        return (double)sentry_value_as_uint32(value);
     }
 
     const thing_t *thing = value_as_thing(value);
@@ -767,6 +791,8 @@ sentry_value_is_true(sentry_value_t value)
         return 0;
     case SENTRY_VALUE_TYPE_INT32:
         return sentry_value_as_int32(value) != 0;
+    case SENTRY_VALUE_TYPE_UINT32:
+        return sentry_value_as_uint32(value) > 0;
     case SENTRY_VALUE_TYPE_DOUBLE:
         return sentry_value_as_double(value) != 0.0;
     default:
@@ -792,6 +818,9 @@ value_to_json(sentry_jsonwriter_t *jw, sentry_value_t value)
         break;
     case SENTRY_VALUE_TYPE_INT32:
         sentry__jsonwriter_write_int32(jw, sentry_value_as_int32(value));
+        break;
+    case SENTRY_VALUE_TYPE_UINT32:
+        sentry__jsonwriter_write_uint32(jw, sentry_value_as_uint32(value));
         break;
     case SENTRY_VALUE_TYPE_DOUBLE:
         sentry__jsonwriter_write_double(jw, sentry_value_as_double(value));
@@ -841,6 +870,9 @@ value_to_msgpack(mpack_writer_t *writer, sentry_value_t value)
         break;
     case SENTRY_VALUE_TYPE_INT32:
         mpack_write_i32(writer, sentry_value_as_int32(value));
+        break;
+    case SENTRY_VALUE_TYPE_UINT32:
+        mpack_write_u32(writer, sentry_value_as_uint32(value));
         break;
     case SENTRY_VALUE_TYPE_DOUBLE:
         mpack_write_double(writer, sentry_value_as_double(value));

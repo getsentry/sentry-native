@@ -215,6 +215,16 @@ sentry__jsonwriter_write_int32(sentry_jsonwriter_t *jw, int32_t val)
 }
 
 void
+sentry__jsonwriter_write_uint32(sentry_jsonwriter_t *jw, uint32_t val)
+{
+    if (can_write_item(jw)) {
+        char buf[16];
+        snprintf(buf, sizeof(buf), "%" PRIu32, val);
+        write_str(jw, buf);
+    }
+}
+
+void
 sentry__jsonwriter_write_double(sentry_jsonwriter_t *jw, double val)
 {
     if (can_write_item(jw)) {

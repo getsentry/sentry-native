@@ -115,6 +115,7 @@ typedef enum {
     SENTRY_VALUE_TYPE_NULL,
     SENTRY_VALUE_TYPE_BOOL,
     SENTRY_VALUE_TYPE_INT32,
+    SENTRY_VALUE_TYPE_UINT32,
     SENTRY_VALUE_TYPE_DOUBLE,
     SENTRY_VALUE_TYPE_STRING,
     SENTRY_VALUE_TYPE_LIST,
@@ -177,6 +178,11 @@ SENTRY_API sentry_value_t sentry_value_new_null(void);
  * Creates a new 32-bit signed integer value.
  */
 SENTRY_API sentry_value_t sentry_value_new_int32(int32_t value);
+
+/**
+ * Creates a new 32-bit unsigned integer value.
+ */
+SENTRY_API sentry_value_t sentry_value_new_uint32(uint32_t value);
 
 /**
  * Creates a new double value.
@@ -289,9 +295,14 @@ SENTRY_API sentry_value_t sentry_value_get_by_index_owned(
 SENTRY_API size_t sentry_value_get_length(sentry_value_t value);
 
 /**
- * Converts a value into a 32bit signed integer.
+ * Converts a value into a 32-bit signed integer.
  */
 SENTRY_API int32_t sentry_value_as_int32(sentry_value_t value);
+
+/**
+ * Converts a value into a 32-bit unsigned integer.
+ */
+SENTRY_API uint32_t sentry_value_as_uint32(sentry_value_t value);
 
 /**
  * Converts a value into a double value.

@@ -33,9 +33,14 @@ void sentry__jsonwriter_write_null(sentry_jsonwriter_t *jw);
 void sentry__jsonwriter_write_bool(sentry_jsonwriter_t *jw, bool val);
 
 /**
- * Write a 32-bit number, which will be encoded in a JSON number.
+ * Write a signed 32-bit number, which will be encoded in a JSON number.
  */
 void sentry__jsonwriter_write_int32(sentry_jsonwriter_t *jw, int32_t val);
+
+/**
+ * Write an unsigned 32-bit number, which will be encoded in a JSON number.
+ */
+void sentry__jsonwriter_write_uint32(sentry_jsonwriter_t *jw, uint32_t val);
 
 /**
  * Write a 64-bit float, encoded as JSON number.

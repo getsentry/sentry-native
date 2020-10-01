@@ -67,6 +67,30 @@ SENTRY_TEST(value_int32)
     TEST_CHECK(sentry_value_refcount(val) == 1);
 }
 
+SENTRY_TEST(value_uint32)
+{
+    sentry_value_t val = sentry_value_new_uint32(42);
+    TEST_CHECK(sentry_value_get_type(val) == SENTRY_VALUE_TYPE_UINT32);
+    TEST_CHECK(sentry_value_as_uint32(val) == 42);
+    TEST_CHECK(sentry_value_as_double(val) == 42.0);
+    TEST_CHECK(sentry_value_is_true(val));
+    TEST_CHECK_JSON_VALUE(val, "42");
+    TEST_CHECK(sentry_value_refcount(val) == 1);
+    sentry_value_decref(val);
+    TEST_CHECK(sentry_value_refcount(val) == 1);
+
+    val = sentry_value_new_uint32((uint32_t)-1);
+    TEST_CHECK(sentry_value_get_type(val) == SENTRY_VALUE_TYPE_UINT32);
+    TEST_CHECK(sentry_value_as_uint32(val) == 4294967295);
+    TEST_CHECK(sentry_value_as_double(val) == 4294967295.0);
+    TEST_CHECK(sentry_value_is_true(val));
+    TEST_CHECK_JSON_VALUE(val, "4294967295");
+    TEST_CHECK(sentry_value_refcount(val) == 1);
+    TEST_CHECK(sentry_value_is_frozen(val));
+    sentry_value_decref(val);
+    TEST_CHECK(sentry_value_refcount(val) == 1);
+}
+
 SENTRY_TEST(value_double)
 {
     sentry_value_t val = sentry_value_new_double(42.05);

@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+**Fixes**:
+
+- The internal representation of `sentry_value_t` was changed to not rely on NaN-boxing, to avoid problems with newer Android releases.
+- Avoid sending invalid exception data when using the inproc backend on Windows, which would cause processing errors.
+- Add missing library dependency needed for static Linux builds.
+
+**Thank you**:
+
+Features, fixes and improvements in this release have been contributed by:
+
+- [@4diekmann](https://github.com/4diekmann)
+
 ## 0.4.2
 
 **Fixes**:
