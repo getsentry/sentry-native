@@ -33,16 +33,15 @@ def assert_meta(envelope, release="test-example-release"):
         "transaction": "test-transaction",
         "tags": {"expected-tag": "some value"},
         "extra": {"extra stuff": "some value", "…unicode key…": "őá…–🤮🚀¿ 한글 테스트"},
-        "sdk": {
-            "name": "sentry.native",
-            "version": "0.4.2",
-            "packages": [
-                {"name": "github:getsentry/sentry-native", "version": "0.4.2"},
-            ],
-        },
+    }
+    expected_sdk = {
+        "name": "sentry.native",
+        "version": "0.4.2",
+        "packages": [{"name": "github:getsentry/sentry-native", "version": "0.4.2"},],
     }
 
     assert matches(event, expected)
+    assert matches(event["sdk"], expected_sdk)
     assert any(
         "sentry_example" in image["code_file"]
         for image in event["debug_meta"]["images"]
