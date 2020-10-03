@@ -207,6 +207,12 @@ make_signal_event(
     void *backtrace[MAX_FRAMES];
     size_t frame_count
         = sentry_unwind_stack_from_ucontext(uctx, &backtrace[0], MAX_FRAMES);
+    // if unwinding from a ucontext didn't yield any results, try again with a
+    // direct unwind. this is most likely the case when using `libbacktrace`,
+    // since that does not allow to unwind from a ucontext at all.
+    if (!frame_count) {
+        frame_count = sentry_unwind_stack(NULL, &backtrace[0], MAX_FRAMES);
+    }
     SENTRY_TRACEF("captured backtrace with %lu frames", frame_count);
 
     sentry_value_t frames = sentry__value_new_list_with_size(frame_count);
