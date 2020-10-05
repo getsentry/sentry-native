@@ -219,7 +219,8 @@ sentry__jsonwriter_write_double(sentry_jsonwriter_t *jw, double val)
 {
     if (can_write_item(jw)) {
         char buf[50];
-        snprintf(buf, sizeof(buf), "%g", val);
+        // The MAX_SAFE_INTEGER is 9007199254740991, which has 16 digits
+        snprintf(buf, sizeof(buf), "%.16g", val);
         write_str(jw, buf);
     }
 }
