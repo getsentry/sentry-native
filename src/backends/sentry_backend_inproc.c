@@ -193,8 +193,10 @@ make_signal_event(
     if (sig_slot) {
         sentry_value_set_by_key(
             signal_meta, "name", sentry_value_new_string(sig_slot->signame));
+        // at least on windows, the signum is a true u32 which we can't
+        // otherwise represent.
         sentry_value_set_by_key(signal_meta, "number",
-            sentry_value_new_int32((int32_t)sig_slot->signum));
+            sentry_value_new_double((double)sig_slot->signum));
     }
     sentry_value_set_by_key(mechanism_meta, "signal", signal_meta);
     sentry_value_set_by_key(

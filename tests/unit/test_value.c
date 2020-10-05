@@ -77,6 +77,12 @@ SENTRY_TEST(value_double)
     TEST_CHECK(sentry_value_refcount(val) == 1);
     TEST_CHECK(sentry_value_is_frozen(val));
     sentry_value_decref(val);
+
+    val = sentry_value_new_double(4294967295.);
+    TEST_CHECK(sentry_value_get_type(val) == SENTRY_VALUE_TYPE_DOUBLE);
+    TEST_CHECK(sentry_value_as_double(val) == 4294967295.);
+    TEST_CHECK_JSON_VALUE(val, "4294967295");
+    sentry_value_decref(val);
 }
 
 SENTRY_TEST(value_string)
