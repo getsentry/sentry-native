@@ -21,7 +21,7 @@ def assert_session(envelope, extra_assertion=None):
         assert matches(session, extra_assertion)
 
 
-def assert_meta(envelope, release="test-example-release"):
+def assert_meta(envelope, release="test-example-release", integration=None):
     event = envelope.get_event()
 
     expected = {
@@ -42,6 +42,11 @@ def assert_meta(envelope, release="test-example-release"):
 
     assert matches(event, expected)
     assert matches(event["sdk"], expected_sdk)
+
+    if integration is None:
+        assert event["sdk"].get("integrations") is None
+    else:
+        assert event["sdk"]["integrations"] == [integration]
     assert any(
         "sentry_example" in image["code_file"]
         for image in event["debug_meta"]["images"]

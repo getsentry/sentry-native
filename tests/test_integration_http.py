@@ -209,7 +209,7 @@ def test_inproc_crash_http(cmake, httpserver):
 
     assert_session(envelope, {"init": True, "status": "crashed", "errors": 1})
 
-    assert_meta(envelope)
+    assert_meta(envelope, integration="inproc")
     assert_breadcrumb(envelope)
     assert_attachment(envelope)
 
@@ -262,7 +262,7 @@ def test_breakpad_crash_http(cmake, httpserver):
 
     assert_session(envelope, {"init": True, "status": "crashed", "errors": 1})
 
-    assert_meta(envelope)
+    assert_meta(envelope, integration="breakpad")
     assert_breadcrumb(envelope)
     assert_attachment(envelope)
 
