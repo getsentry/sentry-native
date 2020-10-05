@@ -2,6 +2,8 @@
 #include "sentry_value.h"
 #include <sentry.h>
 
+#define STRING(X) X, (sizeof(X) - 1)
+
 SENTRY_TEST(value_null)
 {
     sentry_value_t val = sentry_value_new_null();
@@ -14,6 +16,10 @@ SENTRY_TEST(value_null)
     TEST_CHECK(sentry_value_is_frozen(val));
     sentry_value_decref(val);
     TEST_CHECK(sentry_value_refcount(val) == 1);
+
+    val = sentry__value_from_json(STRING("null"));
+    TEST_CHECK(sentry_value_is_null(val));
+    sentry_value_decref(val);
 }
 
 SENTRY_TEST(value_bool)
@@ -37,6 +43,15 @@ SENTRY_TEST(value_bool)
     TEST_CHECK(sentry_value_is_frozen(val));
     sentry_value_decref(val);
     TEST_CHECK(sentry_value_refcount(val) == 1);
+
+    val = sentry__value_from_json(STRING("true"));
+    TEST_CHECK(sentry_value_get_type(val) == SENTRY_VALUE_TYPE_BOOL);
+    TEST_CHECK(sentry_value_is_true(val));
+    sentry_value_decref(val);
+    val = sentry__value_from_json(STRING("false"));
+    TEST_CHECK(sentry_value_get_type(val) == SENTRY_VALUE_TYPE_BOOL);
+    TEST_CHECK(!sentry_value_is_true(val));
+    sentry_value_decref(val);
 }
 
 SENTRY_TEST(value_int32)
@@ -65,6 +80,15 @@ SENTRY_TEST(value_int32)
     TEST_CHECK(sentry_value_is_frozen(val));
     sentry_value_decref(val);
     TEST_CHECK(sentry_value_refcount(val) == 1);
+
+    val = sentry__value_from_json(STRING("42"));
+    TEST_CHECK(sentry_value_get_type(val) == SENTRY_VALUE_TYPE_INT32);
+    TEST_CHECK(sentry_value_as_int32(val) == 42);
+    sentry_value_decref(val);
+    val = sentry__value_from_json(STRING("-1"));
+    TEST_CHECK(sentry_value_get_type(val) == SENTRY_VALUE_TYPE_INT32);
+    TEST_CHECK(sentry_value_as_int32(val) == -1);
+    sentry_value_decref(val);
 }
 
 SENTRY_TEST(value_uint32)
@@ -89,6 +113,11 @@ SENTRY_TEST(value_uint32)
     TEST_CHECK(sentry_value_is_frozen(val));
     sentry_value_decref(val);
     TEST_CHECK(sentry_value_refcount(val) == 1);
+
+    val = sentry__value_from_json(STRING("4294967295"));
+    TEST_CHECK(sentry_value_get_type(val) == SENTRY_VALUE_TYPE_UINT32);
+    TEST_CHECK(sentry_value_as_uint32(val) == 4294967295);
+    sentry_value_decref(val);
 }
 
 SENTRY_TEST(value_double)
@@ -100,6 +129,11 @@ SENTRY_TEST(value_double)
     TEST_CHECK_JSON_VALUE(val, "42.05");
     TEST_CHECK(sentry_value_refcount(val) == 1);
     TEST_CHECK(sentry_value_is_frozen(val));
+    sentry_value_decref(val);
+
+    val = sentry__value_from_json(STRING("42.05"));
+    TEST_CHECK(sentry_value_get_type(val) == SENTRY_VALUE_TYPE_DOUBLE);
+    TEST_CHECK(sentry_value_as_double(val) == 42.05);
     sentry_value_decref(val);
 }
 
@@ -262,8 +296,6 @@ SENTRY_TEST(value_freezing)
 
     sentry_value_decref(val);
 }
-
-#define STRING(X) X, (sizeof(X) - 1)
 
 SENTRY_TEST(value_json_parsing)
 {

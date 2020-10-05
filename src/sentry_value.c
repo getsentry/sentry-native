@@ -792,7 +792,7 @@ sentry_value_is_true(sentry_value_t value)
     case SENTRY_VALUE_TYPE_INT32:
         return sentry_value_as_int32(value) != 0;
     case SENTRY_VALUE_TYPE_UINT32:
-        return sentry_value_as_uint32(value) > 0;
+        return sentry_value_as_uint32(value) != 0;
     case SENTRY_VALUE_TYPE_DOUBLE:
         return sentry_value_as_double(value) != 0.0;
     default:

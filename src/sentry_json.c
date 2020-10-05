@@ -442,6 +442,8 @@ tokens_to_value(jsmntok_t *tokens, size_t token_count, const char *buf,
             double val = strtod(buf + root->start, NULL);
             if (val == (double)(int32_t)val) {
                 rv = sentry_value_new_int32((int32_t)val);
+            } else if (val == (double)(uint32_t)val) {
+                rv = sentry_value_new_uint32((uint32_t)val);
             } else {
                 rv = sentry_value_new_double(val);
             }
