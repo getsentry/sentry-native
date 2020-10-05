@@ -21,7 +21,7 @@ def assert_session(envelope, extra_assertion=None):
         assert matches(session, extra_assertion)
 
 
-def assert_meta(envelope, release="test-example-release"):
+def assert_meta(envelope, release="test-example-release", integration=None):
     event = envelope.get_event()
 
     expected = {
@@ -33,16 +33,20 @@ def assert_meta(envelope, release="test-example-release"):
         "transaction": "test-transaction",
         "tags": {"expected-tag": "some value"},
         "extra": {"extra stuff": "some value", "…unicode key…": "őá…–🤮🚀¿ 한글 테스트"},
-        "sdk": {
-            "name": "sentry.native",
-            "version": "0.4.2",
-            "packages": [
-                {"name": "github:getsentry/sentry-native", "version": "0.4.2"},
-            ],
-        },
+    }
+    expected_sdk = {
+        "name": "sentry.native",
+        "version": "0.4.2",
+        "packages": [{"name": "github:getsentry/sentry-native", "version": "0.4.2"},],
     }
 
     assert matches(event, expected)
+    assert matches(event["sdk"], expected_sdk)
+
+    if integration is None:
+        assert event["sdk"].get("integrations") is None
+    else:
+        assert event["sdk"]["integrations"] == [integration]
     assert any(
         "sentry_example" in image["code_file"]
         for image in event["debug_meta"]["images"]

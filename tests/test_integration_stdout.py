@@ -103,7 +103,7 @@ def test_inproc_crash_stdout(cmake):
             crash_timestamp = f.read()
         assert_timestamp(crash_timestamp)
 
-    assert_meta(envelope)
+    assert_meta(envelope, integration="inproc")
     assert_breadcrumb(envelope)
     assert_attachment(envelope)
 
@@ -126,7 +126,7 @@ def test_breakpad_crash_stdout(cmake):
     output = check_output(tmp_path, "sentry_example", ["stdout", "no-setup"])
     envelope = Envelope.deserialize(output)
 
-    assert_meta(envelope)
+    assert_meta(envelope, integration="breakpad")
     assert_breadcrumb(envelope)
     assert_attachment(envelope)
 

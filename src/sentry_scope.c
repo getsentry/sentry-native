@@ -9,6 +9,14 @@
 #include "sentry_sync.h"
 #include <stdlib.h>
 
+#ifdef SENTRY_BACKEND_CRASHPAD
+#    define SENTRY_BACKEND "crashpad"
+#elif defined(SENTRY_BACKEND_BREAKPAD)
+#    define SENTRY_BACKEND "breakpad"
+#elif defined(SENTRY_BACKEND_INPROC)
+#    define SENTRY_BACKEND "inproc"
+#endif
+
 static bool g_scope_initialized = false;
 static sentry_scope_t g_scope = { 0 };
 static sentry_mutex_t g_lock = SENTRY__MUTEX_INIT;
@@ -36,6 +44,12 @@ get_client_sdk(void)
     sentry_value_t packages = sentry_value_new_list();
     sentry_value_append(packages, package);
     sentry_value_set_by_key(client_sdk, "packages", packages);
+
+#ifdef SENTRY_BACKEND
+    sentry_value_t integrations = sentry_value_new_list();
+    sentry_value_append(integrations, sentry_value_new_string(SENTRY_BACKEND));
+    sentry_value_set_by_key(client_sdk, "integrations", integrations);
+#endif
 
     sentry_value_freeze(client_sdk);
     return client_sdk;
