@@ -29,7 +29,17 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
 	set(LINUX TRUE)
 endif()
 
-option(BUILD_SHARED_LIBS "Build shared libraries (.dll/.so) instead of static ones (.lib/.a)" ON)
+#setup sentry library type
+if(SENTRY_MAIN_PROJECT AND NOT DEFINED BUILD_SHARED_LIBS)
+	set(BUILD_SHARED_LIBS ON)
+endif()
+option(SENTRY_BUILD_SHARED_LIBS "Build shared libraries (.dll/.so) instead of static ones (.lib/.a)" ${BUILD_SHARED_LIBS})
+if(SENTRY_BUILD_SHARED_LIBS)
+	set(SENTRY_LIBRARY_TYPE SHARED)
+else()
+	set(SENTRY_LIBRARY_TYPE STATIC)
+endif()
+
 option(SENTRY_PIC "Build sentry (and dependent) libraries as position independent libraries" ON)
 
 option(SENTRY_BUILD_TESTS "Build sentry-native tests" "${SENTRY_MAIN_PROJECT}")
@@ -125,6 +135,7 @@ endif()
 
 message(STATUS "SENTRY_TRANSPORT=${SENTRY_TRANSPORT}")
 message(STATUS "SENTRY_BACKEND=${SENTRY_BACKEND}")
+message(STATUS "SENTRY_LIBRARY_TYPE=${SENTRY_LIBRARY_TYPE}")
 
 if(ANDROID)
 	set(SENTRY_WITH_LIBUNWINDSTACK TRUE)
@@ -187,7 +198,7 @@ endfunction()
 
 # ===== sentry library =====
 
-add_library(sentry "${PROJECT_SOURCE_DIR}/vendor/mpack.c")
+add_library(sentry ${SENTRY_LIBRARY_TYPE} "${PROJECT_SOURCE_DIR}/vendor/mpack.c" )
 add_library(sentry::sentry ALIAS sentry)
 add_subdirectory(src)
 
@@ -198,7 +209,7 @@ include(CheckTypeSize)
 check_type_size("long" CMAKE_SIZEOF_LONG)
 
 # https://gitlab.kitware.com/cmake/cmake/issues/18393
-if(BUILD_SHARED_LIBS)
+if(SENTRY_BUILD_SHARED_LIBS)
 	if(APPLE)
 		sentry_install(FILES "$<TARGET_FILE:sentry>.dSYM" DESTINATION "${CMAKE_INSTALL_LIBDIR}")
 	elseif(MSVC)
@@ -207,7 +218,7 @@ if(BUILD_SHARED_LIBS)
 	endif()
 endif()
 
-if(BUILD_SHARED_LIBS)
+if(SENTRY_BUILD_SHARED_LIBS)
 	target_compile_definitions(sentry PRIVATE SENTRY_BUILD_SHARED)
 else()
 	target_compile_definitions(sentry PUBLIC SENTRY_BUILD_STATIC)
@@ -336,7 +347,7 @@ if(SENTRY_WITH_LIBUNWINDSTACK)
 		"$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/libunwindstack-ndk/include>")
 	add_subdirectory("${PROJECT_SOURCE_DIR}/external/libunwindstack-ndk/cmake")
 	target_link_libraries(sentry PRIVATE unwindstack)
-	if(NOT BUILD_SHARED_LIBS)
+	if(NOT SENTRY_BUILD_SHARED_LIBS)
 		sentry_install(TARGETS unwindstack EXPORT sentry
 			LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
 			ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
@@ -353,7 +364,7 @@ if(SENTRY_BACKEND_CRASHPAD)
 		# FIXME: required for cmake 3.12 and lower:
 		# - NEW behavior lets normal variable override option
 		cmake_policy(SET CMP0077 NEW)
-		if(BUILD_SHARED_LIBS)
+		if(SENTRY_BUILD_SHARED_LIBS)
 			set(CRASHPAD_ENABLE_INSTALL OFF CACHE BOOL "Enable crashpad installation" FORCE)
 		else()
 			set(CRASHPAD_ENABLE_INSTALL ON CACHE BOOL "Enable crashpad installation" FORCE)
@@ -399,7 +410,7 @@ elseif(SENTRY_BACKEND_BREAKPAD)
 		target_link_libraries(sentry PRIVATE
 			breakpad_client
 		)
-		if(NOT BUILD_SHARED_LIBS)
+		if(NOT SENTRY_BUILD_SHARED_LIBS)
 			sentry_install(TARGETS breakpad_client EXPORT sentry
 				LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
 				ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"

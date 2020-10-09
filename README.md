@@ -144,9 +144,10 @@ $ ninja -C build
 The following options can be set when running the cmake generator, for example
 using `cmake -D BUILD_SHARED_LIBS=OFF ..`.
 
-- `BUILD_SHARED_LIBS` (Default: ON):
+- `SENTRY_BUILD_SHARED_LIBS` (Default: ON):
   By default, `sentry` is built as a shared library. Setting this option to
   `OFF` will build `sentry` as a static library instead.
+  If sentry is used as a subdirectory of another project, the value `BUILD_SHARED_LIBS` will be inherited by default.
 
 - `SENTRY_PIC` (Default: ON):
   By default, `sentry` is built as a position independent library.
