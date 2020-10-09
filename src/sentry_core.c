@@ -79,6 +79,8 @@ sentry_init(sentry_options_t *options)
 
     // we need to ensure the dir exists, otherwise `path_absolute` will fail.
     if (sentry__path_create_dir_all(options->database_path)) {
+        SENTRY_WARN("failed to create database directory or there is no write "
+                    "access to this directory");
         sentry_options_free(options);
         return 1;
     }
