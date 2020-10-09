@@ -58,6 +58,6 @@ SENTRY_TEST(mpack_newlines)
     sentry_free(buf);
     sentry_free(buf_rt);
 
-    // sentry__path_remove(file);
+    sentry__path_remove(file);
     sentry__path_free(file);
 }
