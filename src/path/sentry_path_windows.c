@@ -527,5 +527,5 @@ int
 sentry__path_append_buffer(
     const sentry_path_t *path, const char *buf, size_t buf_len)
 {
-    return write_buffer_with_mode(path, buf, buf_len, L"a");
+    return write_buffer_with_mode(path, buf, buf_len, L"ab");
 }

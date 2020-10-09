@@ -102,7 +102,7 @@ main(int argc, char **argv)
         sentry_set_user(user);
 
         sentry_value_t default_crumb
-            = sentry_value_new_breadcrumb(0, "default level is info");
+            = sentry_value_new_breadcrumb(NULL, "default level is info");
         sentry_add_breadcrumb(default_crumb);
 
         sentry_value_t debug_crumb
@@ -112,6 +112,12 @@ main(int argc, char **argv)
         sentry_value_set_by_key(
             debug_crumb, "level", sentry_value_new_string("debug"));
         sentry_add_breadcrumb(debug_crumb);
+
+        sentry_value_t nl_crumb
+            = sentry_value_new_breadcrumb(NULL, "lf\ncrlf\r\nlf\n...");
+        sentry_value_set_by_key(
+            nl_crumb, "category", sentry_value_new_string("something else"));
+        sentry_add_breadcrumb(nl_crumb);
     }
 
     if (has_arg(argc, argv, "start-session")) {
