@@ -1,5 +1,28 @@
 # Changelog
 
+## Unreleased
+
+**Caution**:
+
+- The representation of `sentry_value_t` was changed to avoid problems with the newly introduced Memory Tagging Extension (MTE) on ARM / Android.
+  Implementation details of `sentry_value_t` were never considered public, and it should always be treated as an opaque type.
+
+**Fixes**:
+
+- Fix corrupted breadcrumb data when using the crashpad backend on Windows.
+- Avoid sending empty envelopes when using the crashpad backend.
+- Correctly encode the signal number when using the Windows inproc backend, avoiding a processing Error.
+- Unwind from the local call-stack, fixing empty stacktraces when using the inproc backend on Linux.
+- Improvements to the Build configuration.
+
+**Thank you**:
+
+Features, fixes and improvements in this release have been contributed by:
+
+- [@4diekmann](https://github.com/4diekmann)
+- [@variar](https://github.com/variar)
+- [@Mixaill](https://github.com/Mixaill)
+
 ## 0.4.2
 
 **Fixes**:
