@@ -221,7 +221,8 @@ make_signal_event(
     for (size_t i = 0; i < frame_count; i++) {
         sentry_value_t frame = sentry_value_new_object();
         sentry_value_set_by_key(frame, "instruction_addr",
-            sentry__value_new_addr((uint64_t)backtrace[frame_count - i - 1]));
+            sentry__value_new_addr(
+                (uint64_t)(size_t)backtrace[frame_count - i - 1]));
         sentry_value_append(frames, frame);
     }
 

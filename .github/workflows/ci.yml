@@ -96,12 +96,14 @@ jobs:
           wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key 2>/dev/null | sudo apt-key add -
           sudo add-apt-repository 'deb http://apt.llvm.org/focal llvm-toolchain-focal-10 main' -y
           sudo apt update
-          sudo apt install kcov g++-10 valgrind libcurl4 libcurl4-openssl-dev
-          sudo apt install clang-10 clang-tools llvm
+          sudo apt install clang-10 clang-tools llvm kcov g++-10 valgrind libcurl4-openssl-dev
 
       - name: Installing Linux 32-bit Dependencies
         if: ${{ runner.os == 'Linux' && env['TEST_X86'] }}
-        run: sudo apt update && sudo apt install gcc-multilib g++-multilib
+        run: |
+          sudo dpkg --add-architecture i386
+          sudo apt update
+          sudo apt install gcc-multilib g++-multilib zlib1g-dev:i386 libssl-dev:i386 libcurl4-openssl-dev:i386
 
       - name: Installing CodeChecker
         if: ${{ contains(env['RUN_ANALYZER'], 'code-checker') }}
