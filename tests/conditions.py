@@ -7,7 +7,7 @@ is_asan = "asan" in os.environ.get("RUN_ANALYZER", "")
 is_kcov = "kcov" in os.environ.get("RUN_ANALYZER", "")
 is_valgrind = "valgrind" in os.environ.get("RUN_ANALYZER", "")
 
-has_http = not is_android
+has_http = not is_android and not (sys.platform == "linux" and is_x86)
 # breakpad does not work correctly when using kcov or valgrind
 has_breakpad = (
     not is_valgrind
