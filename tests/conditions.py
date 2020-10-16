@@ -7,8 +7,7 @@ is_asan = "asan" in os.environ.get("RUN_ANALYZER", "")
 is_kcov = "kcov" in os.environ.get("RUN_ANALYZER", "")
 is_valgrind = "valgrind" in os.environ.get("RUN_ANALYZER", "")
 
-# 32-bit linux has no proper curl support
-has_http = sys.platform == "win32" or (not is_android and not is_x86)
+has_http = not is_android
 # breakpad does not work correctly when using kcov or valgrind
 has_breakpad = (
     not is_valgrind
