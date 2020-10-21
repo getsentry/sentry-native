@@ -83,6 +83,31 @@ SENTRY_TEST(session_basics)
     TEST_CHECK_INT_EQUAL(called, 2);
 }
 
+SENTRY_TEST(session_upgrade_automatic)
+{
+    uint64_t called = 0;
+    sentry_options_t *options = sentry_options_new();
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_transport(
+        options, sentry_new_function_transport(send_envelope, &called));
+    sentry_options_set_release(options, "my_release");
+    sentry_options_set_environment(options, "my_environment");
+    sentry_init(options);
+
+    // an explicit call to `start_session` should not exit the automatically
+    // started session
+    sentry_start_session();
+
+    sentry_value_t user = sentry_value_new_object();
+    sentry_value_set_by_key(
+        user, "email", sentry_value_new_string("foo@blabla.invalid"));
+    sentry_set_user(user);
+
+    sentry_shutdown();
+
+    TEST_CHECK_INT_EQUAL(called, 1);
+}
+
 typedef struct {
     bool assert_session;
     uint64_t called;

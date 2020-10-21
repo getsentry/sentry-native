@@ -46,7 +46,7 @@ status_from_string(const char *status)
 }
 
 sentry_session_t *
-sentry__session_new(void)
+sentry__session_new(bool explicitly_started)
 {
     char *release = NULL;
     char *environment = NULL;
@@ -68,6 +68,7 @@ sentry__session_new(void)
         return NULL;
     }
 
+    rv->explicitly_started = explicitly_started;
     rv->release = release;
     rv->environment = environment;
     rv->session_id = sentry_uuid_new_v4();
@@ -166,6 +167,7 @@ sentry__session_from_json(const char *buf, size_t buflen)
         sentry_free(release);
         return NULL;
     }
+    rv->explicitly_started = false;
     rv->session_id
         = sentry__value_as_uuid(sentry_value_get_by_key(value, "sid"));
 
@@ -211,10 +213,14 @@ sentry__session_from_path(const sentry_path_t *path)
 void
 sentry_start_session(void)
 {
-    sentry_end_session();
     SENTRY_WITH_SCOPE_MUT (scope) {
-        scope->session = sentry__session_new();
-        sentry__scope_session_sync(scope);
+        if (scope->session && !scope->session->explicitly_started) {
+            scope->session->explicitly_started = true;
+        } else {
+            sentry_end_session();
+            scope->session = sentry__session_new(true);
+            sentry__scope_session_sync(scope);
+        }
     }
 }
 

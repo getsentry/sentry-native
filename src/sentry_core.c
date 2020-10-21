@@ -156,7 +156,10 @@ sentry_init(sentry_options_t *options)
     sentry__process_old_runs(options, last_crash);
 
     if (options->auto_session_tracking) {
-        sentry_start_session();
+        SENTRY_WITH_SCOPE_MUT (scope) {
+            scope->session = sentry__session_new(false);
+            sentry__scope_session_sync(scope);
+        }
     }
 
     return 0;

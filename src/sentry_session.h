@@ -29,12 +29,13 @@ typedef struct sentry_session_s {
     uint64_t errors;
     sentry_session_status_t status;
     bool init;
+    bool explicitly_started;
 } sentry_session_t;
 
 /**
  * This creates a new session.
  */
-sentry_session_t *sentry__session_new(void);
+sentry_session_t *sentry__session_new(bool explicitly_started);
 
 /**
  * This will free a previously allocated session.
