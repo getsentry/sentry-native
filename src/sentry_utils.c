@@ -1,12 +1,25 @@
+// According to http://lua-users.org/lists/lua-l/2016-04/msg00216.html we can
+// use `stdtod_l` on all platforms when defining `_GNU_SOURCE`.
+
+#define _GNU_SOURCE
+
 #include "sentry_utils.h"
 #include "sentry_alloc.h"
 #include "sentry_core.h"
 #include "sentry_string.h"
 #include "sentry_sync.h"
+#include <locale.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+
+#ifdef SENTRY_PLATFORM_MACOS
+#    include <xlocale.h>
+#elif defined(SENTRY_PLATFORM_LINUX)
+#    include "../vendor/stb_sprintf.h"
+#endif
 
 static bool
 is_scheme_valid(const char *scheme_name)
@@ -408,4 +421,55 @@ sentry__iso8601_to_msec(const char *iso)
     }
 
     return (uint64_t)time * 1000 + msec;
+}
+
+#ifdef SENTRY_PLATFORM_WINDOWS
+#    define sentry__locale_t _locale_t
+#else
+#    define sentry__locale_t locale_t
+#endif
+
+static sentry__locale_t
+c_locale()
+{
+    static bool c_locale_initialized = false;
+    static sentry__locale_t c_locale;
+    if (!c_locale_initialized) {
+        c_locale_initialized = true;
+#ifdef SENTRY_PLATFORM_WINDOWS
+        c_locale = _create_locale(LC_ALL, "C");
+#else
+        c_locale = newlocale(LC_ALL_MASK, "C", (sentry__locale_t)0);
+#endif
+    }
+    return c_locale;
+}
+
+double
+sentry__strtod_c(const char *ptr, char **endptr)
+{
+#ifdef SENTRY_PLATFORM_WINDOWS
+    return _strtod_l(ptr, endptr, c_locale());
+#else
+    return strtod_l(ptr, endptr, c_locale());
+#endif
+}
+
+int
+sentry__snprintf_c(char *buf, size_t buf_size, const char *fmt, ...)
+{
+    va_list args;
+    va_start(args, fmt);
+
+    int rv;
+#ifdef SENTRY_PLATFORM_WINDOWS
+    rv = _vsnprintf_l(buf, buf_size, fmt, c_locale(), args);
+#elif defined(SENTRY_PLATFORM_MACOS)
+    rv = vsnprintf_l(buf, buf_size, c_locale(), fmt, args);
+#else
+    rv = stbsp_vsnprintf(buf, buf_size, fmt, args);
+#endif
+
+    va_end(args);
+    return rv;
 }

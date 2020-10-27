@@ -49,6 +49,10 @@ def test_crashpad_crash(cmake, httpserver):
 
     assert waiting.result
 
+    # the session crash heuristic on mac uses timestamps, so make sure we have
+    # a small delay here
+    time.sleep(1)
+
     run(tmp_path, "sentry_example", ["log", "no-setup"], check=True, env=env)
 
     assert len(httpserver.log) == 2

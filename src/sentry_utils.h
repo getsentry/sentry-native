@@ -165,4 +165,14 @@ char *sentry__msec_time_to_iso8601(uint64_t time);
  */
 uint64_t sentry__iso8601_to_msec(const char *iso);
 
+/**
+ * Locale independent (or rather, using "C" locale) `strtod`.
+ */
+double sentry__strtod_c(const char *ptr, char **endptr);
+
+/**
+ * Locale independent (or rather, using "C" locale) `snprintf`.
+ */
+int sentry__snprintf_c(char *buf, size_t buf_size, const char *fmt, ...);
+
 #endif
