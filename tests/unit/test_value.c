@@ -1,5 +1,6 @@
 #include "sentry_testsupport.h"
 #include "sentry_value.h"
+#include <locale.h>
 #include <sentry.h>
 
 SENTRY_TEST(value_null)
@@ -316,5 +317,39 @@ SENTRY_TEST(value_json_surrogates)
     rv = sentry__value_from_json(
         STRING("{\"valid key\": true, \"invalid key \\uD801\": false}"));
     TEST_CHECK_JSON_VALUE(rv, "{\"valid key\":true}");
+    sentry_value_decref(rv);
+}
+
+SENTRY_TEST(value_json_locales)
+{
+    // we set a locale that uses decimal-commas to make sure we parse/stringify
+    // correctly with a decimal dot.
+    setlocale(LC_ALL, "de-DE");
+
+    sentry_value_t rv = sentry__value_from_json(
+        STRING("{\"dbl_max\": 1.7976931348623158e+308,"
+               "\"dbl_min\": 2.2250738585072014e-308,"
+               "\"max_int32\": 4294967295,"
+               "\"max_safe_int\": 9007199254740991}"));
+
+    // thou shalt not use exact comparison for floating point values
+    TEST_CHECK(sentry_value_as_double(sentry_value_get_by_key(rv, "dbl_max"))
+        == 1.7976931348623158e+308);
+    TEST_CHECK(sentry_value_as_double(sentry_value_get_by_key(rv, "dbl_min"))
+        == 2.2250738585072014e-308);
+
+    TEST_CHECK(sentry_value_as_double(sentry_value_get_by_key(rv, "max_int32"))
+        == 4294967295.);
+    TEST_CHECK(
+        sentry_value_as_double(sentry_value_get_by_key(rv, "max_safe_int"))
+        == 9007199254740991.);
+
+    // we format to 16 digits:
+    TEST_CHECK_JSON_VALUE(rv,
+        "{\"dbl_max\":1.797693134862316e+308,"
+        "\"dbl_min\":2.225073858507201e-308,"
+        "\"max_int32\":4294967295,"
+        "\"max_safe_int\":9007199254740991}");
+
     sentry_value_decref(rv);
 }

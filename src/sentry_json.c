@@ -220,7 +220,7 @@ sentry__jsonwriter_write_double(sentry_jsonwriter_t *jw, double val)
     if (can_write_item(jw)) {
         char buf[50];
         // The MAX_SAFE_INTEGER is 9007199254740991, which has 16 digits
-        snprintf(buf, sizeof(buf), "%.16g", val);
+        sentry__snprintf_c(buf, sizeof(buf), "%.16g", val);
         write_str(jw, buf);
     }
 }
@@ -430,7 +430,7 @@ tokens_to_value(jsmntok_t *tokens, size_t token_count, const char *buf,
             rv = sentry_value_new_null();
             break;
         default: {
-            double val = strtod(buf + root->start, NULL);
+            double val = sentry__strtod_c(buf + root->start, NULL);
             if (val == (double)(int32_t)val) {
                 rv = sentry_value_new_int32((int32_t)val);
             } else {
