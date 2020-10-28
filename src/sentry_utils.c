@@ -429,6 +429,11 @@ sentry__iso8601_to_msec(const char *iso)
 #    define sentry__locale_t locale_t
 #endif
 
+// On NDK locales are not supported.  It defines `stdtod_l` as a function that
+// forwards to `stdtod`, but it does not define `vsnprintf_l` sadly.  This means
+// if Android ever adds locale support in NDK we will have to revisit this code
+// to ensure the C locale is also used there.
+#ifndef SENTRY_PLATFORM_ANDROID
 static sentry__locale_t
 c_locale()
 {
@@ -436,25 +441,23 @@ c_locale()
     static sentry__locale_t c_locale;
     if (!c_locale_initialized) {
         c_locale_initialized = true;
-#ifdef SENTRY_PLATFORM_WINDOWS
+#    ifdef SENTRY_PLATFORM_WINDOWS
         c_locale = _create_locale(LC_ALL, "C");
-#else
-        // technically on android all this locale stuff is not needed as NDK
-        // does not support anything other than the C locale.  The `strtod_l`
-        // function does in fact also only directly forward to `strtod`.
-        // However in case a future version of NDK starts adding support for
-        // actual locales, we don't want code to accidentally break.
+#    else
         c_locale = newlocale(LC_ALL_MASK, "C", (sentry__locale_t)0);
-#endif
+#    endif
     }
     return c_locale;
 }
+#endif
 
 double
 sentry__strtod_c(const char *ptr, char **endptr)
 {
 #ifdef SENTRY_PLATFORM_WINDOWS
     return _strtod_l(ptr, endptr, c_locale());
+#elif defined(SENTRY_PLATFORM_ANDROID)
+    return strtod(ptr, endptr);
 #else
     return strtod_l(ptr, endptr, c_locale());
 #endif
@@ -469,7 +472,9 @@ sentry__snprintf_c(char *buf, size_t buf_size, const char *fmt, ...)
     int rv;
 #ifdef SENTRY_PLATFORM_WINDOWS
     rv = _vsnprintf_l(buf, buf_size, fmt, c_locale(), args);
-#elif defined(SENTRY_PLATFORM_MACOS) || defined(SENTRY_PLATFORM_ANDROID)
+#elif defined(SENTRY_PLATFORM_ANDROID)
+    rv = vsnprintf(buf, buf_size, fmt, args);
+#elif defined(SENTRY_PLATFORM_MACOS)
     rv = vsnprintf_l(buf, buf_size, c_locale(), fmt, args);
 #else
     rv = stbsp_vsnprintf(buf, buf_size, fmt, args);
