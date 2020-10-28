@@ -17,7 +17,7 @@
 
 #ifdef SENTRY_PLATFORM_MACOS
 #    include <xlocale.h>
-#elif defined(SENTRY_PLATFORM_LINUX)
+#elif defined(SENTRY_PLATFORM_LINUX) && !defined(SENTRY_PLATFORM_ANDROID)
 #    include "../vendor/stb_sprintf.h"
 #endif
 
@@ -439,6 +439,11 @@ c_locale()
 #ifdef SENTRY_PLATFORM_WINDOWS
         c_locale = _create_locale(LC_ALL, "C");
 #else
+        // technically on android all this locale stuff is not needed as NDK
+        // does not support anything other than the C locale.  The `strtod_l`
+        // function does in fact also only directly forward to `strtod`.
+        // However in case a future version of NDK starts adding support for
+        // actual locales, we don't want code to accidentally break.
         c_locale = newlocale(LC_ALL_MASK, "C", (sentry__locale_t)0);
 #endif
     }
@@ -464,7 +469,7 @@ sentry__snprintf_c(char *buf, size_t buf_size, const char *fmt, ...)
     int rv;
 #ifdef SENTRY_PLATFORM_WINDOWS
     rv = _vsnprintf_l(buf, buf_size, fmt, c_locale(), args);
-#elif defined(SENTRY_PLATFORM_MACOS)
+#elif defined(SENTRY_PLATFORM_MACOS) || defined(SENTRY_PLATFORM_ANDROID)
     rv = vsnprintf_l(buf, buf_size, c_locale(), fmt, args);
 #else
     rv = stbsp_vsnprintf(buf, buf_size, fmt, args);
