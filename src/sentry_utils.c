@@ -309,8 +309,8 @@ sentry__dsn_get_auth_header(const sentry_dsn_t *dsn)
     sentry__stringbuilder_init(&sb);
     sentry__stringbuilder_append(&sb, "Sentry sentry_key=");
     sentry__stringbuilder_append(&sb, dsn->public_key);
-    sentry__stringbuilder_append(&sb, ", sentry_version=7, sentry_client=");
-    sentry__stringbuilder_append(&sb, SENTRY_SDK_USER_AGENT);
+    sentry__stringbuilder_append(
+        &sb, ", sentry_version=7, sentry_client=" SENTRY_SDK_USER_AGENT);
     return sentry__stringbuilder_into_string(&sb);
 }
 
@@ -348,7 +348,8 @@ sentry__dsn_get_minidump_url(const sentry_dsn_t *dsn)
     }
     sentry_stringbuilder_t sb;
     init_string_builder_for_url(&sb, dsn);
-    sentry__stringbuilder_append(&sb, "/minidump/?sentry_key=");
+    sentry__stringbuilder_append(
+        &sb, "/minidump/?sentry_client=" SENTRY_SDK_USER_AGENT "&sentry_key=");
     sentry__stringbuilder_append(&sb, dsn->public_key);
     return sentry__stringbuilder_into_string(&sb);
 }
