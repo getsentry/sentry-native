@@ -116,6 +116,7 @@ sentry__task_decref(sentry_bgworker_task_t *task)
 
 struct sentry_bgworker_s {
     sentry_threadid_t thread_id;
+    char *thread_name;
     sentry_cond_t submit_signal;
     sentry_cond_t done_signal;
     sentry_mutex_t task_lock;
@@ -171,6 +172,7 @@ sentry__bgworker_decref(sentry_bgworker_t *bgw)
         bgw->free_state(bgw->state);
     }
     sentry__mutex_free(&bgw->task_lock);
+    sentry_free(bgw->thread_name);
     sentry_free(bgw);
 }
 
@@ -216,7 +218,7 @@ worker_thread(void *data)
 
     // should be called inside thread itself because of MSVC issues
     // https://randomascii.wordpress.com/2015/10/26/thread-naming-in-windows-time-for-something-better/
-    if (sentry__thread_setname(bgw->thread_id, "Sentry BgWorker")) {
+    if (sentry__thread_setname(bgw->thread_id, bgw->thread_name)) {
         SENTRY_WARN("failed to set background worker thread name");
     }
 
@@ -389,6 +391,12 @@ sentry__bgworker_foreach_matching(sentry_bgworker_t *bgw,
     sentry__mutex_unlock(&bgw->task_lock);
 
     return dropped;
+}
+
+void
+sentry__bgworker_setname(sentry_bgworker_t *bgw, const char *thread_name)
+{
+    bgw->thread_name = sentry__string_clone(thread_name);
 }
 
 #ifdef SENTRY_PLATFORM_UNIX

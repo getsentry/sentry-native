@@ -329,6 +329,12 @@ int sentry__bgworker_start(sentry_bgworker_t *bgw);
 int sentry__bgworker_shutdown(sentry_bgworker_t *bgw, uint64_t timeout);
 
 /**
+ * This will set a preferable thread name for background worker.
+ * Should be executed before worker start
+ */
+void sentry__bgworker_setname(sentry_bgworker_t *bgw, const char *thread_name);
+
+/**
  * This will submit a new task to the background thread.
  *
  * Takes ownership of `data`, freeing it using the provided `cleanup_func`.
