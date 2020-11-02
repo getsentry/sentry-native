@@ -6,7 +6,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#ifdef _WIN32
+#ifdef SENTRY_PLATFORM_WINDOWS
 typedef HRESULT(WINAPI *pSetThreadDescription)(
     HANDLE hThread, PCWSTR lpThreadDescription);
 const DWORD MS_VC_EXCEPTION = 0x406D1388;
@@ -64,7 +64,16 @@ sentry__thread_setname(sentry_threadid_t thread_id, const char *thread_name)
     if (!thread_id || !thread_name) {
         return 0;
     }
+
+#    ifdef SENTRY_PLATFORM_DARWIN
+    // macOS supports thread naming only for current thread
+    if (thread_id != pthread_self()) {
+        return 1;
+    }
+    return pthread_setname_np(thread_name);
+#    else
     return pthread_setname_np(thread_id, thread_name);
+#    endif
 }
 #endif
 
