@@ -1,9 +1,72 @@
 #include "sentry_sync.h"
 #include "sentry_alloc.h"
 #include "sentry_core.h"
+#include "sentry_string.h"
 #include "sentry_utils.h"
 #include <stdio.h>
 #include <string.h>
+
+#ifdef _WIN32
+typedef HRESULT(WINAPI *pSetThreadDescription)(
+    HANDLE hThread, PCWSTR lpThreadDescription);
+const DWORD MS_VC_EXCEPTION = 0x406D1388;
+
+#    pragma pack(push, 8)
+typedef struct {
+    DWORD dwType; // Must be 0x1000.
+    LPCSTR szName; // Pointer to name (in user addr space).
+    DWORD dwThreadID; // Thread ID (-1=caller thread).
+    DWORD dwFlags; // Reserved for future use, must be zero.
+} THREADNAME_INFO;
+#    pragma pack(pop)
+
+int
+sentry__thread_setname(sentry_threadid_t thread_id, const char *thread_name)
+{
+    if (!thread_id || !thread_name) {
+        return 0;
+    }
+    // https://docs.microsoft.com/en-us/visualstudio/debugger/how-to-set-a-thread-name-in-native-code?view=vs-2019
+
+    // approach 1: Windows 10 1607+
+    pSetThreadDescription func = (pSetThreadDescription)GetProcAddress(
+        GetModuleHandleA("kernel32.dll"), "SetThreadDescription");
+    if (func) {
+        wchar_t *thread_name_wstr = sentry__string_to_wstr(thread_name);
+        HRESULT result = SUCCEEDED(func(thread_id, thread_name_wstr)) ? 0 : 1;
+        sentry_free(thread_name_wstr);
+        return SUCCEEDED(result) ? 0 : 1;
+    }
+
+    // approach 2: older Windows and MSVC debugger
+    THREADNAME_INFO threadnameInfo;
+    threadnameInfo.dwType = 0x1000;
+    threadnameInfo.szName = thread_name;
+    threadnameInfo.dwThreadID = GetThreadId(thread_id);
+    threadnameInfo.dwFlags = 0;
+
+#    pragma warning(push)
+#    pragma warning(disable : 6320 6322)
+    __try {
+        RaiseException(MS_VC_EXCEPTION, 0,
+            sizeof(threadnameInfo) / sizeof(ULONG_PTR),
+            (ULONG_PTR *)&threadnameInfo);
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+    }
+#    pragma warning(pop)
+
+    return 0;
+}
+#else
+int
+sentry__thread_setname(sentry_threadid_t thread_id, const char *thread_name)
+{
+    if (!thread_id || !thread_name) {
+        return 0;
+    }
+    return pthread_setname_np(thread_id, thread_name);
+}
+#endif
 
 /**
  * Queue operations, locking and Reference counting:
@@ -150,6 +213,12 @@ worker_thread(void *data)
 {
     sentry_bgworker_t *bgw = data;
     SENTRY_TRACE("background worker thread started");
+
+    // should be called inside thread itself because of MSVC issues
+    // https://randomascii.wordpress.com/2015/10/26/thread-naming-in-windows-time-for-something-better/
+    if (sentry__thread_setname(bgw->thread_id, "Sentry BgWorker")) {
+        SENTRY_WARN("failed to set background worker thread name");
+    }
 
     sentry__mutex_lock(&bgw->task_lock);
     while (true) {
