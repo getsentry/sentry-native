@@ -10,6 +10,7 @@
 #include <fcntl.h>
 #include <io.h>
 #include <shlwapi.h>
+#include <stdlib.h>
 #include <sys/locking.h>
 #include <sys/stat.h>
 #include <sys/types.h>
