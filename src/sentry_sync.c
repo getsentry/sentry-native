@@ -107,6 +107,7 @@ sentry__bgworker_decref(sentry_bgworker_t *bgw)
     if (bgw->free_state) {
         bgw->free_state(bgw->state);
     }
+    sentry__mutex_free(&bgw->task_lock);
     sentry_free(bgw);
 }
 
