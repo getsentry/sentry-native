@@ -38,22 +38,25 @@ sentry__thread_setname(sentry_threadid_t thread_id, const char *thread_name)
         return SUCCEEDED(result) ? 0 : 1;
     }
 
-    // approach 2: older Windows and MSVC debugger
+    // approach 2: Windows Vista+ and MSVC debugger
+#    if _WIN32_WINNT >= 0x0600
     THREADNAME_INFO threadnameInfo;
     threadnameInfo.dwType = 0x1000;
     threadnameInfo.szName = thread_name;
-    threadnameInfo.dwThreadID = GetThreadId(thread_id);
+    threadnameInfo.dwThreadID
+        = GetThreadId(thread_id); // only available on Windows Vista+
     threadnameInfo.dwFlags = 0;
 
-#    pragma warning(push)
-#    pragma warning(disable : 6320 6322)
+#        pragma warning(push)
+#        pragma warning(disable : 6320 6322)
     __try {
         RaiseException(MS_VC_EXCEPTION, 0,
             sizeof(threadnameInfo) / sizeof(ULONG_PTR),
             (ULONG_PTR *)&threadnameInfo);
     } __except (EXCEPTION_EXECUTE_HANDLER) {
     }
-#    pragma warning(pop)
+#        pragma warning(pop)
+#    endif
 
     return 0;
 }
@@ -225,7 +228,7 @@ worker_thread(void *data)
     sentry_bgworker_t *bgw = data;
     SENTRY_TRACE("background worker thread started");
 
-    // should be called inside thread itself because of MSVC issues
+    // should be called inside thread itself because of MSVC issues and mac
     // https://randomascii.wordpress.com/2015/10/26/thread-naming-in-windows-time-for-something-better/
     if (sentry__thread_setname(bgw->thread_id, bgw->thread_name)) {
         SENTRY_WARN("failed to set background worker thread name");
