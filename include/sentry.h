@@ -729,6 +729,18 @@ SENTRY_API const char *sentry_options_get_ca_certs(
     const sentry_options_t *opts);
 
 /**
+ * Configures the name of the http transport thread.
+ */
+SENTRY_API void sentry_options_set_transport_thread_name(
+    sentry_options_t *opts, const char *name);
+
+/**
+ * Returns the configured http transport thread name.
+ */
+SENTRY_API const char *sentry_options_get_transport_thread_name(
+    const sentry_options_t *opts);
+
+/**
  * Enables or disables debug printing mode.
  */
 SENTRY_API void sentry_options_set_debug(sentry_options_t *opts, int debug);

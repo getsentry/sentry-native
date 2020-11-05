@@ -36,6 +36,7 @@ typedef struct sentry_options_s {
     char *dist;
     char *http_proxy;
     char *ca_certs;
+    char *transport_thread_name;
     sentry_path_t *database_path;
     sentry_path_t *handler_path;
     sentry_logger_t logger;

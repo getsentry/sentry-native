@@ -24,6 +24,7 @@ sentry_options_new(void)
     opts->debug = debug && sentry__string_eq(debug, "1");
     sentry_logger_t logger = { sentry__logger_defaultlogger, NULL };
     opts->logger = logger;
+    opts->transport_thread_name = sentry__string_clone("sentry-http");
 #ifdef SENTRY_PLATFORM_WINDOWS
     opts->release = sentry__string_from_wstr(_wgetenv(L"SENTRY_RELEASE"));
     opts->environment
@@ -76,6 +77,7 @@ sentry_options_free(sentry_options_t *opts)
     sentry_free(opts->dist);
     sentry_free(opts->http_proxy);
     sentry_free(opts->ca_certs);
+    sentry_free(opts->transport_thread_name);
     sentry__path_free(opts->database_path);
     sentry__path_free(opts->handler_path);
     sentry_transport_free(opts->transport);
@@ -202,6 +204,20 @@ const char *
 sentry_options_get_ca_certs(const sentry_options_t *opts)
 {
     return opts->ca_certs;
+}
+
+void
+sentry_options_set_transport_thread_name(
+    sentry_options_t *opts, const char *name)
+{
+    sentry_free(opts->transport_thread_name);
+    opts->transport_thread_name = sentry__string_clone(name);
+}
+
+const char *
+sentry_options_get_transport_thread_name(const sentry_options_t *opts)
+{
+    return opts->transport_thread_name;
 }
 
 void
