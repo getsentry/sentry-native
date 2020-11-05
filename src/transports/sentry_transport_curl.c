@@ -78,7 +78,7 @@ sentry__curl_transport_start(
     state->curl_handle = curl_easy_init();
     state->debug = options->debug;
 
-    sentry__bgworker_setname(bgworker, options->bgworker_name);
+    sentry__bgworker_setname(bgworker, options->transport_thread_name);
 
     if (!state->curl_handle) {
         // In this case we don’t start the worker at all, which means we can

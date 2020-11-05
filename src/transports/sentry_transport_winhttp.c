@@ -65,7 +65,7 @@ sentry__winhttp_transport_start(
     state->user_agent = sentry__string_to_wstr(SENTRY_SDK_USER_AGENT);
     state->debug = opts->debug;
 
-    sentry__bgworker_setname(bgworker, opts->bgworker_name);
+    sentry__bgworker_setname(bgworker, opts->transport_thread_name);
 
     // ensure the proxy starts with `http://`, otherwise ignore it
     if (opts->http_proxy
