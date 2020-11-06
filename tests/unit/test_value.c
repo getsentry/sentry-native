@@ -1,6 +1,7 @@
 #include "sentry_testsupport.h"
 #include "sentry_value.h"
 #include <locale.h>
+#include <math.h>
 #include <sentry.h>
 
 SENTRY_TEST(value_null)
@@ -352,4 +353,21 @@ SENTRY_TEST(value_json_locales)
         "\"max_safe_int\":9007199254740991}");
 
     sentry_value_decref(rv);
+}
+
+SENTRY_TEST(value_json_invalid_doubles)
+{
+    sentry_value_t val;
+
+    val = sentry_value_new_double(INFINITY);
+    TEST_CHECK_JSON_VALUE(val, "null");
+    sentry_value_decref(val);
+
+    val = sentry_value_new_double(-INFINITY);
+    TEST_CHECK_JSON_VALUE(val, "null");
+    sentry_value_decref(val);
+
+    val = sentry_value_new_double(NAN);
+    TEST_CHECK_JSON_VALUE(val, "null");
+    sentry_value_decref(val);
 }
