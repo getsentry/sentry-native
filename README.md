@@ -140,6 +140,33 @@ $ cmake -GNinja -Bbuild -H. -DCMAKE_TOOLCHAIN_FILE=toolchains/msys2.cmake
 $ ninja -C build
 ```
 
+**MacOS**:
+
+Building universal binaries/libraries is possible out of the box when using the
+[`CMAKE_OSX_ARCHITECTURES`](https://cmake.org/cmake/help/latest/variable/CMAKE_OSX_ARCHITECTURES.html) define, both with the `Xcode` generator as well
+as the default generator:
+
+```sh
+# using xcode generator:
+$ cmake -B xcodebuild -GXcode -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"
+$ xcodebuild build -project xcodebuild/Sentry-Native.xcodeproj
+$ lipo -info xcodebuild/Debug/libsentry.dylib
+Architectures in the fat file: xcodebuild/Debug/libsentry.dylib are: x86_64 arm64
+
+# using default generator:
+$ cmake -B defaultbuild -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"
+$ cmake --build defaultbuild --parallel
+$ lipo -info defaultbuild/libsentry.dylib
+Architectures in the fat file: defaultbuild/libsentry.dylib are: x86_64 arm64
+```
+
+Make sure that MacOSX SDK 11 or later is used. It is possible that this requires
+manually overriding the `SDKROOT`:
+
+```sh
+$ export SDKROOT=$(xcrun --sdk macosx --show-sdk-path)
+```
+
 ### Compile-Time Options
 
 The following options can be set when running the cmake generator, for example
