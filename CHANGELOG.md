@@ -1,5 +1,24 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- The `sentry_get_modules_list` function was made public, which will return a list of loaded libraries that will be sent to sentry with each event.
+- A new `sentry_options_set_transport_thread_name` function was added to set an explicit name for sentries http transport thread.
+
+**Fixes**:
+
+- The session duration is now printed in a locale-independent way, avoiding invalid session payloads.
+- Correctly clean up locks and pass the Windows Application Verifier.
+- Build fixes for MinGW and better documentation for universal MacOS builds.
+
+**Thank you**:
+
+Features, fixes and improvements in this release have been contributed by:
+
+- [@Mixaill](https://github.com/Mixaill)
+
 ## 0.4.3
 
 **Caution**:

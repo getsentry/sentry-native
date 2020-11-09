@@ -926,6 +926,13 @@ SENTRY_API int sentry_init(sentry_options_t *options);
 SENTRY_API int sentry_shutdown(void);
 
 /**
+ * This will lazily load and cache a list of all the loaded libraries.
+ *
+ * The returned value must be released with `sentry_value_decref`.
+ */
+SENTRY_EXPERIMENTAL_API sentry_value_t sentry_get_modules_list(void);
+
+/**
  * Clears the internal module cache.
  *
  * For performance reasons, sentry will cache the list of loaded libraries when

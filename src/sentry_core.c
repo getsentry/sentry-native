@@ -205,14 +205,8 @@ sentry_shutdown(void)
     }
 
     sentry__scope_cleanup();
-    sentry__modulefinder_cleanup();
+    sentry_clear_modulecache();
     return (int)dumped_envelopes;
-}
-
-void
-sentry_clear_modulecache(void)
-{
-    sentry__modulefinder_cleanup();
 }
 
 static void
