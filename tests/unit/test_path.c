@@ -152,7 +152,7 @@ SENTRY_TEST(path_directory)
 #ifdef SENTRY_PLATFORM_WINDOWS
     sentry_path_t *path_3 = sentry__path_from_str("foo/bar\\baz");
 
-    // %TEMP%\\sentry_test_unit\\ 
+    // `%TEMP%\sentry_test_unit`
     wchar_t temp_folder[MAX_PATH];
     GetEnvironmentVariableW(L"TEMP", temp_folder, sizeof(temp_folder));
     sentry_path_t *path_4 = sentry__path_from_wstr(temp_folder);

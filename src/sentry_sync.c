@@ -39,7 +39,7 @@ sentry__thread_setname(sentry_threadid_t thread_id, const char *thread_name)
     }
 
     // approach 2: Windows Vista+ and MSVC debugger
-#    if _WIN32_WINNT >= 0x0600
+#    if _WIN32_WINNT >= 0x0600 && defined(_MSC_VER)
     THREADNAME_INFO threadnameInfo;
     threadnameInfo.dwType = 0x1000;
     threadnameInfo.szName = thread_name;
