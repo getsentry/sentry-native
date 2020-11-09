@@ -8,8 +8,6 @@ from .assertions import assert_crashpad_upload, assert_session
 
 pytestmark = pytest.mark.skipif(not has_crashpad, reason="tests need crashpad backend")
 
-# TODO:
-# Actually assert that we get a correct event/breadcrumbs payload
 
 # Windows and Linux are currently able to flush all the state on crash
 flushes_state = sys.platform != "darwin"
