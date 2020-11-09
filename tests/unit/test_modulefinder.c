@@ -14,6 +14,7 @@ SENTRY_TEST(module_finder)
 
     sentry_value_t modules = sentry_get_modules_list();
     TEST_CHECK(sentry_value_get_length(modules) > 0);
+    TEST_CHECK(sentry_value_is_frozen(modules));
 
     bool found_test = false;
     for (size_t i = 0; i < sentry_value_get_length(modules); i++) {
