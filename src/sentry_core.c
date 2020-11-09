@@ -197,9 +197,6 @@ sentry_shutdown(void)
             dumped_envelopes = sentry__transport_dump_queue(
                 options->transport, options->run);
         }
-        if (!dumped_envelopes) {
-            sentry__run_clean(options->run);
-        }
 
         sentry_options_free(options);
     }

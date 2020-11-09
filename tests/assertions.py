@@ -1,4 +1,6 @@
 import datetime
+import email
+import gzip
 
 
 def matches(actual, expected):
@@ -131,3 +133,21 @@ def assert_crash(envelope):
     # depending on the unwinder, we currently don’t get any stack frames from
     # a `ucontext`
     assert_stacktrace(envelope, inside_exception=True, check_size=False)
+
+
+def assert_crashpad_upload(req):
+    multipart = gzip.decompress(req.get_data())
+    msg = email.message_from_bytes(bytes(str(req.headers), encoding="utf8") + multipart)
+    files = [part.get_filename() for part in msg.walk()]
+
+    # TODO:
+    # Actually assert that we get a correct event/breadcrumbs payload
+    assert "__sentry-breadcrumb1" in files
+    assert "__sentry-breadcrumb2" in files
+    assert "__sentry-event" in files
+
+    assert any(
+        b'name="upload_file_minidump"' in part.as_bytes()
+        and b"\n\nMDMP" in part.as_bytes()
+        for part in msg.walk()
+    )
