@@ -197,13 +197,9 @@ sentry_shutdown(void)
             dumped_envelopes = sentry__transport_dump_queue(
                 options->transport, options->run);
         }
-        // crashpad can capture crashes *after* calling `shutdown`, so we leave
-        // the run folder intact so that it can still upload the msgpack files.
-#ifndef SENTRY_BACKEND_CRASHPAD
-        if (!dumped_envelopes) {
+        if (!dumped_envelopes && (!options->backend || !options->backend->can_capture_after_shutdown)) {
             sentry__run_clean(options->run);
         }
-#endif
 
         sentry_options_free(options);
     }
