@@ -410,6 +410,7 @@ sentry__backend_new(void)
         = sentry__crashpad_backend_user_consent_changed;
     backend->get_last_crash_func = sentry__crashpad_backend_last_crash;
     backend->data = data;
+    backend->can_capture_after_shutdown = true;
 
     return backend;
 }

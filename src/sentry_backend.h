@@ -25,6 +25,7 @@ typedef struct sentry_backend_s {
     void (*user_consent_changed_func)(struct sentry_backend_s *);
     uint64_t (*get_last_crash_func)(struct sentry_backend_s *);
     void *data;
+    bool can_capture_after_shutdown;
 } sentry_backend_t;
 
 /**

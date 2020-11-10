@@ -184,4 +184,8 @@ main(int argc, char **argv)
     if (has_arg(argc, argv, "sleep-after-shutdown")) {
         sleep_s(1);
     }
+
+    if (has_arg(argc, argv, "crash-after-shutdown")) {
+        trigger_crash();
+    }
 }
