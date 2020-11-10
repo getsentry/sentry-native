@@ -163,3 +163,10 @@ SENTRY_TEST(page_allocator)
     sentry_free(p_before);
 #endif
 }
+
+SENTRY_TEST(os)
+{
+    char *os = sentry__os_full_version();
+    TEST_CHECK(os != NULL);
+    sentry_free(os);
+}
