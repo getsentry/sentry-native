@@ -149,33 +149,23 @@ jobs:
     name: Create Release Archive
     runs-on: ubuntu-latest
     needs: [lint, test]
-    if: ${{ needs.test.result == 'success' && github.repository_owner == 'getsentry' }}
+    # only run this on pushes, combined with the CI triggers, this will only
+    # run on master or the release branch
+    if: ${{ needs.test.result == 'success' && github.event_name == 'push' }}
     steps:
       - uses: actions/checkout@v2
         with:
           submodules: recursive
 
-      - name: Remove unneeded files
-        shell: bash
-        run: rm -rf build .c* .e* .git* scripts Makefile external/breakpad/src/tools external/breakpad/src/processor
-
       - name: Create source archive
-        shell: python
         run: |
-          import shutil
-          shutil.make_archive("sentry-native-source", "zip", ".")
+          rm -rf build .c* .e* .git* scripts Makefile external/breakpad/src/tools external/breakpad/src/processor
+          zip -r sentry-native-source.zip .
 
       - name: Upload source artifact
         uses: actions/upload-artifact@v2
         with:
-          name: sentry-native-source
-          # meh: https://github.com/actions/upload-artifact#zipped-artifact-downloads
+          name: ${{ github.sha }}
+          # When downloading artifacts, they are double-zipped:
+          # https://github.com/actions/upload-artifact#zipped-artifact-downloads
           path: sentry-native-source.zip
-
-      - name: Upload archive to zeus
-        run: |
-          npx -p "@zeus-ci/cli" zeus job update --build ${{ github.run_id }} --job ${{ github.job }} --ref ${{ github.sha }}
-          npx -p "@zeus-ci/cli" zeus upload --build ${{ github.run_id }} --job ${{ github.job }} --type "application/zip" --name "sentry-native.zip" "sentry-native-source.zip"
-          npx -p "@zeus-ci/cli" zeus job update --build ${{ github.run_id }} --job ${{ github.job }} --status passed
-        env:
-          ZEUS_HOOK_BASE: ${{ secrets.ZEUS_HOOK_BASE }}

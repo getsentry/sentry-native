@@ -1,4 +1,4 @@
-minVersion: "0.10.0"
+minVersion: "0.13.2"
 github:
   owner: getsentry
   repo: sentry-native
@@ -7,7 +7,7 @@ changelogPolicy: auto
 statusProvider:
   name: github
 artifactProvider:
-  name: zeus
+  name: github
 
 targets:
   - name: github
