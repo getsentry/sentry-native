@@ -221,11 +221,10 @@ sentry__jsonwriter_write_double(sentry_jsonwriter_t *jw, double val)
     if (can_write_item(jw)) {
         char buf[50];
         // The MAX_SAFE_INTEGER is 9007199254740991, which has 16 digits
-        size_t written
-            = (size_t)sentry__snprintf_c(buf, sizeof(buf), "%.16g", val);
+        int written = sentry__snprintf_c(buf, sizeof(buf), "%.16g", val);
         // print `null` if we have printf issues or a non-finite double, which
         // can't be represented in JSON.
-        if (written < 0 || written >= sizeof(buf) || !isfinite(val)) {
+        if (written < 0 || written >= (int)sizeof(buf) || !isfinite(val)) {
             write_str(jw, "null");
         } else {
             buf[written] = '\0';
