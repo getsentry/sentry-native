@@ -928,8 +928,8 @@ SENTRY_API int sentry_shutdown(void);
 /**
  * This will lazily load and cache a list of all the loaded libraries.
  *
- * Returns a new reference to a frozen list, and the reference must be released
- * with `sentry_value_decref`.
+ * Returns a new reference to an immutable, frozen list.
+ * The reference must be released with `sentry_value_decref`.
  */
 SENTRY_EXPERIMENTAL_API sentry_value_t sentry_get_modules_list(void);
 
