@@ -2,7 +2,6 @@
 #include "sentry_backend.h"
 #include "sentry_core.h"
 #include "sentry_database.h"
-#include "sentry_modulefinder.h"
 #include "sentry_options.h"
 #include "sentry_string.h"
 #include "sentry_symbolizer.h"
@@ -285,10 +284,9 @@ sentry__scope_apply_to_event(
     }
 
     if (mode & SENTRY_SCOPE_MODULES) {
-        sentry_value_t modules = sentry__modules_get_list();
+        sentry_value_t modules = sentry_get_modules_list();
         if (!sentry_value_is_null(modules)) {
             sentry_value_t debug_meta = sentry_value_new_object();
-            sentry_value_incref(modules);
             sentry_value_set_by_key(debug_meta, "images", modules);
             sentry_value_set_by_key(event, "debug_meta", debug_meta);
         }

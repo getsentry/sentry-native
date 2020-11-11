@@ -1,4 +1,3 @@
-#include "sentry_modulefinder.h"
 #include "sentry_path.h"
 #include "sentry_testsupport.h"
 #include <sentry.h>
@@ -10,11 +9,12 @@
 SENTRY_TEST(module_finder)
 {
     // make sure that we are able to do multiple cleanup cycles
-    sentry__modules_get_list();
-    sentry__modulefinder_cleanup();
+    sentry_value_decref(sentry_get_modules_list());
+    sentry_clear_modulecache();
 
-    sentry_value_t modules = sentry__modules_get_list();
+    sentry_value_t modules = sentry_get_modules_list();
     TEST_CHECK(sentry_value_get_length(modules) > 0);
+    TEST_CHECK(sentry_value_is_frozen(modules));
 
     bool found_test = false;
     for (size_t i = 0; i < sentry_value_get_length(modules); i++) {
@@ -30,10 +30,11 @@ SENTRY_TEST(module_finder)
             found_test = true;
         }
     }
+    sentry_value_decref(modules);
 
     TEST_CHECK(found_test);
 
-    sentry__modulefinder_cleanup();
+    sentry_clear_modulecache();
 }
 
 SENTRY_TEST(procmaps_parser)
