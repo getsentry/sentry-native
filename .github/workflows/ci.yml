@@ -166,5 +166,6 @@ jobs:
         uses: actions/upload-artifact@v2
         with:
           name: ${{ github.sha }}
-          # meh: https://github.com/actions/upload-artifact#zipped-artifact-downloads
+          # When downloading artifacts, they are double-zipped:
+          # https://github.com/actions/upload-artifact#zipped-artifact-downloads
           path: sentry-native-source.zip
