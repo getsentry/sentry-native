@@ -112,11 +112,11 @@ jobs:
           git clone https://github.com/Ericsson/CodeChecker.git --depth 1
           cd CodeChecker
           BUILD_LOGGER_64_BIT_ONLY=YES make standalone_package
-          echo "::add-path::$PWD/build/CodeChecker/bin"
+          echo "$PWD/build/CodeChecker/bin" >> $GITHUB_PATH
 
       - name: Expose llvm PATH for Mac
         if: ${{ runner.os == 'macOS' }}
-        run: echo "::add-path::/usr/local/opt/llvm/bin/"
+        run: echo "/usr/local/opt/llvm/bin/" >> $GITHUB_PATH
 
       - name: Installing Android SDK Dependencies
         if: ${{ env['ANDROID_API'] }}
