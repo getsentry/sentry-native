@@ -12,6 +12,7 @@
 - The session duration is now printed in a locale-independent way, avoiding invalid session payloads.
 - Correctly clean up locks and pass the Windows Application Verifier.
 - Build fixes for MinGW and better documentation for universal MacOS builds.
+- Crashes captured by the `crashpad` backend _after_ calling `sentry_shutdown` will now have the full metadata.
 
 **Thank you**:
 
