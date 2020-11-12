@@ -160,7 +160,7 @@ jobs:
       - name: Create source archive
         run: |
           rm -rf build .c* .e* .git* scripts Makefile external/breakpad/src/tools external/breakpad/src/processor
-          zip -r sentry-native-source.zip .
+          zip -r sentry-native.zip .
 
       - name: Upload source artifact
         uses: actions/upload-artifact@v2
@@ -168,4 +168,4 @@ jobs:
           name: ${{ github.sha }}
           # When downloading artifacts, they are double-zipped:
           # https://github.com/actions/upload-artifact#zipped-artifact-downloads
-          path: sentry-native-source.zip
+          path: sentry-native.zip
