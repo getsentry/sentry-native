@@ -1,3 +1,9 @@
+#ifdef _WIN32
+#    define WIN32_LEAN_AND_MEAN
+#    define NOMINMAX
+#    define _CRT_SECURE_NO_WARNINGS
+#endif
+
 #include "sentry.h"
 #include <stdbool.h>
 #include <stdio.h>
@@ -5,7 +11,7 @@
 #include <string.h>
 
 #ifdef SENTRY_PLATFORM_WINDOWS
-#    include <windows.h>
+#    include <synchapi.h>
 #    define sleep_s(SECONDS) Sleep((SECONDS)*1000)
 #else
 #    include <unistd.h>

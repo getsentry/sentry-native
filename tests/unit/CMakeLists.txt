@@ -67,6 +67,10 @@ if(MINGW)
 	)
 endif()
 
+if(MSVC)
+	target_compile_options(sentry_test_unit PRIVATE $<BUILD_INTERFACE:/wd5105>)
+endif()
+
 # set static runtime if enabled
 if(SENTRY_BUILD_RUNTIMESTATIC AND MSVC)
 	set_property(TARGET sentry_test_unit PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
