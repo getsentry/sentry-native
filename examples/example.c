@@ -48,6 +48,12 @@ trigger_crash()
     memset((char *)invalid_mem, 1, 100);
 }
 
+static void
+thread_sleep()
+{
+    sleep_s(60);
+}
+
 int
 main(int argc, char **argv)
 {
@@ -147,6 +153,11 @@ main(int argc, char **argv)
                 SENTRY_LEVEL_INFO, NULL, buffer);
             sentry_capture_event(event);
         }
+    }
+
+    for (size_t i = 0; i < 8; i++) {
+        // 10M stacks
+        CreateThread(NULL, 10 * 1024 * 1024, thread_sleep, NULL, 0, NULL);
     }
 
     if (has_arg(argc, argv, "sleep")) {
