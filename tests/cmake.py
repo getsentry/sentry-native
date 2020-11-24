@@ -210,13 +210,7 @@ def cmake(cwd, targets, options=None):
             "compilation.json",
         ]
         print("{} > {}".format(cwd, " ".join(checkcmd)), flush=True)
-        child = subprocess.run(checkcmd, stdout=subprocess.PIPE, cwd=cwd, check=True)
-        sys.stdout.buffer.write(child.stdout)
-        marker = b"Total number of reports: "
-        errors = child.stdout[child.stdout.rfind(marker) + len(marker) :]
-        errors = int(errors[: errors.find(b"\n")])
-        if errors > 0:
-            pytest.fail("code-checker analysis failed")
+        child = subprocess.run(checkcmd, cwd=cwd, check=True)
 
     if os.environ.get("ANDROID_API"):
         # copy the output to the android image via adb
