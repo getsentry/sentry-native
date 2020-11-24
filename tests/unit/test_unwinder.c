@@ -32,7 +32,7 @@ SENTRY_TEST(unwinder)
     size_t frame_count = invoke_unwinder(backtrace);
 
     int found_frame = 0;
-    for (int i = 0; i < frame_count; i++) {
+    for (size_t i = 0; i < frame_count; i++) {
         // symbolize the frame, which also resolves an arbitrary instruction
         // address back to a function, and check if we found our invoker
         sentry__symbolize(backtrace[i], find_frame, &found_frame);
