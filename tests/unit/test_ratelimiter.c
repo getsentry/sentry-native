@@ -8,7 +8,7 @@ SENTRY_TEST(rate_limit_parsing)
     uint64_t now = sentry__monotonic_time();
     sentry_rate_limiter_t *rl = sentry__rate_limiter_new();
     TEST_CHECK(sentry__rate_limiter_update_from_header(rl,
-        "120:error:project, 60:session:foo, 30::bar, "
+        "120:error:project:reason, 60:session:foo, 30::bar, "
         "120:invalid:invalid, "
         "4711:foo;bar;baz;security:project"));
 
