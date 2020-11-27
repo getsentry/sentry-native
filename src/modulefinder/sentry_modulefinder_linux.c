@@ -10,13 +10,16 @@
 #include <elf.h>
 #include <fcntl.h>
 #include <string.h>
-#include <sys/mman.h>
-#include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
 
-#define MAX(a, b) ((a) > (b) ? (a) : (b))
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
+
+#define MAX_MAPPINGS 5
+
+#define ENSURE(Ptr)                                                            \
+    if (!Ptr)                                                                  \
+    goto fail
 
 static bool g_initialized = false;
 static sentry_mutex_t g_mutex = SENTRY__MUTEX_INIT;
@@ -24,11 +27,63 @@ static sentry_value_t g_modules = { 0 };
 
 static sentry_slice_t LINUX_GATE = { "linux-gate.so", 13 };
 
-int
-sentry__procmaps_parse_module_line(const char *line, sentry_module_t *module)
+/**
+ * Checks that `start_offset` + `size` is a valid contiguous mapping in the
+ * mapped regions, and returns the translated pointer corresponding to
+ * `start_offset`.
+ */
+void *
+sentry__module_get_addr(
+    const sentry_module_t *module, uint64_t start_offset, uint64_t size)
 {
-    char permissions[5] = { 0 };
-    uint64_t offset;
+    uint64_t addr = 0;
+    uint64_t addr_end = UINT64_MAX;
+    for (size_t i = 0; i < module->num_mappings; i++) {
+        const sentry_mapped_region_t *mapping = &module->mappings[i];
+        // we have a gap and can’t fit a contiguous range
+        if (addr && addr_end < mapping->addr) {
+            return NULL;
+        }
+        addr_end = mapping->addr + mapping->size;
+        // if the start_offset is inside this mapping, create our addr
+        if (start_offset >= mapping->offset
+            && start_offset < mapping->offset + mapping->size) {
+            addr = start_offset - mapping->offset + mapping->addr;
+        }
+        if (addr && addr + size <= addr_end) {
+            return (void *)(uintptr_t)(addr);
+        }
+    }
+    return NULL;
+}
+
+static void
+sentry__module_mapping_push(
+    sentry_module_t *module, const sentry_parsed_module_t *parsed)
+{
+    size_t size = parsed->end - parsed->start;
+    if (module->num_mappings) {
+        sentry_mapped_region_t *last_mapping
+            = &module->mappings[module->num_mappings - 1];
+        if (last_mapping->addr + last_mapping->size == parsed->start
+            && last_mapping->offset + last_mapping->size == parsed->offset) {
+            last_mapping->size += size;
+            return;
+        }
+    }
+    if (module->num_mappings < MAX_MAPPINGS) {
+        sentry_mapped_region_t *mapping
+            = &module->mappings[module->num_mappings++];
+        mapping->offset = parsed->offset;
+        mapping->size = size;
+        mapping->addr = parsed->start;
+    }
+}
+
+int
+sentry__procmaps_parse_module_line(
+    const char *line, sentry_parsed_module_t *module)
+{
     uint8_t major_device;
     uint8_t minor_device;
     uint64_t inode;
@@ -37,10 +92,9 @@ sentry__procmaps_parse_module_line(const char *line, sentry_module_t *module)
     // this has been copied from the breakpad source:
     // https://github.com/google/breakpad/blob/13c1568702e8804bc3ebcfbb435a2786a3e335cf/src/processor/proc_maps_linux.cc#L66
     if (sscanf(line,
-            "%" SCNxPTR "-%" SCNxPTR " %4c %" SCNx64 " %hhx:%hhx %" SCNu64
-            " %n",
-            (uintptr_t *)&module->start, (uintptr_t *)&module->end, permissions,
-            &offset, &major_device, &minor_device, &inode, &consumed)
+            "%" SCNx64 "-%" SCNx64 " %4c %" SCNx64 " %hhx:%hhx %" SCNu64 " %n",
+            &module->start, &module->end, &module->permissions[0],
+            &module->offset, &major_device, &minor_device, &inode, &consumed)
         < 7) {
         return 0;
     }
@@ -66,53 +120,6 @@ sentry__procmaps_parse_module_line(const char *line, sentry_module_t *module)
     return consumed;
 }
 
-bool
-sentry__mmap_file(sentry_mmap_t *rv, const char *path)
-{
-    rv->fd = open(path, O_RDONLY);
-    if (rv->fd < 0) {
-        goto fail;
-    }
-
-    struct stat sb;
-    if (stat(path, &sb) != 0 || !S_ISREG(sb.st_mode)) {
-        goto fail;
-    }
-
-    rv->len = sb.st_size;
-    if (rv->len == 0) {
-        goto fail;
-    }
-
-    rv->ptr = mmap(NULL, rv->len, PROT_READ, MAP_PRIVATE, rv->fd, 0);
-    if (rv->ptr == MAP_FAILED) {
-        goto fail;
-    }
-
-    return true;
-
-fail:
-    if (rv->fd > 0) {
-        close(rv->fd);
-    }
-    rv->fd = 0;
-    rv->ptr = NULL;
-    rv->len = 0;
-    return false;
-
-    return rv;
-}
-
-void
-sentry__mmap_close(sentry_mmap_t *m)
-{
-    munmap(m->ptr, m->len);
-    close(m->fd);
-    m->ptr = NULL;
-    m->len = 0;
-    m->fd = 0;
-}
-
 void
 align(size_t alignment, void **offset)
 {
@@ -135,7 +142,7 @@ get_code_id_from_notes(
 
     const uint8_t *offset = start;
     while (offset < (const uint8_t *)end) {
-        // The note header size is independant of the architecture, so we just
+        // The note header size is independent of the architecture, so we just
         // use the `Elf64_Nhdr` variant.
         const Elf64_Nhdr *note = (const Elf64_Nhdr *)offset;
         // the headers are consecutive, and the optional `name` and `desc` are
@@ -155,105 +162,135 @@ get_code_id_from_notes(
 }
 
 static bool
-is_elf_module(void *addr)
+is_elf_module(const sentry_module_t *module)
 {
     // we try to interpret `addr` as an ELF file, which should start with a
     // magic number...
-    const unsigned char *e_ident = addr;
+    const unsigned char *e_ident
+        = sentry__module_get_addr(module, 0, EI_NIDENT);
+    if (!e_ident) {
+        return false;
+    }
     return e_ident[EI_MAG0] == ELFMAG0 && e_ident[EI_MAG1] == ELFMAG1
         && e_ident[EI_MAG2] == ELFMAG2 && e_ident[EI_MAG3] == ELFMAG3;
 }
 
 static const uint8_t *
-get_code_id_from_elf(void *base, size_t *size_out)
+get_code_id_from_elf(const sentry_module_t *module, size_t *size_out)
 {
     *size_out = 0;
 
-    // now this is interesting:
-    // `p_offset` is defined as the offset of the section relative to the file,
-    // and `p_vaddr` is supposed to be the memory location.
-    // interestingly though, when compiled with gcc 7.4, both are the same,
-    // because apparently it does not really patch up the `p_vaddr`. gcc 5.4
-    // however does, so `p_vaddr` is an actual pointer, and not an offset to
-    // be added to the `base`. So we are using `p_offset` here, since it seems
-    // to be the correct offset relative to `base` using both compilers.
-    const uint8_t *addr = base;
-
     // iterate over all the program headers, for 32/64 bit separately
-    const unsigned char *e_ident = addr;
+    const unsigned char *e_ident
+        = sentry__module_get_addr(module, 0, EI_NIDENT);
+    ENSURE(e_ident);
     if (e_ident[EI_CLASS] == ELFCLASS64) {
-        const Elf64_Ehdr *elf = base;
+        const Elf64_Ehdr *elf
+            = sentry__module_get_addr(module, 0, sizeof(Elf64_Ehdr));
+        ENSURE(elf);
         for (int i = 0; i < elf->e_phnum; i++) {
-            const Elf64_Phdr *header = (const Elf64_Phdr *)(addr + elf->e_phoff
-                + elf->e_phentsize * i);
+            const Elf64_Phdr *header = sentry__module_get_addr(
+                module, elf->e_phoff + elf->e_phentsize * i, elf->e_phentsize);
+            ENSURE(header);
+
             // we are only interested in notes
             if (header->p_type != PT_NOTE) {
                 continue;
             }
+            void *segment_addr = sentry__module_get_addr(
+                module, header->p_offset, header->p_filesz);
+            ENSURE(segment_addr);
             const uint8_t *code_id = get_code_id_from_notes(header->p_align,
-                (void *)(addr + header->p_offset),
-                (void *)(addr + header->p_offset + header->p_memsz), size_out);
+                segment_addr,
+                (void *)((uintptr_t)segment_addr + header->p_filesz), size_out);
             if (code_id) {
                 return code_id;
             }
         }
     } else {
-        const Elf32_Ehdr *elf = base;
+        const Elf32_Ehdr *elf
+            = sentry__module_get_addr(module, 0, sizeof(Elf32_Ehdr));
+        ENSURE(elf);
+
         for (int i = 0; i < elf->e_phnum; i++) {
-            const Elf32_Phdr *header = (const Elf32_Phdr *)(addr + elf->e_phoff
-                + elf->e_phentsize * i);
+            const Elf32_Phdr *header = sentry__module_get_addr(
+                module, elf->e_phoff + elf->e_phentsize * i, elf->e_phentsize);
+            ENSURE(header);
             // we are only interested in notes
             if (header->p_type != PT_NOTE) {
                 continue;
             }
+            void *segment_addr = sentry__module_get_addr(
+                module, header->p_offset, header->p_filesz);
+            ENSURE(segment_addr);
             const uint8_t *code_id = get_code_id_from_notes(header->p_align,
-                (void *)(addr + header->p_offset),
-                (void *)(addr + header->p_offset + header->p_memsz), size_out);
+                segment_addr,
+                (void *)((uintptr_t)segment_addr + header->p_filesz), size_out);
             if (code_id) {
                 return code_id;
             }
         }
     }
+fail:
     return NULL;
 }
 
 static sentry_uuid_t
-get_code_id_from_text_fallback(void *base)
+get_code_id_from_text_fallback(const sentry_module_t *module)
 {
     const uint8_t *text = NULL;
     size_t text_size = 0;
 
-    const uint8_t *addr = base;
     // iterate over all the program headers, for 32/64 bit separately
-    const unsigned char *e_ident = addr;
+    const unsigned char *e_ident
+        = sentry__module_get_addr(module, 0, EI_NIDENT);
+    ENSURE(e_ident);
     if (e_ident[EI_CLASS] == ELFCLASS64) {
-        const Elf64_Ehdr *elf = base;
-        const Elf64_Shdr *strheader = (const Elf64_Shdr *)(addr + elf->e_shoff
-            + elf->e_shentsize * elf->e_shstrndx);
+        const Elf64_Ehdr *elf
+            = sentry__module_get_addr(module, 0, sizeof(Elf64_Ehdr));
+        ENSURE(elf);
+        const Elf64_Shdr *strheader = sentry__module_get_addr(module,
+            elf->e_shoff + elf->e_shentsize * elf->e_shstrndx,
+            elf->e_shentsize);
+        ENSURE(strheader);
 
-        const char *names = (const char *)(addr + strheader->sh_offset);
+        const char *names = sentry__module_get_addr(
+            module, strheader->sh_offset, strheader->sh_entsize);
+        ENSURE(names);
         for (int i = 0; i < elf->e_shnum; i++) {
-            const Elf64_Shdr *header = (const Elf64_Shdr *)(addr + elf->e_shoff
-                + elf->e_shentsize * i);
+            const Elf64_Shdr *header = sentry__module_get_addr(
+                module, elf->e_shoff + elf->e_shentsize * i, elf->e_shentsize);
+            ENSURE(header);
             const char *name = names + header->sh_name;
             if (header->sh_type == SHT_PROGBITS && strcmp(name, ".text") == 0) {
-                text = addr + header->sh_offset;
+                text = sentry__module_get_addr(
+                    module, header->sh_offset, header->sh_size);
+                ENSURE(text);
                 text_size = header->sh_size;
                 break;
             }
         }
     } else {
-        const Elf32_Ehdr *elf = base;
-        const Elf32_Shdr *strheader = (const Elf32_Shdr *)(addr + elf->e_shoff
-            + elf->e_shentsize * elf->e_shstrndx);
+        const Elf32_Ehdr *elf
+            = sentry__module_get_addr(module, 0, sizeof(Elf64_Ehdr));
+        ENSURE(elf);
+        const Elf32_Shdr *strheader = sentry__module_get_addr(module,
+            elf->e_shoff + elf->e_shentsize * elf->e_shstrndx,
+            elf->e_shentsize);
+        ENSURE(strheader);
 
-        const char *names = (const char *)(addr + strheader->sh_offset);
+        const char *names = sentry__module_get_addr(
+            module, strheader->sh_offset, strheader->sh_entsize);
+        ENSURE(names);
         for (int i = 0; i < elf->e_shnum; i++) {
-            const Elf32_Shdr *header = (const Elf32_Shdr *)(addr + elf->e_shoff
-                + elf->e_shentsize * i);
+            const Elf32_Shdr *header = sentry__module_get_addr(
+                module, elf->e_shoff + elf->e_shentsize * i, elf->e_shentsize);
+            ENSURE(header);
             const char *name = names + header->sh_name;
             if (header->sh_type == SHT_PROGBITS && strcmp(name, ".text") == 0) {
-                text = addr + header->sh_offset;
+                text = sentry__module_get_addr(
+                    module, header->sh_offset, header->sh_size);
+                ENSURE(text);
                 text_size = header->sh_size;
                 break;
             }
@@ -270,15 +307,18 @@ get_code_id_from_text_fallback(void *base)
     }
 
     return uuid;
+fail:
+    return sentry_uuid_nil();
 }
 
 bool
-sentry__procmaps_read_ids_from_elf(sentry_value_t value, void *elf_ptr)
+sentry__procmaps_read_ids_from_elf(
+    sentry_value_t value, const sentry_module_t *module)
 {
     // and try to get the debug id from the elf headers of the loaded
     // modules
     size_t code_id_size;
-    const uint8_t *code_id = get_code_id_from_elf(elf_ptr, &code_id_size);
+    const uint8_t *code_id = get_code_id_from_elf(module, &code_id_size);
     sentry_uuid_t uuid = sentry_uuid_nil();
     if (code_id) {
         sentry_value_set_by_key(value, "code_id",
@@ -286,13 +326,13 @@ sentry__procmaps_read_ids_from_elf(sentry_value_t value, void *elf_ptr)
 
         memcpy(uuid.bytes, code_id, MIN(code_id_size, 16));
     } else {
-        uuid = get_code_id_from_text_fallback(elf_ptr);
+        uuid = get_code_id_from_text_fallback(module);
     }
 
     // the usage of these is described here:
     // https://getsentry.github.io/symbolicator/advanced/symbol-server-compatibility/#identifiers
-    // in particular, the debug_id is a `little-endian GUID`, so we
-    // have to do appropriate byte-flipping
+    // in particular, the debug_id is a `little-endian GUID`, so we have to do
+    // appropriate byte-flipping
     char *uuid_bytes = uuid.bytes;
     uint32_t *a = (uint32_t *)uuid_bytes;
     *a = htonl(*a);
@@ -308,53 +348,24 @@ sentry__procmaps_read_ids_from_elf(sentry_value_t value, void *elf_ptr)
 sentry_value_t
 sentry__procmaps_module_to_value(const sentry_module_t *module)
 {
+    if (!is_elf_module(module)) {
+        return sentry_value_new_null();
+    }
     sentry_value_t mod_val = sentry_value_new_object();
     sentry_value_set_by_key(mod_val, "type", sentry_value_new_string("elf"));
+
     sentry_value_set_by_key(mod_val, "image_addr",
-        sentry__value_new_addr((uint64_t)(size_t)module->start));
+        sentry__value_new_addr(module->mappings[0].addr));
+    const sentry_mapped_region_t *last_mapping
+        = &module->mappings[module->num_mappings - 1];
     sentry_value_set_by_key(mod_val, "image_size",
-        sentry_value_new_int32(
-            (int32_t)((size_t)module->end - (size_t)module->start)));
+        sentry_value_new_int32(last_mapping->offset + last_mapping->size));
     sentry_value_set_by_key(mod_val, "code_file",
         sentry__value_new_string_owned(sentry__slice_to_owned(module->file)));
 
-    // At least on the android API-16, x86 simulator, the linker apparently
-    // does not load the complete file into memory. Or at least, the section
-    // headers which are located at the end of the file are not loaded, and
-    // we would be poking into invalid memory. To be safe, we mmap the complete
-    // file from disk, so we have the on-disk layout, and are independent of how
-    // the runtime linker would load or re-order any sections. The exception
-    // here is the linux-gate, which is not an actual file on disk, so we
-    // actually poke at its memory.
-    if (sentry__slice_eq(module->file, LINUX_GATE)) {
-        if (!is_elf_module(module->start)) {
-            goto fail;
-        }
-        sentry__procmaps_read_ids_from_elf(mod_val, module->start);
-    } else {
-        char *filename = sentry__slice_to_owned(module->file);
-        sentry_mmap_t mm;
-        if (!sentry__mmap_file(&mm, filename)) {
-            sentry_free(filename);
-            goto fail;
-        }
-        sentry_free(filename);
-
-        if (!is_elf_module(mm.ptr)) {
-            sentry__mmap_close(&mm);
-            goto fail;
-        }
-
-        sentry__procmaps_read_ids_from_elf(mod_val, mm.ptr);
-
-        sentry__mmap_close(&mm);
-    }
+    sentry__procmaps_read_ids_from_elf(mod_val, module);
 
     return mod_val;
-
-fail:
-    sentry_value_decref(mod_val);
-    return sentry_value_new_null();
 }
 
 static void
@@ -364,8 +375,6 @@ try_append_module(sentry_value_t modules, const sentry_module_t *module)
         return;
     }
 
-    SENTRY_TRACEF(
-        "inspecting module \"%.*s\"", (int)module->file.len, module->file.ptr);
     sentry_value_t mod_val = sentry__procmaps_module_to_value(module);
     if (!sentry_value_is_null(mod_val)) {
         sentry_value_append(modules, mod_val);
@@ -383,7 +392,7 @@ typedef Elf64_auxv_t elf_aux_entry;
 #endif
 
 // See http://man7.org/linux/man-pages/man7/vdso.7.html
-static void *
+static uint64_t
 get_linux_vdso(void)
 {
     // this is adapted from:
@@ -400,11 +409,11 @@ get_linux_vdso(void)
         && one_aux_entry.a_type != AT_NULL) {
         if (one_aux_entry.a_type == AT_SYSINFO_EHDR) {
             close(fd);
-            return (void *)one_aux_entry.a_un.a_val;
+            return (uint64_t)one_aux_entry.a_un.a_val;
         }
     }
     close(fd);
-    return NULL;
+    return 0;
 }
 
 static void
@@ -440,13 +449,13 @@ load_modules(sentry_value_t modules)
     }
     char *current_line = contents;
 
-    void *linux_vdso = get_linux_vdso();
+    uint64_t linux_vdso = get_linux_vdso();
 
     // we have multiple memory maps per file, and we need to merge their offsets
     // based on the filename. Luckily, the maps are ordered by filename, so yay
-    sentry_module_t last_module = { (void *)-1, 0, { NULL, 0 } };
+    sentry_module_t last_module = { 0 };
     while (true) {
-        sentry_module_t module = { 0, 0, { NULL, 0 } };
+        sentry_parsed_module_t module = { 0 };
         int read = sentry__procmaps_parse_module_line(current_line, &module);
         current_line += read;
         if (!read) {
@@ -462,6 +471,7 @@ load_modules(sentry_value_t modules)
         if (module.start && module.start == linux_vdso) {
             module.file = LINUX_GATE;
         } else if (!module.start || !module.file.len
+            || module.permissions[0] != 'r'
             || module.file.ptr[module.file.len - 1] == ')'
             || (slash = strchr(module.file.ptr, '/')) == NULL
             || slash > module.file.ptr + module.file.len
@@ -473,13 +483,11 @@ load_modules(sentry_value_t modules)
         if (last_module.file.len
             && !sentry__slice_eq(last_module.file, module.file)) {
             try_append_module(modules, &last_module);
-            last_module = module;
-        } else {
-            // otherwise merge it
-            last_module.start = MIN(last_module.start, module.start);
-            last_module.end = MAX(last_module.end, module.end);
-            last_module.file = module.file;
+
+            memset(&last_module, 0, sizeof(sentry_module_t));
         }
+        last_module.file = module.file;
+        sentry__module_mapping_push(&last_module, &module);
     }
     try_append_module(modules, &last_module);
     sentry_free(contents);
