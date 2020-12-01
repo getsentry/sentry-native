@@ -1,5 +1,6 @@
 #include "sentry_scope.h"
 #include "sentry_alloc.h"
+#include "sentry_attachment.h"
 #include "sentry_backend.h"
 #include "sentry_core.h"
 #include "sentry_database.h"
@@ -77,6 +78,7 @@ init_scope(sentry_scope_t *scope)
     scope->breadcrumbs = sentry_value_new_list();
     scope->level = SENTRY_LEVEL_ERROR;
     scope->client_sdk = sentry_value_new_null();
+    scope->attachments = NULL;
     scope->transaction_object = NULL;
     scope->span = NULL;
 }
@@ -109,6 +111,7 @@ cleanup_scope(sentry_scope_t *scope)
     sentry_value_decref(scope->propagation_context);
     sentry_value_decref(scope->breadcrumbs);
     sentry_value_decref(scope->client_sdk);
+    sentry__attachments_free(scope->attachments);
     sentry__transaction_decref(scope->transaction_object);
     sentry__span_decref(scope->span);
 }
