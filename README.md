@@ -363,6 +363,8 @@ Other important configuration options include:
   But since this process bypasses SEH, the application local exception handler is no longer invoked, which
   also means that for these kinds of crashes, `before_send` and `on_crash` will not be invoked before
   sending the minidump and thus have no effect.
+- When using the crashpad backend, the list of attachments that will be sent
+  along with crashes is frozen at the time of `sentry_init`.
 
 ## Benchmarks
 

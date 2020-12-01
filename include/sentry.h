@@ -13,6 +13,17 @@
  * encoding, typically ANSI on Windows, UTF-8 macOS, and the locale encoding on
  * Linux; and they provide wchar-compatible alternatives on Windows which are
  * preferred.
+ *
+ * NOTE on attachments:
+ *
+ * Attachments are read lazily at the time of `sentry_capture_event` or at time
+ * of a hard crash. Relative attachment paths will be resolved according to the
+ * current working directory at the time of envelope creation.
+ * When adding and removing attachments, they are matched according to their
+ * given `path`. No normalization is performed.
+ * When using the `crashpad` backend, the list of attachments that will be added
+ * at the time of a hard crash will be frozen at the time of `sentry_init`, and
+ * later modifications will not be reflected.
  */
 
 #ifndef SENTRY_H_INCLUDED
@@ -1215,6 +1226,8 @@ SENTRY_API int sentry_options_get_symbolize_stacktraces(
  * `path` is assumed to be in platform-specific filesystem path encoding.
  * API Users on windows are encouraged to use `sentry_options_add_attachmentw`
  * instead.
+ *
+ * See the NOTE on attachments above for restrictions of this API.
  */
 SENTRY_API void sentry_options_add_attachment(
     sentry_options_t *opts, const char *path);
@@ -1770,6 +1783,39 @@ SENTRY_EXPERIMENTAL_API void sentry_options_set_handler_strategy(
     sentry_options_t *opts, sentry_handler_strategy_t handler_strategy);
 
 #endif // SENTRY_PLATFORM_LINUX
+
+/**
+ * Adds a new attachment to be sent along.
+ *
+ * `path` is assumed to be in platform-specific filesystem path encoding.
+ * API Users on windows are encouraged to use `sentry_add_attachmentw` instead.
+ *
+ * See the NOTE on attachments above for restrictions of this API.
+ */
+SENTRY_API void sentry_add_attachment(const char *path);
+
+/**
+ * Removes a previously added attachment.
+ *
+ * `path` is assumed to be in platform-specific filesystem path encoding.
+ * API Users on windows are encouraged to use `sentry_remove_attachmentw`
+ * instead.
+ *
+ * See the NOTE on attachments above for restrictions of this API.
+ */
+SENTRY_API void sentry_remove_attachment(const char *path);
+
+#ifdef SENTRY_PLATFORM_WINDOWS
+/**
+ * Wide char version of `sentry_add_attachment`.
+ */
+SENTRY_API void sentry_add_attachmentw(const wchar_t *path);
+
+/**
+ * Wide char version of `sentry_remove_attachment`.
+ */
+SENTRY_API void sentry_remove_attachmentw(const wchar_t *path);
+#endif
 
 /* -- Session APIs -- */
 
