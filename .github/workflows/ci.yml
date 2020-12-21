@@ -108,8 +108,7 @@ jobs:
       - name: Installing CodeChecker
         if: ${{ contains(env['RUN_ANALYZER'], 'code-checker') }}
         run: |
-          sudo apt install clang-tidy curl doxygen gcc-multilib python3-dev python3-virtualenv
-          sudo apt-get build-dep python3-lxml
+          sudo apt install clang-tidy curl doxygen gcc-multilib libxml2-dev libxslt1-dev python3-dev python3-virtualenv
           git clone https://github.com/Ericsson/CodeChecker.git --depth 1 --branch v6.15.0
           cd CodeChecker
           BUILD_LOGGER_64_BIT_ONLY=YES make standalone_package
