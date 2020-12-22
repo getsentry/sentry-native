@@ -145,13 +145,12 @@ def cmake(cwd, targets, options=None):
         cflags.append("-fanalyzer")
     if "llvm-cov" in os.environ.get("RUN_ANALYZER", ""):
         cflags.append("-fprofile-instr-generate -fcoverage-mapping")
-    cflags = " ".join(cflags)
-    configcmd.append("-DCMAKE_C_FLAGS={}".format(cflags))
-    configcmd.append("-DCMAKE_CXX_FLAGS={}".format(cflags))
+    env = dict(os.environ)
+    env["CFLAGS"] = env["CXXFLAGS"] = " ".join(cflags)
 
     print("\n{} > {}".format(cwd, " ".join(configcmd)), flush=True)
     try:
-        subprocess.run(configcmd, cwd=cwd, check=True)
+        subprocess.run(configcmd, cwd=cwd, env=env, check=True)
     except subprocess.CalledProcessError:
         raise pytest.fail.Exception("cmake configure failed") from None
 
