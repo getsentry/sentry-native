@@ -489,7 +489,7 @@ sentry__path_read_to_buffer(const sentry_path_t *path, size_t *size_out)
 
     size_t remaining = len;
     size_t offset = 0;
-    while (true) {
+    while (remaining > 0) {
         size_t n = fread(rv + offset, 1, remaining, f);
         if (n == 0) {
             break;
