@@ -145,8 +145,9 @@ def cmake(cwd, targets, options=None):
         cflags.append("-fanalyzer")
     if "llvm-cov" in os.environ.get("RUN_ANALYZER", ""):
         cflags.append("-fprofile-instr-generate -fcoverage-mapping")
-    configcmd.append('-DCMAKE_CFLAGS="{}"'.format(cflags))
-    configcmd.append('-DCMAKE_CXXFLAGS="{}"'.format(cflags))
+    cflags = " ".join(cflags)
+    configcmd.append("-DCMAKE_C_FLAGS={}".format(cflags))
+    configcmd.append("-DCMAKE_CXX_FLAGS={}".format(cflags))
 
     print("\n{} > {}".format(cwd, " ".join(configcmd)), flush=True)
     try:
