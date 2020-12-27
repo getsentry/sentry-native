@@ -47,8 +47,10 @@ option(SENTRY_BUILD_EXAMPLES "Build sentry-native example(s)" "${SENTRY_MAIN_PRO
 
 if(MSVC)
 	option(SENTRY_BUILD_RUNTIMESTATIC "Build sentry-native with static runtime" OFF)
+	# By default Release builds don't create debug files:
+	set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /Zi")
+	set(CMAKE_SHARED_LINKER_FLAGS_RELEASE "${CMAKE_SHARED_LINKER_FLAGS_RELEASE} /DEBUG /OPT:REF /OPT:ICF")
 endif()
-
 if(LINUX)
 	option(SENTRY_BUILD_FORCE32 "Force a 32bit compile on a 64bit host" OFF)
 	if(SENTRY_BUILD_FORCE32)
