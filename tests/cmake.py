@@ -130,8 +130,6 @@ def cmake(cwd, targets, options=None):
     if "asan" in os.environ.get("RUN_ANALYZER", ""):
         configcmd.append("-DWITH_ASAN_OPTION=ON")
 
-    configcmd.append(source_dir)
-
     # we have to set `-Werror` for this cmake invocation only, otherwise
     # completely unrelated things will break
     cflags = []
@@ -144,9 +142,13 @@ def cmake(cwd, targets, options=None):
     if "gcc" in os.environ.get("RUN_ANALYZER", ""):
         cflags.append("-fanalyzer")
     if "llvm-cov" in os.environ.get("RUN_ANALYZER", ""):
-        cflags.append("-fprofile-instr-generate -fcoverage-mapping")
+        flags = "-fprofile-instr-generate -fcoverage-mapping"
+        configcmd.append("-DCMAKE_C_FLAGS='{}'".format(flags))
+        configcmd.append("-DCMAKE_CXX_FLAGS='{}'".format(flags))
     env = dict(os.environ)
     env["CFLAGS"] = env["CXXFLAGS"] = " ".join(cflags)
+
+    configcmd.append(source_dir)
 
     print("\n{} > {}".format(cwd, " ".join(configcmd)), flush=True)
     try:

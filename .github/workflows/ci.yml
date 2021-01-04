@@ -33,16 +33,16 @@ jobs:
             # The GCC analyzer 10.0.1 (as on CI) has an internal compiler error
             # currently, and is not stable enough to activate.
             # RUN_ANALYZER: gcc
-          - name: Linux (clang 10 + asan + llvm-cov)
+          - name: Linux (clang 11 + asan + llvm-cov)
             os: ubuntu-20.04
-            CC: clang-10
-            CXX: clang++-10
+            CC: clang-11
+            CXX: clang++-11
             ERROR_ON_WARNINGS: 1
             RUN_ANALYZER: asan,llvm-cov
-          - name: Linux (clang 10 + kcov)
+          - name: Linux (clang 11 + kcov)
             os: ubuntu-20.04
-            CC: clang-10
-            CXX: clang++-10
+            CC: clang-11
+            CXX: clang++-11
             ERROR_ON_WARNINGS: 1
             RUN_ANALYZER: kcov
           - name: Linux (code-checker + valgrind)
@@ -51,7 +51,7 @@ jobs:
           - name: macOS (xcode llvm)
             os: macOs-latest
             ERROR_ON_WARNINGS: 1
-          - name: macOS (clang 10 + asan + llvm-cov)
+          - name: macOS (clang 11 + asan + llvm-cov)
             os: macOs-latest
             CC: clang
             CXX: clang++
@@ -94,9 +94,9 @@ jobs:
         # workaround: https://github.com/actions/virtual-environments/issues/1536#issuecomment-698537248
         run: |
           wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key 2>/dev/null | sudo apt-key add -
-          sudo add-apt-repository 'deb http://apt.llvm.org/focal llvm-toolchain-focal-10 main' -y
+          sudo add-apt-repository 'deb http://apt.llvm.org/focal/ llvm-toolchain-focal-11 main' -y
           sudo apt update
-          sudo apt install cmake clang-10 clang-tools llvm kcov g++-10 valgrind zlib1g-dev libcurl4-openssl-dev
+          sudo apt install cmake clang-11 clang-tools llvm kcov g++-10 valgrind zlib1g-dev libcurl4-openssl-dev
 
       - name: Installing Linux 32-bit Dependencies
         if: ${{ runner.os == 'Linux' && env['TEST_X86'] }}
