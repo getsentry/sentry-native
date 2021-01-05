@@ -210,6 +210,25 @@ sentry_shutdown(void)
     return (int)dumped_envelopes;
 }
 
+int
+sentry_reinstall_backend(void)
+{
+    int rv = 0;
+    SENTRY_WITH_OPTIONS (options) {
+        sentry_backend_t *backend = options->backend;
+        if (backend && backend->shutdown_func) {
+            backend->shutdown_func(backend);
+        }
+
+        if (backend && backend->startup_func) {
+            if (backend->startup_func(backend, options)) {
+                rv = 1;
+            }
+        }
+    }
+    return rv;
+}
+
 static void
 set_user_consent(sentry_user_consent_t new_val)
 {
