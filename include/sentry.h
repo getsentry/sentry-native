@@ -948,11 +948,12 @@ SENTRY_EXPERIMENTAL_API void sentry_clear_modulecache(void);
  * Re-initializes the Sentry backend.
  *
  * This is needed if a third-party library overrides the previously installed
- * signal handler, and reinstalls the Sentry handler.
+ * signal handler. Calling this function can be potentially dangerous and should
+ * only be done when necessary.
  *
  * Returns 0 on success.
  */
-SENTRY_EXPERIMENTAL_API int sentry_reset_backend(void);
+SENTRY_EXPERIMENTAL_API int sentry_reinstall_backend(void);
 
 /**
  * Gives user consent.

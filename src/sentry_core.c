@@ -211,7 +211,7 @@ sentry_shutdown(void)
 }
 
 int
-sentry_reset_backend(void)
+sentry_reinstall_backend(void)
 {
     int rv = 0;
     SENTRY_WITH_OPTIONS (options) {
