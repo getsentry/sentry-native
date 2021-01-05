@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- The Breakpad backend is now supported on macOS, although the crashpad backend is recommended on that platform.
+- Added a new `sentry_reinstall_backend` function which can be used in case a third-party library is overriding the signal/exception handler.
+
+**Fixes**:
+
+- Install `.pdb` files correctly.
+- Improve macOS runtime version detection.
+
+**Thank you**:
+
+Features, fixes and improvements in this release have been contributed by:
+
+- [@Mixaill](https://github.com/Mixaill)
+- [@eakoli](https://github.com/eakoli)
+- [@GenuineAster](https://github.com/GenuineAster)
+
 ## 0.4.4
 
 **Features**:
