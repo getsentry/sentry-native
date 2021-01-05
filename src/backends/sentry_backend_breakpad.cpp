@@ -9,6 +9,7 @@ extern "C" {
 #include "sentry_options.h"
 #include "sentry_path.h"
 #include "sentry_string.h"
+#include "sentry_sync.h"
 #include "sentry_transport.h"
 #include "sentry_unix_pageallocator.h"
 #include "transports/sentry_disk_transport.h"
@@ -22,17 +23,11 @@ extern "C" {
 
 #ifdef SENTRY_PLATFORM_WINDOWS
 #    include "client/windows/handler/exception_handler.h"
-#elif defined SENTRY_PLATFORM_DARWIN
+#elif defined(SENTRY_PLATFORM_DARWIN)
 #    include "client/mac/handler/exception_handler.h"
 #    include <sys/sysctl.h>
 #else
 #    include "client/linux/handler/exception_handler.h"
-#endif
-
-#ifdef SENTRY_PLATFORM_UNIX
-extern "C" {
-#include "sentry_sync.h"
-}
 #endif
 
 #ifdef __GNUC__
@@ -48,8 +43,7 @@ sentry__breakpad_backend_callback(const wchar_t *breakpad_dump_path,
 #elif defined SENTRY_PLATFORM_DARWIN
 static bool
 sentry__breakpad_backend_callback(const char *breakpad_dump_path,
-    const char *minidump_id, void *UNUSED(context),
-    bool succeeded)
+    const char *minidump_id, void *UNUSED(context), bool succeeded)
 #else
 static bool
 sentry__breakpad_backend_callback(
@@ -85,7 +79,7 @@ sentry__breakpad_backend_callback(
     tmp_path = dump_path;
     dump_path = sentry__path_append_str(tmp_path, ".dmp");
     sentry__path_free(tmp_path);
-#elif defined SENTRY_PLATFORM_DARWIN
+#elif defined(SENTRY_PLATFORM_DARWIN)
     sentry_path_t *tmp_path = sentry__path_new(breakpad_dump_path);
     dump_path = sentry__path_join_str(tmp_path, minidump_id);
     sentry__path_free(tmp_path);
@@ -149,39 +143,37 @@ sentry__breakpad_backend_callback(
     return succeeded;
 }
 
-#if defined SENTRY_PLATFORM_DARWIN
+#ifdef SENTRY_PLATFORM_DARWIN
+/**
+ * Returns true if the current process is being debugged (either running under
+ * the debugger or has a debugger attached post facto).
+ */
 static bool
 IsDebuggerActive()
-// Returns true if the current process is being debugged (either
-// running under the debugger or has a debugger attached post facto).
 {
-    int                 junk;
-    int                 mib[4];
-    struct kinfo_proc   info;
-    size_t              size;
-    
+    int junk;
+    int mib[4];
+    struct kinfo_proc info;
+    size_t size;
+
     // Initialize the flags so that, if sysctl fails for some bizarre
     // reason, we get a predictable result.
-    
     info.kp_proc.p_flag = 0;
-    
+
     // Initialize mib, which tells sysctl the info we want, in this case
     // we're looking for information about a specific process ID.
-    
     mib[0] = CTL_KERN;
     mib[1] = KERN_PROC;
     mib[2] = KERN_PROC_PID;
     mib[3] = getpid();
-    
+
     // Call sysctl.
-    
     size = sizeof(info);
     junk = sysctl(mib, sizeof(mib) / sizeof(*mib), &info, &size, NULL, 0);
     assert(junk == 0);
-    
+
     // We're being debugged if the P_TRACED flag is set.
-    
-    return ( (info.kp_proc.p_flag & P_TRACED) != 0 );
+    return ((info.kp_proc.p_flag & P_TRACED) != 0);
 }
 #endif
 
@@ -195,10 +187,12 @@ sentry__breakpad_backend_startup(
     backend->data = new google_breakpad::ExceptionHandler(
         current_run_folder->path, NULL, sentry__breakpad_backend_callback, NULL,
         google_breakpad::ExceptionHandler::HANDLER_EXCEPTION);
-#elif defined SENTRY_PLATFORM_DARWIN
-    // If process is being debugged and there are breakpoints set it will cause task_set_exception_ports to crash the whole process and debugger
-    backend->data = new google_breakpad::ExceptionHandler(
-        current_run_folder->path, NULL, sentry__breakpad_backend_callback, NULL, ! IsDebuggerActive(), NULL);
+#elif defined(SENTRY_PLATFORM_DARWIN)
+    // If process is being debugged and there are breakpoints set it will cause
+    // task_set_exception_ports to crash the whole process and debugger
+    backend->data
+        = new google_breakpad::ExceptionHandler(current_run_folder->path, NULL,
+            sentry__breakpad_backend_callback, NULL, !IsDebuggerActive(), NULL);
 #else
     google_breakpad::MinidumpDescriptor descriptor(current_run_folder->path);
     backend->data = new google_breakpad::ExceptionHandler(
@@ -227,9 +221,11 @@ sentry__breakpad_backend_except(
     eh->WriteMinidumpForException(
         const_cast<EXCEPTION_POINTERS *>(&context->exception_ptrs));
 #elif defined SENTRY_PLATFORM_DARWIN
+    (void)context;
     eh->WriteMinidump(true);
-    // currently private
-    //eh->SignalHandler(context->signum, context->siginfo, context->user_context);
+    // currently private:
+    // eh->SignalHandler(context->signum, context->siginfo,
+    // context->user_context);
 #else
     eh->HandleSignal(context->signum, context->siginfo, context->user_context);
 #endif

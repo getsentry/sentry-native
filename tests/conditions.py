@@ -9,11 +9,7 @@ is_valgrind = "valgrind" in os.environ.get("RUN_ANALYZER", "")
 
 has_http = not is_android and not (sys.platform == "linux" and is_x86)
 # breakpad does not work correctly when using kcov or valgrind
-has_breakpad = (
-    not is_valgrind
-    and not is_kcov
-    and (sys.platform == "linux" or sys.platform == "win32" or sys.platform == "darwin")
-)
+has_breakpad = not is_valgrind and not is_kcov and not is_android
 # crashpad requires http, and doesn’t work with kcov/valgrind either
 has_crashpad = has_http and not is_valgrind and not is_kcov and not is_android
 # android has no local filesystem
