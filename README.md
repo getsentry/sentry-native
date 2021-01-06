@@ -231,6 +231,9 @@ using `cmake -D BUILD_SHARED_LIBS=OFF ..`.
   - **none**: This builds `sentry-native` without a backend, so it does not handle
     crashes at all. It is primarily used for tests.
 
+- `SENTRY_INTEGRATION_QT` (Default: OFF):
+  Builds the Qt integration, which turns Qt log messages into breadcrumbs.
+
 - `SENTRY_BREAKPAD_SYSTEM` / `SENTRY_CRASHPAD_SYSTEM` (Default: OFF):
   This instructs the build system to use system-installed breakpad or crashpad
   libraries instead of using the in-tree version. This is generally not recommended

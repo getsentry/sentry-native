@@ -434,6 +434,12 @@ elseif(SENTRY_BACKEND_INPROC)
 	target_compile_definitions(sentry PRIVATE SENTRY_WITH_INPROC_BACKEND)
 endif()
 
+option(SENTRY_INTEGRATION_QT "Build Qt integration")
+if(SENTRY_INTEGRATION_QT)
+	find_package(Qt5 COMPONENTS Core REQUIRED)
+	target_link_libraries(sentry PRIVATE Qt5::Core)
+endif()
+
 include(CMakePackageConfigHelpers)
 configure_package_config_file(sentry-config.cmake.in sentry-config.cmake
 	INSTALL_DESTINATION "${CMAKE_INSTALL_CMAKEDIR}")
