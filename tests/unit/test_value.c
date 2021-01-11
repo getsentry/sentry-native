@@ -10,6 +10,8 @@ SENTRY_TEST(value_null)
     TEST_CHECK(sentry_value_get_type(val) == SENTRY_VALUE_TYPE_NULL);
     TEST_CHECK(sentry_value_is_null(val));
     TEST_CHECK(sentry_value_as_int32(val) == 0);
+    TEST_CHECK(isnan(sentry_value_as_double(val)));
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(val), "");
     TEST_CHECK(!sentry_value_is_true(val));
     TEST_CHECK_JSON_VALUE(val, "null");
     TEST_CHECK(sentry_value_refcount(val) == 1);
@@ -370,4 +372,21 @@ SENTRY_TEST(value_json_invalid_doubles)
     val = sentry_value_new_double(NAN);
     TEST_CHECK_JSON_VALUE(val, "null");
     sentry_value_decref(val);
+}
+
+SENTRY_TEST(value_wrong_type)
+{
+    sentry_value_t val = sentry_value_new_null();
+
+    TEST_CHECK(sentry_value_set_by_key(val, "foobar", val) == 1);
+    TEST_CHECK(sentry_value_remove_by_key(val, "foobar") == 1);
+    TEST_CHECK(sentry_value_append(val, val) == 1);
+    TEST_CHECK(sentry_value_set_by_index(val, 1, val) == 1);
+    TEST_CHECK(sentry_value_remove_by_index(val, 1) == 1);
+    TEST_CHECK(sentry_value_is_null(sentry_value_get_by_key(val, "foobar")));
+    TEST_CHECK(
+        sentry_value_is_null(sentry_value_get_by_key_owned(val, "foobar")));
+    TEST_CHECK(sentry_value_is_null(sentry_value_get_by_index(val, 1)));
+    TEST_CHECK(sentry_value_is_null(sentry_value_get_by_index_owned(val, 1)));
+    TEST_CHECK(sentry_value_get_length(val) == 0);
 }
