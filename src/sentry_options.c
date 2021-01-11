@@ -25,7 +25,9 @@ sentry_options_new(void)
     sentry_logger_t logger = { sentry__logger_defaultlogger, NULL };
     opts->logger = logger;
     opts->transport_thread_name = sentry__string_clone("sentry-http");
-#ifdef SENTRY_PLATFORM_WINDOWS
+
+    #ifdef SENTRY_PLATFORM_WINDOWS
+    
     opts->release = sentry__string_from_wstr(_wgetenv(L"SENTRY_RELEASE"));
     opts->environment
         = sentry__string_from_wstr(_wgetenv(L"SENTRY_ENVIRONMENT"));
@@ -37,7 +39,9 @@ sentry_options_new(void)
     opts->auto_session_tracking = true;
     opts->system_crash_reporter_enabled = false;
     opts->symbolize_stacktraces =
+        
 #ifdef SENTRY_PLATFORM_ANDROID
+        
         true;
 #else
         false;
@@ -320,6 +324,7 @@ sentry_options_set_database_path(sentry_options_t *opts, const char *path)
 }
 
 #ifdef SENTRY_PLATFORM_WINDOWS
+
 void
 sentry_options_add_attachmentw(sentry_options_t *opts, const wchar_t *path)
 {
