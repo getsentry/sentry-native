@@ -1,6 +1,7 @@
 #include "sentry_boot.h"
 
 #include <assert.h>
+#include <math.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
@@ -47,8 +48,6 @@
 #define TAG_MASK 0x3
 #define TAG_INT32 0x1
 #define TAG_CONST 0x2
-
-#define NAN 0xfff8000000000000ULL
 
 #define CONST_FALSE 0x2
 #define CONST_TRUE 0x6
@@ -480,7 +479,7 @@ sentry_value_remove_by_key(sentry_value_t value, const char *k)
 {
     thing_t *thing = value_as_unfrozen_thing(value);
     if (!thing || thing_get_type(thing) != THING_TYPE_OBJECT) {
-        return 0;
+        return 1;
     }
     obj_t *o = thing->payload._ptr;
     for (size_t i = 0; i < o->len; i++) {
