@@ -136,3 +136,12 @@ if(WIN32)
 		unwinder/sentry_unwinder_dbghelp.c
 	)
 endif()
+
+# integrations
+if(SENTRY_INTEGRATION_QT)
+	target_compile_definitions(sentry PRIVATE SENTRY_INTEGRATION_QT)
+	sentry_target_sources_cwd(sentry
+		integrations/sentry_integration_qt.cpp
+		integrations/sentry_integration_qt.h
+	)
+endif()

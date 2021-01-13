@@ -19,6 +19,10 @@
 #include "sentry_transport.h"
 #include "sentry_value.h"
 
+#ifdef SENTRY_INTEGRATION_QT
+#    include "integrations/sentry_integration_qt.h"
+#endif
+
 static sentry_options_t *g_options = NULL;
 static sentry_mutex_t g_options_lock = SENTRY__MUTEX_INIT;
 
@@ -149,6 +153,11 @@ sentry_init(sentry_options_t *options)
     if (backend && backend->user_consent_changed_func) {
         backend->user_consent_changed_func(backend);
     }
+
+#ifdef SENTRY_INTEGRATION_QT
+    SENTRY_TRACE("setting up Qt integration");
+    sentry_integration_setup_qt();
+#endif
 
     // after initializing the transport, we will submit all the unsent envelopes
     // and handle remaining sessions.
