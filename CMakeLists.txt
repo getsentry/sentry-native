@@ -7,7 +7,17 @@ else()
 	cmake_minimum_required (VERSION 3.10)
 endif()
 
-project(Sentry-Native LANGUAGES C CXX ASM)
+#read sentry-native version
+file(READ "include/sentry.h" _SENTRY_HEADER_CONTENT)
+string(REGEX MATCH "#define SENTRY_SDK_VERSION \"([0-9\.]+)\"" _SENTRY_VERSION_MATCH "${_SENTRY_HEADER_CONTENT}")
+set(SENTRY_VERSION "${CMAKE_MATCH_1}")
+unset(_SENTRY_HEADER_CONTENT)
+unset(_SENTRY_VERSION_MATCH)
+
+project(Sentry-Native 
+	LANGUAGES C CXX ASM 
+	VERSION ${SENTRY_VERSION}
+)
 
 set(SENTRY_MAIN_PROJECT OFF)
 if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
@@ -443,6 +453,9 @@ endif()
 include(CMakePackageConfigHelpers)
 configure_package_config_file(sentry-config.cmake.in sentry-config.cmake
 	INSTALL_DESTINATION "${CMAKE_INSTALL_CMAKEDIR}")
+write_basic_package_version_file(sentry-config-version.cmake 
+	VERSION ${SENTRY_VERSION}
+	COMPATIBILITY AnyNewerVersion)
 
 sentry_install(TARGETS sentry EXPORT sentry
 	ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
@@ -452,7 +465,10 @@ sentry_install(TARGETS sentry EXPORT sentry
 )
 sentry_install(EXPORT sentry NAMESPACE sentry:: FILE sentry-targets.cmake
 	DESTINATION "${CMAKE_INSTALL_CMAKEDIR}")
-sentry_install(FILES "${PROJECT_BINARY_DIR}/sentry-config.cmake"
+sentry_install(
+	FILES 
+		"${PROJECT_BINARY_DIR}/sentry-config.cmake"
+		"${PROJECT_BINARY_DIR}/sentry-config-version.cmake"
 	DESTINATION "${CMAKE_INSTALL_CMAKEDIR}")
 if(WIN32 AND MSVC AND SENTRY_BUILD_SHARED_LIBS)
 	sentry_install(FILES $<TARGET_PDB_FILE:sentry> 
