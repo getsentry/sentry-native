@@ -253,6 +253,12 @@ sentry__scope_apply_to_event(
             SET(Key, Source);                                                  \
         }                                                                      \
     } while (0)
+#define PLACE_CLONED_VALUE(Key, Source)                                        \
+    do {                                                                       \
+        if (IS_NULL(Key) && !sentry_value_is_null(Source)) {                   \
+            SET(Key, sentry__value_clone(Source));                             \
+        }                                                                      \
+    } while (0)
 
     PLACE_STRING("platform", "native");
 
@@ -272,15 +278,12 @@ sentry__scope_apply_to_event(
     PLACE_VALUE("sdk", scope->client_sdk);
 
     // TODO: these should merge
-    PLACE_VALUE("tags", scope->tags);
-    PLACE_VALUE("extra", scope->extra);
-    PLACE_VALUE("contexts", scope->contexts);
+    PLACE_CLONED_VALUE("tags", scope->tags);
+    PLACE_CLONED_VALUE("extra", scope->extra);
+    PLACE_CLONED_VALUE("contexts", scope->contexts);
 
     if (mode & SENTRY_SCOPE_BREADCRUMBS) {
-        sentry_value_t breadcrumbs = sentry__value_clone(scope->breadcrumbs);
-        PLACE_VALUE("breadcrumbs", breadcrumbs);
-        // because `PLACE_VALUE` adds a new ref, and we would otherwise leak
-        sentry_value_decref(breadcrumbs);
+        PLACE_CLONED_VALUE("breadcrumbs", scope->breadcrumbs);
     }
 
     if (mode & SENTRY_SCOPE_MODULES) {
