@@ -283,7 +283,7 @@ sentry__scope_apply_to_event(
     PLACE_CLONED_VALUE("contexts", scope->contexts);
 
     if (mode & SENTRY_SCOPE_BREADCRUMBS) {
-        PLACE_CLONED_VALUE("breadcrumbs", breadcrumbs);
+        PLACE_CLONED_VALUE("breadcrumbs", scope->breadcrumbs);
     }
 
     if (mode & SENTRY_SCOPE_MODULES) {
