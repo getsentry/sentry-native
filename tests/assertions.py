@@ -38,8 +38,8 @@ def assert_meta(envelope, release="test-example-release", integration=None):
     }
     expected_sdk = {
         "name": "sentry.native",
-        "version": "0.4.4",
-        "packages": [{"name": "github:getsentry/sentry-native", "version": "0.4.4"},],
+        "version": "0.4.5",
+        "packages": [{"name": "github:getsentry/sentry-native", "version": "0.4.5"},],
     }
 
     assert matches(event, expected)
