@@ -4,6 +4,7 @@ if(WIN32)
 	# enables support for CMAKE_MSVC_RUNTIME_LIBRARY
 	cmake_policy(SET CMP0091 NEW)
 else()
+	# The Android tools ship with this ancient version, which we need to support.
 	cmake_minimum_required (VERSION 3.10)
 endif()
 
@@ -14,8 +15,8 @@ set(SENTRY_VERSION "${CMAKE_MATCH_1}")
 unset(_SENTRY_HEADER_CONTENT)
 unset(_SENTRY_VERSION_MATCH)
 
-project(Sentry-Native 
-	LANGUAGES C CXX ASM 
+project(Sentry-Native
+	LANGUAGES C CXX ASM
 	VERSION ${SENTRY_VERSION}
 )
 
@@ -413,7 +414,7 @@ if(SENTRY_BACKEND_CRASHPAD)
 			DESTINATION "${CMAKE_INSTALL_CMAKEDIR}"
 		)
 		if(WIN32 AND MSVC)
-			sentry_install(FILES $<TARGET_PDB_FILE:crashpad_handler> 
+			sentry_install(FILES $<TARGET_PDB_FILE:crashpad_handler>
 				DESTINATION "${CMAKE_INSTALL_BINDIR}" OPTIONAL)
 		endif()
 	endif()
@@ -455,16 +456,11 @@ configure_package_config_file(sentry-config.cmake.in sentry-config.cmake
 	INSTALL_DESTINATION "${CMAKE_INSTALL_CMAKEDIR}")
 
 # generate package version file
-# use semver behavior: SameMinorVersion for 0.x.x, SameMajorVersion for 1.x.x or greater
-if(${PROJECT_VERSION_MAJOR} EQUAL 0)
-	set(_SENTRY_VERSION_COMPATIBILITY SameMinorVersion)
-else()
-	message(AUTHOR_WARNING "sentry-native reaches 1.0.0, simplify this code")
-	set(_SENTRY_VERSION_COMPATIBILITY SameMajorVersion)
-endif()
-write_basic_package_version_file(sentry-config-version.cmake 
+# We would have liked to use `SameMinorVersion`, but that is only supported on
+# CMake >= 3.11.
+write_basic_package_version_file(sentry-config-version.cmake
 	VERSION ${SENTRY_VERSION}
-	COMPATIBILITY ${_SENTRY_VERSION_COMPATIBILITY})
+	COMPATIBILITY SameMajorVersion)
 
 sentry_install(TARGETS sentry EXPORT sentry
 	ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
@@ -475,12 +471,12 @@ sentry_install(TARGETS sentry EXPORT sentry
 sentry_install(EXPORT sentry NAMESPACE sentry:: FILE sentry-targets.cmake
 	DESTINATION "${CMAKE_INSTALL_CMAKEDIR}")
 sentry_install(
-	FILES 
+	FILES
 		"${PROJECT_BINARY_DIR}/sentry-config.cmake"
 		"${PROJECT_BINARY_DIR}/sentry-config-version.cmake"
 	DESTINATION "${CMAKE_INSTALL_CMAKEDIR}")
 if(WIN32 AND MSVC AND SENTRY_BUILD_SHARED_LIBS)
-	sentry_install(FILES $<TARGET_PDB_FILE:sentry> 
+	sentry_install(FILES $<TARGET_PDB_FILE:sentry>
 		DESTINATION "${CMAKE_INSTALL_BINDIR}" OPTIONAL)
 endif()
 
