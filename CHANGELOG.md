@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+**Fixes**:
+
+- Restore compatibility with CMake 3.10 (as used in Android NDK Tools)
+
+**Internal**:
+
+- Update Crashpad and Breakpad submodules to 2021-01-25
+
 ## 0.4.5
 
 **Features**:
