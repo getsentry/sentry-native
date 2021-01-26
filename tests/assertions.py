@@ -1,6 +1,8 @@
 import datetime
 import email
 import gzip
+import sys
+import platform
 
 
 def matches(actual, expected):
@@ -29,7 +31,6 @@ def assert_meta(envelope, release="test-example-release", integration=None):
     expected = {
         "platform": "native",
         "environment": "development",
-        "contexts": {"runtime": {"type": "runtime", "name": "testing-runtime"}},
         "release": release,
         "user": {"id": 42, "username": "some_name"},
         "transaction": "test-transaction",
@@ -41,9 +42,17 @@ def assert_meta(envelope, release="test-example-release", integration=None):
         "version": "0.4.5",
         "packages": [{"name": "github:getsentry/sentry-native", "version": "0.4.5"},],
     }
+    if sys.platform == "win32":
+        assert matches(event["contexts"]["os"], {
+            "name": "Windows",
+            "version": platform.version(),
+        })
+        assert event["contexts"]["os"]["build"] is not None
 
     assert matches(event, expected)
     assert matches(event["sdk"], expected_sdk)
+    assert matches(event["contexts"], {"runtime": {"type": "runtime", "name": "testing-runtime"}})
+
 
     if integration is None:
         assert event["sdk"].get("integrations") is None

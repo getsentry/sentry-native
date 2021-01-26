@@ -3,6 +3,7 @@
 #include "sentry_core.h"
 #include "sentry_database.h"
 #include "sentry_options.h"
+#include "sentry_os.h"
 #include "sentry_string.h"
 #include "sentry_symbolizer.h"
 #include "sentry_sync.h"
@@ -68,6 +69,7 @@ get_scope(void)
     g_scope.tags = sentry_value_new_object();
     g_scope.extra = sentry_value_new_object();
     g_scope.contexts = sentry_value_new_object();
+    sentry_value_set_by_key(g_scope.contexts, "os", sentry__get_os_context());
     g_scope.breadcrumbs = sentry_value_new_list();
     g_scope.level = SENTRY_LEVEL_ERROR;
     g_scope.client_sdk = get_client_sdk();

@@ -3,6 +3,6 @@
 
 #include "sentry_boot.h"
 
-char *sentry__os_full_version(void);
+sentry_value_t sentry__get_os_context(void);
 
 #endif

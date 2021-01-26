@@ -1,42 +1,68 @@
 #include "sentry_os.h"
 #include "sentry_string.h"
 
-#include <winver.h>
+#ifdef SENTRY_PLATFORM_WINDOWS
 
-char *
-sentry__os_full_version(void)
+#    include <winver.h>
+
+sentry_value_t
+sentry__get_os_context(void)
 {
-    char *out = NULL;
+    sentry_value_t os = sentry_value_new_object();
+    if (sentry_value_is_null(os)) {
+        return os;
+    }
+
+    sentry_value_set_by_key(os, "type", sentry_value_new_string("os"));
+    sentry_value_set_by_key(os, "name", sentry_value_new_string("Windows"));
 
     void *ffibuf = NULL;
 
     DWORD size = GetFileVersionInfoSizeW(L"kernel32.dll", NULL);
     if (!size) {
-        goto exit;
+        goto fail;
     }
 
     ffibuf = sentry_malloc(size);
     if (!GetFileVersionInfoW(L"kernel32.dll", 0, size, ffibuf)) {
-        goto exit;
+        goto fail;
     }
 
     VS_FIXEDFILEINFO *ffi;
     UINT ffi_size;
     if (!VerQueryValueW(ffibuf, L"\\", &ffi, &ffi_size)) {
-        goto exit;
+        goto fail;
     }
     ffi->dwFileFlags &= ffi->dwFileFlagsMask;
 
-    const char *os = ((ffi->dwFileOS & VOS_NT_WINDOWS32) == VOS_NT_WINDOWS32)
-        ? "Windows NT"
-        : "Unknown";
     char buf[100];
-    snprintf(buf, sizeof(buf), "%s %u.%u.%u.%lu", os,
-        ffi->dwFileVersionMS >> 16, ffi->dwFileVersionMS & 0xffff,
-        ffi->dwFileVersionLS >> 16, ffi->dwFileVersionLS & 0xffff);
-    out = sentry__string_clone(buf);
+    snprintf(buf, sizeof(buf), "%u.%u.%u", ffi->dwFileVersionMS >> 16,
+        ffi->dwFileVersionMS & 0xffff, ffi->dwFileVersionLS >> 16);
 
-exit:
+    sentry_value_set_by_key(os, "version", sentry_value_new_string(buf));
+
+    snprintf(buf, sizeof(buf), "%lu", ffi->dwFileVersionLS & 0xffff);
+
+    sentry_value_set_by_key(os, "build", sentry_value_new_string(buf));
+
     sentry_free(ffibuf);
-    return out;
+
+    sentry_value_freeze(os);
+    return os;
+
+fail:
+    sentry_free(ffibuf);
+
+    sentry_value_decref(os);
+    return sentry_value_new_null();
 }
+
+#else
+
+sentry_value_t
+sentry__get_os_context(void)
+{
+    return sentry_value_new_null();
+}
+
+#endif
