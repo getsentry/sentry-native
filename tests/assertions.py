@@ -44,13 +44,23 @@ def assert_meta(envelope, release="test-example-release", integration=None):
     }
     if sys.platform == "win32":
         assert matches(
-            event["contexts"]["os"], {"name": "Windows", "version": platform.version(),}
+            event["contexts"]["os"], {"name": "Windows", "version": platform.version()}
         )
         assert event["contexts"]["os"]["build"] is not None
     elif sys.platform == "linux":
         assert matches(
-            event["contexts"]["os"], {"name": "Linux", "version": platform.release(),}
+            event["contexts"]["os"], {"name": "Linux", "version": platform.release()}
         )
+    elif sys.platform == "darwin":
+        assert matches(
+            event["contexts"]["os"],
+            {
+                "name": "macOS",
+                "version": platform.mac_ver()[0],
+                "kernel_version": platform.release(),
+            },
+        )
+        assert event["contexts"]["os"]["build"] is not None
 
     assert matches(event, expected)
     assert matches(event["sdk"], expected_sdk)

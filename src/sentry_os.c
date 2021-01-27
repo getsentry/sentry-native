@@ -95,9 +95,49 @@ fail:
 
 #elif defined(SENTRY_PLATFORM_MACOS)
 
+#    include <sys/sysctl.h>
+#    include <sys/utsname.h>
+
 sentry_value_t
 sentry__get_os_context(void)
 {
+    sentry_value_t os = sentry_value_new_object();
+    if (sentry_value_is_null(os)) {
+        return os;
+    }
+
+    sentry_value_set_by_key(os, "type", sentry_value_new_string("os"));
+    sentry_value_set_by_key(os, "name", sentry_value_new_string("macOS"));
+
+    char buf[100];
+    size_t buf_len = sizeof(buf);
+
+    if (sysctlbyname("kern.osproductversion", buf, &buf_len, NULL, 0) != 0) {
+        goto fail;
+    }
+
+    sentry_value_set_by_key(os, "version", sentry_value_new_string(buf));
+
+    buf_len = sizeof(buf);
+    if (sysctlbyname("kern.osversion", buf, &buf_len, NULL, 0) != 0) {
+        goto fail;
+    }
+
+    sentry_value_set_by_key(os, "build", sentry_value_new_string(buf));
+
+    struct utsname uts;
+    if (uname(&uts) != 0) {
+        goto fail;
+    }
+
+    sentry_value_set_by_key(
+        os, "kernel_version", sentry_value_new_string(uts.release));
+
+    return os;
+
+fail:
+
+    sentry_value_decref(os);
     return sentry_value_new_null();
 }
 
