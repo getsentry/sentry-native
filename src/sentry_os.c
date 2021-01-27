@@ -57,42 +57,6 @@ fail:
     return sentry_value_new_null();
 }
 
-#elif defined(SENTRY_PLATFORM_LINUX)
-
-#    include <sys/utsname.h>
-
-sentry_value_t
-sentry__get_os_context(void)
-{
-    sentry_value_t os = sentry_value_new_object();
-    if (sentry_value_is_null(os)) {
-        return os;
-    }
-
-    sentry_value_set_by_key(os, "type", sentry_value_new_string("os"));
-    sentry_value_set_by_key(os, "name", sentry_value_new_string("Linux"));
-
-    struct utsname uts;
-    if (uname(&uts) != 0) {
-        goto fail;
-    }
-
-    // char buf[200];
-    // snprintf(buf, sizeof(buf), "%s %s %s %s", uts.sysname, uts.release,
-    //     uts.version, uts.machine);
-
-    // TODO: figure out what we actually want es version/build/kernel_version
-    sentry_value_set_by_key(
-        os, "version", sentry_value_new_string(uts.release));
-
-    return os;
-
-fail:
-
-    sentry_value_decref(os);
-    return sentry_value_new_null();
-}
-
 #elif defined(SENTRY_PLATFORM_MACOS)
 
 #    include <sys/sysctl.h>
@@ -116,6 +80,8 @@ sentry__get_os_context(void)
         goto fail;
     }
 
+    // TODO: maybe append a trailing patch version for `11.1` -> `11.1.0`?
+
     sentry_value_set_by_key(os, "version", sentry_value_new_string(buf));
 
     buf_len = sizeof(buf);
@@ -132,6 +98,38 @@ sentry__get_os_context(void)
 
     sentry_value_set_by_key(
         os, "kernel_version", sentry_value_new_string(uts.release));
+
+    return os;
+
+fail:
+
+    sentry_value_decref(os);
+    return sentry_value_new_null();
+}
+#elif defined(SENTRY_PLATFORM_UNIX)
+
+#    include <sys/utsname.h>
+
+sentry_value_t
+sentry__get_os_context(void)
+{
+    sentry_value_t os = sentry_value_new_object();
+    if (sentry_value_is_null(os)) {
+        return os;
+    }
+
+    sentry_value_set_by_key(os, "type", sentry_value_new_string("os"));
+
+    struct utsname uts;
+    if (uname(&uts) != 0) {
+        goto fail;
+    }
+
+    // TODO: maybe split `uts.release` into version/build?
+
+    sentry_value_set_by_key(os, "name", sentry_value_new_string(uts.sysname));
+    sentry_value_set_by_key(
+        os, "version", sentry_value_new_string(uts.release));
 
     return os;
 
