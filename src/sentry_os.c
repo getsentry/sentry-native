@@ -57,6 +57,50 @@ fail:
     return sentry_value_new_null();
 }
 
+#elif defined(SENTRY_PLATFORM_LINUX)
+
+#    include <sys/utsname.h>
+
+sentry_value_t
+sentry__get_os_context(void)
+{
+    sentry_value_t os = sentry_value_new_object();
+    if (sentry_value_is_null(os)) {
+        return os;
+    }
+
+    sentry_value_set_by_key(os, "type", sentry_value_new_string("os"));
+    sentry_value_set_by_key(os, "name", sentry_value_new_string("Linux"));
+
+    struct utsname uts;
+    if (uname(&uts) != 0) {
+        goto fail;
+    }
+
+    // char buf[200];
+    // snprintf(buf, sizeof(buf), "%s %s %s %s", uts.sysname, uts.release,
+    //     uts.version, uts.machine);
+
+    // TODO: figure out what we actually want es version/build/kernel_version
+    sentry_value_set_by_key(
+        os, "version", sentry_value_new_string(uts.release));
+
+    return os;
+
+fail:
+
+    sentry_value_decref(os);
+    return sentry_value_new_null();
+}
+
+#elif defined(SENTRY_PLATFORM_MACOS)
+
+sentry_value_t
+sentry__get_os_context(void)
+{
+    return sentry_value_new_null();
+}
+
 #else
 
 sentry_value_t

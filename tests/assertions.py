@@ -43,16 +43,20 @@ def assert_meta(envelope, release="test-example-release", integration=None):
         "packages": [{"name": "github:getsentry/sentry-native", "version": "0.4.5"},],
     }
     if sys.platform == "win32":
-        assert matches(event["contexts"]["os"], {
-            "name": "Windows",
-            "version": platform.version(),
-        })
+        assert matches(
+            event["contexts"]["os"], {"name": "Windows", "version": platform.version(),}
+        )
         assert event["contexts"]["os"]["build"] is not None
+    elif sys.platform == "linux":
+        assert matches(
+            event["contexts"]["os"], {"name": "Linux", "version": platform.release(),}
+        )
 
     assert matches(event, expected)
     assert matches(event["sdk"], expected_sdk)
-    assert matches(event["contexts"], {"runtime": {"type": "runtime", "name": "testing-runtime"}})
-
+    assert matches(
+        event["contexts"], {"runtime": {"type": "runtime", "name": "testing-runtime"}}
+    )
 
     if integration is None:
         assert event["sdk"].get("integrations") is None
