@@ -13,7 +13,6 @@ sentry__get_os_context(void)
         return os;
     }
 
-    sentry_value_set_by_key(os, "type", sentry_value_new_string("os"));
     sentry_value_set_by_key(os, "name", sentry_value_new_string("Windows"));
 
     void *ffibuf = NULL;
@@ -70,7 +69,6 @@ sentry__get_os_context(void)
         return os;
     }
 
-    sentry_value_set_by_key(os, "type", sentry_value_new_string("os"));
     sentry_value_set_by_key(os, "name", sentry_value_new_string("macOS"));
 
     char buf[100];
@@ -125,8 +123,6 @@ sentry__get_os_context(void)
     if (sentry_value_is_null(os)) {
         return os;
     }
-
-    sentry_value_set_by_key(os, "type", sentry_value_new_string("os"));
 
     struct utsname uts;
     if (uname(&uts) != 0) {
