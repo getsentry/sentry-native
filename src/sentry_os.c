@@ -137,7 +137,10 @@ sentry__get_os_context(void)
     size_t num_dots = 0;
     for (; build[0] != '\0'; build++) {
         char c = build[0];
-        if (!(c >= '0' && c <= '9') || (num_dots > 2)) {
+        if (c == '.') {
+            num_dots += 1;
+        }
+        if (!(c >= '0' && c <= '9') && (c != '.' || num_dots > 2)) {
             break;
         }
     }
@@ -146,7 +149,10 @@ sentry__get_os_context(void)
         build_start++;
     }
 
-    sentry_value_set_by_key(os, "build", sentry_value_new_string(build_start));
+    if (build_start[0] != '\0') {
+        sentry_value_set_by_key(
+            os, "build", sentry_value_new_string(build_start));
+    }
 
     build[0] = '\0';
 
