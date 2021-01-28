@@ -3,7 +3,11 @@ import email
 import gzip
 import sys
 import platform
+import re
 from .conditions import is_android
+
+
+VERSION_RE = re.compile(r"(\d+\.\d+\.\d+)(?:[-\.]?)(.*)")
 
 
 def matches(actual, expected):
@@ -51,16 +55,26 @@ def assert_meta(envelope, release="test-example-release", integration=None):
             )
             assert event["contexts"]["os"]["build"] is not None
         elif sys.platform == "linux":
+            version = platform.release()
+            match = VERSION_RE.match(version)
+            version = match.group(1)
+            build = match.group(2)
+
             assert matches(
                 event["contexts"]["os"],
-                {"name": "Linux", "version": platform.release()},
+                {"name": "Linux", "version": version, "build": build},
             )
         elif sys.platform == "darwin":
+            version = platform.mac_ver()[0].split(".")
+            if len(version) < 3:
+                version.append("0")
+            version = ".".join(version)
+
             assert matches(
                 event["contexts"]["os"],
                 {
                     "name": "macOS",
-                    "version": platform.mac_ver()[0],
+                    "version": version,
                     "kernel_version": platform.release(),
                 },
             )

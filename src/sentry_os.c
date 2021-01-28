@@ -80,7 +80,15 @@ sentry__get_os_context(void)
         goto fail;
     }
 
-    // TODO: maybe append a trailing patch version for `11.1` -> `11.1.0`?
+    size_t num_dots = 0;
+    for (size_t i = 0; i < buf_len; i++) {
+        if (buf[i] == '.') {
+            num_dots += 1;
+        }
+    }
+    if (num_dots < 2 && buf_len + 3 < sizeof(buf)) {
+        strcat(buf, ".0");
+    }
 
     sentry_value_set_by_key(os, "version", sentry_value_new_string(buf));
 
@@ -125,7 +133,22 @@ sentry__get_os_context(void)
         goto fail;
     }
 
-    // TODO: maybe split `uts.release` into version/build?
+    char *build = uts.release;
+    size_t num_dots = 0;
+    for (; build[0] != '\0'; build++) {
+        char c = build[0];
+        if (!(c >= '0' && c <= '9') || (num_dots > 2)) {
+            break;
+        }
+    }
+    char *build_start = build;
+    if (build[0] == '-' || build[0] == '.') {
+        build_start++;
+    }
+
+    sentry_value_set_by_key(os, "build", sentry_value_new_string(build_start));
+
+    build[0] = '\0';
 
     sentry_value_set_by_key(os, "name", sentry_value_new_string(uts.sysname));
     sentry_value_set_by_key(
