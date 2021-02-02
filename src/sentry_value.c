@@ -501,18 +501,22 @@ sentry_value_append(sentry_value_t value, sentry_value_t v)
 {
     thing_t *thing = value_as_unfrozen_thing(value);
     if (!thing || thing_get_type(thing) != THING_TYPE_LIST) {
-        return 1;
+        goto fail;
     }
 
     list_t *l = thing->payload._ptr;
 
     if (!reserve((void **)&l->items, sizeof(l->items[0]), &l->allocated,
             l->len + 1)) {
-        return 1;
+        goto fail;
     }
 
     l->items[l->len++] = v;
     return 0;
+
+fail:
+    sentry_value_decref(v);
+    return 1;
 }
 
 sentry_uuid_t
@@ -587,7 +591,7 @@ sentry__value_append_bounded(sentry_value_t value, sentry_value_t v, size_t max)
 {
     thing_t *thing = value_as_unfrozen_thing(value);
     if (!thing || thing_get_type(thing) != THING_TYPE_LIST) {
-        return 1;
+        goto fail;
     }
 
     list_t *l = thing->payload._ptr;
@@ -603,11 +607,18 @@ sentry__value_append_bounded(sentry_value_t value, sentry_value_t v, size_t max)
     //   from 20
 
     size_t to_move = max - 1;
-    memmove(
-        l->items, l->items + (l->len - to_move), to_move * sizeof(l->items[0]));
+    size_t to_shift = l->len - to_move;
+    for (size_t i = 0; i < to_shift; i++) {
+        sentry_value_decref(l->items[i]);
+    }
+    memmove(l->items, l->items + (to_shift), to_move * sizeof(l->items[0]));
     l->items[max - 1] = v;
     l->len = max;
     return 0;
+
+fail:
+    sentry_value_decref(v);
+    return 1;
 }
 
 int
@@ -615,13 +626,13 @@ sentry_value_set_by_index(sentry_value_t value, size_t index, sentry_value_t v)
 {
     thing_t *thing = value_as_unfrozen_thing(value);
     if (!thing || thing_get_type(thing) != THING_TYPE_LIST) {
-        return 1;
+        goto fail;
     }
 
     list_t *l = thing->payload._ptr;
     if (!reserve(
             (void *)&l->items, sizeof(l->items[0]), &l->allocated, index + 1)) {
-        return 1;
+        goto fail;
     }
 
     if (index >= l->len) {
@@ -634,6 +645,10 @@ sentry_value_set_by_index(sentry_value_t value, size_t index, sentry_value_t v)
     sentry_value_decref(l->items[index]);
     l->items[index] = v;
     return 0;
+
+fail:
+    sentry_value_decref(v);
+    return 1;
 }
 
 int

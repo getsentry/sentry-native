@@ -390,3 +390,25 @@ SENTRY_TEST(value_wrong_type)
     TEST_CHECK(sentry_value_is_null(sentry_value_get_by_index_owned(val, 1)));
     TEST_CHECK(sentry_value_get_length(val) == 0);
 }
+
+SENTRY_TEST(value_collections_leak)
+{
+    // decref the value correctly on error
+    sentry_value_set_by_key(
+        sentry_value_new_null(), "foo", sentry_value_new_object());
+    sentry_value_set_by_index(
+        sentry_value_new_null(), 123, sentry_value_new_object());
+    sentry_value_append(sentry_value_new_null(), sentry_value_new_object());
+
+    sentry_value_t list = sentry_value_new_list();
+
+    sentry_value_append(list, sentry_value_new_object());
+    sentry_value_append(list, sentry_value_new_object());
+    sentry_value_append(list, sentry_value_new_object());
+    sentry_value_append(list, sentry_value_new_object());
+    sentry_value_append(list, sentry_value_new_object());
+
+    // decref the existing values correctly on bounded append
+    sentry__value_append_bounded(list, sentry_value_new_object(), 2);
+    sentry__value_append_bounded(list, sentry_value_new_object(), 2);
+}
