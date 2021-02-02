@@ -751,6 +751,20 @@ SENTRY_API void sentry_options_set_debug(sentry_options_t *opts, int debug);
 SENTRY_API int sentry_options_get_debug(const sentry_options_t *opts);
 
 /**
+ * Sets the number of breadcrumbs being tracked and attached to events.
+ *
+ * Defaults to 100.
+ */
+SENTRY_API void sentry_options_set_max_breadcrumbs(
+    sentry_options_t *opts, size_t max_breadcrumbs);
+
+/**
+ * Sets the number of breadcrumbs being tracked and attached to events.
+ */
+SENTRY_API size_t sentry_options_get_max_breadcrumbs(
+    const sentry_options_t *opts);
+
+/**
  * Type of the callback for logger function.
  */
 typedef void (*sentry_logger_function_t)(

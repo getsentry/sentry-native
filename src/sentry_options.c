@@ -33,6 +33,7 @@ sentry_options_new(void)
     opts->release = sentry__string_clone(getenv("SENTRY_RELEASE"));
     opts->environment = sentry__string_clone(getenv("SENTRY_ENVIRONMENT"));
 #endif
+    opts->max_breadcrumbs = SENTRY_BREADCRUMBS_MAX;
     opts->user_consent = SENTRY_USER_CONSENT_UNKNOWN;
     opts->auto_session_tracking = true;
     opts->system_crash_reporter_enabled = false;
@@ -230,6 +231,19 @@ int
 sentry_options_get_debug(const sentry_options_t *opts)
 {
     return opts->debug;
+}
+
+void
+sentry_options_set_max_breadcrumbs(
+    sentry_options_t *opts, size_t max_breadcrumbs)
+{
+    opts->max_breadcrumbs = max_breadcrumbs;
+}
+
+size_t
+sentry_options_get_max_breadcrumbs(const sentry_options_t *opts)
+{
+    return opts->max_breadcrumbs;
 }
 
 void
