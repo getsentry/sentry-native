@@ -411,4 +411,6 @@ SENTRY_TEST(value_collections_leak)
     // decref the existing values correctly on bounded append
     sentry__value_append_bounded(list, sentry_value_new_object(), 2);
     sentry__value_append_bounded(list, sentry_value_new_object(), 2);
+
+    sentry_value_decref(list);
 }
