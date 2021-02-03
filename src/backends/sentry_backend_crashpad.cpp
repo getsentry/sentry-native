@@ -304,7 +304,6 @@ sentry__crashpad_backend_add_breadcrumb(
 
     size_t mpack_size;
     char *mpack = sentry_value_to_msgpack(breadcrumb, &mpack_size);
-    sentry_value_decref(breadcrumb);
     if (!mpack) {
         return;
     }

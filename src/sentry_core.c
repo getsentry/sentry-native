@@ -469,23 +469,18 @@ sentry_remove_user(void)
 void
 sentry_add_breadcrumb(sentry_value_t breadcrumb)
 {
-    sentry_value_incref(breadcrumb);
+    SENTRY_WITH_OPTIONS (options) {
+        if (options->backend && options->backend->add_breadcrumb_func) {
+            // the hook will *not* take ownership
+            options->backend->add_breadcrumb_func(options->backend, breadcrumb);
+        }
+    }
+
     // the `no_flush` will avoid triggering *both* scope-change and
     // breadcrumb-add events.
     SENTRY_WITH_SCOPE_MUT_NO_FLUSH (scope) {
         sentry__value_append_bounded(
             scope->breadcrumbs, breadcrumb, SENTRY_BREADCRUMBS_MAX);
-    }
-
-    bool was_added = false;
-    SENTRY_WITH_OPTIONS (options) {
-        if (options->backend && options->backend->add_breadcrumb_func) {
-            options->backend->add_breadcrumb_func(options->backend, breadcrumb);
-            was_added = true;
-        }
-    }
-    if (!was_added) {
-        sentry_value_decref(breadcrumb);
     }
 }
 

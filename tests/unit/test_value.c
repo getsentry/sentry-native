@@ -390,3 +390,47 @@ SENTRY_TEST(value_wrong_type)
     TEST_CHECK(sentry_value_is_null(sentry_value_get_by_index_owned(val, 1)));
     TEST_CHECK(sentry_value_get_length(val) == 0);
 }
+
+SENTRY_TEST(value_collections_leak)
+{
+    // decref the value correctly on error
+    sentry_value_t obj = sentry_value_new_object();
+    sentry_value_t null_v = sentry_value_new_null();
+
+    sentry_value_incref(obj);
+    sentry_value_set_by_key(null_v, "foo", obj);
+
+    sentry_value_incref(obj);
+    sentry_value_set_by_index(null_v, 123, obj);
+
+    sentry_value_incref(obj);
+    sentry_value_append(null_v, obj);
+
+    TEST_CHECK_INT_EQUAL(sentry_value_refcount(obj), 1);
+
+    sentry_value_t list = sentry_value_new_list();
+
+    sentry_value_incref(obj);
+    sentry_value_append(list, obj);
+    sentry_value_incref(obj);
+    sentry_value_append(list, obj);
+    sentry_value_incref(obj);
+    sentry_value_append(list, obj);
+    sentry_value_incref(obj);
+    sentry_value_append(list, obj);
+    sentry_value_incref(obj);
+    sentry_value_append(list, obj);
+
+    // decref the existing values correctly on bounded append
+    sentry_value_incref(obj);
+    sentry__value_append_bounded(list, obj, 2);
+    sentry_value_incref(obj);
+    sentry__value_append_bounded(list, obj, 2);
+
+    TEST_CHECK_INT_EQUAL(sentry_value_refcount(obj), 3);
+
+    sentry_value_decref(list);
+
+    TEST_CHECK_INT_EQUAL(sentry_value_refcount(obj), 1);
+    sentry_value_decref(obj);
+}
