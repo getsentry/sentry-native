@@ -1,6 +1,13 @@
 import datetime
 import email
 import gzip
+import sys
+import platform
+import re
+from .conditions import is_android
+
+
+VERSION_RE = re.compile(r"(\d+\.\d+\.\d+)(?:[-\.]?)(.*)")
 
 
 def matches(actual, expected):
@@ -29,7 +36,6 @@ def assert_meta(envelope, release="test-example-release", integration=None):
     expected = {
         "platform": "native",
         "environment": "development",
-        "contexts": {"runtime": {"type": "runtime", "name": "testing-runtime"}},
         "release": release,
         "user": {"id": 42, "username": "some_name"},
         "transaction": "test-transaction",
@@ -41,9 +47,44 @@ def assert_meta(envelope, release="test-example-release", integration=None):
         "version": "0.4.6",
         "packages": [{"name": "github:getsentry/sentry-native", "version": "0.4.6"},],
     }
+    if not is_android:
+        if sys.platform == "win32":
+            assert matches(
+                event["contexts"]["os"],
+                {"name": "Windows", "version": platform.version()},
+            )
+            assert event["contexts"]["os"]["build"] is not None
+        elif sys.platform == "linux":
+            version = platform.release()
+            match = VERSION_RE.match(version)
+            version = match.group(1)
+            build = match.group(2)
+
+            assert matches(
+                event["contexts"]["os"],
+                {"name": "Linux", "version": version, "build": build},
+            )
+        elif sys.platform == "darwin":
+            version = platform.mac_ver()[0].split(".")
+            if len(version) < 3:
+                version.append("0")
+            version = ".".join(version)
+
+            assert matches(
+                event["contexts"]["os"],
+                {
+                    "name": "macOS",
+                    "version": version,
+                    "kernel_version": platform.release(),
+                },
+            )
+            assert event["contexts"]["os"]["build"] is not None
 
     assert matches(event, expected)
     assert matches(event["sdk"], expected_sdk)
+    assert matches(
+        event["contexts"], {"runtime": {"type": "runtime", "name": "testing-runtime"}}
+    )
 
     if integration is None:
         assert event["sdk"].get("integrations") is None

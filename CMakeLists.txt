@@ -350,9 +350,9 @@ if(LINUX)
 elseif(ANDROID)
 	target_link_libraries(sentry PRIVATE dl log)
 elseif(MSVC)
-	target_link_libraries(sentry PRIVATE dbghelp)
+	target_link_libraries(sentry PRIVATE dbghelp version)
 elseif(MINGW)
-	target_link_libraries(sentry PRIVATE dbghelp)
+	target_link_libraries(sentry PRIVATE dbghelp version)
 	target_compile_options(sentry PRIVATE
 		-Wno-unused-variable
 		-Wno-unused-parameter

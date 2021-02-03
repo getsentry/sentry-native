@@ -1,5 +1,7 @@
+#include "sentry_os.h"
 #include "sentry_testsupport.h"
 #include "sentry_utils.h"
+#include "sentry_value.h"
 #include <sentry.h>
 
 #ifdef SENTRY_PLATFORM_UNIX
@@ -162,4 +164,17 @@ SENTRY_TEST(page_allocator)
     /* now we can free p_before though */
     sentry_free(p_before);
 #endif
+}
+
+SENTRY_TEST(os)
+{
+    sentry_value_t os = sentry__get_os_context();
+
+    TEST_CHECK(!sentry_value_is_null(os));
+    TEST_CHECK(sentry_value_get_type(sentry_value_get_by_key(os, "name"))
+        == SENTRY_VALUE_TYPE_STRING);
+    TEST_CHECK(sentry_value_get_type(sentry_value_get_by_key(os, "version"))
+        == SENTRY_VALUE_TYPE_STRING);
+
+    sentry_value_decref(os);
 }

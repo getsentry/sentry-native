@@ -16,6 +16,8 @@ sentry_target_sources_cwd(sentry
 	sentry_logger.h
 	sentry_options.c
 	sentry_options.h
+	sentry_os.c
+	sentry_os.h
 	sentry_path.h
 	sentry_random.c
 	sentry_random.h
