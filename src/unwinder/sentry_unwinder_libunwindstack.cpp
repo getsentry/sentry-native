@@ -1,5 +1,6 @@
 extern "C" {
 #include "sentry_boot.h"
+#include "sentry_core.h"
 }
 
 #include <memory>
@@ -32,12 +33,13 @@ sentry__unwind_stack_libunwindstack(
 
     unwindstack::LocalMaps maps;
     if (!maps.Parse()) {
+        SENTRY_WARN("unwinder failed to parse process maps\n");
         ptrs[0] = (void *)regs->pc();
         return 1;
     }
 
     const std::shared_ptr<unwindstack::Memory> process_memory
-        = unwindstack::Memory::CreateProcessMemory(getpid());
+        = unwindstack::Memory::CreateProcessMemoryCached(getpid());
 
     unwindstack::Unwinder unwinder(
         max_frames, &maps, regs.get(), process_memory);
