@@ -188,8 +188,8 @@ using `cmake -D BUILD_SHARED_LIBS=OFF ..`.
 - `SENTRY_BUILD_RUNTIMESTATIC` (Default: OFF):
   Enables linking with the static MSVC runtime. Has no effect if the compiler is not MSVC.
 
-- `SENTRY_LINK_PTHREAD` (Default: ON):
-  Links to the `pthread` library on unix targets.
+- `SENTRY_LINK_THREADS` (Default: ON):
+  Links platform threads library like `pthread` on unix targets.
 
 - `SENTRY_BUILD_FORCE32` (Default: OFF):
   Forces cross-compilation from 64-bit host to 32-bit target. Only has an effect on Linux.
