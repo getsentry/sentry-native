@@ -56,8 +56,8 @@ option(SENTRY_PIC "Build sentry (and dependent) libraries as position independen
 option(SENTRY_BUILD_TESTS "Build sentry-native tests" "${SENTRY_MAIN_PROJECT}")
 option(SENTRY_BUILD_EXAMPLES "Build sentry-native example(s)" "${SENTRY_MAIN_PROJECT}")
 
-option(SENTRY_LINK_THREADS "Link platform threads library" ON) 
-if(SENTRY_LINK_THREADS)
+option(SENTRY_LINK_PTHREAD "Link platform threads library" ON)
+if(SENTRY_LINK_PTHREAD)
 	find_package(Threads REQUIRED)
 endif()
 
@@ -345,28 +345,28 @@ if(WIN32)
 	endif()
 endif()
 
-#handle platform libraries
+# handle platform libraries
 if(ANDROID)
     set(_SENTRY_PLATFORM_LIBS "dl" "log")
-elseif(LINUX) 
+elseif(LINUX)
     set(_SENTRY_PLATFORM_LIBS "dl" "rt")
 elseif(WIN32)
     set(_SENTRY_PLATFORM_LIBS "dbghelp" "version")
 endif()
 
-#handle platform threads library
-if(SENTRY_LINK_THREADS)
+# handle platform threads library
+if(SENTRY_LINK_PTHREAD)
 	list(APPEND _SENTRY_PLATFORM_LIBS "Threads::Threads")
 endif()
 
-#apply platform libraries to sentry library
+# apply platform libraries to sentry library
 if(SENTRY_LIBRARY_TYPE STREQUAL "static")
-    target_link_libraries(sentry PUBLIC ${_SENTRY_PLATFORM_LIBS}) 
+    target_link_libraries(sentry PUBLIC ${_SENTRY_PLATFORM_LIBS})
 else()
     target_link_libraries(sentry PRIVATE ${_SENTRY_PLATFORM_LIBS})
 endif()
 
-#suppress some errors and warnings for MinGW target
+# suppress some errors and warnings for MinGW target
 if(MINGW)
 	target_compile_options(sentry PRIVATE
 		-Wno-unused-variable
