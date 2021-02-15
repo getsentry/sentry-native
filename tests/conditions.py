@@ -12,10 +12,7 @@ has_http = not is_android and not (sys.platform == "linux" and is_x86)
 # also, asan reports a `stack-buffer-underflow` in breakpad itself,
 # and says this may be a false positive due to a custom stack unwinding mechanism
 has_breakpad = (
-    not is_valgrind
-    and not is_kcov
-    and not is_android
-    and not (is_asan and sys.platform == "darwin")
+    not is_valgrind and not is_kcov and not (is_asan and sys.platform == "darwin")
 )
 # crashpad requires http, and doesn’t work with kcov/valgrind either
 has_crashpad = has_http and not is_valgrind and not is_kcov and not is_android
