@@ -24,7 +24,7 @@ jobs:
           submodules: "recursive"
       - run: |
           cmake -B sentry-native-xcode -GXcode -DCMAKE_SYSTEM_NAME=iOS
-          xcodebuild build -project sentry-native-xcode/Sentry-Native.xcodeproj
+          xcodebuild build -project sentry-native-xcode/Sentry-Native.xcodeproj -sdk iphonesimulator
 
   test:
     strategy:
