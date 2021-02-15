@@ -118,9 +118,10 @@ def test_breakpad_crash_stdout(cmake):
     child = run(tmp_path, "sentry_example", ["attachment", "crash"])
     assert child.returncode  # well, its a crash after all
 
-    with open("{}/.sentry-native/last_crash".format(tmp_path)) as f:
-        crash_timestamp = f.read()
-    assert_timestamp(crash_timestamp)
+    if has_files:
+        with open("{}/.sentry-native/last_crash".format(tmp_path)) as f:
+            crash_timestamp = f.read()
+        assert_timestamp(crash_timestamp)
 
     output = check_output(tmp_path, "sentry_example", ["stdout", "no-setup"])
     envelope = Envelope.deserialize(output)
