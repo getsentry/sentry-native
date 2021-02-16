@@ -251,7 +251,7 @@ using `cmake -D BUILD_SHARED_LIBS=OFF ..`.
 | Backends   |         |       |       |         |
 | - inproc   | ✓       | ✓     | ✓     | ☑       |
 | - crashpad | ☑       | ☑     | ✓     |         |
-| - breakpad | ✓       | ✓     | ☑     | ✓       |
+| - breakpad | ✓       | ✓     | ☑     | (✓)     |
 | - none     | ✓       | ✓     | ✓     | ✓       |
 
 Legend:
