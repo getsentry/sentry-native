@@ -234,6 +234,7 @@ sentry__breakpad_backend_except(
     // context->user_context);
 #elif defined(SENTRY_PLATFORM_IOS)
     // the APIs are currently private
+    (void)eh;
     (void)backend;
     (void)context;
 #else
