@@ -14,6 +14,8 @@ has_http = not is_android and not (sys.platform == "linux" and is_x86)
 has_breakpad = (
     not is_valgrind
     and not is_kcov
+    # XXX: we support building breakpad, and it captures minidumps when run through sentry-android,
+    # however running it from an `adb shell` does not work correctly :-(
     and not is_android
     and not (is_asan and sys.platform == "darwin")
 )
