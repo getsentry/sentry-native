@@ -33,7 +33,7 @@ sentry__unwind_stack_libunwindstack(
 
     unwindstack::LocalMaps maps;
     if (!maps.Parse()) {
-        SENTRY_WARN("unwinder failed to parse process maps\n");
+        SENTRY_WARN("unwinder failed to parse process maps");
         ptrs[0] = (void *)regs->pc();
         return 1;
     }

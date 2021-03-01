@@ -76,9 +76,18 @@ elseif(APPLE)
 	sentry_target_sources_cwd(sentry
 		modulefinder/sentry_modulefinder_apple.c
 	)
-elseif(LINUX OR ANDROID)
+elseif(ANDROID)
 	sentry_target_sources_cwd(sentry
+		modulefinder/sentry_modulefinder_android.cpp
+		modulefinder/sentry_modulefinder_elf.c
+		modulefinder/sentry_modulefinder_elf.h
+	)
+elseif(LINUX)
+	sentry_target_sources_cwd(sentry
+		modulefinder/sentry_modulefinder_elf.c
+		modulefinder/sentry_modulefinder_elf.h
 		modulefinder/sentry_modulefinder_linux.c
+		modulefinder/sentry_modulefinder_linux.h
 	)
 endif()
 
