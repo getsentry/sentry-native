@@ -157,11 +157,19 @@ typedef struct sentry__winmutex_s sentry_mutex_t;
 #    define sentry__mutex_free(Lock)                                           \
         DeleteCriticalSection(&(Lock)->critical_section)
 
+#    define sentry__thread_init(ThreadId) *ThreadId = INVALID_HANDLE_VALUE
 #    define sentry__thread_spawn(ThreadId, Func, Data)                         \
         (*ThreadId = CreateThread(NULL, 0, Func, Data, 0, NULL),               \
             *ThreadId == INVALID_HANDLE_VALUE ? 1 : 0)
 #    define sentry__thread_join(ThreadId)                                      \
         WaitForSingleObject(ThreadId, INFINITE)
+#    define sentry__thread_free(ThreadId)                                      \
+        do {                                                                   \
+            if (*ThreadId != INVALID_HANDLE_VALUE) {                           \
+                CloseHandle(*ThreadId);                                        \
+            }                                                                  \
+            *ThreadId = INVALID_HANDLE_VALUE;                                  \
+        } while (0)
 
 #    if _WIN32_WINNT < 0x0600
 typedef CONDITION_VARIABLE_PREVISTA sentry_cond_t;
@@ -244,9 +252,12 @@ typedef pthread_cond_t sentry_cond_t;
             }                                                                  \
         } while (0)
 #    define sentry__cond_wake pthread_cond_signal
+#    define sentry__thread_init(ThreadId)                                      \
+        memset(*ThreadId, 0, sizeofsentry_threadid_t())
 #    define sentry__thread_spawn(ThreadId, Func, Data)                         \
         (pthread_create(ThreadId, NULL, Func, Data) == 0 ? 0 : 1)
 #    define sentry__thread_join(ThreadId) pthread_join(ThreadId, NULL)
+#    define sentry__thread_free sentry__thread_init
 #    define sentry__threadid_equal pthread_equal
 #    define sentry__current_thread pthread_self
 
