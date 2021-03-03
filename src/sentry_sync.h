@@ -122,7 +122,7 @@ struct sentry__winmutex_s {
 };
 
 static inline BOOL CALLBACK
-sentry__winmutex_init(
+sentry__winmutex_initonce(
     PINIT_ONCE UNUSED(InitOnce), PVOID cs, PVOID *UNUSED(lpContext))
 {
     InitializeCriticalSection((LPCRITICAL_SECTION)cs);
@@ -130,9 +130,16 @@ sentry__winmutex_init(
 }
 
 static inline void
+sentry__winmutex_init(struct sentry__winmutex_s *mutex)
+{
+    InitOnceExecuteOnce(&mutex->init_once, sentry__winmutex_initonce,
+        &mutex->critical_section, NULL);
+}
+
+static inline void
 sentry__winmutex_lock(struct sentry__winmutex_s *mutex)
 {
-    InitOnceExecuteOnce(&mutex->init_once, sentry__winmutex_init,
+    InitOnceExecuteOnce(&mutex->init_once, sentry__winmutex_initonce,
         &mutex->critical_section, NULL);
     EnterCriticalSection(&mutex->critical_section);
 }
@@ -143,6 +150,7 @@ typedef struct sentry__winmutex_s sentry_mutex_t;
         {                                                                      \
             INIT_ONCE_STATIC_INIT, { 0 }                                       \
         }
+#    define sentry__mutex_init(Lock) sentry__winmutex_init(Lock)
 #    define sentry__mutex_lock(Lock) sentry__winmutex_lock(Lock)
 #    define sentry__mutex_unlock(Lock)                                         \
         LeaveCriticalSection(&(Lock)->critical_section)
@@ -203,6 +211,11 @@ typedef pthread_cond_t sentry_cond_t;
 #    else
 #        define SENTRY__MUTEX_INIT PTHREAD_RECURSIVE_MUTEX_INITIALIZER
 #    endif
+#    define sentry__mutex_init(Mutex)                                          \
+        do {                                                                   \
+            sentry_mutex_t tmp = SENTRY__MUTEX_INIT;                           \
+            *(Mutex) = tmp;                                                    \
+        } while (0)
 #    define sentry__mutex_lock(Mutex)                                          \
         do {                                                                   \
             if (sentry__block_for_signal_handler()) {                          \
@@ -252,11 +265,6 @@ sentry__cond_wait_timeout(
     return pthread_cond_timedwait(cv, mutex, &lock_time);
 }
 #endif
-#define sentry__mutex_init(Mutex)                                              \
-    do {                                                                       \
-        sentry_mutex_t tmp = SENTRY__MUTEX_INIT;                               \
-        *(Mutex) = tmp;                                                        \
-    } while (0)
 
 static inline long
 sentry__atomic_fetch_and_add(volatile long *val, long diff)
