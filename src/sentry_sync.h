@@ -253,7 +253,7 @@ typedef pthread_cond_t sentry_cond_t;
         } while (0)
 #    define sentry__cond_wake pthread_cond_signal
 #    define sentry__thread_init(ThreadId)                                      \
-        memset(*ThreadId, 0, sizeofsentry_threadid_t())
+        memset(ThreadId, 0, sizeof(sentry_threadid_t))
 #    define sentry__thread_spawn(ThreadId, Func, Data)                         \
         (pthread_create(ThreadId, NULL, Func, Data) == 0 ? 0 : 1)
 #    define sentry__thread_join(ThreadId) pthread_join(ThreadId, NULL)
