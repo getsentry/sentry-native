@@ -127,7 +127,7 @@ static inline uint64_t
 sentry__monotonic_time(void)
 {
 #ifdef SENTRY_PLATFORM_WINDOWS
-    static LARGE_INTEGER qpc_frequency = { 0 };
+    static LARGE_INTEGER qpc_frequency = { { 0, 0 } };
 
     if (!qpc_frequency.QuadPart) {
         QueryPerformanceFrequency(&qpc_frequency);

@@ -26,6 +26,10 @@ set(BREAKPAD_SOURCES_COMMON_LINUX_GETCONTEXT
     breakpad/src/common/linux/breakpad_getcontext.S
 )
 
+set(BREAKPAD_SOURCES_COMMON_ANDROID
+    breakpad/src/common/android/include/sys/procfs.h
+)
+
 set(BREAKPAD_SOURCES_COMMON_WINDOWS
     breakpad/src/common/windows/guid_string.cc
     breakpad/src/common/windows/guid_string.h
@@ -117,6 +121,10 @@ target_sources(breakpad_client PRIVATE ${BREAKPAD_SOURCES_COMMON})
 
 if(LINUX OR ANDROID)
     target_sources(breakpad_client PRIVATE ${BREAKPAD_SOURCES_COMMON_LINUX} ${BREAKPAD_SOURCES_CLIENT_LINUX})
+    if(ANDROID)
+        target_sources(breakpad_client PRIVATE ${BREAKPAD_SOURCES_COMMON_ANDROID})
+        target_include_directories(breakpad_client PRIVATE breakpad/src/common/android/include)
+    endif(ANDROID)
 
     include(CheckFunctionExists)
     check_function_exists(getcontext HAVE_GETCONTEXT)

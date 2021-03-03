@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- The Breakpad backend is now supported on Android.
+
 ## 0.4.7
 
 **Features**:
