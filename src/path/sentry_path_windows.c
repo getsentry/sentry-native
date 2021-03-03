@@ -412,6 +412,7 @@ sentry__pathiter_next(sentry_pathiter_t *piter)
             pattern[path_len + 1] = L'*';
             pattern[path_len + 2] = 0;
             piter->dir_handle = FindFirstFileW(pattern, &data);
+            sentry_free(pattern);
             if (piter->dir_handle == INVALID_HANDLE_VALUE) {
                 return NULL;
             }
