@@ -3,7 +3,7 @@
 	url = https://github.com/getsentry/libunwindstack-ndk
 [submodule "external/breakpad"]
 	path = external/breakpad
-	url = https://chromium.googlesource.com/breakpad/breakpad.git
+	url = https://github.com/getsentry/breakpad.git
 [submodule "external/third_party/lss"]
 	path = external/third_party/lss
 	url = https://chromium.googlesource.com/linux-syscall-support

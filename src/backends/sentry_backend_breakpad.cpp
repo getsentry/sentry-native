@@ -23,9 +23,11 @@ extern "C" {
 
 #ifdef SENTRY_PLATFORM_WINDOWS
 #    include "client/windows/handler/exception_handler.h"
-#elif defined(SENTRY_PLATFORM_DARWIN)
+#elif defined(SENTRY_PLATFORM_MACOS)
 #    include "client/mac/handler/exception_handler.h"
 #    include <sys/sysctl.h>
+#elif defined(SENTRY_PLATFORM_IOS)
+#    include "client/ios/exception_handler_no_mach.h"
 #else
 #    include "client/linux/handler/exception_handler.h"
 #endif
@@ -40,7 +42,7 @@ sentry__breakpad_backend_callback(const wchar_t *breakpad_dump_path,
     const wchar_t *minidump_id, void *UNUSED(context),
     EXCEPTION_POINTERS *UNUSED(exinfo), MDRawAssertionInfo *UNUSED(assertion),
     bool succeeded)
-#elif defined SENTRY_PLATFORM_DARWIN
+#elif defined(SENTRY_PLATFORM_DARWIN)
 static bool
 sentry__breakpad_backend_callback(const char *breakpad_dump_path,
     const char *minidump_id, void *UNUSED(context), bool succeeded)
@@ -143,7 +145,7 @@ sentry__breakpad_backend_callback(
     return succeeded;
 }
 
-#ifdef SENTRY_PLATFORM_DARWIN
+#ifdef SENTRY_PLATFORM_MACOS
 /**
  * Returns true if the current process is being debugged (either running under
  * the debugger or has a debugger attached post facto).
@@ -187,12 +189,16 @@ sentry__breakpad_backend_startup(
     backend->data = new google_breakpad::ExceptionHandler(
         current_run_folder->path, NULL, sentry__breakpad_backend_callback, NULL,
         google_breakpad::ExceptionHandler::HANDLER_EXCEPTION);
-#elif defined(SENTRY_PLATFORM_DARWIN)
+#elif defined(SENTRY_PLATFORM_MACOS)
     // If process is being debugged and there are breakpoints set it will cause
     // task_set_exception_ports to crash the whole process and debugger
     backend->data
         = new google_breakpad::ExceptionHandler(current_run_folder->path, NULL,
             sentry__breakpad_backend_callback, NULL, !IsDebuggerActive(), NULL);
+#elif defined(SENTRY_PLATFORM_IOS)
+    backend->data
+        = new google_breakpad::ExceptionHandler(current_run_folder->path, NULL,
+            sentry__breakpad_backend_callback, NULL, true, NULL);
 #else
     google_breakpad::MinidumpDescriptor descriptor(current_run_folder->path);
     backend->data = new google_breakpad::ExceptionHandler(
@@ -220,12 +226,17 @@ sentry__breakpad_backend_except(
 #ifdef SENTRY_PLATFORM_WINDOWS
     eh->WriteMinidumpForException(
         const_cast<EXCEPTION_POINTERS *>(&context->exception_ptrs));
-#elif defined SENTRY_PLATFORM_DARWIN
+#elif defined(SENTRY_PLATFORM_MACOS)
     (void)context;
     eh->WriteMinidump(true);
     // currently private:
     // eh->SignalHandler(context->signum, context->siginfo,
     // context->user_context);
+#elif defined(SENTRY_PLATFORM_IOS)
+    // the APIs are currently private
+    (void)eh;
+    (void)backend;
+    (void)context;
 #else
     eh->HandleSignal(context->signum, context->siginfo, context->user_context);
 #endif
