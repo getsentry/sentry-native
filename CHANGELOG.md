@@ -4,7 +4,21 @@
 
 **Features**:
 
-- The Breakpad backend is now supported on Android.
+- The unwinder on Android was updated to a newer version.
+- Experimental support for the Breakpad backend on Android and iOS.
+
+**Fixes**:
+
+- Fixed some memory leaks on Windows.
+- Build System improvements.
+
+**Thank you**:
+
+Features, fixes and improvements in this release have been contributed by:
+
+- [@Mixaill](https://github.com/Mixaill)
+- [@daxpedda](https://github.com/daxpedda)
+- [@Amphaal](https://github.com/Amphaal)
 
 ## 0.4.7
 

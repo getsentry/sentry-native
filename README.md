@@ -241,18 +241,18 @@ using `cmake -D BUILD_SHARED_LIBS=OFF ..`.
   This is being worked on upstream as well, and a future version might work with
   an unmodified crashpad version as well.
 
-| Feature    | Windows | macOS | Linux | Android |
-| ---------- | ------- | ----- | ----- | ------- |
-| Transports |         |       |       |         |
-| - curl     |         | ☑     | ☑     | (✓)     |
-| - winhttp  | ☑       |       |       |         |
-| - none     | ✓       | ✓     | ✓     | ☑       |
-|            |         |       |       |         |
-| Backends   |         |       |       |         |
-| - inproc   | ✓       | ✓     | ✓     | ☑       |
-| - crashpad | ☑       | ☑     | ✓     |         |
-| - breakpad | ✓       | ✓     | ☑     | (✓)     |
-| - none     | ✓       | ✓     | ✓     | ✓       |
+| Feature    | Windows | macOS | Linux | Android | iOS |
+| ---------- | ------- | ----- | ----- | ------- | --- |
+| Transports |         |       |       |         |     |
+| - curl     |         | ☑     | ☑     | (✓)     |     |
+| - winhttp  | ☑       |       |       |         |     |
+| - none     | ✓       | ✓     | ✓     | ☑       | ☑   |
+|            |         |       |       |         |     |
+| Backends   |         |       |       |         |     |
+| - inproc   | ✓       | ✓     | ✓     | ☑       |     |
+| - crashpad | ☑       | ☑     | ✓     |         |     |
+| - breakpad | ✓       | ✓     | ☑     | (✓)     | (✓) |
+| - none     | ✓       | ✓     | ✓     | ✓       |     |
 
 Legend:
 
