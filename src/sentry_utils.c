@@ -438,10 +438,9 @@ sentry__iso8601_to_msec(const char *iso)
 static sentry__locale_t
 c_locale()
 {
-    static bool c_locale_initialized = false;
+    static long c_locale_initialized = 0;
     static sentry__locale_t c_locale;
-    if (!c_locale_initialized) {
-        c_locale_initialized = true;
+    if (sentry__atomic_store(&c_locale_initialized, 1) == 0) {
 #    ifdef SENTRY_PLATFORM_WINDOWS
         c_locale = _create_locale(LC_ALL, "C");
 #    else
