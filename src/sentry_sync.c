@@ -151,6 +151,7 @@ sentry__bgworker_new(void *state, void (*free_state)(void *state))
         return NULL;
     }
     memset(bgw, 0, sizeof(sentry_bgworker_t));
+    sentry__thread_init(&bgw->thread_id);
     sentry__mutex_init(&bgw->task_lock);
     sentry__cond_init(&bgw->submit_signal);
     sentry__cond_init(&bgw->done_signal);
@@ -183,6 +184,7 @@ sentry__bgworker_decref(sentry_bgworker_t *bgw)
     if (bgw->free_state) {
         bgw->free_state(bgw->state);
     }
+    sentry__thread_free(&bgw->thread_id);
     sentry__mutex_free(&bgw->task_lock);
     sentry_free(bgw->thread_name);
     sentry_free(bgw);
