@@ -3,13 +3,16 @@
 
 #include "sentry_boot.h"
 
-struct sentry_jsonwriter_s;
+typedef struct sentry_stringbuilder_s sentry_stringbuilder_t;
 typedef struct sentry_jsonwriter_s sentry_jsonwriter_t;
 
 /**
- * This creates a new in-memory JSON writer, based on `sentry_stringbuilder_s`.
+ * This creates a new JSON writer.
+ *
+ * It will use an existing `sentry_stringbuilder_t` as its output if one is
+ * provided, otherwise it will allocate a new one.
  */
-sentry_jsonwriter_t *sentry__jsonwriter_new_in_memory(void);
+sentry_jsonwriter_t *sentry__jsonwriter_new(sentry_stringbuilder_t *sb);
 
 /**
  * Deallocates a JSON writer.

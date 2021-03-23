@@ -794,8 +794,9 @@ sentry_value_is_null(sentry_value_t value)
     return value._bits == CONST_NULL;
 }
 
-static void
-value_to_json(sentry_jsonwriter_t *jw, sentry_value_t value)
+void
+sentry__value_write_into_jsonwriter(
+    sentry_jsonwriter_t *jw, sentry_value_t value)
 {
     switch (sentry_value_get_type(value)) {
     case SENTRY_VALUE_TYPE_NULL:
@@ -817,7 +818,7 @@ value_to_json(sentry_jsonwriter_t *jw, sentry_value_t value)
         const list_t *l = value_as_thing(value)->payload._ptr;
         sentry__jsonwriter_write_list_start(jw);
         for (size_t i = 0; i < l->len; i++) {
-            value_to_json(jw, l->items[i]);
+            sentry__value_write_into_jsonwriter(jw, l->items[i]);
         }
         sentry__jsonwriter_write_list_end(jw);
         break;
@@ -827,7 +828,7 @@ value_to_json(sentry_jsonwriter_t *jw, sentry_value_t value)
         sentry__jsonwriter_write_object_start(jw);
         for (size_t i = 0; i < o->len; i++) {
             sentry__jsonwriter_write_key(jw, o->pairs[i].k);
-            value_to_json(jw, o->pairs[i].v);
+            sentry__value_write_into_jsonwriter(jw, o->pairs[i].v);
         }
         sentry__jsonwriter_write_object_end(jw);
         break;
@@ -838,8 +839,11 @@ value_to_json(sentry_jsonwriter_t *jw, sentry_value_t value)
 char *
 sentry_value_to_json(sentry_value_t value)
 {
-    sentry_jsonwriter_t *jw = sentry__jsonwriter_new_in_memory();
-    value_to_json(jw, value);
+    sentry_jsonwriter_t *jw = sentry__jsonwriter_new(NULL);
+    if (!jw) {
+        return NULL;
+    }
+    sentry__value_write_into_jsonwriter(jw, value);
     return sentry__jsonwriter_into_string(jw, NULL);
 }
 

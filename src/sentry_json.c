@@ -11,35 +11,36 @@
 #include "sentry_utils.h"
 #include "sentry_value.h"
 
-#define DST_MODE_SB 1
-
 struct sentry_jsonwriter_s {
-    union {
-        sentry_stringbuilder_t *sb;
-    } dst;
+    sentry_stringbuilder_t *sb;
     uint64_t want_comma;
     uint32_t depth;
     bool last_was_key;
-    char dst_mode;
+    bool owns_sb;
 };
 
 sentry_jsonwriter_t *
-sentry__jsonwriter_new_in_memory(void)
+sentry__jsonwriter_new(sentry_stringbuilder_t *sb)
 {
+    bool owns_sb = false;
+    if (!sb) {
+        sb = SENTRY_MAKE(sentry_stringbuilder_t);
+        owns_sb = true;
+        sentry__stringbuilder_init(sb);
+    }
+    if (!sb) {
+        return NULL;
+    }
     sentry_jsonwriter_t *rv = SENTRY_MAKE(sentry_jsonwriter_t);
     if (!rv) {
         return NULL;
     }
-    rv->dst.sb = SENTRY_MAKE(sentry_stringbuilder_t);
-    if (!rv->dst.sb) {
-        sentry_free(rv);
-        return NULL;
-    }
-    sentry__stringbuilder_init(rv->dst.sb);
-    rv->dst_mode = DST_MODE_SB;
+
+    rv->sb = sb;
     rv->want_comma = 0;
     rv->depth = 0;
     rv->last_was_key = 0;
+    rv->owns_sb = owns_sb;
     return rv;
 }
 
@@ -49,42 +50,22 @@ sentry__jsonwriter_free(sentry_jsonwriter_t *jw)
     if (!jw) {
         return;
     }
-    switch (jw->dst_mode) {
-    case DST_MODE_SB:
-        sentry__stringbuilder_cleanup(jw->dst.sb);
-        sentry_free(jw->dst.sb);
-        break;
+    if (jw->owns_sb) {
+        sentry__stringbuilder_cleanup(jw->sb);
+        sentry_free(jw->sb);
     }
     sentry_free(jw);
-}
-
-size_t
-sentry__jsonwriter_get_length(const sentry_jsonwriter_t *jw)
-{
-    switch (jw->dst_mode) {
-    case DST_MODE_SB: {
-        const sentry_stringbuilder_t *sb = jw->dst.sb;
-        return sb->len;
-    }
-    default:
-        return 0;
-    }
 }
 
 char *
 sentry__jsonwriter_into_string(sentry_jsonwriter_t *jw, size_t *len_out)
 {
     char *rv = NULL;
-    switch (jw->dst_mode) {
-    case DST_MODE_SB: {
-        sentry_stringbuilder_t *sb = jw->dst.sb;
-        if (len_out) {
-            *len_out = sb->len;
-        }
-        rv = sentry__stringbuilder_into_string(sb);
-        break;
+    sentry_stringbuilder_t *sb = jw->sb;
+    if (len_out) {
+        *len_out = sb->len;
     }
-    }
+    rv = sentry__stringbuilder_into_string(sb);
     sentry__jsonwriter_free(jw);
     return rv;
 }
@@ -111,19 +92,13 @@ set_comma(sentry_jsonwriter_t *jw, bool val)
 static void
 write_char(sentry_jsonwriter_t *jw, char c)
 {
-    switch (jw->dst_mode) {
-    case DST_MODE_SB:
-        sentry__stringbuilder_append_char(jw->dst.sb, c);
-    }
+    sentry__stringbuilder_append_char(jw->sb, c);
 }
 
 static void
 write_str(sentry_jsonwriter_t *jw, const char *str)
 {
-    switch (jw->dst_mode) {
-    case DST_MODE_SB:
-        sentry__stringbuilder_append(jw->dst.sb, str);
-    }
+    sentry__stringbuilder_append(jw->sb, str);
 }
 
 static void
