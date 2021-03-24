@@ -212,11 +212,17 @@ sentry__envelope_add_event(sentry_envelope_t *envelope, sentry_value_t event)
         return NULL;
     }
 
+    sentry_jsonwriter_t *jw = sentry__jsonwriter_new(NULL);
+    if (!jw) {
+        return NULL;
+    }
+
     sentry_value_t event_id = sentry__ensure_event_id(event, NULL);
 
     item->event = event;
-    item->payload = sentry_value_to_json(event);
-    item->payload_len = strlen(item->payload);
+    sentry__jsonwriter_write_value(jw, event);
+    item->payload = sentry__jsonwriter_into_string(jw, &item->payload_len);
+
     sentry__envelope_item_set_header(
         item, "type", sentry_value_new_string("event"));
     sentry_value_t length = sentry_value_new_int32((int32_t)item->payload_len);
@@ -235,7 +241,7 @@ sentry__envelope_add_session(
     if (!envelope || !session) {
         return NULL;
     }
-    sentry_jsonwriter_t *jw = sentry__jsonwriter_new_in_memory();
+    sentry_jsonwriter_t *jw = sentry__jsonwriter_new(NULL);
     if (!jw) {
         return NULL;
     }
@@ -281,20 +287,27 @@ static void
 sentry__envelope_serialize_headers_into_stringbuilder(
     const sentry_envelope_t *envelope, sentry_stringbuilder_t *sb)
 {
-    char *buf = sentry_value_to_json(envelope->contents.items.headers);
-    sentry__stringbuilder_append(sb, buf);
-    sentry_free(buf);
+    sentry_jsonwriter_t *jw = sentry__jsonwriter_new(sb);
+    if (jw) {
+        sentry__jsonwriter_write_value(jw, envelope->contents.items.headers);
+        sentry__jsonwriter_free(jw);
+    }
 }
 
 static void
 sentry__envelope_serialize_item_into_stringbuilder(
     const sentry_envelope_item_t *item, sentry_stringbuilder_t *sb)
 {
+    sentry_jsonwriter_t *jw = sentry__jsonwriter_new(sb);
+    if (!jw) {
+        return;
+    }
     sentry__stringbuilder_append_char(sb, '\n');
-    char *buf = sentry_value_to_json(item->headers);
-    sentry__stringbuilder_append(sb, buf);
+
+    sentry__jsonwriter_write_value(jw, item->headers);
+    sentry__jsonwriter_free(jw);
+
     sentry__stringbuilder_append_char(sb, '\n');
-    sentry_free(buf);
 
     sentry__stringbuilder_append_buf(sb, item->payload, item->payload_len);
 }

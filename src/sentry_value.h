@@ -80,4 +80,12 @@ int sentry__value_append_bounded(
  */
 sentry_value_t sentry__value_from_json(const char *buf, size_t buflen);
 
+typedef struct sentry_jsonwriter_s sentry_jsonwriter_t;
+
+/**
+ * Writes the given `value` into the `jsonwriter`.
+ */
+void sentry__jsonwriter_write_value(
+    sentry_jsonwriter_t *jw, sentry_value_t value);
+
 #endif
