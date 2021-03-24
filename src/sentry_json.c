@@ -3,7 +3,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define JSMN_STRICT
 #include "../vendor/jsmn.h"
 
 #include "sentry_alloc.h"

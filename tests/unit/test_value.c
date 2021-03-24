@@ -253,7 +253,19 @@ SENTRY_TEST(value_freezing)
 
 SENTRY_TEST(value_json_parsing)
 {
-    sentry_value_t rv = sentry__value_from_json(STRING("[42, \"foo\\u2603\"]"));
+    sentry_value_t rv;
+
+    rv = sentry__value_from_json(STRING("42"));
+    TEST_CHECK(sentry_value_get_type(rv) == SENTRY_VALUE_TYPE_INT32);
+    TEST_CHECK_INT_EQUAL(sentry_value_as_int32(rv), 42);
+    sentry_value_decref(rv);
+
+    rv = sentry__value_from_json(STRING("false"));
+    TEST_CHECK(sentry_value_get_type(rv) == SENTRY_VALUE_TYPE_BOOL);
+    TEST_CHECK(!sentry_value_is_true(rv));
+    sentry_value_decref(rv);
+
+    rv = sentry__value_from_json(STRING("[42, \"foo\\u2603\"]"));
     TEST_CHECK_INT_EQUAL(
         sentry_value_as_int32(sentry_value_get_by_index(rv, 0)), 42);
     TEST_CHECK_STRING_EQUAL(
