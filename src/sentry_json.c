@@ -496,6 +496,9 @@ sentry__value_from_json(const char *buf, size_t buflen)
     jsmntok_t *tokens = sentry_malloc(sizeof(jsmntok_t) * token_count);
     jsmn_init(&jsmn_p);
     token_count = jsmn_parse(&jsmn_p, buf, buflen, tokens, token_count);
+    if (token_count <= 0) {
+        return sentry_value_new_null();
+    }
 
     sentry_value_t value_out;
     size_t tokens_consumed
