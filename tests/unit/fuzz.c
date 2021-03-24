@@ -1,14 +1,20 @@
-// Following https://github.com/google/AFL/blob/master/docs/QuickStartGuide.txt
-//
-// Compile this via:
-// `CC=afl-clang CXX=afl-clang++ cmake -B fuzzing \
-//  -D CMAKE_RUNTIME_OUTPUT_DIRECTORY=$(pwd)/fuzzing \
-//  -D SENTRY_BACKEND=none \
-//  -D CMAKE_BUILD_TYPE=Release`
-// `cmake --build fuzzing --parallel --target sentry_fuzz_json`
-// And then run:
-// `afl-fuzz -i fuzzing-examples -o fuzzing-results -- fuzzing/sentry_fuzz_json
-// @@`
+/*
+Following https://github.com/google/AFL/blob/master/docs/QuickStartGuide.txt
+
+Compile this via (optionally using AFL_USE_ASAN=1, but that is horribly slow):
+
+CC=afl-clang CXX=afl-clang++ cmake -B fuzzing \
+    -D CMAKE_RUNTIME_OUTPUT_DIRECTORY=$(pwd)/fuzzing \
+    -D SENTRY_BACKEND=none \
+    -D CMAKE_BUILD_TYPE=Release
+
+cmake --build fuzzing --parallel --target sentry_fuzz_json
+
+And then run:
+
+afl-fuzz -i fuzzing-examples -o fuzzing-results -- fuzzing/sentry_fuzz_json @@
+
+*/
 
 #undef NDEBUG
 

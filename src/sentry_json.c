@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define JSMN_STRICT
 #include "../vendor/jsmn.h"
 
 #include "sentry_alloc.h"
@@ -497,6 +498,7 @@ sentry__value_from_json(const char *buf, size_t buflen)
     jsmn_init(&jsmn_p);
     token_count = jsmn_parse(&jsmn_p, buf, buflen, tokens, token_count);
     if (token_count <= 0) {
+        sentry_free(tokens);
         return sentry_value_new_null();
     }
 
