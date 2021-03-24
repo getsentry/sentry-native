@@ -1,0 +1,70 @@
+// Following https://github.com/google/AFL/blob/master/docs/QuickStartGuide.txt
+//
+// Compile this via:
+// `CC=afl-clang CXX=afl-clang++ cmake -B fuzzing \
+//  -D CMAKE_RUNTIME_OUTPUT_DIRECTORY=$(pwd)/fuzzing \
+//  -D SENTRY_BACKEND=none \
+//  -D CMAKE_BUILD_TYPE=Release`
+// `cmake --build fuzzing --parallel --target sentry_fuzz_json`
+// And then run:
+// `afl-fuzz -i fuzzing-examples -o fuzzing-results -- fuzzing/sentry_fuzz_json
+// @@`
+
+#undef NDEBUG
+
+#include <assert.h>
+#include <string.h>
+
+#include "sentry.h"
+#include "sentry_json.h"
+#include "sentry_path.h"
+#include "sentry_value.h"
+
+int
+main(int argc, char **argv)
+{
+    if (argc != 2) {
+        return 1;
+    }
+    char *filename = argv[1];
+
+    sentry_path_t *path = sentry__path_from_str(filename);
+
+    size_t buf_len = 0;
+    char *buf = sentry__path_read_to_buffer(path, &buf_len);
+
+    if (!buf) {
+        return 0;
+    }
+
+    // parse the incoming json
+    sentry_value_t value = sentry__value_from_json(buf, buf_len);
+    sentry_free(buf);
+
+    sentry_jsonwriter_t *jw = sentry__jsonwriter_new(NULL);
+    sentry__value_write_into_jsonwriter(jw, value);
+    size_t serialized1_len = 0;
+    char *serialized1 = sentry__jsonwriter_into_string(jw, &serialized1_len);
+    sentry_value_decref(value);
+
+    value = sentry__value_from_json(serialized1, serialized1_len);
+
+    jw = sentry__jsonwriter_new(NULL);
+    sentry__value_write_into_jsonwriter(jw, value);
+    size_t serialized2_len = 0;
+    char *serialized2 = sentry__jsonwriter_into_string(jw, &serialized1_len);
+    sentry_value_decref(value);
+
+    int rv = 0;
+
+    if (serialized1_len != serialized2_len) {
+        rv = 1;
+        goto out;
+    }
+    assert(memcmp(serialized1, serialized2, serialized1_len) == 0);
+
+out:
+    sentry_free(serialized1);
+    sentry_free(serialized2);
+    return rv;
+}
