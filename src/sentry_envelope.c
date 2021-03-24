@@ -220,7 +220,7 @@ sentry__envelope_add_event(sentry_envelope_t *envelope, sentry_value_t event)
     sentry_value_t event_id = sentry__ensure_event_id(event, NULL);
 
     item->event = event;
-    sentry__value_write_into_jsonwriter(jw, event);
+    sentry__jsonwriter_write_value(jw, event);
     item->payload = sentry__jsonwriter_into_string(jw, &item->payload_len);
 
     sentry__envelope_item_set_header(
@@ -289,8 +289,7 @@ sentry__envelope_serialize_headers_into_stringbuilder(
 {
     sentry_jsonwriter_t *jw = sentry__jsonwriter_new(sb);
     if (jw) {
-        sentry__value_write_into_jsonwriter(
-            jw, envelope->contents.items.headers);
+        sentry__jsonwriter_write_value(jw, envelope->contents.items.headers);
         sentry__jsonwriter_free(jw);
     }
 }
@@ -305,7 +304,7 @@ sentry__envelope_serialize_item_into_stringbuilder(
     }
     sentry__stringbuilder_append_char(sb, '\n');
 
-    sentry__value_write_into_jsonwriter(jw, item->headers);
+    sentry__jsonwriter_write_value(jw, item->headers);
     sentry__jsonwriter_free(jw);
 
     sentry__stringbuilder_append_char(sb, '\n');
