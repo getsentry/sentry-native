@@ -26,13 +26,13 @@ main(int argc, char **argv)
     if (argc != 2) {
         return 1;
     }
-    char *filename = argv[1];
+    const char *filename = argv[1];
 
     sentry_path_t *path = sentry__path_from_str(filename);
 
     size_t buf_len = 0;
     char *buf = sentry__path_read_to_buffer(path, &buf_len);
-
+    sentry__path_free(path);
     if (!buf) {
         return 0;
     }
@@ -52,19 +52,13 @@ main(int argc, char **argv)
     jw = sentry__jsonwriter_new(NULL);
     sentry__value_write_into_jsonwriter(jw, value);
     size_t serialized2_len = 0;
-    char *serialized2 = sentry__jsonwriter_into_string(jw, &serialized1_len);
+    char *serialized2 = sentry__jsonwriter_into_string(jw, &serialized2_len);
     sentry_value_decref(value);
 
-    int rv = 0;
+    assert(serialized1_len == serialized2_len
+        && memcmp(serialized1, serialized2, serialized1_len) == 0);
 
-    if (serialized1_len != serialized2_len) {
-        rv = 1;
-        goto out;
-    }
-    assert(memcmp(serialized1, serialized2, serialized1_len) == 0);
-
-out:
     sentry_free(serialized1);
     sentry_free(serialized2);
-    return rv;
+    return 0;
 }
