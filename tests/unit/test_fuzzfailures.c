@@ -20,7 +20,7 @@ parse_json_roundtrip(const sentry_path_t *path)
     sentry_free(buf);
 
     sentry_jsonwriter_t *jw = sentry__jsonwriter_new(NULL);
-    sentry__value_write_into_jsonwriter(jw, value);
+    sentry__jsonwriter_write_value(jw, value);
     size_t serialized1_len = 0;
     char *serialized1 = sentry__jsonwriter_into_string(jw, &serialized1_len);
     sentry_value_decref(value);
@@ -28,15 +28,12 @@ parse_json_roundtrip(const sentry_path_t *path)
     value = sentry__value_from_json(serialized1, serialized1_len);
 
     jw = sentry__jsonwriter_new(NULL);
-    sentry__value_write_into_jsonwriter(jw, value);
+    sentry__jsonwriter_write_value(jw, value);
     size_t serialized2_len = 0;
     char *serialized2 = sentry__jsonwriter_into_string(jw, &serialized2_len);
     sentry_value_decref(value);
 
-    TEST_CHECK_INT_EQUAL(serialized1_len, serialized2_len);
-    if (serialized1_len == serialized2_len) {
-        TEST_CHECK(memcmp(serialized1, serialized2, serialized1_len) == 0);
-    }
+    TEST_CHECK_STRING_EQUAL(serialized1, serialized2);
 
     sentry_free(serialized1);
     sentry_free(serialized2);
