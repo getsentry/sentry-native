@@ -1,3 +1,4 @@
+#include "sentry_json.h"
 #include "sentry_testsupport.h"
 #include "sentry_value.h"
 #include <locale.h>
@@ -299,6 +300,41 @@ SENTRY_TEST(value_json_parsing)
         STRING("{\"valid key\": true, \"invalid key \\uD801\": false}"));
     TEST_CHECK_JSON_VALUE(rv, "{\"valid key\":true}");
     sentry_value_decref(rv);
+}
+
+SENTRY_TEST(value_json_deeply_nested)
+{
+    sentry_value_t root = sentry_value_new_list();
+    sentry_value_t child = root;
+    for (int i = 0; i < 128; i++) {
+        sentry_value_t new_child;
+        if (i % 2) {
+            // odd = object
+            sentry_value_set_by_key(child, "_1", sentry_value_new_null());
+            new_child = sentry_value_new_list();
+            sentry_value_set_by_key(child, "_2", new_child);
+            sentry_value_set_by_key(child, "_3", sentry_value_new_null());
+        } else {
+            // even = list
+            sentry_value_append(child, sentry_value_new_null());
+            new_child = sentry_value_new_object();
+            sentry_value_append(child, new_child);
+            sentry_value_append(child, sentry_value_new_null());
+        }
+        child = new_child;
+    }
+
+    sentry_jsonwriter_t *jw = sentry__jsonwriter_new(NULL);
+    sentry__jsonwriter_write_value(jw, root);
+    size_t serialized_len = 0;
+    char *serialized = sentry__jsonwriter_into_string(jw, &serialized_len);
+    sentry_value_decref(root);
+
+    sentry_value_t parsed = sentry__value_from_json(serialized, serialized_len);
+    sentry_free(serialized);
+
+    TEST_CHECK(!sentry_value_is_null(parsed));
+    sentry_value_decref(parsed);
 }
 
 SENTRY_TEST(value_json_escaping)

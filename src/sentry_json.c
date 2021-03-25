@@ -254,10 +254,9 @@ sentry__jsonwriter_write_key(sentry_jsonwriter_t *jw, const char *val)
 void
 sentry__jsonwriter_write_list_start(sentry_jsonwriter_t *jw)
 {
-    if (!can_write_item(jw)) {
-        return;
+    if (can_write_item(jw)) {
+        write_char(jw, '[');
     }
-    write_char(jw, '[');
     jw->depth += 1;
     set_comma(jw, false);
 }
@@ -265,17 +264,18 @@ sentry__jsonwriter_write_list_start(sentry_jsonwriter_t *jw)
 void
 sentry__jsonwriter_write_list_end(sentry_jsonwriter_t *jw)
 {
-    write_char(jw, ']');
     jw->depth -= 1;
+    if (!at_max_depth(jw)) {
+        write_char(jw, ']');
+    }
 }
 
 void
 sentry__jsonwriter_write_object_start(sentry_jsonwriter_t *jw)
 {
-    if (!can_write_item(jw)) {
-        return;
+    if (can_write_item(jw)) {
+        write_char(jw, '{');
     }
-    write_char(jw, '{');
     jw->depth += 1;
     set_comma(jw, false);
 }
@@ -283,8 +283,10 @@ sentry__jsonwriter_write_object_start(sentry_jsonwriter_t *jw)
 void
 sentry__jsonwriter_write_object_end(sentry_jsonwriter_t *jw)
 {
-    write_char(jw, '}');
     jw->depth -= 1;
+    if (!at_max_depth(jw)) {
+        write_char(jw, '}');
+    }
 }
 
 static int32_t
