@@ -1,9 +1,8 @@
-#include "sentry.h"
 #include "sentry_json.h"
 #include "sentry_path.h"
 #include "sentry_testsupport.h"
 #include "sentry_value.h"
-#include <assert.h>
+#include <sentry.h>
 #include <string.h>
 
 static void
@@ -45,6 +44,10 @@ parse_json_roundtrip(const sentry_path_t *path)
 
 SENTRY_TEST(fuzz_json)
 {
+    // skipping this on android because it does not have access to the fixtures
+#if defined(SENTRY_PLATFORM_ANDROID)
+    SKIP_TEST();
+#else
     sentry_path_t *path = sentry__path_from_str(__FILE__);
     sentry_path_t *dir = sentry__path_dir(path);
     sentry__path_free(path);
@@ -62,4 +65,5 @@ SENTRY_TEST(fuzz_json)
 
     sentry__pathiter_free(piter);
     sentry__path_free(path);
+#endif
 }
