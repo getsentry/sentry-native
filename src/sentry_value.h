@@ -85,7 +85,7 @@ typedef struct sentry_jsonwriter_s sentry_jsonwriter_t;
 /**
  * Writes the given `value` into the `jsonwriter`.
  */
-void sentry__value_write_into_jsonwriter(
+void sentry__jsonwriter_write_value(
     sentry_jsonwriter_t *jw, sentry_value_t value);
 
 #endif
