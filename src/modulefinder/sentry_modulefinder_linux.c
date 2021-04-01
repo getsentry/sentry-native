@@ -105,7 +105,7 @@ is_duplicated_mapping(
     if (!module->num_mappings) {
         return false;
     }
-    sentry_mapped_region_t *mapping = &module->mappings[0];
+    const sentry_mapped_region_t *mapping = &module->mappings[0];
     return (mapping->offset == parsed->offset
         && module->mappings_inode == parsed->inode);
 }
