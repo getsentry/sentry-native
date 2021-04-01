@@ -215,6 +215,22 @@ typedef pthread_t sentry_threadid_t;
 typedef pthread_mutex_t sentry_mutex_t;
 typedef pthread_cond_t sentry_cond_t;
 #    ifdef SENTRY_PLATFORM_LINUX
+#        ifndef PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP
+// In particular musl libc does not define a recursive initializer itself.
+// However, we can just define our own. Following the chain of how musl
+// initializes its mutex, the attributes are the first member:
+// https://git.musl-libc.org/cgit/musl/tree/src/thread/pthread_mutex_init.c#n6
+// https://git.musl-libc.org/cgit/musl/tree/src/internal/pthread_impl.h#n86
+// https://git.musl-libc.org/cgit/musl/tree/include/alltypes.h.in#n86
+#            define PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP                     \
+                {                                                              \
+                    {                                                          \
+                        {                                                      \
+                            PTHREAD_MUTEX_RECURSIVE                            \
+                        }                                                      \
+                    }                                                          \
+                }
+#        endif
 #        define SENTRY__MUTEX_INIT PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP
 #    else
 #        define SENTRY__MUTEX_INIT PTHREAD_RECURSIVE_MUTEX_INITIALIZER
