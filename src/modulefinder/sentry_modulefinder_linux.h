@@ -4,11 +4,14 @@
 #include "sentry_boot.h"
 #include "sentry_slice.h"
 
+#define SENTRY_MAX_MAPPINGS 5
+
 typedef struct {
     uint64_t start;
     uint64_t end;
     uint64_t offset;
     char permissions[5];
+    uint64_t inode;
     sentry_slice_t file;
 } sentry_parsed_module_t;
 
@@ -21,6 +24,8 @@ typedef struct {
 typedef struct {
     sentry_slice_t file;
     sentry_mapped_region_t mappings[5];
+    uint64_t offset_in_inode;
+    uint64_t mappings_inode;
     uint8_t num_mappings;
 } sentry_module_t;
 

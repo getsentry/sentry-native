@@ -15,8 +15,6 @@
 
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 
-#define MAX_MAPPINGS 5
-
 #define ENSURE(Ptr)                                                            \
     if (!Ptr)                                                                  \
     goto fail
@@ -46,9 +44,10 @@ sentry__module_get_addr(
         }
         addr_end = mapping->addr + mapping->size;
         // if the start_offset is inside this mapping, create our addr
-        if (start_offset >= mapping->offset
-            && start_offset < mapping->offset + mapping->size) {
-            addr = start_offset - mapping->offset + mapping->addr;
+        uint64_t mapping_offset = mapping->offset - module->offset_in_inode;
+        if (start_offset >= mapping_offset
+            && start_offset < mapping_offset + mapping->size) {
+            addr = start_offset - mapping_offset + mapping->addr;
         }
         if (addr && addr + size <= addr_end) {
             return (void *)(uintptr_t)(addr);
@@ -61,6 +60,10 @@ static void
 sentry__module_mapping_push(
     sentry_module_t *module, const sentry_parsed_module_t *parsed)
 {
+    if (module->num_mappings && module->mappings_inode != parsed->inode) {
+        return;
+    }
+
     size_t size = parsed->end - parsed->start;
     if (module->num_mappings) {
         sentry_mapped_region_t *last_mapping
@@ -70,14 +73,41 @@ sentry__module_mapping_push(
             last_mapping->size += size;
             return;
         }
+        if (last_mapping->offset == parsed->offset) {
+            if (module->num_mappings == 1 && parsed->permissions[2] == 'x') {
+                // An executable mapping takes precedence and overwrites the
+                // existing mapping
+                module->num_mappings = 0;
+            } else {
+                // Otherwise we just ignore duplicated mappings
+                return;
+            }
+        }
     }
-    if (module->num_mappings < MAX_MAPPINGS) {
+    if (module->num_mappings < SENTRY_MAX_MAPPINGS) {
         sentry_mapped_region_t *mapping
             = &module->mappings[module->num_mappings++];
         mapping->offset = parsed->offset;
         mapping->size = size;
         mapping->addr = parsed->start;
+
+        if (module->num_mappings == 1) {
+            module->mappings_inode = parsed->inode;
+            module->offset_in_inode = parsed->offset;
+        }
     }
+}
+
+static bool
+is_duplicated_mapping(
+    const sentry_module_t *module, const sentry_parsed_module_t *parsed)
+{
+    if (!module->num_mappings) {
+        return false;
+    }
+    sentry_mapped_region_t *mapping = &module->mappings[0];
+    return (mapping->offset == parsed->offset
+        && module->mappings_inode == parsed->inode);
 }
 
 int
@@ -86,7 +116,6 @@ sentry__procmaps_parse_module_line(
 {
     uint8_t major_device;
     uint8_t minor_device;
-    uint64_t inode;
     int consumed = 0;
 
     // this has been copied from the breakpad source:
@@ -94,7 +123,8 @@ sentry__procmaps_parse_module_line(
     if (sscanf(line,
             "%" SCNx64 "-%" SCNx64 " %4c %" SCNx64 " %hhx:%hhx %" SCNu64 " %n",
             &module->start, &module->end, &module->permissions[0],
-            &module->offset, &major_device, &minor_device, &inode, &consumed)
+            &module->offset, &major_device, &minor_device, &module->inode,
+            &consumed)
         < 7) {
         return 0;
     }
@@ -159,20 +189,6 @@ get_code_id_from_notes(
         align(alignment, (void **)&offset);
     }
     return NULL;
-}
-
-static bool
-is_elf_module(const sentry_module_t *module)
-{
-    // we try to interpret `addr` as an ELF file, which should start with a
-    // magic number...
-    const unsigned char *e_ident
-        = sentry__module_get_addr(module, 0, EI_NIDENT);
-    if (!e_ident) {
-        return false;
-    }
-    return e_ident[EI_MAG0] == ELFMAG0 && e_ident[EI_MAG1] == ELFMAG1
-        && e_ident[EI_MAG2] == ELFMAG2 && e_ident[EI_MAG3] == ELFMAG3;
 }
 
 static const uint8_t *
@@ -348,11 +364,10 @@ sentry__procmaps_read_ids_from_elf(
 sentry_value_t
 sentry__procmaps_module_to_value(const sentry_module_t *module)
 {
-    if (!is_elf_module(module)) {
-        return sentry_value_new_null();
-    }
     sentry_value_t mod_val = sentry_value_new_object();
     sentry_value_set_by_key(mod_val, "type", sentry_value_new_string("elf"));
+    sentry_value_set_by_key(mod_val, "code_file",
+        sentry__value_new_string_owned(sentry__slice_to_owned(module->file)));
 
     sentry_value_set_by_key(mod_val, "image_addr",
         sentry__value_new_addr(module->mappings[0].addr));
@@ -360,8 +375,6 @@ sentry__procmaps_module_to_value(const sentry_module_t *module)
         = &module->mappings[module->num_mappings - 1];
     sentry_value_set_by_key(mod_val, "image_size",
         sentry_value_new_int32(last_mapping->offset + last_mapping->size));
-    sentry_value_set_by_key(mod_val, "code_file",
-        sentry__value_new_string_owned(sentry__slice_to_owned(module->file)));
 
     sentry__procmaps_read_ids_from_elf(mod_val, module);
 
@@ -371,7 +384,7 @@ sentry__procmaps_module_to_value(const sentry_module_t *module)
 static void
 try_append_module(sentry_value_t modules, const sentry_module_t *module)
 {
-    if (!module->file.ptr) {
+    if (!module->file.ptr || !module->num_mappings) {
         return;
     }
 
@@ -414,6 +427,16 @@ get_linux_vdso(void)
     }
     close(fd);
     return 0;
+}
+
+static bool
+is_valid_elf_header(void *start)
+{
+    // we try to interpret `addr` as an ELF file, which should start with a
+    // magic number...
+    const unsigned char *e_ident = start;
+    return e_ident[EI_MAG0] == ELFMAG0 && e_ident[EI_MAG1] == ELFMAG1
+        && e_ident[EI_MAG2] == ELFMAG2 && e_ident[EI_MAG3] == ELFMAG3;
 }
 
 static void
@@ -462,31 +485,47 @@ load_modules(sentry_value_t modules)
             break;
         }
 
-        // for the vdso, we use the special filename `linux-gate.so`,
-        // otherwise we check that we have a valid pathname (with a `/` inside),
-        // and skip over things that end in `)`, because entries marked as
-        // `(deleted)` might crash when dereferencing, trying to check if its
-        // a valid elf file.
-        char *slash;
-        if (module.start && module.start == linux_vdso) {
-            module.file = LINUX_GATE;
-        } else if (!module.start || !module.file.len
-            || module.permissions[0] != 'r'
-            || module.file.ptr[module.file.len - 1] == ')'
-            || (slash = strchr(module.file.ptr, '/')) == NULL
-            || slash > module.file.ptr + module.file.len
+        // skip mappings that are not readable
+        if (!module.start || module.permissions[0] != 'r') {
+            continue;
+        }
+        // skip mappings in `/dev/` or mappings that have no filename
+        if (!module.file.len
             || (module.file.len >= 5
                 && memcmp("/dev/", module.file.ptr, 5) == 0)) {
             continue;
         }
-
-        if (last_module.file.len
-            && !sentry__slice_eq(last_module.file, module.file)) {
-            try_append_module(modules, &last_module);
-
-            memset(&last_module, 0, sizeof(sentry_module_t));
+        // for the vdso, we use the special filename `linux-gate.so`
+        if (module.start && module.start == linux_vdso) {
+            module.file = LINUX_GATE;
+        } else if (module.file.ptr[0] != '/') {
+            // and skip all mappings that are not a file
+            continue;
         }
-        last_module.file = module.file;
+
+        if (is_valid_elf_header((void *)(size_t)module.start)) {
+            // On android, we sometimes have multiple mappings for the same
+            // inode at the same offset, such as this, excuse the auto-format
+            // here:
+            // 737b5570d000-737b5570e000 r--p 00000000 07:70 34
+            // /apex/com.android.runtime/lib64/bionic/libdl.so
+            // 737b5570e000-737b5570f000 r-xp 00000000 07:70 34
+            // /apex/com.android.runtime/lib64/bionic/libdl.so
+            // 737b5570f000-737b55710000 r--p 00000000 07:70 34
+            // /apex/com.android.runtime/lib64/bionic/libdl.so
+
+            if (!is_duplicated_mapping(&last_module, &module)) {
+                // try to append the module based on the mappings that we have
+                // found so far
+                try_append_module(modules, &last_module);
+
+                // start a new module based on the current mapping
+                memset(&last_module, 0, sizeof(sentry_module_t));
+
+                last_module.file = module.file;
+            }
+        }
+
         sentry__module_mapping_push(&last_module, &module);
     }
     try_append_module(modules, &last_module);
