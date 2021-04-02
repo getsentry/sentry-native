@@ -163,6 +163,7 @@ typedef struct sentry__winmutex_s sentry_mutex_t;
             *ThreadId == INVALID_HANDLE_VALUE ? 1 : 0)
 #    define sentry__thread_join(ThreadId)                                      \
         WaitForSingleObject(ThreadId, INFINITE)
+#    define sentry__thread_detach(ThreadId) (void)ThreadId
 #    define sentry__thread_free(ThreadId)                                      \
         do {                                                                   \
             if (*ThreadId != INVALID_HANDLE_VALUE) {                           \
@@ -257,6 +258,7 @@ typedef pthread_cond_t sentry_cond_t;
 #    define sentry__thread_spawn(ThreadId, Func, Data)                         \
         (pthread_create(ThreadId, NULL, Func, Data) == 0 ? 0 : 1)
 #    define sentry__thread_join(ThreadId) pthread_join(ThreadId, NULL)
+#    define sentry__thread_detach(ThreadId) pthread_detach(ThreadId)
 #    define sentry__thread_free sentry__thread_init
 #    define sentry__threadid_equal pthread_equal
 #    define sentry__current_thread pthread_self

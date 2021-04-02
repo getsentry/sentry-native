@@ -80,7 +80,15 @@ def run(cwd, exe, args, env=dict(os.environ), **kwargs):
             *cmd,
         ]
     if "valgrind" in os.environ.get("RUN_ANALYZER", ""):
-        cmd = ["valgrind", "--leak-check=yes", *cmd]
+        cmd = [
+            "valgrind",
+            "--suppressions={}".format(
+                os.path.join(sourcedir, "tests", "valgrind.txt")
+            ),
+            "--error-exitcode=33",
+            "--leak-check=yes",
+            *cmd,
+        ]
     try:
         return subprocess.run([*cmd, *args], cwd=cwd, env=env, **kwargs)
     except subprocess.CalledProcessError:

@@ -328,6 +328,7 @@ sentry__bgworker_shutdown(sentry_bgworker_t *bgw, uint64_t timeout)
             sentry__mutex_unlock(&bgw->task_lock);
             SENTRY_WARN(
                 "background thread failed to shut down cleanly within timeout");
+            sentry__thread_detach(bgw->thread_id);
             return 1;
         }
 
