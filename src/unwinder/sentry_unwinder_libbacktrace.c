@@ -1,6 +1,6 @@
 #include "sentry_boot.h"
 
-#if defined(SENTRY_PLATFORM_LINUX) && defined(__GLIBC__)
+#if defined(SENTRY_PLATFORM_MACOS) || defined(__GLIBC__)
 #    include <execinfo.h>
 #endif
 
@@ -21,7 +21,7 @@ sentry__unwind_stack_libbacktrace(
     } else if (uctx) {
         return 0;
     }
-#if defined(SENTRY_PLATFORM_LINUX) && defined(__GLIBC__)
+#if defined(SENTRY_PLATFORM_MACOS) || defined(__GLIBC__)
     return (size_t)backtrace(ptrs, (int)max_frames);
 #else
     (void)ptrs;
