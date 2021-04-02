@@ -86,7 +86,8 @@ sentry__module_mapping_push(
     }
     if (module->num_mappings < SENTRY_MAX_MAPPINGS) {
         sentry_mapped_region_t *mapping
-            = &module->mappings[module->num_mappings++];
+            = &module->mappings[module->num_mappings];
+        module->num_mappings += 1;
         mapping->offset = parsed->offset;
         mapping->size = size;
         mapping->addr = parsed->start;
