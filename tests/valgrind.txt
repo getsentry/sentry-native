@@ -5,37 +5,25 @@
 }
 {
     Reading Debug-Ids from readable mapped memory
-    Memcheck:Addr8
-    fun:sentry__procmaps_read_ids_from_elf
-}
-{
-    Reading Debug-Ids from readable mapped memory
     Memcheck:Addr1
-    fun:sentry__value_new_hexstring
+    ...
     fun:sentry__procmaps_read_ids_from_elf
-}
-{
-    Reading Debug-Ids from readable mapped memory
-    Memcheck:Addr1
-    fun:get_code_id_from_elf
 }
 {
     Reading Debug-Ids from readable mapped memory
     Memcheck:Addr2
-    fun:get_code_id_from_elf
+    ...
+    fun:sentry__procmaps_read_ids_from_elf
 }
 {
     Reading Debug-Ids from readable mapped memory
     Memcheck:Addr4
-    fun:get_code_id_from_elf
+    ...
+    fun:sentry__procmaps_read_ids_from_elf
 }
 {
     Reading Debug-Ids from readable mapped memory
     Memcheck:Addr8
-    fun:get_code_id_from_elf
-}
-{
-    Reading Debug-Ids from readable mapped memory
-    Memcheck:Addr4
-    fun:get_code_id_from_notes
+    ...
+    fun:sentry__procmaps_read_ids_from_elf
 }
