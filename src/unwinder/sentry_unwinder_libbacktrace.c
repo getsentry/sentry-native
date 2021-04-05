@@ -1,6 +1,8 @@
 #include "sentry_boot.h"
 
-#include <execinfo.h>
+#if defined(SENTRY_PLATFORM_MACOS) || defined(__GLIBC__)
+#    include <execinfo.h>
+#endif
 
 #ifndef __has_builtin
 #    define __has_builtin(x) 0
@@ -18,7 +20,12 @@ sentry__unwind_stack_libbacktrace(
         return 0;
     } else if (uctx) {
         return 0;
-    } else {
-        return (size_t)backtrace(ptrs, (int)max_frames);
     }
+#if defined(SENTRY_PLATFORM_MACOS) || defined(__GLIBC__)
+    return (size_t)backtrace(ptrs, (int)max_frames);
+#else
+    (void)ptrs;
+    (void)max_frames;
+    return 0;
+#endif
 }
