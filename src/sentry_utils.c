@@ -367,21 +367,22 @@ sentry__msec_time_to_iso8601(uint64_t time)
     struct tm tm_buf;
     tm = gmtime_r(&secs, &tm_buf);
 #endif
-    size_t written = strftime(buf, sizeof buf, "%Y-%m-%dT%H:%M:%S", tm);
+    size_t written = strftime(buf, buf_len, "%Y-%m-%dT%H:%M:%S", tm);
     if (written == 0) {
         return NULL;
     }
 
     int msecs = time % 1000;
     if (msecs) {
-        int rv = snprintf(buf + written, buf_len - written, ".%03d", msecs);
-        if (rv < 0 || rv >= buf_len - written) {
+        size_t rv = (size_t)snprintf(
+            buf + written, buf_len - written, ".%03d", msecs);
+        if (rv >= buf_len - written) {
             return NULL;
         }
         written += rv;
     }
 
-    if (buf_len - written < 2) {
+    if (written + 2 > buf_len) {
         return NULL;
     }
     buf[written] = 'Z';
