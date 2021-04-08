@@ -545,7 +545,12 @@ sentry__value_stringify(sentry_value_t value)
         return sentry__string_clone(sentry_value_as_string(value));
     default: {
         char buf[50];
-        snprintf(buf, sizeof(buf), "%g", sentry_value_as_double(value));
+        size_t written = (size_t)sentry__snprintf_c(
+            buf, sizeof(buf), "%g", sentry_value_as_double(value));
+        if (written >= sizeof(buf)) {
+            return sentry__string_clone("");
+        }
+        buf[written] = '\0';
         return sentry__string_clone(buf);
     }
     }
@@ -927,21 +932,35 @@ sentry_value_t
 sentry__value_new_addr(uint64_t addr)
 {
     char buf[100];
-    snprintf(buf, sizeof(buf), "0x%llx", (unsigned long long)addr);
+    size_t written = (size_t)snprintf(
+        buf, sizeof(buf), "0x%llx", (unsigned long long)addr);
+    if (written >= sizeof(buf)) {
+        return sentry_value_new_null();
+    }
+    buf[written] = '\0';
     return sentry_value_new_string(buf);
 }
 
 sentry_value_t
 sentry__value_new_hexstring(const uint8_t *bytes, size_t len)
 {
-    char *buf = sentry_malloc(len * 2 + 1);
+    size_t buf_len = len * 2 + 1;
+    char *buf = sentry_malloc(buf_len);
     if (!buf) {
         return sentry_value_new_null();
     }
-    char *ptr = buf;
+    size_t written = 0;
+
     for (size_t i = 0; i < len; i++) {
-        ptr += snprintf(ptr, 3, "%02hhx", bytes[i]);
+        size_t rv = (size_t)snprintf(
+            buf + written, buf_len - written, "%02hhx", bytes[i]);
+        if (rv >= buf_len - written) {
+            sentry_free(buf);
+            return sentry_value_new_null();
+        }
+        written += rv;
     }
+    buf[written] = '\0';
     return sentry__value_new_string_owned(buf);
 }
 
@@ -953,6 +972,7 @@ sentry__value_new_uuid(const sentry_uuid_t *uuid)
         return sentry_value_new_null();
     }
     sentry_uuid_as_string(uuid, buf);
+    buf[36] = '\0';
     return sentry__value_new_string_owned(buf);
 }
 
