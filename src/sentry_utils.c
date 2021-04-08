@@ -367,6 +367,12 @@ sentry__msec_time_to_iso8601(uint64_t time)
     struct tm tm_buf;
     tm = gmtime_r(&secs, &tm_buf);
 #endif
+    // It might as well be that the `time` parameter is broken in some way and
+    // would create a broken `tm` that then later causes formatting issues. We
+    // have seen super strange timestamps in some event payloads.
+    if (!tm || tm->tm_year > 9000) {
+        return NULL;
+    }
     size_t written = strftime(buf, buf_len, "%Y-%m-%dT%H:%M:%S", tm);
     if (written == 0) {
         return NULL;
