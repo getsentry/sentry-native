@@ -911,6 +911,9 @@ sentry_value_to_msgpack(sentry_value_t value, size_t *size_out)
 sentry_value_t
 sentry__value_new_string_owned(char *s)
 {
+    if (!s) {
+        return sentry_value_new_null();
+    }
     sentry_value_t rv
         = new_thing_value(s, THING_TYPE_STRING | THING_TYPE_FROZEN);
     if (sentry_value_is_null(rv)) {
