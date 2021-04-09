@@ -18,10 +18,17 @@ afl-fuzz -i fuzzing-examples -o fuzzing-results -- fuzzing/sentry_fuzz_json @@
 
 #undef NDEBUG
 
+#ifdef _WIN32
+#    define WIN32_LEAN_AND_MEAN
+#    define NOMINMAX
+#    define _CRT_SECURE_NO_WARNINGS
+#endif
+
+#include "sentry.h"
+
 #include <assert.h>
 #include <string.h>
 
-#include "sentry.h"
 #include "sentry_json.h"
 #include "sentry_path.h"
 #include "sentry_value.h"
