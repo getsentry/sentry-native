@@ -98,4 +98,8 @@ target_link_libraries(sentry_fuzz_json PRIVATE
 	"$<$<PLATFORM_ID:Linux>:rt>"
 )
 
+if(MSVC)
+	target_compile_options(sentry_fuzz_json PRIVATE $<BUILD_INTERFACE:/wd5105>)
+endif()
+
 add_test(NAME sentry_fuzz_json COMMAND sentry_fuzz_json)
