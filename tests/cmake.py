@@ -159,9 +159,10 @@ def cmake(cwd, targets, options=None):
     # CodeChecker invocations and options are documented here:
     # https://github.com/Ericsson/codechecker/blob/master/docs/analyzer/user_guide.md
 
-    buildcmd = [*cmake, "--build", ".", "--parallel"]
+    buildcmd = [*cmake, "--build", "."]
     for target in targets:
         buildcmd.extend(["--target", target])
+    buildcmd.append("--parallel")
     if "code-checker" in os.environ.get("RUN_ANALYZER", ""):
         buildcmd = [
             "CodeChecker",
