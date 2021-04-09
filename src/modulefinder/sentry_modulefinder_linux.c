@@ -34,23 +34,18 @@ void *
 sentry__module_get_addr(
     const sentry_module_t *module, uint64_t start_offset, uint64_t size)
 {
-    uint64_t addr = 0;
-    uint64_t addr_end = UINT64_MAX;
     for (size_t i = 0; i < module->num_mappings; i++) {
         const sentry_mapped_region_t *mapping = &module->mappings[i];
-        // we have a gap and can’t fit a contiguous range
-        if (addr && addr_end < mapping->addr) {
-            return NULL;
-        }
-        addr_end = mapping->addr + mapping->size;
-        // if the start_offset is inside this mapping, create our addr
         uint64_t mapping_offset = mapping->offset - module->offset_in_inode;
+
+        // start_offset is inside this mapping
         if (start_offset >= mapping_offset
             && start_offset < mapping_offset + mapping->size) {
-            addr = start_offset - mapping_offset + mapping->addr;
-        }
-        if (addr && addr + size <= addr_end) {
-            return (void *)(uintptr_t)(addr);
+            uint64_t addr = start_offset - mapping_offset + mapping->addr;
+            // the requested size is fully inside the mapping
+            if (addr + size <= mapping->addr + mapping->size) {
+                return (void *)(uintptr_t)(addr);
+            }
         }
     }
     return NULL;
@@ -72,16 +67,6 @@ sentry__module_mapping_push(
             && last_mapping->offset + last_mapping->size == parsed->offset) {
             last_mapping->size += size;
             return;
-        }
-        if (last_mapping->offset == parsed->offset) {
-            if (module->num_mappings == 1 && parsed->permissions[2] == 'x') {
-                // An executable mapping takes precedence and overwrites the
-                // existing mapping
-                module->num_mappings = 0;
-            } else {
-                // Otherwise we just ignore duplicated mappings
-                return;
-            }
         }
     }
     if (module->num_mappings < SENTRY_MAX_MAPPINGS) {
@@ -370,12 +355,14 @@ sentry__procmaps_module_to_value(const sentry_module_t *module)
     sentry_value_set_by_key(mod_val, "code_file",
         sentry__value_new_string_owned(sentry__slice_to_owned(module->file)));
 
-    sentry_value_set_by_key(mod_val, "image_addr",
-        sentry__value_new_addr(module->mappings[0].addr));
+    const sentry_mapped_region_t *first_mapping = &module->mappings[0];
     const sentry_mapped_region_t *last_mapping
         = &module->mappings[module->num_mappings - 1];
+    sentry_value_set_by_key(
+        mod_val, "image_addr", sentry__value_new_addr(first_mapping->addr));
     sentry_value_set_by_key(mod_val, "image_size",
-        sentry_value_new_int32(last_mapping->offset + last_mapping->size));
+        sentry_value_new_int32(
+            last_mapping->addr + last_mapping->size - first_mapping->addr));
 
     sentry__procmaps_read_ids_from_elf(mod_val, module);
 
