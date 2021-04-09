@@ -358,6 +358,7 @@ char *
 sentry__msec_time_to_iso8601(uint64_t time)
 {
     char buf[255];
+    size_t buf_len = sizeof(buf);
     time_t secs = time / 1000;
     struct tm *tm;
 #ifdef SENTRY_PLATFORM_WINDOWS
@@ -366,14 +367,32 @@ sentry__msec_time_to_iso8601(uint64_t time)
     struct tm tm_buf;
     tm = gmtime_r(&secs, &tm_buf);
 #endif
-    size_t end = strftime(buf, sizeof buf, "%Y-%m-%dT%H:%M:%S", tm);
+    // It might as well be that the `time` parameter is broken in some way and
+    // would create a broken `tm` that then later causes formatting issues. We
+    // have seen super strange timestamps in some event payloads.
+    if (!tm || tm->tm_year > 9000) {
+        return NULL;
+    }
+    size_t written = strftime(buf, buf_len, "%Y-%m-%dT%H:%M:%S", tm);
+    if (written == 0) {
+        return NULL;
+    }
 
     int msecs = time % 1000;
     if (msecs) {
-        snprintf(buf + end, 10, ".%03d", msecs);
+        size_t rv = (size_t)snprintf(
+            buf + written, buf_len - written, ".%03d", msecs);
+        if (rv >= buf_len - written) {
+            return NULL;
+        }
+        written += rv;
     }
 
-    strcat(buf, "Z");
+    if (written + 2 > buf_len) {
+        return NULL;
+    }
+    buf[written] = 'Z';
+    buf[written + 1] = '\0';
     return sentry__string_clone(buf);
 }
 

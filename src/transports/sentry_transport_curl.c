@@ -144,8 +144,12 @@ sentry__curl_send_task(void *_envelope, void *_state)
     headers = curl_slist_append(headers, "expect:");
     for (size_t i = 0; i < req->headers_len; i++) {
         char buf[255];
-        snprintf(buf, sizeof(buf), "%s:%s", req->headers[i].key,
-            req->headers[i].value);
+        size_t written = (size_t)snprintf(buf, sizeof(buf), "%s:%s",
+            req->headers[i].key, req->headers[i].value);
+        if (written >= sizeof(buf)) {
+            continue;
+        }
+        buf[written] = '\0';
         headers = curl_slist_append(headers, buf);
     }
 

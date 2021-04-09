@@ -460,8 +460,17 @@ endif()
 
 option(SENTRY_INTEGRATION_QT "Build Qt integration")
 if(SENTRY_INTEGRATION_QT)
-	find_package(Qt5 COMPONENTS Core REQUIRED)
-	target_link_libraries(sentry PRIVATE Qt5::Core)
+	if(QT_DEFAULT_MAJOR_VERSION)
+		# Let user choose major version
+		set(Qt_VERSION_MAJOR ${QT_DEFAULT_MAJOR_VERSION})
+	else()
+		# Find best match, prioritizing Qt 6 if available
+		find_package(Qt NAMES Qt6 Qt5 COMPONENTS Core REQUIRED)
+	endif()
+	find_package(Qt${Qt_VERSION_MAJOR} COMPONENTS Core REQUIRED)
+	message(STATUS "Found Qt: ${Qt${Qt_VERSION_MAJOR}_DIR} "
+		"(found version \"${Qt${Qt_VERSION_MAJOR}_VERSION}\")")
+	target_link_libraries(sentry PRIVATE Qt${Qt_VERSION_MAJOR}::Core)
 endif()
 
 include(CMakePackageConfigHelpers)
