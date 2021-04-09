@@ -45,17 +45,14 @@ SENTRY_TEST(module_addr)
     sentry_module_t module = { 0 };
     module.num_mappings = 3;
     // |    |    |    |    |    |    |    |
-    //           00000          1111122222
+    //           00000          1111111111
     module.mappings[0].offset = 0;
     module.mappings[0].size = 5;
     module.mappings[0].addr = 10;
     // here is a gap in the address space of size 10
     module.mappings[1].offset = 5;
-    module.mappings[1].size = 5;
+    module.mappings[1].size = 10;
     module.mappings[1].addr = 25;
-    module.mappings[2].offset = 10;
-    module.mappings[2].size = 5;
-    module.mappings[2].addr = 30;
 
     void *ptr;
 
