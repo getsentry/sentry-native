@@ -23,7 +23,7 @@ typedef struct {
 
 typedef struct {
     sentry_slice_t file;
-    sentry_mapped_region_t mappings[5];
+    sentry_mapped_region_t mappings[SENTRY_MAX_MAPPINGS];
     uint64_t offset_in_inode;
     uint64_t mappings_inode;
     uint8_t num_mappings;
