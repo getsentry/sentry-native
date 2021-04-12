@@ -145,6 +145,8 @@ def cmake(cwd, targets, options=None):
         flags = "-fprofile-instr-generate -fcoverage-mapping"
         configcmd.append("-DCMAKE_C_FLAGS='{}'".format(flags))
         configcmd.append("-DCMAKE_CXX_FLAGS='{}'".format(flags))
+    if "CMAKE_DEFINES" in os.environ:
+        configcmd.extend(os.environ.get("CMAKE_DEFINES").split())
     env = dict(os.environ)
     env["CFLAGS"] = env["CXXFLAGS"] = " ".join(cflags)
 
