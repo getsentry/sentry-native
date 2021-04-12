@@ -62,6 +62,10 @@ jobs:
           - name: macOS (xcode llvm)
             os: macOs-latest
             ERROR_ON_WARNINGS: 1
+          - name: macOS (xcode llvm + universal)
+            os: macOs-latest
+            ERROR_ON_WARNINGS: 1
+            CMAKE_DEFINES: -DCMAKE_OSX_ARCHITECTURES=arm64;x86_64
           - name: macOS (clang 11 + asan + llvm-cov)
             os: macOs-latest
             CC: clang
@@ -93,6 +97,7 @@ jobs:
       RUN_ANALYZER: ${{ matrix.RUN_ANALYZER }}
       ANDROID_API: ${{ matrix.ANDROID_API }}
       ANDROID_NDK: ${{ matrix.ANDROID_NDK }}
+      CMAKE_DEFINES: ${{ matrix.CMAKE_DEFINES }}
 
     steps:
       - uses: actions/checkout@v2
