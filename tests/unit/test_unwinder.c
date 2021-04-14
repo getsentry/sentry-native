@@ -1,3 +1,4 @@
+#include "sentry_scope.h"
 #include "sentry_symbolizer.h"
 #include "sentry_testsupport.h"
 #include <sentry.h>
@@ -64,4 +65,56 @@ SENTRY_TEST(unwinder)
             }
         }
     }
+}
+
+TEST_VISIBLE sentry_value_t
+capture_inapp_event()
+{
+    sentry_value_t event = sentry_value_new_event();
+    sentry_event_value_add_stacktrace(event, NULL, 0);
+    return event;
+}
+
+SENTRY_TEST(inapp_stacktrace)
+{
+    sentry_options_t *options = sentry_options_new();
+    sentry_options_add_in_app_include(options, "capture_inapp_event");
+
+    sentry_value_t event = capture_inapp_event();
+    SENTRY_WITH_SCOPE (scope) {
+        // this will symbolize all the stacktraces, and flag `in_app`.
+        sentry__scope_apply_to_event(scope, options, event, SENTRY_SCOPE_ALL);
+    }
+
+    size_t in_app = 0;
+    bool found = false;
+
+    sentry_value_t threads = sentry_value_get_by_key(event, "threads");
+    sentry_value_t values = sentry_value_get_by_key(threads, "values");
+    sentry_value_t thread = sentry_value_get_by_index(values, 0);
+    sentry_value_t stacktrace = sentry_value_get_by_key(thread, "stacktrace");
+    sentry_value_t frames = sentry_value_get_by_key(stacktrace, "frames");
+
+    size_t len = sentry_value_get_length(frames);
+    for (size_t i = 0; i < len; i++) {
+        sentry_value_t frame = sentry_value_get_by_index(frames, i);
+
+        const char *symbol = sentry_value_as_string(
+            sentry_value_get_by_key(frame, "function"));
+        bool is_in_app
+            = sentry_value_is_true(sentry_value_get_by_key(frame, "in_app"));
+        if (strcmp(symbol, "capture_inapp_event") == 0) {
+            found = true;
+            TEST_CHECK(is_in_app);
+        }
+
+        in_app += is_in_app;
+    }
+
+    TEST_CHECK(found);
+    TEST_CHECK_INT_EQUAL(in_app, 1);
+
+    sentry_options_free(options);
+    sentry_value_decref(event);
+    sentry__scope_cleanup();
 }

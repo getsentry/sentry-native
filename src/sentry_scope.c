@@ -127,7 +127,7 @@ sentry__scope_flush_unlock(const sentry_scope_t *scope)
         // we try to unlock the scope/session lock as soon as possible. The
         // backend will do its own `WITH_SCOPE` internally.
         if (options->backend && options->backend->flush_scope_func) {
-            options->backend->flush_scope_func(options->backend);
+            options->backend->flush_scope_func(options->backend, options);
         }
     }
     if (!did_unlock) {
@@ -136,8 +136,9 @@ sentry__scope_flush_unlock(const sentry_scope_t *scope)
 }
 
 static void
-sentry__foreach_stacktrace(
-    sentry_value_t event, void (*func)(sentry_value_t stacktrace))
+sentry__foreach_stacktrace(const sentry_options_t *options,
+    sentry_value_t event,
+    void (*func)(const sentry_options_t *options, sentry_value_t stacktrace))
 {
     // We have stacktraces at the following locations:
     // * `exception[.values].X.stacktrace`:
@@ -155,7 +156,7 @@ sentry__foreach_stacktrace(
             sentry_value_t stacktrace = sentry_value_get_by_key(
                 sentry_value_get_by_index(exception, i), "stacktrace");
             if (!sentry_value_is_null(stacktrace)) {
-                func(stacktrace);
+                func(options, stacktrace);
             }
         }
     }
@@ -170,17 +171,24 @@ sentry__foreach_stacktrace(
             sentry_value_t stacktrace = sentry_value_get_by_key(
                 sentry_value_get_by_index(threads, i), "stacktrace");
             if (!sentry_value_is_null(stacktrace)) {
-                func(stacktrace);
+                func(options, stacktrace);
             }
         }
     }
 }
 
+typedef struct {
+    sentry_value_t frame;
+    const sentry_options_t *options;
+} sentry__symbolize_frame_data_t;
+
 static void
 sentry__symbolize_frame(const sentry_frame_info_t *info, void *data)
 {
     // See https://develop.sentry.dev/sdk/event-payloads/stacktrace/
-    sentry_value_t frame = *(sentry_value_t *)data;
+    sentry__symbolize_frame_data_t *symbolize_data
+        = (sentry__symbolize_frame_data_t *)data;
+    sentry_value_t frame = symbolize_data->frame;
 
     if (info->symbol
         && sentry_value_is_null(sentry_value_get_by_key(frame, "function"))) {
@@ -206,10 +214,28 @@ sentry__symbolize_frame(const sentry_frame_info_t *info, void *data)
         sentry_value_set_by_key(frame, "image_addr",
             sentry__value_new_addr((uint64_t)(size_t)info->load_addr));
     }
+
+    const char *symbol_name
+        = sentry_value_as_string(sentry_value_get_by_key(frame, "function"));
+    const char *object_name
+        = sentry_value_as_string(sentry_value_get_by_key(frame, "package"));
+
+    sentry_string_list_t *in_app = symbolize_data->options->in_app_includes;
+    while (in_app) {
+        if (strstr(symbol_name, in_app->str) != NULL
+            || strstr(object_name, in_app->str) != NULL) {
+            sentry_value_set_by_key(
+                frame, "in_app", sentry_value_new_bool(true));
+            break;
+        }
+
+        in_app = in_app->next;
+    }
 }
 
 static void
-sentry__symbolize_stacktrace(sentry_value_t stacktrace)
+sentry__symbolize_stacktrace(
+    const sentry_options_t *options, sentry_value_t stacktrace)
 {
     sentry_value_t frames = sentry_value_get_by_key(stacktrace, "frames");
     if (sentry_value_get_type(frames) != SENTRY_VALUE_TYPE_LIST) {
@@ -232,13 +258,17 @@ sentry__symbolize_stacktrace(sentry_value_t stacktrace)
         if (!addr) {
             continue;
         }
-        sentry__symbolize((void *)addr, sentry__symbolize_frame, &frame);
+        sentry__symbolize_frame_data_t data;
+        data.frame = frame;
+        data.options = options;
+        sentry__symbolize((void *)addr, sentry__symbolize_frame, &data);
     }
 }
 
 void
-sentry__scope_apply_to_event(
-    const sentry_scope_t *scope, sentry_value_t event, sentry_scope_mode_t mode)
+sentry__scope_apply_to_event(const sentry_scope_t *scope,
+    const sentry_options_t *options, sentry_value_t event,
+    sentry_scope_mode_t mode)
 {
 #define IS_NULL(Key) sentry_value_is_null(sentry_value_get_by_key(event, Key))
 #define SET(Key, Value) sentry_value_set_by_key(event, Key, Value)
@@ -264,11 +294,9 @@ sentry__scope_apply_to_event(
 
     PLACE_STRING("platform", "native");
 
-    SENTRY_WITH_OPTIONS (options) {
-        PLACE_STRING("release", options->release);
-        PLACE_STRING("dist", options->dist);
-        PLACE_STRING("environment", options->environment);
-    }
+    PLACE_STRING("release", options->release);
+    PLACE_STRING("dist", options->dist);
+    PLACE_STRING("environment", options->environment);
 
     if (IS_NULL("level")) {
         SET("level", sentry__value_new_level(scope->level));
@@ -298,7 +326,8 @@ sentry__scope_apply_to_event(
     }
 
     if (mode & SENTRY_SCOPE_STACKTRACES) {
-        sentry__foreach_stacktrace(event, sentry__symbolize_stacktrace);
+        sentry__foreach_stacktrace(
+            options, event, sentry__symbolize_stacktrace);
     }
 
 #undef PLACE_STRING

@@ -25,6 +25,15 @@ struct sentry_attachment_s {
 };
 
 /**
+ * A linked list of strings, used for *in-app* patterns.
+ */
+typedef struct sentry_string_list_s sentry_string_list_t;
+struct sentry_string_list_s {
+    char *str;
+    sentry_string_list_t *next;
+};
+
+/**
  * This is the main options struct, which is being accessed throughout all of
  * the sentry internals.
  */
@@ -47,6 +56,7 @@ typedef struct sentry_options_s {
     bool symbolize_stacktraces;
     bool system_crash_reporter_enabled;
 
+    sentry_string_list_t *in_app_includes;
     sentry_attachment_t *attachments;
     sentry_run_t *run;
 

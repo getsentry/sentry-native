@@ -835,11 +835,22 @@ SENTRY_API int sentry_options_get_symbolize_stacktraces(
     const sentry_options_t *opts);
 
 /**
+ * Adds a new pattern for *in-app* classification.
+ *
+ * When on-device symbolication is enabled (see
+ * `sentry_options_set_symbolize_stacktraces`), this will flag stack frames as
+ * *in-app*, which match this pattern.
+ * Matching is done on both symbols names and object file names they belong to.
+ */
+SENTRY_API void sentry_options_add_in_app_include(
+    sentry_options_t *opts, const char *pattern);
+
+/**
  * Adds a new attachment to be sent along.
  *
  * `path` is assumed to be in platform-specific filesystem path encoding.
- * API Users on windows are encouraged to use `sentry_options_add_attachmentw`
- * instead.
+ * API Users on windows are encouraged to use
+ * `sentry_options_add_attachmentw` instead.
  */
 SENTRY_API void sentry_options_add_attachment(
     sentry_options_t *opts, const char *path);

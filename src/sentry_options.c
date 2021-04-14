@@ -84,6 +84,15 @@ sentry_options_free(sentry_options_t *opts)
     sentry_transport_free(opts->transport);
     sentry__backend_free(opts->backend);
 
+    sentry_string_list_t *next_in_app = opts->in_app_includes;
+    while (next_in_app) {
+        sentry_string_list_t *in_app = next_in_app;
+        next_in_app = in_app->next;
+
+        sentry_free(in_app->str);
+        sentry_free(in_app);
+    }
+
     sentry_attachment_t *next_attachment = opts->attachments;
     while (next_attachment) {
         sentry_attachment_t *attachment = next_attachment;
@@ -288,6 +297,23 @@ int
 sentry_options_get_symbolize_stacktraces(const sentry_options_t *opts)
 {
     return opts->symbolize_stacktraces;
+}
+
+void
+sentry_options_add_in_app_include(sentry_options_t *opts, const char *pattern)
+{
+    char *owned_pattern = sentry__string_clone(pattern);
+    if (!owned_pattern) {
+        return;
+    }
+    sentry_string_list_t *list = SENTRY_MAKE(sentry_string_list_t);
+    if (!list) {
+        sentry_free(owned_pattern);
+        return;
+    }
+    list->str = owned_pattern;
+    list->next = opts->in_app_includes;
+    opts->in_app_includes = list;
 }
 
 void
