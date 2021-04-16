@@ -1054,7 +1054,8 @@ sentry_value_new_thread(uint64_t id, const char *name)
 
     // TODO: would be nice to be able to actually use a `u64` as value.
     char buf[100];
-    size_t written = (size_t)snprintf(buf, sizeof(buf), "%llu", id);
+    size_t written
+        = (size_t)snprintf(buf, sizeof(buf), "%llu", (unsigned long long)id);
     if (written < sizeof(buf)) {
         buf[written] = '\0';
         sentry_value_set_by_key(thread, "id", sentry_value_new_string(buf));
