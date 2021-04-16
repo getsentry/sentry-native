@@ -166,21 +166,14 @@ main(int argc, char **argv)
         sentry_capture_event(event);
     }
     if (has_arg(argc, argv, "capture-exception")) {
-        // TODO: Create a convenience API to create a new exception object,
-        // and to attach a stacktrace to the exception.
-        // See also https://github.com/getsentry/sentry-native/issues/235
+        sentry_value_t exc = sentry_value_new_exception(
+            "ParseIntError", "invalid digit found in string");
+        if (has_arg(argc, argv, "add-stacktrace")) {
+            sentry_value_t stacktrace = sentry_value_new_stacktrace(NULL, 0);
+            sentry_value_set_by_key(exc, "stacktrace", stacktrace);
+        }
         sentry_value_t event = sentry_value_new_event();
-        sentry_value_t exception = sentry_value_new_object();
-        // for example:
-        sentry_value_set_by_key(
-            exception, "type", sentry_value_new_string("ParseIntError"));
-        sentry_value_set_by_key(exception, "value",
-            sentry_value_new_string("invalid digit found in string"));
-        sentry_value_t exceptions = sentry_value_new_list();
-        sentry_value_append(exceptions, exception);
-        sentry_value_t values = sentry_value_new_object();
-        sentry_value_set_by_key(values, "values", exceptions);
-        sentry_value_set_by_key(event, "exception", values);
+        sentry_event_value_add_exception(event, exc);
 
         sentry_capture_event(event);
     }

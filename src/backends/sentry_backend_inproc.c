@@ -177,13 +177,9 @@ make_signal_event(
     sentry_value_set_by_key(
         event, "level", sentry__value_new_level(SENTRY_LEVEL_FATAL));
 
-    sentry_value_t exc = sentry_value_new_object();
-    sentry_value_set_by_key(exc, "type",
-        sentry_value_new_string(
-            sig_slot ? sig_slot->signame : "UNKNOWN_SIGNAL"));
-    sentry_value_set_by_key(exc, "value",
-        sentry_value_new_string(
-            sig_slot ? sig_slot->sigdesc : "UnknownSignal"));
+    sentry_value_t exc = sentry_value_new_exception(
+        sig_slot ? sig_slot->signame : "UNKNOWN_SIGNAL",
+        sig_slot ? sig_slot->sigdesc : "UnknownSignal");
 
     sentry_value_t mechanism = sentry_value_new_object();
     sentry_value_set_by_key(exc, "mechanism", mechanism);
@@ -217,25 +213,12 @@ make_signal_event(
     }
     SENTRY_TRACEF("captured backtrace with %lu frames", frame_count);
 
-    sentry_value_t frames = sentry__value_new_list_with_size(frame_count);
-    for (size_t i = 0; i < frame_count; i++) {
-        sentry_value_t frame = sentry_value_new_object();
-        sentry_value_set_by_key(frame, "instruction_addr",
-            sentry__value_new_addr(
-                (uint64_t)(size_t)backtrace[frame_count - i - 1]));
-        sentry_value_append(frames, frame);
-    }
-
-    sentry_value_t stacktrace = sentry_value_new_object();
-    sentry_value_set_by_key(stacktrace, "frames", frames);
+    sentry_value_t stacktrace
+        = sentry_value_new_stacktrace(&backtrace[0], frame_count);
 
     sentry_value_set_by_key(exc, "stacktrace", stacktrace);
 
-    sentry_value_t exceptions = sentry_value_new_object();
-    sentry_value_t values = sentry_value_new_list();
-    sentry_value_set_by_key(exceptions, "values", values);
-    sentry_value_append(values, exc);
-    sentry_value_set_by_key(event, "exception", exceptions);
+    sentry_event_value_add_exception(event, exc);
 
     return event;
 }

@@ -997,6 +997,8 @@ sentry_value_new_event(void)
         sentry__value_new_string_owned(
             sentry__msec_time_to_iso8601(sentry__msec_time())));
 
+    sentry_value_set_by_key(rv, "platform", sentry_value_new_string("native"));
+
     return rv;
 }
 
@@ -1036,8 +1038,37 @@ sentry_value_new_breadcrumb(const char *type, const char *message)
     return rv;
 }
 
-void
-sentry_event_value_add_stacktrace(sentry_value_t event, void **ips, size_t len)
+sentry_value_t
+sentry_value_new_exception(const char *type, const char *value)
+{
+    sentry_value_t exc = sentry_value_new_object();
+    sentry_value_set_by_key(exc, "type", sentry_value_new_string(type));
+    sentry_value_set_by_key(exc, "value", sentry_value_new_string(value));
+    return exc;
+}
+
+sentry_value_t
+sentry_value_new_thread(uint64_t id, const char *name)
+{
+    sentry_value_t thread = sentry_value_new_object();
+
+    // TODO: would be nice to be able to actually use a `u64` as value.
+    char buf[100];
+    size_t written = (size_t)snprintf(buf, sizeof(buf), "%llu", id);
+    if (written < sizeof(buf)) {
+        buf[written] = '\0';
+        sentry_value_set_by_key(thread, "id", sentry_value_new_string(buf));
+    }
+
+    if (name) {
+        sentry_value_set_by_key(thread, "name", sentry_value_new_string(name));
+    }
+
+    return thread;
+}
+
+sentry_value_t
+sentry_value_new_stacktrace(void **ips, size_t len)
 {
     void *walked_backtrace[256];
 
@@ -1058,14 +1089,54 @@ sentry_event_value_add_stacktrace(sentry_value_t event, void **ips, size_t len)
     sentry_value_t stacktrace = sentry_value_new_object();
     sentry_value_set_by_key(stacktrace, "frames", frames);
 
+    return stacktrace;
+}
+
+static sentry_value_t
+sentry__get_values_list(sentry_value_t parent, const char *key)
+{
+    sentry_value_t obj = sentry_value_get_by_key(parent, key);
+    if (sentry_value_is_null(obj)) {
+        obj = sentry_value_new_object();
+        sentry_value_set_by_key(parent, key, obj);
+    }
+
+    sentry_value_type_t type = sentry_value_get_type(obj);
+    sentry_value_t values = sentry_value_new_null();
+    if (type == SENTRY_VALUE_TYPE_OBJECT) {
+        values = sentry_value_get_by_key(obj, "values");
+        if (sentry_value_is_null(values)) {
+            values = sentry_value_new_list();
+            sentry_value_set_by_key(obj, "values", values);
+        }
+    } else if (type == SENTRY_VALUE_TYPE_LIST) {
+        values = obj;
+    }
+
+    return values;
+}
+
+void
+sentry_event_value_add_exception(sentry_value_t event, sentry_value_t exception)
+{
+    sentry_value_t exceptions = sentry__get_values_list(event, "exception");
+    sentry_value_append(exceptions, exception);
+}
+
+void
+sentry_event_value_add_thread(sentry_value_t event, sentry_value_t thread)
+{
+    sentry_value_t threads = sentry__get_values_list(event, "threads");
+    sentry_value_append(threads, thread);
+}
+
+void
+sentry_event_value_add_stacktrace(sentry_value_t event, void **ips, size_t len)
+{
+    sentry_value_t stacktrace = sentry_value_new_stacktrace(ips, len);
+
     sentry_value_t thread = sentry_value_new_object();
     sentry_value_set_by_key(thread, "stacktrace", stacktrace);
 
-    sentry_value_t values = sentry_value_new_list();
-    sentry_value_append(values, thread);
-
-    sentry_value_t threads = sentry_value_new_object();
-    sentry_value_set_by_key(threads, "values", values);
-
-    sentry_value_set_by_key(event, "threads", threads);
+    sentry_event_value_add_thread(event, thread);
 }
