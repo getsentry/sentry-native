@@ -530,7 +530,7 @@ typedef struct sentry_options_s sentry_options_t;
  *   In case of `false`, sentry will log an error, but continue with freeing the
  *   transport.
  * * `free_func`: Frees the transports `state`. This hook might be called even
- *   though `shudown_func` returned `false` previously.
+ *   though `shutdown_func` returned `false` previously.
  *
  * The transport interface might be extended in the future with hooks to flush
  * its internal queue without shutting down, and to dump its internal queue to
