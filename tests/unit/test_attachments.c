@@ -82,7 +82,7 @@ SENTRY_TEST(lazy_attachments)
         != NULL);
     sentry_free(serialized);
 
-    sentry_shutdown();
+    sentry_close();
 
     sentry__path_remove(existing);
     sentry__path_remove(non_existing);

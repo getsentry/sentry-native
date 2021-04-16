@@ -283,7 +283,7 @@ sentry_init(options);
 
 // your application code …
 
-sentry_shutdown();
+sentry_close();
 ```
 
 Other important configuration options include:

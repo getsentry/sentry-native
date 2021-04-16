@@ -57,7 +57,7 @@ SENTRY_TEST(basic_function_transport)
     sentry_capture_event(sentry_value_new_message_event(SENTRY_LEVEL_INFO,
         "root", "not captured either due to revoked consent"));
 
-    sentry_shutdown();
+    sentry_close();
 
     TEST_CHECK_INT_EQUAL(called, 2);
 }
@@ -90,7 +90,7 @@ SENTRY_TEST(sampling_before_send)
             sentry_value_new_message_event(SENTRY_LEVEL_INFO, NULL, "foo"));
     }
 
-    sentry_shutdown();
+    sentry_close();
 
     TEST_CHECK_INT_EQUAL(called_transport, 0);
     // well, its random after all

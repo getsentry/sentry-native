@@ -186,7 +186,7 @@ main(int argc, char **argv)
     }
 
     // make sure everything flushes
-    sentry_shutdown();
+    sentry_close();
     if (has_arg(argc, argv, "sleep-after-shutdown")) {
         sleep_s(1);
     }
