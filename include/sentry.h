@@ -340,7 +340,9 @@ typedef enum sentry_level_e {
 /**
  * Creates a new empty Event value.
  *
- * See https://develop.sentry.dev/sdk/event-payloads/
+ * See https://docs.sentry.io/platforms/native/enriching-events/ for how to
+ * further work with events, and https://develop.sentry.dev/sdk/event-payloads/
+ * for a detailed overview of the possible properties of an Event.
  */
 SENTRY_API sentry_value_t sentry_value_new_event(void);
 
@@ -366,6 +368,10 @@ SENTRY_API sentry_value_t sentry_value_new_breadcrumb(
 
 /**
  * Creates a new Exception value.
+ *
+ * This is intended for capturing language-level exception, such as from a
+ * try-catch block. `type` and `value` here refer to the exception class and
+ * a possible description.
  *
  * See https://develop.sentry.dev/sdk/event-payloads/exception/
  *
