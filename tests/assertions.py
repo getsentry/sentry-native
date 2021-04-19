@@ -163,8 +163,7 @@ def assert_exception(envelope):
         "type": "ParseIntError",
         "value": "invalid digit found in string",
     }
-    expected = {"exception": {"values": [exception]}}
-    assert matches(event, expected)
+    assert matches(event["exception"]["values"][0], exception)
     assert_timestamp(event["timestamp"])
 
 

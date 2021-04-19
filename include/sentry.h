@@ -338,12 +338,18 @@ typedef enum sentry_level_e {
 } sentry_level_t;
 
 /**
- * Creates a new empty event value.
+ * Creates a new empty Event value.
+ *
+ * See https://docs.sentry.io/platforms/native/enriching-events/ for how to
+ * further work with events, and https://develop.sentry.dev/sdk/event-payloads/
+ * for a detailed overview of the possible properties of an Event.
  */
 SENTRY_API sentry_value_t sentry_value_new_event(void);
 
 /**
- * Creates a new message event value.
+ * Creates a new Message Event value.
+ *
+ * See https://develop.sentry.dev/sdk/event-payloads/message/
  *
  * `logger` can be NULL to omit the logger value.
  */
@@ -351,12 +357,72 @@ SENTRY_API sentry_value_t sentry_value_new_message_event(
     sentry_level_t level, const char *logger, const char *text);
 
 /**
- * Creates a new breadcrumb with a specific type and message.
+ * Creates a new Breadcrumb with a specific type and message.
+ *
+ * See https://develop.sentry.dev/sdk/event-payloads/breadcrumbs/
  *
  * Either parameter can be NULL in which case no such attributes is created.
  */
 SENTRY_API sentry_value_t sentry_value_new_breadcrumb(
     const char *type, const char *message);
+
+/**
+ * Creates a new Exception value.
+ *
+ * This is intended for capturing language-level exception, such as from a
+ * try-catch block. `type` and `value` here refer to the exception class and
+ * a possible description.
+ *
+ * See https://develop.sentry.dev/sdk/event-payloads/exception/
+ *
+ * The returned value needs to be attached to an event via
+ * `sentry_event_add_exception`.
+ */
+SENTRY_EXPERIMENTAL_API sentry_value_t sentry_value_new_exception(
+    const char *type, const char *value);
+
+/**
+ * Creates a new Thread value.
+ *
+ * See https://develop.sentry.dev/sdk/event-payloads/threads/
+ *
+ * The returned value needs to be attached to an event via
+ * `sentry_event_add_thread`.
+ *
+ * `name` can be NULL.
+ */
+SENTRY_EXPERIMENTAL_API sentry_value_t sentry_value_new_thread(
+    uint64_t id, const char *name);
+
+/**
+ * Creates a new Stack Trace conforming to the Stack Trace Interface.
+ *
+ * See https://develop.sentry.dev/sdk/event-payloads/stacktrace/
+ *
+ * The returned object needs to be attached to either an exception
+ * event, or a thread object.
+ *
+ * If `ips` is NULL the current stack trace is captured, otherwise `len`
+ * stack trace instruction pointers are attached to the event.
+ */
+SENTRY_EXPERIMENTAL_API sentry_value_t sentry_value_new_stacktrace(
+    void **ips, size_t len);
+
+/**
+ * Adds an Exception to an Event value.
+ *
+ * This takes ownership of the `exception`.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_event_add_exception(
+    sentry_value_t event, sentry_value_t exception);
+
+/**
+ * Adds a Thread to an Event value.
+ *
+ * This takes ownership of the `thread`.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_event_add_thread(
+    sentry_value_t event, sentry_value_t thread);
 
 /* -- Experimental APIs -- */
 
@@ -371,10 +437,15 @@ SENTRY_EXPERIMENTAL_API char *sentry_value_to_msgpack(
     sentry_value_t value, size_t *size_out);
 
 /**
- * Adds a stacktrace to an event.
+ * Adds a stack trace to an event.
  *
- * If `ips` is NULL the current stacktrace is captured, otherwise `len`
- * stacktrace instruction pointers are attached to the event.
+ * The stack trace is added as part of a new thread object.
+ * This function is **deprecated** in favor of using
+ * `sentry_value_new_stacktrace` in combination with `sentry_value_new_thread`
+ * and `sentry_event_add_thread`.
+ *
+ * If `ips` is NULL the current stack trace is captured, otherwise `len`
+ * stack trace instruction pointers are attached to the event.
  */
 SENTRY_EXPERIMENTAL_API void sentry_event_value_add_stacktrace(
     sentry_value_t event, void **ips, size_t len);
@@ -398,7 +469,7 @@ typedef struct sentry_ucontext_s {
  *
  * If the address is given in `addr` the stack is unwound form there.
  * Otherwise (NULL is passed) the current instruction pointer is used as
- * start address. The stacktrace is written to `stacktrace_out` with upt o
+ * start address. The stack trace is written to `stacktrace_out` with up to
  * `max_len` frames being written.  The actual number of unwound stackframes
  * is returned.
  */
@@ -408,7 +479,7 @@ SENTRY_EXPERIMENTAL_API size_t sentry_unwind_stack(
 /**
  * Unwinds the stack from the given context.
  *
- * The stacktrace is written to `stacktrace_out` with upt o `max_len` frames
+ * The stack trace is written to `stacktrace_out` with up to `max_len` frames
  * being written.  The actual number of unwound stackframes is returned.
  */
 SENTRY_EXPERIMENTAL_API size_t sentry_unwind_stack_from_ucontext(
