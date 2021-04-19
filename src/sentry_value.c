@@ -1052,8 +1052,8 @@ sentry_value_new_thread(uint64_t id, const char *name)
 {
     sentry_value_t thread = sentry_value_new_object();
 
-    // TODO: would be nice to be able to actually use a `u64` as value.
-    char buf[100];
+    // NOTE: values end up as JSON, which has no support for `u64`.
+    char buf[20 + 1];
     size_t written
         = (size_t)snprintf(buf, sizeof(buf), "%llu", (unsigned long long)id);
     if (written < sizeof(buf)) {
@@ -1094,7 +1094,7 @@ sentry_value_new_stacktrace(void **ips, size_t len)
 }
 
 static sentry_value_t
-sentry__get_values_list(sentry_value_t parent, const char *key)
+sentry__get_or_insert_values_list(sentry_value_t parent, const char *key)
 {
     sentry_value_t obj = sentry_value_get_by_key(parent, key);
     if (sentry_value_is_null(obj)) {
@@ -1118,16 +1118,18 @@ sentry__get_values_list(sentry_value_t parent, const char *key)
 }
 
 void
-sentry_event_value_add_exception(sentry_value_t event, sentry_value_t exception)
+sentry_event_add_exception(sentry_value_t event, sentry_value_t exception)
 {
-    sentry_value_t exceptions = sentry__get_values_list(event, "exception");
+    sentry_value_t exceptions
+        = sentry__get_or_insert_values_list(event, "exception");
     sentry_value_append(exceptions, exception);
 }
 
 void
-sentry_event_value_add_thread(sentry_value_t event, sentry_value_t thread)
+sentry_event_add_thread(sentry_value_t event, sentry_value_t thread)
 {
-    sentry_value_t threads = sentry__get_values_list(event, "threads");
+    sentry_value_t threads
+        = sentry__get_or_insert_values_list(event, "threads");
     sentry_value_append(threads, thread);
 }
 
@@ -1139,5 +1141,5 @@ sentry_event_value_add_stacktrace(sentry_value_t event, void **ips, size_t len)
     sentry_value_t thread = sentry_value_new_object();
     sentry_value_set_by_key(thread, "stacktrace", stacktrace);
 
-    sentry_event_value_add_thread(event, thread);
+    sentry_event_add_thread(event, thread);
 }

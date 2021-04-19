@@ -396,8 +396,8 @@ SENTRY_EXPERIMENTAL_API sentry_value_t sentry_value_new_thread(
  * The returned object needs to be attached to either an exception
  * event, or a thread object.
  *
- * If `ips` is NULL the current stacktrace is captured, otherwise `len`
- * stacktrace instruction pointers are attached to the event.
+ * If `ips` is NULL the current stack trace is captured, otherwise `len`
+ * stack trace instruction pointers are attached to the event.
  */
 SENTRY_EXPERIMENTAL_API sentry_value_t sentry_value_new_stacktrace(
     void **ips, size_t len);
@@ -407,7 +407,7 @@ SENTRY_EXPERIMENTAL_API sentry_value_t sentry_value_new_stacktrace(
  *
  * This takes ownership of the `exception`.
  */
-SENTRY_EXPERIMENTAL_API void sentry_event_value_add_exception(
+SENTRY_EXPERIMENTAL_API void sentry_event_add_exception(
     sentry_value_t event, sentry_value_t exception);
 
 /**
@@ -415,7 +415,7 @@ SENTRY_EXPERIMENTAL_API void sentry_event_value_add_exception(
  *
  * This takes ownership of the `thread`.
  */
-SENTRY_EXPERIMENTAL_API void sentry_event_value_add_thread(
+SENTRY_EXPERIMENTAL_API void sentry_event_add_thread(
     sentry_value_t event, sentry_value_t thread);
 
 /* -- Experimental APIs -- */
@@ -431,15 +431,15 @@ SENTRY_EXPERIMENTAL_API char *sentry_value_to_msgpack(
     sentry_value_t value, size_t *size_out);
 
 /**
- * Adds a stacktrace to an event.
+ * Adds a stack trace to an event.
  *
- * The stacktrace is added as part of a new thread object.
+ * The stack trace is added as part of a new thread object.
  * This function is **deprecated** in favor of using
  * `sentry_value_new_stacktrace` in combination with `sentry_value_new_thread`
- * and `sentry_event_value_add_thread`.
+ * and `sentry_event_add_thread`.
  *
- * If `ips` is NULL the current stacktrace is captured, otherwise `len`
- * stacktrace instruction pointers are attached to the event.
+ * If `ips` is NULL the current stack trace is captured, otherwise `len`
+ * stack trace instruction pointers are attached to the event.
  */
 SENTRY_EXPERIMENTAL_API void sentry_event_value_add_stacktrace(
     sentry_value_t event, void **ips, size_t len);
@@ -463,7 +463,7 @@ typedef struct sentry_ucontext_s {
  *
  * If the address is given in `addr` the stack is unwound form there.
  * Otherwise (NULL is passed) the current instruction pointer is used as
- * start address. The stacktrace is written to `stacktrace_out` with up to
+ * start address. The stack trace is written to `stacktrace_out` with up to
  * `max_len` frames being written.  The actual number of unwound stackframes
  * is returned.
  */
@@ -473,7 +473,7 @@ SENTRY_EXPERIMENTAL_API size_t sentry_unwind_stack(
 /**
  * Unwinds the stack from the given context.
  *
- * The stacktrace is written to `stacktrace_out` with up to `max_len` frames
+ * The stack trace is written to `stacktrace_out` with up to `max_len` frames
  * being written.  The actual number of unwound stackframes is returned.
  */
 SENTRY_EXPERIMENTAL_API size_t sentry_unwind_stack_from_ucontext(
