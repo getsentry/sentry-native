@@ -134,5 +134,5 @@ SENTRY_TEST(serialize_envelope)
     sentry_envelope_free(envelope);
     sentry_free(str);
 
-    sentry_shutdown();
+    sentry_close();
 }

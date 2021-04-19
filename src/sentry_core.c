@@ -72,7 +72,7 @@ sentry__should_skip_upload(void)
 int
 sentry_init(sentry_options_t *options)
 {
-    sentry_shutdown();
+    sentry_close();
 
     sentry_logger_t logger = { NULL, NULL };
     if (options->debug) {
@@ -179,7 +179,7 @@ fail:
 }
 
 int
-sentry_shutdown(void)
+sentry_close(void)
 {
     sentry_end_session();
 
@@ -217,6 +217,12 @@ sentry_shutdown(void)
     sentry__scope_cleanup();
     sentry_clear_modulecache();
     return (int)dumped_envelopes;
+}
+
+int
+sentry_shutdown(void)
+{
+    return sentry_close();
 }
 
 int

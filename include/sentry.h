@@ -864,7 +864,7 @@ SENTRY_API void sentry_options_set_logger(
  * Automatic session tracking is enabled by default and is equivalent to calling
  * `sentry_start_session` after startup.
  * There can only be one running session, and the current session will always be
- * closed implicitly by `sentry_shutdown`, when starting a new session with
+ * closed implicitly by `sentry_close`, when starting a new session with
  * `sentry_start_session`, or manually by calling `sentry_end_session`.
  */
 SENTRY_API void sentry_options_set_auto_session_tracking(
@@ -1014,6 +1014,15 @@ SENTRY_API int sentry_init(sentry_options_t *options);
 
 /**
  * Shuts down the sentry client and forces transports to flush out.
+ *
+ * Returns 0 on success.
+ */
+SENTRY_API int sentry_close(void);
+
+/**
+ * Shuts down the sentry client and forces transports to flush out.
+ *
+ * This is a **deprecated** alias for `sentry_close`.
  *
  * Returns 0 on success.
  */

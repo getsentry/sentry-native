@@ -39,12 +39,12 @@ SENTRY_TEST(custom_logger)
     SENTRY_WARNF("Oh this is %s", "bad");
     data.assert_now = false;
 
-    sentry_shutdown();
+    sentry_close();
 
     TEST_CHECK_INT_EQUAL(data.called, 1);
 
     // *really* clear the logger instance
     options = sentry_options_new();
     sentry_init(options);
-    sentry_shutdown();
+    sentry_close();
 }
