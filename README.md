@@ -295,7 +295,7 @@ Other important configuration options include:
 
 ## Known Limitations
 
-- The crashpad backend currently has no support for notifying the crashing
+- The crashpad backend on macOS currently has no support for notifying the crashing
   process, and can thus not properly terminate sessions or call the registered
   `before_send` hook. It will also lose any events that have been queued for
   sending at time of crash.
