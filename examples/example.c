@@ -173,7 +173,7 @@ main(int argc, char **argv)
             sentry_value_set_by_key(exc, "stacktrace", stacktrace);
         }
         sentry_value_t event = sentry_value_new_event();
-        sentry_event_value_add_exception(event, exc);
+        sentry_event_add_exception(event, exc);
 
         sentry_capture_event(event);
     }

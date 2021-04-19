@@ -370,7 +370,7 @@ SENTRY_API sentry_value_t sentry_value_new_breadcrumb(
  * See https://develop.sentry.dev/sdk/event-payloads/exception/
  *
  * The returned value needs to be attached to an event via
- * `sentry_event_value_add_exception`.
+ * `sentry_event_add_exception`.
  */
 SENTRY_EXPERIMENTAL_API sentry_value_t sentry_value_new_exception(
     const char *type, const char *value);
@@ -381,7 +381,7 @@ SENTRY_EXPERIMENTAL_API sentry_value_t sentry_value_new_exception(
  * See https://develop.sentry.dev/sdk/event-payloads/threads/
  *
  * The returned value needs to be attached to an event via
- * `sentry_event_value_add_thread`.
+ * `sentry_event_add_thread`.
  *
  * `name` can be NULL.
  */

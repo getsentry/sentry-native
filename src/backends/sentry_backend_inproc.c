@@ -218,7 +218,7 @@ make_signal_event(
 
     sentry_value_set_by_key(exc, "stacktrace", stacktrace);
 
-    sentry_event_value_add_exception(event, exc);
+    sentry_event_add_exception(event, exc);
 
     return event;
 }
