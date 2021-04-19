@@ -114,6 +114,14 @@ sentry__crashpad_handler(int UNUSED(signum), siginfo_t *UNUSED(info),
     SENTRY_WITH_OPTIONS (options) {
         sentry__write_crash_marker(options);
 
+        sentry_value_t event = sentry_value_new_event();
+        if (options->before_send_func) {
+            SENTRY_TRACE("invoking `before_send` hook");
+            event = options->before_send_func(
+                event, NULL, options->before_send_data);
+        }
+        sentry_value_decref(event);
+
         sentry__record_errors_on_current_session(1);
         sentry_session_t *session = sentry__end_current_session_with_status(
             SENTRY_SESSION_STATUS_CRASHED);

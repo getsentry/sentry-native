@@ -530,7 +530,7 @@ typedef struct sentry_options_s sentry_options_t;
  *   In case of `false`, sentry will log an error, but continue with freeing the
  *   transport.
  * * `free_func`: Frees the transports `state`. This hook might be called even
- *   though `shudown_func` returned `false` previously.
+ *   though `shutdown_func` returned `false` previously.
  *
  * The transport interface might be extended in the future with hooks to flush
  * its internal queue without shutting down, and to dump its internal queue to
@@ -635,8 +635,12 @@ SENTRY_API void sentry_options_set_transport(
  * same event. In case the event should be discarded, the callback needs to
  * call `sentry_value_decref` on the provided event, and return a
  * `sentry_value_new_null()` instead.
+ *
  * This function may be invoked inside of a signal handler and must be safe for
  * that purpose, see https://man7.org/linux/man-pages/man7/signal-safety.7.html.
+ * On Windows, it may be called from inside of a `UnhandledExceptionFilter`, see
+ * the documentation on SEH (structured exception handling) for more information
+ * https://docs.microsoft.com/en-us/windows/win32/debug/structured-exception-handling
  */
 typedef sentry_value_t (*sentry_event_function_t)(
     sentry_value_t event, void *hint, void *closure);
