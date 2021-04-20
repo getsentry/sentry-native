@@ -1,5 +1,40 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- Rewrote the Linux modulefinder which should now work correctly when encountering gaps in the memory mapping of loaded libraries, and supports libraries loaded from a file offset, such as libraries loaded directly from `.apk` files on Android.
+- Invoke the `before_send` hook at time of a hard crash when using the Windows or Linux Crashpad backend.
+- Added the following new convenience functions:
+  - `sentry_value_new_exception`
+  - `sentry_value_new_thread`
+  - `sentry_value_new_stacktrace`
+  - `sentry_event_add_exception`
+  - `sentry_event_add_thread`
+  - The `sentry_event_value_add_stacktrace` is deprecated.
+- Renamed `sentry_shutdown` to `sentry_close`, though the old function is still available.
+- Updated Qt integration to Qt 6.
+
+**Fixes**:
+
+- Optimized and fixed bugs in the JSON parser/serializer.
+- Build fixes for PPC and universal macOS.
+- Fixes to build using musl libc.
+- Correctness fixes around printf and strftime usage.
+
+**Internal**:
+
+- Update Crashpad and Breakpad submodules to 2021-04-12
+
+**Thank you**:
+
+Features, fixes and improvements in this release have been contributed by:
+
+- [@mastertheknife](https://github.com/mastertheknife)
+- [@torarnv](https://github.com/torarnv)
+- [@encounter](https://github.com/encounter)
+
 ## 0.4.8
 
 **Features**:
