@@ -70,11 +70,6 @@ sentry_value_t sentry__ensure_event_id(
  */
 const sentry_options_t *sentry__options_getref(void);
 
-/**
- * Release the lock on the global options.
- */
-void sentry__options_unlock(void);
-
 #define SENTRY_WITH_OPTIONS(Options)                                           \
     for (const sentry_options_t *Options = sentry__options_getref(); Options;  \
          sentry_options_free((sentry_options_t *)Options), Options = NULL)

@@ -67,7 +67,8 @@ void sentry__scope_flush_unlock(const sentry_scope_t *scope);
  * attached.
  */
 void sentry__scope_apply_to_event(const sentry_scope_t *scope,
-    sentry_value_t event, sentry_scope_mode_t mode);
+    const sentry_options_t *options, sentry_value_t event,
+    sentry_scope_mode_t mode);
 
 /**
  * This will update a sessions `distinct_id`, which is generated out of other
