@@ -3,7 +3,7 @@
 
 #include "sentry_boot.h"
 
-#ifdef SENTRY_PLATFORM_MACOS
+#ifdef SENTRY_PLATFORM_DARWIN
 #    include <mach/clock.h>
 #    include <mach/mach.h>
 #endif
@@ -149,7 +149,7 @@ sentry__monotonic_time(void)
     LARGE_INTEGER qpc_counter;
     QueryPerformanceCounter(&qpc_counter);
     return qpc_counter.QuadPart * 1000 / qpc_frequency.QuadPart;
-#elif defined(SENTRY_PLATFORM_MACOS)
+#elif defined(SENTRY_PLATFORM_DARWIN)
 
 // try `clock_gettime` first if available,
 // fall back to `host_get_clock_service` otherwise

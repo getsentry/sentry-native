@@ -15,7 +15,7 @@
 #include <string.h>
 #include <time.h>
 
-#ifdef SENTRY_PLATFORM_MACOS
+#ifdef SENTRY_PLATFORM_DARWIN
 #    include <xlocale.h>
 #elif defined(SENTRY_PLATFORM_LINUX) && !defined(SENTRY_PLATFORM_ANDROID)
 #    include "../vendor/stb_sprintf.h"
@@ -493,7 +493,7 @@ sentry__snprintf_c(char *buf, size_t buf_size, const char *fmt, ...)
     rv = _vsnprintf_l(buf, buf_size, fmt, c_locale(), args);
 #elif defined(SENTRY_PLATFORM_ANDROID) || defined(SENTRY_PLATFORM_IOS)
     rv = vsnprintf(buf, buf_size, fmt, args);
-#elif defined(SENTRY_PLATFORM_MACOS)
+#elif defined(SENTRY_PLATFORM_DARWIN)
     rv = vsnprintf_l(buf, buf_size, c_locale(), fmt, args);
 #else
     rv = stbsp_vsnprintf(buf, buf_size, fmt, args);
