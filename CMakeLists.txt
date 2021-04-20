@@ -256,8 +256,6 @@ if(SENTRY_TRANSPORT_CURL)
 	string(REPLACE ";" "$<SEMICOLON>" GENEX_CURL_COMPILE_DEFINITIONS "${CURL_COMPILE_DEFINITIONS}")
 	target_link_libraries(sentry PRIVATE $<BUILD_INTERFACE:${GENEX_CURL_LIBRARIES}>)
 	target_compile_definitions(sentry PRIVATE $<BUILD_INTERFACE:${GENEX_CURL_COMPILE_DEFINITIONS}>)
-elseif(SENTRY_TRANSPORT_WINHTTP)
-	target_link_libraries(sentry PRIVATE winhttp)
 endif()
 
 set_property(TARGET sentry PROPERTY C_VISIBILITY_PRESET hidden)
@@ -336,7 +334,6 @@ if(WIN32)
 		target_compile_definitions(sentry PRIVATE "_WIN32_WINNT=0x0501")
 	endif()
 
-	target_link_libraries(sentry PRIVATE shlwapi)
 	# crashpad does not support Windows XP toolset
 	if(MSVC AND CMAKE_GENERATOR_TOOLSET MATCHES "_xp$" AND SENTRY_BACKEND_CRASHPAD)
 		message(FATAL_ERROR "MSVC XP toolset does not support Crashpad")
@@ -349,7 +346,11 @@ if(ANDROID)
 elseif(LINUX)
     set(_SENTRY_PLATFORM_LIBS "dl" "rt")
 elseif(WIN32)
-    set(_SENTRY_PLATFORM_LIBS "dbghelp" "version")
+    set(_SENTRY_PLATFORM_LIBS "dbghelp" "shlwapi" "version")
+endif()
+
+if(SENTRY_TRANSPORT_WINHTTP)
+	list(APPEND _SENTRY_PLATFORM_LIBS "winhttp")
 endif()
 
 # handle platform threads library
