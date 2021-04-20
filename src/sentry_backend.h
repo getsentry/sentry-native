@@ -11,24 +11,22 @@
  * can ensure that any captured crash contains the sentry scope and other
  * information.
  */
-struct sentry_backend_s;
-typedef struct sentry_backend_s {
-    int (*startup_func)(
-        struct sentry_backend_s *, const sentry_options_t *options);
-    void (*shutdown_func)(struct sentry_backend_s *);
-    void (*free_func)(struct sentry_backend_s *);
-    void (*except_func)(
-        struct sentry_backend_s *, const struct sentry_ucontext_s *);
-    void (*flush_scope_func)(struct sentry_backend_s *);
+typedef struct sentry_backend_s sentry_backend_t;
+struct sentry_backend_s {
+    int (*startup_func)(sentry_backend_t *, const sentry_options_t *options);
+    void (*shutdown_func)(sentry_backend_t *);
+    void (*free_func)(sentry_backend_t *);
+    void (*except_func)(sentry_backend_t *, const struct sentry_ucontext_s *);
+    void (*flush_scope_func)(
+        sentry_backend_t *, const sentry_options_t *options);
     // NOTE: The breadcrumb is not moved into the hook and does not need to be
     // `decref`-d internally.
-    void (*add_breadcrumb_func)(
-        struct sentry_backend_s *, sentry_value_t breadcrumb);
-    void (*user_consent_changed_func)(struct sentry_backend_s *);
-    uint64_t (*get_last_crash_func)(struct sentry_backend_s *);
+    void (*add_breadcrumb_func)(sentry_backend_t *, sentry_value_t breadcrumb);
+    void (*user_consent_changed_func)(sentry_backend_t *);
+    uint64_t (*get_last_crash_func)(sentry_backend_t *);
     void *data;
     bool can_capture_after_shutdown;
-} sentry_backend_t;
+};
 
 /**
  * This will free a previously allocated backend.

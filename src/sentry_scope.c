@@ -127,7 +127,7 @@ sentry__scope_flush_unlock(const sentry_scope_t *scope)
         // we try to unlock the scope/session lock as soon as possible. The
         // backend will do its own `WITH_SCOPE` internally.
         if (options->backend && options->backend->flush_scope_func) {
-            options->backend->flush_scope_func(options->backend);
+            options->backend->flush_scope_func(options->backend, options);
         }
     }
     if (!did_unlock) {
@@ -237,8 +237,9 @@ sentry__symbolize_stacktrace(sentry_value_t stacktrace)
 }
 
 void
-sentry__scope_apply_to_event(
-    const sentry_scope_t *scope, sentry_value_t event, sentry_scope_mode_t mode)
+sentry__scope_apply_to_event(const sentry_scope_t *scope,
+    const sentry_options_t *options, sentry_value_t event,
+    sentry_scope_mode_t mode)
 {
 #define IS_NULL(Key) sentry_value_is_null(sentry_value_get_by_key(event, Key))
 #define SET(Key, Value) sentry_value_set_by_key(event, Key, Value)
@@ -264,11 +265,9 @@ sentry__scope_apply_to_event(
 
     PLACE_STRING("platform", "native");
 
-    SENTRY_WITH_OPTIONS (options) {
-        PLACE_STRING("release", options->release);
-        PLACE_STRING("dist", options->dist);
-        PLACE_STRING("environment", options->environment);
-    }
+    PLACE_STRING("release", options->release);
+    PLACE_STRING("dist", options->dist);
+    PLACE_STRING("environment", options->environment);
 
     if (IS_NULL("level")) {
         SET("level", sentry__value_new_level(scope->level));

@@ -376,7 +376,7 @@ sentry__prepare_event(const sentry_options_t *options, sentry_value_t event,
         if (!options->symbolize_stacktraces) {
             mode &= ~SENTRY_SCOPE_STACKTRACES;
         }
-        sentry__scope_apply_to_event(scope, event, mode);
+        sentry__scope_apply_to_event(scope, options, event, mode);
     }
 
     if (options->before_send_func) {
