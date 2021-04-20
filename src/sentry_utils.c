@@ -1,13 +1,13 @@
 // According to http://lua-users.org/lists/lua-l/2016-04/msg00216.html we can
 // use `stdtod_l` on all platforms when defining `_GNU_SOURCE`.
 
-#define _GNU_SOURCE
+#include "sentry_boot.h"
 
-#include "sentry_utils.h"
 #include "sentry_alloc.h"
 #include "sentry_core.h"
 #include "sentry_string.h"
 #include "sentry_sync.h"
+#include "sentry_utils.h"
 #include <locale.h>
 #include <stdarg.h>
 #include <stdio.h>
