@@ -22,6 +22,7 @@
 - Build fixes for PPC and universal macOS.
 - Fixes to build using musl libc.
 - Correctness fixes around printf and strftime usage.
+- Allow building and running on older macOS versions.
 
 **Internal**:
 

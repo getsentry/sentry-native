@@ -3,6 +3,10 @@
 
 #include "sentry_boot.h"
 
+#ifdef SENTRY_PLATFORM_DARWIN
+#    include <mach/clock.h>
+#    include <mach/mach.h>
+#endif
 #ifdef SENTRY_PLATFORM_WINDOWS
 #    include <winnt.h>
 #else
@@ -145,6 +149,25 @@ sentry__monotonic_time(void)
     LARGE_INTEGER qpc_counter;
     QueryPerformanceCounter(&qpc_counter);
     return qpc_counter.QuadPart * 1000 / qpc_frequency.QuadPart;
+#elif defined(SENTRY_PLATFORM_DARWIN)
+
+// try `clock_gettime` first if available,
+// fall back to `host_get_clock_service` otherwise
+#    if defined(MAC_OS_X_VERSION_10_12) && __has_builtin(__builtin_available)
+    if (__builtin_available(macOS 10.12, *)) {
+        struct timespec tv;
+        return (clock_gettime(CLOCK_MONOTONIC, &tv) == 0)
+            ? (uint64_t)tv.tv_sec * 1000 + tv.tv_nsec / 1000000
+            : 0;
+    }
+#    endif
+
+    clock_serv_t cclock;
+    mach_timespec_t mts;
+    host_get_clock_service(mach_host_self(), CALENDAR_CLOCK, &cclock);
+    clock_get_time(cclock, &mts);
+    mach_port_deallocate(mach_task_self(), cclock);
+    return (uint64_t)mts.tv_sec * 1000 + mts.tv_nsec / 1000000;
 #else
     struct timespec tv;
     return (clock_gettime(CLOCK_MONOTONIC, &tv) == 0)
