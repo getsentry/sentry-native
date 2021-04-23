@@ -93,11 +93,18 @@ SENTRY_TEST(dsn_parsing_invalid)
     sentry_dsn_t *dsn
         = sentry__dsn_new("http://username:password@example.com/foo/bar?x=y#z");
     TEST_CHECK(!!dsn);
-    if (!dsn) {
-        return;
+    if (dsn) {
+        TEST_CHECK(!dsn->is_valid);
+        sentry__dsn_decref(dsn);
     }
-    TEST_CHECK(!dsn->is_valid);
-    sentry__dsn_decref(dsn);
+
+    dsn = sentry__dsn_new("=https://foo@bar.ingest.sentry.io/"
+                          "1234567");
+    TEST_CHECK(!!dsn);
+    if (dsn) {
+        TEST_CHECK(!dsn->is_valid);
+        sentry__dsn_decref(dsn);
+    }
 }
 
 SENTRY_TEST(dsn_store_url_with_path)
