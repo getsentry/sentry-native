@@ -209,6 +209,7 @@ sentry__url_cleanup(sentry_url_t *url)
     sentry_free(url->fragment);
     sentry_free(url->username);
     sentry_free(url->password);
+    memset(url, 0, sizeof(sentry_url_t));
 }
 
 sentry_dsn_t *
