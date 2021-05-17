@@ -29,7 +29,8 @@ sentry_new_function_transport(
     state->func = func;
     state->data = data;
 
-    sentry_transport_t *transport = sentry_transport_new(send_envelope_function_transport);
+    sentry_transport_t *transport
+        = sentry_transport_new(send_envelope_function_transport);
     if (!transport) {
         sentry_free(state);
         return NULL;

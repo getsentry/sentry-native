@@ -33,8 +33,8 @@ SENTRY_TEST(basic_function_transport)
 
     sentry_options_t *options = sentry_options_new();
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
-    sentry_options_set_transport(
-        options, sentry_new_function_transport(send_envelope_test_basic, &called));
+    sentry_options_set_transport(options,
+        sentry_new_function_transport(send_envelope_test_basic, &called));
     sentry_options_set_release(options, "prod");
     sentry_options_set_require_user_consent(options, true);
     sentry_init(options);
@@ -80,7 +80,8 @@ SENTRY_TEST(sampling_before_send)
     sentry_options_t *options = sentry_options_new();
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
     sentry_options_set_transport(options,
-        sentry_new_function_transport(send_envelope_test_basic, &called_transport));
+        sentry_new_function_transport(
+            send_envelope_test_basic, &called_transport));
     sentry_options_set_before_send(options, before_send, &called_beforesend);
     sentry_options_set_sample_rate(options, 0.75);
     sentry_init(options);
