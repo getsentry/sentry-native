@@ -2,7 +2,7 @@
 
 #include "sentry_testsupport.h"
 
-#define XX(Name) void CONCAT(test_sentry_, Name)(void);
+#define XX(Name) SENTRY_TEST(Name);
 #include "tests.inc"
 #undef XX
 

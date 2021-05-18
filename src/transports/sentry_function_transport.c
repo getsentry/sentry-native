@@ -10,7 +10,7 @@ struct transport_state {
 };
 
 static void
-send_envelope(sentry_envelope_t *envelope, void *_state)
+send_envelope_function_transport(sentry_envelope_t *envelope, void *_state)
 {
     struct transport_state *state = _state;
     state->func(envelope, state->data);
@@ -29,7 +29,8 @@ sentry_new_function_transport(
     state->func = func;
     state->data = data;
 
-    sentry_transport_t *transport = sentry_transport_new(send_envelope);
+    sentry_transport_t *transport
+        = sentry_transport_new(send_envelope_function_transport);
     if (!transport) {
         sentry_free(state);
         return NULL;
