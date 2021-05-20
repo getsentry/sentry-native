@@ -9,11 +9,16 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifdef NDEBUG
+#    undef NDEBUG
+#endif
+#include <assert.h>
 
 #ifdef SENTRY_PLATFORM_WINDOWS
 #    include <synchapi.h>
 #    define sleep_s(SECONDS) Sleep((SECONDS)*1000)
 #else
+#    include <signal.h>
 #    include <unistd.h>
 #    define sleep_s(SECONDS) sleep(SECONDS)
 #endif
@@ -156,6 +161,20 @@ main(int argc, char **argv)
     if (has_arg(argc, argv, "crash")) {
         trigger_crash();
     }
+    if (has_arg(argc, argv, "assert")) {
+        assert(0);
+    }
+    if (has_arg(argc, argv, "abort")) {
+        abort();
+    }
+#ifdef SENTRY_PLATFORM_UNIX
+    if (has_arg(argc, argv, "raise")) {
+        raise(SIGSEGV);
+    }
+    if (has_arg(argc, argv, "kill")) {
+        kill(getpid(), SIGSEGV);
+    }
+#endif
 
     if (has_arg(argc, argv, "capture-event")) {
         sentry_value_t event = sentry_value_new_message_event(
@@ -180,6 +199,7 @@ main(int argc, char **argv)
 
     // make sure everything flushes
     sentry_close();
+
     if (has_arg(argc, argv, "sleep-after-shutdown")) {
         sleep_s(1);
     }
