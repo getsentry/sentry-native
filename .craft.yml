@@ -5,7 +5,6 @@ targets:
   - name: registry
     sdks:
       github:getsentry/sentry-native:
-        name: registry
   - name: gcs
     bucket: sentry-sdk-assets
     paths:
