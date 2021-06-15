@@ -25,6 +25,7 @@
 
 static sentry_options_t *g_options = NULL;
 static sentry_mutex_t g_options_lock = SENTRY__MUTEX_INIT;
+static sentry_mutex_t g_init_lock = SENTRY__MUTEX_INIT;
 
 const sentry_options_t *
 sentry__options_getref(void)
@@ -72,7 +73,15 @@ sentry__should_skip_upload(void)
 int
 sentry_init(sentry_options_t *options)
 {
-    sentry_close();
+    // this function is to be called only once, so we do not allow more than
+    // one call to be active. If the function is called twice, create an error
+    // and return fail (1)
+    sentry__mutex_lock(&g_init_lock);
+    if (g_options != NULL ) {
+        SENTRY_ERROR("sentry_init() may only be called once");
+        sentry__mutex_unlock(&g_init_lock);
+        return 1;
+    }
 
     sentry_logger_t logger = { NULL, NULL };
     if (options->debug) {
@@ -85,6 +94,7 @@ sentry_init(sentry_options_t *options)
         SENTRY_WARN("failed to create database directory or there is no write "
                     "access to this directory");
         sentry_options_free(options);
+        sentry__mutex_unlock(&g_init_lock);
         return 1;
     }
     sentry_transport_t *transport = options->transport;
@@ -167,6 +177,7 @@ sentry_init(sentry_options_t *options)
         sentry_start_session();
     }
 
+    sentry__mutex_unlock(&g_init_lock);
     return 0;
 
 fail:
@@ -175,6 +186,7 @@ fail:
         sentry__transport_shutdown(transport, 0);
     }
     sentry_options_free(options);
+    sentry__mutex_unlock(&g_init_lock);
     return 1;
 }
 
@@ -183,9 +195,10 @@ sentry_close(void)
 {
     sentry_end_session();
 
+    // keep the global options until end of function if other calls need the
+    // data while we still clean up to avoid crashes
     sentry__mutex_lock(&g_options_lock);
     sentry_options_t *options = g_options;
-    g_options = NULL;
     sentry__mutex_unlock(&g_options_lock);
 
     size_t dumped_envelopes = 0;
@@ -216,6 +229,11 @@ sentry_close(void)
 
     sentry__scope_cleanup();
     sentry_clear_modulecache();
+
+    sentry__mutex_lock(&g_options_lock);
+    g_options = NULL;
+    sentry__mutex_unlock(&g_options_lock);
+
     return (int)dumped_envelopes;
 }
 
