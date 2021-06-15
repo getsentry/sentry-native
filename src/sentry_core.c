@@ -77,7 +77,7 @@ sentry_init(sentry_options_t *options)
     // one call to be active. If the function is called twice, create an error
     // and return fail (1)
     sentry__mutex_lock(&g_init_lock);
-    if (g_options != NULL ) {
+    if (g_options != NULL) {
         SENTRY_ERROR("sentry_init() may only be called once");
         sentry__mutex_unlock(&g_init_lock);
         return 1;
