@@ -77,6 +77,10 @@ sentry_init(sentry_options_t *options)
     // one call to be active. If the function is called twice, create an error
     // and return fail (1)
     sentry__mutex_lock(&g_initclose_lock);
+
+    // pre-init here, so we can consistently use bailing out to :fail
+    sentry_transport_t *transport = NULL;
+
     if (g_options != NULL) {
         SENTRY_ERROR("sentry_init() may only be called once");
         goto fail;
@@ -94,8 +98,8 @@ sentry_init(sentry_options_t *options)
                     "access to this directory");
         goto fail;
     }
-    sentry_transport_t *transport = options->transport;
 
+    transport = options->transport;
     sentry_path_t *database_path = options->database_path;
     options->database_path = sentry__path_absolute(database_path);
     if (options->database_path) {
