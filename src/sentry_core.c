@@ -25,7 +25,7 @@
 
 static sentry_options_t *g_options = NULL;
 static sentry_mutex_t g_options_lock = SENTRY__MUTEX_INIT;
-static sentry_mutex_t g_init_lock = SENTRY__MUTEX_INIT;
+static sentry_mutex_t g_initclose_lock = SENTRY__MUTEX_INIT;
 
 const sentry_options_t *
 sentry__options_getref(void)
@@ -76,11 +76,10 @@ sentry_init(sentry_options_t *options)
     // this function is to be called only once, so we do not allow more than
     // one call to be active. If the function is called twice, create an error
     // and return fail (1)
-    sentry__mutex_lock(&g_init_lock);
+    sentry__mutex_lock(&g_initclose_lock);
     if (g_options != NULL) {
         SENTRY_ERROR("sentry_init() may only be called once");
-        sentry__mutex_unlock(&g_init_lock);
-        return 1;
+        goto fail;
     }
 
     sentry_logger_t logger = { NULL, NULL };
@@ -93,9 +92,7 @@ sentry_init(sentry_options_t *options)
     if (sentry__path_create_dir_all(options->database_path)) {
         SENTRY_WARN("failed to create database directory or there is no write "
                     "access to this directory");
-        sentry_options_free(options);
-        sentry__mutex_unlock(&g_init_lock);
-        return 1;
+        goto fail;
     }
     sentry_transport_t *transport = options->transport;
 
@@ -177,7 +174,7 @@ sentry_init(sentry_options_t *options)
         sentry_start_session();
     }
 
-    sentry__mutex_unlock(&g_init_lock);
+    sentry__mutex_unlock(&g_initclose_lock);
     return 0;
 
 fail:
@@ -186,14 +183,17 @@ fail:
         sentry__transport_shutdown(transport, 0);
     }
     sentry_options_free(options);
-    sentry__mutex_unlock(&g_init_lock);
+    sentry__mutex_unlock(&g_initclose_lock);
     return 1;
 }
 
 int
 sentry_close(void)
 {
-    sentry_end_session();
+    sentry__mutex_lock(&g_initclose_lock);
+    if (g_options == NULL) {
+        SENTRY_DEBUG("sentry_close() called, but options was empty");
+    }
 
     // keep the global options until end of function if other calls need the
     // data while we still clean up to avoid crashes
@@ -203,6 +203,8 @@ sentry_close(void)
 
     size_t dumped_envelopes = 0;
     if (options) {
+        sentry_end_session();
+
         if (options->backend && options->backend->shutdown_func) {
             SENTRY_TRACE("shutting down backend");
             options->backend->shutdown_func(options->backend);
@@ -233,6 +235,8 @@ sentry_close(void)
     sentry__mutex_lock(&g_options_lock);
     g_options = NULL;
     sentry__mutex_unlock(&g_options_lock);
+
+    sentry__mutex_unlock(&g_initclose_lock);
 
     return (int)dumped_envelopes;
 }
