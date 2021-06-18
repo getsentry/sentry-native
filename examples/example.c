@@ -154,6 +154,10 @@ main(int argc, char **argv)
         }
     }
 
+    if (has_arg(argc, argv, "reinstall")) {
+        sentry_reinstall_backend();
+    }
+
     if (has_arg(argc, argv, "sleep")) {
         sleep_s(10);
     }
