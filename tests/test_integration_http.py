@@ -224,12 +224,7 @@ def test_inproc_reinstall(cmake, httpserver):
         "/api/123456/envelope/", headers={"x-sentry-auth": auth_header},
     ).respond_with_data("OK")
 
-    child = run(
-        tmp_path,
-        "sentry_example",
-        ["log", "reinstall", "crash"],
-        env=env,
-    )
+    child = run(tmp_path, "sentry_example", ["log", "reinstall", "crash"], env=env,)
     assert child.returncode  # well, its a crash after all
 
     run(
@@ -300,12 +295,7 @@ def test_breakpad_reinstall(cmake, httpserver):
         "/api/123456/envelope/", headers={"x-sentry-auth": auth_header},
     ).respond_with_data("OK")
 
-    child = run(
-        tmp_path,
-        "sentry_example",
-        ["log", "reinstall", "crash"],
-        env=env,
-    )
+    child = run(tmp_path, "sentry_example", ["log", "reinstall", "crash"], env=env,)
     assert child.returncode  # well, its a crash after all
 
     run(

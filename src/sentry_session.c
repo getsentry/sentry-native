@@ -185,8 +185,8 @@ sentry__session_from_json(const char *buf, size_t buflen)
         sentry_value_get_by_key(value, "errors"));
     rv->started_ms = sentry__iso8601_to_msec(
         sentry_value_as_string(sentry_value_get_by_key(value, "started")));
-    rv->duration_ms = (uint64_t)(
-        sentry_value_as_double(sentry_value_get_by_key(value, "duration"))
+    rv->duration_ms = (uint64_t)(sentry_value_as_double(
+                                     sentry_value_get_by_key(value, "duration"))
         * 1000);
 
     sentry_value_decref(value);
