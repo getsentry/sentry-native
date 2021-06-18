@@ -36,9 +36,7 @@ def test_crashpad_reinstall(cmake, httpserver):
     httpserver.expect_request("/api/123456/minidump/").respond_with_data("OK")
 
     with httpserver.wait(timeout=10) as waiting:
-        child = run(
-            tmp_path, "sentry_example", ["log", "reinstall", "crash"], env=env
-        )
+        child = run(tmp_path, "sentry_example", ["log", "reinstall", "crash"], env=env)
         assert child.returncode  # well, its a crash after all
 
     assert waiting.result
@@ -86,6 +84,9 @@ def test_crashpad_crash(cmake, httpserver):
     assert_crashpad_upload(multipart)
 
 
+@pytest.mark.skipif(
+    sys.platform == "linux", reason="linux clears the signal handlers on shutdown"
+)
 def test_crashpad_crash_after_shutdown(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "crashpad"})
 
