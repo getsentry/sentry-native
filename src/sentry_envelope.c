@@ -410,7 +410,7 @@ sentry_envelope_write_to_file(
     return rv;
 }
 
-#if SENTRY_UNITTEST
+#ifdef SENTRY_UNITTEST
 size_t
 sentry__envelope_get_item_count(const sentry_envelope_t *envelope)
 {
