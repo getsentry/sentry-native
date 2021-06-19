@@ -125,7 +125,7 @@ sentry__page_allocator_alloc(size_t size)
     return rv;
 }
 
-#if SENTRY_UNITTEST
+#ifdef SENTRY_UNITTEST
 void
 sentry__page_allocator_disable(void)
 {

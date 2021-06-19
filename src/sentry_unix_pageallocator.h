@@ -21,7 +21,7 @@ void sentry__page_allocator_enable(void);
  */
 void *sentry__page_allocator_alloc(size_t size);
 
-#if SENTRY_UNITTEST
+#ifdef SENTRY_UNITTEST
 /**
  * This disables the page allocator, which invalidates every allocation that was
  * done through it. Therefore it is only safe to use in unit tests
