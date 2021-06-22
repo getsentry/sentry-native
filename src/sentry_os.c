@@ -34,7 +34,7 @@ sentry__get_os_context(void)
     }
     ffi->dwFileFlags &= ffi->dwFileFlagsMask;
 
-    char buf[100];
+    char buf[32];
     snprintf(buf, sizeof(buf), "%u.%u.%u", ffi->dwFileVersionMS >> 16,
         ffi->dwFileVersionMS & 0xffff, ffi->dwFileVersionLS >> 16);
 
@@ -71,7 +71,7 @@ sentry__get_os_context(void)
 
     sentry_value_set_by_key(os, "name", sentry_value_new_string("macOS"));
 
-    char buf[100];
+    char buf[32];
     size_t buf_len = sizeof(buf);
 
     if (sysctlbyname("kern.osproductversion", buf, &buf_len, NULL, 0) != 0) {

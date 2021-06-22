@@ -74,6 +74,18 @@ void sentry__stringbuilder_cleanup(sentry_stringbuilder_t *sb);
 size_t sentry__stringbuilder_len(const sentry_stringbuilder_t *sb);
 
 /**
+ * Resizes the stringbuilder buffer to make sure there is at least `len` bytes
+ * available at the end, and returns a pointer *to the reservation*.
+ */
+char *sentry__stringbuilder_reserve(sentry_stringbuilder_t *sb, size_t len);
+
+/**
+ * Sets the number of used bytes in the string builder, to be used together with
+ * `sentry__stringbuilder_reserve` to avoid copying from an intermediate buffer.
+ */
+void sentry__stringbuilder_set_len(sentry_stringbuilder_t *sb, size_t len);
+
+/**
  * Duplicates a zero terminated string.
  */
 char *sentry__string_clone(const char *str);
