@@ -434,7 +434,7 @@ sentry_handle_exception(const sentry_ucontext_t *uctx)
 sentry_uuid_t
 sentry__new_event_id(void)
 {
-#if SENTRY_UNITTEST
+#ifdef SENTRY_UNITTEST
     return sentry_uuid_from_string("4c035723-8638-4c3a-923f-2ab9d08b4018");
 #else
     return sentry_uuid_new_v4();

@@ -1,7 +1,7 @@
 all: test
 
 update-test-discovery:
-	@perl -ne 'print if s/SENTRY_TEST\(([^)]+)\)/XX(\1)/' tests/unit/*.c | sort | uniq > tests/unit/tests.inc
+	@perl -ne 'print if s/SENTRY_TEST\(([^)]+)\)/XX(\1)/' tests/unit/*.c | sort | grep -v define | uniq > tests/unit/tests.inc
 .PHONY: update-test-discovery
 
 build/Makefile: CMakeLists.txt
@@ -55,8 +55,7 @@ setup-venv: .venv/bin/python
 
 .venv/bin/python: Makefile tests/requirements.txt
 	@rm -rf .venv
-	@which virtualenv || sudo pip install virtualenv
-	virtualenv -p python3 .venv
+	python3 -m venv .venv
 	.venv/bin/pip install --upgrade --requirement tests/requirements.txt
 
 format: setup-venv
