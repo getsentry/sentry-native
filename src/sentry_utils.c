@@ -358,7 +358,7 @@ sentry__dsn_get_minidump_url(const sentry_dsn_t *dsn)
 char *
 sentry__msec_time_to_iso8601(uint64_t time)
 {
-    char buf[255];
+    char buf[64];
     size_t buf_len = sizeof(buf);
     time_t secs = time / 1000;
     struct tm *tm;

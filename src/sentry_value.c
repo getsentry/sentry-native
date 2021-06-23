@@ -544,7 +544,7 @@ sentry__value_stringify(sentry_value_t value)
     case SENTRY_VALUE_TYPE_STRING:
         return sentry__string_clone(sentry_value_as_string(value));
     default: {
-        char buf[50];
+        char buf[24];
         size_t written = (size_t)sentry__snprintf_c(
             buf, sizeof(buf), "%g", sentry_value_as_double(value));
         if (written >= sizeof(buf)) {
@@ -934,7 +934,7 @@ sentry__value_new_string_from_wstr(const wchar_t *s)
 sentry_value_t
 sentry__value_new_addr(uint64_t addr)
 {
-    char buf[100];
+    char buf[32];
     size_t written = (size_t)snprintf(
         buf, sizeof(buf), "0x%llx", (unsigned long long)addr);
     if (written >= sizeof(buf)) {

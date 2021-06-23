@@ -435,25 +435,32 @@ load_modules(sentry_value_t modules)
         return;
     }
 
-    // just read the whole map at once, maybe do it line-by-line as a followup…
-    char buf[4096];
+    // Read the whole map at once. Doing it line-by-line would be a good
+    // followup.
     sentry_stringbuilder_t sb;
     sentry__stringbuilder_init(&sb);
     while (true) {
+        char *buf = sentry__stringbuilder_reserve(&sb, 4096);
+        if (!buf) {
+            sentry__stringbuilder_cleanup(&sb);
+            close(fd);
+            return;
+        }
         ssize_t n = read(fd, buf, 4096);
         if (n < 0 && (errno == EAGAIN || errno == EINTR)) {
             continue;
         } else if (n <= 0) {
             break;
         }
-        if (sentry__stringbuilder_append_buf(&sb, buf, n)) {
-            sentry__stringbuilder_cleanup(&sb);
-            close(fd);
-            return;
-        }
+        sentry__stringbuilder_set_len(&sb, sentry__stringbuilder_len(&sb) + n);
     }
     close(fd);
 
+    // ensure the buffer is zero terminated
+    if (sentry__stringbuilder_append(&sb, "")) {
+        sentry__stringbuilder_cleanup(&sb);
+        return;
+    }
     char *contents = sentry__stringbuilder_into_string(&sb);
     if (!contents) {
         return;
