@@ -39,7 +39,7 @@ sentry__unwind_stack_libunwindstack(
     }
 
     const std::shared_ptr<unwindstack::Memory> process_memory
-        = unwindstack::Memory::CreateProcessMemory(getpid());
+        = unwindstack::Memory::CreateProcessMemoryCached(getpid());
 
     unwindstack::Unwinder unwinder(
         max_frames, &maps, regs.get(), process_memory);
