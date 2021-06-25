@@ -1,4 +1,6 @@
-#define _GNU_SOURCE
+#ifndef _GNU_SOURCE
+#    define _GNU_SOURCE 1
+#endif
 #include "sentry_modulefinder_linux.h"
 
 #include "sentry_core.h"
