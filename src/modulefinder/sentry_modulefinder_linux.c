@@ -10,8 +10,20 @@
 #include <elf.h>
 #include <fcntl.h>
 #include <string.h>
+#include <sys/syscall.h>
 #include <sys/types.h>
+#include <sys/uio.h>
 #include <unistd.h>
+#ifndef __NR_process_vm_readv
+#    ifdef __i386__
+#        define __NR_process_vm_readv 347
+#    elif defined(__ILP32__)
+#        define __X32_SYSCALL_BIT 0x40000000
+#        define __NR_process_vm_readv (__X32_SYSCALL_BIT + 539)
+#    else
+#        define __NR_process_vm_readv 310
+#    endif
+#endif
 
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 
@@ -49,6 +61,41 @@ sentry__module_get_addr(
         }
     }
     return NULL;
+}
+
+/**
+ * Reads `size` bytes from `src` to `dst` safely without segfaulting in case
+ * `src` is not readable.
+ */
+static bool
+read_safely(void *dst, void *src, size_t size)
+{
+    struct iovec local[1];
+    struct iovec remote[1];
+
+    pid_t pid = getpid();
+    local[0].iov_base = dst;
+    local[0].iov_len = size;
+    remote[0].iov_base = src;
+    remote[0].iov_len = size;
+
+    ssize_t nread = syscall(__NR_process_vm_readv, pid, local, 1, remote, 1, 0);
+    int err = errno;
+    return nread == (ssize_t)size;
+}
+
+/**
+ * Reads `size` bytes into `dst`, from the `start_offset` inside the `module`.
+ */
+static bool
+sentry__module_read_safely(void *dst, const sentry_module_t *module,
+    uint64_t start_offset, uint64_t size)
+{
+    void *src = sentry__module_get_addr(module, start_offset, size);
+    if (!src) {
+        return false;
+    }
+    return read_safely(dst, src, (size_t)size);
 }
 
 static void
@@ -183,51 +230,50 @@ get_code_id_from_elf(const sentry_module_t *module, size_t *size_out)
     *size_out = 0;
 
     // iterate over all the program headers, for 32/64 bit separately
-    const unsigned char *e_ident
-        = sentry__module_get_addr(module, 0, EI_NIDENT);
-    ENSURE(e_ident);
+    unsigned char e_ident[EI_NIDENT];
+    ENSURE(sentry__module_read_safely(e_ident, module, 0, EI_NIDENT));
     if (e_ident[EI_CLASS] == ELFCLASS64) {
-        const Elf64_Ehdr *elf
-            = sentry__module_get_addr(module, 0, sizeof(Elf64_Ehdr));
-        ENSURE(elf);
-        for (int i = 0; i < elf->e_phnum; i++) {
-            const Elf64_Phdr *header = sentry__module_get_addr(
-                module, elf->e_phoff + elf->e_phentsize * i, elf->e_phentsize);
-            ENSURE(header);
+        Elf64_Ehdr elf;
+        ENSURE(sentry__module_read_safely(&elf, module, 0, sizeof(Elf64_Ehdr)));
+
+        for (int i = 0; i < elf.e_phnum; i++) {
+            Elf64_Phdr header;
+            ENSURE(sentry__module_read_safely(&header, module,
+                elf.e_phoff + elf.e_phentsize * i, sizeof(Elf64_Phdr)));
 
             // we are only interested in notes
-            if (header->p_type != PT_NOTE) {
+            if (header.p_type != PT_NOTE) {
                 continue;
             }
             void *segment_addr = sentry__module_get_addr(
-                module, header->p_offset, header->p_filesz);
+                module, header.p_offset, header.p_filesz);
             ENSURE(segment_addr);
-            const uint8_t *code_id = get_code_id_from_notes(header->p_align,
+            const uint8_t *code_id = get_code_id_from_notes(header.p_align,
                 segment_addr,
-                (void *)((uintptr_t)segment_addr + header->p_filesz), size_out);
+                (void *)((uintptr_t)segment_addr + header.p_filesz), size_out);
             if (code_id) {
                 return code_id;
             }
         }
     } else {
-        const Elf32_Ehdr *elf
-            = sentry__module_get_addr(module, 0, sizeof(Elf32_Ehdr));
-        ENSURE(elf);
+        Elf32_Ehdr elf;
+        ENSURE(sentry__module_read_safely(&elf, module, 0, sizeof(Elf32_Ehdr)));
 
-        for (int i = 0; i < elf->e_phnum; i++) {
-            const Elf32_Phdr *header = sentry__module_get_addr(
-                module, elf->e_phoff + elf->e_phentsize * i, elf->e_phentsize);
-            ENSURE(header);
+        for (int i = 0; i < elf.e_phnum; i++) {
+            Elf32_Phdr header;
+            ENSURE(sentry__module_read_safely(&header, module,
+                elf.e_phoff + elf.e_phentsize * i, sizeof(Elf32_Phdr)));
+
             // we are only interested in notes
-            if (header->p_type != PT_NOTE) {
+            if (header.p_type != PT_NOTE) {
                 continue;
             }
             void *segment_addr = sentry__module_get_addr(
-                module, header->p_offset, header->p_filesz);
+                module, header.p_offset, header.p_filesz);
             ENSURE(segment_addr);
-            const uint8_t *code_id = get_code_id_from_notes(header->p_align,
+            const uint8_t *code_id = get_code_id_from_notes(header.p_align,
                 segment_addr,
-                (void *)((uintptr_t)segment_addr + header->p_filesz), size_out);
+                (void *)((uintptr_t)segment_addr + header.p_filesz), size_out);
             if (code_id) {
                 return code_id;
             }
@@ -244,56 +290,57 @@ get_code_id_from_text_fallback(const sentry_module_t *module)
     size_t text_size = 0;
 
     // iterate over all the program headers, for 32/64 bit separately
-    const unsigned char *e_ident
-        = sentry__module_get_addr(module, 0, EI_NIDENT);
-    ENSURE(e_ident);
+    unsigned char e_ident[EI_NIDENT];
+    ENSURE(sentry__module_read_safely(e_ident, module, 0, EI_NIDENT));
     if (e_ident[EI_CLASS] == ELFCLASS64) {
-        const Elf64_Ehdr *elf
-            = sentry__module_get_addr(module, 0, sizeof(Elf64_Ehdr));
-        ENSURE(elf);
-        const Elf64_Shdr *strheader = sentry__module_get_addr(module,
-            elf->e_shoff + elf->e_shentsize * elf->e_shstrndx,
-            elf->e_shentsize);
-        ENSURE(strheader);
+        Elf64_Ehdr elf;
+        ENSURE(sentry__module_read_safely(&elf, module, 0, sizeof(Elf64_Ehdr)));
+
+        Elf64_Shdr strheader;
+        ENSURE(sentry__module_read_safely(&strheader, module,
+            elf.e_shoff + elf.e_shentsize * elf.e_shstrndx,
+            sizeof(Elf64_Shdr)));
 
         const char *names = sentry__module_get_addr(
-            module, strheader->sh_offset, strheader->sh_entsize);
+            module, strheader.sh_offset, strheader.sh_entsize);
         ENSURE(names);
-        for (int i = 0; i < elf->e_shnum; i++) {
-            const Elf64_Shdr *header = sentry__module_get_addr(
-                module, elf->e_shoff + elf->e_shentsize * i, elf->e_shentsize);
-            ENSURE(header);
-            const char *name = names + header->sh_name;
-            if (header->sh_type == SHT_PROGBITS && strcmp(name, ".text") == 0) {
+        for (int i = 0; i < elf.e_shnum; i++) {
+            Elf64_Shdr header;
+            ENSURE(sentry__module_read_safely(&header, module,
+                elf.e_shoff + elf.e_shentsize * i, sizeof(Elf64_Shdr)));
+
+            const char *name = names + header.sh_name;
+            if (header.sh_type == SHT_PROGBITS && strcmp(name, ".text") == 0) {
                 text = sentry__module_get_addr(
-                    module, header->sh_offset, header->sh_size);
+                    module, header.sh_offset, header.sh_size);
                 ENSURE(text);
-                text_size = header->sh_size;
+                text_size = header.sh_size;
                 break;
             }
         }
     } else {
-        const Elf32_Ehdr *elf
-            = sentry__module_get_addr(module, 0, sizeof(Elf64_Ehdr));
-        ENSURE(elf);
-        const Elf32_Shdr *strheader = sentry__module_get_addr(module,
-            elf->e_shoff + elf->e_shentsize * elf->e_shstrndx,
-            elf->e_shentsize);
-        ENSURE(strheader);
+        Elf32_Ehdr elf;
+        ENSURE(sentry__module_read_safely(&elf, module, 0, sizeof(Elf32_Ehdr)));
+
+        Elf32_Shdr strheader;
+        ENSURE(sentry__module_read_safely(&strheader, module,
+            elf.e_shoff + elf.e_shentsize * elf.e_shstrndx,
+            sizeof(Elf32_Shdr)));
 
         const char *names = sentry__module_get_addr(
-            module, strheader->sh_offset, strheader->sh_entsize);
+            module, strheader.sh_offset, strheader.sh_entsize);
         ENSURE(names);
-        for (int i = 0; i < elf->e_shnum; i++) {
-            const Elf32_Shdr *header = sentry__module_get_addr(
-                module, elf->e_shoff + elf->e_shentsize * i, elf->e_shentsize);
-            ENSURE(header);
-            const char *name = names + header->sh_name;
-            if (header->sh_type == SHT_PROGBITS && strcmp(name, ".text") == 0) {
+        for (int i = 0; i < elf.e_shnum; i++) {
+            Elf32_Shdr header;
+            ENSURE(sentry__module_read_safely(&header, module,
+                elf.e_shoff + elf.e_shentsize * i, sizeof(Elf32_Shdr)));
+
+            const char *name = names + header.sh_name;
+            if (header.sh_type == SHT_PROGBITS && strcmp(name, ".text") == 0) {
                 text = sentry__module_get_addr(
-                    module, header->sh_offset, header->sh_size);
+                    module, header.sh_offset, header.sh_size);
                 ENSURE(text);
-                text_size = header->sh_size;
+                text_size = header.sh_size;
                 break;
             }
         }
@@ -420,9 +467,10 @@ get_linux_vdso(void)
 static bool
 is_valid_elf_header(void *start)
 {
-    // we try to interpret `addr` as an ELF file, which should start with a
-    // magic number...
-    const unsigned char *e_ident = start;
+    unsigned char e_ident[EI_NIDENT];
+    if (!read_safely(e_ident, start, EI_NIDENT)) {
+        return false;
+    }
     return e_ident[EI_MAG0] == ELFMAG0 && e_ident[EI_MAG1] == ELFMAG1
         && e_ident[EI_MAG2] == ELFMAG2 && e_ident[EI_MAG3] == ELFMAG3;
 }
