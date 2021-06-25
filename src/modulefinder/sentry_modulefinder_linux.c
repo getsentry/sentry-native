@@ -524,9 +524,11 @@ load_modules(sentry_value_t modules)
 
     // we have multiple memory maps per file, and we need to merge their offsets
     // based on the filename. Luckily, the maps are ordered by filename, so yay
-    sentry_module_t last_module = { 0 };
+    sentry_module_t last_module;
+    memset(&last_module, 0, sizeof(sentry_module_t));
     while (true) {
-        sentry_parsed_module_t module = { 0 };
+        sentry_parsed_module_t module;
+        memset(&module, 0, sizeof(sentry_parsed_module_t));
         int read = sentry__procmaps_parse_module_line(current_line, &module);
         current_line += read;
         if (!read) {
