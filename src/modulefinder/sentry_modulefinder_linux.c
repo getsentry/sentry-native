@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #include "sentry_modulefinder_linux.h"
 
 #include "sentry_core.h"
@@ -14,14 +15,17 @@
 #include <sys/types.h>
 #include <sys/uio.h>
 #include <unistd.h>
-#ifndef __NR_process_vm_readv
-#    ifdef __i386__
-#        define __NR_process_vm_readv 347
-#    elif defined(__ILP32__)
-#        define __X32_SYSCALL_BIT 0x40000000
-#        define __NR_process_vm_readv (__X32_SYSCALL_BIT + 539)
-#    else
-#        define __NR_process_vm_readv 310
+
+#ifdef __ANDROID_API__
+#    if __ANDROID_API__ < 23
+static ssize_t
+process_vm_readv(pid_t __pid, const struct iovec *__local_iov,
+    unsigned long __local_iov_count, const struct iovec *__remote_iov,
+    unsigned long __remote_iov_count, unsigned long __flags)
+{
+    return syscall(__NR_process_vm_readv, __pid, __local_iov, __local_iov_count,
+        __remote_iov, __remote_iov_count, __flags);
+}
 #    endif
 #endif
 
@@ -79,8 +83,7 @@ read_safely(void *dst, void *src, size_t size)
     remote[0].iov_base = src;
     remote[0].iov_len = size;
 
-    ssize_t nread = syscall(__NR_process_vm_readv, pid, local, 1, remote, 1, 0);
-    int err = errno;
+    ssize_t nread = process_vm_readv(pid, local, 1, remote, 1, 0);
     return nread == (ssize_t)size;
 }
 
