@@ -85,8 +85,19 @@ read_safely(void *dst, void *src, size_t size)
     remote[0].iov_base = src;
     remote[0].iov_len = size;
 
+    errno = 0;
     ssize_t nread = process_vm_readv(pid, local, 1, remote, 1, 0);
-    return nread == (ssize_t)size;
+    bool rv = nread == (ssize_t)size;
+
+    // The syscall is only available in Linux 3.2, meaning Android 17.
+    // If that is the case, just fall back to an unsafe memcpy.
+#if __ANDROID_API__ < 17
+    if (!rv && errno == EINVAL) {
+        memcpy(dst, src, size);
+        rv = true;
+    }
+#endif
+    return rv;
 }
 
 /**
