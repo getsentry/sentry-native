@@ -18,8 +18,7 @@
 #include <sys/uio.h>
 #include <unistd.h>
 
-#ifdef __ANDROID_API__
-#    if __ANDROID_API__ < 23
+#if defined(__ANDROID_API__) && __ANDROID_API__ < 23
 static ssize_t
 process_vm_readv(pid_t __pid, const struct iovec *__local_iov,
     unsigned long __local_iov_count, const struct iovec *__remote_iov,
@@ -28,7 +27,6 @@ process_vm_readv(pid_t __pid, const struct iovec *__local_iov,
     return syscall(__NR_process_vm_readv, __pid, __local_iov, __local_iov_count,
         __remote_iov, __remote_iov_count, __flags);
 }
-#    endif
 #endif
 
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
@@ -91,7 +89,7 @@ read_safely(void *dst, void *src, size_t size)
 
     // The syscall is only available in Linux 3.2, meaning Android 17.
     // If that is the case, just fall back to an unsafe memcpy.
-#if __ANDROID_API__ < 17
+#if defined(__ANDROID_API__) && __ANDROID_API__ < 17
     if (!rv && errno == EINVAL) {
         memcpy(dst, src, size);
         rv = true;
