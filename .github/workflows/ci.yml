@@ -79,14 +79,14 @@ jobs:
             os: windows-latest
           # The Android emulator is currently only available on macos, see:
           # https://docs.microsoft.com/en-us/azure/devops/pipelines/ecosystems/android?view=azure-devops#test-on-the-android-emulator
-          - name: Android (API 16, NDK 19)
+          - name: Android (API 16, NDK 20)
             os: macOs-latest
             ANDROID_API: 16
-            ANDROID_NDK: 19.2.5345600
-          - name: Android (API 30 NDK 21)
+            ANDROID_NDK: 20.1.5948944
+          - name: Android (API 30, NDK 22)
             os: macOs-latest
             ANDROID_API: 30
-            ANDROID_NDK: 21.3.6528147
+            ANDROID_NDK: 22.1.7171670
 
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
