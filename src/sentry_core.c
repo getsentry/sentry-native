@@ -480,7 +480,8 @@ sentry_add_breadcrumb(sentry_value_t breadcrumb)
     SENTRY_WITH_OPTIONS (options) {
         if (options->backend && options->backend->add_breadcrumb_func) {
             // the hook will *not* take ownership
-            options->backend->add_breadcrumb_func(options->backend, breadcrumb);
+            options->backend->add_breadcrumb_func(
+                options->backend, breadcrumb, options);
         }
         max_breadcrumbs = options->max_breadcrumbs;
     }

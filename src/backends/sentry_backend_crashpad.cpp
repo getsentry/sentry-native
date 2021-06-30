@@ -324,16 +324,17 @@ sentry__crashpad_backend_shutdown(sentry_backend_t *backend)
 }
 
 static void
-sentry__crashpad_backend_add_breadcrumb(
-    sentry_backend_t *backend, sentry_value_t breadcrumb)
+sentry__crashpad_backend_add_breadcrumb(sentry_backend_t *backend,
+    sentry_value_t breadcrumb, const sentry_options_t *options)
 {
     crashpad_state_t *data = (crashpad_state_t *)backend->data;
 
-    bool first_breadcrumb = data->num_breadcrumbs % SENTRY_BREADCRUMBS_MAX == 0;
+    size_t max_breadcrumbs = options->max_breadcrumbs;
+
+    bool first_breadcrumb = data->num_breadcrumbs % max_breadcrumbs == 0;
 
     const sentry_path_t *breadcrumb_file
-        = data->num_breadcrumbs % (SENTRY_BREADCRUMBS_MAX * 2)
-            < SENTRY_BREADCRUMBS_MAX
+        = data->num_breadcrumbs % (max_breadcrumbs * 2) < max_breadcrumbs
         ? data->breadcrumb1_path
         : data->breadcrumb2_path;
     data->num_breadcrumbs++;

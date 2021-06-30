@@ -21,7 +21,8 @@ struct sentry_backend_s {
         sentry_backend_t *, const sentry_options_t *options);
     // NOTE: The breadcrumb is not moved into the hook and does not need to be
     // `decref`-d internally.
-    void (*add_breadcrumb_func)(sentry_backend_t *, sentry_value_t breadcrumb);
+    void (*add_breadcrumb_func)(sentry_backend_t *, sentry_value_t breadcrumb,
+        const sentry_options_t *options);
     void (*user_consent_changed_func)(sentry_backend_t *);
     uint64_t (*get_last_crash_func)(sentry_backend_t *);
     void *data;
