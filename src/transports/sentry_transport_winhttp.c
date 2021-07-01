@@ -123,9 +123,9 @@ sentry__winhttp_transport_shutdown(uint64_t timeout, void *transport_state)
     }
     if (state->request) {
         WinHttpCloseHandle(state->request);
-        state->request = 0;
+        state->request = NULL;
     }
-    
+
     return sentry__bgworker_shutdown(bgworker, timeout);
 }
 
@@ -193,8 +193,8 @@ sentry__winhttp_send_task(void *_envelope, void *_state)
     SENTRY_TRACEF(
         "sending request using winhttp to \"%s\":\n%S", req->url, headers);
 
-    if (WinHttpSendRequest(state->request, headers, (DWORD)-1, (LPVOID)req->body,
-            (DWORD)req->body_len, (DWORD)req->body_len, 0)) {
+    if (WinHttpSendRequest(state->request, headers, (DWORD)-1,
+            (LPVOID)req->body, (DWORD)req->body_len, (DWORD)req->body_len, 0)) {
         WinHttpReceiveResponse(state->request, NULL);
 
         if (state->debug) {
