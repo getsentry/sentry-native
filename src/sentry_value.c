@@ -611,13 +611,19 @@ sentry__value_append_bounded(sentry_value_t value, sentry_value_t v, size_t max)
     //   move 99 items (len - 1)
     //   from 20
 
-    size_t to_move = max - 1;
+    size_t to_move = max >= 1 ? max - 1 : 0;
     size_t to_shift = l->len - to_move;
     for (size_t i = 0; i < to_shift; i++) {
         sentry_value_decref(l->items[i]);
     }
-    memmove(l->items, l->items + (to_shift), to_move * sizeof(l->items[0]));
-    l->items[max - 1] = v;
+    if (to_move) {
+        memmove(l->items, l->items + to_shift, to_move * sizeof(l->items[0]));
+    }
+    if (max >= 1) {
+        l->items[max - 1] = v;
+    } else {
+        sentry_value_decref(v);
+    }
     l->len = max;
     return 0;
 

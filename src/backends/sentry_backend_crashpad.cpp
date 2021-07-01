@@ -330,6 +330,9 @@ sentry__crashpad_backend_add_breadcrumb(sentry_backend_t *backend,
     crashpad_state_t *data = (crashpad_state_t *)backend->data;
 
     size_t max_breadcrumbs = options->max_breadcrumbs;
+    if (!max_breadcrumbs) {
+        return;
+    }
 
     bool first_breadcrumb = data->num_breadcrumbs % max_breadcrumbs == 0;
 
