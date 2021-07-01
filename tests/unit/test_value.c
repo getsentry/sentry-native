@@ -477,6 +477,15 @@ SENTRY_TEST(value_collections_leak)
 
     TEST_CHECK_INT_EQUAL(sentry_value_refcount(obj), 3);
 
+    sentry_value_incref(obj);
+    sentry__value_append_bounded(list, obj, 1);
+    TEST_CHECK_INT_EQUAL(sentry_value_refcount(obj), 2);
+
+    sentry_value_incref(obj);
+    sentry__value_append_bounded(list, obj, 0);
+    TEST_CHECK_INT_EQUAL(sentry_value_refcount(obj), 1);
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(list), 0);
+
     sentry_value_decref(list);
 
     TEST_CHECK_INT_EQUAL(sentry_value_refcount(obj), 1);
