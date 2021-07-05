@@ -1,6 +1,5 @@
 #include "sentry_core.h"
 #include "sentry_testsupport.h"
-#include <pthread.h>
 #include <sentry.h>
 #include <sentry_sync.h>
 
