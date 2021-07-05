@@ -73,18 +73,13 @@ sentry__should_skip_upload(void)
 int
 sentry_init(sentry_options_t *options)
 {
-    // this function is to be called only once, so we do not allow more than
-    // one call to be active. If the function is called twice, create an error
-    // and return fail (1)
+    // this function is to be called only once, so we do not allow more than one
+    // caller
     sentry__mutex_lock(&g_initclose_lock);
-
     // pre-init here, so we can consistently use bailing out to :fail
     sentry_transport_t *transport = NULL;
 
-    if (g_options != NULL) {
-        SENTRY_ERROR("sentry_init() may only be called once");
-        goto fail;
-    }
+    sentry_close();
 
     sentry_logger_t logger = { NULL, NULL };
     if (options->debug) {
@@ -150,9 +145,7 @@ sentry_init(sentry_options_t *options)
         last_crash = backend->get_last_crash_func(backend);
     }
 
-    sentry__mutex_lock(&g_options_lock);
     g_options = options;
-    sentry__mutex_unlock(&g_options_lock);
 
     // *after* setting the global options, trigger a scope and consent flush,
     // since at least crashpad needs that.
@@ -194,21 +187,20 @@ fail:
 int
 sentry_close(void)
 {
+    // this function is to be called only once, so we do not allow more than one
+    // caller
     sentry__mutex_lock(&g_initclose_lock);
-    if (g_options == NULL) {
-        SENTRY_DEBUG("sentry_close() called, but options was empty");
-    }
 
-    // keep the global options until end of function if other calls need the
-    // data while we still clean up to avoid crashes
     sentry__mutex_lock(&g_options_lock);
     sentry_options_t *options = g_options;
+    if (options) {
+        sentry_end_session();
+    }
+    g_options = NULL;
     sentry__mutex_unlock(&g_options_lock);
 
     size_t dumped_envelopes = 0;
     if (options) {
-        sentry_end_session();
-
         if (options->backend && options->backend->shutdown_func) {
             SENTRY_TRACE("shutting down backend");
             options->backend->shutdown_func(options->backend);
@@ -227,21 +219,18 @@ sentry_close(void)
         if (!dumped_envelopes
             && (!options->backend
                 || !options->backend->can_capture_after_shutdown)) {
+            SENTRY_DEBUGF("# of dumped envelopes is %i", (int)dumped_envelopes);
             sentry__run_clean(options->run);
         }
-
         sentry_options_free(options);
+    } else {
+        SENTRY_DEBUG("sentry_close() called, but options was empty");
     }
 
     sentry__scope_cleanup();
     sentry_clear_modulecache();
 
-    sentry__mutex_lock(&g_options_lock);
-    g_options = NULL;
-    sentry__mutex_unlock(&g_options_lock);
-
     sentry__mutex_unlock(&g_initclose_lock);
-
     return (int)dumped_envelopes;
 }
 

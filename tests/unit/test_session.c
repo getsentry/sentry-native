@@ -93,8 +93,11 @@ send_sampled_envelope(const sentry_envelope_t *envelope, void *data)
 {
     session_assertion_t *assertion = data;
 
+    SENTRY_DEBUG("send_sampled_envelope");
     if (assertion->assert_session) {
         assertion->called += 1;
+
+        SENTRY_DEBUG("assertion + 1");
 
         TEST_CHECK_INT_EQUAL(sentry__envelope_get_item_count(envelope), 1);
 

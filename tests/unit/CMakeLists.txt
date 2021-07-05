@@ -20,6 +20,7 @@ add_executable(sentry_test_unit
 	test_attachments.c
 	test_basic.c
 	test_consent.c
+	test_concurrency.c
 	test_envelopes.c
 	test_failures.c
 	test_fuzzfailures.c
