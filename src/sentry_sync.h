@@ -7,6 +7,12 @@
 #include <assert.h>
 #include <stdio.h>
 
+#ifdef _MSC_VER
+#    define THREAD_FUNCTION_API __stdcall
+#else
+#    define THREAD_FUNCTION_API
+#endif
+
 // define a recursive mutex for all platforms
 #ifdef SENTRY_PLATFORM_WINDOWS
 #    if _WIN32_WINNT >= 0x0600
