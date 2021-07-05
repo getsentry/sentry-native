@@ -74,7 +74,7 @@ SENTRY_TEST(multiple_inits)
 }
 
 static void *
-thread_worker(void *vargp)
+thread_worker(void *UNUSED(vargp))
 {
     sentry_set_transaction("demo-trans");
 

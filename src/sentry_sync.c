@@ -6,6 +6,12 @@
 #include <stdio.h>
 #include <string.h>
 
+#ifdef _MSC_VER
+#    define THREAD_FUNCTION_API __stdcall
+#else
+#    define THREAD_FUNCTION_API
+#endif
+
 #ifdef SENTRY_PLATFORM_WINDOWS
 typedef HRESULT(WINAPI *pSetThreadDescription)(
     HANDLE hThread, PCWSTR lpThreadDescription);
