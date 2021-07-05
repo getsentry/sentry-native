@@ -113,17 +113,24 @@ sentry__winhttp_transport_shutdown(uint64_t timeout, void *transport_state)
     sentry_bgworker_t *bgworker = (sentry_bgworker_t *)transport_state;
     winhttp_bgworker_state_t *state = sentry__bgworker_get_state(bgworker);
 
-    if (state->connect) {
-        WinHttpCloseHandle(state->connect);
-        state->connect = NULL;
-    }
-    if (state->session) {
-        WinHttpCloseHandle(state->session);
-        state->session = NULL;
-    }
-    if (state->request) {
-        WinHttpCloseHandle(state->request);
-        state->request = NULL;
+    if (sentry__bgworker_shutdown(bgworker, timeout) != 0) {
+        // Seems like some requests are taking too long/hanging
+        // Just close them to make sure the background thread is exiting.
+        if (state->connect) {
+            WinHttpCloseHandle(state->connect);
+            state->connect = NULL;
+        }
+
+        // NOTE: We need to close the session before closing the request.
+        // This will cancel all other requests which might be queued as well.
+        if (state->session) {
+            WinHttpCloseHandle(state->session);
+            state->session = NULL;
+        }
+        if (state->request) {
+            WinHttpCloseHandle(state->request);
+            state->request = NULL;
+        }
     }
 
     return sentry__bgworker_shutdown(bgworker, timeout);
