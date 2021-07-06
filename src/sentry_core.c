@@ -25,7 +25,6 @@
 
 static sentry_options_t *g_options = NULL;
 static sentry_mutex_t g_options_lock = SENTRY__MUTEX_INIT;
-static sentry_mutex_t g_initclose_lock = SENTRY__MUTEX_INIT;
 
 const sentry_options_t *
 sentry__options_getref(void)
@@ -75,7 +74,7 @@ sentry_init(sentry_options_t *options)
 {
     // this function is to be called only once, so we do not allow more than one
     // caller
-    sentry__mutex_lock(&g_initclose_lock);
+    sentry__mutex_lock(&g_options_lock);
     // pre-init here, so we can consistently use bailing out to :fail
     sentry_transport_t *transport = NULL;
 
@@ -171,7 +170,7 @@ sentry_init(sentry_options_t *options)
         sentry_start_session();
     }
 
-    sentry__mutex_unlock(&g_initclose_lock);
+    sentry__mutex_unlock(&g_options_lock);
     return 0;
 
 fail:
@@ -180,7 +179,7 @@ fail:
         sentry__transport_shutdown(transport, 0);
     }
     sentry_options_free(options);
-    sentry__mutex_unlock(&g_initclose_lock);
+    sentry__mutex_unlock(&g_options_lock);
     return 1;
 }
 
@@ -189,7 +188,6 @@ sentry_close(void)
 {
     // this function is to be called only once, so we do not allow more than one
     // caller
-    sentry__mutex_lock(&g_initclose_lock);
 
     sentry__mutex_lock(&g_options_lock);
     sentry_options_t *options = g_options;
@@ -197,7 +195,6 @@ sentry_close(void)
         sentry_end_session();
     }
     g_options = NULL;
-    sentry__mutex_unlock(&g_options_lock);
 
     size_t dumped_envelopes = 0;
     if (options) {
@@ -219,7 +216,6 @@ sentry_close(void)
         if (!dumped_envelopes
             && (!options->backend
                 || !options->backend->can_capture_after_shutdown)) {
-            SENTRY_DEBUGF("# of dumped envelopes is %i", (int)dumped_envelopes);
             sentry__run_clean(options->run);
         }
         sentry_options_free(options);
@@ -230,7 +226,7 @@ sentry_close(void)
     sentry__scope_cleanup();
     sentry_clear_modulecache();
 
-    sentry__mutex_unlock(&g_initclose_lock);
+    sentry__mutex_unlock(&g_options_lock);
     return (int)dumped_envelopes;
 }
 

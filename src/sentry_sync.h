@@ -13,6 +13,19 @@
 #    define THREAD_FUNCTION_API
 #endif
 
+#if defined(__MINGW32__) && !defined(__MINGW64__)
+#    define UNSIGNED_MINGW unsigned
+#else
+#    define UNSIGNED_MINGW
+#endif
+
+// pthreads use `void *` return types, whereas windows uses `DWORD`
+#ifdef SENTRY_PLATFORM_WINDOWS
+#    define SENTRY_THREAD_FN static UNSIGNED_MINGW DWORD THREAD_FUNCTION_API
+#else
+#    define SENTRY_THREAD_FN static void *
+#endif
+
 // define a recursive mutex for all platforms
 #ifdef SENTRY_PLATFORM_WINDOWS
 #    if _WIN32_WINNT >= 0x0600
@@ -206,10 +219,10 @@ typedef CONDITION_VARIABLE sentry_cond_t;
    we're restricted in what we can do.  In particular it's possible that
    we would end up dead locking ourselves.  While we cannot fully prevent
    races we have a logic here that while the signal handler is active we're
-   disabling our mutexes so that our signal handler can access what otherwise
-   would be protected by the mutex but everyone else needs to wait for the
-   signal handler to finish.  This is not without risk because another thread
-   might still access what the mutex protects.
+   disabling our mutexes so that our signal handler can access what
+   otherwise would be protected by the mutex but everyone else needs to wait
+   for the signal handler to finish.  This is not without risk because
+   another thread might still access what the mutex protects.
 
    We are thus taking care that whatever such mutexes protect will not make
    us crash under concurrent modifications.  The mutexes we're likely going
