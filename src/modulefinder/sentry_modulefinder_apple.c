@@ -43,11 +43,8 @@ add_image(const struct mach_header *mh, intptr_t UNUSED(vmaddr_slide))
         return;
     }
 
-    sentry__mutex_lock(&g_mutex);
-
-    sentry_value_t modules = g_modules;
-    sentry_value_t new_modules = sentry__value_clone(modules);
     sentry_value_t module = sentry_value_new_object();
+    sentry_value_set_by_key(module, "type", sentry_value_new_string("macho"));
     sentry_value_set_by_key(
         module, "code_file", sentry_value_new_string(info.dli_fname));
     sentry_value_set_by_key(
@@ -80,7 +77,10 @@ add_image(const struct mach_header *mh, intptr_t UNUSED(vmaddr_slide))
         }
     }
 
-    sentry_value_set_by_key(module, "type", sentry_value_new_string("macho"));
+    sentry__mutex_lock(&g_mutex);
+
+    sentry_value_t modules = g_modules;
+    sentry_value_t new_modules = sentry__value_clone(modules);
     sentry_value_append(new_modules, module);
     sentry_value_freeze(new_modules);
     sentry_value_decref(g_modules);
@@ -92,6 +92,12 @@ add_image(const struct mach_header *mh, intptr_t UNUSED(vmaddr_slide))
 static void
 remove_image(const struct mach_header *mh, intptr_t UNUSED(vmaddr_slide))
 {
+    const platform_mach_header *header = (const platform_mach_header *)(mh);
+    Dl_info info;
+    if (!dladdr(header, &info)) {
+        return;
+    }
+
     sentry__mutex_lock(&g_mutex);
 
     if (sentry_value_is_null(g_modules)
@@ -99,13 +105,7 @@ remove_image(const struct mach_header *mh, intptr_t UNUSED(vmaddr_slide))
         goto done;
     }
 
-    const platform_mach_header *header = (const platform_mach_header *)(mh);
-    Dl_info info;
-    if (!dladdr(header, &info)) {
-        goto done;
-    }
-
-    char ref_addr[100];
+    char ref_addr[32];
     snprintf(ref_addr, sizeof(ref_addr), "0x%llx", (long long)info.dli_fbase);
     sentry_value_t new_modules = sentry_value_new_list();
 
@@ -130,18 +130,28 @@ done:
 sentry_value_t
 sentry_get_modules_list(void)
 {
+    // We have 2 locked blocks here (actually 3, with the one inside of the
+    // `add_image` callback). We do that because we have observed deadlocks when
+    // code concurrently `dlopen`s and thus invokes the `add_image` callback
+    // from a different thread.
     sentry__mutex_lock(&g_mutex);
     if (!g_initialized) {
         g_modules = sentry_value_new_list();
+        g_initialized = true;
+
+        sentry__mutex_unlock(&g_mutex);
+
         // TODO: maybe use `_dyld_image_count` and `_dyld_get_image_header`?
-        // Those functions are documented to not be thread-safe, though using
-        // the `register_X` functions are also unsafe because they lack a
-        // corresponding `unregister` function, and will thus crash when sentry
-        // itself is unloaded.
+        // Those functions are documented to not be thread-safe, though
+        // using the `register_X` functions are also unsafe because they
+        // lack a corresponding `unregister` function, and will thus crash
+        // when sentry itself is unloaded.
         _dyld_register_func_for_add_image(add_image);
         _dyld_register_func_for_remove_image(remove_image);
-        g_initialized = true;
+
+        sentry__mutex_lock(&g_mutex);
     }
+
     sentry_value_t modules = g_modules;
     sentry_value_incref(modules);
     sentry__mutex_unlock(&g_mutex);

@@ -99,7 +99,7 @@ sentry__rate_limiter_free(sentry_rate_limiter_t *rl)
     sentry_free(rl);
 }
 
-#if SENTRY_UNITTEST
+#ifdef SENTRY_UNITTEST
 uint64_t
 sentry__rate_limiter_get_disabled_until(
     const sentry_rate_limiter_t *rl, int category)

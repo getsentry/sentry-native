@@ -21,9 +21,7 @@ from .assertions import (
 
 pytestmark = pytest.mark.skipif(not has_http, reason="tests need http")
 
-auth_header = (
-    "Sentry sentry_key=uiaeosnrtdy, sentry_version=7, sentry_client=sentry.native/0.4.9"
-)
+auth_header = "Sentry sentry_key=uiaeosnrtdy, sentry_version=7, sentry_client=sentry.native/0.4.10"
 
 
 def test_capture_http(cmake, httpserver):
@@ -216,6 +214,24 @@ def test_inproc_crash_http(cmake, httpserver):
     assert_crash(envelope)
 
 
+def test_inproc_reinstall(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "inproc"})
+
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+    httpserver.expect_request(
+        "/api/123456/envelope/", headers={"x-sentry-auth": auth_header},
+    ).respond_with_data("OK")
+
+    child = run(tmp_path, "sentry_example", ["log", "reinstall", "crash"], env=env,)
+    assert child.returncode  # well, its a crash after all
+
+    run(
+        tmp_path, "sentry_example", ["log", "no-setup"], check=True, env=env,
+    )
+
+    assert len(httpserver.log) == 1
+
+
 def test_inproc_dump_inflight(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "inproc"})
 
@@ -266,6 +282,25 @@ def test_breakpad_crash_http(cmake, httpserver):
     assert_attachment(envelope)
 
     assert_minidump(envelope)
+
+
+@pytest.mark.skipif(not has_breakpad, reason="test needs breakpad backend")
+def test_breakpad_reinstall(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "breakpad"})
+
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+    httpserver.expect_request(
+        "/api/123456/envelope/", headers={"x-sentry-auth": auth_header},
+    ).respond_with_data("OK")
+
+    child = run(tmp_path, "sentry_example", ["log", "reinstall", "crash"], env=env,)
+    assert child.returncode  # well, its a crash after all
+
+    run(
+        tmp_path, "sentry_example", ["log", "no-setup"], check=True, env=env,
+    )
+
+    assert len(httpserver.log) == 1
 
 
 @pytest.mark.skipif(not has_breakpad, reason="test needs breakpad backend")

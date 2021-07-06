@@ -13,10 +13,10 @@ sentry__stringbuilder_init(sentry_stringbuilder_t *sb)
     sb->len = 0;
 }
 
-static int
-append(sentry_stringbuilder_t *sb, const char *s, size_t len)
+char *
+sentry__stringbuilder_reserve(sentry_stringbuilder_t *sb, size_t len)
 {
-    size_t needed = sb->len + len + 1;
+    size_t needed = sb->len + len;
     if (!sb->buf || needed > sb->allocated) {
         size_t new_alloc_size = sb->allocated;
         if (new_alloc_size == 0) {
@@ -27,7 +27,7 @@ append(sentry_stringbuilder_t *sb, const char *s, size_t len)
         }
         char *new_buf = sentry_malloc(new_alloc_size);
         if (!new_buf) {
-            return 1;
+            return NULL;
         }
         if (sb->buf) {
             memcpy(new_buf, sb->buf, sb->allocated);
@@ -36,7 +36,17 @@ append(sentry_stringbuilder_t *sb, const char *s, size_t len)
         sb->buf = new_buf;
         sb->allocated = new_alloc_size;
     }
-    memcpy(sb->buf + sb->len, s, len);
+    return &sb->buf[sb->len];
+}
+
+static int
+append(sentry_stringbuilder_t *sb, const char *s, size_t len)
+{
+    char *buf = sentry__stringbuilder_reserve(sb, len + 1);
+    if (!buf) {
+        return 1;
+    }
+    memcpy(buf, s, len);
     sb->len += len;
 
     // make sure we're always zero terminated
@@ -103,6 +113,12 @@ size_t
 sentry__stringbuilder_len(const sentry_stringbuilder_t *sb)
 {
     return sb->len;
+}
+
+void
+sentry__stringbuilder_set_len(sentry_stringbuilder_t *sb, size_t len)
+{
+    sb->len = len;
 }
 
 char *

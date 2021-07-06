@@ -41,7 +41,7 @@ bool sentry__rate_limiter_update_from_http_retry_after(
 bool sentry__rate_limiter_is_disabled(
     const sentry_rate_limiter_t *rl, int category);
 
-#if SENTRY_UNITTEST
+#ifdef SENTRY_UNITTEST
 /**
  * The rate limiters state is completely opaque. Unless in tests, where we would
  * want to actually peek into the specific rate limiting `category`.

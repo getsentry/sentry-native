@@ -29,7 +29,7 @@ typedef struct {
     uint8_t num_mappings;
 } sentry_module_t;
 
-#if SENTRY_UNITTEST
+#ifdef SENTRY_UNITTEST
 bool sentry__procmaps_read_ids_from_elf(
     sentry_value_t value, const sentry_module_t *module);
 

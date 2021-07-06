@@ -44,6 +44,27 @@ extern "C" {
 #ifdef SENTRY_PLATFORM_LINUX
 #    define SIGNAL_STACK_SIZE 65536
 static stack_t g_signal_stack;
+
+#    include "util/posix/signals.h"
+
+// This list was taken from crashpad's util/posix/signals.cc file
+// and is used to know which signals we need to reset to default
+// when shutting down the backend
+constexpr int g_CrashSignals[] = {
+    SIGABRT,
+    SIGBUS,
+    SIGFPE,
+    SIGILL,
+    SIGQUIT,
+    SIGSEGV,
+    SIGSYS,
+    SIGTRAP,
+#    if defined(SIGEMT)
+    SIGEMT,
+#    endif // defined(SIGEMT)
+    SIGXCPU,
+    SIGXFSZ,
+};
 #endif
 
 typedef struct {
@@ -281,6 +302,15 @@ sentry__crashpad_backend_startup(
 static void
 sentry__crashpad_backend_shutdown(sentry_backend_t *backend)
 {
+#ifdef SENTRY_PLATFORM_LINUX
+    // restore signal handlers to their default state
+    for (const auto signal : g_CrashSignals) {
+        if (crashpad::Signals::IsCrashSignal(signal)) {
+            crashpad::Signals::InstallDefaultHandler(signal);
+        }
+    }
+#endif
+
     crashpad_state_t *data = (crashpad_state_t *)backend->data;
     delete data->db;
     data->db = nullptr;
@@ -294,16 +324,20 @@ sentry__crashpad_backend_shutdown(sentry_backend_t *backend)
 }
 
 static void
-sentry__crashpad_backend_add_breadcrumb(
-    sentry_backend_t *backend, sentry_value_t breadcrumb)
+sentry__crashpad_backend_add_breadcrumb(sentry_backend_t *backend,
+    sentry_value_t breadcrumb, const sentry_options_t *options)
 {
     crashpad_state_t *data = (crashpad_state_t *)backend->data;
 
-    bool first_breadcrumb = data->num_breadcrumbs % SENTRY_BREADCRUMBS_MAX == 0;
+    size_t max_breadcrumbs = options->max_breadcrumbs;
+    if (!max_breadcrumbs) {
+        return;
+    }
+
+    bool first_breadcrumb = data->num_breadcrumbs % max_breadcrumbs == 0;
 
     const sentry_path_t *breadcrumb_file
-        = data->num_breadcrumbs % (SENTRY_BREADCRUMBS_MAX * 2)
-            < SENTRY_BREADCRUMBS_MAX
+        = data->num_breadcrumbs % (max_breadcrumbs * 2) < max_breadcrumbs
         ? data->breadcrumb1_path
         : data->breadcrumb2_path;
     data->num_breadcrumbs++;

@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.4.10
+
+**Fixes**:
+
+- Fix a potential deadlock in macOS modulefinder.
+- Lower Stack usage, to lower change of stack overflows.
+- Avoid a double-free when parsing an invalid DSN.
+- Improvements to Unity Builds and 32-bit Builds.
+- Fix infinite recursion in signal handler by correctly cleaning up on shutdown.
+
+**Internal**:
+
+- Update Crashpad and Breakpad submodules to 2021-06-14.
+
+**Thank you**:
+
+Features, fixes and improvements in this release have been contributed by:
+
+- [@janisozaur](https://github.com/janisozaur)
+- [@bschatt](https://github.com/bschatt)
+- [@GenuineAster](https://github.com/GenuineAster)
+
 ## 0.4.9
 
 **Features**:

@@ -111,6 +111,7 @@ shutdown_inproc_backend(sentry_backend_t *UNUSED(backend))
     sigaltstack(&g_signal_stack, 0);
     sentry_free(g_signal_stack.ss_sp);
     g_signal_stack.ss_sp = NULL;
+    reset_signal_handlers();
 }
 
 #elif defined SENTRY_PLATFORM_WINDOWS
