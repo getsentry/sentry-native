@@ -20,6 +20,7 @@ typedef struct {
     sentry_rate_limiter_t *ratelimiter;
     HINTERNET session;
     HINTERNET connect;
+    HINTERNET request;
     bool debug;
 } winhttp_bgworker_state_t;
 
@@ -110,7 +111,30 @@ static int
 sentry__winhttp_transport_shutdown(uint64_t timeout, void *transport_state)
 {
     sentry_bgworker_t *bgworker = (sentry_bgworker_t *)transport_state;
-    return sentry__bgworker_shutdown(bgworker, timeout);
+    winhttp_bgworker_state_t *state = sentry__bgworker_get_state(bgworker);
+
+    int rv = sentry__bgworker_shutdown(bgworker, timeout);
+    if (rv != 0) {
+        // Seems like some requests are taking too long/hanging
+        // Just close them to make sure the background thread is exiting.
+        if (state->connect) {
+            WinHttpCloseHandle(state->connect);
+            state->connect = NULL;
+        }
+
+        // NOTE: We need to close the session before closing the request.
+        // This will cancel all other requests which might be queued as well.
+        if (state->session) {
+            WinHttpCloseHandle(state->session);
+            state->session = NULL;
+        }
+        if (state->request) {
+            WinHttpCloseHandle(state->request);
+            state->request = NULL;
+        }
+    }
+
+    return rv;
 }
 
 static void
@@ -129,7 +153,6 @@ sentry__winhttp_send_task(void *_envelope, void *_state)
 
     wchar_t *url = sentry__string_to_wstr(req->url);
     wchar_t *headers = NULL;
-    HINTERNET request = NULL;
 
     URL_COMPONENTS url_components;
     wchar_t hostname[128];
@@ -152,10 +175,10 @@ sentry__winhttp_send_task(void *_envelope, void *_state)
     }
 
     bool is_secure = strstr(req->url, "https") == req->url;
-    request = WinHttpOpenRequest(state->connect, L"POST",
+    state->request = WinHttpOpenRequest(state->connect, L"POST",
         url_components.lpszUrlPath, NULL, WINHTTP_NO_REFERER,
         WINHTTP_DEFAULT_ACCEPT_TYPES, is_secure ? WINHTTP_FLAG_SECURE : 0);
-    if (!request) {
+    if (!state->request) {
         SENTRY_WARNF(
             "`WinHttpOpenRequest` failed with code `%d`", GetLastError());
         goto exit;
@@ -178,16 +201,16 @@ sentry__winhttp_send_task(void *_envelope, void *_state)
     SENTRY_TRACEF(
         "sending request using winhttp to \"%s\":\n%S", req->url, headers);
 
-    if (WinHttpSendRequest(request, headers, (DWORD)-1, (LPVOID)req->body,
-            (DWORD)req->body_len, (DWORD)req->body_len, 0)) {
-        WinHttpReceiveResponse(request, NULL);
+    if (WinHttpSendRequest(state->request, headers, (DWORD)-1,
+            (LPVOID)req->body, (DWORD)req->body_len, (DWORD)req->body_len, 0)) {
+        WinHttpReceiveResponse(state->request, NULL);
 
         if (state->debug) {
             // this is basically the example from:
             // https://docs.microsoft.com/en-us/windows/win32/api/winhttp/nf-winhttp-winhttpqueryheaders#examples
             DWORD dwSize = 0;
             LPVOID lpOutBuffer = NULL;
-            WinHttpQueryHeaders(request, WINHTTP_QUERY_RAW_HEADERS_CRLF,
+            WinHttpQueryHeaders(state->request, WINHTTP_QUERY_RAW_HEADERS_CRLF,
                 WINHTTP_HEADER_NAME_BY_INDEX, NULL, &dwSize,
                 WINHTTP_NO_HEADER_INDEX);
 
@@ -197,7 +220,7 @@ sentry__winhttp_send_task(void *_envelope, void *_state)
 
                 // Now, use WinHttpQueryHeaders to retrieve the header.
                 if (lpOutBuffer
-                    && WinHttpQueryHeaders(request,
+                    && WinHttpQueryHeaders(state->request,
                         WINHTTP_QUERY_RAW_HEADERS_CRLF,
                         WINHTTP_HEADER_NAME_BY_INDEX, lpOutBuffer, &dwSize,
                         WINHTTP_NO_HEADER_INDEX)) {
@@ -211,7 +234,7 @@ sentry__winhttp_send_task(void *_envelope, void *_state)
         // lets just assume we won’t have headers > 2k
         wchar_t buf[2048];
         DWORD buf_size = sizeof(buf);
-        if (WinHttpQueryHeaders(request, WINHTTP_QUERY_CUSTOM,
+        if (WinHttpQueryHeaders(state->request, WINHTTP_QUERY_CUSTOM,
                 L"x-sentry-rate-limits", buf, &buf_size,
                 WINHTTP_NO_HEADER_INDEX)) {
             char *h = sentry__string_from_wstr(buf);
@@ -219,7 +242,7 @@ sentry__winhttp_send_task(void *_envelope, void *_state)
                 sentry__rate_limiter_update_from_header(state->ratelimiter, h);
                 sentry_free(h);
             }
-        } else if (WinHttpQueryHeaders(request, WINHTTP_QUERY_CUSTOM,
+        } else if (WinHttpQueryHeaders(state->request, WINHTTP_QUERY_CUSTOM,
                        L"retry-after", buf, &buf_size,
                        WINHTTP_NO_HEADER_INDEX)) {
             char *h = sentry__string_from_wstr(buf);
@@ -238,7 +261,9 @@ sentry__winhttp_send_task(void *_envelope, void *_state)
     SENTRY_TRACEF("request handled in %llums", now - started);
 
 exit:
-    if (request) {
+    if (state->request) {
+        HINTERNET request = state->request;
+        state->request = NULL;
         WinHttpCloseHandle(request);
     }
     sentry_free(url);
