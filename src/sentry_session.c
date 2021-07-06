@@ -242,6 +242,7 @@ sentry__end_session_internal(void)
     SENTRY_WITH_OPTIONS_MUT (options) {
         session = options->session;
         options->session = NULL;
+        sentry__run_clear_session(options->run);
     }
 
     if (session && session->status == SENTRY_SESSION_STATUS_OK) {
