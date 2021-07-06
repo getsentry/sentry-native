@@ -325,6 +325,7 @@ sentry__bgworker_shutdown(sentry_bgworker_t *bgw, uint64_t timeout)
 
         uint64_t now = sentry__monotonic_time();
         if (now > started && now - started > timeout) {
+            sentry__atomic_fetch_and_add(&bgw->running, -1);
             sentry__mutex_unlock(&bgw->task_lock);
             SENTRY_WARN(
                 "background thread failed to shut down cleanly within timeout");

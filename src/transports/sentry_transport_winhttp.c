@@ -113,7 +113,8 @@ sentry__winhttp_transport_shutdown(uint64_t timeout, void *transport_state)
     sentry_bgworker_t *bgworker = (sentry_bgworker_t *)transport_state;
     winhttp_bgworker_state_t *state = sentry__bgworker_get_state(bgworker);
 
-    if (sentry__bgworker_shutdown(bgworker, timeout) != 0) {
+    int rv = sentry__bgworker_shutdown(bgworker, timeout);
+    if (rv != 0) {
         // Seems like some requests are taking too long/hanging
         // Just close them to make sure the background thread is exiting.
         if (state->connect) {
@@ -133,7 +134,7 @@ sentry__winhttp_transport_shutdown(uint64_t timeout, void *transport_state)
         }
     }
 
-    return sentry__bgworker_shutdown(bgworker, timeout);
+    return rv;
 }
 
 static void
@@ -262,7 +263,7 @@ sentry__winhttp_send_task(void *_envelope, void *_state)
 exit:
     if (state->request) {
         HINTERNET request = state->request;
-        state->request = 0;
+        state->request = NULL;
         WinHttpCloseHandle(request);
     }
     sentry_free(url);
