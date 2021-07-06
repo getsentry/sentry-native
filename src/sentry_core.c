@@ -36,6 +36,19 @@ sentry__options_getref(void)
     return options;
 }
 
+sentry_options_t *
+sentry__options_lock(void)
+{
+    sentry__mutex_lock(&g_options_lock);
+    return g_options;
+}
+
+void
+sentry__options_unlock(void)
+{
+    sentry__mutex_unlock(&g_options_lock);
+}
+
 static void
 load_user_consent(sentry_options_t *opts)
 {
@@ -352,7 +365,18 @@ sentry_capture_event(sentry_value_t event)
         was_captured = true;
         envelope = sentry__prepare_event(options, event, &event_id);
         if (envelope) {
-            sentry__add_current_session_to_envelope(envelope);
+            if (options->session) {
+                SENTRY_WITH_OPTIONS_MUT (mut_options) {
+                    sentry__envelope_add_session(
+                        envelope, mut_options->session);
+                    // we're assuming that if a session is added to an envelope
+                    // it will be sent onwards.  This means we now need to set
+                    // the init flag to false because we're no longer the
+                    // initial session update.
+                    mut_options->session->init = false;
+                }
+            }
+
             sentry__capture_envelope(options->transport, envelope);
         }
     }
@@ -469,10 +493,18 @@ sentry__ensure_event_id(sentry_value_t event, sentry_uuid_t *uuid_out)
 void
 sentry_set_user(sentry_value_t user)
 {
+    if (!sentry_value_is_null(user)) {
+        SENTRY_WITH_OPTIONS_MUT (options) {
+            if (options->session) {
+                sentry__session_sync_user(options->session, user);
+                sentry__run_write_session(options->run, options->session);
+            }
+        }
+    }
+
     SENTRY_WITH_SCOPE_MUT (scope) {
         sentry_value_decref(scope->user);
         scope->user = user;
-        sentry__scope_session_sync(scope);
     }
 }
 

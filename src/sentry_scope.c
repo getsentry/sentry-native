@@ -73,7 +73,6 @@ get_scope(void)
     g_scope.breadcrumbs = sentry_value_new_list();
     g_scope.level = SENTRY_LEVEL_ERROR;
     g_scope.client_sdk = get_client_sdk();
-    g_scope.session = NULL;
 
     g_scope_initialized = true;
 
@@ -112,26 +111,15 @@ sentry__scope_unlock(void)
 }
 
 void
-sentry__scope_flush_unlock(const sentry_scope_t *scope)
+sentry__scope_flush_unlock()
 {
-    bool did_unlock = false;
+    sentry__scope_unlock();
     SENTRY_WITH_OPTIONS (options) {
-        if (scope->session) {
-            sentry__run_write_session(options->run, scope->session);
-            sentry__scope_unlock();
-        } else {
-            sentry__scope_unlock();
-            sentry__run_clear_session(options->run);
-        }
-        did_unlock = true;
         // we try to unlock the scope/session lock as soon as possible. The
         // backend will do its own `WITH_SCOPE` internally.
         if (options->backend && options->backend->flush_scope_func) {
             options->backend->flush_scope_func(options->backend, options);
         }
-    }
-    if (!did_unlock) {
-        sentry__scope_unlock();
     }
 }
 
@@ -303,25 +291,4 @@ sentry__scope_apply_to_event(const sentry_scope_t *scope,
 #undef PLACE_STRING
 #undef IS_NULL
 #undef SET
-}
-
-void
-sentry__scope_session_sync(sentry_scope_t *scope)
-{
-    if (!scope->session) {
-        return;
-    }
-
-    if (!sentry_value_is_null(scope->user)) {
-        sentry_value_t did = sentry_value_get_by_key(scope->user, "id");
-        if (sentry_value_is_null(did)) {
-            did = sentry_value_get_by_key(scope->user, "email");
-        }
-        if (sentry_value_is_null(did)) {
-            did = sentry_value_get_by_key(scope->user, "username");
-        }
-        sentry_value_decref(scope->session->distinct_id);
-        sentry_value_incref(did);
-        scope->session->distinct_id = did;
-    }
 }
