@@ -6,7 +6,7 @@
 static void
 send_envelope_test_concurrent(const sentry_envelope_t *envelope, void *data)
 {
-    long called = sentry__atomic_fetch_and_add((long *)data, 1);
+    sentry__atomic_fetch_and_add((long *)data, 1);
 
     sentry_value_t event = sentry_envelope_get_event(envelope);
     if (!sentry_value_is_null(event)) {
