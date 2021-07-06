@@ -284,11 +284,11 @@ int
 sentry__bgworker_start(sentry_bgworker_t *bgw)
 {
     SENTRY_TRACE("starting background worker thread");
-    sentry__atomic_fetch_and_add(&bgw->running, 1);
+    sentry__atomic_store(&bgw->running, 1);
     // this incref moves the reference into the background thread
     sentry__bgworker_incref(bgw);
     if (sentry__thread_spawn(&bgw->thread_id, &worker_thread, bgw) != 0) {
-        sentry__atomic_fetch_and_add(&bgw->running, -1);
+        sentry__atomic_store(&bgw->running, 0);
         sentry__bgworker_decref(bgw);
         return 1;
     }
@@ -299,7 +299,7 @@ static void
 shutdown_task(void *task_data, void *UNUSED(state))
 {
     sentry_bgworker_t *bgw = task_data;
-    sentry__atomic_fetch_and_add(&bgw->running, -1);
+    sentry__atomic_store(&bgw->running, 0);
 }
 
 int
@@ -325,11 +325,11 @@ sentry__bgworker_shutdown(sentry_bgworker_t *bgw, uint64_t timeout)
 
         uint64_t now = sentry__monotonic_time();
         if (now > started && now - started > timeout) {
-            sentry__atomic_fetch_and_add(&bgw->running, -1);
+            sentry__atomic_store(&bgw->running, 0);
+            sentry__thread_detach(bgw->thread_id);
             sentry__mutex_unlock(&bgw->task_lock);
             SENTRY_WARN(
                 "background thread failed to shut down cleanly within timeout");
-            sentry__thread_detach(bgw->thread_id);
             return 1;
         }
 
