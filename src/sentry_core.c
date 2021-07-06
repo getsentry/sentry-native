@@ -188,16 +188,12 @@ sentry_close(void)
 {
     // this function is to be called only once, so we do not allow more than one
     // caller
-
     sentry__mutex_lock(&g_options_lock);
     sentry_options_t *options = g_options;
-    if (options) {
-        sentry_end_session();
-    }
-    g_options = NULL;
 
     size_t dumped_envelopes = 0;
     if (options) {
+        sentry_end_session();
         if (options->backend && options->backend->shutdown_func) {
             SENTRY_TRACE("shutting down backend");
             options->backend->shutdown_func(options->backend);
@@ -223,10 +219,12 @@ sentry_close(void)
         SENTRY_DEBUG("sentry_close() called, but options was empty");
     }
 
+    g_options = NULL;
+    sentry__mutex_unlock(&g_options_lock);
+
     sentry__scope_cleanup();
     sentry_clear_modulecache();
 
-    sentry__mutex_unlock(&g_options_lock);
     return (int)dumped_envelopes;
 }
 
