@@ -1,5 +1,6 @@
 #include "sentry_session.h"
 #include "sentry_alloc.h"
+#include "sentry_database.h"
 #include "sentry_envelope.h"
 #include "sentry_json.h"
 #include "sentry_options.h"
@@ -185,9 +186,10 @@ sentry__session_from_json(const char *buf, size_t buflen)
         sentry_value_get_by_key(value, "errors"));
     rv->started_ms = sentry__iso8601_to_msec(
         sentry_value_as_string(sentry_value_get_by_key(value, "started")));
-    rv->duration_ms = (uint64_t)(
-        sentry_value_as_double(sentry_value_get_by_key(value, "duration"))
-        * 1000);
+
+    double duration
+        = sentry_value_as_double(sentry_value_get_by_key(value, "duration"));
+    rv->duration_ms = (uint64_t)(duration * 1000);
 
     sentry_value_decref(value);
 
@@ -212,18 +214,23 @@ void
 sentry_start_session(void)
 {
     sentry_end_session();
-    SENTRY_WITH_SCOPE_MUT (scope) {
-        scope->session = sentry__session_new();
-        sentry__scope_session_sync(scope);
+    SENTRY_WITH_SCOPE (scope) {
+        SENTRY_WITH_OPTIONS_MUT (options) {
+            options->session = sentry__session_new();
+            if (options->session) {
+                sentry__session_sync_user(options->session, scope->user);
+                sentry__run_write_session(options->run, options->session);
+            }
+        }
     }
 }
 
 void
 sentry__record_errors_on_current_session(uint32_t error_count)
 {
-    SENTRY_WITH_SCOPE_MUT (scope) {
-        if (scope->session) {
-            scope->session->errors += error_count;
+    SENTRY_WITH_OPTIONS_MUT (options) {
+        if (options->session) {
+            options->session->errors += error_count;
         }
     }
 }
@@ -232,9 +239,10 @@ static sentry_session_t *
 sentry__end_session_internal(void)
 {
     sentry_session_t *session = NULL;
-    SENTRY_WITH_SCOPE_MUT (scope) {
-        session = scope->session;
-        scope->session = NULL;
+    SENTRY_WITH_OPTIONS_MUT (options) {
+        session = options->session;
+        options->session = NULL;
+        sentry__run_clear_session(options->run);
     }
 
     if (session && session->status == SENTRY_SESSION_STATUS_OK) {
@@ -271,15 +279,17 @@ sentry_end_session(void)
 }
 
 void
-sentry__add_current_session_to_envelope(sentry_envelope_t *envelope)
+sentry__session_sync_user(sentry_session_t *session, sentry_value_t user)
 {
-    SENTRY_WITH_SCOPE_MUT (scope) {
-        if (scope->session) {
-            sentry__envelope_add_session(envelope, scope->session);
-            // we're assuming that if a session is added to an envelope it
-            // will be sent onwards.  This means we now need to set the init
-            // flag to false because we're no longer the initial session update.
-            scope->session->init = false;
-        }
+
+    sentry_value_t did = sentry_value_get_by_key(user, "id");
+    if (sentry_value_is_null(did)) {
+        did = sentry_value_get_by_key(user, "email");
     }
+    if (sentry_value_is_null(did)) {
+        did = sentry_value_get_by_key(user, "username");
+    }
+    sentry_value_decref(session->distinct_id);
+    sentry_value_incref(did);
+    session->distinct_id = did;
 }

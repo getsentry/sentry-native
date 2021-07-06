@@ -207,24 +207,7 @@ sentry__bgworker_is_done(sentry_bgworker_t *bgw)
     return !bgw->first_task && !sentry__atomic_fetch(&bgw->running);
 }
 
-#ifdef _MSC_VER
-#    define THREAD_FUNCTION_API __stdcall
-#else
-#    define THREAD_FUNCTION_API
-#endif
-
-#if defined(__MINGW32__) && !defined(__MINGW64__)
-#    define UNSIGNED_MINGW unsigned
-#else
-#    define UNSIGNED_MINGW
-#endif
-
-// pthreads use `void *` return types, whereas windows uses `DWORD`
-#ifdef SENTRY_PLATFORM_WINDOWS
-static UNSIGNED_MINGW DWORD THREAD_FUNCTION_API
-#else
-static void *
-#endif
+SENTRY_THREAD_FN
 worker_thread(void *data)
 {
     sentry_bgworker_t *bgw = data;

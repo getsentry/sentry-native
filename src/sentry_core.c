@@ -36,6 +36,19 @@ sentry__options_getref(void)
     return options;
 }
 
+sentry_options_t *
+sentry__options_lock(void)
+{
+    sentry__mutex_lock(&g_options_lock);
+    return g_options;
+}
+
+void
+sentry__options_unlock(void)
+{
+    sentry__mutex_unlock(&g_options_lock);
+}
+
 static void
 load_user_consent(sentry_options_t *opts)
 {
@@ -72,6 +85,12 @@ sentry__should_skip_upload(void)
 int
 sentry_init(sentry_options_t *options)
 {
+    // this function is to be called only once, so we do not allow more than one
+    // caller
+    sentry__mutex_lock(&g_options_lock);
+    // pre-init here, so we can consistently use bailing out to :fail
+    sentry_transport_t *transport = NULL;
+
     sentry_close();
 
     sentry_logger_t logger = { NULL, NULL };
@@ -84,11 +103,10 @@ sentry_init(sentry_options_t *options)
     if (sentry__path_create_dir_all(options->database_path)) {
         SENTRY_WARN("failed to create database directory or there is no write "
                     "access to this directory");
-        sentry_options_free(options);
-        return 1;
+        goto fail;
     }
-    sentry_transport_t *transport = options->transport;
 
+    transport = options->transport;
     sentry_path_t *database_path = options->database_path;
     options->database_path = sentry__path_absolute(database_path);
     if (options->database_path) {
@@ -139,9 +157,7 @@ sentry_init(sentry_options_t *options)
         last_crash = backend->get_last_crash_func(backend);
     }
 
-    sentry__mutex_lock(&g_options_lock);
     g_options = options;
-    sentry__mutex_unlock(&g_options_lock);
 
     // *after* setting the global options, trigger a scope and consent flush,
     // since at least crashpad needs that.
@@ -167,6 +183,7 @@ sentry_init(sentry_options_t *options)
         sentry_start_session();
     }
 
+    sentry__mutex_unlock(&g_options_lock);
     return 0;
 
 fail:
@@ -175,21 +192,21 @@ fail:
         sentry__transport_shutdown(transport, 0);
     }
     sentry_options_free(options);
+    sentry__mutex_unlock(&g_options_lock);
     return 1;
 }
 
 int
 sentry_close(void)
 {
-    sentry_end_session();
-
+    // this function is to be called only once, so we do not allow more than one
+    // caller
     sentry__mutex_lock(&g_options_lock);
     sentry_options_t *options = g_options;
-    g_options = NULL;
-    sentry__mutex_unlock(&g_options_lock);
 
     size_t dumped_envelopes = 0;
     if (options) {
+        sentry_end_session();
         if (options->backend && options->backend->shutdown_func) {
             SENTRY_TRACE("shutting down backend");
             options->backend->shutdown_func(options->backend);
@@ -210,12 +227,17 @@ sentry_close(void)
                 || !options->backend->can_capture_after_shutdown)) {
             sentry__run_clean(options->run);
         }
-
         sentry_options_free(options);
+    } else {
+        SENTRY_DEBUG("sentry_close() called, but options was empty");
     }
+
+    g_options = NULL;
+    sentry__mutex_unlock(&g_options_lock);
 
     sentry__scope_cleanup();
     sentry_clear_modulecache();
+
     return (int)dumped_envelopes;
 }
 
@@ -343,7 +365,18 @@ sentry_capture_event(sentry_value_t event)
         was_captured = true;
         envelope = sentry__prepare_event(options, event, &event_id);
         if (envelope) {
-            sentry__add_current_session_to_envelope(envelope);
+            if (options->session) {
+                SENTRY_WITH_OPTIONS_MUT (mut_options) {
+                    sentry__envelope_add_session(
+                        envelope, mut_options->session);
+                    // we're assuming that if a session is added to an envelope
+                    // it will be sent onwards.  This means we now need to set
+                    // the init flag to false because we're no longer the
+                    // initial session update.
+                    mut_options->session->init = false;
+                }
+            }
+
             sentry__capture_envelope(options->transport, envelope);
         }
     }
@@ -460,10 +493,18 @@ sentry__ensure_event_id(sentry_value_t event, sentry_uuid_t *uuid_out)
 void
 sentry_set_user(sentry_value_t user)
 {
+    if (!sentry_value_is_null(user)) {
+        SENTRY_WITH_OPTIONS_MUT (options) {
+            if (options->session) {
+                sentry__session_sync_user(options->session, user);
+                sentry__run_write_session(options->run, options->session);
+            }
+        }
+    }
+
     SENTRY_WITH_SCOPE_MUT (scope) {
         sentry_value_decref(scope->user);
         scope->user = user;
-        sentry__scope_session_sync(scope);
     }
 }
 

@@ -4,6 +4,7 @@
 #include "sentry_boot.h"
 
 #include "sentry_logger.h"
+#include "sentry_session.h"
 #include "sentry_utils.h"
 
 // Defaults to 2s as per
@@ -57,6 +58,7 @@ typedef struct sentry_options_s {
     /* everything from here on down are options which are stored here but
        not exposed through the options API */
     struct sentry_backend_s *backend;
+    sentry_session_t *session;
 
     long user_consent;
     long refcount;

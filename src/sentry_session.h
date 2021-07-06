@@ -28,7 +28,7 @@ typedef struct sentry_session_s {
     uint64_t duration_ms;
     uint64_t errors;
     sentry_session_status_t status;
-    bool init;
+    long init;
 } sentry_session_t;
 
 /**
@@ -71,8 +71,8 @@ sentry_session_t *sentry__end_current_session_with_status(
 void sentry__record_errors_on_current_session(uint32_t error_count);
 
 /**
- * Add the current session an a new envelope item to `envelope`.
+ * This will update a sessions `distinct_id`, which is based on the user.
  */
-void sentry__add_current_session_to_envelope(sentry_envelope_t *envelope);
+void sentry__session_sync_user(sentry_session_t *session, sentry_value_t user);
 
 #endif
