@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+**Fixes**:
+
+- The crashpad backend now respects the `max_breadcrumbs` setting.
+- Hanging HTTP requests will now be canceled on shutdown in the WinHTTP transport.
+- The Modulefinder and Android unwinder now use safer memory access.
+- Possible races and deadlocks have been fixed in `init`/`close`, and in API related to sessions.
+
+**Thank you**:
+
+Features, fixes and improvements in this release have been contributed by:
+
+- [@smibe](https://github.com/smibe)
+
 ## 0.4.10
 
 **Fixes**:
