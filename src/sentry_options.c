@@ -47,6 +47,7 @@ sentry_options_new(void)
     opts->transport = sentry__transport_new_default();
     opts->sample_rate = 1.0;
     opts->refcount = 1;
+    opts->shutdown_timeout = SENTRY_DEFAULT_SHUTDOWN_TIMEOUT;
     return opts;
 }
 
@@ -296,6 +297,13 @@ sentry_options_set_system_crash_reporter_enabled(
 {
     opts->system_crash_reporter_enabled = !!enabled;
 }
+
+void sentry_options_set_shutdown_timeout(
+    sentry_options_t *opts, uint64_t shutdown_timeout)
+{
+    opts->shutdown_timeout = shutdown_timeout;
+}
+
 
 static void
 add_attachment(sentry_options_t *opts, sentry_path_t *path)

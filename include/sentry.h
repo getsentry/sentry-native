@@ -1006,6 +1006,13 @@ SENTRY_API void sentry_options_set_database_pathw(
 SENTRY_API void sentry_options_set_system_crash_reporter_enabled(
     sentry_options_t *opts, int enabled);
 
+/**
+ * Sets the maximum time to wait for the asynchronous tasks to end on shutdown,
+ * before attempting a forced termination.
+ */
+SENTRY_API void sentry_options_set_shutdown_timeout(
+    sentry_options_t *opts, uint64_t shutdown_timeout);
+
 /* -- Global APIs -- */
 
 /**

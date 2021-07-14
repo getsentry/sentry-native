@@ -213,9 +213,8 @@ sentry_close(void)
         }
 
         if (options->transport) {
-            // TODO: make this configurable
             if (sentry__transport_shutdown(
-                    options->transport, SENTRY_DEFAULT_SHUTDOWN_TIMEOUT)
+                    options->transport, options->shutdown_timeout)
                 != 0) {
                 SENTRY_WARN("transport did not shut down cleanly");
             }
