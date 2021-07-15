@@ -298,12 +298,18 @@ sentry_options_set_system_crash_reporter_enabled(
     opts->system_crash_reporter_enabled = !!enabled;
 }
 
-void sentry_options_set_shutdown_timeout(
+void
+sentry_options_set_shutdown_timeout(
     sentry_options_t *opts, uint64_t shutdown_timeout)
 {
     opts->shutdown_timeout = shutdown_timeout;
 }
 
+uint64_t
+sentry_options_get_shutdown_timeout(sentry_options_t *opts)
+{
+    return opts->shutdown_timeout;
+}
 
 static void
 add_attachment(sentry_options_t *opts, sentry_path_t *path)
