@@ -62,6 +62,7 @@ typedef struct sentry_options_s {
 
     long user_consent;
     long refcount;
+    uint64_t shutdown_timeout;
 } sentry_options_t;
 
 /**
