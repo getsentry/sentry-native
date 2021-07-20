@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+**Fixes**:
+
+- The crashpad backend compiles with mingw again.
+- Build System improvements.
+
+**Thank you**:
+
+Features, fixes and improvements in this release have been contributed by:
+
+- [@irov](https://github.com/irov)
+- [@past-due](https://github.com/past-due)
+
 ## 0.4.11
 
 **Fixes**:
