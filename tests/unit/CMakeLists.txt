@@ -71,6 +71,8 @@ endif()
 
 if(MSVC)
 	target_compile_options(sentry_test_unit PRIVATE $<BUILD_INTERFACE:/wd5105>)
+	# https://gitlab.kitware.com/cmake/cmake/-/issues/15865
+	#target_link_options(sentry_test_unit PRIVATE "/PDBALTPATH:%_PDB%")
 endif()
 
 # set static runtime if enabled
