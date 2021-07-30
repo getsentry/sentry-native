@@ -410,7 +410,7 @@ if(SENTRY_BACKEND_CRASHPAD)
 		endif()
 		add_subdirectory(external/crashpad crashpad_build)
 
-		# set static runime if enabled
+		# set static runtime if enabled
 		if(SENTRY_BUILD_RUNTIMESTATIC AND MSVC)
 			set_property(TARGET crashpad_client PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 			set_property(TARGET crashpad_compat PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
