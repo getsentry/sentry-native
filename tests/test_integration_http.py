@@ -21,7 +21,7 @@ from .assertions import (
 
 pytestmark = pytest.mark.skipif(not has_http, reason="tests need http")
 
-auth_header = "Sentry sentry_key=uiaeosnrtdy, sentry_version=7, sentry_client=sentry.native/0.4.11"
+auth_header = "Sentry sentry_key=uiaeosnrtdy, sentry_version=7, sentry_client=sentry.native/0.4.12"
 
 
 def test_capture_http(cmake, httpserver):

@@ -44,8 +44,8 @@ def assert_meta(envelope, release="test-example-release", integration=None):
     }
     expected_sdk = {
         "name": "sentry.native",
-        "version": "0.4.11",
-        "packages": [{"name": "github:getsentry/sentry-native", "version": "0.4.11"},],
+        "version": "0.4.12",
+        "packages": [{"name": "github:getsentry/sentry-native", "version": "0.4.12"},],
     }
     if not is_android:
         if sys.platform == "win32":
