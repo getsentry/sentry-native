@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Make the shutdown timeout configurable via `sentry_options_set_shutdown_timeout`.
+
 **Fixes**:
 
 - The crashpad backend compiles with mingw again.
@@ -13,6 +17,8 @@ Features, fixes and improvements in this release have been contributed by:
 
 - [@irov](https://github.com/irov)
 - [@past-due](https://github.com/past-due)
+- [@andrei-mu](https://github.com/andrei-mu)
+- [@rpadaki](https://github.com/rpadaki)
 
 ## 0.4.11
 
