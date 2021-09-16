@@ -38,6 +38,8 @@ set(CMAKE_INSTALL_CMAKEDIR "${CMAKE_INSTALL_LIBDIR}/cmake/sentry")
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
 	set(LINUX TRUE)
+elseif(CMAKE_SYSTEM_NAME STREQUAL "AIX" OR CMAKE_SYSTEM_NAME STREQUAL "OS400")
+	set(AIX TRUE)
 endif()
 
 #setup sentry library type
