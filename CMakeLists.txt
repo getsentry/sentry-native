@@ -248,6 +248,11 @@ else()
 endif()
 target_compile_definitions(sentry PRIVATE SIZEOF_LONG=${CMAKE_SIZEOF_LONG})
 
+# On IBM i PASE, flock is in libutil. Here because "sentry" exists now.
+if(CMAKE_SYSTEM_NAME STREQUAL "OS400")
+	target_link_libraries(sentry PRIVATE util)
+endif()
+
 if(SENTRY_TRANSPORT_CURL)
 	find_package(CURL REQUIRED)
 	if(TARGET CURL::libcurl) # Only available in cmake 3.12+
