@@ -248,6 +248,10 @@ else()
 endif()
 target_compile_definitions(sentry PRIVATE SIZEOF_LONG=${CMAKE_SIZEOF_LONG})
 
+# AIX needs libm for isnan used in test suite
+if(CMAKE_SYSTEM_NAME STREQUAL "AIX" OR CMAKE_SYSTEM_NAME STREQUAL "OS400")
+	target_link_libraries(sentry PRIVATE m)
+endif()
 # On IBM i PASE, flock is in libutil. Here because "sentry" exists now.
 if(CMAKE_SYSTEM_NAME STREQUAL "OS400")
 	target_link_libraries(sentry PRIVATE util)
