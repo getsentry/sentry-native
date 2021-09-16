@@ -252,6 +252,19 @@ typedef pthread_cond_t sentry_cond_t;
                 }
 #        endif
 #        define SENTRY__MUTEX_INIT PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP
+#    elif defined(SENTRY_PLATFORM_AIX)
+// AIX 7.1/PASE 7.2 lacks PTHREAD_RECURSIVE_MUTEX_INITIALIZER
+#        ifndef PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP
+#            define PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP                     \
+                {                                                              \
+                    {                                                          \
+                        {                                                      \
+                            PTHREAD_MUTEX_RECURSIVE                            \
+                        }                                                      \
+                    }                                                          \
+                }
+#        endif
+#        define SENTRY__MUTEX_INIT PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP
 #    else
 #        define SENTRY__MUTEX_INIT PTHREAD_RECURSIVE_MUTEX_INITIALIZER
 #    endif
