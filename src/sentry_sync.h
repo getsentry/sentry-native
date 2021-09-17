@@ -253,18 +253,22 @@ typedef pthread_cond_t sentry_cond_t;
 #        endif
 #        define SENTRY__MUTEX_INIT PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP
 #    elif defined(SENTRY_PLATFORM_AIX)
-// AIX 7.1/PASE 7.2 lacks PTHREAD_RECURSIVE_MUTEX_INITIALIZER
-#        ifndef PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP
-#            define PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP                     \
-                {                                                              \
-                    {                                                          \
-                        {                                                      \
-                            PTHREAD_MUTEX_RECURSIVE                            \
-                        }                                                      \
-                    }                                                          \
-                }
-#        endif
-#        define SENTRY__MUTEX_INIT PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP
+// AIX lacks PTHREAD_RECURSIVE_MUTEX_INITIALIZER, though it does have at least
+// PTHREAD_MUTEX_INITIALIZER. Unfortunately, it means you must call the mutex
+// init function with an initialized mutexattrs set to recursive. This isn't
+// workable due to all the mutexes just sitting around not initialized but
+// immediately used. The fields are basically guesswork from what happens when
+// you initialize the mutex "properly" but changing the bare minimum from a
+// static initialization. (Don't ask me what these fields mean, the struct is
+// opaquely defined as long[n] fields.)
+#        define SENTRY__MUTEX_INIT {{\
+             0, \
+             0, \
+             0, \
+             0, \
+             /*_PTH_FLAGS_INIT64*/ 1, \
+             PTHREAD_MUTEX_RECURSIVE \
+         }}
 #    else
 #        define SENTRY__MUTEX_INIT PTHREAD_RECURSIVE_MUTEX_INITIALIZER
 #    endif
