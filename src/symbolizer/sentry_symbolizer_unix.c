@@ -55,7 +55,8 @@ typedef struct dl_info {
  */
 static void
 sym_from_tb(void **sbase, const char **sname, void *where) {
-    unsigned int *s = (unsigned int*)where;
+    /* The pointer must be word aligned as instructions are */
+    unsigned int *s = (unsigned int*)((uintptr_t)where & ~3);
     while (*s) {
         /* look for zero word (invalid op) that begins epilogue */
         s++;
