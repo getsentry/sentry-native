@@ -19,6 +19,10 @@
 #    include <mach-o/dyld.h>
 #endif
 
+#ifdef SENTRY_PLATFORM_AIX
+#    include <procinfo.h>
+#endif
+
 // only read this many bytes to memory ever
 static const size_t MAX_READ_TO_BUFFER = 134217728;
 
@@ -138,6 +142,18 @@ sentry__path_current_exe(void)
     }
     buf[len] = 0;
     return sentry__path_from_str(buf);
+#elif defined(SENTRY_PLATFORM_AIX)
+    // You can't get the full path to the current executable; the best is
+    // either argv[0], or getting the name of the current executable, which
+    // doesn't even include a path. Let's go with that for now.
+    // (Actually, AIX may be able to under procfs, but it's System V style,
+    // not like Linux. And it's not available under PASE anyways.)
+    struct procentry64 proc;
+    pid_t pid = getpid();
+    if (getprocs64 (&proc, sizeof (proc), NULL, 0, &pid, 1) < 1) {
+        return NULL;
+    }
+    return sentry__path_from_str(proc.pi_comm);
 #endif
     return NULL;
 }
