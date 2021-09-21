@@ -17,6 +17,8 @@
 #include <alloca.h>
 #include <limits.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 /* AIX specific headers for loadquery and traceback structure */
 #include <sys/ldr.h>
@@ -91,13 +93,14 @@ sym_from_tb(void **sbase, const char **sname, void *where) {
         ext += sizeof(int) + (sizeof(int) * ctlnum);
     }
     if (tb->name_present) {
-        /*
-         * The 16-bit name length is here, but the name seems to
-         * include a NUL, so we don't reallocate it, and instead
-         * just point to its location in memory.
-         */
+        /* Oops! It does seem these can contain a null! */
+        short name_len =  (*(short*)ext);
         ext += sizeof(short);
-        *sname = ext;
+        /* XXX: Mallocs, will leak. We need a strategy to deal with this */
+        char *name = malloc(name_len + 1);
+        memcpy(name, (char*)ext, name_len);
+        name[name_len] = '\0';
+        *sname = name;
     } else {
         *sname = NULL;
     }
@@ -154,7 +157,8 @@ dladdr(void* s, Dl_info* i) {
             /* Look for file name and base address. */
             i->dli_fbase = tb; /* Includes XCOFF header */
             /* library filename + ( + member + ) + NUL */
-            char *libname = (char*)alloca (AIX_PRINTED_LIB_LEN);
+            /* XXX: Mallocs, will leak. We need a strategy to deal with this */
+            char *libname = (char*)malloc (AIX_PRINTED_LIB_LEN);
             char *file_part = cur->ldinfo_filename;
             char *member_part = file_part + strlen(file_part) + 1;
             /*
