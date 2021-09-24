@@ -8,7 +8,10 @@
 #include <alloca.h>
 #include <limits.h>
 #include <stdio.h>
+
+#define __XCOFF64__
 #include <sys/ldr.h>
+#include <xcoff.h>
 
 /* library filename + ( + member file name + ) + NUL */
 #define AIX_PRINTED_LIB_LEN ((PATH_MAX * 2) + 3)
@@ -38,6 +41,16 @@ load_modules(void)
         uint64_t ts = (uint64_t)cur->ldinfo_textsize;
         sentry_value_set_by_key(module, "image_size",
             sentry_value_new_int32((uint32_t)ts));
+
+        /*
+         * Under AIX, there are no UUIDs for executables, but we can try to
+         * use some other fields as an ersatz substitute.
+         */
+        FILHDR *xcoff_header = (FILHDR *)tb;
+        char buf[128];
+        snprintf(buf, 128, "%x", xcoff_header->f_timdat);
+        sentry_value_set_by_key(
+            module, "debug_id", sentry_value_new_string(buf));
         
         /* library filename + ( + member + ) + NUL */
         char libname[AIX_PRINTED_LIB_LEN];
@@ -62,7 +75,6 @@ load_modules(void)
         // it. It will have the member name for library archives.
         sentry_value_set_by_key(
             module, "code_file", sentry_value_new_string(libname));
-        // XXX: There is no debug key 
 
         sentry_value_append(g_modules, module);
 
