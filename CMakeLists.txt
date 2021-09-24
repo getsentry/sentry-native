@@ -86,7 +86,7 @@ endif()
 
 if(WIN32)
 	set(SENTRY_DEFAULT_TRANSPORT "winhttp")
-elseif((APPLE AND NOT IOS) OR LINUX)
+elseif((APPLE AND NOT IOS) OR LINUX OR AIX)
 	set(SENTRY_DEFAULT_TRANSPORT "curl")
 else()
 	set(SENTRY_DEFAULT_TRANSPORT "none")
