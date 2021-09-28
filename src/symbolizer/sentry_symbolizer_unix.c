@@ -14,7 +14,6 @@
  * same license, and I am also the author of it.
  */
 
-#include <alloca.h>
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -34,9 +33,10 @@
  * (it points to the traceback info in the image), so don't free it.
  */
 typedef struct dl_info {
+    // these aren't const* because they are allocated
     char* dli_fname;
     void* dli_fbase;
-    const char* dli_sname;
+    char* dli_sname;
     void* dli_saddr;
 } Dl_info;
 
@@ -56,7 +56,7 @@ typedef struct dl_info {
  * could be emitted with XCOFF traceback...
  */
 static void
-sym_from_tb(void **sbase, const char **sname, void *where) {
+sym_from_tb(void **sbase, char **sname, void *where) {
     /* The pointer must be word aligned as instructions are */
     unsigned int *s = (unsigned int*)((uintptr_t)where & ~3);
     while (*s) {
@@ -96,8 +96,7 @@ sym_from_tb(void **sbase, const char **sname, void *where) {
         /* Oops! It does seem these can contain a null! */
         short name_len =  (*(short*)ext);
         ext += sizeof(short);
-        /* XXX: Mallocs, will leak. We need a strategy to deal with this */
-        char *name = malloc(name_len + 1);
+        char *name = sentry_malloc(name_len + 1);
         memcpy(name, (char*)ext, name_len);
         name[name_len] = '\0';
         *sname = name;
@@ -116,11 +115,7 @@ sym_from_tb(void **sbase, const char **sname, void *where) {
  */
 static int
 dladdr(void* s, Dl_info* i) {
-    /*
-     * Use stack instead of heap because malloc may be messed up.
-     * Init returned structure members to clear out any garbage.
-     */
-    char *buf = (char*)alloca(10000);
+    char buf[10000];
     i->dli_fbase = NULL;
     i->dli_fname = NULL;
     i->dli_saddr = NULL;
@@ -157,8 +152,7 @@ dladdr(void* s, Dl_info* i) {
             /* Look for file name and base address. */
             i->dli_fbase = tb; /* Includes XCOFF header */
             /* library filename + ( + member + ) + NUL */
-            /* XXX: Mallocs, will leak. We need a strategy to deal with this */
-            char *libname = (char*)malloc (AIX_PRINTED_LIB_LEN);
+            char *libname = (char*)sentry_malloc (AIX_PRINTED_LIB_LEN);
             char *file_part = cur->ldinfo_filename;
             char *member_part = file_part + strlen(file_part) + 1;
             /*
@@ -170,11 +164,10 @@ dladdr(void* s, Dl_info* i) {
              */
             if (member_part[0] == '\0') {
                 /* Not an archive, just copy the file name. */
-                strcpy(libname, file_part);
-                //strlcpy(libname, file_part, AIX_PRINTED_LIB_LEN);
+                snprintf(libname, AIX_PRINTED_LIB_LEN, "%s", file_part);
             } else {
                 /* It's an archive with member. */
-                sprintf(libname, "%s(%s)", file_part, member_part);
+                snprintf(libname, AIX_PRINTED_LIB_LEN, "%s(%s)", file_part, member_part);
             }
             i->dli_fname = libname;
 
@@ -208,6 +201,12 @@ sentry__symbolize(
     frame_info.symbol = info.dli_sname;
     frame_info.object_name = info.dli_fname;
     func(&frame_info, data);
+#ifdef SENTRY_PLATFORM_AIX
+    // On AIX these must be freed. Hope the the callback doesn't use that buffer...
+    // XXX: We may just be able to stuff it into a fixed-length field of Dl_info?
+    free(info.dli_sname);
+    free(info.dli_fname);
+#endif
 
     return true;
 }
