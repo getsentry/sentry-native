@@ -38,7 +38,8 @@ sentry_options_new(void)
     opts->auto_session_tracking = true;
     opts->system_crash_reporter_enabled = false;
     opts->symbolize_stacktraces =
-#ifdef SENTRY_PLATFORM_ANDROID
+        // these platforms don't have debug IDs and we'll need to symbolize
+#if defined(SENTRY_PLATFORM_ANDROID) || defined(SENTRY_PLATFORM_AIX)
         true;
 #else
         false;
