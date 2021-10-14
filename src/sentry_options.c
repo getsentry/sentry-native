@@ -38,7 +38,8 @@ sentry_options_new(void)
     opts->auto_session_tracking = true;
     opts->system_crash_reporter_enabled = false;
     opts->symbolize_stacktraces =
-        // these platforms don't have debug IDs and we'll need to symbolize
+        // AIX doesn't have reliable debug IDs and needs symbols.
+        // Android, the object files are unlikely on the Sentry server.
 #if defined(SENTRY_PLATFORM_ANDROID) || defined(SENTRY_PLATFORM_AIX)
         true;
 #else
