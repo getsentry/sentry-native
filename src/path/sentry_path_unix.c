@@ -331,7 +331,7 @@ sentry__path_create_dir_all(const sentry_path_t *path)
 #define _TRY_MAKE_DIR                                                          \
     do {                                                                       \
         int mrv = mkdir(p, 0700);                                              \
-        if (mrv != 0 && errno != EEXIST) {                                     \
+        if (mrv != 0 && errno != EEXIST && errno != EINVAL) {                                     \
             rv = 1;                                                            \
             goto done;                                                         \
         }                                                                      \
@@ -476,7 +476,7 @@ write_buffer_with_flags(
     int fd = open(
         path->path, flags, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH);
     if (fd < 0) {
-        SENTRY_TRACEF("failed to open file \"%s\" for writing", path->path);
+        SENTRY_TRACEF("failed to open file \"%s\" for writing (errno %d, flags %x)", path->path, errno, flags);
         return 1;
     }
 
