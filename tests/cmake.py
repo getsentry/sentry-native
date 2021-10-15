@@ -76,7 +76,13 @@ class CMake:
             ]
             if len(coverage_dirs) > 0:
                 subprocess.run(
-                    ["kcov", "--clean", "--merge", coveragedir, *coverage_dirs,]
+                    [
+                        "kcov",
+                        "--clean",
+                        "--merge",
+                        coveragedir,
+                        *coverage_dirs,
+                    ]
                 )
 
 

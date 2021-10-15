@@ -95,7 +95,10 @@ def test_crashpad_crash_after_shutdown(cmake, httpserver):
 
     with httpserver.wait(timeout=10) as waiting:
         child = run(
-            tmp_path, "sentry_example", ["log", "crash-after-shutdown"], env=env,
+            tmp_path,
+            "sentry_example",
+            ["log", "crash-after-shutdown"],
+            env=env,
         )
         assert child.returncode  # well, its a crash after all
 
