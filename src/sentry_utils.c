@@ -267,7 +267,10 @@ sentry__dsn_new(const char *raw_dsn)
     *tmp = 0;
     dsn->path = url.path;
     url.path = NULL;
-    dsn->is_valid = true;
+
+    if (dsn->public_key && dsn->host && dsn->path) {
+        dsn->is_valid = true;
+    }
 
 exit:
     sentry__url_cleanup(&url);
