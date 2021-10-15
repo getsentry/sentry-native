@@ -5,7 +5,6 @@
 #include "sentry_sync.h"
 #include "sentry_value.h"
 
-#include <alloca.h>
 #include <limits.h>
 #include <stdio.h>
 
@@ -23,7 +22,7 @@ static sentry_value_t g_modules = { 0 };
 static void
 load_modules(void)
 {
-    char *buf = (char*)alloca(10000);
+    char buf[10000];
     int r = loadquery (L_GETINFO, buf, 10000);
     if (r == -1) {
         return;
@@ -47,10 +46,10 @@ load_modules(void)
          * use some other fields as an ersatz substitute.
          */
         FILHDR *xcoff_header = (FILHDR *)tb;
-        char buf[128];
-        snprintf(buf, 128, "%x", xcoff_header->f_timdat);
+        char timestamp[128];
+        snprintf(timestamp, 128, "%x", xcoff_header->f_timdat);
         sentry_value_set_by_key(
-            module, "debug_id", sentry_value_new_string(buf));
+            module, "debug_id", sentry_value_new_string(timestamp));
         
         /* library filename + ( + member + ) + NUL */
         char libname[AIX_PRINTED_LIB_LEN];
@@ -65,11 +64,10 @@ load_modules(void)
          */
         if (member_part[0] == '\0') {
             /* Not an archive, just copy the file name. */
-            sprintf(libname, "%s", file_part);
-            //strlcpy(libname, file_part, AIX_PRINTED_LIB_LEN);
+            snprintf(libname, AIX_PRINTED_LIB_LEN, "%s", file_part);
         } else {
             /* It's an archive with member. */
-            sprintf(libname, "%s(%s)", file_part, member_part);
+            snprintf(libname, AIX_PRINTED_LIB_LEN, "%s(%s)", file_part, member_part);
         }
         // XXX: This is not an absolute path because AIX doesn't provide
         // it. It will have the member name for library archives.
