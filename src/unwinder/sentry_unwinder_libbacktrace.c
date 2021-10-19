@@ -3,7 +3,7 @@
 // XXX: Make into a CMake check
 // XXX: IBM i PASE offers libbacktrace in libutil, but not available in AIX
 #if defined(SENTRY_PLATFORM_DARWIN) || defined(__GLIBC__) || defined(__PASE__)
-#define HAS_EXECINFO_H
+#    define HAS_EXECINFO_H
 #endif
 
 #ifdef HAS_EXECINFO_H

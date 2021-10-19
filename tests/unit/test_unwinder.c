@@ -23,11 +23,11 @@ find_frame(const sentry_frame_info_t *info, void *data)
     // we will specifically check for the unwinder function
     void *unwinder_address =
 #if defined(SENTRY_PLATFORM_AIX)
-    // AIX and ELFv1 SystemV ABI use function descriptors (a struct containing
-    // the pointers required to invoke). We need to dereference again to get
-    // the actual reference to code.
-    // XXX: Should apply on _CALL_ELF == 1 when on PowerPC i.e. Linux
-        *(void**)&invoke_unwinder;
+        // AIX and ELFv1 SystemV ABI use function descriptors (a struct
+        // containing the pointers required to invoke). We need to dereference
+        // again to get the actual reference to code.
+        // XXX: Should apply on _CALL_ELF == 1 when on PowerPC i.e. Linux
+        *(void **)&invoke_unwinder;
 #else
         &invoke_unwinder;
 #endif

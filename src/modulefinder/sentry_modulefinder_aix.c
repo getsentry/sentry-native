@@ -23,23 +23,24 @@ static void
 load_modules(void)
 {
     char buf[10000];
-    int r = loadquery (L_GETINFO, buf, 10000);
+    int r = loadquery(L_GETINFO, buf, 10000);
     if (r == -1) {
         return;
     }
     /* The loader info structures are also a linked list. */
-    struct ld_info *cur = (struct ld_info*) buf;
+    struct ld_info *cur = (struct ld_info *)buf;
     do {
         sentry_value_t module = sentry_value_new_object();
-        sentry_value_set_by_key(module, "type", sentry_value_new_string("xcoff"));
+        sentry_value_set_by_key(
+            module, "type", sentry_value_new_string("xcoff"));
 
-        char *tb = (char*)cur->ldinfo_textorg; // text includes XCOFF image
+        char *tb = (char *)cur->ldinfo_textorg; // text includes XCOFF image
         sentry_value_set_by_key(
             module, "image_addr", sentry__value_new_addr((uint64_t)tb));
         // actually a 64-bit value on 64-bit AIX
         uint64_t ts = (uint64_t)cur->ldinfo_textsize;
-        sentry_value_set_by_key(module, "image_size",
-            sentry_value_new_int32((uint32_t)ts));
+        sentry_value_set_by_key(
+            module, "image_size", sentry_value_new_int32((uint32_t)ts));
 
         /*
          * Under AIX, there are no UUIDs for executables, but we can try to
@@ -50,7 +51,7 @@ load_modules(void)
         snprintf(timestamp, 128, "%x", xcoff_header->f_timdat);
         sentry_value_set_by_key(
             module, "debug_id", sentry_value_new_string(timestamp));
-        
+
         /* library filename + ( + member + ) + NUL */
         char libname[AIX_PRINTED_LIB_LEN];
         char *file_part = cur->ldinfo_filename;
@@ -67,7 +68,8 @@ load_modules(void)
             snprintf(libname, AIX_PRINTED_LIB_LEN, "%s", file_part);
         } else {
             /* It's an archive with member. */
-            snprintf(libname, AIX_PRINTED_LIB_LEN, "%s(%s)", file_part, member_part);
+            snprintf(
+                libname, AIX_PRINTED_LIB_LEN, "%s(%s)", file_part, member_part);
         }
         // XXX: This is not an absolute path because AIX doesn't provide
         // it. It will have the member name for library archives.
@@ -76,7 +78,7 @@ load_modules(void)
 
         sentry_value_append(g_modules, module);
 
-        cur = (struct ld_info*)((char*)cur + cur->ldinfo_next);
+        cur = (struct ld_info *)((char *)cur + cur->ldinfo_next);
     } while (cur->ldinfo_next != 0);
 }
 

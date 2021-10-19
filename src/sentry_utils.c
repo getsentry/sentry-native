@@ -499,7 +499,8 @@ sentry__strtod_c(const char *ptr, char **endptr)
 {
 #ifdef SENTRY_PLATFORM_WINDOWS
     return _strtod_l(ptr, endptr, c_locale());
-#elif defined(SENTRY_PLATFORM_ANDROID) || defined(SENTRY_PLATFORM_IOS) || defined(SENTRY_PLATFORM_AIX)
+#elif defined(SENTRY_PLATFORM_ANDROID) || defined(SENTRY_PLATFORM_IOS)         \
+    || defined(SENTRY_PLATFORM_AIX)
     return strtod(ptr, endptr);
 #else
     return strtod_l(ptr, endptr, c_locale());
@@ -515,7 +516,8 @@ sentry__snprintf_c(char *buf, size_t buf_size, const char *fmt, ...)
     int rv;
 #ifdef SENTRY_PLATFORM_WINDOWS
     rv = _vsnprintf_l(buf, buf_size, fmt, c_locale(), args);
-#elif defined(SENTRY_PLATFORM_ANDROID) || defined(SENTRY_PLATFORM_IOS) || defined(SENTRY_PLATFORM_AIX)
+#elif defined(SENTRY_PLATFORM_ANDROID) || defined(SENTRY_PLATFORM_IOS)         \
+    || defined(SENTRY_PLATFORM_AIX)
     rv = vsnprintf(buf, buf_size, fmt, args);
 #elif defined(SENTRY_PLATFORM_DARWIN)
     rv = vsnprintf_l(buf, buf_size, c_locale(), fmt, args);

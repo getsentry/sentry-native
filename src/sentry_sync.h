@@ -261,14 +261,13 @@ typedef pthread_cond_t sentry_cond_t;
 // you initialize the mutex "properly" but changing the bare minimum from a
 // static initialization. (Don't ask me what these fields mean, the struct is
 // opaquely defined as long[n] fields.)
-#        define SENTRY__MUTEX_INIT {{\
-             0, \
-             0, \
-             0, \
-             0, \
-             /*_PTH_FLAGS_INIT64*/ 1, \
-             PTHREAD_MUTEX_RECURSIVE \
-         }}
+#        define SENTRY__MUTEX_INIT                                             \
+            {                                                                  \
+                {                                                              \
+                    0, 0, 0, 0, /*_PTH_FLAGS_INIT64*/ 1,                       \
+                        PTHREAD_MUTEX_RECURSIVE                                \
+                }                                                              \
+            }
 #    else
 #        define SENTRY__MUTEX_INIT PTHREAD_RECURSIVE_MUTEX_INITIALIZER
 #    endif

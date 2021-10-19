@@ -14,17 +14,17 @@
  * same license, and I am also the author of it.
  */
 
-#include <limits.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#    include <limits.h>
+#    include <stdio.h>
+#    include <stdlib.h>
+#    include <string.h>
 
 /* AIX specific headers for loadquery and traceback structure */
-#include <sys/ldr.h>
-#include <sys/debug.h>
+#    include <sys/debug.h>
+#    include <sys/ldr.h>
 
 /* library filename + ( + member file name + ) + NUL */
-#define AIX_PRINTED_LIB_LEN ((PATH_MAX * 2) + 3)
+#    define AIX_PRINTED_LIB_LEN ((PATH_MAX * 2) + 3)
 
 /*
  * The structure that holds information for dladdr. Unfortunately, on AIX,
@@ -34,10 +34,10 @@
  */
 typedef struct dl_info {
     // these aren't const* because they are allocated
-    char* dli_fname;
-    void* dli_fbase;
-    char* dli_sname;
-    void* dli_saddr;
+    char *dli_fname;
+    void *dli_fbase;
+    char *dli_sname;
+    void *dli_saddr;
 } Dl_info;
 
 /**
@@ -56,26 +56,27 @@ typedef struct dl_info {
  * could be emitted with XCOFF traceback...
  */
 static void
-sym_from_tb(void **sbase, char **sname, void *where) {
+sym_from_tb(void **sbase, char **sname, void *where)
+{
     /* The pointer must be word aligned as instructions are */
-    unsigned int *s = (unsigned int*)((uintptr_t)where & ~3);
+    unsigned int *s = (unsigned int *)((uintptr_t)where & ~3);
     while (*s) {
         /* look for zero word (invalid op) that begins epilogue */
         s++;
     }
     /* We're on a zero word now, seek after the traceback table. */
-    struct tbtable_short *tb = (struct tbtable_short*)(s + 1);
+    struct tbtable_short *tb = (struct tbtable_short *)(s + 1);
     /* The extended traceback is variable length, so more seeking. */
-    char *ext = (char*)(tb + 1);
+    char *ext = (char *)(tb + 1);
     /* Skip a lot of cruft, in order according to the ext "structure". */
     if (tb->fixedparms || tb->floatparms) {
         ext += sizeof(unsigned int);
     }
     if (tb->has_tboff) {
         /* tb_offset */
-        void *start = (char*)s - *((unsigned int*)ext);
-        ext += sizeof (unsigned int);
-        *sbase = (void*)start;
+        void *start = (char *)s - *((unsigned int *)ext);
+        ext += sizeof(unsigned int);
+        *sbase = (void *)start;
     } else {
         /*
          * Can we go backwards instead until we hit a null word,
@@ -89,15 +90,15 @@ sym_from_tb(void **sbase, char **sname, void *where) {
     }
     if (tb->has_ctl) {
         /* array */
-        int ctlnum =  (*(int*)ext);
+        int ctlnum = (*(int *)ext);
         ext += sizeof(int) + (sizeof(int) * ctlnum);
     }
     if (tb->name_present) {
         /* Oops! It does seem these can contain a null! */
-        short name_len =  (*(short*)ext);
+        short name_len = (*(short *)ext);
         ext += sizeof(short);
         char *name = sentry_malloc(name_len + 1);
-        memcpy(name, (char*)ext, name_len);
+        memcpy(name, (char *)ext, name_len);
         name[name_len] = '\0';
         *sname = name;
     } else {
@@ -114,29 +115,30 @@ sym_from_tb(void **sbase, char **sname, void *where) {
  * not const, and should be freed.
  */
 static int
-dladdr(void* s, Dl_info* i) {
+dladdr(void *s, Dl_info *i)
+{
     char buf[10000];
     i->dli_fbase = NULL;
     i->dli_fname = NULL;
     i->dli_saddr = NULL;
     i->dli_sname = NULL;
-    int r = loadquery (L_GETINFO, buf, 10000);
+    int r = loadquery(L_GETINFO, buf, 10000);
     if (r == -1) {
         return 0;
     }
     /* The loader info structures are also a linked list. */
-    struct ld_info *cur = (struct ld_info*) buf;
+    struct ld_info *cur = (struct ld_info *)buf;
     while (1) {
         /*
          * Check in text and data sections. Function descriptors are
          * stored in the data section.
          */
-        char *db = (char*)cur->ldinfo_dataorg;
-        char *tb = (char*)cur->ldinfo_textorg;
+        char *db = (char *)cur->ldinfo_dataorg;
+        char *tb = (char *)cur->ldinfo_textorg;
         char *de = db + cur->ldinfo_datasize;
         char *te = tb + cur->ldinfo_textsize;
         /* Just casting for comparisons. */
-        char *cs = (char*)s;
+        char *cs = (char *)s;
 
         /*
          * Find the symbol's name and base address. To make it
@@ -152,7 +154,7 @@ dladdr(void* s, Dl_info* i) {
             /* Look for file name and base address. */
             i->dli_fbase = tb; /* Includes XCOFF header */
             /* library filename + ( + member + ) + NUL */
-            char *libname = (char*)sentry_malloc (AIX_PRINTED_LIB_LEN);
+            char *libname = (char *)sentry_malloc(AIX_PRINTED_LIB_LEN);
             char *file_part = cur->ldinfo_filename;
             char *member_part = file_part + strlen(file_part) + 1;
             /*
@@ -167,7 +169,8 @@ dladdr(void* s, Dl_info* i) {
                 snprintf(libname, AIX_PRINTED_LIB_LEN, "%s", file_part);
             } else {
                 /* It's an archive with member. */
-                snprintf(libname, AIX_PRINTED_LIB_LEN, "%s(%s)", file_part, member_part);
+                snprintf(libname, AIX_PRINTED_LIB_LEN, "%s(%s)", file_part,
+                    member_part);
             }
             i->dli_fname = libname;
 
@@ -177,7 +180,7 @@ dladdr(void* s, Dl_info* i) {
             return 0;
         } else {
             /* Try the next image in memory. */
-            cur = (struct ld_info*)((char*)cur + cur->ldinfo_next);
+            cur = (struct ld_info *)((char *)cur + cur->ldinfo_next);
         }
     }
 }
@@ -202,8 +205,10 @@ sentry__symbolize(
     frame_info.object_name = info.dli_fname;
     func(&frame_info, data);
 #ifdef SENTRY_PLATFORM_AIX
-    // On AIX these must be freed. Hope the the callback doesn't use that buffer...
-    // XXX: We may just be able to stuff it into a fixed-length field of Dl_info?
+    // On AIX these must be freed. Hope the the callback doesn't use that
+    // buffer...
+    // XXX: We may just be able to stuff it into a fixed-length field of
+    // Dl_info?
     free(info.dli_sname);
     free(info.dli_fname);
 #endif

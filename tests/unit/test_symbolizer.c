@@ -20,7 +20,8 @@ asserter(const sentry_frame_info_t *info, void *data)
 #ifdef SENTRY_PLATFORM_AIX
     // Again, function descriptors. Should be enabled for ELFv1 PPC too.
     TEST_CHECK(info->symbol_addr == *(void **)&test_function);
-    TEST_CHECK(info->instruction_addr == ((char *)*(void **)&test_function) + 1);
+    TEST_CHECK(
+        info->instruction_addr == ((char *)*(void **)&test_function) + 1);
 #else
     TEST_CHECK(info->symbol_addr == &test_function);
     TEST_CHECK(info->instruction_addr == ((char *)(void *)&test_function) + 1);
@@ -32,7 +33,8 @@ SENTRY_TEST(symbolizer)
 {
     int called = 0;
 #ifdef SENTRY_PLATFORM_AIX
-    sentry__symbolize(((char *)*(void **)&test_function) + 1, asserter, &called);
+    sentry__symbolize(
+        ((char *)*(void **)&test_function) + 1, asserter, &called);
 #else
     sentry__symbolize(((char *)(void *)&test_function) + 1, asserter, &called);
 #endif

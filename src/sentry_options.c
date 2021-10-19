@@ -38,8 +38,9 @@ sentry_options_new(void)
     opts->auto_session_tracking = true;
     opts->system_crash_reporter_enabled = false;
     opts->symbolize_stacktraces =
-        // AIX doesn't have reliable debug IDs for server-side symbolication,
-        // and the diversity of Android makes it infeasible to have access to debug files.
+    // AIX doesn't have reliable debug IDs for server-side symbolication,
+    // and the diversity of Android makes it infeasible to have access to debug
+    // files.
 #if defined(SENTRY_PLATFORM_ANDROID) || defined(SENTRY_PLATFORM_AIX)
         true;
 #else
