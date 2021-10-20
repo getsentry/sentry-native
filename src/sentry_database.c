@@ -170,7 +170,11 @@ sentry__process_old_runs(const sentry_options_t *options, uint64_t last_crash)
             continue;
         }
         // make sure we don't delete ourselves if the lock check fails
+#ifdef SENTRY_PLATFORM_WINDOWS
+        if (wcscmp(options->run->run_path->path, run_dir->path) == 0) {
+#else
         if (strcmp(options->run->run_path->path, run_dir->path) == 0) {
+#endif
             continue;
         }
         sentry_pathiter_t *run_iter = sentry__path_iter_directory(run_dir);
