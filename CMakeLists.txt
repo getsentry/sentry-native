@@ -38,6 +38,8 @@ set(CMAKE_INSTALL_CMAKEDIR "${CMAKE_INSTALL_LIBDIR}/cmake/sentry")
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
 	set(LINUX TRUE)
+elseif(CMAKE_SYSTEM_NAME STREQUAL "AIX" OR CMAKE_SYSTEM_NAME STREQUAL "OS400")
+	set(AIX TRUE)
 endif()
 
 #setup sentry library type
@@ -84,7 +86,7 @@ endif()
 
 if(WIN32)
 	set(SENTRY_DEFAULT_TRANSPORT "winhttp")
-elseif((APPLE AND NOT IOS) OR LINUX)
+elseif((APPLE AND NOT IOS) OR LINUX OR AIX)
 	set(SENTRY_DEFAULT_TRANSPORT "curl")
 else()
 	set(SENTRY_DEFAULT_TRANSPORT "none")
@@ -247,6 +249,15 @@ else()
 	target_compile_definitions(sentry PUBLIC SENTRY_BUILD_STATIC)
 endif()
 target_compile_definitions(sentry PRIVATE SIZEOF_LONG=${CMAKE_SIZEOF_LONG})
+
+# AIX needs libm for isnan used in test suite
+if(CMAKE_SYSTEM_NAME STREQUAL "AIX" OR CMAKE_SYSTEM_NAME STREQUAL "OS400")
+	target_link_libraries(sentry PRIVATE m)
+endif()
+# On IBM i PASE, flock is in libutil. Here because "sentry" exists now.
+if(CMAKE_SYSTEM_NAME STREQUAL "OS400")
+	target_link_libraries(sentry PRIVATE util)
+endif()
 
 if(SENTRY_TRANSPORT_CURL)
 	find_package(CURL REQUIRED)

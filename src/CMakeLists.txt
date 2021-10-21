@@ -80,6 +80,10 @@ elseif(LINUX OR ANDROID)
 	sentry_target_sources_cwd(sentry
 		modulefinder/sentry_modulefinder_linux.c
 	)
+elseif(AIX)
+	sentry_target_sources_cwd(sentry
+		modulefinder/sentry_modulefinder_aix.c
+	)
 endif()
 
 # transport

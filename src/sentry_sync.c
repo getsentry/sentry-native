@@ -74,8 +74,11 @@ sentry__thread_setname(sentry_threadid_t thread_id, const char *thread_name)
         return 1;
     }
     return pthread_setname_np(thread_name);
-#    else
+#    elif defined(SENTRY_PLATFORM_LINUX) /* and possibly others (like BSDs) */
     return pthread_setname_np(thread_id, thread_name);
+#    else
+    /* XXX: AIX doesn't have it, but PASE does via ILE APIs. */
+    return 0;
 #    endif
 }
 #endif

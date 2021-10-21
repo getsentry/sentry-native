@@ -1,6 +1,12 @@
 #include "sentry_boot.h"
 
-#if defined(SENTRY_PLATFORM_DARWIN) || defined(__GLIBC__)
+// XXX: Make into a CMake check
+// XXX: IBM i PASE offers libbacktrace in libutil, but not available in AIX
+#if defined(SENTRY_PLATFORM_DARWIN) || defined(__GLIBC__) || defined(__PASE__)
+#    define HAS_EXECINFO_H
+#endif
+
+#ifdef HAS_EXECINFO_H
 #    include <execinfo.h>
 #endif
 
@@ -19,7 +25,7 @@ sentry__unwind_stack_libbacktrace(
     } else if (uctx) {
         return 0;
     }
-#if defined(SENTRY_PLATFORM_DARWIN) || defined(__GLIBC__)
+#ifdef HAS_EXECINFO_H
     return (size_t)backtrace(ptrs, (int)max_frames);
 #else
     (void)ptrs;
