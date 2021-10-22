@@ -260,7 +260,10 @@ if(CMAKE_SYSTEM_NAME STREQUAL "OS400")
 endif()
 
 if(SENTRY_TRANSPORT_CURL)
-	find_package(CURL REQUIRED)
+	if(NOT CURL_FOUND) # Some other lib might bring libcurl already
+		find_package(CURL REQUIRED)
+	endif()
+
 	if(TARGET CURL::libcurl) # Only available in cmake 3.12+
 		target_link_libraries(sentry PRIVATE CURL::libcurl)
 	else()
