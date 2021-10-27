@@ -229,6 +229,10 @@ endif()
 
 set_target_properties(sentry PROPERTIES PUBLIC_HEADER "include/sentry.h")
 
+if(DEFINED SENTRY_FOLDER)
+	set_target_properties(sentry PROPERTIES FOLDER ${SENTRY_FOLDER})
+endif()	
+
 # check size type
 include(CheckTypeSize)
 check_type_size("long" CMAKE_SIZEOF_LONG)
@@ -439,6 +443,20 @@ if(SENTRY_BACKEND_CRASHPAD)
 			set_property(TARGET mini_chromium PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 		endif()
 
+		if(DEFINED SENTRY_FOLDER)
+			set_target_properties(crashpad_client PROPERTIES FOLDER ${SENTRY_FOLDER})
+			set_target_properties(crashpad_compat PROPERTIES FOLDER ${SENTRY_FOLDER})
+			set_target_properties(crashpad_getopt PROPERTIES FOLDER ${SENTRY_FOLDER})
+			set_target_properties(crashpad_handler PROPERTIES FOLDER ${SENTRY_FOLDER})
+			set_target_properties(crashpad_handler_lib PROPERTIES FOLDER ${SENTRY_FOLDER})
+			set_target_properties(crashpad_minidump PROPERTIES FOLDER ${SENTRY_FOLDER})
+			set_target_properties(crashpad_snapshot PROPERTIES FOLDER ${SENTRY_FOLDER})
+			set_target_properties(crashpad_tools PROPERTIES FOLDER ${SENTRY_FOLDER})
+			set_target_properties(crashpad_util PROPERTIES FOLDER ${SENTRY_FOLDER})
+			set_target_properties(crashpad_zlib PROPERTIES FOLDER ${SENTRY_FOLDER})
+			set_target_properties(mini_chromium PROPERTIES FOLDER ${SENTRY_FOLDER})
+		endif()	
+
 		target_link_libraries(sentry PRIVATE
 			$<BUILD_INTERFACE:crashpad::client>
 			$<INSTALL_INTERFACE:sentry_crashpad::client>
@@ -467,6 +485,11 @@ elseif(SENTRY_BACKEND_BREAKPAD)
 		target_link_libraries(sentry PRIVATE
 			breakpad_client
 		)
+
+		if(DEFINED SENTRY_FOLDER)
+			set_target_properties(breakpad_client PROPERTIES FOLDER ${SENTRY_FOLDER})
+		endif()	
+		
 		if(NOT SENTRY_BUILD_SHARED_LIBS)
 			sentry_install(TARGETS breakpad_client EXPORT sentry
 				LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
@@ -542,6 +565,10 @@ if(SENTRY_BUILD_EXAMPLES)
 	if(SENTRY_BUILD_RUNTIMESTATIC AND MSVC)
 		set_property(TARGET sentry_example PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 	endif()
+
+	if(DEFINED SENTRY_FOLDER)
+		set_target_properties(sentry_example PROPERTIES FOLDER ${SENTRY_FOLDER})
+	endif()	
 
 	add_test(NAME sentry_example COMMAND sentry_example)
 endif()
