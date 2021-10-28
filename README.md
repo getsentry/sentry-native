@@ -261,6 +261,10 @@ Legend:
 - ✓ supported
 - unsupported
 
+- `SENTRY_FOLDER` (Default: not defined):
+  Sets the sentry-native projects folder name for generators which support project hierarchy (like Microsoft Visual Studio).
+  To use this feature you need to enable hierarchy via [`USE_FOLDERS` property](https://cmake.org/cmake/help/latest/prop_gbl/USE_FOLDERS.html) 
+
 ### Build Targets
 
 - `sentry`: This is the main library and the only default build target.
