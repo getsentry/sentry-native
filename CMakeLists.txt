@@ -130,8 +130,10 @@ else()
 	set(SENTRY_DEFAULT_BACKEND "inproc")
 endif()
 
-set(SENTRY_BACKEND ${SENTRY_DEFAULT_BACKEND} CACHE STRING
-  "The sentry backend responsible for reporting crashes, can be either 'none', 'inproc', 'breakpad' or 'crashpad'.")
+if(NOT DEFINED SENTRY_BACKEND)
+	set(SENTRY_BACKEND ${SENTRY_DEFAULT_BACKEND} CACHE STRING
+		"The sentry backend responsible for reporting crashes, can be either 'none', 'inproc', 'breakpad' or 'crashpad'.")
+endif()
 
 if(SENTRY_BACKEND STREQUAL "crashpad")
 	set(SENTRY_BACKEND_CRASHPAD TRUE)
