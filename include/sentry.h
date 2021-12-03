@@ -1198,6 +1198,34 @@ SENTRY_API void sentry_start_session(void);
  */
 SENTRY_API void sentry_end_session(void);
 
+/**
+ * Sets the maximum number of spans that can be attached to a
+ * transaction.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_options_set_max_spans(
+    sentry_options_t *opts, size_t max_spans);
+
+/**
+ * Gets the maximum number of spans that can be attached to a
+ * transaction.
+ */
+SENTRY_EXPERIMENTAL_API int sentry_options_get_max_spans(
+    sentry_options_t *opts);
+
+/**
+ * Sets the sample rate for transactions. Should be a double between
+ * `0.0` and `1.0`. Transactions will be randomly discarded during
+ * `sentry_transaction_finish` when the sample rate is < 1.0.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_options_set_traces_sample_rate(
+    sentry_options_t *opts, double sample_rate);
+
+/**
+ * Returns the sample rate for transactions.
+ */
+SENTRY_EXPERIMENTAL_API double sentry_options_get_traces_sample_rate(
+    sentry_options_t *opts);
+
 #ifdef __cplusplus
 }
 #endif
