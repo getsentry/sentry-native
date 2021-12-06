@@ -269,6 +269,7 @@ Legend:
 - `CRASHPAD_ENABLE_STACKTRACE` (Default: OFF):
   This enables client-side stackwalking when using the crashpad backend. Stack unwinding will happen on the client's machine
   and the result will be submitted to Sentry attached to the generated minidump.
+  Note that this feature is still experimental.
 
 ### Build Targets
 
