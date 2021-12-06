@@ -76,6 +76,7 @@ The SDK supports different features on the target platform:
   have the `curl` library available. On other platforms, library users need to
   implement their own transport, based on the `function transport` API.
 - **Crashpad Backend** is currently only supported on Linux, Windows and macOS.
+- **Client-side stackwalking** is currently only supported on Linux, Windows, and macOS.
 
 ## Building and Installation
 
@@ -264,6 +265,10 @@ Legend:
 - `SENTRY_FOLDER` (Default: not defined):
   Sets the sentry-native projects folder name for generators which support project hierarchy (like Microsoft Visual Studio).
   To use this feature you need to enable hierarchy via [`USE_FOLDERS` property](https://cmake.org/cmake/help/latest/prop_gbl/USE_FOLDERS.html) 
+
+- `CRASHPAD_ENABLE_STACKTRACE` (Default: OFF):
+  This enables client-side stackwalking when using the crashpad backend. Stack unwinding will happen on the client's machine
+  and the result will be submitted to Sentry attached to the generated minidump.
 
 ### Build Targets
 

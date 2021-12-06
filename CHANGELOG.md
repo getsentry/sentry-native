@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Features**
+
+- Add client-side stackwalking on Linux, Windows, and macOS (disabled by default).
+
 ## 0.4.12
 
 **Features**:
