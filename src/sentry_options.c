@@ -389,7 +389,7 @@ sentry_options_set_max_spans(sentry_options_t *opts, size_t max_spans)
  * Gets the maximum number of spans that can be attached to a
  * transaction.
  */
-int
+size_t
 sentry_options_get_max_spans(sentry_options_t *opts)
 {
     return opts->max_spans;

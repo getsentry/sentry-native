@@ -1209,7 +1209,7 @@ SENTRY_EXPERIMENTAL_API void sentry_options_set_max_spans(
  * Gets the maximum number of spans that can be attached to a
  * transaction.
  */
-SENTRY_EXPERIMENTAL_API int sentry_options_get_max_spans(
+SENTRY_EXPERIMENTAL_API size_t sentry_options_get_max_spans(
     sentry_options_t *opts);
 
 /**
