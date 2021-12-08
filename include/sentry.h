@@ -193,7 +193,7 @@ SENTRY_API sentry_value_t sentry_value_new_int32(int32_t value);
 SENTRY_API sentry_value_t sentry_value_new_double(double value);
 
 /**
- * Creates a new boolen value.
+ * Creates a new boolean value.
  */
 SENTRY_API sentry_value_t sentry_value_new_bool(int value);
 
@@ -582,7 +582,7 @@ SENTRY_API int sentry_envelope_write_to_file(
 /**
  * The Sentry Client Options.
  *
- * See https://docs.sentry.io/error-reporting/configuration/
+ * See https://docs.sentry.io/platforms/native/configuration/
  */
 struct sentry_options_s;
 typedef struct sentry_options_s sentry_options_t;
