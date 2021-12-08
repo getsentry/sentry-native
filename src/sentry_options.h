@@ -55,6 +55,10 @@ typedef struct sentry_options_s {
     sentry_event_function_t before_send_func;
     void *before_send_data;
 
+    /* Experimentally exposed */
+    double traces_sample_rate;
+    size_t max_spans;
+
     /* everything from here on down are options which are stored here but
        not exposed through the options API */
     struct sentry_backend_s *backend;
