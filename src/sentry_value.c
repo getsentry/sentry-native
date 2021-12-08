@@ -981,7 +981,7 @@ sentry__value_new_span_uuid(const sentry_uuid_t *uuid)
     if (!buf) {
         return sentry_value_new_null();
     }
-    sentry_span_uuid_as_string(uuid, buf);
+    sentry__span_uuid_as_string(uuid, buf);
     buf[16] = '\0';
     return sentry__value_new_string_owned(buf);
 }
@@ -993,7 +993,7 @@ sentry__value_new_internal_uuid(const sentry_uuid_t *uuid)
     if (!buf) {
         return sentry_value_new_null();
     }
-    internal_sentry_uuid_as_string(uuid, buf);
+    sentry__internal_uuid_as_string(uuid, buf);
     buf[36] = '\0';
     return sentry__value_new_string_owned(buf);
 }

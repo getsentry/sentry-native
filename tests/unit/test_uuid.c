@@ -34,15 +34,15 @@ SENTRY_TEST(internal_uuid_api)
         = sentry_uuid_from_string("f391fdc0bb2743b18c0c183bc217d42b");
     TEST_CHECK(!sentry_uuid_is_nil(&uuid));
     char ibuf[37];
-    internal_sentry_uuid_as_string(&uuid, ibuf);
+    sentry__internal_uuid_as_string(&uuid, ibuf);
     TEST_CHECK_STRING_EQUAL(ibuf, "f391fdc0bb2743b18c0c183bc217d42b");
 
     char sbuf[17];
-    sentry_span_uuid_as_string(&uuid, sbuf);
+    sentry__span_uuid_as_string(&uuid, sbuf);
     TEST_CHECK_STRING_EQUAL(sbuf, "f391fdc0bb2743b1");
 
     sentry_uuid_t span_id = sentry_uuid_from_string("f391fdc0bb2743b1");
     TEST_CHECK(!sentry_uuid_is_nil(&span_id));
-    sentry_span_uuid_as_string(&span_id, sbuf);
+    sentry__span_uuid_as_string(&span_id, sbuf);
     TEST_CHECK_STRING_EQUAL(sbuf, "f391fdc0bb2743b1");
 }
