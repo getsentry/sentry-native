@@ -18,6 +18,10 @@ build/sentry_test_unit: build
 test: update-test-discovery test-integration
 .PHONY: test
 
+test-unit: update-test-discovery build/sentry_test_unit
+	./build/sentry_test_unit
+.PHONY: test-unit
+
 test-integration: setup-venv
 	.venv/bin/pytest tests --verbose
 .PHONY: test-integration
