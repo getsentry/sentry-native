@@ -24,6 +24,7 @@
 #include "sentry_string.h"
 #include "sentry_sync.h"
 #include "sentry_utils.h"
+#include "sentry_uuid.h"
 #include "sentry_value.h"
 
 /**
@@ -970,6 +971,30 @@ sentry__value_new_hexstring(const uint8_t *bytes, size_t len)
         written += rv;
     }
     buf[written] = '\0';
+    return sentry__value_new_string_owned(buf);
+}
+
+sentry_value_t
+sentry__value_new_span_uuid(const sentry_uuid_t *uuid)
+{
+    char *buf = sentry_malloc(17);
+    if (!buf) {
+        return sentry_value_new_null();
+    }
+    sentry_span_uuid_as_string(uuid, buf);
+    buf[16] = '\0';
+    return sentry__value_new_string_owned(buf);
+}
+
+sentry_value_t
+sentry__value_new_internal_uuid(const sentry_uuid_t *uuid)
+{
+    char *buf = sentry_malloc(37);
+    if (!buf) {
+        return sentry_value_new_null();
+    }
+    internal_sentry_uuid_as_string(uuid, buf);
+    buf[36] = '\0';
     return sentry__value_new_string_owned(buf);
 }
 

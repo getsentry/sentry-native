@@ -1,6 +1,7 @@
 #include "sentry_boot.h"
 
 #include "sentry_random.h"
+#include "sentry_uuid.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -98,6 +99,27 @@ sentry_uuid_as_string(const sentry_uuid_t *uuid, char str[37])
         "02hhx%02hhx%02hhx%02hhx%02hhx%02hhx",
         B(0), B(1), B(2), B(3), B(4), B(5), B(6), B(7), B(8), B(9), B(10),
         B(11), B(12), B(13), B(14), B(15));
+#undef B
+}
+
+void
+internal_sentry_uuid_as_string(const sentry_uuid_t *uuid, char str[37])
+{
+#define B(X) (unsigned char)uuid->bytes[X]
+    snprintf(str, 37,
+        "%02hhx%02hhx%02hhx%02hhx%02hhx%02hhx%02hhx%02hhx%02hhx%02hhx%"
+        "02hhx%02hhx%02hhx%02hhx%02hhx%02hhx",
+        B(0), B(1), B(2), B(3), B(4), B(5), B(6), B(7), B(8), B(9), B(10),
+        B(11), B(12), B(13), B(14), B(15));
+#undef B
+}
+
+void
+sentry_span_uuid_as_string(const sentry_uuid_t *uuid, char str[17])
+{
+#define B(X) (unsigned char)uuid->bytes[X]
+    snprintf(str, 17, "%02hhx%02hhx%02hhx%02hhx%02hhx%02hhx%02hhx%02hhx", B(0),
+        B(1), B(2), B(3), B(4), B(5), B(6), B(7));
 #undef B
 }
 

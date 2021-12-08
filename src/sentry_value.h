@@ -26,6 +26,20 @@ sentry_value_t sentry__value_new_addr(uint64_t addr);
 sentry_value_t sentry__value_new_hexstring(const uint8_t *bytes, size_t len);
 
 /**
+ * Creates a new String Value from the `uuid` that conforms to
+ * the structure of a span ID.
+ * See also `sentry_span_uuid_as_string`.
+ */
+sentry_value_t sentry__value_new_span_uuid(const sentry_uuid_t *uuid);
+
+/**
+ * Creates a new String Value from the `uuid` in a form meant for
+ * ingestion as an internal ID.
+ * See also `sentry_internal_uuid_as_string`.
+ */
+sentry_value_t sentry__value_new_internal_uuid(const sentry_uuid_t *uuid);
+
+/**
  * Creates a new String Value from the `uuid`.
  * See also `sentry_uuid_as_string`.
  */
