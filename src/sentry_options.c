@@ -52,7 +52,7 @@ sentry_options_new(void)
     opts->refcount = 1;
     opts->shutdown_timeout = SENTRY_DEFAULT_SHUTDOWN_TIMEOUT;
 
-    opts->traces_sample_rate = 0;
+    opts->traces_sample_rate = 0.0;
     opts->max_spans = 0;
     return opts;
 }
