@@ -228,6 +228,12 @@ sentry__symbolize_stacktrace(sentry_value_t stacktrace)
 }
 
 void
+sentry__scope_set_span(sentry_value_t span)
+{
+    return;
+}
+
+void
 sentry__scope_apply_to_event(const sentry_scope_t *scope,
     const sentry_options_t *options, sentry_value_t event,
     sentry_scope_mode_t mode)
