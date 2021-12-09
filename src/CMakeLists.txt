@@ -34,6 +34,8 @@ sentry_target_sources_cwd(sentry
 	sentry_symbolizer.h
 	sentry_sync.c
 	sentry_sync.h
+	sentry_tracing.c
+	sentry_tracing.h
 	sentry_transport.c
 	sentry_transport.h
 	sentry_utils.c
