@@ -26,7 +26,10 @@ SENTRY_TEST(basic_tracing_context)
     TEST_CHECK(!sentry_value_is_null(
         sentry_value_get_by_key(trace_context, "span_id")));
 
-    char *span_op
+    const char *span_op
         = sentry_value_as_string(sentry_value_get_by_key(trace_context, "op"));
     TEST_CHECK_STRING_EQUAL(span_op, "honk.beep");
+
+    sentry_value_decref(trace_context);
+    sentry_value_decref(span);
 }

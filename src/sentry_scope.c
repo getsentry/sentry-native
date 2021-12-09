@@ -278,8 +278,11 @@ sentry__scope_apply_to_event(const sentry_scope_t *scope,
     sentry_value_t trace = sentry__span_get_trace_context(scope->span);
     if (!sentry_value_is_null(trace)) {
         sentry_value_set_by_key(contexts, "trace", trace);
+    } else {
+        sentry_value_decref(trace);
     }
     PLACE_VALUE("contexts", contexts);
+    sentry_value_decref(contexts);
 
     if (mode & SENTRY_SCOPE_BREADCRUMBS) {
         PLACE_CLONED_VALUE("breadcrumbs", scope->breadcrumbs);
