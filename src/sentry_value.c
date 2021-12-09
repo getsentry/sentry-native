@@ -989,12 +989,12 @@ sentry__value_new_span_uuid(const sentry_uuid_t *uuid)
 sentry_value_t
 sentry__value_new_internal_uuid(const sentry_uuid_t *uuid)
 {
-    char *buf = sentry_malloc(37);
+    char *buf = sentry_malloc(33);
     if (!buf) {
         return sentry_value_new_null();
     }
     sentry__internal_uuid_as_string(uuid, buf);
-    buf[36] = '\0';
+    buf[32] = '\0';
     return sentry__value_new_string_owned(buf);
 }
 
