@@ -307,7 +307,9 @@ sentry__scope_apply_to_event(const sentry_scope_t *scope,
         sentry__foreach_stacktrace(event, sentry__symbolize_stacktrace);
     }
 
+#undef PLACE_CLONED_VALUE
+#undef PLACE_VALUE
 #undef PLACE_STRING
-#undef IS_NULL
 #undef SET
+#undef IS_NULL
 }

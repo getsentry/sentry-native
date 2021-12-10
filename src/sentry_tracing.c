@@ -28,4 +28,6 @@ sentry__span_get_trace_context(sentry_value_t span)
     PLACE_VALUE("status", span);
 
     return trace_context;
+
+#undef PLACE_VALUE
 }
