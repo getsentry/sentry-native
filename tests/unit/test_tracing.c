@@ -1,4 +1,3 @@
-#include "sentry.h"
 #include "sentry_testsupport.h"
 #include "sentry_tracing.h"
 #include "sentry_uuid.h"
