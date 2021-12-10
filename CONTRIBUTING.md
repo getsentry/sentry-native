@@ -37,7 +37,7 @@ be done manually.
 
 Creates a python virtualenv, and runs all the tests through `pytest`.
 
-**Running integration-tests manually**:
+**Running integration tests manually**:
 
     $ pytest --verbose --maxfail=1 --capture=no tests/
 
@@ -47,13 +47,20 @@ can also be invoked directly.
 The `maxfail` parameter will abort after the first failure, and `capture=no`
 will print the complete compiler output, and test log.
 
-**Running unit-tests manually**:
+**Running unit tests**:
+
+    $ make test-unit
+
+Unit tests also have a dedicated `make` target, if they need to be run separately
+from the integration tests.
+
+**Running unit tests manually**:
 
     $ cmake -B build -D CMAKE_RUNTIME_OUTPUT_DIRECTORY=$(pwd)/build
     $ cmake --build build --target sentry_test_unit
     $ ./build/sentry_test_unit
 
-The unit-tests are a separate executable target and can be built and run on
+The unit tests are a separate executable target and can be built and run on
 their own.
 
 ## How to interpret CI failures
