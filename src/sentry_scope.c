@@ -230,6 +230,8 @@ sentry__symbolize_stacktrace(sentry_value_t stacktrace)
 void
 sentry__scope_set_span(sentry_value_t span)
 {
+    // TODO: implement this function and get rid of this line.
+    (void)span;
     return;
 }
 
