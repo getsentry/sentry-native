@@ -268,7 +268,8 @@ sentry__scope_apply_to_event(const sentry_scope_t *scope,
     PLACE_STRING("dist", options->dist);
     PLACE_STRING("environment", options->environment);
 
-    if (IS_NULL("level")) {
+    // is transaction and has no level
+    if (IS_NULL("type") && IS_NULL("level")) {
         SET("level", sentry__value_new_level(scope->level));
     }
 

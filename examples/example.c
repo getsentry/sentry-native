@@ -68,7 +68,6 @@ main(int argc, char **argv)
     // this is an example. for real usage, make sure to set this explicitly to
     // an app specific cache location.
     sentry_options_set_database_path(options, ".sentry-native");
-
     sentry_options_set_auto_session_tracking(options, false);
     sentry_options_set_symbolize_stacktraces(options, true);
 
@@ -91,6 +90,10 @@ main(int argc, char **argv)
     if (has_arg(argc, argv, "stdout")) {
         sentry_options_set_transport(
             options, sentry_transport_new(print_envelope));
+    }
+
+    if (has_arg(argc, argv, "capture-transaction")) {
+        sentry_options_set_traces_sample_rate(options, 1.0);
     }
 
     sentry_init(options);
@@ -206,6 +209,20 @@ main(int argc, char **argv)
         sentry_event_add_exception(event, exc);
 
         sentry_capture_event(event);
+    }
+
+    if (has_arg(argc, argv, "capture-transaction")) {
+        sentry_value_t tx_ctx
+            = sentry_value_new_transaction_context("I'm a little teapot");
+        sentry_transaction_context_set_operation(
+            tx_ctx, "Short and stout here is my handle and here is my spout");
+
+        if (has_arg(argc, argv, "unsample-tx")) {
+            sentry_transaction_context_set_sampled(tx_ctx, 0);
+        }
+
+        sentry_value_t tx = sentry_start_transaction(tx_ctx);
+        sentry_transaction_finish(tx);
     }
 
     // make sure everything flushes

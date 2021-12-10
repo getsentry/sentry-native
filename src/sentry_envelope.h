@@ -31,10 +31,18 @@ sentry_envelope_t *sentry__envelope_from_path(const sentry_path_t *path);
 sentry_uuid_t sentry__envelope_get_event_id(const sentry_envelope_t *envelope);
 
 /**
- * Add an event to this envelope.
+ * Add an event to this envelope. If there is already an event or transaction
+ * in this envelope, the event will not be added.
  */
 sentry_envelope_item_t *sentry__envelope_add_event(
     sentry_envelope_t *envelope, sentry_value_t event);
+
+/**
+ * Add a transaction to this envelope. If there is already an event or
+ * transaction in this envelope, the event will not be added.
+ */
+sentry_envelope_item_t *sentry__envelope_add_transaction(
+    sentry_envelope_t *envelope, sentry_value_t transaction);
 
 /**
  * Add a session to this envelope.

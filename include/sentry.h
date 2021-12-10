@@ -554,11 +554,19 @@ typedef struct sentry_envelope_s sentry_envelope_t;
 SENTRY_API void sentry_envelope_free(sentry_envelope_t *envelope);
 
 /**
- * Given an envelope returns the embedded event if there is one.
+ * Given an Envelope, returns the embedded Event if there is one.
  *
- * This returns a borrowed value to the event in the envelope.
+ * This returns a borrowed value to the Event in the Envelope.
  */
 SENTRY_API sentry_value_t sentry_envelope_get_event(
+    const sentry_envelope_t *envelope);
+
+/**
+ * Given an Envelope, returns the embedded Transaction if there is one.
+ *
+ * This returns a borrowed value to the Transaction in the Envelope.
+ */
+SENTRY_EXPERIMENTAL_API sentry_value_t sentry_envelope_get_transaction(
     const sentry_envelope_t *envelope);
 
 /**
@@ -1263,6 +1271,20 @@ SENTRY_EXPERIMENTAL_API void sentry_transaction_context_set_sampled(
  */
 SENTRY_EXPERIMENTAL_API void sentry_transaction_context_remove_sampled(
     sentry_value_t transaction_context);
+
+/**
+ * Starts a new transaction based on the provided context, restored
+ * from an external integration (i.e. a span from a different SDK)
+ * or manually constructed by a user.
+ */
+SENTRY_EXPERIMENTAL_API sentry_value_t sentry_start_transaction(
+    sentry_value_t transaction_context);
+
+/**
+ * Finishes a transaction.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_transaction_finish(
+    sentry_value_t transaction);
 
 #ifdef __cplusplus
 }

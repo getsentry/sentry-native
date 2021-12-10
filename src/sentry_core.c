@@ -16,6 +16,7 @@
 #include "sentry_session.h"
 #include "sentry_string.h"
 #include "sentry_sync.h"
+#include "sentry_tracing.h"
 #include "sentry_transport.h"
 #include "sentry_value.h"
 
@@ -439,11 +440,21 @@ sentry__prepare_event(const sentry_options_t *options, sentry_value_t event,
         goto fail;
     }
 
+    // remove superfluous field from transaction
+    int is_transaction
+        = !sentry_value_is_null(sentry_value_get_by_key(event, "type"));
+    if (is_transaction) {
+        sentry_value_remove_by_key(event, "sampled");
+    }
+
     SENTRY_WITH_SCOPE (scope) {
         SENTRY_TRACE("merging scope into event");
         sentry_scope_mode_t mode = SENTRY_SCOPE_ALL;
         if (!options->symbolize_stacktraces) {
             mode &= ~SENTRY_SCOPE_STACKTRACES;
+        }
+        if (is_transaction) {
+            mode &= ~SENTRY_SCOPE_MODULES;
         }
         sentry__scope_apply_to_event(scope, options, event, mode);
     }
@@ -669,4 +680,86 @@ sentry_set_level(sentry_level_t level)
     SENTRY_WITH_SCOPE_MUT (scope) {
         scope->level = level;
     }
+}
+
+sentry_value_t
+sentry_start_transaction(sentry_value_t tx_cxt)
+{
+    sentry_value_t tx = sentry_value_new_event();
+
+    // TODO: stuff transaction into the scope
+    bool should_sample = !sentry__should_skip_transaction(tx_cxt);
+    sentry_value_set_by_key(
+        tx, "sampled", sentry_value_new_bool(should_sample));
+
+    sentry_value_set_by_key(
+        tx, "transaction", sentry_value_get_by_key_owned(tx_cxt, "name"));
+    sentry_value_set_by_key(tx, "start_timestamp",
+        sentry__value_new_string_owned(
+            sentry__msec_time_to_iso8601(sentry__msec_time())));
+
+    sentry_uuid_t trace_id = sentry_uuid_new_v4();
+    sentry_value_set_by_key(
+        tx, "trace_id", sentry__value_new_internal_uuid(&trace_id));
+
+    sentry_uuid_t span_id = sentry_uuid_new_v4();
+    sentry_value_set_by_key(
+        tx, "span_id", sentry__value_new_span_uuid(&span_id));
+
+    sentry_value_decref(tx_cxt);
+
+    return tx;
+}
+
+void
+sentry_transaction_finish(sentry_value_t tx)
+{
+    sentry_value_t sampled = sentry_value_get_by_key(tx, "sampled");
+    if (!sentry_value_is_null(sampled) && !sentry_value_is_true(sampled)) {
+        // TODO: remove from scope
+        return;
+    }
+
+    sentry_value_set_by_key(tx, "type", sentry_value_new_string("transaction"));
+    sentry_value_set_by_key(tx, "timestamp",
+        sentry__value_new_string_owned(
+            sentry__msec_time_to_iso8601(sentry__msec_time())));
+    sentry_value_set_by_key(tx, "level", sentry_value_new_string("info"));
+
+    sentry_value_t fake_span = sentry_value_new_object();
+    sentry_value_set_by_key(
+        fake_span, "trace_id", sentry_value_get_by_key(tx, "trace_id"));
+    sentry_value_set_by_key(
+        fake_span, "parent_span_id", sentry_value_get_by_key(tx, "span_id"));
+    sentry_uuid_t fake_span_id = sentry_uuid_new_v4();
+    sentry_value_set_by_key(
+        fake_span, "span_id", sentry__value_new_span_uuid(&fake_span_id));
+    sentry_value_set_by_key(fake_span, "op", sentry_value_new_string("hohee"));
+    sentry_value_set_by_key(
+        fake_span, "description", sentry_value_new_string("heeho"));
+    sentry_value_set_by_key(fake_span, "start_timestamp",
+        sentry_value_get_by_key(tx, "start_timestamp"));
+    sentry_value_set_by_key(
+        fake_span, "timestamp", sentry_value_get_by_key(tx, "timestamp"));
+    sentry_value_t spans = sentry__value_new_list_with_size(1);
+    sentry_value_append(spans, fake_span);
+    sentry_value_set_by_key(tx, "spans", spans);
+
+    // TODO: add tracestate
+    // set up trace context so it mirrors the final json value
+    sentry_value_set_by_key(tx, "status", sentry_value_new_string("ok"));
+    sentry_value_t trace_context = sentry__span_get_trace_context(tx);
+    sentry_value_t contexts = sentry_value_new_object();
+    sentry_value_set_by_key(contexts, "trace", trace_context);
+    sentry_value_set_by_key(tx, "contexts", contexts);
+    // clean up trace context fields
+    sentry_value_remove_by_key(tx, "trace_id");
+    sentry_value_remove_by_key(tx, "span_id");
+    sentry_value_remove_by_key(tx, "parent_span_id");
+    sentry_value_remove_by_key(tx, "op");
+    sentry_value_remove_by_key(tx, "description");
+    sentry_value_remove_by_key(tx, "status");
+
+    // This decrefs for us, generates an event ID, merges scope
+    sentry_capture_event(tx);
 }
