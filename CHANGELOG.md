@@ -6,15 +6,15 @@
 
 - Add client-side stackwalking on Linux, Windows, and macOS (disabled by default).
 
+**Internal**:
+
+- Update Crashpad and Breakpad submodules to 2021-12-03.
+
 ## 0.4.12
 
 **Features**:
 
 - Make the shutdown timeout configurable via `sentry_options_set_shutdown_timeout`.
-
-**Internal**:
-
-- Update Crashpad and Breakpad submodules to 2021-12-03.
 
 **Fixes**:
 
