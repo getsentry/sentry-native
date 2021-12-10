@@ -1,9 +1,11 @@
 #include "sentry_os.h"
 #include "sentry_string.h"
+#include "sentry_utils.h"
 
 #ifdef SENTRY_PLATFORM_WINDOWS
 
 #    include <winver.h>
+#    define CURRENT_VERSION "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion"
 
 sentry_value_t
 sentry__get_os_context(void)
@@ -34,17 +36,55 @@ sentry__get_os_context(void)
     }
     ffi->dwFileFlags &= ffi->dwFileFlagsMask;
 
+    uint32_t major_version = ffi->dwFileVersionMS >> 16;
+    uint32_t minor_version = ffi->dwFileVersionMS & 0xffff;
+    uint32_t build_version = ffi->dwFileVersionLS >> 16;
+    uint32_t ubr = ffi->dwFileVersionLS & 0xffff;
+
     char buf[32];
-    snprintf(buf, sizeof(buf), "%u.%u.%u", ffi->dwFileVersionMS >> 16,
-        ffi->dwFileVersionMS & 0xffff, ffi->dwFileVersionLS >> 16);
-
-    sentry_value_set_by_key(os, "version", sentry_value_new_string(buf));
-
-    snprintf(buf, sizeof(buf), "%lu", ffi->dwFileVersionLS & 0xffff);
-
-    sentry_value_set_by_key(os, "build", sentry_value_new_string(buf));
+    snprintf(buf, sizeof(buf), "%u.%u.%u.%lu", major_version, minor_version,
+        build_version, ubr);
+    sentry_value_set_by_key(os, "kernel_version", sentry_value_new_string(buf));
 
     sentry_free(ffibuf);
+
+    // The `CurrentMajorVersionNumber`, `CurrentMinorVersionNumber` and `UBR`
+    // are DWORD, while `CurrentBuild` is a SZ (text).
+
+    uint32_t reg_version = 0;
+    DWORD buf_size = sizeof(uint32_t);
+    if (RegGetValueA(HKEY_LOCAL_MACHINE, CURRENT_VERSION,
+            "CurrentMajorVersionNumber", RRF_RT_REG_DWORD, NULL, &reg_version,
+            &buf_size)
+        == ERROR_SUCCESS) {
+        major_version = reg_version;
+    }
+    buf_size = sizeof(uint32_t);
+    if (RegGetValueA(HKEY_LOCAL_MACHINE, CURRENT_VERSION,
+            "CurrentMinorVersionNumber", RRF_RT_REG_DWORD, NULL, &reg_version,
+            &buf_size)
+        == ERROR_SUCCESS) {
+        minor_version = reg_version;
+    }
+    buf_size = sizeof(buf);
+    if (RegGetValueA(HKEY_LOCAL_MACHINE, CURRENT_VERSION, "CurrentBuild",
+            RRF_RT_REG_SZ, NULL, buf, &buf_size)
+        == ERROR_SUCCESS) {
+        build_version = (uint32_t)sentry__strtod_c(buf, NULL);
+    }
+    buf_size = sizeof(uint32_t);
+    if (RegGetValueA(HKEY_LOCAL_MACHINE, CURRENT_VERSION, "UBR",
+            RRF_RT_REG_DWORD, NULL, &reg_version, &buf_size)
+        == ERROR_SUCCESS) {
+        ubr = reg_version;
+    }
+
+    snprintf(buf, sizeof(buf), "%u.%u.%u", major_version, minor_version,
+        build_version);
+    sentry_value_set_by_key(os, "version", sentry_value_new_string(buf));
+
+    snprintf(buf, sizeof(buf), "%lu", ubr);
+    sentry_value_set_by_key(os, "build", sentry_value_new_string(buf));
 
     sentry_value_freeze(os);
     return os;
