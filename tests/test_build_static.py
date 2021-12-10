@@ -55,7 +55,7 @@ def test_static_crashpad(cmake):
     )
 
 
-@pytest.mark.skipif(not has_breakpad, reason="test needs crashpad backend")
+@pytest.mark.skipif(not has_breakpad, reason="test needs breakpad backend")
 def test_static_breakpad(cmake):
     tmp_path = cmake(
         ["sentry_example"],
