@@ -1226,6 +1226,37 @@ SENTRY_EXPERIMENTAL_API void sentry_options_set_traces_sample_rate(
 SENTRY_EXPERIMENTAL_API double sentry_options_get_traces_sample_rate(
     sentry_options_t *opts);
 
+/* -- Performance Monitoring/Tracing APIs -- */
+
+/**
+ * Constructs a new transaction context to be passed
+ * into `sentry_start_transaction`.
+ */
+SENTRY_EXPERIMENTAL_API sentry_value_t sentry_value_new_transaction_context(
+    const char *name);
+
+/**
+ * Sets the name of a transaction on a `transaction_context`.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_transaction_context_set_name(
+    sentry_value_t transaction_context, const char *name);
+
+/**
+ * Sets the operation of a transaction on a `transaction_context`.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_transaction_context_set_operation(
+    sentry_value_t transaction_context, const char *operation);
+
+/**
+ * Sets the sampled field a transaction on a `transaction_context`.
+ * When turned on, the transaction will bypass all sampling
+ * options and always be sent to sentry. If this is explicitly
+ * turned off in the `transaction_context`, the transaction will
+ * never be sent to sentry.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_transaction_context_set_sampled(
+    sentry_value_t transaction_context, int sampled);
+
 #ifdef __cplusplus
 }
 #endif

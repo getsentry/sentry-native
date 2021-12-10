@@ -1124,6 +1124,44 @@ sentry_value_new_stacktrace(void **ips, size_t len)
     return stacktrace;
 }
 
+sentry_value_t
+sentry_value_new_transaction_context(const char *name)
+{
+    sentry_value_t transaction_context = sentry_value_new_object();
+
+    sentry_transaction_context_set_name(transaction_context, name);
+
+    return transaction_context;
+}
+
+void
+sentry_transaction_context_set_name(
+    sentry_value_t transaction_context, const char *name)
+{
+    sentry_value_t sv_name = sentry_value_new_string(name);
+    if (sentry__string_eq(name, "") || sentry_value_is_null(sv_name)) {
+        sentry_value_decref(sv_name);
+        sv_name = sentry_value_new_string("<unlabeled transaction>");
+    }
+    sentry_value_set_by_key(transaction_context, "name", sv_name);
+}
+
+void
+sentry_transaction_context_set_operation(
+    sentry_value_t transaction_context, const char *operation)
+{
+    sentry_value_set_by_key(
+        transaction_context, "op", sentry_value_new_string(operation));
+}
+
+void
+sentry_transaction_context_set_sampled(
+    sentry_value_t transaction_context, int sampled)
+{
+    sentry_value_set_by_key(
+        transaction_context, "sampled", sentry_value_new_bool(sampled));
+}
+
 static sentry_value_t
 sentry__get_or_insert_values_list(sentry_value_t parent, const char *key)
 {
