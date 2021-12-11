@@ -1139,6 +1139,8 @@ sentry_transaction_context_set_name(
     sentry_value_t transaction_context, const char *name)
 {
     sentry_value_t sv_name = sentry_value_new_string(name);
+    // TODO: Consider doing this checking right before sending or flushing
+    // the transaction.
     if (sentry__string_eq(name, "") || sentry_value_is_null(sv_name)) {
         sentry_value_decref(sv_name);
         sv_name = sentry_value_new_string("<unlabeled transaction>");
