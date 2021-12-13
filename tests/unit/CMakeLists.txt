@@ -33,6 +33,7 @@ add_executable(sentry_test_unit
 	test_slice.c
 	test_symbolizer.c
 	test_sync.c
+	test_tracing.c
 	test_uninit.c
 	test_unwinder.c
 	test_utils.c

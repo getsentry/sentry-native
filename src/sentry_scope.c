@@ -7,6 +7,7 @@
 #include "sentry_string.h"
 #include "sentry_symbolizer.h"
 #include "sentry_sync.h"
+#include "sentry_tracing.h"
 #include <stdlib.h>
 
 #ifdef SENTRY_BACKEND_CRASHPAD
@@ -73,6 +74,7 @@ get_scope(void)
     g_scope.breadcrumbs = sentry_value_new_list();
     g_scope.level = SENTRY_LEVEL_ERROR;
     g_scope.client_sdk = get_client_sdk();
+    g_scope.span = sentry_value_new_null();
 
     g_scope_initialized = true;
 
@@ -93,6 +95,7 @@ sentry__scope_cleanup(void)
         sentry_value_decref(g_scope.contexts);
         sentry_value_decref(g_scope.breadcrumbs);
         sentry_value_decref(g_scope.client_sdk);
+        sentry_value_decref(g_scope.span);
     }
     sentry__mutex_unlock(&g_lock);
 }
@@ -115,7 +118,7 @@ sentry__scope_flush_unlock()
 {
     sentry__scope_unlock();
     SENTRY_WITH_OPTIONS (options) {
-        // we try to unlock the scope/session lock as soon as possible. The
+        // we try to unlock the scope as soon as possible. The
         // backend will do its own `WITH_SCOPE` internally.
         if (options->backend && options->backend->flush_scope_func) {
             options->backend->flush_scope_func(options->backend, options);
@@ -225,6 +228,14 @@ sentry__symbolize_stacktrace(sentry_value_t stacktrace)
 }
 
 void
+sentry__scope_set_span(sentry_value_t span)
+{
+    // TODO: implement this function and get rid of this line.
+    (void)span;
+    return;
+}
+
+void
 sentry__scope_apply_to_event(const sentry_scope_t *scope,
     const sentry_options_t *options, sentry_value_t event,
     sentry_scope_mode_t mode)
@@ -269,7 +280,15 @@ sentry__scope_apply_to_event(const sentry_scope_t *scope,
     // TODO: these should merge
     PLACE_CLONED_VALUE("tags", scope->tags);
     PLACE_CLONED_VALUE("extra", scope->extra);
-    PLACE_CLONED_VALUE("contexts", scope->contexts);
+
+    // TODO: better, more thorough deep merging
+    sentry_value_t contexts = sentry__value_clone(scope->contexts);
+    sentry_value_t trace = sentry__span_get_trace_context(scope->span);
+    if (!sentry_value_is_null(trace)) {
+        sentry_value_set_by_key(contexts, "trace", trace);
+    }
+    PLACE_VALUE("contexts", contexts);
+    sentry_value_decref(contexts);
 
     if (mode & SENTRY_SCOPE_BREADCRUMBS) {
         PLACE_CLONED_VALUE("breadcrumbs", scope->breadcrumbs);
@@ -288,7 +307,9 @@ sentry__scope_apply_to_event(const sentry_scope_t *scope,
         sentry__foreach_stacktrace(event, sentry__symbolize_stacktrace);
     }
 
+#undef PLACE_CLONED_VALUE
+#undef PLACE_VALUE
 #undef PLACE_STRING
-#undef IS_NULL
 #undef SET
+#undef IS_NULL
 }
