@@ -1233,7 +1233,7 @@ SENTRY_EXPERIMENTAL_API double sentry_options_get_traces_sample_rate(
  * into `sentry_start_transaction`.
  */
 SENTRY_EXPERIMENTAL_API sentry_value_t sentry_value_new_transaction_context(
-    const char *name);
+    const char *name, const char *operation);
 
 /**
  * Sets the name of a transaction on a `transaction_context`.
