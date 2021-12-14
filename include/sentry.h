@@ -1229,30 +1229,30 @@ SENTRY_EXPERIMENTAL_API double sentry_options_get_traces_sample_rate(
 /* -- Performance Monitoring/Tracing APIs -- */
 
 /**
- * Constructs a new transaction context to be passed
+ * Constructs a new Transaction context to be passed
  * into `sentry_start_transaction`.
  *
  * See
  * https://docs.sentry.io/platforms/native/enriching-events/transaction-name/
- * for an explanation of a transaction's `name`, and
+ * for an explanation of a Transaction's `name`, and
  * https://develop.sentry.dev/sdk/performance/span-operations/ for conventions
- * around an operation's name.
+ * around an `operation`'s value.
  *
  * Also see https://develop.sentry.dev/sdk/event-payloads/transaction/#anatomy
  * for an explanation of `operation`, in addition to other properties and
- * actions that can be performed with a transaction.
+ * actions that can be performed on a Transaction.
  */
 SENTRY_EXPERIMENTAL_API sentry_value_t sentry_value_new_transaction_context(
     const char *name, const char *operation);
 
 /**
- * Sets the name of a transaction on a `transaction_context`.
+ * Sets the `name` of a Transaction on a `transaction_context`.
  */
 SENTRY_EXPERIMENTAL_API void sentry_transaction_context_set_name(
     sentry_value_t transaction_context, const char *name);
 
 /**
- * Sets the operation of a transaction on a `transaction_context`.
+ * Sets the `operation` of a Transaction on a `transaction_context`.
  *
  * See https://develop.sentry.dev/sdk/performance/span-operations/ for
  * conventions on `operation`s.
@@ -1261,17 +1261,17 @@ SENTRY_EXPERIMENTAL_API void sentry_transaction_context_set_operation(
     sentry_value_t transaction_context, const char *operation);
 
 /**
- * Sets the sampled field on a `transaction_context`. When turned on, the
- * transaction constructed from the `transaction_context` will bypass all
+ * Sets the `sampled` field on a `transaction_context`. When turned on, the
+ * Transaction constructed from the `transaction_context` will bypass all
  * sampling options and always be sent to sentry. If this is explicitly turned
- * off in the `transaction_context`, the transaction will never be sent to
+ * off in the `transaction_context`, the Transaction will never be sent to
  * sentry.
  */
 SENTRY_EXPERIMENTAL_API void sentry_transaction_context_set_sampled(
     sentry_value_t transaction_context, int sampled);
 
 /**
- * Removes the sampled field on a `transaction_context`. The transaction
+ * Removes the sampled field on a `transaction_context`. The Transaction
  * contructed from it will use the sampling rate as defined in `sentry_options`.
  */
 SENTRY_EXPERIMENTAL_API void sentry_transaction_context_remove_sampled(
