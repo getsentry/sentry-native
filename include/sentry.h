@@ -1248,14 +1248,21 @@ SENTRY_EXPERIMENTAL_API void sentry_transaction_context_set_operation(
     sentry_value_t transaction_context, const char *operation);
 
 /**
- * Sets the sampled field a transaction on a `transaction_context`.
- * When turned on, the transaction will bypass all sampling
- * options and always be sent to sentry. If this is explicitly
- * turned off in the `transaction_context`, the transaction will
- * never be sent to sentry.
+ * Sets the sampled field on a `transaction_context`. When turned on, the
+ * transaction constructed from the `transaction_context` will bypass all
+ * sampling options and always be sent to sentry. If this is explicitly turned
+ * off in the `transaction_context`, the transaction will never be sent to
+ * sentry.
  */
 SENTRY_EXPERIMENTAL_API void sentry_transaction_context_set_sampled(
     sentry_value_t transaction_context, int sampled);
+
+/**
+ * Removes the sampled field on a `transaction_context`. The transaction
+ * contructed from it will use the sampling rate as defined in `sentry_options`.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_transaction_context_remove_sampled(
+    sentry_value_t transaction_context);
 
 #ifdef __cplusplus
 }

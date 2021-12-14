@@ -1164,6 +1164,12 @@ sentry_transaction_context_set_sampled(
         transaction_context, "sampled", sentry_value_new_bool(sampled));
 }
 
+void
+sentry_transaction_context_remove_sampled(sentry_value_t transaction_context)
+{
+    sentry_value_remove_by_key(transaction_context, "sampled");
+}
+
 static sentry_value_t
 sentry__get_or_insert_values_list(sentry_value_t parent, const char *key)
 {
