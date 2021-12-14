@@ -1231,6 +1231,16 @@ SENTRY_EXPERIMENTAL_API double sentry_options_get_traces_sample_rate(
 /**
  * Constructs a new transaction context to be passed
  * into `sentry_start_transaction`.
+ *
+ * See
+ * https://docs.sentry.io/platforms/native/enriching-events/transaction-name/
+ * for an explanation of a transaction's `name`, and
+ * https://develop.sentry.dev/sdk/performance/span-operations/ for conventions
+ * around an operation's name.
+ *
+ * Also see https://develop.sentry.dev/sdk/event-payloads/transaction/#anatomy
+ * for an explanation of `operation`, in addition to other properties and
+ * actions that can be performed with a transaction.
  */
 SENTRY_EXPERIMENTAL_API sentry_value_t sentry_value_new_transaction_context(
     const char *name, const char *operation);
@@ -1243,6 +1253,9 @@ SENTRY_EXPERIMENTAL_API void sentry_transaction_context_set_name(
 
 /**
  * Sets the operation of a transaction on a `transaction_context`.
+ *
+ * See https://develop.sentry.dev/sdk/performance/span-operations/ for
+ * conventions on `operation`s.
  */
 SENTRY_EXPERIMENTAL_API void sentry_transaction_context_set_operation(
     sentry_value_t transaction_context, const char *operation);
