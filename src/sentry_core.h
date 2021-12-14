@@ -88,4 +88,12 @@ void sentry__options_unlock(void);
     for (sentry_options_t *Options = sentry__options_lock(); Options;          \
          sentry__options_unlock(), Options = NULL)
 
+// these for now are only needed for tests
+#ifdef SENTRY_UNITTEST
+bool sentry__is_unsampled(double sample_rate);
+bool sentry__should_skip_transaction(sentry_value_t tx_cxt);
+bool sentry__should_skip_event(
+    const sentry_options_t *options, sentry_value_t event);
+#endif
+
 #endif
