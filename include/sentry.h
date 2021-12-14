@@ -1275,6 +1275,15 @@ SENTRY_EXPERIMENTAL_API void sentry_transaction_set_sampled(
 SENTRY_EXPERIMENTAL_API void sentry_transaction_remove_sampled(
     sentry_value_t transaction);
 
+SENTRY_EXPERIMENTAL_API void sentry_transaction_set_tag(
+    sentry_value_t transaction, const char *tag, const char *value);
+
+SENTRY_EXPERIMENTAL_API void sentry_transaction_remove_tag(
+    sentry_value_t transaction, const char *tag);
+
+SENTRY_EXPERIMENTAL_API void sentry_transaction_set_data(
+    sentry_value_t transaction, const char *key, sentry_value_t value);
+
 #ifdef __cplusplus
 }
 #endif
