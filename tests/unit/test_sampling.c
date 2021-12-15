@@ -34,6 +34,7 @@ SENTRY_TEST(sampling_transaction)
     TEST_CHECK(sentry__should_skip_transaction(tx_cxt) == false);
 
     sentry_value_decref(tx_cxt);
+    sentry_close();
 }
 
 SENTRY_TEST(sampling_event)
