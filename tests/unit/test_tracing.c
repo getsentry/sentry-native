@@ -33,3 +33,43 @@ SENTRY_TEST(basic_tracing_context)
     sentry_value_decref(trace_context);
     sentry_value_decref(span);
 }
+
+SENTRY_TEST(basic_transaction)
+{
+    sentry_value_t tx_cxt = sentry_value_new_transaction(NULL, NULL);
+    TEST_CHECK(!sentry_value_is_null(tx_cxt));
+    const char *tx_name
+        = sentry_value_as_string(sentry_value_get_by_key(tx_cxt, "name"));
+    TEST_CHECK_STRING_EQUAL(tx_name, "<unlabeled transaction>");
+    const char *tx_op
+        = sentry_value_as_string(sentry_value_get_by_key(tx_cxt, "op"));
+    TEST_CHECK_STRING_EQUAL(tx_op, "");
+
+    sentry_value_decref(tx_cxt);
+    tx_cxt = sentry_value_new_transaction("", "");
+    TEST_CHECK(!sentry_value_is_null(tx_cxt));
+    tx_name = sentry_value_as_string(sentry_value_get_by_key(tx_cxt, "name"));
+    TEST_CHECK_STRING_EQUAL(tx_name, "<unlabeled transaction>");
+    TEST_CHECK_STRING_EQUAL(tx_op, "");
+
+    sentry_value_decref(tx_cxt);
+    tx_cxt = sentry_value_new_transaction("honk.beep", "beepbeep");
+    tx_name = sentry_value_as_string(sentry_value_get_by_key(tx_cxt, "name"));
+    TEST_CHECK_STRING_EQUAL(tx_name, "honk.beep");
+    tx_op = sentry_value_as_string(sentry_value_get_by_key(tx_cxt, "op"));
+    TEST_CHECK_STRING_EQUAL(tx_op, "beepbeep");
+
+    sentry_transaction_set_name(tx_cxt, "");
+    tx_name = sentry_value_as_string(sentry_value_get_by_key(tx_cxt, "name"));
+    TEST_CHECK_STRING_EQUAL(tx_name, "<unlabeled transaction>");
+
+    sentry_transaction_set_operation(tx_cxt, "");
+    tx_op = sentry_value_as_string(sentry_value_get_by_key(tx_cxt, "op"));
+    TEST_CHECK_STRING_EQUAL(tx_op, "");
+
+    sentry_transaction_set_sampled(tx_cxt, 1);
+    TEST_CHECK(
+        sentry_value_is_true(sentry_value_get_by_key(tx_cxt, "sampled")) == 1);
+
+    sentry_value_decref(tx_cxt);
+}
