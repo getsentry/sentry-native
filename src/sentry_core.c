@@ -387,11 +387,11 @@ sentry_capture_event(sentry_value_t event)
 }
 
 bool
-sentry__is_unsampled(double sample_rate)
+sentry__roll_dice(double probability)
 {
     uint64_t rnd;
-    return sample_rate < 1.0 && !sentry__getrandom(&rnd, sizeof(rnd))
-        && ((double)rnd / (double)UINT64_MAX) > sample_rate;
+    return probability >= 1.0 || sentry__getrandom(&rnd, sizeof(rnd))
+        || ((double)rnd / (double)UINT64_MAX) <= probability;
 }
 
 bool
@@ -404,7 +404,7 @@ sentry__should_skip_transaction(sentry_value_t tx_cxt)
 
     bool skip = true;
     SENTRY_WITH_OPTIONS (options) {
-        skip = sentry__is_unsampled(options->traces_sample_rate);
+        skip = !sentry__roll_dice(options->traces_sample_rate);
         // TODO: run through traces sampler function if rate is unavailable
     }
     return skip;
@@ -416,7 +416,7 @@ sentry__should_skip_event(const sentry_options_t *options, sentry_value_t event)
     sentry_value_t event_type = sentry_value_get_by_key(event, "type");
     // Not a transaction
     if (sentry_value_is_null(event_type)) {
-        return sentry__is_unsampled(options->sample_rate);
+        return !sentry__roll_dice(options->sample_rate);
     } else {
         // The sampling decision should already be made for transactions
         // during their construction. No need to recalculate here.

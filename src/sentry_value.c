@@ -1125,49 +1125,48 @@ sentry_value_new_stacktrace(void **ips, size_t len)
 }
 
 sentry_value_t
-sentry_value_new_transaction_context(const char *name)
+sentry_value_new_transaction(const char *name, const char *operation)
 {
-    sentry_value_t transaction_context = sentry_value_new_object();
+    sentry_value_t transaction = sentry_value_new_object();
 
-    sentry_transaction_context_set_name(transaction_context, name);
+    sentry_transaction_set_name(transaction, name);
+    sentry_transaction_set_operation(transaction, operation);
 
-    return transaction_context;
+    return transaction;
 }
 
 void
-sentry_transaction_context_set_name(
-    sentry_value_t transaction_context, const char *name)
+sentry_transaction_set_name(sentry_value_t transaction, const char *name)
 {
     sentry_value_t sv_name = sentry_value_new_string(name);
     // TODO: Consider doing this checking right before sending or flushing
     // the transaction.
-    if (sentry__string_eq(name, "") || sentry_value_is_null(sv_name)) {
+    if (sentry_value_is_null(sv_name) || sentry__string_eq(name, "")) {
         sentry_value_decref(sv_name);
         sv_name = sentry_value_new_string("<unlabeled transaction>");
     }
-    sentry_value_set_by_key(transaction_context, "name", sv_name);
+    sentry_value_set_by_key(transaction, "name", sv_name);
 }
 
 void
-sentry_transaction_context_set_operation(
-    sentry_value_t transaction_context, const char *operation)
+sentry_transaction_set_operation(
+    sentry_value_t transaction, const char *operation)
 {
     sentry_value_set_by_key(
-        transaction_context, "op", sentry_value_new_string(operation));
+        transaction, "op", sentry_value_new_string(operation));
 }
 
 void
-sentry_transaction_context_set_sampled(
-    sentry_value_t transaction_context, int sampled)
+sentry_transaction_set_sampled(sentry_value_t transaction, int sampled)
 {
     sentry_value_set_by_key(
-        transaction_context, "sampled", sentry_value_new_bool(sampled));
+        transaction, "sampled", sentry_value_new_bool(sampled));
 }
 
 void
-sentry_transaction_context_remove_sampled(sentry_value_t transaction_context)
+sentry_transaction_remove_sampled(sentry_value_t transaction)
 {
-    sentry_value_remove_by_key(transaction_context, "sampled");
+    sentry_value_remove_by_key(transaction, "sampled");
 }
 
 static sentry_value_t
