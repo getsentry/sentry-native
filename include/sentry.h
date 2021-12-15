@@ -1289,7 +1289,7 @@ SENTRY_EXPERIMENTAL_API void sentry_transaction_remove_sampled(
  * or manually constructed by a user.
  */
 SENTRY_EXPERIMENTAL_API sentry_value_t sentry_start_transaction(
-    sentry_value_t transaction_context);
+    sentry_value_t transaction);
 
 /**
  * Finishes a transaction.
