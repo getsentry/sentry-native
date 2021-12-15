@@ -14,19 +14,17 @@ SENTRY_TEST(sampling_transaction)
     TEST_CHECK(sentry_init(options) == 0);
 
     // TODO: replace with proper construction of a transaction, e.g.
-    // new_transaction_context -> transaction_context_set_sampled ->
-    // start_transaction
-    // using transaction context in place of a full transaction for now.
-    sentry_value_t tx_cxt = sentry_value_new_transaction_context("honk");
+    // new_transaction -> transaction_set_sampled -> start_transaction
+    sentry_value_t tx_cxt = sentry_value_new_transaction("honk", NULL);
 
-    sentry_transaction_context_set_sampled(tx_cxt, 0);
+    sentry_transaction_set_sampled(tx_cxt, 0);
     TEST_CHECK(sentry__should_skip_transaction(tx_cxt));
 
-    sentry_transaction_context_set_sampled(tx_cxt, 1);
+    sentry_transaction_set_sampled(tx_cxt, 1);
     TEST_CHECK(sentry__should_skip_transaction(tx_cxt) == false);
 
     // fall back to default in sentry options (0.0) if sampled isn't there
-    sentry_transaction_context_remove_sampled(tx_cxt);
+    sentry_transaction_remove_sampled(tx_cxt);
     TEST_CHECK(sentry__should_skip_transaction(tx_cxt));
 
     options = sentry_options_new();
