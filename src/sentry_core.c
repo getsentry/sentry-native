@@ -385,6 +385,45 @@ sentry_capture_event(sentry_value_t event)
     return was_captured ? event_id : sentry_uuid_nil();
 }
 
+bool
+sentry__roll_dice(double probability)
+{
+    uint64_t rnd;
+    return probability >= 1.0 || sentry__getrandom(&rnd, sizeof(rnd))
+        || ((double)rnd / (double)UINT64_MAX) <= probability;
+}
+
+bool
+sentry__should_skip_transaction(sentry_value_t tx_cxt)
+{
+    sentry_value_t context_setting = sentry_value_get_by_key(tx_cxt, "sampled");
+    if (!sentry_value_is_null(context_setting)) {
+        return !sentry_value_is_true(context_setting);
+    }
+
+    bool skip = true;
+    SENTRY_WITH_OPTIONS (options) {
+        skip = !sentry__roll_dice(options->traces_sample_rate);
+        // TODO: run through traces sampler function if rate is unavailable
+    }
+    return skip;
+}
+
+bool
+sentry__should_skip_event(const sentry_options_t *options, sentry_value_t event)
+{
+    sentry_value_t event_type = sentry_value_get_by_key(event, "type");
+    // Not a transaction
+    if (sentry_value_is_null(event_type)) {
+        return !sentry__roll_dice(options->sample_rate);
+    } else {
+        // The sampling decision should already be made for transactions
+        // during their construction. No need to recalculate here.
+        // See `sentry__should_skip_transaction`.
+        return !sentry_value_is_true(sentry_value_get_by_key(event, "sampled"));
+    }
+}
+
 sentry_envelope_t *
 sentry__prepare_event(const sentry_options_t *options, sentry_value_t event,
     sentry_uuid_t *event_id)
@@ -395,9 +434,7 @@ sentry__prepare_event(const sentry_options_t *options, sentry_value_t event,
         sentry__record_errors_on_current_session(1);
     }
 
-    uint64_t rnd;
-    if (options->sample_rate < 1.0 && !sentry__getrandom(&rnd, sizeof(rnd))
-        && ((double)rnd / (double)UINT64_MAX) > options->sample_rate) {
+    if (sentry__should_skip_event(options, event)) {
         SENTRY_DEBUG("throwing away event due to sample rate");
         goto fail;
     }
