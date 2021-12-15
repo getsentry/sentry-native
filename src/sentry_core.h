@@ -90,7 +90,7 @@ void sentry__options_unlock(void);
 
 // these for now are only needed for tests
 #ifdef SENTRY_UNITTEST
-bool sentry__roll_dice(double sample_rate);
+bool sentry__roll_dice(double probability);
 bool sentry__should_skip_transaction(sentry_value_t tx_cxt);
 bool sentry__should_skip_event(
     const sentry_options_t *options, sentry_value_t event);
