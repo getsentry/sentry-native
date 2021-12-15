@@ -3,9 +3,9 @@
 
 SENTRY_TEST(sampling_decision)
 {
-    TEST_CHECK(sentry__is_unsampled(0.0));
-    TEST_CHECK(sentry__is_unsampled(1.0) == false);
-    TEST_CHECK(sentry__is_unsampled(2.0) == false);
+    TEST_CHECK(sentry__roll_dice(0.0) == false);
+    TEST_CHECK(sentry__roll_dice(1.0));
+    TEST_CHECK(sentry__roll_dice(2.0));
 }
 
 SENTRY_TEST(sampling_transaction)
