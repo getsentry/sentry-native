@@ -1232,13 +1232,15 @@ sentry_transaction_set_tag(sentry_value_t transaction, const char *tag, const ch
     sentry_value_set_by_key(tags, tag, value_str);
 }
 
-void
+int
 sentry_transaction_remove_tag(sentry_value_t transaction, const char *tag)
 {
     sentry_value_t tags = sentry_value_get_by_key(transaction, "tags");
     if (!sentry_value_is_null(tags)) {
-        sentry_value_remove_by_key(tags, tag);
+        return sentry_value_remove_by_key(tags, tag);
     }
+
+    return 1;
 }
 
 void
@@ -1250,4 +1252,15 @@ sentry_transaction_set_data(sentry_value_t transaction, const char *key, sentry_
         sentry_value_set_by_key(transaction, "data", data);
     }
     sentry_value_set_by_key(data, key, value);
+}
+
+int
+sentry_transaction_remove_data(sentry_value_t transaction, const char *key)
+{
+    sentry_value_t data = sentry_value_get_by_key(transaction, "data");
+    if (!sentry_value_is_null(data)) {
+        return sentry_value_remove_by_key(data, key);
+    }
+
+    return 1;
 }

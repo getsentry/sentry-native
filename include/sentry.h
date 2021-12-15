@@ -1278,11 +1278,14 @@ SENTRY_EXPERIMENTAL_API void sentry_transaction_remove_sampled(
 SENTRY_EXPERIMENTAL_API void sentry_transaction_set_tag(
     sentry_value_t transaction, const char *tag, const char *value);
 
-SENTRY_EXPERIMENTAL_API void sentry_transaction_remove_tag(
+SENTRY_EXPERIMENTAL_API int sentry_transaction_remove_tag(
     sentry_value_t transaction, const char *tag);
 
 SENTRY_EXPERIMENTAL_API void sentry_transaction_set_data(
     sentry_value_t transaction, const char *key, sentry_value_t value);
+
+SENTRY_EXPERIMENTAL_API int sentry_transaction_remove_data(
+    sentry_value_t transaction, const char *key);
 
 #ifdef __cplusplus
 }
