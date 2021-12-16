@@ -425,9 +425,7 @@ sentry__should_send_transaction(sentry_value_t tx_cxt)
 
     bool send = false;
     SENTRY_WITH_OPTIONS (options) {
-        SENTRY_DEBUG("rolling dice");
         send = sentry__roll_dice(options->traces_sample_rate);
-        SENTRY_DEBUGF("result: %d", send);
         // TODO: run through traces sampler function if rate is unavailable
     }
     return send;
