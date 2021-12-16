@@ -554,11 +554,19 @@ typedef struct sentry_envelope_s sentry_envelope_t;
 SENTRY_API void sentry_envelope_free(sentry_envelope_t *envelope);
 
 /**
- * Given an envelope returns the embedded event if there is one.
+ * Given an Envelope, returns the embedded Event if there is one.
  *
- * This returns a borrowed value to the event in the envelope.
+ * This returns a borrowed value to the Event in the Envelope.
  */
 SENTRY_API sentry_value_t sentry_envelope_get_event(
+    const sentry_envelope_t *envelope);
+
+/**
+ * Given an Envelope, returns the embedded Transaction if there is one.
+ *
+ * This returns a borrowed value to the Transaction in the Envelope.
+ */
+SENTRY_EXPERIMENTAL_API sentry_value_t sentry_envelope_get_transaction(
     const sentry_envelope_t *envelope);
 
 /**
