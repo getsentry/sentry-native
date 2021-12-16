@@ -383,7 +383,7 @@ sentry__capture_event(sentry_value_t event)
     SENTRY_WITH_OPTIONS (options) {
         was_captured = true;
         if (sentry__event_is_transaction(event)) {
-            return sentry_uuid_nil();
+            envelope = sentry__prepare_transaction(options, event, &event_id);
         } else {
             envelope = sentry__prepare_event(options, event, &event_id);
         }
@@ -392,10 +392,10 @@ sentry__capture_event(sentry_value_t event)
                 SENTRY_WITH_OPTIONS_MUT (mut_options) {
                     sentry__envelope_add_session(
                         envelope, mut_options->session);
-                    // we're assuming that if a session is added to an envelope
-                    // it will be sent onwards.  This means we now need to set
-                    // the init flag to false because we're no longer the
-                    // initial session update.
+                    // we're assuming that if a session is added to an
+                    // envelope it will be sent onwards.  This means we now
+                    // need to set the init flag to false because we're no
+                    // longer the initial session update.
                     mut_options->session->init = false;
                 }
             }
@@ -418,33 +418,21 @@ sentry__roll_dice(double probability)
 }
 
 bool
-sentry__should_skip_transaction(sentry_value_t tx_cxt)
+sentry__should_send_transaction(sentry_value_t tx_cxt)
 {
     sentry_value_t context_setting = sentry_value_get_by_key(tx_cxt, "sampled");
     if (!sentry_value_is_null(context_setting)) {
-        return !sentry_value_is_true(context_setting);
+        return sentry_value_is_true(context_setting);
     }
 
-    bool skip = true;
+    bool send = false;
     SENTRY_WITH_OPTIONS (options) {
-        skip = !sentry__roll_dice(options->traces_sample_rate);
+        SENTRY_DEBUG("rolling dice");
+        send = sentry__roll_dice(options->traces_sample_rate);
+        SENTRY_DEBUGF("result: %d", send);
         // TODO: run through traces sampler function if rate is unavailable
     }
-    return skip;
-}
-
-// TODO: maybe remove this, logic was moved back into `prepare` functions
-bool
-sentry__should_skip_event(const sentry_options_t *options, sentry_value_t event)
-{
-    if (sentry__event_is_transaction(event)) {
-        // The sampling decision should already be made for transactions
-        // during their construction. No need to recalculate here.
-        // See `sentry__should_skip_transaction`.
-        return !sentry_value_is_true(sentry_value_get_by_key(event, "sampled"));
-    } else {
-        return !sentry__roll_dice(options->sample_rate);
-    }
+    return send;
 }
 
 sentry_envelope_t *
@@ -541,10 +529,7 @@ sentry__prepare_transaction(const sentry_options_t *options,
 
     sentry__ensure_event_id(transaction, event_id);
     envelope = sentry__envelope_new();
-    if (!envelope) {
-        goto fail;
-    }
-    if (!sentry__envelope_add_transaction(envelope, transaction)) {
+    if (!envelope || !sentry__envelope_add_transaction(envelope, transaction)) {
         goto fail;
     }
 
@@ -756,12 +741,12 @@ sentry_set_level(sentry_level_t level)
 }
 
 sentry_value_t
-sentry_start_transaction(sentry_value_t tx_cxt)
+sentry_transaction_start(sentry_value_t tx_cxt)
 {
     sentry_value_t tx = sentry_value_new_event();
 
     // TODO: stuff transaction into the scope
-    bool should_sample = !sentry__should_skip_transaction(tx_cxt);
+    bool should_sample = sentry__should_send_transaction(tx_cxt);
     sentry_value_set_by_key(
         tx, "sampled", sentry_value_new_bool(should_sample));
 
@@ -790,6 +775,7 @@ sentry_transaction_finish(sentry_value_t tx)
     sentry_value_t sampled = sentry_value_get_by_key(tx, "sampled");
     if (!sentry_value_is_null(sampled) && !sentry_value_is_true(sampled)) {
         sentry_value_decref(sampled);
+        sentry_value_decref(tx);
         // TODO: remove from scope
         return;
     }
@@ -801,28 +787,10 @@ sentry_transaction_finish(sentry_value_t tx)
             sentry__msec_time_to_iso8601(sentry__msec_time())));
     sentry_value_set_by_key(tx, "level", sentry_value_new_string("info"));
 
-    // sentry_value_t fake_span = sentry_value_new_object();
-    // sentry_value_set_by_key(
-    //     fake_span, "trace_id", sentry_value_get_by_key(tx, "trace_id"));
-    // sentry_value_set_by_key(
-    //     fake_span, "parent_span_id", sentry_value_get_by_key(tx, "span_id"));
-    // sentry_uuid_t fake_span_id = sentry_uuid_new_v4();
-    // sentry_value_set_by_key(
-    //     fake_span, "span_id", sentry__value_new_span_uuid(&fake_span_id));
-    // sentry_value_set_by_key(fake_span, "op",
-    // sentry_value_new_string("hohee")); sentry_value_set_by_key(
-    //     fake_span, "description", sentry_value_new_string("heeho"));
-    // sentry_value_set_by_key(fake_span, "start_timestamp",
-    //     sentry_value_get_by_key(tx, "start_timestamp"));
-    // sentry_value_set_by_key(
-    //     fake_span, "timestamp", sentry_value_get_by_key(tx, "timestamp"));
-    // sentry_value_t spans = sentry__value_new_list_with_size(1);
-    // sentry_value_append(spans, fake_span);
-    // sentry_value_set_by_key(tx, "spans", spans);
-
     // TODO: add tracestate
     // set up trace context so it mirrors the final json value
     sentry_value_set_by_key(tx, "status", sentry_value_new_string("ok"));
+
     sentry_value_t trace_context = sentry__span_get_trace_context(tx);
     sentry_value_t contexts = sentry_value_new_object();
     sentry_value_set_by_key(contexts, "trace", trace_context);
@@ -836,5 +804,5 @@ sentry_transaction_finish(sentry_value_t tx)
     sentry_value_remove_by_key(tx, "status");
 
     // This decrefs for us, generates an event ID, merges scope
-    sentry_capture_event(tx);
+    sentry__capture_event(tx);
 }

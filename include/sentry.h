@@ -1239,7 +1239,7 @@ SENTRY_EXPERIMENTAL_API double sentry_options_get_traces_sample_rate(
 
 /**
  * Constructs a new inert Transaction. The returned value needs to be passed
- * into `sentry_start_transaction` in order to be recorded and sent to sentry.
+ * into `sentry_transaction_start` in order to be recorded and sent to sentry.
  *
  * See
  * https://docs.sentry.io/platforms/native/enriching-events/transaction-name/
@@ -1270,9 +1270,9 @@ SENTRY_EXPERIMENTAL_API void sentry_transaction_set_operation(
     sentry_value_t transaction, const char *operation);
 
 /**
- * Sets the `sampled` field on a Transaction. When turned on, the Transaction
- * will bypass all sampling options and always be sent to sentry. If this is
- * explicitly turned off in the Transaction, it will never be sent to sentry.
+ * Sets the `sampled` field on a Transaction. When passed any value above 0, the
+ * Transaction will bypass all sampling options and always be sent to sentry. If
+ * passed 0, this Transaction and its child spans will never be sent to sentry.
  */
 SENTRY_EXPERIMENTAL_API void sentry_transaction_set_sampled(
     sentry_value_t transaction, int sampled);
@@ -1289,11 +1289,11 @@ SENTRY_EXPERIMENTAL_API void sentry_transaction_remove_sampled(
  * from an external integration (i.e. a span from a different SDK)
  * or manually constructed by a user.
  */
-SENTRY_EXPERIMENTAL_API sentry_value_t sentry_start_transaction(
+SENTRY_EXPERIMENTAL_API sentry_value_t sentry_transaction_start(
     sentry_value_t transaction);
 
 /**
- * Finishes a transaction.
+ * Finishes and sends a transaction to sentry.
  */
 SENTRY_EXPERIMENTAL_API void sentry_transaction_finish(
     sentry_value_t transaction);
