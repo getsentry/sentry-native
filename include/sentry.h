@@ -1284,6 +1284,20 @@ SENTRY_EXPERIMENTAL_API void sentry_transaction_set_sampled(
 SENTRY_EXPERIMENTAL_API void sentry_transaction_remove_sampled(
     sentry_value_t transaction);
 
+/**
+ * Starts a new transaction based on the provided context, restored
+ * from an external integration (i.e. a span from a different SDK)
+ * or manually constructed by a user.
+ */
+SENTRY_EXPERIMENTAL_API sentry_value_t sentry_start_transaction(
+    sentry_value_t transaction);
+
+/**
+ * Finishes a transaction.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_transaction_finish(
+    sentry_value_t transaction);
+
 #ifdef __cplusplus
 }
 #endif
