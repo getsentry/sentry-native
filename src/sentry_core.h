@@ -52,20 +52,9 @@ sentry_envelope_t *sentry__prepare_event(const sentry_options_t *options,
     sentry_value_t event, sentry_uuid_t *event_id);
 
 /**
- * Convert the given transaction into an envelope. This assumes that the
- * event being passed in is a transaction.
- *
- * It will do the following things:
- * - discard the transaction if it is unsampled
- * - apply the scope to the transaction
- * - add the transaction to a new envelope
- * - add any attachments to the envelope
- *
- * The function will ensure the transaction has a UUID and write it into the
- * `event_id` out-parameter.
+ * Sends a sentry event, regardless of its type.
  */
-sentry_envelope_t *sentry__prepare_transaction(const sentry_options_t *options,
-    sentry_value_t event, sentry_uuid_t *event_id);
+sentry_uuid_t sentry__capture_event(sentry_value_t event);
 
 /**
  * This function will submit the `envelope` to the given `transport`, first
