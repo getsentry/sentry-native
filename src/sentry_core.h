@@ -29,6 +29,12 @@
 bool sentry__should_skip_upload(void);
 
 /**
+ * Given a well-formed event, returns whether an event is a transaction or not.
+ * Defaults to false, which will also be returned if the event is malformed.
+ */
+bool sentry__event_is_transaction(sentry_value_t event);
+
+/**
  * Convert the given event into an envelope.
  *
  * More specifically, it will do the following things:
