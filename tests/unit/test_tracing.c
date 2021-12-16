@@ -116,18 +116,18 @@ SENTRY_TEST(basic_function_transport_transaction)
 
     sentry_value_t transaction
         = sentry_value_new_transaction("How could you", "Don't capture this.");
-    transaction = sentry_start_transaction(transaction);
+    transaction = sentry_transaction_start(transaction);
     sentry_transaction_finish(transaction);
     sentry_user_consent_give();
 
     transaction = sentry_value_new_transaction("honk", "beep");
-    transaction = sentry_start_transaction(transaction);
+    transaction = sentry_transaction_start(transaction);
     sentry_transaction_finish(transaction);
 
     sentry_user_consent_revoke();
     transaction = sentry_value_new_transaction(
         "How could you again", "Don't capture this either.");
-    transaction = sentry_start_transaction(transaction);
+    transaction = sentry_transaction_start(transaction);
     sentry_transaction_finish(transaction);
 
     sentry_close();
@@ -153,7 +153,7 @@ SENTRY_TEST(transport_sampling_transactions)
     for (int i = 0; i < 100; i++) {
         sentry_value_t transaction
             = sentry_value_new_transaction("honk", "beep");
-        transaction = sentry_start_transaction(transaction);
+        transaction = sentry_transaction_start(transaction);
         sentry_transaction_finish(transaction);
     }
 
@@ -191,7 +191,7 @@ SENTRY_TEST(transactions_skip_before_send)
     sentry_init(options);
 
     sentry_value_t transaction = sentry_value_new_transaction("honk", "beep");
-    transaction = sentry_start_transaction(transaction);
+    transaction = sentry_transaction_start(transaction);
     sentry_transaction_finish(transaction);
 
     sentry_close();

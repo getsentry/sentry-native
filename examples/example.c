@@ -223,7 +223,7 @@ main(int argc, char **argv)
             sentry_transaction_set_sampled(tx_ctx, 0);
         }
 
-        sentry_value_t tx = sentry_start_transaction(tx_ctx);
+        sentry_value_t tx = sentry_transaction_start(tx_ctx);
         sentry_transaction_finish(tx);
     }
 

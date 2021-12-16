@@ -739,7 +739,7 @@ sentry_set_level(sentry_level_t level)
 }
 
 sentry_value_t
-sentry_start_transaction(sentry_value_t tx_cxt)
+sentry_transaction_start(sentry_value_t tx_cxt)
 {
     sentry_value_t tx = sentry_value_new_event();
 

@@ -1239,7 +1239,7 @@ SENTRY_EXPERIMENTAL_API double sentry_options_get_traces_sample_rate(
 
 /**
  * Constructs a new inert Transaction. The returned value needs to be passed
- * into `sentry_start_transaction` in order to be recorded and sent to sentry.
+ * into `sentry_transaction_start` in order to be recorded and sent to sentry.
  *
  * See
  * https://docs.sentry.io/platforms/native/enriching-events/transaction-name/
@@ -1289,7 +1289,7 @@ SENTRY_EXPERIMENTAL_API void sentry_transaction_remove_sampled(
  * from an external integration (i.e. a span from a different SDK)
  * or manually constructed by a user.
  */
-SENTRY_EXPERIMENTAL_API sentry_value_t sentry_start_transaction(
+SENTRY_EXPERIMENTAL_API sentry_value_t sentry_transaction_start(
     sentry_value_t transaction);
 
 /**
