@@ -363,9 +363,6 @@ sentry__event_is_transaction(sentry_value_t event)
     return false;
 }
 
-// TODO: consider pulling most of the logic into an internal function
-// and explicitly not allowing transactions to be fed in to the public
-// version of this
 sentry_uuid_t
 sentry_capture_event(sentry_value_t event)
 {

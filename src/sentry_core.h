@@ -35,8 +35,7 @@ bool sentry__should_skip_upload(void);
 bool sentry__event_is_transaction(sentry_value_t event);
 
 /**
- * Convert the given event into an envelope. This assumes that the event
- * being passed in is not a transaction.
+ * Convert the given event into an envelope.
  *
  * More specifically, it will do the following things:
  * - sample the event, possibly discarding it,
