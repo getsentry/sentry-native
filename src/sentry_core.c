@@ -338,7 +338,6 @@ sentry__capture_envelope(
     }
     sentry__transport_send_envelope(transport, envelope);
 }
-
 static bool
 event_is_considered_error(sentry_value_t event)
 {
@@ -364,6 +363,9 @@ sentry__event_is_transaction(sentry_value_t event)
     return false;
 }
 
+// TODO: consider pulling most of the logic into an internal function
+// and explicitly not allowing transactions to be fed in to the public
+// version of this
 sentry_uuid_t
 sentry_capture_event(sentry_value_t event)
 {
@@ -373,7 +375,11 @@ sentry_capture_event(sentry_value_t event)
     bool was_captured = false;
     SENTRY_WITH_OPTIONS (options) {
         was_captured = true;
-        envelope = sentry__prepare_event(options, event, &event_id);
+        if (sentry__event_is_transaction(event)) {
+            envelope = sentry__prepare_transaction(options, event, &event_id);
+        } else {
+            envelope = sentry__prepare_event(options, event, &event_id);
+        }
         if (envelope) {
             if (options->session) {
                 SENTRY_WITH_OPTIONS_MUT (mut_options) {
@@ -420,11 +426,10 @@ sentry__should_skip_transaction(sentry_value_t tx_cxt)
     return skip;
 }
 
+// TODO: maybe remove this, logic was moved back into `prepare` functions
 bool
 sentry__should_skip_event(const sentry_options_t *options, sentry_value_t event)
 {
-    sentry_value_t event_type = sentry_value_get_by_key(event, "type");
-    // Not a transaction
     if (sentry__event_is_transaction(event)) {
         // The sampling decision should already be made for transactions
         // during their construction. No need to recalculate here.
@@ -445,15 +450,10 @@ sentry__prepare_event(const sentry_options_t *options, sentry_value_t event,
         sentry__record_errors_on_current_session(1);
     }
 
-    if (sentry__should_skip_event(options, event)) {
+    bool should_skip = !sentry__roll_dice(options->sample_rate);
+    if (should_skip) {
         SENTRY_DEBUG("throwing away event due to sample rate");
         goto fail;
-    }
-
-    // remove superfluous field from transaction
-    bool is_transaction = sentry__event_is_transaction(event);
-    if (is_transaction) {
-        sentry_value_remove_by_key(event, "sampled");
     }
 
     SENTRY_WITH_SCOPE (scope) {
@@ -461,9 +461,6 @@ sentry__prepare_event(const sentry_options_t *options, sentry_value_t event,
         sentry_scope_mode_t mode = SENTRY_SCOPE_ALL;
         if (!options->symbolize_stacktraces) {
             mode &= ~SENTRY_SCOPE_STACKTRACES;
-        }
-        if (is_transaction) {
-            mode &= ~SENTRY_SCOPE_MODULES;
         }
         sentry__scope_apply_to_event(scope, options, event, mode);
     }
@@ -480,7 +477,10 @@ sentry__prepare_event(const sentry_options_t *options, sentry_value_t event,
 
     sentry__ensure_event_id(event, event_id);
     envelope = sentry__envelope_new();
-    if (!envelope || !sentry__envelope_add_event(envelope, event)) {
+    if (!envelope) {
+        goto fail;
+    }
+    if (!sentry__envelope_add_event(envelope, event)) {
         goto fail;
     }
 
@@ -506,6 +506,63 @@ sentry__prepare_event(const sentry_options_t *options, sentry_value_t event,
 fail:
     sentry_envelope_free(envelope);
     sentry_value_decref(event);
+    return NULL;
+}
+
+sentry_envelope_t *
+sentry__prepare_transaction(const sentry_options_t *options,
+    sentry_value_t transaction, sentry_uuid_t *event_id)
+{
+    sentry_envelope_t *envelope = NULL;
+
+    bool should_skip = !sentry_value_is_true(
+        sentry_value_get_by_key(transaction, "sampled"));
+    if (should_skip) {
+        SENTRY_DEBUG("throwing away transaction due to sample rate");
+        goto fail;
+    }
+    // Field is superfluous, strip so it doesn't leak into the payload
+    sentry_value_remove_by_key(transaction, "sampled");
+
+    SENTRY_WITH_SCOPE (scope) {
+        SENTRY_TRACE("merging scope into event");
+        // Don't include debugging info
+        sentry_scope_mode_t mode = SENTRY_SCOPE_ALL & ~SENTRY_SCOPE_MODULES
+            & ~SENTRY_SCOPE_STACKTRACES;
+        sentry__scope_apply_to_event(scope, options, transaction, mode);
+    }
+
+    sentry__ensure_event_id(transaction, event_id);
+    envelope = sentry__envelope_new();
+    if (!envelope) {
+        goto fail;
+    }
+    if (!sentry__envelope_add_transaction(envelope, transaction)) {
+        goto fail;
+    }
+
+    SENTRY_TRACE("adding attachments to envelope");
+    for (sentry_attachment_t *attachment = options->attachments; attachment;
+         attachment = attachment->next) {
+        sentry_envelope_item_t *item = sentry__envelope_add_from_path(
+            envelope, attachment->path, "attachment");
+        if (!item) {
+            continue;
+        }
+        sentry__envelope_item_set_header(item, "filename",
+#ifdef SENTRY_PLATFORM_WINDOWS
+            sentry__value_new_string_from_wstr(
+#else
+            sentry_value_new_string(
+#endif
+                sentry__path_filename(attachment->path)));
+    }
+
+    return envelope;
+
+fail:
+    sentry_envelope_free(envelope);
+    sentry_value_decref(transaction);
     return NULL;
 }
 
@@ -725,9 +782,11 @@ sentry_transaction_finish(sentry_value_t tx)
 {
     sentry_value_t sampled = sentry_value_get_by_key(tx, "sampled");
     if (!sentry_value_is_null(sampled) && !sentry_value_is_true(sampled)) {
+        sentry_value_decref(sampled);
         // TODO: remove from scope
         return;
     }
+    sentry_value_decref(sampled);
 
     sentry_value_set_by_key(tx, "type", sentry_value_new_string("transaction"));
     sentry_value_set_by_key(tx, "timestamp",
@@ -735,24 +794,24 @@ sentry_transaction_finish(sentry_value_t tx)
             sentry__msec_time_to_iso8601(sentry__msec_time())));
     sentry_value_set_by_key(tx, "level", sentry_value_new_string("info"));
 
-    sentry_value_t fake_span = sentry_value_new_object();
-    sentry_value_set_by_key(
-        fake_span, "trace_id", sentry_value_get_by_key(tx, "trace_id"));
-    sentry_value_set_by_key(
-        fake_span, "parent_span_id", sentry_value_get_by_key(tx, "span_id"));
-    sentry_uuid_t fake_span_id = sentry_uuid_new_v4();
-    sentry_value_set_by_key(
-        fake_span, "span_id", sentry__value_new_span_uuid(&fake_span_id));
-    sentry_value_set_by_key(fake_span, "op", sentry_value_new_string("hohee"));
-    sentry_value_set_by_key(
-        fake_span, "description", sentry_value_new_string("heeho"));
-    sentry_value_set_by_key(fake_span, "start_timestamp",
-        sentry_value_get_by_key(tx, "start_timestamp"));
-    sentry_value_set_by_key(
-        fake_span, "timestamp", sentry_value_get_by_key(tx, "timestamp"));
-    sentry_value_t spans = sentry__value_new_list_with_size(1);
-    sentry_value_append(spans, fake_span);
-    sentry_value_set_by_key(tx, "spans", spans);
+    // sentry_value_t fake_span = sentry_value_new_object();
+    // sentry_value_set_by_key(
+    //     fake_span, "trace_id", sentry_value_get_by_key(tx, "trace_id"));
+    // sentry_value_set_by_key(
+    //     fake_span, "parent_span_id", sentry_value_get_by_key(tx, "span_id"));
+    // sentry_uuid_t fake_span_id = sentry_uuid_new_v4();
+    // sentry_value_set_by_key(
+    //     fake_span, "span_id", sentry__value_new_span_uuid(&fake_span_id));
+    // sentry_value_set_by_key(fake_span, "op",
+    // sentry_value_new_string("hohee")); sentry_value_set_by_key(
+    //     fake_span, "description", sentry_value_new_string("heeho"));
+    // sentry_value_set_by_key(fake_span, "start_timestamp",
+    //     sentry_value_get_by_key(tx, "start_timestamp"));
+    // sentry_value_set_by_key(
+    //     fake_span, "timestamp", sentry_value_get_by_key(tx, "timestamp"));
+    // sentry_value_t spans = sentry__value_new_list_with_size(1);
+    // sentry_value_append(spans, fake_span);
+    // sentry_value_set_by_key(tx, "spans", spans);
 
     // TODO: add tracestate
     // set up trace context so it mirrors the final json value
