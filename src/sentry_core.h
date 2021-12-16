@@ -52,6 +52,11 @@ sentry_envelope_t *sentry__prepare_event(const sentry_options_t *options,
     sentry_value_t event, sentry_uuid_t *event_id);
 
 /**
+ * Sends a sentry event, regardless of its type.
+ */
+sentry_uuid_t sentry__capture_event(sentry_value_t event);
+
+/**
  * This function will submit the `envelope` to the given `transport`, first
  * checking for consent.
  */

@@ -366,13 +366,27 @@ sentry__event_is_transaction(sentry_value_t event)
 sentry_uuid_t
 sentry_capture_event(sentry_value_t event)
 {
+    if (sentry__event_is_transaction(event)) {
+        return sentry_uuid_nil();
+    } else {
+        return sentry__capture_event(event);
+    }
+}
+
+sentry_uuid_t
+sentry__capture_event(sentry_value_t event)
+{
     sentry_uuid_t event_id;
     sentry_envelope_t *envelope = NULL;
 
     bool was_captured = false;
     SENTRY_WITH_OPTIONS (options) {
         was_captured = true;
-        envelope = sentry__prepare_event(options, event, &event_id);
+        if (sentry__event_is_transaction(event)) {
+            return sentry_uuid_nil();
+        } else {
+            envelope = sentry__prepare_event(options, event, &event_id);
+        }
         if (envelope) {
             if (options->session) {
                 SENTRY_WITH_OPTIONS_MUT (mut_options) {

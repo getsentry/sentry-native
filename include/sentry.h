@@ -1103,7 +1103,8 @@ SENTRY_API void sentry_user_consent_reset(void);
 SENTRY_API sentry_user_consent_t sentry_user_consent_get(void);
 
 /**
- * Sends a sentry event.
+ * Sends a sentry event. Returns a nil UUID if the event being passed in is a
+ * transaction; `sentry_transaction_finish` should be used to send transactions.
  */
 SENTRY_API sentry_uuid_t sentry_capture_event(sentry_value_t event);
 
