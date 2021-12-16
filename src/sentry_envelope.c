@@ -261,7 +261,10 @@ sentry__envelope_add_transaction(
 
     sentry_value_incref(event_id);
     sentry__envelope_set_header(envelope, "event_id", event_id);
-    // TODO: add sent_at header
+
+    sentry_value_t now = sentry__value_new_string_owned(
+        sentry__msec_time_to_iso8601(sentry__msec_time()));
+    sentry__envelope_set_header(envelope, "sent_at", now);
 
     return item;
 }
