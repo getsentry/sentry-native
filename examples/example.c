@@ -93,9 +93,15 @@ main(int argc, char **argv)
             options, sentry_transport_new(print_envelope));
     }
 
+    if (has_arg(argc, argv, "capture-transaction")) {
+        sentry_options_set_traces_sample_rate(options, 1.0);
+    }
+
     sentry_init(options);
 
-    if (!has_arg(argc, argv, "no-setup")) {
+    if (!has_arg(argc, argv, "no-setup")
+        || has_arg(argc, argv, "capture-transaction")) {
+
         sentry_set_transaction("test-transaction");
         sentry_set_level(SENTRY_LEVEL_WARNING);
         sentry_set_extra("extra stuff", sentry_value_new_string("some value"));
@@ -206,6 +212,19 @@ main(int argc, char **argv)
         sentry_event_add_exception(event, exc);
 
         sentry_capture_event(event);
+    }
+
+    if (has_arg(argc, argv, "capture-transaction")) {
+        sentry_value_t tx_ctx
+            = sentry_value_new_transaction("I'm a little teapot",
+                "Short and stout here is my handle and here is my spout");
+
+        if (has_arg(argc, argv, "unsample-tx")) {
+            sentry_transaction_set_sampled(tx_ctx, 0);
+        }
+
+        sentry_value_t tx = sentry_start_transaction(tx_ctx);
+        sentry_transaction_finish(tx);
     }
 
     // make sure everything flushes
