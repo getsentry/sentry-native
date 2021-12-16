@@ -422,8 +422,6 @@ sentry__should_skip_transaction(sentry_value_t tx_cxt)
 bool
 sentry__should_skip_event(const sentry_options_t *options, sentry_value_t event)
 {
-    sentry_value_t event_type = sentry_value_get_by_key(event, "type");
-    // Not a transaction
     if (sentry__event_is_transaction(event)) {
         // The sampling decision should already be made for transactions
         // during their construction. No need to recalculate here.
