@@ -354,6 +354,16 @@ event_is_considered_error(sentry_value_t event)
     return false;
 }
 
+bool
+sentry__event_is_transaction(sentry_value_t event)
+{
+    sentry_value_t event_type = sentry_value_get_by_key(event, "type");
+    if (sentry__string_eq("transaction", sentry_value_as_string(event_type))) {
+        return true;
+    }
+    return false;
+}
+
 sentry_uuid_t
 sentry_capture_event(sentry_value_t event)
 {
@@ -415,13 +425,13 @@ sentry__should_skip_event(const sentry_options_t *options, sentry_value_t event)
 {
     sentry_value_t event_type = sentry_value_get_by_key(event, "type");
     // Not a transaction
-    if (sentry_value_is_null(event_type)) {
-        return !sentry__roll_dice(options->sample_rate);
-    } else {
+    if (sentry__event_is_transaction(event)) {
         // The sampling decision should already be made for transactions
         // during their construction. No need to recalculate here.
         // See `sentry__should_skip_transaction`.
         return !sentry_value_is_true(sentry_value_get_by_key(event, "sampled"));
+    } else {
+        return !sentry__roll_dice(options->sample_rate);
     }
 }
 
@@ -441,8 +451,7 @@ sentry__prepare_event(const sentry_options_t *options, sentry_value_t event,
     }
 
     // remove superfluous field from transaction
-    int is_transaction
-        = !sentry_value_is_null(sentry_value_get_by_key(event, "type"));
+    bool is_transaction = sentry__event_is_transaction(event);
     if (is_transaction) {
         sentry_value_remove_by_key(event, "sampled");
     }
