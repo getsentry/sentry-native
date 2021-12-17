@@ -1132,13 +1132,14 @@ sentry__value_new_span(sentry_value_t parent, const char *operation)
     sentry_transaction_context_set_operation(span, operation);
     sentry_value_set_by_key(span, "status", sentry_value_new_string("ok"));
 
+    // Span creation is currently aggressively pruned prior to this function so
+    // once we're in here we definitely know that the span and its parent
+    // transaction are sampled.
     if (!sentry_value_is_null(parent)) {
         sentry_value_set_by_key(span, "trace_id",
             sentry_value_get_by_key_owned(parent, "trace_id"));
         sentry_value_set_by_key(span, "parent_span_id",
             sentry_value_get_by_key_owned(parent, "span_id"));
-        sentry_value_set_by_key(
-            span, "sampled", sentry_value_get_by_key_owned(parent, "sampled"));
     }
 
     return span;

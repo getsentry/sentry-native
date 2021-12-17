@@ -97,6 +97,10 @@ main(int argc, char **argv)
         sentry_options_set_traces_sample_rate(options, 1.0);
     }
 
+    if (has_arg(argc, argv, "child-spans")) {
+        sentry_options_set_max_spans(options, 5);
+    }
+
     sentry_init(options);
 
     if (!has_arg(argc, argv, "no-setup")) {
@@ -214,14 +218,24 @@ main(int argc, char **argv)
 
     if (has_arg(argc, argv, "capture-transaction")) {
         sentry_value_t tx_ctx
-            = sentry_value_new_transaction_context("I'm a little teapot",
+            = sentry_value_new_transaction_context("little.teapot",
                 "Short and stout here is my handle and here is my spout");
 
         if (has_arg(argc, argv, "unsample-tx")) {
             sentry_transaction_context_set_sampled(tx_ctx, 0);
         }
-
         sentry_transaction_start(tx_ctx);
+
+        if (has_arg(argc, argv, "child-spans")) {
+            sentry_value_t child_ctx = sentry_span_start_child(
+                sentry_value_new_null(), "littler.teapot", NULL);
+            sentry_value_t grandchild_ctx
+                = sentry_span_start_child(child_ctx, "littlest.teapot", NULL);
+
+            sentry_span_finish(grandchild_ctx);
+            sentry_span_finish(child_ctx);
+        }
+
         sentry_transaction_finish();
     }
 

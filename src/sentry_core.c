@@ -784,6 +784,8 @@ sentry_transaction_finish()
     sentry_value_set_by_key(tx, "timestamp",
         sentry__value_new_string_owned(
             sentry__msec_time_to_iso8601(sentry__msec_time())));
+    // TODO: This might not actually be necessary. Revisit after talking to
+    // the relay team about this.
     sentry_value_set_by_key(tx, "level", sentry_value_new_string("info"));
 
     sentry_value_t name = sentry_value_get_by_key(tx, "transaction");
@@ -806,6 +808,92 @@ sentry_transaction_finish()
     sentry_value_remove_by_key(tx, "description");
     sentry_value_remove_by_key(tx, "status");
 
+    // TODO: prune unfinished child spans
     // This decrefs for us, generates an event ID, merges scope
     return sentry__capture_event(tx);
+}
+
+sentry_value_t
+sentry_span_start_child(
+    sentry_value_t parent_span_context, char *operation, char *description)
+{
+    size_t max_spans = SENTRY_SPANS_MAX;
+    SENTRY_WITH_OPTIONS (options) {
+        max_spans = options->max_spans;
+    }
+
+    sentry_value_t child_span_context = sentry_value_new_null();
+    size_t span_count = 0;
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        // There isn't an active transaction. This span has nothing to attach
+        // to.
+        if (sentry_value_is_null(scope->span)) {
+            return sentry_value_new_null();
+        }
+        // Aggressively discard spans if a transaction is unsampled to avoid
+        // wasting memory
+        sentry_value_t sampled
+            = sentry_value_get_by_key(scope->span, "sampled");
+        if (!sentry_value_is_true(sampled)) {
+            return sentry_value_new_null();
+        }
+        sentry_value_t spans = sentry_value_get_by_key(scope->span, "spans");
+        span_count = sentry_value_get_length(spans);
+        if (span_count >= max_spans) {
+            return sentry_value_new_null();
+        }
+        // TODO: if the parent span can't be found in the current active
+        // transaction, take ownership of the parent span context and return
+        // null.
+
+        sentry_value_t parent;
+        if (sentry_value_is_null(parent_span_context)) {
+            parent = scope->span;
+        } else {
+            parent = parent_span_context;
+        }
+
+        sentry_value_t child = sentry__value_new_span(parent, operation);
+        sentry_uuid_t span_id = sentry_uuid_new_v4();
+        sentry_value_set_by_key(
+            child, "span_id", sentry__value_new_span_uuid(&span_id));
+        sentry_value_set_by_key(
+            child, "description", sentry_value_new_string(description));
+        sentry_value_set_by_key(child, "start_timestamp",
+            sentry__value_new_string_owned(
+                sentry__msec_time_to_iso8601(sentry__msec_time())));
+
+        if (sentry_value_is_null(spans)) {
+            spans = sentry_value_new_list();
+            sentry_value_set_by_key(scope->span, "spans", spans);
+        }
+        child_span_context = sentry__span_get_span_context(child);
+        sentry_value_append(spans, child);
+    }
+    sentry_value_set_by_key(
+        child_span_context, "index", sentry_value_new_int32((int)span_count));
+
+    return child_span_context;
+}
+
+void
+sentry_span_finish(sentry_value_t span_context)
+{
+    sentry_value_t sv_index = sentry_value_get_by_key(span_context, "index");
+    if (sentry_value_is_null(sv_index)) {
+        sentry_value_decref(span_context);
+        return;
+    }
+    int index = sentry_value_as_int32(sv_index);
+
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry_value_t spans = sentry_value_get_by_key(scope->span, "spans");
+        // TODO: maybe validate that to_update.span_id == span.span_id
+        sentry_value_t to_update = sentry_value_get_by_index(spans, index);
+        sentry_value_set_by_key(to_update, "timestamp",
+            sentry__value_new_string_owned(
+                sentry__msec_time_to_iso8601(sentry__msec_time())));
+    }
+
+    sentry_value_decref(span_context);
 }

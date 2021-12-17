@@ -1295,16 +1295,63 @@ SENTRY_EXPERIMENTAL_API void sentry_transaction_context_remove_sampled(
  * Starts a new Transaction based on the provided context, restored from an
  * external integration (i.e. a span from a different SDK) or manually
  * constructed by a user.
+ *
+ * `sentry_transaction_finish` should be called after this is invoked, otherwise
+ * the Transaction will not be sent to sentry. New spans cannot be created
+ * unless there exists an active Transaction.
  */
 SENTRY_EXPERIMENTAL_API void sentry_transaction_start(
     sentry_value_t transaction_context);
 
 /**
- * Finishes and sends the current transaction to sentry. The event ID of the
- * transaction will be returned if this was successful; A nil UUID will be
- * returned otherwise.
+ * Finishes and sends the current active Transaction to sentry. Any unfinished
+ * spans are removed from the Transaction before it is sent over.
+ *
+ * No new spans can be created after this is invoked unless a new Transaction is
+ * started via `sentry_transaction_start`.
  */
 SENTRY_EXPERIMENTAL_API sentry_uuid_t sentry_transaction_finish();
+
+/**
+ * Starts a new Span.
+ *
+ * If `parent_span` is `sentry_value_null`, then the current active Transaction
+ * is used as the parent for the new Span. An active Transaction must be created
+ * via `sentry_transaction_start` in order for the Span to be successfully
+ * created.
+ *
+ * If `parent_span` is another Span, it must belong to the current active
+ * Transaction in order for Span creation to succeed. This will take ownership
+ * of any `parent_span`s that do reference non-existent Spans in the current
+ * active Transaction.
+ *
+ * Both operation and description can be null, but it is recommended to supply
+ * the former. See https://develop.sentry.dev/sdk/performance/span-operations/
+ * for conventions around operations.
+ *
+ * See https://develop.sentry.dev/sdk/event-payloads/span/ for a description of
+ * the created Span's properties and expectations for operation and description.
+ *
+ * Returns a value that should be passed into `sentry_span_finish`. Not
+ * finishing the Span means it will be discarded, and will not be sent to
+ * sentry. `sentry_value_null` will be returned, and `parent_span`'s ownership
+ * will be taken if the child Span could not be created.
+ */
+SENTRY_EXPERIMENTAL_API sentry_value_t sentry_span_start_child(
+    sentry_value_t parent_span, char *operation, char *description);
+
+/**
+ * Finishes a span.
+ *
+ * Returns a value that should be passed into `sentry_span_finish`. Not
+ * finishing the span means it will be discarded, and will not be sent to
+ * sentry.
+ *
+ * This takes ownership of `span`, as child spans must always occur within the
+ * total duration of a parent span and cannot take a longer amount of time to
+ * complete than the parent span they belong to.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_span_finish(sentry_value_t span);
 
 #ifdef __cplusplus
 }

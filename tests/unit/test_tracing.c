@@ -309,5 +309,151 @@ SENTRY_TEST(multiple_transactions)
     TEST_CHECK_INT_EQUAL(called_transport, 2);
 }
 
+SENTRY_TEST(basic_spans)
+{
+    sentry_options_t *options = sentry_options_new();
+    sentry_options_set_traces_sample_rate(options, 1.0);
+    sentry_options_set_max_spans(options, 3);
+    sentry_init(options);
+
+    // Starting a child with no active transaction should fail
+    sentry_value_t parentless_child
+        = sentry_span_start_child(sentry_value_new_null(), NULL, NULL);
+    TEST_CHECK(sentry_value_is_null(parentless_child));
+
+    sentry_value_t tx_cxt = sentry_value_new_transaction_context("wow!", NULL);
+    sentry_transaction_start(tx_cxt);
+
+    sentry_value_t child
+        = sentry_span_start_child(sentry_value_new_null(), "honk", "goose");
+    TEST_CHECK(!sentry_value_is_null(child));
+
+    // Peek into the transaction's span list and make sure everything is
+    // good
+    sentry_value_t scope_tx = sentry__scope_get_span();
+    const char *trace_id
+        = sentry_value_as_string(sentry_value_get_by_key(scope_tx, "trace_id"));
+    const char *parent_span_id
+        = sentry_value_as_string(sentry_value_get_by_key(scope_tx, "span_id"));
+    TEST_CHECK(!IS_NULL(scope_tx, "spans"));
+    TEST_CHECK_INT_EQUAL(
+        sentry_value_get_length(sentry_value_get_by_key(scope_tx, "spans")), 1);
+
+    // Make sure the span inherited everything correctly
+    sentry_value_t stored_child = sentry_value_get_by_index(
+        sentry_value_get_by_key(scope_tx, "spans"), 0);
+    CHECK_STRING_PROPERTY(stored_child, "trace_id", trace_id);
+    CHECK_STRING_PROPERTY(stored_child, "parent_span_id", parent_span_id);
+    CHECK_STRING_PROPERTY(stored_child, "op", "honk");
+    CHECK_STRING_PROPERTY(stored_child, "description", "goose");
+    // Not finished yet
+    TEST_CHECK(IS_NULL(stored_child, "timestamp"));
+    // Span contexts carry indices in this SDK to make it easier to find and
+    // update them, make sure they don't leak into the transaction
+    TEST_CHECK(IS_NULL(stored_child, "index"));
+
+    sentry_span_finish(child);
+    stored_child = sentry_value_get_by_index(
+        sentry_value_get_by_key(scope_tx, "spans"), 0);
+    // Should be finished
+    TEST_CHECK(!IS_NULL(stored_child, "timestamp"));
+
+    sentry_close();
+}
+
+SENTRY_TEST(child_spans)
+{
+    sentry_options_t *options = sentry_options_new();
+    sentry_options_set_traces_sample_rate(options, 1.0);
+    sentry_options_set_max_spans(options, 3);
+    sentry_init(options);
+
+    // Starting a child with no active transaction should fail
+    sentry_value_t parentless_child
+        = sentry_span_start_child(sentry_value_new_null(), NULL, NULL);
+    TEST_CHECK(sentry_value_is_null(parentless_child));
+
+    // Finishing a nonexistent span doesn't explode anything
+    sentry_value_t fake_span
+        = sentry__value_new_span(sentry_value_new_null(), NULL);
+    sentry_span_finish(fake_span);
+
+    sentry_value_t tx_cxt = sentry_value_new_transaction_context("wow!", NULL);
+    sentry_transaction_start(tx_cxt);
+
+    sentry_value_t child
+        = sentry_span_start_child(sentry_value_new_null(), "honk", "goose");
+    TEST_CHECK(!sentry_value_is_null(child));
+
+    // Peek into the transaction's span list and make sure everything is
+    // good
+    sentry_value_t scope_tx = sentry__scope_get_span();
+    const char *trace_id
+        = sentry_value_as_string(sentry_value_get_by_key(scope_tx, "trace_id"));
+    TEST_CHECK_INT_EQUAL(
+        sentry_value_get_length(sentry_value_get_by_key(scope_tx, "spans")), 1);
+
+    const char *parent_span_id
+        = sentry_value_as_string(sentry_value_get_by_key(child, "span_id"));
+
+    sentry_value_t grandchild = sentry_span_start_child(child, "beep", "car");
+    sentry_span_finish(grandchild);
+
+    // Make sure everything on the transaction looks good, check grandchild
+    TEST_CHECK_INT_EQUAL(
+        sentry_value_get_length(sentry_value_get_by_key(scope_tx, "spans")), 2);
+
+    sentry_value_t stored_grandchild = sentry_value_get_by_index(
+        sentry_value_get_by_key(scope_tx, "spans"), 1);
+    CHECK_STRING_PROPERTY(stored_grandchild, "trace_id", trace_id);
+    CHECK_STRING_PROPERTY(stored_grandchild, "parent_span_id", parent_span_id);
+    CHECK_STRING_PROPERTY(stored_grandchild, "op", "beep");
+    CHECK_STRING_PROPERTY(stored_grandchild, "description", "car");
+    // No span context-exclusive values leaking into transaction's spans
+    TEST_CHECK(IS_NULL(stored_grandchild, "index"));
+    // Should be finished
+    TEST_CHECK(!IS_NULL(stored_grandchild, "timestamp"));
+
+    sentry_span_finish(child);
+
+    sentry_close();
+}
+
+SENTRY_TEST(overflow_spans)
+{
+    sentry_options_t *options = sentry_options_new();
+    sentry_options_set_traces_sample_rate(options, 1.0);
+    sentry_options_set_max_spans(options, 1);
+    sentry_init(options);
+
+    sentry_value_t tx_cxt = sentry_value_new_transaction_context("wow!", NULL);
+    sentry_transaction_start(tx_cxt);
+
+    sentry_value_t child
+        = sentry_span_start_child(sentry_value_new_null(), "honk", "goose");
+    const char *child_span_id
+        = sentry_value_as_string(sentry_value_get_by_key(child, "span_id"));
+
+    sentry_value_t scope_tx = sentry__scope_get_span();
+    TEST_CHECK_INT_EQUAL(
+        sentry_value_get_length(sentry_value_get_by_key(scope_tx, "spans")), 1);
+
+    sentry_value_t overflow_child
+        = sentry_span_start_child(child, "beep", "car");
+    TEST_CHECK(sentry_value_is_null(overflow_child));
+
+    TEST_CHECK_INT_EQUAL(
+        sentry_value_get_length(sentry_value_get_by_key(scope_tx, "spans")), 1);
+
+    sentry_value_t stored_child = sentry_value_get_by_index(
+        sentry_value_get_by_key(scope_tx, "spans"), 0);
+    CHECK_STRING_PROPERTY(stored_child, "span_id", child_span_id);
+
+    sentry_value_decref(child);
+    sentry_value_decref(overflow_child);
+
+    sentry_close();
+}
+
 #undef IS_NULL
 #undef CHECK_STRING_PROPERTY
