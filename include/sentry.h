@@ -1282,8 +1282,7 @@ SENTRY_EXPERIMENTAL_API void sentry_transaction_set_tag(
     sentry_value_t transaction, const char *tag, const char *value);
 
 /**
- * Removes a tag from a transaction. Returns 0 if the tag was successfully
- * removed, 1 otherwise.
+ * Removes a tag from a transaction.
  */
 SENTRY_EXPERIMENTAL_API void sentry_transaction_remove_tag(
     sentry_value_t transaction, const char *tag);
@@ -1295,8 +1294,7 @@ SENTRY_EXPERIMENTAL_API void sentry_transaction_set_data(
     sentry_value_t transaction, const char *key, sentry_value_t value);
 
 /**
- * Removes a key from a transaction's "data" section. Returns 0 if the key was successfully
- * removed, 1 otherwise.
+ * Removes a key from a transaction's "data" section.
  */
 SENTRY_EXPERIMENTAL_API void sentry_transaction_remove_data(
     sentry_value_t transaction, const char *key);
