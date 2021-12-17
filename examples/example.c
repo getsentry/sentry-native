@@ -100,7 +100,7 @@ main(int argc, char **argv)
     sentry_init(options);
 
     if (!has_arg(argc, argv, "no-setup")
-        || has_arg(argc, argv, "capture-transaction")) {
+        && !has_arg(argc, argv, "capture-transaction")) {
 
         sentry_set_transaction("test-transaction");
         sentry_set_level(SENTRY_LEVEL_WARNING);
