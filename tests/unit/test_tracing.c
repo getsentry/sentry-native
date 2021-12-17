@@ -3,6 +3,8 @@
 #include "sentry_tracing.h"
 #include "sentry_uuid.h"
 
+#define IS_NULL(Src, Field)                                                    \
+    sentry_value_is_null(sentry_value_get_by_key(Src, Field))
 #define CHECK_STRING_PROPERTY(Src, Field, Expected)                            \
     TEST_CHECK_STRING_EQUAL(                                                   \
         sentry_value_as_string(sentry_value_get_by_key(Src, Field)), Expected)
@@ -43,52 +45,80 @@ SENTRY_TEST(basic_transaction)
 {
     sentry_value_t tx_cxt = sentry_value_new_transaction_context(NULL, NULL);
     TEST_CHECK(!sentry_value_is_null(tx_cxt));
-    const char *tx_name
-        = sentry_value_as_string(sentry_value_get_by_key(tx_cxt, "name"));
-    TEST_CHECK_STRING_EQUAL(tx_name, "<unlabeled transaction>");
-    const char *tx_op
-        = sentry_value_as_string(sentry_value_get_by_key(tx_cxt, "op"));
-    TEST_CHECK_STRING_EQUAL(tx_op, "");
-    TEST_CHECK(
-        !sentry_value_is_null(sentry_value_get_by_key(tx_cxt, "trace_id")));
-    TEST_CHECK(
-        !sentry_value_is_null(sentry_value_get_by_key(tx_cxt, "span_id")));
+    CHECK_STRING_PROPERTY(tx_cxt, "transaction", "");
+    CHECK_STRING_PROPERTY(tx_cxt, "op", "");
+    TEST_CHECK(!IS_NULL(tx_cxt, "trace_id"));
+    TEST_CHECK(!IS_NULL(tx_cxt, "span_id"));
 
     sentry_value_decref(tx_cxt);
     tx_cxt = sentry_value_new_transaction_context("", "");
     TEST_CHECK(!sentry_value_is_null(tx_cxt));
-    tx_name = sentry_value_as_string(sentry_value_get_by_key(tx_cxt, "name"));
-    TEST_CHECK_STRING_EQUAL(tx_name, "<unlabeled transaction>");
-    TEST_CHECK_STRING_EQUAL(tx_op, "");
-    TEST_CHECK(
-        !sentry_value_is_null(sentry_value_get_by_key(tx_cxt, "trace_id")));
-    TEST_CHECK(
-        !sentry_value_is_null(sentry_value_get_by_key(tx_cxt, "span_id")));
+    CHECK_STRING_PROPERTY(tx_cxt, "transaction", "");
+    CHECK_STRING_PROPERTY(tx_cxt, "op", "");
+    TEST_CHECK(!IS_NULL(tx_cxt, "trace_id"));
+    TEST_CHECK(!IS_NULL(tx_cxt, "span_id"));
 
     sentry_value_decref(tx_cxt);
     tx_cxt = sentry_value_new_transaction_context("honk.beep", "beepbeep");
-    tx_name = sentry_value_as_string(sentry_value_get_by_key(tx_cxt, "name"));
-    TEST_CHECK_STRING_EQUAL(tx_name, "honk.beep");
-    tx_op = sentry_value_as_string(sentry_value_get_by_key(tx_cxt, "op"));
-    TEST_CHECK_STRING_EQUAL(tx_op, "beepbeep");
-    TEST_CHECK(
-        !sentry_value_is_null(sentry_value_get_by_key(tx_cxt, "trace_id")));
-    TEST_CHECK(
-        !sentry_value_is_null(sentry_value_get_by_key(tx_cxt, "span_id")));
+    CHECK_STRING_PROPERTY(tx_cxt, "transaction", "honk.beep");
+    CHECK_STRING_PROPERTY(tx_cxt, "op", "beepbeep");
+    TEST_CHECK(!IS_NULL(tx_cxt, "trace_id"));
+    TEST_CHECK(!IS_NULL(tx_cxt, "span_id"));
 
     sentry_transaction_context_set_name(tx_cxt, "");
-    tx_name = sentry_value_as_string(sentry_value_get_by_key(tx_cxt, "name"));
-    TEST_CHECK_STRING_EQUAL(tx_name, "<unlabeled transaction>");
+    CHECK_STRING_PROPERTY(tx_cxt, "transaction", "");
 
     sentry_transaction_context_set_operation(tx_cxt, "");
-    tx_op = sentry_value_as_string(sentry_value_get_by_key(tx_cxt, "op"));
-    TEST_CHECK_STRING_EQUAL(tx_op, "");
+    CHECK_STRING_PROPERTY(tx_cxt, "op", "");
 
     sentry_transaction_context_set_sampled(tx_cxt, 1);
     TEST_CHECK(
         sentry_value_is_true(sentry_value_get_by_key(tx_cxt, "sampled")) == 1);
 
     sentry_value_decref(tx_cxt);
+}
+
+static void
+check_backfilled_name(sentry_envelope_t *envelope, void *data)
+{
+    uint64_t *called = data;
+    *called += 1;
+
+    sentry_value_t transaction = sentry_envelope_get_transaction(envelope);
+    TEST_CHECK(!sentry_value_is_null(transaction));
+    CHECK_STRING_PROPERTY(
+        transaction, "transaction", "<unlabeled transaction>");
+
+    sentry_envelope_free(envelope);
+}
+
+SENTRY_TEST(transaction_name_backfill_on_finish)
+{
+    uint64_t called = 0;
+
+    sentry_options_t *options = sentry_options_new();
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+
+    sentry_transport_t *transport = sentry_transport_new(check_backfilled_name);
+    sentry_transport_set_state(transport, &called);
+    sentry_options_set_transport(options, transport);
+
+    sentry_options_set_traces_sample_rate(options, 1.0);
+    sentry_init(options);
+
+    sentry_value_t transaction
+        = sentry_value_new_transaction_context(NULL, NULL);
+    sentry_transaction_start(transaction);
+    sentry_uuid_t event_id = sentry_transaction_finish();
+    TEST_CHECK(!sentry_uuid_is_nil(&event_id));
+
+    transaction = sentry_value_new_transaction_context("", "");
+    sentry_transaction_start(transaction);
+    event_id = sentry_transaction_finish();
+    TEST_CHECK(!sentry_uuid_is_nil(&event_id));
+
+    sentry_close();
+    TEST_CHECK_INT_EQUAL(called, 2);
 }
 
 static void
@@ -279,4 +309,5 @@ SENTRY_TEST(multiple_transactions)
     TEST_CHECK_INT_EQUAL(called_transport, 2);
 }
 
+#undef IS_NULL
 #undef CHECK_STRING_PROPERTY

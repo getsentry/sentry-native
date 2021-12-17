@@ -714,7 +714,13 @@ sentry_set_level(sentry_level_t level)
 void
 sentry_transaction_start(sentry_value_t tx_cxt)
 {
+    // TODO: it would be nice if we could just merge tx_cxt into tx.
+    // `sentry_value_new_transaction_event()` is also an option, but risks
+    // causing more confusion as there's already a
+    // `sentry_value_new_transaction`. The ending timestamp is stripped as well
+    // to avoid misleading ourselves later down the line.
     sentry_value_t tx = sentry_value_new_event();
+    sentry_value_remove_by_key(tx, "timestamp");
 
     bool should_sample = sentry__should_send_transaction(tx_cxt);
     sentry_value_set_by_key(
@@ -731,8 +737,10 @@ sentry_transaction_start(sentry_value_t tx_cxt)
         tx, "trace_id", sentry_value_get_by_key_owned(tx_cxt, "trace_id"));
     sentry_value_set_by_key(
         tx, "span_id", sentry_value_get_by_key_owned(tx_cxt, "trace_id"));
+    sentry_value_set_by_key(tx, "transaction",
+        sentry_value_get_by_key_owned(tx_cxt, "transaction"));
     sentry_value_set_by_key(
-        tx, "transaction", sentry_value_get_by_key_owned(tx_cxt, "name"));
+        tx, "status", sentry_value_get_by_key_owned(tx_cxt, "status"));
     sentry_value_set_by_key(tx, "start_timestamp",
         sentry__value_new_string_owned(
             sentry__msec_time_to_iso8601(sentry__msec_time())));
@@ -778,10 +786,13 @@ sentry_transaction_finish()
             sentry__msec_time_to_iso8601(sentry__msec_time())));
     sentry_value_set_by_key(tx, "level", sentry_value_new_string("info"));
 
-    // TODO(tracing): add tracestate
-    // set up trace context so it mirrors the final json value
-    sentry_value_set_by_key(tx, "status", sentry_value_new_string("ok"));
+    sentry_value_t name = sentry_value_get_by_key(tx, "transaction");
+    if (sentry_value_is_null(name) || sentry_value_get_length(name) == 0) {
+        sentry_value_set_by_key(tx, "transaction",
+            sentry_value_new_string("<unlabeled transaction>"));
+    }
 
+    // TODO: add tracestate
     sentry_value_t trace_context = sentry__span_get_trace_context(tx);
     sentry_value_t contexts = sentry_value_new_object();
     sentry_value_set_by_key(contexts, "trace", trace_context);

@@ -1125,9 +1125,31 @@ sentry_value_new_stacktrace(void **ips, size_t len)
 }
 
 sentry_value_t
+sentry__value_new_span(sentry_value_t parent, const char *operation)
+{
+    sentry_value_t span = sentry_value_new_object();
+
+    sentry_transaction_context_set_operation(span, operation);
+    sentry_value_set_by_key(span, "status", sentry_value_new_string("ok"));
+
+    if (!sentry_value_is_null(parent)) {
+        sentry_value_set_by_key(span, "trace_id",
+            sentry_value_get_by_key_owned(parent, "trace_id"));
+        sentry_value_set_by_key(span, "parent_span_id",
+            sentry_value_get_by_key_owned(parent, "span_id"));
+        sentry_value_set_by_key(
+            span, "sampled", sentry_value_get_by_key_owned(parent, "sampled"));
+    }
+
+    return span;
+}
+
+sentry_value_t
 sentry_value_new_transaction_context(const char *name, const char *operation)
 {
-    sentry_value_t transaction_context = sentry_value_new_object();
+    sentry_value_t transaction_context
+        = sentry__value_new_span(sentry_value_new_null(), operation);
+    sentry_transaction_context_set_name(transaction_context, name);
 
     sentry_uuid_t trace_id = sentry_uuid_new_v4();
     sentry_value_set_by_key(transaction_context, "trace_id",
@@ -1147,14 +1169,8 @@ void
 sentry_transaction_context_set_name(
     sentry_value_t transaction_context, const char *name)
 {
-    sentry_value_t sv_name = sentry_value_new_string(name);
-    // TODO: Consider doing this checking right before sending or flushing
-    // the transaction.
-    if (sentry_value_is_null(sv_name) || sentry__string_eq(name, "")) {
-        sentry_value_decref(sv_name);
-        sv_name = sentry_value_new_string("<unlabeled transaction>");
-    }
-    sentry_value_set_by_key(transaction_context, "name", sv_name);
+    sentry_value_set_by_key(
+        transaction_context, "transaction", sentry_value_new_string(name));
 }
 
 void
