@@ -808,7 +808,24 @@ sentry_transaction_finish()
     sentry_value_remove_by_key(tx, "description");
     sentry_value_remove_by_key(tx, "status");
 
-    // TODO: prune unfinished child spans
+    sentry_value_t spans = sentry_value_get_by_key(tx, "spans");
+    size_t span_count = sentry_value_get_length(spans);
+    // Go backwards to avoid accidentally skipping elements
+    for (size_t i = span_count; i > 0; i--) {
+        // TODO: Assume that tags and data from scope do not need to be merged
+        // into spans. This may be completely wrong.
+        bool should_remove = false;
+        {
+            sentry_value_t span = sentry_value_get_by_index(spans, i - 1);
+            should_remove = sentry_value_is_null(
+                sentry_value_get_by_key(span, "timestamp"));
+        }
+        if (should_remove) {
+            SENTRY_DEBUG("dropped an unfinished span from transaction");
+            sentry_value_remove_by_index(spans, i - 1);
+        }
+    }
+
     // This decrefs for us, generates an event ID, merges scope
     return sentry__capture_event(tx);
 }
