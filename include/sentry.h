@@ -1296,16 +1296,15 @@ SENTRY_EXPERIMENTAL_API void sentry_transaction_context_remove_sampled(
  * external integration (i.e. a span from a different SDK) or manually
  * constructed by a user.
  */
-SENTRY_EXPERIMENTAL_API sentry_value_t sentry_transaction_start(
+SENTRY_EXPERIMENTAL_API void sentry_transaction_start(
     sentry_value_t transaction_context);
 
 /**
- * Finishes and sends a transaction to sentry. The event ID of the transaction
- * will be returned if this was successful; A nil UUID will be returned
- * otherwise.
+ * Finishes and sends the current transaction to sentry. The event ID of the
+ * transaction will be returned if this was successful; A nil UUID will be
+ * returned otherwise.
  */
-SENTRY_EXPERIMENTAL_API sentry_uuid_t sentry_transaction_finish(
-    sentry_value_t transaction);
+SENTRY_EXPERIMENTAL_API sentry_uuid_t sentry_transaction_finish();
 
 #ifdef __cplusplus
 }
