@@ -710,7 +710,7 @@ sentry_set_level(sentry_level_t level)
     }
 }
 
-sentry_value_t
+void
 sentry_transaction_start(sentry_value_t tx_cxt)
 {
     // TODO: it would be nice if we could just merge tx_cxt into tx.
@@ -721,7 +721,6 @@ sentry_transaction_start(sentry_value_t tx_cxt)
     sentry_value_t tx = sentry_value_new_event();
     sentry_value_remove_by_key(tx, "timestamp");
 
-    // TODO(tracing): stuff transaction into the scope
     bool should_sample = sentry__should_send_transaction(tx_cxt);
     sentry_value_set_by_key(
         tx, "sampled", sentry_value_new_bool(should_sample));
@@ -747,25 +746,40 @@ sentry_transaction_start(sentry_value_t tx_cxt)
         sentry__value_new_string_owned(
             sentry__msec_time_to_iso8601(sentry__msec_time())));
 
+    sentry__scope_set_span(tx);
     sentry_value_decref(tx_cxt);
-
-    return tx;
 }
 
 sentry_uuid_t
-sentry_transaction_finish(sentry_value_t tx)
+sentry_transaction_finish()
 {
-    // The sampling decision should already be made for transactions during
-    // their construction. No need to recalculate here. See
-    // `sentry__should_skip_transaction`.
-    sentry_value_t sampled = sentry_value_get_by_key(tx, "sampled");
-    if (!sentry_value_is_null(sampled) && !sentry_value_is_true(sampled)) {
-        SENTRY_DEBUG("throwing away transaction due to sample rate or "
-                     "user-provided sampling value in transaction context");
-        sentry_value_decref(tx);
-        // TODO(tracing): remove from scope
+    sentry_value_t tx = sentry_value_new_null();
+    SENTRY_WITH_SCOPE (scope) {
+        if (sentry_value_is_null(scope->span)) {
+            SENTRY_DEBUG("could not find a transaction on the scope to finish");
+            return sentry_uuid_nil();
+        }
+
+        // The sampling decision should already be made for transactions during
+        // their construction. No need to recalculate here. See
+        // `sentry__should_skip_transaction`.
+        sentry_value_t sampled
+            = sentry_value_get_by_key(scope->span, "sampled");
+        if (!sentry_value_is_true(sampled)) {
+            SENTRY_DEBUG("throwing away transaction due to sample rate or "
+                         "user-provided sampling value in transaction context");
+            sentry__scope_remove_span();
+            return sentry_uuid_nil();
+        }
+        tx = sentry__value_clone(scope->span);
+    }
+    sentry__scope_remove_span();
+    if (sentry_value_is_null(tx)) {
+        SENTRY_DEBUG("could not find a transaction on the scope to finish");
         return sentry_uuid_nil();
     }
+
+    sentry_value_remove_by_key(tx, "sampled");
 
     sentry_value_set_by_key(tx, "type", sentry_value_new_string("transaction"));
     sentry_value_set_by_key(tx, "timestamp",

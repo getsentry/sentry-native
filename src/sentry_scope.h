@@ -77,9 +77,22 @@ void sentry__scope_apply_to_event(const sentry_scope_t *scope,
 
 /**
  * Sets the span (actually transaction) on the scope. An internal way to pass
- * around contextual information needed from a transaction into other events.
+ * around contextual information needed from a transaction into other events. If
+ * the scope already contains an unfinished transaction, that transaction will
+ * be discarded and will not be sent to sentry.
+ *
+ * This takes ownership of the span.
  */
 void sentry__scope_set_span(sentry_value_t span);
+
+/**
+ * Removes the current span (actually transaction) on the scope. If the
+ * transaction has not yet finished, this does not finish the transaction
+ * nor does it send it to sentry; The transaction will be discarded.
+ *
+ * Remove at your own discretion.
+ */
+void sentry__scope_remove_span();
 
 /**
  * These are convenience macros to automatically lock/unlock a scope inside a
@@ -95,4 +108,9 @@ void sentry__scope_set_span(sentry_value_t span);
     for (sentry_scope_t *Scope = sentry__scope_lock(); Scope;                  \
          sentry__scope_unlock(), Scope = NULL)
 
+#endif
+
+// this is only used in unit tests
+#ifdef SENTRY_UNITTEST
+sentry_value_t sentry__scope_get_span();
 #endif

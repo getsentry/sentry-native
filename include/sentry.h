@@ -1298,7 +1298,7 @@ SENTRY_EXPERIMENTAL_API void sentry_transaction_context_remove_sampled(
  *
  * Takes ownership of `transaction_context`.
  */
-SENTRY_EXPERIMENTAL_API sentry_value_t sentry_transaction_start(
+SENTRY_EXPERIMENTAL_API void sentry_transaction_start(
     sentry_value_t transaction_context);
 
 /**
@@ -1309,8 +1309,7 @@ SENTRY_EXPERIMENTAL_API sentry_value_t sentry_transaction_start(
  * Always takes ownership of `transaction`, regardless of whether the operation
  * was successful or not.
  */
-SENTRY_EXPERIMENTAL_API sentry_uuid_t sentry_transaction_finish(
-    sentry_value_t transaction);
+SENTRY_EXPERIMENTAL_API sentry_uuid_t sentry_transaction_finish();
 
 #ifdef __cplusplus
 }

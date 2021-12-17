@@ -221,8 +221,8 @@ main(int argc, char **argv)
             sentry_transaction_context_set_sampled(tx_ctx, 0);
         }
 
-        sentry_value_t tx = sentry_transaction_start(tx_ctx);
-        sentry_transaction_finish(tx);
+        sentry_transaction_start(tx_ctx);
+        sentry_transaction_finish();
     }
 
     // make sure everything flushes
