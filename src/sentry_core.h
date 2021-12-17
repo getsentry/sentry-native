@@ -5,6 +5,7 @@
 #include "sentry_logger.h"
 
 #define SENTRY_BREADCRUMBS_MAX 100
+#define SENTRY_SPANS_MAX 1000
 
 #if defined(__GNUC__) && (__GNUC__ >= 4)
 #    define MUST_USE __attribute__((warn_unused_result))
