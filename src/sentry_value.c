@@ -1221,7 +1221,8 @@ sentry_event_value_add_stacktrace(sentry_value_t event, void **ips, size_t len)
 }
 
 void
-sentry_transaction_set_tag(sentry_value_t transaction, const char *tag, const char *value)
+sentry_transaction_set_tag(
+    sentry_value_t transaction, const char *tag, const char *value)
 {
     sentry_value_t tags = sentry_value_get_by_key(transaction, "tags");
     if (sentry_value_is_null(tags)) {
@@ -1242,7 +1243,8 @@ sentry_transaction_remove_tag(sentry_value_t transaction, const char *tag)
 }
 
 void
-sentry_transaction_set_data(sentry_value_t transaction, const char *key, sentry_value_t value)
+sentry_transaction_set_data(
+    sentry_value_t transaction, const char *key, sentry_value_t value)
 {
     sentry_value_t data = sentry_value_get_by_key(transaction, "data");
     if (sentry_value_is_null(data)) {
