@@ -358,6 +358,21 @@ SENTRY_TEST(basic_spans)
     // Should be finished
     TEST_CHECK(!IS_NULL(stored_child, "timestamp"));
 
+    // Make sure you can't create a grandchild of a span that isn't on the
+    // current transaction any more
+    sentry_value_t sibling
+        = sentry_span_start_child(sentry_value_new_null(), "beep", "car");
+    sentry_uuid_t event_id = sentry_transaction_finish();
+    TEST_CHECK(!sentry_uuid_is_nil(&event_id));
+
+    tx_cxt = sentry_value_new_transaction("wowee!", NULL);
+    sentry_transaction_start(tx_cxt);
+
+    sentry_value_t orphan = sentry_span_start_child(sibling, "ding", "bicycle");
+    TEST_CHECK(sentry_value_is_null(orphan));
+
+    sentry_value_decref(orphan);
+
     sentry_close();
 }
 
@@ -449,7 +464,6 @@ SENTRY_TEST(overflow_spans)
         sentry_value_get_by_key(scope_tx, "spans"), 0);
     CHECK_STRING_PROPERTY(stored_child, "span_id", child_span_id);
 
-    sentry_value_decref(child);
     sentry_value_decref(overflow_child);
 
     sentry_close();

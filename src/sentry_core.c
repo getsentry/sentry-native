@@ -845,29 +845,41 @@ sentry_span_start_child(
         // There isn't an active transaction. This span has nothing to attach
         // to.
         if (sentry_value_is_null(scope->span)) {
-            return sentry_value_new_null();
+            goto fail;
         }
         // Aggressively discard spans if a transaction is unsampled to avoid
         // wasting memory
         sentry_value_t sampled
             = sentry_value_get_by_key(scope->span, "sampled");
         if (!sentry_value_is_true(sampled)) {
-            return sentry_value_new_null();
+            goto fail;
         }
         sentry_value_t spans = sentry_value_get_by_key(scope->span, "spans");
         span_count = sentry_value_get_length(spans);
         if (span_count >= max_spans) {
-            return sentry_value_new_null();
+            goto fail;
         }
-        // TODO: if the parent span can't be found in the current active
-        // transaction, take ownership of the parent span context and return
-        // null.
 
         sentry_value_t parent;
         if (sentry_value_is_null(parent_span_context)) {
             parent = scope->span;
         } else {
             parent = parent_span_context;
+
+            // TODO: Man there's gotta be a more terse way to do all of this
+            // Make sure the parent span actually exists in the transaction
+            const char *parent_span_id = sentry_value_as_string(
+                sentry_value_get_by_key(parent_span_context, "span_id"));
+            int32_t index = sentry_value_as_int32(
+                sentry_value_get_by_key(parent_span_context, "index"));
+
+            sentry_value_t maybe_span = sentry_value_get_by_index(spans, index);
+            const char *maybe_span_id = sentry_value_as_string(
+                sentry_value_get_by_key(maybe_span, "span_id"));
+
+            if (!sentry__string_eq(parent_span_id, maybe_span_id)) {
+                goto fail;
+            }
         }
 
         sentry_value_t child = sentry__value_new_span(parent, operation);
@@ -891,6 +903,10 @@ sentry_span_start_child(
         child_span_context, "index", sentry_value_new_int32((int)span_count));
 
     return child_span_context;
+
+fail:
+    sentry_value_decref(parent_span_context);
+    return sentry_value_new_null();
 }
 
 void
@@ -905,11 +921,22 @@ sentry_span_finish(sentry_value_t span_context)
 
     SENTRY_WITH_SCOPE_MUT (scope) {
         sentry_value_t spans = sentry_value_get_by_key(scope->span, "spans");
-        // TODO: maybe validate that to_update.span_id == span.span_id
         sentry_value_t to_update = sentry_value_get_by_index(spans, index);
-        sentry_value_set_by_key(to_update, "timestamp",
-            sentry__value_new_string_owned(
-                sentry__msec_time_to_iso8601(sentry__msec_time())));
+
+        const char *expected_span_id = sentry_value_as_string(
+            sentry_value_get_by_key(span_context, "span_id"));
+        const char *found_span_id = sentry_value_as_string(
+            sentry_value_get_by_key(to_update, "span_id"));
+        if (!sentry__string_eq(expected_span_id, found_span_id)) {
+            SENTRY_DEBUGF("Attempted to finish a span expecting span ID %s but "
+                          "found %s instead. Maybe its parent transaction "
+                          "already finished?",
+                expected_span_id, found_span_id);
+        } else {
+            sentry_value_set_by_key(to_update, "timestamp",
+                sentry__value_new_string_owned(
+                    sentry__msec_time_to_iso8601(sentry__msec_time())));
+        }
     }
 
     sentry_value_decref(span_context);
