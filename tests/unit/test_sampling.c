@@ -13,16 +13,16 @@ SENTRY_TEST(sampling_transaction)
     sentry_options_t *options = sentry_options_new();
     TEST_CHECK(sentry_init(options) == 0);
 
-    sentry_value_t tx_cxt = sentry_value_new_transaction("honk", NULL);
+    sentry_value_t tx_cxt = sentry_value_new_transaction_context("honk", NULL);
 
-    sentry_transaction_set_sampled(tx_cxt, 0);
+    sentry_transaction_context_set_sampled(tx_cxt, 0);
     TEST_CHECK(sentry__should_send_transaction(tx_cxt) == false);
 
-    sentry_transaction_set_sampled(tx_cxt, 1);
+    sentry_transaction_context_set_sampled(tx_cxt, 1);
     TEST_CHECK(sentry__should_send_transaction(tx_cxt));
 
     // fall back to default in sentry options (0.0) if sampled isn't there
-    sentry_transaction_remove_sampled(tx_cxt);
+    sentry_transaction_context_remove_sampled(tx_cxt);
     TEST_CHECK(sentry__should_send_transaction(tx_cxt) == false);
 
     options = sentry_options_new();

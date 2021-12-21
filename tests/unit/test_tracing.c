@@ -36,7 +36,7 @@ SENTRY_TEST(basic_tracing_context)
 
 SENTRY_TEST(basic_transaction)
 {
-    sentry_value_t tx_cxt = sentry_value_new_transaction(NULL, NULL);
+    sentry_value_t tx_cxt = sentry_value_new_transaction_context(NULL, NULL);
     TEST_CHECK(!sentry_value_is_null(tx_cxt));
     const char *tx_name
         = sentry_value_as_string(sentry_value_get_by_key(tx_cxt, "name"));
@@ -50,7 +50,7 @@ SENTRY_TEST(basic_transaction)
         !sentry_value_is_null(sentry_value_get_by_key(tx_cxt, "span_id")));
 
     sentry_value_decref(tx_cxt);
-    tx_cxt = sentry_value_new_transaction("", "");
+    tx_cxt = sentry_value_new_transaction_context("", "");
     TEST_CHECK(!sentry_value_is_null(tx_cxt));
     tx_name = sentry_value_as_string(sentry_value_get_by_key(tx_cxt, "name"));
     TEST_CHECK_STRING_EQUAL(tx_name, "<unlabeled transaction>");
@@ -61,7 +61,7 @@ SENTRY_TEST(basic_transaction)
         !sentry_value_is_null(sentry_value_get_by_key(tx_cxt, "span_id")));
 
     sentry_value_decref(tx_cxt);
-    tx_cxt = sentry_value_new_transaction("honk.beep", "beepbeep");
+    tx_cxt = sentry_value_new_transaction_context("honk.beep", "beepbeep");
     tx_name = sentry_value_as_string(sentry_value_get_by_key(tx_cxt, "name"));
     TEST_CHECK_STRING_EQUAL(tx_name, "honk.beep");
     tx_op = sentry_value_as_string(sentry_value_get_by_key(tx_cxt, "op"));
@@ -71,15 +71,15 @@ SENTRY_TEST(basic_transaction)
     TEST_CHECK(
         !sentry_value_is_null(sentry_value_get_by_key(tx_cxt, "span_id")));
 
-    sentry_transaction_set_name(tx_cxt, "");
+    sentry_transaction_context_set_name(tx_cxt, "");
     tx_name = sentry_value_as_string(sentry_value_get_by_key(tx_cxt, "name"));
     TEST_CHECK_STRING_EQUAL(tx_name, "<unlabeled transaction>");
 
-    sentry_transaction_set_operation(tx_cxt, "");
+    sentry_transaction_context_set_operation(tx_cxt, "");
     tx_op = sentry_value_as_string(sentry_value_get_by_key(tx_cxt, "op"));
     TEST_CHECK_STRING_EQUAL(tx_op, "");
 
-    sentry_transaction_set_sampled(tx_cxt, 1);
+    sentry_transaction_context_set_sampled(tx_cxt, 1);
     TEST_CHECK(
         sentry_value_is_true(sentry_value_get_by_key(tx_cxt, "sampled")) == 1);
 
@@ -126,8 +126,8 @@ SENTRY_TEST(basic_function_transport_transaction)
     sentry_options_set_require_user_consent(options, true);
     sentry_init(options);
 
-    sentry_value_t transaction
-        = sentry_value_new_transaction("How could you", "Don't capture this.");
+    sentry_value_t transaction = sentry_value_new_transaction_context(
+        "How could you", "Don't capture this.");
     transaction = sentry_transaction_start(transaction);
     sentry_uuid_t event_id = sentry_transaction_finish(transaction);
     // TODO: `sentry_capture_event` acts as if the event was sent if user
@@ -135,13 +135,13 @@ SENTRY_TEST(basic_function_transport_transaction)
     TEST_CHECK(!sentry_uuid_is_nil(&event_id));
     sentry_user_consent_give();
 
-    transaction = sentry_value_new_transaction("honk", "beep");
+    transaction = sentry_value_new_transaction_context("honk", "beep");
     transaction = sentry_transaction_start(transaction);
     event_id = sentry_transaction_finish(transaction);
     TEST_CHECK(!sentry_uuid_is_nil(&event_id));
 
     sentry_user_consent_revoke();
-    transaction = sentry_value_new_transaction(
+    transaction = sentry_value_new_transaction_context(
         "How could you again", "Don't capture this either.");
     transaction = sentry_transaction_start(transaction);
     event_id = sentry_transaction_finish(transaction);
@@ -172,7 +172,7 @@ SENTRY_TEST(transport_sampling_transactions)
     uint64_t sent_transactions = 0;
     for (int i = 0; i < 100; i++) {
         sentry_value_t transaction
-            = sentry_value_new_transaction("honk", "beep");
+            = sentry_value_new_transaction_context("honk", "beep");
         transaction = sentry_transaction_start(transaction);
         sentry_uuid_t event_id = sentry_transaction_finish(transaction);
         if (!sentry_uuid_is_nil(&event_id)) {
@@ -214,7 +214,8 @@ SENTRY_TEST(transactions_skip_before_send)
     sentry_options_set_before_send(options, before_send, &called_beforesend);
     sentry_init(options);
 
-    sentry_value_t transaction = sentry_value_new_transaction("honk", "beep");
+    sentry_value_t transaction
+        = sentry_value_new_transaction_context("honk", "beep");
     transaction = sentry_transaction_start(transaction);
     sentry_uuid_t event_id = sentry_transaction_finish(transaction);
     TEST_CHECK(!sentry_uuid_is_nil(&event_id));
