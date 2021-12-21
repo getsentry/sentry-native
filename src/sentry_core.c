@@ -505,16 +505,6 @@ sentry__prepare_transaction(const sentry_options_t *options,
 {
     sentry_envelope_t *envelope = NULL;
 
-    bool should_skip = !sentry_value_is_true(
-        sentry_value_get_by_key(transaction, "sampled"));
-    if (should_skip) {
-        SENTRY_DEBUG("throwing away transaction due to sample rate or "
-                     "user-provided sampling value in transaction context");
-        goto fail;
-    }
-    // Field is superfluous, strip so it doesn't leak into the payload
-    sentry_value_remove_by_key(transaction, "sampled");
-
     SENTRY_WITH_SCOPE (scope) {
         SENTRY_TRACE("merging scope into event");
         // Don't include debugging info
@@ -761,6 +751,8 @@ sentry_transaction_finish(sentry_value_t tx)
     // `sentry__should_skip_transaction`.
     sentry_value_t sampled = sentry_value_get_by_key(tx, "sampled");
     if (!sentry_value_is_null(sampled) && !sentry_value_is_true(sampled)) {
+        SENTRY_DEBUG("throwing away transaction due to sample rate or "
+                     "user-provided sampling value in transaction context");
         sentry_value_decref(sampled);
         sentry_value_decref(tx);
         // TODO(tracing): remove from scope
