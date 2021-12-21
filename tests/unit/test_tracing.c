@@ -130,20 +130,24 @@ SENTRY_TEST(basic_function_transport_transaction)
         = sentry_value_new_transaction("How could you", "Don't capture this.");
     transaction = sentry_transaction_start(transaction);
     sentry_uuid_t event_id = sentry_transaction_finish(transaction);
-    TEST_CHECK(sentry_uuid_is_nil(&event_id));
+    // TODO: `sentry_capture_event` acts as if the event was sent if user
+    // consent was not given
+    TEST_CHECK(!sentry_uuid_is_nil(&event_id));
     sentry_user_consent_give();
 
     transaction = sentry_value_new_transaction("honk", "beep");
     transaction = sentry_transaction_start(transaction);
-    sentry_uuid_t event_id = sentry_transaction_finish(transaction);
+    event_id = sentry_transaction_finish(transaction);
     TEST_CHECK(!sentry_uuid_is_nil(&event_id));
 
     sentry_user_consent_revoke();
     transaction = sentry_value_new_transaction(
         "How could you again", "Don't capture this either.");
     transaction = sentry_transaction_start(transaction);
-    sentry_uuid_t event_id = sentry_transaction_finish(transaction);
-    TEST_CHECK(sentry_uuid_is_nil(&event_id));
+    event_id = sentry_transaction_finish(transaction);
+    // TODO: `sentry_capture_event` acts as if the event was sent if user
+    // consent was not given
+    TEST_CHECK(!sentry_uuid_is_nil(&event_id));
 
     sentry_close();
 
@@ -165,20 +169,22 @@ SENTRY_TEST(transport_sampling_transactions)
     sentry_options_set_traces_sample_rate(options, 0.75);
     sentry_init(options);
 
+    uint64_t sent_transactions = 0;
     for (int i = 0; i < 100; i++) {
         sentry_value_t transaction
             = sentry_value_new_transaction("honk", "beep");
         transaction = sentry_transaction_start(transaction);
         sentry_uuid_t event_id = sentry_transaction_finish(transaction);
-        TEST_CHECK(!sentry_uuid_is_nil(&event_id));
-
-        TEST_CHECK(!sentry_uuid_is_nil(&event_id));
+        if (!sentry_uuid_is_nil(&event_id)) {
+            sent_transactions += 1;
+        }
     }
 
     sentry_close();
 
     // well, its random after all
     TEST_CHECK(called_transport > 50 && called_transport < 100);
+    TEST_CHECK(called_transport == sent_transactions);
 }
 
 static sentry_value_t

@@ -378,6 +378,7 @@ sentry__capture_event(sentry_value_t event)
     sentry_envelope_t *envelope = NULL;
 
     bool was_captured = false;
+    bool was_sent = false;
     SENTRY_WITH_OPTIONS (options) {
         was_captured = true;
         if (sentry__event_is_transaction(event)) {
@@ -397,14 +398,14 @@ sentry__capture_event(sentry_value_t event)
                     mut_options->session->init = false;
                 }
             }
-
             sentry__capture_envelope(options->transport, envelope);
+            was_sent = true;
         }
     }
     if (!was_captured) {
         sentry_value_decref(event);
     }
-    return was_captured ? event_id : sentry_uuid_nil();
+    return was_sent ? event_id : sentry_uuid_nil();
 }
 
 bool
