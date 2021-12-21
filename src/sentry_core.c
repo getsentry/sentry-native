@@ -752,6 +752,9 @@ sentry_transaction_start(sentry_value_t tx_cxt)
 void
 sentry_transaction_finish(sentry_value_t tx)
 {
+    // The sampling decision should already be made for transactions during
+    // their construction. No need to recalculate here. See
+    // `sentry__should_skip_transaction`.
     sentry_value_t sampled = sentry_value_get_by_key(tx, "sampled");
     if (!sentry_value_is_null(sampled) && !sentry_value_is_true(sampled)) {
         sentry_value_decref(sampled);
