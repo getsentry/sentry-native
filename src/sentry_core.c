@@ -372,15 +372,14 @@ sentry_capture_event(sentry_value_t event)
         envelope = sentry__prepare_event(options, event, &event_id);
         if (envelope) {
             if (options->session) {
-                SENTRY_WITH_OPTIONS_MUT (mut_options) {
-                    sentry__envelope_add_session(
-                        envelope, mut_options->session);
-                    // we're assuming that if a session is added to an envelope
-                    // it will be sent onwards.  This means we now need to set
-                    // the init flag to false because we're no longer the
-                    // initial session update.
-                    mut_options->session->init = false;
-                }
+                sentry_options_t *mut_options = sentry__options_lock();
+                sentry__envelope_add_session(envelope, mut_options->session);
+                // we're assuming that if a session is added to an envelope
+                // it will be sent onwards.  This means we now need to set
+                // the init flag to false because we're no longer the
+                // initial session update.
+                mut_options->session->init = false;
+                sentry__options_unlock();
             }
 
             sentry__capture_envelope(options->transport, envelope);
@@ -535,12 +534,12 @@ void
 sentry_set_user(sentry_value_t user)
 {
     if (!sentry_value_is_null(user)) {
-        SENTRY_WITH_OPTIONS_MUT (options) {
-            if (options->session) {
-                sentry__session_sync_user(options->session, user);
-                sentry__run_write_session(options->run, options->session);
-            }
+        sentry_options_t *options = sentry__options_lock();
+        if (options && options->session) {
+            sentry__session_sync_user(options->session, user);
+            sentry__run_write_session(options->run, options->session);
         }
+        sentry__options_unlock();
     }
 
     SENTRY_WITH_SCOPE_MUT (scope) {
