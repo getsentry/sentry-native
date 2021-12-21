@@ -752,7 +752,7 @@ sentry_transaction_start(sentry_value_t tx_cxt)
     return tx;
 }
 
-void
+sentry_uuid_t
 sentry_transaction_finish(sentry_value_t tx)
 {
     // The sampling decision should already be made for transactions during
@@ -763,7 +763,7 @@ sentry_transaction_finish(sentry_value_t tx)
         sentry_value_decref(sampled);
         sentry_value_decref(tx);
         // TODO(tracing): remove from scope
-        return;
+        return sentry_uuid_nil();
     }
     sentry_value_decref(sampled);
 
@@ -791,5 +791,5 @@ sentry_transaction_finish(sentry_value_t tx)
     sentry_value_remove_by_key(tx, "status");
 
     // This decrefs for us, generates an event ID, merges scope
-    sentry__capture_event(tx);
+    return sentry__capture_event(tx);
 }

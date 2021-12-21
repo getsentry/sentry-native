@@ -1293,9 +1293,11 @@ SENTRY_EXPERIMENTAL_API sentry_value_t sentry_transaction_start(
     sentry_value_t transaction);
 
 /**
- * Finishes and sends a transaction to sentry.
+ * Finishes and sends a transaction to sentry. The event ID of the transaction
+ * will be returned if this was successful; A nil UUID will be returned
+ * otherwise.
  */
-SENTRY_EXPERIMENTAL_API void sentry_transaction_finish(
+SENTRY_EXPERIMENTAL_API sentry_uuid_t sentry_transaction_finish(
     sentry_value_t transaction);
 
 #ifdef __cplusplus
