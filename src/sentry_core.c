@@ -357,10 +357,7 @@ bool
 sentry__event_is_transaction(sentry_value_t event)
 {
     sentry_value_t event_type = sentry_value_get_by_key(event, "type");
-    if (sentry__string_eq("transaction", sentry_value_as_string(event_type))) {
-        return true;
-    }
-    return false;
+    return sentry__string_eq("transaction", sentry_value_as_string(event_type));
 }
 
 sentry_uuid_t
