@@ -507,7 +507,8 @@ sentry__prepare_transaction(const sentry_options_t *options,
     bool should_skip = !sentry_value_is_true(
         sentry_value_get_by_key(transaction, "sampled"));
     if (should_skip) {
-        SENTRY_DEBUG("throwing away transaction due to sample rate");
+        SENTRY_DEBUG("throwing away transaction due to sample rate or "
+                     "user-provided sampling value in transaction context");
         goto fail;
     }
     // Field is superfluous, strip so it doesn't leak into the payload
