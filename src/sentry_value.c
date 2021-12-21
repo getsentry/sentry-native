@@ -1129,6 +1129,14 @@ sentry_value_new_transaction(const char *name, const char *operation)
 {
     sentry_value_t transaction = sentry_value_new_object();
 
+    sentry_uuid_t trace_id = sentry_uuid_new_v4();
+    sentry_value_set_by_key(
+        transaction, "trace_id", sentry__value_new_internal_uuid(&trace_id));
+
+    sentry_uuid_t span_id = sentry_uuid_new_v4();
+    sentry_value_set_by_key(
+        transaction, "span_id", sentry__value_new_span_uuid(&span_id));
+
     sentry_transaction_set_name(transaction, name);
     sentry_transaction_set_operation(transaction, operation);
 

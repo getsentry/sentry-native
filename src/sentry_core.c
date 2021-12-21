@@ -730,19 +730,22 @@ sentry_transaction_start(sentry_value_t tx_cxt)
     sentry_value_set_by_key(
         tx, "sampled", sentry_value_new_bool(should_sample));
 
+    // Avoid having this show up in the payload at all if it doesn't have a
+    // valid value
+    sentry_value_t parent_span
+        = sentry_value_get_by_key_owned(tx_cxt, "parent_span_id");
+    if (sentry_value_get_length(parent_span) > 0) {
+        sentry_value_set_by_key(tx, "parent_span_id", parent_span);
+    }
+    sentry_value_set_by_key(
+        tx, "trace_id", sentry_value_get_by_key_owned(tx_cxt, "trace_id"));
+    sentry_value_set_by_key(
+        tx, "span_id", sentry_value_get_by_key_owned(tx_cxt, "trace_id"));
     sentry_value_set_by_key(
         tx, "transaction", sentry_value_get_by_key_owned(tx_cxt, "name"));
     sentry_value_set_by_key(tx, "start_timestamp",
         sentry__value_new_string_owned(
             sentry__msec_time_to_iso8601(sentry__msec_time())));
-
-    sentry_uuid_t trace_id = sentry_uuid_new_v4();
-    sentry_value_set_by_key(
-        tx, "trace_id", sentry__value_new_internal_uuid(&trace_id));
-
-    sentry_uuid_t span_id = sentry_uuid_new_v4();
-    sentry_value_set_by_key(
-        tx, "span_id", sentry__value_new_span_uuid(&span_id));
 
     sentry_value_decref(tx_cxt);
 
