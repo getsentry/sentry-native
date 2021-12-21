@@ -528,22 +528,7 @@ sentry__prepare_transaction(const sentry_options_t *options,
         goto fail;
     }
 
-    SENTRY_TRACE("adding attachments to envelope");
-    for (sentry_attachment_t *attachment = options->attachments; attachment;
-         attachment = attachment->next) {
-        sentry_envelope_item_t *item = sentry__envelope_add_from_path(
-            envelope, attachment->path, "attachment");
-        if (!item) {
-            continue;
-        }
-        sentry__envelope_item_set_header(item, "filename",
-#ifdef SENTRY_PLATFORM_WINDOWS
-            sentry__value_new_string_from_wstr(
-#else
-            sentry_value_new_string(
-#endif
-                sentry__path_filename(attachment->path)));
-    }
+    // TODO(tracing): Revisit when adding attachment support for transactions.
 
     return envelope;
 
