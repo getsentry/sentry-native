@@ -426,7 +426,8 @@ sentry__should_send_transaction(sentry_value_t tx_cxt)
     bool send = false;
     SENTRY_WITH_OPTIONS (options) {
         send = sentry__roll_dice(options->traces_sample_rate);
-        // TODO: run through traces sampler function if rate is unavailable
+        // TODO(tracing): Run through traces sampler function if rate is
+        // unavailable.
     }
     return send;
 }
@@ -738,7 +739,7 @@ sentry_transaction_start(sentry_value_t tx_cxt)
 {
     sentry_value_t tx = sentry_value_new_event();
 
-    // TODO: stuff transaction into the scope
+    // TODO(tracing): stuff transaction into the scope
     bool should_sample = sentry__should_send_transaction(tx_cxt);
     sentry_value_set_by_key(
         tx, "sampled", sentry_value_new_bool(should_sample));
@@ -769,7 +770,7 @@ sentry_transaction_finish(sentry_value_t tx)
     if (!sentry_value_is_null(sampled) && !sentry_value_is_true(sampled)) {
         sentry_value_decref(sampled);
         sentry_value_decref(tx);
-        // TODO: remove from scope
+        // TODO(tracing): remove from scope
         return;
     }
     sentry_value_decref(sampled);
@@ -780,7 +781,7 @@ sentry_transaction_finish(sentry_value_t tx)
             sentry__msec_time_to_iso8601(sentry__msec_time())));
     sentry_value_set_by_key(tx, "level", sentry_value_new_string("info"));
 
-    // TODO: add tracestate
+    // TODO(tracing): add tracestate
     // set up trace context so it mirrors the final json value
     sentry_value_set_by_key(tx, "status", sentry_value_new_string("ok"));
 
