@@ -68,10 +68,12 @@ sentry_uuid_t sentry__capture_event(sentry_value_t event);
  * - add any attachments to the envelope
  *
  * The function will ensure the transaction has a UUID and write it into the
- * `event_id` out-parameter.
+ * `event_id` out-parameter. This takes ownership of the transaction, which
+ * means that the caller no longer needs to call `sentry_value_decref` on the
+ * transaction.
  */
 sentry_envelope_t *sentry__prepare_transaction(const sentry_options_t *options,
-    sentry_value_t event, sentry_uuid_t *event_id);
+    sentry_value_t transaction, sentry_uuid_t *event_id);
 
 /**
  * This function will submit the `envelope` to the given `transport`, first
