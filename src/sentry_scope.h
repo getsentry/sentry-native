@@ -90,7 +90,7 @@ void sentry__scope_set_span(sentry_value_t span);
  * transaction has not yet finished, this does not finish the transaction
  * nor does it send it to sentry; The transaction will be discarded.
  *
- * Remove at your own discretion.
+ * Invoke this at your own discretion.
  */
 void sentry__scope_remove_span();
 
