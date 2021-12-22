@@ -1295,6 +1295,8 @@ SENTRY_EXPERIMENTAL_API void sentry_transaction_context_remove_sampled(
  * Starts a new Transaction based on the provided context, restored from an
  * external integration (i.e. a span from a different SDK) or manually
  * constructed by a user.
+ *
+ * Takes ownership of `transaction_context`.
  */
 SENTRY_EXPERIMENTAL_API sentry_value_t sentry_transaction_start(
     sentry_value_t transaction_context);
@@ -1303,6 +1305,9 @@ SENTRY_EXPERIMENTAL_API sentry_value_t sentry_transaction_start(
  * Finishes and sends a transaction to sentry. The event ID of the transaction
  * will be returned if this was successful; A nil UUID will be returned
  * otherwise.
+ *
+ * Always takes ownership of `transaction`, regardless of whether the operation
+ * was successful or not.
  */
 SENTRY_EXPERIMENTAL_API sentry_uuid_t sentry_transaction_finish(
     sentry_value_t transaction);
