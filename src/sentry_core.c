@@ -782,6 +782,7 @@ sentry_transaction_finish(sentry_value_t tx)
     sentry_value_remove_by_key(tx, "description");
     sentry_value_remove_by_key(tx, "status");
 
-    // This decrefs for us, generates an event ID, merges scope
+    // This takes ownership of the transaction, generates an event ID, merges
+    // scope
     return sentry__capture_event(tx);
 }
