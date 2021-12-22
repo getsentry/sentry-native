@@ -727,6 +727,8 @@ sentry_transaction_start(sentry_value_t tx_cxt)
         = sentry_value_get_by_key_owned(tx_cxt, "parent_span_id");
     if (sentry_value_get_length(parent_span) > 0) {
         sentry_value_set_by_key(tx, "parent_span_id", parent_span);
+    } else {
+        sentry_value_decref(parent_span);
     }
     sentry_value_set_by_key(
         tx, "trace_id", sentry_value_get_by_key_owned(tx_cxt, "trace_id"));
@@ -753,12 +755,10 @@ sentry_transaction_finish(sentry_value_t tx)
     if (!sentry_value_is_null(sampled) && !sentry_value_is_true(sampled)) {
         SENTRY_DEBUG("throwing away transaction due to sample rate or "
                      "user-provided sampling value in transaction context");
-        sentry_value_decref(sampled);
         sentry_value_decref(tx);
         // TODO(tracing): remove from scope
         return sentry_uuid_nil();
     }
-    sentry_value_decref(sampled);
 
     sentry_value_set_by_key(tx, "type", sentry_value_new_string("transaction"));
     sentry_value_set_by_key(tx, "timestamp",
