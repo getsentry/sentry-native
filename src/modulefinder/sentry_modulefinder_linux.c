@@ -87,14 +87,17 @@ read_safely(void *dst, void *src, size_t size)
     ssize_t nread = process_vm_readv(pid, local, 1, remote, 1, 0);
     bool rv = nread == (ssize_t)size;
 
-    // The syscall is only available in Linux 3.2, meaning Android 17.
-    // If that is the case, just fall back to an unsafe memcpy.
-#if defined(__ANDROID_API__) && __ANDROID_API__ < 17
-    if (!rv && errno == EINVAL) {
+    // The syscall can fail with `EPERM` if we lack permissions for this syscall
+    // (which is the case when running in Docker for example,
+    // See https://github.com/getsentry/sentry-native/issues/578).
+    // Also, the syscall is only available in Linux 3.2, meaning Android 17.
+    // In that case we get an `EINVAL`.
+    //
+    // In either of these cases, just fall back to an unsafe `memcpy`.
+    if (!rv && (errno == EPERM || errno == EINVAL)) {
         memcpy(dst, src, size);
         rv = true;
     }
-#endif
     return rv;
 }
 
@@ -323,7 +326,10 @@ get_code_id_from_text_fallback(const sentry_module_t *module)
             ENSURE(sentry__module_read_safely(&header, module,
                 elf.e_shoff + elf.e_shentsize * i, sizeof(Elf64_Shdr)));
 
-            const char *name = names + header.sh_name;
+            char name[6];
+            ENSURE(sentry__module_read_safely(&name, module,
+                (uintptr_t)names + header.sh_name, sizeof(name)));
+            name[5] = '\0';
             if (header.sh_type == SHT_PROGBITS && strcmp(name, ".text") == 0) {
                 text = sentry__module_get_addr(
                     module, header.sh_offset, header.sh_size);
@@ -349,7 +355,10 @@ get_code_id_from_text_fallback(const sentry_module_t *module)
             ENSURE(sentry__module_read_safely(&header, module,
                 elf.e_shoff + elf.e_shentsize * i, sizeof(Elf32_Shdr)));
 
-            const char *name = names + header.sh_name;
+            char name[6];
+            ENSURE(sentry__module_read_safely(&name, module,
+                (uintptr_t)names + header.sh_name, sizeof(name)));
+            name[5] = '\0';
             if (header.sh_type == SHT_PROGBITS && strcmp(name, ".text") == 0) {
                 text = sentry__module_get_addr(
                     module, header.sh_offset, header.sh_size);
