@@ -499,5 +499,51 @@ SENTRY_TEST(overflow_spans)
     sentry_close();
 }
 
+SENTRY_TEST(wrong_spans_on_transaction_is_ok)
+{
+    sentry_options_t *options = sentry_options_new();
+    sentry_options_set_traces_sample_rate(options, 1.0);
+    sentry_options_set_max_spans(options, 5);
+    sentry_init(options);
+
+    sentry_value_t tx_cxt = sentry_value_new_transaction_context("wow!", NULL);
+    sentry_value_t tx = sentry_transaction_start(tx_cxt);
+
+    sentry_value_t child = sentry_span_start_child(tx, "honk", "goose");
+    const char *child_span_id
+        = sentry_value_as_string(sentry_value_get_by_key(child, "span_id"));
+
+    sentry_value_t lingering_child = sentry_span_start_child(tx, "beep", "car");
+
+    sentry_value_t tx_cxt_other
+        = sentry_value_new_transaction_context("whoa!", NULL);
+    sentry_value_t tx_other = sentry_transaction_start(tx_cxt_other);
+
+    sentry_span_finish(tx_other, child);
+
+    // doesn't care if the child has been finished on the wrong transaction
+    TEST_CHECK(IS_NULL(tx, "spans"));
+    TEST_CHECK(!IS_NULL(tx_other, "spans"));
+
+    sentry_value_t spans = sentry_value_get_by_key(tx_other, "spans");
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(spans), 1);
+
+    sentry_value_t stored_child = sentry_value_get_by_index(spans, 0);
+    CHECK_STRING_PROPERTY(stored_child, "span_id", child_span_id);
+
+    sentry_transaction_finish(tx);
+
+    // doesn't care if the child belonged to a different, already finished
+    // transaction
+    sentry_span_finish(tx_other, lingering_child);
+    TEST_CHECK(!IS_NULL(tx_other, "spans"));
+    spans = sentry_value_get_by_key(tx_other, "spans");
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(spans), 2);
+
+    sentry_value_decref(tx_other);
+
+    sentry_close();
+}
+
 #undef IS_NULL
 #undef CHECK_STRING_PROPERTY
