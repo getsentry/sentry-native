@@ -161,23 +161,23 @@ SENTRY_TEST(basic_function_transport_transaction)
 
     sentry_value_t tx_cxt = sentry_value_new_transaction_context(
         "How could you", "Don't capture this.");
-    sentry_transaction_start(transaction);
-    sentry_uuid_t event_id = sentry_transaction_finish();
+    sentry_value_t tx = sentry_transaction_start(tx_cxt);
+    sentry_uuid_t event_id = sentry_transaction_finish(tx);
     // TODO: `sentry_capture_event` acts as if the event was sent if user
     // consent was not given
     TEST_CHECK(!sentry_uuid_is_nil(&event_id));
     sentry_user_consent_give();
 
-    transaction = sentry_value_new_transaction_context("honk", "beep");
-    sentry_transaction_start(transaction);
-    event_id = sentry_transaction_finish();
+    tx_cxt = sentry_value_new_transaction_context("honk", "beep");
+    tx = sentry_transaction_start(tx_cxt);
+    event_id = sentry_transaction_finish(tx);
     TEST_CHECK(!sentry_uuid_is_nil(&event_id));
 
     sentry_user_consent_revoke();
     tx_cxt = sentry_value_new_transaction_context(
         "How could you again", "Don't capture this either.");
-    sentry_transaction_start(transaction);
-    event_id = sentry_transaction_finish();
+    tx = sentry_transaction_start(tx_cxt);
+    event_id = sentry_transaction_finish(tx);
     // TODO: `sentry_capture_event` acts as if the event was sent if user
     // consent was not given
     TEST_CHECK(!sentry_uuid_is_nil(&event_id));
@@ -206,8 +206,8 @@ SENTRY_TEST(transport_sampling_transactions)
     for (int i = 0; i < 100; i++) {
         sentry_value_t tx_cxt
             = sentry_value_new_transaction_context("honk", "beep");
-        sentry_transaction_start(transaction);
-        sentry_uuid_t event_id = sentry_transaction_finish();
+        sentry_value_t tx = sentry_transaction_start(tx_cxt);
+        sentry_uuid_t event_id = sentry_transaction_finish(tx);
         if (!sentry_uuid_is_nil(&event_id)) {
             sent_transactions += 1;
         }
@@ -249,8 +249,8 @@ SENTRY_TEST(transactions_skip_before_send)
 
     sentry_value_t tx_cxt
         = sentry_value_new_transaction_context("honk", "beep");
-    sentry_transaction_start(transaction);
-    sentry_uuid_t event_id = sentry_transaction_finish();
+    sentry_value_t tx = sentry_transaction_start(transaction);
+    sentry_uuid_t event_id = sentry_transaction_finish(tx);
     TEST_CHECK(!sentry_uuid_is_nil(&event_id));
 
     sentry_close();
@@ -283,23 +283,29 @@ SENTRY_TEST(multiple_transactions)
     sentry_init(options);
 
     sentry_value_t tx_cxt = sentry_value_new_transaction_context("wow!", NULL);
-    sentry_transaction_start(tx_cxt);
+    sentry_value_t tx = sentry_transaction_start(tx_cxt);
+    tx = sentry_set_span(tx);
 
     sentry_value_t scope_tx = sentry__scope_get_span();
     CHECK_STRING_PROPERTY(scope_tx, "transaction", "wow!");
 
-    sentry_uuid_t event_id = sentry_transaction_finish();
+    sentry_uuid_t event_id = sentry_transaction_finish(tx);
     scope_tx = sentry__scope_get_span();
     TEST_CHECK(sentry_value_is_null(scope_tx));
     TEST_CHECK(!sentry_uuid_is_nil(&event_id));
 
+    // Set transaction on scope twice, back-to-back without finishing the first
+    // one
     tx_cxt = sentry_value_new_transaction_context("whoa!", NULL);
-    sentry_transaction_start(tx_cxt);
+    tx = sentry_transaction_start(tx_cxt);
+    tx = sentry_set_span(tx);
+    sentry_value_decref(tx);
     tx_cxt = sentry_value_new_transaction_context("wowee!", NULL);
-    sentry_transaction_start(tx_cxt);
+    tx = sentry_transaction_start(tx_cxt);
+    tx = sentry_set_span(tx);
     scope_tx = sentry__scope_get_span();
     CHECK_STRING_PROPERTY(scope_tx, "transaction", "wowee!");
-    event_id = sentry_transaction_finish();
+    event_id = sentry_transaction_finish(tx);
     TEST_CHECK(!sentry_uuid_is_nil(&event_id));
 
     sentry_close();

@@ -227,15 +227,6 @@ sentry__symbolize_stacktrace(sentry_value_t stacktrace)
     }
 }
 
-void
-sentry__scope_set_span(sentry_value_t span)
-{
-    SENTRY_WITH_SCOPE_MUT (scope) {
-        sentry_value_decref(scope->span);
-        scope->span = span;
-    }
-}
-
 #ifdef SENTRY_UNITTEST
 sentry_value_t
 sentry__scope_get_span()

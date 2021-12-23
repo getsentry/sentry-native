@@ -1294,22 +1294,43 @@ SENTRY_EXPERIMENTAL_API void sentry_transaction_context_remove_sampled(
 /**
  * Starts a new Transaction based on the provided context, restored from an
  * external integration (i.e. a span from a different SDK) or manually
- * constructed by a user.
+ * constructed by a user. Returns a Transaction, which is expected to be
+ * manually managed by the caller.
+ *
+ * To ensure that any Events or Message Events are associated with this
+ * Transaction while it is active, invoke and pass in the Transaction returned
+ * by this function to `sentry_set_span`. Further documentation on this can be
+ * found in `sentry_set_span`'s docstring.
  *
  * Takes ownership of `transaction_context`.
  */
-SENTRY_EXPERIMENTAL_API void sentry_transaction_start(
+SENTRY_EXPERIMENTAL_API sentry_value_t sentry_transaction_start(
     sentry_value_t transaction_context);
 
 /**
- * Finishes and sends a transaction to sentry. The event ID of the transaction
+ * Finishes and sends a Transaction to sentry. The event ID of the Transaction
  * will be returned if this was successful; A nil UUID will be returned
  * otherwise.
  *
- * Always takes ownership of `transaction`, regardless of whether the operation
+ * If passed `sentry_value_null` as a parameter, will remove the Transaction set
+ * by `sentry_set_span` if one can be found.
+ *
+ * Always takes ownership of `Transaction`, regardless of whether the operation
  * was successful or not.
  */
-SENTRY_EXPERIMENTAL_API sentry_uuid_t sentry_transaction_finish();
+SENTRY_EXPERIMENTAL_API sentry_uuid_t sentry_transaction_finish(
+    sentry_value_t transaction);
+
+/**
+ * Sets the Span (actually Transaction) so any Events sent while the Transaction
+ * is active will be associated with the Transaction. Returns a value which
+ * should then be passed into `sentry_transaction_finish` to finish and render
+ * the transaction inactive.
+ *
+ * This takes ownership of the Transaction.
+ */
+SENTRY_EXPERIMENTAL_API sentry_value_t sentry_set_span(
+    sentry_value_t transaction);
 
 #ifdef __cplusplus
 }

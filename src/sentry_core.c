@@ -710,7 +710,7 @@ sentry_set_level(sentry_level_t level)
     }
 }
 
-void
+sentry_value_t
 sentry_transaction_start(sentry_value_t tx_cxt)
 {
     // TODO: it would be nice if we could just merge tx_cxt into tx.
@@ -746,39 +746,39 @@ sentry_transaction_start(sentry_value_t tx_cxt)
         sentry__value_new_string_owned(
             sentry__msec_time_to_iso8601(sentry__msec_time())));
 
-    sentry__scope_set_span(tx);
     sentry_value_decref(tx_cxt);
+    return tx;
 }
 
 sentry_uuid_t
-sentry_transaction_finish()
+sentry_transaction_finish(sentry_value_t tx)
 {
-    sentry_value_t tx = sentry_value_new_null();
-    SENTRY_WITH_SCOPE (scope) {
-        if (sentry_value_is_null(scope->span)) {
-            SENTRY_DEBUG("could not find a transaction on the scope to finish");
-            return sentry_uuid_nil();
+    if (sentry_value_get_type(tx) == SENTRY_VALUE_TYPE_STRING) {
+        sentry_value_decref(tx);
+        tx = sentry_value_new_null();
+        SENTRY_WITH_SCOPE (scope) {
+            if (sentry_value_is_null(scope->span)) {
+                SENTRY_DEBUG(
+                    "could not find a transaction on the scope to finish");
+                goto fail;
+            }
+            tx = sentry__value_clone(scope->span);
         }
-
-        // The sampling decision should already be made for transactions during
-        // their construction. No need to recalculate here. See
-        // `sentry__should_skip_transaction`.
-        sentry_value_t sampled
-            = sentry_value_get_by_key(scope->span, "sampled");
-        if (!sentry_value_is_true(sampled)) {
-            SENTRY_DEBUG("throwing away transaction due to sample rate or "
-                         "user-provided sampling value in transaction context");
-            sentry__scope_remove_span();
-            return sentry_uuid_nil();
-        }
-        tx = sentry__value_clone(scope->span);
+        sentry__scope_remove_span();
     }
-    sentry__scope_remove_span();
     if (sentry_value_is_null(tx)) {
-        SENTRY_DEBUG("could not find a transaction on the scope to finish");
-        return sentry_uuid_nil();
+        SENTRY_DEBUG("no transaction available to finish");
+        goto fail;
     }
-
+    // The sampling decision should already be made for transactions
+    // during their construction. No need to recalculate here. See
+    // `sentry__should_skip_transaction`.
+    sentry_value_t sampled = sentry_value_get_by_key(tx, "sampled");
+    if (!sentry_value_is_true(sampled)) {
+        SENTRY_DEBUG("throwing away transaction due to sample rate or "
+                     "user-provided sampling value in transaction context");
+        goto fail;
+    }
     sentry_value_remove_by_key(tx, "sampled");
 
     sentry_value_set_by_key(tx, "type", sentry_value_new_string("transaction"));
@@ -810,4 +810,23 @@ sentry_transaction_finish()
     // This takes ownership of the transaction, generates an event ID, merges
     // scope
     return sentry__capture_event(tx);
+
+fail:
+    sentry_value_decref(tx);
+    return sentry_uuid_nil();
+}
+
+sentry_value_t
+sentry_set_span(sentry_value_t transaction)
+{
+    sentry_uuid_t nil_uuid = sentry_uuid_nil();
+    sentry_value_t sentinel = sentry__value_new_internal_uuid(&nil_uuid);
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry_value_decref(sentinel);
+        sentinel = sentry__value_clone(
+            sentry_value_get_by_key(transaction, "span_id"));
+        sentry_value_decref(scope->span);
+        scope->span = transaction;
+    }
+    return sentinel;
 }
