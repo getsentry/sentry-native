@@ -875,12 +875,17 @@ sentry_span_start_child(
         parent = transaction_or_span;
     }
 
+    if (!sentry_value_is_null(sentry_value_get_by_key(parent, "timestamp"))) {
+        SENTRY_DEBUG("span's parent is already finished, not creating span");
+        goto fail;
+    }
+
     // Aggressively discard spans if a transaction is unsampled to avoid
     // wasting memory
     sentry_value_t sampled = sentry_value_get_by_key(parent, "sampled");
     if (!sentry_value_is_true(sampled)) {
         SENTRY_DEBUG("span's parent is unsampled, not creating span");
-        return sentry_value_new_null();
+        goto fail;
     }
     sentry_value_t spans = sentry_value_get_by_key(parent, "spans");
     // This only checks that the number of _completed_ spans matches the number
@@ -889,7 +894,7 @@ sentry_span_start_child(
     if (sentry_value_get_length(spans) >= max_spans) {
         SENTRY_DEBUG("reached maximum number of spans for transaction, not "
                      "creating span");
-        return sentry_value_new_null();
+        goto fail;
     }
 
     sentry_value_t child = sentry__value_new_span(parent, operation);
@@ -919,6 +924,18 @@ sentry_span_finish(sentry_value_t root_transaction, sentry_value_t span)
     if (sentry_value_is_null(root_transaction) || sentry_value_is_null(span)) {
         SENTRY_DEBUG(
             "missing root transaction or span to finish, aborting span finish");
+        goto fail;
+    }
+
+    if (!sentry_value_is_null(
+            sentry_value_get_by_key(root_transaction, "timestamp"))) {
+        SENTRY_DEBUG("span's root transaction is already finished, aborting "
+                     "span finish");
+        goto fail;
+    }
+
+    if (!sentry_value_is_null(sentry_value_get_by_key(span, "timestamp"))) {
+        SENTRY_DEBUG("span is already finished, aborting span finish");
         goto fail;
     }
 
