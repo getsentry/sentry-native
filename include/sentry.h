@@ -1238,8 +1238,8 @@ SENTRY_EXPERIMENTAL_API double sentry_options_get_traces_sample_rate(
 /* -- Performance Monitoring/Tracing APIs -- */
 
 /**
- * Constructs a new inert Transaction. The returned value needs to be passed
- * into `sentry_start_transaction` in order to be recorded and sent to sentry.
+ * Constructs a new Transaction Context. The returned value needs to be passed
+ * into `sentry_transaction_start` in order to be recorded and sent to sentry.
  *
  * See
  * https://docs.sentry.io/platforms/native/enriching-events/transaction-name/
@@ -1251,37 +1251,65 @@ SENTRY_EXPERIMENTAL_API double sentry_options_get_traces_sample_rate(
  * for an explanation of `operation`, in addition to other properties and
  * actions that can be performed on a Transaction.
  */
-SENTRY_EXPERIMENTAL_API sentry_value_t sentry_value_new_transaction(
+SENTRY_EXPERIMENTAL_API sentry_value_t sentry_value_new_transaction_context(
     const char *name, const char *operation);
 
 /**
- * Sets the `name` of a Transaction.
+ * Sets the `name` on a Transaction Context, which will be used in the
+ * Transaction constructed off of the context.
  */
-SENTRY_EXPERIMENTAL_API void sentry_transaction_set_name(
+SENTRY_EXPERIMENTAL_API void sentry_transaction_context_set_name(
     sentry_value_t transaction, const char *name);
 
 /**
- * Sets the `operation` of a Transaction.
+ * Sets the `operation` on a Transaction Context, which will be used in the
+ * Transaction constructed off of the context
  *
  * See https://develop.sentry.dev/sdk/performance/span-operations/ for
  * conventions on `operation`s.
  */
-SENTRY_EXPERIMENTAL_API void sentry_transaction_set_operation(
+SENTRY_EXPERIMENTAL_API void sentry_transaction_context_set_operation(
     sentry_value_t transaction, const char *operation);
 
 /**
- * Sets the `sampled` field on a Transaction. When turned on, the Transaction
- * will bypass all sampling options and always be sent to sentry. If this is
- * explicitly turned off in the Transaction, it will never be sent to sentry.
+ * Sets the `sampled` field on a Transaction Context, which will be used in the
+ * Transaction constructed off of the context.
+ *
+ * When passed any value above 0, the Transaction will bypass all sampling
+ * options and always be sent to sentry. If passed 0, this Transaction and its
+ * child spans will never be sent to sentry.
  */
-SENTRY_EXPERIMENTAL_API void sentry_transaction_set_sampled(
+SENTRY_EXPERIMENTAL_API void sentry_transaction_context_set_sampled(
     sentry_value_t transaction, int sampled);
 
 /**
- * Removes the sampled field on a Transaction. The Transaction will use the
- * sampling rate as defined in `sentry_options`.
+ * Removes the sampled field on a Transaction Context, which will be used in the
+ * Transaction constructed off of the context.
+ *
+ * The Transaction will use the sampling rate as defined in `sentry_options`.
  */
-SENTRY_EXPERIMENTAL_API void sentry_transaction_remove_sampled(
+SENTRY_EXPERIMENTAL_API void sentry_transaction_context_remove_sampled(
+    sentry_value_t transaction);
+
+/**
+ * Starts a new Transaction based on the provided context, restored from an
+ * external integration (i.e. a span from a different SDK) or manually
+ * constructed by a user.
+ *
+ * Takes ownership of `transaction_context`.
+ */
+SENTRY_EXPERIMENTAL_API sentry_value_t sentry_transaction_start(
+    sentry_value_t transaction_context);
+
+/**
+ * Finishes and sends a transaction to sentry. The event ID of the transaction
+ * will be returned if this was successful; A nil UUID will be returned
+ * otherwise.
+ *
+ * Always takes ownership of `transaction`, regardless of whether the operation
+ * was successful or not.
+ */
+SENTRY_EXPERIMENTAL_API sentry_uuid_t sentry_transaction_finish(
     sentry_value_t transaction);
 
 #ifdef __cplusplus
