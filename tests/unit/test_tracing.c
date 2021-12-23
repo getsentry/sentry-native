@@ -335,7 +335,7 @@ SENTRY_TEST(basic_spans)
     // Don't track the span yet
     TEST_CHECK(IS_NULL(tx, "spans"));
 
-    sentry_span_finish(&tx, child);
+    sentry_span_finish(tx, child);
 
     TEST_CHECK(!IS_NULL(tx, "spans"));
     sentry_value_t spans = sentry_value_get_by_key(tx, "spans");
@@ -379,7 +379,7 @@ SENTRY_TEST(spans_on_scope)
     // Don't track the span yet
     TEST_CHECK(IS_NULL(scope_tx, "spans"));
 
-    sentry_span_finish(&tx, child);
+    sentry_span_finish(tx, child);
 
     scope_tx = sentry__scope_get_span();
     TEST_CHECK(!IS_NULL(scope_tx, "spans"));
@@ -411,7 +411,7 @@ SENTRY_TEST(child_spans)
     sentry_value_t fake_span
         = sentry__value_new_span(sentry_value_new_null(), NULL);
     sentry_value_t fake_tx = sentry_value_new_null();
-    sentry_span_finish(&fake_tx, fake_span);
+    sentry_span_finish(fake_tx, fake_span);
 
     sentry_value_t tx_cxt = sentry_value_new_transaction_context("wow!", NULL);
     sentry_value_t tx = sentry_transaction_start(tx_cxt);
@@ -426,7 +426,7 @@ SENTRY_TEST(child_spans)
     // Shouldn't be added to spans yet
     TEST_CHECK(IS_NULL(tx, "spans"));
 
-    sentry_span_finish(&tx, grandchild);
+    sentry_span_finish(tx, grandchild);
 
     // Make sure everything on the transaction looks good, check grandchild
     const char *trace_id
@@ -446,7 +446,7 @@ SENTRY_TEST(child_spans)
     // Should be finished
     TEST_CHECK(!IS_NULL(stored_grandchild, "timestamp"));
 
-    sentry_span_finish(&tx, child);
+    sentry_span_finish(tx, child);
     spans = sentry_value_get_by_key(tx, "spans");
     TEST_CHECK_INT_EQUAL(sentry_value_get_length(spans), 2);
 
@@ -478,7 +478,7 @@ SENTRY_TEST(overflow_spans)
     // Shouldn't be added to spans yet
     TEST_CHECK(IS_NULL(tx, "spans"));
 
-    sentry_span_finish(&tx, child);
+    sentry_span_finish(tx, child);
 
     TEST_CHECK(!IS_NULL(tx, "spans"));
     sentry_value_t spans = sentry_value_get_by_key(tx, "spans");
@@ -491,7 +491,7 @@ SENTRY_TEST(overflow_spans)
         = sentry_span_start_child(child, "ring", "bicycle");
     TEST_CHECK(sentry_value_is_null(second_overflow_child));
 
-    sentry_span_finish(&tx, overflow_child);
+    sentry_span_finish(tx, overflow_child);
     TEST_CHECK_INT_EQUAL(sentry_value_get_length(spans), 1);
 
     sentry_value_decref(tx);

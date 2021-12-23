@@ -1385,7 +1385,7 @@ SENTRY_EXPERIMENTAL_API sentry_value_t sentry_span_start_child(
  * complete than the parent span they belong to.
  */
 SENTRY_EXPERIMENTAL_API void sentry_span_finish(
-    sentry_value_t *root_transaction, sentry_value_t span);
+    sentry_value_t root_transaction, sentry_value_t span);
 
 #ifdef __cplusplus
 }

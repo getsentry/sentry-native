@@ -235,8 +235,8 @@ main(int argc, char **argv)
             sentry_value_t grandchild_ctx
                 = sentry_span_start_child(child_ctx, "littlest.teapot", NULL);
 
-            sentry_span_finish(&tx, grandchild_ctx);
-            sentry_span_finish(&tx, child_ctx);
+            sentry_span_finish(tx, grandchild_ctx);
+            sentry_span_finish(tx, child_ctx);
         }
 
         sentry_transaction_finish(tx);

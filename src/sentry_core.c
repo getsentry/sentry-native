@@ -914,9 +914,9 @@ fail:
 }
 
 void
-sentry_span_finish(sentry_value_t *root_transaction, sentry_value_t span)
+sentry_span_finish(sentry_value_t root_transaction, sentry_value_t span)
 {
-    if (sentry_value_is_null(*root_transaction) || sentry_value_is_null(span)) {
+    if (sentry_value_is_null(root_transaction) || sentry_value_is_null(span)) {
         SENTRY_DEBUG(
             "missing root transaction or span to finish, aborting span finish");
         goto fail;
@@ -935,7 +935,7 @@ sentry_span_finish(sentry_value_t *root_transaction, sentry_value_t span)
         max_spans = options->max_spans;
     }
 
-    if (sentry_value_get_type(*root_transaction) == SENTRY_VALUE_TYPE_STRING) {
+    if (sentry_value_get_type(root_transaction) == SENTRY_VALUE_TYPE_STRING) {
         // Changes to spans does not require a flush.
         SENTRY_WITH_SCOPE_MUT_NO_FLUSH (scope) {
             sentry_value_t spans
@@ -955,7 +955,7 @@ sentry_span_finish(sentry_value_t *root_transaction, sentry_value_t span)
         }
     } else {
         sentry_value_t spans
-            = sentry_value_get_by_key(*root_transaction, "spans");
+            = sentry_value_get_by_key(root_transaction, "spans");
 
         if (sentry_value_get_length(spans) >= max_spans) {
             SENTRY_DEBUG("reached maximum number of spans for transaction, "
@@ -965,7 +965,7 @@ sentry_span_finish(sentry_value_t *root_transaction, sentry_value_t span)
 
         if (sentry_value_is_null(spans)) {
             spans = sentry_value_new_list();
-            sentry_value_set_by_key(*root_transaction, "spans", spans);
+            sentry_value_set_by_key(root_transaction, "spans", spans);
         }
         sentry_value_append(spans, span);
     }
