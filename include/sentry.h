@@ -1295,7 +1295,10 @@ SENTRY_EXPERIMENTAL_API void sentry_transaction_context_remove_sampled(
  * Starts a new Transaction based on the provided context, restored from an
  * external integration (i.e. a span from a different SDK) or manually
  * constructed by a user. Returns a Transaction, which is expected to be
- * manually managed by the caller.
+ * manually managed by the caller. Manual management involves ensuring that
+ * `sentry_transaction_finish` is invoked for the Transaction, and that the
+ * caller manually starts and finishes any child Spans as neededon the
+ * Transaction.
  *
  * To ensure that any Events or Message Events are associated with this
  * Transaction while it is active, invoke and pass in the Transaction returned
@@ -1325,7 +1328,7 @@ SENTRY_EXPERIMENTAL_API sentry_uuid_t sentry_transaction_finish(
  * Sets the Span (actually Transaction) so any Events sent while the Transaction
  * is active will be associated with the Transaction. Returns a value which
  * should then be passed into `sentry_transaction_finish` to finish and render
- * the transaction inactive.
+ * the Transaction inactive.
  *
  * This takes ownership of the Transaction.
  */
