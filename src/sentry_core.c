@@ -860,8 +860,7 @@ sentry_span_start_child(
     bool tx_on_scope = sentry_value_get_type(transaction_or_span)
         == SENTRY_VALUE_TYPE_STRING;
     if (tx_on_scope) {
-        // Changes to spans on a transaction requires no flushing.
-        SENTRY_WITH_SCOPE_MUT_NO_FLUSH (scope) {
+        SENTRY_WITH_SCOPE (scope) {
             // There isn't an active transaction. This span has nothing to
             // attach to.
             if (sentry_value_is_null(scope->span)) {
