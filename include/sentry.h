@@ -1297,8 +1297,11 @@ SENTRY_EXPERIMENTAL_API void sentry_transaction_context_remove_sampled(
  * constructed by a user. Returns a Transaction, which is expected to be
  * manually managed by the caller. Manual management involves ensuring that
  * `sentry_transaction_finish` is invoked for the Transaction, and that the
- * caller manually starts and finishes any child Spans as neededon the
+ * caller manually starts and finishes any child Spans as needed on the
  * Transaction.
+ *
+ * `sentry_transaction_finish` must be called in order for this Transaction to
+ * be sent to sentry.
  *
  * To ensure that any Events or Message Events are associated with this
  * Transaction while it is active, invoke and pass in the Transaction returned
@@ -1315,10 +1318,7 @@ SENTRY_EXPERIMENTAL_API sentry_value_t sentry_transaction_start(
  * will be returned if this was successful; A nil UUID will be returned
  * otherwise.
  *
- * If passed `sentry_value_null` as a parameter, will remove the Transaction set
- * by `sentry_set_span` if one can be found.
- *
- * Always takes ownership of `Transaction`, regardless of whether the operation
+ * Always takes ownership of `transaction`, regardless of whether the operation
  * was successful or not.
  */
 SENTRY_EXPERIMENTAL_API sentry_uuid_t sentry_transaction_finish(
