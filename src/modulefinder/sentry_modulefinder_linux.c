@@ -318,19 +318,14 @@ get_code_id_from_text_fallback(const sentry_module_t *module)
             elf.e_shoff + elf.e_shentsize * elf.e_shstrndx,
             sizeof(Elf64_Shdr)));
 
-        const char *names = sentry__module_get_addr(
-            module, strheader.sh_offset, strheader.sh_entsize);
-        ENSURE(names);
         for (int i = 0; i < elf.e_shnum; i++) {
             Elf64_Shdr header;
             ENSURE(sentry__module_read_safely(&header, module,
                 elf.e_shoff + elf.e_shentsize * i, sizeof(Elf64_Shdr)));
 
             char name[6];
-            if (!sentry__module_read_safely(name, module,
-                    (uintptr_t)names + header.sh_name, sizeof(name))) {
-                continue;
-            }
+            ENSURE(sentry__module_read_safely(name, module,
+                strheader.sh_offset + header.sh_name, sizeof(name)));
             name[5] = '\0';
             if (header.sh_type == SHT_PROGBITS && strcmp(name, ".text") == 0) {
                 text = sentry__module_get_addr(
@@ -349,19 +344,14 @@ get_code_id_from_text_fallback(const sentry_module_t *module)
             elf.e_shoff + elf.e_shentsize * elf.e_shstrndx,
             sizeof(Elf32_Shdr)));
 
-        const char *names = sentry__module_get_addr(
-            module, strheader.sh_offset, strheader.sh_entsize);
-        ENSURE(names);
         for (int i = 0; i < elf.e_shnum; i++) {
             Elf32_Shdr header;
             ENSURE(sentry__module_read_safely(&header, module,
                 elf.e_shoff + elf.e_shentsize * i, sizeof(Elf32_Shdr)));
 
             char name[6];
-            if (!sentry__module_read_safely(name, module,
-                    (uintptr_t)names + header.sh_name, sizeof(name))) {
-                continue;
-            }
+            ENSURE(sentry__module_read_safely(name, module,
+                strheader.sh_offset + header.sh_name, sizeof(name)));
             name[5] = '\0';
             if (header.sh_type == SHT_PROGBITS && strcmp(name, ".text") == 0) {
                 text = sentry__module_get_addr(
