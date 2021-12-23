@@ -249,7 +249,7 @@ SENTRY_TEST(transactions_skip_before_send)
 
     sentry_value_t tx_cxt
         = sentry_value_new_transaction_context("honk", "beep");
-    sentry_value_t tx = sentry_transaction_start(transaction);
+    sentry_value_t tx = sentry_transaction_start(tx_cxt);
     sentry_uuid_t event_id = sentry_transaction_finish(tx);
     TEST_CHECK(!sentry_uuid_is_nil(&event_id));
 
