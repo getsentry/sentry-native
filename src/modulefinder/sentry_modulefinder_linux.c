@@ -327,8 +327,10 @@ get_code_id_from_text_fallback(const sentry_module_t *module)
                 elf.e_shoff + elf.e_shentsize * i, sizeof(Elf64_Shdr)));
 
             char name[6];
-            ENSURE(sentry__module_read_safely(&name, module,
-                (uintptr_t)names + header.sh_name, sizeof(name)));
+            if (!sentry__module_read_safely(&name, module,
+                    (uintptr_t)names + header.sh_name, sizeof(name))) {
+                continue;
+            }
             name[5] = '\0';
             if (header.sh_type == SHT_PROGBITS && strcmp(name, ".text") == 0) {
                 text = sentry__module_get_addr(
@@ -356,8 +358,10 @@ get_code_id_from_text_fallback(const sentry_module_t *module)
                 elf.e_shoff + elf.e_shentsize * i, sizeof(Elf32_Shdr)));
 
             char name[6];
-            ENSURE(sentry__module_read_safely(&name, module,
-                (uintptr_t)names + header.sh_name, sizeof(name)));
+            if (!sentry__module_read_safely(&name, module,
+                    (uintptr_t)names + header.sh_name, sizeof(name))) {
+                continue;
+            }
             name[5] = '\0';
             if (header.sh_type == SHT_PROGBITS && strcmp(name, ".text") == 0) {
                 text = sentry__module_get_addr(
