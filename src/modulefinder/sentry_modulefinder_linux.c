@@ -327,7 +327,7 @@ get_code_id_from_text_fallback(const sentry_module_t *module)
                 elf.e_shoff + elf.e_shentsize * i, sizeof(Elf64_Shdr)));
 
             char name[6];
-            if (!sentry__module_read_safely(&name, module,
+            if (!sentry__module_read_safely(name, module,
                     (uintptr_t)names + header.sh_name, sizeof(name))) {
                 continue;
             }
@@ -358,7 +358,7 @@ get_code_id_from_text_fallback(const sentry_module_t *module)
                 elf.e_shoff + elf.e_shentsize * i, sizeof(Elf32_Shdr)));
 
             char name[6];
-            if (!sentry__module_read_safely(&name, module,
+            if (!sentry__module_read_safely(name, module,
                     (uintptr_t)names + header.sh_name, sizeof(name))) {
                 continue;
             }
