@@ -3,13 +3,13 @@
 #include "sentry_tracing.h"
 #include "sentry_uuid.h"
 
-#define IS_NULL(Src, Field)
-sentry_value_is_null(sentry_value_get_by_key(Src, Field))
+#define IS_NULL(Src, Field)                                                    \
+    sentry_value_is_null(sentry_value_get_by_key(Src, Field))
 #define CHECK_STRING_PROPERTY(Src, Field, Expected)                            \
     TEST_CHECK_STRING_EQUAL(                                                   \
         sentry_value_as_string(sentry_value_get_by_key(Src, Field)), Expected)
 
-    SENTRY_TEST(basic_tracing_context)
+SENTRY_TEST(basic_tracing_context)
 {
     sentry_value_t span = sentry_value_new_object();
     TEST_CHECK(sentry_value_is_null(sentry__span_get_trace_context(span)));
