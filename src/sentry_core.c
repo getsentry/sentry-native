@@ -756,12 +756,9 @@ sentry_transaction_finish(sentry_value_t tx)
     if (sentry_value_get_type(tx) == SENTRY_VALUE_TYPE_STRING) {
         sentry_value_decref(tx);
         tx = sentry_value_new_null();
+        // Minimize the amount of time spent locking the scope, and do checking
+        // on the transaction when this is not holding onto the lock.
         SENTRY_WITH_SCOPE (scope) {
-            if (sentry_value_is_null(scope->span)) {
-                SENTRY_DEBUG(
-                    "could not find a transaction on the scope to finish");
-                goto fail;
-            }
             tx = sentry__value_clone(scope->span);
         }
         sentry__scope_remove_span();
