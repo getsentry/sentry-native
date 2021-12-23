@@ -1160,7 +1160,6 @@ sentry_value_new_transaction_context(const char *name, const char *operation)
         transaction_context, "span_id", sentry__value_new_span_uuid(&span_id));
 
     sentry_transaction_context_set_name(transaction_context, name);
-    sentry_transaction_context_set_operation(transaction_context, operation);
 
     return transaction_context;
 }
