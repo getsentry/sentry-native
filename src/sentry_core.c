@@ -855,23 +855,21 @@ sentry_span_start_child(
         max_spans = options->max_spans;
     }
 
-    sentry_value_t parent;
+    sentry_value_t parent = sentry_value_new_null();
     // Parent is transaction on scope.
     bool tx_on_scope = sentry_value_get_type(transaction_or_span)
         == SENTRY_VALUE_TYPE_STRING;
     if (tx_on_scope) {
         SENTRY_WITH_SCOPE (scope) {
-            // There isn't an active transaction. This span has nothing to
-            // attach to.
-            if (sentry_value_is_null(scope->span)) {
-                SENTRY_DEBUG(
-                    "no transaction available to create a child under");
-                return sentry_value_new_null();
-            }
             parent = sentry__value_clone(scope->span);
         }
     } else {
         parent = transaction_or_span;
+    }
+
+    if (sentry_value_is_null(parent)) {
+        SENTRY_DEBUG("no transaction available to create a child under");
+        goto fail;
     }
 
     if (!sentry_value_is_null(sentry_value_get_by_key(parent, "timestamp"))) {
