@@ -7,7 +7,7 @@
 #include "sentry_string.h"
 #include "sentry_symbolizer.h"
 #include "sentry_sync.h"
-#include "sentry_tracing.h"
+
 #include <stdlib.h>
 
 #ifdef SENTRY_BACKEND_CRASHPAD
@@ -16,6 +16,10 @@
 #    define SENTRY_BACKEND "breakpad"
 #elif defined(SENTRY_BACKEND_INPROC)
 #    define SENTRY_BACKEND "inproc"
+#endif
+
+#ifdef SENTRY_PERFORMANCE_MONITORING
+#    include "sentry_tracing.h"
 #endif
 
 static bool g_scope_initialized = false;
@@ -74,7 +78,10 @@ get_scope(void)
     g_scope.breadcrumbs = sentry_value_new_list();
     g_scope.level = SENTRY_LEVEL_ERROR;
     g_scope.client_sdk = get_client_sdk();
+
+#ifdef SENTRY_PERFORMANCE_MONITORING
     g_scope.span = sentry_value_new_null();
+#endif
 
     g_scope_initialized = true;
 
@@ -95,7 +102,10 @@ sentry__scope_cleanup(void)
         sentry_value_decref(g_scope.contexts);
         sentry_value_decref(g_scope.breadcrumbs);
         sentry_value_decref(g_scope.client_sdk);
+
+#ifdef SENTRY_PERFORMANCE_MONITORING
         sentry_value_decref(g_scope.span);
+#endif
     }
     sentry__mutex_unlock(&g_lock);
 }
@@ -227,6 +237,7 @@ sentry__symbolize_stacktrace(sentry_value_t stacktrace)
     }
 }
 
+#ifdef SENTRY_PERFORMANCE_MONITORING
 void
 sentry__scope_set_span(sentry_value_t span)
 {
@@ -234,6 +245,7 @@ sentry__scope_set_span(sentry_value_t span)
     (void)span;
     return;
 }
+#endif
 
 void
 sentry__scope_apply_to_event(const sentry_scope_t *scope,
@@ -282,6 +294,7 @@ sentry__scope_apply_to_event(const sentry_scope_t *scope,
     PLACE_CLONED_VALUE("tags", scope->tags);
     PLACE_CLONED_VALUE("extra", scope->extra);
 
+#ifdef SENTRY_PERFORMANCE_MONITORING
     // TODO: better, more thorough deep merging
     sentry_value_t contexts = sentry__value_clone(scope->contexts);
     sentry_value_t trace = sentry__span_get_trace_context(scope->span);
@@ -290,6 +303,7 @@ sentry__scope_apply_to_event(const sentry_scope_t *scope,
     }
     PLACE_VALUE("contexts", contexts);
     sentry_value_decref(contexts);
+#endif
 
     if (mode & SENTRY_SCOPE_BREADCRUMBS) {
         PLACE_CLONED_VALUE("breadcrumbs", scope->breadcrumbs);

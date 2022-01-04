@@ -93,9 +93,11 @@ main(int argc, char **argv)
             options, sentry_transport_new(print_envelope));
     }
 
+#ifdef SENTRY_PERFORMANCE_MONITORING
     if (has_arg(argc, argv, "capture-transaction")) {
         sentry_options_set_traces_sample_rate(options, 1.0);
     }
+#endif
 
     sentry_init(options);
 
@@ -212,6 +214,7 @@ main(int argc, char **argv)
         sentry_capture_event(event);
     }
 
+#ifdef SENTRY_PERFORMANCE_MONITORING
     if (has_arg(argc, argv, "capture-transaction")) {
         sentry_value_t tx_ctx
             = sentry_value_new_transaction_context("I'm a little teapot",
@@ -224,6 +227,7 @@ main(int argc, char **argv)
         sentry_value_t tx = sentry_transaction_start(tx_ctx);
         sentry_transaction_finish(tx);
     }
+#endif
 
     // make sure everything flushes
     sentry_close();

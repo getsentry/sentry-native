@@ -1,4 +1,5 @@
-#include "sentry_sync.h"
+#ifdef SENTRY_PERFORMANCE_MONITORING
+#    include "sentry_value.h"
 
 sentry_value_t
 sentry__span_get_trace_context(sentry_value_t span)
@@ -11,14 +12,14 @@ sentry__span_get_trace_context(sentry_value_t span)
 
     sentry_value_t trace_context = sentry_value_new_object();
 
-#define PLACE_VALUE(Key, Source)                                               \
-    do {                                                                       \
-        sentry_value_t src = sentry_value_get_by_key(Source, Key);             \
-        if (!sentry_value_is_null(src)) {                                      \
-            sentry_value_incref(src);                                          \
-            sentry_value_set_by_key(trace_context, Key, src);                  \
-        }                                                                      \
-    } while (0)
+#    define PLACE_VALUE(Key, Source)                                           \
+        do {                                                                   \
+            sentry_value_t src = sentry_value_get_by_key(Source, Key);         \
+            if (!sentry_value_is_null(src)) {                                  \
+                sentry_value_incref(src);                                      \
+                sentry_value_set_by_key(trace_context, Key, src);              \
+            }                                                                  \
+        } while (0)
 
     PLACE_VALUE("trace_id", span);
     PLACE_VALUE("span_id", span);
@@ -29,5 +30,6 @@ sentry__span_get_trace_context(sentry_value_t span)
 
     return trace_context;
 
-#undef PLACE_VALUE
+#    undef PLACE_VALUE
 }
+#endif
