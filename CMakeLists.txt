@@ -559,7 +559,6 @@ if(SENTRY_BUILD_EXAMPLES)
 	add_executable(sentry_example examples/example.c)
 	target_link_libraries(sentry_example PRIVATE sentry)
 
-	target_compile_definitions(sentry PRIVATE SENTRY_PERFORMANCE_MONITORING)
 	target_compile_definitions(sentry_example PRIVATE SENTRY_PERFORMANCE_MONITORING)
 
 	if(MSVC)
