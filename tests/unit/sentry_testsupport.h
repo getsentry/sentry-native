@@ -7,10 +7,6 @@
 #include <stdio.h>
 #include <string.h>
 
-#ifndef SENTRY_PERFORMANCE_MONITORING
-#    define SENTRY_PERFORMANCE_MONITORING
-#endif
-
 #ifndef SENTRY_TEST_DEFINE_MAIN
 #    define TEST_NO_MAIN
 #endif
