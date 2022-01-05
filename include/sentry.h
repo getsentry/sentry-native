@@ -1112,16 +1112,13 @@ SENTRY_API void sentry_user_consent_reset(void);
  */
 SENTRY_API sentry_user_consent_t sentry_user_consent_get(void);
 
-#ifdef SENTRY_PERFORMANCE_MONITORING
-/**
- * Sends a sentry event. Returns a nil UUID if the event being passed in is a
- * transaction; `sentry_transaction_finish` should be used to send transactions.
- */
-#else
 /**
  * Sends a sentry event.
+ *
+ * If SENTRY_PERFORMANCE_MONITORING is enabled, returns a nil UUID if the event
+ * being passed in is a transaction, and the transaction will not be sent nor
+ * consumed. `sentry_transaction_finish` should be used to send transactions.
  */
-#endif
 SENTRY_API sentry_uuid_t sentry_capture_event(sentry_value_t event);
 
 /**
