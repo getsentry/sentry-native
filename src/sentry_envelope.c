@@ -200,15 +200,23 @@ sentry_envelope_get_event(const sentry_envelope_t *envelope)
         return sentry_value_new_null();
     }
     for (size_t i = 0; i < envelope->contents.items.item_count; i++) {
+
+#ifdef SENTRY_PERFORMANCE_MONITORING
         if (!sentry_value_is_null(envelope->contents.items.items[i].event)
             && !sentry__event_is_transaction(
                 envelope->contents.items.items[i].event)) {
             return envelope->contents.items.items[i].event;
         }
+#else
+        if (!sentry_value_is_null(envelope->contents.items.items[i].event)) {
+            return envelope->contents.items.items[i].event;
+        }
+#endif
     }
     return sentry_value_new_null();
 }
 
+#ifdef SENTRY_PERFORMANCE_MONITORING
 sentry_value_t
 sentry_envelope_get_transaction(const sentry_envelope_t *envelope)
 {
@@ -224,6 +232,7 @@ sentry_envelope_get_transaction(const sentry_envelope_t *envelope)
     }
     return sentry_value_new_null();
 }
+#endif
 
 sentry_envelope_item_t *
 sentry__envelope_add_event(sentry_envelope_t *envelope, sentry_value_t event)
@@ -255,6 +264,7 @@ sentry__envelope_add_event(sentry_envelope_t *envelope, sentry_value_t event)
     return item;
 }
 
+#ifdef SENTRY_PERFORMANCE_MONITORING
 sentry_envelope_item_t *
 sentry__envelope_add_transaction(
     sentry_envelope_t *envelope, sentry_value_t transaction)
@@ -283,16 +293,17 @@ sentry__envelope_add_transaction(
     sentry_value_incref(event_id);
     sentry__envelope_set_header(envelope, "event_id", event_id);
 
-#ifdef SENTRY_UNITTEST
+#    ifdef SENTRY_UNITTEST
     sentry_value_t now = sentry_value_new_string("2021-12-16T05:53:59.343Z");
-#else
+#    else
     sentry_value_t now = sentry__value_new_string_owned(
         sentry__msec_time_to_iso8601(sentry__msec_time()));
-#endif
+#    endif
     sentry__envelope_set_header(envelope, "sent_at", now);
 
     return item;
 }
+#endif
 
 sentry_envelope_item_t *
 sentry__envelope_add_session(

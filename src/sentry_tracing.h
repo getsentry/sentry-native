@@ -10,5 +10,4 @@
  * See https://develop.sentry.dev/sdk/event-payloads/transaction/#examples
  */
 sentry_value_t sentry__span_get_trace_context(sentry_value_t span);
-
 #endif
