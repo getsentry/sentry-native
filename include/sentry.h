@@ -1329,7 +1329,6 @@ SENTRY_EXPERIMENTAL_API sentry_value_t sentry_transaction_start(
  */
 SENTRY_EXPERIMENTAL_API sentry_uuid_t sentry_transaction_finish(
     sentry_value_t transaction);
-#endif
 
 /**
  * Sets the Span (actually Transaction) so any Events sent while the Transaction
@@ -1341,6 +1340,7 @@ SENTRY_EXPERIMENTAL_API sentry_uuid_t sentry_transaction_finish(
  */
 SENTRY_EXPERIMENTAL_API sentry_value_t sentry_set_span(
     sentry_value_t transaction);
+#endif
 
 #ifdef __cplusplus
 }
