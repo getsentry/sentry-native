@@ -19,12 +19,15 @@ typedef struct sentry_scope_s {
     sentry_value_t breadcrumbs;
     sentry_level_t level;
     sentry_value_t client_sdk;
+
+#ifdef SENTRY_PERFORMANCE_MONITORING
     // Not to be confused with transaction, which is a legacy value. This is
     // also known as a transaction, but to maintain consistency with other SDKs
     // and to avoid a conflict with the existing transaction field this is named
     // span. Whenever possible, `transaction` should pull its value from the
     // `name` property nested in this field.
     sentry_value_t span;
+#endif
 } sentry_scope_t;
 
 /**

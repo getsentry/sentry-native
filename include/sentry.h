@@ -561,6 +561,7 @@ SENTRY_API void sentry_envelope_free(sentry_envelope_t *envelope);
 SENTRY_API sentry_value_t sentry_envelope_get_event(
     const sentry_envelope_t *envelope);
 
+#ifdef SENTRY_PERFORMANCE_MONITORING
 /**
  * Given an Envelope, returns the embedded Transaction if there is one.
  *
@@ -568,6 +569,7 @@ SENTRY_API sentry_value_t sentry_envelope_get_event(
  */
 SENTRY_EXPERIMENTAL_API sentry_value_t sentry_envelope_get_transaction(
     const sentry_envelope_t *envelope);
+#endif
 
 /**
  * Serializes the envelope.
@@ -1111,8 +1113,11 @@ SENTRY_API void sentry_user_consent_reset(void);
 SENTRY_API sentry_user_consent_t sentry_user_consent_get(void);
 
 /**
- * Sends a sentry event. Returns a nil UUID if the event being passed in is a
- * transaction; `sentry_transaction_finish` should be used to send transactions.
+ * Sends a sentry event.
+ *
+ * If SENTRY_PERFORMANCE_MONITORING is enabled, returns a nil UUID if the event
+ * being passed in is a transaction, and the transaction will not be sent nor
+ * consumed. `sentry_transaction_finish` should be used to send transactions.
  */
 SENTRY_API sentry_uuid_t sentry_capture_event(sentry_value_t event);
 
@@ -1207,6 +1212,7 @@ SENTRY_API void sentry_start_session(void);
  */
 SENTRY_API void sentry_end_session(void);
 
+#ifdef SENTRY_PERFORMANCE_MONITORING
 /**
  * Sets the maximum number of spans that can be attached to a
  * transaction.
@@ -1323,6 +1329,7 @@ SENTRY_EXPERIMENTAL_API sentry_value_t sentry_transaction_start(
  */
 SENTRY_EXPERIMENTAL_API sentry_uuid_t sentry_transaction_finish(
     sentry_value_t transaction);
+#endif
 
 /**
  * Sets the Span (actually Transaction) so any Events sent while the Transaction

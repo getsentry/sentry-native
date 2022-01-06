@@ -36,11 +36,13 @@ sentry_uuid_t sentry__envelope_get_event_id(const sentry_envelope_t *envelope);
 sentry_envelope_item_t *sentry__envelope_add_event(
     sentry_envelope_t *envelope, sentry_value_t event);
 
+#ifdef SENTRY_PERFORMANCE_MONITORING
 /**
  * Add a transaction to this envelope.
  */
 sentry_envelope_item_t *sentry__envelope_add_transaction(
     sentry_envelope_t *envelope, sentry_value_t transaction);
+#endif
 
 /**
  * Add a session to this envelope.

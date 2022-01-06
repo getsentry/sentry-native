@@ -1,4 +1,4 @@
-#include "sentry_sync.h"
+#include "sentry_value.h"
 
 sentry_value_t
 sentry__span_get_trace_context(sentry_value_t span)

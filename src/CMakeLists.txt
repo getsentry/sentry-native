@@ -34,8 +34,6 @@ sentry_target_sources_cwd(sentry
 	sentry_symbolizer.h
 	sentry_sync.c
 	sentry_sync.h
-	sentry_tracing.c
-	sentry_tracing.h
 	sentry_transport.c
 	sentry_transport.h
 	sentry_utils.c
@@ -151,5 +149,13 @@ if(SENTRY_INTEGRATION_QT)
 	sentry_target_sources_cwd(sentry
 		integrations/sentry_integration_qt.cpp
 		integrations/sentry_integration_qt.h
+	)
+endif()
+
+if(SENTRY_BUILD_EXAMPLES)
+	target_compile_definitions(sentry PRIVATE SENTRY_PERFORMANCE_MONITORING)
+	sentry_target_sources_cwd(sentry
+	sentry_tracing.c
+	sentry_tracing.h
 	)
 endif()
