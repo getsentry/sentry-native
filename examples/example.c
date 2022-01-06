@@ -97,11 +97,11 @@ main(int argc, char **argv)
     if (has_arg(argc, argv, "capture-transaction")) {
         sentry_options_set_traces_sample_rate(options, 1.0);
     }
-#endif
 
     if (has_arg(argc, argv, "child-spans")) {
         sentry_options_set_max_spans(options, 5);
     }
+#endif
 
     sentry_init(options);
 

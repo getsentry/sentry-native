@@ -1386,6 +1386,7 @@ SENTRY_EXPERIMENTAL_API sentry_value_t sentry_span_start_child(
  */
 SENTRY_EXPERIMENTAL_API void sentry_span_finish(
     sentry_value_t root_transaction, sentry_value_t span);
+#endif
 
 #ifdef __cplusplus
 }

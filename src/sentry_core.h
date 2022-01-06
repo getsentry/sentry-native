@@ -122,7 +122,9 @@ void sentry__options_unlock(void);
 // these for now are only needed outside of core for tests
 #ifdef SENTRY_UNITTEST
 bool sentry__roll_dice(double probability);
+#    ifdef SENTRY_PERFORMANCE_MONITORING
 bool sentry__should_send_transaction(sentry_value_t tx_cxt);
+#    endif
 #endif
 
 #endif
