@@ -778,7 +778,7 @@ sentry_transaction_finish(sentry_value_t tx)
         goto fail;
     }
 
-    SENTRY_WITH_SCOPE_MUT_NO_FLUSH (scope) {
+    SENTRY_WITH_SCOPE_MUT (scope) {
         const char *tx_id
             = sentry_value_as_string(sentry_value_get_by_key(tx, "trace_id"));
         const char *scope_tx_id = sentry_value_as_string(
@@ -787,11 +787,6 @@ sentry_transaction_finish(sentry_value_t tx)
             sentry_value_decref(scope->span);
             scope->span = sentry_value_new_null();
         }
-    }
-    // immediately flush the scope so the transaction doesn't get attached to
-    // any new events
-    SENTRY_WITH_SCOPE_MUT (scope) {
-        (void)scope;
     }
     // The sampling decision should already be made for transactions
     // during their construction. No need to recalculate here. See
