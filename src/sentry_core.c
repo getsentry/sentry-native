@@ -778,9 +778,9 @@ sentry_transaction_finish(sentry_value_t tx)
     }
 
     SENTRY_WITH_SCOPE_MUT_NO_FLUSH (scope) {
-        char *tx_id
-            = sentry__value_stringify(sentry_value_get_by_key(tx, "trace_id"));
-        char *scope_tx_id = sentry__value_stringify(
+        const char *tx_id
+            = sentry_value_as_string(sentry_value_get_by_key(tx, "trace_id"));
+        const char *scope_tx_id = sentry_value_as_string(
             sentry_value_get_by_key(scope->span, "trace_id"));
         if (sentry__string_eq(tx_id, scope_tx_id)) {
             sentry_value_decref(scope->span);
