@@ -522,7 +522,7 @@ sentry__prepare_transaction(const sentry_options_t *options,
     sentry_envelope_t *envelope = NULL;
 
     SENTRY_WITH_SCOPE (scope) {
-        SENTRY_TRACE("merging scope into event");
+        SENTRY_TRACE("merging scope into transaction");
         // Don't include debugging info
         sentry_scope_mode_t mode = SENTRY_SCOPE_ALL & ~SENTRY_SCOPE_MODULES
             & ~SENTRY_SCOPE_STACKTRACES;
@@ -540,6 +540,7 @@ sentry__prepare_transaction(const sentry_options_t *options,
     return envelope;
 
 fail:
+    SENTRY_WARN("dropping transaction");
     sentry_envelope_free(envelope);
     sentry_value_decref(transaction);
     return NULL;
