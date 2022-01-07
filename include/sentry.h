@@ -1346,7 +1346,6 @@ SENTRY_EXPERIMENTAL_API sentry_uuid_t sentry_transaction_finish(
  * into this function.
  */
 SENTRY_EXPERIMENTAL_API void sentry_set_span(sentry_value_t transaction);
-#endif
 
 /**
  * Starts a new Span.

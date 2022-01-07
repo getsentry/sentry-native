@@ -364,7 +364,7 @@ SENTRY_TEST(spans_on_scope)
 
     sentry_value_t tx_cxt = sentry_value_new_transaction_context("wow!", NULL);
     sentry_value_t tx = sentry_transaction_start(tx_cxt);
-    tx = sentry_set_span(tx);
+    sentry_set_span(tx);
 
     sentry_value_t child = sentry_span_start_child(tx, "honk", "goose");
     TEST_CHECK(!sentry_value_is_null(child));
