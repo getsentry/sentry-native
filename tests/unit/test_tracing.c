@@ -1,3 +1,4 @@
+#include "sentry_scope.h"
 #include "sentry_testsupport.h"
 #include "sentry_tracing.h"
 #include "sentry_uuid.h"
@@ -214,7 +215,7 @@ SENTRY_TEST(transport_sampling_transactions)
 
     sentry_close();
 
-    // well, its random after all
+    // exact value is nondeterministic because of rng
     TEST_CHECK(called_transport > 50 && called_transport < 100);
     TEST_CHECK(called_transport == sent_transactions);
 }
@@ -258,5 +259,58 @@ SENTRY_TEST(transactions_skip_before_send)
     TEST_CHECK_INT_EQUAL(called_beforesend, 0);
 }
 
+static void
+before_transport(sentry_envelope_t *envelope, void *data)
+{
+    uint64_t *called = data;
+    *called += 1;
+
+    sentry_envelope_free(envelope);
+}
+
+SENTRY_TEST(multiple_transactions)
+{
+    uint64_t called_transport = 0;
+
+    sentry_options_t *options = sentry_options_new();
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+
+    sentry_transport_t *transport = sentry_transport_new(before_transport);
+    sentry_transport_set_state(transport, &called_transport);
+    sentry_options_set_transport(options, transport);
+
+    sentry_options_set_traces_sample_rate(options, 1.0);
+    sentry_init(options);
+
+    sentry_value_t tx_cxt = sentry_value_new_transaction_context("wow!", NULL);
+    sentry_value_t tx = sentry_transaction_start(tx_cxt);
+    sentry_set_span(tx);
+
+    sentry_value_t scope_tx = sentry__scope_get_span();
+    CHECK_STRING_PROPERTY(scope_tx, "transaction", "wow!");
+
+    sentry_uuid_t event_id = sentry_transaction_finish(tx);
+    scope_tx = sentry__scope_get_span();
+    TEST_CHECK(sentry_value_is_null(scope_tx));
+    TEST_CHECK(!sentry_uuid_is_nil(&event_id));
+
+    // Set transaction on scope twice, back-to-back without finishing the first
+    // one
+    tx_cxt = sentry_value_new_transaction_context("whoa!", NULL);
+    tx = sentry_transaction_start(tx_cxt);
+    sentry_set_span(tx);
+    sentry_value_decref(tx);
+    tx_cxt = sentry_value_new_transaction_context("wowee!", NULL);
+    tx = sentry_transaction_start(tx_cxt);
+    sentry_set_span(tx);
+    scope_tx = sentry__scope_get_span();
+    CHECK_STRING_PROPERTY(scope_tx, "transaction", "wowee!");
+    event_id = sentry_transaction_finish(tx);
+    TEST_CHECK(!sentry_uuid_is_nil(&event_id));
+
+    sentry_close();
+
+    TEST_CHECK_INT_EQUAL(called_transport, 2);
+}
 #undef IS_NULL
 #undef CHECK_STRING_PROPERTY

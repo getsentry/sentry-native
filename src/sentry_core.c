@@ -522,7 +522,7 @@ sentry__prepare_transaction(const sentry_options_t *options,
     sentry_envelope_t *envelope = NULL;
 
     SENTRY_WITH_SCOPE (scope) {
-        SENTRY_TRACE("merging scope into event");
+        SENTRY_TRACE("merging scope into transaction");
         // Don't include debugging info
         sentry_scope_mode_t mode = SENTRY_SCOPE_ALL & ~SENTRY_SCOPE_MODULES
             & ~SENTRY_SCOPE_STACKTRACES;
@@ -540,6 +540,7 @@ sentry__prepare_transaction(const sentry_options_t *options,
     return envelope;
 
 fail:
+    SENTRY_WARN("dropping transaction");
     sentry_envelope_free(envelope);
     sentry_value_decref(transaction);
     return NULL;
@@ -740,7 +741,6 @@ sentry_transaction_start(sentry_value_t tx_cxt)
     sentry_value_t tx = sentry_value_new_event();
     sentry_value_remove_by_key(tx, "timestamp");
 
-    // TODO(tracing): stuff transaction into the scope
     bool should_sample = sentry__should_send_transaction(tx_cxt);
     sentry_value_set_by_key(
         tx, "sampled", sentry_value_new_bool(should_sample));
@@ -757,7 +757,7 @@ sentry_transaction_start(sentry_value_t tx_cxt)
     sentry_value_set_by_key(
         tx, "trace_id", sentry_value_get_by_key_owned(tx_cxt, "trace_id"));
     sentry_value_set_by_key(
-        tx, "span_id", sentry_value_get_by_key_owned(tx_cxt, "trace_id"));
+        tx, "span_id", sentry_value_get_by_key_owned(tx_cxt, "span_id"));
     sentry_value_set_by_key(tx, "transaction",
         sentry_value_get_by_key_owned(tx_cxt, "transaction"));
     sentry_value_set_by_key(
@@ -767,24 +767,37 @@ sentry_transaction_start(sentry_value_t tx_cxt)
             sentry__msec_time_to_iso8601(sentry__msec_time())));
 
     sentry_value_decref(tx_cxt);
-
     return tx;
 }
 
 sentry_uuid_t
 sentry_transaction_finish(sentry_value_t tx)
 {
-    // The sampling decision should already be made for transactions during
-    // their construction. No need to recalculate here. See
+    if (sentry_value_is_null(tx)) {
+        SENTRY_DEBUG("no transaction available to finish");
+        goto fail;
+    }
+
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        const char *tx_id
+            = sentry_value_as_string(sentry_value_get_by_key(tx, "trace_id"));
+        const char *scope_tx_id = sentry_value_as_string(
+            sentry_value_get_by_key(scope->span, "trace_id"));
+        if (sentry__string_eq(tx_id, scope_tx_id)) {
+            sentry_value_decref(scope->span);
+            scope->span = sentry_value_new_null();
+        }
+    }
+    // The sampling decision should already be made for transactions
+    // during their construction. No need to recalculate here. See
     // `sentry__should_skip_transaction`.
     sentry_value_t sampled = sentry_value_get_by_key(tx, "sampled");
-    if (!sentry_value_is_null(sampled) && !sentry_value_is_true(sampled)) {
+    if (!sentry_value_is_true(sampled)) {
         SENTRY_DEBUG("throwing away transaction due to sample rate or "
                      "user-provided sampling value in transaction context");
-        sentry_value_decref(tx);
-        // TODO(tracing): remove from scope
-        return sentry_uuid_nil();
+        goto fail;
     }
+    sentry_value_remove_by_key(tx, "sampled");
 
     sentry_value_set_by_key(tx, "type", sentry_value_new_string("transaction"));
     sentry_value_set_by_key(tx, "timestamp",
@@ -815,5 +828,19 @@ sentry_transaction_finish(sentry_value_t tx)
     // This takes ownership of the transaction, generates an event ID, merges
     // scope
     return sentry__capture_event(tx);
+
+fail:
+    sentry_value_decref(tx);
+    return sentry_uuid_nil();
+}
+
+void
+sentry_set_span(sentry_value_t transaction)
+{
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry_value_decref(scope->span);
+        sentry_value_incref(transaction);
+        scope->span = transaction;
+    }
 }
 #endif

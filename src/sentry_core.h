@@ -118,7 +118,7 @@ void sentry__options_unlock(void);
     for (const sentry_options_t *Options = sentry__options_getref(); Options;  \
          sentry_options_free((sentry_options_t *)Options), Options = NULL)
 
-// these for now are only needed for tests
+// these for now are only needed outside of core for tests
 #ifdef SENTRY_UNITTEST
 bool sentry__roll_dice(double probability);
 bool sentry__should_send_transaction(sentry_value_t tx_cxt);

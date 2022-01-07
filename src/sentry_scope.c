@@ -238,13 +238,16 @@ sentry__symbolize_stacktrace(sentry_value_t stacktrace)
 }
 
 #ifdef SENTRY_PERFORMANCE_MONITORING
-void
-sentry__scope_set_span(sentry_value_t span)
+#    ifdef SENTRY_UNITTEST
+sentry_value_t
+sentry__scope_get_span()
 {
-    // TODO: implement this function and get rid of this line.
-    (void)span;
-    return;
+    SENTRY_WITH_SCOPE (scope) {
+        return scope->span;
+    }
+    return sentry_value_new_null();
 }
+#    endif
 #endif
 
 void

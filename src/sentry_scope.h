@@ -79,12 +79,6 @@ void sentry__scope_apply_to_event(const sentry_scope_t *scope,
     sentry_scope_mode_t mode);
 
 /**
- * Sets the span (actually transaction) on the scope. An internal way to pass
- * around contextual information needed from a transaction into other events.
- */
-void sentry__scope_set_span(sentry_value_t span);
-
-/**
  * These are convenience macros to automatically lock/unlock a scope inside a
  * code block.
  */
@@ -98,4 +92,11 @@ void sentry__scope_set_span(sentry_value_t span);
     for (sentry_scope_t *Scope = sentry__scope_lock(); Scope;                  \
          sentry__scope_unlock(), Scope = NULL)
 
+#endif
+
+#ifdef SENTRY_PERFORMANCE_MONITORING
+// this is only used in unit tests
+#ifdef SENTRY_UNITTEST
+sentry_value_t sentry__scope_get_span();
+#endif
 #endif

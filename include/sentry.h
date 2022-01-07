@@ -1300,7 +1300,19 @@ SENTRY_EXPERIMENTAL_API void sentry_transaction_context_remove_sampled(
 /**
  * Starts a new Transaction based on the provided context, restored from an
  * external integration (i.e. a span from a different SDK) or manually
- * constructed by a user.
+ * constructed by a user. Returns a Transaction, which is expected to be
+ * manually managed by the caller. Manual management involves ensuring that
+ * `sentry_transaction_finish` is invoked for the Transaction, and that the
+ * caller manually starts and finishes any child Spans as needed on the
+ * Transaction.
+ *
+ * `sentry_transaction_finish` must be called in order for this Transaction to
+ * be sent to sentry.
+ *
+ * To ensure that any Events or Message Events are associated with this
+ * Transaction while it is active, invoke and pass in the Transaction returned
+ * by this function to `sentry_set_span`. Further documentation on this can be
+ * found in `sentry_set_span`'s docstring.
  *
  * Takes ownership of `transaction_context`.
  */
@@ -1308,15 +1320,32 @@ SENTRY_EXPERIMENTAL_API sentry_value_t sentry_transaction_start(
     sentry_value_t transaction_context);
 
 /**
- * Finishes and sends a transaction to sentry. The event ID of the transaction
+ * Finishes and sends a Transaction to sentry. The event ID of the Transaction
  * will be returned if this was successful; A nil UUID will be returned
  * otherwise.
  *
  * Always takes ownership of `transaction`, regardless of whether the operation
- * was successful or not.
+ * was successful or not. If `sentry_set_span` was invoked with `transaction`,
+ * this will remove the
  */
 SENTRY_EXPERIMENTAL_API sentry_uuid_t sentry_transaction_finish(
     sentry_value_t transaction);
+
+/**
+ * Sets the Span (actually Transaction) so any Events sent while the Transaction
+ * is active will be associated with the Transaction.
+ *
+ * If the Transaction being passed in is unsampled, it will still be associated
+ * with any new Events. This will lead to some Events pointing to orphan or
+ * missing traces in sentry, see
+ * https://docs.sentry.io/product/sentry-basics/tracing/trace-view/#orphan-traces-and-broken-subtraces
+ *
+ * This increases the number of references pointing to the transaction.
+ * Invoke `sentry_transaction_finish` to remove the Span set by this function as
+ * well as its reference by passing in the same Transaction as the one passed
+ * into this function.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_set_span(sentry_value_t transaction);
 #endif
 
 #ifdef __cplusplus
