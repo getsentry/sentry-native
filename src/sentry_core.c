@@ -757,7 +757,7 @@ sentry_transaction_start(sentry_value_t tx_cxt)
     sentry_value_set_by_key(
         tx, "trace_id", sentry_value_get_by_key_owned(tx_cxt, "trace_id"));
     sentry_value_set_by_key(
-        tx, "span_id", sentry_value_get_by_key_owned(tx_cxt, "trace_id"));
+        tx, "span_id", sentry_value_get_by_key_owned(tx_cxt, "span_id"));
     sentry_value_set_by_key(tx, "transaction",
         sentry_value_get_by_key_owned(tx_cxt, "transaction"));
     sentry_value_set_by_key(
