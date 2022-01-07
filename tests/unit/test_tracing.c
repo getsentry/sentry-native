@@ -320,6 +320,11 @@ SENTRY_TEST(basic_spans)
     sentry_options_set_max_spans(options, 3);
     sentry_init(options);
 
+    // Starting a child with no active transaction should fail
+    sentry_value_t parentless_child
+        = sentry_span_start_child(sentry_value_new_null(), NULL, NULL);
+    TEST_CHECK(sentry_value_is_null(parentless_child));
+
     sentry_value_t tx_cxt = sentry_value_new_transaction_context("wow!", NULL);
     sentry_value_t tx = sentry_transaction_start(tx_cxt);
 
@@ -335,6 +340,9 @@ SENTRY_TEST(basic_spans)
     // Don't track the span yet
     TEST_CHECK(IS_NULL(tx, "spans"));
 
+    // Sanity check that child isn't finished yet
+    TEST_CHECK(IS_NULL(child, "timestamp"));
+    // Now finishing
     sentry_span_finish(tx, child);
 
     TEST_CHECK(!IS_NULL(tx, "spans"));
@@ -378,6 +386,9 @@ SENTRY_TEST(spans_on_scope)
         = sentry_value_as_string(sentry_value_get_by_key(scope_tx, "span_id"));
     // Don't track the span yet
     TEST_CHECK(IS_NULL(scope_tx, "spans"));
+
+    // Sanity check that child isn't finished yet
+    TEST_CHECK(IS_NULL(child, "timestamp"));
 
     sentry_span_finish(tx, child);
 
@@ -531,7 +542,8 @@ SENTRY_TEST(wrong_spans_on_transaction_is_ok)
     sentry_value_t stored_child = sentry_value_get_by_index(spans, 0);
     CHECK_STRING_PROPERTY(stored_child, "span_id", child_span_id);
 
-    sentry_transaction_finish(tx);
+    sentry_uuid_t event_id = sentry_transaction_finish(tx);
+    TEST_CHECK(!sentry_uuid_is_nil(&event_id));
 
     // doesn't care if the child belonged to a different, already finished
     // transaction
@@ -543,6 +555,61 @@ SENTRY_TEST(wrong_spans_on_transaction_is_ok)
     sentry_value_decref(tx_other);
 
     sentry_close();
+}
+
+static void
+check_spans(sentry_envelope_t *envelope, void *data)
+{
+    uint64_t *called = data;
+    *called += 1;
+
+    sentry_value_t transaction = sentry_envelope_get_transaction(envelope);
+    TEST_CHECK(!sentry_value_is_null(transaction));
+
+    size_t span_count = sentry_value_get_length(
+        sentry_value_get_by_key(transaction, "spans"));
+    TEST_CHECK_INT_EQUAL(span_count, 1);
+
+    sentry_envelope_free(envelope);
+}
+
+SENTRY_TEST(drop_unfinished_spans)
+{
+    uint64_t called_transport = 0;
+
+    sentry_options_t *options = sentry_options_new();
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+
+    sentry_transport_t *transport = sentry_transport_new(check_spans);
+    sentry_transport_set_state(transport, &called_transport);
+    sentry_options_set_transport(options, transport);
+
+    sentry_options_set_traces_sample_rate(options, 1.0);
+    sentry_options_set_max_spans(options, 2);
+    sentry_init(options);
+
+    sentry_value_t tx_cxt = sentry_value_new_transaction_context("wow!", NULL);
+    sentry_value_t tx = sentry_transaction_start(tx_cxt);
+
+    sentry_value_t child = sentry_span_start_child(tx, "honk", "goose");
+    TEST_CHECK(!sentry_value_is_null(child));
+
+    sentry_value_t grandchild = sentry_span_start_child(child, "beep", "car");
+    TEST_CHECK(!sentry_value_is_null(grandchild));
+    sentry_span_finish(tx, grandchild);
+
+    // spans are only added to transactions upon completion
+    TEST_CHECK_INT_EQUAL(
+        sentry_value_get_length(sentry_value_get_by_key(tx, "spans")), 1);
+
+    sentry_uuid_t event_id = sentry_transaction_finish(tx);
+    TEST_CHECK(!sentry_uuid_is_nil(&event_id));
+
+    sentry_value_decref(child);
+
+    sentry_close();
+
+    TEST_CHECK_INT_EQUAL(called_transport, 1);
 }
 
 #undef IS_NULL
