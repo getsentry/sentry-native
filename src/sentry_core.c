@@ -772,19 +772,25 @@ sentry_transaction_start(sentry_value_t tx_cxt)
 sentry_uuid_t
 sentry_transaction_finish(sentry_value_t tx)
 {
-    if (sentry_value_get_type(tx) == SENTRY_VALUE_TYPE_STRING) {
-        sentry_value_decref(tx);
-        tx = sentry_value_new_null();
-        // Minimize the amount of time spent locking the scope, and do checking
-        // on the transaction when this is not holding onto the lock.
-        SENTRY_WITH_SCOPE (scope) {
-            tx = sentry__value_clone(scope->span);
-        }
-        sentry__scope_remove_span();
-    }
     if (sentry_value_is_null(tx)) {
         SENTRY_DEBUG("no transaction available to finish");
         goto fail;
+    }
+
+    SENTRY_WITH_SCOPE_MUT_NO_FLUSH (scope) {
+        char *tx_id
+            = sentry__value_stringify(sentry_value_get_by_key(tx, "trace_id"));
+        char *scope_tx_id = sentry__value_stringify(
+            sentry_value_get_by_key(scope->span, "trace_id"));
+        if (sentry__string_eq(tx_id, scope_tx_id)) {
+            sentry_value_decref(scope->span);
+            scope->span = sentry_value_new_null();
+        }
+    }
+    // immediately flush the scope so the transaction doesn't get attached to
+    // any new events
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        (void)scope;
     }
     // The sampling decision should already be made for transactions
     // during their construction. No need to recalculate here. See
@@ -832,18 +838,13 @@ fail:
     return sentry_uuid_nil();
 }
 
-sentry_value_t
+void
 sentry_set_span(sentry_value_t transaction)
 {
-    sentry_uuid_t nil_uuid = sentry_uuid_nil();
-    sentry_value_t sentinel = sentry__value_new_internal_uuid(&nil_uuid);
     SENTRY_WITH_SCOPE_MUT (scope) {
-        sentry_value_decref(sentinel);
-        sentinel = sentry__value_clone(
-            sentry_value_get_by_key(transaction, "span_id"));
         sentry_value_decref(scope->span);
+        sentry_value_incref(transaction);
         scope->span = transaction;
     }
-    return sentinel;
 }
 #endif

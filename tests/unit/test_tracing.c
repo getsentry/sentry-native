@@ -284,7 +284,7 @@ SENTRY_TEST(multiple_transactions)
 
     sentry_value_t tx_cxt = sentry_value_new_transaction_context("wow!", NULL);
     sentry_value_t tx = sentry_transaction_start(tx_cxt);
-    tx = sentry_set_span(tx);
+    sentry_set_span(tx);
 
     sentry_value_t scope_tx = sentry__scope_get_span();
     CHECK_STRING_PROPERTY(scope_tx, "transaction", "wow!");
@@ -298,11 +298,11 @@ SENTRY_TEST(multiple_transactions)
     // one
     tx_cxt = sentry_value_new_transaction_context("whoa!", NULL);
     tx = sentry_transaction_start(tx_cxt);
-    tx = sentry_set_span(tx);
+    sentry_set_span(tx);
     sentry_value_decref(tx);
     tx_cxt = sentry_value_new_transaction_context("wowee!", NULL);
     tx = sentry_transaction_start(tx_cxt);
-    tx = sentry_set_span(tx);
+    sentry_set_span(tx);
     scope_tx = sentry__scope_get_span();
     CHECK_STRING_PROPERTY(scope_tx, "transaction", "wowee!");
     event_id = sentry_transaction_finish(tx);

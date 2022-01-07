@@ -78,17 +78,6 @@ void sentry__scope_apply_to_event(const sentry_scope_t *scope,
     const sentry_options_t *options, sentry_value_t event,
     sentry_scope_mode_t mode);
 
-#ifdef SENTRY_PERFORMANCE_MONITORING
-/**
- * Removes the current span (actually transaction) on the scope. If the
- * transaction has not yet finished, this does not finish the transaction
- * nor does it send it to sentry; The transaction will be discarded.
- *
- * Invoke this at your own discretion.
- */
-void sentry__scope_remove_span();
-#endif
-
 /**
  * These are convenience macros to automatically lock/unlock a scope inside a
  * code block.
