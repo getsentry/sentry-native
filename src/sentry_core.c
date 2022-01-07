@@ -848,23 +848,11 @@ sentry_set_span(sentry_value_t transaction)
 
 sentry_value_t
 sentry_span_start_child(
-    sentry_value_t transaction_or_span, char *operation, char *description)
+    sentry_value_t parent, char *operation, char *description)
 {
     size_t max_spans = SENTRY_SPANS_MAX;
     SENTRY_WITH_OPTIONS (options) {
         max_spans = options->max_spans;
-    }
-
-    sentry_value_t parent = sentry_value_new_null();
-    // Parent is transaction on scope.
-    bool tx_on_scope = sentry_value_get_type(transaction_or_span)
-        == SENTRY_VALUE_TYPE_STRING;
-    if (tx_on_scope) {
-        SENTRY_WITH_SCOPE (scope) {
-            parent = sentry__value_clone(scope->span);
-        }
-    } else {
-        parent = transaction_or_span;
     }
 
     if (sentry_value_is_null(parent)) {
@@ -902,16 +890,9 @@ sentry_span_start_child(
             sentry__msec_time_to_iso8601(sentry__msec_time())));
     sentry_value_set_by_key(child, "sampled", sentry_value_new_bool(1));
 
-    if (tx_on_scope) {
-        sentry_value_decref(parent);
-    }
-
     return child;
 
 fail:
-    if (tx_on_scope) {
-        sentry_value_decref(parent);
-    }
     return sentry_value_new_null();
 }
 
@@ -949,40 +930,19 @@ sentry_span_finish(sentry_value_t root_transaction, sentry_value_t span)
         max_spans = options->max_spans;
     }
 
-    if (sentry_value_get_type(root_transaction) == SENTRY_VALUE_TYPE_STRING) {
-        // Changes to spans does not require a flush.
-        SENTRY_WITH_SCOPE_MUT_NO_FLUSH (scope) {
-            sentry_value_t spans
-                = sentry_value_get_by_key(scope->span, "spans");
+    sentry_value_t spans = sentry_value_get_by_key(root_transaction, "spans");
 
-            if (sentry_value_get_length(spans) >= max_spans) {
-                SENTRY_DEBUG("reached maximum number of spans for transaction, "
-                             "discarding span");
-                goto fail;
-            }
-
-            if (sentry_value_is_null(spans)) {
-                spans = sentry_value_new_list();
-                sentry_value_set_by_key(scope->span, "spans", spans);
-            }
-            sentry_value_append(spans, span);
-        }
-    } else {
-        sentry_value_t spans
-            = sentry_value_get_by_key(root_transaction, "spans");
-
-        if (sentry_value_get_length(spans) >= max_spans) {
-            SENTRY_DEBUG("reached maximum number of spans for transaction, "
-                         "discarding span");
-            goto fail;
-        }
-
-        if (sentry_value_is_null(spans)) {
-            spans = sentry_value_new_list();
-            sentry_value_set_by_key(root_transaction, "spans", spans);
-        }
-        sentry_value_append(spans, span);
+    if (sentry_value_get_length(spans) >= max_spans) {
+        SENTRY_DEBUG("reached maximum number of spans for transaction, "
+                     "discarding span");
+        goto fail;
     }
+
+    if (sentry_value_is_null(spans)) {
+        spans = sentry_value_new_list();
+        sentry_value_set_by_key(root_transaction, "spans", spans);
+    }
+    sentry_value_append(spans, span);
     return;
 
 fail:
