@@ -1350,15 +1350,17 @@ SENTRY_EXPERIMENTAL_API void sentry_set_span(sentry_value_t transaction);
 /**
  * Starts a new Span.
  *
- * Either the return value of `sentry_start_transaction`, `sentry_set_span`, or
- * `sentry_span_start_child` may be passed in as `transaction_or_span`.
+ * Either the return value of `sentry_start_transaction` or
+ * `sentry_span_start_child` may be passed in as `parent`.
  *
- * Both operation and description can be null, but it is recommended to supply
- * the former. See https://develop.sentry.dev/sdk/performance/span-operations/
- * for conventions around operations.
+ * Both `operation` and `description` can be null, but it is recommended to
+ * supply the former. See
+ * https://develop.sentry.dev/sdk/performance/span-operations/ for conventions
+ * around operations.
  *
  * See https://develop.sentry.dev/sdk/event-payloads/span/ for a description of
- * the created Span's properties and expectations for operation and description.
+ * the created Span's properties and expectations for `operation` and
+ * `description`.
  *
  * Returns a value that should be passed into `sentry_span_finish`. Not
  * finishing the Span means it will be discarded, and will not be sent to
@@ -1366,7 +1368,7 @@ SENTRY_EXPERIMENTAL_API void sentry_set_span(sentry_value_t transaction);
  * created.
  */
 SENTRY_EXPERIMENTAL_API sentry_value_t sentry_span_start_child(
-    sentry_value_t transaction_or_span, char *operation, char *description);
+    sentry_value_t parent, char *operation, char *description);
 
 /**
  * Finishes a Span.
