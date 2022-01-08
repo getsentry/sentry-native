@@ -28,14 +28,10 @@ SENTRY_TEST(basic_tracing_context)
 
     sentry_value_t trace_context = sentry__span_get_trace_context(span);
     TEST_CHECK(!sentry_value_is_null(trace_context));
-    TEST_CHECK(!sentry_value_is_null(
-        sentry_value_get_by_key(trace_context, "trace_id")));
-    TEST_CHECK(!sentry_value_is_null(
-        sentry_value_get_by_key(trace_context, "span_id")));
+    TEST_CHECK(!IS_NULL(trace_context, "trace_id"));
+    TEST_CHECK(!IS_NULL(trace_context, "span_id"));
 
-    const char *span_op
-        = sentry_value_as_string(sentry_value_get_by_key(trace_context, "op"));
-    TEST_CHECK_STRING_EQUAL(span_op, "honk.beep");
+    CHECK_STRING_PROPERTY(trace_context, "op", "honk.beep");
 
     sentry_value_decref(trace_context);
     sentry_value_decref(span);
@@ -127,17 +123,12 @@ send_transaction_envelope_test_basic(sentry_envelope_t *envelope, void *data)
 
     sentry_value_t tx = sentry_envelope_get_transaction(envelope);
     TEST_CHECK(!sentry_value_is_null(tx));
-    const char *event_id
-        = sentry_value_as_string(sentry_value_get_by_key(tx, "event_id"));
-    TEST_CHECK_STRING_EQUAL(event_id, "4c035723-8638-4c3a-923f-2ab9d08b4018");
+    CHECK_STRING_PROPERTY(
+        tx, "event_id", "4c035723-8638-4c3a-923f-2ab9d08b4018");
 
     if (*called == 1) {
-        const char *type
-            = sentry_value_as_string(sentry_value_get_by_key(tx, "type"));
-        TEST_CHECK_STRING_EQUAL(type, "transaction");
-        const char *name = sentry_value_as_string(
-            sentry_value_get_by_key(tx, "transaction"));
-        TEST_CHECK_STRING_EQUAL(name, "honk");
+        CHECK_STRING_PROPERTY(tx, "type", "transaction");
+        CHECK_STRING_PROPERTY(tx, "transaction", "honk");
     }
 
     sentry_envelope_free(envelope);
