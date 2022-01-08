@@ -230,8 +230,8 @@ main(int argc, char **argv)
         sentry_value_t tx = sentry_transaction_start(tx_ctx);
 
         if (has_arg(argc, argv, "child-spans")) {
-            sentry_value_t child_ctx = sentry_span_start_child(
-                sentry_value_new_null(), "littler.teapot", NULL);
+            sentry_value_t child_ctx
+                = sentry_span_start_child(tx, "littler.teapot", NULL);
             sentry_value_t grandchild_ctx
                 = sentry_span_start_child(child_ctx, "littlest.teapot", NULL);
 
