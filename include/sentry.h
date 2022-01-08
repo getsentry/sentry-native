@@ -1346,6 +1346,47 @@ SENTRY_EXPERIMENTAL_API sentry_uuid_t sentry_transaction_finish(
  * into this function.
  */
 SENTRY_EXPERIMENTAL_API void sentry_set_span(sentry_value_t transaction);
+
+/**
+ * Starts a new Span.
+ *
+ * Either the return value of `sentry_start_transaction` or
+ * `sentry_span_start_child` may be passed in as `parent`.
+ *
+ * Both `operation` and `description` can be null, but it is recommended to
+ * supply the former. See
+ * https://develop.sentry.dev/sdk/performance/span-operations/ for conventions
+ * around operations.
+ *
+ * See https://develop.sentry.dev/sdk/event-payloads/span/ for a description of
+ * the created Span's properties and expectations for `operation` and
+ * `description`.
+ *
+ * Returns a value that should be passed into `sentry_span_finish`. Not
+ * finishing the Span means it will be discarded, and will not be sent to
+ * sentry. `sentry_value_null` will be returned if the child Span could not be
+ * created.
+ */
+SENTRY_EXPERIMENTAL_API sentry_value_t sentry_span_start_child(
+    sentry_value_t parent, char *operation, char *description);
+
+/**
+ * Finishes a Span.
+ *
+ * Returns a value that should be passed into `sentry_span_finish`. Not
+ * finishing the Span means it will be discarded, and will not be sent to
+ * sentry.
+ *
+ * `root_transaction` is either the parent Transaction of the Span, or
+ * the ancestor Transaction of the Span if the Span is not a direct descendant
+ * of a Transaction.
+ *
+ * This takes ownership of `span`, as child Spans must always occur within the
+ * total duration of a parent span and cannot take a longer amount of time to
+ * complete than the parent span they belong to.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_span_finish(
+    sentry_value_t root_transaction, sentry_value_t span);
 #endif
 
 #ifdef __cplusplus
