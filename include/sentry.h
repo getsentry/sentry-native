@@ -1244,6 +1244,46 @@ SENTRY_EXPERIMENTAL_API double sentry_options_get_traces_sample_rate(
 /* -- Performance Monitoring/Tracing APIs -- */
 
 /**
+ *  The status of a Span or Transaction.
+ */
+enum sentry_span_status_s;
+typedef enum sentry_span_status_s sentry_span_status_t;
+
+/**
+ * A sentry Transaction Context.
+ *
+ * See Transaction Interface under
+ * https://develop.sentry.dev/sdk/performance/#new-span-and-transaction-classes
+ */
+struct sentry_transaction_context_s;
+typedef struct sentry_transaction_context_s sentry_transaction_context_t;
+
+/**
+ * A sentry Span Context.
+ *
+ * See Span Interface under
+ * https://develop.sentry.dev/sdk/performance/#new-span-and-transaction-classes
+ */
+struct sentry_span_context_s;
+typedef struct sentry_span_context_s sentry_span_context_t;
+
+/**
+ * A sentry Transaction.
+ *
+ * See https://develop.sentry.dev/sdk/event-payloads/transaction/
+ */
+struct sentry_transaction_s;
+typedef struct sentry_transaction_s sentry_transaction_t;
+
+/**
+ * A sentry Span.
+ *
+ * See https://develop.sentry.dev/sdk/event-payloads/span/
+ */
+struct sentry_span_s;
+typedef struct sentry_span_s sentry_span_t;
+
+/**
  * Constructs a new Transaction Context. The returned value needs to be passed
  * into `sentry_transaction_start` in order to be recorded and sent to sentry.
  *
@@ -1257,15 +1297,15 @@ SENTRY_EXPERIMENTAL_API double sentry_options_get_traces_sample_rate(
  * for an explanation of `operation`, in addition to other properties and
  * actions that can be performed on a Transaction.
  */
-SENTRY_EXPERIMENTAL_API sentry_value_t sentry_value_new_transaction_context(
-    const char *name, const char *operation);
+SENTRY_EXPERIMENTAL_API sentry_transaction_context_t *
+sentry_value_new_transaction_context(const char *name, const char *operation);
 
 /**
  * Sets the `name` on a Transaction Context, which will be used in the
  * Transaction constructed off of the context.
  */
 SENTRY_EXPERIMENTAL_API void sentry_transaction_context_set_name(
-    sentry_value_t transaction, const char *name);
+    sentry_transaction_context_t *tx_cxt, const char *name);
 
 /**
  * Sets the `operation` on a Transaction Context, which will be used in the
@@ -1275,7 +1315,7 @@ SENTRY_EXPERIMENTAL_API void sentry_transaction_context_set_name(
  * conventions on `operation`s.
  */
 SENTRY_EXPERIMENTAL_API void sentry_transaction_context_set_operation(
-    sentry_value_t transaction, const char *operation);
+    sentry_transaction_context_t *tx_cxt, const char *operation);
 
 /**
  * Sets the `sampled` field on a Transaction Context, which will be used in the
@@ -1286,7 +1326,7 @@ SENTRY_EXPERIMENTAL_API void sentry_transaction_context_set_operation(
  * child spans will never be sent to sentry.
  */
 SENTRY_EXPERIMENTAL_API void sentry_transaction_context_set_sampled(
-    sentry_value_t transaction, int sampled);
+    sentry_transaction_context_t *tx_cxt, int sampled);
 
 /**
  * Removes the sampled field on a Transaction Context, which will be used in the
@@ -1295,7 +1335,7 @@ SENTRY_EXPERIMENTAL_API void sentry_transaction_context_set_sampled(
  * The Transaction will use the sampling rate as defined in `sentry_options`.
  */
 SENTRY_EXPERIMENTAL_API void sentry_transaction_context_remove_sampled(
-    sentry_value_t transaction);
+    sentry_transaction_context_t *tx_cxt);
 
 /**
  * Starts a new Transaction based on the provided context, restored from an
@@ -1316,8 +1356,8 @@ SENTRY_EXPERIMENTAL_API void sentry_transaction_context_remove_sampled(
  *
  * Takes ownership of `transaction_context`.
  */
-SENTRY_EXPERIMENTAL_API sentry_value_t sentry_transaction_start(
-    sentry_value_t transaction_context);
+SENTRY_EXPERIMENTAL_API sentry_transaction_t *sentry_transaction_start(
+    sentry_transaction_context_t *tx_cxt);
 
 /**
  * Finishes and sends a Transaction to sentry. The event ID of the Transaction
@@ -1329,7 +1369,7 @@ SENTRY_EXPERIMENTAL_API sentry_value_t sentry_transaction_start(
  * this will remove the
  */
 SENTRY_EXPERIMENTAL_API sentry_uuid_t sentry_transaction_finish(
-    sentry_value_t transaction);
+    sentry_transaction_t *tx);
 
 /**
  * Sets the Span (actually Transaction) so any Events sent while the Transaction
@@ -1345,7 +1385,7 @@ SENTRY_EXPERIMENTAL_API sentry_uuid_t sentry_transaction_finish(
  * well as its reference by passing in the same Transaction as the one passed
  * into this function.
  */
-SENTRY_EXPERIMENTAL_API void sentry_set_span(sentry_value_t transaction);
+SENTRY_EXPERIMENTAL_API void sentry_set_span(sentry_transaction_t *tx);
 
 /**
  * Starts a new Span.
@@ -1367,8 +1407,8 @@ SENTRY_EXPERIMENTAL_API void sentry_set_span(sentry_value_t transaction);
  * sentry. `sentry_value_null` will be returned if the child Span could not be
  * created.
  */
-SENTRY_EXPERIMENTAL_API sentry_value_t sentry_span_start_child(
-    sentry_value_t parent, char *operation, char *description);
+SENTRY_EXPERIMENTAL_API sentry_span_t *sentry_span_start_child(
+    sentry_transaction_t *parent, char *operation, char *description);
 
 /**
  * Finishes a Span.
@@ -1386,7 +1426,7 @@ SENTRY_EXPERIMENTAL_API sentry_value_t sentry_span_start_child(
  * complete than the parent span they belong to.
  */
 SENTRY_EXPERIMENTAL_API void sentry_span_finish(
-    sentry_value_t root_transaction, sentry_value_t span);
+    sentry_transaction_t *parent, sentry_span_t *span);
 #endif
 
 #ifdef __cplusplus

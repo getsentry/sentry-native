@@ -730,6 +730,59 @@ sentry_set_level(sentry_level_t level)
 }
 
 #ifdef SENTRY_PERFORMANCE_MONITORING
+SENTRY_EXPERIMENTAL_API sentry_transaction_context_t *
+sentry_value_new_transaction_context(const char *name, const char *operation)
+{
+    sentry_span_context_t *span_ctx = sentry__new_span_context(NULL, operation);
+    span_ctx->start_timestamp = sentry__msec_time();
+
+    sentry_transaction_context_t *tx_cxt
+        = SENTRY_MAKE(sentry_transaction_context_t);
+    if (!tx_cxt) {
+        return NULL;
+    }
+    memset(tx_cxt, 0, sizeof(sentry_transaction_context_t));
+
+    tx_cxt->span_context = span_ctx;
+
+    sentry_transaction_context_set_name(tx_cxt, name);
+
+    return tx_cxt;
+}
+
+SENTRY_EXPERIMENTAL_API void
+sentry_transaction_context_set_name(
+    sentry_transaction_context_t *tx_cxt, const char *name)
+{
+    if (tx_cxt->name) {
+        sentry_free(tx_cxt->name);
+    }
+    tx_cxt->name = sentry__string_clone(name);
+}
+
+SENTRY_EXPERIMENTAL_API void
+sentry_transaction_context_set_operation(
+    sentry_transaction_context_t *tx_cxt, const char *operation)
+{
+    if (tx_cxt->operation) {
+        sentry_free(tx_cxt->operation);
+    }
+    tx_cxt->operation = sentry__string_clone(operation);
+}
+
+SENTRY_EXPERIMENTAL_API void
+sentry_transaction_context_set_sampled(
+    sentry_transaction_context_t *tx_cxt, int sampled)
+{
+    tx_cxt->span_context->sampled = !!sampled;
+}
+
+SENTRY_EXPERIMENTAL_API void
+sentry_transaction_context_remove_sampled(sentry_transaction_context_t *tx_cxt)
+{
+    tx_cxt->span_context->sampled = NULL;
+}
+
 sentry_value_t
 sentry_transaction_start(sentry_value_t tx_cxt)
 {
