@@ -761,6 +761,8 @@ sentry_transaction_start(sentry_value_t tx_cxt)
     sentry_value_set_by_key(tx, "transaction",
         sentry_value_get_by_key_owned(tx_cxt, "transaction"));
     sentry_value_set_by_key(
+        tx, "op", sentry_value_get_by_key_owned(tx_cxt, "op"));
+    sentry_value_set_by_key(
         tx, "status", sentry_value_get_by_key_owned(tx_cxt, "status"));
     sentry_value_set_by_key(tx, "start_timestamp",
         sentry__value_new_string_owned(
