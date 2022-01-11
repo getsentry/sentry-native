@@ -1267,7 +1267,7 @@ sentry_span_set_tag(sentry_value_t span, const char *tag, const char *value)
     char *s = sentry__string_clonen(value, 200);
     if (s) {
         sentry_value_set_by_key(
-            tags, tag, sentry__value_new_string_owned(value));
+            tags, tag, sentry__value_new_string_owned(s));
     } else {
         sentry_value_set_by_key(tags, tag, sentry_value_new_null());
     }
