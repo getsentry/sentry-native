@@ -233,7 +233,7 @@ set_target_properties(sentry PROPERTIES PUBLIC_HEADER "include/sentry.h")
 
 if(DEFINED SENTRY_FOLDER)
 	set_target_properties(sentry PROPERTIES FOLDER ${SENTRY_FOLDER})
-endif()	
+endif()
 
 # check size type
 include(CheckTypeSize)
@@ -457,7 +457,7 @@ if(SENTRY_BACKEND_CRASHPAD)
 			set_target_properties(crashpad_util PROPERTIES FOLDER ${SENTRY_FOLDER})
 			set_target_properties(crashpad_zlib PROPERTIES FOLDER ${SENTRY_FOLDER})
 			set_target_properties(mini_chromium PROPERTIES FOLDER ${SENTRY_FOLDER})
-		endif()	
+		endif()
 
 		target_link_libraries(sentry PRIVATE
 			$<BUILD_INTERFACE:crashpad::client>
@@ -490,8 +490,8 @@ elseif(SENTRY_BACKEND_BREAKPAD)
 
 		if(DEFINED SENTRY_FOLDER)
 			set_target_properties(breakpad_client PROPERTIES FOLDER ${SENTRY_FOLDER})
-		endif()	
-		
+		endif()
+
 		if(NOT SENTRY_BUILD_SHARED_LIBS)
 			sentry_install(TARGETS breakpad_client EXPORT sentry
 				LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
@@ -559,6 +559,8 @@ if(SENTRY_BUILD_EXAMPLES)
 	add_executable(sentry_example examples/example.c)
 	target_link_libraries(sentry_example PRIVATE sentry)
 
+	target_compile_definitions(sentry_example PRIVATE SENTRY_PERFORMANCE_MONITORING)
+
 	if(MSVC)
 		target_compile_options(sentry_example PRIVATE $<BUILD_INTERFACE:/wd5105>)
 	endif()
@@ -570,7 +572,7 @@ if(SENTRY_BUILD_EXAMPLES)
 
 	if(DEFINED SENTRY_FOLDER)
 		set_target_properties(sentry_example PROPERTIES FOLDER ${SENTRY_FOLDER})
-	endif()	
+	endif()
 
 	add_test(NAME sentry_example COMMAND sentry_example)
 endif()

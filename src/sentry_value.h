@@ -62,6 +62,13 @@ sentry_value_t sentry__value_new_list_with_size(size_t size);
 sentry_value_t sentry__value_new_object_with_size(size_t size);
 
 /**
+ * Constructs a new Span.
+ *
+ */
+sentry_value_t sentry__value_new_span(
+    sentry_value_t parent, const char *operation);
+
+/**
  * This will parse the Value into a UUID, or return a `nil` UUID on error.
  * See also `sentry_uuid_from_string`.
  */

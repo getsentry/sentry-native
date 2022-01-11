@@ -974,6 +974,7 @@ sentry__value_new_hexstring(const uint8_t *bytes, size_t len)
     return sentry__value_new_string_owned(buf);
 }
 
+#ifdef SENTRY_PERFORMANCE_MONITORING
 sentry_value_t
 sentry__value_new_span_uuid(const sentry_uuid_t *uuid)
 {
@@ -997,6 +998,7 @@ sentry__value_new_internal_uuid(const sentry_uuid_t *uuid)
     buf[32] = '\0';
     return sentry__value_new_string_owned(buf);
 }
+#endif
 
 sentry_value_t
 sentry__value_new_uuid(const sentry_uuid_t *uuid)
@@ -1124,50 +1126,83 @@ sentry_value_new_stacktrace(void **ips, size_t len)
     return stacktrace;
 }
 
+#ifdef SENTRY_PERFORMANCE_MONITORING
 sentry_value_t
-sentry_value_new_transaction(const char *name, const char *operation)
+sentry__value_new_span(sentry_value_t parent, const char *operation)
 {
-    sentry_value_t transaction = sentry_value_new_object();
+    sentry_value_t span = sentry_value_new_object();
 
-    sentry_transaction_set_name(transaction, name);
-    sentry_transaction_set_operation(transaction, operation);
+    sentry_transaction_context_set_operation(span, operation);
 
-    return transaction;
-}
+    sentry_uuid_t span_id = sentry_uuid_new_v4();
+    sentry_value_set_by_key(
+        span, "span_id", sentry__value_new_span_uuid(&span_id));
 
-void
-sentry_transaction_set_name(sentry_value_t transaction, const char *name)
-{
-    sentry_value_t sv_name = sentry_value_new_string(name);
-    // TODO: Consider doing this checking right before sending or flushing
-    // the transaction.
-    if (sentry_value_is_null(sv_name) || sentry__string_eq(name, "")) {
-        sentry_value_decref(sv_name);
-        sv_name = sentry_value_new_string("<unlabeled transaction>");
+    sentry_value_set_by_key(span, "status", sentry_value_new_string("ok"));
+
+    // Span creation is currently aggressively pruned prior to this function so
+    // once we're in here we definitely know that the span and its parent
+    // transaction are sampled.
+    // Sampling decisions inherited from traces created in other SDKs should be
+    // taken care of `continue_from_headers`, spans don't need to worry about
+    // (inheriting) forced sampling decisions, and transactions cannot be
+    // children of other transactions, so no inheriting of the sampling field is
+    // needed.
+    if (!sentry_value_is_null(parent)) {
+        sentry_value_set_by_key(span, "trace_id",
+            sentry_value_get_by_key_owned(parent, "trace_id"));
+        sentry_value_set_by_key(span, "parent_span_id",
+            sentry_value_get_by_key_owned(parent, "span_id"));
     }
-    sentry_value_set_by_key(transaction, "name", sv_name);
+
+    return span;
+}
+
+sentry_value_t
+sentry_value_new_transaction_context(const char *name, const char *operation)
+{
+    sentry_value_t transaction_context
+        = sentry__value_new_span(sentry_value_new_null(), operation);
+
+    sentry_uuid_t trace_id = sentry_uuid_new_v4();
+    sentry_value_set_by_key(transaction_context, "trace_id",
+        sentry__value_new_internal_uuid(&trace_id));
+
+    sentry_transaction_context_set_name(transaction_context, name);
+
+    return transaction_context;
 }
 
 void
-sentry_transaction_set_operation(
-    sentry_value_t transaction, const char *operation)
+sentry_transaction_context_set_name(
+    sentry_value_t transaction_context, const char *name)
 {
     sentry_value_set_by_key(
-        transaction, "op", sentry_value_new_string(operation));
+        transaction_context, "transaction", sentry_value_new_string(name));
 }
 
 void
-sentry_transaction_set_sampled(sentry_value_t transaction, int sampled)
+sentry_transaction_context_set_operation(
+    sentry_value_t transaction_context, const char *operation)
 {
     sentry_value_set_by_key(
-        transaction, "sampled", sentry_value_new_bool(sampled));
+        transaction_context, "op", sentry_value_new_string(operation));
 }
 
 void
-sentry_transaction_remove_sampled(sentry_value_t transaction)
+sentry_transaction_context_set_sampled(
+    sentry_value_t transaction_context, int sampled)
 {
-    sentry_value_remove_by_key(transaction, "sampled");
+    sentry_value_set_by_key(
+        transaction_context, "sampled", sentry_value_new_bool(sampled));
 }
+
+void
+sentry_transaction_context_remove_sampled(sentry_value_t transaction_context)
+{
+    sentry_value_remove_by_key(transaction_context, "sampled");
+}
+#endif
 
 static sentry_value_t
 sentry__get_or_insert_values_list(sentry_value_t parent, const char *key)

@@ -24,7 +24,7 @@ extern "C" {
 
 /* SDK Version */
 #define SENTRY_SDK_NAME "sentry.native"
-#define SENTRY_SDK_VERSION "0.4.12"
+#define SENTRY_SDK_VERSION "0.4.13"
 #define SENTRY_SDK_USER_AGENT SENTRY_SDK_NAME "/" SENTRY_SDK_VERSION
 
 /* common platform detection */
@@ -554,12 +554,22 @@ typedef struct sentry_envelope_s sentry_envelope_t;
 SENTRY_API void sentry_envelope_free(sentry_envelope_t *envelope);
 
 /**
- * Given an envelope returns the embedded event if there is one.
+ * Given an Envelope, returns the embedded Event if there is one.
  *
- * This returns a borrowed value to the event in the envelope.
+ * This returns a borrowed value to the Event in the Envelope.
  */
 SENTRY_API sentry_value_t sentry_envelope_get_event(
     const sentry_envelope_t *envelope);
+
+#ifdef SENTRY_PERFORMANCE_MONITORING
+/**
+ * Given an Envelope, returns the embedded Transaction if there is one.
+ *
+ * This returns a borrowed value to the Transaction in the Envelope.
+ */
+SENTRY_EXPERIMENTAL_API sentry_value_t sentry_envelope_get_transaction(
+    const sentry_envelope_t *envelope);
+#endif
 
 /**
  * Serializes the envelope.
@@ -1104,6 +1114,10 @@ SENTRY_API sentry_user_consent_t sentry_user_consent_get(void);
 
 /**
  * Sends a sentry event.
+ *
+ * If SENTRY_PERFORMANCE_MONITORING is enabled, returns a nil UUID if the event
+ * being passed in is a transaction, and the transaction will not be sent nor
+ * consumed. `sentry_transaction_finish` should be used to send transactions.
  */
 SENTRY_API sentry_uuid_t sentry_capture_event(sentry_value_t event);
 
@@ -1198,6 +1212,7 @@ SENTRY_API void sentry_start_session(void);
  */
 SENTRY_API void sentry_end_session(void);
 
+#ifdef SENTRY_PERFORMANCE_MONITORING
 /**
  * Sets the maximum number of spans that can be attached to a
  * transaction.
@@ -1229,8 +1244,8 @@ SENTRY_EXPERIMENTAL_API double sentry_options_get_traces_sample_rate(
 /* -- Performance Monitoring/Tracing APIs -- */
 
 /**
- * Constructs a new inert Transaction. The returned value needs to be passed
- * into `sentry_start_transaction` in order to be recorded and sent to sentry.
+ * Constructs a new Transaction Context. The returned value needs to be passed
+ * into `sentry_transaction_start` in order to be recorded and sent to sentry.
  *
  * See
  * https://docs.sentry.io/platforms/native/enriching-events/transaction-name/
@@ -1242,38 +1257,136 @@ SENTRY_EXPERIMENTAL_API double sentry_options_get_traces_sample_rate(
  * for an explanation of `operation`, in addition to other properties and
  * actions that can be performed on a Transaction.
  */
-SENTRY_EXPERIMENTAL_API sentry_value_t sentry_value_new_transaction(
+SENTRY_EXPERIMENTAL_API sentry_value_t sentry_value_new_transaction_context(
     const char *name, const char *operation);
 
 /**
- * Sets the `name` of a Transaction.
+ * Sets the `name` on a Transaction Context, which will be used in the
+ * Transaction constructed off of the context.
  */
-SENTRY_EXPERIMENTAL_API void sentry_transaction_set_name(
+SENTRY_EXPERIMENTAL_API void sentry_transaction_context_set_name(
     sentry_value_t transaction, const char *name);
 
 /**
- * Sets the `operation` of a Transaction.
+ * Sets the `operation` on a Transaction Context, which will be used in the
+ * Transaction constructed off of the context
  *
  * See https://develop.sentry.dev/sdk/performance/span-operations/ for
  * conventions on `operation`s.
  */
-SENTRY_EXPERIMENTAL_API void sentry_transaction_set_operation(
+SENTRY_EXPERIMENTAL_API void sentry_transaction_context_set_operation(
     sentry_value_t transaction, const char *operation);
 
 /**
- * Sets the `sampled` field on a Transaction. When turned on, the Transaction
- * will bypass all sampling options and always be sent to sentry. If this is
- * explicitly turned off in the Transaction, it will never be sent to sentry.
+ * Sets the `sampled` field on a Transaction Context, which will be used in the
+ * Transaction constructed off of the context.
+ *
+ * When passed any value above 0, the Transaction will bypass all sampling
+ * options and always be sent to sentry. If passed 0, this Transaction and its
+ * child spans will never be sent to sentry.
  */
-SENTRY_EXPERIMENTAL_API void sentry_transaction_set_sampled(
+SENTRY_EXPERIMENTAL_API void sentry_transaction_context_set_sampled(
     sentry_value_t transaction, int sampled);
 
 /**
- * Removes the sampled field on a Transaction. The Transaction will use the
- * sampling rate as defined in `sentry_options`.
+ * Removes the sampled field on a Transaction Context, which will be used in the
+ * Transaction constructed off of the context.
+ *
+ * The Transaction will use the sampling rate as defined in `sentry_options`.
  */
-SENTRY_EXPERIMENTAL_API void sentry_transaction_remove_sampled(
+SENTRY_EXPERIMENTAL_API void sentry_transaction_context_remove_sampled(
     sentry_value_t transaction);
+
+/**
+ * Starts a new Transaction based on the provided context, restored from an
+ * external integration (i.e. a span from a different SDK) or manually
+ * constructed by a user. Returns a Transaction, which is expected to be
+ * manually managed by the caller. Manual management involves ensuring that
+ * `sentry_transaction_finish` is invoked for the Transaction, and that the
+ * caller manually starts and finishes any child Spans as needed on the
+ * Transaction.
+ *
+ * `sentry_transaction_finish` must be called in order for this Transaction to
+ * be sent to sentry.
+ *
+ * To ensure that any Events or Message Events are associated with this
+ * Transaction while it is active, invoke and pass in the Transaction returned
+ * by this function to `sentry_set_span`. Further documentation on this can be
+ * found in `sentry_set_span`'s docstring.
+ *
+ * Takes ownership of `transaction_context`.
+ */
+SENTRY_EXPERIMENTAL_API sentry_value_t sentry_transaction_start(
+    sentry_value_t transaction_context);
+
+/**
+ * Finishes and sends a Transaction to sentry. The event ID of the Transaction
+ * will be returned if this was successful; A nil UUID will be returned
+ * otherwise.
+ *
+ * Always takes ownership of `transaction`, regardless of whether the operation
+ * was successful or not. If `sentry_set_span` was invoked with `transaction`,
+ * this will remove the
+ */
+SENTRY_EXPERIMENTAL_API sentry_uuid_t sentry_transaction_finish(
+    sentry_value_t transaction);
+
+/**
+ * Sets the Span (actually Transaction) so any Events sent while the Transaction
+ * is active will be associated with the Transaction.
+ *
+ * If the Transaction being passed in is unsampled, it will still be associated
+ * with any new Events. This will lead to some Events pointing to orphan or
+ * missing traces in sentry, see
+ * https://docs.sentry.io/product/sentry-basics/tracing/trace-view/#orphan-traces-and-broken-subtraces
+ *
+ * This increases the number of references pointing to the transaction.
+ * Invoke `sentry_transaction_finish` to remove the Span set by this function as
+ * well as its reference by passing in the same Transaction as the one passed
+ * into this function.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_set_span(sentry_value_t transaction);
+
+/**
+ * Starts a new Span.
+ *
+ * Either the return value of `sentry_start_transaction` or
+ * `sentry_span_start_child` may be passed in as `parent`.
+ *
+ * Both `operation` and `description` can be null, but it is recommended to
+ * supply the former. See
+ * https://develop.sentry.dev/sdk/performance/span-operations/ for conventions
+ * around operations.
+ *
+ * See https://develop.sentry.dev/sdk/event-payloads/span/ for a description of
+ * the created Span's properties and expectations for `operation` and
+ * `description`.
+ *
+ * Returns a value that should be passed into `sentry_span_finish`. Not
+ * finishing the Span means it will be discarded, and will not be sent to
+ * sentry. `sentry_value_null` will be returned if the child Span could not be
+ * created.
+ */
+SENTRY_EXPERIMENTAL_API sentry_value_t sentry_span_start_child(
+    sentry_value_t parent, char *operation, char *description);
+
+/**
+ * Finishes a Span.
+ *
+ * Returns a value that should be passed into `sentry_span_finish`. Not
+ * finishing the Span means it will be discarded, and will not be sent to
+ * sentry.
+ *
+ * `root_transaction` is either the parent Transaction of the Span, or
+ * the ancestor Transaction of the Span if the Span is not a direct descendant
+ * of a Transaction.
+ *
+ * This takes ownership of `span`, as child Spans must always occur within the
+ * total duration of a parent span and cannot take a longer amount of time to
+ * complete than the parent span they belong to.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_span_finish(
+    sentry_value_t root_transaction, sentry_value_t span);
 
 /**
  * Sets a tag on a transaction to the given string value.
@@ -1298,6 +1411,8 @@ SENTRY_EXPERIMENTAL_API void sentry_transaction_set_data(
  */
 SENTRY_EXPERIMENTAL_API void sentry_transaction_remove_data(
     sentry_value_t transaction, const char *key);
+
+#endif
 
 #ifdef __cplusplus
 }
