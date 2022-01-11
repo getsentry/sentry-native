@@ -66,6 +66,8 @@ sentry__mmap_file(sentry_mmap_t *rv, const char *path)
         goto fail;
     }
 
+    close(fd);
+
     return true;
 
 fail:
@@ -75,8 +77,6 @@ fail:
     rv->ptr = NULL;
     rv->len = 0;
     return false;
-
-    return rv;
 }
 
 void
