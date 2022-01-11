@@ -1256,8 +1256,7 @@ sentry_event_value_add_stacktrace(sentry_value_t event, void **ips, size_t len)
 }
 
 void
-sentry_span_set_tag(
-    sentry_value_t span, const char *tag, const char *value)
+sentry_span_set_tag(sentry_value_t span, const char *tag, const char *value)
 {
     sentry_value_t tags = sentry_value_get_by_key(span, "tags");
     if (sentry_value_is_null(tags)) {
@@ -1267,7 +1266,8 @@ sentry_span_set_tag(
 
     char *s = sentry__string_clonen(value, 200);
     if (s) {
-        sentry_value_set_by_key(tags, tag, sentry__value_new_string_owned(value));
+        sentry_value_set_by_key(
+            tags, tag, sentry__value_new_string_owned(value));
     } else {
         sentry_value_set_by_key(tags, tag, sentry_value_new_null())
     }
@@ -1283,8 +1283,7 @@ sentry_span_remove_tag(sentry_value_t span, const char *tag)
 }
 
 void
-sentry_span_set_data(
-    sentry_value_t span, const char *key, sentry_value_t value)
+sentry_span_set_data(sentry_value_t span, const char *key, sentry_value_t value)
 {
     sentry_value_t data = sentry_value_get_by_key(span, "data");
     if (sentry_value_is_null(data)) {
