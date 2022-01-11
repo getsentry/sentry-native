@@ -1244,6 +1244,31 @@ SENTRY_EXPERIMENTAL_API double sentry_options_get_traces_sample_rate(
 /* -- Performance Monitoring/Tracing APIs -- */
 
 /**
+ * A sentry Transaction Context.
+ *
+ * See Transaction Interface under
+ * https://develop.sentry.dev/sdk/performance/#new-span-and-transaction-classes
+ */
+struct sentry_transaction_context_s;
+typedef struct sentry_transaction_context_s sentry_transaction_context_t;
+
+/**
+ * A sentry Transaction.
+ *
+ * See https://develop.sentry.dev/sdk/event-payloads/transaction/
+ */
+struct sentry_transaction_s;
+typedef struct sentry_transaction_s sentry_transaction_t;
+
+/**
+ * A sentry Span.
+ *
+ * See https://develop.sentry.dev/sdk/event-payloads/span/
+ */
+struct sentry_span_s;
+typedef struct sentry_span_s sentry_span_t;
+
+/**
  * Constructs a new Transaction Context. The returned value needs to be passed
  * into `sentry_transaction_start` in order to be recorded and sent to sentry.
  *
