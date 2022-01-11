@@ -1269,7 +1269,7 @@ sentry_span_set_tag(sentry_value_t span, const char *tag, const char *value)
         sentry_value_set_by_key(
             tags, tag, sentry__value_new_string_owned(value));
     } else {
-        sentry_value_set_by_key(tags, tag, sentry_value_new_null())
+        sentry_value_set_by_key(tags, tag, sentry_value_new_null());
     }
 }
 
