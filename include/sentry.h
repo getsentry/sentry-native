@@ -1440,6 +1440,35 @@ SENTRY_EXPERIMENTAL_API void sentry_span_set_data(
 SENTRY_EXPERIMENTAL_API void sentry_span_remove_data(
     sentry_value_t span, const char *key);
 
+typedef enum {
+    SENTRY_SPAN_STATUS_OK,
+    SENTRY_SPAN_STATUS_CANCELLED,
+    SENTRY_SPAN_STATUS_UNKNOWN,
+    SENTRY_SPAN_STATUS_INVALID_ARGUMENT,
+    SENTRY_SPAN_STATUS_DEADLINE_EXCEEDED,
+    SENTRY_SPAN_STATUS_NOT_FOUND,
+    SENTRY_SPAN_STATUS_ALREADY_EXISTS,
+    SENTRY_SPAN_STATUS_PERMISSION_DENIED,
+    SENTRY_SPAN_STATUS_RESOURCE_EXHAUSTED,
+    SENTRY_SPAN_STATUS_FAILED_PRECONDITION,
+    SENTRY_SPAN_STATUS_ABORTED,
+    SENTRY_SPAN_STATUS_OUT_OF_RANGE,
+    SENTRY_SPAN_STATUS_UNIMPLEMENTED,
+    SENTRY_SPAN_STATUS_INTERNAL_ERROR,
+    SENTRY_SPAN_STATUS_UNAVAILABLE,
+    SENTRY_SPAN_STATUS_DATA_LOSS,
+    SENTRY_SPAN_STATUS_UNAUTHENTICATED
+} sentry_span_status_t;
+
+SENTRY_EXPERIMENTAL_API sentry_value_t sentry_status_to_string(
+    sentry_span_status_t status);
+
+/**
+ * Sets the span's status.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_span_set_status(
+    sentry_value_t span, sentry_span_status_t status);
+
 #endif
 
 #ifdef __cplusplus

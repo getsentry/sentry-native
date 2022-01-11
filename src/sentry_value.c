@@ -1138,7 +1138,7 @@ sentry__value_new_span(sentry_value_t parent, const char *operation)
     sentry_value_set_by_key(
         span, "span_id", sentry__value_new_span_uuid(&span_id));
 
-    sentry_value_set_by_key(span, "status", sentry_value_new_string("ok"));
+    sentry_span_set_status(span, SENTRY_SPAN_STATUS_OK);
 
     // Span creation is currently aggressively pruned prior to this function so
     // once we're in here we definitely know that the span and its parent
@@ -1325,4 +1325,51 @@ void
 sentry_transaction_remove_data(sentry_value_t transaction, const char *key)
 {
     sentry_span_remove_data(transaction, key);
+}
+
+sentry_value_t
+sentry_status_to_string(sentry_span_status_t status)
+{
+    switch (status) {
+    case SENTRY_SPAN_STATUS_OK:
+        return sentry_value_new_string("ok");
+    case SENTRY_SPAN_STATUS_CANCELLED:
+        return sentry_value_new_string("cancelled");
+    case SENTRY_SPAN_STATUS_UNKNOWN:
+        return sentry_value_new_string("unknown");
+    case SENTRY_SPAN_STATUS_INVALID_ARGUMENT:
+        return sentry_value_new_string("invalid_argument");
+    case SENTRY_SPAN_STATUS_DEADLINE_EXCEEDED:
+        return sentry_value_new_string("deadline_exceeded");
+    case SENTRY_SPAN_STATUS_NOT_FOUND:
+        return sentry_value_new_string("not_found");
+    case SENTRY_SPAN_STATUS_ALREADY_EXISTS:
+        return sentry_value_new_string("already_exists");
+    case SENTRY_SPAN_STATUS_PERMISSION_DENIED:
+        return sentry_value_new_string("permission_denied");
+    case SENTRY_SPAN_STATUS_RESOURCE_EXHAUSTED:
+        return sentry_value_new_string("resource_exhausted");
+    case SENTRY_SPAN_STATUS_FAILED_PRECONDITION:
+        return sentry_value_new_string("failed_precondition");
+    case SENTRY_SPAN_STATUS_ABORTED:
+        return sentry_value_new_string("aborted");
+    case SENTRY_SPAN_STATUS_OUT_OF_RANGE:
+        return sentry_value_new_string("out_of_range");
+    case SENTRY_SPAN_STATUS_UNIMPLEMENTED:
+        return sentry_value_new_string("unimplemented");
+    case SENTRY_SPAN_STATUS_INTERNAL_ERROR:
+        return sentry_value_new_string("internal_error");
+    case SENTRY_SPAN_STATUS_UNAVAILABLE:
+        return sentry_value_new_string("unavailable");
+    case SENTRY_SPAN_STATUS_DATA_LOSS:
+        return sentry_value_new_string("data_loss");
+    case SENTRY_SPAN_STATUS_UNAUTHENTICATED:
+        return sentry_value_new_string("unauthenticated");
+    }
+}
+
+void
+sentry_span_set_status(sentry_value_t span, sentry_span_status_t status)
+{
+    sentry_value_set_by_key(span, "status", sentry_status_to_string(status));
 }
