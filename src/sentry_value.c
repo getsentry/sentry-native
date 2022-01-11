@@ -1264,8 +1264,13 @@ sentry_span_set_tag(
         tags = sentry_value_new_object();
         sentry_value_set_by_key(span, "tags", tags);
     }
-    sentry_value_t value_str = sentry_value_new_string(value);
-    sentry_value_set_by_key(tags, tag, value_str);
+
+    char *s = sentry__string_clonen(value, 200);
+    if (s) {
+        sentry_value_set_by_key(tags, tag, sentry__value_new_string_owned(value));
+    } else {
+        sentry_value_set_by_key(tags, tag, sentry_value_new_null())
+    }
 }
 
 void

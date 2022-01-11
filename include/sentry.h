@@ -1390,6 +1390,8 @@ SENTRY_EXPERIMENTAL_API void sentry_span_finish(
 
 /**
  * Sets a tag on a transaction to the given string value.
+ *
+ * Tags longer than 200 bytes will be truncated.
  */
 SENTRY_EXPERIMENTAL_API void sentry_transaction_set_tag(
     sentry_value_t transaction, const char *tag, const char *value);
@@ -1414,6 +1416,8 @@ SENTRY_EXPERIMENTAL_API void sentry_transaction_remove_data(
 
 /**
  * Sets a tag on a span to the given string value.
+ *
+ * Tags longer than 200 bytes will be truncated.
  */
 SENTRY_EXPERIMENTAL_API void sentry_span_set_tag(
     sentry_value_t span, const char *tag, const char *value);
