@@ -103,6 +103,7 @@ sentry__breakpad_backend_callback(
         sentry_session_t *session = sentry__end_current_session_with_status(
             SENTRY_SESSION_STATUS_CRASHED);
         sentry__envelope_add_session(envelope, session);
+        sentry__session_free(session);
 
         // the minidump is added as an attachment, with type `event.minidump`
         sentry_envelope_item_t *item
@@ -127,6 +128,8 @@ sentry__breakpad_backend_callback(
         sentry__transport_dump_queue(disk_transport, options->run);
         sentry_transport_free(disk_transport);
 
+        SENTRY_DEBUG("crash has been captured");
+
         // now that the envelope was written, we can remove the temporary
         // minidump file
         sentry__path_remove(dump_path);
@@ -137,7 +140,6 @@ sentry__breakpad_backend_callback(
         sentry__transport_dump_queue(options->transport, options->run);
         // and restore the old transport
     }
-    SENTRY_DEBUG("crash has been captured");
 
 #ifndef SENTRY_PLATFORM_WINDOWS
     sentry__leave_signal_handler();

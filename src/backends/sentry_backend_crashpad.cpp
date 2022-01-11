@@ -150,6 +150,7 @@ sentry__crashpad_handler(int UNUSED(signum), siginfo_t *UNUSED(info),
         if (session) {
             sentry_envelope_t *envelope = sentry__envelope_new();
             sentry__envelope_add_session(envelope, session);
+            sentry__session_free(session);
 
             // capture the envelope with the disk transport
             sentry_transport_t *disk_transport

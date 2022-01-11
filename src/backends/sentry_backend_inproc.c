@@ -266,6 +266,7 @@ handle_ucontext(const sentry_ucontext_t *uctx)
         sentry_session_t *session = sentry__end_current_session_with_status(
             SENTRY_SESSION_STATUS_CRASHED);
         sentry__envelope_add_session(envelope, session);
+        sentry__session_free(session);
 
         // capture the envelope with the disk transport
         sentry_transport_t *disk_transport
@@ -274,11 +275,11 @@ handle_ucontext(const sentry_ucontext_t *uctx)
         sentry__transport_dump_queue(disk_transport, options->run);
         sentry_transport_free(disk_transport);
 
+        SENTRY_DEBUG("crash has been captured");
+
         // after capturing the crash event, dump all the envelopes to disk
         sentry__transport_dump_queue(options->transport, options->run);
     }
-
-    SENTRY_DEBUG("crash has been captured");
 
 #ifdef SENTRY_PLATFORM_UNIX
     // reset signal handlers and invoke the original ones.  This will then tear
