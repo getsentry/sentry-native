@@ -1412,6 +1412,30 @@ SENTRY_EXPERIMENTAL_API void sentry_transaction_set_data(
 SENTRY_EXPERIMENTAL_API void sentry_transaction_remove_data(
     sentry_value_t transaction, const char *key);
 
+/**
+ * Sets a tag on a span to the given string value.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_span_set_tag(
+    sentry_value_t span, const char *tag, const char *value);
+
+/**
+ * Removes a tag from a span.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_span_remove_tag(
+    sentry_value_t span, const char *tag);
+
+/**
+ * Sets the given key in a span's "data" section to the given value.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_span_set_data(
+    sentry_value_t span, const char *key, sentry_value_t value);
+
+/**
+ * Removes a key from a span's "data" section.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_span_remove_data(
+    sentry_value_t span, const char *key);
+
 #endif
 
 #ifdef __cplusplus

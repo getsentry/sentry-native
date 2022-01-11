@@ -1256,44 +1256,70 @@ sentry_event_value_add_stacktrace(sentry_value_t event, void **ips, size_t len)
 }
 
 void
-sentry_transaction_set_tag(
-    sentry_value_t transaction, const char *tag, const char *value)
+sentry_span_set_tag(
+    sentry_value_t span, const char *tag, const char *value)
 {
-    sentry_value_t tags = sentry_value_get_by_key(transaction, "tags");
+    sentry_value_t tags = sentry_value_get_by_key(span, "tags");
     if (sentry_value_is_null(tags)) {
         tags = sentry_value_new_object();
-        sentry_value_set_by_key(transaction, "tags", tags);
+        sentry_value_set_by_key(span, "tags", tags);
     }
     sentry_value_t value_str = sentry_value_new_string(value);
     sentry_value_set_by_key(tags, tag, value_str);
 }
 
 void
-sentry_transaction_remove_tag(sentry_value_t transaction, const char *tag)
+sentry_span_remove_tag(sentry_value_t span, const char *tag)
 {
-    sentry_value_t tags = sentry_value_get_by_key(transaction, "tags");
+    sentry_value_t tags = sentry_value_get_by_key(span, "tags");
     if (!sentry_value_is_null(tags)) {
         sentry_value_remove_by_key(tags, tag);
     }
 }
 
 void
-sentry_transaction_set_data(
-    sentry_value_t transaction, const char *key, sentry_value_t value)
+sentry_span_set_data(
+    sentry_value_t span, const char *key, sentry_value_t value)
 {
-    sentry_value_t data = sentry_value_get_by_key(transaction, "data");
+    sentry_value_t data = sentry_value_get_by_key(span, "data");
     if (sentry_value_is_null(data)) {
         data = sentry_value_new_object();
-        sentry_value_set_by_key(transaction, "data", data);
+        sentry_value_set_by_key(span, "data", data);
     }
     sentry_value_set_by_key(data, key, value);
 }
 
 void
-sentry_transaction_remove_data(sentry_value_t transaction, const char *key)
+sentry_span_remove_data(sentry_value_t span, const char *key)
 {
-    sentry_value_t data = sentry_value_get_by_key(transaction, "data");
+    sentry_value_t data = sentry_value_get_by_key(span, "data");
     if (!sentry_value_is_null(data)) {
         sentry_value_remove_by_key(data, key);
     }
+}
+
+void
+sentry_transaction_set_tag(
+    sentry_value_t transaction, const char *tag, const char *value)
+{
+    sentry_span_set_tag(transaction, tag, value);
+}
+
+void
+sentry_transaction_remove_tag(sentry_value_t transaction, const char *tag)
+{
+    sentry_span_remove_tag(transaction, tag);
+}
+
+void
+sentry_transaction_set_data(
+    sentry_value_t transaction, const char *key, sentry_value_t value)
+{
+    sentry_span_set_data(transaction, key, value);
+}
+
+void
+sentry_transaction_remove_data(sentry_value_t transaction, const char *key)
+{
+    sentry_span_remove_data(transaction, key);
 }
