@@ -38,6 +38,33 @@ sentry__transaction_context_decref(sentry_transaction_context_t *tx_cxt)
     };
 }
 
+void
+sentry_transaction_context_set_name(
+    sentry_transaction_context_t *tx_cxt, const char *name)
+{
+    sentry__value_transaction_context_set_name(tx_cxt->inner, name);
+}
+
+void
+sentry_transaction_context_set_operation(
+    sentry_transaction_context_t *tx_cxt, const char *operation)
+{
+    sentry__value_transaction_context_set_operation(tx_cxt->inner, operation);
+}
+
+void
+sentry_transaction_context_set_sampled(
+    sentry_transaction_context_t *tx_cxt, int sampled)
+{
+    sentry__value_transaction_context_set_sampled(tx_cxt->inner, sampled);
+}
+
+void
+sentry_transaction_context_remove_sampled(sentry_transaction_context_t *tx_cxt)
+{
+    sentry__value_transaction_context_remove_sampled(tx_cxt->inner);
+}
+
 sentry_transaction_t *
 sentry__transaction_new(sentry_value_t inner)
 {

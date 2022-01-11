@@ -1132,7 +1132,7 @@ sentry__value_new_span(sentry_value_t parent, const char *operation)
 {
     sentry_value_t span = sentry_value_new_object();
 
-    sentry_transaction_context_set_operation(span, operation);
+    sentry__value_transaction_context_set_operation(span, operation);
 
     sentry_uuid_t span_id = sentry_uuid_new_v4();
     sentry_value_set_by_key(
@@ -1159,7 +1159,7 @@ sentry__value_new_span(sentry_value_t parent, const char *operation)
 }
 
 sentry_value_t
-sentry_value_new_transaction_context(const char *name, const char *operation)
+sentry__value_transaction_context_new(const char *name, const char *operation)
 {
     sentry_value_t transaction_context
         = sentry__value_new_span(sentry_value_new_null(), operation);
@@ -1168,13 +1168,13 @@ sentry_value_new_transaction_context(const char *name, const char *operation)
     sentry_value_set_by_key(transaction_context, "trace_id",
         sentry__value_new_internal_uuid(&trace_id));
 
-    sentry_transaction_context_set_name(transaction_context, name);
+    sentry__value_transaction_context_set_name(transaction_context, name);
 
     return transaction_context;
 }
 
 void
-sentry_transaction_context_set_name(
+sentry__value_transaction_context_set_name(
     sentry_value_t transaction_context, const char *name)
 {
     sentry_value_set_by_key(
@@ -1182,7 +1182,7 @@ sentry_transaction_context_set_name(
 }
 
 void
-sentry_transaction_context_set_operation(
+sentry__value_transaction_context_set_operation(
     sentry_value_t transaction_context, const char *operation)
 {
     sentry_value_set_by_key(
@@ -1190,7 +1190,7 @@ sentry_transaction_context_set_operation(
 }
 
 void
-sentry_transaction_context_set_sampled(
+sentry__value_transaction_context_set_sampled(
     sentry_value_t transaction_context, int sampled)
 {
     sentry_value_set_by_key(
@@ -1198,7 +1198,8 @@ sentry_transaction_context_set_sampled(
 }
 
 void
-sentry_transaction_context_remove_sampled(sentry_value_t transaction_context)
+sentry__value_transaction_context_remove_sampled(
+    sentry_value_t transaction_context)
 {
     sentry_value_remove_by_key(transaction_context, "sampled");
 }

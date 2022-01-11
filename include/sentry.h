@@ -1282,15 +1282,15 @@ typedef struct sentry_span_s sentry_span_t;
  * for an explanation of `operation`, in addition to other properties and
  * actions that can be performed on a Transaction.
  */
-SENTRY_EXPERIMENTAL_API sentry_value_t sentry_value_new_transaction_context(
-    const char *name, const char *operation);
+SENTRY_EXPERIMENTAL_API sentry_transaction_context_t *
+sentry_transaction_context_new(const char *name, const char *operation);
 
 /**
  * Sets the `name` on a Transaction Context, which will be used in the
  * Transaction constructed off of the context.
  */
 SENTRY_EXPERIMENTAL_API void sentry_transaction_context_set_name(
-    sentry_value_t transaction, const char *name);
+    sentry_transaction_context_t *tx_cxt, const char *name);
 
 /**
  * Sets the `operation` on a Transaction Context, which will be used in the
@@ -1300,7 +1300,7 @@ SENTRY_EXPERIMENTAL_API void sentry_transaction_context_set_name(
  * conventions on `operation`s.
  */
 SENTRY_EXPERIMENTAL_API void sentry_transaction_context_set_operation(
-    sentry_value_t transaction, const char *operation);
+    sentry_transaction_context_t *tx_cxt, const char *operation);
 
 /**
  * Sets the `sampled` field on a Transaction Context, which will be used in the
@@ -1311,7 +1311,7 @@ SENTRY_EXPERIMENTAL_API void sentry_transaction_context_set_operation(
  * child spans will never be sent to sentry.
  */
 SENTRY_EXPERIMENTAL_API void sentry_transaction_context_set_sampled(
-    sentry_value_t transaction, int sampled);
+    sentry_transaction_context_t *tx_cxt, int sampled);
 
 /**
  * Removes the sampled field on a Transaction Context, which will be used in the
@@ -1320,7 +1320,7 @@ SENTRY_EXPERIMENTAL_API void sentry_transaction_context_set_sampled(
  * The Transaction will use the sampling rate as defined in `sentry_options`.
  */
 SENTRY_EXPERIMENTAL_API void sentry_transaction_context_remove_sampled(
-    sentry_value_t transaction);
+    sentry_transaction_context_t *tx_cxt);
 
 /**
  * Starts a new Transaction based on the provided context, restored from an
