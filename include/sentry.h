@@ -1341,8 +1341,8 @@ SENTRY_EXPERIMENTAL_API void sentry_transaction_context_remove_sampled(
  *
  * Takes ownership of `transaction_context`.
  */
-SENTRY_EXPERIMENTAL_API sentry_value_t sentry_transaction_start(
-    sentry_value_t transaction_context);
+SENTRY_EXPERIMENTAL_API sentry_transaction_t *sentry_transaction_start(
+    sentry_transaction_context_t *tx_cxt);
 
 /**
  * Finishes and sends a Transaction to sentry. The event ID of the Transaction
@@ -1354,7 +1354,7 @@ SENTRY_EXPERIMENTAL_API sentry_value_t sentry_transaction_start(
  * this will remove the
  */
 SENTRY_EXPERIMENTAL_API sentry_uuid_t sentry_transaction_finish(
-    sentry_value_t transaction);
+    sentry_transaction_t *tx);
 
 /**
  * Sets the Span (actually Transaction) so any Events sent while the Transaction
@@ -1370,13 +1370,13 @@ SENTRY_EXPERIMENTAL_API sentry_uuid_t sentry_transaction_finish(
  * well as its reference by passing in the same Transaction as the one passed
  * into this function.
  */
-SENTRY_EXPERIMENTAL_API void sentry_set_span(sentry_value_t transaction);
+SENTRY_EXPERIMENTAL_API void sentry_set_span(sentry_transaction_t *tx);
 
 /**
  * Starts a new Span.
  *
- * Either the return value of `sentry_start_transaction` or
- * `sentry_span_start_child` may be passed in as `parent`.
+ * The return value of `sentry_start_transaction` should be passed in as
+ * `parent`.
  *
  * Both `operation` and `description` can be null, but it is recommended to
  * supply the former. See
@@ -1392,8 +1392,30 @@ SENTRY_EXPERIMENTAL_API void sentry_set_span(sentry_value_t transaction);
  * sentry. `sentry_value_null` will be returned if the child Span could not be
  * created.
  */
-SENTRY_EXPERIMENTAL_API sentry_value_t sentry_span_start_child(
-    sentry_value_t parent, char *operation, char *description);
+SENTRY_EXPERIMENTAL_API sentry_span_t *sentry_transaction_start_child(
+    sentry_transaction_t *parent, char *operation, char *description);
+
+/**
+ * Starts a new Span.
+ *
+ * The return value of `sentry_span_start_child` may be passed in as `parent`.
+ *
+ * Both `operation` and `description` can be null, but it is recommended to
+ * supply the former. See
+ * https://develop.sentry.dev/sdk/performance/span-operations/ for conventions
+ * around operations.
+ *
+ * See https://develop.sentry.dev/sdk/event-payloads/span/ for a description of
+ * the created Span's properties and expectations for `operation` and
+ * `description`.
+ *
+ * Returns a value that should be passed into `sentry_span_finish`. Not
+ * finishing the Span means it will be discarded, and will not be sent to
+ * sentry. `sentry_value_null` will be returned if the child Span could not be
+ * created.
+ */
+SENTRY_EXPERIMENTAL_API sentry_span_t *sentry_span_start_child(
+    sentry_span_t *parent, char *operation, char *description);
 
 /**
  * Finishes a Span.
@@ -1411,7 +1433,7 @@ SENTRY_EXPERIMENTAL_API sentry_value_t sentry_span_start_child(
  * complete than the parent span they belong to.
  */
 SENTRY_EXPERIMENTAL_API void sentry_span_finish(
-    sentry_value_t root_transaction, sentry_value_t span);
+    sentry_transaction_t *root_transaction, sentry_span_t *span);
 
 /**
  * Sets a tag on a transaction to the given string value.
@@ -1419,25 +1441,25 @@ SENTRY_EXPERIMENTAL_API void sentry_span_finish(
  * Tags longer than 200 bytes will be truncated.
  */
 SENTRY_EXPERIMENTAL_API void sentry_transaction_set_tag(
-    sentry_value_t transaction, const char *tag, const char *value);
+    sentry_transaction_t *transaction, const char *tag, const char *value);
 
 /**
  * Removes a tag from a transaction.
  */
 SENTRY_EXPERIMENTAL_API void sentry_transaction_remove_tag(
-    sentry_value_t transaction, const char *tag);
+    sentry_transaction_t *transaction, const char *tag);
 
 /**
  * Sets the given key in a transaction's "data" section to the given value.
  */
 SENTRY_EXPERIMENTAL_API void sentry_transaction_set_data(
-    sentry_value_t transaction, const char *key, sentry_value_t value);
+    sentry_transaction_t *transaction, const char *key, sentry_value_t value);
 
 /**
  * Removes a key from a transaction's "data" section.
  */
 SENTRY_EXPERIMENTAL_API void sentry_transaction_remove_data(
-    sentry_value_t transaction, const char *key);
+    sentry_transaction_t *transaction, const char *key);
 
 /**
  * Sets a tag on a span to the given string value.
@@ -1445,25 +1467,25 @@ SENTRY_EXPERIMENTAL_API void sentry_transaction_remove_data(
  * Tags longer than 200 bytes will be truncated.
  */
 SENTRY_EXPERIMENTAL_API void sentry_span_set_tag(
-    sentry_value_t span, const char *tag, const char *value);
+    sentry_span_t *span, const char *tag, const char *value);
 
 /**
  * Removes a tag from a span.
  */
 SENTRY_EXPERIMENTAL_API void sentry_span_remove_tag(
-    sentry_value_t span, const char *tag);
+    sentry_span_t *span, const char *tag);
 
 /**
  * Sets the given key in a span's "data" section to the given value.
  */
 SENTRY_EXPERIMENTAL_API void sentry_span_set_data(
-    sentry_value_t span, const char *key, sentry_value_t value);
+    sentry_span_t *span, const char *key, sentry_value_t value);
 
 /**
  * Removes a key from a span's "data" section.
  */
 SENTRY_EXPERIMENTAL_API void sentry_span_remove_data(
-    sentry_value_t span, const char *key);
+    sentry_span_t *span, const char *key);
 
 #endif
 

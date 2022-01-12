@@ -230,11 +230,15 @@ sentry__span_free(sentry_span_t *span)
 }
 
 sentry_value_t
-sentry__span_get_trace_context(sentry_value_t span)
+sentry__transaction_get_trace_context(sentry_transaction_t *opaque_tx)
 {
-    if (sentry_value_is_null(span)
-        || sentry_value_is_null(sentry_value_get_by_key(span, "trace_id"))
-        || sentry_value_is_null(sentry_value_get_by_key(span, "span_id"))) {
+    if (!opaque_tx || sentry_value_is_null(opaque_tx->inner)) {
+        return sentry_value_new_null();
+    }
+
+    sentry_value_t tx = opaque_tx->inner;
+    if (sentry_value_is_null(sentry_value_get_by_key(tx, "trace_id"))
+        || sentry_value_is_null(sentry_value_get_by_key(tx, "span_id"))) {
         return sentry_value_new_null();
     }
 
@@ -249,12 +253,12 @@ sentry__span_get_trace_context(sentry_value_t span)
         }                                                                      \
     } while (0)
 
-    PLACE_VALUE("trace_id", span);
-    PLACE_VALUE("span_id", span);
-    PLACE_VALUE("parent_span_id", span);
-    PLACE_VALUE("op", span);
-    PLACE_VALUE("description", span);
-    PLACE_VALUE("status", span);
+    PLACE_VALUE("trace_id", tx);
+    PLACE_VALUE("span_id", tx);
+    PLACE_VALUE("parent_span_id", tx);
+    PLACE_VALUE("op", tx);
+    PLACE_VALUE("description", tx);
+    PLACE_VALUE("status", tx);
 
     // TODO: freeze this
     return trace_context;
