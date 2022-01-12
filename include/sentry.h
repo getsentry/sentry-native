@@ -1460,9 +1460,6 @@ typedef enum {
     SENTRY_SPAN_STATUS_UNAUTHENTICATED
 } sentry_span_status_t;
 
-SENTRY_EXPERIMENTAL_API sentry_value_t sentry_status_to_string(
-    sentry_span_status_t status);
-
 /**
  * Sets the span's status.
  */
