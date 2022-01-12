@@ -1,6 +1,7 @@
 #ifndef SENTRY_VALUE_H_INCLUDED
 #define SENTRY_VALUE_H_INCLUDED
 
+#include "sentry.h"
 #include "sentry_boot.h"
 
 /**
@@ -95,6 +96,18 @@ sentry_value_t sentry__value_clone(sentry_value_t value);
  */
 int sentry__value_append_bounded(
     sentry_value_t value, sentry_value_t v, size_t max);
+
+/**
+ * Deep-merges two objects into each other.
+ *
+ * For each key-value pair in the src object the same key in the dst object
+ * will be set to the value from src.  If both the dst value and the src value
+ * are objects themselves they are stepped into recursively instead of
+ * overriding the entire dst object.
+ *
+ * Returns 0 on success.
+ */
+int sentry__value_merge_objects(sentry_value_t dst, sentry_value_t src);
 
 /**
  * Parse the given JSON string into a new Value.
