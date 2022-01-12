@@ -722,19 +722,6 @@ sentry_set_transaction(const char *transaction)
 }
 
 void
-sentry_remove_transaction(void)
-{
-    SENTRY_WITH_SCOPE_MUT (scope) {
-        sentry_free(scope->transaction);
-        scope->transaction = NULL;
-
-#ifdef SENTRY_PERFORMANCE_MONITORING
-        scope->span = sentry_value_new_null();
-#endif
-    }
-}
-
-void
 sentry_set_level(sentry_level_t level)
 {
     SENTRY_WITH_SCOPE_MUT (scope) {
