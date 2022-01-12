@@ -62,13 +62,6 @@ sentry_value_t sentry__value_new_list_with_size(size_t size);
 sentry_value_t sentry__value_new_object_with_size(size_t size);
 
 /**
- * Constructs a new Span.
- *
- */
-sentry_value_t sentry__value_new_span(
-    sentry_value_t parent, const char *operation);
-
-/**
  * This will parse the Value into a UUID, or return a `nil` UUID on error.
  * See also `sentry_uuid_from_string`.
  */
@@ -110,19 +103,8 @@ void sentry__jsonwriter_write_value(
     sentry_jsonwriter_t *jw, sentry_value_t value);
 
 #ifdef SENTRY_PERFORMANCE_MONITORING
-sentry_value_t sentry__value_transaction_context_new(
-    const char *name, const char *operation);
+sentry_value_t sentry__value_new_span_uuid(const sentry_uuid_t *uuid);
 
-void sentry__value_transaction_context_set_name(
-    sentry_value_t tx_cxt, const char *name);
-
-void sentry__value_transaction_context_set_operation(
-    sentry_value_t tx_cxt, const char *operation);
-
-void sentry__value_transaction_context_set_sampled(
-    sentry_value_t tx_cxt, int sampled);
-
-void sentry__value_transaction_context_remove_sampled(sentry_value_t tx_cxt);
+sentry_value_t sentry__value_new_internal_uuid(const sentry_uuid_t *uuid);
 #endif
-
 #endif
