@@ -1331,5 +1331,5 @@ void
 sentry_transaction_set_name(sentry_value_t tx, const char *name)
 {
     sentry_value_set_by_key(
-        transaction_context, "transaction", sentry_value_new_string(name));
+        tx, "transaction", sentry_value_new_string(name));
 }
