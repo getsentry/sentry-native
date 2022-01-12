@@ -53,31 +53,35 @@ SENTRY_TEST(basic_transaction)
     sentry_transaction_context_t *opaque_tx_cxt
         = sentry_transaction_context_new(NULL, NULL);
     sentry_value_t tx_cxt;
-    if (TEST_CHECK(opaque_tx_cxt != NULL)) {
+    if (opaque_tx_cxt != NULL) {
         tx_cxt = opaque_tx_cxt->inner;
         TEST_CHECK(!sentry_value_is_null(tx_cxt));
         CHECK_STRING_PROPERTY(tx_cxt, "transaction", "");
         CHECK_STRING_PROPERTY(tx_cxt, "op", "");
         TEST_CHECK(!IS_NULL(tx_cxt, "trace_id"));
         TEST_CHECK(!IS_NULL(tx_cxt, "span_id"));
+    } else {
+        TEST_CHECK(opaque_tx_cxt != NULL);
     }
 
     sentry__transaction_context_free(opaque_tx_cxt);
 
     opaque_tx_cxt = sentry_transaction_context_new("", "");
-    if (TEST_CHECK(opaque_tx_cxt != NULL)) {
+    if (opaque_tx_cxt != NULL) {
         tx_cxt = opaque_tx_cxt->inner;
         TEST_CHECK(!sentry_value_is_null(tx_cxt));
         CHECK_STRING_PROPERTY(tx_cxt, "transaction", "");
         CHECK_STRING_PROPERTY(tx_cxt, "op", "");
         TEST_CHECK(!IS_NULL(tx_cxt, "trace_id"));
         TEST_CHECK(!IS_NULL(tx_cxt, "span_id"));
+    } else {
+        TEST_CHECK(opaque_tx_cxt != NULL);
     }
 
     sentry__transaction_context_free(opaque_tx_cxt);
 
     opaque_tx_cxt = sentry_transaction_context_new("honk.beep", "beepbeep");
-    if (TEST_CHECK(opaque_tx_cxt != NULL)) {
+    if (opaque_tx_cxt != NULL) {
         tx_cxt = opaque_tx_cxt->inner;
         TEST_CHECK(!sentry_value_is_null(tx_cxt));
         CHECK_STRING_PROPERTY(tx_cxt, "transaction", "honk.beep");
@@ -95,6 +99,8 @@ SENTRY_TEST(basic_transaction)
         TEST_CHECK(
             sentry_value_is_true(sentry_value_get_by_key(tx_cxt, "sampled"))
             == 1);
+    } else {
+        TEST_CHECK(opaque_tx_cxt != NULL);
     }
 
     sentry__transaction_context_free(opaque_tx_cxt);
