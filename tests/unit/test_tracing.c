@@ -52,8 +52,9 @@ SENTRY_TEST(basic_transaction)
 {
     sentry_transaction_context_t *opaque_tx_cxt
         = sentry_transaction_context_new(NULL, NULL);
+    sentry_value_t tx_cxt;
     if (TEST_CHECK(opaque_tx_cxt != NULL)) {
-        sentry_value_t tx_cxt = opaque_tx_cxt->inner;
+        tx_cxt = opaque_tx_cxt->inner;
         TEST_CHECK(!sentry_value_is_null(tx_cxt));
         CHECK_STRING_PROPERTY(tx_cxt, "transaction", "");
         CHECK_STRING_PROPERTY(tx_cxt, "op", "");
