@@ -230,7 +230,8 @@ main(int argc, char **argv)
         sentry_value_t tx = sentry_transaction_start(tx_ctx);
 
         if (has_arg(argc, argv, "error-status")) {
-            sentry_transaction_set_status(tx, SENTRY_SPAN_STATUS_INTERNAL_ERROR);
+            sentry_transaction_set_status(
+                tx, SENTRY_SPAN_STATUS_INTERNAL_ERROR);
         }
 
         if (has_arg(argc, argv, "child-spans")) {
@@ -241,7 +242,8 @@ main(int argc, char **argv)
 
             if (has_arg(argc, argv, "error-status")) {
                 sentry_span_set_status(child, SENTRY_SPAN_STATUS_NOT_FOUND);
-                sentry_span_set_status(grandchild, SENTRY_SPAN_STATUS_ALREADY_EXISTS);
+                sentry_span_set_status(
+                    grandchild, SENTRY_SPAN_STATUS_ALREADY_EXISTS);
             }
 
             sentry_span_finish(tx, grandchild);
