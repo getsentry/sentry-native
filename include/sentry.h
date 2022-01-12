@@ -1487,6 +1487,12 @@ SENTRY_EXPERIMENTAL_API void sentry_span_set_data(
 SENTRY_EXPERIMENTAL_API void sentry_span_remove_data(
     sentry_span_t *span, const char *key);
 
+/**
+ * Sets a transaction's name.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_transaction_set_name(
+    sentry_value_t tx, const char *name);
+
 #endif
 
 #ifdef __cplusplus
