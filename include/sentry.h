@@ -1491,7 +1491,7 @@ SENTRY_EXPERIMENTAL_API void sentry_span_remove_data(
  * Sets a transaction's name.
  */
 SENTRY_EXPERIMENTAL_API void sentry_transaction_set_name(
-    sentry_value_t tx, const char *name);
+    sentry_transaction_t *transaction, const char *name);
 
 #endif
 

@@ -267,6 +267,13 @@ sentry__transaction_get_trace_context(sentry_transaction_t *opaque_tx)
 #undef PLACE_VALUE
 }
 
+void
+sentry_transaction_set_name(sentry_transaction_t *tx, const char *name)
+{
+    sentry_value_set_by_key(
+        tx->inner, "transaction", sentry_value_new_string(name));
+}
+
 static void
 set_tag(sentry_value_t item, const char *tag, const char *value)
 {
