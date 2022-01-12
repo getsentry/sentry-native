@@ -1330,6 +1330,5 @@ sentry_transaction_remove_data(sentry_value_t transaction, const char *key)
 void
 sentry_transaction_set_name(sentry_value_t tx, const char *name)
 {
-    sentry_value_set_by_key(
-        tx, "transaction", sentry_value_new_string(name));
+    sentry_value_set_by_key(tx, "transaction", sentry_value_new_string(name));
 }
