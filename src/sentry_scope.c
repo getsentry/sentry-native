@@ -1,4 +1,5 @@
 #include "sentry_scope.h"
+#include "sentry.h"
 #include "sentry_backend.h"
 #include "sentry_core.h"
 #include "sentry_database.h"
@@ -7,6 +8,7 @@
 #include "sentry_string.h"
 #include "sentry_symbolizer.h"
 #include "sentry_sync.h"
+#include "sentry_value.h"
 
 #include <stdlib.h>
 
@@ -293,9 +295,10 @@ sentry__scope_apply_to_event(const sentry_scope_t *scope,
     PLACE_STRING("transaction", scope->transaction);
     PLACE_VALUE("sdk", scope->client_sdk);
 
-    // TODO: these should merge
-    PLACE_CLONED_VALUE("tags", scope->tags);
-    PLACE_CLONED_VALUE("extra", scope->extra);
+    sentry_value_t event_tags = sentry_value_get_by_key(event, "tags");
+    sentry__value_merge_objects(event_tags, scope->tags);
+    sentry_value_t event_extra = sentry_value_get_by_key(event, "extra");
+    sentry__value_merge_objects(event_extra, scope->extra);
 
 #ifdef SENTRY_PERFORMANCE_MONITORING
     // TODO: better, more thorough deep merging
