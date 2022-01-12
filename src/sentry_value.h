@@ -98,7 +98,7 @@ int sentry__value_append_bounded(
     sentry_value_t value, sentry_value_t v, size_t max);
 
 /**
- * Deep-merges two objects into each other.
+ * Deep-merges object src into dst.
  *
  * For each key-value pair in the src object the same key in the dst object
  * will be set to the value from src.  If both the dst value and the src value
