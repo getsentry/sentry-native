@@ -1365,6 +1365,8 @@ sentry_status_to_string(sentry_span_status_t status)
         return sentry_value_new_string("data_loss");
     case SENTRY_SPAN_STATUS_UNAUTHENTICATED:
         return sentry_value_new_string("unauthenticated");
+    default:
+        return sentry_value_new_null();
     }
 }
 
