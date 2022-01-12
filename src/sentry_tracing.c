@@ -2,6 +2,7 @@
 
 #include "sentry_alloc.h"
 #include "sentry_logger.h"
+#include "sentry_string.h"
 #include "sentry_tracing.h"
 #include "sentry_utils.h"
 #include "sentry_value.h"
@@ -264,4 +265,100 @@ sentry__transaction_get_trace_context(sentry_transaction_t *opaque_tx)
     return trace_context;
 
 #undef PLACE_VALUE
+}
+
+static void
+set_tag(sentry_value_t item, const char *tag, const char *value)
+{
+    sentry_value_t tags = sentry_value_get_by_key(item, "tags");
+    if (sentry_value_is_null(tags)) {
+        tags = sentry_value_new_object();
+        sentry_value_set_by_key(item, "tags", tags);
+    }
+
+    char *s = sentry__string_clonen(value, 200);
+    if (s) {
+        sentry_value_set_by_key(tags, tag, sentry__value_new_string_owned(s));
+    } else {
+        sentry_value_set_by_key(tags, tag, sentry_value_new_null());
+    }
+}
+
+void
+sentry_transaction_set_tag(
+    sentry_transaction_t *tx, const char *tag, const char *value)
+{
+    set_tag(tx->inner, tag, value);
+}
+
+void
+sentry_span_set_tag(sentry_span_t *span, const char *tag, const char *value)
+{
+    set_tag(span->inner, tag, value);
+}
+
+static void
+remove_tag(sentry_value_t item, const char *tag)
+{
+    sentry_value_t tags = sentry_value_get_by_key(item, "tags");
+    if (!sentry_value_is_null(tags)) {
+        sentry_value_remove_by_key(tags, tag);
+    }
+}
+
+void
+sentry_transaction_remove_tag(sentry_transaction_t *tx, const char *tag)
+{
+    remove_tag(tx->inner, tag);
+}
+
+void
+sentry_span_remove_tag(sentry_span_t *span, const char *tag)
+{
+    remove_tag(span->inner, tag);
+}
+
+static void
+set_data(sentry_value_t item, const char *key, sentry_value_t value)
+{
+    sentry_value_t data = sentry_value_get_by_key(item, "data");
+    if (sentry_value_is_null(data)) {
+        data = sentry_value_new_object();
+        sentry_value_set_by_key(item, "data", data);
+    }
+    sentry_value_set_by_key(data, key, value);
+}
+
+void
+sentry_transaction_set_data(
+    sentry_transaction_t *tx, const char *key, sentry_value_t value)
+{
+    set_data(tx->inner, key, value);
+}
+
+void
+sentry_span_set_data(sentry_span_t *span, const char *key, sentry_value_t value)
+{
+    set_data(span->inner, key, value);
+}
+
+static void
+remove_data(sentry_value_t item, const char *key)
+{
+    sentry_value_t data = sentry_value_get_by_key(item, "data");
+    if (!sentry_value_is_null(data)) {
+        sentry_value_remove_by_key(data, key);
+    }
+}
+
+void
+sentry_transaction_remove_data(sentry_transaction_t *tx, const char *key)
+{
+    remove_data(tx->inner, key);
+}
+
+void
+sentry_span_remove_data(sentry_span_t *span, const char *key)
+{
+    remove_data(span->inner, key);
 }
