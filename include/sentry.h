@@ -1441,6 +1441,12 @@ SENTRY_EXPERIMENTAL_API void sentry_span_remove_data(
     sentry_value_t span, const char *key);
 
 /**
+ * Sets a transaction's name.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_transaction_set_name(
+    sentry_value_t tx, const char *name);
+
+/**
  * The status of a span or transaction.
  *
  * See https://develop.sentry.dev/sdk/event-payloads/span/ for documentation.
