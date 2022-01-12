@@ -1461,10 +1461,16 @@ typedef enum {
 } sentry_span_status_t;
 
 /**
- * Sets the span's status.
+ * Sets a span's status.
  */
 SENTRY_EXPERIMENTAL_API void sentry_span_set_status(
     sentry_value_t span, sentry_span_status_t status);
+
+/**
+ * Sets a transaction's status.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_transaction_set_status(
+    sentry_value_t tx, sentry_span_status_t status);
 
 #endif
 

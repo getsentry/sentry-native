@@ -1373,3 +1373,9 @@ sentry_span_set_status(sentry_value_t span, sentry_span_status_t status)
 {
     sentry_value_set_by_key(span, "status", sentry_status_to_string(status));
 }
+
+void
+sentry_transaction_set_status(sentry_value_t tx, sentry_span_status_t status)
+{
+    sentry_span_set_status(tx, status);
+}
