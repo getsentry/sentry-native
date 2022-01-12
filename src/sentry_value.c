@@ -810,6 +810,9 @@ sentry_value_is_null(sentry_value_t value)
 int
 sentry__value_merge_objects(sentry_value_t dst, sentry_value_t src)
 {
+    if (sentry_value_is_null(src)) {
+        return 0;
+    }
     if (sentry_value_get_type(dst) != SENTRY_VALUE_TYPE_OBJECT
         || sentry_value_get_type(src) != SENTRY_VALUE_TYPE_OBJECT
         || sentry_value_is_frozen(dst)) {
@@ -826,11 +829,11 @@ sentry__value_merge_objects(sentry_value_t dst, sentry_value_t src)
         sentry_value_t dst_val = sentry_value_get_by_key(dst, key);
         if (sentry_value_get_type(dst_val) == SENTRY_VALUE_TYPE_OBJECT
             && sentry_value_get_type(src_val) == SENTRY_VALUE_TYPE_OBJECT) {
-            if (sentry__value_merge_objects(dst_val, src_val)) {
+            if (sentry__value_merge_objects(dst_val, src_val) != 0) {
                 return 1;
             }
         } else {
-            if (sentry_value_set_by_key(dst, key, src_val)) {
+            if (sentry_value_set_by_key(dst, key, src_val) != 0) {
                 return 1;
             }
             sentry_value_incref(src_val);

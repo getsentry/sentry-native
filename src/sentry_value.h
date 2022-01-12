@@ -105,6 +105,10 @@ int sentry__value_append_bounded(
  * are objects themselves they are stepped into recursively instead of
  * overriding the entire dst object.
  *
+ * If src is null nothing needs to be merged and this is handled gracefully,
+ * otherwise if dst is any other type than an object or src is neither an
+ * object nor null an error is returned.
+ *
  * Returns 0 on success.
  */
 int sentry__value_merge_objects(sentry_value_t dst, sentry_value_t src);
