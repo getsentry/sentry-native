@@ -310,8 +310,9 @@ sentry__scope_apply_to_event(const sentry_scope_t *scope,
         if (!sentry_value_is_null(extra)) {
             sentry_value_set_by_key(event, "extra", extra);
         }
+    } else {
+        sentry__value_merge_objects(event_extra, scope->extra);
     }
-    sentry__value_merge_objects(event_extra, scope->extra);
 
 #ifdef SENTRY_PERFORMANCE_MONITORING
     // TODO: better, more thorough deep merging
