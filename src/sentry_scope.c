@@ -297,18 +297,16 @@ sentry__scope_apply_to_event(const sentry_scope_t *scope,
 
     sentry_value_t event_tags = sentry_value_get_by_key(event, "tags");
     if (sentry_value_is_null(event_tags)) {
-        sentry_value_t tags = sentry__value_clone(scope->tags);
-        if (!sentry_value_is_null(tags)) {
-            sentry_value_set_by_key(event, "tags", tags);
+        if (!sentry_value_is_null(scope->tags)) {
+            PLACE_CLONED_VALUE("tags", scope->tags);
         }
     } else {
         sentry__value_merge_objects(event_tags, scope->tags);
     }
     sentry_value_t event_extra = sentry_value_get_by_key(event, "extra");
     if (sentry_value_is_null(event_extra)) {
-        sentry_value_t extra = sentry__value_clone(scope->extra);
-        if (!sentry_value_is_null(extra)) {
-            sentry_value_set_by_key(event, "extra", extra);
+        if (!sentry_value_is_null(scope->extra)) {
+            PLACE_CLONED_VALUE("extra", scope->extra);
         }
     } else {
         sentry__value_merge_objects(event_extra, scope->extra);
