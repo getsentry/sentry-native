@@ -1,4 +1,3 @@
-#include "sentry.h"
 #include "sentry_boot.h"
 
 #include <assert.h>
