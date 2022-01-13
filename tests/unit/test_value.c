@@ -249,6 +249,7 @@ SENTRY_TEST(value_object_merge)
     TEST_CHECK_INT_EQUAL(sentry_value_as_int32(a), 1);
     TEST_CHECK_INT_EQUAL(sentry_value_as_int32(b), 20);
     TEST_CHECK_INT_EQUAL(sentry_value_as_int32(c), 30);
+
     sentry_value_decref(dst);
 }
 
@@ -280,6 +281,7 @@ SENTRY_TEST(value_object_merge_nested)
     TEST_CHECK_INT_EQUAL(sentry_value_as_int32(ba), 1);
     TEST_CHECK_INT_EQUAL(sentry_value_as_int32(bb), 20);
     TEST_CHECK_INT_EQUAL(sentry_value_as_int32(bc), 30);
+
     sentry_value_decref(dst);
 }
 
