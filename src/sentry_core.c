@@ -712,13 +712,13 @@ sentry_set_transaction(const char *transaction)
     SENTRY_WITH_SCOPE_MUT (scope) {
         sentry_free(scope->transaction);
         scope->transaction = sentry__string_clone(transaction);
-    }
-}
 
-void
-sentry_remove_transaction(void)
-{
-    sentry_set_transaction(NULL);
+#ifdef SENTRY_PERFORMANCE_MONITORING
+        if (!sentry_value_is_null(scope->span)) {
+            sentry_transaction_set_name(scope->span, transaction);
+        }
+#endif
+    }
 }
 
 void

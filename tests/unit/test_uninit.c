@@ -25,7 +25,6 @@ SENTRY_TEST(uninitialized)
     sentry_set_fingerprint("foo", "bar", NULL);
     sentry_remove_fingerprint();
     sentry_set_transaction("foo");
-    sentry_remove_transaction();
     sentry_set_level(SENTRY_LEVEL_DEBUG);
     sentry_start_session();
     sentry_end_session();

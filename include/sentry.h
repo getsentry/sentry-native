@@ -1193,11 +1193,6 @@ SENTRY_API void sentry_remove_fingerprint(void);
 SENTRY_API void sentry_set_transaction(const char *transaction);
 
 /**
- * Removes the transaction.
- */
-SENTRY_API void sentry_remove_transaction(void);
-
-/**
  * Sets the event level.
  */
 SENTRY_API void sentry_set_level(sentry_level_t level);
