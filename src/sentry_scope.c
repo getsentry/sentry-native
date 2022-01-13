@@ -313,13 +313,24 @@ sentry__scope_apply_to_event(const sentry_scope_t *scope,
     }
 
 #ifdef SENTRY_PERFORMANCE_MONITORING
-    // TODO: better, more thorough deep merging
     sentry_value_t contexts = sentry__value_clone(scope->contexts);
-    sentry_value_t trace = sentry__span_get_trace_context(scope->span);
-    if (!sentry_value_is_null(trace)) {
-        sentry_value_set_by_key(contexts, "trace", trace);
+    // prep contexts sourced from scope; data about transaction on scope needs
+    // to be extracted and inserted
+    sentry_value_t scope_trace = sentry__span_get_trace_context(scope->span);
+    if (!sentry_value_is_null(scope_trace)) {
+        if (sentry_value_is_null(contexts)) {
+            contexts = sentry_value_new_object();
+        }
+        sentry_value_set_by_key(contexts, "trace", scope_trace);
     }
-    PLACE_VALUE("contexts", contexts);
+
+    // merge contexts sourced from scope into the event
+    sentry_value_t event_contexts = sentry_value_get_by_key(event, "contexts");
+    if (sentry_value_is_null(event_contexts)) {
+        PLACE_VALUE("contexts", contexts);
+    } else {
+        sentry__value_merge_objects(event_contexts, contexts);
+    }
     sentry_value_decref(contexts);
 #endif
 
