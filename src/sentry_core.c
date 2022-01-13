@@ -714,7 +714,7 @@ sentry_set_transaction(const char *transaction)
         scope->transaction = sentry__string_clone(transaction);
 
 #ifdef SENTRY_PERFORMANCE_MONITORING
-        if (!sentry_value_is_null(scope->span)) {
+        if (scope->span) {
             sentry_transaction_set_name(scope->span, transaction);
         }
 #endif

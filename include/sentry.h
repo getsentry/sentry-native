@@ -1483,6 +1483,76 @@ SENTRY_EXPERIMENTAL_API void sentry_span_remove_data(
 SENTRY_EXPERIMENTAL_API void sentry_transaction_set_name(
     sentry_transaction_t *transaction, const char *name);
 
+/**
+ * The status of a span or transaction.
+ *
+ * See https://develop.sentry.dev/sdk/event-payloads/span/ for documentation.
+ */
+typedef enum {
+    // The operation completed successfully.
+    // HTTP status 100..299 + successful redirects from the 3xx range.
+    SENTRY_SPAN_STATUS_OK,
+    // The operation was cancelled (typically by the user).
+    SENTRY_SPAN_STATUS_CANCELLED,
+    // Unknown. Any non-standard HTTP status code.
+    // "We do not know whether the transaction failed or succeeded."
+    SENTRY_SPAN_STATUS_UNKNOWN,
+    // Client specified an invalid argument. 4xx.
+    // Note that this differs from FailedPrecondition. InvalidArgument
+    // indicates arguments that are problematic regardless of the
+    // state of the system.
+    SENTRY_SPAN_STATUS_INVALID_ARGUMENT,
+    // Deadline expired before operation could complete.
+    // For operations that change the state of the system, this error may be
+    // returned even if the operation has been completed successfully.
+    // HTTP redirect loops and 504 Gateway Timeout.
+    SENTRY_SPAN_STATUS_DEADLINE_EXCEEDED,
+    // 404 Not Found. Some requested entity (file or directory) was not found.
+    SENTRY_SPAN_STATUS_NOT_FOUND,
+    // Already exists (409)
+    // Some entity that we attempted to create already exists.
+    SENTRY_SPAN_STATUS_ALREADY_EXISTS,
+    // 403 Forbidden
+    // The caller does not have permission to execute the specified operation.
+    SENTRY_SPAN_STATUS_PERMISSION_DENIED,
+    // 429 Too Many Requests
+    // Some resource has been exhausted, perhaps a per-user quota or perhaps
+    // the entire file system is out of space.
+    SENTRY_SPAN_STATUS_RESOURCE_EXHAUSTED,
+    // Operation was rejected because the system is not in a state required for
+    // the operation's execution.
+    SENTRY_SPAN_STATUS_FAILED_PRECONDITION,
+    // The operation was aborted, typically due to a concurrency issue.
+    SENTRY_SPAN_STATUS_ABORTED,
+    // Operation was attempted past the valid range.
+    SENTRY_SPAN_STATUS_OUT_OF_RANGE,
+    // 501 Not Implemented
+    // Operation is not implemented or not enabled.
+    SENTRY_SPAN_STATUS_UNIMPLEMENTED,
+    // Other/generic 5xx
+    SENTRY_SPAN_STATUS_INTERNAL_ERROR,
+    // 503 Service Unavailable
+    SENTRY_SPAN_STATUS_UNAVAILABLE,
+    // Unrecoverable data loss or corruption
+    SENTRY_SPAN_STATUS_DATA_LOSS,
+    // 401 Unauthorized (actually does mean unauthenticated according to RFC
+    // 7235)
+    // Prefer PermissionDenied if a user is logged in.
+    SENTRY_SPAN_STATUS_UNAUTHENTICATED,
+} sentry_span_status_t;
+
+/**
+ * Sets a span's status.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_span_set_status(
+    sentry_span_t *span, sentry_span_status_t status);
+
+/**
+ * Sets a transaction's status.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_transaction_set_status(
+    sentry_transaction_t *tx, sentry_span_status_t status);
+
 #endif
 
 #ifdef __cplusplus
