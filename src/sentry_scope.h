@@ -26,7 +26,7 @@ typedef struct sentry_scope_s {
     // and to avoid a conflict with the existing transaction field this is named
     // span. Whenever possible, `transaction` should pull its value from the
     // `name` property nested in this field.
-    sentry_value_t span;
+    sentry_transaction_t *span;
 #endif
 } sentry_scope_t;
 

@@ -82,7 +82,7 @@ get_scope(void)
     g_scope.client_sdk = get_client_sdk();
 
 #ifdef SENTRY_PERFORMANCE_MONITORING
-    g_scope.span = sentry_value_new_null();
+    g_scope.span = NULL;
 #endif
 
     g_scope_initialized = true;
@@ -106,7 +106,7 @@ sentry__scope_cleanup(void)
         sentry_value_decref(g_scope.client_sdk);
 
 #ifdef SENTRY_PERFORMANCE_MONITORING
-        sentry_value_decref(g_scope.span);
+        sentry__transaction_decref(g_scope.span);
 #endif
     }
     sentry__mutex_unlock(&g_lock);
@@ -245,7 +245,11 @@ sentry_value_t
 sentry__scope_get_span()
 {
     SENTRY_WITH_SCOPE (scope) {
-        return scope->span;
+        if (!scope->span) {
+            return sentry_value_new_null();
+        } else {
+            return scope->span->inner;
+        }
     }
     return sentry_value_new_null();
 }
