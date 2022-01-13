@@ -733,37 +733,25 @@ sentry_set_level(sentry_level_t level)
 sentry_value_t
 sentry_transaction_start(sentry_value_t tx_cxt)
 {
-    // TODO: it would be nice if we could just merge tx_cxt into tx.
-    // `sentry_value_new_transaction_event()` is also an option, but risks
-    // causing more confusion as there's already a
-    // `sentry_value_new_transaction`. The ending timestamp is stripped as well
-    // to avoid misleading ourselves later down the line.
+    // If the parent span ID is some empty-ish value, just remove it
+    sentry_value_t parent_span
+        = sentry_value_get_by_key(tx_cxt, "parent_span_id");
+    if (sentry_value_get_length(parent_span) < 1) {
+        sentry_value_remove_by_key(tx_cxt, "parent_span_id");
+    }
+
+    // The ending timestamp is stripped to avoid misleading ourselves later
+    // down the line, as it is the only way to determine whether a transaction
+    // has ended or not.
     sentry_value_t tx = sentry_value_new_event();
     sentry_value_remove_by_key(tx, "timestamp");
+
+    sentry__value_merge_objects(tx, tx_cxt);
 
     bool should_sample = sentry__should_send_transaction(tx_cxt);
     sentry_value_set_by_key(
         tx, "sampled", sentry_value_new_bool(should_sample));
 
-    // Avoid having this show up in the payload at all if it doesn't have a
-    // valid value
-    sentry_value_t parent_span
-        = sentry_value_get_by_key_owned(tx_cxt, "parent_span_id");
-    if (sentry_value_get_length(parent_span) > 0) {
-        sentry_value_set_by_key(tx, "parent_span_id", parent_span);
-    } else {
-        sentry_value_decref(parent_span);
-    }
-    sentry_value_set_by_key(
-        tx, "trace_id", sentry_value_get_by_key_owned(tx_cxt, "trace_id"));
-    sentry_value_set_by_key(
-        tx, "span_id", sentry_value_get_by_key_owned(tx_cxt, "span_id"));
-    sentry_value_set_by_key(tx, "transaction",
-        sentry_value_get_by_key_owned(tx_cxt, "transaction"));
-    sentry_value_set_by_key(
-        tx, "op", sentry_value_get_by_key_owned(tx_cxt, "op"));
-    sentry_value_set_by_key(
-        tx, "status", sentry_value_get_by_key_owned(tx_cxt, "status"));
     sentry_value_set_by_key(tx, "start_timestamp",
         sentry__value_new_string_owned(
             sentry__msec_time_to_iso8601(sentry__msec_time())));
