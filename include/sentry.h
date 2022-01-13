@@ -1420,17 +1420,12 @@ SENTRY_EXPERIMENTAL_API sentry_span_t *sentry_span_start_child(
 /**
  * Finishes a Span.
  *
- * Returns a value that should be passed into `sentry_span_finish`. Not
- * finishing the Span means it will be discarded, and will not be sent to
- * sentry.
- *
  * `root_transaction` is either the parent Transaction of the Span, or
  * the ancestor Transaction of the Span if the Span is not a direct descendant
  * of a Transaction.
  *
  * This takes ownership of `span`, as child Spans must always occur within the
- * total duration of a parent span and cannot take a longer amount of time to
- * complete than the parent span they belong to.
+ * total duration of a parent Span and cannot outlive their parent Spans.
  */
 SENTRY_EXPERIMENTAL_API void sentry_span_finish(
     sentry_transaction_t *root_transaction, sentry_span_t *span);
