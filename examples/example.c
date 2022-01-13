@@ -236,7 +236,7 @@ main(int argc, char **argv)
 
         if (has_arg(argc, argv, "child-spans")) {
             sentry_span_t *child
-                = sentry_span_start_child(tx, "littler.teapot", NULL);
+                = sentry_transaction_start_child(tx, "littler.teapot", NULL);
             sentry_span_t *grandchild
                 = sentry_span_start_child(child, "littlest.teapot", NULL);
 
