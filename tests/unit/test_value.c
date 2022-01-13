@@ -241,6 +241,7 @@ SENTRY_TEST(value_object_merge)
 
     int rv = sentry__value_merge_objects(dst, src);
     TEST_CHECK_INT_EQUAL(rv, 0);
+    sentry_value_decref(src);
 
     sentry_value_t a = sentry_value_get_by_key(dst, "a");
     sentry_value_t b = sentry_value_get_by_key(dst, "b");
@@ -248,6 +249,7 @@ SENTRY_TEST(value_object_merge)
     TEST_CHECK_INT_EQUAL(sentry_value_as_int32(a), 1);
     TEST_CHECK_INT_EQUAL(sentry_value_as_int32(b), 20);
     TEST_CHECK_INT_EQUAL(sentry_value_as_int32(c), 30);
+    sentry_value_decref(dst);
 }
 
 SENTRY_TEST(value_object_merge_nested)
@@ -267,6 +269,7 @@ SENTRY_TEST(value_object_merge_nested)
 
     int rv = sentry__value_merge_objects(dst, src);
     TEST_CHECK_INT_EQUAL(rv, 0);
+    sentry_value_decref(src);
 
     sentry_value_t a = sentry_value_get_by_key(dst, "a");
     sentry_value_t nested = sentry_value_get_by_key(dst, "b");
@@ -277,6 +280,7 @@ SENTRY_TEST(value_object_merge_nested)
     TEST_CHECK_INT_EQUAL(sentry_value_as_int32(ba), 1);
     TEST_CHECK_INT_EQUAL(sentry_value_as_int32(bb), 20);
     TEST_CHECK_INT_EQUAL(sentry_value_as_int32(bc), 30);
+    sentry_value_decref(dst);
 }
 
 SENTRY_TEST(value_freezing)
