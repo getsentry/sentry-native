@@ -426,7 +426,8 @@ sentry_span_set_status(sentry_span_t *span, sentry_span_status_t status)
 }
 
 void
-sentry_transaction_set_status(sentry_transaction_t *tx, sentry_span_status_t status)
+sentry_transaction_set_status(
+    sentry_transaction_t *tx, sentry_span_status_t status)
 {
     set_status(tx->inner, status);
 }
