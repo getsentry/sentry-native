@@ -320,7 +320,8 @@ sentry__scope_apply_to_event(const sentry_scope_t *scope,
     sentry_value_t contexts = sentry__value_clone(scope->contexts);
     // prep contexts sourced from scope; data about transaction on scope needs
     // to be extracted and inserted
-    sentry_value_t scope_trace = sentry__span_get_trace_context(scope->span);
+    sentry_value_t scope_trace
+        = sentry__transaction_get_trace_context(scope->span);
     if (!sentry_value_is_null(scope_trace)) {
         if (sentry_value_is_null(contexts)) {
             contexts = sentry_value_new_object();
