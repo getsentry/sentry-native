@@ -712,13 +712,13 @@ sentry_set_transaction(const char *transaction)
     SENTRY_WITH_SCOPE_MUT (scope) {
         sentry_free(scope->transaction);
         scope->transaction = sentry__string_clone(transaction);
-    }
-}
 
-void
-sentry_remove_transaction(void)
-{
-    sentry_set_transaction(NULL);
+#ifdef SENTRY_PERFORMANCE_MONITORING
+        if (!sentry_value_is_null(scope->span)) {
+            sentry_transaction_set_name(scope->span, transaction);
+        }
+#endif
+    }
 }
 
 void
@@ -730,9 +730,11 @@ sentry_set_level(sentry_level_t level)
 }
 
 #ifdef SENTRY_PERFORMANCE_MONITORING
-sentry_value_t
-sentry_transaction_start(sentry_value_t tx_cxt)
+sentry_transaction_t *
+sentry_transaction_start(sentry_transaction_context_t *opaque_tx_cxt)
 {
+    sentry_value_t tx_cxt = opaque_tx_cxt->inner;
+
     // TODO: it would be nice if we could just merge tx_cxt into tx.
     // `sentry_value_new_transaction_event()` is also an option, but risks
     // causing more confusion as there's already a
@@ -768,26 +770,32 @@ sentry_transaction_start(sentry_value_t tx_cxt)
         sentry__value_new_string_owned(
             sentry__msec_time_to_iso8601(sentry__msec_time())));
 
-    sentry_value_decref(tx_cxt);
-    return tx;
+    sentry__transaction_context_free(opaque_tx_cxt);
+    return sentry__transaction_new(tx);
 }
 
 sentry_uuid_t
-sentry_transaction_finish(sentry_value_t tx)
+sentry_transaction_finish(sentry_transaction_t *opaque_tx)
 {
-    if (sentry_value_is_null(tx)) {
+    if (!opaque_tx || sentry_value_is_null(opaque_tx->inner)) {
         SENTRY_DEBUG("no transaction available to finish");
         goto fail;
     }
 
+    sentry_value_t tx = sentry__value_clone(opaque_tx->inner);
+
     SENTRY_WITH_SCOPE_MUT (scope) {
-        const char *tx_id
-            = sentry_value_as_string(sentry_value_get_by_key(tx, "trace_id"));
-        const char *scope_tx_id = sentry_value_as_string(
-            sentry_value_get_by_key(scope->span, "trace_id"));
-        if (sentry__string_eq(tx_id, scope_tx_id)) {
-            sentry_value_decref(scope->span);
-            scope->span = sentry_value_new_null();
+        if (scope->span) {
+            sentry_value_t scope_tx = scope->span->inner;
+
+            const char *tx_id = sentry_value_as_string(
+                sentry_value_get_by_key(tx, "trace_id"));
+            const char *scope_tx_id = sentry_value_as_string(
+                sentry_value_get_by_key(scope_tx, "trace_id"));
+            if (sentry__string_eq(tx_id, scope_tx_id)) {
+                sentry__transaction_decref(scope->span);
+                scope->span = NULL;
+            }
         }
     }
     // The sampling decision should already be made for transactions
@@ -797,6 +805,7 @@ sentry_transaction_finish(sentry_value_t tx)
     if (!sentry_value_is_true(sampled)) {
         SENTRY_DEBUG("throwing away transaction due to sample rate or "
                      "user-provided sampling value in transaction context");
+        sentry_value_decref(tx);
         goto fail;
     }
     sentry_value_remove_by_key(tx, "sampled");
@@ -816,7 +825,8 @@ sentry_transaction_finish(sentry_value_t tx)
     }
 
     // TODO: add tracestate
-    sentry_value_t trace_context = sentry__span_get_trace_context(tx);
+    sentry_value_t trace_context
+        = sentry__transaction_get_trace_context(opaque_tx);
     sentry_value_t contexts = sentry_value_new_object();
     sentry_value_set_by_key(contexts, "trace", trace_context);
     sentry_value_set_by_key(tx, "contexts", contexts);
@@ -829,83 +839,84 @@ sentry_transaction_finish(sentry_value_t tx)
     sentry_value_remove_by_key(tx, "description");
     sentry_value_remove_by_key(tx, "status");
 
+    sentry__transaction_decref(opaque_tx);
+
     // This takes ownership of the transaction, generates an event ID, merges
     // scope
     return sentry__capture_event(tx);
-
 fail:
-    sentry_value_decref(tx);
+    sentry__transaction_decref(opaque_tx);
     return sentry_uuid_nil();
 }
 
 void
-sentry_set_span(sentry_value_t transaction)
+sentry_set_span(sentry_transaction_t *tx)
 {
     SENTRY_WITH_SCOPE_MUT (scope) {
-        sentry_value_decref(scope->span);
-        sentry_value_incref(transaction);
-        scope->span = transaction;
+        sentry__transaction_decref(scope->span);
+        sentry__transaction_incref(tx);
+        scope->span = tx;
     }
 }
 
-sentry_value_t
-sentry_span_start_child(
-    sentry_value_t parent, char *operation, char *description)
+sentry_span_t *
+sentry_transaction_start_child(
+    sentry_transaction_t *opaque_parent, char *operation, char *description)
 {
+    if (!opaque_parent || sentry_value_is_null(opaque_parent->inner)) {
+        SENTRY_DEBUG("no transaction available to create a child under");
+        return NULL;
+    }
+    sentry_value_t parent = opaque_parent->inner;
+
+    // TODO: consider snapshotting this value during tx creation and storing in
+    // tx and span
     size_t max_spans = SENTRY_SPANS_MAX;
     SENTRY_WITH_OPTIONS (options) {
         max_spans = options->max_spans;
     }
 
-    if (sentry_value_is_null(parent)) {
-        SENTRY_DEBUG("no transaction available to create a child under");
-        goto fail;
-    }
-
-    if (!sentry_value_is_null(sentry_value_get_by_key(parent, "timestamp"))) {
-        SENTRY_DEBUG("span's parent is already finished, not creating span");
-        goto fail;
-    }
-
-    // Aggressively discard spans if a transaction is unsampled to avoid
-    // wasting memory
-    sentry_value_t sampled = sentry_value_get_by_key(parent, "sampled");
-    if (!sentry_value_is_true(sampled)) {
-        SENTRY_DEBUG("span's parent is unsampled, not creating span");
-        goto fail;
-    }
-    sentry_value_t spans = sentry_value_get_by_key(parent, "spans");
-    // This only checks that the number of _completed_ spans matches the number
-    // of max spans. This means that the number of in-flight spans can exceed
-    // the max number of spans.
-    if (sentry_value_get_length(spans) >= max_spans) {
-        SENTRY_DEBUG("reached maximum number of spans for transaction, not "
-                     "creating span");
-        goto fail;
-    }
-
-    sentry_value_t child = sentry__value_new_span(parent, operation);
-    sentry_value_set_by_key(
-        child, "description", sentry_value_new_string(description));
-    sentry_value_set_by_key(child, "start_timestamp",
-        sentry__value_new_string_owned(
-            sentry__msec_time_to_iso8601(sentry__msec_time())));
-    sentry_value_set_by_key(child, "sampled", sentry_value_new_bool(1));
-
-    return child;
-
-fail:
-    return sentry_value_new_null();
+    return sentry__start_child(max_spans, parent, operation, description);
+    // TODO: add pointer to transaction on child span
 }
 
-void
-sentry_span_finish(sentry_value_t root_transaction, sentry_value_t span)
+sentry_span_t *
+sentry_span_start_child(
+    sentry_span_t *opaque_parent, char *operation, char *description)
 {
-    if (sentry_value_is_null(root_transaction) || sentry_value_is_null(span)) {
+    // TODO: check and validate ref to ancestor transaction on parent span
+    if (!opaque_parent || sentry_value_is_null(opaque_parent->inner)) {
+        SENTRY_DEBUG("no parent available to create a child under");
+        return NULL;
+    }
+    sentry_value_t parent = opaque_parent->inner;
+
+    // TODO: consider snapshotting this value during tx creation and storing in
+    // tx and span
+    size_t max_spans = SENTRY_SPANS_MAX;
+    SENTRY_WITH_OPTIONS (options) {
+        max_spans = options->max_spans;
+    }
+
+    return sentry__start_child(max_spans, parent, operation, description);
+    // TODO: add pointer to ancestor transaction on child span
+}
+
+// TODO: don't accept the root transaction as a param, the span should have a
+// ref to it already in itself
+void
+sentry_span_finish(
+    sentry_transaction_t *opaque_root_transaction, sentry_span_t *opaque_span)
+{
+    if (!opaque_root_transaction || !opaque_span
+        || sentry_value_is_null(opaque_root_transaction->inner)
+        || sentry_value_is_null(opaque_span->inner)) {
         SENTRY_DEBUG(
             "missing root transaction or span to finish, aborting span finish");
         goto fail;
     }
+
+    sentry_value_t root_transaction = opaque_root_transaction->inner;
 
     if (!sentry_value_is_null(
             sentry_value_get_by_key(root_transaction, "timestamp"))) {
@@ -914,8 +925,11 @@ sentry_span_finish(sentry_value_t root_transaction, sentry_value_t span)
         goto fail;
     }
 
+    sentry_value_t span = sentry__value_clone(opaque_span->inner);
+
     if (!sentry_value_is_null(sentry_value_get_by_key(span, "timestamp"))) {
         SENTRY_DEBUG("span is already finished, aborting span finish");
+        sentry_value_decref(span);
         goto fail;
     }
 
@@ -937,6 +951,7 @@ sentry_span_finish(sentry_value_t root_transaction, sentry_value_t span)
     if (sentry_value_get_length(spans) >= max_spans) {
         SENTRY_DEBUG("reached maximum number of spans for transaction, "
                      "discarding span");
+        sentry_value_decref(span);
         goto fail;
     }
 
@@ -945,10 +960,11 @@ sentry_span_finish(sentry_value_t root_transaction, sentry_value_t span)
         sentry_value_set_by_key(root_transaction, "spans", spans);
     }
     sentry_value_append(spans, span);
+    sentry__span_free(opaque_span);
     return;
 
 fail:
-    sentry_value_decref(span);
+    sentry__span_free(opaque_span);
     return;
 }
 #endif
