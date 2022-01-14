@@ -929,9 +929,6 @@ sentry_span_finish(sentry_span_t *opaque_span)
         goto fail;
     }
 
-    // tough luck if this span actually doesn't belong on the specified
-    // transaction, i.e. its trace id doesn't match the root transaction's trace
-    // id
     sentry_value_set_by_key(span, "timestamp",
         sentry__value_new_string_owned(
             sentry__msec_time_to_iso8601(sentry__msec_time())));
