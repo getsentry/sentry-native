@@ -121,6 +121,47 @@ sentry_transaction_context_remove_sampled(sentry_transaction_context_t *tx_cxt)
     sentry_value_remove_by_key(tx_cxt->inner, "sampled");
 }
 
+void
+sentry_transaction_context_update_from_header(
+    sentry_transaction_context_t *tx_cxt, const char *key, const char *value)
+{
+    if (!sentry__string_eq(key, "sentry-trace")) {
+        return;
+    }
+
+    // https://develop.sentry.dev/sdk/performance/#header-sentry-trace
+    // sentry-trace = traceid-spanid(-sampled)?
+    const char *trace_id_start = value;
+    const char *trace_id_end = strchr(trace_id_start, '-');
+    if (!trace_id_end) {
+        return;
+    }
+
+    sentry_value_t inner = tx_cxt->inner;
+
+    char *s
+        = sentry__string_clonen(trace_id_start, trace_id_end - trace_id_start);
+    sentry_value_t trace_id = sentry__value_new_string_owned(s);
+    sentry_value_set_by_key(inner, "trace_id", trace_id);
+
+    const char *span_id_start = trace_id_end + 1;
+    const char *span_id_end = strchr(span_id_start, '-');
+    if (!span_id_end) {
+        // no sampled flag
+        sentry_value_t parent_span_id = sentry_value_new_string(span_id_start);
+        sentry_value_set_by_key(inner, "parent_span_id", parent_span_id);
+        return;
+    }
+    // else: we have a sampled flag
+
+    s = sentry__string_clonen(span_id_start, span_id_end - span_id_start);
+    sentry_value_t parent_span_id = sentry__value_new_string_owned(s);
+    sentry_value_set_by_key(inner, "parent_span_id", parent_span_id);
+
+    bool sampled = *(span_id_end + 1) == '1';
+    sentry_value_set_by_key(inner, "sampled", sentry_value_new_bool(sampled));
+}
+
 sentry_transaction_t *
 sentry__transaction_new(sentry_value_t inner)
 {
@@ -430,4 +471,38 @@ sentry_transaction_set_status(
     sentry_transaction_t *tx, sentry_span_status_t status)
 {
     set_status(tx->inner, status);
+}
+
+static void
+sentry__span_iter_headers(sentry_value_t span,
+    sentry_iter_headers_function_t callback, void *userdata)
+{
+    sentry_value_t trace_id = sentry_value_get_by_key(span, "trace_id");
+    sentry_value_t span_id = sentry_value_get_by_key(span, "span_id");
+    sentry_value_t sampled = sentry_value_get_by_key(span, "sampled");
+
+    if (sentry_value_is_null(trace_id) || sentry_value_is_null(span_id)) {
+        return;
+    }
+
+    char buf[64];
+    snprintf(buf, sizeof(buf), "%s-%s-%s", sentry_value_as_string(trace_id),
+        sentry_value_as_string(span_id),
+        sentry_value_is_true(sampled) ? "1" : "0");
+
+    callback("sentry-trace", buf, userdata);
+}
+
+void
+sentry_span_iter_headers(sentry_span_t *span,
+    sentry_iter_headers_function_t callback, void *userdata)
+{
+    return sentry__span_iter_headers(span->inner, callback, userdata);
+}
+
+void
+sentry_transaction_iter_headers(sentry_transaction_t *tx,
+    sentry_iter_headers_function_t callback, void *userdata)
+{
+    return sentry__span_iter_headers(tx->inner, callback, userdata);
 }

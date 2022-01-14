@@ -1318,6 +1318,17 @@ SENTRY_EXPERIMENTAL_API void sentry_transaction_context_remove_sampled(
     sentry_transaction_context_t *tx_cxt);
 
 /**
+ * Update the Transaction Context with the given HTTP header key/value pair.
+ *
+ * This is used to propagate distributed tracing metadata from upstream
+ * services. Therefore, the headers of incoming requests should be fed into this
+ * function so that sentry is able to continue a trace that was started by an
+ * upstream service.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_transaction_context_update_from_header(
+    sentry_transaction_context_t *tx_cxt, const char *key, const char *value);
+
+/**
  * Starts a new Transaction based on the provided context, restored from an
  * external integration (i.e. a span from a different SDK) or manually
  * constructed by a user. Returns a Transaction, which is expected to be
@@ -1552,6 +1563,30 @@ SENTRY_EXPERIMENTAL_API void sentry_span_set_status(
  */
 SENTRY_EXPERIMENTAL_API void sentry_transaction_set_status(
     sentry_transaction_t *tx, sentry_span_status_t status);
+
+/**
+ * Type of the `iter_headers` callback.
+ *
+ * The callback is being called with HTTP header key/value pairs.
+ * These headers can be attached to outgoing HTTP requests to propagate
+ * distributed tracing metadata to downstream services.
+ *
+ */
+typedef void (*sentry_iter_headers_function_t)(
+    const char *key, const char *value, void *userdata);
+
+/**
+ * Iterates the distributed tracing HTTP headers for the given span.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_span_iter_headers(sentry_span_t *span,
+    sentry_iter_headers_function_t callback, void *userdata);
+
+/**
+ * Iterates the distributed tracing HTTP headers for the given transaction.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_transaction_iter_headers(
+    sentry_transaction_t *tx, sentry_iter_headers_function_t callback,
+    void *userdata);
 
 #endif
 
