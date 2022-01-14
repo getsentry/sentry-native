@@ -1276,6 +1276,12 @@ typedef struct sentry_span_s sentry_span_t;
  * Also see https://develop.sentry.dev/sdk/event-payloads/transaction/#anatomy
  * for an explanation of `operation`, in addition to other properties and
  * actions that can be performed on a Transaction.
+ *
+ * The returned value is not thread-safe. Users are expected to ensure that
+ * appropriate locking mechanisms are implemented over the Transaction Context
+ * if it needs to be mutated across threads. Methods operating on the
+ * Transaction Context will mention what kind of expectations they carry if they
+ * need to mutate or access the object in a thread-safe way.
  */
 SENTRY_EXPERIMENTAL_API sentry_transaction_context_t *
 sentry_transaction_context_new(const char *name, const char *operation);
@@ -1283,6 +1289,9 @@ sentry_transaction_context_new(const char *name, const char *operation);
 /**
  * Sets the `name` on a Transaction Context, which will be used in the
  * Transaction constructed off of the context.
+ *
+ * The Transaction Context should not be mutated by other functions while
+ * setting a name on it.
  */
 SENTRY_EXPERIMENTAL_API void sentry_transaction_context_set_name(
     sentry_transaction_context_t *tx_cxt, const char *name);
@@ -1293,6 +1302,9 @@ SENTRY_EXPERIMENTAL_API void sentry_transaction_context_set_name(
  *
  * See https://develop.sentry.dev/sdk/performance/span-operations/ for
  * conventions on `operation`s.
+ *
+ * The Transaction Context should not be mutated by other functions while
+ * setting an operation on it.
  */
 SENTRY_EXPERIMENTAL_API void sentry_transaction_context_set_operation(
     sentry_transaction_context_t *tx_cxt, const char *operation);
@@ -1304,15 +1316,21 @@ SENTRY_EXPERIMENTAL_API void sentry_transaction_context_set_operation(
  * When passed any value above 0, the Transaction will bypass all sampling
  * options and always be sent to sentry. If passed 0, this Transaction and its
  * child spans will never be sent to sentry.
+ *
+ * The Transaction Context should not be mutated by other functions while
+ * setting `sampled` on it.
  */
 SENTRY_EXPERIMENTAL_API void sentry_transaction_context_set_sampled(
     sentry_transaction_context_t *tx_cxt, int sampled);
 
 /**
- * Removes the sampled field on a Transaction Context, which will be used in the
- * Transaction constructed off of the context.
+ * Removes the `sampled` field on a Transaction Context, which will be used in
+ * the Transaction constructed off of the context.
  *
  * The Transaction will use the sampling rate as defined in `sentry_options`.
+ *
+ * The Transaction Context should not be mutated by other functions while
+ * removing `sampled`.
  */
 SENTRY_EXPERIMENTAL_API void sentry_transaction_context_remove_sampled(
     sentry_transaction_context_t *tx_cxt);
@@ -1320,21 +1338,29 @@ SENTRY_EXPERIMENTAL_API void sentry_transaction_context_remove_sampled(
 /**
  * Starts a new Transaction based on the provided context, restored from an
  * external integration (i.e. a span from a different SDK) or manually
- * constructed by a user. Returns a Transaction, which is expected to be
- * manually managed by the caller. Manual management involves ensuring that
- * `sentry_transaction_finish` is invoked for the Transaction, and that the
- * caller manually starts and finishes any child Spans as needed on the
- * Transaction.
+ * constructed by a user.
  *
- * `sentry_transaction_finish` must be called in order for this Transaction to
- * be sent to sentry.
+ * Returns a Transaction, which is expected to be manually managed by the
+ * caller. Manual management involves ensuring that `sentry_transaction_finish`
+ * is invoked for the Transaction, and that the caller manually starts and
+ * finishes any child Spans as needed on the Transaction.
+ *
+ * Not invoking `sentry_transaction_finish` with the returned Transaction means
+ * it will be discarded, and will not be sent to sentry.
  *
  * To ensure that any Events or Message Events are associated with this
  * Transaction while it is active, invoke and pass in the Transaction returned
  * by this function to `sentry_set_span`. Further documentation on this can be
  * found in `sentry_set_span`'s docstring.
  *
- * Takes ownership of `transaction_context`.
+ * Takes ownership of `transaction_context`. A Transaction Context cannot be
+ * modified or re-used after it is used to start a Transaction.
+ *
+ * The returned value is not thread-safe. Users are expected to ensure that
+ * appropriate locking mechanisms are implemented over the Transaction if it
+ * needs to be mutated across threads. Methods operating on the Transaction will
+ * mention what kind of expectations they carry if they need to mutate or access
+ * the object in a thread-safe way.
  */
 SENTRY_EXPERIMENTAL_API sentry_transaction_t *sentry_transaction_start(
     sentry_transaction_context_t *tx_cxt);
@@ -1345,8 +1371,8 @@ SENTRY_EXPERIMENTAL_API sentry_transaction_t *sentry_transaction_start(
  * otherwise.
  *
  * Always takes ownership of `transaction`, regardless of whether the operation
- * was successful or not. If `sentry_set_span` was invoked with `transaction`,
- * this will remove the
+ * was successful or not. A Transaction cannot be modified or re-used after it
+ * is finished.
  */
 SENTRY_EXPERIMENTAL_API sentry_uuid_t sentry_transaction_finish(
     sentry_transaction_t *tx);
@@ -1360,10 +1386,10 @@ SENTRY_EXPERIMENTAL_API sentry_uuid_t sentry_transaction_finish(
  * missing traces in sentry, see
  * https://docs.sentry.io/product/sentry-basics/tracing/trace-view/#orphan-traces-and-broken-subtraces
  *
- * This increases the number of references pointing to the transaction.
- * Invoke `sentry_transaction_finish` to remove the Span set by this function as
- * well as its reference by passing in the same Transaction as the one passed
- * into this function.
+ * This increases the number of references pointing to the transaction. Invoke
+ * `sentry_transaction_finish` to remove the Span set by this function as well
+ * as its reference by passing in the same Transaction as the one passed into
+ * this function.
  */
 SENTRY_EXPERIMENTAL_API void sentry_set_span(sentry_transaction_t *tx);
 
@@ -1386,6 +1412,14 @@ SENTRY_EXPERIMENTAL_API void sentry_set_span(sentry_transaction_t *tx);
  * finishing the Span means it will be discarded, and will not be sent to
  * sentry. `sentry_value_null` will be returned if the child Span could not be
  * created.
+ *
+ * This increases the number of references pointing to the Transaction.
+ *
+ * The returned value is not thread-safe. Users are expected to ensure that
+ * appropriate locking mechanisms are implemented over the Span if it needs
+ * to be mutated across threads. Methods operating on the Span will mention what
+ * kind of expectations they carry if they need to mutate or access the object
+ * in a thread-safe way.
  */
 SENTRY_EXPERIMENTAL_API sentry_span_t *sentry_transaction_start_child(
     sentry_transaction_t *parent, char *operation, char *description);
@@ -1408,6 +1442,12 @@ SENTRY_EXPERIMENTAL_API sentry_span_t *sentry_transaction_start_child(
  * finishing the Span means it will be discarded, and will not be sent to
  * sentry. `sentry_value_null` will be returned if the child Span could not be
  * created.
+ *
+ * The returned value is not thread-safe. Users are expected to ensure that
+ * appropriate locking mechanisms are implemented over the Span if it needs
+ * to be mutated across threads. Methods operating on the Span will mention what
+ * kind of expectations they carry if they need to mutate or access the object
+ * in a thread-safe way.
  */
 SENTRY_EXPERIMENTAL_API sentry_span_t *sentry_span_start_child(
     sentry_span_t *parent, char *operation, char *description);
@@ -1415,76 +1455,102 @@ SENTRY_EXPERIMENTAL_API sentry_span_t *sentry_span_start_child(
 /**
  * Finishes a Span.
  *
- * `root_transaction` is either the parent Transaction of the Span, or
- * the ancestor Transaction of the Span if the Span is not a direct descendant
- * of a Transaction.
+ * This takes ownership of `span`. A Span cannot be modified or re-used after it
+ * is finished.
  *
- * This takes ownership of `span`, as child Spans must always occur within the
- * total duration of a parent Span and cannot outlive their parent Spans.
+ * This will mutate the `span`'s containing Transaction, so the containing
+ * Transaction should also not be mutated by other functions when finishing a
+ * span.
  */
-SENTRY_EXPERIMENTAL_API void sentry_span_finish(
-    sentry_transaction_t *root_transaction, sentry_span_t *span);
+SENTRY_EXPERIMENTAL_API void sentry_span_finish(sentry_span_t *span);
 
 /**
- * Sets a tag on a transaction to the given string value.
+ * Sets a tag on a Transaction to the given string value.
  *
  * Tags longer than 200 bytes will be truncated.
+ *
+ * The Transaction should not be mutated by other functions while a tag is being
+ * set on it.
  */
 SENTRY_EXPERIMENTAL_API void sentry_transaction_set_tag(
     sentry_transaction_t *transaction, const char *tag, const char *value);
 
 /**
- * Removes a tag from a transaction.
+ * Removes a tag from a Transaction.
+ *
+ * The Transaction should not be mutated by other functions while a tag is being
+ * removed from it.
  */
 SENTRY_EXPERIMENTAL_API void sentry_transaction_remove_tag(
     sentry_transaction_t *transaction, const char *tag);
 
 /**
- * Sets the given key in a transaction's "data" section to the given value.
+ * Sets the given key in a Transaction's "data" section to the given value.
+ *
+ * The Transaction should not be mutated by other functions while data is being
+ * set on it.
  */
 SENTRY_EXPERIMENTAL_API void sentry_transaction_set_data(
     sentry_transaction_t *transaction, const char *key, sentry_value_t value);
 
 /**
- * Removes a key from a transaction's "data" section.
+ * Removes a key from a Transaction's "data" section.
+ *
+ * The Transaction should not be mutated by other functions while data is being
+ * removed from it.
  */
 SENTRY_EXPERIMENTAL_API void sentry_transaction_remove_data(
     sentry_transaction_t *transaction, const char *key);
 
 /**
- * Sets a tag on a span to the given string value.
+ * Sets a tag on a Span to the given string value.
  *
  * Tags longer than 200 bytes will be truncated.
+ *
+ * The Span should not be mutated by other functions while a tag is being set on
+ * it.
  */
 SENTRY_EXPERIMENTAL_API void sentry_span_set_tag(
     sentry_span_t *span, const char *tag, const char *value);
 
 /**
- * Removes a tag from a span.
+ * Removes a tag from a Span.
+ *
+ * The Span should not be mutated by other functions while a tag is being
+ * removed from it.
  */
 SENTRY_EXPERIMENTAL_API void sentry_span_remove_tag(
     sentry_span_t *span, const char *tag);
 
 /**
- * Sets the given key in a span's "data" section to the given value.
+ * Sets the given key in a Span's "data" section to the given value.
+ *
+ * The Span should not be mutated by other functions while data is being set on
+ * it.
  */
 SENTRY_EXPERIMENTAL_API void sentry_span_set_data(
     sentry_span_t *span, const char *key, sentry_value_t value);
 
 /**
- * Removes a key from a span's "data" section.
+ * Removes a key from a Span's "data" section.
+ *
+ * The Span should not be mutated by other functions while data is being removed
+ * from it.
  */
 SENTRY_EXPERIMENTAL_API void sentry_span_remove_data(
     sentry_span_t *span, const char *key);
 
 /**
- * Sets a transaction's name.
+ * Sets a Transaction's name.
+ *
+ * The Transaction should not be mutated by other functions while setting its
+ * name.
  */
 SENTRY_EXPERIMENTAL_API void sentry_transaction_set_name(
     sentry_transaction_t *transaction, const char *name);
 
 /**
- * The status of a span or transaction.
+ * The status of a Span or Transaction.
  *
  * See https://develop.sentry.dev/sdk/event-payloads/span/ for documentation.
  */
@@ -1542,13 +1608,18 @@ typedef enum {
 } sentry_span_status_t;
 
 /**
- * Sets a span's status.
+ * Sets a Span's status.
+ *
+ * The Span should not be mutated by other functions while setting its status.
  */
 SENTRY_EXPERIMENTAL_API void sentry_span_set_status(
     sentry_span_t *span, sentry_span_status_t status);
 
 /**
- * Sets a transaction's status.
+ * Sets a Transaction's status.
+ *
+ * The Transaction should not be mutated by other functions while setting its
+ * status.
  */
 SENTRY_EXPERIMENTAL_API void sentry_transaction_set_status(
     sentry_transaction_t *tx, sentry_span_status_t status);

@@ -864,17 +864,21 @@ sentry_transaction_start_child(
         max_spans = options->max_spans;
     }
 
-    return sentry__start_child(max_spans, parent, operation, description);
-    // TODO: add pointer to transaction on child span
+    sentry_value_t span
+        = sentry__value_span_new(max_spans, parent, operation, description);
+    return sentry__span_new(opaque_parent, span);
 }
 
 sentry_span_t *
 sentry_span_start_child(
     sentry_span_t *opaque_parent, char *operation, char *description)
 {
-    // TODO: check and validate ref to ancestor transaction on parent span
     if (!opaque_parent || sentry_value_is_null(opaque_parent->inner)) {
-        SENTRY_DEBUG("no parent available to create a child under");
+        SENTRY_DEBUG("no parent span available to create a child span under");
+        return NULL;
+    }
+    if (!opaque_parent->transaction) {
+        SENTRY_DEBUG("no root transaction to create a child span under");
         return NULL;
     }
     sentry_value_t parent = opaque_parent->inner;
@@ -886,21 +890,25 @@ sentry_span_start_child(
         max_spans = options->max_spans;
     }
 
-    return sentry__start_child(max_spans, parent, operation, description);
-    // TODO: add pointer to ancestor transaction on child span
+    sentry_value_t span
+        = sentry__value_span_new(max_spans, parent, operation, description);
+
+    return sentry__span_new(opaque_parent->transaction, span);
 }
 
-// TODO: don't accept the root transaction as a param, the span should have a
-// ref to it already in itself
 void
-sentry_span_finish(
-    sentry_transaction_t *opaque_root_transaction, sentry_span_t *opaque_span)
+sentry_span_finish(sentry_span_t *opaque_span)
 {
-    if (!opaque_root_transaction || !opaque_span
-        || sentry_value_is_null(opaque_root_transaction->inner)
-        || sentry_value_is_null(opaque_span->inner)) {
+    if (!opaque_span || sentry_value_is_null(opaque_span->inner)) {
+        SENTRY_DEBUG("no span to finish");
+        goto fail;
+    }
+
+    sentry_transaction_t *opaque_root_transaction = opaque_span->transaction;
+    if (!opaque_root_transaction
+        || sentry_value_is_null(opaque_root_transaction->inner)) {
         SENTRY_DEBUG(
-            "missing root transaction or span to finish, aborting span finish");
+            "no root transaction to finish span on, aborting span finish");
         goto fail;
     }
 
@@ -921,9 +929,6 @@ sentry_span_finish(
         goto fail;
     }
 
-    // tough luck if this span actually doesn't belong on the specified
-    // transaction, i.e. its trace id doesn't match the root transaction's trace
-    // id
     sentry_value_set_by_key(span, "timestamp",
         sentry__value_new_string_owned(
             sentry__msec_time_to_iso8601(sentry__msec_time())));
