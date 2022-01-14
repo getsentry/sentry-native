@@ -9,8 +9,7 @@
  */
 typedef struct sentry_span_s {
     sentry_value_t inner;
-    // The span's ancestor transaction. This could either be the direct parent,
-    // or some grand (to some unspecified degree) parent
+    // The transaction the span is contained in.
     sentry_transaction_t *transaction;
 } sentry_span_t;
 
