@@ -9,6 +9,9 @@
  */
 typedef struct sentry_span_s {
     sentry_value_t inner;
+    // The span's ancestor transaction. This could either be the direct parent,
+    // or some grand (to some unspecified degree) parent
+    sentry_transaction_t *transaction;
 } sentry_span_t;
 
 /**
@@ -31,8 +34,10 @@ sentry_transaction_t *sentry__transaction_new(sentry_value_t inner);
 void sentry__transaction_incref(sentry_transaction_t *tx);
 void sentry__transaction_decref(sentry_transaction_t *tx);
 
-sentry_span_t *sentry__start_child(size_t max_spans, sentry_value_t parent,
+sentry_value_t sentry__value_span_new(size_t max_spans, sentry_value_t parent,
     char *operation, char *description);
+sentry_span_t *sentry__span_new(
+    sentry_transaction_t *parent_tx, sentry_value_t inner);
 void sentry__span_free(sentry_span_t *span);
 
 /**

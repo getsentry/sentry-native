@@ -246,8 +246,8 @@ main(int argc, char **argv)
                     grandchild, SENTRY_SPAN_STATUS_ALREADY_EXISTS);
             }
 
-            sentry_span_finish(tx, grandchild);
-            sentry_span_finish(tx, child);
+            sentry_span_finish(grandchild);
+            sentry_span_finish(child);
         }
 
         sentry_transaction_finish(tx);

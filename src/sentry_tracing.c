@@ -161,9 +161,9 @@ sentry__transaction_decref(sentry_transaction_t *tx)
 }
 
 sentry_span_t *
-sentry__span_new(sentry_value_t inner)
+sentry__span_new(sentry_transaction_t *tx, sentry_value_t inner)
 {
-    if (sentry_value_is_null(inner)) {
+    if (!tx || sentry_value_is_null(inner)) {
         return NULL;
     }
 
@@ -175,11 +175,14 @@ sentry__span_new(sentry_value_t inner)
 
     span->inner = inner;
 
+    sentry__transaction_incref(tx);
+    span->transaction = tx;
+
     return span;
 }
 
-sentry_span_t *
-sentry__start_child(
+sentry_value_t
+sentry__value_span_new(
     size_t max_spans, sentry_value_t parent, char *operation, char *description)
 {
     if (!sentry_value_is_null(sentry_value_get_by_key(parent, "timestamp"))) {
@@ -195,9 +198,9 @@ sentry__start_child(
         goto fail;
     }
     sentry_value_t spans = sentry_value_get_by_key(parent, "spans");
-    // This only checks that the number of _completed_ spans matches the number
-    // of max spans. This means that the number of in-flight spans can exceed
-    // the max number of spans.
+    // This only checks that the number of _completed_ spans matches the
+    // number of max spans. This means that the number of in-flight spans
+    // can exceed the max number of spans.
     if (sentry_value_get_length(spans) >= max_spans) {
         SENTRY_DEBUG("reached maximum number of spans for transaction, not "
                      "creating span");
@@ -212,14 +215,14 @@ sentry__start_child(
             sentry__msec_time_to_iso8601(sentry__msec_time())));
     sentry_value_set_by_key(child, "sampled", sentry_value_new_bool(1));
 
-    return sentry__span_new(child);
+    return child;
 fail:
-    return NULL;
+    return sentry_value_new_null();
 }
 
 // TODO: for now, don't allow multiple references to spans. this should be
-// revisited when sentry_transaction_t stores a list of sentry_span_t's instead
-// of a list of sentry_value_t's.
+// revisited when sentry_transaction_t stores a list of sentry_span_t's
+// instead of a list of sentry_value_t's.
 void
 sentry__span_free(sentry_span_t *span)
 {
@@ -227,6 +230,7 @@ sentry__span_free(sentry_span_t *span)
         return;
     }
     sentry_value_decref(span->inner);
+    sentry__transaction_decref(span->transaction);
     sentry_free(span);
 }
 

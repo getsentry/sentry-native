@@ -372,7 +372,7 @@ SENTRY_TEST(basic_spans)
     // Sanity check that child isn't finished yet
     TEST_CHECK(IS_NULL(child, "timestamp"));
     // Now finishing
-    sentry_span_finish(opaque_tx, opaque_child);
+    sentry_span_finish(opaque_child);
 
     TEST_CHECK(!IS_NULL(tx, "spans"));
     sentry_value_t spans = sentry_value_get_by_key(tx, "spans");
@@ -422,7 +422,7 @@ SENTRY_TEST(spans_on_scope)
     // Sanity check that child isn't finished yet
     TEST_CHECK(IS_NULL(child, "timestamp"));
 
-    sentry_span_finish(opaque_tx, opaque_child);
+    sentry_span_finish(opaque_child);
 
     scope_tx = sentry__scope_get_span();
     TEST_CHECK(!IS_NULL(scope_tx, "spans"));
@@ -469,7 +469,7 @@ SENTRY_TEST(child_spans)
     // Shouldn't be added to spans yet
     TEST_CHECK(IS_NULL(tx, "spans"));
 
-    sentry_span_finish(opaque_tx, opaque_grandchild);
+    sentry_span_finish(opaque_grandchild);
 
     // Make sure everything on the transaction looks good, check grandchild
     const char *trace_id
@@ -489,7 +489,7 @@ SENTRY_TEST(child_spans)
     // Should be finished
     TEST_CHECK(!IS_NULL(stored_grandchild, "timestamp"));
 
-    sentry_span_finish(opaque_tx, opaque_child);
+    sentry_span_finish(opaque_child);
     spans = sentry_value_get_by_key(tx, "spans");
     TEST_CHECK_INT_EQUAL(sentry_value_get_length(spans), 2);
 
@@ -526,7 +526,7 @@ SENTRY_TEST(overflow_spans)
     // Shouldn't be added to spans yet
     TEST_CHECK(IS_NULL(tx, "spans"));
 
-    sentry_span_finish(opaque_tx, opaque_child);
+    sentry_span_finish(opaque_child);
 
     TEST_CHECK(!IS_NULL(tx, "spans"));
     sentry_value_t spans = sentry_value_get_by_key(tx, "spans");
@@ -535,7 +535,7 @@ SENTRY_TEST(overflow_spans)
     sentry_value_t stored_child = sentry_value_get_by_index(spans, 0);
     CHECK_STRING_PROPERTY(stored_child, "span_id", child_span_id);
 
-    sentry_span_finish(opaque_tx, opaque_drop_on_finish_child);
+    sentry_span_finish(opaque_drop_on_finish_child);
     TEST_CHECK_INT_EQUAL(sentry_value_get_length(spans), 1);
 
     sentry_span_t *opaque_drop_on_start_child
@@ -544,60 +544,6 @@ SENTRY_TEST(overflow_spans)
     TEST_CHECK_INT_EQUAL(sentry_value_get_length(spans), 1);
 
     sentry__transaction_decref(opaque_tx);
-
-    sentry_close();
-}
-
-SENTRY_TEST(wrong_spans_on_transaction_is_ok)
-{
-    sentry_options_t *options = sentry_options_new();
-    sentry_options_set_traces_sample_rate(options, 1.0);
-    sentry_options_set_max_spans(options, 5);
-    sentry_init(options);
-
-    sentry_transaction_context_t *opaque_tx_cxt
-        = sentry_transaction_context_new("wow!", NULL);
-    sentry_transaction_t *opaque_tx = sentry_transaction_start(opaque_tx_cxt);
-    sentry_value_t tx = opaque_tx->inner;
-
-    sentry_span_t *opaque_child
-        = sentry_transaction_start_child(opaque_tx, "honk", "goose");
-    sentry_value_t child = opaque_child->inner;
-    const char *child_span_id
-        = sentry_value_as_string(sentry_value_get_by_key(child, "span_id"));
-
-    sentry_span_t *opaque_lingering_child
-        = sentry_transaction_start_child(opaque_tx, "beep", "car");
-
-    sentry_transaction_context_t *tx_cxt_other
-        = sentry_transaction_context_new("whoa!", NULL);
-    sentry_transaction_t *opaque_tx_other
-        = sentry_transaction_start(tx_cxt_other);
-    sentry_value_t tx_other = opaque_tx_other->inner;
-
-    sentry_span_finish(opaque_tx_other, opaque_child);
-
-    // doesn't care if the child was finished on the wrong transaction
-    TEST_CHECK(IS_NULL(tx, "spans"));
-    TEST_CHECK(!IS_NULL(tx_other, "spans"));
-
-    sentry_value_t spans = sentry_value_get_by_key(tx_other, "spans");
-    TEST_CHECK_INT_EQUAL(sentry_value_get_length(spans), 1);
-
-    sentry_value_t stored_child = sentry_value_get_by_index(spans, 0);
-    CHECK_STRING_PROPERTY(stored_child, "span_id", child_span_id);
-
-    sentry_uuid_t event_id = sentry_transaction_finish(opaque_tx);
-    TEST_CHECK(!sentry_uuid_is_nil(&event_id));
-
-    // doesn't care if the child belonged to a different, already finished
-    // transaction
-    sentry_span_finish(opaque_tx_other, opaque_lingering_child);
-    TEST_CHECK(!IS_NULL(tx_other, "spans"));
-    spans = sentry_value_get_by_key(tx_other, "spans");
-    TEST_CHECK_INT_EQUAL(sentry_value_get_length(spans), 2);
-
-    sentry__transaction_decref(opaque_tx_other);
 
     sentry_close();
 }
@@ -647,7 +593,7 @@ SENTRY_TEST(drop_unfinished_spans)
         = sentry_span_start_child(opaque_child, "beep", "car");
     sentry_value_t grandchild = opaque_grandchild->inner;
     TEST_CHECK(!sentry_value_is_null(grandchild));
-    sentry_span_finish(opaque_tx, opaque_grandchild);
+    sentry_span_finish(opaque_grandchild);
 
     // spans are only added to transactions upon completion
     TEST_CHECK_INT_EQUAL(
@@ -656,7 +602,8 @@ SENTRY_TEST(drop_unfinished_spans)
     sentry_uuid_t event_id = sentry_transaction_finish(opaque_tx);
     TEST_CHECK(!sentry_uuid_is_nil(&event_id));
 
-    sentry__span_free(opaque_child);
+    // check that nothing explodes if you do finish the lingering child
+    sentry_span_finish(opaque_child);
 
     sentry_close();
 
