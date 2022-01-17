@@ -497,12 +497,12 @@ void
 sentry_span_iter_headers(sentry_span_t *span,
     sentry_iter_headers_function_t callback, void *userdata)
 {
-    return sentry__span_iter_headers(span->inner, callback, userdata);
+    sentry__span_iter_headers(span->inner, callback, userdata);
 }
 
 void
 sentry_transaction_iter_headers(sentry_transaction_t *tx,
     sentry_iter_headers_function_t callback, void *userdata)
 {
-    return sentry__span_iter_headers(tx->inner, callback, userdata);
+    sentry__span_iter_headers(tx->inner, callback, userdata);
 }
