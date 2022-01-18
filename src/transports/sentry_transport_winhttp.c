@@ -234,6 +234,10 @@ sentry__winhttp_send_task(void *_envelope, void *_state)
         // lets just assume we won’t have headers > 2k
         wchar_t buf[2048];
         DWORD buf_size = sizeof(buf);
+
+        DWORD status_code = 0;
+        DWORD status_code_size = sizeof(status_code);
+
         if (WinHttpQueryHeaders(state->request, WINHTTP_QUERY_CUSTOM,
                 L"x-sentry-rate-limits", buf, &buf_size,
                 WINHTTP_NO_HEADER_INDEX)) {
@@ -251,6 +255,12 @@ sentry__winhttp_send_task(void *_envelope, void *_state)
                     state->ratelimiter, h);
                 sentry_free(h);
             }
+        } else if (WinHttpQueryHeaders(state->request,
+                       WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
+                       WINHTTP_HEADER_NAME_BY_INDEX, &status_code,
+                       &status_code_size, WINHTTP_NO_HEADER_INDEX)
+            && status_code == 429) {
+            sentry__rate_limiter_update_from_429(state->ratelimiter);
         }
     } else {
         SENTRY_DEBUGF(
