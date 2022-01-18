@@ -1,5 +1,7 @@
-#include "sentry_scope.h"
 #include "sentry_testsupport.h"
+
+#include "sentry_scope.h"
+#include "sentry_string.h"
 #include "sentry_tracing.h"
 #include "sentry_uuid.h"
 
@@ -608,6 +610,100 @@ SENTRY_TEST(drop_unfinished_spans)
     sentry_close();
 
     TEST_CHECK_INT_EQUAL(called_transport, 1);
+}
+
+static void
+forward_headers_to(const char *key, const char *value, void *userdata)
+{
+    sentry_transaction_context_t *tx_ctx
+        = (sentry_transaction_context_t *)userdata;
+
+    sentry_transaction_context_update_from_header(tx_ctx, key, value);
+}
+
+SENTRY_TEST(distributed_headers)
+{
+    sentry_options_t *options = sentry_options_new();
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+
+    sentry_options_set_traces_sample_rate(options, 1.0);
+    sentry_options_set_max_spans(options, 2);
+    sentry_init(options);
+
+    sentry_transaction_context_t *tx_ctx
+        = sentry_transaction_context_new("wow!", NULL);
+    sentry_transaction_t *tx = sentry_transaction_start(tx_ctx);
+
+    const char *trace_id = sentry_value_as_string(
+        sentry_value_get_by_key(tx->inner, "trace_id"));
+    TEST_CHECK(!sentry__string_eq(trace_id, ""));
+
+    const char *span_id
+        = sentry_value_as_string(sentry_value_get_by_key(tx->inner, "span_id"));
+    TEST_CHECK(!sentry__string_eq(span_id, ""));
+
+    // check transaction
+    tx_ctx = sentry_transaction_context_new("distributed!", NULL);
+    sentry_transaction_iter_headers(tx, forward_headers_to, (void *)tx_ctx);
+    sentry_transaction_t *dist_tx = sentry_transaction_start(tx_ctx);
+
+    const char *dist_trace_id = sentry_value_as_string(
+        sentry_value_get_by_key(dist_tx->inner, "trace_id"));
+    TEST_CHECK_STRING_EQUAL(dist_trace_id, trace_id);
+
+    const char *parent_span_id = sentry_value_as_string(
+        sentry_value_get_by_key(dist_tx->inner, "parent_span_id"));
+    TEST_CHECK_STRING_EQUAL(parent_span_id, span_id);
+
+    sentry__transaction_decref(dist_tx);
+
+    // check span
+    sentry_span_t *child = sentry_transaction_start_child(tx, "honk", "goose");
+
+    span_id = sentry_value_as_string(
+        sentry_value_get_by_key(child->inner, "span_id"));
+    TEST_CHECK(!sentry__string_eq(span_id, ""));
+
+    tx_ctx = sentry_transaction_context_new("distributed!", NULL);
+    sentry_span_iter_headers(child, forward_headers_to, (void *)tx_ctx);
+    dist_tx = sentry_transaction_start(tx_ctx);
+
+    dist_trace_id = sentry_value_as_string(
+        sentry_value_get_by_key(dist_tx->inner, "trace_id"));
+    TEST_CHECK_STRING_EQUAL(dist_trace_id, trace_id);
+
+    parent_span_id = sentry_value_as_string(
+        sentry_value_get_by_key(dist_tx->inner, "parent_span_id"));
+    TEST_CHECK_STRING_EQUAL(parent_span_id, span_id);
+
+    TEST_CHECK(sentry_value_is_true(
+        sentry_value_get_by_key(dist_tx->inner, "sampled")));
+
+    sentry__transaction_decref(dist_tx);
+    sentry__span_free(child);
+    sentry__transaction_decref(tx);
+
+    // check sampled flag
+    tx_ctx = sentry_transaction_context_new("wow!", NULL);
+    sentry_transaction_context_set_sampled(tx_ctx, 0);
+    tx = sentry_transaction_start(tx_ctx);
+
+    tx_ctx = sentry_transaction_context_new("distributed!", NULL);
+    sentry_transaction_iter_headers(tx, forward_headers_to, (void *)tx_ctx);
+    dist_tx = sentry_transaction_start(tx_ctx);
+
+    TEST_CHECK(!sentry_value_is_true(
+        sentry_value_get_by_key(dist_tx->inner, "sampled")));
+
+    sentry__transaction_decref(dist_tx);
+
+    // TODO: Check the sampled flag on a child span as well, but I think we
+    // don't create one if the transaction is not sampled? Well, here is the
+    // reason why we should!
+
+    sentry__transaction_decref(tx);
+
+    sentry_close();
 }
 
 #undef IS_NULL
