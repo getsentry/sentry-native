@@ -43,6 +43,7 @@ def test_rate_limits(cmake, httpserver):
     run(tmp_path, "sentry_example", ["log", "capture-multiple"], check=True, env=env)
     assert len(httpserver.log) == 2
 
+
 def test_only_429(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
 
