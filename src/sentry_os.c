@@ -11,13 +11,13 @@ void *
 sentry__try_file_version(LPCWSTR filename)
 {
 
-    DWORD size = GetFileVersionInfoSizeW(L"ntoskrnl.exe", NULL);
+    DWORD size = GetFileVersionInfoSizeW(filename, NULL);
     if (!size) {
         return NULL;
     }
 
     void *ffibuf = sentry_malloc(size);
-    if (!GetFileVersionInfoW(L"ntoskrnl.exe", 0, size, ffibuf)) {
+    if (!GetFileVersionInfoW(filename, 0, size, ffibuf)) {
         sentry_free(ffibuf);
         return NULL;
     }
