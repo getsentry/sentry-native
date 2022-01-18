@@ -7,6 +7,23 @@
 #    include <winver.h>
 #    define CURRENT_VERSION "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion"
 
+void *
+sentry__try_file_version(LPCWSTR filename)
+{
+
+    DWORD size = GetFileVersionInfoSizeW(L"ntoskrnl.exe", NULL);
+    if (!size) {
+        return NULL;
+    }
+
+    void *ffibuf = sentry_malloc(size);
+    if (!GetFileVersionInfoW(L"ntoskrnl.exe", 0, size, ffibuf)) {
+        sentry_free(ffibuf);
+        return NULL;
+    }
+    return ffibuf;
+}
+
 sentry_value_t
 sentry__get_os_context(void)
 {
@@ -17,15 +34,11 @@ sentry__get_os_context(void)
 
     sentry_value_set_by_key(os, "name", sentry_value_new_string("Windows"));
 
-    void *ffibuf = NULL;
-
-    DWORD size = GetFileVersionInfoSizeW(L"ntoskrnl.exe", NULL);
-    if (!size) {
-        goto fail;
+    void *ffibuf = sentry__try_file_version(L"ntoskrnl.exe");
+    if (!ffibuf) {
+        ffibuf = sentry__try_file_version(L"kernel32.dll");
     }
-
-    ffibuf = sentry_malloc(size);
-    if (!GetFileVersionInfoW(L"ntoskrnl.exe", 0, size, ffibuf)) {
+    if (!ffibuf) {
         goto fail;
     }
 
