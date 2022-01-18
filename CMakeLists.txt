@@ -384,7 +384,7 @@ if(SENTRY_LINK_PTHREAD)
 endif()
 
 # apply platform libraries to sentry library
-if(SENTRY_LIBRARY_TYPE STREQUAL "static")
+if(SENTRY_LIBRARY_TYPE STREQUAL "STATIC")
     target_link_libraries(sentry PUBLIC ${_SENTRY_PLATFORM_LIBS})
 else()
     target_link_libraries(sentry PRIVATE ${_SENTRY_PLATFORM_LIBS})
