@@ -19,13 +19,13 @@ sentry__get_os_context(void)
 
     void *ffibuf = NULL;
 
-    DWORD size = GetFileVersionInfoSizeW(L"kernel32.dll", NULL);
+    DWORD size = GetFileVersionInfoSizeW(L"ntoskrnl.exe", NULL);
     if (!size) {
         goto fail;
     }
 
     ffibuf = sentry_malloc(size);
-    if (!GetFileVersionInfoW(L"kernel32.dll", 0, size, ffibuf)) {
+    if (!GetFileVersionInfoW(L"ntoskrnl.exe", 0, size, ffibuf)) {
         goto fail;
     }
 
