@@ -185,12 +185,17 @@ sentry__curl_send_task(void *_envelope, void *_state)
     CURLcode rv = curl_easy_perform(curl);
 
     if (rv == CURLE_OK) {
+        long response_code;
+        curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response_code);
+
         if (info.x_sentry_rate_limits) {
             sentry__rate_limiter_update_from_header(
                 state->ratelimiter, info.x_sentry_rate_limits);
         } else if (info.retry_after) {
             sentry__rate_limiter_update_from_http_retry_after(
                 state->ratelimiter, info.retry_after);
+        } else if (response_code == 429) {
+            sentry__rate_limiter_update_from_429(state->ratelimiter);
         }
     } else {
         SENTRY_WARNF(
