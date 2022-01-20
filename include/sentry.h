@@ -1265,7 +1265,7 @@ typedef struct sentry_span_s sentry_span_t;
 
 /**
  * Constructs a new Transaction Context. The returned value needs to be passed
- * into `sentry_transaction_start` in order to be recorded and sent to sentry.
+ * into `sentry_start_transaction` in order to be recorded and sent to sentry.
  *
  * See
  * https://docs.sentry.io/platforms/native/enriching-events/transaction-name/
@@ -1351,6 +1351,11 @@ SENTRY_EXPERIMENTAL_API void sentry_transaction_context_update_from_header(
  * external integration (i.e. a span from a different SDK) or manually
  * constructed by a user.
  *
+ * The second parameter is a custom Sampling Context to be used with a Traces
+ * Sampler to make a more informed sampling decision. The SDK does not currently
+ * support a custom Traces Sampler and this parameter is ignored for the time
+ * being but needs to be provided.
+ *
  * Returns a Transaction, which is expected to be manually managed by the
  * caller. Manual management involves ensuring that `sentry_transaction_finish`
  * is invoked for the Transaction, and that the caller manually starts and
@@ -1373,8 +1378,8 @@ SENTRY_EXPERIMENTAL_API void sentry_transaction_context_update_from_header(
  * mention what kind of expectations they carry if they need to mutate or access
  * the object in a thread-safe way.
  */
-SENTRY_EXPERIMENTAL_API sentry_transaction_t *sentry_transaction_start(
-    sentry_transaction_context_t *tx_cxt);
+SENTRY_EXPERIMENTAL_API sentry_transaction_t *sentry_start_transaction(
+    sentry_transaction_context_t *tx_cxt, sentry_value_t sampling_ctx);
 
 /**
  * Finishes and sends a Transaction to sentry. The event ID of the Transaction

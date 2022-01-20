@@ -227,7 +227,8 @@ main(int argc, char **argv)
         if (has_arg(argc, argv, "unsample-tx")) {
             sentry_transaction_context_set_sampled(tx_ctx, 0);
         }
-        sentry_transaction_t *tx = sentry_transaction_start(tx_ctx);
+        sentry_transaction_t *tx
+            = sentry_start_transaction(tx_ctx, sentry_value_new_null());
 
         if (has_arg(argc, argv, "error-status")) {
             sentry_transaction_set_status(
