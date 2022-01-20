@@ -640,14 +640,29 @@ SENTRY_TEST(distributed_headers)
     sentry_options_set_max_spans(options, 2);
     sentry_init(options);
 
+    const char *trace_header
+        = "2674eb52d5874b13b560236d6c79ce8a-a0f9fdf04f1a63df-1";
+    const char *not_expected_header
+        = "00000000000000000000000000000000-0000000000000000-1";
+    const char *expected_trace_id = "2674eb52d5874b13b560236d6c79ce8a";
+
     sentry_transaction_context_t *tx_ctx
         = sentry_transaction_context_new("wow!", NULL);
+
+    // check case insensitive headers, and bogus header names
+    sentry_transaction_context_update_from_header(
+        tx_ctx, "SeNtry-TrAcE", trace_header);
+    sentry_transaction_context_update_from_header(
+        tx_ctx, "nop", not_expected_header);
+    sentry_transaction_context_update_from_header(
+        tx_ctx, "sentry-trace-but-a-lot-longer", not_expected_header);
+
     sentry_transaction_t *tx
         = sentry_start_transaction(tx_ctx, sentry_value_new_null());
 
     const char *trace_id = sentry_value_as_string(
         sentry_value_get_by_key(tx->inner, "trace_id"));
-    TEST_CHECK(!sentry__string_eq(trace_id, ""));
+    TEST_CHECK_STRING_EQUAL(trace_id, expected_trace_id);
 
     const char *span_id
         = sentry_value_as_string(sentry_value_get_by_key(tx->inner, "span_id"));
