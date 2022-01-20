@@ -127,7 +127,7 @@ sentry_transaction_context_update_from_header(
 {
     // do case-insensitive header key comparison
     const char sentry_trace[] = "sentry-trace";
-    for (int i = 0; i < sizeof(sentry_trace); i++) {
+    for (size_t i = 0; i < sizeof(sentry_trace); i++) {
         if (tolower(key[i]) != sentry_trace[i]) {
             return;
         }
