@@ -731,8 +731,13 @@ sentry_set_level(sentry_level_t level)
 
 #ifdef SENTRY_PERFORMANCE_MONITORING
 sentry_transaction_t *
-sentry_transaction_start(sentry_transaction_context_t *opaque_tx_cxt)
+sentry_start_transaction(
+    sentry_transaction_context_t *opaque_tx_cxt, sentry_value_t sampling_ctx)
 {
+    // Just free this immediately until we implement proper support for
+    // traces_sampler.
+    sentry_value_decref(sampling_ctx);
+
     sentry_value_t tx_cxt = opaque_tx_cxt->inner;
 
     // If the parent span ID is some empty-ish value, just remove it
