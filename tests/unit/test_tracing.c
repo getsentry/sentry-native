@@ -138,12 +138,12 @@ SENTRY_TEST(transaction_name_backfill_on_finish)
     sentry_transaction_context_t *tx_cxt
         = sentry_transaction_context_new(NULL, NULL);
     sentry_transaction_t *tx
-        = sentry_start_transaction(tx_cxt, sentry_value_new_null());
+        = sentry_transaction_start(tx_cxt, sentry_value_new_null());
     sentry_uuid_t event_id = sentry_transaction_finish(tx);
     TEST_CHECK(!sentry_uuid_is_nil(&event_id));
 
     tx_cxt = sentry_transaction_context_new("", "");
-    tx = sentry_start_transaction(tx_cxt, sentry_value_new_null());
+    tx = sentry_transaction_start(tx_cxt, sentry_value_new_null());
     event_id = sentry_transaction_finish(tx);
     TEST_CHECK(!sentry_uuid_is_nil(&event_id));
 
@@ -189,7 +189,7 @@ SENTRY_TEST(basic_function_transport_transaction)
     sentry_transaction_context_t *tx_cxt = sentry_transaction_context_new(
         "How could you", "Don't capture this.");
     sentry_transaction_t *tx
-        = sentry_start_transaction(tx_cxt, sentry_value_new_null());
+        = sentry_transaction_start(tx_cxt, sentry_value_new_null());
     sentry_uuid_t event_id = sentry_transaction_finish(tx);
     // TODO: `sentry_capture_event` acts as if the event was sent if user
     // consent was not given
@@ -197,14 +197,14 @@ SENTRY_TEST(basic_function_transport_transaction)
     sentry_user_consent_give();
 
     tx_cxt = sentry_transaction_context_new("honk", "beep");
-    tx = sentry_start_transaction(tx_cxt, sentry_value_new_null());
+    tx = sentry_transaction_start(tx_cxt, sentry_value_new_null());
     event_id = sentry_transaction_finish(tx);
     TEST_CHECK(!sentry_uuid_is_nil(&event_id));
 
     sentry_user_consent_revoke();
     tx_cxt = sentry_transaction_context_new(
         "How could you again", "Don't capture this either.");
-    tx = sentry_start_transaction(tx_cxt, sentry_value_new_null());
+    tx = sentry_transaction_start(tx_cxt, sentry_value_new_null());
     event_id = sentry_transaction_finish(tx);
     // TODO: `sentry_capture_event` acts as if the event was sent if user
     // consent was not given
@@ -235,7 +235,7 @@ SENTRY_TEST(transport_sampling_transactions)
         sentry_transaction_context_t *tx_cxt
             = sentry_transaction_context_new("honk", "beep");
         sentry_transaction_t *tx
-            = sentry_start_transaction(tx_cxt, sentry_value_new_null());
+            = sentry_transaction_start(tx_cxt, sentry_value_new_null());
         sentry_uuid_t event_id = sentry_transaction_finish(tx);
         if (!sentry_uuid_is_nil(&event_id)) {
             sent_transactions += 1;
@@ -279,7 +279,7 @@ SENTRY_TEST(transactions_skip_before_send)
     sentry_transaction_context_t *tx_cxt
         = sentry_transaction_context_new("honk", "beep");
     sentry_transaction_t *tx
-        = sentry_start_transaction(tx_cxt, sentry_value_new_null());
+        = sentry_transaction_start(tx_cxt, sentry_value_new_null());
     sentry_uuid_t event_id = sentry_transaction_finish(tx);
     TEST_CHECK(!sentry_uuid_is_nil(&event_id));
 
@@ -315,7 +315,7 @@ SENTRY_TEST(multiple_transactions)
     sentry_transaction_context_t *tx_cxt
         = sentry_transaction_context_new("wow!", NULL);
     sentry_transaction_t *tx
-        = sentry_start_transaction(tx_cxt, sentry_value_new_null());
+        = sentry_transaction_start(tx_cxt, sentry_value_new_null());
     sentry_set_transaction_object(tx);
 
     sentry_value_t scope_tx = sentry__scope_get_span_or_transaction();
@@ -329,13 +329,13 @@ SENTRY_TEST(multiple_transactions)
     // Set transaction on scope twice, back-to-back without finishing the first
     // one
     tx_cxt = sentry_transaction_context_new("whoa!", NULL);
-    tx = sentry_start_transaction(tx_cxt, sentry_value_new_null());
+    tx = sentry_transaction_start(tx_cxt, sentry_value_new_null());
     sentry_set_transaction_object(tx);
     sentry__transaction_decref(tx);
     tx_cxt = sentry_transaction_context_new("wowee!", NULL);
-    tx = sentry_start_transaction(tx_cxt, sentry_value_new_null());
+    tx = sentry_transaction_start(tx_cxt, sentry_value_new_null());
     sentry_set_transaction_object(tx);
-    scope_tx = sentry__scope_get_span_or_transaction();
+    scope_tx = sentry__scope_get_span();
     CHECK_STRING_PROPERTY(scope_tx, "transaction", "wowee!");
     event_id = sentry_transaction_finish(tx);
     TEST_CHECK(!sentry_uuid_is_nil(&event_id));
@@ -360,7 +360,7 @@ SENTRY_TEST(basic_spans)
     sentry_transaction_context_t *opaque_tx_cxt
         = sentry_transaction_context_new("wow!", NULL);
     sentry_transaction_t *opaque_tx
-        = sentry_start_transaction(opaque_tx_cxt, sentry_value_new_null());
+        = sentry_transaction_start(opaque_tx_cxt, sentry_value_new_null());
     sentry_value_t tx = opaque_tx->inner;
 
     sentry_span_t *opaque_child
@@ -410,7 +410,7 @@ SENTRY_TEST(spans_on_scope)
     sentry_transaction_context_t *opaque_tx_cxt
         = sentry_transaction_context_new("wow!", NULL);
     sentry_transaction_t *opaque_tx
-        = sentry_start_transaction(opaque_tx_cxt, sentry_value_new_null());
+        = sentry_transaction_start(opaque_tx_cxt, sentry_value_new_null());
     sentry_set_transaction_object(opaque_tx);
 
     sentry_span_t *opaque_child
@@ -462,7 +462,7 @@ SENTRY_TEST(child_spans)
     sentry_transaction_context_t *opaque_tx_cxt
         = sentry_transaction_context_new("wow!", NULL);
     sentry_transaction_t *opaque_tx
-        = sentry_start_transaction(opaque_tx_cxt, sentry_value_new_null());
+        = sentry_transaction_start(opaque_tx_cxt, sentry_value_new_null());
     sentry_value_t tx = opaque_tx->inner;
 
     sentry_span_t *opaque_child
@@ -518,7 +518,7 @@ SENTRY_TEST(overflow_spans)
     sentry_transaction_context_t *opaque_tx_cxt
         = sentry_transaction_context_new("wow!", NULL);
     sentry_transaction_t *opaque_tx
-        = sentry_start_transaction(opaque_tx_cxt, sentry_value_new_null());
+        = sentry_transaction_start(opaque_tx_cxt, sentry_value_new_null());
     sentry_value_t tx = opaque_tx->inner;
 
     sentry_span_t *opaque_child
@@ -593,7 +593,7 @@ SENTRY_TEST(drop_unfinished_spans)
     sentry_transaction_context_t *opaque_tx_cxt
         = sentry_transaction_context_new("wow!", NULL);
     sentry_transaction_t *opaque_tx
-        = sentry_start_transaction(opaque_tx_cxt, sentry_value_new_null());
+        = sentry_transaction_start(opaque_tx_cxt, sentry_value_new_null());
     sentry_value_t tx = opaque_tx->inner;
 
     sentry_span_t *opaque_child
@@ -658,7 +658,7 @@ SENTRY_TEST(distributed_headers)
         tx_ctx, "sentry-trace-but-a-lot-longer", not_expected_header);
 
     sentry_transaction_t *tx
-        = sentry_start_transaction(tx_ctx, sentry_value_new_null());
+        = sentry_transaction_start(tx_ctx, sentry_value_new_null());
 
     const char *trace_id = sentry_value_as_string(
         sentry_value_get_by_key(tx->inner, "trace_id"));
@@ -672,7 +672,7 @@ SENTRY_TEST(distributed_headers)
     tx_ctx = sentry_transaction_context_new("distributed!", NULL);
     sentry_transaction_iter_headers(tx, forward_headers_to, (void *)tx_ctx);
     sentry_transaction_t *dist_tx
-        = sentry_start_transaction(tx_ctx, sentry_value_new_null());
+        = sentry_transaction_start(tx_ctx, sentry_value_new_null());
 
     const char *dist_trace_id = sentry_value_as_string(
         sentry_value_get_by_key(dist_tx->inner, "trace_id"));
@@ -693,7 +693,7 @@ SENTRY_TEST(distributed_headers)
 
     tx_ctx = sentry_transaction_context_new("distributed!", NULL);
     sentry_span_iter_headers(child, forward_headers_to, (void *)tx_ctx);
-    dist_tx = sentry_start_transaction(tx_ctx, sentry_value_new_null());
+    dist_tx = sentry_transaction_start(tx_ctx, sentry_value_new_null());
 
     dist_trace_id = sentry_value_as_string(
         sentry_value_get_by_key(dist_tx->inner, "trace_id"));
@@ -713,11 +713,11 @@ SENTRY_TEST(distributed_headers)
     // check sampled flag
     tx_ctx = sentry_transaction_context_new("wow!", NULL);
     sentry_transaction_context_set_sampled(tx_ctx, 0);
-    tx = sentry_start_transaction(tx_ctx, sentry_value_new_null());
+    tx = sentry_transaction_start(tx_ctx, sentry_value_new_null());
 
     tx_ctx = sentry_transaction_context_new("distributed!", NULL);
     sentry_transaction_iter_headers(tx, forward_headers_to, (void *)tx_ctx);
-    dist_tx = sentry_start_transaction(tx_ctx, sentry_value_new_null());
+    dist_tx = sentry_transaction_start(tx_ctx, sentry_value_new_null());
 
     TEST_CHECK(!sentry_value_is_true(
         sentry_value_get_by_key(dist_tx->inner, "sampled")));

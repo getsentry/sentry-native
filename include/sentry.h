@@ -1265,7 +1265,7 @@ typedef struct sentry_span_s sentry_span_t;
 
 /**
  * Constructs a new Transaction Context. The returned value needs to be passed
- * into `sentry_start_transaction` in order to be recorded and sent to sentry.
+ * into `sentry_transaction_start` in order to be recorded and sent to sentry.
  *
  * See
  * https://docs.sentry.io/platforms/native/enriching-events/transaction-name/
@@ -1378,7 +1378,7 @@ SENTRY_EXPERIMENTAL_API void sentry_transaction_context_update_from_header(
  * mention what kind of expectations they carry if they need to mutate or access
  * the object in a thread-safe way.
  */
-SENTRY_EXPERIMENTAL_API sentry_transaction_t *sentry_start_transaction(
+SENTRY_EXPERIMENTAL_API sentry_transaction_t *sentry_transaction_start(
     sentry_transaction_context_t *tx_cxt, sentry_value_t sampling_ctx);
 
 /**
@@ -1423,7 +1423,7 @@ SENTRY_EXPERIMENTAL_API void sentry_set_span(sentry_span_t *span);
 /**
  * Starts a new Span.
  *
- * The return value of `sentry_start_transaction` should be passed in as
+ * The return value of `sentry_transaction_start` should be passed in as
  * `parent`.
  *
  * Both `operation` and `description` can be null, but it is recommended to
