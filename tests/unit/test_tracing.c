@@ -788,12 +788,20 @@ SENTRY_TEST(distributed_headers)
     TEST_CHECK(!sentry_value_is_true(
         sentry_value_get_by_key(dist_tx->inner, "sampled")));
 
+    child = sentry_transaction_start_child(tx, "honk", "goose");
+    TEST_CHECK(!sentry_value_is_true(
+        sentry_value_get_by_key(child->inner, "sampled")));
+
+    tx_ctx = sentry_transaction_context_new("distributed from a child!", NULL);
+    sentry_span_iter_headers(child, forward_headers_to, (void *)tx_ctx);
     sentry__transaction_decref(dist_tx);
+    dist_tx = sentry_transaction_start(tx_ctx);
 
-    // TODO: Check the sampled flag on a child span as well, but I think we
-    // don't create one if the transaction is not sampled? Well, here is the
-    // reason why we should!
+    TEST_CHECK(!sentry_value_is_true(
+        sentry_value_get_by_key(dist_tx->inner, "sampled")));
 
+    sentry__transaction_decref(dist_tx);
+    sentry__span_free(child);
     sentry__transaction_decref(tx);
 
     sentry_close();
