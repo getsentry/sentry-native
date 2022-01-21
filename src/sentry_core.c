@@ -942,6 +942,21 @@ sentry_span_finish(sentry_span_t *opaque_span)
 
     sentry_value_t span = sentry__value_clone(opaque_span->inner);
 
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        if (scope->span) {
+            sentry_value_t scope_span = scope->span->inner;
+
+            const char *span_id = sentry_value_as_string(
+                sentry_value_get_by_key(span, "trace_id"));
+            const char *scope_span_id = sentry_value_as_string(
+                sentry_value_get_by_key(scope_span, "trace_id"));
+            if (sentry__string_eq(span_id, scope_span_id)) {
+                sentry__span_decref(scope->span);
+                scope->span = NULL;
+            }
+        }
+    }
+
     if (!sentry_value_is_null(sentry_value_get_by_key(span, "timestamp"))) {
         SENTRY_DEBUG("span is already finished, aborting span finish");
         sentry_value_decref(span);
