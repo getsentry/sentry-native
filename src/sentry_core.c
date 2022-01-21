@@ -778,7 +778,7 @@ sentry_transaction_finish(sentry_transaction_t *opaque_tx)
     sentry_value_t tx = sentry__value_clone(opaque_tx->inner);
 
     SENTRY_WITH_SCOPE_MUT (scope) {
-        if (scope->span) {
+        if (scope->transaction_object) {
             sentry_value_t scope_tx = scope->transaction_object->inner;
 
             const char *tx_id = sentry_value_as_string(
