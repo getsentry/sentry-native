@@ -335,7 +335,7 @@ SENTRY_TEST(multiple_transactions)
     tx_cxt = sentry_transaction_context_new("wowee!", NULL);
     tx = sentry_transaction_start(tx_cxt, sentry_value_new_null());
     sentry_set_transaction_object(tx);
-    scope_tx = sentry__scope_get_span();
+    scope_tx = sentry__scope_get_span_or_transaction();
     CHECK_STRING_PROPERTY(scope_tx, "transaction", "wowee!");
     event_id = sentry_transaction_finish(tx);
     TEST_CHECK(!sentry_uuid_is_nil(&event_id));
