@@ -82,6 +82,7 @@ get_scope(void)
     g_scope.client_sdk = get_client_sdk();
 
 #ifdef SENTRY_PERFORMANCE_MONITORING
+    g_scope.transaction_object = NULL;
     g_scope.span = NULL;
 #endif
 
@@ -106,7 +107,8 @@ sentry__scope_cleanup(void)
         sentry_value_decref(g_scope.client_sdk);
 
 #ifdef SENTRY_PERFORMANCE_MONITORING
-        sentry__transaction_decref(g_scope.span);
+        sentry__transaction_decref(g_scope.transaction_object);
+        sentry__span_decref(g_scope.span);
 #endif
     }
     sentry__mutex_unlock(&g_lock);
@@ -242,13 +244,15 @@ sentry__symbolize_stacktrace(sentry_value_t stacktrace)
 #ifdef SENTRY_PERFORMANCE_MONITORING
 #    ifdef SENTRY_UNITTEST
 sentry_value_t
-sentry__scope_get_span()
+sentry__scope_get_span_or_transaction()
 {
     SENTRY_WITH_SCOPE (scope) {
-        if (!scope->span) {
-            return sentry_value_new_null();
-        } else {
+        if (scope->span) {
             return scope->span->inner;
+        } else if (scope->transaction_object) {
+            return scope->transaction_object->inner;
+        } else {
+            return sentry_value_new_null();
         }
     }
     return sentry_value_new_null();
@@ -321,7 +325,7 @@ sentry__scope_apply_to_event(const sentry_scope_t *scope,
     // prep contexts sourced from scope; data about transaction on scope needs
     // to be extracted and inserted
     sentry_value_t scope_trace
-        = sentry__transaction_get_trace_context(scope->span);
+        = sentry__value_get_trace_context(scope->transaction_object ? scope->transaction_object->inner : scope->span->inner);
     if (!sentry_value_is_null(scope_trace)) {
         if (sentry_value_is_null(contexts)) {
             contexts = sentry_value_new_object();

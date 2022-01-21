@@ -21,12 +21,16 @@ typedef struct sentry_scope_s {
     sentry_value_t client_sdk;
 
 #ifdef SENTRY_PERFORMANCE_MONITORING
-    // Not to be confused with transaction, which is a legacy value. This is
-    // also known as a transaction, but to maintain consistency with other SDKs
-    // and to avoid a conflict with the existing transaction field this is named
-    // span. Whenever possible, `transaction` should pull its value from the
-    // `name` property nested in this field.
-    sentry_transaction_t *span;
+    // The span attached to this scope, if any.
+    //
+    // Conceptually, every transaction is a span, so it should be possible to
+    // attach spans or transactions to a scope. But sentry_span_t and sentry_transaction_t
+    // are unrelated types in the native SDK, so we need two distinct pointers. At most one
+    // of them should ever be non-null.
+    // Whenever possible, `transaction` should pull its value from the
+    // `name` property nested in transaction_object or span.
+    sentry_transaction_t *transaction_object;
+    sentry_span_t *span;
 #endif
 } sentry_scope_t;
 
@@ -97,6 +101,6 @@ void sentry__scope_apply_to_event(const sentry_scope_t *scope,
 #ifdef SENTRY_PERFORMANCE_MONITORING
 // this is only used in unit tests
 #ifdef SENTRY_UNITTEST
-sentry_value_t sentry__scope_get_span();
+sentry_value_t sentry__scope_get_span_or_transaction();
 #endif
 #endif
