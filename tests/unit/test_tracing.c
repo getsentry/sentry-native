@@ -20,16 +20,16 @@ SENTRY_TEST(basic_tracing_context)
     sentry_value_t tx = sentry_value_new_object();
     opaque_tx = sentry__transaction_new(sentry__value_clone(tx));
     sentry_value_set_by_key(tx, "op", sentry_value_new_string("honk.beep"));
-    TEST_CHECK(
-        sentry_value_is_null(sentry__value_get_trace_context(opaque_tx->inner)));
+    TEST_CHECK(sentry_value_is_null(
+        sentry__value_get_trace_context(opaque_tx->inner)));
 
     sentry_uuid_t trace_id = sentry_uuid_new_v4();
     sentry_value_set_by_key(
         tx, "trace_id", sentry__value_new_internal_uuid(&trace_id));
     sentry__transaction_decref(opaque_tx);
     opaque_tx = sentry__transaction_new(sentry__value_clone(tx));
-    TEST_CHECK(
-        sentry_value_is_null(sentry__value_get_trace_context(opaque_tx->inner)));
+    TEST_CHECK(sentry_value_is_null(
+        sentry__value_get_trace_context(opaque_tx->inner)));
 
     sentry_uuid_t span_id = sentry_uuid_new_v4();
     sentry_value_set_by_key(

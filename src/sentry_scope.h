@@ -24,9 +24,9 @@ typedef struct sentry_scope_s {
     // The span attached to this scope, if any.
     //
     // Conceptually, every transaction is a span, so it should be possible to
-    // attach spans or transactions to a scope. But sentry_span_t and sentry_transaction_t
-    // are unrelated types in the native SDK, so we need two distinct pointers. At most one
-    // of them should ever be non-null.
+    // attach spans or transactions to a scope. But sentry_span_t and
+    // sentry_transaction_t are unrelated types in the native SDK, so we need
+    // two distinct pointers. At most one of them should ever be non-null.
     // Whenever possible, `transaction` should pull its value from the
     // `name` property nested in transaction_object or span.
     sentry_transaction_t *transaction_object;

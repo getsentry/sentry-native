@@ -1366,8 +1366,8 @@ SENTRY_EXPERIMENTAL_API void sentry_transaction_context_update_from_header(
  *
  * To ensure that any Events or Message Events are associated with this
  * Transaction while it is active, invoke and pass in the Transaction returned
- * by this function to `sentry_set_transaction_object`. Further documentation on this can be
- * found in `sentry_set_transaction_object`'s docstring.
+ * by this function to `sentry_set_transaction_object`. Further documentation on
+ * this can be found in `sentry_set_transaction_object`'s docstring.
  *
  * Takes ownership of `transaction_context`. A Transaction Context cannot be
  * modified or re-used after it is used to start a Transaction.
@@ -1403,11 +1403,12 @@ SENTRY_EXPERIMENTAL_API sentry_uuid_t sentry_transaction_finish(
  * https://docs.sentry.io/product/sentry-basics/tracing/trace-view/#orphan-traces-and-broken-subtraces
  *
  * This increases the number of references pointing to the Transaction. Invoke
- * `sentry_transaction_finish` to remove the Transaction set by this function as well
- * as its reference by passing in the same Transaction as the one passed into
- * this function.
+ * `sentry_transaction_finish` to remove the Transaction set by this function as
+ * well as its reference by passing in the same Transaction as the one passed
+ * into this function.
  */
-SENTRY_EXPERIMENTAL_API void sentry_set_transaction_object(sentry_transaction_t *tx);
+SENTRY_EXPERIMENTAL_API void sentry_set_transaction_object(
+    sentry_transaction_t *tx);
 
 /**
  * Sets the Span so any Events sent while the Span

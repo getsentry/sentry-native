@@ -47,7 +47,6 @@ void sentry__span_free(sentry_span_t *span);
  * transaction / span which should be included in an event.
  * See https://develop.sentry.dev/sdk/event-payloads/transaction/#examples
  */
-sentry_value_t sentry__value_get_trace_context(
-    sentry_value_t span);
+sentry_value_t sentry__value_get_trace_context(sentry_value_t span);
 
 #endif
