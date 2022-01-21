@@ -919,6 +919,12 @@ sentry_span_finish(sentry_span_t *opaque_span)
 
     sentry_value_t root_transaction = opaque_root_transaction->inner;
 
+    if (!sentry_value_is_true(
+            sentry_value_get_by_key(root_transaction, "sampled"))) {
+        SENTRY_DEBUG("root transaction is unsampled, dropping span");
+        goto fail;
+    }
+
     if (!sentry_value_is_null(
             sentry_value_get_by_key(root_transaction, "timestamp"))) {
         SENTRY_DEBUG("span's root transaction is already finished, aborting "
@@ -927,6 +933,15 @@ sentry_span_finish(sentry_span_t *opaque_span)
     }
 
     sentry_value_t span = sentry__value_clone(opaque_span->inner);
+
+    // Note that the current API makes it impossible to set a sampled value
+    // that's different from the span's root transaction, but let's just be safe
+    // here.
+    if (!sentry_value_is_true(sentry_value_get_by_key(span, "sampled"))) {
+        SENTRY_DEBUG("span is unsampled, dropping span");
+        sentry_value_decref(span);
+        goto fail;
+    }
 
     if (!sentry_value_is_null(sentry_value_get_by_key(span, "timestamp"))) {
         SENTRY_DEBUG("span is already finished, aborting span finish");

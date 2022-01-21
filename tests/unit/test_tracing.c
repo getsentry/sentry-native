@@ -559,6 +559,72 @@ SENTRY_TEST(overflow_spans)
     sentry_close();
 }
 
+SENTRY_TEST(unsampled_spans)
+{
+    sentry_options_t *options = sentry_options_new();
+    sentry_options_set_traces_sample_rate(options, 1.0);
+    sentry_init(options);
+
+    sentry_transaction_context_t *opaque_tx_cxt
+        = sentry_transaction_context_new("noisemakers", NULL);
+    sentry_transaction_context_set_sampled(opaque_tx_cxt, 0);
+    sentry_transaction_t *opaque_tx = sentry_transaction_start(opaque_tx_cxt);
+    sentry_value_t tx = opaque_tx->inner;
+    TEST_CHECK(!sentry_value_is_true(sentry_value_get_by_key(tx, "sampled")));
+
+    // check that children and grandchildren inherit the sampling decision,
+    // i.e. it cascades 1+ levels down
+    sentry_span_t *opaque_child
+        = sentry_transaction_start_child(opaque_tx, "honk", "goose");
+    TEST_CHECK(opaque_child != NULL);
+    sentry_value_t child = opaque_child->inner;
+    TEST_CHECK(!sentry_value_is_null(child));
+    TEST_CHECK(
+        !sentry_value_is_true(sentry_value_get_by_key(child, "sampled")));
+
+    sentry_span_t *opaque_grandchild
+        = sentry_span_start_child(opaque_child, "beep", "car");
+    sentry_value_t grandchild = opaque_grandchild->inner;
+    TEST_CHECK(!sentry_value_is_null(grandchild));
+    TEST_CHECK(
+        !sentry_value_is_true(sentry_value_get_by_key(grandchild, "sampled")));
+
+    // finishing does not add (grand)children to the spans list
+    sentry_span_finish(opaque_grandchild);
+    TEST_CHECK(
+        0 == sentry_value_get_length(sentry_value_get_by_key(tx, "spans")));
+
+    sentry_span_finish(opaque_child);
+    TEST_CHECK(
+        0 == sentry_value_get_length(sentry_value_get_by_key(tx, "spans")));
+
+    // perform the same checks, but with the transaction on the scope
+    sentry_set_span(opaque_tx);
+
+    opaque_child = sentry_transaction_start_child(opaque_tx, "toot", "boat");
+    child = opaque_child->inner;
+    TEST_CHECK(!sentry_value_is_null(child));
+    TEST_CHECK(
+        !sentry_value_is_true(sentry_value_get_by_key(child, "sampled")));
+
+    opaque_grandchild
+        = sentry_span_start_child(opaque_child, "vroom", "sportscar");
+    grandchild = opaque_grandchild->inner;
+    TEST_CHECK(!sentry_value_is_null(grandchild));
+    TEST_CHECK(
+        !sentry_value_is_true(sentry_value_get_by_key(grandchild, "sampled")));
+
+    sentry_span_finish(opaque_grandchild);
+    TEST_CHECK(
+        0 == sentry_value_get_length(sentry_value_get_by_key(tx, "spans")));
+
+    sentry_span_finish(opaque_child);
+    TEST_CHECK(
+        0 == sentry_value_get_length(sentry_value_get_by_key(tx, "spans")));
+
+    sentry_transaction_finish(opaque_tx);
+}
+
 static void
 check_spans(sentry_envelope_t *envelope, void *data)
 {

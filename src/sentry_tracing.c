@@ -21,19 +21,13 @@ sentry__value_new_span(sentry_value_t parent, const char *operation)
 
     sentry_value_set_by_key(span, "status", sentry_value_new_string("ok"));
 
-    // Span creation is currently aggressively pruned prior to this function so
-    // once we're in here we definitely know that the span and its parent
-    // transaction are sampled.
-    // Sampling decisions inherited from traces created in other SDKs should be
-    // taken care of `continue_from_headers`, spans don't need to worry about
-    // (inheriting) forced sampling decisions, and transactions cannot be
-    // children of other transactions, so no inheriting of the sampling field is
-    // needed.
     if (!sentry_value_is_null(parent)) {
         sentry_value_set_by_key(span, "trace_id",
             sentry_value_get_by_key_owned(parent, "trace_id"));
         sentry_value_set_by_key(span, "parent_span_id",
             sentry_value_get_by_key_owned(parent, "span_id"));
+        sentry_value_set_by_key(
+            span, "sampled", sentry_value_get_by_key_owned(parent, "sampled"));
     }
 
     return span;
@@ -235,13 +229,6 @@ sentry__value_span_new(
         goto fail;
     }
 
-    // Aggressively discard spans if a transaction is unsampled to avoid
-    // wasting memory
-    sentry_value_t sampled = sentry_value_get_by_key(parent, "sampled");
-    if (!sentry_value_is_true(sampled)) {
-        SENTRY_DEBUG("span's parent is unsampled, not creating span");
-        goto fail;
-    }
     sentry_value_t spans = sentry_value_get_by_key(parent, "spans");
     // This only checks that the number of _completed_ spans matches the
     // number of max spans. This means that the number of in-flight spans
@@ -258,7 +245,6 @@ sentry__value_span_new(
     sentry_value_set_by_key(child, "start_timestamp",
         sentry__value_new_string_owned(
             sentry__msec_time_to_iso8601(sentry__msec_time())));
-    sentry_value_set_by_key(child, "sampled", sentry_value_new_bool(1));
 
     return child;
 fail:
