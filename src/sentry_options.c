@@ -415,6 +415,10 @@ sentry_options_set_traces_sample_rate(
         sample_rate = 1.0;
     }
     opts->traces_sample_rate = sample_rate;
+
+    if (sample_rate > 0 && opts->max_spans == 0) {
+        opts->max_spans = SENTRY_SPANS_MAX;
+    }
 }
 
 /**
