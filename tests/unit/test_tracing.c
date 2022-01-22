@@ -568,7 +568,8 @@ SENTRY_TEST(unsampled_spans)
     sentry_transaction_context_t *opaque_tx_cxt
         = sentry_transaction_context_new("noisemakers", NULL);
     sentry_transaction_context_set_sampled(opaque_tx_cxt, 0);
-    sentry_transaction_t *opaque_tx = sentry_transaction_start(opaque_tx_cxt);
+    sentry_transaction_t *opaque_tx
+        = sentry_transaction_start(opaque_tx_cxt, sentry_value_new_null());
     sentry_value_t tx = opaque_tx->inner;
     TEST_CHECK(!sentry_value_is_true(sentry_value_get_by_key(tx, "sampled")));
 
@@ -795,7 +796,7 @@ SENTRY_TEST(distributed_headers)
     tx_ctx = sentry_transaction_context_new("distributed from a child!", NULL);
     sentry_span_iter_headers(child, forward_headers_to, (void *)tx_ctx);
     sentry__transaction_decref(dist_tx);
-    dist_tx = sentry_transaction_start(tx_ctx);
+    dist_tx = sentry_transaction_start(tx_ctx, sentry_value_new_null());
 
     TEST_CHECK(!sentry_value_is_true(
         sentry_value_get_by_key(dist_tx->inner, "sampled")));
