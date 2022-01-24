@@ -33,6 +33,9 @@ sentry_transaction_t *sentry__transaction_new(sentry_value_t inner);
 void sentry__transaction_incref(sentry_transaction_t *tx);
 void sentry__transaction_decref(sentry_transaction_t *tx);
 
+void sentry__span_incref(sentry_span_t *span);
+void sentry__span_decref(sentry_span_t *span);
+
 sentry_value_t sentry__value_span_new(size_t max_spans, sentry_value_t parent,
     char *operation, char *description);
 sentry_span_t *sentry__span_new(
@@ -41,10 +44,9 @@ void sentry__span_free(sentry_span_t *span);
 
 /**
  * Returns an object containing tracing information extracted from a
- * transaction (/span) which should be included in an event.
+ * transaction / span which should be included in an event.
  * See https://develop.sentry.dev/sdk/event-payloads/transaction/#examples
  */
-sentry_value_t sentry__transaction_get_trace_context(
-    sentry_transaction_t *span);
+sentry_value_t sentry__value_get_trace_context(sentry_value_t span);
 
 #endif

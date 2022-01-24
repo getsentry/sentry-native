@@ -714,8 +714,8 @@ sentry_set_transaction(const char *transaction)
         scope->transaction = sentry__string_clone(transaction);
 
 #ifdef SENTRY_PERFORMANCE_MONITORING
-        if (scope->span) {
-            sentry_transaction_set_name(scope->span, transaction);
+        if (scope->transaction_object) {
+            sentry_transaction_set_name(scope->transaction_object, transaction);
         }
 #endif
     }
@@ -778,16 +778,16 @@ sentry_transaction_finish(sentry_transaction_t *opaque_tx)
     sentry_value_t tx = sentry__value_clone(opaque_tx->inner);
 
     SENTRY_WITH_SCOPE_MUT (scope) {
-        if (scope->span) {
-            sentry_value_t scope_tx = scope->span->inner;
+        if (scope->transaction_object) {
+            sentry_value_t scope_tx = scope->transaction_object->inner;
 
             const char *tx_id = sentry_value_as_string(
                 sentry_value_get_by_key(tx, "trace_id"));
             const char *scope_tx_id = sentry_value_as_string(
                 sentry_value_get_by_key(scope_tx, "trace_id"));
             if (sentry__string_eq(tx_id, scope_tx_id)) {
-                sentry__transaction_decref(scope->span);
-                scope->span = NULL;
+                sentry__transaction_decref(scope->transaction_object);
+                scope->transaction_object = NULL;
             }
         }
     }
@@ -819,7 +819,7 @@ sentry_transaction_finish(sentry_transaction_t *opaque_tx)
 
     // TODO: add tracestate
     sentry_value_t trace_context
-        = sentry__transaction_get_trace_context(opaque_tx);
+        = sentry__value_get_trace_context(opaque_tx->inner);
     sentry_value_t contexts = sentry_value_new_object();
     sentry_value_set_by_key(contexts, "trace", trace_context);
     sentry_value_set_by_key(tx, "contexts", contexts);
@@ -843,12 +843,26 @@ fail:
 }
 
 void
-sentry_set_span(sentry_transaction_t *tx)
+sentry_set_transaction_object(sentry_transaction_t *tx)
 {
     SENTRY_WITH_SCOPE_MUT (scope) {
-        sentry__transaction_decref(scope->span);
+        sentry__span_decref(scope->span);
+        scope->span = NULL;
+        sentry__transaction_decref(scope->transaction_object);
         sentry__transaction_incref(tx);
-        scope->span = tx;
+        scope->transaction_object = tx;
+    }
+}
+
+void
+sentry_set_span(sentry_span_t *span)
+{
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry__transaction_decref(scope->transaction_object);
+        scope->transaction_object = NULL;
+        sentry__span_decref(scope->span);
+        sentry__span_incref(span);
+        scope->span = span;
     }
 }
 
@@ -927,6 +941,21 @@ sentry_span_finish(sentry_span_t *opaque_span)
     }
 
     sentry_value_t span = sentry__value_clone(opaque_span->inner);
+
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        if (scope->span) {
+            sentry_value_t scope_span = scope->span->inner;
+
+            const char *span_id = sentry_value_as_string(
+                sentry_value_get_by_key(span, "trace_id"));
+            const char *scope_span_id = sentry_value_as_string(
+                sentry_value_get_by_key(scope_span, "trace_id"));
+            if (sentry__string_eq(span_id, scope_span_id)) {
+                sentry__span_decref(scope->span);
+                scope->span = NULL;
+            }
+        }
+    }
 
     if (!sentry_value_is_null(sentry_value_get_by_key(span, "timestamp"))) {
         SENTRY_DEBUG("span is already finished, aborting span finish");
