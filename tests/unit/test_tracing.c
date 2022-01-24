@@ -349,7 +349,6 @@ SENTRY_TEST(basic_spans)
 {
     sentry_options_t *options = sentry_options_new();
     sentry_options_set_traces_sample_rate(options, 1.0);
-    sentry_options_set_max_spans(options, 3);
     sentry_init(options);
 
     // Starting a child with no active transaction should fail
@@ -404,7 +403,6 @@ SENTRY_TEST(spans_on_scope)
 {
     sentry_options_t *options = sentry_options_new();
     sentry_options_set_traces_sample_rate(options, 1.0);
-    sentry_options_set_max_spans(options, 3);
     sentry_init(options);
 
     sentry_transaction_context_t *opaque_tx_cxt
