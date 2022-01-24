@@ -33,8 +33,8 @@ sentry_transaction_t *sentry__transaction_new(sentry_value_t inner);
 void sentry__transaction_incref(sentry_transaction_t *tx);
 void sentry__transaction_decref(sentry_transaction_t *tx);
 
-void sentry__span_incref(sentry_span_t *tx);
-void sentry__span_decref(sentry_span_t *tx);
+void sentry__span_incref(sentry_span_t *span);
+void sentry__span_decref(sentry_span_t *span);
 
 sentry_value_t sentry__value_span_new(size_t max_spans, sentry_value_t parent,
     char *operation, char *description);
