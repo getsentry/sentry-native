@@ -111,8 +111,6 @@ static int
 sentry__winhttp_transport_flush(uint64_t timeout, void *transport_state)
 {
     sentry_bgworker_t *bgworker = (sentry_bgworker_t *)transport_state;
-    winhttp_bgworker_state_t *state = sentry__bgworker_get_state(bgworker);
-
     return sentry__bgworker_shutdown(bgworker, timeout);
 }
 
