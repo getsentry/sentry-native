@@ -281,6 +281,74 @@ sentry__bgworker_start(sentry_bgworker_t *bgw)
     return 0;
 }
 
+typedef struct {
+    long refcount;
+    bool was_flushed;
+    sentry_cond_t signal;
+    sentry_mutex_t lock;
+} sentry_flush_task_t;
+
+static void
+sentry__flush_task(void *task_data, void *UNUSED(state))
+{
+    sentry_flush_task_t *flush_task = (sentry_flush_task_t *)task_data;
+    fprintf(stderr, "locking on bg\n");
+    sentry__mutex_lock(&flush_task->lock);
+    flush_task->was_flushed = true;
+    fprintf(stderr, "waking on bg\n");
+    sentry__cond_wake(&flush_task->signal);
+    fprintf(stderr, "unlocking on bg\n");
+    sentry__mutex_unlock(&flush_task->lock);
+}
+
+static void
+sentry__flush_task_decref(sentry_flush_task_t *task)
+{
+    if (sentry__atomic_fetch_and_add(&task->refcount, -1) == 1) {
+        sentry_free(task);
+    }
+}
+
+int
+sentry__bgworker_flush(sentry_bgworker_t *bgw, uint64_t timeout)
+{
+    if (!sentry__atomic_fetch(&bgw->running)) {
+        SENTRY_WARN("trying to flush non-running thread");
+        return 0;
+    }
+    SENTRY_TRACE("flushing background worker thread");
+
+    sentry_flush_task_t *flush_task
+        = sentry_malloc(sizeof(sentry_flush_task_t));
+    if (!flush_task) {
+        return 1;
+    }
+    flush_task->refcount = 2; // this thread + background worker
+    flush_task->was_flushed = false;
+    sentry__cond_init(&flush_task->signal);
+    sentry__mutex_init(&flush_task->lock);
+
+    fprintf(stderr, "locking on main\n");
+    sentry__mutex_lock(&flush_task->lock);
+    /* submit the task that triggers our condvar once it runs */
+    fprintf(stderr, "submit on main\n");
+    sentry__bgworker_submit(
+        bgw, sentry__flush_task, sentry__flush_task_decref, flush_task);
+
+    // this will implicitly release the lock, and re-acquire on wake
+    fprintf(stderr, "wait on main\n");
+    sentry__cond_wait_timeout(&flush_task->signal, &flush_task->lock, timeout);
+
+    bool was_flushed = flush_task->was_flushed;
+
+    fprintf(stderr, "unlock on main\n");
+    sentry__mutex_unlock(&flush_task->lock);
+    sentry__flush_task_decref(flush_task);
+
+    // return `0` on success
+    return !was_flushed;
+}
+
 static void
 shutdown_task(void *task_data, void *UNUSED(state))
 {

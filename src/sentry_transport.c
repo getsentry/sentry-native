@@ -12,6 +12,7 @@ typedef struct sentry_transport_s {
     void (*send_envelope_func)(sentry_envelope_t *envelope, void *state);
     int (*startup_func)(const sentry_options_t *options, void *state);
     int (*shutdown_func)(uint64_t timeout, void *state);
+    int (*flush_func)(uint64_t timeout, void *state);
     void (*free_func)(void *state);
     size_t (*dump_func)(sentry_run_t *run, void *state);
     void *state;
@@ -58,6 +59,13 @@ sentry_transport_set_shutdown_func(sentry_transport_t *transport,
 }
 
 void
+sentry_transport_set_flush_func(sentry_transport_t *transport,
+    int (*flush_func)(uint64_t timeout, void *state))
+{
+    transport->flush_func = flush_func;
+}
+
+void
 sentry__transport_send_envelope(
     sentry_transport_t *transport, sentry_envelope_t *envelope)
 {
@@ -82,6 +90,16 @@ sentry__transport_startup(
         int rv = transport->startup_func(options, transport->state);
         transport->running = rv == 0;
         return rv;
+    }
+    return 0;
+}
+
+int
+sentry__transport_flush(sentry_transport_t *transport, uint64_t timeout)
+{
+    if (transport->flush_func && transport->running) {
+        SENTRY_TRACE("flushing transport");
+        return transport->flush_func(timeout, transport->state);
     }
     return 0;
 }
