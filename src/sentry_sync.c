@@ -322,6 +322,7 @@ sentry__bgworker_flush(sentry_bgworker_t *bgw, uint64_t timeout)
     if (!flush_task) {
         return 1;
     }
+    memset(flush_task, 0, sizeof(sentry_flush_task_t));
     flush_task->refcount = 2; // this thread + background worker
     flush_task->was_flushed = false;
     sentry__cond_init(&flush_task->signal);
