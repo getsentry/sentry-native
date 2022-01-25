@@ -201,6 +201,16 @@ fail:
 }
 
 int
+sentry_flush(uint64_t timeout)
+{
+    int rv = 0;
+    SENTRY_WITH_OPTIONS (options) {
+        rv = sentry__transport_flush(options->transport, timeout);
+    }
+    return rv;
+}
+
+int
 sentry_close(void)
 {
     // this function is to be called only once, so we do not allow more than one

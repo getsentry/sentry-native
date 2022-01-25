@@ -108,6 +108,13 @@ sentry__winhttp_transport_start(
 }
 
 static int
+sentry__winhttp_transport_flush(uint64_t timeout, void *transport_state)
+{
+    sentry_bgworker_t *bgworker = (sentry_bgworker_t *)transport_state;
+    return sentry__bgworker_shutdown(bgworker, timeout);
+}
+
+static int
 sentry__winhttp_transport_shutdown(uint64_t timeout, void *transport_state)
 {
     sentry_bgworker_t *bgworker = (sentry_bgworker_t *)transport_state;
@@ -332,6 +339,7 @@ sentry__transport_new_default(void)
         transport, (void (*)(void *))sentry__bgworker_decref);
     sentry_transport_set_startup_func(
         transport, sentry__winhttp_transport_start);
+    sentry_transport_set_flush_func(transport, sentry__winhttp_transport_flush);
     sentry_transport_set_shutdown_func(
         transport, sentry__winhttp_transport_shutdown);
     sentry__transport_set_dump_func(transport, sentry__winhttp_dump_queue);
