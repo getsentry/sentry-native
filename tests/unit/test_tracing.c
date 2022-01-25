@@ -575,7 +575,6 @@ SENTRY_TEST(unsampled_spans)
     // i.e. it cascades 1+ levels down
     sentry_span_t *opaque_child
         = sentry_transaction_start_child(opaque_tx, "honk", "goose");
-    TEST_CHECK(opaque_child != NULL);
     sentry_value_t child = opaque_child->inner;
     TEST_CHECK(!sentry_value_is_null(child));
     TEST_CHECK(
