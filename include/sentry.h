@@ -1366,8 +1366,8 @@ SENTRY_EXPERIMENTAL_API void sentry_transaction_context_update_from_header(
  *
  * To ensure that any Events or Message Events are associated with this
  * Transaction while it is active, invoke and pass in the Transaction returned
- * by this function to `sentry_set_span`. Further documentation on this can be
- * found in `sentry_set_span`'s docstring.
+ * by this function to `sentry_set_transaction_object`. Further documentation on
+ * this can be found in `sentry_set_transaction_object`'s docstring.
  *
  * Takes ownership of `transaction_context`. A Transaction Context cannot be
  * modified or re-used after it is used to start a Transaction.
@@ -1394,7 +1394,7 @@ SENTRY_EXPERIMENTAL_API sentry_uuid_t sentry_transaction_finish(
     sentry_transaction_t *tx);
 
 /**
- * Sets the Span (actually Transaction) so any Events sent while the Transaction
+ * Sets the Transaction so any Events sent while the Transaction
  * is active will be associated with the Transaction.
  *
  * If the Transaction being passed in is unsampled, it will still be associated
@@ -1402,12 +1402,24 @@ SENTRY_EXPERIMENTAL_API sentry_uuid_t sentry_transaction_finish(
  * missing traces in sentry, see
  * https://docs.sentry.io/product/sentry-basics/tracing/trace-view/#orphan-traces-and-broken-subtraces
  *
- * This increases the number of references pointing to the transaction. Invoke
- * `sentry_transaction_finish` to remove the Span set by this function as well
- * as its reference by passing in the same Transaction as the one passed into
+ * This increases the number of references pointing to the Transaction. Invoke
+ * `sentry_transaction_finish` to remove the Transaction set by this function as
+ * well as its reference by passing in the same Transaction as the one passed
+ * into this function.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_set_transaction_object(
+    sentry_transaction_t *tx);
+
+/**
+ * Sets the Span so any Events sent while the Span
+ * is active will be associated with the Span.
+ *
+ * This increases the number of references pointing to the Span. Invoke
+ * `sentry_span_finish` to remove the Span set by this function as well
+ * as its reference by passing in the same Span as the one passed into
  * this function.
  */
-SENTRY_EXPERIMENTAL_API void sentry_set_span(sentry_transaction_t *tx);
+SENTRY_EXPERIMENTAL_API void sentry_set_span(sentry_span_t *span);
 
 /**
  * Starts a new Span.
@@ -1428,6 +1440,11 @@ SENTRY_EXPERIMENTAL_API void sentry_set_span(sentry_transaction_t *tx);
  * finishing the Span means it will be discarded, and will not be sent to
  * sentry. `sentry_value_null` will be returned if the child Span could not be
  * created.
+ *
+ * To ensure that any Events or Message Events are associated with this
+ * Span while it is active, invoke and pass in the Span returned
+ * by this function to `sentry_set_span`. Further documentation on this can be
+ * found in `sentry_set_span`'s docstring.
  *
  * This increases the number of references pointing to the Transaction.
  *
@@ -1458,6 +1475,11 @@ SENTRY_EXPERIMENTAL_API sentry_span_t *sentry_transaction_start_child(
  * finishing the Span means it will be discarded, and will not be sent to
  * sentry. `sentry_value_null` will be returned if the child Span could not be
  * created.
+ *
+ * To ensure that any Events or Message Events are associated with this
+ * Span while it is active, invoke and pass in the Span returned
+ * by this function to `sentry_set_span`. Further documentation on this can be
+ * found in `sentry_set_span`'s docstring.
  *
  * The returned value is not thread-safe. Users are expected to ensure that
  * appropriate locking mechanisms are implemented over the Span if it needs

@@ -20,16 +20,16 @@ SENTRY_TEST(basic_tracing_context)
     sentry_value_t tx = sentry_value_new_object();
     opaque_tx = sentry__transaction_new(sentry__value_clone(tx));
     sentry_value_set_by_key(tx, "op", sentry_value_new_string("honk.beep"));
-    TEST_CHECK(
-        sentry_value_is_null(sentry__transaction_get_trace_context(opaque_tx)));
+    TEST_CHECK(sentry_value_is_null(
+        sentry__value_get_trace_context(opaque_tx->inner)));
 
     sentry_uuid_t trace_id = sentry_uuid_new_v4();
     sentry_value_set_by_key(
         tx, "trace_id", sentry__value_new_internal_uuid(&trace_id));
     sentry__transaction_decref(opaque_tx);
     opaque_tx = sentry__transaction_new(sentry__value_clone(tx));
-    TEST_CHECK(
-        sentry_value_is_null(sentry__transaction_get_trace_context(opaque_tx)));
+    TEST_CHECK(sentry_value_is_null(
+        sentry__value_get_trace_context(opaque_tx->inner)));
 
     sentry_uuid_t span_id = sentry_uuid_new_v4();
     sentry_value_set_by_key(
@@ -38,7 +38,7 @@ SENTRY_TEST(basic_tracing_context)
     opaque_tx = sentry__transaction_new(sentry__value_clone(tx));
 
     sentry_value_t trace_context
-        = sentry__transaction_get_trace_context(opaque_tx);
+        = sentry__value_get_trace_context(opaque_tx->inner);
     TEST_CHECK(!sentry_value_is_null(trace_context));
     TEST_CHECK(!IS_NULL(trace_context, "trace_id"));
     TEST_CHECK(!IS_NULL(trace_context, "span_id"));
@@ -316,13 +316,13 @@ SENTRY_TEST(multiple_transactions)
         = sentry_transaction_context_new("wow!", NULL);
     sentry_transaction_t *tx
         = sentry_transaction_start(tx_cxt, sentry_value_new_null());
-    sentry_set_span(tx);
+    sentry_set_transaction_object(tx);
 
-    sentry_value_t scope_tx = sentry__scope_get_span();
+    sentry_value_t scope_tx = sentry__scope_get_span_or_transaction();
     CHECK_STRING_PROPERTY(scope_tx, "transaction", "wow!");
 
     sentry_uuid_t event_id = sentry_transaction_finish(tx);
-    scope_tx = sentry__scope_get_span();
+    scope_tx = sentry__scope_get_span_or_transaction();
     TEST_CHECK(sentry_value_is_null(scope_tx));
     TEST_CHECK(!sentry_uuid_is_nil(&event_id));
 
@@ -330,12 +330,12 @@ SENTRY_TEST(multiple_transactions)
     // one
     tx_cxt = sentry_transaction_context_new("whoa!", NULL);
     tx = sentry_transaction_start(tx_cxt, sentry_value_new_null());
-    sentry_set_span(tx);
+    sentry_set_transaction_object(tx);
     sentry__transaction_decref(tx);
     tx_cxt = sentry_transaction_context_new("wowee!", NULL);
     tx = sentry_transaction_start(tx_cxt, sentry_value_new_null());
-    sentry_set_span(tx);
-    scope_tx = sentry__scope_get_span();
+    sentry_set_transaction_object(tx);
+    scope_tx = sentry__scope_get_span_or_transaction();
     CHECK_STRING_PROPERTY(scope_tx, "transaction", "wowee!");
     event_id = sentry_transaction_finish(tx);
     TEST_CHECK(!sentry_uuid_is_nil(&event_id));
@@ -349,7 +349,6 @@ SENTRY_TEST(basic_spans)
 {
     sentry_options_t *options = sentry_options_new();
     sentry_options_set_traces_sample_rate(options, 1.0);
-    sentry_options_set_max_spans(options, 3);
     sentry_init(options);
 
     // Starting a child with no active transaction should fail
@@ -404,14 +403,13 @@ SENTRY_TEST(spans_on_scope)
 {
     sentry_options_t *options = sentry_options_new();
     sentry_options_set_traces_sample_rate(options, 1.0);
-    sentry_options_set_max_spans(options, 3);
     sentry_init(options);
 
     sentry_transaction_context_t *opaque_tx_cxt
         = sentry_transaction_context_new("wow!", NULL);
     sentry_transaction_t *opaque_tx
         = sentry_transaction_start(opaque_tx_cxt, sentry_value_new_null());
-    sentry_set_span(opaque_tx);
+    sentry_set_transaction_object(opaque_tx);
 
     sentry_span_t *opaque_child
         = sentry_transaction_start_child(opaque_tx, "honk", "goose");
@@ -420,7 +418,7 @@ SENTRY_TEST(spans_on_scope)
 
     // Peek into the transaction's span list and make sure everything is
     // good
-    sentry_value_t scope_tx = sentry__scope_get_span();
+    sentry_value_t scope_tx = sentry__scope_get_span_or_transaction();
     const char *trace_id
         = sentry_value_as_string(sentry_value_get_by_key(scope_tx, "trace_id"));
     const char *parent_span_id
@@ -433,7 +431,7 @@ SENTRY_TEST(spans_on_scope)
 
     sentry_span_finish(opaque_child);
 
-    scope_tx = sentry__scope_get_span();
+    scope_tx = sentry__scope_get_span_or_transaction();
     TEST_CHECK(!IS_NULL(scope_tx, "spans"));
     sentry_value_t spans = sentry_value_get_by_key(scope_tx, "spans");
     TEST_CHECK_INT_EQUAL(sentry_value_get_length(spans), 1);
@@ -600,7 +598,7 @@ SENTRY_TEST(unsampled_spans)
         0 == sentry_value_get_length(sentry_value_get_by_key(tx, "spans")));
 
     // perform the same checks, but with the transaction on the scope
-    sentry_set_span(opaque_tx);
+    sentry_set_transaction_object(opaque_tx);
 
     opaque_child = sentry_transaction_start_child(opaque_tx, "toot", "boat");
     child = opaque_child->inner;
