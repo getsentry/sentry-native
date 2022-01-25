@@ -134,7 +134,6 @@ SENTRY_TEST(task_queue)
 
 SENTRY_TEST(bgworker_flush)
 {
-    return;
     sentry_bgworker_t *bgw = sentry__bgworker_new(NULL, NULL);
     sentry__bgworker_submit(bgw, sleep_task, NULL, NULL);
 
