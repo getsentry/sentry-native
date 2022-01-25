@@ -618,10 +618,10 @@ typedef struct sentry_options_s sentry_options_t;
  *   to `sentry_init`.
  * * `flush_func`: Instructs the transport to flush its queue.
  *   This hook receives a millisecond-resolution `timeout` parameter and should
- *   return `0` when the transport queue was flushed within the timeout.
+ *   return `0` if the transport queue is flushed within the timeout.
  * * `shutdown_func`: Instructs the transport to flush its queue and shut down.
  *   This hook receives a millisecond-resolution `timeout` parameter and should
- *   return `0` when the transport was flushed and shut down successfully.
+ *   return `0` if the transport is flushed and shut down successfully.
  *   In case of a non-zero return value, sentry will log an error, but continue
  * with freeing the transport.
  * * `free_func`: Frees the transports `state`. This hook might be called even
@@ -669,8 +669,8 @@ SENTRY_API void sentry_transport_set_startup_func(sentry_transport_t *transport,
  * Sets the transport flush hook.
  *
  * This hook will receive a millisecond-resolution timeout.
- * It should return `0` on success in case all the pending envelopes have been
- * sent within the timeout, or `1` if the timeout was hit.
+ * It should return `0` if all the pending envelopes are
+ * sent within the timeout, or `1` if the timeout is hit.
  */
 SENTRY_API void sentry_transport_set_flush_func(sentry_transport_t *transport,
     int (*flush_func)(uint64_t timeout, void *state));
@@ -1062,9 +1062,9 @@ SENTRY_API int sentry_init(sentry_options_t *options);
 /**
  * Instructs the transport to flush its send queue.
  *
- * The `timeout` parameter is in millisecond-resolution.
+ * The `timeout` parameter is in milliseconds.
  *
- * Returns 0 on success, or a non-zero return value in case the timeout was hit.
+ * Returns 0 on success, or a non-zero return value in case the timeout is hit.
  */
 SENTRY_API int sentry_flush(uint64_t timeout);
 
