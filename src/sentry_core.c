@@ -970,44 +970,43 @@ sentry_span_finish(sentry_span_t *opaque_span)
         SENTRY_DEBUG("span is unsampled, dropping span");
         sentry_value_decref(span);
         goto fail;
-
-        if (!sentry_value_is_null(sentry_value_get_by_key(span, "timestamp"))) {
-            SENTRY_DEBUG("span is already finished, aborting span finish");
-            sentry_value_decref(span);
-            goto fail;
-        }
-
-        sentry_value_set_by_key(span, "timestamp",
-            sentry__value_new_string_owned(
-                sentry__msec_time_to_iso8601(sentry__msec_time())));
-        sentry_value_remove_by_key(span, "sampled");
-
-        size_t max_spans = SENTRY_SPANS_MAX;
-        SENTRY_WITH_OPTIONS (options) {
-            max_spans = options->max_spans;
-        }
-
-        sentry_value_t spans
-            = sentry_value_get_by_key(root_transaction, "spans");
-
-        if (sentry_value_get_length(spans) >= max_spans) {
-            SENTRY_DEBUG("reached maximum number of spans for transaction, "
-                         "discarding span");
-            sentry_value_decref(span);
-            goto fail;
-        }
-
-        if (sentry_value_is_null(spans)) {
-            spans = sentry_value_new_list();
-            sentry_value_set_by_key(root_transaction, "spans", spans);
-        }
-        sentry_value_append(spans, span);
-        sentry__span_free(opaque_span);
-        return;
-
-    fail:
-        sentry__span_free(opaque_span);
-        return;
     }
+
+    if (!sentry_value_is_null(sentry_value_get_by_key(span, "timestamp"))) {
+        SENTRY_DEBUG("span is already finished, aborting span finish");
+        sentry_value_decref(span);
+        goto fail;
+    }
+
+    sentry_value_set_by_key(span, "timestamp",
+        sentry__value_new_string_owned(
+            sentry__msec_time_to_iso8601(sentry__msec_time())));
+    sentry_value_remove_by_key(span, "sampled");
+
+    size_t max_spans = SENTRY_SPANS_MAX;
+    SENTRY_WITH_OPTIONS (options) {
+        max_spans = options->max_spans;
+    }
+
+    sentry_value_t spans = sentry_value_get_by_key(root_transaction, "spans");
+
+    if (sentry_value_get_length(spans) >= max_spans) {
+        SENTRY_DEBUG("reached maximum number of spans for transaction, "
+                     "discarding span");
+        sentry_value_decref(span);
+        goto fail;
+    }
+
+    if (sentry_value_is_null(spans)) {
+        spans = sentry_value_new_list();
+        sentry_value_set_by_key(root_transaction, "spans", spans);
+    }
+    sentry_value_append(spans, span);
+    sentry__span_free(opaque_span);
+    return;
+
+fail:
+    sentry__span_free(opaque_span);
+    return;
 }
 #endif
