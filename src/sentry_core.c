@@ -792,9 +792,9 @@ sentry_transaction_finish(sentry_transaction_t *opaque_tx)
             sentry_value_t scope_tx = scope->transaction_object->inner;
 
             const char *tx_id = sentry_value_as_string(
-                sentry_value_get_by_key(tx, "trace_id"));
+                sentry_value_get_by_key(tx, "span_id"));
             const char *scope_tx_id = sentry_value_as_string(
-                sentry_value_get_by_key(scope_tx, "trace_id"));
+                sentry_value_get_by_key(scope_tx, "span_id"));
             if (sentry__string_eq(tx_id, scope_tx_id)) {
                 sentry__transaction_decref(scope->transaction_object);
                 scope->transaction_object = NULL;
@@ -943,6 +943,12 @@ sentry_span_finish(sentry_span_t *opaque_span)
 
     sentry_value_t root_transaction = opaque_root_transaction->inner;
 
+    if (!sentry_value_is_true(
+            sentry_value_get_by_key(root_transaction, "sampled"))) {
+        SENTRY_DEBUG("root transaction is unsampled, dropping span");
+        goto fail;
+    }
+
     if (!sentry_value_is_null(
             sentry_value_get_by_key(root_transaction, "timestamp"))) {
         SENTRY_DEBUG("span's root transaction is already finished, aborting "
@@ -957,14 +963,23 @@ sentry_span_finish(sentry_span_t *opaque_span)
             sentry_value_t scope_span = scope->span->inner;
 
             const char *span_id = sentry_value_as_string(
-                sentry_value_get_by_key(span, "trace_id"));
+                sentry_value_get_by_key(span, "span_id"));
             const char *scope_span_id = sentry_value_as_string(
-                sentry_value_get_by_key(scope_span, "trace_id"));
+                sentry_value_get_by_key(scope_span, "span_id"));
             if (sentry__string_eq(span_id, scope_span_id)) {
                 sentry__span_decref(scope->span);
                 scope->span = NULL;
             }
         }
+    }
+
+    // Note that the current API makes it impossible to set a sampled value
+    // that's different from the span's root transaction, but let's just be safe
+    // here.
+    if (!sentry_value_is_true(sentry_value_get_by_key(span, "sampled"))) {
+        SENTRY_DEBUG("span is unsampled, dropping span");
+        sentry_value_decref(span);
+        goto fail;
     }
 
     if (!sentry_value_is_null(sentry_value_get_by_key(span, "timestamp"))) {

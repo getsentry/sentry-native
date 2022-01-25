@@ -557,6 +557,74 @@ SENTRY_TEST(overflow_spans)
     sentry_close();
 }
 
+SENTRY_TEST(unsampled_spans)
+{
+    sentry_options_t *options = sentry_options_new();
+    sentry_options_set_traces_sample_rate(options, 1.0);
+    sentry_init(options);
+
+    sentry_transaction_context_t *opaque_tx_cxt
+        = sentry_transaction_context_new("noisemakers", NULL);
+    sentry_transaction_context_set_sampled(opaque_tx_cxt, 0);
+    sentry_transaction_t *opaque_tx
+        = sentry_transaction_start(opaque_tx_cxt, sentry_value_new_null());
+    sentry_value_t tx = opaque_tx->inner;
+    TEST_CHECK(!sentry_value_is_true(sentry_value_get_by_key(tx, "sampled")));
+
+    // check that children and grandchildren inherit the sampling decision,
+    // i.e. it cascades 1+ levels down
+    sentry_span_t *opaque_child
+        = sentry_transaction_start_child(opaque_tx, "honk", "goose");
+    sentry_value_t child = opaque_child->inner;
+    TEST_CHECK(!sentry_value_is_null(child));
+    TEST_CHECK(
+        !sentry_value_is_true(sentry_value_get_by_key(child, "sampled")));
+
+    sentry_span_t *opaque_grandchild
+        = sentry_span_start_child(opaque_child, "beep", "car");
+    sentry_value_t grandchild = opaque_grandchild->inner;
+    TEST_CHECK(!sentry_value_is_null(grandchild));
+    TEST_CHECK(
+        !sentry_value_is_true(sentry_value_get_by_key(grandchild, "sampled")));
+
+    // finishing does not add (grand)children to the spans list
+    sentry_span_finish(opaque_grandchild);
+    TEST_CHECK(
+        0 == sentry_value_get_length(sentry_value_get_by_key(tx, "spans")));
+
+    sentry_span_finish(opaque_child);
+    TEST_CHECK(
+        0 == sentry_value_get_length(sentry_value_get_by_key(tx, "spans")));
+
+    // perform the same checks, but with the transaction on the scope
+    sentry_set_transaction_object(opaque_tx);
+
+    opaque_child = sentry_transaction_start_child(opaque_tx, "toot", "boat");
+    child = opaque_child->inner;
+    TEST_CHECK(!sentry_value_is_null(child));
+    TEST_CHECK(
+        !sentry_value_is_true(sentry_value_get_by_key(child, "sampled")));
+
+    opaque_grandchild
+        = sentry_span_start_child(opaque_child, "vroom", "sportscar");
+    grandchild = opaque_grandchild->inner;
+    TEST_CHECK(!sentry_value_is_null(grandchild));
+    TEST_CHECK(
+        !sentry_value_is_true(sentry_value_get_by_key(grandchild, "sampled")));
+
+    sentry_span_finish(opaque_grandchild);
+    TEST_CHECK(
+        0 == sentry_value_get_length(sentry_value_get_by_key(tx, "spans")));
+
+    sentry_span_finish(opaque_child);
+    TEST_CHECK(
+        0 == sentry_value_get_length(sentry_value_get_by_key(tx, "spans")));
+
+    sentry_transaction_finish(opaque_tx);
+
+    sentry_close();
+}
+
 static void
 check_spans(sentry_envelope_t *envelope, void *data)
 {
@@ -720,12 +788,20 @@ SENTRY_TEST(distributed_headers)
     TEST_CHECK(!sentry_value_is_true(
         sentry_value_get_by_key(dist_tx->inner, "sampled")));
 
+    child = sentry_transaction_start_child(tx, "honk", "goose");
+    TEST_CHECK(!sentry_value_is_true(
+        sentry_value_get_by_key(child->inner, "sampled")));
+
+    tx_ctx = sentry_transaction_context_new("distributed from a child!", NULL);
+    sentry_span_iter_headers(child, forward_headers_to, (void *)tx_ctx);
     sentry__transaction_decref(dist_tx);
+    dist_tx = sentry_transaction_start(tx_ctx, sentry_value_new_null());
 
-    // TODO: Check the sampled flag on a child span as well, but I think we
-    // don't create one if the transaction is not sampled? Well, here is the
-    // reason why we should!
+    TEST_CHECK(!sentry_value_is_true(
+        sentry_value_get_by_key(dist_tx->inner, "sampled")));
 
+    sentry__transaction_decref(dist_tx);
+    sentry__span_free(child);
     sentry__transaction_decref(tx);
 
     sentry_close();
