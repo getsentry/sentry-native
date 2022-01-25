@@ -621,6 +621,8 @@ SENTRY_TEST(unsampled_spans)
         0 == sentry_value_get_length(sentry_value_get_by_key(tx, "spans")));
 
     sentry_transaction_finish(opaque_tx);
+
+    sentry_close();
 }
 
 static void
