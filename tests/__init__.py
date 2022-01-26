@@ -203,7 +203,12 @@ class PayloadRef(object):
             payload = self.bytes.encode("utf-8", errors="replace")
         if self.json:
             payload = pprint.pformat(self.json)
-        print(textwrap.indent(payload, " " * indent))
+        try:
+            print(textwrap.indent(payload, " " * indent))
+        except UnicodeEncodeError:
+            # Windows CI appears fickle, and we put emojis in the json
+            payload = payload.encode('ascii', errors='replace')
+            print(textwrap.indent(payload, " " * indent))
 
     def __repr__(self):
         # type: (...) -> str
