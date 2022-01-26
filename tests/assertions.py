@@ -10,8 +10,9 @@ from .conditions import is_android
 VERSION_RE = re.compile(r"(\d+\.\d+\.\d+)(?:[-\.]?)(.*)")
 
 
-def matches(actual, expected):
-    return {k: v for (k, v) in actual.items() if k in expected.keys()} == expected
+def assert_matches(actual, expected):
+    """Assert two objects for equality, ignoring extra keys in ``actual``."""
+    assert {k: v for (k, v) in actual.items() if k in expected.keys()} == expected
 
 
 def assert_session(envelope, extra_assertion=None):
@@ -30,7 +31,12 @@ def assert_session(envelope, extra_assertion=None):
         assert matches(session, extra_assertion)
 
 
-def assert_meta(envelope, release="test-example-release", integration=None):
+def assert_meta(
+    envelope,
+    release="test-example-release",
+    integration=None,
+    transaction="test-transaction",
+):
     event = envelope.get_event()
 
     expected = {
@@ -38,7 +44,7 @@ def assert_meta(envelope, release="test-example-release", integration=None):
         "environment": "development",
         "release": release,
         "user": {"id": 42, "username": "some_name"},
-        "transaction": "test-transaction",
+        "transaction": transaction,
         "tags": {"expected-tag": "some value"},
         "extra": {"extra stuff": "some value", "…unicode key…": "őá…–🤮🚀¿ 한글 테스트"},
     }
@@ -51,18 +57,18 @@ def assert_meta(envelope, release="test-example-release", integration=None):
     }
     if not is_android:
         if sys.platform == "win32":
-            assert matches(
+            assert_matches(
                 event["contexts"]["os"],
                 {"name": "Windows", "version": platform.version()},
             )
-            assert event["contexts"]["os"]["build"] is not None
+            assert_event["contexts"]["os"]["build"] is not None
         elif sys.platform == "linux":
             version = platform.release()
             match = VERSION_RE.match(version)
             version = match.group(1)
             build = match.group(2)
 
-            assert matches(
+            assert_matches(
                 event["contexts"]["os"],
                 {"name": "Linux", "version": version, "build": build},
             )
@@ -72,7 +78,7 @@ def assert_meta(envelope, release="test-example-release", integration=None):
                 version.append("0")
             version = ".".join(version)
 
-            assert matches(
+            assert_matches(
                 event["contexts"]["os"],
                 {
                     "name": "macOS",
@@ -82,9 +88,9 @@ def assert_meta(envelope, release="test-example-release", integration=None):
             )
             assert event["contexts"]["os"]["build"] is not None
 
-    assert matches(event, expected)
-    assert matches(event["sdk"], expected_sdk)
-    assert matches(
+    assert_matches(event, expected)
+    assert_matches(event["sdk"], expected_sdk)
+    assert_matches(
         event["contexts"], {"runtime": {"type": "runtime", "name": "testing-runtime"}}
     )
 
@@ -92,10 +98,11 @@ def assert_meta(envelope, release="test-example-release", integration=None):
         assert event["sdk"].get("integrations") is None
     else:
         assert event["sdk"]["integrations"] == [integration]
-    assert any(
-        "sentry_example" in image["code_file"]
-        for image in event["debug_meta"]["images"]
-    )
+    if event.get("type") == "event":
+        assert any(
+            "sentry_example" in image["code_file"]
+            for image in event["debug_meta"]["images"]
+        )
 
 
 def assert_stacktrace(envelope, inside_exception=False, check_size=True):
@@ -155,7 +162,7 @@ def assert_event(envelope):
         "logger": "my-logger",
         "message": {"formatted": "Hello World!"},
     }
-    assert matches(event, expected)
+    assert_matches(event, expected)
     assert_timestamp(event["timestamp"])
 
 
@@ -165,13 +172,13 @@ def assert_exception(envelope):
         "type": "ParseIntError",
         "value": "invalid digit found in string",
     }
-    assert matches(event["exception"]["values"][0], exception)
+    assert_matches(event["exception"]["values"][0], exception)
     assert_timestamp(event["timestamp"])
 
 
 def assert_crash(envelope):
     event = envelope.get_event()
-    assert matches(event, {"level": "fatal"})
+    assert_matches(event, {"level": "fatal"})
     # depending on the unwinder, we currently don’t get any stack frames from
     # a `ucontext`
     assert_stacktrace(envelope, inside_exception=True, check_size=False)
