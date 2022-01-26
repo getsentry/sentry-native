@@ -65,7 +65,7 @@ def assert_meta(
                 event["contexts"]["os"],
                 {"name": "Windows", "version": platform.version()},
             )
-            assert_event["contexts"]["os"]["build"] is not None
+            assert event["contexts"]["os"]["build"] is not None
         elif sys.platform == "linux":
             version = platform.release()
             match = VERSION_RE.match(version)
