@@ -207,7 +207,7 @@ class PayloadRef(object):
             print(textwrap.indent(payload, " " * indent))
         except UnicodeEncodeError:
             # Windows CI appears fickle, and we put emojis in the json
-            payload = payload.encode('ascii', errors='replace')
+            payload = payload.encode("ascii", errors="replace").decode()
             print(textwrap.indent(payload, " " * indent))
 
     def __repr__(self):
