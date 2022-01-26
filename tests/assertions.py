@@ -10,6 +10,9 @@ from .conditions import is_android
 VERSION_RE = re.compile(r"(\d+\.\d+\.\d+)(?:[-\.]?)(.*)")
 
 
+def matches(actual, expected):
+    return {k: v for (k, v) in actual.items() if k in expected.keys()} == expected
+
 def assert_matches(actual, expected):
     """Assert two objects for equality, ignoring extra keys in ``actual``."""
     assert {k: v for (k, v) in actual.items() if k in expected.keys()} == expected
@@ -28,7 +31,7 @@ def assert_session(envelope, extra_assertion=None):
         "environment": "development",
     }
     if extra_assertion:
-        assert matches(session, extra_assertion)
+        assert_matches(session, extra_assertion)
 
 
 def assert_meta(
