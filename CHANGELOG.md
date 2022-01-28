@@ -1,5 +1,36 @@
 # Changelog
 
+## 0.4.14
+
+### Various fixes & improvements
+
+- test: Add integration test for envelope with transaction (#671) by @flub
+- feat(tracing): Always create spans even if they're unsampled (#668) by @relaxolotl
+- feat: Add explicit flush method/hook (NATIVE-111) (#670) by @Swatinem
+- fix(tracing): Set max spans to the default amount when tracing is enabled (#669) by @relaxolotl
+- feat(tracing): Allow setting a scope on a span (#667) by @loewenheim
+- ref(tracing): Revert name change of sentry_transaction_start (#666) by @loewenheim
+- fix: Match sentry-trace header case-insensitively (#665) by @Swatinem
+- ref: Make API forward-compatible to Sampling Context (NATIVE-457) (#663) by @Swatinem
+- fix: Apply default rate limit (#660) by @Swatinem
+- fix: Read Windows Version from Registry (#623) by @Swatinem
+- fix: Correct CMake `SENTRY_LIBRARY_TYPE` variable check (#662) by @Mixaill
+- feat: Implement distributed trace propagation (NATIVE-304) (#657) by @Swatinem
+- feat(tracing): Spans now carry pointers to the Transactions they belong to (#656) by @relaxolotl
+- feat: basic object merging (#650) by @flub
+- feat(tracing): Allow setting custom span status [NATIVE-441] (#648) by @loewenheim
+- ref(tracing): Update name of attached transaction in set_transaction [NATIVE-444] (#652) by @loewenheim
+- feat(tracing): Introduce structs for performance monitoring constructs (#649) by @relaxolotl
+- feat(tracing): Allow transaction renaming [NATIVE-438] (#651) by @loewenheim
+- tracing: Add transaction/span tag methods [NATIVE-442] (#626) by @loewenheim
+- fix: Revert to mmap-ing modules in the modulefinder (#642) by @Swatinem
+- fix: Read section names safely (#641) by @Swatinem
+- fix(tracing): Actually set the operation on a transaction (#647) by @relaxolotl
+- feat(tracing): Retroactive unit test improvements (#637) by @relaxolotl
+- feat(tracing): Basic span support with nesting (#634) by @relaxolotl
+
+_Plus 12 more_
+
 ## 0.4.13
 
 **Features**
