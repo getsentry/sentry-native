@@ -39,8 +39,9 @@ sentry__stringbuilder_reserve(sentry_stringbuilder_t *sb, size_t len)
     return &sb->buf[sb->len];
 }
 
-static int
-append(sentry_stringbuilder_t *sb, const char *s, size_t len)
+int
+sentry__stringbuilder_append_buf(
+    sentry_stringbuilder_t *sb, const char *s, size_t len)
 {
     char *buf = sentry__stringbuilder_reserve(sb, len + 1);
     if (!buf) {
@@ -53,33 +54,6 @@ append(sentry_stringbuilder_t *sb, const char *s, size_t len)
     sb->buf[sb->len] = '\0';
 
     return 0;
-}
-
-int
-sentry__stringbuilder_append(sentry_stringbuilder_t *sb, const char *s)
-{
-    return append(sb, s, strlen(s));
-}
-
-int
-sentry__stringbuilder_append_buf(
-    sentry_stringbuilder_t *sb, const char *s, size_t len)
-{
-    return append(sb, s, len);
-}
-
-int
-sentry__stringbuilder_append_char(sentry_stringbuilder_t *sb, char c)
-{
-    return append(sb, &c, 1);
-}
-
-int
-sentry__stringbuilder_append_char32(sentry_stringbuilder_t *sb, uint32_t c)
-{
-    char buf[4];
-    size_t len = sentry__unichar_to_utf8(c, buf);
-    return sentry__stringbuilder_append_buf(sb, buf, len);
 }
 
 char *

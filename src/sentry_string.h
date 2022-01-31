@@ -22,25 +22,28 @@ typedef struct sentry_stringbuilder_s {
 void sentry__stringbuilder_init(sentry_stringbuilder_t *sb);
 
 /**
- * Appends a zero terminated string to the builder.
- */
-int sentry__stringbuilder_append(sentry_stringbuilder_t *sb, const char *s);
-
-/**
  * Appends a sized buffer.
  */
 int sentry__stringbuilder_append_buf(
     sentry_stringbuilder_t *sb, const char *s, size_t len);
 
 /**
- * Appends a single character.
+ * Appends a zero terminated string to the builder.
  */
-int sentry__stringbuilder_append_char(sentry_stringbuilder_t *sb, char c);
+static inline int
+sentry__stringbuilder_append(sentry_stringbuilder_t *sb, const char *s)
+{
+    return sentry__stringbuilder_append_buf(sb, s, strlen(s));
+}
 
 /**
- * Appends a utf-32 character.
+ * Appends a single character.
  */
-int sentry__stringbuilder_append_char32(sentry_stringbuilder_t *sb, uint32_t c);
+static inline int
+sentry__stringbuilder_append_char(sentry_stringbuilder_t *sb, char c)
+{
+    return sentry__stringbuilder_append_buf(sb, &c, 1);
+}
 
 /**
  * Appends an int64 value.
