@@ -116,7 +116,7 @@ static inline char *
 sentry__string_clonen(const char *str, size_t n)
 {
     size_t len = n + 1;
-    char *rv = sentry_malloc(len);
+    char *rv = (char *)sentry_malloc(len);
     if (rv) {
         memcpy(rv, str, n);
         rv[n] = 0;
