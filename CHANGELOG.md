@@ -1,8 +1,15 @@
 # Changelog
 
+## Unreleased
+
+**Fixes**:
+
+- Fix contexts from the scope not being attached to events correctly.
+- Improve performance of event serialization.
+
 ## 0.4.14
 
-**Features**
+**Features**:
 
 - The Sentry SDK now has experimental support for performance monitoring.
   The performance monitoring API allows manually creating transactions and instrumenting spans, and offers APIs for distributed tracing.
@@ -10,7 +17,7 @@
   For more information, take a look at the more detailed [documentation of performance monitoring](https://docs.sentry.io/platforms/native/performance/).
 - Sentry now has an explicit `sentry_flush` method that blocks the calling thread for the given time, waiting for the transport queue to be flushed. Custom transports need to implement a new `flush_hook` for this to work.
 
-**Fixes**
+**Fixes**:
 
 - Fix Sentry API deadlocking when the SDK was not initialized (or `sentry_init` failed).
 - The rate limit handling of the default transports was updated to match the expected behavior.
@@ -26,13 +33,13 @@ Features, fixes and improvements in this release have been contributed by:
 
 ## 0.4.13
 
-**Features**
+**Features**:
 
 - Add client-side stackwalking on Linux, Windows, and macOS (disabled by default).
 - CMake: add ability to set solution folder name.
 - Add AIX support.
 
-**Fixes**
+**Fixes**:
 
 - CMake: check whether libcurl was already found.
 - Increment CXX standard version to 14 to allow crashpad to build.
