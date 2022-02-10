@@ -326,8 +326,9 @@ sentry__scope_apply_to_event(const sentry_scope_t *scope,
         sentry__value_merge_objects(event_extra, scope->extra);
     }
 
-#ifdef SENTRY_PERFORMANCE_MONITORING
     sentry_value_t contexts = sentry__value_clone(scope->contexts);
+
+#ifdef SENTRY_PERFORMANCE_MONITORING
     // prep contexts sourced from scope; data about transaction on scope needs
     // to be extracted and inserted
     sentry_value_t scope_trace = sentry__value_get_trace_context(
@@ -338,6 +339,7 @@ sentry__scope_apply_to_event(const sentry_scope_t *scope,
         }
         sentry_value_set_by_key(contexts, "trace", scope_trace);
     }
+#endif
 
     // merge contexts sourced from scope into the event
     sentry_value_t event_contexts = sentry_value_get_by_key(event, "contexts");
@@ -347,7 +349,6 @@ sentry__scope_apply_to_event(const sentry_scope_t *scope,
         sentry__value_merge_objects(event_contexts, contexts);
     }
     sentry_value_decref(contexts);
-#endif
 
     if (mode & SENTRY_SCOPE_BREADCRUMBS) {
         PLACE_CLONED_VALUE("breadcrumbs", scope->breadcrumbs);
