@@ -568,7 +568,6 @@ SENTRY_API sentry_value_t sentry_envelope_get_event(
  */
 SENTRY_EXPERIMENTAL_API sentry_value_t sentry_envelope_get_transaction(
     const sentry_envelope_t *envelope);
-#endif
 
 /**
  * Serializes the envelope.
@@ -1708,4 +1707,5 @@ SENTRY_EXPERIMENTAL_API void sentry_transaction_iter_headers(
 
 #ifdef __cplusplus
 }
+#endif
 #endif
