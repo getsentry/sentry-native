@@ -2,7 +2,6 @@
 #include "sentry_testsupport.h"
 #include "sentry_utils.h"
 #include "sentry_value.h"
-#include <sentry.h>
 
 #ifdef SENTRY_PLATFORM_UNIX
 #    include "sentry_unix_pageallocator.h"

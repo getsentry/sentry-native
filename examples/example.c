@@ -93,7 +93,6 @@ main(int argc, char **argv)
             options, sentry_transport_new(print_envelope));
     }
 
-#ifdef SENTRY_PERFORMANCE_MONITORING
     if (has_arg(argc, argv, "capture-transaction")) {
         sentry_options_set_traces_sample_rate(options, 1.0);
     }
@@ -101,7 +100,6 @@ main(int argc, char **argv)
     if (has_arg(argc, argv, "child-spans")) {
         sentry_options_set_max_spans(options, 5);
     }
-#endif
 
     sentry_init(options);
 
@@ -218,7 +216,6 @@ main(int argc, char **argv)
         sentry_capture_event(event);
     }
 
-#ifdef SENTRY_PERFORMANCE_MONITORING
     if (has_arg(argc, argv, "capture-transaction")) {
         sentry_transaction_context_t *tx_ctx
             = sentry_transaction_context_new("little.teapot",
@@ -253,7 +250,6 @@ main(int argc, char **argv)
 
         sentry_transaction_finish(tx);
     }
-#endif
 
     // make sure everything flushes
     sentry_close();

@@ -29,13 +29,11 @@
  */
 bool sentry__should_skip_upload(void);
 
-#ifdef SENTRY_PERFORMANCE_MONITORING
 /**
  * Given a well-formed event, returns whether an event is a transaction or not.
  * Defaults to false, which will also be returned if the event is malformed.
  */
 bool sentry__event_is_transaction(sentry_value_t event);
-#endif
 
 /**
  * Convert the given event into an envelope. This assumes that the event
@@ -60,7 +58,6 @@ sentry_envelope_t *sentry__prepare_event(const sentry_options_t *options,
  */
 sentry_uuid_t sentry__capture_event(sentry_value_t event);
 
-#ifdef SENTRY_PERFORMANCE_MONITORING
 /**
  * Convert the given transaction into an envelope. This assumes that the
  * event being passed in is a transaction.
@@ -78,7 +75,6 @@ sentry_uuid_t sentry__capture_event(sentry_value_t event);
  */
 sentry_envelope_t *sentry__prepare_transaction(const sentry_options_t *options,
     sentry_value_t transaction, sentry_uuid_t *event_id);
-#endif
 
 /**
  * This function will submit the `envelope` to the given `transport`, first
@@ -122,9 +118,7 @@ void sentry__options_unlock(void);
 // these for now are only needed outside of core for tests
 #ifdef SENTRY_UNITTEST
 bool sentry__roll_dice(double probability);
-#    ifdef SENTRY_PERFORMANCE_MONITORING
 bool sentry__should_send_transaction(sentry_value_t tx_cxt);
-#    endif
 #endif
 
 #endif

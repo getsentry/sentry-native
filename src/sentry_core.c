@@ -16,15 +16,12 @@
 #include "sentry_session.h"
 #include "sentry_string.h"
 #include "sentry_sync.h"
+#include "sentry_tracing.h"
 #include "sentry_transport.h"
 #include "sentry_value.h"
 
 #ifdef SENTRY_INTEGRATION_QT
 #    include "integrations/sentry_integration_qt.h"
-#endif
-
-#ifdef SENTRY_PERFORMANCE_MONITORING
-#    include "sentry_tracing.h"
 #endif
 
 static sentry_options_t *g_options = NULL;
@@ -367,27 +364,21 @@ event_is_considered_error(sentry_value_t event)
     return false;
 }
 
-#ifdef SENTRY_PERFORMANCE_MONITORING
 bool
 sentry__event_is_transaction(sentry_value_t event)
 {
     sentry_value_t event_type = sentry_value_get_by_key(event, "type");
     return sentry__string_eq("transaction", sentry_value_as_string(event_type));
 }
-#endif
 
 sentry_uuid_t
 sentry_capture_event(sentry_value_t event)
 {
-#ifdef SENTRY_PERFORMANCE_MONITORING
     if (sentry__event_is_transaction(event)) {
         return sentry_uuid_nil();
     } else {
         return sentry__capture_event(event);
     }
-#else
-    return sentry__capture_event(event);
-#endif
 }
 
 sentry_uuid_t
@@ -401,15 +392,11 @@ sentry__capture_event(sentry_value_t event)
     SENTRY_WITH_OPTIONS (options) {
         was_captured = true;
 
-#ifdef SENTRY_PERFORMANCE_MONITORING
         if (sentry__event_is_transaction(event)) {
             envelope = sentry__prepare_transaction(options, event, &event_id);
         } else {
             envelope = sentry__prepare_event(options, event, &event_id);
         }
-#else
-        envelope = sentry__prepare_event(options, event, &event_id);
-#endif
         if (envelope) {
             if (options->session) {
                 sentry_options_t *mut_options = sentry__options_lock();
@@ -439,7 +426,6 @@ sentry__roll_dice(double probability)
         || ((double)rnd / (double)UINT64_MAX) <= probability;
 }
 
-#ifdef SENTRY_PERFORMANCE_MONITORING
 bool
 sentry__should_send_transaction(sentry_value_t tx_cxt)
 {
@@ -456,7 +442,6 @@ sentry__should_send_transaction(sentry_value_t tx_cxt)
     }
     return send;
 }
-#endif
 
 sentry_envelope_t *
 sentry__prepare_event(const sentry_options_t *options, sentry_value_t event,
@@ -524,7 +509,6 @@ fail:
     return NULL;
 }
 
-#ifdef SENTRY_PERFORMANCE_MONITORING
 sentry_envelope_t *
 sentry__prepare_transaction(const sentry_options_t *options,
     sentry_value_t transaction, sentry_uuid_t *event_id)
@@ -555,7 +539,6 @@ fail:
     sentry_value_decref(transaction);
     return NULL;
 }
-#endif
 
 void
 sentry_handle_exception(const sentry_ucontext_t *uctx)
@@ -723,11 +706,9 @@ sentry_set_transaction(const char *transaction)
         sentry_free(scope->transaction);
         scope->transaction = sentry__string_clone(transaction);
 
-#ifdef SENTRY_PERFORMANCE_MONITORING
         if (scope->transaction_object) {
             sentry_transaction_set_name(scope->transaction_object, transaction);
         }
-#endif
     }
 }
 
@@ -739,7 +720,6 @@ sentry_set_level(sentry_level_t level)
     }
 }
 
-#ifdef SENTRY_PERFORMANCE_MONITORING
 sentry_transaction_t *
 sentry_transaction_start(
     sentry_transaction_context_t *opaque_tx_cxt, sentry_value_t sampling_ctx)
@@ -1019,4 +999,3 @@ fail:
     sentry__span_free(opaque_span);
     return;
 }
-#endif
