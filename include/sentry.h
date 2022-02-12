@@ -23,7 +23,9 @@ extern "C" {
 #endif
 
 /* SDK Version */
-#ifndef SENTRY_SDK_NAME
+#ifdef __ANDROID__
+#    define SENTRY_SDK_NAME "sentry.native.android"
+#else
 #    define SENTRY_SDK_NAME "sentry.native"
 #endif
 #define SENTRY_SDK_VERSION "0.4.15"
