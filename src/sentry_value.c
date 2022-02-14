@@ -1009,7 +1009,6 @@ sentry__value_new_hexstring(const uint8_t *bytes, size_t len)
     return sentry__value_new_string_owned(buf);
 }
 
-#ifdef SENTRY_PERFORMANCE_MONITORING
 sentry_value_t
 sentry__value_new_span_uuid(const sentry_uuid_t *uuid)
 {
@@ -1033,7 +1032,6 @@ sentry__value_new_internal_uuid(const sentry_uuid_t *uuid)
     buf[32] = '\0';
     return sentry__value_new_string_owned(buf);
 }
-#endif
 
 sentry_value_t
 sentry__value_new_uuid(const sentry_uuid_t *uuid)

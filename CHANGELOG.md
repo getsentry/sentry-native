@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- Removed the `SENTRY_PERFORMANCE_MONITORING` compile flag requirement to access performance monitoring in the Sentry SDK. Performance monitoring is now available to everybody who has opted into the experimental API.
+
 ## 0.4.15
 
 **Fixes**:

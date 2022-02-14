@@ -1,6 +1,5 @@
 #include "sentry_core.h"
 #include "sentry_testsupport.h"
-#include <sentry.h>
 
 static void
 send_envelope_test_basic(const sentry_envelope_t *envelope, void *data)

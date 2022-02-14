@@ -3,7 +3,6 @@
 #include "sentry_value.h"
 #include <locale.h>
 #include <math.h>
-#include <sentry.h>
 
 SENTRY_TEST(value_null)
 {

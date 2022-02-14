@@ -83,7 +83,6 @@ endif()
 target_compile_definitions(sentry PRIVATE SIZEOF_LONG=${CMAKE_SIZEOF_LONG})
 
 target_compile_definitions(sentry_test_unit PRIVATE SENTRY_UNITTEST)
-target_compile_definitions(sentry_test_unit PRIVATE SENTRY_PERFORMANCE_MONITORING)
 
 add_test(NAME sentry_test_unit COMMAND sentry_test_unit)
 

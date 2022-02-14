@@ -51,11 +51,8 @@ sentry_options_new(void)
     opts->sample_rate = 1.0;
     opts->refcount = 1;
     opts->shutdown_timeout = SENTRY_DEFAULT_SHUTDOWN_TIMEOUT;
-
-#ifdef SENTRY_PERFORMANCE_MONITORING
     opts->traces_sample_rate = 0.0;
     opts->max_spans = 0;
-#endif
 
     return opts;
 }
@@ -378,7 +375,6 @@ sentry_options_set_database_pathw(sentry_options_t *opts, const wchar_t *path)
 }
 #endif
 
-#ifdef SENTRY_PERFORMANCE_MONITORING
 /**
  * Sets the maximum number of spans that can be attached to a
  * transaction.
@@ -429,4 +425,3 @@ sentry_options_get_traces_sample_rate(sentry_options_t *opts)
 {
     return opts->traces_sample_rate;
 }
-#endif
