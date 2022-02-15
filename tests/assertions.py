@@ -59,7 +59,9 @@ def assert_meta(
             {"name": "github:getsentry/sentry-native", "version": "0.4.15"},
         ],
     }
-    if not is_android:
+    if is_android:
+        expected_sdk["name"] = "sentry.native.android"
+    else:
         if sys.platform == "win32":
             assert_matches(
                 event["contexts"]["os"],
