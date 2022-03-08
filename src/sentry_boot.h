@@ -40,4 +40,6 @@
 #include <sentry.h>
 #include <stdbool.h>
 
+#define SENTRY_SDK_USER_AGENT SENTRY_SDK_NAME "/" SENTRY_SDK_VERSION
+
 #endif
