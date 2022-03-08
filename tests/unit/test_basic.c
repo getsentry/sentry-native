@@ -107,10 +107,14 @@ SENTRY_TEST(crash_marker)
     TEST_CHECK(sentry__clear_crash_marker(options));
 
     // write should normally be true, even when called multiple times
+    TEST_CHECK(!sentry__has_crash_marker(options));
     TEST_CHECK(sentry__write_crash_marker(options));
+    TEST_CHECK(sentry__has_crash_marker(options));
     TEST_CHECK(sentry__write_crash_marker(options));
+    TEST_CHECK(sentry__has_crash_marker(options));
 
     TEST_CHECK(sentry__clear_crash_marker(options));
+    TEST_CHECK(!sentry__has_crash_marker(options));
     TEST_CHECK(sentry__clear_crash_marker(options));
 
     sentry_options_free(options);
@@ -118,23 +122,21 @@ SENTRY_TEST(crash_marker)
 
 SENTRY_TEST(crashed_last_run)
 {
+    // fails before init() is called
+    TEST_CHECK_INT_EQUAL(sentry_clear_crashed_last_run(), 1);
+
     // clear any leftover from previous test runs
     sentry_options_t *options = sentry_options_new();
     TEST_CHECK(sentry__clear_crash_marker(options));
     sentry_options_free(options);
 
-    TEST_CHECK_INT_EQUAL(sentry_get_crashed_last_run(), -2); // before init()
+    // -1 before sentry_init()
+    TEST_CHECK_INT_EQUAL(sentry_get_crashed_last_run(), -1);
 
     options = sentry_options_new();
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
     TEST_CHECK_INT_EQUAL(sentry_init(options), 0);
     sentry_close();
-
-    if (sentry_get_crashed_last_run() == -1) {
-        // crashed_last_run() is not supported with the current backend
-        SKIP_TEST();
-        return;
-    }
 
     TEST_CHECK_INT_EQUAL(sentry_get_crashed_last_run(), 0);
 
@@ -146,17 +148,21 @@ SENTRY_TEST(crashed_last_run)
     TEST_CHECK(sentry__write_crash_marker(options));
 
     TEST_CHECK_INT_EQUAL(sentry_init(options), 0);
-    sentry_close();
 
     TEST_CHECK_INT_EQUAL(sentry_get_crashed_last_run(), 1);
 
     // clear the status and re-init
-    // sentry_clear_crashed_last_run();
+    TEST_CHECK_INT_EQUAL(sentry_clear_crashed_last_run(), 0);
 
-    // options = sentry_options_new();
-    // sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
-    // TEST_CHECK_INT_EQUAL(sentry_init(options), 0);
-    // sentry_close();
+    sentry_close();
 
-    // TEST_CHECK_INT_EQUAL(sentry_get_crashed_last_run(), 0);
+    // no change yet before sentry_init() is called
+    TEST_CHECK_INT_EQUAL(sentry_get_crashed_last_run(), 1);
+
+    options = sentry_options_new();
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    TEST_CHECK_INT_EQUAL(sentry_init(options), 0);
+    sentry_close();
+
+    TEST_CHECK_INT_EQUAL(sentry_get_crashed_last_run(), 0);
 }

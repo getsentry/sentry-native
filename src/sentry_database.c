@@ -264,6 +264,20 @@ sentry__write_crash_marker(const sentry_options_t *options)
 }
 
 bool
+sentry__has_crash_marker(const sentry_options_t *options)
+{
+    sentry_path_t *marker_path
+        = sentry__path_join_str(options->database_path, g_last_crash_filename);
+    if (!marker_path) {
+        return false;
+    }
+
+    bool result = sentry__path_is_file(marker_path);
+    sentry__path_free(marker_path);
+    return result;
+}
+
+bool
 sentry__clear_crash_marker(const sentry_options_t *options)
 {
     sentry_path_t *marker_path
@@ -273,6 +287,7 @@ sentry__clear_crash_marker(const sentry_options_t *options)
     }
 
     int rv = sentry__path_remove(marker_path);
+    sentry__path_free(marker_path);
     if (rv) {
         SENTRY_DEBUG("removing the crash timestamp file has failed");
     }
