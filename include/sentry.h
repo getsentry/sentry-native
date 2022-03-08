@@ -1711,7 +1711,11 @@ SENTRY_EXPERIMENTAL_API void sentry_transaction_iter_headers(
 
 /**
  * Returns whether the application has crashed on the last run.
- * Note: the underlying value is set by sentry_init() - it must be called first.
+ *
+ * Notes:
+ *   * The underlying value is set by sentry_init() - it must be called first.
+ *   * Call sentry_clear_crashed_last_run() to reset for the next app run.
+ *
  * Possible return values:
  *   1 = the last run was a crash
  *   0 = no crash recognized
@@ -1724,12 +1728,12 @@ SENTRY_EXPERIMENTAL_API int sentry_get_crashed_last_run();
  * this after sentry_init() if you're using sentry_get_crashed_last_run().
  * Otherwise, the same information is reported on any subsequent runs.
  *
- * Note: this doesn't change the value of sentry_get_crashed_last_run() yet.
- *       However, if sentry_init() is called again, the value will change.
+ * Notes:
+ *   * This doesn't change the value of sentry_get_crashed_last_run() yet.
+ *     However, if sentry_init() is called again, the value will change.
+ *   * This may only be called after sentry_init() and before sentry_close().
  *
- * Note: this may only be called after sentry_init() and before sentry_close().
- *
- * Returns 0 on success, 1 on error
+ * Returns 0 on success, 1 on error.
  */
 SENTRY_EXPERIMENTAL_API int sentry_clear_crashed_last_run();
 
