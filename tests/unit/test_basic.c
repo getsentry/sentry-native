@@ -144,7 +144,6 @@ SENTRY_TEST(crashed_last_run)
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
 
     // simulate a crash
-    uint64_t before = sentry__msec_time();
     TEST_CHECK(sentry__write_crash_marker(options));
 
     TEST_CHECK_INT_EQUAL(sentry_init(options), 0);
