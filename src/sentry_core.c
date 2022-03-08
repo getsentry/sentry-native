@@ -27,6 +27,9 @@
 static sentry_options_t *g_options = NULL;
 static sentry_mutex_t g_options_lock = SENTRY__MUTEX_INIT;
 
+/// see sentry_get_crashed_last_run() for the possible values
+static int g_last_crash = -2;
+
 const sentry_options_t *
 sentry__options_getref(void)
 {
@@ -156,6 +159,9 @@ sentry_init(sentry_options_t *options)
     }
     if (backend && backend->get_last_crash_func) {
         last_crash = backend->get_last_crash_func(backend);
+        g_last_crash = last_crash > 0 ? 1 : 0;
+    } else {
+        g_last_crash = -1;
     }
 
     g_options = options;
@@ -998,4 +1004,10 @@ sentry_span_finish(sentry_span_t *opaque_span)
 fail:
     sentry__span_free(opaque_span);
     return;
+}
+
+int
+sentry_get_crashed_last_run()
+{
+    return g_last_crash;
 }

@@ -1,5 +1,7 @@
 #include "sentry_core.h"
+#include "sentry_database.h"
 #include "sentry_testsupport.h"
+#include "sentry_utils.h"
 
 static void
 send_envelope_test_basic(const sentry_envelope_t *envelope, void *data)
@@ -95,4 +97,66 @@ SENTRY_TEST(sampling_before_send)
     TEST_CHECK_INT_EQUAL(called_transport, 0);
     // well, its random after all
     TEST_CHECK(called_beforesend > 50 && called_beforesend < 100);
+}
+
+SENTRY_TEST(crash_marker)
+{
+    sentry_options_t *options = sentry_options_new();
+
+    // clear returns true, regardless if the file exists
+    TEST_CHECK(sentry__clear_crash_marker(options));
+
+    // write should normally be true, even when called multiple times
+    TEST_CHECK(sentry__write_crash_marker(options));
+    TEST_CHECK(sentry__write_crash_marker(options));
+
+    TEST_CHECK(sentry__clear_crash_marker(options));
+    TEST_CHECK(sentry__clear_crash_marker(options));
+
+    sentry_options_free(options);
+}
+
+SENTRY_TEST(crashed_last_run)
+{
+    // clear any leftover from previous test runs
+    sentry_options_t *options = sentry_options_new();
+    TEST_CHECK(sentry__clear_crash_marker(options));
+    sentry_options_free(options);
+
+    TEST_CHECK_INT_EQUAL(sentry_get_crashed_last_run(), -2); // before init()
+
+    options = sentry_options_new();
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    TEST_CHECK_INT_EQUAL(sentry_init(options), 0);
+    sentry_close();
+
+    if (sentry_get_crashed_last_run() == -1) {
+        // crashed_last_run() is not supported with the current backend
+        SKIP_TEST();
+        return;
+    }
+
+    TEST_CHECK_INT_EQUAL(sentry_get_crashed_last_run(), 0);
+
+    options = sentry_options_new();
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+
+    // simulate a crash
+    uint64_t before = sentry__msec_time();
+    TEST_CHECK(sentry__write_crash_marker(options));
+
+    TEST_CHECK_INT_EQUAL(sentry_init(options), 0);
+    sentry_close();
+
+    TEST_CHECK_INT_EQUAL(sentry_get_crashed_last_run(), 1);
+
+    // clear the status and re-init
+    // sentry_clear_crashed_last_run();
+
+    // options = sentry_options_new();
+    // sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    // TEST_CHECK_INT_EQUAL(sentry_init(options), 0);
+    // sentry_close();
+
+    // TEST_CHECK_INT_EQUAL(sentry_get_crashed_last_run(), 0);
 }

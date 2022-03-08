@@ -1709,6 +1709,17 @@ SENTRY_EXPERIMENTAL_API void sentry_transaction_iter_headers(
     sentry_transaction_t *tx, sentry_iter_headers_function_t callback,
     void *userdata);
 
+/**
+ * Returns whether the application has crashed on the last run.
+ * Note: this is currently only supported with the crashpad backend.
+ * Possible return values:
+ *   1 = the last run was a crash
+ *   0 = no crash recognized
+ *  -1 = not supported with the current backend
+ *  -2 = sentry_init() hasn't been called yet
+ */
+SENTRY_EXPERIMENTAL_API int sentry_get_crashed_last_run();
+
 #ifdef __cplusplus
 }
 #endif

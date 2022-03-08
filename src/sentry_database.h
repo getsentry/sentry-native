@@ -75,4 +75,9 @@ void sentry__process_old_runs(
  */
 bool sentry__write_crash_marker(const sentry_options_t *options);
 
+/**
+ * This will remove the `<database>/last_crash` file.
+ */
+bool sentry__clear_crash_marker(const sentry_options_t *options);
+
 #endif
