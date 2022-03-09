@@ -27,6 +27,9 @@
 static sentry_options_t *g_options = NULL;
 static sentry_mutex_t g_options_lock = SENTRY__MUTEX_INIT;
 
+/// see sentry_get_crashed_last_run() for the possible values
+static int g_last_crash = -1;
+
 const sentry_options_t *
 sentry__options_getref(void)
 {
@@ -158,6 +161,7 @@ sentry_init(sentry_options_t *options)
         last_crash = backend->get_last_crash_func(backend);
     }
 
+    g_last_crash = sentry__has_crash_marker(options);
     g_options = options;
 
     // *after* setting the global options, trigger a scope and consent flush,
@@ -998,4 +1002,22 @@ sentry_span_finish(sentry_span_t *opaque_span)
 fail:
     sentry__span_free(opaque_span);
     return;
+}
+
+int
+sentry_get_crashed_last_run()
+{
+    return g_last_crash;
+}
+
+int
+sentry_clear_crashed_last_run()
+{
+    bool success = false;
+    sentry_options_t *options = sentry__options_lock();
+    if (options) {
+        success = sentry__clear_crash_marker(options);
+    }
+    sentry__options_unlock();
+    return success ? 0 : 1;
 }
