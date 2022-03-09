@@ -272,7 +272,8 @@ Legend:
   Note that this feature is still experimental.
 
 - `SENTRY_SDK_NAME` (Default: sentry.native or sentry.native.android):
-  Sets the SDK name that should be included in the reported events.
+  Sets the SDK name that should be included in the reported events. If you're overriding this, make sure to also define
+  the same value using `target_compile_definitions()` on your own targets that include `sentry.h`.
 
 ### Build Targets
 

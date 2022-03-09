@@ -151,12 +151,7 @@ if(SENTRY_BACKEND_CRASHPAD AND ANDROID)
 	message(FATAL_ERROR "The Crashpad backend is not currently supported on Android")
 endif()
 
-if(ANDROID)
-	set(SENTRY_DEFAULT_SDK_NAME "sentry.native.android")
-else()
-	set(SENTRY_DEFAULT_SDK_NAME "sentry.native")
-endif()
-set(SENTRY_SDK_NAME "${SENTRY_DEFAULT_SDK_NAME}" CACHE STRING "The SDK name to report when sending events.")
+set(SENTRY_SDK_NAME "" CACHE STRING "The SDK name to report when sending events.")
 
 message(STATUS "SENTRY_TRANSPORT=${SENTRY_TRANSPORT}")
 message(STATUS "SENTRY_BACKEND=${SENTRY_BACKEND}")
@@ -229,7 +224,9 @@ target_sources(sentry PRIVATE "${PROJECT_SOURCE_DIR}/include/sentry.h")
 add_library(sentry::sentry ALIAS sentry)
 add_subdirectory(src)
 
-target_compile_definitions(sentry PRIVATE SENTRY_SDK_NAME="${SENTRY_SDK_NAME}")
+if (NOT SENTRY_SDK_NAME STREQUAL "")
+	target_compile_definitions(sentry PRIVATE SENTRY_SDK_NAME="${SENTRY_SDK_NAME}")
+endif()
 
 # we do not need this on android, only linux
 if(LINUX)
