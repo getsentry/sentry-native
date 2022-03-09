@@ -5,6 +5,7 @@
 **Features**:
 
 - Removed the `SENTRY_PERFORMANCE_MONITORING` compile flag requirement to access performance monitoring in the Sentry SDK. Performance monitoring is now available to everybody who has opted into the experimental API.
+- Allow overriding the SDK name at build time - set the `SENTRY_SDK_NAME` CMake cache variable.
 
 ## 0.4.15
 

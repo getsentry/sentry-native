@@ -40,6 +40,7 @@ def assert_meta(
     release="test-example-release",
     integration=None,
     transaction="test-transaction",
+    sdk_override=None,
 ):
     event = envelope.get_event()
 
@@ -93,6 +94,9 @@ def assert_meta(
                 },
             )
             assert event["contexts"]["os"]["build"] is not None
+
+    if sdk_override != None:
+        expected_sdk["name"] = sdk_override
 
     assert_matches(event, expected)
     assert_matches(event["sdk"], expected_sdk)
