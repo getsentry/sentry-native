@@ -83,7 +83,7 @@ SENTRY_TEST(dsn_parsing_complete)
     TEST_CHECK_STRING_EQUAL(dsn->public_key, "username");
     TEST_CHECK_STRING_EQUAL(dsn->secret_key, "password");
     TEST_CHECK_STRING_EQUAL(dsn->path, "/foo/bar");
-    TEST_CHECK_INT_EQUAL((int)dsn->project_id, 42);
+    TEST_CHECK_STRING_EQUAL(dsn->project_id, "42");
     sentry__dsn_decref(dsn);
 
     dsn = sentry__dsn_new("https://username@example.com/42");
@@ -97,7 +97,7 @@ SENTRY_TEST(dsn_parsing_complete)
     TEST_CHECK_STRING_EQUAL(dsn->public_key, "username");
     TEST_CHECK(!dsn->secret_key);
     TEST_CHECK_STRING_EQUAL(dsn->path, "");
-    TEST_CHECK_INT_EQUAL((int)dsn->project_id, 42);
+    TEST_CHECK_STRING_EQUAL(dsn->project_id, "42");
     sentry__dsn_decref(dsn);
 }
 

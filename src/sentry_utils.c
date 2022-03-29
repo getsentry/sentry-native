@@ -218,6 +218,7 @@ sentry__dsn_new(const char *raw_dsn)
     sentry_url_t url;
     memset(&url, 0, sizeof(sentry_url_t));
     size_t path_len;
+    long long project_id;
     char *tmp;
     char *end;
 
@@ -259,12 +260,16 @@ sentry__dsn_new(const char *raw_dsn)
     if (!tmp) {
         goto exit;
     }
-
-    dsn->project_id = (uint64_t)strtoll(tmp + 1, &end, 10);
+    // Validate that the project ID is still a valid number until sentry fully
+    // commits to pure string project IDs
+    project_id = strtoll(tmp + 1, &end, 10);
     if (end != tmp + strlen(tmp)) {
         goto exit;
     }
+
+    dsn->project_id = sentry__string_clone(tmp + 1);
     *tmp = 0;
+
     dsn->path = url.path;
     url.path = NULL;
 
@@ -329,7 +334,7 @@ init_string_builder_for_url(sentry_stringbuilder_t *sb, const sentry_dsn_t *dsn)
     sentry__stringbuilder_append_int64(sb, (int64_t)dsn->port);
     sentry__stringbuilder_append(sb, dsn->path);
     sentry__stringbuilder_append(sb, "/api/");
-    sentry__stringbuilder_append_int64(sb, (int64_t)dsn->project_id);
+    sentry__stringbuilder_append(sb, dsn->project_id);
 }
 
 char *
