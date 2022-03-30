@@ -75,8 +75,8 @@ jobs:
             ERROR_ON_WARNINGS: 1
             SYSTEM_VERSION_COMPAT: 0
             RUN_ANALYZER: asan,llvm-cov
-          - name: Windows (VS2017, 32bit)
-            os: vs2017-win2016
+          - name: Windows (VS2019)
+            os: windows-2019
             TEST_X86: 1
           - name: Windows (latest)
             os: windows-latest
