@@ -296,6 +296,7 @@ sentry__dsn_decref(sentry_dsn_t *dsn)
         sentry_free(dsn->path);
         sentry_free(dsn->public_key);
         sentry_free(dsn->secret_key);
+        sentry_free(dsn->project_id);
         sentry_free(dsn);
     }
 }
