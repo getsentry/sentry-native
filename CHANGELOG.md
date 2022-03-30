@@ -8,6 +8,9 @@
 - New API to check whether the application has crashed in the previous run: `sentry_get_crashed_last_run()` and `sentry_clear_crashed_last_run()` ([#685](https://github.com/getsentry/sentry-native/pull/685)).
 - Allow overriding the SDK name at build time - set the `SENTRY_SDK_NAME` CMake cache variable.
 
+**Fixes**:
+- Updated CI as well as list of supported platforms to reflect Windows Server 2016, and therefore MSVC 2017 losing active support.
+
 ## 0.4.15
 
 **Fixes**:

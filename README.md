@@ -59,7 +59,7 @@ The SDK currently supports and is tested on the following OS/Compiler variations
 - 64bit Linux with clang 9
 - 32bit Linux with GCC 7 (cross compiled from 64bit host)
 - 64bit Windows with MSVC 2019
-- 32bit Windows with MSVC 2017
+- 64bit Windows with MSVC 2022
 - macOS Catalina with most recent Compiler toolchain
 - Android API29 built by NDK21 toolchain
 - Android API16 built by NDK19 toolchain
