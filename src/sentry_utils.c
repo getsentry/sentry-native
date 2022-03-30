@@ -218,9 +218,7 @@ sentry__dsn_new(const char *raw_dsn)
     sentry_url_t url;
     memset(&url, 0, sizeof(sentry_url_t));
     size_t path_len;
-    long long project_id;
-    char *tmp;
-    char *end;
+    char *project_id;
 
     sentry_dsn_t *dsn = SENTRY_MAKE(sentry_dsn_t);
     if (!dsn) {
@@ -256,19 +254,13 @@ sentry__dsn_new(const char *raw_dsn)
         path_len--;
     }
 
-    tmp = strrchr(url.path, '/');
-    if (!tmp) {
-        goto exit;
-    }
-    // Validate that the project ID is still a valid number until sentry fully
-    // commits to pure string project IDs
-    project_id = strtoll(tmp + 1, &end, 10);
-    if (end != tmp + strlen(tmp)) {
+    project_id = strrchr(url.path, '/');
+    if (!project_id || strlen(project_id + 1) == 0) {
         goto exit;
     }
 
-    dsn->project_id = sentry__string_clone(tmp + 1);
-    *tmp = 0;
+    dsn->project_id = sentry__string_clone(project_id + 1);
+    *project_id = 0;
 
     dsn->path = url.path;
     url.path = NULL;
