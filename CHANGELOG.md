@@ -9,10 +9,20 @@
 - Allow overriding the SDK name at build time - set the `SENTRY_SDK_NAME` CMake cache variable.
 
 **Internal**:
+
 - Project IDs are now treated as opaque strings instead of integer values. ([#690](https://github.com/getsentry/sentry-native/pull/690))
+- Updated Breakpad and Crashpad backends to 2022-04-12. ([#696](https://github.com/getsentry/sentry-native/pull/696))
 
 **Fixes**:
+
 - Updated CI as well as list of supported platforms to reflect Windows Server 2016, and therefore MSVC 2017 losing active support.
+- Correctly free Windows Mutexes in Crashpad backend.
+
+**Thank you**:
+
+Features, fixes and improvements in this release have been contributed by:
+
+- [@zhaowq32](https://github.com/zhaowq32)
 
 ## 0.4.15
 
