@@ -182,7 +182,11 @@ sentry_init(sentry_options_t *options)
 
     // after initializing the transport, we will submit all the unsent envelopes
     // and handle remaining sessions.
+    SENTRY_TRACE("processing and pruning old runs");
     sentry__process_old_runs(options, last_crash);
+    if (backend && backend->prune_database_func) {
+        backend->prune_database_func(backend);
+    }
 
     if (options->auto_session_tracking) {
         sentry_start_session();
