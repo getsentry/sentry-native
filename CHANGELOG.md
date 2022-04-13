@@ -7,6 +7,7 @@
 - Removed the `SENTRY_PERFORMANCE_MONITORING` compile flag requirement to access performance monitoring in the Sentry SDK. Performance monitoring is now available to everybody who has opted into the experimental API.
 - New API to check whether the application has crashed in the previous run: `sentry_get_crashed_last_run()` and `sentry_clear_crashed_last_run()` ([#685](https://github.com/getsentry/sentry-native/pull/685)).
 - Allow overriding the SDK name at build time - set the `SENTRY_SDK_NAME` CMake cache variable.
+- More aggressively prune the Crashpad database. ([#698](https://github.com/getsentry/sentry-native/pull/698))
 
 ## 0.4.15
 
