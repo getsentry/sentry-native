@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+**Fixes**:
+
+- sentry-native now successfully builds when examples aren't included. ([#702](https://github.com/getsentry/sentry-native/pull/702))
+
+**Thank you**:
+
+Features, fixes and improvements in this release have been contributed by:
+
+- [@AenBleidd](https://github.com/AenBleidd)
+
 ## 0.4.16
 
 **Features**:
