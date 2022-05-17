@@ -114,7 +114,8 @@ shutdown_inproc_backend(sentry_backend_t *UNUSED(backend))
     reset_signal_handlers();
 }
 
-#elif defined SENTRY_PLATFORM_WINDOWS
+#elif defined(SENTRY_PLATFORM_WINDOWS)
+
 struct signal_slot {
     DWORD signum;
     const char *signame;
@@ -168,7 +169,76 @@ shutdown_inproc_backend(sentry_backend_t *UNUSED(backend))
         SetUnhandledExceptionFilter(current_handler);
     }
 }
+
 #endif
+
+sentry_value_t
+sentry__registers_from_uctx(const sentry_ucontext_t *uctx)
+{
+    sentry_value_t registers = sentry_value_new_object();
+
+#ifdef SENTRY_PLATFORM_UNIX
+
+#elif defined(SENTRY_PLATFORM_WINDOWS)
+    PCONTEXT ctx = uctx->exception_ptrs.ContextRecord;
+
+#    define SET_REG(name, prop)                                                \
+        sentry_value_set_by_key(registers, name,                               \
+            sentry__value_new_addr((uint64_t)(size_t)ctx->prop));
+
+#    if defined(_M_AMD64)
+
+    if (ctx->ContextFlags & CONTEXT_INTEGER) {
+        SET_REG("rax", Rax);
+        SET_REG("rcx", Rcx);
+        SET_REG("rdx", Rdx);
+        SET_REG("rbx", Rbx);
+        SET_REG("rbp", Rbp);
+        SET_REG("rsi", Rsi);
+        SET_REG("rdi", Rdi);
+        SET_REG("r8", R8);
+        SET_REG("r9", R9);
+        SET_REG("r10", R10);
+        SET_REG("r11", R11);
+        SET_REG("r12", R12);
+        SET_REG("r13", R13);
+        SET_REG("r14", R14);
+        SET_REG("r15", R15);
+    }
+
+    if (ctx->ContextFlags & CONTEXT_CONTROL) {
+        SET_REG("rsp", Rsp);
+        SET_REG("rip", Rip);
+    }
+
+#    elif defined(_M_IX86)
+
+    if (ctx->ContextFlags & CONTEXT_INTEGER) {
+        SET_REG("edi", Edi);
+        SET_REG("esi", Esi);
+        SET_REG("ebx", Ebx);
+        SET_REG("edx", Edx);
+        SET_REG("ecx", Ecx);
+        SET_REG("eax", Eax);
+    }
+
+    if (ctx->ContextFlags & CONTEXT_CONTROL) {
+        SET_REG("ebp", Ebp);
+        SET_REG("eip", Eip);
+        SET_REG("eflags", EFlags);
+        SET_REG("esp", Esp);
+    }
+
+#    else
+    // _ARM64_
+#    endif
+
+#    undef SET_REG
+
+#endif
+
+    return registers;
+}
 
 static sentry_value_t
 make_signal_event(
@@ -216,6 +286,9 @@ make_signal_event(
 
     sentry_value_t stacktrace
         = sentry_value_new_stacktrace(&backtrace[0], frame_count);
+
+    sentry_value_t registers = sentry__registers_from_uctx(uctx);
+    sentry_value_set_by_key(stacktrace, "registers", registers);
 
     sentry_value_set_by_key(exc, "stacktrace", stacktrace);
 
