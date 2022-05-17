@@ -179,6 +179,110 @@ sentry__registers_from_uctx(const sentry_ucontext_t *uctx)
 
 #ifdef SENTRY_PLATFORM_UNIX
 
+    // just assume the ctx is a bunch of uintpr_t, and index that directly
+    uintptr_t *ctx = (uintptr_t *)&uctx->user_context->uc_mcontext;
+
+#    define SET_REG(name, num)                                                 \
+        sentry_value_set_by_key(registers, name,                               \
+            sentry__value_new_addr((uint64_t)(size_t)ctx[num]));
+
+#    ifdef __linux__
+#        ifdef __x86_64__
+
+    SET_REG("r8", 0);
+    SET_REG("r9", 1);
+    SET_REG("r10", 2);
+    SET_REG("r11", 3);
+    SET_REG("r12", 4);
+    SET_REG("r13", 5);
+    SET_REG("r14", 6);
+    SET_REG("r15", 7);
+    SET_REG("rdi", 8);
+    SET_REG("rsi", 9);
+    SET_REG("rbp", 10);
+    SET_REG("rbx", 11);
+    SET_REG("rdx", 12);
+    SET_REG("rax", 13);
+    SET_REG("rcx", 14);
+    SET_REG("rsp", 15);
+    SET_REG("rip", 16);
+
+#        elif defined(__i386__)
+
+    // gs, fs, es, ds
+    SET_REG("edi", 4);
+    SET_REG("esi", 5);
+    SET_REG("ebp", 6);
+    SET_REG("esp", 7);
+    SET_REG("ebx", 8);
+    SET_REG("edx", 9);
+    SET_REG("ecx", 10);
+    SET_REG("eax", 11);
+    SET_REG("eip", 14);
+    SET_REG("eflags", 16);
+
+#        elif defined(__aarch64__)
+
+    // 0 is `fault_address`
+    SET_REG("x0", 1);
+    SET_REG("x1", 2);
+    SET_REG("x2", 3);
+    SET_REG("x3", 4);
+    SET_REG("x4", 5);
+    SET_REG("x5", 6);
+    SET_REG("x6", 7);
+    SET_REG("x7", 8);
+    SET_REG("x8", 9);
+    SET_REG("x9", 10);
+    SET_REG("x10", 11);
+    SET_REG("x11", 12);
+    SET_REG("x12", 13);
+    SET_REG("x13", 14);
+    SET_REG("x14", 15);
+    SET_REG("x15", 16);
+    SET_REG("x16", 17);
+    SET_REG("x17", 18);
+    SET_REG("x18", 19);
+    SET_REG("x19", 20);
+    SET_REG("x20", 21);
+    SET_REG("x21", 22);
+    SET_REG("x22", 23);
+    SET_REG("x23", 24);
+    SET_REG("x24", 25);
+    SET_REG("x25", 26);
+    SET_REG("x26", 27);
+    SET_REG("x27", 28);
+    SET_REG("x28", 29);
+    SET_REG("fp", 30);
+    SET_REG("lr", 31);
+    SET_REG("sp", 32);
+    SET_REG("pc", 33);
+
+#        elif defined(__arm__)
+
+    // trap_no, _error_code, oldmask
+    SET_REG("r0", 3);
+    SET_REG("r1", 4);
+    SET_REG("r2", 5);
+    SET_REG("r3", 6);
+    SET_REG("r4", 7);
+    SET_REG("r5", 8);
+    SET_REG("r6", 9);
+    SET_REG("r7", 10);
+    SET_REG("r8", 11);
+    SET_REG("r9", 12);
+    SET_REG("r10", 13);
+    SET_REG("fp", 14);
+    SET_REG("ip", 15);
+    SET_REG("sp", 16);
+    SET_REG("lr", 17);
+    SET_REG("pc", 18);
+
+#        endif
+#    endif
+
+#    undef SET_REG
+
 #elif defined(SENTRY_PLATFORM_WINDOWS)
     PCONTEXT ctx = uctx->exception_ptrs.ContextRecord;
 
