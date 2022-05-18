@@ -177,7 +177,7 @@ sentry__registers_from_uctx(const sentry_ucontext_t *uctx)
 {
     sentry_value_t registers = sentry_value_new_object();
 
-#ifdef SENTRY_PLATFORM_UNIX
+#if defined(SENTRY_PLATFORM_LINUX)
 
     // just assume the ctx is a bunch of uintpr_t, and index that directly
     uintptr_t *ctx = (uintptr_t *)&uctx->user_context->uc_mcontext;
@@ -186,8 +186,7 @@ sentry__registers_from_uctx(const sentry_ucontext_t *uctx)
         sentry_value_set_by_key(registers, name,                               \
             sentry__value_new_addr((uint64_t)(size_t)ctx[num]));
 
-#    ifdef __linux__
-#        ifdef __x86_64__
+#    if defined(__x86_64__)
 
     SET_REG("r8", 0);
     SET_REG("r9", 1);
@@ -207,7 +206,7 @@ sentry__registers_from_uctx(const sentry_ucontext_t *uctx)
     SET_REG("rsp", 15);
     SET_REG("rip", 16);
 
-#        elif defined(__i386__)
+#    elif defined(__i386__)
 
     // gs, fs, es, ds
     SET_REG("edi", 4);
@@ -221,7 +220,7 @@ sentry__registers_from_uctx(const sentry_ucontext_t *uctx)
     SET_REG("eip", 14);
     SET_REG("eflags", 16);
 
-#        elif defined(__aarch64__)
+#    elif defined(__aarch64__)
 
     // 0 is `fault_address`
     SET_REG("x0", 1);
@@ -258,7 +257,7 @@ sentry__registers_from_uctx(const sentry_ucontext_t *uctx)
     SET_REG("sp", 32);
     SET_REG("pc", 33);
 
-#        elif defined(__arm__)
+#    elif defined(__arm__)
 
     // trap_no, _error_code, oldmask
     SET_REG("r0", 3);
@@ -278,7 +277,100 @@ sentry__registers_from_uctx(const sentry_ucontext_t *uctx)
     SET_REG("lr", 17);
     SET_REG("pc", 18);
 
-#        endif
+#    endif
+
+#    undef SET_REG
+
+#elif defined(SENTRY_PLATFORM_DARWIN)
+
+#    define SET_REG(name, prop)                                                \
+        sentry_value_set_by_key(registers, name,                               \
+            sentry__value_new_addr((uint64_t)(size_t)thread_state->prop));
+
+#    if defined(__x86_64__)
+
+    _STRUCT_X86_THREAD_STATE64 *thread_state
+        = &uctx->user_context->uc_mcontext->__ss;
+
+    SET_REG("rax", __rax);
+    SET_REG("rbx", __rbx);
+    SET_REG("rcx", __rcx);
+    SET_REG("rdx", __rdx);
+    SET_REG("rdi", __rdi);
+    SET_REG("rsi", __rsi);
+    SET_REG("rbp", __rbp);
+    SET_REG("rsp", __rsp);
+    SET_REG("r8", __r8);
+    SET_REG("r9", __r9);
+    SET_REG("r10", __r10);
+    SET_REG("r11", __r11);
+    SET_REG("r12", __r12);
+    SET_REG("r13", __r13);
+    SET_REG("r14", __r14);
+    SET_REG("r15", __r15);
+    SET_REG("rip", __rip);
+
+#    elif defined(__arm64__)
+
+    _STRUCT_ARM_THREAD_STATE64 *thread_state
+        = &uctx->user_context->uc_mcontext->__ss;
+
+    SET_REG("x0", __x[0]);
+    SET_REG("x1", __x[1]);
+    SET_REG("x2", __x[2]);
+    SET_REG("x3", __x[3]);
+    SET_REG("x4", __x[4]);
+    SET_REG("x5", __x[5]);
+    SET_REG("x6", __x[6]);
+    SET_REG("x7", __x[7]);
+    SET_REG("x8", __x[8]);
+    SET_REG("x9", __x[9]);
+    SET_REG("x10", __x[10]);
+    SET_REG("x11", __x[11]);
+    SET_REG("x12", __x[12]);
+    SET_REG("x13", __x[13]);
+    SET_REG("x14", __x[14]);
+    SET_REG("x15", __x[15]);
+    SET_REG("x16", __x[16]);
+    SET_REG("x17", __x[17]);
+    SET_REG("x18", __x[18]);
+    SET_REG("x19", __x[19]);
+    SET_REG("x20", __x[20]);
+    SET_REG("x21", __x[21]);
+    SET_REG("x22", __x[22]);
+    SET_REG("x23", __x[23]);
+    SET_REG("x24", __x[24]);
+    SET_REG("x25", __x[25]);
+    SET_REG("x26", __x[26]);
+    SET_REG("x27", __x[27]);
+    SET_REG("x28", __x[28]);
+    SET_REG("fp", __fp);
+    SET_REG("lr", __lr);
+    SET_REG("sp", __sp);
+    SET_REG("pc", __pc);
+
+#    elif defined(__arm__)
+
+    _STRUCT_ARM_THREAD_STATE *thread_state
+        = &uctx->user_context->uc_mcontext->__ss;
+
+    SET_REG("r0", __r[0]);
+    SET_REG("r1", __r[1]);
+    SET_REG("r2", __r[2]);
+    SET_REG("r3", __r[3]);
+    SET_REG("r4", __r[4]);
+    SET_REG("r5", __r[5]);
+    SET_REG("r6", __r[6]);
+    SET_REG("r7", __r[7]);
+    SET_REG("r8", __r[8]);
+    SET_REG("r9", __r[9]);
+    SET_REG("r10", __r[10]);
+    SET_REG("fp", __r[11]);
+    SET_REG("ip", __r[12]);
+    SET_REG("sp", __sp);
+    SET_REG("lr", __lr);
+    SET_REG("pc", __pc);
+
 #    endif
 
 #    undef SET_REG
