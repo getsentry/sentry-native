@@ -425,3 +425,10 @@ sentry_options_get_traces_sample_rate(sentry_options_t *opts)
 {
     return opts->traces_sample_rate;
 }
+
+void
+sentry_options_set_backend(sentry_options_t *opts, sentry_backend_t *backend)
+{
+    sentry__backend_free(opts->backend);
+    opts->backend = backend;
+}

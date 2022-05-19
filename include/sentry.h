@@ -709,6 +709,20 @@ SENTRY_API void sentry_transport_free(sentry_transport_t *transport);
 SENTRY_API sentry_transport_t *sentry_new_function_transport(
     void (*func)(const sentry_envelope_t *envelope, void *data), void *data);
 
+/**
+ * This represents an interface for user-defined backends.
+ *
+ * Backends are responsible to handle crashes. They are maintained at runtime
+ * via various life-cycle hooks from the sentry-core.
+ *
+ * At this point none of those interfaces are exposed in the API including
+ * creation and destruction. The main use-case of the backend in the API at this
+ * point is to disable it via `sentry_options_set_backend` at runtime before it
+ * is initialized.
+ */
+struct sentry_backend_s;
+typedef struct sentry_backend_s sentry_backend_t;
+
 /* -- Options APIs -- */
 
 /**
@@ -1049,6 +1063,16 @@ SENTRY_API void sentry_options_set_shutdown_timeout(
  * end on shutdown, before attempting a forced termination.
  */
 SENTRY_API uint64_t sentry_options_get_shutdown_timeout(sentry_options_t *opts);
+
+/**
+ * Sets a user-defined backend.
+ *
+ * Since creation and destruction of backends is not exposed in the API, this
+ * can only be used to set the backend to `NULL`, which disables the backend in
+ * the initialization.
+ */
+SENTRY_API void sentry_options_set_backend(
+    sentry_options_t *opts, sentry_backend_t *backend);
 
 /* -- Global APIs -- */
 

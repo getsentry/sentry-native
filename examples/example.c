@@ -65,6 +65,10 @@ main(int argc, char **argv)
 {
     sentry_options_t *options = sentry_options_new();
 
+    if (has_arg(argc, argv, "disable-backend")) {
+        sentry_options_set_backend(options, NULL);
+    }
+
     // this is an example. for real usage, make sure to set this explicitly to
     // an app specific cache location.
     sentry_options_set_database_path(options, ".sentry-native");
