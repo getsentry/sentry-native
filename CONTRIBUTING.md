@@ -139,3 +139,4 @@ The example currently supports the following commends:
 - `capture-multiple`: Captures a number of events.
 - `sleep`: Introduces a 10 second sleep.
 - `add-stacktrace`: Adds the current thread stacktrace to the captured event.
+- `disable-backend`: Disables the build-configured crash-handler backend.

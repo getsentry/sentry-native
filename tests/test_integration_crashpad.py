@@ -135,3 +135,24 @@ def test_crashpad_dump_inflight(cmake, httpserver):
 
     # we trigger 10 normal events, and 1 crash
     assert len(httpserver.log) >= 11
+
+
+def test_disable_backend(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "crashpad"})
+
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    with httpserver.wait(timeout=5, raise_assertions=False) as waiting:
+        child = run(
+            tmp_path, "sentry_example", ["disable-backend", "log", "crash"], env=env
+        )
+        # we crash so process should return non-zero
+        assert child.returncode
+
+    # crashpad is disabled, and we are only crashing, so we expect the wait to timeout
+    assert waiting.result is False
+
+    run(tmp_path, "sentry_example", ["log", "no-setup"], check=True, env=env)
+
+    # crashpad is disabled, and we are only crashing, so we expect no requests
+    assert len(httpserver.log) == 0
