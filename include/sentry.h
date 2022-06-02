@@ -419,6 +419,17 @@ SENTRY_EXPERIMENTAL_API sentry_value_t sentry_value_new_stacktrace(
     void **ips, size_t len);
 
 /**
+ * Adds a Stack Trace conforming to the Stack Trace Interface to a value.
+ *
+ * The value needs to be either an exception event, or a thread object.
+ *
+ * If `ips` is NULL the current stack trace is captured, otherwise `len` stack
+ * trace instruction pointers are attached to the event.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_value_add_stacktrace(
+    sentry_value_t value, void **ips, size_t len);
+
+/**
  * Adds an Exception to an Event value.
  *
  * This takes ownership of the `exception`.
