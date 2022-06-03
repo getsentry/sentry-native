@@ -409,8 +409,8 @@ SENTRY_EXPERIMENTAL_API sentry_value_t sentry_value_new_thread(
  *
  * See https://develop.sentry.dev/sdk/event-payloads/stacktrace/
  *
- * The returned object needs to be attached to either an exception
- * event, or a thread object.
+ * The returned object must be attached to either an exception or thread
+ * object.
  *
  * If `ips` is NULL the current stack trace is captured, otherwise `len`
  * stack trace instruction pointers are attached to the event.
@@ -421,7 +421,7 @@ SENTRY_EXPERIMENTAL_API sentry_value_t sentry_value_new_stacktrace(
 /**
  * Adds a Stack Trace conforming to the Stack Trace Interface to a value.
  *
- * The value needs to be either an exception event, or a thread object.
+ * The value argument must be either an exception or thread object.
  *
  * If `ips` is NULL the current stack trace is captured, otherwise `len` stack
  * trace instruction pointers are attached to the event.
