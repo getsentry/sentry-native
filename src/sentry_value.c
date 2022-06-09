@@ -1200,7 +1200,7 @@ sentry_event_add_thread(sentry_value_t event, sentry_value_t thread)
 }
 
 void
-sentry_value_add_stacktrace(sentry_value_t value, void **ips, size_t len)
+sentry_value_set_stacktrace(sentry_value_t value, void **ips, size_t len)
 {
     sentry_value_t stacktrace = sentry_value_new_stacktrace(ips, len);
     sentry_value_set_by_key(value, "stacktrace", stacktrace);
@@ -1210,6 +1210,6 @@ void
 sentry_event_value_add_stacktrace(sentry_value_t event, void **ips, size_t len)
 {
     sentry_value_t thread = sentry_value_new_object();
-    sentry_value_add_stacktrace(thread, ips, len);
+    sentry_value_set_stacktrace(thread, ips, len);
     sentry_event_add_thread(event, thread);
 }
