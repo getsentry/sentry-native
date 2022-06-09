@@ -562,7 +562,5 @@ SENTRY_TEST(value_set_stacktrace)
     TEST_CHECK(SENTRY_VALUE_TYPE_LIST == sentry_value_get_type(frames));
     TEST_CHECK(0 < sentry_value_get_length(frames));
 
-    sentry_value_decref(frames);
-    sentry_value_decref(stacktrace);
     sentry_value_decref(exc);
 }
