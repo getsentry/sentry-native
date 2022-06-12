@@ -526,21 +526,33 @@ handle_ucontext(const sentry_ucontext_t *uctx)
     SENTRY_WITH_OPTIONS (options) {
         sentry__write_crash_marker(options);
 
-        sentry_envelope_t *envelope
-            = sentry__prepare_event(options, event, NULL);
-        // TODO(tracing): Revisit when investigating transaction flushing during
-        // hard crashes.
+        bool should_handle = true;
 
-        sentry_session_t *session = sentry__end_current_session_with_status(
-            SENTRY_SESSION_STATUS_CRASHED);
-        sentry__envelope_add_session(envelope, session);
+        if (options->on_crash_func) {
+            SENTRY_TRACE("invoking `on_crash` hook");
+            should_handle
+                = options->on_crash_func(uctx, options->on_crash_data);
+        }
 
-        // capture the envelope with the disk transport
-        sentry_transport_t *disk_transport
-            = sentry_new_disk_transport(options->run);
-        sentry__capture_envelope(disk_transport, envelope);
-        sentry__transport_dump_queue(disk_transport, options->run);
-        sentry_transport_free(disk_transport);
+        if (should_handle) {
+            sentry_envelope_t *envelope
+                = sentry__prepare_event(options, event, NULL);
+            // TODO(tracing): Revisit when investigating transaction flushing
+            // during hard crashes.
+
+            sentry_session_t *session = sentry__end_current_session_with_status(
+                SENTRY_SESSION_STATUS_CRASHED);
+            sentry__envelope_add_session(envelope, session);
+
+            // capture the envelope with the disk transport
+            sentry_transport_t *disk_transport
+                = sentry_new_disk_transport(options->run);
+            sentry__capture_envelope(disk_transport, envelope);
+            sentry__transport_dump_queue(disk_transport, options->run);
+            sentry_transport_free(disk_transport);
+        } else {
+            SENTRY_TRACE("event was discarded by the `on_crash` hook");
+        }
 
         // after capturing the crash event, dump all the envelopes to disk
         sentry__transport_dump_queue(options->transport, options->run);
