@@ -214,11 +214,7 @@ make_signal_event(
     }
     SENTRY_TRACEF("captured backtrace with %lu frames", frame_count);
 
-    sentry_value_t stacktrace
-        = sentry_value_new_stacktrace(&backtrace[0], frame_count);
-
-    sentry_value_set_by_key(exc, "stacktrace", stacktrace);
-
+    sentry_value_set_stacktrace(exc, &backtrace[0], frame_count);
     sentry_event_add_exception(event, exc);
 
     return event;

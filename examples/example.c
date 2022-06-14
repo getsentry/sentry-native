@@ -211,8 +211,7 @@ main(int argc, char **argv)
         sentry_value_t exc = sentry_value_new_exception(
             "ParseIntError", "invalid digit found in string");
         if (has_arg(argc, argv, "add-stacktrace")) {
-            sentry_value_t stacktrace = sentry_value_new_stacktrace(NULL, 0);
-            sentry_value_set_by_key(exc, "stacktrace", stacktrace);
+            sentry_value_set_stacktrace(exc, NULL, 0);
         }
         sentry_value_t event = sentry_value_new_event();
         sentry_event_add_exception(event, exc);
