@@ -409,14 +409,6 @@ sentry__crashpad_backend_last_crash(sentry_backend_t *backend)
     uint64_t crash_time = 0;
 
     std::vector<crashpad::CrashReportDatabase::Report> reports;
-    if (data->db->GetPendingReports(&reports)
-        == crashpad::CrashReportDatabase::kNoError) {
-        for (const crashpad::CrashReportDatabase::Report &report : reports) {
-            report_crash_time(&crash_time, report);
-        }
-    }
-
-    reports.clear();
     if (data->db->GetCompletedReports(&reports)
         == crashpad::CrashReportDatabase::kNoError) {
         for (const crashpad::CrashReportDatabase::Report &report : reports) {

@@ -409,14 +409,25 @@ SENTRY_EXPERIMENTAL_API sentry_value_t sentry_value_new_thread(
  *
  * See https://develop.sentry.dev/sdk/event-payloads/stacktrace/
  *
- * The returned object needs to be attached to either an exception
- * event, or a thread object.
+ * The returned object must be attached to either an exception or thread
+ * object.
  *
  * If `ips` is NULL the current stack trace is captured, otherwise `len`
  * stack trace instruction pointers are attached to the event.
  */
 SENTRY_EXPERIMENTAL_API sentry_value_t sentry_value_new_stacktrace(
     void **ips, size_t len);
+
+/**
+ * Sets the Stack Trace conforming to the Stack Trace Interface in a value.
+ *
+ * The value argument must be either an exception or thread object.
+ *
+ * If `ips` is NULL the current stack trace is captured, otherwise `len` stack
+ * trace instruction pointers are attached to the event.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_value_set_stacktrace(
+    sentry_value_t value, void **ips, size_t len);
 
 /**
  * Adds an Exception to an Event value.
@@ -708,6 +719,20 @@ SENTRY_API void sentry_transport_free(sentry_transport_t *transport);
  */
 SENTRY_API sentry_transport_t *sentry_new_function_transport(
     void (*func)(const sentry_envelope_t *envelope, void *data), void *data);
+
+/**
+ * This represents an interface for user-defined backends.
+ *
+ * Backends are responsible to handle crashes. They are maintained at runtime
+ * via various life-cycle hooks from the sentry-core.
+ *
+ * At this point none of those interfaces are exposed in the API including
+ * creation and destruction. The main use-case of the backend in the API at this
+ * point is to disable it via `sentry_options_set_backend` at runtime before it
+ * is initialized.
+ */
+struct sentry_backend_s;
+typedef struct sentry_backend_s sentry_backend_t;
 
 /* -- Options APIs -- */
 
@@ -1049,6 +1074,16 @@ SENTRY_API void sentry_options_set_shutdown_timeout(
  * end on shutdown, before attempting a forced termination.
  */
 SENTRY_API uint64_t sentry_options_get_shutdown_timeout(sentry_options_t *opts);
+
+/**
+ * Sets a user-defined backend.
+ *
+ * Since creation and destruction of backends is not exposed in the API, this
+ * can only be used to set the backend to `NULL`, which disables the backend in
+ * the initialization.
+ */
+SENTRY_API void sentry_options_set_backend(
+    sentry_options_t *opts, sentry_backend_t *backend);
 
 /* -- Global APIs -- */
 
