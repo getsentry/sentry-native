@@ -18,6 +18,7 @@ __pycache__
 
 # Devtools
 CodeChecker
+.ccls-cache
 
 # Coverage
 coverage

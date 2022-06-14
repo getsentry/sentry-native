@@ -1774,6 +1774,21 @@ SENTRY_EXPERIMENTAL_API int sentry_get_crashed_last_run();
  */
 SENTRY_EXPERIMENTAL_API int sentry_clear_crashed_last_run();
 
+/**
+ * Sentry SDK version.
+ */
+SENTRY_EXPERIMENTAL_API const char *sentry_sdk_version();
+
+/**
+ * Sentry SDK name.
+ */
+SENTRY_EXPERIMENTAL_API const char *sentry_sdk_name();
+
+/**
+ * Sentry SDK User-Agent.
+ */
+SENTRY_EXPERIMENTAL_API const char *sentry_sdk_user_agent();
+
 #ifdef __cplusplus
 }
 #endif
