@@ -1,5 +1,29 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- The crashpad backend now captures thread names. ([#725](https://github.com/getsentry/sentry-native/pull/725))
+- The inproc backend now captures the context registers. ([#714](https://github.com/getsentry/sentry-native/pull/714))
+- A new set of APIs to get the sentry SDK version at runtime. ([#726](https://github.com/getsentry/sentry-native/pull/726))
+- Add more convenient APIs to attach stack traces to exception or thread values. ([#723](https://github.com/getsentry/sentry-native/pull/723))
+- Allow disabling the crash reporting backend at runtime. ([#717](https://github.com/getsentry/sentry-native/pull/717))
+
+**Fixes**:
+
+- Improved heuristics flagging sessions as "crashed". ([#719](https://github.com/getsentry/sentry-native/pull/719))
+
+**Internal**:
+
+- Updated Breakpad and Crashpad backends to 2022-06-14. ([#725](https://github.com/getsentry/sentry-native/pull/725))
+
+**Thank you**:
+
+Features, fixes and improvements in this release have been contributed by:
+
+- [@olback](https://github.com/olback)
+
 ## 0.4.17
 
 **Fixes**:
