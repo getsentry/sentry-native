@@ -72,7 +72,6 @@ jobs:
             os: macOs-latest
             CC: "'$(brew --prefix llvm@13)/bin/clang'"
             CXX: "'$(brew --prefix llvm@13)/bin/clang++'"
-            LLVM_BIN: "$(brew --prefix llvm@13)/bin"
             ERROR_ON_WARNINGS: 1
             SYSTEM_VERSION_COMPAT: 0
             RUN_ANALYZER: asan,llvm-cov
@@ -137,7 +136,7 @@ jobs:
 
       - name: Expose llvm PATH for Mac
         if: ${{ runner.os == 'macOS' }}
-        run: echo "/usr/local/opt/llvm/bin/" >> $GITHUB_PATH
+        run: echo $(brew --prefix llvm@13)/bin >> $GITHUB_PATH
 
       - name: Installing Android SDK Dependencies
         if: ${{ env['ANDROID_API'] }}
@@ -158,7 +157,6 @@ jobs:
           pip install --upgrade --requirement tests/requirements.txt
           [ "${{ matrix.CC }}" ] && export CC="${{ matrix.CC }}"
           [ "${{ matrix.CXX }}" ] && export CXX="${{ matrix.CXX }}"
-          [ "${{ matrix.LLVM_BIN }}" ] && PATH=$PATH:"${{ matrix.LLVM_BIN }}"
           pytest --capture=no --verbose tests
 
       - name: "Upload to codecov.io"
