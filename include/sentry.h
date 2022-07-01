@@ -86,6 +86,7 @@ extern "C" {
 
 #include <inttypes.h>
 #include <stdarg.h>
+#include <stdbool.h>
 #include <stddef.h>
 
 /* context type dependencies */
@@ -793,6 +794,32 @@ typedef sentry_value_t (*sentry_event_function_t)(
  */
 SENTRY_API void sentry_options_set_before_send(
     sentry_options_t *opts, sentry_event_function_t func, void *data);
+
+/**
+ * Type of the `on_crash` callback.
+ *
+ * Does not work with crashpad on macOS.
+ * The callback passes a pointer to sentry_ucontext_s structure when exception
+ * handler is invoked. For breakpad on Linux this pointer is NULL.
+ *
+ * If the callback returns false outgoing crash report will be discarded.
+ *
+ * This function may be invoked inside of a signal handler and must be safe for
+ * that purpose, see https://man7.org/linux/man-pages/man7/signal-safety.7.html.
+ * On Windows, it may be called from inside of a `UnhandledExceptionFilter`, see
+ * the documentation on SEH (structured exception handling) for more information
+ * https://docs.microsoft.com/en-us/windows/win32/debug/structured-exception-handling
+ */
+typedef bool (*sentry_crash_function_t)(
+    const sentry_ucontext_t *uctx, void *closure);
+
+/**
+ * Sets the `on_crash` callback.
+ *
+ * See the `sentry_crash_function_t` typedef above for more information.
+ */
+SENTRY_API void sentry_options_set_on_crash(
+    sentry_options_t *opts, sentry_crash_function_t func, void *data);
 
 /**
  * Sets the DSN.

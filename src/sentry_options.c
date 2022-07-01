@@ -120,6 +120,14 @@ sentry_options_set_before_send(
 }
 
 void
+sentry_options_set_on_crash(
+    sentry_options_t *opts, sentry_crash_function_t func, void *data)
+{
+    opts->on_crash_func = func;
+    opts->on_crash_data = data;
+}
+
+void
 sentry_options_set_dsn(sentry_options_t *opts, const char *raw_dsn)
 {
     sentry__dsn_decref(opts->dsn);
