@@ -68,7 +68,7 @@ jobs:
             ERROR_ON_WARNINGS: 1
             SYSTEM_VERSION_COMPAT: 0
             CMAKE_DEFINES: -DCMAKE_OSX_ARCHITECTURES=arm64;x86_64
-          - name: macOS (clang 11 + asan + llvm-cov)
+          - name: macOS (clang 13 + asan + llvm-cov)
             os: macOs-latest
             CC: clang
             CXX: clang++
@@ -136,7 +136,7 @@ jobs:
 
       - name: Expose llvm PATH for Mac
         if: ${{ runner.os == 'macOS' }}
-        run: echo "/usr/local/opt/llvm/bin/" >> $GITHUB_PATH
+        run: echo $(brew --prefix llvm@13)/bin >> $GITHUB_PATH
 
       - name: Installing Android SDK Dependencies
         if: ${{ env['ANDROID_API'] }}
