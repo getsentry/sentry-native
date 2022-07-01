@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+**Fixes**
+
+- Aligned pre-send event processing in `sentry_capture_event()` with the 
+  [cross-SDK session filter order](https://develop.sentry.dev/sdk/sessions/#filter-order) 
+  ([#729](https://github.com/getsentry/sentry-native/pull/729))
+
 ## 0.4.18
 
 **Features**:

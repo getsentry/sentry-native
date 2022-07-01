@@ -775,6 +775,13 @@ SENTRY_API void sentry_options_set_transport(
  * On Windows, it may be called from inside of a `UnhandledExceptionFilter`, see
  * the documentation on SEH (structured exception handling) for more information
  * https://docs.microsoft.com/en-us/windows/win32/debug/structured-exception-handling
+ *
+ * Up to version 0.4.18 the `before_send` callback wasn't invoked in case the
+ * event sampling discarded an event. In the current implementation the
+ * `before_send` callback is invoked even if the event sampling discards the
+ * event, following the cross-SDK session filter order:
+ *
+ * https://develop.sentry.dev/sdk/sessions/#filter-order
  */
 typedef sentry_value_t (*sentry_event_function_t)(
     sentry_value_t event, void *hint, void *closure);
@@ -801,6 +808,19 @@ SENTRY_API const char *sentry_options_get_dsn(const sentry_options_t *opts);
  * Sets the sample rate, which should be a double between `0.0` and `1.0`.
  * Sentry will randomly discard any event that is captured using
  * `sentry_capture_event` when a sample rate < 1 is set.
+ *
+ * The sampling happens at the end of the event processing according to the
+ * following order:
+ *
+ * https://develop.sentry.dev/sdk/sessions/#filter-order
+ *
+ * Only items 3. to 6. are currently applicable to sentry-native. This means
+ * each processing step is executed even if the sampling discards the event
+ * before sending it to the backend. This is particularly relevant to users of
+ * the `before_send` callback.
+ *
+ * The above is in contrast to versions up to 0.4.18 where the sampling happened
+ * at the beginning of the processing/filter sequence.
  */
 SENTRY_API void sentry_options_set_sample_rate(
     sentry_options_t *opts, double sample_rate);
