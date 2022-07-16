@@ -23,6 +23,31 @@
 #    define sleep_s(SECONDS) sleep(SECONDS)
 #endif
 
+static sentry_value_t
+before_send_callback(sentry_value_t event, void *hint, void *closure)
+{
+    // make our mark on the event
+    sentry_value_set_by_key(
+        event, "adapted_by", sentry_value_new_string("before_send"));
+
+    // tell the backend to proceed with the event
+    return event;
+}
+
+static int
+discarding_on_crash_callback(const sentry_ucontext_t *uctx, void *closure)
+{
+    // tell the backend to discard the event
+    return 0;
+}
+
+static int
+retaining_on_crash_callback(const sentry_ucontext_t *uctx, void *closure)
+{
+    // tell the backend to retain the event
+    return 1;
+}
+
 static void
 print_envelope(sentry_envelope_t *envelope, void *unused_state)
 {
@@ -103,6 +128,19 @@ main(int argc, char **argv)
 
     if (has_arg(argc, argv, "child-spans")) {
         sentry_options_set_max_spans(options, 5);
+    }
+
+    if (has_arg(argc, argv, "before-send")) {
+        sentry_options_set_before_send(options, before_send_callback, NULL);
+    }
+
+    if (has_arg(argc, argv, "discarding-on-crash")) {
+        sentry_options_set_on_crash(
+            options, discarding_on_crash_callback, NULL);
+    }
+
+    if (has_arg(argc, argv, "retaining-on-crash")) {
+        sentry_options_set_on_crash(options, retaining_on_crash_callback, NULL);
     }
 
     sentry_init(options);

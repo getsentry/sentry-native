@@ -86,7 +86,6 @@ extern "C" {
 
 #include <inttypes.h>
 #include <stdarg.h>
-#include <stdbool.h>
 #include <stddef.h>
 
 /* context type dependencies */
@@ -771,6 +770,10 @@ SENTRY_API void sentry_options_set_transport(
  * call `sentry_value_decref` on the provided event, and return a
  * `sentry_value_new_null()` instead.
  *
+ * If you have set an `on_crash` callback (even one that only returns 1),
+ * `before_send` will no longer be invoked for crash-events. This allows you to
+ * better differentiate between crashes and all other events.
+ *
  * This function may be invoked inside of a signal handler and must be safe for
  * that purpose, see https://man7.org/linux/man-pages/man7/signal-safety.7.html.
  * On Windows, it may be called from inside of a `UnhandledExceptionFilter`, see
@@ -804,13 +807,17 @@ SENTRY_API void sentry_options_set_before_send(
  *
  * If the callback returns false outgoing crash report will be discarded.
  *
+ * If this callback is set in the options, a concurrently enabled `before_send`
+ * callback will no longer be called in the crash case. This allows for better
+ * differentiation between crashes and other events.
+ *
  * This function may be invoked inside of a signal handler and must be safe for
  * that purpose, see https://man7.org/linux/man-pages/man7/signal-safety.7.html.
  * On Windows, it may be called from inside of a `UnhandledExceptionFilter`, see
  * the documentation on SEH (structured exception handling) for more information
  * https://docs.microsoft.com/en-us/windows/win32/debug/structured-exception-handling
  */
-typedef bool (*sentry_crash_function_t)(
+typedef int (*sentry_crash_function_t)(
     const sentry_ucontext_t *uctx, void *closure);
 
 /**

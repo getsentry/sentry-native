@@ -1,11 +1,11 @@
 import datetime
 import email
 import gzip
-import sys
 import platform
 import re
-from .conditions import is_android
+import sys
 
+from .conditions import is_android
 
 VERSION_RE = re.compile(r"(\d+\.\d+\.\d+)(?:[-\.]?)(.*)")
 
@@ -192,6 +192,25 @@ def assert_crash(envelope):
     # depending on the unwinder, we currently don’t get any stack frames from
     # a `ucontext`
     assert_stacktrace(envelope, inside_exception=True, check_size=False)
+
+
+def assert_crash_timestamp(has_files, tmp_path):
+    # The crash file should survive a `sentry_init` and should still be there
+    # even after restarts.
+    if has_files:
+        with open("{}/.sentry-native/last_crash".format(tmp_path)) as f:
+            crash_timestamp = f.read()
+        assert_timestamp(crash_timestamp)
+
+
+def assert_before_send(envelope):
+    event = envelope.get_event()
+    assert_matches(event, {"adapted_by": "before_send"})
+
+
+def assert_no_before_send(envelope):
+    event = envelope.get_event()
+    assert ("adapted_by", "before_send") not in event.items()
 
 
 def assert_crashpad_upload(req):

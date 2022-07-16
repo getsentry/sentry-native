@@ -411,7 +411,7 @@ sentry__capture_event(sentry_value_t event)
         if (sentry__event_is_transaction(event)) {
             envelope = sentry__prepare_transaction(options, event, &event_id);
         } else {
-            envelope = sentry__prepare_event(options, event, &event_id);
+            envelope = sentry__prepare_event(options, event, &event_id, true);
         }
         if (envelope) {
             if (options->session) {
@@ -460,7 +460,7 @@ sentry__should_send_transaction(sentry_value_t tx_cxt)
 
 sentry_envelope_t *
 sentry__prepare_event(const sentry_options_t *options, sentry_value_t event,
-    sentry_uuid_t *event_id)
+    sentry_uuid_t *event_id, bool invoke_before_send)
 {
     sentry_envelope_t *envelope = NULL;
 
@@ -477,7 +477,7 @@ sentry__prepare_event(const sentry_options_t *options, sentry_value_t event,
         sentry__scope_apply_to_event(scope, options, event, mode);
     }
 
-    if (options->before_send_func) {
+    if (options->before_send_func && invoke_before_send) {
         SENTRY_TRACE("invoking `before_send` hook");
         event
             = options->before_send_func(event, NULL, options->before_send_data);

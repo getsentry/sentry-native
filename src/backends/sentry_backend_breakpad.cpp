@@ -113,8 +113,8 @@ sentry__breakpad_backend_callback(
 
         if (should_handle) {
             sentry_value_t event = sentry_value_new_event();
-            sentry_envelope_t *envelope
-                = sentry__prepare_event(options, event, NULL);
+            sentry_envelope_t *envelope = sentry__prepare_event(
+                options, event, nullptr, !options->on_crash_func);
             // the event we just prepared is empty,
             // so no error is recorded for it
             sentry__record_errors_on_current_session(1);

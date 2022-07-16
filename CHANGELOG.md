@@ -2,11 +2,24 @@
 
 ## Unreleased
 
+**Features**
+
+- Provide `on_crash()` callback to allow clients to act on detected crashes
+  ([#724](https://github.com/getsentry/sentry-native/pull/724))
+
 **Fixes**
 
+- Make Windows ModuleFinder more resilient to missing Debug Info 
+  ([#732](https://github.com/getsentry/sentry-native/pull/732))
 - Aligned pre-send event processing in `sentry_capture_event()` with the 
   [cross-SDK session filter order](https://develop.sentry.dev/sdk/sessions/#filter-order) 
   ([#729](https://github.com/getsentry/sentry-native/pull/729))
+
+**Thank you**:
+
+Features, fixes and improvements in this release have been contributed by:
+
+- [@espkk](https://github.com/espkk)
 
 ## 0.4.18
 
