@@ -5,7 +5,8 @@
 **Features**
 
 - Provide `on_crash()` callback to allow clients to act on detected crashes
-  ([#724](https://github.com/getsentry/sentry-native/pull/724))
+  ([#724](https://github.com/getsentry/sentry-native/pull/724), 
+   [#734](https://github.com/getsentry/sentry-native/pull/734))
 
 **Fixes**
 
