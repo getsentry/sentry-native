@@ -26,6 +26,9 @@
 static sentry_value_t
 before_send_callback(sentry_value_t event, void *hint, void *closure)
 {
+    (void)hint;
+    (void)closure;
+
     // make our mark on the event
     sentry_value_set_by_key(
         event, "adapted_by", sentry_value_new_string("before_send"));
@@ -37,6 +40,9 @@ before_send_callback(sentry_value_t event, void *hint, void *closure)
 static int
 discarding_on_crash_callback(const sentry_ucontext_t *uctx, void *closure)
 {
+    (void)uctx;
+    (void)closure;
+
     // tell the backend to discard the event
     return 0;
 }
@@ -44,6 +50,9 @@ discarding_on_crash_callback(const sentry_ucontext_t *uctx, void *closure)
 static int
 retaining_on_crash_callback(const sentry_ucontext_t *uctx, void *closure)
 {
+    (void)uctx;
+    (void)closure;
+
     // tell the backend to retain the event
     return 1;
 }
