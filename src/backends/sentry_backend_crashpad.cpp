@@ -43,6 +43,7 @@ extern "C" {
 extern "C" {
 
 #ifdef SENTRY_PLATFORM_LINUX
+#    include <unistd.h>
 #    define SIGNAL_STACK_SIZE 65536
 static stack_t g_signal_stack;
 
