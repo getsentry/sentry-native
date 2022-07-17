@@ -37,6 +37,14 @@ before_send_callback(sentry_value_t event, void *hint, void *closure)
     return event;
 }
 
+static sentry_value_t
+discarding_before_send_callback(sentry_value_t event, void *hint, void *closure)
+{
+    // discard event and signal backend to stop further processing
+    sentry_value_decref(event);
+    return sentry_value_new_null();
+}
+
 static int
 discarding_on_crash_callback(const sentry_ucontext_t *uctx, void *closure)
 {
@@ -48,7 +56,7 @@ discarding_on_crash_callback(const sentry_ucontext_t *uctx, void *closure)
 }
 
 static int
-retaining_on_crash_callback(const sentry_ucontext_t *uctx, void *closure)
+on_crash_callback(const sentry_ucontext_t *uctx, void *closure)
 {
     (void)uctx;
     (void)closure;
@@ -143,13 +151,18 @@ main(int argc, char **argv)
         sentry_options_set_before_send(options, before_send_callback, NULL);
     }
 
+    if (has_arg(argc, argv, "discarding-before-send")) {
+        sentry_options_set_before_send(
+            options, discarding_before_send_callback, NULL);
+    }
+
     if (has_arg(argc, argv, "discarding-on-crash")) {
         sentry_options_set_on_crash(
             options, discarding_on_crash_callback, NULL);
     }
 
-    if (has_arg(argc, argv, "retaining-on-crash")) {
-        sentry_options_set_on_crash(options, retaining_on_crash_callback, NULL);
+    if (has_arg(argc, argv, "on-crash")) {
+        sentry_options_set_on_crash(options, on_crash_callback, NULL);
     }
 
     sentry_init(options);

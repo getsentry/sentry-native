@@ -163,7 +163,7 @@ def test_inproc_crash_stdout_discarding_on_crash(cmake):
 
 def test_inproc_crash_stdout_before_send_and_on_crash(cmake):
     tmp_path, output = run_crash_stdout_for(
-        "inproc", cmake, ["before-send", "retaining-on-crash"]
+        "inproc", cmake, ["before-send", "on-crash"]
     )
 
     # the on_crash() hook retains the event
@@ -218,7 +218,7 @@ def test_breakpad_crash_stdout_discarding_on_crash(cmake):
 @pytest.mark.skipif(not has_breakpad, reason="test needs breakpad backend")
 def test_breakpad_crash_stdout_before_send_and_on_crash(cmake):
     tmp_path, output = run_crash_stdout_for(
-        "breakpad", cmake, ["before-send", "retaining-on-crash"]
+        "breakpad", cmake, ["before-send", "on-crash"]
     )
 
     # the on_crash() hook retains the event

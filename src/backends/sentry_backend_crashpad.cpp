@@ -133,10 +133,9 @@ sentry__crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
 #    endif
     SENTRY_DEBUG("flushing session and queue before crashpad handler");
 
-    bool should_handle = true;
+    bool should_dump = true;
 
     SENTRY_WITH_OPTIONS (options) {
-        sentry__write_crash_marker(options);
 
         if (options->on_crash_func) {
             sentry_ucontext_t uctx;
@@ -149,17 +148,19 @@ sentry__crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
 #    endif
 
             SENTRY_TRACE("invoking `on_crash` hook");
-            should_handle
-                = options->on_crash_func(&uctx, options->on_crash_data);
+            should_dump = options->on_crash_func(&uctx, options->on_crash_data);
         } else if (options->before_send_func) {
             sentry_value_t event = sentry_value_new_event();
             SENTRY_TRACE("invoking `before_send` hook");
             event = options->before_send_func(
                 event, nullptr, options->before_send_data);
+            should_dump = !sentry_value_is_null(event);
             sentry_value_decref(event);
         }
 
-        if (should_handle) {
+        if (should_dump) {
+            sentry__write_crash_marker(options);
+
             sentry__record_errors_on_current_session(1);
             sentry_session_t *session = sentry__end_current_session_with_status(
                 SENTRY_SESSION_STATUS_CRASHED);
@@ -175,9 +176,8 @@ sentry__crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
                 sentry_transport_free(disk_transport);
             }
         } else {
-            SENTRY_TRACE("event was discarded by the `on_crash` hook");
+            SENTRY_TRACE("event was discarded");
         }
-
         sentry__transport_dump_queue(options->transport, options->run);
     }
 
@@ -185,8 +185,42 @@ sentry__crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
 #    ifndef SENTRY_PLATFORM_WINDOWS
     sentry__leave_signal_handler();
 #    endif
-    // further handling can be skipped via on_crash hook
-    return !should_handle;
+
+    // If we __don't__ want a minidump produced by crashpad we need to either
+    // exit or longjmp at this point. The crashpad client handler which calls
+    // back here (SetFirstChanceExceptionHandler) does the same if the
+    // application is not shutdown via the crashpad_handler process.
+    //
+    // If we would return `true` here without changing any of the global signal-
+    // handling state or rectifying the cause of the signal, this would turn
+    // into a signal-handler/exception-filter loop, because some
+    // signals/exceptions (like SIGSEGV) are unrecoverable.
+    //
+    // Ideally the SetFirstChanceExceptionHandler would accept more than a
+    // boolean to differentiate between:
+    //
+    // * we accept our fate and want a minidump (currently returning `false`)
+    // * we accept our fate and don't want a minidump (currently not available)
+    // * we rectified the situation, so crashpads signal-handler can simply
+    //   return, thereby letting the not-rectified signal-cause trigger a
+    //   signal-handler/exception-filter again, which probably leads to us
+    //   (currently returning `true`)
+    //
+    // TODO(supervacuus):
+    // * we need integration tests for more signal/exception types not only
+    //   for unmapped memory access (which is the current crash in example.c).
+    // * we should adapt the SetFirstChanceExceptionHandler interface in
+    // crashpad
+    if (!should_dump) {
+#    ifdef SENTRY_PLATFORM_WINDOWS
+        TerminateProcess(GetCurrentProcess(), kTerminationCodeCrashNoDump);
+#    else
+        _exit(EXIT_FAILURE);
+#    endif
+    }
+
+    // we did not "handle" the signal, so crashpad should do that.
+    return false;
 }
 #endif
 
