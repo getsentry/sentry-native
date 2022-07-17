@@ -132,10 +132,6 @@ def test_crashpad_crash(cmake, httpserver):
     sys.platform == "darwin",
     reason="crashpad doesn't provide SetFirstChanceExceptionHandler on macOS",
 )
-@pytest.mark.skipif(
-    sys.platform == "win32",
-    reason="not yet validated",
-)
 def test_crashpad_crash_before_send(cmake, httpserver):
     session, multipart = run_crashpad_dumping_crash(cmake, httpserver, ["before-send"])
 
@@ -154,10 +150,6 @@ def test_crashpad_crash_before_send(cmake, httpserver):
     sys.platform == "darwin",
     reason="crashpad doesn't provide SetFirstChanceExceptionHandler on macOS",
 )
-@pytest.mark.skipif(
-    sys.platform == "win32",
-    reason="not yet validated",
-)
 def test_crashpad_crash_discarding_before_send(cmake, httpserver):
     session = run_crashpad_non_dumping_crash(
         cmake, httpserver, ["discarding-before-send"]
@@ -172,10 +164,6 @@ def test_crashpad_crash_discarding_before_send(cmake, httpserver):
     sys.platform == "darwin",
     reason="crashpad doesn't provide SetFirstChanceExceptionHandler on macOS",
 )
-@pytest.mark.skipif(
-    sys.platform == "win32",
-    reason="not yet validated",
-)
 def test_crashpad_crash_discarding_on_crash(cmake, httpserver):
     session = run_crashpad_non_dumping_crash(cmake, httpserver, ["discarding-on-crash"])
 
@@ -187,10 +175,6 @@ def test_crashpad_crash_discarding_on_crash(cmake, httpserver):
 @pytest.mark.skipif(
     sys.platform == "darwin",
     reason="crashpad doesn't provide SetFirstChanceExceptionHandler on macOS",
-)
-@pytest.mark.skipif(
-    sys.platform == "win32",
-    reason="not yet validated",
 )
 def test_crashpad_crash_discarding_before_send_and_on_crash(cmake, httpserver):
     session, multipart = run_crashpad_dumping_crash(
