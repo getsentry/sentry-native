@@ -40,6 +40,9 @@ before_send_callback(sentry_value_t event, void *hint, void *closure)
 static sentry_value_t
 discarding_before_send_callback(sentry_value_t event, void *hint, void *closure)
 {
+    (void)hint;
+    (void)closure;
+
     // discard event and signal backend to stop further processing
     sentry_value_decref(event);
     return sentry_value_new_null();
