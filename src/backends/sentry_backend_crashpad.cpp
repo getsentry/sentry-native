@@ -213,7 +213,8 @@ sentry__crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
     // crashpad
     if (!should_dump) {
 #    ifdef SENTRY_PLATFORM_WINDOWS
-        TerminateProcess(GetCurrentProcess(), kTerminationCodeCrashNoDump);
+        // TerminateProcess(GetCurrentProcess(), kTerminationCodeCrashNoDump);
+        TerminateProcess(GetCurrentProcess(), 1);
 #    else
         _exit(EXIT_FAILURE);
 #    endif
