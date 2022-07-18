@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- Crashpad on Windows is now registered with the Windows Error Reporting (WER) subsystem. ([#735](https://github.com/getsentry/sentry-native/pull/735))
+
+**Internal**:
+
+- Updated Breakpad and Crashpad backends to 2022-07-18. ([#735](https://github.com/getsentry/sentry-native/pull/735))
+
 ## 0.5.0
 
 **Features**
