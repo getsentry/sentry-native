@@ -48,24 +48,27 @@ discarding_before_send_callback(sentry_value_t event, void *hint, void *closure)
     return sentry_value_new_null();
 }
 
-static int
-discarding_on_crash_callback(const sentry_ucontext_t *uctx, void *closure)
+static sentry_value_t
+discarding_on_crash_callback(
+    const sentry_ucontext_t *uctx, sentry_value_t event, void *closure)
 {
     (void)uctx;
     (void)closure;
 
-    // tell the backend to discard the event
-    return 0;
+    // discard event and signal backend to stop further processing
+    sentry_value_decref(event);
+    return sentry_value_new_null();
 }
 
-static int
-on_crash_callback(const sentry_ucontext_t *uctx, void *closure)
+static sentry_value_t
+on_crash_callback(
+    const sentry_ucontext_t *uctx, sentry_value_t event, void *closure)
 {
     (void)uctx;
     (void)closure;
 
     // tell the backend to retain the event
-    return 1;
+    return event;
 }
 
 static void
