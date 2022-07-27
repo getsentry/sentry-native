@@ -162,13 +162,13 @@ main(int argc, char **argv)
             options, discarding_before_send_callback, NULL);
     }
 
+    if (has_arg(argc, argv, "on-crash")) {
+        sentry_options_set_on_crash(options, on_crash_callback, NULL);
+    }
+
     if (has_arg(argc, argv, "discarding-on-crash")) {
         sentry_options_set_on_crash(
             options, discarding_on_crash_callback, NULL);
-    }
-
-    if (has_arg(argc, argv, "on-crash")) {
-        sentry_options_set_on_crash(options, on_crash_callback, NULL);
     }
 
     sentry_init(options);

@@ -140,3 +140,7 @@ The example currently supports the following commends:
 - `sleep`: Introduces a 10 second sleep.
 - `add-stacktrace`: Adds the current thread stacktrace to the captured event.
 - `disable-backend`: Disables the build-configured crash-handler backend.
+- `before-send`: Installs a `before_send()` callback that retains the event.
+- `discarding-before-send`: Installs a `before_send()` callback that retains the event.
+- `on-crash`: Installs an `on_crash()` callback that retains the crash event. 
+- `discarding-on-crash`: Installs an `on_crash()` callback that discards the crash event.
