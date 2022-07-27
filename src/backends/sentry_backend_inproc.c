@@ -552,6 +552,7 @@ handle_ucontext(const sentry_ucontext_t *uctx)
             sentry_transport_free(disk_transport);
         } else {
             SENTRY_TRACE("event was discarded by the `on_crash` hook");
+            sentry_value_decref(event);
         }
 
         // after capturing the crash event, dump all the envelopes to disk
