@@ -86,7 +86,6 @@ extern "C" {
 
 #include <inttypes.h>
 #include <stdarg.h>
-#include <stdbool.h>
 #include <stddef.h>
 
 /* context type dependencies */
@@ -771,6 +770,11 @@ SENTRY_API void sentry_options_set_transport(
  * call `sentry_value_decref` on the provided event, and return a
  * `sentry_value_new_null()` instead.
  *
+ * If you have set an `on_crash` callback (independent of whether it discards or
+ * retains the event), `before_send` will no longer be invoked for crash-events,
+ * which allows you to better distinguish between crashes and all other events
+ * in client-side pre-processing.
+ *
  * This function may be invoked inside of a signal handler and must be safe for
  * that purpose, see https://man7.org/linux/man-pages/man7/signal-safety.7.html.
  * On Windows, it may be called from inside of a `UnhandledExceptionFilter`, see
@@ -798,20 +802,48 @@ SENTRY_API void sentry_options_set_before_send(
 /**
  * Type of the `on_crash` callback.
  *
- * Does not work with crashpad on macOS.
- * The callback passes a pointer to sentry_ucontext_s structure when exception
- * handler is invoked. For breakpad on Linux this pointer is NULL.
+ * The `on_crash` callback replaces the `before_send` callback for crash events.
+ * The interface is analogous to `before_send` in that the callback takes
+ * ownership of the `event`, and should usually return that same event. In case
+ * the event should be discarded, the callback needs to call
+ * `sentry_value_decref` on the provided event, and return a
+ * `sentry_value_new_null()` instead.
  *
- * If the callback returns false outgoing crash report will be discarded.
+ * Only the `inproc` backend currently fills the passed-in event with useful
+ * data and processes any modifications to the return value. Since both
+ * `breakpad` and `crashpad` use minidumps to capture the crash state, the
+ * passed-in event is empty when using these backends, and they ignore any
+ * changes to the return value.
+ *
+ * If you set this callback in the options, it prevents a concurrently enabled
+ * `before_send` callback from being invoked in the crash case. This allows for
+ * better differentiation between crashes and other events and gradual migration
+ * from existing `before_send` implementations:
+ *
+ *  - if you have a `before_send` implementation and do not define an `on_crash`
+ *    callback your application will receive both normal and crash events as
+ *    before
+ *  - if you have a `before_send` implementation but only want to handle normal
+ *    events with it, then you can define an `on_crash` callback that returns
+ *    the passed-in event and does nothing else
+ *  - if you are not interested in normal events, but only want to act on
+ *    crashes (within the limits mentioned below), then only define an
+ *    `on_crash` callback with the option to filter (on all backends) or enrich
+ *    (only inproc) the crash event
  *
  * This function may be invoked inside of a signal handler and must be safe for
  * that purpose, see https://man7.org/linux/man-pages/man7/signal-safety.7.html.
  * On Windows, it may be called from inside of a `UnhandledExceptionFilter`, see
  * the documentation on SEH (structured exception handling) for more information
  * https://docs.microsoft.com/en-us/windows/win32/debug/structured-exception-handling
+ *
+ * Platform-specific behavior:
+ *
+ *  - does not work with crashpad on macOS.
+ *  - for breakpad on Linux the `uctx` parameter is always NULL.
  */
-typedef bool (*sentry_crash_function_t)(
-    const sentry_ucontext_t *uctx, void *closure);
+typedef sentry_value_t (*sentry_crash_function_t)(
+    const sentry_ucontext_t *uctx, sentry_value_t event, void *closure);
 
 /**
  * Sets the `on_crash` callback.

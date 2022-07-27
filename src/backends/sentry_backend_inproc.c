@@ -530,13 +530,13 @@ handle_ucontext(const sentry_ucontext_t *uctx)
 
         if (options->on_crash_func) {
             SENTRY_TRACE("invoking `on_crash` hook");
-            should_handle
-                = options->on_crash_func(uctx, options->on_crash_data);
+            event = options->on_crash_func(uctx, event, options->on_crash_data);
+            should_handle = !sentry_value_is_null(event);
         }
 
         if (should_handle) {
-            sentry_envelope_t *envelope
-                = sentry__prepare_event(options, event, NULL);
+            sentry_envelope_t *envelope = sentry__prepare_event(
+                options, event, NULL, !options->on_crash_func);
             // TODO(tracing): Revisit when investigating transaction flushing
             // during hard crashes.
 
@@ -552,6 +552,7 @@ handle_ucontext(const sentry_ucontext_t *uctx)
             sentry_transport_free(disk_transport);
         } else {
             SENTRY_TRACE("event was discarded by the `on_crash` hook");
+            sentry_value_decref(event);
         }
 
         // after capturing the crash event, dump all the envelopes to disk

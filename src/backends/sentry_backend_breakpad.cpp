@@ -91,6 +91,7 @@ sentry__breakpad_backend_callback(
 #else
     dump_path = sentry__path_new(descriptor.path());
 #endif
+    sentry_value_t event = sentry_value_new_event();
 
     SENTRY_WITH_OPTIONS (options) {
         sentry__write_crash_marker(options);
@@ -107,14 +108,14 @@ sentry__breakpad_backend_callback(
 #endif
 
             SENTRY_TRACE("invoking `on_crash` hook");
-            should_handle
-                = options->on_crash_func(uctx, options->on_crash_data);
+            sentry_value_t result
+                = options->on_crash_func(uctx, event, options->on_crash_data);
+            should_handle = !sentry_value_is_null(result);
         }
 
         if (should_handle) {
-            sentry_value_t event = sentry_value_new_event();
-            sentry_envelope_t *envelope
-                = sentry__prepare_event(options, event, NULL);
+            sentry_envelope_t *envelope = sentry__prepare_event(
+                options, event, nullptr, !options->on_crash_func);
             // the event we just prepared is empty,
             // so no error is recorded for it
             sentry__record_errors_on_current_session(1);
@@ -152,6 +153,7 @@ sentry__breakpad_backend_callback(
             sentry__path_free(dump_path);
         } else {
             SENTRY_TRACE("event was discarded by the `on_crash` hook");
+            sentry_value_decref(event);
         }
 
         // after capturing the crash event, try to dump all the in-flight
