@@ -135,6 +135,7 @@ sentry__crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
     SENTRY_DEBUG("flushing session and queue before crashpad handler");
 
     bool should_dump = true;
+    sentry_value_t event = sentry_value_new_event();
 
     SENTRY_WITH_OPTIONS (options) {
 
@@ -149,15 +150,15 @@ sentry__crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
 #    endif
 
             SENTRY_TRACE("invoking `on_crash` hook");
-            should_dump = options->on_crash_func(&uctx, options->on_crash_data);
+            event
+                = options->on_crash_func(&uctx, event, options->on_crash_data);
         } else if (options->before_send_func) {
-            sentry_value_t event = sentry_value_new_event();
             SENTRY_TRACE("invoking `before_send` hook");
             event = options->before_send_func(
                 event, nullptr, options->before_send_data);
-            should_dump = !sentry_value_is_null(event);
-            sentry_value_decref(event);
         }
+        should_dump = !sentry_value_is_null(event);
+        sentry_value_decref(event);
 
         if (should_dump) {
             sentry__write_crash_marker(options);

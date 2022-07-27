@@ -4,7 +4,12 @@
 
 **Features**
 
-- Provide `on_crash()` callback to allow clients to act on detected crashes
+- Provide `on_crash()` callback to allow clients to act on detected crashes.
+  Users often inquired about distinguishing between crashes and "normal" events in the `before_send()` hook.
+  `on_crash()` can be considered a replacement for `before_send()` for crash events, where the goal is to use 
+  `before_send()` only for normal events, while `on_crash()` is only invoked for crashes. This change is backward
+  compatible for current users of `before_send()` and allows gradual migration to `on_crash()`
+  ([see the docs for details](https://docs.sentry.io/platforms/native/configuration/filtering/)). 
   ([#724](https://github.com/getsentry/sentry-native/pull/724), 
    [#734](https://github.com/getsentry/sentry-native/pull/734))
 
