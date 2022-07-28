@@ -33,6 +33,9 @@ sentry_options_new(void)
     opts->release = sentry__string_clone(getenv("SENTRY_RELEASE"));
     opts->environment = sentry__string_clone(getenv("SENTRY_ENVIRONMENT"));
 #endif
+    if (!opts->environment) {
+        opts->environment = sentry__string_clone("production");
+    }
     opts->max_breadcrumbs = SENTRY_BREADCRUMBS_MAX;
     opts->user_consent = SENTRY_USER_CONSENT_UNKNOWN;
     opts->auto_session_tracking = true;
