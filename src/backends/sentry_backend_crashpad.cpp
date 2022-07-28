@@ -33,6 +33,9 @@ extern "C" {
 #include "client/crashpad_info.h"
 #include "client/prune_crash_reports.h"
 #include "client/settings.h"
+#if defined(_MSC_VER)
+#    include "util/win/termination_codes.h"
+#endif
 
 #if defined(__GNUC__)
 #    pragma GCC diagnostic pop
@@ -215,8 +218,8 @@ sentry__crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
     // crashpad
     if (!should_dump) {
 #    ifdef SENTRY_PLATFORM_WINDOWS
-        // TerminateProcess(GetCurrentProcess(), kTerminationCodeCrashNoDump);
-        TerminateProcess(GetCurrentProcess(), 1);
+        TerminateProcess(GetCurrentProcess(),
+            crashpad::TerminationCodes::kTerminationCodeCrashNoDump);
 #    else
         _exit(EXIT_FAILURE);
 #    endif
