@@ -44,36 +44,48 @@ extract_pdb_info(uintptr_t module_addr, sentry_value_t module)
         nt_headers->OptionalHeader.SizeOfImage);
     sentry_value_set_by_key(module, "code_id", sentry_value_new_string(id_buf));
 
-    uint32_t relative_addr
-        = nt_headers->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_DEBUG]
-              .VirtualAddress;
+    IMAGE_DATA_DIRECTORY debug_entry
+        = nt_headers->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_DEBUG];
+
+    size_t relative_addr = (size_t)debug_entry.VirtualAddress;
     if (!relative_addr) {
         return;
     }
 
-    PIMAGE_DEBUG_DIRECTORY debug_dict
-        = (PIMAGE_DEBUG_DIRECTORY)(module_addr + relative_addr);
-    if (!debug_dict || debug_dict->Type != IMAGE_DEBUG_TYPE_CODEVIEW) {
+    size_t table_size = (size_t)debug_entry.Size;
+    size_t entry_size = sizeof(IMAGE_DEBUG_DIRECTORY);
+    if (table_size % entry_size != 0) {
         return;
     }
 
-    struct CodeViewRecord70 *debug_info
-        = (struct CodeViewRecord70 *)(module_addr
-            + debug_dict->AddressOfRawData);
-    if (!debug_info || debug_info->signature != CV_SIGNATURE) {
+    for (size_t offset = 0; offset < table_size; offset += entry_size) {
+        PIMAGE_DEBUG_DIRECTORY debug_dict
+            = (PIMAGE_DEBUG_DIRECTORY)(module_addr + relative_addr + offset);
+
+        if (debug_dict->Type != IMAGE_DEBUG_TYPE_CODEVIEW) {
+            continue;
+        }
+
+        struct CodeViewRecord70 *debug_info
+            = (struct CodeViewRecord70 *)(module_addr
+                + debug_dict->AddressOfRawData);
+        if (debug_info->signature != CV_SIGNATURE) {
+            continue;
+        }
+
+        sentry_value_set_by_key(module, "debug_file",
+            sentry_value_new_string(debug_info->pdb_filename));
+
+        sentry_uuid_t debug_id_base
+            = sentry__uuid_from_native(&debug_info->pdb_signature);
+        sentry_uuid_as_string(&debug_id_base, id_buf);
+        id_buf[36] = '-';
+        snprintf(id_buf + 37, 10, "%x", debug_info->pdb_age);
+        sentry_value_set_by_key(
+            module, "debug_id", sentry_value_new_string(id_buf));
+
         return;
     }
-
-    sentry_value_set_by_key(module, "debug_file",
-        sentry_value_new_string(debug_info->pdb_filename));
-
-    sentry_uuid_t debug_id_base
-        = sentry__uuid_from_native(&debug_info->pdb_signature);
-    sentry_uuid_as_string(&debug_id_base, id_buf);
-    id_buf[36] = '-';
-    snprintf(id_buf + 37, 10, "%x", debug_info->pdb_age);
-    sentry_value_set_by_key(
-        module, "debug_id", sentry_value_new_string(id_buf));
 }
 
 static void
