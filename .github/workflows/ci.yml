@@ -31,33 +31,33 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: Linux (gcc 7, 32-bit)
+          - name: Linux (old gcc, 32-bit)
             os: ubuntu-18.04
             CC: gcc-7
             CXX: g++-7
             TEST_X86: 1
-          - name: Linux (gcc 10)
-            os: ubuntu-20.04
-            CC: gcc-10
-            CXX: g++-10
+          - name: Linux (new gcc)
+            os: ubuntu-22.04
+            CC: gcc-12
+            CXX: g++-12
             # ERROR_ON_WARNINGS: 1
             # The GCC analyzer 10.0.1 (as on CI) has an internal compiler error
             # currently, and is not stable enough to activate.
             # RUN_ANALYZER: gcc
-          - name: Linux (clang 11 + asan + llvm-cov)
-            os: ubuntu-20.04
-            CC: clang-11
-            CXX: clang++-11
+          - name: Linux (clang + asan + llvm-cov)
+            os: ubuntu-22.04
+            CC: clang-14
+            CXX: clang++-14
             ERROR_ON_WARNINGS: 1
             RUN_ANALYZER: asan,llvm-cov
-          - name: Linux (clang 11 + kcov)
-            os: ubuntu-20.04
-            CC: clang-11
-            CXX: clang++-11
+          - name: Linux (clang + kcov)
+            os: ubuntu-22.04
+            CC: clang-14
+            CXX: clang++-14
             ERROR_ON_WARNINGS: 1
             RUN_ANALYZER: kcov
-          - name: Linux (code-checker + valgrind)
-            os: ubuntu-20.04
+          - name: Linux (gcc + code-checker + valgrind)
+            os: ubuntu-22.04
             RUN_ANALYZER: code-checker,valgrind
           - name: macOS (xcode llvm)
             os: macOs-latest
@@ -68,28 +68,28 @@ jobs:
             ERROR_ON_WARNINGS: 1
             SYSTEM_VERSION_COMPAT: 0
             CMAKE_DEFINES: -DCMAKE_OSX_ARCHITECTURES=arm64;x86_64
-          - name: macOS (clang 13 + asan + llvm-cov)
+          - name: macOS (clang + asan + llvm-cov)
             os: macOs-latest
             CC: clang
             CXX: clang++
             ERROR_ON_WARNINGS: 1
             SYSTEM_VERSION_COMPAT: 0
             RUN_ANALYZER: asan,llvm-cov
-          - name: Windows (VS2019)
+          - name: Windows (old VS, 32-bit)
             os: windows-2019
             TEST_X86: 1
           - name: Windows (latest)
             os: windows-latest
           # The Android emulator is currently only available on macos, see:
           # https://docs.microsoft.com/en-us/azure/devops/pipelines/ecosystems/android?view=azure-devops#test-on-the-android-emulator
-          - name: Android (API 16, NDK 20)
+          - name: Android (old API/NDK)
             os: macOs-latest
             ANDROID_API: 16
             ANDROID_NDK: 20.1.5948944
-          - name: Android (API 30, NDK 22)
+          - name: Android (new API/NDK)
             os: macOs-latest
-            ANDROID_API: 30
-            ANDROID_NDK: 22.1.7171670
+            ANDROID_API: 32
+            ANDROID_NDK: 25.0.8775105
 
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
@@ -114,9 +114,9 @@ jobs:
         # workaround: https://github.com/actions/virtual-environments/issues/1536#issuecomment-698537248
         run: |
           wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key 2>/dev/null | sudo apt-key add -
-          sudo add-apt-repository 'deb http://apt.llvm.org/focal/ llvm-toolchain-focal-11 main' -y
+          sudo add-apt-repository 'http://apt.llvm.org/jammy/ llvm-toolchain-jammy-14 main' -y
           sudo apt update
-          sudo apt install cmake clang-11 clang-tools llvm kcov g++-10 valgrind zlib1g-dev libcurl4-openssl-dev
+          sudo apt install cmake clang-14 clang-tools llvm kcov g++-12 valgrind zlib1g-dev libcurl4-openssl-dev
 
       - name: Installing Linux 32-bit Dependencies
         if: ${{ runner.os == 'Linux' && env['TEST_X86'] }}
