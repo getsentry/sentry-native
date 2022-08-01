@@ -86,10 +86,12 @@ jobs:
             os: macOs-latest
             ANDROID_API: 16
             ANDROID_NDK: 20.1.5948944
+            ANDROID_ARCH: x86
           - name: Android (new API/NDK)
             os: macOs-latest
             ANDROID_API: 32
             ANDROID_NDK: 25.0.8775105
+            ANDROID_ARCH: x86_64
 
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
@@ -133,8 +135,8 @@ jobs:
       - name: Installing Android SDK Dependencies
         if: ${{ env['ANDROID_API'] }}
         run: |
-          export ANDROID_IMAGE="system-images;android-$ANDROID_API;google_apis;x86"
-          echo "Downloading ndk;$ANDROID_NDK and $ANDROID_IMAGE"
+          export ANDROID_IMAGE="system-images;android-$ANDROID_API;google_apis;$ANDROID_ARCH"
+          echo "Downloading ndk;$ANDROID_NDK and $ANDROID_IMAGE ($ANDROID_ARCH)"
           echo "y" | $ANDROID_HOME/tools/bin/sdkmanager --install \
             "ndk;$ANDROID_NDK" "$ANDROID_IMAGE" | \
             grep -v "\[=" || true # suppress the progress bar, so we get meaningful logs
