@@ -111,10 +111,7 @@ jobs:
 
       - name: Installing Linux Dependencies
         if: ${{ runner.os == 'Linux' && !env['TEST_X86'] }}
-        # workaround: https://github.com/actions/virtual-environments/issues/1536#issuecomment-698537248
         run: |
-          wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key 2>/dev/null | sudo apt-key add -
-          sudo add-apt-repository 'http://apt.llvm.org/jammy/ llvm-toolchain-jammy-14 main' -y
           sudo apt update
           sudo apt install cmake clang-14 clang-tools llvm kcov g++-12 valgrind zlib1g-dev libcurl4-openssl-dev
 
