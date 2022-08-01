@@ -17,9 +17,12 @@
 
 - Make Windows ModuleFinder more resilient to missing Debug Info 
   ([#732](https://github.com/getsentry/sentry-native/pull/732))
-- Aligned pre-send event processing in `sentry_capture_event()` with the 
+- Aligned pre-send event processing in `sentry_capture_event()` with the
   [cross-SDK session filter order](https://develop.sentry.dev/sdk/sessions/#filter-order) 
   ([#729](https://github.com/getsentry/sentry-native/pull/729))
+- Align the default value initialization for the `environment` payload attribute with the
+  [developer documentation](https://develop.sentry.dev/sdk/event-payloads/#optional-attribute)
+  ([#739](https://github.com/getsentry/sentry-native/pull/739))
 
 **Thank you**:
 
