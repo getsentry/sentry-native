@@ -23,6 +23,8 @@
 - Align the default value initialization for the `environment` payload attribute with the
   [developer documentation](https://develop.sentry.dev/sdk/event-payloads/#optional-attribute)
   ([#739](https://github.com/getsentry/sentry-native/pull/739))
+- Iterate all debug directory entries when parsing PE modules for a valid CodeView record
+  ([#740](https://github.com/getsentry/sentry-native/pull/740))
 
 **Thank you**:
 
