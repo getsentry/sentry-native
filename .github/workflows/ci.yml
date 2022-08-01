@@ -124,12 +124,7 @@ jobs:
 
       - name: Installing CodeChecker
         if: ${{ contains(env['RUN_ANALYZER'], 'code-checker') }}
-        run: |
-          sudo apt install clang-tidy curl doxygen gcc-multilib libxml2-dev libxslt1-dev python3-dev python3-virtualenv
-          git clone https://github.com/Ericsson/CodeChecker.git --depth 1 --branch v6.15.0
-          cd CodeChecker
-          BUILD_LOGGER_64_BIT_ONLY=YES BUILD_UI_DIST=NO make standalone_package
-          echo "$PWD/build/CodeChecker/bin" >> $GITHUB_PATH
+        run: sudo snap install codechecker --classic
 
       - name: Expose llvm PATH for Mac
         if: ${{ runner.os == 'macOS' }}
