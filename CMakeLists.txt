@@ -3,6 +3,7 @@ if(WIN32)
 
 	# enables support for CMAKE_MSVC_RUNTIME_LIBRARY
 	cmake_policy(SET CMP0091 NEW)
+
 else()
 	# The Android tools ship with this ancient version, which we need to support.
 	cmake_minimum_required (VERSION 3.10)
@@ -448,7 +449,9 @@ if(SENTRY_BACKEND_CRASHPAD)
 			set_property(TARGET crashpad_snapshot PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 			set_property(TARGET crashpad_tools PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 			set_property(TARGET crashpad_util PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
-			set_property(TARGET crashpad_wer PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+			if(CRASHPAD_WER_ENABLED)
+				set_property(TARGET crashpad_wer PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+			endif()
 			set_property(TARGET crashpad_zlib PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 			set_property(TARGET mini_chromium PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 		endif()
@@ -465,7 +468,7 @@ if(SENTRY_BACKEND_CRASHPAD)
 			set_target_properties(crashpad_util PROPERTIES FOLDER ${SENTRY_FOLDER})
 			set_target_properties(crashpad_zlib PROPERTIES FOLDER ${SENTRY_FOLDER})
 			set_target_properties(mini_chromium PROPERTIES FOLDER ${SENTRY_FOLDER})
-			if(WIN32)
+			if(CRASHPAD_WER_ENABLED)
 				set_target_properties(crashpad_wer PROPERTIES FOLDER ${SENTRY_FOLDER})
 			endif()
 		endif()
@@ -480,12 +483,14 @@ if(SENTRY_BACKEND_CRASHPAD)
 		if(WIN32 AND MSVC)
 			sentry_install(FILES $<TARGET_PDB_FILE:crashpad_handler>
 				DESTINATION "${CMAKE_INSTALL_BINDIR}" OPTIONAL)
-			sentry_install(FILES $<TARGET_PDB_FILE:crashpad_wer>
-				DESTINATION "${CMAKE_INSTALL_BINDIR}" OPTIONAL)
+			if (CRASHPAD_WER_ENABLED)
+				sentry_install(FILES $<TARGET_PDB_FILE:crashpad_wer>
+					DESTINATION "${CMAKE_INSTALL_BINDIR}" OPTIONAL)
+			endif()
 		endif()
 	endif()
 	add_dependencies(sentry crashpad::handler)
-	if(WIN32)
+	if(CRASHPAD_WER_ENABLED)
 		add_dependencies(sentry crashpad::wer)
 	endif()
 elseif(SENTRY_BACKEND_BREAKPAD)
@@ -576,6 +581,7 @@ if(SENTRY_BUILD_EXAMPLES)
 	target_link_libraries(sentry_example PRIVATE sentry)
 
 	if(MSVC)
+		# TODO: enable /guard:cf if we want to add integration tests
 		target_compile_options(sentry_example PRIVATE $<BUILD_INTERFACE:/wd5105>)
 	endif()
 
