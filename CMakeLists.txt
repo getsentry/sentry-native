@@ -437,6 +437,9 @@ if(SENTRY_BACKEND_CRASHPAD)
 			set(CRASHPAD_ENABLE_INSTALL ON CACHE BOOL "Enable crashpad installation" FORCE)
 		endif()
 		add_subdirectory(external/crashpad crashpad_build)
+		if(CRASHPAD_WER_ENABLED)
+			add_compile_definitions(CRASHPAD_WER_ENABLED)
+		endif()
 
 		# set static runtime if enabled
 		if(SENTRY_BUILD_RUNTIMESTATIC AND MSVC)
@@ -581,8 +584,12 @@ if(SENTRY_BUILD_EXAMPLES)
 	target_link_libraries(sentry_example PRIVATE sentry)
 
 	if(MSVC)
-		# TODO: enable /guard:cf if we want to add integration tests
 		target_compile_options(sentry_example PRIVATE $<BUILD_INTERFACE:/wd5105>)
+		#if(SENTRY_EXAMPLE_CFG_ENABLED)
+		if(CRASHPAD_WER_ENABLED)
+			# to test handling SEH by-passing exceptions we need to enable the control flow guard
+			target_compile_options(sentry_example PRIVATE $<BUILD_INTERFACE:/guard:cf>)
+		endif()
 	endif()
 
 	# set static runtime if enabled

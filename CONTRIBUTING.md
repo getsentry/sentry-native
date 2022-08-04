@@ -144,3 +144,8 @@ The example currently supports the following commends:
 - `discarding-before-send`: Installs a `before_send()` callback that retains the event.
 - `on-crash`: Installs an `on_crash()` callback that retains the crash event. 
 - `discarding-on-crash`: Installs an `on_crash()` callback that discards the crash event.
+
+Only on Windows using crashpad with its WER handler module:
+
+- `fastfail`: Crashes the application using the `__fastfail` intrinsic directly, thus by-passing SEH.
+- `stack-buffer-overrun`: Triggers the Windows Control Flow Guard, which also fast fails and in turn by-passes SEH.

@@ -319,7 +319,7 @@ sentry__crashpad_backend_startup(
         annotations, arguments, /* restartable */ true,
         /* asynchronous_start */ false, attachments);
 
-#ifdef SENTRY_PLATFORM_WINDOWS
+#ifdef CRASHPAD_WER_ENABLED
     sentry_path_t *handler_dir = sentry__path_dir(absolute_handler_path);
     sentry_path_t *wer_path = nullptr;
     if (handler_dir) {
@@ -327,7 +327,7 @@ sentry__crashpad_backend_startup(
         sentry__path_free(handler_dir);
     }
 
-    if (wer_path) {
+    if (wer_path && sentry__path_is_file(wer_path)) {
         SENTRY_TRACEF("registering crashpad WER handler "
                       "\"%" SENTRY_PATH_PRI "\"",
             wer_path->path);
@@ -348,8 +348,10 @@ sentry__crashpad_backend_startup(
         }
 
         sentry__path_free(wer_path);
+    } else {
+        SENTRY_WARN("crashpad WER handler module not found");
     }
-#endif
+#endif // CRASHPAD_WER_ENABLED
 
     sentry__path_free(absolute_handler_path);
 
