@@ -408,18 +408,51 @@ if(MINGW)
 	)
 endif()
 
-if(SENTRY_WITH_LIBUNWINDSTACK)
-	target_include_directories(sentry PRIVATE
-		"$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/libunwindstack-ndk/include>")
-	add_subdirectory("${PROJECT_SOURCE_DIR}/external/libunwindstack-ndk/cmake")
-	target_link_libraries(sentry PRIVATE unwindstack)
-	if(NOT SENTRY_BUILD_SHARED_LIBS)
-		sentry_install(TARGETS unwindstack EXPORT sentry
-			LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
-			ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
-		)
-	endif()
-endif()
+if (SENTRY_WITH_LIBUNWINDSTACK)
+	# We provide two shared libraries for Android unwinding which are dynamically loaded depending on SDK version:
+	# 1.) the OS unwinder (which is provided with SDK >= 28)
+    add_library(android_unwinder_os SHARED "${PROJECT_SOURCE_DIR}/src/unwinder/libunwindstack_os.cpp")
+	set_property(TARGET android_unwinder_os PROPERTY CXX_STANDARD 17)
+    target_include_directories(android_unwinder_os PRIVATE
+            "${PROJECT_SOURCE_DIR}/include"
+			)
+
+	# 2.) our legacy unwinder based on a stripped down version of libunwindstack
+	#     pulling up the build-config and building the .so together with the interface instead of building a static-lib
+	#     and pulling that into the .so shaves off 0.5MiB (1.5MiB on device instead of 2.0MiB).
+	#     TODO: we can limit the exported symbols to the sole interface-function via a linker-script
+    add_library(android_unwinder_legacy SHARED "${PROJECT_SOURCE_DIR}/src/unwinder/libunwindstack_legacy.cpp")
+    set_property(TARGET android_unwinder_legacy PROPERTY CXX_STANDARD 17)
+    set_property(TARGET android_unwinder_legacy PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
+    set_property(TARGET android_unwinder_legacy PROPERTY CXX_VISIBILITY_PRESET hidden)
+    target_compile_options(android_unwinder_legacy PRIVATE -fdata-sections -ffunction-sections)
+    add_subdirectory("${PROJECT_SOURCE_DIR}/external/libunwindstack-ndk/cmake")
+    target_include_directories(android_unwinder_legacy PRIVATE
+            "${PROJECT_SOURCE_DIR}/include"
+            "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/libunwindstack-ndk/include>"
+            ${UNWINDSTACK_ROOT}
+            ${UNWINDSTACK_ROOT}/include)
+
+    target_sources(android_unwinder_legacy PRIVATE
+            ${ANDROID_SOURCES}
+            ${UNWINDSTACK_SOURCES}
+            ${UNWINDSTACK_SOURCES_GETREG})
+
+    target_link_libraries(android_unwinder_legacy PRIVATE log)
+
+    if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        target_compile_options(android_unwinder_legacy PRIVATE $<BUILD_INTERFACE:-Wno-unknown-attributes>)
+	endif ()
+	# TODO: this no longer makes sense if we go with this library design. but if we want to leave this open to potential
+	#       other users of the unwinder, then we can adapt the libunwindstack-ndk build to optional provide a static
+	#       library too.
+    #	if(NOT SENTRY_BUILD_SHARED_LIBS)
+    #		sentry_install(TARGETS unwindstack EXPORT sentry
+    #			LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+    #			ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+    #		)
+    #	endif()
+endif ()
 
 if(SENTRY_BACKEND_CRASHPAD)
 	option(SENTRY_CRASHPAD_SYSTEM "Use system crashpad" OFF)

@@ -23,7 +23,10 @@
 #ifdef SENTRY_INTEGRATION_QT
 #    include "integrations/sentry_integration_qt.h"
 #endif
-
+#ifdef SENTRY_WITH_UNWINDER_LIBUNWINDSTACK
+extern void sentry__load_unwinder();
+extern void sentry__unload_unwinder();
+#endif
 static sentry_options_t *g_options = NULL;
 static sentry_mutex_t g_options_lock = SENTRY__MUTEX_INIT;
 
@@ -180,6 +183,10 @@ sentry_init(sentry_options_t *options)
     sentry_integration_setup_qt();
 #endif
 
+#ifdef SENTRY_WITH_UNWINDER_LIBUNWINDSTACK
+    sentry__load_unwinder();
+#endif
+
     // after initializing the transport, we will submit all the unsent envelopes
     // and handle remaining sessions.
     SENTRY_TRACE("processing and pruning old runs");
@@ -249,6 +256,10 @@ sentry_close(void)
     } else {
         SENTRY_DEBUG("sentry_close() called, but options was empty");
     }
+
+#ifdef SENTRY_WITH_UNWINDER_LIBUNWINDSTACK
+    sentry__unload_unwinder();
+#endif
 
     g_options = NULL;
     sentry__mutex_unlock(&g_options_lock);

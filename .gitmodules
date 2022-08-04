@@ -1,6 +1,6 @@
 [submodule "external/libunwindstack-ndk"]
 	path = external/libunwindstack-ndk
-	url = https://github.com/getsentry/libunwindstack-ndk
+	url = https://github.com/supervacuus/libunwindstack-ndk
 [submodule "external/breakpad"]
 	path = external/breakpad
 	url = https://github.com/getsentry/breakpad.git
