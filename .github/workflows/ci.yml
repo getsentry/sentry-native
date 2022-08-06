@@ -150,6 +150,7 @@ jobs:
         if: ${{ matrix.os == 'windows-latest' }}
         shell: powershell
         run: |
+          Enable-WindowsErrorReporting
           New-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting" -Name DontShowUI -Value 0 -Type DWORD -Force
           New-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting" -Name ForceQueue -Value 0 -Type DWORD -Force
           New-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting\Consent" -Name DefaultConsent -Value 4 -Type DWORD -Force
@@ -161,6 +162,16 @@ jobs:
           [ "${{ matrix.CC }}" ] && export CC="${{ matrix.CC }}"
           [ "${{ matrix.CXX }}" ] && export CXX="${{ matrix.CXX }}"
           pytest --capture=no --verbose tests
+
+      - name: Log post-test WER status
+        if: ${{ matrix.os == 'windows-latest' }}
+        shell: powershell
+        run: |
+          GetItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\Windows Error Reporting\RuntimeExceptionHelperModules"
+          Get-ChildItem -Path "C:\ProgramData\Microsoft\Windows\WER\Temp"
+          Get-ChildItem -Path "C:\ProgramData\Microsoft\Windows\WER\ReportQueue"
+          Get-ChildItem -Path "C:\ProgramData\Microsoft\Windows\WER\ReportArchive"
+          Get-ChildItem -Path "C:\ProgramData\Microsoft\Windows\WER\Temp" | Select-Object -First 1 | Get-Content
 
       - name: "Upload to codecov.io"
         if: ${{ contains(env['RUN_ANALYZER'], 'cov') }}
