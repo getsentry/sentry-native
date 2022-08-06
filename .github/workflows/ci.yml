@@ -146,6 +146,13 @@ jobs:
         if: ${{ env['ANDROID_API'] }}
         run: bash scripts/start-android.sh
 
+      - name: Enable Windows Error Reporting
+        if: ${{ matrix.os == 'windows-latest' }}
+        shell: powershell
+        run: |
+          New-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting" -Name ForceQueue -Value 0 -Type DWORD -Force
+          New-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting\Consent" -Name DefaultConsent -Value 4 -Type DWORD -Force
+
       - name: Test
         shell: bash
         run: |
