@@ -585,7 +585,6 @@ if(SENTRY_BUILD_EXAMPLES)
 
 	if(MSVC)
 		target_compile_options(sentry_example PRIVATE $<BUILD_INTERFACE:/wd5105>)
-		#if(SENTRY_EXAMPLE_CFG_ENABLED)
 		if(CRASHPAD_WER_ENABLED)
 			# to test handling SEH by-passing exceptions we need to enable the control flow guard
 			target_compile_options(sentry_example PRIVATE $<BUILD_INTERFACE:/guard:cf>)
