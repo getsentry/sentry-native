@@ -151,9 +151,10 @@ jobs:
         shell: powershell
         run: |
           Enable-WindowsErrorReporting
-          New-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting" -Name DontShowUI -Value 1 -Type DWORD -Force
-          New-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting" -Name ForceQueue -Value 1 -Type DWORD -Force
+          New-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting" -Name DontShowUI -Value 0 -Type DWORD -Force
+          New-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting" -Name ForceQueue -Value 0 -Type DWORD -Force
           New-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting\Consent" -Name DefaultConsent -Value 4 -Type DWORD -Force
+          Set-Processmitigation -System -Enable CFG
 
       - name: Test
         shell: bash
