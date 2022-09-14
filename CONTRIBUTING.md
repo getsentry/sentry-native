@@ -148,5 +148,4 @@ The example currently supports the following commands:
 Only on Windows using crashpad with its WER handler module: 
 
 - `fastfail`: Crashes the application using the `__fastfail` intrinsic directly, thus by-passing SEH.
-- `stack-buffer-overrun`: Triggers the Windows Control Flow Guard, which also fast fails and in turn by-passes SEH. 
-  This command requires the cmake option `-DSENTRY_ENABLE_EXAMPLE_CFG=On`. 
+- `stack-buffer-overrun`: Triggers the Windows Control Flow Guard, which also fast fails and in turn by-passes SEH.
