@@ -43,7 +43,7 @@ def test_crashpad_reinstall(cmake, httpserver):
 
     with httpserver.wait(timeout=10) as waiting:
         child = run(tmp_path, "sentry_example", ["log", "reinstall", "crash"], env=env)
-        assert child.returncode  # well, its a crash after all
+        assert child.returncode  # well, it's a crash after all
 
     assert waiting.result
 
@@ -56,6 +56,9 @@ def test_crashpad_reinstall(cmake, httpserver):
     sys.platform != "win32",
     reason="Test covers Windows-specific crashes which can only be covered via the Crashpad WER module",
 )
+# this test currently can't run on CI because the Windows-image doesn't properly support WER, if you want to run the
+# test locally, invoke pytest with the --with_crashpad_wer option which is matched with this marker in the runtest setup
+@pytest.mark.with_crashpad_wer
 @pytest.mark.parametrize(
     "run_args",
     [
@@ -94,7 +97,7 @@ def test_crashpad_wer_crash(cmake, httpserver, run_args):
 
     assert waiting.result
 
-    # the session crash heuristic on mac uses timestamps, so make sure we have
+    # the session crash heuristic on Mac uses timestamps, so make sure we have
     # a small delay here
     time.sleep(1)
 
@@ -155,11 +158,11 @@ def test_crashpad_dumping_crash(cmake, httpserver, run_args):
             + run_args,
             env=env,
         )
-        assert child.returncode  # well, its a crash after all
+        assert child.returncode  # well, it's a crash after all
 
     assert waiting.result
 
-    # the session crash heuristic on mac uses timestamps, so make sure we have
+    # the session crash heuristic on Mac uses timestamps, so make sure we have
     # a small delay here
     time.sleep(1)
 
@@ -214,7 +217,7 @@ def test_crashpad_non_dumping_crash(cmake, httpserver, run_args):
 
     assert waiting.result is False
 
-    # the session crash heuristic on mac uses timestamps, so make sure we have
+    # the session crash heuristic on Mac uses timestamps, so make sure we have
     # a small delay here
     time.sleep(1)
 
@@ -247,11 +250,11 @@ def test_crashpad_crash_after_shutdown(cmake, httpserver):
             ["log", "crash-after-shutdown"],
             env=env,
         )
-        assert child.returncode  # well, its a crash after all
+        assert child.returncode  # well, it's a crash after all
 
     assert waiting.result
 
-    # the session crash heuristic on mac uses timestamps, so make sure we have
+    # the session crash heuristic on Mac uses timestamps, so make sure we have
     # a small delay here
     time.sleep(1)
 
@@ -277,7 +280,7 @@ def test_crashpad_dump_inflight(cmake, httpserver):
         child = run(
             tmp_path, "sentry_example", ["log", "capture-multiple", "crash"], env=env
         )
-        assert child.returncode  # well, its a crash after all
+        assert child.returncode  # well, it's a crash after all
 
     assert waiting.result
 
