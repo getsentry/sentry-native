@@ -124,7 +124,7 @@ trigger_stack_buffer_overrun()
     } __except (EXCEPTION_EXECUTE_HANDLER) {
         // CFG fast fail should never be caught.
         printf(
-            "If you see me, then CFG wasn't enabled (compile with/guard:cf)");
+            "If you see me, then CFG wasn't enabled (compile with /guard:cf)");
     }
     // Should only reach here if CFG is disabled.
     abort();
