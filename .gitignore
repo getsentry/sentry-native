@@ -2,12 +2,10 @@
 .DS_Store
 .vs
 CMakeSettings.json
+.idea
 
 # CMake builds
-/build
-/build*
-leak-build
-unit-build
+/*build*
 
 # Run files
 .sentry-native
