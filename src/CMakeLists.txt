@@ -136,7 +136,7 @@ endif()
 if(SENTRY_WITH_LIBUNWINDSTACK)
 	target_compile_definitions(sentry PRIVATE SENTRY_WITH_UNWINDER_LIBUNWINDSTACK)
 	sentry_target_sources_cwd(sentry
-		unwinder/sentry_unwinder_libunwindstack.c
+            unwinder/sentry_unwinder_libunwindstack.cpp
 	)
 endif()
 if(WIN32)
