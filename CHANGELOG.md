@@ -2,8 +2,13 @@
 
 ## Unreleased
 
-**Fixes**
+**Features**:
 
+- Crashpad on Windows now supports `fast-fail` crashes via a registered Windows Error Reporting (WER) module. ([#735](https://github.com/getsentry/sentry-native/pull/735))
+
+**Internal**:
+
+- Updated Breakpad and Crashpad backends to 2022-09-14. ([#735](https://github.com/getsentry/sentry-native/pull/735))
 - Be more defensive around transactions ([#757](https://github.com/getsentry/sentry-native/pull/757))
 
 ## 0.5.0
