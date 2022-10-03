@@ -600,4 +600,7 @@ if(SENTRY_BUILD_EXAMPLES)
 	endif()
 
 	add_test(NAME sentry_example COMMAND sentry_example)
+
+	add_executable(sentry_tracing examples/tracing.c)
+	target_link_libraries(sentry_example)
 endif()
