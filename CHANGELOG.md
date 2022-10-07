@@ -8,6 +8,7 @@
 
 **Internal**:
 
+- Updated libunwindstack-ndk submodule to 2022-09-16 ([#759](https://github.com/getsentry/sentry-native/pull/759)) 
 - Updated Breakpad and Crashpad backends to 2022-09-14. ([#735](https://github.com/getsentry/sentry-native/pull/735))
 - Be more defensive around transactions ([#757](https://github.com/getsentry/sentry-native/pull/757))
 
