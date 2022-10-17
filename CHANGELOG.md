@@ -6,21 +6,25 @@
 
 - Crashpad on Windows now supports `fast-fail` crashes via a registered Windows Error Reporting (WER) module. ([#735](https://github.com/getsentry/sentry-native/pull/735))
 
+**Fixes**:
+
+- Fix "flush" implementation of winhttp transport. ([#763](https://github.com/getsentry/sentry-native/pull/763))
+
 **Internal**:
 
-- Updated libunwindstack-ndk submodule to 2022-09-16 ([#759](https://github.com/getsentry/sentry-native/pull/759)) 
+- Updated libunwindstack-ndk submodule to 2022-09-16. ([#759](https://github.com/getsentry/sentry-native/pull/759))
 - Updated Breakpad and Crashpad backends to 2022-09-14. ([#735](https://github.com/getsentry/sentry-native/pull/735))
 - Be more defensive around transactions ([#757](https://github.com/getsentry/sentry-native/pull/757))
 - Added a CI timeout for the Android simulator start. ([#764](https://github.com/getsentry/sentry-native/pull/764))
 
 ## 0.5.0
 
-**Features**
+**Features**:
 
 - Provide `on_crash()` callback to allow clients to act on detected crashes.
   Users often inquired about distinguishing between crashes and "normal" events in the `before_send()` hook. `on_crash()` can be considered a replacement for `before_send()` for crash events, where the goal is to use `before_send()` only for normal events, while `on_crash()` is only invoked for crashes. This change is backward compatible for current users of `before_send()` and allows gradual migration to `on_crash()` ([see the docs for details](https://docs.sentry.io/platforms/native/configuration/filtering/)). ([#724](https://github.com/getsentry/sentry-native/pull/724), [#734](https://github.com/getsentry/sentry-native/pull/734))
 
-**Fixes**
+**Fixes**:
 
 - Make Windows ModuleFinder more resilient to missing Debug Info ([#732](https://github.com/getsentry/sentry-native/pull/732))
 - Aligned pre-send event processing in `sentry_capture_event()` with the [cross-SDK session filter order](https://develop.sentry.dev/sdk/sessions/#filter-order) ([#729](https://github.com/getsentry/sentry-native/pull/729))
