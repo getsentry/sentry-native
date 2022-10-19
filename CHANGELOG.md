@@ -2,9 +2,19 @@
 
 ## Unreleased
 
+**Fixes**:
+
+- Fix build when CMAKE_VS_WINDOWS_TARGET_PLATFORM_VERSION is undefined. ([crashpad#73](https://github.com/getsentry/crashpad/pull/73))
+
 **Internal**:
 
 - Updated Breakpad and Crashpad backends to 2022-10-17. ([#765](https://github.com/getsentry/sentry-native/pull/765))
+ 
+**Thank you**:
+
+Features, fixes and improvements in this release have been contributed by:
+
+- [@AenBleidd](https://github.com/AenBleidd)
 
 ## 0.5.1
 
