@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Internal**:
+
+- CI: update github actions to upgrade deprecated node runners. ([#767](https://github.com/getsentry/sentry-native/pull/767)) 
+
 ## 0.5.2
 
 **Fixes**:
