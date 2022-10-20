@@ -12,14 +12,14 @@ jobs:
     name: Lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - run: make style
 
   build-ios:
     name: Xcode Build for iOS
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           submodules: "recursive"
       - run: |
@@ -107,10 +107,10 @@ jobs:
       SYSTEM_VERSION_COMPAT: ${{ matrix.SYSTEM_VERSION_COMPAT }}
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           submodules: recursive
-      - uses: actions/setup-python@v2
+      - uses: actions/setup-python@v4
 
       - name: Installing Linux Dependencies
         if: ${{ runner.os == 'Linux' && !env['TEST_X86'] }}
@@ -157,7 +157,7 @@ jobs:
 
       - name: "Upload to codecov.io"
         if: ${{ contains(env['RUN_ANALYZER'], 'cov') }}
-        uses: codecov/codecov-action@v1
+        uses: codecov/codecov-action@v3
         with:
           directory: coverage
 
@@ -169,7 +169,7 @@ jobs:
     # run on master or the release branch
     if: ${{ needs.test.result == 'success' && github.event_name == 'push' }}
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           submodules: recursive
 
@@ -179,7 +179,7 @@ jobs:
           zip -r sentry-native.zip .
 
       - name: Upload source artifact
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: ${{ github.sha }}
           # When downloading artifacts, they are double-zipped:
