@@ -111,6 +111,9 @@ jobs:
         with:
           submodules: recursive
       - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+          cache: 'pip'
 
       - name: Installing Linux Dependencies
         if: ${{ runner.os == 'Linux' && !env['TEST_X86'] }}
