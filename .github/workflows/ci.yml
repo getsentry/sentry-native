@@ -32,7 +32,7 @@ jobs:
       matrix:
         include:
           - name: Linux (old gcc, 32-bit)
-            os: ubuntu-18.04
+            os: ubuntu-20.04
             CC: gcc-7
             CXX: g++-7
             TEST_X86: 1
@@ -126,7 +126,7 @@ jobs:
         run: |
           sudo dpkg --add-architecture i386
           sudo apt update
-          sudo apt install cmake gcc-multilib g++-multilib zlib1g-dev:i386 libssl-dev:i386 libcurl4-openssl-dev:i386
+          sudo apt install cmake gcc-7-multilib g++-7-multilib zlib1g-dev:i386 libssl-dev:i386 libcurl4-openssl-dev:i386
 
       - name: Installing CodeChecker
         if: ${{ contains(env['RUN_ANALYZER'], 'code-checker') }}
