@@ -10,7 +10,7 @@ endif()
 
 #read sentry-native version
 file(READ "include/sentry.h" _SENTRY_HEADER_CONTENT)
-string(REGEX MATCH "#define SENTRY_SDK_VERSION \"([0-9\.]+)\"" _SENTRY_VERSION_MATCH "${_SENTRY_HEADER_CONTENT}")
+string(REGEX MATCH "#define SENTRY_SDK_VERSION \"([0-9\\.]+)\"" _SENTRY_VERSION_MATCH "${_SENTRY_HEADER_CONTENT}")
 set(SENTRY_VERSION "${CMAKE_MATCH_1}")
 unset(_SENTRY_HEADER_CONTENT)
 unset(_SENTRY_VERSION_MATCH)
@@ -581,6 +581,10 @@ endif()
 if(SENTRY_BUILD_EXAMPLES)
 	add_executable(sentry_example examples/example.c)
 	target_link_libraries(sentry_example PRIVATE sentry)
+
+	add_executable(tracing_example examples/tracing.c)
+	target_link_libraries(tracing_example PRIVATE sentry)
+	#target_compile_options(tracing_example PRIVATE "-fsanitize=address")
 
 	if(MSVC)
 		target_compile_options(sentry_example PRIVATE $<BUILD_INTERFACE:/wd5105>)

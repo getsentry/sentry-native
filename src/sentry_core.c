@@ -869,6 +869,53 @@ sentry_set_span(sentry_span_t *span)
     }
 }
 
+int
+sentry_start_scoped_span(char *operation, char *description)
+{
+    sentry_span_t *span = NULL;
+
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        if (scope->transaction_object == NULL && scope->span == NULL) {
+            SENTRY_DEBUG("Need a parent in the scope to start a scoped span.");
+            return 0;
+        }
+        if (scope->transaction_object != NULL) {
+            sentry_transaction_t *parent_txn = scope->transaction_object;
+            span = sentry_transaction_start_child(
+                parent_txn, operation, description);
+        } else {
+            sentry_span_t *parent_span = scope->span;
+            span = sentry_span_start_child(parent_span, operation, description);
+        }
+    }
+    if (span) {
+        sentry_set_span(span);
+        return 1;
+    } else {
+        return 0;
+    }
+}
+
+void
+sentry_finish(void)
+{
+    sentry_transaction_t *to_finish_txn = NULL;
+    sentry_span_t *to_finish_span = NULL;
+
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        if (scope->transaction_object == NULL && scope->span == NULL) {
+            SENTRY_ERROR("Need a transaction or span in scope to finish.");
+        }
+        to_finish_span = scope->span;
+        to_finish_txn = scope->transaction_object;
+    }
+    if (to_finish_txn != NULL) {
+        sentry_transaction_finish(to_finish_txn);
+    } else if (to_finish_span != NULL) {
+        sentry_span_finish(to_finish_span);
+    }
+}
+
 sentry_span_t *
 sentry_transaction_start_child(
     sentry_transaction_t *opaque_parent, char *operation, char *description)

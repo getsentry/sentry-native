@@ -1605,6 +1605,11 @@ SENTRY_EXPERIMENTAL_API void sentry_set_span(sentry_span_t *span);
 SENTRY_EXPERIMENTAL_API sentry_span_t *sentry_transaction_start_child(
     sentry_transaction_t *parent, char *operation, char *description);
 
+SENTRY_EXPERIMENTAL_API int sentry_start_scoped_span(
+    char *operation, char *description);
+
+SENTRY_EXPERIMENTAL_API void sentry_finish(void);
+
 /**
  * Starts a new Span.
  *
