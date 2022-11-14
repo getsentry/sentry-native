@@ -1,48 +1,42 @@
-#include <printf.h>
 #include <sentry.h>
+#include <stdio.h>
 #include <unistd.h>
+
+#define WRAP_IN_SPAN(OP, DESC)                                                 \
+    sentry_start_scoped_span(OP, DESC);                                        \
+    for (int i = 0; i < 1; i++, sentry_finish())
 
 void
 render_output()
 {
-    sentry_start_scoped_span("render_output", NULL);
-    sleep(1);
-    sentry_finish();
+    WRAP_IN_SPAN("render_output", NULL) { sleep(1); }
 }
 void
 process_data()
 {
-    sentry_start_scoped_span("process_data", NULL);
+    WRAP_IN_SPAN("process_data", NULL)
+    {
+        sentry_capture_event(sentry_value_new_message_event(
+            SENTRY_LEVEL_INFO, "my-logger", "Just FYI in process_data!"));
 
-    sentry_value_t event = sentry_value_new_message_event(
-        SENTRY_LEVEL_INFO, "my-logger", "Just FYI in process_data!");
-    sentry_capture_event(event);
-    sentry_value_decref(event);
+        sleep(3);
 
-    sleep(3);
-    event = sentry_value_new_message_event(
-        SENTRY_LEVEL_WARNING, "my-logger", "Something weird in process_data!");
-    sentry_capture_event(event);
-    printf(
-        "\nprocess_data, before decref: %zu\n", sentry_value_refcount(event));
-    sentry_value_decref(event);
-    printf("process_data, after decref: %zu\n", sentry_value_refcount(event));
-
-    sentry_finish();
+        sentry_capture_event(
+            sentry_value_new_message_event(SENTRY_LEVEL_WARNING, "my-logger",
+                "Something weird in process_data!"));
+    }
 }
 void
 request_from_db()
 {
-    sentry_start_scoped_span("request_from_db", NULL);
-
-    sentry_value_t event = sentry_value_new_message_event(
-        SENTRY_LEVEL_INFO, "my-logger", "Just FYI in request_from_db!");
-    sentry_capture_event(event);
-    sentry_value_decref(event);
-    sleep(2);
-
-    sentry_finish();
+    WRAP_IN_SPAN("request_from_db", NULL)
+    {
+        sentry_capture_event(sentry_value_new_message_event(
+            SENTRY_LEVEL_INFO, "my-logger", "Just FYI in request_from_db!"));
+        sleep(2);
+    }
 }
+
 int
 main()
 {
@@ -62,15 +56,6 @@ main()
     // XXX: if you don't want to sample traces then you need to set the rate
     sentry_options_set_traces_sample_rate(options, 1.0);
     sentry_init(options);
-
-    sentry_value_t event_after_init = sentry_value_new_message_event(
-        SENTRY_LEVEL_INFO, "my-logger", "Right after init");
-    sentry_capture_event(event_after_init);
-    printf("\nmain, after init, before decref: %zu\n",
-        sentry_value_refcount(event_after_init));
-    sentry_value_decref(event_after_init);
-    printf("main, after init, after decref: %zu\n",
-        sentry_value_refcount(event_after_init));
 
     // since we are not being called from anywhere and thus have not received
     // a parent span, we need to create an explicit transaction start
@@ -93,20 +78,19 @@ main()
     sentry_value_t event = sentry_value_new_message_event(
         SENTRY_LEVEL_INFO, "my-logger", "Welcome to the renderer!");
     sentry_capture_event(event);
-    printf("\nmain, before decref: %zu\n", sentry_value_refcount(event));
-    sentry_value_decref(event);
-    printf("main, after decref: %zu\n", sentry_value_refcount(event));
 
     // span
     request_from_db();
+    sentry_set_transaction_object(txn);
 
     // span
     process_data();
+    sentry_set_transaction_object(txn);
 
     // span
     render_output();
-
     sentry_set_transaction_object(txn);
+
     // explicit transaction end
     sentry_transaction_finish(txn);
 

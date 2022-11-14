@@ -874,7 +874,7 @@ sentry_start_scoped_span(char *operation, char *description)
 {
     sentry_span_t *span = NULL;
 
-    SENTRY_WITH_SCOPE_MUT (scope) {
+    SENTRY_WITH_SCOPE_MUT_NO_FLUSH (scope) {
         if (scope->transaction_object == NULL && scope->span == NULL) {
             SENTRY_DEBUG("Need a parent in the scope to start a scoped span.");
             return 0;
@@ -905,6 +905,7 @@ sentry_finish(void)
     SENTRY_WITH_SCOPE_MUT (scope) {
         if (scope->transaction_object == NULL && scope->span == NULL) {
             SENTRY_ERROR("Need a transaction or span in scope to finish.");
+            return;
         }
         to_finish_span = scope->span;
         to_finish_txn = scope->transaction_object;
