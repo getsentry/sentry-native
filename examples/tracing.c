@@ -1,5 +1,4 @@
 #include <sentry.h>
-#include <stdio.h>
 #include <unistd.h>
 
 #define WRAP_IN_SPAN(OP, DESC)                                                 \
