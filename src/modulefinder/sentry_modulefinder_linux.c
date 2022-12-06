@@ -292,7 +292,7 @@ get_code_id_from_notes(
 }
 
 static const uint8_t *
-get_code_id_from_elf(const sentry_module_t *module, size_t *size_out)
+get_code_id_from_program_header(const sentry_module_t *module, size_t *size_out)
 {
     *size_out = 0;
 
@@ -350,13 +350,91 @@ fail:
     return NULL;
 }
 
+static const uint8_t *
+get_code_id_from_note_section(const sentry_module_t *module, size_t *size_out)
+{
+    *size_out = 0;
+
+    size_t text_size = 0;
+
+    // iterate over all the section headers, for 32/64 bit separately
+    unsigned char e_ident[EI_NIDENT];
+    ENSURE(sentry__module_read_safely(e_ident, module, 0, EI_NIDENT));
+    if (e_ident[EI_CLASS] == ELFCLASS64) {
+        Elf64_Ehdr elf;
+        ENSURE(sentry__module_read_safely(&elf, module, 0, sizeof(Elf64_Ehdr)));
+
+        Elf64_Shdr strheader;
+        ENSURE(sentry__module_read_safely(&strheader, module,
+            elf.e_shoff + elf.e_shentsize * elf.e_shstrndx,
+            sizeof(Elf64_Shdr)));
+
+        for (int i = 0; i < elf.e_shnum; i++) {
+            Elf64_Shdr header;
+            ENSURE(sentry__module_read_safely(&header, module,
+                elf.e_shoff + elf.e_shentsize * i, sizeof(Elf64_Shdr)));
+
+            char name[6];
+            ENSURE(sentry__module_read_safely(name, module,
+                strheader.sh_offset + header.sh_name, sizeof(name)));
+            name[5] = '\0';
+            if (header.sh_type == SHT_NOTE && strcmp(name, ".note") == 0) {
+                void *segment_addr = sentry__module_get_addr(
+                    module, header.sh_offset, header.sh_size);
+                ENSURE(segment_addr);
+                const uint8_t *code_id
+                    = get_code_id_from_notes(header.sh_addralign, segment_addr,
+                        (void *)((uintptr_t)segment_addr + header.sh_size),
+                        size_out);
+                if (code_id) {
+                    return code_id;
+                }
+            }
+        }
+    } else {
+        Elf32_Ehdr elf;
+        ENSURE(sentry__module_read_safely(&elf, module, 0, sizeof(Elf32_Ehdr)));
+
+        Elf32_Shdr strheader;
+        ENSURE(sentry__module_read_safely(&strheader, module,
+            elf.e_shoff + elf.e_shentsize * elf.e_shstrndx,
+            sizeof(Elf32_Shdr)));
+
+        for (int i = 0; i < elf.e_shnum; i++) {
+            Elf32_Shdr header;
+            ENSURE(sentry__module_read_safely(&header, module,
+                elf.e_shoff + elf.e_shentsize * i, sizeof(Elf32_Shdr)));
+
+            char name[6];
+            ENSURE(sentry__module_read_safely(name, module,
+                strheader.sh_offset + header.sh_name, sizeof(name)));
+            name[5] = '\0';
+            if (header.sh_type == SHT_NOTE && strcmp(name, ".note") == 0) {
+                void *segment_addr = sentry__module_get_addr(
+                    module, header.sh_offset, header.sh_size);
+                ENSURE(segment_addr);
+                const uint8_t *code_id
+                    = get_code_id_from_notes(header.sh_addralign, segment_addr,
+                        (void *)((uintptr_t)segment_addr + header.sh_size),
+                        size_out);
+                if (code_id) {
+                    return code_id;
+                }
+            }
+        }
+    }
+
+fail:
+    return NULL;
+}
+
 static sentry_uuid_t
-get_code_id_from_text_fallback(const sentry_module_t *module)
+get_code_id_from_text_section(const sentry_module_t *module)
 {
     const uint8_t *text = NULL;
     size_t text_size = 0;
 
-    // iterate over all the program headers, for 32/64 bit separately
+    // iterate over all the section headers, for 32/64 bit separately
     unsigned char e_ident[EI_NIDENT];
     ENSURE(sentry__module_read_safely(e_ident, module, 0, EI_NIDENT));
     if (e_ident[EI_CLASS] == ELFCLASS64) {
@@ -431,18 +509,30 @@ bool
 sentry__procmaps_read_ids_from_elf(
     sentry_value_t value, const sentry_module_t *module)
 {
-    // and try to get the debug id from the elf headers of the loaded
-    // modules
+    // try to get the debug id from the elf headers of the loaded modules
     size_t code_id_size;
-    const uint8_t *code_id = get_code_id_from_elf(module, &code_id_size);
+    const uint8_t *code_id
+        = get_code_id_from_program_header(module, &code_id_size);
     sentry_uuid_t uuid = sentry_uuid_nil();
+
     if (code_id) {
         sentry_value_set_by_key(value, "code_id",
             sentry__value_new_hexstring(code_id, code_id_size));
 
         memcpy(uuid.bytes, code_id, MIN(code_id_size, 16));
     } else {
-        uuid = get_code_id_from_text_fallback(module);
+        // no code-id found, try the ".note.gnu.build-id" section
+        code_id = get_code_id_from_note_section(module, &code_id_size);
+        if (code_id) {
+            sentry_value_set_by_key(value, "code_id",
+                sentry__value_new_hexstring(code_id, code_id_size));
+
+            memcpy(uuid.bytes, code_id, MIN(code_id_size, 16));
+        } else {
+            // We were not able to locate the code-id, so fall back to hashing
+            // the first page of the ".text" (program code) section.
+            uuid = get_code_id_from_text_section(module);
+        }
     }
 
     // the usage of these is described here:
