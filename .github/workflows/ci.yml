@@ -61,18 +61,21 @@ jobs:
             RUN_ANALYZER: code-checker,valgrind
           - name: macOS (xcode llvm)
             os: macOs-latest
-            ERROR_ON_WARNINGS: 1
+            # temporarily disabled: with macOS 12 we get deprecation warnings in crashpad and minichromium
+            # ERROR_ON_WARNINGS: 1
             SYSTEM_VERSION_COMPAT: 0
           - name: macOS (xcode llvm + universal)
             os: macOs-latest
-            ERROR_ON_WARNINGS: 1
+            # temporarily disabled: with macOS 12 we get deprecation warnings in crashpad and minichromium
+            # ERROR_ON_WARNINGS: 1
             SYSTEM_VERSION_COMPAT: 0
             CMAKE_DEFINES: -DCMAKE_OSX_ARCHITECTURES=arm64;x86_64
           - name: macOS (clang + asan + llvm-cov)
             os: macOs-latest
             CC: clang
             CXX: clang++
-            ERROR_ON_WARNINGS: 1
+            # temporarily disabled: with macOS 12 we get deprecation warnings in crashpad and minichromium
+            # ERROR_ON_WARNINGS: 1
             SYSTEM_VERSION_COMPAT: 0
             RUN_ANALYZER: asan,llvm-cov
           - name: Windows (old VS, 32-bit)
