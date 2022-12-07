@@ -152,6 +152,24 @@ SENTRY_TEST(buildid_fallback)
         "4247301c-14f1-5421-53a8-a777f6cdb3a2");
     sentry_value_decref(with_id_val);
 
+    sentry_value_t without_id_phdr_val = sentry_value_new_object();
+    sentry_path_t *without_id_phdr_path
+        = sentry__path_join_str(dir, "../fixtures/without-buildid-phdr.so");
+    *buf = sentry__path_read_to_buffer(without_id_phdr_path, file_size);
+    sentry__path_free(without_id_phdr_path);
+
+    TEST_CHECK(
+        sentry__procmaps_read_ids_from_elf(without_id_phdr_val, &module));
+    sentry_free(*buf);
+
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
+                                without_id_phdr_val, "code_id")),
+        "1c304742f114215453a8a777f6cdb3a2b8505e11");
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
+                                without_id_phdr_val, "debug_id")),
+        "4247301c-14f1-5421-53a8-a777f6cdb3a2");
+    sentry_value_decref(without_id_phdr_val);
+
     sentry_value_t x86_exe_val = sentry_value_new_object();
     sentry_path_t *x86_exe_path
         = sentry__path_join_str(dir, "../fixtures/sentry_example");
