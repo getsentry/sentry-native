@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Fixes**
+
+- Linux module-finder now also searches for code-id in ".note" ELF sections ([#775](https://github.com/getsentry/sentry-native/pull/775))
+
 **Internal**:
 
 - CI: updated github actions to upgrade deprecated node runners. ([#767](https://github.com/getsentry/sentry-native/pull/767))

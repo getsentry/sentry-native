@@ -60,16 +60,16 @@ jobs:
             os: ubuntu-22.04
             RUN_ANALYZER: code-checker,valgrind
           - name: macOS (xcode llvm)
-            os: macOs-latest
+            os: macOs-11
             ERROR_ON_WARNINGS: 1
             SYSTEM_VERSION_COMPAT: 0
           - name: macOS (xcode llvm + universal)
-            os: macOs-latest
+            os: macOs-11
             ERROR_ON_WARNINGS: 1
             SYSTEM_VERSION_COMPAT: 0
             CMAKE_DEFINES: -DCMAKE_OSX_ARCHITECTURES=arm64;x86_64
           - name: macOS (clang + asan + llvm-cov)
-            os: macOs-latest
+            os: macOs-11
             CC: clang
             CXX: clang++
             ERROR_ON_WARNINGS: 1
