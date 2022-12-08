@@ -120,6 +120,7 @@ SENTRY_TEST(procmaps_parser)
 #endif
 }
 
+#ifdef SENTRY_PLATFORM_LINUX
 static void
 parse_elf_and_check_code_and_build_id(const char *rel_elf_path,
     const char *expected_code_id, const char *expected_debug_id)
@@ -158,6 +159,7 @@ parse_elf_and_check_code_and_build_id(const char *rel_elf_path,
 
     sentry_value_decref(value);
 }
+#endif
 
 SENTRY_TEST(build_id_parser)
 {
