@@ -1,8 +1,14 @@
 # Changelog
 
+## Unreleased
+
+**Fixes**:
+
+- Better error messages in `sentry_transport_curl` ([#777](https://github.com/getsentry/sentry-native/pull/777))
+
 ## 0.5.3
 
-**Fixes**
+**Fixes**:
 
 - Linux module-finder now also searches for code-id in ".note" ELF sections ([#775](https://github.com/getsentry/sentry-native/pull/775))
 
