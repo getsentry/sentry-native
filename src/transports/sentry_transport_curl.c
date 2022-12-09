@@ -176,6 +176,9 @@ sentry__curl_send_task(void *_envelope, void *_state)
     curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, (long)req->body_len);
     curl_easy_setopt(curl, CURLOPT_USERAGENT, SENTRY_SDK_USER_AGENT);
 
+    char error_buf[CURL_ERROR_SIZE];
+    curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, error_buf);
+
     struct header_info info;
     info.retry_after = NULL;
     info.x_sentry_rate_limits = NULL;
@@ -205,8 +208,17 @@ sentry__curl_send_task(void *_envelope, void *_state)
             sentry__rate_limiter_update_from_429(state->ratelimiter);
         }
     } else {
-        SENTRY_WARNF(
-            "sending via `curl_easy_perform` failed with code `%d`", (int)rv);
+        size_t len = strlen(error_buf);
+        if (len) {
+            if (error_buf[len - 1] == '\n') {
+                error_buf[len - 1] = 0;
+            }
+            SENTRY_WARNF("`curl_easy_perform` failed with code `%d`: %s",
+                (int)rv, error_buf);
+        } else {
+            SENTRY_WARNF("`curl_easy_perform` failed with code `%d`: %s",
+                (int)rv, curl_easy_strerror(rv));
+        }
     }
 
     curl_slist_free_all(headers);
