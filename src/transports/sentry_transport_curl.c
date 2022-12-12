@@ -177,6 +177,7 @@ sentry__curl_send_task(void *_envelope, void *_state)
     curl_easy_setopt(curl, CURLOPT_USERAGENT, SENTRY_SDK_USER_AGENT);
 
     char error_buf[CURL_ERROR_SIZE];
+    error_buf[0] = 0;
     curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, error_buf);
 
     struct header_info info;
