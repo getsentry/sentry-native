@@ -4,7 +4,11 @@
 
 **Fixes**:
 
-- Better error messages in `sentry_transport_curl` ([#777](https://github.com/getsentry/sentry-native/pull/777))
+- Better error messages in `sentry_transport_curl`. ([#777](https://github.com/getsentry/sentry-native/pull/777))
+
+**Internal**:
+
+- Updated Breakpad and Crashpad backends to 2022-12-12. ([#778](https://github.com/getsentry/sentry-native/pull/778))
 
 ## 0.5.3
 
