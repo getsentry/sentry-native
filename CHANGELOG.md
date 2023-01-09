@@ -5,6 +5,7 @@
 **Fixes**:
 
 - Better error messages in `sentry_transport_curl`. ([#777](https://github.com/getsentry/sentry-native/pull/777))
+- Increased curl headers buffer size to 512 (in `sentry_transport_curl`). ([#784](https://github.com/getsentry/sentry-native/pull/784))
 
 **Internal**:
 
@@ -30,7 +31,7 @@
 **Internal**:
 
 - Updated Breakpad and Crashpad backends to 2022-10-17. ([#765](https://github.com/getsentry/sentry-native/pull/765))
- 
+
 **Thank you**:
 
 Features, fixes and improvements in this release have been contributed by:
@@ -650,6 +651,7 @@ See [#220](https://github.com/getsentry/sentry-native/issues/220) for details.
   This function now takes a pointer to the new `sentry_transport_t` type.
   Migrating from the old API can be done by wrapping with
   `sentry_new_function_transport`, like this:
+
   ```c
   sentry_options_set_transport(
         options, sentry_new_function_transport(send_envelope_func, &closure_data));
