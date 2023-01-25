@@ -134,7 +134,7 @@ jobs:
 
       - name: Expose llvm PATH for Mac
         if: ${{ runner.os == 'macOS' }}
-        run: echo $(brew --prefix llvm@14)/bin >> $GITHUB_PATH
+        run: echo $(brew --prefix llvm@15)/bin >> $GITHUB_PATH
 
       - name: Installing Android SDK Dependencies
         if: ${{ env['ANDROID_API'] }}
