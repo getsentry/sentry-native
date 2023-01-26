@@ -1,3 +1,5 @@
+[![Conan Center](https://shields.io/conan/v/sentry-native)](https://conan.io/center/sentry-native)
+
 <p align="center">
   <a href="https://sentry.io/?utm_source=github&utm_medium=logo" target="_blank">
     <picture>
