@@ -4,14 +4,20 @@
 
 **Fixes**:
 
-- Open the database file-lock on "UNIX" with `O_RDRW` ([#791](https://github.com/getsentry/sentry-native/pull/791))
 - Better error messages in `sentry_transport_curl`. ([#777](https://github.com/getsentry/sentry-native/pull/777))
-- Fix sporadic crash on Windows due to race condition when initializing background-worker thread-id. ([#785](https://github.com/getsentry/sentry-native/pull/785))
 - Increased curl headers buffer size to 512 (in `sentry_transport_curl`). ([#784](https://github.com/getsentry/sentry-native/pull/784))
+- Fix sporadic crash on Windows due to race condition when initializing background-worker thread-id. ([#785](https://github.com/getsentry/sentry-native/pull/785))
+- Open the database file-lock on "UNIX" with `O_RDRW` ([#791](https://github.com/getsentry/sentry-native/pull/791))
 
 **Internal**:
 
 - Updated Breakpad and Crashpad backends to 2022-12-12. ([#778](https://github.com/getsentry/sentry-native/pull/778))
+
+**Thank you**:
+
+Features, fixes and improvements in this release have been contributed by:
+
+- [@cnicolaescu](https://github.com/cnicolaescu)
 
 ## 0.5.3
 
