@@ -221,3 +221,32 @@ SENTRY_TEST(os)
 
     sentry_value_decref(os);
 }
+
+SENTRY_TEST(strerror)
+{
+    char buf[64];
+    TEST_CHECK(sentry__strerror(EPERM, buf, sizeof(buf)) == 0);
+    TEST_CHECK_STRING_EQUAL(buf, "Operation not permitted");
+    TEST_CHECK(sentry__strerror(EIO, buf, sizeof(buf)) == 0);
+    TEST_CHECK_STRING_EQUAL(buf, "Input/output error");
+    TEST_CHECK(sentry__strerror(ENOENT, buf, sizeof(buf)) == 0);
+    TEST_CHECK_STRING_EQUAL(buf, "No such file or directory");
+    TEST_CHECK(sentry__strerror(EAGAIN, buf, sizeof(buf)) == 0);
+    TEST_CHECK_STRING_EQUAL(buf, "Resource temporarily unavailable");
+    TEST_CHECK(sentry__strerror(EBADF, buf, sizeof(buf)) == 0);
+    TEST_CHECK_STRING_EQUAL(buf, "Bad file descriptor");
+
+    char small_buf[8];
+    TEST_CHECK(sentry__strerror(EPERM, small_buf, sizeof(small_buf)) == ERANGE);
+    TEST_CHECK_STRING_EQUAL(small_buf, "Operati");
+    TEST_CHECK(sentry__strerror(EIO, small_buf, sizeof(small_buf)) == ERANGE);
+    TEST_CHECK_STRING_EQUAL(small_buf, "Input/o");
+    TEST_CHECK(
+        sentry__strerror(ENOENT, small_buf, sizeof(small_buf)) == ERANGE);
+    TEST_CHECK_STRING_EQUAL(small_buf, "No such");
+    TEST_CHECK(
+        sentry__strerror(EAGAIN, small_buf, sizeof(small_buf)) == ERANGE);
+    TEST_CHECK_STRING_EQUAL(small_buf, "Resourc");
+    TEST_CHECK(sentry__strerror(EBADF, small_buf, sizeof(small_buf)) == ERANGE);
+    TEST_CHECK_STRING_EQUAL(small_buf, "Bad fil");
+}

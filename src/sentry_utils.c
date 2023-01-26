@@ -529,3 +529,48 @@ sentry__snprintf_c(char *buf, size_t buf_size, const char *fmt, ...)
     va_end(args);
     return rv;
 }
+
+int
+sentry__strerror(int error_num, char *buf, size_t buf_len)
+{
+    int result = 0;
+    if (buf_len > 0) {
+        buf[0] = 0;
+    }
+
+#if ((_POSIX_C_SOURCE >= 200112L || _XOPEN_SOURCE >= 600)                      \
+    && !defined(_GNU_SOURCE))                                                  \
+    || defined(SENTRY_PLATFORM_ANDROID)
+    // XSI-compliant version of strerror_r.
+    result = strerror_r(error_num, buf, buf_len);
+    if (result != 0) {
+        result = errno;
+    }
+#elif defined(_GNU_SOURCE)
+    // GNU-specific version of strerror_r.
+    char *msg = strerror_r(error_num, buf, buf_len);
+    if (msg == buf) {
+        // If the buffer is full then the message is probably truncated.
+        if (strlen(buf) == buf_len - 1) {
+            result = ERANGE;
+        }
+    } else {
+        // sometimes strerror_r uses static storage instead of the
+        // user-supplied buffer
+        if (strlen(msg) >= buf_len) {
+            // we cannot write to msg to truncate before strcpy, so we memcpy
+            // and null-terminate buf manually
+            result = ERANGE;
+            buf[buf_len - 1] = 0;
+            memcpy(buf, msg, buf_len - 1);
+        } else {
+            // if msg fits into the buf, we can just strcpy
+            strcpy(buf, msg);
+        }
+    }
+#else
+    result = ENOTSUP;
+#endif
+
+    return result;
+}

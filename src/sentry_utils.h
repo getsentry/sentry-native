@@ -198,4 +198,10 @@ double sentry__strtod_c(const char *ptr, char **endptr);
  */
 int sentry__snprintf_c(char *buf, size_t buf_size, const char *fmt, ...);
 
+/**
+ * Thread-safe strerror implemenation that works on XSI and GNU conforming
+ * implementations.
+ */
+int sentry__strerror(int error_num, char *buf, size_t buf_len);
+
 #endif

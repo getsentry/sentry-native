@@ -54,8 +54,11 @@ sentry__run_new(const sentry_path_t *database_path)
         goto error;
     }
     if (!sentry__filelock_try_lock(run->lock)) {
-        SENTRY_WARNF("failed to lock file \"%s\" (%s)", lock_path->path,
-            strerror(errno));
+        char buf[128];
+        if (0 == sentry__strerror(errno, buf, sizeof(buf))) {
+            SENTRY_WARNF(
+                "failed to lock file \"%s\" (%s)", lock_path->path, buf);
+        }
         goto error;
     }
     sentry__path_create_dir_all(run->run_path);
