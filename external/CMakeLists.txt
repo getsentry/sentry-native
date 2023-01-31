@@ -119,6 +119,8 @@ set(BREAKPAD_SOURCES_CLIENT_IOS
 )
 
 add_library(breakpad_client STATIC)
+set_property(TARGET breakpad_client PROPERTY CXX_STANDARD 17)
+set_property(TARGET breakpad_client PROPERTY CXX_STANDARD_REQUIRED On)
 target_sources(breakpad_client PRIVATE ${BREAKPAD_SOURCES_COMMON})
 
 if(LINUX OR ANDROID)
