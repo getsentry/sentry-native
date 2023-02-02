@@ -1347,16 +1347,6 @@ SENTRY_API void sentry_set_transaction(const char *transaction);
 SENTRY_API void sentry_set_level(sentry_level_t level);
 
 /**
- * Starts a new session.
- */
-SENTRY_API void sentry_start_session(void);
-
-/**
- * Ends a session.
- */
-SENTRY_API void sentry_end_session(void);
-
-/**
  * Sets the maximum number of spans that can be attached to a
  * transaction.
  */
@@ -1383,6 +1373,31 @@ SENTRY_EXPERIMENTAL_API void sentry_options_set_traces_sample_rate(
  */
 SENTRY_EXPERIMENTAL_API double sentry_options_get_traces_sample_rate(
     sentry_options_t *opts);
+
+/* -- Session APIs -- */
+
+typedef enum {
+    SENTRY_SESSION_STATUS_OK,
+    SENTRY_SESSION_STATUS_CRASHED,
+    SENTRY_SESSION_STATUS_ABNORMAL,
+    SENTRY_SESSION_STATUS_EXITED,
+} sentry_session_status_t;
+
+/**
+ * Starts a new session.
+ */
+SENTRY_API void sentry_start_session(void);
+
+/**
+ * Ends a session.
+ */
+SENTRY_API void sentry_end_session(void);
+
+/**
+ * Ends a session with an explicit `status` code.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_end_session_with_status(
+    sentry_session_status_t status);
 
 /* -- Performance Monitoring/Tracing APIs -- */
 

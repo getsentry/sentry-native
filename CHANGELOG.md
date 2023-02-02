@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- A session may be ended with a different status code. ([#801](https://github.com/getsentry/sentry-native/pull/801))
+
 ## 0.5.4
 
 **Fixes**:
