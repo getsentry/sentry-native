@@ -56,11 +56,11 @@ sentry__unwind_stack_dbghelp(
 #elif defined(_M_ARM64)
     int machine_type = IMAGE_FILE_MACHINE_ARM64;
     stack_frame.AddrPC.Offset = ctx.Pc;
-# if defined (NONAMELESSUNION)
+#    if defined(NONAMELESSUNION)
     stack_frame.AddrFrame.Offset = ctx.DUMMYUNIONNAME.DUMMYSTRUCTNAME.Fp;
-# else
+#    else
     stack_frame.AddrFrame.Offset = ctx.Fp;
-# endif
+#    endif
     stack_frame.AddrStack.Offset = ctx.Sp;
 #elif defined(_M_ARM)
     int machine_type = IMAGE_FILE_MACHINE_ARM;
@@ -68,7 +68,7 @@ sentry__unwind_stack_dbghelp(
     stack_frame.AddrFrame.Offset = ctx.R11;
     stack_frame.AddrStack.Offset = ctx.Sp;
 #else
-# error "Platform not supported!"
+#    error "Platform not supported!"
 #endif
     stack_frame.AddrPC.Mode = AddrModeFlat;
     stack_frame.AddrFrame.Mode = AddrModeFlat;
