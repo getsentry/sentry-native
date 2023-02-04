@@ -334,24 +334,6 @@ target_include_directories(sentry
 		"$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>"
 )
 
-# The modulefinder and symbolizer need these two settings, and they are exported
-# as `PUBLIC`, so libraries that depend on sentry get these too:
-# `-E`: To have all symbols in the dynamic symbol table.
-# `--build-id`: To have a build-id in the ELF object.
-# `--version-script`: The given script makes sure only `sentry_*` symbols are exported
-# FIXME: cmake 3.13 introduced target_link_options
-target_link_libraries(sentry PUBLIC
-	"$<$<OR:$<PLATFORM_ID:Linux>,$<PLATFORM_ID:Android>>:-Wl,--build-id=sha1,--version-script=${PROJECT_SOURCE_DIR}/src/exports.map>")
-
-option(SENTRY_EXPORT_SYMBOLS "Export symbols for modulefinder and symbolizer" ON)
-if(SENTRY_EXPORT_SYMBOLS)
-	target_link_libraries(sentry PUBLIC
-		"$<$<OR:$<PLATFORM_ID:Linux>,$<PLATFORM_ID:Android>>:-Wl,-E>")
-else()
-	set(CMAKE_C_VISIBILITY_PRESET hidden)
-	set(CMAKE_CXX_VISIBILITY_PRESET hidden)
-	set(CMAKE_VISIBILITY_INLINES_HIDDEN 1)
-endif()
 
 #respect CMAKE_SYSTEM_VERSION
 if(WIN32)
@@ -608,4 +590,30 @@ if(SENTRY_BUILD_EXAMPLES)
 	endif()
 
 	add_test(NAME sentry_example COMMAND sentry_example)
+endif()
+
+# Make sure that we do not expose more symbols than from our API. This must be a PRIVATE setting or otherwise projects
+# using the Native SDK as a sub-project will inherit these settings, which, for something as invasive as the definition
+# of the symbol-surface is almost never a good idea. Previously this was set to PUBLIC, which led to the introduction of
+# switches to turn it off. By making it private it is also no longer necessary to turn this off for projects using
+# libsentry as a static library, which shouldn't have any issues with exported symbols, but projects had issues because
+# they inherited our public settings when linking their executables with out static lib.
+#
+# We are doing this at the end of the build-script since some sub-directories are inheriting link-libraries from the
+# sentry target, with those they will inherit the export map too, which doesn't make sense for an executable like a
+# unit-test that tries to find all symbols in its reproducibly, some of which are not in the sentry_ namespace.
+#
+# Used linker parameters:
+# `--build-id`: To have a build-id in the ELF object.
+# `--version-script`: The given script makes sure only `sentry_*` symbols are exported
+# FIXME: cmake 3.13 introduced target_link_options (blocked by Android)
+
+option(SENTRY_EXPORT_SYMBOLS "Export symbols for modulefinder and symbolizer" ON)
+if(SENTRY_EXPORT_SYMBOLS AND NOT SENTRY_BUILD_SHARED_LIBS)
+	# FIXME: why was this introduced in the first place? is this client project convenience?
+	target_link_libraries(sentry PUBLIC
+			"$<$<OR:$<PLATFORM_ID:Linux>,$<PLATFORM_ID:Android>>:-Wl,-E,--build-id=sha1>")
+else()
+	target_link_libraries(sentry PRIVATE
+			"$<$<OR:$<PLATFORM_ID:Linux>,$<PLATFORM_ID:Android>>:-Wl,--build-id=sha1,--version-script=${PROJECT_SOURCE_DIR}/src/exports.map>")
 endif()
