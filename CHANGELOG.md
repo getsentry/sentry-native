@@ -6,6 +6,10 @@
 
 - A session may be ended with a different status code. ([#801](https://github.com/getsentry/sentry-native/pull/801))
 
+**Fixes**:
+
+- Fix various mingw compilation issues ([#794](https://github.com/getsentry/sentry-native/pull/794))
+
 ## 0.5.4
 
 **Fixes**:
