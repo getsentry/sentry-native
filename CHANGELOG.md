@@ -15,6 +15,7 @@
 **Internal**:
 
 - Updated Crashpad backend to 2023-02-07. ([#803](https://github.com/getsentry/sentry-native/pull/803), [crashpad#80](https://github.com/getsentry/crashpad/pull/80))
+- CI: Updated GitHub Actions to test on LLVM-mingw. ([#797](https://github.com/getsentry/sentry-native/pull/797))
 
 **Thank you**:
 
