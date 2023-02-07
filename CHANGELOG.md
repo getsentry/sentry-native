@@ -8,7 +8,21 @@
 
 **Fixes**:
 
-- Fix various mingw compilation issues ([#794](https://github.com/getsentry/sentry-native/pull/794))
+- Switch Crashpad transport on Linux to use libcurl ([#803](https://github.com/getsentry/sentry-native/pull/803), [crashpad#75](https://github.com/getsentry/crashpad/pull/75), [crashpad#79](https://github.com/getsentry/crashpad/pull/79))
+- Avoid accidentally mutating CONTEXT when client-side stack walking in Crashpad ([#803](https://github.com/getsentry/sentry-native/pull/803), [crashpad#77](https://github.com/getsentry/crashpad/pull/77))
+- Fix various mingw compilation issues ([#794](https://github.com/getsentry/sentry-native/pull/794), [crashpad#78](https://github.com/getsentry/crashpad/pull/78))
+
+**Internal**:
+
+- Updated Crashpad backend to 2023-02-07. ([#803](https://github.com/getsentry/sentry-native/pull/803), [crashpad#80](https://github.com/getsentry/crashpad/pull/80))
+
+**Thank you**:
+
+Features, fixes and improvements in this release have been contributed by:
+
+- [@BogdanLivadariu](https://github.com/BogdanLivadariu)
+- [@ShawnCZek](https://github.com/ShawnCZek)
+- [@past-due](https://github.com/past-due)
 
 ## 0.5.4
 
