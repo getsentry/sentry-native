@@ -80,6 +80,11 @@ jobs:
             TEST_X86: 1
           - name: Windows (latest)
             os: windows-latest
+          - name: LLVM-Mingw
+            os: windows-latest
+            TEST_MINGW: 1
+            MINGW_PKG_PREFIX: x86_64-w64-mingw32
+            MINGW_ASM_MASM_COMPILER: llvm-ml;-m64
           # The Android emulator is currently only available on macos, see:
           # https://docs.microsoft.com/en-us/azure/devops/pipelines/ecosystems/android?view=azure-devops#test-on-the-android-emulator
           - name: Android (old API/NDK)
@@ -98,6 +103,7 @@ jobs:
 
     env:
       TEST_X86: ${{ matrix.TEST_X86 }}
+      TEST_MINGW: ${{ matrix.TEST_MINGW }}
       ERROR_ON_WARNINGS: ${{ matrix.ERROR_ON_WARNINGS }}
       RUN_ANALYZER: ${{ matrix.RUN_ANALYZER }}
       ANDROID_API: ${{ matrix.ANDROID_API }}
@@ -135,6 +141,14 @@ jobs:
       - name: Expose llvm PATH for Mac
         if: ${{ runner.os == 'macOS' }}
         run: echo $(brew --prefix llvm@15)/bin >> $GITHUB_PATH
+      
+      - name: Installing LLVM-MINGW Dependencies
+        if: ${{ runner.os == 'Windows' && env['TEST_MINGW'] }}
+        shell: powershell
+        env:
+          MINGW_PKG_PREFIX: ${{ matrix.MINGW_PKG_PREFIX }}
+          MINGW_ASM_MASM_COMPILER: ${{ matrix.MINGW_ASM_MASM_COMPILER }}
+        run: . "scripts\install-llvm-mingw.ps1"
 
       - name: Installing Android SDK Dependencies
         if: ${{ env['ANDROID_API'] }}
