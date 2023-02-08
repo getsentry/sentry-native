@@ -20,6 +20,10 @@ set(BREAKPAD_SOURCES_COMMON_LINUX
     breakpad/src/common/linux/linux_libc_support.cc
     breakpad/src/common/linux/memory_mapped_file.cc
     breakpad/src/common/linux/safe_readlink.cc
+    breakpad/src/common/linux/scoped_pipe.cc
+    breakpad/src/common/linux/scoped_pipe.h
+    breakpad/src/common/linux/scoped_tmpfile.cc
+    breakpad/src/common/linux/scoped_tmpfile.h
 )
 
 set(BREAKPAD_SOURCES_COMMON_LINUX_GETCONTEXT
