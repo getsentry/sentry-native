@@ -1861,7 +1861,7 @@ SENTRY_EXPERIMENTAL_API void sentry_transaction_iter_headers(
  *   0 = no crash recognized
  *  -1 = sentry_init() hasn't been called yet
  */
-SENTRY_EXPERIMENTAL_API int sentry_get_crashed_last_run();
+SENTRY_EXPERIMENTAL_API int sentry_get_crashed_last_run(void);
 
 /**
  * Clear the status of the "crashed-last-run". You should explicitly call
@@ -1875,22 +1875,22 @@ SENTRY_EXPERIMENTAL_API int sentry_get_crashed_last_run();
  *
  * Returns 0 on success, 1 on error.
  */
-SENTRY_EXPERIMENTAL_API int sentry_clear_crashed_last_run();
+SENTRY_EXPERIMENTAL_API int sentry_clear_crashed_last_run(void);
 
 /**
  * Sentry SDK version.
  */
-SENTRY_EXPERIMENTAL_API const char *sentry_sdk_version();
+SENTRY_EXPERIMENTAL_API const char *sentry_sdk_version(void);
 
 /**
  * Sentry SDK name.
  */
-SENTRY_EXPERIMENTAL_API const char *sentry_sdk_name();
+SENTRY_EXPERIMENTAL_API const char *sentry_sdk_name(void);
 
 /**
  * Sentry SDK User-Agent.
  */
-SENTRY_EXPERIMENTAL_API const char *sentry_sdk_user_agent();
+SENTRY_EXPERIMENTAL_API const char *sentry_sdk_user_agent(void);
 
 #ifdef __cplusplus
 }
