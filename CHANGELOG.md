@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Breaking changes**:
+
+- When built as a shared library for Android or Linux, the Native SDK limits the export of symbols to the `sentry_`-prefix. The option `SENTRY_EXPORT_SYMBOLS` is no longer available and the linker settings are constrained to the Native SDK and no longer `PUBLIC` to parent projects. ([#363](https://github.com/getsentry/sentry-native/pull/363))
+
 **Features**:
 
 - A session may be ended with a different status code. ([#801](https://github.com/getsentry/sentry-native/pull/801))
