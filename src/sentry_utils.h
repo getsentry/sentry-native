@@ -202,9 +202,9 @@ int sentry__snprintf_c(char *buf, size_t buf_size, const char *fmt, ...);
  * Represents a version of a software artifact.
  */
 typedef struct {
-    int major;
-    int minor;
-    int patch;
+    unsigned int major;
+    unsigned int minor;
+    unsigned int patch;
 } sentry_version_t;
 
 /**

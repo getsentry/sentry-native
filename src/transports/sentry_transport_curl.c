@@ -11,7 +11,6 @@
 
 #include <curl/curl.h>
 #include <curl/easy.h>
-#include <stdlib.h>
 #include <string.h>
 
 typedef struct curl_transport_state_s {
@@ -72,19 +71,20 @@ sentry__curl_transport_start(
             = curl_version_info(CURLVERSION_NOW);
 
         if (!version_data) {
-            SENTRY_WARN("Failed to retrieve `curl_version_info()`");
+            SENTRY_WARN("Failed to retrieve `curl_version_info`");
             return 1;
         }
 
-        uint8_t ver_major = (version_data->version_num >> 16) & 0xff;
-        uint8_t ver_minor = (version_data->version_num >> 8) & 0xff;
-        uint8_t ver_patch = version_data->version_num & 0xff;
+        sentry_version_t curl_version = {
+            .major = (version_data->version_num >> 16) & 0xff,
+            .minor = (version_data->version_num >> 8) & 0xff,
+            .patch = version_data->version_num & 0xff,
+        };
 
         if (!sentry__check_min_version(
-                (sentry_version_t) { ver_major, ver_minor, ver_patch },
-                (sentry_version_t) { .major = 7, .minor = 10, .patch = 7 })) {
+                curl_version, (sentry_version_t) { 7, 10, 7 })) {
             SENTRY_WARNF("`libcurl` is at unsupported version `%u.%u.%u`",
-                ver_major, ver_minor, ver_patch);
+                curl_version.major, curl_version.minor, curl_version.patch);
             return 1;
         }
 
