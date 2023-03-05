@@ -221,3 +221,32 @@ SENTRY_TEST(os)
 
     sentry_value_decref(os);
 }
+
+SENTRY_TEST(check_version)
+{
+    TEST_CHECK(sentry__check_min_version(
+        (sentry_version_t) { .major = 7, .minor = 10, .patch = 7 },
+        (sentry_version_t) { .major = 7, .minor = 10, .patch = 7 }));
+    TEST_CHECK(sentry__check_min_version(
+        (sentry_version_t) { .major = 7, .minor = 11, .patch = 7 },
+        (sentry_version_t) { .major = 7, .minor = 10, .patch = 7 }));
+    TEST_CHECK(sentry__check_min_version(
+        (sentry_version_t) { .major = 7, .minor = 10, .patch = 8 },
+        (sentry_version_t) { .major = 7, .minor = 10, .patch = 7 }));
+    TEST_CHECK(sentry__check_min_version(
+        (sentry_version_t) { .major = 8, .minor = 9, .patch = 7 },
+        (sentry_version_t) { .major = 7, .minor = 10, .patch = 7 }));
+    TEST_CHECK(sentry__check_min_version(
+        (sentry_version_t) { .major = 7, .minor = 11, .patch = 6 },
+        (sentry_version_t) { .major = 7, .minor = 10, .patch = 7 }));
+
+    TEST_CHECK(!sentry__check_min_version(
+        (sentry_version_t) { .major = 6, .minor = 10, .patch = 7 },
+        (sentry_version_t) { .major = 7, .minor = 10, .patch = 7 }));
+    TEST_CHECK(!sentry__check_min_version(
+        (sentry_version_t) { .major = 7, .minor = 9, .patch = 7 },
+        (sentry_version_t) { .major = 7, .minor = 10, .patch = 7 }));
+    TEST_CHECK(!sentry__check_min_version(
+        (sentry_version_t) { .major = 7, .minor = 10, .patch = 6 },
+        (sentry_version_t) { .major = 7, .minor = 10, .patch = 7 }));
+}

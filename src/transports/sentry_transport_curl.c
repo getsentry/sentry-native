@@ -67,6 +67,31 @@ sentry__curl_transport_start(
             SENTRY_WARNF("`curl_global_init` failed with code `%d`", (int)rv);
             return 1;
         }
+
+        curl_version_info_data *version_data
+            = curl_version_info(CURLVERSION_NOW);
+
+        if (!version_data) {
+            SENTRY_WARN("Failed to retrieve `curl_version_info()`");
+            return 1;
+        }
+
+        uint8_t ver_major = (version_data->version_num >> 16) & 0xff;
+        uint8_t ver_minor = (version_data->version_num >> 8) & 0xff;
+        uint8_t ver_patch = version_data->version_num & 0xff;
+
+        if (!sentry__check_min_version(
+                (sentry_version_t) { ver_major, ver_minor, ver_patch },
+                (sentry_version_t) { .major = 7, .minor = 10, .patch = 7 })) {
+            SENTRY_WARNF("`libcurl` is at unsupported version `%u.%u.%u`",
+                ver_major, ver_minor, ver_patch);
+            return 1;
+        }
+
+        if ((version_data->features & CURL_VERSION_ASYNCHDNS) == 0) {
+            SENTRY_WARN("`libcurl` was not compiled with feature `AsynchDNS`");
+            return 1;
+        }
     }
 
     sentry_bgworker_t *bgworker = (sentry_bgworker_t *)transport_state;
