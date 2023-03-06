@@ -274,7 +274,7 @@ endif()
 
 if(SENTRY_TRANSPORT_CURL)
 	if(NOT CURL_FOUND) # Some other lib might bring libcurl already
-		find_package(CURL REQUIRED)
+		find_package(CURL REQUIRED COMPONENTS AsynchDNS)
 	endif()
 
 	if(TARGET CURL::libcurl) # Only available in cmake 3.12+

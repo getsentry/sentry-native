@@ -529,3 +529,20 @@ sentry__snprintf_c(char *buf, size_t buf_size, const char *fmt, ...)
     va_end(args);
     return rv;
 }
+
+bool
+sentry__check_min_version(sentry_version_t actual, sentry_version_t expected)
+{
+    if (actual.major < expected.major) {
+        return false;
+    }
+    if (actual.major == expected.major && actual.minor < expected.minor) {
+        return false;
+    }
+    if (actual.major == expected.major && actual.minor == expected.minor
+        && actual.patch < expected.patch) {
+        return false;
+    }
+
+    return true;
+}

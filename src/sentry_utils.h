@@ -198,4 +198,20 @@ double sentry__strtod_c(const char *ptr, char **endptr);
  */
 int sentry__snprintf_c(char *buf, size_t buf_size, const char *fmt, ...);
 
+/**
+ * Represents a version of a software artifact.
+ */
+typedef struct {
+    unsigned int major;
+    unsigned int minor;
+    unsigned int patch;
+} sentry_version_t;
+
+/**
+ * Checks whether `actual` is the same or a later version than `expected`.
+ * Returns `true` if that is the case.
+ */
+bool sentry__check_min_version(
+    sentry_version_t actual, sentry_version_t expected);
+
 #endif
