@@ -426,8 +426,9 @@ if(SENTRY_BACKEND_CRASHPAD)
 			set(CRASHPAD_ENABLE_INSTALL ON CACHE BOOL "Enable crashpad installation" FORCE)
 		endif()
 		add_subdirectory(external/crashpad crashpad_build)
+
 		if(CRASHPAD_WER_ENABLED)
-			add_compile_definitions(CRASHPAD_WER_ENABLED)
+			add_dependencies(sentry crashpad::wer)
 		endif()
 
 		# set static runtime if enabled
@@ -482,8 +483,9 @@ if(SENTRY_BACKEND_CRASHPAD)
 		endif()
 	endif()
 	add_dependencies(sentry crashpad::handler)
+
 	if(CRASHPAD_WER_ENABLED)
-		add_dependencies(sentry crashpad::wer)
+		add_compile_definitions(CRASHPAD_WER_ENABLED)
 	endif()
 elseif(SENTRY_BACKEND_BREAKPAD)
 	option(SENTRY_BREAKPAD_SYSTEM "Use system breakpad" OFF)
