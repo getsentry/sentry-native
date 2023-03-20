@@ -1,4 +1,4 @@
-[![Conan Center](https://shields.io/conan/v/sentry-native)](https://conan.io/center/sentry-native)
+[![Conan Center](https://repology.org/badge/version-for-repo/conancenter/sentry-native.svg)](https://conan.io/center/sentry-native) [![nixpkgs unstable](https://repology.org/badge/version-for-repo/nix_unstable/sentry-native.svg)](https://repology.org/project/sentry-native/versions) [![Vcpkg](https://repology.org/badge/version-for-repo/vcpkg/sentry-native.svg)](https://repology.org/project/sentry-native/versions)
 
 <p align="center">
   <a href="https://sentry.io/?utm_source=github&utm_medium=logo" target="_blank">
