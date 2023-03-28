@@ -12,6 +12,13 @@
 
 - Add badges for conan, nix and vcpkg package-repos to README. ([#795](https://github.com/getsentry/sentry-native/pull/795))
 
+**Thank you**:
+
+Features, fixes and improvements in this release have been contributed by:
+
+- [@Cyriuz](https://github.com/Cyriuz)
+- [@MartinDelille](https://github.com/MartinDelille)
+
 ## 0.6.0
 
 **Breaking changes**:
