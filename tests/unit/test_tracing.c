@@ -205,9 +205,13 @@ SENTRY_TEST(basic_function_transport_transaction)
     // consent was not given
     TEST_CHECK(!sentry_uuid_is_nil(&event_id));
     sentry_user_consent_give();
-
-    tx_cxt = sentry_transaction_context_new("honk", "beep");
+    char name[] = { 'h', 'o', 'n', 'k' };
+    char op[] = { 'b', 'e', 'e', 'p' };
+    tx_cxt
+        = sentry_transaction_context_new_n(name, sizeof(name), op, sizeof(op));
     tx = sentry_transaction_start(tx_cxt, sentry_value_new_null());
+    CHECK_STRING_PROPERTY(tx->inner, "transaction", "honk");
+    CHECK_STRING_PROPERTY(tx->inner, "op", "beep");
     event_id = sentry_transaction_finish(tx);
     TEST_CHECK(!sentry_uuid_is_nil(&event_id));
 

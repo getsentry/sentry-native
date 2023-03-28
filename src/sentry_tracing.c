@@ -51,8 +51,8 @@ GEN_SENTRY__VALUE_NEW_SPAN(
         sentry_value_set_by_key(transaction_context, "trace_id",               \
             sentry__value_new_internal_uuid(&trace_id));                       \
                                                                                \
-        sentry_value_set_by_key(transaction_context, "transaction",            \
-            sentry_value_new_string(name));                                    \
+        sentry_value_set_by_key(                                               \
+            transaction_context, "transaction", NEW_STR_VALUE_FUN(name));      \
                                                                                \
         return transaction_context;                                            \
     }
