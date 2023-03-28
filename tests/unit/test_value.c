@@ -102,16 +102,30 @@ SENTRY_TEST(value_string)
     sentry_value_decref(val);
 }
 
+SENTRY_TEST(value_string_n)
+{
+    sentry_value_t val = sentry_value_new_string_n(NULL, 0);
+    TEST_CHECK(sentry_value_is_null(val));
+    TEST_CHECK(sentry_value_get_type(val) == SENTRY_VALUE_TYPE_NULL);
+    TEST_CHECK(sentry_value_is_true(val) == false);
+    sentry_value_decref(val);
+
+    char non_null_term_empty_str[0] = {};
+    val = sentry_value_new_string_n(non_null_term_empty_str, 0);
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(val), "");
+    TEST_CHECK(sentry_value_get_type(val) == SENTRY_VALUE_TYPE_STRING);
+    TEST_CHECK(sentry_value_is_true(val) == false);
+    sentry_value_decref(val);
+}
+
 SENTRY_TEST(value_unicode)
 {
     // https://xkcd.com/1813/ :-)
-    sentry_value_t val
-        = sentry_value_new_string("őá…–🤮🚀¿ 한글 테스트 \a\v");
-    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(val),
-        "őá…–🤮🚀¿ 한글 테스트 \a\v");
+    sentry_value_t val = sentry_value_new_string("őá…–🤮🚀¿ 한글 테스트 \a\v");
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(val), "őá…–🤮🚀¿ 한글 테스트 \a\v");
     // json does not need to escape unicode, except for control characters
-    TEST_CHECK_JSON_VALUE(
-        val, "\"őá…–🤮🚀¿ 한글 테스트 \\u0007\\u000b\"");
+    TEST_CHECK_JSON_VALUE(val, "\"őá…–🤮🚀¿ 한글 테스트 \\u0007\\u000b\"");
     sentry_value_decref(val);
     char zalgo[] = "z̴̢̈͜ä̴̺̟́ͅl̸̛̦͎̺͂̃̚͝g̷̦̲͊͋̄̌͝o̸͇̞̪͙̞͌̇̀̓̏͜";
     val = sentry_value_new_string(zalgo);
@@ -545,6 +559,92 @@ SENTRY_TEST(value_collections_leak)
 
     TEST_CHECK_INT_EQUAL(sentry_value_refcount(obj), 1);
     sentry_value_decref(obj);
+}
+
+SENTRY_TEST(value_set_by_null_key)
+{
+    sentry_value_t value = sentry_value_new_object();
+    sentry_value_t payload = sentry_value_new_object();
+
+    TEST_CHECK(sentry_value_refcount(payload) == 1);
+    TEST_CHECK_INT_EQUAL(1, sentry_value_set_by_key(value, NULL, payload));
+    TEST_CHECK(sentry_value_refcount(payload) == 0);
+    TEST_CHECK(sentry_value_get_length(value) == 0);
+
+    payload = sentry_value_new_object();
+    TEST_CHECK(sentry_value_refcount(payload) == 1);
+    TEST_CHECK_INT_EQUAL(1, sentry_value_set_by_key_n(value, NULL, 0, payload));
+    TEST_CHECK(sentry_value_refcount(payload) == 0);
+    TEST_CHECK(sentry_value_get_length(value) == 0);
+
+    payload = sentry_value_new_object();
+    TEST_CHECK(sentry_value_refcount(payload) == 1);
+    TEST_CHECK_INT_EQUAL(
+        1, sentry_value_set_by_key_n(value, NULL, 10, payload));
+    TEST_CHECK(sentry_value_get_length(value) == 0);
+    TEST_CHECK(sentry_value_refcount(payload) == 0);
+
+    sentry_value_decref(value);
+}
+
+SENTRY_TEST(value_remove_by_null_key)
+{
+    sentry_value_t value = sentry_value_new_object();
+
+    TEST_CHECK_INT_EQUAL(0,
+        sentry_value_set_by_key(value, "some_key", sentry_value_new_object()));
+    TEST_CHECK(sentry_value_get_length(value) == 1);
+
+    TEST_CHECK_INT_EQUAL(1, sentry_value_remove_by_key(value, NULL));
+    TEST_CHECK_INT_EQUAL(1, sentry_value_get_length(value));
+    TEST_CHECK_INT_EQUAL(1, sentry_value_remove_by_key_n(value, NULL, 0));
+    TEST_CHECK_INT_EQUAL(1, sentry_value_get_length(value));
+    TEST_CHECK_INT_EQUAL(1, sentry_value_remove_by_key_n(value, NULL, 10));
+    TEST_CHECK_INT_EQUAL(1, sentry_value_get_length(value));
+
+    sentry_value_decref(value);
+}
+
+SENTRY_TEST(value_get_by_null_key)
+{
+    sentry_value_t value = sentry_value_new_object();
+
+    const char *some_key = "some_key";
+    TEST_CHECK_INT_EQUAL(
+        0, sentry_value_set_by_key(value, some_key, sentry_value_new_object()));
+    TEST_CHECK(sentry_value_get_length(value) == 1);
+
+    sentry_value_t rv = sentry_value_get_by_key(value, NULL);
+    TEST_CHECK(sentry_value_is_null(rv));
+    TEST_CHECK_INT_EQUAL(1, sentry_value_refcount(rv));
+
+    rv = sentry_value_get_by_key_owned(value, NULL);
+    TEST_CHECK(sentry_value_is_null(rv));
+    TEST_CHECK_INT_EQUAL(1, sentry_value_refcount(rv));
+    sentry_value_decref(rv);
+    TEST_CHECK_INT_EQUAL(1, sentry_value_refcount(rv));
+
+    rv = sentry_value_get_by_key_owned(value, some_key);
+    TEST_CHECK(!sentry_value_is_null(rv));
+    TEST_CHECK_INT_EQUAL(2, sentry_value_refcount(rv));
+    sentry_value_decref(rv);
+    TEST_CHECK_INT_EQUAL(1, sentry_value_refcount(rv));
+
+    // if `k_len` != any length of keys stored in the object this won't
+    // segfault because the `sentry_slice_t` equality check already fails due to
+    // the length-inequality and never reaches `memcmp()`.
+    TEST_CHECK(sentry_value_is_null(sentry_value_get_by_key_n(value, NULL, 0)));
+    // If `k_len' == any key-length, we'd segfault without a NULL-check.
+    TEST_CHECK(sentry_value_is_null(
+        sentry_value_get_by_key_n(value, NULL, strlen(some_key))));
+
+    rv = sentry_value_get_by_key_owned_n(value, NULL, strlen(some_key));
+    TEST_CHECK(sentry_value_is_null(rv));
+    TEST_CHECK_INT_EQUAL(1, sentry_value_refcount(rv));
+    sentry_value_decref(rv);
+    TEST_CHECK_INT_EQUAL(1, sentry_value_refcount(rv));
+
+    sentry_value_decref(value);
 }
 
 SENTRY_TEST(value_set_stacktrace)

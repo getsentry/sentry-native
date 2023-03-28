@@ -1,10 +1,8 @@
 #include "sentry_boot.h"
 
 #include <stdarg.h>
-#include <stdlib.h>
 #include <string.h>
 
-#include "sentry_alloc.h"
 #include "sentry_backend.h"
 #include "sentry_core.h"
 #include "sentry_database.h"
@@ -641,10 +639,28 @@ sentry_set_tag(const char *key, const char *value)
 }
 
 void
+sentry_set_tag_n(
+    const char *key, size_t key_len, const char *value, size_t value_len)
+{
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry_value_set_by_key_n(scope->tags, key, key_len,
+            sentry_value_new_string_n(value, value_len));
+    }
+}
+
+void
 sentry_remove_tag(const char *key)
 {
     SENTRY_WITH_SCOPE_MUT (scope) {
         sentry_value_remove_by_key(scope->tags, key);
+    }
+}
+
+void
+sentry_remove_tag_n(const char *key, size_t key_len)
+{
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry_value_remove_by_key_n(scope->tags, key, key_len);
     }
 }
 
@@ -657,10 +673,26 @@ sentry_set_extra(const char *key, sentry_value_t value)
 }
 
 void
+sentry_set_extra_n(const char *key, size_t key_len, sentry_value_t value)
+{
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry_value_set_by_key_n(scope->extra, key, key_len, value);
+    }
+}
+
+void
 sentry_remove_extra(const char *key)
 {
     SENTRY_WITH_SCOPE_MUT (scope) {
         sentry_value_remove_by_key(scope->extra, key);
+    }
+}
+
+void
+sentry_remove_extra_n(const char *key, size_t key_len)
+{
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry_value_remove_by_key_n(scope->extra, key, key_len);
     }
 }
 
@@ -673,10 +705,26 @@ sentry_set_context(const char *key, sentry_value_t value)
 }
 
 void
+sentry_set_context_n(const char *key, size_t key_len, sentry_value_t value)
+{
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry_value_set_by_key_n(scope->contexts, key, key_len, value);
+    }
+}
+
+void
 sentry_remove_context(const char *key)
 {
     SENTRY_WITH_SCOPE_MUT (scope) {
         sentry_value_remove_by_key(scope->contexts, key);
+    }
+}
+
+void
+sentry_remove_context_n(const char *key, size_t key_len)
+{
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry_value_remove_by_key_n(scope->contexts, key, key_len);
     }
 }
 
@@ -696,7 +744,7 @@ sentry_set_fingerprint(const char *fingerprint, ...)
     SENTRY_WITH_SCOPE_MUT (scope) {
         sentry_value_decref(scope->fingerprint);
         scope->fingerprint = fingerprint_value;
-    };
+    }
 }
 
 void
@@ -705,7 +753,7 @@ sentry_remove_fingerprint(void)
     SENTRY_WITH_SCOPE_MUT (scope) {
         sentry_value_decref(scope->fingerprint);
         scope->fingerprint = sentry_value_new_null();
-    };
+    }
 }
 
 void
@@ -717,6 +765,21 @@ sentry_set_transaction(const char *transaction)
 
         if (scope->transaction_object) {
             sentry_transaction_set_name(scope->transaction_object, transaction);
+        }
+    }
+}
+
+void
+sentry_set_transaction_n(const char *transaction, size_t transaction_len)
+{
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry_free(scope->transaction);
+        scope->transaction
+            = sentry__string_clonen_or_null(transaction, transaction_len);
+
+        if (scope->transaction_object) {
+            sentry_transaction_set_name_n(
+                scope->transaction_object, transaction, transaction_len);
         }
     }
 }
@@ -869,31 +932,37 @@ sentry_set_span(sentry_span_t *span)
     }
 }
 
-sentry_span_t *
-sentry_transaction_start_child(
-    sentry_transaction_t *opaque_parent, char *operation, char *description)
-{
-    if (!opaque_parent || sentry_value_is_null(opaque_parent->inner)) {
-        SENTRY_DEBUG("no transaction available to create a child under");
-        return NULL;
+#define GEN_SENTRY_TRANSACTION_START_CHILD(                                    \
+    FN, STR_PARAM_GEN, NEW_SPAN_VALUE_FN)                                      \
+    sentry_span_t *FN(sentry_transaction_t *opaque_parent,                     \
+        STR_PARAM_GEN(operation), STR_PARAM_GEN(description))                  \
+    {                                                                          \
+        if (!opaque_parent || sentry_value_is_null(opaque_parent->inner)) {    \
+            SENTRY_DEBUG("no transaction available to create a child under");  \
+            return NULL;                                                       \
+        }                                                                      \
+        sentry_value_t parent = opaque_parent->inner;                          \
+                                                                               \
+        /* TODO: consider snapshotting this value during tx creation and       \
+         *       storing in tx and span */                                     \
+        size_t max_spans = SENTRY_SPANS_MAX;                                   \
+        SENTRY_WITH_OPTIONS (options) {                                        \
+            max_spans = options->max_spans;                                    \
+        }                                                                      \
+                                                                               \
+        sentry_value_t span                                                    \
+            = NEW_SPAN_VALUE_FN(max_spans, parent, operation, description);    \
+        return sentry__span_new(opaque_parent, span);                          \
     }
-    sentry_value_t parent = opaque_parent->inner;
 
-    // TODO: consider snapshotting this value during tx creation and storing in
-    // tx and span
-    size_t max_spans = SENTRY_SPANS_MAX;
-    SENTRY_WITH_OPTIONS (options) {
-        max_spans = options->max_spans;
-    }
-
-    sentry_value_t span
-        = sentry__value_span_new(max_spans, parent, operation, description);
-    return sentry__span_new(opaque_parent, span);
-}
+GEN_SENTRY_TRANSACTION_START_CHILD(sentry_transaction_start_child,
+    STR_PARAM_FROM_NAME, CALL_SENTRY__VALUE_SPAN_NEW)
+GEN_SENTRY_TRANSACTION_START_CHILD(sentry_transaction_start_child_n,
+    PTR_LEN_PARAM_FROM_NAME, CALL_SENTRY__VALUE_SPAN_NEW_N)
 
 sentry_span_t *
-sentry_span_start_child(
-    sentry_span_t *opaque_parent, char *operation, char *description)
+sentry_span_start_child(sentry_span_t *opaque_parent, const char *operation,
+    const char *description)
 {
     if (!opaque_parent || sentry_value_is_null(opaque_parent->inner)) {
         SENTRY_DEBUG("no parent span available to create a child span under");
@@ -1010,7 +1079,6 @@ sentry_span_finish(sentry_span_t *opaque_span)
 
 fail:
     sentry__span_decref(opaque_span);
-    return;
 }
 
 int

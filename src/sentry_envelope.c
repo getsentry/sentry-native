@@ -458,18 +458,21 @@ sentry_envelope_write_to_path(
     return rv;
 }
 
-int
-sentry_envelope_write_to_file(
-    const sentry_envelope_t *envelope, const char *path)
-{
-    sentry_path_t *path_obj = sentry__path_from_str(path);
-
-    int rv = sentry_envelope_write_to_path(envelope, path_obj);
-
-    sentry__path_free(path_obj);
-
-    return rv;
-}
+#define GEN_SENTRY_ENVELOPE_WRITE_TO_FILE(FN, GEN_STR_PARAM, PATH_FROM_STR_FN) \
+    int FN(const sentry_envelope_t *envelope, GEN_STR_PARAM(path))             \
+    {                                                                          \
+        sentry_path_t *path_obj = PATH_FROM_STR_FN(path);                      \
+                                                                               \
+        int rv = sentry_envelope_write_to_path(envelope, path_obj);            \
+                                                                               \
+        sentry__path_free(path_obj);                                           \
+                                                                               \
+        return rv;                                                             \
+    }
+GEN_SENTRY_ENVELOPE_WRITE_TO_FILE(sentry_envelope_write_to_file_n,
+    PTR_LEN_PARAM_FROM_NAME, CALL_SENTRY__PATH_FROM_STR_N)
+GEN_SENTRY_ENVELOPE_WRITE_TO_FILE(sentry_envelope_write_to_file,
+    STR_PARAM_FROM_NAME, CALL_SENTRY__PATH_FROM_STR)
 
 #ifdef SENTRY_UNITTEST
 size_t

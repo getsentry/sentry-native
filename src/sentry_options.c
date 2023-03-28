@@ -131,6 +131,14 @@ sentry_options_set_on_crash(
 }
 
 void
+sentry_options_set_dsn_n(
+    sentry_options_t *opts, const char *raw_dsn, size_t raw_dsn_len)
+{
+    sentry__dsn_decref(opts->dsn);
+    opts->dsn = sentry__dsn_new_n(raw_dsn, raw_dsn_len);
+}
+
+void
 sentry_options_set_dsn(sentry_options_t *opts, const char *raw_dsn)
 {
     sentry__dsn_decref(opts->dsn);
@@ -161,6 +169,14 @@ sentry_options_get_sample_rate(const sentry_options_t *opts)
 }
 
 void
+sentry_options_set_release_n(
+    sentry_options_t *opts, const char *release, size_t release_len)
+{
+    sentry_free(opts->release);
+    opts->release = sentry__string_clonen_or_null(release, release_len);
+}
+
+void
 sentry_options_set_release(sentry_options_t *opts, const char *release)
 {
     sentry_free(opts->release);
@@ -171,6 +187,15 @@ const char *
 sentry_options_get_release(const sentry_options_t *opts)
 {
     return opts->release;
+}
+
+void
+sentry_options_set_environment_n(
+    sentry_options_t *opts, const char *environment, size_t environment_len)
+{
+    sentry_free(opts->environment);
+    opts->environment
+        = sentry__string_clonen_or_null(environment, environment_len);
 }
 
 void
@@ -187,6 +212,14 @@ sentry_options_get_environment(const sentry_options_t *opts)
 }
 
 void
+sentry_options_set_dist_n(
+    sentry_options_t *opts, const char *dist, size_t dist_len)
+{
+    sentry_free(opts->dist);
+    opts->dist = sentry__string_clonen_or_null(dist, dist_len);
+}
+
+void
 sentry_options_set_dist(sentry_options_t *opts, const char *dist)
 {
     sentry_free(opts->dist);
@@ -197,6 +230,14 @@ const char *
 sentry_options_get_dist(const sentry_options_t *opts)
 {
     return opts->dist;
+}
+
+void
+sentry_options_set_http_proxy_n(
+    sentry_options_t *opts, const char *proxy, size_t proxy_len)
+{
+    sentry_free(opts->http_proxy);
+    opts->http_proxy = sentry__string_clonen_or_null(proxy, proxy_len);
 }
 
 void
@@ -219,6 +260,14 @@ sentry_options_set_ca_certs(sentry_options_t *opts, const char *path)
     opts->ca_certs = sentry__string_clone(path);
 }
 
+void
+sentry_options_set_ca_certs_n(
+    sentry_options_t *opts, const char *path, size_t path_len)
+{
+    sentry_free(opts->ca_certs);
+    opts->ca_certs = sentry__string_clonen(path, path_len);
+}
+
 const char *
 sentry_options_get_ca_certs(const sentry_options_t *opts)
 {
@@ -231,6 +280,14 @@ sentry_options_set_transport_thread_name(
 {
     sentry_free(opts->transport_thread_name);
     opts->transport_thread_name = sentry__string_clone(name);
+}
+
+void
+sentry_options_set_transport_thread_name_n(
+    sentry_options_t *opts, const char *name, size_t name_len)
+{
+    sentry_free(opts->transport_thread_name);
+    opts->transport_thread_name = sentry__string_clonen_or_null(name, name_len);
 }
 
 const char *
@@ -351,6 +408,13 @@ sentry_options_add_attachment(sentry_options_t *opts, const char *path)
 }
 
 void
+sentry_options_add_attachment_n(
+    sentry_options_t *opts, const char *path, size_t path_len)
+{
+    add_attachment(opts, sentry__path_from_str_n(path, path_len));
+}
+
+void
 sentry_options_set_handler_path(sentry_options_t *opts, const char *path)
 {
     sentry__path_free(opts->handler_path);
@@ -358,10 +422,26 @@ sentry_options_set_handler_path(sentry_options_t *opts, const char *path)
 }
 
 void
+sentry_options_set_handler_path_n(
+    sentry_options_t *opts, const char *path, size_t path_len)
+{
+    sentry__path_free(opts->handler_path);
+    opts->handler_path = sentry__path_from_str_n(path, path_len);
+}
+
+void
 sentry_options_set_database_path(sentry_options_t *opts, const char *path)
 {
     sentry__path_free(opts->database_path);
     opts->database_path = sentry__path_from_str(path);
+}
+
+void
+sentry_options_set_database_path_n(
+    sentry_options_t *opts, const char *path, size_t path_len)
+{
+    sentry__path_free(opts->database_path);
+    opts->database_path = sentry__path_from_str_n(path, path_len);
 }
 
 #ifdef SENTRY_PLATFORM_WINDOWS

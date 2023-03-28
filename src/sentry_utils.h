@@ -63,6 +63,7 @@ typedef struct sentry_dsn_s {
  * DSN has been successfully parsed.
  */
 sentry_dsn_t *sentry__dsn_new(const char *dsn);
+sentry_dsn_t *sentry__dsn_new_n(const char *dsn, size_t raw_dsn_len);
 
 /**
  * Increases the reference-count of the DSN.
