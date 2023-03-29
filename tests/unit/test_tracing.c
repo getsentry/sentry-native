@@ -854,19 +854,24 @@ SENTRY_TEST(txn_tagging)
 
     sentry_transaction_remove_tag(txn, "os.name");
     check_after_remove(txn->inner, "tags", "os.name");
+
+    sentry__transaction_decref(txn);
 }
 
 SENTRY_TEST(span_tagging)
 {
-    sentry_span_t *span
-        = sentry__span_new(sentry__transaction_new(sentry_value_new_object()),
-            sentry_value_new_object());
+    sentry_transaction_t *txn
+        = sentry__transaction_new(sentry_value_new_object());
+    sentry_span_t *span = sentry__span_new(txn, sentry_value_new_object());
 
     sentry_span_set_tag(span, "os.name", "Linux");
     check_after_set(span->inner, "tags", "os.name", "Linux");
 
     sentry_span_remove_tag(span, "os.name");
     check_after_remove(span->inner, "tags", "os.name");
+
+    sentry__span_decref(span);
+    sentry__transaction_decref(txn);
 }
 
 SENTRY_TEST(txn_tagging_n)
@@ -882,13 +887,15 @@ SENTRY_TEST(txn_tagging_n)
 
     sentry_transaction_remove_tag_n(txn, tag, sizeof(tag));
     check_after_remove(txn->inner, "tags", "os.name");
+
+    sentry__transaction_decref(txn);
 }
 
 SENTRY_TEST(span_tagging_n)
 {
-    sentry_span_t *span
-        = sentry__span_new(sentry__transaction_new(sentry_value_new_object()),
-            sentry_value_new_object());
+    sentry_transaction_t *txn
+        = sentry__transaction_new(sentry_value_new_object());
+    sentry_span_t *span = sentry__span_new(txn, sentry_value_new_object());
 
     char tag[] = { 'o', 's', '.', 'n', 'a', 'm', 'e' };
     char tag_val[] = { 'L', 'i', 'n', 'u', 'x' };
@@ -897,12 +904,16 @@ SENTRY_TEST(span_tagging_n)
 
     sentry_span_remove_tag_n(span, tag, sizeof(tag));
     check_after_remove(span->inner, "tags", "os.name");
+
+    sentry__span_decref(span);
+    sentry__transaction_decref(txn);
 }
 
 SENTRY_TEST(txn_name)
 {
     sentry_transaction_t *txn
         = sentry__transaction_new(sentry_value_new_object());
+
     char *txn_name = "the_txn";
     sentry_transaction_set_name(txn, txn_name);
     sentry_value_t txn_name_value
@@ -910,6 +921,8 @@ SENTRY_TEST(txn_name)
     TEST_CHECK(
         sentry_value_get_type(txn_name_value) == SENTRY_VALUE_TYPE_STRING);
     TEST_CHECK_STRING_EQUAL(sentry_value_as_string(txn_name_value), txn_name);
+
+    sentry__transaction_decref(txn);
 }
 
 SENTRY_TEST(txn_data)
@@ -923,19 +936,24 @@ SENTRY_TEST(txn_data)
 
     sentry_transaction_remove_data(txn, "os.name");
     check_after_remove(txn->inner, "data", "os.name");
+
+    sentry__transaction_decref(txn);
 }
 
 SENTRY_TEST(span_data)
 {
-    sentry_span_t *span
-        = sentry__span_new(sentry__transaction_new(sentry_value_new_object()),
-            sentry_value_new_object());
+    sentry_transaction_t *txn
+        = sentry__transaction_new(sentry_value_new_object());
+    sentry_span_t *span = sentry__span_new(txn, sentry_value_new_object());
 
     sentry_span_set_data(span, "os.name", sentry_value_new_string("Linux"));
     check_after_set(span->inner, "data", "os.name", "Linux");
 
     sentry_span_remove_data(span, "os.name");
     check_after_remove(span->inner, "data", "os.name");
+
+    sentry__span_decref(span);
+    sentry__transaction_decref(txn);
 }
 
 SENTRY_TEST(txn_name_n)
@@ -950,6 +968,8 @@ SENTRY_TEST(txn_name_n)
     TEST_CHECK(
         sentry_value_get_type(txn_name_value) == SENTRY_VALUE_TYPE_STRING);
     TEST_CHECK_STRING_EQUAL(sentry_value_as_string(txn_name_value), "the_txn");
+
+    sentry__transaction_decref(txn);
 }
 
 SENTRY_TEST(txn_data_n)
@@ -966,13 +986,15 @@ SENTRY_TEST(txn_data_n)
 
     sentry_transaction_remove_data_n(txn, data_k, sizeof(data_k));
     check_after_remove(txn->inner, "data", "os.name");
+
+    sentry__transaction_decref(txn);
 }
 
 SENTRY_TEST(span_data_n)
 {
-    sentry_span_t *span
-        = sentry__span_new(sentry__transaction_new(sentry_value_new_object()),
-            sentry_value_new_object());
+    sentry_transaction_t *txn
+        = sentry__transaction_new(sentry_value_new_object());
+    sentry_span_t *span = sentry__span_new(txn, sentry_value_new_object());
 
     char data_k[] = { 'o', 's', '.', 'n', 'a', 'm', 'e' };
     char data_v[] = { 'L', 'i', 'n', 'u', 'x' };
@@ -983,6 +1005,9 @@ SENTRY_TEST(span_data_n)
 
     sentry_span_remove_data_n(span, data_k, sizeof(data_k));
     check_after_remove(span->inner, "data", "os.name");
+
+    sentry__span_decref(span);
+    sentry__transaction_decref(txn);
 }
 
 #undef IS_NULL
