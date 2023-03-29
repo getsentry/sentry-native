@@ -25,8 +25,10 @@ test-unit: update-test-discovery CMakeLists.txt
 	./unit-build/sentry_test_unit
 .PHONY: test-unit
 
+# SYSTEM_VERSION_COMPAT=0 is required (starting with BigSur) to get the correct macOS version for context assertions:
+# https://developer.apple.com/documentation/macos-release-notes/macos-big-sur-11_0_1-release-notes#Third-Party-Apps
 test-integration: setup-venv
-	.venv/bin/pytest tests --verbose
+	SYSTEM_VERSION_COMPAT=0 .venv/bin/pytest tests --verbose
 .PHONY: test-integration
 
 test-leaks: update-test-discovery CMakeLists.txt
