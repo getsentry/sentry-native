@@ -110,9 +110,9 @@ SENTRY_TEST(value_string_n)
     TEST_CHECK(sentry_value_is_true(val) == false);
     sentry_value_decref(val);
 
-    char non_null_term_empty_str[]
-        = { 'h', 'e', 'l','l','o'};
-    val = sentry_value_new_string_n(non_null_term_empty_str, sizeof(non_null_term_empty_str));
+    char non_null_term_empty_str[] = { 'h', 'e', 'l', 'l', 'o' };
+    val = sentry_value_new_string_n(
+        non_null_term_empty_str, sizeof(non_null_term_empty_str));
     TEST_CHECK_STRING_EQUAL(sentry_value_as_string(val), "hello");
     TEST_CHECK(sentry_value_get_type(val) == SENTRY_VALUE_TYPE_STRING);
     TEST_CHECK(sentry_value_is_true(val) == true);
