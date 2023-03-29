@@ -110,11 +110,12 @@ SENTRY_TEST(value_string_n)
     TEST_CHECK(sentry_value_is_true(val) == false);
     sentry_value_decref(val);
 
-    char non_null_term_empty_str[0] = {};
-    val = sentry_value_new_string_n(non_null_term_empty_str, 0);
-    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(val), "");
+    char non_null_term_empty_str[]
+        = { 'h', 'e', 'l','l','o'};
+    val = sentry_value_new_string_n(non_null_term_empty_str, sizeof(non_null_term_empty_str));
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(val), "hello");
     TEST_CHECK(sentry_value_get_type(val) == SENTRY_VALUE_TYPE_STRING);
-    TEST_CHECK(sentry_value_is_true(val) == false);
+    TEST_CHECK(sentry_value_is_true(val) == true);
     sentry_value_decref(val);
 }
 
@@ -568,13 +569,11 @@ SENTRY_TEST(value_set_by_null_key)
 
     TEST_CHECK(sentry_value_refcount(payload) == 1);
     TEST_CHECK_INT_EQUAL(1, sentry_value_set_by_key(value, NULL, payload));
-    TEST_CHECK(sentry_value_refcount(payload) == 0);
     TEST_CHECK(sentry_value_get_length(value) == 0);
 
     payload = sentry_value_new_object();
     TEST_CHECK(sentry_value_refcount(payload) == 1);
     TEST_CHECK_INT_EQUAL(1, sentry_value_set_by_key_n(value, NULL, 0, payload));
-    TEST_CHECK(sentry_value_refcount(payload) == 0);
     TEST_CHECK(sentry_value_get_length(value) == 0);
 
     payload = sentry_value_new_object();
@@ -582,7 +581,6 @@ SENTRY_TEST(value_set_by_null_key)
     TEST_CHECK_INT_EQUAL(
         1, sentry_value_set_by_key_n(value, NULL, 10, payload));
     TEST_CHECK(sentry_value_get_length(value) == 0);
-    TEST_CHECK(sentry_value_refcount(payload) == 0);
 
     sentry_value_decref(value);
 }

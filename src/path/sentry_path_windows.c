@@ -206,6 +206,22 @@ sentry__path_from_str(const char *s)
 }
 
 sentry_path_t *
+sentry__path_from_str_n(const char *s, size_t s_len)
+{
+    sentry_path_t *rv = SENTRY_MAKE(sentry_path_t);
+    if (!rv) {
+        return NULL;
+    }
+    rv->path = sentry_malloc(sizeof(wchar_t) * (s_len + 1));
+    if (!rv->path) {
+        sentry_free(rv);
+        return NULL;
+    }
+    MultiByteToWideChar(CP_ACP, 0, s, -1, rv->path, (int)s_len);
+    return rv;
+}
+
+sentry_path_t *
 sentry__path_from_str_owned(char *s)
 {
     sentry_path_t *rv = sentry__path_from_str(s);
