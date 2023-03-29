@@ -86,7 +86,7 @@ style: setup-venv
 	@.venv/bin/black --diff --check tests
 .PHONY: style
 
-# TODO: workaround for clang-format changes in version 15+ were local formatting breaks with clang-format 14 on CI
+# TODO: workaround for clang-format 15+ where local formatting breaks with clang-format-14 based style checks on CI
 style-15: setup-venv
 	@.venv/bin/python ./scripts/check-clang-format.py --clang-format-executable /usr/bin/clang-format-15 -r examples include src tests/unit
 	@.venv/bin/black --diff --check tests
