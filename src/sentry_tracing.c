@@ -217,8 +217,14 @@ sentry_transaction_context_remove_sampled(sentry_transaction_context_t *tx_cxt)
             inner, "sampled", sentry_value_new_bool(sampled));                 \
     }
 
-#pragma warning(push)
-#pragma warning(disable : 4100)
+#if defined(__GNUC__)
+#    pragma GCC diagnostic push
+#    pragma GCC diagnostic ignored "-Wunused-parameter"
+#elif defined(_MSC_VER)
+#    pragma warning(push)
+#    pragma warning(disable : 4100) // unreferenced formal parameter
+#endif
+
 #define CALL_STR_CHR(STR, CHR) strchr(STR, CHR)
 #define CALL_MEM_CHR(STR, CHR) memchr(STR, (int)value_len, CHR)
 GEN_SENTRY_TRANSACTION_CONTEXT_UPDATE_FROM_HEADER(
@@ -227,7 +233,12 @@ GEN_SENTRY_TRANSACTION_CONTEXT_UPDATE_FROM_HEADER(
 GEN_SENTRY_TRANSACTION_CONTEXT_UPDATE_FROM_HEADER(
     sentry_transaction_context_update_from_header, STR_PARAM_FROM_NAME,
     CALL_STR_CHR)
-#pragma warning(pop)
+
+#if defined(__GNUC__)
+#    pragma GCC diagnostic pop
+#elif defined(_MSC_VER)
+#    pragma warning(pop)
+#endif
 
 sentry_transaction_t *
 sentry__transaction_new(sentry_value_t inner)
