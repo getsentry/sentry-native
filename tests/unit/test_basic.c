@@ -177,10 +177,11 @@ SENTRY_TEST(crashed_last_run)
 
     options = sentry_options_new();
     const char *dsn_str = "https://foo@sentry.invalid/42";
-    const char dsn[29] = { 'h', 't', 't', 'p', 's', ':', '/', '/', 'f', 'o',
-        'o', '@', 's', 'e', 'n', 't', 'r', 'y', '.', 'i', 'n', 'v', 'a', 'l',
-        'i', 'd', '/', '4', '2' };
+    const char dsn[] = { 'h', 't', 't', 'p', 's', ':', '/', '/', 'f', 'o', 'o',
+        '@', 's', 'e', 'n', 't', 'r', 'y', '.', 'i', 'n', 'v', 'a', 'l', 'i',
+        'd', '/', '4', '2' };
     sentry_options_set_dsn_n(options, dsn, sizeof(dsn));
+    TEST_CHECK_STRING_EQUAL(sentry_options_get_dsn(options), dsn_str);
     TEST_CHECK_INT_EQUAL(sentry_init(options), 0);
     sentry_close();
 
