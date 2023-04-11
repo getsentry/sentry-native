@@ -870,8 +870,8 @@ sentry_set_span(sentry_span_t *span)
 }
 
 sentry_span_t *
-sentry_transaction_start_child(
-    sentry_transaction_t *opaque_parent, char *operation, char *description)
+sentry_transaction_start_child(sentry_transaction_t *opaque_parent,
+    const char *operation, const char *description)
 {
     if (!opaque_parent || sentry_value_is_null(opaque_parent->inner)) {
         SENTRY_DEBUG("no transaction available to create a child under");
@@ -892,8 +892,8 @@ sentry_transaction_start_child(
 }
 
 sentry_span_t *
-sentry_span_start_child(
-    sentry_span_t *opaque_parent, char *operation, char *description)
+sentry_span_start_child(sentry_span_t *opaque_parent, const char *operation,
+    const char *description)
 {
     if (!opaque_parent || sentry_value_is_null(opaque_parent->inner)) {
         SENTRY_DEBUG("no parent span available to create a child span under");

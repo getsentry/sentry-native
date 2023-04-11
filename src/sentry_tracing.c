@@ -251,8 +251,8 @@ sentry__span_new(sentry_transaction_t *tx, sentry_value_t inner)
 }
 
 sentry_value_t
-sentry__value_span_new(
-    size_t max_spans, sentry_value_t parent, char *operation, char *description)
+sentry__value_span_new(size_t max_spans, sentry_value_t parent,
+    const char *operation, const char *description)
 {
     if (!sentry_value_is_null(sentry_value_get_by_key(parent, "timestamp"))) {
         SENTRY_DEBUG("span's parent is already finished, not creating span");

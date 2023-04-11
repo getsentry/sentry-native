@@ -36,7 +36,7 @@ void sentry__span_incref(sentry_span_t *span);
 void sentry__span_decref(sentry_span_t *span);
 
 sentry_value_t sentry__value_span_new(size_t max_spans, sentry_value_t parent,
-    char *operation, char *description);
+    const char *operation, const char *description);
 sentry_span_t *sentry__span_new(
     sentry_transaction_t *parent_tx, sentry_value_t inner);
 

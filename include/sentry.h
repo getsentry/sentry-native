@@ -1618,7 +1618,8 @@ SENTRY_EXPERIMENTAL_API void sentry_set_span(sentry_span_t *span);
  * in a thread-safe way.
  */
 SENTRY_EXPERIMENTAL_API sentry_span_t *sentry_transaction_start_child(
-    sentry_transaction_t *parent, char *operation, char *description);
+    sentry_transaction_t *parent, const char *operation,
+    const char *description);
 
 /**
  * Starts a new Span.
@@ -1651,7 +1652,7 @@ SENTRY_EXPERIMENTAL_API sentry_span_t *sentry_transaction_start_child(
  * in a thread-safe way.
  */
 SENTRY_EXPERIMENTAL_API sentry_span_t *sentry_span_start_child(
-    sentry_span_t *parent, char *operation, char *description);
+    sentry_span_t *parent, const char *operation, const char *description);
 
 /**
  * Finishes a Span.
