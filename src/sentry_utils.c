@@ -4,11 +4,9 @@
 #include "sentry_boot.h"
 
 #include "sentry_alloc.h"
-#include "sentry_core.h"
 #include "sentry_string.h"
 #include "sentry_sync.h"
 #include "sentry_utils.h"
-#include <locale.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -212,73 +210,77 @@ sentry__url_cleanup(sentry_url_t *url)
     memset(url, 0, sizeof(sentry_url_t));
 }
 
-#define GEN_SENTRY__DSN_NEW(FN, GEN_STR_PARAM, STR_CLONE_FN)                   \
-    sentry_dsn_t *FN(GEN_STR_PARAM(raw_dsn))                                   \
-    {                                                                          \
-        sentry_url_t url;                                                      \
-        memset(&url, 0, sizeof(sentry_url_t));                                 \
-        size_t path_len;                                                       \
-        char *project_id;                                                      \
-                                                                               \
-        sentry_dsn_t *dsn = SENTRY_MAKE(sentry_dsn_t);                         \
-        if (!dsn) {                                                            \
-            return NULL;                                                       \
-        }                                                                      \
-        memset(dsn, 0, sizeof(sentry_dsn_t));                                  \
-        dsn->refcount = 1;                                                     \
-                                                                               \
-        dsn->raw = STR_CLONE_FN(raw_dsn);                                      \
-        if (!dsn->raw || !dsn->raw[0]                                          \
-            || sentry__url_parse(&url, dsn->raw) != 0) {                       \
-            goto exit;                                                         \
-        }                                                                      \
-                                                                               \
-        if (sentry__string_eq(url.scheme, "https")) {                          \
-            dsn->is_secure = 1;                                                \
-        } else if (sentry__string_eq(url.scheme, "http")) {                    \
-            dsn->is_secure = 0;                                                \
-        } else {                                                               \
-            goto exit;                                                         \
-        }                                                                      \
-                                                                               \
-        dsn->host = url.host;                                                  \
-        url.host = NULL;                                                       \
-        dsn->public_key = url.username;                                        \
-        url.username = NULL;                                                   \
-        dsn->secret_key = url.password;                                        \
-        url.password = NULL;                                                   \
-        dsn->port = url.port;                                                  \
-                                                                               \
-        path_len = strlen(url.path);                                           \
-        while (path_len > 0 && url.path[path_len - 1] == '/') {                \
-            url.path[path_len - 1] = '\0';                                     \
-            path_len--;                                                        \
-        }                                                                      \
-                                                                               \
-        project_id = strrchr(url.path, '/');                                   \
-        if (!project_id || strlen(project_id + 1) == 0) {                      \
-            goto exit;                                                         \
-        }                                                                      \
-                                                                               \
-        dsn->project_id = sentry__string_clone(project_id + 1);                \
-        *project_id = 0;                                                       \
-                                                                               \
-        dsn->path = url.path;                                                  \
-        url.path = NULL;                                                       \
-                                                                               \
-        if (dsn->public_key && dsn->host && dsn->path) {                       \
-            dsn->is_valid = true;                                              \
-        }                                                                      \
-                                                                               \
-    exit:                                                                      \
-        sentry__url_cleanup(&url);                                             \
-        return dsn;                                                            \
+sentry_dsn_t *
+sentry__dsn_new_n(const char *raw_dsn, size_t raw_dsn_len)
+{
+    sentry_url_t url;
+    memset(&url, 0, sizeof(sentry_url_t));
+    size_t path_len;
+    char *project_id;
+
+    sentry_dsn_t *dsn = SENTRY_MAKE(sentry_dsn_t);
+    if (!dsn) {
+        return NULL;
+    }
+    memset(dsn, 0, sizeof(sentry_dsn_t));
+    dsn->refcount = 1;
+
+    dsn->raw = sentry__string_clonen_or_null(raw_dsn, raw_dsn_len);
+    if (!dsn->raw || !dsn->raw[0] || sentry__url_parse(&url, dsn->raw) != 0) {
+        goto exit;
     }
 
-GEN_SENTRY__DSN_NEW(
-    sentry__dsn_new_n, PTR_LEN_PARAM_FROM_NAME, CALL_SENTRY__STRING_CLONE_N)
-GEN_SENTRY__DSN_NEW(
-    sentry__dsn_new, STR_PARAM_FROM_NAME, CALL_SENTRY__STRING_CLONE)
+    if (sentry__string_eq(url.scheme, "https")) {
+        dsn->is_secure = 1;
+    } else if (sentry__string_eq(url.scheme, "http")) {
+        dsn->is_secure = 0;
+    } else {
+        goto exit;
+    }
+
+    dsn->host = url.host;
+    url.host = NULL;
+    dsn->public_key = url.username;
+    url.username = NULL;
+    dsn->secret_key = url.password;
+    url.password = NULL;
+    dsn->port = url.port;
+
+    path_len = strlen(url.path);
+    while (path_len > 0 && url.path[path_len - 1] == '/') {
+        url.path[path_len - 1] = '\0';
+        path_len--;
+    }
+
+    project_id = strrchr(url.path, '/');
+    if (!project_id || strlen(project_id + 1) == 0) {
+        goto exit;
+    }
+
+    dsn->project_id = sentry__string_clone(project_id + 1);
+    *project_id = 0;
+
+    dsn->path = url.path;
+    url.path = NULL;
+
+    if (dsn->public_key && dsn->host && dsn->path) {
+        dsn->is_valid = true;
+    }
+
+exit:
+    sentry__url_cleanup(&url);
+    return dsn;
+}
+
+sentry_dsn_t *
+sentry__dsn_new(const char *raw_dsn)
+{
+    if (!raw_dsn) {
+        return NULL;
+    }
+
+    return sentry__dsn_new_n(raw_dsn, strlen(raw_dsn));
+}
 
 sentry_dsn_t *
 sentry__dsn_incref(sentry_dsn_t *dsn)

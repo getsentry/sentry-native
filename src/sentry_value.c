@@ -1,11 +1,10 @@
-#include "sentry_boot.h"
+#include "sentry.h"
 
 #include <assert.h>
 #include <math.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
-#include <time.h>
 
 #if defined(_MSC_VER)
 #    pragma warning(push)
@@ -743,20 +742,8 @@ sentry_value_get_by_key_n(sentry_value_t value, const char *k, size_t k_len)
 sentry_value_t
 sentry_value_get_by_key(sentry_value_t value, const char *k)
 {
-    if (!k) {
-        return sentry_value_new_null();
-    }
-    const thing_t *thing = value_as_thing(value);
-    if (thing && thing_get_type(thing) == THING_TYPE_OBJECT) {
-        obj_t *o = thing->payload._ptr;
-        for (size_t i = 0; i < o->len; i++) {
-            obj_pair_t *pair = &o->pairs[i];
-            if (sentry__string_eq(pair->k, k)) {
-                return pair->v;
-            }
-        }
-    }
-    return sentry_value_new_null();
+    const size_t k_len = k ? strlen(k) : 0;
+    return sentry_value_get_by_key_n(value, k, k_len);
 }
 
 sentry_value_t
@@ -1141,34 +1128,34 @@ sentry_value_new_event(void)
     return rv;
 }
 
-#define CALL_SENTRY_VALUE_NEW_STRING_N(STR)                                    \
-    sentry_value_new_string_n(STR, STR##_len)
-#define CALL_SENTRY_VALUE_NEW_STRING(STR) sentry_value_new_string(STR)
-
-#define GEN_SENTRY_VALUE_NEW_MESSAGE_EVENT(                                    \
-    FN, GEN_STR_PARAM, VALUE_NEW_STR_FN)                                       \
-    sentry_value_t FN(                                                         \
-        sentry_level_t level, GEN_STR_PARAM(logger), GEN_STR_PARAM(text))      \
-    {                                                                          \
-        sentry_value_t rv = sentry_value_new_event();                          \
-        sentry_value_set_by_key(rv, "level", sentry__value_new_level(level));  \
-        if (logger) {                                                          \
-            sentry_value_set_by_key(rv, "logger", VALUE_NEW_STR_FN(logger));   \
-        }                                                                      \
-        if (text) {                                                            \
-            sentry_value_t container = sentry_value_new_object();              \
-            sentry_value_set_by_key(                                           \
-                container, "formatted", VALUE_NEW_STR_FN(text));               \
-            sentry_value_set_by_key(rv, "message", container);                 \
-        }                                                                      \
-        return rv;                                                             \
+sentry_value_t
+sentry_value_new_message_event_n(sentry_level_t level, const char *logger,
+    size_t logger_len, const char *text, size_t text_len)
+{
+    sentry_value_t rv = sentry_value_new_event();
+    sentry_value_set_by_key(rv, "level", sentry__value_new_level(level));
+    if (logger) {
+        sentry_value_set_by_key(
+            rv, "logger", sentry_value_new_string_n(logger, logger_len));
     }
+    if (text) {
+        sentry_value_t container = sentry_value_new_object();
+        sentry_value_set_by_key(
+            container, "formatted", sentry_value_new_string_n(text, text_len));
+        sentry_value_set_by_key(rv, "message", container);
+    }
+    return rv;
+}
 
-GEN_SENTRY_VALUE_NEW_MESSAGE_EVENT(sentry_value_new_message_event_n,
-    PTR_LEN_PARAM_FROM_NAME, CALL_SENTRY_VALUE_NEW_STRING_N)
-
-GEN_SENTRY_VALUE_NEW_MESSAGE_EVENT(sentry_value_new_message_event,
-    STR_PARAM_FROM_NAME, CALL_SENTRY_VALUE_NEW_STRING)
+sentry_value_t
+sentry_value_new_message_event(
+    sentry_level_t level, const char *logger, const char *text)
+{
+    size_t logger_len = logger ? strlen(logger) : 0;
+    size_t text_len = text ? strlen(text) : 0;
+    return sentry_value_new_message_event_n(
+        level, logger, logger_len, text, text_len);
+}
 
 static void
 timestamp_value(sentry_value_t value)
@@ -1178,66 +1165,80 @@ timestamp_value(sentry_value_t value)
             sentry__msec_time_to_iso8601(sentry__msec_time())));
 }
 
-#define GEN_SENTRY_VALUE_NEW_BREADCRUMB(FN, GEN_STR_PARAM, VALUE_NEW_STR_FN)   \
-    sentry_value_t FN(GEN_STR_PARAM(type), GEN_STR_PARAM(message))             \
-    {                                                                          \
-        sentry_value_t rv = sentry_value_new_object();                         \
-        timestamp_value(rv);                                                   \
-                                                                               \
-        if (type) {                                                            \
-            sentry_value_set_by_key(rv, "type", VALUE_NEW_STR_FN(type));       \
-        }                                                                      \
-        if (message) {                                                         \
-            sentry_value_set_by_key(rv, "message", VALUE_NEW_STR_FN(message)); \
-        }                                                                      \
-        return rv;                                                             \
+sentry_value_t
+sentry_value_new_breadcrumb_n(
+    const char *type, size_t type_len, const char *message, size_t message_len)
+{
+    sentry_value_t rv = sentry_value_new_object();
+    timestamp_value(rv);
+
+    if (type) {
+        sentry_value_set_by_key(
+            rv, "type", sentry_value_new_string_n(type, type_len));
+    }
+    if (message) {
+        sentry_value_set_by_key(
+            rv, "message", sentry_value_new_string_n(message, message_len));
+    }
+    return rv;
+}
+
+sentry_value_t
+sentry_value_new_breadcrumb(const char *type, const char *message)
+{
+    const size_t type_len = type ? strlen(type) : 0;
+    const size_t message_len = message ? strlen(message) : 0;
+    return sentry_value_new_breadcrumb_n(type, type_len, message, message_len);
+}
+
+sentry_value_t
+sentry_value_new_exception_n(
+    const char *type, size_t type_len, const char *value, size_t value_len)
+{
+    sentry_value_t exc = sentry_value_new_object();
+    sentry_value_set_by_key(
+        exc, "type", sentry_value_new_string_n(type, type_len));
+    sentry_value_set_by_key(
+        exc, "value", sentry_value_new_string_n(value, value_len));
+    return exc;
+}
+
+sentry_value_t
+sentry_value_new_exception(const char *type, const char *value)
+{
+    const size_t type_len = type ? strlen(type) : 0;
+    const size_t value_len = value ? strlen(value) : 0;
+    return sentry_value_new_exception_n(type, type_len, value, value_len);
+}
+
+sentry_value_t
+sentry_value_new_thread_n(uint64_t id, const char *name, size_t name_len)
+{
+    sentry_value_t thread = sentry_value_new_object();
+
+    /* NOTE: values end up as JSON, which has no support for `u64`. */
+    char buf[20 + 1];
+    size_t written
+        = (size_t)snprintf(buf, sizeof(buf), "%llu", (unsigned long long)id);
+    if (written < sizeof(buf)) {
+        buf[written] = '\0';
+        sentry_value_set_by_key(thread, "id", sentry_value_new_string(buf));
     }
 
-GEN_SENTRY_VALUE_NEW_BREADCRUMB(sentry_value_new_breadcrumb,
-    STR_PARAM_FROM_NAME, CALL_SENTRY_VALUE_NEW_STRING)
-GEN_SENTRY_VALUE_NEW_BREADCRUMB(sentry_value_new_breadcrumb_n,
-    PTR_LEN_PARAM_FROM_NAME, CALL_SENTRY_VALUE_NEW_STRING_N)
-
-#define GEN_SENTRY_VALUE_NEW_EXCEPTION(FN, GEN_STR_PARAM, VALUE_NEW_STR_FN)    \
-    sentry_value_t FN(GEN_STR_PARAM(type), GEN_STR_PARAM(value))               \
-    {                                                                          \
-        sentry_value_t exc = sentry_value_new_object();                        \
-        sentry_value_set_by_key(exc, "type", VALUE_NEW_STR_FN(type));          \
-        sentry_value_set_by_key(exc, "value", VALUE_NEW_STR_FN(value));        \
-        return exc;                                                            \
+    if (name) {
+        sentry_value_set_by_key(
+            thread, "name", sentry_value_new_string_n(name, name_len));
     }
 
-GEN_SENTRY_VALUE_NEW_EXCEPTION(sentry_value_new_exception, STR_PARAM_FROM_NAME,
-    CALL_SENTRY_VALUE_NEW_STRING)
-GEN_SENTRY_VALUE_NEW_EXCEPTION(sentry_value_new_exception_n,
-    PTR_LEN_PARAM_FROM_NAME, CALL_SENTRY_VALUE_NEW_STRING_N)
+    return thread;
+}
 
-#define GEN_SENTRY_VALUE_NEW_THREAD(FN, GEN_STR_PARAM, VALUE_NEW_STR_FN)       \
-    sentry_value_t FN(uint64_t id, GEN_STR_PARAM(name))                        \
-    {                                                                          \
-        sentry_value_t thread = sentry_value_new_object();                     \
-                                                                               \
-        /* NOTE: values end up as JSON, which has no support for `u64`. */     \
-        char buf[20 + 1];                                                      \
-        size_t written = (size_t)snprintf(                                     \
-            buf, sizeof(buf), "%llu", (unsigned long long)id);                 \
-        if (written < sizeof(buf)) {                                           \
-            buf[written] = '\0';                                               \
-            sentry_value_set_by_key(                                           \
-                thread, "id", sentry_value_new_string(buf));                   \
-        }                                                                      \
-                                                                               \
-        if (name) {                                                            \
-            sentry_value_set_by_key(thread, "name", VALUE_NEW_STR_FN(name));   \
-        }                                                                      \
-                                                                               \
-        return thread;                                                         \
-    }
-
-GEN_SENTRY_VALUE_NEW_THREAD(
-    sentry_value_new_thread, STR_PARAM_FROM_NAME, CALL_SENTRY_VALUE_NEW_STRING)
-GEN_SENTRY_VALUE_NEW_THREAD(sentry_value_new_thread_n, PTR_LEN_PARAM_FROM_NAME,
-    CALL_SENTRY_VALUE_NEW_STRING_N)
+sentry_value_t
+sentry_value_new_thread(uint64_t id, const char *name)
+{
+    const size_t name_len = name ? strlen(name) : 0;
+    return sentry_value_new_thread_n(id, name, name_len);
+}
 
 sentry_value_t
 sentry_value_new_stacktrace(void **ips, size_t len)

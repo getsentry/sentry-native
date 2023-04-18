@@ -932,33 +932,39 @@ sentry_set_span(sentry_span_t *span)
     }
 }
 
-#define GEN_SENTRY_TRANSACTION_START_CHILD(                                    \
-    FN, STR_PARAM_GEN, NEW_SPAN_VALUE_FN)                                      \
-    sentry_span_t *FN(sentry_transaction_t *opaque_parent,                     \
-        STR_PARAM_GEN(operation), STR_PARAM_GEN(description))                  \
-    {                                                                          \
-        if (!opaque_parent || sentry_value_is_null(opaque_parent->inner)) {    \
-            SENTRY_DEBUG("no transaction available to create a child under");  \
-            return NULL;                                                       \
-        }                                                                      \
-        sentry_value_t parent = opaque_parent->inner;                          \
-                                                                               \
-        /* TODO: consider snapshotting this value during tx creation and       \
-         *       storing in tx and span */                                     \
-        size_t max_spans = SENTRY_SPANS_MAX;                                   \
-        SENTRY_WITH_OPTIONS (options) {                                        \
-            max_spans = options->max_spans;                                    \
-        }                                                                      \
-                                                                               \
-        sentry_value_t span                                                    \
-            = NEW_SPAN_VALUE_FN(max_spans, parent, operation, description);    \
-        return sentry__span_new(opaque_parent, span);                          \
+sentry_span_t *
+sentry_transaction_start_child_n(sentry_transaction_t *opaque_parent,
+    const char *operation, size_t operation_len, const char *description,
+    size_t description_len)
+{
+    if (!opaque_parent || sentry_value_is_null(opaque_parent->inner)) {
+        SENTRY_DEBUG("no transaction available to create a child under");
+        return NULL;
+    }
+    sentry_value_t parent = opaque_parent->inner;
+
+    /* TODO: consider snapshotting this value during tx creation and
+     *       storing in tx and span */
+    size_t max_spans = SENTRY_SPANS_MAX;
+    SENTRY_WITH_OPTIONS (options) {
+        max_spans = options->max_spans;
     }
 
-GEN_SENTRY_TRANSACTION_START_CHILD(sentry_transaction_start_child,
-    STR_PARAM_FROM_NAME, CALL_SENTRY__VALUE_SPAN_NEW)
-GEN_SENTRY_TRANSACTION_START_CHILD(sentry_transaction_start_child_n,
-    PTR_LEN_PARAM_FROM_NAME, CALL_SENTRY__VALUE_SPAN_NEW_N)
+    sentry_value_t span = sentry__value_span_new_n(max_spans, parent,
+        (sentry_slice_t) { operation, operation_len },
+        (sentry_slice_t) { description, description_len });
+    return sentry__span_new(opaque_parent, span);
+}
+
+sentry_span_t *
+sentry_transaction_start_child(sentry_transaction_t *opaque_parent,
+    const char *operation, const char *description)
+{
+    const size_t operation_len = operation ? strlen(operation) : 0;
+    const size_t description_len = description ? strlen(description) : 0;
+    return sentry_transaction_start_child_n(
+        opaque_parent, operation, operation_len, description, description_len);
+}
 
 sentry_span_t *
 sentry_span_start_child(sentry_span_t *opaque_parent, const char *operation,

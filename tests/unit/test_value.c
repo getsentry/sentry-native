@@ -1,3 +1,4 @@
+#include "sentry.h"
 #include "sentry_json.h"
 #include "sentry_testsupport.h"
 #include "sentry_value.h"
@@ -661,4 +662,112 @@ SENTRY_TEST(value_set_stacktrace)
     TEST_CHECK(0 < sentry_value_get_length(frames));
 
     sentry_value_decref(exc);
+}
+
+SENTRY_TEST(message_without_text_still_valid)
+{
+    sentry_value_t message_event = sentry_value_new_message_event(
+        SENTRY_LEVEL_WARNING, "some-logger", NULL);
+
+    TEST_CHECK(!sentry_value_is_null(message_event));
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
+                                message_event, "logger")),
+        "some-logger");
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(message_event, "level")),
+        "warning");
+}
+
+SENTRY_TEST(breadcrumb_without_type_or_message_still_valid)
+{
+    sentry_value_t breadcrumb = sentry_value_new_breadcrumb(NULL, NULL);
+    TEST_CHECK(!sentry_value_is_null(breadcrumb));
+    TEST_CHECK(!sentry_value_is_null(
+        sentry_value_get_by_key(breadcrumb, "timestamp")));
+    TEST_CHECK(
+        sentry_value_is_null(sentry_value_get_by_key(breadcrumb, "type")));
+    TEST_CHECK(
+        sentry_value_is_null(sentry_value_get_by_key(breadcrumb, "message")));
+    sentry_value_decref(breadcrumb);
+
+    char *const test_type = "navigation";
+    breadcrumb = sentry_value_new_breadcrumb(test_type, NULL);
+    TEST_CHECK(!sentry_value_is_null(breadcrumb));
+    TEST_CHECK(!sentry_value_is_null(
+        sentry_value_get_by_key(breadcrumb, "timestamp")));
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(breadcrumb, "type")),
+        test_type);
+    TEST_CHECK(
+        sentry_value_is_null(sentry_value_get_by_key(breadcrumb, "message")));
+    sentry_value_decref(breadcrumb);
+
+    char *const test_message = "a fork in the road, take it";
+    breadcrumb = sentry_value_new_breadcrumb(NULL, test_message);
+    TEST_CHECK(!sentry_value_is_null(breadcrumb));
+    TEST_CHECK(!sentry_value_is_null(
+        sentry_value_get_by_key(breadcrumb, "timestamp")));
+    TEST_CHECK(
+        sentry_value_is_null(sentry_value_get_by_key(breadcrumb, "type")));
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(breadcrumb, "message")),
+        test_message);
+    sentry_value_decref(breadcrumb);
+}
+
+SENTRY_TEST(exception_without_type_or_value_still_valid)
+{
+    sentry_value_t exception = sentry_value_new_exception(NULL, NULL);
+    TEST_CHECK(!sentry_value_is_null(exception));
+    TEST_CHECK(
+        sentry_value_is_null(sentry_value_get_by_key(exception, "type")));
+    TEST_CHECK(
+        sentry_value_is_null(sentry_value_get_by_key(exception, "value")));
+    sentry_value_decref(exception);
+
+    char *const test_type = "EXC_BAD_ACCESS / KERN_INVALID_ADDRESS / 0x61";
+    exception = sentry_value_new_exception(test_type, NULL);
+    TEST_CHECK(!sentry_value_is_null(exception));
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(exception, "type")),
+        test_type);
+    TEST_CHECK(
+        sentry_value_is_null(sentry_value_get_by_key(exception, "value")));
+    sentry_value_decref(exception);
+
+    char *const test_value
+        = "Fatal Error: EXC_BAD_ACCESS / KERN_INVALID_ADDRESS / 0x61";
+    exception = sentry_value_new_exception(NULL, test_value);
+    TEST_CHECK(!sentry_value_is_null(exception));
+    TEST_CHECK(
+        sentry_value_is_null(sentry_value_get_by_key(exception, "type")));
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(exception, "value")),
+        test_value);
+    sentry_value_decref(exception);
+}
+
+SENTRY_TEST(thread_without_name_still_valid)
+{
+    sentry_value_t thread = sentry_value_new_thread(0xFF00FF00FF00FF00, NULL);
+    TEST_CHECK(!sentry_value_is_null(thread));
+    TEST_CHECK(!sentry_value_is_null(sentry_value_get_by_key(thread, "id")));
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(thread, "id")),
+        "18374966859414961920");
+    TEST_CHECK(sentry_value_is_null(sentry_value_get_by_key(thread, "name")));
+    sentry_value_decref(thread);
+
+    char *const test_name = "worker";
+    thread = sentry_value_new_thread(0xAA00AA00AA00AA00, test_name);
+    TEST_CHECK(!sentry_value_is_null(thread));
+    TEST_CHECK(!sentry_value_is_null(sentry_value_get_by_key(thread, "id")));
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(thread, "id")),
+        "12249977906276641280");
+    TEST_CHECK(!sentry_value_is_null(sentry_value_get_by_key(thread, "name")));
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(thread, "name")),
+        test_name);
+    sentry_value_decref(thread);
 }

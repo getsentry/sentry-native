@@ -58,6 +58,13 @@ SENTRY_TEST(path_joining_unix)
 #endif
 }
 
+SENTRY_TEST(path_from_str_null)
+{
+    TEST_CHECK(NULL == sentry__path_from_str(NULL));
+    TEST_CHECK(NULL == sentry__path_from_str_n(NULL, 0));
+    TEST_CHECK(NULL == sentry__path_from_str_n(NULL, 10));
+}
+
 SENTRY_TEST(path_joining_windows)
 {
 #ifndef SENTRY_PLATFORM_WINDOWS

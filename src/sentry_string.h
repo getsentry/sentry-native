@@ -7,15 +7,6 @@
 #include <stdio.h>
 #include <string.h>
 
-#define STR_PARAM_FROM_NAME(NAME) const char *NAME
-#define PTR_LEN_PARAM_FROM_NAME(NAME)                                          \
-    STR_PARAM_FROM_NAME(NAME), size_t NAME##_len
-#define CALL_SENTRY__STRING_CLONE_N(STR)                                       \
-    sentry__string_clonen_or_null(STR, STR##_len)
-#define CALL_SENTRY__STRING_CLONE(STR) sentry__string_clone(STR)
-#define CALL_SENTRY_VALUE_NEW_STRING(STR) sentry_value_new_string(STR)
-#define CALL_SENTRY_VALUE_NEW_STRING_N(STR)                                    \
-    sentry_value_new_string_n(STR, STR##_len)
 /**
  * A string builder, which can be used as a mutable, growable string buffer.
  */
@@ -146,17 +137,6 @@ static inline char *
 sentry__string_clone(const char *str)
 {
     return str ? sentry__string_clonen(str, strlen(str)) : NULL;
-}
-
-static inline char *
-sentry__string_clone_max(const char *str, size_t max_len)
-{
-    if (!str) {
-        return NULL;
-    }
-    size_t str_len = strlen(str);
-    size_t min_len = str_len < max_len ? str_len : max_len;
-    return sentry__string_clonen(str, min_len);
 }
 
 static inline char *

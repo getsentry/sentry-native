@@ -168,20 +168,22 @@ sentry__path_dir(const sentry_path_t *path)
     return sentry__path_from_str_owned(newpathbuf);
 }
 
-#define GEN_SENTRY__PATH_FROM_STR(FN, GEN_STR_PARAM, STR_CLONE_FN)             \
-    sentry_path_t *FN(GEN_STR_PARAM(s))                                        \
-    {                                                                          \
-        char *path = STR_CLONE_FN(s);                                          \
-        if (!path) {                                                           \
-            return NULL;                                                       \
-        }                                                                      \
-        /* NOTE: function will free `path` on error */                         \
-        return sentry__path_from_str_owned(path);                              \
+sentry_path_t *
+sentry__path_from_str_n(const char *s, size_t s_len)
+{
+    char *path = sentry__string_clonen_or_null(s, s_len);
+    if (!path) {
+        return NULL;
     }
-GEN_SENTRY__PATH_FROM_STR(sentry__path_from_str_n, PTR_LEN_PARAM_FROM_NAME,
-    CALL_SENTRY__STRING_CLONE_N)
-GEN_SENTRY__PATH_FROM_STR(
-    sentry__path_from_str, STR_PARAM_FROM_NAME, CALL_SENTRY__STRING_CLONE)
+    /* NOTE: function will free `path` on error */
+    return sentry__path_from_str_owned(path);
+}
+
+sentry_path_t *
+sentry__path_from_str(const char *s)
+{
+    return s ? sentry__path_from_str_n(s, strlen(s)) : NULL;
+}
 
 sentry_path_t *
 sentry__path_from_str_owned(char *s)
