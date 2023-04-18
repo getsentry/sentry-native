@@ -745,6 +745,7 @@ SENTRY_TEST(update_from_header_no_sampled_flag)
     TEST_CHECK(sentry_value_get_type(sampled) == SENTRY_VALUE_TYPE_BOOL);
     TEST_CHECK(sentry_value_is_true(sampled));
 
+    sentry__transaction_decref(tx);
     sentry_close();
 }
 
@@ -1100,6 +1101,8 @@ SENTRY_TEST(set_tag_cuts_value_at_length_200)
     TEST_CHECK_INT_EQUAL(strlen(sentry_value_as_string(
                              sentry_value_get_by_key(tags, "cut-off"))),
         200);
+
+    sentry__transaction_decref(txn);
 }
 
 #undef IS_NULL

@@ -183,7 +183,7 @@ SENTRY_TEST(basic_write_envelope_to_file)
 {
     sentry_envelope_t *envelope = create_test_envelope();
     const char *test_file_str = "sentry_test_envelope";
-    const sentry_path_t *test_file_path = sentry__path_from_str(test_file_str);
+    sentry_path_t *test_file_path = sentry__path_from_str(test_file_str);
     int rv = sentry_envelope_write_to_file(envelope, test_file_str);
     TEST_CHECK_INT_EQUAL(rv, 0);
     TEST_CHECK(sentry__path_is_file(test_file_path));
@@ -196,6 +196,7 @@ SENTRY_TEST(basic_write_envelope_to_file)
 
     sentry_free(test_file_content);
     sentry__path_remove(test_file_path);
+    sentry__path_free(test_file_path);
     sentry_envelope_free(envelope);
     sentry_close();
 }

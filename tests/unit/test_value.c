@@ -664,7 +664,7 @@ SENTRY_TEST(value_set_stacktrace)
     sentry_value_decref(exc);
 }
 
-SENTRY_TEST(message_without_text_still_valid)
+SENTRY_TEST(message_with_null_text_is_valid)
 {
     sentry_value_t message_event = sentry_value_new_message_event(
         SENTRY_LEVEL_WARNING, "some-logger", NULL);
@@ -676,6 +676,8 @@ SENTRY_TEST(message_without_text_still_valid)
     TEST_CHECK_STRING_EQUAL(
         sentry_value_as_string(sentry_value_get_by_key(message_event, "level")),
         "warning");
+
+    sentry_value_decref(message_event);
 }
 
 SENTRY_TEST(breadcrumb_without_type_or_message_still_valid)
