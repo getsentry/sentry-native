@@ -247,6 +247,7 @@ sentry__curl_send_task(void *_envelope, void *_state)
         }
     }
 
+    curl_easy_cleanup(curl);
     curl_slist_free_all(headers);
     sentry_free(info.retry_after);
     sentry_free(info.x_sentry_rate_limits);
