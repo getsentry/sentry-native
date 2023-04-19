@@ -223,7 +223,7 @@ sentry__path_from_str_n(const char *s, size_t s_len)
         sentry_free(rv);
         return NULL;
     }
-    MultiByteToWideChar(CP_ACP, 0, s, -1, rv->path, (int)s_len+1);
+    MultiByteToWideChar(CP_ACP, 0, s, -1, rv->path, (int)s_len + 1);
     return rv;
 }
 
