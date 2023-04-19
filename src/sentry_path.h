@@ -209,6 +209,7 @@ void sentry__filelock_free(sentry_filelock_t *lock);
  * Create a new path from a Wide String.
  */
 sentry_path_t *sentry__path_from_wstr(const wchar_t *s);
+sentry_path_t *sentry__path_from_wstr_n(const wchar_t *s, size_t s_len);
 
 /**
  * Create another path by appending a new path segment.

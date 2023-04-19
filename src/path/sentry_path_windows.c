@@ -135,14 +135,26 @@ sentry__path_dir(const sentry_path_t *path)
 }
 
 sentry_path_t *
-sentry__path_from_wstr(const wchar_t *s)
+sentry__path_from_wstr_n(const wchar_t *s, size_t s_len)
 {
-    size_t len = wcslen(s) + 1;
-    sentry_path_t *rv = path_with_len(len);
+    if (!s) {
+        return NULL;
+    }
+    sentry_path_t *rv = path_with_len(s_len + 1);
     if (rv) {
-        memcpy(rv->path, s, len * sizeof(wchar_t));
+        memcpy(rv->path, s, s_len * sizeof(wchar_t));
+        rv->path[s_len] = 0;
     }
     return rv;
+}
+
+sentry_path_t *
+sentry__path_from_wstr(const wchar_t *s)
+{
+    if (!s) {
+        return NULL;
+    }
+    return sentry__path_from_wstr_n(s, wcslen(s));
 }
 
 sentry_path_t *
