@@ -729,6 +729,25 @@ sentry_remove_context_n(const char *key, size_t key_len)
 }
 
 void
+sentry_set_fingerprint_n(const char *fingerprint, size_t fingerprint_len, ...)
+{
+    sentry_value_t fingerprint_value = sentry_value_new_list();
+
+    va_list va;
+    va_start(va, fingerprint_len);
+    for (; fingerprint; fingerprint = va_arg(va, const char *)) {
+        sentry_value_append(fingerprint_value,
+            sentry_value_new_string_n(fingerprint, fingerprint_len));
+    }
+    va_end(va);
+
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry_value_decref(scope->fingerprint);
+        scope->fingerprint = fingerprint_value;
+    }
+}
+
+void
 sentry_set_fingerprint(const char *fingerprint, ...)
 {
     sentry_value_t fingerprint_value = sentry_value_new_list();
