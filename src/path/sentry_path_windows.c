@@ -191,6 +191,9 @@ sentry__path_join_wstr(const sentry_path_t *base, const wchar_t *other)
 sentry_path_t *
 sentry__path_from_str(const char *s)
 {
+    if (!s) {
+        return NULL;
+    }
     size_t len = MultiByteToWideChar(CP_ACP, 0, s, -1, NULL, 0);
     sentry_path_t *rv = SENTRY_MAKE(sentry_path_t);
     if (!rv) {
@@ -208,6 +211,9 @@ sentry__path_from_str(const char *s)
 sentry_path_t *
 sentry__path_from_str_n(const char *s, size_t s_len)
 {
+    if (!s) {
+        return NULL;
+    }
     sentry_path_t *rv = SENTRY_MAKE(sentry_path_t);
     if (!rv) {
         return NULL;
@@ -217,7 +223,7 @@ sentry__path_from_str_n(const char *s, size_t s_len)
         sentry_free(rv);
         return NULL;
     }
-    MultiByteToWideChar(CP_ACP, 0, s, -1, rv->path, (int)s_len);
+    MultiByteToWideChar(CP_ACP, 0, s, -1, rv->path, (int)s_len+1);
     return rv;
 }
 

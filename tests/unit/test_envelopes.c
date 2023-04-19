@@ -186,7 +186,7 @@ SENTRY_TEST(basic_write_envelope_to_file)
     sentry_path_t *test_file_path = sentry__path_from_str(test_file_str);
     int rv = sentry_envelope_write_to_file(envelope, test_file_str);
     TEST_CHECK_INT_EQUAL(rv, 0);
-    TEST_CHECK(sentry__path_is_file(test_file_path));
+    TEST_ASSERT(sentry__path_is_file(test_file_path));
 
     size_t test_file_size;
     char *test_file_content
