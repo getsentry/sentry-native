@@ -1,4 +1,3 @@
-#include "sentry.h"
 #include "sentry_json.h"
 #include "sentry_testsupport.h"
 #include "sentry_value.h"
@@ -177,7 +176,7 @@ SENTRY_TEST(value_list)
     sentry_value_decref(val);
 
     val = sentry_value_new_list();
-    for (uint32_t i = 1; i <= 10; i++) {
+    for (int32_t i = 1; i <= 10; i++) {
         sentry_value_append(val, sentry_value_new_int32(i));
     }
     sentry__value_append_bounded(val, sentry_value_new_int32(1010), 5);

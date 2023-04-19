@@ -1,4 +1,3 @@
-#include "sentry.h"
 #include "sentry_envelope.h"
 #include "sentry_path.h"
 #include "sentry_testsupport.h"
