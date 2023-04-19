@@ -10,7 +10,7 @@ endif()
 
 #read sentry-native version
 file(READ "include/sentry.h" _SENTRY_HEADER_CONTENT)
-string(REGEX MATCH "#define SENTRY_SDK_VERSION \"([0-9\.]+)\"" _SENTRY_VERSION_MATCH "${_SENTRY_HEADER_CONTENT}")
+string(REGEX MATCH "#define SENTRY_SDK_VERSION \"([0-9.]+)\"" _SENTRY_VERSION_MATCH "${_SENTRY_HEADER_CONTENT}")
 set(SENTRY_VERSION "${CMAKE_MATCH_1}")
 unset(_SENTRY_HEADER_CONTENT)
 unset(_SENTRY_VERSION_MATCH)
@@ -300,9 +300,7 @@ if(MSVC)
 		set(CMAKE_ASM_MASM_FLAGS "${CMAKE_ASM_MASM_FLAGS} /safeseh")
 	endif()
 
-	# using `/Wall` is not feasible, as it spews tons of warnings from windows headers
-	# supress C5105, introduced in VS 16.8, which breaks on the Windows SDKs own `winbase.h` header
-	target_compile_options(sentry PRIVATE $<BUILD_INTERFACE:/W4 /wd5105>)
+	target_compile_options(sentry PRIVATE $<BUILD_INTERFACE:/W4>)
 	# ignore all warnings for mpack
 	set_source_files_properties(
 		"${PROJECT_SOURCE_DIR}/vendor/mpack.c"
@@ -578,15 +576,12 @@ if(SENTRY_BUILD_EXAMPLES)
 	add_executable(sentry_example examples/example.c)
 	target_link_libraries(sentry_example PRIVATE sentry)
 
-	if(MSVC)
-		target_compile_options(sentry_example PRIVATE $<BUILD_INTERFACE:/wd5105>)
-		if(CRASHPAD_WER_ENABLED)
-			# to test handling SEH by-passing exceptions we need to enable the control flow guard
-			target_compile_options(sentry_example PRIVATE $<BUILD_INTERFACE:/guard:cf>)
-		endif()
+	if(CRASHPAD_WER_ENABLED)
+		# to test handling SEH by-passing exceptions we need to enable the control flow guard
+		target_compile_options(sentry_example PRIVATE $<BUILD_INTERFACE:/guard:cf>)
 	endif()
 
-	# set static runtime if enabled
+	# set static runtime if enablede
 	if(SENTRY_BUILD_RUNTIMESTATIC AND MSVC)
 		set_property(TARGET sentry_example PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 	endif()

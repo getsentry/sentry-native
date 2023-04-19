@@ -73,10 +73,6 @@ if(MINGW)
 	)
 endif()
 
-if(MSVC)
-	target_compile_options(sentry_test_unit PRIVATE $<BUILD_INTERFACE:/wd5105>)
-endif()
-
 # set static runtime if enabled
 if(SENTRY_BUILD_RUNTIMESTATIC AND MSVC)
 	set_property(TARGET sentry_test_unit PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
@@ -102,10 +98,6 @@ target_link_libraries(sentry_fuzz_json PRIVATE
 	${SENTRY_INTERFACE_LINK_LIBRARIES}
 	"$<$<PLATFORM_ID:Linux>:rt>"
 )
-
-if(MSVC)
-	target_compile_options(sentry_fuzz_json PRIVATE $<BUILD_INTERFACE:/wd5105>)
-endif()
 
 # set static runtime if enabled
 if (SENTRY_BUILD_RUNTIMESTATIC AND MSVC)
