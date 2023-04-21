@@ -189,7 +189,9 @@ sentry__prepare_http_request(sentry_envelope_t *envelope,
     sentry_prepared_http_header_t *h;
     h = &req->headers[req->headers_len++];
     h->key = "x-sentry-auth";
-    h->value = sentry__dsn_get_auth_header(dsn);
+    SENTRY_WITH_OPTIONS (options) {
+        h->value = sentry__dsn_get_auth_header(dsn, options->user_agent);
+    }
 
     h = &req->headers[req->headers_len++];
     h->key = "content-type";

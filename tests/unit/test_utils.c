@@ -152,7 +152,7 @@ SENTRY_TEST(dsn_store_url_with_path)
     TEST_CHECK_STRING_EQUAL(
         url, "http://example.com:80/foo/bar/api/42/envelope/");
     sentry_free(url);
-    url = sentry__dsn_get_minidump_url(dsn);
+    url = sentry__dsn_get_minidump_url(dsn, SENTRY_SDK_USER_AGENT);
     TEST_CHECK_STRING_EQUAL(url,
         "http://example.com:80/foo/bar/api/42/minidump/"
         "?sentry_client=" SENTRY_SDK_USER_AGENT "&sentry_key=username");
@@ -168,10 +168,22 @@ SENTRY_TEST(dsn_store_url_without_path)
     url = sentry__dsn_get_envelope_url(dsn);
     TEST_CHECK_STRING_EQUAL(url, "http://example.com:80/api/42/envelope/");
     sentry_free(url);
-    url = sentry__dsn_get_minidump_url(dsn);
+    url = sentry__dsn_get_minidump_url(dsn, SENTRY_SDK_USER_AGENT);
     TEST_CHECK_STRING_EQUAL(url,
         "http://example.com:80/api/42/minidump/"
         "?sentry_client=" SENTRY_SDK_USER_AGENT "&sentry_key=username");
+    sentry_free(url);
+    sentry__dsn_decref(dsn);
+}
+
+SENTRY_TEST(dsn_store_url_custom_agent)
+{
+    sentry_dsn_t *dsn
+        = sentry__dsn_new("http://username:password@example.com/42?x=y#z");
+    char *url = sentry__dsn_get_minidump_url(dsn, "custom_user_agent");
+    TEST_CHECK_STRING_EQUAL(url,
+        "http://example.com:80/api/42/minidump/"
+        "?sentry_client=custom_user_agent&sentry_key=username");
     sentry_free(url);
     sentry__dsn_decref(dsn);
 }
