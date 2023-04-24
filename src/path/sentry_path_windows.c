@@ -216,12 +216,12 @@ sentry__path_from_str_n(const char *s, size_t s_len)
     if (!rv->path) {
         goto error;
     }
-    if (0
-        == MultiByteToWideChar(
-            CP_ACP, 0, s, (int)src_size, rv->path, (int)s_len)) {
+    int conv_len = MultiByteToWideChar(
+        CP_ACP, 0, s, (int)src_size, rv->path, (int)s_len);
+    if (conv_len == 0) {
         goto error;
     }
-    rv->path[s_len] = 0;
+    rv->path[conv_len] = 0;
     return rv;
 
 error:
