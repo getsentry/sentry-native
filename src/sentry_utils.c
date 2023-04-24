@@ -102,7 +102,8 @@ sentry__url_parse(sentry_url_t *url_out, const char *url)
             ptr++;
             tmp = ptr;
             SKIP_WHILE_NOT(tmp, '@');
-            url_out->password = sentry__string_clone_n_unchecked(ptr, tmp - ptr);
+            url_out->password
+                = sentry__string_clone_n_unchecked(ptr, tmp - ptr);
             ptr = tmp;
         }
         if (*ptr != '@') {
