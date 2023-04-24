@@ -322,7 +322,7 @@ sentry__envelope_add_from_buffer(sentry_envelope_t *envelope, const char *buf,
     // NOTE: function will check for the clone of `buf` internally and free it
     // on error
     return envelope_add_from_owned_buffer(
-        envelope, sentry__string_clonen(buf, buf_len), buf_len, type);
+        envelope, sentry__string_clone_n(buf, buf_len), buf_len, type);
 }
 
 sentry_envelope_item_t *

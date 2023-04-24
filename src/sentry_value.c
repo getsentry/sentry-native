@@ -322,7 +322,7 @@ sentry_value_new_bool(int value)
 sentry_value_t
 sentry_value_new_string_n(const char *value, size_t len)
 {
-    char *s = sentry__string_clonen_or_null(value, len);
+    char *s = sentry__string_clone_n(value, len);
     if (!s) {
         return sentry_value_new_null();
     }

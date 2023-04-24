@@ -173,7 +173,7 @@ sentry_options_set_release_n(
     sentry_options_t *opts, const char *release, size_t release_len)
 {
     sentry_free(opts->release);
-    opts->release = sentry__string_clonen_or_null(release, release_len);
+    opts->release = sentry__string_clone_n(release, release_len);
 }
 
 void
@@ -194,8 +194,7 @@ sentry_options_set_environment_n(
     sentry_options_t *opts, const char *environment, size_t environment_len)
 {
     sentry_free(opts->environment);
-    opts->environment
-        = sentry__string_clonen_or_null(environment, environment_len);
+    opts->environment = sentry__string_clone_n(environment, environment_len);
 }
 
 void
@@ -216,7 +215,7 @@ sentry_options_set_dist_n(
     sentry_options_t *opts, const char *dist, size_t dist_len)
 {
     sentry_free(opts->dist);
-    opts->dist = sentry__string_clonen_or_null(dist, dist_len);
+    opts->dist = sentry__string_clone_n(dist, dist_len);
 }
 
 void
@@ -237,7 +236,7 @@ sentry_options_set_http_proxy_n(
     sentry_options_t *opts, const char *proxy, size_t proxy_len)
 {
     sentry_free(opts->http_proxy);
-    opts->http_proxy = sentry__string_clonen_or_null(proxy, proxy_len);
+    opts->http_proxy = sentry__string_clone_n(proxy, proxy_len);
 }
 
 void
@@ -265,7 +264,7 @@ sentry_options_set_ca_certs_n(
     sentry_options_t *opts, const char *path, size_t path_len)
 {
     sentry_free(opts->ca_certs);
-    opts->ca_certs = sentry__string_clonen(path, path_len);
+    opts->ca_certs = sentry__string_clone_n(path, path_len);
 }
 
 const char *
@@ -287,7 +286,7 @@ sentry_options_set_transport_thread_name_n(
     sentry_options_t *opts, const char *name, size_t name_len)
 {
     sentry_free(opts->transport_thread_name);
-    opts->transport_thread_name = sentry__string_clonen_or_null(name, name_len);
+    opts->transport_thread_name = sentry__string_clone_n(name, name_len);
 }
 
 const char *

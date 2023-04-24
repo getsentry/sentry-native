@@ -794,7 +794,7 @@ sentry_set_transaction_n(const char *transaction, size_t transaction_len)
     SENTRY_WITH_SCOPE_MUT (scope) {
         sentry_free(scope->transaction);
         scope->transaction
-            = sentry__string_clonen_or_null(transaction, transaction_len);
+            = sentry__string_clone_n(transaction, transaction_len);
 
         if (scope->transaction_object) {
             sentry_transaction_set_name_n(

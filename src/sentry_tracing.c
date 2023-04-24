@@ -186,7 +186,7 @@ sentry_transaction_context_update_from_header_n(
     sentry_value_t inner = tx_cxt->inner;
 
     char *s
-        = sentry__string_clonen(trace_id_start, trace_id_end - trace_id_start);
+        = sentry__string_clone_n(trace_id_start, trace_id_end - trace_id_start);
     sentry_value_t trace_id = sentry__value_new_string_owned(s);
     sentry_value_set_by_key(inner, "trace_id", trace_id);
 
@@ -200,7 +200,7 @@ sentry_transaction_context_update_from_header_n(
     }
     // else: we have a sampled flag
 
-    s = sentry__string_clonen(span_id_start, span_id_end - span_id_start);
+    s = sentry__string_clone_n(span_id_start, span_id_end - span_id_start);
     sentry_value_t parent_span_id = sentry__value_new_string_owned(s);
     sentry_value_set_by_key(inner, "parent_span_id", parent_span_id);
 
