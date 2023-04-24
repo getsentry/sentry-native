@@ -171,7 +171,7 @@ sentry__path_dir(const sentry_path_t *path)
 sentry_path_t *
 sentry__path_from_str_n(const char *s, size_t s_len)
 {
-    char *path = sentry__string_clonen_or_null(s, s_len);
+    char *path = sentry__string_clone_n(s, s_len);
     if (!path) {
         return NULL;
     }

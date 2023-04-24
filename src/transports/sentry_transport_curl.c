@@ -140,7 +140,7 @@ header_callback(char *buffer, size_t size, size_t nitems, void *userdata)
 {
     size_t bytes = size * nitems;
     struct header_info *info = userdata;
-    char *header = sentry__string_clonen(buffer, bytes);
+    char *header = sentry__string_clone_n(buffer, bytes);
     if (!header) {
         return bytes;
     }
