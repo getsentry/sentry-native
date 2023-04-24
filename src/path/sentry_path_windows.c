@@ -201,26 +201,6 @@ sentry__path_join_wstr(const sentry_path_t *base, const wchar_t *other)
 }
 
 sentry_path_t *
-sentry__path_from_str(const char *s)
-{
-    if (!s) {
-        return NULL;
-    }
-    size_t len = MultiByteToWideChar(CP_ACP, 0, s, -1, NULL, 0);
-    sentry_path_t *rv = SENTRY_MAKE(sentry_path_t);
-    if (!rv) {
-        return NULL;
-    }
-    rv->path = sentry_malloc(sizeof(wchar_t) * len);
-    if (!rv->path) {
-        sentry_free(rv);
-        return NULL;
-    }
-    MultiByteToWideChar(CP_ACP, 0, s, -1, rv->path, (int)len);
-    return rv;
-}
-
-sentry_path_t *
 sentry__path_from_str_n(const char *s, size_t s_len)
 {
     if (!s) {
@@ -230,13 +210,33 @@ sentry__path_from_str_n(const char *s, size_t s_len)
     if (!rv) {
         return NULL;
     }
-    rv->path = sentry_malloc(sizeof(wchar_t) * (s_len + 1));
+    size_t src_size = sizeof(char) * s_len;
+    size_t dst_size = sizeof(wchar_t) * (s_len + 1);
+    rv->path = sentry_malloc(dst_size);
     if (!rv->path) {
-        sentry_free(rv);
+        goto error;
+    }
+    if (0
+        == MultiByteToWideChar(
+            CP_ACP, 0, s, (int)src_size, rv->path, (int)s_len)) {
+        goto error;
+    }
+    rv->path[s_len] = 0;
+    return rv;
+
+error:
+    sentry_free(rv);
+    return NULL;
+}
+
+sentry_path_t *
+sentry__path_from_str(const char *s)
+{
+    if (!s) {
         return NULL;
     }
-    MultiByteToWideChar(CP_ACP, 0, s, -1, rv->path, (int)s_len + 1);
-    return rv;
+
+    return sentry__path_from_str_n(s, strlen(s));
 }
 
 sentry_path_t *

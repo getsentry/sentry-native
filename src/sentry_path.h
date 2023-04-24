@@ -54,9 +54,6 @@ sentry_path_t *sentry__path_dir(const sentry_path_t *path);
  */
 sentry_path_t *sentry__path_from_str(const char *s);
 sentry_path_t *sentry__path_from_str_n(const char *s, size_t s_len);
-#define CALL_SENTRY__PATH_FROM_STR(STR) sentry__path_from_str(STR)
-#define CALL_SENTRY__PATH_FROM_STR_N(STR)                                      \
-    sentry__path_from_str_n(STR, STR##_len)
 
 /**
  * Create a new path from the given string.
