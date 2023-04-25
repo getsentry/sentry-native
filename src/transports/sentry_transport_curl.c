@@ -47,6 +47,7 @@ sentry__curl_bgworker_state_free(void *_state)
     curl_bgworker_state_t *state = _state;
     if (state->curl_handle) {
         curl_easy_cleanup(state->curl_handle);
+        curl_global_cleanup();
     }
     sentry__dsn_decref(state->dsn);
     sentry__rate_limiter_free(state->ratelimiter);
@@ -247,7 +248,6 @@ sentry__curl_send_task(void *_envelope, void *_state)
         }
     }
 
-    curl_easy_reset(curl);
     curl_slist_free_all(headers);
     sentry_free(info.retry_after);
     sentry_free(info.x_sentry_rate_limits);
