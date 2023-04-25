@@ -250,3 +250,35 @@ SENTRY_TEST(check_version)
         (sentry_version_t) { .major = 7, .minor = 10, .patch = 6 },
         (sentry_version_t) { .major = 7, .minor = 10, .patch = 7 }));
 }
+
+SENTRY_TEST(dsn_without_url_scheme_is_invalid)
+{
+    sentry_dsn_t *dsn = sentry__dsn_new("//without-scheme-separator");
+    TEST_CHECK(dsn->is_valid == false);
+    sentry__dsn_decref(dsn);
+}
+
+SENTRY_TEST(dsn_with_non_http_scheme_is_invalid)
+{
+    sentry_dsn_t *dsn = sentry__dsn_new("ftp://ftp-server/");
+    TEST_CHECK(dsn->is_valid == false);
+    sentry__dsn_decref(dsn);
+}
+
+SENTRY_TEST(dsn_without_project_id_is_invalid)
+{
+    sentry_dsn_t *dsn = sentry__dsn_new("https://foo@sentry.io/");
+    TEST_CHECK(dsn->is_valid == false);
+    sentry__dsn_decref(dsn);
+}
+
+SENTRY_TEST(dsn_with_ending_forward_slash_will_be_cleaned)
+{
+    sentry_dsn_t *dsn = sentry__dsn_new("https://foo@sentry.io/42/43/44////");
+
+    TEST_CHECK_STRING_EQUAL(dsn->path, "/42/43");
+    TEST_CHECK_STRING_EQUAL(dsn->project_id, "44");
+    TEST_CHECK(dsn->is_valid == true);
+
+    sentry__dsn_decref(dsn);
+}
