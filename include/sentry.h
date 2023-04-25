@@ -957,7 +957,7 @@ SENTRY_API const char *sentry_options_get_environment(
 SENTRY_API void sentry_options_set_dist(
     sentry_options_t *opts, const char *dist);
 SENTRY_API void sentry_options_set_dist_n(
-    sentry_options_t *opts, const char *dist, size_t len);
+    sentry_options_t *opts, const char *dist, size_t dist_len);
 
 /**
  * Gets the dist.
