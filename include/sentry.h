@@ -207,7 +207,6 @@ SENTRY_API sentry_value_t sentry_value_new_bool(int value);
  * Creates a new null terminated string.
  */
 SENTRY_API sentry_value_t sentry_value_new_string(const char *value);
-
 SENTRY_API sentry_value_t sentry_value_new_string_n(
     const char *value, size_t value_len);
 
@@ -1171,6 +1170,7 @@ SENTRY_API void sentry_options_add_attachmentw(
     sentry_options_t *opts, const wchar_t *path);
 SENTRY_API void sentry_options_add_attachmentw_n(
     sentry_options_t *opts, const wchar_t *path, size_t path_len);
+
 /**
  * Wide char version of `sentry_options_set_handler_path`.
  */

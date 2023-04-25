@@ -962,8 +962,8 @@ sentry_transaction_start_child_n(sentry_transaction_t *opaque_parent,
     }
     sentry_value_t parent = opaque_parent->inner;
 
-    /* TODO: consider snapshotting this value during tx creation and
-     *       storing in tx and span */
+    // TODO: consider snapshotting this value during tx creation and storing in
+    // tx and span
     size_t max_spans = SENTRY_SPANS_MAX;
     SENTRY_WITH_OPTIONS (options) {
         max_spans = options->max_spans;

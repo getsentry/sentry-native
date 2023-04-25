@@ -35,7 +35,7 @@ SENTRY_TEST(lazy_attachments)
     sentry_options_set_transport(options,
         sentry_new_function_transport(
             send_envelope_test_attachments, &testdata));
-    char rel[4] = { 't', 'e', 's', 't' };
+    char rel[] = { 't', 'e', 's', 't' };
     sentry_options_set_release_n(options, rel, sizeof(rel));
 
     sentry_options_add_attachment(options, PREFIX ".existing-file-attachment");

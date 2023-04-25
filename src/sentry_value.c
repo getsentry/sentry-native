@@ -320,9 +320,9 @@ sentry_value_new_bool(int value)
 }
 
 sentry_value_t
-sentry_value_new_string_n(const char *value, size_t len)
+sentry_value_new_string_n(const char *value, size_t value_len)
 {
-    char *s = sentry__string_clone_n(value, len);
+    char *s = sentry__string_clone_n(value, value_len);
     if (!s) {
         return sentry_value_new_null();
     }
@@ -1216,7 +1216,7 @@ sentry_value_new_thread_n(uint64_t id, const char *name, size_t name_len)
 {
     sentry_value_t thread = sentry_value_new_object();
 
-    /* NOTE: values end up as JSON, which has no support for `u64`. */
+    // NOTE: values end up as JSON, which has no support for `u64`.
     char buf[20 + 1];
     size_t written
         = (size_t)snprintf(buf, sizeof(buf), "%llu", (unsigned long long)id);

@@ -175,7 +175,7 @@ sentry__path_from_str_n(const char *s, size_t s_len)
     if (!path) {
         return NULL;
     }
-    /* NOTE: function will free `path` on error */
+    // NOTE: function will free `path` on error
     return sentry__path_from_str_owned(path);
 }
 
