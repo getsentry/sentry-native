@@ -7,7 +7,7 @@ import sys
 
 from .conditions import is_android
 
-VERSION_RE = re.compile(r"(\d+\.\d+\.\d+)(?:[-\.]?)(.*)")
+VERSION_RE = re.compile(r"(\d+\.\d+\.\d+)[-.]?(.*)")
 
 
 def matches(actual, expected):
@@ -95,7 +95,7 @@ def assert_meta(
             )
             assert event["contexts"]["os"]["build"] is not None
 
-    if sdk_override != None:
+    if sdk_override is not None:
         expected_sdk["name"] = sdk_override
 
     assert_matches(event, expected)

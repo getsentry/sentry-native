@@ -4,6 +4,7 @@
 
 **Features**:
 
+- Extend API with ptr/len-string interfaces. ([#827](https://github.com/getsentry/sentry-native/pull/827))
 - Allow setting sdk_name at runtime ([#834](https://github.com/getsentry/sentry-native/pull/834))
 
 ## 0.6.1

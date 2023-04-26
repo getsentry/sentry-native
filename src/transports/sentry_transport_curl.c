@@ -47,6 +47,7 @@ sentry__curl_bgworker_state_free(void *_state)
     curl_bgworker_state_t *state = _state;
     if (state->curl_handle) {
         curl_easy_cleanup(state->curl_handle);
+        curl_global_cleanup();
     }
     sentry__dsn_decref(state->dsn);
     sentry__rate_limiter_free(state->ratelimiter);
@@ -140,7 +141,7 @@ header_callback(char *buffer, size_t size, size_t nitems, void *userdata)
 {
     size_t bytes = size * nitems;
     struct header_info *info = userdata;
-    char *header = sentry__string_clonen(buffer, bytes);
+    char *header = sentry__string_clone_n(buffer, bytes);
     if (!header) {
         return bytes;
     }

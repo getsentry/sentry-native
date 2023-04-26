@@ -4,7 +4,6 @@
 #include "sentry_boot.h"
 
 #include "sentry_alloc.h"
-#include "sentry_core.h"
 #include "sentry_string.h"
 #include "sentry_sync.h"
 #include "sentry_utils.h"
@@ -64,7 +63,7 @@ sentry__url_parse(sentry_url_t *url_out, const char *url)
     if (!tmp) {
         goto error;
     }
-    url_out->scheme = sentry__string_clonen(ptr, tmp - ptr);
+    url_out->scheme = sentry__string_clone_n_unchecked(ptr, tmp - ptr);
 
     if (!url_out->scheme || !is_scheme_valid(url_out->scheme)) {
         goto error;
@@ -97,13 +96,14 @@ sentry__url_parse(sentry_url_t *url_out, const char *url)
     tmp = ptr;
     if (has_username) {
         SKIP_WHILE_NOT2(tmp, '@', ':');
-        url_out->username = sentry__string_clonen(ptr, tmp - ptr);
+        url_out->username = sentry__string_clone_n_unchecked(ptr, tmp - ptr);
         ptr = tmp;
         if (*ptr == ':') {
             ptr++;
             tmp = ptr;
             SKIP_WHILE_NOT(tmp, '@');
-            url_out->password = sentry__string_clonen(ptr, tmp - ptr);
+            url_out->password
+                = sentry__string_clone_n_unchecked(ptr, tmp - ptr);
             ptr = tmp;
         }
         if (*ptr != '@') {
@@ -126,7 +126,7 @@ sentry__url_parse(sentry_url_t *url_out, const char *url)
         tmp++;
     }
 
-    url_out->host = sentry__string_clonen(ptr, tmp - ptr);
+    url_out->host = sentry__string_clone_n_unchecked(ptr, tmp - ptr);
 
     /* port */
     ptr = tmp;
@@ -134,7 +134,7 @@ sentry__url_parse(sentry_url_t *url_out, const char *url)
         ptr++;
         tmp = ptr;
         SKIP_WHILE_NOT(tmp, '/');
-        aux_buf = sentry__string_clonen(ptr, tmp - ptr);
+        aux_buf = sentry__string_clone_n_unchecked(ptr, tmp - ptr);
         char *end;
         url_out->port = (int)strtol(aux_buf, &end, 10);
         if (end != aux_buf + strlen(aux_buf)) {
@@ -157,7 +157,7 @@ sentry__url_parse(sentry_url_t *url_out, const char *url)
     /* path */
     tmp = ptr;
     SKIP_WHILE_NOT2(tmp, '#', '?');
-    url_out->path = sentry__string_clonen(ptr, tmp - ptr);
+    url_out->path = sentry__string_clone_n_unchecked(ptr, tmp - ptr);
     ptr = tmp;
 
     /* query */
@@ -165,7 +165,7 @@ sentry__url_parse(sentry_url_t *url_out, const char *url)
         ptr++;
         tmp = ptr;
         SKIP_WHILE_NOT(tmp, '#');
-        url_out->query = sentry__string_clonen(ptr, tmp - ptr);
+        url_out->query = sentry__string_clone_n_unchecked(ptr, tmp - ptr);
         ptr = tmp;
     }
 
@@ -174,7 +174,7 @@ sentry__url_parse(sentry_url_t *url_out, const char *url)
         ptr++;
         tmp = ptr;
         SKIP_WHILE_NOT(tmp, 0);
-        url_out->fragment = sentry__string_clonen(ptr, tmp - ptr);
+        url_out->fragment = sentry__string_clone_n_unchecked(ptr, tmp - ptr);
     }
 
     if (url_out->port == 0) {
@@ -213,7 +213,7 @@ sentry__url_cleanup(sentry_url_t *url)
 }
 
 sentry_dsn_t *
-sentry__dsn_new(const char *raw_dsn)
+sentry__dsn_new_n(const char *raw_dsn, size_t raw_dsn_len)
 {
     sentry_url_t url;
     memset(&url, 0, sizeof(sentry_url_t));
@@ -227,7 +227,7 @@ sentry__dsn_new(const char *raw_dsn)
     memset(dsn, 0, sizeof(sentry_dsn_t));
     dsn->refcount = 1;
 
-    dsn->raw = sentry__string_clone(raw_dsn);
+    dsn->raw = sentry__string_clone_n(raw_dsn, raw_dsn_len);
     if (!dsn->raw || !dsn->raw[0] || sentry__url_parse(&url, dsn->raw) != 0) {
         goto exit;
     }
@@ -272,6 +272,16 @@ sentry__dsn_new(const char *raw_dsn)
 exit:
     sentry__url_cleanup(&url);
     return dsn;
+}
+
+sentry_dsn_t *
+sentry__dsn_new(const char *raw_dsn)
+{
+    if (!raw_dsn) {
+        return NULL;
+    }
+
+    return sentry__dsn_new_n(raw_dsn, strlen(raw_dsn));
 }
 
 sentry_dsn_t *

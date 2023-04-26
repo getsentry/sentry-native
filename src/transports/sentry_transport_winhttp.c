@@ -74,7 +74,7 @@ sentry__winhttp_transport_start(
         const char *ptr = opts->http_proxy + 7;
         const char *slash = strchr(ptr, '/');
         if (slash) {
-            char *copy = sentry__string_clonen(ptr, slash - ptr);
+            char *copy = sentry__string_clone_n(ptr, slash - ptr);
             state->proxy = sentry__string_to_wstr(copy);
             sentry_free(copy);
         } else {
