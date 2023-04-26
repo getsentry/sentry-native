@@ -297,18 +297,29 @@ sentry_options_get_transport_thread_name(const sentry_options_t *opts)
 }
 
 int
-sentry_options_set_sdk_name(sentry_options_t *opts, const char *name)
+sentry_options_set_sdk_name(sentry_options_t *opts, const char *sdk_name)
 {
-    if (!opts || !name) {
+    if (!opts || !sdk_name) {
+        return 1;
+    }
+    const size_t sdk_name_len = strlen(sdk_name);
+    return sentry_options_set_sdk_name_n(opts, sdk_name, sdk_name_len);
+}
+
+int
+sentry_options_set_sdk_name_n(
+    sentry_options_t *opts, const char *sdk_name, size_t sdk_name_len)
+{
+    if (!opts || !sdk_name) {
         return 1;
     }
 
     sentry_free(opts->sdk_name);
-    opts->sdk_name = sentry__string_clone(name);
+    opts->sdk_name = sentry__string_clone_n(sdk_name, sdk_name_len);
 
     sentry_stringbuilder_t sb;
     sentry__stringbuilder_init(&sb);
-    sentry__stringbuilder_append(&sb, name);
+    sentry__stringbuilder_append(&sb, opts->sdk_name);
     sentry__stringbuilder_append(&sb, "/");
     sentry__stringbuilder_append(&sb, SENTRY_SDK_VERSION);
 

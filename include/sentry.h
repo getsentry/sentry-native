@@ -1014,6 +1014,12 @@ SENTRY_API const char *sentry_options_get_transport_thread_name(
 SENTRY_API int sentry_options_set_sdk_name(
     sentry_options_t *opts, const char *sdk_name);
 
+/*
+ * Configures the name of the sentry SDK. Returns 0 on success.
+ */
+SENTRY_API int sentry_options_set_sdk_name_n(
+    sentry_options_t *opts, const char *sdk_name, size_t sdk_name_len);
+
 /**
  * Returns the configured sentry SDK name. Unless overwritten this defaults to
  * SENTRY_SDK_NAME.
