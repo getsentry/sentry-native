@@ -85,6 +85,8 @@ sentry_options_free(sentry_options_t *opts)
     }
     sentry__dsn_decref(opts->dsn);
     sentry_free(opts->release);
+    sentry_free(opts->sdk_name);
+    sentry_free(opts->user_agent);
     sentry_free(opts->environment);
     sentry_free(opts->dist);
     sentry_free(opts->http_proxy);
