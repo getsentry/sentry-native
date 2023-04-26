@@ -314,15 +314,21 @@ sentry__dsn_decref(sentry_dsn_t *dsn)
 char *
 sentry__dsn_get_auth_header(const sentry_dsn_t *dsn, const char *user_agent)
 {
-    if (!dsn || !dsn->is_valid || !user_agent) {
+    if (!dsn || !dsn->is_valid) {
         return NULL;
     }
     sentry_stringbuilder_t sb;
     sentry__stringbuilder_init(&sb);
     sentry__stringbuilder_append(&sb, "Sentry sentry_key=");
     sentry__stringbuilder_append(&sb, dsn->public_key);
-    sentry__stringbuilder_append(&sb, ", sentry_version=7, sentry_client=");
-    sentry__stringbuilder_append(&sb, user_agent);
+    sentry__stringbuilder_append(&sb, ", sentry_version=7");
+
+    sentry__stringbuilder_append(&sb, ", sentry_client=");
+    if (user_agent) {
+        sentry__stringbuilder_append(&sb, user_agent);
+    } else {
+        sentry__stringbuilder_append(&sb, SENTRY_SDK_USER_AGENT);
+    }
     return sentry__stringbuilder_into_string(&sb);
 }
 

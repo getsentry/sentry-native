@@ -153,7 +153,7 @@ sentry__winhttp_send_task(void *_envelope, void *_state)
     uint64_t started = sentry__monotonic_time();
 
     sentry_prepared_http_request_t *req = sentry__prepare_http_request(
-        envelope, state->dsn, state->ratelimiter);
+        envelope, state->dsn, state->ratelimiter, state->user_agent);
     if (!req) {
         return;
     }

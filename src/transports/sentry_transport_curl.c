@@ -16,6 +16,7 @@
 typedef struct curl_transport_state_s {
     sentry_dsn_t *dsn;
     CURL *curl_handle;
+    char *user_agent;
     char *http_proxy;
     char *ca_certs;
     sentry_rate_limiter_t *ratelimiter;
@@ -52,6 +53,7 @@ sentry__curl_bgworker_state_free(void *_state)
     sentry__dsn_decref(state->dsn);
     sentry__rate_limiter_free(state->ratelimiter);
     sentry_free(state->ca_certs);
+    sentry_free(state->user_agent);
     sentry_free(state->http_proxy);
     sentry_free(state);
 }
@@ -100,6 +102,7 @@ sentry__curl_transport_start(
 
     state->dsn = sentry__dsn_incref(options->dsn);
     state->http_proxy = sentry__string_clone(options->http_proxy);
+    state->user_agent = sentry__string_clone(options->user_agent);
     state->ca_certs = sentry__string_clone(options->ca_certs);
     state->curl_handle = curl_easy_init();
     state->debug = options->debug;
@@ -168,7 +171,7 @@ sentry__curl_send_task(void *_envelope, void *_state)
     curl_bgworker_state_t *state = (curl_bgworker_state_t *)_state;
 
     sentry_prepared_http_request_t *req = sentry__prepare_http_request(
-        envelope, state->dsn, state->ratelimiter);
+        envelope, state->dsn, state->ratelimiter, state->user_agent);
     if (!req) {
         return;
     }

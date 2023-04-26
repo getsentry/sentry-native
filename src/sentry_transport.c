@@ -150,7 +150,8 @@ sentry_transport_free(sentry_transport_t *transport)
 
 sentry_prepared_http_request_t *
 sentry__prepare_http_request(sentry_envelope_t *envelope,
-    const sentry_dsn_t *dsn, const sentry_rate_limiter_t *rl)
+    const sentry_dsn_t *dsn, const sentry_rate_limiter_t *rl,
+    const char *user_agent)
 {
     if (!dsn || !dsn->is_valid) {
         return NULL;
@@ -189,9 +190,7 @@ sentry__prepare_http_request(sentry_envelope_t *envelope,
     sentry_prepared_http_header_t *h;
     h = &req->headers[req->headers_len++];
     h->key = "x-sentry-auth";
-    SENTRY_WITH_OPTIONS (options) {
-        h->value = sentry__dsn_get_auth_header(dsn, options->user_agent);
-    }
+    h->value = sentry__dsn_get_auth_header(dsn, user_agent);
 
     h = &req->headers[req->headers_len++];
     h->key = "content-type";
