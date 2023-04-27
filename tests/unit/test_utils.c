@@ -311,6 +311,9 @@ SENTRY_TEST(dsn_auth_header_custom_user_agent)
     TEST_CHECK_STRING_EQUAL(auth_header,
         "Sentry sentry_key=key, sentry_version=7, "
         "sentry_client=user_agent");
+
+    sentry_free(auth_header);
+    sentry__dsn_decref(dsn);
 }
 
 SENTRY_TEST(dsn_auth_header_null_dsn)
@@ -324,4 +327,7 @@ SENTRY_TEST(dsn_auth_header_invalid_dsn)
     sentry_dsn_t *dsn = sentry__dsn_new("whatever");
     const char *auth_header = sentry__dsn_get_auth_header(dsn, NULL);
     TEST_CHECK(!auth_header);
+
+    sentry_free(auth_header);
+    sentry__dsn_decref(dsn);
 }
