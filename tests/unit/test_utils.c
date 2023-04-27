@@ -298,7 +298,7 @@ SENTRY_TEST(dsn_with_ending_forward_slash_will_be_cleaned)
 SENTRY_TEST(dsn_auth_header_no_user_agent)
 {
     sentry_dsn_t *dsn = sentry__dsn_new("https://key@sentry.io/42");
-    const char *auth_header = sentry__dsn_get_auth_header(dsn, NULL);
+    char *auth_header = sentry__dsn_get_auth_header(dsn, NULL);
     TEST_CHECK_STRING_EQUAL(auth_header,
         "Sentry sentry_key=key, sentry_version=7, "
         "sentry_client=" SENTRY_SDK_NAME "/" SENTRY_SDK_VERSION);
@@ -307,7 +307,7 @@ SENTRY_TEST(dsn_auth_header_no_user_agent)
 SENTRY_TEST(dsn_auth_header_custom_user_agent)
 {
     sentry_dsn_t *dsn = sentry__dsn_new("https://key@sentry.io/42");
-    const char *auth_header = sentry__dsn_get_auth_header(dsn, "user_agent");
+    char *auth_header = sentry__dsn_get_auth_header(dsn, "user_agent");
     TEST_CHECK_STRING_EQUAL(auth_header,
         "Sentry sentry_key=key, sentry_version=7, "
         "sentry_client=user_agent");
@@ -318,14 +318,14 @@ SENTRY_TEST(dsn_auth_header_custom_user_agent)
 
 SENTRY_TEST(dsn_auth_header_null_dsn)
 {
-    const char *auth_header = sentry__dsn_get_auth_header(NULL, NULL);
+    char *auth_header = sentry__dsn_get_auth_header(NULL, NULL);
     TEST_CHECK(!auth_header);
 }
 
 SENTRY_TEST(dsn_auth_header_invalid_dsn)
 {
     sentry_dsn_t *dsn = sentry__dsn_new("whatever");
-    const char *auth_header = sentry__dsn_get_auth_header(dsn, NULL);
+    char *auth_header = sentry__dsn_get_auth_header(dsn, NULL);
     TEST_CHECK(!auth_header);
 
     sentry_free(auth_header);
