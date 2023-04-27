@@ -302,6 +302,9 @@ SENTRY_TEST(dsn_auth_header_no_user_agent)
     TEST_CHECK_STRING_EQUAL(auth_header,
         "Sentry sentry_key=key, sentry_version=7, "
         "sentry_client=" SENTRY_SDK_NAME "/" SENTRY_SDK_VERSION);
+
+    sentry_free(auth_header);
+    sentry__dsn_decref(dsn);
 }
 
 SENTRY_TEST(dsn_auth_header_custom_user_agent)

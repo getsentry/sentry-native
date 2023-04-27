@@ -156,7 +156,8 @@ sentry__winhttp_send_task(void *_envelope, void *_state)
     sentry_prepared_http_request_t *req = sentry__prepare_http_request(
         envelope, state->dsn, state->ratelimiter, user_agent);
     if (!req) {
-        goto exit;
+        sentry_free(user_agent);
+        return;
     }
 
     wchar_t *url = sentry__string_to_wstr(req->url);
