@@ -1008,6 +1008,32 @@ SENTRY_API void sentry_options_set_transport_thread_name_n(
 SENTRY_API const char *sentry_options_get_transport_thread_name(
     const sentry_options_t *opts);
 
+/*
+ * Configures the name of the sentry SDK. Returns 0 on success.
+ */
+SENTRY_API int sentry_options_set_sdk_name(
+    sentry_options_t *opts, const char *sdk_name);
+
+/*
+ * Configures the name of the sentry SDK. Returns 0 on success.
+ */
+SENTRY_API int sentry_options_set_sdk_name_n(
+    sentry_options_t *opts, const char *sdk_name, size_t sdk_name_len);
+
+/**
+ * Returns the configured sentry SDK name. Unless overwritten this defaults to
+ * SENTRY_SDK_NAME.
+ */
+SENTRY_API const char *sentry_options_get_sdk_name(
+    const sentry_options_t *opts);
+
+/**
+ * Returns the user agent. Unless overwritten this defaults to
+ * "SENTRY_SDK_NAME / SENTRY_SDK_VERSION".
+ */
+SENTRY_API const char *sentry_options_get_user_agent(
+    const sentry_options_t *opts);
+
 /**
  * Enables or disables debug printing mode.
  */
@@ -1983,12 +2009,14 @@ SENTRY_EXPERIMENTAL_API int sentry_clear_crashed_last_run(void);
 SENTRY_EXPERIMENTAL_API const char *sentry_sdk_version(void);
 
 /**
- * Sentry SDK name.
+ * Sentry SDK name set during build time.
+ * Deprecated: Please use sentry_options_get_sdk_name instead.
  */
 SENTRY_EXPERIMENTAL_API const char *sentry_sdk_name(void);
 
 /**
- * Sentry SDK User-Agent.
+ * Sentry SDK User-Agent set during build time.
+ * Deprecated: Please use sentry_options_get_user_agent instead.
  */
 SENTRY_EXPERIMENTAL_API const char *sentry_sdk_user_agent(void);
 

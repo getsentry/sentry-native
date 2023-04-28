@@ -152,7 +152,7 @@ SENTRY_TEST(dsn_store_url_with_path)
     TEST_CHECK_STRING_EQUAL(
         url, "http://example.com:80/foo/bar/api/42/envelope/");
     sentry_free(url);
-    url = sentry__dsn_get_minidump_url(dsn);
+    url = sentry__dsn_get_minidump_url(dsn, SENTRY_SDK_USER_AGENT);
     TEST_CHECK_STRING_EQUAL(url,
         "http://example.com:80/foo/bar/api/42/minidump/"
         "?sentry_client=" SENTRY_SDK_USER_AGENT "&sentry_key=username");
@@ -168,10 +168,22 @@ SENTRY_TEST(dsn_store_url_without_path)
     url = sentry__dsn_get_envelope_url(dsn);
     TEST_CHECK_STRING_EQUAL(url, "http://example.com:80/api/42/envelope/");
     sentry_free(url);
-    url = sentry__dsn_get_minidump_url(dsn);
+    url = sentry__dsn_get_minidump_url(dsn, SENTRY_SDK_USER_AGENT);
     TEST_CHECK_STRING_EQUAL(url,
         "http://example.com:80/api/42/minidump/"
         "?sentry_client=" SENTRY_SDK_USER_AGENT "&sentry_key=username");
+    sentry_free(url);
+    sentry__dsn_decref(dsn);
+}
+
+SENTRY_TEST(dsn_store_url_custom_agent)
+{
+    sentry_dsn_t *dsn
+        = sentry__dsn_new("http://username:password@example.com/42?x=y#z");
+    char *url = sentry__dsn_get_minidump_url(dsn, "custom_user_agent");
+    TEST_CHECK_STRING_EQUAL(url,
+        "http://example.com:80/api/42/minidump/"
+        "?sentry_client=custom_user_agent&sentry_key=username");
     sentry_free(url);
     sentry__dsn_decref(dsn);
 }
@@ -280,5 +292,45 @@ SENTRY_TEST(dsn_with_ending_forward_slash_will_be_cleaned)
     TEST_CHECK_STRING_EQUAL(dsn->project_id, "44");
     TEST_CHECK(dsn->is_valid == true);
 
+    sentry__dsn_decref(dsn);
+}
+
+SENTRY_TEST(dsn_auth_header_no_user_agent)
+{
+    sentry_dsn_t *dsn = sentry__dsn_new("https://key@sentry.io/42");
+    char *auth_header = sentry__dsn_get_auth_header(dsn, NULL);
+    TEST_CHECK_STRING_EQUAL(auth_header,
+        "Sentry sentry_key=key, sentry_version=7, "
+        "sentry_client=" SENTRY_SDK_NAME "/" SENTRY_SDK_VERSION);
+
+    sentry_free(auth_header);
+    sentry__dsn_decref(dsn);
+}
+
+SENTRY_TEST(dsn_auth_header_custom_user_agent)
+{
+    sentry_dsn_t *dsn = sentry__dsn_new("https://key@sentry.io/42");
+    char *auth_header = sentry__dsn_get_auth_header(dsn, "user_agent");
+    TEST_CHECK_STRING_EQUAL(auth_header,
+        "Sentry sentry_key=key, sentry_version=7, "
+        "sentry_client=user_agent");
+
+    sentry_free(auth_header);
+    sentry__dsn_decref(dsn);
+}
+
+SENTRY_TEST(dsn_auth_header_null_dsn)
+{
+    char *auth_header = sentry__dsn_get_auth_header(NULL, NULL);
+    TEST_CHECK(!auth_header);
+}
+
+SENTRY_TEST(dsn_auth_header_invalid_dsn)
+{
+    sentry_dsn_t *dsn = sentry__dsn_new("whatever");
+    char *auth_header = sentry__dsn_get_auth_header(dsn, NULL);
+    TEST_CHECK(!auth_header);
+
+    sentry_free(auth_header);
     sentry__dsn_decref(dsn);
 }

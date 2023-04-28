@@ -36,6 +36,7 @@ sentry_options_new(void)
     if (!opts->environment) {
         opts->environment = sentry__string_clone("production");
     }
+    sentry_options_set_sdk_name(opts, SENTRY_SDK_NAME);
     opts->max_breadcrumbs = SENTRY_BREADCRUMBS_MAX;
     opts->user_consent = SENTRY_USER_CONSENT_UNKNOWN;
     opts->auto_session_tracking = true;
@@ -84,6 +85,8 @@ sentry_options_free(sentry_options_t *opts)
     }
     sentry__dsn_decref(opts->dsn);
     sentry_free(opts->release);
+    sentry_free(opts->sdk_name);
+    sentry_free(opts->user_agent);
     sentry_free(opts->environment);
     sentry_free(opts->dist);
     sentry_free(opts->http_proxy);
@@ -293,6 +296,51 @@ const char *
 sentry_options_get_transport_thread_name(const sentry_options_t *opts)
 {
     return opts->transport_thread_name;
+}
+
+int
+sentry_options_set_sdk_name(sentry_options_t *opts, const char *sdk_name)
+{
+    if (!opts || !sdk_name) {
+        return 1;
+    }
+    const size_t sdk_name_len = strlen(sdk_name);
+    return sentry_options_set_sdk_name_n(opts, sdk_name, sdk_name_len);
+}
+
+int
+sentry_options_set_sdk_name_n(
+    sentry_options_t *opts, const char *sdk_name, size_t sdk_name_len)
+{
+    if (!opts || !sdk_name) {
+        return 1;
+    }
+
+    sentry_free(opts->sdk_name);
+    opts->sdk_name = sentry__string_clone_n(sdk_name, sdk_name_len);
+
+    sentry_stringbuilder_t sb;
+    sentry__stringbuilder_init(&sb);
+    sentry__stringbuilder_append(&sb, opts->sdk_name);
+    sentry__stringbuilder_append(&sb, "/");
+    sentry__stringbuilder_append(&sb, SENTRY_SDK_VERSION);
+
+    sentry_free(opts->user_agent);
+    opts->user_agent = sentry__stringbuilder_into_string(&sb);
+
+    return 0;
+}
+
+const char *
+sentry_options_get_sdk_name(const sentry_options_t *opts)
+{
+    return opts->sdk_name;
+}
+
+const char *
+sentry_options_get_user_agent(const sentry_options_t *opts)
+{
+    return opts->user_agent;
 }
 
 void

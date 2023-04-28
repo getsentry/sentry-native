@@ -80,7 +80,8 @@ void sentry__dsn_decref(sentry_dsn_t *dsn);
  * described here:
  * https://docs.sentry.io/development/sdk-dev/overview/#authentication
  */
-char *sentry__dsn_get_auth_header(const sentry_dsn_t *dsn);
+char *sentry__dsn_get_auth_header(
+    const sentry_dsn_t *dsn, const char *user_agent);
 
 /**
  * Returns the envelope endpoint url used for normal uploads as a newly
@@ -92,7 +93,8 @@ char *sentry__dsn_get_envelope_url(const sentry_dsn_t *dsn);
  * Returns the minidump endpoint url used for uploads done by the out-of-process
  * crashpad backend as a newly allocated string.
  */
-char *sentry__dsn_get_minidump_url(const sentry_dsn_t *dsn);
+char *sentry__dsn_get_minidump_url(
+    const sentry_dsn_t *dsn, const char *user_agent);
 
 /**
  * Returns the number of milliseconds since the unix epoch.

@@ -29,8 +29,15 @@ get_client_sdk(void)
 {
     sentry_value_t client_sdk = sentry_value_new_object();
 
-    sentry_value_t name = sentry_value_new_string(SENTRY_SDK_NAME);
-    sentry_value_set_by_key(client_sdk, "name", name);
+    SENTRY_WITH_OPTIONS (options) {
+        sentry_value_t sdk_name = sentry_value_new_string(options->sdk_name);
+        sentry_value_set_by_key(client_sdk, "name", sdk_name);
+    }
+    // in case the SDK is not initialized yet, fallback to build-time value
+    if (sentry_value_is_null(sentry_value_get_by_key(client_sdk, "name"))) {
+        sentry_value_t sdk_name = sentry_value_new_string(SENTRY_SDK_NAME);
+        sentry_value_set_by_key(client_sdk, "name", sdk_name);
+    }
 
     sentry_value_t version = sentry_value_new_string(SENTRY_SDK_VERSION);
     sentry_value_set_by_key(client_sdk, "version", version);

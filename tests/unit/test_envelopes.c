@@ -29,7 +29,7 @@ SENTRY_TEST(basic_http_request_preparation_for_event)
     sentry__envelope_add_event(envelope, event);
 
     sentry_prepared_http_request_t *req
-        = sentry__prepare_http_request(envelope, dsn, NULL);
+        = sentry__prepare_http_request(envelope, dsn, NULL, NULL);
     TEST_CHECK_STRING_EQUAL(req->method, "POST");
     TEST_CHECK_STRING_EQUAL(
         req->url, "https://sentry.invalid:443/api/42/envelope/");
@@ -58,7 +58,7 @@ SENTRY_TEST(basic_http_request_preparation_for_transaction)
     sentry__envelope_add_transaction(envelope, transaction);
 
     sentry_prepared_http_request_t *req
-        = sentry__prepare_http_request(envelope, dsn, NULL);
+        = sentry__prepare_http_request(envelope, dsn, NULL, NULL);
     TEST_CHECK_STRING_EQUAL(req->method, "POST");
     TEST_CHECK_STRING_EQUAL(
         req->url, "https://sentry.invalid:443/api/42/envelope/");
@@ -91,7 +91,7 @@ SENTRY_TEST(basic_http_request_preparation_for_event_with_attachment)
         envelope, msg, sizeof(msg) - 1, "attachment");
 
     sentry_prepared_http_request_t *req
-        = sentry__prepare_http_request(envelope, dsn, NULL);
+        = sentry__prepare_http_request(envelope, dsn, NULL, NULL);
     TEST_CHECK_STRING_EQUAL(req->method, "POST");
     TEST_CHECK_STRING_EQUAL(
         req->url, "https://sentry.invalid:443/api/42/envelope/");
@@ -120,7 +120,7 @@ SENTRY_TEST(basic_http_request_preparation_for_minidump)
         envelope, msg, sizeof(msg) - 1, "attachment");
 
     sentry_prepared_http_request_t *req
-        = sentry__prepare_http_request(envelope, dsn, NULL);
+        = sentry__prepare_http_request(envelope, dsn, NULL, NULL);
     TEST_CHECK_STRING_EQUAL(req->method, "POST");
     TEST_CHECK_STRING_EQUAL(
         req->url, "https://sentry.invalid:443/api/42/envelope/");
