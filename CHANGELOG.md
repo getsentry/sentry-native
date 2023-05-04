@@ -1,5 +1,11 @@
 # Changelog
 
+# Unreleased
+
+**Internal**:
+
+- Updated Crashpad backend to 2023-05-03. ([#837](https://github.com/getsentry/sentry-native/pull/837), [crashpad#82](https://github.com/getsentry/crashpad/pull/82))
+
 ## 0.6.2
 
 **Features**:
