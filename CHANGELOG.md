@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Internal**:
+
+- Updated Breakpad backend to 2023-05-03. ([#836](https://github.com/getsentry/sentry-native/pull/836), [breakpad#35](https://github.com/getsentry/breakpad/pull/35))
+
 ## 0.6.2
 
 **Features**:
