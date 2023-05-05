@@ -486,6 +486,14 @@ make_signal_event(
     sentry_value_t registers = sentry__registers_from_uctx(uctx);
     sentry_value_set_by_key(stacktrace, "registers", registers);
 
+#ifdef SENTRY_WITH_UNWINDER_LIBUNWINDSTACK
+    // libunwindstack already adjusts the PC according to `GetPcAdjustment()`
+    // https://github.com/getsentry/libunwindstack-ndk/blob/1929f7b601797fc8b2cac092d563b31d01d46a76/Regs.cpp#L187
+    // so there is no need to adjust the PC in the backend processing.
+    sentry_value_set_by_key(stacktrace, "instruction_addr_adjustment",
+        sentry_value_new_string("none"));
+#endif
+
     sentry_value_set_by_key(exc, "stacktrace", stacktrace);
     sentry_event_add_exception(event, exc);
 
