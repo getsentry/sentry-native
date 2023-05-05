@@ -81,9 +81,9 @@ typedef struct {
 } crashpad_state_t;
 
 static void
-sentry__crashpad_backend_user_consent_changed(sentry_backend_t *backend)
+crashpad_backend_user_consent_changed(sentry_backend_t *backend)
 {
-    crashpad_state_t *data = (crashpad_state_t *)backend->data;
+    auto *data = static_cast<crashpad_state_t *>(backend->data);
     if (!data->db || !data->db->GetSettings()) {
         return;
     }
@@ -91,10 +91,10 @@ sentry__crashpad_backend_user_consent_changed(sentry_backend_t *backend)
 }
 
 static void
-sentry__crashpad_backend_flush_scope(
+crashpad_backend_flush_scope(
     sentry_backend_t *backend, const sentry_options_t *options)
 {
-    const crashpad_state_t *data = (crashpad_state_t *)backend->data;
+    const auto *data = static_cast<crashpad_state_t *>(backend->data);
     if (!data->event_path) {
         return;
     }
@@ -126,11 +126,11 @@ sentry__crashpad_backend_flush_scope(
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_WINDOWS)
 #    ifdef SENTRY_PLATFORM_WINDOWS
 static bool
-sentry__crashpad_handler(EXCEPTION_POINTERS *ExceptionInfo)
+crashpad_handler(EXCEPTION_POINTERS *ExceptionInfo)
 {
 #    else
 static bool
-sentry__crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
+crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
 {
     sentry__page_allocator_enable();
     sentry__enter_signal_handler();
@@ -231,10 +231,10 @@ sentry__crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
 #endif
 
 static int
-sentry__crashpad_backend_startup(
+crashpad_backend_startup(
     sentry_backend_t *backend, const sentry_options_t *options)
 {
-    sentry_path_t *owned_handler_path = NULL;
+    sentry_path_t *owned_handler_path = nullptr;
     sentry_path_t *handler_path = options->handler_path;
     if (!handler_path) {
         sentry_path_t *current_exe = sentry__path_current_exe();
@@ -272,7 +272,7 @@ sentry__crashpad_backend_startup(
                   "\"%" SENTRY_PATH_PRI "\"",
         absolute_handler_path->path);
     sentry_path_t *current_run_folder = options->run->run_path;
-    crashpad_state_t *data = (crashpad_state_t *)backend->data;
+    auto *data = static_cast<crashpad_state_t *>(backend->data);
 
     base::FilePath database(options->database_path->path);
     base::FilePath handler(absolute_handler_path->path);
@@ -283,7 +283,7 @@ sentry__crashpad_backend_startup(
     // register attachments
     for (sentry_attachment_t *attachment = options->attachments; attachment;
          attachment = attachment->next) {
-        attachments.push_back(base::FilePath(attachment->path->path));
+        attachments.emplace_back(attachment->path->path);
     }
 
     // and add the serialized event, and two rotating breadcrumb files
@@ -299,12 +299,11 @@ sentry__crashpad_backend_startup(
     sentry__path_touch(data->breadcrumb1_path);
     sentry__path_touch(data->breadcrumb2_path);
 
-    attachments.push_back(base::FilePath(data->event_path->path));
-    attachments.push_back(base::FilePath(data->breadcrumb1_path->path));
-    attachments.push_back(base::FilePath(data->breadcrumb2_path->path));
+    attachments.emplace_back(data->event_path->path);
+    attachments.emplace_back(data->breadcrumb1_path->path);
+    attachments.emplace_back(data->breadcrumb2_path->path);
 
-    std::vector<std::string> arguments;
-    arguments.push_back("--no-rate-limit");
+    std::vector<std::string> arguments { "--no-rate-limit" };
 
     // Initialize database first, flushing the consent later on as part of
     // `sentry_init` will persist the upload flag.
@@ -395,7 +394,7 @@ sentry__crashpad_backend_startup(
 }
 
 static void
-sentry__crashpad_backend_shutdown(sentry_backend_t *backend)
+crashpad_backend_shutdown(sentry_backend_t *backend)
 {
 #ifdef SENTRY_PLATFORM_LINUX
     // restore signal handlers to their default state
@@ -406,7 +405,7 @@ sentry__crashpad_backend_shutdown(sentry_backend_t *backend)
     }
 #endif
 
-    crashpad_state_t *data = (crashpad_state_t *)backend->data;
+    auto *data = static_cast<crashpad_state_t *>(backend->data);
     delete data->db;
     data->db = nullptr;
 
@@ -419,10 +418,10 @@ sentry__crashpad_backend_shutdown(sentry_backend_t *backend)
 }
 
 static void
-sentry__crashpad_backend_add_breadcrumb(sentry_backend_t *backend,
+crashpad_backend_add_breadcrumb(sentry_backend_t *backend,
     sentry_value_t breadcrumb, const sentry_options_t *options)
 {
-    crashpad_state_t *data = (crashpad_state_t *)backend->data;
+    auto *data = static_cast<crashpad_state_t *>(backend->data);
 
     size_t max_breadcrumbs = options->max_breadcrumbs;
     if (!max_breadcrumbs) {
@@ -457,9 +456,9 @@ sentry__crashpad_backend_add_breadcrumb(sentry_backend_t *backend,
 }
 
 static void
-sentry__crashpad_backend_free(sentry_backend_t *backend)
+crashpad_backend_free(sentry_backend_t *backend)
 {
-    crashpad_state_t *data = (crashpad_state_t *)backend->data;
+    auto *data = static_cast<crashpad_state_t *>(backend->data);
     sentry__path_free(data->event_path);
     sentry__path_free(data->breadcrumb1_path);
     sentry__path_free(data->breadcrumb2_path);
@@ -467,12 +466,12 @@ sentry__crashpad_backend_free(sentry_backend_t *backend)
 }
 
 static void
-sentry__crashpad_backend_except(
+crashpad_backend_except(
     sentry_backend_t *UNUSED(backend), const sentry_ucontext_t *context)
 {
 #ifdef SENTRY_PLATFORM_WINDOWS
     crashpad::CrashpadClient::DumpAndCrash(
-        (EXCEPTION_POINTERS *)&context->exception_ptrs);
+        static_cast<EXCEPTION_POINTERS *>(&context->exception_ptrs));
 #else
     // TODO: Crashpad has the ability to do this on linux / mac but the
     // method interface is not exposed for it, a patch would be required
@@ -486,7 +485,7 @@ report_crash_time(
 {
     // we do a `+ 1` here, because crashpad timestamps are second resolution,
     // but our sessions are ms resolution. at least in our integration tests, we
-    // can have a session that starts at, eg. `0.471`, whereas the crashpad
+    // can have a session that starts at, e.g. `0.471`, whereas the crashpad
     // report will be `0`, which would mean our heuristic does not trigger due
     // to rounding.
     uint64_t time = ((uint64_t)report.creation_time + 1) * 1000;
@@ -496,9 +495,9 @@ report_crash_time(
 }
 
 static uint64_t
-sentry__crashpad_backend_last_crash(sentry_backend_t *backend)
+crashpad_backend_last_crash(sentry_backend_t *backend)
 {
-    crashpad_state_t *data = (crashpad_state_t *)backend->data;
+    auto *data = static_cast<crashpad_state_t *>(backend->data);
 
     uint64_t crash_time = 0;
 
@@ -514,9 +513,9 @@ sentry__crashpad_backend_last_crash(sentry_backend_t *backend)
 }
 
 static void
-sentry__crashpad_backend_prune_database(sentry_backend_t *backend)
+crashpad_backend_prune_database(sentry_backend_t *backend)
 {
-    crashpad_state_t *data = (crashpad_state_t *)backend->data;
+    auto *data = static_cast<crashpad_state_t *>(backend->data);
 
     // We want to eagerly clean up reports older than 2 days, and limit the
     // complete database to a maximum of 8M. That might still be a lot for
@@ -532,29 +531,28 @@ sentry__crashpad_backend_prune_database(sentry_backend_t *backend)
 sentry_backend_t *
 sentry__backend_new(void)
 {
-    sentry_backend_t *backend = SENTRY_MAKE(sentry_backend_t);
+    auto *backend = SENTRY_MAKE(sentry_backend_t);
     if (!backend) {
-        return NULL;
+        return nullptr;
     }
     memset(backend, 0, sizeof(sentry_backend_t));
 
-    crashpad_state_t *data = SENTRY_MAKE(crashpad_state_t);
+    auto *data = SENTRY_MAKE(crashpad_state_t);
     if (!data) {
         sentry_free(backend);
-        return NULL;
+        return nullptr;
     }
     memset(data, 0, sizeof(crashpad_state_t));
 
-    backend->startup_func = sentry__crashpad_backend_startup;
-    backend->shutdown_func = sentry__crashpad_backend_shutdown;
-    backend->except_func = sentry__crashpad_backend_except;
-    backend->free_func = sentry__crashpad_backend_free;
-    backend->flush_scope_func = sentry__crashpad_backend_flush_scope;
-    backend->add_breadcrumb_func = sentry__crashpad_backend_add_breadcrumb;
-    backend->user_consent_changed_func
-        = sentry__crashpad_backend_user_consent_changed;
-    backend->get_last_crash_func = sentry__crashpad_backend_last_crash;
-    backend->prune_database_func = sentry__crashpad_backend_prune_database;
+    backend->startup_func = crashpad_backend_startup;
+    backend->shutdown_func = crashpad_backend_shutdown;
+    backend->except_func = crashpad_backend_except;
+    backend->free_func = crashpad_backend_free;
+    backend->flush_scope_func = crashpad_backend_flush_scope;
+    backend->add_breadcrumb_func = crashpad_backend_add_breadcrumb;
+    backend->user_consent_changed_func = crashpad_backend_user_consent_changed;
+    backend->get_last_crash_func = crashpad_backend_last_crash;
+    backend->prune_database_func = crashpad_backend_prune_database;
     backend->data = data;
     backend->can_capture_after_shutdown = true;
 
