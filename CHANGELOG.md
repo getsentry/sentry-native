@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- disable PC adjustment in the backend for libunwindstack ([#839](https://github.com/getsentry/sentry-native/pull/839))
+
 **Internal**:
 
 - Updated Breakpad backend to 2023-05-03. ([#836](https://github.com/getsentry/sentry-native/pull/836), [breakpad#35](https://github.com/getsentry/breakpad/pull/35))
