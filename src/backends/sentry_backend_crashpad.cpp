@@ -147,7 +147,8 @@ sentry__crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
 
     SENTRY_WITH_OPTIONS (options) {
         auto *data = static_cast<crashpad_state_t *>(options->backend->data);
-        data->event_id = sentry_value_get_key(event, "event_id");
+        data->event_id = sentry_value_get_by_key(event, "event_id");
+        crashpad_backend_flush_scope(options->backend, options);
         if (options->on_crash_func) {
             sentry_ucontext_t uctx;
 #    ifdef SENTRY_PLATFORM_WINDOWS
