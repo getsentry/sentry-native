@@ -5,7 +5,7 @@
 **Features**:
 
 - Disable PC adjustment in the backend for libunwindstack ([#839](https://github.com/getsentry/sentry-native/pull/839))
-- Crashpad backend allows inspecting the event-id in the on_crash/before_send hooks ([#840](https://github.com/getsentry/sentry-native/pull/840))
+- Crashpad backend allows inspection and enrichment of the crash event in the on_crash/before_send hooks ([#843](https://github.com/getsentry/sentry-native/pull/843))
 
 **Internal**:
 
