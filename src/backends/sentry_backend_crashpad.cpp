@@ -78,7 +78,7 @@ typedef struct {
     sentry_path_t *breadcrumb1_path;
     sentry_path_t *breadcrumb2_path;
     size_t num_breadcrumbs;
-    sentry_value_t event_id;
+    sentry_value_t crash_event;
 } crashpad_state_t;
 
 static void
@@ -102,12 +102,13 @@ crashpad_backend_flush_scope(
 
     // This here is an empty object that we copy the scope into.
     // Even though the API is specific to `event`, an `event` has a few default
-    // properties that we do not want here. But we want a stable event_id in
-    // case of a crash.
-    sentry_value_t event = sentry_value_new_object();
-    if (!sentry_value_is_null(data->event_id)) {
-        sentry_value_set_by_key(event, "event_id", data->event_id);
-    }
+    // properties that we do not want here. But in case of a crash we use the
+    // crash-event filled in the crash-handler and on_crash/before_send
+    // respectively.
+    sentry_value_t event = sentry_value_is_null(data->crash_event)
+        ? sentry_value_new_object()
+        : data->crash_event;
+
     SENTRY_WITH_SCOPE (scope) {
         // we want the scope without any modules or breadcrumbs
         sentry__scope_apply_to_event(scope, options, event, SENTRY_SCOPE_NONE);
@@ -147,8 +148,6 @@ sentry__crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
 
     SENTRY_WITH_OPTIONS (options) {
         auto *data = static_cast<crashpad_state_t *>(options->backend->data);
-        data->event_id = sentry_value_get_by_key(event, "event_id");
-        crashpad_backend_flush_scope(options->backend, options);
         if (options->on_crash_func) {
             sentry_ucontext_t uctx;
 #    ifdef SENTRY_PLATFORM_WINDOWS
@@ -168,9 +167,11 @@ sentry__crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
                 event, nullptr, options->before_send_data);
         }
         should_dump = !sentry_value_is_null(event);
-        sentry_value_decref(event);
 
         if (should_dump) {
+            data->crash_event = event;
+            crashpad_backend_flush_scope(options->backend, options);
+
             sentry__write_crash_marker(options);
 
             sentry__record_errors_on_current_session(1);
@@ -190,6 +191,7 @@ sentry__crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
         } else {
             SENTRY_TRACE("event was discarded");
         }
+        sentry_value_decref(event);
         sentry__transport_dump_queue(options->transport, options->run);
     }
 
@@ -470,7 +472,7 @@ crashpad_backend_free(sentry_backend_t *backend)
     sentry__path_free(data->event_path);
     sentry__path_free(data->breadcrumb1_path);
     sentry__path_free(data->breadcrumb2_path);
-    sentry_value_decref(data->event_id);
+    sentry_value_decref(data->crash_event);
     sentry_free(data);
 }
 
@@ -552,7 +554,7 @@ sentry__backend_new(void)
         return nullptr;
     }
     memset(data, 0, sizeof(crashpad_state_t));
-    data->event_id = sentry_value_new_null();
+    data->crash_event = sentry_value_new_null();
 
     backend->startup_func = crashpad_backend_startup;
     backend->shutdown_func = crashpad_backend_shutdown;
