@@ -144,10 +144,12 @@ sentry__crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
     SENTRY_DEBUG("flushing session and queue before crashpad handler");
 
     bool should_dump = true;
-    sentry_value_t event = sentry_value_new_event();
 
     SENTRY_WITH_OPTIONS (options) {
         auto *data = static_cast<crashpad_state_t *>(options->backend->data);
+        sentry_value_decref(data->crash_event);
+        data->crash_event = sentry_value_new_event();
+
         if (options->on_crash_func) {
             sentry_ucontext_t uctx;
 #    ifdef SENTRY_PLATFORM_WINDOWS
@@ -159,17 +161,16 @@ sentry__crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
 #    endif
 
             SENTRY_TRACE("invoking `on_crash` hook");
-            event
-                = options->on_crash_func(&uctx, event, options->on_crash_data);
+            data->crash_event = options->on_crash_func(
+                &uctx, data->crash_event, options->on_crash_data);
         } else if (options->before_send_func) {
             SENTRY_TRACE("invoking `before_send` hook");
-            event = options->before_send_func(
-                event, nullptr, options->before_send_data);
+            data->crash_event = options->before_send_func(
+                data->crash_event, nullptr, options->before_send_data);
         }
-        should_dump = !sentry_value_is_null(event);
+        should_dump = !sentry_value_is_null(data->crash_event);
 
         if (should_dump) {
-            data->crash_event = event;
             crashpad_backend_flush_scope(options->backend, options);
 
             sentry__write_crash_marker(options);
@@ -191,7 +192,6 @@ sentry__crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
         } else {
             SENTRY_TRACE("event was discarded");
         }
-        sentry_value_decref(event);
         sentry__transport_dump_queue(options->transport, options->run);
     }
 
