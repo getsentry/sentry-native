@@ -322,12 +322,21 @@ crashpad_backend_startup(
     crashpad::CrashpadClient client;
     char *minidump_url
         = sentry__dsn_get_minidump_url(options->dsn, options->user_agent);
-    SENTRY_TRACEF("using minidump url \"%s\"", minidump_url);
-    std::string url = minidump_url ? std::string(minidump_url) : std::string();
-    sentry_free(minidump_url);
-    bool success = client.StartHandler(handler, database, database, url,
-        annotations, arguments, /* restartable */ true,
-        /* asynchronous_start */ false, attachments);
+    if (minidump_url) {
+        SENTRY_TRACEF("using minidump URL \"%s\"", minidump_url);
+        bool success = client.StartHandler(handler, database, database,
+            minidump_url, options->http_proxy ? options->http_proxy : "",
+            annotations, arguments,
+            /* restartable */ true,
+            /* asynchronous_start */ false, attachments);
+        sentry_free(minidump_url);
+    } else {
+        SENTRY_WARN(
+            "failed to construct minidump URL (check DSN or user-agent)");
+        delete data->db;
+        data->db = nullptr;
+        return 1;
+    }
 
 #ifdef CRASHPAD_WER_ENABLED
     sentry_path_t *handler_dir = sentry__path_dir(absolute_handler_path);
