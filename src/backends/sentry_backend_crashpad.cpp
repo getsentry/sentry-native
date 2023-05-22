@@ -319,12 +319,13 @@ crashpad_backend_startup(
     // `sentry_init` will persist the upload flag.
     data->db = crashpad::CrashReportDatabase::Initialize(database).release();
 
+    bool success;
     crashpad::CrashpadClient client;
     char *minidump_url
         = sentry__dsn_get_minidump_url(options->dsn, options->user_agent);
     if (minidump_url) {
         SENTRY_TRACEF("using minidump URL \"%s\"", minidump_url);
-        bool success = client.StartHandler(handler, database, database,
+        success = client.StartHandler(handler, database, database,
             minidump_url, options->http_proxy ? options->http_proxy : "",
             annotations, arguments,
             /* restartable */ true,
