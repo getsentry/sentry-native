@@ -325,9 +325,9 @@ crashpad_backend_startup(
         = sentry__dsn_get_minidump_url(options->dsn, options->user_agent);
     if (minidump_url) {
         SENTRY_TRACEF("using minidump URL \"%s\"", minidump_url);
-        success = client.StartHandler(handler, database, database,
-            minidump_url, options->http_proxy ? options->http_proxy : "",
-            annotations, arguments,
+        success = client.StartHandler(handler, database, database, minidump_url,
+            options->http_proxy ? options->http_proxy : "", annotations,
+            arguments,
             /* restartable */ true,
             /* asynchronous_start */ false, attachments);
         sentry_free(minidump_url);
