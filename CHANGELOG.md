@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- crashpad_handler: log `body` if minidump endpoint response is not `OK` ([#851](https://github.com/getsentry/sentry-native/pull/851), [crashpad#87](https://github.com/getsentry/crashpad/pull/87))
+
 ## 0.6.3
 
 **Features**:
