@@ -65,6 +65,9 @@ endif()
 
 if(MSVC)
 	option(SENTRY_BUILD_RUNTIMESTATIC "Build sentry-native with static runtime" OFF)
+
+	set(CMAKE_C_FLAGS    "${CMAKE_C_FLAGS} /utf-8")
+	set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} /utf-8")
 endif()
 
 if(LINUX)
