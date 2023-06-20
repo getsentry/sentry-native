@@ -149,6 +149,8 @@ sentry__crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
         auto *data = static_cast<crashpad_state_t *>(options->backend->data);
         sentry_value_decref(data->crash_event);
         data->crash_event = sentry_value_new_event();
+        sentry_value_set_by_key(data->crash_event, "level",
+            sentry__value_new_level(SENTRY_LEVEL_FATAL));
 
         if (options->on_crash_func) {
             sentry_ucontext_t uctx;
