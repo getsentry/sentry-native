@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Fixes**:
+
+- Events captured by Crashpad are initialized with level `FATAL` ([#852](https://github.com/getsentry/sentry-native/pull/852))
+
 **Features**:
 
 - crashpad_handler: log `body` if minidump endpoint response is not `OK` ([#851](https://github.com/getsentry/sentry-native/pull/851), [crashpad#87](https://github.com/getsentry/crashpad/pull/87))
