@@ -4,7 +4,7 @@
 
 **Fixes**:
 
-- Events captured by Crashpad are initialized with level `FATAL` ([#852](https://github.com/getsentry/sentry-native/pull/852))
+- Crash events are initialized with level `FATAL` ([#852](https://github.com/getsentry/sentry-native/pull/852))
 
 **Features**:
 
