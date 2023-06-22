@@ -108,6 +108,8 @@ crashpad_backend_flush_scope(
     sentry_value_t event = data->crash_event;
     if (sentry_value_is_null(event)) {
         event = sentry_value_new_object();
+        // FIXME: This should be handled in the FirstChanceHandler but that does
+        // not exist for macOS just yet.
         sentry_value_set_by_key(
             event, "level", sentry__value_new_level(SENTRY_LEVEL_FATAL));
     }
