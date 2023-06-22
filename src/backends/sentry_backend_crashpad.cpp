@@ -105,9 +105,12 @@ crashpad_backend_flush_scope(
     // properties that we do not want here. But in case of a crash we use the
     // crash-event filled in the crash-handler and on_crash/before_send
     // respectively.
-    sentry_value_t event = sentry_value_is_null(data->crash_event)
-        ? sentry_value_new_object()
-        : data->crash_event;
+    sentry_value_t event = data->crash_event;
+    if (sentry_value_is_null(event)) {
+        event = sentry_value_new_object();
+        sentry_value_set_by_key(
+            event, "level", sentry__value_new_level(SENTRY_LEVEL_FATAL));
+    }
 
     SENTRY_WITH_SCOPE (scope) {
         // we want the scope without any modules or breadcrumbs

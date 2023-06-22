@@ -92,6 +92,8 @@ sentry__breakpad_backend_callback(
     dump_path = sentry__path_new(descriptor.path());
 #endif
     sentry_value_t event = sentry_value_new_event();
+    sentry_value_set_by_key(
+        event, "level", sentry__value_new_level(SENTRY_LEVEL_FATAL));
 
     SENTRY_WITH_OPTIONS (options) {
         sentry__write_crash_marker(options);
