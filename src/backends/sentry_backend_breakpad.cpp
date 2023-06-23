@@ -118,9 +118,6 @@ sentry__breakpad_backend_callback(
         if (should_handle) {
             sentry_envelope_t *envelope = sentry__prepare_event(
                 options, event, nullptr, !options->on_crash_func);
-            // the event we just prepared is empty,
-            // so no error is recorded for it
-            sentry__record_errors_on_current_session(1);
             sentry_session_t *session = sentry__end_current_session_with_status(
                 SENTRY_SESSION_STATUS_CRASHED);
             sentry__envelope_add_session(envelope, session);
