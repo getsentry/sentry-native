@@ -25,11 +25,11 @@ static sentry_scope_t g_scope = { 0 };
 static sentry_mutex_t g_lock = SENTRY__MUTEX_INIT;
 
 static sentry_value_t
-get_client_sdk(void)
+get_client_sdk(const sentry_options_t *options)
 {
     sentry_value_t client_sdk = sentry_value_new_object();
 
-    SENTRY_WITH_OPTIONS (options) {
+    if (options) {
         sentry_value_t sdk_name = sentry_value_new_string(options->sdk_name);
         sentry_value_set_by_key(client_sdk, "name", sdk_name);
     }
@@ -66,7 +66,7 @@ get_client_sdk(void)
 }
 
 static sentry_scope_t *
-get_scope(void)
+get_scope(const sentry_options_t *options)
 {
     if (g_scope_initialized) {
         return &g_scope;
@@ -82,7 +82,7 @@ get_scope(void)
     sentry_value_set_by_key(g_scope.contexts, "os", sentry__get_os_context());
     g_scope.breadcrumbs = sentry_value_new_list();
     g_scope.level = SENTRY_LEVEL_ERROR;
-    g_scope.client_sdk = get_client_sdk();
+    g_scope.client_sdk = get_client_sdk(options);
     g_scope.transaction_object = NULL;
     g_scope.span = NULL;
 
@@ -115,7 +115,14 @@ sentry_scope_t *
 sentry__scope_lock(void)
 {
     sentry__mutex_lock(&g_lock);
-    return get_scope();
+    return get_scope(NULL);
+}
+
+sentry_scope_t *
+sentry__scope_lock_with_options(const sentry_options_t *options)
+{
+    sentry__mutex_lock(&g_lock);
+    return get_scope(options);
 }
 
 void

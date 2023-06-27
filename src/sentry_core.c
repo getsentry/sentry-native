@@ -166,9 +166,7 @@ sentry_init(sentry_options_t *options)
     // since at least crashpad needs that.
     // the only way to get a reference to the scope is by locking it, the macro
     // does all that at once, including invoking the backends scope flush hook
-    SENTRY_WITH_SCOPE_MUT (scope) {
-        (void)scope;
-    }
+    SENTRY_WITH_SCOPE_MUT_AND_OPTIONS(scope, options) { (void)scope; }
     if (backend && backend->user_consent_changed_func) {
         backend->user_consent_changed_func(backend);
     }

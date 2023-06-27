@@ -58,6 +58,9 @@ sentry_scope_t *sentry__scope_lock(void);
  */
 void sentry__scope_unlock(void);
 
+sentry_scope_t *sentry__scope_lock_with_options(
+    const sentry_options_t *options);
+
 /**
  * This will free all the data attached to the global scope
  */
@@ -93,6 +96,9 @@ void sentry__scope_apply_to_event(const sentry_scope_t *scope,
 #define SENTRY_WITH_SCOPE_MUT_NO_FLUSH(Scope)                                  \
     for (sentry_scope_t *Scope = sentry__scope_lock(); Scope;                  \
          sentry__scope_unlock(), Scope = NULL)
+#define SENTRY_WITH_SCOPE_MUT_AND_OPTIONS(Scope, Options)                      \
+    for (sentry_scope_t *Scope = sentry__scope_lock_with_options(Options);     \
+         Scope; sentry__scope_flush_unlock(), Scope = NULL)
 
 #endif
 
