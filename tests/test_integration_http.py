@@ -1,11 +1,12 @@
-import pytest
+import itertools
+import json
 import os
 import time
-import itertools
 import uuid
-import json
+
+import pytest
+
 from . import make_dsn, run, Envelope
-from .conditions import has_http, has_breakpad, has_files
 from .assertions import (
     assert_attachment,
     assert_meta,
@@ -13,10 +14,12 @@ from .assertions import (
     assert_stacktrace,
     assert_event,
     assert_exception,
-    assert_crash,
+    assert_inproc_crash,
     assert_session,
     assert_minidump,
+    assert_breakpad_crash,
 )
+from .conditions import has_http, has_breakpad, has_files
 
 pytestmark = pytest.mark.skipif(not has_http, reason="tests need http")
 
@@ -233,7 +236,7 @@ def test_inproc_crash_http(cmake, httpserver):
     assert_breadcrumb(envelope)
     assert_attachment(envelope)
 
-    assert_crash(envelope)
+    assert_inproc_crash(envelope)
 
 
 def test_inproc_reinstall(cmake, httpserver):
@@ -318,6 +321,7 @@ def test_breakpad_crash_http(cmake, httpserver):
     assert_breadcrumb(envelope)
     assert_attachment(envelope)
 
+    assert_breakpad_crash(envelope)
     assert_minidump(envelope)
 
 

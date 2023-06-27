@@ -12,12 +12,12 @@ from .assertions import (
     assert_breadcrumb,
     assert_stacktrace,
     assert_event,
-    assert_crash,
+    assert_inproc_crash,
     assert_minidump,
-    assert_timestamp,
     assert_before_send,
     assert_no_before_send,
     assert_crash_timestamp,
+    assert_breakpad_crash,
 )
 from .conditions import has_breakpad, has_files
 
@@ -92,9 +92,9 @@ def test_multi_process(cmake):
 
     # while the processes are running, we expect two runs
     runs = [
-        run
-        for run in os.listdir(os.path.join(cwd, ".sentry-native"))
-        if run.endswith(".run")
+        db_run
+        for db_run in os.listdir(os.path.join(cwd, ".sentry-native"))
+        if db_run.endswith(".run")
     ]
     assert len(runs) == 2
 
@@ -108,9 +108,9 @@ def test_multi_process(cmake):
     subprocess.run([cmd], cwd=cwd)
 
     runs = [
-        run
-        for run in os.listdir(os.path.join(cwd, ".sentry-native"))
-        if run.endswith(".run") or run.endswith(".lock")
+        db_run
+        for db_run in os.listdir(os.path.join(cwd, ".sentry-native"))
+        if db_run.endswith(".run") or db_run.endswith(".lock")
     ]
     assert len(runs) == 0
 
@@ -136,7 +136,7 @@ def test_inproc_crash_stdout(cmake):
     assert_meta(envelope, integration="inproc")
     assert_breadcrumb(envelope)
     assert_attachment(envelope)
-    assert_crash(envelope)
+    assert_inproc_crash(envelope)
 
 
 def test_inproc_crash_stdout_before_send(cmake):
@@ -148,7 +148,7 @@ def test_inproc_crash_stdout_before_send(cmake):
     assert_meta(envelope, integration="inproc")
     assert_breadcrumb(envelope)
     assert_attachment(envelope)
-    assert_crash(envelope)
+    assert_inproc_crash(envelope)
     assert_before_send(envelope)
 
 
@@ -175,7 +175,7 @@ def test_inproc_crash_stdout_before_send_and_on_crash(cmake):
     assert_meta(envelope, integration="inproc")
     assert_breadcrumb(envelope)
     assert_attachment(envelope)
-    assert_crash(envelope)
+    assert_inproc_crash(envelope)
 
 
 @pytest.mark.skipif(not has_breakpad, reason="test needs breakpad backend")
@@ -189,6 +189,7 @@ def test_breakpad_crash_stdout(cmake):
     assert_breadcrumb(envelope)
     assert_attachment(envelope)
     assert_minidump(envelope)
+    assert_breakpad_crash(envelope)
 
 
 @pytest.mark.skipif(not has_breakpad, reason="test needs breakpad backend")
@@ -203,6 +204,7 @@ def test_breakpad_crash_stdout_before_send(cmake):
     assert_attachment(envelope)
     assert_minidump(envelope)
     assert_before_send(envelope)
+    assert_breakpad_crash(envelope)
 
 
 @pytest.mark.skipif(not has_breakpad, reason="test needs breakpad backend")
@@ -230,3 +232,4 @@ def test_breakpad_crash_stdout_before_send_and_on_crash(cmake):
     assert_meta(envelope, integration="breakpad")
     assert_breadcrumb(envelope)
     assert_attachment(envelope)
+    assert_breakpad_crash(envelope)
