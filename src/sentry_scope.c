@@ -25,19 +25,13 @@ static sentry_scope_t g_scope = { 0 };
 static sentry_mutex_t g_lock = SENTRY__MUTEX_INIT;
 
 static sentry_value_t
-get_client_sdk(const sentry_options_t *options)
+get_client_sdk(void)
 {
     sentry_value_t client_sdk = sentry_value_new_object();
 
-    if (options) {
-        sentry_value_t sdk_name = sentry_value_new_string(options->sdk_name);
-        sentry_value_set_by_key(client_sdk, "name", sdk_name);
-    }
-    // in case the SDK is not initialized yet, fallback to build-time value
-    if (sentry_value_is_null(sentry_value_get_by_key(client_sdk, "name"))) {
-        sentry_value_t sdk_name = sentry_value_new_string(SENTRY_SDK_NAME);
-        sentry_value_set_by_key(client_sdk, "name", sdk_name);
-    }
+    // the SDK is not initialized yet, fallback to build-time value
+    sentry_value_t sdk_name = sentry_value_new_string(SENTRY_SDK_NAME);
+    sentry_value_set_by_key(client_sdk, "name", sdk_name);
 
     sentry_value_t version = sentry_value_new_string(SENTRY_SDK_VERSION);
     sentry_value_set_by_key(client_sdk, "version", version);
@@ -61,12 +55,11 @@ get_client_sdk(const sentry_options_t *options)
     sentry_value_set_by_key(client_sdk, "integrations", integrations);
 #endif
 
-    sentry_value_freeze(client_sdk);
     return client_sdk;
 }
 
 static sentry_scope_t *
-get_scope(const sentry_options_t *options)
+get_scope(void)
 {
     if (g_scope_initialized) {
         return &g_scope;
@@ -82,7 +75,7 @@ get_scope(const sentry_options_t *options)
     sentry_value_set_by_key(g_scope.contexts, "os", sentry__get_os_context());
     g_scope.breadcrumbs = sentry_value_new_list();
     g_scope.level = SENTRY_LEVEL_ERROR;
-    g_scope.client_sdk = get_client_sdk(options);
+    g_scope.client_sdk = get_client_sdk();
     g_scope.transaction_object = NULL;
     g_scope.span = NULL;
 
@@ -115,14 +108,7 @@ sentry_scope_t *
 sentry__scope_lock(void)
 {
     sentry__mutex_lock(&g_lock);
-    return get_scope(NULL);
-}
-
-sentry_scope_t *
-sentry__scope_lock_with_options(const sentry_options_t *options)
-{
-    sentry__mutex_lock(&g_lock);
-    return get_scope(options);
+    return get_scope();
 }
 
 void
