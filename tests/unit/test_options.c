@@ -43,7 +43,7 @@ SENTRY_TEST(options_sdk_name_invalid)
     const char *sdk_name = NULL;
     const int result = sentry_options_set_sdk_name(options, sdk_name);
 
-    // then the value should should be ignored
+    // then the value should be ignored
     TEST_CHECK_INT_EQUAL(result, 1);
     TEST_CHECK_STRING_EQUAL(
         sentry_options_get_sdk_name(options), SENTRY_SDK_NAME);

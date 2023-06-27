@@ -14,7 +14,6 @@ from .assertions import (
     assert_event,
     assert_crash,
     assert_minidump,
-    assert_timestamp,
     assert_before_send,
     assert_no_before_send,
     assert_crash_timestamp,
@@ -43,6 +42,26 @@ def test_capture_stdout(cmake):
     assert_attachment(envelope)
     assert_stacktrace(envelope)
 
+    assert_event(envelope)
+
+
+def test_dynamic_sdk_name_override(cmake):
+    tmp_path = cmake(
+        ["sentry_example"],
+        {
+            "SENTRY_BACKEND": "none",
+            "SENTRY_TRANSPORT": "none",
+        },
+    )
+
+    output = check_output(
+        tmp_path,
+        "sentry_example",
+        ["stdout", "override-sdk-name", "capture-event"],
+    )
+    envelope = Envelope.deserialize(output)
+
+    assert_meta(envelope, sdk_override="sentry.native.android.flutter")
     assert_event(envelope)
 
 
