@@ -163,11 +163,16 @@ sentry_init(sentry_options_t *options)
     g_options = options;
 
     // *after* setting the global options, trigger a scope and consent flush,
-    // since at least crashpad needs that.
-    // the only way to get a reference to the scope is by locking it, the macro
-    // does all that at once, including invoking the backends scope flush hook
+    // since at least crashpad needs that. At this point we also freeze the
+    // `client_sdk` in the `scope` because some downstream SDKs want to override
+    // it at runtime via the options interface.
     SENTRY_WITH_SCOPE_MUT (scope) {
-        (void)scope;
+        if (options->sdk_name) {
+            sentry_value_t sdk_name
+                = sentry_value_new_string(options->sdk_name);
+            sentry_value_set_by_key(scope->client_sdk, "name", sdk_name);
+        }
+        sentry_value_freeze(scope->client_sdk);
     }
     if (backend && backend->user_consent_changed_func) {
         backend->user_consent_changed_func(backend);

@@ -46,6 +46,26 @@ def test_capture_stdout(cmake):
     assert_event(envelope)
 
 
+def test_dynamic_sdk_name_override(cmake):
+    tmp_path = cmake(
+        ["sentry_example"],
+        {
+            "SENTRY_BACKEND": "none",
+            "SENTRY_TRANSPORT": "none",
+        },
+    )
+
+    output = check_output(
+        tmp_path,
+        "sentry_example",
+        ["stdout", "override-sdk-name", "capture-event"],
+    )
+    envelope = Envelope.deserialize(output)
+
+    assert_meta(envelope, sdk_override="sentry.native.android.flutter")
+    assert_event(envelope)
+
+
 def test_sdk_name_override(cmake):
     sdk_name = "cUsToM.SDK"
     tmp_path = cmake(
