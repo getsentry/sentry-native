@@ -58,9 +58,6 @@ sentry_scope_t *sentry__scope_lock(void);
  */
 void sentry__scope_unlock(void);
 
-sentry_scope_t *sentry__scope_lock_with_options(
-    const sentry_options_t *options);
-
 /**
  * This will free all the data attached to the global scope
  */
