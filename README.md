@@ -17,10 +17,6 @@ applications, optimized for C and C++. Sentry allows to add tags, breadcrumbs
 and arbitrary custom context to enrich error reports. Supports Sentry _20.6.0_
 and later.
 
-**Note**: This SDK is being actively developed and still in Beta. We recommend
-to check for updates regularly to benefit from latest features and bug fixes.
-Please see [Known Limitations](#known-limitations).
-
 ## Resources <!-- omit in toc -->
 
 - [Discord](https://discord.gg/ez5KZN7) server for project discussions.
