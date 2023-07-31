@@ -19,7 +19,8 @@ and later.
 
 ## Resources <!-- omit in toc -->
 
-- [Discord](https://discord.gg/ez5KZN7) server for project discussions.
+- [SDK Documentation](https://docs.sentry.io/platforms/native/)
+- [Discord](https://discord.gg/ez5KZN7) server for project discussions
 - Follow [@getsentry](https://twitter.com/getsentry) on Twitter for updates
 
 ## Table of Contents <!-- omit in toc -->
