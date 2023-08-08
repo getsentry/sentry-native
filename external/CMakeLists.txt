@@ -185,3 +185,43 @@ target_include_directories(breakpad_client
     PUBLIC
     "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>"
 )
+
+target_compile_features(breakpad_client PUBLIC cxx_std_11)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" OR CMAKE_SYSTEM_NAME STREQUAL "FreeBSD")
+    find_path(LINUX_SYSCALL_INCLUDE_DIR NAMES linux_syscall_support.h)
+    target_include_directories(breakpad_client PRIVATE ${LINUX_SYSCALL_INCLUDE_DIR})
+endif()
+install(TARGETS breakpad_client
+    ARCHIVE DESTINATION lib
+    LIBRARY DESTINATION lib
+    RUNTIME DESTINATION bin
+)
+file(GLOB COMMON_FILES breakpad/src/common/*.h)
+install(FILES ${COMMON_FILES}
+    DESTINATION include/breakpad/common
+)
+set(PLATFORM_FOLDER)
+if(IOS)
+    set(PLATFORM_FOLDER ios)
+elseif(APPLE)
+    set(PLATFORM_FOLDER mac)
+elseif(UNIX)
+    set(PLATFORM_FOLDER linux)
+endif()
+if(WIN32)
+    set(PLATFORM_FOLDER windows)
+endif()
+if(NOT PLATFORM_FOLDER)
+    message(FATAL_ERROR "Unknown os -> don't know how to install headers")
+endif()
+file(GLOB COMMON_PLATFORM_HEADERS breakpad/src/common/${PLATFORM_FOLDER}/*.h)
+install(FILES ${COMMON_PLATFORM_HEADERS}
+    DESTINATION include/breakpad/common/${PLATFORM_FOLDER})
+install(DIRECTORY breakpad/src/client/${PLATFORM_FOLDER}
+    DESTINATION include/breakpad/client
+    FILES_MATCHING PATTERN *.h
+)
+install(DIRECTORY breakpad/src/google_breakpad/common
+    DESTINATION include/breakpad/google_breakpad
+    FILES_MATCHING PATTERN *.h
+)
