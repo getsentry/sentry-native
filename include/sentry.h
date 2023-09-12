@@ -1275,7 +1275,7 @@ SENTRY_API int sentry_flush(uint64_t timeout);
  *
  * Returns 0 on success.
  *
- * Note that this does not uninstall any crash handler that may have been set.
+ * Note that this does not uninstall any crash handler that may have been set, with the exception of the `inproc` backend.
  */
 SENTRY_API int sentry_close(void);
 
