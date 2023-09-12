@@ -1267,6 +1267,8 @@ SENTRY_API int sentry_init(sentry_options_t *options);
  * The `timeout` parameter is in milliseconds.
  *
  * Returns 0 on success, or a non-zero return value in case the timeout is hit.
+ *
+ * Note that this function will block on the thread it was called from until the sentry background worker has finished its work or until the timeout is hit, whichever comes first.
  */
 SENTRY_API int sentry_flush(uint64_t timeout);
 
@@ -1276,6 +1278,7 @@ SENTRY_API int sentry_flush(uint64_t timeout);
  * Returns 0 on success.
  *
  * Note that this does not uninstall any crash handler that may have been set, with the exception of the `inproc` backend.
+ * Further note that this function will block on the thread it was called from until the sentry background worker has finished its work or until the timeout is hit, whichever comes first.
  */
 SENTRY_API int sentry_close(void);
 
