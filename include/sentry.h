@@ -1274,6 +1274,8 @@ SENTRY_API int sentry_flush(uint64_t timeout);
  * Shuts down the sentry client and forces transports to flush out.
  *
  * Returns 0 on success.
+ *
+ * Note that this does not uninstall any crash handler that may have been set.
  */
 SENTRY_API int sentry_close(void);
 
