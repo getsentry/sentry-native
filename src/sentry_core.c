@@ -535,6 +535,17 @@ sentry__prepare_transaction(const sentry_options_t *options,
         sentry__scope_apply_to_event(scope, options, transaction, mode);
     }
 
+    if (options->before_send_transaction_func) {
+        SENTRY_TRACE("invoking `before_send_transaction` hook");
+        transaction = options->before_send_transaction_func(
+            transaction, NULL, options->before_send_transaction_data);
+        if (sentry_value_is_null(transaction)) {
+            SENTRY_TRACE("transaction was discarded by the "
+                         "`before_send_transaction` hook");
+            return NULL;
+        }
+    }
+
     sentry__ensure_event_id(transaction, event_id);
     envelope = sentry__envelope_new();
     if (!envelope || !sentry__envelope_add_transaction(envelope, transaction)) {

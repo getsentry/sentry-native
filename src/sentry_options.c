@@ -126,6 +126,14 @@ sentry_options_set_before_send(
 }
 
 void
+sentry_options_set_before_send_transaction(
+    sentry_options_t *opts, sentry_transaction_function_t func, void *data)
+{
+    opts->before_send_transaction_func = func;
+    opts->before_send_transaction_data = data;
+}
+
+void
 sentry_options_set_on_crash(
     sentry_options_t *opts, sentry_crash_function_t func, void *data)
 {

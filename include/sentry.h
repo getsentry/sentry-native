@@ -827,6 +827,17 @@ typedef sentry_value_t (*sentry_event_function_t)(
 SENTRY_API void sentry_options_set_before_send(
     sentry_options_t *opts, sentry_event_function_t func, void *data);
 
+typedef sentry_value_t (*sentry_transaction_function_t)(
+    sentry_value_t transaction, void *hint, void *closure);
+
+/**
+ * Sets the `before_send_transaction` callback.
+ *
+ * See the `sentry_event_function_t` typedef above for more information.
+ */
+SENTRY_API void sentry_options_set_before_send_transaction(
+    sentry_options_t *opts, sentry_transaction_function_t func, void *data);
+
 /**
  * Type of the `on_crash` callback.
  *

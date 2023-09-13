@@ -66,6 +66,18 @@ on_crash_callback(
 {
     (void)uctx;
     (void)closure;
+    sentry_value_t message_value = sentry_value_get_by_key(event, "message");
+    if (sentry_value_is_null(message_value)) {
+        sentry_value_set_by_key(
+            event, "message", sentry_value_new_string("Mischan says nothing!"));
+    } else {
+        char mischan_message_str[256] = "Mischan says: ";
+        const char *message_str = sentry_value_as_string(message_value);
+        strncat(mischan_message_str, message_str,
+            sizeof(mischan_message_str) - strlen(mischan_message_str) - 1);
+        sentry_value_set_by_key(
+            event, "message", sentry_value_new_string(mischan_message_str));
+    }
 
     // tell the backend to retain the event
     return event;
@@ -224,6 +236,13 @@ main(int argc, char **argv)
 
     sentry_init(options);
 
+    sentry_value_t error_event = sentry_value_new_message_event(
+        SENTRY_LEVEL_ERROR, NULL, "Failed to verify CPU support");
+    sentry_capture_event(error_event);
+
+    printf("last_run = %d\n", sentry_get_crashed_last_run());
+    sentry_clear_crashed_last_run();
+
     if (!has_arg(argc, argv, "no-setup")) {
         sentry_set_transaction("test-transaction");
         sentry_set_level(SENTRY_LEVEL_WARNING);
@@ -323,6 +342,8 @@ main(int argc, char **argv)
         kill(getpid(), SIGSEGV);
     }
 #endif
+
+    // sentry_options_set_transport(options, NULL);
 
     if (has_arg(argc, argv, "capture-event")) {
         sentry_value_t event = sentry_value_new_message_event(
