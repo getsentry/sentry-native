@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+**Thank you**:
+
+Features, fixes and improvements in this release have been contributed by:
+
+- [@sapphonie](https://github.com/sapphonie)
+
 ## 0.6.5
 
 **Fixes**:
