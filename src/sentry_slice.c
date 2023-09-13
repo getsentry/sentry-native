@@ -21,7 +21,8 @@ sentry__slice_to_owned(sentry_slice_t slice)
 bool
 sentry__slice_eq(sentry_slice_t a, sentry_slice_t b)
 {
-    return a.len == b.len && memcmp(a.ptr, b.ptr, a.len) == 0;
+    return a.ptr != NULL && b.ptr != NULL && a.len == b.len
+        && memcmp(a.ptr, b.ptr, a.len) == 0;
 }
 
 sentry_slice_t

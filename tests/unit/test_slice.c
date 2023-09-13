@@ -18,3 +18,15 @@ SENTRY_TEST(slice)
     TEST_CHECK_STRING_EQUAL(owned, "string");
     sentry_free(owned);
 }
+
+SENTRY_TEST(null_slices)
+{
+
+    char buf[] = "my string buffer";
+    sentry_slice_t valid_slice = { buf, sizeof(buf) - 1 };
+    sentry_slice_t null_slice = { NULL, 100 };
+    TEST_CHECK(!sentry__slice_eq(valid_slice, null_slice));
+    TEST_CHECK(!sentry__slice_eq(null_slice, valid_slice));
+    TEST_CHECK(!sentry__slice_eq(null_slice, null_slice));
+    TEST_CHECK(!sentry__slice_eqs(null_slice, buf));
+}

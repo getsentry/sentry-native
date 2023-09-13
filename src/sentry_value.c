@@ -461,7 +461,7 @@ sentry_value_set_by_key_n(
     obj_t *o = thing->payload._ptr;
     for (size_t i = 0; i < o->len; i++) {
         obj_pair_t *pair = &o->pairs[i];
-        if (sentry__slice_eqs(k_slice, pair->k)) {
+        if (pair->k && sentry__slice_eqs(k_slice, pair->k)) {
             sentry_value_decref(pair->v);
             pair->v = v;
             return 0;

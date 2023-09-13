@@ -18,6 +18,10 @@ SENTRY_TEST(value_null)
     TEST_CHECK(sentry_value_is_frozen(val));
     sentry_value_decref(val);
     TEST_CHECK(sentry_value_refcount(val) == 1);
+
+    sentry_value_t obj = sentry_value_new_object();
+    TEST_CHECK(sentry_value_set_by_key(obj, "event_id", val) == 0);
+    TEST_CHECK(sentry_value_set_by_key(obj, NULL, val) == 1);
 }
 
 SENTRY_TEST(value_bool)
