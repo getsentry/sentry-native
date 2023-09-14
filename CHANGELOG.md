@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Internal**:
+
+- Updated `libunwindstack` to 2023-09-13. ([#884](https://github.com/getsentry/sentry-native/pull/884), [libunwindstack-ndk#8](https://github.com/getsentry/libunwindstack-ndk/pull/8))
+
 **Thank you**:
 
 Features, fixes and improvements in this release have been contributed by:
