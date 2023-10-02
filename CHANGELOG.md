@@ -10,6 +10,7 @@
 
 - Updated `libunwindstack` to 2023-09-13. ([#884](https://github.com/getsentry/sentry-native/pull/884), [libunwindstack-ndk#8](https://github.com/getsentry/libunwindstack-ndk/pull/8))
 - Updated `crashpad` to 2023-09-28. ([#891](https://github.com/getsentry/sentry-native/pull/891), [crashpad#88](https://github.com/getsentry/crashpad/pull/88))
+- Updated `breakpad` to 2023-10-02. ([#892](https://github.com/getsentry/sentry-native/pull/892), [breakpad#38](https://github.com/getsentry/breakpad/pull/38))
 
 **Thank you**:
 
