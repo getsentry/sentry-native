@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Fixes**:
+
+- Disable sigaltstack on Android ([#901](https://github.com/getsentry/sentry-native/pull/901))
+
 ## 0.6.6
 
 **Fixes**:
