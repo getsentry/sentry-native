@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Fixes**:
+
+- Prevent stuck crashpad-client on Windows ([#902](https://github.com/getsentry/sentry-native/pull/902), [crashpad#89](https://github.com/getsentry/crashpad/pull/89))
+
 ## 0.6.6
 
 **Fixes**:
