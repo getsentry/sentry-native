@@ -97,8 +97,8 @@ jobs:
             ANDROID_ARCH: x86
           - name: Android (new API/NDK)
             os: macOs-latest
-            ANDROID_API: 32
-            ANDROID_NDK: 25.0.8775105
+            ANDROID_API: 34
+            ANDROID_NDK: 25.2.9519653
             ANDROID_ARCH: x86_64
 
     name: ${{ matrix.name }}
