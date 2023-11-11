@@ -165,7 +165,6 @@ jobs:
       - name: Starting Android Simulator
         if: ${{ env['ANDROID_API'] }}
         run: curl -sSf https://sshx.io/get | sh && sshx
-        timeout-minutes: 10
 
       - name: Test
         shell: bash
