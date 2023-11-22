@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  windows:
+    runs-on: windows-latest
+
+    strategy:
+      fail-fast: false
+
+      matrix:
+        include:
+          - arch: 'amd64'
+            platform: 'x64'
+          - arch: 'arm64'
+            platform: 'ARM64'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: compnerd/gha-setup-vsdevenv@main
+        with:
+          host_arch: amd64
+          arch: ${{ matrix.arch }}
+
+      - name: Configure Sentry
+        run: >
+          cmake -B out
+                -D CMAKE_VS_WINDOWS_TARGET_PLATFORM_VERSION=10.0.19041.0
+                -G "Visual Studio 17 2022"
+                -A ${{ matrix.platform }}
+                -D CMAKE_SYSTEM_NAME=Windows
+                -D CMAKE_SYSTEM_PROCESSOR=${{ matrix.arch }}
+      - name: Build Sentry
+        run: cmake --build out --config Release
