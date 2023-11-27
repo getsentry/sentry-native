@@ -386,7 +386,7 @@ crashpad_backend_startup(
             SENTRY_WARN("registering crashpad WER handler in registry failed");
         } else {
             std::wstring wer_path_string(wer_path->path);
-            if (!client.RegisterWerModule(wer_path_string)) {
+            if (!data->client.RegisterWerModule(wer_path_string)) {
                 SENTRY_WARN("registering crashpad WER handler module failed");
             }
         }
