@@ -1,11 +1,27 @@
 # Changelog
 
+## Unreleased
+
+**Fixes**:
+
+- Maintain crashpad client instance during Native SDK lifecycle. ([#910](https://github.com/getsentry/sentry-native/pull/910))
+
+**Internal**:
+
+- Updated `crashpad` to 2023-11-24. ([#912](https://github.com/getsentry/sentry-native/pull/912), [crashpad#91](https://github.com/getsentry/crashpad/pull/91))
+  
+**Thank you**:
+
+Features, fixes and improvements in this release have been contributed by:
+
+- [@compnerd](https://github.com/compnerd)
+
 ## 0.6.7
 
 **Fixes**:
 
-- Disable sigaltstack on Android ([#901](https://github.com/getsentry/sentry-native/pull/901))
-- Prevent stuck crashpad-client on Windows ([#902](https://github.com/getsentry/sentry-native/pull/902), [crashpad#89](https://github.com/getsentry/crashpad/pull/89))
+- Disable sigaltstack on Android. ([#901](https://github.com/getsentry/sentry-native/pull/901))
+- Prevent stuck crashpad-client on Windows. ([#902](https://github.com/getsentry/sentry-native/pull/902), [crashpad#89](https://github.com/getsentry/crashpad/pull/89))
 
 ## 0.6.6
 
