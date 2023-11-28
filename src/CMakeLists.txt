@@ -144,6 +144,12 @@ if(SENTRY_WITH_LIBBACKTRACE)
 	)
 endif()
 
+if(SENTRY_WITH_LIBUNWIND)
+	target_compile_definitions(sentry PRIVATE SENTRY_WITH_UNWINDER_LIBUNWIND)
+	sentry_target_sources_cwd(sentry
+			unwinder/sentry_unwinder_libunwind.c
+	)
+endif()
 if(SENTRY_WITH_LIBUNWINDSTACK)
 	target_compile_definitions(sentry PRIVATE SENTRY_WITH_UNWINDER_LIBUNWINDSTACK)
 	sentry_target_sources_cwd(sentry
