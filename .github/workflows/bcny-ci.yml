@@ -52,7 +52,7 @@ jobs:
         run: cmake --build out --config RelWithDebInfo
 
       - name: Stage Sentry
-        run: cmake --install out --config RelWithDebInfo --prefix sentry-native
+        run: cmake --install out --config RelWithDebInfo --prefix sentry-native-development/usr
 
       - uses: actions/upload-artifact@v3
         with:
