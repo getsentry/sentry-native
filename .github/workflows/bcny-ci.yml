@@ -58,3 +58,37 @@ jobs:
         with:
           name: sentry-native-windows-${{ matrix.arch }}
           path: sentry-native
+
+      - run: |
+          $suffix = "${{ matrix.arch }}".ToLower()
+          @"
+          <?xml version="1.0" encoding="utf-8"?>
+          <package xmlns="http://schemas.microsoft.com/packaging/20210/07/nuspec.xsd">
+            <metadata>
+              <id>io.sentry.sentry-native.$suffix</id>
+              <version>0.0.0.0</version>
+              <title>Sentry Native SDK</title>
+              <description>C++ Sentry Native SDK</description>
+              <authors>Functional Software, Inc.</authors>
+              <projectUrl>https://github.com/getsentry/sentry-native</projectUrl>
+              <repository type="git" url="https://github.com/getsentry/sentry-native" branch="main" />
+            </metadata>
+            <files>
+              <file src="$DESTDIR$\bin\crashpad_handler.exe" target="bin" />
+              <file src="$DESTDIR$\bin\crashpad_handler.pdb" target="bin" />
+              <file src="$DESTDIR$\bin\crashpad_wer.dll" target="bin" />
+              <file src="$DESTDIR$\bin\crashpad_wer.pdb" target="bin" />
+              <file src="$DESTDIR$\bin\sentry.dll" target="bin" />
+              <file src="$DESTDIR$\bin\sentry.pdb" target="bin" />
+              <file src="$DESTDIR$\lib\sentry.lib" target="lib" />
+              <file src="$DESTDIR$\include\sentry.h" target="include" />
+            </files>
+          </package>
+          "@ | Out-File -Encoding UTF8 sentry.nuspec
+          nuget pack -Properties DESTDIR=sentry-native-development\usr -Suffix (git log -1 --format=%h) sentry.nuspec
+        shell: pwsh
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: windows-${{ matrix.arch }}.nupkg
+          path: sentry.nupkg
