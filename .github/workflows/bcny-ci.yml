@@ -53,16 +53,17 @@ jobs:
 
       - name: Stage Sentry
         run: |
-          New-Item -ItemType Directory -Path sentry-native\bin\win64 -Force | Out-Null
-          New-Item -ItemType Directory -Path sentry-native\include -Force | Out-Null
-          New-Item -ItemType Directory -Path sentry-native\lib\win64 -Force | Out-Null
-          Copy-Item include\sentry.h sentry-native\include\
-          Copy-Item out\RelWithDebInfo\sentry.dll sentry-native\bin\win64\
-          Copy-Item out\RelWithDebInfo\sentry.pdb sentry-native\bin\win64\
-          Copy-Item out\crashpad_build\handler\RelWithDebInfo\crashpad_wer.dll sentry-native\bin\win64\
-          Copy-Item out\crashpad_build\handler\RelWithDebInfo\crashpad_wer.pdb sentry-native\bin\win64\
-          Copy-Item out\crashpad_build\handler\RelWithDebInfo\crashpad_handler.exe sentry-native\bin\win64\
-          Copy-Item out\RelWithDebInfo\sentry.lib sentry-native\lib\win64\
+          cmake --install out --config RelWithDebInfo --prefix sentry-native
+          # New-Item -ItemType Directory -Path sentry-native\bin\win64 -Force | Out-Null
+          # New-Item -ItemType Directory -Path sentry-native\include -Force | Out-Null
+          # New-Item -ItemType Directory -Path sentry-native\lib\win64 -Force | Out-Null
+          # Copy-Item include\sentry.h sentry-native\include\
+          # Copy-Item out\RelWithDebInfo\sentry.dll sentry-native\bin\win64\
+          # Copy-Item out\RelWithDebInfo\sentry.pdb sentry-native\bin\win64\
+          # Copy-Item out\crashpad_build\handler\RelWithDebInfo\crashpad_wer.dll sentry-native\bin\win64\
+          # Copy-Item out\crashpad_build\handler\RelWithDebInfo\crashpad_wer.pdb sentry-native\bin\win64\
+          # Copy-Item out\crashpad_build\handler\RelWithDebInfo\crashpad_handler.exe sentry-native\bin\win64\
+          # Copy-Item out\RelWithDebInfo\sentry.lib sentry-native\lib\win64\
 
       - uses: actions/upload-artifact@v3
         with:
