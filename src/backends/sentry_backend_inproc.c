@@ -36,6 +36,11 @@
  */
 #ifndef SENTRY_PLATFORM_ANDROID
 #    define SETUP_SIGALTSTACK
+#    define USE_MMAP_SIGALTSTACK
+#endif
+
+#ifdef USE_MMAP_SIGALTSTACK
+#    include <sys/mman.h>
 #endif
 
 #define SIGNAL_DEF(Sig, Desc)                                                  \
@@ -114,7 +119,12 @@ startup_inproc_backend(
 
     // install our own signal handler
 #    ifdef SETUP_SIGALTSTACK
+#        ifdef USE_MMAP_SIGALTSTACK
+    g_signal_stack.ss_sp = mmap(NULL, SIGNAL_STACK_SIZE, PROT_READ | PROT_WRITE,
+        MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+#        else
     g_signal_stack.ss_sp = sentry_malloc(SIGNAL_STACK_SIZE);
+#        endif
     if (!g_signal_stack.ss_sp) {
         return 1;
     }
@@ -137,7 +147,11 @@ shutdown_inproc_backend(sentry_backend_t *UNUSED(backend))
 #    ifdef SETUP_SIGALTSTACK
     g_signal_stack.ss_flags = SS_DISABLE;
     sigaltstack(&g_signal_stack, 0);
+#        ifdef USE_MMAP_SIGALTSTACK
+    munmap(g_signal_stack.ss_sp, SIGNAL_STACK_SIZE);
+#        else
     sentry_free(g_signal_stack.ss_sp);
+#        endif
     g_signal_stack.ss_sp = NULL;
 #    endif
     reset_signal_handlers();
@@ -607,8 +621,10 @@ handle_ucontext(const sentry_ucontext_t *uctx)
     // forward as we're not restoring the page allocator.
     reset_signal_handlers();
     sentry__leave_signal_handler();
+#    ifndef SENTRY_PLATFORM_ANDROID
     invoke_signal_handler(
         uctx->signum, uctx->siginfo, (void *)uctx->user_context);
+#    endif
 #endif
 }
 
@@ -616,6 +632,10 @@ handle_ucontext(const sentry_ucontext_t *uctx)
 static void
 handle_signal(int signum, siginfo_t *info, void *user_context)
 {
+    stack_t old_stack;
+    sigaltstack(NULL, &old_stack);
+    SENTRY_TRACEF(
+        "old_stack sp = %x, size = %d", old_stack.ss_sp, old_stack.ss_size);
     sentry_ucontext_t uctx;
     uctx.signum = signum;
     uctx.siginfo = info;
