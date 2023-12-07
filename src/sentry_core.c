@@ -292,29 +292,27 @@ set_user_consent(sentry_user_consent_t new_val)
 {
     SENTRY_WITH_OPTIONS (options) {
         if (sentry__atomic_store((long *)&options->user_consent, new_val)
-            == new_val) {
-            // nothing was changed
-            break; // SENTRY_WITH_OPTIONS
-        }
+            != new_val) {
+            if (options->backend
+                && options->backend->user_consent_changed_func) {
+                options->backend->user_consent_changed_func(options->backend);
+            }
 
-        if (options->backend && options->backend->user_consent_changed_func) {
-            options->backend->user_consent_changed_func(options->backend);
+            sentry_path_t *consent_path
+                = sentry__path_join_str(options->database_path, "user-consent");
+            switch (new_val) {
+            case SENTRY_USER_CONSENT_GIVEN:
+                sentry__path_write_buffer(consent_path, "1\n", 2);
+                break;
+            case SENTRY_USER_CONSENT_REVOKED:
+                sentry__path_write_buffer(consent_path, "0\n", 2);
+                break;
+            case SENTRY_USER_CONSENT_UNKNOWN:
+                sentry__path_remove(consent_path);
+                break;
+            }
+            sentry__path_free(consent_path);
         }
-
-        sentry_path_t *consent_path
-            = sentry__path_join_str(options->database_path, "user-consent");
-        switch (new_val) {
-        case SENTRY_USER_CONSENT_GIVEN:
-            sentry__path_write_buffer(consent_path, "1\n", 2);
-            break;
-        case SENTRY_USER_CONSENT_REVOKED:
-            sentry__path_write_buffer(consent_path, "0\n", 2);
-            break;
-        case SENTRY_USER_CONSENT_UNKNOWN:
-            sentry__path_remove(consent_path);
-            break;
-        }
-        sentry__path_free(consent_path);
     }
 }
 
