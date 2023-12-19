@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Breaking changes**:
+
+- Make `crashpad` the default backend for Linux. ([#927](https://github.com/getsentry/sentry-native/pull/927))
+
 **Fixes**:
 
 - Maintain crashpad client instance during Native SDK lifecycle. ([#910](https://github.com/getsentry/sentry-native/pull/910))

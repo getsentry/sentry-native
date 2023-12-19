@@ -26,11 +26,11 @@ if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
 endif()
 
 if(NOT CMAKE_C_STANDARD)
-  set(CMAKE_C_STANDARD 11)
+	set(CMAKE_C_STANDARD 11)
 endif()
 
 if(NOT CMAKE_CXX_STANDARD)
-  set(CMAKE_CXX_STANDARD 17)
+	set(CMAKE_CXX_STANDARD 17)
 endif()
 
 include(GNUInstallDirs)
@@ -96,7 +96,7 @@ else()
 endif()
 
 set(SENTRY_TRANSPORT ${SENTRY_DEFAULT_TRANSPORT} CACHE STRING
-  "The HTTP transport that sentry uses to submit events to the sentry server, can be either 'none', 'curl' or 'winhttp' on windows.")
+	"The HTTP transport that sentry uses to submit events to the sentry server, can be either 'none', 'curl' or 'winhttp' on windows.")
 
 if(SENTRY_TRANSPORT STREQUAL "winhttp")
 	set(SENTRY_TRANSPORT_WINHTTP TRUE)
@@ -125,10 +125,8 @@ option(SENTRY_ENABLE_INSTALL "Enable sentry installation" "${SENTRY_MAIN_PROJECT
 if(MSVC AND CMAKE_GENERATOR_TOOLSET MATCHES "_xp$")
 	message(WARNING "Crashpad is not supported for MSVC with XP toolset. Default backend was switched to 'breakpad'")
 	set(SENTRY_DEFAULT_BACKEND "breakpad")
-elseif((APPLE AND NOT IOS) OR WIN32)
+elseif((APPLE AND NOT IOS) OR WIN32 OR LINUX)
 	set(SENTRY_DEFAULT_BACKEND "crashpad")
-elseif(LINUX)
-	set(SENTRY_DEFAULT_BACKEND "breakpad")
 else()
 	set(SENTRY_DEFAULT_BACKEND "inproc")
 endif()
@@ -367,11 +365,11 @@ endif()
 
 # handle platform libraries
 if(ANDROID)
-    set(_SENTRY_PLATFORM_LIBS "dl" "log")
+	set(_SENTRY_PLATFORM_LIBS "dl" "log")
 elseif(LINUX)
-    set(_SENTRY_PLATFORM_LIBS "dl" "rt")
+	set(_SENTRY_PLATFORM_LIBS "dl" "rt")
 elseif(WIN32)
-    set(_SENTRY_PLATFORM_LIBS "dbghelp" "shlwapi" "version")
+	set(_SENTRY_PLATFORM_LIBS "dbghelp" "shlwapi" "version")
 endif()
 
 if(SENTRY_TRANSPORT_WINHTTP)
@@ -385,9 +383,9 @@ endif()
 
 # apply platform libraries to sentry library
 if(SENTRY_LIBRARY_TYPE STREQUAL "STATIC")
-    target_link_libraries(sentry PUBLIC ${_SENTRY_PLATFORM_LIBS})
+	target_link_libraries(sentry PUBLIC ${_SENTRY_PLATFORM_LIBS})
 else()
-    target_link_libraries(sentry PRIVATE ${_SENTRY_PLATFORM_LIBS})
+	target_link_libraries(sentry PRIVATE ${_SENTRY_PLATFORM_LIBS})
 endif()
 
 # suppress some errors and warnings for MinGW target
