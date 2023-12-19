@@ -5,6 +5,7 @@
 **Fixes**:
 
 - Maintain crashpad client instance during Native SDK lifecycle. ([#910](https://github.com/getsentry/sentry-native/pull/910))
+- Specify correct dependencies for CMake client projects using a system-provided breakpad. ([#926](https://github.com/getsentry/sentry-native/pull/926))
 
 **Internal**:
 
@@ -17,6 +18,7 @@
 Features, fixes and improvements in this release have been contributed by:
 
 - [@compnerd](https://github.com/compnerd)
+- [@stima](https://github.com/stima)
 
 ## 0.6.7
 
