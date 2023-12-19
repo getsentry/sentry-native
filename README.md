@@ -227,9 +227,9 @@ using `cmake -D BUILD_SHARED_LIBS=OFF ..`.
   Sentry can use different backends depending on platform.
 
   - **crashpad**: This uses the out-of-process crashpad handler. It is currently
-    only supported on Desktop OSs, and used as the default on Windows and macOS.
+    only supported on Desktop OSs, and used as the default on Windows, Linux and macOS.
   - **breakpad**: This uses the in-process breakpad handler. It is currently
-    only supported on Desktop OSs, and used as the default on Linux.
+    only supported on Desktop OSs.
   - **inproc**: A small in-process handler which is supported on all platforms,
     and is used as default on Android.
   - **none**: This builds `sentry-native` without a backend, so it does not handle
