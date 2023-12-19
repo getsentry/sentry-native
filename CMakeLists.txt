@@ -496,7 +496,11 @@ elseif(SENTRY_BACKEND_BREAKPAD)
 		# system breakpad is using pkg-config, see `external/breakpad/breakpad-client.pc.in`
 		find_package(PkgConfig REQUIRED)
 		pkg_check_modules(BREAKPAD REQUIRED IMPORTED_TARGET breakpad-client)
-		target_link_libraries(sentry PUBLIC PkgConfig::BREAKPAD)
+		if(SENTRY_BUILD_SHARED_LIBS)
+			target_link_libraries(sentry PRIVATE PkgConfig::BREAKPAD)
+		else()
+			target_link_libraries(sentry PUBLIC PkgConfig::BREAKPAD)
+		endif()
 	else()
 		add_subdirectory(external)
 		target_include_directories(sentry PRIVATE
