@@ -5,10 +5,11 @@
 **Breaking changes**:
 
 - Make `crashpad` the default backend for Linux. ([#927](https://github.com/getsentry/sentry-native/pull/927))
+- Remove build option `SENTRY_CRASHPAD_SYSTEM`. ([#928](https://github.com/getsentry/sentry-native/pull/928))
 
 **Fixes**:
 
-- Maintain crashpad client instance during Native SDK lifecycle. ([#910](https://github.com/getsentry/sentry-native/pull/910))
+- Maintain `crashpad` client instance during Native SDK lifecycle. ([#910](https://github.com/getsentry/sentry-native/pull/910))
 - Specify correct dependencies for CMake client projects using a system-provided breakpad. ([#926](https://github.com/getsentry/sentry-native/pull/926))
 
 **Internal**:
