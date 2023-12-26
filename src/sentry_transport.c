@@ -5,9 +5,10 @@
 #include "sentry_ratelimiter.h"
 #include "sentry_string.h"
 
+
 #define ENVELOPE_MIME "application/x-sentry-envelope"
-// The headers we use are: `x-sentry-auth`, `content-type`, `content-length`
-#define MAX_HTTP_HEADERS 3
+// The headers we use are: `x-sentry-auth`, `content-type`, `content-encoding`, `content-length`
+#define MAX_HTTP_HEADERS 4
 
 typedef struct sentry_transport_s {
     void (*send_envelope_func)(sentry_envelope_t *envelope, void *state);
@@ -165,9 +166,24 @@ sentry__prepare_http_request(sentry_envelope_t *envelope,
         return NULL;
     }
 
+    char *compressed_body = NULL;
+    size_t compressed_body_len = 0;
+    bool compressed = sentry_gzipped_with_compression(
+        body, body_len, &compressed_body, &compressed_body_len);
+    if (compressed) {
+        if (body_owned) {
+            sentry_free(body);
+            body = NULL;
+            body_owned = false;
+        }
+    }
+
     sentry_prepared_http_request_t *req
         = SENTRY_MAKE(sentry_prepared_http_request_t);
     if (!req) {
+        if (compressed) {
+            sentry_free(compressed_body);
+        }
         if (body_owned) {
             sentry_free(body);
         }
@@ -177,6 +193,9 @@ sentry__prepare_http_request(sentry_envelope_t *envelope,
         sizeof(sentry_prepared_http_header_t) * MAX_HTTP_HEADERS);
     if (!req->headers) {
         sentry_free(req);
+        if (compressed) {
+            sentry_free(compressed_body);
+        }
         if (body_owned) {
             sentry_free(body);
         }
@@ -196,13 +215,29 @@ sentry__prepare_http_request(sentry_envelope_t *envelope,
     h->key = "content-type";
     h->value = sentry__string_clone(ENVELOPE_MIME);
 
+    if (compressed) {
+        h = &req->headers[req->headers_len++];
+        h->key = "content-encoding";
+        h->value = sentry__string_clone("gzip");
+    }
+
     h = &req->headers[req->headers_len++];
     h->key = "content-length";
-    h->value = sentry__int64_to_string((int64_t)body_len);
+    if (compressed) {
+        h->value = sentry__int64_to_string((int64_t)compressed_body_len);
+    } else {
+        h->value = sentry__int64_to_string((int64_t)body_len);
+    }
 
-    req->body = body;
-    req->body_len = body_len;
-    req->body_owned = body_owned;
+    if (compressed) {
+        req->body = compressed_body;
+        req->body_len = compressed_body_len;
+        req->body_owned = true;
+    } else {
+        req->body = body;
+        req->body_len = body_len;
+        req->body_owned = body_owned;
+    }
 
     return req;
 }
@@ -222,4 +257,52 @@ sentry__prepared_http_request_free(sentry_prepared_http_request_t *req)
         sentry_free(req->body);
     }
     sentry_free(req);
+}
+
+bool
+sentry_gzipped_with_compression(const char *body, const size_t body_len,
+    char **compressed_body, size_t *compressed_body_len)
+{
+    if (!body || body_len == 0) {
+        return false;
+    }
+
+    z_stream stream;
+    memset(&stream, 0, sizeof(stream));
+    stream.next_in = body;
+    stream.avail_in = body_len;
+
+    int err = deflateInit2(&stream, Z_DEFAULT_COMPRESSION, Z_DEFLATED,
+        MAX_WBITS + 16, 9, Z_DEFAULT_STRATEGY);
+    if (err != Z_OK) {
+        SENTRY_TRACEF("deflateInit2 failed: %d", err);
+        return false;
+    }
+
+    size_t len = compressBound(body_len);
+    char *buffer = sentry_malloc(len);
+    if (!buffer) {
+        deflateEnd(&stream);
+        return false;
+    }
+
+    while (err == Z_OK) {
+        stream.next_out = buffer + stream.total_out;
+        stream.avail_out = len - stream.total_out;
+        err = deflate(&stream, Z_FINISH);
+    }
+
+    if (err != Z_STREAM_END) {
+        SENTRY_TRACEF("deflate failed: %d", err);
+        sentry_free(buffer);
+        buffer = NULL;
+        deflateEnd(&stream);
+        return false;
+    }
+
+    *compressed_body_len = stream.total_out;
+    *compressed_body = buffer;
+
+    deflateEnd(&stream);
+    return true;
 }

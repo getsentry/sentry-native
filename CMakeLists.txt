@@ -55,6 +55,8 @@ endif()
 
 option(SENTRY_PIC "Build sentry (and dependent) libraries as position independent libraries" ON)
 
+option(SENTRY_TRANSPORT_COMPRESSION " Enable transport gzip compression" OFF)
+
 option(SENTRY_BUILD_TESTS "Build sentry-native tests" "${SENTRY_MAIN_PROJECT}")
 option(SENTRY_BUILD_EXAMPLES "Build sentry-native example(s)" "${SENTRY_MAIN_PROJECT}")
 
@@ -289,6 +291,14 @@ if(SENTRY_TRANSPORT_CURL)
 		target_link_libraries(sentry PRIVATE $<BUILD_INTERFACE:${GENEX_CURL_LIBRARIES}>)
 		target_compile_definitions(sentry PRIVATE $<BUILD_INTERFACE:${GENEX_CURL_COMPILE_DEFINITIONS}>)
 	endif()
+endif()
+
+if(SENTRY_TRANSPORT_COMPRESSION)
+	if(NOT ZLIB_FOUND)
+		find_package(ZLIB REQUIRED)
+	endif()
+
+	target_link_libraries(sentry PRIVATE ZLIB::ZLIB)
 endif()
 
 set_property(TARGET sentry PROPERTY C_VISIBILITY_PRESET hidden)
