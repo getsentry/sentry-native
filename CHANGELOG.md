@@ -10,13 +10,14 @@
 
 - Maintain crashpad client instance during Native SDK lifecycle. ([#910](https://github.com/getsentry/sentry-native/pull/910))
 - Specify correct dependencies for CMake client projects using a system-provided breakpad. ([#926](https://github.com/getsentry/sentry-native/pull/926))
+- Correct the Windows header include used by `sentry.h`, which fixes the build of [Swift bindings](https://github.com/thebrowsercompany/swift-sentry). ([#935](https://github.com/getsentry/sentry-native/pull/935))
 
 **Internal**:
 
 - Updated `crashpad` to 2023-11-24. ([#912](https://github.com/getsentry/sentry-native/pull/912), [crashpad#91](https://github.com/getsentry/crashpad/pull/91))
 - Fixing `crashpad` build for Windows on ARM64. ([#919](https://github.com/getsentry/sentry-native/pull/919), [crashpad#90](https://github.com/getsentry/crashpad/pull/90), [crashpad#92](https://github.com/getsentry/crashpad/pull/92), [crashpad#93](https://github.com/getsentry/crashpad/pull/93), [crashpad#94](https://github.com/getsentry/crashpad/pull/94))
 - Remove options memory leak during consent setting. ([#922](https://github.com/getsentry/sentry-native/pull/922))
-  
+
 **Thank you**:
 
 Features, fixes and improvements in this release have been contributed by:
