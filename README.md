@@ -238,12 +238,8 @@ using `cmake -D BUILD_SHARED_LIBS=OFF ..`.
 - `SENTRY_INTEGRATION_QT` (Default: OFF):
   Builds the Qt integration, which turns Qt log messages into breadcrumbs.
 
-- `SENTRY_BREAKPAD_SYSTEM` / `SENTRY_CRASHPAD_SYSTEM` (Default: OFF):
-  This instructs the build system to use system-installed breakpad or crashpad
-  libraries instead of using the in-tree version. This is generally not recommended
-  for crashpad, as sentry uses a patched version that has attachment support.
-  This is being worked on upstream as well, and a future version might work with
-  an unmodified crashpad version as well.
+- `SENTRY_BREAKPAD_SYSTEM` (Default: OFF):
+  This instructs the build system to use system-installed breakpad libraries instead of using the in-tree version. 
 
 | Feature    | Windows | macOS | Linux | Android | iOS |
 | ---------- | ------- | ----- | ----- | ------- | --- |

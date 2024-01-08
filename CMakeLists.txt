@@ -413,74 +413,68 @@ if(SENTRY_WITH_LIBUNWINDSTACK)
 endif()
 
 if(SENTRY_BACKEND_CRASHPAD)
-	option(SENTRY_CRASHPAD_SYSTEM "Use system crashpad" OFF)
-	if(SENTRY_CRASHPAD_SYSTEM)
-		find_package(crashpad REQUIRED)
-		target_link_libraries(sentry PUBLIC crashpad::client)
+	# FIXME: required for cmake 3.12 and lower:
+	# - NEW behavior lets normal variable override option
+	cmake_policy(SET CMP0077 NEW)
+	if(SENTRY_BUILD_SHARED_LIBS)
+		set(CRASHPAD_ENABLE_INSTALL OFF CACHE BOOL "Enable crashpad installation" FORCE)
 	else()
-		# FIXME: required for cmake 3.12 and lower:
-		# - NEW behavior lets normal variable override option
-		cmake_policy(SET CMP0077 NEW)
-		if(SENTRY_BUILD_SHARED_LIBS)
-			set(CRASHPAD_ENABLE_INSTALL OFF CACHE BOOL "Enable crashpad installation" FORCE)
-		else()
-			set(CRASHPAD_ENABLE_INSTALL ON CACHE BOOL "Enable crashpad installation" FORCE)
-		endif()
-		add_subdirectory(external/crashpad crashpad_build)
+		set(CRASHPAD_ENABLE_INSTALL ON CACHE BOOL "Enable crashpad installation" FORCE)
+	endif()
+	add_subdirectory(external/crashpad crashpad_build)
 
+	if(CRASHPAD_WER_ENABLED)
+		add_dependencies(sentry crashpad::wer)
+	endif()
+
+	# set static runtime if enabled
+	if(SENTRY_BUILD_RUNTIMESTATIC AND MSVC)
+		set_property(TARGET crashpad_client PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+		set_property(TARGET crashpad_compat PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+		set_property(TARGET crashpad_getopt PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+		set_property(TARGET crashpad_handler PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+		set_property(TARGET crashpad_handler_lib PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+		set_property(TARGET crashpad_minidump PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+		set_property(TARGET crashpad_snapshot PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+		set_property(TARGET crashpad_tools PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+		set_property(TARGET crashpad_util PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 		if(CRASHPAD_WER_ENABLED)
-			add_dependencies(sentry crashpad::wer)
+			set_property(TARGET crashpad_wer PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 		endif()
+		set_property(TARGET crashpad_zlib PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+		set_property(TARGET mini_chromium PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+	endif()
 
-		# set static runtime if enabled
-		if(SENTRY_BUILD_RUNTIMESTATIC AND MSVC)
-			set_property(TARGET crashpad_client PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
-			set_property(TARGET crashpad_compat PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
-			set_property(TARGET crashpad_getopt PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
-			set_property(TARGET crashpad_handler PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
-			set_property(TARGET crashpad_handler_lib PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
-			set_property(TARGET crashpad_minidump PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
-			set_property(TARGET crashpad_snapshot PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
-			set_property(TARGET crashpad_tools PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
-			set_property(TARGET crashpad_util PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
-			if(CRASHPAD_WER_ENABLED)
-				set_property(TARGET crashpad_wer PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
-			endif()
-			set_property(TARGET crashpad_zlib PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
-			set_property(TARGET mini_chromium PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+	if(DEFINED SENTRY_FOLDER)
+		set_target_properties(crashpad_client PROPERTIES FOLDER ${SENTRY_FOLDER})
+		set_target_properties(crashpad_compat PROPERTIES FOLDER ${SENTRY_FOLDER})
+		set_target_properties(crashpad_getopt PROPERTIES FOLDER ${SENTRY_FOLDER})
+		set_target_properties(crashpad_handler PROPERTIES FOLDER ${SENTRY_FOLDER})
+		set_target_properties(crashpad_handler_lib PROPERTIES FOLDER ${SENTRY_FOLDER})
+		set_target_properties(crashpad_minidump PROPERTIES FOLDER ${SENTRY_FOLDER})
+		set_target_properties(crashpad_snapshot PROPERTIES FOLDER ${SENTRY_FOLDER})
+		set_target_properties(crashpad_tools PROPERTIES FOLDER ${SENTRY_FOLDER})
+		set_target_properties(crashpad_util PROPERTIES FOLDER ${SENTRY_FOLDER})
+		set_target_properties(crashpad_zlib PROPERTIES FOLDER ${SENTRY_FOLDER})
+		set_target_properties(mini_chromium PROPERTIES FOLDER ${SENTRY_FOLDER})
+		if(CRASHPAD_WER_ENABLED)
+			set_target_properties(crashpad_wer PROPERTIES FOLDER ${SENTRY_FOLDER})
 		endif()
+	endif()
 
-		if(DEFINED SENTRY_FOLDER)
-			set_target_properties(crashpad_client PROPERTIES FOLDER ${SENTRY_FOLDER})
-			set_target_properties(crashpad_compat PROPERTIES FOLDER ${SENTRY_FOLDER})
-			set_target_properties(crashpad_getopt PROPERTIES FOLDER ${SENTRY_FOLDER})
-			set_target_properties(crashpad_handler PROPERTIES FOLDER ${SENTRY_FOLDER})
-			set_target_properties(crashpad_handler_lib PROPERTIES FOLDER ${SENTRY_FOLDER})
-			set_target_properties(crashpad_minidump PROPERTIES FOLDER ${SENTRY_FOLDER})
-			set_target_properties(crashpad_snapshot PROPERTIES FOLDER ${SENTRY_FOLDER})
-			set_target_properties(crashpad_tools PROPERTIES FOLDER ${SENTRY_FOLDER})
-			set_target_properties(crashpad_util PROPERTIES FOLDER ${SENTRY_FOLDER})
-			set_target_properties(crashpad_zlib PROPERTIES FOLDER ${SENTRY_FOLDER})
-			set_target_properties(mini_chromium PROPERTIES FOLDER ${SENTRY_FOLDER})
-			if(CRASHPAD_WER_ENABLED)
-				set_target_properties(crashpad_wer PROPERTIES FOLDER ${SENTRY_FOLDER})
-			endif()
-		endif()
-
-		target_link_libraries(sentry PRIVATE
-			$<BUILD_INTERFACE:crashpad::client>
-			$<INSTALL_INTERFACE:sentry_crashpad::client>
-		)
-		install(EXPORT crashpad_export NAMESPACE sentry_crashpad:: FILE sentry_crashpad-targets.cmake
-			DESTINATION "${CMAKE_INSTALL_CMAKEDIR}"
-		)
-		if(WIN32 AND MSVC)
-			sentry_install(FILES $<TARGET_PDB_FILE:crashpad_handler>
+	target_link_libraries(sentry PRIVATE
+		$<BUILD_INTERFACE:crashpad::client>
+		$<INSTALL_INTERFACE:sentry_crashpad::client>
+	)
+	install(EXPORT crashpad_export NAMESPACE sentry_crashpad:: FILE sentry_crashpad-targets.cmake
+		DESTINATION "${CMAKE_INSTALL_CMAKEDIR}"
+	)
+	if(WIN32 AND MSVC)
+		sentry_install(FILES $<TARGET_PDB_FILE:crashpad_handler>
+			DESTINATION "${CMAKE_INSTALL_BINDIR}" OPTIONAL)
+		if (CRASHPAD_WER_ENABLED)
+			sentry_install(FILES $<TARGET_PDB_FILE:crashpad_wer>
 				DESTINATION "${CMAKE_INSTALL_BINDIR}" OPTIONAL)
-			if (CRASHPAD_WER_ENABLED)
-				sentry_install(FILES $<TARGET_PDB_FILE:crashpad_wer>
-					DESTINATION "${CMAKE_INSTALL_BINDIR}" OPTIONAL)
-			endif()
 		endif()
 	endif()
 	add_dependencies(sentry crashpad::handler)
