@@ -222,6 +222,11 @@ endfunction()
 
 add_library(sentry ${SENTRY_LIBRARY_TYPE} "${PROJECT_SOURCE_DIR}/vendor/mpack.c")
 target_sources(sentry PRIVATE "${PROJECT_SOURCE_DIR}/include/sentry.h")
+
+option(SENTRY_TEST_UTIL "Expose tests utility function in the public API" OFF)
+if(SENTRY_TEST_UTIL)
+	target_sources(sentry PRIVATE "${PROJECT_SOURCE_DIR}/include/sentry_test_util.h")
+endif()
 add_library(sentry::sentry ALIAS sentry)
 add_subdirectory(src)
 
@@ -237,7 +242,15 @@ if(LINUX)
 	)
 endif()
 
-set_target_properties(sentry PROPERTIES PUBLIC_HEADER "include/sentry.h")
+if(SENTRY_TEST_UTIL)
+	set_target_properties(sentry PROPERTIES
+		PUBLIC_HEADER "include/sentry.h;include/sentry_test_util.h"
+	)
+else()
+	set_target_properties(sentry PROPERTIES
+		PUBLIC_HEADER "include/sentry.h"
+	)
+endif()
 
 if(DEFINED SENTRY_FOLDER)
 	set_target_properties(sentry PROPERTIES FOLDER ${SENTRY_FOLDER})
@@ -572,6 +585,10 @@ endif()
 if(SENTRY_BUILD_EXAMPLES)
 	add_executable(sentry_example examples/example.c)
 	target_link_libraries(sentry_example PRIVATE sentry)
+
+	if(NOT SENTRY_TEST_UTIL)
+		target_sources(sentry_example PRIVATE src/sentry_test_util.c include/sentry_test_util.h)
+	endif()
 
 	if(MSVC)
 		target_compile_options(sentry_example PRIVATE $<BUILD_INTERFACE:/wd5105>)

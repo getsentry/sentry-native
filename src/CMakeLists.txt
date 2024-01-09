@@ -52,6 +52,10 @@ sentry_target_sources_cwd(sentry
 	unwinder/sentry_unwinder.c
 )
 
+if(SENTRY_TEST_UTIL)
+	sentry_target_sources_cwd(sentry sentry_test_util.c)
+endif()
+
 # generic platform / path / symbolizer
 if(WIN32)
 	sentry_target_sources_cwd(sentry

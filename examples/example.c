@@ -5,6 +5,7 @@
 #endif
 
 #include "sentry.h"
+#include "sentry_test_util.h"
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -139,21 +140,6 @@ trigger_fastfail_crash()
 }
 
 #endif // CRASHPAD_WER_ENABLED
-
-#ifdef SENTRY_PLATFORM_AIX
-// AIX has a null page mapped to the bottom of memory, which means null derefs
-// don't segfault. try dereferencing the top of memory instead; the top nibble
-// seems to be unusable.
-static void *invalid_mem = (void *)0xFFFFFFFFFFFFFF9B; // -100 for memset
-#else
-static void *invalid_mem = (void *)1;
-#endif
-
-static void
-trigger_crash()
-{
-    memset((char *)invalid_mem, 1, 100);
-}
 
 int
 main(int argc, char **argv)
@@ -299,7 +285,7 @@ main(int argc, char **argv)
     }
 
     if (has_arg(argc, argv, "crash")) {
-        trigger_crash();
+        sentry_trigger_crash();
     }
 #ifdef CRASHPAD_WER_ENABLED
     if (has_arg(argc, argv, "fastfail")) {
@@ -387,6 +373,6 @@ main(int argc, char **argv)
     }
 
     if (has_arg(argc, argv, "crash-after-shutdown")) {
-        trigger_crash();
+        sentry_trigger_crash();
     }
 }
