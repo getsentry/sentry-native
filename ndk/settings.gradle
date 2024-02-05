@@ -1,0 +1,15 @@
+pluginManagement {
+    repositories {
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+
+enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
+
+rootProject.name = "sentry-ndk"
+rootProject.buildFileName = "build.gradle.kts"
+
+include(
+    "lib", "sample"
+)
