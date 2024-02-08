@@ -602,17 +602,6 @@ get_linux_vdso(void)
     return 0;
 }
 
-static bool
-is_valid_elf_header(void *start)
-{
-    unsigned char e_ident[EI_NIDENT];
-    if (!read_safely(e_ident, start, EI_NIDENT)) {
-        return false;
-    }
-    return e_ident[EI_MAG0] == ELFMAG0 && e_ident[EI_MAG1] == ELFMAG1
-        && e_ident[EI_MAG2] == ELFMAG2 && e_ident[EI_MAG3] == ELFMAG3;
-}
-
 static void
 load_modules(sentry_value_t modules)
 {
@@ -669,8 +658,9 @@ load_modules(sentry_value_t modules)
             break;
         }
 
-        // skip mappings that are not readable
-        if (!module.start || module.permissions[0] != 'r') {
+        // skip mappings that are not readable/executable
+        if (!module.start
+            || (module.permissions[0] != 'r' && module.permissions[2] != 'x')) {
             continue;
         }
         // skip mappings in `/dev/` or mappings that have no filename
@@ -687,7 +677,14 @@ load_modules(sentry_value_t modules)
             continue;
         }
 
-        if (is_valid_elf_header((void *)(size_t)module.start)) {
+        // Module is appended if next module has different file name
+        if ((!last_module.file.len
+                && (!module.file.len || last_module.file.len != module.file.len
+                    || memcmp(last_module.file.ptr, module.file.ptr,
+                        module.file.len)))
+            || (!module.file.len || last_module.file.len != module.file.len
+                || memcmp(
+                    last_module.file.ptr, module.file.ptr, module.file.len))) {
             // clang-format off
             // On android, we sometimes have multiple mappings for the
             // same inode at the same offset, such as this:
