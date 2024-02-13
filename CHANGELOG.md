@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Internal**:
+
+- remove obsolete `CRASHPAD_WER_ENABLED` ([#950](https://github.com/getsentry/sentry-native/pull/950), [crashpad#96](https://github.com/getsentry/crashpad/pull/96))
+
 ## 0.7.0
 
 **Breaking changes**:
