@@ -8,13 +8,13 @@ extern "C" {
 #include "sentry_envelope.h"
 #include "sentry_options.h"
 #ifdef SENTRY_PLATFORM_WINDOWS
-#include "sentry_os.h"
+#    include "sentry_os.h"
 #endif
 #include "sentry_path.h"
 #include "sentry_sync.h"
 #include "sentry_transport.h"
 #ifdef SENTRY_PLATFORM_LINUX
-#include "sentry_unix_pageallocator.h"
+#    include "sentry_unix_pageallocator.h"
 #endif
 #include "sentry_utils.h"
 #include "transports/sentry_disk_transport.h"
@@ -117,13 +117,13 @@ crashpad_backend_user_consent_changed(sentry_backend_t *backend)
 
 #ifdef SENTRY_PLATFORM_WINDOWS
 static void
-crashpad_register_wer_module(const sentry_path_t *absolute_handler_path,
-    const crashpad_state_t *data)
+crashpad_register_wer_module(
+    const sentry_path_t *absolute_handler_path, const crashpad_state_t *data)
 {
     windows_version_t win_ver;
     if (!sentry__get_windows_version(&win_ver) || win_ver.build < 19041) {
-        SENTRY_WARN(
-            "Crashpad WER module not registered, because Windows doesn't meet version requirements (build >= 19041).");
+        SENTRY_WARN("Crashpad WER module not registered, because Windows "
+                    "doesn't meet version requirements (build >= 19041).");
         return;
     }
     sentry_path_t *handler_dir = sentry__path_dir(absolute_handler_path);
@@ -135,7 +135,7 @@ crashpad_register_wer_module(const sentry_path_t *absolute_handler_path,
 
     if (wer_path && sentry__path_is_file(wer_path)) {
         SENTRY_TRACEF("registering crashpad WER handler "
-            "\"%" SENTRY_PATH_PRI "\"",
+                      "\"%" SENTRY_PATH_PRI "\"",
             wer_path->path);
 
         // The WER handler needs to be registered in the registry first.
@@ -148,8 +148,7 @@ crashpad_register_wer_module(const sentry_path_t *absolute_handler_path,
             SENTRY_WARN("registering crashpad WER handler in registry failed");
         } else {
             const std::wstring wer_path_string(wer_path->path);
-            if (!data->client->RegisterWerModule(
-                wer_path_string)) {
+            if (!data->client->RegisterWerModule(wer_path_string)) {
                 SENTRY_WARN("registering crashpad WER handler module failed");
             }
         }
