@@ -423,7 +423,9 @@ if(SENTRY_BACKEND_CRASHPAD)
 	endif()
 	add_subdirectory(external/crashpad crashpad_build)
 
-	add_dependencies(sentry crashpad::wer)
+	if(WIN32)
+		add_dependencies(sentry crashpad::wer)
+	endif()
 
 	# set static runtime if enabled
 	if(SENTRY_BUILD_RUNTIMESTATIC AND MSVC)
