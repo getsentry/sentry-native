@@ -113,8 +113,8 @@ sentry__get_os_context(void)
 
         snprintf(buf, sizeof(buf), "%u.%u.%u.%lu", win_ver.major, win_ver.minor,
             win_ver.build, win_ver.ubr);
-        sentry_value_set_by_key(os, "kernel_version",
-            sentry_value_new_string(buf));
+        sentry_value_set_by_key(
+            os, "kernel_version", sentry_value_new_string(buf));
     }
 
     if (sentry__get_windows_version(&win_ver)) {
