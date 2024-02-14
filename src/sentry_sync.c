@@ -146,6 +146,7 @@ struct sentry_bgworker_s {
     char *thread_name;
     sentry_cond_t submit_signal;
     sentry_cond_t done_signal;
+    sentry_cond_t pause_signal;
     sentry_mutex_t task_lock;
     sentry_bgworker_task_t *first_task;
     sentry_bgworker_task_t *last_task;
@@ -170,6 +171,7 @@ sentry__bgworker_new(void *state, void (*free_state)(void *state))
     sentry__mutex_init(&bgw->task_lock);
     sentry__cond_init(&bgw->submit_signal);
     sentry__cond_init(&bgw->done_signal);
+    sentry__cond_init(&bgw->pause_signal);
     bgw->state = state;
     bgw->free_state = free_state;
     bgw->refcount = 1;
@@ -241,6 +243,11 @@ worker_thread(void *data)
 
     sentry__mutex_lock(&bgw->task_lock);
     while (true) {
+#if 0
+        if (bgw->paused) {
+            sentry__cond_wait(&bgw->pause_signal, &bgw->task_lock);
+        }
+#endif
         if (sentry__bgworker_is_done(bgw)) {
             sentry__cond_wake(&bgw->done_signal);
             sentry__mutex_unlock(&bgw->task_lock);
