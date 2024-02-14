@@ -16,7 +16,7 @@
 
 #ifdef SENTRY_PLATFORM_WINDOWS
 #    include <synchapi.h>
-#    define sleep_s(SECONDS) Sleep((SECONDS)*1000)
+#    define sleep_s(SECONDS) Sleep((SECONDS) * 1000)
 #else
 #    include <signal.h>
 #    include <unistd.h>
@@ -151,7 +151,7 @@ static void *invalid_mem = (void *)0xFFFFFFFFFFFFFF9B; // -100 for memset
 static void *invalid_mem = (void *)1;
 #endif
 
-static void
+__attribute__((__noinline__)) static void
 trigger_crash()
 {
     memset((char *)invalid_mem, 1, 100);
@@ -260,6 +260,21 @@ main(int argc, char **argv)
             debug_crumb, "category", sentry_value_new_string("example!"));
         sentry_value_set_by_key(
             debug_crumb, "level", sentry_value_new_string("debug"));
+
+        // extend the `http` crumb with (optional) data properties as documented
+        // here:
+        // https://develop.sentry.dev/sdk/event-payloads/breadcrumbs/#breadcrumb-types
+        sentry_value_t http_data = sentry_value_new_object();
+        sentry_value_set_by_key(http_data, "url",
+            sentry_value_new_string("https://example.com/api/1.0/users"));
+        sentry_value_set_by_key(
+            http_data, "method", sentry_value_new_string("GET"));
+        sentry_value_set_by_key(
+            http_data, "status_code", sentry_value_new_int32(200));
+        sentry_value_set_by_key(
+            http_data, "reason", sentry_value_new_string("OK"));
+        sentry_value_set_by_key(debug_crumb, "data", http_data);
+
         sentry_add_breadcrumb(debug_crumb);
 
         sentry_value_t nl_crumb
