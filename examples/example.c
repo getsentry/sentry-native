@@ -18,7 +18,7 @@
 
 #ifdef SENTRY_PLATFORM_WINDOWS
 #    include <synchapi.h>
-#    define sleep_s(SECONDS) Sleep((SECONDS) * 1000)
+#    define sleep_s(SECONDS) Sleep((SECONDS)*1000)
 #else
 
 #    include <signal.h>
