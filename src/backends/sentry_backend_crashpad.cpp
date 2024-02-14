@@ -92,7 +92,6 @@ typedef struct {
     sentry_path_t *breadcrumb1_path;
     sentry_path_t *breadcrumb2_path;
     size_t num_breadcrumbs;
-    sentry_value_t crash_event;
 } crashpad_state_t;
 
 /**
@@ -161,26 +160,12 @@ crashpad_register_wer_module(
 #endif
 
 static void
-crashpad_backend_flush_scope(
-    sentry_backend_t *backend, const sentry_options_t *options)
+crashpad_flush_scope_with_event(sentry_backend_t *backend,
+    const sentry_options_t *options, sentry_value_t event)
 {
     auto *data = static_cast<crashpad_state_t *>(backend->data);
     if (!data->event_path) {
         return;
-    }
-
-    // This here is an empty object that we copy the scope into.
-    // Even though the API is specific to `event`, an `event` has a few default
-    // properties that we do not want here. But in case of a crash we use the
-    // crash-event filled in the crash-handler and on_crash/before_send
-    // respectively.
-    sentry_value_t event = data->crash_event;
-    if (sentry_value_is_null(event)) {
-        event = sentry_value_new_object();
-        // FIXME: This should be handled in the FirstChanceHandler but that does
-        // not exist for macOS just yet.
-        sentry_value_set_by_key(
-            event, "level", sentry__value_new_level(SENTRY_LEVEL_FATAL));
     }
 
     SENTRY_WITH_SCOPE (scope) {
@@ -203,6 +188,22 @@ crashpad_backend_flush_scope(
     }
 }
 
+static void
+crashpad_backend_flush_scope(
+    sentry_backend_t *backend, const sentry_options_t *options)
+{
+    // We create an empty object instead of an `event` object, because an
+    // `event` has a few default properties that we do not want here.
+    sentry_value_t event = sentry_value_new_object();
+
+    // FIXME: Setting the level should be handled in the FirstChanceHandler but
+    // that does not exist for macOS just yet.
+    sentry_value_set_by_key(
+        event, "level", sentry__value_new_level(SENTRY_LEVEL_FATAL));
+
+    crashpad_flush_scope_with_event(backend, options, event);
+}
+
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_WINDOWS)
 #    ifdef SENTRY_PLATFORM_WINDOWS
 static bool
@@ -221,10 +222,9 @@ sentry__crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
 
     SENTRY_WITH_OPTIONS (options) {
         auto *data = static_cast<crashpad_state_t *>(options->backend->data);
-        sentry_value_decref(data->crash_event);
-        data->crash_event = sentry_value_new_event();
-        sentry_value_set_by_key(data->crash_event, "level",
-            sentry__value_new_level(SENTRY_LEVEL_FATAL));
+        sentry_value_t crash_event = sentry_value_new_event();
+        sentry_value_set_by_key(
+            crash_event, "level", sentry__value_new_level(SENTRY_LEVEL_FATAL));
 
         if (options->on_crash_func) {
             sentry_ucontext_t uctx;
@@ -237,17 +237,18 @@ sentry__crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
 #    endif
 
             SENTRY_TRACE("invoking `on_crash` hook");
-            data->crash_event = options->on_crash_func(
-                &uctx, data->crash_event, options->on_crash_data);
+            crash_event = options->on_crash_func(
+                &uctx, crash_event, options->on_crash_data);
         } else if (options->before_send_func) {
             SENTRY_TRACE("invoking `before_send` hook");
-            data->crash_event = options->before_send_func(
-                data->crash_event, nullptr, options->before_send_data);
+            crash_event = options->before_send_func(
+                crash_event, nullptr, options->before_send_data);
         }
-        should_dump = !sentry_value_is_null(data->crash_event);
+        should_dump = !sentry_value_is_null(crash_event);
 
         if (should_dump) {
-            crashpad_backend_flush_scope(options->backend, options);
+            crashpad_backend_flush_scope_with_event(
+                options->backend, options, crash_event);
 
             sentry__write_crash_marker(options);
 
@@ -523,7 +524,6 @@ crashpad_backend_free(sentry_backend_t *backend)
     sentry__path_free(data->event_path);
     sentry__path_free(data->breadcrumb1_path);
     sentry__path_free(data->breadcrumb2_path);
-    sentry_value_decref(data->crash_event);
     sentry_free(data);
 }
 
@@ -605,7 +605,6 @@ sentry__backend_new(void)
         return nullptr;
     }
     memset(data, 0, sizeof(crashpad_state_t));
-    data->crash_event = sentry_value_new_null();
 
     backend->startup_func = crashpad_backend_startup;
     backend->shutdown_func = crashpad_backend_shutdown;
