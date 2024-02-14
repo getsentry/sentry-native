@@ -93,7 +93,9 @@ has_arg(int argc, char **argv, const char *arg)
     return false;
 }
 
-#ifdef CRASHPAD_WER_ENABLED
+#if defined(SENTRY_PLATFORM_WINDOWS) && !defined(__MINGW32__)                  \
+    && !defined(__MINGW64__)
+
 int
 call_rffe_many_times()
 {
@@ -138,7 +140,7 @@ trigger_fastfail_crash()
     __fastfail(77);
 }
 
-#endif // CRASHPAD_WER_ENABLED
+#endif
 
 #ifdef SENTRY_PLATFORM_AIX
 // AIX has a null page mapped to the bottom of memory, which means null derefs
@@ -301,7 +303,8 @@ main(int argc, char **argv)
     if (has_arg(argc, argv, "crash")) {
         trigger_crash();
     }
-#ifdef CRASHPAD_WER_ENABLED
+#if defined(SENTRY_PLATFORM_WINDOWS) && !defined(__MINGW32__)                  \
+    && !defined(__MINGW64__)
     if (has_arg(argc, argv, "fastfail")) {
         trigger_fastfail_crash();
     }
