@@ -18,7 +18,7 @@
 
 #ifdef SENTRY_PLATFORM_WINDOWS
 #    include <synchapi.h>
-#    define sleep_s(SECONDS) Sleep((SECONDS)*1000)
+#    define sleep_s(SECONDS) Sleep((SECONDS) * 1000)
 #else
 
 #    include <signal.h>
@@ -155,7 +155,7 @@ static void *invalid_mem = (void *)0xFFFFFFFFFFFFFF9B; // -100 for memset
 static void *invalid_mem = (void *)1;
 #endif
 
-__attribute__((__noinline__)) static void
+static void
 trigger_crash()
 {
     memset((char *)invalid_mem, 1, 100);
