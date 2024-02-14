@@ -9,17 +9,21 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
 #ifdef NDEBUG
 #    undef NDEBUG
 #endif
+
 #include <assert.h>
 
 #ifdef SENTRY_PLATFORM_WINDOWS
 #    include <synchapi.h>
 #    define sleep_s(SECONDS) Sleep((SECONDS) * 1000)
 #else
+
 #    include <signal.h>
 #    include <unistd.h>
+
 #    define sleep_s(SECONDS) sleep(SECONDS)
 #endif
 
