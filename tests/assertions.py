@@ -142,6 +142,12 @@ def assert_breadcrumb(envelope):
         "message": "debug crumb",
         "category": "example!",
         "level": "debug",
+        "data": {
+            "url": "https://example.com/api/1.0/users",
+            "method": "GET",
+            "status_code": 200,
+            "reason": "OK",
+        },
     }
     assert any(matches(b, expected) for b in event["breadcrumbs"])
 
