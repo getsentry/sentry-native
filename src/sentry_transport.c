@@ -5,6 +5,7 @@
 #include "sentry_ratelimiter.h"
 #include "sentry_string.h"
 
+#include "zlib.h"
 
 #define ENVELOPE_MIME "application/x-sentry-envelope"
 // The headers we use are: `x-sentry-auth`, `content-type`, `content-encoding`, `content-length`
