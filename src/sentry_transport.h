@@ -92,7 +92,7 @@ void sentry__prepared_http_request_free(sentry_prepared_http_request_t *req);
 /**
  * Gzip
  */
-bool sentry_gzipped_with_compression(const char *body, const size_t body_len,
+bool sentry__gzipped_with_compression(const char *body, const size_t body_len,
     char **compressed_body, size_t *compressed_body_len);
 
 #endif

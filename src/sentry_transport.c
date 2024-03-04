@@ -169,7 +169,7 @@ sentry__prepare_http_request(sentry_envelope_t *envelope,
 
     char *compressed_body = NULL;
     size_t compressed_body_len = 0;
-    bool compressed = sentry_gzipped_with_compression(
+    bool compressed = sentry__gzipped_with_compression(
         body, body_len, &compressed_body, &compressed_body_len);
     if (compressed) {
         if (body_owned) {
@@ -261,7 +261,7 @@ sentry__prepared_http_request_free(sentry_prepared_http_request_t *req)
 }
 
 bool
-sentry_gzipped_with_compression(const char *body, const size_t body_len,
+sentry__gzipped_with_compression(const char *body, const size_t body_len,
     char **compressed_body, size_t *compressed_body_len)
 {
     if (!body || body_len == 0) {
