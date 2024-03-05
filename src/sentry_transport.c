@@ -174,17 +174,14 @@ sentry__prepare_http_request(sentry_envelope_t *envelope,
     if (compressed) {
         if (body_owned) {
             sentry_free(body);
-            body = NULL;
-            body_owned = false;
         }
+        body = compressed_body;
+        body_len = compressed_body_len;
     }
 
     sentry_prepared_http_request_t *req
         = SENTRY_MAKE(sentry_prepared_http_request_t);
     if (!req) {
-        if (compressed) {
-            sentry_free(compressed_body);
-        }
         if (body_owned) {
             sentry_free(body);
         }
@@ -194,9 +191,6 @@ sentry__prepare_http_request(sentry_envelope_t *envelope,
         sizeof(sentry_prepared_http_header_t) * MAX_HTTP_HEADERS);
     if (!req->headers) {
         sentry_free(req);
-        if (compressed) {
-            sentry_free(compressed_body);
-        }
         if (body_owned) {
             sentry_free(body);
         }
@@ -224,21 +218,11 @@ sentry__prepare_http_request(sentry_envelope_t *envelope,
 
     h = &req->headers[req->headers_len++];
     h->key = "content-length";
-    if (compressed) {
-        h->value = sentry__int64_to_string((int64_t)compressed_body_len);
-    } else {
-        h->value = sentry__int64_to_string((int64_t)body_len);
-    }
+    h->value = sentry__int64_to_string((int64_t)body_len);
 
-    if (compressed) {
-        req->body = compressed_body;
-        req->body_len = compressed_body_len;
-        req->body_owned = true;
-    } else {
-        req->body = body;
-        req->body_len = body_len;
-        req->body_owned = body_owned;
-    }
+    req->body = body;
+    req->body_len = body_len;
+    req->body_owned = body_owned;
 
     return req;
 }
