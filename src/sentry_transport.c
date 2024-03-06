@@ -6,7 +6,7 @@
 #include "sentry_string.h"
 
 #ifdef GZIP_COMPRESSION
-include "zlib.h"
+#include "zlib.h"
 #endif
 
 #define ENVELOPE_MIME "application/x-sentry-envelope"
