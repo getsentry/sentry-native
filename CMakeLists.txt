@@ -299,6 +299,8 @@ if(SENTRY_TRANSPORT_COMPRESSION)
 	endif()
 
 	target_link_libraries(sentry PRIVATE ZLIB::ZLIB)
+
+	add_definitions(-DGZIP_COMPRESSION)
 endif()
 
 set_property(TARGET sentry PROPERTY C_VISIBILITY_PRESET hidden)

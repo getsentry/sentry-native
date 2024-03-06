@@ -5,7 +5,9 @@
 #include "sentry_ratelimiter.h"
 #include "sentry_string.h"
 
-#include "zlib.h"
+#ifdef GZIP_COMPRESSION
+include "zlib.h"
+#endif
 
 #define ENVELOPE_MIME "application/x-sentry-envelope"
 // The headers we use are: `x-sentry-auth`, `content-type`, `content-encoding`, `content-length`
@@ -150,6 +152,7 @@ sentry_transport_free(sentry_transport_t *transport)
     sentry_free(transport);
 }
 
+#ifdef GZIP_COMPRESSION
 static bool
 gzipped_with_compression(const char *body, const size_t body_len,
     char **compressed_body, size_t *compressed_body_len)
@@ -197,6 +200,7 @@ gzipped_with_compression(const char *body, const size_t body_len,
     deflateEnd(&stream);
     return true;
 }
+#endif
 
 sentry_prepared_http_request_t *
 sentry__prepare_http_request(sentry_envelope_t *envelope,
@@ -215,9 +219,11 @@ sentry__prepare_http_request(sentry_envelope_t *envelope,
         return NULL;
     }
 
+    bool compressed = false;
+#ifdef GZIP_COMPRESSION
     char *compressed_body = NULL;
     size_t compressed_body_len = 0;
-    bool compressed = gzipped_with_compression(
+    compressed = gzipped_with_compression(
         body, body_len, &compressed_body, &compressed_body_len);
     if (compressed) {
         if (body_owned) {
@@ -228,6 +234,7 @@ sentry__prepare_http_request(sentry_envelope_t *envelope,
         body_len = compressed_body_len;
         body_owned = true;
     }
+#endif
 
     sentry_prepared_http_request_t *req
         = SENTRY_MAKE(sentry_prepared_http_request_t);
