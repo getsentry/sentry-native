@@ -55,7 +55,7 @@ endif()
 
 option(SENTRY_PIC "Build sentry (and dependent) libraries as position independent libraries" ON)
 
-option(SENTRY_TRANSPORT_COMPRESSION " Enable transport gzip compression" OFF)
+option(SENTRY_TRANSPORT_COMPRESSION "Enable transport gzip compression" OFF)
 
 option(SENTRY_BUILD_TESTS "Build sentry-native tests" "${SENTRY_MAIN_PROJECT}")
 option(SENTRY_BUILD_EXAMPLES "Build sentry-native example(s)" "${SENTRY_MAIN_PROJECT}")
@@ -299,8 +299,7 @@ if(SENTRY_TRANSPORT_COMPRESSION)
 	endif()
 
 	target_link_libraries(sentry PRIVATE ZLIB::ZLIB)
-
-	add_definitions(-DGZIP_COMPRESSION)
+	add_definitions(-DSENTRY_GZIPPED_COMPRESSION)
 endif()
 
 set_property(TARGET sentry PROPERTY C_VISIBILITY_PRESET hidden)
