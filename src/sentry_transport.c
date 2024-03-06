@@ -150,6 +150,54 @@ sentry_transport_free(sentry_transport_t *transport)
     sentry_free(transport);
 }
 
+static bool
+gzipped_with_compression(const char *body, const size_t body_len,
+    char **compressed_body, size_t *compressed_body_len)
+{
+    if (!body || body_len == 0) {
+        return false;
+    }
+
+    z_stream stream;
+    memset(&stream, 0, sizeof(stream));
+    stream.next_in = body;
+    stream.avail_in = body_len;
+
+    int err = deflateInit2(&stream, Z_DEFAULT_COMPRESSION, Z_DEFLATED,
+        MAX_WBITS + 16, 9, Z_DEFAULT_STRATEGY);
+    if (err != Z_OK) {
+        SENTRY_TRACEF("deflateInit2 failed: %d", err);
+        return false;
+    }
+
+    size_t len = compressBound(body_len);
+    char *buffer = sentry_malloc(len);
+    if (!buffer) {
+        deflateEnd(&stream);
+        return false;
+    }
+
+    while (err == Z_OK) {
+        stream.next_out = buffer + stream.total_out;
+        stream.avail_out = len - stream.total_out;
+        err = deflate(&stream, Z_FINISH);
+    }
+
+    if (err != Z_STREAM_END) {
+        SENTRY_TRACEF("deflate failed: %d", err);
+        sentry_free(buffer);
+        buffer = NULL;
+        deflateEnd(&stream);
+        return false;
+    }
+
+    *compressed_body_len = stream.total_out;
+    *compressed_body = buffer;
+
+    deflateEnd(&stream);
+    return true;
+}
+
 sentry_prepared_http_request_t *
 sentry__prepare_http_request(sentry_envelope_t *envelope,
     const sentry_dsn_t *dsn, const sentry_rate_limiter_t *rl,
@@ -169,14 +217,16 @@ sentry__prepare_http_request(sentry_envelope_t *envelope,
 
     char *compressed_body = NULL;
     size_t compressed_body_len = 0;
-    bool compressed = sentry__gzipped_with_compression(
+    bool compressed = gzipped_with_compression(
         body, body_len, &compressed_body, &compressed_body_len);
     if (compressed) {
         if (body_owned) {
             sentry_free(body);
+            body_owned = false;
         }
         body = compressed_body;
         body_len = compressed_body_len;
+        body_owned = true;
     }
 
     sentry_prepared_http_request_t *req
@@ -242,52 +292,4 @@ sentry__prepared_http_request_free(sentry_prepared_http_request_t *req)
         sentry_free(req->body);
     }
     sentry_free(req);
-}
-
-bool
-sentry__gzipped_with_compression(const char *body, const size_t body_len,
-    char **compressed_body, size_t *compressed_body_len)
-{
-    if (!body || body_len == 0) {
-        return false;
-    }
-
-    z_stream stream;
-    memset(&stream, 0, sizeof(stream));
-    stream.next_in = body;
-    stream.avail_in = body_len;
-
-    int err = deflateInit2(&stream, Z_DEFAULT_COMPRESSION, Z_DEFLATED,
-        MAX_WBITS + 16, 9, Z_DEFAULT_STRATEGY);
-    if (err != Z_OK) {
-        SENTRY_TRACEF("deflateInit2 failed: %d", err);
-        return false;
-    }
-
-    size_t len = compressBound(body_len);
-    char *buffer = sentry_malloc(len);
-    if (!buffer) {
-        deflateEnd(&stream);
-        return false;
-    }
-
-    while (err == Z_OK) {
-        stream.next_out = buffer + stream.total_out;
-        stream.avail_out = len - stream.total_out;
-        err = deflate(&stream, Z_FINISH);
-    }
-
-    if (err != Z_STREAM_END) {
-        SENTRY_TRACEF("deflate failed: %d", err);
-        sentry_free(buffer);
-        buffer = NULL;
-        deflateEnd(&stream);
-        return false;
-    }
-
-    *compressed_body_len = stream.total_out;
-    *compressed_body = buffer;
-
-    deflateEnd(&stream);
-    return true;
 }
