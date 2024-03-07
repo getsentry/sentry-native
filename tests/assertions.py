@@ -85,6 +85,9 @@ def assert_meta(
                 event["contexts"]["os"],
                 {"name": "Linux", "version": version, "build": build},
             )
+            assert "distribution" in event["contexts"]["os"]
+            assert "name" in event["contexts"]["os"]["distribution"]
+            assert "version" in event["contexts"]["os"]["distribution"]
         elif sys.platform == "darwin":
             version = platform.mac_ver()[0].split(".")
             if len(version) < 3:

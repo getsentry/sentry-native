@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Add Linux distributions to the OS context. [#963](https://github.com/getsentry/sentry-native/pull/963)
+
 **Internal**:
 
 - Remove the `CRASHPAD_WER_ENABLED` build flag. The WER module is now built for all supported Windows targets, and registration is conditional on runtime Windows version checks. ([#950](https://github.com/getsentry/sentry-native/pull/950), [crashpad#96](https://github.com/getsentry/crashpad/pull/96))

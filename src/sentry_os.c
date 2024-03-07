@@ -195,7 +195,104 @@ fail:
 }
 #elif defined(SENTRY_PLATFORM_UNIX)
 
+#    include <fcntl.h>
+#    include <string.h>
 #    include <sys/utsname.h>
+#    include <unistd.h>
+
+#    define OS_RELEASE_MAX_LINE_SIZE 128
+#    define OS_RELEASE_MAX_KEY_SIZE 64
+#    define OS_RELEASE_MAX_VALUE_SIZE 128
+
+static int
+parse_os_release_line(const char *line, char *key, char *value)
+{
+    const char *equals = strchr(line, '=');
+    if (equals == NULL)
+        return 1;
+
+    unsigned long key_length = equals - line;
+    strncpy(key, line, key_length);
+    key[key_length] = 0;
+
+    unsigned long value_length = strlen(equals + 1);
+    strncpy(value, equals + 1, value_length);
+    value[value_length] = 0;
+
+    // some values are wrapped in double quotes
+    if (value[0] == '\"') {
+        value[value_length - 1] = 0;
+        memmove(value, value + 1, value_length);
+    }
+
+    return 0;
+}
+
+#    ifndef SENTRY_UNITTEST
+static
+#    endif
+    sentry_value_t
+    get_linux_os_release(const char *os_rel_path)
+{
+    sentry_value_t os_dist = sentry_value_new_object();
+    const int fd = open(os_rel_path, O_RDONLY);
+    if (fd == -1) {
+        return sentry_value_new_null();
+    }
+
+    char buffer[OS_RELEASE_MAX_LINE_SIZE];
+    ssize_t bytes_read;
+    ssize_t buffer_rest = 0;
+    const char *line = buffer;
+    while ((bytes_read = read(
+                fd, buffer + buffer_rest, sizeof(buffer) - buffer_rest - 1))
+        > 0) {
+        buffer[bytes_read] = 0;
+
+        for (char *p = buffer; *p; ++p) {
+            if (*p != '\n')
+                continue;
+
+            char value[OS_RELEASE_MAX_VALUE_SIZE];
+            char key[OS_RELEASE_MAX_KEY_SIZE];
+            *p = '\0';
+
+            if (parse_os_release_line(line, key, value) == 0) {
+                if (strcmp(key, "ID") == 0) {
+                    sentry_value_set_by_key(
+                        os_dist, "name", sentry_value_new_string(value));
+                }
+
+                if (strcmp(key, "VERSION_ID") == 0) {
+                    sentry_value_set_by_key(
+                        os_dist, "version", sentry_value_new_string(value));
+                }
+
+                if (strcmp(key, "PRETTY_NAME") == 0) {
+                    sentry_value_set_by_key(
+                        os_dist, "pretty_name", sentry_value_new_string(value));
+                }
+            }
+            line = p + 1;
+        }
+
+        // Handle any partial line left at the end of the buffer
+        if (line < buffer + bytes_read) {
+            buffer_rest = buffer + bytes_read - line;
+            memmove(buffer, line, buffer_rest);
+            line = buffer;
+        }
+    }
+
+    if (bytes_read == -1) {
+        close(fd);
+        return sentry_value_new_null();
+    }
+
+    close(fd);
+
+    return os_dist;
+}
 
 sentry_value_t
 sentry__get_os_context(void)
@@ -236,6 +333,11 @@ sentry__get_os_context(void)
     sentry_value_set_by_key(os, "name", sentry_value_new_string(uts.sysname));
     sentry_value_set_by_key(
         os, "version", sentry_value_new_string(uts.release));
+
+    sentry_value_t os_dist = get_linux_os_release("/etc/os-release");
+    if (!sentry_value_is_null(os_dist)) {
+        sentry_value_set_by_key(os, "distribution", os_dist);
+    }
 
     return os;
 
