@@ -1,7 +1,7 @@
 #include "sentry_path.h"
 #include "sentry_testsupport.h"
 
-#ifdef SENTRY_PLATFORM_LINUX
+#if defined(SENTRY_PLATFORM_LINUX) && !defined(SENTRY_PLATFORM_ANDROID)
 #    include <dirent.h>
 
 struct distro {
@@ -123,11 +123,11 @@ assert_equals_snap(sentry_value_t os_dist)
 }
 
 extern sentry_value_t get_linux_os_release(const char *os_rel_path);
-#endif
+#endif // defined(SENTRY_PLATFORM_LINUX) && !defined(SENTRY_PLATFORM_ANDROID)
 
 SENTRY_TEST(os_releases_snapshot)
 {
-#ifndef SENTRY_PLATFORM_LINUX
+#if !defined(SENTRY_PLATFORM_LINUX) && defined(SENTRY_PLATFORM_ANDROID)
     SKIP_TEST();
 #else
     const char *rel_test_data_path = "../fixtures/os_releases";
@@ -171,5 +171,5 @@ SENTRY_TEST(os_releases_snapshot)
 
     closedir(test_data_dir);
     sentry__path_free(test_data_path);
-#endif
+#endif // !defined(SENTRY_PLATFORM_LINUX) && defined(SENTRY_PLATFORM_ANDROID)
 }
