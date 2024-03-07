@@ -334,8 +334,21 @@ sentry__get_os_context(void)
     sentry_value_set_by_key(
         os, "version", sentry_value_new_string(uts.release));
 
+    /**
+     * The file /etc/os-release takes precedence over /usr/lib/os-release.
+     * Applications should check for the former, and exclusively use its data if
+     * it exists, and only fall back to /usr/lib/os-release if it is missing.
+     * Applications should not read data from both files at the same time.
+     *
+     * From: https://www.freedesktop.org/software/systemd/man/latest/os-release.html#Description
+     */
     sentry_value_t os_dist = get_linux_os_release("/etc/os-release");
-    if (!sentry_value_is_null(os_dist)) {
+    if (sentry_value_is_null(os_dist)) {
+        os_dist = get_linux_os_release("/usr/lib/os-release");
+        if (sentry_value_is_null(os_dist)) {
+            sentry_value_set_by_key(os, "distribution", os_dist);
+        }
+    } else {
         sentry_value_set_by_key(os, "distribution", os_dist);
     }
 
