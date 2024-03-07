@@ -13,7 +13,8 @@ sentry_get_property(INCLUDE_DIRECTORIES)
 sentry_get_property(LINK_LIBRARIES)
 sentry_get_property(INTERFACE_LINK_LIBRARIES)
 
-set(SENTRY_UNIT_TEST_SOURCES
+add_executable(sentry_test_unit
+	${SENTRY_SOURCES}
 	main.c
 	sentry_testsupport.h
 	test_attachments.c
@@ -28,6 +29,7 @@ set(SENTRY_UNIT_TEST_SOURCES
 	test_modulefinder.c
 	test_mpack.c
 	test_options.c
+	test_os_release.c
 	test_path.c
 	test_ratelimiter.c
 	test_sampling.c
@@ -42,17 +44,6 @@ set(SENTRY_UNIT_TEST_SOURCES
 	test_uuid.c
 	test_value.c
 	tests.inc
-)
-
-if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-	list(APPEND SENTRY_UNIT_TEST_SOURCES
-		test_os_release.c
-	)
-endif()
-
-add_executable(sentry_test_unit
-	${SENTRY_SOURCES}
-	${SENTRY_UNIT_TEST_SOURCES}
 )
 
 # FIXME: cmake 3.13 introduced target_link_options
