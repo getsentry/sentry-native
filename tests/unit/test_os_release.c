@@ -103,18 +103,22 @@ const struct distro test_dists[] = {
     { .name = "sled", .version = "12.3" },
 };
 
+const int num_test_dists = sizeof(test_dists) / sizeof(struct distro);
+
+int
+value_strcmp_by_key(sentry_value_t value, const char *key, const char *str)
+{
+    return strcmp(
+        sentry_value_as_string(sentry_value_get_by_key(value, key)), str);
+}
+
 int
 assert_equals_snap(sentry_value_t os_dist)
 {
-    for (size_t i = 0; i < sizeof(test_dists) / sizeof(struct distro); i++) {
+    for (size_t i = 0; i < num_test_dists; i++) {
         const struct distro *expected = &test_dists[i];
-        if (strcmp(sentry_value_as_string(
-                       sentry_value_get_by_key(os_dist, "name")),
-                expected->name)
-                == 0
-            && strcmp(sentry_value_as_string(
-                          sentry_value_get_by_key(os_dist, "version")),
-                   expected->version)
+        if (value_strcmp_by_key(os_dist, "name", expected->name) == 0
+            && value_strcmp_by_key(os_dist, "version", expected->version)
                 == 0) {
             return 1;
         }
@@ -145,6 +149,7 @@ SENTRY_TEST(os_releases_snapshot)
 
     struct dirent *entry;
 
+    int successful_snap_asserts = 0;
     while ((entry = readdir(test_data_dir)) != NULL) {
         if (entry->d_type != DT_REG
             || strcmp("CODE_OF_CONDUCT.md", entry->d_name) == 0
@@ -165,9 +170,13 @@ SENTRY_TEST(os_releases_snapshot)
                     sentry_value_get_by_key(os_dist, "name")),
                 sentry_value_as_string(
                     sentry_value_get_by_key(os_dist, "version")));
+        } else {
+            successful_snap_asserts++;
         }
         sentry_value_decref(os_dist);
     }
+
+    TEST_CHECK_INT_EQUAL(successful_snap_asserts, num_test_dists);
 
     closedir(test_data_dir);
     sentry__path_free(test_data_path);
