@@ -132,6 +132,7 @@ SENTRY_TEST(os_releases_snapshot)
 
     sentry_path_t *test_data_path
         = sentry__path_join_str(dir, rel_test_data_path);
+    sentry__path_free(dir);
     TEST_ASSERT(sentry__path_is_dir(test_data_path));
 
     DIR *test_data_dir = opendir(test_data_path->path);
@@ -149,6 +150,7 @@ SENTRY_TEST(os_releases_snapshot)
         sentry_path_t *test_file_path
             = sentry__path_join_str(test_data_path, entry->d_name);
         sentry_value_t os_dist = get_linux_os_release(test_file_path->path);
+        sentry__path_free(test_file_path);
         TEST_ASSERT(!sentry_value_is_null(os_dist));
         int snap_result = assert_equals_snap(os_dist);
         if (!snap_result) {
@@ -159,6 +161,7 @@ SENTRY_TEST(os_releases_snapshot)
                 sentry_value_as_string(
                     sentry_value_get_by_key(os_dist, "version")));
         }
+        sentry_value_decref(os_dist);
     }
 
     closedir(test_data_dir);
