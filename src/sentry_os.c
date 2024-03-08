@@ -198,9 +198,10 @@ fail:
 #    include <fcntl.h>
 #    include <sys/utsname.h>
 
-#    define OS_RELEASE_MAX_LINE_SIZE 128
-#    define OS_RELEASE_MAX_KEY_SIZE 64
-#    define OS_RELEASE_MAX_VALUE_SIZE 128
+#    if defined(SENTRY_PLATFORM_LINUX)
+#        define OS_RELEASE_MAX_LINE_SIZE 128
+#        define OS_RELEASE_MAX_KEY_SIZE 64
+#        define OS_RELEASE_MAX_VALUE_SIZE 128
 
 static int
 parse_os_release_line(const char *line, char *key, char *value)
@@ -226,9 +227,9 @@ parse_os_release_line(const char *line, char *key, char *value)
     return 0;
 }
 
-#    ifndef SENTRY_UNITTEST
+#        ifndef SENTRY_UNITTEST
 static
-#    endif
+#        endif
     sentry_value_t
     get_linux_os_release(const char *os_rel_path)
 {
@@ -291,6 +292,7 @@ static
 
     return os_dist;
 }
+#    endif // defined(SENTRY_PLATFORM_LINUX)
 
 sentry_value_t
 sentry__get_os_context(void)
@@ -332,6 +334,7 @@ sentry__get_os_context(void)
     sentry_value_set_by_key(
         os, "version", sentry_value_new_string(uts.release));
 
+#    if defined(SENTRY_PLATFORM_LINUX)
     /**
      * The file /etc/os-release takes precedence over /usr/lib/os-release.
      * Applications should check for the former, and exclusively use its data if
@@ -350,6 +353,7 @@ sentry__get_os_context(void)
     } else {
         sentry_value_set_by_key(os, "distribution", os_dist);
     }
+#    endif // defined(SENTRY_PLATFORM_LINUX)
 
     return os;
 
