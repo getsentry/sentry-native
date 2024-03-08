@@ -340,7 +340,8 @@ sentry__get_os_context(void)
      * it exists, and only fall back to /usr/lib/os-release if it is missing.
      * Applications should not read data from both files at the same time.
      *
-     * From: https://www.freedesktop.org/software/systemd/man/latest/os-release.html#Description
+     * From:
+     * https://www.freedesktop.org/software/systemd/man/latest/os-release.html#Description
      */
     sentry_value_t os_dist = get_linux_os_release("/etc/os-release");
     if (sentry_value_is_null(os_dist)) {
