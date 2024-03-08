@@ -131,7 +131,7 @@ extern sentry_value_t get_linux_os_release(const char *os_rel_path);
 
 SENTRY_TEST(os_releases_snapshot)
 {
-#if !defined(SENTRY_PLATFORM_LINUX) && defined(SENTRY_PLATFORM_ANDROID)
+#if !defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
     SKIP_TEST();
 #else
     const char *rel_test_data_path = "../fixtures/os_releases";
@@ -180,5 +180,5 @@ SENTRY_TEST(os_releases_snapshot)
 
     closedir(test_data_dir);
     sentry__path_free(test_data_path);
-#endif // !defined(SENTRY_PLATFORM_LINUX) && defined(SENTRY_PLATFORM_ANDROID)
+#endif // !defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
 }
