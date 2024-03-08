@@ -196,9 +196,7 @@ fail:
 #elif defined(SENTRY_PLATFORM_UNIX)
 
 #    include <fcntl.h>
-#    include <string.h>
 #    include <sys/utsname.h>
-#    include <unistd.h>
 
 #    define OS_RELEASE_MAX_LINE_SIZE 128
 #    define OS_RELEASE_MAX_KEY_SIZE 64
