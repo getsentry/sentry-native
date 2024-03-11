@@ -348,11 +348,10 @@ sentry__get_os_context(void)
     if (sentry_value_is_null(os_dist)) {
         os_dist = get_linux_os_release("/usr/lib/os-release");
         if (sentry_value_is_null(os_dist)) {
-            sentry_value_set_by_key(os, "distribution", os_dist);
+            return os;
         }
-    } else {
-        sentry_value_set_by_key(os, "distribution", os_dist);
     }
+    sentry_value_set_by_key(os, "distribution", os_dist);
 #    endif // defined(SENTRY_PLATFORM_LINUX)
 
     return os;
