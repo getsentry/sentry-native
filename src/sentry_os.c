@@ -233,12 +233,12 @@ static
     sentry_value_t
     get_linux_os_release(const char *os_rel_path)
 {
-    sentry_value_t os_dist = sentry_value_new_object();
     const int fd = open(os_rel_path, O_RDONLY);
     if (fd == -1) {
         return sentry_value_new_null();
     }
 
+    sentry_value_t os_dist = sentry_value_new_object();
     char buffer[OS_RELEASE_MAX_LINE_SIZE];
     ssize_t bytes_read;
     ssize_t buffer_rest = 0;
@@ -284,8 +284,8 @@ static
     }
 
     if (bytes_read == -1) {
-        close(fd);
-        return sentry_value_new_null();
+        sentry_value_decref(os_dist);
+        os_dist = sentry_value_new_null();
     }
 
     close(fd);
