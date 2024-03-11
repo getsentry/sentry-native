@@ -74,7 +74,7 @@ Expand-Archive -LiteralPath "${ZLIB_DL_PATH}" -DestinationPath "${ZLIB_SOURCE_PA
 
 Write-Host "Building zlib source..."
 $ZLIB_BUILD_PATH = "$env:GITHUB_WORKSPACE\buildtools\zlib_build"
-& cmake.exe -B "${ZLIB_BUILD_PATH}" -DCMAKE_C_COMPILER="${env:MINGW_PKG_PREFIX}-gcc" -DCMAKE_CXX_COMPILER="${env:MINGW_PKG_PREFIX}-g++" -DCMAKE_RC_COMPILER="${env:MINGW_PKG_PREFIX}-windres" -DCMAKE_ASM_MASM_COMPILER="${env:MINGW_ASM_MASM_COMPILER}" -GNinja
+& cmake.exe -B "${ZLIB_BUILD_PATH}" -S "${ZLIB_SOURCE_PATH} -DCMAKE_C_COMPILER="${env:MINGW_PKG_PREFIX}-gcc" -DCMAKE_CXX_COMPILER="${env:MINGW_PKG_PREFIX}-g++" -DCMAKE_RC_COMPILER="${env:MINGW_PKG_PREFIX}-windres" -DCMAKE_ASM_MASM_COMPILER="${env:MINGW_ASM_MASM_COMPILER}" -GNinja
 & cmake.exe --build "${ZLIB_BUILD_PATH}" --target zlibstatic
 
 # Add CMAKE_DEFINES
