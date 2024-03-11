@@ -298,8 +298,12 @@ if(SENTRY_TRANSPORT_COMPRESSION)
 		find_package(ZLIB REQUIRED)
 	endif()
 
+	if(SENTRY_BACKEND_CRASHPAD)
+		set(CRASHPAD_ZLIB_SYSTEM ON CACHE BOOL "Force CRASHPAD_ZLIB_SYSTEM when enabling transport compression" FORCE)
+	endif()
+
 	target_link_libraries(sentry PRIVATE ZLIB::ZLIB)
-	add_definitions(-DSENTRY_GZIPPED_COMPRESSION)
+	target_compile_definitions(sentry PRIVATE SENTRY_TRANSPORT_COMPRESSION)
 endif()
 
 set_property(TARGET sentry PROPERTY C_VISIBILITY_PRESET hidden)

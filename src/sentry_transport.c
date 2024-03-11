@@ -5,14 +5,18 @@
 #include "sentry_ratelimiter.h"
 #include "sentry_string.h"
 
-#ifdef SENTRY_GZIPPED_COMPRESSION
+#ifdef SENTRY_TRANSPORT_COMPRESSION
 #  include "zlib.h"
 #endif
 
-#define ENVELOPE_MIME "application/x-sentry-envelope"
+#ifdef SENTRY_TRANSPORT_COMPRESSION
 // The headers we use are: `x-sentry-auth`, `content-type`, `content-encoding`,
 // `content-length`
 #define MAX_HTTP_HEADERS 4
+#else
+// The headers we use are: `x-sentry-auth`, `content-type`, `content-length`
+#define MAX_HTTP_HEADERS 3
+#endif
 
 typedef struct sentry_transport_s {
     void (*send_envelope_func)(sentry_envelope_t *envelope, void *state);
@@ -153,7 +157,7 @@ sentry_transport_free(sentry_transport_t *transport)
     sentry_free(transport);
 }
 
-#ifdef SENTRY_GZIPPED_COMPRESSION
+#ifdef SENTRY_TRANSPORT_COMPRESSION
 static bool
 gzipped_with_compression(const char *body, const size_t body_len,
     char **compressed_body, size_t *compressed_body_len)
@@ -221,7 +225,7 @@ sentry__prepare_http_request(sentry_envelope_t *envelope,
     }
 
     bool compressed = false;
-#ifdef SENTRY_GZIPPED_COMPRESSION
+#ifdef SENTRY_TRANSPORT_COMPRESSION
     char *compressed_body = NULL;
     size_t compressed_body_len = 0;
     compressed = gzipped_with_compression(
