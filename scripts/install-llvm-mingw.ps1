@@ -53,9 +53,9 @@ echo "PATH=${NINJA_INSTALL_PATH};$env:PATH" | Out-File -FilePath $env:GITHUB_ENV
 $env:PATH="${NINJA_INSTALL_PATH};$env:PATH"
 
 # Download zlib
-$ZLIB_RELEASE = "v1.3.1";
+$ZLIB_RELEASE = "1.3.1";
 $ZLIB_RELEASE_ASSET = "zlib131.zip"
-$ZLIB_DL_URL = "https://github.com/madler/zlib/releases/download/${ZLIB_RELEASE}/${ZLIB_RELEASE_ASSET}"
+$ZLIB_DL_URL = "https://github.com/madler/zlib/releases/download/v${ZLIB_RELEASE}/${ZLIB_RELEASE_ASSET}"
 $ZLIB_DL_SHA512 = "1f171880153b0120e1364baaf7d0a17f65086eff279f8f8c8538e5950097d1feee37cc173181676ba1e2aeb4565ba68749c814cd3e25bfb06271bea02feb7d94"
 $ZLIB_DL_PATH = "${DL_BASEDIR}\${ZLIB_RELEASE_ASSET}"
 $CurlArguments = '-s', '-Lf', '-o', "${ZLIB_DL_PATH}", "${ZLIB_DL_URL}"
@@ -68,9 +68,8 @@ if ($zlib_zip_hash.Hash -eq $ZLIB_DL_SHA512) {
 }
 
 Write-Host "Extracting zlib source..."
-$ZLIB_SOURCE_PATH = "$env:GITHUB_WORKSPACE\buildtools\zlib_src"
-New-Item -ItemType Directory -Force -Path "${ZLIB_SOURCE_PATH}"
-Expand-Archive -LiteralPath "${ZLIB_DL_PATH}" -DestinationPath "${ZLIB_SOURCE_PATH}"
+$ZLIB_SOURCE_PATH = "$env:GITHUB_WORKSPACE\buildtools\zlib-${ZLIB_RELEASE}"
+Expand-Archive -LiteralPath "${ZLIB_DL_PATH}" -DestinationPath "$env:GITHUB_WORKSPACE\buildtools"
 
 Write-Host "Building zlib source..."
 $ZLIB_BUILD_PATH = "$env:GITHUB_WORKSPACE\buildtools\zlib_build"
