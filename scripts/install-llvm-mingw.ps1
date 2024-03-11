@@ -50,7 +50,7 @@ Expand-Archive -LiteralPath "${NINJA_DL_PATH}" -DestinationPath "${NINJA_INSTALL
 # Export the NINJA executable path
 echo "NINJA_INSTALL_PATH=${NINJA_INSTALL_PATH}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 echo "PATH=${NINJA_INSTALL_PATH};$env:PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-$env:PATH=${NINJA_INSTALL_PATH};$env:PATH"
+$env:PATH="${NINJA_INSTALL_PATH};$env:PATH"
 
 # Download zlib
 $ZLIB_RELEASE = "v1.3.1";
