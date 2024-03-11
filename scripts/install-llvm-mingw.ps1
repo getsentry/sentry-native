@@ -51,5 +51,30 @@ Expand-Archive -LiteralPath "${NINJA_DL_PATH}" -DestinationPath "${NINJA_INSTALL
 echo "NINJA_INSTALL_PATH=${NINJA_INSTALL_PATH}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 echo "PATH=${NINJA_INSTALL_PATH};$env:PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
+# Download zlib
+$ZLIB_RELEASE = "v1.3.1";
+$ZLIB_RELEASE_ASSET = "zlib131.zip"
+$ZLIB_DL_URL = "https://github.com/madler/zlib/releases/download/${ZLIB_RELEASE}/${ZLIB_RELEASE_ASSET}"
+$ZLIB_DL_SHA512 = "1f171880153b0120e1364baaf7d0a17f65086eff279f8f8c8538e5950097d1feee37cc173181676ba1e2aeb4565ba68749c814cd3e25bfb06271bea02feb7d94"
+$ZLIB_DL_PATH = "${DL_BASEDIR}\${ZLIB_RELEASE_ASSET}"
+$CurlArguments = '-s', '-Lf', '-o', "${ZLIB_DL_PATH}", "${ZLIB_DL_URL}"
+& curl.exe @CurlArguments
+$zlib_zip_hash = Get-FileHash -LiteralPath "${ZLIB_DL_PATH}" -Algorithm SHA512
+if ($zlib_zip_hash.Hash -eq $ZLIB_DL_SHA512) {
+	Write-Host "Successfully downloaded ${ZLIB_RELEASE_ASSET}"
+} Else {
+	Write-Error "The downloaded ${ZLIB_RELEASE_ASSET} hash '$($zlib_zip_hash.Hash)' does not match the expected hash: '$ZLIB_DL_SHA512'"
+}
+
+Write-Host "Extracting zlib source..."
+$ZLIB_SOURCE_PATH = "$env:GITHUB_WORKSPACE\buildtools\zlib_src"
+New-Item -ItemType Directory -Force -Path "${ZLIB_SOURCE_PATH}"
+Expand-Archive -LiteralPath "${ZLIB_DL_PATH}" -DestinationPath "${ZLIB_SOURCE_PATH}"
+
+Write-Host "Building zlib source..."
+$ZLIB_BUILD_PATH = "$env:GITHUB_WORKSPACE\buildtools\zlib_build"
+& cmake.exe -B "${ZLIB_BUILD_PATH}" -DCMAKE_C_COMPILER="${env:MINGW_PKG_PREFIX}-gcc" -DCMAKE_CXX_COMPILER="${env:MINGW_PKG_PREFIX}-g++" -DCMAKE_RC_COMPILER="${env:MINGW_PKG_PREFIX}-windres" -DCMAKE_ASM_MASM_COMPILER="${env:MINGW_ASM_MASM_COMPILER}" -GNinja
+& cmake.exe --build "${ZLIB_BUILD_PATH}" --target zlibstatic
+
 # Add CMAKE_DEFINES
-echo "CMAKE_DEFINES=-DCMAKE_C_COMPILER=${env:MINGW_PKG_PREFIX}-gcc -DCMAKE_CXX_COMPILER=${env:MINGW_PKG_PREFIX}-g++ -DCMAKE_RC_COMPILER=${env:MINGW_PKG_PREFIX}-windres -DCMAKE_ASM_MASM_COMPILER=${env:MINGW_ASM_MASM_COMPILER} -GNinja" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+echo "CMAKE_DEFINES=-DZLIB_LIBRARY=${ZLIB_BUILD_PATH}\libzlibstatic.a -DZLIB_INCLUDE_DIR=${ZLIB_SOURCE_PATH} -DCMAKE_C_COMPILER=${env:MINGW_PKG_PREFIX}-gcc -DCMAKE_CXX_COMPILER=${env:MINGW_PKG_PREFIX}-g++ -DCMAKE_RC_COMPILER=${env:MINGW_PKG_PREFIX}-windres -DCMAKE_ASM_MASM_COMPILER=${env:MINGW_ASM_MASM_COMPILER} -GNinja" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
