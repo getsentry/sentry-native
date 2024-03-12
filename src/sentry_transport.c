@@ -9,6 +9,7 @@
 #  include "zlib.h"
 #endif
 
+#define ENVELOPE_MIME "application/x-sentry-envelope"
 #ifdef SENTRY_TRANSPORT_COMPRESSION
 // The headers we use are: `x-sentry-auth`, `content-type`, `content-encoding`,
 // `content-length`
