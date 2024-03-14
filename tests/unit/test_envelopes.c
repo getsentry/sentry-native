@@ -94,9 +94,9 @@ SENTRY_TEST(basic_http_request_preparation_for_user_feedback)
     TEST_CHECK_STRING_EQUAL(req->body,
         "{\"event_id\":\"c993afb6-b4ac-48a6-b61b-2558e601d65d\"}\n"
         "{\"type\":\"user_report\",\"length\":117}\n"
-        "{\"event_id\":\"c993afb6-b4ac-48a6-b61b-2558e601d65d\",\"email\":"
-        "\"some-email\",\"comments\":\"some-comment\",\"name\":"
-        "\"some-name\"}");
+        "{\"event_id\":\"c993afb6-b4ac-48a6-b61b-2558e601d65d\",\"name\":"
+        "\"some-name\",\"email\":\"some-email\",\"comments\":"
+        "\"some-comment\"}");
     sentry__prepared_http_request_free(req);
     sentry_envelope_free(envelope);
 
