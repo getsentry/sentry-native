@@ -37,6 +37,19 @@ def assert_session(envelope, extra_assertion=None):
     if extra_assertion:
         assert_matches(session, extra_assertion)
 
+def assert_user_feedback(envelope, extra_assertion=None):
+    user_feedback = None
+    for item in envelope:
+        if item.headers.get("type") == "user_report" and item.payload.json is not None:
+            user_feedback = item.payload.json
+
+    assert user_feedback is not None
+    assert user_feedback["name"] == "some-name"
+    assert user_feedback["email"] == "some-email"
+    assert user_feedback["comments"] == "some-comment"
+    if extra_assertion:
+        assert_matches(user_feedback, extra_assertion)
+
 
 def assert_meta(
     envelope,

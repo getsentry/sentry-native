@@ -550,6 +550,24 @@ fail:
     return NULL;
 }
 
+sentry_envelope_t *
+sentry__prepare_user_feedback(sentry_value_t user_feedback)
+{
+    sentry_envelope_t *envelope = NULL;
+
+    envelope = sentry__envelope_new();
+    if (!envelope || !sentry__envelope_add_user_feedback(envelope, user_feedback)) {
+        goto fail;
+    }
+
+    return envelope;
+
+fail:
+    SENTRY_WARN("dropping user feedback");
+    sentry_envelope_free(envelope);
+    return NULL;
+}
+
 void
 sentry_handle_exception(const sentry_ucontext_t *uctx)
 {
@@ -1118,6 +1136,23 @@ sentry_span_finish(sentry_span_t *opaque_span)
 
 fail:
     sentry__span_decref(opaque_span);
+}
+
+void sentry_capture_user_feedback(sentry_value_t user_feedback)
+{
+    sentry_envelope_t *envelope = NULL;
+
+    bool was_captured = false;
+    SENTRY_WITH_OPTIONS (options) {
+        was_captured = true;
+        envelope = sentry__prepare_user_feedback(user_feedback);
+        if (envelope) {
+            sentry__capture_envelope(options->transport, envelope);
+        }
+    }
+    if (!was_captured) {
+        sentry_value_decref(user_feedback);
+    }
 }
 
 int

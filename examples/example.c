@@ -365,6 +365,16 @@ main(int argc, char **argv)
 
         sentry_capture_event(event);
     }
+    if (has_arg(argc, argv, "capture-user-feedback")) {
+        sentry_value_t event = sentry_value_new_message_event(
+            SENTRY_LEVEL_INFO, "my-logger", "Hello World!");
+        sentry_uuid_t event_id = sentry_capture_event(event);
+
+        sentry_value_t user_feedback = sentry_value_new_user_feedback(&event_id,
+            "some-name", "some-email", "some-comment");
+
+        sentry_capture_user_feedback(user_feedback);
+    }
 
     if (has_arg(argc, argv, "capture-transaction")) {
         sentry_transaction_context_t *tx_ctx
