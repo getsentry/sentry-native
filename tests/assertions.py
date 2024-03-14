@@ -44,7 +44,7 @@ def assert_user_feedback(envelope):
         "email": "some-email",
         "comments": "some-comment"
     }
-    assert any(matches(item.headers, expected) for item in envelope)
+    assert any(matches(item, expected) for item in envelope)
 
 
 def assert_meta(
