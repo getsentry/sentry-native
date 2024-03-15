@@ -49,14 +49,14 @@ jobs:
             # RUN_ANALYZER: gcc
           - name: Linux (clang + asan + llvm-cov)
             os: ubuntu-22.04
-            CC: clang-14
-            CXX: clang++-14
+            CC: clang-15
+            CXX: clang++-15
             ERROR_ON_WARNINGS: 1
             RUN_ANALYZER: asan,llvm-cov
           - name: Linux (clang + kcov)
             os: ubuntu-22.04
-            CC: clang-14
-            CXX: clang++-14
+            CC: clang-15
+            CXX: clang++-15
             ERROR_ON_WARNINGS: 1
             RUN_ANALYZER: kcov
           - name: Linux (gcc + code-checker + valgrind)
@@ -136,6 +136,11 @@ jobs:
           sudo dpkg --add-architecture i386
           sudo apt update
           sudo apt install cmake gcc-7-multilib g++-7-multilib zlib1g-dev:i386 libssl-dev:i386 libcurl4-openssl-dev:i386
+
+        # https://github.com/actions/runner-images/issues/9491
+      - name: Decrease vm.mmap_rnd_bit to prevent ASLR ASAN issues
+        if: ${{ runner.os == 'Linux' && contains(env['RUN_ANALYZER'], 'asan') }}
+        run: sudo sysctl vm.mmap_rnd_bits=28
 
       - name: Installing CodeChecker
         if: ${{ contains(env['RUN_ANALYZER'], 'code-checker') }}
