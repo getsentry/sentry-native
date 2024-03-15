@@ -49,8 +49,8 @@ jobs:
             # RUN_ANALYZER: gcc
           - name: Linux (clang + asan + llvm-cov)
             os: ubuntu-22.04
-            CC: clang-15
-            CXX: clang++-15
+            CC: clang-14
+            CXX: clang++-14
             ERROR_ON_WARNINGS: 1
             RUN_ANALYZER: llvm-cov
           - name: Linux (clang + kcov)
