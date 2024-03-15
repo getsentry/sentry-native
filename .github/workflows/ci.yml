@@ -52,7 +52,7 @@ jobs:
             CC: clang-15
             CXX: clang++-15
             ERROR_ON_WARNINGS: 1
-            RUN_ANALYZER: asan
+            RUN_ANALYZER: llvm-cov
           - name: Linux (clang + kcov)
             os: ubuntu-22.04
             CC: clang-15
