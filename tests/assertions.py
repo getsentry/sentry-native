@@ -37,6 +37,7 @@ def assert_session(envelope, extra_assertion=None):
     if extra_assertion:
         assert_matches(session, extra_assertion)
 
+
 def assert_user_feedback(envelope):
     user_feedback = None
     for item in envelope:
