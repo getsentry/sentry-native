@@ -782,14 +782,11 @@ SENTRY_TEST(user_feedback_is_valid)
 
     TEST_CHECK(!sentry_value_is_null(user_feedback));
     TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
-        user_feedback, "name")),
-        "some-name");
+        user_feedback, "name")), "some-name");
     TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
-        user_feedback, "email")),
-        "some-email");
+        user_feedback, "email")), "some-email");
     TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
-        user_feedback, "comments")),
-        "some-comment");
+        user_feedback, "comments")), "some-comment");
 
     sentry_value_decref(user_feedback);
 }

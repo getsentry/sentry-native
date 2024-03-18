@@ -370,8 +370,8 @@ main(int argc, char **argv)
             SENTRY_LEVEL_INFO, "my-logger", "Hello World!");
         sentry_uuid_t event_id = sentry_capture_event(event);
 
-        sentry_value_t user_feedback = sentry_value_new_user_feedback(&event_id,
-            "some-name", "some-email", "some-comment");
+        sentry_value_t user_feedback = sentry_value_new_user_feedback(
+            &event_id, "some-name", "some-email", "some-comment");
 
         sentry_capture_user_feedback(user_feedback);
     }

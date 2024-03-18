@@ -556,7 +556,8 @@ sentry__prepare_user_feedback(sentry_value_t user_feedback)
     sentry_envelope_t *envelope = NULL;
 
     envelope = sentry__envelope_new();
-    if (!envelope || !sentry__envelope_add_user_feedback(envelope, user_feedback)) {
+    if (!envelope
+        || !sentry__envelope_add_user_feedback(envelope, user_feedback)) {
         goto fail;
     }
 
@@ -1138,7 +1139,8 @@ fail:
     sentry__span_decref(opaque_span);
 }
 
-void sentry_capture_user_feedback(sentry_value_t user_feedback)
+void
+sentry_capture_user_feedback(sentry_value_t user_feedback)
 {
     sentry_envelope_t *envelope = NULL;
 

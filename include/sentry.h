@@ -1897,12 +1897,12 @@ SENTRY_EXPERIMENTAL_API void sentry_transaction_set_name_n(
  * sent to Sentry earlier.
  */
 SENTRY_API sentry_value_t sentry_value_new_user_feedback(
-    const sentry_uuid_t *uuid,
-    const char *name, const char *email, const char *comments);
+    const sentry_uuid_t *uuid, const char *name, const char *email,
+    const char *comments);
 SENTRY_API sentry_value_t sentry_value_new_user_feedback_n(
-    const sentry_uuid_t *uuid,
-    const char *name, size_t name_len, const char *email, size_t email_len,
-    const char *comments, size_t comments_len);
+    const sentry_uuid_t *uuid, const char *name, size_t name_len,
+    const char *email, size_t email_len, const char *comments,
+    size_t comments_len);
 
 /**
  * Captures a manually created User Feedback and sends it to Sentry.
