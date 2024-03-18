@@ -117,6 +117,7 @@ def test_capture_and_session_http(cmake, httpserver):
     envelope = Envelope.deserialize(output)
     assert_session(envelope, {"status": "exited", "errors": 0})
 
+
 def test_user_feedback_http(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
 

@@ -38,13 +38,15 @@ def assert_session(envelope, extra_assertion=None):
         assert_matches(session, extra_assertion)
 
 def assert_user_feedback(envelope):
-    expected = {
-        "type": "user_report",
-        "name": "some-name",
-        "email": "some-email",
-        "comments": "some-comment"
-    }
-    assert any(matches(item, expected) for item in envelope)
+    user_feedback = None
+    for item in envelope:
+        if item.headers.get("type") == "user_report" and item.payload.json is not None:
+            user_feedback = item.payload.json
+
+    assert user_feedback is not None
+    assert user_feedback["name"] == "some-name"
+    assert user_feedback["email"] == "some-email"
+    assert user_feedback["comments"] == "some-comment"
 
 
 def assert_meta(
