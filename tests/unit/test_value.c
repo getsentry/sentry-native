@@ -789,8 +789,8 @@ SENTRY_TEST(user_feedback_is_valid)
         "some-email");
     TEST_CHECK_STRING_EQUAL(
         sentry_value_as_string(sentry_value_get_by_key(
-                                    user_feedback, "comments")),
-            "some-comment");
+                                user_feedback, "comments")),
+        "some-comment");
 
     sentry_value_decref(user_feedback);
 }
