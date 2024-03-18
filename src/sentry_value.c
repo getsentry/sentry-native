@@ -1275,9 +1275,11 @@ sentry_value_new_user_feedback(const sentry_uuid_t *uuid, const char *name,
     return sentry_value_new_user_feedback_n(
         uuid, name, name_len, email, email_len, comments, comments_len);
 }
-sentry_value_t sentry_value_new_user_feedback_n(const sentry_uuid_t *uuid,
-    const char *name, size_t name_len, const char *email, size_t email_len,
-    const char *comments, size_t comments_len)
+
+sentry_value_t
+sentry_value_new_user_feedback_n(const sentry_uuid_t *uuid, const char *name,
+    size_t name_len, const char *email, size_t email_len, const char *comments,
+    size_t comments_len)
 {
     sentry_value_t rv = sentry_value_new_object();
 
