@@ -566,6 +566,7 @@ sentry__prepare_user_feedback(sentry_value_t user_feedback)
 fail:
     SENTRY_WARN("dropping user feedback");
     sentry_envelope_free(envelope);
+    sentry_value_decref(user_feedback);
     return NULL;
 }
 
