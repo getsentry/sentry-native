@@ -66,7 +66,10 @@ def assert_meta(
         "user": {"id": 42, "username": "some_name"},
         "transaction": transaction,
         "tags": {"expected-tag": "some value"},
-        "extra": {"extra stuff": "some value", "…unicode key…": "őá…–🤮🚀¿ 한글 테스트"},
+        "extra": {
+            "extra stuff": "some value",
+            "…unicode key…": "őá…–🤮🚀¿ 한글 테스트",
+        },
     }
     expected_sdk = {
         "name": "sentry.native",
