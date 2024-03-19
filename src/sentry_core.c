@@ -1145,17 +1145,13 @@ sentry_capture_user_feedback(sentry_value_t user_feedback)
 {
     sentry_envelope_t *envelope = NULL;
 
-    bool was_captured = false;
     SENTRY_WITH_OPTIONS (options) {
-        was_captured = true;
         envelope = sentry__prepare_user_feedback(user_feedback);
         if (envelope) {
             sentry__capture_envelope(options->transport, envelope);
         }
     }
-    if (!was_captured) {
-        sentry_value_decref(user_feedback);
-    }
+    sentry_value_decref(user_feedback);
 }
 
 int
