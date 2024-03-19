@@ -98,6 +98,7 @@ SENTRY_TEST(basic_http_request_preparation_for_user_feedback)
         "\"some-name\",\"email\":\"some-email\",\"comments\":"
         "\"some-comment\"}");
     sentry__prepared_http_request_free(req);
+    sentry_value_decref(user_feedback);
     sentry_envelope_free(envelope);
 
     sentry__dsn_decref(dsn);
