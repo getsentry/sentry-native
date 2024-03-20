@@ -189,12 +189,12 @@ def assert_timestamp(ts, now=datetime.utcnow()):
     assert ts[:11] == now.isoformat()[:11]
 
 
-def assert_event(envelope):
+def assert_event(envelope, message="Hello World!"):
     event = envelope.get_event()
     expected = {
         "level": "info",
         "logger": "my-logger",
-        "message": {"formatted": "Hello World!"},
+        "message": {"formatted": message},
     }
     assert_matches(event, expected)
     assert_timestamp(event["timestamp"])

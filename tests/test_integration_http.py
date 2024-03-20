@@ -139,7 +139,7 @@ def test_user_feedback_http(cmake, httpserver):
     output = httpserver.log[0][0].get_data()
     envelope = Envelope.deserialize(output)
 
-    assert_event(envelope)
+    assert_event(envelope, "Hello user feedback!")
 
     output = httpserver.log[1][0].get_data()
     envelope = Envelope.deserialize(output)
