@@ -38,6 +38,18 @@ def assert_session(envelope, extra_assertion=None):
         assert_matches(session, extra_assertion)
 
 
+def assert_user_feedback(envelope):
+    user_feedback = None
+    for item in envelope:
+        if item.headers.get("type") == "user_report" and item.payload.json is not None:
+            user_feedback = item.payload.json
+
+    assert user_feedback is not None
+    assert user_feedback["name"] == "some-name"
+    assert user_feedback["email"] == "some-email"
+    assert user_feedback["comments"] == "some-comment"
+
+
 def assert_meta(
     envelope,
     release="test-example-release",
@@ -177,12 +189,12 @@ def assert_timestamp(ts, now=datetime.utcnow()):
     assert ts[:11] == now.isoformat()[:11]
 
 
-def assert_event(envelope):
+def assert_event(envelope, message="Hello World!"):
     event = envelope.get_event()
     expected = {
         "level": "info",
         "logger": "my-logger",
-        "message": {"formatted": "Hello World!"},
+        "message": {"formatted": message},
     }
     assert_matches(event, expected)
     assert_timestamp(event["timestamp"])

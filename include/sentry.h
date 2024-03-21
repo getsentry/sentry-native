@@ -1889,6 +1889,27 @@ SENTRY_EXPERIMENTAL_API void sentry_transaction_set_name_n(
     sentry_transaction_t *transaction, const char *name, size_t name_len);
 
 /**
+ * Creates a new User Feedback with a specific name, email and comments.
+ *
+ * See https://develop.sentry.dev/sdk/envelopes/#user-feedback
+ *
+ * User Feedback has to be associated with a specific event that has been
+ * sent to Sentry earlier.
+ */
+SENTRY_API sentry_value_t sentry_value_new_user_feedback(
+    const sentry_uuid_t *uuid, const char *name, const char *email,
+    const char *comments);
+SENTRY_API sentry_value_t sentry_value_new_user_feedback_n(
+    const sentry_uuid_t *uuid, const char *name, size_t name_len,
+    const char *email, size_t email_len, const char *comments,
+    size_t comments_len);
+
+/**
+ * Captures a manually created User Feedback and sends it to Sentry.
+ */
+SENTRY_API void sentry_capture_user_feedback(sentry_value_t user_feedback);
+
+/**
  * The status of a Span or Transaction.
  *
  * See https://develop.sentry.dev/sdk/event-payloads/span/ for documentation.
