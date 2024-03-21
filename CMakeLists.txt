@@ -280,17 +280,7 @@ if(SENTRY_TRANSPORT_CURL)
 		find_package(CURL REQUIRED COMPONENTS AsynchDNS)
 	endif()
 
-	if(TARGET CURL::libcurl) # Only available in cmake 3.12+
-		target_link_libraries(sentry PRIVATE CURL::libcurl)
-	else()
-		# Needed for cmake < 3.12 support (cmake 3.12 introduced the target CURL::libcurl)
-		target_include_directories(sentry PRIVATE ${CURL_INCLUDE_DIR})
-		# The exported sentry target must not contain any path of the build machine, therefore use generator expressions
-		string(REPLACE ";" "$<SEMICOLON>" GENEX_CURL_LIBRARIES "${CURL_LIBRARIES}")
-		string(REPLACE ";" "$<SEMICOLON>" GENEX_CURL_COMPILE_DEFINITIONS "${CURL_COMPILE_DEFINITIONS}")
-		target_link_libraries(sentry PRIVATE $<BUILD_INTERFACE:${GENEX_CURL_LIBRARIES}>)
-		target_compile_definitions(sentry PRIVATE $<BUILD_INTERFACE:${GENEX_CURL_COMPILE_DEFINITIONS}>)
-	endif()
+	target_link_libraries(sentry PRIVATE CURL::libcurl)
 endif()
 
 if(SENTRY_TRANSPORT_COMPRESSION)
@@ -428,9 +418,6 @@ if(SENTRY_WITH_LIBUNWINDSTACK)
 endif()
 
 if(SENTRY_BACKEND_CRASHPAD)
-	# FIXME: required for cmake 3.12 and lower:
-	# - NEW behavior lets normal variable override option
-	cmake_policy(SET CMP0077 NEW)
 	if(SENTRY_BUILD_SHARED_LIBS)
 		set(CRASHPAD_ENABLE_INSTALL OFF CACHE BOOL "Enable crashpad installation" FORCE)
 	else()
