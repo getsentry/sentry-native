@@ -6,17 +6,17 @@
 #include "sentry_string.h"
 
 #ifdef SENTRY_TRANSPORT_COMPRESSION
-#include "zlib.h"
+#    include "zlib.h"
 #endif
 
 #define ENVELOPE_MIME "application/x-sentry-envelope"
 #ifdef SENTRY_TRANSPORT_COMPRESSION
 // The headers we use are: `x-sentry-auth`, `content-type`, `content-encoding`,
 // `content-length`
-#define MAX_HTTP_HEADERS 4
+#    define MAX_HTTP_HEADERS 4
 #else
 // The headers we use are: `x-sentry-auth`, `content-type`, `content-length`
-#define MAX_HTTP_HEADERS 3
+#    define MAX_HTTP_HEADERS 3
 #endif
 
 typedef struct sentry_transport_s {
