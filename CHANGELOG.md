@@ -4,7 +4,7 @@
 
 **Features**:
 
-- Add content-encoding for http request to the `sentry`. ([#954](https://github.com/getsentry/sentry-native/pull/954))
+- Add optional Gzip transport compression via build option `SENTRY_TRANSPORT_COMPRESSION`. Requires system `zlib`. ([#954](https://github.com/getsentry/sentry-native/pull/954))
 
 **Internal**:
 
@@ -13,6 +13,10 @@
 **Docs**:
 
 - Add usage of the breadcrumb `data` property to the example. [#951](https://github.com/getsentry/sentry-native/pull/951)
+
+**Thank you**:
+
+- [@Strive-Sun](https://github.com/Strive-Sun)
 
 ## 0.7.0
 
@@ -39,6 +43,7 @@ Features, fixes and improvements in this release have been contributed by:
 
 - [@compnerd](https://github.com/compnerd)
 - [@stima](https://github.com/stima)
+- [@hyp](https://github.com/hyp)
 
 ## 0.6.7
 
