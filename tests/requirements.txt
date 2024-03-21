@@ -1,4 +1,4 @@
-black==24.2.0
+black==24.3.0
 pytest==8.0.1
 pytest-httpserver==1.0.10
 msgpack==1.0.8
