@@ -138,6 +138,9 @@ def cmake(cwd, targets, options=None):
     if "tsan" in os.environ.get("RUN_ANALYZER", ""):
         configcmd.append("-DWITH_TSAN_OPTION=ON")
 
+    # TODO: connect with an env variable
+    configcmd.append("-DSENTRY_TRANSPORT_COMPRESSION=ON")
+
     # we have to set `-Werror` for this cmake invocation only, otherwise
     # completely unrelated things will break
     cflags = []

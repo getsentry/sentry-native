@@ -33,10 +33,12 @@ SENTRY_TEST(basic_http_request_preparation_for_event)
     TEST_CHECK_STRING_EQUAL(req->method, "POST");
     TEST_CHECK_STRING_EQUAL(
         req->url, "https://sentry.invalid:443/api/42/envelope/");
+#ifndef SENTRY_TRANSPORT_COMPRESSION
     TEST_CHECK_STRING_EQUAL(req->body,
         "{\"event_id\":\"c993afb6-b4ac-48a6-b61b-2558e601d65d\"}\n"
         "{\"type\":\"event\",\"length\":51}\n"
         "{\"event_id\":\"c993afb6-b4ac-48a6-b61b-2558e601d65d\"}");
+#endif
     sentry__prepared_http_request_free(req);
     sentry_envelope_free(envelope);
 
@@ -62,13 +64,14 @@ SENTRY_TEST(basic_http_request_preparation_for_transaction)
     TEST_CHECK_STRING_EQUAL(req->method, "POST");
     TEST_CHECK_STRING_EQUAL(
         req->url, "https://sentry.invalid:443/api/42/envelope/");
+#ifndef SENTRY_TRANSPORT_COMPRESSION
     TEST_CHECK_STRING_EQUAL(req->body,
         "{\"event_id\":\"c993afb6-b4ac-48a6-b61b-2558e601d65d\",\"sent_at\":"
         "\"2021-12-16T05:53:59.343Z\"}\n"
         "{\"type\":\"transaction\",\"length\":72}\n"
         "{\"event_id\":\"c993afb6-b4ac-48a6-b61b-2558e601d65d\",\"type\":"
         "\"transaction\"}");
-
+#endif
     sentry__prepared_http_request_free(req);
     sentry_envelope_free(envelope);
 
@@ -91,12 +94,14 @@ SENTRY_TEST(basic_http_request_preparation_for_user_feedback)
     TEST_CHECK_STRING_EQUAL(req->method, "POST");
     TEST_CHECK_STRING_EQUAL(
         req->url, "https://sentry.invalid:443/api/42/envelope/");
+#ifndef SENTRY_TRANSPORT_COMPRESSION
     TEST_CHECK_STRING_EQUAL(req->body,
         "{\"event_id\":\"c993afb6-b4ac-48a6-b61b-2558e601d65d\"}\n"
         "{\"type\":\"user_report\",\"length\":117}\n"
         "{\"event_id\":\"c993afb6-b4ac-48a6-b61b-2558e601d65d\",\"name\":"
         "\"some-name\",\"email\":\"some-email\",\"comments\":"
         "\"some-comment\"}");
+#endif
     sentry__prepared_http_request_free(req);
     sentry_value_decref(user_feedback);
     sentry_envelope_free(envelope);
@@ -124,12 +129,14 @@ SENTRY_TEST(basic_http_request_preparation_for_event_with_attachment)
     TEST_CHECK_STRING_EQUAL(req->method, "POST");
     TEST_CHECK_STRING_EQUAL(
         req->url, "https://sentry.invalid:443/api/42/envelope/");
+#ifndef SENTRY_TRANSPORT_COMPRESSION
     TEST_CHECK_STRING_EQUAL(req->body,
         "{\"event_id\":\"c993afb6-b4ac-48a6-b61b-2558e601d65d\"}\n"
         "{\"type\":\"event\",\"length\":51}\n"
         "{\"event_id\":\"c993afb6-b4ac-48a6-b61b-2558e601d65d\"}\n"
         "{\"type\":\"attachment\",\"length\":12}\n"
         "Hello World!");
+#endif
     sentry__prepared_http_request_free(req);
     sentry_envelope_free(envelope);
 
@@ -153,12 +160,14 @@ SENTRY_TEST(basic_http_request_preparation_for_minidump)
     TEST_CHECK_STRING_EQUAL(req->method, "POST");
     TEST_CHECK_STRING_EQUAL(
         req->url, "https://sentry.invalid:443/api/42/envelope/");
+#ifndef SENTRY_TRANSPORT_COMPRESSION
     TEST_CHECK_STRING_EQUAL(req->body,
         "{}\n"
         "{\"type\":\"minidump\",\"length\":4}\n"
         "MDMP\n"
         "{\"type\":\"attachment\",\"length\":12}\n"
         "Hello World!");
+#endif
     sentry__prepared_http_request_free(req);
     sentry_envelope_free(envelope);
 

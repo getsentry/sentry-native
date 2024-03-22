@@ -169,7 +169,7 @@ gzipped_with_compression(const char *body, const size_t body_len,
 
     z_stream stream;
     memset(&stream, 0, sizeof(stream));
-    stream.next_in = body;
+    stream.next_in = (unsigned char*)body;
     stream.avail_in = body_len;
 
     int err = deflateInit2(&stream, Z_DEFAULT_COMPRESSION, Z_DEFLATED,
@@ -187,7 +187,7 @@ gzipped_with_compression(const char *body, const size_t body_len,
     }
 
     while (err == Z_OK) {
-        stream.next_out = buffer + stream.total_out;
+        stream.next_out = (unsigned char*)(buffer + stream.total_out);
         stream.avail_out = len - stream.total_out;
         err = deflate(&stream, Z_FINISH);
     }
@@ -225,8 +225,8 @@ sentry__prepare_http_request(sentry_envelope_t *envelope,
         return NULL;
     }
 
-    bool compressed = false;
 #ifdef SENTRY_TRANSPORT_COMPRESSION
+    bool compressed = false;
     char *compressed_body = NULL;
     size_t compressed_body_len = 0;
     compressed = gzipped_with_compression(
@@ -273,11 +273,13 @@ sentry__prepare_http_request(sentry_envelope_t *envelope,
     h->key = "content-type";
     h->value = sentry__string_clone(ENVELOPE_MIME);
 
+#ifdef SENTRY_TRANSPORT_COMPRESSION
     if (compressed) {
         h = &req->headers[req->headers_len++];
         h->key = "content-encoding";
         h->value = sentry__string_clone("gzip");
     }
+#endif
 
     h = &req->headers[req->headers_len++];
     h->key = "content-length";
