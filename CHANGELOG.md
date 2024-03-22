@@ -5,6 +5,7 @@
 **Features**:
 
 - Add optional Gzip transport compression via build option `SENTRY_TRANSPORT_COMPRESSION`. Requires system `zlib`. ([#954](https://github.com/getsentry/sentry-native/pull/954))
+- Add user feedback capability to the Native SDK ([#966](https://github.com/getsentry/sentry-native/pull/966))
 
 **Internal**:
 
