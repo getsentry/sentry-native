@@ -53,6 +53,13 @@ jobs:
             CXX: clang++-15
             ERROR_ON_WARNINGS: 1
             RUN_ANALYZER: asan,llvm-cov
+          - name: Linux (clang + transport-compression + asan + llvm-cov)
+            os: ubuntu-22.04
+            CC: clang-15
+            CXX: clang++-15
+            ERROR_ON_WARNINGS: 1
+            TRANSPORT_COMPRESSION: 1
+            RUN_ANALYZER: asan,llvm-cov
           - name: Linux (clang + kcov)
             os: ubuntu-22.04
             CC: clang-15
@@ -78,6 +85,14 @@ jobs:
             ERROR_ON_WARNINGS: 1
             SYSTEM_VERSION_COMPAT: 0
             RUN_ANALYZER: asan,llvm-cov
+          - name: macOS (clang + transport-compression + asan + llvm-cov)
+            os: macOs-11
+            CC: clang
+            CXX: clang++
+            ERROR_ON_WARNINGS: 1
+            SYSTEM_VERSION_COMPAT: 0
+            TRANSPORT_COMPRESSION: 1
+            RUN_ANALYZER: asan,llvm-cov
           - name: Windows (old VS, 32-bit)
             os: windows-2019
             TEST_X86: 1
@@ -88,6 +103,12 @@ jobs:
             TEST_MINGW: 1
             MINGW_PKG_PREFIX: x86_64-w64-mingw32
             MINGW_ASM_MASM_COMPILER: llvm-ml;-m64
+          - name: LLVM-Mingw (transport-compression)
+            os: windows-latest
+            TEST_MINGW: 1
+            MINGW_PKG_PREFIX: x86_64-w64-mingw32
+            MINGW_ASM_MASM_COMPILER: llvm-ml;-m64
+            TRANSPORT_COMPRESSION: 1
           # The Android emulator is currently only available on macos, see:
           # https://docs.microsoft.com/en-us/azure/devops/pipelines/ecosystems/android?view=azure-devops#test-on-the-android-emulator
           - name: Android (old API/NDK)
@@ -114,7 +135,7 @@ jobs:
       ANDROID_ARCH: ${{ matrix.ANDROID_ARCH }}
       CMAKE_DEFINES: ${{ matrix.CMAKE_DEFINES }}
       SYSTEM_VERSION_COMPAT: ${{ matrix.SYSTEM_VERSION_COMPAT }}
-
+      TRANSPORT_COMPRESSION: ${{ matrix.TRANSPORT_COMPRESSION }}
     steps:
       - uses: actions/checkout@v3
         with:
