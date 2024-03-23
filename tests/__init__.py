@@ -170,7 +170,7 @@ class Envelope(object):
         # check if the data is gzip encoded and extract it before deserialization.
         # 0x1f8b: gzip-magic, 0x08: `DEFLATE` compression method.
         if data[:3] == b"\x1f\x8b\x08":
-            with gzip.open(io.BytesIO(data), 'rb') as output:
+            with gzip.open(io.BytesIO(data), "rb") as output:
                 return cls.deserialize_from(output)
 
         return cls.deserialize_from(io.BytesIO(data))

@@ -169,7 +169,7 @@ gzipped_with_compression(const char *body, const size_t body_len,
 
     z_stream stream;
     memset(&stream, 0, sizeof(stream));
-    stream.next_in = (unsigned char*)body;
+    stream.next_in = (unsigned char *)body;
     stream.avail_in = body_len;
 
     int err = deflateInit2(&stream, Z_DEFAULT_COMPRESSION, Z_DEFLATED,
@@ -187,7 +187,7 @@ gzipped_with_compression(const char *body, const size_t body_len,
     }
 
     while (err == Z_OK) {
-        stream.next_out = (unsigned char*)(buffer + stream.total_out);
+        stream.next_out = (unsigned char *)(buffer + stream.total_out);
         stream.avail_out = len - stream.total_out;
         err = deflate(&stream, Z_FINISH);
     }
