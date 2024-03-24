@@ -1,8 +1,11 @@
+$DL_BASEDIR = "$env:GITHUB_WORKSPACE\dl"
+if (!(Test-Path -Path "$DL_BASEDIR")) { New-Item -ItemType Directory -Force -Path "$DL_BASEDIR" }
+
 $ZLIB_RELEASE = "1.3.1";
 $ZLIB_RELEASE_ASSET = "zlib131.zip"
 $ZLIB_DL_URL = "https://github.com/madler/zlib/releases/download/v${ZLIB_RELEASE}/${ZLIB_RELEASE_ASSET}"
 $ZLIB_DL_SHA512 = "1f171880153b0120e1364baaf7d0a17f65086eff279f8f8c8538e5950097d1feee37cc173181676ba1e2aeb4565ba68749c814cd3e25bfb06271bea02feb7d94"
-$ZLIB_DL_PATH = "$env:GITHUB_WORKSPACE\dl\${ZLIB_RELEASE_ASSET}"
+$ZLIB_DL_PATH = "${DL_BASEDIR}\${ZLIB_RELEASE_ASSET}"
 $CurlArguments = '-s', '-Lf', '-o', "${ZLIB_DL_PATH}", "${ZLIB_DL_URL}"
 & curl.exe @CurlArguments
 $zlib_zip_hash = Get-FileHash -LiteralPath "${ZLIB_DL_PATH}" -Algorithm SHA512
