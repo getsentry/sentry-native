@@ -1,10 +1,19 @@
 # Changelog
 
-## 0.7.1
+## Unreleased
 
 **Features**:
 
 - Add optional Gzip transport compression via build option `SENTRY_TRANSPORT_COMPRESSION`. Requires system `zlib`. ([#954](https://github.com/getsentry/sentry-native/pull/954))
+
+**Thank you**:
+
+- [@Strive-Sun](https://github.com/Strive-Sun)
+
+## 0.7.1
+
+**Features**:
+
 - Add user feedback capability to the Native SDK ([#966](https://github.com/getsentry/sentry-native/pull/966))
 
 **Internal**:
@@ -14,10 +23,6 @@
 **Docs**:
 
 - Add usage of the breadcrumb `data` property to the example. [#951](https://github.com/getsentry/sentry-native/pull/951)
-
-**Thank you**:
-
-- [@Strive-Sun](https://github.com/Strive-Sun)
 
 ## 0.7.0
 
