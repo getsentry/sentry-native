@@ -27,4 +27,4 @@ cmake.exe --build "${ZLIB_BUILD_PATH}" --target zlibstatic
 Copy-Item "${ZLIB_SOURCE_PATH}\zlib.h" "${ZLIB_BUILD_PATH}"
 
 # Add CMAKE_DEFINES
-Write-Output "CMAKE_DEFINES=-DZLIB_LIBRARY=${ZLIB_BUILD_PATH}\libzlibstatic.a -DZLIB_INCLUDE_DIR=${ZLIB_BUILD_PATH}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+Write-Output "CMAKE_DEFINES=-DZLIB_LIBRARY=${ZLIB_BUILD_PATH}\zlibstatic.lib -DZLIB_INCLUDE_DIR=${ZLIB_BUILD_PATH}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
