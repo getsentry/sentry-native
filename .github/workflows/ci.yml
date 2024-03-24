@@ -183,7 +183,7 @@ jobs:
         run: . "scripts\install-llvm-mingw.ps1"
 
       - name: Install MSVC zlib for transport compression tests
-        if: ${{ runner.os == 'Windows' && env['TRANSPORT_COMPRESSION'] }}
+        if: ${{ runner.os == 'Windows' && env['TRANSPORT_COMPRESSION']  && !env['TEST_MINGW'] }}
         shell: powershell
         run: . "scripts\install-zlib-msvc.ps1"
 
