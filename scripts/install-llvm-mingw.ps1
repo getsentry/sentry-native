@@ -51,8 +51,8 @@ New-Item -ItemType Directory -Force -Path "${NINJA_INSTALL_PATH}"
 Expand-Archive -LiteralPath "${NINJA_DL_PATH}" -DestinationPath "${NINJA_INSTALL_PATH}"
 
 # Export the NINJA executable path
-"NINJA_INSTALL_PATH=${NINJA_INSTALL_PATH}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-"PATH=${NINJA_INSTALL_PATH}; $env:PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+Write-Output "NINJA_INSTALL_PATH=${NINJA_INSTALL_PATH}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+Write-Output "PATH=${NINJA_INSTALL_PATH}; $env:PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
 # export CMAKE_DEFINES to the runner environment
-"CMAKE_DEFINES=-DCMAKE_C_COMPILER=${env:MINGW_PKG_PREFIX}-gcc -DCMAKE_CXX_COMPILER=${env:MINGW_PKG_PREFIX}-g++ -DCMAKE_RC_COMPILER=${env:MINGW_PKG_PREFIX}-windres -DCMAKE_ASM_MASM_COMPILER=${env:MINGW_ASM_MASM_COMPILER} -GNinja" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+Write-Output "CMAKE_DEFINES=-DCMAKE_C_COMPILER=${env:MINGW_PKG_PREFIX}-gcc -DCMAKE_CXX_COMPILER=${env:MINGW_PKG_PREFIX}-g++ -DCMAKE_RC_COMPILER=${env:MINGW_PKG_PREFIX}-windres -DCMAKE_ASM_MASM_COMPILER=${env:MINGW_ASM_MASM_COMPILER} -GNinja" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
