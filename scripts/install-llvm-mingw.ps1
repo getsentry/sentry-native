@@ -26,10 +26,10 @@ New-Item -ItemType Directory -Force -Path "${LLVM_MINGW_INSTALL_PATH}"
 Expand-Archive -LiteralPath "${LLVM_MINGW_DL_PATH}" -DestinationPath "${LLVM_MINGW_INSTALL_PATH}"
 # Export the LLVM-mingw install path
 $LLVM_MINGW_INSTALL_PATH = "${LLVM_MINGW_INSTALL_PATH}\${LLVM_MINGW_PKG}"
-Write-Output "LLVM_MINGW_INSTALL_PATH=${LLVM_MINGW_INSTALL_PATH}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+"LLVM_MINGW_INSTALL_PATH=${LLVM_MINGW_INSTALL_PATH}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 # Prepend bin path to the system PATH
-Write-Output "Path to LLVM-mingw bin folder: ${LLVM_MINGW_INSTALL_PATH}\bin"
-Write-Output "${LLVM_MINGW_INSTALL_PATH}\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+Write-Host "Path to LLVM-mingw bin folder: ${LLVM_MINGW_INSTALL_PATH}\bin"
+"${LLVM_MINGW_INSTALL_PATH}\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
 # Download ninja-build
 $NINJA_DL_URL = "https://github.com/ninja-build/ninja/releases/download/v1.11.1/ninja-win.zip"
@@ -51,8 +51,8 @@ New-Item -ItemType Directory -Force -Path "${NINJA_INSTALL_PATH}"
 Expand-Archive -LiteralPath "${NINJA_DL_PATH}" -DestinationPath "${NINJA_INSTALL_PATH}"
 
 # Export the NINJA executable path
-Write-Output "NINJA_INSTALL_PATH=${NINJA_INSTALL_PATH}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-Write-Output "PATH=${NINJA_INSTALL_PATH}; $env:PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+"NINJA_INSTALL_PATH=${NINJA_INSTALL_PATH}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+"PATH=${NINJA_INSTALL_PATH}; $env:PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
 # export CMAKE_DEFINES to the runner environment
-Write-Output "CMAKE_DEFINES=-DCMAKE_C_COMPILER=${env:MINGW_PKG_PREFIX}-gcc -DCMAKE_CXX_COMPILER=${env:MINGW_PKG_PREFIX}-g++ -DCMAKE_RC_COMPILER=${env:MINGW_PKG_PREFIX}-windres -DCMAKE_ASM_MASM_COMPILER=${env:MINGW_ASM_MASM_COMPILER} -GNinja" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+"CMAKE_DEFINES=-DCMAKE_C_COMPILER=${env:MINGW_PKG_PREFIX}-gcc -DCMAKE_CXX_COMPILER=${env:MINGW_PKG_PREFIX}-g++ -DCMAKE_RC_COMPILER=${env:MINGW_PKG_PREFIX}-windres -DCMAKE_ASM_MASM_COMPILER=${env:MINGW_ASM_MASM_COMPILER} -GNinja" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
