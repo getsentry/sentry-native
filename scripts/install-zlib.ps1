@@ -39,5 +39,4 @@ if ($env:TEST_MINGW -eq 1) {
 Else {
     $NEW_CMAKE_DEFINES="${env:CMAKE_DEFINES};CMAKE_DEFINES=-DZLIB_LIBRARY=${ZLIB_BUILD_PATH}\Debug\zlibstaticd.lib -DZLIB_INCLUDE_DIR=${ZLIB_BUILD_PATH}"
 }
-Write-Host $NEW_CMAKE_DEFINES
-Write-Output $NEW_CMAKE_DEFINES | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+"CMAKE_DEFINES=${NEW_CMAKE_DEFINES}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
