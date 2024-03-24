@@ -1,3 +1,4 @@
+Set-PSDebug -Trace 1
 $DL_BASEDIR = "$env:GITHUB_WORKSPACE\dl"
 if (!(Test-Path -Path "$DL_BASEDIR")) { New-Item -ItemType Directory -Force -Path "$DL_BASEDIR" }
 
@@ -23,7 +24,7 @@ Expand-Archive -LiteralPath "${ZLIB_DL_PATH}" -DestinationPath "$env:GITHUB_WORK
 Write-Host "Building zlib source..."
 $ZLIB_BUILD_PATH = "$env:GITHUB_WORKSPACE\buildtools\zlib_build"
 if ($env:TEST_MINGW -eq 1) {
-    cmake.exe -B "${ZLIB_BUILD_PATH}" -S "${ZLIB_SOURCE_PATH}" -DCMAKE_C_COMPILER="${env:MINGW_PKG_PREFIX}-gcc" -DCMAKE_CXX_COMPILER="${env:MINGW_PKG_PREFIX}-g++" -DCMAKE_RC_COMPILER="${env:MINGW_PKG_PREFIX}-windres" -DCMAKE_ASM_MASM_COMPILER="${env:MINGW_ASM_MASM_COMPILER}" -GNinja
+    cmake.exe -B "${ZLIB_BUILD_PATH}" -S "${ZLIB_SOURCE_PATH}" -GNinja
 }
 Else {
     cmake.exe -B "${ZLIB_BUILD_PATH}" -S "${ZLIB_SOURCE_PATH}"
@@ -31,10 +32,11 @@ Else {
 cmake.exe --build "${ZLIB_BUILD_PATH}" --target zlibstatic
 Copy-Item "${ZLIB_SOURCE_PATH}\zlib.h" "${ZLIB_BUILD_PATH}"
 
-# Add CMAKE_DEFINES to the runner env.
+# Append zlib CMAKE_DEFINES to the runner env.
 if ($env:TEST_MINGW -eq 1) {
-    Write-Output "CMAKE_DEFINES=-DZLIB_LIBRARY=${ZLIB_BUILD_PATH}\libzlibstatic.a -DZLIB_INCLUDE_DIR=${ZLIB_BUILD_PATH} -DCMAKE_C_COMPILER=${env:MINGW_PKG_PREFIX}-gcc -DCMAKE_CXX_COMPILER=${env:MINGW_PKG_PREFIX}-g++ -DCMAKE_RC_COMPILER=${env:MINGW_PKG_PREFIX}-windres -DCMAKE_ASM_MASM_COMPILER=${env:MINGW_ASM_MASM_COMPILER} -GNinja" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+    $NEW_CMAKE_DEFINES="${env:CMAKE_DEFINES};CMAKE_DEFINES=-DZLIB_LIBRARY=${ZLIB_BUILD_PATH}\libzlibstatic.a -DZLIB_INCLUDE_DIR=${ZLIB_BUILD_PATH} -GNinja"
 }
 Else {
-    Write-Output "CMAKE_DEFINES=-DZLIB_LIBRARY=${ZLIB_BUILD_PATH}\Debug\zlibstaticd.lib -DZLIB_INCLUDE_DIR=${ZLIB_BUILD_PATH}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+    $NEW_CMAKE_DEFINES="${env:CMAKE_DEFINES};CMAKE_DEFINES=-DZLIB_LIBRARY=${ZLIB_BUILD_PATH}\Debug\zlibstaticd.lib -DZLIB_INCLUDE_DIR=${ZLIB_BUILD_PATH}"
 }
+"$NEW_CMAKE_DEFINES" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
