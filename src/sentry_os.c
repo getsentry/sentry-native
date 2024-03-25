@@ -1,4 +1,5 @@
 #include "sentry_os.h"
+#include "sentry_slice.h"
 #include "sentry_string.h"
 #include "sentry_utils.h"
 
@@ -195,7 +196,105 @@ fail:
 }
 #elif defined(SENTRY_PLATFORM_UNIX)
 
+#    include <fcntl.h>
 #    include <sys/utsname.h>
+
+#    if defined(SENTRY_PLATFORM_LINUX)
+#        define OS_RELEASE_MAX_LINE_SIZE 256
+#        define OS_RELEASE_MAX_KEY_SIZE 64
+#        define OS_RELEASE_MAX_VALUE_SIZE 128
+
+static int
+parse_os_release_line(const char *line, char *key, char *value)
+{
+    const char *equals = strchr(line, '=');
+    if (equals == NULL)
+        return 1;
+
+    unsigned long key_length = equals - line;
+    strncpy(key, line, MIN(key_length, OS_RELEASE_MAX_KEY_SIZE - 1));
+    key[key_length] = 0;
+
+    sentry_slice_t value_slice
+        = { .ptr = equals + 1, .len = strlen(equals + 1) };
+
+    // some values are wrapped in double quotes
+    if (value_slice.ptr[0] == '\"') {
+        value_slice.ptr++;
+        value_slice.len -= 2;
+    }
+
+    sentry__slice_to_buffer(value_slice, value, OS_RELEASE_MAX_VALUE_SIZE);
+
+    return 0;
+}
+
+#        ifndef SENTRY_UNITTEST
+static
+#        endif
+    sentry_value_t
+    get_linux_os_release(const char *os_rel_path)
+{
+    const int fd = open(os_rel_path, O_RDONLY);
+    if (fd == -1) {
+        return sentry_value_new_null();
+    }
+
+    sentry_value_t os_dist = sentry_value_new_object();
+    char buffer[OS_RELEASE_MAX_LINE_SIZE];
+    ssize_t bytes_read;
+    ssize_t buffer_rest = 0;
+    const char *line = buffer;
+    while ((bytes_read = read(
+                fd, buffer + buffer_rest, sizeof(buffer) - buffer_rest - 1))
+        > 0) {
+        buffer[bytes_read] = 0;
+
+        for (char *p = buffer; *p; ++p) {
+            if (*p != '\n')
+                continue;
+
+            char value[OS_RELEASE_MAX_VALUE_SIZE];
+            char key[OS_RELEASE_MAX_KEY_SIZE];
+            *p = '\0';
+
+            if (parse_os_release_line(line, key, value) == 0) {
+                if (strcmp(key, "ID") == 0) {
+                    sentry_value_set_by_key(
+                        os_dist, "name", sentry_value_new_string(value));
+                }
+
+                if (strcmp(key, "VERSION_ID") == 0) {
+                    sentry_value_set_by_key(
+                        os_dist, "version", sentry_value_new_string(value));
+                }
+
+                if (strcmp(key, "PRETTY_NAME") == 0) {
+                    sentry_value_set_by_key(
+                        os_dist, "pretty_name", sentry_value_new_string(value));
+                }
+            }
+            line = p + 1;
+        }
+
+        // Handle any partial line left at the end of the buffer
+        if (line < buffer + bytes_read) {
+            buffer_rest = buffer + bytes_read - line;
+            memmove(buffer, line, buffer_rest);
+            line = buffer;
+        }
+    }
+
+    if (bytes_read == -1) {
+        sentry_value_decref(os_dist);
+        os_dist = sentry_value_new_null();
+    }
+
+    close(fd);
+
+    return os_dist;
+}
+#    endif // defined(SENTRY_PLATFORM_LINUX)
 
 sentry_value_t
 sentry__get_os_context(void)
@@ -236,6 +335,26 @@ sentry__get_os_context(void)
     sentry_value_set_by_key(os, "name", sentry_value_new_string(uts.sysname));
     sentry_value_set_by_key(
         os, "version", sentry_value_new_string(uts.release));
+
+#    if defined(SENTRY_PLATFORM_LINUX)
+    /**
+     * The file /etc/os-release takes precedence over /usr/lib/os-release.
+     * Applications should check for the former, and exclusively use its data if
+     * it exists, and only fall back to /usr/lib/os-release if it is missing.
+     * Applications should not read data from both files at the same time.
+     *
+     * From:
+     * https://www.freedesktop.org/software/systemd/man/latest/os-release.html#Description
+     */
+    sentry_value_t os_dist = get_linux_os_release("/etc/os-release");
+    if (sentry_value_is_null(os_dist)) {
+        os_dist = get_linux_os_release("/usr/lib/os-release");
+        if (sentry_value_is_null(os_dist)) {
+            return os;
+        }
+    }
+    sentry_value_set_by_key(os, "distribution", os_dist);
+#    endif // defined(SENTRY_PLATFORM_LINUX)
 
     return os;
 

@@ -7,6 +7,10 @@
 - Add optional Gzip transport compression via build option `SENTRY_TRANSPORT_COMPRESSION`. Requires system `zlib`. ([#954](https://github.com/getsentry/sentry-native/pull/954))
 - Add user feedback capability to the Native SDK ([#966](https://github.com/getsentry/sentry-native/pull/966))
 
+**Features**:
+
+- Add Linux distributions to the OS context. [#963](https://github.com/getsentry/sentry-native/pull/963)
+
 **Internal**:
 
 - Remove the `CRASHPAD_WER_ENABLED` build flag. The WER module is now built for all supported Windows targets, and registration is conditional on runtime Windows version checks. ([#950](https://github.com/getsentry/sentry-native/pull/950), [crashpad#96](https://github.com/getsentry/crashpad/pull/96))
