@@ -1,5 +1,7 @@
 # os_release
 
+Adapted from https://github.com/chef/os_release as data for unit-testing.
+
 This repo contains the /etc/os-release file from Linux distros.
 
 ## About os-release
