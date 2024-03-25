@@ -103,7 +103,7 @@ const struct distro test_dists[] = {
     { .name = "sled", .version = "12.3" },
 };
 
-const int num_test_dists = sizeof(test_dists) / sizeof(struct distro);
+const size_t num_test_dists = sizeof(test_dists) / sizeof(struct distro);
 
 int
 value_strcmp_by_key(sentry_value_t value, const char *key, const char *str)
@@ -151,9 +151,7 @@ SENTRY_TEST(os_releases_snapshot)
 
     int successful_snap_asserts = 0;
     while ((entry = readdir(test_data_dir)) != NULL) {
-        if (entry->d_type != DT_REG
-            || strcmp("CODE_OF_CONDUCT.md", entry->d_name) == 0
-            || strcmp("LICENSE", entry->d_name) == 0
+        if (entry->d_type != DT_REG || strcmp("LICENSE", entry->d_name) == 0
             || strcmp("README.md", entry->d_name) == 0)
             continue;
 

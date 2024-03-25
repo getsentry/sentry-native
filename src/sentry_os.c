@@ -1,4 +1,5 @@
 #include "sentry_os.h"
+#include "sentry_slice.h"
 #include "sentry_string.h"
 #include "sentry_utils.h"
 
@@ -211,18 +212,21 @@ parse_os_release_line(const char *line, char *key, char *value)
         return 1;
 
     unsigned long key_length = equals - line;
-    strncpy(key, line, key_length);
+    strncpy(key, line, MIN(key_length, OS_RELEASE_MAX_KEY_SIZE - 1));
     key[key_length] = 0;
 
-    unsigned long value_length = strlen(equals + 1);
-    strncpy(value, equals + 1, value_length);
-    value[value_length] = 0;
+    sentry_slice_t value_slice
+        = { .ptr = equals + 1, .len = strlen(equals + 1) };
 
     // some values are wrapped in double quotes
-    if (value[0] == '\"') {
-        value[value_length - 1] = 0;
-        memmove(value, value + 1, value_length);
+    if (value_slice.ptr[0] == '\"') {
+        value_slice.ptr++;
+        value_slice.len -= 2;
     }
+
+    strncpy(value, value_slice.ptr,
+        MIN(value_slice.len, OS_RELEASE_MAX_VALUE_SIZE - 1));
+    value[value_slice.len] = 0;
 
     return 0;
 }

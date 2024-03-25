@@ -7,6 +7,7 @@
 #include "sentry_path.h"
 #include "sentry_string.h"
 #include "sentry_sync.h"
+#include "sentry_utils.h"
 #include "sentry_value.h"
 
 #include <arpa/inet.h>
@@ -30,8 +31,6 @@ process_vm_readv(pid_t __pid, const struct iovec *__local_iov,
         __remote_iov, __remote_iov_count, __flags);
 }
 #endif
-
-#define MIN(a, b) ((a) < (b) ? (a) : (b))
 
 #define ENSURE(Ptr)                                                            \
     if (!Ptr)                                                                  \
