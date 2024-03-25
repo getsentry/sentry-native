@@ -224,9 +224,7 @@ parse_os_release_line(const char *line, char *key, char *value)
         value_slice.len -= 2;
     }
 
-    strncpy(value, value_slice.ptr,
-        MIN(value_slice.len, OS_RELEASE_MAX_VALUE_SIZE - 1));
-    value[value_slice.len] = 0;
+    sentry__slice_to_buffer(value_slice, value, OS_RELEASE_MAX_VALUE_SIZE);
 
     return 0;
 }
