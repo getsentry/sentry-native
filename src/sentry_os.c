@@ -200,7 +200,7 @@ fail:
 #    include <sys/utsname.h>
 
 #    if defined(SENTRY_PLATFORM_LINUX)
-#        define OS_RELEASE_MAX_LINE_SIZE 128
+#        define OS_RELEASE_MAX_LINE_SIZE 256
 #        define OS_RELEASE_MAX_KEY_SIZE 64
 #        define OS_RELEASE_MAX_VALUE_SIZE 128
 
