@@ -1068,6 +1068,11 @@ typedef void (*sentry_logger_function_t)(
  * Sets the sentry-native logger function.
  *
  * Used for logging debug events when the `debug` option is set to true.
+ *
+ * Note: Multiple threads may invoke your `func`. If you plan to mutate any data
+ * inside the `userdata` argument after initialization, you must ensure proper
+ * synchronization inside the logger function.
+ *
  */
 SENTRY_API void sentry_options_set_logger(
     sentry_options_t *opts, sentry_logger_function_t func, void *userdata);
