@@ -5,16 +5,21 @@
 **Features**:
 
 - Add optional Gzip transport compression via build option `SENTRY_TRANSPORT_COMPRESSION`. Requires system `zlib`. ([#954](https://github.com/getsentry/sentry-native/pull/954))
+  
+**Fixes**:
+
+- Fix the Linux build when targeting RISC-V. ([#972](https://github.com/getsentry/sentry-native/pull/972))
 
 **Thank you**:
 
 - [@Strive-Sun](https://github.com/Strive-Sun)
+- [@jwinarske](https://github.com/jwinarske)
 
 ## 0.7.1
 
 **Features**:
 
-- Add user feedback capability to the Native SDK ([#966](https://github.com/getsentry/sentry-native/pull/966))
+- Add user feedback capability to the Native SDK. ([#966](https://github.com/getsentry/sentry-native/pull/966))
 
 **Internal**:
 
