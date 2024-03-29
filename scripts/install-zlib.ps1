@@ -25,6 +25,9 @@ $ZLIB_BUILD_PATH = "$env:GITHUB_WORKSPACE\buildtools\zlib_build"
 if ($env:TEST_MINGW -eq 1) {
     cmake.exe -B "${ZLIB_BUILD_PATH}" -S "${ZLIB_SOURCE_PATH}" -GNinja
 }
+Elseif ($env:TEST_X86 -eq 1) {
+    cmake.exe -B "${ZLIB_BUILD_PATH}" -S "${ZLIB_SOURCE_PATH}" -AWin32
+}
 Else {
     cmake.exe -B "${ZLIB_BUILD_PATH}" -S "${ZLIB_SOURCE_PATH}"
 }
