@@ -16,6 +16,7 @@ from .assertions import (
     assert_exception,
     assert_inproc_crash,
     assert_session,
+    assert_user_feedback,
     assert_minidump,
     assert_breakpad_crash,
 )
@@ -24,7 +25,7 @@ from .conditions import has_http, has_breakpad, has_files
 pytestmark = pytest.mark.skipif(not has_http, reason="tests need http")
 
 auth_header = (
-    "Sentry sentry_key=uiaeosnrtdy, sentry_version=7, sentry_client=sentry.native/0.7.0"
+    "Sentry sentry_key=uiaeosnrtdy, sentry_version=7, sentry_client=sentry.native/0.7.1"
 )
 
 
@@ -115,6 +116,35 @@ def test_capture_and_session_http(cmake, httpserver):
     output = httpserver.log[1][0].get_data()
     envelope = Envelope.deserialize(output)
     assert_session(envelope, {"status": "exited", "errors": 0})
+
+
+def test_user_feedback_http(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+
+    httpserver.expect_request(
+        "/api/123456/envelope/",
+        headers={"x-sentry-auth": auth_header},
+    ).respond_with_data("OK")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "capture-user-feedback"],
+        check=True,
+        env=env,
+    )
+
+    assert len(httpserver.log) == 2
+    output = httpserver.log[0][0].get_data()
+    envelope = Envelope.deserialize(output)
+
+    assert_event(envelope, "Hello user feedback!")
+
+    output = httpserver.log[1][0].get_data()
+    envelope = Envelope.deserialize(output)
+
+    assert_user_feedback(envelope)
 
 
 def test_exception_and_session_http(cmake, httpserver):
