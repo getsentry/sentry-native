@@ -248,7 +248,8 @@ static
     while ((bytes_read = read(
                 fd, buffer + buffer_rest, sizeof(buffer) - buffer_rest - 1))
         > 0) {
-        buffer[bytes_read] = 0;
+        ssize_t buffer_end = buffer_rest + bytes_read;
+        buffer[buffer_end] = 0;
 
         for (char *p = buffer; *p; ++p) {
             if (*p != '\n')
@@ -278,8 +279,8 @@ static
         }
 
         // Handle any partial line left at the end of the buffer
-        if (line < buffer + bytes_read) {
-            buffer_rest = buffer + bytes_read - line;
+        if (line < buffer + buffer_end) {
+            buffer_rest = buffer + buffer_end - line;
             memmove(buffer, line, buffer_rest);
             line = buffer;
         }
