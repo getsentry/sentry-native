@@ -1,9 +1,10 @@
-import os
 import json
-import sys
-import subprocess
-import pytest
+import os
 import shutil
+import subprocess
+import sys
+
+import pytest
 
 
 class CMake:
@@ -137,9 +138,6 @@ def cmake(cwd, targets, options=None):
         configcmd.append("-DWITH_ASAN_OPTION=ON")
     if "tsan" in os.environ.get("RUN_ANALYZER", ""):
         configcmd.append("-DWITH_TSAN_OPTION=ON")
-
-    if os.environ.get("TRANSPORT_COMPRESSION"):
-        configcmd.append("-DSENTRY_TRANSPORT_COMPRESSION=ON")
 
     # we have to set `-Werror` for this cmake invocation only, otherwise
     # completely unrelated things will break
