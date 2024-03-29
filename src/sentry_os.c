@@ -229,6 +229,30 @@ parse_os_release_line(const char *line, char *key, char *value)
     return 0;
 }
 
+static void
+parse_line_into_object(const char *line, sentry_value_t *os_dist)
+{
+    char value[OS_RELEASE_MAX_VALUE_SIZE];
+    char key[OS_RELEASE_MAX_KEY_SIZE];
+
+    if (parse_os_release_line(line, key, value) == 0) {
+        if (strcmp(key, "ID") == 0) {
+            sentry_value_set_by_key(
+                (*os_dist), "name", sentry_value_new_string(value));
+        }
+
+        if (strcmp(key, "VERSION_ID") == 0) {
+            sentry_value_set_by_key(
+                (*os_dist), "version", sentry_value_new_string(value));
+        }
+
+        if (strcmp(key, "PRETTY_NAME") == 0) {
+            sentry_value_set_by_key(
+                (*os_dist), "pretty_name", sentry_value_new_string(value));
+        }
+    }
+}
+
 #        ifndef SENTRY_UNITTEST
 static
 #        endif
@@ -252,29 +276,11 @@ static
         buffer[buffer_end] = 0;
 
         for (char *p = buffer; *p; ++p) {
-            if (*p != '\n')
+            if (*p != '\n') {
                 continue;
-
-            char value[OS_RELEASE_MAX_VALUE_SIZE];
-            char key[OS_RELEASE_MAX_KEY_SIZE];
-            *p = '\0';
-
-            if (parse_os_release_line(line, key, value) == 0) {
-                if (strcmp(key, "ID") == 0) {
-                    sentry_value_set_by_key(
-                        os_dist, "name", sentry_value_new_string(value));
-                }
-
-                if (strcmp(key, "VERSION_ID") == 0) {
-                    sentry_value_set_by_key(
-                        os_dist, "version", sentry_value_new_string(value));
-                }
-
-                if (strcmp(key, "PRETTY_NAME") == 0) {
-                    sentry_value_set_by_key(
-                        os_dist, "pretty_name", sentry_value_new_string(value));
-                }
             }
+            *p = '\0';
+            parse_line_into_object(line, &os_dist);
             line = p + 1;
         }
 
@@ -295,6 +301,7 @@ static
 
     return os_dist;
 }
+
 #    endif // defined(SENTRY_PLATFORM_LINUX)
 
 sentry_value_t
