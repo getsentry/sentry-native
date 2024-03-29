@@ -4,14 +4,23 @@
 
 **Features**:
 
+- Add optional Gzip transport compression via build option `SENTRY_TRANSPORT_COMPRESSION`. Requires system `zlib`. ([#954](https://github.com/getsentry/sentry-native/pull/954))
 - Enable automatic MIME detection of attachments sent with crash-reports from the `crashpad_handler`. ([#973](https://github.com/getsentry/sentry-native/pull/973), [crashpad#98](https://github.com/getsentry/crashpad/pull/98))
+
+**Fixes**:
+
+- Fix the Linux build when targeting RISC-V. ([#972](https://github.com/getsentry/sentry-native/pull/972))
+
+**Thank you**:
+
+- [@Strive-Sun](https://github.com/Strive-Sun)
+- [@jwinarske](https://github.com/jwinarske)
 
 ## 0.7.1
 
 **Features**:
 
-- Add optional Gzip transport compression via build option `SENTRY_TRANSPORT_COMPRESSION`. Requires system `zlib`. ([#954](https://github.com/getsentry/sentry-native/pull/954))
-- Add user feedback capability to the Native SDK ([#966](https://github.com/getsentry/sentry-native/pull/966))
+- Add user feedback capability to the Native SDK. ([#966](https://github.com/getsentry/sentry-native/pull/966))
 
 **Internal**:
 
@@ -20,10 +29,6 @@
 **Docs**:
 
 - Add usage of the breadcrumb `data` property to the example. [#951](https://github.com/getsentry/sentry-native/pull/951)
-
-**Thank you**:
-
-- [@Strive-Sun](https://github.com/Strive-Sun)
 
 ## 0.7.0
 
