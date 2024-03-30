@@ -4,7 +4,7 @@ import platform
 import re
 import sys
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, UTC
 
 import msgpack
 
@@ -185,7 +185,7 @@ def assert_minidump(envelope):
     assert minidump.payload.bytes.startswith(b"MDMP")
 
 
-def assert_timestamp(ts, now=datetime.utcnow()):
+def assert_timestamp(ts, now=datetime.now(UTC)):
     assert ts[:11] == now.isoformat()[:11]
 
 
@@ -263,6 +263,9 @@ def _load_crashpad_attachments(msg):
     breadcrumb1 = []
     breadcrumb2 = []
     for part in msg.walk():
+        if part.get_filename() is not None:
+            assert part.get("Content-Type") is None
+
         match part.get_filename():
             case "__sentry-event":
                 event = msgpack.unpackb(part.get_payload(decode=True))
