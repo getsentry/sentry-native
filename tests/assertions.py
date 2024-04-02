@@ -4,7 +4,7 @@ import platform
 import re
 import sys
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, UTC
 
 import msgpack
 
@@ -185,7 +185,7 @@ def assert_minidump(envelope):
     assert minidump.payload.bytes.startswith(b"MDMP")
 
 
-def assert_timestamp(ts, now=datetime.utcnow()):
+def assert_timestamp(ts, now=datetime.now(UTC)):
     assert ts[:11] == now.isoformat()[:11]
 
 
@@ -307,3 +307,11 @@ def assert_crashpad_upload(req):
         and b"\n\nMDMP" in part.as_bytes()
         for part in msg.walk()
     )
+
+
+def assert_gzip_file_header(output):
+    assert output[:3] == b"\x1f\x8b\x08"
+
+
+def assert_gzip_content_encoding(req):
+    assert req.content_encoding == "gzip"

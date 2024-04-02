@@ -158,6 +158,11 @@ jobs:
           MINGW_ASM_MASM_COMPILER: ${{ matrix.MINGW_ASM_MASM_COMPILER }}
         run: . "scripts\install-llvm-mingw.ps1"
 
+      - name: Set up zlib for Windows
+        if: ${{ runner.os == 'Windows' }}
+        shell: powershell
+        run: . "scripts\install-zlib.ps1"
+
       - name: Installing Android SDK Dependencies
         if: ${{ env['ANDROID_API'] }}
         run: |
