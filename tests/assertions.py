@@ -263,6 +263,9 @@ def _load_crashpad_attachments(msg):
     breadcrumb1 = []
     breadcrumb2 = []
     for part in msg.walk():
+        if part.get_filename() is not None:
+            assert part.get("Content-Type") is None
+
         match part.get_filename():
             case "__sentry-event":
                 event = msgpack.unpackb(part.get_payload(decode=True))

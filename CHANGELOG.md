@@ -5,7 +5,8 @@
 **Features**:
 
 - Add optional Gzip transport compression via build option `SENTRY_TRANSPORT_COMPRESSION`. Requires system `zlib`. ([#954](https://github.com/getsentry/sentry-native/pull/954))
-  
+- Enable automatic MIME detection of attachments sent with crash-reports from the `crashpad_handler`. ([#973](https://github.com/getsentry/sentry-native/pull/973), [crashpad#98](https://github.com/getsentry/crashpad/pull/98))
+
 **Fixes**:
 
 - Fix the Linux build when targeting RISC-V. ([#972](https://github.com/getsentry/sentry-native/pull/972))
