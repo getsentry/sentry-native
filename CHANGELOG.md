@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- [Documentation] Add missed compile time flag SENTRY_TRANSPORT_COMPRESSION description to the README.md file ([#976](https://github.com/getsentry/sentry-native/pull/976))
+
 ## 0.7.2
 
 **Features**:
