@@ -245,6 +245,9 @@ using `cmake -D BUILD_SHARED_LIBS=OFF ..`.
 - `SENTRY_BREAKPAD_SYSTEM` (Default: OFF):
   This instructs the build system to use system-installed breakpad libraries instead of using the in-tree version.
 
+- `SENTRY_TRANSPORT_COMPRESSION` (Default: OFF):
+  Adds Gzip transport compression. Requires `zlib`.
+
 | Feature    | Windows | macOS | Linux | Android | iOS |
 | ---------- | ------- | ----- | ----- | ------- | --- |
 | Transports |         |       |       |         |     |
