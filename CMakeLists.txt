@@ -56,6 +56,7 @@ endif()
 option(SENTRY_PIC "Build sentry (and dependent) libraries as position independent libraries" ON)
 
 option(SENTRY_TRANSPORT_COMPRESSION "Enable transport gzip compression" OFF)
+option(SENTRY_ENABLE_PAGE_ALLOCATOR "Enable page allocator (does not works on non-unix)" ${CMAKE_HOST_UNIX})
 
 option(SENTRY_BUILD_TESTS "Build sentry-native tests" "${SENTRY_MAIN_PROJECT}")
 option(SENTRY_BUILD_EXAMPLES "Build sentry-native example(s)" "${SENTRY_MAIN_PROJECT}")
@@ -294,6 +295,10 @@ if(SENTRY_TRANSPORT_COMPRESSION)
 
 	target_link_libraries(sentry PRIVATE ZLIB::ZLIB)
 	target_compile_definitions(sentry PRIVATE SENTRY_TRANSPORT_COMPRESSION)
+endif()
+
+if(SENTRY_ENABLE_PAGE_ALLOCATOR)
+	target_compile_definitions(sentry PRIVATE SENTRY_ENABLE_PAGE_ALLOCATOR)
 endif()
 
 set_property(TARGET sentry PROPERTY C_VISIBILITY_PRESET hidden)
