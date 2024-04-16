@@ -152,8 +152,9 @@ SENTRY_TEST(os_releases_snapshot)
     int successful_snap_asserts = 0;
     while ((entry = readdir(test_data_dir)) != NULL) {
         if (entry->d_type != DT_REG || strcmp("LICENSE", entry->d_name) == 0
-            || strcmp("README.md", entry->d_name) == 0)
+            || strcmp("README.md", entry->d_name) == 0) {
             continue;
+        }
 
         sentry_path_t *test_file_path
             = sentry__path_join_str(test_data_path, entry->d_name);

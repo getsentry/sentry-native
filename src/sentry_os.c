@@ -211,9 +211,9 @@ parse_os_release_line(const char *line, char *key, char *value)
     if (equals == NULL)
         return 1;
 
-    unsigned long key_length = equals - line;
-    strncpy(key, line, MIN(key_length, OS_RELEASE_MAX_KEY_SIZE - 1));
-    key[key_length] = 0;
+    unsigned long key_length = MIN(equals - line, OS_RELEASE_MAX_KEY_SIZE - 1);
+    strncpy(key, line, key_length);
+    key[key_length] = '\0';
 
     sentry_slice_t value_slice
         = { .ptr = equals + 1, .len = strlen(equals + 1) };
@@ -230,7 +230,7 @@ parse_os_release_line(const char *line, char *key, char *value)
 }
 
 static void
-parse_line_into_object(const char *line, sentry_value_t *os_dist)
+parse_line_into_object(const char *line, sentry_value_t os_dist)
 {
     char value[OS_RELEASE_MAX_VALUE_SIZE];
     char key[OS_RELEASE_MAX_KEY_SIZE];
@@ -238,17 +238,17 @@ parse_line_into_object(const char *line, sentry_value_t *os_dist)
     if (parse_os_release_line(line, key, value) == 0) {
         if (strcmp(key, "ID") == 0) {
             sentry_value_set_by_key(
-                (*os_dist), "name", sentry_value_new_string(value));
+                os_dist, "name", sentry_value_new_string(value));
         }
 
         if (strcmp(key, "VERSION_ID") == 0) {
             sentry_value_set_by_key(
-                (*os_dist), "version", sentry_value_new_string(value));
+                os_dist, "version", sentry_value_new_string(value));
         }
 
         if (strcmp(key, "PRETTY_NAME") == 0) {
             sentry_value_set_by_key(
-                (*os_dist), "pretty_name", sentry_value_new_string(value));
+                os_dist, "pretty_name", sentry_value_new_string(value));
         }
     }
 }
@@ -273,14 +273,14 @@ static
                 fd, buffer + buffer_rest, sizeof(buffer) - buffer_rest - 1))
         > 0) {
         ssize_t buffer_end = buffer_rest + bytes_read;
-        buffer[buffer_end] = 0;
+        buffer[buffer_end] = '\0';
 
         for (char *p = buffer; *p; ++p) {
             if (*p != '\n') {
                 continue;
             }
             *p = '\0';
-            parse_line_into_object(line, &os_dist);
+            parse_line_into_object(line, os_dist);
             line = p + 1;
         }
 
@@ -288,6 +288,8 @@ static
         if (line < buffer + buffer_end) {
             buffer_rest = buffer + buffer_end - line;
             memmove(buffer, line, buffer_rest);
+        } else {
+            buffer_rest = 0;
         }
         line = buffer;
     }
@@ -295,6 +297,9 @@ static
     if (bytes_read == -1) {
         sentry_value_decref(os_dist);
         os_dist = sentry_value_new_null();
+    } else if (buffer_rest > 0) {
+        buffer[buffer_rest] = '\0';
+        parse_line_into_object(line, os_dist);
     }
 
     close(fd);
