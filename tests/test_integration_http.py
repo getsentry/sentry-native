@@ -19,18 +19,28 @@ from .assertions import (
     assert_user_feedback,
     assert_minidump,
     assert_breakpad_crash,
+    assert_gzip_content_encoding,
+    assert_gzip_file_header,
 )
 from .conditions import has_http, has_breakpad, has_files
 
 pytestmark = pytest.mark.skipif(not has_http, reason="tests need http")
 
 auth_header = (
-    "Sentry sentry_key=uiaeosnrtdy, sentry_version=7, sentry_client=sentry.native/0.7.1"
+    "Sentry sentry_key=uiaeosnrtdy, sentry_version=7, sentry_client=sentry.native/0.7.2"
 )
 
 
-def test_capture_http(cmake, httpserver):
-    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+@pytest.mark.parametrize(
+    "build_args",
+    [
+        ({"SENTRY_TRANSPORT_COMPRESSION": "Off"}),
+        ({"SENTRY_TRANSPORT_COMPRESSION": "On"}),
+    ],
+)
+def test_capture_http(cmake, httpserver, build_args):
+    build_args.update({"SENTRY_BACKEND": "none"})
+    tmp_path = cmake(["sentry_example"], build_args)
 
     httpserver.expect_oneshot_request(
         "/api/123456/envelope/",
@@ -47,8 +57,14 @@ def test_capture_http(cmake, httpserver):
     )
 
     assert len(httpserver.log) == 1
-    output = httpserver.log[0][0].get_data()
-    envelope = Envelope.deserialize(output)
+    req = httpserver.log[0][0]
+    body = req.get_data()
+
+    if build_args.get("SENTRY_TRANSPORT_COMPRESSION") == "On":
+        assert_gzip_content_encoding(req)
+        assert_gzip_file_header(body)
+
+    envelope = Envelope.deserialize(body)
 
     assert_meta(envelope, "🤮🚀")
     assert_breadcrumb(envelope)
@@ -232,8 +248,16 @@ def test_abnormal_session(cmake, httpserver):
     assert_session(envelope1, {"status": "abnormal", "errors": 0, "duration": 10})
 
 
-def test_inproc_crash_http(cmake, httpserver):
-    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "inproc"})
+@pytest.mark.parametrize(
+    "build_args",
+    [
+        ({"SENTRY_TRANSPORT_COMPRESSION": "Off"}),
+        ({"SENTRY_TRANSPORT_COMPRESSION": "On"}),
+    ],
+)
+def test_inproc_crash_http(cmake, httpserver, build_args):
+    build_args.update({"SENTRY_BACKEND": "inproc"})
+    tmp_path = cmake(["sentry_example"], build_args)
 
     httpserver.expect_request(
         "/api/123456/envelope/",
@@ -258,7 +282,14 @@ def test_inproc_crash_http(cmake, httpserver):
     )
 
     assert len(httpserver.log) == 1
-    envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
+    req = httpserver.log[0][0]
+    body = req.get_data()
+
+    if build_args.get("SENTRY_TRANSPORT_COMPRESSION") == "On":
+        assert_gzip_content_encoding(req)
+        assert_gzip_file_header(body)
+
+    envelope = Envelope.deserialize(body)
 
     assert_session(envelope, {"init": True, "status": "crashed", "errors": 1})
 
@@ -317,8 +348,16 @@ def test_inproc_dump_inflight(cmake, httpserver):
 
 
 @pytest.mark.skipif(not has_breakpad, reason="test needs breakpad backend")
-def test_breakpad_crash_http(cmake, httpserver):
-    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "breakpad"})
+@pytest.mark.parametrize(
+    "build_args",
+    [
+        ({"SENTRY_TRANSPORT_COMPRESSION": "Off"}),
+        ({"SENTRY_TRANSPORT_COMPRESSION": "On"}),
+    ],
+)
+def test_breakpad_crash_http(cmake, httpserver, build_args):
+    build_args.update({"SENTRY_BACKEND": "breakpad"})
+    tmp_path = cmake(["sentry_example"], build_args)
 
     httpserver.expect_request(
         "/api/123456/envelope/",
@@ -343,7 +382,14 @@ def test_breakpad_crash_http(cmake, httpserver):
     )
 
     assert len(httpserver.log) == 1
-    envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
+    req = httpserver.log[0][0]
+    body = req.get_data()
+
+    if build_args.get("SENTRY_TRANSPORT_COMPRESSION") == "On":
+        assert_gzip_content_encoding(req)
+        assert_gzip_file_header(body)
+
+    envelope = Envelope.deserialize(body)
 
     assert_session(envelope, {"init": True, "status": "crashed", "errors": 1})
 
@@ -453,8 +499,16 @@ def test_shutdown_timeout(cmake, httpserver):
 RFC3339_FORMAT = "%Y-%m-%dT%H:%M:%S.%fZ"
 
 
-def test_transaction_only(cmake, httpserver):
-    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+@pytest.mark.parametrize(
+    "build_args",
+    [
+        ({"SENTRY_TRANSPORT_COMPRESSION": "Off"}),
+        ({"SENTRY_TRANSPORT_COMPRESSION": "On"}),
+    ],
+)
+def test_transaction_only(cmake, httpserver, build_args):
+    build_args.update({"SENTRY_BACKEND": "none"})
+    tmp_path = cmake(["sentry_example"], build_args)
 
     httpserver.expect_oneshot_request(
         "/api/123456/envelope/",
@@ -471,8 +525,14 @@ def test_transaction_only(cmake, httpserver):
     )
 
     assert len(httpserver.log) == 1
-    output = httpserver.log[0][0].get_data()
-    envelope = Envelope.deserialize(output)
+    req = httpserver.log[0][0]
+    body = req.get_data()
+
+    if build_args.get("SENTRY_TRANSPORT_COMPRESSION") == "On":
+        assert_gzip_content_encoding(req)
+        assert_gzip_file_header(body)
+
+    envelope = Envelope.deserialize(body)
 
     # Show what the envelope looks like if the test fails.
     envelope.print_verbose()

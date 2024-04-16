@@ -4,7 +4,7 @@ import platform
 import re
 import sys
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, UTC
 
 import msgpack
 
@@ -73,9 +73,9 @@ def assert_meta(
     }
     expected_sdk = {
         "name": "sentry.native",
-        "version": "0.7.1",
+        "version": "0.7.2",
         "packages": [
-            {"name": "github:getsentry/sentry-native", "version": "0.7.1"},
+            {"name": "github:getsentry/sentry-native", "version": "0.7.2"},
         ],
     }
     if is_android:
@@ -188,7 +188,7 @@ def assert_minidump(envelope):
     assert minidump.payload.bytes.startswith(b"MDMP")
 
 
-def assert_timestamp(ts, now=datetime.utcnow()):
+def assert_timestamp(ts, now=datetime.now(UTC)):
     assert ts[:11] == now.isoformat()[:11]
 
 
@@ -266,6 +266,9 @@ def _load_crashpad_attachments(msg):
     breadcrumb1 = []
     breadcrumb2 = []
     for part in msg.walk():
+        if part.get_filename() is not None:
+            assert part.get("Content-Type") is None
+
         match part.get_filename():
             case "__sentry-event":
                 event = msgpack.unpackb(part.get_payload(decode=True))
@@ -310,3 +313,11 @@ def assert_crashpad_upload(req):
         and b"\n\nMDMP" in part.as_bytes()
         for part in msg.walk()
     )
+
+
+def assert_gzip_file_header(output):
+    assert output[:3] == b"\x1f\x8b\x08"
+
+
+def assert_gzip_content_encoding(req):
+    assert req.content_encoding == "gzip"
