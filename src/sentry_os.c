@@ -288,8 +288,8 @@ static
         if (line < buffer + buffer_end) {
             buffer_rest = buffer + buffer_end - line;
             memmove(buffer, line, buffer_rest);
-            line = buffer;
         }
+        line = buffer;
     }
 
     if (bytes_read == -1) {
