@@ -275,6 +275,7 @@ static
         ssize_t buffer_end = buffer_rest + bytes_read;
         buffer[buffer_end] = '\0';
 
+        // extract all lines from the valid buffer-range and parse them
         for (char *p = buffer; *p; ++p) {
             if (*p != '\n') {
                 continue;
@@ -284,20 +285,23 @@ static
             line = p + 1;
         }
 
-        // Handle any partial line left at the end of the buffer
         if (line < buffer + buffer_end) {
+            // move the remaining partial line to the start of the buffer
             buffer_rest = buffer + buffer_end - line;
             memmove(buffer, line, buffer_rest);
         } else {
+            // reset buffer_rest: the line-end coincided with the buffer-end
             buffer_rest = 0;
         }
         line = buffer;
     }
 
     if (bytes_read == -1) {
+        // read() failed and we can't assume to have valid data
         sentry_value_decref(os_dist);
         os_dist = sentry_value_new_null();
     } else if (buffer_rest > 0) {
+        // the file ended w/o a new-line; we still have a line left to parse
         buffer[buffer_rest] = '\0';
         parse_line_into_object(line, os_dist);
     }

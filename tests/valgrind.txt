@@ -27,9 +27,3 @@
     ...
     fun:sentry__procmaps_read_ids_from_elf
 }
-{
-   memmove is safe to overlap even if it is an ifunc that resolves to memcpy
-   Memcheck:Overlap
-   fun:__memcpy_chk
-   fun:memmove
-}
