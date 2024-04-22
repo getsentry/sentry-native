@@ -152,7 +152,8 @@ SENTRY_TEST(os_releases_snapshot)
     int successful_snap_asserts = 0;
     while ((entry = readdir(test_data_dir)) != NULL) {
         if (entry->d_type != DT_REG || strcmp("LICENSE", entry->d_name) == 0
-            || strcmp("README.md", entry->d_name) == 0) {
+            || strcmp("README.md", entry->d_name) == 0
+            || strcmp("distribution_names.txt", entry->d_name) == 0) {
             continue;
         }
 
