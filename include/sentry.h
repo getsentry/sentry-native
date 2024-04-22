@@ -1231,6 +1231,23 @@ SENTRY_API void sentry_options_set_system_crash_reporter_enabled(
     sentry_options_t *opts, int enabled);
 
 /**
+ * Enables capturing of metrics. Disabled by default.
+ *
+ * Metrics are numerical values that can track anything about application
+ * environment over time (i.e. latency, error rates, user signups, etc.)
+ *
+ * The types of metrics we are currently supported are:
+ * - Counters
+ * - Distributions
+ * - Gauges
+ * - Sets
+ *
+ * Captured metrics are aggregated on a client and sent to Sentry periodically.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_options_set_metrics_enabled(
+    sentry_options_t *opts, int enabled);
+
+/**
  * Sets the maximum time (in milliseconds) to wait for the asynchronous tasks to
  * end on shutdown, before attempting a forced termination.
  */
