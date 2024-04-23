@@ -2075,6 +2075,79 @@ SENTRY_EXPERIMENTAL_API const char *sentry_sdk_name(void);
  */
 SENTRY_EXPERIMENTAL_API const char *sentry_sdk_user_agent(void);
 
+/**
+ * A sentry Metric.
+ *
+ * See https://develop.sentry.dev/delightful-developer-metrics/
+ */
+struct sentry_metric_s;
+typedef struct sentry_metric_s sentry_metric_t;
+
+/**
+ * Creates a counter metric.
+ *
+ * Counters are one of the more basic types of metrics and can be
+ * used to count certain event occurrences.
+ *
+ * Counter value can only be incremented.
+ */
+SENTRY_EXPERIMENTAL_API sentry_metric_t *sentry_metrics_new_increment(
+    const char *key, double value);
+SENTRY_EXPERIMENTAL_API sentry_metric_t *sentry_metrics_new_increment_n(
+    const char *key, size_t key_len, double value);
+
+/**
+ * Creates a distribution metric.
+ *
+ * Distributions track a list of values over time on which
+ * aggregations like `p90`, `max`, `min`, `avg` can be performed.
+ */
+SENTRY_EXPERIMENTAL_API sentry_metric_t *sentry_metrics_new_distribution(
+    const char *key, double value);
+SENTRY_EXPERIMENTAL_API sentry_metric_t *sentry_metrics_new_distribution_n(
+    const char *key, size_t key_len, double value);
+
+/**
+ * Creates a gauge metric.
+ *
+ * Gauges track a value that can go up and down on which
+ * aggregations like `max`, `min`, `avg`, `sum` and `count` can be performed.
+ *
+ * Gauges can be represented in a more space-efficient way than distributions,
+ * but they can't be used to get percentiles.
+ */
+SENTRY_EXPERIMENTAL_API sentry_metric_t *sentry_metrics_new_gauge(
+    const char *key, double value);
+SENTRY_EXPERIMENTAL_API sentry_metric_t *sentry_metrics_new_gauge_n(
+    const char *key, size_t key_len, double value);
+
+/**
+ * Creates a set metric.
+ *
+ * Sets are useful for looking at unique occurrences and counting
+ * the unique elements that were added.
+ *
+ * Sets track a set of values on which aggregations such as `count_unique`
+ * can be performed.
+ */
+SENTRY_EXPERIMENTAL_API sentry_metric_t *sentry_metrics_new_set(
+    const char *key, int32_t value);
+SENTRY_EXPERIMENTAL_API sentry_metric_t *sentry_metrics_new_set_n(
+    const char *key, size_t key_len, int32_t value);
+
+/**
+ * Sets a tag on a metric to the given string value.
+ *
+ * Tags longer than 200 bytes will be truncated.
+ *
+ * The metric should not be mutated by other functions while a tag is being set on
+ * it.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_metric_set_tag(
+    sentry_metric_t *metric, const char *tag, const char *value);
+SENTRY_EXPERIMENTAL_API void sentry_metric_set_tag_n(sentry_metric_t *metric,
+    const char *tag, size_t tag_len, const char *value, size_t value_len);
+
 #ifdef __cplusplus
 }
 #endif
