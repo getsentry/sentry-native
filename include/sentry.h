@@ -2158,6 +2158,11 @@ SENTRY_EXPERIMENTAL_API void sentry_metric_set_unit(
 SENTRY_EXPERIMENTAL_API void sentry_metric_set_unit_n(sentry_metric_t *metric,
     const char *unit, size_t unit_len);
 
+/**
+ * Captures a metric to be sent to Sentry.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_metrics_capture(sentry_metric_t *metric);
+
 #ifdef __cplusplus
 }
 #endif

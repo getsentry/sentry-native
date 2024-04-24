@@ -1171,3 +1171,9 @@ sentry_clear_crashed_last_run(void)
     sentry__options_unlock();
     return success ? 0 : 1;
 }
+
+void
+sentry_metrics_capture(sentry_metric_t *metric)
+{
+    // TODO add metrics capturing
+}
