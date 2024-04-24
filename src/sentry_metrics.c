@@ -79,10 +79,11 @@ sentry_metrics_new_distribution_n(const char *key, size_t key_len, double value)
     sentry_value_set_by_key(
         metric->inner, "type", sentry_value_new_string("distribution"));
 
-    sentry_value_t distributions = sentry_value_new_list();
-    sentry_value_append(distributions, sentry_value_new_double(value));
+    sentry_value_t distributionValues = sentry_value_new_list();
+    sentry_value_append(distributionValues, sentry_value_new_double(value));
+
     sentry_value_set_by_key(
-        metric->inner, "value", distributions);
+        metric->inner, "value", distributionValues);
 
     if (sentry_value_is_null(metric->inner)) {
         sentry_free(metric);
@@ -113,9 +114,20 @@ sentry_metrics_new_gauge_n(const char *key, size_t key_len, double value)
     sentry_value_set_by_key(
         metric->inner, "type", sentry_value_new_string("gauge"));
 
-    // TODO make proper gauge value setter (min/max/avg/coun)
+    sentry_value_t gaugeValue = sentry_value_new_object();
     sentry_value_set_by_key(
-        metric->inner, "value", sentry_value_new_double(value));
+        gaugeValue, "last", sentry_value_new_double(value));
+    sentry_value_set_by_key(
+        gaugeValue, "mix", sentry_value_new_double(value));
+    sentry_value_set_by_key(
+        gaugeValue, "max", sentry_value_new_double(value));
+    sentry_value_set_by_key(
+        gaugeValue, "sum", sentry_value_new_double(value));
+    sentry_value_set_by_key(
+        gaugeValue, "count", sentry_value_new_int32(1));
+
+    sentry_value_set_by_key(
+        metric->inner, "value", gaugeValue);
 
     if (sentry_value_is_null(metric->inner)) {
         sentry_free(metric);
@@ -146,9 +158,11 @@ sentry_metrics_new_set_n(const char *key, size_t key_len, int32_t value)
     sentry_value_set_by_key(
         metric->inner, "type", sentry_value_new_string("set"));
 
-    // TODO make proper set value setter
+    sentry_value_t setValues = sentry_value_new_list();
+    sentry_value_append(setValues, sentry_value_new_int32(value));
+
     sentry_value_set_by_key(
-        metric->inner, "value", sentry_value_new_double(value));
+        metric->inner, "value", setValues);
 
     if (sentry_value_is_null(metric->inner)) {
         sentry_free(metric);
