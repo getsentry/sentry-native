@@ -31,6 +31,9 @@ sentry__value_metric_new_n(sentry_slice_t name)
         sentry__value_new_string_owned(
             sentry__msec_time_to_iso8601(sentry__msec_time())));
 
+    sentry_value_set_by_key(
+        metric, "unit", sentry_value_new_string("none"));
+
     return metric;
 }
 
@@ -204,6 +207,16 @@ set_tag(sentry_value_t item, const char *tag, const char *value)
 }
 
 void
+sentry_metric_set_tag_n(sentry_metric_t *metric, const char *tag, size_t tag_len,
+    const char *value, size_t value_len)
+{
+    if (metric) {
+        set_tag_n(metric->inner, (sentry_slice_t) { tag, tag_len },
+            (sentry_slice_t) { value, value_len });
+    }
+}
+
+void
 sentry_metric_set_tag(sentry_metric_t *metric, const char *tag, const char *value)
 {
     if (metric) {
@@ -212,11 +225,21 @@ sentry_metric_set_tag(sentry_metric_t *metric, const char *tag, const char *valu
 }
 
 void
-sentry_metric_set_tag_n(sentry_metric_t *metric, const char *tag, size_t tag_len,
-    const char *value, size_t value_len)
+sentry_metric_set_unit_n(sentry_metric_t *metric,
+    const char *unit, size_t unit_len)
 {
-    if (metric) {
-        set_tag_n(metric->inner, (sentry_slice_t) { tag, tag_len },
-            (sentry_slice_t) { value, value_len });
+    if (!metric) {
+        return;
     }
+
+    sentry_value_set_by_key(
+        metric->inner, "unit", sentry_value_new_string_n(unit, unit_len));
+}
+
+void
+sentry_metric_set_unit(sentry_metric_t *metric, const char *unit)
+{
+    const size_t unit_len = unit ? strlen(unit) : 0;
+
+    sentry_metric_set_unit_n(metric, unit, unit_len);
 }

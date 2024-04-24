@@ -2148,6 +2148,16 @@ SENTRY_EXPERIMENTAL_API void sentry_metric_set_tag(
 SENTRY_EXPERIMENTAL_API void sentry_metric_set_tag_n(sentry_metric_t *metric,
     const char *tag, size_t tag_len, const char *value, size_t value_len);
 
+/**
+ * Sets a measurement unit of the given metric.
+ *
+ * See https://develop.sentry.dev/sdk/metrics/#units.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_metric_set_unit(
+    sentry_metric_t *metric, const char *unit);
+SENTRY_EXPERIMENTAL_API void sentry_metric_set_unit_n(sentry_metric_t *metric,
+    const char *unit, size_t unit_len);
+
 #ifdef __cplusplus
 }
 #endif
