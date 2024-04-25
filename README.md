@@ -17,6 +17,10 @@ applications, optimized for C and C++. Sentry allows to add tags, breadcrumbs
 and arbitrary custom context to enrich error reports. Supports Sentry _20.6.0_
 and later.
 
+### Note <!-- omit in toc -->
+
+Using the `sentry-native` SDK in a standalone use case is currently an experimental feature. The SDK’s primary function is to fuel our other SDKs, like [`sentry-java`](https://github.com/getsentry/sentry-java) or [`sentry-unreal`](https://github.com/getsentry/sentry-unreal). Support from our side is best effort and we do what we can to respond to issues in a timely fashion, but please understand if we won’t be able to address your issues or feature suggestions.
+
 ## Resources <!-- omit in toc -->
 
 - [SDK Documentation](https://docs.sentry.io/platforms/native/)
@@ -239,7 +243,10 @@ using `cmake -D BUILD_SHARED_LIBS=OFF ..`.
   Builds the Qt integration, which turns Qt log messages into breadcrumbs.
 
 - `SENTRY_BREAKPAD_SYSTEM` (Default: OFF):
-  This instructs the build system to use system-installed breakpad libraries instead of using the in-tree version. 
+  This instructs the build system to use system-installed breakpad libraries instead of using the in-tree version.
+
+- `SENTRY_TRANSPORT_COMPRESSION` (Default: OFF):
+  Adds Gzip transport compression. Requires `zlib`.
 
 | Feature    | Windows | macOS | Linux | Android | iOS |
 | ---------- | ------- | ----- | ----- | ------- | --- |
