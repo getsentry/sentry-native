@@ -7,6 +7,7 @@
 #include "sentry_core.h"
 #include "sentry_database.h"
 #include "sentry_envelope.h"
+#include "sentry_metrics.h"
 #include "sentry_options.h"
 #include "sentry_path.h"
 #include "sentry_random.h"
@@ -1175,5 +1176,7 @@ sentry_clear_crashed_last_run(void)
 void
 sentry_metrics_capture(sentry_metric_t *metric)
 {
-    // TODO add metrics capturing
+    SENTRY_WITH_METRICS_AGGREGATOR (aggregator) {
+        sentry__metrics_aggregator_add(aggregator, metric);
+    }
 }

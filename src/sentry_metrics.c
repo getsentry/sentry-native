@@ -3,7 +3,236 @@
 #include "sentry_alloc.h"
 #include "sentry_slice.h"
 #include "sentry_string.h"
+#include "sentry_sync.h"
 #include "sentry_utils.h"
+
+#define MIN(a, b) ((a) < (b) ? (a) : (b))
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
+
+#define ROLLUP_IN_SECONDS 10
+
+static bool g_aggregator_initialized = false;
+static sentry_metrics_aggregator_t g_aggregator = { 0 };
+static sentry_mutex_t g_aggregator_lock = SENTRY__MUTEX_INIT;
+
+sentry_value_t
+sentry__metrics_type_to_string(sentry_metric_type_t type)
+{
+    switch (type) {
+    case SENTRY_METRIC_COUNTER:
+        return sentry_value_new_string("counter");
+    case SENTRY_METRIC_DISTRIBUTION:
+        return sentry_value_new_string("distribution");
+    case SENTRY_METRIC_GAUGE:
+        return sentry_value_new_string("gauge");
+    case SENTRY_METRIC_SET:
+        return sentry_value_new_string("set");
+    default:
+        return sentry_value_new_null();
+    }
+}
+
+const char *
+sentry__metrics_type_to_statsd(sentry_metric_type_t type)
+{
+    switch (type) {
+    case SENTRY_METRIC_COUNTER:
+        return "c";
+    case SENTRY_METRIC_DISTRIBUTION:
+        return "d";
+    case SENTRY_METRIC_GAUGE:
+        return "g";
+    case SENTRY_METRIC_SET:
+        return "s";
+    default:
+        return "";
+    }
+}
+
+static sentry_metrics_aggregator_t *
+get_metrics_aggregator(void)
+{
+    if (g_aggregator_initialized) {
+        return &g_aggregator;
+    }
+
+    memset(&g_aggregator, 0, sizeof(sentry_metrics_aggregator_t));
+    g_aggregator.buckets = sentry_value_new_list();
+
+    g_aggregator_initialized = true;
+
+    return &g_aggregator;
+}
+
+sentry_metrics_aggregator_t *
+sentry__metrics_aggregator_lock(void)
+{
+    sentry__mutex_lock(&g_aggregator_lock);
+    return get_metrics_aggregator();
+}
+
+void
+sentry__metrics_aggregator_unlock(void)
+{
+    sentry__mutex_unlock(&g_aggregator_lock);
+}
+
+void
+sentry__metrics_aggregator_cleanup(void)
+{
+    sentry__mutex_lock(&g_aggregator_lock);
+    if (g_aggregator_initialized) {
+        g_aggregator_initialized = false;
+        sentry_value_decref(g_aggregator.buckets);
+    }
+    sentry__mutex_unlock(&g_aggregator_lock);
+}
+
+sentry_value_t
+sentry__metrics_get_bucket_key(uint64_t timestamp)
+{
+    uint64_t seconds = timestamp / 1000;
+    uint64_t bucketKey = (seconds / ROLLUP_IN_SECONDS) * ROLLUP_IN_SECONDS;
+
+    char buf[20 + 1];
+    size_t written = (size_t)snprintf(
+        buf, sizeof(buf), "%llu", (unsigned long long)bucketKey);
+    if (written >= sizeof(buf)) {
+        return sentry_value_new_null();
+    }
+    buf[written] = '\0';
+    return sentry_value_new_string(buf);
+}
+
+sentry_value_t
+sentry__metrics_get_or_add_bucket(
+    const sentry_metrics_aggregator_t *aggregator, sentry_value_t bucketKey)
+{
+    size_t len = sentry_value_get_length(aggregator->buckets);
+    for (size_t i = 0; i < len; i++) {
+        sentry_value_t existingBucket
+            = sentry_value_get_by_index(aggregator->buckets, i);
+        const char *key = sentry_value_as_string(
+            sentry_value_get_by_key(existingBucket, "key"));
+        if (sentry__string_eq(key, sentry_value_as_string(bucketKey))) {
+            return existingBucket;
+        }
+    }
+
+    // if there is no existing bucket with given key
+    // create a new one and add it to aggregator
+    sentry_value_t newBucket = sentry_value_new_object();
+    sentry_value_set_by_key(newBucket, "key", bucketKey);
+    sentry_value_set_by_key(newBucket, "metrics", sentry_value_new_list());
+    sentry_value_append(aggregator->buckets, newBucket);
+    return newBucket;
+}
+
+char *
+sentry__metrics_serialize_tags(sentry_value_t tags)
+{
+    sentry_stringbuilder_t sb;
+    sentry__stringbuilder_init(&sb);
+
+    for (size_t i = 0; i < sentry_value_get_length(tags); i++) {
+        sentry_value_t tagItem = sentry_value_get_by_index(tags, i);
+        if (sentry__stringbuilder_len(&sb) > 0) {
+            sentry__stringbuilder_append(&sb, ",");
+        }
+        sentry__stringbuilder_append(&sb,
+            sentry_value_as_string(sentry_value_get_by_key(tagItem, "key")));
+        sentry__stringbuilder_append_char(&sb, '=');
+        sentry__stringbuilder_append(&sb,
+            sentry_value_as_string(sentry_value_get_by_key(tagItem, "value")));
+    }
+
+    return sentry__stringbuilder_into_string(&sb);
+}
+
+char *
+sentry__metrics_get_metric_bucket_key(sentry_metric_t *metric)
+{
+    const char *typePrefix = sentry__metrics_type_to_statsd(metric->type);
+
+    const char *metricKey = sentry_value_as_string(
+            sentry_value_get_by_key(metric->inner, "key"));
+
+    const char *unitName = sentry_value_as_string(
+        sentry_value_get_by_key(metric->inner, "unit"));
+
+    const char *serializedTags = sentry__metrics_serialize_tags(
+        sentry_value_get_by_key(metric->inner, "tags"));
+
+    size_t keyLength = strlen(typePrefix) + strlen(metricKey) + strlen(unitName)
+        + strlen(serializedTags) + 4;
+    char *metricBucketKey = sentry_malloc(keyLength);
+    snprintf(metricBucketKey, keyLength, "%s_%s_%s_%s\0",
+        typePrefix, metricKey, unitName, serializedTags);
+
+    return metricBucketKey;
+}
+
+sentry_value_t
+sentry__metrics_find_in_bucket(sentry_value_t bucket, const char *metricKey)
+{
+    sentry_value_t metrics = sentry_value_get_by_key(bucket, "metrics");
+    size_t len = sentry_value_get_length(metrics);
+    for (size_t i = 0; i < len; i++) {
+        sentry_value_t existingMetric
+            = sentry_value_get_by_index(metrics, i);
+        const char *key = sentry_value_as_string(
+            sentry_value_get_by_key(existingMetric, "key"));
+        if (sentry__string_eq(key, metricKey)) {
+            return existingMetric;
+        }
+    }
+
+    return sentry_value_new_null();
+}
+
+void
+sentry__metrics_aggregator_add(
+    const sentry_metrics_aggregator_t *aggregator, sentry_metric_t *metric)
+{
+    uint64_t timestamp = sentry__iso8601_to_msec(
+        sentry_value_as_string(
+            sentry_value_get_by_key(metric->inner, "timestamp")));
+
+    sentry_value_t bucketKey =
+        sentry__metrics_get_bucket_key(timestamp);
+
+    sentry_value_t bucket =
+        sentry__metrics_get_or_add_bucket(aggregator, bucketKey);
+
+    char *metricBucketKey = sentry__metrics_get_metric_bucket_key(metric);
+
+    sentry_value_t existingMetric =
+        sentry__metrics_find_in_bucket(bucket, metricBucketKey);
+
+    if (sentry_value_is_null(existingMetric)) {
+        sentry_value_append(
+            sentry_value_get_by_key(bucket, "metrics"), metric->inner);
+    } else {
+        switch (metric->type) {
+        case SENTRY_METRIC_COUNTER:
+            sentry__metrics_increment_add(existingMetric, metric->value);
+            break;
+        case SENTRY_METRIC_DISTRIBUTION:
+            sentry__metrics_distribution_add(existingMetric, metric->value);
+            break;
+        case SENTRY_METRIC_GAUGE:
+            sentry__metrics_gauge_add(existingMetric, metric->value);
+            break;
+        case SENTRY_METRIC_SET:
+            sentry__metrics_set_add(existingMetric, metric->value);
+            break;
+        default:
+            SENTRY_WARN("uknown metric type");
+        }
+    }
+
+    sentry_free(metricBucketKey);
+}
 
 void
 sentry__metric_free(sentry_metric_t *metric)
@@ -45,10 +274,13 @@ sentry_metrics_new_increment_n(const char *key, size_t key_len, double value)
         return NULL;
     }
 
+    metric->type = SENTRY_METRIC_COUNTER;
     metric->inner = sentry__value_metric_new_n(
         (sentry_slice_t) { key, key_len });
-    sentry_value_set_by_key(
-        metric->inner, "type", sentry_value_new_string("counter"));
+    sentry_value_set_by_key(metric->inner, "type",
+        sentry__metrics_type_to_string(metric->type));
+
+    metric->value = sentry_value_new_double(value);
 
     sentry_value_set_by_key(
         metric->inner, "value", sentry_value_new_double(value));
@@ -77,10 +309,13 @@ sentry_metrics_new_distribution_n(const char *key, size_t key_len, double value)
         return NULL;
     }
 
+    metric->type = SENTRY_METRIC_DISTRIBUTION;
     metric->inner = sentry__value_metric_new_n(
         (sentry_slice_t) { key, key_len });
-    sentry_value_set_by_key(
-        metric->inner, "type", sentry_value_new_string("distribution"));
+    sentry_value_set_by_key(metric->inner, "type",
+        sentry__metrics_type_to_string(metric->type));
+
+    metric->value = sentry_value_new_double(value);
 
     sentry_value_t distributionValues = sentry_value_new_list();
     sentry_value_append(distributionValues, sentry_value_new_double(value));
@@ -112,16 +347,19 @@ sentry_metrics_new_gauge_n(const char *key, size_t key_len, double value)
         return NULL;
     }
 
+    metric->type = SENTRY_METRIC_GAUGE;
     metric->inner = sentry__value_metric_new_n(
         (sentry_slice_t) { key, key_len });
-    sentry_value_set_by_key(
-        metric->inner, "type", sentry_value_new_string("gauge"));
+    sentry_value_set_by_key(metric->inner, "type",
+        sentry__metrics_type_to_string(metric->type));
+
+    metric->value = sentry_value_new_double(value);
 
     sentry_value_t gaugeValue = sentry_value_new_object();
     sentry_value_set_by_key(
         gaugeValue, "last", sentry_value_new_double(value));
     sentry_value_set_by_key(
-        gaugeValue, "mix", sentry_value_new_double(value));
+        gaugeValue, "min", sentry_value_new_double(value));
     sentry_value_set_by_key(
         gaugeValue, "max", sentry_value_new_double(value));
     sentry_value_set_by_key(
@@ -156,10 +394,13 @@ sentry_metrics_new_set_n(const char *key, size_t key_len, int32_t value)
         return NULL;
     }
 
+    metric->type = SENTRY_METRIC_SET;
     metric->inner = sentry__value_metric_new_n(
         (sentry_slice_t) { key, key_len });
-    sentry_value_set_by_key(
-        metric->inner, "type", sentry_value_new_string("set"));
+    sentry_value_set_by_key(metric->inner, "type",
+        sentry__metrics_type_to_string(metric->type));
+
+    metric->value = sentry_value_new_int32(value);
 
     sentry_value_t setValues = sentry_value_new_list();
     sentry_value_append(setValues, sentry_value_new_int32(value));
@@ -183,18 +424,97 @@ sentry_metrics_new_set(const char *key, int32_t value)
     return sentry_metrics_new_set_n(key, key_len, value);
 }
 
+void
+sentry__metrics_increment_add(sentry_value_t metric, sentry_value_t value)
+{
+    sentry_value_t metricValue =
+        sentry_value_get_by_key(metric, "value");
+
+    double current = sentry_value_as_double(metricValue);
+    double val = sentry_value_as_double(value);
+
+    sentry_value_set_by_key(
+        metric, "value", sentry_value_new_double(current + val));
+}
+
+void
+sentry__metrics_distribution_add(sentry_value_t metric, sentry_value_t value)
+{
+    sentry_value_t metricValue =
+        sentry_value_get_by_key(metric, "value");
+
+    sentry_value_append(metricValue, value);
+}
+
+void
+sentry__metrics_gauge_add(sentry_value_t metric, sentry_value_t value)
+{
+    sentry_value_t metricValue =
+        sentry_value_get_by_key(metric, "value");
+
+    double min = sentry_value_as_double(
+        sentry_value_get_by_key(metricValue, "min"));
+    double max = sentry_value_as_double(
+        sentry_value_get_by_key(metricValue, "max"));
+    double sum = sentry_value_as_double(
+        sentry_value_get_by_key(metricValue, "sum"));
+    double count = sentry_value_as_int32(
+        sentry_value_get_by_key(metricValue, "count"));
+
+    double val = sentry_value_as_double(value);
+
+    sentry_value_set_by_key(metricValue, "last", value);
+    sentry_value_set_by_key(metricValue, "min",
+        sentry_value_new_double(MIN(min, val)));
+    sentry_value_set_by_key(metricValue, "max",
+        sentry_value_new_double(MAX(max, val)));
+    sentry_value_set_by_key(metricValue, "sum",
+        sentry_value_new_double(sum + val));
+    sentry_value_set_by_key(metricValue, "count",
+        sentry_value_new_double(count + 1));
+}
+
+void
+sentry__metrics_set_add(sentry_value_t metric, sentry_value_t value)
+{
+    sentry_value_t metricValue =
+        sentry_value_get_by_key(metric, "value");
+
+    size_t len = sentry_value_get_length(metricValue);
+    for (size_t i = 0; i < len; i++) {
+        sentry_value_t setItem = sentry_value_get_by_index(metricValue, i);
+        if (sentry_value_as_int32(value) == sentry_value_as_int32(setItem)) {
+            return;
+        }
+    }
+
+    sentry_value_append(metricValue, value);
+}
+
 static void
 set_tag_n(sentry_value_t item, sentry_slice_t tag, sentry_slice_t value)
 {
     sentry_value_t tags = sentry_value_get_by_key(item, "tags");
     if (sentry_value_is_null(tags)) {
-        tags = sentry_value_new_object();
+        tags = sentry_value_new_list();
         sentry_value_set_by_key(item, "tags", tags);
     }
-    char *s = sentry__string_clone_max_n(value.ptr, value.len, 200);
+
+    char *sKey
+        = sentry__string_clone_max_n(tag.ptr, tag.len, 200);
+    sentry_value_t tag_key
+        = sKey ? sentry__value_new_string_owned(sKey) : sentry_value_new_null();
+
+    char *sVal
+        = sentry__string_clone_max_n(value.ptr, value.len, 200);
     sentry_value_t tag_value
-        = s ? sentry__value_new_string_owned(s) : sentry_value_new_null();
-    sentry_value_set_by_key_n(tags, tag.ptr, tag.len, tag_value);
+        = sVal ? sentry__value_new_string_owned(sVal) : sentry_value_new_null();
+
+    sentry_value_t newTag = sentry_value_new_object();
+    sentry_value_set_by_key(newTag, "key", tag_key);
+    sentry_value_set_by_key(newTag, "value", tag_value);
+
+    sentry_value_append(tags, newTag);
 }
 
 static void

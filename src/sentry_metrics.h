@@ -4,12 +4,63 @@
 #include "sentry_value.h"
 
 /**
- * A span.
+ * Sentry metric types.
+ */
+typedef enum sentry_metric_type_e {
+    SENTRY_METRIC_COUNTER = 0,
+    SENTRY_METRIC_DISTRIBUTION = 1,
+    SENTRY_METRIC_GAUGE = 2,
+    SENTRY_METRIC_SET = 3,
+} sentry_metric_type_t;
+
+/**
+ * A metric.
  */
 typedef struct sentry_metric_s {
     sentry_value_t inner;
+    sentry_value_t value;
+    sentry_metric_type_t type;
 } sentry_metric_t;
 
+/**
+ * A metrics aggregator.
+ */
+typedef struct sentry_metrics_aggregator_s {
+    sentry_value_t buckets;
+} sentry_metrics_aggregator_t;
+
+/**
+ * Acquires a lock on the global metrics aggregator.
+ */
+sentry_metrics_aggregator_t *sentry__metrics_aggregator_lock(void);
+
+/**
+ * Releases the lock on the global metrics aggregator.
+ */
+void sentry__metrics_aggregator_unlock(void);
+
+/**
+ * Free all the data attached to the global metrics aggregator
+ */
+void sentry__metrics_aggregator_cleanup(void);
+
+void sentry__metrics_aggregator_add(
+    const sentry_metrics_aggregator_t *aggregator, sentry_metric_t *metric);
+
 void sentry__metric_free(sentry_metric_t *metric);
+
+void sentry__metrics_increment_add(sentry_value_t metric, sentry_value_t value);
+void sentry__metrics_distribution_add(sentry_value_t metric, sentry_value_t value);
+void sentry__metrics_gauge_add(sentry_value_t metric, sentry_value_t value);
+void sentry__metrics_set_add(sentry_value_t metric, sentry_value_t value);
+
+/**
+ * Convenience macros to automatically lock/unlock a metrics aggregator
+ * inside a code block.
+ */
+#define SENTRY_WITH_METRICS_AGGREGATOR(MetricsAggregator)                      \
+    for (const sentry_metrics_aggregator_t *MetricsAggregator =                \
+        sentry__metrics_aggregator_lock(); MetricsAggregator;                  \
+        sentry__metrics_aggregator_unlock(), MetricsAggregator = NULL)
 
 #endif
