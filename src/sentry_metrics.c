@@ -183,7 +183,7 @@ sentry__metrics_find_in_bucket(sentry_value_t bucket, const char *metricKey)
         const char *key = sentry_value_as_string(
             sentry_value_get_by_key(existingMetric, "key"));
         if (sentry__string_eq(key, metricKey)) {
-            return existingMetric;
+            return sentry_value_get_by_key(existingMetric, "metric");
         }
     }
 
@@ -210,8 +210,13 @@ sentry__metrics_aggregator_add(
         sentry__metrics_find_in_bucket(bucket, metricBucketKey);
 
     if (sentry_value_is_null(existingMetric)) {
+        sentry_value_t newBucketItem = sentry_value_new_object();
+        sentry_value_set_by_key(newBucketItem, "key",
+            sentry_value_new_string(metricBucketKey));
+        sentry_value_set_by_key(newBucketItem, "metric",
+            metric->inner);
         sentry_value_append(
-            sentry_value_get_by_key(bucket, "metrics"), metric->inner);
+            sentry_value_get_by_key(bucket, "metrics"), newBucketItem);
     } else {
         switch (metric->type) {
         case SENTRY_METRIC_COUNTER:
