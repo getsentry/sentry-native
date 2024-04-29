@@ -4,19 +4,16 @@ import com.vanniktech.maven.publish.MavenPublishPlugin
 import com.vanniktech.maven.publish.MavenPublishPluginExtension
 import groovy.util.Node
 import io.gitlab.arturbosch.detekt.extensions.DetektExtension
-import kotlinx.kover.gradle.plugin.dsl.KoverReportExtension
 import org.gradle.api.tasks.testing.logging.TestExceptionFormat
 import org.gradle.api.tasks.testing.logging.TestLogEvent
 
 plugins {
     `java-library`
     id("com.diffplug.spotless") version "6.11.0" apply true
-    jacoco
     id("io.gitlab.arturbosch.detekt") version "1.19.0"
     `maven-publish`
     id("org.jetbrains.kotlinx.binary-compatibility-validator") version "0.13.0"
-    id("com.mxalbert.gradle.jacoco-android") version "0.2.0" apply false
-    id("org.jetbrains.kotlinx.kover") version "0.7.3" apply false
+
 }
 
 buildscript {
@@ -30,16 +27,10 @@ buildscript {
         // dokka is required by gradle-maven-publish-plugin.
         classpath("org.jetbrains.dokka:dokka-gradle-plugin:1.7.10")
         classpath("net.ltgt.gradle:gradle-errorprone-plugin:3.0.1")
-        classpath("com.github.ben-manes:gradle-versions-plugin:0.42.0")
 
-        // add classpath of androidNativeBundle
-        // com.ydq.android.gradle.build.tool:nativeBundle:{version}}
-        classpath("io.github.howardpang:androidNativeBundle:1.1.1")
-
-        // add classpath of sentry android gradle plugin
-        // classpath("io.sentry:sentry-android-gradle-plugin:{version}")
-
-        classpath("org.jetbrains.kotlinx:binary-compatibility-validator:0.13.0")
+        // legacy pre-prefab support
+        // https://github.com/howardpang/androidNativeBundle
+        classpath("io.github.howardpang:androidNativeBundle:1.1.4")
     }
 }
 
@@ -74,24 +65,6 @@ allprojects {
 }
 
 subprojects {
-    val jacocoAndroidModules = listOf(
-        "lib"
-    )
-    if (jacocoAndroidModules.contains(name)) {
-        afterEvaluate {
-            jacoco {
-                toolVersion = "0.8.10"
-            }
-
-            tasks.withType<Test> {
-                configure<JacocoTaskExtension> {
-                    isIncludeNoLocationClasses = true
-                    excludes = listOf("jdk.internal.*")
-                }
-            }
-        }
-    }
-
     plugins.withId("io.gitlab.arturbosch.detekt") {
         configure<DetektExtension> {
             buildUponDefaultConfig = true
@@ -173,55 +146,6 @@ spotless {
         target("**/*.kts")
         ktlint()
         targetExclude("**/sentry-native/**")
-    }
-}
-
-gradle.projectsEvaluated {
-    tasks.create("aggregateJavadocs", Javadoc::class.java) {
-        setDestinationDir(file("$buildDir/docs/javadoc"))
-        title = "${project.name} $version API"
-        val opts = options as StandardJavadocDocletOptions
-        opts.quiet()
-        opts.encoding = "UTF-8"
-        opts.memberLevel = JavadocMemberLevel.PROTECTED
-        opts.stylesheetFile(file("$projectDir/docs/stylesheet.css"))
-        opts.links = listOf(
-            "https://docs.oracle.com/javase/8/docs/api/",
-            "https://docs.spring.io/spring-framework/docs/current/javadoc-api/",
-            "https://docs.spring.io/spring-boot/docs/current/api/"
-        )
-        subprojects
-            .filter { !it.name.contains("sample") && !it.name.contains("integration-tests") }
-            .forEach { proj ->
-                proj.tasks.withType<Javadoc>().forEach { javadocTask ->
-                    source += javadocTask.source
-                    classpath += javadocTask.classpath
-                    excludes += javadocTask.excludes
-                    includes += javadocTask.includes
-                }
-            }
-    }
-
-    tasks.create("buildForCodeQL") {
-        subprojects
-            .filter {
-                !it.displayName.contains("sample")
-            }
-            .forEach { proj ->
-                if (proj.plugins.hasPlugin("com.android.library")) {
-                    this.dependsOn(proj.tasks.findByName("compileReleaseUnitTestSources"))
-                } else {
-                    this.dependsOn(proj.tasks.findByName("testClasses"))
-                }
-            }
-    }
-}
-
-// Workaround for https://youtrack.jetbrains.com/issue/IDEA-316081/Gradle-8-toolchain-error-Toolchain-from-executable-property-does-not-match-toolchain-from-javaLauncher-property-when-different
-gradle.taskGraph.whenReady {
-    val task = this.allTasks.find { it.name.endsWith(".main()") } as? JavaExec
-    task?.let {
-        it.setExecutable(it.javaLauncher.get().executablePath.asFile.absolutePath)
     }
 }
 

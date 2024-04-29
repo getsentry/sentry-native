@@ -5,8 +5,6 @@ import org.jetbrains.annotations.Nullable;
 import java.util.Map;
 
 public final class DebugImage {
-    public static final String PROGUARD = "proguard";
-    public static final String JVM = "jvm";
 
     /**
      * The unique UUID of the image.
