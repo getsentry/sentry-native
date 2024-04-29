@@ -48,7 +48,8 @@ android {
     // lib.aar/prefab/modules/sentry-android/libs/<arch>/<lib>.so
     // lib.aar/prefab/modules/sentry-android/include/sentry.h
     prefab {
-        create("sentry-android") {
+        create("sentry-android") {}
+        create("sentry") {
             headers = "../../include"
         }
     }

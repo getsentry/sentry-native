@@ -7,9 +7,13 @@ pluginManagement {
 
 enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 
-rootProject.name = "sentry-ndk"
+rootProject.name = "ndk"
 rootProject.buildFileName = "build.gradle.kts"
 
 include(
-    "lib", "sample"
+    "sentry-ndk", "sample"
 )
+
+// prefab uses the module name for determining the package name used by cmake find_package()
+// thus rename the module to something better
+project(':sentry-ndk').projectDir = new File("lib")
