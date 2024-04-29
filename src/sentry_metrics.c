@@ -471,7 +471,7 @@ sentry__metrics_gauge_add(sentry_value_t metric, sentry_value_t value)
     sentry_value_set_by_key(metricValue, "sum",
         sentry_value_new_double(sum + val));
     sentry_value_set_by_key(metricValue, "count",
-        sentry_value_new_double(count + 1));
+        sentry_value_new_int32(count + 1));
 }
 
 void
