@@ -1,6 +1,7 @@
 ﻿#ifndef SENTRY_METRICS_H_INCLUDED
 #define SENTRY_METRICS_H_INCLUDED
 
+#include "sentry_json.h"
 #include "sentry_value.h"
 
 /**
@@ -49,10 +50,31 @@ void sentry__metrics_aggregator_add(
 
 void sentry__metric_free(sentry_metric_t *metric);
 
-void sentry__metrics_increment_add(sentry_value_t metric, sentry_value_t value);
-void sentry__metrics_distribution_add(sentry_value_t metric, sentry_value_t value);
-void sentry__metrics_gauge_add(sentry_value_t metric, sentry_value_t value);
-void sentry__metrics_set_add(sentry_value_t metric, sentry_value_t value);
+void sentry__metrics_increment_add(
+    sentry_value_t metric, sentry_value_t value);
+void sentry__metrics_distribution_add(
+    sentry_value_t metric, sentry_value_t value);
+void sentry__metrics_gauge_add(
+    sentry_value_t metric, sentry_value_t value);
+void sentry__metrics_set_add(
+    sentry_value_t metric, sentry_value_t value);
+
+void sentry__metrics_increment_serialize(
+    sentry_stringbuilder_t *sb, sentry_value_t value);
+void sentry__metrics_distribution_serialize(
+    sentry_stringbuilder_t *sb, sentry_value_t value);
+void sentry__metrics_gauge_serialize(
+    sentry_stringbuilder_t *sb, sentry_value_t value);
+void sentry__metrics_set_serialize(
+    sentry_stringbuilder_t *sb, sentry_value_t value);
+
+void
+sentry__metrics_tags_serialize(
+    sentry_stringbuilder_t *sb, sentry_value_t tags);
+
+void
+sentry__metrics_timestamp_serialize(
+    sentry_stringbuilder_t* sb, uint64_t timestamp);
 
 /**
  * Convenience macros to automatically lock/unlock a metrics aggregator

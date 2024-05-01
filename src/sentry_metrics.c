@@ -28,6 +28,7 @@ sentry__metrics_type_to_string(sentry_metric_type_t type)
     case SENTRY_METRIC_SET:
         return sentry_value_new_string("set");
     default:
+        assert(!"invalid metric type");
         return sentry_value_new_null();
     }
 }
@@ -45,7 +46,32 @@ sentry__metrics_type_to_statsd(sentry_metric_type_t type)
     case SENTRY_METRIC_SET:
         return "s";
     default:
-        return "";
+        assert(!"invalid metric type");
+        return "invalid";
+    }
+}
+
+void
+sentry__metrics_type_from_string(
+    sentry_value_t type, sentry_metric_type_t *metric_type)
+{
+    const char *typeStr = sentry_value_as_string(type);
+
+    switch (*typeStr) {
+    case 'c':
+        *metric_type = SENTRY_METRIC_COUNTER;
+        break;
+    case 'd':
+        *metric_type = SENTRY_METRIC_DISTRIBUTION;
+        break;
+    case 'g':
+        *metric_type = SENTRY_METRIC_GAUGE;
+        break;
+    case 's':
+        *metric_type = SENTRY_METRIC_SET;
+        break;
+    default:
+        assert(!"invalid metric type");
     }
 }
 
@@ -129,7 +155,7 @@ sentry__metrics_get_or_add_bucket(
 }
 
 char *
-sentry__metrics_serialize_tags(sentry_value_t tags)
+sentry__metrics_get_tags_key(sentry_value_t tags)
 {
     sentry_stringbuilder_t sb;
     sentry__stringbuilder_init(&sb);
@@ -160,7 +186,7 @@ sentry__metrics_get_metric_bucket_key(sentry_metric_t *metric)
     const char *unitName = sentry_value_as_string(
         sentry_value_get_by_key(metric->inner, "unit"));
 
-    const char *serializedTags = sentry__metrics_serialize_tags(
+    const char *serializedTags = sentry__metrics_get_tags_key(
         sentry_value_get_by_key(metric->inner, "tags"));
 
     size_t keyLength = strlen(typePrefix) + strlen(metricKey) + strlen(unitName)
@@ -237,6 +263,8 @@ sentry__metrics_aggregator_add(
     }
 
     sentry_free(metricBucketKey);
+
+    //const char* json = sentry_value_to_json(aggregator->buckets);
 }
 
 void
@@ -430,6 +458,80 @@ sentry_metrics_new_set(const char *key, int32_t value)
 }
 
 void
+sentry_metrics_flush()
+{
+    SENTRY_WITH_METRICS_AGGREGATOR (aggregator)
+    {
+        sentry_stringbuilder_t statsd;
+        sentry__stringbuilder_init(&statsd);
+
+        size_t lenBuckets = sentry_value_get_length(aggregator->buckets);
+        for (size_t i = 0; i < lenBuckets; i++) {
+            sentry_value_t bucket =
+                sentry_value_get_by_index(aggregator->buckets, i);
+            sentry_value_t metrics =
+                sentry_value_get_by_key(bucket, "metrics");
+            for (size_t j = 0; j < sentry_value_get_length(metrics); j++) {
+                sentry_value_t metric =
+                    sentry_value_get_by_key(
+                        sentry_value_get_by_index(metrics, j), "metric");
+
+                sentry__stringbuilder_append(&statsd,
+                    sentry_value_as_string(
+                        sentry_value_get_by_key(metric, "key")));
+                sentry__stringbuilder_append(&statsd, "@");
+
+                sentry__stringbuilder_append(&statsd,
+                    sentry_value_as_string(
+                        sentry_value_get_by_key(metric, "unit")));
+
+                sentry_value_t metricValue =
+                    sentry_value_get_by_key(metric, "value");
+
+                sentry_metric_type_t metricType;
+                sentry__metrics_type_from_string(
+                    sentry_value_get_by_key(metric, "type"), &metricType);
+
+                switch (metricType) {
+                    case SENTRY_METRIC_COUNTER:
+                        sentry__metrics_increment_serialize(
+                            &statsd, metricValue);
+                        break;
+                    case SENTRY_METRIC_DISTRIBUTION:
+                        sentry__metrics_distribution_serialize(
+                            &statsd, metricValue);
+                        break;
+                    case SENTRY_METRIC_GAUGE:
+                        sentry__metrics_gauge_serialize(
+                            &statsd, metricValue);
+                        break;
+                    case SENTRY_METRIC_SET:
+                        sentry__metrics_set_serialize(
+                            &statsd, metricValue);
+                        break;
+                }
+
+                sentry__stringbuilder_append(&statsd, "|");
+                sentry__stringbuilder_append(&statsd,
+                    sentry__metrics_type_to_statsd(metricType));
+
+                sentry__metrics_tags_serialize(
+                    &statsd, sentry_value_get_by_key(metric, "tags"));
+
+                sentry__stringbuilder_append(&statsd, "|T");
+
+                uint64_t timestamp = sentry__iso8601_to_msec(
+                    sentry_value_as_string(
+                        sentry_value_get_by_key(metric, "timestamp")));
+                sentry__metrics_timestamp_serialize(&statsd, timestamp);
+
+                sentry__stringbuilder_append(&statsd, "\n");
+            }
+        }
+    }
+}
+
+void
 sentry__metrics_increment_add(sentry_value_t metric, sentry_value_t value)
 {
     sentry_value_t metricValue =
@@ -463,7 +565,7 @@ sentry__metrics_gauge_add(sentry_value_t metric, sentry_value_t value)
         sentry_value_get_by_key(metricValue, "max"));
     double sum = sentry_value_as_double(
         sentry_value_get_by_key(metricValue, "sum"));
-    double count = sentry_value_as_int32(
+    int32_t count = sentry_value_as_int32(
         sentry_value_get_by_key(metricValue, "count"));
 
     double val = sentry_value_as_double(value);
@@ -482,8 +584,7 @@ sentry__metrics_gauge_add(sentry_value_t metric, sentry_value_t value)
 void
 sentry__metrics_set_add(sentry_value_t metric, sentry_value_t value)
 {
-    sentry_value_t metricValue =
-        sentry_value_get_by_key(metric, "value");
+    sentry_value_t metricValue = sentry_value_get_by_key(metric, "value");
 
     size_t len = sentry_value_get_length(metricValue);
     for (size_t i = 0; i < len; i++) {
@@ -494,6 +595,95 @@ sentry__metrics_set_add(sentry_value_t metric, sentry_value_t value)
     }
 
     sentry_value_append(metricValue, value);
+}
+
+void
+sentry__metrics_increment_serialize(
+    sentry_stringbuilder_t *sb, sentry_value_t value)
+{
+    sentry__stringbuilder_append(sb, ":");
+    sentry__stringbuilder_append(sb, sentry__value_stringify(value));
+}
+
+void
+sentry__metrics_distribution_serialize(
+    sentry_stringbuilder_t *sb, sentry_value_t value)
+{
+    size_t len = sentry_value_get_length(value);
+    for (size_t i = 0; i < len; i++) {
+        sentry__stringbuilder_append(sb, ":");
+        sentry__stringbuilder_append(sb, sentry__value_stringify(
+            sentry_value_get_by_index(value, i)));
+    }
+}
+
+void
+sentry__metrics_gauge_serialize(
+    sentry_stringbuilder_t *sb, sentry_value_t value)
+{
+    sentry__stringbuilder_append(sb, ":");
+    sentry__stringbuilder_append(sb, sentry__value_stringify(
+        sentry_value_get_by_key(value, "last")));
+    sentry__stringbuilder_append(sb, ":");
+    sentry__stringbuilder_append(sb, sentry__value_stringify(
+        sentry_value_get_by_key(value, "min")));
+    sentry__stringbuilder_append(sb, ":");
+    sentry__stringbuilder_append(sb, sentry__value_stringify(
+        sentry_value_get_by_key(value, "max")));
+    sentry__stringbuilder_append(sb, ":");
+    sentry__stringbuilder_append(sb, sentry__value_stringify(
+        sentry_value_get_by_key(value, "sum")));
+    sentry__stringbuilder_append(sb, ":");
+    sentry__stringbuilder_append(sb, sentry__value_stringify(
+        sentry_value_get_by_key(value, "count")));
+}
+
+void
+sentry__metrics_set_serialize(
+    sentry_stringbuilder_t *sb, sentry_value_t value)
+{
+    size_t len = sentry_value_get_length(value);
+    for (size_t i = 0; i < len; i++) {
+        sentry__stringbuilder_append(sb, ":");
+        sentry__stringbuilder_append(sb, sentry__value_stringify(
+            sentry_value_get_by_index(value, i)));
+    }
+}
+
+void
+sentry__metrics_tags_serialize(
+    sentry_stringbuilder_t *sb, sentry_value_t tags)
+{
+    if (!sentry_value_is_null(tags)) {
+        sentry__stringbuilder_append(sb, "|#");
+        bool isFirst = true;
+        for (size_t i = 0; i < sentry_value_get_length(tags); i++) {
+            if (isFirst) {
+                isFirst = false;
+            } else {
+                sentry__stringbuilder_append(sb, ",");
+            }
+            sentry_value_t tagItem = sentry_value_get_by_index(tags, i);
+            sentry__stringbuilder_append(sb,
+                sentry_value_as_string(
+                    sentry_value_get_by_key(tagItem, "key")));
+            sentry__stringbuilder_append(sb, ":");
+            sentry__stringbuilder_append(sb,
+                sentry_value_as_string(
+                    sentry_value_get_by_key(tagItem, "value")));
+        }
+    }
+}
+
+void
+sentry__metrics_timestamp_serialize(
+    sentry_stringbuilder_t* sb, uint64_t timestamp)
+{
+    char timestampBuf[24];
+    snprintf(timestampBuf,
+        sizeof(timestampBuf), "%" PRIu64, timestamp);
+
+    sentry__stringbuilder_append(sb, timestampBuf);
 }
 
 static void
