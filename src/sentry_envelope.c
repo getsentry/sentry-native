@@ -326,6 +326,14 @@ sentry__envelope_add_user_feedback(
 }
 
 sentry_envelope_item_t *
+sentry__envelope_add_metrics(
+    sentry_envelope_t *envelope, const char* metrics)
+{
+    return sentry__envelope_add_from_buffer(
+        envelope, metrics, strlen(metrics), "statsd");;
+}
+
+sentry_envelope_item_t *
 sentry__envelope_add_session(
     sentry_envelope_t *envelope, const sentry_session_t *session)
 {

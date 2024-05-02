@@ -1,15 +1,18 @@
 ﻿#include "sentry_metrics.h"
 #include "sentry.h"
 #include "sentry_alloc.h"
+#include "sentry_random.h"
 #include "sentry_slice.h"
 #include "sentry_string.h"
 #include "sentry_sync.h"
 #include "sentry_utils.h"
 
+#include <stdlib.h>
+
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 
-#define ROLLUP_IN_SECONDS 10
+#define ROLLUP_IN_SECONDS 3
 
 static bool g_aggregator_initialized = false;
 static sentry_metrics_aggregator_t g_aggregator = { 0 };
@@ -128,6 +131,37 @@ sentry__metrics_get_bucket_key(uint64_t timestamp)
     }
     buf[written] = '\0';
     return sentry_value_new_string(buf);
+}
+
+uint64_t
+sentry__metrics_get_cutoff_timestamp(uint64_t timestamp)
+{
+    uint64_t rnd;
+    sentry__getrandom(&rnd, sizeof(rnd));
+
+    uint64_t flushShiftMs = (uint64_t)(
+        (double)rnd / (double)UINT64_MAX * ROLLUP_IN_SECONDS * 1000);
+
+    uint64_t cutoffTimestamp =
+        timestamp - ROLLUP_IN_SECONDS * 1000 - flushShiftMs;
+
+    uint64_t seconds = cutoffTimestamp / 1000;
+
+    return (seconds / ROLLUP_IN_SECONDS) * ROLLUP_IN_SECONDS;
+}
+
+uint64_t
+sentry__metrics_timestamp_from_string(const char *timestampStr)
+{
+    char* endptr;
+    uint64_t timestamp = strtoull(timestampStr, &endptr, 10);
+
+    if (*endptr != '\0') {
+        SENTRY_WARN("invalid timestamp");
+        return 0;
+    }
+
+    return timestamp;
 }
 
 sentry_value_t
@@ -263,8 +297,39 @@ sentry__metrics_aggregator_add(
     }
 
     sentry_free(metricBucketKey);
+}
 
-    //const char* json = sentry_value_to_json(aggregator->buckets);
+void
+sentry__metrics_aggregator_flush(
+    const sentry_metrics_aggregator_t *aggregator, bool force)
+{
+    sentry_value_t flushableBuckets = sentry_value_new_list();
+
+    uint64_t cutoffTimestamp = sentry__metrics_get_cutoff_timestamp(
+        sentry__msec_time());
+
+    size_t bucketsLen = sentry_value_get_length(aggregator->buckets);
+
+    // Since size_t is unsigned decrementing i after it is zero
+    // yields the largest size_t value and the loop works correctly.
+    for (size_t i = bucketsLen - 1; i < bucketsLen; i--) {
+        sentry_value_t bucket
+            = sentry_value_get_by_index_owned(aggregator->buckets, i);
+
+        uint64_t bucketTimestamp = sentry__metrics_timestamp_from_string(
+            sentry_value_as_string(
+                sentry_value_get_by_key(bucket, "key")));
+
+        if (bucketTimestamp < cutoffTimestamp) {
+            sentry_value_append(flushableBuckets, bucket);
+            sentry_value_remove_by_index(aggregator->buckets, i);
+        }
+    }
+
+    sentry__metrics_flush(
+        sentry__metrics_encode_statsd(flushableBuckets));
+
+    sentry_value_decref(flushableBuckets);
 }
 
 void
@@ -457,78 +522,77 @@ sentry_metrics_new_set(const char *key, int32_t value)
     return sentry_metrics_new_set_n(key, key_len, value);
 }
 
-void
-sentry_metrics_flush()
+const char *
+sentry__metrics_encode_statsd(sentry_value_t buckets)
 {
-    SENTRY_WITH_METRICS_AGGREGATOR (aggregator)
-    {
-        sentry_stringbuilder_t statsd;
-        sentry__stringbuilder_init(&statsd);
+    sentry_stringbuilder_t statsd;
+    sentry__stringbuilder_init(&statsd);
 
-        size_t lenBuckets = sentry_value_get_length(aggregator->buckets);
-        for (size_t i = 0; i < lenBuckets; i++) {
-            sentry_value_t bucket =
-                sentry_value_get_by_index(aggregator->buckets, i);
-            sentry_value_t metrics =
-                sentry_value_get_by_key(bucket, "metrics");
-            for (size_t j = 0; j < sentry_value_get_length(metrics); j++) {
-                sentry_value_t metric =
-                    sentry_value_get_by_key(
-                        sentry_value_get_by_index(metrics, j), "metric");
+    size_t lenBuckets = sentry_value_get_length(buckets);
+    for (size_t i = 0; i < lenBuckets; i++) {
+        sentry_value_t bucket =
+            sentry_value_get_by_index(buckets, i);
+        sentry_value_t metrics =
+            sentry_value_get_by_key(bucket, "metrics");
+        for (size_t j = 0; j < sentry_value_get_length(metrics); j++) {
+            sentry_value_t metric =
+                sentry_value_get_by_key(
+                    sentry_value_get_by_index(metrics, j), "metric");
 
-                sentry__stringbuilder_append(&statsd,
-                    sentry_value_as_string(
-                        sentry_value_get_by_key(metric, "key")));
-                sentry__stringbuilder_append(&statsd, "@");
+            sentry__stringbuilder_append(&statsd,
+                sentry_value_as_string(
+                    sentry_value_get_by_key(metric, "key")));
+            sentry__stringbuilder_append(&statsd, "@");
 
-                sentry__stringbuilder_append(&statsd,
-                    sentry_value_as_string(
-                        sentry_value_get_by_key(metric, "unit")));
+            sentry__stringbuilder_append(&statsd,
+                sentry_value_as_string(
+                    sentry_value_get_by_key(metric, "unit")));
 
-                sentry_value_t metricValue =
-                    sentry_value_get_by_key(metric, "value");
+            sentry_value_t metricValue =
+                sentry_value_get_by_key(metric, "value");
 
-                sentry_metric_type_t metricType;
-                sentry__metrics_type_from_string(
-                    sentry_value_get_by_key(metric, "type"), &metricType);
+            sentry_metric_type_t metricType;
+            sentry__metrics_type_from_string(
+                sentry_value_get_by_key(metric, "type"), &metricType);
 
-                switch (metricType) {
-                    case SENTRY_METRIC_COUNTER:
-                        sentry__metrics_increment_serialize(
-                            &statsd, metricValue);
-                        break;
-                    case SENTRY_METRIC_DISTRIBUTION:
-                        sentry__metrics_distribution_serialize(
-                            &statsd, metricValue);
-                        break;
-                    case SENTRY_METRIC_GAUGE:
-                        sentry__metrics_gauge_serialize(
-                            &statsd, metricValue);
-                        break;
-                    case SENTRY_METRIC_SET:
-                        sentry__metrics_set_serialize(
-                            &statsd, metricValue);
-                        break;
-                }
-
-                sentry__stringbuilder_append(&statsd, "|");
-                sentry__stringbuilder_append(&statsd,
-                    sentry__metrics_type_to_statsd(metricType));
-
-                sentry__metrics_tags_serialize(
-                    &statsd, sentry_value_get_by_key(metric, "tags"));
-
-                sentry__stringbuilder_append(&statsd, "|T");
-
-                uint64_t timestamp = sentry__iso8601_to_msec(
-                    sentry_value_as_string(
-                        sentry_value_get_by_key(metric, "timestamp")));
-                sentry__metrics_timestamp_serialize(&statsd, timestamp);
-
-                sentry__stringbuilder_append(&statsd, "\n");
+            switch (metricType) {
+                case SENTRY_METRIC_COUNTER:
+                    sentry__metrics_increment_serialize(
+                        &statsd, metricValue);
+                    break;
+                case SENTRY_METRIC_DISTRIBUTION:
+                    sentry__metrics_distribution_serialize(
+                        &statsd, metricValue);
+                    break;
+                case SENTRY_METRIC_GAUGE:
+                    sentry__metrics_gauge_serialize(
+                        &statsd, metricValue);
+                    break;
+                case SENTRY_METRIC_SET:
+                    sentry__metrics_set_serialize(
+                        &statsd, metricValue);
+                    break;
             }
+
+            sentry__stringbuilder_append(&statsd, "|");
+            sentry__stringbuilder_append(&statsd,
+                sentry__metrics_type_to_statsd(metricType));
+
+            sentry__metrics_tags_serialize(
+                &statsd, sentry_value_get_by_key(metric, "tags"));
+
+            sentry__stringbuilder_append(&statsd, "|T");
+
+            uint64_t timestamp = sentry__iso8601_to_msec(
+                sentry_value_as_string(
+                    sentry_value_get_by_key(metric, "timestamp")));
+            sentry__metrics_timestamp_serialize(&statsd, timestamp);
+
+            sentry__stringbuilder_append(&statsd, "\n");
         }
     }
+
+    return sentry__stringbuilder_into_string(&statsd);
 }
 
 void

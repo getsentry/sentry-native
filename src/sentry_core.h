@@ -96,6 +96,11 @@ sentry_value_t sentry__ensure_event_id(
     sentry_value_t event, sentry_uuid_t *uuid_out);
 
 /**
+ * Sends statsd-encoded metrics to Sentry
+ */
+void sentry__metrics_flush(const char* encodedMetrics);
+
+/**
  * This will return an owned reference to the global options.
  */
 const sentry_options_t *sentry__options_getref(void);

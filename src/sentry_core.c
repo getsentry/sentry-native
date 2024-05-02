@@ -571,6 +571,25 @@ fail:
     return NULL;
 }
 
+sentry_envelope_t *
+sentry__prepare_metrics(const char* encodedMetrics)
+{
+    sentry_envelope_t *envelope = NULL;
+
+    envelope = sentry__envelope_new();
+    if (!envelope
+        || !sentry__envelope_add_metrics(envelope, encodedMetrics)) {
+        goto fail;
+    }
+
+    return envelope;
+
+fail:
+    SENTRY_WARN("dropping metrics");
+    sentry_envelope_free(envelope);
+    return NULL;
+}
+
 void
 sentry_handle_exception(const sentry_ucontext_t *uctx)
 {
@@ -1178,5 +1197,27 @@ sentry_metrics_capture(sentry_metric_t *metric)
 {
     SENTRY_WITH_METRICS_AGGREGATOR (aggregator) {
         sentry__metrics_aggregator_add(aggregator, metric);
+    }
+}
+
+void
+sentry__metrics_flush(const char* encodedMetrics)
+{
+    sentry_envelope_t *envelope = NULL;
+
+    SENTRY_WITH_OPTIONS (options) {
+        envelope = sentry__prepare_metrics(encodedMetrics);
+        if (envelope) {
+            sentry__capture_envelope(options->transport, envelope);
+        }
+    }
+}
+
+// TODO Remove after testing
+void
+sentry_metrics_flush_test()
+{
+    SENTRY_WITH_METRICS_AGGREGATOR (aggregator) {
+        sentry__metrics_aggregator_flush(aggregator, false);
     }
 }
