@@ -17,6 +17,7 @@
 #include <assert.h>
 
 #ifdef SENTRY_PLATFORM_WINDOWS
+#    include <malloc.h>
 #    include <synchapi.h>
 #    define sleep_s(SECONDS) Sleep((SECONDS)*1000)
 #else
@@ -159,6 +160,13 @@ static void
 trigger_crash()
 {
     memset((char *)invalid_mem, 1, 100);
+}
+
+static void
+trigger_stack_overflow()
+{
+    alloca(1024);
+    trigger_stack_overflow();
 }
 
 int
@@ -321,6 +329,9 @@ main(int argc, char **argv)
 
     if (has_arg(argc, argv, "crash")) {
         trigger_crash();
+    }
+    if (has_arg(argc, argv, "stack-overflow")) {
+        trigger_stack_overflow();
     }
 #if defined(SENTRY_PLATFORM_WINDOWS) && !defined(__MINGW32__)                  \
     && !defined(__MINGW64__)

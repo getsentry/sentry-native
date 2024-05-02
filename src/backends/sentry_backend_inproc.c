@@ -6,6 +6,9 @@
 #include "sentry_database.h"
 #include "sentry_envelope.h"
 #include "sentry_options.h"
+#if defined(SENTRY_PLATFORM_WINDOWS)
+#    include "sentry_os.h"
+#endif
 #include "sentry_scope.h"
 #include "sentry_sync.h"
 #include "sentry_transport.h"
@@ -184,6 +187,7 @@ static int
 startup_inproc_backend(
     sentry_backend_t *UNUSED(backend), const sentry_options_t *UNUSED(options))
 {
+    sentry__reserve_thread_stack();
     g_previous_handler = SetUnhandledExceptionFilter(&handle_exception);
     SetErrorMode(SEM_FAILCRITICALERRORS);
     return 0;

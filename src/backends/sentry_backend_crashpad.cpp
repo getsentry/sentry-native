@@ -340,6 +340,10 @@ crashpad_backend_startup(
         }
     }
 
+#ifdef SENTRY_PLATFORM_WINDOWS
+    sentry__reserve_thread_stack();
+#endif
+
     // The crashpad client uses shell lookup rules (absolute path, relative
     // path, or bare executable name that is looked up in $PATH).
     // However, it crashes hard when it cant resolve the handler, so we make
