@@ -145,6 +145,7 @@ The example currently supports the following commands:
 - `on-crash`: Installs an `on_crash()` callback that retains the crash event. 
 - `discarding-on-crash`: Installs an `on_crash()` callback that discards the crash event.
 - `override-sdk-name`: Changes the SDK name via the options at runtime.
+- `stack-overflow`: Provokes a stack-overflow.
 
 Only on Windows using crashpad with its WER handler module: 
 
