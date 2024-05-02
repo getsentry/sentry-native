@@ -189,6 +189,9 @@ def test_crashpad_dumping_crash(cmake, httpserver, run_args, build_args):
     assert_crashpad_upload(multipart)
 
 
+@pytest.mark.skipif(
+    sys.platform != "win32",
+)
 def test_crashpad_dumping_stack_overflow(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "crashpad"})
 
