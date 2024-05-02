@@ -273,7 +273,9 @@ def test_breakpad_crash_stdout_before_send_and_on_crash(cmake):
 
 @pytest.mark.skipif(not has_breakpad, reason="test needs breakpad backend")
 def test_breakpad_stack_overflow_stdout(cmake):
-    tmp_path, output = run_stdout_for("breakpad", cmake, ["attachment", "stack-overflow"])
+    tmp_path, output = run_stdout_for(
+        "breakpad", cmake, ["attachment", "stack-overflow"]
+    )
 
     envelope = Envelope.deserialize(output)
 

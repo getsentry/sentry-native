@@ -51,11 +51,11 @@ def assert_user_feedback(envelope):
 
 
 def assert_meta(
-        envelope,
-        release="test-example-release",
-        integration=None,
-        transaction="test-transaction",
-        sdk_override=None,
+    envelope,
+    release="test-example-release",
+    integration=None,
+    transaction="test-transaction",
+    sdk_override=None,
 ):
     event = envelope.get_event()
 
