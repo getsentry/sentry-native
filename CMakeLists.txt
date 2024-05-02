@@ -566,7 +566,7 @@ if(SENTRY_BUILD_EXAMPLES)
 	target_link_libraries(sentry_example PRIVATE sentry)
 
 	if(MSVC)
-		target_compile_options(sentry_example PRIVATE $<BUILD_INTERFACE:/wd5105>)
+		target_compile_options(sentry_example PRIVATE $<BUILD_INTERFACE:/wd5105 /wd4717>)
 
 		# to test handling SEH by-passing exceptions we need to enable the control flow guard
 		target_compile_options(sentry_example PRIVATE $<BUILD_INTERFACE:/guard:cf>)
