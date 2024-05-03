@@ -21,7 +21,7 @@ targets:
     mavenRepoId: ossrh
     mavenRepoUrl: https://oss.sonatype.org/service/local/staging/deploy/maven2/
     android:
-      distDirRegex: /^(ndk).*$/
+      distDirRegex: /^(sentry-native-ndk).*$/
       fileReplaceeRegex: /\d+\.\d+\.\d+(-\w+(\.\d+)?)?(-SNAPSHOT)?/
       fileReplacerStr: release.aar
 requireNames:
