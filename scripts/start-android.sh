@@ -3,6 +3,10 @@
 # Adapted from:
 # https://docs.microsoft.com/en-us/azure/devops/pipelines/ecosystems/android?view=azure-devops#test-on-the-android-emulator
 
+java -version
+javac -version
+echo $PATH
+
 ARCH=${ANDROID_ARCH:-"x86"}
 API_LEVEL=${ANDROID_API:-"29"}
 AVD_EMULATOR_NAME="sentry_android_${ARCH}"
