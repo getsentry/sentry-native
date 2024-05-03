@@ -3,9 +3,11 @@
 # Adapted from:
 # https://docs.microsoft.com/en-us/azure/devops/pipelines/ecosystems/android?view=azure-devops#test-on-the-android-emulator
 
+echo "java version:"
 java -version
+echo "javac version
 javac -version
-echo $PATH
+echo "PATH: $PATH"
 
 ARCH=${ANDROID_ARCH:-"x86"}
 API_LEVEL=${ANDROID_API:-"29"}
