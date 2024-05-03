@@ -203,6 +203,17 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Setup Java Version
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "17"
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@579fbbe7221704325eb4c4d4bf20c2b0859fba76 # pin@v3
+        with:
+          gradle-home-cache-cleanup: true
+
       - name: Create source archive
         run: |
           rm -rf build .c* .e* .git* scripts Makefile external/breakpad/src/tools external/breakpad/src/processor
