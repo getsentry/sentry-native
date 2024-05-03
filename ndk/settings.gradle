@@ -11,9 +11,9 @@ rootProject.name = "ndk"
 rootProject.buildFileName = "build.gradle.kts"
 
 include(
-    "sentry-ndk", "sample"
+    "sentry-native-ndk", "sample"
 )
 
 // prefab uses the module name for determining the package name used by cmake find_package()
 // thus rename the module to something better
-project(':sentry-ndk').projectDir = new File("lib")
+project(':sentry-native-ndk').projectDir = new File("lib")

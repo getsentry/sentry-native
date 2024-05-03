@@ -16,11 +16,13 @@ targets:
         metadata:
           cacheControl: public, max-age=600
   - name: maven
-    gradleCliPath: ./ndk/gradlew
     mavenCliPath: scripts/mvnw
     mavenSettingsPath: scripts/settings.xml
     mavenRepoId: ossrh
     mavenRepoUrl: https://oss.sonatype.org/service/local/staging/deploy/maven2/
-    android: true
+    android:
+      distDirRegex: /^(ndk).*$/
+      fileReplaceeRegex: /\d+\.\d+\.\d+(-\w+(\.\d+)?)?(-SNAPSHOT)?/
+      fileReplacerStr: release.aar
 requireNames:
   - /^sentry-native.zip$/

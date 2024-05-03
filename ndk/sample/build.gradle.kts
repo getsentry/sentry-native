@@ -66,5 +66,5 @@ android {
 }
 
 dependencies {
-    implementation(project(":sentry-ndk"))
+    implementation(project(":sentry-native-ndk"))
 }
