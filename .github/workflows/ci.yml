@@ -91,12 +91,12 @@ jobs:
           # The Android emulator is currently only available on macos, see:
           # https://docs.microsoft.com/en-us/azure/devops/pipelines/ecosystems/android?view=azure-devops#test-on-the-android-emulator
           - name: Android (old API/NDK)
-            os: macOs-13
+            os: macOs-12
             ANDROID_API: 16
             ANDROID_NDK: 20.1.5948944
             ANDROID_ARCH: x86
           - name: Android (new API/NDK)
-            os: macOs-13
+            os: macOs-12
             ANDROID_API: 34
             ANDROID_NDK: 26.1.10909125
             ANDROID_ARCH: x86_64
