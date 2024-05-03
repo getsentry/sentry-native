@@ -202,7 +202,6 @@ def test_inproc_crash_stdout_before_send_and_on_crash(cmake):
     assert_inproc_crash(envelope)
 
 
-@pytest.mark.skipif(sys.platform != "win32", reason="stack-overflow windows only")
 def test_inproc_stack_overflow_stdout(cmake):
     tmp_path, output = run_stdout_for("inproc", cmake, ["attachment", "stack-overflow"])
 
@@ -272,9 +271,7 @@ def test_breakpad_crash_stdout_before_send_and_on_crash(cmake):
     assert_breakpad_crash(envelope)
 
 
-@pytest.mark.skipif(
-    not has_breakpad or sys.platform != "win32", reason="test needs breakpad backend"
-)
+@pytest.mark.skipif(not has_breakpad, reason="test needs breakpad backend")
 def test_breakpad_stack_overflow_stdout(cmake):
     tmp_path, output = run_stdout_for(
         "breakpad", cmake, ["attachment", "stack-overflow"]

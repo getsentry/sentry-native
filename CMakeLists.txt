@@ -570,6 +570,8 @@ if(SENTRY_BUILD_EXAMPLES)
 
 		# to test handling SEH by-passing exceptions we need to enable the control flow guard
 		target_compile_options(sentry_example PRIVATE $<BUILD_INTERFACE:/guard:cf>)
+	else()
+		target_compile_options(sentry_example PRIVATE $<BUILD_INTERFACE:-fno-optimize-sibling-calls>)
 	endif()
 
 	# set static runtime if enabled
