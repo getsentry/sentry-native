@@ -9,15 +9,18 @@ AVD_EMULATOR_NAME="sentry_android_${ARCH}"
 IMAGE=${ANDROID_IMAGE:-"system-images;android-${API_LEVEL};google_apis;${ARCH}"}
 
 # Create an Android Virtual Device
+echo "Create Test AVDs..."
 echo "no" | $ANDROID_HOME/tools/bin/avdmanager create avd -n $AVD_EMULATOR_NAME -k "$IMAGE" --force
 
+echo "List available AVDs..."
 $ANDROID_HOME/emulator/emulator -list-avds
 
-echo "Starting emulator..."
-
 # Start emulator in background
+echo "Starting emulator..."
 nohup $ANDROID_HOME/emulator/emulator -avd $AVD_EMULATOR_NAME -no-snapshot > /dev/null 2>&1 &
+echo "Wait for emulator availability..."
 $ANDROID_HOME/platform-tools/adb wait-for-device shell 'ls'
+echo "Verify emulator devices as running..."
 $ANDROID_HOME/platform-tools/adb devices
 
 echo "Emulator started."
