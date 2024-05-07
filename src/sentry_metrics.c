@@ -139,8 +139,8 @@ sentry__metrics_get_cutoff_timestamp(uint64_t timestamp)
     uint64_t rnd;
     sentry__getrandom(&rnd, sizeof(rnd));
 
-    uint64_t flushShiftMs = (uint64_t)(
-        (double)rnd / (double)UINT64_MAX * ROLLUP_IN_SECONDS * 1000);
+    uint64_t flushShiftMs = (uint64_t)((double)rnd / (double)UINT64_MAX
+        * ROLLUP_IN_SECONDS * 1000);
 
     uint64_t cutoffTimestamp =
         timestamp - ROLLUP_IN_SECONDS * 1000 - flushShiftMs;
@@ -153,7 +153,7 @@ sentry__metrics_get_cutoff_timestamp(uint64_t timestamp)
 uint64_t
 sentry__metrics_timestamp_from_string(const char *timestampStr)
 {
-    char* endptr;
+    char *endptr;
     uint64_t timestamp = strtoull(timestampStr, &endptr, 10);
 
     if (*endptr != '\0') {
@@ -686,20 +686,20 @@ sentry__metrics_gauge_serialize(
     sentry_stringbuilder_t *sb, sentry_value_t value)
 {
     sentry__stringbuilder_append(sb, ":");
-    sentry__stringbuilder_append(sb, sentry__value_stringify(
-        sentry_value_get_by_key(value, "last")));
+    sentry__stringbuilder_append(
+        sb, sentry__value_stringify(sentry_value_get_by_key(value, "last")));
     sentry__stringbuilder_append(sb, ":");
-    sentry__stringbuilder_append(sb, sentry__value_stringify(
-        sentry_value_get_by_key(value, "min")));
+    sentry__stringbuilder_append(
+        sb, sentry__value_stringify(sentry_value_get_by_key(value, "min")));
     sentry__stringbuilder_append(sb, ":");
-    sentry__stringbuilder_append(sb, sentry__value_stringify(
-        sentry_value_get_by_key(value, "max")));
+    sentry__stringbuilder_append(
+        sb, sentry__value_stringify(sentry_value_get_by_key(value, "max")));
     sentry__stringbuilder_append(sb, ":");
-    sentry__stringbuilder_append(sb, sentry__value_stringify(
-        sentry_value_get_by_key(value, "sum")));
+    sentry__stringbuilder_append(
+        sb, sentry__value_stringify(sentry_value_get_by_key(value, "sum")));
     sentry__stringbuilder_append(sb, ":");
-    sentry__stringbuilder_append(sb, sentry__value_stringify(
-        sentry_value_get_by_key(value, "count")));
+    sentry__stringbuilder_append(
+        sb, sentry__value_stringify(sentry_value_get_by_key(value, "count")));
 }
 
 void
@@ -709,8 +709,8 @@ sentry__metrics_set_serialize(
     size_t len = sentry_value_get_length(value);
     for (size_t i = 0; i < len; i++) {
         sentry__stringbuilder_append(sb, ":");
-        sentry__stringbuilder_append(sb, sentry__value_stringify(
-            sentry_value_get_by_index(value, i)));
+        sentry__stringbuilder_append(
+            sb, sentry__value_stringify(sentry_value_get_by_index(value, i)));
     }
 }
 

@@ -52,7 +52,7 @@ sentry_envelope_item_t *sentry__envelope_add_user_feedback(
  * Add a encoded metrics data to this envelope.
  */
 sentry_envelope_item_t *sentry__envelope_add_metrics(
-    sentry_envelope_t *envelope, const char* metrics);
+    sentry_envelope_t *envelope, const char *metrics);
 
 /**
  * Add a session to this envelope.

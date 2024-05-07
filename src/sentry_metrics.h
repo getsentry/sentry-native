@@ -53,14 +53,11 @@ void sentry__metrics_aggregator_flush(
 
 void sentry__metric_free(sentry_metric_t *metric);
 
-void sentry__metrics_increment_add(
-    sentry_value_t metric, sentry_value_t value);
+void sentry__metrics_increment_add(sentry_value_t metric, sentry_value_t value);
 void sentry__metrics_distribution_add(
     sentry_value_t metric, sentry_value_t value);
-void sentry__metrics_gauge_add(
-    sentry_value_t metric, sentry_value_t value);
-void sentry__metrics_set_add(
-    sentry_value_t metric, sentry_value_t value);
+void sentry__metrics_gauge_add(sentry_value_t metric, sentry_value_t value);
+void sentry__metrics_set_add(sentry_value_t metric, sentry_value_t value);
 
 void sentry__metrics_increment_serialize(
     sentry_stringbuilder_t *sb, sentry_value_t value);
@@ -73,12 +70,10 @@ void sentry__metrics_set_serialize(
 
 const char *sentry__metrics_encode_statsd(sentry_value_t buckets);
 
-void
-sentry__metrics_tags_serialize(
+void sentry__metrics_tags_serialize(
     sentry_stringbuilder_t *sb, sentry_value_t tags);
 
-void
-sentry__metrics_timestamp_serialize(
+void sentry__metrics_timestamp_serialize(
     sentry_stringbuilder_t* sb, uint64_t timestamp);
 
 /**

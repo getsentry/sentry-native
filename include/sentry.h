@@ -2140,8 +2140,8 @@ SENTRY_EXPERIMENTAL_API sentry_metric_t *sentry_metrics_new_set_n(
  *
  * Tags longer than 200 bytes will be truncated.
  *
- * The metric should not be mutated by other functions while a tag is being set on
- * it.
+ * The metric should not be mutated by other functions while a tag is being set
+ * on it.
  */
 SENTRY_EXPERIMENTAL_API void sentry_metric_set_tag(
     sentry_metric_t *metric, const char *tag, const char *value);
@@ -2155,8 +2155,8 @@ SENTRY_EXPERIMENTAL_API void sentry_metric_set_tag_n(sentry_metric_t *metric,
  */
 SENTRY_EXPERIMENTAL_API void sentry_metric_set_unit(
     sentry_metric_t *metric, const char *unit);
-SENTRY_EXPERIMENTAL_API void sentry_metric_set_unit_n(sentry_metric_t *metric,
-    const char *unit, size_t unit_len);
+SENTRY_EXPERIMENTAL_API void sentry_metric_set_unit_n(
+    sentry_metric_t *metric, const char *unit, size_t unit_len);
 
 /**
  * Captures a metric to be sent to Sentry.
