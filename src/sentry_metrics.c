@@ -586,7 +586,7 @@ sentry__metrics_encode_statsd(sentry_value_t buckets)
             uint64_t timestamp = sentry__iso8601_to_msec(
                 sentry_value_as_string(
                     sentry_value_get_by_key(metric, "timestamp")));
-            sentry__metrics_timestamp_serialize(&statsd, timestamp);
+            sentry__metrics_timestamp_serialize(&statsd, timestamp / 1000);
 
             sentry__stringbuilder_append(&statsd, "\n");
         }
