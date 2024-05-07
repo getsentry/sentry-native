@@ -74,15 +74,15 @@ void sentry__metrics_tags_serialize(
     sentry_stringbuilder_t *sb, sentry_value_t tags);
 
 void sentry__metrics_timestamp_serialize(
-    sentry_stringbuilder_t* sb, uint64_t timestamp);
+    sentry_stringbuilder_t *sb, uint64_t timestamp);
 
 /**
  * Convenience macros to automatically lock/unlock a metrics aggregator
  * inside a code block.
  */
-#define SENTRY_WITH_METRICS_AGGREGATOR(MetricsAggregator)                      \
-    for (const sentry_metrics_aggregator_t *MetricsAggregator =                \
-        sentry__metrics_aggregator_lock(); MetricsAggregator;                  \
-        sentry__metrics_aggregator_unlock(), MetricsAggregator = NULL)
+#define SENTRY_WITH_METRICS_AGGREGATOR(Aggregator)                             \
+    for (const sentry_metrics_aggregator_t *Aggregator =                       \
+        sentry__metrics_aggregator_lock(); Aggregator;                         \
+        sentry__metrics_aggregator_unlock(), Aggregator = NULL)
 
 #endif

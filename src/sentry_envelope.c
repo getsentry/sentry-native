@@ -329,7 +329,7 @@ sentry_envelope_item_t *
 sentry__envelope_add_metrics(sentry_envelope_t *envelope, const char *metrics)
 {
     return sentry__envelope_add_from_buffer(
-        envelope, metrics, strlen(metrics), "statsd");;
+        envelope, metrics, strlen(metrics), "statsd");
 }
 
 sentry_envelope_item_t *

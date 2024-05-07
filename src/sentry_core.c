@@ -572,7 +572,7 @@ fail:
 }
 
 sentry_envelope_t *
-sentry__prepare_metrics(const char* encodedMetrics)
+sentry__prepare_metrics(const char *encodedMetrics)
 {
     sentry_envelope_t *envelope = NULL;
 
@@ -1194,7 +1194,7 @@ sentry_clear_crashed_last_run(void)
 void
 sentry_metrics_capture(sentry_metric_t *metric)
 {
-    SENTRY_WITH_METRICS_AGGREGATOR(aggregator) {
+    SENTRY_WITH_METRICS_AGGREGATOR (aggregator) {
         sentry__metrics_aggregator_add(aggregator, metric);
     }
 }
@@ -1216,7 +1216,7 @@ sentry__metrics_flush(const char* encodedMetrics)
 void
 sentry_metrics_flush_test()
 {
-    SENTRY_WITH_METRICS_AGGREGATOR(aggregator) {
+    SENTRY_WITH_METRICS_AGGREGATOR (aggregator) {
         sentry__metrics_aggregator_flush(aggregator, false);
     }
 }
