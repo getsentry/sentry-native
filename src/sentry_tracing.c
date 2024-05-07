@@ -533,14 +533,16 @@ sentry_transaction_set_data(
     }
 }
 
+static const char txn_data_key[] = "extra";
+static const size_t txn_data_key_len = sizeof(txn_data_key) - 1;
+
 void
 sentry_transaction_set_data_n(sentry_transaction_t *tx, const char *key,
     size_t key_len, sentry_value_t value)
 {
     if (tx) {
-        const char data_key[] = "extra";
-        const size_t data_key_len = sizeof(data_key) - 1;
-        set_data(tx->inner, data_key, data_key_len, key, key_len, value);
+        set_data(
+            tx->inner, txn_data_key, txn_data_key_len, key, key_len, value);
     }
 }
 
@@ -552,14 +554,16 @@ sentry_span_set_data(sentry_span_t *span, const char *key, sentry_value_t value)
     }
 }
 
+static const char span_data_key[] = "data";
+static const size_t span_data_key_len = sizeof(span_data_key) - 1;
+
 void
 sentry_span_set_data_n(
     sentry_span_t *span, const char *key, size_t key_len, sentry_value_t value)
 {
     if (span) {
-        const char data_key[] = "data";
-        const size_t data_key_len = sizeof(data_key) - 1;
-        set_data(span->inner, data_key, data_key_len, key, key_len, value);
+        set_data(
+            span->inner, span_data_key, span_data_key_len, key, key_len, value);
     }
 }
 
@@ -587,10 +591,7 @@ sentry_transaction_remove_data_n(
     sentry_transaction_t *tx, const char *key, size_t key_len)
 {
     if (tx) {
-        const char data_key[] = "extra";
-        const size_t data_key_len = sizeof(data_key) - 1;
-
-        remove_data(tx->inner, data_key, data_key_len, key, key_len);
+        remove_data(tx->inner, txn_data_key, txn_data_key_len, key, key_len);
     }
 }
 
@@ -606,10 +607,8 @@ void
 sentry_span_remove_data_n(sentry_span_t *span, const char *key, size_t key_len)
 {
     if (span) {
-        const char data_key[] = "data";
-        const size_t data_key_len = sizeof(data_key) - 1;
-
-        remove_data(span->inner, data_key, data_key_len, key, key_len);
+        remove_data(
+            span->inner, span_data_key, span_data_key_len, key, key_len);
     }
 }
 
