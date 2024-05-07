@@ -5,6 +5,7 @@
 **Fixes**:
 
 - Allow `crashpad` to run under [Epic's Anti-Cheat Client](https://dev.epicgames.com/docs/game-services/anti-cheat/using-anti-cheat#external-crash-dumpers) by deferring the full `crashpad_handler` access rights to the client application until a crash occurred. ([#980](https://github.com/getsentry/sentry-native/pull/980), [crashpad#99](https://github.com/getsentry/crashpad/pull/99))
+- Store transaction `data` in the event property `extra` since the `data` property is discarded by `relay`. ([#986](https://github.com/getsentry/sentry-native/issues/986))
 
 **Docs**:
 

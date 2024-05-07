@@ -55,9 +55,17 @@ def assert_meta(
     release="test-example-release",
     integration=None,
     transaction="test-transaction",
+    transaction_data=None,
     sdk_override=None,
 ):
     event = envelope.get_event()
+
+    extra = {
+        "extra stuff": "some value",
+        "…unicode key…": "őá…–🤮🚀¿ 한글 테스트",
+    }
+    if transaction_data:
+        extra.update(transaction_data)
 
     expected = {
         "platform": "native",
@@ -66,10 +74,7 @@ def assert_meta(
         "user": {"id": 42, "username": "some_name"},
         "transaction": transaction,
         "tags": {"expected-tag": "some value"},
-        "extra": {
-            "extra stuff": "some value",
-            "…unicode key…": "őá…–🤮🚀¿ 한글 테스트",
-        },
+        "extra": extra,
     }
     expected_sdk = {
         "name": "sentry.native",

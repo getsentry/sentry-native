@@ -972,10 +972,10 @@ SENTRY_TEST(txn_data)
 
     sentry_transaction_set_data(
         txn, "os.name", sentry_value_new_string("Linux"));
-    check_after_set(txn->inner, "data", "os.name", "Linux");
+    check_after_set(txn->inner, "extra", "os.name", "Linux");
 
     sentry_transaction_remove_data(txn, "os.name");
-    check_after_remove(txn->inner, "data", "os.name");
+    check_after_remove(txn->inner, "extra", "os.name");
 
     sentry__transaction_decref(txn);
 }
@@ -1022,10 +1022,10 @@ SENTRY_TEST(txn_data_n)
     sentry_value_t data_value
         = sentry_value_new_string_n(data_v, sizeof(data_v));
     sentry_transaction_set_data_n(txn, data_k, sizeof(data_k), data_value);
-    check_after_set(txn->inner, "data", "os.name", "Linux");
+    check_after_set(txn->inner, "extra", "os.name", "Linux");
 
     sentry_transaction_remove_data_n(txn, data_k, sizeof(data_k));
-    check_after_remove(txn->inner, "data", "os.name");
+    check_after_remove(txn->inner, "extra", "os.name");
 
     sentry__transaction_decref(txn);
 }
