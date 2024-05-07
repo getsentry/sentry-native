@@ -1200,7 +1200,7 @@ sentry_metrics_capture(sentry_metric_t *metric)
 }
 
 void
-sentry__metrics_flush(const char* encodedMetrics)
+sentry__metrics_flush(const char *encodedMetrics)
 {
     sentry_envelope_t *envelope = NULL;
 

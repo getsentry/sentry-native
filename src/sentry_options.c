@@ -414,14 +414,14 @@ sentry_options_get_symbolize_stacktraces(const sentry_options_t *opts)
 }
 
 void
-sentry_options_set_system_crash_reporter_enabled(sentry_options_t *opts, int enabled)
+sentry_options_set_system_crash_reporter_enabled(
+    sentry_options_t *opts, int enabled)
 {
     opts->system_crash_reporter_enabled = !!enabled;
 }
 
 void
-sentry_options_set_metrics_enabled(
-    sentry_options_t *opts, int enabled)
+sentry_options_set_metrics_enabled(sentry_options_t *opts, int enabled)
 {
     opts->metrics_enabled = !!enabled;
 }

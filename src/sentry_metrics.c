@@ -142,8 +142,8 @@ sentry__metrics_get_cutoff_timestamp(uint64_t timestamp)
     uint64_t flushShiftMs = (uint64_t)((double)rnd / (double)UINT64_MAX
         * ROLLUP_IN_SECONDS * 1000);
 
-    uint64_t cutoffTimestamp =
-        timestamp - ROLLUP_IN_SECONDS * 1000 - flushShiftMs;
+    uint64_t cutoffTimestamp
+        = timestamp - ROLLUP_IN_SECONDS * 1000 - flushShiftMs;
 
     uint64_t seconds = cutoffTimestamp / 1000;
 
@@ -214,8 +214,8 @@ sentry__metrics_get_metric_bucket_key(sentry_metric_t *metric)
 {
     const char *typePrefix = sentry__metrics_type_to_statsd(metric->type);
 
-    const char *metricKey = sentry_value_as_string(
-            sentry_value_get_by_key(metric->inner, "key"));
+    const char *metricKey
+        = sentry_value_as_string(sentry_value_get_by_key(metric->inner, "key"));
 
     const char *unitName = sentry_value_as_string(
         sentry_value_get_by_key(metric->inner, "unit"));
@@ -226,8 +226,8 @@ sentry__metrics_get_metric_bucket_key(sentry_metric_t *metric)
     size_t keyLength = strlen(typePrefix) + strlen(metricKey) + strlen(unitName)
         + strlen(serializedTags) + 4;
     char *metricBucketKey = sentry_malloc(keyLength);
-    snprintf(metricBucketKey, keyLength, "%s_%s_%s_%s\0",
-        typePrefix, metricKey, unitName, serializedTags);
+    snprintf(metricBucketKey, keyLength, "%s_%s_%s_%s\0", typePrefix, metricKey,
+        unitName, serializedTags);
 
     return metricBucketKey;
 }
@@ -238,8 +238,7 @@ sentry__metrics_find_in_bucket(sentry_value_t bucket, const char *metricKey)
     sentry_value_t metrics = sentry_value_get_by_key(bucket, "metrics");
     size_t len = sentry_value_get_length(metrics);
     for (size_t i = 0; i < len; i++) {
-        sentry_value_t existingMetric
-            = sentry_value_get_by_index(metrics, i);
+        sentry_value_t existingMetric = sentry_value_get_by_index(metrics, i);
         const char *key = sentry_value_as_string(
             sentry_value_get_by_key(existingMetric, "key"));
         if (sentry__string_eq(key, metricKey)) {
@@ -254,27 +253,23 @@ void
 sentry__metrics_aggregator_add(
     const sentry_metrics_aggregator_t *aggregator, sentry_metric_t *metric)
 {
-    uint64_t timestamp = sentry__iso8601_to_msec(
-        sentry_value_as_string(
+    uint64_t timestamp = sentry__iso8601_to_msec(sentry_value_as_string(
             sentry_value_get_by_key(metric->inner, "timestamp")));
 
-    sentry_value_t bucketKey =
-        sentry__metrics_get_bucket_key(timestamp);
+    sentry_value_t bucketKey = sentry__metrics_get_bucket_key(timestamp);
 
-    sentry_value_t bucket =
-        sentry__metrics_get_or_add_bucket(aggregator, bucketKey);
+    sentry_value_t bucket
+        = sentry__metrics_get_or_add_bucket(aggregator, bucketKey);
 
     char *metricBucketKey = sentry__metrics_get_metric_bucket_key(metric);
 
-    sentry_value_t existingMetric =
-        sentry__metrics_find_in_bucket(bucket, metricBucketKey);
+    sentry_value_t existingMetric = sentry__metrics_find_in_bucket(bucket, metricBucketKey);
 
     if (sentry_value_is_null(existingMetric)) {
         sentry_value_t newBucketItem = sentry_value_new_object();
-        sentry_value_set_by_key(newBucketItem, "key",
-            sentry_value_new_string(metricBucketKey));
-        sentry_value_set_by_key(newBucketItem, "metric",
-            metric->inner);
+        sentry_value_set_by_key(
+            newBucketItem, "key", sentry_value_new_string(metricBucketKey));
+        sentry_value_set_by_key(newBucketItem, "metric", metric->inner);
         sentry_value_append(
             sentry_value_get_by_key(bucket, "metrics"), newBucketItem);
     } else {
@@ -305,8 +300,8 @@ sentry__metrics_aggregator_flush(
 {
     sentry_value_t flushableBuckets = sentry_value_new_list();
 
-    uint64_t cutoffTimestamp = sentry__metrics_get_cutoff_timestamp(
-        sentry__msec_time());
+    uint64_t cutoffTimestamp
+        = sentry__metrics_get_cutoff_timestamp(sentry__msec_time());
 
     size_t bucketsLen = sentry_value_get_length(aggregator->buckets);
 
@@ -317,8 +312,7 @@ sentry__metrics_aggregator_flush(
             = sentry_value_get_by_index_owned(aggregator->buckets, i);
 
         uint64_t bucketTimestamp = sentry__metrics_timestamp_from_string(
-            sentry_value_as_string(
-                sentry_value_get_by_key(bucket, "key")));
+            sentry_value_as_string(sentry_value_get_by_key(bucket, "key")));
 
         if (bucketTimestamp < cutoffTimestamp) {
             sentry_value_append(flushableBuckets, bucket);
@@ -326,8 +320,7 @@ sentry__metrics_aggregator_flush(
         }
     }
 
-    sentry__metrics_flush(
-        sentry__metrics_encode_statsd(flushableBuckets));
+    sentry__metrics_flush(sentry__metrics_encode_statsd(flushableBuckets));
 
     sentry_value_decref(flushableBuckets);
 }
@@ -358,8 +351,7 @@ sentry__value_metric_new_n(sentry_slice_t name)
         sentry__value_new_string_owned(
             sentry__msec_time_to_iso8601(sentry__msec_time())));
 
-    sentry_value_set_by_key(
-        metric, "unit", sentry_value_new_string("none"));
+    sentry_value_set_by_key(metric, "unit", sentry_value_new_string("none"));
 
     return metric;
 }
@@ -454,16 +446,11 @@ sentry_metrics_new_gauge_n(const char *key, size_t key_len, double value)
     metric->value = sentry_value_new_double(value);
 
     sentry_value_t gaugeValue = sentry_value_new_object();
-    sentry_value_set_by_key(
-        gaugeValue, "last", sentry_value_new_double(value));
-    sentry_value_set_by_key(
-        gaugeValue, "min", sentry_value_new_double(value));
-    sentry_value_set_by_key(
-        gaugeValue, "max", sentry_value_new_double(value));
-    sentry_value_set_by_key(
-        gaugeValue, "sum", sentry_value_new_double(value));
-    sentry_value_set_by_key(
-        gaugeValue, "count", sentry_value_new_int32(1));
+    sentry_value_set_by_key(gaugeValue, "last", sentry_value_new_double(value));
+    sentry_value_set_by_key(gaugeValue, "min", sentry_value_new_double(value));
+    sentry_value_set_by_key(gaugeValue, "max", sentry_value_new_double(value));
+    sentry_value_set_by_key(gaugeValue, "sum", sentry_value_new_double(value));
+    sentry_value_set_by_key(gaugeValue, "count", sentry_value_new_int32(1));
 
     sentry_value_set_by_key(
         metric->inner, "value", gaugeValue);

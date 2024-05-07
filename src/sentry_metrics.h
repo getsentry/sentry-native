@@ -81,8 +81,8 @@ void sentry__metrics_timestamp_serialize(
  * inside a code block.
  */
 #define SENTRY_WITH_METRICS_AGGREGATOR(Aggregator)                             \
-    for (const sentry_metrics_aggregator_t *Aggregator =                       \
-        sentry__metrics_aggregator_lock(); Aggregator;                         \
-        sentry__metrics_aggregator_unlock(), Aggregator = NULL)
+    for (const sentry_metrics_aggregator_t *Aggregator                         \
+        = sentry__metrics_aggregator_lock();                                   \
+        Aggregator; sentry__metrics_aggregator_unlock(), Aggregator = NULL)
 
 #endif
