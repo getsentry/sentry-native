@@ -226,8 +226,9 @@ sentry__metrics_get_metric_bucket_key(sentry_metric_t *metric)
     size_t keyLength = strlen(typePrefix) + strlen(metricKey) + strlen(unitName)
         + strlen(serializedTags) + 4;
     char *metricBucketKey = sentry_malloc(keyLength);
-    snprintf(metricBucketKey, keyLength, "%s_%s_%s_%s\0", typePrefix, metricKey,
+    size_t written = snprintf(metricBucketKey, keyLength, "%s_%s_%s_%s", typePrefix, metricKey,
         unitName, serializedTags);
+    metricBucketKey[written] = '\0';
 
     return metricBucketKey;
 }
@@ -299,6 +300,11 @@ void
 sentry__metrics_aggregator_flush(
     const sentry_metrics_aggregator_t *aggregator, bool force)
 {
+    if (force) {
+        // TODO: if true all aggregated buckets should be flushed
+        return;
+    }
+
     sentry_value_t flushableBuckets = sentry_value_new_list();
 
     uint64_t cutoffTimestamp
