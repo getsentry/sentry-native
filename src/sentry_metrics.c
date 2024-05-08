@@ -411,8 +411,7 @@ sentry_metrics_new_distribution_n(const char *key, size_t key_len, double value)
     sentry_value_t distributionValues = sentry_value_new_list();
     sentry_value_append(distributionValues, sentry_value_new_double(value));
 
-    sentry_value_set_by_key(
-        metric->inner, "value", distributionValues);
+    sentry_value_set_by_key(metric->inner, "value", distributionValues);
 
     if (sentry_value_is_null(metric->inner)) {
         sentry_free(metric);
@@ -453,8 +452,7 @@ sentry_metrics_new_gauge_n(const char *key, size_t key_len, double value)
     sentry_value_set_by_key(gaugeValue, "sum", sentry_value_new_double(value));
     sentry_value_set_by_key(gaugeValue, "count", sentry_value_new_int32(1));
 
-    sentry_value_set_by_key(
-        metric->inner, "value", gaugeValue);
+    sentry_value_set_by_key(metric->inner, "value", gaugeValue);
 
     if (sentry_value_is_null(metric->inner)) {
         sentry_free(metric);
@@ -491,8 +489,7 @@ sentry_metrics_new_set_n(const char *key, size_t key_len, int32_t value)
     sentry_value_t setValues = sentry_value_new_list();
     sentry_value_append(setValues, sentry_value_new_int32(value));
 
-    sentry_value_set_by_key(
-        metric->inner, "value", setValues);
+    sentry_value_set_by_key(metric->inner, "value", setValues);
 
     if (sentry_value_is_null(metric->inner)) {
         sentry_free(metric);
@@ -525,8 +522,7 @@ sentry__metrics_encode_statsd(sentry_value_t buckets)
                 sentry_value_get_by_index(metrics, j), "metric");
 
             sentry__stringbuilder_append(&statsd,
-                sentry_value_as_string(
-                    sentry_value_get_by_key(metric, "key")));
+                sentry_value_as_string(sentry_value_get_by_key(metric, "key")));
             sentry__stringbuilder_append(&statsd, "@");
 
             sentry__stringbuilder_append(&statsd,
@@ -565,7 +561,7 @@ sentry__metrics_encode_statsd(sentry_value_t buckets)
             sentry__stringbuilder_append(&statsd, "|T");
 
             uint64_t timestamp = sentry__iso8601_to_msec(sentry_value_as_string(
-                    sentry_value_get_by_key(metric, "timestamp")));
+                sentry_value_get_by_key(metric, "timestamp")));
             sentry__metrics_timestamp_serialize(&statsd, timestamp / 1000);
 
             sentry__stringbuilder_append(&statsd, "\n");
@@ -653,8 +649,8 @@ sentry__metrics_distribution_serialize(
     size_t len = sentry_value_get_length(value);
     for (size_t i = 0; i < len; i++) {
         sentry__stringbuilder_append(sb, ":");
-        sentry__stringbuilder_append(sb, sentry__value_stringify(
-            sentry_value_get_by_index(value, i)));
+        sentry__stringbuilder_append(
+            sb, sentry__value_stringify(sentry_value_get_by_index(value, i)));
     }
 }
 
