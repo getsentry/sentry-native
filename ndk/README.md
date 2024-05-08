@@ -16,7 +16,7 @@ The sub-project aims to automatically bundle pre-built `sentry-native` binaries 
 
 The `.aar` package also provides [prefab](https://developer.android.com/build/native-dependencies?buildsystem=cmake) support, giving you the possibility to consume the native `sentry.h` APIs from your native app code.
 
-If you're using the [Sentry Android SDK](https://docs.sentry.io/platforms/android/), this package is included automatically by default already.
+If you're using the [Sentry Android SDK](https://docs.sentry.io/platforms/android/), this package is included by default already.
 
 Besides the main package in `ndk/lib`, a simple Android app for for testing purposes is provided in the `ndk/sample` folder.
 
@@ -31,7 +31,7 @@ The `ndk` project uses the Gradle build system in combination with CMake. You ca
 
 ```shell
 cd ndk
-./gradlew :lib:publishToMavenLocal
+./gradlew :sentry-native-ndk:publishToMavenLocal
 ```
 
 3. Consume the build in your app
@@ -61,11 +61,12 @@ dependencies {
 ```cmake
 # usually app/CMakeLists.txt
 
-find_package(sentry-ndk REQUIRED CONFIG)
+find_package(sentry-native-ndk REQUIRED CONFIG)
 
 target_link_libraries(<app> PRIVATE
-    sentry-ndk::sentry-android
-    sentry-ndk::sentry
+    ${LOG_LIB}
+    sentry-native-ndk::sentry-android
+    sentry-native-ndk::sentry
 )
 ```
 
