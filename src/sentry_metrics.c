@@ -226,8 +226,8 @@ sentry__metrics_get_metric_bucket_key(sentry_metric_t *metric)
     size_t keyLength = strlen(typePrefix) + strlen(metricKey) + strlen(unitName)
         + strlen(serializedTags) + 4;
     char *metricBucketKey = sentry_malloc(keyLength);
-    size_t written = snprintf(metricBucketKey, keyLength, "%s_%s_%s_%s", typePrefix, metricKey,
-        unitName, serializedTags);
+    size_t written = snprintf(metricBucketKey, keyLength, "%s_%s_%s_%s",
+        typePrefix, metricKey, unitName, serializedTags);
     metricBucketKey[written] = '\0';
 
     return metricBucketKey;
