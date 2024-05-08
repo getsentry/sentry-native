@@ -2163,7 +2163,7 @@ SENTRY_EXPERIMENTAL_API void sentry_metric_set_unit_n(
  */
 SENTRY_EXPERIMENTAL_API void sentry_metrics_capture(sentry_metric_t *metric);
 
-// TODO Remove after testing
+// TODO Remove after testing and implementing fluch scheduler
 SENTRY_EXPERIMENTAL_API void sentry_metrics_flush_test(void);
 
 #ifdef __cplusplus
