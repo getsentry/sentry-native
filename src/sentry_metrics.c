@@ -254,7 +254,7 @@ sentry__metrics_aggregator_add(
     const sentry_metrics_aggregator_t *aggregator, sentry_metric_t *metric)
 {
     uint64_t timestamp = sentry__iso8601_to_msec(sentry_value_as_string(
-            sentry_value_get_by_key(metric->inner, "timestamp")));
+        sentry_value_get_by_key(metric->inner, "timestamp")));
 
     sentry_value_t bucketKey = sentry__metrics_get_bucket_key(timestamp);
 
@@ -263,7 +263,8 @@ sentry__metrics_aggregator_add(
 
     char *metricBucketKey = sentry__metrics_get_metric_bucket_key(metric);
 
-    sentry_value_t existingMetric = sentry__metrics_find_in_bucket(bucket, metricBucketKey);
+    sentry_value_t existingMetric
+        = sentry__metrics_find_in_bucket(bucket, metricBucketKey);
 
     if (sentry_value_is_null(existingMetric)) {
         sentry_value_t newBucketItem = sentry_value_new_object();
@@ -365,10 +366,10 @@ sentry_metrics_new_increment_n(const char *key, size_t key_len, double value)
     }
 
     metric->type = SENTRY_METRIC_COUNTER;
-    metric->inner = sentry__value_metric_new_n(
-        (sentry_slice_t) { key, key_len });
-    sentry_value_set_by_key(metric->inner, "type",
-        sentry__metrics_type_to_string(metric->type));
+    metric->inner
+        = sentry__value_metric_new_n((sentry_slice_t) { key, key_len });
+    sentry_value_set_by_key(
+        metric->inner, "type", sentry__metrics_type_to_string(metric->type));
 
     metric->value = sentry_value_new_double(value);
 
@@ -400,10 +401,10 @@ sentry_metrics_new_distribution_n(const char *key, size_t key_len, double value)
     }
 
     metric->type = SENTRY_METRIC_DISTRIBUTION;
-    metric->inner = sentry__value_metric_new_n(
-        (sentry_slice_t) { key, key_len });
-    sentry_value_set_by_key(metric->inner, "type",
-        sentry__metrics_type_to_string(metric->type));
+    metric->inner
+        = sentry__value_metric_new_n((sentry_slice_t) { key, key_len });
+    sentry_value_set_by_key(
+        metric->inner, "type", sentry__metrics_type_to_string(metric->type));
 
     metric->value = sentry_value_new_double(value);
 
@@ -438,10 +439,10 @@ sentry_metrics_new_gauge_n(const char *key, size_t key_len, double value)
     }
 
     metric->type = SENTRY_METRIC_GAUGE;
-    metric->inner = sentry__value_metric_new_n(
-        (sentry_slice_t) { key, key_len });
-    sentry_value_set_by_key(metric->inner, "type",
-        sentry__metrics_type_to_string(metric->type));
+    metric->inner
+        = sentry__value_metric_new_n((sentry_slice_t) { key, key_len });
+    sentry_value_set_by_key(
+        metric->inner, "type", sentry__metrics_type_to_string(metric->type));
 
     metric->value = sentry_value_new_double(value);
 
@@ -480,10 +481,10 @@ sentry_metrics_new_set_n(const char *key, size_t key_len, int32_t value)
     }
 
     metric->type = SENTRY_METRIC_SET;
-    metric->inner = sentry__value_metric_new_n(
-        (sentry_slice_t) { key, key_len });
-    sentry_value_set_by_key(metric->inner, "type",
-        sentry__metrics_type_to_string(metric->type));
+    metric->inner
+        = sentry__value_metric_new_n((sentry_slice_t) { key, key_len });
+    sentry_value_set_by_key(
+        metric->inner, "type", sentry__metrics_type_to_string(metric->type));
 
     metric->value = sentry_value_new_int32(value);
 
@@ -517,14 +518,11 @@ sentry__metrics_encode_statsd(sentry_value_t buckets)
 
     size_t lenBuckets = sentry_value_get_length(buckets);
     for (size_t i = 0; i < lenBuckets; i++) {
-        sentry_value_t bucket =
-            sentry_value_get_by_index(buckets, i);
-        sentry_value_t metrics =
-            sentry_value_get_by_key(bucket, "metrics");
+        sentry_value_t bucket = sentry_value_get_by_index(buckets, i);
+        sentry_value_t metrics = sentry_value_get_by_key(bucket, "metrics");
         for (size_t j = 0; j < sentry_value_get_length(metrics); j++) {
-            sentry_value_t metric =
-                sentry_value_get_by_key(
-                    sentry_value_get_by_index(metrics, j), "metric");
+            sentry_value_t metric = sentry_value_get_by_key(
+                sentry_value_get_by_index(metrics, j), "metric");
 
             sentry__stringbuilder_append(&statsd,
                 sentry_value_as_string(
@@ -535,31 +533,31 @@ sentry__metrics_encode_statsd(sentry_value_t buckets)
                 sentry_value_as_string(
                     sentry_value_get_by_key(metric, "unit")));
 
-            sentry_value_t metricValue =
-                sentry_value_get_by_key(metric, "value");
+            sentry_value_t metricValue
+                = sentry_value_get_by_key(metric, "value");
 
             sentry_metric_type_t metricType;
             sentry__metrics_type_from_string(
                 sentry_value_get_by_key(metric, "type"), &metricType);
 
             switch (metricType) {
-                case SENTRY_METRIC_COUNTER:
-                    sentry__metrics_increment_serialize(&statsd, metricValue);
-                    break;
-                case SENTRY_METRIC_DISTRIBUTION:
-                    sentry__metrics_distribution_serialize(&statsd, metricValue);
-                    break;
-                case SENTRY_METRIC_GAUGE:
-                    sentry__metrics_gauge_serialize(&statsd, metricValue);
-                    break;
-                case SENTRY_METRIC_SET:
-                    sentry__metrics_set_serialize(&statsd, metricValue);
-                    break;
+            case SENTRY_METRIC_COUNTER:
+                sentry__metrics_increment_serialize(&statsd, metricValue);
+                break;
+            case SENTRY_METRIC_DISTRIBUTION:
+                sentry__metrics_distribution_serialize(&statsd, metricValue);
+                break;
+            case SENTRY_METRIC_GAUGE:
+                sentry__metrics_gauge_serialize(&statsd, metricValue);
+                break;
+            case SENTRY_METRIC_SET:
+                sentry__metrics_set_serialize(&statsd, metricValue);
+                break;
             }
 
             sentry__stringbuilder_append(&statsd, "|");
             sentry__stringbuilder_append(
-                &statsd,sentry__metrics_type_to_statsd(metricType));
+                &statsd, sentry__metrics_type_to_statsd(metricType));
 
             sentry__metrics_tags_serialize(
                 &statsd, sentry_value_get_by_key(metric, "tags"));
@@ -661,7 +659,8 @@ sentry__metrics_distribution_serialize(
 }
 
 void
-sentry__metrics_gauge_serialize(sentry_stringbuilder_t *sb, sentry_value_t value)
+sentry__metrics_gauge_serialize(
+    sentry_stringbuilder_t *sb, sentry_value_t value)
 {
     sentry__stringbuilder_append(sb, ":");
     sentry__stringbuilder_append(
@@ -717,11 +716,10 @@ sentry__metrics_tags_serialize(sentry_stringbuilder_t *sb, sentry_value_t tags)
 
 void
 sentry__metrics_timestamp_serialize(
-    sentry_stringbuilder_t* sb, uint64_t timestamp)
+    sentry_stringbuilder_t *sb, uint64_t timestamp)
 {
     char timestampBuf[24];
-    snprintf(timestampBuf,
-        sizeof(timestampBuf), "%" PRIu64, timestamp);
+    snprintf(timestampBuf, sizeof(timestampBuf), "%" PRIu64, timestamp);
 
     sentry__stringbuilder_append(sb, timestampBuf);
 }
@@ -735,13 +733,11 @@ set_tag_n(sentry_value_t item, sentry_slice_t tag, sentry_slice_t value)
         sentry_value_set_by_key(item, "tags", tags);
     }
 
-    char *sKey
-        = sentry__string_clone_max_n(tag.ptr, tag.len, 200);
+    char *sKey = sentry__string_clone_max_n(tag.ptr, tag.len, 200);
     sentry_value_t tag_key
         = sKey ? sentry__value_new_string_owned(sKey) : sentry_value_new_null();
 
-    char *sVal
-        = sentry__string_clone_max_n(value.ptr, value.len, 200);
+    char *sVal = sentry__string_clone_max_n(value.ptr, value.len, 200);
     sentry_value_t tag_value
         = sVal ? sentry__value_new_string_owned(sVal) : sentry_value_new_null();
 
@@ -762,8 +758,8 @@ set_tag(sentry_value_t item, const char *tag, const char *value)
 }
 
 void
-sentry_metric_set_tag_n(sentry_metric_t *metric, const char *tag, size_t tag_len,
-    const char *value, size_t value_len)
+sentry_metric_set_tag_n(sentry_metric_t *metric, const char *tag,
+    size_t tag_len, const char *value, size_t value_len)
 {
     if (metric) {
         set_tag_n(metric->inner, (sentry_slice_t) { tag, tag_len },
@@ -772,7 +768,8 @@ sentry_metric_set_tag_n(sentry_metric_t *metric, const char *tag, size_t tag_len
 }
 
 void
-sentry_metric_set_tag(sentry_metric_t *metric, const char *tag, const char *value)
+sentry_metric_set_tag(
+    sentry_metric_t *metric, const char *tag, const char *value)
 {
     if (metric) {
         set_tag(metric->inner, tag, value);
@@ -780,8 +777,8 @@ sentry_metric_set_tag(sentry_metric_t *metric, const char *tag, const char *valu
 }
 
 void
-sentry_metric_set_unit_n(sentry_metric_t *metric,
-    const char *unit, size_t unit_len)
+sentry_metric_set_unit_n(
+    sentry_metric_t *metric, const char *unit, size_t unit_len)
 {
     if (!metric) {
         return;
