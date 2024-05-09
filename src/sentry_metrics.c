@@ -14,8 +14,6 @@
 
 #define ROLLUP_IN_SECONDS 10
 
-
-
 static bool g_aggregator_initialized = false;
 static sentry_metrics_aggregator_t g_aggregator = { 0 };
 static sentry_mutex_t g_aggregator_lock = SENTRY__MUTEX_INIT;
@@ -80,15 +78,18 @@ sentry__metrics_type_from_string(
     }
 }
 
-int has_name_pattern_match(char c) {
+int
+has_name_pattern_match(char c) {
     return isalnum(c) || c == '_' || c == '\\' || c == '-' || c == '.';
 }
 
-int has_unit_pattern_match(char c) {
+int
+has_unit_pattern_match(char c) {
     return isalnum(c) || c == '_';
 }
 
-int has_tag_key_pattern_match(char c) {
+int
+has_tag_key_pattern_match(char c) {
     return isalnum(c) || c == '_' || c == '\\' || c == '-' || c == '.'
         || c == '/';
 }
@@ -115,22 +116,19 @@ sentry__metrics_sanitize(const char *original, const char *replacement,
 char *
 sentry__metrics_sanitize_name(const char *name)
 {
-    return sentry__metrics_sanitize(
-        name, "_", has_tag_key_pattern_match);
+    return sentry__metrics_sanitize(name, "_", has_tag_key_pattern_match);
 }
 
 char *
 sentry__metrics_sanitize_unit(const char *unit)
 {
-    return sentry__metrics_sanitize(
-        unit, "", has_tag_key_pattern_match);
+    return sentry__metrics_sanitize(unit, "", has_tag_key_pattern_match);
 }
 
 char *
 sentry__metrics_sanitize_tag_key(const char *tag_value)
 {
-    return sentry__metrics_sanitize(
-        tag_value, "", has_tag_key_pattern_match);
+    return sentry__metrics_sanitize(tag_value, "", has_tag_key_pattern_match);
 }
 
 char *
@@ -624,8 +622,8 @@ sentry__metrics_encode_statsd(sentry_value_t buckets)
 
             sentry__stringbuilder_append(&statsd, "@");
 
-            char *unit = sentry__metrics_sanitize_unit(
-                sentry_value_as_string(sentry_value_get_by_key(metric, "unit")));
+            char *unit = sentry__metrics_sanitize_unit(sentry_value_as_string(
+                sentry_value_get_by_key(metric, "unit")));
             sentry__stringbuilder_append(&statsd, unit);
             sentry_free(unit);
 
@@ -802,16 +800,16 @@ sentry__metrics_encode_statsd_tags(
             }
             sentry_value_t tagItem = sentry_value_get_by_index(tags, i);
 
-            char *tagKey = sentry__metrics_sanitize_tag_key(
-                sentry_value_as_string(
+            char *tagKey
+                = sentry__metrics_sanitize_tag_key(sentry_value_as_string(
                     sentry_value_get_by_key(tagItem, "key")));
             sentry__stringbuilder_append(sb, tagKey);
             sentry_free(tagKey);
 
             sentry__stringbuilder_append(sb, ":");
 
-            char *tagValue = sentry__metrics_sanitize_tag_value(
-                sentry_value_as_string(
+            char *tagValue
+                = sentry__metrics_sanitize_tag_value(sentry_value_as_string(
                     sentry_value_get_by_key(tagItem, "value")));
             sentry__stringbuilder_append(sb, tagValue);
             sentry_free(tagValue);
