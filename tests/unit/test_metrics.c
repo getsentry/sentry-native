@@ -1,43 +1,76 @@
 ﻿#include "sentry_metrics.h"
 #include "sentry_testsupport.h"
 
+SENTRY_TEST(metrics_name_sanitize)
+{
+    char *name1 = sentry__metrics_sanitize_name("foo-bar");
+    char *name2 = sentry__metrics_sanitize_name("foo\$\$\$bar");
+    char *name3 = sentry__metrics_sanitize_name("foö-bar");
+
+    TEST_CHECK_STRING_EQUAL(name1, "foo-bar");
+    TEST_CHECK_STRING_EQUAL(name2, "foo_bar");
+    TEST_CHECK_STRING_EQUAL(name3, "fo_-bar");
+
+    sentry_free(name1);
+    sentry_free(name2);
+    sentry_free(name3);
+}
+
+SENTRY_TEST(metrics_unit_sanitize)
+{
+    char *unit = sentry__metrics_sanitize_unit("abcABC123_-./äöü\$%&abcABC123");
+
+    TEST_CHECK_STRING_EQUAL(unit, "abcABC123_abcABC123");
+
+    sentry_free(unit);
+}
+
+SENTRY_TEST(metrics_tag_key_sanitize)
+{
+    char *key = sentry__metrics_sanitize_tag_value("a/weird/tag-key/:ä");
+
+    TEST_CHECK_STRING_EQUAL(key, "a/weird/tag-key/");
+
+    sentry_free(key);
+}
+
 SENTRY_TEST(metrics_tag_value_sanitize)
 {
-    char *s1 = sentry__metrics_sanitize_tag_value("plain");
-    char *s2 = sentry__metrics_sanitize_tag_value("plain text");
-    char *s3 = sentry__metrics_sanitize_tag_value("plain%text");
+    char *val1 = sentry__metrics_sanitize_tag_value("plain");
+    char *val2 = sentry__metrics_sanitize_tag_value("plain text");
+    char *val3 = sentry__metrics_sanitize_tag_value("plain%text");
 
-    TEST_CHECK_STRING_EQUAL(s1, "plain");
-    TEST_CHECK_STRING_EQUAL(s2, "plain text");
-    TEST_CHECK_STRING_EQUAL(s3, "plain%text");
+    TEST_CHECK_STRING_EQUAL(val1, "plain");
+    TEST_CHECK_STRING_EQUAL(val2, "plain text");
+    TEST_CHECK_STRING_EQUAL(val3, "plain%text");
 
-    sentry_free(s1);
-    sentry_free(s2);
-    sentry_free(s3);
+    sentry_free(val1);
+    sentry_free(val2);
+    sentry_free(val3);
 
     // Escape sequences
-    char *s4 = sentry__metrics_sanitize_tag_value("plain \\ text");
-    char *s5 = sentry__metrics_sanitize_tag_value("plain,text");
-    char *s6 = sentry__metrics_sanitize_tag_value("plain|text");
+    char *val4 = sentry__metrics_sanitize_tag_value("plain \\ text");
+    char *val5 = sentry__metrics_sanitize_tag_value("plain,text");
+    char *val6 = sentry__metrics_sanitize_tag_value("plain|text");
 
-    TEST_CHECK_STRING_EQUAL(s4, "plain \\\\ text");
-    TEST_CHECK_STRING_EQUAL(s5, "plain\\u{2c}text");
-    TEST_CHECK_STRING_EQUAL(s6, "plain\\u{7c}text");
+    TEST_CHECK_STRING_EQUAL(val4, "plain \\\\ text");
+    TEST_CHECK_STRING_EQUAL(val5, "plain\\u{2c}text");
+    TEST_CHECK_STRING_EQUAL(val6, "plain\\u{7c}text");
 
-    sentry_free(s4);
-    sentry_free(s5);
-    sentry_free(s6);
+    sentry_free(val4);
+    sentry_free(val5);
+    sentry_free(val6);
 
     // Escapable control characters
-    char *s7 = sentry__metrics_sanitize_tag_value("plain\ntext");
-    char *s8 = sentry__metrics_sanitize_tag_value("plain\rtext");
-    char *s9 = sentry__metrics_sanitize_tag_value("plain\ttext");
+    char *val7 = sentry__metrics_sanitize_tag_value("plain\ntext");
+    char *val8 = sentry__metrics_sanitize_tag_value("plain\rtext");
+    char *val9 = sentry__metrics_sanitize_tag_value("plain\ttext");
 
-    TEST_CHECK_STRING_EQUAL(s7, "plain\\ntext");
-    TEST_CHECK_STRING_EQUAL(s8, "plain\\rtext");
-    TEST_CHECK_STRING_EQUAL(s9, "plain\\ttext");
+    TEST_CHECK_STRING_EQUAL(val7, "plain\\ntext");
+    TEST_CHECK_STRING_EQUAL(val8, "plain\\rtext");
+    TEST_CHECK_STRING_EQUAL(val9, "plain\\ttext");
 
-    sentry_free(s7);
-    sentry_free(s8);
-    sentry_free(s9);
+    sentry_free(val7);
+    sentry_free(val8);
+    sentry_free(val9);
 }

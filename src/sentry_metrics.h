@@ -30,6 +30,9 @@ typedef struct sentry_metrics_aggregator_s {
     sentry_value_t buckets;
 } sentry_metrics_aggregator_t;
 
+char *sentry__metrics_sanitize_name(const char *name);
+char *sentry__metrics_sanitize_unit(const char *unit);
+char *sentry__metrics_sanitize_tag_key(const char *tag_key);
 char *sentry__metrics_sanitize_tag_value(const char *tag_value);
 
 /**
@@ -72,7 +75,7 @@ void sentry__metrics_set_serialize(
 
 const char *sentry__metrics_encode_statsd(sentry_value_t buckets);
 
-void sentry__metrics_tags_serialize(
+void sentry__metrics_encode_statsd_tags(
     sentry_stringbuilder_t *sb, sentry_value_t tags);
 
 void sentry__metrics_timestamp_serialize(
