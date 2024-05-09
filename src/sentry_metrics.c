@@ -119,13 +119,13 @@ sentry__metrics_sanitize(const char *original, const char *replacement,
 char *
 sentry__metrics_sanitize_name(const char *name)
 {
-    return sentry__metrics_sanitize(name, "_", has_tag_key_pattern_match);
+    return sentry__metrics_sanitize(name, "_", has_name_pattern_match);
 }
 
 char *
 sentry__metrics_sanitize_unit(const char *unit)
 {
-    return sentry__metrics_sanitize(unit, "", has_tag_key_pattern_match);
+    return sentry__metrics_sanitize(unit, "", has_unit_pattern_match);
 }
 
 char *
