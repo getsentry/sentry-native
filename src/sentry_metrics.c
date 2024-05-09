@@ -129,9 +129,9 @@ sentry__metrics_sanitize_unit(const char *unit)
 }
 
 char *
-sentry__metrics_sanitize_tag_key(const char *tag_value)
+sentry__metrics_sanitize_tag_key(const char *tag_key)
 {
-    return sentry__metrics_sanitize(tag_value, "", has_tag_key_pattern_match);
+    return sentry__metrics_sanitize(tag_key, "", has_tag_key_pattern_match);
 }
 
 char *
