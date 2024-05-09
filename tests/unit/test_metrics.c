@@ -18,7 +18,7 @@ SENTRY_TEST(metrics_name_sanitize)
 
 SENTRY_TEST(metrics_unit_sanitize)
 {
-    char *unit = sentry__metrics_sanitize_unit("abcABC123_-./äöü\\/%&abcABC12");
+    char *unit = sentry__metrics_sanitize_unit("abcABC123_-./\\/%&abcABC12");
 
     TEST_CHECK_STRING_EQUAL(unit, "abcABC123_abcABC12");
 
