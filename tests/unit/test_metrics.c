@@ -41,4 +41,3 @@ SENTRY_TEST(metrics_tag_value_sanitize)
     sentry_free(s8);
     sentry_free(s9);
 }
-
