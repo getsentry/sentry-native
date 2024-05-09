@@ -79,17 +79,20 @@ sentry__metrics_type_from_string(
 }
 
 int
-has_name_pattern_match(char c) {
+has_name_pattern_match(char c)
+{
     return isalnum(c) || c == '_' || c == '\\' || c == '-' || c == '.';
 }
 
 int
-has_unit_pattern_match(char c) {
+has_unit_pattern_match(char c)
+{
     return isalnum(c) || c == '_';
 }
 
 int
-has_tag_key_pattern_match(char c) {
+has_tag_key_pattern_match(char c)
+{
     return isalnum(c) || c == '_' || c == '\\' || c == '-' || c == '.'
         || c == '/';
 }
