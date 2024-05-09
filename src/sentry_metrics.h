@@ -30,6 +30,8 @@ typedef struct sentry_metrics_aggregator_s {
     sentry_value_t buckets;
 } sentry_metrics_aggregator_t;
 
+const char *sentry__metrics_sanitize_tag_value(const char *tag_value);
+
 /**
  * Acquires a lock on the global metrics aggregator.
  */

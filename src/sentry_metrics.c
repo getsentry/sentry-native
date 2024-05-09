@@ -12,7 +12,7 @@
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 
-#define ROLLUP_IN_SECONDS 3
+#define ROLLUP_IN_SECONDS 10
 
 static bool g_aggregator_initialized = false;
 static sentry_metrics_aggregator_t g_aggregator = { 0 };
@@ -76,6 +76,41 @@ sentry__metrics_type_from_string(
     default:
         assert(!"invalid metric type");
     }
+}
+
+const char *
+sentry__metrics_sanitize_tag_value(const char *tag_value)
+{
+    sentry_stringbuilder_t sb;
+    sentry__stringbuilder_init(&sb);
+
+    const unsigned char *ptr = (const unsigned char *)tag_value;
+    for (; *ptr; ptr++) {
+        switch (*ptr) {
+        case '\n':
+            sentry__stringbuilder_append(&sb, "\\n");
+            break;
+        case '\r':
+            sentry__stringbuilder_append(&sb, "\\r");
+            break;
+        case '\t':
+            sentry__stringbuilder_append(&sb, "\\t");
+            break;
+        case '\\':
+            sentry__stringbuilder_append(&sb, "\\\\");
+            break;
+        case '|':
+            sentry__stringbuilder_append(&sb, "\\u{7c}");
+            break;
+        case ',':
+            sentry__stringbuilder_append(&sb, "\\u{2c}");
+            break;
+        default:
+            sentry__stringbuilder_append_char(&sb, *ptr);
+        }
+    }
+
+    return sentry__stringbuilder_into_string(&sb);
 }
 
 static sentry_metrics_aggregator_t *
