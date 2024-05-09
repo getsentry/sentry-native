@@ -78,7 +78,7 @@ sentry__metrics_type_from_string(
     }
 }
 
-const char *
+char *
 sentry__metrics_sanitize_tag_value(const char *tag_value)
 {
     sentry_stringbuilder_t sb;
