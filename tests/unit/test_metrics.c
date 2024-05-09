@@ -5,11 +5,11 @@ SENTRY_TEST(metrics_name_sanitize)
 {
     char *name1 = sentry__metrics_sanitize_name("foo-bar");
     char *name2 = sentry__metrics_sanitize_name("foo\\!,bar");
-    char *name3 = sentry__metrics_sanitize_name("fo%-bar");
+    char *name3 = sentry__metrics_sanitize_name("foäöü%-bar");
 
     TEST_CHECK_STRING_EQUAL(name1, "foo-bar");
     TEST_CHECK_STRING_EQUAL(name2, "foo\\__bar");
-    TEST_CHECK_STRING_EQUAL(name3, "fo_-bar");
+    TEST_CHECK_STRING_EQUAL(name3, "fo____-bar");
 
     sentry_free(name1);
     sentry_free(name2);
@@ -29,7 +29,7 @@ SENTRY_TEST(metrics_tag_key_sanitize)
 {
     char *key = sentry__metrics_sanitize_tag_key("a/weird/tag-key/:\\$");
 
-    TEST_CHECK_STRING_EQUAL(key, "a/weird/tag-key/");
+    TEST_CHECK_STRING_EQUAL(key, "a/weird/tag-key/\\");
 
     sentry_free(key);
 }
