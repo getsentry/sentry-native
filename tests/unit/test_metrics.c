@@ -27,7 +27,7 @@ SENTRY_TEST(metrics_unit_sanitize)
 
 SENTRY_TEST(metrics_tag_key_sanitize)
 {
-    char *key = sentry__metrics_sanitize_tag_value("a/weird/tag-key/:\\$");
+    char *key = sentry__metrics_sanitize_tag_key("a/weird/tag-key/:\\$");
 
     TEST_CHECK_STRING_EQUAL(key, "a/weird/tag-key/");
 
