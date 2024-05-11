@@ -538,7 +538,11 @@ def test_transaction_only(cmake, httpserver, build_args):
     envelope.print_verbose()
 
     # The transaction is overwritten.
-    assert_meta(envelope, transaction="little.teapot")
+    assert_meta(
+        envelope,
+        transaction="little.teapot",
+        transaction_data={"url": "https://example.com"},
+    )
 
     # Extract the one-and-only-item
     (event,) = envelope.items

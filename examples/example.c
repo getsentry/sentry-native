@@ -398,6 +398,9 @@ main(int argc, char **argv)
         sentry_transaction_t *tx
             = sentry_transaction_start(tx_ctx, sentry_value_new_null());
 
+        sentry_transaction_set_data(
+            tx, "url", sentry_value_new_string("https://example.com"));
+
         if (has_arg(argc, argv, "error-status")) {
             sentry_transaction_set_status(
                 tx, SENTRY_SPAN_STATUS_INTERNAL_ERROR);
@@ -408,6 +411,9 @@ main(int argc, char **argv)
                 = sentry_transaction_start_child(tx, "littler.teapot", NULL);
             sentry_span_t *grandchild
                 = sentry_span_start_child(child, "littlest.teapot", NULL);
+
+            sentry_span_set_data(
+                child, "span_data_says", sentry_value_new_string("hi!"));
 
             if (has_arg(argc, argv, "error-status")) {
                 sentry_span_set_status(child, SENTRY_SPAN_STATUS_NOT_FOUND);
