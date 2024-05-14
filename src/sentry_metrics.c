@@ -31,6 +31,10 @@ static sentry_mutex_t g_aggregator_lock = SENTRY__MUTEX_INIT;
 static int32_t total_buckets_weight = 0;
 static bool is_flush_scheduled = false;
 
+static bool is_closed = false;
+
+sentry_bgworker_t *bgw = NULL;
+
 sentry_value_t
 sentry__metrics_type_to_string(sentry_metric_type_t type)
 {
@@ -193,6 +197,9 @@ get_metrics_aggregator(void)
     g_aggregator.buckets = sentry_value_new_list();
     g_aggregator_initialized = true;
 
+    bgw = sentry__bgworker_new(NULL, NULL);
+    sentry__bgworker_start(bgw);
+
     return &g_aggregator;
 }
 
@@ -216,6 +223,9 @@ sentry__metrics_aggregator_cleanup(void)
     if (g_aggregator_initialized) {
         g_aggregator_initialized = false;
         sentry_value_decref(g_aggregator.buckets);
+        sentry__bgworker_shutdown(bgw, 1000);
+        sentry__bgworker_decref(bgw);
+        is_closed = true;
     }
     sentry__mutex_unlock(&g_aggregator_lock);
 }
@@ -355,9 +365,7 @@ sentry__metrics_find_in_bucket(sentry_value_t bucket, const char *metricKey)
 
 typedef struct {
     int32_t delay;
-    sentry_bgworker_t *worker;
 } sentry_metric_flush_task_t;
-
 
 static void
 metric_flush_task(void *data, void *UNUSED(state))
@@ -370,31 +378,24 @@ metric_flush_task(void *data, void *UNUSED(state))
         sentry__metrics_aggregator_flush(aggregator, false);
     }
 
-    sentry__metrics_schedule_flush(FLUSHER_SLEEP_TIME_SEC);
+    if (!is_closed) {
+        sentry__metrics_schedule_flush(FLUSHER_SLEEP_TIME_SEC);
+    }
 }
 
 static void
 metric_flush_cleanup_task(void *data)
 {
     sentry_metric_flush_task_t *flush_task = (sentry_metric_flush_task_t *)data;
-
-    sentry__bgworker_shutdown(flush_task->worker, 0);
-    sentry__bgworker_decref(flush_task->worker);
-
     sentry_free(flush_task);
 }
 
 void
 sentry__metrics_schedule_flush(int32_t delay)
 {
-    sentry_bgworker_t *bgw = sentry__bgworker_new(NULL, NULL);
-    sentry__bgworker_start(bgw);
-
     sentry_metric_flush_task_t *flush_task
         = sentry_malloc(sizeof(sentry_metric_flush_task_t));
     flush_task->delay = delay;
-    flush_task->worker = bgw;
-
     sentry__bgworker_submit(
         bgw, metric_flush_task, metric_flush_cleanup_task, flush_task);
 }
@@ -457,7 +458,6 @@ sentry__metrics_aggregator_add(
 
         int32_t delay = isOwerweight ? 0 : FLUSHER_SLEEP_TIME_SEC;
 
-        // Flush captured metrics after `delayMs`
         sentry__metrics_schedule_flush(delay);
     }
 }
@@ -467,7 +467,6 @@ sentry__metrics_aggregator_flush(
     const sentry_metrics_aggregator_t *aggregator, bool force)
 {
     if (!force && sentry__metrics_is_overweight(aggregator)) {
-        SENTRY_DEBUG("Metrics: total weight exceeded, flushing all buckets");
         force = true;
     }
 
@@ -494,12 +493,9 @@ sentry__metrics_aggregator_flush(
         }
     }
 
-    if (sentry_value_get_length(flushableBuckets)) {
-        SENTRY_DEBUG("Metrics: nothing to flush");
-        return;
+    if (sentry_value_get_length(flushableBuckets) > 0) {
+        sentry__metrics_flush(sentry__metrics_encode_statsd(flushableBuckets));
     }
-
-    sentry__metrics_flush(sentry__metrics_encode_statsd(flushableBuckets));
 
     sentry_value_decref(flushableBuckets);
 }
