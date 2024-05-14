@@ -50,8 +50,7 @@ void sentry__metrics_aggregator_unlock(void);
  */
 void sentry__metrics_aggregator_cleanup(void);
 
-void
-sentry__metrics_schedule_flush(int32_t delay);
+void sentry__metrics_schedule_flush(int32_t delay);
 
 void sentry__metrics_aggregator_add(
     const sentry_metrics_aggregator_t *aggregator, sentry_metric_t *metric);
