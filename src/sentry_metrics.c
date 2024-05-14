@@ -13,10 +13,15 @@
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 
 #define ROLLUP_IN_SECONDS 10
+#define MAX_TOTAL_WEIGHT 100000
+#define FLUSHER_SLEEP_TIME_MS 5000
 
 static bool g_aggregator_initialized = false;
 static sentry_metrics_aggregator_t g_aggregator = { 0 };
 static sentry_mutex_t g_aggregator_lock = SENTRY__MUTEX_INIT;
+
+static int32_t total_buckets_weight = 0;
+static bool is_flush_scheduled = false;
 
 sentry_value_t
 sentry__metrics_type_to_string(sentry_metric_type_t type)
@@ -178,7 +183,6 @@ get_metrics_aggregator(void)
 
     memset(&g_aggregator, 0, sizeof(sentry_metrics_aggregator_t));
     g_aggregator.buckets = sentry_value_new_list();
-
     g_aggregator_initialized = true;
 
     return &g_aggregator;
@@ -341,6 +345,12 @@ sentry__metrics_find_in_bucket(sentry_value_t bucket, const char *metricKey)
     return sentry_value_new_null();
 }
 
+static void
+sentry__metrics_flush_task(void *UNUSED(data), void *UNUSED(state))
+{
+
+}
+
 void
 sentry__metrics_aggregator_add(
     const sentry_metrics_aggregator_t *aggregator, sentry_metric_t *metric)
@@ -358,6 +368,8 @@ sentry__metrics_aggregator_add(
     sentry_value_t existingMetric
         = sentry__metrics_find_in_bucket(bucket, metricBucketKey);
 
+    int32_t addedWeight;
+
     if (sentry_value_is_null(existingMetric)) {
         sentry_value_t newBucketItem = sentry_value_new_object();
         sentry_value_set_by_key(
@@ -365,6 +377,7 @@ sentry__metrics_aggregator_add(
         sentry_value_set_by_key(newBucketItem, "metric", metric->inner);
         sentry_value_append(
             sentry_value_get_by_key(bucket, "metrics"), newBucketItem);
+        addedWeight = sentry__metrics_get_weight(metric->inner);
     } else {
         switch (metric->type) {
         case SENTRY_METRIC_COUNTER:
@@ -382,9 +395,22 @@ sentry__metrics_aggregator_add(
         default:
             SENTRY_WARN("uknown metric type");
         }
+        addedWeight = sentry__metrics_get_weight(existingMetric);
     }
 
+    total_buckets_weight += addedWeight;
+
     sentry_free(metricBucketKey);
+
+    bool isOwerweight = sentry__metrics_is_overweight();
+
+    if (isOwerweight || !is_flush_scheduled) {
+        is_flush_scheduled = true;
+
+        uint64_t delayMs = isOwerweight ? 0 : FLUSHER_SLEEP_TIME_MS;
+
+        // Flush captured metrics after `delayMs`
+    }
 }
 
 void
@@ -414,6 +440,7 @@ sentry__metrics_aggregator_flush(
 
         if (bucketTimestamp < cutoffTimestamp) {
             sentry_value_append(flushableBuckets, bucket);
+            total_buckets_weight -= sentry__metrics_get_bucket_weight(bucket);
             sentry_value_remove_by_index(aggregator->buckets, i);
         }
     }
@@ -734,6 +761,60 @@ sentry__metrics_set_add(sentry_value_t metric, sentry_value_t value)
     }
 
     sentry_value_append(metricValue, value);
+}
+
+int32_t
+sentry__metrics_get_weight(sentry_value_t metric)
+{
+    int32_t weight;
+
+    sentry_metric_type_t metricType;
+    sentry__metrics_type_from_string(
+        sentry_value_get_by_key(metric, "type"), &metricType);
+
+    switch (metricType) {
+    case SENTRY_METRIC_COUNTER:
+        weight = 1;
+        break;
+    case SENTRY_METRIC_DISTRIBUTION:
+        weight = (int32_t)sentry_value_get_length(
+            sentry_value_get_by_key(metric, "value"));
+        break;
+    case SENTRY_METRIC_GAUGE:
+        weight = 5;
+        break;
+    case SENTRY_METRIC_SET:
+        weight = (int32_t)sentry_value_get_length(
+            sentry_value_get_by_key(metric, "value"));
+        break;
+    default:
+        weight = 0;
+    }
+
+    return weight;
+}
+
+int32_t
+sentry__metrics_get_bucket_weight(sentry_value_t bucket)
+{
+    int32_t weight = 0;
+
+    sentry_value_t metrics = sentry_value_get_by_key(bucket, "metrics");
+    for (size_t i = 0; i < sentry_value_get_length(metrics); i++) {
+        sentry_value_t metric = sentry_value_get_by_key(
+            sentry_value_get_by_index(metrics, i), "metric");
+        weight += sentry__metrics_get_weight(metric);
+    }
+
+    return weight;
+}
+
+bool
+sentry__metrics_is_overweight(const sentry_metrics_aggregator_t *aggregator)
+{
+    int32_t totalWeight = (int32_t)sentry_value_get_length(aggregator->buckets)
+        + total_buckets_weight;
+    return totalWeight >= MAX_TOTAL_WEIGHT;
 }
 
 void

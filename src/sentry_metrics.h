@@ -64,6 +64,11 @@ void sentry__metrics_distribution_add(
 void sentry__metrics_gauge_add(sentry_value_t metric, sentry_value_t value);
 void sentry__metrics_set_add(sentry_value_t metric, sentry_value_t value);
 
+int32_t sentry__metrics_get_weight(sentry_value_t metric);
+int32_t sentry__metrics_get_bucket_weight(sentry_value_t bucket);
+
+bool sentry__metrics_is_overweight();
+
 void sentry__metrics_increment_serialize(
     sentry_stringbuilder_t *sb, sentry_value_t value);
 void sentry__metrics_distribution_serialize(
