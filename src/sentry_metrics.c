@@ -345,12 +345,6 @@ sentry__metrics_find_in_bucket(sentry_value_t bucket, const char *metricKey)
     return sentry_value_new_null();
 }
 
-static void
-sentry__metrics_flush_task(void *UNUSED(data), void *UNUSED(state))
-{
-
-}
-
 void
 sentry__metrics_aggregator_add(
     const sentry_metrics_aggregator_t *aggregator, sentry_metric_t *metric)
