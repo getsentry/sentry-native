@@ -50,6 +50,9 @@ void sentry__metrics_aggregator_unlock(void);
  */
 void sentry__metrics_aggregator_cleanup(void);
 
+void
+sentry__metrics_schedule_flush(int32_t delay);
+
 void sentry__metrics_aggregator_add(
     const sentry_metrics_aggregator_t *aggregator, sentry_metric_t *metric);
 
@@ -67,7 +70,8 @@ void sentry__metrics_set_add(sentry_value_t metric, sentry_value_t value);
 int32_t sentry__metrics_get_weight(sentry_value_t metric);
 int32_t sentry__metrics_get_bucket_weight(sentry_value_t bucket);
 
-bool sentry__metrics_is_overweight();
+bool sentry__metrics_is_overweight(
+    const sentry_metrics_aggregator_t *aggregator);
 
 void sentry__metrics_increment_serialize(
     sentry_stringbuilder_t *sb, sentry_value_t value);

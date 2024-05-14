@@ -9,12 +9,20 @@
 
 #include <stdlib.h>
 
+#ifdef SENTRY_PLATFORM_WINDOWS
+#    include <windows.h>
+#    define sleep_s(SECONDS) Sleep((SECONDS)*1000)
+#else
+#    include <unistd.h>
+#    define sleep_s(SECONDS) sleep(SECONDS)
+#endif
+
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 
 #define ROLLUP_IN_SECONDS 10
 #define MAX_TOTAL_WEIGHT 100000
-#define FLUSHER_SLEEP_TIME_MS 5000
+#define FLUSHER_SLEEP_TIME_SEC 5
 
 static bool g_aggregator_initialized = false;
 static sentry_metrics_aggregator_t g_aggregator = { 0 };
@@ -345,6 +353,52 @@ sentry__metrics_find_in_bucket(sentry_value_t bucket, const char *metricKey)
     return sentry_value_new_null();
 }
 
+typedef struct {
+    int32_t delay;
+    sentry_bgworker_t *worker;
+} sentry_metric_flush_task_t;
+
+
+static void
+metric_flush_task(void *data, void *UNUSED(state))
+{
+    sentry_metric_flush_task_t *flush_task = (sentry_metric_flush_task_t *)data;
+    sleep_s(flush_task->delay);
+
+    SENTRY_WITH_METRICS_AGGREGATOR(aggregator)
+    {
+        sentry__metrics_aggregator_flush(aggregator, false);
+    }
+
+    sentry__metrics_schedule_flush(FLUSHER_SLEEP_TIME_SEC);
+}
+
+static void
+metric_flush_cleanup_task(void *data)
+{
+    sentry_metric_flush_task_t *flush_task = (sentry_metric_flush_task_t *)data;
+
+    sentry__bgworker_shutdown(flush_task->worker, 0);
+    sentry__bgworker_decref(flush_task->worker);
+
+    sentry_free(flush_task);
+}
+
+void
+sentry__metrics_schedule_flush(int32_t delay)
+{
+    sentry_bgworker_t *bgw = sentry__bgworker_new(NULL, NULL);
+    sentry__bgworker_start(bgw);
+
+    sentry_metric_flush_task_t *flush_task
+        = sentry_malloc(sizeof(sentry_metric_flush_task_t));
+    flush_task->delay = delay;
+    flush_task->worker = bgw;
+
+    sentry__bgworker_submit(
+        bgw, metric_flush_task, metric_flush_cleanup_task, flush_task);
+}
+
 void
 sentry__metrics_aggregator_add(
     const sentry_metrics_aggregator_t *aggregator, sentry_metric_t *metric)
@@ -396,14 +450,15 @@ sentry__metrics_aggregator_add(
 
     sentry_free(metricBucketKey);
 
-    bool isOwerweight = sentry__metrics_is_overweight();
+    bool isOwerweight = sentry__metrics_is_overweight(aggregator);
 
     if (isOwerweight || !is_flush_scheduled) {
         is_flush_scheduled = true;
 
-        uint64_t delayMs = isOwerweight ? 0 : FLUSHER_SLEEP_TIME_MS;
+        int32_t delay = isOwerweight ? 0 : FLUSHER_SLEEP_TIME_SEC;
 
         // Flush captured metrics after `delayMs`
+        sentry__metrics_schedule_flush(delay);
     }
 }
 
@@ -411,7 +466,7 @@ void
 sentry__metrics_aggregator_flush(
     const sentry_metrics_aggregator_t *aggregator, bool force)
 {
-    if (!force && sentry__metrics_is_overweight()) {
+    if (!force && sentry__metrics_is_overweight(aggregator)) {
         SENTRY_DEBUG("Metrics: total weight exceeded, flushing all buckets");
         force = true;
     }

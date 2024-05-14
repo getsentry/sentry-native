@@ -258,6 +258,7 @@ sentry_close(void)
     sentry__mutex_unlock(&g_options_lock);
 
     sentry__scope_cleanup();
+    sentry__metrics_aggregator_cleanup();
     sentry_clear_modulecache();
 
     return (int)dumped_envelopes;
