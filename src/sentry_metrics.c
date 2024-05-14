@@ -411,9 +411,9 @@ void
 sentry__metrics_aggregator_flush(
     const sentry_metrics_aggregator_t *aggregator, bool force)
 {
-    if (force) {
-        // TODO: if true all aggregated buckets should be flushed
-        return;
+    if (!force && sentry__metrics_is_overweight()) {
+        SENTRY_DEBUG("Metrics: total weight exceeded, flushing all buckets");
+        force = true;
     }
 
     sentry_value_t flushableBuckets = sentry_value_new_list();
@@ -432,11 +432,16 @@ sentry__metrics_aggregator_flush(
         uint64_t bucketTimestamp = sentry__metrics_timestamp_from_string(
             sentry_value_as_string(sentry_value_get_by_key(bucket, "key")));
 
-        if (bucketTimestamp < cutoffTimestamp) {
+        if (force || bucketTimestamp < cutoffTimestamp) {
             sentry_value_append(flushableBuckets, bucket);
             total_buckets_weight -= sentry__metrics_get_bucket_weight(bucket);
             sentry_value_remove_by_index(aggregator->buckets, i);
         }
+    }
+
+    if (sentry_value_get_length(flushableBuckets)) {
+        SENTRY_DEBUG("Metrics: nothing to flush");
+        return;
     }
 
     sentry__metrics_flush(sentry__metrics_encode_statsd(flushableBuckets));
