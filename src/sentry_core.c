@@ -1213,13 +1213,3 @@ sentry__metrics_flush(const char *encodedMetrics)
         }
     }
 }
-
-// TODO Remove after testing
-void
-sentry_metrics_flush_test(void)
-{
-    SENTRY_WITH_METRICS_AGGREGATOR(aggregator)
-    {
-        sentry__metrics_aggregator_flush(aggregator, false);
-    }
-}
