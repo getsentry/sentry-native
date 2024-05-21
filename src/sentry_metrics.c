@@ -439,7 +439,7 @@ sentry__metrics_aggregator_add(
             sentry__metrics_gauge_add(existingMetric, metric->value);
             break;
         case SENTRY_METRIC_SET:
-            sentry__metrics_set_add(existingMetric, metric->value);
+            sentry__metrics_set_add(existingMetric, (int32_t)metric->value);
             break;
         default:
             SENTRY_WARN("uknown metric type");
@@ -545,7 +545,7 @@ sentry_metrics_new_increment_n(const char *key, size_t key_len, double value)
     sentry_value_set_by_key(
         metric->inner, "type", sentry__metrics_type_to_string(metric->type));
 
-    metric->value = sentry_value_new_double(value);
+    metric->value = value;
 
     sentry_value_set_by_key(
         metric->inner, "value", sentry_value_new_double(value));
@@ -580,7 +580,7 @@ sentry_metrics_new_distribution_n(const char *key, size_t key_len, double value)
     sentry_value_set_by_key(
         metric->inner, "type", sentry__metrics_type_to_string(metric->type));
 
-    metric->value = sentry_value_new_double(value);
+    metric->value = value;
 
     sentry_value_t distributionValues = sentry_value_new_list();
     sentry_value_append(distributionValues, sentry_value_new_double(value));
@@ -617,7 +617,7 @@ sentry_metrics_new_gauge_n(const char *key, size_t key_len, double value)
     sentry_value_set_by_key(
         metric->inner, "type", sentry__metrics_type_to_string(metric->type));
 
-    metric->value = sentry_value_new_double(value);
+    metric->value = value;
 
     sentry_value_t gaugeValue = sentry_value_new_object();
     sentry_value_set_by_key(gaugeValue, "last", sentry_value_new_double(value));
@@ -658,7 +658,7 @@ sentry_metrics_new_set_n(const char *key, size_t key_len, int32_t value)
     sentry_value_set_by_key(
         metric->inner, "type", sentry__metrics_type_to_string(metric->type));
 
-    metric->value = sentry_value_new_int32(value);
+    metric->value = (double)value;
 
     sentry_value_t setValues = sentry_value_new_list();
     sentry_value_append(setValues, sentry_value_new_int32(value));
@@ -751,27 +751,26 @@ sentry__metrics_encode_statsd(sentry_value_t buckets)
 }
 
 void
-sentry__metrics_increment_add(sentry_value_t metric, sentry_value_t value)
+sentry__metrics_increment_add(sentry_value_t metric, double value)
 {
     sentry_value_t metricValue = sentry_value_get_by_key(metric, "value");
 
     double current = sentry_value_as_double(metricValue);
-    double val = sentry_value_as_double(value);
 
     sentry_value_set_by_key(
-        metric, "value", sentry_value_new_double(current + val));
+        metric, "value", sentry_value_new_double(current + value));
 }
 
 void
-sentry__metrics_distribution_add(sentry_value_t metric, sentry_value_t value)
+sentry__metrics_distribution_add(sentry_value_t metric, double value)
 {
     sentry_value_t metricValue = sentry_value_get_by_key(metric, "value");
 
-    sentry_value_append(metricValue, value);
+    sentry_value_append(metricValue, sentry_value_new_double(value));
 }
 
 void
-sentry__metrics_gauge_add(sentry_value_t metric, sentry_value_t value)
+sentry__metrics_gauge_add(sentry_value_t metric, double value)
 {
     sentry_value_t metricValue = sentry_value_get_by_key(metric, "value");
 
@@ -784,33 +783,32 @@ sentry__metrics_gauge_add(sentry_value_t metric, sentry_value_t value)
     int32_t count
         = sentry_value_as_int32(sentry_value_get_by_key(metricValue, "count"));
 
-    double val = sentry_value_as_double(value);
-
-    sentry_value_set_by_key(metricValue, "last", value);
     sentry_value_set_by_key(
-        metricValue, "min", sentry_value_new_double(MIN(min, val)));
+        metricValue, "last", sentry_value_new_double(value));
     sentry_value_set_by_key(
-        metricValue, "max", sentry_value_new_double(MAX(max, val)));
+        metricValue, "min", sentry_value_new_double(MIN(min, value)));
     sentry_value_set_by_key(
-        metricValue, "sum", sentry_value_new_double(sum + val));
+        metricValue, "max", sentry_value_new_double(MAX(max, value)));
+    sentry_value_set_by_key(
+        metricValue, "sum", sentry_value_new_double(sum + value));
     sentry_value_set_by_key(
         metricValue, "count", sentry_value_new_int32(count + 1));
 }
 
 void
-sentry__metrics_set_add(sentry_value_t metric, sentry_value_t value)
+sentry__metrics_set_add(sentry_value_t metric, int32_t value)
 {
     sentry_value_t metricValue = sentry_value_get_by_key(metric, "value");
 
     size_t len = sentry_value_get_length(metricValue);
     for (size_t i = 0; i < len; i++) {
         sentry_value_t setItem = sentry_value_get_by_index(metricValue, i);
-        if (sentry_value_as_int32(value) == sentry_value_as_int32(setItem)) {
+        if (value == sentry_value_as_int32(setItem)) {
             return;
         }
     }
 
-    sentry_value_append(metricValue, value);
+    sentry_value_append(metricValue, sentry_value_new_int32(value));
 }
 
 int32_t

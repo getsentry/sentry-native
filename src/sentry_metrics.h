@@ -19,8 +19,8 @@ typedef enum sentry_metric_type_e {
  */
 typedef struct sentry_metric_s {
     sentry_value_t inner;
-    sentry_value_t value;
     sentry_metric_type_t type;
+    double value;
 } sentry_metric_t;
 
 /**
@@ -60,11 +60,10 @@ void sentry__metrics_aggregator_flush(
 
 void sentry__metric_free(sentry_metric_t *metric);
 
-void sentry__metrics_increment_add(sentry_value_t metric, sentry_value_t value);
-void sentry__metrics_distribution_add(
-    sentry_value_t metric, sentry_value_t value);
-void sentry__metrics_gauge_add(sentry_value_t metric, sentry_value_t value);
-void sentry__metrics_set_add(sentry_value_t metric, sentry_value_t value);
+void sentry__metrics_increment_add(sentry_value_t metric, double value);
+void sentry__metrics_distribution_add(sentry_value_t metric, double value);
+void sentry__metrics_gauge_add(sentry_value_t metric, double value);
+void sentry__metrics_set_add(sentry_value_t metric, int32_t value);
 
 int32_t sentry__metrics_get_weight(sentry_value_t metric);
 int32_t sentry__metrics_get_bucket_weight(sentry_value_t bucket);

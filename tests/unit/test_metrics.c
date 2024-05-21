@@ -1,6 +1,39 @@
 ﻿#include "sentry_metrics.h"
 #include "sentry_testsupport.h"
 
+SENTRY_TEST(metrics_basic)
+{
+    sentry_metric_t *opaque_metric
+        = sentry_metrics_new_increment("counter_metric", 5.0);
+    sentry_metric_set_unit(opaque_metric, "second");
+    sentry_metric_set_tag(opaque_metric, "key1", "val1");
+
+    sentry_value_t metric;
+    if (opaque_metric != NULL) {
+        metric = opaque_metric->inner;
+        TEST_CHECK(!sentry_value_is_null(metric));
+        TEST_CHECK(opaque_metric->type == SENTRY_METRIC_COUNTER);
+        const char *type
+            = sentry_value_as_string(sentry_value_get_by_key(metric, "type"));
+        TEST_CHECK_STRING_EQUAL(type, "counter");
+        const char *unit
+            = sentry_value_as_string(sentry_value_get_by_key(metric, "unit"));
+        TEST_CHECK_STRING_EQUAL(unit, "second");
+        double value
+            = sentry_value_as_double(sentry_value_get_by_key(metric, "value"));
+        TEST_CHECK(value == 5.0);
+        TEST_CHECK(opaque_metric->value == 5.0);
+        sentry_value_t tags = sentry_value_get_by_key(metric, "tags");
+        const char *tag_val
+            = sentry_value_as_string(sentry_value_get_by_key(tags, "key1"));
+        TEST_CHECK_STRING_EQUAL(tag_val, "val1");
+    } else {
+        TEST_CHECK(opaque_metric != NULL);
+    }
+
+    sentry__metric_free(opaque_metric);
+}
+
 SENTRY_TEST(metrics_name_sanitize)
 {
     char *name1 = sentry__metrics_sanitize_name("foo-bar");
