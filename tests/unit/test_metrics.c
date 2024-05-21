@@ -25,8 +25,12 @@ SENTRY_TEST(metrics_new_counter)
         TEST_CHECK(sentry_value_as_double(value) == 1.0);
         TEST_CHECK(opaque_metric->value == 1.0);
         sentry_value_t tags = sentry_value_get_by_key(metric, "tags");
+        sentry_value_t tag_item = sentry_value_get_by_index(tags, 0);
+        const char *tag_key
+            = sentry_value_as_string(sentry_value_get_by_key(tag_item, "key"));
+        TEST_CHECK_STRING_EQUAL(tag_key, "key1");
         const char *tag_val
-            = sentry_value_as_string(sentry_value_get_by_key(tags, "key1"));
+            = sentry_value_as_string(sentry_value_get_by_key(tag_item, "value"));
         TEST_CHECK_STRING_EQUAL(tag_val, "val1");
     } else {
         TEST_CHECK(opaque_metric != NULL);
