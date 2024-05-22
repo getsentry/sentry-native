@@ -229,5 +229,5 @@ jobs:
           name: ${{ github.sha }}
           if-no-files-found: error
           path: |
-            ./*/build/distributions/*.zip
+            ndk/lib/build/distributions/*.zip
             sentry-native.zip
