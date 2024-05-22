@@ -29,8 +29,8 @@ SENTRY_TEST(metrics_new_counter)
         const char *tag_key
             = sentry_value_as_string(sentry_value_get_by_key(tag_item, "key"));
         TEST_CHECK_STRING_EQUAL(tag_key, "key1");
-        const char *tag_val
-            = sentry_value_as_string(sentry_value_get_by_key(tag_item, "value"));
+        const char *tag_val = sentry_value_as_string(
+            sentry_value_get_by_key(tag_item, "value"));
         TEST_CHECK_STRING_EQUAL(tag_val, "val1");
     } else {
         TEST_CHECK(opaque_metric != NULL);
@@ -106,8 +106,7 @@ SENTRY_TEST(metrics_new_gauge)
 
 SENTRY_TEST(metrics_new_set)
 {
-    sentry_metric_t *opaque_metric
-        = sentry_metrics_new_set("set_metric", 1);
+    sentry_metric_t *opaque_metric = sentry_metrics_new_set("set_metric", 1);
 
     sentry_value_t metric;
     if (opaque_metric != NULL) {
