@@ -135,16 +135,20 @@ def test_multi_process(cmake):
     assert len(runs) == 0
 
 
-def run_crash_stdout_for(backend, cmake, example_args):
+def run_stdout_for(backend, cmake, example_args):
     tmp_path = cmake(
         ["sentry_example"],
         {"SENTRY_BACKEND": backend, "SENTRY_TRANSPORT": "none"},
     )
 
-    child = run(tmp_path, "sentry_example", ["attachment", "crash"] + example_args)
+    child = run(tmp_path, "sentry_example", example_args)
     assert child.returncode  # well, it's a crash after all
 
     return tmp_path, check_output(tmp_path, "sentry_example", ["stdout", "no-setup"])
+
+
+def run_crash_stdout_for(backend, cmake, example_args):
+    return run_stdout_for(backend, cmake, ["attachment", "crash"] + example_args)
 
 
 def test_inproc_crash_stdout(cmake):
@@ -190,6 +194,18 @@ def test_inproc_crash_stdout_before_send_and_on_crash(cmake):
     envelope = Envelope.deserialize(output)
     # but we expect no event modification from before_send() since setting on_crash() disables before_send()
     assert_no_before_send(envelope)
+
+    assert_crash_timestamp(has_files, tmp_path)
+    assert_meta(envelope, integration="inproc")
+    assert_breadcrumb(envelope)
+    assert_attachment(envelope)
+    assert_inproc_crash(envelope)
+
+
+def test_inproc_stack_overflow_stdout(cmake):
+    tmp_path, output = run_stdout_for("inproc", cmake, ["attachment", "stack-overflow"])
+
+    envelope = Envelope.deserialize(output)
 
     assert_crash_timestamp(has_files, tmp_path)
     assert_meta(envelope, integration="inproc")
@@ -252,4 +268,20 @@ def test_breakpad_crash_stdout_before_send_and_on_crash(cmake):
     assert_meta(envelope, integration="breakpad")
     assert_breadcrumb(envelope)
     assert_attachment(envelope)
+    assert_breakpad_crash(envelope)
+
+
+@pytest.mark.skipif(not has_breakpad, reason="test needs breakpad backend")
+def test_breakpad_stack_overflow_stdout(cmake):
+    tmp_path, output = run_stdout_for(
+        "breakpad", cmake, ["attachment", "stack-overflow"]
+    )
+
+    envelope = Envelope.deserialize(output)
+
+    assert_crash_timestamp(has_files, tmp_path)
+    assert_meta(envelope, integration="breakpad")
+    assert_breadcrumb(envelope)
+    assert_attachment(envelope)
+    assert_minidump(envelope)
     assert_breakpad_crash(envelope)
