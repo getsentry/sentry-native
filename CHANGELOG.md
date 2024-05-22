@@ -11,6 +11,11 @@
 
 - Add compile-time flag `SENTRY_TRANSPORT_COMPRESSION` description to the `README.md` file. ([#976](https://github.com/getsentry/sentry-native/pull/976))
 
+**Internal**:
+
+- Move sentry-android-ndk JNI related parts from sentry-java to sentry-native ([#944](https://github.com/getsentry/sentry-native/pull/944))
+  This will create a pre-built `io.sentry:sentry-native-ndk` maven artifact, suitable for being consumed by Android apps.
+
 **Thank you**:
 
 - [@AenBleidd](https://github.com/AenBleidd)

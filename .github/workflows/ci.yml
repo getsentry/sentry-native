@@ -121,8 +121,8 @@ jobs:
           submodules: recursive
       - uses: actions/setup-python@v4
         with:
-          python-version: '3.11'
-          cache: 'pip'
+          python-version: "3.11"
+          cache: "pip"
 
       - name: Installing Linux Dependencies
         if: ${{ runner.os == 'Linux' && !env['TEST_X86'] }}
@@ -149,7 +149,7 @@ jobs:
       - name: Expose llvm PATH for Mac
         if: ${{ runner.os == 'macOS' }}
         run: echo $(brew --prefix llvm@15)/bin >> $GITHUB_PATH
-      
+
       - name: Installing LLVM-MINGW Dependencies
         if: ${{ runner.os == 'Windows' && env['TEST_MINGW'] }}
         shell: powershell
@@ -203,15 +203,31 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Setup Java Version
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "17"
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@579fbbe7221704325eb4c4d4bf20c2b0859fba76 # pin@v3
+        with:
+          gradle-home-cache-cleanup: true
+
       - name: Create source archive
         run: |
           rm -rf build .c* .e* .git* scripts Makefile external/breakpad/src/tools external/breakpad/src/processor
           zip -r sentry-native.zip .
 
-      - name: Upload source artifact
-        uses: actions/upload-artifact@v3
+      - name: Build NDK artifacts
+        working-directory: ndk
+        run: ./gradlew clean distZip
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ github.sha }}
-          # When downloading artifacts, they are double-zipped:
-          # https://github.com/actions/upload-artifact#zipped-artifact-downloads
-          path: sentry-native.zip
+          if-no-files-found: error
+          path: |
+            ./*/build/distributions/*.zip
+            sentry-native.zip
