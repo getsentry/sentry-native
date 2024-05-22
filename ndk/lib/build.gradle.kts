@@ -78,14 +78,7 @@ android {
     lint {
         warningsAsErrors = true
         checkDependencies = true
-
-        // We run a full lint analysis as build part in CI, so skip vital checks for assemble tasks.
-        checkReleaseBuilds = false
-    }
-
-    // needed because of Kotlin 1.4.x
-    configurations.all {
-        resolutionStrategy.force("org.jetbrains:annotations:23.0.0")
+        checkReleaseBuilds = true
     }
 
     variantFilter {
