@@ -98,7 +98,7 @@ sentry_value_t sentry__ensure_event_id(
 /**
  * Sends statsd-encoded metrics to Sentry
  */
-void sentry__metrics_flush(const char *encodedMetrics);
+void sentry__metrics_flush(const char *encoded_metrics);
 
 /**
  * This will return an owned reference to the global options.

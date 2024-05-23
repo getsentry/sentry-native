@@ -573,12 +573,12 @@ fail:
 }
 
 sentry_envelope_t *
-sentry__prepare_metrics(const char *encodedMetrics)
+sentry__prepare_metrics(const char *encoded_metrics)
 {
     sentry_envelope_t *envelope = NULL;
 
     envelope = sentry__envelope_new();
-    if (!envelope || !sentry__envelope_add_metrics(envelope, encodedMetrics)) {
+    if (!envelope || !sentry__envelope_add_metrics(envelope, encoded_metrics)) {
         goto fail;
     }
 
@@ -1202,12 +1202,12 @@ sentry_metrics_capture(sentry_metric_t *metric)
 }
 
 void
-sentry__metrics_flush(const char *encodedMetrics)
+sentry__metrics_flush(const char *encoded_metrics)
 {
     sentry_envelope_t *envelope = NULL;
 
     SENTRY_WITH_OPTIONS (options) {
-        envelope = sentry__prepare_metrics(encodedMetrics);
+        envelope = sentry__prepare_metrics(encoded_metrics);
         if (envelope) {
             sentry__capture_envelope(options->transport, envelope);
         }
