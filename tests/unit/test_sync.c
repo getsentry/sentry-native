@@ -2,14 +2,6 @@
 #include "sentry_sync.h"
 #include "sentry_testsupport.h"
 
-#ifdef SENTRY_PLATFORM_WINDOWS
-#    include <windows.h>
-#    define sleep_s(SECONDS) Sleep((SECONDS)*1000)
-#else
-#    include <unistd.h>
-#    define sleep_s(SECONDS) sleep(SECONDS)
-#endif
-
 struct task_state {
     int executed;
     bool running;

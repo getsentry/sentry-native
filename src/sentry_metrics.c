@@ -9,14 +9,6 @@
 
 #include <stdlib.h>
 
-#ifdef SENTRY_PLATFORM_WINDOWS
-#    include <windows.h>
-#    define sleep_s(SECONDS) Sleep((SECONDS)*1000)
-#else
-#    include <unistd.h>
-#    define sleep_s(SECONDS) sleep(SECONDS)
-#endif
-
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 

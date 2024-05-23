@@ -33,6 +33,14 @@
 #    endif
 #    include <winnt.h>
 
+#ifdef SENTRY_PLATFORM_WINDOWS
+#    include <windows.h>
+#    define sleep_s(SECONDS) Sleep((SECONDS)*1000)
+#else
+#    include <unistd.h>
+#    define sleep_s(SECONDS) sleep(SECONDS)
+#endif
+
 #    if _WIN32_WINNT < 0x0600
 
 #        define INIT_ONCE_STATIC_INIT                                          \
