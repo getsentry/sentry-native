@@ -7,6 +7,7 @@ targets:
       github:getsentry/sentry-native:
       maven:io.sentry:sentry-native-ndk:
   - name: gcs
+    includeNames: /^(sentry-native\.zip)$/
     bucket: sentry-sdk-assets
     paths:
       - path: /sentry-native/{{version}}/
@@ -16,6 +17,7 @@ targets:
         metadata:
           cacheControl: public, max-age=600
   - name: maven
+    includeNames: /^(sentry-native-ndk-).*\.zip$/
     mavenCliPath: scripts/mvnw
     mavenSettingsPath: scripts/settings.xml
     mavenRepoId: ossrh
