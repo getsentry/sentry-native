@@ -358,11 +358,11 @@ sentry__metrics_get_metric_bucket_key(sentry_value_t metric)
     const char *metric_key
         = sentry_value_as_string(sentry_value_get_by_key(metric, "key"));
 
-    const char *unit_name = sentry_value_as_string(
-        sentry_value_get_by_key(metric, "unit"));
+    const char *unit_name
+        = sentry_value_as_string(sentry_value_get_by_key(metric, "unit"));
 
-    const char *serialized_tags = sentry__metrics_get_tags_key(
-        sentry_value_get_by_key(metric, "tags"));
+    const char *serialized_tags
+        = sentry__metrics_get_tags_key(sentry_value_get_by_key(metric, "tags"));
 
     size_t key_length = strlen(type_prefix) + strlen(metric_key)
         + strlen(unit_name) + strlen(serialized_tags) + 4;
@@ -432,8 +432,8 @@ void
 sentry__metrics_aggregator_add(const sentry_metrics_aggregator_t *aggregator,
     sentry_value_t metric, double value)
 {
-    uint64_t timestamp = sentry__iso8601_to_msec(sentry_value_as_string(
-        sentry_value_get_by_key(metric, "timestamp")));
+    uint64_t timestamp = sentry__iso8601_to_msec(
+        sentry_value_as_string(sentry_value_get_by_key(metric, "timestamp")));
 
     sentry_value_t bucket_key = sentry__metrics_get_bucket_key(timestamp);
 
@@ -644,8 +644,8 @@ sentry_metrics_emit_gauge(const char *key, double value, char *unit, ...)
         return;
     }
 
-    sentry_value_set_by_key(metric, "type",
-        sentry__metrics_type_to_string(SENTRY_METRIC_GAUGE));
+    sentry_value_set_by_key(
+        metric, "type", sentry__metrics_type_to_string(SENTRY_METRIC_GAUGE));
 
     sentry_value_t gauge_value = sentry_value_new_object();
     sentry_value_set_by_key(
@@ -693,8 +693,8 @@ sentry_metrics_emit_set(const char *key, int32_t value, char *unit, ...)
         return;
     }
 
-    sentry_value_set_by_key(metric, "type",
-        sentry__metrics_type_to_string(SENTRY_METRIC_SET));
+    sentry_value_set_by_key(
+        metric, "type", sentry__metrics_type_to_string(SENTRY_METRIC_SET));
 
     sentry_value_t set_values = sentry_value_new_list();
     sentry_value_append(set_values, sentry_value_new_int32(value));
