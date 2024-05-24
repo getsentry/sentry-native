@@ -27,7 +27,7 @@ static bool is_closed = false;
 
 sentry_bgworker_t *bgw = NULL;
 
-sentry_value_t
+static sentry_value_t
 sentry__metrics_type_to_string(sentry_metric_type_t type)
 {
     switch (type) {
@@ -45,7 +45,7 @@ sentry__metrics_type_to_string(sentry_metric_type_t type)
     }
 }
 
-const char *
+static const char *
 sentry__metrics_type_to_statsd(sentry_metric_type_t type)
 {
     switch (type) {
@@ -63,27 +63,22 @@ sentry__metrics_type_to_statsd(sentry_metric_type_t type)
     }
 }
 
-void
-sentry__metrics_type_from_string(
-    sentry_value_t type, sentry_metric_type_t *metric_type)
+static sentry_metric_type_t
+sentry__metrics_type_from_string(sentry_value_t type)
 {
     const char *type_str = sentry_value_as_string(type);
 
-    switch (*type_str) {
-    case 'c':
-        *metric_type = SENTRY_METRIC_COUNTER;
-        break;
-    case 'd':
-        *metric_type = SENTRY_METRIC_DISTRIBUTION;
-        break;
-    case 'g':
-        *metric_type = SENTRY_METRIC_GAUGE;
-        break;
-    case 's':
-        *metric_type = SENTRY_METRIC_SET;
-        break;
-    default:
+    if (sentry__string_eq(type_str, "counter")) {
+        return SENTRY_METRIC_COUNTER;
+    } else if (sentry__string_eq(type_str, "distribution")) {
+        return SENTRY_METRIC_DISTRIBUTION;
+    } else if (sentry__string_eq(type_str, "gauge")) {
+        return SENTRY_METRIC_GAUGE;
+    } else if (sentry__string_eq(type_str, "set")) {
+        return SENTRY_METRIC_SET;
+    } else {
         assert(!"invalid metric type");
+        return -1;
     }
 }
 
@@ -350,9 +345,8 @@ sentry__metrics_get_tags_key(sentry_value_t tags)
 char *
 sentry__metrics_get_metric_bucket_key(sentry_value_t metric)
 {
-    sentry_metric_type_t metric_type;
-    sentry__metrics_type_from_string(
-        sentry_value_get_by_key(metric, "type"), &metric_type);
+    sentry_metric_type_t metric_type = sentry__metrics_type_from_string(
+        sentry_value_get_by_key(metric, "type"));
     const char *type_prefix = sentry__metrics_type_to_statsd(metric_type);
 
     const char *metric_key
@@ -456,9 +450,8 @@ sentry__metrics_aggregator_add(const sentry_metrics_aggregator_t *aggregator,
             sentry_value_get_by_key(bucket, "metrics"), new_bucket_item);
         added_weight = sentry__metrics_get_weight(metric);
     } else {
-        sentry_metric_type_t metric_type;
-        sentry__metrics_type_from_string(
-            sentry_value_get_by_key(metric, "type"), &metric_type);
+        sentry_metric_type_t metric_type = sentry__metrics_type_from_string(
+            sentry_value_get_by_key(metric, "type"));
         switch (metric_type) {
         case SENTRY_METRIC_COUNTER:
             sentry__metrics_increment_add(existing_metric, value);
@@ -755,9 +748,8 @@ sentry__metrics_encode_statsd(sentry_value_t buckets)
             sentry_value_t metric_value
                 = sentry_value_get_by_key(metric, "value");
 
-            sentry_metric_type_t metric_type;
-            sentry__metrics_type_from_string(
-                sentry_value_get_by_key(metric, "type"), &metric_type);
+            sentry_metric_type_t metric_type = sentry__metrics_type_from_string(
+                sentry_value_get_by_key(metric, "type"));
 
             switch (metric_type) {
             case SENTRY_METRIC_COUNTER:
@@ -861,9 +853,8 @@ sentry__metrics_get_weight(sentry_value_t metric)
 {
     int32_t weight;
 
-    sentry_metric_type_t metric_type;
-    sentry__metrics_type_from_string(
-        sentry_value_get_by_key(metric, "type"), &metric_type);
+    sentry_metric_type_t metric_type = sentry__metrics_type_from_string(
+        sentry_value_get_by_key(metric, "type"));
 
     switch (metric_type) {
     case SENTRY_METRIC_COUNTER:
