@@ -2090,7 +2090,7 @@ SENTRY_EXPERIMENTAL_API const char *sentry_sdk_user_agent(void);
  * See https://develop.sentry.dev/delightful-developer-metrics/
  */
 SENTRY_EXPERIMENTAL_API void sentry_metrics_emit_increment(
-    const char *key, double value, char *unit, ...);
+    const char *key, double value, const char *unit, ...);
 
 /**
  * Emits a distribution metric.
@@ -2105,7 +2105,7 @@ SENTRY_EXPERIMENTAL_API void sentry_metrics_emit_increment(
  * See https://develop.sentry.dev/delightful-developer-metrics/
  */
 SENTRY_EXPERIMENTAL_API void sentry_metrics_emit_distribution(
-    const char *key, double value, char *unit, ...);
+    const char *key, double value, const char *unit, ...);
 
 /**
  * Emits a gauge metric.
@@ -2123,7 +2123,7 @@ SENTRY_EXPERIMENTAL_API void sentry_metrics_emit_distribution(
  * See https://develop.sentry.dev/delightful-developer-metrics/
  */
 SENTRY_EXPERIMENTAL_API void sentry_metrics_emit_gauge(
-    const char *key, double value, char *unit, ...);
+    const char *key, double value, const char *unit, ...);
 
 /**
  * Emits a set metric.
@@ -2141,7 +2141,7 @@ SENTRY_EXPERIMENTAL_API void sentry_metrics_emit_gauge(
  * See https://develop.sentry.dev/delightful-developer-metrics/
  */
 SENTRY_EXPERIMENTAL_API void sentry_metrics_emit_set(
-    const char *key, int32_t value, char *unit, ...);
+    const char *key, int32_t value, const char *unit, ...);
 
 #ifdef __cplusplus
 }
