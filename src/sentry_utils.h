@@ -97,10 +97,10 @@ char *sentry__dsn_get_minidump_url(
     const sentry_dsn_t *dsn, const char *user_agent);
 
 /**
- * Returns the number of milliseconds since the unix epoch.
+ * Returns the number of microseconds since the unix epoch.
  */
 static inline uint64_t
-sentry__msec_time(void)
+sentry__usec_time(void)
 {
 #ifdef SENTRY_PLATFORM_WINDOWS
     // Contains a 64-bit value representing the number of 100-nanosecond
@@ -113,13 +113,13 @@ sentry__msec_time(void)
     uint64_t timestamp = (uint64_t)file_time.dwLowDateTime
         + ((uint64_t)file_time.dwHighDateTime << 32);
     timestamp -= 116444736000000000LL; // convert to unix epoch
-    timestamp /= 10000LL; // 100ns -> 1ms
+    timestamp /= 10LL; // 100ns -> 1us
 
     return timestamp;
 #else
     struct timeval tv;
     return (gettimeofday(&tv, NULL) == 0)
-        ? (uint64_t)tv.tv_sec * 1000 + tv.tv_usec / 1000
+        ? (uint64_t)tv.tv_sec * 1000000 + tv.tv_usec
         : 0;
 #endif
 }
@@ -180,16 +180,16 @@ sentry__monotonic_time(void)
 }
 
 /**
- * Formats a timestamp (milliseconds since epoch) into ISO8601 format.
+ * Formats a timestamp (microseconds since epoch) into ISO8601 format.
  */
-char *sentry__msec_time_to_iso8601(uint64_t time);
+char *sentry__usec_time_to_iso8601(uint64_t time);
 
 /**
- * Parses a ISO8601 formatted string into a millisecond resolution timestamp.
- * This only accepts the format `YYYY-MM-DD'T'hh:mm:ss(.zzz)'Z'`, which is
- * produced by the `sentry__msec_time_to_iso8601` function.
+ * Parses a ISO8601 formatted string into a microsecond resolution timestamp.
+ * This only accepts the format `YYYY-MM-DD'T'hh:mm:ss(.zzzzzz)'Z'`, which is
+ * produced by the `sentry__usec_time_to_iso8601` function.
  */
-uint64_t sentry__iso8601_to_msec(const char *iso);
+uint64_t sentry__iso8601_to_usec(const char *iso);
 
 /**
  * Locale independent (or rather, using "C" locale) `strtod`.

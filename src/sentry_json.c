@@ -278,9 +278,9 @@ sentry__jsonwriter_write_uuid(
 }
 
 void
-sentry__jsonwriter_write_msec_timestamp(sentry_jsonwriter_t *jw, uint64_t time)
+sentry__jsonwriter_write_usec_timestamp(sentry_jsonwriter_t *jw, uint64_t time)
 {
-    char *formatted = sentry__msec_time_to_iso8601(time);
+    char *formatted = sentry__usec_time_to_iso8601(time);
     sentry__jsonwriter_write_str(jw, formatted);
     sentry_free(formatted);
 }
@@ -433,7 +433,7 @@ tokens_to_value(jsmntok_t *tokens, size_t token_count, const char *buf,
     do {                                                                       \
         size_t child_consumed = tokens_to_value(                               \
             tokens + offset, token_count - offset, buf, Target);               \
-        if (child_consumed == (size_t)-1) {                                    \
+        if (child_consumed == (size_t) - 1) {                                  \
             goto error;                                                        \
         }                                                                      \
         offset += child_consumed;                                              \

@@ -288,7 +288,7 @@ sentry__envelope_add_transaction(
     sentry_value_t now = sentry_value_new_string("2021-12-16T05:53:59.343Z");
 #else
     sentry_value_t now = sentry__value_new_string_owned(
-        sentry__msec_time_to_iso8601(sentry__msec_time()));
+        sentry__usec_time_to_iso8601(sentry__usec_time()));
 #endif
     sentry__envelope_set_header(envelope, "sent_at", now);
 
