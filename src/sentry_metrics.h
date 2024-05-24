@@ -15,15 +15,6 @@ typedef enum sentry_metric_type_e {
 } sentry_metric_type_t;
 
 /**
- * A metric.
- */
-typedef struct sentry_metric_s {
-    sentry_value_t inner;
-    sentry_metric_type_t type;
-    double value;
-} sentry_metric_t;
-
-/**
  * A metrics aggregator.
  */
 typedef struct sentry_metrics_aggregator_s {
@@ -53,12 +44,11 @@ void sentry__metrics_aggregator_cleanup(void);
 void sentry__metrics_schedule_flush(int32_t delay);
 
 void sentry__metrics_aggregator_add(
-    const sentry_metrics_aggregator_t *aggregator, sentry_metric_t *metric);
+    const sentry_metrics_aggregator_t *aggregator, sentry_value_t metric,
+    double value);
 
 void sentry__metrics_aggregator_flush(
     const sentry_metrics_aggregator_t *aggregator, bool force);
-
-void sentry__metric_free(sentry_metric_t *metric);
 
 void sentry__metrics_increment_add(sentry_value_t metric, double value);
 void sentry__metrics_distribution_add(sentry_value_t metric, double value);

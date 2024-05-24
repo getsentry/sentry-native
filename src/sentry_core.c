@@ -1193,15 +1193,6 @@ sentry_clear_crashed_last_run(void)
 }
 
 void
-sentry_metrics_capture(sentry_metric_t *metric)
-{
-    SENTRY_WITH_METRICS_AGGREGATOR(aggregator)
-    {
-        sentry__metrics_aggregator_add(aggregator, metric);
-    }
-}
-
-void
 sentry__metrics_flush(const char *encoded_metrics)
 {
     sentry_envelope_t *envelope = NULL;
