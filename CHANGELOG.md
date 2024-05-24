@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- Change the timestamp resolution to microseconds. ([#995](https://github.com/getsentry/sentry-native/pull/995))
+
 ## 0.7.4
 
 **Fixes**:
