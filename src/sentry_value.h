@@ -105,6 +105,10 @@ int sentry__value_append_bounded(
  */
 int sentry__value_merge_objects(sentry_value_t dst, sentry_value_t src);
 
+sentry_value_t
+sentry__value_filter_list(sentry_value_t list, bool (*filter)(
+    sentry_value_t value, sentry_value_t context), sentry_value_t context);
+
 /**
  * Parse the given JSON string into a new Value.
  */

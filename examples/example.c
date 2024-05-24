@@ -398,6 +398,12 @@ main(int argc, char **argv)
         sentry_transaction_t *tx
             = sentry_transaction_start(tx_ctx, sentry_value_new_null());
 
+#if 1
+        sentry_value_t default_crumb
+            = sentry_value_new_breadcrumb(NULL, "I crumb inside a txn");
+        sentry_add_breadcrumb(default_crumb);
+#endif
+
         sentry_transaction_set_data(
             tx, "url", sentry_value_new_string("https://example.com"));
 

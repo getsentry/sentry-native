@@ -418,6 +418,28 @@ sentry__value_new_object_with_size(size_t size)
     }
 }
 
+sentry_value_t
+sentry__value_filter_list(sentry_value_t list,
+    bool (*filter)(sentry_value_t value, sentry_value_t context),
+    sentry_value_t context)
+{
+    thing_t *thing = value_as_thing(list);
+    if (!thing || thing_get_type(thing) != THING_TYPE_LIST) {
+        return sentry_value_new_null();
+    }
+
+    sentry_value_t result = sentry_value_new_list();
+    const list_t *l = thing->payload._ptr;
+    for (size_t i = 0; i < l->len; i++) {
+        if (filter(l->items[i], context)) {
+            sentry_value_incref(l->items[i]);
+            sentry_value_append(result, l->items[i]);
+        }
+    }
+
+    return result;
+}
+
 sentry_value_type_t
 sentry_value_get_type(sentry_value_t value)
 {

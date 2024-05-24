@@ -519,6 +519,23 @@ fail:
     return NULL;
 }
 
+static bool
+filter_breadcrumbs_outside_txn_bounds(
+    sentry_value_t breadcrumb, sentry_value_t txn)
+{
+    const uint64_t breadcrumb_ts
+        = sentry__iso8601_to_usec(sentry_value_as_string(
+            sentry_value_get_by_key(breadcrumb, "timestamp")));
+
+    const uint64_t txn_start = sentry__iso8601_to_usec(sentry_value_as_string(
+        sentry_value_get_by_key(txn, "start_timestamp")));
+
+    const uint64_t txn_end = sentry__iso8601_to_usec(
+        sentry_value_as_string(sentry_value_get_by_key(txn, "timestamp")));
+
+    return breadcrumb_ts >= txn_start && breadcrumb_ts <= txn_end;
+}
+
 sentry_envelope_t *
 sentry__prepare_transaction(const sentry_options_t *options,
     sentry_value_t transaction, sentry_uuid_t *event_id)
@@ -529,8 +546,13 @@ sentry__prepare_transaction(const sentry_options_t *options,
         SENTRY_TRACE("merging scope into transaction");
         // Don't include debugging info
         sentry_scope_mode_t mode = SENTRY_SCOPE_ALL & ~SENTRY_SCOPE_MODULES
-            & ~SENTRY_SCOPE_STACKTRACES;
+            & ~SENTRY_SCOPE_STACKTRACES & ~SENTRY_SCOPE_BREADCRUMBS;
         sentry__scope_apply_to_event(scope, options, transaction, mode);
+
+        // Only add breadcrumbs within the transaction-bounds
+        sentry_value_set_by_key(transaction, "breadcrumbs",
+            sentry__value_filter_list(scope->breadcrumbs,
+                filter_breadcrumbs_outside_txn_bounds, transaction));
     }
 
     sentry__ensure_event_id(transaction, event_id);
