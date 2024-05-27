@@ -374,11 +374,11 @@ sentry__dsn_get_minidump_url(const sentry_dsn_t *dsn, const char *user_agent)
 }
 
 char *
-sentry__msec_time_to_iso8601(uint64_t time)
+sentry__usec_time_to_iso8601(uint64_t time)
 {
     char buf[64];
     size_t buf_len = sizeof(buf);
-    time_t secs = time / 1000;
+    time_t secs = time / 1000000;
     struct tm *tm;
 #ifdef SENTRY_PLATFORM_WINDOWS
     tm = gmtime(&secs);
@@ -397,10 +397,10 @@ sentry__msec_time_to_iso8601(uint64_t time)
         return NULL;
     }
 
-    int msecs = time % 1000;
-    if (msecs) {
+    int usecs = time % 1000000;
+    if (usecs) {
         size_t rv = (size_t)snprintf(
-            buf + written, buf_len - written, ".%03d", msecs);
+            buf + written, buf_len - written, ".%06d", usecs);
         if (rv >= buf_len - written) {
             return NULL;
         }
@@ -416,14 +416,14 @@ sentry__msec_time_to_iso8601(uint64_t time)
 }
 
 uint64_t
-sentry__iso8601_to_msec(const char *iso)
+sentry__iso8601_to_usec(const char *iso)
 {
     size_t len = strlen(iso);
-    if (len != 20 && len != 24) {
+    if (len != 20 && len != 27) {
         return 0;
     }
     // The code is adapted from: https://stackoverflow.com/a/26896792
-    int y, M, d, h, m, s, msec = 0;
+    int y, M, d, h, m, s, usec = 0;
     int consumed = 0;
     if (sscanf(iso, "%d-%d-%dT%d:%d:%d%n", &y, &M, &d, &h, &m, &s, &consumed)
             < 6
@@ -431,9 +431,10 @@ sentry__iso8601_to_msec(const char *iso)
         return 0;
     }
     iso += consumed;
-    // we optionally have millisecond precision
+    // we optionally have microsecond precision
     if (iso[0] == '.') {
-        if (sscanf(iso, ".%d%n", &msec, &consumed) < 1 || consumed != 4) {
+        if (sscanf(iso, ".%d%n", &usec, &consumed) < 1 || consumed != 7) {
+            printf("consumed = %d\n", consumed);
             return 0;
         }
         iso += consumed;
@@ -482,7 +483,7 @@ sentry__iso8601_to_msec(const char *iso)
         return 0;
     }
 
-    return (uint64_t)time * 1000 + msec;
+    return (uint64_t)time * 1000000 + usec;
 }
 
 #ifdef SENTRY_PLATFORM_WINDOWS

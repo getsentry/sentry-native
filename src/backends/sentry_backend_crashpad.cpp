@@ -554,7 +554,7 @@ report_crash_time(
     // can have a session that starts at, e.g. `0.471`, whereas the crashpad
     // report will be `0`, which would mean our heuristic does not trigger due
     // to rounding.
-    uint64_t time = ((uint64_t)report.creation_time + 1) * 1000;
+    uint64_t time = (static_cast<uint64_t>(report.creation_time) + 1) * 1000000;
     if (time > *crash_time) {
         *crash_time = time;
     }

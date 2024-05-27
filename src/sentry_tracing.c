@@ -327,7 +327,7 @@ sentry__value_span_new_n(size_t max_spans, sentry_value_t parent,
         sentry_value_new_string_n(description.ptr, description.len));
     sentry_value_set_by_key(child, "start_timestamp",
         sentry__value_new_string_owned(
-            sentry__msec_time_to_iso8601(sentry__msec_time())));
+            sentry__usec_time_to_iso8601(sentry__usec_time())));
 
     return child;
 fail:
