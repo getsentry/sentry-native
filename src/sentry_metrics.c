@@ -249,7 +249,7 @@ sentry__metrics_aggregator_cleanup(void)
     if (g_aggregator_initialized) {
         g_aggregator_initialized = false;
         sentry_value_decref(g_aggregator.buckets);
-        sentry__bgworker_shutdown(g_metrics_bgw, 1000);
+        sentry__bgworker_shutdown(g_metrics_bgw, 1000000);
         sentry__bgworker_decref(g_metrics_bgw);
         g_is_closed = true;
     }
@@ -259,7 +259,7 @@ sentry__metrics_aggregator_cleanup(void)
 sentry_value_t
 sentry__metrics_get_bucket_key(uint64_t timestamp)
 {
-    uint64_t seconds = timestamp / 1000;
+    uint64_t seconds = timestamp / 1000000;
     uint64_t bucketKey = (seconds / ROLLUP_IN_SECONDS) * ROLLUP_IN_SECONDS;
 
     char buf[20 + 1];
@@ -278,13 +278,13 @@ sentry__metrics_get_cutoff_timestamp(uint64_t timestamp)
     uint64_t rnd;
     sentry__getrandom(&rnd, sizeof(rnd));
 
-    uint64_t flushShiftMs = (uint64_t)((double)rnd / (double)UINT64_MAX
-        * ROLLUP_IN_SECONDS * 1000);
+    uint64_t flushShiftUs = (uint64_t)((double)rnd / (double)UINT64_MAX
+        * ROLLUP_IN_SECONDS * 1000000);
 
     uint64_t cutoff_timestamp
-        = timestamp - ROLLUP_IN_SECONDS * 1000 - flushShiftMs;
+        = timestamp - ROLLUP_IN_SECONDS * 1000000 - flushShiftUs;
 
-    uint64_t seconds = cutoff_timestamp / 1000;
+    uint64_t seconds = cutoff_timestamp / 1000000;
 
     return (seconds / ROLLUP_IN_SECONDS) * ROLLUP_IN_SECONDS;
 }
@@ -432,7 +432,7 @@ void
 sentry__metrics_aggregator_add(const sentry_metrics_aggregator_t *aggregator,
     sentry_value_t metric, double value)
 {
-    uint64_t timestamp = sentry__iso8601_to_msec(
+    uint64_t timestamp = sentry__iso8601_to_usec(
         sentry_value_as_string(sentry_value_get_by_key(metric, "timestamp")));
 
     sentry_value_t bucket_key = sentry__metrics_get_bucket_key(timestamp);
@@ -503,7 +503,7 @@ sentry__metrics_aggregator_flush(
     sentry_value_t flushable_buckets = sentry_value_new_list();
 
     uint64_t cutoff_timestamp
-        = sentry__metrics_get_cutoff_timestamp(sentry__msec_time());
+        = sentry__metrics_get_cutoff_timestamp(sentry__usec_time());
 
     size_t buckets_len = sentry_value_get_length(aggregator->buckets);
 
@@ -540,7 +540,7 @@ sentry__value_metric_new_n(sentry_slice_t name)
 
     sentry_value_set_by_key(metric, "timestamp",
         sentry__value_new_string_owned(
-            sentry__msec_time_to_iso8601(sentry__msec_time())));
+            sentry__usec_time_to_iso8601(sentry__usec_time())));
 
     sentry_value_set_by_key(metric, "unit", sentry_value_new_string("none"));
 
@@ -784,9 +784,9 @@ sentry__metrics_encode_statsd(sentry_value_t buckets)
 
             sentry__stringbuilder_append(&statsd, "|T");
 
-            uint64_t timestamp = sentry__iso8601_to_msec(sentry_value_as_string(
+            uint64_t timestamp = sentry__iso8601_to_usec(sentry_value_as_string(
                 sentry_value_get_by_key(metric, "timestamp")));
-            sentry__metrics_timestamp_serialize(&statsd, timestamp / 1000);
+            sentry__metrics_timestamp_serialize(&statsd, timestamp / 1000000);
 
             sentry__stringbuilder_append(&statsd, "\n");
         }
