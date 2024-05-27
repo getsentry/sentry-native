@@ -6,12 +6,12 @@ SENTRY_TEST(metrics_name_sanitize)
     char *name1 = sentry__metrics_sanitize_name("foo-bar");
     char *name2 = sentry__metrics_sanitize_name("foo\\!,bar");
     char *name3 = sentry__metrics_sanitize_name("fo%-bar");
-    //char *name4 = sentry__metrics_sanitize_name("fôo-bär");
+    // char *name4 = sentry__metrics_sanitize_name("fôo-bär");
 
     TEST_CHECK_STRING_EQUAL(name1, "foo-bar");
     TEST_CHECK_STRING_EQUAL(name2, "foo\\__bar");
     TEST_CHECK_STRING_EQUAL(name3, "fo_-bar");
-    //TEST_CHECK_STRING_EQUAL(name4, "f_o-b_r");
+    // TEST_CHECK_STRING_EQUAL(name4, "f_o-b_r");
 
     sentry_free(name1);
     sentry_free(name2);

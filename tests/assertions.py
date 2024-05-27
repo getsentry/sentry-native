@@ -50,6 +50,42 @@ def assert_user_feedback(envelope):
     assert user_feedback["comments"] == "some-comment"
 
 
+def assert_metrics_increment(envelope):
+    inc_metric = None
+    for item in envelope:
+        if item.headers.get("type") == "statsd":
+            inc_metric = item.payload
+
+    assert inc_metric is not None
+
+
+def assert_metrics_distribution(envelope):
+    dist_metric = None
+    for item in envelope:
+        if item.headers.get("type") == "statsd":
+            dist_metric = item.payload
+
+    assert dist_metric is not None
+
+
+def assert_metrics_gauge(envelope):
+    gauge_metric = None
+    for item in envelope:
+        if item.headers.get("type") == "statsd":
+            gauge_metric = item.payload
+
+    assert gauge_metric is not None
+
+
+def assert_metrics_set(envelope):
+    set_metric = None
+    for item in envelope:
+        if item.headers.get("type") == "statsd":
+            set_metric = item.payload
+
+    assert set_metric is not None
+
+
 def assert_meta(
     envelope,
     release="test-example-release",

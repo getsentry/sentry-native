@@ -17,6 +17,10 @@ from .assertions import (
     assert_inproc_crash,
     assert_session,
     assert_user_feedback,
+    assert_metrics_increment,
+    assert_metrics_distribution,
+    assert_metrics_gauge,
+    assert_metrics_set,
     assert_minidump,
     assert_breakpad_crash,
     assert_gzip_content_encoding,
@@ -161,6 +165,101 @@ def test_user_feedback_http(cmake, httpserver):
     envelope = Envelope.deserialize(output)
 
     assert_user_feedback(envelope)
+
+def test_metrics_increment_http(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+
+    httpserver.expect_request(
+        "/api/123456/envelope/",
+        headers={"x-sentry-auth": auth_header},
+    ).respond_with_data("OK")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "metrics-emit-increment"],
+        check=True,
+        env=env,
+    )
+
+    assert len(httpserver.log) == 1
+    output = httpserver.log[0][0].get_data()
+    envelope = Envelope.deserialize(output)
+
+    assert_metrics_increment(envelope)
+
+
+def test_metrics_distribution_http(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+
+    httpserver.expect_request(
+        "/api/123456/envelope/",
+        headers={"x-sentry-auth": auth_header},
+    ).respond_with_data("OK")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "metrics-emit-distribution"],
+        check=True,
+        env=env,
+    )
+
+    assert len(httpserver.log) == 1
+    output = httpserver.log[0][0].get_data()
+    envelope = Envelope.deserialize(output)
+
+    assert_metrics_distribution(envelope)
+
+
+def test_metrics_gauge_http(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+
+    httpserver.expect_request(
+        "/api/123456/envelope/",
+        headers={"x-sentry-auth": auth_header},
+    ).respond_with_data("OK")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "metrics-emit-gauge"],
+        check=True,
+        env=env,
+    )
+
+    assert len(httpserver.log) == 1
+    output = httpserver.log[0][0].get_data()
+    envelope = Envelope.deserialize(output)
+
+    assert_metrics_gauge(envelope)
+
+
+def test_metrics_set_http(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+
+    httpserver.expect_request(
+        "/api/123456/envelope/",
+        headers={"x-sentry-auth": auth_header},
+    ).respond_with_data("OK")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "metrics-emit-set"],
+        check=True,
+        env=env,
+    )
+
+    assert len(httpserver.log) == 1
+    output = httpserver.log[0][0].get_data()
+    envelope = Envelope.deserialize(output)
+
+    assert_metrics_set(envelope)
 
 
 def test_exception_and_session_http(cmake, httpserver):
