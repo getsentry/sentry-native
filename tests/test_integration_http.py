@@ -31,7 +31,7 @@ from .conditions import has_http, has_breakpad, has_files
 pytestmark = pytest.mark.skipif(not has_http, reason="tests need http")
 
 auth_header = (
-    "Sentry sentry_key=uiaeosnrtdy, sentry_version=7, sentry_client=sentry.native/0.7.2"
+    "Sentry sentry_key=uiaeosnrtdy, sentry_version=7, sentry_client=sentry.native/0.7.4"
 )
 
 
@@ -638,7 +638,11 @@ def test_transaction_only(cmake, httpserver, build_args):
     envelope.print_verbose()
 
     # The transaction is overwritten.
-    assert_meta(envelope, transaction="little.teapot")
+    assert_meta(
+        envelope,
+        transaction="little.teapot",
+        transaction_data={"url": "https://example.com"},
+    )
 
     # Extract the one-and-only-item
     (event,) = envelope.items

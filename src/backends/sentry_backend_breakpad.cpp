@@ -7,6 +7,9 @@ extern "C" {
 #include "sentry_database.h"
 #include "sentry_envelope.h"
 #include "sentry_options.h"
+#ifdef SENTRY_PLATFORM_WINDOWS
+#    include "sentry_os.h"
+#endif
 #include "sentry_path.h"
 #include "sentry_string.h"
 #include "sentry_sync.h"
@@ -209,6 +212,7 @@ sentry__breakpad_backend_startup(
     sentry_path_t *current_run_folder = options->run->run_path;
 
 #ifdef SENTRY_PLATFORM_WINDOWS
+    sentry__reserve_thread_stack();
     backend->data = new google_breakpad::ExceptionHandler(
         current_run_folder->path, NULL, sentry__breakpad_backend_callback, NULL,
         google_breakpad::ExceptionHandler::HANDLER_EXCEPTION);

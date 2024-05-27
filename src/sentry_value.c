@@ -1121,7 +1121,7 @@ sentry_value_new_event(void)
 
     sentry_value_set_by_key(rv, "timestamp",
         sentry__value_new_string_owned(
-            sentry__msec_time_to_iso8601(sentry__msec_time())));
+            sentry__usec_time_to_iso8601(sentry__usec_time())));
 
     sentry_value_set_by_key(rv, "platform", sentry_value_new_string("native"));
 
@@ -1162,7 +1162,7 @@ timestamp_value(sentry_value_t value)
 {
     sentry_value_set_by_key(value, "timestamp",
         sentry__value_new_string_owned(
-            sentry__msec_time_to_iso8601(sentry__msec_time())));
+            sentry__usec_time_to_iso8601(sentry__usec_time())));
 }
 
 sentry_value_t
