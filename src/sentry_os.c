@@ -1,7 +1,9 @@
 #include "sentry_os.h"
 #include "sentry_slice.h"
 #include "sentry_string.h"
+#ifdef SENTRY_PLATFORM_LINUX
 #include "sentry_utils.h"
+#endif
 
 #ifdef SENTRY_PLATFORM_WINDOWS
 
