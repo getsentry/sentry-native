@@ -20,12 +20,12 @@ static bool g_aggregator_initialized = false;
 static sentry_metrics_aggregator_t g_aggregator = { 0 };
 static sentry_mutex_t g_aggregator_lock = SENTRY__MUTEX_INIT;
 
-static int32_t total_buckets_weight = 0;
-static bool is_flush_scheduled = false;
+static int32_t g_total_buckets_weight = 0;
+static bool g_is_flush_scheduled = false;
 
-static bool is_closed = false;
+static bool g_is_closed = false;
 
-sentry_bgworker_t *bgw = NULL;
+static sentry_bgworker_t *g_metrics_bgw = NULL;
 
 static sentry_value_t
 sentry__metrics_type_to_string(sentry_metric_type_t type)
@@ -217,8 +217,8 @@ get_metrics_aggregator(void)
     g_aggregator.buckets = sentry_value_new_list();
     g_aggregator_initialized = true;
 
-    bgw = sentry__bgworker_new(NULL, NULL);
-    sentry__bgworker_start(bgw);
+    g_metrics_bgw = sentry__bgworker_new(NULL, NULL);
+    sentry__bgworker_start(g_metrics_bgw);
 
     return &g_aggregator;
 }
@@ -243,9 +243,9 @@ sentry__metrics_aggregator_cleanup(void)
     if (g_aggregator_initialized) {
         g_aggregator_initialized = false;
         sentry_value_decref(g_aggregator.buckets);
-        sentry__bgworker_shutdown(bgw, 1000);
-        sentry__bgworker_decref(bgw);
-        is_closed = true;
+        sentry__bgworker_shutdown(g_metrics_bgw, 1000);
+        sentry__bgworker_decref(g_metrics_bgw);
+        g_is_closed = true;
     }
     sentry__mutex_unlock(&g_aggregator_lock);
 }
@@ -400,7 +400,7 @@ metric_flush_task(void *data, void *UNUSED(state))
         sentry__metrics_aggregator_flush(aggregator, false);
     }
 
-    if (!is_closed) {
+    if (!g_is_closed) {
         sentry__metrics_schedule_flush(FLUSHER_SLEEP_TIME_SEC);
     }
 }
@@ -418,8 +418,8 @@ sentry__metrics_schedule_flush(int32_t delay)
     sentry_metric_flush_task_t *flush_task
         = sentry_malloc(sizeof(sentry_metric_flush_task_t));
     flush_task->delay = delay;
-    sentry__bgworker_submit(
-        bgw, metric_flush_task, metric_flush_cleanup_task, flush_task);
+    sentry__bgworker_submit(g_metrics_bgw, metric_flush_task,
+        metric_flush_cleanup_task, flush_task);
 }
 
 void
@@ -471,14 +471,14 @@ sentry__metrics_aggregator_add(const sentry_metrics_aggregator_t *aggregator,
         added_weight = sentry__metrics_get_weight(existing_metric);
     }
 
-    total_buckets_weight += added_weight;
+    g_total_buckets_weight += added_weight;
 
     sentry_free(metric_bucket_key);
 
     bool is_owerweight = sentry__metrics_is_overweight(aggregator);
 
-    if (is_owerweight || !is_flush_scheduled) {
-        is_flush_scheduled = true;
+    if (is_owerweight || !g_is_flush_scheduled) {
+        g_is_flush_scheduled = true;
 
         int32_t delay = is_owerweight ? 0 : FLUSHER_SLEEP_TIME_SEC;
 
@@ -512,7 +512,7 @@ sentry__metrics_aggregator_flush(
 
         if (force || bucket_timestamp < cutoff_timestamp) {
             sentry_value_append(flushable_buckets, bucket);
-            total_buckets_weight -= sentry__metrics_get_bucket_weight(bucket);
+            g_total_buckets_weight -= sentry__metrics_get_bucket_weight(bucket);
             sentry_value_remove_by_index(aggregator->buckets, i);
         }
     }
@@ -899,7 +899,7 @@ bool
 sentry__metrics_is_overweight(const sentry_metrics_aggregator_t *aggregator)
 {
     int32_t total_weight = (int32_t)sentry_value_get_length(aggregator->buckets)
-        + total_buckets_weight;
+        + g_total_buckets_weight;
     return total_weight >= MAX_TOTAL_WEIGHT;
 }
 
