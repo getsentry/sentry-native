@@ -56,6 +56,7 @@ The SDK bundle contains the following folders:
   directory or copy the header file to your source tree so that it is available
   during the build.
 - `src`: Sources of the Sentry SDK required for building.
+- `ndk`: Sources for the Android NDK JNI layer.
 
 ## Platform and Feature Support
 
@@ -122,11 +123,14 @@ Please refer to the CMake Manual for more details.
 **Android**:
 
 The CMake project can also be configured to correctly work with the Android NDK,
-see the dedicated [CMake Guide] for details on how to integrate it with gradle
+see the dedicated [CMake Guide] for details on how to integrate it with Gradle
 or use it on the command line.
+
+The `ndk` folder provides Gradle project which adds a Java JNI layer for Android, suitable for accessing the sentry-native SDK from Java. See the [NDK Readme] for more details about this topic.
 
 [cmake]: https://cmake.org/cmake/help/latest/
 [cmake guide]: https://developer.android.com/ndk/guides/cmake
+[NDK Readme]: ndk/README.md
 
 **MinGW**:
 

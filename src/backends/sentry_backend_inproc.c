@@ -6,6 +6,9 @@
 #include "sentry_database.h"
 #include "sentry_envelope.h"
 #include "sentry_options.h"
+#if defined(SENTRY_PLATFORM_WINDOWS)
+#    include "sentry_os.h"
+#endif
 #include "sentry_scope.h"
 #include "sentry_sync.h"
 #include "sentry_transport.h"
@@ -34,10 +37,6 @@
  * Both breakpad and crashpad are way more defensive in the setup of their
  * signal stacks and take existing stacks into account (or reuse them).
  */
-#ifndef SENTRY_PLATFORM_ANDROID
-#    define SETUP_SIGALTSTACK
-#endif
-
 #define SIGNAL_DEF(Sig, Desc)                                                  \
     {                                                                          \
         Sig, #Sig, Desc                                                        \
@@ -57,9 +56,7 @@ struct signal_slot {
 #    define SIGNAL_STACK_SIZE 65536
 static struct sigaction g_sigaction;
 static struct sigaction g_previous_handlers[SIGNAL_COUNT];
-#    ifdef SETUP_SIGALTSTACK
-static stack_t g_signal_stack;
-#    endif
+static stack_t g_signal_stack = { 0 };
 static const struct signal_slot SIGNAL_DEFINITIONS[SIGNAL_COUNT] = {
     SIGNAL_DEF(SIGILL, "IllegalInstruction"),
     SIGNAL_DEF(SIGTRAP, "Trap"),
@@ -112,16 +109,24 @@ startup_inproc_backend(
         }
     }
 
-    // install our own signal handler
-#    ifdef SETUP_SIGALTSTACK
-    g_signal_stack.ss_sp = sentry_malloc(SIGNAL_STACK_SIZE);
-    if (!g_signal_stack.ss_sp) {
-        return 1;
+    // set up an alternate signal stack if noone defined one before
+    stack_t old_sig_stack;
+    if (sigaltstack(NULL, &old_sig_stack) == -1 || old_sig_stack.ss_sp == NULL
+        || old_sig_stack.ss_size == 0) {
+        SENTRY_TRACEF("installing signal stack (size: %d)", SIGNAL_STACK_SIZE);
+        g_signal_stack.ss_sp = sentry_malloc(SIGNAL_STACK_SIZE);
+        if (!g_signal_stack.ss_sp) {
+            return 1;
+        }
+        g_signal_stack.ss_size = SIGNAL_STACK_SIZE;
+        g_signal_stack.ss_flags = 0;
+        sigaltstack(&g_signal_stack, 0);
+    } else {
+        SENTRY_TRACEF(
+            "using existing signal stack (size: %d)", old_sig_stack.ss_size);
     }
-    g_signal_stack.ss_size = SIGNAL_STACK_SIZE;
-    g_signal_stack.ss_flags = 0;
-    sigaltstack(&g_signal_stack, 0);
-#    endif
+
+    // install our own signal handler
     sigemptyset(&g_sigaction.sa_mask);
     g_sigaction.sa_sigaction = handle_signal;
     g_sigaction.sa_flags = SA_SIGINFO | SA_ONSTACK;
@@ -134,12 +139,12 @@ startup_inproc_backend(
 static void
 shutdown_inproc_backend(sentry_backend_t *UNUSED(backend))
 {
-#    ifdef SETUP_SIGALTSTACK
-    g_signal_stack.ss_flags = SS_DISABLE;
-    sigaltstack(&g_signal_stack, 0);
-    sentry_free(g_signal_stack.ss_sp);
-    g_signal_stack.ss_sp = NULL;
-#    endif
+    if (g_signal_stack.ss_sp) {
+        g_signal_stack.ss_flags = SS_DISABLE;
+        sigaltstack(&g_signal_stack, 0);
+        sentry_free(g_signal_stack.ss_sp);
+        g_signal_stack.ss_sp = NULL;
+    }
     reset_signal_handlers();
 }
 
@@ -184,6 +189,7 @@ static int
 startup_inproc_backend(
     sentry_backend_t *UNUSED(backend), const sentry_options_t *UNUSED(options))
 {
+    sentry__reserve_thread_stack();
     g_previous_handler = SetUnhandledExceptionFilter(&handle_exception);
     SetErrorMode(SEM_FAILCRITICALERRORS);
     return 0;

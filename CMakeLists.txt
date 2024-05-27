@@ -566,10 +566,14 @@ if(SENTRY_BUILD_EXAMPLES)
 	target_link_libraries(sentry_example PRIVATE sentry)
 
 	if(MSVC)
-		target_compile_options(sentry_example PRIVATE $<BUILD_INTERFACE:/wd5105>)
+		target_compile_options(sentry_example PRIVATE $<BUILD_INTERFACE:/wd5105 /wd4717>)
 
 		# to test handling SEH by-passing exceptions we need to enable the control flow guard
 		target_compile_options(sentry_example PRIVATE $<BUILD_INTERFACE:/guard:cf>)
+	else()
+		# Disable all optimizations for the `sentry_example` in gcc/clang. This allows us to keep crash triggers simple.
+		# The effects besides reproducible code-gen across compiler versions, will be negligible for build- and runtime.
+		target_compile_options(sentry_example PRIVATE $<BUILD_INTERFACE:-O0>)
 	endif()
 
 	# set static runtime if enabled
