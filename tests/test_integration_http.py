@@ -166,6 +166,7 @@ def test_user_feedback_http(cmake, httpserver):
 
     assert_user_feedback(envelope)
 
+
 def test_metrics_increment_http(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
 
