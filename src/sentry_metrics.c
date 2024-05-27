@@ -108,7 +108,7 @@ sentry__metrics_sanitize(const char *original, const char *replacement,
     sentry_stringbuilder_t sb;
     sentry__stringbuilder_init(&sb);
 
-    const char *ptr = original;
+    const unsigned char *ptr = (const unsigned char *)original;
     for (; *ptr; ptr++) {
         if (pattern_match_func(*ptr)) {
             sentry__stringbuilder_append_char(&sb, *ptr);
