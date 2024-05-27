@@ -114,11 +114,23 @@ sentry__metrics_sanitize(const char *original, const char *replacement,
     sentry__stringbuilder_init(&sb);
 
     const unsigned char *ptr = (const unsigned char *)original;
-    for (; *ptr; ptr++) {
+    while (*ptr) {
         if (pattern_match_func(*ptr)) {
             sentry__stringbuilder_append_char(&sb, *ptr);
+            ptr++;
         } else {
             sentry__stringbuilder_append(&sb, replacement);
+            ptr++;
+
+            // At this point, the last `ptr` value was either some replaced
+            // ASCII or the start of a multi-byte sequence, which means `ptr`
+            // points to the next character or the second byte of a multi-byte
+            // sequence. If it is the latter, we must skip over all bytes in the
+            // sequence so we only replace the whole character once.
+            // Continuation bytes have the most significant bits set to `10`.
+            while ((*ptr & 0xC0) == 0x80) {
+                ptr++;
+            }
         }
     }
 
