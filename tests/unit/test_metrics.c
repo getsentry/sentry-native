@@ -28,32 +28,32 @@ SENTRY_TEST(metrics_unit_sanitize)
 
 SENTRY_TEST(metrics_tag_key_sanitize)
 {
-    TEST_CHECK_METRICS_SANITY(sentry__metrics_sanitize_unit,
+    TEST_CHECK_METRICS_SANITY(sentry__metrics_sanitize_tag_key,
         "a/weird/tag-key/:\\$", "a/weird/tag-key/\\");
 }
 
 SENTRY_TEST(metrics_tag_value_sanitize)
 {
     TEST_CHECK_METRICS_SANITY(
-        sentry__metrics_sanitize_unit, "plaintext", "plaintext");
+        sentry__metrics_sanitize_tag_value, "plaintext", "plaintext");
     TEST_CHECK_METRICS_SANITY(
-        sentry__metrics_sanitize_unit, "plain text", "plain text");
+        sentry__metrics_sanitize_tag_value, "plain text", "plain text");
     TEST_CHECK_METRICS_SANITY(
-        sentry__metrics_sanitize_unit, "plain%text", "plain%text");
+        sentry__metrics_sanitize_tag_value, "plain%text", "plain%text");
 
     // Escape sequences
     TEST_CHECK_METRICS_SANITY(
-        sentry__metrics_sanitize_unit, "plain \\ text", "plain \\\\ text");
+        sentry__metrics_sanitize_tag_value, "plain \\ text", "plain \\\\ text");
     TEST_CHECK_METRICS_SANITY(
-        sentry__metrics_sanitize_unit, "plain,text", "plain\\u{2c}text");
+        sentry__metrics_sanitize_tag_value, "plain,text", "plain\\u{2c}text");
     TEST_CHECK_METRICS_SANITY(
-        sentry__metrics_sanitize_unit, "plain|text", "plain\\u{7c}text");
+        sentry__metrics_sanitize_tag_value, "plain|text", "plain\\u{7c}text");
 
     // Escapable control characters
     TEST_CHECK_METRICS_SANITY(
-        sentry__metrics_sanitize_unit, "plain\ntext", "plain\\ntext");
+        sentry__metrics_sanitize_tag_value, "plain\ntext", "plain\\ntext");
     TEST_CHECK_METRICS_SANITY(
-        sentry__metrics_sanitize_unit, "plain\rtext", "plain\\rtext");
+        sentry__metrics_sanitize_tag_value, "plain\rtext", "plain\\rtext");
     TEST_CHECK_METRICS_SANITY(
-        sentry__metrics_sanitize_unit, "plain\ttext", "plain\\ttext");
+        sentry__metrics_sanitize_tag_value, "plain\ttext", "plain\\ttext");
 }
