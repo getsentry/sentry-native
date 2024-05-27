@@ -16,11 +16,10 @@
 #define MAX_TOTAL_WEIGHT 100000
 
 #ifdef SENTRY_UNITTEST
-#   define FLUSHER_SLEEP_TIME_SEC 0
+#    define FLUSHER_SLEEP_TIME_SEC 0
 #else
-#   define FLUSHER_SLEEP_TIME_SEC 5
+#    define FLUSHER_SLEEP_TIME_SEC 5
 #endif
-
 
 static bool g_aggregator_initialized = false;
 static sentry_metrics_aggregator_t g_aggregator = { 0 };
