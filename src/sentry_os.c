@@ -3,6 +3,8 @@
 #include "sentry_string.h"
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_WINDOWS)
 #    include "sentry_utils.h"
+#endif
+#ifdef SENTRY_PLATFORM_LINUX
 #    include <unistd.h>
 #endif
 
