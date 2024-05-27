@@ -203,10 +203,10 @@ sentry__process_old_runs(const sentry_options_t *options, uint64_t last_crash)
                     // time.
                     if (session->status == SENTRY_SESSION_STATUS_OK) {
                         bool was_crash
-                            = last_crash && last_crash > session->started_ms;
+                            = last_crash && last_crash > session->started_us;
                         if (was_crash) {
-                            session->duration_ms
-                                = last_crash - session->started_ms;
+                            session->duration_us
+                                = last_crash - session->started_us;
                             session->errors += 1;
                             // we only set at most one unclosed session as
                             // crashed
@@ -248,7 +248,7 @@ static const char *g_last_crash_filename = "last_crash";
 bool
 sentry__write_crash_marker(const sentry_options_t *options)
 {
-    char *iso_time = sentry__msec_time_to_iso8601(sentry__msec_time());
+    char *iso_time = sentry__usec_time_to_iso8601(sentry__usec_time());
     if (!iso_time) {
         return false;
     }

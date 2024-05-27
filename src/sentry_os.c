@@ -5,7 +5,7 @@
 
 #ifdef SENTRY_PLATFORM_WINDOWS
 
-#    include <winver.h>
+#    include <windows.h>
 #    define CURRENT_VERSION "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion"
 
 void *
@@ -137,6 +137,39 @@ sentry__get_os_context(void)
     sentry_value_decref(os);
     return sentry_value_new_null();
 }
+
+void
+sentry__reserve_thread_stack(void)
+{
+    const unsigned long expected_stack_size = 64 * 1024;
+    unsigned long stack_size = 0;
+    SetThreadStackGuarantee(&stack_size);
+    if (stack_size < expected_stack_size) {
+        stack_size = expected_stack_size;
+        SetThreadStackGuarantee(&stack_size);
+    }
+}
+
+#    if defined(SENTRY_BUILD_SHARED)
+
+BOOL APIENTRY
+DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserved)
+{
+    (void)hModule;
+    (void)lpReserved;
+
+    switch (ul_reason_for_call) {
+    case DLL_PROCESS_ATTACH:
+    case DLL_THREAD_ATTACH:
+        sentry__reserve_thread_stack();
+        break;
+    default:
+        return TRUE;
+    }
+    return TRUE;
+}
+
+#    endif // defined(SENTRY_BUILD_SHARED)
 
 #elif defined(SENTRY_PLATFORM_MACOS)
 

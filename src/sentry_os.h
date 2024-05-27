@@ -4,6 +4,7 @@
 #include "sentry_boot.h"
 
 #ifdef SENTRY_PLATFORM_WINDOWS
+
 typedef struct {
     uint32_t major;
     uint32_t minor;
@@ -13,6 +14,8 @@ typedef struct {
 
 int sentry__get_kernel_version(windows_version_t *win_ver);
 int sentry__get_windows_version(windows_version_t *win_ver);
+void sentry__reserve_thread_stack(void);
+
 #endif
 
 sentry_value_t sentry__get_os_context(void);
