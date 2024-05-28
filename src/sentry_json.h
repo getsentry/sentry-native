@@ -58,11 +58,11 @@ void sentry__jsonwriter_write_uuid(
     sentry_jsonwriter_t *jw, const sentry_uuid_t *uuid);
 
 /**
- * This will write a millisecond resolution timestamp formattad as an ISO8601
+ * This will write a microsecond resolution timestamp formattad as an ISO8601
  * string.
- * See `sentry__msec_time_to_iso8601`.
+ * See `sentry__usec_time_to_iso8601`.
  */
-void sentry__jsonwriter_write_msec_timestamp(
+void sentry__jsonwriter_write_usec_timestamp(
     sentry_jsonwriter_t *jw, uint64_t time);
 
 /**
