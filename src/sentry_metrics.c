@@ -256,7 +256,7 @@ sentry__metrics_aggregator_cleanup(void)
     if (g_aggregator_initialized) {
         g_aggregator_initialized = false;
         sentry_value_decref(g_aggregator.buckets);
-        sentry__bgworker_shutdown(g_metrics_bgw, 1000000);
+        sentry__bgworker_shutdown(g_metrics_bgw, 1000);
         sentry__bgworker_decref(g_metrics_bgw);
         g_is_closed = true;
     }
