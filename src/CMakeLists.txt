@@ -156,3 +156,8 @@ if(SENTRY_INTEGRATION_QT)
 		integrations/sentry_integration_qt.h
 	)
 endif()
+
+# integration tests
+if(SENTRY_INTEGRATIONTEST)
+	target_compile_definitions(sentry PRIVATE SENTRY_INTEGRATIONTEST)
+endif()

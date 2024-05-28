@@ -488,11 +488,10 @@ sentry__metrics_aggregator_add(const sentry_metrics_aggregator_t *aggregator,
 
     sentry_free(metric_bucket_key);
 
-    bool is_owerweight = sentry__metrics_is_overweight(aggregator);
-
-#ifdef SENTRY_UNITTEST
+#ifdef SENTRY_INTEGRATIONTEST
     sentry__metrics_aggregator_flush(aggregator, true);
 #else
+    bool is_owerweight = sentry__metrics_is_overweight(aggregator);
     if (is_owerweight || !g_is_flush_scheduled) {
         g_is_flush_scheduled = true;
 

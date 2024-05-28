@@ -167,8 +167,15 @@ def test_user_feedback_http(cmake, httpserver):
     assert_user_feedback(envelope)
 
 
-def test_metrics_increment_http(cmake, httpserver):
-    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+@pytest.mark.parametrize(
+    "build_args",
+    [
+        ({"SENTRY_INTEGRATIONTEST": 1}),
+    ],
+)
+def test_metrics_increment_http(cmake, httpserver, build_args):
+    build_args.update({"SENTRY_BACKEND": "none"})
+    tmp_path = cmake(["sentry_example"], build_args)
 
     httpserver.expect_request(
         "/api/123456/envelope/",
@@ -191,8 +198,15 @@ def test_metrics_increment_http(cmake, httpserver):
     assert_metrics_increment(envelope)
 
 
-def test_metrics_distribution_http(cmake, httpserver):
-    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+@pytest.mark.parametrize(
+    "build_args",
+    [
+        ({"SENTRY_INTEGRATIONTEST": 1}),
+    ],
+)
+def test_metrics_distribution_http(cmake, httpserver, build_args):
+    build_args.update({"SENTRY_BACKEND": "none"})
+    tmp_path = cmake(["sentry_example"], build_args)
 
     httpserver.expect_request(
         "/api/123456/envelope/",
@@ -215,8 +229,15 @@ def test_metrics_distribution_http(cmake, httpserver):
     assert_metrics_distribution(envelope)
 
 
-def test_metrics_gauge_http(cmake, httpserver):
-    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+@pytest.mark.parametrize(
+    "build_args",
+    [
+        ({"SENTRY_INTEGRATIONTEST": 1}),
+    ],
+)
+def test_metrics_gauge_http(cmake, httpserver, build_args):
+    build_args.update({"SENTRY_BACKEND": "none"})
+    tmp_path = cmake(["sentry_example"], build_args)
 
     httpserver.expect_request(
         "/api/123456/envelope/",
@@ -239,8 +260,15 @@ def test_metrics_gauge_http(cmake, httpserver):
     assert_metrics_gauge(envelope)
 
 
-def test_metrics_set_http(cmake, httpserver):
-    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+@pytest.mark.parametrize(
+    "build_args",
+    [
+        ({"SENTRY_INTEGRATIONTEST": 1}),
+    ],
+)
+def test_metrics_set_http(cmake, httpserver, build_args):
+    build_args.update({"SENTRY_BACKEND": "none"})
+    tmp_path = cmake(["sentry_example"], build_args)
 
     httpserver.expect_request(
         "/api/123456/envelope/",
@@ -259,7 +287,6 @@ def test_metrics_set_http(cmake, httpserver):
     assert len(httpserver.log) == 1
     output = httpserver.log[0][0].get_data()
     envelope = Envelope.deserialize(output)
-
     assert_metrics_set(envelope)
 
 
