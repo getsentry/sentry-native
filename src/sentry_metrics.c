@@ -15,11 +15,7 @@
 #define ROLLUP_IN_SECONDS 10
 #define MAX_TOTAL_WEIGHT 100000
 
-#ifdef SENTRY_UNITTEST
-#    define FLUSHER_SLEEP_TIME_SEC 0
-#else
-#    define FLUSHER_SLEEP_TIME_SEC 5
-#endif
+#define FLUSHER_SLEEP_TIME_SEC 5
 
 static bool g_aggregator_initialized = false;
 static sentry_metrics_aggregator_t g_aggregator = { 0 };
@@ -494,6 +490,9 @@ sentry__metrics_aggregator_add(const sentry_metrics_aggregator_t *aggregator,
 
     bool is_owerweight = sentry__metrics_is_overweight(aggregator);
 
+#ifdef SENTRY_UNITTEST
+    sentry__metrics_aggregator_flush(aggregator, true);
+#else
     if (is_owerweight || !g_is_flush_scheduled) {
         g_is_flush_scheduled = true;
 
@@ -501,6 +500,7 @@ sentry__metrics_aggregator_add(const sentry_metrics_aggregator_t *aggregator,
 
         sentry__metrics_schedule_flush(delay);
     }
+#endif
 }
 
 void
