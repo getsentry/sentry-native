@@ -1,4 +1,5 @@
 ﻿#include "sentry_metrics.h"
+#include "sentry_sync.h"
 #include "sentry_testsupport.h"
 
 #define TEST_CHECK_METRICS_SANITY(fn, input, expected)                         \
@@ -59,6 +60,8 @@ SENTRY_TEST(metrics_new_counter)
             sentry_value_get_by_key(tag_item, "value"));
         TEST_CHECK_STRING_EQUAL(tag_val, "val1");
     }
+
+    sleep_s(1);
 
     sentry_close();
 }
