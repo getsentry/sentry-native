@@ -55,6 +55,8 @@ SENTRY_TEST(metrics_new_counter)
             sentry_value_get_by_key(tag_item, "value"));
         TEST_CHECK_STRING_EQUAL(tag_val, "val1");
     }
+
+    sentry__metrics_aggregator_cleanup();
 }
 
 SENTRY_TEST(metrics_new_distribution)
@@ -96,6 +98,8 @@ SENTRY_TEST(metrics_new_distribution)
             = sentry_value_as_double(sentry_value_get_by_index(value, 0));
         TEST_CHECK(dist_item == 1.0);
     }
+
+    sentry__metrics_aggregator_cleanup();
 }
 
 SENTRY_TEST(metrics_new_gauge)
@@ -147,6 +151,8 @@ SENTRY_TEST(metrics_new_gauge)
             = sentry_value_as_int32(sentry_value_get_by_key(value, "count"));
         TEST_CHECK(count == 1.0);
     }
+
+    sentry__metrics_aggregator_cleanup();
 }
 
 SENTRY_TEST(metrics_new_set)
@@ -187,6 +193,8 @@ SENTRY_TEST(metrics_new_set)
             = sentry_value_as_int32(sentry_value_get_by_index(value, 0));
         TEST_CHECK(set_item == 1);
     }
+
+    sentry__metrics_aggregator_cleanup();
 }
 
 SENTRY_TEST(metrics_name_sanitize)
