@@ -11,10 +11,6 @@
 
 SENTRY_TEST(metrics_new_counter)
 {
-    sentry_options_t *options = sentry_options_new();
-    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
-    sentry_init(options);
-
     sentry_metrics_emit_increment(
         "counter_metric", 1.0, "second", "key1", "val1", NULL);
 
@@ -61,12 +57,7 @@ SENTRY_TEST(metrics_new_counter)
         TEST_CHECK_STRING_EQUAL(tag_val, "val1");
     }
 
-    sentry_close();
-
-    sleep_s(10);
-
-    TEST_CHECK(true);
-
+    sentry__metrics_aggregator_cleanup();
 }
 
 SENTRY_TEST(metrics_new_distribution)
