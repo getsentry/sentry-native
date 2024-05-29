@@ -495,8 +495,6 @@ sentry__metrics_aggregator_add(const sentry_metrics_aggregator_t *aggregator,
 
 #ifdef SENTRY_INTEGRATIONTEST
     sentry__metrics_aggregator_flush(aggregator, true);
-#elif SENTRY_UNITTEST
-    // do nothing
 #else
     bool is_owerweight = sentry__metrics_is_overweight(aggregator);
     if (is_owerweight || !g_is_flush_scheduled) {
