@@ -23,7 +23,7 @@ static sentry_mutex_t g_aggregator_lock = SENTRY__MUTEX_INIT;
 
 static int32_t g_total_buckets_weight = 0;
 
-#ifndef defined(SENTRY_INTEGRATIONTEST) && defined(SENTRY_UNITTEST)
+#if !defined(SENTRY_INTEGRATIONTEST) && !defined(SENTRY_UNITTEST)
 static bool g_is_flush_scheduled = false;
 #endif
 
@@ -112,24 +112,36 @@ sentry__metrics_sanitize(const char *original, const char *replacement,
     sentry_stringbuilder_t sb;
     sentry__stringbuilder_init(&sb);
 
-    const unsigned char *ptr = (const unsigned char *)original;
+    const char *ptr = original;
     while (*ptr) {
-        if (pattern_match_func(*ptr)) {
-            sentry__stringbuilder_append_char(&sb, *ptr);
+        int char_length = mblen(ptr, MB_LEN_MAX);
+        if (char_length == 1) {
+            // Single-byte character
+            if (pattern_match_func(*ptr)) {
+                sentry__stringbuilder_append_char(&sb, *ptr);
+            } else {
+                sentry__stringbuilder_append(&sb, replacement);
+            }
             ptr++;
-        } else {
-            sentry__stringbuilder_append(&sb, replacement);
-            ptr++;
-
+        } else if (char_length > 1) {
+            // Multi-byte character
+            if (pattern_match_func(*ptr)) {
+                // If the first byte matches the pattern, include it
+                sentry__stringbuilder_append_char(&sb, *ptr);
+                ptr++;
+            }
             // At this point, the last `ptr` value was either some replaced
             // ASCII or the start of a multi-byte sequence, which means `ptr`
             // points to the next character or the second byte of a multi-byte
             // sequence. If it is the latter, we must skip over all bytes in the
             // sequence so we only replace the whole character once.
             // Continuation bytes have the most significant bits set to `10`.
-            while ((*ptr & 0xC0) == 0x80) {
+            while ((*ptr & 0xC0) == 0x80 && char_length-- > 1) {
                 ptr++;
             }
+        } else {
+            // Invalid character handling (optional)
+            // You can handle invalid characters here (e.g., replace with '?')
         }
     }
 
