@@ -8,7 +8,6 @@
 #include "sentry_utils.h"
 
 #include <stdlib.h>
-#include <limits.h>
 
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
@@ -115,7 +114,7 @@ sentry__metrics_sanitize(const char *original, const char *replacement,
 
     const char *ptr = original;
     while (*ptr) {
-        int char_length = mblen(ptr, MB_LEN_MAX);
+        int char_length = mblen(ptr, 4);
         if (char_length == 1) {
             // Single-byte character
             if (pattern_match_func(*ptr)) {
