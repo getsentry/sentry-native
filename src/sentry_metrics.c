@@ -371,7 +371,7 @@ sentry__metrics_get_metric_bucket_key(sentry_value_t metric)
     const char *unit_name
         = sentry_value_as_string(sentry_value_get_by_key(metric, "unit"));
 
-    const char *serialized_tags
+    char *serialized_tags
         = sentry__metrics_get_tags_key(sentry_value_get_by_key(metric, "tags"));
 
     size_t key_length = strlen(type_prefix) + strlen(metric_key)
@@ -380,6 +380,8 @@ sentry__metrics_get_metric_bucket_key(sentry_value_t metric)
     size_t written = snprintf(metric_bucket_key, key_length, "%s_%s_%s_%s",
         type_prefix, metric_key, unit_name, serialized_tags);
     metric_bucket_key[written] = '\0';
+
+    sentry_free(serialized_tags);
 
     return metric_bucket_key;
 }
@@ -537,7 +539,10 @@ sentry__metrics_aggregator_flush(
     }
 
     if (sentry_value_get_length(flushable_buckets) > 0) {
-        sentry__metrics_flush(sentry__metrics_encode_statsd(flushable_buckets));
+        char *encoded_metrics
+            = sentry__metrics_encode_statsd(flushable_buckets);
+        sentry__metrics_flush(encoded_metrics);
+        sentry_free(encoded_metrics);
     }
 
     sentry_value_decref(flushable_buckets);
@@ -745,7 +750,7 @@ sentry_metrics_emit_set(const char *key, int32_t value, const char *unit, ...)
     }
 }
 
-const char *
+char *
 sentry__metrics_encode_statsd(sentry_value_t buckets)
 {
     sentry_stringbuilder_t statsd;

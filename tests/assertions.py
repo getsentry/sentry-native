@@ -57,7 +57,7 @@ def assert_metrics_increment(envelope):
             inc_metric = item.payload.bytes
 
     assert inc_metric is not None
-    assert inc_metric.startswith(b'testinc@second:5|c|T1716854410\n')
+    assert inc_metric.startswith(b"testinc@second:5|c|T1716854410\n")
 
 
 def assert_metrics_distribution(envelope):
@@ -67,7 +67,7 @@ def assert_metrics_distribution(envelope):
             dist_metric = item.payload.bytes
 
     assert dist_metric is not None
-    assert dist_metric.startswith(b'testdist@second:5|d|T1716854410\n')
+    assert dist_metric.startswith(b"testdist@second:5|d|T1716854410\n")
 
 
 def assert_metrics_gauge(envelope):
@@ -77,7 +77,7 @@ def assert_metrics_gauge(envelope):
             gauge_metric = item.payload.bytes
 
     assert gauge_metric is not None
-    assert gauge_metric.startswith(b'testgauge@second:5:5:5:5:1|g|T1716854410\n')
+    assert gauge_metric.startswith(b"testgauge@second:5:5:5:5:1|g|T1716854410\n")
 
 
 def assert_metrics_set(envelope):
@@ -87,7 +87,7 @@ def assert_metrics_set(envelope):
             set_metric = item.payload.bytes
 
     assert set_metric is not None
-    assert set_metric.startswith(b'testset@second:5|s|T1716854410\n')
+    assert set_metric.startswith(b"testset@second:5|s|T1716854410\n")
 
 
 def assert_meta(

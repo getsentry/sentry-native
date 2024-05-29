@@ -70,7 +70,7 @@ void sentry__metrics_gauge_serialize(
 void sentry__metrics_set_serialize(
     sentry_stringbuilder_t *sb, sentry_value_t value);
 
-const char *sentry__metrics_encode_statsd(sentry_value_t buckets);
+char *sentry__metrics_encode_statsd(sentry_value_t buckets);
 
 void sentry__metrics_encode_statsd_tags(
     sentry_stringbuilder_t *sb, sentry_value_t tags);
