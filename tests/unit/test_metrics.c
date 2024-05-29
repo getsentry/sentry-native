@@ -23,13 +23,13 @@ SENTRY_TEST(metrics_new_counter)
             = sentry_value_get_by_key(bucket, "metrics");
         TEST_CHECK(!sentry_value_is_null(bucket_metrics));
         TEST_CHECK(sentry_value_get_length(bucket_metrics) == 1);
-        sentry_value_t bucket_item = sentry_value_get_by_index(bucket_metrics, 0);
+        sentry_value_t bucket_item
+            = sentry_value_get_by_index(bucket_metrics, 0);
         TEST_CHECK(!sentry_value_is_null(bucket_item));
-        const char *item_key = sentry_value_as_string(sentry_value_get_by_key(
-            bucket_item, "key"));
+        const char *item_key = sentry_value_as_string(
+            sentry_value_get_by_key(bucket_item, "key"));
         TEST_CHECK_STRING_EQUAL(item_key, "c_counter_metric_second_key1=val1");
-        sentry_value_t metric
-            = sentry_value_get_by_key(bucket_item, "metric");
+        sentry_value_t metric = sentry_value_get_by_key(bucket_item, "metric");
         TEST_CHECK(!sentry_value_is_null(metric));
         const char *key
             = sentry_value_as_string(sentry_value_get_by_key(metric, "key"));
@@ -72,13 +72,13 @@ SENTRY_TEST(metrics_new_distribution)
             = sentry_value_get_by_key(bucket, "metrics");
         TEST_CHECK(!sentry_value_is_null(bucket_metrics));
         TEST_CHECK(sentry_value_get_length(bucket_metrics) == 1);
-        sentry_value_t bucket_item = sentry_value_get_by_index(bucket_metrics, 0);
+        sentry_value_t bucket_item
+            = sentry_value_get_by_index(bucket_metrics, 0);
         TEST_CHECK(!sentry_value_is_null(bucket_item));
-        const char *item_key = sentry_value_as_string(sentry_value_get_by_key(
-            bucket_item, "key"));
+        const char *item_key = sentry_value_as_string(
+            sentry_value_get_by_key(bucket_item, "key"));
         TEST_CHECK_STRING_EQUAL(item_key, "d_distribution_metric_second_");
-        sentry_value_t metric
-            = sentry_value_get_by_key(bucket_item, "metric");
+        sentry_value_t metric = sentry_value_get_by_key(bucket_item, "metric");
         TEST_CHECK(!sentry_value_is_null(metric));
         const char *key
             = sentry_value_as_string(sentry_value_get_by_key(metric, "key"));
@@ -112,13 +112,13 @@ SENTRY_TEST(metrics_new_gauge)
             = sentry_value_get_by_key(bucket, "metrics");
         TEST_CHECK(!sentry_value_is_null(bucket_metrics));
         TEST_CHECK(sentry_value_get_length(bucket_metrics) == 1);
-        sentry_value_t bucket_item = sentry_value_get_by_index(bucket_metrics, 0);
+        sentry_value_t bucket_item
+            = sentry_value_get_by_index(bucket_metrics, 0);
         TEST_CHECK(!sentry_value_is_null(bucket_item));
-        const char *item_key = sentry_value_as_string(sentry_value_get_by_key(
-            bucket_item, "key"));
+        const char *item_key = sentry_value_as_string(
+            sentry_value_get_by_key(bucket_item, "key"));
         TEST_CHECK_STRING_EQUAL(item_key, "g_gauge_metric_second_");
-        sentry_value_t metric
-            = sentry_value_get_by_key(bucket_item, "metric");
+        sentry_value_t metric = sentry_value_get_by_key(bucket_item, "metric");
         TEST_CHECK(!sentry_value_is_null(metric));
         const char *key
             = sentry_value_as_string(sentry_value_get_by_key(metric, "key"));
@@ -163,13 +163,13 @@ SENTRY_TEST(metrics_new_set)
             = sentry_value_get_by_key(bucket, "metrics");
         TEST_CHECK(!sentry_value_is_null(bucket_metrics));
         TEST_CHECK(sentry_value_get_length(bucket_metrics) == 1);
-        sentry_value_t bucket_item = sentry_value_get_by_index(bucket_metrics, 0);
+        sentry_value_t bucket_item
+            = sentry_value_get_by_index(bucket_metrics, 0);
         TEST_CHECK(!sentry_value_is_null(bucket_item));
-        const char *item_key = sentry_value_as_string(sentry_value_get_by_key(
-            bucket_item, "key"));
+        const char *item_key = sentry_value_as_string(
+            sentry_value_get_by_key(bucket_item, "key"));
         TEST_CHECK_STRING_EQUAL(item_key, "s_set_metric_second_");
-        sentry_value_t metric
-            = sentry_value_get_by_key(bucket_item, "metric");
+        sentry_value_t metric = sentry_value_get_by_key(bucket_item, "metric");
         TEST_CHECK(!sentry_value_is_null(metric));
         const char *key
             = sentry_value_as_string(sentry_value_get_by_key(metric, "key"));
