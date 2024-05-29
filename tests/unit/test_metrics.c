@@ -61,9 +61,12 @@ SENTRY_TEST(metrics_new_counter)
         TEST_CHECK_STRING_EQUAL(tag_val, "val1");
     }
 
-    sleep_s(1);
-
     sentry_close();
+
+    sleep_s(10);
+
+    TEST_CHECK(true);
+
 }
 
 SENTRY_TEST(metrics_new_distribution)
