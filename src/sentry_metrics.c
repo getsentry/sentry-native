@@ -110,36 +110,24 @@ sentry__metrics_sanitize(const char *original, const char *replacement,
     sentry_stringbuilder_t sb;
     sentry__stringbuilder_init(&sb);
 
-    const char *ptr = original;
+    const unsigned char *ptr = (const unsigned char *)original;
     while (*ptr) {
-        int char_length = mblen(ptr, 4);
-        if (char_length == 1) {
-            // Single-byte character
-            if (pattern_match_func(*ptr)) {
-                sentry__stringbuilder_append_char(&sb, *ptr);
-            } else {
-                sentry__stringbuilder_append(&sb, replacement);
-            }
+        if (pattern_match_func(*ptr)) {
+            sentry__stringbuilder_append_char(&sb, *ptr);
             ptr++;
-        } else if (char_length > 1) {
-            // Multi-byte character
-            if (pattern_match_func(*ptr)) {
-                // If the first byte matches the pattern, include it
-                sentry__stringbuilder_append_char(&sb, *ptr);
-                ptr++;
-            }
+        } else {
+            sentry__stringbuilder_append(&sb, replacement);
+            ptr++;
+
             // At this point, the last `ptr` value was either some replaced
             // ASCII or the start of a multi-byte sequence, which means `ptr`
             // points to the next character or the second byte of a multi-byte
             // sequence. If it is the latter, we must skip over all bytes in the
             // sequence so we only replace the whole character once.
             // Continuation bytes have the most significant bits set to `10`.
-            while ((*ptr & 0xC0) == 0x80 && char_length-- > 1) {
+            while ((*ptr & 0xC0) == 0x80) {
                 ptr++;
             }
-        } else {
-            // Invalid character handling (optional)
-            // You can handle invalid characters here (e.g., replace with '?')
         }
     }
 
