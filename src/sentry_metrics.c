@@ -23,9 +23,7 @@ static sentry_mutex_t g_aggregator_lock = SENTRY__MUTEX_INIT;
 
 static int32_t g_total_buckets_weight = 0;
 
-#if !defined(SENTRY_INTEGRATIONTEST) && !defined(SENTRY_UNITTEST)
 static bool g_is_flush_scheduled = false;
-#endif
 
 static bool g_is_closed = false;
 
@@ -506,7 +504,11 @@ sentry__metrics_aggregator_add(const sentry_metrics_aggregator_t *aggregator,
     sentry_free(metric_bucket_key);
 
 #ifdef SENTRY_INTEGRATIONTEST
+    g_is_flush_scheduled = false;
     sentry__metrics_aggregator_flush(aggregator, true);
+#elif SENTRY_UNITTEST
+    g_is_flush_scheduled = false;
+    // do not flush captured metrics
 #else
     bool is_owerweight = sentry__metrics_is_overweight(aggregator);
     if (is_owerweight || !g_is_flush_scheduled) {
