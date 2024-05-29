@@ -551,9 +551,14 @@ sentry__value_metric_new_n(sentry_slice_t name)
     sentry_value_set_by_key(
         metric, "key", sentry_value_new_string_n(name.ptr, name.len));
 
-    sentry_value_set_by_key(metric, "timestamp",
-        sentry__value_new_string_owned(
-            sentry__usec_time_to_iso8601(sentry__usec_time())));
+#if defined(SENTRY_UNITTEST) || defined(SENTRY_INTEGRATIONTEST)
+    sentry_value_t now = sentry_value_new_string("2024-05-28T00:00:10Z");
+#else
+    sentry_value_t now = sentry__value_new_string_owned(
+        sentry__usec_time_to_iso8601(sentry__usec_time()));
+#endif
+
+    sentry_value_set_by_key(metric, "timestamp", now);
 
     sentry_value_set_by_key(metric, "unit", sentry_value_new_string("none"));
 
