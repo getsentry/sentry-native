@@ -22,7 +22,10 @@ static sentry_metrics_aggregator_t g_aggregator = { 0 };
 static sentry_mutex_t g_aggregator_lock = SENTRY__MUTEX_INIT;
 
 static int32_t g_total_buckets_weight = 0;
+
+#ifndef SENTRY_INTEGRATIONTEST
 static bool g_is_flush_scheduled = false;
+#endif
 
 static bool g_is_closed = false;
 
