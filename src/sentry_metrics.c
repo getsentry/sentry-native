@@ -486,6 +486,7 @@ sentry__metrics_aggregator_add(const sentry_metrics_aggregator_t *aggregator,
             SENTRY_WARN("uknown metric type");
         }
         added_weight = sentry__metrics_get_weight(existing_metric);
+        sentry_value_decref(metric);
     }
 
     g_total_buckets_weight += added_weight;
