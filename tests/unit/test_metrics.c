@@ -9,6 +9,18 @@
         sentry_free(actual);                                                   \
     }
 
+sentry_value_t
+get_bucket_item(const sentry_metrics_aggregator_t *aggregator)
+{
+    TEST_CHECK(sentry_value_get_length(aggregator->buckets) == 1);
+    sentry_value_t bucket = sentry_value_get_by_index(aggregator->buckets, 0);
+    TEST_CHECK(!sentry_value_is_null(bucket));
+    sentry_value_t bucket_metrics = sentry_value_get_by_key(bucket, "metrics");
+    TEST_CHECK(!sentry_value_is_null(bucket_metrics));
+    TEST_CHECK(sentry_value_get_length(bucket_metrics) == 1);
+    return sentry_value_get_by_index(bucket_metrics, 0);
+}
+
 SENTRY_TEST(metrics_new_counter)
 {
     sentry_metrics_emit_increment(
@@ -16,16 +28,7 @@ SENTRY_TEST(metrics_new_counter)
 
     SENTRY_WITH_METRICS_AGGREGATOR(aggregator)
     {
-        TEST_CHECK(sentry_value_get_length(aggregator->buckets) == 1);
-        sentry_value_t bucket
-            = sentry_value_get_by_index(aggregator->buckets, 0);
-        TEST_CHECK(!sentry_value_is_null(bucket));
-        sentry_value_t bucket_metrics
-            = sentry_value_get_by_key(bucket, "metrics");
-        TEST_CHECK(!sentry_value_is_null(bucket_metrics));
-        TEST_CHECK(sentry_value_get_length(bucket_metrics) == 1);
-        sentry_value_t bucket_item
-            = sentry_value_get_by_index(bucket_metrics, 0);
+        sentry_value_t bucket_item = get_bucket_item(aggregator);
         TEST_CHECK(!sentry_value_is_null(bucket_item));
         const char *item_key = sentry_value_as_string(
             sentry_value_get_by_key(bucket_item, "key"));
@@ -66,16 +69,7 @@ SENTRY_TEST(metrics_new_distribution)
 
     SENTRY_WITH_METRICS_AGGREGATOR(aggregator)
     {
-        TEST_CHECK(sentry_value_get_length(aggregator->buckets) == 1);
-        sentry_value_t bucket
-            = sentry_value_get_by_index(aggregator->buckets, 0);
-        TEST_CHECK(!sentry_value_is_null(bucket));
-        sentry_value_t bucket_metrics
-            = sentry_value_get_by_key(bucket, "metrics");
-        TEST_CHECK(!sentry_value_is_null(bucket_metrics));
-        TEST_CHECK(sentry_value_get_length(bucket_metrics) == 1);
-        sentry_value_t bucket_item
-            = sentry_value_get_by_index(bucket_metrics, 0);
+        sentry_value_t bucket_item = get_bucket_item(aggregator);
         TEST_CHECK(!sentry_value_is_null(bucket_item));
         const char *item_key = sentry_value_as_string(
             sentry_value_get_by_key(bucket_item, "key"));
@@ -108,16 +102,7 @@ SENTRY_TEST(metrics_new_gauge)
 
     SENTRY_WITH_METRICS_AGGREGATOR(aggregator)
     {
-        TEST_CHECK(sentry_value_get_length(aggregator->buckets) == 1);
-        sentry_value_t bucket
-            = sentry_value_get_by_index(aggregator->buckets, 0);
-        TEST_CHECK(!sentry_value_is_null(bucket));
-        sentry_value_t bucket_metrics
-            = sentry_value_get_by_key(bucket, "metrics");
-        TEST_CHECK(!sentry_value_is_null(bucket_metrics));
-        TEST_CHECK(sentry_value_get_length(bucket_metrics) == 1);
-        sentry_value_t bucket_item
-            = sentry_value_get_by_index(bucket_metrics, 0);
+        sentry_value_t bucket_item = get_bucket_item(aggregator);
         TEST_CHECK(!sentry_value_is_null(bucket_item));
         const char *item_key = sentry_value_as_string(
             sentry_value_get_by_key(bucket_item, "key"));
@@ -161,16 +146,7 @@ SENTRY_TEST(metrics_new_set)
 
     SENTRY_WITH_METRICS_AGGREGATOR(aggregator)
     {
-        TEST_CHECK(sentry_value_get_length(aggregator->buckets) == 1);
-        sentry_value_t bucket
-            = sentry_value_get_by_index(aggregator->buckets, 0);
-        TEST_CHECK(!sentry_value_is_null(bucket));
-        sentry_value_t bucket_metrics
-            = sentry_value_get_by_key(bucket, "metrics");
-        TEST_CHECK(!sentry_value_is_null(bucket_metrics));
-        TEST_CHECK(sentry_value_get_length(bucket_metrics) == 1);
-        sentry_value_t bucket_item
-            = sentry_value_get_by_index(bucket_metrics, 0);
+        sentry_value_t bucket_item = get_bucket_item(aggregator);
         TEST_CHECK(!sentry_value_is_null(bucket_item));
         const char *item_key = sentry_value_as_string(
             sentry_value_get_by_key(bucket_item, "key"));
