@@ -194,6 +194,86 @@ SENTRY_TEST(metrics_bucket_weight)
 
         TEST_CHECK_INT_EQUAL(sentry__metrics_get_bucket_weight(bucket), 12);
     }
+
+    sentry__metrics_aggregator_cleanup();
+}
+
+SENTRY_TEST(metrics_add)
+{
+    sentry_metrics_emit_increment("counter", 1.0, "second");
+    sentry_metrics_emit_increment("counter", 2.0, "second");
+    sentry_metrics_emit_increment("counter", 3.0, "second");
+    SENTRY_WITH_METRICS_AGGREGATOR(aggregator)
+    {
+        sentry_value_t bucket_item = get_bucket_item(aggregator);
+        sentry_value_t metric = sentry_value_get_by_key(bucket_item, "metric");
+        sentry_value_t metric_value = sentry_value_get_by_key(metric, "value");
+        TEST_CHECK(sentry_value_as_double(metric_value) == 6.0);
+    }
+    sentry__metrics_aggregator_cleanup();
+
+    sentry_metrics_emit_distribution("dist", 1.0, "second");
+    sentry_metrics_emit_distribution("dist", 2.0, "second");
+    sentry_metrics_emit_distribution("dist", 3.0, "second");
+    SENTRY_WITH_METRICS_AGGREGATOR(aggregator)
+    {
+        sentry_value_t bucket_item = get_bucket_item(aggregator);
+        sentry_value_t metric = sentry_value_get_by_key(bucket_item, "metric");
+        sentry_value_t metric_value = sentry_value_get_by_key(metric, "value");
+
+        TEST_CHECK(sentry_value_get_length(metric_value) == 3);
+        TEST_CHECK(
+            sentry_value_as_double(sentry_value_get_by_index(metric_value, 0))
+            == 1.0);
+        TEST_CHECK(
+            sentry_value_as_double(sentry_value_get_by_index(metric_value, 1))
+            == 2.0);
+        TEST_CHECK(
+            sentry_value_as_double(sentry_value_get_by_index(metric_value, 2))
+            == 3.0);
+    }
+    sentry__metrics_aggregator_cleanup();
+
+    sentry_metrics_emit_gauge("gauge", 1.0, "second");
+    sentry_metrics_emit_gauge("gauge", 2.0, "second");
+    sentry_metrics_emit_gauge("gauge", 3.0, "second");
+    SENTRY_WITH_METRICS_AGGREGATOR(aggregator)
+    {
+        sentry_value_t bucket_item = get_bucket_item(aggregator);
+        sentry_value_t metric = sentry_value_get_by_key(bucket_item, "metric");
+        sentry_value_t metric_value = sentry_value_get_by_key(metric, "value");
+
+        sentry_value_t last = sentry_value_get_by_key(metric_value, "last");
+        TEST_CHECK(sentry_value_as_double(last) == 3.0);
+        sentry_value_t min = sentry_value_get_by_key(metric_value, "min");
+        TEST_CHECK(sentry_value_as_double(min) == 1.0);
+        sentry_value_t max = sentry_value_get_by_key(metric_value, "max");
+        TEST_CHECK(sentry_value_as_double(max) == 3.0);
+        sentry_value_t sum = sentry_value_get_by_key(metric_value, "sum");
+        TEST_CHECK(sentry_value_as_double(sum) == 6.0);
+        sentry_value_t count = sentry_value_get_by_key(metric_value, "count");
+        TEST_CHECK(sentry_value_as_int32(count) == 3);
+    }
+    sentry__metrics_aggregator_cleanup();
+
+    sentry_metrics_emit_set("set", 1.0, "second");
+    sentry_metrics_emit_set("set", 2.0, "second");
+    sentry_metrics_emit_set("set", 2.0, "second");
+    SENTRY_WITH_METRICS_AGGREGATOR(aggregator)
+    {
+        sentry_value_t bucket_item = get_bucket_item(aggregator);
+        sentry_value_t metric = sentry_value_get_by_key(bucket_item, "metric");
+        sentry_value_t metric_value = sentry_value_get_by_key(metric, "value");
+
+        TEST_CHECK(sentry_value_get_length(metric_value) == 2);
+        TEST_CHECK(
+            sentry_value_as_double(sentry_value_get_by_index(metric_value, 0))
+            == 1.0);
+        TEST_CHECK(
+            sentry_value_as_double(sentry_value_get_by_index(metric_value, 1))
+            == 2.0);
+    }
+    sentry__metrics_aggregator_cleanup();
 }
 
 SENTRY_TEST(metrics_name_sanitize)
