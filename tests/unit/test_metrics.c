@@ -173,6 +173,29 @@ SENTRY_TEST(metrics_new_set)
     sentry__metrics_aggregator_cleanup();
 }
 
+SENTRY_TEST(metrics_bucket_weight)
+{
+    sentry_metrics_emit_increment("counter1", 1.0, "second");
+    sentry_metrics_emit_increment("counter2", 1.0, "second");
+    sentry_metrics_emit_distribution("distribution", 1.0, "second");
+    sentry_metrics_emit_distribution("distribution", 1.0, "second");
+    sentry_metrics_emit_distribution("distribution", 2.0, "second");
+    sentry_metrics_emit_gauge("gauge", 1.0, "second");
+    sentry_metrics_emit_set("set", 1, "second");
+    sentry_metrics_emit_set("set", 1, "second");
+    sentry_metrics_emit_set("set", 2, "second");
+
+    SENTRY_WITH_METRICS_AGGREGATOR(aggregator)
+    {
+        TEST_CHECK(sentry_value_get_length(aggregator->buckets) == 1);
+        sentry_value_t bucket
+            = sentry_value_get_by_index(aggregator->buckets, 0);
+        TEST_CHECK(!sentry_value_is_null(bucket));
+
+        TEST_CHECK_INT_EQUAL(sentry__metrics_get_bucket_weight(bucket), 12);
+    }
+}
+
 SENTRY_TEST(metrics_name_sanitize)
 {
     TEST_CHECK_METRICS_SANITY(
