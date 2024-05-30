@@ -313,7 +313,7 @@ sentry__metrics_timestamp_from_string(const char *timestampStr)
 
 sentry_value_t
 sentry__metrics_get_or_add_bucket(
-    const sentry_metrics_aggregator_t *aggregator, sentry_value_t bucketKey)
+    const sentry_metrics_aggregator_t *aggregator, sentry_value_t bucket_key)
 {
     size_t len = sentry_value_get_length(aggregator->buckets);
     for (size_t i = 0; i < len; i++) {
@@ -321,7 +321,8 @@ sentry__metrics_get_or_add_bucket(
             = sentry_value_get_by_index(aggregator->buckets, i);
         const char *key = sentry_value_as_string(
             sentry_value_get_by_key(existing_bucket, "key"));
-        if (sentry__string_eq(key, sentry_value_as_string(bucketKey))) {
+        if (sentry__string_eq(key, sentry_value_as_string(bucket_key))) {
+            sentry_value_decref(bucket_key);
             return existing_bucket;
         }
     }
@@ -329,7 +330,7 @@ sentry__metrics_get_or_add_bucket(
     // if there is no existing bucket with given key
     // create a new one and add it to aggregator
     sentry_value_t new_bucket = sentry_value_new_object();
-    sentry_value_set_by_key(new_bucket, "key", bucketKey);
+    sentry_value_set_by_key(new_bucket, "key", bucket_key);
     sentry_value_set_by_key(new_bucket, "metrics", sentry_value_new_list());
     sentry_value_append(aggregator->buckets, new_bucket);
     return new_bucket;
