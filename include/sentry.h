@@ -2072,8 +2072,14 @@ SENTRY_EXPERIMENTAL_API const char *sentry_sdk_user_agent(void);
  *
  * See https://develop.sentry.dev/delightful-developer-metrics/
  */
-SENTRY_EXPERIMENTAL_API void sentry_metrics_emit_increment(
+SENTRY_EXPERIMENTAL_API void sentry_metrics_emit_increment_(
     const char *key, double value, const char *unit, ...);
+
+/**
+ * Convenience macro for `sentry_metrics_emit_increment_`.
+ */
+#define sentry_metrics_emit_increment(key, value, unit, ...)                   \
+    sentry_metrics_emit_increment_(key, value, unit, __VA_ARGS__, NULL)
 
 /**
  * Emits a distribution metric.
@@ -2087,8 +2093,14 @@ SENTRY_EXPERIMENTAL_API void sentry_metrics_emit_increment(
  *
  * See https://develop.sentry.dev/delightful-developer-metrics/
  */
-SENTRY_EXPERIMENTAL_API void sentry_metrics_emit_distribution(
+SENTRY_EXPERIMENTAL_API void sentry_metrics_emit_distribution_(
     const char *key, double value, const char *unit, ...);
+
+/**
+ * Convenience macro for `sentry_metrics_emit_distribution_`.
+ */
+#define sentry_metrics_emit_distribution(key, value, unit, ...)                \
+    sentry_metrics_emit_distribution_(key, value, unit, __VA_ARGS__, NULL)
 
 /**
  * Emits a gauge metric.
@@ -2105,8 +2117,14 @@ SENTRY_EXPERIMENTAL_API void sentry_metrics_emit_distribution(
  *
  * See https://develop.sentry.dev/delightful-developer-metrics/
  */
-SENTRY_EXPERIMENTAL_API void sentry_metrics_emit_gauge(
+SENTRY_EXPERIMENTAL_API void sentry_metrics_emit_gauge_(
     const char *key, double value, const char *unit, ...);
+
+/**
+ * Convenience macro for `sentry_metrics_emit_gauge_`.
+ */
+#define sentry_metrics_emit_gauge(key, value, unit, ...)                       \
+    sentry_metrics_emit_gauge_(key, value, unit, __VA_ARGS__, NULL)
 
 /**
  * Emits a set metric.
@@ -2123,8 +2141,14 @@ SENTRY_EXPERIMENTAL_API void sentry_metrics_emit_gauge(
  *
  * See https://develop.sentry.dev/delightful-developer-metrics/
  */
-SENTRY_EXPERIMENTAL_API void sentry_metrics_emit_set(
+SENTRY_EXPERIMENTAL_API void sentry_metrics_emit_set_(
     const char *key, int32_t value, const char *unit, ...);
+
+/**
+ * Convenience macro for `sentry_metrics_emit_set_`.
+ */
+#define sentry_metrics_emit_set(key, value, unit, ...)                       \
+    sentry_metrics_emit_set_(key, value, unit, __VA_ARGS__, NULL)
 
 #ifdef __cplusplus
 }

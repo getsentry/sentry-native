@@ -12,7 +12,7 @@
 SENTRY_TEST(metrics_new_counter)
 {
     sentry_metrics_emit_increment(
-        "counter_metric", 1.0, "second", "key1", "val1", NULL);
+        "counter_metric", 1.0, "second", "key1", "val1");
 
     SENTRY_WITH_METRICS_AGGREGATOR(aggregator)
     {
@@ -62,8 +62,7 @@ SENTRY_TEST(metrics_new_counter)
 
 SENTRY_TEST(metrics_new_distribution)
 {
-    sentry_metrics_emit_distribution(
-        "distribution_metric", 1.0, "second", NULL);
+    sentry_metrics_emit_distribution("distribution_metric", 1.0, "second");
 
     SENTRY_WITH_METRICS_AGGREGATOR(aggregator)
     {
@@ -105,7 +104,7 @@ SENTRY_TEST(metrics_new_distribution)
 
 SENTRY_TEST(metrics_new_gauge)
 {
-    sentry_metrics_emit_gauge("gauge_metric", 1.0, "second", NULL);
+    sentry_metrics_emit_gauge("gauge_metric", 1.0, "second");
 
     SENTRY_WITH_METRICS_AGGREGATOR(aggregator)
     {
@@ -158,7 +157,7 @@ SENTRY_TEST(metrics_new_gauge)
 
 SENTRY_TEST(metrics_new_set)
 {
-    sentry_metrics_emit_set("set_metric", 1.0, "second", NULL);
+    sentry_metrics_emit_set("set_metric", 1.0, "second");
 
     SENTRY_WITH_METRICS_AGGREGATOR(aggregator)
     {

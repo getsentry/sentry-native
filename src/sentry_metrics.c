@@ -573,7 +573,7 @@ sentry__value_metric_new_n(sentry_slice_t name)
 }
 
 void
-sentry_metrics_emit_increment(
+sentry_metrics_emit_increment_(
     const char *key, double value, const char *unit, ...)
 {
     size_t key_len = key ? strlen(key) : 0;
@@ -615,7 +615,7 @@ sentry_metrics_emit_increment(
 }
 
 void
-sentry_metrics_emit_distribution(
+sentry_metrics_emit_distribution_(
     const char *key, double value, const char *unit, ...)
 {
     size_t key_len = key ? strlen(key) : 0;
@@ -660,7 +660,7 @@ sentry_metrics_emit_distribution(
 }
 
 void
-sentry_metrics_emit_gauge(const char *key, double value, const char *unit, ...)
+sentry_metrics_emit_gauge_(const char *key, double value, const char *unit, ...)
 {
     size_t key_len = key ? strlen(key) : 0;
 
@@ -709,7 +709,7 @@ sentry_metrics_emit_gauge(const char *key, double value, const char *unit, ...)
 }
 
 void
-sentry_metrics_emit_set(const char *key, int32_t value, const char *unit, ...)
+sentry_metrics_emit_set_(const char *key, int32_t value, const char *unit, ...)
 {
     size_t key_len = key ? strlen(key) : 0;
 

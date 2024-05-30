@@ -387,16 +387,16 @@ main(int argc, char **argv)
         sentry_capture_user_feedback(user_feedback);
     }
     if (has_arg(argc, argv, "metrics-emit-increment")) {
-        sentry_metrics_emit_increment("test-inc", 5.0, "second", NULL);
+        sentry_metrics_emit_increment("test-inc", 5.0, "second");
     }
     if (has_arg(argc, argv, "metrics-emit-distribution")) {
-        sentry_metrics_emit_distribution("test-dist", 5.0, "second", NULL);
+        sentry_metrics_emit_distribution("test-dist", 5.0, "second");
     }
     if (has_arg(argc, argv, "metrics-emit-gauge")) {
-        sentry_metrics_emit_gauge("test-gauge", 5.0, "second", NULL);
+        sentry_metrics_emit_gauge("test-gauge", 5.0, "second");
     }
     if (has_arg(argc, argv, "metrics-emit-set")) {
-        sentry_metrics_emit_set("test-set", 5.0, "second", NULL);
+        sentry_metrics_emit_set("test-set", 5.0, "second");
     }
 
     if (has_arg(argc, argv, "capture-transaction")) {
