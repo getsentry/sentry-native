@@ -1,10 +1,15 @@
 # Changelog
 
-## 0.7.5
+## Unreleased
 
 **Features**:
 
 - Add Metrics API ([#985](https://github.com/getsentry/sentry-native/pull/985))
+
+## 0.7.5
+
+**Features**:
+
 - Change the timestamp resolution to microseconds. ([#995](https://github.com/getsentry/sentry-native/pull/995))
 
 **Internal**:
