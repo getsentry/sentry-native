@@ -2079,7 +2079,7 @@ SENTRY_EXPERIMENTAL_API void sentry_metrics_emit_increment_(
  * Convenience macro for `sentry_metrics_emit_increment_`.
  */
 #define sentry_metrics_emit_increment(key, value, unit, ...)                   \
-    sentry_metrics_emit_increment_(key, value, unit, __VA_ARGS__, NULL)
+    sentry_metrics_emit_increment_(key, value, unit, ##__VA_ARGS__, NULL)
 
 /**
  * Emits a distribution metric.
@@ -2100,7 +2100,7 @@ SENTRY_EXPERIMENTAL_API void sentry_metrics_emit_distribution_(
  * Convenience macro for `sentry_metrics_emit_distribution_`.
  */
 #define sentry_metrics_emit_distribution(key, value, unit, ...)                \
-    sentry_metrics_emit_distribution_(key, value, unit, __VA_ARGS__, NULL)
+    sentry_metrics_emit_distribution_(key, value, unit, ##__VA_ARGS__, NULL)
 
 /**
  * Emits a gauge metric.
@@ -2124,7 +2124,7 @@ SENTRY_EXPERIMENTAL_API void sentry_metrics_emit_gauge_(
  * Convenience macro for `sentry_metrics_emit_gauge_`.
  */
 #define sentry_metrics_emit_gauge(key, value, unit, ...)                       \
-    sentry_metrics_emit_gauge_(key, value, unit, __VA_ARGS__, NULL)
+    sentry_metrics_emit_gauge_(key, value, unit, ##__VA_ARGS__, NULL)
 
 /**
  * Emits a set metric.
@@ -2147,8 +2147,8 @@ SENTRY_EXPERIMENTAL_API void sentry_metrics_emit_set_(
 /**
  * Convenience macro for `sentry_metrics_emit_set_`.
  */
-#define sentry_metrics_emit_set(key, value, unit, ...)                       \
-    sentry_metrics_emit_set_(key, value, unit, __VA_ARGS__, NULL)
+#define sentry_metrics_emit_set(key, value, unit, ...)                         \
+    sentry_metrics_emit_set_(key, value, unit, ##__VA_ARGS__, NULL)
 
 #ifdef __cplusplus
 }
