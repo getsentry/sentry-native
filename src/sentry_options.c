@@ -57,7 +57,6 @@ sentry_options_new(void)
     opts->shutdown_timeout = SENTRY_DEFAULT_SHUTDOWN_TIMEOUT;
     opts->traces_sample_rate = 0.0;
     opts->max_spans = 0;
-    opts->metrics_enabled = false;
 
     return opts;
 }
@@ -418,12 +417,6 @@ sentry_options_set_system_crash_reporter_enabled(
     sentry_options_t *opts, int enabled)
 {
     opts->system_crash_reporter_enabled = !!enabled;
-}
-
-void
-sentry_options_set_metrics_enabled(sentry_options_t *opts, int enabled)
-{
-    opts->metrics_enabled = !!enabled;
 }
 
 void
