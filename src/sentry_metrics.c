@@ -939,9 +939,7 @@ sentry__metrics_increment_serialize(
     sentry_stringbuilder_t *sb, sentry_value_t value)
 {
     sentry__stringbuilder_append(sb, ":");
-    char *value_str = sentry__value_stringify(value);
-    sentry__stringbuilder_append(sb, value_str);
-    sentry_free(value_str);
+    sentry__stringbuilder_append(sb, sentry_value_as_string(value));
 }
 
 void
@@ -951,10 +949,8 @@ sentry__metrics_distribution_serialize(
     size_t len = sentry_value_get_length(value);
     for (size_t i = 0; i < len; i++) {
         sentry__stringbuilder_append(sb, ":");
-        char *value_str
-            = sentry__value_stringify(sentry_value_get_by_index(value, i));
-        sentry__stringbuilder_append(sb, value_str);
-        sentry_free(value_str);
+        sentry__stringbuilder_append(
+            sb, sentry_value_as_string(sentry_value_get_by_index(value, i)));
     }
 }
 
@@ -963,30 +959,20 @@ sentry__metrics_gauge_serialize(
     sentry_stringbuilder_t *sb, sentry_value_t value)
 {
     sentry__stringbuilder_append(sb, ":");
-    char *last_str
-        = sentry__value_stringify(sentry_value_get_by_key(value, "last"));
-    sentry__stringbuilder_append(sb, last_str);
-    sentry_free(last_str);
+    sentry__stringbuilder_append(
+        sb, sentry_value_as_string(sentry_value_get_by_key(value, "last")));
     sentry__stringbuilder_append(sb, ":");
-    char *min_str
-        = sentry__value_stringify(sentry_value_get_by_key(value, "min"));
-    sentry__stringbuilder_append(sb, min_str);
-    sentry_free(min_str);
+    sentry__stringbuilder_append(
+        sb, sentry_value_as_string(sentry_value_get_by_key(value, "min")));
     sentry__stringbuilder_append(sb, ":");
-    char *max_str
-        = sentry__value_stringify(sentry_value_get_by_key(value, "max"));
-    sentry__stringbuilder_append(sb, max_str);
-    sentry_free(max_str);
+    sentry__stringbuilder_append(
+        sb, sentry_value_as_string(sentry_value_get_by_key(value, "max")));
     sentry__stringbuilder_append(sb, ":");
-    char *sum_str
-        = sentry__value_stringify(sentry_value_get_by_key(value, "sum"));
-    sentry__stringbuilder_append(sb, sum_str);
-    sentry_free(sum_str);
+    sentry__stringbuilder_append(
+        sb, sentry_value_as_string(sentry_value_get_by_key(value, "sum")));
     sentry__stringbuilder_append(sb, ":");
-    char *count_str
-        = sentry__value_stringify(sentry_value_get_by_key(value, "count"));
-    sentry__stringbuilder_append(sb, count_str);
-    sentry_free(count_str);
+    sentry__stringbuilder_append(
+        sb, sentry_value_as_string(sentry_value_get_by_key(value, "count")));
 }
 
 void
@@ -995,10 +981,8 @@ sentry__metrics_set_serialize(sentry_stringbuilder_t *sb, sentry_value_t value)
     size_t len = sentry_value_get_length(value);
     for (size_t i = 0; i < len; i++) {
         sentry__stringbuilder_append(sb, ":");
-        char *value_str
-            = sentry__value_stringify(sentry_value_get_by_index(value, i));
-        sentry__stringbuilder_append(sb, value_str);
-        sentry_free(value_str);
+        sentry__stringbuilder_append(
+            sb, sentry_value_as_string(sentry_value_get_by_index(value, i)));
     }
 }
 
