@@ -2058,6 +2058,98 @@ SENTRY_EXPERIMENTAL_API const char *sentry_sdk_name(void);
  */
 SENTRY_EXPERIMENTAL_API const char *sentry_sdk_user_agent(void);
 
+/**
+ * Emits a counter metric.
+ *
+ * Counters are one of the more basic types of metrics and can be
+ * used to count certain event occurrences.
+ *
+ * Counter value can only be incremented.
+ *
+ * Metrics can be tagged by key-value pairs
+ * that are set as a variadic parameter.
+ * For any non-empty tag sequence a terminating `NULL` has to be provided.
+ *
+ * See https://develop.sentry.dev/delightful-developer-metrics/
+ */
+SENTRY_EXPERIMENTAL_API void sentry_metrics_emit_increment_(
+    const char *key, double value, const char *unit, ...);
+
+/**
+ * Convenience macro for `sentry_metrics_emit_increment_`.
+ */
+#define sentry_metrics_emit_increment(key, value, unit, ...)                   \
+    sentry_metrics_emit_increment_(key, value, unit, ##__VA_ARGS__, NULL)
+
+/**
+ * Emits a distribution metric.
+ *
+ * Distributions track a list of values over time on which
+ * aggregations like `p90`, `max`, `min`, `avg` can be performed.
+ *
+ * Metrics can be tagged by key-value pairs
+ * that are set as a variadic parameter.
+ * For any non-empty tag sequence a terminating `NULL` has to be provided.
+ *
+ * See https://develop.sentry.dev/delightful-developer-metrics/
+ */
+SENTRY_EXPERIMENTAL_API void sentry_metrics_emit_distribution_(
+    const char *key, double value, const char *unit, ...);
+
+/**
+ * Convenience macro for `sentry_metrics_emit_distribution_`.
+ */
+#define sentry_metrics_emit_distribution(key, value, unit, ...)                \
+    sentry_metrics_emit_distribution_(key, value, unit, ##__VA_ARGS__, NULL)
+
+/**
+ * Emits a gauge metric.
+ *
+ * Gauges track a value that can go up and down on which
+ * aggregations like `max`, `min`, `avg`, `sum` and `count` can be performed.
+ *
+ * Gauges can be represented in a more space-efficient way than distributions,
+ * but they can't be used to get percentiles.
+ *
+ * Metrics can be tagged by key-value pairs
+ * that are set as a variadic parameter.
+ * For any non-empty tag sequence a terminating `NULL` has to be provided.
+ *
+ * See https://develop.sentry.dev/delightful-developer-metrics/
+ */
+SENTRY_EXPERIMENTAL_API void sentry_metrics_emit_gauge_(
+    const char *key, double value, const char *unit, ...);
+
+/**
+ * Convenience macro for `sentry_metrics_emit_gauge_`.
+ */
+#define sentry_metrics_emit_gauge(key, value, unit, ...)                       \
+    sentry_metrics_emit_gauge_(key, value, unit, ##__VA_ARGS__, NULL)
+
+/**
+ * Emits a set metric.
+ *
+ * Sets are useful for looking at unique occurrences and counting
+ * the unique elements that were added.
+ *
+ * Sets track a set of values on which aggregations such as `count_unique`
+ * can be performed.
+ *
+ * Metrics can be tagged by key-value pairs
+ * that are set as a variadic parameter.
+ * For any non-empty tag sequence a terminating `NULL` has to be provided.
+ *
+ * See https://develop.sentry.dev/delightful-developer-metrics/
+ */
+SENTRY_EXPERIMENTAL_API void sentry_metrics_emit_set_(
+    const char *key, int32_t value, const char *unit, ...);
+
+/**
+ * Convenience macro for `sentry_metrics_emit_set_`.
+ */
+#define sentry_metrics_emit_set(key, value, unit, ...)                         \
+    sentry_metrics_emit_set_(key, value, unit, ##__VA_ARGS__, NULL)
+
 #ifdef __cplusplus
 }
 #endif

@@ -7,6 +7,7 @@
 #include "sentry_core.h"
 #include "sentry_database.h"
 #include "sentry_envelope.h"
+#include "sentry_metrics.h"
 #include "sentry_options.h"
 #include "sentry_path.h"
 #include "sentry_random.h"
@@ -257,6 +258,7 @@ sentry_close(void)
     sentry__mutex_unlock(&g_options_lock);
 
     sentry__scope_cleanup();
+    sentry__metrics_aggregator_cleanup();
     sentry_clear_modulecache();
 
     return (int)dumped_envelopes;
@@ -567,6 +569,24 @@ fail:
     SENTRY_WARN("dropping user feedback");
     sentry_envelope_free(envelope);
     sentry_value_decref(user_feedback);
+    return NULL;
+}
+
+sentry_envelope_t *
+sentry__prepare_metrics(const char *encoded_metrics)
+{
+    sentry_envelope_t *envelope = NULL;
+
+    envelope = sentry__envelope_new();
+    if (!envelope || !sentry__envelope_add_metrics(envelope, encoded_metrics)) {
+        goto fail;
+    }
+
+    return envelope;
+
+fail:
+    SENTRY_WARN("dropping metrics");
+    sentry_envelope_free(envelope);
     return NULL;
 }
 
@@ -1170,4 +1190,17 @@ sentry_clear_crashed_last_run(void)
     }
     sentry__options_unlock();
     return success ? 0 : 1;
+}
+
+void
+sentry__metrics_flush(const char *encoded_metrics)
+{
+    sentry_envelope_t *envelope = NULL;
+
+    SENTRY_WITH_OPTIONS (options) {
+        envelope = sentry__prepare_metrics(encoded_metrics);
+        if (envelope) {
+            sentry__capture_envelope(options->transport, envelope);
+        }
+    }
 }

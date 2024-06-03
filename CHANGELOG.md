@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- Add Metrics API ([#985](https://github.com/getsentry/sentry-native/pull/985))
+
 ## 0.7.5
 
 **Features**:

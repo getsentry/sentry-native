@@ -26,6 +26,14 @@
 #    define SENTRY_THREAD_FN static void *
 #endif
 
+#ifdef SENTRY_PLATFORM_WINDOWS
+#    include <windows.h>
+#    define sleep_s(SECONDS) Sleep((SECONDS)*1000)
+#else
+#    include <unistd.h>
+#    define sleep_s(SECONDS) sleep(SECONDS)
+#endif
+
 // define a recursive mutex for all platforms
 #ifdef SENTRY_PLATFORM_WINDOWS
 #    if _WIN32_WINNT >= 0x0600
