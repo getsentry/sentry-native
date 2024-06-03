@@ -84,23 +84,31 @@ sentry__metrics_type_from_string(sentry_value_t type)
     }
 }
 
+static int
+is_ascii(char c)
+{
+    return !(c & ~0x7f);
+}
+
 int
 has_name_pattern_match(char c)
 {
-    return isalnum(c) || c == '_' || c == '\\' || c == '-' || c == '.';
+    return is_ascii(c)
+        && (isalnum(c) || c == '_' || c == '\\' || c == '-' || c == '.');
 }
 
 int
 has_unit_pattern_match(char c)
 {
-    return isalnum(c) || c == '_';
+    return is_ascii(c) && (isalnum(c) || c == '_');
 }
 
 int
 has_tag_key_pattern_match(char c)
 {
-    return isalnum(c) || c == '_' || c == '\\' || c == '-' || c == '.'
-        || c == '/';
+    return is_ascii(c)
+        && (isalnum(c) || c == '_' || c == '\\' || c == '-' || c == '.'
+            || c == '/');
 }
 
 char *
@@ -110,8 +118,7 @@ sentry__metrics_sanitize(const char *original, const char *replacement,
     sentry_stringbuilder_t sb;
     sentry__stringbuilder_init(&sb);
 
-    const unsigned char *ptr = (const unsigned char *)original;
-    while (*ptr) {
+    for (const char *ptr = original; *ptr;) {
         if (pattern_match_func(*ptr)) {
             sentry__stringbuilder_append_char(&sb, *ptr);
             ptr++;
@@ -158,8 +165,7 @@ sentry__metrics_sanitize_tag_value(const char *tag_value)
     sentry_stringbuilder_t sb;
     sentry__stringbuilder_init(&sb);
 
-    const unsigned char *ptr = (const unsigned char *)tag_value;
-    for (; *ptr; ptr++) {
+    for (const char *ptr = tag_value; *ptr; ptr++) {
         switch (*ptr) {
         case '\n':
             sentry__stringbuilder_append(&sb, "\\n");
