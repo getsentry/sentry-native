@@ -1,9 +1,9 @@
 Start-Sleep -Milliseconds 1 # See: https://stackoverflow.com/a/49859001
 
-$LLVM_MINGW_RELEASE = "20220906";
+$LLVM_MINGW_RELEASE = "20240518";
 $LLVM_MINGW_PKG = "llvm-mingw-${LLVM_MINGW_RELEASE}-ucrt-x86_64"
 $LLVM_MINGW_DL_URL = "https://github.com/mstorsjo/llvm-mingw/releases/download/${LLVM_MINGW_RELEASE}/${LLVM_MINGW_PKG}.zip"
-$LLVM_MINGW_DL_SHA512 = "3c724dd0663558c7247d2cdde196b37dc54e49fb8c4065aef0274d69d92d2d023440505fe6f23e83476d56f4a39c105d551f998a4342e823a2d2705d7a73fe7c"
+$LLVM_MINGW_DL_SHA512 = "4758b41533930f9b4d646f60406f37a644dedd662d0adb8586f544c1b875fc86ece51ce2bb7b060075c3d081533f1a7aafa816ccdee2101e507aa047024d8d3f"
 $DL_BASEDIR = "$env:GITHUB_WORKSPACE\dl"
 $LLVM_MINGW_DL_PATH = "${DL_BASEDIR}\llvm-mingw.zip"
 if (!(Test-Path -Path "$DL_BASEDIR")) { New-Item -ItemType Directory -Force -Path "$DL_BASEDIR" }
@@ -32,8 +32,8 @@ Write-Host "Path to LLVM-mingw bin folder: ${LLVM_MINGW_INSTALL_PATH}\bin"
 "${LLVM_MINGW_INSTALL_PATH}\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
 # Download ninja-build
-$NINJA_DL_URL = "https://github.com/ninja-build/ninja/releases/download/v1.11.1/ninja-win.zip"
-$NINJA_DL_SHA512 = "a700e794c32eb67b9f87040db7f1ba3a8e891636696fc54d416b01661c2421ff46fa517c97fd904adacdf8e621df3e68ea380105b909ae8b6651a78ae7eb3199"
+$NINJA_DL_URL = "https://github.com/ninja-build/ninja/releases/download/v1.12.1/ninja-win.zip"
+$NINJA_DL_SHA512 = "d6715c6458d798bcb809f410c0364dabd937b5b7a3ddb4cd5aba42f9fca45139b2a8a3e7fd9fbd88fd75d298ed99123220b33c7bdc8966a9d5f2a1c9c230955f"
 $NINJA_DL_PATH = "${DL_BASEDIR}\ninja-win.zip"
 $CurlArguments = '-s', '-Lf', '-o', "${NINJA_DL_PATH}", "${NINJA_DL_URL}"
 & curl.exe @CurlArguments
@@ -55,4 +55,4 @@ Expand-Archive -LiteralPath "${NINJA_DL_PATH}" -DestinationPath "${NINJA_INSTALL
 "PATH=${NINJA_INSTALL_PATH}; $env:PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
 # export CMAKE_DEFINES to the runner environment
-"CMAKE_DEFINES=-DCMAKE_C_COMPILER=${env:MINGW_PKG_PREFIX}-gcc -DCMAKE_CXX_COMPILER=${env:MINGW_PKG_PREFIX}-g++ -DCMAKE_RC_COMPILER=${env:MINGW_PKG_PREFIX}-windres -DCMAKE_ASM_MASM_COMPILER=${env:MINGW_ASM_MASM_COMPILER}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+"CMAKE_DEFINES=${env:CMAKE_DEFINES} -DCMAKE_C_COMPILER=${env:MINGW_PKG_PREFIX}-gcc -DCMAKE_CXX_COMPILER=${env:MINGW_PKG_PREFIX}-g++ -DCMAKE_RC_COMPILER=${env:MINGW_PKG_PREFIX}-windres -DCMAKE_ASM_MASM_COMPILER=${env:MINGW_ASM_MASM_COMPILER}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append

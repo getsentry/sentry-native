@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+**Fixes**:
+
+- Fix `crashpad` build for Windows ARM64 via LLVM-MINGW. ([#1003](https://github.com/getsentry/sentry-native/pull/1003), [crashpad#101](https://github.com/getsentry/crashpad/pull/101))
+
+**Thank you**:
+
+- [@past-due](https://github.com/past-due)
+
 ## 0.7.5
 
 **Features**:
