@@ -4,7 +4,7 @@
 
 **Fixes**:
 
-- Fix 'crashpad' Remove NOT condition for SENTRY_BUILD_SHARED_LIBS as it blocks adding crashpad handler target.cmake ([#1007](https://github.com/getsentry/sentry-native/pull/1007))
+- Fix `crashpad` Remove NOT condition for SENTRY_BUILD_SHARED_LIBS as it blocks adding crashpad handler target.cmake ([#1007](https://github.com/getsentry/sentry-native/pull/1007))
 - Fix `crashpad` build for Windows ARM64 via LLVM-MINGW. ([#1003](https://github.com/getsentry/sentry-native/pull/1003), [crashpad#101](https://github.com/getsentry/crashpad/pull/101))
 
 **Thank you**:
