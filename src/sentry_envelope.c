@@ -234,7 +234,7 @@ sentry__envelope_add_event(sentry_envelope_t *envelope, sentry_value_t event)
         return NULL;
     }
 
-    sentry_jsonwriter_t *jw = sentry__jsonwriter_new(NULL);
+    sentry_jsonwriter_t *jw = sentry__jsonwriter_new_sb(NULL);
     if (!jw) {
         return NULL;
     }
@@ -265,7 +265,7 @@ sentry__envelope_add_transaction(
         return NULL;
     }
 
-    sentry_jsonwriter_t *jw = sentry__jsonwriter_new(NULL);
+    sentry_jsonwriter_t *jw = sentry__jsonwriter_new_sb(NULL);
     if (!jw) {
         return NULL;
     }
@@ -304,7 +304,7 @@ sentry__envelope_add_user_feedback(
         return NULL;
     }
 
-    sentry_jsonwriter_t *jw = sentry__jsonwriter_new(NULL);
+    sentry_jsonwriter_t *jw = sentry__jsonwriter_new_sb(NULL);
     if (!jw) {
         return NULL;
     }
@@ -332,7 +332,7 @@ sentry__envelope_add_session(
     if (!envelope || !session) {
         return NULL;
     }
-    sentry_jsonwriter_t *jw = sentry__jsonwriter_new(NULL);
+    sentry_jsonwriter_t *jw = sentry__jsonwriter_new_sb(NULL);
     if (!jw) {
         return NULL;
     }
@@ -378,7 +378,7 @@ static void
 sentry__envelope_serialize_headers_into_stringbuilder(
     const sentry_envelope_t *envelope, sentry_stringbuilder_t *sb)
 {
-    sentry_jsonwriter_t *jw = sentry__jsonwriter_new(sb);
+    sentry_jsonwriter_t *jw = sentry__jsonwriter_new_sb(sb);
     if (jw) {
         sentry__jsonwriter_write_value(jw, envelope->contents.items.headers);
         sentry__jsonwriter_free(jw);
@@ -389,7 +389,7 @@ static void
 sentry__envelope_serialize_item_into_stringbuilder(
     const sentry_envelope_item_t *item, sentry_stringbuilder_t *sb)
 {
-    sentry_jsonwriter_t *jw = sentry__jsonwriter_new(sb);
+    sentry_jsonwriter_t *jw = sentry__jsonwriter_new_sb(sb);
     if (!jw) {
         return;
     }
@@ -472,20 +472,62 @@ sentry_envelope_serialize(const sentry_envelope_t *envelope, size_t *size_out)
     return sentry__stringbuilder_into_string(&sb);
 }
 
+static
+    size_t
+    write_buffer_to_file(FILE *f, char *buf, size_t len)
+{
+    while (len > 0) {
+        size_t n = fwrite(buf, 1, len, f);
+        if (n == 0 && errno == EINVAL) {
+            continue;
+        } else if (n < len) {
+            break;
+        }
+        buf += n;
+        len -= n;
+    }
+    return len;
+}
+
 MUST_USE int
 sentry_envelope_write_to_path(
     const sentry_envelope_t *envelope, const sentry_path_t *path)
 {
-    // TODO: This currently builds the whole buffer in-memory.
-    // It would be nice to actually stream this to a file.
-    size_t buf_len = 0;
-    char *buf = sentry_envelope_serialize(envelope, &buf_len);
+    FILE *f = _wfopen(path->path, L"wb");
+    if (!f) {
+        return 1;
+    }
 
-    int rv = sentry__path_write_buffer(path, buf, buf_len);
+    if (envelope->is_raw) {
+        return envelope->contents.raw.payload_len != write_buffer_to_file(f, envelope->contents.raw.payload,
+            envelope->contents.raw.payload_len);
+    }
 
-    sentry_free(buf);
+    size_t rv = 0;
+    sentry_jsonwriter_t *jw = sentry__jsonwriter_new_file(f);
+    if (jw) {
+        sentry__jsonwriter_write_value(jw, envelope->contents.items.headers);
+        sentry__jsonwriter_reset(jw);
 
-    return rv;
+        for (size_t i = 0; i < envelope->contents.items.item_count; i++) {
+            const sentry_envelope_item_t *item = &envelope->contents.items.items[i];
+            const char newline = '\n';
+            rv += fwrite(&newline, sizeof(char), 1, f);
+
+            sentry__jsonwriter_write_value(jw, item->headers);
+            sentry__jsonwriter_reset(jw);
+
+            rv += fwrite(&newline, sizeof(char), 1, f);
+
+            rv += write_buffer_to_file(f, item->payload, item->payload_len);
+        }
+        sentry__jsonwriter_free(jw);
+    }
+
+    fflush(f);
+    fclose(f);
+
+    return rv == 0;
 }
 
 int
