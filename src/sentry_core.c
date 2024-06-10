@@ -8,6 +8,7 @@
 #include "sentry_database.h"
 #include "sentry_envelope.h"
 #include "sentry_options.h"
+#include "sentry_os.h"
 #include "sentry_path.h"
 #include "sentry_random.h"
 #include "sentry_scope.h"
@@ -153,6 +154,10 @@ sentry_init(sentry_options_t *options)
         if (backend->startup_func(backend, options) != 0) {
             SENTRY_WARN("failed to initialize backend");
             goto fail;
+        }
+        if (options->uef_lock_enabled) {
+            SENTRY_TRACE("Locking SetUnhandledExceptionFilter()");
+            sentry__lock_unhandled_exception_filter();
         }
     }
     if (backend && backend->get_last_crash_func) {

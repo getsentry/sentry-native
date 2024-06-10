@@ -1,9 +1,11 @@
 #include "sentry_os.h"
+#include "sentry_logger.h"
 #include "sentry_string.h"
 #include "sentry_utils.h"
 
 #ifdef SENTRY_PLATFORM_WINDOWS
 
+#    include <assert.h>
 #    include <windows.h>
 #    define CURRENT_VERSION "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion"
 
@@ -111,7 +113,7 @@ sentry__get_os_context(void)
     if (sentry__get_kernel_version(&win_ver)) {
         at_least_one_key_successful = true;
 
-        snprintf(buf, sizeof(buf), "%u.%u.%u.%lu", win_ver.major, win_ver.minor,
+        snprintf(buf, sizeof(buf), "%u.%u.%u.%u", win_ver.major, win_ver.minor,
             win_ver.build, win_ver.ubr);
         sentry_value_set_by_key(
             os, "kernel_version", sentry_value_new_string(buf));
@@ -124,7 +126,7 @@ sentry__get_os_context(void)
             win_ver.build);
         sentry_value_set_by_key(os, "version", sentry_value_new_string(buf));
 
-        snprintf(buf, sizeof(buf), "%lu", win_ver.ubr);
+        snprintf(buf, sizeof(buf), "%u", win_ver.ubr);
         sentry_value_set_by_key(os, "build", sentry_value_new_string(buf));
     }
 
@@ -135,6 +137,80 @@ sentry__get_os_context(void)
 
     sentry_value_decref(os);
     return sentry_value_new_null();
+}
+
+static LPTOP_LEVEL_EXCEPTION_FILTER
+logging_uef_setter(LPTOP_LEVEL_EXCEPTION_FILTER uef)
+{
+    (void)uef;
+    SENTRY_WARN("Attempt to overwrite UnhandledExceptionFilter");
+    sentry_value_t event = sentry_value_new_message_event(SENTRY_LEVEL_WARNING,
+        NULL, "Attempt to overwrite UnhandledExceptionFilter");
+    sentry_event_value_add_stacktrace(event, NULL, 0);
+    sentry_capture_event(event);
+    return NULL;
+}
+
+void
+sentry__lock_unhandled_exception_filter()
+{
+    HMODULE h_kernel32 = GetModuleHandle("kernel32.dll");
+    if (h_kernel32 == NULL) {
+        return;
+    }
+
+    FARPROC set_uef_addr
+        = GetProcAddress(h_kernel32, "SetUnhandledExceptionFilter");
+    if (set_uef_addr == NULL) {
+        return;
+    }
+
+#    if 0
+    DWORD current_protection;
+    if (!VirtualProtect((LPVOID)set_uef_addr, sizeof(LPVOID),
+            PAGE_EXECUTE_READWRITE, &current_protection)) {
+        return;
+    }
+#    endif
+
+    // Calculate the jump instruction
+#    if defined(_M_IX86)
+    BYTE jump[6] = { 0x68, 0, 0, 0, 0, 0xC3 }; // push <address>; ret
+    DWORD_PTR customFunction = (DWORD_PTR)logging_uef_setter;
+    memcpy(&jump[1], &customFunction, sizeof(customFunction));
+#    elif defined(_M_X64)
+    BYTE jump[12] = { 0x48, 0xB8, 0, 0, 0, 0, 0, 0, 0, 0, 0xFF,
+        0xE0 }; // push <address>; ret
+    uintptr_t customFunction = (uintptr_t)logging_uef_setter;
+    memcpy(&jump[2], &customFunction, sizeof(customFunction));
+#    elif defined(_M_ARM64)
+    uint64_t customFunction = (uint64_t)CustomUnhandledExceptionFilter;
+    const uint64_t pc_offset_correction = 8;
+    uint64_t offset = custom_function - (uint64_t)original_fFunction - pc_offset_correction;
+    uint32_t branch_instruction = 0x14000000 | ((offset >> 2) & 0x03FFFFFF));
+    uint32_t nop_instruction =
+    BYTE jump[16] = {0};
+    memcpy(&jump[0], &customFunction, sizeof(customFunction));
+    for (jump + sizeof(branch))
+#    else
+#        error "Platform not supported!"
+#    endif
+
+    // Write the jump instruction
+#    if 0
+    memcpy((LPVOID)set_uef_addr, jump, sizeof(jump));
+#    else
+    SIZE_T written;
+    WriteProcessMemory(GetCurrentProcess(), (LPVOID)set_uef_addr, jump,
+        sizeof(jump), &written);
+
+    assert(written == sizeof(jump));
+#    endif
+
+#    if 0
+    VirtualProtect((LPVOID)set_uef_addr, sizeof(void *), current_protection,
+        &current_protection);
+#    endif
 }
 
 void

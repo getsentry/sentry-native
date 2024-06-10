@@ -1253,6 +1253,33 @@ SENTRY_API uint64_t sentry_options_get_shutdown_timeout(sentry_options_t *opts);
 SENTRY_API void sentry_options_set_backend(
     sentry_options_t *opts, sentry_backend_t *backend);
 
+/**
+ * Tells the Native SDK to lock down setting the `UnhandledExceptionFilter`
+ * after `sentry_init()`. Only available on Windows (for x86, x64, arm64).
+ *
+ * This can sometimes be necessary because some dependencies outside your
+ * control overwrite the `UnhandledExceptionFilter` defined in our backends
+ * which in turn prevents us from sending crash reports.
+ *
+ * WARNING: there can be sensible uses of temporary `UnhandledExceptionFilter`
+ * setups that reset to our handler after they are finished. These will no
+ * longer work if you enable this option. Please make sure that you have no
+ * other way of preventing post-init UEF setups and that you understand what
+ * this function is doing before you enable this option.
+ *
+ * If you enable the `debug` option our overwrite will log a WARNING whenever
+ * code in the process tries to call `SetUnhandledExceptionFilter()`. We will
+ * further send you a message event to the project referenced with the DSN
+ * that includes a stack-trace so you can identify (the path to) the caller.
+ *
+ * Also, if you used `sentry_reinstall_backend()` before, be aware that this
+ * function has limited utility when enabling this option.
+ */
+#ifdef SENTRY_PLATFORM_WINDOWS
+SENTRY_EXPERIMENTAL_API void sentry_options_set_uef_lock(
+    sentry_options_t *options, int uef_lock_enabled);
+#endif
+
 /* -- Global APIs -- */
 
 /**

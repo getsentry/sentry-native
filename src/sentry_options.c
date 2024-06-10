@@ -594,3 +594,9 @@ sentry_options_set_backend(sentry_options_t *opts, sentry_backend_t *backend)
     sentry__backend_free(opts->backend);
     opts->backend = backend;
 }
+
+void
+sentry_options_set_uef_lock(sentry_options_t *opts, int uef_lock_enabled)
+{
+    opts->uef_lock_enabled = !!uef_lock_enabled;
+}

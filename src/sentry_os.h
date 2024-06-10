@@ -15,6 +15,7 @@ typedef struct {
 int sentry__get_kernel_version(windows_version_t *win_ver);
 int sentry__get_windows_version(windows_version_t *win_ver);
 void sentry__reserve_thread_stack(void);
+void sentry__lock_unhandled_exception_filter(void);
 
 #endif
 

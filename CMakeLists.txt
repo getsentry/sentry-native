@@ -564,6 +564,8 @@ endif()
 if(SENTRY_BUILD_EXAMPLES)
 	add_executable(sentry_example examples/example.c)
 	target_link_libraries(sentry_example PRIVATE sentry)
+	add_executable(uef_lock examples/uef_lock.c)
+	target_link_libraries(uef_lock PRIVATE sentry)
 
 	if(MSVC)
 		target_compile_options(sentry_example PRIVATE $<BUILD_INTERFACE:/wd5105 /wd4717>)
