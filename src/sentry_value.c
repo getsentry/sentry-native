@@ -944,7 +944,7 @@ sentry__jsonwriter_write_value(sentry_jsonwriter_t *jw, sentry_value_t value)
 char *
 sentry_value_to_json(sentry_value_t value)
 {
-    sentry_jsonwriter_t *jw = sentry__jsonwriter_new(NULL);
+    sentry_jsonwriter_t *jw = sentry__jsonwriter_new_sb(NULL);
     if (!jw) {
         return NULL;
     }

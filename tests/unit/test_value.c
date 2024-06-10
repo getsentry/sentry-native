@@ -394,7 +394,7 @@ SENTRY_TEST(value_json_deeply_nested)
         child = new_child;
     }
 
-    sentry_jsonwriter_t *jw = sentry__jsonwriter_new(NULL);
+    sentry_jsonwriter_t *jw = sentry__jsonwriter_new_sb(NULL);
     sentry__jsonwriter_write_value(jw, root);
     size_t serialized_len = 0;
     char *serialized = sentry__jsonwriter_into_string(jw, &serialized_len);
