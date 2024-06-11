@@ -4,11 +4,14 @@
 
 **Fixes**:
 
-- Fix `crashpad` build for Windows ARM64 via LLVM-MINGW. ([#1003](https://github.com/getsentry/sentry-native/pull/1003), [crashpad#101](https://github.com/getsentry/crashpad/pull/101))
+- Remove remaining build blockers for the `crashpad` backend on Windows ARM64 when using LLVM-MINGW. ([#1003](https://github.com/getsentry/sentry-native/pull/1003), [crashpad#101](https://github.com/getsentry/crashpad/pull/101))
+- Ensure `crashpad` targets are included when building as a shared library using our exported CMake config. ([#1007](https://github.com/getsentry/sentry-native/pull/1007))
+- Use `find_dependency()` instead of `find_package()` in the exported CMake config. ([#1007](https://github.com/getsentry/sentry-native/pull/1007))
 
 **Thank you**:
 
 - [@past-due](https://github.com/past-due)
+- [@podlaszczyk](https://github.com/podlaszczyk)
 
 ## 0.7.5
 
