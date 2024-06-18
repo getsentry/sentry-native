@@ -62,6 +62,7 @@ option(SENTRY_BUILD_EXAMPLES "Build sentry-native example(s)" "${SENTRY_MAIN_PRO
 
 option(SENTRY_LINK_PTHREAD "Link platform threads library" ON)
 if(SENTRY_LINK_PTHREAD)
+	set(THREADS_PREFER_PTHREAD_FLAG ON)
 	find_package(Threads REQUIRED)
 endif()
 
@@ -276,7 +277,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "OS400")
 endif()
 
 if(SENTRY_TRANSPORT_CURL)
-	if(NOT CURL_FOUND) # Some other lib might bring libcurl already
+	if(NOT TARGET CURL::libcurl) # Some other lib might bring libcurl already
 		find_package(CURL REQUIRED COMPONENTS AsynchDNS)
 	endif()
 
@@ -284,7 +285,7 @@ if(SENTRY_TRANSPORT_CURL)
 endif()
 
 if(SENTRY_TRANSPORT_COMPRESSION)
-	if(NOT ZLIB_FOUND)
+	if(NOT TARGET ZLIB::ZLIB)
 		find_package(ZLIB REQUIRED)
 	endif()
 
