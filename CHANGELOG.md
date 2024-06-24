@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Internal**:
+
+- Updated `crashpad` to 2024-06-11. ([#1014](https://github.com/getsentry/sentry-native/pull/1014), [crashpad#105](https://github.com/getsentry/crashpad/pull/105))
+
 ## 0.7.6
 
 **Fixes**:
