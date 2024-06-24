@@ -66,8 +66,8 @@ jobs:
             os: macOs-14
             ERROR_ON_WARNINGS: 1
             SYSTEM_VERSION_COMPAT: 0
-          - name: macOS 12 (xcode llvm)
-            os: macOs-12
+          - name: macOS 13 (xcode llvm)
+            os: macOs-13
             ERROR_ON_WARNINGS: 1
             SYSTEM_VERSION_COMPAT: 0
           - name: macOS (xcode llvm + universal)
