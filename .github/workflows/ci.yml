@@ -76,7 +76,7 @@ jobs:
             SYSTEM_VERSION_COMPAT: 0
             CMAKE_DEFINES: -DCMAKE_OSX_ARCHITECTURES=arm64;x86_64
           - name: macOS (clang + asan + llvm-cov)
-            os: macOs-14
+            os: macOs-12
             CC: clang
             CXX: clang++
             ERROR_ON_WARNINGS: 1
