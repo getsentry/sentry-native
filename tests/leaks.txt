@@ -4,3 +4,4 @@
 # https://github.com/getsentry/crashpad/blob/9cd1a4dadb51b31665f5e50c5ffc25bb9d10571a/client/crash_report_database_mac.mm#L705
 leak:contentsOfDirectoryAtPath
 leak:SCDynamicStoreCopyProxiesWithOptions
+leak:realizeClassWithoutSwift
