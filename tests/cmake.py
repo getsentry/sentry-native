@@ -153,6 +153,20 @@ def cmake(cwd, targets, options=None):
     if "llvm-cov" in os.environ.get("RUN_ANALYZER", ""):
         flags = "-fprofile-instr-generate -fcoverage-mapping"
         configcmd.append("-DCMAKE_C_FLAGS='{}'".format(flags))
+
+        # Since we overwrite `CXXFLAGS` below, we must add the experimental library here for the GHA runner that builds
+        # sentry-native with LLVM clang for macOS (to run ASAN on macOS) rather than the version coming with XCode.
+        # TODO: remove this if the GHA runner image for macOS ever updates beyond llvm15.
+        if (
+            sys.platform == "darwin"
+            and os.environ.get("CC", "") == "clang"
+            and shutil.which("clang") == "/usr/local/opt/llvm@15/bin/clang"
+        ):
+            flags = (
+                flags
+                + " -L/usr/local/opt/llvm@15/lib/c++ -fexperimental-library -Wno-unused-command-line-argument"
+            )
+
         configcmd.append("-DCMAKE_CXX_FLAGS='{}'".format(flags))
     if "CMAKE_DEFINES" in os.environ:
         configcmd.extend(os.environ.get("CMAKE_DEFINES").split())
