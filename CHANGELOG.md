@@ -2,9 +2,18 @@
 
 ## Unreleased
 
+**Fixes**:
+
+- Further clean up of the exported dependency configuration. ([#1013](https://github.com/getsentry/sentry-native/pull/1013), [crashpad#106](https://github.com/getsentry/crashpad/pull/106))
+
 **Internal**:
 
 - Updated `crashpad` to 2024-06-11. ([#1014](https://github.com/getsentry/sentry-native/pull/1014), [crashpad#105](https://github.com/getsentry/crashpad/pull/105))
+
+**Thank you**:
+
+- [@JonLiu1993](https://github.com/JonLiu1993)
+- [@dg0yt](https://github.com/dg0yt)
 
 ## 0.7.6
 
