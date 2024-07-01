@@ -625,4 +625,59 @@ sentry__backend_new(void)
 
     return backend;
 }
+
+#ifdef SENTRY_PLATFORM_WINDOWS
+static CrashpadExceptionHandledCallback OnCrashpadExceptionHandled = nullptr;
+
+static bool crashpad_exception_handler(EXCEPTION_POINTERS *exceptionInfo)
+{
+    // Notify the client that an exception has been handled.
+    if (OnCrashpadExceptionHandled)
+        OnCrashpadExceptionHandled(exceptionInfo);
+
+    // The client is about to crash at this point,
+    // so reset the client callback.
+    OnCrashpadExceptionHandled = nullptr;
+
+    // Do not handle the exception here. Let crashpad do that.
+    return false;
+}
+
+int crashpad_start_handler(const char *productName, const char *productVersion,
+    const char *handlerFilePath, const char *databaseDirectoryPath,
+    CrashpadExceptionHandledCallback callback)
+{
+    base::FilePath handler(sentry__path_from_str(handlerFilePath)->path);
+    base::FilePath reportsDirectory(sentry__path_from_str(databaseDirectoryPath)->path);
+
+    std::map<std::string, std::string> annotations;
+    annotations["format"] = "minidump";
+    annotations["database"] = "ErrorReportDatabase";
+    annotations["product"] = productName;
+    annotations["version"] = productVersion;
+
+    // Disable crashpad rate limiting so that all crashes have dmp files
+    std::vector<std::string> arguments { "--no-rate-limit" };
+
+    std::unique_ptr<crashpad::CrashReportDatabase> database
+        = crashpad::CrashReportDatabase::Initialize(reportsDirectory);
+    if (!database)
+        return 1;
+
+    // Start the crashpad handler
+    crashpad::CrashpadClient client;
+    auto status = client.StartHandler(handler, reportsDirectory,
+        reportsDirectory /*metrics_dir*/, "" /*url*/, "" /*http_proxy*/,
+        annotations, arguments, true /*restartable*/,
+        false /*asynchronous_start*/);
+
+    if (status) {
+        // Register a handler to notify the client when an exception occurs
+        OnCrashpadExceptionHandled = callback;
+        crashpad::CrashpadClient::SetFirstChanceExceptionHandler(&crashpad_exception_handler);
+    }
+
+    return status ? 0 : 1;
+}
+#endif
 }
