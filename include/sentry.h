@@ -2058,6 +2058,23 @@ SENTRY_EXPERIMENTAL_API const char *sentry_sdk_name(void);
  */
 SENTRY_EXPERIMENTAL_API const char *sentry_sdk_user_agent(void);
 
+#ifdef SENTRY_PLATFORM_WINDOWS
+typedef void (*CrashpadExceptionHandledCallback)(EXCEPTION_POINTERS *exceptionInfo);
+
+/**
+ * Starts the crashpad handler when not using sentry for error reporting.
+ * Do not call this function with sentry_init().
+ * Returns 0 on success, 1 on error.
+ *
+ * This function should only be called once per process.
+ * This function is not thread safe.
+ */
+SENTRY_EXPERIMENTAL_API int crashpad_start_handler(const char *productName,
+    const char *productVersion, const char *handlerFilePath,
+    const char *databaseDirectoryPath,
+    CrashpadExceptionHandledCallback callback);
+#endif
+
 #ifdef __cplusplus
 }
 #endif
