@@ -92,6 +92,8 @@ typedef struct {
     sentry_path_t *breadcrumb1_path;
     sentry_path_t *breadcrumb2_path;
     size_t num_breadcrumbs;
+    std::atomic<bool> crashed;
+    std::atomic<bool> scope_flush;
 } crashpad_state_t;
 
 /**
@@ -184,8 +186,9 @@ crashpad_backend_flush_scope_to_event(const sentry_path_t *event_path,
     }
 }
 
-// This function is only necessary for macOS since it has no
-// `FirstChanceHandler`. This means we have to continuously flush the scope on
+// This function is necessary for macOS since it has no `FirstChanceHandler`.
+// but it is also necessary on Windows if the WER handler is enabled.
+// This means we have to continuously flush the scope on
 // every change so that `__sentry_event` is ready to upload when the crash
 // happens. With platforms that have a `FirstChanceHandler` we can do that
 // once in the handler. No need to share event- or crashpad-state mutation.
@@ -193,12 +196,16 @@ static void
 crashpad_backend_flush_scope(
     sentry_backend_t *backend, const sentry_options_t *options)
 {
-#if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_WINDOWS)
+#if defined(SENTRY_PLATFORM_LINUX)
     (void)backend;
     (void)options;
 #else
     auto *data = static_cast<crashpad_state_t *>(backend->data);
-    if (!data->event_path) {
+    bool expected = false;
+
+    //
+    if (!data->event_path || data->crashed.load()
+        || !data->scope_flush.compare_exchange_strong(expected, true)) {
         return;
     }
 
@@ -209,7 +216,28 @@ crashpad_backend_flush_scope(
         event, "level", sentry__value_new_level(SENTRY_LEVEL_FATAL));
 
     crashpad_backend_flush_scope_to_event(data->event_path, options, event);
+    data->scope_flush.store(false);
 #endif
+}
+
+static void
+flush_scope_from_handler(
+    const sentry_options_t *options, sentry_value_t crash_event)
+{
+    auto state = static_cast<crashpad_state_t *>(options->backend->data);
+
+    // this blocks any further calls to `crashpad_backend_flush_scope`
+    state->crashed.store(true);
+
+    // busy-wait until any in-progress scope flushes are finished
+    bool expected = false;
+    while (!state->scope_flush.compare_exchange_strong(expected, true)) {
+        expected = false;
+    }
+
+    // now we are the sole flusher and can flush into the crash event
+    crashpad_backend_flush_scope_to_event(
+        state->event_path, options, crash_event);
 }
 
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_WINDOWS)
@@ -253,11 +281,7 @@ sentry__crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
         should_dump = !sentry_value_is_null(crash_event);
 
         if (should_dump) {
-            auto state
-                = static_cast<crashpad_state_t *>(options->backend->data);
-            crashpad_backend_flush_scope_to_event(
-                state->event_path, options, crash_event);
-
+            flush_scope_from_handler(options, crash_event);
             sentry__write_crash_marker(options);
 
             sentry__record_errors_on_current_session(1);
@@ -613,6 +637,8 @@ sentry__backend_new(void)
         return nullptr;
     }
     memset(data, 0, sizeof(crashpad_state_t));
+    data->scope_flush = false;
+    data->crashed = false;
 
     backend->startup_func = crashpad_backend_startup;
     backend->shutdown_func = crashpad_backend_shutdown;
