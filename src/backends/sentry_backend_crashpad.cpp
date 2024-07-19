@@ -85,16 +85,16 @@ constexpr int g_CrashSignals[] = {
 };
 #endif
 
-typedef struct {
-    crashpad::CrashReportDatabase *db;
-    crashpad::CrashpadClient *client;
-    sentry_path_t *event_path;
-    sentry_path_t *breadcrumb1_path;
-    sentry_path_t *breadcrumb2_path;
-    size_t num_breadcrumbs;
-    std::atomic<bool> crashed;
-    std::atomic<bool> scope_flush;
-} crashpad_state_t;
+struct crashpad_state_t {
+    crashpad::CrashReportDatabase *db {};
+    crashpad::CrashpadClient *client {};
+    sentry_path_t *event_path {};
+    sentry_path_t *breadcrumb1_path {};
+    sentry_path_t *breadcrumb2_path {};
+    size_t num_breadcrumbs {};
+    std::atomic_flag crashed = ATOMIC_FLAG_INIT;
+    std::atomic_flag scope_flush_in_progress = ATOMIC_FLAG_INIT;
+};
 
 /**
  * Correctly destruct C++ members of the crashpad state.
@@ -201,11 +201,12 @@ crashpad_backend_flush_scope(
     (void)options;
 #else
     auto *data = static_cast<crashpad_state_t *>(backend->data);
-    bool expected = false;
 
-    //
-    if (!data->event_path || data->crashed.load()
-        || !data->scope_flush.compare_exchange_strong(expected, true)) {
+    if (!data->event_path
+        || data->crashed.test_and_set(std::memory_order_relaxed)
+        || data->scope_flush_in_progress.test_and_set(
+            std::memory_order_acquire)) {
+        SENTRY_DEBUG("flush scope via callback blocked");
         return;
     }
 
@@ -216,7 +217,7 @@ crashpad_backend_flush_scope(
         event, "level", sentry__value_new_level(SENTRY_LEVEL_FATAL));
 
     crashpad_backend_flush_scope_to_event(data->event_path, options, event);
-    data->scope_flush.store(false);
+    data->scope_flush_in_progress.clear(std::memory_order_release);
 #endif
 }
 
@@ -227,12 +228,15 @@ flush_scope_from_handler(
     auto state = static_cast<crashpad_state_t *>(options->backend->data);
 
     // this blocks any further calls to `crashpad_backend_flush_scope`
-    state->crashed.store(true);
+    state->crashed.test_and_set(std::memory_order_relaxed);
 
     // busy-wait until any in-progress scope flushes are finished
-    bool expected = false;
-    while (!state->scope_flush.compare_exchange_strong(expected, true)) {
-        expected = false;
+    while (state->scope_flush_in_progress.test_and_set(
+        std::memory_order_acquire)) {
+#if defined(__cpp_lib_atomic_flag_test)
+        while (lock.test(std::memory_order_relaxed)) // test lock
+#endif
+            ;
     }
 
     // now we are the sole flusher and can flush into the crash event
@@ -556,7 +560,7 @@ crashpad_backend_free(sentry_backend_t *backend)
     sentry__path_free(data->event_path);
     sentry__path_free(data->breadcrumb1_path);
     sentry__path_free(data->breadcrumb2_path);
-    sentry_free(data);
+    delete data;
 }
 
 static void
@@ -631,14 +635,11 @@ sentry__backend_new(void)
     }
     memset(backend, 0, sizeof(sentry_backend_t));
 
-    auto *data = SENTRY_MAKE(crashpad_state_t);
+    auto *data = new (std::nothrow) crashpad_state_t;
     if (!data) {
         sentry_free(backend);
         return nullptr;
     }
-    memset(data, 0, sizeof(crashpad_state_t));
-    data->scope_flush = false;
-    data->crashed = false;
 
     backend->startup_func = crashpad_backend_startup;
     backend->shutdown_func = crashpad_backend_shutdown;
