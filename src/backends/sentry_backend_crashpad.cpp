@@ -85,6 +85,10 @@ constexpr int g_CrashSignals[] = {
 };
 #endif
 
+static_assert(std::atomic<bool>::is_always_lock_free,
+    "The crashpad-backend requires lock-free atomic<bool> to safely handle "
+    "crashes");
+
 typedef struct {
     crashpad::CrashReportDatabase *db;
     crashpad::CrashpadClient *client;
@@ -204,8 +208,9 @@ crashpad_backend_flush_scope(
     bool expected = false;
 
     //
-    if (!data->event_path || data->crashed.load()
-        || !data->scope_flush.compare_exchange_strong(expected, true)) {
+    if (!data->event_path || data->crashed.load(std::memory_order_relaxed)
+        || !data->scope_flush.compare_exchange_strong(
+            expected, true, std::memory_order_acquire)) {
         return;
     }
 
@@ -216,7 +221,7 @@ crashpad_backend_flush_scope(
         event, "level", sentry__value_new_level(SENTRY_LEVEL_FATAL));
 
     crashpad_backend_flush_scope_to_event(data->event_path, options, event);
-    data->scope_flush.store(false);
+    data->scope_flush.store(false, std::memory_order_release);
 #endif
 }
 
@@ -227,11 +232,12 @@ flush_scope_from_handler(
     auto state = static_cast<crashpad_state_t *>(options->backend->data);
 
     // this blocks any further calls to `crashpad_backend_flush_scope`
-    state->crashed.store(true);
+    state->crashed.store(true, std::memory_order_relaxed);
 
     // busy-wait until any in-progress scope flushes are finished
     bool expected = false;
-    while (!state->scope_flush.compare_exchange_strong(expected, true)) {
+    while (!state->scope_flush.compare_exchange_strong(
+        expected, true, std::memory_order_acquire)) {
         expected = false;
     }
 
