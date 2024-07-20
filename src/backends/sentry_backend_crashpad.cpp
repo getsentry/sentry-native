@@ -225,6 +225,7 @@ crashpad_backend_flush_scope(
 #endif
 }
 
+#if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_WINDOWS)
 static void
 flush_scope_from_handler(
     const sentry_options_t *options, sentry_value_t crash_event)
@@ -246,7 +247,6 @@ flush_scope_from_handler(
         state->event_path, options, crash_event);
 }
 
-#if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_WINDOWS)
 #    ifdef SENTRY_PLATFORM_WINDOWS
 static bool
 sentry__crashpad_handler(EXCEPTION_POINTERS *ExceptionInfo)
