@@ -5,6 +5,7 @@
 **Fixes**:
 
 - Further clean up of the exported dependency configuration. ([#1013](https://github.com/getsentry/sentry-native/pull/1013), [crashpad#106](https://github.com/getsentry/crashpad/pull/106))
+- Clean-up scope flushing synchronization in crashpad-backend. ([#1019](https://github.com/getsentry/sentry-native/pull/1019), [crashpad#109](https://github.com/getsentry/crashpad/pull/109))
 
 **Internal**:
 
@@ -14,6 +15,7 @@
 
 - [@JonLiu1993](https://github.com/JonLiu1993)
 - [@dg0yt](https://github.com/dg0yt)
+- [@stima](https://github.com/stima)
 
 ## 0.7.6
 

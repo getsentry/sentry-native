@@ -59,7 +59,19 @@ def assert_meta(
     sdk_override=None,
 ):
     event = envelope.get_event()
+    assert_event_meta(
+        event, release, integration, transaction, transaction_data, sdk_override
+    )
 
+
+def assert_event_meta(
+    event,
+    release="test-example-release",
+    integration=None,
+    transaction="test-transaction",
+    transaction_data=None,
+    sdk_override=None,
+):
     extra = {
         "extra stuff": "some value",
         "…unicode key…": "őá…–🤮🚀¿ 한글 테스트",
@@ -316,8 +328,7 @@ def assert_crashpad_upload(req):
     attachments = _load_crashpad_attachments(msg)
 
     assert_overflowing_breadcrumb(attachments)
-    assert attachments.event["level"] == "fatal"
-
+    assert_event_meta(attachments.event, integration="crashpad")
     assert any(
         b'name="upload_file_minidump"' in part.as_bytes()
         and b"\n\nMDMP" in part.as_bytes()
