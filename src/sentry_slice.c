@@ -8,7 +8,7 @@ sentry__slice_from_str(const char *str)
 {
     sentry_slice_t rv;
     rv.ptr = str;
-    rv.len = str ? strlen(str) : 0;
+    rv.len = sentry__guarded_strlen(str);
     return rv;
 }
 
