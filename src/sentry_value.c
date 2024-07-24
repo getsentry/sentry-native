@@ -742,8 +742,7 @@ sentry_value_get_by_key_n(sentry_value_t value, const char *k, size_t k_len)
 sentry_value_t
 sentry_value_get_by_key(sentry_value_t value, const char *k)
 {
-    const size_t k_len = k ? strlen(k) : 0;
-    return sentry_value_get_by_key_n(value, k, k_len);
+    return sentry_value_get_by_key_n(value, k, sentry__guarded_strlen(k));
 }
 
 sentry_value_t
@@ -1151,10 +1150,8 @@ sentry_value_t
 sentry_value_new_message_event(
     sentry_level_t level, const char *logger, const char *text)
 {
-    size_t logger_len = logger ? strlen(logger) : 0;
-    size_t text_len = text ? strlen(text) : 0;
-    return sentry_value_new_message_event_n(
-        level, logger, logger_len, text, text_len);
+    return sentry_value_new_message_event_n(level, logger,
+        sentry__guarded_strlen(logger), text, sentry__guarded_strlen(text));
 }
 
 static void
@@ -1186,9 +1183,8 @@ sentry_value_new_breadcrumb_n(
 sentry_value_t
 sentry_value_new_breadcrumb(const char *type, const char *message)
 {
-    const size_t type_len = type ? strlen(type) : 0;
-    const size_t message_len = message ? strlen(message) : 0;
-    return sentry_value_new_breadcrumb_n(type, type_len, message, message_len);
+    return sentry_value_new_breadcrumb_n(type, sentry__guarded_strlen(type),
+        message, sentry__guarded_strlen(message));
 }
 
 sentry_value_t
@@ -1206,9 +1202,8 @@ sentry_value_new_exception_n(
 sentry_value_t
 sentry_value_new_exception(const char *type, const char *value)
 {
-    const size_t type_len = type ? strlen(type) : 0;
-    const size_t value_len = value ? strlen(value) : 0;
-    return sentry_value_new_exception_n(type, type_len, value, value_len);
+    return sentry_value_new_exception_n(type, sentry__guarded_strlen(type),
+        value, sentry__guarded_strlen(value));
 }
 
 sentry_value_t
@@ -1236,8 +1231,7 @@ sentry_value_new_thread_n(uint64_t id, const char *name, size_t name_len)
 sentry_value_t
 sentry_value_new_thread(uint64_t id, const char *name)
 {
-    const size_t name_len = name ? strlen(name) : 0;
-    return sentry_value_new_thread_n(id, name, name_len);
+    return sentry_value_new_thread_n(id, name, sentry__guarded_strlen(name));
 }
 
 sentry_value_t
@@ -1269,11 +1263,9 @@ sentry_value_t
 sentry_value_new_user_feedback(const sentry_uuid_t *uuid, const char *name,
     const char *email, const char *comments)
 {
-    size_t name_len = name ? strlen(name) : 0;
-    size_t email_len = email ? strlen(email) : 0;
-    size_t comments_len = email ? strlen(comments) : 0;
-    return sentry_value_new_user_feedback_n(
-        uuid, name, name_len, email, email_len, comments, comments_len);
+    return sentry_value_new_user_feedback_n(uuid, name,
+        sentry__guarded_strlen(name), email, sentry__guarded_strlen(email),
+        comments, sentry__guarded_strlen(comments));
 }
 
 sentry_value_t

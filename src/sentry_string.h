@@ -174,6 +174,15 @@ sentry__string_eq(const char *a, const char *b)
 }
 
 /**
+ * Guards strlen() against NULL pointers
+ */
+static inline size_t
+sentry__guarded_strlen(const char *s)
+{
+    return s ? strlen(s) : 0;
+}
+
+/**
  * Converts an int64_t into a string.
  */
 static inline char *

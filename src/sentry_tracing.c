@@ -75,11 +75,8 @@ sentry_transaction_context_new_n(const char *name, size_t name_len,
 sentry_transaction_context_t *
 sentry_transaction_context_new(const char *name, const char *operation)
 {
-    size_t name_len = name ? strlen(name) : 0;
-    size_t operation_len = operation ? strlen(operation) : 0;
-
-    return sentry_transaction_context_new_n(
-        name, name_len, operation, operation_len);
+    return sentry_transaction_context_new_n(name, sentry__guarded_strlen(name),
+        operation, sentry__guarded_strlen(operation));
 }
 
 void
@@ -212,11 +209,8 @@ void
 sentry_transaction_context_update_from_header(
     sentry_transaction_context_t *tx_cxt, const char *key, const char *value)
 {
-    size_t key_len = key ? strlen(key) : 0;
-    size_t value_len = value ? strlen(value) : 0;
-
-    sentry_transaction_context_update_from_header_n(
-        tx_cxt, key, key_len, value, value_len);
+    sentry_transaction_context_update_from_header_n(tx_cxt, key,
+        sentry__guarded_strlen(key), value, sentry__guarded_strlen(value));
 }
 
 sentry_transaction_t *
@@ -338,11 +332,8 @@ sentry_value_t
 sentry__value_span_new(size_t max_spans, sentry_value_t parent,
     const char *operation, const char *description)
 {
-    const size_t operation_len = operation ? strlen(operation) : 0;
-    const size_t description_len = description ? strlen(description) : 0;
     return sentry__value_span_new_n(max_spans, parent,
-        (sentry_slice_t) { operation, operation_len },
-        (sentry_slice_t) { description, description_len });
+        sentry__slice_from_str(operation), sentry__slice_from_str(description));
 }
 
 sentry_value_t
@@ -417,10 +408,7 @@ set_tag_n(sentry_value_t item, sentry_slice_t tag, sentry_slice_t value)
 static void
 set_tag(sentry_value_t item, const char *tag, const char *value)
 {
-    const size_t tag_len = tag ? strlen(tag) : 0;
-    const size_t value_len = value ? strlen(value) : 0;
-    set_tag_n(item, (sentry_slice_t) { tag, tag_len },
-        (sentry_slice_t) { value, value_len });
+    set_tag_n(item, sentry__slice_from_str(tag), sentry__slice_from_str(value));
 }
 
 void

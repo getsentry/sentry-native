@@ -1002,10 +1002,9 @@ sentry_span_t *
 sentry_transaction_start_child(sentry_transaction_t *opaque_parent,
     const char *operation, const char *description)
 {
-    const size_t operation_len = operation ? strlen(operation) : 0;
-    const size_t description_len = description ? strlen(description) : 0;
-    return sentry_transaction_start_child_n(
-        opaque_parent, operation, operation_len, description, description_len);
+    return sentry_transaction_start_child_n(opaque_parent, operation,
+        sentry__guarded_strlen(operation), description,
+        sentry__guarded_strlen(description));
 }
 
 sentry_span_t *
@@ -1040,10 +1039,9 @@ sentry_span_t *
 sentry_span_start_child(sentry_span_t *opaque_parent, const char *operation,
     const char *description)
 {
-    size_t operation_len = operation ? strlen(operation) : 0;
-    size_t description_len = description ? strlen(description) : 0;
-    return sentry_span_start_child_n(
-        opaque_parent, operation, operation_len, description, description_len);
+    return sentry_span_start_child_n(opaque_parent, operation,
+        sentry__guarded_strlen(operation), description,
+        sentry__guarded_strlen(description));
 }
 
 void
