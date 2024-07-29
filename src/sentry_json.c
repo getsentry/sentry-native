@@ -3,7 +3,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 
 #include "../vendor/jsmn.h"
 
@@ -24,11 +23,7 @@ typedef struct {
 struct sentry_jsonwriter_s {
     union {
         sentry_stringbuilder_t *sb;
-#if defined(SENTRY_PLATFORM_WINDOWS)
-        FILE *f;
-#else
-        int f;
-#endif
+        sentry_filewriter_t *fw;
     } output;
     uint64_t want_comma;
     uint32_t depth;
@@ -80,31 +75,19 @@ write_buf_sb(sentry_jsonwriter_t *jw, const char *buf, size_t len)
 static void
 write_char_file(sentry_jsonwriter_t *jw, char c)
 {
-#ifdef SENTRY_PLATFORM_WINDOWS
-    fwrite(&c, sizeof(char), 1, jw->output.f);
-#else
-    write(jw->output.f, &c, sizeof(char));
-#endif
+    sentry__filewriter_write(jw->output.fw, &c, sizeof(char));
 }
 
 static void
 write_str_file(sentry_jsonwriter_t *jw, const char *str)
 {
-#ifdef SENTRY_PLATFORM_WINDOWS
-    fwrite(str, sizeof(char), strlen(str), jw->output.f);
-#else
-    write(jw->output.f, str, sizeof(char) * strlen(str));
-#endif
+    sentry__filewriter_write(jw->output.fw, str, sizeof(char) * strlen(str));
 }
 
 static void
 write_buf_file(sentry_jsonwriter_t *jw, const char *buf, size_t len)
 {
-#ifdef SENTRY_PLATFORM_WINDOWS
-    fwrite(buf, sizeof(char), len, jw->output.f);
-#else
-    write(jw->output.f, buf, len);
-#endif
+    sentry__filewriter_write(jw->output.fw, buf, len);
 }
 
 static char *
@@ -173,11 +156,7 @@ sentry_jsonwriter_ops_t file_ops = {
 };
 
 sentry_jsonwriter_t *
-#if defined(SENTRY_PLATFORM_WINDOWS)
-sentry__jsonwriter_new_file(FILE *f)
-#else
-sentry__jsonwriter_new_file(int f)
-#endif
+sentry__jsonwriter_new_fw(sentry_filewriter_t *fw)
 {
     bool owns_sb = false;
     sentry_jsonwriter_t *rv = SENTRY_MAKE(sentry_jsonwriter_t);
@@ -185,7 +164,7 @@ sentry__jsonwriter_new_file(int f)
         return NULL;
     }
 
-    rv->output.f = f;
+    rv->output.fw = fw;
     rv->want_comma = 0;
     rv->depth = 0;
     rv->last_was_key = 0;
