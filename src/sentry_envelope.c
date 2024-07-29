@@ -472,7 +472,7 @@ sentry_envelope_serialize(const sentry_envelope_t *envelope, size_t *size_out)
     return sentry__stringbuilder_into_string(&sb);
 }
 
-int
+MUST_USE int
 sentry_envelope_write_to_path(
     const sentry_envelope_t *envelope, const sentry_path_t *path)
 {
