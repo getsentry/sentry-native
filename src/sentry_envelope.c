@@ -8,6 +8,8 @@
 #include "sentry_string.h"
 #include "sentry_transport.h"
 #include "sentry_value.h"
+#include <errno.h>
+#include <fcntl.h>
 #include <string.h>
 
 struct sentry_envelope_item_s {
@@ -472,9 +474,9 @@ sentry_envelope_serialize(const sentry_envelope_t *envelope, size_t *size_out)
     return sentry__stringbuilder_into_string(&sb);
 }
 
-static
-    size_t
-    write_buffer_to_file(FILE *f, char *buf, size_t len)
+#ifdef SENTRY_PLATFORM_WINDOWS
+static size_t
+write_buffer_to_file(FILE *f, char *buf, size_t len)
 {
     while (len > 0) {
         size_t n = fwrite(buf, 1, len, f);
@@ -488,21 +490,50 @@ static
     }
     return len;
 }
+#else
+static size_t
+write_buffer_to_file(int fd, char *buf, size_t len)
+{
+    while (len > 0) {
+        ssize_t n = write(fd, buf, len);
+        if (n < 0 && (errno == EAGAIN || errno == EINTR)) {
+            continue;
+        } else if (n <= 0) {
+            break;
+        }
+        buf += n;
+        len -= n;
+    }
+
+    return len;
+}
+#endif
 
 MUST_USE int
 sentry_envelope_write_to_path(
     const sentry_envelope_t *envelope, const sentry_path_t *path)
 {
+#if SENTRY_PLATFORM_WINDOWS
     FILE *f = _wfopen(path->path, L"wb");
     if (!f) {
         return 1;
     }
+#else
+    int f = open(path->path, O_RDWR | O_CREAT | O_TRUNC,
+        S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH);
+    if (f < 0) {
+        return 1;
+    }
+#endif
 
     if (envelope->is_raw) {
-        return envelope->contents.raw.payload_len != write_buffer_to_file(f, envelope->contents.raw.payload,
-            envelope->contents.raw.payload_len);
+        return envelope->contents.raw.payload_len
+            != write_buffer_to_file(f, envelope->contents.raw.payload,
+                envelope->contents.raw.payload_len);
     }
 
+    // TODO: we should probably let the jsonwriter counter the bytes and
+    //       read the count at the end
     size_t rv = 0;
     sentry_jsonwriter_t *jw = sentry__jsonwriter_new_file(f);
     if (jw) {
@@ -510,22 +541,35 @@ sentry_envelope_write_to_path(
         sentry__jsonwriter_reset(jw);
 
         for (size_t i = 0; i < envelope->contents.items.item_count; i++) {
-            const sentry_envelope_item_t *item = &envelope->contents.items.items[i];
+            const sentry_envelope_item_t *item
+                = &envelope->contents.items.items[i];
             const char newline = '\n';
+#ifdef SENTRY_PLATFORM_WINDOWS
             rv += fwrite(&newline, sizeof(char), 1, f);
+#else
+            rv += write(f, &newline, sizeof(char));
+#endif
 
             sentry__jsonwriter_write_value(jw, item->headers);
             sentry__jsonwriter_reset(jw);
 
+#ifdef SENTRY_PLATFORM_WINDOWS
             rv += fwrite(&newline, sizeof(char), 1, f);
+#else
+            rv += write(f, &newline, sizeof(char));
+#endif
 
             rv += write_buffer_to_file(f, item->payload, item->payload_len);
         }
         sentry__jsonwriter_free(jw);
     }
 
+#if SENTRY_PLATFORM_WINDOWS
     fflush(f);
     fclose(f);
+#else
+    close(f);
+#endif
 
     return rv == 0;
 }

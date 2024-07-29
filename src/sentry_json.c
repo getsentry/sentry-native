@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "../vendor/jsmn.h"
 
@@ -79,19 +80,31 @@ write_buf_sb(sentry_jsonwriter_t *jw, const char *buf, size_t len)
 static void
 write_char_file(sentry_jsonwriter_t *jw, char c)
 {
+#ifdef SENTRY_PLATFORM_WINDOWS
     fwrite(&c, sizeof(char), 1, jw->output.f);
+#else
+    write(jw->output.f, &c, sizeof(char));
+#endif
 }
 
 static void
 write_str_file(sentry_jsonwriter_t *jw, const char *str)
 {
+#ifdef SENTRY_PLATFORM_WINDOWS
     fwrite(str, sizeof(char), strlen(str), jw->output.f);
+#else
+    write(jw->output.f, str, sizeof(char) * strlen(str));
+#endif
 }
 
 static void
 write_buf_file(sentry_jsonwriter_t *jw, const char *buf, size_t len)
 {
+#ifdef SENTRY_PLATFORM_WINDOWS
     fwrite(buf, sizeof(char), len, jw->output.f);
+#else
+    write(jw->output.f, buf, len);
+#endif
 }
 
 static char *
@@ -187,7 +200,8 @@ sentry__jsonwriter_free(sentry_jsonwriter_t *jw)
     jw->ops->free(jw);
 }
 
-void sentry__jsonwriter_reset(sentry_jsonwriter_t *jw)
+void
+sentry__jsonwriter_reset(sentry_jsonwriter_t *jw)
 {
     jw->want_comma = 0;
     jw->depth = 0;
@@ -563,7 +577,7 @@ tokens_to_value(jsmntok_t *tokens, size_t token_count, const char *buf,
     do {                                                                       \
         size_t child_consumed = tokens_to_value(                               \
             tokens + offset, token_count - offset, buf, Target);               \
-        if (child_consumed == (size_t)-1) {                                    \
+        if (child_consumed == (size_t) - 1) {                                  \
             goto error;                                                        \
         }                                                                      \
         offset += child_consumed;                                              \
