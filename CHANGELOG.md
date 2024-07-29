@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- Let the envelope serialization stream directly to the file. ([#1021](https://github.com/getsentry/sentry-native/pull/1021))
+
 ## 0.7.7
 
 **Fixes**:
