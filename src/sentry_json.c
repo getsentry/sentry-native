@@ -556,7 +556,7 @@ tokens_to_value(jsmntok_t *tokens, size_t token_count, const char *buf,
     do {                                                                       \
         size_t child_consumed = tokens_to_value(                               \
             tokens + offset, token_count - offset, buf, Target);               \
-        if (child_consumed == (size_t) - 1) {                                  \
+        if (child_consumed == (size_t)-1) {                                    \
             goto error;                                                        \
         }                                                                      \
         offset += child_consumed;                                              \
