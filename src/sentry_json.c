@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -11,16 +12,117 @@
 #include "sentry_utils.h"
 #include "sentry_value.h"
 
+typedef struct {
+    void (*free)(sentry_jsonwriter_t *writer);
+    void (*write_str)(sentry_jsonwriter_t *writer, const char *str);
+    void (*write_buf)(sentry_jsonwriter_t *writer, const char *buf, size_t len);
+    void (*write_char)(sentry_jsonwriter_t *writer, char c);
+    char *(*into_string)(sentry_jsonwriter_t *jw, size_t *len_out);
+} sentry_jsonwriter_ops_t;
+
 struct sentry_jsonwriter_s {
-    sentry_stringbuilder_t *sb;
+    union {
+        sentry_stringbuilder_t *sb;
+        sentry_filewriter_t *fw;
+    } output;
     uint64_t want_comma;
     uint32_t depth;
     bool last_was_key;
     bool owns_sb;
+    sentry_jsonwriter_ops_t *ops;
+};
+
+static void
+jsonwriter_free_sb(sentry_jsonwriter_t *jw)
+{
+    if (!jw) {
+        return;
+    }
+    if (jw->owns_sb) {
+        sentry__stringbuilder_cleanup(jw->output.sb);
+        sentry_free(jw->output.sb);
+    }
+    sentry_free(jw);
+}
+
+static void
+jsonwriter_free_file(sentry_jsonwriter_t *jw)
+{
+    if (!jw) {
+        return;
+    }
+    sentry_free(jw);
+}
+
+static void
+write_char_sb(sentry_jsonwriter_t *jw, char c)
+{
+    sentry__stringbuilder_append_char(jw->output.sb, c);
+}
+
+static void
+write_str_sb(sentry_jsonwriter_t *jw, const char *str)
+{
+    sentry__stringbuilder_append(jw->output.sb, str);
+}
+
+static void
+write_buf_sb(sentry_jsonwriter_t *jw, const char *buf, size_t len)
+{
+    sentry__stringbuilder_append_buf(jw->output.sb, buf, len);
+}
+
+static void
+write_char_file(sentry_jsonwriter_t *jw, char c)
+{
+    sentry__filewriter_write(jw->output.fw, &c, sizeof(char));
+}
+
+static void
+write_str_file(sentry_jsonwriter_t *jw, const char *str)
+{
+    sentry__filewriter_write(jw->output.fw, str, sizeof(char) * strlen(str));
+}
+
+static void
+write_buf_file(sentry_jsonwriter_t *jw, const char *buf, size_t len)
+{
+    sentry__filewriter_write(jw->output.fw, buf, len);
+}
+
+static char *
+into_string_sb(sentry_jsonwriter_t *jw, size_t *len_out)
+{
+    char *rv = NULL;
+    sentry_stringbuilder_t *sb = jw->output.sb;
+    if (len_out) {
+        *len_out = sb->len;
+    }
+    rv = sentry__stringbuilder_into_string(sb);
+    sentry__jsonwriter_free(jw);
+    return rv;
+}
+
+static char *
+into_string_file(sentry_jsonwriter_t *jw, size_t *len_out)
+{
+    (void)jw;
+    assert(!"A file-based jsonwriter can't convert into string");
+
+    *len_out = 0;
+    return NULL;
+}
+
+sentry_jsonwriter_ops_t sb_ops = {
+    .write_char = write_char_sb,
+    .write_str = write_str_sb,
+    .write_buf = write_buf_sb,
+    .free = jsonwriter_free_sb,
+    .into_string = into_string_sb,
 };
 
 sentry_jsonwriter_t *
-sentry__jsonwriter_new(sentry_stringbuilder_t *sb)
+sentry__jsonwriter_new_sb(sentry_stringbuilder_t *sb)
 {
     bool owns_sb = false;
     if (!sb) {
@@ -36,38 +138,59 @@ sentry__jsonwriter_new(sentry_stringbuilder_t *sb)
         return NULL;
     }
 
-    rv->sb = sb;
+    rv->output.sb = sb;
     rv->want_comma = 0;
     rv->depth = 0;
     rv->last_was_key = 0;
     rv->owns_sb = owns_sb;
+    rv->ops = &sb_ops;
+    return rv;
+}
+
+sentry_jsonwriter_ops_t file_ops = {
+    .free = jsonwriter_free_file,
+    .write_char = write_char_file,
+    .write_str = write_str_file,
+    .write_buf = write_buf_file,
+    .into_string = into_string_file,
+};
+
+sentry_jsonwriter_t *
+sentry__jsonwriter_new_fw(sentry_filewriter_t *fw)
+{
+    bool owns_sb = false;
+    sentry_jsonwriter_t *rv = SENTRY_MAKE(sentry_jsonwriter_t);
+    if (!rv) {
+        return NULL;
+    }
+
+    rv->output.fw = fw;
+    rv->want_comma = 0;
+    rv->depth = 0;
+    rv->last_was_key = 0;
+    rv->owns_sb = owns_sb;
+    rv->ops = &file_ops;
     return rv;
 }
 
 void
 sentry__jsonwriter_free(sentry_jsonwriter_t *jw)
 {
-    if (!jw) {
-        return;
-    }
-    if (jw->owns_sb) {
-        sentry__stringbuilder_cleanup(jw->sb);
-        sentry_free(jw->sb);
-    }
-    sentry_free(jw);
+    jw->ops->free(jw);
+}
+
+void
+sentry__jsonwriter_reset(sentry_jsonwriter_t *jw)
+{
+    jw->want_comma = 0;
+    jw->depth = 0;
+    jw->last_was_key = 0;
 }
 
 char *
 sentry__jsonwriter_into_string(sentry_jsonwriter_t *jw, size_t *len_out)
 {
-    char *rv = NULL;
-    sentry_stringbuilder_t *sb = jw->sb;
-    if (len_out) {
-        *len_out = sb->len;
-    }
-    rv = sentry__stringbuilder_into_string(sb);
-    sentry__jsonwriter_free(jw);
-    return rv;
+    return jw->ops->into_string(jw, len_out);
 }
 
 static bool
@@ -92,13 +215,13 @@ set_comma(sentry_jsonwriter_t *jw, bool val)
 static void
 write_char(sentry_jsonwriter_t *jw, char c)
 {
-    sentry__stringbuilder_append_char(jw->sb, c);
+    jw->ops->write_char(jw, c);
 }
 
 static void
 write_str(sentry_jsonwriter_t *jw, const char *str)
 {
-    sentry__stringbuilder_append(jw->sb, str);
+    jw->ops->write_str(jw, str);
 }
 
 // The Lookup table and algorithm below are adapted from:
@@ -141,7 +264,7 @@ write_json_str(sentry_jsonwriter_t *jw, const char *str)
 
         size_t len = ptr - start;
         if (len) {
-            sentry__stringbuilder_append_buf(jw->sb, (const char *)start, len);
+            jw->ops->write_buf(jw, (const char *)start, len);
         }
 
         switch (*ptr) {
@@ -184,7 +307,7 @@ write_json_str(sentry_jsonwriter_t *jw, const char *str)
 
     size_t len = ptr - start;
     if (len) {
-        sentry__stringbuilder_append_buf(jw->sb, (const char *)start, len);
+        jw->ops->write_buf(jw, (const char *)start, len);
     }
 
     write_char(jw, '"');

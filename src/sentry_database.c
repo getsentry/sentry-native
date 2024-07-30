@@ -116,7 +116,7 @@ bool
 sentry__run_write_session(
     const sentry_run_t *run, const sentry_session_t *session)
 {
-    sentry_jsonwriter_t *jw = sentry__jsonwriter_new(NULL);
+    sentry_jsonwriter_t *jw = sentry__jsonwriter_new_sb(NULL);
     if (!jw) {
         return false;
     }

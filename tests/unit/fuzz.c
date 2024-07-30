@@ -52,7 +52,7 @@ main(int argc, char **argv)
     sentry_value_t value = sentry__value_from_json(buf, buf_len);
     sentry_free(buf);
 
-    sentry_jsonwriter_t *jw = sentry__jsonwriter_new(NULL);
+    sentry_jsonwriter_t *jw = sentry__jsonwriter_new_sb(NULL);
     sentry__jsonwriter_write_value(jw, value);
     size_t serialized1_len = 0;
     char *serialized1 = sentry__jsonwriter_into_string(jw, &serialized1_len);
@@ -60,7 +60,7 @@ main(int argc, char **argv)
 
     value = sentry__value_from_json(serialized1, serialized1_len);
 
-    jw = sentry__jsonwriter_new(NULL);
+    jw = sentry__jsonwriter_new_sb(NULL);
     sentry__jsonwriter_write_value(jw, value);
     size_t serialized2_len = 0;
     char *serialized2 = sentry__jsonwriter_into_string(jw, &serialized2_len);

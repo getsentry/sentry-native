@@ -2,6 +2,7 @@
 #define SENTRY_JSON_H_INCLUDED
 
 #include "sentry_boot.h"
+#include "sentry_path.h"
 
 typedef struct sentry_stringbuilder_s sentry_stringbuilder_t;
 typedef struct sentry_jsonwriter_s sentry_jsonwriter_t;
@@ -12,12 +13,24 @@ typedef struct sentry_jsonwriter_s sentry_jsonwriter_t;
  * It will use an existing `sentry_stringbuilder_t` as its output if one is
  * provided, otherwise it will allocate a new one.
  */
-sentry_jsonwriter_t *sentry__jsonwriter_new(sentry_stringbuilder_t *sb);
+sentry_jsonwriter_t *sentry__jsonwriter_new_sb(sentry_stringbuilder_t *sb);
+
+/**
+ * This creates a new JSON writer.
+ *
+ * It requires an existing `sentry_filewriter_t` as its output.
+ */
+sentry_jsonwriter_t *sentry__jsonwriter_new_fw(sentry_filewriter_t *fw);
 
 /**
  * Deallocates a JSON writer.
  */
 void sentry__jsonwriter_free(sentry_jsonwriter_t *jw);
+
+/**
+ * Resets the internal state of a JSON writer.
+ */
+void sentry__jsonwriter_reset(sentry_jsonwriter_t *jw);
 
 /**
  * This will consume and deallocate the JSON writer, returning the generated

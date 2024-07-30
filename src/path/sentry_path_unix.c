@@ -501,3 +501,67 @@ sentry__path_append_buffer(
     return write_buffer_with_flags(
         path, buf, buf_len, O_RDWR | O_CREAT | O_APPEND);
 }
+
+struct sentry_filewriter_s {
+    size_t byte_count;
+    int fd;
+};
+
+MUST_USE sentry_filewriter_t *
+sentry__filewriter_new(const sentry_path_t *path)
+{
+    int fd = open(path->path, O_RDWR | O_CREAT | O_TRUNC,
+        S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH);
+    if (fd < 0) {
+        return NULL;
+    }
+
+    sentry_filewriter_t *result = SENTRY_MAKE(sentry_filewriter_t);
+    if (!result) {
+        close(fd);
+        return NULL;
+    }
+
+    result->fd = fd;
+    result->byte_count = 0;
+    return result;
+}
+
+size_t
+sentry__filewriter_write(
+    sentry_filewriter_t *filewriter, const char *buf, size_t buf_len)
+{
+    if (!filewriter) {
+        return 0;
+    }
+    while (buf_len > 0) {
+        ssize_t n = write(filewriter->fd, buf, buf_len);
+        if (n < 0 && (errno == EAGAIN || errno == EINTR)) {
+            continue;
+        } else if (n <= 0) {
+            break;
+        }
+        filewriter->byte_count += n;
+        buf += n;
+        buf_len -= n;
+    }
+
+    return buf_len;
+}
+
+void
+sentry__filewriter_free(sentry_filewriter_t *filewriter)
+{
+    if (!filewriter) {
+        return;
+    }
+
+    close(filewriter->fd);
+    sentry_free(filewriter);
+}
+
+size_t
+sentry__filewriter_byte_count(sentry_filewriter_t *filewriter)
+{
+    return filewriter->byte_count;
+}

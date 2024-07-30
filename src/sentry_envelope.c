@@ -234,7 +234,7 @@ sentry__envelope_add_event(sentry_envelope_t *envelope, sentry_value_t event)
         return NULL;
     }
 
-    sentry_jsonwriter_t *jw = sentry__jsonwriter_new(NULL);
+    sentry_jsonwriter_t *jw = sentry__jsonwriter_new_sb(NULL);
     if (!jw) {
         return NULL;
     }
@@ -265,7 +265,7 @@ sentry__envelope_add_transaction(
         return NULL;
     }
 
-    sentry_jsonwriter_t *jw = sentry__jsonwriter_new(NULL);
+    sentry_jsonwriter_t *jw = sentry__jsonwriter_new_sb(NULL);
     if (!jw) {
         return NULL;
     }
@@ -304,7 +304,7 @@ sentry__envelope_add_user_feedback(
         return NULL;
     }
 
-    sentry_jsonwriter_t *jw = sentry__jsonwriter_new(NULL);
+    sentry_jsonwriter_t *jw = sentry__jsonwriter_new_sb(NULL);
     if (!jw) {
         return NULL;
     }
@@ -332,7 +332,7 @@ sentry__envelope_add_session(
     if (!envelope || !session) {
         return NULL;
     }
-    sentry_jsonwriter_t *jw = sentry__jsonwriter_new(NULL);
+    sentry_jsonwriter_t *jw = sentry__jsonwriter_new_sb(NULL);
     if (!jw) {
         return NULL;
     }
@@ -378,7 +378,7 @@ static void
 sentry__envelope_serialize_headers_into_stringbuilder(
     const sentry_envelope_t *envelope, sentry_stringbuilder_t *sb)
 {
-    sentry_jsonwriter_t *jw = sentry__jsonwriter_new(sb);
+    sentry_jsonwriter_t *jw = sentry__jsonwriter_new_sb(sb);
     if (jw) {
         sentry__jsonwriter_write_value(jw, envelope->contents.items.headers);
         sentry__jsonwriter_free(jw);
@@ -389,7 +389,7 @@ static void
 sentry__envelope_serialize_item_into_stringbuilder(
     const sentry_envelope_item_t *item, sentry_stringbuilder_t *sb)
 {
-    sentry_jsonwriter_t *jw = sentry__jsonwriter_new(sb);
+    sentry_jsonwriter_t *jw = sentry__jsonwriter_new_sb(sb);
     if (!jw) {
         return;
     }
@@ -476,16 +476,39 @@ MUST_USE int
 sentry_envelope_write_to_path(
     const sentry_envelope_t *envelope, const sentry_path_t *path)
 {
-    // TODO: This currently builds the whole buffer in-memory.
-    // It would be nice to actually stream this to a file.
-    size_t buf_len = 0;
-    char *buf = sentry_envelope_serialize(envelope, &buf_len);
+    sentry_filewriter_t *fw = sentry__filewriter_new(path);
 
-    int rv = sentry__path_write_buffer(path, buf, buf_len);
+    if (envelope->is_raw) {
+        return envelope->contents.raw.payload_len
+            != sentry__filewriter_write(fw, envelope->contents.raw.payload,
+                envelope->contents.raw.payload_len);
+    }
 
-    sentry_free(buf);
+    sentry_jsonwriter_t *jw = sentry__jsonwriter_new_fw(fw);
+    if (jw) {
+        sentry__jsonwriter_write_value(jw, envelope->contents.items.headers);
+        sentry__jsonwriter_reset(jw);
 
-    return rv;
+        for (size_t i = 0; i < envelope->contents.items.item_count; i++) {
+            const sentry_envelope_item_t *item
+                = &envelope->contents.items.items[i];
+            const char newline = '\n';
+            sentry__filewriter_write(fw, &newline, sizeof(char));
+
+            sentry__jsonwriter_write_value(jw, item->headers);
+            sentry__jsonwriter_reset(jw);
+
+            sentry__filewriter_write(fw, &newline, sizeof(char));
+
+            sentry__filewriter_write(fw, item->payload, item->payload_len);
+        }
+        sentry__jsonwriter_free(jw);
+    }
+
+    size_t rv = sentry__filewriter_byte_count(fw);
+    sentry__filewriter_free(fw);
+
+    return rv == 0;
 }
 
 int
