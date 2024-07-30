@@ -18,8 +18,8 @@
 static const size_t MAX_READ_TO_BUFFER = 134217728;
 
 #ifndef __MINGW32__
-#    define S_ISREG(m) (((m)&_S_IFMT) == _S_IFREG)
-#    define S_ISDIR(m) (((m)&_S_IFMT) == _S_IFDIR)
+#    define S_ISREG(m) (((m) & _S_IFMT) == _S_IFREG)
+#    define S_ISDIR(m) (((m) & _S_IFMT) == _S_IFDIR)
 #endif
 
 struct sentry_pathiter_s {
@@ -585,6 +585,11 @@ sentry__filewriter_new(const sentry_path_t *path)
     }
 
     sentry_filewriter_t *result = SENTRY_MAKE(sentry_filewriter_t);
+    if (!result) {
+        fclose(f);
+        return NULL;
+    }
+
     result->f = f;
     result->byte_count = 0;
     return result;

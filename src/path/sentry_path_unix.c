@@ -515,7 +515,13 @@ sentry__filewriter_new(const sentry_path_t *path)
     if (fd < 0) {
         return NULL;
     }
+
     sentry_filewriter_t *result = SENTRY_MAKE(sentry_filewriter_t);
+    if (!result) {
+        close(fd);
+        return NULL;
+    }
+
     result->fd = fd;
     result->byte_count = 0;
     return result;
