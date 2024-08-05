@@ -1500,7 +1500,6 @@ SENTRY_EXPERIMENTAL_API void sentry_options_set_traces_sample_rate(
 SENTRY_EXPERIMENTAL_API double sentry_options_get_traces_sample_rate(
     sentry_options_t *opts);
 
-
 #ifdef SENTRY_PLATFORM_LINUX
 
 /**
@@ -1508,16 +1507,20 @@ SENTRY_EXPERIMENTAL_API double sentry_options_get_traces_sample_rate(
  *
  * This option does only work for the `inproc` backend on `Linux` and `Android`.
  *
- * The main use-case is when the Native SDK is used in the context of the CLR/Mono runtimes
- * which convert some POSIX signals into managed-code exceptions and discontinue the signal chain.
+ * The main use-case is when the Native SDK is used in the context of the
+ * CLR/Mono runtimes which convert some POSIX signals into managed-code
+ * exceptions and discontinue the signal chain.
  *
- * If this happens and we invoke the previous handler at the end (i.e., after our handler processed the signal, which is the default strategy)
- * we will end up sending a native crash in addition to the managed code exception (which will either generate
- * another crash-event if uncaught or could be handled in the managed code and neither terminate the application nor create a crash event).
- * To correctly process the signals of CLR/Mono applications, we must invoke the runtime handler at the start of our handler.
+ * If this happens and we invoke the previous handler at the end (i.e., after
+ * our handler processed the signal, which is the default strategy) we will end
+ * up sending a native crash in addition to the managed code exception (which
+ * will either generate another crash-event if uncaught or could be handled in
+ * the managed code and neither terminate the application nor create a crash
+ * event). To correctly process the signals of CLR/Mono applications, we must
+ * invoke the runtime handler at the start of our handler.
  */
-SENTRY_EXPERIMENTAL_API sentry_handler_strategy_t sentry_options_get_handler_strategy(
-    sentry_options_t *opts);
+SENTRY_EXPERIMENTAL_API sentry_handler_strategy_t
+sentry_options_get_handler_strategy(sentry_options_t *opts);
 
 /**
  * Sets the handler strategy.

@@ -544,16 +544,20 @@ handle_ucontext(const sentry_ucontext_t *uctx)
 
     SENTRY_WITH_OPTIONS (options) {
 #ifdef SENTRY_PLATFORM_UNIX
-	sentry_handler_strategy_t handler_strategy = sentry_options_get_handler_strategy(options);
+        sentry_handler_strategy_t handler_strategy
+            = sentry_options_get_handler_strategy(options);
 
-	if (handler_strategy == SENTRY_HANDLER_STRATEGY_CHAIN_AT_START) {
-	    // CLR/Mono convert signals provoked by "managed" native code into managed code exceptions.
-	    // In these cases, we shouldn't react to the signal at all and let their handler discontinue the signal chain.
-            invoke_signal_handler(uctx->signum, uctx->siginfo, (void *)uctx->user_context);
-	}
+        if (handler_strategy == SENTRY_HANDLER_STRATEGY_CHAIN_AT_START) {
+            // CLR/Mono convert signals provoked by "managed" native code into
+            // managed code exceptions. In these cases, we shouldn't react to
+            // the signal at all and let their handler discontinue the signal
+            // chain.
+            invoke_signal_handler(
+                uctx->signum, uctx->siginfo, (void *)uctx->user_context);
+        }
 #endif
 
-    	sentry_value_t event = make_signal_event(sig_slot, uctx);
+        sentry_value_t event = make_signal_event(sig_slot, uctx);
         bool should_handle = true;
         sentry__write_crash_marker(options);
 
