@@ -16,27 +16,6 @@
 #include "transports/sentry_disk_transport.h"
 #include <string.h>
 
-/**
- * Android's bionic libc seems to allocate alternate signal handler stacks for
- * every thread and also references them from their internal maintenance
- * structs.
- *
- * The way we currently set up our sigaltstack seems to interfere with this
- * setup and causes crashes whenever an ART signal handler touches the thread
- * that called `sentry_init()`.
- *
- * In addition to this problem, it also means there is no need for our own
- * sigaltstack on Android since our signal handler will always be running on
- * an alternate stack managed by bionic.
- *
- * Note: In bionic the sigaltstacks for 32-bit devices have a size of 16KiB and
- * on 64-bit devices they have 32KiB. The size of our own was set to 64KiB
- * independent of the device. If this is a problem, we need figure out
- * together with Google if there is a way in which our configs can coexist.
- *
- * Both breakpad and crashpad are way more defensive in the setup of their
- * signal stacks and take existing stacks into account (or reuse them).
- */
 #define SIGNAL_DEF(Sig, Desc) { Sig, #Sig, Desc }
 
 #define MAX_FRAMES 128
@@ -563,12 +542,20 @@ handle_ucontext(const sentry_ucontext_t *uctx)
     sentry__enter_signal_handler();
 #endif
 
-    sentry_value_t event = make_signal_event(sig_slot, uctx);
-
     SENTRY_WITH_OPTIONS (options) {
-        sentry__write_crash_marker(options);
+#ifdef SENTRY_PLATFORM_UNIX
+	sentry_handler_strategy_t handler_strategy = sentry_options_get_handler_strategy(options);
 
+	if (handler_strategy == SENTRY_HANDLER_STRATEGY_CHAIN_AT_START) {
+	    // CLR/Mono convert signals provoked by "managed" native code into managed code exceptions.
+	    // In these cases, we shouldn't react to the signal at all and let their handler discontinue the signal chain.
+            invoke_signal_handler(uctx->signum, uctx->siginfo, (void *)uctx->user_context);
+	}
+#endif
+
+    	sentry_value_t event = make_signal_event(sig_slot, uctx);
         bool should_handle = true;
+        sentry__write_crash_marker(options);
 
         if (options->on_crash_func) {
             SENTRY_TRACE("invoking `on_crash` hook");
@@ -610,8 +597,10 @@ handle_ucontext(const sentry_ucontext_t *uctx)
     // forward as we're not restoring the page allocator.
     reset_signal_handlers();
     sentry__leave_signal_handler();
-    invoke_signal_handler(
-        uctx->signum, uctx->siginfo, (void *)uctx->user_context);
+    if (handler_strategy == SENTRY_HANDLER_STRATEGY_DEFAULT) {
+        invoke_signal_handler(
+            uctx->signum, uctx->siginfo, (void *)uctx->user_context);
+    }
 #endif
 }
 
