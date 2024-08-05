@@ -599,7 +599,7 @@ sentry_options_set_backend(sentry_options_t *opts, sentry_backend_t *backend)
 #ifdef SENTRY_PLATFORM_LINUX
 
 sentry_handler_strategy_t
-sentry_options_get_handler_strategy(sentry_options_t *opts)
+sentry_options_get_handler_strategy(const sentry_options_t *opts)
 {
     return opts->handler_strategy;
 }
