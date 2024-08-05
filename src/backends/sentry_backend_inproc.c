@@ -541,11 +541,14 @@ handle_ucontext(const sentry_ucontext_t *uctx)
     // pthread mutex.
     sentry__enter_signal_handler();
 #endif
+
+#ifdef SENTRY_PLATFORM_UNIX
     sentry_handler_strategy_t handler_strategy
         = SENTRY_HANDLER_STRATEGY_DEFAULT;
+#endif
 
     SENTRY_WITH_OPTIONS (options) {
-#ifdef SENTRY_PLATFORM_UNIX
+#ifdef SENTRY_PLATFORM_LINUX
         handler_strategy = sentry_options_get_handler_strategy(options);
 
         if (handler_strategy == SENTRY_HANDLER_STRATEGY_CHAIN_AT_START) {
