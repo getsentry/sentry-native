@@ -63,6 +63,12 @@ android {
     kotlinOptions {
         jvmTarget = JavaVersion.VERSION_1_8.toString()
     }
+    packagingOptions {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+    }
+    ndkVersion = "27.0.12077973"
 }
 
 dependencies {

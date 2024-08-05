@@ -596,4 +596,9 @@ endif()
 if(SENTRY_BUILD_SHARED_LIBS)
 	target_link_libraries(sentry PRIVATE
 			"$<$<OR:$<PLATFORM_ID:Linux>,$<PLATFORM_ID:Android>>:-Wl,--build-id=sha1,--version-script=${PROJECT_SOURCE_DIR}/src/exports.map>")
+
+	# Support 16KB page sizes
+	target_link_libraries(sentry PRIVATE
+	    "$<$<PLATFORM_ID:Android>:-Wl,-z,max-page-size=16384>"
+	)
 endif()
