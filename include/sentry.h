@@ -1520,7 +1520,7 @@ SENTRY_EXPERIMENTAL_API double sentry_options_get_traces_sample_rate(
  * invoke the runtime handler at the start of our handler.
  */
 SENTRY_EXPERIMENTAL_API sentry_handler_strategy_t
-sentry_options_get_handler_strategy(sentry_options_t *opts);
+sentry_options_get_handler_strategy(const sentry_options_t *opts);
 
 /**
  * Sets the handler strategy.
