@@ -597,7 +597,8 @@ sentry_options_set_backend(sentry_options_t *opts, sentry_backend_t *backend)
 }
 
 void
-sentry_options_set_handler_strategy(sentry_options_t *opts, sentry_backend_t *backend)
+sentry_options_set_handler_strategy(
+    sentry_options_t *opts, sentry_backend_t *backend)
 {
     sentry__backend_free(opts->backend);
     opts->backend = backend;
@@ -605,15 +606,17 @@ sentry_options_set_handler_strategy(sentry_options_t *opts, sentry_backend_t *ba
 
 #ifdef SENTRY_PLATFORM_LINUX
 
-sentry_handler_strategy_t sentry_options_get_handler_strategy(
-    sentry_options_t *opts) {
-	return opts->handler_strategy;
+sentry_handler_strategy_t
+sentry_options_get_handler_strategy(sentry_options_t *opts)
+{
+    return opts->handler_strategy;
 }
 
-void sentry_options_get_handler_strategy(
-    sentry_options_t *opts, sentry_handler_strategy_t handler_strategy) {
+void
+sentry_options_get_handler_strategy(
+    sentry_options_t *opts, sentry_handler_strategy_t handler_strategy)
+{
     opts->handler_strategy = handler_strategy;
 }
 
 #endif // SENTRY_PLATFORM_LINUX
-
