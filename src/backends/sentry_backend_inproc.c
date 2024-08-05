@@ -541,11 +541,12 @@ handle_ucontext(const sentry_ucontext_t *uctx)
     // pthread mutex.
     sentry__enter_signal_handler();
 #endif
+    sentry_handler_strategy_t handler_strategy
+        = SENTRY_HANDLER_STRATEGY_DEFAULT;
 
     SENTRY_WITH_OPTIONS (options) {
 #ifdef SENTRY_PLATFORM_UNIX
-        sentry_handler_strategy_t handler_strategy
-            = sentry_options_get_handler_strategy(options);
+        handler_strategy = sentry_options_get_handler_strategy(options);
 
         if (handler_strategy == SENTRY_HANDLER_STRATEGY_CHAIN_AT_START) {
             // CLR/Mono convert signals provoked by "managed" native code into

@@ -1525,7 +1525,7 @@ sentry_options_get_handler_strategy(sentry_options_t *opts);
 /**
  * Sets the handler strategy.
  */
-SENTRY_EXPERIMENTAL_API void sentry_options_get_handler_strategy(
+SENTRY_EXPERIMENTAL_API void sentry_options_set_handler_strategy(
     sentry_options_t *opts, sentry_handler_strategy_t handler_strategy);
 
 #endif // SENTRY_PLATFORM_LINUX
