@@ -534,6 +534,10 @@ handle_ucontext(const sentry_ucontext_t *uctx)
 
 #ifdef SENTRY_PLATFORM_UNIX
     // give us an allocator we can use safely in signals before we tear down.
+    // TODO: for `SENTRY_HANDLER_STRATEGY_CHAIN_AT_START` to work together with
+    //       our page allocator we must find a way to maintain memory usage.
+    //       We might be able to move this "enable" far enough down, because I
+    //       think we do not allocate before we hit `make_signal_event()`.
     sentry__page_allocator_enable();
 
     // inform the sentry_sync system that we're in a signal handler.  This will
@@ -551,13 +555,21 @@ handle_ucontext(const sentry_ucontext_t *uctx)
 #ifdef SENTRY_PLATFORM_LINUX
         handler_strategy = sentry_options_get_handler_strategy(options);
 
+        // CLR/Mono convert signals provoked by "managed" native code into
+        // managed code exceptions. In these cases, we shouldn't react to
+        // the signal at all and let their handler discontinue the signal
+        // chain by invoking the runtime handler before we process the signal.
         if (handler_strategy == SENTRY_HANDLER_STRATEGY_CHAIN_AT_START) {
-            // CLR/Mono convert signals provoked by "managed" native code into
-            // managed code exceptions. In these cases, we shouldn't react to
-            // the signal at all and let their handler discontinue the signal
-            // chain.
+            // there is a good chance that we won't return from the previous
+            // handler and that would mean we couldn't enter this handler with
+            // the next signal coming in if we didn't "leave" here.
+            sentry__leave_signal_handler();
+
             invoke_signal_handler(
                 uctx->signum, uctx->siginfo, (void *)uctx->user_context);
+
+            // let's re-enter because it means this was an actual native crash
+            sentry__enter_signal_handler();
         }
 #endif
 
