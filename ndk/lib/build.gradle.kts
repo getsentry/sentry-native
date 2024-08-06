@@ -86,6 +86,12 @@ android {
             ignore = true
         }
     }
+
+    packagingOptions {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+    }
 }
 
 dependencies {

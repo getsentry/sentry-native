@@ -16,3 +16,5 @@ target_link_libraries(ndk-sample PRIVATE
     ${LOG_LIB}
     $<BUILD_INTERFACE:sentry::sentry>
 )
+# Support 16KB page sizes
+target_link_options(ndk-sample PRIVATE "-Wl,-z,max-page-size=16384")

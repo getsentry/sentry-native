@@ -5,6 +5,7 @@
 **Features**:
 
 - Let the envelope serialization stream directly to the file. ([#1021](https://github.com/getsentry/sentry-native/pull/1021))
+- Support 16kb page sizes on Android 15 ([#1028](https://github.com/getsentry/sentry-native/pull/1028))
 
 ## 0.7.7
 
