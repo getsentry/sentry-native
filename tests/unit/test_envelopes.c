@@ -253,3 +253,19 @@ SENTRY_TEST(write_envelope_to_file_null)
 
     sentry_envelope_free(empty_envelope);
 }
+
+SENTRY_TEST(write_envelope_to_invalid_path)
+{
+    sentry_envelope_t *envelope = create_test_envelope();
+    const char *test_file_str
+        = "./directory_that_does_not_exist/sentry_test_envelope";
+    sentry_path_t *test_file_path = sentry__path_from_str(test_file_str);
+
+    int rv = sentry_envelope_write_to_file(envelope, test_file_str);
+    TEST_CHECK_INT_EQUAL(rv, 1);
+
+    sentry__path_remove(test_file_path);
+    sentry__path_free(test_file_path);
+    sentry_envelope_free(envelope);
+    sentry_close();
+}

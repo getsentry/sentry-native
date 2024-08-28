@@ -477,6 +477,9 @@ sentry_envelope_write_to_path(
     const sentry_envelope_t *envelope, const sentry_path_t *path)
 {
     sentry_filewriter_t *fw = sentry__filewriter_new(path);
+    if (!fw) {
+        return 1;
+    }
 
     if (envelope->is_raw) {
         return envelope->contents.raw.payload_len

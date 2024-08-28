@@ -273,6 +273,9 @@ bool
 sentry__path_filename_matches(const sentry_path_t *path, const char *filename)
 {
     sentry_path_t *fn = sentry__path_from_str(filename);
+    if (!fn) {
+        return false;
+    }
     bool matches = _wcsicmp(sentry__path_filename(path), fn->path) == 0;
     sentry__path_free(fn);
     return matches;
@@ -282,6 +285,9 @@ bool
 sentry__path_ends_with(const sentry_path_t *path, const char *suffix)
 {
     sentry_path_t *s = sentry__path_from_str(suffix);
+    if (!s) {
+        return false;
+    }
     size_t pathlen = wcslen(path->path);
     size_t suffixlen = wcslen(s->path);
     if (suffixlen > pathlen) {
@@ -604,9 +610,9 @@ sentry__filewriter_write(
     }
     while (buf_len > 0) {
         size_t n = fwrite(buf, 1, buf_len, filewriter->f);
-        if (n < 0 && (errno == EAGAIN || errno == EINTR)) {
+        if (n == 0 && errno == EINVAL) {
             continue;
-        } else if (n <= 0) {
+        } else if (n < buf_len) {
             break;
         }
         filewriter->byte_count += n;

@@ -1366,6 +1366,9 @@ SENTRY_API sentry_uuid_t sentry_capture_event(sentry_value_t event);
  * Captures an exception to be handled by the backend.
  *
  * This is safe to be called from a crashing thread and may not return.
+ *
+ * Note: The `crashpad` client currently supports this only on Windows. `inproc`
+ *       and `breakpad` support it on all platforms.
  */
 SENTRY_EXPERIMENTAL_API void sentry_handle_exception(
     const sentry_ucontext_t *uctx);
