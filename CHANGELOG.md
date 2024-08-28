@@ -1,11 +1,17 @@
 # Changelog
 
+## Unreleased
+
+**Fixes**:
+
+- Check file-writer construction when writing envelope to path. ([#1036](https://github.com/getsentry/sentry-native/pull/1036))
+ 
 ## 0.7.8
 
 **Features**:
 
 - Let the envelope serialization stream directly to the file. ([#1021](https://github.com/getsentry/sentry-native/pull/1021))
-- Support 16kb page sizes on Android 15 ([#1028](https://github.com/getsentry/sentry-native/pull/1028))
+- Support 16kb page sizes on Android 15. ([#1028](https://github.com/getsentry/sentry-native/pull/1028))
 
 ## 0.7.7
 
