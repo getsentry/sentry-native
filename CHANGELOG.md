@@ -1,11 +1,11 @@
 # Changelog
 
-## Unreleased
+## 0.7.9
 
 **Fixes**:
 
 - Check file-writer construction when writing envelope to path. ([#1036](https://github.com/getsentry/sentry-native/pull/1036))
- 
+
 ## 0.7.8
 
 **Features**:
