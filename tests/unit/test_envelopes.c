@@ -257,7 +257,8 @@ SENTRY_TEST(write_envelope_to_file_null)
 SENTRY_TEST(write_envelope_to_invalid_path)
 {
     sentry_envelope_t *envelope = create_test_envelope();
-    const char *test_file_str = "./directory_that_does_not_exist/sentry_test_envelope";
+    const char *test_file_str
+        = "./directory_that_does_not_exist/sentry_test_envelope";
     sentry_path_t *test_file_path = sentry__path_from_str(test_file_str);
 
     int rv = sentry_envelope_write_to_file(envelope, test_file_str);
