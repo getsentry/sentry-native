@@ -106,9 +106,7 @@ sentry__usec_time(void)
     // Contains a 64-bit value representing the number of 100-nanosecond
     // intervals since January 1, 1601 (UTC).
     FILETIME file_time;
-    SYSTEMTIME system_time;
-    GetSystemTime(&system_time);
-    SystemTimeToFileTime(&system_time, &file_time);
+    GetSystemTimeAsFileTime(&file_time);
 
     uint64_t timestamp = (uint64_t)file_time.dwLowDateTime
         + ((uint64_t)file_time.dwHighDateTime << 32);
