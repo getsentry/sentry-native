@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Fixes**:
+
+- Correct the timestamp resolution to microseconds on Windows. ([#1039](https://github.com/getsentry/sentry-native/pull/1039))
+
 ## 0.7.9
 
 **Fixes**:
