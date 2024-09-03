@@ -106,7 +106,11 @@ sentry__usec_time(void)
     // Contains a 64-bit value representing the number of 100-nanosecond
     // intervals since January 1, 1601 (UTC).
     FILETIME file_time;
+#    if _WIN32_WINNT >= 0x0602
+    GetSystemTimePreciseAsFileTime(&file_time);
+#    else
     GetSystemTimeAsFileTime(&file_time);
+#    endif
 
     uint64_t timestamp = (uint64_t)file_time.dwLowDateTime
         + ((uint64_t)file_time.dwHighDateTime << 32);
