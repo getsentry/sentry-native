@@ -8,6 +8,9 @@
 #include "sentry_value.h"
 #include <string.h>
 
+#define TRACE_ID_LEN 32
+#define SPAN_ID_LEN 16
+
 sentry_value_t
 sentry__value_new_span_n(sentry_value_t parent, sentry_slice_t operation)
 {
@@ -151,6 +154,26 @@ sentry_transaction_context_remove_sampled(sentry_transaction_context_t *tx_cxt)
     }
 }
 
+///
+/// @param s given string
+/// @param len the length of the string
+/// @return whether the string is a valid hex string of at least the given
+///         length which contains at least one non-zero character
+bool
+is_valid_nonzero_hexstring(const char *s, size_t len)
+{
+    bool has_nonzero = false;
+    for (size_t i = 0; i < len; i++) {
+        if (!isxdigit(s[i])) {
+            return false;
+        }
+        if (s[i] != '0') {
+            has_nonzero = true;
+        }
+    }
+    return has_nonzero;
+}
+
 void
 sentry_transaction_context_update_from_header_n(
     sentry_transaction_context_t *tx_cxt, const char *key, size_t key_len,
@@ -184,6 +207,9 @@ sentry_transaction_context_update_from_header_n(
 
     char *s
         = sentry__string_clone_n(trace_id_start, trace_id_end - trace_id_start);
+    if(!is_valid_nonzero_hexstring(s, TRACE_ID_LEN) || strlen(s) != TRACE_ID_LEN) {
+        return;
+    }
     sentry_value_t trace_id = sentry__value_new_string_owned(s);
     sentry_value_set_by_key(inner, "trace_id", trace_id);
 
@@ -192,12 +218,19 @@ sentry_transaction_context_update_from_header_n(
     if (!span_id_end) {
         // no sampled flag
         sentry_value_t parent_span_id = sentry_value_new_string(span_id_start);
+        if(!is_valid_nonzero_hexstring(sentry_value_as_string(parent_span_id), SPAN_ID_LEN)
+            || strlen(sentry_value_as_string(parent_span_id)) != SPAN_ID_LEN) {
+            return;
+        }
         sentry_value_set_by_key(inner, "parent_span_id", parent_span_id);
         return;
     }
     // else: we have a sampled flag
 
     s = sentry__string_clone_n(span_id_start, span_id_end - span_id_start);
+    if(!is_valid_nonzero_hexstring(s, SPAN_ID_LEN) || strlen(s) != SPAN_ID_LEN) {
+        return;
+    }
     sentry_value_t parent_span_id = sentry__value_new_string_owned(s);
     sentry_value_set_by_key(inner, "parent_span_id", parent_span_id);
 
