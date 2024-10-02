@@ -209,6 +209,7 @@ sentry_transaction_context_update_from_header_n(
         = sentry__string_clone_n(trace_id_start, trace_id_end - trace_id_start);
     if (!is_valid_nonzero_hexstring(s, TRACE_ID_LEN)
         || strlen(s) != TRACE_ID_LEN) {
+        sentry_free(s);
         return;
     }
     sentry_value_t trace_id = sentry__value_new_string_owned(s);
@@ -232,6 +233,7 @@ sentry_transaction_context_update_from_header_n(
     s = sentry__string_clone_n(span_id_start, span_id_end - span_id_start);
     if (!is_valid_nonzero_hexstring(s, SPAN_ID_LEN)
         || strlen(s) != SPAN_ID_LEN) {
+        sentry_free(s);
         return;
     }
     sentry_value_t parent_span_id = sentry__value_new_string_owned(s);

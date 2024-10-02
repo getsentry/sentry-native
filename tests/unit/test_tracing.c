@@ -756,7 +756,7 @@ SENTRY_TEST(distributed_headers_invalid_traceid)
     sentry_init(options);
 
     sentry_transaction_context_t *tx_ctx
-        = sentry_transaction_context_new("wow!", NULL);
+        = sentry_transaction_context_new("sanity_check", NULL);
 
     const char *valid_trace_header
         = "2674eb52d5874b13b560236d6c79ce8a-a0f9fdf04f1a63df-1";
@@ -772,8 +772,7 @@ SENTRY_TEST(distributed_headers_invalid_traceid)
 
     // case 1: string with two dashes (nothing inbetween)
     const char *trace_header = "--";
-
-    sentry_transaction_context_update_from_header(
+    sentry_transaction_context_update_from_header( 
         tx_ctx, "sentry-trace", trace_header);
     const char *new_trace_id = sentry_value_as_string(
         sentry_value_get_by_key(tx_ctx->inner, "trace_id"));
@@ -782,7 +781,7 @@ SENTRY_TEST(distributed_headers_invalid_traceid)
 
     // case 2: string with two dashes (trace_id too short)
     const char *trace_header_short = "2-a0f9fdf04f1a63df-1";
-    sentry_transaction_context_update_from_header(
+    sentry_transaction_context_update_from_header( 
         tx_ctx, "sentry-trace", trace_header_short);
     const char *new_trace_id_short = sentry_value_as_string(
         sentry_value_get_by_key(tx_ctx->inner, "trace_id"));
@@ -792,13 +791,14 @@ SENTRY_TEST(distributed_headers_invalid_traceid)
     // case 3: string with two dashes (trace_id too long)
     const char *trace_header_long = "2674eb52d5874b13b560236d6c79ce8a2674eb52d5"
                                     "874b13b560236d6c79ce8a-a0f9fdf04f1a63df-1";
-    sentry_transaction_context_update_from_header(
+    sentry_transaction_context_update_from_header( 
         tx_ctx, "sentry-trace", trace_header_long);
     const char *new_trace_id_long = sentry_value_as_string(
         sentry_value_get_by_key(tx_ctx->inner, "trace_id"));
     // expect to have the trace_id remain unchanged
     TEST_CHECK_STRING_EQUAL(new_trace_id_long, expected_trace_id);
 
+    sentry__transaction_context_free(tx_ctx);
     sentry_close();
 }
 
@@ -814,7 +814,7 @@ SENTRY_TEST(distributed_headers_invalid_spanid)
 
     const char *valid_trace_header
         = "2674eb52d5874b13b560236d6c79ce8a-a0f9fdf04f1a63df-1";
-    // expected should match the valid trace_id from the header
+    // expected should match the valid parent_span_id from the header
     const char *expected_parent_span_id = "a0f9fdf04f1a63df";
 
     // sanity check test case
@@ -826,8 +826,7 @@ SENTRY_TEST(distributed_headers_invalid_spanid)
 
     // case 1: string with two dashes (nothing inbetween)
     const char *trace_header = "--";
-
-    sentry_transaction_context_update_from_header(
+    sentry_transaction_context_update_from_header( 
         tx_ctx, "sentry-trace", trace_header);
     const char *new_parent_span_id = sentry_value_as_string(
         sentry_value_get_by_key(tx_ctx->inner, "parent_span_id"));
@@ -836,7 +835,7 @@ SENTRY_TEST(distributed_headers_invalid_spanid)
 
     // case 2: string with two dashes (parent_span_id too short)
     const char *trace_header_short = "2674eb52d5874b13b560236d6c79ce8a-a-1";
-    sentry_transaction_context_update_from_header(
+    sentry_transaction_context_update_from_header( 
         tx_ctx, "sentry-trace", trace_header_short);
     const char *new_parent_span_id_short = sentry_value_as_string(
         sentry_value_get_by_key(tx_ctx->inner, "parent_span_id"));
@@ -846,13 +845,14 @@ SENTRY_TEST(distributed_headers_invalid_spanid)
     // case 3: string with two dashes (parent_span_id too long)
     const char *trace_header_long
         = "2674eb52d5874b13b560236d6c79ce8a-a0f9fdf04f1a63dfa0f9fdf04f1a63df-1";
-    sentry_transaction_context_update_from_header(
+    sentry_transaction_context_update_from_header( 
         tx_ctx, "sentry-trace", trace_header_long);
     const char *new_parent_span_id_long = sentry_value_as_string(
         sentry_value_get_by_key(tx_ctx->inner, "parent_span_id"));
     // expect to have the parent_span_id remain unchanged
     TEST_CHECK_STRING_EQUAL(new_parent_span_id_long, expected_parent_span_id);
 
+    sentry__transaction_context_free(tx_ctx);
     sentry_close();
 }
 
