@@ -207,7 +207,8 @@ sentry_transaction_context_update_from_header_n(
 
     char *s
         = sentry__string_clone_n(trace_id_start, trace_id_end - trace_id_start);
-    if(!is_valid_nonzero_hexstring(s, TRACE_ID_LEN) || strlen(s) != TRACE_ID_LEN) {
+    if (!is_valid_nonzero_hexstring(s, TRACE_ID_LEN)
+        || strlen(s) != TRACE_ID_LEN) {
         return;
     }
     sentry_value_t trace_id = sentry__value_new_string_owned(s);
@@ -218,7 +219,8 @@ sentry_transaction_context_update_from_header_n(
     if (!span_id_end) {
         // no sampled flag
         sentry_value_t parent_span_id = sentry_value_new_string(span_id_start);
-        if(!is_valid_nonzero_hexstring(sentry_value_as_string(parent_span_id), SPAN_ID_LEN)
+        if (!is_valid_nonzero_hexstring(
+                sentry_value_as_string(parent_span_id), SPAN_ID_LEN)
             || strlen(sentry_value_as_string(parent_span_id)) != SPAN_ID_LEN) {
             return;
         }
@@ -228,7 +230,8 @@ sentry_transaction_context_update_from_header_n(
     // else: we have a sampled flag
 
     s = sentry__string_clone_n(span_id_start, span_id_end - span_id_start);
-    if(!is_valid_nonzero_hexstring(s, SPAN_ID_LEN) || strlen(s) != SPAN_ID_LEN) {
+    if (!is_valid_nonzero_hexstring(s, SPAN_ID_LEN)
+        || strlen(s) != SPAN_ID_LEN) {
         return;
     }
     sentry_value_t parent_span_id = sentry__value_new_string_owned(s);
