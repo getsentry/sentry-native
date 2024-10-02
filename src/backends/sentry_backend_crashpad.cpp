@@ -375,7 +375,7 @@ crashpad_backend_startup(
         }
     }
 
-#ifdef SENTRY_PLATFORM_WINDOWS
+#if defined(SENTRY_PLATFORM_WINDOWS) && !defined(SENTRY_BUILD_SHARED)
     sentry__reserve_thread_stack();
 #endif
 

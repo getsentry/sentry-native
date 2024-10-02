@@ -140,12 +140,18 @@ sentry__get_os_context(void)
 void
 sentry__reserve_thread_stack(void)
 {
-    const unsigned long expected_stack_size = 64 * 1024;
+    const unsigned long page_size = 4 * 1024;
+    // 1 page for possible guard region
+    // 1 page for OS kernel32!RaiseException
+    // 1 page for possible debug infrastructure
+    // 1 page for handler
+    const unsigned long expected_stack_size = 4 * page_size;
     unsigned long stack_size = 0;
-    SetThreadStackGuarantee(&stack_size);
-    if (stack_size < expected_stack_size) {
-        stack_size = expected_stack_size;
-        SetThreadStackGuarantee(&stack_size);
+    if (SetThreadStackGuarantee(&stack_size)) {
+        if (stack_size < expected_stack_size) {
+            stack_size = expected_stack_size;
+            SetThreadStackGuarantee(&stack_size);
+        }
     }
 }
 
