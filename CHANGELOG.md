@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Decrease SetThreadStackGuarantee value ([#1044](https://github.com/getsentry/sentry-native/pull/1044))
+
 ## 0.7.10
 
 **Fixes**:
