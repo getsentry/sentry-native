@@ -8,8 +8,7 @@
 #include "sentry_value.h"
 #include <string.h>
 
-#define TRACE_ID_LEN 32
-#define SPAN_ID_LEN 16
+
 
 sentry_value_t
 sentry__value_new_span_n(sentry_value_t parent, sentry_slice_t operation)
@@ -154,12 +153,11 @@ sentry_transaction_context_remove_sampled(sentry_transaction_context_t *tx_cxt)
     }
 }
 
-///
-/// @param s given string
-/// @param len the length of the string
-/// @return whether the string is a valid hex string of at least the given
-///         length which contains at least one non-zero character
-bool
+/*
+* Checks whether the string is a valid hex string over the given length and
+* contains at least one non-zero character.
+*/
+static bool
 is_valid_nonzero_hexstring(const char *s, size_t len)
 {
     bool has_nonzero = false;
@@ -173,6 +171,33 @@ is_valid_nonzero_hexstring(const char *s, size_t len)
     }
     return has_nonzero;
 }
+
+static bool
+is_valid_id(const char *id, size_t expected_len, const char *id_type)
+{
+    const bool is_valid = id != NULL
+        && strlen(id) == expected_len
+        && is_valid_nonzero_hexstring(id, expected_len);
+
+    if (!is_valid) {
+        SENTRY_WARNF("invalid %s format in given header", id_type);
+    }
+
+    return is_valid;
+}
+
+static bool
+is_valid_trace_id(const char *trace_id)
+{
+    return is_valid_id(trace_id, 32, "trace id");
+}
+
+static bool
+is_valid_span_id(const char *span_id)
+{
+    return is_valid_id(span_id, 16, "span id");
+}
+
 
 void
 sentry_transaction_context_update_from_header_n(
@@ -208,10 +233,8 @@ sentry_transaction_context_update_from_header_n(
 
     char *s
         = sentry__string_clone_n(trace_id_start, trace_id_end - trace_id_start);
-    if (!is_valid_nonzero_hexstring(s, TRACE_ID_LEN)
-        || strlen(s) != TRACE_ID_LEN) {
+    if (!is_valid_trace_id(s)) {
         sentry_free(s);
-        SENTRY_WARN("invalid trace id format in given header");
         return;
     }
     sentry_value_t trace_id = sentry__value_new_string_owned(s);
@@ -222,11 +245,8 @@ sentry_transaction_context_update_from_header_n(
     if (!span_id_end) {
         // no sampled flag
         sentry_value_t parent_span_id = sentry_value_new_string(span_id_start);
-        if (!is_valid_nonzero_hexstring(
-                sentry_value_as_string(parent_span_id), SPAN_ID_LEN)
-            || strlen(sentry_value_as_string(parent_span_id)) != SPAN_ID_LEN) {
+        if (!is_valid_span_id(sentry_value_as_string(parent_span_id))) {
             sentry_value_decref(parent_span_id);
-            SENTRY_WARN("invalid span id format in given header");
             return;
         }
         sentry_value_set_by_key(inner, "parent_span_id", parent_span_id);
@@ -235,10 +255,8 @@ sentry_transaction_context_update_from_header_n(
     // else: we have a sampled flag
 
     s = sentry__string_clone_n(span_id_start, span_id_end - span_id_start);
-    if (!is_valid_nonzero_hexstring(s, SPAN_ID_LEN)
-        || strlen(s) != SPAN_ID_LEN) {
+    if (!is_valid_span_id(s)){
         sentry_free(s);
-        SENTRY_WARN("invalid span id format in given header");
         return;
     }
     sentry_value_t parent_span_id = sentry__value_new_string_owned(s);
