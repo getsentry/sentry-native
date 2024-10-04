@@ -200,6 +200,7 @@ sentry_transaction_context_update_from_header_n(
     const char *trace_id_start = value;
     const char *trace_id_end = memchr(trace_id_start, '-', value_len);
     if (!trace_id_end) {
+        SENTRY_WARN("invalid trace id format in given header");
         return;
     }
 
@@ -210,6 +211,7 @@ sentry_transaction_context_update_from_header_n(
     if (!is_valid_nonzero_hexstring(s, TRACE_ID_LEN)
         || strlen(s) != TRACE_ID_LEN) {
         sentry_free(s);
+        SENTRY_WARN("invalid trace id format in given header");
         return;
     }
     sentry_value_t trace_id = sentry__value_new_string_owned(s);
@@ -224,6 +226,7 @@ sentry_transaction_context_update_from_header_n(
                 sentry_value_as_string(parent_span_id), SPAN_ID_LEN)
             || strlen(sentry_value_as_string(parent_span_id)) != SPAN_ID_LEN) {
             sentry_value_decref(parent_span_id);
+            SENTRY_WARN("invalid span id format in given header");
             return;
         }
         sentry_value_set_by_key(inner, "parent_span_id", parent_span_id);
@@ -235,6 +238,7 @@ sentry_transaction_context_update_from_header_n(
     if (!is_valid_nonzero_hexstring(s, SPAN_ID_LEN)
         || strlen(s) != SPAN_ID_LEN) {
         sentry_free(s);
+        SENTRY_WARN("invalid span id format in given header");
         return;
     }
     sentry_value_t parent_span_id = sentry__value_new_string_owned(s);
