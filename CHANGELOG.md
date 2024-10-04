@@ -5,6 +5,7 @@
 **Fixes**:
 
 - Correct the timestamp resolution to microseconds on Windows. ([#1039](https://github.com/getsentry/sentry-native/pull/1039))
+- Reject invalid trace- and span-ids in context update from header ([#1046](https://github.com/getsentry/sentry-native/pull/1046))
 
 ## 0.7.9
 
