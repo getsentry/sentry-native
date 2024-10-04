@@ -223,6 +223,7 @@ sentry_transaction_context_update_from_header_n(
         if (!is_valid_nonzero_hexstring(
                 sentry_value_as_string(parent_span_id), SPAN_ID_LEN)
             || strlen(sentry_value_as_string(parent_span_id)) != SPAN_ID_LEN) {
+            sentry_value_decref(parent_span_id);
             return;
         }
         sentry_value_set_by_key(inner, "parent_span_id", parent_span_id);
