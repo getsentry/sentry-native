@@ -859,7 +859,7 @@ SENTRY_TEST(distributed_headers_invalid_spanid)
     const char *new_parent_span_id_empty = sentry_value_as_string(
         sentry_value_get_by_key(tx_ctx->inner, "parent_span_id"));
     // expect to have the parent_span_id remain unchanged
-    TEST_CHECK_STRING_EQUAL(new_parent_span_id_long, expected_parent_span_id);
+    TEST_CHECK_STRING_EQUAL(new_parent_span_id_empty, expected_parent_span_id);
 
     sentry__transaction_context_free(tx_ctx);
     sentry_close();
