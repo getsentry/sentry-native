@@ -748,6 +748,123 @@ SENTRY_TEST(update_from_header_no_sampled_flag)
     sentry_close();
 }
 
+SENTRY_TEST(distributed_headers_invalid_traceid)
+{
+    sentry_options_t *options = sentry_options_new();
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+
+    sentry_init(options);
+
+    sentry_transaction_context_t *tx_ctx
+        = sentry_transaction_context_new("sanity_check", NULL);
+
+    const char *valid_trace_header
+        = "2674eb52d5874b13b560236d6c79ce8a-a0f9fdf04f1a63df-1";
+    // expected should match the valid trace_id from the header
+    const char *expected_trace_id = "2674eb52d5874b13b560236d6c79ce8a";
+
+    // sanity check test case
+    sentry_transaction_context_update_from_header(
+        tx_ctx, "sentry-trace", valid_trace_header);
+    const char *valid_trace_id = sentry_value_as_string(
+        sentry_value_get_by_key(tx_ctx->inner, "trace_id"));
+    TEST_CHECK_STRING_EQUAL(valid_trace_id, expected_trace_id);
+
+    // case 1: string with two dashes (nothing inbetween)
+    const char *trace_header = "--";
+    sentry_transaction_context_update_from_header(
+        tx_ctx, "sentry-trace", trace_header);
+    const char *new_trace_id = sentry_value_as_string(
+        sentry_value_get_by_key(tx_ctx->inner, "trace_id"));
+    // expect to have the trace_id remain unchanged
+    TEST_CHECK_STRING_EQUAL(new_trace_id, expected_trace_id);
+
+    // case 2: string with two dashes (trace_id too short)
+    const char *trace_header_short = "2-a0f9fdf04f1a63df-1";
+    sentry_transaction_context_update_from_header(
+        tx_ctx, "sentry-trace", trace_header_short);
+    const char *new_trace_id_short = sentry_value_as_string(
+        sentry_value_get_by_key(tx_ctx->inner, "trace_id"));
+    // expect to have the trace_id remain unchanged
+    TEST_CHECK_STRING_EQUAL(new_trace_id_short, expected_trace_id);
+
+    // case 3: string with two dashes (trace_id too long)
+    const char *trace_header_long = "2674eb52d5874b13b560236d6c79ce8a2674eb52d5"
+                                    "874b13b560236d6c79ce8a-a0f9fdf04f1a63df-1";
+    sentry_transaction_context_update_from_header(
+        tx_ctx, "sentry-trace", trace_header_long);
+    const char *new_trace_id_long = sentry_value_as_string(
+        sentry_value_get_by_key(tx_ctx->inner, "trace_id"));
+    // expect to have the trace_id remain unchanged
+    TEST_CHECK_STRING_EQUAL(new_trace_id_long, expected_trace_id);
+
+    sentry__transaction_context_free(tx_ctx);
+    sentry_close();
+}
+
+SENTRY_TEST(distributed_headers_invalid_spanid)
+{
+    sentry_options_t *options = sentry_options_new();
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+
+    sentry_init(options);
+
+    sentry_transaction_context_t *tx_ctx
+        = sentry_transaction_context_new("wow!", NULL);
+
+    const char *valid_trace_header
+        = "2674eb52d5874b13b560236d6c79ce8a-a0f9fdf04f1a63df-1";
+    // expected should match the valid parent_span_id from the header
+    const char *expected_parent_span_id = "a0f9fdf04f1a63df";
+
+    // sanity check test case
+    sentry_transaction_context_update_from_header(
+        tx_ctx, "sentry-trace", valid_trace_header);
+    const char *valid_parent_span_id = sentry_value_as_string(
+        sentry_value_get_by_key(tx_ctx->inner, "parent_span_id"));
+    TEST_CHECK_STRING_EQUAL(valid_parent_span_id, expected_parent_span_id);
+
+    // case 1: string with two dashes (nothing inbetween)
+    const char *trace_header = "--";
+    sentry_transaction_context_update_from_header(
+        tx_ctx, "sentry-trace", trace_header);
+    const char *new_parent_span_id = sentry_value_as_string(
+        sentry_value_get_by_key(tx_ctx->inner, "parent_span_id"));
+    // expect to have the parent_span_id remain unchanged
+    TEST_CHECK_STRING_EQUAL(new_parent_span_id, expected_parent_span_id);
+
+    // case 2: string with two dashes (parent_span_id too short)
+    const char *trace_header_short = "2674eb52d5874b13b560236d6c79ce8a-a-1";
+    sentry_transaction_context_update_from_header(
+        tx_ctx, "sentry-trace", trace_header_short);
+    const char *new_parent_span_id_short = sentry_value_as_string(
+        sentry_value_get_by_key(tx_ctx->inner, "parent_span_id"));
+    // expect to have the parent_span_id remain unchanged
+    TEST_CHECK_STRING_EQUAL(new_parent_span_id_short, expected_parent_span_id);
+
+    // case 3: string with two dashes (parent_span_id too long)
+    const char *trace_header_long
+        = "2674eb52d5874b13b560236d6c79ce8a-a0f9fdf04f1a63dfa0f9fdf04f1a63df-1";
+    sentry_transaction_context_update_from_header(
+        tx_ctx, "sentry-trace", trace_header_long);
+    const char *new_parent_span_id_long = sentry_value_as_string(
+        sentry_value_get_by_key(tx_ctx->inner, "parent_span_id"));
+    // expect to have the parent_span_id remain unchanged
+    TEST_CHECK_STRING_EQUAL(new_parent_span_id_long, expected_parent_span_id);
+
+    // case 4: string with one dash (span_id empty)
+    const char *trace_header_empty_span = "2674eb52d5874b13b560236d6c79ce8a-";
+    sentry_transaction_context_update_from_header(
+        tx_ctx, "sentry-trace", trace_header_empty_span);
+    const char *new_parent_span_id_empty = sentry_value_as_string(
+        sentry_value_get_by_key(tx_ctx->inner, "parent_span_id"));
+    // expect to have the parent_span_id remain unchanged
+    TEST_CHECK_STRING_EQUAL(new_parent_span_id_empty, expected_parent_span_id);
+
+    sentry__transaction_context_free(tx_ctx);
+    sentry_close();
+}
+
 SENTRY_TEST(distributed_headers)
 {
     sentry_options_t *options = sentry_options_new();
