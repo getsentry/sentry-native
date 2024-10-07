@@ -8,8 +8,6 @@
 #include "sentry_value.h"
 #include <string.h>
 
-
-
 sentry_value_t
 sentry__value_new_span_n(sentry_value_t parent, sentry_slice_t operation)
 {
@@ -154,9 +152,9 @@ sentry_transaction_context_remove_sampled(sentry_transaction_context_t *tx_cxt)
 }
 
 /*
-* Checks whether the string is a valid hex string over the given length and
-* contains at least one non-zero character.
-*/
+ * Checks whether the string is a valid hex string over the given length and
+ * contains at least one non-zero character.
+ */
 static bool
 is_valid_nonzero_hexstring(const char *s, size_t len)
 {
@@ -175,8 +173,7 @@ is_valid_nonzero_hexstring(const char *s, size_t len)
 static bool
 is_valid_id(const char *id, size_t expected_len, const char *id_type)
 {
-    const bool is_valid = id != NULL
-        && strlen(id) == expected_len
+    const bool is_valid = id != NULL && strlen(id) == expected_len
         && is_valid_nonzero_hexstring(id, expected_len);
 
     if (!is_valid) {
@@ -197,7 +194,6 @@ is_valid_span_id(const char *span_id)
 {
     return is_valid_id(span_id, 16, "span id");
 }
-
 
 void
 sentry_transaction_context_update_from_header_n(
@@ -255,7 +251,7 @@ sentry_transaction_context_update_from_header_n(
     // else: we have a sampled flag
 
     s = sentry__string_clone_n(span_id_start, span_id_end - span_id_start);
-    if (!is_valid_span_id(s)){
+    if (!is_valid_span_id(s)) {
         sentry_free(s);
         return;
     }
