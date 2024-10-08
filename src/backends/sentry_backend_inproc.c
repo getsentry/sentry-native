@@ -16,7 +16,10 @@
 #include "transports/sentry_disk_transport.h"
 #include <string.h>
 
-#define SIGNAL_DEF(Sig, Desc) { Sig, #Sig, Desc }
+#define SIGNAL_DEF(Sig, Desc)                                                  \
+    {                                                                          \
+        Sig, #Sig, Desc                                                        \
+    }
 
 #define MAX_FRAMES 128
 
