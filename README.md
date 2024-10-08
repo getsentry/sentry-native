@@ -184,26 +184,26 @@ $ export SDKROOT=$(xcrun --sdk macosx --show-sdk-path)
 The following options can be set when running the cmake generator, for example
 using `cmake -D BUILD_SHARED_LIBS=OFF ..`.
 
-- `SENTRY_BUILD_SHARED_LIBS` (Default: ON):
+- `SENTRY_BUILD_SHARED_LIBS` (Default: `ON`):
   By default, `sentry` is built as a shared library. Setting this option to
   `OFF` will build `sentry` as a static library instead.
   If sentry is used as a subdirectory of another project, the value `BUILD_SHARED_LIBS` will be inherited by default.
 
   When using `sentry` as a static library, make sure to `#define SENTRY_BUILD_STATIC 1` before including the sentry header.
 
-- `SENTRY_PIC` (Default: ON):
+- `SENTRY_PIC` (Default: `ON`):
   By default, `sentry` is built as a position independent library.
 
-- `SENTRY_EXPORT_SYMBOLS` (Default: ON):
+- `SENTRY_EXPORT_SYMBOLS` (Default: `ON`):
   By default, `sentry` exposes all symbols in the dynamic symbol table. You might want to disable it in case the program intends to `dlopen` third-party shared libraries and avoid symbol collisions.
 
-- `SENTRY_BUILD_RUNTIMESTATIC` (Default: OFF):
+- `SENTRY_BUILD_RUNTIMESTATIC` (Default: `OFF`):
   Enables linking with the static MSVC runtime. Has no effect if the compiler is not MSVC.
 
-- `SENTRY_LINK_PTHREAD` (Default: ON):
+- `SENTRY_LINK_PTHREAD` (Default: `ON`):
   Links platform threads library like `pthread` on unix targets.
 
-- `SENTRY_BUILD_FORCE32` (Default: OFF):
+- `SENTRY_BUILD_FORCE32` (Default: `OFF`):
   Forces cross-compilation from 64-bit host to 32-bit target. Only has an effect on Linux.
 
 - `CMAKE_SYSTEM_VERSION` (Default: depending on Windows SDK version):
@@ -243,14 +243,21 @@ using `cmake -D BUILD_SHARED_LIBS=OFF ..`.
   - **none**: This builds `sentry-native` without a backend, so it does not handle
     crashes at all. It is primarily used for tests.
 
-- `SENTRY_INTEGRATION_QT` (Default: OFF):
+- `SENTRY_INTEGRATION_QT` (Default: `OFF`):
   Builds the Qt integration, which turns Qt log messages into breadcrumbs.
 
-- `SENTRY_BREAKPAD_SYSTEM` (Default: OFF):
+- `SENTRY_BREAKPAD_SYSTEM` (Default: `OFF`):
   This instructs the build system to use system-installed breakpad libraries instead of using the in-tree version.
 
-- `SENTRY_TRANSPORT_COMPRESSION` (Default: OFF):
+- `SENTRY_TRANSPORT_COMPRESSION` (Default: `OFF`):
   Adds Gzip transport compression. Requires `zlib`.
+ 
+- `SENTRY_HANDLER_STACK_SIZE` (Default: `64`):
+  This specifies the size of the stack reserved for the crash handler on Windows and Linux. Reserving the stack is
+  necessary in case of a stack-overflow, where the handler could otherwise no longer execute. This parameter allows
+  users to specify their target stack size in KiB, because some applications might require a different value from our
+  default. It is a build parameter because ideally this value is defined for each thread before interaction with our
+  API is possible.
 
 | Feature    | Windows | macOS | Linux | Android | iOS |
 | ---------- | ------- | ----- | ----- | ------- | --- |
@@ -275,12 +282,12 @@ Legend:
   Sets the sentry-native projects folder name for generators which support project hierarchy (like Microsoft Visual Studio).
   To use this feature you need to enable hierarchy via [`USE_FOLDERS` property](https://cmake.org/cmake/help/latest/prop_gbl/USE_FOLDERS.html)
 
-- `CRASHPAD_ENABLE_STACKTRACE` (Default: OFF):
+- `CRASHPAD_ENABLE_STACKTRACE` (Default: `OFF`):
   This enables client-side stackwalking when using the crashpad backend. Stack unwinding will happen on the client's machine
   and the result will be submitted to Sentry attached to the generated minidump.
   Note that this feature is still experimental.
 
-- `SENTRY_SDK_NAME` (Default: sentry.native or sentry.native.android):
+- `SENTRY_SDK_NAME` (Default: `sentry.native` or `sentry.native.android`):
   Sets the SDK name that should be included in the reported events. If you're overriding this, make sure to also define
   the same value using `target_compile_definitions()` on your own targets that include `sentry.h`.
 

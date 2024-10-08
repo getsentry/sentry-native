@@ -16,31 +16,7 @@
 #include "transports/sentry_disk_transport.h"
 #include <string.h>
 
-/**
- * Android's bionic libc seems to allocate alternate signal handler stacks for
- * every thread and also references them from their internal maintenance
- * structs.
- *
- * The way we currently set up our sigaltstack seems to interfere with this
- * setup and causes crashes whenever an ART signal handler touches the thread
- * that called `sentry_init()`.
- *
- * In addition to this problem, it also means there is no need for our own
- * sigaltstack on Android since our signal handler will always be running on
- * an alternate stack managed by bionic.
- *
- * Note: In bionic the sigaltstacks for 32-bit devices have a size of 16KiB and
- * on 64-bit devices they have 32KiB. The size of our own was set to 64KiB
- * independent of the device. If this is a problem, we need figure out
- * together with Google if there is a way in which our configs can coexist.
- *
- * Both breakpad and crashpad are way more defensive in the setup of their
- * signal stacks and take existing stacks into account (or reuse them).
- */
-#define SIGNAL_DEF(Sig, Desc)                                                  \
-    {                                                                          \
-        Sig, #Sig, Desc                                                        \
-    }
+#define SIGNAL_DEF(Sig, Desc) { Sig, #Sig, Desc }
 
 #define MAX_FRAMES 128
 
@@ -53,7 +29,7 @@ struct signal_slot {
 
 // we need quite a bit of space for backtrace generation
 #    define SIGNAL_COUNT 6
-#    define SIGNAL_STACK_SIZE 65536
+#    define SIGNAL_STACK_SIZE (1024 * SENTRY_HANDLER_STACK_SIZE)
 static struct sigaction g_sigaction;
 static struct sigaction g_previous_handlers[SIGNAL_COUNT];
 static stack_t g_signal_stack = { 0 };
@@ -189,7 +165,9 @@ static int
 startup_inproc_backend(
     sentry_backend_t *UNUSED(backend), const sentry_options_t *UNUSED(options))
 {
+#    ifndef SENTRY_BUILD_SHARED
     sentry__reserve_thread_stack();
+#    endif
     g_previous_handler = SetUnhandledExceptionFilter(&handle_exception);
     SetErrorMode(SEM_FAILCRITICALERRORS);
     return 0;
