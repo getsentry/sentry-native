@@ -3,7 +3,8 @@ param (
     [switch]$Clean = $false,
     [string]$Keyword = "",
     [int]$Parallelism = 1,
-    [switch]$WithoutCrashpadWer = $false
+    [switch]$WithoutCrashpadWer = $false,
+    [switch]$DisableCapture = $false
 )
 
 $update_test_discovery = Join-Path -Path $PSScriptRoot -ChildPath "update_test_discovery.ps1"
@@ -17,6 +18,10 @@ if ($Clean -or -not (Test-Path .\.venv))
 }
 
 $pytestCommand = ".\.venv\Scripts\pytest.exe .\tests\ --verbose"
+
+if ($DisableCapture) {
+    $pytestCommand += " --capture=no"
+}
 
 if ($Parallelism -gt 1)
 {
