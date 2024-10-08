@@ -143,7 +143,7 @@ sentry__reserve_thread_stack(void)
 {
     const unsigned long expected_stack_size = SENTRY_HANDLER_STACK_SIZE * 1024;
     unsigned long stack_size = 0;
-    if (0 == SetThreadStackGuarantee(&stack_size)) {
+    if (!SetThreadStackGuarantee(&stack_size)) {
         SENTRY_WARNF(
             "`SetThreadStackGuarantee` failed with code `%d`", GetLastError());
         return;
@@ -156,7 +156,7 @@ sentry__reserve_thread_stack(void)
     }
 
     stack_size = expected_stack_size;
-    if (0 == SetThreadStackGuarantee(&stack_size)) {
+    if (!SetThreadStackGuarantee(&stack_size)) {
         SENTRY_WARNF("`SetThreadStackGuarantee` failed with code `%d` bytes",
             GetLastError());
     }
