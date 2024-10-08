@@ -2,15 +2,23 @@
 
 ## Unreleased
 
+**Features**:
+
+- Provide a build-parameter `SENTRY_HANDLER_STACK_SIZE` that allows to change the targeted stack-size reserved for the crash handler on Linux and Windows. ([#1049](https://github.com/getsentry/sentry-native/pull/1049))
+
 **Fixes**:
 
-- Reject invalid trace- and span-ids in context update from header ([#1046](https://github.com/getsentry/sentry-native/pull/1046))
+- Reject invalid trace- and span-ids in context update from header. ([#1046](https://github.com/getsentry/sentry-native/pull/1046))
 
 ## 0.7.10
 
 **Fixes**:
 
 - Correct the timestamp resolution to microseconds on Windows. ([#1039](https://github.com/getsentry/sentry-native/pull/1039))
+
+**Thank you**:
+
+- [@ShawnCZek](https://github.com/ShawnCZek)
 
 ## 0.7.9
 
