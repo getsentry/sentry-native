@@ -164,14 +164,15 @@ sentry__path_join_wstr(const sentry_path_t *base, const wchar_t *other)
         return sentry__path_from_wstr(other);
     } else if (other[0] == L'/' || other[0] == L'\\') {
         if (isalpha(base->path[0]) && base->path[1] == L':') {
-            size_t len = wcslen(other) + 3;
-            sentry_path_t *rv = path_with_len(len);
+            size_t other_len = wcslen(other);
+            sentry_path_t *rv = path_with_len(other_len + 3);
             if (!rv) {
                 return NULL;
             }
             rv->path[0] = base->path[0];
             rv->path[1] = L':';
-            memcpy(rv->path + 2, other, sizeof(wchar_t) * len);
+            memcpy(rv->path + 2, other, sizeof(wchar_t) * other_len);
+            rv->path[other_len + 2] = L'\0';
             return rv;
         } else {
             return sentry__path_from_wstr(other);
