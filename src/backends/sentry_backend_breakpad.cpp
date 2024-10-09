@@ -212,7 +212,9 @@ sentry__breakpad_backend_startup(
     sentry_path_t *current_run_folder = options->run->run_path;
 
 #ifdef SENTRY_PLATFORM_WINDOWS
+#    ifndef SENTRY_BUILD_SHARED
     sentry__reserve_thread_stack();
+#    endif
     backend->data = new google_breakpad::ExceptionHandler(
         current_run_folder->path, NULL, sentry__breakpad_backend_callback, NULL,
         google_breakpad::ExceptionHandler::HANDLER_EXCEPTION);
