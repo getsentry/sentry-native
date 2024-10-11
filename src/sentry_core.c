@@ -8,6 +8,7 @@
 #include "sentry_database.h"
 #include "sentry_envelope.h"
 #include "sentry_options.h"
+#include "sentry_os.h"
 #include "sentry_path.h"
 #include "sentry_random.h"
 #include "sentry_scope.h"
@@ -194,6 +195,10 @@ sentry_init(sentry_options_t *options)
     if (options->auto_session_tracking) {
         sentry_start_session();
     }
+
+#ifdef SENTRY_PLATFORM_WINDOWS
+    sentry__init_cached_functions();
+#endif
 
     sentry__mutex_unlock(&g_options_lock);
     return 0;
