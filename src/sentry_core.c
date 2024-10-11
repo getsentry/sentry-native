@@ -1169,3 +1169,29 @@ sentry_clear_crashed_last_run(void)
     sentry__options_unlock();
     return success ? 0 : 1;
 }
+
+void sentry__capture_minidump(sentry_path_t *dump_path, sentry_value_t event,
+    const sentry_options_t *options)
+{
+    sentry_envelope_t *envelope = sentry__prepare_event(
+        options, event, NULL, !options->on_crash_func);
+    sentry_session_t *session = sentry__end_current_session_with_status(
+        SENTRY_SESSION_STATUS_CRASHED);
+    sentry__envelope_add_session(envelope, session);
+
+    sentry_envelope_item_t *item = sentry__envelope_add_from_path(
+        envelope, dump_path, "attachment");
+    if (item) {
+        sentry__envelope_item_set_header(item, "attachment_type",
+            sentry_value_new_string("event.minidump"));
+
+        sentry__envelope_item_set_header(item, "filename",
+#ifdef SENTRY_PLATFORM_WINDOWS
+            sentry__value_new_string_from_wstr(
+#else
+            sentry_value_new_string(
+#endif
+                sentry__path_filename(dump_path)));
+    }
+    sentry__capture_envelope(options->transport, envelope);
+}
