@@ -119,7 +119,7 @@ sentry__breakpad_backend_callback(
         }
 
         if (should_handle) {
-            sentry__capture_minidump(dump_path, event, options);
+            sentry_capture_minidump(dump_path, event, options);
 
             // now that the envelope was written, we can remove the temporary
             // minidump file
