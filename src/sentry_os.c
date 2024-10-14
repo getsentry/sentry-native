@@ -170,7 +170,8 @@ DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserved)
 
 #    endif // defined(SENTRY_BUILD_SHARED)
 
-static void (*g_kernel32_GetSystemTimePreciseAsFileTime)(LPFILETIME) = NULL;
+static void(WINAPI *g_kernel32_GetSystemTimePreciseAsFileTime)(LPFILETIME)
+    = NULL;
 
 void
 sentry__init_cached_functions(void)
@@ -182,7 +183,7 @@ sentry__init_cached_functions(void)
     if (!kernel32) {
         return;
     }
-    g_kernel32_GetSystemTimePreciseAsFileTime = (void (*)(
+    g_kernel32_GetSystemTimePreciseAsFileTime = (void(WINAPI *)(
         LPFILETIME))GetProcAddress(kernel32, "GetSystemTimePreciseAsFileTime");
 }
 
