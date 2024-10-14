@@ -1170,8 +1170,7 @@ sentry_clear_crashed_last_run(void)
     return success ? 0 : 1;
 }
 
-void sentry_capture_minidump(const char *dump_path, sentry_value_t event,
-    const sentry_options_t *options)
+void sentry_capture_minidump(const char *dump_path, sentry_value_t event)
 {
     sentry_path_t *sentry_dump_path = sentry__path_from_str_n(dump_path, strlen(dump_path));
 
