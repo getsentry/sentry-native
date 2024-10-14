@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Add ability to capture independently created minidumps ([#1052](https://github.com/getsentry/sentry-native/pull/1052))
+
 **Fixes**:
 
 - Reject invalid trace- and span-ids in context update from header ([#1046](https://github.com/getsentry/sentry-native/pull/1046))
