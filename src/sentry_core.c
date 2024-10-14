@@ -1170,9 +1170,11 @@ sentry_clear_crashed_last_run(void)
     return success ? 0 : 1;
 }
 
-void sentry_capture_minidump(const char *dump_path, sentry_value_t event)
+void
+sentry_capture_minidump(const char *dump_path, sentry_value_t event)
 {
-    sentry_path_t *sentry_dump_path = sentry__path_from_str_n(dump_path, strlen(dump_path));
+    sentry_path_t *sentry_dump_path
+        = sentry__path_from_str_n(dump_path, strlen(dump_path));
 
 
     SENTRY_WITH_OPTIONS (options) {
@@ -1195,11 +1197,11 @@ void sentry_capture_minidump(const char *dump_path, sentry_value_t event)
                 continue;
             }
             sentry__envelope_item_set_header(item, "filename",
-    #ifdef SENTRY_PLATFORM_WINDOWS
+#ifdef SENTRY_PLATFORM_WINDOWS
                 sentry__value_new_string_from_wstr(
-    #else
+#else
                 sentry_value_new_string(
-    #endif
+#endif
                     sentry__path_filename(attachment->path)));
         }
 
@@ -1210,11 +1212,11 @@ void sentry_capture_minidump(const char *dump_path, sentry_value_t event)
                 sentry_value_new_string("event.minidump"));
 
             sentry__envelope_item_set_header(item, "filename",
-    #ifdef SENTRY_PLATFORM_WINDOWS
+#ifdef SENTRY_PLATFORM_WINDOWS
                 sentry__value_new_string_from_wstr(
-    #else
+#else
                 sentry_value_new_string(
-    #endif
+#endif
                     sentry__path_filename(sentry_dump_path)));
         }
 
@@ -1224,7 +1226,6 @@ void sentry_capture_minidump(const char *dump_path, sentry_value_t event)
         // minidump file
         sentry__path_remove(sentry_dump_path);
         sentry__path_free(sentry_dump_path);
-
 
         // after capturing the crash event, try to dump all the in-flight
         // data of the previous transports
