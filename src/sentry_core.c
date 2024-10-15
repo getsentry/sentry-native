@@ -1171,16 +1171,19 @@ sentry_clear_crashed_last_run(void)
 }
 
 void
-sentry_capture_minidump(const char *dump_path, sentry_value_t event)
+sentry_capture_minidump(const char *dump_path, sentry_value_t event, bool removeDumpOnSend)
 {
     sentry_path_t *sentry_dump_path
         = sentry__path_from_str_n(dump_path, strlen(dump_path));
 
+    if(sentry_dump_path == NULL) {
+        SENTRY_WARN("'sentry_capture_minidump' Failed due to null path to minidump");
+        return;
+    }
 
     SENTRY_WITH_OPTIONS (options) {
-        sentry__write_crash_marker(options);
-
-        sentry_envelope_t *envelope = NULL;
+        sentry_envelope_t *envelope
+            = NULL;
         sentry__ensure_event_id(event, NULL);
         envelope = sentry__envelope_new();
         if (!envelope || !sentry__envelope_add_event(envelope, event)) {
@@ -1222,16 +1225,10 @@ sentry_capture_minidump(const char *dump_path, sentry_value_t event)
 
         sentry__capture_envelope(options->transport, envelope);
 
-        // now that the envelope was written, we can remove the temporary
-        // minidump file
-        sentry__path_remove(sentry_dump_path);
+        if(removeDumpOnSend){
+            sentry__path_remove(sentry_dump_path);
+        }
+
         sentry__path_free(sentry_dump_path);
-
-        // after capturing the crash event, try to dump all the in-flight
-        // data of the previous transports
-        sentry__transport_dump_queue(options->transport, options->run);
-        // and restore the old transport
-    }
-
-   
+    }   
 }
