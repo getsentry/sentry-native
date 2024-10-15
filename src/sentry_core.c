@@ -1177,7 +1177,8 @@ sentry_capture_minidump(const char *dump_path, sentry_value_t event, bool remove
         = sentry__path_from_str_n(dump_path, strlen(dump_path));
 
     if(sentry_dump_path == NULL) {
-        SENTRY_WARN("'sentry_capture_minidump' Failed due to null path to minidump");
+        SENTRY_WARN(
+            "'sentry_capture_minidump' Failed due to null path to minidump");
         return;
     }
 
@@ -1225,7 +1226,7 @@ sentry_capture_minidump(const char *dump_path, sentry_value_t event, bool remove
 
         sentry__capture_envelope(options->transport, envelope);
 
-        if(removeDumpOnSend){
+        if (removeDumpOnSend) {
             sentry__path_remove(sentry_dump_path);
         }
 
