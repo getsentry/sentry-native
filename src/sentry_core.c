@@ -1172,7 +1172,7 @@ sentry_clear_crashed_last_run(void)
 
 void
 sentry_capture_minidump(
-    const char *dump_path, sentry_value_t event, int removeDumpOnSend)
+    const char *dump_path, sentry_value_t event, int remove_dump_on_send)
 {
     sentry_path_t *sentry_dump_path
         = sentry__path_from_str_n(dump_path, strlen(dump_path));
@@ -1184,10 +1184,8 @@ sentry_capture_minidump(
     }
 
     SENTRY_WITH_OPTIONS (options) {
-        sentry_envelope_t *envelope
-            = NULL;
         sentry__ensure_event_id(event, NULL);
-        envelope = sentry__envelope_new();
+        sentry_envelope_t *envelope = sentry__envelope_new();
         if (!envelope || !sentry__envelope_add_event(envelope, event)) {
             sentry_envelope_free(envelope);
             sentry_value_decref(event);
@@ -1227,8 +1225,8 @@ sentry_capture_minidump(
 
         sentry__capture_envelope(options->transport, envelope);
 
-        bool removeDumpOnSendBool = removeDumpOnSend;
-        if (removeDumpOnSendBool) {
+        bool remove_dump_on_send_bool = remove_dump_on_send;
+        if (remove_dump_on_send_bool) {
             sentry__path_remove(sentry_dump_path);
         }
 

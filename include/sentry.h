@@ -1366,7 +1366,7 @@ SENTRY_API sentry_uuid_t sentry_capture_event(sentry_value_t event);
  *  This function allows for independently created minidumps to be captured.
  */
 SENTRY_API void sentry_capture_minidump(
-    const char *dump_path, sentry_value_t event, int removeDumpOnSend);
+    const char *dump_path, sentry_value_t event, int remove_dump_on_send);
 
 /**
  * Captures an exception to be handled by the backend.
