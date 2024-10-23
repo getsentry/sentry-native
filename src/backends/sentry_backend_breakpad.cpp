@@ -98,7 +98,7 @@ sentry__breakpad_backend_callback(
     sentry_value_set_by_key(
         event, "level", sentry__value_new_level(SENTRY_LEVEL_FATAL));
 
-     SENTRY_WITH_OPTIONS (options) {
+    SENTRY_WITH_OPTIONS (options) {
         sentry__write_crash_marker(options);
 
         bool should_handle = true;

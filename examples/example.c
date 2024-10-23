@@ -431,10 +431,7 @@ main(int argc, char **argv)
     if (has_arg(argc, argv, "capture-minidump")) {
         sentry_value_t event = sentry_value_new_message_event(
             SENTRY_LEVEL_INFO, "my-logger", "Hello Minidump!");
-        sentry_capture_minidump(
-            "minidump.dmp",
-            event,
-            0);
+        sentry_capture_minidump("minidump.dmp", event, 0);
         sentry_capture_event(event);
     }
 
