@@ -61,3 +61,4 @@ def test_capture_minidump(cmake, httpserver, build_args):
     assert_stacktrace(envelope)
 
     assert_event(envelope)
+    
