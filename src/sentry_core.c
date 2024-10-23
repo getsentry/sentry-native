@@ -1227,8 +1227,7 @@ sentry_capture_minidump(
 
         sentry__capture_envelope(options->transport, envelope);
 
-        bool remove_dump_on_send_bool = remove_dump_on_send;
-        if (remove_dump_on_send_bool) {
+        if (remove_dump_on_send) {
             sentry__path_remove(sentry_dump_path);
         }
 
