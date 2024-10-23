@@ -1183,12 +1183,14 @@ sentry_capture_minidump(
         return;
     }
 
-    SENTRY_WITH_OPTIONS (options) {
+   SENTRY_WITH_OPTIONS (options) {
         sentry__ensure_event_id(event, NULL);
         sentry_envelope_t *envelope = sentry__envelope_new();
         if (!envelope || !sentry__envelope_add_event(envelope, event)) {
             sentry_envelope_free(envelope);
             sentry_value_decref(event);
+            sentry__path_free(sentry_dump_path);
+            return;
         }
 
         SENTRY_TRACE("adding attachments to envelope");
