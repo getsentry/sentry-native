@@ -1363,7 +1363,7 @@ SENTRY_API sentry_user_consent_t sentry_user_consent_get(void);
 SENTRY_API sentry_uuid_t sentry_capture_event(sentry_value_t event);
 
 /**
- *  This function allows for independently created minidumps to be captured.
+ *  Allows capturing independently created minidumps.
  */
 SENTRY_API void sentry_capture_minidump(
     const char *dump_path, sentry_value_t event, int remove_dump_on_send);
