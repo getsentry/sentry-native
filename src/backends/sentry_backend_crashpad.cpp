@@ -443,7 +443,7 @@ crashpad_backend_startup(
             "failed to construct minidump URL (check DSN or user-agent)");
     }
     bool success = data->client->StartHandler(handler, database, database, 
-        minidump_url ? mindump_url : "",
+        minidump_url ? minidump_url : "",
         options->http_proxy ? options->http_proxy : "", annotations, arguments,
         /* restartable */ true,
         /* asynchronous_start */ false, attachments);
