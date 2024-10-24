@@ -442,13 +442,12 @@ crashpad_backend_startup(
         SENTRY_WARN(
             "failed to construct minidump URL (check DSN or user-agent)");
     }
-    const std::string url
-        = minidump_url ? std::string(minidump_url) : std::string();
-    sentry_free(minidump_url);
-    bool success = data->client->StartHandler(handler, database, database, url,
+    bool success = data->client->StartHandler(handler, database, database, 
+        minidump_url ? mindump_url : "",
         options->http_proxy ? options->http_proxy : "", annotations, arguments,
         /* restartable */ true,
         /* asynchronous_start */ false, attachments);
+    sentry_free(minidump_url);
 
 #ifdef SENTRY_PLATFORM_WINDOWS
     crashpad_register_wer_module(absolute_handler_path, data);
