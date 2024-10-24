@@ -438,9 +438,6 @@ crashpad_backend_startup(
         = sentry__dsn_get_minidump_url(options->dsn, options->user_agent);
     if (minidump_url) {
         SENTRY_TRACEF("using minidump URL \"%s\"", minidump_url);
-    } else {
-        SENTRY_WARN(
-            "failed to construct minidump URL (check DSN or user-agent)");
     }
     bool success = data->client->StartHandler(handler, database, database, 
         minidump_url ? minidump_url : "",
