@@ -642,7 +642,7 @@ sentry__value_append_bounded(sentry_value_t value, sentry_value_t v, size_t max)
     if (l->len < max) {
         return sentry_value_append(value, v);
     }
-    if(l-> len == max) {
+    if (l->len == max) {
         // start ringbuffering here
         // append (ringbufferstart, ringbufferend) as ints at tail
         // adding bc3 to list with 3 bcs and max = 3:
@@ -654,10 +654,8 @@ sentry__value_append_bounded(sentry_value_t value, sentry_value_t v, size_t max)
         sentry_value_append(value, bufferend);
     }
 
-    sentry_value_t bufferstart = l->items[max];
-    int32_t start_idx = sentry_value_as_int32(bufferstart);
-    sentry_value_t bufferend = l->items[max + 1];
-    int32_t end_idx = sentry_value_as_int32(bufferend);
+    int32_t start_idx = sentry_value_as_int32(l->items[max]);
+    int32_t end_idx = sentry_value_as_int32(l->items[max + 1]);
 
     sentry_value_decref(l->items[start_idx]);
     l->items[start_idx] = v;
