@@ -57,6 +57,7 @@ sentry_options_new(void)
     opts->shutdown_timeout = SENTRY_DEFAULT_SHUTDOWN_TIMEOUT;
     opts->traces_sample_rate = 0.0;
     opts->max_spans = 0;
+    opts->handler_strategy = SENTRY_HANDLER_STRATEGY_DEFAULT;
 
     return opts;
 }
@@ -594,3 +595,20 @@ sentry_options_set_backend(sentry_options_t *opts, sentry_backend_t *backend)
     sentry__backend_free(opts->backend);
     opts->backend = backend;
 }
+
+#ifdef SENTRY_PLATFORM_LINUX
+
+sentry_handler_strategy_t
+sentry_options_get_handler_strategy(const sentry_options_t *opts)
+{
+    return opts->handler_strategy;
+}
+
+void
+sentry_options_set_handler_strategy(
+    sentry_options_t *opts, sentry_handler_strategy_t handler_strategy)
+{
+    opts->handler_strategy = handler_strategy;
+}
+
+#endif // SENTRY_PLATFORM_LINUX
