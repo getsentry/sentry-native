@@ -34,6 +34,11 @@ jobs:
         with:
           languages: ${{ matrix.language }}
 
+      - name: Installing Linux Dependencies
+        run: |
+          sudo apt update
+          sudo apt install cmake clang-14 clang-tools llvm kcov g++-12 valgrind zlib1g-dev libcurl4-openssl-dev
+
       - if: matrix.language == 'java'
         name: Setup Java Version
         uses: actions/setup-java@v4
