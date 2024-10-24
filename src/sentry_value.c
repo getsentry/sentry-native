@@ -653,7 +653,8 @@ sentry__value_append_bounded(sentry_value_t value, sentry_value_t v, size_t max)
         sentry_value_append(value, bufferstart);
         sentry_value_append(value, bufferend);
     }
-
+    // TODO allocate space for these two; is there a situation where the
+    //  normal append doesn't reserve enough space?
     int32_t start_idx = sentry_value_as_int32(l->items[max]);
     int32_t end_idx = sentry_value_as_int32(l->items[max + 1]);
 
