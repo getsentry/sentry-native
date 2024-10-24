@@ -434,23 +434,17 @@ crashpad_backend_startup(
     // `sentry_init` will persist the upload flag.
     data->db = crashpad::CrashReportDatabase::Initialize(database).release();
     data->client = new crashpad::CrashpadClient;
-    bool success;
     char *minidump_url
         = sentry__dsn_get_minidump_url(options->dsn, options->user_agent);
     if (minidump_url) {
         SENTRY_TRACEF("using minidump URL \"%s\"", minidump_url);
-        success = data->client->StartHandler(handler, database, database,
-            minidump_url, options->http_proxy ? options->http_proxy : "",
-            annotations, arguments,
-            /* restartable */ true,
-            /* asynchronous_start */ false, attachments);
-        sentry_free(minidump_url);
-    } else {
-        SENTRY_WARN(
-            "failed to construct minidump URL (check DSN or user-agent)");
-        crashpad_state_dtor(data);
-        return 1;
     }
+    bool success = data->client->StartHandler(handler, database, database,
+        minidump_url ? minidump_url : "",
+        options->http_proxy ? options->http_proxy : "", annotations, arguments,
+        /* restartable */ true,
+        /* asynchronous_start */ false, attachments);
+    sentry_free(minidump_url);
 
 #ifdef SENTRY_PLATFORM_WINDOWS
     crashpad_register_wer_module(absolute_handler_path, data);
