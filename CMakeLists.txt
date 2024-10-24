@@ -582,6 +582,9 @@ if(SENTRY_BUILD_EXAMPLES)
 		set_target_properties(sentry_example PROPERTIES FOLDER ${SENTRY_FOLDER})
 	endif()
 
+	add_custom_command(TARGET sentry_example POST_BUILD
+		COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/minidump.dmp" "$<TARGET_FILE_DIR:sentry_example>/minidump.dmp")
+
 	add_test(NAME sentry_example COMMAND sentry_example)
 endif()
 

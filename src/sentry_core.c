@@ -1174,3 +1174,68 @@ sentry_clear_crashed_last_run(void)
     sentry__options_unlock();
     return success ? 0 : 1;
 }
+
+void
+sentry_capture_minidump(
+    const char *dump_path, sentry_value_t event, int remove_dump_on_send)
+{
+    sentry_path_t *sentry_dump_path
+        = sentry__path_from_str_n(dump_path, strlen(dump_path));
+
+    if (sentry_dump_path == NULL) {
+        SENTRY_WARN(
+            "'sentry_capture_minidump' Failed due to null path to minidump");
+        return;
+    }
+
+    SENTRY_WITH_OPTIONS (options) {
+        sentry__ensure_event_id(event, NULL);
+        sentry_envelope_t *envelope = sentry__envelope_new();
+        if (!envelope || !sentry__envelope_add_event(envelope, event)) {
+            sentry_envelope_free(envelope);
+            sentry_value_decref(event);
+            sentry__path_free(sentry_dump_path);
+            return;
+        }
+
+        SENTRY_TRACE("adding attachments to envelope");
+        for (sentry_attachment_t *attachment = options->attachments; attachment;
+             attachment = attachment->next) {
+            sentry_envelope_item_t *item = sentry__envelope_add_from_path(
+                envelope, attachment->path, "attachment");
+            if (!item) {
+                continue;
+            }
+            sentry__envelope_item_set_header(item, "filename",
+#ifdef SENTRY_PLATFORM_WINDOWS
+                sentry__value_new_string_from_wstr(
+#else
+                sentry_value_new_string(
+#endif
+                    sentry__path_filename(attachment->path)));
+        }
+
+        sentry_envelope_item_t *item = sentry__envelope_add_from_path(
+            envelope, sentry_dump_path, "attachment");
+        if (item) {
+            sentry__envelope_item_set_header(item, "attachment_type",
+                sentry_value_new_string("event.minidump"));
+
+            sentry__envelope_item_set_header(item, "filename",
+#ifdef SENTRY_PLATFORM_WINDOWS
+                sentry__value_new_string_from_wstr(
+#else
+                sentry_value_new_string(
+#endif
+                    sentry__path_filename(sentry_dump_path)));
+        }
+
+        sentry__capture_envelope(options->transport, envelope);
+
+        if (remove_dump_on_send) {
+            sentry__path_remove(sentry_dump_path);
+        }
+
+        sentry__path_free(sentry_dump_path);
+    }
+}

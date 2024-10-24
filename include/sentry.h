@@ -1363,6 +1363,12 @@ SENTRY_API sentry_user_consent_t sentry_user_consent_get(void);
 SENTRY_API sentry_uuid_t sentry_capture_event(sentry_value_t event);
 
 /**
+ *  Allows capturing independently created minidumps.
+ */
+SENTRY_API void sentry_capture_minidump(
+    const char *dump_path, sentry_value_t event, int remove_dump_on_send);
+
+/**
  * Captures an exception to be handled by the backend.
  *
  * This is safe to be called from a crashing thread and may not return.
