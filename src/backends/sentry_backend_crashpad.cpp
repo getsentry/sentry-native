@@ -406,7 +406,7 @@ crashpad_backend_startup(
 
     // register attachments
     for (sentry_attachment_t *attachment = options->attachments; attachment;
-         attachment = attachment->next) {
+        attachment = attachment->next) {
         attachments.emplace_back(attachment->path->path);
     }
 
@@ -442,7 +442,8 @@ crashpad_backend_startup(
         SENTRY_WARN(
             "failed to construct minidump URL (check DSN or user-agent)");
     }
-    const std::string url = minidump_url ? std::string(minidump_url) : std::string();
+    const std::string url
+        = minidump_url ? std::string(minidump_url) : std::string();
     sentry_free(minidump_url);
     bool success = data->client->StartHandler(handler, database, database, url,
         options->http_proxy ? options->http_proxy : "", annotations, arguments,
