@@ -642,27 +642,28 @@ sentry__value_append_bounded(sentry_value_t value, sentry_value_t v, size_t max)
     if (l->len < max) {
         return sentry_value_append(value, v);
     }
+    if(l-> len == max) {
+        // start ringbuffering here
+        // append (ringbufferstart, ringbufferend) as ints at tail
+        // adding bc3 to list with 3 bcs and max = 3:
+        // [bc0, bc1, bc2] -> [bc0, bc1, bc2, 0, 2] ->
+        //  -> [bc3, bc1, bc2, 1, 0]
+        sentry_value_t bufferstart = sentry_value_new_int32(0);
+        sentry_value_t bufferend = sentry_value_new_int32(max - 1);
+        sentry_value_append(value, bufferstart);
+        sentry_value_append(value, bufferend);
+    }
 
-    // len: 120
-    // max: 100
-    // move to 0
-    //   move 99 items (len - 1)
-    //   from 20
+    sentry_value_t bufferstart = l->items[max];
+    int32_t start_idx = sentry_value_as_int32(bufferstart);
+    sentry_value_t bufferend = l->items[max + 1];
+    int32_t end_idx = sentry_value_as_int32(bufferend);
 
-    size_t to_move = max >= 1 ? max - 1 : 0;
-    size_t to_shift = l->len - to_move;
-    for (size_t i = 0; i < to_shift; i++) {
-        sentry_value_decref(l->items[i]);
-    }
-    if (to_move) {
-        memmove(l->items, l->items + to_shift, to_move * sizeof(l->items[0]));
-    }
-    if (max >= 1) {
-        l->items[max - 1] = v;
-    } else {
-        sentry_value_decref(v);
-    }
-    l->len = max;
+    sentry_value_decref(l->items[start_idx]);
+    l->items[start_idx] = v;
+    l->items[max] = sentry_value_new_int32((start_idx + 1) % max);
+    l->items[max + 1] = sentry_value_new_int32((end_idx + 1) % max);
+
     return 0;
 
 fail:
