@@ -74,6 +74,7 @@ get_scope(void)
     g_scope.contexts = sentry_value_new_object();
     sentry_value_set_by_key(g_scope.contexts, "os", sentry__get_os_context());
     g_scope.breadcrumbs = sentry_value_new_list();
+    sentry_value_append(g_scope.breadcrumbs, sentry_value_new_int32(1));
     g_scope.level = SENTRY_LEVEL_ERROR;
     g_scope.client_sdk = get_client_sdk();
     g_scope.transaction_object = NULL;
@@ -337,7 +338,8 @@ sentry__scope_apply_to_event(const sentry_scope_t *scope,
     sentry_value_decref(contexts);
 
     if (mode & SENTRY_SCOPE_BREADCRUMBS) {
-        PLACE_CLONED_VALUE("breadcrumbs", scope->breadcrumbs);
+        PLACE_CLONED_VALUE("breadcrumbs",
+            sentry__value_ring_buffer_to_list(scope->breadcrumbs));
     }
 
     if (mode & SENTRY_SCOPE_MODULES) {
