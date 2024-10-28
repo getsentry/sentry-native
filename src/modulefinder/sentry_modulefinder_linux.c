@@ -362,7 +362,7 @@ fail:
                                                                                \
         Elf64_Shdr strheader;                                                  \
         ENSURE(sentry__module_read_safely(&strheader, module,                  \
-            elf.e_shoff + elf.e_shentsize * elf.e_shstrndx,                    \
+            elf.e_shoff + (uint64_t)elf.e_shentsize * elf.e_shstrndx,          \
             sizeof(Elf64_Shdr)));                                              \
                                                                                \
         for (uint32_t i = 0; i < elf.e_shnum; i++) {                           \
@@ -385,7 +385,7 @@ fail:
                                                                                \
         Elf32_Shdr strheader;                                                  \
         ENSURE(sentry__module_read_safely(&strheader, module,                  \
-            elf.e_shoff + elf.e_shentsize * elf.e_shstrndx,                    \
+            elf.e_shoff + (uint64_t)elf.e_shentsize * elf.e_shstrndx,          \
             sizeof(Elf32_Shdr)));                                              \
                                                                                \
         for (uint32_t i = 0; i < elf.e_shnum; i++) {                           \
