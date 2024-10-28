@@ -5,7 +5,7 @@
 
 **Fixes**:
 
-- Add breadcrumb ringbuffer to avoid O(n) memmove ([#1060](https://github.com/getsentry/sentry-native/pull/1060))
+- Add breadcrumb ringbuffer to avoid O(n) memmove on adding more than max breadcrumbs ([#1060](https://github.com/getsentry/sentry-native/pull/1060))
 
 ## 0.7.11
 
