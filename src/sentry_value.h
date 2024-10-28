@@ -85,12 +85,14 @@ sentry_value_t sentry__value_clone(sentry_value_t value);
  * the ring buffer start index as the first element
  * (e.g, 1 until max is exceeded, then it will update for each added item)
  *
- * It will remove the first value of the list, is case the total number if items
+ * It will remove the oldest value in the list, in case the total number of items
  * would exceed `max`.
+ *
+ * The list is of size `max + 1` to store the start index.
  *
  * Returns 0 on success.
  */
-int sentry__value_append_bounded(
+int sentry__value_append_ringbuffer(
     sentry_value_t value, sentry_value_t v, size_t max);
 
 /**

@@ -630,7 +630,7 @@ sentry__value_clone(sentry_value_t value)
 }
 
 int
-sentry__value_append_bounded(sentry_value_t value, sentry_value_t v, size_t max)
+sentry__value_append_ringbuffer(sentry_value_t value, sentry_value_t v, size_t max)
 {
     thing_t *thing = value_as_unfrozen_thing(value);
     if (!thing || thing_get_type(thing) != THING_TYPE_LIST) {

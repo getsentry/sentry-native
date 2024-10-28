@@ -178,9 +178,9 @@ SENTRY_TEST(value_list)
     val = sentry_value_new_list();
     sentry_value_append(val, sentry_value_new_int32(1));
     for (int32_t i = 1; i <= 10; i++) {
-        sentry__value_append_bounded(val, sentry_value_new_int32(i), 5);
+        sentry__value_append_ringbuffer(val, sentry_value_new_int32(i), 5);
     }
-    sentry__value_append_bounded(val, sentry_value_new_int32(1010), 5);
+    sentry__value_append_ringbuffer(val, sentry_value_new_int32(1010), 5);
 #define CHECK_IDX(Idx, Val)                                                    \
     TEST_CHECK_INT_EQUAL(                                                      \
         sentry_value_as_int32(sentry_value_get_by_index(val, Idx)), Val)
@@ -542,18 +542,18 @@ SENTRY_TEST(value_collections_leak)
 
     // decref the existing values correctly on bounded append
     sentry_value_incref(obj);
-    sentry__value_append_bounded(list, obj, 2);
+    sentry__value_append_ringbuffer(list, obj, 2);
     sentry_value_incref(obj);
-    sentry__value_append_bounded(list, obj, 2);
+    sentry__value_append_ringbuffer(list, obj, 2);
 
     TEST_CHECK_INT_EQUAL(sentry_value_refcount(obj), 3);
 
     sentry_value_incref(obj);
-    sentry__value_append_bounded(list, obj, 1);
+    sentry__value_append_ringbuffer(list, obj, 1);
     TEST_CHECK_INT_EQUAL(sentry_value_refcount(obj), 2);
 
     sentry_value_incref(obj);
-    sentry__value_append_bounded(list, obj, 0);
+    sentry__value_append_ringbuffer(list, obj, 0);
     TEST_CHECK_INT_EQUAL(sentry_value_refcount(obj), 1);
     TEST_CHECK_INT_EQUAL(sentry_value_get_length(list), 0);
 
