@@ -639,16 +639,16 @@ sentry__value_append_bounded(sentry_value_t value, sentry_value_t v, size_t max)
 
     list_t *l = thing->payload._ptr;
 
-    if (l->len < max) {
+    if (l->len <= max) {
         return sentry_value_append(value, v);
     }
     int32_t start_idx = sentry_value_as_int32(l->items[0]);
 
     sentry_value_decref(l->items[start_idx]);
     l->items[start_idx] = v;
-    l->items[max] = sentry_value_new_int32(((start_idx + 1) % max)+1);
+    l->items[0] = sentry_value_new_int32((start_idx  % max)+1);
 
-    l->len = max;
+    l->len = max+1;
     return 0;
 
 fail:
