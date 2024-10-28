@@ -643,25 +643,19 @@ sentry__value_append_bounded(sentry_value_t value, sentry_value_t v, size_t max)
         return sentry_value_append(value, v);
     }
     if (l->len == max) {
-        // start ringbuffering here
-        // append (ringbufferstart, ringbufferend) as ints at tail
+        // append (ringbufferstart) as int at tail (buffer end is max-1 away)
         // adding bc3 to list with 3 bcs and max = 3:
-        // [bc0, bc1, bc2] -> [bc0, bc1, bc2, 0, 2] ->
-        //  -> [bc3, bc1, bc2, 1, 0]
+        // [bc0, bc1, bc2] -> [bc0, bc1, bc2, 0] ->
+        //  -> [bc3, bc1, bc2, 1]
         sentry_value_t bufferstart = sentry_value_new_int32(0);
-        sentry_value_t bufferend = sentry_value_new_int32(max - 1);
         sentry_value_append(value, bufferstart);
-        sentry_value_append(value, bufferend);
     }
-    // TODO allocate space for these two; is there a situation where the
-    //  normal append doesn't reserve enough space?
+
     int32_t start_idx = sentry_value_as_int32(l->items[max]);
-    int32_t end_idx = sentry_value_as_int32(l->items[max + 1]);
 
     sentry_value_decref(l->items[start_idx]);
     l->items[start_idx] = v;
     l->items[max] = sentry_value_new_int32((start_idx + 1) % max);
-    l->items[max + 1] = sentry_value_new_int32((end_idx + 1) % max);
 
     return 0;
 
