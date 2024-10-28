@@ -630,7 +630,8 @@ sentry__value_clone(sentry_value_t value)
 }
 
 int
-sentry__value_append_ringbuffer(sentry_value_t value, sentry_value_t v, size_t max)
+sentry__value_append_ringbuffer(
+    sentry_value_t value, sentry_value_t v, size_t max)
 {
     thing_t *thing = value_as_unfrozen_thing(value);
     if (!thing || thing_get_type(thing) != THING_TYPE_LIST) {
@@ -646,9 +647,9 @@ sentry__value_append_ringbuffer(sentry_value_t value, sentry_value_t v, size_t m
 
     sentry_value_decref(l->items[start_idx]);
     l->items[start_idx] = v;
-    l->items[0] = sentry_value_new_int32((start_idx  % max)+1);
+    l->items[0] = sentry_value_new_int32((start_idx % max) + 1);
 
-    l->len = max+1;
+    l->len = max + 1;
     return 0;
 
 fail:
@@ -826,7 +827,8 @@ sentry_value_as_string(sentry_value_t value)
     }
 }
 
-sentry_value_t sentry__value_ring_buffer_to_list(const sentry_value_t rb)
+sentry_value_t
+sentry__value_ring_buffer_to_list(const sentry_value_t rb)
 {
     const thing_t *thing = value_as_thing(rb);
     if (!thing || thing_get_type(thing) != THING_TYPE_LIST) {
@@ -837,7 +839,8 @@ sentry_value_t sentry__value_ring_buffer_to_list(const sentry_value_t rb)
 
     sentry_value_t l = sentry_value_new_list();
     for (size_t i = 0; i < rb_list->len; i++) {
-        const sentry_value_t v = rb_list->items[((start_idx + i) % rb_list->len)+1];
+        const sentry_value_t v
+            = rb_list->items[((start_idx + i) % rb_list->len) + 1];
         sentry_value_append(l, v);
     }
     return l;
