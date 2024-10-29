@@ -259,14 +259,14 @@ void
 sentry_options_set_socks5_proxy_n(
     sentry_options_t *opts, const char *proxy, size_t proxy_len)
 {
-    sentry_free(opts->http_proxy);
+    sentry_free(opts->socks5_proxy);
     opts->socks5_proxy = sentry__string_clone_n(proxy, proxy_len);
 }
 
 void
 sentry_options_set_socks5_proxy(sentry_options_t *opts, const char *proxy)
 {
-    sentry_free(opts->http_proxy);
+    sentry_free(opts->socks5_proxy);
     opts->socks5_proxy = sentry__string_clone(proxy);
 }
 
