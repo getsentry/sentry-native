@@ -96,6 +96,11 @@ int sentry__value_append_ringbuffer(
     sentry_value_t value, sentry_value_t v, size_t max);
 
 /**
+ * Converts ring buffer to linear list
+ */
+sentry_value_t sentry__value_ring_buffer_to_list(sentry_value_t rb);
+
+/**
  * Deep-merges object src into dst.
  *
  * For each key-value pair in the src object the same key in the dst object

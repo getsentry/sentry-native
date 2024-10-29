@@ -330,11 +330,6 @@ SENTRY_API double sentry_value_as_double(sentry_value_t value);
 SENTRY_API const char *sentry_value_as_string(sentry_value_t value);
 
 /**
- * Converts ring buffer to linear list
- */
-SENTRY_API sentry_value_t sentry__value_ring_buffer_to_list(sentry_value_t rb);
-
-/**
  * Returns `true` if the value is boolean true.
  */
 SENTRY_API int sentry_value_is_true(sentry_value_t value);
