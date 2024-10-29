@@ -980,6 +980,22 @@ SENTRY_API const char *sentry_options_get_http_proxy(
     const sentry_options_t *opts);
 
 /**
+ * Configures the socks5 proxy.
+ *
+ *  The given proxy has to include the full scheme, eg. `socks5://some.proxy/`.
+ */
+SENTRY_API void sentry_options_set_socks5_proxy(
+    sentry_options_t *opts, const char *proxy);
+SENTRY_API void sentry_options_set_socks5_proxy_n(
+    sentry_options_t *opts, const char *proxy, size_t proxy_len);
+
+/**
+ * Returns the configured socks5 proxy.
+ */
+SENTRY_API const char *sentry_options_get_socks5_proxy(
+    const sentry_options_t *opts);
+
+/**
  * Configures the path to a file containing ssl certificates for
  * verification.
  */
