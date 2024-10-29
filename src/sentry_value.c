@@ -838,9 +838,9 @@ sentry__value_ring_buffer_to_list(const sentry_value_t rb)
     const int32_t start_idx = sentry_value_as_int32(rb_list->items[0]);
 
     sentry_value_t rv = sentry_value_new_list();
-    for (size_t i = 0; i < rb_list->len; i++) {
+    for (size_t i = 0; i < rb_list->len - 1; i++) {
         const sentry_value_t v
-            = rb_list->items[((start_idx + i) % rb_list->len) + 1];
+            = rb_list->items[(start_idx - 1 + i) % (rb_list->len - 1) + 1];
         sentry_value_incref(v);
         sentry_value_append(rv, v);
     }
