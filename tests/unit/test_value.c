@@ -207,14 +207,17 @@ SENTRY_TEST(value_ringbuffer)
     sentry_value_set_by_key(v3, "key", sentry_value_new_int32((int32_t)3));
 
     sentry__value_append_ringbuffer(val, v0, 3);
-    TEST_CHECK(sentry_value_refcount(v0) == 1);
+    TEST_CHECK_INT_EQUAL(sentry_value_refcount(v0), 1);
+    sentry_value_incref(v0);
+    TEST_CHECK_INT_EQUAL(sentry_value_refcount(v0), 2);
+
     sentry__value_append_ringbuffer(val, v1, 3);
-    TEST_CHECK(sentry_value_refcount(v1) == 1);
+    TEST_CHECK_INT_EQUAL(sentry_value_refcount(v1), 1);
     sentry__value_append_ringbuffer(val, v2, 3);
-    TEST_CHECK(sentry_value_refcount(v2) == 1);
+    TEST_CHECK_INT_EQUAL(sentry_value_refcount(v2), 1);
     sentry__value_append_ringbuffer(val, v3, 3);
-    TEST_CHECK(sentry_value_refcount(v3) == 1);
-    TEST_CHECK(sentry_value_refcount(v0) == 0);
+    TEST_CHECK_INT_EQUAL(sentry_value_refcount(v3), 1);
+    TEST_CHECK_INT_EQUAL(sentry_value_refcount(v0), 1);
 
     const sentry_value_t l = sentry__value_ring_buffer_to_list(val);
     TEST_CHECK_INT_EQUAL(sentry_value_get_length(l), 3);
