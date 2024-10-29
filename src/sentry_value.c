@@ -640,7 +640,7 @@ sentry__value_append_ringbuffer(
 
     list_t *l = thing->payload._ptr;
 
-    if (l->len <= max) {
+    if (l->len < max + 1) {
         return sentry_value_append(value, v);
     }
     int32_t start_idx = sentry_value_as_int32(l->items[0]);
