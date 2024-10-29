@@ -643,7 +643,7 @@ sentry__value_append_ringbuffer(
     if (l->len < max + 1) {
         return sentry_value_append(value, v);
     }
-    int32_t start_idx = sentry_value_as_int32(l->items[0]);
+    const size_t start_idx = sentry_value_as_int32(l->items[0]);
 
     sentry_value_decref(l->items[start_idx]);
     l->items[start_idx] = v;
@@ -835,11 +835,11 @@ sentry__value_ring_buffer_to_list(const sentry_value_t rb)
         return sentry_value_new_null();
     }
     const list_t *rb_list = thing->payload._ptr;
-    const int32_t start_idx = sentry_value_as_int32(rb_list->items[0]);
+    const size_t start_idx = sentry_value_as_int32(rb_list->items[0]);
 
     sentry_value_t rv = sentry_value_new_list();
     for (size_t i = 0; i < rb_list->len - 1; i++) {
-        int32_t idx = (start_idx - 1 + i) % (rb_list->len - 1) + 1;
+        const size_t idx = (start_idx - 1 + i) % (rb_list->len - 1) + 1;
         sentry_value_incref(rb_list->items[idx]);
         sentry_value_append(rv, rb_list->items[idx]);
     }
