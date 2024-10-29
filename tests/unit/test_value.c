@@ -235,10 +235,7 @@ SENTRY_TEST(value_ringbuffer)
 
     sentry_value_decref(l);
     sentry_value_decref(val);
-    sentry_value_decref(v0);
-    sentry_value_decref(v1);
-    sentry_value_decref(v2);
-    sentry_value_decref(v3);
+    sentry_value_decref(v0); // one manual incref
 }
 
 SENTRY_TEST(value_object)
