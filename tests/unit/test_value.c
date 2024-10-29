@@ -192,6 +192,52 @@ SENTRY_TEST(value_list)
     sentry_value_decref(val);
 }
 
+SENTRY_TEST(value_ringbuffer)
+{
+    sentry_value_t val = sentry_value_new_list();
+    sentry_value_append(val, sentry_value_new_int32(1)); // start index
+
+    const sentry_value_t v0 = sentry_value_new_object();
+    sentry_value_set_by_key(v0, "key", sentry_value_new_int32((int32_t)0));
+    const sentry_value_t v1 = sentry_value_new_object();
+    sentry_value_set_by_key(v1, "key", sentry_value_new_int32((int32_t)1));
+    const sentry_value_t v2 = sentry_value_new_object();
+    sentry_value_set_by_key(v2, "key", sentry_value_new_int32((int32_t)2));
+    const sentry_value_t v3 = sentry_value_new_object();
+    sentry_value_set_by_key(v3, "key", sentry_value_new_int32((int32_t)3));
+
+    sentry__value_append_ringbuffer(val, v0, 3);
+    TEST_CHECK(sentry_value_refcount(v0) == 1);
+    sentry__value_append_ringbuffer(val, v1, 3);
+    TEST_CHECK(sentry_value_refcount(v1) == 1);
+    sentry__value_append_ringbuffer(val, v2, 3);
+    TEST_CHECK(sentry_value_refcount(v2) == 1);
+    sentry__value_append_ringbuffer(val, v3, 3);
+    TEST_CHECK(sentry_value_refcount(v3) == 1);
+    TEST_CHECK(sentry_value_refcount(v0) == 0);
+
+    const sentry_value_t l = sentry__value_ring_buffer_to_list(val);
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(l), 3);
+    TEST_CHECK_INT_EQUAL(sentry_value_refcount(v3), 2);
+    TEST_CHECK_INT_EQUAL(sentry_value_refcount(v2), 2);
+    TEST_CHECK_INT_EQUAL(sentry_value_refcount(v1), 2);
+#define CHECK_KEY_IDX(List, Idx, Val)                                          \
+    TEST_CHECK_INT_EQUAL(sentry_value_as_int32(sentry_value_get_by_key(        \
+                             sentry_value_get_by_index(List, Idx), "key")),    \
+        Val)
+
+    CHECK_KEY_IDX(l, 0, 1);
+    CHECK_KEY_IDX(l, 1, 2);
+    CHECK_KEY_IDX(l, 2, 3);
+
+    sentry_value_decref(l);
+    sentry_value_decref(val);
+    sentry_value_decref(v0);
+    sentry_value_decref(v1);
+    sentry_value_decref(v2);
+    sentry_value_decref(v3);
+}
+
 SENTRY_TEST(value_object)
 {
     sentry_value_t val = sentry_value_new_object();
