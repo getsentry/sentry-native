@@ -643,11 +643,11 @@ sentry__value_append_ringbuffer(
     if (l->len < max + 1) {
         return sentry_value_append(value, v);
     }
-    const size_t start_idx = sentry_value_as_int32(l->items[0]);
+    const int32_t start_idx = sentry_value_as_int32(l->items[0]);
 
     sentry_value_decref(l->items[start_idx]);
     l->items[start_idx] = v;
-    l->items[0] = sentry_value_new_int32((start_idx % max) + 1);
+    l->items[0] = sentry_value_new_int32((start_idx % (int32_t)max) + 1);
 
     l->len = max + 1;
     return 0;
