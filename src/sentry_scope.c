@@ -338,10 +338,8 @@ sentry__scope_apply_to_event(const sentry_scope_t *scope,
     sentry_value_decref(contexts);
 
     if (mode & SENTRY_SCOPE_BREADCRUMBS) {
-        sentry_value_t l
-            = sentry__value_ring_buffer_to_list(scope->breadcrumbs);
-        PLACE_CLONED_VALUE("breadcrumbs", l);
-        sentry_value_decref(l);
+        PLACE_VALUE("breadcrumbs",
+            sentry__value_ring_buffer_to_list(scope->breadcrumbs));
     }
 
     if (mode & SENTRY_SCOPE_MODULES) {
