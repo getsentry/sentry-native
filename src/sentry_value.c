@@ -837,13 +837,14 @@ sentry__value_ring_buffer_to_list(const sentry_value_t rb)
     const list_t *rb_list = thing->payload._ptr;
     const int32_t start_idx = sentry_value_as_int32(rb_list->items[0]);
 
-    sentry_value_t l = sentry_value_new_list();
+    sentry_value_t rv = sentry_value_new_list();
     for (size_t i = 0; i < rb_list->len; i++) {
         const sentry_value_t v
             = rb_list->items[((start_idx + i) % rb_list->len) + 1];
-        sentry_value_append(l, v);
+        sentry_value_incref(v);
+        sentry_value_append(rv, v);
     }
-    return l;
+    return rv;
 }
 
 int
