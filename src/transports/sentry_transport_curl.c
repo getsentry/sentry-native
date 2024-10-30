@@ -17,8 +17,7 @@ typedef struct curl_transport_state_s {
     sentry_dsn_t *dsn;
     CURL *curl_handle;
     char *user_agent;
-    char *http_proxy;
-    char *socks5_proxy;
+    char *proxy;
     char *ca_certs;
     sentry_rate_limiter_t *ratelimiter;
     bool debug;
@@ -55,8 +54,7 @@ sentry__curl_bgworker_state_free(void *_state)
     sentry__rate_limiter_free(state->ratelimiter);
     sentry_free(state->ca_certs);
     sentry_free(state->user_agent);
-    sentry_free(state->http_proxy);
-    sentry_free(state->socks5_proxy);
+    sentry_free(state->proxy);
     sentry_free(state);
 }
 
@@ -103,8 +101,7 @@ sentry__curl_transport_start(
     curl_bgworker_state_t *state = sentry__bgworker_get_state(bgworker);
 
     state->dsn = sentry__dsn_incref(options->dsn);
-    state->http_proxy = sentry__string_clone(options->http_proxy);
-    state->socks5_proxy = sentry__string_clone(options->socks5_proxy);
+    state->proxy = sentry__string_clone(options->proxy);
     state->user_agent = sentry__string_clone(options->user_agent);
     state->ca_certs = sentry__string_clone(options->ca_certs);
     state->curl_handle = curl_easy_init();
@@ -218,11 +215,8 @@ sentry__curl_send_task(void *_envelope, void *_state)
     curl_easy_setopt(curl, CURLOPT_HEADERDATA, (void *)&info);
     curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, header_callback);
 
-    if (state->http_proxy) {
-        curl_easy_setopt(curl, CURLOPT_PROXY, state->http_proxy);
-    }
-    if (state->socks5_proxy) {
-        curl_easy_setopt(curl, CURLOPT_PROXY, state->socks5_proxy);
+    if (state->proxy) { //TODO do we need to process the proxy here?
+        curl_easy_setopt(curl, CURLOPT_PROXY, state->proxy);
     }
     if (state->ca_certs) {
         curl_easy_setopt(curl, CURLOPT_CAINFO, state->ca_certs);

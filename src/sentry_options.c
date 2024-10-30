@@ -89,7 +89,7 @@ sentry_options_free(sentry_options_t *opts)
     sentry_free(opts->user_agent);
     sentry_free(opts->environment);
     sentry_free(opts->dist);
-    sentry_free(opts->http_proxy);
+    sentry_free(opts->proxy);
     sentry_free(opts->ca_certs);
     sentry_free(opts->transport_thread_name);
     sentry__path_free(opts->database_path);
@@ -235,45 +235,24 @@ sentry_options_get_dist(const sentry_options_t *opts)
 }
 
 void
-sentry_options_set_http_proxy_n(
+sentry_options_set_proxy_n(
     sentry_options_t *opts, const char *proxy, size_t proxy_len)
 {
-    sentry_free(opts->http_proxy);
-    opts->http_proxy = sentry__string_clone_n(proxy, proxy_len);
+    sentry_free(opts->proxy);
+    opts->proxy = sentry__string_clone_n(proxy, proxy_len);
 }
 
 void
-sentry_options_set_http_proxy(sentry_options_t *opts, const char *proxy)
+sentry_options_set_proxy(sentry_options_t *opts, const char *proxy)
 {
-    sentry_free(opts->http_proxy);
-    opts->http_proxy = sentry__string_clone(proxy);
+    sentry_free(opts->proxy);
+    opts->proxy = sentry__string_clone(proxy);
 }
 
 const char *
-sentry_options_get_http_proxy(const sentry_options_t *opts)
+sentry_options_get_proxy(const sentry_options_t *opts)
 {
-    return opts->http_proxy;
-}
-
-void
-sentry_options_set_socks5_proxy_n(
-    sentry_options_t *opts, const char *proxy, size_t proxy_len)
-{
-    sentry_free(opts->socks5_proxy);
-    opts->socks5_proxy = sentry__string_clone_n(proxy, proxy_len);
-}
-
-void
-sentry_options_set_socks5_proxy(sentry_options_t *opts, const char *proxy)
-{
-    sentry_free(opts->socks5_proxy);
-    opts->socks5_proxy = sentry__string_clone(proxy);
-}
-
-const char *
-sentry_options_get_socks5_proxy(const sentry_options_t *opts)
-{
-    return opts->socks5_proxy;
+    return opts->proxy;
 }
 
 void

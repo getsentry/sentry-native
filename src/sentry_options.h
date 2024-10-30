@@ -35,8 +35,7 @@ typedef struct sentry_options_s {
     char *release;
     char *environment;
     char *dist;
-    char *http_proxy;
-    char *socks5_proxy;
+    char *proxy;
     char *ca_certs;
     char *transport_thread_name;
     char *sdk_name;

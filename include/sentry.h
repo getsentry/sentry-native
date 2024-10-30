@@ -964,35 +964,20 @@ SENTRY_API void sentry_options_set_dist_n(
 SENTRY_API const char *sentry_options_get_dist(const sentry_options_t *opts);
 
 /**
- * Configures the http proxy.
+ * Configures the proxy.
  *
- * The given proxy has to include the full scheme, eg. `http://some.proxy/`.
+ * The given proxy has to include the full scheme,
+ * eg. `http://some.proxy/`or 'socks5://some.proxy/'.
  */
-SENTRY_API void sentry_options_set_http_proxy(
+SENTRY_API void sentry_options_set_proxy(
     sentry_options_t *opts, const char *proxy);
-SENTRY_API void sentry_options_set_http_proxy_n(
+SENTRY_API void sentry_options_set_proxy_n(
     sentry_options_t *opts, const char *proxy, size_t proxy_len);
 
 /**
- * Returns the configured http proxy.
+ * Returns the configured proxy.
  */
-SENTRY_API const char *sentry_options_get_http_proxy(
-    const sentry_options_t *opts);
-
-/**
- * Configures the socks5 proxy.
- *
- *  The given proxy has to include the full scheme, eg. `socks5://some.proxy/`.
- */
-SENTRY_API void sentry_options_set_socks5_proxy(
-    sentry_options_t *opts, const char *proxy);
-SENTRY_API void sentry_options_set_socks5_proxy_n(
-    sentry_options_t *opts, const char *proxy, size_t proxy_len);
-
-/**
- * Returns the configured socks5 proxy.
- */
-SENTRY_API const char *sentry_options_get_socks5_proxy(
+SENTRY_API const char *sentry_options_get_proxy(
     const sentry_options_t *opts);
 
 /**

@@ -63,7 +63,7 @@ SENTRY_TEST(invalid_dsn)
 SENTRY_TEST(invalid_proxy)
 {
     sentry_options_t *options = sentry_options_new();
-    sentry_options_set_http_proxy(options, "invalid");
+    sentry_options_set_proxy(options, "invalid");
 
     TEST_CHECK(sentry_init(options) == 0);
 
