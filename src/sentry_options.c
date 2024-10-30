@@ -256,6 +256,26 @@ sentry_options_get_proxy(const sentry_options_t *opts)
 }
 
 void
+sentry_options_set_http_proxy_n(
+    sentry_options_t *opts, const char *proxy, size_t proxy_len)
+{
+    sentry_options_set_proxy_n(opts, proxy, proxy_len);
+}
+
+void
+sentry_options_set_http_proxy(sentry_options_t *opts, const char *proxy)
+{
+    sentry_options_set_proxy(opts, proxy);
+
+}
+
+const char *
+sentry_options_get_http_proxy(const sentry_options_t *opts)
+{
+    return sentry_options_get_proxy(opts);
+}
+
+void
 sentry_options_set_ca_certs(sentry_options_t *opts, const char *path)
 {
     sentry_free(opts->ca_certs);
