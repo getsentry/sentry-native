@@ -266,7 +266,6 @@ void
 sentry_options_set_http_proxy(sentry_options_t *opts, const char *proxy)
 {
     sentry_options_set_proxy(opts, proxy);
-
 }
 
 const char *
