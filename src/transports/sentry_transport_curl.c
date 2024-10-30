@@ -222,7 +222,7 @@ sentry__curl_send_task(void *_envelope, void *_state)
         curl_easy_setopt(curl, CURLOPT_PROXY, state->http_proxy);
     }
     if (state->socks5_proxy) {
-        curl_easy_setopt(curl ,CURLOPT_PROXY, state->socks5_proxy);
+        curl_easy_setopt(curl, CURLOPT_PROXY, state->socks5_proxy);
     }
     if (state->ca_certs) {
         curl_easy_setopt(curl, CURLOPT_CAINFO, state->ca_certs);
