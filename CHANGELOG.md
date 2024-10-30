@@ -1,5 +1,8 @@
 # Changelog
 
+**Features**:
+- Add SOCKS5 proxy support ([#1063](https://github.com/getsentry/sentry-native/pull/1063)) 
+
 ## 0.7.11
 
 **Fixes**:
