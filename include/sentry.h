@@ -977,8 +977,7 @@ SENTRY_API void sentry_options_set_proxy_n(
 /**
  * Returns the configured proxy.
  */
-SENTRY_API const char *sentry_options_get_proxy(
-    const sentry_options_t *opts);
+SENTRY_API const char *sentry_options_get_proxy(const sentry_options_t *opts);
 
 /**
  * Configures the path to a file containing ssl certificates for
