@@ -1177,18 +1177,17 @@ sentry_clear_crashed_last_run(void)
 }
 
 void
-sentry_capture_minidump(const char *dump_path)
+sentry_capture_minidump(const char *path)
 {
-    sentry_capture_minidump_n(dump_path, sentry__guarded_strlen(dump_path));
+    sentry_capture_minidump_n(path, sentry__guarded_strlen(path));
 }
 
 void
-sentry_capture_minidump_n(const char *dump_path_str, size_t dump_path_len)
+sentry_capture_minidump_n(const char *path, size_t path_len)
 {
-    sentry_path_t *dump_path
-        = sentry__path_from_str_n(dump_path_str, dump_path_len);
+    sentry_path_t *dump_path = sentry__path_from_str_n(path, path_len);
 
-    if (dump_path == NULL) {
+    if (!dump_path) {
         SENTRY_WARN(
             "sentry_capture_minidump() failed due to null path to minidump");
         return;
