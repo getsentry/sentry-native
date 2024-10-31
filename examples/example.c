@@ -19,7 +19,7 @@
 #ifdef SENTRY_PLATFORM_WINDOWS
 #    include <malloc.h>
 #    include <synchapi.h>
-#    define sleep_s(SECONDS) Sleep((SECONDS)*1000)
+#    define sleep_s(SECONDS) Sleep((SECONDS) * 1000)
 #else
 
 #    include <signal.h>
@@ -429,10 +429,7 @@ main(int argc, char **argv)
     }
 
     if (has_arg(argc, argv, "capture-minidump")) {
-        sentry_value_t event = sentry_value_new_message_event(
-            SENTRY_LEVEL_INFO, "my-logger", "Hello Minidump!");
-        sentry_capture_minidump("minidump.dmp", event, 0);
-        sentry_capture_event(event);
+        sentry_capture_minidump("minidump.dmp");
     }
 
     // make sure everything flushes
