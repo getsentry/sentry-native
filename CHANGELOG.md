@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.7.11
 
 **Features**:
 
@@ -9,6 +9,8 @@
 **Fixes**:
 
 - Reject invalid trace- and span-ids in context update from header ([#1046](https://github.com/getsentry/sentry-native/pull/1046))
+- Lookup `GetSystemTimePreciseAsFileTime()` at runtime and fall back to `GetSystemTimeAsFileTime()` to allow running on Windows < 8. ([#1051](https://github.com/getsentry/sentry-native/pull/1051))
+- Allow for empty DSN to still initialize crash handler ([#1059](https://github.com/getsentry/sentry-native/pull/1059))
 
 ## 0.7.10
 

@@ -170,6 +170,34 @@ DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserved)
 
 #    endif // defined(SENTRY_BUILD_SHARED)
 
+static void(WINAPI *g_kernel32_GetSystemTimePreciseAsFileTime)(LPFILETIME)
+    = NULL;
+
+void
+sentry__init_cached_functions(void)
+{
+    // Retrieve GetSystemTimePreciseAsFileTime() for Windows 8+ targets.
+    // Do this at runtime, because this could still be compiled with an SDK
+    // where the function exists, but later runs on a Windows without it.
+    HINSTANCE kernel32 = GetModuleHandleW(L"kernel32.dll");
+    if (!kernel32) {
+        return;
+    }
+    g_kernel32_GetSystemTimePreciseAsFileTime = (void(WINAPI *)(
+        LPFILETIME))GetProcAddress(kernel32, "GetSystemTimePreciseAsFileTime");
+}
+
+void
+sentry__get_system_time(LPFILETIME filetime)
+{
+    if (g_kernel32_GetSystemTimePreciseAsFileTime) {
+        g_kernel32_GetSystemTimePreciseAsFileTime(filetime);
+        return;
+    }
+
+    GetSystemTimeAsFileTime(filetime);
+}
+
 #elif defined(SENTRY_PLATFORM_MACOS)
 
 #    include <sys/sysctl.h>
