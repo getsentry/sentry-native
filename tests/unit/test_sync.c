@@ -4,7 +4,7 @@
 
 #ifdef SENTRY_PLATFORM_WINDOWS
 #    include <windows.h>
-#    define sleep_s(SECONDS) Sleep((SECONDS)*1000)
+#    define sleep_s(SECONDS) Sleep((SECONDS) * 1000)
 #else
 #    include <unistd.h>
 #    define sleep_s(SECONDS) sleep(SECONDS)

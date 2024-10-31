@@ -501,7 +501,7 @@ sentry__prepare_event(const sentry_options_t *options, sentry_value_t event,
 
     SENTRY_TRACE("adding attachments to envelope");
     for (sentry_attachment_t *attachment = options->attachments; attachment;
-         attachment = attachment->next) {
+        attachment = attachment->next) {
         sentry_envelope_item_t *item = sentry__envelope_add_from_path(
             envelope, attachment->path, "attachment");
         if (!item) {
