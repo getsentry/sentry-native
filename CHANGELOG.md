@@ -4,7 +4,7 @@
 
 **Features**:
 
-- Add ability to capture independently created minidumps ([#1052](https://github.com/getsentry/sentry-native/pull/1052))
+- Add `sentry_capture_minidump()` to capture independently created minidumps ([#1067](https://github.com/getsentry/sentry-native/pull/1067))
 
 ## 0.7.11
 
