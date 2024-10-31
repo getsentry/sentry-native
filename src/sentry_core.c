@@ -501,7 +501,7 @@ sentry__prepare_event(const sentry_options_t *options, sentry_value_t event,
 
     SENTRY_TRACE("adding attachments to envelope");
     for (sentry_attachment_t *attachment = options->attachments; attachment;
-         attachment = attachment->next) {
+        attachment = attachment->next) {
         sentry_envelope_item_t *item = sentry__envelope_add_from_path(
             envelope, attachment->path, "attachment");
         if (!item) {
@@ -1179,12 +1179,20 @@ void
 sentry_capture_minidump(
     const char *dump_path, sentry_value_t event, int remove_dump_on_send)
 {
+    sentry_capture_minidump_n(dump_path, sentry__guarded_strlen(dump_path),
+        event, remove_dump_on_send);
+}
+
+void
+sentry_capture_minidump_n(const char *dump_path, size_t dump_path_len,
+    sentry_value_t event, int remove_dump_on_send)
+{
     sentry_path_t *sentry_dump_path
-        = sentry__path_from_str_n(dump_path, strlen(dump_path));
+        = sentry__path_from_str_n(dump_path, dump_path_len);
 
     if (sentry_dump_path == NULL) {
         SENTRY_WARN(
-            "'sentry_capture_minidump' Failed due to null path to minidump");
+            "sentry_capture_minidump() failed due to null path to minidump");
         return;
     }
 
@@ -1200,7 +1208,7 @@ sentry_capture_minidump(
 
         SENTRY_TRACE("adding attachments to envelope");
         for (sentry_attachment_t *attachment = options->attachments; attachment;
-             attachment = attachment->next) {
+            attachment = attachment->next) {
             sentry_envelope_item_t *item = sentry__envelope_add_from_path(
                 envelope, attachment->path, "attachment");
             if (!item) {
