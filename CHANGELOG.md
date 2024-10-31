@@ -1,10 +1,12 @@
 # Changelog
 
-## 0.7.11
+## Unrelaased
 
 **Features**:
 
 - Add ability to capture independently created minidumps ([#1052](https://github.com/getsentry/sentry-native/pull/1052))
+
+## 0.7.11
 
 **Fixes**:
 
