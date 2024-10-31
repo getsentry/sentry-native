@@ -81,14 +81,12 @@ sentry_value_t sentry__value_clone(sentry_value_t value);
 
 /**
  * This appends `v` to the List `value`.
- * To make this work properly as a ring buffer, the value list needs to have
- * the ring buffer start index as the first element
- * (e.g, 1 until max is exceeded, then it will update for each added item)
  *
- * It will remove the oldest value in the list, in case the total number of
- * items would exceed `max`.
+ * On non-full lists, exponentially reallocate space to accommodate new values
+ * (until we reach `max`). After reaching max, the oldest value is removed to
+ * make space for the new one.
  *
- * The list is of size `max + 1` to store the start index.
+ * `max` should stay fixed over multiple invocations.
  *
  * Returns 0 on success.
  */
