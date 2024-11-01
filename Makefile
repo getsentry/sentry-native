@@ -66,7 +66,7 @@ setup-venv: .venv/bin/python
 	.venv/bin/pip install --upgrade --requirement tests/requirements.txt
 
 format: setup-venv
-	@clang-format -i \
+	@.venv/bin/clang-format -i \
 		examples/*.c \
 		include/*.h \
 		src/*.c \
@@ -80,6 +80,8 @@ format: setup-venv
 .PHONY: format
 
 style: setup-venv
-	@.venv/bin/python ./scripts/check-clang-format.py -r examples include src tests/unit
+	@.venv/bin/python ./scripts/check-clang-format.py \
+		--clang-format-executable .venv/bin/clang-format \
+		-r examples include src tests/unit
 	@.venv/bin/black --diff --check tests
 .PHONY: style
