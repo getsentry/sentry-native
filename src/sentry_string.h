@@ -213,6 +213,6 @@ size_t sentry__unichar_to_utf8(uint32_t c, char *buf);
 #define sentry__is_lead_surrogate(c) ((c) >= 0xd800 && (c) < 0xdc00)
 #define sentry__is_trail_surrogate(c) ((c) >= 0xdc00 && (c) < 0xe000)
 #define sentry__surrogate_value(lead, trail)                                   \
-    (((((lead)-0xd800) << 10) | ((trail)-0xdc00)) + 0x10000)
+    (((((lead) - 0xd800) << 10) | ((trail) - 0xdc00)) + 0x10000)
 
 #endif
