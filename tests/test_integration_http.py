@@ -1,6 +1,7 @@
 import itertools
 import json
 import os
+import shutil
 import time
 import uuid
 
@@ -573,3 +574,35 @@ def test_transaction_only(cmake, httpserver, build_args):
     assert start_timestamp
     timestamp = time.strptime(payload["timestamp"], RFC3339_FORMAT)
     assert timestamp >= start_timestamp
+
+
+def test_capture_minidump(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+
+    # make sure we are isolated from previous runs
+    shutil.rmtree(tmp_path / ".sentry-native", ignore_errors=True)
+
+    httpserver.expect_oneshot_request(
+        "/api/123456/envelope/",
+        headers={"x-sentry-auth": auth_header},
+    ).respond_with_data("OK")
+
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "attachment", "capture-minidump"],
+        check=True,
+        env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+    )
+
+    assert len(httpserver.log) == 1
+
+    req = httpserver.log[0][0]
+    body = req.get_data()
+
+    envelope = Envelope.deserialize(body)
+
+    assert_breadcrumb(envelope)
+    assert_attachment(envelope)
+
+    assert_minidump(envelope)

@@ -18,7 +18,6 @@
 #include "sentry_tracing.h"
 #include "sentry_transport.h"
 #include "sentry_value.h"
-#include "transports/sentry_disk_transport.h"
 
 #ifdef SENTRY_INTEGRATION_QT
 #    include "integrations/sentry_integration_qt.h"
@@ -1204,27 +1203,31 @@ sentry_capture_minidump_n(const char *path, size_t path_len)
         sentry_envelope_t *envelope
             = sentry__prepare_event(options, event, NULL, true);
 
-        // the minidump is added as an attachment, with type `event.minidump`
-        sentry_envelope_item_t *item
-            = sentry__envelope_add_from_path(envelope, dump_path, "attachment");
-        if (item) {
-            sentry__envelope_item_set_header(item, "attachment_type",
-                sentry_value_new_string("event.minidump"));
+        if (envelope) {
+            // the minidump is added as an attachment, with type
+            // `event.minidump`
+            sentry_envelope_item_t *item = sentry__envelope_add_from_path(
+                envelope, dump_path, "attachment");
+            if (item) {
+                sentry__envelope_item_set_header(item, "attachment_type",
+                    sentry_value_new_string("event.minidump"));
 
-            sentry__envelope_item_set_header(item, "filename",
+                sentry__envelope_item_set_header(item, "filename",
 #ifdef SENTRY_PLATFORM_WINDOWS
-                sentry__value_new_string_from_wstr(
+                    sentry__value_new_string_from_wstr(
 #else
-                sentry_value_new_string(
+                    sentry_value_new_string(
 #endif
-                    sentry__path_filename(dump_path)));
+                        sentry__path_filename(dump_path)));
+            }
+
+            sentry__capture_envelope(options->transport, envelope);
+
+            SENTRY_DEBUGF("Minidump has been captured: \"%" SENTRY_PATH_PRI
+                          "\"",
+                dump_path->path);
         }
-
-        sentry__capture_envelope(options->transport, envelope);
     }
-
-    SENTRY_DEBUGF("Minidump has been captured: \"%" SENTRY_PATH_PRI "\"",
-        dump_path->path);
 
     sentry__path_free(dump_path);
 }
