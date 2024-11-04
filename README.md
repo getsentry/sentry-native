@@ -289,6 +289,8 @@ Legend:
 - `**`: `breakpad` on Android and iOS builds and should work according to upstream but is untested.
 - `***`: `curl` as a transport works on Android but isn't used in any supported configuration to reduce the size of our artifacts.
 
+In addition to platform support, the "Advanced Usage" section of the SDK docs now [describes the tradeoffs](https://docs.sentry.io/platforms/native/advanced-usage/backend-tradeoffs/) involved in choosing a suitable backend for a particular use case.
+
 ### Build Targets
 
 - `sentry`: This is the main library and the only default build target.
