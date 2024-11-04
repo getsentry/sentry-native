@@ -260,7 +260,7 @@ using `cmake -D BUILD_SHARED_LIBS=OFF ..`.
 | - none     | ✓       | ✓     | ✓     | ☑       | ☑   |
 |            |         |       |       |         |     |
 | Backends   |         |       |       |         |     |
-| - inproc   | ✓       | ✓     | ✓     | ☑       |     |
+| - inproc   | ✓       | (✓)*  | ✓     | ☑       |     |
 | - crashpad | ☑       | ☑     | ☑     |         |     |
 | - breakpad | ✓       | ✓     | ✓     | (✓)     | (✓) |
 | - none     | ✓       | ✓     | ✓     | ✓       |     |
@@ -270,6 +270,7 @@ Legend:
 - ☑ default
 - ✓ supported
 - unsupported
+- `*`: `inproc` has not produced valid stack traces on macOS since version 13 ("Ventura"). Details: https://github.com/getsentry/sentry-native/issues/906
 
 - `SENTRY_FOLDER` (Default: not defined):
   Sets the sentry-native projects folder name for generators which support project hierarchy (like Microsoft Visual Studio).
