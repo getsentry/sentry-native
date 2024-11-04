@@ -652,7 +652,7 @@ sentry_add_breadcrumb(sentry_value_t breadcrumb)
     // the `no_flush` will avoid triggering *both* scope-change and
     // breadcrumb-add events.
     SENTRY_WITH_SCOPE_MUT_NO_FLUSH (scope) {
-        sentry__value_append_bounded(
+        sentry__value_append_ringbuffer(
             scope->breadcrumbs, breadcrumb, max_breadcrumbs);
     }
 }

@@ -6,6 +6,10 @@
 
 - Add `sentry_capture_minidump()` to capture independently created minidumps ([#1067](https://github.com/getsentry/sentry-native/pull/1067))
 
+**Fixes**:
+
+- Add breadcrumb ringbuffer to avoid O(n) memmove on adding more than max breadcrumbs ([#1060](https://github.com/getsentry/sentry-native/pull/1060))
+
 ## 0.7.11
 
 **Fixes**:
