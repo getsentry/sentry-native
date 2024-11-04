@@ -1174,3 +1174,60 @@ sentry_clear_crashed_last_run(void)
     sentry__options_unlock();
     return success ? 0 : 1;
 }
+
+void
+sentry_capture_minidump(const char *path)
+{
+    sentry_capture_minidump_n(path, sentry__guarded_strlen(path));
+}
+
+void
+sentry_capture_minidump_n(const char *path, size_t path_len)
+{
+    sentry_path_t *dump_path = sentry__path_from_str_n(path, path_len);
+
+    if (!dump_path) {
+        SENTRY_WARN(
+            "sentry_capture_minidump() failed due to null path to minidump");
+        return;
+    }
+
+    SENTRY_DEBUGF(
+        "Capturing minidump \"%" SENTRY_PATH_PRI "\"", dump_path->path);
+
+    sentry_value_t event = sentry_value_new_event();
+    sentry_value_set_by_key(
+        event, "level", sentry__value_new_level(SENTRY_LEVEL_FATAL));
+
+    SENTRY_WITH_OPTIONS (options) {
+        sentry_envelope_t *envelope
+            = sentry__prepare_event(options, event, NULL, true);
+
+        if (envelope) {
+            // the minidump is added as an attachment, with type
+            // `event.minidump`
+            sentry_envelope_item_t *item = sentry__envelope_add_from_path(
+                envelope, dump_path, "attachment");
+            if (item) {
+                sentry__envelope_item_set_header(item, "attachment_type",
+                    sentry_value_new_string("event.minidump"));
+
+                sentry__envelope_item_set_header(item, "filename",
+#ifdef SENTRY_PLATFORM_WINDOWS
+                    sentry__value_new_string_from_wstr(
+#else
+                    sentry_value_new_string(
+#endif
+                        sentry__path_filename(dump_path)));
+            }
+
+            sentry__capture_envelope(options->transport, envelope);
+
+            SENTRY_DEBUGF("Minidump has been captured: \"%" SENTRY_PATH_PRI
+                          "\"",
+                dump_path->path);
+        }
+    }
+
+    sentry__path_free(dump_path);
+}

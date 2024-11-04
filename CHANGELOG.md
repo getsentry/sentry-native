@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+**Features**:
+
+- Add `sentry_capture_minidump()` to capture independently created minidumps ([#1067](https://github.com/getsentry/sentry-native/pull/1067))
 
 **Fixes**:
 

@@ -428,6 +428,10 @@ main(int argc, char **argv)
         sentry_transaction_finish(tx);
     }
 
+    if (has_arg(argc, argv, "capture-minidump")) {
+        sentry_capture_minidump("minidump.dmp");
+    }
+
     // make sure everything flushes
     sentry_close();
 
