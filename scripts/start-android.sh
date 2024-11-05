@@ -38,10 +38,12 @@ echo "Check emulator acceleration..."
 $ANDROID_HOME/emulator/emulator -accel-check
 
 # Start emulator in background
-# echo "Starting emulator..."
-# nohup $ANDROID_HOME/emulator/emulator -avd $AVD_EMULATOR_NAME -no-snapshot > /dev/null 2>&1 &
-echo "Starting emulator blocking..."
-$ANDROID_HOME/emulator/emulator -avd $AVD_EMULATOR_NAME -no-snapshot
+echo "Starting emulator..."
+nohup $ANDROID_HOME/emulator/emulator -avd $AVD_EMULATOR_NAME -no-snapshot > /dev/null 2>&1 &
+
+# For debugging emulator start issues:
+# echo "Starting emulator blocking..."
+# $ANDROID_HOME/emulator/emulator -avd $AVD_EMULATOR_NAME -no-snapshot
 
 echo "Wait for emulator availability..."
 $ANDROID_HOME/platform-tools/adb wait-for-device shell 'ls'
