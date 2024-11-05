@@ -15,7 +15,7 @@ AVD_EMULATOR_NAME="sentry_android_${ARCH}"
 IMAGE=${ANDROID_IMAGE:-"system-images;android-${API_LEVEL};google_apis;${ARCH}"}
 
 echo "List installed images"
-sdkmanager --list | grep "system-images" | grep "Installed"
+$ANDROID_HOME/tools/bin/sdkmanager --list | grep "system-images" | grep "Installed"
 
 # Create an Android Virtual Device
 echo "Create Test AVDs with..."
