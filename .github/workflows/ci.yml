@@ -81,7 +81,7 @@ jobs:
             SYSTEM_VERSION_COMPAT: 0
             CMAKE_DEFINES: -DCMAKE_OSX_ARCHITECTURES=arm64;x86_64
           - name: macOS (clang + asan + llvm-cov)
-            os: macos-15
+            os: macos-15-large
             CC: clang
             CXX: clang++
             ERROR_ON_WARNINGS: 1
@@ -103,7 +103,7 @@ jobs:
             os: macos-15-large
             ANDROID_API: 19
             ANDROID_NDK: 23.2.8568313
-            ANDROID_ARCH: x86
+            ANDROID_ARCH: x86_64
           - name: Android (latest API/NDK)
             os: macos-15-large
             ANDROID_API: 35
@@ -160,7 +160,7 @@ jobs:
         run: echo $(brew --prefix llvm@15)/bin >> $GITHUB_PATH
              
       - name: Expose llvm@18 PATH for Mac
-        if: ${{ runner.os == 'macOS' && matrix.os == 'macos-15' }}
+        if: ${{ runner.os == 'macOS' && matrix.os == 'macos-15-large' && matrix.RUN_ANALYZER == 'asan,llvm-cov' }}
         run: echo $(brew --prefix llvm@18)/bin >> $GITHUB_PATH
         
       - name: Installing LLVM-MINGW Dependencies
