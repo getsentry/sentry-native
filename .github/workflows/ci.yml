@@ -5,7 +5,11 @@ on:
     branches:
       - master
       - "release/**"
+    paths-ignore:
+      - "*.md"
   pull_request:
+    paths-ignore:
+      - "*.md"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -77,7 +81,7 @@ jobs:
             SYSTEM_VERSION_COMPAT: 0
             CMAKE_DEFINES: -DCMAKE_OSX_ARCHITECTURES=arm64;x86_64
           - name: macOS (clang + asan + llvm-cov)
-            os: macOs-12
+            os: macOs-15
             CC: clang
             CXX: clang++
             ERROR_ON_WARNINGS: 1
@@ -96,15 +100,15 @@ jobs:
           # The Android emulator is currently only available on macos, see:
           # https://docs.microsoft.com/en-us/azure/devops/pipelines/ecosystems/android?view=azure-devops#test-on-the-android-emulator
           - name: Android (old API/NDK)
-            os: macOs-12
+            os: macOs-15
             ANDROID_API: 16
             ANDROID_NDK: 20.1.5948944
-            ANDROID_ARCH: x86
+            ANDROID_ARCH: armv7-a
           - name: Android (new API/NDK)
-            os: macOs-12
-            ANDROID_API: 34
-            ANDROID_NDK: 26.1.10909125
-            ANDROID_ARCH: x86_64
+            os: macOs-15
+            ANDROID_API: 35
+            ANDROID_NDK: 27.2.12479018
+            ANDROID_ARCH: arm64-v8a
 
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
