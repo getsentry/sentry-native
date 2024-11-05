@@ -11,8 +11,10 @@ echo "PATH: $PATH"
 
 ARCH=${ANDROID_ARCH:-"x86"}
 API_LEVEL=${ANDROID_API:-"29"}
+NDK_VERSION=${ANDROID_NDK:-"27.2.12479018"}
 AVD_EMULATOR_NAME="sentry_android_${ARCH}"
 IMAGE=${ANDROID_IMAGE:-"system-images;android-${API_LEVEL};google_apis;${ARCH}"}
+NDK_PACKAGE=${NDK_IMAGE:-"ndk;${NDK_VERSION}"}
 
 echo "List installed images..."
 $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --list
@@ -24,9 +26,10 @@ echo "API_LEVEL = $API_LEVEL"
 echo "AVD_EMULATOR_NAME = $AVD_EMULATOR_NAME"
 echo "IMAGE = $IMAGE"
 
-echo "Install image..."
+echo "Install image and NDK..."
 yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --licenses
 $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --install "$IMAGE"
+$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --install "$NDK_PACKAGE"
 
 echo "Create AVD..."
 echo "no" | $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager create avd -n $AVD_EMULATOR_NAME -k "$IMAGE" --force
