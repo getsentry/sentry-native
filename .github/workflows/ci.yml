@@ -155,10 +155,14 @@ jobs:
         if: ${{ contains(env['RUN_ANALYZER'], 'code-checker') }}
         run: sudo snap install codechecker --classic
 
-      - name: Expose llvm PATH for Mac
+      - name: Expose llvm@15 PATH for Mac
         if: ${{ runner.os == 'macOS' }}
         run: echo $(brew --prefix llvm@15)/bin >> $GITHUB_PATH
-
+             
+      - name: Expose llvm@18 PATH for Mac
+        if: ${{ runner.os == 'macOS' && matrix.os == "macos-15-large" }}
+        run: echo $(brew --prefix llvm@18)/bin >> $GITHUB_PATH
+        
       - name: Installing LLVM-MINGW Dependencies
         if: ${{ runner.os == 'Windows' && env['TEST_MINGW'] }}
         shell: powershell
