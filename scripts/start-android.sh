@@ -14,7 +14,7 @@ API_LEVEL=${ANDROID_API:-"29"}
 AVD_EMULATOR_NAME="sentry_android_${ARCH}"
 IMAGE=${ANDROID_IMAGE:-"system-images;android-${API_LEVEL};google_apis;${ARCH}"}
 
-echo "List installed images"
+echo "List installed images..."
 $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --list
 
 # Create an Android Virtual Device
@@ -23,6 +23,11 @@ echo "ARCH = $ARCH"
 echo "API_LEVEL = $API_LEVEL"
 echo "AVD_EMULATOR_NAME = $AVD_EMULATOR_NAME"
 echo "IMAGE = $IMAGE"
+
+echo "Install image..."
+$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --install "$IMAGE" 
+
+echo "Create AVD..."
 echo "no" | $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager create avd -n $AVD_EMULATOR_NAME -k "$IMAGE" --force
 
 echo "List available AVDs..."
