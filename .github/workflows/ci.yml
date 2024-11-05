@@ -101,10 +101,10 @@ jobs:
           # https://docs.microsoft.com/en-us/azure/devops/pipelines/ecosystems/android?view=azure-devops#test-on-the-android-emulator
           - name: Android (old API/NDK)
             os: macos-15-large
-            ANDROID_API: 16
-            ANDROID_NDK: 20.1.5948944
+            ANDROID_API: 19
+            ANDROID_NDK: 23.2.8568313
             ANDROID_ARCH: x86
-          - name: Android (new API/NDK)
+          - name: Android (latest API/NDK)
             os: macos-15-large
             ANDROID_API: 35
             ANDROID_NDK: 27.2.12479018
