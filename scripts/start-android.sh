@@ -25,7 +25,8 @@ echo "AVD_EMULATOR_NAME = $AVD_EMULATOR_NAME"
 echo "IMAGE = $IMAGE"
 
 echo "Install image..."
-$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --install "$IMAGE" --licenses
+yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --licenses
+$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --install "$IMAGE"
 
 echo "Create AVD..."
 echo "no" | $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager create avd -n $AVD_EMULATOR_NAME -k "$IMAGE" --force
