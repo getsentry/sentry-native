@@ -99,12 +99,12 @@ jobs:
             MINGW_ASM_MASM_COMPILER: llvm-ml;-m64
           # The Android emulator is currently only available on macos, see:
           # https://docs.microsoft.com/en-us/azure/devops/pipelines/ecosystems/android?view=azure-devops#test-on-the-android-emulator
-          - name: Android (old API/NDK)
+          - name: Android (latest API, NDK23)
             os: macos-15-large
-            ANDROID_API: 21
+            ANDROID_API: 35
             ANDROID_NDK: 23.2.8568313
             ANDROID_ARCH: x86_64
-          - name: Android (latest API/NDK)
+          - name: Android (latest API, NDK27)
             os: macos-15-large
             ANDROID_API: 35
             ANDROID_NDK: 27.2.12479018
