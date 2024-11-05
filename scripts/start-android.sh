@@ -34,6 +34,9 @@ echo "no" | $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager create avd -n $AVD
 echo "List available AVDs..."
 $ANDROID_HOME/emulator/emulator -list-avds
 
+echo "Check emulator acceleration..."
+$ANDROID_HOME/emulator/emulator -accel-check
+
 # Start emulator in background
 # echo "Starting emulator..."
 # nohup $ANDROID_HOME/emulator/emulator -avd $AVD_EMULATOR_NAME -no-snapshot > /dev/null 2>&1 &
