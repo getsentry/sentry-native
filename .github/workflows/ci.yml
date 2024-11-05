@@ -39,12 +39,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: Linux (old gcc, 32-bit)
+          - name: Linux (GCC 7, 32-bit)
             os: ubuntu-20.04
             CC: gcc-7
             CXX: g++-7
             TEST_X86: 1
-          - name: Linux (new gcc)
+          - name: Linux (GCC 12)
             os: ubuntu-22.04
             CC: gcc-12
             CXX: g++-12
@@ -52,22 +52,22 @@ jobs:
             # The GCC analyzer 10.0.1 (as on CI) has an internal compiler error
             # currently, and is not stable enough to activate.
             # RUN_ANALYZER: gcc
-          - name: Linux (clang + asan + llvm-cov)
+          - name: Linux (clang 15 + asan + llvm-cov)
             os: ubuntu-22.04
             CC: clang-15
             CXX: clang++-15
             ERROR_ON_WARNINGS: 1
             RUN_ANALYZER: asan,llvm-cov
-          - name: Linux (clang + kcov)
+          - name: Linux (clang 15 + kcov)
             os: ubuntu-22.04
             CC: clang-15
             CXX: clang++-15
             ERROR_ON_WARNINGS: 1
             RUN_ANALYZER: kcov
-          - name: Linux (gcc + code-checker + valgrind)
+          - name: Linux (gcc 12 + code-checker + valgrind)
             os: ubuntu-22.04
             RUN_ANALYZER: code-checker,valgrind
-          - name: macOS (xcode llvm)
+          - name: macOS 14 (xcode llvm)
             os: macos-14
             ERROR_ON_WARNINGS: 1
             SYSTEM_VERSION_COMPAT: 0
@@ -75,12 +75,12 @@ jobs:
             os: macos-13
             ERROR_ON_WARNINGS: 1
             SYSTEM_VERSION_COMPAT: 0
-          - name: macOS (xcode llvm + universal)
+          - name: macOS 14 (xcode llvm + universal)
             os: macos-14
             ERROR_ON_WARNINGS: 1
             SYSTEM_VERSION_COMPAT: 0
             CMAKE_DEFINES: -DCMAKE_OSX_ARCHITECTURES=arm64;x86_64
-          - name: macOS (clang + asan + llvm-cov)
+          - name: macOS 15 (clang 18 + asan + llvm-cov)
             os: macos-15-large
             CC: clang
             CXX: clang++
@@ -99,17 +99,14 @@ jobs:
             MINGW_ASM_MASM_COMPILER: llvm-ml;-m64
           # The Android emulator is currently only available on macos, see:
           # https://docs.microsoft.com/en-us/azure/devops/pipelines/ecosystems/android?view=azure-devops#test-on-the-android-emulator
-          - name: Android (latest API, NDK23)
+          # TODO: switch to reactivecircus/android-emulator-runner, concurrently running emulators continuously fail now.
+          # - name: Android (API 31, NDK 23)
+          #   os: macos-15-large
+          #   ANDROID_API: 31
+          #   ANDROID_NDK: 23.2.8568313
+          #   ANDROID_ARCH: x86_64
+          - name: Android (API 35, NDK 27)
             os: macos-15-large
-            ADB_PORT: 5038
-            EMULATOR_PORT: 5554
-            ANDROID_API: 31
-            ANDROID_NDK: 23.2.8568313
-            ANDROID_ARCH: x86_64
-          - name: Android (latest API, NDK27)
-            os: macos-15-large
-            ADB_PORT: 5039
-            EMULATOR_PORT: 5556
             ANDROID_API: 35
             ANDROID_NDK: 27.2.12479018
             ANDROID_ARCH: x86_64
@@ -125,8 +122,6 @@ jobs:
       ANDROID_API: ${{ matrix.ANDROID_API }}
       ANDROID_NDK: ${{ matrix.ANDROID_NDK }}
       ANDROID_ARCH: ${{ matrix.ANDROID_ARCH }}
-      ADB_SERVER_PORT: ${{ matrix.ADB_PORT }}
-      EMULATOR_PORT: ${{ matrix.EMULATOR_PORT }}
       CMAKE_DEFINES: ${{ matrix.CMAKE_DEFINES }}
       SYSTEM_VERSION_COMPAT: ${{ matrix.SYSTEM_VERSION_COMPAT }}
 
