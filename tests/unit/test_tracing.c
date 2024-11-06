@@ -1100,9 +1100,10 @@ SENTRY_TEST(txn_data)
 SENTRY_TEST(ctx_trace_data)
 {
     sentry_transaction_t *txn
-    = sentry__transaction_new(sentry_value_new_object());
+        = sentry__transaction_new(sentry_value_new_object());
 
-    sentry_transaction_set_data(txn, "os.name", sentry_value_new_string("Linux"));
+    sentry_transaction_set_data(
+        txn, "os.name", sentry_value_new_string("Linux"));
     check_after_set(txn->inner, "extra", "os.name", "Linux");
     sentry_value_set_by_key(txn->inner, "sampled", sentry_value_new_bool(true));
 
