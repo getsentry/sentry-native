@@ -59,6 +59,7 @@ if(WIN32)
 		sentry_windows_dbghelp.h
 		path/sentry_path_windows.c
 		symbolizer/sentry_symbolizer_windows.c
+		 ${CMAKE_BINARY_DIR}/sentry.rc
 	)
 else()
 	sentry_target_sources_cwd(sentry
