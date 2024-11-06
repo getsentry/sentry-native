@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- Provide version information in DLL ([#1076](https://github.com/getsentry/sentry-native/pull/1076))
+
 ## 0.7.12
 
 **Features**:
