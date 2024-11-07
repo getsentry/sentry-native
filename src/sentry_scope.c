@@ -318,11 +318,19 @@ sentry__scope_apply_to_event(const sentry_scope_t *scope,
 
     // prep contexts sourced from scope; data about transaction on scope needs
     // to be extracted and inserted
-    sentry_value_t scope_trace = sentry__value_get_trace_context(
-        sentry__get_span_or_transaction(scope));
+    sentry_value_t scoped_txn_or_span = sentry__get_span_or_transaction(scope);
+    sentry_value_t scope_trace
+        = sentry__value_get_trace_context(scoped_txn_or_span);
     if (!sentry_value_is_null(scope_trace)) {
         if (sentry_value_is_null(contexts)) {
             contexts = sentry_value_new_object();
+        }
+        sentry_value_t scoped_txn_or_span_data
+            = sentry_value_get_by_key(scoped_txn_or_span, "data");
+        if (!sentry_value_is_null(scoped_txn_or_span_data)) {
+            sentry_value_incref(scoped_txn_or_span_data);
+            sentry_value_set_by_key(
+                scope_trace, "data", scoped_txn_or_span_data);
         }
         sentry_value_set_by_key(contexts, "trace", scope_trace);
     }
