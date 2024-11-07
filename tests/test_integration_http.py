@@ -544,7 +544,6 @@ def test_transaction_only(cmake, httpserver, build_args):
     assert_meta(
         envelope,
         transaction="little.teapot",
-        transaction_data={"url": "https://example.com"},
     )
 
     # Extract the one-and-only-item
@@ -574,6 +573,8 @@ def test_transaction_only(cmake, httpserver, build_args):
     assert start_timestamp
     timestamp = time.strptime(payload["timestamp"], RFC3339_FORMAT)
     assert timestamp >= start_timestamp
+
+    assert trace_context["data"] == {"url": "https://example.com"}
 
 
 def test_capture_minidump(cmake, httpserver):

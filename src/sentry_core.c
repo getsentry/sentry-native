@@ -935,7 +935,8 @@ sentry_transaction_finish(sentry_transaction_t *opaque_tx)
         = sentry__value_get_trace_context(opaque_tx->inner);
     sentry_value_t contexts = sentry_value_new_object();
     sentry_value_set_by_key(
-        contexts, "data", sentry_value_get_by_key(tx, "extra"));
+        trace_context, "data", sentry_value_get_by_key(tx, "extra"));
+    sentry_value_incref(sentry_value_get_by_key(tx, "extra"));
     sentry_value_set_by_key(contexts, "trace", trace_context);
     sentry_value_set_by_key(tx, "contexts", contexts);
 
