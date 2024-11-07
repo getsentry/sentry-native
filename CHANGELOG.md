@@ -1,5 +1,9 @@
 # Changelog
 
+**Fixes**:
+
+- Emit `transaction.data` inside `context.trace.data` ([#1075](https://github.com/getsentry/sentry-native/pull/1075))
+
 ## 0.7.12
 
 **Features**:
