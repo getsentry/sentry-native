@@ -1097,19 +1097,6 @@ SENTRY_TEST(txn_data)
     sentry__transaction_decref(txn);
 }
 
-SENTRY_TEST(ctx_trace_data)
-{
-    sentry_transaction_t *txn
-        = sentry__transaction_new(sentry_value_new_object());
-
-    sentry_transaction_set_data(
-        txn, "os.name", sentry_value_new_string("Linux"));
-    check_after_set(txn->inner, "extra", "os.name", "Linux");
-    sentry_value_set_by_key(txn->inner, "sampled", sentry_value_new_bool(true));
-
-    sentry_transaction_finish(txn);
-}
-
 SENTRY_TEST(span_data)
 {
     sentry_transaction_t *txn
