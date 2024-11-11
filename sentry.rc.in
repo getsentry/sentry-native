@@ -10,7 +10,7 @@ BEGIN
         VALUE "FileVersion", "@SENTRY_VERSION@"
         VALUE "InternalName", "sentry-native"
         VALUE "LegalCopyright", "https://sentry.io"
-        VALUE "OriginalFilename", "$<TARGET_FILE_NAME:@TARGET@>"
+        VALUE "OriginalFilename", "$<TARGET_FILE_NAME:@TGT@>"
         VALUE "ProductName", "Sentry Native SDK"
         VALUE "ProductVersion", "@SENTRY_VERSION@"
     END
