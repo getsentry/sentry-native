@@ -52,13 +52,6 @@ sentry_target_sources_cwd(sentry
 	unwinder/sentry_unwinder.c
 )
 
-# windows resource
-if (WIN32 AND SENTRY_BUILD_SHARED_LIBS)
-	sentry_target_sources_cwd(sentry
-		${CMAKE_BINARY_DIR}/sentry.rc
-	)
-endif()
-
 # generic platform / path / symbolizer
 if(WIN32)
 	sentry_target_sources_cwd(sentry
