@@ -4,7 +4,11 @@
 
 **Features**:
 
-- Provide version information in DLL ([#1076](https://github.com/getsentry/sentry-native/pull/1076))
+- Provide version information in DLL ([#1076](https://github.com/getsentry/sentry-native/pull/1076), [crashpad#110](https://github.com/getsentry/crashpad/pull/110))
+ 
+**Thank you**:
+
+[olback](https://github.com/olback)
 
 ## 0.7.12
 
@@ -29,6 +33,10 @@
 **Fixes**:
 
 - Correct the timestamp resolution to microseconds on Windows. ([#1039](https://github.com/getsentry/sentry-native/pull/1039))
+
+**Thank you**:
+
+- [ShawnCZek](https://github.com/ShawnCZek)
 
 ## 0.7.9
 
