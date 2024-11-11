@@ -8,8 +8,6 @@ from pathlib import Path
 
 import pytest
 
-from tests.win_utils import check_binary_version
-
 
 class CMake:
     def __init__(self, factory):
@@ -210,6 +208,8 @@ def cmake(cwd, targets, options=None):
 
     # check if the DLL and EXE artifacts contain version-information
     if platform.system() == "Windows":
+        from tests.win_utils import check_binary_version
+
         check_binary_version(Path(cwd) / "sentry.dll")
         check_binary_version(Path(cwd) / "crashpad_wer.dll")
         check_binary_version(Path(cwd) / "crashpad_handler.exe")
