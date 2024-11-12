@@ -1,31 +1,47 @@
 # Changelog
 
+## Unreleased
+
 **Features**:
-- Add SOCKS5 proxy support ([#1063](https://github.com/getsentry/sentry-native/pull/1063))
+
+- Provide version information for non-static Windows binaries. ([#1076](https://github.com/getsentry/sentry-native/pull/1076), [crashpad#110](https://github.com/getsentry/crashpad/pull/110))
+- Add SOCKS5 proxy support. ([#1063](https://github.com/getsentry/sentry-native/pull/1063))
+
+**Fixes**:
+
+- Correct the timeout specified for the upload-task awaiting `dispatch_semaphore_wait()` when using an HTTP-proxy on macOS. ([#1077](https://github.com/getsentry/sentry-native/pull/1077), [crashpad#111](https://github.com/getsentry/crashpad/pull/111))
+
+**Thank you**:
+
+[olback](https://github.com/olback)
 
 ## 0.7.12
 
 **Features**:
 
-- Add `sentry_capture_minidump()` to capture independently created minidumps ([#1067](https://github.com/getsentry/sentry-native/pull/1067))
+- Add `sentry_capture_minidump()` to capture independently created minidumps. ([#1067](https://github.com/getsentry/sentry-native/pull/1067))
 
 **Fixes**:
 
-- Add breadcrumb ringbuffer to avoid O(n) memmove on adding more than max breadcrumbs ([#1060](https://github.com/getsentry/sentry-native/pull/1060))
+- Add breadcrumb ringbuffer to avoid O(n) memmove on adding more than max breadcrumbs. ([#1060](https://github.com/getsentry/sentry-native/pull/1060))
 
 ## 0.7.11
 
 **Fixes**:
 
-- Reject invalid trace- and span-ids in context update from header ([#1046](https://github.com/getsentry/sentry-native/pull/1046))
+- Reject invalid trace- and span-ids in context update from header. ([#1046](https://github.com/getsentry/sentry-native/pull/1046))
 - Lookup `GetSystemTimePreciseAsFileTime()` at runtime and fall back to `GetSystemTimeAsFileTime()` to allow running on Windows < 8. ([#1051](https://github.com/getsentry/sentry-native/pull/1051))
-- Allow for empty DSN to still initialize crash handler ([#1059](https://github.com/getsentry/sentry-native/pull/1059))
+- Allow for empty DSN to still initialize crash handler. ([#1059](https://github.com/getsentry/sentry-native/pull/1059))
 
 ## 0.7.10
 
 **Fixes**:
 
 - Correct the timestamp resolution to microseconds on Windows. ([#1039](https://github.com/getsentry/sentry-native/pull/1039))
+
+**Thank you**:
+
+- [ShawnCZek](https://github.com/ShawnCZek)
 
 ## 0.7.9
 
