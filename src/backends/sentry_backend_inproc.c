@@ -610,10 +610,8 @@ handle_ucontext(const sentry_ucontext_t *uctx)
     // forward as we're not restoring the page allocator.
     reset_signal_handlers();
     sentry__leave_signal_handler();
-    if (handler_strategy == SENTRY_HANDLER_STRATEGY_DEFAULT) {
-        invoke_signal_handler(
-            uctx->signum, uctx->siginfo, (void *)uctx->user_context);
-    }
+    invoke_signal_handler(
+        uctx->signum, uctx->siginfo, (void *)uctx->user_context);
 #endif
 }
 
