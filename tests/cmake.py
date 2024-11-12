@@ -3,6 +3,8 @@ import os
 import shutil
 import subprocess
 import sys
+import platform
+from pathlib import Path
 
 import pytest
 
@@ -203,6 +205,14 @@ def cmake(cwd, targets, options=None):
         subprocess.run(buildcmd, cwd=cwd, check=True)
     except subprocess.CalledProcessError:
         raise pytest.fail.Exception("cmake build failed") from None
+
+    # check if the DLL and EXE artifacts contain version-information
+    if platform.system() == "Windows":
+        from tests.win_utils import check_binary_version
+
+        check_binary_version(Path(cwd) / "sentry.dll")
+        check_binary_version(Path(cwd) / "crashpad_wer.dll")
+        check_binary_version(Path(cwd) / "crashpad_handler.exe")
 
     if "code-checker" in os.environ.get("RUN_ANALYZER", ""):
         # For whatever reason, the compilation summary contains duplicate entries,
