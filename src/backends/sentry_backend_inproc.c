@@ -533,38 +533,29 @@ handle_ucontext(const sentry_ucontext_t *uctx)
     }
 
 #ifdef SENTRY_PLATFORM_UNIX
-    // give us an allocator we can use safely in signals before we tear down.
-    // TODO: for `SENTRY_HANDLER_STRATEGY_CHAIN_AT_START` to work together with
-    //       our page allocator we must find a way to maintain memory usage.
-    //       We might be able to move this "enable" far enough down, because I
-    //       think we do not allocate before we hit `make_signal_event()`.
-    sentry__page_allocator_enable();
-
     // inform the sentry_sync system that we're in a signal handler.  This will
     // make mutexes spin on a spinlock instead as it's no longer safe to use a
     // pthread mutex.
     sentry__enter_signal_handler();
 #endif
 
-#ifdef SENTRY_PLATFORM_UNIX
-    sentry_handler_strategy_t handler_strategy
-        = SENTRY_HANDLER_STRATEGY_DEFAULT;
-#endif
-
     SENTRY_WITH_OPTIONS (options) {
 #ifdef SENTRY_PLATFORM_LINUX
         handler_strategy = sentry_options_get_handler_strategy(options);
 
-        // CLR/Mono convert signals provoked by "managed" native code into
-        // managed code exceptions. In these cases, we shouldn't react to
-        // the signal at all and let their handler discontinue the signal
-        // chain by invoking the runtime handler before we process the signal.
+        // On Linux (and thus Android) CLR/Mono converts signals provoked by
+        // AOT/JIT-generated native code into managed code exceptions. In these
+        // cases, we shouldn't react to the signal at all and let their handler
+        // discontinue the signal chain by invoking the runtime handler before
+        // we process the signal.
         if (handler_strategy == SENTRY_HANDLER_STRATEGY_CHAIN_AT_START) {
             // there is a good chance that we won't return from the previous
             // handler and that would mean we couldn't enter this handler with
             // the next signal coming in if we didn't "leave" here.
             sentry__leave_signal_handler();
 
+            // invoke the previous handler (typically the CLR/Mono
+            // signal-to-managed-exception handler)
             invoke_signal_handler(
                 uctx->signum, uctx->siginfo, (void *)uctx->user_context);
 
@@ -572,6 +563,8 @@ handle_ucontext(const sentry_ucontext_t *uctx)
             sentry__enter_signal_handler();
         }
 #endif
+        // use a signal-safe allocator before we tear down.
+        sentry__page_allocator_enable();
 
         sentry_value_t event = make_signal_event(sig_slot, uctx);
         bool should_handle = true;
@@ -587,7 +580,7 @@ handle_ucontext(const sentry_ucontext_t *uctx)
             sentry_envelope_t *envelope = sentry__prepare_event(
                 options, event, NULL, !options->on_crash_func);
             // TODO(tracing): Revisit when investigating transaction flushing
-            // during hard crashes.
+            //                during hard crashes.
 
             sentry_session_t *session = sentry__end_current_session_with_status(
                 SENTRY_SESSION_STATUS_CRASHED);
