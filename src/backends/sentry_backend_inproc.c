@@ -548,6 +548,7 @@ handle_ucontext(const sentry_ucontext_t *uctx)
         // we process the signal.
         if (sentry_options_get_handler_strategy(options)
             == SENTRY_HANDLER_STRATEGY_CHAIN_AT_START) {
+            SENTRY_TRACE("defer to runtime signal handler at start");
             // there is a good chance that we won't return from the previous
             // handler and that would mean we couldn't enter this handler with
             // the next signal coming in if we didn't "leave" here.
@@ -560,6 +561,7 @@ handle_ucontext(const sentry_ucontext_t *uctx)
 
             // let's re-enter because it means this was an actual native crash
             sentry__enter_signal_handler();
+            SENTRY_TRACE("return from runtime signal handler, we handle the signal");
         }
 #endif
         // use a signal-safe allocator before we tear down.
