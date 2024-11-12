@@ -561,11 +561,15 @@ handle_ucontext(const sentry_ucontext_t *uctx)
 
             // let's re-enter because it means this was an actual native crash
             sentry__enter_signal_handler();
-            SENTRY_TRACE("return from runtime signal handler, we handle the signal");
+            SENTRY_TRACE(
+                "return from runtime signal handler, we handle the signal");
         }
 #endif
+
+#ifdef SENTRY_PLATFORM_UNIX
         // use a signal-safe allocator before we tear down.
         sentry__page_allocator_enable();
+#endif
 
         sentry_value_t event = make_signal_event(sig_slot, uctx);
         bool should_handle = true;
