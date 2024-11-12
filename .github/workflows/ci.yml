@@ -5,7 +5,11 @@ on:
     branches:
       - master
       - "release/**"
+    paths-ignore:
+      - "*.md"
   pull_request:
+    paths-ignore:
+      - "*.md"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -17,10 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: |
-          sudo apt update
-          sudo apt install clang-format-15
-          make style-15
+      - run: make style
 
   build-ios:
     name: Xcode Build for iOS
@@ -38,12 +39,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: Linux (old gcc, 32-bit)
+          - name: Linux (GCC 7, 32-bit)
             os: ubuntu-20.04
             CC: gcc-7
             CXX: g++-7
             TEST_X86: 1
-          - name: Linux (new gcc)
+          - name: Linux (GCC 12)
             os: ubuntu-22.04
             CC: gcc-12
             CXX: g++-12
@@ -51,36 +52,36 @@ jobs:
             # The GCC analyzer 10.0.1 (as on CI) has an internal compiler error
             # currently, and is not stable enough to activate.
             # RUN_ANALYZER: gcc
-          - name: Linux (clang + asan + llvm-cov)
+          - name: Linux (clang 15 + asan + llvm-cov)
             os: ubuntu-22.04
             CC: clang-15
             CXX: clang++-15
             ERROR_ON_WARNINGS: 1
             RUN_ANALYZER: asan,llvm-cov
-          - name: Linux (clang + kcov)
+          - name: Linux (clang 15 + kcov)
             os: ubuntu-22.04
             CC: clang-15
             CXX: clang++-15
             ERROR_ON_WARNINGS: 1
             RUN_ANALYZER: kcov
-          - name: Linux (gcc + code-checker + valgrind)
+          - name: Linux (gcc 12 + code-checker + valgrind)
             os: ubuntu-22.04
             RUN_ANALYZER: code-checker,valgrind
-          - name: macOS (xcode llvm)
-            os: macOs-14
+          - name: macOS 14 (xcode llvm)
+            os: macos-14
             ERROR_ON_WARNINGS: 1
             SYSTEM_VERSION_COMPAT: 0
           - name: macOS 13 (xcode llvm)
-            os: macOs-13
+            os: macos-13
             ERROR_ON_WARNINGS: 1
             SYSTEM_VERSION_COMPAT: 0
-          - name: macOS (xcode llvm + universal)
-            os: macOs-14
+          - name: macOS 14 (xcode llvm + universal)
+            os: macos-14
             ERROR_ON_WARNINGS: 1
             SYSTEM_VERSION_COMPAT: 0
             CMAKE_DEFINES: -DCMAKE_OSX_ARCHITECTURES=arm64;x86_64
-          - name: macOS (clang + asan + llvm-cov)
-            os: macOs-12
+          - name: macOS 15 (clang 18 + asan + llvm-cov)
+            os: macos-15-large
             CC: clang
             CXX: clang++
             ERROR_ON_WARNINGS: 1
@@ -98,15 +99,16 @@ jobs:
             MINGW_ASM_MASM_COMPILER: llvm-ml;-m64
           # The Android emulator is currently only available on macos, see:
           # https://docs.microsoft.com/en-us/azure/devops/pipelines/ecosystems/android?view=azure-devops#test-on-the-android-emulator
-          - name: Android (old API/NDK)
-            os: macOs-12
-            ANDROID_API: 16
-            ANDROID_NDK: 20.1.5948944
-            ANDROID_ARCH: x86
-          - name: Android (new API/NDK)
-            os: macOs-12
-            ANDROID_API: 34
-            ANDROID_NDK: 26.1.10909125
+          # TODO: switch to reactivecircus/android-emulator-runner, concurrently running emulators continuously fail now.
+          # - name: Android (API 31, NDK 23)
+          #   os: macos-15-large
+          #   ANDROID_API: 31
+          #   ANDROID_NDK: 23.2.8568313
+          #   ANDROID_ARCH: x86_64
+          - name: Android (API 35, NDK 27)
+            os: macos-15-large
+            ANDROID_API: 35
+            ANDROID_NDK: 27.2.12479018
             ANDROID_ARCH: x86_64
 
     name: ${{ matrix.name }}
@@ -154,10 +156,14 @@ jobs:
         if: ${{ contains(env['RUN_ANALYZER'], 'code-checker') }}
         run: sudo snap install codechecker --classic
 
-      - name: Expose llvm PATH for Mac
+      - name: Expose llvm@15 PATH for Mac
         if: ${{ runner.os == 'macOS' }}
         run: echo $(brew --prefix llvm@15)/bin >> $GITHUB_PATH
-
+             
+      - name: Expose llvm@18 PATH for Mac
+        if: ${{ runner.os == 'macOS' && matrix.os == 'macos-15-large' && matrix.RUN_ANALYZER == 'asan,llvm-cov' }}
+        run: echo $(brew --prefix llvm@18)/bin >> $GITHUB_PATH
+        
       - name: Installing LLVM-MINGW Dependencies
         if: ${{ runner.os == 'Windows' && env['TEST_MINGW'] }}
         shell: powershell
@@ -171,19 +177,10 @@ jobs:
         shell: powershell
         run: . "scripts\install-zlib.ps1"
 
-      - name: Installing Android SDK Dependencies
-        if: ${{ env['ANDROID_API'] }}
-        run: |
-          export ANDROID_IMAGE="system-images;android-$ANDROID_API;google_apis;$ANDROID_ARCH"
-          echo "Downloading ndk;$ANDROID_NDK and $ANDROID_IMAGE"
-          echo "y" | $ANDROID_HOME/tools/bin/sdkmanager --install \
-            "ndk;$ANDROID_NDK" "$ANDROID_IMAGE" | \
-            grep -v "\[=" || true # suppress the progress bar, so we get meaningful logs
-
       - name: Starting Android Simulator
         if: ${{ env['ANDROID_API'] }}
         run: bash scripts/start-android.sh
-        timeout-minutes: 10
+        timeout-minutes: 20
 
       - name: Test
         shell: bash

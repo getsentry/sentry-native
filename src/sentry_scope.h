@@ -86,13 +86,13 @@ void sentry__scope_apply_to_event(const sentry_scope_t *scope,
  */
 #define SENTRY_WITH_SCOPE(Scope)                                               \
     for (const sentry_scope_t *Scope = sentry__scope_lock(); Scope;            \
-         sentry__scope_unlock(), Scope = NULL)
+        sentry__scope_unlock(), Scope = NULL)
 #define SENTRY_WITH_SCOPE_MUT(Scope)                                           \
     for (sentry_scope_t *Scope = sentry__scope_lock(); Scope;                  \
-         sentry__scope_flush_unlock(), Scope = NULL)
+        sentry__scope_flush_unlock(), Scope = NULL)
 #define SENTRY_WITH_SCOPE_MUT_NO_FLUSH(Scope)                                  \
     for (sentry_scope_t *Scope = sentry__scope_lock(); Scope;                  \
-         sentry__scope_unlock(), Scope = NULL)
+        sentry__scope_unlock(), Scope = NULL)
 
 #endif
 

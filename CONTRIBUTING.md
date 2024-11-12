@@ -14,7 +14,7 @@ Building and testing `sentry-native` currently requires the following tools:
 - **clang-format** and **black**, to format the C/C++ and python code respectively.
 - **curl** and **zlib** libraries (e.g. on Ubuntu: libcurl4-openssl-dev, libz-dev)
 
-`pytest` and `black` are installed as virtualenv dependencies automatically.
+`pytest`, `clang-format` and `black` are installed as virtualenv dependencies automatically.
 
 ## Setting up Environment
 
@@ -142,12 +142,12 @@ The example currently supports the following commands:
 - `disable-backend`: Disables the build-configured crash-handler backend.
 - `before-send`: Installs a `before_send()` callback that retains the event.
 - `discarding-before-send`: Installs a `before_send()` callback that discards the event.
-- `on-crash`: Installs an `on_crash()` callback that retains the crash event. 
+- `on-crash`: Installs an `on_crash()` callback that retains the crash event.
 - `discarding-on-crash`: Installs an `on_crash()` callback that discards the crash event.
 - `override-sdk-name`: Changes the SDK name via the options at runtime.
 - `stack-overflow`: Provokes a stack-overflow.
 
-Only on Windows using crashpad with its WER handler module: 
+Only on Windows using crashpad with its WER handler module:
 
 - `fastfail`: Crashes the application using the `__fastfail` intrinsic directly, thus by-passing SEH.
 - `stack-buffer-overrun`: Triggers the Windows Control Flow Guard, which also fast fails and in turn by-passes SEH.

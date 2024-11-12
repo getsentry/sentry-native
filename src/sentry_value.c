@@ -629,8 +629,22 @@ sentry__value_clone(sentry_value_t value)
     }
 }
 
+/**
+ * This appends `v` to the List `value`.
+ * To make this work properly as a ring buffer, the value list needs to have
+ * the ring buffer start index as the first element
+ * (e.g, 1 until max is exceeded, then it will update for each added item)
+ *
+ * It will remove the oldest value in the list, in case the total number of
+ * items would exceed `max`.
+ *
+ * The list is of size `max + 1` to store the start index.
+ *
+ * Returns 0 on success.
+ */
 int
-sentry__value_append_bounded(sentry_value_t value, sentry_value_t v, size_t max)
+sentry__value_append_ringbuffer(
+    sentry_value_t value, sentry_value_t v, size_t max)
 {
     thing_t *thing = value_as_unfrozen_thing(value);
     if (!thing || thing_get_type(thing) != THING_TYPE_LIST) {
@@ -638,31 +652,24 @@ sentry__value_append_bounded(sentry_value_t value, sentry_value_t v, size_t max)
     }
 
     list_t *l = thing->payload._ptr;
-
-    if (l->len < max) {
+    if (l->len == 0) {
+        sentry_value_append(value, sentry_value_new_int32(1));
+    }
+    if (l->len < max + 1) {
         return sentry_value_append(value, v);
     }
+    if (l->len > max + 1) {
+        SENTRY_WARNF("Cannot reduce Ringbuffer list size from %d to %d.",
+            l->len - 1, max);
+        goto fail;
+    }
+    const int32_t start_idx = sentry_value_as_int32(l->items[0]);
 
-    // len: 120
-    // max: 100
-    // move to 0
-    //   move 99 items (len - 1)
-    //   from 20
+    sentry_value_decref(l->items[start_idx]);
+    l->items[start_idx] = v;
+    l->items[0] = sentry_value_new_int32((start_idx % (int32_t)max) + 1);
 
-    size_t to_move = max >= 1 ? max - 1 : 0;
-    size_t to_shift = l->len - to_move;
-    for (size_t i = 0; i < to_shift; i++) {
-        sentry_value_decref(l->items[i]);
-    }
-    if (to_move) {
-        memmove(l->items, l->items + to_shift, to_move * sizeof(l->items[0]));
-    }
-    if (max >= 1) {
-        l->items[max - 1] = v;
-    } else {
-        sentry_value_decref(v);
-    }
-    l->len = max;
+    l->len = max + 1;
     return 0;
 
 fail:
@@ -838,6 +845,28 @@ sentry_value_as_string(sentry_value_t value)
     } else {
         return "";
     }
+}
+
+sentry_value_t
+sentry__value_ring_buffer_to_list(const sentry_value_t rb)
+{
+    const thing_t *thing = value_as_thing(rb);
+    if (!thing || thing_get_type(thing) != THING_TYPE_LIST) {
+        return sentry_value_new_null();
+    }
+    const list_t *rb_list = thing->payload._ptr;
+    if (rb_list->len == 0) {
+        return sentry_value_new_list();
+    }
+    const size_t start_idx = sentry_value_as_int32(rb_list->items[0]);
+
+    sentry_value_t rv = sentry_value_new_list();
+    for (size_t i = 0; i < rb_list->len - 1; i++) {
+        const size_t idx = (start_idx - 1 + i) % (rb_list->len - 1) + 1;
+        sentry_value_incref(rb_list->items[idx]);
+        sentry_value_append(rv, rb_list->items[idx]);
+    }
+    return rv;
 }
 
 int

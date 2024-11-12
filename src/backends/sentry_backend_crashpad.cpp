@@ -406,7 +406,7 @@ crashpad_backend_startup(
 
     // register attachments
     for (sentry_attachment_t *attachment = options->attachments; attachment;
-         attachment = attachment->next) {
+        attachment = attachment->next) {
         attachments.emplace_back(attachment->path->path);
     }
 

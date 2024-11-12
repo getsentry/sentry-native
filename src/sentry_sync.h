@@ -35,10 +35,7 @@
 
 #    if _WIN32_WINNT < 0x0600
 
-#        define INIT_ONCE_STATIC_INIT                                          \
-            {                                                                  \
-                0                                                              \
-            }
+#        define INIT_ONCE_STATIC_INIT { 0 }
 
 typedef union {
     PVOID Ptr;
@@ -165,13 +162,7 @@ sentry__winmutex_lock(struct sentry__winmutex_s *mutex)
 
 typedef HANDLE sentry_threadid_t;
 typedef struct sentry__winmutex_s sentry_mutex_t;
-#    define SENTRY__MUTEX_INIT                                                 \
-        {                                                                      \
-            INIT_ONCE_STATIC_INIT,                                             \
-            {                                                                  \
-                0                                                              \
-            }                                                                  \
-        }
+#    define SENTRY__MUTEX_INIT { INIT_ONCE_STATIC_INIT, { 0 } }
 #    define sentry__mutex_init(Lock) sentry__winmutex_init(Lock)
 #    define sentry__mutex_lock(Lock) sentry__winmutex_lock(Lock)
 #    define sentry__mutex_unlock(Lock)                                         \

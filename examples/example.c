@@ -19,7 +19,7 @@
 #ifdef SENTRY_PLATFORM_WINDOWS
 #    include <malloc.h>
 #    include <synchapi.h>
-#    define sleep_s(SECONDS) Sleep((SECONDS)*1000)
+#    define sleep_s(SECONDS) Sleep((SECONDS) * 1000)
 #else
 
 #    include <signal.h>
@@ -426,6 +426,10 @@ main(int argc, char **argv)
         }
 
         sentry_transaction_finish(tx);
+    }
+
+    if (has_arg(argc, argv, "capture-minidump")) {
+        sentry_capture_minidump("minidump.dmp");
     }
 
     // make sure everything flushes

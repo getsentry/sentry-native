@@ -37,10 +37,7 @@
  * Both breakpad and crashpad are way more defensive in the setup of their
  * signal stacks and take existing stacks into account (or reuse them).
  */
-#define SIGNAL_DEF(Sig, Desc)                                                  \
-    {                                                                          \
-        Sig, #Sig, Desc                                                        \
-    }
+#define SIGNAL_DEF(Sig, Desc) { Sig, #Sig, Desc }
 
 #define MAX_FRAMES 128
 

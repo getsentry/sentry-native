@@ -30,7 +30,7 @@ extern "C" {
 #        define SENTRY_SDK_NAME "sentry.native"
 #    endif
 #endif
-#define SENTRY_SDK_VERSION "0.7.11"
+#define SENTRY_SDK_VERSION "0.7.12"
 #define SENTRY_SDK_USER_AGENT SENTRY_SDK_NAME "/" SENTRY_SDK_VERSION
 
 /* common platform detection */
@@ -1378,6 +1378,16 @@ SENTRY_API sentry_user_consent_t sentry_user_consent_get(void);
  * be used to send transactions.
  */
 SENTRY_API sentry_uuid_t sentry_capture_event(sentry_value_t event);
+
+/**
+ * Allows capturing independently created minidumps.
+ *
+ * This generates a fatal error event, includes the scope and attachments.
+ * If the event isn't dropped by a before-send hook, the minidump is attached
+ * and the event is sent.
+ */
+SENTRY_API void sentry_capture_minidump(const char *path);
+SENTRY_API void sentry_capture_minidump_n(const char *path, size_t path_len);
 
 /**
  * Captures an exception to be handled by the backend.
