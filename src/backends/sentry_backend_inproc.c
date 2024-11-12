@@ -541,14 +541,13 @@ handle_ucontext(const sentry_ucontext_t *uctx)
 
     SENTRY_WITH_OPTIONS (options) {
 #ifdef SENTRY_PLATFORM_LINUX
-        handler_strategy = sentry_options_get_handler_strategy(options);
-
         // On Linux (and thus Android) CLR/Mono converts signals provoked by
         // AOT/JIT-generated native code into managed code exceptions. In these
         // cases, we shouldn't react to the signal at all and let their handler
         // discontinue the signal chain by invoking the runtime handler before
         // we process the signal.
-        if (handler_strategy == SENTRY_HANDLER_STRATEGY_CHAIN_AT_START) {
+        if (sentry_options_get_handler_strategy(options)
+            == SENTRY_HANDLER_STRATEGY_CHAIN_AT_START) {
             // there is a good chance that we won't return from the previous
             // handler and that would mean we couldn't enter this handler with
             // the next signal coming in if we didn't "leave" here.
