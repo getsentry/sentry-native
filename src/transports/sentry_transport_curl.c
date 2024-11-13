@@ -85,7 +85,7 @@ sentry__curl_transport_start(
         };
 
         if (!sentry__check_min_version(
-                curl_version, (sentry_version_t) { 7, 10, 7 })) {
+                curl_version, (sentry_version_t) { 7, 21, 7 })) {
             SENTRY_WARNF("`libcurl` is at unsupported version `%u.%u.%u`",
                 curl_version.major, curl_version.minor, curl_version.patch);
             return 1;
