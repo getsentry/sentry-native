@@ -9,6 +9,7 @@
 **Fixes**:
 
 - Correct the timeout specified for the upload-task awaiting `dispatch_semaphore_wait()` when using an HTTP-proxy on macOS. ([#1077](https://github.com/getsentry/sentry-native/pull/1077), [crashpad#111](https://github.com/getsentry/crashpad/pull/111))
+- Emit `transaction.data` inside `context.trace.data`. ([#1075](https://github.com/getsentry/sentry-native/pull/1075))
 
 **Thank you**:
 
