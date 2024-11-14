@@ -2,6 +2,7 @@ import itertools
 import json
 import os
 import shutil
+import sys
 import time
 import uuid
 import subprocess
@@ -609,6 +610,9 @@ def test_capture_minidump(cmake, httpserver):
     assert_minidump(envelope)
 
 
+@pytest.mark.skipif(
+    sys.platform != "darwin", reason="currently proxy tests are only supported on macOS"
+)
 @pytest.mark.parametrize("run_args", [(["http-proxy"]), (["socks5-proxy"])])
 @pytest.mark.parametrize("proxy_status", [(["off"]), (["on"])])
 def test_capture_proxy(cmake, httpserver, run_args, proxy_status):

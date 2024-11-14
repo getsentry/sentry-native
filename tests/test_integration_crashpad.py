@@ -39,6 +39,9 @@ def test_crashpad_capture(cmake, httpserver):
     assert len(httpserver.log) == 2
 
 
+@pytest.mark.skipif(
+    sys.platform != "darwin", reason="currently proxy tests are only supported on macOS"
+)
 @pytest.mark.parametrize("run_args", [(["http-proxy"]), (["socks5-proxy"])])
 @pytest.mark.parametrize("proxy_status", [(["off"]), (["on"])])
 def test_crashpad_crash_proxy(cmake, httpserver, run_args, proxy_status):
