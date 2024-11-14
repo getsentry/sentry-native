@@ -621,12 +621,12 @@ def test_capture_proxy(cmake, httpserver, run_args, proxy_status):
             # start mitmdump from terminal
             if run_args == ["http-proxy"]:
                 proxy_process = subprocess.Popen(["mitmdump"])
-                time.sleep(1)  # Give mitmdump some time to start
+                time.sleep(5)  # Give mitmdump some time to start
                 if not is_proxy_running('localhost', 8080):
                     pytest.fail("mitmdump (HTTP) did not start correctly")
             elif run_args == ["socks5-proxy"]:
                 proxy_process = subprocess.Popen(["mitmdump", "--mode", "socks5"])
-                time.sleep(1)  # Give mitmdump some time to start
+                time.sleep(5)  # Give mitmdump some time to start
                 if not is_proxy_running('localhost', 1080):
                     pytest.fail("mitmdump (SOCKS5) did not start correctly")
 

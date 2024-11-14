@@ -40,7 +40,7 @@ def test_crashpad_capture(cmake, httpserver):
 
 @pytest.mark.parametrize("run_args", [(["http-proxy"]), (["socks5-proxy"])])
 @pytest.mark.parametrize("proxy_status", [(["off"]), (["on"])])
-def test_crashpad_crash_socks5_proxy(cmake, httpserver, run_args, proxy_status):
+def test_crashpad_crash_proxy(cmake, httpserver, run_args, proxy_status):
     if not shutil.which("mitmdump"):
         pytest.skip("mitmdump is not installed")
 
@@ -51,12 +51,12 @@ def test_crashpad_crash_socks5_proxy(cmake, httpserver, run_args, proxy_status):
             # start mitmdump from terminal
             if run_args == ["http-proxy"]:
                 proxy_process = subprocess.Popen(["mitmdump"])
-                time.sleep(1)  # Give mitmdump some time to start
+                time.sleep(5)  # Give mitmdump some time to start
                 if not is_proxy_running('localhost', 8080):
                     pytest.fail("mitmdump (HTTP) did not start correctly")
             elif run_args == ["socks5-proxy"]:
                 proxy_process = subprocess.Popen(["mitmdump", "--mode", "socks5"])
-                time.sleep(1)  # Give mitmdump some time to start
+                time.sleep(5)  # Give mitmdump some time to start
                 if not is_proxy_running('localhost', 1080):
                     pytest.fail("mitmdump (SOCKS5) did not start correctly")
 
@@ -75,6 +75,7 @@ def test_crashpad_crash_socks5_proxy(cmake, httpserver, run_args, proxy_status):
         except AssertionError:
             # only want to end up here on (http-proxy, off) tuple (we expect the request to fail)
             if run_args == ["http-proxy"] and proxy_status == ["off"]:
+                assert len(httpserver.log) == 0
                 return
 
         assert waiting.result
