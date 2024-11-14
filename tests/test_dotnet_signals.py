@@ -54,8 +54,10 @@ def run_dotnet_native_crash(tmp_path):
     return run_dotnet(tmp_path, ["dotnet", "run", "native-crash"])
 
 
+skip_condition = sys.platform != "linux" or bool(os.environ.get("TEST_X86"))
+
 @pytest.mark.skipif(
-    sys.platform != "linux" or os.environ.get("TEST_X86"),
+    skip_condition,
     reason="dotnet signal handling is currently only supported on 64-bit Linux",
 )
 def test_dotnet_signals_inproc(cmake):
