@@ -38,13 +38,14 @@ def test_crashpad_capture(cmake, httpserver):
 
     assert len(httpserver.log) == 2
 
+
 @pytest.mark.parametrize("run_args", [(["http-proxy"]), (["socks5-proxy"])])
 @pytest.mark.parametrize("proxy_status", [(["off"]), (["on"])])
 def test_crashpad_crash_proxy(cmake, httpserver, run_args, proxy_status):
     if not shutil.which("mitmdump"):
         pytest.skip("mitmdump is not installed")
 
-    proxy_process = None # store the proxy process to terminate it later
+    proxy_process = None  # store the proxy process to terminate it later
 
     try:
         if proxy_status == ["on"]:
@@ -52,12 +53,12 @@ def test_crashpad_crash_proxy(cmake, httpserver, run_args, proxy_status):
             if run_args == ["http-proxy"]:
                 proxy_process = subprocess.Popen(["mitmdump"])
                 time.sleep(5)  # Give mitmdump some time to start
-                if not is_proxy_running('localhost', 8080):
+                if not is_proxy_running("localhost", 8080):
                     pytest.fail("mitmdump (HTTP) did not start correctly")
             elif run_args == ["socks5-proxy"]:
                 proxy_process = subprocess.Popen(["mitmdump", "--mode", "socks5"])
                 time.sleep(5)  # Give mitmdump some time to start
-                if not is_proxy_running('localhost', 1080):
+                if not is_proxy_running("localhost", 1080):
                     pytest.fail("mitmdump (SOCKS5) did not start correctly")
 
         tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "crashpad"})
@@ -66,11 +67,15 @@ def test_crashpad_crash_proxy(cmake, httpserver, run_args, proxy_status):
         shutil.rmtree(tmp_path / ".sentry-native", ignore_errors=True)
 
         env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
-        httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data("OK")
+        httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data(
+            "OK"
+        )
 
         try:
             with httpserver.wait(timeout=10) as waiting:
-                child = run(tmp_path, "sentry_example", ["log", "crash"] + run_args, env=env)
+                child = run(
+                    tmp_path, "sentry_example", ["log", "crash"] + run_args, env=env
+                )
                 assert child.returncode  # well, it's a crash after all
         except AssertionError:
             # only want to end up here on (http-proxy, off) tuple (we expect the request to fail)

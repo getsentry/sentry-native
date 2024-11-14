@@ -33,12 +33,14 @@ def make_dsn(httpserver, auth="uiaeosnrtdy", id=123456):
         )
     )
 
+
 def is_proxy_running(host, port):
     try:
         with socket.create_connection((host, port), timeout=1):
             return True
     except ConnectionRefusedError:
         return False
+
 
 def run(cwd, exe, args, env=dict(os.environ), **kwargs):
     __tracebackhide__ = True
