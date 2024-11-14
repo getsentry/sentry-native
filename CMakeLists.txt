@@ -369,6 +369,11 @@ if(WIN32)
 	endif()
 endif()
 
+include(cmake/utils.cmake)
+if (WIN32 AND SENTRY_BUILD_SHARED_LIBS)
+	sentry_add_version_resource(sentry "Client Library")
+endif()
+
 # handle platform libraries
 if(ANDROID)
 	set(_SENTRY_PLATFORM_LIBS "dl" "log")
