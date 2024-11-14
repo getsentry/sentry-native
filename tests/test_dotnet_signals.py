@@ -55,8 +55,8 @@ def run_dotnet_native_crash(tmp_path):
 
 
 @pytest.mark.skipif(
-    sys.platform != "linux",
-    reason="dotnet signal handling is currently only supported on Linux",
+    sys.platform != "linux" and not os.environ.get("TEST_X86"),
+    reason="dotnet signal handling is currently only supported on 64-bit Linux",
 )
 def test_dotnet_signals_inproc(cmake):
     try:
