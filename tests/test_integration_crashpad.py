@@ -1,11 +1,12 @@
 import os
 import shutil
+import subprocess
 import sys
 import time
 
 import pytest
 
-from . import make_dsn, run, Envelope
+from . import make_dsn, run, Envelope, is_proxy_running
 from .assertions import (
     assert_crashpad_upload,
     assert_session,
@@ -36,6 +37,55 @@ def test_crashpad_capture(cmake, httpserver):
     )
 
     assert len(httpserver.log) == 2
+
+@pytest.mark.parametrize("run_args", [(["http-proxy"]), (["socks5-proxy"])])
+@pytest.mark.parametrize("proxy_status", [(["off"]), (["on"])])
+def test_crashpad_crash_socks5_proxy(cmake, httpserver, run_args, proxy_status):
+    if not shutil.which("mitmdump"):
+        pytest.skip("mitmdump is not installed")
+
+    proxy_process = None # store the proxy process to terminate it later
+
+    try:
+        if proxy_status == ["on"]:
+            # start mitmdump from terminal
+            if run_args == ["http-proxy"]:
+                proxy_process = subprocess.Popen(["mitmdump"])
+                time.sleep(1)  # Give mitmdump some time to start
+                if not is_proxy_running('localhost', 8080):
+                    pytest.fail("mitmdump (HTTP) did not start correctly")
+            elif run_args == ["socks5-proxy"]:
+                proxy_process = subprocess.Popen(["mitmdump", "--mode", "socks5"])
+                time.sleep(1)  # Give mitmdump some time to start
+                if not is_proxy_running('localhost', 1080):
+                    pytest.fail("mitmdump (SOCKS5) did not start correctly")
+
+        tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "crashpad"})
+
+        # make sure we are isolated from previous runs
+        shutil.rmtree(tmp_path / ".sentry-native", ignore_errors=True)
+
+        env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+        httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data("OK")
+
+        try:
+            with httpserver.wait(timeout=10) as waiting:
+                child = run(tmp_path, "sentry_example", ["log", "crash"] + run_args, env=env)
+                assert child.returncode  # well, it's a crash after all
+        except AssertionError:
+            # only want to end up here on (http-proxy, off) tuple (we expect the request to fail)
+            if run_args == ["http-proxy"] and proxy_status == ["off"]:
+                return
+
+        assert waiting.result
+        # Apple's NSURLSession will send the request even if the socks proxy fails
+        # https://forums.developer.apple.com/forums/thread/705504?answerId=712418022#712418022
+        # hence there is no (socks5-proxy, off) tuple in the AssertionError catch above
+        assert len(httpserver.log) == 1
+    finally:
+        if proxy_process:
+            proxy_process.terminate()
+            proxy_process.wait()
 
 
 def test_crashpad_reinstall(cmake, httpserver):
