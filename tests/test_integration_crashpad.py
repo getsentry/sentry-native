@@ -90,7 +90,7 @@ def test_crashpad_crash_proxy(cmake, httpserver, run_args, proxy_status):
                 # Apple's NSURLSession will send the request even if the socks proxy fails
                 # https://forums.developer.apple.com/forums/thread/705504?answerId=712418022#712418022
                 # hence there is no (socks5-proxy, off) tuple in the AssertionError catch above
-                assert len(httpserver.log) == 1 if (sys.platform == "darwin") else 0
+                assert len(httpserver.log) == (1 if (sys.platform == "darwin") else 0)
                 return
 
         assert waiting.result
