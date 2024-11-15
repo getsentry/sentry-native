@@ -87,8 +87,8 @@ startup_inproc_backend(
 
     // set up an alternate signal stack if noone defined one before
     stack_t old_sig_stack;
-    if (sigaltstack(NULL, &old_sig_stack) == -1 || old_sig_stack.ss_sp == NULL
-        || old_sig_stack.ss_size == 0) {
+    int ret = sigaltstack(NULL, &old_sig_stack);
+    if (ret == 0 && old_sig_stack.ss_flags == SS_DISABLE) {
         SENTRY_TRACEF("installing signal stack (size: %d)", SIGNAL_STACK_SIZE);
         g_signal_stack.ss_sp = sentry_malloc(SIGNAL_STACK_SIZE);
         if (!g_signal_stack.ss_sp) {
@@ -97,9 +97,11 @@ startup_inproc_backend(
         g_signal_stack.ss_size = SIGNAL_STACK_SIZE;
         g_signal_stack.ss_flags = 0;
         sigaltstack(&g_signal_stack, 0);
-    } else {
-        SENTRY_TRACEF(
-            "using existing signal stack (size: %d)", old_sig_stack.ss_size);
+    } else if (ret == 0) {
+        SENTRY_TRACEF("using existing signal stack (size: %d, flags: %d)",
+            old_sig_stack.ss_size, old_sig_stack.ss_flags);
+    } else if (ret == -1) {
+        SENTRY_WARNF("Failed to query signal stack size: %s", strerror(errno));
     }
 
     // install our own signal handler
