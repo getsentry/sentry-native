@@ -662,7 +662,9 @@ def test_capture_proxy(cmake, httpserver, run_args, proxy_status):
         if proxy_status == ["on"]:
             assert len(httpserver.log) == 2
         elif proxy_status == ["off"]:
-            assert len(httpserver.log) == 0
+            # Window's Autoproxy will send the request even if the http proxy fails
+            # https://learn.microsoft.com/en-us/windows/win32/winhttp/winhttp-autoproxy-support
+            assert len(httpserver.log) == (2 if (sys.platform == "win32") else 0)
     finally:
         if proxy_process:
             proxy_process.terminate()
