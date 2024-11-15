@@ -5,6 +5,7 @@
 **Features**:
 
 - Provide version information for non-static Windows binaries. ([#1076](https://github.com/getsentry/sentry-native/pull/1076), [crashpad#110](https://github.com/getsentry/crashpad/pull/110))
+- Add an alternative handler strategy to `inproc` to support `.NET` on Linux and `Mono` on Android (specifically, [.NET MAUI](https://github.com/dotnet/android/issues/9055#issuecomment-2261347912)). ([#1027](https://github.com/getsentry/sentry-native/pull/1027))
 
 **Fixes**:
 
