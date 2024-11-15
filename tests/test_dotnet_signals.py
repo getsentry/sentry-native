@@ -54,7 +54,11 @@ def run_dotnet_native_crash(tmp_path):
     return run_dotnet(tmp_path, ["dotnet", "run", "native-crash"])
 
 
-skip_condition = sys.platform != "linux" or bool(os.environ.get("TEST_X86"))
+skip_condition = (
+    sys.platform != "linux"
+    or bool(os.environ.get("TEST_X86"))
+    or "asan" in os.environ.get("RUN_ANALYZER", "")
+)
 
 
 @pytest.mark.skipif(
