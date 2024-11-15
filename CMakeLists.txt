@@ -277,11 +277,15 @@ if(CMAKE_SYSTEM_NAME STREQUAL "OS400")
 endif()
 
 if(SENTRY_TRANSPORT_CURL)
-	if(NOT TARGET CURL::libcurl) # Some other lib might bring libcurl already
-		find_package(CURL REQUIRED COMPONENTS AsynchDNS)
+	if(DEFINED CURL_INCLUDE_DIR AND DEFINED CURL_LIBRARY)
+		target_link_libraries(sentry PRIVATE ${CURL_LIBRARY})
+		target_include_directories(sentry PRIVATE ${CURL_INCLUDE_DIR})
+	else()
+		if(NOT TARGET CURL::libcurl) # Some other lib might bring libcurl already
+			find_package(CURL REQUIRED COMPONENTS AsynchDNS)
+			target_link_libraries(sentry PRIVATE CURL::libcurl)
+		endif()
 	endif()
-
-	target_link_libraries(sentry PRIVATE CURL::libcurl)
 endif()
 
 if(SENTRY_TRANSPORT_COMPRESSION)
@@ -367,11 +371,6 @@ if(WIN32)
 	if(MSVC AND CMAKE_GENERATOR_TOOLSET MATCHES "_xp$" AND SENTRY_BACKEND_CRASHPAD)
 		message(FATAL_ERROR "MSVC XP toolset does not support Crashpad")
 	endif()
-endif()
-
-include(cmake/utils.cmake)
-if (WIN32 AND SENTRY_BUILD_SHARED_LIBS)
-	sentry_add_version_resource(sentry "Client Library")
 endif()
 
 # handle platform libraries
