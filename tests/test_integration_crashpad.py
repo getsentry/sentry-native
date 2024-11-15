@@ -40,7 +40,8 @@ def test_crashpad_capture(cmake, httpserver):
 
 
 @pytest.mark.skipif(
-    sys.platform != "darwin", reason="currently proxy tests are only supported on macOS"
+    sys.platform != "darwin" and sys.platform != "linux",
+    reason="currently proxy tests are only supported on macOS and Linux",
 )
 @pytest.mark.parametrize("run_args", [(["http-proxy"]), (["socks5-proxy"])])
 @pytest.mark.parametrize("proxy_status", [(["off"]), (["on"])])
@@ -85,11 +86,15 @@ def test_crashpad_crash_proxy(cmake, httpserver, run_args, proxy_status):
             if run_args == ["http-proxy"] and proxy_status == ["off"]:
                 assert len(httpserver.log) == 0
                 return
+            elif run_args == ["socks5-proxy"] and proxy_status == ["off"]:
+                # Apple's NSURLSession will send the request even if the socks proxy fails
+                # https://forums.developer.apple.com/forums/thread/705504?answerId=712418022#712418022
+                # hence there is no (socks5-proxy, off) tuple in the AssertionError catch above
+                assert len(httpserver.log) == 1
+                return
 
         assert waiting.result
-        # Apple's NSURLSession will send the request even if the socks proxy fails
-        # https://forums.developer.apple.com/forums/thread/705504?answerId=712418022#712418022
-        # hence there is no (socks5-proxy, off) tuple in the AssertionError catch above
+
         assert len(httpserver.log) == 1
     finally:
         if proxy_process:

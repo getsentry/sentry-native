@@ -611,7 +611,8 @@ def test_capture_minidump(cmake, httpserver):
 
 
 @pytest.mark.skipif(
-    sys.platform != "darwin", reason="currently proxy tests are only supported on macOS"
+    sys.platform != "darwin" and sys.platform != "linux",
+    reason="currently proxy tests are only supported on macOS and Linux",
 )
 @pytest.mark.parametrize("run_args", [(["http-proxy"]), (["socks5-proxy"])])
 @pytest.mark.parametrize("proxy_status", [(["off"]), (["on"])])
