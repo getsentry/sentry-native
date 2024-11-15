@@ -610,11 +610,19 @@ def test_capture_minidump(cmake, httpserver):
     assert_minidump(envelope)
 
 
-@pytest.mark.skipif(
-    sys.platform != "darwin" and sys.platform != "linux",
-    reason="currently proxy tests are only supported on macOS and Linux",
+@pytest.mark.parametrize(
+    "run_args",
+    [
+        pytest.param(["http-proxy"]),  # HTTP proxy test runs on all platforms
+        pytest.param(
+            ["socks5-proxy"],
+            marks=pytest.mark.skipif(
+                sys.platform not in ["darwin", "linux"],
+                reason="SOCKS5 proxy tests are only supported on macOS and Linux",
+            ),
+        ),
+    ],
 )
-@pytest.mark.parametrize("run_args", [(["http-proxy"]), (["socks5-proxy"])])
 @pytest.mark.parametrize("proxy_status", [(["off"]), (["on"])])
 def test_capture_proxy(cmake, httpserver, run_args, proxy_status):
     if not shutil.which("mitmdump"):
