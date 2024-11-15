@@ -8,6 +8,9 @@ class Program
     [DllImport("crash", EntryPoint = "native_crash")]
     static extern void native_crash();
 
+    [DllImport("crash", EntryPoint = "enable_sigaltstack")]
+    static extern void enable_sigaltstack();
+
     [DllImport("sentry", EntryPoint = "sentry_options_new")]
     static extern IntPtr sentry_options_new();
 
@@ -22,6 +25,15 @@ class Program
 
     static void Main(string[] args)
     {
+        var githubActions = Environment.GetEnvironmentVariable("GITHUB_ACTIONS") ?? string.Empty;
+        if (githubActions == "true") {
+            // Set up our own `sigaltstack` for this thread if we're running on GHA because of a failure to run any
+            // signal handler after the initial setup. This behavior is locally non-reproducible and likely runner-related.
+            // I ran this against .net7/8/9 on at least 10 different Linux setups, and it worked on all, but on GHA
+            // it only works if we __don't__ accept the already installed `sigaltstack`.
+            enable_sigaltstack();
+        }
+
         // setup minimal sentry-native
         var options = sentry_options_new();
         sentry_options_set_handler_strategy(options, 1);
