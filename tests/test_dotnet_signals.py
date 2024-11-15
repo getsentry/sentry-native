@@ -38,9 +38,9 @@ def run_dotnet(tmp_path, args):
     env["LD_LIBRARY_PATH"] = str(tmp_path) + ":" + env.get("LD_LIBRARY_PATH", "")
     return subprocess.Popen(
         args,
-        text=True,
         cwd=str(project_fixture_path),
         env=env,
+        text=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
@@ -90,7 +90,9 @@ def test_dotnet_signals_inproc(cmake):
 
         # the program will fail with a `NullReferenceException`, but the Native SDK won't register a crash.
         assert dotnet_run.returncode != 0
-        assert "NullReferenceException" in dotnet_run_stderr
+        assert (
+            "NullReferenceException" in dotnet_run_stderr
+        ), f"Managed exception run failed.\nstdout:\n{dotnet_run_stdout}\nstderr:\n{dotnet_run_stderr}"
         database_path = project_fixture_path / ".sentry-native"
         assert database_path.exists(), "No database-path exists"
         assert not (database_path / "last_crash").exists(), "A crash was registered"
@@ -102,7 +104,9 @@ def test_dotnet_signals_inproc(cmake):
 
         # the program will fail with a SIGSEGV, that has been processed by the Native SDK which produced a crash envelope
         assert dotnet_run.returncode != 0
-        assert "crash has been captured" in dotnet_run_stderr
+        assert (
+            "crash has been captured" in dotnet_run_stderr
+        ), f"Native exception run failed.\nstdout:\n{dotnet_run_stdout}\nstderr:\n{dotnet_run_stderr}"
         assert (database_path / "last_crash").exists()
         assert_run_dir_with_envelope(database_path)
     finally:
