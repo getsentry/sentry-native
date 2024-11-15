@@ -56,6 +56,7 @@ def run_dotnet_native_crash(tmp_path):
 
 skip_condition = sys.platform != "linux" or bool(os.environ.get("TEST_X86"))
 
+
 @pytest.mark.skipif(
     skip_condition,
     reason="dotnet signal handling is currently only supported on 64-bit Linux",
@@ -101,7 +102,7 @@ def test_dotnet_signals_inproc(cmake):
 
         # the program will fail with a SIGSEGV, that has been processed by the Native SDK which produced a crash envelope
         assert dotnet_run.returncode != 0
-        # assert "crash has been captured" in dotnet_run_stderr
+        assert "crash has been captured" in dotnet_run_stderr
         assert (database_path / "last_crash").exists()
         assert_run_dir_with_envelope(database_path)
     finally:
