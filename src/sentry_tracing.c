@@ -578,7 +578,7 @@ sentry_transaction_set_data(
     }
 }
 
-static const char txn_data_key[] = "extra";
+static const char txn_data_key[] = "data";
 static const size_t txn_data_key_len = sizeof(txn_data_key) - 1;
 
 void

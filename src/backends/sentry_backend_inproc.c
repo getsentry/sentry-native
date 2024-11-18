@@ -16,27 +16,6 @@
 #include "transports/sentry_disk_transport.h"
 #include <string.h>
 
-/**
- * Android's bionic libc seems to allocate alternate signal handler stacks for
- * every thread and also references them from their internal maintenance
- * structs.
- *
- * The way we currently set up our sigaltstack seems to interfere with this
- * setup and causes crashes whenever an ART signal handler touches the thread
- * that called `sentry_init()`.
- *
- * In addition to this problem, it also means there is no need for our own
- * sigaltstack on Android since our signal handler will always be running on
- * an alternate stack managed by bionic.
- *
- * Note: In bionic the sigaltstacks for 32-bit devices have a size of 16KiB and
- * on 64-bit devices they have 32KiB. The size of our own was set to 64KiB
- * independent of the device. If this is a problem, we need figure out
- * together with Google if there is a way in which our configs can coexist.
- *
- * Both breakpad and crashpad are way more defensive in the setup of their
- * signal stacks and take existing stacks into account (or reuse them).
- */
 #define SIGNAL_DEF(Sig, Desc) { Sig, #Sig, Desc }
 
 #define MAX_FRAMES 128
@@ -108,8 +87,8 @@ startup_inproc_backend(
 
     // set up an alternate signal stack if noone defined one before
     stack_t old_sig_stack;
-    if (sigaltstack(NULL, &old_sig_stack) == -1 || old_sig_stack.ss_sp == NULL
-        || old_sig_stack.ss_size == 0) {
+    int ret = sigaltstack(NULL, &old_sig_stack);
+    if (ret == 0 && old_sig_stack.ss_flags == SS_DISABLE) {
         SENTRY_TRACEF("installing signal stack (size: %d)", SIGNAL_STACK_SIZE);
         g_signal_stack.ss_sp = sentry_malloc(SIGNAL_STACK_SIZE);
         if (!g_signal_stack.ss_sp) {
@@ -118,9 +97,11 @@ startup_inproc_backend(
         g_signal_stack.ss_size = SIGNAL_STACK_SIZE;
         g_signal_stack.ss_flags = 0;
         sigaltstack(&g_signal_stack, 0);
-    } else {
-        SENTRY_TRACEF(
-            "using existing signal stack (size: %d)", old_sig_stack.ss_size);
+    } else if (ret == 0) {
+        SENTRY_TRACEF("using existing signal stack (size: %d, flags: %d)",
+            old_sig_stack.ss_size, old_sig_stack.ss_flags);
+    } else if (ret == -1) {
+        SENTRY_WARNF("Failed to query signal stack size: %s", strerror(errno));
     }
 
     // install our own signal handler
@@ -554,21 +535,47 @@ handle_ucontext(const sentry_ucontext_t *uctx)
     }
 
 #ifdef SENTRY_PLATFORM_UNIX
-    // give us an allocator we can use safely in signals before we tear down.
-    sentry__page_allocator_enable();
-
     // inform the sentry_sync system that we're in a signal handler.  This will
     // make mutexes spin on a spinlock instead as it's no longer safe to use a
     // pthread mutex.
     sentry__enter_signal_handler();
 #endif
 
-    sentry_value_t event = make_signal_event(sig_slot, uctx);
-
     SENTRY_WITH_OPTIONS (options) {
-        sentry__write_crash_marker(options);
+#ifdef SENTRY_PLATFORM_LINUX
+        // On Linux (and thus Android) CLR/Mono converts signals provoked by
+        // AOT/JIT-generated native code into managed code exceptions. In these
+        // cases, we shouldn't react to the signal at all and let their handler
+        // discontinue the signal chain by invoking the runtime handler before
+        // we process the signal.
+        if (sentry_options_get_handler_strategy(options)
+            == SENTRY_HANDLER_STRATEGY_CHAIN_AT_START) {
+            SENTRY_TRACE("defer to runtime signal handler at start");
+            // there is a good chance that we won't return from the previous
+            // handler and that would mean we couldn't enter this handler with
+            // the next signal coming in if we didn't "leave" here.
+            sentry__leave_signal_handler();
 
+            // invoke the previous handler (typically the CLR/Mono
+            // signal-to-managed-exception handler)
+            invoke_signal_handler(
+                uctx->signum, uctx->siginfo, (void *)uctx->user_context);
+
+            // let's re-enter because it means this was an actual native crash
+            sentry__enter_signal_handler();
+            SENTRY_TRACE(
+                "return from runtime signal handler, we handle the signal");
+        }
+#endif
+
+#ifdef SENTRY_PLATFORM_UNIX
+        // use a signal-safe allocator before we tear down.
+        sentry__page_allocator_enable();
+#endif
+
+        sentry_value_t event = make_signal_event(sig_slot, uctx);
         bool should_handle = true;
+        sentry__write_crash_marker(options);
 
         if (options->on_crash_func) {
             SENTRY_TRACE("invoking `on_crash` hook");
@@ -580,7 +587,7 @@ handle_ucontext(const sentry_ucontext_t *uctx)
             sentry_envelope_t *envelope = sentry__prepare_event(
                 options, event, NULL, !options->on_crash_func);
             // TODO(tracing): Revisit when investigating transaction flushing
-            // during hard crashes.
+            //                during hard crashes.
 
             sentry_session_t *session = sentry__end_current_session_with_status(
                 SENTRY_SESSION_STATUS_CRASHED);
