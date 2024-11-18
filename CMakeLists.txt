@@ -479,6 +479,7 @@ if(SENTRY_BACKEND_CRASHPAD)
 elseif(SENTRY_BACKEND_BREAKPAD)
 	option(SENTRY_BREAKPAD_SYSTEM "Use system breakpad" OFF)
 	if(SENTRY_BREAKPAD_SYSTEM)
+		target_compile_definitions(sentry PRIVATE SENTRY_BREAKPAD_SYSTEM)
 		# system breakpad is using pkg-config, see `external/breakpad/breakpad-client.pc.in`
 		find_package(PkgConfig REQUIRED)
 		pkg_check_modules(BREAKPAD REQUIRED IMPORTED_TARGET breakpad-client)
