@@ -215,7 +215,7 @@ sentry__curl_send_task(void *_envelope, void *_state)
     curl_easy_setopt(curl, CURLOPT_HEADERDATA, (void *)&info);
     curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, header_callback);
 
-    if (state->proxy) { // TODO do we need to process the proxy here?
+    if (state->proxy) {
         curl_easy_setopt(curl, CURLOPT_PROXY, state->proxy);
     }
     if (state->ca_certs) {

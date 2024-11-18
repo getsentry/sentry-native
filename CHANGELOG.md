@@ -5,7 +5,7 @@
 **Features**:
 
 - Provide version information for non-static Windows binaries. ([#1076](https://github.com/getsentry/sentry-native/pull/1076), [crashpad#110](https://github.com/getsentry/crashpad/pull/110))
-- Add SOCKS5 proxy support. ([#1063](https://github.com/getsentry/sentry-native/pull/1063))
+- Add SOCKS5 proxy support for macOS and Linux. ([#1063](https://github.com/getsentry/sentry-native/pull/1063))
 
 **Fixes**:
 

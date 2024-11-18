@@ -439,8 +439,7 @@ crashpad_backend_startup(
     if (minidump_url) {
         SENTRY_TRACEF("using minidump URL \"%s\"", minidump_url);
     }
-    bool success = data->client->StartHandler(handler, database,
-        database, // TODO update to not only use http_proxy
+    bool success = data->client->StartHandler(handler, database, database,
         minidump_url ? minidump_url : "", options->proxy ? options->proxy : "",
         annotations, arguments,
         /* restartable */ true,

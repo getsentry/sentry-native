@@ -982,8 +982,10 @@ SENTRY_API const char *sentry_options_get_proxy(const sentry_options_t *opts);
 /**
  * Configures the proxy.
  *
+ * This is a **deprecated** alias for `sentry_options_set_proxy(_n)`.
+ *
  * The given proxy has to include the full scheme,
- * eg. `http://some.proxy/`or 'socks5://some.proxy/'.
+ * eg. `http://some.proxy/.
  */
 SENTRY_API void sentry_options_set_http_proxy(
     sentry_options_t *opts, const char *proxy);
