@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- Android NDK: Add `.loadNativeLibraries()` method to allow pre-loading .so files ([#1082](https://github.com/getsentry/sentry-native/pull/1082))
+
 ## 0.7.13
 
 **Features**:
