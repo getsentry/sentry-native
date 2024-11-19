@@ -79,5 +79,6 @@ public final class io/sentry/ndk/NdkOptions {
 public final class io/sentry/ndk/SentryNdk {
 	public static fun close ()V
 	public static fun init (Lio/sentry/ndk/NdkOptions;)V
+	public static fun loadNativeLibraries ()V
 }
 
