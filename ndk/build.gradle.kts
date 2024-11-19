@@ -1,3 +1,4 @@
+import com.diffplug.gradle.spotless.SpotlessPlugin
 import com.diffplug.spotless.LineEnding
 import com.vanniktech.maven.publish.MavenPublishBaseExtension
 import com.vanniktech.maven.publish.MavenPublishPlugin
@@ -9,11 +10,10 @@ import org.gradle.api.tasks.testing.logging.TestLogEvent
 
 plugins {
     `java-library`
-    id("com.diffplug.spotless") version "6.11.0" apply true
+    id("com.diffplug.spotless") version "6.25.0" apply true
     id("io.gitlab.arturbosch.detekt") version "1.19.0"
     `maven-publish`
     id("org.jetbrains.kotlinx.binary-compatibility-validator") version "0.13.0"
-
 }
 
 buildscript {
@@ -46,11 +46,12 @@ allprojects {
         withType<Test> {
             testLogging.showStandardStreams = true
             testLogging.exceptionFormat = TestExceptionFormat.FULL
-            testLogging.events = setOf(
-                TestLogEvent.SKIPPED,
-                TestLogEvent.PASSED,
-                TestLogEvent.FAILED
-            )
+            testLogging.events =
+                setOf(
+                    TestLogEvent.SKIPPED,
+                    TestLogEvent.PASSED,
+                    TestLogEvent.FAILED,
+                )
             maxParallelForks = Runtime.getRuntime().availableProcessors() / 2
 
             // Cap JVM args per test
@@ -59,7 +60,7 @@ allprojects {
             dependsOn("cleanTest")
         }
         withType<JavaCompile> {
-            options.compilerArgs.addAll(arrayOf("-Xlint:all", "-Werror", "-Xlint:-classfile", "-Xlint:-processing"))
+            options.compilerArgs.addAll(arrayOf("-Xlint:all", "-Werror", "-Xlint:-classfile", "-Xlint:-processing", "-Xlint:-options"))
         }
     }
 }
@@ -127,6 +128,8 @@ subprojects {
             }
         }
     }
+
+    apply<SpotlessPlugin>()
 }
 
 spotless {
@@ -139,21 +142,25 @@ spotless {
     }
     kotlin {
         target("**/*.kt")
+        targetExclude("**/generated/**")
         ktlint()
     }
     kotlinGradle {
         target("**/*.kts")
+        targetExclude("**/generated/**")
         ktlint()
     }
 }
 
-private val androidLibs = setOf(
-    "lib"
-)
+private val androidLibs =
+    setOf(
+        "lib",
+    )
 
-private val androidXLibs = listOf(
-    "androidx.core:core"
-)
+private val androidXLibs =
+    listOf(
+        "androidx.core:core",
+    )
 
 /*
  * Adapted from https://github.com/androidx/androidx/blob/c799cba927a71f01ea6b421a8f83c181682633fb/buildSrc/private/src/main/kotlin/androidx/build/MavenUploadHelper.kt#L524-L549
@@ -178,22 +185,25 @@ private val androidXLibs = listOf(
 fun MavenPublishBaseExtension.assignAarTypes() {
     pom {
         withXml {
-            val dependencies = asNode().children().find {
-                it is Node && it.name().toString().endsWith("dependencies")
-            } as Node?
+            val dependencies =
+                asNode().children().find {
+                    it is Node && it.name().toString().endsWith("dependencies")
+                } as Node?
 
             dependencies?.children()?.forEach { dep ->
                 if (dep !is Node) {
                     return@forEach
                 }
-                val group = dep.children().firstOrNull {
-                    it is Node && it.name().toString().endsWith("groupId")
-                } as? Node
+                val group =
+                    dep.children().firstOrNull {
+                        it is Node && it.name().toString().endsWith("groupId")
+                    } as? Node
                 val groupValue = group?.children()?.firstOrNull() as? String
 
-                val artifactId = dep.children().firstOrNull {
-                    it is Node && it.name().toString().endsWith("artifactId")
-                } as? Node
+                val artifactId =
+                    dep.children().firstOrNull {
+                        it is Node && it.name().toString().endsWith("artifactId")
+                    } as? Node
                 val artifactIdValue = artifactId?.children()?.firstOrNull() as? String
 
                 if (artifactIdValue in androidLibs) {
@@ -204,4 +214,8 @@ fun MavenPublishBaseExtension.assignAarTypes() {
             }
         }
     }
+}
+
+apiValidation {
+    ignoredProjects.addAll(listOf("sample"))
 }
