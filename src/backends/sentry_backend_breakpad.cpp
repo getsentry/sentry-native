@@ -42,7 +42,7 @@ extern "C" {
 
 #ifdef SENTRY_PLATFORM_WINDOWS
 static bool
-sentry__breakpad_backend_callback(const wchar_t *breakpad_dump_path,
+breakpad_backend_callback(const wchar_t *breakpad_dump_path,
     const wchar_t *minidump_id, void *UNUSED(context),
     EXCEPTION_POINTERS *exinfo, MDRawAssertionInfo *UNUSED(assertion),
     bool succeeded)
@@ -227,7 +227,7 @@ breakpad_backend_startup(
 #ifdef SENTRY_PLATFORM_WINDOWS
     sentry__reserve_thread_stack();
     backend->data = new google_breakpad::ExceptionHandler(
-        current_run_folder->path, NULL, sentry__breakpad_backend_callback, NULL,
+        current_run_folder->path, NULL, breakpad_backend_callback, NULL,
         google_breakpad::ExceptionHandler::HANDLER_EXCEPTION);
 #elif defined(SENTRY_PLATFORM_MACOS)
     // If process is being debugged and there are breakpoints set it will cause
@@ -238,11 +238,11 @@ breakpad_backend_startup(
 #elif defined(SENTRY_PLATFORM_IOS)
     backend->data
         = new google_breakpad::ExceptionHandler(current_run_folder->path,
-            nullptr, sentry__breakpad_backend_callback, nullptr, true, nullptr);
+            nullptr, breakpad_backend_callback, nullptr, true, nullptr);
 #else
     google_breakpad::MinidumpDescriptor descriptor(current_run_folder->path);
-    backend->data = new google_breakpad::ExceptionHandler(descriptor, nullptr,
-        sentry__breakpad_backend_callback, nullptr, true, -1);
+    backend->data = new google_breakpad::ExceptionHandler(
+        descriptor, nullptr, breakpad_backend_callback, nullptr, true, -1);
 #endif
     return backend->data == nullptr;
 }
