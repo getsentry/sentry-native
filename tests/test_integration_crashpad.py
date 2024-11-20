@@ -103,7 +103,7 @@ def test_crashpad_crash_proxy(cmake, httpserver, run_args, proxy_status):
 
         # Apple's NSURLSession will send the request even if the socks proxy fails
         # https://forums.developer.apple.com/forums/thread/705504?answerId=712418022#712418022
-        # Windows provides fallback for both http and socks5 proxies
+        # Windows also provides fallback for http proxies
         assert len(httpserver.log) == 1
     finally:
         if proxy_process:
