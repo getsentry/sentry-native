@@ -369,8 +369,8 @@ if(WIN32)
 	endif()
 endif()
 
-include(cmake/utils.cmake)
 if (WIN32 AND SENTRY_BUILD_SHARED_LIBS)
+	include(cmake/utils.cmake)
 	sentry_add_version_resource(sentry "Client Library")
 endif()
 
