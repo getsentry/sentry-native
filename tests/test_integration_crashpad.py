@@ -90,20 +90,20 @@ def test_crashpad_crash_proxy(cmake, httpserver, run_args, proxy_status):
                 )
                 assert child.returncode  # well, it's a crash after all
         except AssertionError:
-            # only want to end up here on (http-proxy, off) tuple (we expect the request to fail)
+            # we fail on macOS/Linux if the http proxy is not running
             if run_args == ["http-proxy"] and proxy_status == ["off"]:
                 assert len(httpserver.log) == 0
                 return
+            # we only fail on linux if the socks5 proxy is not running
             elif run_args == ["socks5-proxy"] and proxy_status == ["off"]:
-                # Apple's NSURLSession will send the request even if the socks proxy fails
-                # https://forums.developer.apple.com/forums/thread/705504?answerId=712418022#712418022
-                assert len(httpserver.log) == (1 if (sys.platform == "darwin") else 0)
+                assert len(httpserver.log) == 0
                 return
 
         assert waiting.result
 
-        # there is a fallback to direct connection if the proxy fails, so we always expect a request to come through
-        # regardless of whether proxy_status is on or off
+        # Apple's NSURLSession will send the request even if the socks proxy fails
+        # https://forums.developer.apple.com/forums/thread/705504?answerId=712418022#712418022
+        # Windows provides fallback for both http and socks5 proxies
         assert len(httpserver.log) == 1
     finally:
         if proxy_process:
