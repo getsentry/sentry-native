@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Fixes**:
+
+- Fix DLL versioning for projects that add the Native SDK as a CMake subdirectory. ([#1085](https://github.com/getsentry/sentry-native/pull/1085))
+
 ## 0.7.14
 
 **Features**:

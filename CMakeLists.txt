@@ -25,6 +25,14 @@ if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
 	set(SENTRY_MAIN_PROJECT ON)
 endif()
 
+# We have 4 source directories:
+# * `CMAKE_SOURCE_DIR`: points to the directory of the top-level CMakeLists.txt of the main project.
+# * `CMAKE_CURRENT_SOURCE_DIR`: points to the directory of any CMakeLists.txt in any subdirectories.
+# * `PROJECT_SOURCE_DIR`: points to the directory of any CMakeLists.txt in any subdirectories that defined a `project`.
+# * `SENTRY_SOURCE_DIR`: points to the directory of this `CMakeLists.txt` independent of whether it was added as a
+#                        subdirectory in another project or whether we access it from one of our subdirectories.
+set(SENTRY_SOURCE_DIR ${PROJECT_SOURCE_DIR})
+
 if(NOT CMAKE_C_STANDARD)
 	set(CMAKE_C_STANDARD 11)
 endif()
