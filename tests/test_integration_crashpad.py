@@ -102,6 +102,8 @@ def test_crashpad_crash_proxy(cmake, httpserver, run_args, proxy_status):
 
         assert waiting.result
 
+        # there is a fallback to direct connection if the proxy fails, so we always expect a request to come through
+        # regardless of whether proxy_status is on or off
         assert len(httpserver.log) == 1
     finally:
         if proxy_process:
