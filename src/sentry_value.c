@@ -9,12 +9,17 @@
 #if defined(_MSC_VER)
 #    pragma warning(push)
 #    pragma warning(disable : 4127) // conditional expression is constant
+#elif defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wstatic-in-inline"
 #endif
 
 #include "../vendor/mpack.h"
 
 #if defined(_MSC_VER)
 #    pragma warning(pop)
+#elif defined(__clang__)
+#pragma clang diagnostic pop
 #endif
 
 #include "sentry_alloc.h"
