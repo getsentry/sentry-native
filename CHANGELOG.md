@@ -1,6 +1,6 @@
 # Changelog
 
-**Unreleased**:
+## Unreleased
 
 **Features**:
 - Add SOCKS5 proxy support for macOS and Linux. ([#1063](https://github.com/getsentry/sentry-native/pull/1063))
