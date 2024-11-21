@@ -11,7 +11,7 @@ function(sentry_add_version_resource TGT FILE_DESCRIPTION)
     list(GET _SENTRY_VERSION_LIST 2 SENTRY_VERSION_PATCH)
 
     # Produce the resource file with configure-time replacements
-    configure_file("${CMAKE_SOURCE_DIR}/sentry.rc.in" "${RESOURCE_PATH_TMP}" @ONLY)
+    configure_file("${SENTRY_SOURCE_DIR}/sentry.rc.in" "${RESOURCE_PATH_TMP}" @ONLY)
 
     # Replace the `ORIGINAL_FILENAME` at generate-time using the generator expression `TARGET_FILE_NAME`
     file(GENERATE OUTPUT ${RESOURCE_PATH} INPUT ${RESOURCE_PATH_TMP})
