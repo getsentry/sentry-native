@@ -975,7 +975,7 @@ SENTRY_API const char *sentry_options_get_dist(const sentry_options_t *opts);
  * Configures the proxy.
  *
  * The given proxy has to include the full scheme,
- * eg. `http://some.proxy/`or 'socks5://some.proxy/'.
+ * eg. `http://some.proxy/` or `socks5://some.proxy/`.
  *
  * Not every transport behaves the same way when configuring a proxy.
  * On Windows if a transport can't connect to the proxy it will fall back on a
