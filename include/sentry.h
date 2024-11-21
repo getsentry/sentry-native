@@ -972,9 +972,35 @@ SENTRY_API void sentry_options_set_dist_n(
 SENTRY_API const char *sentry_options_get_dist(const sentry_options_t *opts);
 
 /**
- * Configures the http proxy.
+ * Configures the proxy.
  *
- * The given proxy has to include the full scheme, eg. `http://some.proxy/`.
+ * The given proxy has to include the full scheme,
+ * eg. `http://some.proxy/` or `socks5://some.proxy/`.
+ *
+ * Not every transport behaves the same way when configuring a proxy.
+ * On Windows if a transport can't connect to the proxy it will fall back on a
+ * connection without proxy. This is also true for the crashpad_handler
+ * transport on macOS for a socks proxy, but not for a http proxy.
+ * All transports that use libcurl (Linux and the Native SDK transport on macOS)
+ * will honor the proxy settings and not fall back.
+ */
+SENTRY_API void sentry_options_set_proxy(
+    sentry_options_t *opts, const char *proxy);
+SENTRY_API void sentry_options_set_proxy_n(
+    sentry_options_t *opts, const char *proxy, size_t proxy_len);
+
+/**
+ * Returns the configured proxy.
+ */
+SENTRY_API const char *sentry_options_get_proxy(const sentry_options_t *opts);
+
+/**
+ * Configures the proxy.
+ *
+ * This is a **deprecated** alias for `sentry_options_set_proxy(_n)`.
+ *
+ * The given proxy has to include the full scheme,
+ * eg. `http://some.proxy/.
  */
 SENTRY_API void sentry_options_set_http_proxy(
     sentry_options_t *opts, const char *proxy);
@@ -982,7 +1008,7 @@ SENTRY_API void sentry_options_set_http_proxy_n(
     sentry_options_t *opts, const char *proxy, size_t proxy_len);
 
 /**
- * Returns the configured http proxy.
+ * Returns the configured proxy.
  */
 SENTRY_API const char *sentry_options_get_http_proxy(
     const sentry_options_t *opts);

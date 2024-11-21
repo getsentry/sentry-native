@@ -69,9 +69,8 @@ sentry__winhttp_transport_start(
     sentry__bgworker_setname(bgworker, opts->transport_thread_name);
 
     // ensure the proxy starts with `http://`, otherwise ignore it
-    if (opts->http_proxy
-        && strstr(opts->http_proxy, "http://") == opts->http_proxy) {
-        const char *ptr = opts->http_proxy + 7;
+    if (opts->proxy && strstr(opts->proxy, "http://") == opts->proxy) {
+        const char *ptr = opts->proxy + 7;
         const char *slash = strchr(ptr, '/');
         if (slash) {
             char *copy = sentry__string_clone_n(ptr, slash - ptr);

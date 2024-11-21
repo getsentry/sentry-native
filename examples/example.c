@@ -236,6 +236,14 @@ main(int argc, char **argv)
         sentry_options_set_sdk_name(options, "sentry.native.android.flutter");
     }
 
+    if (has_arg(argc, argv, "http-proxy")) {
+        sentry_options_set_proxy(options, "http://127.0.0.1:8080");
+    }
+
+    if (has_arg(argc, argv, "socks5-proxy")) {
+        sentry_options_set_proxy(options, "socks5://127.0.0.1:1080");
+    }
+
     sentry_init(options);
 
     if (!has_arg(argc, argv, "no-setup")) {

@@ -2,12 +2,14 @@ import itertools
 import json
 import os
 import shutil
+import sys
 import time
 import uuid
+import subprocess
 
 import pytest
 
-from . import make_dsn, run, Envelope
+from . import make_dsn, run, Envelope, is_proxy_running
 from .assertions import (
     assert_attachment,
     assert_meta,
@@ -607,3 +609,64 @@ def test_capture_minidump(cmake, httpserver):
     assert_attachment(envelope)
 
     assert_minidump(envelope)
+
+
+@pytest.mark.parametrize(
+    "run_args",
+    [
+        pytest.param(["http-proxy"]),  # HTTP proxy test runs on all platforms
+        pytest.param(
+            ["socks5-proxy"],
+            marks=pytest.mark.skipif(
+                sys.platform not in ["darwin", "linux"],
+                reason="SOCKS5 proxy tests are only supported on macOS and Linux",
+            ),
+        ),
+    ],
+)
+@pytest.mark.parametrize("proxy_status", [(["off"]), (["on"])])
+def test_capture_proxy(cmake, httpserver, run_args, proxy_status):
+    if not shutil.which("mitmdump"):
+        pytest.skip("mitmdump is not installed")
+
+    proxy_process = None  # store the proxy process to terminate it later
+
+    try:
+        if proxy_status == ["on"]:
+            # start mitmdump from terminal
+            if run_args == ["http-proxy"]:
+                proxy_process = subprocess.Popen(["mitmdump"])
+                time.sleep(5)  # Give mitmdump some time to start
+                if not is_proxy_running("localhost", 8080):
+                    pytest.fail("mitmdump (HTTP) did not start correctly")
+            elif run_args == ["socks5-proxy"]:
+                proxy_process = subprocess.Popen(["mitmdump", "--mode", "socks5"])
+                time.sleep(5)  # Give mitmdump some time to start
+                if not is_proxy_running("localhost", 1080):
+                    pytest.fail("mitmdump (SOCKS5) did not start correctly")
+
+        tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+
+        # make sure we are isolated from previous runs
+        shutil.rmtree(tmp_path / ".sentry-native", ignore_errors=True)
+
+        httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
+
+        run(
+            tmp_path,
+            "sentry_example",
+            ["log", "start-session", "capture-event"]
+            + run_args,  # only passes if given proxy is running
+            check=True,
+            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+        )
+        if proxy_status == ["on"]:
+            assert len(httpserver.log) == 2
+        elif proxy_status == ["off"]:
+            # Windows will send the request even if the proxy is not running
+            # macOS/Linux will not send the request if the proxy is not running
+            assert len(httpserver.log) == (2 if (sys.platform == "win32") else 0)
+    finally:
+        if proxy_process:
+            proxy_process.terminate()
+            proxy_process.wait()
