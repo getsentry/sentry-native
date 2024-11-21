@@ -1,7 +1,7 @@
 # Android NDK support for sentry-native
 
 | Package                       | Maven Central                                                                                                                                                                            | Minimum Android API Level | Supported ABIs                              |
-| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- | ------------------------------------------- |
+|-------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------|---------------------------------------------|
 | `io.sentry:sentry-native-ndk` | [![Maven Central](https://maven-badges.herokuapp.com/maven-central/io.sentry/sentry-native-ndk/badge.svg)](https://maven-badges.herokuapp.com/maven-central/io.sentry/sentry-native-ndk) | 19                        | "x86", "armeabi-v7a", "x86_64", "arm64-v8a" |
 
 ## Resources
@@ -29,46 +29,46 @@ The `ndk` project uses the Gradle build system in combination with CMake. You ca
 1. Set a custom `versionName` in the `ndk/gradle.properties` file
 2. Publish the package locally
 
-```shell
-cd ndk
-./gradlew :sentry-native-ndk:publishToMavenLocal
-```
+   ```shell
+   cd ndk
+   ./gradlew :sentry-native-ndk:publishToMavenLocal
+   ```
 
 3. Consume the build in your app
 
-```
-// usually settings.gradle
-allprojects {
-  repositories {
-    mavenLocal()
-  }
-}
+   ```
+   // usually settings.gradle
+   allprojects {
+     repositories {
+       mavenLocal()
+     }
+   }
 
-// usually app/build.gradle
-android {
-    buildFeatures {
-        prefab = true
-    }
-}
+   // usually app/build.gradle
+   android {
+       buildFeatures {
+           prefab = true
+       }
+   }
 
-dependencies {
-     implementation("io.sentry:sentry-native-ndk:<version>")
-}
-```
+   dependencies {
+        implementation("io.sentry:sentry-native-ndk:<version>")
+   }
+   ```
 
 4. Link the pre-built packages with your native code
 
-```cmake
-# usually app/CMakeLists.txt
+   ```cmake
+   # usually app/CMakeLists.txt
 
-find_package(sentry-native-ndk REQUIRED CONFIG)
+   find_package(sentry-native-ndk REQUIRED CONFIG)
 
-target_link_libraries(<app> PRIVATE
-    ${LOG_LIB}
-    sentry-native-ndk::sentry-android
-    sentry-native-ndk::sentry
-)
-```
+   target_link_libraries(<app> PRIVATE
+       ${LOG_LIB}
+       sentry-native-ndk::sentry-android
+       sentry-native-ndk::sentry
+   )
+   ```
 
 ## Development
 

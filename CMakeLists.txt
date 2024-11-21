@@ -6,6 +6,7 @@ if(WIN32)
 else()
 	# The Android tools ship with this ancient version, which we need to support.
 	cmake_minimum_required (VERSION 3.10)
+	cmake_policy(SET CMP0077 NEW)
 endif()
 
 #read sentry-native version
@@ -24,6 +25,14 @@ set(SENTRY_MAIN_PROJECT OFF)
 if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
 	set(SENTRY_MAIN_PROJECT ON)
 endif()
+
+# We have 4 source directories:
+# * `CMAKE_SOURCE_DIR`: points to the directory of the top-level CMakeLists.txt of the main project.
+# * `CMAKE_CURRENT_SOURCE_DIR`: points to the directory of any CMakeLists.txt in any subdirectories.
+# * `PROJECT_SOURCE_DIR`: points to the directory of any CMakeLists.txt in any subdirectories that defined a `project`.
+# * `SENTRY_SOURCE_DIR`: points to the directory of this `CMakeLists.txt` independent of whether it was added as a
+#                        subdirectory in another project or whether we access it from one of our subdirectories.
+set(SENTRY_SOURCE_DIR ${PROJECT_SOURCE_DIR})
 
 if(NOT CMAKE_C_STANDARD)
 	set(CMAKE_C_STANDARD 11)
@@ -479,6 +488,7 @@ if(SENTRY_BACKEND_CRASHPAD)
 elseif(SENTRY_BACKEND_BREAKPAD)
 	option(SENTRY_BREAKPAD_SYSTEM "Use system breakpad" OFF)
 	if(SENTRY_BREAKPAD_SYSTEM)
+		target_compile_definitions(sentry PRIVATE SENTRY_BREAKPAD_SYSTEM)
 		# system breakpad is using pkg-config, see `external/breakpad/breakpad-client.pc.in`
 		find_package(PkgConfig REQUIRED)
 		pkg_check_modules(BREAKPAD REQUIRED IMPORTED_TARGET breakpad-client)

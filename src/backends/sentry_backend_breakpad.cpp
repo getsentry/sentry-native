@@ -29,6 +29,7 @@ extern "C" {
 #elif defined(SENTRY_PLATFORM_MACOS)
 #    include "client/mac/handler/exception_handler.h"
 #    include <sys/sysctl.h>
+#    include <unistd.h>
 #elif defined(SENTRY_PLATFORM_IOS)
 #    include "client/ios/exception_handler_no_mach.h"
 #else
@@ -41,18 +42,24 @@ extern "C" {
 
 #ifdef SENTRY_PLATFORM_WINDOWS
 static bool
-sentry__breakpad_backend_callback(const wchar_t *breakpad_dump_path,
+breakpad_backend_callback(const wchar_t *breakpad_dump_path,
     const wchar_t *minidump_id, void *UNUSED(context),
     EXCEPTION_POINTERS *exinfo, MDRawAssertionInfo *UNUSED(assertion),
     bool succeeded)
 #elif defined(SENTRY_PLATFORM_DARWIN)
+#    ifdef SENTRY_BREAKPAD_SYSTEM
 static bool
-sentry__breakpad_backend_callback(const char *breakpad_dump_path,
+breakpad_backend_callback(const char *breakpad_dump_path,
     const char *minidump_id, void *UNUSED(context), bool succeeded)
+#    else
+static bool
+breakpad_backend_callback(const char *breakpad_dump_path,
+    const char *minidump_id, void *UNUSED(context),
+    breakpad_ucontext_t *user_context, bool succeeded)
+#    endif
 #else
 static bool
-sentry__breakpad_backend_callback(
-    const google_breakpad::MinidumpDescriptor &descriptor,
+breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
     void *UNUSED(context), bool succeeded)
 #endif
 {
@@ -105,6 +112,12 @@ sentry__breakpad_backend_callback(
 
         if (options->on_crash_func) {
             sentry_ucontext_t *uctx = nullptr;
+
+#if defined(SENTRY_PLATFORM_DARWIN) && !defined(SENTRY_BREAKPAD_SYSTEM)
+            sentry_ucontext_t uctx_data;
+            uctx_data.user_context = user_context;
+            uctx = &uctx_data;
+#endif
 
 #ifdef SENTRY_PLATFORM_WINDOWS
             sentry_ucontext_t uctx_data;
@@ -206,7 +219,7 @@ IsDebuggerActive()
 #endif
 
 static int
-sentry__breakpad_backend_startup(
+breakpad_backend_startup(
     sentry_backend_t *backend, const sentry_options_t *options)
 {
     sentry_path_t *current_run_folder = options->run->run_path;
@@ -214,41 +227,40 @@ sentry__breakpad_backend_startup(
 #ifdef SENTRY_PLATFORM_WINDOWS
     sentry__reserve_thread_stack();
     backend->data = new google_breakpad::ExceptionHandler(
-        current_run_folder->path, NULL, sentry__breakpad_backend_callback, NULL,
+        current_run_folder->path, NULL, breakpad_backend_callback, NULL,
         google_breakpad::ExceptionHandler::HANDLER_EXCEPTION);
 #elif defined(SENTRY_PLATFORM_MACOS)
     // If process is being debugged and there are breakpoints set it will cause
     // task_set_exception_ports to crash the whole process and debugger
-    backend->data
-        = new google_breakpad::ExceptionHandler(current_run_folder->path, NULL,
-            sentry__breakpad_backend_callback, NULL, !IsDebuggerActive(), NULL);
+    backend->data = new google_breakpad::ExceptionHandler(
+        current_run_folder->path, nullptr, breakpad_backend_callback, nullptr,
+        !IsDebuggerActive(), nullptr);
 #elif defined(SENTRY_PLATFORM_IOS)
     backend->data
-        = new google_breakpad::ExceptionHandler(current_run_folder->path, NULL,
-            sentry__breakpad_backend_callback, NULL, true, NULL);
+        = new google_breakpad::ExceptionHandler(current_run_folder->path,
+            nullptr, breakpad_backend_callback, nullptr, true, nullptr);
 #else
     google_breakpad::MinidumpDescriptor descriptor(current_run_folder->path);
     backend->data = new google_breakpad::ExceptionHandler(
-        descriptor, NULL, sentry__breakpad_backend_callback, NULL, true, -1);
+        descriptor, nullptr, breakpad_backend_callback, nullptr, true, -1);
 #endif
-    return backend->data == NULL;
+    return backend->data == nullptr;
 }
 
 static void
-sentry__breakpad_backend_shutdown(sentry_backend_t *backend)
+breakpad_backend_shutdown(sentry_backend_t *backend)
 {
-    google_breakpad::ExceptionHandler *eh
-        = (google_breakpad::ExceptionHandler *)backend->data;
-    backend->data = NULL;
+    const auto *eh
+        = static_cast<google_breakpad::ExceptionHandler *>(backend->data);
+    backend->data = nullptr;
     delete eh;
 }
 
 static void
-sentry__breakpad_backend_except(
+breakpad_backend_except(
     sentry_backend_t *backend, const sentry_ucontext_t *context)
 {
-    google_breakpad::ExceptionHandler *eh
-        = (google_breakpad::ExceptionHandler *)backend->data;
+    auto *eh = static_cast<google_breakpad::ExceptionHandler *>(backend->data);
 
 #ifdef SENTRY_PLATFORM_WINDOWS
     eh->WriteMinidumpForException(
@@ -274,15 +286,15 @@ extern "C" {
 sentry_backend_t *
 sentry__backend_new(void)
 {
-    sentry_backend_t *backend = SENTRY_MAKE(sentry_backend_t);
+    auto *backend = SENTRY_MAKE(sentry_backend_t);
     if (!backend) {
-        return NULL;
+        return nullptr;
     }
     memset(backend, 0, sizeof(sentry_backend_t));
 
-    backend->startup_func = sentry__breakpad_backend_startup;
-    backend->shutdown_func = sentry__breakpad_backend_shutdown;
-    backend->except_func = sentry__breakpad_backend_except;
+    backend->startup_func = breakpad_backend_startup;
+    backend->shutdown_func = breakpad_backend_shutdown;
+    backend->except_func = breakpad_backend_except;
 
     return backend;
 }

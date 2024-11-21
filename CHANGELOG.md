@@ -1,6 +1,23 @@
 # Changelog
 
-## Unreleased
+## 0.7.15
+
+**Fixes**:
+
+- Fix DLL versioning for projects that add the Native SDK as a CMake subdirectory. ([#1086](https://github.com/getsentry/sentry-native/pull/1086))
+
+## 0.7.14
+
+**Features**:
+
+- Android NDK: Add `.loadNativeLibraries()` method to allow pre-loading .so files ([#1082](https://github.com/getsentry/sentry-native/pull/1082))
+- Fill the `ucontext_t` field in the `sentry_ucontext_t` `[on_crash|before_send]`-hook parameter on `macOS` from the `breakpad` backend. ([#1083](https://github.com/getsentry/sentry-native/pull/1083), [breakpad#39](https://github.com/getsentry/breakpad/pull/39))
+
+**Thank you**:
+
+[saf-e](https://github.com/saf-e)
+
+## 0.7.13
 
 **Features**:
 
