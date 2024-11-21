@@ -146,8 +146,8 @@ The example currently supports the following commands:
 - `discarding-on-crash`: Installs an `on_crash()` callback that discards the crash event.
 - `override-sdk-name`: Changes the SDK name via the options at runtime.
 - `stack-overflow`: Provokes a stack-overflow.
-- `http-proxy`: Uses a localhost HTTP proxy on port 8080.
-- `socks-proxy`: Uses a localhost SOCKS proxy on port 1080.
+- `http-proxy`: Uses a localhost `HTTP` proxy on port 8080.
+- `socks5-proxy`: Uses a localhost `SOCKS5` proxy on port 1080.
 
 Only on Windows using crashpad with its WER handler module:
 
