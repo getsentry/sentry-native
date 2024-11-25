@@ -408,8 +408,8 @@ sentry__get_os_context(void)
             return os;
         }
     }
-    sentry_value_set_by_key(os, "distribution_name",
-        sentry_value_get_by_key(os_dist, "name"));
+    sentry_value_set_by_key(
+        os, "distribution_name", sentry_value_get_by_key(os_dist, "name"));
     sentry_value_set_by_key(os, "distribution_version",
         sentry_value_get_by_key(os_dist, "version"));
     sentry_value_set_by_key(os, "distribution_pretty_name",
