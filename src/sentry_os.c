@@ -408,7 +408,12 @@ sentry__get_os_context(void)
             return os;
         }
     }
-    sentry_value_set_by_key(os, "distribution", os_dist);
+    sentry_value_set_by_key(os, "distribution_name",
+        sentry_value_get_by_key(os_dist, "name"));
+    sentry_value_set_by_key(os, "distribution_version",
+        sentry_value_get_by_key(os_dist, "version"));
+    sentry_value_set_by_key(os, "distribution_pretty_name",
+        sentry_value_get_by_key(os_dist, "pretty_name"));
 #    endif // defined(SENTRY_PLATFORM_LINUX)
 
     return os;
