@@ -414,6 +414,9 @@ sentry__get_os_context(void)
         sentry_value_get_by_key(os_dist, "version"));
     sentry_value_set_by_key(os, "distribution_pretty_name",
         sentry_value_get_by_key(os_dist, "pretty_name"));
+    sentry_value_incref(sentry_value_get_by_key(os_dist, "name"));
+    sentry_value_incref(sentry_value_get_by_key(os_dist, "version"));
+    sentry_value_incref(sentry_value_get_by_key(os_dist, "pretty_name"));
 #    endif // defined(SENTRY_PLATFORM_LINUX)
 
     return os;
