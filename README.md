@@ -92,7 +92,7 @@ per platform, and can also be configured for cross-compilation.
 System-wide installation of the resulting sentry library is also possible via
 CMake.
 
-Building the Crashpad Backend requires a `C++20` compatible compiler.
+Building the Crashpad Backend [requires a `C++20` compatible compiler](https://github.com/getsentry/sentry-native/issues/1041).
 
 **Build example**:
 
