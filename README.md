@@ -42,7 +42,7 @@ Using the `sentry-native` SDK in a standalone use case is currently an experimen
 ## Downloads
 
 The SDK can be downloaded from the [Releases] page, which also lists the
-changelog of every version. If you want to use this repo directly please follow the [contribution guide](./CONTRIBUTING.md)
+changelog of every version. If you want to use this repo directly please follow the [contribution guide](./CONTRIBUTING.md).
 
 [releases]: https://github.com/getsentry/sentry-native/releases
 
@@ -92,7 +92,7 @@ per platform, and can also be configured for cross-compilation.
 System-wide installation of the resulting sentry library is also possible via
 CMake.
 
-Depending on the platform and backend, the prerequisites to building differ. You will always need CMake to actually build the code. Additionally, when using crashpad, `zlib` is required. On Linux and macOS `curl` is a prerequisite.
+Depending on the platform and backend, the prerequisites to building differ. You will always need CMake to actually build the code. Additionally, when using crashpad, `zlib` is required. On Linux and macOS `curl` is a prerequisite. For more details, check out  the [contribution guide](./CONTRIBUTING.md).
 
 Building the Crashpad Backend [requires a `C++20` compatible compiler](https://github.com/getsentry/sentry-native/issues/1041).
 
