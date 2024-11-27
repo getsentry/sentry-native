@@ -94,7 +94,7 @@ CMake.
 
 Depending on the platform and backend, the prerequisites to building differ. You will always need CMake to actually build the code. Additionally, when using crashpad, `zlib` is required. On Linux and macOS `curl` is a prerequisite. For more details, check out  the [contribution guide](./CONTRIBUTING.md).
 
-Building the Crashpad Backend [requires a `C++20` compatible compiler](https://github.com/getsentry/sentry-native/issues/1041).
+Building the Crashpad Backend [requires a `C++20` compatible compiler](https://github.com/getsentry/sentry-native/issues/1041). In particular, the standard library must support `std::ranges` for `mini_chromium` (a core library of `crashpad`).
 
 **Build example**:
 
