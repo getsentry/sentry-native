@@ -92,6 +92,8 @@ per platform, and can also be configured for cross-compilation.
 System-wide installation of the resulting sentry library is also possible via
 CMake.
 
+Depending on the platform and backend, the prerequisites to building differ. You will always need CMake to actually build the code. Additionally, when using crashpad, `zlib` is required. On Linux and macOS `curl` is a prerequisite.
+
 Building the Crashpad Backend [requires a `C++20` compatible compiler](https://github.com/getsentry/sentry-native/issues/1041).
 
 **Build example**:
