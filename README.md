@@ -42,7 +42,7 @@ Using the `sentry-native` SDK in a standalone use case is currently an experimen
 ## Downloads
 
 The SDK can be downloaded from the [Releases] page, which also lists the
-changelog of every version.
+changelog of every version. If you want to use this repo directly please follow the [contribution guide](./CONTRIBUTING.md)
 
 [releases]: https://github.com/getsentry/sentry-native/releases
 
@@ -50,13 +50,12 @@ changelog of every version.
 
 The SDK bundle contains the following folders:
 
-- `external`: These are external projects which are consumed via
-  `git submodules`.
 - `include`: Contains the Sentry header file. Set the include path to this
   directory or copy the header file to your source tree so that it is available
   during the build.
 - `src`: Sources of the Sentry SDK required for building.
 - `ndk`: Sources for the Android NDK JNI layer.
+- `external`: These are vendored dependencies fetched via git submodules (use `git submodules update --init --recursive` if you use a git clone rather than a release).
 
 ## Platform and Feature Support
 
@@ -93,7 +92,7 @@ per platform, and can also be configured for cross-compilation.
 System-wide installation of the resulting sentry library is also possible via
 CMake.
 
-Building the Crashpad Backend requires a `C++14` compatible compiler.
+Building the Crashpad Backend requires a `C++20` compatible compiler.
 
 **Build example**:
 
