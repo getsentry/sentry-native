@@ -55,7 +55,7 @@ The SDK bundle contains the following folders:
   during the build.
 - `src`: Sources of the Sentry SDK required for building.
 - `ndk`: Sources for the Android NDK JNI layer.
-- `external`: These are vendored dependencies fetched via git submodules (use `git submodules update --init --recursive` if you use a git clone rather than a release).
+- `external`: These are vendored dependencies fetched via git submodules (use `git submodule update --init --recursive` if you use a git clone rather than a release).
 
 ## Platform and Feature Support
 
