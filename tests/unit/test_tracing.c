@@ -1173,7 +1173,8 @@ SENTRY_TEST(sentry__value_span_new_requires_unfinished_parent)
     // timestamps are typically iso8601 strings, but this is irrelevant to
     // `sentry__value_span_new` which just wants `timestamp` to not be null.
     sentry_value_set_by_key(parent, "timestamp", sentry_value_new_object());
-    sentry_value_t inner_span = sentry__value_span_new(0, parent, NULL, NULL);
+    sentry_value_t inner_span
+        = sentry__value_span_new(0, parent, NULL, NULL, 0);
     TEST_CHECK(sentry_value_is_null(inner_span));
 
     sentry_value_decref(parent);

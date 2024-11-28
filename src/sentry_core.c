@@ -840,8 +840,8 @@ sentry_set_level(sentry_level_t level)
 }
 
 sentry_transaction_t *
-sentry_transaction_start(
-    sentry_transaction_context_t *opaque_tx_cxt, sentry_value_t sampling_ctx)
+sentry__transaction_start(sentry_transaction_context_t *opaque_tx_cxt,
+    sentry_value_t sampling_ctx, uint64_t timestamp)
 {
     // Just free this immediately until we implement proper support for
     // traces_sampler.
@@ -874,14 +874,29 @@ sentry_transaction_start(
 
     sentry_value_set_by_key(tx, "start_timestamp",
         sentry__value_new_string_owned(
-            sentry__usec_time_to_iso8601(sentry__usec_time())));
+            sentry__usec_time_to_iso8601(timestamp)));
 
     sentry__transaction_context_free(opaque_tx_cxt);
     return sentry__transaction_new(tx);
 }
 
+sentry_transaction_t *
+sentry_transaction_start(
+    sentry_transaction_context_t *opaque_tx_cxt, sentry_value_t sampling_ctx)
+{
+    return sentry__transaction_start(
+        opaque_tx_cxt, sampling_ctx, sentry__usec_time());
+}
+
+sentry_transaction_t *
+sentry_transaction_start_ts(sentry_transaction_context_t *opaque_tx_cxt,
+    sentry_value_t sampling_ctx, uint64_t timestamp)
+{
+    return sentry__transaction_start(opaque_tx_cxt, sampling_ctx, timestamp);
+}
+
 sentry_uuid_t
-sentry_transaction_finish(sentry_transaction_t *opaque_tx)
+sentry__transaction_finish(sentry_transaction_t *opaque_tx, uint64_t timestamp)
 {
     if (!opaque_tx || sentry_value_is_null(opaque_tx->inner)) {
         SENTRY_DEBUG("no transaction available to finish");
@@ -919,7 +934,7 @@ sentry_transaction_finish(sentry_transaction_t *opaque_tx)
     sentry_value_set_by_key(tx, "type", sentry_value_new_string("transaction"));
     sentry_value_set_by_key(tx, "timestamp",
         sentry__value_new_string_owned(
-            sentry__usec_time_to_iso8601(sentry__usec_time())));
+            sentry__usec_time_to_iso8601(timestamp)));
     // TODO: This might not actually be necessary. Revisit after talking to
     // the relay team about this.
     sentry_value_set_by_key(tx, "level", sentry_value_new_string("info"));
@@ -959,6 +974,19 @@ fail:
     return sentry_uuid_nil();
 }
 
+sentry_uuid_t
+sentry_transaction_finish(sentry_transaction_t *opaque_tx)
+{
+    return sentry__transaction_finish(opaque_tx, sentry__usec_time());
+}
+
+sentry_uuid_t
+sentry_transaction_finish_ts(
+    sentry_transaction_t *opaque_tx, uint64_t timestamp)
+{
+    return sentry__transaction_finish(opaque_tx, timestamp);
+}
+
 void
 sentry_set_transaction_object(sentry_transaction_t *tx)
 {
@@ -984,9 +1012,9 @@ sentry_set_span(sentry_span_t *span)
 }
 
 sentry_span_t *
-sentry_transaction_start_child_n(sentry_transaction_t *opaque_parent,
+sentry__transaction_start_child_n(sentry_transaction_t *opaque_parent,
     const char *operation, size_t operation_len, const char *description,
-    size_t description_len)
+    size_t description_len, uint64_t timestamp)
 {
     if (!opaque_parent || sentry_value_is_null(opaque_parent->inner)) {
         SENTRY_DEBUG("no transaction available to create a child under");
@@ -1003,8 +1031,17 @@ sentry_transaction_start_child_n(sentry_transaction_t *opaque_parent,
 
     sentry_value_t span = sentry__value_span_new_n(max_spans, parent,
         (sentry_slice_t) { operation, operation_len },
-        (sentry_slice_t) { description, description_len });
+        (sentry_slice_t) { description, description_len }, timestamp);
     return sentry__span_new(opaque_parent, span);
+}
+
+sentry_span_t *
+sentry_transaction_start_child_n(sentry_transaction_t *opaque_parent,
+    const char *operation, size_t operation_len, const char *description,
+    size_t description_len)
+{
+    return sentry__transaction_start_child_n(opaque_parent, operation,
+        operation_len, description, description_len, sentry__usec_time());
 }
 
 sentry_span_t *
@@ -1017,8 +1054,27 @@ sentry_transaction_start_child(sentry_transaction_t *opaque_parent,
 }
 
 sentry_span_t *
-sentry_span_start_child_n(sentry_span_t *opaque_parent, const char *operation,
-    size_t operation_len, const char *description, size_t description_len)
+sentry_transaction_start_child_ts_n(sentry_transaction_t *opaque_parent,
+    const char *operation, size_t operation_len, const char *description,
+    size_t description_len, const uint64_t timestamp)
+{
+    return sentry__transaction_start_child_n(opaque_parent, operation,
+        operation_len, description, description_len, timestamp);
+}
+
+sentry_span_t *
+sentry_transaction_start_child_ts(sentry_transaction_t *opaque_parent,
+    const char *operation, const char *description, const uint64_t timestamp)
+{
+    return sentry_transaction_start_child_ts_n(opaque_parent, operation,
+        sentry__guarded_strlen(operation), description,
+        sentry__guarded_strlen(description), timestamp);
+}
+
+sentry_span_t *
+sentry__span_start_child_n(sentry_span_t *opaque_parent, const char *operation,
+    size_t operation_len, const char *description, size_t description_len,
+    uint64_t timestamp)
 {
     if (!opaque_parent || sentry_value_is_null(opaque_parent->inner)) {
         SENTRY_DEBUG("no parent span available to create a child span under");
@@ -1039,9 +1095,17 @@ sentry_span_start_child_n(sentry_span_t *opaque_parent, const char *operation,
 
     sentry_value_t span = sentry__value_span_new_n(max_spans, parent,
         (sentry_slice_t) { operation, operation_len },
-        (sentry_slice_t) { description, description_len });
+        (sentry_slice_t) { description, description_len }, timestamp);
 
     return sentry__span_new(opaque_parent->transaction, span);
+}
+
+sentry_span_t *
+sentry_span_start_child_n(sentry_span_t *opaque_parent, const char *operation,
+    size_t operation_len, const char *description, size_t description_len)
+{
+    return sentry__span_start_child_n(opaque_parent, operation, operation_len,
+        description, description_len, sentry__usec_time());
 }
 
 sentry_span_t *
@@ -1053,8 +1117,26 @@ sentry_span_start_child(sentry_span_t *opaque_parent, const char *operation,
         sentry__guarded_strlen(description));
 }
 
+sentry_span_t *
+sentry_span_start_child_ts_n(sentry_span_t *opaque_parent,
+    const char *operation, size_t operation_len, const char *description,
+    size_t description_len, uint64_t timestamp)
+{
+    return sentry__span_start_child_n(opaque_parent, operation, operation_len,
+        description, description_len, timestamp);
+}
+
+sentry_span_t *
+sentry_span_start_child_ts(sentry_span_t *opaque_parent, const char *operation,
+    const char *description, uint64_t timestamp)
+{
+    return sentry_span_start_child_ts_n(opaque_parent, operation,
+        sentry__guarded_strlen(operation), description,
+        sentry__guarded_strlen(description), timestamp);
+}
+
 void
-sentry_span_finish(sentry_span_t *opaque_span)
+sentry__span_finish(sentry_span_t *opaque_span, uint64_t timestamp)
 {
     if (!opaque_span || sentry_value_is_null(opaque_span->inner)) {
         SENTRY_DEBUG("no span to finish");
@@ -1118,7 +1200,7 @@ sentry_span_finish(sentry_span_t *opaque_span)
 
     sentry_value_set_by_key(span, "timestamp",
         sentry__value_new_string_owned(
-            sentry__usec_time_to_iso8601(sentry__usec_time())));
+            sentry__usec_time_to_iso8601(timestamp)));
     sentry_value_remove_by_key(span, "sampled");
 
     size_t max_spans = SENTRY_SPANS_MAX;
@@ -1145,6 +1227,18 @@ sentry_span_finish(sentry_span_t *opaque_span)
 
 fail:
     sentry__span_decref(opaque_span);
+}
+
+void
+sentry_span_finish(sentry_span_t *opaque_span)
+{
+    sentry__span_finish(opaque_span, sentry__usec_time());
+}
+
+void
+sentry_span_finish_ts(sentry_span_t *opaque_span, uint64_t timestamp)
+{
+    sentry__span_finish(opaque_span, timestamp);
 }
 
 void

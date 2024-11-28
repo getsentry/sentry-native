@@ -1736,6 +1736,14 @@ SENTRY_EXPERIMENTAL_API void sentry_transaction_context_update_from_header_n(
  */
 SENTRY_EXPERIMENTAL_API sentry_transaction_t *sentry_transaction_start(
     sentry_transaction_context_t *tx_cxt, sentry_value_t sampling_ctx);
+/**
+ * Also starts a transaction like the regular `sentry_transaction_start`
+ * function, but has an additional timestamp parameter to let the user provide
+ * explicit timings.
+ */
+SENTRY_EXPERIMENTAL_API sentry_transaction_t *sentry_transaction_start_ts(
+    sentry_transaction_context_t *tx_cxt, sentry_value_t sampling_ctx,
+    uint64_t timestamp);
 
 /**
  * Finishes and sends a Transaction to sentry. The event ID of the Transaction
@@ -1748,6 +1756,13 @@ SENTRY_EXPERIMENTAL_API sentry_transaction_t *sentry_transaction_start(
  */
 SENTRY_EXPERIMENTAL_API sentry_uuid_t sentry_transaction_finish(
     sentry_transaction_t *tx);
+/**
+ * Also finishes a transaction like the regular `sentry_transaction_finish`
+ * function, but has an additional timestamp parameter to let the user provide
+ * explicit timings.
+ */
+SENTRY_EXPERIMENTAL_API sentry_uuid_t sentry_transaction_finish_ts(
+    sentry_transaction_t *tx, uint64_t timestamp);
 
 /**
  * Sets the Transaction so any Events sent while the Transaction
@@ -1816,6 +1831,17 @@ SENTRY_EXPERIMENTAL_API sentry_span_t *sentry_transaction_start_child(
 SENTRY_EXPERIMENTAL_API sentry_span_t *sentry_transaction_start_child_n(
     sentry_transaction_t *parent, const char *operation, size_t operation_len,
     const char *description, size_t description_len);
+/**
+ * Also starts a span like the regular `sentry_transaction_start_child_ts`
+ * functions, but has an additional timestamp parameter to let the user provide
+ * explicit timings.
+ */
+SENTRY_EXPERIMENTAL_API sentry_span_t *sentry_transaction_start_child_ts(
+    sentry_transaction_t *parent, const char *operation,
+    const char *description, uint64_t timestamp);
+SENTRY_EXPERIMENTAL_API sentry_span_t *sentry_transaction_start_child_ts_n(
+    sentry_transaction_t *parent, const char *operation, size_t operation_len,
+    const char *description, size_t description_len, uint64_t timestamp);
 
 /**
  * Starts a new Span.
@@ -1852,6 +1878,17 @@ SENTRY_EXPERIMENTAL_API sentry_span_t *sentry_span_start_child(
 SENTRY_EXPERIMENTAL_API sentry_span_t *sentry_span_start_child_n(
     sentry_span_t *parent, const char *operation, size_t operation_len,
     const char *description, size_t description_len);
+/**
+ * Also starts a span like the regular `sentry_span_start_child_ts` functions,
+ * but has an additional timestamp parameter to let the user provide explicit
+ * timings.
+ */
+SENTRY_EXPERIMENTAL_API sentry_span_t *sentry_span_start_child_ts(
+    sentry_span_t *parent, const char *operation, const char *description,
+    uint64_t timestamp);
+SENTRY_EXPERIMENTAL_API sentry_span_t *sentry_span_start_child_ts_n(
+    sentry_span_t *parent, const char *operation, size_t operation_len,
+    const char *description, size_t description_len, uint64_t timestamp);
 
 /**
  * Finishes a Span.
@@ -1864,6 +1901,12 @@ SENTRY_EXPERIMENTAL_API sentry_span_t *sentry_span_start_child_n(
  * span.
  */
 SENTRY_EXPERIMENTAL_API void sentry_span_finish(sentry_span_t *span);
+/**
+ * Also finishes a span like the regular `sentry_span_finish` function, but has
+ * an additional timestamp parameter to let the user provide explicit timings.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_span_finish_ts(
+    sentry_span_t *span, uint64_t timestamp);
 
 /**
  * Sets a tag on a Transaction to the given string value.
