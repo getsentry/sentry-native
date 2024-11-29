@@ -200,6 +200,8 @@ run_basic_function_transport_transaction(bool timestamped)
     sentry_transaction_context_t *tx_cxt = sentry_transaction_context_new(
         "How could you", "Don't capture this.");
     sentry_transaction_t *tx;
+    // TODO: `sentry_capture_event` acts as if the event was sent if user
+    //  consent was not given
     if (timestamped) {
         tx = sentry_transaction_start_ts(tx_cxt, sentry_value_new_null(), 1);
         CHECK_STRING_PROPERTY(
@@ -237,6 +239,8 @@ run_basic_function_transport_transaction(bool timestamped)
     sentry_user_consent_revoke();
     tx_cxt = sentry_transaction_context_new(
         "How could you again", "Don't capture this either.");
+    // TODO: `sentry_capture_event` acts as if the event was sent if user
+    //  consent was not given
     if (timestamped) {
         tx = sentry_transaction_start_ts(tx_cxt, sentry_value_new_null(), 5);
         CHECK_STRING_PROPERTY(
@@ -532,6 +536,7 @@ run_child_spans_test(bool timestamped)
     }
     sentry_value_t child = opaque_child->inner;
     TEST_CHECK(!sentry_value_is_null(child));
+    // Shouldn't be added to spans yet
     TEST_CHECK(IS_NULL(tx, "spans"));
 
     sentry_span_t *opaque_grandchild;
@@ -546,6 +551,7 @@ run_child_spans_test(bool timestamped)
     }
     sentry_value_t grandchild = opaque_grandchild->inner;
     TEST_CHECK(!sentry_value_is_null(grandchild));
+    // Shouldn't be added to spans yet
     TEST_CHECK(IS_NULL(tx, "spans"));
 
     if (timestamped) {
@@ -554,6 +560,7 @@ run_child_spans_test(bool timestamped)
         sentry_span_finish(opaque_grandchild);
     }
 
+    // Make sure everything on the transaction looks good, check grandchild
     const char *trace_id
         = sentry_value_as_string(sentry_value_get_by_key(tx, "trace_id"));
     const char *parent_span_id
@@ -568,6 +575,7 @@ run_child_spans_test(bool timestamped)
     CHECK_STRING_PROPERTY(stored_grandchild, "parent_span_id", parent_span_id);
     CHECK_STRING_PROPERTY(stored_grandchild, "op", "beep");
     CHECK_STRING_PROPERTY(stored_grandchild, "description", "car");
+    // Should be finished
     TEST_CHECK(!IS_NULL(stored_grandchild, "timestamp"));
 
     if (timestamped) {
