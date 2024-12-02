@@ -1740,6 +1740,8 @@ SENTRY_EXPERIMENTAL_API sentry_transaction_t *sentry_transaction_start(
  * Also starts a transaction like the regular `sentry_transaction_start`
  * function, but has an additional timestamp parameter to let the user provide
  * explicit timings.
+ *
+ * The timestamp should be provided in microseconds since the Unix epoch.
  */
 SENTRY_EXPERIMENTAL_API sentry_transaction_t *sentry_transaction_start_ts(
     sentry_transaction_context_t *tx_cxt, sentry_value_t sampling_ctx,
@@ -1760,6 +1762,8 @@ SENTRY_EXPERIMENTAL_API sentry_uuid_t sentry_transaction_finish(
  * Also finishes a transaction like the regular `sentry_transaction_finish`
  * function, but has an additional timestamp parameter to let the user provide
  * explicit timings.
+ *
+ * The timestamp should be provided in microseconds since the Unix epoch.
  */
 SENTRY_EXPERIMENTAL_API sentry_uuid_t sentry_transaction_finish_ts(
     sentry_transaction_t *tx, uint64_t timestamp);
@@ -1835,6 +1839,8 @@ SENTRY_EXPERIMENTAL_API sentry_span_t *sentry_transaction_start_child_n(
  * Also starts a span like the regular `sentry_transaction_start_child_ts`
  * functions, but has an additional timestamp parameter to let the user provide
  * explicit timings.
+ *
+ * The timestamp should be provided in microseconds since the Unix epoch.
  */
 SENTRY_EXPERIMENTAL_API sentry_span_t *sentry_transaction_start_child_ts(
     sentry_transaction_t *parent, const char *operation,
@@ -1882,6 +1888,8 @@ SENTRY_EXPERIMENTAL_API sentry_span_t *sentry_span_start_child_n(
  * Also starts a span like the regular `sentry_span_start_child_ts` functions,
  * but has an additional timestamp parameter to let the user provide explicit
  * timings.
+ *
+ * The timestamp should be provided in microseconds since the Unix epoch.
  */
 SENTRY_EXPERIMENTAL_API sentry_span_t *sentry_span_start_child_ts(
     sentry_span_t *parent, const char *operation, const char *description,
@@ -1904,6 +1912,8 @@ SENTRY_EXPERIMENTAL_API void sentry_span_finish(sentry_span_t *span);
 /**
  * Also finishes a span like the regular `sentry_span_finish` function, but has
  * an additional timestamp parameter to let the user provide explicit timings.
+ *
+ * The timestamp should be provided in microseconds since the Unix epoch.
  */
 SENTRY_EXPERIMENTAL_API void sentry_span_finish_ts(
     sentry_span_t *span, uint64_t timestamp);
