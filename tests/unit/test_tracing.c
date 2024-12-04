@@ -180,7 +180,8 @@ send_transaction_envelope_test_basic(sentry_envelope_t *envelope, void *data)
     sentry_envelope_free(envelope);
 }
 
-SENTRY_TEST(basic_function_transport_transaction)
+void
+run_basic_function_transport_transaction(bool timestamped)
 {
     uint64_t called = 0;
 
@@ -198,35 +199,72 @@ SENTRY_TEST(basic_function_transport_transaction)
 
     sentry_transaction_context_t *tx_cxt = sentry_transaction_context_new(
         "How could you", "Don't capture this.");
-    sentry_transaction_t *tx
-        = sentry_transaction_start(tx_cxt, sentry_value_new_null());
-    sentry_uuid_t event_id = sentry_transaction_finish(tx);
+    sentry_transaction_t *tx;
     // TODO: `sentry_capture_event` acts as if the event was sent if user
-    // consent was not given
-    TEST_CHECK(!sentry_uuid_is_nil(&event_id));
+    //  consent was not given
+    if (timestamped) {
+        tx = sentry_transaction_start_ts(tx_cxt, sentry_value_new_null(), 1);
+        CHECK_STRING_PROPERTY(
+            tx->inner, "start_timestamp", "1970-01-01T00:00:00.000001Z");
+        sentry_uuid_t event_id = sentry_transaction_finish_ts(tx, 2);
+        TEST_CHECK(!sentry_uuid_is_nil(&event_id));
+    } else {
+        tx = sentry_transaction_start(tx_cxt, sentry_value_new_null());
+        sentry_uuid_t event_id = sentry_transaction_finish(tx);
+        TEST_CHECK(!sentry_uuid_is_nil(&event_id));
+    }
+
     sentry_user_consent_give();
     char name[] = { 'h', 'o', 'n', 'k' };
     char op[] = { 'b', 'e', 'e', 'p' };
     tx_cxt
         = sentry_transaction_context_new_n(name, sizeof(name), op, sizeof(op));
-    tx = sentry_transaction_start(tx_cxt, sentry_value_new_null());
+    if (timestamped) {
+        tx = sentry_transaction_start_ts(tx_cxt, sentry_value_new_null(), 3);
+        CHECK_STRING_PROPERTY(
+            tx->inner, "start_timestamp", "1970-01-01T00:00:00.000003Z");
+    } else {
+        tx = sentry_transaction_start(tx_cxt, sentry_value_new_null());
+    }
     CHECK_STRING_PROPERTY(tx->inner, "transaction", "honk");
     CHECK_STRING_PROPERTY(tx->inner, "op", "beep");
-    event_id = sentry_transaction_finish(tx);
-    TEST_CHECK(!sentry_uuid_is_nil(&event_id));
+    if (timestamped) {
+        sentry_uuid_t event_id = sentry_transaction_finish_ts(tx, 4);
+        TEST_CHECK(!sentry_uuid_is_nil(&event_id));
+    } else {
+        sentry_uuid_t event_id = sentry_transaction_finish(tx);
+        TEST_CHECK(!sentry_uuid_is_nil(&event_id));
+    }
 
     sentry_user_consent_revoke();
     tx_cxt = sentry_transaction_context_new(
         "How could you again", "Don't capture this either.");
-    tx = sentry_transaction_start(tx_cxt, sentry_value_new_null());
-    event_id = sentry_transaction_finish(tx);
     // TODO: `sentry_capture_event` acts as if the event was sent if user
-    // consent was not given
-    TEST_CHECK(!sentry_uuid_is_nil(&event_id));
+    //  consent was not given
+    if (timestamped) {
+        tx = sentry_transaction_start_ts(tx_cxt, sentry_value_new_null(), 5);
+        CHECK_STRING_PROPERTY(
+            tx->inner, "start_timestamp", "1970-01-01T00:00:00.000005Z");
+        sentry_uuid_t event_id = sentry_transaction_finish_ts(tx, 6);
+        TEST_CHECK(!sentry_uuid_is_nil(&event_id));
+    } else {
+        tx = sentry_transaction_start(tx_cxt, sentry_value_new_null());
+        sentry_uuid_t event_id = sentry_transaction_finish(tx);
+        TEST_CHECK(!sentry_uuid_is_nil(&event_id));
+    }
 
     sentry_close();
 
     TEST_CHECK_INT_EQUAL(called, 1);
+}
+SENTRY_TEST(basic_function_transport_transaction)
+{
+    run_basic_function_transport_transaction(false);
+}
+
+SENTRY_TEST(basic_function_transport_transaction_ts)
+{
+    run_basic_function_transport_transaction(true);
 }
 
 SENTRY_TEST(transport_sampling_transactions)
@@ -464,7 +502,8 @@ SENTRY_TEST(spans_on_scope)
     sentry_close();
 }
 
-SENTRY_TEST(child_spans)
+void
+run_child_spans_test(bool timestamped)
 {
     sentry_options_t *options = sentry_options_new();
     sentry_options_set_traces_sample_rate(options, 1.0);
@@ -473,25 +512,53 @@ SENTRY_TEST(child_spans)
 
     sentry_transaction_context_t *opaque_tx_cxt
         = sentry_transaction_context_new("wow!", NULL);
-    sentry_transaction_t *opaque_tx
-        = sentry_transaction_start(opaque_tx_cxt, sentry_value_new_null());
+    sentry_transaction_t *opaque_tx;
+    if (timestamped) {
+        opaque_tx = sentry_transaction_start_ts(
+            opaque_tx_cxt, sentry_value_new_null(), 1);
+        CHECK_STRING_PROPERTY(
+            opaque_tx->inner, "start_timestamp", "1970-01-01T00:00:00.000001Z");
+    } else {
+        opaque_tx
+            = sentry_transaction_start(opaque_tx_cxt, sentry_value_new_null());
+    }
     sentry_value_t tx = opaque_tx->inner;
 
-    sentry_span_t *opaque_child
-        = sentry_transaction_start_child(opaque_tx, "honk", "goose");
+    sentry_span_t *opaque_child;
+    if (timestamped) {
+        opaque_child
+            = sentry_transaction_start_child_ts(opaque_tx, "honk", "goose", 2);
+        CHECK_STRING_PROPERTY(opaque_child->inner, "start_timestamp",
+            "1970-01-01T00:00:00.000002Z");
+    } else {
+        opaque_child
+            = sentry_transaction_start_child(opaque_tx, "honk", "goose");
+    }
     sentry_value_t child = opaque_child->inner;
     TEST_CHECK(!sentry_value_is_null(child));
     // Shouldn't be added to spans yet
     TEST_CHECK(IS_NULL(tx, "spans"));
 
-    sentry_span_t *opaque_grandchild
-        = sentry_span_start_child(opaque_child, "beep", "car");
+    sentry_span_t *opaque_grandchild;
+    if (timestamped) {
+        opaque_grandchild
+            = sentry_span_start_child_ts(opaque_child, "beep", "car", 3);
+        CHECK_STRING_PROPERTY(opaque_grandchild->inner, "start_timestamp",
+            "1970-01-01T00:00:00.000003Z");
+    } else {
+        opaque_grandchild
+            = sentry_span_start_child(opaque_child, "beep", "car");
+    }
     sentry_value_t grandchild = opaque_grandchild->inner;
     TEST_CHECK(!sentry_value_is_null(grandchild));
     // Shouldn't be added to spans yet
     TEST_CHECK(IS_NULL(tx, "spans"));
 
-    sentry_span_finish(opaque_grandchild);
+    if (timestamped) {
+        sentry_span_finish_ts(opaque_grandchild, 4);
+    } else {
+        sentry_span_finish(opaque_grandchild);
+    }
 
     // Make sure everything on the transaction looks good, check grandchild
     const char *trace_id
@@ -511,14 +578,21 @@ SENTRY_TEST(child_spans)
     // Should be finished
     TEST_CHECK(!IS_NULL(stored_grandchild, "timestamp"));
 
-    sentry_span_finish(opaque_child);
+    if (timestamped) {
+        sentry_span_finish_ts(opaque_child, 5);
+    } else {
+        sentry_span_finish(opaque_child);
+    }
     spans = sentry_value_get_by_key(tx, "spans");
     TEST_CHECK_INT_EQUAL(sentry_value_get_length(spans), 2);
 
     sentry__transaction_decref(opaque_tx);
-
     sentry_close();
 }
+
+SENTRY_TEST(child_spans) { run_child_spans_test(false); }
+
+SENTRY_TEST(child_spans_ts) { run_child_spans_test(true); }
 
 SENTRY_TEST(overflow_spans)
 {
@@ -1173,7 +1247,8 @@ SENTRY_TEST(sentry__value_span_new_requires_unfinished_parent)
     // timestamps are typically iso8601 strings, but this is irrelevant to
     // `sentry__value_span_new` which just wants `timestamp` to not be null.
     sentry_value_set_by_key(parent, "timestamp", sentry_value_new_object());
-    sentry_value_t inner_span = sentry__value_span_new(0, parent, NULL, NULL);
+    sentry_value_t inner_span
+        = sentry__value_span_new(0, parent, NULL, NULL, 0);
     TEST_CHECK(sentry_value_is_null(inner_span));
 
     sentry_value_decref(parent);

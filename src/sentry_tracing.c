@@ -356,7 +356,7 @@ sentry__span_new(sentry_transaction_t *tx, sentry_value_t inner)
 
 sentry_value_t
 sentry__value_span_new_n(size_t max_spans, sentry_value_t parent,
-    sentry_slice_t operation, sentry_slice_t description)
+    sentry_slice_t operation, sentry_slice_t description, uint64_t timestamp)
 {
     if (!sentry_value_is_null(sentry_value_get_by_key(parent, "timestamp"))) {
         SENTRY_DEBUG("span's parent is already finished, not creating span");
@@ -378,7 +378,7 @@ sentry__value_span_new_n(size_t max_spans, sentry_value_t parent,
         sentry_value_new_string_n(description.ptr, description.len));
     sentry_value_set_by_key(child, "start_timestamp",
         sentry__value_new_string_owned(
-            sentry__usec_time_to_iso8601(sentry__usec_time())));
+            sentry__usec_time_to_iso8601(timestamp)));
 
     return child;
 fail:
@@ -387,10 +387,11 @@ fail:
 
 sentry_value_t
 sentry__value_span_new(size_t max_spans, sentry_value_t parent,
-    const char *operation, const char *description)
+    const char *operation, const char *description, uint64_t timestamp)
 {
     return sentry__value_span_new_n(max_spans, parent,
-        sentry__slice_from_str(operation), sentry__slice_from_str(description));
+        sentry__slice_from_str(operation), sentry__slice_from_str(description),
+        timestamp);
 }
 
 sentry_value_t

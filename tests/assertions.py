@@ -205,8 +205,9 @@ def assert_minidump(envelope):
     assert minidump.payload.bytes.startswith(b"MDMP")
 
 
-def assert_timestamp(ts, now=datetime.now(UTC)):
-    assert ts[:11] == now.isoformat()[:11]
+def assert_timestamp(ts):
+    elapsed_time = datetime.now(UTC) - datetime.fromisoformat(ts)
+    assert elapsed_time.total_seconds() < 10
 
 
 def assert_event(envelope, message="Hello World!"):
