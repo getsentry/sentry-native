@@ -1,5 +1,6 @@
 #include "sentry_slice.h"
 #include "sentry_string.h"
+#include "sentry_utils.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -16,6 +17,14 @@ char *
 sentry__slice_to_owned(sentry_slice_t slice)
 {
     return sentry__string_clone_n_unchecked(slice.ptr, slice.len);
+}
+
+void
+sentry__slice_to_buffer(sentry_slice_t slice, char *buffer, size_t buffer_len)
+{
+    size_t copy_len = MIN(slice.len, buffer_len - 1);
+    strncpy(buffer, slice.ptr, copy_len);
+    buffer[copy_len] = 0;
 }
 
 bool

@@ -1,6 +1,12 @@
 #include "sentry_os.h"
+#include "sentry_slice.h"
 #include "sentry_string.h"
-#include "sentry_utils.h"
+#if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_WINDOWS)
+#    include "sentry_utils.h"
+#endif
+#ifdef SENTRY_PLATFORM_LINUX
+#    include <unistd.h>
+#endif
 
 #ifdef SENTRY_PLATFORM_WINDOWS
 
@@ -256,7 +262,122 @@ fail:
 }
 #elif defined(SENTRY_PLATFORM_UNIX)
 
+#    include <fcntl.h>
 #    include <sys/utsname.h>
+
+#    if defined(SENTRY_PLATFORM_LINUX)
+#        define OS_RELEASE_MAX_LINE_SIZE 256
+#        define OS_RELEASE_MAX_KEY_SIZE 64
+#        define OS_RELEASE_MAX_VALUE_SIZE 128
+
+static int
+parse_os_release_line(const char *line, char *key, char *value)
+{
+    const char *equals = strchr(line, '=');
+    if (equals == NULL)
+        return 1;
+
+    unsigned long key_length = MIN(equals - line, OS_RELEASE_MAX_KEY_SIZE - 1);
+    strncpy(key, line, key_length);
+    key[key_length] = '\0';
+
+    sentry_slice_t value_slice
+        = { .ptr = equals + 1, .len = strlen(equals + 1) };
+
+    // some values are wrapped in double quotes
+    if (value_slice.ptr[0] == '\"') {
+        value_slice.ptr++;
+        value_slice.len -= 2;
+    }
+
+    sentry__slice_to_buffer(value_slice, value, OS_RELEASE_MAX_VALUE_SIZE);
+
+    return 0;
+}
+
+static void
+parse_line_into_object(const char *line, sentry_value_t os_dist)
+{
+    char value[OS_RELEASE_MAX_VALUE_SIZE];
+    char key[OS_RELEASE_MAX_KEY_SIZE];
+
+    if (parse_os_release_line(line, key, value) == 0) {
+        if (strcmp(key, "ID") == 0) {
+            sentry_value_set_by_key(
+                os_dist, "name", sentry_value_new_string(value));
+        }
+
+        if (strcmp(key, "VERSION_ID") == 0) {
+            sentry_value_set_by_key(
+                os_dist, "version", sentry_value_new_string(value));
+        }
+
+        if (strcmp(key, "PRETTY_NAME") == 0) {
+            sentry_value_set_by_key(
+                os_dist, "pretty_name", sentry_value_new_string(value));
+        }
+    }
+}
+
+#        ifndef SENTRY_UNITTEST
+static
+#        endif
+    sentry_value_t
+    get_linux_os_release(const char *os_rel_path)
+{
+    const int fd = open(os_rel_path, O_RDONLY);
+    if (fd == -1) {
+        return sentry_value_new_null();
+    }
+
+    sentry_value_t os_dist = sentry_value_new_object();
+    char buffer[OS_RELEASE_MAX_LINE_SIZE];
+    ssize_t bytes_read;
+    ssize_t buffer_rest = 0;
+    const char *line = buffer;
+    while ((bytes_read = read(
+                fd, buffer + buffer_rest, sizeof(buffer) - buffer_rest - 1))
+        > 0) {
+        ssize_t buffer_end = buffer_rest + bytes_read;
+        buffer[buffer_end] = '\0';
+
+        // extract all lines from the valid buffer-range and parse them
+        for (char *p = buffer; *p; ++p) {
+            if (*p != '\n') {
+                continue;
+            }
+            *p = '\0';
+            parse_line_into_object(line, os_dist);
+            line = p + 1;
+        }
+
+        if (line < buffer + buffer_end) {
+            // move the remaining partial line to the start of the buffer
+            buffer_rest = buffer + buffer_end - line;
+            memmove(buffer, line, buffer_rest);
+        } else {
+            // reset buffer_rest: the line-end coincided with the buffer-end
+            buffer_rest = 0;
+        }
+        line = buffer;
+    }
+
+    if (bytes_read == -1) {
+        // read() failed and we can't assume to have valid data
+        sentry_value_decref(os_dist);
+        os_dist = sentry_value_new_null();
+    } else if (buffer_rest > 0) {
+        // the file ended w/o a new-line; we still have a line left to parse
+        buffer[buffer_rest] = '\0';
+        parse_line_into_object(line, os_dist);
+    }
+
+    close(fd);
+
+    return os_dist;
+}
+
+#    endif // defined(SENTRY_PLATFORM_LINUX)
 
 sentry_value_t
 sentry__get_os_context(void)
@@ -297,6 +418,35 @@ sentry__get_os_context(void)
     sentry_value_set_by_key(os, "name", sentry_value_new_string(uts.sysname));
     sentry_value_set_by_key(
         os, "version", sentry_value_new_string(uts.release));
+
+#    if defined(SENTRY_PLATFORM_LINUX)
+    /**
+     * The file /etc/os-release takes precedence over /usr/lib/os-release.
+     * Applications should check for the former, and exclusively use its data if
+     * it exists, and only fall back to /usr/lib/os-release if it is missing.
+     * Applications should not read data from both files at the same time.
+     *
+     * From:
+     * https://www.freedesktop.org/software/systemd/man/latest/os-release.html#Description
+     */
+    sentry_value_t os_dist = get_linux_os_release("/etc/os-release");
+    if (sentry_value_is_null(os_dist)) {
+        os_dist = get_linux_os_release("/usr/lib/os-release");
+        if (sentry_value_is_null(os_dist)) {
+            return os;
+        }
+    }
+    sentry_value_set_by_key(
+        os, "distribution_name", sentry_value_get_by_key(os_dist, "name"));
+    sentry_value_set_by_key(os, "distribution_version",
+        sentry_value_get_by_key(os_dist, "version"));
+    sentry_value_set_by_key(os, "distribution_pretty_name",
+        sentry_value_get_by_key(os_dist, "pretty_name"));
+    sentry_value_incref(sentry_value_get_by_key(os_dist, "name"));
+    sentry_value_incref(sentry_value_get_by_key(os_dist, "version"));
+    sentry_value_incref(sentry_value_get_by_key(os_dist, "pretty_name"));
+    sentry_value_decref(os_dist);
+#    endif // defined(SENTRY_PLATFORM_LINUX)
 
     return os;
 
