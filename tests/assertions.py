@@ -3,9 +3,8 @@ import gzip
 import platform
 import re
 import sys
-import time
 from dataclasses import dataclass
-from datetime import datetime, UTC, timedelta, timezone
+from datetime import datetime, UTC
 
 import msgpack
 
@@ -207,7 +206,7 @@ def assert_minidump(envelope):
 
 
 def assert_timestamp(ts):
-    elapsed_time = datetime.now(timezone.utc) - datetime.fromisoformat(ts)
+    elapsed_time = datetime.now(UTC) - datetime.fromisoformat(ts)
     assert elapsed_time.total_seconds() < 10
 
 
