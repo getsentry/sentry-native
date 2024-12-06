@@ -64,16 +64,26 @@ public final class io/sentry/ndk/NativeScope : io/sentry/ndk/INativeScope {
 	public fun setUser (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
 }
 
+public final class io/sentry/ndk/NdkHandlerStrategy : java/lang/Enum {
+	public static final field SENTRY_HANDLER_STRATEGY_CHAIN_AT_START Lio/sentry/ndk/NdkHandlerStrategy;
+	public static final field SENTRY_HANDLER_STRATEGY_DEFAULT Lio/sentry/ndk/NdkHandlerStrategy;
+	public fun getValue ()I
+	public static fun valueOf (Ljava/lang/String;)Lio/sentry/ndk/NdkHandlerStrategy;
+	public static fun values ()[Lio/sentry/ndk/NdkHandlerStrategy;
+}
+
 public final class io/sentry/ndk/NdkOptions {
 	public fun <init> (Ljava/lang/String;ZLjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/String;)V
 	public fun getDist ()Ljava/lang/String;
 	public fun getDsn ()Ljava/lang/String;
 	public fun getEnvironment ()Ljava/lang/String;
 	public fun getMaxBreadcrumbs ()I
+	public fun getNdkHandlerStrategy ()I
 	public fun getOutboxPath ()Ljava/lang/String;
 	public fun getRelease ()Ljava/lang/String;
 	public fun getSdkName ()Ljava/lang/String;
 	public fun isDebug ()Z
+	public fun setNdkHandlerStrategy (Lio/sentry/ndk/NdkHandlerStrategy;)V
 }
 
 public final class io/sentry/ndk/SentryNdk {
