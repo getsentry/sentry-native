@@ -10,8 +10,10 @@
 
 #ifdef SENTRY_PLATFORM_WINDOWS
 
-#    include <windows.h>
-#    define CURRENT_VERSION "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion"
+#    if !defined(_GAMING_XBOX_SCARLETT)
+#        include <windows.h>
+#        define CURRENT_VERSION                                                \
+            "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion"
 
 void *
 sentry__try_file_version(const LPCWSTR filename)
@@ -102,6 +104,8 @@ sentry__get_windows_version(windows_version_t *win_ver)
     return 1;
 }
 
+#    endif // !defined(_GAMING_XBOX_SCARLETT)
+
 sentry_value_t
 sentry__get_os_context(void)
 {
@@ -109,6 +113,25 @@ sentry__get_os_context(void)
     if (sentry_value_is_null(os)) {
         return os;
     }
+
+#    if defined(_GAMING_XBOX_SCARLETT)
+#        pragma warning(push)
+#        pragma warning(disable : 4996)
+    sentry_value_set_by_key(os, "name", sentry_value_new_string("Windows"));
+    OSVERSIONINFO os_ver = { 0 };
+    char buf[128];
+    buf[0] = 0;
+    os_ver.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
+    GetVersionEx(&os_ver);
+    snprintf(buf, sizeof(buf), "%u.%u.%u", os_ver.dwMajorVersion,
+        os_ver.dwMinorVersion, os_ver.dwBuildNumber);
+    sentry_value_set_by_key(os, "version", sentry_value_new_string(buf));
+
+    sentry_value_freeze(os);
+    return os;
+#        pragma warning(pop)
+#    else
+
     sentry_value_set_by_key(os, "name", sentry_value_new_string("Windows"));
 
     bool at_least_one_key_successful = false;
@@ -141,6 +164,7 @@ sentry__get_os_context(void)
 
     sentry_value_decref(os);
     return sentry_value_new_null();
+#    endif // defined(_GAMING_XBOX_SCARLETT)
 }
 
 void
@@ -155,7 +179,7 @@ sentry__reserve_thread_stack(void)
     }
 }
 
-#    if defined(SENTRY_BUILD_SHARED)
+#    if defined(SENTRY_BUILD_SHARED) && !defined(_GAMING_XBOX_SCARLETT)
 
 BOOL APIENTRY
 DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserved)
@@ -174,7 +198,7 @@ DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserved)
     return TRUE;
 }
 
-#    endif // defined(SENTRY_BUILD_SHARED)
+#    endif // defined(SENTRY_BUILD_SHARED) && !defined(_GAMING_XBOX_SCARLETT)
 
 static void(WINAPI *g_kernel32_GetSystemTimePreciseAsFileTime)(LPFILETIME)
     = NULL;

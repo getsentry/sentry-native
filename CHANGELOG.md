@@ -3,13 +3,14 @@
 ## Unreleased
 
 **Features**:
-- [NDK] Expose option to set handler strategy ([#1099](https://github.com/getsentry/sentry-native/pull/1099))
+- [NDK] Expose option to set handler strategy. ([#1099](https://github.com/getsentry/sentry-native/pull/1099))
+- Add support for Xbox Series X/S. ([#1100](https://github.com/getsentry/sentry-native/pull/1100))
 
 ## 0.7.16
 
 **Features**:
 - Add SOCKS5 proxy support for macOS and Linux. ([#1063](https://github.com/getsentry/sentry-native/pull/1063))
-- Extend performance API with explicit timings ([#1093](https://github.com/getsentry/sentry-native/pull/1093))
+- Extend performance API with explicit timings. ([#1093](https://github.com/getsentry/sentry-native/pull/1093))
 
 ## 0.7.15
 
@@ -21,7 +22,7 @@
 
 **Features**:
 
-- Android NDK: Add `.loadNativeLibraries()` method to allow pre-loading .so files ([#1082](https://github.com/getsentry/sentry-native/pull/1082))
+- Android NDK: Add `.loadNativeLibraries()` method to allow pre-loading .so files. ([#1082](https://github.com/getsentry/sentry-native/pull/1082))
 - Fill the `ucontext_t` field in the `sentry_ucontext_t` `[on_crash|before_send]`-hook parameter on `macOS` from the `breakpad` backend. ([#1083](https://github.com/getsentry/sentry-native/pull/1083), [breakpad#39](https://github.com/getsentry/breakpad/pull/39))
 
 **Thank you**:
