@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- Add support for Xbox Series X/S. ([#1100](https://github.com/getsentry/sentry-native/pull/1100))
+
 ## 0.7.17
 
 **Features**:
