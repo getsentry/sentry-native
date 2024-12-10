@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+**Fixes**:
+- Add metadata pointer check to prevent crash on cleaning crashpad database. ([crashpad#1064](https://github.com/getsentry/sentry-native/issues/1064))
+
 ## 0.7.16
 
 **Features**:
