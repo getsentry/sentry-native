@@ -253,6 +253,8 @@ Java_io_sentry_ndk_SentryNdk_initSentryNative(
     jmethodID native_sdk_name_mid = (*env)->GetMethodID(env, options_cls, "getSdkName",
                                                         "()Ljava/lang/String;");
 
+    jmethodID handler_strategy_mid = (*env)->GetMethodID(env, options_cls, "getNdkHandlerStrategy", "()I");
+
     (*env)->DeleteLocalRef(env, options_cls);
 
     char *outbox_path = NULL;
@@ -331,6 +333,9 @@ Java_io_sentry_ndk_SentryNdk_initSentryNative(
         sentry_options_set_sdk_name(options, native_sdk_name_str);
         sentry_free(native_sdk_name_str);
     }
+
+    jint handler_strategy = (jint) (*env)->CallIntMethod(env, sentry_ndk_options, handler_strategy_mid);
+    sentry_options_set_handler_strategy(options, handler_strategy);
 
     sentry_init(options);
     return;

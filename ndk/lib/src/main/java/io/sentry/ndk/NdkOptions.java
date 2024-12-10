@@ -12,6 +12,8 @@ public final class NdkOptions {
   private final @Nullable String dist;
   private final int maxBreadcrumbs;
   private final @Nullable String sdkName;
+  private NdkHandlerStrategy ndkHandlerStrategy =
+      NdkHandlerStrategy.SENTRY_HANDLER_STRATEGY_DEFAULT;
 
   public NdkOptions(
       @NotNull String dsn,
@@ -68,5 +70,13 @@ public final class NdkOptions {
   @Nullable
   public String getSdkName() {
     return sdkName;
+  }
+
+  public void setNdkHandlerStrategy(final @NotNull NdkHandlerStrategy ndkHandlerStrategy) {
+    this.ndkHandlerStrategy = ndkHandlerStrategy;
+  }
+
+  public int getNdkHandlerStrategy() {
+    return ndkHandlerStrategy.getValue();
   }
 }

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+- [NDK] Expose option to set handler strategy ([#1099](https://github.com/getsentry/sentry-native/pull/1099))
+- Add Linux distributions to the OS context. [#963](https://github.com/getsentry/sentry-native/pull/963)
+
 **Fixes**:
 - Add metadata pointer check to prevent crash on cleaning crashpad database. ([crashpad#1064](https://github.com/getsentry/sentry-native/issues/1064))
 
@@ -120,7 +124,6 @@
 
 **Features**:
 
-- Add Linux distributions to the OS context. [#963](https://github.com/getsentry/sentry-native/pull/963)
 - Change the timestamp resolution to microseconds. ([#995](https://github.com/getsentry/sentry-native/pull/995))
 
 **Internal**:
