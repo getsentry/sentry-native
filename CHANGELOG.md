@@ -3,12 +3,19 @@
 ## Unreleased
 
 **Features**:
+
 - [NDK] Expose option to set handler strategy. ([#1099](https://github.com/getsentry/sentry-native/pull/1099))
+- Add Linux distributions to the OS context. [#963](https://github.com/getsentry/sentry-native/pull/963)
 - Add support for Xbox Series X/S. ([#1100](https://github.com/getsentry/sentry-native/pull/1100))
+
+**Fixes**:
+
+- Add metadata pointer check to prevent crash on cleaning crashpad database. ([#1102](https://github.com/getsentry/sentry-native/pull/1102), [crashpad#1064](https://github.com/getsentry/sentry-native/issues/1064))
 
 ## 0.7.16
 
 **Features**:
+
 - Add SOCKS5 proxy support for macOS and Linux. ([#1063](https://github.com/getsentry/sentry-native/pull/1063))
 - Extend performance API with explicit timings. ([#1093](https://github.com/getsentry/sentry-native/pull/1093))
 
@@ -121,7 +128,6 @@
 
 **Features**:
 
-- Add Linux distributions to the OS context. [#963](https://github.com/getsentry/sentry-native/pull/963)
 - Change the timestamp resolution to microseconds. ([#995](https://github.com/getsentry/sentry-native/pull/995))
 
 **Internal**:
