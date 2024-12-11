@@ -1,4 +1,5 @@
 ## Xbox Scarlett Build
+
 * The build requires Visual Studio (tested with 2022) and CMake (tested with >= 3.27.1) to be installed.
 * Install Xbox GDK (tested with 2023.03.03 and 2024.06.03).
 * Run "Xbox Manager GDK" and open Visual Studio Command Prompt for "Xbox Scarlett Gaming".
