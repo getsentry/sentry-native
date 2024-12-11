@@ -1,3 +1,5 @@
+# Adapted by Sentry from:
+# https://github.com/microsoft/Xbox-GDK-Samples/blob/e5328b9c06443739ec9c7c0089a36c5743c9da15/Samples/Tools/CMakeExample/CMake/CMakeGDKScarlett.cmake
 #
 # CMakeGDKScarlett.cmake : CMake definitions for Microsoft GDK targeting Xbox Series X|S
 #

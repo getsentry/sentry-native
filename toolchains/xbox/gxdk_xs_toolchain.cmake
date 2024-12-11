@@ -1,3 +1,5 @@
+# Adapted by Sentry from:
+# https://github.com/microsoft/Xbox-GDK-Samples/blob/aa45b831e7a71160a69a7d13e9d74844dc6aa210/Samples/Tools/CMakeGDKExample/gxdk_xs_toolchain.cmake
 #
 # grdk_toolchain.cmake : CMake Toolchain file for Gaming.Xbox.Scarlett.x64
 #
