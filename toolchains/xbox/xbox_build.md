@@ -1,0 +1,20 @@
+## Xbox Scarlett Build
+
+* The build requires Visual Studio (tested with 2022) and CMake (tested with >= 3.27.1) to be installed.
+* Install Xbox GDK (tested with 2023.03.03 and 2024.06.03).
+* Run "Xbox Manager GDK" and open Visual Studio Command Prompt for "Xbox Scarlett Gaming".
+* in the prompt, change to the source directory.
+* configure your build using 
+  ```
+  cmake 
+    -B build 
+    -G "Visual Studio 17 2022" 
+    -A "Gaming.Xbox.Scarlett.x64" 
+    -DXdkEditionTarget="240603" 
+    -DCMAKE_TOOLCHAIN_FILE="./toolchains/xbox/gxdk_xs_toolchain.cmake"
+  ```
+* after this you can either build the library directly in the CLI with 
+  `cmake --build build --config RelWithDebInfo` (or any other build config)
+  or in Visual Studio by opening the solution in the `build` directory.
+* `cmake --install build --prefix install --config RelWithDebInfo` installs all required development and release files 
+  (`dll`, `pdb`, `lib`, `h`) to include into any Xbox X/S game project into the directory `install`.
