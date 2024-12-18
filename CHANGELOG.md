@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+- Add `sentry_init` and global logger log levels ([#1107](https://github.com/getsentry/sentry-native/pull/1107))
+
 ## 0.7.17
 
 **Features**:
