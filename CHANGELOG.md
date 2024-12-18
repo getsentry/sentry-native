@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.7.17
 
 **Features**:
 - [NDK] Expose option to set handler strategy ([#1099](https://github.com/getsentry/sentry-native/pull/1099))
