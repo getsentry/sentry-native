@@ -3,17 +3,19 @@
 ## 0.7.17
 
 **Features**:
-- [NDK] Expose option to set handler strategy ([#1099](https://github.com/getsentry/sentry-native/pull/1099))
+
+- [NDK] Expose option to set handler strategy. ([#1099](https://github.com/getsentry/sentry-native/pull/1099))
 - Add Linux distributions to the OS context. [#963](https://github.com/getsentry/sentry-native/pull/963)
 
 **Fixes**:
-- Add metadata pointer check to prevent crash on cleaning crashpad database. ([#1102](https://github.com/getsentry/sentry-native/pull/1102), [crashpad#1064](https://github.com/getsentry/sentry-native/issues/1064))
+
+- Add metadata pointer check to prevent crashes when cleaning the `crashpad` database. ([#1102](https://github.com/getsentry/sentry-native/pull/1102), [crashpad#115](https://github.com/getsentry/crashpad/pull/115))
 
 ## 0.7.16
 
 **Features**:
 - Add SOCKS5 proxy support for macOS and Linux. ([#1063](https://github.com/getsentry/sentry-native/pull/1063))
-- Extend performance API with explicit timings ([#1093](https://github.com/getsentry/sentry-native/pull/1093))
+- Extend performance API with explicit timings. ([#1093](https://github.com/getsentry/sentry-native/pull/1093))
 
 ## 0.7.15
 
