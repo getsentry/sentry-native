@@ -6,6 +6,7 @@
 typedef struct {
     sentry_logger_function_t logger_func;
     void *logger_data;
+    sentry_level_t logger_level;
 } sentry_logger_t;
 
 void sentry__logger_set_global(sentry_logger_t logger);
@@ -16,6 +17,8 @@ void sentry__logger_defaultlogger(
 const char *sentry__logger_describe(sentry_level_t level);
 
 void sentry__logger_log(sentry_level_t level, const char *message, ...);
+
+void sentry_logger_log(sentry_level_t level, const char *message);
 
 #define SENTRY_TRACEF(message, ...)                                            \
     sentry__logger_log(SENTRY_LEVEL_DEBUG, message, __VA_ARGS__)
