@@ -84,11 +84,11 @@ sentry__transport_send_envelope(
         return;
     }
     if (!transport) {
-        SENTRY_TRACE("discarding envelope due to invalid transport");
+        SENTRY_DEBUG("discarding envelope due to invalid transport");
         sentry_envelope_free(envelope);
         return;
     }
-    SENTRY_TRACE("sending envelope");
+    SENTRY_DEBUG("sending envelope");
     transport->send_envelope_func(envelope, transport->state);
 }
 
@@ -97,7 +97,7 @@ sentry__transport_startup(
     sentry_transport_t *transport, const sentry_options_t *options)
 {
     if (transport->startup_func) {
-        SENTRY_TRACE("starting transport");
+        SENTRY_DEBUG("starting transport");
         int rv = transport->startup_func(options, transport->state);
         transport->running = rv == 0;
         return rv;
@@ -109,7 +109,7 @@ int
 sentry__transport_flush(sentry_transport_t *transport, uint64_t timeout)
 {
     if (transport->flush_func && transport->running) {
-        SENTRY_TRACE("flushing transport");
+        SENTRY_DEBUG("flushing transport");
         return transport->flush_func(timeout, transport->state);
     }
     return 0;
@@ -119,7 +119,7 @@ int
 sentry__transport_shutdown(sentry_transport_t *transport, uint64_t timeout)
 {
     if (transport->shutdown_func && transport->running) {
-        SENTRY_TRACE("shutting down transport");
+        SENTRY_DEBUG("shutting down transport");
         transport->running = false;
         return transport->shutdown_func(timeout, transport->state);
     }
@@ -141,7 +141,7 @@ sentry__transport_dump_queue(sentry_transport_t *transport, sentry_run_t *run)
     }
     size_t dumped = transport->dump_func(run, transport->state);
     if (dumped) {
-        SENTRY_TRACEF("dumped %zu in-flight envelopes to disk", dumped);
+        SENTRY_DEBUGF("dumped %zu in-flight envelopes to disk", dumped);
     }
     return dumped;
 }
@@ -175,7 +175,7 @@ gzipped_with_compression(const char *body, const size_t body_len,
     int err = deflateInit2(&stream, Z_DEFAULT_COMPRESSION, Z_DEFLATED,
         MAX_WBITS + 16, 9, Z_DEFAULT_STRATEGY);
     if (err != Z_OK) {
-        SENTRY_TRACEF("deflateInit2 failed: %d", err);
+        SENTRY_DEBUGF("deflateInit2 failed: %d", err);
         return false;
     }
 
@@ -193,7 +193,7 @@ gzipped_with_compression(const char *body, const size_t body_len,
     }
 
     if (err != Z_STREAM_END) {
-        SENTRY_TRACEF("deflate failed: %d", err);
+        SENTRY_DEBUGF("deflate failed: %d", err);
         sentry_free(buffer);
         buffer = NULL;
         deflateEnd(&stream);

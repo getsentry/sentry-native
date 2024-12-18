@@ -110,7 +110,7 @@ sentry__path_current_exe(void)
     sentry_path_t *path = path_with_len(MAX_PATH);
     size_t len = GetModuleFileNameW(NULL, path->path, MAX_PATH);
     if (!len) {
-        SENTRY_DEBUG("unable to get current exe path");
+        SENTRY_INFO("unable to get current exe path");
         sentry__path_free(path);
         return NULL;
     }

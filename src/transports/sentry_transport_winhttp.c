@@ -206,7 +206,7 @@ sentry__winhttp_send_task(void *_envelope, void *_state)
     headers = sentry__string_to_wstr(headers_buf);
     sentry_free(headers_buf);
 
-    SENTRY_TRACEF(
+    SENTRY_DEBUGF(
         "sending request using winhttp to \"%s\":\n%S", req->url, headers);
 
     if (WinHttpSendRequest(state->request, headers, (DWORD)-1,
@@ -232,7 +232,7 @@ sentry__winhttp_send_task(void *_envelope, void *_state)
                         WINHTTP_QUERY_RAW_HEADERS_CRLF,
                         WINHTTP_HEADER_NAME_BY_INDEX, lpOutBuffer, &dwSize,
                         WINHTTP_NO_HEADER_INDEX)) {
-                    SENTRY_TRACEF(
+                    SENTRY_DEBUGF(
                         "received response:\n%S", (wchar_t *)lpOutBuffer);
                 }
                 sentry_free(lpOutBuffer);
@@ -271,12 +271,12 @@ sentry__winhttp_send_task(void *_envelope, void *_state)
             sentry__rate_limiter_update_from_429(state->ratelimiter);
         }
     } else {
-        SENTRY_DEBUGF(
+        SENTRY_INFOF(
             "`WinHttpSendRequest` failed with code `%d`", GetLastError());
     }
 
     uint64_t now = sentry__monotonic_time();
-    SENTRY_TRACEF("request handled in %llums", now - started);
+    SENTRY_DEBUGF("request handled in %llums", now - started);
 
 exit:
     if (state->request) {
@@ -318,7 +318,7 @@ sentry__winhttp_dump_queue(sentry_run_t *run, void *transport_state)
 sentry_transport_t *
 sentry__transport_new_default(void)
 {
-    SENTRY_DEBUG("initializing winhttp transport");
+    SENTRY_INFO("initializing winhttp transport");
     winhttp_bgworker_state_t *state = sentry__winhttp_bgworker_state_new();
     if (!state) {
         return NULL;
