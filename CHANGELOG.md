@@ -14,6 +14,7 @@
 ## 0.7.16
 
 **Features**:
+
 - Add SOCKS5 proxy support for macOS and Linux. ([#1063](https://github.com/getsentry/sentry-native/pull/1063))
 - Extend performance API with explicit timings. ([#1093](https://github.com/getsentry/sentry-native/pull/1093))
 
