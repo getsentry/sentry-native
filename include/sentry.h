@@ -1085,6 +1085,12 @@ SENTRY_API void sentry_options_set_logger_level(
     sentry_options_t *opts, sentry_level_t level);
 
 /**
+ * Sets the log level for the sentry_init function
+ */
+SENTRY_API void sentry_options_set_init_log_level(
+    sentry_options_t *opts, sentry_level_t level);
+
+/**
  * Sets the number of breadcrumbs being tracked and attached to events.
  *
  * Defaults to 100.

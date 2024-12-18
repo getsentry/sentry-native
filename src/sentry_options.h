@@ -43,6 +43,8 @@ typedef struct sentry_options_s {
     sentry_path_t *database_path;
     sentry_path_t *handler_path;
     sentry_logger_t logger;
+    sentry_level_t init_logger_level;
+    bool log_init;
     size_t max_breadcrumbs;
     bool debug;
     bool auto_session_tracking;

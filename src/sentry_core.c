@@ -100,6 +100,11 @@ sentry_init(sentry_options_t *options)
     if (options->debug) {
         logger = options->logger;
     }
+    sentry_logger_t old_logger = logger; // restore this after init
+    if (options->log_init) {
+        logger = options->logger;
+        logger.logger_level = options->init_logger_level;
+    }
     sentry__logger_set_global(logger);
 
     // we need to ensure the dir exists, otherwise `path_absolute` will fail.
@@ -199,6 +204,8 @@ sentry_init(sentry_options_t *options)
 #ifdef SENTRY_PLATFORM_WINDOWS
     sentry__init_cached_functions();
 #endif
+
+    sentry__logger_set_global(old_logger);
 
     sentry__mutex_unlock(&g_options_lock);
     return 0;

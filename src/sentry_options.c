@@ -367,7 +367,11 @@ sentry_options_get_user_agent(const sentry_options_t *opts)
 void
 sentry_options_set_debug(sentry_options_t *opts, int debug)
 {
-    opts->debug = !!debug;
+    if (!!debug) {
+        sentry_options_set_logger_level(opts, SENTRY_LEVEL_DEBUG);
+    } else {
+        opts->debug = false;
+    }
 }
 
 int
@@ -401,6 +405,14 @@ void
 sentry_options_set_logger_level(sentry_options_t *opts, sentry_level_t level)
 {
     opts->logger.logger_level = level;
+    opts->debug = true;
+}
+
+void
+sentry_options_set_init_log_level(sentry_options_t *opts, sentry_level_t level)
+{
+    opts->init_logger_level = level;
+    opts->log_init = true;
 }
 
 void
