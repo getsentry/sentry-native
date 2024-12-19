@@ -359,7 +359,7 @@ sentry__value_span_new_n(size_t max_spans, sentry_value_t parent,
     sentry_slice_t operation, sentry_slice_t description, uint64_t timestamp)
 {
     if (!sentry_value_is_null(sentry_value_get_by_key(parent, "timestamp"))) {
-        SENTRY_INFO("span's parent is already finished, not creating span");
+        SENTRY_WARN("span's parent is already finished, not creating span");
         goto fail;
     }
 
@@ -368,7 +368,7 @@ sentry__value_span_new_n(size_t max_spans, sentry_value_t parent,
     // number of max spans. This means that the number of in-flight spans
     // can exceed the max number of spans.
     if (sentry_value_get_length(spans) >= max_spans) {
-        SENTRY_INFO("reached maximum number of spans for transaction, not "
+        SENTRY_WARN("reached maximum number of spans for transaction, not "
                     "creating span");
         goto fail;
     }

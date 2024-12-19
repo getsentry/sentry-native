@@ -271,7 +271,7 @@ sentry__winhttp_send_task(void *_envelope, void *_state)
             sentry__rate_limiter_update_from_429(state->ratelimiter);
         }
     } else {
-        SENTRY_INFOF(
+        SENTRY_WARNF(
             "`WinHttpSendRequest` failed with code `%d`", GetLastError());
     }
 

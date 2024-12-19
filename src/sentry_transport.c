@@ -84,7 +84,7 @@ sentry__transport_send_envelope(
         return;
     }
     if (!transport) {
-        SENTRY_DEBUG("discarding envelope due to invalid transport");
+        SENTRY_WARN("discarding envelope due to invalid transport");
         sentry_envelope_free(envelope);
         return;
     }
@@ -175,7 +175,7 @@ gzipped_with_compression(const char *body, const size_t body_len,
     int err = deflateInit2(&stream, Z_DEFAULT_COMPRESSION, Z_DEFLATED,
         MAX_WBITS + 16, 9, Z_DEFAULT_STRATEGY);
     if (err != Z_OK) {
-        SENTRY_DEBUGF("deflateInit2 failed: %d", err);
+        SENTRY_WARNF("deflateInit2 failed: %d", err);
         return false;
     }
 
@@ -193,7 +193,7 @@ gzipped_with_compression(const char *body, const size_t body_len,
     }
 
     if (err != Z_STREAM_END) {
-        SENTRY_DEBUGF("deflate failed: %d", err);
+        SENTRY_WARNF("deflate failed: %d", err);
         sentry_free(buffer);
         buffer = NULL;
         deflateEnd(&stream);

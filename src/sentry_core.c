@@ -120,7 +120,7 @@ sentry_init(sentry_options_t *options)
     if (options->database_path) {
         sentry__path_free(database_path);
     } else {
-        SENTRY_INFO("falling back to non-absolute database path");
+        SENTRY_DEBUG("falling back to non-absolute database path");
         options->database_path = database_path;
     }
     SENTRY_INFOF("using database path \"%" SENTRY_PATH_PRI "\"",
@@ -262,7 +262,7 @@ sentry_close(void)
         }
         sentry_options_free(options);
     } else {
-        SENTRY_INFO("sentry_close() called, but options was empty");
+        SENTRY_WARN("sentry_close() called, but options was empty");
     }
 
     g_options = NULL;
@@ -363,7 +363,7 @@ sentry__capture_envelope(
 {
     bool has_consent = !sentry__should_skip_upload();
     if (!has_consent) {
-        SENTRY_DEBUG("discarding envelope due to missing user consent");
+        SENTRY_INFO("discarding envelope due to missing user consent");
         sentry_envelope_free(envelope);
         return;
     }
@@ -906,7 +906,7 @@ sentry_transaction_finish_ts(
     sentry_transaction_t *opaque_tx, uint64_t timestamp)
 {
     if (!opaque_tx || sentry_value_is_null(opaque_tx->inner)) {
-        SENTRY_INFO("no transaction available to finish");
+        SENTRY_WARN("no transaction available to finish");
         goto fail;
     }
 
@@ -1029,7 +1029,7 @@ sentry_transaction_start_child_ts_n(sentry_transaction_t *opaque_parent,
     size_t description_len, const uint64_t timestamp)
 {
     if (!opaque_parent || sentry_value_is_null(opaque_parent->inner)) {
-        SENTRY_INFO("no transaction available to create a child under");
+        SENTRY_WARN("no transaction available to create a child under");
         return NULL;
     }
     sentry_value_t parent = opaque_parent->inner;
@@ -1079,11 +1079,11 @@ sentry_span_start_child_ts_n(sentry_span_t *opaque_parent,
     size_t description_len, uint64_t timestamp)
 {
     if (!opaque_parent || sentry_value_is_null(opaque_parent->inner)) {
-        SENTRY_INFO("no parent span available to create a child span under");
+        SENTRY_WARN("no parent span available to create a child span under");
         return NULL;
     }
     if (!opaque_parent->transaction) {
-        SENTRY_INFO("no root transaction to create a child span under");
+        SENTRY_WARN("no root transaction to create a child span under");
         return NULL;
     }
     sentry_value_t parent = opaque_parent->inner;
@@ -1121,14 +1121,14 @@ void
 sentry_span_finish_ts(sentry_span_t *opaque_span, uint64_t timestamp)
 {
     if (!opaque_span || sentry_value_is_null(opaque_span->inner)) {
-        SENTRY_INFO("no span to finish");
+        SENTRY_WARN("no span to finish");
         goto fail;
     }
 
     sentry_transaction_t *opaque_root_transaction = opaque_span->transaction;
     if (!opaque_root_transaction
         || sentry_value_is_null(opaque_root_transaction->inner)) {
-        SENTRY_INFO(
+        SENTRY_WARN(
             "no root transaction to finish span on, aborting span finish");
         goto fail;
     }
@@ -1143,7 +1143,7 @@ sentry_span_finish_ts(sentry_span_t *opaque_span, uint64_t timestamp)
 
     if (!sentry_value_is_null(
             sentry_value_get_by_key(root_transaction, "timestamp"))) {
-        SENTRY_INFO("span's root transaction is already finished, aborting "
+        SENTRY_WARN("span's root transaction is already finished, aborting "
                     "span finish");
         goto fail;
     }
@@ -1175,7 +1175,7 @@ sentry_span_finish_ts(sentry_span_t *opaque_span, uint64_t timestamp)
     }
 
     if (!sentry_value_is_null(sentry_value_get_by_key(span, "timestamp"))) {
-        SENTRY_INFO("span is already finished, aborting span finish");
+        SENTRY_WARN("span is already finished, aborting span finish");
         sentry_value_decref(span);
         goto fail;
     }
@@ -1193,7 +1193,7 @@ sentry_span_finish_ts(sentry_span_t *opaque_span, uint64_t timestamp)
     sentry_value_t spans = sentry_value_get_by_key(root_transaction, "spans");
 
     if (sentry_value_get_length(spans) >= max_spans) {
-        SENTRY_INFO("reached maximum number of spans for transaction, "
+        SENTRY_WARN("reached maximum number of spans for transaction, "
                     "discarding span");
         sentry_value_decref(span);
         goto fail;
@@ -1260,7 +1260,7 @@ sentry_capture_minidump_n(const char *path, size_t path_len)
         return;
     }
 
-    SENTRY_INFOF(
+    SENTRY_DEBUGF(
         "Capturing minidump \"%" SENTRY_PATH_PRI "\"", dump_path->path);
 
     sentry_value_t event = sentry_value_new_event();

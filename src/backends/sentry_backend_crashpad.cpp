@@ -186,7 +186,7 @@ crashpad_backend_flush_scope_to_event(const sentry_path_t *event_path,
     sentry_free(mpack);
 
     if (rv != 0) {
-        SENTRY_INFO("flushing scope to msgpack failed");
+        SENTRY_WARN("flushing scope to msgpack failed");
     }
 }
 
@@ -545,7 +545,7 @@ crashpad_backend_add_breadcrumb(sentry_backend_t *backend,
     sentry_free(mpack);
 
     if (rv != 0) {
-        SENTRY_INFO("flushing breadcrumb to msgpack failed");
+        SENTRY_WARN("flushing breadcrumb to msgpack failed");
     }
 }
 
