@@ -474,7 +474,7 @@ write_buffer_with_flags(
     int fd = open(
         path->path, flags, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH);
     if (fd < 0) {
-        SENTRY_WARN(
+        SENTRY_WARNF(
             "failed to open file \"%s\" for writing (errno %d, flags %x)",
             path->path, errno, flags);
         return 1;
