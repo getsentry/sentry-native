@@ -63,7 +63,7 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
     void *UNUSED(context), bool succeeded)
 #endif
 {
-    SENTRY_DEBUG("entering breakpad minidump callback");
+    SENTRY_INFO("entering breakpad minidump callback");
 
     // this is a bit strange, according to docs, `succeeded` should be true when
     // a minidump file was successfully generated. however, when running our
@@ -125,7 +125,7 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
             uctx = &uctx_data;
 #endif
 
-            SENTRY_TRACE("invoking `on_crash` hook");
+            SENTRY_DEBUG("invoking `on_crash` hook");
             sentry_value_t result
                 = options->on_crash_func(uctx, event, options->on_crash_data);
             should_handle = !sentry_value_is_null(result);
@@ -167,7 +167,7 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
             sentry__path_remove(dump_path);
             sentry__path_free(dump_path);
         } else {
-            SENTRY_TRACE("event was discarded by the `on_crash` hook");
+            SENTRY_DEBUG("event was discarded by the `on_crash` hook");
             sentry_value_decref(event);
         }
 
@@ -176,7 +176,7 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
         sentry__transport_dump_queue(options->transport, options->run);
         // and restore the old transport
     }
-    SENTRY_DEBUG("crash has been captured");
+    SENTRY_INFO("crash has been captured");
 
 #ifndef SENTRY_PLATFORM_WINDOWS
     sentry__leave_signal_handler();

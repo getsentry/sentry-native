@@ -22,7 +22,8 @@ sentry_options_new(void)
     sentry_options_set_dsn(opts, getenv("SENTRY_DSN"));
     const char *debug = getenv("SENTRY_DEBUG");
     opts->debug = debug && sentry__string_eq(debug, "1");
-    sentry_logger_t logger = { sentry__logger_defaultlogger, NULL };
+    sentry_logger_t logger
+        = { sentry__logger_defaultlogger, NULL, SENTRY_LEVEL_DEBUG };
     opts->logger = logger;
     opts->transport_thread_name = sentry__string_clone("sentry-http");
 #ifdef SENTRY_PLATFORM_WINDOWS
@@ -394,6 +395,12 @@ sentry_options_set_logger(
 {
     opts->logger.logger_func = func;
     opts->logger.logger_data = userdata;
+}
+
+void
+sentry_options_set_logger_level(sentry_options_t *opts, sentry_level_t level)
+{
+    opts->logger.logger_level = level;
 }
 
 void

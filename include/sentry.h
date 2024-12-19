@@ -1069,7 +1069,8 @@ SENTRY_API const char *sentry_options_get_user_agent(
     const sentry_options_t *opts);
 
 /**
- * Enables or disables debug printing mode.
+ * Enables or disables debug printing mode. To change the log level from the
+ * default DEBUG level, use `sentry_options_set_logger_level`.
  */
 SENTRY_API void sentry_options_set_debug(sentry_options_t *opts, int debug);
 
@@ -1077,6 +1078,12 @@ SENTRY_API void sentry_options_set_debug(sentry_options_t *opts, int debug);
  * Returns the current value of the debug flag.
  */
 SENTRY_API int sentry_options_get_debug(const sentry_options_t *opts);
+
+/**
+ * Sets the level of the logger. Has no effect if `debug` is not set to true.
+ */
+SENTRY_API void sentry_options_set_logger_level(
+    sentry_options_t *opts, sentry_level_t level);
 
 /**
  * Sets the number of breadcrumbs being tracked and attached to events.

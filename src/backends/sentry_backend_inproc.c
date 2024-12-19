@@ -89,7 +89,7 @@ startup_inproc_backend(
     stack_t old_sig_stack;
     int ret = sigaltstack(NULL, &old_sig_stack);
     if (ret == 0 && old_sig_stack.ss_flags == SS_DISABLE) {
-        SENTRY_TRACEF("installing signal stack (size: %d)", SIGNAL_STACK_SIZE);
+        SENTRY_DEBUGF("installing signal stack (size: %d)", SIGNAL_STACK_SIZE);
         g_signal_stack.ss_sp = sentry_malloc(SIGNAL_STACK_SIZE);
         if (!g_signal_stack.ss_sp) {
             return 1;
@@ -98,7 +98,7 @@ startup_inproc_backend(
         g_signal_stack.ss_flags = 0;
         sigaltstack(&g_signal_stack, 0);
     } else if (ret == 0) {
-        SENTRY_TRACEF("using existing signal stack (size: %d, flags: %d)",
+        SENTRY_DEBUGF("using existing signal stack (size: %d, flags: %d)",
             old_sig_stack.ss_size, old_sig_stack.ss_flags);
     } else if (ret == -1) {
         SENTRY_WARNF("Failed to query signal stack size: %s", strerror(errno));
@@ -485,7 +485,7 @@ make_signal_event(
     void *backtrace[MAX_FRAMES];
     size_t frame_count
         = sentry_unwind_stack_from_ucontext(uctx, &backtrace[0], MAX_FRAMES);
-    SENTRY_TRACEF(
+    SENTRY_DEBUGF(
         "captured backtrace from ucontext with %lu frames", frame_count);
     // if unwinding from a ucontext didn't yield any results, try again with a
     // direct unwind. this is most likely the case when using `libbacktrace`,
@@ -493,7 +493,7 @@ make_signal_event(
     if (!frame_count) {
         frame_count = sentry_unwind_stack(NULL, &backtrace[0], MAX_FRAMES);
     }
-    SENTRY_TRACEF("captured backtrace with %lu frames", frame_count);
+    SENTRY_DEBUGF("captured backtrace with %lu frames", frame_count);
 
     sentry_value_t stacktrace
         = sentry_value_new_stacktrace(&backtrace[0], frame_count);
@@ -518,7 +518,7 @@ make_signal_event(
 static void
 handle_ucontext(const sentry_ucontext_t *uctx)
 {
-    SENTRY_DEBUG("entering signal handler");
+    SENTRY_INFO("entering signal handler");
 
     const struct signal_slot *sig_slot = NULL;
     for (int i = 0; i < SIGNAL_COUNT; ++i) {
@@ -550,7 +550,7 @@ handle_ucontext(const sentry_ucontext_t *uctx)
         // we process the signal.
         if (sentry_options_get_handler_strategy(options)
             == SENTRY_HANDLER_STRATEGY_CHAIN_AT_START) {
-            SENTRY_TRACE("defer to runtime signal handler at start");
+            SENTRY_DEBUG("defer to runtime signal handler at start");
             // there is a good chance that we won't return from the previous
             // handler and that would mean we couldn't enter this handler with
             // the next signal coming in if we didn't "leave" here.
@@ -563,7 +563,7 @@ handle_ucontext(const sentry_ucontext_t *uctx)
 
             // let's re-enter because it means this was an actual native crash
             sentry__enter_signal_handler();
-            SENTRY_TRACE(
+            SENTRY_DEBUG(
                 "return from runtime signal handler, we handle the signal");
         }
 #endif
@@ -578,7 +578,7 @@ handle_ucontext(const sentry_ucontext_t *uctx)
         sentry__write_crash_marker(options);
 
         if (options->on_crash_func) {
-            SENTRY_TRACE("invoking `on_crash` hook");
+            SENTRY_DEBUG("invoking `on_crash` hook");
             event = options->on_crash_func(uctx, event, options->on_crash_data);
             should_handle = !sentry_value_is_null(event);
         }
@@ -600,7 +600,7 @@ handle_ucontext(const sentry_ucontext_t *uctx)
             sentry__transport_dump_queue(disk_transport, options->run);
             sentry_transport_free(disk_transport);
         } else {
-            SENTRY_TRACE("event was discarded by the `on_crash` hook");
+            SENTRY_DEBUG("event was discarded by the `on_crash` hook");
             sentry_value_decref(event);
         }
 
@@ -608,7 +608,7 @@ handle_ucontext(const sentry_ucontext_t *uctx)
         sentry__transport_dump_queue(options->transport, options->run);
     }
 
-    SENTRY_DEBUG("crash has been captured");
+    SENTRY_INFO("crash has been captured");
 
 #ifdef SENTRY_PLATFORM_UNIX
     // reset signal handlers and invoke the original ones.  This will then tear

@@ -285,7 +285,7 @@ sentry__curl_dump_queue(sentry_run_t *run, void *transport_state)
 sentry_transport_t *
 sentry__transport_new_default(void)
 {
-    SENTRY_DEBUG("initializing curl transport");
+    SENTRY_INFO("initializing curl transport");
     curl_bgworker_state_t *state = sentry__curl_bgworker_state_new();
     if (!state) {
         return NULL;

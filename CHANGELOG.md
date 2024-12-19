@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- Add option to set debug log level. ([#1107](https://github.com/getsentry/sentry-native/pull/1107))
+
 ## 0.7.17
 
 **Features**:
