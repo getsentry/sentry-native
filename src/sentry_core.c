@@ -457,9 +457,16 @@ sentry__should_send_transaction(sentry_value_t tx_cxt)
 
     bool send = false;
     SENTRY_WITH_OPTIONS (options) {
-        send = sentry__roll_dice(options->traces_sample_rate);
-        // TODO(tracing): Run through traces sampler function if rate is
-        // unavailable.
+        if (options->traces_sampler) {
+            // TODO construct a sampling context based on tx_cxt and
+            //  customSamplingContext
+            double result
+                = ((double (*)(void *))options->traces_sampler)(&tx_cxt);
+            send = sentry__roll_dice(result);
+        } else {
+            // TODO if there is a parent sampling decision, use it
+            send = sentry__roll_dice(options->traces_sample_rate);
+        }
     }
     return send;
 }

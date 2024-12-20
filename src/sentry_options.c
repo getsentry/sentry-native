@@ -615,6 +615,16 @@ sentry_options_get_traces_sample_rate(sentry_options_t *opts)
     return opts->traces_sample_rate;
 }
 
+/**
+ * Sets the traces sampler callback. Should be a function that returns a double
+ * and (TODO takes in a samplingContext object)
+ */
+void
+sentry_options_set_traces_sampler(sentry_options_t *opts, void *sampler)
+{
+    opts->traces_sampler = sampler;
+}
+
 void
 sentry_options_set_backend(sentry_options_t *opts, sentry_backend_t *backend)
 {

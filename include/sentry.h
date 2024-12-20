@@ -1533,6 +1533,9 @@ SENTRY_EXPERIMENTAL_API void sentry_options_set_traces_sample_rate(
 SENTRY_EXPERIMENTAL_API double sentry_options_get_traces_sample_rate(
     sentry_options_t *opts);
 
+SENTRY_EXPERIMENTAL_API void sentry_options_set_traces_sampler(
+    sentry_options_t *opts, void *sampler);
+
 #ifdef SENTRY_PLATFORM_LINUX
 
 /**
