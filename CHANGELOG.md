@@ -5,7 +5,7 @@
 **Features**:
 
 - Add option to set debug log level. ([#1107](https://github.com/getsentry/sentry-native/pull/1107))
-
+- Add `traces_sampler` ([#1108](https://github.com/getsentry/sentry-native/pull/1108))
 ## 0.7.17
 
 **Features**:
