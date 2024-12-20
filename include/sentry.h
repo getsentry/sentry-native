@@ -1533,8 +1533,14 @@ SENTRY_EXPERIMENTAL_API void sentry_options_set_traces_sample_rate(
 SENTRY_EXPERIMENTAL_API double sentry_options_get_traces_sample_rate(
     sentry_options_t *opts);
 
+typedef double (*sentry_traces_sampler_function)(sentry_value_t *sampling_ctx);
+
+/**
+ * Sets the traces sampler callback. Should be a function that returns a double
+ * and (TODO takes in a samplingContext object)
+ */
 SENTRY_EXPERIMENTAL_API void sentry_options_set_traces_sampler(
-    sentry_options_t *opts, void *sampler);
+    sentry_options_t *opts, sentry_traces_sampler_function callback);
 
 #ifdef SENTRY_PLATFORM_LINUX
 

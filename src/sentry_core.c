@@ -458,8 +458,7 @@ sentry__should_send_transaction(sentry_value_t tx_cxt)
     bool send = false;
     SENTRY_WITH_OPTIONS (options) {
         if (options->traces_sampler) {
-            // TODO construct a sampling context based on tx_cxt and
-            //  customSamplingContext
+            // TODO use samplingContext instead of only tx_cxt
             double result
                 = ((double (*)(void *))options->traces_sampler)(&tx_cxt);
             send = sentry__roll_dice(result);
@@ -882,6 +881,8 @@ sentry_transaction_start_ts(sentry_transaction_context_t *opaque_tx_cxt,
     sentry_value_remove_by_key(tx, "timestamp");
 
     sentry__value_merge_objects(tx, tx_cxt);
+    // TODO construct a sampling context based on tx_cxt and
+    //  sampling_ctx, pass it into should_send_transaction
 
     bool should_sample = sentry__should_send_transaction(tx_cxt);
     sentry_value_set_by_key(
