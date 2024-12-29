@@ -5,6 +5,7 @@
 **Features**:
 
 - Add option to set debug log level. ([#1107](https://github.com/getsentry/sentry-native/pull/1107))
+- Provide support for C++17 compilers when using the `crashpad` backend. ([#1110](https://github.com/getsentry/sentry-native/pull/1110), [crashpad#116](https://github.com/getsentry/crashpad/pull/116))
 
 ## 0.7.17
 
