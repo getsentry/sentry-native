@@ -1539,8 +1539,14 @@ typedef double (*sentry_traces_sampler_function)(
     sentry_sampling_context_t *sampling_ctx);
 
 /**
+ * Returns the custom context for the sampling context.
+ */
+SENTRY_EXPERIMENTAL_API sentry_value_t *
+sentry_sampling_context_get_custom_context(
+    const sentry_sampling_context_t *sampling_ctx);
+/**
  * Sets the traces sampler callback. Should be a function that returns a double
- * and (TODO takes in a samplingContext object)
+ * and takes in a samplingContext objectß
  */
 SENTRY_EXPERIMENTAL_API void sentry_options_set_traces_sampler(
     sentry_options_t *opts, sentry_traces_sampler_function callback);

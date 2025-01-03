@@ -11,6 +11,7 @@
 #include "sentry_os.h"
 #include "sentry_path.h"
 #include "sentry_random.h"
+#include "sentry_sampling_context.h"
 #include "sentry_scope.h"
 #include "sentry_session.h"
 #include "sentry_string.h"
@@ -448,7 +449,8 @@ sentry__capture_event(sentry_value_t event)
 }
 
 bool
-sentry__should_send_transaction(sentry_value_t tx_cxt)
+sentry__should_send_transaction(
+    sentry_value_t tx_cxt, sentry_sampling_context_t *sampling_ctx)
 {
     sentry_value_t context_setting = sentry_value_get_by_key(tx_cxt, "sampled");
     if (!sentry_value_is_null(context_setting)) {
@@ -458,9 +460,8 @@ sentry__should_send_transaction(sentry_value_t tx_cxt)
     bool send = false;
     SENTRY_WITH_OPTIONS (options) {
         if (options->traces_sampler) {
-            // TODO use samplingContext instead of only tx_cxt
             double result
-                = ((double (*)(void *))options->traces_sampler)(&tx_cxt);
+                = ((double (*)(void *))options->traces_sampler)(sampling_ctx);
             send = sentry__roll_dice(result);
         } else {
             // TODO if there is a parent sampling decision, use it
@@ -855,12 +856,8 @@ sentry_transaction_start(
 
 sentry_transaction_t *
 sentry_transaction_start_ts(sentry_transaction_context_t *opaque_tx_cxt,
-    sentry_value_t sampling_ctx, uint64_t timestamp)
+    sentry_value_t custom_sampling_ctx, uint64_t timestamp)
 {
-    // Just free this immediately until we implement proper support for
-    // traces_sampler.
-    sentry_value_decref(sampling_ctx);
-
     if (!opaque_tx_cxt) {
         return NULL;
     }
@@ -881,10 +878,9 @@ sentry_transaction_start_ts(sentry_transaction_context_t *opaque_tx_cxt,
     sentry_value_remove_by_key(tx, "timestamp");
 
     sentry__value_merge_objects(tx, tx_cxt);
-    // TODO construct a sampling context based on tx_cxt and
-    //  sampling_ctx, pass it into should_send_transaction
-
-    bool should_sample = sentry__should_send_transaction(tx_cxt);
+    sentry_sampling_context_t *sampling_ctx
+        = sentry_sampling_context_new(opaque_tx_cxt, &custom_sampling_ctx);
+    bool should_sample = sentry__should_send_transaction(tx_cxt, sampling_ctx);
     sentry_value_set_by_key(
         tx, "sampled", sentry_value_new_bool(should_sample));
 

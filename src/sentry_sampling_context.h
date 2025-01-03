@@ -6,14 +6,17 @@
 
 typedef struct sentry_sampling_context_s {
     sentry_transaction_context_t *transaction_context;
-    void *custom_sampling_context; // TODO what type should this be?
+    void *custom_sampling_context;
 } sentry_sampling_context_t;
 
-// TODO add refcounting for this; users might want to reuse this
+// TODO add refcounting for this?
+//  we only construct this internally for one sampling decision,
+//  and dont reuse it
 sentry_sampling_context_t *sentry_sampling_context_new(
-    sentry_transaction_context_t *transaction_context);
-sentry_sampling_context_t *sentry_sampling_context_new_with_custom(
     sentry_transaction_context_t *transaction_context,
     void *custom_sampling_context);
+
+sentry_value_t *sentry_sampling_context_get_custom_context(
+    const sentry_sampling_context_t *sampling_ctx);
 
 #endif // SENTRY_SAMPLING_CONTEXT_H_INCLUDED

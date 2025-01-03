@@ -148,6 +148,8 @@ The example currently supports the following commands:
 - `stack-overflow`: Provokes a stack-overflow.
 - `http-proxy`: Uses a localhost `HTTP` proxy on port 8080.
 - `socks5-proxy`: Uses a localhost `SOCKS5` proxy on port 1080.
+- `capture-transaction`: Captures a transaction.
+- `traces-sampler`: Installs a traces sampler callback function when used alongside `capture-transaction`.
 
 Only on Windows using crashpad with its WER handler module:
 

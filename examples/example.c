@@ -14,6 +14,8 @@
 #    undef NDEBUG
 #endif
 
+// #include "../src/sentry_sampling_context.h"
+
 #include <assert.h>
 
 #ifdef SENTRY_PLATFORM_WINDOWS
@@ -27,6 +29,17 @@
 
 #    define sleep_s(SECONDS) sleep(SECONDS)
 #endif
+
+static double
+traces_sampler_callback(sentry_sampling_context_t *sampling_ctx)
+{
+    if (sentry_value_as_int32(sentry_value_get_by_key(
+            *sentry_sampling_context_get_custom_context(sampling_ctx), "b"))
+        == 42) {
+        return 1;
+    }
+    return 0;
+}
 
 static sentry_value_t
 before_send_callback(sentry_value_t event, void *hint, void *closure)
@@ -232,6 +245,10 @@ main(int argc, char **argv)
             options, discarding_on_crash_callback, NULL);
     }
 
+    if (has_arg(argc, argv, "traces-sampler")) {
+        sentry_options_set_traces_sampler(options, traces_sampler_callback);
+    }
+
     if (has_arg(argc, argv, "override-sdk-name")) {
         sentry_options_set_sdk_name(options, "sentry.native.android.flutter");
     }
@@ -403,8 +420,13 @@ main(int argc, char **argv)
         if (has_arg(argc, argv, "unsample-tx")) {
             sentry_transaction_context_set_sampled(tx_ctx, 0);
         }
+        sentry_value_t custom_sampling_ctx = sentry_value_new_object();
+        sentry_value_set_by_key(
+            custom_sampling_ctx, "a", sentry_value_new_string("first_value"));
+        sentry_value_set_by_key(
+            custom_sampling_ctx, "b", sentry_value_new_int32(42));
         sentry_transaction_t *tx
-            = sentry_transaction_start(tx_ctx, sentry_value_new_null());
+            = sentry_transaction_start(tx_ctx, custom_sampling_ctx);
 
         sentry_transaction_set_data(
             tx, "url", sentry_value_new_string("https://example.com"));
