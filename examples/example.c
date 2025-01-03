@@ -14,8 +14,6 @@
 #    undef NDEBUG
 #endif
 
-// #include "../src/sentry_sampling_context.h"
-
 #include <assert.h>
 
 #ifdef SENTRY_PLATFORM_WINDOWS
