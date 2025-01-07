@@ -878,11 +878,10 @@ sentry_transaction_start_ts(sentry_transaction_context_t *opaque_tx_cxt,
     sentry_value_remove_by_key(tx, "timestamp");
 
     sentry__value_merge_objects(tx, tx_cxt);
-    sentry_sampling_context_t *sampling_ctx
-        = sentry_sampling_context_new(opaque_tx_cxt, custom_sampling_ctx);
-    sentry_value_incref(custom_sampling_ctx);
-    bool should_sample = sentry__should_send_transaction(tx_cxt, sampling_ctx);
-    sentry_free(sampling_ctx);
+    sentry_sampling_context_t sampling_ctx = {
+        opaque_tx_cxt, custom_sampling_ctx
+    };
+    bool should_sample = sentry__should_send_transaction(tx_cxt, &sampling_ctx);
     sentry_value_set_by_key(
         tx, "sampled", sentry_value_new_bool(should_sample));
 
