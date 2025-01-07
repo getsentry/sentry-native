@@ -6,7 +6,7 @@
 
 typedef struct sentry_sampling_context_s {
     sentry_transaction_context_t *transaction_context;
-    void *custom_sampling_context;
+    sentry_value_t custom_sampling_context;
 } sentry_sampling_context_t;
 
 // TODO add refcounting for this?
@@ -14,9 +14,6 @@ typedef struct sentry_sampling_context_s {
 //  and dont reuse it
 sentry_sampling_context_t *sentry_sampling_context_new(
     sentry_transaction_context_t *transaction_context,
-    void *custom_sampling_context);
-
-sentry_value_t *sentry_sampling_context_get_custom_context(
-    const sentry_sampling_context_t *sampling_ctx);
+    sentry_value_t custom_sampling_context);
 
 #endif // SENTRY_SAMPLING_CONTEXT_H_INCLUDED

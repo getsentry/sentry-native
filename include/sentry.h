@@ -1541,7 +1541,7 @@ typedef double (*sentry_traces_sampler_function)(
 /**
  * Returns the custom context for the sampling context.
  */
-SENTRY_EXPERIMENTAL_API sentry_value_t *
+SENTRY_EXPERIMENTAL_API sentry_value_t
 sentry_sampling_context_get_custom_context(
     const sentry_sampling_context_t *sampling_ctx);
 /**

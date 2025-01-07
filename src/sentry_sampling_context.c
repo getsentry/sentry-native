@@ -4,7 +4,7 @@
 
 sentry_sampling_context_t *
 sentry_sampling_context_new(sentry_transaction_context_t *transaction_context,
-    void *custom_sampling_context)
+    sentry_value_t custom_sampling_context)
 {
     sentry_sampling_context_t *context = SENTRY_MAKE(sentry_sampling_context_t);
     if (context) {
@@ -14,7 +14,7 @@ sentry_sampling_context_new(sentry_transaction_context_t *transaction_context,
     return context;
 }
 
-sentry_value_t *
+sentry_value_t
 sentry_sampling_context_get_custom_context(
     const sentry_sampling_context_t *sampling_ctx)
 {

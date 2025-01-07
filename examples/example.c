@@ -32,7 +32,7 @@ static double
 traces_sampler_callback(sentry_sampling_context_t *sampling_ctx)
 {
     if (sentry_value_as_int32(sentry_value_get_by_key(
-            *sentry_sampling_context_get_custom_context(sampling_ctx), "b"))
+            sentry_sampling_context_get_custom_context(sampling_ctx), "b"))
         == 42) {
         return 1;
     }
@@ -423,10 +423,8 @@ main(int argc, char **argv)
             custom_sampling_ctx, "a", sentry_value_new_string("first_value"));
         sentry_value_set_by_key(
             custom_sampling_ctx, "b", sentry_value_new_int32(42));
-        sentry_value_incref(custom_sampling_ctx);
         sentry_transaction_t *tx
             = sentry_transaction_start(tx_ctx, custom_sampling_ctx);
-        sentry_value_decref(custom_sampling_ctx);
 
         sentry_transaction_set_data(
             tx, "url", sentry_value_new_string("https://example.com"));
