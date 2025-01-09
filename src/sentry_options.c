@@ -34,6 +34,7 @@ sentry_options_new(void)
     opts->release = sentry__string_clone(getenv("SENTRY_RELEASE"));
     opts->environment = sentry__string_clone(getenv("SENTRY_ENVIRONMENT"));
 #endif
+    sentry_options_set_proxy(opts, getenv("http_proxy"));
     if (!opts->environment) {
         opts->environment = sentry__string_clone("production");
     }
