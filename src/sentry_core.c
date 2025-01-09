@@ -847,11 +847,11 @@ sentry_set_level(sentry_level_t level)
 }
 
 sentry_transaction_t *
-sentry_transaction_start(
-    sentry_transaction_context_t *opaque_tx_cxt, sentry_value_t sampling_ctx)
+sentry_transaction_start(sentry_transaction_context_t *opaque_tx_cxt,
+    sentry_value_t custom_sampling_ctx)
 {
     return sentry_transaction_start_ts(
-        opaque_tx_cxt, sampling_ctx, sentry__usec_time());
+        opaque_tx_cxt, custom_sampling_ctx, sentry__usec_time());
 }
 
 sentry_transaction_t *
@@ -883,6 +883,7 @@ sentry_transaction_start_ts(sentry_transaction_context_t *opaque_tx_cxt,
     bool should_sample = sentry__should_send_transaction(tx_cxt, &sampling_ctx);
     sentry_value_set_by_key(
         tx, "sampled", sentry_value_new_bool(should_sample));
+    sentry_value_decref(custom_sampling_ctx);
 
     sentry_value_set_by_key(tx, "start_timestamp",
         sentry__value_new_string_owned(

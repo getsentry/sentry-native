@@ -425,7 +425,6 @@ main(int argc, char **argv)
             custom_sampling_ctx, "b", sentry_value_new_int32(42));
         sentry_transaction_t *tx
             = sentry_transaction_start(tx_ctx, custom_sampling_ctx);
-        sentry_value_decref(custom_sampling_ctx);
 
         sentry_transaction_set_data(
             tx, "url", sentry_value_new_string("https://example.com"));

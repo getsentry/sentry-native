@@ -1753,6 +1753,9 @@ SENTRY_EXPERIMENTAL_API void sentry_transaction_context_update_from_header_n(
  * Takes ownership of `transaction_context`. A Transaction Context cannot be
  * modified or re-used after it is used to start a Transaction.
  *
+ * Takes ownership of `custom_sampling_ctx`. A Sampling Context cannot be
+ * modified or re-used after it is used to start a Transaction.
+ *
  * The returned value is not thread-safe. Users are expected to ensure that
  * appropriate locking mechanisms are implemented over the Transaction if it
  * needs to be mutated across threads. Methods operating on the Transaction will
@@ -1760,7 +1763,7 @@ SENTRY_EXPERIMENTAL_API void sentry_transaction_context_update_from_header_n(
  * the object in a thread-safe way.
  */
 SENTRY_EXPERIMENTAL_API sentry_transaction_t *sentry_transaction_start(
-    sentry_transaction_context_t *tx_cxt, sentry_value_t sampling_ctx);
+    sentry_transaction_context_t *tx_cxt, sentry_value_t custom_sampling_ctx);
 /**
  * Also starts a transaction like the regular `sentry_transaction_start`
  * function, but has an additional timestamp parameter to let the user provide
