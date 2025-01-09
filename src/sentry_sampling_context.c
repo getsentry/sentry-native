@@ -8,3 +8,10 @@ sentry_sampling_context_get_custom_context(
 {
     return sampling_ctx->custom_sampling_context;
 }
+
+sentry_value_t
+sentry_sampling_context_get_parent_sampled(
+    const sentry_sampling_context_t *sampling_ctx)
+{
+    return sampling_ctx->parent_sampled;
+}

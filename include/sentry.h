@@ -1544,6 +1544,16 @@ typedef double (*sentry_traces_sampler_function)(
 SENTRY_EXPERIMENTAL_API sentry_value_t
 sentry_sampling_context_get_custom_context(
     const sentry_sampling_context_t *sampling_ctx);
+
+/**
+ * Returns a sentry_value_t indicating whether the parent transaction had a
+ * sampling decision or not. If the value is null, it didn't. If it is non-null,
+ * the decision itself can be checked with `sentry_value_is_true`.
+ */
+SENTRY_EXPERIMENTAL_API sentry_value_t
+sentry_sampling_context_get_parent_sampled(
+    const sentry_sampling_context_t *sampling_ctx);
+
 /**
  * Sets the traces sampler callback. Should be a function that returns a double
  * and takes in a samplingContext objectß

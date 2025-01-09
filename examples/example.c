@@ -31,6 +31,14 @@
 static double
 traces_sampler_callback(sentry_sampling_context_t *sampling_ctx)
 {
+    if (!sentry_value_is_null(
+            sentry_sampling_context_get_parent_sampled(sampling_ctx))) {
+        if (sentry_value_is_true(
+                sentry_sampling_context_get_parent_sampled(sampling_ctx))) {
+            return 0.8; // high sample rate for children of sampled transactions
+        }
+        return 0; // parent is not sampled
+    }
     if (sentry_value_as_int32(sentry_value_get_by_key(
             sentry_sampling_context_get_custom_context(sampling_ctx), "b"))
         == 42) {
@@ -418,11 +426,15 @@ main(int argc, char **argv)
         if (has_arg(argc, argv, "unsample-tx")) {
             sentry_transaction_context_set_sampled(tx_ctx, 0);
         }
+        // TODO clean this up to a minimal example (use the rest for tests)
         sentry_value_t custom_sampling_ctx = sentry_value_new_object();
         sentry_value_set_by_key(
             custom_sampling_ctx, "a", sentry_value_new_string("first_value"));
         sentry_value_set_by_key(
             custom_sampling_ctx, "b", sentry_value_new_int32(42));
+        // sampled parent
+        // sentry_transaction_context_update_from_header(tx_ctx, "sentry-trace",
+        //     "12345678901234567890123456789012-1234567890123456-1");
         sentry_transaction_t *tx
             = sentry_transaction_start(tx_ctx, custom_sampling_ctx);
 

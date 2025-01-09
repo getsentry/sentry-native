@@ -454,7 +454,10 @@ sentry__should_send_transaction(
 {
     sentry_value_t context_setting = sentry_value_get_by_key(tx_cxt, "sampled");
     if (!sentry_value_is_null(context_setting)) {
-        return sentry_value_is_true(context_setting);
+        bool sampled = sentry_value_is_true(context_setting);
+        sampling_ctx->parent_sampled = sentry_value_new_bool(sampled);
+    } else {
+        sampling_ctx->parent_sampled = sentry_value_new_null();
     }
 
     bool send = false;
@@ -464,8 +467,11 @@ sentry__should_send_transaction(
                 = ((double (*)(void *))options->traces_sampler)(sampling_ctx);
             send = sentry__roll_dice(result);
         } else {
-            // TODO if there is a parent sampling decision, use it
-            send = sentry__roll_dice(options->traces_sample_rate);
+            if (!sentry_value_is_null(sampling_ctx->parent_sampled)) {
+                send = sentry_value_is_true(sampling_ctx->parent_sampled);
+            } else {
+                send = sentry__roll_dice(options->traces_sample_rate);
+            }
         }
     }
     return send;
@@ -879,7 +885,7 @@ sentry_transaction_start_ts(sentry_transaction_context_t *opaque_tx_cxt,
 
     sentry__value_merge_objects(tx, tx_cxt);
     sentry_sampling_context_t sampling_ctx
-        = { opaque_tx_cxt, custom_sampling_ctx };
+        = { opaque_tx_cxt, custom_sampling_ctx, sentry_value_new_null() };
     bool should_sample = sentry__should_send_transaction(tx_cxt, &sampling_ctx);
     sentry_value_set_by_key(
         tx, "sampled", sentry_value_new_bool(should_sample));
