@@ -12,8 +12,7 @@ SENTRY_TEST(sampling_decision)
 
 static double
 traces_sampler_callback(sentry_transaction_context_t *transaction_ctx,
-    sentry_value_t custom_sampling_ctx,
-    const bool *parent_sampled)
+    sentry_value_t custom_sampling_ctx, const bool *parent_sampled)
 {
     if (parent_sampled != NULL) {
         if (*parent_sampled) {
@@ -21,8 +20,8 @@ traces_sampler_callback(sentry_transaction_context_t *transaction_ctx,
         }
         return 0; // parent is not sampled
     }
-    if (sentry_value_as_int32(sentry_value_get_by_key(custom_sampling_ctx,
-        "answer"))
+    if (sentry_value_as_int32(
+            sentry_value_get_by_key(custom_sampling_ctx, "answer"))
         == 42) {
         return 1;
     }

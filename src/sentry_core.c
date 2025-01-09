@@ -462,10 +462,11 @@ sentry__should_send_transaction(
     bool send = false;
     SENTRY_WITH_OPTIONS (options) {
         if (options->traces_sampler) {
-            const double result = ((sentry_traces_sampler_function)options->traces_sampler)(
-                sampling_ctx->transaction_context,
-                sampling_ctx->custom_sampling_context,
-                sampling_ctx->parent_sampled);
+            const double result
+                = ((sentry_traces_sampler_function)options->traces_sampler)(
+                    sampling_ctx->transaction_context,
+                    sampling_ctx->custom_sampling_context,
+                    sampling_ctx->parent_sampled);
             send = sentry__roll_dice(result);
         } else {
             if (sampling_ctx->parent_sampled != NULL) {

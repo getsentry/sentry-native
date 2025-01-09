@@ -1534,7 +1534,6 @@ SENTRY_EXPERIMENTAL_API void sentry_options_set_traces_sample_rate(
 SENTRY_EXPERIMENTAL_API double sentry_options_get_traces_sample_rate(
     sentry_options_t *opts);
 
-
 /**
  * A sentry Transaction Context.
  *
@@ -1546,8 +1545,7 @@ typedef struct sentry_transaction_context_s sentry_transaction_context_t;
 typedef struct sentry_sampling_context_s sentry_sampling_context_t;
 typedef double (*sentry_traces_sampler_function)(
     sentry_transaction_context_t *transaction_ctx,
-    sentry_value_t custom_sampling_ctx,
-    const bool *parent_sampled);
+    sentry_value_t custom_sampling_ctx, const bool *parent_sampled);
 
 /**
  * Sets the traces sampler callback. Should be a function that returns a double
@@ -1612,7 +1610,6 @@ SENTRY_EXPERIMENTAL_API void sentry_end_session_with_status(
     sentry_session_status_t status);
 
 /* -- Performance Monitoring/Tracing APIs -- */
-
 
 /**
  * A sentry Transaction.
