@@ -111,5 +111,6 @@ SENTRY_TEST(sampling_transaction)
     TEST_CHECK(sentry__should_send_transaction(tx_cxt->inner, &sampling_ctx));
 
     sentry__transaction_context_free(tx_cxt);
+    sentry_value_decref(custom_sampling_ctx);
     sentry_close();
 }
