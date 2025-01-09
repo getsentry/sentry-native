@@ -455,24 +455,29 @@ sentry__should_send_transaction(
     sentry_value_t context_setting = sentry_value_get_by_key(tx_cxt, "sampled");
     if (!sentry_value_is_null(context_setting)) {
         bool sampled = sentry_value_is_true(context_setting);
-        sampling_ctx->parent_sampled = sentry_value_new_bool(sampled);
-    } else {
-        sampling_ctx->parent_sampled = sentry_value_new_null();
+        sampling_ctx->parent_sampled = sentry_malloc(sizeof(bool));
+        *sampling_ctx->parent_sampled = sampled;
     }
 
     bool send = false;
     SENTRY_WITH_OPTIONS (options) {
         if (options->traces_sampler) {
-            double result
-                = ((double (*)(void *))options->traces_sampler)(sampling_ctx);
+            const double result = ((sentry_traces_sampler_function)options->traces_sampler)(
+                sampling_ctx->transaction_context,
+                sampling_ctx->custom_sampling_context,
+                sampling_ctx->parent_sampled);
             send = sentry__roll_dice(result);
         } else {
-            if (!sentry_value_is_null(sampling_ctx->parent_sampled)) {
-                send = sentry_value_is_true(sampling_ctx->parent_sampled);
+            if (sampling_ctx->parent_sampled != NULL) {
+                send = *sampling_ctx->parent_sampled;
             } else {
                 send = sentry__roll_dice(options->traces_sample_rate);
             }
         }
+    }
+    if (sampling_ctx->parent_sampled != NULL) {
+        sentry_free(sampling_ctx->parent_sampled);
+        sampling_ctx->parent_sampled = NULL;
     }
     return send;
 }
@@ -885,7 +890,7 @@ sentry_transaction_start_ts(sentry_transaction_context_t *opaque_tx_cxt,
 
     sentry__value_merge_objects(tx, tx_cxt);
     sentry_sampling_context_t sampling_ctx
-        = { opaque_tx_cxt, custom_sampling_ctx, sentry_value_new_null() };
+        = { opaque_tx_cxt, custom_sampling_ctx, NULL };
     bool should_sample = sentry__should_send_transaction(tx_cxt, &sampling_ctx);
     sentry_value_set_by_key(
         tx, "sampled", sentry_value_new_bool(should_sample));

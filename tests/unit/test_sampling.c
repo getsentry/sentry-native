@@ -11,18 +11,18 @@ SENTRY_TEST(sampling_decision)
 }
 
 static double
-traces_sampler_callback(sentry_sampling_context_t *sampling_ctx)
+traces_sampler_callback(sentry_transaction_context_t *transaction_ctx,
+    sentry_value_t custom_sampling_ctx,
+    const bool *parent_sampled)
 {
-    if (!sentry_value_is_null(
-            sentry_sampling_context_get_parent_sampled(sampling_ctx))) {
-        if (sentry_value_is_true(
-                sentry_sampling_context_get_parent_sampled(sampling_ctx))) {
+    if (parent_sampled != NULL) {
+        if (*parent_sampled) {
             return 1; // high sample rate for children of sampled transactions
         }
         return 0; // parent is not sampled
     }
-    if (sentry_value_as_int32(sentry_value_get_by_key(
-            sentry_sampling_context_get_custom_context(sampling_ctx), "answer"))
+    if (sentry_value_as_int32(sentry_value_get_by_key(custom_sampling_ctx,
+        "answer"))
         == 42) {
         return 1;
     }
@@ -39,7 +39,7 @@ SENTRY_TEST(sampling_transaction)
 
     sentry_transaction_context_set_sampled(tx_cxt, 0);
     sentry_sampling_context_t sampling_ctx
-        = { NULL, sentry_value_new_null(), sentry_value_new_null() };
+        = { NULL, sentry_value_new_null(), NULL };
     TEST_CHECK(
         sentry__should_send_transaction(tx_cxt->inner, &sampling_ctx) == false);
 

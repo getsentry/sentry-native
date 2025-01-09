@@ -86,6 +86,7 @@ extern "C" {
 
 #include <inttypes.h>
 #include <stdarg.h>
+#include <stdbool.h>
 #include <stddef.h>
 
 /* context type dependencies */
@@ -1533,26 +1534,20 @@ SENTRY_EXPERIMENTAL_API void sentry_options_set_traces_sample_rate(
 SENTRY_EXPERIMENTAL_API double sentry_options_get_traces_sample_rate(
     sentry_options_t *opts);
 
-struct sentry_sampling_context_s;
+
+/**
+ * A sentry Transaction Context.
+ *
+ * See Transaction Interface under
+ * https://develop.sentry.dev/sdk/performance/#new-span-and-transaction-classes
+ */
+struct sentry_transaction_context_s;
+typedef struct sentry_transaction_context_s sentry_transaction_context_t;
 typedef struct sentry_sampling_context_s sentry_sampling_context_t;
 typedef double (*sentry_traces_sampler_function)(
-    sentry_sampling_context_t *sampling_ctx);
-
-/**
- * Returns the custom context for the sampling context.
- */
-SENTRY_EXPERIMENTAL_API sentry_value_t
-sentry_sampling_context_get_custom_context(
-    const sentry_sampling_context_t *sampling_ctx);
-
-/**
- * Returns a sentry_value_t indicating whether the parent transaction had a
- * sampling decision or not. If the value is null, it didn't. If it is non-null,
- * the decision itself can be checked with `sentry_value_is_true`.
- */
-SENTRY_EXPERIMENTAL_API sentry_value_t
-sentry_sampling_context_get_parent_sampled(
-    const sentry_sampling_context_t *sampling_ctx);
+    sentry_transaction_context_t *transaction_ctx,
+    sentry_value_t custom_sampling_ctx,
+    const bool *parent_sampled);
 
 /**
  * Sets the traces sampler callback. Should be a function that returns a double
@@ -1618,14 +1613,6 @@ SENTRY_EXPERIMENTAL_API void sentry_end_session_with_status(
 
 /* -- Performance Monitoring/Tracing APIs -- */
 
-/**
- * A sentry Transaction Context.
- *
- * See Transaction Interface under
- * https://develop.sentry.dev/sdk/performance/#new-span-and-transaction-classes
- */
-struct sentry_transaction_context_s;
-typedef struct sentry_transaction_context_s sentry_transaction_context_t;
 
 /**
  * A sentry Transaction.
