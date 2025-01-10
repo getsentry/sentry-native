@@ -14,7 +14,7 @@ static double
 traces_sampler_callback(sentry_transaction_context_t *transaction_ctx,
     sentry_value_t custom_sampling_ctx, const bool *parent_sampled)
 {
-    (void) transaction_ctx; // unused for now
+    (void)transaction_ctx; // unused for now
 
     if (parent_sampled != NULL) {
         if (*parent_sampled) {
