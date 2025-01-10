@@ -49,6 +49,7 @@ typedef struct sentry_options_s {
     bool require_user_consent;
     bool symbolize_stacktraces;
     bool system_crash_reporter_enabled;
+    bool read_proxy_from_environment;
 
     sentry_attachment_t *attachments;
     sentry_run_t *run;
@@ -79,4 +80,8 @@ typedef struct sentry_options_s {
  */
 sentry_options_t *sentry__options_incref(sentry_options_t *options);
 
+/**
+ * Sets the proxy value by reading it from the environment.
+ */
+void sentry__set_proxy_from_environment(sentry_options_t *opts);
 #endif

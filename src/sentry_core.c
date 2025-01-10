@@ -145,6 +145,10 @@ sentry_init(sentry_options_t *options)
         }
     }
 
+    if (options->read_proxy_from_environment) {
+        sentry__set_proxy_from_environment(options);
+    }
+
     uint64_t last_crash = 0;
 
     // and then we will start the backend, since it requires a valid run

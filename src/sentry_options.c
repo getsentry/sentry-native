@@ -34,7 +34,6 @@ sentry_options_new(void)
     opts->release = sentry__string_clone(getenv("SENTRY_RELEASE"));
     opts->environment = sentry__string_clone(getenv("SENTRY_ENVIRONMENT"));
 #endif
-    sentry_options_set_proxy(opts, getenv("http_proxy"));
     if (!opts->environment) {
         opts->environment = sentry__string_clone("production");
     }
@@ -275,6 +274,28 @@ const char *
 sentry_options_get_http_proxy(const sentry_options_t *opts)
 {
     return sentry_options_get_proxy(opts);
+}
+
+void
+sentry_options_set_read_proxy_from_environment(sentry_options_t *opts, int val)
+{
+    opts->read_proxy_from_environment = !!val;
+}
+
+int
+sentry_options_get_read_proxy_from_environment(const sentry_options_t *opts)
+{
+    return opts->read_proxy_from_environment;
+}
+
+void
+sentry__set_proxy_from_environment(sentry_options_t *opts)
+{
+    sentry_options_set_proxy(opts, getenv("http_proxy"));
+    const char *https_proxy = getenv("https_proxy");
+    if (https_proxy) {
+        sentry_options_set_proxy(opts, https_proxy);
+    }
 }
 
 void
