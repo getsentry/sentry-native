@@ -61,20 +61,20 @@ The SDK bundle contains the following folders:
 
 The SDK currently supports and is tested on the following OS/Compiler variations:
 
-- 64bit Linux with GCC 9
-- 64bit Linux with clang 9
+- 64bit Linux with GCC 12
+- 64bit Linux with clang 15
 - 32bit Linux with GCC 7 (cross compiled from 64bit host)
 - 32bit Windows with MSVC 2019
 - 64bit Windows with MSVC 2022
-- macOS Catalina with most recent Compiler toolchain
-- Android API29 built by NDK21 toolchain
+- macOS 13, 14, 15 with respective most recent Apple compiler toolchain and LLVM clang 15 + 18
+- Android API35 built by NDK27 toolchain
 - Android API16 built by NDK19 toolchain
 
 Additionally, the SDK should support the following platforms, although they are
 not automatically tested, so breakage may occur:
 
 - Windows Versions lower than Windows 10 / Windows Server 2016
-- Windows builds with the MSYS2 + MinGW + Clang toolchain
+- Windows builds with the MSYS2 + MinGW + Clang toolchain (which also runs in CI)
 
 The SDK supports different features on the target platform:
 
@@ -94,7 +94,7 @@ CMake.
 
 The prerequisites for building differ depending on the platform and backend. You will always need `CMake` to build the code. Additionally, when using the `crashpad` backend, `zlib` is required. On Linux and macOS, `libcurl` is a prerequisite. For more details, check out  the [contribution guide](./CONTRIBUTING.md).
 
-Building the Crashpad Backend [requires a `C++20` compatible compiler](https://github.com/getsentry/sentry-native/issues/1041). In particular, the standard library must support `std::ranges` for `mini_chromium` (a core library of `crashpad`).
+Building the Breakpad and Crashpad backends requires a `C++17` compatible compiler.
 
 **Build example**:
 
