@@ -244,6 +244,10 @@ main(int argc, char **argv)
         sentry_options_set_proxy(options, "socks5://127.0.0.1:1080");
     }
 
+    if (has_arg(argc, argv, "proxy-from-env")) {
+        sentry_options_set_read_proxy_from_environment(options, true);
+    }
+
     sentry_init(options);
 
     if (!has_arg(argc, argv, "no-setup")) {

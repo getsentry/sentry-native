@@ -138,15 +138,15 @@ sentry_init(sentry_options_t *options)
             "the provided DSN \"%s\" is not valid", raw_dsn ? raw_dsn : "");
     }
 
+    if (options->read_proxy_from_environment) {
+        sentry__set_proxy_from_environment(options);
+    }
+
     if (transport) {
         if (sentry__transport_startup(transport, options) != 0) {
             SENTRY_WARN("failed to initialize transport");
             goto fail;
         }
-    }
-
-    if (options->read_proxy_from_environment) {
-        sentry__set_proxy_from_environment(options);
     }
 
     uint64_t last_crash = 0;
