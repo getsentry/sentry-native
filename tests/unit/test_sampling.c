@@ -53,8 +53,7 @@ SENTRY_TEST(sampling_transaction)
         sentry__should_send_transaction(tx_cxt->inner, &sampling_ctx) == false);
 
     // sampled parent -> sampled child
-    sentry_transaction_context_update_from_header(tx_cxt, "sentry-trace",
-        "12345678901234567890123456789012-1234567890123456-1");
+    sentry_transaction_context_set_sampled(tx_cxt, 1);
     TEST_CHECK(sentry__should_send_transaction(tx_cxt->inner, &sampling_ctx));
 
     options = sentry_options_new();
@@ -64,8 +63,7 @@ SENTRY_TEST(sampling_transaction)
     TEST_CHECK(sentry__should_send_transaction(tx_cxt->inner, &sampling_ctx));
 
     // non-sampled parent
-    sentry_transaction_context_update_from_header(tx_cxt, "sentry-trace",
-        "12345678901234567890123456789012-1234567890123456-0");
+    sentry_transaction_context_set_sampled(tx_cxt, 0);
     TEST_CHECK(
         sentry__should_send_transaction(tx_cxt->inner, &sampling_ctx) == false);
 
@@ -85,8 +83,7 @@ SENTRY_TEST(sampling_transaction)
     TEST_CHECK(sentry__should_send_transaction(tx_cxt->inner, &sampling_ctx));
 
     // non-sampled parent and traces sampler
-    sentry_transaction_context_update_from_header(tx_cxt, "sentry-trace",
-        "12345678901234567890123456789012-1234567890123456-0");
+    sentry_transaction_context_set_sampled(tx_cxt, 0);
     TEST_CHECK(
         sentry__should_send_transaction(tx_cxt->inner, &sampling_ctx) == false);
     // removing sampled should fall back to traces sampler
@@ -98,8 +95,7 @@ SENTRY_TEST(sampling_transaction)
         sentry__should_send_transaction(tx_cxt->inner, &sampling_ctx) == false);
 
     // sampled parent and traces sampler
-    sentry_transaction_context_update_from_header(tx_cxt, "sentry-trace",
-        "12345678901234567890123456789012-1234567890123456-1");
+    sentry_transaction_context_set_sampled(tx_cxt, 1);
     TEST_CHECK(sentry__should_send_transaction(tx_cxt->inner, &sampling_ctx));
     sentry_transaction_context_remove_sampled(tx_cxt);
 

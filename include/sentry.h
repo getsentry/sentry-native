@@ -1549,7 +1549,8 @@ typedef double (*sentry_traces_sampler_function)(
 
 /**
  * Sets the traces sampler callback. Should be a function that returns a double
- * and takes in a samplingContext objectß
+ * and takes in a sentry_transaction_context_t pointer, a sentry_value_t for
+ * a custom sampling context and a bool pointer for the parent sampled flag.
  */
 SENTRY_EXPERIMENTAL_API void sentry_options_set_traces_sampler(
     sentry_options_t *opts, sentry_traces_sampler_function callback);
