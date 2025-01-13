@@ -291,10 +291,11 @@ sentry_options_get_read_proxy_from_environment(const sentry_options_t *opts)
 void
 sentry__set_proxy_from_environment(sentry_options_t *opts)
 {
-    sentry_options_set_proxy(opts, getenv("http_proxy"));
     const char *https_proxy = getenv("https_proxy");
     if (https_proxy) {
         sentry_options_set_proxy(opts, https_proxy);
+    } else {
+        sentry_options_set_proxy(opts, getenv("http_proxy"));
     }
 }
 
