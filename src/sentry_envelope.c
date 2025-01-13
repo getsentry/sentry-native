@@ -413,7 +413,7 @@ sentry__envelope_serialize_into_stringbuilder(
         return;
     }
 
-    SENTRY_TRACE("serializing envelope into buffer");
+    SENTRY_DEBUG("serializing envelope into buffer");
     sentry__envelope_serialize_headers_into_stringbuilder(envelope, sb);
 
     for (size_t i = 0; i < envelope->contents.items.item_count; i++) {

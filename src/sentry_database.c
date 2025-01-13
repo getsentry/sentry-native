@@ -105,7 +105,7 @@ sentry__run_write_envelope(
     sentry__path_free(output_path);
 
     if (rv) {
-        SENTRY_DEBUG("writing envelope to file failed");
+        SENTRY_WARN("writing envelope to file failed");
     }
 
     // the `write_to_path` returns > 0 on failure, but we would like a real bool
@@ -131,7 +131,7 @@ sentry__run_write_session(
     sentry_free(buf);
 
     if (rv) {
-        SENTRY_DEBUG("writing session to file failed");
+        SENTRY_WARN("writing session to file failed");
     }
     return !rv;
 }
@@ -266,7 +266,7 @@ sentry__write_crash_marker(const sentry_options_t *options)
     sentry__path_free(marker_path);
 
     if (rv) {
-        SENTRY_DEBUG("writing crash timestamp to file failed");
+        SENTRY_WARN("writing crash timestamp to file failed");
     }
     return !rv;
 }
@@ -297,7 +297,7 @@ sentry__clear_crash_marker(const sentry_options_t *options)
     int rv = sentry__path_remove(marker_path);
     sentry__path_free(marker_path);
     if (rv) {
-        SENTRY_DEBUG("removing the crash timestamp file has failed");
+        SENTRY_WARN("removing the crash timestamp file has failed");
     }
     return !rv;
 }

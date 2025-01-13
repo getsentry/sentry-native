@@ -96,7 +96,7 @@ sentry_init(sentry_options_t *options)
 
     sentry_close();
 
-    sentry_logger_t logger = { NULL, NULL };
+    sentry_logger_t logger = { NULL, NULL, SENTRY_LEVEL_DEBUG };
     if (options->debug) {
         logger = options->logger;
     }
@@ -118,7 +118,7 @@ sentry_init(sentry_options_t *options)
         SENTRY_DEBUG("falling back to non-absolute database path");
         options->database_path = database_path;
     }
-    SENTRY_DEBUGF("using database path \"%" SENTRY_PATH_PRI "\"",
+    SENTRY_INFOF("using database path \"%" SENTRY_PATH_PRI "\"",
         options->database_path->path);
 
     // try to create and lock our run folder as early as possibly, since it is
@@ -150,7 +150,7 @@ sentry_init(sentry_options_t *options)
     // and then we will start the backend, since it requires a valid run
     sentry_backend_t *backend = options->backend;
     if (backend && backend->startup_func) {
-        SENTRY_TRACE("starting backend");
+        SENTRY_DEBUG("starting backend");
         if (backend->startup_func(backend, options) != 0) {
             SENTRY_WARN("failed to initialize backend");
             goto fail;
@@ -180,13 +180,13 @@ sentry_init(sentry_options_t *options)
     }
 
 #ifdef SENTRY_INTEGRATION_QT
-    SENTRY_TRACE("setting up Qt integration");
+    SENTRY_DEBUG("setting up Qt integration");
     sentry_integration_setup_qt();
 #endif
 
     // after initializing the transport, we will submit all the unsent envelopes
     // and handle remaining sessions.
-    SENTRY_TRACE("processing and pruning old runs");
+    SENTRY_DEBUG("processing and pruning old runs");
     sentry__process_old_runs(options, last_crash);
     if (backend && backend->prune_database_func) {
         backend->prune_database_func(backend);
@@ -235,7 +235,7 @@ sentry_close(void)
     if (options) {
         sentry_end_session();
         if (options->backend && options->backend->shutdown_func) {
-            SENTRY_TRACE("shutting down backend");
+            SENTRY_DEBUG("shutting down backend");
             options->backend->shutdown_func(options->backend);
         }
 
@@ -255,7 +255,7 @@ sentry_close(void)
         }
         sentry_options_free(options);
     } else {
-        SENTRY_DEBUG("sentry_close() called, but options was empty");
+        SENTRY_WARN("sentry_close() called, but options was empty");
     }
 
     g_options = NULL;
@@ -356,7 +356,7 @@ sentry__capture_envelope(
 {
     bool has_consent = !sentry__should_skip_upload();
     if (!has_consent) {
-        SENTRY_TRACE("discarding envelope due to missing user consent");
+        SENTRY_INFO("discarding envelope due to missing user consent");
         sentry_envelope_free(envelope);
         return;
     }
@@ -433,7 +433,7 @@ sentry__capture_event(sentry_value_t event)
 
             bool should_skip = !sentry__roll_dice(options->sample_rate);
             if (should_skip) {
-                SENTRY_DEBUG("throwing away event due to sample rate");
+                SENTRY_INFO("throwing away event due to sample rate");
                 sentry_envelope_free(envelope);
             } else {
                 sentry__capture_envelope(options->transport, envelope);
@@ -475,7 +475,7 @@ sentry__prepare_event(const sentry_options_t *options, sentry_value_t event,
     }
 
     SENTRY_WITH_SCOPE (scope) {
-        SENTRY_TRACE("merging scope into event");
+        SENTRY_DEBUG("merging scope into event");
         sentry_scope_mode_t mode = SENTRY_SCOPE_ALL;
         if (!options->symbolize_stacktraces) {
             mode &= ~SENTRY_SCOPE_STACKTRACES;
@@ -484,11 +484,11 @@ sentry__prepare_event(const sentry_options_t *options, sentry_value_t event,
     }
 
     if (options->before_send_func && invoke_before_send) {
-        SENTRY_TRACE("invoking `before_send` hook");
+        SENTRY_DEBUG("invoking `before_send` hook");
         event
             = options->before_send_func(event, NULL, options->before_send_data);
         if (sentry_value_is_null(event)) {
-            SENTRY_TRACE("event was discarded by the `before_send` hook");
+            SENTRY_DEBUG("event was discarded by the `before_send` hook");
             return NULL;
         }
     }
@@ -499,7 +499,7 @@ sentry__prepare_event(const sentry_options_t *options, sentry_value_t event,
         goto fail;
     }
 
-    SENTRY_TRACE("adding attachments to envelope");
+    SENTRY_DEBUG("adding attachments to envelope");
     for (sentry_attachment_t *attachment = options->attachments; attachment;
         attachment = attachment->next) {
         sentry_envelope_item_t *item = sentry__envelope_add_from_path(
@@ -531,7 +531,7 @@ sentry__prepare_transaction(const sentry_options_t *options,
     sentry_envelope_t *envelope = NULL;
 
     SENTRY_WITH_SCOPE (scope) {
-        SENTRY_TRACE("merging scope into transaction");
+        SENTRY_DEBUG("merging scope into transaction");
         // Don't include debugging info
         sentry_scope_mode_t mode = SENTRY_SCOPE_ALL & ~SENTRY_SCOPE_MODULES
             & ~SENTRY_SCOPE_STACKTRACES;
@@ -579,7 +579,7 @@ void
 sentry_handle_exception(const sentry_ucontext_t *uctx)
 {
     SENTRY_WITH_OPTIONS (options) {
-        SENTRY_DEBUG("handling exception");
+        SENTRY_INFO("handling exception");
         if (options->backend && options->backend->except_func) {
             options->backend->except_func(options->backend, uctx);
         }
@@ -899,7 +899,7 @@ sentry_transaction_finish_ts(
     sentry_transaction_t *opaque_tx, uint64_t timestamp)
 {
     if (!opaque_tx || sentry_value_is_null(opaque_tx->inner)) {
-        SENTRY_DEBUG("no transaction available to finish");
+        SENTRY_WARN("no transaction available to finish");
         goto fail;
     }
 
@@ -924,8 +924,8 @@ sentry_transaction_finish_ts(
     // `sentry__should_skip_transaction`.
     sentry_value_t sampled = sentry_value_get_by_key(tx, "sampled");
     if (!sentry_value_is_true(sampled)) {
-        SENTRY_DEBUG("throwing away transaction due to sample rate or "
-                     "user-provided sampling value in transaction context");
+        SENTRY_INFO("throwing away transaction due to sample rate or "
+                    "user-provided sampling value in transaction context");
         sentry_value_decref(tx);
         goto fail;
     }
@@ -1022,7 +1022,7 @@ sentry_transaction_start_child_ts_n(sentry_transaction_t *opaque_parent,
     size_t description_len, const uint64_t timestamp)
 {
     if (!opaque_parent || sentry_value_is_null(opaque_parent->inner)) {
-        SENTRY_DEBUG("no transaction available to create a child under");
+        SENTRY_WARN("no transaction available to create a child under");
         return NULL;
     }
     sentry_value_t parent = opaque_parent->inner;
@@ -1072,11 +1072,11 @@ sentry_span_start_child_ts_n(sentry_span_t *opaque_parent,
     size_t description_len, uint64_t timestamp)
 {
     if (!opaque_parent || sentry_value_is_null(opaque_parent->inner)) {
-        SENTRY_DEBUG("no parent span available to create a child span under");
+        SENTRY_WARN("no parent span available to create a child span under");
         return NULL;
     }
     if (!opaque_parent->transaction) {
-        SENTRY_DEBUG("no root transaction to create a child span under");
+        SENTRY_WARN("no root transaction to create a child span under");
         return NULL;
     }
     sentry_value_t parent = opaque_parent->inner;
@@ -1114,14 +1114,14 @@ void
 sentry_span_finish_ts(sentry_span_t *opaque_span, uint64_t timestamp)
 {
     if (!opaque_span || sentry_value_is_null(opaque_span->inner)) {
-        SENTRY_DEBUG("no span to finish");
+        SENTRY_WARN("no span to finish");
         goto fail;
     }
 
     sentry_transaction_t *opaque_root_transaction = opaque_span->transaction;
     if (!opaque_root_transaction
         || sentry_value_is_null(opaque_root_transaction->inner)) {
-        SENTRY_DEBUG(
+        SENTRY_WARN(
             "no root transaction to finish span on, aborting span finish");
         goto fail;
     }
@@ -1130,14 +1130,14 @@ sentry_span_finish_ts(sentry_span_t *opaque_span, uint64_t timestamp)
 
     if (!sentry_value_is_true(
             sentry_value_get_by_key(root_transaction, "sampled"))) {
-        SENTRY_DEBUG("root transaction is unsampled, dropping span");
+        SENTRY_INFO("root transaction is unsampled, dropping span");
         goto fail;
     }
 
     if (!sentry_value_is_null(
             sentry_value_get_by_key(root_transaction, "timestamp"))) {
-        SENTRY_DEBUG("span's root transaction is already finished, aborting "
-                     "span finish");
+        SENTRY_WARN("span's root transaction is already finished, aborting "
+                    "span finish");
         goto fail;
     }
 
@@ -1162,13 +1162,13 @@ sentry_span_finish_ts(sentry_span_t *opaque_span, uint64_t timestamp)
     // that's different from the span's root transaction, but let's just be safe
     // here.
     if (!sentry_value_is_true(sentry_value_get_by_key(span, "sampled"))) {
-        SENTRY_DEBUG("span is unsampled, dropping span");
+        SENTRY_INFO("span is unsampled, dropping span");
         sentry_value_decref(span);
         goto fail;
     }
 
     if (!sentry_value_is_null(sentry_value_get_by_key(span, "timestamp"))) {
-        SENTRY_DEBUG("span is already finished, aborting span finish");
+        SENTRY_WARN("span is already finished, aborting span finish");
         sentry_value_decref(span);
         goto fail;
     }
@@ -1186,8 +1186,8 @@ sentry_span_finish_ts(sentry_span_t *opaque_span, uint64_t timestamp)
     sentry_value_t spans = sentry_value_get_by_key(root_transaction, "spans");
 
     if (sentry_value_get_length(spans) >= max_spans) {
-        SENTRY_DEBUG("reached maximum number of spans for transaction, "
-                     "discarding span");
+        SENTRY_WARN("reached maximum number of spans for transaction, "
+                    "discarding span");
         sentry_value_decref(span);
         goto fail;
     }
@@ -1284,8 +1284,7 @@ sentry_capture_minidump_n(const char *path, size_t path_len)
 
             sentry__capture_envelope(options->transport, envelope);
 
-            SENTRY_DEBUGF("Minidump has been captured: \"%" SENTRY_PATH_PRI
-                          "\"",
+            SENTRY_INFOF("Minidump has been captured: \"%" SENTRY_PATH_PRI "\"",
                 dump_path->path);
         }
     }

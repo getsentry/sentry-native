@@ -139,7 +139,7 @@ crashpad_register_wer_module(
     }
 
     if (wer_path && sentry__path_is_file(wer_path)) {
-        SENTRY_TRACEF("registering crashpad WER handler "
+        SENTRY_DEBUGF("registering crashpad WER handler "
                       "\"%" SENTRY_PATH_PRI "\"",
             wer_path->path);
 
@@ -186,7 +186,7 @@ crashpad_backend_flush_scope_to_event(const sentry_path_t *event_path,
     sentry_free(mpack);
 
     if (rv != 0) {
-        SENTRY_DEBUG("flushing scope to msgpack failed");
+        SENTRY_WARN("flushing scope to msgpack failed");
     }
 }
 
@@ -257,7 +257,7 @@ sentry__crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
 {
     sentry__page_allocator_enable();
 #    endif
-    SENTRY_DEBUG("flushing session and queue before crashpad handler");
+    SENTRY_INFO("flushing session and queue before crashpad handler");
 
     bool should_dump = true;
 
@@ -276,11 +276,11 @@ sentry__crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
             uctx.user_context = user_context;
 #    endif
 
-            SENTRY_TRACE("invoking `on_crash` hook");
+            SENTRY_DEBUG("invoking `on_crash` hook");
             crash_event = options->on_crash_func(
                 &uctx, crash_event, options->on_crash_data);
         } else if (options->before_send_func) {
-            SENTRY_TRACE("invoking `before_send` hook");
+            SENTRY_DEBUG("invoking `before_send` hook");
             crash_event = options->before_send_func(
                 crash_event, nullptr, options->before_send_data);
         }
@@ -305,12 +305,12 @@ sentry__crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
                 sentry_transport_free(disk_transport);
             }
         } else {
-            SENTRY_TRACE("event was discarded");
+            SENTRY_DEBUG("event was discarded");
         }
         sentry__transport_dump_queue(options->transport, options->run);
     }
 
-    SENTRY_DEBUG("handing control over to crashpad");
+    SENTRY_INFO("handing control over to crashpad");
     // If we __don't__ want a minidump produced by crashpad we need to either
     // exit or longjmp at this point. The crashpad client handler which calls
     // back here (SetFirstChanceExceptionHandler) does the same if the
@@ -392,7 +392,7 @@ crashpad_backend_startup(
         return 1;
     }
 
-    SENTRY_TRACEF("starting crashpad backend with handler "
+    SENTRY_DEBUGF("starting crashpad backend with handler "
                   "\"%" SENTRY_PATH_PRI "\"",
         absolute_handler_path->path);
     sentry_path_t *current_run_folder = options->run->run_path;
@@ -437,7 +437,7 @@ crashpad_backend_startup(
     char *minidump_url
         = sentry__dsn_get_minidump_url(options->dsn, options->user_agent);
     if (minidump_url) {
-        SENTRY_TRACEF("using minidump URL \"%s\"", minidump_url);
+        SENTRY_DEBUGF("using minidump URL \"%s\"", minidump_url);
     }
     bool success = data->client->StartHandler(handler, database, database,
         minidump_url ? minidump_url : "", options->proxy ? options->proxy : "",
@@ -453,7 +453,7 @@ crashpad_backend_startup(
     sentry__path_free(absolute_handler_path);
 
     if (success) {
-        SENTRY_DEBUG("started crashpad client handler");
+        SENTRY_INFO("started crashpad client handler");
     } else {
         SENTRY_WARN("failed to start crashpad client handler");
         // not calling `shutdown`
@@ -545,7 +545,7 @@ crashpad_backend_add_breadcrumb(sentry_backend_t *backend,
     sentry_free(mpack);
 
     if (rv != 0) {
-        SENTRY_DEBUG("flushing breadcrumb to msgpack failed");
+        SENTRY_WARN("flushing breadcrumb to msgpack failed");
     }
 }
 

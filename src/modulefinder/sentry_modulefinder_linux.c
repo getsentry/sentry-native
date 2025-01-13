@@ -725,9 +725,9 @@ sentry_get_modules_list(void)
     sentry__mutex_lock(&g_mutex);
     if (!g_initialized) {
         g_modules = sentry_value_new_list();
-        SENTRY_TRACE("trying to read modules from /proc/self/maps");
+        SENTRY_DEBUG("trying to read modules from /proc/self/maps");
         load_modules(g_modules);
-        SENTRY_TRACEF("read %zu modules from /proc/self/maps",
+        SENTRY_DEBUGF("read %zu modules from /proc/self/maps",
             sentry_value_get_length(g_modules));
         sentry_value_freeze(g_modules);
         g_initialized = true;
