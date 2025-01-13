@@ -8,6 +8,10 @@ else()
 	cmake_minimum_required (VERSION 3.10)
 	cmake_policy(SET CMP0077 NEW)
 endif()
+set(SENTRY_TOOLCHAINS_DIR "${CMAKE_CURRENT_LIST_DIR}/toolchains")
+if ("${CMAKE_GENERATOR_PLATFORM}" STREQUAL "Gaming.Xbox.Scarlett.x64")
+	include("${SENTRY_TOOLCHAINS_DIR}/xbox/CMakeGDKScarlett.cmake")
+endif()
 
 #read sentry-native version
 file(READ "include/sentry.h" _SENTRY_HEADER_CONTENT)
@@ -69,10 +73,12 @@ option(SENTRY_TRANSPORT_COMPRESSION "Enable transport gzip compression" OFF)
 option(SENTRY_BUILD_TESTS "Build sentry-native tests" "${SENTRY_MAIN_PROJECT}")
 option(SENTRY_BUILD_EXAMPLES "Build sentry-native example(s)" "${SENTRY_MAIN_PROJECT}")
 
-option(SENTRY_LINK_PTHREAD "Link platform threads library" ON)
-if(SENTRY_LINK_PTHREAD)
-	set(THREADS_PREFER_PTHREAD_FLAG ON)
-	find_package(Threads REQUIRED)
+if (NOT ("${CMAKE_GENERATOR_PLATFORM}" STREQUAL "Gaming.Xbox.Scarlett.x64"))
+	option(SENTRY_LINK_PTHREAD "Link platform threads library" ON)
+	if(SENTRY_LINK_PTHREAD)
+		set(THREADS_PREFER_PTHREAD_FLAG ON)
+	    find_package(Threads REQUIRED)
+	endif()
 endif()
 
 if(MSVC)
@@ -136,6 +142,8 @@ option(SENTRY_ENABLE_INSTALL "Enable sentry installation" "${SENTRY_MAIN_PROJECT
 
 if(MSVC AND CMAKE_GENERATOR_TOOLSET MATCHES "_xp$")
 	message(WARNING "Crashpad is not supported for MSVC with XP toolset. Default backend was switched to 'breakpad'")
+	set(SENTRY_DEFAULT_BACKEND "breakpad")
+elseif(MSVC AND "${CMAKE_GENERATOR_PLATFORM}" STREQUAL "Gaming.Xbox.Scarlett.x64")
 	set(SENTRY_DEFAULT_BACKEND "breakpad")
 elseif((APPLE AND NOT IOS) OR WIN32 OR LINUX)
 	set(SENTRY_DEFAULT_BACKEND "crashpad")
@@ -233,6 +241,9 @@ endfunction()
 # ===== sentry library =====
 
 add_library(sentry ${SENTRY_LIBRARY_TYPE} "${PROJECT_SOURCE_DIR}/vendor/mpack.c")
+if ("${CMAKE_GENERATOR_PLATFORM}" STREQUAL "Gaming.Xbox.Scarlett.x64")
+	set_target_properties(sentry PROPERTIES VS_USER_PROPS gdk_build.props)
+endif()
 target_sources(sentry PRIVATE "${PROJECT_SOURCE_DIR}/include/sentry.h")
 add_library(sentry::sentry ALIAS sentry)
 add_subdirectory(src)
@@ -314,7 +325,11 @@ if(MSVC)
 
 	# using `/Wall` is not feasible, as it spews tons of warnings from windows headers
 	# supress C5105, introduced in VS 16.8, which breaks on the Windows SDKs own `winbase.h` header
-	target_compile_options(sentry PRIVATE $<BUILD_INTERFACE:/W4 /wd5105>)
+	if ("${CMAKE_GENERATOR_PLATFORM}" STREQUAL "Gaming.Xbox.Scarlett.x64")
+		target_compile_options(sentry PRIVATE $<BUILD_INTERFACE:/W4 /wd5105 /wd4115>)
+	else()
+		target_compile_options(sentry PRIVATE $<BUILD_INTERFACE:/W4 /wd5105>)
+	endif()
 	# ignore all warnings for mpack
 	set_source_files_properties(
 		"${PROJECT_SOURCE_DIR}/vendor/mpack.c"
@@ -389,7 +404,11 @@ if(ANDROID)
 elseif(LINUX)
 	set(_SENTRY_PLATFORM_LIBS "dl" "rt")
 elseif(WIN32)
-	set(_SENTRY_PLATFORM_LIBS "dbghelp" "shlwapi" "version")
+	if ("${CMAKE_GENERATOR_PLATFORM}" STREQUAL "Gaming.Xbox.Scarlett.x64")
+		set(_SENTRY_PLATFORM_LIBS "version")
+	else()
+		set(_SENTRY_PLATFORM_LIBS "dbghelp" "shlwapi" "version")
+	endif()
 endif()
 
 if(SENTRY_TRANSPORT_WINHTTP)
@@ -397,8 +416,10 @@ if(SENTRY_TRANSPORT_WINHTTP)
 endif()
 
 # handle platform threads library
-if(SENTRY_LINK_PTHREAD)
-	list(APPEND _SENTRY_PLATFORM_LIBS "Threads::Threads")
+if (NOT ("${CMAKE_GENERATOR_PLATFORM}" STREQUAL "Gaming.Xbox.Scarlett.x64"))
+	if(SENTRY_LINK_PTHREAD)
+		list(APPEND _SENTRY_PLATFORM_LIBS "Threads::Threads")
+	endif()
 endif()
 
 # apply platform libraries to sentry library
@@ -575,6 +596,9 @@ endif()
 
 if(SENTRY_BUILD_EXAMPLES)
 	add_executable(sentry_example examples/example.c)
+	if ("${CMAKE_GENERATOR_PLATFORM}" STREQUAL "Gaming.Xbox.Scarlett.x64")
+		set_target_properties(sentry_example PROPERTIES VS_USER_PROPS gdk_build.props)
+	endif()
 	target_link_libraries(sentry_example PRIVATE sentry)
 
 	if(MSVC)
