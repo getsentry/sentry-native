@@ -14,8 +14,22 @@ static double
 traces_sampler_callback(const sentry_transaction_context_t *transaction_ctx,
     sentry_value_t custom_sampling_ctx, const bool *parent_sampled)
 {
-    (void)transaction_ctx; // unused for now
+    const char *name = sentry_transaction_context_get_name(transaction_ctx);
+    const char *operation
+        = sentry_transaction_context_get_operation(transaction_ctx);
 
+    if (strcmp(name, "skipme") == 0) {
+        return 0.0;
+    }
+    if (strcmp(name, "sampleme") == 0) {
+        return 1.0;
+    }
+    if (strcmp(operation, "skipme") == 0) {
+        return 0.0;
+    }
+    if (strcmp(operation, "sampleme") == 0) {
+        return 1.0;
+    }
     if (parent_sampled != NULL) {
         if (*parent_sampled) {
             return 1; // high sample rate for children of sampled transactions
@@ -40,7 +54,7 @@ SENTRY_TEST(sampling_transaction)
 
     sentry_transaction_context_set_sampled(tx_cxt, 0);
     sentry_sampling_context_t sampling_ctx
-        = { NULL, sentry_value_new_null(), NULL };
+        = { tx_cxt, sentry_value_new_null(), NULL };
     TEST_CHECK(
         sentry__should_send_transaction(tx_cxt->inner, &sampling_ctx) == false);
 
@@ -98,6 +112,24 @@ SENTRY_TEST(sampling_transaction)
     sentry_transaction_context_set_sampled(tx_cxt, 1);
     TEST_CHECK(sentry__should_send_transaction(tx_cxt->inner, &sampling_ctx));
     sentry_transaction_context_remove_sampled(tx_cxt);
+
+    // testing transaction_context getters
+    sentry_transaction_context_set_name(tx_cxt, "skipme");
+    TEST_CHECK_STRING_EQUAL(
+        sentry_transaction_context_get_name(tx_cxt), "skipme");
+    TEST_CHECK(
+        sentry__should_send_transaction(tx_cxt->inner, &sampling_ctx) == false);
+    sentry_transaction_context_set_name(tx_cxt, "sampleme");
+    TEST_CHECK_STRING_EQUAL(
+        sentry_transaction_context_get_name(tx_cxt), "sampleme");
+    TEST_CHECK(sentry__should_send_transaction(tx_cxt->inner, &sampling_ctx));
+    sentry_transaction_context_set_name(tx_cxt, ""); // reset name
+
+    sentry_transaction_context_set_operation(tx_cxt, "skipme");
+    TEST_CHECK(
+        sentry__should_send_transaction(tx_cxt->inner, &sampling_ctx) == false);
+    sentry_transaction_context_set_operation(tx_cxt, "sampleme");
+    TEST_CHECK(sentry__should_send_transaction(tx_cxt->inner, &sampling_ctx));
 
     // remove traces_sampler callback, should fall back to traces_sample_rate
     options->traces_sampler = NULL;
