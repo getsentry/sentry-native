@@ -430,7 +430,7 @@ main(int argc, char **argv)
         sentry_value_t custom_sampling_ctx = sentry_value_new_object();
         sentry_value_set_by_key(
             custom_sampling_ctx, "b", sentry_value_new_int32(42));
-        sentry_transaction_context_set_sampled(tx_ctx, true);
+
         sentry_transaction_t *tx
             = sentry_transaction_start(tx_ctx, custom_sampling_ctx);
 
