@@ -453,11 +453,8 @@ sentry__should_send_transaction(
     sentry_value_t tx_cxt, sentry_sampling_context_t *sampling_ctx)
 {
     sentry_value_t context_setting = sentry_value_get_by_key(tx_cxt, "sampled");
-    if (!sentry_value_is_null(context_setting)) {
-        bool sampled = sentry_value_is_true(context_setting);
-        sampling_ctx->parent_sampled = sentry_malloc(sizeof(bool));
-        *sampling_ctx->parent_sampled = sampled;
-    }
+    bool sampled = sentry_value_is_null(context_setting) ? false: sentry_value_is_true(context_setting);
+    sampling_ctx->parent_sampled = sentry_value_is_null(context_setting) ? NULL: &sampled;
 
     bool send = false;
     SENTRY_WITH_OPTIONS (options) {
@@ -477,7 +474,6 @@ sentry__should_send_transaction(
         }
     }
     if (sampling_ctx->parent_sampled != NULL) {
-        sentry_free(sampling_ctx->parent_sampled);
         sampling_ctx->parent_sampled = NULL;
     }
     return send;

@@ -1544,7 +1544,7 @@ struct sentry_transaction_context_s;
 typedef struct sentry_transaction_context_s sentry_transaction_context_t;
 typedef struct sentry_sampling_context_s sentry_sampling_context_t;
 typedef double (*sentry_traces_sampler_function)(
-    sentry_transaction_context_t *transaction_ctx,
+    const sentry_transaction_context_t *transaction_ctx,
     sentry_value_t custom_sampling_ctx, const bool *parent_sampled);
 
 /**
@@ -1767,7 +1767,7 @@ SENTRY_EXPERIMENTAL_API sentry_transaction_t *sentry_transaction_start(
  * The timestamp should be provided in microseconds since the Unix epoch.
  */
 SENTRY_EXPERIMENTAL_API sentry_transaction_t *sentry_transaction_start_ts(
-    sentry_transaction_context_t *tx_cxt, sentry_value_t sampling_ctx,
+    sentry_transaction_context_t *tx_cxt, sentry_value_t custom_sampling_ctx,
     uint64_t timestamp);
 
 /**
