@@ -113,6 +113,13 @@ sentry_transaction_context_set_name_n(
     }
 }
 
+const char *
+sentry_transaction_context_get_name(const sentry_transaction_context_t *tx_ctx)
+{
+    return sentry_value_as_string(
+        sentry_value_get_by_key(tx_ctx->inner, "transaction"));
+}
+
 void
 sentry_transaction_context_set_operation(
     sentry_transaction_context_t *tx_cxt, const char *operation)
@@ -131,6 +138,13 @@ sentry_transaction_context_set_operation_n(sentry_transaction_context_t *tx_cxt,
         sentry_value_set_by_key(tx_cxt->inner, "op",
             sentry_value_new_string_n(operation, operation_len));
     }
+}
+
+const char *
+sentry_transaction_context_get_operation(
+    const sentry_transaction_context_t *tx_ctx)
+{
+    return sentry_value_as_string(sentry_value_get_by_key(tx_ctx->inner, "op"));
 }
 
 void

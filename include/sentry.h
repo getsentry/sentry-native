@@ -1665,6 +1665,11 @@ SENTRY_EXPERIMENTAL_API void sentry_transaction_context_set_name(
     sentry_transaction_context_t *tx_cxt, const char *name);
 SENTRY_EXPERIMENTAL_API void sentry_transaction_context_set_name_n(
     sentry_transaction_context_t *tx_cxt, const char *name, size_t name_len);
+/**
+ * Gets the `name` of a Transaction Context.
+ */
+SENTRY_EXPERIMENTAL_API const char *sentry_transaction_context_get_name(
+    const sentry_transaction_context_t *tx_ctx);
 
 /**
  * Sets the `operation` on a Transaction Context, which will be used in the
@@ -1681,6 +1686,11 @@ SENTRY_EXPERIMENTAL_API void sentry_transaction_context_set_operation(
 SENTRY_EXPERIMENTAL_API void sentry_transaction_context_set_operation_n(
     sentry_transaction_context_t *tx_cxt, const char *operation,
     size_t operation_len);
+/**
+ * Gets the `operation` of a Transaction Context.
+ */
+SENTRY_EXPERIMENTAL_API const char *sentry_transaction_context_get_operation(
+    const sentry_transaction_context_t *tx_ctx);
 
 /**
  * Sets the `sampled` field on a Transaction Context, which will be used in the

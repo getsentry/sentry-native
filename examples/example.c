@@ -40,9 +40,18 @@ traces_sampler_callback(const sentry_transaction_context_t *transaction_ctx,
         }
         return 0; // parent is not sampled
     }
-    if (sentry_value_as_int32(sentry_value_get_by_key(custom_sampling_ctx, "b"))
-        == 42) {
-        return 1;
+    if (strcmp(sentry_transaction_context_get_name(transaction_ctx),
+            "little.teapot")
+        == 0) {
+        if (strcmp(sentry_transaction_context_get_operation(transaction_ctx),
+                "Short and stout here is my handle and here is my spout")
+            == 0) {
+            if (sentry_value_as_int32(
+                    sentry_value_get_by_key(custom_sampling_ctx, "b"))
+                == 42) {
+                return 1;
+            }
+        }
     }
     return 0;
 }
@@ -430,7 +439,6 @@ main(int argc, char **argv)
         sentry_value_t custom_sampling_ctx = sentry_value_new_object();
         sentry_value_set_by_key(
             custom_sampling_ctx, "b", sentry_value_new_int32(42));
-
         sentry_transaction_t *tx
             = sentry_transaction_start(tx_ctx, custom_sampling_ctx);
 
