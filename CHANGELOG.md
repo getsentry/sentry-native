@@ -52,6 +52,10 @@
 - Add `traces_sampler`. ([#1108](https://github.com/getsentry/sentry-native/pull/1108))
 - Provide support for C++17 compilers when using the `crashpad` backend. ([#1110](https://github.com/getsentry/sentry-native/pull/1110), [crashpad#116](https://github.com/getsentry/crashpad/pull/116), [mini_chromium#1](https://github.com/getsentry/mini_chromium/pull/1))
 
+**Fixes**:
+
+- Provide a mutex-initializer on platforms that have no static pthread initializer for recursive mutexes. ([#1113](https://github.com/getsentry/sentry-native/pull/1113))
+
 ## 0.7.17
 
 **Features**:
