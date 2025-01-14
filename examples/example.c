@@ -239,9 +239,17 @@ main(int argc, char **argv)
     if (has_arg(argc, argv, "http-proxy")) {
         sentry_options_set_proxy(options, "http://127.0.0.1:8080");
     }
+    if (has_arg(argc, argv, "http-proxy-auth")) {
+        sentry_options_set_proxy(
+            options, "http://user:password@127.0.0.1:8080");
+    }
 
     if (has_arg(argc, argv, "socks5-proxy")) {
         sentry_options_set_proxy(options, "socks5://127.0.0.1:1080");
+    }
+    if (has_arg(argc, argv, "socks5-proxy-auth")) {
+        sentry_options_set_proxy(
+            options, "socks5://user:password@127.0.0.1:1080");
     }
 
     if (has_arg(argc, argv, "proxy-from-env")) {

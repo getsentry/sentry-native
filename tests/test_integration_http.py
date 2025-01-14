@@ -625,7 +625,8 @@ def test_capture_minidump(cmake, httpserver):
     ],
 )
 @pytest.mark.parametrize("proxy_status", [(["off"]), (["on"])])
-def test_capture_proxy(cmake, httpserver, run_args, proxy_status):
+@pytest.mark.parametrize("proxy_auth", [(["off"]), (["on"])])
+def test_capture_proxy(cmake, httpserver, run_args, proxy_status, proxy_auth):
     if not shutil.which("mitmdump"):
         pytest.skip("mitmdump is not installed")
 
@@ -635,12 +636,18 @@ def test_capture_proxy(cmake, httpserver, run_args, proxy_status):
         if proxy_status == ["on"]:
             # start mitmdump from terminal
             if run_args == ["http-proxy"]:
-                proxy_process = subprocess.Popen(["mitmdump"])
+                proxy_command = ["mitmdump"]
+                if proxy_auth == ["on"]:
+                    proxy_command.append("--proxyauth=user:password")
+                proxy_process = subprocess.Popen(proxy_command)
                 time.sleep(5)  # Give mitmdump some time to start
                 if not is_proxy_running("localhost", 8080):
                     pytest.fail("mitmdump (HTTP) did not start correctly")
             elif run_args == ["socks5-proxy"]:
-                proxy_process = subprocess.Popen(["mitmdump", "--mode", "socks5"])
+                proxy_command = ["mitmdump", "--mode", "socks5"]
+                if proxy_auth == ["on"]:
+                    proxy_command.append("--proxyauth=user:password")
+                proxy_process = subprocess.Popen(proxy_command)
                 time.sleep(5)  # Give mitmdump some time to start
                 if not is_proxy_running("localhost", 1080):
                     pytest.fail("mitmdump (SOCKS5) did not start correctly")
@@ -651,12 +658,14 @@ def test_capture_proxy(cmake, httpserver, run_args, proxy_status):
         shutil.rmtree(tmp_path / ".sentry-native", ignore_errors=True)
 
         httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
-
+        current_run_arg = run_args[0]
+        if proxy_auth == ["on"]:
+            current_run_arg += "-auth"
         run(
             tmp_path,
             "sentry_example",
             ["log", "start-session", "capture-event"]
-            + run_args,  # only passes if given proxy is running
+            + [current_run_arg],  # only passes if given proxy is running
             check=True,
             env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
         )

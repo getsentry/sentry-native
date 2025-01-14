@@ -147,7 +147,9 @@ The example currently supports the following commands:
 - `override-sdk-name`: Changes the SDK name via the options at runtime.
 - `stack-overflow`: Provokes a stack-overflow.
 - `http-proxy`: Uses a localhost `HTTP` proxy on port 8080.
+- `http-proxy-auth`: Uses a localhost `HTTP` proxy on port 8080 with `user:password` as authentication.
 - `socks5-proxy`: Uses a localhost `SOCKS5` proxy on port 1080.
+- `socks5-proxy-auth`: Uses a localhost `SOCKS5` proxy on port 1080 with `user:password` as authentication.
 - `proxy-from-env`: Reads the proxy settings from the environment variables `https_proxy` and `http_proxy` (in this order of precedence).
 
 Only on Windows using crashpad with its WER handler module:
