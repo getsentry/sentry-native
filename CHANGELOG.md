@@ -3,6 +3,7 @@
 ## Unreleased
 
 **Features**:
+
 - Honor `http_proxy` environment variables. ([#1111](https://github.com/getsentry/sentry-native/pull/1111))
 
 ## 0.7.18
