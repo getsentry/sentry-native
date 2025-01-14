@@ -119,7 +119,7 @@ void sentry__options_unlock(void);
 #ifdef SENTRY_UNITTEST
 bool sentry__roll_dice(double probability);
 bool sentry__should_send_transaction(
-    sentry_value_t tx_cxt, sentry_sampling_context_t *sampling_ctx);
+    sentry_value_t tx_ctx, sentry_sampling_context_t *sampling_ctx);
 #endif
 
 #endif

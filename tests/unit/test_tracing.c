@@ -52,70 +52,70 @@ SENTRY_TEST(basic_tracing_context)
 
 SENTRY_TEST(basic_transaction)
 {
-    sentry_transaction_context_t *opaque_tx_cxt
+    sentry_transaction_context_t *opaque_tx_ctx
         = sentry_transaction_context_new(NULL, NULL);
-    sentry_value_t tx_cxt;
-    if (opaque_tx_cxt != NULL) {
-        tx_cxt = opaque_tx_cxt->inner;
-        TEST_CHECK(!sentry_value_is_null(tx_cxt));
-        CHECK_STRING_PROPERTY(tx_cxt, "transaction", "");
-        CHECK_STRING_PROPERTY(tx_cxt, "op", "");
-        TEST_CHECK(!IS_NULL(tx_cxt, "trace_id"));
-        TEST_CHECK(!IS_NULL(tx_cxt, "span_id"));
+    sentry_value_t tx_ctx;
+    if (opaque_tx_ctx != NULL) {
+        tx_ctx = opaque_tx_ctx->inner;
+        TEST_CHECK(!sentry_value_is_null(tx_ctx));
+        CHECK_STRING_PROPERTY(tx_ctx, "transaction", "");
+        CHECK_STRING_PROPERTY(tx_ctx, "op", "");
+        TEST_CHECK(!IS_NULL(tx_ctx, "trace_id"));
+        TEST_CHECK(!IS_NULL(tx_ctx, "span_id"));
     } else {
-        TEST_CHECK(opaque_tx_cxt != NULL);
+        TEST_CHECK(opaque_tx_ctx != NULL);
     }
 
-    sentry__transaction_context_free(opaque_tx_cxt);
+    sentry__transaction_context_free(opaque_tx_ctx);
 
-    opaque_tx_cxt = sentry_transaction_context_new("", "");
-    if (opaque_tx_cxt != NULL) {
-        tx_cxt = opaque_tx_cxt->inner;
-        TEST_CHECK(!sentry_value_is_null(tx_cxt));
-        CHECK_STRING_PROPERTY(tx_cxt, "transaction", "");
-        CHECK_STRING_PROPERTY(tx_cxt, "op", "");
-        TEST_CHECK(!IS_NULL(tx_cxt, "trace_id"));
-        TEST_CHECK(!IS_NULL(tx_cxt, "span_id"));
+    opaque_tx_ctx = sentry_transaction_context_new("", "");
+    if (opaque_tx_ctx != NULL) {
+        tx_ctx = opaque_tx_ctx->inner;
+        TEST_CHECK(!sentry_value_is_null(tx_ctx));
+        CHECK_STRING_PROPERTY(tx_ctx, "transaction", "");
+        CHECK_STRING_PROPERTY(tx_ctx, "op", "");
+        TEST_CHECK(!IS_NULL(tx_ctx, "trace_id"));
+        TEST_CHECK(!IS_NULL(tx_ctx, "span_id"));
     } else {
-        TEST_CHECK(opaque_tx_cxt != NULL);
+        TEST_CHECK(opaque_tx_ctx != NULL);
     }
 
-    sentry__transaction_context_free(opaque_tx_cxt);
+    sentry__transaction_context_free(opaque_tx_ctx);
 
-    opaque_tx_cxt = sentry_transaction_context_new("honk.beep", "beepbeep");
-    if (opaque_tx_cxt != NULL) {
-        tx_cxt = opaque_tx_cxt->inner;
-        TEST_CHECK(!sentry_value_is_null(tx_cxt));
-        CHECK_STRING_PROPERTY(tx_cxt, "transaction", "honk.beep");
-        CHECK_STRING_PROPERTY(tx_cxt, "op", "beepbeep");
-        TEST_CHECK(!IS_NULL(tx_cxt, "trace_id"));
-        TEST_CHECK(!IS_NULL(tx_cxt, "span_id"));
+    opaque_tx_ctx = sentry_transaction_context_new("honk.beep", "beepbeep");
+    if (opaque_tx_ctx != NULL) {
+        tx_ctx = opaque_tx_ctx->inner;
+        TEST_CHECK(!sentry_value_is_null(tx_ctx));
+        CHECK_STRING_PROPERTY(tx_ctx, "transaction", "honk.beep");
+        CHECK_STRING_PROPERTY(tx_ctx, "op", "beepbeep");
+        TEST_CHECK(!IS_NULL(tx_ctx, "trace_id"));
+        TEST_CHECK(!IS_NULL(tx_ctx, "span_id"));
 
-        sentry_transaction_context_set_name(opaque_tx_cxt, "");
-        CHECK_STRING_PROPERTY(tx_cxt, "transaction", "");
+        sentry_transaction_context_set_name(opaque_tx_ctx, "");
+        CHECK_STRING_PROPERTY(tx_ctx, "transaction", "");
 
         char txn_ctx_name[] = { 'h', 'o', 'n', 'k', '.', 'b', 'e', 'e', 'p' };
         sentry_transaction_context_set_name_n(
-            opaque_tx_cxt, txn_ctx_name, sizeof(txn_ctx_name));
-        CHECK_STRING_PROPERTY(tx_cxt, "transaction", "honk.beep");
+            opaque_tx_ctx, txn_ctx_name, sizeof(txn_ctx_name));
+        CHECK_STRING_PROPERTY(tx_ctx, "transaction", "honk.beep");
 
-        sentry_transaction_context_set_operation(opaque_tx_cxt, "");
-        CHECK_STRING_PROPERTY(tx_cxt, "op", "");
+        sentry_transaction_context_set_operation(opaque_tx_ctx, "");
+        CHECK_STRING_PROPERTY(tx_ctx, "op", "");
 
         char txn_ctx_op[] = { 'b', 'e', 'e', 'p', 'b', 'e', 'e', 'p' };
         sentry_transaction_context_set_operation_n(
-            opaque_tx_cxt, txn_ctx_op, sizeof(txn_ctx_op));
-        CHECK_STRING_PROPERTY(tx_cxt, "op", "beepbeep");
+            opaque_tx_ctx, txn_ctx_op, sizeof(txn_ctx_op));
+        CHECK_STRING_PROPERTY(tx_ctx, "op", "beepbeep");
 
-        sentry_transaction_context_set_sampled(opaque_tx_cxt, 1);
+        sentry_transaction_context_set_sampled(opaque_tx_ctx, 1);
         TEST_CHECK(
-            sentry_value_is_true(sentry_value_get_by_key(tx_cxt, "sampled"))
+            sentry_value_is_true(sentry_value_get_by_key(tx_ctx, "sampled"))
             == 1);
     } else {
-        TEST_CHECK(opaque_tx_cxt != NULL);
+        TEST_CHECK(opaque_tx_ctx != NULL);
     }
 
-    sentry__transaction_context_free(opaque_tx_cxt);
+    sentry__transaction_context_free(opaque_tx_ctx);
 }
 
 static void
@@ -145,15 +145,15 @@ SENTRY_TEST(transaction_name_backfill_on_finish)
     sentry_options_set_traces_sample_rate(options, 1.0);
     sentry_init(options);
 
-    sentry_transaction_context_t *tx_cxt
+    sentry_transaction_context_t *tx_ctx
         = sentry_transaction_context_new(NULL, NULL);
     sentry_transaction_t *tx
-        = sentry_transaction_start(tx_cxt, sentry_value_new_null());
+        = sentry_transaction_start(tx_ctx, sentry_value_new_null());
     sentry_uuid_t event_id = sentry_transaction_finish(tx);
     TEST_CHECK(!sentry_uuid_is_nil(&event_id));
 
-    tx_cxt = sentry_transaction_context_new("", "");
-    tx = sentry_transaction_start(tx_cxt, sentry_value_new_null());
+    tx_ctx = sentry_transaction_context_new("", "");
+    tx = sentry_transaction_start(tx_ctx, sentry_value_new_null());
     event_id = sentry_transaction_finish(tx);
     TEST_CHECK(!sentry_uuid_is_nil(&event_id));
 
@@ -197,19 +197,19 @@ run_basic_function_transport_transaction(bool timestamped)
     sentry_options_set_require_user_consent(options, true);
     sentry_init(options);
 
-    sentry_transaction_context_t *tx_cxt = sentry_transaction_context_new(
+    sentry_transaction_context_t *tx_ctx = sentry_transaction_context_new(
         "How could you", "Don't capture this.");
     sentry_transaction_t *tx;
     // TODO: `sentry_capture_event` acts as if the event was sent if user
     //  consent was not given
     if (timestamped) {
-        tx = sentry_transaction_start_ts(tx_cxt, sentry_value_new_null(), 1);
+        tx = sentry_transaction_start_ts(tx_ctx, sentry_value_new_null(), 1);
         CHECK_STRING_PROPERTY(
             tx->inner, "start_timestamp", "1970-01-01T00:00:00.000001Z");
         sentry_uuid_t event_id = sentry_transaction_finish_ts(tx, 2);
         TEST_CHECK(!sentry_uuid_is_nil(&event_id));
     } else {
-        tx = sentry_transaction_start(tx_cxt, sentry_value_new_null());
+        tx = sentry_transaction_start(tx_ctx, sentry_value_new_null());
         sentry_uuid_t event_id = sentry_transaction_finish(tx);
         TEST_CHECK(!sentry_uuid_is_nil(&event_id));
     }
@@ -217,14 +217,14 @@ run_basic_function_transport_transaction(bool timestamped)
     sentry_user_consent_give();
     char name[] = { 'h', 'o', 'n', 'k' };
     char op[] = { 'b', 'e', 'e', 'p' };
-    tx_cxt
+    tx_ctx
         = sentry_transaction_context_new_n(name, sizeof(name), op, sizeof(op));
     if (timestamped) {
-        tx = sentry_transaction_start_ts(tx_cxt, sentry_value_new_null(), 3);
+        tx = sentry_transaction_start_ts(tx_ctx, sentry_value_new_null(), 3);
         CHECK_STRING_PROPERTY(
             tx->inner, "start_timestamp", "1970-01-01T00:00:00.000003Z");
     } else {
-        tx = sentry_transaction_start(tx_cxt, sentry_value_new_null());
+        tx = sentry_transaction_start(tx_ctx, sentry_value_new_null());
     }
     CHECK_STRING_PROPERTY(tx->inner, "transaction", "honk");
     CHECK_STRING_PROPERTY(tx->inner, "op", "beep");
@@ -237,18 +237,18 @@ run_basic_function_transport_transaction(bool timestamped)
     }
 
     sentry_user_consent_revoke();
-    tx_cxt = sentry_transaction_context_new(
+    tx_ctx = sentry_transaction_context_new(
         "How could you again", "Don't capture this either.");
     // TODO: `sentry_capture_event` acts as if the event was sent if user
     //  consent was not given
     if (timestamped) {
-        tx = sentry_transaction_start_ts(tx_cxt, sentry_value_new_null(), 5);
+        tx = sentry_transaction_start_ts(tx_ctx, sentry_value_new_null(), 5);
         CHECK_STRING_PROPERTY(
             tx->inner, "start_timestamp", "1970-01-01T00:00:00.000005Z");
         sentry_uuid_t event_id = sentry_transaction_finish_ts(tx, 6);
         TEST_CHECK(!sentry_uuid_is_nil(&event_id));
     } else {
-        tx = sentry_transaction_start(tx_cxt, sentry_value_new_null());
+        tx = sentry_transaction_start(tx_ctx, sentry_value_new_null());
         sentry_uuid_t event_id = sentry_transaction_finish(tx);
         TEST_CHECK(!sentry_uuid_is_nil(&event_id));
     }
@@ -284,10 +284,10 @@ SENTRY_TEST(transport_sampling_transactions)
 
     uint64_t sent_transactions = 0;
     for (int i = 0; i < 100; i++) {
-        sentry_transaction_context_t *tx_cxt
+        sentry_transaction_context_t *tx_ctx
             = sentry_transaction_context_new("honk", "beep");
         sentry_transaction_t *tx
-            = sentry_transaction_start(tx_cxt, sentry_value_new_null());
+            = sentry_transaction_start(tx_ctx, sentry_value_new_null());
         sentry_uuid_t event_id = sentry_transaction_finish(tx);
         if (!sentry_uuid_is_nil(&event_id)) {
             sent_transactions += 1;
@@ -328,10 +328,10 @@ SENTRY_TEST(transactions_skip_before_send)
     sentry_options_set_before_send(options, before_send, &called_beforesend);
     sentry_init(options);
 
-    sentry_transaction_context_t *tx_cxt
+    sentry_transaction_context_t *tx_ctx
         = sentry_transaction_context_new("honk", "beep");
     sentry_transaction_t *tx
-        = sentry_transaction_start(tx_cxt, sentry_value_new_null());
+        = sentry_transaction_start(tx_ctx, sentry_value_new_null());
     sentry_uuid_t event_id = sentry_transaction_finish(tx);
     TEST_CHECK(!sentry_uuid_is_nil(&event_id));
 
@@ -364,10 +364,10 @@ SENTRY_TEST(multiple_transactions)
     sentry_options_set_traces_sample_rate(options, 1.0);
     sentry_init(options);
 
-    sentry_transaction_context_t *tx_cxt
+    sentry_transaction_context_t *tx_ctx
         = sentry_transaction_context_new("wow!", NULL);
     sentry_transaction_t *tx
-        = sentry_transaction_start(tx_cxt, sentry_value_new_null());
+        = sentry_transaction_start(tx_ctx, sentry_value_new_null());
     sentry_set_transaction_object(tx);
 
     sentry_value_t scope_tx = sentry__scope_get_span_or_transaction();
@@ -380,12 +380,12 @@ SENTRY_TEST(multiple_transactions)
 
     // Set transaction on scope twice, back-to-back without finishing the first
     // one
-    tx_cxt = sentry_transaction_context_new("whoa!", NULL);
-    tx = sentry_transaction_start(tx_cxt, sentry_value_new_null());
+    tx_ctx = sentry_transaction_context_new("whoa!", NULL);
+    tx = sentry_transaction_start(tx_ctx, sentry_value_new_null());
     sentry_set_transaction_object(tx);
     sentry__transaction_decref(tx);
-    tx_cxt = sentry_transaction_context_new("wowee!", NULL);
-    tx = sentry_transaction_start(tx_cxt, sentry_value_new_null());
+    tx_ctx = sentry_transaction_context_new("wowee!", NULL);
+    tx = sentry_transaction_start(tx_ctx, sentry_value_new_null());
     sentry_set_transaction_object(tx);
     scope_tx = sentry__scope_get_span_or_transaction();
     CHECK_STRING_PROPERTY(scope_tx, "transaction", "wowee!");
@@ -408,10 +408,10 @@ SENTRY_TEST(basic_spans)
         = sentry_transaction_start_child(NULL, NULL, NULL);
     TEST_CHECK(!parentless_child);
 
-    sentry_transaction_context_t *opaque_tx_cxt
+    sentry_transaction_context_t *opaque_tx_ctx
         = sentry_transaction_context_new("wow!", NULL);
     sentry_transaction_t *opaque_tx
-        = sentry_transaction_start(opaque_tx_cxt, sentry_value_new_null());
+        = sentry_transaction_start(opaque_tx_ctx, sentry_value_new_null());
     sentry_value_t tx = opaque_tx->inner;
 
     sentry_span_t *opaque_child
@@ -457,10 +457,10 @@ SENTRY_TEST(spans_on_scope)
     sentry_options_set_traces_sample_rate(options, 1.0);
     sentry_init(options);
 
-    sentry_transaction_context_t *opaque_tx_cxt
+    sentry_transaction_context_t *opaque_tx_ctx
         = sentry_transaction_context_new("wow!", NULL);
     sentry_transaction_t *opaque_tx
-        = sentry_transaction_start(opaque_tx_cxt, sentry_value_new_null());
+        = sentry_transaction_start(opaque_tx_ctx, sentry_value_new_null());
     sentry_set_transaction_object(opaque_tx);
 
     sentry_span_t *opaque_child
@@ -510,17 +510,17 @@ run_child_spans_test(bool timestamped)
     sentry_options_set_max_spans(options, 3);
     sentry_init(options);
 
-    sentry_transaction_context_t *opaque_tx_cxt
+    sentry_transaction_context_t *opaque_tx_ctx
         = sentry_transaction_context_new("wow!", NULL);
     sentry_transaction_t *opaque_tx;
     if (timestamped) {
         opaque_tx = sentry_transaction_start_ts(
-            opaque_tx_cxt, sentry_value_new_null(), 1);
+            opaque_tx_ctx, sentry_value_new_null(), 1);
         CHECK_STRING_PROPERTY(
             opaque_tx->inner, "start_timestamp", "1970-01-01T00:00:00.000001Z");
     } else {
         opaque_tx
-            = sentry_transaction_start(opaque_tx_cxt, sentry_value_new_null());
+            = sentry_transaction_start(opaque_tx_ctx, sentry_value_new_null());
     }
     sentry_value_t tx = opaque_tx->inner;
 
@@ -601,10 +601,10 @@ SENTRY_TEST(overflow_spans)
     sentry_options_set_max_spans(options, 1);
     sentry_init(options);
 
-    sentry_transaction_context_t *opaque_tx_cxt
+    sentry_transaction_context_t *opaque_tx_ctx
         = sentry_transaction_context_new("wow!", NULL);
     sentry_transaction_t *opaque_tx
-        = sentry_transaction_start(opaque_tx_cxt, sentry_value_new_null());
+        = sentry_transaction_start(opaque_tx_ctx, sentry_value_new_null());
     sentry_value_t tx = opaque_tx->inner;
 
     sentry_span_t *opaque_child
@@ -651,11 +651,11 @@ SENTRY_TEST(unsampled_spans)
     sentry_options_set_traces_sample_rate(options, 1.0);
     sentry_init(options);
 
-    sentry_transaction_context_t *opaque_tx_cxt
+    sentry_transaction_context_t *opaque_tx_ctx
         = sentry_transaction_context_new("noisemakers", NULL);
-    sentry_transaction_context_set_sampled(opaque_tx_cxt, 0);
+    sentry_transaction_context_set_sampled(opaque_tx_ctx, 0);
     sentry_transaction_t *opaque_tx
-        = sentry_transaction_start(opaque_tx_cxt, sentry_value_new_null());
+        = sentry_transaction_start(opaque_tx_ctx, sentry_value_new_null());
     sentry_value_t tx = opaque_tx->inner;
     TEST_CHECK(!sentry_value_is_true(sentry_value_get_by_key(tx, "sampled")));
 
@@ -744,10 +744,10 @@ SENTRY_TEST(drop_unfinished_spans)
     sentry_options_set_max_spans(options, 2);
     sentry_init(options);
 
-    sentry_transaction_context_t *opaque_tx_cxt
+    sentry_transaction_context_t *opaque_tx_ctx
         = sentry_transaction_context_new("wow!", NULL);
     sentry_transaction_t *opaque_tx
-        = sentry_transaction_start(opaque_tx_cxt, sentry_value_new_null());
+        = sentry_transaction_start(opaque_tx_ctx, sentry_value_new_null());
     sentry_value_t tx = opaque_tx->inner;
 
     sentry_span_t *opaque_child

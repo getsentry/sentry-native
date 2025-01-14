@@ -55,21 +55,21 @@ sentry_transaction_context_t *
 sentry_transaction_context_new_n(const char *name, size_t name_len,
     const char *operation, size_t operation_len)
 {
-    sentry_transaction_context_t *tx_cxt
+    sentry_transaction_context_t *tx_ctx
         = SENTRY_MAKE(sentry_transaction_context_t);
-    if (!tx_cxt) {
+    if (!tx_ctx) {
         return NULL;
     }
-    tx_cxt->inner = sentry__value_transaction_context_new_n(
+    tx_ctx->inner = sentry__value_transaction_context_new_n(
         (sentry_slice_t) { name, name_len },
         (sentry_slice_t) { operation, operation_len });
 
-    if (sentry_value_is_null(tx_cxt->inner)) {
-        sentry_free(tx_cxt);
+    if (sentry_value_is_null(tx_ctx->inner)) {
+        sentry_free(tx_ctx);
         return NULL;
     }
 
-    return tx_cxt;
+    return tx_ctx;
 }
 
 sentry_transaction_context_t *
@@ -80,35 +80,35 @@ sentry_transaction_context_new(const char *name, const char *operation)
 }
 
 void
-sentry__transaction_context_free(sentry_transaction_context_t *tx_cxt)
+sentry__transaction_context_free(sentry_transaction_context_t *tx_ctx)
 {
-    if (!tx_cxt) {
+    if (!tx_ctx) {
         return;
     }
-    if (sentry_value_refcount(tx_cxt->inner) <= 1) {
-        sentry_value_decref(tx_cxt->inner);
-        sentry_free(tx_cxt);
+    if (sentry_value_refcount(tx_ctx->inner) <= 1) {
+        sentry_value_decref(tx_ctx->inner);
+        sentry_free(tx_ctx);
     } else {
-        sentry_value_decref(tx_cxt->inner);
+        sentry_value_decref(tx_ctx->inner);
     }
 }
 
 void
 sentry_transaction_context_set_name(
-    sentry_transaction_context_t *tx_cxt, const char *name)
+    sentry_transaction_context_t *tx_ctx, const char *name)
 {
-    if (tx_cxt) {
+    if (tx_ctx) {
         sentry_value_set_by_key(
-            tx_cxt->inner, "transaction", sentry_value_new_string(name));
+            tx_ctx->inner, "transaction", sentry_value_new_string(name));
     }
 }
 
 void
 sentry_transaction_context_set_name_n(
-    sentry_transaction_context_t *tx_cxt, const char *name, size_t name_len)
+    sentry_transaction_context_t *tx_ctx, const char *name, size_t name_len)
 {
-    if (tx_cxt) {
-        sentry_value_set_by_key(tx_cxt->inner, "transaction",
+    if (tx_ctx) {
+        sentry_value_set_by_key(tx_ctx->inner, "transaction",
             sentry_value_new_string_n(name, name_len));
     }
 }
@@ -122,20 +122,20 @@ sentry_transaction_context_get_name(const sentry_transaction_context_t *tx_ctx)
 
 void
 sentry_transaction_context_set_operation(
-    sentry_transaction_context_t *tx_cxt, const char *operation)
+    sentry_transaction_context_t *tx_ctx, const char *operation)
 {
-    if (tx_cxt) {
+    if (tx_ctx) {
         sentry_value_set_by_key(
-            tx_cxt->inner, "op", sentry_value_new_string(operation));
+            tx_ctx->inner, "op", sentry_value_new_string(operation));
     }
 }
 
 void
-sentry_transaction_context_set_operation_n(sentry_transaction_context_t *tx_cxt,
+sentry_transaction_context_set_operation_n(sentry_transaction_context_t *tx_ctx,
     const char *operation, size_t operation_len)
 {
-    if (tx_cxt) {
-        sentry_value_set_by_key(tx_cxt->inner, "op",
+    if (tx_ctx) {
+        sentry_value_set_by_key(tx_ctx->inner, "op",
             sentry_value_new_string_n(operation, operation_len));
     }
 }
@@ -149,19 +149,19 @@ sentry_transaction_context_get_operation(
 
 void
 sentry_transaction_context_set_sampled(
-    sentry_transaction_context_t *tx_cxt, int sampled)
+    sentry_transaction_context_t *tx_ctx, int sampled)
 {
-    if (tx_cxt) {
+    if (tx_ctx) {
         sentry_value_set_by_key(
-            tx_cxt->inner, "sampled", sentry_value_new_bool(sampled));
+            tx_ctx->inner, "sampled", sentry_value_new_bool(sampled));
     }
 }
 
 void
-sentry_transaction_context_remove_sampled(sentry_transaction_context_t *tx_cxt)
+sentry_transaction_context_remove_sampled(sentry_transaction_context_t *tx_ctx)
 {
-    if (tx_cxt) {
-        sentry_value_remove_by_key(tx_cxt->inner, "sampled");
+    if (tx_ctx) {
+        sentry_value_remove_by_key(tx_ctx->inner, "sampled");
     }
 }
 
@@ -211,10 +211,10 @@ is_valid_span_id(const char *span_id)
 
 void
 sentry_transaction_context_update_from_header_n(
-    sentry_transaction_context_t *tx_cxt, const char *key, size_t key_len,
+    sentry_transaction_context_t *tx_ctx, const char *key, size_t key_len,
     const char *value, size_t value_len)
 {
-    if (!tx_cxt) {
+    if (!tx_ctx) {
         return;
     }
 
@@ -239,7 +239,7 @@ sentry_transaction_context_update_from_header_n(
         return;
     }
 
-    sentry_value_t inner = tx_cxt->inner;
+    sentry_value_t inner = tx_ctx->inner;
 
     char *s
         = sentry__string_clone_n(trace_id_start, trace_id_end - trace_id_start);
@@ -278,9 +278,9 @@ sentry_transaction_context_update_from_header_n(
 
 void
 sentry_transaction_context_update_from_header(
-    sentry_transaction_context_t *tx_cxt, const char *key, const char *value)
+    sentry_transaction_context_t *tx_ctx, const char *key, const char *value)
 {
-    sentry_transaction_context_update_from_header_n(tx_cxt, key,
+    sentry_transaction_context_update_from_header_n(tx_ctx, key,
         sentry__guarded_strlen(key), value, sentry__guarded_strlen(value));
 }
 

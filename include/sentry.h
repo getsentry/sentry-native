@@ -1660,9 +1660,9 @@ sentry_transaction_context_new_n(const char *name, size_t name_len,
  * setting a name on it.
  */
 SENTRY_EXPERIMENTAL_API void sentry_transaction_context_set_name(
-    sentry_transaction_context_t *tx_cxt, const char *name);
+    sentry_transaction_context_t *tx_ctx, const char *name);
 SENTRY_EXPERIMENTAL_API void sentry_transaction_context_set_name_n(
-    sentry_transaction_context_t *tx_cxt, const char *name, size_t name_len);
+    sentry_transaction_context_t *tx_ctx, const char *name, size_t name_len);
 /**
  * Gets the `name` of a Transaction Context.
  */
@@ -1680,9 +1680,9 @@ SENTRY_EXPERIMENTAL_API const char *sentry_transaction_context_get_name(
  * setting an operation on it.
  */
 SENTRY_EXPERIMENTAL_API void sentry_transaction_context_set_operation(
-    sentry_transaction_context_t *tx_cxt, const char *operation);
+    sentry_transaction_context_t *tx_ctx, const char *operation);
 SENTRY_EXPERIMENTAL_API void sentry_transaction_context_set_operation_n(
-    sentry_transaction_context_t *tx_cxt, const char *operation,
+    sentry_transaction_context_t *tx_ctx, const char *operation,
     size_t operation_len);
 /**
  * Gets the `operation` of a Transaction Context.
@@ -1702,7 +1702,7 @@ SENTRY_EXPERIMENTAL_API const char *sentry_transaction_context_get_operation(
  * setting `sampled` on it.
  */
 SENTRY_EXPERIMENTAL_API void sentry_transaction_context_set_sampled(
-    sentry_transaction_context_t *tx_cxt, int sampled);
+    sentry_transaction_context_t *tx_ctx, int sampled);
 
 /**
  * Removes the `sampled` field on a Transaction Context, which will be used in
@@ -1714,7 +1714,7 @@ SENTRY_EXPERIMENTAL_API void sentry_transaction_context_set_sampled(
  * removing `sampled`.
  */
 SENTRY_EXPERIMENTAL_API void sentry_transaction_context_remove_sampled(
-    sentry_transaction_context_t *tx_cxt);
+    sentry_transaction_context_t *tx_ctx);
 
 /**
  * Update the Transaction Context with the given HTTP header key/value pair.
@@ -1725,9 +1725,9 @@ SENTRY_EXPERIMENTAL_API void sentry_transaction_context_remove_sampled(
  * upstream service.
  */
 SENTRY_EXPERIMENTAL_API void sentry_transaction_context_update_from_header(
-    sentry_transaction_context_t *tx_cxt, const char *key, const char *value);
+    sentry_transaction_context_t *tx_ctx, const char *key, const char *value);
 SENTRY_EXPERIMENTAL_API void sentry_transaction_context_update_from_header_n(
-    sentry_transaction_context_t *tx_cxt, const char *key, size_t key_len,
+    sentry_transaction_context_t *tx_ctx, const char *key, size_t key_len,
     const char *value, size_t value_len);
 
 /**
@@ -1766,7 +1766,7 @@ SENTRY_EXPERIMENTAL_API void sentry_transaction_context_update_from_header_n(
  * the object in a thread-safe way.
  */
 SENTRY_EXPERIMENTAL_API sentry_transaction_t *sentry_transaction_start(
-    sentry_transaction_context_t *tx_cxt, sentry_value_t custom_sampling_ctx);
+    sentry_transaction_context_t *tx_ctx, sentry_value_t custom_sampling_ctx);
 /**
  * Also starts a transaction like the regular `sentry_transaction_start`
  * function, but has an additional timestamp parameter to let the user provide
@@ -1775,7 +1775,7 @@ SENTRY_EXPERIMENTAL_API sentry_transaction_t *sentry_transaction_start(
  * The timestamp should be provided in microseconds since the Unix epoch.
  */
 SENTRY_EXPERIMENTAL_API sentry_transaction_t *sentry_transaction_start_ts(
-    sentry_transaction_context_t *tx_cxt, sentry_value_t custom_sampling_ctx,
+    sentry_transaction_context_t *tx_ctx, sentry_value_t custom_sampling_ctx,
     uint64_t timestamp);
 
 /**

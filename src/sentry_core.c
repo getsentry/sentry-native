@@ -449,9 +449,9 @@ sentry__capture_event(sentry_value_t event)
 
 bool
 sentry__should_send_transaction(
-    sentry_value_t tx_cxt, sentry_sampling_context_t *sampling_ctx)
+    sentry_value_t tx_ctx, sentry_sampling_context_t *sampling_ctx)
 {
-    sentry_value_t context_setting = sentry_value_get_by_key(tx_cxt, "sampled");
+    sentry_value_t context_setting = sentry_value_get_by_key(tx_ctx, "sampled");
     bool sampled = sentry_value_is_null(context_setting)
         ? false
         : sentry_value_is_true(context_setting);
@@ -862,28 +862,28 @@ sentry_set_level(sentry_level_t level)
 }
 
 sentry_transaction_t *
-sentry_transaction_start(sentry_transaction_context_t *opaque_tx_cxt,
+sentry_transaction_start(sentry_transaction_context_t *opaque_tx_ctx,
     sentry_value_t custom_sampling_ctx)
 {
     return sentry_transaction_start_ts(
-        opaque_tx_cxt, custom_sampling_ctx, sentry__usec_time());
+        opaque_tx_ctx, custom_sampling_ctx, sentry__usec_time());
 }
 
 sentry_transaction_t *
-sentry_transaction_start_ts(sentry_transaction_context_t *opaque_tx_cxt,
+sentry_transaction_start_ts(sentry_transaction_context_t *opaque_tx_ctx,
     sentry_value_t custom_sampling_ctx, uint64_t timestamp)
 {
-    if (!opaque_tx_cxt) {
+    if (!opaque_tx_ctx) {
         return NULL;
     }
 
-    sentry_value_t tx_cxt = opaque_tx_cxt->inner;
+    sentry_value_t tx_ctx = opaque_tx_ctx->inner;
 
     // If the parent span ID is some empty-ish value, just remove it
     sentry_value_t parent_span
-        = sentry_value_get_by_key(tx_cxt, "parent_span_id");
+        = sentry_value_get_by_key(tx_ctx, "parent_span_id");
     if (sentry_value_get_length(parent_span) < 1) {
-        sentry_value_remove_by_key(tx_cxt, "parent_span_id");
+        sentry_value_remove_by_key(tx_ctx, "parent_span_id");
     }
 
     // The ending timestamp is stripped to avoid misleading ourselves later
@@ -892,10 +892,10 @@ sentry_transaction_start_ts(sentry_transaction_context_t *opaque_tx_cxt,
     sentry_value_t tx = sentry_value_new_event();
     sentry_value_remove_by_key(tx, "timestamp");
 
-    sentry__value_merge_objects(tx, tx_cxt);
+    sentry__value_merge_objects(tx, tx_ctx);
     sentry_sampling_context_t sampling_ctx
-        = { opaque_tx_cxt, custom_sampling_ctx, NULL };
-    bool should_sample = sentry__should_send_transaction(tx_cxt, &sampling_ctx);
+        = { opaque_tx_ctx, custom_sampling_ctx, NULL };
+    bool should_sample = sentry__should_send_transaction(tx_ctx, &sampling_ctx);
     sentry_value_set_by_key(
         tx, "sampled", sentry_value_new_bool(should_sample));
     sentry_value_decref(custom_sampling_ctx);
@@ -904,7 +904,7 @@ sentry_transaction_start_ts(sentry_transaction_context_t *opaque_tx_cxt,
         sentry__value_new_string_owned(
             sentry__usec_time_to_iso8601(timestamp)));
 
-    sentry__transaction_context_free(opaque_tx_cxt);
+    sentry__transaction_context_free(opaque_tx_ctx);
     return sentry__transaction_new(tx);
 }
 
