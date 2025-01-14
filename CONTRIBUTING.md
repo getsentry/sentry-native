@@ -151,6 +151,8 @@ The example currently supports the following commands:
 - `socks5-proxy`: Uses a localhost `SOCKS5` proxy on port 1080.
 - `socks5-proxy-auth`: Uses a localhost `SOCKS5` proxy on port 1080 with `user:password` as authentication.
 - `proxy-from-env`: Reads the proxy settings from the environment variables `https_proxy` and `http_proxy` (in this order of precedence).
+- `capture-transaction`: Captures a transaction.
+- `traces-sampler`: Installs a traces sampler callback function when used alongside `capture-transaction`.
 
 Only on Windows using crashpad with its WER handler module:
 

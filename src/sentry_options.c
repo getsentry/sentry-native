@@ -639,6 +639,13 @@ sentry_options_get_traces_sample_rate(sentry_options_t *opts)
 }
 
 void
+sentry_options_set_traces_sampler(
+    sentry_options_t *opts, sentry_traces_sampler_function callback)
+{
+    opts->traces_sampler = callback;
+}
+
+void
 sentry_options_set_backend(sentry_options_t *opts, sentry_backend_t *backend)
 {
     sentry__backend_free(opts->backend);
