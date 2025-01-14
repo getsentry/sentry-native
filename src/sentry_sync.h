@@ -265,11 +265,22 @@ typedef pthread_cond_t sentry_cond_t;
 #    else
 #        define SENTRY__MUTEX_INIT PTHREAD_RECURSIVE_MUTEX_INITIALIZER
 #    endif
-#    define sentry__mutex_init(Mutex)                                          \
-        do {                                                                   \
-            sentry_mutex_t tmp = SENTRY__MUTEX_INIT;                           \
-            *(Mutex) = tmp;                                                    \
-        } while (0)
+#    ifndef __FreeBSD__
+#        define sentry__mutex_init(Mutex)                                      \
+            do {                                                               \
+                pthread_mutexattr_t attr;                                      \
+                pthread_mutexattr_init(&attr);                                 \
+                pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);     \
+                pthread_mutex_init(Mutex, &attr);                           \
+                pthread_mutexattr_destroy(&attr);                              \
+            } while (0)
+#    else
+#        define sentry__mutex_init(Mutex)                                      \
+            do {                                                               \
+                sentry_mutex_t tmp = SENTRY__MUTEX_INIT;                       \
+                *(Mutex) = tmp;                                                \
+            } while (0)
+#    endif
 #    define sentry__mutex_lock(Mutex)                                          \
         do {                                                                   \
             if (sentry__block_for_signal_handler()) {                          \
