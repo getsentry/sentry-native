@@ -458,6 +458,10 @@ sentry__should_send_transaction(
     sampling_ctx->parent_sampled
         = sentry_value_is_null(context_setting) ? NULL : &sampled;
 
+    int parent_sampled_int; // bool to int conversion
+    if (sampling_ctx->parent_sampled != NULL) {
+        parent_sampled_int = *sampling_ctx->parent_sampled ? 1 : 0;
+    }
     bool send = false;
     SENTRY_WITH_OPTIONS (options) {
         if (options->traces_sampler) {
@@ -465,7 +469,8 @@ sentry__should_send_transaction(
                 = ((sentry_traces_sampler_function)options->traces_sampler)(
                     sampling_ctx->transaction_context,
                     sampling_ctx->custom_sampling_context,
-                    sampling_ctx->parent_sampled);
+                    sampling_ctx->parent_sampled == NULL ? NULL
+                                                         : &parent_sampled_int);
             send = sentry__roll_dice(result);
         } else {
             if (sampling_ctx->parent_sampled != NULL) {

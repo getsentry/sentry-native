@@ -30,7 +30,7 @@
 
 static double
 traces_sampler_callback(const sentry_transaction_context_t *transaction_ctx,
-    sentry_value_t custom_sampling_ctx, const bool *parent_sampled)
+    sentry_value_t custom_sampling_ctx, const int *parent_sampled)
 {
     if (parent_sampled != NULL) {
         if (*parent_sampled) {
@@ -437,6 +437,7 @@ main(int argc, char **argv)
         sentry_value_t custom_sampling_ctx = sentry_value_new_object();
         sentry_value_set_by_key(
             custom_sampling_ctx, "b", sentry_value_new_int32(42));
+        sentry_transaction_context_set_sampled(tx_ctx, 1);
         sentry_transaction_t *tx
             = sentry_transaction_start(tx_ctx, custom_sampling_ctx);
 

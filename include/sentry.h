@@ -86,7 +86,6 @@ extern "C" {
 
 #include <inttypes.h>
 #include <stdarg.h>
-#include <stdbool.h>
 #include <stddef.h>
 
 /* context type dependencies */
@@ -1544,12 +1543,12 @@ struct sentry_transaction_context_s;
 typedef struct sentry_transaction_context_s sentry_transaction_context_t;
 typedef double (*sentry_traces_sampler_function)(
     const sentry_transaction_context_t *transaction_ctx,
-    sentry_value_t custom_sampling_ctx, const bool *parent_sampled);
+    sentry_value_t custom_sampling_ctx, const int *parent_sampled);
 
 /**
  * Sets the traces sampler callback. Should be a function that returns a double
  * and takes in a sentry_transaction_context_t pointer, a sentry_value_t for
- * a custom sampling context and a bool pointer for the parent sampled flag.
+ * a custom sampling context and a int pointer for the parent sampled flag.
  */
 SENTRY_EXPERIMENTAL_API void sentry_options_set_traces_sampler(
     sentry_options_t *opts, sentry_traces_sampler_function callback);

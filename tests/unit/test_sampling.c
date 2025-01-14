@@ -12,7 +12,7 @@ SENTRY_TEST(sampling_decision)
 
 static double
 traces_sampler_callback(const sentry_transaction_context_t *transaction_ctx,
-    sentry_value_t custom_sampling_ctx, const bool *parent_sampled)
+    sentry_value_t custom_sampling_ctx, const int *parent_sampled)
 {
     const char *name = sentry_transaction_context_get_name(transaction_ctx);
     const char *operation
