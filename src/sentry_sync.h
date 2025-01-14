@@ -263,9 +263,8 @@ typedef pthread_cond_t sentry_cond_t;
                 }                                                              \
             }
 #    elif defined(__FreeBSD__)
-// Don't define SENTRY__MUTEX_INIT for platforms that require dynamic
-// initialization, but instead create a new definition that can be used by
-// platforms requiring dynamic recursive mutex initialization.
+// Don't define `SENTRY__MUTEX_INIT` but instead provide a new definition that
+// can be used by platforms requiring dynamic recursive mutex initialization.
 #        define SENTRY__MUTEX_INIT_DYN
 #    else
 #        define SENTRY__MUTEX_INIT PTHREAD_RECURSIVE_MUTEX_INITIALIZER
