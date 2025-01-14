@@ -30,6 +30,32 @@
 #    define sleep_s(SECONDS) sleep(SECONDS)
 #endif
 
+static double
+traces_sampler_callback(const sentry_transaction_context_t *transaction_ctx,
+    sentry_value_t custom_sampling_ctx, const int *parent_sampled)
+{
+    if (parent_sampled != NULL) {
+        if (*parent_sampled) {
+            return 0.8; // high sample rate for children of sampled transactions
+        }
+        return 0; // parent is not sampled
+    }
+    if (strcmp(sentry_transaction_context_get_name(transaction_ctx),
+            "little.teapot")
+        == 0) {
+        if (strcmp(sentry_transaction_context_get_operation(transaction_ctx),
+                "Short and stout here is my handle and here is my spout")
+            == 0) {
+            if (sentry_value_as_int32(
+                    sentry_value_get_by_key(custom_sampling_ctx, "b"))
+                == 42) {
+                return 1;
+            }
+        }
+    }
+    return 0;
+}
+
 static sentry_value_t
 before_send_callback(sentry_value_t event, void *hint, void *closure)
 {
@@ -234,6 +260,10 @@ main(int argc, char **argv)
             options, discarding_on_crash_callback, NULL);
     }
 
+    if (has_arg(argc, argv, "traces-sampler")) {
+        sentry_options_set_traces_sampler(options, traces_sampler_callback);
+    }
+
     if (has_arg(argc, argv, "override-sdk-name")) {
         sentry_options_set_sdk_name(options, "sentry.native.android.flutter");
     }
@@ -405,8 +435,12 @@ main(int argc, char **argv)
         if (has_arg(argc, argv, "unsample-tx")) {
             sentry_transaction_context_set_sampled(tx_ctx, 0);
         }
+
+        sentry_value_t custom_sampling_ctx = sentry_value_new_object();
+        sentry_value_set_by_key(
+            custom_sampling_ctx, "b", sentry_value_new_int32(42));
         sentry_transaction_t *tx
-            = sentry_transaction_start(tx_ctx, sentry_value_new_null());
+            = sentry_transaction_start(tx_ctx, custom_sampling_ctx);
 
         sentry_transaction_set_data(
             tx, "url", sentry_value_new_string("https://example.com"));

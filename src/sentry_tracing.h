@@ -27,7 +27,7 @@ typedef struct sentry_transaction_s {
     sentry_value_t inner;
 } sentry_transaction_t;
 
-void sentry__transaction_context_free(sentry_transaction_context_t *tx_cxt);
+void sentry__transaction_context_free(sentry_transaction_context_t *tx_ctx);
 
 sentry_transaction_t *sentry__transaction_new(sentry_value_t inner);
 void sentry__transaction_incref(sentry_transaction_t *tx);
