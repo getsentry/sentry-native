@@ -3,6 +3,7 @@
 
 #include "sentry_boot.h"
 #include "sentry_logger.h"
+#include "sentry_sampling_context.h"
 
 #define SENTRY_BREADCRUMBS_MAX 100
 #define SENTRY_SPANS_MAX 1000

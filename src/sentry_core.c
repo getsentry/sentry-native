@@ -11,7 +11,6 @@
 #include "sentry_os.h"
 #include "sentry_path.h"
 #include "sentry_random.h"
-#include "sentry_sampling_context.h"
 #include "sentry_scope.h"
 #include "sentry_session.h"
 #include "sentry_string.h"

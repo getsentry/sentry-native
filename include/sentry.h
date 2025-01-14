@@ -1542,7 +1542,6 @@ SENTRY_EXPERIMENTAL_API double sentry_options_get_traces_sample_rate(
  */
 struct sentry_transaction_context_s;
 typedef struct sentry_transaction_context_s sentry_transaction_context_t;
-typedef struct sentry_sampling_context_s sentry_sampling_context_t;
 typedef double (*sentry_traces_sampler_function)(
     const sentry_transaction_context_t *transaction_ctx,
     sentry_value_t custom_sampling_ctx, const bool *parent_sampled);
