@@ -271,7 +271,7 @@ typedef pthread_cond_t sentry_cond_t;
                 pthread_mutexattr_t attr;                                      \
                 pthread_mutexattr_init(&attr);                                 \
                 pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);     \
-                pthread_mutex_init(Mutex, &attr);                           \
+                pthread_mutex_init(Mutex, &attr);                              \
                 pthread_mutexattr_destroy(&attr);                              \
             } while (0)
 #    else
