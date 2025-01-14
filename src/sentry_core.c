@@ -458,10 +458,9 @@ sentry__should_send_transaction(
     sampling_ctx->parent_sampled
         = sentry_value_is_null(context_setting) ? NULL : &sampled;
 
-    int parent_sampled_int; // bool to int conversion
-    if (sampling_ctx->parent_sampled != NULL) {
-        parent_sampled_int = *sampling_ctx->parent_sampled ? 1 : 0;
-    }
+    const int parent_sampled_int = sampling_ctx->parent_sampled
+        ? (int)*sampling_ctx->parent_sampled
+        : -1; // -1 signifies no parent sampling decision
     bool send = false;
     SENTRY_WITH_OPTIONS (options) {
         if (options->traces_sampler) {
