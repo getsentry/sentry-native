@@ -44,6 +44,10 @@ jobs:
             CC: gcc-7
             CXX: g++-7
             TEST_X86: 1
+          - name: Linux (GCC 9.4.0)
+            os: ubuntu-20.04
+            CC: gcc
+            CXX: g++
           - name: Linux (GCC 12)
             os: ubuntu-22.04
             CC: gcc-12
