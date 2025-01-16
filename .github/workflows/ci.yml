@@ -140,7 +140,7 @@ jobs:
           cache: "pip"
 
       - name: Installing Linux Dependencies
-        if: ${{ runner.os == 'Linux' && !env['TEST_X86'] }}
+        if: ${{ runner.os == 'Linux' && matrix.os != 'ubuntu-20.04' && !env['TEST_X86'] }}
         run: |
           sudo apt update
           sudo apt install cmake clang-14 clang-tools llvm kcov g++-12 valgrind zlib1g-dev libcurl4-openssl-dev
