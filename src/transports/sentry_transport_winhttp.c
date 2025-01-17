@@ -143,7 +143,6 @@ sentry__winhttp_transport_start(
         return 1;
     }
 
-    set_proxy_credentials(state, opts->proxy);
     return sentry__bgworker_start(bgworker);
 }
 
