@@ -1,7 +1,4 @@
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wpedantic"
 #include "sentry_boot.h"
-#pragma GCC diagnostic pop
 
 const char *
 sentry_sdk_version(void)

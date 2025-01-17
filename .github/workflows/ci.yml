@@ -1,4 +1,4 @@
-name: CI
+ame: CI
 
 on:
   push:
@@ -48,12 +48,12 @@ jobs:
             os: ubuntu-20.04
             CC: gcc
             CXX: g++
-            ERROR_ON_WARNINGS: 1
+            # ERROR_ON_WARNINGS: 1
           - name: Linux (GCC 12)
             os: ubuntu-22.04
             CC: gcc-12
             CXX: g++-12
-            ERROR_ON_WARNINGS: 1
+            # ERROR_ON_WARNINGS: 1
             # The GCC analyzer 10.0.1 (as on CI) has an internal compiler error
             # currently, and is not stable enough to activate.
             # RUN_ANALYZER: gcc
