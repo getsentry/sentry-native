@@ -346,7 +346,7 @@ else()
 	target_compile_options(sentry PRIVATE $<BUILD_INTERFACE:-Wall -Wextra -Wpedantic>)
 	# The crashpad and breakpad headers generate the following warnings that we
 	# ignore specifically
-	target_compile_options(sentry PRIVATE $<BUILD_INTERFACE:-Wno-variadic-macros -Wno-gnu-include-next -Wno-multichar>)
+	target_compile_options(sentry PRIVATE $<BUILD_INTERFACE:-Wno-variadic-macros -Wno-multichar>)
 	# ignore all warnings for mpack
 	set_source_files_properties(
 		"${PROJECT_SOURCE_DIR}/vendor/mpack.c"
@@ -600,6 +600,9 @@ if(SENTRY_BUILD_EXAMPLES)
 		set_target_properties(sentry_example PROPERTIES VS_USER_PROPS gdk_build.props)
 	endif()
 	target_link_libraries(sentry_example PRIVATE sentry)
+
+	add_executable(handle_ex examples/handle_ex.cpp)
+	target_link_libraries(handle_ex PRIVATE sentry)
 
 	if(MSVC)
 		target_compile_options(sentry_example PRIVATE $<BUILD_INTERFACE:/wd5105 /wd4717>)
