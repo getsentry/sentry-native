@@ -601,9 +601,6 @@ if(SENTRY_BUILD_EXAMPLES)
 	endif()
 	target_link_libraries(sentry_example PRIVATE sentry)
 
-	add_executable(handle_ex examples/handle_ex.cpp)
-	target_link_libraries(handle_ex PRIVATE sentry)
-
 	if(MSVC)
 		target_compile_options(sentry_example PRIVATE $<BUILD_INTERFACE:/wd5105 /wd4717>)
 
