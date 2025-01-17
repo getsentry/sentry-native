@@ -53,6 +53,8 @@ sentry__winhttp_bgworker_state_free(void *_state)
     sentry__dsn_decref(state->dsn);
     sentry__rate_limiter_free(state->ratelimiter);
     sentry_free(state->user_agent);
+    sentry_free(state->proxy_username);
+    sentry_free(state->proxy_password);
     sentry_free(state->proxy);
     sentry_free(state);
 }
@@ -83,8 +85,11 @@ set_proxy_credentials(winhttp_bgworker_state_t *state, const char *proxy)
             MultiByteToWideChar(CP_UTF8, 0, user, -1, user_w, user_wlen);
             MultiByteToWideChar(CP_UTF8, 0, pass, -1, pass_w, pass_wlen);
 
-            state->proxy_user = user_w;
-            state->proxy_pass = pass_w;
+            state->proxy_username = user_w;
+            state->proxy_password = pass_w;
+
+            sentry_free(user);
+            sentry_free(pass);
         }
     }
 }
@@ -249,9 +254,10 @@ sentry__winhttp_send_task(void *_envelope, void *_state)
     SENTRY_DEBUGF(
         "sending request using winhttp to \"%s\":\n%S", req->url, headers);
 
-    if (state->proxy_user && state->proxy_pass) {
+    if (state->proxy_username && state->proxy_password) {
         WinHttpSetCredentials(state->request, WINHTTP_AUTH_TARGET_PROXY,
-            WINHTTP_AUTH_SCHEME_BASIC, state->proxy_user, state->proxy_pass, 0);
+            WINHTTP_AUTH_SCHEME_BASIC, state->proxy_username,
+            state->proxy_password, 0);
     }
 
     if (WinHttpSendRequest(state->request, headers, (DWORD)-1,
