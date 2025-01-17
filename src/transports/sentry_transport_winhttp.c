@@ -17,6 +17,8 @@ typedef struct {
     sentry_dsn_t *dsn;
     wchar_t *user_agent;
     wchar_t *proxy;
+    wchar_t *proxy_username;
+    wchar_t *proxy_password;
     sentry_rate_limiter_t *ratelimiter;
     HINTERNET session;
     HINTERNET connect;
@@ -55,6 +57,38 @@ sentry__winhttp_bgworker_state_free(void *_state)
     sentry_free(state);
 }
 
+// Function to extract and set credentials TODO replace with `sentry__url_parse`
+void
+set_proxy_credentials(winhttp_bgworker_state_t *state, const char *proxy)
+{
+    const char *at_sign = strchr(proxy, '@');
+    if (at_sign) {
+        const char *credentials = proxy + 7; // Skip "http://"
+        char *colon = strchr(credentials, ':');
+        if (colon && colon < at_sign) {
+            size_t user_len = colon - credentials;
+            size_t pass_len = at_sign - colon - 1;
+            char *user = (char *)malloc(user_len + 1);
+            char *pass = (char *)malloc(pass_len + 1);
+            strncpy(user, credentials, user_len);
+            user[user_len] = '\0';
+            strncpy(pass, colon + 1, pass_len);
+            pass[pass_len] = '\0';
+
+            // Convert user and pass to LPCWSTR
+            int user_wlen = MultiByteToWideChar(CP_UTF8, 0, user, -1, NULL, 0);
+            int pass_wlen = MultiByteToWideChar(CP_UTF8, 0, pass, -1, NULL, 0);
+            wchar_t *user_w = (wchar_t *)malloc(user_wlen * sizeof(wchar_t));
+            wchar_t *pass_w = (wchar_t *)malloc(pass_wlen * sizeof(wchar_t));
+            MultiByteToWideChar(CP_UTF8, 0, user, -1, user_w, user_wlen);
+            MultiByteToWideChar(CP_UTF8, 0, pass, -1, pass_w, pass_wlen);
+
+            state->proxy_user = user_w;
+            state->proxy_pass = pass_w;
+        }
+    }
+}
+
 static int
 sentry__winhttp_transport_start(
     const sentry_options_t *opts, void *transport_state)
@@ -71,7 +105,12 @@ sentry__winhttp_transport_start(
     // ensure the proxy starts with `http://`, otherwise ignore it
     if (opts->proxy && strstr(opts->proxy, "http://") == opts->proxy) {
         const char *ptr = opts->proxy + 7;
+        const char *at_sign = strchr(ptr, '@');
         const char *slash = strchr(ptr, '/');
+        if (at_sign && (!slash || at_sign < slash)) {
+            ptr = at_sign + 1;
+            set_proxy_credentials(state, opts->proxy);
+        }
         if (slash) {
             char *copy = sentry__string_clone_n(ptr, slash - ptr);
             state->proxy = sentry__string_to_wstr(copy);
@@ -103,6 +142,8 @@ sentry__winhttp_transport_start(
         SENTRY_WARN("`WinHttpOpen` failed");
         return 1;
     }
+
+    set_proxy_credentials(state, opts->proxy);
     return sentry__bgworker_start(bgworker);
 }
 
@@ -208,6 +249,11 @@ sentry__winhttp_send_task(void *_envelope, void *_state)
 
     SENTRY_DEBUGF(
         "sending request using winhttp to \"%s\":\n%S", req->url, headers);
+
+    if (state->proxy_user && state->proxy_pass) {
+        WinHttpSetCredentials(state->request, WINHTTP_AUTH_TARGET_PROXY,
+            WINHTTP_AUTH_SCHEME_BASIC, state->proxy_user, state->proxy_pass, 0);
+    }
 
     if (WinHttpSendRequest(state->request, headers, (DWORD)-1,
             (LPVOID)req->body, (DWORD)req->body_len, (DWORD)req->body_len, 0)) {
