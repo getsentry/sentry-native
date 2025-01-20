@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Fixes**:
+
+- Fix a build error on older compilers introduced by C++17 support in `0.7.18` for the `crashpad` backend. ([#1118](https://github.com/getsentry/sentry-native/pull/1118), [crashpad#117](https://github.com/getsentry/crashpad/pull/117), [mini_chromium#2](https://github.com/getsentry/mini_chromium/pull/2))
+
 ## 0.7.18
 
 **Features**:
