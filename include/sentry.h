@@ -30,7 +30,7 @@ extern "C" {
 #        define SENTRY_SDK_NAME "sentry.native"
 #    endif
 #endif
-#define SENTRY_SDK_VERSION "0.7.18"
+#define SENTRY_SDK_VERSION "0.7.19"
 #define SENTRY_SDK_USER_AGENT SENTRY_SDK_NAME "/" SENTRY_SDK_VERSION
 
 /* common platform detection */
@@ -1567,7 +1567,7 @@ typedef double (*sentry_traces_sampler_function)(
 /**
  * Sets the traces sampler callback. Should be a function that returns a double
  * and takes in a sentry_transaction_context_t pointer, a sentry_value_t for
- * a custom sampling context and a int pointer for the parent sampled flag.
+ * a custom sampling context and an int pointer for the parent sampled flag.
  */
 SENTRY_EXPERIMENTAL_API void sentry_options_set_traces_sampler(
     sentry_options_t *opts, sentry_traces_sampler_function callback);
@@ -1755,9 +1755,7 @@ SENTRY_EXPERIMENTAL_API void sentry_transaction_context_update_from_header_n(
  * constructed by a user.
  *
  * The second parameter is a custom Sampling Context to be used with a Traces
- * Sampler to make a more informed sampling decision. The SDK does not currently
- * support a custom Traces Sampler and this parameter is ignored for the time
- * being but needs to be provided.
+ * Sampler to allow you to make a more informed sampling decision.
  *
  * Returns a Transaction, which is expected to be manually managed by the
  * caller. Manual management involves ensuring that `sentry_transaction_finish`
