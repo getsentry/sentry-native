@@ -66,7 +66,6 @@ set_proxy_credentials(winhttp_bgworker_state_t *state, const char *proxy)
     sentry_url_t url;
     sentry__url_parse(&url, proxy, false);
     if (url.username && url.password) {
-        state->proxy_username = sentry__string_to_wstr(url.username);
         // Convert user and pass to LPCWSTR
         int user_wlen
             = MultiByteToWideChar(CP_UTF8, 0, url.username, -1, NULL, 0);
@@ -80,6 +79,7 @@ set_proxy_credentials(winhttp_bgworker_state_t *state, const char *proxy)
         state->proxy_username = user_w;
         state->proxy_password = pass_w;
     }
+    sentry__url_cleanup(&url);
 }
 
 static int
