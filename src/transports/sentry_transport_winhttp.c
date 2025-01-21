@@ -59,38 +59,26 @@ sentry__winhttp_bgworker_state_free(void *_state)
     sentry_free(state);
 }
 
-// Function to extract and set credentials TODO replace with `sentry__url_parse`
-void
+// Function to extract and set credentials
+static void
 set_proxy_credentials(winhttp_bgworker_state_t *state, const char *proxy)
 {
-    const char *at_sign = strchr(proxy, '@');
-    if (at_sign) {
-        const char *credentials = proxy + 7; // Skip "http://"
-        char *colon = strchr(credentials, ':');
-        if (colon && colon < at_sign) {
-            size_t user_len = colon - credentials;
-            size_t pass_len = at_sign - colon - 1;
-            char *user = (char *)malloc(user_len + 1);
-            char *pass = (char *)malloc(pass_len + 1);
-            strncpy(user, credentials, user_len);
-            user[user_len] = '\0';
-            strncpy(pass, colon + 1, pass_len);
-            pass[pass_len] = '\0';
+    sentry_url_t url;
+    sentry__url_parse(&url, proxy, false);
+    if (url.username && url.password) {
+        state->proxy_username = sentry__string_to_wstr(url.username);
+        // Convert user and pass to LPCWSTR
+        int user_wlen
+            = MultiByteToWideChar(CP_UTF8, 0, url.username, -1, NULL, 0);
+        int pass_wlen
+            = MultiByteToWideChar(CP_UTF8, 0, url.password, -1, NULL, 0);
+        wchar_t *user_w = (wchar_t *)malloc(user_wlen * sizeof(wchar_t));
+        wchar_t *pass_w = (wchar_t *)malloc(pass_wlen * sizeof(wchar_t));
+        MultiByteToWideChar(CP_UTF8, 0, url.username, -1, user_w, user_wlen);
+        MultiByteToWideChar(CP_UTF8, 0, url.password, -1, pass_w, pass_wlen);
 
-            // Convert user and pass to LPCWSTR
-            int user_wlen = MultiByteToWideChar(CP_UTF8, 0, user, -1, NULL, 0);
-            int pass_wlen = MultiByteToWideChar(CP_UTF8, 0, pass, -1, NULL, 0);
-            wchar_t *user_w = (wchar_t *)malloc(user_wlen * sizeof(wchar_t));
-            wchar_t *pass_w = (wchar_t *)malloc(pass_wlen * sizeof(wchar_t));
-            MultiByteToWideChar(CP_UTF8, 0, user, -1, user_w, user_wlen);
-            MultiByteToWideChar(CP_UTF8, 0, pass, -1, pass_w, pass_wlen);
-
-            state->proxy_username = user_w;
-            state->proxy_password = pass_w;
-
-            sentry_free(user);
-            sentry_free(pass);
-        }
+        state->proxy_username = user_w;
+        state->proxy_password = pass_w;
     }
 }
 
