@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- Auto detect latest GDK and Windows SDK ([#1124](https://github.com/getsentry/sentry-native/pull/1124))
+
 ## 0.7.19
 
 **Fixes**:
