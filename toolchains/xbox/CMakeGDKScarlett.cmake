@@ -15,18 +15,17 @@ endif()
 set(XBOX_CONSOLE_TARGET "scarlett" CACHE STRING "")
 
 #--- Microsoft Game Development Kit
-set(XdkEditionTarget "240603" CACHE STRING "Microsoft GDK Edition")
 
-message("XdkEditionTarget = ${XdkEditionTarget}")
+include("${CMAKE_CURRENT_LIST_DIR}/DetectGDK.cmake")
 
-set(CMAKE_TRY_COMPILE_PLATFORM_VARIABLES XdkEditionTarget BUILD_USING_BWOI)
+set(CMAKE_TRY_COMPILE_PLATFORM_VARIABLES GDK_VERSION BUILD_USING_BWOI)
 
 #--- Windows SDK
-set(SDKVersion 10.0.19041.0)
+include("${CMAKE_CURRENT_LIST_DIR}/DetectWindowsSDK.cmake")
 
 set(CMAKE_SYSTEM_NAME WINDOWS)
 set(CMAKE_SYSTEM_VERSION 10.0.19041.0)
-set(CMAKE_VS_WINDOWS_TARGET_PLATFORM_VERSION ${SDKVersion})
+set(CMAKE_VS_WINDOWS_TARGET_PLATFORM_VERSION ${WINDOWS_SDK_VER})
 
 #--- Locate Visual Studio (needed for VC Runtime DLLs)
 
@@ -80,34 +79,15 @@ message("VCToolsRedistVersion = ${VCToolsRedistVersion}")
 set(_GDK_XBOX_ ON)
 include("${SENTRY_TOOLCHAINS_DIR}/xbox/GDK-targets.cmake")
 
-set(DurangoXdkInstallPath "${Console_SdkRoot}/${XdkEditionTarget}")
+set(DurangoXdkInstallPath "${Console_SdkRoot}/${GDK_VERSION}")
 
 message("Microsoft GDK = ${DurangoXdkInstallPath}")
 
-#--- Windows SDK (BWOI or installed)
-if(BUILD_USING_BWOI)
-    if (DEFINED ENV{ExtractedFolder})
-        cmake_path(SET ExtractedFolder "$ENV{ExtractedFolder}")
-    else()
-        set(ExtractedFolder "d:/xtrctd.sdks/BWOIExample/")
-    endif()
-
-    if(NOT EXISTS ${ExtractedFolder})
-        message(FATAL_ERROR "ERROR: BWOI requires a valid ExtractedFolder (${ExtractedFolder})")
-    endif()
-
-    set(WindowsSdkDir "${ExtractedFolder}/Windows Kits/10")
-    if (NOT EXISTS ${WindowsSdkDir})
-        cmake_path(SET WindowsSdkDir "$ENV{ProgramFiles\(x86\)}/Windows Kits/10")
-    endif()
+#--- Windows SDK
+if(EXISTS "${WINDOWS_SDK}/Include/${WINDOWS_SDK_VER}" )
+    message("Windows SDK = v${WINDOWS_SDK_VER} in ${WINDOWS_SDK}")
 else()
-    cmake_path(SET WindowsSdkDir "$ENV{ProgramFiles\(x86\)}/Windows Kits/10")
-endif()
-
-if(EXISTS "${WindowsSdkDir}/Include/${SDKVersion}" )
-    message("Windows SDK = v${SDKVersion} in ${WindowsSdkDir}")
-else()
-    message(FATAL_ERROR "ERROR: Cannot locate Windows SDK (${SDKVersion})")
+    message(FATAL_ERROR "ERROR: Cannot locate Windows SDK (${WINDOWS_SDK_VER})")
 endif()
 
 #--- Headers
@@ -115,7 +95,7 @@ set(Console_EndpointIncludeRoot
         "${DurangoXdkInstallPath}/GXDK/gameKit/Include"
         "${DurangoXdkInstallPath}/GXDK/gameKit/Include/Scarlett"
         "${DurangoXdkInstallPath}/GRDK/gameKit/Include")
-set(Console_WindowsIncludeRoot ${WindowsSdkDir}/Include/${SDKVersion})
+set(Console_WindowsIncludeRoot ${WINDOWS_SDK}/Include/${WINDOWS_SDK_VER})
 set(Console_SdkIncludeRoot
         "${Console_EndpointIncludeRoot}"
         "${Console_WindowsIncludeRoot}/um"
@@ -135,7 +115,7 @@ if(NOT EXISTS ${VC_OneCore_LibPath}/msvcrt.lib)
     message(FATAL_ERROR "ERROR: Cannot locate msvcrt.lib for the Visual C++ toolset (${VCToolsVersion})")
 endif()
 
-set(Console_LibRoot ${WindowsSdkDir}/Lib/${SDKVersion})
+set(Console_LibRoot ${WINDOWS_SDK}/Lib/${WINDOWS_SDK_VER})
 set(Console_EndpointLibRoot
         "${DurangoXdkInstallPath}/GXDK/gameKit/Lib/amd64"
         "${DurangoXdkInstallPath}/GXDK/gameKit/Lib/amd64/Scarlett"
@@ -150,9 +130,9 @@ set(Console_Libs pixevt.lib d3d12_xs.lib xgameplatform.lib xgameruntime.lib xmem
 #--- Binaries
 set(GameOSFilePath ${DurangoXdkInstallPath}/GXDK/sideload/gameos.xvd)
 
-set(Console_UCRTRedistDebug ${WindowsSdkDir}/bin/${SDKVersion}/x64/ucrt)
+set(Console_UCRTRedistDebug ${WINDOWS_SDK}/bin/${WINDOWS_SDK_VER}/x64/ucrt)
 if(NOT EXISTS ${Console_UCRTRedistDebug}/ucrtbased.dll)
-    message(FATAL_ERROR "ERROR: Cannot locate ucrtbased.dll in the Windows SDK (${SDKVersion})")
+    message(FATAL_ERROR "ERROR: Cannot locate ucrtbased.dll in the Windows SDK (${WINDOWS_SDK_VER})")
 endif()
 
 set(CRTPlatformToolset 143)
