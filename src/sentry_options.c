@@ -59,6 +59,7 @@ sentry_options_new(void)
     opts->traces_sample_rate = 0.0;
     opts->max_spans = 0;
     opts->handler_strategy = SENTRY_HANDLER_STRATEGY_DEFAULT;
+    opts->read_proxy_from_environment = false;
 
     return opts;
 }

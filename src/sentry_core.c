@@ -138,7 +138,7 @@ sentry_init(sentry_options_t *options)
             "the provided DSN \"%s\" is not valid", raw_dsn ? raw_dsn : "");
     }
 
-    if (options->read_proxy_from_environment) {
+    if (options->read_proxy_from_environment == true) {
         sentry__set_proxy_from_environment(options);
     }
 
