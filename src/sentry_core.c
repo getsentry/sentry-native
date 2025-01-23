@@ -406,7 +406,9 @@ sentry__roll_dice(double probability)
 sentry_uuid_t
 sentry__capture_event(sentry_value_t event)
 {
-    sentry_uuid_t event_id;
+    // `event_id` is only used as an argument to pure output parameters.
+    // Initialization only happens to prevent compiler warnings.
+    sentry_uuid_t event_id = sentry_uuid_nil();
     sentry_envelope_t *envelope = NULL;
 
     bool was_captured = false;
