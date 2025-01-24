@@ -671,15 +671,19 @@ def test_capture_proxy(
                 auth = "user:password@"
             if run_args == ["http-proxy"]:
                 os.environ["http_proxy"] = f"http://{auth}{host}:8080"
+                os.environ["https_proxy"] = f"http://{auth}{host}:8080"
             elif run_args == ["socks5-proxy"]:
                 os.environ["http_proxy"] = f"socks5://{auth}{host}:1080"
+                os.environ["https_proxy"] = f"socks5://{auth}{host}:1080"
 
         httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
         current_run_arg = run_args[0]
         if proxy_auth == ["on"]:
             current_run_arg += "-auth"
         if proxy_from_env == ["proxy-from-env"]:
-            current_run_arg = "proxy-from-env"  # overwrite args if proxy-from-env is set (e.g. don't manually set)
+            current_run_arg = (
+                ""  # overwrite args if proxy-from-env is set (e.g. don't manually set)
+            )
         run(
             tmp_path,
             "sentry_example",

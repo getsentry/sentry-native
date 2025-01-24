@@ -1014,25 +1014,6 @@ SENTRY_API const char *sentry_options_get_http_proxy(
     const sentry_options_t *opts);
 
 /**
- * Sets whether to read the proxy settings from the environment.
- *
- * If `http_proxy` or `https_proxy` is a non-null environment variable,
- * this overwrites the proxy set by `sentry_options_set_http_proxy`
- * during `sentry_init`, even if the explicit set function is called after
- * `sentry_options_set_read_proxy_from_environment`.
- *
- * To re-enable using the manually set proxy, one should call this function
- * again with `0`.
- */
-SENTRY_API void sentry_options_set_read_proxy_from_environment(
-    sentry_options_t *opts, int val);
-/**
- * Returns whether to read the proxy settings from the environment.
- */
-SENTRY_API int sentry_options_get_read_proxy_from_environment(
-    const sentry_options_t *opts);
-
-/**
  * Configures the path to a file containing ssl certificates for
  * verification.
  */

@@ -59,7 +59,6 @@ sentry_options_new(void)
     opts->traces_sample_rate = 0.0;
     opts->max_spans = 0;
     opts->handler_strategy = SENTRY_HANDLER_STRATEGY_DEFAULT;
-    opts->read_proxy_from_environment = false;
 
     return opts;
 }
@@ -275,29 +274,6 @@ const char *
 sentry_options_get_http_proxy(const sentry_options_t *opts)
 {
     return sentry_options_get_proxy(opts);
-}
-
-void
-sentry_options_set_read_proxy_from_environment(sentry_options_t *opts, int val)
-{
-    opts->read_proxy_from_environment = !!val;
-}
-
-int
-sentry_options_get_read_proxy_from_environment(const sentry_options_t *opts)
-{
-    return opts->read_proxy_from_environment;
-}
-
-void
-sentry__set_proxy_from_environment(sentry_options_t *opts)
-{
-    const char *https_proxy = getenv("https_proxy");
-    if (https_proxy) {
-        sentry_options_set_proxy(opts, https_proxy);
-    } else {
-        sentry_options_set_proxy(opts, getenv("http_proxy"));
-    }
 }
 
 void
