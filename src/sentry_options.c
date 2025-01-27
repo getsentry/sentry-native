@@ -22,6 +22,11 @@ sentry_options_new(void)
     sentry_options_set_dsn(opts, getenv("SENTRY_DSN"));
     const char *debug = getenv("SENTRY_DEBUG");
     opts->debug = debug && sentry__string_eq(debug, "1");
+#if !defined(NDEBUG)
+    if (!opts->debug && (!debug || !sentry__string_eq(debug, "0"))) {
+        opts->debug = 1;
+    }
+#endif
     sentry_logger_t logger
         = { sentry__logger_defaultlogger, NULL, SENTRY_LEVEL_DEBUG };
     opts->logger = logger;

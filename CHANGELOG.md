@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Enable debug-option by default when running in a debug-build. ([#1128](https://github.com/getsentry/sentry-native/pull/1128))
+
 **Fixes**:
 
 - Allow older toolchains with assemblers that don't support PAC-stripping instructions on `aarch64` to compile `crashpad`. ([#1125](https://github.com/getsentry/sentry-native/pull/1125), [crashpad#118](https://github.com/getsentry/crashpad/pull/118))
