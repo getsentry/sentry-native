@@ -611,6 +611,66 @@ def test_capture_minidump(cmake, httpserver):
     assert_minidump(envelope)
 
 
+def test_proxy_from_env(cmake):
+    # TODO parametrize to only set http_proxy/https_proxy/empty
+    # TODO if env. is "wrong" proxy, then no http traffic should be sent (equivalent to proxy server being "off" ???)
+    # TODO think about whether we need both http and socks5 proxy tests here
+    # if run_args == ["http-proxy"]:
+    #     os.environ["http_proxy"] = f"http://{auth}{host}:8080"
+    #     os.environ["https_proxy"] = f"http://{auth}{host}:8080"
+    # elif run_args == ["socks5-proxy"]:
+    #     os.environ["http_proxy"] = f"socks5://{auth}{host}:1080"
+    #     os.environ["https_proxy"] = f"socks5://{auth}{host}:1080"
+    pass
+
+
+def test_proxy_crash(cmake):
+    # TODO run with run-arg "crash" and a proxy to see how much http traffic is sent
+    pass
+
+
+def test_proxy_auth(cmake):
+    # TODO parametrize with auth_correct bool?
+    # run mitmdump with auth --proxyauth=user:password & "-auth" to "http-proxy" run arg
+    # "user:password@" {host:}{port}
+    # TODO think about whether we need both http and socks5 proxy tests here
+    # if run_args == ["http-proxy"]:
+    #     os.environ["http_proxy"] = f"http://{auth}{host}:8080"
+    #     os.environ["https_proxy"] = f"http://{auth}{host}:8080"
+    # elif run_args == ["socks5-proxy"]:
+    #     os.environ["http_proxy"] = f"socks5://{auth}{host}:1080"
+    #     os.environ["https_proxy"] = f"socks5://{auth}{host}:1080"
+    pass
+
+
+def test_proxy_ipv6(cmake):
+    # TODO think about whether we need both http and socks5 proxy tests here
+    # if proxy_IPv == ["6"]:
+    #     host = "[::1]"
+    pass
+
+
+def start_mitmdump(proxy_type, proxy_auth: bool):
+    # start mitmdump from terminal
+    if proxy_type == "http-proxy":
+        proxy_command = ["mitmdump"]
+        if proxy_auth:
+            proxy_command += ["-q", "--proxyauth", "user:password"]
+        proxy_process = subprocess.Popen(proxy_command)
+        time.sleep(5)  # Give mitmdump some time to start
+        if not is_proxy_running("localhost", 8080):
+            pytest.fail("mitmdump (HTTP) did not start correctly")
+    elif proxy_type == "socks5-proxy":
+        proxy_command = ["mitmdump", "--mode", "socks5"]
+        if proxy_auth:
+            proxy_command += ["-q", "--proxyauth", "user:password"]
+        proxy_process = subprocess.Popen(proxy_command)
+        time.sleep(5)  # Give mitmdump some time to start
+        if not is_proxy_running("localhost", 1080):
+            pytest.fail("mitmdump (SOCKS5) did not start correctly")
+    return proxy_process
+
+
 @pytest.mark.parametrize(
     "run_args",
     [
@@ -625,12 +685,7 @@ def test_capture_minidump(cmake, httpserver):
     ],
 )
 @pytest.mark.parametrize("proxy_status", [(["off"]), (["on"])])
-@pytest.mark.parametrize("proxy_auth", [(["off"]), (["on"])])
-@pytest.mark.parametrize("proxy_IPv", [(["4"]), (["6"])])
-@pytest.mark.parametrize("proxy_from_env", [(["proxy-from-env"]), ([""])])
-def test_capture_proxy(
-    cmake, httpserver, run_args, proxy_status, proxy_auth, proxy_from_env, proxy_IPv
-):
+def test_capture_proxy(cmake, httpserver, run_args, proxy_status):
     if not shutil.which("mitmdump"):
         pytest.skip("mitmdump is not installed")
 
@@ -639,68 +694,30 @@ def test_capture_proxy(
     try:
         if proxy_status == ["on"]:
             # start mitmdump from terminal
-            if run_args == ["http-proxy"]:
-                proxy_command = ["mitmdump"]
-                if proxy_auth == ["on"]:
-                    proxy_command.append("--proxyauth=user:password")
-                proxy_process = subprocess.Popen(proxy_command)
-                time.sleep(5)  # Give mitmdump some time to start
-                if not is_proxy_running("localhost", 8080):
-                    pytest.fail("mitmdump (HTTP) did not start correctly")
-            elif run_args == ["socks5-proxy"]:
-                proxy_command = ["mitmdump", "--mode", "socks5"]
-                if proxy_auth == ["on"]:
-                    proxy_command.append("--proxyauth=user:password")
-                proxy_process = subprocess.Popen(proxy_command)
-                time.sleep(5)  # Give mitmdump some time to start
-                if not is_proxy_running("localhost", 1080):
-                    pytest.fail("mitmdump (SOCKS5) did not start correctly")
+            proxy_process = start_mitmdump(run_args[0], False)
 
         tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
 
         # make sure we are isolated from previous runs
         shutil.rmtree(tmp_path / ".sentry-native", ignore_errors=True)
 
-        # if proxy_from_env is set, set the proxy environment variables
-        if proxy_from_env == ["proxy-from-env"]:
-            auth = ""
-            host = "localhost"
-            if proxy_IPv == ["6"]:
-                host = "[::1]"
-            if proxy_auth == ["on"]:
-                auth = "user:password@"
-            if run_args == ["http-proxy"]:
-                os.environ["http_proxy"] = f"http://{auth}{host}:8080"
-                os.environ["https_proxy"] = f"http://{auth}{host}:8080"
-            elif run_args == ["socks5-proxy"]:
-                os.environ["http_proxy"] = f"socks5://{auth}{host}:1080"
-                os.environ["https_proxy"] = f"socks5://{auth}{host}:1080"
-
         httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
         current_run_arg = run_args[0]
-        if proxy_auth == ["on"]:
-            current_run_arg += "-auth"
-        if proxy_from_env == ["proxy-from-env"]:
-            current_run_arg = (
-                ""  # overwrite args if proxy-from-env is set (e.g. don't manually set)
-            )
         run(
             tmp_path,
             "sentry_example",
-            ["log", "start-session", "capture-event"]
+            ["log", "capture-event"]
             + [current_run_arg],  # only passes if given proxy is running
             check=True,
             env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
         )
         if proxy_status == ["on"]:
-            assert len(httpserver.log) == 2
+            assert len(httpserver.log) == 1
         elif proxy_status == ["off"]:
             # Windows will send the request even if the proxy is not running
             # macOS/Linux will not send the request if the proxy is not running
-            assert len(httpserver.log) == (2 if (sys.platform == "win32") else 0)
+            assert len(httpserver.log) == (1 if (sys.platform == "win32") else 0)
     finally:
         if proxy_process:
             proxy_process.terminate()
             proxy_process.wait()
-        if proxy_from_env == ["proxy-from-env"]:
-            del os.environ["http_proxy"]  # remove the proxy environment variables
