@@ -13,14 +13,13 @@ if(_GXDK_XS_TOOLCHAIN_)
 endif()
 
 # Microsoft Game Development Kit
-set(XdkEditionTarget "220303" CACHE STRING "Microsoft GDK Edition")
 
-message("XdkEditionTarget = ${XdkEditionTarget}")
+include("${CMAKE_CURRENT_LIST_DIR}/DetectGDK.cmake")
 
-set(CMAKE_TRY_COMPILE_PLATFORM_VARIABLES XdkEditionTarget)
+set(CMAKE_TRY_COMPILE_PLATFORM_VARIABLES GDK_VERSION)
 
 set(CMAKE_SYSTEM_NAME WINDOWS)
-set(CMAKE_SYSTEM_VERSION 10.0.19041)
+set(CMAKE_SYSTEM_VERSION ${GDK_VERSION})
 
 set(CMAKE_GENERATOR_PLATFORM "Gaming.Xbox.Scarlett.x64" CACHE STRING "" FORCE)
 set(CMAKE_VS_PLATFORM_NAME "Gaming.Xbox.Scarlett.x64" CACHE STRING "" FORCE)
@@ -53,7 +52,7 @@ if(NOT GDK_DXCTool)
     find_program(
             GDK_DXCTool
             NAMES dxc
-            PATHS "${Console_SdkRoot}/${XdkEditionTarget}/GXDK/bin/Scarlett"
+            PATHS "${Console_SdkRoot}/${GDK_VERSION}/GXDK/bin/Scarlett"
     )
 
     mark_as_advanced(GDK_DXCTool)
