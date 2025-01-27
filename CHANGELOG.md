@@ -4,7 +4,7 @@
 
 **Features**:
 
-- Auto detect latest GDK and Windows SDK ([#1124](https://github.com/getsentry/sentry-native/pull/1124))
+- Auto-detect the latest GDK and Windows SDK for the XBox build. ([#1124](https://github.com/getsentry/sentry-native/pull/1124))
 
 ## 0.7.19
 
