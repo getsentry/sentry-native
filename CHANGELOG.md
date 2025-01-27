@@ -5,6 +5,11 @@
 **Features**:
 
 - Auto-detect the latest GDK and Windows SDK for the XBox build. ([#1124](https://github.com/getsentry/sentry-native/pull/1124))
+- Enable debug-option by default when running in a debug-build. ([#1128](https://github.com/getsentry/sentry-native/pull/1128))
+
+**Fixes**:
+
+- Allow older toolchains with assemblers that don't support PAC-stripping instructions on `aarch64` to compile `crashpad`. ([#1125](https://github.com/getsentry/sentry-native/pull/1125), [crashpad#118](https://github.com/getsentry/crashpad/pull/118))
 
 ## 0.7.19
 
