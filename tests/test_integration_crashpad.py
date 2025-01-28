@@ -6,7 +6,7 @@ import time
 
 import pytest
 
-from . import make_dsn, run, Envelope, is_proxy_running
+from . import make_dsn, run, Envelope, start_mitmdump
 from .assertions import (
     assert_crashpad_upload,
     assert_session,
@@ -39,6 +39,42 @@ def test_crashpad_capture(cmake, httpserver):
     assert len(httpserver.log) == 2
 
 
+def test_crashpad_crash_proxy_env(cmake, httpserver):
+    if not shutil.which("mitmdump"):
+        pytest.skip("mitmdump is not installed")
+
+    proxy_process = None  # store the proxy process to terminate it later
+    os.environ["http_proxy"] = "http://localhost:8080"
+    os.environ["https_proxy"] = "http://localhost:8080"
+    try:
+        # proxy_process = start_mitmdump("http-proxy")
+
+        tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "crashpad"})
+
+        # make sure we are isolated from previous runs
+        shutil.rmtree(tmp_path / ".sentry-native", ignore_errors=True)
+
+        env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+        httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data(
+            "OK"
+        )
+
+        with httpserver.wait(timeout=10) as waiting:
+            child = run(tmp_path, "sentry_example", ["log", "crash"], env=env)
+            assert child.returncode  # well, it's a crash after all
+
+        assert waiting.result
+        # TODO add listener to mitmproxy to check if the proxy was actually used
+        #   (since fallback to direct connection is possible)
+        assert len(httpserver.log) == 1
+    finally:
+        if proxy_process:
+            proxy_process.terminate()
+            proxy_process.wait()
+        del os.environ["http_proxy"]
+        del os.environ["https_proxy"]
+
+
 @pytest.mark.parametrize(
     "run_args",
     [
@@ -62,16 +98,7 @@ def test_crashpad_crash_proxy(cmake, httpserver, run_args, proxy_status):
     try:
         if proxy_status == ["on"]:
             # start mitmdump from terminal
-            if run_args == ["http-proxy"]:
-                proxy_process = subprocess.Popen(["mitmdump"])
-                time.sleep(5)  # Give mitmdump some time to start
-                if not is_proxy_running("localhost", 8080):
-                    pytest.fail("mitmdump (HTTP) did not start correctly")
-            elif run_args == ["socks5-proxy"]:
-                proxy_process = subprocess.Popen(["mitmdump", "--mode", "socks5"])
-                time.sleep(5)  # Give mitmdump some time to start
-                if not is_proxy_running("localhost", 1080):
-                    pytest.fail("mitmdump (SOCKS5) did not start correctly")
+            proxy_process = start_mitmdump("http")
 
         tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "crashpad"})
 

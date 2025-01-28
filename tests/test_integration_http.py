@@ -9,7 +9,7 @@ import subprocess
 
 import pytest
 
-from . import make_dsn, run, Envelope, is_proxy_running
+from . import make_dsn, run, Envelope, start_mitmdump
 from .assertions import (
     assert_attachment,
     assert_meta,
@@ -653,53 +653,6 @@ def test_proxy_from_env(cmake, httpserver, port_correct):
             proxy_process.wait()
 
 
-@pytest.mark.skipif(not has_crashpad, reason="test needs crashpad backend")
-def test_proxy_crash(cmake, httpserver):
-    if not shutil.which("mitmdump"):
-        pytest.skip("mitmdump is not installed")
-
-    os.environ["http_proxy"] = "http://localhost:8080"
-    os.environ["https_proxy"] = "http://localhost:8080"
-
-    proxy_process = None  # store the proxy process to terminate it later
-    try:
-        # proxy_process = start_mitmdump("http-proxy") # TODO uncomment after local testing
-
-        tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "crashpad"})
-
-        # make sure we are isolated from previous runs
-        shutil.rmtree(tmp_path / ".sentry-native", ignore_errors=True)
-
-        httpserver.expect_request(
-            "/api/123456/envelope/",
-            headers={"x-sentry-auth": auth_header},
-        ).respond_with_data("OK")
-        # TODO figure out why make_dsn returns 500 error where 'real' DSN works
-        DSN = "https://d545f4da00ff7b2fa7b6c8620c94a4e9@o447951.ingest.sentry.io/4506178389999616"
-        DSN = make_dsn(httpserver)
-
-        try:
-            run(
-                tmp_path,
-                "sentry_example",
-                # ["log", "crash", "http-proxy"],
-                ["log", "crash"],
-                check=True,
-                env=dict(os.environ, SENTRY_DSN=DSN),
-            )
-        except Exception as e:
-            print(f"An error occurred: {e}")
-        finally:
-            time.sleep(1)  # give crashpad some time to write the minidump
-            assert len(httpserver.log) == 1
-    finally:
-        if proxy_process:
-            proxy_process.terminate()
-            proxy_process.wait()
-        del os.environ["http_proxy"]
-        del os.environ["https_proxy"]
-
-
 @pytest.mark.parametrize("auth_correct", [(["yes"]), (["no"])])
 def test_proxy_auth(cmake, httpserver, auth_correct):
     if not shutil.which("mitmdump"):
@@ -762,27 +715,6 @@ def test_proxy_ipv6(cmake, httpserver):
         if proxy_process:
             proxy_process.terminate()
             proxy_process.wait()
-
-
-def start_mitmdump(proxy_type, proxy_auth: str = None):
-    # start mitmdump from terminal
-    if proxy_type == "http-proxy":
-        proxy_command = ["mitmdump"]
-        if proxy_auth:
-            proxy_command += ["-q", "--proxyauth", proxy_auth]
-        proxy_process = subprocess.Popen(proxy_command)
-        time.sleep(5)  # Give mitmdump some time to start
-        if not is_proxy_running("localhost", 8080):
-            pytest.fail("mitmdump (HTTP) did not start correctly")
-    elif proxy_type == "socks5-proxy":
-        proxy_command = ["mitmdump", "--mode", "socks5"]
-        if proxy_auth:
-            proxy_command += ["-q", "--proxyauth", proxy_auth]
-        proxy_process = subprocess.Popen(proxy_command)
-        time.sleep(5)  # Give mitmdump some time to start
-        if not is_proxy_running("localhost", 1080):
-            pytest.fail("mitmdump (SOCKS5) did not start correctly")
-    return proxy_process
 
 
 @pytest.mark.parametrize(

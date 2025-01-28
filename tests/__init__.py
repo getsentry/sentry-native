@@ -8,6 +8,7 @@ import urllib
 import pytest
 import pprint
 import textwrap
+import time
 import socket
 
 sourcedir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
@@ -40,6 +41,27 @@ def is_proxy_running(host, port):
             return True
     except ConnectionRefusedError:
         return False
+
+
+def start_mitmdump(proxy_type, proxy_auth: str = None):
+    # start mitmdump from terminal
+    if proxy_type == "http-proxy":
+        proxy_command = ["mitmdump"]
+        if proxy_auth:
+            proxy_command += ["-q", "--proxyauth", proxy_auth]
+        proxy_process = subprocess.Popen(proxy_command)
+        time.sleep(5)  # Give mitmdump some time to start
+        if not is_proxy_running("localhost", 8080):
+            pytest.fail("mitmdump (HTTP) did not start correctly")
+    elif proxy_type == "socks5-proxy":
+        proxy_command = ["mitmdump", "--mode", "socks5"]
+        if proxy_auth:
+            proxy_command += ["-q", "--proxyauth", proxy_auth]
+        proxy_process = subprocess.Popen(proxy_command)
+        time.sleep(5)  # Give mitmdump some time to start
+        if not is_proxy_running("localhost", 1080):
+            pytest.fail("mitmdump (SOCKS5) did not start correctly")
+    return proxy_process
 
 
 def run(cwd, exe, args, env=dict(os.environ), **kwargs):
