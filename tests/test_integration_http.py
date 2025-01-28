@@ -651,6 +651,9 @@ def test_proxy_from_env(cmake, httpserver, port_correct):
             proxy_process.terminate()
             proxy_process.wait()
 
+        del os.environ["http_proxy"]
+        del os.environ["https_proxy"]
+
 
 @pytest.mark.parametrize("auth_correct", [True, False])
 def test_proxy_auth(cmake, httpserver, auth_correct):
