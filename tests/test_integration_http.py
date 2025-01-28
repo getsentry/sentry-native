@@ -611,12 +611,11 @@ def test_capture_minidump(cmake, httpserver):
     assert_minidump(envelope)
 
 
-@pytest.mark.parametrize("port_correct", [(["yes"]), (["no"])])
+@pytest.mark.parametrize("port_correct", [True, False])
 def test_proxy_from_env(cmake, httpserver, port_correct):
     # TODO how can we test this? If it doesn't get read but it's there, we don't know (since it'll just fallback)
     #     can we listen to mitmdump's port and see if it gets traffic?
     # TODO parametrize to only set http_proxy/https_proxy/empty?
-    # TODO if env. is "wrong" proxy, then no http traffic should be sent (equivalent to proxy server being "off" ???)
     if not shutil.which("mitmdump"):
         pytest.skip("mitmdump is not installed")
 
@@ -631,7 +630,7 @@ def test_proxy_from_env(cmake, httpserver, port_correct):
 
         httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
 
-        port = "8080" if port_correct == ["yes"] else "8081"
+        port = "8080" if port_correct else "8081"
         os.environ["http_proxy"] = f"http://localhost:{port}"
         os.environ["https_proxy"] = f"http://localhost:{port}"
 
@@ -643,9 +642,9 @@ def test_proxy_from_env(cmake, httpserver, port_correct):
             env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
         )
 
-        if port_correct == ["yes"]:
+        if port_correct:
             assert len(httpserver.log) == 1
-        elif port_correct == ["no"]:
+        else:
             assert len(httpserver.log) == 0
     finally:
         if proxy_process:
@@ -653,14 +652,14 @@ def test_proxy_from_env(cmake, httpserver, port_correct):
             proxy_process.wait()
 
 
-@pytest.mark.parametrize("auth_correct", [(["yes"]), (["no"])])
+@pytest.mark.parametrize("auth_correct", [True, False])
 def test_proxy_auth(cmake, httpserver, auth_correct):
     if not shutil.which("mitmdump"):
         pytest.skip("mitmdump is not installed")
 
     proxy_process = None  # store the proxy process to terminate it later
     try:
-        proxy_auth = "user:password" if auth_correct == ["yes"] else "wrong:wrong"
+        proxy_auth = "user:password" if auth_correct else "wrong:wrong"
         proxy_process = start_mitmdump("http-proxy", proxy_auth)
 
         tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
@@ -677,9 +676,9 @@ def test_proxy_auth(cmake, httpserver, auth_correct):
             check=True,
             env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
         )
-        if auth_correct == ["yes"]:
+        if auth_correct:
             assert len(httpserver.log) == 1
-        elif auth_correct == ["no"]:
+        else:
             assert len(httpserver.log) == 0
     finally:
         if proxy_process:
@@ -730,15 +729,15 @@ def test_proxy_ipv6(cmake, httpserver):
         ),
     ],
 )
-@pytest.mark.parametrize("proxy_status", [(["off"]), (["on"])])
-def test_capture_proxy(cmake, httpserver, run_args, proxy_status):
+@pytest.mark.parametrize("proxy_running", [True, False])
+def test_capture_proxy(cmake, httpserver, run_args, proxy_running):
     if not shutil.which("mitmdump"):
         pytest.skip("mitmdump is not installed")
 
     proxy_process = None  # store the proxy process to terminate it later
 
     try:
-        if proxy_status == ["on"]:
+        if proxy_running:
             # start mitmdump from terminal
             proxy_process = start_mitmdump(run_args[0])
 
@@ -757,9 +756,9 @@ def test_capture_proxy(cmake, httpserver, run_args, proxy_status):
             check=True,
             env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
         )
-        if proxy_status == ["on"]:
+        if proxy_running:
             assert len(httpserver.log) == 1
-        elif proxy_status == ["off"]:
+        else:
             # Windows will send the request even if the proxy is not running
             # macOS/Linux will not send the request if the proxy is not running
             assert len(httpserver.log) == (1 if (sys.platform == "win32") else 0)

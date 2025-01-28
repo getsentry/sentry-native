@@ -39,15 +39,17 @@ def test_crashpad_capture(cmake, httpserver):
     assert len(httpserver.log) == 2
 
 
-def test_crashpad_crash_proxy_env(cmake, httpserver):
+@pytest.mark.parametrize("port_correct", [True, False])
+def test_crashpad_crash_proxy_env(cmake, httpserver, port_correct):
     if not shutil.which("mitmdump"):
         pytest.skip("mitmdump is not installed")
 
     proxy_process = None  # store the proxy process to terminate it later
-    os.environ["http_proxy"] = "http://localhost:8080"
-    os.environ["https_proxy"] = "http://localhost:8080"
+    port = "8080" if port_correct else "8081"
+    os.environ["http_proxy"] = f"http://localhost:{port}"
+    os.environ["https_proxy"] = f"http://localhost:{port}"
     try:
-        # proxy_process = start_mitmdump("http-proxy")
+        proxy_process = start_mitmdump("http-proxy")
 
         tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "crashpad"})
 
@@ -59,13 +61,18 @@ def test_crashpad_crash_proxy_env(cmake, httpserver):
             "OK"
         )
 
-        with httpserver.wait(timeout=10) as waiting:
-            child = run(tmp_path, "sentry_example", ["log", "crash"], env=env)
-            assert child.returncode  # well, it's a crash after all
+        try:
+            with httpserver.wait(timeout=10) as waiting:
+                child = run(tmp_path, "sentry_example", ["log", "crash"], env=env)
+                assert child.returncode  # well, it's a crash after all
+        except AssertionError as e:
+            if port_correct:
+                raise e
+            else:
+                assert len(httpserver.log) == 0
+                return
 
         assert waiting.result
-        # TODO add listener to mitmproxy to check if the proxy was actually used
-        #   (since fallback to direct connection is possible)
         assert len(httpserver.log) == 1
     finally:
         if proxy_process:
@@ -88,17 +95,17 @@ def test_crashpad_crash_proxy_env(cmake, httpserver):
         ),
     ],
 )
-@pytest.mark.parametrize("proxy_status", [(["off"]), (["on"])])
-def test_crashpad_crash_proxy(cmake, httpserver, run_args, proxy_status):
+@pytest.mark.parametrize("proxy_running", [True, False])
+def test_crashpad_crash_proxy(cmake, httpserver, run_args, proxy_running):
     if not shutil.which("mitmdump"):
         pytest.skip("mitmdump is not installed")
 
     proxy_process = None  # store the proxy process to terminate it later
 
     try:
-        if proxy_status == ["on"]:
+        if proxy_running:
             # start mitmdump from terminal
-            proxy_process = start_mitmdump("http")
+            proxy_process = start_mitmdump(run_args[0])
 
         tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "crashpad"})
 
@@ -118,11 +125,11 @@ def test_crashpad_crash_proxy(cmake, httpserver, run_args, proxy_status):
                 assert child.returncode  # well, it's a crash after all
         except AssertionError:
             # we fail on macOS/Linux if the http proxy is not running
-            if run_args == ["http-proxy"] and proxy_status == ["off"]:
+            if run_args == ["http-proxy"] and not proxy_running:
                 assert len(httpserver.log) == 0
                 return
             # we only fail on linux if the socks5 proxy is not running
-            elif run_args == ["socks5-proxy"] and proxy_status == ["off"]:
+            elif run_args == ["socks5-proxy"] and not proxy_running:
                 assert len(httpserver.log) == 0
                 return
 
