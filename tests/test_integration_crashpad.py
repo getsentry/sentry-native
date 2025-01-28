@@ -73,7 +73,13 @@ def test_crashpad_crash_proxy_env(cmake, httpserver, port_correct):
                 return
 
         assert waiting.result
+
+        proxy_process.terminate()
+        proxy_process.wait()
+        stdout, stderr = proxy_process.communicate()
         assert len(httpserver.log) == 1
+        # check if the request was proxied or just passed through
+        assert "POST" in stdout
     finally:
         if proxy_process:
             proxy_process.terminate()

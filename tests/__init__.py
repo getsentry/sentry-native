@@ -49,7 +49,9 @@ def start_mitmdump(proxy_type, proxy_auth: str = None):
         proxy_command = ["mitmdump"]
         if proxy_auth:
             proxy_command += ["-q", "--proxyauth", proxy_auth]
-        proxy_process = subprocess.Popen(proxy_command)
+        proxy_process = subprocess.Popen(
+            proxy_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+        )
         time.sleep(5)  # Give mitmdump some time to start
         if not is_proxy_running("localhost", 8080):
             pytest.fail("mitmdump (HTTP) did not start correctly")
@@ -57,7 +59,9 @@ def start_mitmdump(proxy_type, proxy_auth: str = None):
         proxy_command = ["mitmdump", "--mode", "socks5"]
         if proxy_auth:
             proxy_command += ["-q", "--proxyauth", proxy_auth]
-        proxy_process = subprocess.Popen(proxy_command)
+        proxy_process = subprocess.Popen(
+            proxy_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+        )
         time.sleep(5)  # Give mitmdump some time to start
         if not is_proxy_running("localhost", 1080):
             pytest.fail("mitmdump (SOCKS5) did not start correctly")
