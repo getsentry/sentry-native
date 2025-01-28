@@ -25,7 +25,7 @@ from .assertions import (
     assert_gzip_content_encoding,
     assert_gzip_file_header,
 )
-from .conditions import has_http, has_breakpad, has_files
+from .conditions import has_http, has_breakpad, has_files, has_crashpad
 
 pytestmark = pytest.mark.skipif(not has_http, reason="tests need http")
 
@@ -611,51 +611,165 @@ def test_capture_minidump(cmake, httpserver):
     assert_minidump(envelope)
 
 
-def test_proxy_from_env(cmake):
-    # TODO parametrize to only set http_proxy/https_proxy/empty
+@pytest.mark.parametrize("port_correct", [(["yes"]), (["no"])])
+def test_proxy_from_env(cmake, httpserver, port_correct):
+    # TODO how can we test this? If it doesn't get read but it's there, we don't know (since it'll just fallback)
+    #     can we listen to mitmdump's port and see if it gets traffic?
+    # TODO parametrize to only set http_proxy/https_proxy/empty?
     # TODO if env. is "wrong" proxy, then no http traffic should be sent (equivalent to proxy server being "off" ???)
-    # TODO think about whether we need both http and socks5 proxy tests here
-    # if run_args == ["http-proxy"]:
-    #     os.environ["http_proxy"] = f"http://{auth}{host}:8080"
-    #     os.environ["https_proxy"] = f"http://{auth}{host}:8080"
-    # elif run_args == ["socks5-proxy"]:
-    #     os.environ["http_proxy"] = f"socks5://{auth}{host}:1080"
-    #     os.environ["https_proxy"] = f"socks5://{auth}{host}:1080"
-    pass
+    if not shutil.which("mitmdump"):
+        pytest.skip("mitmdump is not installed")
+
+    proxy_process = None  # store the proxy process to terminate it later
+    try:
+        proxy_process = start_mitmdump("http-proxy")
+
+        tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+
+        # make sure we are isolated from previous runs
+        shutil.rmtree(tmp_path / ".sentry-native", ignore_errors=True)
+
+        httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
+
+        port = "8080" if port_correct == ["yes"] else "8081"
+        os.environ["http_proxy"] = f"http://localhost:{port}"
+        os.environ["https_proxy"] = f"http://localhost:{port}"
+
+        run(
+            tmp_path,
+            "sentry_example",
+            ["log", "capture-event"],
+            check=True,
+            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+        )
+
+        if port_correct == ["yes"]:
+            assert len(httpserver.log) == 1
+        elif port_correct == ["no"]:
+            assert len(httpserver.log) == 0
+    finally:
+        if proxy_process:
+            proxy_process.terminate()
+            proxy_process.wait()
 
 
-def test_proxy_crash(cmake):
-    # TODO run with run-arg "crash" and a proxy to see how much http traffic is sent
-    pass
+@pytest.mark.skipif(not has_crashpad, reason="test needs crashpad backend")
+def test_proxy_crash(cmake, httpserver):
+    if not shutil.which("mitmdump"):
+        pytest.skip("mitmdump is not installed")
+
+    os.environ["http_proxy"] = "http://localhost:8080"
+    os.environ["https_proxy"] = "http://localhost:8080"
+
+    proxy_process = None  # store the proxy process to terminate it later
+    try:
+        # proxy_process = start_mitmdump("http-proxy") # TODO uncomment after local testing
+
+        tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "crashpad"})
+
+        # make sure we are isolated from previous runs
+        shutil.rmtree(tmp_path / ".sentry-native", ignore_errors=True)
+
+        httpserver.expect_request(
+            "/api/123456/envelope/",
+            headers={"x-sentry-auth": auth_header},
+        ).respond_with_data("OK")
+        # TODO figure out why make_dsn returns 500 error where 'real' DSN works
+        DSN = "https://d545f4da00ff7b2fa7b6c8620c94a4e9@o447951.ingest.sentry.io/4506178389999616"
+        DSN = make_dsn(httpserver)
+
+        try:
+            run(
+                tmp_path,
+                "sentry_example",
+                # ["log", "crash", "http-proxy"],
+                ["log", "crash"],
+                check=True,
+                env=dict(os.environ, SENTRY_DSN=DSN),
+            )
+        except Exception as e:
+            print(f"An error occurred: {e}")
+        finally:
+            time.sleep(1)  # give crashpad some time to write the minidump
+            assert len(httpserver.log) == 1
+    finally:
+        if proxy_process:
+            proxy_process.terminate()
+            proxy_process.wait()
+        del os.environ["http_proxy"]
+        del os.environ["https_proxy"]
 
 
-def test_proxy_auth(cmake):
-    # TODO parametrize with auth_correct bool?
-    # run mitmdump with auth --proxyauth=user:password & "-auth" to "http-proxy" run arg
-    # "user:password@" {host:}{port}
-    # TODO think about whether we need both http and socks5 proxy tests here
-    # if run_args == ["http-proxy"]:
-    #     os.environ["http_proxy"] = f"http://{auth}{host}:8080"
-    #     os.environ["https_proxy"] = f"http://{auth}{host}:8080"
-    # elif run_args == ["socks5-proxy"]:
-    #     os.environ["http_proxy"] = f"socks5://{auth}{host}:1080"
-    #     os.environ["https_proxy"] = f"socks5://{auth}{host}:1080"
-    pass
+@pytest.mark.parametrize("auth_correct", [(["yes"]), (["no"])])
+def test_proxy_auth(cmake, httpserver, auth_correct):
+    if not shutil.which("mitmdump"):
+        pytest.skip("mitmdump is not installed")
+
+    proxy_process = None  # store the proxy process to terminate it later
+    try:
+        proxy_auth = "user:password" if auth_correct == ["yes"] else "wrong:wrong"
+        proxy_process = start_mitmdump("http-proxy", proxy_auth)
+
+        tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+
+        # make sure we are isolated from previous runs
+        shutil.rmtree(tmp_path / ".sentry-native", ignore_errors=True)
+
+        httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
+
+        run(
+            tmp_path,
+            "sentry_example",
+            ["log", "capture-event", "http-proxy-auth"],
+            check=True,
+            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+        )
+        if auth_correct == ["yes"]:
+            assert len(httpserver.log) == 1
+        elif auth_correct == ["no"]:
+            assert len(httpserver.log) == 0
+    finally:
+        if proxy_process:
+            proxy_process.terminate()
+            proxy_process.wait()
 
 
-def test_proxy_ipv6(cmake):
-    # TODO think about whether we need both http and socks5 proxy tests here
-    # if proxy_IPv == ["6"]:
-    #     host = "[::1]"
-    pass
+def test_proxy_ipv6(cmake, httpserver):
+    if not shutil.which("mitmdump"):
+        pytest.skip("mitmdump is not installed")
+
+    proxy_process = None  # store the proxy process to terminate it later
+    try:
+        proxy_process = start_mitmdump("http-proxy")
+
+        tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+
+        # make sure we are isolated from previous runs
+        shutil.rmtree(tmp_path / ".sentry-native", ignore_errors=True)
+
+        httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
+
+        run(
+            tmp_path,
+            "sentry_example",
+            ["log", "capture-event", "http-proxy-ipv6"],
+            check=True,
+            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+        )
+
+        assert len(httpserver.log) == 1
+    finally:
+        if proxy_process:
+            proxy_process.terminate()
+            proxy_process.wait()
 
 
-def start_mitmdump(proxy_type, proxy_auth: bool):
+def start_mitmdump(proxy_type, proxy_auth: str = None):
     # start mitmdump from terminal
     if proxy_type == "http-proxy":
         proxy_command = ["mitmdump"]
         if proxy_auth:
-            proxy_command += ["-q", "--proxyauth", "user:password"]
+            proxy_command += ["-q", "--proxyauth", proxy_auth]
         proxy_process = subprocess.Popen(proxy_command)
         time.sleep(5)  # Give mitmdump some time to start
         if not is_proxy_running("localhost", 8080):
@@ -663,7 +777,7 @@ def start_mitmdump(proxy_type, proxy_auth: bool):
     elif proxy_type == "socks5-proxy":
         proxy_command = ["mitmdump", "--mode", "socks5"]
         if proxy_auth:
-            proxy_command += ["-q", "--proxyauth", "user:password"]
+            proxy_command += ["-q", "--proxyauth", proxy_auth]
         proxy_process = subprocess.Popen(proxy_command)
         time.sleep(5)  # Give mitmdump some time to start
         if not is_proxy_running("localhost", 1080):
@@ -694,7 +808,7 @@ def test_capture_proxy(cmake, httpserver, run_args, proxy_status):
     try:
         if proxy_status == ["on"]:
             # start mitmdump from terminal
-            proxy_process = start_mitmdump(run_args[0], False)
+            proxy_process = start_mitmdump(run_args[0])
 
         tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
 

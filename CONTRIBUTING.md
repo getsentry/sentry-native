@@ -148,8 +148,8 @@ The example currently supports the following commands:
 - `stack-overflow`: Provokes a stack-overflow.
 - `http-proxy`: Uses a localhost `HTTP` proxy on port 8080.
 - `http-proxy-auth`: Uses a localhost `HTTP` proxy on port 8080 with `user:password` as authentication.
+- `http-proxy-ipv6`: Uses a localhost `HTTP` proxy on port 8080 using IPv6 notation.
 - `socks5-proxy`: Uses a localhost `SOCKS5` proxy on port 1080.
-- `socks5-proxy-auth`: Uses a localhost `SOCKS5` proxy on port 1080 with `user:password` as authentication.
 - `capture-transaction`: Captures a transaction.
 - `traces-sampler`: Installs a traces sampler callback function when used alongside `capture-transaction`.
 
