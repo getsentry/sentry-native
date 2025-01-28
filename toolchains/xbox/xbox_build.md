@@ -20,8 +20,11 @@
     -B build 
     -G "Visual Studio 17 2022" 
     -A "Gaming.Xbox.Scarlett.x64" 
-    -DXdkEditionTarget="240603" 
     -DCMAKE_TOOLCHAIN_FILE="./toolchains/xbox/gxdk_xs_toolchain.cmake"
+  ```
+* Optionally you can specify the GDK version
+  ```
+    -DGDK_VERSION="241000"
   ```
 * After this you can either build the library directly in the CLI with 
   `cmake --build build --config RelWithDebInfo` (or any other build config)
