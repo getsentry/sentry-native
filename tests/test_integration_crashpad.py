@@ -39,7 +39,7 @@ def test_crashpad_capture(cmake, httpserver):
     assert len(httpserver.log) == 2
 
 
-@pytest.mark.parametrize("port_correct", [True, False])
+@pytest.mark.parametrize("port_correct", [True, False])  # TODO separate tests
 def test_crashpad_crash_proxy_env(cmake, httpserver, port_correct):
     if not shutil.which("mitmdump"):
         pytest.skip("mitmdump is not installed")
@@ -48,6 +48,7 @@ def test_crashpad_crash_proxy_env(cmake, httpserver, port_correct):
     port = "8080" if port_correct else "8081"
     os.environ["http_proxy"] = f"http://localhost:{port}"
     os.environ["https_proxy"] = f"http://localhost:{port}"
+    expected_logsize = 0
     try:
         proxy_process = start_mitmdump("http-proxy")
 
@@ -69,23 +70,28 @@ def test_crashpad_crash_proxy_env(cmake, httpserver, port_correct):
             if port_correct:
                 raise e
             else:
-                assert len(httpserver.log) == 0
+                expected_logsize = 0
                 return
 
         assert waiting.result
 
+        expected_logsize = 1
+    finally:
+        proxy_env_finally(expected_logsize, httpserver, proxy_process)
+
+
+def proxy_env_finally(expected_logsize, httpserver, proxy_process):
+    if proxy_process:
         proxy_process.terminate()
         proxy_process.wait()
         stdout, stderr = proxy_process.communicate()
-        assert len(httpserver.log) == 1
-        # check if the request was proxied or just passed through
-        assert "POST" in stdout
-    finally:
-        if proxy_process:
-            proxy_process.terminate()
-            proxy_process.wait()
-        del os.environ["http_proxy"]
-        del os.environ["https_proxy"]
+        if expected_logsize == 0:  # don't expect any incoming requests at the proxy
+            assert "POST" not in stdout
+        else:
+            assert "POST" in stdout
+    assert len(httpserver.log) == expected_logsize
+    del os.environ["http_proxy"]
+    del os.environ["https_proxy"]
 
 
 @pytest.mark.parametrize(
