@@ -76,10 +76,10 @@ def proxy_test_finally(expected_logsize, httpserver, proxy_process):
         if expected_logsize == 0:  # don't expect any incoming requests at the proxy
             # second case is for the case where we expect a POST request to be blocked (e.g. authentication failed)
             assert ("POST" not in stdout) or (
-                "POST" in stdout and "HTTP/1.0 200 OK" not in stdout
+                "POST" in stdout and "200 OK" not in stdout
             )
         else:
-            assert "POST" in stdout
+            assert "POST" in stdout and "200 OK" in stdout
     assert len(httpserver.log) == expected_logsize
 
 
