@@ -24,6 +24,7 @@ from .assertions import (
     assert_breakpad_crash,
     assert_gzip_content_encoding,
     assert_gzip_file_header,
+    assert_failed_proxy_auth_request,
 )
 from .conditions import has_http, has_breakpad, has_files, has_crashpad
 
@@ -679,7 +680,12 @@ def test_proxy_auth(cmake, httpserver, auth_correct):
         else:
             expected_logsize = 0
     finally:
-        proxy_test_finally(expected_logsize, httpserver, proxy_process)
+        proxy_test_finally(
+            expected_logsize,
+            httpserver,
+            proxy_process,
+            assert_failed_proxy_auth_request,
+        )
 
 
 def test_proxy_ipv6(cmake, httpserver):
