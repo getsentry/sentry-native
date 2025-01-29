@@ -6,7 +6,7 @@ import time
 
 import pytest
 
-from . import make_dsn, run, Envelope, start_mitmdump
+from . import make_dsn, run, Envelope, start_mitmdump, proxy_test_finally
 from .assertions import (
     assert_crashpad_upload,
     assert_session,
@@ -77,21 +77,9 @@ def test_crashpad_crash_proxy_env(cmake, httpserver, port_correct):
 
         expected_logsize = 1
     finally:
-        proxy_env_finally(expected_logsize, httpserver, proxy_process)
-
-
-def proxy_env_finally(expected_logsize, httpserver, proxy_process):
-    if proxy_process:
-        proxy_process.terminate()
-        proxy_process.wait()
-        stdout, stderr = proxy_process.communicate()
-        if expected_logsize == 0:  # don't expect any incoming requests at the proxy
-            assert "POST" not in stdout
-        else:
-            assert "POST" in stdout
-    assert len(httpserver.log) == expected_logsize
-    del os.environ["http_proxy"]
-    del os.environ["https_proxy"]
+        proxy_test_finally(expected_logsize, httpserver, proxy_process)
+        del os.environ["http_proxy"]
+        del os.environ["https_proxy"]
 
 
 @pytest.mark.parametrize(

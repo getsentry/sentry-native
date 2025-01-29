@@ -48,7 +48,7 @@ def start_mitmdump(proxy_type, proxy_auth: str = None):
     if proxy_type == "http-proxy":
         proxy_command = ["mitmdump"]
         if proxy_auth:
-            proxy_command += ["-q", "--proxyauth", proxy_auth]
+            proxy_command += ["-v", "--proxyauth", proxy_auth]
         proxy_process = subprocess.Popen(
             proxy_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
         )
@@ -58,7 +58,7 @@ def start_mitmdump(proxy_type, proxy_auth: str = None):
     elif proxy_type == "socks5-proxy":
         proxy_command = ["mitmdump", "--mode", "socks5"]
         if proxy_auth:
-            proxy_command += ["-q", "--proxyauth", proxy_auth]
+            proxy_command += ["-v", "--proxyauth", proxy_auth]
         proxy_process = subprocess.Popen(
             proxy_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
         )
@@ -66,6 +66,21 @@ def start_mitmdump(proxy_type, proxy_auth: str = None):
         if not is_proxy_running("localhost", 1080):
             pytest.fail("mitmdump (SOCKS5) did not start correctly")
     return proxy_process
+
+
+def proxy_test_finally(expected_logsize, httpserver, proxy_process):
+    if proxy_process:
+        proxy_process.terminate()
+        proxy_process.wait()
+        stdout, stderr = proxy_process.communicate()
+        if expected_logsize == 0:  # don't expect any incoming requests at the proxy
+            # second case is for the case where we expect a POST request to be blocked (e.g. authentication failed)
+            assert ("POST" not in stdout) or (
+                "POST" in stdout and "HTTP/1.0 200 OK" not in stdout
+            )
+        else:
+            assert "POST" in stdout
+    assert len(httpserver.log) == expected_logsize
 
 
 def run(cwd, exe, args, env=dict(os.environ), **kwargs):

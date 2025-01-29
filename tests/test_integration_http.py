@@ -9,7 +9,7 @@ import subprocess
 
 import pytest
 
-from . import make_dsn, run, Envelope, start_mitmdump
+from . import make_dsn, run, Envelope, start_mitmdump, proxy_test_finally
 from .assertions import (
     assert_attachment,
     assert_meta,
@@ -613,13 +613,15 @@ def test_capture_minidump(cmake, httpserver):
 
 @pytest.mark.parametrize("port_correct", [True, False])
 def test_proxy_from_env(cmake, httpserver, port_correct):
-    # TODO how can we test this? If it doesn't get read but it's there, we don't know (since it'll just fallback)
-    #     can we listen to mitmdump's port and see if it gets traffic?
     # TODO parametrize to only set http_proxy/https_proxy/empty?
     if not shutil.which("mitmdump"):
         pytest.skip("mitmdump is not installed")
 
     proxy_process = None  # store the proxy process to terminate it later
+    port = "8080" if port_correct else "8081"
+    os.environ["http_proxy"] = f"http://localhost:{port}"
+    os.environ["https_proxy"] = f"http://localhost:{port}"
+    expected_logsize = 0
     try:
         proxy_process = start_mitmdump("http-proxy")
 
@@ -630,10 +632,6 @@ def test_proxy_from_env(cmake, httpserver, port_correct):
 
         httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
 
-        port = "8080" if port_correct else "8081"
-        os.environ["http_proxy"] = f"http://localhost:{port}"
-        os.environ["https_proxy"] = f"http://localhost:{port}"
-
         run(
             tmp_path,
             "sentry_example",
@@ -643,14 +641,11 @@ def test_proxy_from_env(cmake, httpserver, port_correct):
         )
 
         if port_correct:
-            assert len(httpserver.log) == 1
+            expected_logsize = 1
         else:
-            assert len(httpserver.log) == 0
+            expected_logsize = 0
     finally:
-        if proxy_process:
-            proxy_process.terminate()
-            proxy_process.wait()
-
+        proxy_test_finally(expected_logsize, httpserver, proxy_process)
         del os.environ["http_proxy"]
         del os.environ["https_proxy"]
 
@@ -661,10 +656,10 @@ def test_proxy_auth(cmake, httpserver, auth_correct):
         pytest.skip("mitmdump is not installed")
 
     proxy_process = None  # store the proxy process to terminate it later
+    expected_logsize = 0
     try:
         proxy_auth = "user:password" if auth_correct else "wrong:wrong"
         proxy_process = start_mitmdump("http-proxy", proxy_auth)
-
         tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
 
         # make sure we are isolated from previous runs
@@ -680,13 +675,11 @@ def test_proxy_auth(cmake, httpserver, auth_correct):
             env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
         )
         if auth_correct:
-            assert len(httpserver.log) == 1
+            expected_logsize = 1
         else:
-            assert len(httpserver.log) == 0
+            expected_logsize = 0
     finally:
-        if proxy_process:
-            proxy_process.terminate()
-            proxy_process.wait()
+        proxy_test_finally(expected_logsize, httpserver, proxy_process)
 
 
 def test_proxy_ipv6(cmake, httpserver):
@@ -694,6 +687,7 @@ def test_proxy_ipv6(cmake, httpserver):
         pytest.skip("mitmdump is not installed")
 
     proxy_process = None  # store the proxy process to terminate it later
+    expected_logsize = 0
     try:
         proxy_process = start_mitmdump("http-proxy")
 
@@ -712,11 +706,9 @@ def test_proxy_ipv6(cmake, httpserver):
             env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
         )
 
-        assert len(httpserver.log) == 1
+        expected_logsize = 1
     finally:
-        if proxy_process:
-            proxy_process.terminate()
-            proxy_process.wait()
+        proxy_test_finally(expected_logsize, httpserver, proxy_process)
 
 
 @pytest.mark.parametrize(
@@ -738,6 +730,7 @@ def test_capture_proxy(cmake, httpserver, run_args, proxy_running):
         pytest.skip("mitmdump is not installed")
 
     proxy_process = None  # store the proxy process to terminate it later
+    expected_logsize = 0
 
     try:
         if proxy_running:
@@ -760,12 +753,10 @@ def test_capture_proxy(cmake, httpserver, run_args, proxy_running):
             env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
         )
         if proxy_running:
-            assert len(httpserver.log) == 1
+            expected_logsize = 1
         else:
             # Windows will send the request even if the proxy is not running
             # macOS/Linux will not send the request if the proxy is not running
-            assert len(httpserver.log) == (1 if (sys.platform == "win32") else 0)
+            expected_logsize = 1 if (sys.platform == "win32") else 0
     finally:
-        if proxy_process:
-            proxy_process.terminate()
-            proxy_process.wait()
+        proxy_test_finally(expected_logsize, httpserver, proxy_process)
