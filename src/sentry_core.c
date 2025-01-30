@@ -827,6 +827,19 @@ sentry_remove_fingerprint(void)
 }
 
 void
+sentry_set_trace_id(const char *trace_id)
+{
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry_value_t context = sentry_value_new_object();
+        sentry_value_set_by_key(
+            context, "type", sentry_value_new_string("trace"));
+        sentry_value_set_by_key(
+        context, "trace_id", sentry_value_new_string(trace_id));
+        sentry_set_context("trace", context);
+    }
+}
+
+void
 sentry_set_transaction(const char *transaction)
 {
     SENTRY_WITH_SCOPE_MUT (scope) {
