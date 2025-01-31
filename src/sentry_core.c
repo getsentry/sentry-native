@@ -1264,14 +1264,14 @@ sentry_capture_minidump(const char *path)
 sentry_uuid_t
 sentry_capture_minidump_n(const char *path, size_t path_len)
 {
-    sentry_uuid_t eventId = sentry_uuid_nil();
+    sentry_uuid_t event_id = sentry_uuid_nil();
 
     sentry_path_t *dump_path = sentry__path_from_str_n(path, path_len);
 
     if (!dump_path) {
         SENTRY_WARN(
             "sentry_capture_minidump() failed due to null path to minidump");
-        return eventId;
+        return event_id;
     }
 
     SENTRY_DEBUGF(
@@ -1304,9 +1304,9 @@ sentry_capture_minidump_n(const char *path, size_t path_len)
             }
 
             sentry__capture_envelope(options->transport, envelope);
-            eventId = sentry__envelope_get_event_id(envelope);
+            event_id = sentry__envelope_get_event_id(envelope);
 
-            if (eventId == sentry_uuid_nil())
+            if (event_id == sentry_uuid_nil())
             {
                 SENTRY_ERRORF("Minidump was not captured: \"%" SENTRY_PATH_PRI "\"",
                     dump_path->path);
@@ -1321,5 +1321,5 @@ sentry_capture_minidump_n(const char *path, size_t path_len)
 
     sentry__path_free(dump_path);
 
-    return eventId;
+    return event_id;
 }
