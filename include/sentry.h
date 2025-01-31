@@ -1829,7 +1829,7 @@ SENTRY_EXPERIMENTAL_API void sentry_set_span(sentry_span_t *span);
  * Starts a new Span.
  *
  * The return value of `sentry_transaction_start` should be passed in as
- * `parent`.
+ * `parent`. This value can't be null, since we don't allow for orphan spans.
  *
  * Both `operation` and `description` can be null, but it is recommended to
  * supply the former. See
@@ -1881,7 +1881,9 @@ SENTRY_EXPERIMENTAL_API sentry_span_t *sentry_transaction_start_child_ts_n(
 /**
  * Starts a new Span.
  *
- * The return value of `sentry_span_start_child` may be passed in as `parent`.
+ * The return value of either `sentry_transaction_start_child` or
+ * `sentry_span_start_child` should be passed in as `parent`. This value can't
+ * be null, since we don't allow for orphan spans.
  *
  * Both `operation` and `description` can be null, but it is recommended to
  * supply the former. See
