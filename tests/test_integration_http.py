@@ -761,8 +761,6 @@ def test_capture_proxy(cmake, httpserver, run_args, proxy_running):
         if proxy_running:
             expected_logsize = 1
         else:
-            # Windows will send the request even if the proxy is not running
-            # macOS/Linux will not send the request if the proxy is not running
-            expected_logsize = 1 if (sys.platform == "win32") else 0
+            expected_logsize = 0
     finally:
         proxy_test_finally(expected_logsize, httpserver, proxy_process)

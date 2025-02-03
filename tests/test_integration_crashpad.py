@@ -75,7 +75,7 @@ def test_crashpad_crash_proxy_env(cmake, httpserver, port_correct):
 
         assert waiting.result
 
-        expected_logsize = 1
+        expected_logsize = 1 if port_correct else 0
     finally:
         proxy_test_finally(expected_logsize, httpserver, proxy_process)
         del os.environ["http_proxy"]
@@ -101,6 +101,7 @@ def test_crashpad_crash_proxy(cmake, httpserver, run_args, proxy_running):
         pytest.skip("mitmdump is not installed")
 
     proxy_process = None  # store the proxy process to terminate it later
+    expected_logsize = 0
 
     try:
         if proxy_running:
@@ -126,23 +127,20 @@ def test_crashpad_crash_proxy(cmake, httpserver, run_args, proxy_running):
         except AssertionError:
             # we fail on macOS/Linux if the http proxy is not running
             if run_args == ["http-proxy"] and not proxy_running:
-                assert len(httpserver.log) == 0
+                expected_logsize = 0
                 return
             # we only fail on linux if the socks5 proxy is not running
             elif run_args == ["socks5-proxy"] and not proxy_running:
-                assert len(httpserver.log) == 0
+                expected_logsize = 0
                 return
 
         assert waiting.result
 
         # Apple's NSURLSession will send the request even if the socks proxy fails
         # https://forums.developer.apple.com/forums/thread/705504?answerId=712418022#712418022
-        # Windows also provides fallback for http proxies
-        assert len(httpserver.log) == 1
+        expected_logsize = 1
     finally:
-        if proxy_process:
-            proxy_process.terminate()
-            proxy_process.wait()
+        proxy_test_finally(expected_logsize, httpserver, proxy_process)
 
 
 def test_crashpad_reinstall(cmake, httpserver):
