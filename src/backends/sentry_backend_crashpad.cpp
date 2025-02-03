@@ -440,9 +440,7 @@ crashpad_backend_startup(
         SENTRY_DEBUGF("using minidump URL \"%s\"", minidump_url);
     }
     auto proxy_url = "";
-#ifdef SENTRY_PLATFORM_MACOS
-    proxy_url = getenv("https_proxy"); // other platforms do this already
-#endif
+    proxy_url = getenv("https_proxy");
     proxy_url = options->proxy ? options->proxy
         : proxy_url != NULL    ? proxy_url
                                : "";
