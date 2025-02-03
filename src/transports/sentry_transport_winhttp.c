@@ -93,16 +93,21 @@ sentry__winhttp_transport_start(
     state->user_agent = sentry__string_to_wstr(opts->user_agent);
     state->debug = opts->debug;
 
-    sentry__bgworker_setname(bgworker, opts->transport_thread_name);
+    char *proxy = "";
+    if (getenv("https_proxy")) {
+        proxy = getenv("https_proxy");
+    } else {
+        proxy = opts->proxy;
+    }
 
     // ensure the proxy starts with `http://`, otherwise ignore it
-    if (opts->proxy && strstr(opts->proxy, "http://") == opts->proxy) {
-        const char *ptr = opts->proxy + 7;
+    if (proxy && strstr(proxy, "http://") == proxy) {
+        const char *ptr = proxy + 7;
         const char *at_sign = strchr(ptr, '@');
         const char *slash = strchr(ptr, '/');
         if (at_sign && (!slash || at_sign < slash)) {
             ptr = at_sign + 1;
-            set_proxy_credentials(state, opts->proxy);
+            set_proxy_credentials(state, proxy);
         }
         if (slash) {
             char *copy = sentry__string_clone_n(ptr, slash - ptr);
