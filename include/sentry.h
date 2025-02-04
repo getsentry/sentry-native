@@ -291,6 +291,12 @@ SENTRY_API sentry_value_t sentry_value_get_by_key_owned_n(
     sentry_value_t value, const char *k, size_t k_len);
 
 /**
+ * Returns a key in a map by index.  If missing or value is not a map,
+ * an empty string is returned.
+ */
+SENTRY_API const char *sentry_value_get_key(sentry_value_t value, size_t index);
+
+/**
  * Looks up a value in a list by index.  If missing a null value is returned.
  * The returned value is borrowed.
  */
