@@ -194,12 +194,14 @@ jobs:
         timeout-minutes: 20
 
       - name: Add sentry.native.test hostname
+        if: ${{ runner.os == 'Windows' }}
         # The path is usually C:\Windows\System32\drivers\etc\hosts
         run: |
           Add-Content -Path $env:SystemRoot\System32\drivers\etc\hosts -Value "127.0.0.1 sentry.native.test"
         shell: powershell
 
       - name: Add sentry.native.test hostname
+        if: ${{ runner.os == 'macOS' || runner.os == 'Linux' }}
         run: |
           echo "127.0.0.1   sentry.native.test" | sudo tee -a /etc/hosts
           cat /etc/hosts
