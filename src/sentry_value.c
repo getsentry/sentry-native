@@ -779,7 +779,8 @@ sentry_value_get_by_key_owned(sentry_value_t value, const char *k)
 }
 
 const char *
-sentry_value_get_key(sentry_value_t value, size_t index) {
+sentry_value_get_key(sentry_value_t value, size_t index)
+{
     const thing_t *thing = value_as_thing(value);
     if (thing && thing_get_type(thing) == THING_TYPE_OBJECT) {
         obj_t *o = thing->payload._ptr;
