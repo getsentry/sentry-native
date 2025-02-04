@@ -30,7 +30,7 @@ def make_dsn(httpserver, auth="uiaeosnrtdy", id=123456, proxy_host=False):
         # To avoid bypassing the proxy for requests to localhost, we need to add this mapping
         # to the hosts file & make the DSN using this alternate hostname
         # see https://learn.microsoft.com/en-us/windows/win32/wininet/enabling-internet-functionality#listing-the-proxy-bypass
-        host = url.netloc.replace("127.0.0.1", "sentry.native.test")
+        host = host.replace("127.0.0.1", "sentry.native.test")
         check_sentry_native_resolves_to_localhost()
 
     return urllib.parse.urlunsplit(
