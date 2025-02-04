@@ -252,8 +252,10 @@ SENTRY_TEST(value_object)
         sentry_value_t child = sentry_value_get_by_key(val, key);
         if (i < 10) {
             TEST_CHECK(sentry_value_as_int32(child) == (int32_t)i);
+            TEST_CHECK(strcmp(sentry_value_get_key(val, i), key) == 0);
         } else {
             TEST_CHECK(sentry_value_is_null(child));
+            TEST_CHECK(strlen(sentry_value_get_key(val, i)) == 0);
         }
     }
 
