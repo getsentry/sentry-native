@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- Add `sentry_value_get_key(value, index)` function. ([#1142](https://github.com/getsentry/sentry-native/pull/1142))
+
 ## 0.7.20
 
 **Features**:
