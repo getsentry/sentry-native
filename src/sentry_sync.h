@@ -262,14 +262,29 @@ typedef pthread_cond_t sentry_cond_t;
                         PTHREAD_MUTEX_RECURSIVE                                \
                 }                                                              \
             }
+#    elif defined(__FreeBSD__)
+// Don't define `SENTRY__MUTEX_INIT` but instead provide a new definition that
+// can be used by platforms requiring dynamic recursive mutex initialization.
+#        define SENTRY__MUTEX_INIT_DYN
 #    else
 #        define SENTRY__MUTEX_INIT PTHREAD_RECURSIVE_MUTEX_INITIALIZER
 #    endif
-#    define sentry__mutex_init(Mutex)                                          \
-        do {                                                                   \
-            sentry_mutex_t tmp = SENTRY__MUTEX_INIT;                           \
-            *(Mutex) = tmp;                                                    \
-        } while (0)
+#    ifdef SENTRY__MUTEX_INIT_DYN
+#        define sentry__mutex_init(Mutex)                                      \
+            do {                                                               \
+                pthread_mutexattr_t attr;                                      \
+                pthread_mutexattr_init(&attr);                                 \
+                pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);     \
+                pthread_mutex_init(Mutex, &attr);                              \
+                pthread_mutexattr_destroy(&attr);                              \
+            } while (0)
+#    else
+#        define sentry__mutex_init(Mutex)                                      \
+            do {                                                               \
+                sentry_mutex_t tmp = SENTRY__MUTEX_INIT;                       \
+                *(Mutex) = tmp;                                                \
+            } while (0)
+#    endif
 #    define sentry__mutex_lock(Mutex)                                          \
         do {                                                                   \
             if (sentry__block_for_signal_handler()) {                          \
