@@ -596,7 +596,7 @@ def test_capture_minidump(cmake, httpserver):
         "sentry_example",
         ["log", "attachment", "capture-minidump"],
         check=True,
-        env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver, proxy_host=True)),
+        env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
     )
 
     assert len(httpserver.log) == 1
