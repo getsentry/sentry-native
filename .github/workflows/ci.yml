@@ -200,16 +200,17 @@ jobs:
           Add-Content -Path $env:SystemRoot\System32\drivers\etc\hosts -Value "127.0.0.1 sentry.native.test"
         shell: powershell
 
+      - name: Print hosts file
+        if: ${{ runner.os == 'Windows' }}
+        run: type $env:SystemRoot\System32\drivers\etc\hosts
+        shell: powershell
+
       - name: Add sentry.native.test hostname
         if: ${{ runner.os == 'macOS' || runner.os == 'Linux' }}
         run: |
           echo "127.0.0.1   sentry.native.test" | sudo tee -a /etc/hosts
           cat /etc/hosts
         shell: bash
-
-      - name: Print hosts file
-        run: type $env:SystemRoot\System32\drivers\etc\hosts
-        shell: powershell
 
       - name: Test
         shell: bash
