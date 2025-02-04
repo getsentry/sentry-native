@@ -16,5 +16,5 @@ public interface INativeScope {
   void addBreadcrumb(
       String level, String message, String category, String type, String timestamp, String data);
 
-  void setTraceId(String traceId);
+  void setTraceId(String traceId, String parentSpanId);
 }

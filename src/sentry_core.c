@@ -827,14 +827,23 @@ sentry_remove_fingerprint(void)
 }
 
 void
-sentry_set_trace_id(const char *trace_id)
+sentry_set_trace_id(const char *trace_id, const char *parent_span_id)
 {
     SENTRY_WITH_SCOPE_MUT (scope) {
         sentry_value_t context = sentry_value_new_object();
+
         sentry_value_set_by_key(
             context, "type", sentry_value_new_string("trace"));
+
         sentry_value_set_by_key(
-        context, "trace_id", sentry_value_new_string(trace_id));
+            context, "trace_id", sentry_value_new_string(trace_id));
+        sentry_value_set_by_key(
+            context, "parent_span_id", sentry_value_new_string(parent_span_id));
+
+        sentry_uuid_t span_id = sentry_uuid_new_v4();
+        sentry_value_set_by_key(
+            context, "span_id", sentry__value_new_span_uuid(&span_id));
+
         sentry_set_context("trace", context);
     }
 }

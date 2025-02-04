@@ -154,13 +154,16 @@ Java_io_sentry_ndk_NativeScope_nativeRemoveUser(JNIEnv *env, jclass cls)
 
 JNIEXPORT void JNICALL
 Java_io_sentry_ndk_NativeScope_nativeSetTraceId(
-    JNIEnv *env, jclass cls, jstring trace_id)
+    JNIEnv *env, jclass cls, jstring trace_id, jstring parent_span_id)
 {
     const char *charTraceId = (*env)->GetStringUTFChars(env, trace_id, 0);
+    const char *charParentSpanId
+        = (*env)->GetStringUTFChars(env, parent_span_id, 0);
 
-    sentry_set_trace_id(charTraceId);
+    sentry_set_trace_id(charTraceId, charParentSpanId);
 
     (*env)->ReleaseStringUTFChars(env, trace_id, charTraceId);
+    (*env)->ReleaseStringUTFChars(env, parent_span_id, charParentSpanId);
 }
 
 JNIEXPORT void JNICALL

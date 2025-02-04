@@ -17,7 +17,7 @@ public final class NativeScope implements INativeScope {
   public static native void nativeAddBreadcrumb(
       String level, String message, String category, String type, String timestamp, String data);
 
-  public static native void nativeSetTraceId(String traceId);
+  public static native void nativeSetTraceId(String traceId, String parentSpanId);
 
   @Override
   public void setTag(String key, String value) {
@@ -56,7 +56,7 @@ public final class NativeScope implements INativeScope {
   }
 
   @Override
-  public void setTraceId(String traceId) {
-    nativeSetTraceId(traceId);
+  public void setTraceId(String traceId, String parentSpanId) {
+    nativeSetTraceId(traceId, parentSpanId);
   }
 }
