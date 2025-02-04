@@ -1306,9 +1306,9 @@ sentry_capture_minidump_n(const char *path, size_t path_len)
             sentry__capture_envelope(options->transport, envelope);
             event_id = sentry__envelope_get_event_id(envelope);
 
-            if (event_id == sentry_uuid_nil())
+            if (sentry_uuid_is_nil(&event_id))
             {
-                SENTRY_ERRORF("Minidump was not captured: \"%" SENTRY_PATH_PRI "\"",
+                SENTRY_WARNF("Minidump was not captured: \"%" SENTRY_PATH_PRI "\"",
                     dump_path->path);
             }
             else
