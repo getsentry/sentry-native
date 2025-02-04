@@ -596,7 +596,7 @@ def test_capture_minidump(cmake, httpserver):
         "sentry_example",
         ["log", "attachment", "capture-minidump"],
         check=True,
-        env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+        env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver, proxy_host=True)),
     )
 
     assert len(httpserver.log) == 1
@@ -638,7 +638,7 @@ def test_proxy_from_env(cmake, httpserver, port_correct):
             "sentry_example",
             ["log", "capture-event"],
             check=True,
-            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver, proxy_host=True)),
         )
 
         if port_correct:
@@ -673,7 +673,7 @@ def test_proxy_auth(cmake, httpserver, auth_correct):
             "sentry_example",
             ["log", "capture-event", "http-proxy-auth"],
             check=True,
-            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver, proxy_host=True)),
         )
         if auth_correct:
             expected_logsize = 1
@@ -709,7 +709,7 @@ def test_proxy_ipv6(cmake, httpserver):
             "sentry_example",
             ["log", "capture-event", "http-proxy-ipv6"],
             check=True,
-            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver, proxy_host=True)),
         )
 
         expected_logsize = 1
@@ -756,7 +756,7 @@ def test_capture_proxy(cmake, httpserver, run_args, proxy_running):
             ["log", "capture-event"]
             + [current_run_arg],  # only passes if given proxy is running
             check=True,
-            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver, proxy_host=True)),
         )
         if proxy_running:
             expected_logsize = 1

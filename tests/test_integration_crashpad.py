@@ -57,7 +57,7 @@ def test_crashpad_crash_proxy_env(cmake, httpserver, port_correct):
         # make sure we are isolated from previous runs
         shutil.rmtree(tmp_path / ".sentry-native", ignore_errors=True)
 
-        env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+        env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver, proxy_host=True))
         httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data(
             "OK"
         )
@@ -113,7 +113,7 @@ def test_crashpad_crash_proxy(cmake, httpserver, run_args, proxy_running):
         # make sure we are isolated from previous runs
         shutil.rmtree(tmp_path / ".sentry-native", ignore_errors=True)
 
-        env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+        env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver, proxy_host=True))
         httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data(
             "OK"
         )
