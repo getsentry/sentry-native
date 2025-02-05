@@ -137,19 +137,11 @@ def test_crashpad_crash_proxy(cmake, httpserver, run_args, proxy_running):
                 )
                 assert child.returncode  # well, it's a crash after all
         except AssertionError:
-            # we fail on macOS/Linux if the http proxy is not running
-            if run_args == ["http-proxy"] and not proxy_running:
-                expected_logsize = 0
-                return
-            # we only fail on linux if the socks5 proxy is not running
-            elif run_args == ["socks5-proxy"] and not proxy_running:
-                expected_logsize = 0
-                return
+            expected_logsize = 0
+            return
 
         assert waiting.result
 
-        # Apple's NSURLSession will send the request even if the socks proxy fails
-        # https://forums.developer.apple.com/forums/thread/705504?answerId=712418022#712418022
         expected_logsize = 1
     finally:
         proxy_test_finally(expected_logsize, httpserver, proxy_process)

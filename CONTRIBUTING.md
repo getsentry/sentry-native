@@ -38,6 +38,9 @@ be done manually.
 
 Creates a python virtualenv, and runs all the tests through `pytest`.
 
+To run our `HTTP` proxy tests, one must add `127.0.0.1  sentry.native.test` to the `hosts` file. This is required since some transports bypass the proxy otherwise (for [example on Windows](https://learn.microsoft.com/en-us/windows/win32/wininet/enabling-internet-functionality#listing-the-proxy-bypass)).
+
+
 **Running integration tests manually**:
 
     $ pytest --verbose --maxfail=1 --capture=no tests/
