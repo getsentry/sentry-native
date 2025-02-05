@@ -53,21 +53,25 @@ def start_mitmdump(proxy_type, proxy_auth: str = None):
 
 
 def proxy_test_finally(
-    expected_logsize,
+    expected_httpserver_logsize,
     httpserver,
     proxy_process,
     proxy_log_assert=assert_no_proxy_request,
+    expected_proxy_logsize=None,
 ):
+    if expected_proxy_logsize is None:
+        expected_proxy_logsize = expected_httpserver_logsize
+
     if proxy_process:
         # Give mitmdump some time to get a response from the mock server
         time.sleep(0.5)
         proxy_process.terminate()
         proxy_process.wait()
         stdout, stderr = proxy_process.communicate()
-        if expected_logsize == 0:
+        if expected_proxy_logsize == 0:
             # don't expect any incoming requests to make it through the proxy
             proxy_log_assert(stdout)
         else:
             # request passed through successfully
             assert "POST" in stdout and "200 OK" in stdout
-    assert len(httpserver.log) == expected_logsize
+    assert len(httpserver.log) == expected_httpserver_logsize

@@ -103,6 +103,51 @@ def test_crashpad_crash_proxy_env_port_incorrect(cmake, httpserver):
         cleanup_proxy_env_vars()
 
 
+def test_crashpad_proxy_set_empty(cmake, httpserver):
+    if not shutil.which("mitmdump"):
+        pytest.skip("mitmdump is not installed")
+
+    proxy_process = None  # store the proxy process to terminate it later
+    setup_proxy_env_vars(port=8080)  # we start the proxy but expect it to remain unused
+    try:
+        env, proxy_process, tmp_path = _setup_crashpad_proxy_test(
+            cmake, httpserver, "http-proxy"
+        )
+
+        with httpserver.wait(timeout=10) as waiting:
+            child = run(
+                tmp_path, "sentry_example", ["log", "crash", "proxy-empty"], env=env
+            )
+            assert child.returncode  # well, it's a crash after all
+        assert waiting.result
+
+    finally:
+        proxy_test_finally(1, httpserver, proxy_process, expected_proxy_logsize=0)
+        cleanup_proxy_env_vars()
+
+
+def test_crashpad_proxy_https_not_http(cmake, httpserver):
+    if not shutil.which("mitmdump"):
+        pytest.skip("mitmdump is not installed")
+
+    proxy_process = None  # store the proxy process to terminate it later
+    # we start the proxy but expect it to remain unused (dsn is http, so shouldn't use https proxy)
+    os.environ["https_proxy"] = f"http://localhost:8080"
+    try:
+        env, proxy_process, tmp_path = _setup_crashpad_proxy_test(
+            cmake, httpserver, "http-proxy"
+        )
+
+        with httpserver.wait(timeout=10) as waiting:
+            child = run(tmp_path, "sentry_example", ["log", "crash"], env=env)
+            assert child.returncode  # well, it's a crash after all
+        assert waiting.result
+
+    finally:
+        proxy_test_finally(1, httpserver, proxy_process, expected_proxy_logsize=0)
+        del os.environ["https_proxy"]
+
+
 @pytest.mark.parametrize(
     "run_args",
     [

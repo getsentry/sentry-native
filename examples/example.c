@@ -278,6 +278,9 @@ main(int argc, char **argv)
     if (has_arg(argc, argv, "http-proxy-ipv6")) {
         sentry_options_set_proxy(options, "http://[::1]:8080");
     }
+    if (has_arg(argc, argv, "proxy-empty")) {
+        sentry_options_set_proxy(options, "");
+    }
 
     if (has_arg(argc, argv, "socks5-proxy")) {
         sentry_options_set_proxy(options, "socks5://127.0.0.1:1080");

@@ -758,6 +758,55 @@ def test_proxy_ipv6(cmake, httpserver):
         proxy_test_finally(1, httpserver, proxy_process)
 
 
+def test_proxy_set_empty(cmake, httpserver):
+    if not shutil.which("mitmdump"):
+        pytest.skip("mitmdump is not installed")
+
+    proxy_process = None  # store the proxy process to terminate it later
+    setup_proxy_env_vars(port=8080)  # we start the proxy but expect it to remain unused
+    try:
+        env, proxy_process, tmp_path = _setup_http_proxy_test(
+            cmake, httpserver, "http-proxy"
+        )
+
+        run(
+            tmp_path,
+            "sentry_example",
+            ["log", "capture-event", "proxy-empty"],
+            check=True,
+            env=env,
+        )
+
+    finally:
+        proxy_test_finally(1, httpserver, proxy_process, expected_proxy_logsize=0)
+        cleanup_proxy_env_vars()
+
+
+def test_proxy_https_not_http(cmake, httpserver):
+    if not shutil.which("mitmdump"):
+        pytest.skip("mitmdump is not installed")
+
+    proxy_process = None  # store the proxy process to terminate it later
+    # we start the proxy but expect it to remain unused (dsn is http, so shouldn't use https proxy)
+    os.environ["https_proxy"] = f"http://localhost:8080"
+    try:
+        env, proxy_process, tmp_path = _setup_http_proxy_test(
+            cmake, httpserver, "http-proxy"
+        )
+
+        run(
+            tmp_path,
+            "sentry_example",
+            ["log", "capture-event"],
+            check=True,
+            env=env,
+        )
+
+    finally:
+        proxy_test_finally(1, httpserver, proxy_process, expected_proxy_logsize=0)
+        del os.environ["https_proxy"]
+
+
 @pytest.mark.parametrize(
     "run_args",
     [
