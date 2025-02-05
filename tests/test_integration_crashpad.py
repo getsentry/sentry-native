@@ -79,8 +79,8 @@ def test_crashpad_crash_proxy_env(cmake, httpserver):
             assert child.returncode  # well, it's a crash after all
         assert waiting.result
     finally:
-        proxy_test_finally(1, httpserver, proxy_process)
         cleanup_proxy_env_vars()
+        proxy_test_finally(1, httpserver, proxy_process)
 
 
 def test_crashpad_crash_proxy_env_port_incorrect(cmake, httpserver):
@@ -99,8 +99,8 @@ def test_crashpad_crash_proxy_env_port_incorrect(cmake, httpserver):
                 child = run(tmp_path, "sentry_example", ["log", "crash"], env=env)
                 assert child.returncode  # well, it's a crash after all
     finally:
-        proxy_test_finally(0, httpserver, proxy_process)
         cleanup_proxy_env_vars()
+        proxy_test_finally(0, httpserver, proxy_process)
 
 
 def test_crashpad_proxy_set_empty(cmake, httpserver):
@@ -122,8 +122,8 @@ def test_crashpad_proxy_set_empty(cmake, httpserver):
         assert waiting.result
 
     finally:
-        proxy_test_finally(1, httpserver, proxy_process, expected_proxy_logsize=0)
         cleanup_proxy_env_vars()
+        proxy_test_finally(1, httpserver, proxy_process, expected_proxy_logsize=0)
 
 
 def test_crashpad_proxy_https_not_http(cmake, httpserver):
@@ -144,8 +144,8 @@ def test_crashpad_proxy_https_not_http(cmake, httpserver):
         assert waiting.result
 
     finally:
-        proxy_test_finally(1, httpserver, proxy_process, expected_proxy_logsize=0)
         del os.environ["https_proxy"]
+        proxy_test_finally(1, httpserver, proxy_process, expected_proxy_logsize=0)
 
 
 @pytest.mark.parametrize(

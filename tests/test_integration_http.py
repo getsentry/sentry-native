@@ -656,8 +656,8 @@ def test_proxy_from_env(cmake, httpserver):
         )
 
     finally:
-        proxy_test_finally(1, httpserver, proxy_process)
         cleanup_proxy_env_vars()
+        proxy_test_finally(1, httpserver, proxy_process)
 
 
 def test_proxy_from_env_port_incorrect(cmake, httpserver):
@@ -680,8 +680,8 @@ def test_proxy_from_env_port_incorrect(cmake, httpserver):
         )
 
     finally:
-        proxy_test_finally(0, httpserver, proxy_process)
         cleanup_proxy_env_vars()
+        proxy_test_finally(0, httpserver, proxy_process)
 
 
 def test_proxy_auth(cmake, httpserver):
@@ -778,8 +778,8 @@ def test_proxy_set_empty(cmake, httpserver):
         )
 
     finally:
-        proxy_test_finally(1, httpserver, proxy_process, expected_proxy_logsize=0)
         cleanup_proxy_env_vars()
+        proxy_test_finally(1, httpserver, proxy_process, expected_proxy_logsize=0)
 
 
 def test_proxy_https_not_http(cmake, httpserver):
@@ -803,8 +803,8 @@ def test_proxy_https_not_http(cmake, httpserver):
         )
 
     finally:
-        proxy_test_finally(1, httpserver, proxy_process, expected_proxy_logsize=0)
         del os.environ["https_proxy"]
+        proxy_test_finally(1, httpserver, proxy_process, expected_proxy_logsize=0)
 
 
 @pytest.mark.parametrize(
