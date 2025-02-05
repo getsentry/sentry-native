@@ -439,8 +439,9 @@ crashpad_backend_startup(
     if (minidump_url) {
         SENTRY_DEBUGF("using minidump URL \"%s\"", minidump_url);
     }
-    const char *env_proxy
-        = getenv(options->dsn->is_secure ? "https_proxy" : "http_proxy");
+    const char *env_proxy = options->dsn
+        ? getenv(options->dsn->is_secure ? "https_proxy" : "http_proxy")
+        : nullptr;
     const char *proxy_url = options->proxy ? options->proxy
         : env_proxy                        ? env_proxy
                                            : "";

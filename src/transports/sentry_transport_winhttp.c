@@ -93,8 +93,9 @@ sentry__winhttp_transport_start(
     state->user_agent = sentry__string_to_wstr(opts->user_agent);
     state->debug = opts->debug;
 
-    const char *env_proxy
-        = getenv(opts->dsn->is_secure ? "https_proxy" : "http_proxy");
+    const char *env_proxy = opts->dsn
+        ? getenv(opts->dsn->is_secure ? "https_proxy" : "http_proxy")
+        : NULL;
     const char *proxy = opts->proxy ? opts->proxy : env_proxy ? env_proxy : "";
 
     // ensure the proxy starts with `http://`, otherwise ignore it
