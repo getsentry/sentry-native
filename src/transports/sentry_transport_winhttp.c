@@ -94,11 +94,12 @@ sentry__winhttp_transport_start(
     state->debug = opts->debug;
 
     char *proxy = "";
-    if (getenv("https_proxy")) {
+    if (strncmp(opts->dsn->raw, "https", 5) == 0) {
         proxy = getenv("https_proxy");
-    } else {
-        proxy = opts->proxy;
+    } else if (strncmp(opts->dsn->raw, "http", 4) == 0) {
+        proxy = getenv("http_proxy");
     }
+    proxy = opts->proxy ? opts->proxy : proxy != NULL ? proxy : "";
 
     // ensure the proxy starts with `http://`, otherwise ignore it
     if (proxy && strstr(proxy, "http://") == proxy) {

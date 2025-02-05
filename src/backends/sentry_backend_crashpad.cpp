@@ -440,7 +440,11 @@ crashpad_backend_startup(
         SENTRY_DEBUGF("using minidump URL \"%s\"", minidump_url);
     }
     auto proxy_url = "";
-    proxy_url = getenv("https_proxy");
+    if (strncmp(options->dsn->raw, "https", 5) == 0) {
+        proxy_url = getenv("https_proxy");
+    } else if (strncmp(options->dsn->raw, "http", 4) == 0) {
+        proxy_url = getenv("http_proxy");
+    }
     proxy_url = options->proxy ? options->proxy
         : proxy_url != NULL    ? proxy_url
                                : "";
