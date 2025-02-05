@@ -8,12 +8,9 @@ import urllib
 import pytest
 import pprint
 import textwrap
-import time
 import socket
 
-
 sourcedir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
-
 
 # https://docs.pytest.org/en/latest/assert.html#assert-details
 pytest.register_assert_rewrite("tests.assertions")
@@ -31,7 +28,7 @@ def make_dsn(httpserver, auth="uiaeosnrtdy", id=123456, proxy_host=False):
         # to the hosts file & make the DSN using this alternate hostname
         # see https://learn.microsoft.com/en-us/windows/win32/wininet/enabling-internet-functionality#listing-the-proxy-bypass
         host = host.replace("127.0.0.1", "sentry.native.test")
-        check_sentry_native_resolves_to_localhost()
+        _check_sentry_native_resolves_to_localhost()
 
     return urllib.parse.urlunsplit(
         (
@@ -44,66 +41,12 @@ def make_dsn(httpserver, auth="uiaeosnrtdy", id=123456, proxy_host=False):
     )
 
 
-def check_sentry_native_resolves_to_localhost():
+def _check_sentry_native_resolves_to_localhost():
     try:
         resolved_ip = socket.gethostbyname("sentry.native.test")
         assert resolved_ip == "127.0.0.1"
     except socket.gaierror:
         pytest.skip("sentry.native.test does not resolve to localhost")
-
-
-def is_proxy_running(host, port):
-    try:
-        with socket.create_connection((host, port), timeout=1):
-            return True
-    except ConnectionRefusedError:
-        return False
-
-
-def start_mitmdump(proxy_type, proxy_auth: str = None):
-    # start mitmdump from terminal
-    if proxy_type == "http-proxy":
-        proxy_command = ["mitmdump"]
-        if proxy_auth:
-            proxy_command += ["-v", "--proxyauth", proxy_auth]
-        proxy_process = subprocess.Popen(
-            proxy_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
-        )
-        time.sleep(5)  # Give mitmdump some time to start
-        if not is_proxy_running("localhost", 8080):
-            pytest.fail("mitmdump (HTTP) did not start correctly")
-    elif proxy_type == "socks5-proxy":
-        proxy_command = ["mitmdump", "--mode", "socks5"]
-        if proxy_auth:
-            proxy_command += ["-v", "--proxyauth", proxy_auth]
-        proxy_process = subprocess.Popen(
-            proxy_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
-        )
-        time.sleep(5)  # Give mitmdump some time to start
-        if not is_proxy_running("localhost", 1080):
-            pytest.fail("mitmdump (SOCKS5) did not start correctly")
-    return proxy_process
-
-
-def proxy_test_finally(
-    expected_logsize,
-    httpserver,
-    proxy_process,
-    proxy_log_assert=assert_no_proxy_request,
-):
-    if proxy_process:
-        # Give mitmdump some time to get a response from the mock server
-        time.sleep(0.5)
-        proxy_process.terminate()
-        proxy_process.wait()
-        stdout, stderr = proxy_process.communicate()
-        if expected_logsize == 0:
-            # don't expect any incoming requests to go through the proxy
-            proxy_log_assert(stdout)
-        else:
-            # request passed through successfully
-            assert "POST" in stdout and "200 OK" in stdout
-    assert len(httpserver.log) == expected_logsize
 
 
 def run(cwd, exe, args, env=dict(os.environ), **kwargs):

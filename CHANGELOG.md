@@ -4,7 +4,7 @@
 
 **Features**:
 
-- Honor `http(s)_proxy` environment variables on macOS crashpad transport. ([#1111](https://github.com/getsentry/sentry-native/pull/1111))
+- Honor `https_proxy` environment variable on crashpad transport. ([#1111](https://github.com/getsentry/sentry-native/pull/1111))
 - Auto-detect the latest GDK and Windows SDK for the XBox build. ([#1124](https://github.com/getsentry/sentry-native/pull/1124))
 - Enable debug-option by default when running in a debug-build. ([#1128](https://github.com/getsentry/sentry-native/pull/1128))
 

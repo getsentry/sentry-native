@@ -6,7 +6,17 @@ import time
 
 import pytest
 
-from . import make_dsn, run, Envelope, start_mitmdump, proxy_test_finally
+from . import (
+    make_dsn,
+    run,
+    Envelope,
+)
+from .proxy import (
+    setup_proxy_env_vars,
+    cleanup_proxy_env_vars,
+    start_mitmdump,
+    proxy_test_finally,
+)
 from .assertions import (
     assert_crashpad_upload,
     assert_session,
@@ -39,47 +49,58 @@ def test_crashpad_capture(cmake, httpserver):
     assert len(httpserver.log) == 2
 
 
-@pytest.mark.parametrize("port_correct", [True, False])  # TODO separate tests
-def test_crashpad_crash_proxy_env(cmake, httpserver, port_correct):
+def _setup_crashpad_proxy_test(cmake, httpserver, proxy):
+    proxy_process = start_mitmdump(proxy) if proxy else None
+
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "crashpad"})
+
+    # make sure we are isolated from previous runs
+    shutil.rmtree(tmp_path / ".sentry-native", ignore_errors=True)
+
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver, proxy_host=True))
+    httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data("OK")
+
+    return env, proxy_process, tmp_path
+
+
+def test_crashpad_crash_proxy_env(cmake, httpserver):
     if not shutil.which("mitmdump"):
         pytest.skip("mitmdump is not installed")
 
     proxy_process = None  # store the proxy process to terminate it later
-    port = "8080" if port_correct else "8081"
-    os.environ["http_proxy"] = f"http://localhost:{port}"
-    os.environ["https_proxy"] = f"http://localhost:{port}"
-    expected_logsize = 0
+    setup_proxy_env_vars(port=8080)
     try:
-        proxy_process = start_mitmdump("http-proxy")
-
-        tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "crashpad"})
-
-        # make sure we are isolated from previous runs
-        shutil.rmtree(tmp_path / ".sentry-native", ignore_errors=True)
-
-        env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver, proxy_host=True))
-        httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data(
-            "OK"
+        env, proxy_process, tmp_path = _setup_crashpad_proxy_test(
+            cmake, httpserver, "http-proxy"
         )
 
-        try:
-            with httpserver.wait(timeout=10) as waiting:
+        with httpserver.wait(timeout=10) as waiting:
+            child = run(tmp_path, "sentry_example", ["log", "crash"], env=env)
+            assert child.returncode  # well, it's a crash after all
+        assert waiting.result
+    finally:
+        proxy_test_finally(1, httpserver, proxy_process)
+        cleanup_proxy_env_vars()
+
+
+def test_crashpad_crash_proxy_env_port_incorrect(cmake, httpserver):
+    if not shutil.which("mitmdump"):
+        pytest.skip("mitmdump is not installed")
+
+    proxy_process = None  # store the proxy process to terminate it later
+    setup_proxy_env_vars(port=8081)
+    try:
+        env, proxy_process, tmp_path = _setup_crashpad_proxy_test(
+            cmake, httpserver, "http-proxy"
+        )
+
+        with pytest.raises(AssertionError):
+            with httpserver.wait(timeout=10):
                 child = run(tmp_path, "sentry_example", ["log", "crash"], env=env)
                 assert child.returncode  # well, it's a crash after all
-        except AssertionError as e:
-            if port_correct:
-                raise e
-            else:
-                expected_logsize = 0
-                return
-
-        assert waiting.result
-
-        expected_logsize = 1 if port_correct else 0
     finally:
-        proxy_test_finally(expected_logsize, httpserver, proxy_process)
-        del os.environ["http_proxy"]
-        del os.environ["https_proxy"]
+        proxy_test_finally(0, httpserver, proxy_process)
+        cleanup_proxy_env_vars()
 
 
 @pytest.mark.parametrize(
@@ -104,18 +125,9 @@ def test_crashpad_crash_proxy(cmake, httpserver, run_args, proxy_running):
     expected_logsize = 0
 
     try:
-        if proxy_running:
-            # start mitmdump from terminal
-            proxy_process = start_mitmdump(run_args[0])
-
-        tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "crashpad"})
-
-        # make sure we are isolated from previous runs
-        shutil.rmtree(tmp_path / ".sentry-native", ignore_errors=True)
-
-        env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver, proxy_host=True))
-        httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data(
-            "OK"
+        proxy_to_start = run_args[0] if proxy_running else None
+        env, proxy_process, tmp_path = _setup_crashpad_proxy_test(
+            cmake, httpserver, proxy_to_start
         )
 
         try:
