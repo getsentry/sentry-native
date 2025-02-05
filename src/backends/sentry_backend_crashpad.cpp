@@ -439,15 +439,11 @@ crashpad_backend_startup(
     if (minidump_url) {
         SENTRY_DEBUGF("using minidump URL \"%s\"", minidump_url);
     }
-    auto proxy_url = "";
-    if (options->dsn->is_secure) {
-        proxy_url = getenv("https_proxy");
-    } else {
-        proxy_url = getenv("http_proxy");
-    }
-    proxy_url = options->proxy ? options->proxy
-        : proxy_url != NULL    ? proxy_url
-                               : "";
+    const char *env_proxy
+        = getenv(options->dsn->is_secure ? "https_proxy" : "http_proxy");
+    const char *proxy_url = options->proxy ? options->proxy
+        : env_proxy                        ? env_proxy
+                                           : "";
     bool success = data->client->StartHandler(handler, database, database,
         minidump_url ? minidump_url : "", proxy_url, annotations, arguments,
         /* restartable */ true,
