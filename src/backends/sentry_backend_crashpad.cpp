@@ -448,7 +448,7 @@ crashpad_backend_startup(
 #ifdef SENTRY_PLATFORM_LINUX
     // explicitly set an empty proxy to avoid reading from env. vars. on Linux
     if (options->proxy == "") {
-        proxy_url = "<empty>"
+        proxy_url = "<empty>";
     }
 #endif
     bool success = data->client->StartHandler(handler, database, database,
