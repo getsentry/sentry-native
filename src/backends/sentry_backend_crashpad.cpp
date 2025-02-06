@@ -41,6 +41,9 @@ extern "C" {
 #if defined(_WIN32)
 #    include "util/win/termination_codes.h"
 #endif
+#if defined(SENTRY_PLATFORM_MACOS)
+#    include "client/simulate_crash_mac.h"
+#endif
 
 #if defined(__GNUC__)
 #    pragma GCC diagnostic pop
@@ -647,6 +650,8 @@ crashpad_backend_trigger_dump(sentry_backend_t *backend)
     crashpad::CrashpadClient::DumpWithoutCrash(&cpu_context);
 #elif defined(SENTRY_PLATFORM_WINDOWS)
     crashpad::CrashpadClient::DumpWithoutCrash(cpu_context);
+#elif defined(SENTRY_PLATFORM_MACOS)
+    crashpad::SimulateCrash(cpu_context);
 #endif
 }
 
