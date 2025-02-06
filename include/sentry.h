@@ -1425,6 +1425,18 @@ SENTRY_EXPERIMENTAL_API void sentry_handle_exception(
     const sentry_ucontext_t *uctx);
 
 /**
+ * Captures a minidump for non-fatal errors. The program can continue after
+ * this call safely. It will produce a minidump context on the spot and crash-
+ * events will appear with log-level `error`.
+ *
+ * This trigger will also invoke the crash-handler, meaning it will call
+ * the `before_send` or `on_crash` hooks.
+ *
+ * Note: currently only works with the `crashpad` backend on Windows and Linux.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_trigger_dump(void);
+
+/**
  * Adds the breadcrumb to be sent in case of an event.
  */
 SENTRY_API void sentry_add_breadcrumb(sentry_value_t breadcrumb);

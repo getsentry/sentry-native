@@ -609,6 +609,17 @@ sentry_handle_exception(const sentry_ucontext_t *uctx)
     }
 }
 
+void
+sentry_trigger_dump(void)
+{
+    SENTRY_WITH_OPTIONS (options) {
+        SENTRY_INFO("triggering dump");
+        if (options->backend && options->backend->except_func) {
+            options->backend->trigger_dump_func(options->backend);
+        }
+    }
+}
+
 sentry_uuid_t
 sentry__new_event_id(void)
 {

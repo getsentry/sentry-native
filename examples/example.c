@@ -367,6 +367,9 @@ main(int argc, char **argv)
         sleep_s(10);
     }
 
+    if (has_arg(argc, argv, "trigger-dump")) {
+        sentry_trigger_dump();
+    }
     if (has_arg(argc, argv, "crash")) {
         trigger_crash();
     }
