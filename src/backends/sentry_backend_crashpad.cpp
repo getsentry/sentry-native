@@ -260,11 +260,19 @@ sentry__crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
     SENTRY_INFO("flushing session and queue before crashpad handler");
 
     bool should_dump = true;
+#    if defined(SENTRY_PLATFORM_WINDOWS)
+    bool is_fatal = ExceptionInfo->ExceptionRecord->ExceptionCode != 0x517a7ed;
+#    elif defined(SENTRY_PLATFORM_LINUX)
+    bool is_fatal = signum != -1;
+#    else
+bool is_fatal = true;
+#    endif
 
     SENTRY_WITH_OPTIONS (options) {
         sentry_value_t crash_event = sentry_value_new_event();
-        sentry_value_set_by_key(
-            crash_event, "level", sentry__value_new_level(SENTRY_LEVEL_FATAL));
+        sentry_value_t level = sentry__value_new_level(
+            is_fatal ? SENTRY_LEVEL_FATAL : SENTRY_LEVEL_ERROR);
+        sentry_value_set_by_key(crash_event, "level", level);
 
         if (options->on_crash_func) {
             sentry_ucontext_t uctx;
@@ -332,11 +340,18 @@ sentry__crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
     //   (currently returning `true`)
     //
     // TODO(supervacuus):
-    // * we need integration tests for more signal/exception types not only
-    //   for unmapped memory access (which is the current crash in example.c).
     // * we should adapt the SetFirstChanceExceptionHandler interface in
     // crashpad
-    if (!should_dump) {
+    //
+    // We now also use this handler for non-fatal dumps in which case we don't
+    // want to terminate here:
+    // is_fatal | should_dump | expected behavior
+    // ------------------------------------------
+    //   false  |    false    | return true
+    //   false  |    true     | return false
+    //   true   |    false    | terminate
+    //   true   |    true     | return false
+    if (is_fatal && !should_dump) {
 #    ifdef SENTRY_PLATFORM_WINDOWS
         TerminateProcess(GetCurrentProcess(),
             crashpad::TerminationCodes::kTerminationCodeCrashNoDump);
@@ -346,7 +361,7 @@ sentry__crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
     }
 
     // we did not "handle" the signal, so crashpad should do that.
-    return false;
+    return !is_fatal && !should_dump;
 }
 #endif
 
@@ -622,6 +637,19 @@ crashpad_backend_prune_database(sentry_backend_t *backend)
     crashpad::PruneCrashReportDatabase(data->db, &condition);
 }
 
+static void
+crashpad_backend_trigger_dump(sentry_backend_t *backend)
+{
+    (void)backend;
+    crashpad::NativeCPUContext cpu_context;
+    crashpad::CaptureContext(&cpu_context);
+#if defined(SENTRY_PLATFORM_LINUX)
+    crashpad::CrashpadClient::DumpWithoutCrash(&cpu_context);
+#elif defined(SENTRY_PLATFORM_WINDOWS)
+    crashpad::CrashpadClient::DumpWithoutCrash(cpu_context);
+#endif
+}
+
 sentry_backend_t *
 sentry__backend_new(void)
 {
@@ -643,6 +671,7 @@ sentry__backend_new(void)
     backend->startup_func = crashpad_backend_startup;
     backend->shutdown_func = crashpad_backend_shutdown;
     backend->except_func = crashpad_backend_except;
+    backend->trigger_dump_func = crashpad_backend_trigger_dump;
     backend->free_func = crashpad_backend_free;
     backend->flush_scope_func = crashpad_backend_flush_scope;
     backend->add_breadcrumb_func = crashpad_backend_add_breadcrumb;

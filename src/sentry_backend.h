@@ -17,6 +17,7 @@ struct sentry_backend_s {
     void (*shutdown_func)(sentry_backend_t *);
     void (*free_func)(sentry_backend_t *);
     void (*except_func)(sentry_backend_t *, const struct sentry_ucontext_s *);
+    void (*trigger_dump_func)(sentry_backend_t *);
     void (*flush_scope_func)(
         sentry_backend_t *, const sentry_options_t *options);
     // NOTE: The breadcrumb is not moved into the hook and does not need to be

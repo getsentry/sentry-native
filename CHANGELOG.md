@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- Add `sentry_trigger_dump()` a function allowing application to trigger non-fatal minidumps when using the `crashpad` backend. ([#1144](https://github.com/getsentry/sentry-native/pull/1144))
+
 ## 0.7.20
 
 **Features**:
