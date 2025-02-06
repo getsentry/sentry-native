@@ -109,9 +109,6 @@ def test_crashpad_proxy_set_empty(cmake, httpserver):
 
     proxy_process = None  # store the proxy process to terminate it later
     setup_proxy_env_vars(port=8080)  # we start the proxy but expect it to remain unused
-    # on linux, set empty doesn't work; one needs to set no_proxy
-    if sys.platform == "linux":
-        os.environ["no_proxy"] = "sentry.native.test"
     try:
         env, proxy_process, tmp_path = _setup_crashpad_proxy_test(
             cmake, httpserver, "http-proxy"
@@ -126,8 +123,6 @@ def test_crashpad_proxy_set_empty(cmake, httpserver):
 
     finally:
         cleanup_proxy_env_vars()
-        if sys.platform == "linux":
-            del os.environ["no_proxy"]
         proxy_test_finally(1, httpserver, proxy_process, expected_proxy_logsize=0)
 
 
