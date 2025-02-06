@@ -439,9 +439,20 @@ crashpad_backend_startup(
     if (minidump_url) {
         SENTRY_DEBUGF("using minidump URL \"%s\"", minidump_url);
     }
+    const char *env_proxy = options->dsn
+        ? getenv(options->dsn->is_secure ? "https_proxy" : "http_proxy")
+        : nullptr;
+    const char *proxy_url = options->proxy ? options->proxy
+        : env_proxy                        ? env_proxy
+                                           : "";
+#ifdef SENTRY_PLATFORM_LINUX
+    // explicitly set an empty proxy to avoid reading from env. vars. on Linux
+    if (options->proxy && strcmp(options->proxy, "") == 0) {
+        proxy_url = "<empty>";
+    }
+#endif
     bool success = data->client->StartHandler(handler, database, database,
-        minidump_url ? minidump_url : "", options->proxy ? options->proxy : "",
-        annotations, arguments,
+        minidump_url ? minidump_url : "", proxy_url, annotations, arguments,
         /* restartable */ true,
         /* asynchronous_start */ false, attachments);
     sentry_free(minidump_url);

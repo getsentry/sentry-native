@@ -27,18 +27,24 @@ SENTRY_TEST(iso_time)
     TEST_CHECK_INT_EQUAL(roundtrip, usec);
 }
 
+static void
+check_url(const sentry_url_t *url)
+{
+    TEST_CHECK_STRING_EQUAL(url->scheme, "http");
+    TEST_CHECK_STRING_EQUAL(url->host, "example.com");
+    TEST_CHECK_INT_EQUAL(url->port, 80);
+    TEST_CHECK_STRING_EQUAL(url->username, "username");
+    TEST_CHECK_STRING_EQUAL(url->password, "password");
+}
+
 SENTRY_TEST(url_parsing_complete)
 {
     sentry_url_t url;
     TEST_CHECK_INT_EQUAL(
         sentry__url_parse(
-            &url, "http://username:password@example.com/foo/bar?x=y#z"),
+            &url, "http://username:password@example.com/foo/bar?x=y#z", true),
         0);
-    TEST_CHECK_STRING_EQUAL(url.scheme, "http");
-    TEST_CHECK_STRING_EQUAL(url.host, "example.com");
-    TEST_CHECK_INT_EQUAL(url.port, 80);
-    TEST_CHECK_STRING_EQUAL(url.username, "username");
-    TEST_CHECK_STRING_EQUAL(url.password, "password");
+    check_url(&url);
     TEST_CHECK_STRING_EQUAL(url.path, "/foo/bar");
     TEST_CHECK_STRING_EQUAL(url.query, "x=y");
     TEST_CHECK_STRING_EQUAL(url.fragment, "z");
@@ -49,13 +55,10 @@ SENTRY_TEST(url_parsing_partial)
 {
     sentry_url_t url;
     TEST_CHECK_INT_EQUAL(
-        sentry__url_parse(&url, "http://username:password@example.com/foo/bar"),
+        sentry__url_parse(
+            &url, "http://username:password@example.com/foo/bar", true),
         0);
-    TEST_CHECK_STRING_EQUAL(url.scheme, "http");
-    TEST_CHECK_STRING_EQUAL(url.host, "example.com");
-    TEST_CHECK_INT_EQUAL(url.port, 80);
-    TEST_CHECK_STRING_EQUAL(url.username, "username");
-    TEST_CHECK_STRING_EQUAL(url.password, "password");
+    check_url(&url);
     TEST_CHECK_STRING_EQUAL(url.path, "/foo/bar");
     TEST_CHECK(url.query == NULL);
     TEST_CHECK(url.fragment == NULL);
@@ -65,7 +68,25 @@ SENTRY_TEST(url_parsing_partial)
 SENTRY_TEST(url_parsing_invalid)
 {
     sentry_url_t url;
-    TEST_CHECK_INT_EQUAL(sentry__url_parse(&url, "http:"), 1);
+    TEST_CHECK_INT_EQUAL(sentry__url_parse(&url, "http:", true), 1);
+}
+
+SENTRY_TEST(url_parsing_no_path)
+{
+    sentry_url_t url;
+    TEST_CHECK_INT_EQUAL(
+        sentry__url_parse(&url, "http://username:password@example.com", false),
+        0);
+    check_url(&url);
+    sentry__url_cleanup(&url);
+}
+
+SENTRY_TEST(url_parsing_with_path)
+{
+    sentry_url_t url;
+    TEST_CHECK_INT_EQUAL(
+        sentry__url_parse(&url, "http://username:password@example.com", true),
+        1);
 }
 
 SENTRY_TEST(dsn_parsing_complete)

@@ -9,7 +9,17 @@ import subprocess
 
 import pytest
 
-from . import make_dsn, run, Envelope, is_proxy_running
+from . import (
+    make_dsn,
+    run,
+    Envelope,
+)
+from .proxy import (
+    setup_proxy_env_vars,
+    cleanup_proxy_env_vars,
+    start_mitmdump,
+    proxy_test_finally,
+)
 from .assertions import (
     assert_attachment,
     assert_meta,
@@ -24,8 +34,9 @@ from .assertions import (
     assert_breakpad_crash,
     assert_gzip_content_encoding,
     assert_gzip_file_header,
+    assert_failed_proxy_auth_request,
 )
-from .conditions import has_http, has_breakpad, has_files
+from .conditions import has_http, has_breakpad, has_files, has_crashpad
 
 pytestmark = pytest.mark.skipif(not has_http, reason="tests need http")
 
@@ -611,6 +622,191 @@ def test_capture_minidump(cmake, httpserver):
     assert_minidump(envelope)
 
 
+def _setup_http_proxy_test(cmake, httpserver, proxy, proxy_auth=None):
+    proxy_process = start_mitmdump(proxy, proxy_auth) if proxy else None
+
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+
+    # make sure we are isolated from previous runs
+    shutil.rmtree(tmp_path / ".sentry-native", ignore_errors=True)
+
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver, proxy_host=True))
+    httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
+
+    return env, proxy_process, tmp_path
+
+
+def test_proxy_from_env(cmake, httpserver):
+    if not shutil.which("mitmdump"):
+        pytest.skip("mitmdump is not installed")
+
+    proxy_process = None  # store the proxy process to terminate it later
+    setup_proxy_env_vars(port=8080)
+    try:
+        env, proxy_process, tmp_path = _setup_http_proxy_test(
+            cmake, httpserver, "http-proxy"
+        )
+
+        run(
+            tmp_path,
+            "sentry_example",
+            ["log", "capture-event"],
+            check=True,
+            env=env,
+        )
+
+    finally:
+        cleanup_proxy_env_vars()
+        proxy_test_finally(1, httpserver, proxy_process)
+
+
+def test_proxy_from_env_port_incorrect(cmake, httpserver):
+    if not shutil.which("mitmdump"):
+        pytest.skip("mitmdump is not installed")
+
+    proxy_process = None  # store the proxy process to terminate it later
+    setup_proxy_env_vars(port=8081)
+    try:
+        env, proxy_process, tmp_path = _setup_http_proxy_test(
+            cmake, httpserver, "http-proxy"
+        )
+
+        run(
+            tmp_path,
+            "sentry_example",
+            ["log", "capture-event"],
+            check=True,
+            env=env,
+        )
+
+    finally:
+        cleanup_proxy_env_vars()
+        proxy_test_finally(0, httpserver, proxy_process)
+
+
+def test_proxy_auth(cmake, httpserver):
+    if not shutil.which("mitmdump"):
+        pytest.skip("mitmdump is not installed")
+
+    proxy_process = None  # store the proxy process to terminate it later
+    try:
+        env, proxy_process, tmp_path = _setup_http_proxy_test(
+            cmake, httpserver, "http-proxy", proxy_auth="user:password"
+        )
+
+        run(
+            tmp_path,
+            "sentry_example",
+            ["log", "capture-event", "http-proxy-auth"],
+            check=True,
+            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver, proxy_host=True)),
+        )
+    finally:
+        proxy_test_finally(
+            1,
+            httpserver,
+            proxy_process,
+            assert_failed_proxy_auth_request,
+        )
+
+
+def test_proxy_auth_incorrect(cmake, httpserver):
+    if not shutil.which("mitmdump"):
+        pytest.skip("mitmdump is not installed")
+
+    proxy_process = None  # store the proxy process to terminate it later
+    try:
+        env, proxy_process, tmp_path = _setup_http_proxy_test(
+            cmake, httpserver, "http-proxy", proxy_auth="wrong:wrong"
+        )
+
+        run(
+            tmp_path,
+            "sentry_example",
+            ["log", "capture-event", "http-proxy-auth"],
+            check=True,
+            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver, proxy_host=True)),
+        )
+    finally:
+        proxy_test_finally(
+            0,
+            httpserver,
+            proxy_process,
+            assert_failed_proxy_auth_request,
+        )
+
+
+def test_proxy_ipv6(cmake, httpserver):
+    if not shutil.which("mitmdump"):
+        pytest.skip("mitmdump is not installed")
+
+    proxy_process = None  # store the proxy process to terminate it later
+    try:
+        env, proxy_process, tmp_path = _setup_http_proxy_test(
+            cmake, httpserver, "http-proxy"
+        )
+
+        run(
+            tmp_path,
+            "sentry_example",
+            ["log", "capture-event", "http-proxy-ipv6"],
+            check=True,
+            env=env,
+        )
+
+    finally:
+        proxy_test_finally(1, httpserver, proxy_process)
+
+
+def test_proxy_set_empty(cmake, httpserver):
+    if not shutil.which("mitmdump"):
+        pytest.skip("mitmdump is not installed")
+
+    proxy_process = None  # store the proxy process to terminate it later
+    setup_proxy_env_vars(port=8080)  # we start the proxy but expect it to remain unused
+    try:
+        env, proxy_process, tmp_path = _setup_http_proxy_test(
+            cmake, httpserver, "http-proxy"
+        )
+
+        run(
+            tmp_path,
+            "sentry_example",
+            ["log", "capture-event", "proxy-empty"],
+            check=True,
+            env=env,
+        )
+
+    finally:
+        cleanup_proxy_env_vars()
+        proxy_test_finally(1, httpserver, proxy_process, expected_proxy_logsize=0)
+
+
+def test_proxy_https_not_http(cmake, httpserver):
+    if not shutil.which("mitmdump"):
+        pytest.skip("mitmdump is not installed")
+
+    proxy_process = None  # store the proxy process to terminate it later
+    # we start the proxy but expect it to remain unused (dsn is http, so shouldn't use https proxy)
+    os.environ["https_proxy"] = f"http://localhost:8080"
+    try:
+        env, proxy_process, tmp_path = _setup_http_proxy_test(
+            cmake, httpserver, "http-proxy"
+        )
+
+        run(
+            tmp_path,
+            "sentry_example",
+            ["log", "capture-event"],
+            check=True,
+            env=env,
+        )
+
+    finally:
+        del os.environ["https_proxy"]
+        proxy_test_finally(1, httpserver, proxy_process, expected_proxy_logsize=0)
+
+
 @pytest.mark.parametrize(
     "run_args",
     [
@@ -624,49 +820,30 @@ def test_capture_minidump(cmake, httpserver):
         ),
     ],
 )
-@pytest.mark.parametrize("proxy_status", [(["off"]), (["on"])])
-def test_capture_proxy(cmake, httpserver, run_args, proxy_status):
+@pytest.mark.parametrize("proxy_running", [True, False])
+def test_capture_proxy(cmake, httpserver, run_args, proxy_running):
     if not shutil.which("mitmdump"):
         pytest.skip("mitmdump is not installed")
 
     proxy_process = None  # store the proxy process to terminate it later
+    expected_logsize = 0
 
     try:
-        if proxy_status == ["on"]:
-            # start mitmdump from terminal
-            if run_args == ["http-proxy"]:
-                proxy_process = subprocess.Popen(["mitmdump"])
-                time.sleep(5)  # Give mitmdump some time to start
-                if not is_proxy_running("localhost", 8080):
-                    pytest.fail("mitmdump (HTTP) did not start correctly")
-            elif run_args == ["socks5-proxy"]:
-                proxy_process = subprocess.Popen(["mitmdump", "--mode", "socks5"])
-                time.sleep(5)  # Give mitmdump some time to start
-                if not is_proxy_running("localhost", 1080):
-                    pytest.fail("mitmdump (SOCKS5) did not start correctly")
-
-        tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
-
-        # make sure we are isolated from previous runs
-        shutil.rmtree(tmp_path / ".sentry-native", ignore_errors=True)
-
-        httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
-
+        proxy_to_start = run_args[0] if proxy_running else None
+        env, proxy_process, tmp_path = _setup_http_proxy_test(
+            cmake, httpserver, proxy_to_start
+        )
         run(
             tmp_path,
             "sentry_example",
-            ["log", "start-session", "capture-event"]
+            ["log", "capture-event"]
             + run_args,  # only passes if given proxy is running
             check=True,
-            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver, proxy_host=True)),
         )
-        if proxy_status == ["on"]:
-            assert len(httpserver.log) == 2
-        elif proxy_status == ["off"]:
-            # Windows will send the request even if the proxy is not running
-            # macOS/Linux will not send the request if the proxy is not running
-            assert len(httpserver.log) == (2 if (sys.platform == "win32") else 0)
+        if proxy_running:
+            expected_logsize = 1
+        else:
+            expected_logsize = 0
     finally:
-        if proxy_process:
-            proxy_process.terminate()
-            proxy_process.wait()
+        proxy_test_finally(expected_logsize, httpserver, proxy_process)
