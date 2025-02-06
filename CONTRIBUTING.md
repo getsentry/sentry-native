@@ -152,6 +152,7 @@ The example currently supports the following commands:
 - `http-proxy`: Uses a localhost `HTTP` proxy on port 8080.
 - `http-proxy-auth`: Uses a localhost `HTTP` proxy on port 8080 with `user:password` as authentication.
 - `http-proxy-ipv6`: Uses a localhost `HTTP` proxy on port 8080 using IPv6 notation.
+- `proxy-empty`: Sets the `proxy` option to the empty string `""`.
 - `socks5-proxy`: Uses a localhost `SOCKS5` proxy on port 1080.
 - `capture-transaction`: Captures a transaction.
 - `traces-sampler`: Installs a traces sampler callback function when used alongside `capture-transaction`.
