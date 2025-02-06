@@ -1494,6 +1494,12 @@ SENTRY_API void sentry_set_fingerprint_n(
 SENTRY_API void sentry_remove_fingerprint(void);
 
 /**
+ * Sets the trace ID.
+ */
+SENTRY_API void sentry_set_trace(
+    const char *trace_id, const char *parent_span_id);
+
+/**
  * Sets the transaction.
  */
 SENTRY_API void sentry_set_transaction(const char *transaction);
