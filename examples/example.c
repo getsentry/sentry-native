@@ -334,21 +334,6 @@ main(int argc, char **argv)
         sentry_value_set_by_key(
             nl_crumb, "category", sentry_value_new_string("something else"));
         sentry_add_breadcrumb(nl_crumb);
-
-        const sentry_uuid_t id = sentry_uuid_new_v4();
-        char trace_id[33];
-        sentry_uuid_as_string(&id, trace_id);
-
-        // Remove hyphens
-        for (int i = 0, j = 0; trace_id[j]; j++) {
-            if (trace_id[j] != '-') {
-                trace_id[i++] = trace_id[j];
-                if (i == 32)
-                    trace_id[i] = '\0';
-            }
-        }
-
-        sentry_set_trace_id(trace_id);
     }
 
     if (has_arg(argc, argv, "start-session")) {
