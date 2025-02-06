@@ -245,6 +245,20 @@ SENTRY_API int sentry_value_remove_by_key_n(
     sentry_value_t value, const char *k, size_t k_len);
 
 /**
+ * WIP: Iteration.
+ */
+struct sentry_item_iter_s;
+typedef struct sentry_item_iter_s sentry_item_iter_t;
+
+SENTRY_API sentry_item_iter_t *sentry_value_new_item_iter(sentry_value_t value);
+SENTRY_API void sentry_value_item_iter_next(sentry_item_iter_t *item_iter);
+SENTRY_API int sentry_value_item_iter_valid(sentry_item_iter_t *item_iter);
+SENTRY_API const char *sentry_value_item_iter_get_key(
+    sentry_item_iter_t *item_iter);
+SENTRY_API sentry_value_t sentry_value_item_iter_get_value(
+    sentry_item_iter_t *item_iter);
+
+/**
  * Appends a value to a list.
  *
  * This moves the ownership of the value into the list.  The caller does not

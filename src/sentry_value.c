@@ -778,6 +778,62 @@ sentry_value_get_by_key_owned(sentry_value_t value, const char *k)
     return rv;
 }
 
+/**
+ * WIP: Iteration.
+ */
+
+struct sentry_item_iter_s {
+    size_t len;
+    obj_pair_t *pairs;
+    size_t index;
+};
+
+sentry_item_iter_t *
+sentry_value_new_item_iter(sentry_value_t value)
+{
+    const thing_t *thing = value_as_thing(value);
+    if (thing && thing_get_type(thing) == THING_TYPE_OBJECT) {
+        obj_t *o = thing->payload._ptr;
+        sentry_item_iter_t *item_iter = SENTRY_MAKE(sentry_item_iter_t);
+        item_iter->len = o->len;
+        item_iter->pairs = o->pairs;
+        item_iter->index = 0;
+        return item_iter;
+    }
+    return NULL;
+}
+
+void sentry_value_item_iter_next(sentry_item_iter_t *item_iter)
+{
+    item_iter->index++;
+}
+
+const char *
+sentry_value_item_iter_get_key(sentry_item_iter_t *item_iter)
+{
+    if (item_iter->index >= item_iter->len) {
+        return NULL;
+    }
+    return item_iter->pairs[item_iter->index].k;
+}
+
+sentry_value_t
+sentry_value_item_iter_get_value(sentry_item_iter_t *item_iter)
+{
+    if (item_iter->index >= item_iter->len) {
+        return sentry_value_new_null();
+    }
+    return item_iter->pairs[item_iter->index].v;
+}
+
+int
+sentry_value_item_iter_valid(sentry_item_iter_t *item_iter)
+{
+    return item_iter->index < item_iter->len && item_iter->pairs != NULL;
+}
+
+// ***
+
 sentry_value_t
 sentry_value_get_by_index(sentry_value_t value, size_t index)
 {
