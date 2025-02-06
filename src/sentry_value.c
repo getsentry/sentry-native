@@ -783,7 +783,7 @@ sentry_value_get_by_key_owned(sentry_value_t value, const char *k)
  */
 
 struct sentry_item_iter_s {
-    size_t len;
+    size_t *len; // Pointer to length!
     obj_pair_t *pairs;
     size_t index;
 };
@@ -795,7 +795,7 @@ sentry_value_new_item_iter(sentry_value_t value)
     if (thing && thing_get_type(thing) == THING_TYPE_OBJECT) {
         obj_t *o = thing->payload._ptr;
         sentry_item_iter_t *item_iter = SENTRY_MAKE(sentry_item_iter_t);
-        item_iter->len = o->len;
+        item_iter->len = &o->len;
         item_iter->pairs = o->pairs;
         item_iter->index = 0;
         return item_iter;
@@ -803,7 +803,8 @@ sentry_value_new_item_iter(sentry_value_t value)
     return NULL;
 }
 
-void sentry_value_item_iter_next(sentry_item_iter_t *item_iter)
+void
+sentry_value_item_iter_next(sentry_item_iter_t *item_iter)
 {
     item_iter->index++;
 }
@@ -811,7 +812,7 @@ void sentry_value_item_iter_next(sentry_item_iter_t *item_iter)
 const char *
 sentry_value_item_iter_get_key(sentry_item_iter_t *item_iter)
 {
-    if (item_iter->index >= item_iter->len) {
+    if (item_iter->index >= *item_iter->len) {
         return NULL;
     }
     return item_iter->pairs[item_iter->index].k;
@@ -820,7 +821,7 @@ sentry_value_item_iter_get_key(sentry_item_iter_t *item_iter)
 sentry_value_t
 sentry_value_item_iter_get_value(sentry_item_iter_t *item_iter)
 {
-    if (item_iter->index >= item_iter->len) {
+    if (item_iter->index >= *item_iter->len) {
         return sentry_value_new_null();
     }
     return item_iter->pairs[item_iter->index].v;
@@ -829,10 +830,23 @@ sentry_value_item_iter_get_value(sentry_item_iter_t *item_iter)
 int
 sentry_value_item_iter_valid(sentry_item_iter_t *item_iter)
 {
-    return item_iter->index < item_iter->len && item_iter->pairs != NULL;
+    return item_iter->index < *item_iter->len && item_iter->pairs != NULL;
 }
 
-// ***
+void
+sentry_value_item_iter_erase(sentry_item_iter_t *item_iter)
+{
+    if (item_iter->index >= *item_iter->len) {
+        return;
+    }
+    obj_pair_t *pair = &item_iter->pairs[item_iter->index];
+    sentry_free(pair->k);
+    sentry_value_decref(pair->v);
+    memmove(item_iter->pairs + item_iter->index,
+        item_iter->pairs + item_iter->index + 1,
+        (*item_iter->len - item_iter->index - 1) * sizeof(item_iter->pairs[0]));
+    (*item_iter->len)--;
+}
 
 sentry_value_t
 sentry_value_get_by_index(sentry_value_t value, size_t index)
