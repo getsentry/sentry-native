@@ -160,7 +160,7 @@ Java_io_sentry_ndk_NativeScope_nativeSetTraceId(
     const char *charParentSpanId
         = (*env)->GetStringUTFChars(env, parent_span_id, 0);
 
-    sentry_set_trace_id(charTraceId, charParentSpanId);
+    sentry_set_trace(charTraceId, charParentSpanId);
 
     (*env)->ReleaseStringUTFChars(env, trace_id, charTraceId);
     (*env)->ReleaseStringUTFChars(env, parent_span_id, charParentSpanId);

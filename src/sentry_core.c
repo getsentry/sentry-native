@@ -827,7 +827,7 @@ sentry_remove_fingerprint(void)
 }
 
 void
-sentry_set_trace_id(const char *trace_id, const char *parent_span_id)
+sentry_set_trace(const char *trace_id, const char *parent_span_id)
 {
     SENTRY_WITH_SCOPE_MUT (scope) {
         sentry_value_t context = sentry_value_new_object();

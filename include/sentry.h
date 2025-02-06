@@ -1496,7 +1496,7 @@ SENTRY_API void sentry_remove_fingerprint(void);
 /**
  * Sets the trace ID.
  */
-SENTRY_API void sentry_set_trace_id(
+SENTRY_API void sentry_set_trace(
     const char *trace_id, const char *parent_span_id);
 
 /**
