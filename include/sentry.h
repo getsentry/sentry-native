@@ -257,7 +257,7 @@ SENTRY_API const char *sentry_value_item_iter_get_key(
     sentry_item_iter_t *item_iter);
 SENTRY_API sentry_value_t sentry_value_item_iter_get_value(
     sentry_item_iter_t *item_iter);
-SENTRY_API void sentry_value_item_iter_erase(sentry_item_iter_t *item_iter);
+SENTRY_API int sentry_value_item_iter_erase(sentry_item_iter_t *item_iter);
 
 /**
  * Appends a value to a list.

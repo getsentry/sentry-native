@@ -786,6 +786,7 @@ struct sentry_item_iter_s {
     size_t *len; // Pointer to length!
     obj_pair_t *pairs;
     size_t index;
+    int frozen;
 };
 
 sentry_item_iter_t *
@@ -798,6 +799,7 @@ sentry_value_new_item_iter(sentry_value_t value)
         item_iter->len = &o->len;
         item_iter->pairs = o->pairs;
         item_iter->index = 0;
+        item_iter->frozen = thing_is_frozen(thing);
         return item_iter;
     }
     return NULL;
@@ -833,11 +835,11 @@ sentry_value_item_iter_valid(sentry_item_iter_t *item_iter)
     return item_iter->index < *item_iter->len && item_iter->pairs != NULL;
 }
 
-void
+int
 sentry_value_item_iter_erase(sentry_item_iter_t *item_iter)
 {
-    if (item_iter->index >= *item_iter->len) {
-        return;
+    if (item_iter->frozen || item_iter->index >= *item_iter->len) {
+        return 1;
     }
     obj_pair_t *pair = &item_iter->pairs[item_iter->index];
     sentry_free(pair->k);
@@ -846,6 +848,7 @@ sentry_value_item_iter_erase(sentry_item_iter_t *item_iter)
         item_iter->pairs + item_iter->index + 1,
         (*item_iter->len - item_iter->index - 1) * sizeof(item_iter->pairs[0]));
     (*item_iter->len)--;
+    return 0;
 }
 
 sentry_value_t
