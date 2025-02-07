@@ -1189,7 +1189,7 @@ SENTRY_API void sentry_options_set_require_user_consent(
     sentry_options_t *opts, int val);
 
 /**
- * ` true if user consent is required.
+ * Returns true if user consent is required.
  */
 SENTRY_API int sentry_options_get_require_user_consent(
     const sentry_options_t *opts);
