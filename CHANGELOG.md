@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Add map item iterators. ([#1143](https://github.com/getsentry/sentry-native/pull/1143))
+
 ## 0.7.20
 
 **Features**:
