@@ -292,51 +292,87 @@ SENTRY_TEST(value_object)
 
 SENTRY_TEST(value_object_iteration)
 {
-    sentry_value_t val = sentry_value_new_object();
+    sentry_value_t obj = sentry_value_new_object();
+
+    // Populate.
     for (size_t i = 0; i < 10; i++) {
         char key[100];
         sprintf(key, "key%d", (int)i);
-        sentry_value_set_by_key(val, key, sentry_value_new_int32((int32_t)i));
+        sentry_value_set_by_key(obj, key, sentry_value_new_int32((int32_t)i));
     }
 
-    sentry_item_iter_t *it = sentry_value_new_item_iter(val);
-    TEST_CHECK(it != NULL);
+    // Iterate over items.
+    {
+        sentry_item_iter_t *it = sentry_value_new_item_iter(obj);
+        size_t count = 0;
+        TEST_CHECK(it != NULL);
+        for (; sentry_value_item_iter_valid(it); sentry_value_item_iter_next(it)) {
+            const char *key = sentry_value_item_iter_get_key(it);
+            sentry_value_t value = sentry_value_item_iter_get_value(it);
 
-    size_t count = 0;
-    for (; sentry_value_item_iter_valid(it); sentry_value_item_iter_next(it)) {
-        const char *key = sentry_value_item_iter_get_key(it);
-        sentry_value_t value = sentry_value_item_iter_get_value(it);
+            TEST_CHECK(key != NULL);
+            TEST_CHECK(sentry_value_get_type(value) == SENTRY_VALUE_TYPE_INT32);
 
-        TEST_CHECK(key != NULL);
-        TEST_CHECK(sentry_value_get_type(value) == SENTRY_VALUE_TYPE_INT32);
+            int32_t key_idx;
+            sscanf(key, "key%d", &key_idx);
+            TEST_CHECK_INT_EQUAL(key_idx, sentry_value_as_int32(value));
 
-        int32_t expected_value;
-        sscanf(key, "key%d", &expected_value);
-        TEST_CHECK_INT_EQUAL(sentry_value_as_int32(value), expected_value);
-
-        count++;
+            count++;
+        }
+        TEST_CHECK_INT_EQUAL(count, 10);
+        sentry_free(it);
     }
 
-    TEST_CHECK_INT_EQUAL(count, 10);
-
-    sentry_free(it);
-
-    count = 0;
-    it = sentry_value_new_item_iter(val);
-    const char *prev_key = "";
-    while (sentry_value_item_iter_erase(it) == 0) {
-        if (sentry_value_item_iter_valid(it)) {
+    // Erase even-numbered items.
+    {
+        sentry_item_iter_t *it = sentry_value_new_item_iter(obj);
+        TEST_CHECK(it != NULL);
+        size_t count = 0;
+        const char *prev_key = "";
+        size_t i = 0;
+        while (sentry_value_item_iter_valid(it)) {
             TEST_CHECK(strcmp(prev_key, sentry_value_item_iter_get_key(it)) != 0);
             prev_key = sentry_value_item_iter_get_key(it);
+            if (i % 2 == 0) {
+                int err = sentry_value_item_iter_erase(it);
+                TEST_CHECK_INT_EQUAL(err, 0);
+            } else {
+                sentry_value_item_iter_next(it);
+                count++;
+            }
+            i++;
         }
-        count++;
+        TEST_CHECK_INT_EQUAL(sentry_value_get_length(obj), 5);
+        TEST_CHECK_INT_EQUAL(count, 5);
+        sentry_free(it);
     }
-    TEST_CHECK_INT_EQUAL(sentry_value_get_length(val), 0);
-    TEST_CHECK_INT_EQUAL(count, 10);
 
-    sentry_free(it);
+    // Verify if the right items were removed.
+    {
+        sentry_item_iter_t *it = sentry_value_new_item_iter(obj);
+        for (; sentry_value_item_iter_valid(it); sentry_value_item_iter_next(it)) {
+            const char *key = sentry_value_item_iter_get_key(it);
+            int32_t key_idx;
+            sscanf(key, "key%d", &key_idx);
+            TEST_CHECK(key_idx % 2 != 0);
+        }
+        sentry_free(it);
+    }
 
-    sentry_value_decref(val);
+    // Erase the rest of the items.
+    {
+        sentry_item_iter_t *it = sentry_value_new_item_iter(obj);
+        size_t count = 0;
+        TEST_CHECK(it != NULL);
+        while (sentry_value_item_iter_erase(it) == 0) {
+            count++;
+        }
+        TEST_CHECK_INT_EQUAL(sentry_value_get_length(obj), 0);
+        TEST_CHECK_INT_EQUAL(count, 5);
+        sentry_free(it);
+    }
+
+    sentry_value_decref(obj);
 }
 
 SENTRY_TEST(value_object_merge)
