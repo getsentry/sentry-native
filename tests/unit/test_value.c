@@ -290,6 +290,39 @@ SENTRY_TEST(value_object)
     sentry_value_decref(val);
 }
 
+SENTRY_TEST(value_object_iteration)
+{
+    sentry_value_t val = sentry_value_new_object();
+    for (size_t i = 0; i < 10; i++) {
+        char key[100];
+        sprintf(key, "key%d", (int)i);
+        sentry_value_set_by_key(val, key, sentry_value_new_int32((int32_t)i));
+    }
+
+    sentry_item_iter_t *it = sentry_value_new_item_iter(val);
+    TEST_CHECK(it != NULL);
+
+    size_t count = 0;
+    for(; sentry_value_item_iter_valid(it); sentry_value_item_iter_next(it)) {
+        const char *key = sentry_value_item_iter_get_key(it);
+        sentry_value_t value = sentry_value_item_iter_get_value(it);
+
+        TEST_CHECK(key != NULL);
+        TEST_CHECK(sentry_value_get_type(value) == SENTRY_VALUE_TYPE_INT32);
+
+        int32_t expected_value;
+        sscanf(key, "key%d", &expected_value);
+        TEST_CHECK(sentry_value_as_int32(value) == expected_value);
+
+        count++;
+    }
+
+    TEST_CHECK(count == 10);
+
+    sentry_free(it);
+    sentry_value_decref(val);
+}
+
 SENTRY_TEST(value_object_merge)
 {
     sentry_value_t dst = sentry_value_new_object();
