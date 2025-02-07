@@ -245,25 +245,27 @@ SENTRY_API int sentry_value_remove_by_key_n(
     sentry_value_t value, const char *k, size_t k_len);
 
 /**
- * Map items iterator.
+ * Map item iterator.
  *
- * It's used to iterate over the key-value pairs of an object.
+ * It's used to iterate over the key-value pairs of a map.
  */
 struct sentry_item_iter_s;
 typedef struct sentry_item_iter_s sentry_item_iter_t;
 
 /**
- * Creates a new map items iterator.
+ * Creates a new map item iterator.
+ *
+ * Returns NULL if the given value is not a map.
  */
 SENTRY_API sentry_item_iter_t *sentry_value_new_item_iter(sentry_value_t value);
 
 /**
- * Frees an item iterator.
+ * Advances the item iterator to the next item.
  */
 SENTRY_API void sentry_value_item_iter_next(sentry_item_iter_t *item_iter);
 
 /**
- * Returns true if the iterator is valid.
+ * Returns true if the item iterator is valid.
  */
 SENTRY_API int sentry_value_item_iter_valid(sentry_item_iter_t *item_iter);
 
