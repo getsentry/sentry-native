@@ -306,7 +306,8 @@ SENTRY_TEST(value_object_iteration)
         sentry_item_iter_t *it = sentry_value_new_item_iter(obj);
         size_t count = 0;
         TEST_CHECK(it != NULL);
-        for (; sentry_value_item_iter_valid(it); sentry_value_item_iter_next(it)) {
+        for (; sentry_value_item_iter_valid(it);
+            sentry_value_item_iter_next(it)) {
             const char *key = sentry_value_item_iter_get_key(it);
             sentry_value_t value = sentry_value_item_iter_get_value(it);
 
@@ -331,7 +332,8 @@ SENTRY_TEST(value_object_iteration)
         const char *prev_key = "";
         size_t i = 0;
         while (sentry_value_item_iter_valid(it)) {
-            TEST_CHECK(strcmp(prev_key, sentry_value_item_iter_get_key(it)) != 0);
+            TEST_CHECK(
+                strcmp(prev_key, sentry_value_item_iter_get_key(it)) != 0);
             prev_key = sentry_value_item_iter_get_key(it);
             if (i % 2 == 0) {
                 int err = sentry_value_item_iter_erase(it);
@@ -350,7 +352,8 @@ SENTRY_TEST(value_object_iteration)
     // Verify if the right items were removed.
     {
         sentry_item_iter_t *it = sentry_value_new_item_iter(obj);
-        for (; sentry_value_item_iter_valid(it); sentry_value_item_iter_next(it)) {
+        for (; sentry_value_item_iter_valid(it);
+            sentry_value_item_iter_next(it)) {
             const char *key = sentry_value_item_iter_get_key(it);
             int32_t key_idx;
             sscanf(key, "key%d", &key_idx);
