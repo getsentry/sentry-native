@@ -312,24 +312,27 @@ SENTRY_TEST(value_object_iteration)
 
         int32_t expected_value;
         sscanf(key, "key%d", &expected_value);
-        TEST_CHECK(sentry_value_as_int32(value) == expected_value);
+        TEST_CHECK_INT_EQUAL(sentry_value_as_int32(value), expected_value);
 
         count++;
     }
 
-    TEST_CHECK(count == 10);
+    TEST_CHECK_INT_EQUAL(count, 10);
 
     sentry_free(it);
 
     count = 0;
     it = sentry_value_new_item_iter(val);
-    const char *prev_key;
-    while (sentry_value_item_iter_erase(it)) {
-        TEST_CHECK(strcmp(prev_key, sentry_value_item_iter_get_key(it)) != 0);
-        prev_key = sentry_value_item_iter_get_key(it);
+    const char *prev_key = "";
+    while (sentry_value_item_iter_erase(it) == 0) {
+        if (sentry_value_item_iter_valid(it)) {
+            TEST_CHECK(strcmp(prev_key, sentry_value_item_iter_get_key(it)) != 0);
+            prev_key = sentry_value_item_iter_get_key(it);
+        }
+        count++;
     }
-    TEST_CHECK(sentry_value_get_length(val) == 0);
-    TEST_CHECK(count == 0);
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(val), 0);
+    TEST_CHECK_INT_EQUAL(count, 10);
 
     sentry_free(it);
 

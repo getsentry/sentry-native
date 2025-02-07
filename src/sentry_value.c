@@ -778,10 +778,6 @@ sentry_value_get_by_key_owned(sentry_value_t value, const char *k)
     return rv;
 }
 
-/**
- * WIP: Iteration.
- */
-
 struct sentry_item_iter_s {
     size_t *len; // Pointer to length!
     obj_pair_t *pairs;
