@@ -303,7 +303,7 @@ SENTRY_TEST(value_object_iteration)
     TEST_CHECK(it != NULL);
 
     size_t count = 0;
-    for(; sentry_value_item_iter_valid(it); sentry_value_item_iter_next(it)) {
+    for (; sentry_value_item_iter_valid(it); sentry_value_item_iter_next(it)) {
         const char *key = sentry_value_item_iter_get_key(it);
         sentry_value_t value = sentry_value_item_iter_get_value(it);
 
@@ -323,8 +323,8 @@ SENTRY_TEST(value_object_iteration)
 
     count = 0;
     it = sentry_value_new_item_iter(val);
-    const char* prev_key;
-    while(sentry_value_item_iter_erase(it)) {
+    const char *prev_key;
+    while (sentry_value_item_iter_erase(it)) {
         TEST_CHECK(strcmp(prev_key, sentry_value_item_iter_get_key(it)) != 0);
         prev_key = sentry_value_item_iter_get_key(it);
     }
