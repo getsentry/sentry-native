@@ -320,6 +320,19 @@ SENTRY_TEST(value_object_iteration)
     TEST_CHECK(count == 10);
 
     sentry_free(it);
+
+    count = 0;
+    it = sentry_value_new_item_iter(val);
+    const char* prev_key;
+    while(sentry_value_item_iter_erase(it)) {
+        TEST_CHECK(strcmp(prev_key, sentry_value_item_iter_get_key(it)) != 0);
+        prev_key = sentry_value_item_iter_get_key(it);
+    }
+    TEST_CHECK(sentry_value_get_length(val) == 0);
+    TEST_CHECK(count == 0);
+
+    sentry_free(it);
+
     sentry_value_decref(val);
 }
 
