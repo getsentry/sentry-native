@@ -1409,14 +1409,15 @@ SENTRY_API sentry_uuid_t sentry_capture_event(sentry_value_t event);
  * This generates a fatal error event, includes the scope and attachments.
  * If the event isn't dropped by a before-send hook, the minidump is attached
  * and the event is sent.
- * 
+ *
  * Returns a nil `UUID` if capturing the minidump failed and the event-id
  * otherwise. Uploads can fail because capturing is asynchronous, so a non-nil
  * `UUID` is not a delivery guarantee. However, if the minidump is successfully
  * delivered, the ID is guaranteed to be the same as the event in the Sentry UI.
  */
 SENTRY_API sentry_uuid_t sentry_capture_minidump(const char *path);
-SENTRY_API sentry_uuid_t sentry_capture_minidump_n(const char *path, size_t path_len);
+SENTRY_API sentry_uuid_t sentry_capture_minidump_n(
+    const char *path, size_t path_len);
 
 /**
  * Captures an exception to be handled by the backend.
