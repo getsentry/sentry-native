@@ -522,7 +522,7 @@ sentry__prepare_event(const sentry_options_t *options, sentry_value_t event,
 
     SENTRY_DEBUG("adding attachments to envelope");
     for (sentry_attachment_t *attachment = options->attachments; attachment;
-         attachment = attachment->next) {
+        attachment = attachment->next) {
         sentry_envelope_item_t *item = sentry__envelope_add_from_path(
             envelope, attachment->path, "attachment");
         if (!item) {
@@ -1306,14 +1306,13 @@ sentry_capture_minidump_n(const char *path, size_t path_len)
             sentry__capture_envelope(options->transport, envelope);
             event_id = sentry__envelope_get_event_id(envelope);
 
-            if (sentry_uuid_is_nil(&event_id))
-            {
-                SENTRY_WARNF("Minidump was not captured: \"%" SENTRY_PATH_PRI "\"",
+            if (sentry_uuid_is_nil(&event_id)) {
+                SENTRY_WARNF("Minidump was not captured: \"%" SENTRY_PATH_PRI
+                             "\"",
                     dump_path->path);
-            }
-            else
-            {
-                SENTRY_INFOF("Minidump has been captured: \"%" SENTRY_PATH_PRI "\"",
+            } else {
+                SENTRY_INFOF("Minidump has been captured: \"%" SENTRY_PATH_PRI
+                             "\"",
                     dump_path->path);
             }
         }

@@ -33,7 +33,7 @@ void sentry__logger_log(sentry_level_t level, const char *message, ...);
 
 #define SENTRY_WARN(message) sentry__logger_log(SENTRY_LEVEL_WARNING, message)
 
-#define SENTRY_ERRORF(message, ...)                                             \
+#define SENTRY_ERRORF(message, ...)                                            \
     sentry__logger_log(SENTRY_LEVEL_ERROR, message, __VA_ARGS__)
 
 #define SENTRY_ERROR(message) sentry__logger_log(SENTRY_LEVEL_ERROR, message)
