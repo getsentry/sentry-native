@@ -1,10 +1,16 @@
 # Changelog
 
-## 0.7.20
+## Unreleased
 
 **Breaking changes**:
 
 - Return type of `sentry_capture_minidump()` and `sentry_capture_minidump_n()` changed from `void` to `sentry_uuid_t` to retrieve the event-id for a successful minidump upload. ([#1138](https://github.com/getsentry/sentry-native/pull/1138))
+
+**Thank you**:
+
+[zsd4yr](https://github.com/zsd4yr)
+
+## 0.7.20
 
 **Features**:
 
@@ -15,10 +21,6 @@
 
 - Allow older toolchains with assemblers that don't support PAC-stripping instructions on `aarch64` to compile `crashpad`. ([#1125](https://github.com/getsentry/sentry-native/pull/1125), [crashpad#118](https://github.com/getsentry/crashpad/pull/118))
 - Set default `max_spans` to 1000. ([#1132](https://github.com/getsentry/sentry-native/pull/1132))
-
-**Thank you**:
-
-[zsd4yr](https://github.com/zsd4yr)
 
 ## 0.7.19
 
