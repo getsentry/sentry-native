@@ -1293,7 +1293,6 @@ sentry_capture_minidump_n(const char *path, size_t path_len)
 
             if (!item) {
                 sentry_envelope_free(envelope);
-                sentry_value_decref(event);
             } else {
                 sentry__envelope_item_set_header(item, "attachment_type",
                     sentry_value_new_string("event.minidump"));
@@ -1313,6 +1312,7 @@ sentry_capture_minidump_n(const char *path, size_t path_len)
                     dump_path->path);
                 sentry__path_free(dump_path);
 
+                sentry_options_free((sentry_options_t *)options);
                 return event_id;
             }
         }
