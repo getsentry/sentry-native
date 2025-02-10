@@ -1,5 +1,6 @@
 #include "sentry_core.h"
 #include "sentry_database.h"
+#include "sentry_options.h"
 #include "sentry_testsupport.h"
 
 static void
@@ -211,4 +212,40 @@ SENTRY_TEST(crashed_last_run)
     sentry_close();
 
     TEST_CHECK_INT_EQUAL(sentry_get_crashed_last_run(), 0);
+}
+
+SENTRY_TEST(capture_minidump_null_path)
+{
+    // a NULL path will activate the path check at the beginning of the function
+    const sentry_uuid_t event_id = sentry_capture_minidump(NULL);
+    TEST_CHECK(sentry_uuid_is_nil(&event_id));
+}
+
+SENTRY_TEST(capture_minidump_without_sentry_init)
+{
+    // if the path initialization was successful, but the SDK wasn't initialized
+    // capturing will fail at the point of acquiring the active options.
+    const sentry_uuid_t event_id
+        = sentry_capture_minidump("irrelevant_minidump_path");
+    TEST_CHECK(sentry_uuid_is_nil(&event_id));
+}
+
+SENTRY_TEST(capture_minidump_basic)
+{
+    sentry_options_t *options = sentry_options_new();
+    sentry_init(options);
+    bool transport_enabled = false;
+    SENTRY_WITH_OPTIONS (opts) {
+        transport_enabled = opts->transport != NULL;
+    }
+
+    const sentry_uuid_t event_id
+        = sentry_capture_minidump("../fixtures/minidump.dmp");
+    if (transport_enabled) {
+        TEST_CHECK(!sentry_uuid_is_nil(&event_id));
+    } else {
+        TEST_CHECK(sentry_uuid_is_nil(&event_id));
+    }
+
+    sentry_close();
 }
