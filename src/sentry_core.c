@@ -1289,7 +1289,9 @@ sentry_capture_minidump_n(const char *path, size_t path_len)
             // `event.minidump`
             sentry_envelope_item_t *item = sentry__envelope_add_from_path(
                 envelope, dump_path, "attachment");
-            if (item) {
+            if (!item) {
+                sentry_envelope_free(envelope);
+            } else {
                 sentry__envelope_item_set_header(item, "attachment_type",
                     sentry_value_new_string("event.minidump"));
 
