@@ -1,6 +1,6 @@
 #include "sentry_core.h"
 #include "sentry_database.h"
-#include "sentry_options.h"
+#include "sentry_string.h"
 #include "sentry_testsupport.h"
 
 static void
@@ -225,7 +225,13 @@ SENTRY_TEST(capture_minidump_basic)
     sentry_path_t *minidump_path
         = sentry__path_join_str(dir, minidump_rel_path);
 
+#if defined(SENTRY_PLATFORM_WINDOWS)
+    char *path_str = sentry__string_from_wstr(minidump_path->path);
+    const sentry_uuid_t event_id = sentry_capture_minidump(path_str);
+    sentry_free(path_str);
+#else
     const sentry_uuid_t event_id = sentry_capture_minidump(minidump_path->path);
+#endif
     TEST_CHECK(!sentry_uuid_is_nil(&event_id));
 
     sentry__path_free(minidump_path);
