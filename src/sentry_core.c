@@ -1275,22 +1275,25 @@ sentry_capture_minidump_n(const char *path, size_t path_len)
     SENTRY_DEBUGF(
         "Capturing minidump \"%" SENTRY_PATH_PRI "\"", dump_path->path);
 
-    sentry_value_t event = sentry_value_new_event();
-    sentry_value_set_by_key(
-        event, "level", sentry__value_new_level(SENTRY_LEVEL_FATAL));
-
     SENTRY_WITH_OPTIONS (options) {
         sentry_uuid_t event_id;
+        sentry_value_t event = sentry_value_new_event();
+        sentry_value_set_by_key(
+            event, "level", sentry__value_new_level(SENTRY_LEVEL_FATAL));
         sentry_envelope_t *envelope
             = sentry__prepare_event(options, event, &event_id, true);
 
-        if (envelope && !sentry_uuid_is_nil(&event_id)) {
+        if (!envelope || sentry_uuid_is_nil(&event_id)) {
+            sentry_value_decref(event);
+        } else {
             // the minidump is added as an attachment, with type
             // `event.minidump`
             sentry_envelope_item_t *item = sentry__envelope_add_from_path(
                 envelope, dump_path, "attachment");
+
             if (!item) {
                 sentry_envelope_free(envelope);
+                sentry_value_decref(event);
             } else {
                 sentry__envelope_item_set_header(item, "attachment_type",
                     sentry_value_new_string("event.minidump"));
@@ -1317,7 +1320,6 @@ sentry_capture_minidump_n(const char *path, size_t path_len)
 
     SENTRY_WARNF(
         "Minidump was not captured: \"%" SENTRY_PATH_PRI "\"", dump_path->path);
-    sentry_value_decref(event);
     sentry__path_free(dump_path);
 
     return sentry_uuid_nil();
