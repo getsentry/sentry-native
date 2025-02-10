@@ -1,5 +1,6 @@
 #include "sentry_core.h"
 #include "sentry_database.h"
+#include "sentry_string.h"
 #include "sentry_testsupport.h"
 
 static void
@@ -211,4 +212,66 @@ SENTRY_TEST(crashed_last_run)
     sentry_close();
 
     TEST_CHECK_INT_EQUAL(sentry_get_crashed_last_run(), 0);
+}
+
+SENTRY_TEST(capture_minidump_basic)
+{
+#if defined(SENTRY_PLATFORM_ANDROID)
+    SKIP_TEST();
+#else
+    sentry_options_t *options = sentry_options_new();
+    sentry_init(options);
+
+    const char *minidump_rel_path = "../fixtures/minidump.dmp";
+    sentry_path_t *path = sentry__path_from_str(__FILE__);
+    sentry_path_t *dir = sentry__path_dir(path);
+    sentry_path_t *minidump_path
+        = sentry__path_join_str(dir, minidump_rel_path);
+
+#    if defined(SENTRY_PLATFORM_WINDOWS)
+    char *path_str = sentry__string_from_wstr(minidump_path->path);
+    const sentry_uuid_t event_id = sentry_capture_minidump(path_str);
+    sentry_free(path_str);
+#    else
+    const sentry_uuid_t event_id = sentry_capture_minidump(minidump_path->path);
+#    endif
+    TEST_CHECK(!sentry_uuid_is_nil(&event_id));
+
+    sentry__path_free(minidump_path);
+    sentry__path_free(dir);
+    sentry__path_free(path);
+
+    sentry_close();
+#endif
+}
+
+SENTRY_TEST(capture_minidump_null_path)
+{
+    // a NULL path will activate the path check at the beginning of the function
+    const sentry_uuid_t event_id = sentry_capture_minidump(NULL);
+    TEST_CHECK(sentry_uuid_is_nil(&event_id));
+}
+
+SENTRY_TEST(capture_minidump_without_sentry_init)
+{
+    // if the path initialization was successful, but the SDK wasn't initialized
+    // capturing will fail at the point of acquiring the active options.
+    const sentry_uuid_t event_id
+        = sentry_capture_minidump("irrelevant_minidump_path");
+    TEST_CHECK(sentry_uuid_is_nil(&event_id));
+}
+
+SENTRY_TEST(capture_minidump_invalid_path)
+{
+    sentry_options_t *options = sentry_options_new();
+    sentry_init(options);
+
+    // here the initialization is successful, but we provide an invalid minidump
+    // path which should prevent capture locally and return a nil UUID since we
+    // cannot create an attachment envelope-item for the minidump file.
+    const sentry_uuid_t event_id
+        = sentry_capture_minidump("some_invalid_minidump_path");
+    TEST_CHECK(sentry_uuid_is_nil(&event_id));
+
+    sentry_close();
 }

@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+**Breaking changes**:
+
+- Return type of `sentry_capture_minidump()` and `sentry_capture_minidump_n()` changed from `void` to `sentry_uuid_t` to retrieve the event-id for a successful minidump upload. ([#1138](https://github.com/getsentry/sentry-native/pull/1138))
+  
+**Fixes**:
+
+- Ensure that `sentry_capture_minidump()` fails if the provided minidump path cannot be attached, instead of sending a crash event without minidump. ([#1138](https://github.com/getsentry/sentry-native/pull/1138))
+
+**Thank you**:
+
+[zsd4yr](https://github.com/zsd4yr)
+
 ## 0.7.20
 
 **Features**:
