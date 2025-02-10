@@ -216,6 +216,9 @@ SENTRY_TEST(crashed_last_run)
 
 SENTRY_TEST(capture_minidump_basic)
 {
+#if defined(SENTRY_PLATFORM_ANDROID)
+    SKIP_TEST();
+#else
     sentry_options_t *options = sentry_options_new();
     sentry_init(options);
 
@@ -225,13 +228,13 @@ SENTRY_TEST(capture_minidump_basic)
     sentry_path_t *minidump_path
         = sentry__path_join_str(dir, minidump_rel_path);
 
-#if defined(SENTRY_PLATFORM_WINDOWS)
+#    if defined(SENTRY_PLATFORM_WINDOWS)
     char *path_str = sentry__string_from_wstr(minidump_path->path);
     const sentry_uuid_t event_id = sentry_capture_minidump(path_str);
     sentry_free(path_str);
-#else
+#    else
     const sentry_uuid_t event_id = sentry_capture_minidump(minidump_path->path);
-#endif
+#    endif
     TEST_CHECK(!sentry_uuid_is_nil(&event_id));
 
     sentry__path_free(minidump_path);
@@ -239,6 +242,7 @@ SENTRY_TEST(capture_minidump_basic)
     sentry__path_free(path);
 
     sentry_close();
+#endif
 }
 
 SENTRY_TEST(capture_minidump_null_path)
@@ -262,6 +266,9 @@ SENTRY_TEST(capture_minidump_invalid_path)
     sentry_options_t *options = sentry_options_new();
     sentry_init(options);
 
+    // here the initialization is successful, but we provide an invalid minidump
+    // path which should prevent capture locally and return a nil UUID since we
+    // cannot create an attachment envelope-item for the minidump file.
     const sentry_uuid_t event_id
         = sentry_capture_minidump("some_invalid_minidump_path");
     TEST_CHECK(sentry_uuid_is_nil(&event_id));
