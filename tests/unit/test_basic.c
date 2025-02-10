@@ -214,6 +214,27 @@ SENTRY_TEST(crashed_last_run)
     TEST_CHECK_INT_EQUAL(sentry_get_crashed_last_run(), 0);
 }
 
+SENTRY_TEST(capture_minidump_basic)
+{
+    sentry_options_t *options = sentry_options_new();
+    sentry_init(options);
+
+    const char *minidump_rel_path = "../fixtures/minidump.dmp";
+    sentry_path_t *path = sentry__path_from_str(__FILE__);
+    sentry_path_t *dir = sentry__path_dir(path);
+    sentry_path_t *minidump_path
+        = sentry__path_join_str(dir, minidump_rel_path);
+
+    const sentry_uuid_t event_id = sentry_capture_minidump(minidump_path->path);
+    TEST_CHECK(!sentry_uuid_is_nil(&event_id));
+
+    sentry__path_free(minidump_path);
+    sentry__path_free(dir);
+    sentry__path_free(path);
+
+    sentry_close();
+}
+
 SENTRY_TEST(capture_minidump_null_path)
 {
     // a NULL path will activate the path check at the beginning of the function
@@ -230,22 +251,14 @@ SENTRY_TEST(capture_minidump_without_sentry_init)
     TEST_CHECK(sentry_uuid_is_nil(&event_id));
 }
 
-SENTRY_TEST(capture_minidump_basic)
+SENTRY_TEST(capture_minidump_invalid_path)
 {
     sentry_options_t *options = sentry_options_new();
     sentry_init(options);
-    bool transport_enabled = false;
-    SENTRY_WITH_OPTIONS (opts) {
-        transport_enabled = opts->transport != NULL;
-    }
 
     const sentry_uuid_t event_id
-        = sentry_capture_minidump("../fixtures/minidump.dmp");
-    if (transport_enabled) {
-        TEST_CHECK(!sentry_uuid_is_nil(&event_id));
-    } else {
-        TEST_CHECK(sentry_uuid_is_nil(&event_id));
-    }
+        = sentry_capture_minidump("some_invalid_minidump_path");
+    TEST_CHECK(sentry_uuid_is_nil(&event_id));
 
     sentry_close();
 }
