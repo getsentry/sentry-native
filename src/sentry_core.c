@@ -1317,6 +1317,7 @@ sentry_capture_minidump_n(const char *path, size_t path_len)
 
     SENTRY_WARNF(
         "Minidump was not captured: \"%" SENTRY_PATH_PRI "\"", dump_path->path);
+    sentry_value_decref(event);
     sentry__path_free(dump_path);
 
     return sentry_uuid_nil();
