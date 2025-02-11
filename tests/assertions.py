@@ -345,3 +345,15 @@ def assert_gzip_file_header(output):
 
 def assert_gzip_content_encoding(req):
     assert req.content_encoding == "gzip"
+
+
+def assert_no_proxy_request(stdout):
+    assert "POST" not in stdout
+
+
+def assert_failed_proxy_auth_request(stdout):
+    assert (
+        "POST" in stdout
+        and "407 Proxy Authentication Required" in stdout
+        and "200 OK" not in stdout
+    )

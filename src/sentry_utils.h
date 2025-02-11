@@ -35,8 +35,10 @@ typedef struct {
 /**
  * Parse the given `url` into the pre-allocated `url_out` parameter.
  * Returns 0 on success.
+ * `requires_path` flags whether the url needs a / after the host(:port) section
  */
-int sentry__url_parse(sentry_url_t *url_out, const char *url);
+int sentry__url_parse(
+    sentry_url_t *url_out, const char *url, bool requires_path);
 
 /**
  * This will free all the internal members of `url`, but not `url` itself, as

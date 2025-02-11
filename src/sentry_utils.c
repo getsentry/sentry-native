@@ -33,7 +33,7 @@ is_scheme_valid(const char *scheme_name)
 }
 
 int
-sentry__url_parse(sentry_url_t *url_out, const char *url)
+sentry__url_parse(sentry_url_t *url_out, const char *url, bool requires_path)
 {
     bool has_username;
     int result = 0;
@@ -145,8 +145,20 @@ sentry__url_parse(sentry_url_t *url_out, const char *url)
         ptr = tmp;
     }
 
+    if (url_out->port == 0) {
+        if (sentry__string_eq(url_out->scheme, "https")) {
+            url_out->port = 443;
+        } else if (sentry__string_eq(url_out->scheme, "http")) {
+            url_out->port = 80;
+        }
+    }
+
     if (!*ptr) {
-        goto error;
+        if (requires_path) {
+            goto error;
+        }
+        result = 0;
+        goto cleanup;
     }
 
     /* end of netloc */
@@ -175,14 +187,6 @@ sentry__url_parse(sentry_url_t *url_out, const char *url)
         tmp = ptr;
         SKIP_WHILE_NOT(tmp, 0);
         url_out->fragment = sentry__string_clone_n_unchecked(ptr, tmp - ptr);
-    }
-
-    if (url_out->port == 0) {
-        if (sentry__string_eq(url_out->scheme, "https")) {
-            url_out->port = 443;
-        } else if (sentry__string_eq(url_out->scheme, "http")) {
-            url_out->port = 80;
-        }
     }
 
     result = 0;
@@ -228,7 +232,8 @@ sentry__dsn_new_n(const char *raw_dsn, size_t raw_dsn_len)
     dsn->refcount = 1;
 
     dsn->raw = sentry__string_clone_n(raw_dsn, raw_dsn_len);
-    if (!dsn->raw || !dsn->raw[0] || sentry__url_parse(&url, dsn->raw) != 0) {
+    if (!dsn->raw || !dsn->raw[0]
+        || sentry__url_parse(&url, dsn->raw, true) != 0) {
         goto exit;
     }
 
