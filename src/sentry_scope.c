@@ -22,7 +22,17 @@
 
 static bool g_scope_initialized = false;
 static sentry_scope_t g_scope = { 0 };
+#ifdef SENTRY__MUTEX_INIT_DYN
+static sentry_mutex_t g_lock;
+static pthread_once_t g_lock_init_once = PTHREAD_ONCE_INIT;
+static void
+init_g_lock(void)
+{
+    sentry__mutex_init(&g_lock);
+}
+#else
 static sentry_mutex_t g_lock = SENTRY__MUTEX_INIT;
+#endif
 
 static sentry_value_t
 get_client_sdk(void)
@@ -87,6 +97,9 @@ get_scope(void)
 void
 sentry__scope_cleanup(void)
 {
+#ifdef SENTRY__MUTEX_INIT_DYN
+    pthread_once(&g_lock_init_once, init_g_lock);
+#endif
     sentry__mutex_lock(&g_lock);
     if (g_scope_initialized) {
         g_scope_initialized = false;
@@ -107,6 +120,9 @@ sentry__scope_cleanup(void)
 sentry_scope_t *
 sentry__scope_lock(void)
 {
+#ifdef SENTRY__MUTEX_INIT_DYN
+    pthread_once(&g_lock_init_once, init_g_lock);
+#endif
     sentry__mutex_lock(&g_lock);
     return get_scope();
 }
@@ -114,6 +130,9 @@ sentry__scope_lock(void)
 void
 sentry__scope_unlock(void)
 {
+#ifdef SENTRY__MUTEX_INIT_DYN
+    pthread_once(&g_lock_init_once, init_g_lock);
+#endif
     sentry__mutex_unlock(&g_lock);
 }
 
