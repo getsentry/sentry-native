@@ -24,14 +24,26 @@
 #endif
 
 static sentry_options_t *g_options = NULL;
+#ifdef SENTRY__MUTEX_INIT_DYN
+static sentry_mutex_t g_options_lock;
+static pthread_once_t g_options_lock_init_once = PTHREAD_ONCE_INIT;
+static void
+init_g_options_lock(void)
+{
+    sentry__mutex_init(&g_options_lock);
+}
+#else
 static sentry_mutex_t g_options_lock = SENTRY__MUTEX_INIT;
-
+#endif
 /// see sentry_get_crashed_last_run() for the possible values
 static int g_last_crash = -1;
 
 const sentry_options_t *
 sentry__options_getref(void)
 {
+#ifdef SENTRY__MUTEX_INIT_DYN
+    pthread_once(&g_options_lock_init_once, init_g_options_lock);
+#endif
     sentry_options_t *options;
     sentry__mutex_lock(&g_options_lock);
     options = sentry__options_incref(g_options);
@@ -42,6 +54,9 @@ sentry__options_getref(void)
 sentry_options_t *
 sentry__options_lock(void)
 {
+#ifdef SENTRY__MUTEX_INIT_DYN
+    pthread_once(&g_options_lock_init_once, init_g_options_lock);
+#endif
     sentry__mutex_lock(&g_options_lock);
     return g_options;
 }
@@ -49,6 +64,9 @@ sentry__options_lock(void)
 void
 sentry__options_unlock(void)
 {
+#ifdef SENTRY__MUTEX_INIT_DYN
+    pthread_once(&g_options_lock_init_once, init_g_options_lock);
+#endif
     sentry__mutex_unlock(&g_options_lock);
 }
 
@@ -88,6 +106,9 @@ sentry__should_skip_upload(void)
 int
 sentry_init(sentry_options_t *options)
 {
+#ifdef SENTRY__MUTEX_INIT_DYN
+    pthread_once(&g_options_lock_init_once, init_g_options_lock);
+#endif
     // this function is to be called only once, so we do not allow more than one
     // caller
     sentry__mutex_lock(&g_options_lock);
@@ -226,6 +247,9 @@ sentry_flush(uint64_t timeout)
 int
 sentry_close(void)
 {
+#ifdef SENTRY__MUTEX_INIT_DYN
+    pthread_once(&g_options_lock_init_once, init_g_options_lock);
+#endif
     // this function is to be called only once, so we do not allow more than one
     // caller
     sentry__mutex_lock(&g_options_lock);
