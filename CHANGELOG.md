@@ -10,6 +10,7 @@
 
 - Ensure that `sentry_capture_minidump()` fails if the provided minidump path cannot be attached, instead of sending a crash event without minidump. ([#1138](https://github.com/getsentry/sentry-native/pull/1138))
 - Fix Xbox OS name being reported incorrectly ([#1148](https://github.com/getsentry/sentry-native/pull/1148))
+- Provide a mutex-initializer on platforms that have no static pthread initializer for recursive mutexes. ([#1113](https://github.com/getsentry/sentry-native/pull/1113))
 
 **Thank you**:
 
@@ -41,10 +42,6 @@
 - Add option to set debug log level. ([#1107](https://github.com/getsentry/sentry-native/pull/1107))
 - Add `traces_sampler` ([#1108](https://github.com/getsentry/sentry-native/pull/1108))
 - Provide support for C++17 compilers when using the `crashpad` backend. ([#1110](https://github.com/getsentry/sentry-native/pull/1110), [crashpad#116](https://github.com/getsentry/crashpad/pull/116), [mini_chromium#1](https://github.com/getsentry/mini_chromium/pull/1))
-
-**Fixes**:
-
-- Provide a mutex-initializer on platforms that have no static pthread initializer for recursive mutexes. ([#1113](https://github.com/getsentry/sentry-native/pull/1113))
 
 ## 0.7.17
 
