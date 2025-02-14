@@ -1,0 +1,7 @@
+macro(sentry_link_pthread)
+    option(SENTRY_LINK_PTHREAD "Link platform threads library" ON)
+    if(SENTRY_LINK_PTHREAD)
+        set(THREADS_PREFER_PTHREAD_FLAG ON)
+        find_package(Threads REQUIRED)
+    endif()
+endmacro()
