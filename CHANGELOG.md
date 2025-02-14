@@ -2,7 +2,22 @@
 
 ## Unreleased
 
+**Breaking changes**:
+
+- Return type of `sentry_capture_minidump()` and `sentry_capture_minidump_n()` changed from `void` to `sentry_uuid_t` to retrieve the event-id for a successful minidump upload. ([#1138](https://github.com/getsentry/sentry-native/pull/1138))
+
+**Features**:
+
 - Add object item iterators. ([#1143](https://github.com/getsentry/sentry-native/pull/1143))
+
+**Fixes**:
+
+- Ensure that `sentry_capture_minidump()` fails if the provided minidump path cannot be attached, instead of sending a crash event without minidump. ([#1138](https://github.com/getsentry/sentry-native/pull/1138))
+- Fix Xbox OS name being reported incorrectly ([#1148](https://github.com/getsentry/sentry-native/pull/1148))
+
+**Thank you**:
+
+[zsd4yr](https://github.com/zsd4yr)
 
 ## 0.7.20
 

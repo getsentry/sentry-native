@@ -117,7 +117,7 @@ sentry__get_os_context(void)
 #    if defined(_GAMING_XBOX_SCARLETT)
 #        pragma warning(push)
 #        pragma warning(disable : 4996)
-    sentry_value_set_by_key(os, "name", sentry_value_new_string("Windows"));
+    sentry_value_set_by_key(os, "name", sentry_value_new_string("Xbox"));
     OSVERSIONINFO os_ver = { 0 };
     char buf[128];
     buf[0] = 0;
