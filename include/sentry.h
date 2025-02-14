@@ -245,17 +245,17 @@ SENTRY_API int sentry_value_remove_by_key_n(
     sentry_value_t value, const char *k, size_t k_len);
 
 /**
- * Map item iterator.
+ * Object item iterator.
  *
- * It's used to iterate over the key-value pairs of a map.
+ * It's used to iterate over the key-value pairs of an object.
  */
 struct sentry_item_iter_s;
 typedef struct sentry_item_iter_s sentry_item_iter_t;
 
 /**
- * Creates a new map item iterator.
+ * Creates a new object item iterator.
  *
- * Returns NULL if the given value is not a map.
+ * Returns `NULL` if the given value is not an object.
  */
 SENTRY_API sentry_item_iter_t *sentry_value_new_item_iter(sentry_value_t value);
 
@@ -270,13 +270,17 @@ SENTRY_API void sentry_value_item_iter_next(sentry_item_iter_t *item_iter);
 SENTRY_API int sentry_value_item_iter_valid(sentry_item_iter_t *item_iter);
 
 /**
- * Returns the key the current item.
+ * Returns the key to the current item.
+ *
+ * Returns a `NULL` pointer if the iterator is invalid.
  */
 SENTRY_API const char *sentry_value_item_iter_get_key(
     sentry_item_iter_t *item_iter);
 
 /**
- * Returns the value the current item.
+ * Returns the value of the current item.
+ *
+ * Returns a null value if the iterator is invalid.
  */
 SENTRY_API sentry_value_t sentry_value_item_iter_get_value(
     sentry_item_iter_t *item_iter);
@@ -284,7 +288,7 @@ SENTRY_API sentry_value_t sentry_value_item_iter_get_value(
 /**
  * Erases the current item and advances the iterator to the next item.
  *
- * Returns false if the iterator is exhausted or if the map is frozen.
+ * Returns 0 if the iterator is exhausted or the object is frozen.
  */
 SENTRY_API int sentry_value_item_iter_erase(sentry_item_iter_t *item_iter);
 
