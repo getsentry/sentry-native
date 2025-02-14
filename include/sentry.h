@@ -288,7 +288,7 @@ SENTRY_API sentry_value_t sentry_value_item_iter_get_value(
 /**
  * Erases the current item and advances the iterator to the next item.
  *
- * Returns 0 if the iterator is exhausted or the object is frozen.
+ * Returns 1 if the iterator is exhausted or the object is frozen.
  */
 SENTRY_API int sentry_value_item_iter_erase(sentry_item_iter_t *item_iter);
 
