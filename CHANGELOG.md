@@ -9,6 +9,7 @@
 **Features**:
 
 - Ensure support for `http_proxy` and `https_proxy` environment variables across all transports. ([#1111](https://github.com/getsentry/sentry-native/pull/1111))
+- Add option for `Crashpad` to delay shutdown until upload thread completes ([#1153](https://github.com/getsentry/sentry-native/pull/1153))
   
 **Fixes**:
 
