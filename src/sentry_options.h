@@ -49,6 +49,7 @@ typedef struct sentry_options_s {
     bool require_user_consent;
     bool symbolize_stacktraces;
     bool system_crash_reporter_enabled;
+    bool on_crash_wait_for_upload;
 
     sentry_attachment_t *attachments;
     sentry_run_t *run;
