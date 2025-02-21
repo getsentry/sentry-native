@@ -29,6 +29,6 @@ targets:
   - name: symbol-collector
     includeNames: /libsentry(-android)?\.so/
     batchType: android
-    bundleIdPrefix: sentry-unreal-android-ndk-
+    bundleIdPrefix: sentry-native-ndk-
 requireNames:
   - /^sentry-native.zip$/
