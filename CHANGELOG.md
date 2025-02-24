@@ -5,6 +5,10 @@
 **Breaking changes**:
 
 - Return type of `sentry_capture_minidump()` and `sentry_capture_minidump_n()` changed from `void` to `sentry_uuid_t` to retrieve the event-id for a successful minidump upload. ([#1138](https://github.com/getsentry/sentry-native/pull/1138))
+
+**Features**:
+
+- Ensure support for `http_proxy` and `https_proxy` environment variables across all transports. ([#1111](https://github.com/getsentry/sentry-native/pull/1111))
   
 **Fixes**:
 
@@ -20,7 +24,7 @@
 
 **Features**:
 
-- Auto-detect the latest GDK and Windows SDK for the XBox build. ([#1124](https://github.com/getsentry/sentry-native/pull/1124))
+- Auto-detect the latest GDK and Windows SDK for the Xbox build. ([#1124](https://github.com/getsentry/sentry-native/pull/1124))
 - Enable debug-option by default when running in a debug-build. ([#1128](https://github.com/getsentry/sentry-native/pull/1128))
 
 **Fixes**:
@@ -40,7 +44,7 @@
 
 - Add support for Xbox Series X/S. ([#1100](https://github.com/getsentry/sentry-native/pull/1100))
 - Add option to set debug log level. ([#1107](https://github.com/getsentry/sentry-native/pull/1107))
-- Add `traces_sampler` ([#1108](https://github.com/getsentry/sentry-native/pull/1108))
+- Add `traces_sampler`. ([#1108](https://github.com/getsentry/sentry-native/pull/1108))
 - Provide support for C++17 compilers when using the `crashpad` backend. ([#1110](https://github.com/getsentry/sentry-native/pull/1110), [crashpad#116](https://github.com/getsentry/crashpad/pull/116), [mini_chromium#1](https://github.com/getsentry/mini_chromium/pull/1))
 
 ## 0.7.17
