@@ -157,6 +157,10 @@ The example currently supports the following commands:
 - `capture-transaction`: Captures a transaction.
 - `traces-sampler`: Installs a traces sampler callback function when used alongside `capture-transaction`.
 
+ 
+Only on Linux using crashpad:
+- `crashpad-wait-for-upload`: Couples application shutdown to finishing the upload thread. 
+
 Only on Windows using crashpad with its WER handler module:
 
 - `fastfail`: Crashes the application using the `__fastfail` intrinsic directly, thus by-passing SEH.
