@@ -1420,12 +1420,21 @@ SENTRY_API sentry_uuid_t sentry_capture_minidump_n(
     const char *path, size_t path_len);
 
 /**
- * Captures an exception to be handled by the backend.
+ * Captures a system-native exception that you retrieve when you manually handle
+ * `POSIX` signals or `SEH` exceptions and want to keep using that handling
+ * instead of the top-level handlers in our backends. The exception is still
+ * processed as a sentry event inside the SDK, including applying scope metadata
+ * and invoking hooks.
+ *
+ * The passed in `sentry_ucontext_t` must be filled with the OS-specific
+ * exception data (as specified in the struct definition) that you retrieve
+ * from your handler.
  *
  * This is safe to be called from a crashing thread and may not return.
  *
  * Note: The `crashpad` client currently supports this only on Windows. `inproc`
- *       and `breakpad` support it on all platforms.
+ *       and `breakpad` supports it on all platforms (on macOS, the `uctx`
+ *       argument is ignored).
  */
 SENTRY_EXPERIMENTAL_API void sentry_handle_exception(
     const sentry_ucontext_t *uctx);
