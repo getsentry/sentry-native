@@ -39,17 +39,17 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: Linux (GCC 9, 32-bit)
+          - name: Linux (GCC 9.5.0, 32-bit)
             os: ubuntu-22.04
             CC: gcc-9
             CXX: g++-9
             TEST_X86: 1
-          - name: Linux (GCC 9.4.0)
+          - name: Linux (GCC 9.5.0)
             os: ubuntu-22.04
             CC: gcc-9
             CXX: g++-9
             # ERROR_ON_WARNINGS: 1
-          - name: Linux (GCC 12)
+          - name: Linux (GCC 12.3.0)
             os: ubuntu-24.04
             CC: gcc-12
             CXX: g++-12
@@ -69,7 +69,7 @@ jobs:
             CXX: clang++-15
             ERROR_ON_WARNINGS: 1
             RUN_ANALYZER: kcov
-          - name: Linux (gcc 12 + code-checker + valgrind)
+          - name: Linux (GCC 13.3.0 + code-checker + valgrind)
             os: ubuntu-24.04
             RUN_ANALYZER: code-checker,valgrind
           - name: macOS 14 (xcode llvm)
@@ -138,10 +138,6 @@ jobs:
         with:
           python-version: "3.11"
           cache: "pip"
-
-      - name: GCC Version check
-        if: ${{ runner.os == 'Linux' }}
-        run: gcc --version
 
       - name: Installing Linux Dependencies
         if: ${{ runner.os == 'Linux' && matrix.os != 'ubuntu-22.04' && !env['TEST_X86'] }}
