@@ -1434,7 +1434,7 @@ SENTRY_API sentry_uuid_t sentry_capture_minidump_n(
  *
  * Note: The `crashpad` client currently supports this only on Windows. `inproc`
  *       and `breakpad` supports it on all platforms (on macOS, the `uctx`
- *       argument is ignored).
+ *       argument is ignored when using the `breakpad` backend).
  */
 SENTRY_EXPERIMENTAL_API void sentry_handle_exception(
     const sentry_ucontext_t *uctx);
