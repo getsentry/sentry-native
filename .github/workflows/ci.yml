@@ -143,7 +143,7 @@ jobs:
         if: ${{ runner.os == 'Linux' && matrix.os != 'ubuntu-22.04' && !env['TEST_X86'] }}
         run: |
           sudo apt update
-          sudo apt install cmake clang-14 clang-tools llvm g++-12 valgrind zlib1g-dev libcurl4-openssl-dev
+          sudo apt install cmake clang-15 clang-tools llvm g++-12 valgrind zlib1g-dev libcurl4-openssl-dev
           # Install kcov from source
           sudo apt-get install binutils-dev libssl-dev libelf-dev libstdc++-12-dev libdw-dev libiberty-dev
           git clone https://github.com/SimonKagstrom/kcov.git
