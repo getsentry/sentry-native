@@ -39,10 +39,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: Linux (GCC 7, 32-bit)
+          - name: Linux (GCC 9, 32-bit)
             os: ubuntu-22.04
-            CC: gcc-7
-            CXX: g++-7
+            CC: gcc-9
+            CXX: g++-9
             TEST_X86: 1
           - name: Linux (GCC 9.4.0)
             os: ubuntu-22.04
@@ -156,7 +156,7 @@ jobs:
         run: |
           sudo dpkg --add-architecture i386
           sudo apt update
-          sudo apt install cmake gcc-multilib g++-multilib zlib1g-dev:i386 libssl-dev:i386 libcurl4-openssl-dev:i386
+          sudo apt install cmake gcc-9-multilib g++-9-multilib zlib1g-dev:i386 libssl-dev:i386 libcurl4-openssl-dev:i386
 
         # https://github.com/actions/runner-images/issues/9491
       - name: Decrease vm.mmap_rnd_bit to prevent ASLR ASAN issues
