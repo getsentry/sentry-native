@@ -40,17 +40,17 @@ jobs:
       matrix:
         include:
           - name: Linux (GCC 7, 32-bit)
-            os: ubuntu-20.04
+            os: ubuntu-22.04
             CC: gcc-7
             CXX: g++-7
             TEST_X86: 1
           - name: Linux (GCC 9.4.0)
-            os: ubuntu-20.04
-            CC: gcc
-            CXX: g++
+            os: ubuntu-22.04
+            CC: gcc-9
+            CXX: g++-9
             # ERROR_ON_WARNINGS: 1
           - name: Linux (GCC 12)
-            os: ubuntu-22.04
+            os: ubuntu-24.04
             CC: gcc-12
             CXX: g++-12
             # ERROR_ON_WARNINGS: 1
@@ -58,19 +58,19 @@ jobs:
             # currently, and is not stable enough to activate.
             # RUN_ANALYZER: gcc
           - name: Linux (clang 15 + asan + llvm-cov)
-            os: ubuntu-22.04
+            os: ubuntu-24.04
             CC: clang-15
             CXX: clang++-15
             ERROR_ON_WARNINGS: 1
             RUN_ANALYZER: asan,llvm-cov
           - name: Linux (clang 15 + kcov)
-            os: ubuntu-22.04
+            os: ubuntu-24.04
             CC: clang-15
             CXX: clang++-15
             ERROR_ON_WARNINGS: 1
             RUN_ANALYZER: kcov
           - name: Linux (gcc 12 + code-checker + valgrind)
-            os: ubuntu-22.04
+            os: ubuntu-24.04
             RUN_ANALYZER: code-checker,valgrind
           - name: macOS 14 (xcode llvm)
             os: macos-14
@@ -140,13 +140,13 @@ jobs:
           cache: "pip"
 
       - name: Installing Linux Dependencies
-        if: ${{ runner.os == 'Linux' && matrix.os != 'ubuntu-20.04' && !env['TEST_X86'] }}
+        if: ${{ runner.os == 'Linux' && matrix.os != 'ubuntu-22.04' && !env['TEST_X86'] }}
         run: |
           sudo apt update
           sudo apt install cmake clang-14 clang-tools llvm kcov g++-12 valgrind zlib1g-dev libcurl4-openssl-dev
 
       - name: Installing Linux GCC 9.4.0 Dependencies
-        if: ${{ runner.os == 'Linux' && matrix.os == 'ubuntu-20.04' && !env['TEST_X86'] }}
+        if: ${{ runner.os == 'Linux' && matrix.os == 'ubuntu-22.04' && !env['TEST_X86'] }}
         run: |
           sudo apt update
           sudo apt install cmake clang-tools llvm kcov g++ valgrind zlib1g-dev libcurl4-openssl-dev
