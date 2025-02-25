@@ -12,17 +12,24 @@ import socket
 
 sourcedir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
-
 # https://docs.pytest.org/en/latest/assert.html#assert-details
 pytest.register_assert_rewrite("tests.assertions")
+from tests.assertions import assert_no_proxy_request
 
 
-def make_dsn(httpserver, auth="uiaeosnrtdy", id=123456):
+def make_dsn(httpserver, auth="uiaeosnrtdy", id=123456, proxy_host=False):
     url = urllib.parse.urlsplit(httpserver.url_for("/{}".format(id)))
     # We explicitly use `127.0.0.1` here, because on Windows, `localhost` will
     # first try `::1` (the ipv6 loopback), retry a couple times and give up
     # after a timeout of 2 seconds, falling back to the ipv4 loopback instead.
     host = url.netloc.replace("localhost", "127.0.0.1")
+    if proxy_host:
+        # To avoid bypassing the proxy for requests to localhost, we need to add this mapping
+        # to the hosts file & make the DSN using this alternate hostname
+        # see https://learn.microsoft.com/en-us/windows/win32/wininet/enabling-internet-functionality#listing-the-proxy-bypass
+        host = host.replace("127.0.0.1", "sentry.native.test")
+        _check_sentry_native_resolves_to_localhost()
+
     return urllib.parse.urlunsplit(
         (
             url.scheme,
@@ -34,12 +41,12 @@ def make_dsn(httpserver, auth="uiaeosnrtdy", id=123456):
     )
 
 
-def is_proxy_running(host, port):
+def _check_sentry_native_resolves_to_localhost():
     try:
-        with socket.create_connection((host, port), timeout=1):
-            return True
-    except ConnectionRefusedError:
-        return False
+        resolved_ip = socket.gethostbyname("sentry.native.test")
+        assert resolved_ip == "127.0.0.1"
+    except socket.gaierror:
+        pytest.skip("sentry.native.test does not resolve to localhost")
 
 
 def run(cwd, exe, args, env=dict(os.environ), **kwargs):

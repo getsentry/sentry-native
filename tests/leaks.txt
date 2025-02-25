@@ -11,3 +11,5 @@ leak:SCDynamicStoreCopyProxiesWithOptions
 # This is a known issue in ASAN packaged with llvm15/16 (and below): https://github.com/google/sanitizers/issues/1501
 # I cannot reproduce it with the current brew llvm package (18.1.7). TODO: remove when GHA macOS runner image updates the llvm package.
 leak:realizeClassWithoutSwift
+
+leak:Curl_getaddrinfo_ex

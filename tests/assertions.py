@@ -90,9 +90,9 @@ def assert_event_meta(
     }
     expected_sdk = {
         "name": "sentry.native",
-        "version": "0.7.20",
+        "version": "0.8.0",
         "packages": [
-            {"name": "github:getsentry/sentry-native", "version": "0.7.20"},
+            {"name": "github:getsentry/sentry-native", "version": "0.8.0"},
         ],
     }
     if is_android:
@@ -345,3 +345,15 @@ def assert_gzip_file_header(output):
 
 def assert_gzip_content_encoding(req):
     assert req.content_encoding == "gzip"
+
+
+def assert_no_proxy_request(stdout):
+    assert "POST" not in stdout
+
+
+def assert_failed_proxy_auth_request(stdout):
+    assert (
+        "POST" in stdout
+        and "407 Proxy Authentication Required" in stdout
+        and "200 OK" not in stdout
+    )

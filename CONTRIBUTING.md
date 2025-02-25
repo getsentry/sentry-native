@@ -38,6 +38,9 @@ be done manually.
 
 Creates a python virtualenv, and runs all the tests through `pytest`.
 
+To run our `HTTP` proxy tests, one must add `127.0.0.1  sentry.native.test` to the `hosts` file. This is required since some transports bypass the proxy otherwise (for [example on Windows](https://learn.microsoft.com/en-us/windows/win32/wininet/enabling-internet-functionality#listing-the-proxy-bypass)).
+
+
 **Running integration tests manually**:
 
     $ pytest --verbose --maxfail=1 --capture=no tests/
@@ -147,6 +150,9 @@ The example currently supports the following commands:
 - `override-sdk-name`: Changes the SDK name via the options at runtime.
 - `stack-overflow`: Provokes a stack-overflow.
 - `http-proxy`: Uses a localhost `HTTP` proxy on port 8080.
+- `http-proxy-auth`: Uses a localhost `HTTP` proxy on port 8080 with `user:password` as authentication.
+- `http-proxy-ipv6`: Uses a localhost `HTTP` proxy on port 8080 using IPv6 notation.
+- `proxy-empty`: Sets the `proxy` option to the empty string `""`.
 - `socks5-proxy`: Uses a localhost `SOCKS5` proxy on port 1080.
 - `capture-transaction`: Captures a transaction.
 - `traces-sampler`: Installs a traces sampler callback function when used alongside `capture-transaction`.

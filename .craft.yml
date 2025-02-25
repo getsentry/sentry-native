@@ -26,5 +26,9 @@ targets:
       distDirRegex: /^(sentry-native-ndk).*$/
       fileReplaceeRegex: /\d+\.\d+\.\d+(-\w+(\.\d+)?)?(-SNAPSHOT)?/
       fileReplacerStr: release.aar
+  - name: symbol-collector
+    includeNames: /libsentry(-android)?\.so/
+    batchType: android
+    bundleIdPrefix: sentry-native-ndk-
 requireNames:
   - /^sentry-native.zip$/
