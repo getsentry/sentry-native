@@ -1405,6 +1405,10 @@ SENTRY_API sentry_uuid_t sentry_capture_event(sentry_value_t event);
 
 /**
  * Allows capturing independently created minidumps.
+ * 
+ * You don't need this function if you're relying on Sentry to create the minidump.
+ * This is useful when you have a minidump captured through a different mechanism,
+ * and you want Sentry to ingest it.
  *
  * This generates a fatal error event, includes the scope and attachments.
  * If the event isn't dropped by a before-send hook, the minidump is attached
