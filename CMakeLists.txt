@@ -39,7 +39,7 @@ endif()
 set(SENTRY_SOURCE_DIR ${PROJECT_SOURCE_DIR})
 
 if(NOT CMAKE_C_STANDARD)
-	set(CMAKE_C_STANDARD 11)
+	set(CMAKE_C_STANDARD 99)
 endif()
 
 if(NOT CMAKE_CXX_STANDARD)
@@ -342,6 +342,10 @@ if(MSVC)
 	if(SENTRY_BUILD_RUNTIMESTATIC)
 		set_property(TARGET sentry PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 	endif()
+
+	if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang") # clang-cl
+		target_compile_options(sentry PRIVATE $<BUILD_INTERFACE:-Werror -Wall -Wno-unsafe-buffer-usage -Wno-nonportable-system-include-path -Wno-declaration-after-statement -Wno-cast-qual -Wno-switch-default  -Wno-cast-function-type -Wno-cast-function-type-strict -Wno-covered-switch-default -Wno-format-nonliteral -Wno-unused-macros -Wno-reserved-macro-identifier -Wno-assign-enum -Wno-c++98-compat-pedantic -Wno-reserved-identifier -Wno-old-style-cast -Wno-zero-as-null-pointer-constant>)
+	endif()
 else()
 	target_compile_options(sentry PRIVATE $<BUILD_INTERFACE:-Wall -Wextra -Wpedantic>)
 	# The crashpad and breakpad headers generate the following warnings that we
@@ -607,6 +611,9 @@ if(SENTRY_BUILD_EXAMPLES)
 
 	if(MSVC)
 		target_compile_options(sentry_example PRIVATE $<BUILD_INTERFACE:/wd5105 /wd4717>)
+		if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang") # clang-cl
+			target_compile_options(sentry_example PRIVATE $<BUILD_INTERFACE:-Wno-infinite-recursion>)
+		endif()
 
 		# to test handling SEH by-passing exceptions we need to enable the control flow guard
 		target_compile_options(sentry_example PRIVATE $<BUILD_INTERFACE:/guard:cf>)
