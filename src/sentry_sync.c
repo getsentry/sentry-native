@@ -79,8 +79,8 @@ thread_get_current_threadid(void)
     return pthread_self();
 }
 
-int
-sentry__thread_setname(sentry_threadid_t thread_id, const char *thread_name)
+static int
+thread_setname(sentry_threadid_t thread_id, const char *thread_name)
 {
     if (!thread_id || !thread_name) {
         return 0;
