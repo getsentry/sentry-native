@@ -344,7 +344,7 @@ sentry_user_consent_get(void)
 {
     sentry_user_consent_t rv = SENTRY_USER_CONSENT_UNKNOWN;
     SENTRY_WITH_OPTIONS (options) {
-        rv = (sentry_user_consent_t)sentry__atomic_fetch(
+        rv = (sentry_user_consent_t)(int)sentry__atomic_fetch(
             (long *)&options->user_consent);
     }
     return rv;
@@ -395,6 +395,9 @@ sentry_capture_event(sentry_value_t event)
     }
 }
 
+#ifndef SENTRY_UNITTEST
+static
+#endif
 bool
 sentry__roll_dice(double probability)
 {
@@ -406,7 +409,9 @@ sentry__roll_dice(double probability)
 sentry_uuid_t
 sentry__capture_event(sentry_value_t event)
 {
-    sentry_uuid_t event_id;
+    // `event_id` is only used as an argument to pure output parameters.
+    // Initialization only happens to prevent compiler warnings.
+    sentry_uuid_t event_id = sentry_uuid_nil();
     sentry_envelope_t *envelope = NULL;
 
     bool was_captured = false;
@@ -447,6 +452,9 @@ sentry__capture_event(sentry_value_t event)
     return was_sent ? event_id : sentry_uuid_nil();
 }
 
+#ifndef SENTRY_UNITTEST
+static
+#endif
 bool
 sentry__should_send_transaction(
     sentry_value_t tx_ctx, sentry_sampling_context_t *sampling_ctx)
@@ -576,8 +584,9 @@ fail:
     return NULL;
 }
 
+static
 sentry_envelope_t *
-sentry__prepare_user_feedback(sentry_value_t user_feedback)
+prepare_user_feedback(sentry_value_t user_feedback)
 {
     sentry_envelope_t *envelope = NULL;
 
@@ -1259,7 +1268,7 @@ sentry_capture_user_feedback(sentry_value_t user_feedback)
     sentry_envelope_t *envelope = NULL;
 
     SENTRY_WITH_OPTIONS (options) {
-        envelope = sentry__prepare_user_feedback(user_feedback);
+        envelope = prepare_user_feedback(user_feedback);
         if (envelope) {
             sentry__capture_envelope(options->transport, envelope);
         }

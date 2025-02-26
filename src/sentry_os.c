@@ -11,12 +11,14 @@
 #ifdef SENTRY_PLATFORM_WINDOWS
 
 #    if !defined(_GAMING_XBOX_SCARLETT)
+#        include <stdlib.h>
 #        include <windows.h>
 #        define CURRENT_VERSION                                                \
             "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion"
 
+static
 void *
-sentry__try_file_version(const LPCWSTR filename)
+try_file_version(const LPCWSTR filename)
 {
     const DWORD size = GetFileVersionInfoSizeW(filename, NULL);
     if (!size) {
@@ -34,9 +36,9 @@ sentry__try_file_version(const LPCWSTR filename)
 int
 sentry__get_kernel_version(windows_version_t *win_ver)
 {
-    void *ffibuf = sentry__try_file_version(L"ntoskrnl.exe");
+    void *ffibuf = try_file_version(L"ntoskrnl.exe");
     if (!ffibuf) {
-        ffibuf = sentry__try_file_version(L"kernel32.dll");
+        ffibuf = try_file_version(L"kernel32.dll");
     }
     if (!ffibuf) {
         return 0;
@@ -91,7 +93,7 @@ sentry__get_windows_version(windows_version_t *win_ver)
         != ERROR_SUCCESS) {
         return 0;
     }
-    win_ver->build = (uint32_t)sentry__strtod_c(buf, NULL);
+    win_ver->build = strtoul(buf, NULL, 10);
 
     buf_size = sizeof(uint32_t);
     if (RegGetValueA(HKEY_LOCAL_MACHINE, CURRENT_VERSION, "UBR",
@@ -140,7 +142,7 @@ sentry__get_os_context(void)
     if (sentry__get_kernel_version(&win_ver)) {
         at_least_one_key_successful = true;
 
-        snprintf(buf, sizeof(buf), "%u.%u.%u.%lu", win_ver.major, win_ver.minor,
+        snprintf(buf, sizeof(buf), "%u.%u.%u.%u", win_ver.major, win_ver.minor,
             win_ver.build, win_ver.ubr);
         sentry_value_set_by_key(
             os, "kernel_version", sentry_value_new_string(buf));
@@ -153,7 +155,7 @@ sentry__get_os_context(void)
             win_ver.build);
         sentry_value_set_by_key(os, "version", sentry_value_new_string(buf));
 
-        snprintf(buf, sizeof(buf), "%lu", win_ver.ubr);
+        snprintf(buf, sizeof(buf), "%u", win_ver.ubr);
         sentry_value_set_by_key(os, "build", sentry_value_new_string(buf));
     }
 

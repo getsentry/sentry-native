@@ -14,7 +14,15 @@
 #    pragma clang diagnostic ignored "-Wstatic-in-inline"
 #endif
 
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdocumentation"
+#pragma clang diagnostic ignored "-Wpre-c11-compat"
+#endif
 #include "../vendor/mpack.h"
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
 
 #if defined(_MSC_VER)
 #    pragma warning(pop)
@@ -441,13 +449,13 @@ sentry_value_get_type(sentry_value_t value)
         case THING_TYPE_DOUBLE:
             return SENTRY_VALUE_TYPE_DOUBLE;
         }
-        assert(!"unreachable");
+        assert(!(bool)"unreachable");
     } else if ((value._bits & TAG_MASK) == TAG_CONST) {
         return SENTRY_VALUE_TYPE_BOOL;
     } else if ((value._bits & TAG_MASK) == TAG_INT32) {
         return SENTRY_VALUE_TYPE_INT32;
     }
-    assert(!"unreachable");
+    assert(!(bool)"unreachable");
     return SENTRY_VALUE_TYPE_NULL;
 }
 
@@ -586,6 +594,8 @@ sentry__value_stringify(sentry_value_t value)
             sentry_value_is_true(value) ? "true" : "false");
     case SENTRY_VALUE_TYPE_STRING:
         return sentry__string_clone(sentry_value_as_string(value));
+    case SENTRY_VALUE_TYPE_INT32:
+    case SENTRY_VALUE_TYPE_DOUBLE:
     default: {
         char buf[24];
         size_t written = (size_t)sentry__snprintf_c(
@@ -830,14 +840,14 @@ double
 sentry_value_as_double(sentry_value_t value)
 {
     if ((value._bits & TAG_MASK) == TAG_INT32) {
-        return (double)sentry_value_as_int32(value);
+        return (double)(int64_t)sentry_value_as_int32(value);
     }
 
     const thing_t *thing = value_as_thing(value);
     if (thing && thing_get_type(thing) == THING_TYPE_DOUBLE) {
         return thing->payload._double;
     } else {
-        return NAN;
+        return (double)NAN;
     }
 }
 
@@ -863,7 +873,7 @@ sentry__value_ring_buffer_to_list(const sentry_value_t rb)
     if (rb_list->len == 0) {
         return sentry_value_new_list();
     }
-    const size_t start_idx = sentry_value_as_int32(rb_list->items[0]);
+    const size_t start_idx = (size_t)sentry_value_as_int32(rb_list->items[0]);
 
     sentry_value_t rv = sentry_value_new_list();
     for (size_t i = 0; i < rb_list->len - 1; i++) {
@@ -888,6 +898,9 @@ sentry_value_is_true(sentry_value_t value)
         return sentry_value_as_int32(value) != 0;
     case SENTRY_VALUE_TYPE_DOUBLE:
         return sentry_value_as_double(value) != 0.0;
+    case SENTRY_VALUE_TYPE_STRING:
+    case SENTRY_VALUE_TYPE_LIST:
+    case SENTRY_VALUE_TYPE_OBJECT:
     default:
         return sentry_value_get_length(value) > 0;
     }

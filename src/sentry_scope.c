@@ -231,8 +231,9 @@ sentry__symbolize_stacktrace(sentry_value_t stacktrace)
     }
 }
 
+static
 sentry_value_t
-sentry__get_span_or_transaction(const sentry_scope_t *scope)
+get_span_or_transaction(const sentry_scope_t *scope)
 {
     if (scope->span) {
         return scope->span->inner;
@@ -248,7 +249,7 @@ sentry_value_t
 sentry__scope_get_span_or_transaction(void)
 {
     SENTRY_WITH_SCOPE (scope) {
-        return sentry__get_span_or_transaction(scope);
+        return get_span_or_transaction(scope);
     }
     return sentry_value_new_null();
 }
@@ -318,7 +319,7 @@ sentry__scope_apply_to_event(const sentry_scope_t *scope,
 
     // prep contexts sourced from scope; data about transaction on scope needs
     // to be extracted and inserted
-    sentry_value_t scoped_txn_or_span = sentry__get_span_or_transaction(scope);
+    sentry_value_t scoped_txn_or_span = get_span_or_transaction(scope);
     sentry_value_t scope_trace
         = sentry__value_get_trace_context(scoped_txn_or_span);
     if (!sentry_value_is_null(scope_trace)) {

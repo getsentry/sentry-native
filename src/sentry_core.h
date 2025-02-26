@@ -8,7 +8,8 @@
 #define SENTRY_BREADCRUMBS_MAX 100
 #define SENTRY_SPANS_MAX 1000
 
-#if defined(__GNUC__) && (__GNUC__ >= 4)
+#if (defined(__GNUC__) && (__GNUC__ >= 4))                                     \
+    || (defined(_MSC_VER) && defined(__clang__))
 #    define MUST_USE __attribute__((warn_unused_result))
 #elif defined(_MSC_VER) && (_MSC_VER >= 1700)
 #    define MUST_USE _Check_return_
@@ -16,7 +17,7 @@
 #    define MUST_USE
 #endif
 
-#if defined(__GNUC__)
+#if defined(__GNUC__) || (defined(_MSC_VER) && defined(__clang__))
 #    define UNUSED(x) UNUSED_##x __attribute__((__unused__))
 #elif defined(_MSC_VER)
 #    define UNUSED(x) UNUSED_##x __pragma(warning(suppress : 4100))

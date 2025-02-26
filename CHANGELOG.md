@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- Provide Clang-CL support. ([#1161](https://github.com/getsentry/sentry-native/pull/1161), [crashpad#100](https://github.com/getsentry/crashpad/pull/100))
+
+**Thank you**:
+
+[Nerixyz](https://github.com/Nerixyz)
+
 ## 0.8.1
 
 **Features**:
