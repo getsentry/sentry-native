@@ -1296,5 +1296,35 @@ SENTRY_TEST(set_tag_cuts_value_at_length_200)
     sentry__transaction_decref(txn);
 }
 
+SENTRY_TEST(set_trace)
+{
+    sentry_options_t *options = sentry_options_new();
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_init(options);
+
+    const char *trace_id = "2674eb52d5874b13b560236d6c79ce8a";
+    const char *parent_span_id = "a0f9fdf04f1a63df";
+
+    sentry_set_trace(trace_id, parent_span_id);
+
+    SENTRY_WITH_SCOPE (scope) {
+        sentry_value_t trace_context
+            = sentry_value_get_by_key(scope->contexts, "trace");
+        TEST_CHECK(!sentry_value_is_null(trace_context));
+
+        CHECK_STRING_PROPERTY(trace_context, "type", "trace");
+
+        CHECK_STRING_PROPERTY(trace_context, "trace_id", trace_id);
+        CHECK_STRING_PROPERTY(trace_context, "parent_span_id", parent_span_id);
+
+        const char *span_id = sentry_value_as_string(
+            sentry_value_get_by_key(trace_context, "span_id"));
+        TEST_CHECK(span_id != NULL);
+        TEST_CHECK(strlen(span_id) > 0);
+    }
+
+    sentry_close();
+}
+
 #undef IS_NULL
 #undef CHECK_STRING_PROPERTY
