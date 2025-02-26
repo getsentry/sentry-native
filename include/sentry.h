@@ -1482,7 +1482,7 @@ SENTRY_API void sentry_set_context_n(
  * Removes the context object with the specified key.
  */
 SENTRY_API void sentry_remove_context(const char *key);
-c SENTRY_API void sentry_remove_context_n(const char *key, size_t key_len);
+SENTRY_API void sentry_remove_context_n(const char *key, size_t key_len);
 
 /**
  * Sets the event fingerprint.
