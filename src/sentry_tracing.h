@@ -7,25 +7,25 @@
 /**
  * A span.
  */
-typedef struct sentry_span_s {
+struct sentry_span_s {
     sentry_value_t inner;
     // The transaction the span is contained in.
     sentry_transaction_t *transaction;
-} sentry_span_t;
+};
 
 /**
  * A transaction context.
  */
-typedef struct sentry_transaction_context_s {
+struct sentry_transaction_context_s {
     sentry_value_t inner;
-} sentry_transaction_context_t;
+};
 
 /**
  * A transaction.
  */
-typedef struct sentry_transaction_s {
+struct sentry_transaction_s {
     sentry_value_t inner;
-} sentry_transaction_t;
+};
 
 void sentry__transaction_context_free(sentry_transaction_context_t *tx_ctx);
 
