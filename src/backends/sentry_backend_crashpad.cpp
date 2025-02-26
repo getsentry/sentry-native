@@ -454,7 +454,8 @@ crashpad_backend_startup(
     bool success = data->client->StartHandler(handler, database, database,
         minidump_url ? minidump_url : "", proxy_url, annotations, arguments,
         /* restartable */ true,
-        /* asynchronous_start */ false, attachments);
+        /* asynchronous_start */ false, attachments,
+        options->on_crash_wait_for_upload);
     sentry_free(minidump_url);
 
 #ifdef SENTRY_PLATFORM_WINDOWS

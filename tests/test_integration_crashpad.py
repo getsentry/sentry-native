@@ -519,3 +519,30 @@ def test_disable_backend(cmake, httpserver):
 
     # crashpad is disabled, and we are only crashing, so we expect no requests
     assert len(httpserver.log) == 0
+
+
+@pytest.mark.skipif(
+    sys.platform != "linux",
+    reason="on_crash_wait_for_upload option is only honored on linux",
+)
+def test_wait_for_upload(cmake, httpserver):
+    pass  # pass for now
+    # tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "crashpad"})
+    #
+    # # make sure we are isolated from previous runs
+    # shutil.rmtree(tmp_path / ".sentry-native", ignore_errors=True)
+    #
+    # env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+    # httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data("OK")
+    #
+    # # TODO figure out a way to kill the example, but keep crashpad alive
+    # with httpserver.wait(timeout=10) as waiting:
+    #     child = run(
+    #         tmp_path, "sentry_example", ["log", "crashpad-wait-for-upload", "crash"], env=env
+    #     )
+    #     assert child.returncode  # well, it's a crash after all
+    #
+    # assert waiting.result
+    #
+    #
+    # assert len(httpserver.log) == 1
