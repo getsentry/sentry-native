@@ -16,8 +16,7 @@
 #        define CURRENT_VERSION                                                \
             "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion"
 
-static
-void *
+static void *
 try_file_version(const LPCWSTR filename)
 {
     const DWORD size = GetFileVersionInfoSizeW(filename, NULL);

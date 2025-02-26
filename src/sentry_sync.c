@@ -20,15 +20,13 @@ typedef struct {
 } THREADNAME_INFO;
 #    pragma pack(pop)
 
-static
-sentry_threadid_t
+static sentry_threadid_t
 thread_get_current_threadid(void)
 {
     return GetCurrentThread();
 }
 
-static
-int
+static int
 thread_setname(sentry_threadid_t thread_id, const char *thread_name)
 {
     if (!thread_id || !thread_name) {
@@ -54,10 +52,10 @@ thread_setname(sentry_threadid_t thread_id, const char *thread_name)
     threadnameInfo.dwThreadID
         = GetThreadId(thread_id); // only available on Windows Vista+
     threadnameInfo.dwFlags = 0;
-#ifdef __clang__
-#        pragma clang diagnostic push
-#        pragma clang diagnostic ignored "-Wlanguage-extension-token"
-#endif
+#        ifdef __clang__
+#            pragma clang diagnostic push
+#            pragma clang diagnostic ignored "-Wlanguage-extension-token"
+#        endif
 #        pragma warning(push)
 #        pragma warning(disable : 6320 6322)
     __try {
@@ -67,16 +65,15 @@ thread_setname(sentry_threadid_t thread_id, const char *thread_name)
     } __except (EXCEPTION_EXECUTE_HANDLER) {
     }
 #        pragma warning(pop)
-#ifdef __clang__
-#        pragma clang diagnostic pop
-#endif
+#        ifdef __clang__
+#            pragma clang diagnostic pop
+#        endif
 #    endif
 
     return 0;
 }
 #else
-static
-sentry_threadid_t
+static sentry_threadid_t
 thread_get_current_threadid(void)
 {
     return pthread_self();
@@ -243,8 +240,7 @@ worker_thread(void *data)
     // subject to initialization race condition: current thread might be running
     // before `bgw->thread_id` is initialized in the thread that started the
     // background worker.
-    if (thread_setname(
-            thread_get_current_threadid(), bgw->thread_name)) {
+    if (thread_setname(thread_get_current_threadid(), bgw->thread_name)) {
         SENTRY_WARN("failed to set background worker thread name");
     }
 

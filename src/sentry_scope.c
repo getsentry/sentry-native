@@ -231,8 +231,7 @@ sentry__symbolize_stacktrace(sentry_value_t stacktrace)
     }
 }
 
-static
-sentry_value_t
+static sentry_value_t
 get_span_or_transaction(const sentry_scope_t *scope)
 {
     if (scope->span) {

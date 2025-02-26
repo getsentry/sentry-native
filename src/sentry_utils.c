@@ -63,7 +63,8 @@ sentry__url_parse(sentry_url_t *url_out, const char *url, bool requires_path)
     if (!tmp) {
         goto error;
     }
-    url_out->scheme = sentry__string_clone_n_unchecked(ptr, (size_t)(tmp - ptr));
+    url_out->scheme
+        = sentry__string_clone_n_unchecked(ptr, (size_t)(tmp - ptr));
 
     if (!url_out->scheme || !is_scheme_valid(url_out->scheme)) {
         goto error;
@@ -96,7 +97,8 @@ sentry__url_parse(sentry_url_t *url_out, const char *url, bool requires_path)
     tmp = ptr;
     if (has_username) {
         SKIP_WHILE_NOT2(tmp, '@', ':');
-        url_out->username = sentry__string_clone_n_unchecked(ptr, (size_t)(tmp - ptr));
+        url_out->username
+            = sentry__string_clone_n_unchecked(ptr, (size_t)(tmp - ptr));
         ptr = tmp;
         if (*ptr == ':') {
             ptr++;
@@ -177,7 +179,8 @@ sentry__url_parse(sentry_url_t *url_out, const char *url, bool requires_path)
         ptr++;
         tmp = ptr;
         SKIP_WHILE_NOT(tmp, '#');
-        url_out->query = sentry__string_clone_n_unchecked(ptr, (size_t)(tmp - ptr));
+        url_out->query
+            = sentry__string_clone_n_unchecked(ptr, (size_t)(tmp - ptr));
         ptr = tmp;
     }
 
@@ -186,7 +189,8 @@ sentry__url_parse(sentry_url_t *url_out, const char *url, bool requires_path)
         ptr++;
         tmp = ptr;
         SKIP_WHILE_NOT(tmp, 0);
-        url_out->fragment = sentry__string_clone_n_unchecked(ptr, (size_t)(tmp - ptr));
+        url_out->fragment
+            = sentry__string_clone_n_unchecked(ptr, (size_t)(tmp - ptr));
     }
 
     result = 0;

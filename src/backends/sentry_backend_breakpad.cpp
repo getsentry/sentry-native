@@ -25,16 +25,16 @@ extern "C" {
 #endif
 
 #ifdef SENTRY_PLATFORM_WINDOWS
-#ifdef __clang__
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wnested-anon-types"
-#pragma clang diagnostic ignored "-Wmicrosoft-enum-value"
-#pragma clang diagnostic ignored "-Wzero-length-array"
-#endif
+#    ifdef __clang__
+#        pragma clang diagnostic push
+#        pragma clang diagnostic ignored "-Wnested-anon-types"
+#        pragma clang diagnostic ignored "-Wmicrosoft-enum-value"
+#        pragma clang diagnostic ignored "-Wzero-length-array"
+#    endif
 #    include "client/windows/handler/exception_handler.h"
-#ifdef __clang__
-#pragma clang diagnostic pop
-#endif
+#    ifdef __clang__
+#        pragma clang diagnostic pop
+#    endif
 #elif defined(SENTRY_PLATFORM_MACOS)
 #    include "client/mac/handler/exception_handler.h"
 #    include <sys/sysctl.h>

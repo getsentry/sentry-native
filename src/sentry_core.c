@@ -398,8 +398,8 @@ sentry_capture_event(sentry_value_t event)
 #ifndef SENTRY_UNITTEST
 static
 #endif
-bool
-sentry__roll_dice(double probability)
+    bool
+    sentry__roll_dice(double probability)
 {
     uint64_t rnd;
     return probability >= 1.0 || sentry__getrandom(&rnd, sizeof(rnd))
@@ -455,9 +455,9 @@ sentry__capture_event(sentry_value_t event)
 #ifndef SENTRY_UNITTEST
 static
 #endif
-bool
-sentry__should_send_transaction(
-    sentry_value_t tx_ctx, sentry_sampling_context_t *sampling_ctx)
+    bool
+    sentry__should_send_transaction(
+        sentry_value_t tx_ctx, sentry_sampling_context_t *sampling_ctx)
 {
     sentry_value_t context_setting = sentry_value_get_by_key(tx_ctx, "sampled");
     bool sampled = sentry_value_is_null(context_setting)
@@ -584,8 +584,7 @@ fail:
     return NULL;
 }
 
-static
-sentry_envelope_t *
+static sentry_envelope_t *
 prepare_user_feedback(sentry_value_t user_feedback)
 {
     sentry_envelope_t *envelope = NULL;
