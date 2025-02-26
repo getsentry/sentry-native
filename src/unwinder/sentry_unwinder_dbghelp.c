@@ -8,8 +8,8 @@ typedef WORD(NTAPI *RtlCaptureStackBackTraceProc)(DWORD FramesToSkip,
 #endif
 
 #ifdef __clang__
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wmissing-prototypes"
+#    pragma clang diagnostic push
+#    pragma clang diagnostic ignored "-Wmissing-prototypes"
 #endif
 
 size_t
@@ -94,5 +94,5 @@ sentry__unwind_stack_dbghelp(
 }
 
 #ifdef __clang__
-#pragma clang diagnostic pop
+#    pragma clang diagnostic pop
 #endif

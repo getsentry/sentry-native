@@ -5,12 +5,12 @@
 #include <string.h>
 
 #ifdef __clang__
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wsign-conversion"
+#    pragma clang diagnostic push
+#    pragma clang diagnostic ignored "-Wsign-conversion"
 #endif
 #include "../vendor/jsmn.h"
 #ifdef __clang__
-#pragma clang diagnostic pop
+#    pragma clang diagnostic pop
 #endif
 
 #include "sentry_alloc.h"
@@ -120,8 +120,7 @@ into_string_file(sentry_jsonwriter_t *jw, size_t *len_out)
     return NULL;
 }
 
-static
-sentry_jsonwriter_ops_t sb_ops = {
+static sentry_jsonwriter_ops_t sb_ops = {
     .write_char = write_char_sb,
     .write_str = write_str_sb,
     .write_buf = write_buf_sb,
@@ -155,8 +154,7 @@ sentry__jsonwriter_new_sb(sentry_stringbuilder_t *sb)
     return rv;
 }
 
-static
-sentry_jsonwriter_ops_t file_ops = {
+static sentry_jsonwriter_ops_t file_ops = {
     .free = jsonwriter_free_file,
     .write_char = write_char_file,
     .write_str = write_str_file,
@@ -593,12 +591,12 @@ tokens_to_value(jsmntok_t *tokens, size_t token_count, const char *buf,
         default: {
             double val = sentry__strtod_c(buf + root->start, NULL);
 #ifdef __clang__
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wfloat-equal"
+#    pragma clang diagnostic push
+#    pragma clang diagnostic ignored "-Wfloat-equal"
 #endif
             if (val == (double)(int32_t)val) {
 #ifdef __clang__
-#pragma clang diagnostic pop
+#    pragma clang diagnostic pop
 #endif
                 rv = sentry_value_new_int32((int32_t)val);
             } else {
@@ -678,9 +676,11 @@ sentry__value_from_json(const char *buf, size_t buflen)
         return sentry_value_new_null();
     }
 
-    jsmntok_t *tokens = sentry_malloc(sizeof(jsmntok_t) * (size_t)(token_count));
+    jsmntok_t *tokens
+        = sentry_malloc(sizeof(jsmntok_t) * (size_t)(token_count));
     jsmn_init(&jsmn_p);
-    token_count = jsmn_parse(&jsmn_p, buf, buflen, tokens, (unsigned int)(token_count));
+    token_count
+        = jsmn_parse(&jsmn_p, buf, buflen, tokens, (unsigned int)(token_count));
     if (token_count <= 0) {
         sentry_free(tokens);
         return sentry_value_new_null();

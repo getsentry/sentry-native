@@ -71,8 +71,10 @@ set_proxy_credentials(winhttp_bgworker_state_t *state, const char *proxy)
             = MultiByteToWideChar(CP_UTF8, 0, url.username, -1, NULL, 0);
         int pass_wlen
             = MultiByteToWideChar(CP_UTF8, 0, url.password, -1, NULL, 0);
-        wchar_t *user_w = (wchar_t *)malloc((size_t)user_wlen * sizeof(wchar_t));
-        wchar_t *pass_w = (wchar_t *)malloc((size_t)pass_wlen * sizeof(wchar_t));
+        wchar_t *user_w
+            = (wchar_t *)malloc((size_t)user_wlen * sizeof(wchar_t));
+        wchar_t *pass_w
+            = (wchar_t *)malloc((size_t)pass_wlen * sizeof(wchar_t));
         MultiByteToWideChar(CP_UTF8, 0, url.username, -1, user_w, user_wlen);
         MultiByteToWideChar(CP_UTF8, 0, url.password, -1, pass_w, pass_wlen);
 

@@ -185,8 +185,7 @@ shutdown_inproc_backend(sentry_backend_t *UNUSED(backend))
 
 #endif
 
-static
-sentry_value_t
+static sentry_value_t
 registers_from_uctx(const sentry_ucontext_t *uctx)
 {
     sentry_value_t registers = sentry_value_new_object();

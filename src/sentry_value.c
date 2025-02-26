@@ -15,13 +15,13 @@
 #endif
 
 #ifdef __clang__
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdocumentation"
-#pragma clang diagnostic ignored "-Wpre-c11-compat"
+#    pragma clang diagnostic push
+#    pragma clang diagnostic ignored "-Wdocumentation"
+#    pragma clang diagnostic ignored "-Wpre-c11-compat"
 #endif
 #include "../vendor/mpack.h"
 #ifdef __clang__
-#pragma clang diagnostic pop
+#    pragma clang diagnostic pop
 #endif
 
 #if defined(_MSC_VER)
