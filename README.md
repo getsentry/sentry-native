@@ -62,8 +62,9 @@ The SDK bundle contains the following folders:
 The SDK currently supports and is tested on the following OS/Compiler variations:
 
 - 64bit Linux with GCC 12
+- 64bit Linux with GCC 9
 - 64bit Linux with clang 15
-- 32bit Linux with GCC 7 (cross compiled from 64bit host)
+- 32bit Linux with GCC 9 (cross compiled from 64bit host)
 - 32bit Windows with MSVC 2019
 - 64bit Windows with MSVC 2022
 - macOS 13, 14, 15 with respective most recent Apple compiler toolchain and LLVM clang 15 + 18
