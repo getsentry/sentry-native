@@ -47,6 +47,7 @@ sentry_options_new(void)
     opts->user_consent = SENTRY_USER_CONSENT_UNKNOWN;
     opts->auto_session_tracking = true;
     opts->system_crash_reporter_enabled = false;
+    opts->attach_screenshot = false;
     opts->symbolize_stacktraces =
     // AIX doesn't have reliable debug IDs for server-side symbolication,
     // and the diversity of Android makes it infeasible to have access to debug
@@ -491,6 +492,12 @@ sentry_options_add_attachment_n(
     sentry_options_t *opts, const char *path, size_t path_len)
 {
     add_attachment(opts, sentry__path_from_str_n(path, path_len));
+}
+
+void
+sentry_options_set_attach_screenshot(sentry_options_t *opts, int val)
+{
+    opts->attach_screenshot = !!val;
 }
 
 void
