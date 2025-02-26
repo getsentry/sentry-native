@@ -1482,7 +1482,7 @@ SENTRY_API void sentry_set_context_n(
  * Removes the context object with the specified key.
  */
 SENTRY_API void sentry_remove_context(const char *key);
-SENTRY_API void sentry_remove_context_n(const char *key, size_t key_len);
+c SENTRY_API void sentry_remove_context_n(const char *key, size_t key_len);
 
 /**
  * Sets the event fingerprint.
@@ -1500,7 +1500,8 @@ SENTRY_API void sentry_set_fingerprint_n(
 SENTRY_API void sentry_remove_fingerprint(void);
 
 /**
- * Sets the trace ID.
+ * Set the trace. The primary use for this is to allow other SDKs to propagate
+ * their trace context to connect events on all layers
  */
 SENTRY_API void sentry_set_trace(
     const char *trace_id, const char *parent_span_id);
