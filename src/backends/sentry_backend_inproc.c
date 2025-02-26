@@ -185,8 +185,8 @@ shutdown_inproc_backend(sentry_backend_t *UNUSED(backend))
 
 #endif
 
-sentry_value_t
-sentry__registers_from_uctx(const sentry_ucontext_t *uctx)
+static sentry_value_t
+registers_from_uctx(const sentry_ucontext_t *uctx)
 {
     sentry_value_t registers = sentry_value_new_object();
 
@@ -393,7 +393,7 @@ sentry__registers_from_uctx(const sentry_ucontext_t *uctx)
 
 #    define SET_REG(name, prop)                                                \
         sentry_value_set_by_key(registers, name,                               \
-            sentry__value_new_addr((uint64_t)(size_t)ctx->prop));
+            sentry__value_new_addr((uint64_t)(size_t)ctx->prop))
 
 #    if defined(_M_AMD64)
 
@@ -498,7 +498,7 @@ make_signal_event(
     sentry_value_t stacktrace
         = sentry_value_new_stacktrace(&backtrace[0], frame_count);
 
-    sentry_value_t registers = sentry__registers_from_uctx(uctx);
+    sentry_value_t registers = registers_from_uctx(uctx);
     sentry_value_set_by_key(stacktrace, "registers", registers);
 
 #ifdef SENTRY_WITH_UNWINDER_LIBUNWINDSTACK
