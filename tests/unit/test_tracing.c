@@ -1319,7 +1319,7 @@ SENTRY_TEST(set_trace)
 
         const char *span_id = sentry_value_as_string(
             sentry_value_get_by_key(trace_context, "span_id"));
-        TEST_CHECK(span_id != NULL);
+        TEST_ASSERT(span_id != NULL);
         TEST_CHECK(strlen(span_id) > 0);
     }
 
