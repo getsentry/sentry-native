@@ -14,6 +14,7 @@
 #endif
 
 #include "sentry_alloc.h"
+#include "sentry_core.h"
 #include "sentry_json.h"
 #include "sentry_string.h"
 #include "sentry_utils.h"
@@ -111,9 +112,8 @@ into_string_sb(sentry_jsonwriter_t *jw, size_t *len_out)
 }
 
 static char *
-into_string_file(sentry_jsonwriter_t *jw, size_t *len_out)
+into_string_file(sentry_jsonwriter_t *UNUSED(jw), size_t *len_out)
 {
-    (void)jw;
     UNREACHABLE("A file-based jsonwriter can't convert into string");
 
     *len_out = 0;
