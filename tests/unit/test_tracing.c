@@ -1296,5 +1296,118 @@ SENTRY_TEST(set_tag_cuts_value_at_length_200)
     sentry__transaction_decref(txn);
 }
 
+SENTRY_TEST(set_trace)
+{
+    sentry_options_t *options = sentry_options_new();
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_init(options);
+
+    const char *trace_id = "2674eb52d5874b13b560236d6c79ce8a";
+    const char *parent_span_id = "a0f9fdf04f1a63df";
+
+    sentry_set_trace(trace_id, parent_span_id);
+
+    SENTRY_WITH_SCOPE (scope) {
+        sentry_value_t trace_context
+            = sentry_value_get_by_key(scope->contexts, "trace");
+        TEST_CHECK(!sentry_value_is_null(trace_context));
+
+        CHECK_STRING_PROPERTY(trace_context, "type", "trace");
+
+        CHECK_STRING_PROPERTY(trace_context, "trace_id", trace_id);
+        CHECK_STRING_PROPERTY(trace_context, "parent_span_id", parent_span_id);
+
+        const char *span_id = sentry_value_as_string(
+            sentry_value_get_by_key(trace_context, "span_id"));
+        TEST_ASSERT(span_id != NULL);
+        TEST_CHECK(strlen(span_id) > 0);
+    }
+
+    sentry_close();
+}
+
+void
+apply_scope_and_check_trace_context(
+    sentry_options_t *options, const char *trace_id, const char *parent_span_id)
+{
+    // simulate scope application onto an event
+    sentry_value_t event = sentry_value_new_object();
+    SENTRY_WITH_SCOPE (scope) {
+        sentry__scope_apply_to_event(scope, options, event, SENTRY_SCOPE_NONE);
+    }
+
+    // check that the event has a trace context
+    sentry_value_t event_contexts = sentry_value_get_by_key(event, "contexts");
+    TEST_CHECK(!sentry_value_is_null(event_contexts));
+    TEST_CHECK(
+        sentry_value_get_type(event_contexts) == SENTRY_VALUE_TYPE_OBJECT);
+
+    sentry_value_t event_trace_context
+        = sentry_value_get_by_key(event_contexts, "trace");
+    TEST_CHECK(!sentry_value_is_null(event_trace_context));
+    TEST_CHECK(
+        sentry_value_get_type(event_trace_context) == SENTRY_VALUE_TYPE_OBJECT);
+
+    // check trace context content
+    const char *event_trace_id = sentry_value_as_string(
+        sentry_value_get_by_key(event_trace_context, "trace_id"));
+    TEST_CHECK_STRING_EQUAL(event_trace_id, trace_id);
+
+    const char *event_trace_parent_span_id = sentry_value_as_string(
+        sentry_value_get_by_key(event_trace_context, "parent_span_id"));
+    TEST_CHECK_STRING_EQUAL(event_trace_parent_span_id, parent_span_id);
+
+    sentry_uuid_t event_trace_span_id = sentry__value_as_uuid(
+        sentry_value_get_by_key(event_trace_context, "span_id"));
+    TEST_CHECK(!sentry_uuid_is_nil(&event_trace_span_id));
+
+    sentry_value_decref(event);
+}
+
+SENTRY_TEST(set_trace_id_with_txn)
+{
+    // initialize SDK so we have a scope
+    sentry_options_t *options = sentry_options_new();
+    sentry_options_set_traces_sample_rate(options, 1.0);
+    sentry_options_set_sample_rate(options, 1.0);
+    sentry_init(options);
+
+    // inject a trace via trace-header into a transaction
+    const char *trace_header
+        = "2674eb52d5874b13b560236d6c79ce8a-a0f9fdf04f1a63df-1";
+    const char *txn_trace_id = "2674eb52d5874b13b560236d6c79ce8a";
+    const char *txn_parent_span_id = "a0f9fdf04f1a63df";
+    sentry_transaction_context_t *tx_ctx
+        = sentry_transaction_context_new("wow!", NULL);
+    sentry_transaction_context_update_from_header(
+        tx_ctx, "sentry-trace", trace_header);
+    sentry_transaction_t *tx
+        = sentry_transaction_start(tx_ctx, sentry_value_new_null());
+
+    // set the direct trace first
+    const char *direct_trace_id = "aaaabbbbccccddddeeeeffff00001111";
+    const char *direct_parent_span_id = "f0f0f0f0f0f0f0f0";
+    sentry_set_trace(direct_trace_id, direct_parent_span_id);
+
+    // events should get that trace applied
+    apply_scope_and_check_trace_context(
+        options, direct_trace_id, direct_parent_span_id);
+
+    // now set a scoped transaction
+    sentry_set_transaction_object(tx);
+
+    // events should get the transaction's trace applied
+    apply_scope_and_check_trace_context(
+        options, txn_trace_id, txn_parent_span_id);
+
+    sentry_transaction_finish(tx);
+
+    // after finishing the transaction, the direct trace should hit again
+    apply_scope_and_check_trace_context(
+        options, direct_trace_id, direct_parent_span_id);
+
+    sentry_close();
+}
+
 #undef IS_NULL
 #undef CHECK_STRING_PROPERTY
