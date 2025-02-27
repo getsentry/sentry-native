@@ -55,6 +55,10 @@ public final class NativeScope implements INativeScope {
     nativeAddBreadcrumb(level, message, category, type, timestamp, data);
   }
 
+  /**
+   * Set the trace. The primary use for this is to allow other SDKs to propagate
+   * their trace context to connect events on all layers
+   */
   @Override
   public void setTrace(String traceId, String parentSpanId) {
     nativeSetTrace(traceId, parentSpanId);
