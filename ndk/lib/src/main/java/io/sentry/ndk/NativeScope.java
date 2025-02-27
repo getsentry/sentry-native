@@ -56,8 +56,8 @@ public final class NativeScope implements INativeScope {
   }
 
   /**
-   * Set the trace. The primary use for this is to allow other SDKs to propagate
-   * their trace context to connect events on all layers
+   * Set the trace. The primary use for this is to allow other SDKs to propagate their trace context
+   * to connect events on all layers
    */
   @Override
   public void setTrace(String traceId, String parentSpanId) {

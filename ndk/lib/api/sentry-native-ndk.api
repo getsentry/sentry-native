@@ -35,6 +35,7 @@ public abstract interface class io/sentry/ndk/INativeScope {
 	public abstract fun removeUser ()V
 	public abstract fun setExtra (Ljava/lang/String;Ljava/lang/String;)V
 	public abstract fun setTag (Ljava/lang/String;Ljava/lang/String;)V
+	public abstract fun setTrace (Ljava/lang/String;Ljava/lang/String;)V
 	public abstract fun setUser (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
 }
 
@@ -55,12 +56,14 @@ public final class io/sentry/ndk/NativeScope : io/sentry/ndk/INativeScope {
 	public static fun nativeRemoveUser ()V
 	public static fun nativeSetExtra (Ljava/lang/String;Ljava/lang/String;)V
 	public static fun nativeSetTag (Ljava/lang/String;Ljava/lang/String;)V
+	public static fun nativeSetTrace (Ljava/lang/String;Ljava/lang/String;)V
 	public static fun nativeSetUser (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
 	public fun removeExtra (Ljava/lang/String;)V
 	public fun removeTag (Ljava/lang/String;)V
 	public fun removeUser ()V
 	public fun setExtra (Ljava/lang/String;Ljava/lang/String;)V
 	public fun setTag (Ljava/lang/String;Ljava/lang/String;)V
+	public fun setTrace (Ljava/lang/String;Ljava/lang/String;)V
 	public fun setUser (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
 }
 
