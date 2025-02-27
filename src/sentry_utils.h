@@ -19,9 +19,9 @@
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 
 #if defined(_MSC_VER) && !defined(__clang__)
-#define UNREACHABLE(reason) assert(!reason)
+#    define UNREACHABLE(reason) assert(!reason)
 #else
-#define UNREACHABLE(reason) assert(!(bool)reason)
+#    define UNREACHABLE(reason) assert(!(bool)reason)
 #endif
 
 /**
