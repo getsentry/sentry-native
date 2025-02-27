@@ -163,7 +163,10 @@ def cmake(cwd, targets, options=None):
     if "gcc" in os.environ.get("RUN_ANALYZER", ""):
         cflags.append("-fanalyzer")
     if "llvm-cov" in os.environ.get("RUN_ANALYZER", ""):
-        flags = "-fprofile-instr-generate -fcoverage-mapping"
+        if os.environ.get("VS_GENERATOR_TOOLSET") == "ClangCL":
+            flags = "--coverage"
+        else:
+            flags = "-fprofile-instr-generate -fcoverage-mapping"
         configcmd.append("-DCMAKE_C_FLAGS='{}'".format(flags))
 
         # Since we overwrite `CXXFLAGS` below, we must add the experimental library here for the GHA runner that builds
