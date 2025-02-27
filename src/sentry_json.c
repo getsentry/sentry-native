@@ -114,7 +114,7 @@ static char *
 into_string_file(sentry_jsonwriter_t *jw, size_t *len_out)
 {
     (void)jw;
-    assert(!(bool)"A file-based jsonwriter can't convert into string");
+    UNREACHABLE("A file-based jsonwriter can't convert into string");
 
     *len_out = 0;
     return NULL;
