@@ -449,13 +449,13 @@ sentry_value_get_type(sentry_value_t value)
         case THING_TYPE_DOUBLE:
             return SENTRY_VALUE_TYPE_DOUBLE;
         }
-        assert(!(bool)"unreachable");
+        UNREACHABLE("invalid thing type");
     } else if ((value._bits & TAG_MASK) == TAG_CONST) {
         return SENTRY_VALUE_TYPE_BOOL;
     } else if ((value._bits & TAG_MASK) == TAG_INT32) {
         return SENTRY_VALUE_TYPE_INT32;
     }
-    assert(!(bool)"unreachable");
+    UNREACHABLE("invalid value type");
     return SENTRY_VALUE_TYPE_NULL;
 }
 

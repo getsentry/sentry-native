@@ -25,7 +25,7 @@ status_as_string(sentry_session_status_t status)
     case SENTRY_SESSION_STATUS_EXITED:
         return "exited";
     default:
-        assert(!(bool)"invalid session status");
+        UNREACHABLE("invalid session status");
         return "invalid";
     }
 }
