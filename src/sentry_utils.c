@@ -501,7 +501,12 @@ sentry__iso8601_to_usec(const char *iso)
 // forwards to `stdtod`, but it does not define `vsnprintf_l` sadly.  This means
 // if Android ever adds locale support in NDK we will have to revisit this code
 // to ensure the C locale is also used there.
-#if !defined(SENTRY_PLATFORM_ANDROID) && !defined(SENTRY_PLATFORM_IOS)
+#if !defined(SENTRY_PLATFORM_ANDROID) && !defined(SENTRY_PLATFORM_IOS)         \
+    && !defined(SENTRY_PLATFORM_AIX) && !defined(SENTRY_PLATFORM_NX)
+#    define HAS_C_LOCALE
+#endif
+
+#ifdef HAS_C_LOCALE
 static sentry__locale_t
 c_locale(void)
 {
@@ -523,8 +528,7 @@ sentry__strtod_c(const char *ptr, char **endptr)
 {
 #ifdef SENTRY_PLATFORM_WINDOWS
     return _strtod_l(ptr, endptr, c_locale());
-#elif defined(SENTRY_PLATFORM_ANDROID) || defined(SENTRY_PLATFORM_IOS)         \
-    || defined(SENTRY_PLATFORM_AIX)
+#elif !defined(HAS_C_LOCALE)
     return strtod(ptr, endptr);
 #else
     return strtod_l(ptr, endptr, c_locale());
@@ -540,8 +544,7 @@ sentry__snprintf_c(char *buf, size_t buf_size, const char *fmt, ...)
     int rv;
 #ifdef SENTRY_PLATFORM_WINDOWS
     rv = _vsnprintf_l(buf, buf_size, fmt, c_locale(), args);
-#elif defined(SENTRY_PLATFORM_ANDROID) || defined(SENTRY_PLATFORM_IOS)         \
-    || defined(SENTRY_PLATFORM_AIX)
+#elif !defined(HAS_C_LOCALE)
     rv = vsnprintf(buf, buf_size, fmt, args);
 #elif defined(SENTRY_PLATFORM_DARWIN)
     rv = vsnprintf_l(buf, buf_size, c_locale(), fmt, args);

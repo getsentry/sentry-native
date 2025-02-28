@@ -52,6 +52,10 @@ write_loop(int fd, const char *buf, size_t buf_len)
 bool
 sentry__filelock_try_lock(sentry_filelock_t *lock)
 {
+#ifdef SENTRY_PLATFORM_NX
+    // TODO
+    return false;
+#endif
     lock->is_locked = false;
 
     int fd = open(lock->path->path, O_RDWR | O_CREAT | O_TRUNC,
@@ -87,6 +91,10 @@ sentry__filelock_try_lock(sentry_filelock_t *lock)
 void
 sentry__filelock_unlock(sentry_filelock_t *lock)
 {
+#ifdef SENTRY_PLATFORM_NX
+    // TODO
+    return;
+#endif
     if (!lock->is_locked) {
         return;
     }
@@ -99,6 +107,10 @@ sentry__filelock_unlock(sentry_filelock_t *lock)
 sentry_path_t *
 sentry__path_absolute(const sentry_path_t *path)
 {
+#ifdef SENTRY_PLATFORM_NX
+    // TODO
+    return sentry__path_from_str(path->path);
+#endif
     char full[PATH_MAX];
     if (!realpath(path->path, full)) {
         return NULL;

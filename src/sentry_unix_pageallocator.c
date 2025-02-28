@@ -5,12 +5,13 @@
 #include <sys/mman.h>
 #include <unistd.h>
 
+#ifndef SENTRY_PLATFORM_NX
 // some macos versions do not have this yet
-#if !defined(MAP_ANONYMOUS) && defined(SENTRY_PLATFORM_DARWIN)
-#    define MAP_ANONYMOUS MAP_ANON
-#endif
+#    if !defined(MAP_ANONYMOUS) && defined(SENTRY_PLATFORM_DARWIN)
+#        define MAP_ANONYMOUS MAP_ANON
+#    endif
 
-#define ALIGN 8
+#    define ALIGN 8
 
 struct page_header;
 struct page_header {
@@ -60,11 +61,11 @@ get_pages(size_t num_pages)
         return NULL;
     }
 
-#if defined(__has_feature)
-#    if __has_feature(memory_sanitizer)
+#    if defined(__has_feature)
+#        if __has_feature(memory_sanitizer)
     __msan_unpoison(rv, g_alloc->page_size * num_pages);
+#        endif
 #    endif
-#endif
 
     struct page_header *header = (struct page_header *)rv;
     header->next = g_alloc->last_page;
@@ -125,7 +126,7 @@ sentry__page_allocator_alloc(size_t size)
     return rv;
 }
 
-#ifdef SENTRY_UNITTEST
+#    ifdef SENTRY_UNITTEST
 void
 sentry__page_allocator_disable(void)
 {
@@ -139,4 +140,5 @@ sentry__page_allocator_disable(void)
     }
     g_alloc = NULL;
 }
+#    endif
 #endif

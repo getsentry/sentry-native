@@ -490,7 +490,7 @@ sentry__bgworker_setname(sentry_bgworker_t *bgw, const char *thread_name)
     bgw->thread_name = sentry__string_clone(thread_name);
 }
 
-#ifdef SENTRY_PLATFORM_UNIX
+#if defined(SENTRY_PLATFORM_UNIX) || defined(SENTRY_PLATFORM_NX)
 #    include "sentry_unix_spinlock.h"
 
 static sig_atomic_t g_in_signal_handler = 0;

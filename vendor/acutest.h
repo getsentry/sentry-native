@@ -1445,11 +1445,13 @@ test_cmdline_callback__(int id, const char* arg)
             test_worker_index__ = atoi(arg);
             break;
         case 'x':
+#        if defined(ACUTEST_UNIX__)
             test_xml_output__ = fopen(arg, "w");
             if (!test_xml_output__) {
                 fprintf(stderr, "Unable to open '%s': %s\n", arg, strerror(errno));
                 exit(2);
             }
+#endif
             break;
 
         case 0:
@@ -1478,7 +1480,6 @@ test_cmdline_callback__(int id, const char* arg)
 
     return 0;
 }
-
 
 #ifdef ACUTEST_LINUX__
 static int
@@ -1528,11 +1529,11 @@ main(int argc, char** argv)
 #if defined ACUTEST_UNIX__
     test_colorize__ = isatty(STDOUT_FILENO);
 #elif defined ACUTEST_WIN__
- #if defined __BORLANDC__
+#if defined __BORLANDC__
     test_colorize__ = isatty(_fileno(stdout));
- #else
+#else
     test_colorize__ = _isatty(_fileno(stdout));
- #endif
+#endif
 #else
     test_colorize__ = 0;
 #endif
@@ -1660,12 +1661,10 @@ main(int argc, char** argv)
     return (test_stat_failed_units__ == 0) ? 0 : 1;
 }
 
-
 #endif  /* #ifndef TEST_NO_MAIN */
 
 #ifdef __cplusplus
     }  /* extern "C" */
 #endif
-
 
 #endif  /* #ifndef ACUTEST_H__ */

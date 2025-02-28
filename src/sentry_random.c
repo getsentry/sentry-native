@@ -1,10 +1,11 @@
 #include "sentry_boot.h"
 
-#include "sentry_random.h"
-#include "sentry_utils.h"
+#ifndef SENTRY_PLATFORM_NX
+#    include "sentry_random.h"
+#    include "sentry_utils.h"
 
-#ifdef SENTRY_PLATFORM_DARWIN
-#    include <stdlib.h>
+#    ifdef SENTRY_PLATFORM_DARWIN
+#        include <stdlib.h>
 
 static int
 getrandom_arc4random(void *dst, size_t bytes)
@@ -12,13 +13,13 @@ getrandom_arc4random(void *dst, size_t bytes)
     arc4random_buf(dst, bytes);
     return 0;
 }
-#    define HAVE_ARC4RANDOM
+#        define HAVE_ARC4RANDOM
 
-#endif
-#ifdef SENTRY_PLATFORM_UNIX
-#    include <errno.h>
-#    include <fcntl.h>
-#    include <unistd.h>
+#    endif
+#    ifdef SENTRY_PLATFORM_UNIX
+#        include <errno.h>
+#        include <fcntl.h>
+#        include <unistd.h>
 
 static int
 getrandom_devurandom(void *dst, size_t bytes)
@@ -45,9 +46,9 @@ getrandom_devurandom(void *dst, size_t bytes)
     return to_read > 0;
 }
 
-#    define HAVE_URANDOM
-#endif
-#ifdef SENTRY_PLATFORM_WINDOWS
+#        define HAVE_URANDOM
+#    endif
+#    ifdef SENTRY_PLATFORM_WINDOWS
 typedef BOOLEAN(WINAPI *sRtlGenRandom)(PVOID Buffer, ULONG BufferLength);
 
 static sRtlGenRandom pRtlGenRandom = NULL;
@@ -73,26 +74,27 @@ getrandom_rtlgenrandom(void *dst, size_t bytes)
     return 0;
 }
 
-#    define HAVE_RTLGENRANDOM
-#endif
+#        define HAVE_RTLGENRANDOM
+#    endif
 
 int
 sentry__getrandom(void *dst, size_t len)
 {
-#ifdef HAVE_ARC4RANDOM
+#    ifdef HAVE_ARC4RANDOM
     if (getrandom_arc4random(dst, len) == 0) {
         return 0;
     }
-#endif
-#ifdef HAVE_URANDOM
+#    endif
+#    ifdef HAVE_URANDOM
     if (getrandom_devurandom(dst, len) == 0) {
         return 0;
     }
-#endif
-#ifdef HAVE_RTLGENRANDOM
+#    endif
+#    ifdef HAVE_RTLGENRANDOM
     if (getrandom_rtlgenrandom(dst, len) == 0) {
         return 0;
     }
-#endif
+#    endif
     return 1;
 }
+#endif
