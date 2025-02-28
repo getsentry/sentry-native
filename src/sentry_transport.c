@@ -19,7 +19,7 @@
 #    define MAX_HTTP_HEADERS 3
 #endif
 
-typedef struct sentry_transport_s {
+struct sentry_transport_s {
     void (*send_envelope_func)(sentry_envelope_t *envelope, void *state);
     int (*startup_func)(const sentry_options_t *options, void *state);
     int (*shutdown_func)(uint64_t timeout, void *state);
@@ -28,7 +28,7 @@ typedef struct sentry_transport_s {
     size_t (*dump_func)(sentry_run_t *run, void *state);
     void *state;
     bool running;
-} sentry_transport_t;
+};
 
 sentry_transport_t *
 sentry_transport_new(

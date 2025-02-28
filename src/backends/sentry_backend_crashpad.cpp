@@ -33,11 +33,28 @@ extern "C" {
 #    pragma warning(disable : 4100) // unreferenced formal parameter
 #endif
 
+#ifdef __clang__
+#    pragma clang diagnostic push
+#    pragma clang diagnostic ignored "-Wundef"
+#    pragma clang diagnostic ignored "-Wsign-conversion"
+#    pragma clang diagnostic ignored "-Wextra-semi-stmt"
+#    pragma clang diagnostic ignored "-Wdocumentation-unknown-command"
+#    pragma clang diagnostic ignored "-Wdocumentation"
+#    pragma clang diagnostic ignored "-Wsuggest-destructor-override"
+#    pragma clang diagnostic ignored "-Wgnu-zero-variadic-macro-arguments"
+#    pragma clang diagnostic ignored "-Wlanguage-extension-token"
+#    pragma clang diagnostic ignored "-Wfour-char-constants"
+#    pragma clang diagnostic ignored                                           \
+        "-Winconsistent-missing-destructor-override"
+#endif
 #include "client/crash_report_database.h"
 #include "client/crashpad_client.h"
 #include "client/crashpad_info.h"
 #include "client/prune_crash_reports.h"
 #include "client/settings.h"
+#ifdef __clang__
+#    pragma clang diagnostic pop
+#endif
 #if defined(_WIN32)
 #    include "util/win/termination_codes.h"
 #endif

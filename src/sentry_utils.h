@@ -18,6 +18,12 @@
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 
+#if defined(_MSC_VER) && !defined(__clang__)
+#    define UNREACHABLE(reason) assert(!reason)
+#else
+#    define UNREACHABLE(reason) assert(!(bool)reason)
+#endif
+
 /**
  * This represents a URL parsed into its different parts.
  */
@@ -154,7 +160,8 @@ sentry__monotonic_time(void)
 
     LARGE_INTEGER qpc_counter;
     QueryPerformanceCounter(&qpc_counter);
-    return qpc_counter.QuadPart * 1000 / qpc_frequency.QuadPart;
+    return (uint64_t)qpc_counter.QuadPart * 1000
+        / (uint64_t)qpc_frequency.QuadPart;
 #elif defined(SENTRY_PLATFORM_DARWIN)
 
 // try `clock_gettime` first if available,

@@ -15,6 +15,10 @@ class CMake:
         self.factory = factory
 
     def compile(self, targets, options=None):
+        # We build in tmp for all of our tests. Disable the warning MSVC generates to not clutter the build logs.
+        if sys.platform == "win32":
+            os.environ["IgnoreWarnIntDirInTempDetected"] = "True"
+
         if options is None:
             options = dict()
         key = (
@@ -130,6 +134,12 @@ def cmake(cwd, targets, options=None):
         ]
 
     configcmd = cmake.copy()
+
+    if os.environ.get("VS_GENERATOR_TOOLSET") == "ClangCL":
+        configcmd.append("-G Visual Studio 17 2022")
+        configcmd.append("-A x64")
+        configcmd.append("-T ClangCL")
+
     for key, value in options.items():
         configcmd.append("-D{}={}".format(key, value))
     if sys.platform == "win32" and os.environ.get("TEST_X86"):
@@ -153,7 +163,10 @@ def cmake(cwd, targets, options=None):
     if "gcc" in os.environ.get("RUN_ANALYZER", ""):
         cflags.append("-fanalyzer")
     if "llvm-cov" in os.environ.get("RUN_ANALYZER", ""):
-        flags = "-fprofile-instr-generate -fcoverage-mapping"
+        if os.environ.get("VS_GENERATOR_TOOLSET") == "ClangCL":
+            flags = "--coverage"
+        else:
+            flags = "-fprofile-instr-generate -fcoverage-mapping"
         configcmd.append("-DCMAKE_C_FLAGS='{}'".format(flags))
 
         # Since we overwrite `CXXFLAGS` below, we must add the experimental library here for the GHA runner that builds

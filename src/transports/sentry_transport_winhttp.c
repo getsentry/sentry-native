@@ -71,8 +71,10 @@ set_proxy_credentials(winhttp_bgworker_state_t *state, const char *proxy)
             = MultiByteToWideChar(CP_UTF8, 0, url.username, -1, NULL, 0);
         int pass_wlen
             = MultiByteToWideChar(CP_UTF8, 0, url.password, -1, NULL, 0);
-        wchar_t *user_w = (wchar_t *)malloc(user_wlen * sizeof(wchar_t));
-        wchar_t *pass_w = (wchar_t *)malloc(pass_wlen * sizeof(wchar_t));
+        wchar_t *user_w
+            = (wchar_t *)malloc((size_t)user_wlen * sizeof(wchar_t));
+        wchar_t *pass_w
+            = (wchar_t *)malloc((size_t)pass_wlen * sizeof(wchar_t));
         MultiByteToWideChar(CP_UTF8, 0, url.username, -1, user_w, user_wlen);
         MultiByteToWideChar(CP_UTF8, 0, url.password, -1, pass_w, pass_wlen);
 
@@ -108,7 +110,7 @@ sentry__winhttp_transport_start(
             set_proxy_credentials(state, proxy);
         }
         if (slash) {
-            char *copy = sentry__string_clone_n(ptr, slash - ptr);
+            char *copy = sentry__string_clone_n(ptr, (size_t)(slash - ptr));
             state->proxy = sentry__string_to_wstr(copy);
             sentry_free(copy);
         } else {
