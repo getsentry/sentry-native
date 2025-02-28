@@ -1445,11 +1445,13 @@ test_cmdline_callback__(int id, const char* arg)
             test_worker_index__ = atoi(arg);
             break;
         case 'x':
+#if defined ACUTEST_UNIX__
             test_xml_output__ = fopen(arg, "w");
             if (!test_xml_output__) {
                 fprintf(stderr, "Unable to open '%s': %s\n", arg, strerror(errno));
                 exit(2);
             }
+#endif
             break;
 
         case 0:
