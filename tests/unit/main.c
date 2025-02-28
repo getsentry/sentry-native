@@ -1,4 +1,7 @@
-#define SENTRY_TEST_DEFINE_MAIN
+#include "sentry_boot.h"
+#ifndef SENTRY_PLATFORM_NX
+#    define SENTRY_TEST_DEFINE_MAIN
+#endif
 
 #include "sentry_testsupport.h"
 
