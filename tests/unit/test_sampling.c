@@ -46,7 +46,7 @@ traces_sampler_callback(const sentry_transaction_context_t *transaction_ctx,
 
 SENTRY_TEST(sampling_transaction)
 {
-    sentry_options_t *options = sentry_options_new();
+    SENTRY_TEST_OPTIONS_NEW(options);
     TEST_CHECK(sentry_init(options) == 0);
 
     sentry_transaction_context_t *tx_ctx
