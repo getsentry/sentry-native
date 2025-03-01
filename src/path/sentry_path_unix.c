@@ -53,8 +53,8 @@ bool
 sentry__filelock_try_lock(sentry_filelock_t *lock)
 {
 #ifdef SENTRY_PLATFORM_NX
-    // TODO
-    return false;
+    // Nothing to do, other processes shouldn't be running at the same time.
+    return true;
 #endif
     lock->is_locked = false;
 
@@ -92,7 +92,7 @@ void
 sentry__filelock_unlock(sentry_filelock_t *lock)
 {
 #ifdef SENTRY_PLATFORM_NX
-    // TODO
+    // Nothing to do, see sentry__filelock_try_lock.
     return;
 #endif
     if (!lock->is_locked) {

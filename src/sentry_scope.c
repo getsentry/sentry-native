@@ -149,6 +149,7 @@ sentry__scope_flush_unlock(void)
     }
 }
 
+#ifndef SENTRY_PLATFORM_NX
 static void
 sentry__foreach_stacktrace(
     sentry_value_t event, void (*func)(sentry_value_t stacktrace))
@@ -222,7 +223,6 @@ sentry__symbolize_frame(const sentry_frame_info_t *info, void *data)
     }
 }
 
-#ifndef SENTRY_PLATFORM_NX
 static void
 sentry__symbolize_stacktrace(sentry_value_t stacktrace)
 {
