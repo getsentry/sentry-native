@@ -177,7 +177,7 @@ SENTRY_TEST(basic_http_request_preparation_for_minidump)
 sentry_envelope_t *
 create_test_envelope()
 {
-    sentry_options_t *options = sentry_options_new();
+    SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
     sentry_init(options);
 
@@ -219,9 +219,9 @@ SENTRY_TEST(serialize_envelope)
 SENTRY_TEST(basic_write_envelope_to_file)
 {
     sentry_envelope_t *envelope = create_test_envelope();
-    const char *test_file_str = "sentry_test_envelope";
-    sentry_path_t *test_file_path = sentry__path_from_str(test_file_str);
-    int rv = sentry_envelope_write_to_file(envelope, test_file_str);
+    sentry_path_t *test_file_path
+        = sentry__path_from_str(SENTRY_TEST_PATH_PREFIX "sentry_test_envelope");
+    int rv = sentry_envelope_write_to_file(envelope, test_file_path->path);
     TEST_CHECK_INT_EQUAL(rv, 0);
     TEST_ASSERT(sentry__path_is_file(test_file_path));
 
@@ -257,11 +257,11 @@ SENTRY_TEST(write_envelope_to_file_null)
 SENTRY_TEST(write_envelope_to_invalid_path)
 {
     sentry_envelope_t *envelope = create_test_envelope();
-    const char *test_file_str
-        = "./directory_that_does_not_exist/sentry_test_envelope";
-    sentry_path_t *test_file_path = sentry__path_from_str(test_file_str);
+    sentry_path_t *test_file_path
+        = sentry__path_from_str(SENTRY_TEST_PATH_PREFIX
+            "./directory_that_does_not_exist/sentry_test_envelope");
 
-    int rv = sentry_envelope_write_to_file(envelope, test_file_str);
+    int rv = sentry_envelope_write_to_file(envelope, test_file_path->path);
     TEST_CHECK_INT_EQUAL(rv, 1);
 
     sentry__path_remove(test_file_path);

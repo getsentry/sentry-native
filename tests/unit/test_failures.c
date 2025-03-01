@@ -19,7 +19,7 @@ SENTRY_TEST(init_failure)
         = sentry_new_function_transport(noop_send, NULL);
     sentry_transport_set_startup_func(transport, transport_startup_fail);
 
-    sentry_options_t *options = sentry_options_new();
+    SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_transport(options, transport);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
     int rv = sentry_init(options);

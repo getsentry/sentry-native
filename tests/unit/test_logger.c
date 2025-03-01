@@ -28,7 +28,7 @@ SENTRY_TEST(custom_logger)
 {
     logger_test_t data = { 0, false };
 
-    sentry_options_t *options = sentry_options_new();
+    SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_debug(options, true);
     sentry_options_set_logger(options, test_logger, &data);
 
