@@ -46,8 +46,10 @@ traces_sampler_callback(const sentry_transaction_context_t *transaction_ctx,
 
 SENTRY_TEST(sampling_transaction)
 {
-    SENTRY_TEST_OPTIONS_NEW(options);
-    TEST_CHECK(sentry_init(options) == 0);
+    {
+        SENTRY_TEST_OPTIONS_NEW(options);
+        TEST_CHECK(sentry_init(options) == 0);
+    }
 
     sentry_transaction_context_t *tx_ctx
         = sentry_transaction_context_new("honk", NULL);
@@ -70,76 +72,88 @@ SENTRY_TEST(sampling_transaction)
     sentry_transaction_context_set_sampled(tx_ctx, 1);
     TEST_CHECK(sentry__should_send_transaction(tx_ctx->inner, &sampling_ctx));
 
-    options = sentry_options_new();
-    sentry_options_set_traces_sample_rate(options, 1.0);
-    TEST_CHECK(sentry_init(options) == 0);
+    {
+        SENTRY_TEST_OPTIONS_NEW(options);
+        sentry_options_set_traces_sample_rate(options, 1.0);
+        TEST_CHECK(sentry_init(options) == 0);
 
-    TEST_CHECK(sentry__should_send_transaction(tx_ctx->inner, &sampling_ctx));
+        TEST_CHECK(
+            sentry__should_send_transaction(tx_ctx->inner, &sampling_ctx));
 
-    // non-sampled parent
-    sentry_transaction_context_set_sampled(tx_ctx, 0);
-    TEST_CHECK(
-        sentry__should_send_transaction(tx_ctx->inner, &sampling_ctx) == false);
+        // non-sampled parent
+        sentry_transaction_context_set_sampled(tx_ctx, 0);
+        TEST_CHECK(sentry__should_send_transaction(tx_ctx->inner, &sampling_ctx)
+            == false);
 
-    sentry_transaction_context_remove_sampled(tx_ctx);
+        sentry_transaction_context_remove_sampled(tx_ctx);
+    }
 
-    // test the traces_sampler callback
-    options = sentry_options_new();
-    sentry_options_set_traces_sampler(options, traces_sampler_callback);
-    sentry_options_set_traces_sample_rate(options, 1.0);
-    TEST_CHECK(sentry_init(options) == 0);
+    {
+        // test the traces_sampler callback
+        SENTRY_TEST_OPTIONS_NEW(options);
+        sentry_options_set_traces_sampler(options, traces_sampler_callback);
+        sentry_options_set_traces_sample_rate(options, 1.0);
+        TEST_CHECK(sentry_init(options) == 0);
 
-    sentry_value_t custom_sampling_ctx = sentry_value_new_object();
-    sentry_value_set_by_key(
-        custom_sampling_ctx, "answer", sentry_value_new_int32(42));
-    sampling_ctx.custom_sampling_context = custom_sampling_ctx;
+        sentry_value_t custom_sampling_ctx = sentry_value_new_object();
+        sentry_value_set_by_key(
+            custom_sampling_ctx, "answer", sentry_value_new_int32(42));
+        sampling_ctx.custom_sampling_context = custom_sampling_ctx;
 
-    TEST_CHECK(sentry__should_send_transaction(tx_ctx->inner, &sampling_ctx));
+        TEST_CHECK(
+            sentry__should_send_transaction(tx_ctx->inner, &sampling_ctx));
 
-    // non-sampled parent and traces sampler
-    sentry_transaction_context_set_sampled(tx_ctx, 0);
-    TEST_CHECK(
-        sentry__should_send_transaction(tx_ctx->inner, &sampling_ctx) == false);
-    // removing sampled should fall back to traces sampler
-    sentry_transaction_context_remove_sampled(tx_ctx);
-    TEST_CHECK(sentry__should_send_transaction(tx_ctx->inner, &sampling_ctx));
-    sentry_value_set_by_key(
-        custom_sampling_ctx, "answer", sentry_value_new_int32(21));
-    TEST_CHECK(
-        sentry__should_send_transaction(tx_ctx->inner, &sampling_ctx) == false);
+        // non-sampled parent and traces sampler
+        sentry_transaction_context_set_sampled(tx_ctx, 0);
+        TEST_CHECK(sentry__should_send_transaction(tx_ctx->inner, &sampling_ctx)
+            == false);
+        // removing sampled should fall back to traces sampler
+        sentry_transaction_context_remove_sampled(tx_ctx);
+        TEST_CHECK(
+            sentry__should_send_transaction(tx_ctx->inner, &sampling_ctx));
+        sentry_value_set_by_key(
+            custom_sampling_ctx, "answer", sentry_value_new_int32(21));
+        TEST_CHECK(sentry__should_send_transaction(tx_ctx->inner, &sampling_ctx)
+            == false);
 
-    // sampled parent and traces sampler
-    sentry_transaction_context_set_sampled(tx_ctx, 1);
-    TEST_CHECK(sentry__should_send_transaction(tx_ctx->inner, &sampling_ctx));
-    sentry_transaction_context_remove_sampled(tx_ctx);
+        // sampled parent and traces sampler
+        sentry_transaction_context_set_sampled(tx_ctx, 1);
+        TEST_CHECK(
+            sentry__should_send_transaction(tx_ctx->inner, &sampling_ctx));
+        sentry_transaction_context_remove_sampled(tx_ctx);
 
-    // testing transaction_context getters
-    sentry_transaction_context_set_name(tx_ctx, "skipme");
-    TEST_CHECK_STRING_EQUAL(
-        sentry_transaction_context_get_name(tx_ctx), "skipme");
-    TEST_CHECK(
-        sentry__should_send_transaction(tx_ctx->inner, &sampling_ctx) == false);
-    sentry_transaction_context_set_name(tx_ctx, "sampleme");
-    TEST_CHECK_STRING_EQUAL(
-        sentry_transaction_context_get_name(tx_ctx), "sampleme");
-    TEST_CHECK(sentry__should_send_transaction(tx_ctx->inner, &sampling_ctx));
-    sentry_transaction_context_set_name(tx_ctx, ""); // reset name
+        // testing transaction_context getters
+        sentry_transaction_context_set_name(tx_ctx, "skipme");
+        TEST_CHECK_STRING_EQUAL(
+            sentry_transaction_context_get_name(tx_ctx), "skipme");
+        TEST_CHECK(sentry__should_send_transaction(tx_ctx->inner, &sampling_ctx)
+            == false);
+        sentry_transaction_context_set_name(tx_ctx, "sampleme");
+        TEST_CHECK_STRING_EQUAL(
+            sentry_transaction_context_get_name(tx_ctx), "sampleme");
+        TEST_CHECK(
+            sentry__should_send_transaction(tx_ctx->inner, &sampling_ctx));
+        sentry_transaction_context_set_name(tx_ctx, ""); // reset name
 
-    sentry_transaction_context_set_operation(tx_ctx, "skipme");
-    TEST_CHECK(
-        sentry__should_send_transaction(tx_ctx->inner, &sampling_ctx) == false);
-    sentry_transaction_context_set_operation(tx_ctx, "sampleme");
-    TEST_CHECK(sentry__should_send_transaction(tx_ctx->inner, &sampling_ctx));
+        sentry_transaction_context_set_operation(tx_ctx, "skipme");
+        TEST_CHECK(sentry__should_send_transaction(tx_ctx->inner, &sampling_ctx)
+            == false);
+        sentry_transaction_context_set_operation(tx_ctx, "sampleme");
+        TEST_CHECK(
+            sentry__should_send_transaction(tx_ctx->inner, &sampling_ctx));
 
-    // remove traces_sampler callback, should fall back to traces_sample_rate
-    options->traces_sampler = NULL;
-    sentry_options_set_traces_sample_rate(options, 0.0);
-    TEST_CHECK(
-        sentry__should_send_transaction(tx_ctx->inner, &sampling_ctx) == false);
-    sentry_options_set_traces_sample_rate(options, 1.0);
-    TEST_CHECK(sentry__should_send_transaction(tx_ctx->inner, &sampling_ctx));
+        // remove traces_sampler callback, should fall back to
+        // traces_sample_rate
+        options->traces_sampler = NULL;
+        sentry_options_set_traces_sample_rate(options, 0.0);
+        TEST_CHECK(sentry__should_send_transaction(tx_ctx->inner, &sampling_ctx)
+            == false);
+        sentry_options_set_traces_sample_rate(options, 1.0);
+        TEST_CHECK(
+            sentry__should_send_transaction(tx_ctx->inner, &sampling_ctx));
 
-    sentry__transaction_context_free(tx_ctx);
-    sentry_value_decref(custom_sampling_ctx);
-    sentry_close();
+        sentry__transaction_context_free(tx_ctx);
+        sentry_value_decref(custom_sampling_ctx);
+        sentry_close();
+    }
 }

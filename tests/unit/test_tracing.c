@@ -1298,7 +1298,7 @@ SENTRY_TEST(set_tag_cuts_value_at_length_200)
 
 SENTRY_TEST(set_trace)
 {
-    sentry_options_t *options = sentry_options_new();
+    SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
     sentry_init(options);
 
@@ -1367,7 +1367,7 @@ apply_scope_and_check_trace_context(
 SENTRY_TEST(set_trace_id_with_txn)
 {
     // initialize SDK so we have a scope
-    sentry_options_t *options = sentry_options_new();
+    SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_traces_sample_rate(options, 1.0);
     sentry_options_set_sample_rate(options, 1.0);
     sentry_init(options);
