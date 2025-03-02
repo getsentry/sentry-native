@@ -109,7 +109,7 @@ sentry__path_absolute(const sentry_path_t *path)
 {
 #ifdef SENTRY_PLATFORM_NX
     // TODO
-    return sentry__path_from_str(path->path);
+    return NULL;
 #endif
     char full[PATH_MAX];
     if (!realpath(path->path, full)) {
