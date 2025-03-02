@@ -849,6 +849,36 @@ sentry_remove_fingerprint(void)
 }
 
 void
+sentry_set_trace(const char *trace_id, const char *parent_span_id)
+{
+    sentry_set_trace_n(trace_id, sentry__guarded_strlen(trace_id),
+        parent_span_id, sentry__guarded_strlen(parent_span_id));
+}
+
+void
+sentry_set_trace_n(const char *trace_id, size_t trace_id_len,
+    const char *parent_span_id, size_t parent_span_id_len)
+{
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry_value_t context = sentry_value_new_object();
+
+        sentry_value_set_by_key(
+            context, "type", sentry_value_new_string("trace"));
+
+        sentry_value_set_by_key(context, "trace_id",
+            sentry_value_new_string_n(trace_id, trace_id_len));
+        sentry_value_set_by_key(context, "parent_span_id",
+            sentry_value_new_string_n(parent_span_id, parent_span_id_len));
+
+        sentry_uuid_t span_id = sentry_uuid_new_v4();
+        sentry_value_set_by_key(
+            context, "span_id", sentry__value_new_span_uuid(&span_id));
+
+        sentry_set_context("trace", context);
+    }
+}
+
+void
 sentry_set_transaction(const char *transaction)
 {
     SENTRY_WITH_SCOPE_MUT (scope) {
