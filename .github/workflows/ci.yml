@@ -100,10 +100,6 @@ jobs:
           - name: Windows ClangCL (latest)
             os: windows-latest
             VS_GENERATOR_TOOLSET: ClangCL
-          - name: Windows ClangCL (latest + llvm-cov)
-            os: windows-latest
-            VS_GENERATOR_TOOLSET: ClangCL
-            RUN_ANALYZER: llvm-cov
           - name: LLVM-Mingw
             os: windows-latest
             TEST_MINGW: 1
