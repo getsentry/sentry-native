@@ -662,6 +662,16 @@ sentry_add_breadcrumb(sentry_value_t breadcrumb)
 {
     size_t max_breadcrumbs = SENTRY_BREADCRUMBS_MAX;
     SENTRY_WITH_OPTIONS (options) {
+        if (options->on_breadcrumb_func) {
+            SENTRY_DEBUG("invoking `before_breadcrumb` hook");
+            breadcrumb = options->on_breadcrumb_func(
+                breadcrumb, NULL, options->on_breadcrumb_data);
+            if (sentry_value_is_null(breadcrumb)) {
+                SENTRY_DEBUG(
+                    "breadcrumb was discarded by the `before_breadcrumb` hook");
+                return;
+            }
+        }
         if (options->backend && options->backend->add_breadcrumb_func) {
             // the hook will *not* take ownership
             options->backend->add_breadcrumb_func(

@@ -104,6 +104,31 @@ on_crash_callback(
     return event;
 }
 
+static sentry_value_t
+before_breadcrumb_callback(sentry_value_t breadcrumb, void *hint, void *closure)
+{
+    (void)hint;
+    (void)closure;
+
+    // make our mark on the breadcrumbs
+    sentry_value_set_by_key(
+        breadcrumb, "category", sentry_value_new_string("before_breadcrumb"));
+
+    return breadcrumb;
+}
+
+static sentry_value_t
+discarding_before_breadcrumb_callback(
+    sentry_value_t breadcrumb, void *hint, void *closure)
+{
+    (void)hint;
+    (void)closure;
+
+    // discard breadcrumb
+    sentry_value_decref(breadcrumb);
+    return sentry_value_new_null();
+}
+
 static void
 print_envelope(sentry_envelope_t *envelope, void *unused_state)
 {
@@ -258,6 +283,16 @@ main(int argc, char **argv)
     if (has_arg(argc, argv, "discarding-on-crash")) {
         sentry_options_set_on_crash(
             options, discarding_on_crash_callback, NULL);
+    }
+
+    if (has_arg(argc, argv, "before-breadcrumb")) {
+        sentry_options_set_before_send(
+            options, before_breadcrumb_callback, NULL);
+    }
+
+    if (has_arg(argc, argv, "discarding-before-breadcrumb")) {
+        sentry_options_set_before_breadcrumb(
+            options, discarding_before_breadcrumb_callback, NULL);
     }
 
     if (has_arg(argc, argv, "traces-sampler")) {

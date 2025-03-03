@@ -267,6 +267,17 @@ def assert_no_before_send(envelope):
     event = envelope.get_event()
     assert ("adapted_by", "before_send") not in event.items()
 
+def assert_before_breadcrumb(envelope):
+    event = envelope.get_event()
+    breadcrumbs = event["breadcrumbs"]
+    assert all(
+        breadcrumb["category"] == "before_breadcrumb"
+        for breadcrumb in breadcrumbs
+    )
+
+def assert_discarding_before_breadcrumb(envelope):
+    event = envelope.get_event()
+    assert event["breadcrumbs"] is None
 
 @dataclass(frozen=True)
 class CrashpadAttachments:

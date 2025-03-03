@@ -58,6 +58,8 @@ typedef struct sentry_options_s {
     void *before_send_data;
     sentry_crash_function_t on_crash_func;
     void *on_crash_data;
+    sentry_breadcrumb_function_t on_breadcrumb_func;
+    void *on_breadcrumb_data;
 
     /* Experimentally exposed */
     double traces_sample_rate;
