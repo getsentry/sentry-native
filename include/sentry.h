@@ -1405,19 +1405,19 @@ SENTRY_API sentry_uuid_t sentry_capture_event(sentry_value_t event);
 
 /**
  * Allows capturing independently created minidumps.
- * 
- * You don't need this function if you're relying on Sentry to create the minidump.
- * This is useful when you have a minidump captured through a different mechanism,
- * and you want Sentry to ingest it.
  *
  * This generates a fatal error event, includes the scope and attachments.
- * If the event isn't dropped by a before-send hook, the minidump is attached
+ * If a before-send hook doesn't drop the event, the minidump is attached
  * and the event is sent.
  *
  * Returns a nil `UUID` if capturing the minidump failed and the event-id
  * otherwise. Uploads can fail because capturing is asynchronous, so a non-nil
  * `UUID` is not a delivery guarantee. However, if the minidump is successfully
  * delivered, the ID is guaranteed to be the same as the event in the Sentry UI.
+ *
+ * Note: You don't need this function if you rely on Sentry to create the
+ * minidump. This is useful when you have a minidump captured through a
+ * different mechanism, and you want Sentry to ingest it.
  */
 SENTRY_API sentry_uuid_t sentry_capture_minidump(const char *path);
 SENTRY_API sentry_uuid_t sentry_capture_minidump_n(
