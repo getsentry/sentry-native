@@ -280,6 +280,7 @@ def assert_discarding_before_breadcrumb(envelope):
     event = envelope.get_event()
     assert event["breadcrumbs"] is None
 
+
 @dataclass(frozen=True)
 class CrashpadAttachments:
     event: dict

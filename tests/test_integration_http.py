@@ -24,6 +24,8 @@ from .assertions import (
     assert_attachment,
     assert_meta,
     assert_breadcrumb,
+    assert_before_breadcrumb,
+    assert_discarding_before_breadcrumb,
     assert_stacktrace,
     assert_event,
     assert_exception,
