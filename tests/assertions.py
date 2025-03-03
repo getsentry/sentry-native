@@ -272,13 +272,13 @@ def assert_before_breadcrumb(envelope):
     event = envelope.get_event()
     breadcrumbs = event["breadcrumbs"]
     assert all(
-        breadcrumb["category"] == "before_breadcrumb" for breadcrumb in breadcrumbs
+        b["category"] == "before_breadcrumb" for b in breadcrumbs
     )
 
 
 def assert_discarding_before_breadcrumb(envelope):
     event = envelope.get_event()
-    assert event["breadcrumbs"] is None
+    assert event["breadcrumbs"] is []
 
 
 @dataclass(frozen=True)

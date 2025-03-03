@@ -286,7 +286,7 @@ main(int argc, char **argv)
     }
 
     if (has_arg(argc, argv, "before-breadcrumb")) {
-        sentry_options_set_before_send(
+        sentry_options_set_before_breadcrumb(
             options, before_breadcrumb_callback, NULL);
     }
 
