@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Add `before_breadcrumb` hook ([#1166](https://github.com/getsentry/sentry-native/pull/1166))
+
 ## 0.8.1
 
 **Features**:
