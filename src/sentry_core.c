@@ -680,10 +680,6 @@ sentry_add_breadcrumb(sentry_value_t breadcrumb)
         max_breadcrumbs = options->max_breadcrumbs;
     }
 
-    if (sentry_value_is_null(breadcrumb)) {
-        return;
-    }
-
     // the `no_flush` will avoid triggering *both* scope-change and
     // breadcrumb-add events.
     SENTRY_WITH_SCOPE_MUT_NO_FLUSH (scope) {
