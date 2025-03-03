@@ -4,7 +4,7 @@
 
 SENTRY_TEST(recursive_paths)
 {
-    sentry_path_t *base = sentry__path_from_str(".foo");
+    sentry_path_t *base = sentry__path_from_str(SENTRY_TEST_PATH_PREFIX ".foo");
     sentry_path_t *nested = sentry__path_join_str(base, "bar");
     sentry_path_t *nested2 = sentry__path_join_str(nested, "baz");
     sentry_path_t *file =
@@ -141,7 +141,7 @@ SENTRY_TEST(path_basics)
 {
     size_t items = 0;
     const sentry_path_t *p;
-    sentry_path_t *path = sentry__path_from_str(".");
+    sentry_path_t *path = sentry__path_from_str(SENTRY_TEST_PATH_PREFIX ".");
     TEST_CHECK(!!path);
 
     sentry_pathiter_t *piter = sentry__path_iter_directory(path);
@@ -166,10 +166,13 @@ SENTRY_TEST(path_current_exe)
 
 SENTRY_TEST(path_directory)
 {
-    sentry_path_t *path_1 = sentry__path_from_str("foo");
-    sentry_path_t *path_2 = sentry__path_from_str("foo/bar");
+    sentry_path_t *path_1
+        = sentry__path_from_str(SENTRY_TEST_PATH_PREFIX "foo");
+    sentry_path_t *path_2
+        = sentry__path_from_str(SENTRY_TEST_PATH_PREFIX "foo/bar");
 #ifdef SENTRY_PLATFORM_WINDOWS
-    sentry_path_t *path_3 = sentry__path_from_str("foo/bar\\baz");
+    sentry_path_t *path_3
+        = sentry__path_from_str(SENTRY_TEST_PATH_PREFIX "foo/bar\\baz");
 
     // `%TEMP%\sentry_test_unit`
     wchar_t temp_folder[MAX_PATH];

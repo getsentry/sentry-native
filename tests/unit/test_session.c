@@ -55,7 +55,7 @@ send_envelope(const sentry_envelope_t *envelope, void *data)
 SENTRY_TEST(session_basics)
 {
     uint64_t called = 0;
-    sentry_options_t *options = sentry_options_new();
+    SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
     sentry_options_set_transport(
         options, sentry_new_function_transport(send_envelope, &called));
@@ -139,7 +139,7 @@ SENTRY_TEST(count_sampled_events)
 {
     session_assertion_t assertion = { false, 0 };
 
-    sentry_options_t *options = sentry_options_new();
+    SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
     sentry_options_set_transport(options,
         sentry_new_function_transport(send_sampled_envelope, &assertion));

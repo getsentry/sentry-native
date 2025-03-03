@@ -135,7 +135,7 @@ SENTRY_TEST(transaction_name_backfill_on_finish)
 {
     uint64_t called = 0;
 
-    sentry_options_t *options = sentry_options_new();
+    SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
 
     sentry_transport_t *transport = sentry_transport_new(check_backfilled_name);
@@ -185,7 +185,7 @@ run_basic_function_transport_transaction(bool timestamped)
 {
     uint64_t called = 0;
 
-    sentry_options_t *options = sentry_options_new();
+    SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
 
     sentry_transport_t *transport
@@ -271,7 +271,7 @@ SENTRY_TEST(transport_sampling_transactions)
 {
     uint64_t called_transport = 0;
 
-    sentry_options_t *options = sentry_options_new();
+    SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
 
     sentry_transport_t *transport
@@ -316,7 +316,7 @@ SENTRY_TEST(transactions_skip_before_send)
     uint64_t called_beforesend = 0;
     uint64_t called_transport = 0;
 
-    sentry_options_t *options = sentry_options_new();
+    SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
 
     sentry_transport_t *transport
@@ -354,7 +354,7 @@ SENTRY_TEST(multiple_transactions)
 {
     uint64_t called_transport = 0;
 
-    sentry_options_t *options = sentry_options_new();
+    SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
 
     sentry_transport_t *transport = sentry_transport_new(before_transport);
@@ -399,7 +399,7 @@ SENTRY_TEST(multiple_transactions)
 
 SENTRY_TEST(basic_spans)
 {
-    sentry_options_t *options = sentry_options_new();
+    SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_traces_sample_rate(options, 1.0);
     sentry_init(options);
 
@@ -453,7 +453,7 @@ SENTRY_TEST(basic_spans)
 
 SENTRY_TEST(spans_on_scope)
 {
-    sentry_options_t *options = sentry_options_new();
+    SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_traces_sample_rate(options, 1.0);
     sentry_init(options);
 
@@ -505,7 +505,7 @@ SENTRY_TEST(spans_on_scope)
 void
 run_child_spans_test(bool timestamped)
 {
-    sentry_options_t *options = sentry_options_new();
+    SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_traces_sample_rate(options, 1.0);
     sentry_options_set_max_spans(options, 3);
     sentry_init(options);
@@ -596,7 +596,7 @@ SENTRY_TEST(child_spans_ts) { run_child_spans_test(true); }
 
 SENTRY_TEST(overflow_spans)
 {
-    sentry_options_t *options = sentry_options_new();
+    SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_traces_sample_rate(options, 1.0);
     sentry_options_set_max_spans(options, 1);
     sentry_init(options);
@@ -647,7 +647,7 @@ SENTRY_TEST(overflow_spans)
 
 SENTRY_TEST(unsampled_spans)
 {
-    sentry_options_t *options = sentry_options_new();
+    SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_traces_sample_rate(options, 1.0);
     sentry_init(options);
 
@@ -733,7 +733,7 @@ SENTRY_TEST(drop_unfinished_spans)
 {
     uint64_t called_transport = 0;
 
-    sentry_options_t *options = sentry_options_new();
+    SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
 
     sentry_transport_t *transport = sentry_transport_new(check_spans);
@@ -793,7 +793,7 @@ SENTRY_TEST(update_from_header_null_ctx)
 
 SENTRY_TEST(update_from_header_no_sampled_flag)
 {
-    sentry_options_t *options = sentry_options_new();
+    SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
 
     sentry_options_set_traces_sample_rate(options, 1.0);
@@ -824,7 +824,7 @@ SENTRY_TEST(update_from_header_no_sampled_flag)
 
 SENTRY_TEST(distributed_headers_invalid_traceid)
 {
-    sentry_options_t *options = sentry_options_new();
+    SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
 
     sentry_init(options);
@@ -878,7 +878,7 @@ SENTRY_TEST(distributed_headers_invalid_traceid)
 
 SENTRY_TEST(distributed_headers_invalid_spanid)
 {
-    sentry_options_t *options = sentry_options_new();
+    SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
 
     sentry_init(options);
@@ -941,7 +941,7 @@ SENTRY_TEST(distributed_headers_invalid_spanid)
 
 SENTRY_TEST(distributed_headers)
 {
-    sentry_options_t *options = sentry_options_new();
+    SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
 
     sentry_options_set_traces_sample_rate(options, 1.0);
@@ -1298,7 +1298,7 @@ SENTRY_TEST(set_tag_cuts_value_at_length_200)
 
 SENTRY_TEST(set_trace)
 {
-    sentry_options_t *options = sentry_options_new();
+    SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
     sentry_init(options);
 
@@ -1367,7 +1367,7 @@ apply_scope_and_check_trace_context(
 SENTRY_TEST(set_trace_id_with_txn)
 {
     // initialize SDK so we have a scope
-    sentry_options_t *options = sentry_options_new();
+    SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_traces_sample_rate(options, 1.0);
     sentry_options_set_sample_rate(options, 1.0);
     sentry_init(options);
