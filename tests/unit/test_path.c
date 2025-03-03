@@ -160,11 +160,16 @@ SENTRY_TEST(path_basics)
 SENTRY_TEST(path_current_exe)
 {
     sentry_path_t *path = sentry__path_current_exe();
+#ifdef SENTRY_PLATFORM_NX
+    // Not available on NX
+    TEST_CHECK(!path);
+#else
     TEST_CHECK(!!path);
     if (path) {
         TEST_CHECK(sentry__path_is_file(path));
         sentry__path_free(path);
     }
+#endif
 }
 
 SENTRY_TEST(path_directory)
