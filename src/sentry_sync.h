@@ -7,6 +7,9 @@
 #include <assert.h>
 #include <stdio.h>
 
+// This is a NOP for platforms that support static mutex initialization.
+#    define SENTRY__MUTEX_INIT_DYN_ONCE(Mutex) ((void)0)
+
 #ifdef _MSC_VER
 #    define THREAD_FUNCTION_API __stdcall
 #else
@@ -228,8 +231,7 @@ void sentry__leave_signal_handler(void);
 typedef pthread_t sentry_threadid_t;
 typedef pthread_mutex_t sentry_mutex_t;
 typedef pthread_cond_t sentry_cond_t;
-// This is a NOP for platforms that support static mutex initialization.
-#    define SENTRY__MUTEX_INIT_DYN_ONCE(Mutex) ((void)0)
+
 #    ifdef SENTRY_PLATFORM_LINUX
 #        ifndef PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP
 // In particular musl libc does not define a recursive initializer itself.
