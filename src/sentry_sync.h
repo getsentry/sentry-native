@@ -8,7 +8,7 @@
 #include <stdio.h>
 
 // This is a NOP for platforms that support static mutex initialization.
-#    define SENTRY__MUTEX_INIT_DYN_ONCE(Mutex) ((void)0)
+#define SENTRY__MUTEX_INIT_DYN_ONCE(Mutex) ((void)0)
 
 #ifdef _MSC_VER
 #    define THREAD_FUNCTION_API __stdcall
