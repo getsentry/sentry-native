@@ -186,7 +186,6 @@ dladdr(void *s, Dl_info *i)
 }
 #endif
 
-#ifndef SENTRY_PLATFORM_NX
 bool
 sentry__symbolize(
     void *addr, void (*func)(const sentry_frame_info_t *, void *), void *data)
@@ -205,15 +204,14 @@ sentry__symbolize(
     frame_info.symbol = info.dli_sname;
     frame_info.object_name = info.dli_fname;
     func(&frame_info, data);
-#    ifdef SENTRY_PLATFORM_AIX
+#ifdef SENTRY_PLATFORM_AIX
     // On AIX these must be freed. Hope the the callback doesn't use that
     // buffer...
     // XXX: We may just be able to stuff it into a fixed-length field of
     // Dl_info?
     free(info.dli_sname);
     free(info.dli_fname);
-#    endif
+#endif
 
     return true;
 }
-#endif

@@ -68,13 +68,13 @@ else()
 			sentry_random.h
 			sentry_unix_pageallocator.c
 			sentry_unix_pageallocator.h
+			symbolizer/sentry_symbolizer_unix.c
 		)
 	endif()
 
 	sentry_target_sources_cwd(sentry
 		sentry_unix_spinlock.h
 		path/sentry_path_unix.c
-		symbolizer/sentry_symbolizer_unix.c
 	)
 endif()
 
