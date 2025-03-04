@@ -104,19 +104,17 @@ sentry__filelock_unlock(sentry_filelock_t *lock)
     lock->is_locked = false;
 }
 
+#ifndef SENTRY_PLATFORM_NX
 sentry_path_t *
 sentry__path_absolute(const sentry_path_t *path)
 {
-#ifdef SENTRY_PLATFORM_NX
-    // TODO
-    return NULL;
-#endif
     char full[PATH_MAX];
     if (!realpath(path->path, full)) {
         return NULL;
     }
     return sentry__path_from_str(full);
 }
+#endif
 
 sentry_path_t *
 sentry__path_current_exe(void)
