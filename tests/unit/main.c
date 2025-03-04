@@ -1,5 +1,7 @@
 #include "sentry_boot.h"
-#ifndef SENTRY_PLATFORM_NX
+
+// TEST_NO_MAIN may be defined by downstream SDKs that want to include unittests in their own test executable.
+#ifndef TEST_NO_MAIN
 #    define SENTRY_TEST_DEFINE_MAIN
 #endif
 
