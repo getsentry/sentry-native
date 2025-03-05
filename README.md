@@ -61,6 +61,7 @@ The SDK bundle contains the following folders:
 
 The SDK currently supports and is tested on the following OS/Compiler variations:
 
+- 64bit Linux with GCC 14
 - 64bit Linux with GCC 12
 - 64bit Linux with GCC 9
 - 64bit Linux with clang 19
