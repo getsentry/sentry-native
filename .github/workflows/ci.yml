@@ -97,6 +97,9 @@ jobs:
             TEST_X86: 1
           - name: Windows (latest)
             os: windows-latest
+          - name: Windows ClangCL (latest)
+            os: windows-latest
+            VS_GENERATOR_TOOLSET: ClangCL
           - name: LLVM-Mingw
             os: windows-latest
             TEST_MINGW: 1
@@ -129,6 +132,7 @@ jobs:
       ANDROID_ARCH: ${{ matrix.ANDROID_ARCH }}
       CMAKE_DEFINES: ${{ matrix.CMAKE_DEFINES }}
       SYSTEM_VERSION_COMPAT: ${{ matrix.SYSTEM_VERSION_COMPAT }}
+      VS_GENERATOR_TOOLSET: ${{ matrix.VS_GENERATOR_TOOLSET }}
 
     steps:
       - uses: actions/checkout@v4
