@@ -53,7 +53,7 @@ jobs:
             os: ubuntu-24.04
             CC: gcc-12
             CXX: g++-12
-          - name: Linux (GCC 14.3.0)
+          - name: Linux (GCC 14.2.0)
             os: ubuntu-24.04
             CC: gcc-14
             CXX: g++-14

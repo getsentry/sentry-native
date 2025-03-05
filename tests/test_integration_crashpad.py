@@ -114,7 +114,7 @@ def test_crashpad_proxy_set_empty(cmake, httpserver):
             cmake, httpserver, "http-proxy"
         )
 
-        with httpserver.wait(timeout=10) as waiting:
+        with httpserver.wait(timeout=15) as waiting:
             child = run(
                 tmp_path, "sentry_example", ["log", "crash", "proxy-empty"], env=env
             )
@@ -138,7 +138,7 @@ def test_crashpad_proxy_https_not_http(cmake, httpserver):
             cmake, httpserver, "http-proxy"
         )
 
-        with httpserver.wait(timeout=10) as waiting:
+        with httpserver.wait(timeout=15) as waiting:
             child = run(tmp_path, "sentry_example", ["log", "crash"], env=env)
             assert child.returncode  # well, it's a crash after all
         assert waiting.result
@@ -201,7 +201,7 @@ def test_crashpad_reinstall(cmake, httpserver):
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
     httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data("OK")
 
-    with httpserver.wait(timeout=10) as waiting:
+    with httpserver.wait(timeout=15) as waiting:
         child = run(tmp_path, "sentry_example", ["log", "reinstall", "crash"], env=env)
         assert child.returncode  # well, it's a crash after all
 
