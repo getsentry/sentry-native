@@ -67,6 +67,18 @@ jobs:
             CXX: clang++-19
             ERROR_ON_WARNINGS: 1
             RUN_ANALYZER: asan,llvm-cov
+          - name: Linux (clang 19 + llvm-cov)
+            os: ubuntu-24.04
+            CC: clang-19
+            CXX: clang++-19
+            ERROR_ON_WARNINGS: 1
+            RUN_ANALYZER: llvm-cov
+          - name: Linux (clang 19 + asan)
+            os: ubuntu-24.04
+            CC: clang-19
+            CXX: clang++-19
+            ERROR_ON_WARNINGS: 1
+            RUN_ANALYZER: asan
           - name: Linux (clang 19 + kcov)
             os: ubuntu-24.04
             CC: clang-19
