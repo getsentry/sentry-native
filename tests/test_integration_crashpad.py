@@ -273,7 +273,7 @@ def test_crashpad_wer_crash(cmake, httpserver, run_args):
     assert_crashpad_upload(multipart)
 
     # Windows throttles WER crash reporting frequency, so let's wait a bit
-    time.sleep(1)
+    time.sleep(2)
 
 
 @pytest.mark.parametrize(
