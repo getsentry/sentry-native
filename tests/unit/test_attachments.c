@@ -17,19 +17,13 @@ send_envelope_test_attachments(const sentry_envelope_t *envelope, void *_data)
         envelope, &data->serialized_envelope);
 }
 
-#ifdef __ANDROID__
-#    define PREFIX "/data/local/tmp/"
-#else
-#    define PREFIX ""
-#endif
-
 SENTRY_TEST(lazy_attachments)
 {
     sentry_attachments_testdata_t testdata;
     testdata.called = 0;
     sentry__stringbuilder_init(&testdata.serialized_envelope);
 
-    sentry_options_t *options = sentry_options_new();
+    SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_auto_session_tracking(options, false);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
     sentry_options_set_transport(options,
@@ -38,13 +32,14 @@ SENTRY_TEST(lazy_attachments)
     char rel[] = { 't', 'e', 's', 't' };
     sentry_options_set_release_n(options, rel, sizeof(rel));
 
-    sentry_options_add_attachment(options, PREFIX ".existing-file-attachment");
     sentry_options_add_attachment(
-        options, PREFIX ".non-existing-file-attachment");
-    sentry_path_t *existing
-        = sentry__path_from_str(PREFIX ".existing-file-attachment");
-    sentry_path_t *non_existing
-        = sentry__path_from_str(PREFIX ".non-existing-file-attachment");
+        options, SENTRY_TEST_PATH_PREFIX ".existing-file-attachment");
+    sentry_options_add_attachment(
+        options, SENTRY_TEST_PATH_PREFIX ".non-existing-file-attachment");
+    sentry_path_t *existing = sentry__path_from_str(
+        SENTRY_TEST_PATH_PREFIX ".existing-file-attachment");
+    sentry_path_t *non_existing = sentry__path_from_str(
+        SENTRY_TEST_PATH_PREFIX ".non-existing-file-attachment");
 
     sentry_init(options);
 

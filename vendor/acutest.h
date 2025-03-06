@@ -1447,7 +1447,11 @@ test_cmdline_callback__(int id, const char* arg)
         case 'x':
             test_xml_output__ = fopen(arg, "w");
             if (!test_xml_output__) {
+#if defined ACUTEST_UNIX__
                 fprintf(stderr, "Unable to open '%s': %s\n", arg, strerror(errno));
+#else
+                fprintf(stderr, "Unable to open '%s'\n", arg);
+#endif
                 exit(2);
             }
             break;

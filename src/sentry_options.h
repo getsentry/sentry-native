@@ -3,6 +3,7 @@
 
 #include "sentry_boot.h"
 
+#include "sentry_database.h"
 #include "sentry_logger.h"
 #include "sentry_session.h"
 #include "sentry_utils.h"
@@ -11,8 +12,6 @@
 // https://docs.sentry.io/error-reporting/configuration/?platform=native#shutdown-timeout
 #define SENTRY_DEFAULT_SHUTDOWN_TIMEOUT 2000
 
-typedef struct sentry_path_s sentry_path_t;
-typedef struct sentry_run_s sentry_run_t;
 struct sentry_backend_s;
 
 /**
@@ -29,7 +28,7 @@ struct sentry_attachment_s {
  * This is the main options struct, which is being accessed throughout all of
  * the sentry internals.
  */
-typedef struct sentry_options_s {
+struct sentry_options_s {
     double sample_rate;
     sentry_dsn_t *dsn;
     char *release;
@@ -74,7 +73,7 @@ typedef struct sentry_options_s {
     long refcount;
     uint64_t shutdown_timeout;
     sentry_handler_strategy_t handler_strategy;
-} sentry_options_t;
+};
 
 /**
  * Increments the reference count and returns the options.

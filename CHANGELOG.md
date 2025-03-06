@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+**Fixes**:
+
+- Provide a mutex-initializer on platforms that have no static pthread initializer for recursive mutexes. ([#1113](https://github.com/getsentry/sentry-native/pull/1113))
+
+**Features**:
+
+- Provide Clang-CL support. ([#1161](https://github.com/getsentry/sentry-native/pull/1161), [crashpad#100](https://github.com/getsentry/crashpad/pull/100))
+- Add option for `Crashpad` to delay shutdown until upload thread completes ([#1153](https://github.com/getsentry/sentry-native/pull/1153))
+
+**Thank you**:
+
+[Nerixyz](https://github.com/Nerixyz)
+
+## 0.8.1
+
+**Features**:
+
+- Addded `sentry_set_trace()`. The primary use for this is to allow other SDKs to propagate their trace context. This allows Sentry to connect events on all layers. ([#1137](https://github.com/getsentry/sentry-native/pull/1137))
+
+## 0.8.0
+
 **Breaking changes**:
 
 - Return type of `sentry_capture_minidump()` and `sentry_capture_minidump_n()` changed from `void` to `sentry_uuid_t` to retrieve the event-id for a successful minidump upload. ([#1138](https://github.com/getsentry/sentry-native/pull/1138))
@@ -9,7 +30,6 @@
 **Features**:
 
 - Ensure support for `http_proxy` and `https_proxy` environment variables across all transports. ([#1111](https://github.com/getsentry/sentry-native/pull/1111))
-- Add option for `Crashpad` to delay shutdown until upload thread completes ([#1153](https://github.com/getsentry/sentry-native/pull/1153))
   
 **Fixes**:
 

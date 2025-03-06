@@ -3,8 +3,8 @@
 
 #include "sentry_boot.h"
 #include "sentry_path.h"
+#include "sentry_string.h"
 
-typedef struct sentry_stringbuilder_s sentry_stringbuilder_t;
 typedef struct sentry_jsonwriter_s sentry_jsonwriter_t;
 
 /**

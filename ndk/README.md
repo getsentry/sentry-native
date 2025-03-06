@@ -12,13 +12,13 @@
 
 ## About
 
-The sub-project aims to automatically bundle pre-built `sentry-native` binaries together with a Java JNI layer into an Android friendly `.aar` package.
+The subproject aims to automatically bundle pre-built `sentry-native` binaries together with a Java JNI layer into an Android friendly `.aar` package.
 
 The `.aar` package also provides [prefab](https://developer.android.com/build/native-dependencies?buildsystem=cmake) support, giving you the possibility to consume the native `sentry.h` APIs from your native app code.
 
 If you're using the [Sentry Android SDK](https://docs.sentry.io/platforms/android/), this package is included by default already.
 
-Besides the main package in `ndk/lib`, a simple Android app for for testing purposes is provided in the `ndk/sample` folder.
+Besides the main package in `ndk/lib`, a simple Android app for testing purposes is provided in the `ndk/sample` folder.
 
 ## Building and Installation
 
