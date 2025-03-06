@@ -30,6 +30,9 @@ asserter(const sentry_frame_info_t *info, void *data)
 
 SENTRY_TEST(symbolizer)
 {
+#ifdef SENTRY_PLATFORM_NX
+    return SKIP_TEST();
+#endif
     int called = 0;
 #ifdef SENTRY_PLATFORM_AIX
     sentry__symbolize(

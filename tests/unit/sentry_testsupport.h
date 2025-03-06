@@ -7,7 +7,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#ifndef SENTRY_TEST_DEFINE_MAIN
+#if !defined(SENTRY_TEST_DEFINE_MAIN) && !defined(TEST_NO_MAIN)
 #    define TEST_NO_MAIN
 #endif
 #include "../vendor/acutest.h"

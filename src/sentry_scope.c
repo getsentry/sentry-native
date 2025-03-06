@@ -137,6 +137,7 @@ sentry__scope_flush_unlock(void)
     }
 }
 
+#ifndef SENTRY_PLATFORM_NX
 static void
 sentry__foreach_stacktrace(
     sentry_value_t event, void (*func)(sentry_value_t stacktrace))
@@ -237,6 +238,7 @@ sentry__symbolize_stacktrace(sentry_value_t stacktrace)
         sentry__symbolize((void *)addr, sentry__symbolize_frame, &frame);
     }
 }
+#endif
 
 static sentry_value_t
 get_span_or_transaction(const sentry_scope_t *scope)
@@ -358,6 +360,7 @@ sentry__scope_apply_to_event(const sentry_scope_t *scope,
         sentry_value_decref(l);
     }
 
+#ifndef SENTRY_PLATFORM_NX
     if (mode & SENTRY_SCOPE_MODULES) {
         sentry_value_t modules = sentry_get_modules_list();
         if (!sentry_value_is_null(modules)) {
@@ -370,6 +373,7 @@ sentry__scope_apply_to_event(const sentry_scope_t *scope,
     if (mode & SENTRY_SCOPE_STACKTRACES) {
         sentry__foreach_stacktrace(event, sentry__symbolize_stacktrace);
     }
+#endif
 
 #undef PLACE_CLONED_VALUE
 #undef PLACE_VALUE

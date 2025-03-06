@@ -506,7 +506,7 @@ sentry__iso8601_to_usec(const char *iso)
 // if Android ever adds locale support in NDK we will have to revisit this code
 // to ensure the C locale is also used there.
 #if !defined(SENTRY_PLATFORM_ANDROID) && !defined(SENTRY_PLATFORM_IOS)         \
-    && !defined(SENTRY_PLATFORM_AIX)
+    && !defined(SENTRY_PLATFORM_AIX) && !defined(SENTRY_PLATFORM_NX)
 #    define HAS_C_LOCALE
 #endif
 

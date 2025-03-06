@@ -26,6 +26,7 @@ struct sentry_backend_s {
     uint64_t (*get_last_crash_func)(sentry_backend_t *);
     void (*prune_database_func)(sentry_backend_t *);
     void *data;
+    // Whether this backend still runs after shutdown_func was called.
     bool can_capture_after_shutdown;
 };
 
