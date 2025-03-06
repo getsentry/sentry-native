@@ -894,6 +894,28 @@ SENTRY_API void sentry_options_set_on_crash(
     sentry_options_t *opts, sentry_crash_function_t func, void *data);
 
 /**
+ * Type of the `on_breadcrumb` callback.
+ *
+ * This function is called with a breadcrumb before it is added to be sent
+ * in case of an event.
+ *
+ * The callback takes ownership of the `breadcrumb`, and
+ * should usually return that same breadcrumb. In case the breadcrumb should be
+ * discarded, the callback needs to call `sentry_value_decref` on the provided
+ * breadcrumb, and return a `sentry_value_new_null()` instead.
+ */
+typedef sentry_value_t (*sentry_breadcrumb_function_t)(
+    sentry_value_t breadcrumb, void *hint, void *closure);
+
+/**
+ * Sets the `sentry_options_set_before_breadcrumb` callback.
+ *
+ * See the `sentry_breadcrumb_function_t` typedef above for more information.
+ */
+SENTRY_API void sentry_options_set_before_breadcrumb(
+    sentry_options_t *opts, sentry_breadcrumb_function_t func, void *data);
+
+/**
  * Sets the DSN.
  */
 SENTRY_API void sentry_options_set_dsn(sentry_options_t *opts, const char *dsn);

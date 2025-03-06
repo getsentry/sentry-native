@@ -24,6 +24,8 @@ from .assertions import (
     assert_attachment,
     assert_meta,
     assert_breadcrumb,
+    assert_before_breadcrumb,
+    assert_discarding_before_breadcrumb,
     assert_stacktrace,
     assert_event,
     assert_exception,
@@ -177,6 +179,54 @@ def test_user_feedback_http(cmake, httpserver):
     envelope = Envelope.deserialize(output)
 
     assert_user_feedback(envelope)
+
+
+def test_before_breadcrumb_http(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+
+    httpserver.expect_request(
+        "/api/123456/envelope/",
+        headers={"x-sentry-auth": auth_header},
+    ).respond_with_data("OK")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "before-breadcrumb", "capture-event"],
+        check=True,
+        env=env,
+    )
+
+    assert len(httpserver.log) == 1
+    output = httpserver.log[0][0].get_data()
+    envelope = Envelope.deserialize(output)
+
+    assert_before_breadcrumb(envelope)
+
+
+def test_discarding_before_breadcrumb_http(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+
+    httpserver.expect_request(
+        "/api/123456/envelope/",
+        headers={"x-sentry-auth": auth_header},
+    ).respond_with_data("OK")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "discarding-before-breadcrumb", "capture-event"],
+        check=True,
+        env=env,
+    )
+
+    assert len(httpserver.log) == 1
+    output = httpserver.log[0][0].get_data()
+    envelope = Envelope.deserialize(output)
+
+    assert_discarding_before_breadcrumb(envelope)
 
 
 def test_exception_and_session_http(cmake, httpserver):

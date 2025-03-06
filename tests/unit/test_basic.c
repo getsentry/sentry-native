@@ -141,6 +141,34 @@ SENTRY_TEST(discarding_before_send)
     TEST_CHECK_INT_EQUAL(called_beforesend, 1);
 }
 
+static sentry_value_t
+before_breadcrumb(sentry_value_t breadcrumb, void *UNUSED(hint), void *data)
+{
+    uint64_t *called = data;
+    *called += 1;
+
+    return breadcrumb;
+}
+
+SENTRY_TEST(calling_before_breadcrumb)
+{
+    uint64_t called_before_breadcrumb = 0;
+
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_before_breadcrumb(
+        options, before_breadcrumb, &called_before_breadcrumb);
+    sentry_init(options);
+
+    sentry_add_breadcrumb(sentry_value_new_breadcrumb("foo", "bar"));
+    sentry_add_breadcrumb(sentry_value_new_breadcrumb("error", "app failed"));
+    sentry_add_breadcrumb(sentry_value_new_breadcrumb("spam", "hello world"));
+
+    sentry_close();
+
+    TEST_CHECK_INT_EQUAL(called_before_breadcrumb, 3);
+}
+
 SENTRY_TEST(crash_marker)
 {
     SENTRY_TEST_OPTIONS_NEW(options);
