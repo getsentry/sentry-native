@@ -667,6 +667,7 @@ sentry_add_breadcrumb(sentry_value_t breadcrumb)
             breadcrumb = options->on_breadcrumb_func(
                 breadcrumb, NULL, options->on_breadcrumb_data);
             if (sentry_value_is_null(breadcrumb)) {
+                sentry_value_decref(breadcrumb);
                 SENTRY_DEBUG(
                     "breadcrumb was discarded by the `before_breadcrumb` hook");
                 return;
