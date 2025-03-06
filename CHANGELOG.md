@@ -33,8 +33,7 @@
 **Fixes**:
 
 - Ensure that `sentry_capture_minidump()` fails if the provided minidump path cannot be attached, instead of sending a crash event without minidump. ([#1138](https://github.com/getsentry/sentry-native/pull/1138))
-- Fix Xbox OS name being reported incorrectly ([#1148](https://github.com/getsentry/sentry-native/pull/1148))
-- Provide a mutex-initializer on platforms that have no static pthread initializer for recursive mutexes. ([#1113](https://github.com/getsentry/sentry-native/pull/1113))
+- Fix Xbox OS name being reported incorrectly. ([#1148](https://github.com/getsentry/sentry-native/pull/1148))
 
 **Thank you**:
 

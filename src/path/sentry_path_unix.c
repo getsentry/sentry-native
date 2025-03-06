@@ -104,7 +104,7 @@ sentry__filelock_unlock(sentry_filelock_t *lock)
     lock->is_locked = false;
 }
 
-#ifndef SENTRY_PLATFORM_NX
+#ifndef SENTRY_PLATFORM_NX // defined in a downstream SDK.
 sentry_path_t *
 sentry__path_absolute(const sentry_path_t *path)
 {

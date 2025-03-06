@@ -61,19 +61,19 @@ if(WIN32)
 		path/sentry_path_windows.c
 		symbolizer/sentry_symbolizer_windows.c
 	)
-else()
-	if(NOT NX)
-		sentry_target_sources_cwd(sentry
-			sentry_random.c
-			sentry_random.h
-			sentry_unix_pageallocator.c
-			sentry_unix_pageallocator.h
-			symbolizer/sentry_symbolizer_unix.c
-		)
-	endif()
-
+elseif(NX)
 	sentry_target_sources_cwd(sentry
 		sentry_unix_spinlock.h
+		path/sentry_path_unix.c
+	)
+else()
+	sentry_target_sources_cwd(sentry
+		sentry_random.c
+		sentry_random.h
+		sentry_unix_pageallocator.c
+		sentry_unix_pageallocator.h
+		sentry_unix_spinlock.h
+		symbolizer/sentry_symbolizer_unix.c
 		path/sentry_path_unix.c
 	)
 endif()
