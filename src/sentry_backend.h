@@ -11,7 +11,6 @@
  * can ensure that any captured crash contains the sentry scope and other
  * information.
  */
-typedef struct sentry_backend_s sentry_backend_t;
 struct sentry_backend_s {
     int (*startup_func)(sentry_backend_t *, const sentry_options_t *options);
     void (*shutdown_func)(sentry_backend_t *);

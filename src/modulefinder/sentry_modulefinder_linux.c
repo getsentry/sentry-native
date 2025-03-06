@@ -38,13 +38,7 @@ process_vm_readv(pid_t __pid, const struct iovec *__local_iov,
 
 static bool g_initialized = false;
 #ifdef SENTRY__MUTEX_INIT_DYN
-static sentry_mutex_t g_mutex;
-static pthread_once_t g_mutex_init_once = PTHREAD_ONCE_INIT;
-static void
-init_g_mutex(void)
-{
-    sentry__mutex_init(&g_mutex);
-}
+SENTRY__MUTEX_INIT_DYN(g_mutex)
 #else
 static sentry_mutex_t g_mutex = SENTRY__MUTEX_INIT;
 #endif
@@ -732,9 +726,7 @@ load_modules(sentry_value_t modules)
 sentry_value_t
 sentry_get_modules_list(void)
 {
-#ifdef SENTRY__MUTEX_INIT_DYN
-    pthread_once(&g_mutex_init_once, init_g_mutex);
-#endif
+    SENTRY__MUTEX_INIT_DYN_ONCE(g_mutex);
     sentry__mutex_lock(&g_mutex);
     if (!g_initialized) {
         g_modules = sentry_value_new_list();
@@ -754,9 +746,7 @@ sentry_get_modules_list(void)
 void
 sentry_clear_modulecache(void)
 {
-#ifdef SENTRY__MUTEX_INIT_DYN
-    pthread_once(&g_mutex_init_once, init_g_mutex);
-#endif
+    SENTRY__MUTEX_INIT_DYN_ONCE(g_mutex);
     sentry__mutex_lock(&g_mutex);
     sentry_value_decref(g_modules);
     g_modules = sentry_value_new_null();

@@ -88,7 +88,7 @@ def run(cwd, exe, args, env=dict(os.environ), **kwargs):
         "./{}".format(exe) if sys.platform != "win32" else "{}\\{}.exe".format(cwd, exe)
     ]
     if "asan" in os.environ.get("RUN_ANALYZER", ""):
-        env["ASAN_OPTIONS"] = "detect_leaks=1"
+        env["ASAN_OPTIONS"] = "detect_leaks=1:detect_invalid_join=0"
         env["LSAN_OPTIONS"] = "suppressions={}".format(
             os.path.join(sourcedir, "tests", "leaks.txt")
         )

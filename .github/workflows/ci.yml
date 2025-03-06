@@ -39,38 +39,42 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: Linux (GCC 7, 32-bit)
-            os: ubuntu-20.04
-            CC: gcc-7
-            CXX: g++-7
-            TEST_X86: 1
-          - name: Linux (GCC 9.4.0)
-            os: ubuntu-20.04
-            CC: gcc
-            CXX: g++
-            # ERROR_ON_WARNINGS: 1
-          - name: Linux (GCC 12)
+          - name: Linux (GCC 9.5.0, 32-bit)
             os: ubuntu-22.04
+            CC: gcc-9
+            CXX: g++-9
+            TEST_X86: 1
+          - name: Linux (GCC 9.5.0)
+            os: ubuntu-22.04
+            CC: gcc-9
+            CXX: g++-9
+            # ERROR_ON_WARNINGS: 1
+          - name: Linux (GCC 12.3.0)
+            os: ubuntu-24.04
             CC: gcc-12
             CXX: g++-12
+          - name: Linux (GCC 14.2.0)
+            os: ubuntu-24.04
+            CC: gcc-14
+            CXX: g++-14
             # ERROR_ON_WARNINGS: 1
             # The GCC analyzer 10.0.1 (as on CI) has an internal compiler error
             # currently, and is not stable enough to activate.
             # RUN_ANALYZER: gcc
-          - name: Linux (clang 15 + asan + llvm-cov)
-            os: ubuntu-22.04
-            CC: clang-15
-            CXX: clang++-15
+          - name: Linux (clang 19 + asan + llvm-cov)
+            os: ubuntu-24.04
+            CC: clang-19
+            CXX: clang++-19
             ERROR_ON_WARNINGS: 1
             RUN_ANALYZER: asan,llvm-cov
-          - name: Linux (clang 15 + kcov)
-            os: ubuntu-22.04
-            CC: clang-15
-            CXX: clang++-15
+          - name: Linux (clang 19 + kcov)
+            os: ubuntu-24.04
+            CC: clang-19
+            CXX: clang++-19
             ERROR_ON_WARNINGS: 1
             RUN_ANALYZER: kcov
-          - name: Linux (gcc 12 + code-checker + valgrind)
-            os: ubuntu-22.04
+          - name: Linux (GCC 13.3.0 + code-checker + valgrind)
+            os: ubuntu-24.04
             RUN_ANALYZER: code-checker,valgrind
           - name: macOS 14 (xcode llvm)
             os: macos-14
@@ -97,6 +101,9 @@ jobs:
             TEST_X86: 1
           - name: Windows (latest)
             os: windows-latest
+          - name: Windows ClangCL (latest)
+            os: windows-latest
+            VS_GENERATOR_TOOLSET: ClangCL
           - name: LLVM-Mingw
             os: windows-latest
             TEST_MINGW: 1
@@ -129,6 +136,7 @@ jobs:
       ANDROID_ARCH: ${{ matrix.ANDROID_ARCH }}
       CMAKE_DEFINES: ${{ matrix.CMAKE_DEFINES }}
       SYSTEM_VERSION_COMPAT: ${{ matrix.SYSTEM_VERSION_COMPAT }}
+      VS_GENERATOR_TOOLSET: ${{ matrix.VS_GENERATOR_TOOLSET }}
 
     steps:
       - uses: actions/checkout@v4
@@ -140,23 +148,32 @@ jobs:
           cache: "pip"
 
       - name: Installing Linux Dependencies
-        if: ${{ runner.os == 'Linux' && matrix.os != 'ubuntu-20.04' && !env['TEST_X86'] }}
+        if: ${{ runner.os == 'Linux' && matrix.os != 'ubuntu-22.04' && !env['TEST_X86'] }}
         run: |
           sudo apt update
-          sudo apt install cmake clang-14 clang-tools llvm kcov g++-12 valgrind zlib1g-dev libcurl4-openssl-dev
+          sudo apt install cmake clang-19 llvm g++-12 valgrind zlib1g-dev libcurl4-openssl-dev
+          # Install kcov from source
+          sudo apt-get install binutils-dev libssl-dev libelf-dev libstdc++-12-dev libdw-dev libiberty-dev
+          git clone https://github.com/SimonKagstrom/kcov.git
+          cd kcov
+          mkdir build
+          cd build
+          cmake ..
+          make
+          sudo make install
 
       - name: Installing Linux GCC 9.4.0 Dependencies
-        if: ${{ runner.os == 'Linux' && matrix.os == 'ubuntu-20.04' && !env['TEST_X86'] }}
+        if: ${{ runner.os == 'Linux' && matrix.os == 'ubuntu-22.04' && !env['TEST_X86'] }}
         run: |
           sudo apt update
-          sudo apt install cmake clang-tools llvm kcov g++ valgrind zlib1g-dev libcurl4-openssl-dev
+          sudo apt install cmake llvm kcov g++ valgrind zlib1g-dev libcurl4-openssl-dev
 
       - name: Installing Linux 32-bit Dependencies
         if: ${{ runner.os == 'Linux' && env['TEST_X86'] }}
         run: |
           sudo dpkg --add-architecture i386
           sudo apt update
-          sudo apt install cmake gcc-7-multilib g++-7-multilib zlib1g-dev:i386 libssl-dev:i386 libcurl4-openssl-dev:i386
+          sudo apt install cmake gcc-9-multilib g++-9-multilib zlib1g-dev:i386 libssl-dev:i386 libcurl4-openssl-dev:i386
 
         # https://github.com/actions/runner-images/issues/9491
       - name: Decrease vm.mmap_rnd_bit to prevent ASLR ASAN issues
@@ -170,11 +187,11 @@ jobs:
       - name: Expose llvm@15 PATH for Mac
         if: ${{ runner.os == 'macOS' }}
         run: echo $(brew --prefix llvm@15)/bin >> $GITHUB_PATH
-             
+
       - name: Expose llvm@18 PATH for Mac
         if: ${{ runner.os == 'macOS' && matrix.os == 'macos-15-large' && matrix.RUN_ANALYZER == 'asan,llvm-cov' }}
         run: echo $(brew --prefix llvm@18)/bin >> $GITHUB_PATH
-        
+
       - name: Installing LLVM-MINGW Dependencies
         if: ${{ runner.os == 'Windows' && env['TEST_MINGW'] }}
         shell: powershell

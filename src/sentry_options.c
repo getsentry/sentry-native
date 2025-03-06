@@ -77,8 +77,8 @@ sentry__options_incref(sentry_options_t *options)
     return options;
 }
 
-void
-sentry__attachment_free(sentry_attachment_t *attachment)
+static void
+attachment_free(sentry_attachment_t *attachment)
 {
     sentry__path_free(attachment->path);
     sentry_free(attachment);
@@ -109,7 +109,7 @@ sentry_options_free(sentry_options_t *opts)
         sentry_attachment_t *attachment = next_attachment;
         next_attachment = attachment->next;
 
-        sentry__attachment_free(attachment);
+        attachment_free(attachment);
     }
     sentry__run_free(opts->run);
 
