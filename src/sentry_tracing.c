@@ -8,8 +8,8 @@
 #include "sentry_value.h"
 #include <string.h>
 
-sentry_value_t
-sentry__value_new_span_n(sentry_value_t parent, sentry_slice_t operation)
+static sentry_value_t
+new_span_n(sentry_value_t parent, sentry_slice_t operation)
 {
     sentry_value_t span = sentry_value_new_object();
 
@@ -34,12 +34,11 @@ sentry__value_new_span_n(sentry_value_t parent, sentry_slice_t operation)
     return span;
 }
 
-sentry_value_t
-sentry__value_transaction_context_new_n(
-    sentry_slice_t name, sentry_slice_t operation)
+static sentry_value_t
+transaction_context_new_n(sentry_slice_t name, sentry_slice_t operation)
 {
     sentry_value_t transaction_context
-        = sentry__value_new_span_n(sentry_value_new_null(), operation);
+        = new_span_n(sentry_value_new_null(), operation);
 
     sentry_uuid_t trace_id = sentry_uuid_new_v4();
     sentry_value_set_by_key(transaction_context, "trace_id",
@@ -60,9 +59,9 @@ sentry_transaction_context_new_n(const char *name, size_t name_len,
     if (!tx_ctx) {
         return NULL;
     }
-    tx_ctx->inner = sentry__value_transaction_context_new_n(
-        (sentry_slice_t) { name, name_len },
-        (sentry_slice_t) { operation, operation_len });
+    tx_ctx->inner
+        = transaction_context_new_n((sentry_slice_t) { name, name_len },
+            (sentry_slice_t) { operation, operation_len });
 
     if (sentry_value_is_null(tx_ctx->inner)) {
         sentry_free(tx_ctx);
@@ -241,8 +240,8 @@ sentry_transaction_context_update_from_header_n(
 
     sentry_value_t inner = tx_ctx->inner;
 
-    char *s
-        = sentry__string_clone_n(trace_id_start, trace_id_end - trace_id_start);
+    char *s = sentry__string_clone_n(
+        trace_id_start, (size_t)(trace_id_end - trace_id_start));
     if (!is_valid_trace_id(s)) {
         sentry_free(s);
         return;
@@ -264,7 +263,8 @@ sentry_transaction_context_update_from_header_n(
     }
     // else: we have a sampled flag
 
-    s = sentry__string_clone_n(span_id_start, span_id_end - span_id_start);
+    s = sentry__string_clone_n(
+        span_id_start, (size_t)(span_id_end - span_id_start));
     if (!is_valid_span_id(s)) {
         sentry_free(s);
         return;
@@ -387,7 +387,7 @@ sentry__value_span_new_n(size_t max_spans, sentry_value_t parent,
         goto fail;
     }
 
-    sentry_value_t child = sentry__value_new_span_n(parent, operation);
+    sentry_value_t child = new_span_n(parent, operation);
     sentry_value_set_by_key(child, "description",
         sentry_value_new_string_n(description.ptr, description.len));
     sentry_value_set_by_key(child, "start_timestamp",
@@ -672,8 +672,8 @@ sentry_span_remove_data_n(sentry_span_t *span, const char *key, size_t key_len)
     }
 }
 
-sentry_value_t
-sentry_status_to_string(sentry_span_status_t status)
+static sentry_value_t
+status_to_string(sentry_span_status_t status)
 {
     switch (status) {
     case SENTRY_SPAN_STATUS_OK:
@@ -718,7 +718,7 @@ sentry_status_to_string(sentry_span_status_t status)
 static void
 set_status(sentry_value_t item, sentry_span_status_t status)
 {
-    sentry_value_set_by_key(item, "status", sentry_status_to_string(status));
+    sentry_value_set_by_key(item, "status", status_to_string(status));
 }
 
 void

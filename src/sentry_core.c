@@ -24,14 +24,18 @@
 #endif
 
 static sentry_options_t *g_options = NULL;
+#ifdef SENTRY__MUTEX_INIT_DYN
+SENTRY__MUTEX_INIT_DYN(g_options_lock)
+#else
 static sentry_mutex_t g_options_lock = SENTRY__MUTEX_INIT;
-
+#endif
 /// see sentry_get_crashed_last_run() for the possible values
 static int g_last_crash = -1;
 
 const sentry_options_t *
 sentry__options_getref(void)
 {
+    SENTRY__MUTEX_INIT_DYN_ONCE(g_options_lock);
     sentry_options_t *options;
     sentry__mutex_lock(&g_options_lock);
     options = sentry__options_incref(g_options);
@@ -42,6 +46,7 @@ sentry__options_getref(void)
 sentry_options_t *
 sentry__options_lock(void)
 {
+    SENTRY__MUTEX_INIT_DYN_ONCE(g_options_lock);
     sentry__mutex_lock(&g_options_lock);
     return g_options;
 }
@@ -49,6 +54,7 @@ sentry__options_lock(void)
 void
 sentry__options_unlock(void)
 {
+    SENTRY__MUTEX_INIT_DYN_ONCE(g_options_lock);
     sentry__mutex_unlock(&g_options_lock);
 }
 
@@ -88,6 +94,7 @@ sentry__should_skip_upload(void)
 int
 sentry_init(sentry_options_t *options)
 {
+    SENTRY__MUTEX_INIT_DYN_ONCE(g_options_lock);
     // this function is to be called only once, so we do not allow more than one
     // caller
     sentry__mutex_lock(&g_options_lock);
@@ -226,6 +233,7 @@ sentry_flush(uint64_t timeout)
 int
 sentry_close(void)
 {
+    SENTRY__MUTEX_INIT_DYN_ONCE(g_options_lock);
     // this function is to be called only once, so we do not allow more than one
     // caller
     sentry__mutex_lock(&g_options_lock);
@@ -344,7 +352,7 @@ sentry_user_consent_get(void)
 {
     sentry_user_consent_t rv = SENTRY_USER_CONSENT_UNKNOWN;
     SENTRY_WITH_OPTIONS (options) {
-        rv = (sentry_user_consent_t)sentry__atomic_fetch(
+        rv = (sentry_user_consent_t)(int)sentry__atomic_fetch(
             (long *)&options->user_consent);
     }
     return rv;
@@ -395,8 +403,11 @@ sentry_capture_event(sentry_value_t event)
     }
 }
 
-bool
-sentry__roll_dice(double probability)
+#ifndef SENTRY_UNITTEST
+static
+#endif
+    bool
+    sentry__roll_dice(double probability)
 {
     uint64_t rnd;
     return probability >= 1.0 || sentry__getrandom(&rnd, sizeof(rnd))
@@ -406,7 +417,9 @@ sentry__roll_dice(double probability)
 sentry_uuid_t
 sentry__capture_event(sentry_value_t event)
 {
-    sentry_uuid_t event_id;
+    // `event_id` is only used as an argument to pure output parameters.
+    // Initialization only happens to prevent compiler warnings.
+    sentry_uuid_t event_id = sentry_uuid_nil();
     sentry_envelope_t *envelope = NULL;
 
     bool was_captured = false;
@@ -447,9 +460,12 @@ sentry__capture_event(sentry_value_t event)
     return was_sent ? event_id : sentry_uuid_nil();
 }
 
-bool
-sentry__should_send_transaction(
-    sentry_value_t tx_ctx, sentry_sampling_context_t *sampling_ctx)
+#ifndef SENTRY_UNITTEST
+static
+#endif
+    bool
+    sentry__should_send_transaction(
+        sentry_value_t tx_ctx, sentry_sampling_context_t *sampling_ctx)
 {
     sentry_value_t context_setting = sentry_value_get_by_key(tx_ctx, "sampled");
     bool sampled = sentry_value_is_null(context_setting)
@@ -576,8 +592,8 @@ fail:
     return NULL;
 }
 
-sentry_envelope_t *
-sentry__prepare_user_feedback(sentry_value_t user_feedback)
+static sentry_envelope_t *
+prepare_user_feedback(sentry_value_t user_feedback)
 {
     sentry_envelope_t *envelope = NULL;
 
@@ -1270,7 +1286,7 @@ sentry_capture_user_feedback(sentry_value_t user_feedback)
     sentry_envelope_t *envelope = NULL;
 
     SENTRY_WITH_OPTIONS (options) {
-        envelope = sentry__prepare_user_feedback(user_feedback);
+        envelope = prepare_user_feedback(user_feedback);
         if (envelope) {
             sentry__capture_envelope(options->transport, envelope);
         }

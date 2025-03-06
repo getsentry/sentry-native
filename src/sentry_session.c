@@ -25,7 +25,7 @@ status_as_string(sentry_session_status_t status)
     case SENTRY_SESSION_STATUS_EXITED:
         return "exited";
     default:
-        assert(!"invalid session status");
+        UNREACHABLE("invalid session status");
         return "invalid";
     }
 }
@@ -183,7 +183,7 @@ sentry__session_from_json(const char *buf, size_t buflen)
 
     rv->init = sentry_value_is_true(sentry_value_get_by_key(value, "init"));
 
-    rv->errors = (int64_t)sentry_value_as_int32(
+    rv->errors = (uint64_t)sentry_value_as_int32(
         sentry_value_get_by_key(value, "errors"));
     rv->started_us = sentry__iso8601_to_usec(
         sentry_value_as_string(sentry_value_get_by_key(value, "started")));

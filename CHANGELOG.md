@@ -2,7 +2,18 @@
 
 ## Unreleased
 
+**Fixes**:
+
+- Provide a mutex-initializer on platforms that have no static pthread initializer for recursive mutexes. ([#1113](https://github.com/getsentry/sentry-native/pull/1113))
+
+**Features**:
+
+- Provide Clang-CL support. ([#1161](https://github.com/getsentry/sentry-native/pull/1161), [crashpad#100](https://github.com/getsentry/crashpad/pull/100))
 - Add `before_breadcrumb` hook ([#1166](https://github.com/getsentry/sentry-native/pull/1166))
+
+**Thank you**:
+
+[Nerixyz](https://github.com/Nerixyz)
 
 ## 0.8.1
 

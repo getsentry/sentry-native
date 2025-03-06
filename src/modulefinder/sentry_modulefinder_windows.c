@@ -37,13 +37,13 @@ extract_pdb_info(uintptr_t module_addr, sentry_value_t module)
     }
 
     PIMAGE_NT_HEADERS nt_headers
-        = (PIMAGE_NT_HEADERS)(module_addr + dos_header->e_lfanew);
+        = (PIMAGE_NT_HEADERS)(module_addr + (uintptr_t)dos_header->e_lfanew);
     if (nt_headers->Signature != IMAGE_NT_SIGNATURE) {
         return;
     }
 
     char id_buf[50];
-    snprintf(id_buf, sizeof(id_buf), "%08x%X",
+    snprintf(id_buf, sizeof(id_buf), "%08lx%lX",
         nt_headers->FileHeader.TimeDateStamp,
         nt_headers->OptionalHeader.SizeOfImage);
     sentry_value_set_by_key(module, "code_id", sentry_value_new_string(id_buf));
