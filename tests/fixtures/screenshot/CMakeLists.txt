@@ -19,5 +19,6 @@ if(WIN32)
 		# Disable all optimizations for the `sentry_screenshot` in gcc/clang. This allows us to keep crash triggers simple.
 		# The effects besides reproducible code-gen across compiler versions, will be negligible for build- and runtime.
 		target_compile_options(sentry_screenshot PRIVATE $<BUILD_INTERFACE:-O0>)
+		target_link_options(sentry_screenshot PRIVATE $<BUILD_INTERFACE:-municode>)
 	endif()
 endif()

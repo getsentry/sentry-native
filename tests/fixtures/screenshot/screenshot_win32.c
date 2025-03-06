@@ -83,6 +83,7 @@ wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLine,
     int argc = 0;
     LPWSTR *argv = CommandLineToArgvW(lpCmdLine, &argc);
 
+#if (WINVER >= 0x0605)
     if (has_arg(argc, argv, L"dpi-unaware")) {
         SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_UNAWARE);
     } else if (has_arg(argc, argv, L"dpi-system-aware")) {
@@ -95,6 +96,7 @@ wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLine,
     } else if (has_arg(argc, argv, L"dpi-unaware-gdiscaled")) {
         SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_UNAWARE_GDISCALED);
     }
+#endif
 
     WNDCLASSW wc;
     ZeroMemory(&wc, sizeof(wc));
