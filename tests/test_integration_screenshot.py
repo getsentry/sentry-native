@@ -61,7 +61,14 @@ def test_capture_screenshot(cmake, httpserver, build_args):
     sys.platform != "win32",
     reason="Screenshots are only supported on Windows",
 )
-def test_capture_screenshot_crashpad(cmake, httpserver):
+@pytest.mark.parametrize(
+    "run_args",
+    [
+        (["crash"]),
+        (["fastfail"]),
+    ],
+)
+def test_capture_screenshot_crashpad(cmake, httpserver, run_args):
     tmp_path = cmake(["sentry_screenshot"], {"SENTRY_BACKEND": "crashpad"})
 
     # make sure we are isolated from previous runs
@@ -72,7 +79,7 @@ def test_capture_screenshot_crashpad(cmake, httpserver):
     httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
 
     with httpserver.wait(timeout=10) as waiting:
-        child = run(tmp_path, "sentry_screenshot", ["crash"], env=env)
+        child = run(tmp_path, "sentry_screenshot", run_args, env=env)
         assert child.returncode
 
     assert waiting.result
