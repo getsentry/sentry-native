@@ -28,23 +28,46 @@ typedef GpStatus(WINAPI *GdipDisposeImage_t)(GpImage *image);
 typedef HRESULT(WINAPI *DwmGetWindowAttribute_t)(
     HWND hwnd, DWORD dwAttribute, PVOID pvAttribute, DWORD cbAttribute);
 
+static HMODULE
+load_library(LPCWSTR name)
+{
+    HMODULE library = LoadLibraryW(name);
+    if (!library) {
+        SENTRY_WARNF(
+            "`LoadLibraryW(%S)` failed with code `%d`", name, GetLastError());
+    }
+    return library;
+}
+
+static FARPROC
+get_proc_address(HMODULE module, LPCSTR name)
+{
+    FARPROC proc = GetProcAddress(module, name);
+    if (!proc) {
+        SENTRY_WARNF(
+            "`GetProcAddress(%s)` failed with code `%d`", name, GetLastError());
+    }
+    return proc;
+}
+
 static bool
 save_bitmap(HBITMAP bitmap, const wchar_t *path)
 {
-    HMODULE gdiplus = LoadLibraryW(L"gdiplus.dll");
+    HMODULE gdiplus = load_library(L"gdiplus.dll");
     if (!gdiplus) {
         return false;
     }
 
     GdiplusStartup_t pGdiplusStartup
-        = (GdiplusStartup_t)GetProcAddress(gdiplus, "GdiplusStartup");
+        = (GdiplusStartup_t)get_proc_address(gdiplus, "GdiplusStartup");
     GdipCreateBitmapFromHBITMAP_t pGdipCreateBitmapFromHBITMAP
-        = (GdipCreateBitmapFromHBITMAP_t)GetProcAddress(
+        = (GdipCreateBitmapFromHBITMAP_t)get_proc_address(
             gdiplus, "GdipCreateBitmapFromHBITMAP");
     GdipSaveImageToFile_t pGdipSaveImageToFile
-        = (GdipSaveImageToFile_t)GetProcAddress(gdiplus, "GdipSaveImageToFile");
+        = (GdipSaveImageToFile_t)get_proc_address(
+            gdiplus, "GdipSaveImageToFile");
     GdipDisposeImage_t pGdipDisposeImage
-        = (GdipDisposeImage_t)GetProcAddress(gdiplus, "GdipDisposeImage");
+        = (GdipDisposeImage_t)get_proc_address(gdiplus, "GdipDisposeImage");
 
     if (!pGdiplusStartup || !pGdipCreateBitmapFromHBITMAP
         || !pGdipSaveImageToFile || !pGdipDisposeImage) {
@@ -58,12 +81,15 @@ save_bitmap(HBITMAP bitmap, const wchar_t *path)
 
     ULONG_PTR token = 0;
     if (pGdiplusStartup(&token, &input, NULL) != GpOk) {
+        SENTRY_WARNF("`GdiplusStartup` failed with code `%d`", GetLastError());
         FreeLibrary(gdiplus);
         return false;
     }
 
     GpImage *image = NULL;
     if (pGdipCreateBitmapFromHBITMAP(bitmap, NULL, &image) != GpOk) {
+        SENTRY_WARNF("`GdipCreateBitmapFromHBITMAP` failed with code `%d`",
+            GetLastError());
         FreeLibrary(gdiplus);
         return false;
     }
@@ -72,6 +98,10 @@ save_bitmap(HBITMAP bitmap, const wchar_t *path)
     CLSID GdiPngEncoder = { 0x557cf406, 0x1a04, 0x11d3,
         { 0x9a, 0x73, 0x00, 0x00, 0xf8, 0x1e, 0xf3, 0x2e } };
     GpStatus rv = pGdipSaveImageToFile(image, path, &GdiPngEncoder, NULL);
+    if (rv != GpOk) {
+        SENTRY_WARNF(
+            "`GdipSaveImageToFile` failed with code `%d`", GetLastError());
+    }
     pGdipDisposeImage(image);
     FreeLibrary(gdiplus);
     return rv == GpOk;
@@ -80,12 +110,12 @@ save_bitmap(HBITMAP bitmap, const wchar_t *path)
 static void
 calculate_region(DWORD pid, HRGN region)
 {
-    HMODULE dwmapi = LoadLibraryW(L"dwmapi.dll");
+    HMODULE dwmapi = load_library(L"dwmapi.dll");
     if (!dwmapi) {
         return;
     }
     DwmGetWindowAttribute_t pDwmGetWindowAttribute
-        = (DwmGetWindowAttribute_t)GetProcAddress(
+        = (DwmGetWindowAttribute_t)get_proc_address(
             dwmapi, "DwmGetWindowAttribute");
     if (!pDwmGetWindowAttribute) {
         return;
@@ -124,6 +154,7 @@ sentry__screenshot_capture(const sentry_path_t *path)
     LONG width = box.right - box.left;
     LONG height = box.bottom - box.top;
     if (width <= 0 || height <= 0) {
+        SENTRY_INFO("no visible windows to capture");
         DeleteObject(region);
         return false;
     }
