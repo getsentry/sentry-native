@@ -65,7 +65,6 @@ def test_capture_screenshot(cmake, httpserver, build_args):
     "run_args",
     [
         (["crash"]),
-        (["fastfail"]),
     ],
 )
 def test_capture_screenshot_crashpad(cmake, httpserver, run_args):
@@ -87,3 +86,20 @@ def test_capture_screenshot_crashpad(cmake, httpserver, run_args):
     assert len(httpserver.log) == 1
     assert_screenshot_upload(httpserver.log[0][0])
     assert_screenshot_file(tmp_path / ".sentry-native")
+
+
+@pytest.mark.skipif(
+    sys.platform != "win32",
+    reason="Screenshots are only supported on Windows",
+)
+# this test currently can't run on CI because the Windows-image doesn't properly support WER, if you want to run the
+# test locally, invoke pytest with the --with_crashpad_wer option which is matched with this marker in the runtest setup
+@pytest.mark.with_crashpad_wer
+@pytest.mark.parametrize(
+    "run_args",
+    [
+        (["fastfail"]),
+    ],
+)
+def test_capture_screenshot_crashpad_wer(cmake, httpserver, run_args):
+    test_capture_screenshot_crashpad(cmake, httpserver, run_args)
