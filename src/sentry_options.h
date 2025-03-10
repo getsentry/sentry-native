@@ -48,6 +48,7 @@ struct sentry_options_s {
     bool require_user_consent;
     bool symbolize_stacktraces;
     bool system_crash_reporter_enabled;
+    bool attach_screenshot;
 
     sentry_attachment_t *attachments;
     sentry_run_t *run;
