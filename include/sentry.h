@@ -1185,8 +1185,9 @@ SENTRY_API void sentry_options_add_attachment_n(
  * Enables or disables attaching screenshots to fatal error events. Disabled by
  * default.
  *
- * This feature is currently only supported on Windows for crashes that do not
- * bypass SEH (structured exception handling).
+ * This feature is currently supported by all backends on Windows. Only the
+ * `crashpad` backend can capture screenshots of fast-fail crashes that bypass
+ * SEH (structured exception handling).
  */
 SENTRY_EXPERIMENTAL_API void sentry_options_set_attach_screenshot(
     sentry_options_t *opts, int val);
