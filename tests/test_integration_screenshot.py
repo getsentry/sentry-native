@@ -42,7 +42,7 @@ def assert_screenshot_upload(req):
         ({"SENTRY_BACKEND": "breakpad"}),
     ],
 )
-def test_capture_screesnhot(cmake, httpserver, build_args):
+def test_capture_screenshot(cmake, httpserver, build_args):
     build_args.update({"SENTRY_TRANSPORT": "none"})
     tmp_path = cmake(["sentry_screenshot"], build_args)
 
@@ -61,7 +61,7 @@ def test_capture_screesnhot(cmake, httpserver, build_args):
     sys.platform != "win32",
     reason="Screenshots are only supported on Windows",
 )
-def test_capture_screesnhot_crashpad(cmake, httpserver):
+def test_capture_screenshot_crashpad(cmake, httpserver):
     tmp_path = cmake(["sentry_screenshot"], {"SENTRY_BACKEND": "crashpad"})
 
     # make sure we are isolated from previous runs
