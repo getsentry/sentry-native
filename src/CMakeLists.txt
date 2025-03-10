@@ -25,6 +25,7 @@ sentry_target_sources_cwd(sentry
 	sentry_sampling_context.h
 	sentry_scope.c
 	sentry_scope.h
+	sentry_screenshot.h
 	sentry_session.c
 	sentry_session.h
 	sentry_slice.c
@@ -45,6 +46,7 @@ sentry_target_sources_cwd(sentry
 	sentry_tracing.c
 	sentry_tracing.h
 	path/sentry_path.c
+	screenshot/sentry_screenshot.c
 	transports/sentry_disk_transport.c
 	transports/sentry_disk_transport.h
 	transports/sentry_function_transport.c
@@ -162,5 +164,16 @@ if(SENTRY_INTEGRATION_QT)
 	sentry_target_sources_cwd(sentry
 		integrations/sentry_integration_qt.cpp
 		integrations/sentry_integration_qt.h
+	)
+endif()
+
+# screenshot
+if(WIN32)
+	sentry_target_sources_cwd(sentry
+		screenshot/sentry_screenshot_windows.c
+	)
+else()
+	sentry_target_sources_cwd(sentry
+		screenshot/sentry_screenshot_none.c
 	)
 endif()
