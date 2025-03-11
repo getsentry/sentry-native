@@ -17,6 +17,8 @@ public final class NativeScope implements INativeScope {
   public static native void nativeAddBreadcrumb(
       String level, String message, String category, String type, String timestamp, String data);
 
+  public static native void nativeSetTrace(String traceId, String parentSpanId);
+
   @Override
   public void setTag(String key, String value) {
     nativeSetTag(key, value);
@@ -51,5 +53,14 @@ public final class NativeScope implements INativeScope {
   public void addBreadcrumb(
       String level, String message, String category, String type, String timestamp, String data) {
     nativeAddBreadcrumb(level, message, category, type, timestamp, data);
+  }
+
+  /**
+   * Set the trace. The primary use for this is to allow other SDKs to propagate their trace context
+   * to connect events on all layers
+   */
+  @Override
+  public void setTrace(String traceId, String parentSpanId) {
+    nativeSetTrace(traceId, parentSpanId);
   }
 }
