@@ -849,7 +849,7 @@ SENTRY_API void sentry_options_set_before_send(
  * meta-data. Since both `breakpad` and `crashpad` use minidumps to capture the
  * crash state, the passed-in event is empty when using these backends. Changes
  * to the event from inside the hooks will be passed along, but in the case of
- * the minidump backends might be amenable to overwriting during server-side
+ * the minidump backends these changes might get overwritten during server-side
  * ingestion and processing. This primarily affects the exception payloads which
  * are auto-generated from the minidump content. See
  * https://github.com/getsentry/sentry-native/issues/1147 for details.
