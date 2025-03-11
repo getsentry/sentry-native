@@ -52,6 +52,10 @@ write_loop(int fd, const char *buf, size_t buf_len)
 bool
 sentry__filelock_try_lock(sentry_filelock_t *lock)
 {
+#ifdef SENTRY_PLATFORM_NX
+    // Nothing to do, other processes shouldn't be running at the same time.
+    return true;
+#endif
     lock->is_locked = false;
 
     int fd = open(lock->path->path, O_RDWR | O_CREAT | O_TRUNC,
@@ -87,6 +91,10 @@ sentry__filelock_try_lock(sentry_filelock_t *lock)
 void
 sentry__filelock_unlock(sentry_filelock_t *lock)
 {
+#ifdef SENTRY_PLATFORM_NX
+    // Nothing to do, see sentry__filelock_try_lock.
+    return;
+#endif
     if (!lock->is_locked) {
         return;
     }
@@ -96,6 +104,7 @@ sentry__filelock_unlock(sentry_filelock_t *lock)
     lock->is_locked = false;
 }
 
+#ifndef SENTRY_PLATFORM_NX // defined in a downstream SDK.
 sentry_path_t *
 sentry__path_absolute(const sentry_path_t *path)
 {
@@ -105,6 +114,7 @@ sentry__path_absolute(const sentry_path_t *path)
     }
     return sentry__path_from_str(full);
 }
+#endif
 
 sentry_path_t *
 sentry__path_current_exe(void)

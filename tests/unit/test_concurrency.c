@@ -75,7 +75,11 @@ SENTRY_TEST(concurrent_init)
 {
     long called = 0;
 
-#define THREADS_NUM 100
+#ifdef SENTRY_PLATFORM_NX
+#    define THREADS_NUM 90
+#else
+#    define THREADS_NUM 100
+#endif
     sentry_threadid_t threads[THREADS_NUM];
 
     for (size_t i = 0; i < THREADS_NUM; i++) {
