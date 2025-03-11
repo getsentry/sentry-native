@@ -527,7 +527,9 @@ def test_disable_backend(cmake, httpserver):
 def test_crashpad_retry(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "crashpad"})
 
-    subprocess.run(["sudo", "ifconfig", "lo0", "down"])
+    subprocess.run(
+        ["sudo", "ifconfig", "lo0", "down"]
+    )  # Disables the loopback network interface
 
     # make sure we are isolated from previous runs
     shutil.rmtree(tmp_path / ".sentry-native", ignore_errors=True)
@@ -542,9 +544,11 @@ def test_crashpad_retry(cmake, httpserver):
 
     assert len(httpserver.log) == 0
 
-    subprocess.run(["sudo", "ifconfig", "lo0", "up"])
+    subprocess.run(
+        ["sudo", "ifconfig", "lo0", "up"]
+    )  # Enables the loopback network interface again
     # don't rmtree here, we don't want to be isolated (example should pick up previous crash from .sentry-native DB)
-    # TODO this only seems to work if we sleep (e.g. give Crashpad enough time to handle old data)
+    # we also sleep to give Crashpad enough time to handle the previous crash
     child = run(
         tmp_path, "sentry_example", ["log", "sleep"], env=env
     )  # run without crashing to retry send
