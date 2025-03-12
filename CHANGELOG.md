@@ -9,7 +9,8 @@
 **Features**:
 
 - Provide Clang-CL support. ([#1161](https://github.com/getsentry/sentry-native/pull/1161), [crashpad#100](https://github.com/getsentry/crashpad/pull/100))
-- Enable Crashpad report upload retry-mechanism for all platforms ([#1152](https://github.com/getsentry/sentry-native/pull/1152), [crashpad#120](https://github.com/getsentry/crashpad/pull/120))
+- Enable Crashpad report upload retry-mechanism for all platforms. ([#1152](https://github.com/getsentry/sentry-native/pull/1152), [crashpad#120](https://github.com/getsentry/crashpad/pull/120))
+- Read `traces_sample_rate` option with the NDK. ([#1176](https://github.com/getsentry/sentry-native/pull/1176))
 
 **Thank you**:
 
@@ -19,7 +20,7 @@
 
 **Features**:
 
-- Addded `sentry_set_trace()`. The primary use for this is to allow other SDKs to propagate their trace context. This allows Sentry to connect events on all layers. ([#1137](https://github.com/getsentry/sentry-native/pull/1137))
+- Added `sentry_set_trace()`. The primary use for this is to allow other SDKs to propagate their trace context. This allows Sentry to connect events on all layers. ([#1137](https://github.com/getsentry/sentry-native/pull/1137))
 
 ## 0.8.0
 
