@@ -9,6 +9,7 @@
 **Features**:
 
 - Provide Clang-CL support. ([#1161](https://github.com/getsentry/sentry-native/pull/1161), [crashpad#100](https://github.com/getsentry/crashpad/pull/100))
+- Add option to attach screenshots on Windows to fatal error events. ([#1170](https://github.com/getsentry/sentry-native/pull/1170))
 
 **Thank you**:
 

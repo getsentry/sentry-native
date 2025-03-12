@@ -621,6 +621,7 @@ endif()
 
 if(SENTRY_BUILD_TESTS)
 	add_subdirectory(tests/unit)
+	add_subdirectory(tests/fixtures/screenshot)
 endif()
 
 # ===== example, also used as integration test =====
