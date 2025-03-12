@@ -519,3 +519,38 @@ def test_disable_backend(cmake, httpserver):
 
     # crashpad is disabled, and we are only crashing, so we expect no requests
     assert len(httpserver.log) == 0
+
+
+@pytest.mark.skipif(
+    sys.platform != "darwin", reason="retry mechanism test only runs on macOS"
+)
+def test_crashpad_retry(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "crashpad"})
+
+    subprocess.run(
+        ["sudo", "ifconfig", "lo0", "down"]
+    )  # Disables the loopback network interface
+
+    # make sure we are isolated from previous runs
+    shutil.rmtree(tmp_path / ".sentry-native", ignore_errors=True)
+
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+    httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data("OK")
+
+    child = run(
+        tmp_path, "sentry_example", ["log", "crash"], env=env
+    )  # crash but fail to send data
+    assert child.returncode  # well, it's a crash after all
+
+    assert len(httpserver.log) == 0
+
+    subprocess.run(
+        ["sudo", "ifconfig", "lo0", "up"]
+    )  # Enables the loopback network interface again
+    # don't rmtree here, we don't want to be isolated (example should pick up previous crash from .sentry-native DB)
+    # we also sleep to give Crashpad enough time to handle the previous crash
+    child = run(
+        tmp_path, "sentry_example", ["log", "sleep"], env=env
+    )  # run without crashing to retry send
+
+    assert len(httpserver.log) == 1

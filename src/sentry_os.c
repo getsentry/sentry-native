@@ -481,6 +481,10 @@ fail:
     return sentry_value_new_null();
 }
 
+#elif defined(SENTRY_PLATFORM_NX)
+
+// sentry__get_os_context() is defined in a downstream SDK.
+
 #else
 
 sentry_value_t

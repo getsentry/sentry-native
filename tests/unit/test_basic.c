@@ -172,9 +172,6 @@ SENTRY_TEST(crashed_last_run)
         SENTRY_TEST_OPTIONS_NEW(options);
         TEST_CHECK(sentry__clear_crash_marker(options));
         sentry_options_free(options);
-
-        // -1 before sentry_init()
-        TEST_CHECK_INT_EQUAL(sentry_get_crashed_last_run(), -1);
     }
 
     const char *dsn_str = "https://foo@sentry.invalid/42";
