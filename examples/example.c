@@ -286,6 +286,10 @@ main(int argc, char **argv)
         sentry_options_set_proxy(options, "socks5://127.0.0.1:1080");
     }
 
+    if (has_arg(argc, argv, "crashpad-wait-for-upload")) {
+        sentry_options_set_on_crash_wait_for_upload(options, true);
+    }
+
     sentry_init(options);
 
     if (!has_arg(argc, argv, "no-setup")) {
