@@ -268,6 +268,8 @@ Java_io_sentry_ndk_SentryNdk_initSentryNative(
 
     jmethodID handler_strategy_mid = (*env)->GetMethodID(env, options_cls, "getNdkHandlerStrategy", "()I");
 
+    jmethodID traces_sample_rate_mid = (*env)->GetMethodID(env, options_cls, "getTracesSampleRate", "()F");
+
     (*env)->DeleteLocalRef(env, options_cls);
 
     char *outbox_path = NULL;
@@ -349,6 +351,9 @@ Java_io_sentry_ndk_SentryNdk_initSentryNative(
 
     jint handler_strategy = (jint) (*env)->CallIntMethod(env, sentry_ndk_options, handler_strategy_mid);
     sentry_options_set_handler_strategy(options, handler_strategy);
+
+    jfloat traces_sample_rate = (jfloat) (*env)->CallFloatMethod(env, sentry_ndk_options, traces_sample_rate_mid);
+    sentry_options_set_traces_sample_rate(options, traces_sample_rate);
 
     sentry_init(options);
     return;

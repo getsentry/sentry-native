@@ -11,7 +11,7 @@ android {
     namespace = "io.sentry.ndk"
 
     defaultConfig {
-        minSdk = 19
+        minSdk = 21
 
         externalNativeBuild {
             cmake {

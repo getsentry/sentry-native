@@ -31,6 +31,13 @@
             android:text="Trigger Crash"
             tools:ignore="HardcodedText" />
 
+        <Button
+            android:id="@+id/capture_transaction_button"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Trigger Transaction"
+            tools:ignore="HardcodedText" />
+
     </LinearLayout>
 
 </ScrollView>
