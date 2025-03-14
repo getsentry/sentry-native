@@ -23,6 +23,8 @@ android {
         ndk {
             abiFilters.addAll(listOf("x86", "armeabi-v7a", "x86_64", "arm64-v8a"))
         }
+
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     // we use the default NDK and CMake versions based on the AGP's version
@@ -96,6 +98,12 @@ android {
 
 dependencies {
     compileOnly("org.jetbrains:annotations:23.0.0")
+
+    testImplementation("androidx.test.ext:junit:1.2.1")
+
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation("androidx.test:rules:1.6.1")
 }
 
 /*
