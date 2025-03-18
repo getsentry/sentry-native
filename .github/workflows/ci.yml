@@ -237,6 +237,14 @@ jobs:
           [ "${{ matrix.CXX }}" ] && export CXX="${{ matrix.CXX }}"
           pytest --capture=no --verbose tests
 
+      - name: Check NDK
+        working-directory: ndk
+        run: make check
+
+      - name: Run NDK tests
+        working-directory: ndk
+        run: ./gradlew test connectedAndroidTest
+
       - name: "Upload to codecov.io"
         if: ${{ contains(env['RUN_ANALYZER'], 'cov') }}
         uses: codecov/codecov-action@e28ff129e5465c2c0dcc6f003fc735cb6ae0c673 # pin@v4.5.0
@@ -277,14 +285,6 @@ jobs:
       - name: Build NDK artifacts
         working-directory: ndk
         run: ./gradlew clean distZip
-
-      - name: Check NDK
-        working-directory: ndk
-        run: make check
-
-      - name: Run NDK tests
-        working-directory: ndk
-        run: ./gradlew test connectedAndroidTest
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
