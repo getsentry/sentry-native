@@ -10,6 +10,8 @@ android {
     compileSdk = 34
     namespace = "io.sentry.ndk"
 
+    testBuildType = "debug"
+
     defaultConfig {
         minSdk = 21
 
@@ -36,7 +38,13 @@ android {
     }
 
     buildTypes {
-        getByName("debug")
+        getByName("debug") {
+            externalNativeBuild {
+                cmake {
+                    arguments.add(0, "-DENABLE_TESTS=ON")
+                }
+            }
+        }
         getByName("release") {
             consumerProguardFiles("proguard-rules.pro")
         }
