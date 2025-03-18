@@ -238,10 +238,12 @@ jobs:
           pytest --capture=no --verbose tests
 
       - name: Check NDK
+        if: ${{ env['ANDROID_API'] }}
         working-directory: ndk
         run: make check
 
       - name: Run NDK tests
+        if: ${{ env['ANDROID_API'] }}
         working-directory: ndk
         run: ./gradlew test connectedAndroidTest
 
