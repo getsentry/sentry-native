@@ -60,6 +60,16 @@ android {
                 ),
             )
         }
+        getByName("debug") {
+            isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("debug")
+            addManifestPlaceholders(
+                mapOf(
+                    "sentryDebug" to true,
+                    "sentryEnvironment" to "debug",
+                ),
+            )
+        }
     }
 
     kotlinOptions {
