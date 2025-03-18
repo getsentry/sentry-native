@@ -91,12 +91,6 @@ android {
         checkReleaseBuilds = true
     }
 
-    variantFilter {
-        if (System.getenv("CI")?.toBoolean() == true && buildType.name == "debug") {
-            ignore = true
-        }
-    }
-
     packagingOptions {
         jniLibs {
             useLegacyPackaging = true
