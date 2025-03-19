@@ -55,6 +55,13 @@ sentry_envelope_item_t *sentry__envelope_add_session(
     sentry_envelope_t *envelope, const sentry_session_t *session);
 
 /**
+ * Add an attachment to this envelope.
+ */
+sentry_envelope_item_t *sentry__envelope_add_attachment(
+    sentry_envelope_t *envelope, const sentry_path_t *attachment,
+    const char *type);
+
+/**
  * This will add the file contents from `path` as an envelope item of type
  * `type`.
  */
