@@ -205,6 +205,19 @@ jobs:
         shell: powershell
         run: . "scripts\install-zlib.ps1"
 
+      - name: Setup Java Version
+        if: ${{ env['ANDROID_API'] }}
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "17"
+
+      - name: Setup Gradle
+        if: ${{ env['ANDROID_API'] }}
+        uses: gradle/actions/setup-gradle@579fbbe7221704325eb4c4d4bf20c2b0859fba76 # pin@v3
+        with:
+          gradle-home-cache-cleanup: true
+
       - name: Starting Android Simulator
         if: ${{ env['ANDROID_API'] }}
         run: bash scripts/start-android.sh
