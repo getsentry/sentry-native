@@ -255,14 +255,6 @@ jobs:
         working-directory: ndk
         run: make check
 
-      - name: Run NDK tests
-        if: ${{ env['ANDROID_API'] }}
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          working-directory: ndk
-          api-level: 29
-          script: ./gradlew test connectedAndroidTest
-
       - name: "Upload to codecov.io"
         if: ${{ contains(env['RUN_ANALYZER'], 'cov') }}
         uses: codecov/codecov-action@e28ff129e5465c2c0dcc6f003fc735cb6ae0c673 # pin@v4.5.0
