@@ -84,6 +84,6 @@ public final class NdkOptions {
   }
 
   public float getTracesSampleRate() {
-      return tracesSampleRate;
+    return tracesSampleRate;
   }
 }
