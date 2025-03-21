@@ -8,4 +8,6 @@ public class NdkSample {
   public static native void crash();
 
   public static native void message();
+
+  public static native void transaction();
 }

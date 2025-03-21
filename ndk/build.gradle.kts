@@ -21,7 +21,7 @@ buildscript {
         google()
     }
     dependencies {
-        classpath("com.android.tools.build:gradle:7.4.2")
+        classpath("com.android.tools.build:gradle:8.7.1")
         classpath(kotlin("gradle-plugin", version = "1.8.0"))
         classpath("com.vanniktech:gradle-maven-publish-plugin:0.18.0")
         // dokka is required by gradle-maven-publish-plugin.
