@@ -30,7 +30,7 @@ public class MainActivity extends Activity {
             BuildConfig.VERSION_NAME,
             100,
             "sentry-native-jni",
-                1.0f);
+            1.0f);
     SentryNdk.init(options);
   }
 
