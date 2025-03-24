@@ -164,8 +164,13 @@ elseif(SENTRY_BACKEND STREQUAL "breakpad")
 	set(SENTRY_BACKEND_BREAKPAD TRUE)
 elseif(SENTRY_BACKEND STREQUAL "none")
 	set(SENTRY_BACKEND_NONE TRUE)
+elseif(SENTRY_BACKEND STREQUAL "custom")
+	message(DEBUG
+		"SENTRY_BACKEND set to 'custom' - a custom backend source must be added to the compilation unit by the downstream SDK.")
 else()
-	message(FATAL_ERROR "SENTRY_BACKEND must be one of 'crashpad', 'inproc', 'breakpad' or 'none'")
+	message(FATAL_ERROR
+		"SENTRY_BACKEND must be one of 'crashpad', 'inproc', 'breakpad' or 'none'.
+		Downstream SDKs may choose to provide their own by specifying 'custom'.")
 endif()
 
 if(SENTRY_BACKEND_CRASHPAD AND ANDROID)
@@ -616,6 +621,7 @@ endif()
 
 if(SENTRY_BUILD_TESTS)
 	add_subdirectory(tests/unit)
+	add_subdirectory(tests/fixtures/screenshot)
 endif()
 
 # ===== example, also used as integration test =====

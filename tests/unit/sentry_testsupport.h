@@ -7,7 +7,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#ifndef SENTRY_TEST_DEFINE_MAIN
+#if !defined(SENTRY_TEST_DEFINE_MAIN) && !defined(TEST_NO_MAIN)
 #    define TEST_NO_MAIN
 #endif
 #include "../vendor/acutest.h"
@@ -54,7 +54,7 @@
 // NOTE: On Windows, pointers to non-static functions seem to resolve
 // to an indirection table. This causes a mismatch in tests. With static
 // functions, this does not happen.
-#    define TEST_VISIBLE static
+#    define TEST_VISIBLE static __declspec(noinline)
 #else
 #    define TEST_VISIBLE
 #endif

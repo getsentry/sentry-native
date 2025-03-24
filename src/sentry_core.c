@@ -12,6 +12,7 @@
 #include "sentry_path.h"
 #include "sentry_random.h"
 #include "sentry_scope.h"
+#include "sentry_screenshot.h"
 #include "sentry_session.h"
 #include "sentry_string.h"
 #include "sentry_sync.h"

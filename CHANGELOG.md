@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+**Features**:
+
+- Add option to attach screenshots on Windows to fatal error events. ([#1170](https://github.com/getsentry/sentry-native/pull/1170))
+- Add option for `Crashpad` to delay shutdown until upload thread completes ([#1153](https://github.com/getsentry/sentry-native/pull/1153))
+
+## 0.8.2
+
 **Fixes**:
 
 - Provide a mutex-initializer on platforms that have no static pthread initializer for recursive mutexes. ([#1113](https://github.com/getsentry/sentry-native/pull/1113))
@@ -9,7 +16,7 @@
 **Features**:
 
 - Provide Clang-CL support. ([#1161](https://github.com/getsentry/sentry-native/pull/1161), [crashpad#100](https://github.com/getsentry/crashpad/pull/100))
-- Add option for `Crashpad` to delay shutdown until upload thread completes ([#1153](https://github.com/getsentry/sentry-native/pull/1153))
+- Enable Crashpad report upload retry-mechanism for all platforms ([#1152](https://github.com/getsentry/sentry-native/pull/1152), [crashpad#120](https://github.com/getsentry/crashpad/pull/120))
 
 **Thank you**:
 
@@ -30,7 +37,7 @@
 **Features**:
 
 - Ensure support for `http_proxy` and `https_proxy` environment variables across all transports. ([#1111](https://github.com/getsentry/sentry-native/pull/1111))
-  
+
 **Fixes**:
 
 - Ensure that `sentry_capture_minidump()` fails if the provided minidump path cannot be attached, instead of sending a crash event without minidump. ([#1138](https://github.com/getsentry/sentry-native/pull/1138))

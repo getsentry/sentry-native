@@ -30,7 +30,7 @@ extern "C" {
 #        define SENTRY_SDK_NAME "sentry.native"
 #    endif
 #endif
-#define SENTRY_SDK_VERSION "0.8.1"
+#define SENTRY_SDK_VERSION "0.8.2"
 #define SENTRY_SDK_USER_AGENT SENTRY_SDK_NAME "/" SENTRY_SDK_VERSION
 
 /* common platform detection */
@@ -56,6 +56,8 @@ extern "C" {
 /* IBM i PASE is also counted as AIX */
 #    define SENTRY_PLATFORM_AIX
 #    define SENTRY_PLATFORM_UNIX
+#elif defined(__NX__)
+#    define SENTRY_PLATFORM_NX
 #else
 #    error unsupported platform
 #endif
@@ -845,11 +847,14 @@ SENTRY_API void sentry_options_set_before_send(
  * `sentry_value_decref` on the provided event, and return a
  * `sentry_value_new_null()` instead.
  *
- * Only the `inproc` backend currently fills the passed-in event with useful
- * data and processes any modifications to the return value. Since both
- * `breakpad` and `crashpad` use minidumps to capture the crash state, the
- * passed-in event is empty when using these backends, and they ignore any
- * changes to the return value.
+ * Only the `inproc` backend currently fills the passed-in event with crash
+ * meta-data. Since both `breakpad` and `crashpad` use minidumps to capture the
+ * crash state, the passed-in event is empty when using these backends. Changes
+ * to the event from inside the hooks will be passed along, but in the case of
+ * the minidump backends these changes might get overwritten during server-side
+ * ingestion and processing. This primarily affects the exception payloads which
+ * are auto-generated from the minidump content. See
+ * https://github.com/getsentry/sentry-native/issues/1147 for details.
  *
  * If you set this callback in the options, it prevents a concurrently enabled
  * `before_send` callback from being invoked in the crash case. This allows for
@@ -1180,6 +1185,17 @@ SENTRY_API void sentry_options_add_attachment(
     sentry_options_t *opts, const char *path);
 SENTRY_API void sentry_options_add_attachment_n(
     sentry_options_t *opts, const char *path, size_t path_len);
+
+/**
+ * Enables or disables attaching screenshots to fatal error events. Disabled by
+ * default.
+ *
+ * This feature is currently supported by all backends on Windows. Only the
+ * `crashpad` backend can capture screenshots of fast-fail crashes that bypass
+ * SEH (structured exception handling).
+ */
+SENTRY_EXPERIMENTAL_API void sentry_options_set_attach_screenshot(
+    sentry_options_t *opts, int val);
 
 /**
  * Sets the path to the crashpad handler if the crashpad backend is used.

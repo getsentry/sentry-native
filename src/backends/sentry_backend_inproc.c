@@ -10,6 +10,7 @@
 #    include "sentry_os.h"
 #endif
 #include "sentry_scope.h"
+#include "sentry_screenshot.h"
 #include "sentry_sync.h"
 #include "sentry_transport.h"
 #include "sentry_unix_pageallocator.h"
@@ -592,6 +593,16 @@ handle_ucontext(const sentry_ucontext_t *uctx)
             sentry_session_t *session = sentry__end_current_session_with_status(
                 SENTRY_SESSION_STATUS_CRASHED);
             sentry__envelope_add_session(envelope, session);
+
+            if (options->attach_screenshot) {
+                sentry_path_t *screenshot_path
+                    = sentry__screenshot_get_path(options);
+                if (sentry__screenshot_capture(screenshot_path)) {
+                    sentry__envelope_add_attachment(
+                        envelope, screenshot_path, NULL);
+                }
+                sentry__path_free(screenshot_path);
+            }
 
             // capture the envelope with the disk transport
             sentry_transport_t *disk_transport

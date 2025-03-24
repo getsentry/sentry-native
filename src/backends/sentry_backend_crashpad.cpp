@@ -11,6 +11,7 @@ extern "C" {
 #    include "sentry_os.h"
 #endif
 #include "sentry_path.h"
+#include "sentry_screenshot.h"
 #include "sentry_sync.h"
 #include "sentry_transport.h"
 #ifdef SENTRY_PLATFORM_LINUX
@@ -445,6 +446,13 @@ crashpad_backend_startup(
             base::FilePath(data->breadcrumb1_path->path),
             base::FilePath(data->breadcrumb2_path->path) });
 
+    base::FilePath screenshot;
+    if (options->attach_screenshot) {
+        sentry_path_t *screenshot_path = sentry__screenshot_get_path(options);
+        screenshot = base::FilePath(screenshot_path->path);
+        sentry__path_free(screenshot_path);
+    }
+
     std::vector<std::string> arguments { "--no-rate-limit" };
 
     // Initialize database first, flushing the consent later on as part of
@@ -471,7 +479,7 @@ crashpad_backend_startup(
     bool success = data->client->StartHandler(handler, database, database,
         minidump_url ? minidump_url : "", proxy_url, annotations, arguments,
         /* restartable */ true,
-        /* asynchronous_start */ false, attachments,
+        /* asynchronous_start */ false, attachments, screenshot,
         options->on_crash_wait_for_upload);
     sentry_free(minidump_url);
 

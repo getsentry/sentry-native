@@ -53,6 +53,10 @@ jobs:
             os: ubuntu-24.04
             CC: gcc-12
             CXX: g++-12
+          - name: Linux Arm64 (GCC 14.2.0)
+            os: ubuntu-24.04-arm
+            CC: gcc-14
+            CXX: g++-14
           - name: Linux (GCC 14.2.0)
             os: ubuntu-24.04
             CC: gcc-14
@@ -63,6 +67,12 @@ jobs:
             # RUN_ANALYZER: gcc
           - name: Linux (clang 19 + asan + llvm-cov)
             os: ubuntu-24.04
+            CC: clang-19
+            CXX: clang++-19
+            ERROR_ON_WARNINGS: 1
+            RUN_ANALYZER: asan,llvm-cov
+          - name: Linux Arm64 (clang 19 + asan + llvm-cov)
+            os: ubuntu-24.04-arm
             CC: clang-19
             CXX: clang++-19
             ERROR_ON_WARNINGS: 1
