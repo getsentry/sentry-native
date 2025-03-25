@@ -76,7 +76,7 @@ public final class io/sentry/ndk/NdkHandlerStrategy : java/lang/Enum {
 }
 
 public final class io/sentry/ndk/NdkOptions {
-	public fun <init> (Ljava/lang/String;ZLjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/String;F)V
+	public fun <init> (Ljava/lang/String;ZLjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/String;)V
 	public fun getDist ()Ljava/lang/String;
 	public fun getDsn ()Ljava/lang/String;
 	public fun getEnvironment ()Ljava/lang/String;
@@ -88,6 +88,7 @@ public final class io/sentry/ndk/NdkOptions {
 	public fun getTracesSampleRate ()F
 	public fun isDebug ()Z
 	public fun setNdkHandlerStrategy (Lio/sentry/ndk/NdkHandlerStrategy;)V
+	public fun setTracesSampleRate (F)V
 }
 
 public final class io/sentry/ndk/SentryNdk {

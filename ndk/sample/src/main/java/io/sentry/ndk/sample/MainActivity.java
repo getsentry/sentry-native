@@ -29,8 +29,9 @@ public class MainActivity extends Activity {
             "production",
             BuildConfig.VERSION_NAME,
             100,
-            "sentry-native-jni",
-            1.0f);
+            "sentry-native-jni");
+    // set tracesSampleRate to 1
+    options.setTracesSampleRate(1);
     SentryNdk.init(options);
   }
 

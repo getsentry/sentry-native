@@ -29,8 +29,7 @@ public class SentryNdkTest {
             "production",
             "dist",
             100,
-            "io.sentry.ndk",
-            1.0f);
+            "io.sentry.ndk");
 
     // when initialized
     SentryNdk.init(options);
@@ -53,8 +52,7 @@ public class SentryNdkTest {
             "production",
             "dist",
             100,
-            "io.sentry.ndk",
-            1.0f);
+            "io.sentry.ndk");
 
     // when initialized
     SentryNdk.init(options);
@@ -80,8 +78,10 @@ public class SentryNdkTest {
             "production",
             "dist",
             100,
-            "io.sentry.ndk",
-            1.0f);
+            "io.sentry.ndk");
+
+    // set tracesSampleRate to 1
+    options.setTracesSampleRate(1);
 
     // when initialized
     SentryNdk.init(options);
@@ -110,8 +110,10 @@ public class SentryNdkTest {
             "production",
             "dist",
             100,
-            "io.sentry.ndk",
-            0.0f);
+            "io.sentry.ndk");
+
+    // set tracesSampleRate to 0
+    options.setTracesSampleRate(0);
 
     // when initialized
     SentryNdk.init(options);

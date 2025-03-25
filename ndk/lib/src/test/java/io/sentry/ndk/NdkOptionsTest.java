@@ -20,8 +20,9 @@ public class NdkOptionsTest {
             "production",
             "dist",
             100,
-            "io.sentry.ndk",
-            1.0f);
+            "io.sentry.ndk");
+    // set tracesSampleRate to 1
+    options.setTracesSampleRate(1);
 
     assertEquals(1.0f, options.getTracesSampleRate(), 0.0f);
   }

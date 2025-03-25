@@ -44,7 +44,13 @@ JNIEXPORT void JNICALL Java_io_sentry_ndk_sample_NdkSample_transaction(JNIEnv *e
             child, "span_data_says", sentry_value_new_string("hi!"));
     sentry_span_finish(grandchild);
     sentry_span_finish(child);
-    sentry_transaction_finish(tx);
+    sentry_uuid_s uuid = sentry_transaction_finish(tx);
+    if(sentry_uuid_is_nil(&uuid)) {
+        __android_log_print(ANDROID_LOG_WARN, TAG, "Transaction failed to send.");
+    } else {
+        __android_log_print(ANDROID_LOG_WARN, TAG, "Transaction sent.");
+
+    }
 
 }
 }
