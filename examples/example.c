@@ -287,7 +287,7 @@ main(int argc, char **argv)
     }
 
     if (has_arg(argc, argv, "crashpad-wait-for-upload")) {
-        sentry_options_set_on_crash_wait_for_upload(options, true);
+        sentry_options_set_crashpad_wait_for_upload(options, true);
     }
 
     sentry_init(options);

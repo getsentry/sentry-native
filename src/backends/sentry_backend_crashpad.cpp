@@ -480,7 +480,7 @@ crashpad_backend_startup(
         minidump_url ? minidump_url : "", proxy_url, annotations, arguments,
         /* restartable */ true,
         /* asynchronous_start */ false, attachments, screenshot,
-        options->on_crash_wait_for_upload);
+        options->crashpad_wait_for_upload);
     sentry_free(minidump_url);
 
 #ifdef SENTRY_PLATFORM_WINDOWS

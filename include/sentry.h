@@ -1293,7 +1293,7 @@ SENTRY_API void sentry_options_set_system_crash_reporter_enabled(
  *
  * This setting only has an effect when using the `crashpad` backend on Linux.
  */
-SENTRY_API void sentry_options_set_on_crash_wait_for_upload(
+SENTRY_API void sentry_options_set_crashpad_wait_for_upload(
     sentry_options_t *opts, int wait_for_upload);
 
 /**

@@ -49,7 +49,7 @@ struct sentry_options_s {
     bool symbolize_stacktraces;
     bool system_crash_reporter_enabled;
     bool attach_screenshot;
-    bool on_crash_wait_for_upload;
+    bool crashpad_wait_for_upload;
 
     sentry_attachment_t *attachments;
     sentry_run_t *run;
