@@ -2,11 +2,14 @@ package io.sentry.ndk;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import io.sentry.ndk.sample.NdkSample;
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
@@ -92,7 +95,9 @@ public class SentryNdkTest {
     File[] files = outboxPath.listFiles();
     assertNotNull(files);
     assertEquals(1, files.length);
-    // TODO check file contents and if it contains "type":"transaction"
+    File firstFile = files[0];
+    String content = new String(Files.readAllBytes(firstFile.toPath()), StandardCharsets.UTF_8);
+    assertTrue(content.contains("\"type\":\"transaction\""));
   }
 
   @Test
