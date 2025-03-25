@@ -13,7 +13,7 @@ JNIEXPORT void JNICALL Java_io_sentry_ndk_sample_NdkSample_crash(JNIEnv *env, jc
 }
 
 JNIEXPORT void JNICALL Java_io_sentry_ndk_sample_NdkSample_message(JNIEnv *env, jclass cls) {
-    __android_log_print(ANDROID_LOG_WARN, TAG, "Sending message.");
+    __android_log_print(ANDROID_LOG_INFO, TAG, "Sending message.");
     sentry_value_t event = sentry_value_new_message_event(
             /*   level */ SENTRY_LEVEL_INFO,
             /*  logger */ "custom",
@@ -23,7 +23,7 @@ JNIEXPORT void JNICALL Java_io_sentry_ndk_sample_NdkSample_message(JNIEnv *env, 
 }
 
 JNIEXPORT void JNICALL Java_io_sentry_ndk_sample_NdkSample_transaction(JNIEnv *env, jclass cls) {
-    __android_log_print(ANDROID_LOG_WARN, TAG, "Sending transaction.");
+    __android_log_print(ANDROID_LOG_INFO, TAG, "Sending transaction.");
 
     sentry_transaction_context_t *tx_ctx
             = sentry_transaction_context_new("little.teapot",
@@ -46,9 +46,9 @@ JNIEXPORT void JNICALL Java_io_sentry_ndk_sample_NdkSample_transaction(JNIEnv *e
     sentry_span_finish(child);
     sentry_uuid_s uuid = sentry_transaction_finish(tx);
     if(sentry_uuid_is_nil(&uuid)) {
-        __android_log_print(ANDROID_LOG_WARN, TAG, "Transaction failed to send.");
+        __android_log_print(ANDROID_LOG_WARN, TAG, "Transaction was not sent.");
     } else {
-        __android_log_print(ANDROID_LOG_WARN, TAG, "Transaction sent.");
+        __android_log_print(ANDROID_LOG_INFO, TAG, "Transaction sent.");
 
     }
 
