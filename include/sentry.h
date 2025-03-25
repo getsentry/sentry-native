@@ -1288,8 +1288,17 @@ SENTRY_API void sentry_options_set_system_crash_reporter_enabled(
     sentry_options_t *opts, int enabled);
 
 /**
- * Sets the maximum time (in milliseconds) to wait for the asynchronous tasks to
- * end on shutdown, before attempting a forced termination.
+ * Enables a wait for the crash report upload to be finished before shutting
+ * down. This is disabled by default.
+ *
+ * This setting only has an effect when using the `crashpad` backend on Linux.
+ */
+SENTRY_API void sentry_options_set_crashpad_wait_for_upload(
+    sentry_options_t *opts, int wait_for_upload);
+
+/**
+ * Sets the maximum time (in milliseconds) to wait for the asynchronous
+ * tasks to end on shutdown, before attempting a forced termination.
  */
 SENTRY_API void sentry_options_set_shutdown_timeout(
     sentry_options_t *opts, uint64_t shutdown_timeout);

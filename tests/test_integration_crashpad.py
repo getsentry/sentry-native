@@ -522,7 +522,8 @@ def test_disable_backend(cmake, httpserver):
 
 
 @pytest.mark.skipif(
-    sys.platform != "darwin", reason="retry mechanism test only runs on macOS"
+    sys.platform != "darwin" or not os.getenv("CI"),
+    reason="retry mechanism test only runs on macOS in CI",
 )
 def test_crashpad_retry(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "crashpad"})

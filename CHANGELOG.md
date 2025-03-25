@@ -5,6 +5,7 @@
 **Features**:
 
 - Add option to attach screenshots on Windows to fatal error events. ([#1170](https://github.com/getsentry/sentry-native/pull/1170))
+- Add an option for `Crashpad` on Linux to delay application shutdown until the upload of the crash report in the `crashpad_handler` is complete. This is useful for deployment in `Docker` or `systemd`, where the life cycle of additional processes is bound by the application life cycle. ([#1153](https://github.com/getsentry/sentry-native/pull/1153), [crashpad#121](https://github.com/getsentry/crashpad/pull/121))
 
 ## 0.8.2
 
