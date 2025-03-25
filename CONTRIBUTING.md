@@ -159,7 +159,7 @@ The example currently supports the following commands:
 
  
 Only on Linux using crashpad:
-- `crashpad-wait-for-upload`: Couples application shutdown to finishing the upload thread. 
+- `crashpad-wait-for-upload`: Couples application shutdown to complete the upload in the `crashpad_handler`. 
 
 Only on Windows using crashpad with its WER handler module:
 
