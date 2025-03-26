@@ -290,6 +290,13 @@ main(int argc, char **argv)
         sentry_options_set_crashpad_wait_for_upload(options, true);
     }
 
+    if (has_arg(argc, argv, "attach-view-hierarchy")) {
+        // TODO we assume the file lives one directory up;
+        //  should we add it to GH?
+        sentry_options_add_typed_attachment(options, "../view-hierarchy.json",
+            VIEW_HIERARCHY, "application/json");
+    }
+
     sentry_init(options);
 
     if (!has_arg(argc, argv, "no-setup")) {

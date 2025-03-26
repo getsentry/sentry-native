@@ -474,7 +474,8 @@ sentry_options_get_shutdown_timeout(sentry_options_t *opts)
 }
 
 static void
-add_attachment(sentry_options_t *opts, sentry_path_t *path)
+add_attachment(sentry_options_t *opts, sentry_path_t *path,
+    sentry_attachment_type_t attachment_type, const char *content_type)
 {
     if (!path) {
         return;
@@ -486,36 +487,40 @@ add_attachment(sentry_options_t *opts, sentry_path_t *path)
     }
     attachment->path = path;
     attachment->next = opts->attachments;
+    attachment->type = attachment_type;
+    attachment->content_type = content_type;
     opts->attachments = attachment;
 }
 
 void
 sentry_options_add_attachment(sentry_options_t *opts, const char *path)
 {
-    add_attachment(opts, sentry__path_from_str(path));
+    add_attachment(opts, sentry__path_from_str(path), ATTACHMENT, NULL);
 }
 
 void
 sentry_options_add_attachment_n(
     sentry_options_t *opts, const char *path, size_t path_len)
 {
-    add_attachment(opts, sentry__path_from_str_n(path, path_len));
+    add_attachment(
+        opts, sentry__path_from_str_n(path, path_len), ATTACHMENT, NULL);
 }
 
 void
 sentry_options_add_typed_attachment(sentry_options_t *opts, const char *path,
     sentry_attachment_type_t attachment_type, const char *content_type)
 {
-    sentry_options_add_typed_attachment_n(opts, path, strlen(path),
-        attachment_type, content_type, strlen(content_type));
+    add_attachment(opts, sentry__path_from_str_n(path, strlen(path)),
+        attachment_type, content_type);
 }
 
 void
 sentry_options_add_typed_attachment_n(sentry_options_t *opts, const char *path,
     size_t path_len, sentry_attachment_type_t attachment_type,
-    const char *content_type, size_t content_type_len)
+    const char *content_type)
 {
-    return; // TODO do stuff
+    add_attachment(opts, sentry__path_from_str_n(path, path_len),
+        attachment_type, content_type);
 }
 
 void

@@ -1186,15 +1186,19 @@ SENTRY_API void sentry_options_add_attachment(
 SENTRY_API void sentry_options_add_attachment_n(
     sentry_options_t *opts, const char *path, size_t path_len);
 
-/**
- *
- */
+// TODO add some docstrings
+typedef enum {
+    ATTACHMENT,
+    MINIDUMP,
+    VIEW_HIERARCHY,
+} sentry_attachment_type_t;
+
 SENTRY_API void sentry_options_add_typed_attachment(sentry_options_t *opts,
     const char *path, sentry_attachment_type_t attachment_type,
     const char *content_type);
 SENTRY_API void sentry_options_add_typed_attachment_n(sentry_options_t *opts,
     const char *path, size_t path_len, sentry_attachment_type_t attachment_type,
-    const char *content_type, size_t content_type_len);
+    const char *content_type);
 
 /**
  * Enables or disables attaching screenshots to fatal error events. Disabled by

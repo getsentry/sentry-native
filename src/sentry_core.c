@@ -502,6 +502,22 @@ static
     return send;
 }
 
+const char *
+str_from_attachment_type(sentry_attachment_type_t attachment_type)
+{
+    switch (attachment_type) {
+    case ATTACHMENT:
+        return "event.attachment";
+    case MINIDUMP:
+        return "event.minidump";
+    case VIEW_HIERARCHY:
+        return "event.view_hierarchy";
+    default:
+        UNREACHABLE("Unknown attachment type");
+        return "event.attachment";
+    }
+}
+
 sentry_envelope_t *
 sentry__prepare_event(const sentry_options_t *options, sentry_value_t event,
     sentry_uuid_t *event_id, bool invoke_before_send)
@@ -540,10 +556,14 @@ sentry__prepare_event(const sentry_options_t *options, sentry_value_t event,
     SENTRY_DEBUG("adding attachments to envelope");
     for (sentry_attachment_t *attachment = options->attachments; attachment;
         attachment = attachment->next) {
-        sentry_envelope_item_t *item = sentry__envelope_add_from_path(
-            envelope, attachment->path, "attachment");
+        sentry_envelope_item_t *item = sentry__envelope_add_from_path(envelope,
+            attachment->path, str_from_attachment_type(attachment->type));
         if (!item) {
             continue;
+        }
+        if (attachment->content_type) {
+            sentry__envelope_item_set_header(item, "content_type",
+                sentry_value_new_string(attachment->content_type));
         }
         sentry__envelope_item_set_header(item, "filename",
 #ifdef SENTRY_PLATFORM_WINDOWS
