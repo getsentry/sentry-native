@@ -206,6 +206,9 @@ main(int argc, char **argv)
         sentry_options_set_backend(options, NULL);
     }
 
+    sentry_options_add_view_hierarchy(options,
+        "/Users/mischan/devel/sentry-native/view-hierarchy.json");
+
     // this is an example. for real usage, make sure to set this explicitly to
     // an app specific cache location.
     sentry_options_set_database_path(options, ".sentry-native");

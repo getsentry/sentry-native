@@ -1,0 +1,361 @@
+{
+  "rendering_system": "android_view_system",
+  "windows": [
+    {
+      "type": "com.android.internal.policy.DecorView",
+      "width": 1080.0,
+      "height": 2400.0,
+      "x": 0.0,
+      "y": 0.0,
+      "visibility": "visible",
+      "alpha": 1.0,
+      "children": [
+        {
+          "type": "android.widget.LinearLayout",
+          "width": 1080.0,
+          "height": 2356.0,
+          "x": 0.0,
+          "y": 0.0,
+          "visibility": "visible",
+          "alpha": 1.0,
+          "children": [
+            {
+              "type": "android.view.ViewStub",
+              "identifier": "action_mode_bar_stub",
+              "width": 0.0,
+              "height": 0.0,
+              "x": 0.0,
+              "y": 0.0,
+              "visibility": "gone",
+              "alpha": 1.0
+            },
+            {
+              "type": "android.widget.FrameLayout",
+              "width": 1080.0,
+              "height": 2261.0,
+              "x": 0.0,
+              "y": 95.0,
+              "visibility": "visible",
+              "alpha": 1.0,
+              "children": [
+                {
+                  "type": "androidx.appcompat.widget.ActionBarOverlayLayout",
+                  "identifier": "decor_content_parent",
+                  "width": 1080.0,
+                  "height": 2261.0,
+                  "x": 0.0,
+                  "y": 0.0,
+                  "visibility": "visible",
+                  "alpha": 1.0,
+                  "children": [
+                    {
+                      "type": "androidx.appcompat.widget.ContentFrameLayout",
+                      "identifier": "content",
+                      "width": 1080.0,
+                      "height": 2107.0,
+                      "x": 0.0,
+                      "y": 154.0,
+                      "visibility": "visible",
+                      "alpha": 1.0,
+                      "children": [
+                        {
+                          "type": "android.widget.LinearLayout",
+                          "width": 1080.0,
+                          "height": 2107.0,
+                          "x": 0.0,
+                          "y": 0.0,
+                          "visibility": "visible",
+                          "alpha": 1.0,
+                          "children": [
+                            {
+                              "type": "androidx.viewpager.widget.ViewPager",
+                              "identifier": "pager",
+                              "width": 1080.0,
+                              "height": 1975.0,
+                              "x": 0.0,
+                              "y": 0.0,
+                              "visibility": "visible",
+                              "alpha": 1.0,
+                              "children": [
+                                {
+                                  "type": "android.widget.ScrollView",
+                                  "identifier": "scrolling_container",
+                                  "width": 1080.0,
+                                  "height": 1975.0,
+                                  "x": 0.0,
+                                  "y": 0.0,
+                                  "visibility": "visible",
+                                  "alpha": 1.0,
+                                  "children": [
+                                    {
+                                      "type": "androidx.appcompat.widget.AppCompatTextView",
+                                      "identifier": "scrolling_text",
+                                      "width": 992.0,
+                                      "height": 2808.0,
+                                      "x": 44.0,
+                                      "y": 0.0,
+                                      "visibility": "visible",
+                                      "alpha": 1.0
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "androidx.recyclerview.widget.RecyclerView",
+                                  "identifier": "recycler_view",
+                                  "width": 1080.0,
+                                  "height": 1975.0,
+                                  "x": 1080.0,
+                                  "y": 0.0,
+                                  "visibility": "visible",
+                                  "alpha": 1.0,
+                                  "children": [
+                                    {
+                                      "type": "androidx.appcompat.widget.AppCompatTextView",
+                                      "identifier": "text1",
+                                      "width": 1080.0,
+                                      "height": 132.0,
+                                      "x": 0.0,
+                                      "y": 0.0,
+                                      "visibility": "visible",
+                                      "alpha": 1.0
+                                    },
+                                    {
+                                      "type": "androidx.appcompat.widget.AppCompatTextView",
+                                      "identifier": "text1",
+                                      "width": 1080.0,
+                                      "height": 132.0,
+                                      "x": 0.0,
+                                      "y": 132.0,
+                                      "visibility": "visible",
+                                      "alpha": 1.0
+                                    },
+                                    {
+                                      "type": "androidx.appcompat.widget.AppCompatTextView",
+                                      "identifier": "text1",
+                                      "width": 1080.0,
+                                      "height": 132.0,
+                                      "x": 0.0,
+                                      "y": 264.0,
+                                      "visibility": "visible",
+                                      "alpha": 1.0
+                                    },
+                                    {
+                                      "type": "androidx.appcompat.widget.AppCompatTextView",
+                                      "identifier": "text1",
+                                      "width": 1080.0,
+                                      "height": 132.0,
+                                      "x": 0.0,
+                                      "y": 396.0,
+                                      "visibility": "visible",
+                                      "alpha": 1.0
+                                    },
+                                    {
+                                      "type": "androidx.appcompat.widget.AppCompatTextView",
+                                      "identifier": "text1",
+                                      "width": 1080.0,
+                                      "height": 132.0,
+                                      "x": 0.0,
+                                      "y": 528.0,
+                                      "visibility": "visible",
+                                      "alpha": 1.0
+                                    },
+                                    {
+                                      "type": "androidx.appcompat.widget.AppCompatTextView",
+                                      "identifier": "text1",
+                                      "width": 1080.0,
+                                      "height": 132.0,
+                                      "x": 0.0,
+                                      "y": 660.0,
+                                      "visibility": "visible",
+                                      "alpha": 1.0
+                                    },
+                                    {
+                                      "type": "androidx.appcompat.widget.AppCompatTextView",
+                                      "identifier": "text1",
+                                      "width": 1080.0,
+                                      "height": 132.0,
+                                      "x": 0.0,
+                                      "y": 792.0,
+                                      "visibility": "visible",
+                                      "alpha": 1.0
+                                    },
+                                    {
+                                      "type": "androidx.appcompat.widget.AppCompatTextView",
+                                      "identifier": "text1",
+                                      "width": 1080.0,
+                                      "height": 132.0,
+                                      "x": 0.0,
+                                      "y": 924.0,
+                                      "visibility": "visible",
+                                      "alpha": 1.0
+                                    },
+                                    {
+                                      "type": "androidx.appcompat.widget.AppCompatTextView",
+                                      "identifier": "text1",
+                                      "width": 1080.0,
+                                      "height": 132.0,
+                                      "x": 0.0,
+                                      "y": 1056.0,
+                                      "visibility": "visible",
+                                      "alpha": 1.0
+                                    },
+                                    {
+                                      "type": "androidx.appcompat.widget.AppCompatTextView",
+                                      "identifier": "text1",
+                                      "width": 1080.0,
+                                      "height": 132.0,
+                                      "x": 0.0,
+                                      "y": 1188.0,
+                                      "visibility": "visible",
+                                      "alpha": 1.0
+                                    },
+                                    {
+                                      "type": "androidx.appcompat.widget.AppCompatTextView",
+                                      "identifier": "text1",
+                                      "width": 1080.0,
+                                      "height": 132.0,
+                                      "x": 0.0,
+                                      "y": 1320.0,
+                                      "visibility": "visible",
+                                      "alpha": 1.0
+                                    },
+                                    {
+                                      "type": "androidx.appcompat.widget.AppCompatTextView",
+                                      "identifier": "text1",
+                                      "width": 1080.0,
+                                      "height": 132.0,
+                                      "x": 0.0,
+                                      "y": 1452.0,
+                                      "visibility": "visible",
+                                      "alpha": 1.0
+                                    },
+                                    {
+                                      "type": "androidx.appcompat.widget.AppCompatTextView",
+                                      "identifier": "text1",
+                                      "width": 1080.0,
+                                      "height": 132.0,
+                                      "x": 0.0,
+                                      "y": 1584.0,
+                                      "visibility": "visible",
+                                      "alpha": 1.0
+                                    },
+                                    {
+                                      "type": "androidx.appcompat.widget.AppCompatTextView",
+                                      "identifier": "text1",
+                                      "width": 1080.0,
+                                      "height": 132.0,
+                                      "x": 0.0,
+                                      "y": 1716.0,
+                                      "visibility": "visible",
+                                      "alpha": 1.0
+                                    },
+                                    {
+                                      "type": "androidx.appcompat.widget.AppCompatTextView",
+                                      "identifier": "text1",
+                                      "width": 1080.0,
+                                      "height": 132.0,
+                                      "x": 0.0,
+                                      "y": 1848.0,
+                                      "visibility": "visible",
+                                      "alpha": 1.0
+                                    }
+                                  ]
+                                }
+                              ]
+                            },
+                            {
+                              "type": "androidx.appcompat.widget.AppCompatButton",
+                              "identifier": "scrolling_crash",
+                              "width": 904.0,
+                              "height": 132.0,
+                              "x": 88.0,
+                              "y": 1975.0,
+                              "visibility": "visible",
+                              "alpha": 1.0
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "androidx.appcompat.widget.ActionBarContainer",
+                      "identifier": "action_bar_container",
+                      "width": 1080.0,
+                      "height": 154.0,
+                      "x": 0.0,
+                      "y": 0.0,
+                      "visibility": "visible",
+                      "alpha": 1.0,
+                      "children": [
+                        {
+                          "type": "androidx.appcompat.widget.Toolbar",
+                          "identifier": "action_bar",
+                          "width": 1080.0,
+                          "height": 154.0,
+                          "x": 0.0,
+                          "y": 0.0,
+                          "visibility": "visible",
+                          "alpha": 1.0,
+                          "children": [
+                            {
+                              "type": "androidx.appcompat.widget.AppCompatTextView",
+                              "width": 370.0,
+                              "height": 74.0,
+                              "x": 44.0,
+                              "y": 40.0,
+                              "visibility": "visible",
+                              "alpha": 1.0
+                            },
+                            {
+                              "type": "androidx.appcompat.widget.ActionMenuView",
+                              "width": 0.0,
+                              "height": 154.0,
+                              "x": 1080.0,
+                              "y": 0.0,
+                              "visibility": "visible",
+                              "alpha": 1.0
+                            }
+                          ]
+                        },
+                        {
+                          "type": "androidx.appcompat.widget.ActionBarContextView",
+                          "identifier": "action_context_bar",
+                          "width": 0.0,
+                          "height": 0.0,
+                          "x": 0.0,
+                          "y": 0.0,
+                          "visibility": "gone",
+                          "alpha": 1.0
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "android.view.View",
+          "identifier": "navigationBarBackground",
+          "width": 1080.0,
+          "height": 44.0,
+          "x": 0.0,
+          "y": 2356.0,
+          "visibility": "visible",
+          "alpha": 1.0
+        },
+        {
+          "type": "android.view.View",
+          "identifier": "statusBarBackground",
+          "width": 1080.0,
+          "height": 95.0,
+          "x": 0.0,
+          "y": 0.0,
+          "visibility": "visible",
+          "alpha": 1.0
+        }
+      ]
+    }
+  ]
+}
