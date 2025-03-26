@@ -5,7 +5,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
-import io.sentry.ndk.sample.NdkTestHelper;
+import io.sentry.ndk.NdkTestHelper;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -96,7 +96,7 @@ public class SentryNdkTest {
     File firstFile = files[0];
     String content = new String(Files.readAllBytes(firstFile.toPath()), StandardCharsets.UTF_8);
     assertTrue(content.contains("It works!")); // expected message content from
-    // Java_io_sentry_ndk_sample_NdkTestHelper_message(..) in ndk-test.cpp
+    // Java_io_sentry_ndk_NdkTestHelper_message(..) in ndk-test.cpp
   }
 
   @Test

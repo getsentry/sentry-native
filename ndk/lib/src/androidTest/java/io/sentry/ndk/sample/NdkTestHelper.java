@@ -1,4 +1,4 @@
-package io.sentry.ndk.sample;
+package io.sentry.ndk;
 
 public class NdkTestHelper {
   static {

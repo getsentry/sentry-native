@@ -2,7 +2,7 @@
 #include <android/log.h>
 #include <sentry.h>
 
-#define TAG "ndk-sample"
+#define TAG "ndk-test"
 
 extern "C" {
 
@@ -12,7 +12,7 @@ JNIEXPORT void JNICALL Java_io_sentry_ndk_sample_NdkTestHelper_crash(JNIEnv *env
     *ptr += 1;
 }
 
-JNIEXPORT void JNICALL Java_io_sentry_ndk_sample_NdkTestHelper_message(JNIEnv *env, jclass cls) {
+JNIEXPORT void JNICALL Java_io_sentry_ndk_NdkTestHelper_message(JNIEnv *env, jclass cls) {
     __android_log_print(ANDROID_LOG_INFO, TAG, "Sending message.");
     sentry_value_t event = sentry_value_new_message_event(
             /*   level */ SENTRY_LEVEL_INFO,
@@ -22,7 +22,7 @@ JNIEXPORT void JNICALL Java_io_sentry_ndk_sample_NdkTestHelper_message(JNIEnv *e
     sentry_capture_event(event);
 }
 
-JNIEXPORT void JNICALL Java_io_sentry_ndk_sample_NdkTestHelper_transaction(JNIEnv *env, jclass cls) {
+JNIEXPORT void JNICALL Java_io_sentry_ndk_NdkTestHelper_transaction(JNIEnv *env, jclass cls) {
     __android_log_print(ANDROID_LOG_INFO, TAG, "Sending transaction.");
 
     sentry_transaction_context_t *tx_ctx
