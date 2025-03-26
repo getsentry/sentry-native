@@ -503,6 +503,22 @@ sentry_options_add_attachment_n(
 }
 
 void
+sentry_options_add_typed_attachment(sentry_options_t *opts, const char *path,
+    sentry_attachment_type_t attachment_type, const char *content_type)
+{
+    sentry_options_add_typed_attachment_n(opts, path, strlen(path),
+        attachment_type, content_type, strlen(content_type));
+}
+
+void
+sentry_options_add_typed_attachment_n(sentry_options_t *opts, const char *path,
+    size_t path_len, sentry_attachment_type_t attachment_type,
+    const char *content_type, size_t content_type_len)
+{
+    return; // TODO do stuff
+}
+
+void
 sentry_options_set_attach_screenshot(sentry_options_t *opts, int val)
 {
     opts->attach_screenshot = !!val;
