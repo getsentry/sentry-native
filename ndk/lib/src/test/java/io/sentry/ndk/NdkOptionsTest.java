@@ -27,21 +27,21 @@ public class NdkOptionsTest {
     assertEquals(1.0f, options.getTracesSampleRate(), 0.0f);
   }
 
-    @Test
-    public void tracesSampleRateZero() {
-        final NdkOptions options =
-                new NdkOptions(
-                        "https://key@sentry.io/proj",
-                        true,
-                        "out",
-                        "1.0.0",
-                        "production",
-                        "dist",
-                        100,
-                        "io.sentry.ndk");
-        // set tracesSampleRate to 0
-        options.setTracesSampleRate(0);
+  @Test
+  public void tracesSampleRateZero() {
+    final NdkOptions options =
+        new NdkOptions(
+            "https://key@sentry.io/proj",
+            true,
+            "out",
+            "1.0.0",
+            "production",
+            "dist",
+            100,
+            "io.sentry.ndk");
+    // set tracesSampleRate to 0
+    options.setTracesSampleRate(0);
 
-        assertEquals(0.0f, options.getTracesSampleRate(), 0.0f);
-    }
+    assertEquals(0.0f, options.getTracesSampleRate(), 0.0f);
+  }
 }

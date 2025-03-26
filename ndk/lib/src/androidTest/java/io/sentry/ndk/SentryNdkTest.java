@@ -67,6 +67,39 @@ public class SentryNdkTest {
   }
 
   @Test
+  public void messageCaught() throws IOException {
+    final TemporaryFolder temporaryFolder = TemporaryFolder.builder().build();
+    temporaryFolder.create();
+    final File outboxPath = temporaryFolder.newFolder("outboxPath");
+
+    final NdkOptions options =
+        new NdkOptions(
+            "https://key@sentry.io/proj",
+            true,
+            outboxPath.getAbsolutePath(),
+            "1.0.0",
+            "production",
+            "dist",
+            100,
+            "io.sentry.ndk");
+
+    // when initialized
+    SentryNdk.init(options);
+
+    // and a message is captured
+    NdkTestHelper.message();
+
+    // then the message should be stored on disk
+    File[] files = outboxPath.listFiles();
+    assertNotNull(files);
+    assertEquals(1, files.length);
+    File firstFile = files[0];
+    String content = new String(Files.readAllBytes(firstFile.toPath()), StandardCharsets.UTF_8);
+    assertTrue(content.contains("It works!")); // expected message content from
+    // Java_io_sentry_ndk_sample_NdkTestHelper_message(..) in ndk-test.cpp
+  }
+
+  @Test
   public void transactionSampled() throws IOException {
     final TemporaryFolder temporaryFolder = TemporaryFolder.builder().build();
     temporaryFolder.create();
@@ -90,8 +123,8 @@ public class SentryNdkTest {
     SentryNdk.init(options);
 
     // and a transaction is captured
-      NdkTestHelper.transaction();
-      // then the transaction should be stored on disk (sampled)
+    NdkTestHelper.transaction();
+    // then the transaction should be stored on disk (sampled)
     File[] files = outboxPath.listFiles();
     assertNotNull(files);
     assertEquals(1, files.length);
