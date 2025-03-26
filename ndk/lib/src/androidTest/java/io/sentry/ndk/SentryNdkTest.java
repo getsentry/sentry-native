@@ -5,7 +5,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
-import io.sentry.ndk.sample.NdkSample;
+import io.sentry.ndk.sample.NdkTestHelper;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -89,9 +89,9 @@ public class SentryNdkTest {
     // when initialized
     SentryNdk.init(options);
 
-    // then it does not crash
-    NdkSample.transaction();
-
+    // and a transaction is captured
+      NdkTestHelper.transaction();
+      // then the transaction should be stored on disk (sampled)
     File[] files = outboxPath.listFiles();
     assertNotNull(files);
     assertEquals(1, files.length);
@@ -123,9 +123,9 @@ public class SentryNdkTest {
     // when initialized
     SentryNdk.init(options);
 
-    // then it does not crash
-    NdkSample.transaction();
-
+    // and a transaction is captured
+    NdkTestHelper.transaction();
+    // then the transaction should not be stored on disk (not sampled)
     File[] files = outboxPath.listFiles();
     assertNotNull(files);
     assertEquals(0, files.length);

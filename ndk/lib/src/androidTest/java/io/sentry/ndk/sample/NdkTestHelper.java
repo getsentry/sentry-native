@@ -1,6 +1,6 @@
 package io.sentry.ndk.sample;
 
-public class NdkSample {
+public class NdkTestHelper {
   static {
     System.loadLibrary("sentry-android-test");
   }
