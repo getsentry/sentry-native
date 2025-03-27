@@ -1186,13 +1186,21 @@ SENTRY_API void sentry_options_add_attachment(
 SENTRY_API void sentry_options_add_attachment_n(
     sentry_options_t *opts, const char *path, size_t path_len);
 
-// TODO add some docstrings
+/**
+ * The attachment_type.
+ */
 typedef enum {
     ATTACHMENT,
     MINIDUMP,
     VIEW_HIERARCHY,
 } sentry_attachment_type_t;
-
+/**
+ * Adds a new attachment to be sent, along with a given attachment and content
+ * type.
+ *
+ * The attachment_type must be either ATTACHMENT, MINIDUMP or VIEW_HIERARCHY
+ * The content_type can be left empty
+ */
 SENTRY_API void sentry_options_add_typed_attachment(sentry_options_t *opts,
     const char *path, sentry_attachment_type_t attachment_type,
     const char *content_type);
