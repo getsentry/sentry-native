@@ -556,10 +556,15 @@ sentry__prepare_event(const sentry_options_t *options, sentry_value_t event,
     SENTRY_DEBUG("adding attachments to envelope");
     for (sentry_attachment_t *attachment = options->attachments; attachment;
         attachment = attachment->next) {
-        sentry_envelope_item_t *item = sentry__envelope_add_from_path(envelope,
-            attachment->path, str_from_attachment_type(attachment->type));
+        sentry_envelope_item_t *item = sentry__envelope_add_from_path(
+            envelope, attachment->path, "attachment");
         if (!item) {
             continue;
+        }
+        if (attachment->type) {
+            sentry__envelope_item_set_header(item, "attachment_type",
+                sentry_value_new_string(
+                    str_from_attachment_type(attachment->type)));
         }
         if (attachment->content_type) {
             sentry__envelope_item_set_header(item, "content_type",
