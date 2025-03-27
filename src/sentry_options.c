@@ -564,7 +564,8 @@ void
 sentry_options_add_attachmentw_n(
     sentry_options_t *opts, const wchar_t *path, size_t path_len)
 {
-    add_attachment(opts, sentry__path_from_wstr_n(path, path_len));
+    add_attachment(
+        opts, sentry__path_from_wstr_n(path, path_len), ATTACHMENT, NULL);
 }
 
 void
