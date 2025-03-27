@@ -1206,7 +1206,7 @@ SENTRY_API void sentry_options_add_typed_attachment(sentry_options_t *opts,
     const char *content_type);
 SENTRY_API void sentry_options_add_typed_attachment_n(sentry_options_t *opts,
     const char *path, size_t path_len, sentry_attachment_type_t attachment_type,
-    const char *content_type);
+    const char *content_type, size_t content_type_len);
 
 /**
  * Enables or disables attaching screenshots to fatal error events. Disabled by
