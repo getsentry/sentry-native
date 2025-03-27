@@ -83,6 +83,7 @@ static void
 attachment_free(sentry_attachment_t *attachment)
 {
     sentry__path_free(attachment->path);
+    sentry_free(attachment->content_type);
     sentry_free(attachment);
 }
 
