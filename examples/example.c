@@ -291,10 +291,10 @@ main(int argc, char **argv)
     }
 
     if (has_arg(argc, argv, "attach-view-hierarchy")) {
-        // TODO we assume the file lives one directory up;
-        //  should we add it to GH?
-        sentry_options_add_typed_attachment(options, "../view-hierarchy.json",
-            VIEW_HIERARCHY, "application/json");
+        // assuming the example / test is run directly from the cmake build
+        // directory
+        sentry_options_add_typed_attachment(
+            options, "./CMakeCache.txt", VIEW_HIERARCHY, "application/json");
     }
 
     sentry_init(options);

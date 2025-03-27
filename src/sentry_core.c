@@ -502,7 +502,7 @@ static
     return send;
 }
 
-const char *
+static const char *
 str_from_attachment_type(sentry_attachment_type_t attachment_type)
 {
     switch (attachment_type) {
@@ -561,7 +561,7 @@ sentry__prepare_event(const sentry_options_t *options, sentry_value_t event,
         if (!item) {
             continue;
         }
-        if (attachment->type) {
+        if (attachment->type != ATTACHMENT) { // don't need to set the default
             sentry__envelope_item_set_header(item, "attachment_type",
                 sentry_value_new_string(
                     str_from_attachment_type(attachment->type)));
