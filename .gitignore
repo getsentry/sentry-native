@@ -28,3 +28,6 @@ local.properties
 .cxx
 build
 
+# .NET
+bin/
+obj/
