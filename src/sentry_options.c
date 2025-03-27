@@ -592,8 +592,10 @@ sentry_options_add_typed_attachmentw_n(sentry_options_t *opts,
     sentry_attachment_type_t attachment_type, const wchar_t *content_type,
     size_t content_type_len)
 {
+    char *content_type_str = sentry__string_from_wstr(content_type);
     add_attachment_n(opts, sentry__path_from_wstr_n(path, path_len),
-        attachment_type, content_type, content_type_len);
+        attachment_type, content_type_str, content_type_len);
+    sentry_free(content_type_str);
 }
 
 void
@@ -603,8 +605,10 @@ sentry_options_add_typed_attachmentw(sentry_options_t *opts,
 {
     size_t path_len = path ? wcslen(path) : 0;
     size_t content_type_len = content_type ? wcslen(content_type) : 0;
-    sentry_options_add_typed_attachmentw_n(
-        opts, path, path_len, attachment_type, content_type, content_type_len);
+    char *content_type_str = sentry__string_from_wstr(content_type);
+    sentry_options_add_typed_attachmentw_n(opts, path, path_len,
+        attachment_type, content_type_str, content_type_len);
+    sentry_free(content_type_str);
 }
 
 void
