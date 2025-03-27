@@ -5,8 +5,6 @@ public class NdkTestHelper {
     System.loadLibrary("sentry-android-test");
   }
 
-  public static native void crash();
-
   public static native void message();
 
   public static native void transaction();
