@@ -197,6 +197,16 @@ def assert_attachment(envelope):
     assert any(matches(item.headers, expected) for item in envelope)
 
 
+def assert_attachment_view_hierarchy(envelope):
+    expected = {
+        "type": "attachment",
+        "filename": "CMakeCache.txt",
+        "attachment_type": "event.view_hierarchy",
+        "content_type": "application/json",
+    }
+    assert any(matches(item.headers, expected) for item in envelope)
+
+
 def assert_minidump(envelope):
     expected = {
         "type": "attachment",

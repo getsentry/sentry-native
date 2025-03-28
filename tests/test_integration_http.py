@@ -35,6 +35,7 @@ from .assertions import (
     assert_gzip_content_encoding,
     assert_gzip_file_header,
     assert_failed_proxy_auth_request,
+    assert_attachment_view_hierarchy,
 )
 from .conditions import has_http, has_breakpad, has_files, has_crashpad
 
@@ -284,7 +285,7 @@ def test_inproc_crash_http(cmake, httpserver, build_args):
     child = run(
         tmp_path,
         "sentry_example",
-        ["log", "start-session", "attachment", "crash"],
+        ["log", "start-session", "attachment", "attach-view-hierarchy", "crash"],
         env=env,
     )
     assert child.returncode  # well, it's a crash after all
@@ -312,6 +313,7 @@ def test_inproc_crash_http(cmake, httpserver, build_args):
     assert_meta(envelope, integration="inproc")
     assert_breadcrumb(envelope)
     assert_attachment(envelope)
+    assert_attachment_view_hierarchy(envelope)
 
     assert_inproc_crash(envelope)
 
@@ -384,7 +386,7 @@ def test_breakpad_crash_http(cmake, httpserver, build_args):
     child = run(
         tmp_path,
         "sentry_example",
-        ["log", "start-session", "attachment", "crash"],
+        ["log", "start-session", "attachment", "attach-view-hierarchy", "crash"],
         env=env,
     )
     assert child.returncode  # well, it's a crash after all
@@ -412,6 +414,7 @@ def test_breakpad_crash_http(cmake, httpserver, build_args):
     assert_meta(envelope, integration="breakpad")
     assert_breadcrumb(envelope)
     assert_attachment(envelope)
+    assert_attachment_view_hierarchy(envelope)
 
     assert_breakpad_crash(envelope)
     assert_minidump(envelope)
@@ -604,7 +607,7 @@ def test_capture_minidump(cmake, httpserver):
     run(
         tmp_path,
         "sentry_example",
-        ["log", "attachment", "capture-minidump"],
+        ["log", "attachment", "attach-view-hierarchy", "capture-minidump"],
         check=True,
         env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
     )
@@ -618,6 +621,7 @@ def test_capture_minidump(cmake, httpserver):
 
     assert_breadcrumb(envelope)
     assert_attachment(envelope)
+    assert_attachment_view_hierarchy(envelope)
 
     assert_minidump(envelope)
 
