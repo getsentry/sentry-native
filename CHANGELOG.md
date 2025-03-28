@@ -4,19 +4,24 @@
 
 **Features**:
 
-- Add option to attach screenshots on Windows to fatal error events. ([#1170](https://github.com/getsentry/sentry-native/pull/1170))
+- Add option to attach screenshots on Windows to fatal error events. ([#1170](https://github.com/getsentry/sentry-native/pull/1170), [crashpad#123](https://github.com/getsentry/crashpad/pull/123))
 - Add an option for `Crashpad` on Linux to delay application shutdown until the upload of the crash report in the `crashpad_handler` is complete. This is useful for deployment in `Docker` or `systemd`, where the life cycle of additional processes is bound by the application life cycle. ([#1153](https://github.com/getsentry/sentry-native/pull/1153), [crashpad#121](https://github.com/getsentry/crashpad/pull/121))
+
+**Thank you**:
+
+- [mwl4](https://github.com/mwl4)
+- [jpnurmi](https://github.com/jpnurmi)
 
 ## 0.8.2
 
 **Fixes**:
 
-- Provide a mutex-initializer on platforms that have no static pthread initializer for recursive mutexes. ([#1113](https://github.com/getsentry/sentry-native/pull/1113))
+- Provide a mutex-initializer on platforms with no static pthread initializer for recursive mutexes. ([#1113](https://github.com/getsentry/sentry-native/pull/1113))
 
 **Features**:
 
 - Provide Clang-CL support. ([#1161](https://github.com/getsentry/sentry-native/pull/1161), [crashpad#100](https://github.com/getsentry/crashpad/pull/100))
-- Enable Crashpad report upload retry-mechanism for all platforms ([#1152](https://github.com/getsentry/sentry-native/pull/1152), [crashpad#120](https://github.com/getsentry/crashpad/pull/120))
+- Enable Crashpad report upload retry-mechanism for all platforms. ([#1152](https://github.com/getsentry/sentry-native/pull/1152), [crashpad#120](https://github.com/getsentry/crashpad/pull/120))
 
 **Thank you**:
 
@@ -26,7 +31,7 @@
 
 **Features**:
 
-- Addded `sentry_set_trace()`. The primary use for this is to allow other SDKs to propagate their trace context. This allows Sentry to connect events on all layers. ([#1137](https://github.com/getsentry/sentry-native/pull/1137))
+- Added `sentry_set_trace()`. The primary use for this is to allow other SDKs to propagate their trace context. This allows Sentry to connect events on all layers. ([#1137](https://github.com/getsentry/sentry-native/pull/1137))
 
 ## 0.8.0
 
