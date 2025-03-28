@@ -31,7 +31,7 @@
 
 **Features**:
 
-- Addded `sentry_set_trace()`. The primary use for this is to allow other SDKs to propagate their trace context. This allows Sentry to connect events on all layers. ([#1137](https://github.com/getsentry/sentry-native/pull/1137))
+- Added `sentry_set_trace()`. The primary use for this is to allow other SDKs to propagate their trace context. This allows Sentry to connect events on all layers. ([#1137](https://github.com/getsentry/sentry-native/pull/1137))
 
 ## 0.8.0
 
