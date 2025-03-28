@@ -10,8 +10,10 @@ android {
     compileSdk = 34
     namespace = "io.sentry.ndk"
 
+    testBuildType = "debug"
+
     defaultConfig {
-        minSdk = 19
+        minSdk = 21
 
         externalNativeBuild {
             cmake {
@@ -23,6 +25,8 @@ android {
         ndk {
             abiFilters.addAll(listOf("x86", "armeabi-v7a", "x86_64", "arm64-v8a"))
         }
+
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     // we use the default NDK and CMake versions based on the AGP's version
@@ -34,7 +38,13 @@ android {
     }
 
     buildTypes {
-        getByName("debug")
+        getByName("debug") {
+            externalNativeBuild {
+                cmake {
+                    arguments.add(0, "-DENABLE_TESTS=ON")
+                }
+            }
+        }
         getByName("release") {
             consumerProguardFiles("proguard-rules.pro")
         }
@@ -81,12 +91,6 @@ android {
         checkReleaseBuilds = true
     }
 
-    variantFilter {
-        if (System.getenv("CI")?.toBoolean() == true && buildType.name == "debug") {
-            ignore = true
-        }
-    }
-
     packagingOptions {
         jniLibs {
             useLegacyPackaging = true
@@ -96,6 +100,12 @@ android {
 
 dependencies {
     compileOnly("org.jetbrains:annotations:23.0.0")
+
+    testImplementation("androidx.test.ext:junit:1.2.1")
+
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation("androidx.test:rules:1.6.1")
 }
 
 /*

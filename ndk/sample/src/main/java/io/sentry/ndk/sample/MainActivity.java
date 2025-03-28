@@ -15,6 +15,7 @@ public class MainActivity extends Activity {
     findViewById(R.id.init_ndk_button).setOnClickListener(v -> initNdk());
     findViewById(R.id.trigger_native_crash_button).setOnClickListener(v -> NdkSample.crash());
     findViewById(R.id.capture_message_button).setOnClickListener(v -> NdkSample.message());
+    findViewById(R.id.capture_transaction_button).setOnClickListener(v -> NdkSample.transaction());
   }
 
   private void initNdk() {
@@ -29,6 +30,8 @@ public class MainActivity extends Activity {
             BuildConfig.VERSION_NAME,
             100,
             "sentry-native-jni");
+    // set tracesSampleRate to 1
+    options.setTracesSampleRate(1);
     SentryNdk.init(options);
   }
 

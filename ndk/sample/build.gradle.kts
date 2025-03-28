@@ -11,7 +11,7 @@ android {
 
     defaultConfig {
         applicationId = "io.sentry.ndk.sample"
-        minSdk = 19
+        minSdk = 21
         targetSdk = 34
         versionCode = 2
         versionName = project.version.toString()
