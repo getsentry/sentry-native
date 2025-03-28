@@ -21,14 +21,13 @@ public class NdkOptionsTest {
             "dist",
             100,
             "io.sentry.ndk");
-    // set tracesSampleRate to 1
     options.setTracesSampleRate(1);
 
     assertEquals(1.0f, options.getTracesSampleRate(), 0.0f);
   }
 
   @Test
-  public void tracesSampleRateZero() {
+  public void tracesSampleRateDefaultsToZero() {
     final NdkOptions options =
         new NdkOptions(
             "https://key@sentry.io/proj",
@@ -39,9 +38,8 @@ public class NdkOptionsTest {
             "dist",
             100,
             "io.sentry.ndk");
-    // set tracesSampleRate to 0
-    options.setTracesSampleRate(0);
 
+    // default tracesSampleRate should be 0
     assertEquals(0.0f, options.getTracesSampleRate(), 0.0f);
   }
 }
