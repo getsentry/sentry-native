@@ -200,7 +200,7 @@ def assert_attachment(envelope):
 def assert_attachment_view_hierarchy(envelope):
     expected = {
         "type": "attachment",
-        "filename": "CMakeCache.txt",
+        "filename": "view-hierarchy.json",
         "attachment_type": "event.view_hierarchy",
         "content_type": "application/json",
     }

@@ -293,7 +293,7 @@ main(int argc, char **argv)
     if (has_arg(argc, argv, "attach-view-hierarchy")) {
         // assuming the example / test is run directly from the cmake build
         // directory
-        sentry_options_add_view_hierarchy(options, "./CMakeCache.txt");
+        sentry_options_add_view_hierarchy(options, "./view-hierarchy.json");
     }
 
     sentry_init(options);
