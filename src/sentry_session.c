@@ -215,8 +215,8 @@ void
 sentry_start_session(void)
 {
     sentry_end_session();
+    sentry_options_t *options = sentry__options_lock();
     SENTRY_WITH_SCOPE (scope) {
-        sentry_options_t *options = sentry__options_lock();
         if (options) {
             options->session = sentry__session_new();
             if (options->session) {
@@ -224,8 +224,8 @@ sentry_start_session(void)
                 sentry__run_write_session(options->run, options->session);
             }
         }
-        sentry__options_unlock();
     }
+    sentry__options_unlock();
 }
 
 void
