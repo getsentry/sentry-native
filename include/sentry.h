@@ -1187,14 +1187,6 @@ SENTRY_API void sentry_options_add_attachment_n(
     sentry_options_t *opts, const char *path, size_t path_len);
 
 /**
- * The attachment_type.
- */
-typedef enum {
-    ATTACHMENT,
-    MINIDUMP,
-    VIEW_HIERARCHY,
-} sentry_attachment_type_t;
-/**
  * Adds a new view hierarchy attachment to be sent along.
  *
  * `path` is assumed to be in platform-specific filesystem path encoding.

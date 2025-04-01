@@ -13,7 +13,14 @@
 #define SENTRY_DEFAULT_SHUTDOWN_TIMEOUT 2000
 
 struct sentry_backend_s;
-
+/**
+ * The attachment_type.
+ */
+typedef enum {
+    ATTACHMENT,
+    MINIDUMP,
+    VIEW_HIERARCHY,
+} sentry_attachment_type_t;
 /**
  * This is a linked list of all the attachments registered via
  * `sentry_options_add_attachment`.
