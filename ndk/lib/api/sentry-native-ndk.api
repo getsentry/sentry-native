@@ -85,8 +85,10 @@ public final class io/sentry/ndk/NdkOptions {
 	public fun getOutboxPath ()Ljava/lang/String;
 	public fun getRelease ()Ljava/lang/String;
 	public fun getSdkName ()Ljava/lang/String;
+	public fun getTracesSampleRate ()F
 	public fun isDebug ()Z
 	public fun setNdkHandlerStrategy (Lio/sentry/ndk/NdkHandlerStrategy;)V
+	public fun setTracesSampleRate (F)V
 }
 
 public final class io/sentry/ndk/SentryNdk {

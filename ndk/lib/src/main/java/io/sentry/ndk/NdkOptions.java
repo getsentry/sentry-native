@@ -14,6 +14,7 @@ public final class NdkOptions {
   private final @Nullable String sdkName;
   private NdkHandlerStrategy ndkHandlerStrategy =
       NdkHandlerStrategy.SENTRY_HANDLER_STRATEGY_DEFAULT;
+  private float tracesSampleRate = 0;
 
   public NdkOptions(
       @NotNull String dsn,
@@ -78,5 +79,13 @@ public final class NdkOptions {
 
   public int getNdkHandlerStrategy() {
     return ndkHandlerStrategy.getValue();
+  }
+
+  public void setTracesSampleRate(final float tracesSampleRate) {
+    this.tracesSampleRate = tracesSampleRate;
+  }
+
+  public float getTracesSampleRate() {
+    return tracesSampleRate;
   }
 }
