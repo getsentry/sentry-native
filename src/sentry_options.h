@@ -29,7 +29,7 @@ typedef struct sentry_attachment_s sentry_attachment_t;
 struct sentry_attachment_s {
     sentry_path_t *path;
     sentry_attachment_type_t type;
-    char *content_type;
+    const char *content_type;
     sentry_attachment_t *next;
 };
 
