@@ -246,7 +246,14 @@ def test_crashpad_wer_crash(cmake, httpserver, run_args):
         child = run(
             tmp_path,
             "sentry_example",
-            ["log", "start-session", "attachment", "overflow-breadcrumbs"] + run_args,
+            [
+                "log",
+                "start-session",
+                "attachment",
+                "attach-view-hierarchy",
+                "overflow-breadcrumbs",
+            ]
+            + run_args,
             env=env,
         )
         assert child.returncode  # well, it's a crash after all
@@ -270,7 +277,7 @@ def test_crashpad_wer_crash(cmake, httpserver, run_args):
     envelope = Envelope.deserialize(session)
 
     assert_session(envelope, {"status": "crashed", "errors": 1})
-    assert_crashpad_upload(multipart)
+    assert_crashpad_upload(multipart, expect_view_hierarchy=True)
 
     # Windows throttles WER crash reporting frequency, so let's wait a bit
     time.sleep(2)
@@ -317,7 +324,14 @@ def test_crashpad_dumping_crash(cmake, httpserver, run_args, build_args):
         child = run(
             tmp_path,
             "sentry_example",
-            ["log", "start-session", "attachment", "overflow-breadcrumbs", "crash"]
+            [
+                "log",
+                "start-session",
+                "attachment",
+                "attach-view-hierarchy",
+                "overflow-breadcrumbs",
+                "crash",
+            ]
             + run_args,
             env=env,
         )
@@ -343,7 +357,7 @@ def test_crashpad_dumping_crash(cmake, httpserver, run_args, build_args):
 
     envelope = Envelope.deserialize(session.get_data())
     assert_session(envelope, {"status": "crashed", "errors": 1})
-    assert_crashpad_upload(multipart)
+    assert_crashpad_upload(multipart, expect_view_hierarchy=True)
 
 
 def test_crashpad_dumping_stack_overflow(cmake, httpserver):
@@ -360,7 +374,13 @@ def test_crashpad_dumping_stack_overflow(cmake, httpserver):
         child = run(
             tmp_path,
             "sentry_example",
-            ["log", "start-session", "attachment", "stack-overflow"],
+            [
+                "log",
+                "start-session",
+                "attachment",
+                "attach-view-hierarchy",
+                "stack-overflow",
+            ],
             env=env,
         )
         assert child.returncode  # well, it's a crash after all
@@ -382,7 +402,7 @@ def test_crashpad_dumping_stack_overflow(cmake, httpserver):
 
     envelope = Envelope.deserialize(session.get_data())
     assert_session(envelope, {"status": "crashed", "errors": 1})
-    assert_crashpad_upload(multipart)
+    assert_crashpad_upload(multipart, expect_view_hierarchy=True)
 
 
 def is_session_envelope(data):

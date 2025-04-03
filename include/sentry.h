@@ -1187,6 +1187,22 @@ SENTRY_API void sentry_options_add_attachment_n(
     sentry_options_t *opts, const char *path, size_t path_len);
 
 /**
+ * Adds a new view hierarchy attachment to be sent along.
+ *
+ * The primary use-case is for downstream SDKs (like sentry-godot). The
+ * view-hierarchy.json file should follow the representation defined in RFC#33
+ * https://github.com/getsentry/rfcs/blob/main/text/0033-view-hierarchy.md
+ *
+ * `path` is assumed to be in platform-specific filesystem path encoding.
+ * API Users on windows are encouraged to use
+ * `sentry_options_add_view_hierarchyw` instead.
+ */
+SENTRY_API void sentry_options_add_view_hierarchy(
+    sentry_options_t *opts, const char *path);
+SENTRY_API void sentry_options_add_view_hierarchy_n(
+    sentry_options_t *opts, const char *path, size_t path_len);
+
+/**
  * Enables or disables attaching screenshots to fatal error events. Disabled by
  * default.
  *
@@ -1257,6 +1273,14 @@ SENTRY_API void sentry_options_set_database_path_n(
 SENTRY_API void sentry_options_add_attachmentw(
     sentry_options_t *opts, const wchar_t *path);
 SENTRY_API void sentry_options_add_attachmentw_n(
+    sentry_options_t *opts, const wchar_t *path, size_t path_len);
+
+/**
+ * Wide char version of `sentry_options_add_view_hierarchy`.
+ */
+SENTRY_API void sentry_options_add_view_hierarchyw(
+    sentry_options_t *opts, const wchar_t *path);
+SENTRY_API void sentry_options_add_view_hierarchyw_n(
     sentry_options_t *opts, const wchar_t *path, size_t path_len);
 
 /**

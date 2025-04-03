@@ -156,7 +156,8 @@ The example currently supports the following commands:
 - `socks5-proxy`: Uses a localhost `SOCKS5` proxy on port 1080.
 - `capture-transaction`: Captures a transaction.
 - `traces-sampler`: Installs a traces sampler callback function when used alongside `capture-transaction`.
-
+- `attach-view-hierarchy`: Adds a `view-hierarchy.json` attachment file, giving it the proper `attachment_type` and `content_type`. 
+ This file can be found in `./tests/fixtures/view-hierachy.json`.
  
 Only on Linux using crashpad:
 - `crashpad-wait-for-upload`: Couples application shutdown to complete the upload in the `crashpad_handler`. 

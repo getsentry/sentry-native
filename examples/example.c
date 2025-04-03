@@ -290,6 +290,12 @@ main(int argc, char **argv)
         sentry_options_set_crashpad_wait_for_upload(options, true);
     }
 
+    if (has_arg(argc, argv, "attach-view-hierarchy")) {
+        // assuming the example / test is run directly from the cmake build
+        // directory
+        sentry_options_add_view_hierarchy(options, "./view-hierarchy.json");
+    }
+
     sentry_init(options);
 
     if (!has_arg(argc, argv, "no-setup")) {

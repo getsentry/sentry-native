@@ -1,5 +1,6 @@
 import email
 import gzip
+import json
 import platform
 import re
 import sys
@@ -197,6 +198,34 @@ def assert_attachment(envelope):
     assert any(matches(item.headers, expected) for item in envelope)
 
 
+def assert_attachment_view_hierarchy(envelope):
+    expected = {
+        "type": "attachment",
+        "filename": "view-hierarchy.json",
+        "attachment_type": "event.view_hierarchy",
+        "content_type": "application/json",
+    }
+    assert any(matches(item.headers, expected) for item in envelope)
+
+
+def assert_attachment_content_view_hierarchy(attachment):
+    expected = {
+        "rendering_system": "android_view_system",
+        "windows": [
+            {
+                "alpha": 1.0,
+                "height": 1280.0,
+                "type": "com.android.internal.policy.DecorView",
+                "visibility": "visible",
+                "width": 768.0,
+                "x": 0.0,
+                "y": 0.0,
+            }
+        ],
+    }
+    assert matches(attachment, expected)
+
+
 def assert_minidump(envelope):
     expected = {
         "type": "attachment",
@@ -273,6 +302,7 @@ class CrashpadAttachments:
     event: dict
     breadcrumb1: list
     breadcrumb2: list
+    view_hierarchy: dict
 
 
 def _unpack_breadcrumbs(payload):
@@ -285,6 +315,7 @@ def _load_crashpad_attachments(msg):
     event = {}
     breadcrumb1 = []
     breadcrumb2 = []
+    view_hierarchy = {}
     for part in msg.walk():
         if part.get_filename() is not None:
             assert part.get("Content-Type") is None
@@ -296,8 +327,10 @@ def _load_crashpad_attachments(msg):
                 breadcrumb1 = _unpack_breadcrumbs(part.get_payload(decode=True))
             case "__sentry-breadcrumb2":
                 breadcrumb2 = _unpack_breadcrumbs(part.get_payload(decode=True))
+            case "view-hierarchy.json":
+                view_hierarchy = json.loads(part.get_payload(decode=True))
 
-    return CrashpadAttachments(event, breadcrumb1, breadcrumb2)
+    return CrashpadAttachments(event, breadcrumb1, breadcrumb2, view_hierarchy)
 
 
 def is_valid_timestamp(timestamp):
@@ -325,13 +358,15 @@ def assert_overflowing_breadcrumb(attachments):
         assert_breadcrumb_inner(attachments.breadcrumb1)
 
 
-def assert_crashpad_upload(req):
+def assert_crashpad_upload(req, expect_view_hierarchy=False):
     multipart = gzip.decompress(req.get_data())
     msg = email.message_from_bytes(bytes(str(req.headers), encoding="utf8") + multipart)
     attachments = _load_crashpad_attachments(msg)
 
     assert_overflowing_breadcrumb(attachments)
     assert_event_meta(attachments.event, integration="crashpad")
+    if expect_view_hierarchy:
+        assert_attachment_content_view_hierarchy(attachments.view_hierarchy)
     assert any(
         b'name="upload_file_minidump"' in part.as_bytes()
         and b"\n\nMDMP" in part.as_bytes()
