@@ -75,4 +75,5 @@ android {
 
 dependencies {
     implementation(project(":sentry-native-ndk"))
+    implementation("io.sentry:sentry-android-core:8.6.0")
 }
