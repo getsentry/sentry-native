@@ -182,7 +182,7 @@ set(SENTRY_HANDLER_STACK_SIZE 64 CACHE STRING "The stack size (in KiB) that shou
 if (WIN32)
 	set(SENTRY_THREAD_STACK_GUARANTEE_FACTOR 10 CACHE STRING "The factor by which a threads stack should be larger than the stack guarantee for its handler.")
 	option(SENTRY_THREAD_STACK_GUARANTEE_AUTO_INIT "Automatically sets the thread stack guarantee for each thread via `DllMain` or for the `sentry_init()` when building statically" ON)
-    option(SENTRY_THREAD_STACK_GUARANTEE_VERBOSE_LOG "Enables logging of successfully set thread stack guarantees" ON)
+    option(SENTRY_THREAD_STACK_GUARANTEE_VERBOSE_LOG "Enables logging of successfully set thread stack guarantees" OFF)
 endif()
 
 message(STATUS "SENTRY_TRANSPORT=${SENTRY_TRANSPORT}")
