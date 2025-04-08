@@ -2,6 +2,7 @@
 #include "sentry_slice.h"
 #include "sentry_string.h"
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_WINDOWS)
+#    include "sentry_logger.h"
 #    include "sentry_utils.h"
 #endif
 #ifdef SENTRY_PLATFORM_LINUX
@@ -168,39 +169,6 @@ sentry__get_os_context(void)
 #    endif // defined(_GAMING_XBOX_SCARLETT)
 }
 
-void
-sentry__reserve_thread_stack(void)
-{
-    const unsigned long expected_stack_size = 64 * 1024;
-    unsigned long stack_size = 0;
-    SetThreadStackGuarantee(&stack_size);
-    if (stack_size < expected_stack_size) {
-        stack_size = expected_stack_size;
-        SetThreadStackGuarantee(&stack_size);
-    }
-}
-
-#    if defined(SENTRY_BUILD_SHARED) && !defined(_GAMING_XBOX_SCARLETT)
-
-BOOL APIENTRY
-DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserved)
-{
-    (void)hModule;
-    (void)lpReserved;
-
-    switch (ul_reason_for_call) {
-    case DLL_PROCESS_ATTACH:
-    case DLL_THREAD_ATTACH:
-        sentry__reserve_thread_stack();
-        break;
-    default:
-        return TRUE;
-    }
-    return TRUE;
-}
-
-#    endif // defined(SENTRY_BUILD_SHARED) && !defined(_GAMING_XBOX_SCARLETT)
-
 static void(WINAPI *g_kernel32_GetSystemTimePreciseAsFileTime)(LPFILETIME)
     = NULL;
 
@@ -216,7 +184,99 @@ sentry__init_cached_functions(void)
     }
     g_kernel32_GetSystemTimePreciseAsFileTime = (void(WINAPI *)(
         LPFILETIME))GetProcAddress(kernel32, "GetSystemTimePreciseAsFileTime");
+    if (!g_kernel32_GetSystemTimePreciseAsFileTime) {
+        SENTRY_WARNF("Couldn't load `GetSystemTimePreciseAsFileTime`. Falling "
+                     "back on `GetSystemTimeAsFileTime`. (error-code: `%lu`)",
+            GetLastError());
+    }
 }
+
+int
+sentry_set_thread_stack_guarantee(uint32_t expected_stack_guarantee)
+{
+    DWORD thread_id = GetThreadId(GetCurrentThread());
+    ULONG stack_guarantee = 0;
+    if (!SetThreadStackGuarantee(&stack_guarantee)) {
+        SENTRY_ERRORF(
+            "`SetThreadStackGuarantee` failed with code `%lu` for thread %lu",
+            GetLastError(), thread_id);
+        return 0;
+    }
+    if (stack_guarantee != 0) {
+        SENTRY_WARNF(
+            "`ThreadStackGuarantee` already set to %lu bytes for thread %lu",
+            stack_guarantee, thread_id);
+        return 0;
+    }
+    stack_guarantee = expected_stack_guarantee;
+    if (!SetThreadStackGuarantee(&stack_guarantee)) {
+        SENTRY_ERRORF(
+            "`SetThreadStackGuarantee` failed with code `%lu` for thread %lu",
+            GetLastError(), thread_id);
+        return 0;
+    }
+
+    return 1;
+}
+
+void
+sentry__set_default_thread_stack_guarantee(void)
+{
+    const unsigned long expected_stack_guarantee
+        = SENTRY_HANDLER_STACK_SIZE * 1024;
+    DWORD thread_id = GetThreadId(GetCurrentThread());
+    ULONG_PTR high = 0;
+    ULONG_PTR low = 0;
+    GetCurrentThreadStackLimits(&low, &high);
+    size_t thread_stack_reserve = high - low;
+    uint32_t expected_stack_reserve
+        = expected_stack_guarantee * SENTRY_THREAD_STACK_GUARANTEE_FACTOR;
+
+    if (thread_stack_reserve < expected_stack_reserve) {
+        SENTRY_WARNF(
+            "Cannot set handler stack guarantee of %zuKiB for thread %lu "
+            "(stack reserve: %zuKiB, expected factor: %zux, actual: %.2fx)",
+            (size_t)SENTRY_HANDLER_STACK_SIZE, thread_id,
+            thread_stack_reserve / 1024,
+            (size_t)SENTRY_THREAD_STACK_GUARANTEE_FACTOR,
+            expected_stack_reserve / (double)expected_stack_guarantee);
+        return;
+    }
+
+    int success = sentry_set_thread_stack_guarantee(expected_stack_guarantee);
+#    if defined(SENTRY_THREAD_STACK_GUARANTEE_VERBOSE_LOG)
+    if (success) {
+        SENTRY_INFOF(
+            "ThreadStackGuarantee = %lu bytes for "
+            "thread %lu (Stack base = 0x%p, limit = 0x%p, size = %llu)",
+            expected_stack_guarantee, thread_id, (void *)high, (void *)low,
+            thread_stack_reserve);
+    }
+#    endif
+}
+
+#    if defined(SENTRY_BUILD_SHARED) && !defined(_GAMING_XBOX_SCARLETT)        \
+        && defined(SENTRY_THREAD_STACK_GUARANTEE_AUTO_INIT)
+
+BOOL APIENTRY
+DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserved)
+{
+    (void)hModule;
+    (void)lpReserved;
+
+    switch (ul_reason_for_call) {
+    case DLL_PROCESS_ATTACH:
+    case DLL_THREAD_ATTACH:
+        sentry__set_default_thread_stack_guarantee();
+        break;
+    default:
+        return TRUE;
+    }
+    return TRUE;
+}
+
+#    endif // defined(SENTRY_BUILD_SHARED) && !defined(_GAMING_XBOX_SCARLETT) &&
+           // defined(SENTRY_AUTO_THREAD_STACK_GUARANTEE)
 
 void
 sentry__get_system_time(LPFILETIME filetime)

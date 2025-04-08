@@ -30,7 +30,7 @@ struct signal_slot {
 
 // we need quite a bit of space for backtrace generation
 #    define SIGNAL_COUNT 6
-#    define SIGNAL_STACK_SIZE 65536
+#    define SIGNAL_STACK_SIZE (1024 * SENTRY_HANDLER_STACK_SIZE)
 static struct sigaction g_sigaction;
 static struct sigaction g_previous_handlers[SIGNAL_COUNT];
 static stack_t g_signal_stack = { 0 };
@@ -168,7 +168,10 @@ static int
 startup_inproc_backend(
     sentry_backend_t *UNUSED(backend), const sentry_options_t *UNUSED(options))
 {
-    sentry__reserve_thread_stack();
+#    if !defined(SENTRY_BUILD_SHARED)                                          \
+        && defined(SENTRY_THREAD_STACK_GUARANTEE_AUTO_INIT)
+    sentry__set_default_thread_stack_guarantee();
+#    endif
     g_previous_handler = SetUnhandledExceptionFilter(&handle_exception);
     SetErrorMode(SEM_FAILCRITICALERRORS);
     return 0;

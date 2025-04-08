@@ -1298,6 +1298,30 @@ SENTRY_API void sentry_options_set_database_pathw(
     sentry_options_t *opts, const wchar_t *path);
 SENTRY_API void sentry_options_set_database_pathw_n(
     sentry_options_t *opts, const wchar_t *path, size_t path_len);
+
+/**
+ * Allows users to define a thread stack guarantee manually on each thread. This
+ * is necessary for crash handlers to run after a thread crashed due to a
+ * stack-overflow on Windows.
+ *
+ * By default the Native SDK automatically sets this value for you, but in some
+ * cases it might be preferable to set these values yourself for each thread you
+ * manage.
+ *
+ * Ensure to disable the `SENTRY_THREAD_STACK_GUARANTEE_AUTO_INIT` CMake option
+ * when building the Native SDK. The function must be called after
+ * `sentry_init()`.
+ *
+ * The input parameter specifies a size in KiB and should be a multiple of the
+ * page size. Returns `1` if the thread stack guarantee was set successfully and
+ * `0` otherwise.
+ *
+ * Note: when we auto-assign the stack guarantee we check against the thread's
+ * stack reserve (see `SENTRY_THREAD_STACK_GUARANTEE_FACTOR` in the
+ * `README.md`). This check is not applied when you call this function.
+ */
+SENTRY_EXPERIMENTAL_API int sentry_set_thread_stack_guarantee(
+    uint32_t expected_stack_guarantee);
 #endif
 
 /**

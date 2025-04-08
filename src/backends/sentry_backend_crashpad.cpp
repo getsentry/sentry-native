@@ -393,8 +393,9 @@ crashpad_backend_startup(
         }
     }
 
-#ifdef SENTRY_PLATFORM_WINDOWS
-    sentry__reserve_thread_stack();
+#if defined(SENTRY_PLATFORM_WINDOWS) && !defined(SENTRY_BUILD_SHARED)          \
+    && defined(SENTRY_THREAD_STACK_GUARANTEE_AUTO_INIT)
+    sentry__set_default_thread_stack_guarantee();
 #endif
 
     // The crashpad client uses shell lookup rules (absolute path, relative
