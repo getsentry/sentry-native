@@ -243,15 +243,16 @@ sentry__set_default_thread_stack_guarantee(void)
         return;
     }
 
-    int success = sentry_set_thread_stack_guarantee(expected_stack_guarantee);
 #    if defined(SENTRY_THREAD_STACK_GUARANTEE_VERBOSE_LOG)
-    if (success) {
+    if (sentry_set_thread_stack_guarantee(expected_stack_guarantee)) {
         SENTRY_INFOF(
             "ThreadStackGuarantee = %lu bytes for "
             "thread %lu (Stack base = 0x%p, limit = 0x%p, size = %llu)",
             expected_stack_guarantee, thread_id, (void *)high, (void *)low,
             thread_stack_reserve);
     }
+#    else
+    sentry_set_thread_stack_guarantee(expected_stack_guarantee);
 #    endif
 }
 
