@@ -197,8 +197,8 @@ sentry_set_thread_stack_guarantee(uint32_t expected_stack_guarantee)
     DWORD thread_id = GetThreadId(GetCurrentThread());
     ULONG stack_guarantee = 0;
     if (!SetThreadStackGuarantee(&stack_guarantee)) {
-        SENTRY_ERRORF(
-            "`SetThreadStackGuarantee` failed with code `%lu` for thread %lu",
+        SENTRY_ERRORF("`SetThreadStackGuarantee` failed with code `%lu` for "
+                      "thread %lu when querying the current guarantee",
             GetLastError(), thread_id);
         return 0;
     }
@@ -210,8 +210,8 @@ sentry_set_thread_stack_guarantee(uint32_t expected_stack_guarantee)
     }
     stack_guarantee = expected_stack_guarantee;
     if (!SetThreadStackGuarantee(&stack_guarantee)) {
-        SENTRY_ERRORF(
-            "`SetThreadStackGuarantee` failed with code `%lu` for thread %lu",
+        SENTRY_ERRORF("`SetThreadStackGuarantee` failed with code `%lu` for "
+                      "thread %lu when applying the guarantee of %lu bytes",
             GetLastError(), thread_id);
         return 0;
     }
