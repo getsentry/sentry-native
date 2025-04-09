@@ -1306,11 +1306,9 @@ SENTRY_API void sentry_options_set_database_pathw_n(
  *
  * By default the Native SDK automatically sets this value for you, but in some
  * cases it might be preferable to set these values yourself for each thread you
- * manage.
- *
- * Ensure to disable the `SENTRY_THREAD_STACK_GUARANTEE_AUTO_INIT` CMake option
- * when building the Native SDK. The function must be called after
- * `sentry_init()`.
+ * manage. Ensure to disable the `SENTRY_THREAD_STACK_GUARANTEE_AUTO_INIT` CMake
+ * option when building the Native SDK to have full control over each threads
+ * stack guarantee.
  *
  * The input parameter specifies a size in KiB and should be a multiple of the
  * page size. Returns `1` if the thread stack guarantee was set successfully and
