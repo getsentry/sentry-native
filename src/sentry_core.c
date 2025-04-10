@@ -195,7 +195,7 @@ sentry_init(sentry_options_t *options)
 #if defined(SENTRY_PLATFORM_WINDOWS)                                           \
     && (!defined(SENTRY_BUILD_SHARED) || defined(_GAMING_XBOX_SCARLETT))
     // This function must be positioned so that any dependents on its cached
-    // functions are invoked after it.0
+    // functions are invoked after it.
     sentry__init_cached_kernel32_functions();
 #endif
 
