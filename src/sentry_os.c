@@ -226,8 +226,8 @@ sentry__init_cached_kernel32_functions(void)
     LOAD_FUNCTION(kernel32, "GetCurrentThreadStackLimits",
         void(WINAPI *)(PULONG_PTR, PULONG_PTR),
         g_kernel32_GetCurrentThreadStackLimits,
-        "Couldn't load `GetSystemTimePreciseAsFileTime`. Falling back on "
-        "`GetSystemTimeAsFileTime`. (error-code: `%lu`)");
+        "Couldn't load `GetCurrentThreadStackLimits`. Auto-initialization of "
+        "the thread stack guarantee won't work. (error-code: `%lu`)");
 
 #    undef LOAD_FUNCTION
 }
