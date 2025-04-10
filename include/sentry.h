@@ -1317,6 +1317,8 @@ SENTRY_API void sentry_options_set_database_pathw_n(
  * Note: when we auto-assign the stack guarantee we check against the thread's
  * stack reserve (see `SENTRY_THREAD_STACK_GUARANTEE_FACTOR` in the
  * `README.md`). This check is not applied when you call this function.
+ * Note: this function depends on the SDK being initialized when doing static
+ * builds or in any configuration on Xbox.
  */
 SENTRY_EXPERIMENTAL_API int sentry_set_thread_stack_guarantee(
     uint32_t expected_stack_guarantee);

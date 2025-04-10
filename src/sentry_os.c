@@ -2,6 +2,7 @@
 #include "sentry_slice.h"
 #include "sentry_string.h"
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_WINDOWS)
+#    include "sentry_core.h"
 #    include "sentry_logger.h"
 #    include "sentry_utils.h"
 #endif
@@ -169,34 +170,77 @@ sentry__get_os_context(void)
 #    endif // defined(_GAMING_XBOX_SCARLETT)
 }
 
-static void(WINAPI *g_kernel32_GetSystemTimePreciseAsFileTime)(LPFILETIME)
+#    ifndef SENTRY_UNITTEST
+static
+#    endif
+    void(WINAPI *g_kernel32_GetSystemTimePreciseAsFileTime)(LPFILETIME)
+    = NULL;
+#    ifndef SENTRY_UNITTEST
+static
+#    endif
+    BOOL(WINAPI *g_kernel32_SetThreadStackGuarantee)(PULONG)
+    = NULL;
+#    ifndef SENTRY_UNITTEST
+static
+#    endif
+    void(WINAPI *g_kernel32_GetCurrentThreadStackLimits)(PULONG_PTR, PULONG_PTR)
     = NULL;
 
 void
-sentry__init_cached_functions(void)
+sentry__init_cached_kernel32_functions(void)
 {
-    // Retrieve GetSystemTimePreciseAsFileTime() for Windows 8+ targets.
-    // Do this at runtime, because this could still be compiled with an SDK
-    // where the function exists, but later runs on a Windows without it.
+#    define LOAD_FUNCTION(                                                     \
+        module, function_name, function_type, function_pointer, message)       \
+        do {                                                                   \
+            if (!function_pointer) {                                           \
+                function_pointer                                               \
+                    = (function_type)GetProcAddress(module, function_name);    \
+                if (!function_pointer) {                                       \
+                    SENTRY_WARNF(message, GetLastError());                     \
+                }                                                              \
+            }                                                                  \
+        } while (0)
+
+    // Only load kernel32 functions for now, since this function is used in
+    // `DllMain`. If we ever load something else we must break out into a
+    // separate function that then only gets called from `sentry_init()`.
     HINSTANCE kernel32 = GetModuleHandleW(L"kernel32.dll");
     if (!kernel32) {
         return;
     }
-    g_kernel32_GetSystemTimePreciseAsFileTime = (void(WINAPI *)(
-        LPFILETIME))GetProcAddress(kernel32, "GetSystemTimePreciseAsFileTime");
-    if (!g_kernel32_GetSystemTimePreciseAsFileTime) {
-        SENTRY_WARNF("Couldn't load `GetSystemTimePreciseAsFileTime`. Falling "
-                     "back on `GetSystemTimeAsFileTime`. (error-code: `%lu`)",
-            GetLastError());
-    }
+    // Retrieve `GetSystemTimePreciseAsFileTime()` for Windows 8+ targets.
+    LOAD_FUNCTION(kernel32, "GetSystemTimePreciseAsFileTime",
+        void(WINAPI *)(LPFILETIME), g_kernel32_GetSystemTimePreciseAsFileTime,
+        "Couldn't load `GetSystemTimePreciseAsFileTime`. Falling back on "
+        "`GetSystemTimeAsFileTime`. (error-code: `%lu`)");
+
+    // `SetThreadStackGuarantee()` is available since Windows XP, but exposing
+    // it as pointer allows more controlled tests.
+    LOAD_FUNCTION(kernel32, "SetThreadStackGuarantee", BOOL(WINAPI *)(PULONG),
+        g_kernel32_SetThreadStackGuarantee,
+        "Couldn't load `SetThreadStackGuarantee`: "
+        "`sentry_set_thread_stack_guarantee()` won't work. (error-code: "
+        "`%lu`)");
+
+    // Retrieve `GetCurrentThreadStackLimits()` for Windows 8+ targets.
+    LOAD_FUNCTION(kernel32, "GetCurrentThreadStackLimits",
+        void(WINAPI *)(PULONG_PTR, PULONG_PTR),
+        g_kernel32_GetCurrentThreadStackLimits,
+        "Couldn't load `GetSystemTimePreciseAsFileTime`. Falling back on "
+        "`GetSystemTimeAsFileTime`. (error-code: `%lu`)");
+
+#    undef LOAD_FUNCTION
 }
 
 int
 sentry_set_thread_stack_guarantee(uint32_t expected_stack_guarantee)
 {
+    if (!g_kernel32_SetThreadStackGuarantee) {
+        return 0;
+    }
     DWORD thread_id = GetThreadId(GetCurrentThread());
     ULONG stack_guarantee = 0;
-    if (!SetThreadStackGuarantee(&stack_guarantee)) {
+    if (!g_kernel32_SetThreadStackGuarantee(&stack_guarantee)) {
         SENTRY_ERRORF("`SetThreadStackGuarantee` failed with code `%lu` for "
                       "thread %lu when querying the current guarantee",
             GetLastError(), thread_id);
@@ -209,7 +253,7 @@ sentry_set_thread_stack_guarantee(uint32_t expected_stack_guarantee)
         return 0;
     }
     stack_guarantee = expected_stack_guarantee;
-    if (!SetThreadStackGuarantee(&stack_guarantee)) {
+    if (!g_kernel32_SetThreadStackGuarantee(&stack_guarantee)) {
         SENTRY_ERRORF("`SetThreadStackGuarantee` failed with code `%lu` for "
                       "thread %lu when applying the guarantee of %lu bytes",
             GetLastError(), thread_id);
@@ -222,12 +266,16 @@ sentry_set_thread_stack_guarantee(uint32_t expected_stack_guarantee)
 void
 sentry__set_default_thread_stack_guarantee(void)
 {
+    if (!g_kernel32_GetCurrentThreadStackLimits) {
+        return;
+    }
+
     const unsigned long expected_stack_guarantee
         = SENTRY_HANDLER_STACK_SIZE * 1024;
     DWORD thread_id = GetThreadId(GetCurrentThread());
     ULONG_PTR high = 0;
     ULONG_PTR low = 0;
-    GetCurrentThreadStackLimits(&low, &high);
+    g_kernel32_GetCurrentThreadStackLimits(&low, &high);
     size_t thread_stack_reserve = high - low;
     uint32_t expected_stack_reserve
         = expected_stack_guarantee * SENTRY_THREAD_STACK_GUARANTEE_FACTOR;
@@ -256,8 +304,7 @@ sentry__set_default_thread_stack_guarantee(void)
 #    endif
 }
 
-#    if defined(SENTRY_BUILD_SHARED) && !defined(_GAMING_XBOX_SCARLETT)        \
-        && defined(SENTRY_THREAD_STACK_GUARANTEE_AUTO_INIT)
+#    if defined(SENTRY_BUILD_SHARED) && !defined(_GAMING_XBOX_SCARLETT)
 
 BOOL APIENTRY
 DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserved)
@@ -267,8 +314,12 @@ DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserved)
 
     switch (ul_reason_for_call) {
     case DLL_PROCESS_ATTACH:
+        sentry__init_cached_kernel32_functions();
+        EXPLICIT_FALLTHROUGH;
     case DLL_THREAD_ATTACH:
+#        if defined(SENTRY_THREAD_STACK_GUARANTEE_AUTO_INIT)
         sentry__set_default_thread_stack_guarantee();
+#        endif
         break;
     default:
         return TRUE;
@@ -276,8 +327,7 @@ DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserved)
     return TRUE;
 }
 
-#    endif // defined(SENTRY_BUILD_SHARED) && !defined(_GAMING_XBOX_SCARLETT) &&
-           // defined(SENTRY_AUTO_THREAD_STACK_GUARANTEE)
+#    endif // defined(SENTRY_BUILD_SHARED) && !defined(_GAMING_XBOX_SCARLETT)
 
 void
 sentry__get_system_time(LPFILETIME filetime)
