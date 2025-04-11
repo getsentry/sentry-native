@@ -200,7 +200,7 @@ extern void(WINAPI *g_kernel32_GetCurrentThreadStackLimits)(
     PULONG_PTR, PULONG_PTR);
 static size_t g_kernel32_SetThreadStackGuaranteeCalled = 0;
 
-static WINAPI BOOL
+static BOOL WINAPI
 no_previous_guarantee(PULONG guarantee)
 {
     if (*guarantee != 0) {
@@ -213,7 +213,7 @@ no_previous_guarantee(PULONG guarantee)
     return 1;
 }
 
-static WINAPI BOOL
+static BOOL WINAPI
 guarantee_already_set(PULONG guarantee)
 {
     if (*guarantee != 0) {
@@ -226,7 +226,7 @@ guarantee_already_set(PULONG guarantee)
     return 1;
 }
 
-static WINAPI BOOL
+static BOOL WINAPI
 guarantee_fails_in_query(PULONG guarantee)
 {
     if (*guarantee != 0) {
@@ -243,7 +243,7 @@ guarantee_fails_in_query(PULONG guarantee)
     return 1;
 }
 
-static WINAPI BOOL
+static BOOL WINAPI
 guarantee_fails_in_setter(PULONG guarantee)
 {
     if (*guarantee != 0) {
@@ -261,7 +261,7 @@ guarantee_fails_in_setter(PULONG guarantee)
     }
 }
 
-static WINAPI void
+static void WINAPI
 stack_reserve_half_the_factor(PULONG_PTR low, PULONG_PTR high)
 {
     *high = SENTRY_HANDLER_STACK_SIZE
@@ -269,7 +269,7 @@ stack_reserve_half_the_factor(PULONG_PTR low, PULONG_PTR high)
     *low = 0;
 }
 
-static WINAPI void
+static void WINAPI
 stack_reserve_exact_factor(PULONG_PTR low, PULONG_PTR high)
 {
     *high = SENTRY_HANDLER_STACK_SIZE * SENTRY_THREAD_STACK_GUARANTEE_FACTOR
@@ -277,7 +277,7 @@ stack_reserve_exact_factor(PULONG_PTR low, PULONG_PTR high)
     *low = 0;
 }
 
-static WINAPI void
+static void WINAPI
 stack_reserve_twice_the_factor(PULONG_PTR low, PULONG_PTR high)
 {
     *high = SENTRY_HANDLER_STACK_SIZE * SENTRY_THREAD_STACK_GUARANTEE_FACTOR * 2
@@ -285,7 +285,7 @@ stack_reserve_twice_the_factor(PULONG_PTR low, PULONG_PTR high)
     *low = 0;
 }
 
-static WINAPI void
+static void WINAPI
 stack_reserve_exact_factor_minus_one(PULONG_PTR low, PULONG_PTR high)
 {
     *high = ((SENTRY_HANDLER_STACK_SIZE * SENTRY_THREAD_STACK_GUARANTEE_FACTOR)
