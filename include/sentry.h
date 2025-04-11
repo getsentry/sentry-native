@@ -1310,7 +1310,7 @@ SENTRY_API void sentry_options_set_database_pathw_n(
  * option when building the Native SDK to have full control over each threads
  * stack guarantee.
  *
- * The input parameter specifies a size in KiB and should be a multiple of the
+ * The input parameter specifies a size in bytes and should be a multiple of the
  * page size. Returns `1` if the thread stack guarantee was set successfully and
  * `0` otherwise.
  *
@@ -1321,7 +1321,7 @@ SENTRY_API void sentry_options_set_database_pathw_n(
  * builds or in any configuration on Xbox.
  */
 SENTRY_EXPERIMENTAL_API int sentry_set_thread_stack_guarantee(
-    uint32_t expected_stack_guarantee);
+    uint32_t stack_guarantee_in_bytes);
 #endif
 
 /**

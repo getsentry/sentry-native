@@ -233,7 +233,7 @@ sentry__init_cached_kernel32_functions(void)
 }
 
 int
-sentry_set_thread_stack_guarantee(uint32_t expected_stack_guarantee)
+sentry_set_thread_stack_guarantee(uint32_t stack_guarantee_in_bytes)
 {
     if (!g_kernel32_SetThreadStackGuarantee) {
         return 0;
@@ -252,7 +252,7 @@ sentry_set_thread_stack_guarantee(uint32_t expected_stack_guarantee)
             stack_guarantee, thread_id);
         return 0;
     }
-    stack_guarantee = expected_stack_guarantee;
+    stack_guarantee = stack_guarantee_in_bytes;
     if (!g_kernel32_SetThreadStackGuarantee(&stack_guarantee)) {
         SENTRY_ERRORF("`SetThreadStackGuarantee` failed with code `%lu` for "
                       "thread %lu when applying the guarantee of %lu bytes",
