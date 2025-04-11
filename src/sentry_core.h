@@ -18,6 +18,12 @@
 #endif
 
 #if defined(__GNUC__) || (defined(_MSC_VER) && defined(__clang__))
+#    define EXPLICIT_FALLTHROUGH __attribute__((__fallthrough__))
+#else
+#    define EXPLICIT_FALLTHROUGH
+#endif
+
+#if defined(__GNUC__) || (defined(_MSC_VER) && defined(__clang__))
 #    define UNUSED(x) UNUSED_##x __attribute__((__unused__))
 #elif defined(_MSC_VER)
 #    define UNUSED(x) UNUSED_##x __pragma(warning(suppress : 4100))
