@@ -1,11 +1,11 @@
 if(WIN32)
-	cmake_minimum_required (VERSION 3.18)
+	cmake_minimum_required(VERSION 3.18)
 
 	# enables support for CMAKE_MSVC_RUNTIME_LIBRARY
 	cmake_policy(SET CMP0091 NEW)
 else()
 	# The Android tools ship with this ancient version, which we need to support.
-	cmake_minimum_required (VERSION 3.10)
+	cmake_minimum_required(VERSION 3.10)
 	cmake_policy(SET CMP0077 NEW)
 endif()
 set(SENTRY_TOOLCHAINS_DIR "${CMAKE_CURRENT_LIST_DIR}/toolchains")
@@ -182,7 +182,7 @@ set(SENTRY_HANDLER_STACK_SIZE 64 CACHE STRING "The stack size (in KiB) that shou
 if (WIN32)
 	set(SENTRY_THREAD_STACK_GUARANTEE_FACTOR 10 CACHE STRING "The factor by which a threads stack should be larger than the stack guarantee for its handler.")
 	option(SENTRY_THREAD_STACK_GUARANTEE_AUTO_INIT "Automatically sets the thread stack guarantee for each thread via `DllMain` or for the `sentry_init()` when building statically" ON)
-    option(SENTRY_THREAD_STACK_GUARANTEE_VERBOSE_LOG "Enables logging of successfully set thread stack guarantees" OFF)
+	option(SENTRY_THREAD_STACK_GUARANTEE_VERBOSE_LOG "Enables logging of successfully set thread stack guarantees" OFF)
 endif()
 
 message(STATUS "SENTRY_TRANSPORT=${SENTRY_TRANSPORT}")
@@ -193,7 +193,7 @@ message(STATUS "SENTRY_HANDLER_STACK_SIZE=${SENTRY_HANDLER_STACK_SIZE}")
 if (WIN32)
 	message(STATUS "SENTRY_THREAD_STACK_GUARANTEE_FACTOR=${SENTRY_THREAD_STACK_GUARANTEE_FACTOR}")
 	message(STATUS "SENTRY_THREAD_STACK_GUARANTEE_AUTO_INIT=${SENTRY_THREAD_STACK_GUARANTEE_AUTO_INIT}")
-    message(STATUS "SENTRY_THREAD_STACK_GUARANTEE_VERBOSE_LOG=${SENTRY_THREAD_STACK_GUARANTEE_VERBOSE_LOG}")
+	message(STATUS "SENTRY_THREAD_STACK_GUARANTEE_VERBOSE_LOG=${SENTRY_THREAD_STACK_GUARANTEE_VERBOSE_LOG}")
 endif()
 
 if(ANDROID)
@@ -267,13 +267,13 @@ add_subdirectory(src)
 
 target_compile_definitions(sentry PRIVATE SENTRY_HANDLER_STACK_SIZE=${SENTRY_HANDLER_STACK_SIZE})
 if(WIN32)
-    target_compile_definitions(sentry PRIVATE SENTRY_THREAD_STACK_GUARANTEE_FACTOR=${SENTRY_THREAD_STACK_GUARANTEE_FACTOR})
-    if (SENTRY_THREAD_STACK_GUARANTEE_AUTO_INIT)
-        target_compile_definitions(sentry PRIVATE SENTRY_THREAD_STACK_GUARANTEE_AUTO_INIT)
-    endif()
-    if (SENTRY_THREAD_STACK_GUARANTEE_VERBOSE_LOG)
-        target_compile_definitions(sentry PRIVATE SENTRY_THREAD_STACK_GUARANTEE_VERBOSE_LOG)
-    endif()
+	target_compile_definitions(sentry PRIVATE SENTRY_THREAD_STACK_GUARANTEE_FACTOR=${SENTRY_THREAD_STACK_GUARANTEE_FACTOR})
+	if (SENTRY_THREAD_STACK_GUARANTEE_AUTO_INIT)
+		target_compile_definitions(sentry PRIVATE SENTRY_THREAD_STACK_GUARANTEE_AUTO_INIT)
+	endif()
+	if (SENTRY_THREAD_STACK_GUARANTEE_VERBOSE_LOG)
+		target_compile_definitions(sentry PRIVATE SENTRY_THREAD_STACK_GUARANTEE_VERBOSE_LOG)
+	endif()
 endif()
 
 if (NOT SENTRY_SDK_NAME STREQUAL "")
@@ -659,11 +659,11 @@ if(SENTRY_BUILD_EXAMPLES)
 	if(MSVC)
 		target_compile_options(sentry_example PRIVATE $<BUILD_INTERFACE:/wd5105 /wd4717>)
 		if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang") # clang-cl
-            # ignore the warning for the intentionally infinite recursion
+			# ignore the warning for the intentionally infinite recursion
 			target_compile_options(sentry_example PRIVATE $<BUILD_INTERFACE:-Wno-infinite-recursion>)
-            # ensure that clang-cl builds an unoptimized `sentry_example` in all build types
-            target_compile_options(sentry_example PRIVATE $<BUILD_INTERFACE:/Od>)
-        endif()
+			# ensure that clang-cl builds an unoptimized `sentry_example` in all build types
+			target_compile_options(sentry_example PRIVATE $<BUILD_INTERFACE:/Od>)
+		endif()
 
 		# to test handling SEH by-passing exceptions we need to enable the control flow guard
 		target_compile_options(sentry_example PRIVATE $<BUILD_INTERFACE:/guard:cf>)
@@ -686,7 +686,7 @@ if(SENTRY_BUILD_EXAMPLES)
 		COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/minidump.dmp" "$<TARGET_FILE_DIR:sentry_example>/minidump.dmp")
 
 	add_custom_command(TARGET sentry_example POST_BUILD
-			COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/view-hierarchy.json" "$<TARGET_FILE_DIR:sentry_example>/view-hierarchy.json")
+		COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/view-hierarchy.json" "$<TARGET_FILE_DIR:sentry_example>/view-hierarchy.json")
 
 	add_test(NAME sentry_example COMMAND sentry_example)
 endif()
