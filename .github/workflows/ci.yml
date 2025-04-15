@@ -174,7 +174,7 @@ jobs:
           make
           sudo make install
 
-      - name: Install rust (Windows 11 ARM64 until the image has it)
+      - name: Install rustup on Windows 11 ARM64 (until the image has it)
         if: ${{ matrix.os == 'windows-11-arm' }}
         shell: pwsh
         run: |
@@ -182,6 +182,11 @@ jobs:
           .\rustup-init.exe --default-toolchain none -y
           "$env:USERPROFILE\.cargo\bin" | Out-File -Append -Encoding ascii $env:GITHUB_PATH
           "CARGO_HOME=$env:USERPROFILE\.cargo" | Out-File -Append -Encoding ascii $env:GITHUB_ENV
+
+      - name: Install rust on Windows 11 ARM64 (until the image has it)
+        if: ${{ matrix.os == 'windows-11-arm' }}
+        shell: pwsh
+        run: |
           rustup install stable
           rustup target add aarch64-pc-windows-msvc
 
