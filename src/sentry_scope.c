@@ -76,6 +76,7 @@ get_scope(void)
     g_scope.tags = sentry_value_new_object();
     g_scope.extra = sentry_value_new_object();
     g_scope.contexts = sentry_value_new_object();
+    g_scope.propagation_context = sentry_value_new_object();
     sentry_value_set_by_key(g_scope.contexts, "os", sentry__get_os_context());
     g_scope.breadcrumbs = sentry_value_new_list();
     g_scope.level = SENTRY_LEVEL_ERROR;
@@ -101,6 +102,7 @@ sentry__scope_cleanup(void)
         sentry_value_decref(g_scope.tags);
         sentry_value_decref(g_scope.extra);
         sentry_value_decref(g_scope.contexts);
+        sentry_value_decref(g_scope.propagation_context);
         sentry_value_decref(g_scope.breadcrumbs);
         sentry_value_decref(g_scope.client_sdk);
         sentry__transaction_decref(g_scope.transaction_object);
@@ -347,7 +349,13 @@ sentry__scope_apply_to_event(const sentry_scope_t *scope,
     // merge contexts sourced from scope into the event
     sentry_value_t event_contexts = sentry_value_get_by_key(event, "contexts");
     if (sentry_value_is_null(event_contexts)) {
-        PLACE_VALUE("contexts", contexts);
+        // only merge in propagation context if it's got trace data
+        if (!sentry_value_is_null(
+                sentry_value_get_by_key(scope->propagation_context, "trace"))) {
+            PLACE_CLONED_VALUE("contexts", scope->propagation_context);
+        } else {
+            PLACE_VALUE("contexts", contexts);
+        }
     } else {
         sentry__value_merge_objects(event_contexts, contexts);
     }

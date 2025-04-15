@@ -16,6 +16,7 @@ typedef struct sentry_scope_s {
     sentry_value_t tags;
     sentry_value_t extra;
     sentry_value_t contexts;
+    sentry_value_t propagation_context;
     sentry_value_t breadcrumbs;
     sentry_level_t level;
     sentry_value_t client_sdk;

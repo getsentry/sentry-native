@@ -804,6 +804,14 @@ sentry_set_context_n(const char *key, size_t key_len, sentry_value_t value)
 }
 
 void
+sentry__set_propagation_context(const char *key, sentry_value_t value)
+{
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry_value_set_by_key(scope->propagation_context, key, value);
+    }
+}
+
+void
 sentry_remove_context(const char *key)
 {
     SENTRY_WITH_SCOPE_MUT (scope) {
@@ -892,7 +900,7 @@ sentry_set_trace_n(const char *trace_id, size_t trace_id_len,
         sentry_value_set_by_key(
             context, "span_id", sentry__value_new_span_uuid(&span_id));
 
-        sentry_set_context("trace", context);
+        sentry__set_propagation_context("trace", context);
     }
 }
 

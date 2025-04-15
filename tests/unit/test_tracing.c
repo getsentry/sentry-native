@@ -1308,17 +1308,18 @@ SENTRY_TEST(set_trace)
     sentry_set_trace(trace_id, parent_span_id);
 
     SENTRY_WITH_SCOPE (scope) {
-        sentry_value_t trace_context
-            = sentry_value_get_by_key(scope->contexts, "trace");
-        TEST_CHECK(!sentry_value_is_null(trace_context));
+        sentry_value_t propagation_trace_context
+            = sentry_value_get_by_key(scope->propagation_context, "trace");
+        TEST_CHECK(!sentry_value_is_null(propagation_trace_context));
 
-        CHECK_STRING_PROPERTY(trace_context, "type", "trace");
+        CHECK_STRING_PROPERTY(propagation_trace_context, "type", "trace");
 
-        CHECK_STRING_PROPERTY(trace_context, "trace_id", trace_id);
-        CHECK_STRING_PROPERTY(trace_context, "parent_span_id", parent_span_id);
+        CHECK_STRING_PROPERTY(propagation_trace_context, "trace_id", trace_id);
+        CHECK_STRING_PROPERTY(
+            propagation_trace_context, "parent_span_id", parent_span_id);
 
         const char *span_id = sentry_value_as_string(
-            sentry_value_get_by_key(trace_context, "span_id"));
+            sentry_value_get_by_key(propagation_trace_context, "span_id"));
         TEST_ASSERT(span_id != NULL);
         TEST_CHECK(strlen(span_id) > 0);
     }
@@ -1377,6 +1378,20 @@ SENTRY_TEST(set_trace_id_with_txn)
         = "2674eb52d5874b13b560236d6c79ce8a-a0f9fdf04f1a63df-1";
     const char *txn_trace_id = "2674eb52d5874b13b560236d6c79ce8a";
     const char *txn_parent_span_id = "a0f9fdf04f1a63df";
+    sentry_transaction_context_t *tx_ctx_scoped
+        = sentry_transaction_context_new("wow!", NULL);
+    sentry_transaction_context_update_from_header(
+        tx_ctx_scoped, "sentry-trace", trace_header);
+    sentry_transaction_t *tx_scoped
+        = sentry_transaction_start(tx_ctx_scoped, sentry_value_new_null());
+
+    // when no set_trace was called yet, the scoped transaction should apply
+    //  its trace/parent span ID (as set by update_from_header)
+    sentry_set_transaction_object(tx_scoped);
+    apply_scope_and_check_trace_context(
+        options, txn_trace_id, txn_parent_span_id);
+    sentry_transaction_finish(tx_scoped);
+
     sentry_transaction_context_t *tx_ctx
         = sentry_transaction_context_new("wow!", NULL);
     sentry_transaction_context_update_from_header(
@@ -1390,24 +1405,36 @@ SENTRY_TEST(set_trace_id_with_txn)
     sentry_set_trace(direct_trace_id, direct_parent_span_id);
 
     // events should get that trace applied
+    // TODO reason why they should get that trace applied
+    //  (tx started before set_trace, but trace was set so events get that data)
     apply_scope_and_check_trace_context(
         options, direct_trace_id, direct_parent_span_id);
 
     // now set a scoped transaction
+    // this should have the set_trace data applied to the tx (tx gets scoped)
     sentry_set_transaction_object(tx);
 
     // events should get the transaction's trace applied
+    // TODO event should still have the direct trace applied,
+    //  and so should the root span (do we check this?)
     apply_scope_and_check_trace_context(
-        options, txn_trace_id, txn_parent_span_id);
+        options, direct_trace_id, direct_parent_span_id);
 
     sentry_transaction_finish(tx);
 
     // after finishing the transaction, the direct trace should hit again
+    // TODO should still be trace_id from the direct trace (since once it is
+    //  set it will remain)
     apply_scope_and_check_trace_context(
         options, direct_trace_id, direct_parent_span_id);
 
     sentry_close();
 }
+
+// TODO we should test set_trace before/after
+//  - transaction-context creation
+//  - transaction-context scoping
+//  - with/without (scoped) span-children
 
 #undef IS_NULL
 #undef CHECK_STRING_PROPERTY
