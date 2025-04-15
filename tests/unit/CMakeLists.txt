@@ -31,7 +31,7 @@ add_executable(sentry_test_unit
 	test_modulefinder.c
 	test_mpack.c
 	test_options.c
-	test_os_release.c
+	test_os.c
 	test_path.c
 	test_ratelimiter.c
 	test_sampling.c
@@ -113,7 +113,7 @@ endif()
 
 # set static runtime if enabled
 if (SENTRY_BUILD_RUNTIMESTATIC AND MSVC)
-    set_property(TARGET sentry_fuzz_json PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+	set_property(TARGET sentry_fuzz_json PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 endif()
 
 add_test(NAME sentry_fuzz_json COMMAND sentry_fuzz_json)

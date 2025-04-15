@@ -170,7 +170,7 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
                     = sentry__screenshot_get_path(options);
                 if (sentry__screenshot_capture(screenshot_path)) {
                     sentry__envelope_add_attachment(
-                        envelope, screenshot_path, NULL);
+                        envelope, screenshot_path, nullptr);
                 }
                 sentry__path_free(screenshot_path);
             }
@@ -245,9 +245,12 @@ breakpad_backend_startup(
     sentry_path_t *current_run_folder = options->run->run_path;
 
 #ifdef SENTRY_PLATFORM_WINDOWS
-    sentry__reserve_thread_stack();
+#    if !defined(SENTRY_BUILD_SHARED)                                          \
+        && defined(SENTRY_THREAD_STACK_GUARANTEE_AUTO_INIT)
+    sentry__set_default_thread_stack_guarantee();
+#    endif
     backend->data = new google_breakpad::ExceptionHandler(
-        current_run_folder->path, NULL, breakpad_backend_callback, NULL,
+        current_run_folder->path, nullptr, breakpad_backend_callback, nullptr,
         google_breakpad::ExceptionHandler::HANDLER_EXCEPTION);
 #elif defined(SENTRY_PLATFORM_MACOS)
     // If process is being debugged and there are breakpoints set it will cause

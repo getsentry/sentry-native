@@ -192,6 +192,13 @@ sentry_init(sentry_options_t *options)
     sentry_integration_setup_qt();
 #endif
 
+#if defined(SENTRY_PLATFORM_WINDOWS)                                           \
+    && (!defined(SENTRY_BUILD_SHARED) || defined(_GAMING_XBOX_SCARLETT))
+    // This function must be positioned so that any dependents on its cached
+    // functions are invoked after it.
+    sentry__init_cached_kernel32_functions();
+#endif
+
     // after initializing the transport, we will submit all the unsent envelopes
     // and handle remaining sessions.
     SENTRY_DEBUG("processing and pruning old runs");
@@ -203,10 +210,6 @@ sentry_init(sentry_options_t *options)
     if (options->auto_session_tracking) {
         sentry_start_session();
     }
-
-#ifdef SENTRY_PLATFORM_WINDOWS
-    sentry__init_cached_functions();
-#endif
 
     sentry__mutex_unlock(&g_options_lock);
     return 0;
