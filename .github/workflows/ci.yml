@@ -182,6 +182,7 @@ jobs:
           .\rustup-init.exe --default-toolchain none -y
           "$env:USERPROFILE\.cargo\bin" | Out-File -Append -Encoding ascii $env:GITHUB_PATH
           "CARGO_HOME=$env:USERPROFILE\.cargo" | Out-File -Append -Encoding ascii $env:GITHUB_ENV
+          tree "$env:ProgramFiles\OpenSSL" /F
 
       - name: Install rust on Windows 11 ARM64 (until the image has it)
         if: ${{ matrix.os == 'windows-11-arm' }}
