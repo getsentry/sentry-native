@@ -113,7 +113,7 @@ endif()
 
 # set static runtime if enabled
 if (SENTRY_BUILD_RUNTIMESTATIC AND MSVC)
-    set_property(TARGET sentry_fuzz_json PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+	set_property(TARGET sentry_fuzz_json PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 endif()
 
 add_test(NAME sentry_fuzz_json COMMAND sentry_fuzz_json)
