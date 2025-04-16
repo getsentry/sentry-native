@@ -13,6 +13,10 @@
 #include <curl/easy.h>
 #include <string.h>
 
+#ifdef SENTRY_PLATFORM_NX
+#    include "sentry_transport_curl_nx.h"
+#endif
+
 typedef struct curl_transport_state_s {
     sentry_dsn_t *dsn;
     CURL *curl_handle;
@@ -21,6 +25,9 @@ typedef struct curl_transport_state_s {
     char *ca_certs;
     sentry_rate_limiter_t *ratelimiter;
     bool debug;
+#ifdef SENTRY_PLATFORM_NX
+    void *nx_state;
+#endif
 } curl_bgworker_state_t;
 
 struct header_info {
@@ -38,7 +45,9 @@ sentry__curl_bgworker_state_new(void)
     memset(state, 0, sizeof(curl_bgworker_state_t));
 
     state->ratelimiter = sentry__rate_limiter_new();
-
+#ifdef SENTRY_PLATFORM_NX
+    state->nx_state = sentry_nx_curl_state_new();
+#endif
     return state;
 }
 
@@ -55,6 +64,9 @@ sentry__curl_bgworker_state_free(void *_state)
     sentry_free(state->ca_certs);
     sentry_free(state->user_agent);
     sentry_free(state->proxy);
+#ifdef SENTRY_PLATFORM_NX
+    sentry_nx_curl_state_free(state->nx_state);
+#endif
     sentry_free(state);
 }
 
@@ -115,6 +127,13 @@ sentry__curl_transport_start(
         SENTRY_WARN("`curl_easy_init` failed");
         return 1;
     }
+
+#ifdef SENTRY_PLATFORM_NX
+    if (!sentry_nx_transport_start(state->nx_state, options)) {
+        return 1;
+    }
+#endif
+
     return sentry__bgworker_start(bgworker);
 }
 
@@ -170,6 +189,12 @@ sentry__curl_send_task(void *_envelope, void *_state)
     sentry_envelope_t *envelope = (sentry_envelope_t *)_envelope;
     curl_bgworker_state_t *state = (curl_bgworker_state_t *)_state;
 
+#ifdef SENTRY_PLATFORM_NX
+    if (!sentry_nx_curl_connect(state->nx_state)) {
+        return; // TODO should we dump the envelope to disk?
+    }
+#endif
+
     sentry_prepared_http_request_t *req = sentry__prepare_http_request(
         envelope, state->dsn, state->ratelimiter, state->user_agent);
     if (!req) {
@@ -222,7 +247,15 @@ sentry__curl_send_task(void *_envelope, void *_state)
         curl_easy_setopt(curl, CURLOPT_CAINFO, state->ca_certs);
     }
 
-    CURLcode rv = curl_easy_perform(curl);
+#ifdef SENTRY_PLATFORM_NX
+    CURLcode rv = sentry_nx_curl_easy_setopt(state->nx_state, curl, req);
+#else
+    CURLcode rv = CURLE_OK;
+#endif
+
+    if (rv == CURLE_OK) {
+        rv = curl_easy_perform(curl);
+    }
 
     if (rv == CURLE_OK) {
         long response_code;

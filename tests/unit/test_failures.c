@@ -1,6 +1,11 @@
 #include "sentry_core.h"
 #include "sentry_testsupport.h"
 
+#ifdef SENTRY_PLATFORM_NX
+SENTRY_TEST(init_failure)
+{
+    sentry_options_t *options = sentry_options_new();
+#else
 static int
 transport_startup_fail(
     const sentry_options_t *UNUSED(options), void *UNUSED(state))
@@ -21,6 +26,7 @@ SENTRY_TEST(init_failure)
 
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_transport(options, transport);
+#endif
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
     int rv = sentry_init(options);
 
