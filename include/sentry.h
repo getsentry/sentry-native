@@ -795,6 +795,15 @@ SENTRY_API void sentry_options_free(sentry_options_t *opts);
 SENTRY_API void sentry_options_set_transport(
     sentry_options_t *opts, sentry_transport_t *transport);
 
+#ifdef SENTRY_PLATFORM_NX
+/**
+ * Function to start a network connection.
+ * This is called on a background thread so it must be thread-safe.
+ */
+SENTRY_API void sentry_options_set_network_connect_func(
+    sentry_options_t *opts, void (*network_connect_func)(void));
+#endif
+
 /**
  * Type of the `before_send` callback.
  *

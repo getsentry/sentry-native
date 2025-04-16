@@ -126,6 +126,15 @@ sentry_options_set_transport(
     opts->transport = transport;
 }
 
+#ifdef SENTRY_PLATFORM_NX
+void
+sentry_options_set_network_connect_func(
+    sentry_options_t *opts, void (*network_connect_func)(void))
+{
+    opts->network_connect_func = network_connect_func;
+}
+#endif
+
 void
 sentry_options_set_before_send(
     sentry_options_t *opts, sentry_event_function_t func, void *data)

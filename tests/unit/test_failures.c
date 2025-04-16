@@ -1,4 +1,5 @@
 #include "sentry_core.h"
+#include "sentry_options.h"
 #include "sentry_testsupport.h"
 
 static int
@@ -24,5 +25,13 @@ SENTRY_TEST(init_failure)
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
     int rv = sentry_init(options);
 
+#ifdef SENTRY_PLATFORM_NX
+    // On NX a failing transport must not fail initialization.
+    TEST_CHECK(rv == 0);
+    SENTRY_WITH_OPTIONS (runtime_options) {
+        TEST_CHECK(runtime_options->transport == NULL);
+    }
+#else
     TEST_CHECK(rv != 0);
+#endif
 }

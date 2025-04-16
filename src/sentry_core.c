@@ -148,8 +148,16 @@ sentry_init(sentry_options_t *options)
 
     if (transport) {
         if (sentry__transport_startup(transport, options) != 0) {
+#ifdef SENTRY_PLATFORM_NX
+            // A warning with more details is logged in the downstream SDK.
+            // Also, we want to continue - crash capture doesn't need transport.
+            sentry__transport_shutdown(transport, 0);
+            sentry_options_set_transport(options, NULL);
+            transport = NULL;
+#else
             SENTRY_WARN("failed to initialize transport");
             goto fail;
+#endif
         }
     }
 
