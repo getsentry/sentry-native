@@ -1,7 +1,7 @@
 import pathlib
 import win32api
 
-sentry_version = "0.8.3"
+sentry_version = "0.8.4"
 
 
 def check_binary_version(binary_path: pathlib.Path):
