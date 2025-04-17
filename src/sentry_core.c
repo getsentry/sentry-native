@@ -92,8 +92,13 @@ sentry__should_skip_upload(void)
     return skip;
 }
 
+#ifdef SENTRY_PLATFORM_NX
+int
+sentry__native_init(sentry_options_t *options)
+#else
 int
 sentry_init(sentry_options_t *options)
+#endif
 {
     SENTRY__MUTEX_INIT_DYN_ONCE(g_options_lock);
     // this function is to be called only once, so we do not allow more than one
