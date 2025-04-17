@@ -53,15 +53,15 @@ transaction_context_new_n(sentry_slice_t name, sentry_slice_t operation)
         if (!sentry_value_is_null(
                 sentry_value_get_by_key(scope->propagation_context, "trace"))) {
             sentry_value_set_by_key(transaction_context, "trace_id",
-                sentry_value_get_by_key(
+                sentry__value_clone(sentry_value_get_by_key(
                     sentry_value_get_by_key(
                         scope->propagation_context, "trace"),
-                    "trace_id"));
+                    "trace_id")));
             sentry_value_set_by_key(transaction_context, "parent_span_id",
-                sentry_value_get_by_key(
+                sentry__value_clone(sentry_value_get_by_key(
                     sentry_value_get_by_key(
                         scope->propagation_context, "trace"),
-                    "parent_span_id"));
+                    "parent_span_id")));
         }
     }
 
