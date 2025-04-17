@@ -23,6 +23,12 @@
         TEST_MSG("Received: %s", Val);                                         \
     } while (0)
 
+#define TEST_CHECK_STRING_NOT_EQUAL(Val, ReferenceVal)                         \
+    do {                                                                       \
+        TEST_CHECK(strcmp(Val, ReferenceVal) != 0);                            \
+        TEST_MSG("Expected == Received %s", ReferenceVal);                     \
+    } while (0)
+
 #define TEST_CHECK_WSTRING_EQUAL(Val, ReferenceVal)                            \
     do {                                                                       \
         TEST_CHECK(wcscmp(Val, ReferenceVal) == 0);                            \
