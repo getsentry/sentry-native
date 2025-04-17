@@ -1398,6 +1398,10 @@ SENTRY_TEST(set_trace_id_with_txn)
         tx_ctx, "sentry-trace", trace_header);
     sentry_transaction_t *tx
         = sentry_transaction_start(tx_ctx, sentry_value_new_null());
+    sentry_span_t *span_child
+        = sentry_transaction_start_child(tx, "op", "desc");
+    sentry_span_t *span_grandchild
+        = sentry_span_start_child(span_child, "op_g", "desc_g");
 
     // set the direct trace first
     const char *direct_trace_id = "aaaabbbbccccddddeeeeffff00001111";
@@ -1414,9 +1418,41 @@ SENTRY_TEST(set_trace_id_with_txn)
     // this should have the set_trace data applied to the tx (tx gets scoped)
     sentry_set_transaction_object(tx);
 
-    // events should get the transaction's trace applied
-    // TODO event should still have the direct trace applied,
-    //  and so should the root span (do we check this?)
+    // check if trace_id was passed down properly
+    // TODO maybe refactor these span checks into function
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(tx->inner, "trace_id")),
+        direct_trace_id);
+    // TODO we only set the transaction on the scope; how about the child spans?
+    //  only apply the trace IF they also get scoped? or should they now
+    //  inherit?
+    sentry_set_span(span_child);
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
+                                span_child->inner, "trace_id")),
+        direct_trace_id);
+    // TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
+    //                             span_grandchild->inner, "trace_id")),
+    //     direct_trace_id);
+
+    const char *tx_span_id
+        = sentry_value_as_string(sentry_value_get_by_key(tx->inner, "span_id"));
+    const char *span_child_span_id = sentry_value_as_string(
+        sentry_value_get_by_key(span_child->inner, "span_id"));
+    const char *span_child_parent_span_id = sentry_value_as_string(
+        sentry_value_get_by_key(span_child->inner, "parent_span_id"));
+
+    const char *span_grandchild_id = sentry_value_as_string(
+        sentry_value_get_by_key(span_grandchild->inner, "span_id"));
+    const char *span_grandchild_parent_span_id = sentry_value_as_string(
+        sentry_value_get_by_key(span_grandchild->inner, "parent_span_id"));
+    // check if (set_trace)->root->child->grandchild is connected
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
+                                tx->inner, "parent_span_id")),
+        direct_parent_span_id);
+    TEST_CHECK_STRING_EQUAL(tx_span_id, span_child_parent_span_id); // span->tx
+    TEST_CHECK_STRING_EQUAL(span_child_span_id,
+        span_grandchild_parent_span_id); // grandchild->child
+
     apply_scope_and_check_trace_context(
         options, direct_trace_id, direct_parent_span_id);
 
@@ -1488,6 +1524,8 @@ SENTRY_TEST(set_trace_id_with_unscoped_txn)
     sentry_transaction_finish(tx);
     apply_scope_and_check_trace_context(
         options, direct_trace_id, direct_parent_span_id);
+
+    sentry_close();
 }
 
 // TODO we should test set_trace before/after

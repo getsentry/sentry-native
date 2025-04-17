@@ -1082,6 +1082,20 @@ sentry_set_transaction_object(sentry_transaction_t *tx)
         scope->span = NULL;
         sentry__transaction_decref(scope->transaction_object);
         sentry__transaction_incref(tx);
+        // apply trace and parent_span ids from propagation context
+        if (!sentry_value_is_null(
+                sentry_value_get_by_key(scope->propagation_context, "trace"))) {
+            sentry_value_set_by_key(tx->inner, "trace_id",
+                sentry__value_clone(sentry_value_get_by_key(
+                    sentry_value_get_by_key(
+                        scope->propagation_context, "trace"),
+                    "trace_id")));
+            sentry_value_set_by_key(tx->inner, "parent_span_id",
+                sentry__value_clone(sentry_value_get_by_key(
+                    sentry_value_get_by_key(
+                        scope->propagation_context, "trace"),
+                    "parent_span_id")));
+        }
         scope->transaction_object = tx;
     }
 }
@@ -1094,6 +1108,15 @@ sentry_set_span(sentry_span_t *span)
         scope->transaction_object = NULL;
         sentry__span_decref(scope->span);
         sentry__span_incref(span);
+        // apply trace id from propagation context
+        if (!sentry_value_is_null(
+                sentry_value_get_by_key(scope->propagation_context, "trace"))) {
+            sentry_value_set_by_key(span->inner, "trace_id",
+                sentry__value_clone(sentry_value_get_by_key(
+                    sentry_value_get_by_key(
+                        scope->propagation_context, "trace"),
+                    "trace_id")));
+        }
         scope->span = span;
     }
 }
