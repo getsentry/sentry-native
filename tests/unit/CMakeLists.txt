@@ -117,3 +117,24 @@ if (SENTRY_BUILD_RUNTIMESTATIC AND MSVC)
 endif()
 
 add_test(NAME sentry_fuzz_json COMMAND sentry_fuzz_json)
+
+if(SENTRY_BUILD_BENCHMARKS)
+	add_executable(sentry_benchmark
+		${SENTRY_SOURCES}
+		benchmark_backend.cpp
+		benchmark_core.cpp
+	)
+
+	target_link_libraries(sentry_benchmark PRIVATE
+		${SENTRY_LINK_LIBRARIES}
+		${SENTRY_INTERFACE_LINK_LIBRARIES}
+		"$<$<PLATFORM_ID:Linux>:rt>"
+		benchmark::benchmark benchmark::benchmark_main
+	)
+
+	target_compile_definitions(sentry_benchmark PRIVATE ${SENTRY_COMPILE_DEFINITIONS})
+	target_include_directories(sentry_benchmark PRIVATE
+		${SENTRY_INTERFACE_INCLUDE_DIRECTORIES}
+		${SENTRY_INCLUDE_DIRECTORIES}
+	)
+endif()

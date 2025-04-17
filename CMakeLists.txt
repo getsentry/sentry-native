@@ -72,6 +72,7 @@ option(SENTRY_TRANSPORT_COMPRESSION "Enable transport gzip compression" OFF)
 
 option(SENTRY_BUILD_TESTS "Build sentry-native tests" "${SENTRY_MAIN_PROJECT}")
 option(SENTRY_BUILD_EXAMPLES "Build sentry-native example(s)" "${SENTRY_MAIN_PROJECT}")
+option(SENTRY_BUILD_BENCHMARKS "Build sentry-native benchmarks" "${SENTRY_MAIN_PROJECT}")
 
 if (NOT ("${CMAKE_GENERATOR_PLATFORM}" STREQUAL "Gaming.Xbox.Scarlett.x64"))
 	option(SENTRY_LINK_PTHREAD "Link platform threads library" ON)
@@ -130,7 +131,7 @@ if(SENTRY_TRANSPORT_WINHTTP AND NOT WIN32)
 	message(FATAL_ERROR "The winhttp transport is only supported on Windows.")
 endif()
 
-if(SENTRY_BUILD_TESTS OR SENTRY_BUILD_EXAMPLES)
+if(SENTRY_BUILD_TESTS OR SENTRY_BUILD_EXAMPLES OR SENTRY_BUILD_BENCHMARKS)
 	enable_testing()
 endif()
 
@@ -643,6 +644,11 @@ endif()
 # ===== tests =====
 
 if(SENTRY_BUILD_TESTS)
+	if(SENTRY_BUILD_BENCHMARKS)
+		set(BENCHMARK_ENABLE_TESTING OFF)
+		set(BENCHMARK_ENABLE_GTEST_TESTS OFF)
+		add_subdirectory(external/benchmark)
+	endif()
 	add_subdirectory(tests/unit)
 	add_subdirectory(tests/fixtures/screenshot)
 endif()
