@@ -1,8 +1,13 @@
+import json
 import os
 import pytest
 import re
+import statistics
+import sys
 from . import run
 from .cmake import CMake
+
+gbenchmarks = {}
 
 
 def enumerate_unittests():
@@ -36,6 +41,11 @@ def pytest_addoption(parser):
         action="store_true",
         help="Enables tests for the crashpad WER module on Windows",
     )
+    parser.addoption(
+        "--benchmark_out",
+        action="store",
+        help="Output file for benchmark results",
+    )
 
 
 def pytest_runtest_setup(item):
@@ -50,3 +60,71 @@ def pytest_configure(config):
         "markers",
         "with_crashpad_wer: mark test to only run when WER testing is enabled",
     )
+
+
+@pytest.fixture
+def gbenchmark():
+    def _load(json_path, test_name=None):
+        if test_name is None:
+            test_name = os.environ.get("PYTEST_CURRENT_TEST").split(" ")[0]
+
+        with open(json_path, "r") as f:
+            data = json.load(f)
+
+        if test_name not in gbenchmarks:
+            gbenchmarks[test_name] = {
+                "time_unit": "",
+                "real_time": [],
+                "cpu_time": [],
+            }
+
+        for benchmark in data["benchmarks"]:
+            if benchmark.get("skipped", False) == True:
+                pytest.skip(benchmark.get("skip_message", "skipped"))
+                break
+            gbenchmarks[test_name]["time_unit"] = benchmark["time_unit"]
+            gbenchmarks[test_name]["real_time"].append(benchmark["real_time"])
+            gbenchmarks[test_name]["cpu_time"].append(benchmark["cpu_time"])
+
+    return _load
+
+
+def _get_benchmark(name):
+    data = gbenchmarks.get(name)
+    if data is None:
+        return None
+
+    unit = data["time_unit"]
+    real_time = statistics.median(data["real_time"]) if data["real_time"] else 0
+    cpu_time = statistics.median(data["cpu_time"]) if data["cpu_time"] else 0
+
+    return {
+        "name": name,
+        "unit": unit,
+        "value": real_time,
+        "extra": (
+            f"{real_time:.3f}{unit} (CPU {cpu_time:.3f}{unit})"
+            if sys.platform != "win32"
+            else f"{real_time:.3f}{unit}"
+        ),
+    }
+
+
+def pytest_report_teststatus(report, config):
+    if report.when == "call" and report.passed:
+        benchmark = _get_benchmark(report.nodeid)
+        if benchmark:
+            return (
+                "passed",
+                None,
+                f"PASSED {benchmark['extra']}",
+            )
+    return None
+
+
+def pytest_sessionfinish(session, exitstatus):
+    json_path = session.config.getoption("--benchmark_out")
+    if json_path:
+        with open(json_path, "w") as f:
+            benchmarks = [_get_benchmark(name) for name in gbenchmarks.keys()]
+            json.dump(benchmarks, f, indent=2)

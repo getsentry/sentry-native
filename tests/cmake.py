@@ -216,6 +216,8 @@ def cmake(cwd, targets, options=None):
     for target in targets:
         buildcmd.extend(["--target", target])
     buildcmd.append("--parallel")
+    if "CMAKE_BUILD_TYPE" in options:
+        buildcmd.extend(["--config", options["CMAKE_BUILD_TYPE"]])
     if "code-checker" in os.environ.get("RUN_ANALYZER", ""):
         buildcmd = [
             "codechecker",
