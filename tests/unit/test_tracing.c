@@ -1430,9 +1430,10 @@ SENTRY_TEST(set_trace_id_with_txn)
     TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
                                 span_child->inner, "trace_id")),
         direct_trace_id);
-    // TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
-    //                             span_grandchild->inner, "trace_id")),
-    //     direct_trace_id);
+    // TODO grandchild does not get scoped, so what should its trace_id be?
+    TEST_CHECK_STRING_NOT_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
+                                    span_grandchild->inner, "trace_id")),
+        direct_trace_id);
 
     const char *tx_span_id
         = sentry_value_as_string(sentry_value_get_by_key(tx->inner, "span_id"));
@@ -1441,8 +1442,8 @@ SENTRY_TEST(set_trace_id_with_txn)
     const char *span_child_parent_span_id = sentry_value_as_string(
         sentry_value_get_by_key(span_child->inner, "parent_span_id"));
 
-    const char *span_grandchild_id = sentry_value_as_string(
-        sentry_value_get_by_key(span_grandchild->inner, "span_id"));
+    // const char *span_grandchild_id = sentry_value_as_string(
+    //     sentry_value_get_by_key(span_grandchild->inner, "span_id"));
     const char *span_grandchild_parent_span_id = sentry_value_as_string(
         sentry_value_get_by_key(span_grandchild->inner, "parent_span_id"));
     // check if (set_trace)->root->child->grandchild is connected
@@ -1456,6 +1457,8 @@ SENTRY_TEST(set_trace_id_with_txn)
     apply_scope_and_check_trace_context(
         options, direct_trace_id, direct_parent_span_id);
 
+    sentry_span_finish(span_grandchild);
+    sentry_span_finish(span_child);
     sentry_transaction_finish(tx);
 
     // after finishing the transaction, the direct trace should still hit
@@ -1507,8 +1510,8 @@ SENTRY_TEST(set_trace_id_with_unscoped_txn)
     const char *span_child_parent_span_id = sentry_value_as_string(
         sentry_value_get_by_key(span_child->inner, "parent_span_id"));
 
-    const char *span_grandchild_id = sentry_value_as_string(
-        sentry_value_get_by_key(span_grandchild->inner, "span_id"));
+    // const char *span_grandchild_id = sentry_value_as_string(
+    //     sentry_value_get_by_key(span_grandchild->inner, "span_id"));
     const char *span_grandchild_parent_span_id = sentry_value_as_string(
         sentry_value_get_by_key(span_grandchild->inner, "parent_span_id"));
     // check if (set_trace)->root->child->grandchild is connected
