@@ -326,7 +326,12 @@ endif()
 
 if(SENTRY_TRANSPORT_CURL)
 	if(NOT TARGET CURL::libcurl) # Some other lib might bring libcurl already
-		find_package(CURL REQUIRED COMPONENTS AsynchDNS)
+		if (CMAKE_VERSION VERSION_GREATER_EQUAL 3.29.0)
+			find_package(CURL REQUIRED COMPONENTS AsynchDNS)
+		else()
+			# if using CMake <3.29.0 don't try to check for AsynchDNS - it can erroneously fail
+			find_package(CURL REQUIRED)
+		endif()
 	endif()
 
 	target_link_libraries(sentry PRIVATE CURL::libcurl)
