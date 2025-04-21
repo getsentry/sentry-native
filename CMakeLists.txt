@@ -326,7 +326,7 @@ endif()
 
 if(SENTRY_TRANSPORT_CURL)
 	if(NOT TARGET CURL::libcurl) # Some other lib might bring libcurl already
-		find_package(CURL REQUIRED COMPONENTS AsynchDNS)
+		find_package(CURL REQUIRED)
 	endif()
 
 	target_link_libraries(sentry PRIVATE CURL::libcurl)

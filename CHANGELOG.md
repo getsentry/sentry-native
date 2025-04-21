@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Fixes**:
+
+- Remove compile-time check for the `libcurl` feature `AsynchDNS`. ([#1206](https://github.com/getsentry/sentry-native/pull/1206))
+
 ## 0.8.4
 
 **Features**:
