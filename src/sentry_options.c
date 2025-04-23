@@ -133,6 +133,12 @@ sentry_options_set_network_connect_func(
 {
     opts->network_connect_func = network_connect_func;
 }
+
+void
+sentry_options_set_send_default_pii(sentry_options_t *opts, int value)
+{
+    opts->send_default_pii = value;
+}
 #endif
 
 void
