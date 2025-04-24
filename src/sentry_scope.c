@@ -360,14 +360,11 @@ sentry__scope_apply_to_event(const sentry_scope_t *scope,
     // merge contexts sourced from scope into the event
     sentry_value_t event_contexts = sentry_value_get_by_key(event, "contexts");
     if (sentry_value_is_null(event_contexts)) {
-        // only merge in propagation context if it's got trace data
-        if (sentry_value_is_null(scope_trace)
-            && !sentry_value_is_null(
-                sentry_value_get_by_key(scope->propagation_context, "trace"))) {
-            PLACE_CLONED_VALUE("contexts", scope->propagation_context);
-        } else {
-            PLACE_VALUE("contexts", contexts);
+        // only merge in propagation context if there is no scoped span
+        if (sentry_value_is_null(scope_trace)) {
+            sentry__value_merge_objects(contexts, scope->propagation_context);
         }
+        PLACE_VALUE("contexts", contexts);
     } else {
         sentry__value_merge_objects(event_contexts, contexts);
     }
