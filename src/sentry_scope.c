@@ -76,8 +76,19 @@ get_scope(void)
     g_scope.tags = sentry_value_new_object();
     g_scope.extra = sentry_value_new_object();
     g_scope.contexts = sentry_value_new_object();
-    g_scope.propagation_context = sentry_value_new_object();
     sentry_value_set_by_key(g_scope.contexts, "os", sentry__get_os_context());
+    g_scope.propagation_context = sentry_value_new_object();
+    sentry_value_set_by_key(
+        g_scope.propagation_context, "trace", sentry_value_new_object());
+    // TODO should we be using sentry__set_propagation_context() here?
+    sentry_uuid_t trace_id = sentry_uuid_new_v4();
+    sentry_uuid_t span_id = sentry_uuid_new_v4();
+    sentry_value_set_by_key(
+        sentry_value_get_by_key(g_scope.propagation_context, "trace"),
+        "trace_id", sentry__value_new_internal_uuid(&trace_id));
+    sentry_value_set_by_key(
+        sentry_value_get_by_key(g_scope.propagation_context, "trace"),
+        "span_id", sentry__value_new_span_uuid(&span_id));
     g_scope.breadcrumbs = sentry_value_new_list();
     g_scope.level = SENTRY_LEVEL_ERROR;
     g_scope.client_sdk = get_client_sdk();
