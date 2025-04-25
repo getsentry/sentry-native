@@ -1587,6 +1587,9 @@ SENTRY_TEST(set_trace_update_from_header)
     apply_scope_and_check_trace_context(
         options, direct_trace_id, direct_parent_span_id);
 
+    sentry_span_finish(span_child);
+    sentry_transaction_finish(tx);
+
     sentry_close();
 }
 
