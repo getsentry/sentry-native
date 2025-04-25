@@ -1617,38 +1617,5 @@ SENTRY_TEST(set_trace_id_twice)
     sentry_close();
 }
 
-// TODO remove this test after discussing implementation of propagation_context
-SENTRY_TEST(unexpected_trace_id_match)
-{
-    // initialize SDK so we have a scope
-    SENTRY_TEST_OPTIONS_NEW(options);
-    sentry_options_set_traces_sample_rate(options, 1.0);
-    sentry_options_set_sample_rate(options, 1.0);
-    sentry_options_set_dsn(options,
-        "https://d545f4da00ff7b2fa7b6c8620c94a4e9@o447951.ingest.us.sentry.io/"
-        "4506178389999616");
-    sentry_init(options);
-
-    sentry_transaction_context_t *tx_ctx
-        = sentry_transaction_context_new("wow!", NULL);
-    sentry_transaction_t *tx
-        = sentry_transaction_start(tx_ctx, sentry_value_new_null());
-
-    const char *tx_parent_span_id = sentry_value_as_string(
-        sentry_value_get_by_key(tx->inner, "parent_span_id"));
-    const char *tx_trace_id = sentry_value_as_string(
-        sentry_value_get_by_key(tx->inner, "trace_id"));
-
-    // TODO this is what we don't want; the trace_id of the tx should not match
-    // the event if the tx was not scoped
-    //  but because we init propagation_context with random values, both tx and
-    //  event creation pick up the same data
-    apply_scope_and_check_trace_context(
-        options, tx_trace_id, tx_parent_span_id);
-
-    sentry_transaction_finish(tx);
-    sentry_close();
-}
-
 #undef IS_NULL
 #undef CHECK_STRING_PROPERTY
