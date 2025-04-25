@@ -804,9 +804,8 @@ SENTRY_API void sentry_options_set_network_connect_func(
     sentry_options_t *opts, void (*network_connect_func)(void));
 
 /**
- * If false (the default), the SDK won't include PII or other sensitive data in
- * the payload by default. For example, a pseudo-random identifier combining
- * device and application ID.
+ * If false (the default), the SDK won't add PII or other sensitive data to the
+ * payload. For example, a pseudo-random identifier combining device and app ID.
  */
 SENTRY_API void sentry_options_set_send_default_pii(
     sentry_options_t *opts, int value);
