@@ -10,10 +10,9 @@ on:
     paths-ignore:
       - "*.md"
 
-# TODO: prepare gh-pages
-# permissions:
-#   deployments: write
-#   contents: write
+permissions:
+  deployments: write
+  contents: write
 
 jobs:
   benchmark:
