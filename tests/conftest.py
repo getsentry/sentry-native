@@ -7,6 +7,11 @@ import sys
 from . import run
 from .cmake import CMake
 
+
+TIME_UNIT = "time_unit"
+REAL_TIME = "real_time"
+CPU_TIME = "cpu_time"
+
 gbenchmarks = {}
 
 
@@ -73,18 +78,18 @@ def gbenchmark():
 
         if test_name not in gbenchmarks:
             gbenchmarks[test_name] = {
-                "time_unit": "",
-                "real_time": [],
-                "cpu_time": [],
+                TIME_UNIT: "",
+                REAL_TIME: [],
+                CPU_TIME: [],
             }
 
         for benchmark in data["benchmarks"]:
             if benchmark.get("skipped", False) == True:
                 pytest.skip(benchmark.get("skip_message", "skipped"))
                 break
-            gbenchmarks[test_name]["time_unit"] = benchmark["time_unit"]
-            gbenchmarks[test_name]["real_time"].append(benchmark["real_time"])
-            gbenchmarks[test_name]["cpu_time"].append(benchmark["cpu_time"])
+            gbenchmarks[test_name][TIME_UNIT] = benchmark[TIME_UNIT]
+            gbenchmarks[test_name][REAL_TIME].append(benchmark[REAL_TIME])
+            gbenchmarks[test_name][CPU_TIME].append(benchmark[CPU_TIME])
 
     return _load
 
@@ -94,9 +99,9 @@ def _get_benchmark(name):
     if data is None:
         return None
 
-    unit = data["time_unit"]
-    real_time = statistics.median(data["real_time"]) if data["real_time"] else 0
-    cpu_time = statistics.median(data["cpu_time"]) if data["cpu_time"] else 0
+    unit = data[TIME_UNIT]
+    real_time = statistics.median(data[REAL_TIME]) if data[REAL_TIME] else 0
+    cpu_time = statistics.median(data[CPU_TIME]) if data[CPU_TIME] else 0
 
     return {
         "name": name,
