@@ -86,6 +86,7 @@ struct sentry_options_s {
 
 #ifdef SENTRY_PLATFORM_NX
     void (*network_connect_func)(void);
+    bool send_default_pii;
 #endif
 };
 
