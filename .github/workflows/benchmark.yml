@@ -52,13 +52,12 @@ jobs:
           pip install --upgrade --requirement tests/requirements.txt
           pytest --verbose --benchmark_out=benchmark.json tests/benchmark.py
 
-      # TODO: prepare gh-pages
-      # - uses: benchmark-action/github-action-benchmark@v1
-      #   if: ${{ github.event_name == 'push' }}
-      #   with:
-      #     name: ${{ runner.os }}
-      #     tool: customSmallerIsBetter
-      #     output-file-path: benchmark.json
-      #     github-token: ${{ secrets.GITHUB_TOKEN }}
-      #     benchmark-data-dir-path: ./
-      #     auto-push: true
+      - uses: benchmark-action/github-action-benchmark@v1
+        if: ${{ github.event_name == 'push' }}
+        with:
+          name: ${{ runner.os }}
+          tool: customSmallerIsBetter
+          output-file-path: benchmark.json
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          benchmark-data-dir-path: ./
+          auto-push: true
