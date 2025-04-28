@@ -116,7 +116,7 @@ def _get_benchmark(name, separator):
         "name": name,
         "unit": unit,
         "value": statistics.median(real_time),
-        "extra": separator.join(extra),
+        "extra": separator.join(e for e in extra if e),
     }
 
 
