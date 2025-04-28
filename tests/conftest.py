@@ -94,35 +94,40 @@ def gbenchmark():
     return _load
 
 
-def _get_benchmark(name):
+def _get_benchmark(name, separator):
     data = gbenchmarks.get(name)
     if data is None:
         return None
 
     unit = data[TIME_UNIT]
-    real_time = statistics.median(data[REAL_TIME]) if data[REAL_TIME] else 0
-    cpu_time = statistics.median(data[CPU_TIME]) if data[CPU_TIME] else 0
+    real_time = data[REAL_TIME] if data[REAL_TIME] else []
+    cpu_time = data[CPU_TIME] if data[CPU_TIME] else []
+
+    extra = [
+        f"Min {min(real_time):.3f}{unit}",
+        f"Max {max(real_time):.3f}{unit}",
+        f"Mean {statistics.mean(real_time):.3f}{unit}",
+        f"StdDev {statistics.stdev(real_time):.3f}{unit}",
+        f"Median {statistics.median(real_time):.3f}{unit}",
+        f"CPU {statistics.mean(cpu_time):.3f}{unit}" if sys.platform != "win32" else "",
+    ]
 
     return {
         "name": name,
         "unit": unit,
-        "value": real_time,
-        "extra": (
-            f"{real_time:.3f}{unit} (CPU {cpu_time:.3f}{unit})"
-            if sys.platform != "win32"
-            else f"{real_time:.3f}{unit}"
-        ),
+        "value": statistics.median(real_time),
+        "extra": separator.join(extra),
     }
 
 
 def pytest_report_teststatus(report, config):
     if report.when == "call" and report.passed:
-        benchmark = _get_benchmark(report.nodeid)
+        benchmark = _get_benchmark(report.nodeid, ", ")
         if benchmark:
             return (
                 "passed",
                 None,
-                f"PASSED {benchmark['extra']}",
+                f"PASSED\n{benchmark['extra']}",
             )
     return None
 
@@ -131,5 +136,5 @@ def pytest_sessionfinish(session, exitstatus):
     json_path = session.config.getoption("--benchmark_out")
     if json_path:
         with open(json_path, "w") as f:
-            benchmarks = [_get_benchmark(name) for name in gbenchmarks.keys()]
+            benchmarks = [_get_benchmark(name, "\n") for name in gbenchmarks.keys()]
             json.dump(benchmarks, f, indent=2)
