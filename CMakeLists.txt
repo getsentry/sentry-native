@@ -72,6 +72,7 @@ option(SENTRY_TRANSPORT_COMPRESSION "Enable transport gzip compression" OFF)
 
 option(SENTRY_BUILD_TESTS "Build sentry-native tests" "${SENTRY_MAIN_PROJECT}")
 option(SENTRY_BUILD_EXAMPLES "Build sentry-native example(s)" "${SENTRY_MAIN_PROJECT}")
+option(SENTRY_BUILD_BENCHMARKS "Build sentry-native benchmarks" OFF)
 
 if (NOT ("${CMAKE_GENERATOR_PLATFORM}" STREQUAL "Gaming.Xbox.Scarlett.x64"))
 	option(SENTRY_LINK_PTHREAD "Link platform threads library" ON)
@@ -645,6 +646,12 @@ endif()
 if(SENTRY_BUILD_TESTS)
 	add_subdirectory(tests/unit)
 	add_subdirectory(tests/fixtures/screenshot)
+	if(SENTRY_BUILD_BENCHMARKS)
+		set(BENCHMARK_ENABLE_TESTING OFF)
+		set(BENCHMARK_ENABLE_GTEST_TESTS OFF)
+		add_subdirectory(external/benchmark)
+		add_subdirectory(tests/benchmark)
+	endif()
 endif()
 
 # ===== example, also used as integration test =====
