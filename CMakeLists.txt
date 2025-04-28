@@ -644,13 +644,14 @@ endif()
 # ===== tests =====
 
 if(SENTRY_BUILD_TESTS)
+	add_subdirectory(tests/unit)
+	add_subdirectory(tests/fixtures/screenshot)
 	if(SENTRY_BUILD_BENCHMARKS)
 		set(BENCHMARK_ENABLE_TESTING OFF)
 		set(BENCHMARK_ENABLE_GTEST_TESTS OFF)
 		add_subdirectory(external/benchmark)
+		add_subdirectory(tests/benchmark)
 	endif()
-	add_subdirectory(tests/unit)
-	add_subdirectory(tests/fixtures/screenshot)
 endif()
 
 # ===== example, also used as integration test =====
