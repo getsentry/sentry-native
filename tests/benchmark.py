@@ -27,13 +27,13 @@ def test_benchmark(target, backend, cmake, httpserver, gbenchmark):
         },
     )
 
-    # make sure we are isolated from previous runs
-    shutil.rmtree(tmp_path / ".sentry-native", ignore_errors=True)
-
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
     benchmark_out = tmp_path / "benchmark.json"
 
-    for i in range(5):
+    for i in range(6):
+        # make sure we are isolated from previous runs
+        shutil.rmtree(tmp_path / ".sentry-native", ignore_errors=True)
+
         run(
             tmp_path,
             "sentry_benchmark",
@@ -41,4 +41,7 @@ def test_benchmark(target, backend, cmake, httpserver, gbenchmark):
             check=True,
             env=env,
         )
-        gbenchmark(benchmark_out)
+
+        # ignore warmup run
+        if i > 0:
+            gbenchmark(benchmark_out)
