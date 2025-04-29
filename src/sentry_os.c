@@ -396,7 +396,7 @@ fail:
     sentry_value_decref(os);
     return sentry_value_new_null();
 }
-#elif defined(SENTRY_PLATFORM_UNIX)
+#elif defined(SENTRY_PLATFORM_UNIX) && !defined(SENTRY_PLATFORM_PROSPERO)
 
 #    include <fcntl.h>
 #    include <sys/utsname.h>

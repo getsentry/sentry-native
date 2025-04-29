@@ -51,6 +51,7 @@ extern "C" {
 #    define SENTRY_PLATFORM_UNIX
 #elif defined(__PROSPERO__)
 #    define SENTRY_PLATFORM_PROSPERO
+#    define SENTRY_PLATFORM_UNIX
 #elif defined(__linux) || defined(__linux__)
 #    define SENTRY_PLATFORM_LINUX
 #    define SENTRY_PLATFORM_UNIX
