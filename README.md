@@ -363,6 +363,16 @@ Other important configuration options include:
   also means that for these kinds of crashes, `before_send` and `on_crash` will not be invoked before
   sending the minidump and thus have no effect.
 
+## Benchmarks
+
+The SDK is automatically benchmarked in the CI on every push to the `master` branch. The benchmarks cover the following scenarios:
+
+- **SDK initialization time**: Measures the duration of the `sentry_init()` call, representing the overall initialization time of the SDK.
+- **Backend startup time**: A subset of the SDK initialization time, focusing on the time required to initialize the `inproc`, `breakpad`, or `crashpad` backend.
+
+The benchmarks are run on Windows, macOS, and Linux, and the results are published on [GitHub Pages](https://getsentry.github.io/sentry-native/).
+If you want to run benchmarks locally, follow the instructions in the [contribution guide](./CONTRIBUTING.md).
+
 ## Development
 
 Please see the [contribution guide](./CONTRIBUTING.md).
