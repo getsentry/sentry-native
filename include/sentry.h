@@ -49,6 +49,8 @@ extern "C" {
 #    define SENTRY_PLATFORM_ANDROID
 #    define SENTRY_PLATFORM_LINUX
 #    define SENTRY_PLATFORM_UNIX
+#elif defined(__PROSPERO__)
+#    define SENTRY_PLATFORM_PROSPERO
 #elif defined(__linux) || defined(__linux__)
 #    define SENTRY_PLATFORM_LINUX
 #    define SENTRY_PLATFORM_UNIX
@@ -93,6 +95,8 @@ extern "C" {
 /* context type dependencies */
 #ifdef _WIN32
 #    include <windows.h>
+#elif defined(SENTRY_PLATFORM_PROSPERO)
+#    include <sys/signal.h>
 #else
 #    include <signal.h>
 #endif
@@ -499,6 +503,8 @@ SENTRY_EXPERIMENTAL_API void sentry_event_value_add_stacktrace(
 typedef struct sentry_ucontext_s {
 #ifdef _WIN32
     EXCEPTION_POINTERS exception_ptrs;
+#elif defined(SENTRY_PLATFORM_PROSPERO)
+    int data;
 #else
     int signum;
     siginfo_t *siginfo;

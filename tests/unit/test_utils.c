@@ -249,7 +249,7 @@ SENTRY_TEST(os)
     TEST_CHECK(!sentry_value_is_null(os));
     TEST_CHECK(sentry_value_get_type(sentry_value_get_by_key(os, "name"))
         == SENTRY_VALUE_TYPE_STRING);
-#ifndef SENTRY_PLATFORM_NX
+#if !defined(SENTRY_PLATFORM_NX) && !defined(SENTRY_PLATFORM_PROSPERO)
     TEST_CHECK(sentry_value_get_type(sentry_value_get_by_key(os, "version"))
         == SENTRY_VALUE_TYPE_STRING);
 #endif

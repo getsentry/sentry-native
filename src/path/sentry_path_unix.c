@@ -4,10 +4,15 @@
 #include "sentry_string.h"
 #include "sentry_utils.h"
 
-#include <dirent.h>
+#ifdef SENTRY_PLATFORM_PROSPERO
+#    include <sys/dirent.h>
+#else
+#    include <dirent.h>
+#    include <libgen.h>
+#endif
+
 #include <errno.h>
 #include <fcntl.h>
-#include <libgen.h>
 #include <limits.h>
 #include <stdlib.h>
 #include <string.h>
@@ -29,7 +34,9 @@ static const size_t MAX_READ_TO_BUFFER = 134217728;
 struct sentry_pathiter_s {
     const sentry_path_t *parent;
     sentry_path_t *current;
+#ifndef SENTRY_PLATFORM_PROSPERO
     DIR *dir_handle;
+#endif
 };
 
 static size_t
@@ -104,7 +111,8 @@ sentry__filelock_unlock(sentry_filelock_t *lock)
     lock->is_locked = false;
 }
 
-#ifndef SENTRY_PLATFORM_NX // defined in a downstream SDK.
+// Defined in a downstream SDK.
+#if !defined(SENTRY_PLATFORM_NX) && !defined(SENTRY_PLATFORM_PROSPERO)
 sentry_path_t *
 sentry__path_absolute(const sentry_path_t *path)
 {
@@ -160,6 +168,8 @@ sentry__path_current_exe(void)
     return NULL;
 }
 
+// Defined in a downstream SDK.
+#if !defined(SENTRY_PLATFORM_PROSPERO)
 sentry_path_t *
 sentry__path_dir(const sentry_path_t *path)
 {
@@ -177,6 +187,7 @@ sentry__path_dir(const sentry_path_t *path)
     }
     return sentry__path_from_str_owned(newpathbuf);
 }
+#endif
 
 sentry_path_t *
 sentry__path_from_str_n(const char *s, size_t s_len)
@@ -361,6 +372,8 @@ done:
     return rv;
 }
 
+// Defined in a downstream SDK.
+#if !defined(SENTRY_PLATFORM_PROSPERO)
 sentry_pathiter_t *
 sentry__path_iter_directory(const sentry_path_t *path)
 {
@@ -413,6 +426,7 @@ sentry__pathiter_free(sentry_pathiter_t *piter)
     sentry__path_free(piter->current);
     sentry_free(piter);
 }
+#endif
 
 int
 sentry__path_touch(const sentry_path_t *path)

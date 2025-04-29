@@ -592,7 +592,7 @@ fail:
     return sentry_value_new_null();
 }
 
-#elif defined(SENTRY_PLATFORM_NX)
+#elif defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_PROSPERO)
 
 // sentry__get_os_context() is defined in a downstream SDK.
 

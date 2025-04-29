@@ -160,7 +160,7 @@ SENTRY_TEST(path_basics)
 SENTRY_TEST(path_current_exe)
 {
     sentry_path_t *path = sentry__path_current_exe();
-#ifdef SENTRY_PLATFORM_NX
+#if defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_PROSPERO)
     // Not available on NX
     TEST_CHECK(!path);
 #else
