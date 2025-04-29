@@ -26,37 +26,37 @@ window.BENCHMARK_DATA = {
         "tool": "customSmallerIsBetter",
         "benches": [
           {
-            "name": "tests/benchmark.py::test_benchmark[init-inproc]",
+            "name": "SDK init (inproc)",
             "value": 0.8095489999959682,
             "unit": "ms",
             "extra": "Min 0.769ms\nMax 0.846ms\nMean 0.806ms\nStdDev 0.035ms\nMedian 0.810ms\nCPU 0.805ms"
           },
           {
-            "name": "tests/benchmark.py::test_benchmark[init-breakpad]",
+            "name": "SDK init (breakpad)",
             "value": 0.8225640000034673,
             "unit": "ms",
             "extra": "Min 0.777ms\nMax 0.870ms\nMean 0.820ms\nStdDev 0.036ms\nMedian 0.823ms\nCPU 0.819ms"
           },
           {
-            "name": "tests/benchmark.py::test_benchmark[init-crashpad]",
+            "name": "SDK init (crashpad)",
             "value": 3.5213050000209023,
             "unit": "ms",
             "extra": "Min 3.399ms\nMax 3.566ms\nMean 3.494ms\nStdDev 0.071ms\nMedian 3.521ms\nCPU 1.764ms"
           },
           {
-            "name": "tests/benchmark.py::test_benchmark[backend-inproc]",
+            "name": "Backend startup (inproc)",
             "value": 0.014426999996430823,
             "unit": "ms",
             "extra": "Min 0.014ms\nMax 0.035ms\nMean 0.018ms\nStdDev 0.009ms\nMedian 0.014ms\nCPU 0.017ms"
           },
           {
-            "name": "tests/benchmark.py::test_benchmark[backend-breakpad]",
+            "name": "Backend startup (breakpad)",
             "value": 0.026350000013053432,
             "unit": "ms",
             "extra": "Min 0.025ms\nMax 0.027ms\nMean 0.026ms\nStdDev 0.001ms\nMedian 0.026ms\nCPU 0.025ms"
           },
           {
-            "name": "tests/benchmark.py::test_benchmark[backend-crashpad]",
+            "name": "Backend startup (crashpad)",
             "value": 2.1143399999914436,
             "unit": "ms",
             "extra": "Min 2.091ms\nMax 2.352ms\nMean 2.161ms\nStdDev 0.108ms\nMedian 2.114ms\nCPU 0.656ms"
@@ -86,37 +86,37 @@ window.BENCHMARK_DATA = {
         "tool": "customSmallerIsBetter",
         "benches": [
           {
-            "name": "tests/benchmark.py::test_benchmark[init-inproc]",
+            "name": "SDK init (inproc)",
             "value": 0.7104510000033315,
             "unit": "ms",
             "extra": "Min 0.685ms\nMax 0.737ms\nMean 0.711ms\nStdDev 0.020ms\nMedian 0.710ms\nCPU 0.710ms"
           },
           {
-            "name": "tests/benchmark.py::test_benchmark[init-breakpad]",
+            "name": "SDK init (breakpad)",
             "value": 0.7114809999961835,
             "unit": "ms",
             "extra": "Min 0.693ms\nMax 0.720ms\nMean 0.709ms\nStdDev 0.012ms\nMedian 0.711ms\nCPU 0.708ms"
           },
           {
-            "name": "tests/benchmark.py::test_benchmark[init-crashpad]",
+            "name": "SDK init (crashpad)",
             "value": 2.915047000016102,
             "unit": "ms",
             "extra": "Min 2.824ms\nMax 3.115ms\nMean 2.927ms\nStdDev 0.117ms\nMedian 2.915ms\nCPU 1.512ms"
           },
           {
-            "name": "tests/benchmark.py::test_benchmark[backend-inproc]",
+            "name": "Backend startup (inproc)",
             "value": 0.012213000019301035,
             "unit": "ms",
             "extra": "Min 0.012ms\nMax 0.014ms\nMean 0.013ms\nStdDev 0.001ms\nMedian 0.012ms\nCPU 0.011ms"
           },
           {
-            "name": "tests/benchmark.py::test_benchmark[backend-breakpad]",
+            "name": "Backend startup (breakpad)",
             "value": 0.022201000007271432,
             "unit": "ms",
             "extra": "Min 0.021ms\nMax 0.048ms\nMean 0.027ms\nStdDev 0.012ms\nMedian 0.022ms\nCPU 0.026ms"
           },
           {
-            "name": "tests/benchmark.py::test_benchmark[backend-crashpad]",
+            "name": "Backend startup (crashpad)",
             "value": 1.7800770000064858,
             "unit": "ms",
             "extra": "Min 1.757ms\nMax 1.874ms\nMean 1.793ms\nStdDev 0.046ms\nMedian 1.780ms\nCPU 0.547ms"
@@ -208,37 +208,37 @@ window.BENCHMARK_DATA = {
         "tool": "customSmallerIsBetter",
         "benches": [
           {
-            "name": "tests/benchmark.py::test_benchmark[init-inproc]",
+            "name": "SDK init (inproc)",
             "value": 2.7705410000180564,
             "unit": "ms",
             "extra": "Min 2.502ms\nMax 3.283ms\nMean 2.865ms\nStdDev 0.304ms\nMedian 2.771ms\nCPU 1.643ms"
           },
           {
-            "name": "tests/benchmark.py::test_benchmark[init-breakpad]",
+            "name": "SDK init (breakpad)",
             "value": 3.2464999999888278,
             "unit": "ms",
             "extra": "Min 3.097ms\nMax 4.351ms\nMean 3.508ms\nStdDev 0.536ms\nMedian 3.246ms\nCPU 2.050ms"
           },
           {
-            "name": "tests/benchmark.py::test_benchmark[init-crashpad]",
+            "name": "SDK init (crashpad)",
             "value": 11.47666700001082,
             "unit": "ms",
             "extra": "Min 10.707ms\nMax 23.460ms\nMean 14.110ms\nStdDev 5.391ms\nMedian 11.477ms\nCPU 5.286ms"
           },
           {
-            "name": "tests/benchmark.py::test_benchmark[backend-inproc]",
+            "name": "Backend startup (inproc)",
             "value": 0.03070799999704832,
             "unit": "ms",
             "extra": "Min 0.010ms\nMax 0.043ms\nMean 0.031ms\nStdDev 0.013ms\nMedian 0.031ms\nCPU 0.030ms"
           },
           {
-            "name": "tests/benchmark.py::test_benchmark[backend-breakpad]",
+            "name": "Backend startup (breakpad)",
             "value": 0.17279200005759776,
             "unit": "ms",
             "extra": "Min 0.149ms\nMax 0.225ms\nMean 0.175ms\nStdDev 0.031ms\nMedian 0.173ms\nCPU 0.175ms"
           },
           {
-            "name": "tests/benchmark.py::test_benchmark[backend-crashpad]",
+            "name": "Backend startup (crashpad)",
             "value": 7.032834000028743,
             "unit": "ms",
             "extra": "Min 6.570ms\nMax 10.323ms\nMean 7.985ms\nStdDev 1.655ms\nMedian 7.033ms\nCPU 1.068ms"
@@ -268,37 +268,37 @@ window.BENCHMARK_DATA = {
         "tool": "customSmallerIsBetter",
         "benches": [
           {
-            "name": "tests/benchmark.py::test_benchmark[init-inproc]",
+            "name": "SDK init (inproc)",
             "value": 3.0543340000122043,
             "unit": "ms",
             "extra": "Min 2.733ms\nMax 3.161ms\nMean 3.012ms\nStdDev 0.162ms\nMedian 3.054ms\nCPU 1.611ms"
           },
           {
-            "name": "tests/benchmark.py::test_benchmark[init-breakpad]",
+            "name": "SDK init (breakpad)",
             "value": 2.900167000007059,
             "unit": "ms",
             "extra": "Min 2.818ms\nMax 3.200ms\nMean 2.976ms\nStdDev 0.162ms\nMedian 2.900ms\nCPU 1.721ms"
           },
           {
-            "name": "tests/benchmark.py::test_benchmark[init-crashpad]",
+            "name": "SDK init (crashpad)",
             "value": 9.695250000049782,
             "unit": "ms",
             "extra": "Min 8.815ms\nMax 10.285ms\nMean 9.604ms\nStdDev 0.585ms\nMedian 9.695ms\nCPU 3.491ms"
           },
           {
-            "name": "tests/benchmark.py::test_benchmark[backend-inproc]",
+            "name": "Backend startup (inproc)",
             "value": 0.02612499997667328,
             "unit": "ms",
             "extra": "Min 0.011ms\nMax 0.034ms\nMean 0.024ms\nStdDev 0.008ms\nMedian 0.026ms\nCPU 0.023ms"
           },
           {
-            "name": "tests/benchmark.py::test_benchmark[backend-breakpad]",
+            "name": "Backend startup (breakpad)",
             "value": 0.17837499990491779,
             "unit": "ms",
             "extra": "Min 0.137ms\nMax 0.211ms\nMean 0.178ms\nStdDev 0.027ms\nMedian 0.178ms\nCPU 0.178ms"
           },
           {
-            "name": "tests/benchmark.py::test_benchmark[backend-crashpad]",
+            "name": "Backend startup (crashpad)",
             "value": 4.895125000075495,
             "unit": "ms",
             "extra": "Min 4.426ms\nMax 6.221ms\nMean 5.161ms\nStdDev 0.692ms\nMedian 4.895ms\nCPU 0.755ms"
@@ -390,37 +390,37 @@ window.BENCHMARK_DATA = {
         "tool": "customSmallerIsBetter",
         "benches": [
           {
-            "name": "tests/benchmark.py::test_benchmark[init-inproc]",
+            "name": "SDK init (inproc)",
             "value": 7.0536999999148975,
             "unit": "ms",
             "extra": "Min 6.748ms\nMax 8.967ms\nMean 7.484ms\nStdDev 0.938ms\nMedian 7.054ms"
           },
           {
-            "name": "tests/benchmark.py::test_benchmark[init-breakpad]",
+            "name": "SDK init (breakpad)",
             "value": 7.239299999923787,
             "unit": "ms",
             "extra": "Min 7.132ms\nMax 7.419ms\nMean 7.276ms\nStdDev 0.124ms\nMedian 7.239ms"
           },
           {
-            "name": "tests/benchmark.py::test_benchmark[init-crashpad]",
+            "name": "SDK init (crashpad)",
             "value": 16.937500000040018,
             "unit": "ms",
             "extra": "Min 16.876ms\nMax 17.940ms\nMean 17.249ms\nStdDev 0.476ms\nMedian 16.938ms"
           },
           {
-            "name": "tests/benchmark.py::test_benchmark[backend-inproc]",
+            "name": "Backend startup (inproc)",
             "value": 0.009500000032858225,
             "unit": "ms",
             "extra": "Min 0.009ms\nMax 0.010ms\nMean 0.010ms\nStdDev 0.000ms\nMedian 0.010ms"
           },
           {
-            "name": "tests/benchmark.py::test_benchmark[backend-breakpad]",
+            "name": "Backend startup (breakpad)",
             "value": 0.31930000000102154,
             "unit": "ms",
             "extra": "Min 0.314ms\nMax 0.338ms\nMean 0.322ms\nStdDev 0.010ms\nMedian 0.319ms"
           },
           {
-            "name": "tests/benchmark.py::test_benchmark[backend-crashpad]",
+            "name": "Backend startup (crashpad)",
             "value": 9.357399999998961,
             "unit": "ms",
             "extra": "Min 9.008ms\nMax 9.469ms\nMean 9.309ms\nStdDev 0.178ms\nMedian 9.357ms"
@@ -450,37 +450,37 @@ window.BENCHMARK_DATA = {
         "tool": "customSmallerIsBetter",
         "benches": [
           {
-            "name": "tests/benchmark.py::test_benchmark[init-inproc]",
+            "name": "SDK init (inproc)",
             "value": 6.937600000014754,
             "unit": "ms",
             "extra": "Min 6.786ms\nMax 7.108ms\nMean 6.941ms\nStdDev 0.124ms\nMedian 6.938ms"
           },
           {
-            "name": "tests/benchmark.py::test_benchmark[init-breakpad]",
+            "name": "SDK init (breakpad)",
             "value": 7.598799999982475,
             "unit": "ms",
             "extra": "Min 7.271ms\nMax 11.541ms\nMean 8.430ms\nStdDev 1.774ms\nMedian 7.599ms"
           },
           {
-            "name": "tests/benchmark.py::test_benchmark[init-crashpad]",
+            "name": "SDK init (crashpad)",
             "value": 16.961799999990035,
             "unit": "ms",
             "extra": "Min 16.782ms\nMax 17.435ms\nMean 17.066ms\nStdDev 0.295ms\nMedian 16.962ms"
           },
           {
-            "name": "tests/benchmark.py::test_benchmark[backend-inproc]",
+            "name": "Backend startup (inproc)",
             "value": 0.01190000000406144,
             "unit": "ms",
             "extra": "Min 0.009ms\nMax 0.023ms\nMean 0.013ms\nStdDev 0.006ms\nMedian 0.012ms"
           },
           {
-            "name": "tests/benchmark.py::test_benchmark[backend-breakpad]",
+            "name": "Backend startup (breakpad)",
             "value": 0.290400000039881,
             "unit": "ms",
             "extra": "Min 0.285ms\nMax 0.308ms\nMean 0.293ms\nStdDev 0.009ms\nMedian 0.290ms"
           },
           {
-            "name": "tests/benchmark.py::test_benchmark[backend-crashpad]",
+            "name": "Backend startup (crashpad)",
             "value": 8.9516000000458,
             "unit": "ms",
             "extra": "Min 8.791ms\nMax 9.202ms\nMean 8.968ms\nStdDev 0.180ms\nMedian 8.952ms"
