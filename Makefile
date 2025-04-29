@@ -43,6 +43,10 @@ test-leaks: update-test-discovery CMakeLists.txt
 	@ASAN_OPTIONS=detect_leaks=1 ./leak-build/sentry_test_unit
 .PHONY: test-leaks
 
+benchmark: setup-venv
+	.venv/bin/pytest tests/benchmark.py --verbose
+.PHONY: benchmark
+
 clean: build/Makefile
 	@$(MAKE) -C build clean
 .PHONY: clean
