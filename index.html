@@ -126,6 +126,12 @@
           _: '#333333'
         };
 
+        const benchColors = {
+          Windows: '#357ec7',
+          macOS: '#717378',
+          Linux: '#e95420',
+        };
+
         function init() {
           function collectBenchesPerTestCase(entries) {
             const map = new Map();
@@ -170,12 +176,11 @@
 
         function renderAllChars(dataSets) {
 
-          function renderGraph(parent, name, dataset) {
+          function renderGraph(parent, name, dataset, color) {
             const canvas = document.createElement('canvas');
             canvas.className = 'benchmark-chart';
             parent.appendChild(canvas);
 
-            const color = toolColors[dataset.length > 0 ? dataset[0].tool : '_'];
             const data = {
               labels: dataset.map(d => d.commit.id.slice(0, 7)),
               datasets: [
@@ -187,6 +192,7 @@
                 }
               ],
             };
+            const unit = dataset.length > 0 ? dataset[0].bench.unit : '';
             const options = {
               scales: {
                 xAxes: [
@@ -201,7 +207,7 @@
                   {
                     scaleLabel: {
                       display: true,
-                      labelString: dataset.length > 0 ? dataset[0].bench.unit : '',
+                      labelString: 'Median' + (unit ? ` (${unit})` : ''),
                     },
                     ticks: {
                       beginAtZero: true,
@@ -214,7 +220,7 @@
                   afterTitle: items => {
                     const {index} = items[0];
                     const data = dataset[index];
-                    return '\n' + data.commit.message + '\n\n' + data.commit.timestamp + ' committed by @' + data.commit.committer.username + '\n';
+                    return '\n' + data.commit.message.slice(0, data.commit.message.indexOf('\n')) + '\n\n' + data.commit.timestamp + ' by @' + data.commit.author.username + '\n';
                   },
                   label: item => {
                     let label = item.value;
@@ -263,8 +269,9 @@
             graphsElem.className = 'benchmark-graphs';
             setElem.appendChild(graphsElem);
 
+            const color = benchColors[name];
             for (const [benchName, benches] of benchSet.entries()) {
-              renderGraph(graphsElem, benchName, benches)
+              renderGraph(graphsElem, benchName, benches, color)
             }
           }
 
