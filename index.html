@@ -192,6 +192,7 @@
                 }
               ],
             };
+            const unit = dataset.length > 0 ? dataset[0].bench.unit : '';
             const options = {
               scales: {
                 xAxes: [
@@ -206,7 +207,7 @@
                   {
                     scaleLabel: {
                       display: true,
-                      labelString: dataset.length > 0 ? dataset[0].bench.unit : '',
+                      labelString: 'Median' + (unit ? ` (${unit})` : ''),
                     },
                     ticks: {
                       beginAtZero: true,
