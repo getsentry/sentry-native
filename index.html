@@ -126,6 +126,12 @@
           _: '#333333'
         };
 
+        const benchColors = {
+          Windows: '#357ec7',
+          macOS: '#717378',
+          Linux: '#e95420',
+        };
+
         function init() {
           function collectBenchesPerTestCase(entries) {
             const map = new Map();
@@ -170,12 +176,11 @@
 
         function renderAllChars(dataSets) {
 
-          function renderGraph(parent, name, dataset) {
+          function renderGraph(parent, name, dataset, color) {
             const canvas = document.createElement('canvas');
             canvas.className = 'benchmark-chart';
             parent.appendChild(canvas);
 
-            const color = toolColors[dataset.length > 0 ? dataset[0].tool : '_'];
             const data = {
               labels: dataset.map(d => d.commit.id.slice(0, 7)),
               datasets: [
@@ -263,8 +268,9 @@
             graphsElem.className = 'benchmark-graphs';
             setElem.appendChild(graphsElem);
 
+            const color = benchColors[name];
             for (const [benchName, benches] of benchSet.entries()) {
-              renderGraph(graphsElem, benchName, benches)
+              renderGraph(graphsElem, benchName, benches, color)
             }
           }
 
