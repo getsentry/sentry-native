@@ -6,18 +6,7 @@ import pytest
 from . import make_dsn, run
 
 
-@pytest.mark.parametrize(
-    "target,backend",
-    [
-        ("init", "inproc"),
-        ("init", "breakpad"),
-        ("init", "crashpad"),
-        ("backend", "inproc"),
-        ("backend", "breakpad"),
-        ("backend", "crashpad"),
-    ],
-)
-def test_benchmark(target, backend, cmake, httpserver, gbenchmark):
+def run_benchmark(target, backend, cmake, httpserver, gbenchmark, label):
     tmp_path = cmake(
         ["sentry_benchmark"],
         {
@@ -44,4 +33,23 @@ def test_benchmark(target, backend, cmake, httpserver, gbenchmark):
 
         # ignore warmup run
         if i > 0:
-            gbenchmark(benchmark_out)
+            gbenchmark(benchmark_out, label)
+
+
+@pytest.mark.parametrize("backend", ["inproc", "breakpad", "crashpad"])
+def test_benchmark_init(backend, cmake, httpserver, gbenchmark):
+    run_benchmark(
+        "init", backend, cmake, httpserver, gbenchmark, f"SDK init ({backend})"
+    )
+
+
+@pytest.mark.parametrize("backend", ["inproc", "breakpad", "crashpad"])
+def test_benchmark_backend(backend, cmake, httpserver, gbenchmark):
+    run_benchmark(
+        "backend",
+        backend,
+        cmake,
+        httpserver,
+        gbenchmark,
+        f"Backend startup ({backend})",
+    )

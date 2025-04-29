@@ -8,6 +8,7 @@ from . import run
 from .cmake import CMake
 
 
+LABEL = "label"
 TIME_UNIT = "time_unit"
 REAL_TIME = "real_time"
 CPU_TIME = "cpu_time"
@@ -69,7 +70,7 @@ def pytest_configure(config):
 
 @pytest.fixture
 def gbenchmark():
-    def _load(json_path, test_name=None):
+    def _load(json_path, label, test_name=None):
         if test_name is None:
             test_name = os.environ.get("PYTEST_CURRENT_TEST").split(" ")[0]
 
@@ -78,6 +79,7 @@ def gbenchmark():
 
         if test_name not in gbenchmarks:
             gbenchmarks[test_name] = {
+                LABEL: label,
                 TIME_UNIT: "",
                 REAL_TIME: [],
                 CPU_TIME: [],
@@ -113,7 +115,7 @@ def _get_benchmark(name, separator):
     ]
 
     return {
-        "name": name,
+        "name": data[LABEL],
         "unit": unit,
         "value": statistics.median(real_time),
         "extra": separator.join(e for e in extra if e),
