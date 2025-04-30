@@ -111,8 +111,8 @@ static void
 calculate_region(DWORD pid, HRGN region)
 {
 #ifdef _GAMING_XBOX_SCARLETT
-    (DWORD)pid;
-    (HRGN)region;
+    (DWORD) pid;
+    (HRGN) region;
 #else
     HMODULE dwmapi = load_library(L"dwmapi.dll");
     if (!dwmapi) {
