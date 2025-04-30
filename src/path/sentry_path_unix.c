@@ -31,13 +31,13 @@
 // only read this many bytes to memory ever
 static const size_t MAX_READ_TO_BUFFER = 134217728;
 
+#ifndef SENTRY_PLATFORM_PS
 struct sentry_pathiter_s {
     const sentry_path_t *parent;
     sentry_path_t *current;
-#ifndef SENTRY_PLATFORM_PS
     DIR *dir_handle;
-#endif
 };
+#endif
 
 static size_t
 write_loop(int fd, const char *buf, size_t buf_len)
