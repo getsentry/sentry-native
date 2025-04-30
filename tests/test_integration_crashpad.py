@@ -277,7 +277,9 @@ def test_crashpad_wer_crash(cmake, httpserver, run_args):
     envelope = Envelope.deserialize(session)
 
     assert_session(envelope, {"status": "crashed", "errors": 1})
-    assert_crashpad_upload(multipart, expect_view_hierarchy=True)
+    assert_crashpad_upload(
+        multipart, expect_attachment=True, expect_view_hierarchy=True
+    )
 
     # Windows throttles WER crash reporting frequency, so let's wait a bit
     time.sleep(2)
@@ -357,7 +359,9 @@ def test_crashpad_dumping_crash(cmake, httpserver, run_args, build_args):
 
     envelope = Envelope.deserialize(session.get_data())
     assert_session(envelope, {"status": "crashed", "errors": 1})
-    assert_crashpad_upload(multipart, expect_view_hierarchy=True)
+    assert_crashpad_upload(
+        multipart, expect_attachment=True, expect_view_hierarchy=True
+    )
 
 
 @pytest.mark.parametrize(
@@ -423,7 +427,9 @@ def test_crashpad_dumping_stack_overflow(cmake, httpserver, build_args):
 
     envelope = Envelope.deserialize(session.get_data())
     assert_session(envelope, {"status": "crashed", "errors": 1})
-    assert_crashpad_upload(multipart, expect_view_hierarchy=True)
+    assert_crashpad_upload(
+        multipart, expect_attachment=True, expect_view_hierarchy=True
+    )
 
 
 def is_session_envelope(data):
