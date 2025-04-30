@@ -211,7 +211,7 @@ SENTRY_TEST(dsn_store_url_custom_agent)
 
 SENTRY_TEST(page_allocator)
 {
-#ifndef SENTRY_PLATFORM_UNIX
+#if !defined(SENTRY_PLATFORM_UNIX) || defined(SENTRY_PLATFORM_PS)
     SKIP_TEST();
 #else
     const size_t size = 4096;
