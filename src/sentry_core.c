@@ -1418,18 +1418,30 @@ sentry_capture_minidump_n(const char *path, size_t path_len)
 void
 sentry_add_attachment(const char *path)
 {
+    sentry_path_t *attachment = sentry__path_from_str(path);
+    SENTRY_WITH_OPTIONS (options) {
+        if (options->backend && options->backend->add_attachment_func) {
+            options->backend->add_attachment_func(options->backend, attachment);
+        }
+    }
     SENTRY_WITH_SCOPE_MUT (scope) {
         sentry__attachment_add(
-            &scope->attachments, sentry__path_from_str(path), ATTACHMENT, NULL);
+            &scope->attachments, attachment, ATTACHMENT, NULL);
     }
 }
 
 void
 sentry_remove_attachment(const char *path)
 {
+    sentry_path_t *attachment = sentry__path_from_str(path);
+    SENTRY_WITH_OPTIONS (options) {
+        if (options->backend && options->backend->remove_attachment_func) {
+            options->backend->remove_attachment_func(
+                options->backend, attachment);
+        }
+    }
     SENTRY_WITH_SCOPE_MUT (scope) {
-        sentry__attachment_remove(
-            &scope->attachments, sentry__path_from_str(path));
+        sentry__attachment_remove(&scope->attachments, attachment);
     }
 }
 
@@ -1437,18 +1449,30 @@ sentry_remove_attachment(const char *path)
 void
 sentry_add_attachmentw(const wchar_t *path)
 {
+    sentry_path_t *attachment = sentry__path_from_wstr(path);
+    SENTRY_WITH_OPTIONS (options) {
+        if (options->backend && options->backend->add_attachment_func) {
+            options->backend->add_attachment_func(options->backend, attachment);
+        }
+    }
     SENTRY_WITH_SCOPE_MUT (scope) {
-        sentry__attachment_add(&scope->attachments,
-            sentry__path_from_wstr(path), ATTACHMENT, NULL);
+        sentry__attachment_add(
+            &scope->attachments, attachment, ATTACHMENT, NULL);
     }
 }
 
 void
 sentry_remove_attachmentw(const wchar_t *path)
 {
+    sentry_path_t *attachment = sentry__path_from_wstr(path);
+    SENTRY_WITH_OPTIONS (options) {
+        if (options->backend && options->backend->remove_attachment_func) {
+            options->backend->remove_attachment_func(
+                options->backend, attachment);
+        }
+    }
     SENTRY_WITH_SCOPE_MUT (scope) {
-        sentry__attachment_remove(
-            &scope->attachments, sentry__path_from_wstr(path));
+        sentry__attachment_remove(&scope->attachments, attachment);
     }
 }
 #endif
