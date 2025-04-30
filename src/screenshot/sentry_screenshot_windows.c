@@ -152,7 +152,7 @@ bool
 sentry__screenshot_capture(const sentry_path_t *path)
 {
 #ifdef _GAMING_XBOX_SCARLETT
-    (sentry_path_t*)path;
+    (sentry_path_t *)path;
     return false;
 #else
     HRGN region = CreateRectRgn(0, 0, 0, 0);
