@@ -396,7 +396,7 @@ fail:
     sentry_value_decref(os);
     return sentry_value_new_null();
 }
-#elif defined(SENTRY_PLATFORM_UNIX) && !defined(SENTRY_PLATFORM_PROSPERO)
+#elif defined(SENTRY_PLATFORM_UNIX) && !defined(SENTRY_PLATFORM_PS)
 
 #    include <fcntl.h>
 #    include <sys/utsname.h>
@@ -592,7 +592,7 @@ fail:
     return sentry_value_new_null();
 }
 
-#elif defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_PROSPERO)
+#elif defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_PS)
 
 // sentry__get_os_context() is defined in a downstream SDK.
 

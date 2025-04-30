@@ -15,7 +15,7 @@
 #    include <time.h>
 #endif
 
-#ifdef SENTRY_PLATFORM_PROSPERO
+#ifdef SENTRY_PLATFORM_PS
 #    undef MIN
 #    undef MAX
 #    define getenv(_) NULL

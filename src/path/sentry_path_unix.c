@@ -4,7 +4,7 @@
 #include "sentry_string.h"
 #include "sentry_utils.h"
 
-#ifdef SENTRY_PLATFORM_PROSPERO
+#ifdef SENTRY_PLATFORM_PS
 #    include <sys/dirent.h>
 #else
 #    include <dirent.h>
@@ -34,7 +34,7 @@ static const size_t MAX_READ_TO_BUFFER = 134217728;
 struct sentry_pathiter_s {
     const sentry_path_t *parent;
     sentry_path_t *current;
-#ifndef SENTRY_PLATFORM_PROSPERO
+#ifndef SENTRY_PLATFORM_PS
     DIR *dir_handle;
 #endif
 };
@@ -112,7 +112,7 @@ sentry__filelock_unlock(sentry_filelock_t *lock)
 }
 
 // Defined in a downstream SDK.
-#if !defined(SENTRY_PLATFORM_NX) && !defined(SENTRY_PLATFORM_PROSPERO)
+#if !defined(SENTRY_PLATFORM_NX) && !defined(SENTRY_PLATFORM_PS)
 sentry_path_t *
 sentry__path_absolute(const sentry_path_t *path)
 {
@@ -169,7 +169,7 @@ sentry__path_current_exe(void)
 }
 
 // Defined in a downstream SDK.
-#if !defined(SENTRY_PLATFORM_PROSPERO)
+#if !defined(SENTRY_PLATFORM_PS)
 sentry_path_t *
 sentry__path_dir(const sentry_path_t *path)
 {
@@ -373,7 +373,7 @@ done:
 }
 
 // Defined in a downstream SDK.
-#if !defined(SENTRY_PLATFORM_PROSPERO)
+#if !defined(SENTRY_PLATFORM_PS)
 sentry_pathiter_t *
 sentry__path_iter_directory(const sentry_path_t *path)
 {

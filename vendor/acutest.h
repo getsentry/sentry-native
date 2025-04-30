@@ -250,11 +250,13 @@
 #if defined(unix) || defined(__unix__) || defined(__unix) || defined(__APPLE__)
     #define ACUTEST_UNIX__      1
     #include <errno.h>
-    #include <libgen.h>
     #include <unistd.h>
     #include <sys/types.h>
+#if !defined (__PROSPERO__)
+    #include <libgen.h>
     #include <sys/wait.h>
     #include <signal.h>
+#endif
     #include <time.h>
 
     #if defined CLOCK_PROCESS_CPUTIME_ID  &&  defined CLOCK_MONOTONIC

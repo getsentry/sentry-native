@@ -389,7 +389,7 @@ sentry__usec_time_to_iso8601(uint64_t time)
     size_t buf_len = sizeof(buf);
     time_t secs = time / 1000000;
     struct tm *tm;
-#if defined(SENTRY_PLATFORM_WINDOWS) || defined(SENTRY_PLATFORM_PROSPERO)
+#if defined(SENTRY_PLATFORM_WINDOWS) || defined(SENTRY_PLATFORM_PS)
     tm = gmtime(&secs);
 #else
     struct tm tm_buf;
@@ -462,7 +462,7 @@ sentry__iso8601_to_usec(const char *iso)
     tm.tm_sec = s;
 #ifdef SENTRY_PLATFORM_WINDOWS
     time_t time = _mkgmtime(&tm);
-#elif defined(SENTRY_PLATFORM_PROSPERO)
+#elif defined(SENTRY_PLATFORM_PS)
     time_t time = mktime(&tm); // TODO is this correct?
 #elif defined(SENTRY_PLATFORM_AIX)
     /*
@@ -509,7 +509,7 @@ sentry__iso8601_to_usec(const char *iso)
 // to ensure the C locale is also used there.
 #if !defined(SENTRY_PLATFORM_ANDROID) && !defined(SENTRY_PLATFORM_IOS)         \
     && !defined(SENTRY_PLATFORM_AIX) && !defined(SENTRY_PLATFORM_NX)           \
-    && !defined(SENTRY_PLATFORM_PROSPERO)
+    && !defined(SENTRY_PLATFORM_PS)
 #    define HAS_C_LOCALE
 #endif
 
