@@ -92,7 +92,7 @@ sentry__should_skip_upload(void)
     return skip;
 }
 
-#ifdef SENTRY_PLATFORM_NX
+#if defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_PS)
 int
 sentry__native_init(sentry_options_t *options)
 #else
