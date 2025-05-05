@@ -1620,5 +1620,32 @@ SENTRY_TEST(set_trace_id_twice)
     sentry_close();
 }
 
+SENTRY_TEST(propagation_context_init)
+{
+    // initialize SDK so we have a scope
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_traces_sample_rate(options, 1.0);
+    sentry_options_set_sample_rate(options, 1.0);
+    sentry_init(options);
+
+    sentry_transaction_context_t *tx_ctx
+        = sentry_transaction_context_new("wow!", NULL);
+    sentry_transaction_t *tx
+        = sentry_transaction_start(tx_ctx, sentry_value_new_null());
+    sentry_span_t *span_child
+        = sentry_transaction_start_child(tx, "op", "desc");
+
+    const char *propagation_context_trace_id = sentry_value_as_string(
+        sentry_value_get_by_key(tx->inner, "trace_id"));
+    // on SDK init, propagation_context is set with a trace_id and span_id
+    // the trace_id is used for both events and spans
+    apply_scope_and_check_trace_context(
+        options, propagation_context_trace_id, "");
+
+    sentry_span_finish(span_child);
+    sentry_transaction_finish(tx);
+    sentry_close();
+}
+
 #undef IS_NULL
 #undef CHECK_STRING_PROPERTY
