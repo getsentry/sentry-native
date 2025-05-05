@@ -6,6 +6,10 @@
 
 - Provide an option for downstream SDKs to attach a view hierarchy file. ([#1191](https://github.com/getsentry/sentry-native/pull/1191))
 
+**Fixes**:
+
+- Use `propagation_context` as the single source of `trace_id` for spans and events. ([#1200](https://github.com/getsentry/sentry-native/pull/1200))
+
 ## 0.8.3
 
 **Features**:
