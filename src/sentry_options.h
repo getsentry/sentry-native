@@ -83,6 +83,11 @@ struct sentry_options_s {
     long refcount;
     uint64_t shutdown_timeout;
     sentry_handler_strategy_t handler_strategy;
+
+#ifdef SENTRY_PLATFORM_NX
+    void (*network_connect_func)(void);
+    bool send_default_pii;
+#endif
 };
 
 /**

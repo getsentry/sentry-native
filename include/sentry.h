@@ -30,7 +30,7 @@ extern "C" {
 #        define SENTRY_SDK_NAME "sentry.native"
 #    endif
 #endif
-#define SENTRY_SDK_VERSION "0.8.3"
+#define SENTRY_SDK_VERSION "0.8.4"
 #define SENTRY_SDK_USER_AGENT SENTRY_SDK_NAME "/" SENTRY_SDK_VERSION
 
 /* common platform detection */
@@ -795,6 +795,22 @@ SENTRY_API void sentry_options_free(sentry_options_t *opts);
 SENTRY_API void sentry_options_set_transport(
     sentry_options_t *opts, sentry_transport_t *transport);
 
+#ifdef SENTRY_PLATFORM_NX
+/**
+ * Function to start a network connection.
+ * This is called on a background thread so it must be thread-safe.
+ */
+SENTRY_API void sentry_options_set_network_connect_func(
+    sentry_options_t *opts, void (*network_connect_func)(void));
+
+/**
+ * If false (the default), the SDK won't add PII or other sensitive data to the
+ * payload. For example, a pseudo-random identifier combining device and app ID.
+ */
+SENTRY_API void sentry_options_set_send_default_pii(
+    sentry_options_t *opts, int value);
+#endif
+
 /**
  * Type of the `before_send` callback.
  *
@@ -1298,6 +1314,30 @@ SENTRY_API void sentry_options_set_database_pathw(
     sentry_options_t *opts, const wchar_t *path);
 SENTRY_API void sentry_options_set_database_pathw_n(
     sentry_options_t *opts, const wchar_t *path, size_t path_len);
+
+/**
+ * Allows users to define a thread stack guarantee manually on each thread. This
+ * is necessary for crash handlers to run after a thread crashed due to a
+ * stack-overflow on Windows.
+ *
+ * By default the Native SDK automatically sets this value for you, but in some
+ * cases it might be preferable to set these values yourself for each thread you
+ * manage. Ensure to disable the `SENTRY_THREAD_STACK_GUARANTEE_AUTO_INIT` CMake
+ * option when building the Native SDK to have full control over each threads
+ * stack guarantee.
+ *
+ * The input parameter specifies a size in bytes and should be a multiple of the
+ * page size. Returns `1` if the thread stack guarantee was set successfully and
+ * `0` otherwise.
+ *
+ * Note: when we auto-assign the stack guarantee we check against the thread's
+ * stack reserve (see `SENTRY_THREAD_STACK_GUARANTEE_FACTOR` in the
+ * `README.md`). This check is not applied when you call this function.
+ * Note: this function depends on the SDK being initialized when doing static
+ * builds or in any configuration on Xbox.
+ */
+SENTRY_EXPERIMENTAL_API int sentry_set_thread_stack_guarantee(
+    uint32_t stack_guarantee_in_bytes);
 #endif
 
 /**

@@ -137,6 +137,8 @@ SENTRY_TEST(transaction_name_backfill_on_finish)
 
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    // Disable sessions or this test would fail if env:SENTRY_RELEASE is set.
+    sentry_options_set_auto_session_tracking(options, 0);
 
     sentry_transport_t *transport = sentry_transport_new(check_backfilled_name);
     sentry_transport_set_state(transport, &called);
@@ -273,6 +275,8 @@ SENTRY_TEST(transport_sampling_transactions)
 
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    // Disable sessions or this test would fail if env:SENTRY_RELEASE is set.
+    sentry_options_set_auto_session_tracking(options, 0);
 
     sentry_transport_t *transport
         = sentry_transport_new(send_transaction_envelope_test_basic);
@@ -318,6 +322,8 @@ SENTRY_TEST(transactions_skip_before_send)
 
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    // Disable sessions or this test would fail if env:SENTRY_RELEASE is set.
+    sentry_options_set_auto_session_tracking(options, 0);
 
     sentry_transport_t *transport
         = sentry_transport_new(send_transaction_envelope_test_basic);
@@ -356,6 +362,8 @@ SENTRY_TEST(multiple_transactions)
 
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    // Disable sessions or this test would fail if env:SENTRY_RELEASE is set.
+    sentry_options_set_auto_session_tracking(options, 0);
 
     sentry_transport_t *transport = sentry_transport_new(before_transport);
     sentry_transport_set_state(transport, &called_transport);
@@ -735,6 +743,8 @@ SENTRY_TEST(drop_unfinished_spans)
 
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    // Disable sessions or this test would fail if env:SENTRY_RELEASE is set.
+    sentry_options_set_auto_session_tracking(options, 0);
 
     sentry_transport_t *transport = sentry_transport_new(check_spans);
     sentry_transport_set_state(transport, &called_transport);

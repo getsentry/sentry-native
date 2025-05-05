@@ -187,26 +187,23 @@ $ export SDKROOT=$(xcrun --sdk macosx --show-sdk-path)
 The following options can be set when running the cmake generator, for example
 using `cmake -D BUILD_SHARED_LIBS=OFF ..`.
 
-- `SENTRY_BUILD_SHARED_LIBS` (Default: ON):
+- `SENTRY_BUILD_SHARED_LIBS` (Default: `ON`):
   By default, `sentry` is built as a shared library. Setting this option to
   `OFF` will build `sentry` as a static library instead.
   If sentry is used as a subdirectory of another project, the value `BUILD_SHARED_LIBS` will be inherited by default.
 
   When using `sentry` as a static library, make sure to `#define SENTRY_BUILD_STATIC 1` before including the sentry header.
 
-- `SENTRY_PIC` (Default: ON):
+- `SENTRY_PIC` (Default: `ON`):
   By default, `sentry` is built as a position-independent library.
 
-- `SENTRY_EXPORT_SYMBOLS` (Default: ON):
-  By default, `sentry` exposes all symbols in the dynamic symbol table. You might want to disable it if the program intends to `dlopen` third-party shared libraries and avoid symbol collisions.
-
-- `SENTRY_BUILD_RUNTIMESTATIC` (Default: OFF):
+- `SENTRY_BUILD_RUNTIMESTATIC` (Default: `OFF`):
   Enables linking with the static MSVC runtime. Has no effect if the compiler is not MSVC.
 
-- `SENTRY_LINK_PTHREAD` (Default: ON):
+- `SENTRY_LINK_PTHREAD` (Default: `ON`):
   Links platform threads library like `pthread` on UNIX targets.
 
-- `SENTRY_BUILD_FORCE32` (Default: OFF):
+- `SENTRY_BUILD_FORCE32` (Default: `OFF`):
   Forces cross-compilation from 64-bit host to 32-bit target. Only affects Linux.
 
 - `CMAKE_SYSTEM_VERSION` (Default: depending on Windows SDK version):
@@ -246,32 +243,58 @@ using `cmake -D BUILD_SHARED_LIBS=OFF ..`.
   - **none**: This builds `sentry-native` without a backend, so it does not handle
     crashes. It is primarily used for tests.
 
-- `SENTRY_INTEGRATION_QT` (Default: OFF):
+- `SENTRY_INTEGRATION_QT` (Default: `OFF`):
   Builds the Qt integration, which turns Qt log messages into breadcrumbs.
 
-- `SENTRY_BREAKPAD_SYSTEM` (Default: OFF):
+- `SENTRY_BREAKPAD_SYSTEM` (Default: `OFF`):
   This instructs the build system to use system-installed breakpad libraries instead of the in-tree version.
 
-- `SENTRY_TRANSPORT_COMPRESSION` (Default: OFF):
+- `SENTRY_TRANSPORT_COMPRESSION` (Default: `OFF`):
   Adds Gzip transport compression. Requires `zlib`.
 
 - `SENTRY_FOLDER` (Default: not defined):
-  Sets the sentry-native projects folder name for generators that support project hierarchy (like Microsoft Visual Studio).
-  To use this feature, you need to enable hierarchy via [`USE_FOLDERS` property](https://cmake.org/cmake/help/latest/prop_gbl/USE_FOLDERS.html)
+  Sets the sentry-native projects folder name for generators that support project hierarchy (like Microsoft Visual
+  Studio). To use this feature, you need to enable hierarchy via [`USE_FOLDERS` property](https://cmake.org/cmake/help/latest/prop_gbl/USE_FOLDERS.html)
 
-- `CRASHPAD_ENABLE_STACKTRACE` (Default: OFF):
-  This enables client-side stackwalking when using the crashpad backend. Stack unwinding will happen on the client's machine
-  and the result will be submitted to Sentry attached to the generated minidump.
-  Note that this feature is still experimental.
+- `CRASHPAD_ENABLE_STACKTRACE` (Default: `OFF`):
+  This enables client-side stackwalking when using the crashpad backend. Stack unwinding will happen on the client's
+  machine and the result will be submitted to Sentry attached to the generated minidump. **Note that this feature is
+  still experimental**.
 
-- `SENTRY_SDK_NAME` (Default: sentry.native or sentry.native.android):
+- `SENTRY_SDK_NAME` (Default: `sentry.native` or `sentry.native.android`):
   Sets the SDK name that should be included in the reported events. If you're overriding this, also define
   the same value using `target_compile_definitions()` on your own targets that include `sentry.h`.
+
+- `SENTRY_HANDLER_STACK_SIZE` (Default: `64`):
+  This specifies the size in KiB of the stack reserved for the crash handler (including hooks like `on_crash` and
+  `before_send`) on Windows, Linux and the `inproc` backend in macOS. Reserving the stack is necessary in case of a
+  stack-overflow, where the handler could otherwise no longer execute. This parameter allows users to specify their
+  target stack size in KiB, because some applications might require a different value from our default. This value can
+  be as small as 16KiB (on `crashpad` and `breakpad`) for handlers to work, but we recommend 32KiB as the lower bound
+  on 64-bit systems. **The value should be a multiple of the page size**.
+
+- `SENTRY_THREAD_STACK_GUARANTEE_FACTOR` (Default: `10`, only for Windows):
+  Defines the factor by which the thread's stack reserve must be bigger than the specified guarantee for the handler.
+  _Example_: if the `SENTRY_HANDLER_STACK_SIZE` is defined as 64KiB then the thread's stack reserve must at least have
+  a size of 640KiB.
+- `SENTRY_THREAD_STACK_GUARANTEE_AUTO_INIT` (Default: `ON`, only for Windows):
+  Ensures that all threads created after the SDK's initialization will be configured to use the
+  `SENTRY_HANDLER_STACK_SIZE` as its handler stack guarantee.
+
+  _Note_: assigning this to all threads only works when building the SDK as a shared library. If you build it as a
+  static library and this option is enabled, only the `sentry_init()` thread will have a stack guarantee for the handler
+  (other threads must be manually initialized via `sentry_set_thread_stack_guarantee()`).
+
+- `SENTRY_THREAD_STACK_GUARANTEE_VERBOSE_LOG` (Default: `OFF`, only for Windows):
+  Adds info level logs for every successfully set thread stack guarantee. This is `OFF` by default, because depending
+  on the number of threads used (by all dependencies) this could flood the logs. But it will be helpful to anyone
+  tuning the thread stack guarantee parameters. Warnings and errors in the process of setting thread stack guarantees
+  will always be logged.
 
 ### Support Matrix
 
 | Feature    | Windows | macOS | Linux | Android | iOS   |
-| ---------- | ------- | ----- | ----- | ------- | ----- |
+|------------|---------|-------|-------|---------|-------|
 | Transports |         |       |       |         |       |
 | - curl     |         | ☑     | ☑     | (✓)***  |       |
 | - winhttp  | ☑       |       |       |         |       |
@@ -339,6 +362,16 @@ Other important configuration options include:
   But since this process bypasses SEH, the application local exception handler is no longer invoked, which
   also means that for these kinds of crashes, `before_send` and `on_crash` will not be invoked before
   sending the minidump and thus have no effect.
+
+## Benchmarks
+
+The SDK is automatically benchmarked in the CI on every push to the `master` branch. The benchmarks cover the following scenarios:
+
+- **SDK initialization time**: Measures the duration of the `sentry_init()` call, representing the overall initialization time of the SDK.
+- **Backend startup time**: A subset of the SDK initialization time, focusing on the time required to initialize the `inproc`, `breakpad`, or `crashpad` backend.
+
+The benchmarks are run on Windows, macOS, and Linux, and the results are published on [GitHub Pages](https://getsentry.github.io/sentry-native/).
+If you want to run benchmarks locally, follow the instructions in the [contribution guide](./CONTRIBUTING.md).
 
 ## Development
 

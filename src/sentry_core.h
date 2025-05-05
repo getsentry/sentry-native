@@ -18,6 +18,12 @@
 #endif
 
 #if defined(__GNUC__) || (defined(_MSC_VER) && defined(__clang__))
+#    define EXPLICIT_FALLTHROUGH __attribute__((__fallthrough__))
+#else
+#    define EXPLICIT_FALLTHROUGH
+#endif
+
+#if defined(__GNUC__) || (defined(_MSC_VER) && defined(__clang__))
 #    define UNUSED(x) UNUSED_##x __attribute__((__unused__))
 #elif defined(_MSC_VER)
 #    define UNUSED(x) UNUSED_##x __pragma(warning(suppress : 4100))
@@ -123,6 +129,10 @@ void sentry__set_propagation_context(const char *key, sentry_value_t value);
 bool sentry__roll_dice(double probability);
 bool sentry__should_send_transaction(
     sentry_value_t tx_ctx, sentry_sampling_context_t *sampling_ctx);
+#endif
+
+#ifdef SENTRY_PLATFORM_NX
+int sentry__native_init(sentry_options_t *options);
 #endif
 
 #endif

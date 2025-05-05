@@ -125,6 +125,8 @@ SENTRY_TEST(discarding_before_send)
 
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    // Disable sessions or this test would fail if env:SENTRY_RELEASE is set.
+    sentry_options_set_auto_session_tracking(options, 0);
     sentry_options_set_transport(options,
         sentry_new_function_transport(
             counting_transport_func, &called_transport));

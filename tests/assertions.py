@@ -91,9 +91,9 @@ def assert_event_meta(
     }
     expected_sdk = {
         "name": "sentry.native",
-        "version": "0.8.3",
+        "version": "0.8.4",
         "packages": [
-            {"name": "github:getsentry/sentry-native", "version": "0.8.3"},
+            {"name": "github:getsentry/sentry-native", "version": "0.8.4"},
         ],
     }
     if is_android:
@@ -303,6 +303,7 @@ class CrashpadAttachments:
     breadcrumb1: list
     breadcrumb2: list
     view_hierarchy: dict
+    cmake_cache: int
 
 
 def _unpack_breadcrumbs(payload):
@@ -316,6 +317,7 @@ def _load_crashpad_attachments(msg):
     breadcrumb1 = []
     breadcrumb2 = []
     view_hierarchy = {}
+    cmake_cache = -1
     for part in msg.walk():
         if part.get_filename() is not None:
             assert part.get("Content-Type") is None
@@ -329,8 +331,12 @@ def _load_crashpad_attachments(msg):
                 breadcrumb2 = _unpack_breadcrumbs(part.get_payload(decode=True))
             case "view-hierarchy.json":
                 view_hierarchy = json.loads(part.get_payload(decode=True))
+            case "CMakeCache.txt":
+                cmake_cache = len(part.get_payload(decode=True))
 
-    return CrashpadAttachments(event, breadcrumb1, breadcrumb2, view_hierarchy)
+    return CrashpadAttachments(
+        event, breadcrumb1, breadcrumb2, view_hierarchy, cmake_cache
+    )
 
 
 def is_valid_timestamp(timestamp):
@@ -358,13 +364,17 @@ def assert_overflowing_breadcrumb(attachments):
         assert_breadcrumb_inner(attachments.breadcrumb1)
 
 
-def assert_crashpad_upload(req, expect_view_hierarchy=False):
+def assert_crashpad_upload(req, expect_attachment=False, expect_view_hierarchy=False):
     multipart = gzip.decompress(req.get_data())
     msg = email.message_from_bytes(bytes(str(req.headers), encoding="utf8") + multipart)
     attachments = _load_crashpad_attachments(msg)
 
     assert_overflowing_breadcrumb(attachments)
     assert_event_meta(attachments.event, integration="crashpad")
+    if expect_attachment:
+        assert attachments.cmake_cache > 0
+    else:
+        assert attachments.cmake_cache == -1
     if expect_view_hierarchy:
         assert_attachment_content_view_hierarchy(attachments.view_hierarchy)
     assert any(

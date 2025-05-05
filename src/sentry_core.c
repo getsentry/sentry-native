@@ -92,8 +92,13 @@ sentry__should_skip_upload(void)
     return skip;
 }
 
+#ifdef SENTRY_PLATFORM_NX
+int
+sentry__native_init(sentry_options_t *options)
+#else
 int
 sentry_init(sentry_options_t *options)
+#endif
 {
     SENTRY__MUTEX_INIT_DYN_ONCE(g_options_lock);
     // this function is to be called only once, so we do not allow more than one
@@ -148,8 +153,16 @@ sentry_init(sentry_options_t *options)
 
     if (transport) {
         if (sentry__transport_startup(transport, options) != 0) {
+#ifdef SENTRY_PLATFORM_NX
+            // A warning with more details is logged in the downstream SDK.
+            // Also, we want to continue - crash capture doesn't need transport.
+            sentry__transport_shutdown(transport, 0);
+            sentry_options_set_transport(options, NULL);
+            transport = NULL;
+#else
             SENTRY_WARN("failed to initialize transport");
             goto fail;
+#endif
         }
     }
 
@@ -203,6 +216,13 @@ sentry_init(sentry_options_t *options)
     sentry_integration_setup_qt();
 #endif
 
+#if defined(SENTRY_PLATFORM_WINDOWS)                                           \
+    && (!defined(SENTRY_BUILD_SHARED) || defined(_GAMING_XBOX_SCARLETT))
+    // This function must be positioned so that any dependents on its cached
+    // functions are invoked after it.
+    sentry__init_cached_kernel32_functions();
+#endif
+
     // after initializing the transport, we will submit all the unsent envelopes
     // and handle remaining sessions.
     SENTRY_DEBUG("processing and pruning old runs");
@@ -214,10 +234,6 @@ sentry_init(sentry_options_t *options)
     if (options->auto_session_tracking) {
         sentry_start_session();
     }
-
-#ifdef SENTRY_PLATFORM_WINDOWS
-    sentry__init_cached_functions();
-#endif
 
     sentry__mutex_unlock(&g_options_lock);
     return 0;

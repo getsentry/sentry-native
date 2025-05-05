@@ -2,13 +2,20 @@
 
 ## Unreleased
 
+**Fixes**:
+
+- Remove compile-time check for the `libcurl` feature `AsynchDNS`. ([#1206](https://github.com/getsentry/sentry-native/pull/1206))
+- Use `propagation_context` as the single source of `trace_id` for spans and events. ([#1200](https://github.com/getsentry/sentry-native/pull/1200))
+
+## 0.8.4
+
 **Features**:
 
 - Provide an option for downstream SDKs to attach a view hierarchy file. ([#1191](https://github.com/getsentry/sentry-native/pull/1191))
 
 **Fixes**:
 
-- Use `propagation_context` as the single source of `trace_id` for spans and events. ([#1200](https://github.com/getsentry/sentry-native/pull/1200))
+- Provide a more defensive automatic thread stack guarantee. ([#1196](https://github.com/getsentry/sentry-native/pull/1196))
 
 ## 0.8.3
 

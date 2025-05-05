@@ -1,3 +1,4 @@
+#include "sentry_os.h"
 #include "sentry_path.h"
 #include "sentry_testsupport.h"
 
@@ -191,4 +192,182 @@ SENTRY_TEST(os_release_non_existent_files)
     sentry_value_t os_release = get_linux_os_release("invalid_path");
     TEST_ASSERT(sentry_value_is_null(os_release));
 #endif // !defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+}
+
+#ifdef SENTRY_PLATFORM_WINDOWS
+extern BOOL(WINAPI *g_kernel32_SetThreadStackGuarantee)(PULONG);
+extern void(WINAPI *g_kernel32_GetCurrentThreadStackLimits)(
+    PULONG_PTR, PULONG_PTR);
+static size_t g_kernel32_SetThreadStackGuaranteeCalled = 0;
+
+static BOOL WINAPI
+no_previous_guarantee(PULONG guarantee)
+{
+    if (*guarantee != 0) {
+        TEST_CHECK_INT_EQUAL(*guarantee, SENTRY_HANDLER_STACK_SIZE * 1024);
+    }
+
+    g_kernel32_SetThreadStackGuaranteeCalled++;
+
+    *guarantee = 0;
+    return 1;
+}
+
+static BOOL WINAPI
+guarantee_already_set(PULONG guarantee)
+{
+    if (*guarantee != 0) {
+        TEST_CHECK_INT_EQUAL(*guarantee, SENTRY_HANDLER_STACK_SIZE * 1024);
+    }
+
+    g_kernel32_SetThreadStackGuaranteeCalled++;
+
+    *guarantee = 32;
+    return 1;
+}
+
+static BOOL WINAPI
+guarantee_fails_in_query(PULONG guarantee)
+{
+    if (*guarantee != 0) {
+        TEST_CHECK_INT_EQUAL(*guarantee, SENTRY_HANDLER_STACK_SIZE * 1024);
+    }
+
+    g_kernel32_SetThreadStackGuaranteeCalled++;
+
+    if (*guarantee == 0) {
+        *guarantee = 0;
+        return 0;
+    }
+
+    return 1;
+}
+
+static BOOL WINAPI
+guarantee_fails_in_setter(PULONG guarantee)
+{
+    if (*guarantee != 0) {
+        TEST_CHECK_INT_EQUAL(*guarantee, SENTRY_HANDLER_STACK_SIZE * 1024);
+    }
+
+    g_kernel32_SetThreadStackGuaranteeCalled++;
+
+    if (*guarantee == 0) {
+        *guarantee = 0;
+        return 1;
+    } else {
+        *guarantee = 0;
+        return 0;
+    }
+}
+
+static void WINAPI
+stack_reserve_half_the_factor(PULONG_PTR low, PULONG_PTR high)
+{
+    *high = SENTRY_HANDLER_STACK_SIZE
+        * (SENTRY_THREAD_STACK_GUARANTEE_FACTOR / 2) * 1024;
+    *low = 0;
+}
+
+static void WINAPI
+stack_reserve_exact_factor(PULONG_PTR low, PULONG_PTR high)
+{
+    *high = SENTRY_HANDLER_STACK_SIZE * SENTRY_THREAD_STACK_GUARANTEE_FACTOR
+        * 1024;
+    *low = 0;
+}
+
+static void WINAPI
+stack_reserve_twice_the_factor(PULONG_PTR low, PULONG_PTR high)
+{
+    *high = SENTRY_HANDLER_STACK_SIZE * SENTRY_THREAD_STACK_GUARANTEE_FACTOR * 2
+        * 1024;
+    *low = 0;
+}
+
+static void WINAPI
+stack_reserve_exact_factor_minus_one(PULONG_PTR low, PULONG_PTR high)
+{
+    *high = ((SENTRY_HANDLER_STACK_SIZE * SENTRY_THREAD_STACK_GUARANTEE_FACTOR)
+                - 1)
+        * 1024;
+    *low = 0;
+}
+#endif
+
+SENTRY_TEST(stack_guarantee)
+{
+#if !defined(SENTRY_PLATFORM_WINDOWS)
+    SKIP_TEST();
+#else
+    g_kernel32_SetThreadStackGuaranteeCalled = 0;
+    g_kernel32_SetThreadStackGuarantee = no_previous_guarantee;
+    uint32_t stack_guarantee_in_bytes = SENTRY_HANDLER_STACK_SIZE * 1024;
+    TEST_CHECK_INT_EQUAL(
+        sentry_set_thread_stack_guarantee(stack_guarantee_in_bytes), 1);
+    TEST_CHECK_INT_EQUAL(g_kernel32_SetThreadStackGuaranteeCalled, 2);
+
+    g_kernel32_SetThreadStackGuaranteeCalled = 0;
+    g_kernel32_SetThreadStackGuarantee = guarantee_already_set;
+    TEST_CHECK_INT_EQUAL(
+        sentry_set_thread_stack_guarantee(stack_guarantee_in_bytes), 0);
+    TEST_CHECK_INT_EQUAL(g_kernel32_SetThreadStackGuaranteeCalled, 1);
+
+    g_kernel32_SetThreadStackGuaranteeCalled = 0;
+    g_kernel32_SetThreadStackGuarantee = guarantee_fails_in_query;
+    TEST_CHECK_INT_EQUAL(
+        sentry_set_thread_stack_guarantee(stack_guarantee_in_bytes), 0);
+    TEST_CHECK_INT_EQUAL(g_kernel32_SetThreadStackGuaranteeCalled, 1);
+
+    g_kernel32_SetThreadStackGuaranteeCalled = 0;
+    g_kernel32_SetThreadStackGuarantee = guarantee_fails_in_setter;
+    TEST_CHECK_INT_EQUAL(
+        sentry_set_thread_stack_guarantee(stack_guarantee_in_bytes), 0);
+    TEST_CHECK_INT_EQUAL(g_kernel32_SetThreadStackGuaranteeCalled, 2);
+
+    // reset the globals
+    g_kernel32_SetThreadStackGuaranteeCalled = 0;
+    g_kernel32_SetThreadStackGuarantee = NULL;
+#endif
+}
+
+SENTRY_TEST(stack_guarantee_auto_init)
+{
+#if !defined(SENTRY_PLATFORM_WINDOWS)
+    SKIP_TEST();
+#else
+    g_kernel32_SetThreadStackGuaranteeCalled = 0;
+    g_kernel32_SetThreadStackGuarantee = no_previous_guarantee;
+    g_kernel32_GetCurrentThreadStackLimits = stack_reserve_half_the_factor;
+
+    sentry__set_default_thread_stack_guarantee();
+    TEST_CHECK_INT_EQUAL(g_kernel32_SetThreadStackGuaranteeCalled, 0);
+
+    g_kernel32_SetThreadStackGuaranteeCalled = 0;
+    g_kernel32_SetThreadStackGuarantee = no_previous_guarantee;
+    g_kernel32_GetCurrentThreadStackLimits
+        = stack_reserve_exact_factor_minus_one;
+
+    sentry__set_default_thread_stack_guarantee();
+    TEST_CHECK_INT_EQUAL(g_kernel32_SetThreadStackGuaranteeCalled, 0);
+
+    g_kernel32_SetThreadStackGuaranteeCalled = 0;
+    g_kernel32_SetThreadStackGuarantee = no_previous_guarantee;
+    g_kernel32_GetCurrentThreadStackLimits = stack_reserve_exact_factor;
+
+    sentry__set_default_thread_stack_guarantee();
+    TEST_CHECK_INT_EQUAL(g_kernel32_SetThreadStackGuaranteeCalled, 2);
+
+    g_kernel32_SetThreadStackGuaranteeCalled = 0;
+    g_kernel32_SetThreadStackGuarantee = no_previous_guarantee;
+    g_kernel32_GetCurrentThreadStackLimits = stack_reserve_twice_the_factor;
+
+    sentry__set_default_thread_stack_guarantee();
+    TEST_CHECK_INT_EQUAL(g_kernel32_SetThreadStackGuaranteeCalled, 2);
+
+    // reset globals
+    g_kernel32_SetThreadStackGuaranteeCalled = 0;
+    g_kernel32_SetThreadStackGuarantee = NULL;
+    g_kernel32_GetCurrentThreadStackLimits = NULL;
+#endif
 }
