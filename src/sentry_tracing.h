@@ -30,6 +30,7 @@ struct sentry_transaction_s {
 void sentry__transaction_context_free(sentry_transaction_context_t *tx_ctx);
 
 sentry_transaction_t *sentry__transaction_new(sentry_value_t inner);
+sentry_transaction_t *sentry__transaction_clone(sentry_transaction_t *tx);
 void sentry__transaction_incref(sentry_transaction_t *tx);
 void sentry__transaction_decref(sentry_transaction_t *tx);
 
@@ -43,6 +44,7 @@ sentry_value_t sentry__value_span_new_n(size_t max_spans, sentry_value_t parent,
 
 sentry_span_t *sentry__span_new(
     sentry_transaction_t *parent_tx, sentry_value_t inner);
+sentry_span_t *sentry__span_clone(sentry_span_t *span);
 
 /**
  * Returns an object containing tracing information extracted from a

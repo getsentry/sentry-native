@@ -1251,6 +1251,66 @@ SENTRY_TEST(span_data_n)
     sentry__transaction_decref(txn);
 }
 
+SENTRY_TEST(txn_clone)
+{
+    sentry_transaction_t *txn_orig
+        = sentry__transaction_new(sentry_value_new_object());
+
+    char *txn_name = "the_txn";
+    sentry_transaction_set_name(txn_orig, txn_name);
+    sentry_transaction_set_data(
+        txn_orig, "os.name", sentry_value_new_string("Linux"));
+
+    sentry_transaction_t *txn_clone = sentry__transaction_clone(txn_orig);
+    TEST_CHECK(txn_clone != txn_orig);
+
+    sentry_value_t txn_name_value
+        = sentry_value_get_by_key(txn_clone->inner, "transaction");
+    TEST_CHECK(
+        sentry_value_get_type(txn_name_value) == SENTRY_VALUE_TYPE_STRING);
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(txn_name_value), txn_name);
+
+    sentry_transaction_set_data(
+        txn_clone, "os.name", sentry_value_new_string("Arch Linux"));
+    check_after_set(txn_clone->inner, "data", "os.name", "Arch Linux");
+    check_after_set(txn_orig->inner, "data", "os.name", "Linux");
+
+    sentry_transaction_remove_data(txn_clone, "os.name");
+    check_after_remove(txn_clone->inner, "data", "os.name");
+    check_after_set(txn_orig->inner, "data", "os.name", "Linux");
+
+    sentry__transaction_decref(txn_orig);
+    sentry__transaction_decref(txn_clone);
+}
+
+SENTRY_TEST(span_clone)
+{
+    sentry_transaction_t *txn_orig
+        = sentry__transaction_new(sentry_value_new_object());
+    sentry_span_t *span_orig
+        = sentry__span_new(txn_orig, sentry_value_new_object());
+
+    sentry_span_set_data(
+        span_orig, "os.name", sentry_value_new_string("Linux"));
+
+    sentry_span_t *span_clone = sentry__span_clone(span_orig);
+    TEST_CHECK(span_clone != span_orig);
+    TEST_CHECK(span_clone->transaction != span_orig->transaction);
+
+    sentry_span_set_data(
+        span_clone, "os.name", sentry_value_new_string("Arch Linux"));
+    check_after_set(span_clone->inner, "data", "os.name", "Arch Linux");
+    check_after_set(span_orig->inner, "data", "os.name", "Linux");
+
+    sentry_span_remove_data(span_clone, "os.name");
+    check_after_remove(span_clone->inner, "data", "os.name");
+    check_after_set(span_orig->inner, "data", "os.name", "Linux");
+
+    sentry__span_decref(span_orig);
+    sentry__span_decref(span_clone);
+    sentry__transaction_decref(txn_orig);
+}
+
 SENTRY_TEST(sentry__value_span_new_requires_unfinished_parent)
 {
     sentry_value_t parent = sentry_value_new_object();

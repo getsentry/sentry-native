@@ -301,6 +301,23 @@ sentry__transaction_new(sentry_value_t inner)
     return tx;
 }
 
+sentry_transaction_t *
+sentry__transaction_clone(sentry_transaction_t *tx)
+{
+    if (!tx || sentry_value_is_null(tx->inner)) {
+        return NULL;
+    }
+
+    sentry_value_t inner = sentry__value_clone(tx->inner);
+    sentry_transaction_t *new_tx = sentry__transaction_new(inner);
+    if (!new_tx) {
+        sentry_value_decref(inner);
+        return NULL;
+    }
+
+    return new_tx;
+}
+
 void
 sentry__transaction_incref(sentry_transaction_t *tx)
 {
@@ -366,6 +383,25 @@ sentry__span_new(sentry_transaction_t *tx, sentry_value_t inner)
     span->transaction = tx;
 
     return span;
+}
+
+sentry_span_t *
+sentry__span_clone(sentry_span_t *span)
+{
+    if (!span || sentry_value_is_null(span->inner)) {
+        return NULL;
+    }
+
+    sentry_transaction_t *tx = sentry__transaction_clone(span->transaction);
+    sentry_value_t inner = sentry__value_clone(span->inner);
+    sentry_span_t *new_span = sentry__span_new(tx, inner);
+    sentry__transaction_decref(tx);
+    if (!new_span) {
+        sentry_value_decref(inner);
+        return NULL;
+    }
+
+    return new_span;
 }
 
 sentry_value_t
