@@ -192,6 +192,34 @@ SENTRY_TEST(value_list)
     sentry_value_decref(val);
 }
 
+SENTRY_TEST(value_list_clone)
+{
+    sentry_value_t orig = sentry_value_new_list();
+    for (int i = 0; i < 3; i++) {
+        sentry_value_t val = sentry_value_new_list();
+        for (int j = 0; j < 3; j++) {
+            sentry_value_append(val, sentry_value_new_int32(i * 3 + j));
+        }
+        sentry_value_append(orig, val);
+    }
+    TEST_CHECK_JSON_VALUE(orig, "[[0,1,2],[3,4,5],[6,7,8]]");
+
+    sentry_value_t clone = sentry__value_clone(orig);
+    TEST_CHECK_JSON_VALUE(clone, "[[0,1,2],[3,4,5],[6,7,8]]");
+
+    // modifying a clone should not affect the original
+    sentry_value_t clone_a = sentry_value_get_by_index(clone, 0);
+    sentry_value_append(clone_a, sentry_value_new_int32(33));
+    sentry_value_t clone_b = sentry_value_get_by_index(clone, 1);
+    sentry_value_remove_by_index(clone_b, 0);
+    sentry_value_remove_by_index(clone, 2);
+    TEST_CHECK_JSON_VALUE(clone, "[[0,1,2,33],[4,5]]");
+    TEST_CHECK_JSON_VALUE(orig, "[[0,1,2],[3,4,5],[6,7,8]]");
+
+    sentry_value_decref(orig);
+    sentry_value_decref(clone);
+}
+
 SENTRY_TEST(value_ringbuffer)
 {
     sentry_value_t val = sentry_value_new_list();
@@ -344,6 +372,30 @@ SENTRY_TEST(value_object_merge_nested)
     TEST_CHECK_INT_EQUAL(sentry_value_as_int32(bc), 30);
 
     sentry_value_decref(dst);
+}
+
+SENTRY_TEST(value_object_clone)
+{
+    sentry_value_t orig = sentry_value_new_object();
+    sentry_value_set_by_key(orig, "a", sentry_value_new_int32(1));
+    sentry_value_t orig_nested = sentry_value_new_object();
+    sentry_value_set_by_key(orig_nested, "ba", sentry_value_new_int32(2));
+    sentry_value_set_by_key(orig_nested, "bb", sentry_value_new_int32(3));
+    sentry_value_set_by_key(orig, "b", orig_nested);
+    TEST_CHECK_JSON_VALUE(orig, "{\"a\":1,\"b\":{\"ba\":2,\"bb\":3}}");
+
+    sentry_value_t clone = sentry__value_clone(orig);
+    TEST_CHECK_JSON_VALUE(clone, "{\"a\":1,\"b\":{\"ba\":2,\"bb\":3}}");
+
+    // modifying a clone should not affect the original
+    sentry_value_set_by_key(clone, "a", sentry_value_new_int32(11));
+    sentry_value_t clone_nested = sentry_value_get_by_key(clone, "b");
+    sentry_value_set_by_key(clone_nested, "bb", sentry_value_new_int32(33));
+    TEST_CHECK_JSON_VALUE(clone, "{\"a\":11,\"b\":{\"ba\":2,\"bb\":33}}");
+    TEST_CHECK_JSON_VALUE(orig, "{\"a\":1,\"b\":{\"ba\":2,\"bb\":3}}");
+
+    sentry_value_decref(orig);
+    sentry_value_decref(clone);
 }
 
 SENTRY_TEST(value_freezing)

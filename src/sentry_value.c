@@ -621,8 +621,8 @@ sentry__value_clone(sentry_value_t value)
         const list_t *list = thing->payload._ptr;
         sentry_value_t rv = sentry__value_new_list_with_size(list->len);
         for (size_t i = 0; i < list->len; i++) {
-            sentry_value_incref(list->items[i]);
-            sentry_value_append(rv, list->items[i]);
+            sentry_value_t v = sentry__value_clone(list->items[i]);
+            sentry_value_append(rv, v);
         }
         return rv;
     }
@@ -630,8 +630,8 @@ sentry__value_clone(sentry_value_t value)
         const obj_t *obj = thing->payload._ptr;
         sentry_value_t rv = sentry__value_new_object_with_size(obj->len);
         for (size_t i = 0; i < obj->len; i++) {
-            sentry_value_incref(obj->pairs[i].v);
-            sentry_value_set_by_key(rv, obj->pairs[i].k, obj->pairs[i].v);
+            sentry_value_t v = sentry__value_clone(obj->pairs[i].v);
+            sentry_value_set_by_key(rv, obj->pairs[i].k, v);
         }
         return rv;
     }
