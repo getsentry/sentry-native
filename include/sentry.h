@@ -1493,6 +1493,21 @@ SENTRY_API sentry_user_consent_t sentry_user_consent_get(void);
 SENTRY_API sentry_uuid_t sentry_capture_event(sentry_value_t event);
 
 /**
+ * Type of the `sentry_capture_event_with_scope` callback.
+ */
+typedef void (*sentry_scope_callback_t)(void *userdata);
+
+/**
+ * Sends a sentry event with a new local configurable scope.
+ *
+ * The new local scope is a clone of the current scope. The callback can freely
+ * modify the local scope without affecting the parent scope. The local scope
+ * will be discarded after the event has been captured.
+ */
+SENTRY_API sentry_uuid_t sentry_capture_event_with_scope(
+    sentry_value_t event, sentry_scope_callback_t callback, void *userdata);
+
+/**
  * Allows capturing independently created minidumps.
  *
  * This generates a fatal error event, includes the scope and attachments.

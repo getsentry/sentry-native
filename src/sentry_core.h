@@ -31,6 +31,16 @@
 #    define UNUSED(x) UNUSED_##x
 #endif
 
+#if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
+#    define THREAD_LOCAL _Thread_local
+#elif defined(_MSC_VER)
+#    define THREAD_LOCAL __declspec(thread)
+#elif defined(__GNUC__) || defined(__clang__)
+#    define THREAD_LOCAL __thread
+#else
+#    error Unable to create thread local storage
+#endif
+
 /**
  * This function will check the user consent, and return `true` if uploads
  * should *not* be sent to the sentry server, and be discarded instead.

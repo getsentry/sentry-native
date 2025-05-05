@@ -420,6 +420,20 @@ sentry_capture_event(sentry_value_t event)
     }
 }
 
+sentry_uuid_t
+sentry_capture_event_with_scope(
+    sentry_value_t event, sentry_scope_callback_t callback, void *userdata)
+{
+    sentry_uuid_t event_id = sentry_uuid_nil();
+    sentry_scope_t *scope = sentry__scope_push();
+    if (scope) {
+        callback(userdata);
+        event_id = sentry__capture_event(event);
+        sentry__scope_pop();
+    }
+    return event_id;
+}
+
 #ifndef SENTRY_UNITTEST
 static
 #endif

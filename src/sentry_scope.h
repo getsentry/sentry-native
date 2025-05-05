@@ -56,7 +56,7 @@ sentry_scope_t *sentry__scope_lock(void);
 /**
  * Release the lock on the global scope.
  */
-void sentry__scope_unlock(void);
+void sentry__scope_unlock(const sentry_scope_t *scope);
 
 /**
  * This will free all the data attached to the global scope
@@ -68,7 +68,7 @@ void sentry__scope_cleanup(void);
  * This function must be called while holding the scope lock, and it will be
  * unlocked internally.
  */
-void sentry__scope_flush_unlock(void);
+void sentry__scope_flush_unlock(const sentry_scope_t *scope);
 
 /**
  * This will merge the requested data which is in the given `scope` to the given
@@ -81,18 +81,28 @@ void sentry__scope_apply_to_event(const sentry_scope_t *scope,
     sentry_scope_mode_t mode);
 
 /**
+ * This will push a new scope on the thread-local stack of scopes.
+ */
+sentry_scope_t *sentry__scope_push(void);
+
+/**
+ * This will pop the current scope off the thread-local stack of scopes.
+ */
+void sentry__scope_pop(void);
+
+/**
  * These are convenience macros to automatically lock/unlock a scope inside a
  * code block.
  */
 #define SENTRY_WITH_SCOPE(Scope)                                               \
     for (const sentry_scope_t *Scope = sentry__scope_lock(); Scope;            \
-        sentry__scope_unlock(), Scope = NULL)
+        sentry__scope_unlock(Scope), Scope = NULL)
 #define SENTRY_WITH_SCOPE_MUT(Scope)                                           \
     for (sentry_scope_t *Scope = sentry__scope_lock(); Scope;                  \
-        sentry__scope_flush_unlock(), Scope = NULL)
+        sentry__scope_flush_unlock(Scope), Scope = NULL)
 #define SENTRY_WITH_SCOPE_MUT_NO_FLUSH(Scope)                                  \
     for (sentry_scope_t *Scope = sentry__scope_lock(); Scope;                  \
-        sentry__scope_unlock(), Scope = NULL)
+        sentry__scope_unlock(Scope), Scope = NULL)
 
 #endif
 
