@@ -2372,6 +2372,91 @@ SENTRY_EXPERIMENTAL_API const char *sentry_sdk_name(void);
  */
 SENTRY_EXPERIMENTAL_API const char *sentry_sdk_user_agent(void);
 
+/* -- Scope APIs -- */
+
+struct sentry_scope_s;
+typedef struct sentry_scope_s sentry_scope_t;
+typedef void (*sentry_scope_callback_t)(sentry_scope_t *scope, void *userdata);
+SENTRY_API void sentry_configure_scope(
+    sentry_scope_callback_t callback, void *userdata);
+SENTRY_API sentry_uuid_t sentry_capture_event_with_scope(
+    sentry_value_t event, sentry_scope_callback_t callback, void *userdata);
+
+SENTRY_API void sentry_scope_add_breadcrumb(
+    sentry_scope_t *scope, sentry_value_t breadcrumb);
+SENTRY_API void sentry_scope_clear_breadcrumbs(sentry_scope_t *scope);
+
+SENTRY_API sentry_value_t sentry_scope_get_user(const sentry_scope_t *scope);
+SENTRY_API void sentry_scope_set_user(
+    sentry_scope_t *scope, sentry_value_t user);
+SENTRY_API void sentry_scope_remove_user(sentry_scope_t *scope);
+
+SENTRY_API const char *sentry_scope_get_tag(
+    const sentry_scope_t *scope, const char *key);
+SENTRY_API void sentry_scope_set_tag(
+    sentry_scope_t *scope, const char *key, const char *value);
+SENTRY_API void sentry_scope_set_tag_n(sentry_scope_t *scope, const char *key,
+    size_t key_len, const char *value, size_t value_len);
+SENTRY_API void sentry_scope_remove_tag(sentry_scope_t *scope, const char *key);
+SENTRY_API void sentry_scope_remove_tag_n(
+    sentry_scope_t *scope, const char *key, size_t key_len);
+
+SENTRY_API sentry_value_t sentry_scope_get_tags(const sentry_scope_t *scope);
+SENTRY_API void sentry_scope_set_tags(
+    sentry_scope_t *scope, sentry_value_t tags);
+
+SENTRY_API sentry_value_t sentry_scope_get_extra(
+    const sentry_scope_t *scope, const char *key);
+SENTRY_API void sentry_scope_set_extra(
+    sentry_scope_t *scope, const char *key, sentry_value_t value);
+SENTRY_API void sentry_scope_set_extra_n(sentry_scope_t *scope, const char *key,
+    size_t key_len, sentry_value_t value);
+SENTRY_API void sentry_scope_remove_extra(
+    sentry_scope_t *scope, const char *key);
+SENTRY_API void sentry_scope_remove_extra_n(
+    sentry_scope_t *scope, const char *key, size_t key_len);
+
+SENTRY_API sentry_value_t sentry_scope_get_extras(const sentry_scope_t *scope);
+SENTRY_API void sentry_scope_set_extras(
+    sentry_scope_t *scope, sentry_value_t extras);
+
+SENTRY_API sentry_value_t sentry_scope_get_context(
+    const sentry_scope_t *scope, const char *key);
+SENTRY_API void sentry_scope_set_context(
+    sentry_scope_t *scope, const char *key, sentry_value_t value);
+SENTRY_API void sentry_scope_set_context_n(sentry_scope_t *scope,
+    const char *key, size_t key_len, sentry_value_t value);
+SENTRY_API void sentry_scope_remove_context(
+    sentry_scope_t *scope, const char *key);
+SENTRY_API void sentry_scope_remove_context_n(
+    sentry_scope_t *scope, const char *key, size_t key_len);
+
+SENTRY_API sentry_value_t sentry_scope_get_contexts(
+    const sentry_scope_t *scope);
+SENTRY_API void sentry_scope_set_contexts(
+    sentry_scope_t *scope, sentry_value_t contexts);
+
+SENTRY_API sentry_value_t sentry_scope_get_fingerprint(
+    const sentry_scope_t *scope);
+SENTRY_API void sentry_scope_set_fingerprint(
+    sentry_scope_t *scope, const char *fingerprint, ...);
+SENTRY_API void sentry_scope_set_fingerprint_n(sentry_scope_t *scope,
+    const char *fingerprint, size_t fingerprint_len, ...);
+SENTRY_API void sentry_scope_remove_fingerprint(sentry_scope_t *scope);
+
+SENTRY_API const char *sentry_scope_get_transaction(
+    const sentry_scope_t *scope);
+SENTRY_API void sentry_scope_set_transaction(
+    sentry_scope_t *scope, const char *transaction);
+SENTRY_API void sentry_scope_set_transaction_n(
+    sentry_scope_t *scope, const char *transaction, size_t transaction_len);
+
+SENTRY_API sentry_level_t sentry_scope_get_level(const sentry_scope_t *scope);
+SENTRY_API void sentry_scope_set_level(
+    sentry_scope_t *scope, sentry_level_t level);
+
+SENTRY_API void sentry_scope_clear(sentry_scope_t *scope);
+
 #ifdef __cplusplus
 }
 #endif
