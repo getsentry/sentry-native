@@ -431,6 +431,34 @@ sentry__value_new_object_with_size(size_t size)
     }
 }
 
+sentry_value_t
+sentry_value_new_user(const int32_t *id, const char *username,
+    const char *email, const char *ip_address)
+{
+    sentry_value_t rv = sentry_value_new_object();
+    if (id) {
+        sentry_value_set_by_key(rv, "id", sentry_value_new_int32(*id));
+    }
+    if (username && strlen(username)) {
+        sentry_value_set_by_key(
+            rv, "username", sentry_value_new_string(username));
+    }
+    if (email && strlen(email)) {
+        sentry_value_set_by_key(rv, "email", sentry_value_new_string(email));
+    }
+    if (ip_address && strlen(ip_address)) {
+        sentry_value_set_by_key(
+            rv, "ip_address", sentry_value_new_string(ip_address));
+    }
+    if (!sentry_value_is_true(rv)) {
+        SENTRY_WARN(
+            "sentry_value_new_user needs at least one non-null argument");
+        sentry_value_decref(rv);
+        return sentry_value_new_null();
+    }
+    return rv;
+}
+
 sentry_value_type_t
 sentry_value_get_type(sentry_value_t value)
 {

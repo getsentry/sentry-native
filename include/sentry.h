@@ -223,6 +223,13 @@ SENTRY_API sentry_value_t sentry_value_new_list(void);
 SENTRY_API sentry_value_t sentry_value_new_object(void);
 
 /**
+ * Creates a new user object.
+ * Will return a sentry_value_new_null if all parameters are null
+ */
+SENTRY_API sentry_value_t sentry_value_new_user(const int32_t *id,
+    const char *username, const char *email, const char *ip_address);
+
+/**
  * Returns the type of the value passed.
  */
 SENTRY_API sentry_value_type_t sentry_value_get_type(sentry_value_t value);

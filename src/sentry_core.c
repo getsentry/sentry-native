@@ -702,7 +702,7 @@ sentry_set_user(sentry_value_t user)
         }
         sentry__options_unlock();
     }
-
+    // TODO do we always want to overwrite the user even if it is null?
     SENTRY_WITH_SCOPE_MUT (scope) {
         sentry_value_decref(scope->user);
         scope->user = user;
