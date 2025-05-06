@@ -531,7 +531,11 @@ sentry_scope_remove_user(sentry_scope_t *scope)
 const char *
 sentry_scope_get_tag(const sentry_scope_t *scope, const char *key)
 {
-    return sentry_value_as_string(sentry_value_get_by_key(scope->tags, key));
+    sentry_value_t tag = sentry_value_get_by_key(scope->tags, key);
+    if (sentry_value_is_null(tag)) {
+        return NULL;
+    }
+    return sentry_value_as_string(tag);
 }
 
 void
