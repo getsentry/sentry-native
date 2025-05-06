@@ -346,6 +346,36 @@ SENTRY_TEST(value_object_merge_nested)
     sentry_value_decref(dst);
 }
 
+SENTRY_TEST(value_user)
+{
+    const int32_t id = 1;
+    const char *username = "John Doe";
+    const char *email = "john.doe@example.com";
+    const char *ip_address = "127.0.0.1";
+    sentry_value_t user
+        = sentry_value_new_user(&id, username, email, ip_address);
+    TEST_CHECK_INT_EQUAL(
+        sentry_value_as_int32(sentry_value_get_by_key(user, "id")), 1);
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(user, "username")),
+        "John Doe");
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(user, "email")),
+        "john.doe@example.com");
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(user, "ip_address")),
+        "127.0.0.1");
+    sentry_value_decref(user);
+
+    sentry_value_t user_null = sentry_value_new_user(NULL, NULL, NULL, NULL);
+    TEST_CHECK(sentry_value_is_null(user_null));
+    sentry_value_decref(user_null);
+
+    sentry_value_t user_empty_str = sentry_value_new_user(NULL, "", "", "");
+    TEST_CHECK(sentry_value_is_null(user_empty_str));
+    sentry_value_decref(user_empty_str);
+}
+
 SENTRY_TEST(value_freezing)
 {
     sentry_value_t val = sentry_value_new_list();
