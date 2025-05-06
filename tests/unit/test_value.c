@@ -367,6 +367,18 @@ SENTRY_TEST(value_user)
         "127.0.0.1");
     sentry_value_decref(user);
 
+    sentry_value_t user_half = sentry_value_new_user(&id, username, NULL, NULL);
+    TEST_CHECK_INT_EQUAL(
+        sentry_value_as_int32(sentry_value_get_by_key(user_half, "id")), 1);
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(user_half, "username")),
+        "John Doe");
+    TEST_CHECK(
+        sentry_value_is_null(sentry_value_get_by_key(user_half, "email")));
+    TEST_CHECK(
+        sentry_value_is_null(sentry_value_get_by_key(user_half, "ip_address")));
+    sentry_value_decref(user_half);
+
     sentry_value_t user_null = sentry_value_new_user(NULL, NULL, NULL, NULL);
     TEST_CHECK(sentry_value_is_null(user_null));
     sentry_value_decref(user_null);
