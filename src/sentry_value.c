@@ -432,21 +432,22 @@ sentry__value_new_object_with_size(size_t size)
 }
 
 sentry_value_t
-sentry_value_new_user(const char *id, const char *username, const char *email,
-    const char *ip_address)
+sentry_value_new_user_n(const char *id, size_t id_len, const char *username,
+    size_t username_len, const char *email, size_t email_len,
+    const char *ip_address, size_t ip_address_len)
 {
     sentry_value_t rv = sentry_value_new_object();
-    if (id && strlen(id)) {
+    if (id && id_len) {
         sentry_value_set_by_key(rv, "id", sentry_value_new_string(id));
     }
-    if (username && strlen(username)) {
+    if (username && username_len) {
         sentry_value_set_by_key(
             rv, "username", sentry_value_new_string(username));
     }
-    if (email && strlen(email)) {
+    if (email && email_len) {
         sentry_value_set_by_key(rv, "email", sentry_value_new_string(email));
     }
-    if (ip_address && strlen(ip_address)) {
+    if (ip_address && ip_address_len) {
         sentry_value_set_by_key(
             rv, "ip_address", sentry_value_new_string(ip_address));
     }
@@ -457,6 +458,15 @@ sentry_value_new_user(const char *id, const char *username, const char *email,
         return sentry_value_new_null();
     }
     return rv;
+}
+
+sentry_value_t
+sentry_value_new_user(const char *id, const char *username, const char *email,
+    const char *ip_address)
+{
+    return sentry_value_new_user_n(id, id ? strlen(id) : 0, username,
+        username ? strlen(username) : 0, email, email ? strlen(email) : 0,
+        ip_address, ip_address ? strlen(ip_address) : 0);
 }
 
 sentry_value_type_t
