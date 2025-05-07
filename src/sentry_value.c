@@ -438,18 +438,20 @@ sentry_value_new_user_n(const char *id, size_t id_len, const char *username,
 {
     sentry_value_t rv = sentry_value_new_object();
     if (id && id_len) {
-        sentry_value_set_by_key(rv, "id", sentry_value_new_string(id));
+        sentry_value_set_by_key(
+            rv, "id", sentry_value_new_string_n(id, id_len));
     }
     if (username && username_len) {
         sentry_value_set_by_key(
-            rv, "username", sentry_value_new_string(username));
+            rv, "username", sentry_value_new_string_n(username, username_len));
     }
     if (email && email_len) {
-        sentry_value_set_by_key(rv, "email", sentry_value_new_string(email));
+        sentry_value_set_by_key(
+            rv, "email", sentry_value_new_string_n(email, email_len));
     }
     if (ip_address && ip_address_len) {
-        sentry_value_set_by_key(
-            rv, "ip_address", sentry_value_new_string(ip_address));
+        sentry_value_set_by_key(rv, "ip_address",
+            sentry_value_new_string_n(ip_address, ip_address_len));
     }
     if (!sentry_value_is_true(rv)) {
         SENTRY_WARN(
