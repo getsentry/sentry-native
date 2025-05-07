@@ -432,12 +432,12 @@ sentry__value_new_object_with_size(size_t size)
 }
 
 sentry_value_t
-sentry_value_new_user(const int32_t *id, const char *username,
-    const char *email, const char *ip_address)
+sentry_value_new_user(const char *id, const char *username, const char *email,
+    const char *ip_address)
 {
     sentry_value_t rv = sentry_value_new_object();
-    if (id) {
-        sentry_value_set_by_key(rv, "id", sentry_value_new_int32(*id));
+    if (id && strlen(id)) {
+        sentry_value_set_by_key(rv, "id", sentry_value_new_string(id));
     }
     if (username && strlen(username)) {
         sentry_value_set_by_key(

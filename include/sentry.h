@@ -227,9 +227,9 @@ SENTRY_API sentry_value_t sentry_value_new_object(void);
  * Will return a sentry_value_new_null if all parameters are null.
  *
  * This DOES NOT set the user object, this should still be done with
- * sentry_set_user() passing the return of this function as a parameter
+ * sentry_set_user(), passing the return of this function as a parameter
  */
-SENTRY_API sentry_value_t sentry_value_new_user(const int32_t *id,
+SENTRY_API sentry_value_t sentry_value_new_user(const char *id,
     const char *username, const char *email, const char *ip_address);
 
 /**
