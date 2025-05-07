@@ -2,6 +2,7 @@
 #include "sentry.h"
 #include "sentry_alloc.h"
 #include "sentry_logger.h"
+#include "sentry_scope.h"
 #include "sentry_slice.h"
 #include "sentry_string.h"
 #include "sentry_utils.h"
@@ -46,6 +47,22 @@ transaction_context_new_n(sentry_slice_t name, sentry_slice_t operation)
 
     sentry_value_set_by_key(transaction_context, "transaction",
         sentry_value_new_string_n(name.ptr, name.len));
+
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        if (!sentry_value_is_null(
+                sentry_value_get_by_key(scope->propagation_context, "trace"))) {
+            sentry_value_set_by_key(transaction_context, "trace_id",
+                sentry__value_clone(sentry_value_get_by_key(
+                    sentry_value_get_by_key(
+                        scope->propagation_context, "trace"),
+                    "trace_id")));
+            sentry_value_set_by_key(transaction_context, "parent_span_id",
+                sentry__value_clone(sentry_value_get_by_key(
+                    sentry_value_get_by_key(
+                        scope->propagation_context, "trace"),
+                    "parent_span_id")));
+        }
+    }
 
     return transaction_context;
 }
