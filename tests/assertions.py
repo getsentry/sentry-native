@@ -84,7 +84,7 @@ def assert_event_meta(
         "platform": "native",
         "environment": "development",
         "release": release,
-        "user": {"id": 42, "username": "some_name"},
+        "user": {"id": "42", "username": "some_name"},
         "transaction": transaction,
         "tags": {"expected-tag": "some value"},
         "extra": extra,
