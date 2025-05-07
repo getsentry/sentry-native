@@ -4,7 +4,7 @@
 
 **Features**:
 
-- Add `sentry_value_new_user(id, username, email, ip_address)` function to avoid ambiguous user-context-keys ([#1228](https://github.com/getsentry/sentry-native/pull/1228))
+- Add `sentry_value_new_user(id, username, email, ip_address)` function to avoid ambiguous user-context-keys. ([#1228](https://github.com/getsentry/sentry-native/pull/1228))
 
 **Fixes**:
 
