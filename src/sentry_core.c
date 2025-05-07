@@ -1414,7 +1414,7 @@ sentry_capture_event_with_scope(
     if (scope) {
         callback(scope, userdata);
         sentry__scope_flush_unlock(scope);
-        event_id = sentry__capture_event(event);
+        event_id = sentry_capture_event(event);
         sentry__scope_pop();
     }
     return event_id;
