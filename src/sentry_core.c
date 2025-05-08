@@ -92,6 +92,21 @@ sentry__should_skip_upload(void)
     return skip;
 }
 
+static void
+initialize_propagation_context(sentry_value_t *propagation_context)
+{
+    sentry_value_set_by_key(
+        *propagation_context, "trace", sentry_value_new_object());
+    sentry_uuid_t trace_id = sentry_uuid_new_v4();
+    sentry_uuid_t span_id = sentry_uuid_new_v4();
+    sentry_value_set_by_key(
+        sentry_value_get_by_key(*propagation_context, "trace"), "trace_id",
+        sentry__value_new_internal_uuid(&trace_id));
+    sentry_value_set_by_key(
+        sentry_value_get_by_key(*propagation_context, "trace"), "span_id",
+        sentry__value_new_span_uuid(&span_id));
+}
+
 #ifdef SENTRY_PLATFORM_NX
 int
 sentry__native_init(sentry_options_t *options)
@@ -195,17 +210,7 @@ sentry_init(sentry_options_t *options)
             sentry_value_set_by_key(scope->client_sdk, "name", sdk_name);
         }
         sentry_value_freeze(scope->client_sdk);
-        // initialize the propagation context
-        sentry_value_set_by_key(
-            scope->propagation_context, "trace", sentry_value_new_object());
-        sentry_uuid_t trace_id = sentry_uuid_new_v4();
-        sentry_uuid_t span_id = sentry_uuid_new_v4();
-        sentry_value_set_by_key(
-            sentry_value_get_by_key(scope->propagation_context, "trace"),
-            "trace_id", sentry__value_new_internal_uuid(&trace_id));
-        sentry_value_set_by_key(
-            sentry_value_get_by_key(scope->propagation_context, "trace"),
-            "span_id", sentry__value_new_span_uuid(&span_id));
+        initialize_propagation_context(&scope->propagation_context);
     }
     if (backend && backend->user_consent_changed_func) {
         backend->user_consent_changed_func(backend);
