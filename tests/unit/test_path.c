@@ -145,6 +145,7 @@ SENTRY_TEST(path_basics)
     TEST_CHECK(!!path);
 
     sentry_pathiter_t *piter = sentry__path_iter_directory(path);
+    TEST_ASSERT(piter != NULL);
     while ((p = sentry__pathiter_next(piter)) != NULL) {
         bool is_file = sentry__path_is_file(p);
         bool is_dir = sentry__path_is_dir(p);
