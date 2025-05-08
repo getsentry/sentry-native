@@ -97,6 +97,15 @@ if(LINUX)
 		set(CMAKE_ASM_FLAGS  "${CMAKE_ASM_FLAGS} -m32 -D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE")
 		set_property(GLOBAL PROPERTY FIND_LIBRARY_USE_LIB64_PATHS OFF)
 	endif()
+
+        execute_process(
+                COMMAND ${CMAKE_C_COMPILER} -dumpmachine
+                OUTPUT_VARIABLE TARGET_TRIPLET
+                OUTPUT_STRIP_TRAILING_WHITESPACE
+        )
+        if(TARGET_TRIPLET MATCHES "musl")
+                set(MUSL TRUE)
+        endif()
 endif()
 
 # CMAKE_POSITION_INDEPENDENT_CODE must be set BEFORE adding any libraries (including subprojects)
@@ -199,7 +208,7 @@ endif()
 
 if(ANDROID)
 	set(SENTRY_WITH_LIBUNWINDSTACK TRUE)
-elseif(APPLE)
+elseif(APPLE OR MUSL)
 	set(SENTRY_WITH_LIBUNWIND TRUE)
 elseif(NOT WIN32)
 	set(SENTRY_WITH_LIBBACKTRACE TRUE)
@@ -503,6 +512,14 @@ if(SENTRY_WITH_LIBUNWINDSTACK)
 			LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
 			ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
 		)
+	endif()
+endif()
+
+if(SENTRY_WITH_LIBUNWIND)
+	if(LINUX)
+		find_package(PkgConfig REQUIRED)
+		pkg_check_modules(UNWIND REQUIRED IMPORTED_TARGET libunwind)
+		target_link_libraries(sentry PRIVATE PkgConfig::UNWIND)
 	endif()
 endif()
 

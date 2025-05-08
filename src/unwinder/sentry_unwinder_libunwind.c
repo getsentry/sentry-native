@@ -13,7 +13,6 @@ sentry__unwind_stack_libunwind(
     }
 
     unw_cursor_t cursor;
-#if 0
     if (uctx) {
         int ret = unw_init_local(&cursor, (unw_context_t *)uctx->user_context);
         if (ret != 0) {
@@ -21,26 +20,25 @@ sentry__unwind_stack_libunwind(
             return 0;
         }
     } else {
-#endif
-    unw_context_t uc;
-    int ret = unw_getcontext(&uc);
-    if (ret != 0) {
-        SENTRY_WARN("Failed to retrieve context with libunwind\n");
-        return 0;
-    }
+        unw_context_t uc;
+        int ret = unw_getcontext(&uc);
+        if (ret != 0) {
+            SENTRY_WARN("Failed to retrieve context with libunwind\n");
+            return 0;
+        }
 
-    ret = unw_init_local(&cursor, &uc);
-    if (ret != 0) {
-        SENTRY_WARN("Failed to initialize libunwind with local context\n");
-        return 0;
+        ret = unw_init_local(&cursor, &uc);
+        if (ret != 0) {
+            SENTRY_WARN("Failed to initialize libunwind with local context\n");
+            return 0;
+        }
     }
-#if 0
-    }
-#endif
 
     size_t frame_idx = 0;
     while (unw_step(&cursor) > 0 && frame_idx < max_frames - 1) {
-        unw_get_reg(&cursor, UNW_REG_IP, ptrs[frame_idx]);
+        unw_word_t ip = 0;
+        unw_get_reg(&cursor, UNW_REG_IP, &ip);
+        ptrs[frame_idx] = (void *)ip;
         unw_word_t sp = 0;
         unw_get_reg(&cursor, UNW_REG_SP, &sp);
         printf("ip = %lx, sp = %lx\n", (long)ptrs[frame_idx], (long)sp);
