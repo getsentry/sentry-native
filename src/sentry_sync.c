@@ -446,11 +446,7 @@ sentry__bgworker_submit(sentry_bgworker_t *bgw,
     }
     bgw->last_task = task;
 
-#if defined(_WIN32_WINNT) && _WIN32_WINNT < 0x0600
-    // on older Windows versions we set `_WIN32_WINNT` to value that requires
-    // the use `WakeConditionVariable_PREVISTA` which does perform a non-atomic
-    // handshake and essentially requires to cond_wake outside the lock.
-    // TODO: this could also happen due to faulty _WIN32_WINNT assignment in the CMake detection logic
+#if defined(SENTRY_PLATFORM_WINDOWS)
     sentry__mutex_unlock(&bgw->task_lock);
     sentry__cond_wake(&bgw->submit_signal);
 #else
