@@ -41,7 +41,7 @@ sentry__unwind_stack_libunwind(
         ptrs[frame_idx] = (void *)ip;
         unw_word_t sp = 0;
         unw_get_reg(&cursor, UNW_REG_SP, &sp);
-        printf("ip = %lx, sp = %lx\n", (long)ptrs[frame_idx], (long)sp);
+        // printf("ip = %lx, sp = %lx\n", (long)ptrs[frame_idx], (long)sp);
         frame_idx++;
     }
     return frame_idx + 1;
