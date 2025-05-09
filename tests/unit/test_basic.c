@@ -224,7 +224,8 @@ SENTRY_TEST(crashed_last_run)
 SENTRY_TEST(capture_minidump_basic)
 {
     // skipping on platforms that don't have access to fixtures on the local FS
-#if defined(SENTRY_PLATFORM_ANDROID) || defined(SENTRY_PLATFORM_NX)
+#if defined(SENTRY_PLATFORM_ANDROID) || defined(SENTRY_PLATFORM_NX)            \
+    || defined(SENTRY_PLATFORM_PS)
     SKIP_TEST();
 #else
     SENTRY_TEST_OPTIONS_NEW(options);

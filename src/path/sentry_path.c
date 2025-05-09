@@ -16,11 +16,13 @@ sentry__path_remove_all(const sentry_path_t *path)
 {
     if (sentry__path_is_dir(path)) {
         sentry_pathiter_t *piter = sentry__path_iter_directory(path);
-        const sentry_path_t *p;
-        while ((p = sentry__pathiter_next(piter)) != NULL) {
-            sentry__path_remove_all(p);
+        if (piter) {
+            const sentry_path_t *p;
+            while ((p = sentry__pathiter_next(piter)) != NULL) {
+                sentry__path_remove_all(p);
+            }
+            sentry__pathiter_free(piter);
         }
-        sentry__pathiter_free(piter);
     }
     return sentry__path_remove(path);
 }

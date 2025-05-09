@@ -7,7 +7,7 @@
 
 SENTRY_TEST(module_finder)
 {
-#ifdef SENTRY_PLATFORM_NX
+#if defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_PS)
     return SKIP_TEST();
 #endif
     // make sure that we are able to do multiple cleanup cycles

@@ -15,6 +15,12 @@
 #    include <time.h>
 #endif
 
+#ifdef SENTRY_PLATFORM_PS
+#    undef MIN
+#    undef MAX
+#    define getenv(_) NULL
+#endif
+
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 

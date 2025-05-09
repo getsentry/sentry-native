@@ -389,7 +389,7 @@ sentry__usec_time_to_iso8601(uint64_t time)
     size_t buf_len = sizeof(buf);
     time_t secs = time / 1000000;
     struct tm *tm;
-#ifdef SENTRY_PLATFORM_WINDOWS
+#if defined(SENTRY_PLATFORM_WINDOWS) || defined(SENTRY_PLATFORM_PS)
     tm = gmtime(&secs);
 #else
     struct tm tm_buf;
@@ -424,6 +424,7 @@ sentry__usec_time_to_iso8601(uint64_t time)
     return sentry__string_clone(buf);
 }
 
+#ifndef SENTRY_PLATFORM_PS
 uint64_t
 sentry__iso8601_to_usec(const char *iso)
 {
@@ -460,9 +461,9 @@ sentry__iso8601_to_usec(const char *iso)
     tm.tm_hour = h;
     tm.tm_min = m;
     tm.tm_sec = s;
-#ifdef SENTRY_PLATFORM_WINDOWS
+#    ifdef SENTRY_PLATFORM_WINDOWS
     time_t time = _mkgmtime(&tm);
-#elif defined(SENTRY_PLATFORM_AIX)
+#    elif defined(SENTRY_PLATFORM_AIX)
     /*
      * timegm is a GNU extension that AIX doesn't support. We'll have to fake
      * it by setting TZ instead w/ mktime, then unsets it. Changes global env.
@@ -485,15 +486,16 @@ sentry__iso8601_to_usec(const char *iso)
         unsetenv("TZ");
     }
     tzset();
-#else
+#    else
     time_t time = timegm(&tm);
-#endif
+#    endif
     if (time == -1) {
         return 0;
     }
 
     return (uint64_t)time * 1000000 + (uint64_t)usec;
 }
+#endif
 
 #ifdef SENTRY_PLATFORM_WINDOWS
 #    define sentry__locale_t _locale_t
@@ -506,7 +508,8 @@ sentry__iso8601_to_usec(const char *iso)
 // if Android ever adds locale support in NDK we will have to revisit this code
 // to ensure the C locale is also used there.
 #if !defined(SENTRY_PLATFORM_ANDROID) && !defined(SENTRY_PLATFORM_IOS)         \
-    && !defined(SENTRY_PLATFORM_AIX) && !defined(SENTRY_PLATFORM_NX)
+    && !defined(SENTRY_PLATFORM_AIX) && !defined(SENTRY_PLATFORM_NX)           \
+    && !defined(SENTRY_PLATFORM_PS)
 #    define HAS_C_LOCALE
 #endif
 

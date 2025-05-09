@@ -38,7 +38,7 @@ find_frame(const sentry_frame_info_t *info, void *data)
 
 SENTRY_TEST(unwinder)
 {
-#ifdef SENTRY_PLATFORM_NX
+#if defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_PS)
     return SKIP_TEST();
 #endif
     void *backtrace1[MAX_FRAMES] = { 0 };
