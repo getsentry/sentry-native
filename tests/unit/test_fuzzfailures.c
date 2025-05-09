@@ -42,7 +42,8 @@ parse_json_roundtrip(const sentry_path_t *path)
 SENTRY_TEST(fuzz_json)
 {
     // skipping on platforms that don't have access to fixtures on the local FS
-#if defined(SENTRY_PLATFORM_ANDROID) || defined(SENTRY_PLATFORM_NX)
+#if defined(SENTRY_PLATFORM_ANDROID) || defined(SENTRY_PLATFORM_NX)            \
+    || defined(SENTRY_PLATFORM_PS)
     SKIP_TEST();
 #else
     sentry_path_t *path = sentry__path_from_str(__FILE__);

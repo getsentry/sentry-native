@@ -162,7 +162,7 @@ SENTRY_TEST(path_current_exe)
 {
     sentry_path_t *path = sentry__path_current_exe();
 #if defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_PS)
-    // Not available on NX
+    // Not available on NX or PS
     TEST_CHECK(!path);
 #else
     TEST_CHECK(!!path);

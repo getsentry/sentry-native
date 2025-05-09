@@ -134,11 +134,11 @@ sentry__jsonwriter_new_sb(sentry_stringbuilder_t *sb)
     bool owns_sb = false;
     if (!sb) {
         sb = SENTRY_MAKE(sentry_stringbuilder_t);
+        if (!sb) {
+            return NULL;
+        }
         owns_sb = true;
         sentry__stringbuilder_init(sb);
-    }
-    if (!sb) {
-        return NULL;
     }
     sentry_jsonwriter_t *rv = SENTRY_MAKE(sentry_jsonwriter_t);
     if (!rv) {

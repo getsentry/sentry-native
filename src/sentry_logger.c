@@ -56,11 +56,11 @@ sentry__logger_defaultlogger(
     size_t len = strlen(prefix) + strlen(priority)
         + sentry__guarded_strlen(message) + 2;
     char *format = sentry_malloc(len);
-    snprintf(format, len, "%s%s%s\n", prefix, priority, message);
-
-    vfprintf(stderr, format, args);
-
-    sentry_free(format);
+    if (format) {
+        snprintf(format, len, "%s%s%s\n", prefix, priority, message);
+        vfprintf(stderr, format, args);
+        sentry_free(format);
+    }
 }
 
 #endif

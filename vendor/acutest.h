@@ -913,7 +913,7 @@ test_do_run__(const struct test__* test, int index)
 
     test_begin_test_line__(test);
 
-#ifdef __cplusplus
+#if defined(__cplusplus) && __has_feature(cxx_exceptions)
     try {
 #endif
 
@@ -967,7 +967,7 @@ aborted:
         test_current_unit__ = NULL;
         return (test_current_failures__ == 0) ? 0 : -1;
 
-#ifdef __cplusplus
+#if defined(__cplusplus) && __has_feature(cxx_exceptions)
     } catch(std::exception& e) {
         const char* what = e.what();
         test_check__(0, NULL, 0, "Threw std::exception");
@@ -1524,7 +1524,12 @@ test_is_tracer_present__(void)
 #endif
 
 int
-main(int argc, char** argv)
+#ifndef TEST_MAIN_NAME
+main
+#else
+TEST_MAIN_NAME
+#endif
+(int argc, char** argv)
 {
     int i;
     test_argv0__ = argv[0];

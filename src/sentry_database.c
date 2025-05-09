@@ -187,7 +187,7 @@ sentry__process_old_runs(const sentry_options_t *options, uint64_t last_crash)
         }
         sentry_pathiter_t *run_iter = sentry__path_iter_directory(run_dir);
         const sentry_path_t *file;
-        while ((file = sentry__pathiter_next(run_iter)) != NULL) {
+        while (run_iter && (file = sentry__pathiter_next(run_iter)) != NULL) {
             if (sentry__path_filename_matches(file, "session.json")) {
                 if (!session_envelope) {
                     session_envelope = sentry__envelope_new();
