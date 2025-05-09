@@ -247,8 +247,7 @@ worker_thread(void *data)
     sentry__mutex_lock(&bgw->task_lock);
     while (true) {
         if (sentry__bgworker_is_done(bgw)) {
-            sentry__cond_wake(&bgw->done_signal);
-            sentry__mutex_unlock(&bgw->task_lock);
+            sentry__unlock_and_wake(&bgw->done_signal, &bgw->task_lock);
             break;
         }
 
@@ -317,8 +316,7 @@ sentry__flush_task(void *task_data, void *UNUSED(state))
 
     sentry__mutex_lock(&flush_task->lock);
     flush_task->was_flushed = true;
-    sentry__cond_wake(&flush_task->signal);
-    sentry__mutex_unlock(&flush_task->lock);
+    sentry__unlock_and_wake(&flush_task->signal, &flush_task->lock);
 }
 
 static void
@@ -446,13 +444,7 @@ sentry__bgworker_submit(sentry_bgworker_t *bgw,
     }
     bgw->last_task = task;
 
-#if defined(SENTRY_PLATFORM_WINDOWS)
-    sentry__mutex_unlock(&bgw->task_lock);
-    sentry__cond_wake(&bgw->submit_signal);
-#else
-    sentry__cond_wake(&bgw->submit_signal);
-    sentry__mutex_unlock(&bgw->task_lock);
-#endif
+    sentry__unlock_and_wake(&bgw->submit_signal, &bgw->task_lock);
 
     return 0;
 }
