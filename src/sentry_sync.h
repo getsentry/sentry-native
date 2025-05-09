@@ -167,9 +167,19 @@ typedef HANDLE sentry_threadid_t;
 typedef struct sentry__winmutex_s sentry_mutex_t;
 #    define SENTRY__MUTEX_INIT { INIT_ONCE_STATIC_INIT, { 0 } }
 #    define sentry__mutex_init(Lock) sentry__winmutex_init(Lock)
-#    define sentry__mutex_lock(Lock) sentry__winmutex_lock(Lock)
+#    define sentry__mutex_lock(Lock)                                           \
+        do {                                                                   \
+            SENTRY_DEBUGF("Thread %d: InitializeCriticalSection(" #Lock ")",   \
+                GetCurrentThreadId());                                         \
+            sentry__winmutex_lock(Lock);                                       \
+        } while (0)
+;
 #    define sentry__mutex_unlock(Lock)                                         \
-        LeaveCriticalSection(&(Lock)->critical_section)
+        do {                                                                   \
+            SENTRY_DEBUGF("Thread %d: LeaveCriticalSection(" #Lock ")",        \
+                GetCurrentThreadId());                                         \
+            LeaveCriticalSection(&(Lock)->critical_section);                   \
+        } while (0)
 #    define sentry__mutex_free(Lock)                                           \
         DeleteCriticalSection(&(Lock)->critical_section)
 
