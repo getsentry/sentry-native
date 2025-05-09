@@ -173,7 +173,6 @@ typedef struct sentry__winmutex_s sentry_mutex_t;
                 GetCurrentThreadId());                                         \
             sentry__winmutex_lock(Lock);                                       \
         } while (0)
-;
 #    define sentry__mutex_unlock(Lock)                                         \
         do {                                                                   \
             SENTRY_DEBUGF("Thread %d: LeaveCriticalSection(" #Lock ")",        \
