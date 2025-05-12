@@ -246,7 +246,7 @@ typedef CONDITION_VARIABLE_PREVISTA sentry_cond_t;
 typedef CONDITION_VARIABLE sentry_cond_t;
 #        define sentry__cond_init(CondVar) InitializeConditionVariable(CondVar)
 #        ifdef SENTRY_LOCK_TRACES
-#            define sentry__cond_wake(CondVar)                                       \
+#            define sentry__cond_wake(CondVar)                                 \
                 do {                                                           \
                     SENTRY_DEBUGF("Thread %d: WakeConditionVariable(" #CondVar \
                                   ")",                                         \
@@ -276,7 +276,7 @@ typedef CONDITION_VARIABLE sentry_cond_t;
         sentry__cond_wait_timeout(CondVar, Lock, INFINITE)
 #    define sentry__wake_and_unlock(Cond, Mutex)                               \
         do {                                                                   \
-            // On Windows we first unlock and the wake the condition variable  \
+        // On Windows we first unlock and the wake the condition variable  \
             // TODO: return to previous state after counter test.              \
             sentry__cond_wake(Cond);                                           \
             sentry__mutex_unlock(Mutex);                                       \
