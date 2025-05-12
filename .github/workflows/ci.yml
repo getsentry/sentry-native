@@ -86,14 +86,18 @@ jobs:
           - name: Linux (GCC 13.3.0 + code-checker + valgrind)
             os: ubuntu-24.04
             RUN_ANALYZER: code-checker,valgrind
-          - name: Linux (musl + libunwind)
+          - name: Linux (GCC + musl + libunwind)
             os: ubuntu-latest
             container: alpine:3.21
             APK_PACKAGES: libunwind-dev libunwind-static
-          - name: Linux (musl + llvm-libunwind)
+            CC: gcc
+            CXX: g++
+          - name: Linux (clang + musl + llvm-libunwind)
             os: ubuntu-latest
             container: alpine:3.21
-            APK_PACKAGES: llvm-libunwind-dev llvm-libunwind-static
+            APK_PACKAGES: clang llvm-libunwind-dev llvm-libunwind-static
+            CC: clang
+            CXX: clang++
           - name: macOS 14 (xcode llvm)
             os: macos-14
             ERROR_ON_WARNINGS: 1
