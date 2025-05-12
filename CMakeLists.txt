@@ -517,9 +517,10 @@ endif()
 
 if(SENTRY_WITH_LIBUNWIND)
 	if(LINUX)
-		find_package(PkgConfig REQUIRED)
-		pkg_check_modules(UNWIND REQUIRED IMPORTED_TARGET libunwind)
-		target_link_libraries(sentry PRIVATE PkgConfig::UNWIND)
+		find_path(LIBUNWIND_INCLUDE_DIR libunwind.h PATH_SUFFIXES libunwind REQUIRED)
+		find_library(LIBUNWIND_LIBRARY unwind REQUIRED)
+		target_include_directories(sentry PRIVATE ${LIBUNWIND_INCLUDE_DIR})
+		target_link_libraries(sentry PRIVATE ${LIBUNWIND_LIBRARY})
 	endif()
 endif()
 
