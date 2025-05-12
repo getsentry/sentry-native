@@ -1,7 +1,7 @@
 all: test
 
 update-test-discovery:
-	@perl -ne 'print if s/SENTRY_TEST\(([^)]+)\).*/XX(\1)/' tests/unit/*.c | sort | grep -v define | uniq > tests/unit/tests.inc
+	@perl -ne 'print if s/SENTRY_TEST\(([^)]+)\).*/XX(\1)/' tests/unit/*.c | LC_ALL=C sort | grep -v define | uniq > tests/unit/tests.inc
 .PHONY: update-test-discovery
 
 build/Makefile: CMakeLists.txt
