@@ -5,10 +5,10 @@ on:
     branches:
       - master
     paths-ignore:
-      - "*.md"
+      - "**.md"
   pull_request:
     paths-ignore:
-      - "*.md"
+      - "**.md"
 
 permissions:
   deployments: write
