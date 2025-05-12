@@ -915,6 +915,7 @@ test_do_run__(const struct test__* test, int index)
 
 #ifdef __cplusplus
 #ifdef __has_feature
+// Support for `-fno-exceptions` 
 #if __has_feature(cxx_exceptions)
     #define ACUTEST_HAS_EXCEPTIONS
 #endif
