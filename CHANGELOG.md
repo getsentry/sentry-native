@@ -2,10 +2,13 @@
 
 ## Unreleased
 
+**Breaking changes**:
+
+- Use `propagation_context` as the single source of `trace_id` for spans and events. ([#1200](https://github.com/getsentry/sentry-native/pull/1200))
+
 **Fixes**:
 
 - Remove compile-time check for the `libcurl` feature `AsynchDNS`. ([#1206](https://github.com/getsentry/sentry-native/pull/1206))
-- Use `propagation_context` as the single source of `trace_id` for spans and events. ([#1200](https://github.com/getsentry/sentry-native/pull/1200))
 
 ## 0.8.4
 
