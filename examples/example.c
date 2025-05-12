@@ -356,6 +356,12 @@ main(int argc, char **argv)
         sentry_add_breadcrumb(nl_crumb);
     }
 
+    if (has_arg(argc, argv, "set-trace")) {
+        const char *direct_trace_id = "aaaabbbbccccddddeeeeffff00001111";
+        const char *direct_parent_span_id = "f0f0f0f0f0f0f0f0";
+        sentry_set_trace(direct_trace_id, direct_parent_span_id);
+    }
+
     if (has_arg(argc, argv, "start-session")) {
         sentry_start_session();
     }

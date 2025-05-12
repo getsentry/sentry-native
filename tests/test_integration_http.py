@@ -568,7 +568,7 @@ def test_transaction_only(cmake, httpserver, build_args):
     assert event.headers["type"] == "transaction"
     payload = event.payload.json
 
-    # See https://develop.sentry.dev/sdk/performance/trace-context/#trace-context
+    # See https://develop.sentry.dev/sdk/data-model/event-payloads/contexts/#trace-context
     trace_context = payload["contexts"]["trace"]
 
     assert (
@@ -579,8 +579,10 @@ def test_transaction_only(cmake, httpserver, build_args):
     trace_id = uuid.UUID(hex=trace_context["trace_id"])
     assert trace_id
 
-    # TODO: currently missing
+    # TODO: currently missing <- should be part of DSC, not trace context
     # assert trace_context['public_key']
+    #   https://develop.sentry.dev/sdk/telemetry/traces/dynamic-sampling-context/
+    #   https://develop.sentry.dev/sdk/data-model/event-payloads/contexts/#trace-context
 
     assert trace_context["span_id"]
     assert trace_context["status"] == "ok"
@@ -591,6 +593,127 @@ def test_transaction_only(cmake, httpserver, build_args):
     assert timestamp >= start_timestamp
 
     assert trace_context["data"] == {"url": "https://example.com"}
+
+
+def test_transaction_event(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+
+    httpserver.expect_oneshot_request(
+        "/api/123456/envelope/",
+        headers={"x-sentry-auth": auth_header},
+    ).respond_with_data("OK")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_RELEASE="🤮🚀")
+
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "capture-transaction", "capture-event"],
+        check=True,
+        env=env,
+    )
+
+    assert len(httpserver.log) == 2
+    tx_req = httpserver.log[1][0]
+    tx_body = tx_req.get_data()
+
+    event_req = httpserver.log[0][0]
+    event_body = event_req.get_data()
+
+    tx_envelope = Envelope.deserialize(tx_body)
+    event_envelope = Envelope.deserialize(event_body)
+
+    # Show what the envelope looks like if the test fails.
+    tx_envelope.print_verbose()
+
+    # The transaction is overwritten.
+    assert_meta(
+        tx_envelope,
+        transaction="little.teapot",
+    )
+
+    # Extract the transaction and event items
+    (tx_event,) = tx_envelope.items
+    (event,) = event_envelope.items
+
+    assert tx_event.headers["type"] == "transaction"
+    payload = tx_event.payload.json
+
+    # See https://develop.sentry.dev/sdk/data-model/event-payloads/contexts/#trace-context
+    trace_context = payload["contexts"]["trace"]
+
+    assert trace_context["trace_id"]
+    tx_trace_id = uuid.UUID(hex=trace_context["trace_id"])
+    assert tx_trace_id
+    event_trace_id = uuid.UUID(hex=event.payload.json["contexts"]["trace"]["trace_id"])
+    # by default, transactions and events should have the same trace id (picked up from the propagation context)
+    assert tx_trace_id == event_trace_id
+    assert_event(event_envelope, "Hello World!", trace_context["trace_id"])
+
+
+def test_set_trace_event(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+
+    httpserver.expect_oneshot_request(
+        "/api/123456/envelope/",
+        headers={"x-sentry-auth": auth_header},
+    ).respond_with_data("OK")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_RELEASE="🤮🚀")
+
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "set-trace", "capture-event"],
+        check=True,
+        env=env,
+    )
+
+    assert len(httpserver.log) == 1
+    event_req = httpserver.log[0][0]
+    event_body = event_req.get_data()
+
+    event_envelope = Envelope.deserialize(event_body)
+
+    # Extract the one-and-only-item
+    (event,) = event_envelope.items
+
+    payload = event.payload.json
+
+    # See https://develop.sentry.dev/sdk/data-model/event-payloads/contexts/#trace-context
+    trace_context = payload["contexts"]["trace"]
+
+    assert_event(event_envelope, "Hello World!", "aaaabbbbccccddddeeeeffff00001111")
+    assert trace_context["parent_span_id"]
+    assert trace_context["parent_span_id"] == "f0f0f0f0f0f0f0f0"
+
+
+def test_set_trace_transaction_scoped_event(cmake, httpserver):
+    # scenario 3 from docs
+    # 	init, call set_trace with predefined `trace_id` and `span_id`,
+    # 	create transaction (should pick up `trace_id` from propagation_context)
+    # 	and check `trace_id` and `parent_span_id` matching `set_trace` ones.
+    # 	Scope the tx & capture event, ensure that event has `span_id` from tx &
+    # 	same `trace_id`
+    pass
+
+
+def test_set_trace_transaction_event(cmake, httpserver):
+    # scenario 4 from docs
+    # 	init, call set_trace with predefined `trace_id` and `span_id`,
+    # 	create transaction (should pick up `trace_id` from propagation_context)
+    # 	and check `trace_id` and `parent_span_id` matching `set_trace` ones.
+    # 	DO NOT Scope the tx & capture event, ensure that event has `span_id` from
+    # 	propagation context & same `trace_id` as the tx/prop_ctx
+    pass
+
+
+def test_set_trace_transaction_update_from_header_event(cmake, httpserver):
+    # scenario 5 from docs
+    # 	init, call set_trace with predefined `trace_id` and `span_id`,
+    # 	create transaction (should pick up `trace_id` from propagation_context)
+    # 	then call `update_from_header`. Make sure not the prop_ctx values are used,
+    # 	but the update ones.  Scope the tx & capture event, ensure that event has `span_id`
+    # 	from propagation context & same `trace_id` as the tx (from the header update)
+    pass
 
 
 def test_capture_minidump(cmake, httpserver):
