@@ -465,6 +465,14 @@ main(int argc, char **argv)
         sentry_value_t custom_sampling_ctx = sentry_value_new_object();
         sentry_value_set_by_key(
             custom_sampling_ctx, "b", sentry_value_new_int32(42));
+
+        if (has_arg(argc, argv, "update-tx-from-header")) {
+            const char *trace_header
+                = "2674eb52d5874b13b560236d6c79ce8a-a0f9fdf04f1a63df";
+            sentry_transaction_context_update_from_header(
+                tx_ctx, "sentry-trace", trace_header);
+        }
+
         sentry_transaction_t *tx
             = sentry_transaction_start(tx_ctx, custom_sampling_ctx);
 
@@ -493,6 +501,13 @@ main(int argc, char **argv)
 
             sentry_span_finish(grandchild);
             sentry_span_finish(child);
+        }
+
+        if (has_arg(argc, argv, "scope-transaction-event")) {
+            sentry_set_transaction_object(tx);
+            sentry_value_t event = sentry_value_new_message_event(
+                SENTRY_LEVEL_INFO, "my-logger", "Hello World!");
+            sentry_capture_event(event);
         }
 
         sentry_transaction_finish(tx);
