@@ -7,8 +7,6 @@
 #include <assert.h>
 #include <stdio.h>
 
-#define SENTRY_LOCK_TRACES
-
 // This is a NOP for platforms that support static mutex initialization.
 #define SENTRY__MUTEX_INIT_DYN_ONCE(Mutex) ((void)0)
 
@@ -275,11 +273,10 @@ typedef CONDITION_VARIABLE sentry_cond_t;
 #    define sentry__cond_wait(CondVar, Lock)                                   \
         sentry__cond_wait_timeout(CondVar, Lock, INFINITE)
 // On Windows we first unlock and the wake the condition variable
-// TODO: return to previous state after counter test.
 #    define sentry__wake_and_unlock(Cond, Mutex)                               \
         do {                                                                   \
-            sentry__cond_wake(Cond);                                           \
             sentry__mutex_unlock(Mutex);                                       \
+            sentry__cond_wake(Cond);                                           \
         } while (0)
 
 #else
