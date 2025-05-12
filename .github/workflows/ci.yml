@@ -86,9 +86,14 @@ jobs:
           - name: Linux (GCC 13.3.0 + code-checker + valgrind)
             os: ubuntu-24.04
             RUN_ANALYZER: code-checker,valgrind
-          - name: Linux (Alpine + musl)
+          - name: Linux (musl + libunwind)
             os: ubuntu-latest
             container: alpine:3.21
+            APK_PACKAGES: libunwind-dev libunwind-static
+          - name: Linux (musl + llvm-libunwind)
+            os: ubuntu-latest
+            container: alpine:3.21
+            APK_PACKAGES: llvm-libunwind-dev llvm-libunwind-static
           - name: macOS 14 (xcode llvm)
             os: macos-14
             ERROR_ON_WARNINGS: 1
@@ -157,7 +162,7 @@ jobs:
         if: ${{ contains(matrix.container, 'alpine') }}
         run: |
           apk update
-          apk add bash build-base cargo cmake curl curl-dev git icu libunwind-dev linux-headers mitmproxy perl python3-dev sudo
+          apk add bash build-base cargo cmake curl curl-dev git icu linux-headers mitmproxy perl python3-dev sudo ${{ matrix.APK_PACKAGES }}
           curl -sSL --retry 5 https://dot.net/v1/dotnet-install.sh | bash -eo pipefail /dev/stdin --channel 8.0 --install-dir /usr/share/dotnet
           ln -s /usr/share/dotnet/dotnet /usr/local/bin/dotnet
 
@@ -165,7 +170,7 @@ jobs:
         with:
           submodules: recursive
       - uses: actions/setup-python@v5
-        if: ${{ ! contains(matrix.container, 'alpine') }}
+        if: ${{ !matrix.container }}
         with:
           python-version: "3.11"
           cache: "pip"
