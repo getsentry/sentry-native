@@ -579,11 +579,6 @@ def test_transaction_only(cmake, httpserver, build_args):
     trace_id = uuid.UUID(hex=trace_context["trace_id"])
     assert trace_id
 
-    # TODO: currently missing <- should be part of DSC, not trace context
-    # assert trace_context['public_key']
-    #   https://develop.sentry.dev/sdk/telemetry/traces/dynamic-sampling-context/
-    #   https://develop.sentry.dev/sdk/data-model/event-payloads/contexts/#trace-context
-
     assert trace_context["span_id"]
     assert trace_context["status"] == "ok"
 
