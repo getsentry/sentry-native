@@ -913,10 +913,19 @@ test_do_run__(const struct test__* test, int index)
 
     test_begin_test_line__(test);
 
-#if defined(__cplusplus) && __has_feature(cxx_exceptions)
-    try {
+#ifdef __cplusplus
+#ifdef __has_feature
+#if __has_feature(cxx_exceptions)
+    #define ACUTEST_HAS_EXCEPTIONS
+#endif
+#else
+    #define ACUTEST_HAS_EXCEPTIONS
+#endif
 #endif
 
+#ifdef ACUTEST_HAS_EXCEPTIONS
+    try {
+#endif
         /* This is good to do for case the test unit e.g. crashes. */
         fflush(stdout);
         fflush(stderr);
@@ -967,7 +976,7 @@ aborted:
         test_current_unit__ = NULL;
         return (test_current_failures__ == 0) ? 0 : -1;
 
-#if defined(__cplusplus) && __has_feature(cxx_exceptions)
+#ifdef ACUTEST_HAS_EXCEPTIONS
     } catch(std::exception& e) {
         const char* what = e.what();
         test_check__(0, NULL, 0, "Threw std::exception");
