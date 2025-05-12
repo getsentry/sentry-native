@@ -5,10 +5,12 @@ on:
     branches:
       - master
     paths-ignore:
-      - "**.md"
+      - "CHANGELOG.md"
+      - "README.md"
   pull_request:
     paths-ignore:
-      - "**.md"
+      - "CHANGELOG.md"
+      - "README.md"
 
 permissions:
   deployments: write
