@@ -274,10 +274,10 @@ typedef CONDITION_VARIABLE sentry_cond_t;
 #    endif
 #    define sentry__cond_wait(CondVar, Lock)                                   \
         sentry__cond_wait_timeout(CondVar, Lock, INFINITE)
+// On Windows we first unlock and the wake the condition variable
+// TODO: return to previous state after counter test.
 #    define sentry__wake_and_unlock(Cond, Mutex)                               \
         do {                                                                   \
-        // On Windows we first unlock and the wake the condition variable  \
-            // TODO: return to previous state after counter test.              \
             sentry__cond_wake(Cond);                                           \
             sentry__mutex_unlock(Mutex);                                       \
         } while (0)
