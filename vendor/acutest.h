@@ -247,7 +247,7 @@
 #include <string.h>
 #include <setjmp.h>
 
-#if defined(unix) || defined(__unix__) || defined(__unix) || defined(__APPLE__)
+#if (defined(unix) || defined(__unix__) || defined(__unix) || defined(__APPLE__)) && !defined(__PROSPERO__)
     #define ACUTEST_UNIX__      1
     #include <errno.h>
     #include <libgen.h>
@@ -914,9 +914,19 @@ test_do_run__(const struct test__* test, int index)
     test_begin_test_line__(test);
 
 #ifdef __cplusplus
-    try {
+#ifdef __has_feature
+// Support for `-fno-exceptions` 
+#if __has_feature(cxx_exceptions)
+    #define ACUTEST_HAS_EXCEPTIONS
+#endif
+#else
+    #define ACUTEST_HAS_EXCEPTIONS
+#endif
 #endif
 
+#ifdef ACUTEST_HAS_EXCEPTIONS
+    try {
+#endif
         /* This is good to do for case the test unit e.g. crashes. */
         fflush(stdout);
         fflush(stderr);
@@ -967,7 +977,7 @@ aborted:
         test_current_unit__ = NULL;
         return (test_current_failures__ == 0) ? 0 : -1;
 
-#ifdef __cplusplus
+#ifdef ACUTEST_HAS_EXCEPTIONS
     } catch(std::exception& e) {
         const char* what = e.what();
         test_check__(0, NULL, 0, "Threw std::exception");
@@ -1524,7 +1534,12 @@ test_is_tracer_present__(void)
 #endif
 
 int
-main(int argc, char** argv)
+#ifndef TEST_MAIN_NAME
+main
+#else
+TEST_MAIN_NAME
+#endif
+(int argc, char** argv)
 {
     int i;
     test_argv0__ = argv[0];

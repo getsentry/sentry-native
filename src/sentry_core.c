@@ -107,7 +107,7 @@ initialize_propagation_context(sentry_value_t *propagation_context)
         sentry__value_new_span_uuid(&span_id));
 }
 
-#ifdef SENTRY_PLATFORM_NX
+#if defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_PS)
 int
 sentry__native_init(sentry_options_t *options)
 #else

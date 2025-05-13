@@ -139,7 +139,7 @@ sentry__scope_flush_unlock(void)
     }
 }
 
-#ifndef SENTRY_PLATFORM_NX
+#if !defined(SENTRY_PLATFORM_NX) && !defined(SENTRY_PLATFORM_PS)
 static void
 sentry__foreach_stacktrace(
     sentry_value_t event, void (*func)(sentry_value_t stacktrace))
@@ -366,7 +366,7 @@ sentry__scope_apply_to_event(const sentry_scope_t *scope,
         sentry_value_decref(l);
     }
 
-#ifndef SENTRY_PLATFORM_NX
+#if !defined(SENTRY_PLATFORM_NX) && !defined(SENTRY_PLATFORM_PS)
     if (mode & SENTRY_SCOPE_MODULES) {
         sentry_value_t modules = sentry_get_modules_list();
         if (!sentry_value_is_null(modules)) {
