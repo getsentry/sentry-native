@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1747128537650,
+  "lastUpdate": 1747128667282,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -1564,6 +1564,66 @@ window.BENCHMARK_DATA = {
             "value": 9.627099999988786,
             "unit": "ms",
             "extra": "Min 9.282ms\nMax 10.011ms\nMean 9.666ms\nStdDev 0.267ms\nMedian 9.627ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "60878493+JoshuaMoelans@users.noreply.github.com",
+            "name": "JoshuaMoelans",
+            "username": "JoshuaMoelans"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "bbca52a36c6811c5c18882099cb7e27fd10621d2",
+          "message": "fix: trace sync improvements (#1200)\n\n* make set_trace write into propagation_context\n\n* check propagation context on transaction creation\n\n* clone instead of steal the propagation context trace data\n\n* apply propagation context when scoping transaction/span\n\n* progress\n\n* no longer apply trace data on span scoping\n\n* populate propagation_context with random trace_id and span_id\n\n* merge propagation context into contexts for event\n\n* add tests\n\n* only set propagation_context for TwP\n\n* finish all started spans\n\n* always init propagation_context\n\n* cleanup + CHANGELOG.md\n\n* extract init into static helper\n\n* first integration tests\n\n* more integration tests\n\n* remove todo\n\n* mark changes as breaking\n\n* CHANGELOG.md\n\n* Update CHANGELOG.md\n\nCo-authored-by: Mischan Toosarani-Hausberger <mischan@abovevacant.com>\n\n---------\n\nCo-authored-by: Mischan Toosarani-Hausberger <mischan@abovevacant.com>",
+          "timestamp": "2025-05-13T11:26:04+02:00",
+          "tree_id": "24f34cc1d128baf724703ef01f788002eac444d7",
+          "url": "https://github.com/getsentry/sentry-native/commit/bbca52a36c6811c5c18882099cb7e27fd10621d2"
+        },
+        "date": 1747128654193,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 7.192200000019966,
+            "unit": "ms",
+            "extra": "Min 7.120ms\nMax 8.526ms\nMean 7.441ms\nStdDev 0.608ms\nMedian 7.192ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 7.21409999999878,
+            "unit": "ms",
+            "extra": "Min 7.115ms\nMax 7.359ms\nMean 7.229ms\nStdDev 0.110ms\nMedian 7.214ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 17.525999999975284,
+            "unit": "ms",
+            "extra": "Min 17.280ms\nMax 19.634ms\nMean 18.080ms\nStdDev 1.006ms\nMedian 17.526ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.009700000077828008,
+            "unit": "ms",
+            "extra": "Min 0.009ms\nMax 0.011ms\nMean 0.010ms\nStdDev 0.001ms\nMedian 0.010ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.29819999997471314,
+            "unit": "ms",
+            "extra": "Min 0.292ms\nMax 0.313ms\nMean 0.301ms\nStdDev 0.010ms\nMedian 0.298ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 9.557399999948757,
+            "unit": "ms",
+            "extra": "Min 9.311ms\nMax 10.111ms\nMean 9.646ms\nStdDev 0.336ms\nMedian 9.557ms"
           }
         ]
       }
