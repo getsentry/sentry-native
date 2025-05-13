@@ -63,7 +63,7 @@ if(WIN32)
 		path/sentry_path_windows.c
 		symbolizer/sentry_symbolizer_windows.c
 	)
-elseif(NX)
+elseif(NX OR CMAKE_SYSTEM_NAME STREQUAL "Prospero")
 	sentry_target_sources_cwd(sentry
 		sentry_unix_spinlock.h
 		path/sentry_path_unix.c

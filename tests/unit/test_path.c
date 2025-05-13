@@ -145,6 +145,7 @@ SENTRY_TEST(path_basics)
     TEST_CHECK(!!path);
 
     sentry_pathiter_t *piter = sentry__path_iter_directory(path);
+    TEST_ASSERT(piter != NULL);
     while ((p = sentry__pathiter_next(piter)) != NULL) {
         bool is_file = sentry__path_is_file(p);
         bool is_dir = sentry__path_is_dir(p);
@@ -160,8 +161,8 @@ SENTRY_TEST(path_basics)
 SENTRY_TEST(path_current_exe)
 {
     sentry_path_t *path = sentry__path_current_exe();
-#ifdef SENTRY_PLATFORM_NX
-    // Not available on NX
+#if defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_PS)
+    // Not available on NX or PS
     TEST_CHECK(!path);
 #else
     TEST_CHECK(!!path);
