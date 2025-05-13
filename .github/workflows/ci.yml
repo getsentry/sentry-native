@@ -168,7 +168,7 @@ jobs:
         if: ${{ contains(matrix.container, 'alpine') }}
         run: |
           apk update
-          apk add bash build-base cargo cmake curl curl-dev git icu linux-headers mitmproxy perl python3-dev sudo ${{ matrix.APK_PACKAGES }}
+          apk add bash build-base cargo cmake curl curl-dev git icu linux-headers mitmproxy perl python3-dev sudo xz-dev ${{ matrix.APK_PACKAGES }}
           curl -sSL --retry 5 https://dot.net/v1/dotnet-install.sh | bash -eo pipefail /dev/stdin --channel 8.0 --install-dir /usr/share/dotnet
           ln -s /usr/share/dotnet/dotnet /usr/local/bin/dotnet
 
