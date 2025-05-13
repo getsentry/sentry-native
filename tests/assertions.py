@@ -241,7 +241,7 @@ def assert_timestamp(ts):
     assert elapsed_time.total_seconds() < 10
 
 
-def assert_event(envelope, message="Hello World!"):
+def assert_event(envelope, message="Hello World!", expected_trace_id=""):
     event = envelope.get_event()
     expected = {
         "level": "info",
@@ -250,6 +250,15 @@ def assert_event(envelope, message="Hello World!"):
     }
     assert_matches(event, expected)
     assert_timestamp(event["timestamp"])
+    assert_trace_id(event, expected_trace_id)
+
+
+# if expected_trace is "" we just expect any value to exist
+def assert_trace_id(event, expected_trace_id):
+    if expected_trace_id == "":
+        assert len(event["contexts"]["trace"]["trace_id"]) == 32
+    else:
+        assert event["contexts"]["trace"]["trace_id"] == expected_trace_id
 
 
 def assert_breakpad_crash(envelope):

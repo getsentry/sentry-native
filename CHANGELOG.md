@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Breaking changes**:
+
+- Use `propagation_context` as the single source of `trace_id` for spans and events. Transactions no longer create a new trace, but inherit the trace from the `propagation_context` created during SDK initialization. This context can be later modified through `sentry_set_trace()` (primarily used by other SDKs). ([#1200](https://github.com/getsentry/sentry-native/pull/1200))
+
 **Features**:
 
 - Add `sentry_value_new_user(id, username, email, ip_address)` function to avoid ambiguous user-context-keys. ([#1228](https://github.com/getsentry/sentry-native/pull/1228))
