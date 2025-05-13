@@ -1755,6 +1755,27 @@ struct sentry_transaction_s;
 typedef struct sentry_transaction_s sentry_transaction_t;
 
 /**
+ * Type of the `before_transaction` callback.
+ *
+ * The callback takes ownership of the `transaction`, and should usually return
+ * that same transaction. In case the transaction should be discarded, the
+ * callback needs to call `sentry_value_decref` on the provided transaction, and
+ * return a `sentry_value_new_null()` instead.
+ * TODO ensure this docstring is correct & complete
+ * TODO do we want a (void* hint) parameter too (see sentry_event_function_t)?
+ *  this is always passed as NULL to the on_crash/on_send callbacks :thinking:
+ *  TODO before_send_data (like for on_crash/on_send)?
+ */
+typedef sentry_value_t (*sentry_transaction_function_t)(
+    sentry_value_t transaction);
+
+/**
+ * Sets the `before_transaction` callback.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_options_set_before_transaction(
+    sentry_options_t *opts, sentry_transaction_function_t func);
+
+/**
  * A sentry Span.
  *
  * See https://develop.sentry.dev/sdk/event-payloads/span/

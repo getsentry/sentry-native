@@ -158,6 +158,13 @@ sentry_options_set_on_crash(
 }
 
 void
+sentry_options_set_before_transaction(
+    sentry_options_t *opts, sentry_transaction_function_t func)
+{
+    opts->before_transaction_func = func;
+}
+
+void
 sentry_options_set_dsn_n(
     sentry_options_t *opts, const char *raw_dsn, size_t raw_dsn_len)
 {

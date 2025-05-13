@@ -633,6 +633,18 @@ sentry__prepare_transaction(const sentry_options_t *options,
         sentry__scope_apply_to_event(scope, options, transaction, mode);
     }
 
+    if (options->before_transaction_func) {
+        // TODO why no invoke_before_send in func arguments (vs prepare_event)
+        //      (also why is it always `true` for prepare_event)
+        SENTRY_DEBUG("invoking `before_transaction` hook");
+        transaction = options->before_transaction_func(transaction);
+        if (sentry_value_is_null(transaction)) {
+            SENTRY_DEBUG(
+                "transaction was discarded by the `before_transaction` hook");
+            return NULL;
+        }
+    }
+
     sentry__ensure_event_id(transaction, event_id);
     envelope = sentry__envelope_new();
     if (!envelope || !sentry__envelope_add_transaction(envelope, transaction)) {

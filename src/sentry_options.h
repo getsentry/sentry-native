@@ -68,6 +68,7 @@ struct sentry_options_s {
     void *before_send_data;
     sentry_crash_function_t on_crash_func;
     void *on_crash_data;
+    sentry_transaction_function_t before_transaction_func;
 
     /* Experimentally exposed */
     double traces_sample_rate;

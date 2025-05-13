@@ -104,6 +104,21 @@ on_crash_callback(
     return event;
 }
 
+static sentry_value_t
+before_transaction_callback(sentry_value_t tx)
+{
+    printf("before_transaction_callback\n");
+    return tx;
+}
+
+static sentry_value_t
+discarding_before_transaction_callback(sentry_value_t tx)
+{
+    printf("discarding_before_transaction_callback\n");
+    sentry_value_decref(tx);
+    return sentry_value_new_null();
+}
+
 static void
 print_envelope(sentry_envelope_t *envelope, void *unused_state)
 {
@@ -258,6 +273,16 @@ main(int argc, char **argv)
     if (has_arg(argc, argv, "discarding-on-crash")) {
         sentry_options_set_on_crash(
             options, discarding_on_crash_callback, NULL);
+    }
+
+    if (has_arg(argc, argv, "before-transaction")) {
+        sentry_options_set_before_transaction(
+            options, before_transaction_callback);
+    }
+
+    if (has_arg(argc, argv, "discarding-before-transaction")) {
+        sentry_options_set_before_transaction(
+            options, discarding_before_transaction_callback);
     }
 
     if (has_arg(argc, argv, "traces-sampler")) {
