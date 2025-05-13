@@ -18,6 +18,7 @@ SENTRY_TEST(init_failure)
 {
     sentry_transport_t *transport
         = sentry_new_function_transport(noop_send, NULL);
+    TEST_ASSERT(!!transport);
     sentry_transport_set_startup_func(transport, transport_startup_fail);
 
     SENTRY_TEST_OPTIONS_NEW(options);
