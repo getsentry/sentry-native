@@ -15,20 +15,20 @@ sentry__unwind_stack_libunwind(
     if (uctx) {
         int ret = unw_init_local(&cursor, (unw_context_t *)uctx->user_context);
         if (ret != 0) {
-            SENTRY_WARN("Failed to initialize libunwind with ucontext\n");
+            SENTRY_WARN("Failed to initialize libunwind with ucontext");
             return 0;
         }
     } else {
         unw_context_t uc;
         int ret = unw_getcontext(&uc);
         if (ret != 0) {
-            SENTRY_WARN("Failed to retrieve context with libunwind\n");
+            SENTRY_WARN("Failed to retrieve context with libunwind");
             return 0;
         }
 
         ret = unw_init_local(&cursor, &uc);
         if (ret != 0) {
-            SENTRY_WARN("Failed to initialize libunwind with local context\n");
+            SENTRY_WARN("Failed to initialize libunwind with local context");
             return 0;
         }
     }
