@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1747114925837,
+  "lastUpdate": 1747115022497,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -1384,6 +1384,66 @@ window.BENCHMARK_DATA = {
             "value": 9.031800000002477,
             "unit": "ms",
             "extra": "Min 8.803ms\nMax 9.862ms\nMean 9.125ms\nStdDev 0.431ms\nMedian 9.032ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "6349682+vaind@users.noreply.github.com",
+            "name": "Ivan Dlugos",
+            "username": "vaind"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "ba3d4167ff408f11245c986802ccf5ba6c073f31",
+          "message": "chore: PS downstream SDK support (#1224)",
+          "timestamp": "2025-05-13T07:38:49+02:00",
+          "tree_id": "668de9b24f4bf4be9c3dc63a2d640d138116e24b",
+          "url": "https://github.com/getsentry/sentry-native/commit/ba3d4167ff408f11245c986802ccf5ba6c073f31"
+        },
+        "date": 1747115013983,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 7.463799999982257,
+            "unit": "ms",
+            "extra": "Min 7.207ms\nMax 7.678ms\nMean 7.454ms\nStdDev 0.204ms\nMedian 7.464ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 7.608099999970364,
+            "unit": "ms",
+            "extra": "Min 7.504ms\nMax 8.239ms\nMean 7.795ms\nStdDev 0.337ms\nMedian 7.608ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 17.959300000029543,
+            "unit": "ms",
+            "extra": "Min 17.331ms\nMax 18.137ms\nMean 17.773ms\nStdDev 0.364ms\nMedian 17.959ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.016899999991437653,
+            "unit": "ms",
+            "extra": "Min 0.013ms\nMax 0.022ms\nMean 0.017ms\nStdDev 0.003ms\nMedian 0.017ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.3490999999939959,
+            "unit": "ms",
+            "extra": "Min 0.303ms\nMax 0.367ms\nMean 0.335ms\nStdDev 0.029ms\nMedian 0.349ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 9.627099999988786,
+            "unit": "ms",
+            "extra": "Min 9.282ms\nMax 10.011ms\nMean 9.666ms\nStdDev 0.267ms\nMedian 9.627ms"
           }
         ]
       }
