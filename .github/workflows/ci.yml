@@ -111,6 +111,8 @@ jobs:
             TEST_X86: 1
           - name: Windows (latest)
             os: windows-latest
+          - name: Windows 11 ARM64
+            os: windows-11-arm
           - name: Windows ClangCL (latest)
             os: windows-latest
             VS_GENERATOR_TOOLSET: ClangCL
