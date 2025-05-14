@@ -13,7 +13,8 @@ sentry__unwind_stack_libunwind(
 
     unw_cursor_t cursor;
     if (uctx) {
-        int ret = unw_init_local2(&cursor, (unw_context_t *)uctx->user_context, UNW_INIT_SIGNAL_FRAME);
+        int ret = unw_init_local2(&cursor, (unw_context_t *)uctx->user_context,
+            UNW_INIT_SIGNAL_FRAME);
         if (ret != 0) {
             SENTRY_WARN("Failed to initialize libunwind with ucontext");
             return 0;
