@@ -11,6 +11,8 @@
 </p>
 
 # Official Sentry SDK for C/C++ <!-- omit in toc -->
+[![GH Workflow](https://img.shields.io/github/actions/workflow/status/getsentry/sentry-native/ci.yml?branch=master)](https://github.com/getsentry/sentry-native/actions)
+[![codecov](https://codecov.io/gh/getsentry/sentry-native/branch/master/graph/badge.svg)](https://codecov.io/gh/getsentry/sentry-native)
 
 The _Sentry Native SDK_ is an error and crash reporting client for native
 applications, optimized for C and C++. Sentry allows to add tags, breadcrumbs
