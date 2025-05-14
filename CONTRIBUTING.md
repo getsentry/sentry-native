@@ -157,6 +157,8 @@ The example currently supports the following commands:
 - `capture-transaction`: Captures a transaction.
   - `update-tx-from-header`: Updates the transaction with trace header `"2674eb52d5874b13b560236d6c79ce8a-a0f9fdf04f1a63df"` (`trace_id`-`parent_span_id`).
   - `scope-transaction-event`: Scopes the created transaction and captures an additional event.
+- `before-transaction`: Installs a `before_transaction()` callback that updates the transaction title.
+- `discarding-before-transaction`: Installs a `before_transaction()` callback that discards the transaction.
 - `traces-sampler`: Installs a traces sampler callback function when used alongside `capture-transaction`.
 - `attach-view-hierarchy`: Adds a `view-hierarchy.json` attachment file, giving it the proper `attachment_type` and `content_type`. 
  This file can be found in `./tests/fixtures/view-hierachy.json`.
