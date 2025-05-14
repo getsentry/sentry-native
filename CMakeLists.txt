@@ -97,6 +97,15 @@ if(LINUX)
 		set(CMAKE_ASM_FLAGS  "${CMAKE_ASM_FLAGS} -m32 -D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE")
 		set_property(GLOBAL PROPERTY FIND_LIBRARY_USE_LIB64_PATHS OFF)
 	endif()
+
+        execute_process(
+                COMMAND ${CMAKE_C_COMPILER} -dumpmachine
+                OUTPUT_VARIABLE TARGET_TRIPLET
+                OUTPUT_STRIP_TRAILING_WHITESPACE
+        )
+        if(TARGET_TRIPLET MATCHES "musl")
+                set(MUSL TRUE)
+        endif()
 endif()
 
 # CMAKE_POSITION_INDEPENDENT_CODE must be set BEFORE adding any libraries (including subprojects)
@@ -199,6 +208,8 @@ endif()
 
 if(ANDROID)
 	set(SENTRY_WITH_LIBUNWINDSTACK TRUE)
+elseif(MUSL)
+	set(SENTRY_WITH_LIBUNWIND TRUE)
 elseif(NOT WIN32)
 	set(SENTRY_WITH_LIBBACKTRACE TRUE)
 endif()
@@ -501,6 +512,24 @@ if(SENTRY_WITH_LIBUNWINDSTACK)
 			LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
 			ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
 		)
+	endif()
+endif()
+
+if(SENTRY_WITH_LIBUNWIND)
+	if(LINUX)
+		option(SENTRY_LIBUNWIND_SHARED "Link to shared libunwind" ${SENTRY_BUILD_SHARED_LIBS})
+		find_path(LIBUNWIND_INCLUDE_DIR libunwind.h PATH_SUFFIXES libunwind REQUIRED)
+		if(SENTRY_LIBUNWIND_SHARED)
+			find_library(LIBUNWIND_LIBRARIES unwind REQUIRED)
+		else()
+			find_library(LIBUNWIND_LIBRARIES libunwind.a REQUIRED)
+			find_library(LZMA_LIBRARY lzma)
+			if(LZMA_LIBRARY)
+				list(APPEND LIBUNWIND_LIBRARIES ${LZMA_LIBRARY})
+			endif()
+		endif()
+		target_include_directories(sentry PRIVATE ${LIBUNWIND_INCLUDE_DIR})
+		target_link_libraries(sentry PRIVATE ${LIBUNWIND_LIBRARIES})
 	endif()
 endif()
 

@@ -86,6 +86,20 @@ jobs:
           - name: Linux (GCC 13.3.0 + code-checker + valgrind)
             os: ubuntu-24.04
             RUN_ANALYZER: code-checker,valgrind
+          - name: Linux (GCC + musl + libunwind)
+            os: ubuntu-latest
+            container: alpine:3.21
+            APK_PACKAGES: libunwind-dev libunwind-static
+            CMAKE_DEFINES: -DSENTRY_LIBUNWIND_SHARED=OFF
+            CC: gcc
+            CXX: g++
+          - name: Linux (clang + musl + libunwind)
+            os: ubuntu-latest
+            container: alpine:3.21
+            APK_PACKAGES: clang libunwind-dev libunwind-static
+            CMAKE_DEFINES: -DSENTRY_LIBUNWIND_SHARED=OFF
+            CC: clang
+            CXX: clang++
           - name: macOS 14 (xcode llvm)
             os: macos-14
             ERROR_ON_WARNINGS: 1
@@ -135,6 +149,7 @@ jobs:
 
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
+    container: ${{ matrix.container }}
 
     env:
       TEST_X86: ${{ matrix.TEST_X86 }}
@@ -149,16 +164,25 @@ jobs:
       VS_GENERATOR_TOOLSET: ${{ matrix.VS_GENERATOR_TOOLSET }}
 
     steps:
+      - name: Installing Alpine Linux Dependencies
+        if: ${{ contains(matrix.container, 'alpine') }}
+        run: |
+          apk update
+          apk add bash build-base cargo cmake curl curl-dev git icu linux-headers mitmproxy perl python3-dev sudo xz-dev ${{ matrix.APK_PACKAGES }}
+          curl -sSL --retry 5 https://dot.net/v1/dotnet-install.sh | bash -eo pipefail /dev/stdin --channel 8.0 --install-dir /usr/share/dotnet
+          ln -s /usr/share/dotnet/dotnet /usr/local/bin/dotnet
+
       - uses: actions/checkout@v4
         with:
           submodules: recursive
       - uses: actions/setup-python@v5
+        if: ${{ !matrix.container }}
         with:
           python-version: "3.11"
           cache: "pip"
 
       - name: Installing Linux Dependencies
-        if: ${{ runner.os == 'Linux' && matrix.os != 'ubuntu-22.04' && !env['TEST_X86'] }}
+        if: ${{ runner.os == 'Linux' && matrix.os != 'ubuntu-22.04' && !env['TEST_X86'] && !matrix.container }}
         run: |
           sudo apt update
           sudo apt install cmake clang-19 llvm g++-12 valgrind zlib1g-dev libcurl4-openssl-dev
@@ -173,13 +197,13 @@ jobs:
           sudo make install
 
       - name: Installing Linux GCC 9.4.0 Dependencies
-        if: ${{ runner.os == 'Linux' && matrix.os == 'ubuntu-22.04' && !env['TEST_X86'] }}
+        if: ${{ runner.os == 'Linux' && matrix.os == 'ubuntu-22.04' && !env['TEST_X86'] && !matrix.container }}
         run: |
           sudo apt update
           sudo apt install cmake llvm kcov g++ valgrind zlib1g-dev libcurl4-openssl-dev
 
       - name: Installing Linux 32-bit Dependencies
-        if: ${{ runner.os == 'Linux' && env['TEST_X86'] }}
+        if: ${{ runner.os == 'Linux' && env['TEST_X86'] && !matrix.container }}
         run: |
           sudo dpkg --add-architecture i386
           sudo apt update
@@ -251,6 +275,16 @@ jobs:
           echo "127.0.0.1   sentry.native.test" | sudo tee -a /etc/hosts
           cat /etc/hosts
         shell: bash
+
+      - name: Prepare env for Alpine Linux
+        if: ${{ contains(matrix.container, 'alpine') }}
+        run: |
+          apk add moreutils
+          # comment out "::1 localhost ..." to avoid conflicts with proxy tests
+          sed '/^::1/ s/^/#/' /etc/hosts | sponge /etc/hosts
+          python3 -m venv .venv --system-site-packages
+          source .venv/bin/activate
+          echo "PATH=$PATH" >> $GITHUB_ENV
 
       - name: Test
         shell: bash
