@@ -93,10 +93,10 @@ jobs:
             CMAKE_DEFINES: -DSENTRY_LIBUNWIND_SHARED=OFF
             CC: gcc
             CXX: g++
-          - name: Linux (clang + musl + llvm-libunwind)
+          - name: Linux (clang + musl + libunwind)
             os: ubuntu-latest
             container: alpine:3.21
-            APK_PACKAGES: clang llvm-libunwind-dev llvm-libunwind-static
+            APK_PACKAGES: clang libunwind-dev libunwind-static
             CMAKE_DEFINES: -DSENTRY_LIBUNWIND_SHARED=OFF
             CC: clang
             CXX: clang++
