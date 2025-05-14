@@ -105,18 +105,25 @@ on_crash_callback(
 }
 
 static sentry_value_t
-before_transaction_callback(sentry_value_t tx)
+before_transaction_callback(sentry_value_t tx, void *closure)
 {
-    printf("before_transaction_callback\n");
+    (void)closure;
+
+    sentry_value_set_by_key(
+        tx, "transaction", sentry_value_new_string("little.coffeepot"));
     return tx;
 }
 
 static sentry_value_t
-discarding_before_transaction_callback(sentry_value_t tx)
+discarding_before_transaction_callback(sentry_value_t tx, void *closure)
 {
-    printf("discarding_before_transaction_callback\n");
-    sentry_value_decref(tx);
-    return sentry_value_new_null();
+    (void)closure;
+    // throw out any transaction while a tag is active
+    if (!sentry_value_is_null(sentry_value_get_by_key(tx, "tags"))) {
+        sentry_value_decref(tx);
+        return sentry_value_new_null();
+    }
+    return tx;
 }
 
 static void
@@ -277,12 +284,12 @@ main(int argc, char **argv)
 
     if (has_arg(argc, argv, "before-transaction")) {
         sentry_options_set_before_transaction(
-            options, before_transaction_callback);
+            options, before_transaction_callback, NULL);
     }
 
     if (has_arg(argc, argv, "discarding-before-transaction")) {
         sentry_options_set_before_transaction(
-            options, discarding_before_transaction_callback);
+            options, discarding_before_transaction_callback, NULL);
     }
 
     if (has_arg(argc, argv, "traces-sampler")) {

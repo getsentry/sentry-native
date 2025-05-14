@@ -159,9 +159,10 @@ sentry_options_set_on_crash(
 
 void
 sentry_options_set_before_transaction(
-    sentry_options_t *opts, sentry_transaction_function_t func)
+    sentry_options_t *opts, sentry_transaction_function_t func, void *data)
 {
     opts->before_transaction_func = func;
+    opts->before_transaction_data = data;
 }
 
 void
