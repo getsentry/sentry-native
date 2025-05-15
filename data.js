@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1747311269124,
+  "lastUpdate": 1747311450818,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -2398,6 +2398,66 @@ window.BENCHMARK_DATA = {
             "value": 9.243299999980081,
             "unit": "ms",
             "extra": "Min 9.159ms\nMax 9.828ms\nMean 9.349ms\nStdDev 0.272ms\nMedian 9.243ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "mischan@abovevacant.com",
+            "name": "Mischan Toosarani-Hausberger",
+            "username": "supervacuus"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "3d15dda2181af0a93cb8db4cdc23577db95fc74b",
+          "message": "chore: remove `twxs.cmake` from the recommended VSCode extensions (#1246)\n\nsee: https://github.com/twxs/vs.language.cmake/issues/119\r\n\r\nCMake Tools also now recommends uninstalling `twxs.cmake` when you install it. This is an unnecessary dev-setup prologue.",
+          "timestamp": "2025-05-15T14:12:16+02:00",
+          "tree_id": "615ea1b73964e7e9c8eb844234d3fca2932ac690",
+          "url": "https://github.com/getsentry/sentry-native/commit/3d15dda2181af0a93cb8db4cdc23577db95fc74b"
+        },
+        "date": 1747311434045,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 6.814800000029209,
+            "unit": "ms",
+            "extra": "Min 6.749ms\nMax 6.979ms\nMean 6.830ms\nStdDev 0.088ms\nMedian 6.815ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 7.445399999937763,
+            "unit": "ms",
+            "extra": "Min 7.194ms\nMax 8.942ms\nMean 7.698ms\nStdDev 0.727ms\nMedian 7.445ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 17.185699999913595,
+            "unit": "ms",
+            "extra": "Min 16.901ms\nMax 17.481ms\nMean 17.220ms\nStdDev 0.239ms\nMedian 17.186ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.009299999987888441,
+            "unit": "ms",
+            "extra": "Min 0.009ms\nMax 0.009ms\nMean 0.009ms\nStdDev 0.000ms\nMedian 0.009ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.2925999999661144,
+            "unit": "ms",
+            "extra": "Min 0.288ms\nMax 0.317ms\nMean 0.297ms\nStdDev 0.011ms\nMedian 0.293ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 9.29180000002816,
+            "unit": "ms",
+            "extra": "Min 8.922ms\nMax 9.328ms\nMean 9.203ms\nStdDev 0.169ms\nMedian 9.292ms"
           }
         ]
       }
