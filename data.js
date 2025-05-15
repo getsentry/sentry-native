@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1747323008686,
+  "lastUpdate": 1747323153217,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -2638,6 +2638,66 @@ window.BENCHMARK_DATA = {
             "value": 9.29180000002816,
             "unit": "ms",
             "extra": "Min 8.922ms\nMax 9.328ms\nMean 9.203ms\nStdDev 0.169ms\nMedian 9.292ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "mischan@abovevacant.com",
+            "name": "Mischan Toosarani-Hausberger",
+            "username": "supervacuus"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "426c60558d68ac13204d9c9bfb64f5284cb36d7e",
+          "message": "docs: windows test and formatter runners (#1247)",
+          "timestamp": "2025-05-15T17:27:13+02:00",
+          "tree_id": "7a79c6dc37e714afa484243ab15e43e50d3a99fb",
+          "url": "https://github.com/getsentry/sentry-native/commit/426c60558d68ac13204d9c9bfb64f5284cb36d7e"
+        },
+        "date": 1747323121391,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 7.422799999972085,
+            "unit": "ms",
+            "extra": "Min 7.278ms\nMax 7.699ms\nMean 7.441ms\nStdDev 0.174ms\nMedian 7.423ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 7.2243000000753455,
+            "unit": "ms",
+            "extra": "Min 7.067ms\nMax 8.178ms\nMean 7.445ms\nStdDev 0.453ms\nMedian 7.224ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 19.473599999969338,
+            "unit": "ms",
+            "extra": "Min 18.735ms\nMax 20.278ms\nMean 19.538ms\nStdDev 0.700ms\nMedian 19.474ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.011999999969702912,
+            "unit": "ms",
+            "extra": "Min 0.012ms\nMax 0.013ms\nMean 0.012ms\nStdDev 0.001ms\nMedian 0.012ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.33800000005612674,
+            "unit": "ms",
+            "extra": "Min 0.304ms\nMax 0.367ms\nMean 0.337ms\nStdDev 0.027ms\nMedian 0.338ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 10.075900000060756,
+            "unit": "ms",
+            "extra": "Min 9.680ms\nMax 10.416ms\nMean 10.008ms\nStdDev 0.299ms\nMedian 10.076ms"
           }
         ]
       }
