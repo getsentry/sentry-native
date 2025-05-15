@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- Provide `before_send_transaction` callback. ([#1236](https://github.com/getsentry/sentry-native/pull/1236))
+
 ## 0.8.5
 
 **Breaking changes**:
@@ -9,7 +15,6 @@
 **Features**:
 
 - Add `sentry_value_new_user(id, username, email, ip_address)` function to avoid ambiguous user-context-keys. ([#1228](https://github.com/getsentry/sentry-native/pull/1228))
-- Provide `before_send_transaction` callback. ([#1236](https://github.com/getsentry/sentry-native/pull/1236))
  
 **Fixes**:
 
