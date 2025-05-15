@@ -1,8 +1,10 @@
 function(sentry_get_property NAME)
 	get_target_property(prop sentry "${NAME}")
+
 	if(NOT prop)
 		set(prop)
 	endif()
+
 	set("SENTRY_${NAME}" "${prop}" PARENT_SCOPE)
 endfunction()
 
@@ -90,17 +92,23 @@ target_compile_definitions(sentry PRIVATE SIZEOF_LONG=${CMAKE_SIZEOF_LONG})
 
 target_compile_definitions(sentry_test_unit PRIVATE SENTRY_UNITTEST)
 
-file(STRINGS ${CMAKE_CURRENT_SOURCE_DIR}/tests.inc unittests_file)
-foreach(line ${unittests_file})
-	# extract "name" from "XX(name)"
-	string(STRIP "${line}" line)
-	string(REGEX MATCH "^XX\\(([^\\)]+)\\)$" _ "${line}")
-	if(NOT _)
-		message(WARNING "Failed to extract test name from line: ${line}")
-	else()
-		add_test(NAME sentry/${CMAKE_MATCH_1} COMMAND sentry_test_unit --no-summary ${CMAKE_MATCH_1})
-	endif()
-endforeach()
+option(SENTRY_CTEST_INDIVIDUAL "Register sentry unit tests as individual tests instead of a single binary" ON)
+
+if(SENTRY_CTEST_INDIVIDUAL)
+	file(STRINGS ${CMAKE_CURRENT_SOURCE_DIR}/tests.inc unittests_file)
+	foreach(line ${unittests_file})
+		# extract "name" from "XX(name)"
+		string(STRIP "${line}" line)
+		string(REGEX MATCH "^XX\\(([^\\)]+)\\)$" _ "${line}")
+		if(NOT _)
+			message(WARNING "Failed to extract test name from line: ${line}")
+		else()
+			add_test(NAME sentry/${CMAKE_MATCH_1} COMMAND sentry_test_unit --no-summary ${CMAKE_MATCH_1})
+		endif()
+	endforeach()
+else()
+	add_test(NAME sentry/all COMMAND sentry_test_unit)
+endif()
 
 add_executable(sentry_fuzz_json
 	${SENTRY_SOURCES}
