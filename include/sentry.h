@@ -862,7 +862,7 @@ SENTRY_API void sentry_options_set_send_default_pii(
  * sent.
  */
 typedef sentry_value_t (*sentry_event_function_t)(
-    sentry_value_t event, void *hint, void *closure);
+    sentry_value_t event, void *hint, void *user_data);
 
 /**
  * Sets the `before_send` callback.
@@ -870,7 +870,7 @@ typedef sentry_value_t (*sentry_event_function_t)(
  * See the `sentry_event_function_t` typedef above for more information.
  */
 SENTRY_API void sentry_options_set_before_send(
-    sentry_options_t *opts, sentry_event_function_t func, void *data);
+    sentry_options_t *opts, sentry_event_function_t func, void *user_data);
 
 /**
  * Type of the `on_crash` callback.
@@ -923,7 +923,7 @@ SENTRY_API void sentry_options_set_before_send(
  * sent.
  */
 typedef sentry_value_t (*sentry_crash_function_t)(
-    const sentry_ucontext_t *uctx, sentry_value_t event, void *closure);
+    const sentry_ucontext_t *uctx, sentry_value_t event, void *user_data);
 
 /**
  * Sets the `on_crash` callback.
@@ -1753,6 +1753,23 @@ SENTRY_EXPERIMENTAL_API void sentry_end_session_with_status(
  */
 struct sentry_transaction_s;
 typedef struct sentry_transaction_s sentry_transaction_t;
+
+/**
+ * Type of the `before_transaction` callback.
+ *
+ * The callback takes ownership of the `transaction`, and should usually return
+ * that same transaction. In case the transaction should be discarded, the
+ * callback needs to call `sentry_value_decref` on the provided transaction, and
+ * return a `sentry_value_new_null()` instead.
+ */
+typedef sentry_value_t (*sentry_transaction_function_t)(
+    sentry_value_t transaction, void *user_data);
+
+/**
+ * Sets the `before_transaction` callback.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_options_set_before_transaction(
+    sentry_options_t *opts, sentry_transaction_function_t func, void *data);
 
 /**
  * A sentry Span.

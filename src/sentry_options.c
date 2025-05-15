@@ -143,18 +143,26 @@ sentry_options_set_send_default_pii(sentry_options_t *opts, int value)
 
 void
 sentry_options_set_before_send(
-    sentry_options_t *opts, sentry_event_function_t func, void *data)
+    sentry_options_t *opts, sentry_event_function_t func, void *user_data)
 {
     opts->before_send_func = func;
-    opts->before_send_data = data;
+    opts->before_send_data = user_data;
 }
 
 void
 sentry_options_set_on_crash(
-    sentry_options_t *opts, sentry_crash_function_t func, void *data)
+    sentry_options_t *opts, sentry_crash_function_t func, void *user_data)
 {
     opts->on_crash_func = func;
-    opts->on_crash_data = data;
+    opts->on_crash_data = user_data;
+}
+
+void
+sentry_options_set_before_transaction(
+    sentry_options_t *opts, sentry_transaction_function_t func, void *user_data)
+{
+    opts->before_transaction_func = func;
+    opts->before_transaction_data = user_data;
 }
 
 void

@@ -590,6 +590,87 @@ def test_transaction_only(cmake, httpserver, build_args):
     assert trace_context["data"] == {"url": "https://example.com"}
 
 
+def test_before_transaction_callback(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+
+    httpserver.expect_oneshot_request(
+        "/api/123456/envelope/",
+        headers={"x-sentry-auth": auth_header},
+    ).respond_with_data("OK")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_RELEASE="🤮🚀")
+
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "capture-transaction", "before-transaction"],
+        check=True,
+        env=env,
+    )
+
+    assert len(httpserver.log) == 1
+    req = httpserver.log[0][0]
+    body = req.get_data()
+
+    envelope = Envelope.deserialize(body)
+
+    # Show what the envelope looks like if the test fails.
+    envelope.print_verbose()
+
+    # callback has changed from default teapot to coffeepot
+    assert_meta(
+        envelope,
+        transaction="little.coffeepot",
+    )
+
+    # Extract the one-and-only-item
+    (event,) = envelope.items
+
+    assert event.headers["type"] == "transaction"
+    payload = event.payload.json
+
+    # See https://develop.sentry.dev/sdk/data-model/event-payloads/contexts/#trace-context
+    trace_context = payload["contexts"]["trace"]
+
+    assert (
+        trace_context["op"] == "Short and stout here is my handle and here is my spout"
+    )
+
+    assert trace_context["trace_id"]
+    trace_id = uuid.UUID(hex=trace_context["trace_id"])
+    assert trace_id
+
+    assert trace_context["span_id"]
+    assert trace_context["status"] == "ok"
+
+    start_timestamp = time.strptime(payload["start_timestamp"], RFC3339_FORMAT)
+    assert start_timestamp
+    timestamp = time.strptime(payload["timestamp"], RFC3339_FORMAT)
+    assert timestamp >= start_timestamp
+
+    assert trace_context["data"] == {"url": "https://example.com"}
+
+
+def test_before_transaction_discard(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+
+    httpserver.expect_oneshot_request(
+        "/api/123456/envelope/",
+        headers={"x-sentry-auth": auth_header},
+    ).respond_with_data("OK")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_RELEASE="🤮🚀")
+
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "capture-transaction", "discarding-before-transaction"],
+        check=True,
+        env=env,
+    )
+
+    # transaction should have been discarded
+    assert len(httpserver.log) == 0
+
+
 def test_transaction_event(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
 

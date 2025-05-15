@@ -57,10 +57,10 @@ traces_sampler_callback(const sentry_transaction_context_t *transaction_ctx,
 }
 
 static sentry_value_t
-before_send_callback(sentry_value_t event, void *hint, void *closure)
+before_send_callback(sentry_value_t event, void *hint, void *user_data)
 {
     (void)hint;
-    (void)closure;
+    (void)user_data;
 
     // make our mark on the event
     sentry_value_set_by_key(
@@ -71,10 +71,11 @@ before_send_callback(sentry_value_t event, void *hint, void *closure)
 }
 
 static sentry_value_t
-discarding_before_send_callback(sentry_value_t event, void *hint, void *closure)
+discarding_before_send_callback(
+    sentry_value_t event, void *hint, void *user_data)
 {
     (void)hint;
-    (void)closure;
+    (void)user_data;
 
     // discard event and signal backend to stop further processing
     sentry_value_decref(event);
@@ -83,10 +84,10 @@ discarding_before_send_callback(sentry_value_t event, void *hint, void *closure)
 
 static sentry_value_t
 discarding_on_crash_callback(
-    const sentry_ucontext_t *uctx, sentry_value_t event, void *closure)
+    const sentry_ucontext_t *uctx, sentry_value_t event, void *user_data)
 {
     (void)uctx;
-    (void)closure;
+    (void)user_data;
 
     // discard event and signal backend to stop further processing
     sentry_value_decref(event);
@@ -95,13 +96,35 @@ discarding_on_crash_callback(
 
 static sentry_value_t
 on_crash_callback(
-    const sentry_ucontext_t *uctx, sentry_value_t event, void *closure)
+    const sentry_ucontext_t *uctx, sentry_value_t event, void *user_data)
 {
     (void)uctx;
-    (void)closure;
+    (void)user_data;
 
     // tell the backend to retain the event
     return event;
+}
+
+static sentry_value_t
+before_transaction_callback(sentry_value_t tx, void *user_data)
+{
+    (void)user_data;
+
+    sentry_value_set_by_key(
+        tx, "transaction", sentry_value_new_string("little.coffeepot"));
+    return tx;
+}
+
+static sentry_value_t
+discarding_before_transaction_callback(sentry_value_t tx, void *user_data)
+{
+    (void)user_data;
+    // throw out any transaction while a tag is active
+    if (!sentry_value_is_null(sentry_value_get_by_key(tx, "tags"))) {
+        sentry_value_decref(tx);
+        return sentry_value_new_null();
+    }
+    return tx;
 }
 
 static void
@@ -258,6 +281,16 @@ main(int argc, char **argv)
     if (has_arg(argc, argv, "discarding-on-crash")) {
         sentry_options_set_on_crash(
             options, discarding_on_crash_callback, NULL);
+    }
+
+    if (has_arg(argc, argv, "before-transaction")) {
+        sentry_options_set_before_transaction(
+            options, before_transaction_callback, NULL);
+    }
+
+    if (has_arg(argc, argv, "discarding-before-transaction")) {
+        sentry_options_set_before_transaction(
+            options, discarding_before_transaction_callback, NULL);
     }
 
     if (has_arg(argc, argv, "traces-sampler")) {
