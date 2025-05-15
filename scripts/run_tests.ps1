@@ -2,7 +2,7 @@
 .SYNOPSIS
     A helper script to execute Native SDK tests in Windows PowerShell.
 .DESCRIPTION
-    Maintains the venv, wraps pytest for execution and invokes update_test_discovery.ps1 to collect newly added unit tests.
+    Maintains the venv, wraps pytest for execution, and invokes update_test_discovery.ps1 to collect newly added unit tests.
 #>
 param (
     ## Lets you run only the unit tests (default: false)
@@ -17,9 +17,9 @@ param (
     [switch]$WithoutCrashpadWer = $false,
     ## Disables stdout/stderr capture through pytest (default: false)
     [switch]$DisableCapture = $false,
-    ## Defines the maximum number of failing tests before the test session is stopped. 0 means infinte. (default: 0)
+    ## Defines the maximum number of failing tests before the test session is stopped. 0 means infinite. Will not do what you expect, together with Parallelism > 1 (default: 0)
     [int]$MaxFail = 0,
-    ## Repeatedly runs the test-suite (default: false)
+    ## Repeatedly runs the test suite (default: false)
     [switch]$Repeat = $false
 )
 
