@@ -107,7 +107,7 @@ if(SENTRY_CTEST_INDIVIDUAL)
 		endif()
 	endforeach()
 else()
-	add_test(NAME sentry/all COMMAND sentry_test_unit)
+	add_test(NAME sentry/unit-tests COMMAND sentry_test_unit)
 endif()
 
 add_executable(sentry_fuzz_json
