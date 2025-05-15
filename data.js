@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1747304941672,
+  "lastUpdate": 1747305122527,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -2218,6 +2218,66 @@ window.BENCHMARK_DATA = {
             "value": 9.22549999995681,
             "unit": "ms",
             "extra": "Min 8.844ms\nMax 9.577ms\nMean 9.257ms\nStdDev 0.291ms\nMedian 9.225ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "60878493+JoshuaMoelans@users.noreply.github.com",
+            "name": "JoshuaMoelans",
+            "username": "JoshuaMoelans"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "5224a83ca41207085f0694caca460bb33852efb0",
+          "message": "feat: Add `before_send_transaction` (#1236)\n\n* initial before_send_transaction implementation\n\n* CHANGELOG.md\n\n* add before_transaction_data\n\n* add tests\n\n* rename `closure` to `user_data`\n\n* update CHANGELOG.md after merging main",
+          "timestamp": "2025-05-15T12:26:44+02:00",
+          "tree_id": "edf2411e42a743cd55bf1a5399e9ec0959b7c8d1",
+          "url": "https://github.com/getsentry/sentry-native/commit/5224a83ca41207085f0694caca460bb33852efb0"
+        },
+        "date": 1747305103177,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 6.756499999994503,
+            "unit": "ms",
+            "extra": "Min 6.678ms\nMax 7.132ms\nMean 6.858ms\nStdDev 0.213ms\nMedian 6.756ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 7.030799999995452,
+            "unit": "ms",
+            "extra": "Min 6.897ms\nMax 7.194ms\nMean 7.022ms\nStdDev 0.112ms\nMedian 7.031ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 17.703499999981887,
+            "unit": "ms",
+            "extra": "Min 16.858ms\nMax 19.633ms\nMean 17.952ms\nStdDev 1.026ms\nMedian 17.703ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.012500000025283953,
+            "unit": "ms",
+            "extra": "Min 0.010ms\nMax 0.013ms\nMean 0.012ms\nStdDev 0.001ms\nMedian 0.013ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.29359999996358965,
+            "unit": "ms",
+            "extra": "Min 0.286ms\nMax 0.301ms\nMean 0.295ms\nStdDev 0.006ms\nMedian 0.294ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 9.243299999980081,
+            "unit": "ms",
+            "extra": "Min 9.159ms\nMax 9.828ms\nMean 9.349ms\nStdDev 0.272ms\nMedian 9.243ms"
           }
         ]
       }
