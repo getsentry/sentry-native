@@ -32,6 +32,12 @@ be done manually.
 
     $ black tests
 
+In Powershell on Windows you can use
+
+    $ .\scripts\run_formatters.ps1
+
+to invoke both formatters.
+
 ## Running Tests
 
     $ make test
@@ -40,6 +46,21 @@ Creates a python virtualenv, and runs all the tests through `pytest`.
 
 To run our `HTTP` proxy tests, one must add `127.0.0.1  sentry.native.test` to the `hosts` file. This is required since some transports bypass the proxy otherwise (for [example on Windows](https://learn.microsoft.com/en-us/windows/win32/wininet/enabling-internet-functionality#listing-the-proxy-bypass)).
 
+**Running tests on Windows**:
+
+The `make` scripts are not written with Windows in mind, since most Windows users use Visual Studio (Code) or CLion,
+which all have elaborate build- and run-configuration capabilities that rarely require to fall back to CLI.
+
+However, if you want to run the tests from Powershell we added a convenience script
+
+    $ .\scripts\run_tests.ps1
+
+that provides the ease of the `make`-based build with a couple of parameters which you can query with
+
+    $ Get-Help .\scripts\run_tests.ps1 -detailed
+
+It depends on `.\scripts\update_test_discovery.ps1` which updates the unit-test index like the `make` target of the same
+name.
 
 **Running integration tests manually**:
 
@@ -160,12 +181,12 @@ The example currently supports the following commands:
 - `before-transaction`: Installs a `before_transaction()` callback that updates the transaction title.
 - `discarding-before-transaction`: Installs a `before_transaction()` callback that discards the transaction.
 - `traces-sampler`: Installs a traces sampler callback function when used alongside `capture-transaction`.
-- `attach-view-hierarchy`: Adds a `view-hierarchy.json` attachment file, giving it the proper `attachment_type` and `content_type`. 
+- `attach-view-hierarchy`: Adds a `view-hierarchy.json` attachment file, giving it the proper `attachment_type` and `content_type`.
  This file can be found in `./tests/fixtures/view-hierachy.json`.
 - `set-trace`: Sets the scope `propagation_context`'s trace data to the given `trace_id="aaaabbbbccccddddeeeeffff00001111"` and `parent_span_id=""f0f0f0f0f0f0f0f0"`.
- 
+
 Only on Linux using crashpad:
-- `crashpad-wait-for-upload`: Couples application shutdown to complete the upload in the `crashpad_handler`. 
+- `crashpad-wait-for-upload`: Couples application shutdown to complete the upload in the `crashpad_handler`.
 
 Only on Windows using crashpad with its WER handler module:
 
