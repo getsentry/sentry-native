@@ -29,18 +29,6 @@ SENTRY__MUTEX_INIT_DYN(g_lock)
 static sentry_mutex_t g_lock = SENTRY__MUTEX_INIT;
 #endif
 
-typedef struct sentry_scope_node_s {
-    sentry_scope_t *scope;
-    struct sentry_scope_node_s *parent;
-} sentry_scope_node_t;
-
-typedef struct sentry_scope_stack_s {
-    sentry_scope_node_t *current;
-    size_t size;
-} sentry_scope_stack_t;
-
-static THREAD_LOCAL sentry_scope_stack_t tl_scopes = { 0 };
-
 static sentry_value_t
 get_client_sdk(void)
 {
@@ -85,11 +73,10 @@ init_scope(sentry_scope_t *scope)
     scope->tags = sentry_value_new_object();
     scope->extra = sentry_value_new_object();
     scope->contexts = sentry_value_new_object();
-    sentry_value_set_by_key(scope->contexts, "os", sentry__get_os_context());
     g_scope.propagation_context = sentry_value_new_object();
     scope->breadcrumbs = sentry_value_new_list();
     scope->level = SENTRY_LEVEL_ERROR;
-    scope->client_sdk = get_client_sdk();
+    scope->client_sdk = sentry_value_new_null();
     scope->transaction_object = NULL;
     scope->span = NULL;
 }
@@ -102,6 +89,8 @@ get_scope(void)
     }
 
     init_scope(&g_scope);
+    sentry_value_set_by_key(g_scope.contexts, "os", sentry__get_os_context());
+    g_scope.client_sdk = get_client_sdk();
 
     g_scope_initialized = true;
 
@@ -139,9 +128,6 @@ sentry__scope_cleanup(void)
 sentry_scope_t *
 sentry__scope_lock(void)
 {
-    if (tl_scopes.current) {
-        return tl_scopes.current->scope;
-    }
     SENTRY__MUTEX_INIT_DYN_ONCE(g_lock);
     sentry__mutex_lock(&g_lock);
     return get_scope();
@@ -420,58 +406,38 @@ sentry__scope_apply_to_event(const sentry_scope_t *scope,
 }
 
 sentry_scope_t *
-sentry__scope_push(void)
+sentry_local_scope_new(void)
 {
-    sentry_scope_node_t *new_node = sentry_malloc(sizeof(sentry_scope_node_t));
-    if (!new_node) {
+    sentry_scope_t *scope = sentry_malloc(sizeof(sentry_scope_t));
+    if (!scope) {
         return NULL;
     }
 
-    sentry_scope_t *parent_scope = sentry__scope_lock();
-
-    sentry_scope_t *new_scope = sentry_malloc(sizeof(sentry_scope_t));
-    if (!new_scope) {
-        sentry_free(new_node);
-        return NULL;
-    }
-
-    new_scope->transaction = sentry__string_clone(parent_scope->transaction);
-    new_scope->fingerprint = sentry__value_clone(parent_scope->fingerprint);
-    new_scope->user = sentry__value_clone(parent_scope->user);
-    new_scope->tags = sentry__value_clone(parent_scope->tags);
-    new_scope->extra = sentry__value_clone(parent_scope->extra);
-    new_scope->contexts = sentry__value_clone(parent_scope->contexts);
-    new_scope->breadcrumbs = sentry__value_clone(parent_scope->breadcrumbs);
-    new_scope->level = parent_scope->level;
-    new_scope->client_sdk = sentry__value_clone(parent_scope->client_sdk);
-    new_scope->transaction_object
-        = sentry__transaction_clone(parent_scope->transaction_object);
-    new_scope->span = sentry__span_clone(parent_scope->span);
-
-    sentry__scope_unlock(parent_scope);
-
-    new_node->scope = new_scope;
-    new_node->parent = tl_scopes.current;
-    tl_scopes.current = new_node;
-    tl_scopes.size++;
-
-    return new_scope;
+    init_scope(scope);
+    return scope;
 }
 
 void
-sentry__scope_pop(void)
+sentry_scope_free(sentry_scope_t *scope)
 {
-    if (tl_scopes.size == 0) {
+    if (!scope) {
         return;
     }
 
-    sentry_scope_node_t *old_node = tl_scopes.current;
-    tl_scopes.current = old_node->parent;
-    tl_scopes.size--;
+    cleanup_scope(scope);
+    sentry_free(scope);
 
-    cleanup_scope(old_node->scope);
-    sentry_free(old_node->scope);
-    sentry_free(old_node);
+    // TODO:
+    // sentry_value_t breadcrumbs = sentry_value_new_null();
+    // SENTRY_WITH_SCOPE (scope) {
+    //     breadcrumbs = scope->breadcrumbs;
+    // }
+    // SENTRY_WITH_OPTIONS (options) {
+    //     if (options->backend && options->backend->restore_breadcrumbs_func) {
+    //         options->backend->restore_breadcrumbs_func(
+    //             options->backend, breadcrumbs);
+    //     }
+    // }
 }
 
 void

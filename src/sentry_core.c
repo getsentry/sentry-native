@@ -1397,25 +1397,13 @@ sentry_capture_minidump_n(const char *path, size_t path_len)
     return sentry_uuid_nil();
 }
 
-void
-sentry_configure_scope(sentry_scope_callback_t callback, void *userdata)
-{
-    sentry_scope_t *scope = sentry__scope_lock();
-    callback(scope, userdata);
-    sentry__scope_flush_unlock(scope);
-}
-
 sentry_uuid_t
-sentry_capture_event_with_scope(
-    sentry_value_t event, sentry_scope_callback_t callback, void *userdata)
+sentry_capture_event_with_scope(sentry_value_t event, sentry_scope_t *scope)
 {
     sentry_uuid_t event_id = sentry_uuid_nil();
-    sentry_scope_t *scope = sentry__scope_push();
     if (scope) {
-        callback(scope, userdata);
-        sentry__scope_flush_unlock(scope);
+        // TODO: sentry__scope_apply_to_event
         event_id = sentry_capture_event(event);
-        sentry__scope_pop();
     }
     return event_id;
 }

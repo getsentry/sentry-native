@@ -81,16 +81,6 @@ void sentry__scope_apply_to_event(const sentry_scope_t *scope,
     const sentry_options_t *options, sentry_value_t event,
     sentry_scope_mode_t mode);
 
-/**
- * This will push a new scope on the thread-local stack of scopes.
- */
-sentry_scope_t *sentry__scope_push(void);
-
-/**
- * This will pop the current scope off the thread-local stack of scopes.
- */
-void sentry__scope_pop(void);
-
 void sentry__scope_set_fingerprint_va(
     sentry_scope_t *scope, const char *fingerprint, va_list va);
 void sentry__scope_set_fingerprint_nva(sentry_scope_t *scope,

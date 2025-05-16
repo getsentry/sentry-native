@@ -1,3 +1,4 @@
+#include "sentry.h"
 #include "sentry_core.h"
 #include "sentry_testsupport.h"
 
@@ -161,20 +162,18 @@ send_envelope_with_threadid(const sentry_envelope_t *envelope, void *data)
     }
 }
 
-static void
-configure_scope_with_threadid(sentry_scope_t *scope, void *data)
-{
-    sentry_scope_set_extra(scope, "thread_id", get_current_threadid());
-}
-
 SENTRY_THREAD_FN
 thread_capture_with_scope(void *data)
 {
     sentry_value_t event = sentry_value_new_message_event(
         SENTRY_LEVEL_INFO, "test-logger", "worker thread event");
 
-    sentry_capture_event_with_scope(
-        event, &configure_scope_with_threadid, NULL);
+    sentry_scope_t *scope = sentry_local_scope_new();
+    sentry_scope_set_extra(scope, "thread_id", get_current_threadid());
+
+    sentry_capture_event_with_scope(event, scope);
+
+    sentry_scope_free(scope);
 
     return 0;
 }

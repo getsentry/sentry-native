@@ -2376,11 +2376,10 @@ SENTRY_EXPERIMENTAL_API const char *sentry_sdk_user_agent(void);
 
 struct sentry_scope_s;
 typedef struct sentry_scope_s sentry_scope_t;
-typedef void (*sentry_scope_callback_t)(sentry_scope_t *scope, void *userdata);
-SENTRY_API void sentry_configure_scope(
-    sentry_scope_callback_t callback, void *userdata);
+SENTRY_API sentry_scope_t *sentry_local_scope_new(void);
+SENTRY_API void sentry_scope_free(sentry_scope_t *scope);
 SENTRY_API sentry_uuid_t sentry_capture_event_with_scope(
-    sentry_value_t event, sentry_scope_callback_t callback, void *userdata);
+    sentry_value_t event, sentry_scope_t *scope);
 
 SENTRY_API void sentry_scope_add_breadcrumb(
     sentry_scope_t *scope, sentry_value_t breadcrumb);

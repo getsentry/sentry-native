@@ -10,7 +10,7 @@ SENTRY_TEST(scope_contexts)
     sentry_set_context(
         "global-context", sentry_value_new_string("global-value"));
 
-    sentry_scope_t *local_scope = sentry__scope_push();
+    sentry_scope_t *local_scope = sentry_local_scope_new();
 
     SENTRY_WITH_SCOPE (cloned_scope) {
         TEST_CHECK(cloned_scope == local_scope);
@@ -31,7 +31,7 @@ SENTRY_TEST(scope_contexts)
             "local-value");
     }
 
-    sentry__scope_pop();
+    sentry_scope_free(local_scope);
 
     SENTRY_WITH_SCOPE (global_scope) {
         TEST_CHECK(global_scope != local_scope);
@@ -50,7 +50,7 @@ SENTRY_TEST(scope_extras)
 
     sentry_set_extra("global-extra", sentry_value_new_string("global-value"));
 
-    sentry_scope_t *local_scope = sentry__scope_push();
+    sentry_scope_t *local_scope = sentry_local_scope_new();
 
     SENTRY_WITH_SCOPE (cloned_scope) {
         TEST_CHECK(cloned_scope == local_scope);
@@ -76,7 +76,7 @@ SENTRY_TEST(scope_extras)
             "local-value");
     }
 
-    sentry__scope_pop();
+    sentry_scope_free(local_scope);
 
     SENTRY_WITH_SCOPE (global_scope) {
         TEST_CHECK(global_scope != local_scope);
@@ -97,7 +97,7 @@ SENTRY_TEST(scope_fingerprint)
 
     sentry_set_fingerprint("global", "fingerprint", NULL);
 
-    sentry_scope_t *local_scope = sentry__scope_push();
+    sentry_scope_t *local_scope = sentry_local_scope_new();
 
     SENTRY_WITH_SCOPE (cloned_scope) {
         TEST_CHECK(cloned_scope == local_scope);
@@ -131,7 +131,7 @@ SENTRY_TEST(scope_fingerprint)
             "fingerprint");
     }
 
-    sentry__scope_pop();
+    sentry_scope_free(local_scope);
 
     SENTRY_WITH_SCOPE (global_scope) {
         TEST_CHECK(global_scope != local_scope);
@@ -158,7 +158,7 @@ SENTRY_TEST(scope_level)
 
     sentry_set_level(SENTRY_LEVEL_DEBUG);
 
-    sentry_scope_t *local_scope = sentry__scope_push();
+    sentry_scope_t *local_scope = sentry_local_scope_new();
 
     SENTRY_WITH_SCOPE (cloned_scope) {
         TEST_CHECK(cloned_scope == local_scope);
@@ -174,7 +174,7 @@ SENTRY_TEST(scope_level)
             sentry_scope_get_level(modified_scope), SENTRY_LEVEL_ERROR);
     }
 
-    sentry__scope_pop();
+    sentry_scope_free(local_scope);
 
     SENTRY_WITH_SCOPE (global_scope) {
         TEST_CHECK(global_scope != local_scope);
@@ -192,7 +192,7 @@ SENTRY_TEST(scope_tags)
 
     sentry_set_tag("global-tag", "global-value");
 
-    sentry_scope_t *local_scope = sentry__scope_push();
+    sentry_scope_t *local_scope = sentry_local_scope_new();
 
     SENTRY_WITH_SCOPE (cloned_scope) {
         TEST_CHECK(cloned_scope == local_scope);
@@ -219,7 +219,7 @@ SENTRY_TEST(scope_tags)
             "local-value");
     }
 
-    sentry__scope_pop();
+    sentry_scope_free(local_scope);
 
     SENTRY_WITH_SCOPE (global_scope) {
         TEST_CHECK(global_scope != local_scope);
@@ -241,7 +241,7 @@ SENTRY_TEST(scope_transaction)
 
     sentry_set_transaction("global-transaction");
 
-    sentry_scope_t *local_scope = sentry__scope_push();
+    sentry_scope_t *local_scope = sentry_local_scope_new();
 
     SENTRY_WITH_SCOPE (cloned_scope) {
         TEST_CHECK(cloned_scope == local_scope);
@@ -257,7 +257,7 @@ SENTRY_TEST(scope_transaction)
             sentry_scope_get_transaction(modified_scope), "local-transaction");
     }
 
-    sentry__scope_pop();
+    sentry_scope_free(local_scope);
 
     SENTRY_WITH_SCOPE (global_scope) {
         TEST_CHECK(global_scope != local_scope);
@@ -278,7 +278,7 @@ SENTRY_TEST(scope_user)
         global_user, "username", sentry_value_new_string("global_name"));
     sentry_set_user(global_user);
 
-    sentry_scope_t *local_scope = sentry__scope_push();
+    sentry_scope_t *local_scope = sentry_local_scope_new();
 
     SENTRY_WITH_SCOPE (cloned_scope) {
         TEST_CHECK(cloned_scope == local_scope);
@@ -304,7 +304,7 @@ SENTRY_TEST(scope_user)
         TEST_CHECK(sentry_value_is_null(sentry_scope_get_user(modified_scope)));
     }
 
-    sentry__scope_pop();
+    sentry_scope_free(local_scope);
 
     SENTRY_WITH_SCOPE (global_scope) {
         TEST_CHECK(global_scope != local_scope);
@@ -331,7 +331,7 @@ SENTRY_TEST(scope_clear)
     sentry_set_transaction("test-transaction");
     sentry_set_fingerprint("test-fingerprint", NULL);
 
-    sentry_scope_t *local_scope = sentry__scope_push();
+    sentry_scope_t *local_scope = sentry_local_scope_new();
 
     SENTRY_WITH_SCOPE (cloned_scope) {
         TEST_CHECK(cloned_scope == local_scope);
@@ -366,7 +366,7 @@ SENTRY_TEST(scope_clear)
             sentry_value_is_null(sentry_scope_get_fingerprint(modified_scope)));
     }
 
-    sentry__scope_pop();
+    sentry_scope_free(local_scope);
 
     SENTRY_WITH_SCOPE (global_scope) {
         TEST_CHECK(global_scope != local_scope);
