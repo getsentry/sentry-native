@@ -18,7 +18,7 @@ static char *const SERIALIZED_ENVELOPE_STR
 
 SENTRY_TEST(basic_http_request_preparation_for_event)
 {
-    sentry_dsn_t *dsn = sentry__dsn_new("https://foo@sentry.invalid/42");
+    SENTRY_TEST_DSN_NEW_DEFAULT(dsn);
 
     sentry_uuid_t event_id
         = sentry_uuid_from_string("c993afb6-b4ac-48a6-b61b-2558e601d65d");
@@ -47,7 +47,7 @@ SENTRY_TEST(basic_http_request_preparation_for_event)
 
 SENTRY_TEST(basic_http_request_preparation_for_transaction)
 {
-    sentry_dsn_t *dsn = sentry__dsn_new("https://foo@sentry.invalid/42");
+    SENTRY_TEST_DSN_NEW_DEFAULT(dsn);
 
     sentry_uuid_t event_id
         = sentry_uuid_from_string("c993afb6-b4ac-48a6-b61b-2558e601d65d");
@@ -80,7 +80,7 @@ SENTRY_TEST(basic_http_request_preparation_for_transaction)
 
 SENTRY_TEST(basic_http_request_preparation_for_user_feedback)
 {
-    sentry_dsn_t *dsn = sentry__dsn_new("https://foo@sentry.invalid/42");
+    SENTRY_TEST_DSN_NEW_DEFAULT(dsn);
 
     sentry_uuid_t event_id
         = sentry_uuid_from_string("c993afb6-b4ac-48a6-b61b-2558e601d65d");
@@ -111,7 +111,7 @@ SENTRY_TEST(basic_http_request_preparation_for_user_feedback)
 
 SENTRY_TEST(basic_http_request_preparation_for_event_with_attachment)
 {
-    sentry_dsn_t *dsn = sentry__dsn_new("https://foo@sentry.invalid/42");
+    SENTRY_TEST_DSN_NEW_DEFAULT(dsn);
 
     sentry_uuid_t event_id
         = sentry_uuid_from_string("c993afb6-b4ac-48a6-b61b-2558e601d65d");
@@ -145,7 +145,7 @@ SENTRY_TEST(basic_http_request_preparation_for_event_with_attachment)
 
 SENTRY_TEST(basic_http_request_preparation_for_minidump)
 {
-    sentry_dsn_t *dsn = sentry__dsn_new("https://foo@sentry.invalid/42");
+    SENTRY_TEST_DSN_NEW_DEFAULT(dsn);
 
     sentry_envelope_t *envelope = sentry__envelope_new();
     char dmp[] = "MDMP";
@@ -207,6 +207,7 @@ SENTRY_TEST(serialize_envelope)
     sentry__stringbuilder_init(&sb);
     sentry__envelope_serialize_into_stringbuilder(envelope, &sb);
     char *str = sentry__stringbuilder_into_string(&sb);
+    TEST_ASSERT(!!str);
 
     TEST_CHECK_STRING_EQUAL(str, SERIALIZED_ENVELOPE_STR);
 

@@ -98,8 +98,10 @@ sym_from_tb(void **sbase, char **sname, void *where)
         short name_len = (*(short *)ext);
         ext += sizeof(short);
         char *name = sentry_malloc(name_len + 1);
-        memcpy(name, (char *)ext, name_len);
-        name[name_len] = '\0';
+        if (name) {
+            memcpy(name, (char *)ext, name_len);
+            name[name_len] = '\0';
+        }
         *sname = name;
     } else {
         *sname = NULL;
@@ -155,6 +157,9 @@ dladdr(void *s, Dl_info *i)
             i->dli_fbase = tb; /* Includes XCOFF header */
             /* library filename + ( + member + ) + NUL */
             char *libname = (char *)sentry_malloc(AIX_PRINTED_LIB_LEN);
+            if (!libname) {
+                return 0;
+            }
             char *file_part = cur->ldinfo_filename;
             char *member_part = file_part + strlen(file_part) + 1;
             /*
@@ -205,7 +210,7 @@ sentry__symbolize(
     frame_info.object_name = info.dli_fname;
     func(&frame_info, data);
 #ifdef SENTRY_PLATFORM_AIX
-    // On AIX these must be freed. Hope the the callback doesn't use that
+    // On AIX these must be freed. Hope the callback doesn't use that
     // buffer...
     // XXX: We may just be able to stuff it into a fixed-length field of
     // Dl_info?

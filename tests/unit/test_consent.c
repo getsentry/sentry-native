@@ -15,6 +15,7 @@ SENTRY_TEST(basic_consent_tracking)
 {
     sentry_path_t *path
         = sentry__path_from_str(SENTRY_TEST_PATH_PREFIX ".test-db");
+    TEST_ASSERT(!!path);
     sentry__path_remove_all(path);
 
     init_consenting_sentry();
