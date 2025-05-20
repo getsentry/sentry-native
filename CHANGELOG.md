@@ -10,6 +10,7 @@
 **Features**:
 
 - Provide `before_send_transaction` callback. ([#1236](https://github.com/getsentry/sentry-native/pull/1236))
+- Add support for capturing events with local scopes. ([#1248](https://github.com/getsentry/sentry-native/pull/1248))
 
 **Fixes**:
 

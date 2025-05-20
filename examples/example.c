@@ -220,6 +220,30 @@ trigger_stack_overflow()
     trigger_stack_overflow();
 }
 
+static sentry_value_t
+create_debug_crumb(const char *message)
+{
+    sentry_value_t debug_crumb = sentry_value_new_breadcrumb("http", message);
+    sentry_value_set_by_key(
+        debug_crumb, "category", sentry_value_new_string("example!"));
+    sentry_value_set_by_key(
+        debug_crumb, "level", sentry_value_new_string("debug"));
+
+    // extend the `http` crumb with (optional) data properties as documented
+    // here:
+    // https://develop.sentry.dev/sdk/event-payloads/breadcrumbs/#breadcrumb-types
+    sentry_value_t http_data = sentry_value_new_object();
+    sentry_value_set_by_key(http_data, "url",
+        sentry_value_new_string("https://example.com/api/1.0/users"));
+    sentry_value_set_by_key(
+        http_data, "method", sentry_value_new_string("GET"));
+    sentry_value_set_by_key(
+        http_data, "status_code", sentry_value_new_int32(200));
+    sentry_value_set_by_key(http_data, "reason", sentry_value_new_string("OK"));
+    sentry_value_set_by_key(debug_crumb, "data", http_data);
+    return debug_crumb;
+}
+
 int
 main(int argc, char **argv)
 {
@@ -359,27 +383,7 @@ main(int argc, char **argv)
             = sentry_value_new_breadcrumb(NULL, "default level is info");
         sentry_add_breadcrumb(default_crumb);
 
-        sentry_value_t debug_crumb
-            = sentry_value_new_breadcrumb("http", "debug crumb");
-        sentry_value_set_by_key(
-            debug_crumb, "category", sentry_value_new_string("example!"));
-        sentry_value_set_by_key(
-            debug_crumb, "level", sentry_value_new_string("debug"));
-
-        // extend the `http` crumb with (optional) data properties as documented
-        // here:
-        // https://develop.sentry.dev/sdk/event-payloads/breadcrumbs/#breadcrumb-types
-        sentry_value_t http_data = sentry_value_new_object();
-        sentry_value_set_by_key(http_data, "url",
-            sentry_value_new_string("https://example.com/api/1.0/users"));
-        sentry_value_set_by_key(
-            http_data, "method", sentry_value_new_string("GET"));
-        sentry_value_set_by_key(
-            http_data, "status_code", sentry_value_new_int32(200));
-        sentry_value_set_by_key(
-            http_data, "reason", sentry_value_new_string("OK"));
-        sentry_value_set_by_key(debug_crumb, "data", http_data);
-
+        sentry_value_t debug_crumb = create_debug_crumb("debug crumb");
         sentry_add_breadcrumb(debug_crumb);
 
         sentry_value_t nl_crumb
@@ -405,6 +409,26 @@ main(int argc, char **argv)
             snprintf(buffer, 4, "%zu", i);
             sentry_add_breadcrumb(sentry_value_new_breadcrumb(0, buffer));
         }
+    }
+
+    if (has_arg(argc, argv, "capture-with-scope")) {
+        sentry_scope_t *scope = sentry_local_scope_new();
+
+        sentry_value_t event = sentry_value_new_message_event(
+            SENTRY_LEVEL_INFO, NULL, "Hello Scope!");
+
+        sentry_scope_set_transaction(scope, "scoped-transaction");
+
+        sentry_value_t default_crumb
+            = sentry_value_new_breadcrumb(NULL, "default level is info");
+        sentry_scope_add_breadcrumb(scope, default_crumb);
+
+        sentry_value_t debug_crumb = create_debug_crumb("scoped crumb");
+        sentry_scope_add_breadcrumb(scope, debug_crumb);
+
+        sentry_capture_event_with_scope(event, scope);
+
+        sentry_scope_free(scope);
     }
 
     if (has_arg(argc, argv, "capture-multiple")) {

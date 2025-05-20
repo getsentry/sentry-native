@@ -432,7 +432,17 @@ sentry_capture_event(sentry_value_t event)
     if (sentry__event_is_transaction(event)) {
         return sentry_uuid_nil();
     } else {
-        return sentry__capture_event(event);
+        return sentry__capture_event(event, NULL);
+    }
+}
+
+sentry_uuid_t
+sentry_capture_event_with_scope(sentry_value_t event, sentry_scope_t *scope)
+{
+    if (sentry__event_is_transaction(event)) {
+        return sentry_uuid_nil();
+    } else {
+        return sentry__capture_event(event, scope);
     }
 }
 
@@ -448,7 +458,7 @@ static
 }
 
 sentry_uuid_t
-sentry__capture_event(sentry_value_t event)
+sentry__capture_event(sentry_value_t event, sentry_scope_t *local_scope)
 {
     // `event_id` is only used as an argument to pure output parameters.
     // Initialization only happens to prevent compiler warnings.
@@ -463,7 +473,8 @@ sentry__capture_event(sentry_value_t event)
         if (sentry__event_is_transaction(event)) {
             envelope = sentry__prepare_transaction(options, event, &event_id);
         } else {
-            envelope = sentry__prepare_event(options, event, &event_id, true);
+            envelope = sentry__prepare_event(
+                options, event, &event_id, true, local_scope);
         }
         if (envelope) {
             if (options->session) {
@@ -552,7 +563,8 @@ str_from_attachment_type(sentry_attachment_type_t attachment_type)
 
 sentry_envelope_t *
 sentry__prepare_event(const sentry_options_t *options, sentry_value_t event,
-    sentry_uuid_t *event_id, bool invoke_before_send)
+    sentry_uuid_t *event_id, bool invoke_before_send,
+    sentry_scope_t *local_scope)
 {
     sentry_envelope_t *envelope = NULL;
 
@@ -560,8 +572,14 @@ sentry__prepare_event(const sentry_options_t *options, sentry_value_t event,
         sentry__record_errors_on_current_session(1);
     }
 
+    if (local_scope) {
+        SENTRY_DEBUG("merging local scope into event");
+        sentry_scope_mode_t mode = SENTRY_SCOPE_BREADCRUMBS;
+        sentry__scope_apply_to_event(local_scope, options, event, mode);
+    }
+
     SENTRY_WITH_SCOPE (scope) {
-        SENTRY_DEBUG("merging scope into event");
+        SENTRY_DEBUG("merging global scope into event");
         sentry_scope_mode_t mode = SENTRY_SCOPE_ALL;
         if (!options->symbolize_stacktraces) {
             mode &= ~SENTRY_SCOPE_STACKTRACES;
@@ -731,8 +749,7 @@ sentry_set_user(sentry_value_t user)
     }
 
     SENTRY_WITH_SCOPE_MUT (scope) {
-        sentry_value_decref(scope->user);
-        scope->user = user;
+        sentry_scope_set_user(scope, user);
     }
 }
 
@@ -745,21 +762,18 @@ sentry_remove_user(void)
 void
 sentry_add_breadcrumb(sentry_value_t breadcrumb)
 {
-    size_t max_breadcrumbs = SENTRY_BREADCRUMBS_MAX;
     SENTRY_WITH_OPTIONS (options) {
         if (options->backend && options->backend->add_breadcrumb_func) {
             // the hook will *not* take ownership
             options->backend->add_breadcrumb_func(
                 options->backend, breadcrumb, options);
         }
-        max_breadcrumbs = options->max_breadcrumbs;
     }
 
     // the `no_flush` will avoid triggering *both* scope-change and
     // breadcrumb-add events.
     SENTRY_WITH_SCOPE_MUT_NO_FLUSH (scope) {
-        sentry__value_append_ringbuffer(
-            scope->breadcrumbs, breadcrumb, max_breadcrumbs);
+        sentry_scope_add_breadcrumb(scope, breadcrumb);
     }
 }
 
@@ -767,8 +781,7 @@ void
 sentry_set_tag(const char *key, const char *value)
 {
     SENTRY_WITH_SCOPE_MUT (scope) {
-        sentry_value_set_by_key(
-            scope->tags, key, sentry_value_new_string(value));
+        sentry_scope_set_tag(scope, key, value);
     }
 }
 
@@ -777,8 +790,7 @@ sentry_set_tag_n(
     const char *key, size_t key_len, const char *value, size_t value_len)
 {
     SENTRY_WITH_SCOPE_MUT (scope) {
-        sentry_value_set_by_key_n(scope->tags, key, key_len,
-            sentry_value_new_string_n(value, value_len));
+        sentry_scope_set_tag_n(scope, key, key_len, value, value_len);
     }
 }
 
@@ -802,7 +814,7 @@ void
 sentry_set_extra(const char *key, sentry_value_t value)
 {
     SENTRY_WITH_SCOPE_MUT (scope) {
-        sentry_value_set_by_key(scope->extra, key, value);
+        sentry_scope_set_extra(scope, key, value);
     }
 }
 
@@ -810,7 +822,7 @@ void
 sentry_set_extra_n(const char *key, size_t key_len, sentry_value_t value)
 {
     SENTRY_WITH_SCOPE_MUT (scope) {
-        sentry_value_set_by_key_n(scope->extra, key, key_len, value);
+        sentry_scope_set_extra_n(scope, key, key_len, value);
     }
 }
 
@@ -834,7 +846,7 @@ void
 sentry_set_context(const char *key, sentry_value_t value)
 {
     SENTRY_WITH_SCOPE_MUT (scope) {
-        sentry_value_set_by_key(scope->contexts, key, value);
+        sentry_scope_set_context(scope, key, value);
     }
 }
 
@@ -842,7 +854,7 @@ void
 sentry_set_context_n(const char *key, size_t key_len, sentry_value_t value)
 {
     SENTRY_WITH_SCOPE_MUT (scope) {
-        sentry_value_set_by_key_n(scope->contexts, key, key_len, value);
+        sentry_scope_set_context_n(scope, key, key_len, value);
     }
 }
 
@@ -873,39 +885,28 @@ sentry_remove_context_n(const char *key, size_t key_len)
 void
 sentry_set_fingerprint_n(const char *fingerprint, size_t fingerprint_len, ...)
 {
-    sentry_value_t fingerprint_value = sentry_value_new_list();
-
     va_list va;
     va_start(va, fingerprint_len);
-    for (; fingerprint; fingerprint = va_arg(va, const char *)) {
-        sentry_value_append(fingerprint_value,
-            sentry_value_new_string_n(fingerprint, fingerprint_len));
-    }
-    va_end(va);
 
     SENTRY_WITH_SCOPE_MUT (scope) {
-        sentry_value_decref(scope->fingerprint);
-        scope->fingerprint = fingerprint_value;
+        sentry__scope_set_fingerprint_nva(
+            scope, fingerprint, fingerprint_len, va);
     }
+
+    va_end(va);
 }
 
 void
 sentry_set_fingerprint(const char *fingerprint, ...)
 {
-    sentry_value_t fingerprint_value = sentry_value_new_list();
-
     va_list va;
     va_start(va, fingerprint);
-    for (; fingerprint; fingerprint = va_arg(va, const char *)) {
-        sentry_value_append(
-            fingerprint_value, sentry_value_new_string(fingerprint));
-    }
-    va_end(va);
 
     SENTRY_WITH_SCOPE_MUT (scope) {
-        sentry_value_decref(scope->fingerprint);
-        scope->fingerprint = fingerprint_value;
+        sentry__scope_set_fingerprint_va(scope, fingerprint, va);
     }
+
+    va_end(va);
 }
 
 void
@@ -951,12 +952,7 @@ void
 sentry_set_transaction(const char *transaction)
 {
     SENTRY_WITH_SCOPE_MUT (scope) {
-        sentry_free(scope->transaction);
-        scope->transaction = sentry__string_clone(transaction);
-
-        if (scope->transaction_object) {
-            sentry_transaction_set_name(scope->transaction_object, transaction);
-        }
+        sentry_scope_set_transaction(scope, transaction);
     }
 }
 
@@ -964,14 +960,7 @@ void
 sentry_set_transaction_n(const char *transaction, size_t transaction_len)
 {
     SENTRY_WITH_SCOPE_MUT (scope) {
-        sentry_free(scope->transaction);
-        scope->transaction
-            = sentry__string_clone_n(transaction, transaction_len);
-
-        if (scope->transaction_object) {
-            sentry_transaction_set_name_n(
-                scope->transaction_object, transaction, transaction_len);
-        }
+        sentry_scope_set_transaction_n(scope, transaction, transaction_len);
     }
 }
 
@@ -979,7 +968,7 @@ void
 sentry_set_level(sentry_level_t level)
 {
     SENTRY_WITH_SCOPE_MUT (scope) {
-        scope->level = level;
+        sentry_scope_set_level(scope, level);
     }
 }
 
@@ -1110,7 +1099,7 @@ sentry_transaction_finish_ts(
 
     // This takes ownership of the transaction, generates an event ID, merges
     // scope
-    return sentry__capture_event(tx);
+    return sentry__capture_event(tx, NULL);
 fail:
     sentry__transaction_decref(opaque_tx);
     return sentry_uuid_nil();
@@ -1404,7 +1393,7 @@ sentry_capture_minidump_n(const char *path, size_t path_len)
         sentry_value_set_by_key(
             event, "level", sentry__value_new_level(SENTRY_LEVEL_FATAL));
         sentry_envelope_t *envelope
-            = sentry__prepare_event(options, event, &event_id, true);
+            = sentry__prepare_event(options, event, &event_id, true, NULL);
 
         if (!envelope || sentry_uuid_is_nil(&event_id)) {
             sentry_value_decref(event);
