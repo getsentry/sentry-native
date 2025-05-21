@@ -2,9 +2,17 @@
 
 ## Unreleased
 
+**Breaking changes**:
+
+- Limiting the proguard rules in the NDK package, moves the burden of the configuration to it users. Please ensure to [configure proguard](http://proguard.sourceforge.net/manual/examples.html#native) so that native methods in your namespace can be symbolicated if the appear in stack traces. ([#1250](https://github.com/getsentry/sentry-native/pull/1250))
+
 **Features**:
 
 - Provide `before_send_transaction` callback. ([#1236](https://github.com/getsentry/sentry-native/pull/1236))
+
+**Fixes**:
+
+- Reduce the scope of the proguard rules in the NDK package to local namespaces. ([#1250](https://github.com/getsentry/sentry-native/pull/1250))
 
 **Docs**:
 
