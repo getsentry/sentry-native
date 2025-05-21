@@ -1,6 +1,7 @@
 #include "sentry.h"
 #include "sentry_scope.h"
 #include "sentry_testsupport.h"
+#include "sentry_utils.h"
 
 SENTRY_TEST(scope_contexts)
 {
@@ -558,119 +559,112 @@ SENTRY_TEST(scope_level)
     sentry_close();
 }
 
+static sentry_value_t
+breadcrumb_ts(const char *message, uint64_t ts)
+{
+    sentry_value_t breadcrumb = sentry_value_new_breadcrumb(NULL, message);
+    sentry_value_set_by_key(breadcrumb, "timestamp",
+        sentry__value_new_string_owned(sentry__usec_time_to_iso8601(ts)));
+    return breadcrumb;
+}
+
 SENTRY_TEST(scope_breadcrumbs)
 {
     SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_max_breadcrumbs(options, 5);
     sentry_init(options);
 
-    // global: ["global1", "global2"]
-    sentry_add_breadcrumb(sentry_value_new_breadcrumb(NULL, "global1"));
-    sentry_add_breadcrumb(sentry_value_new_breadcrumb(NULL, "global2"));
+    // global: ["global1", "global4"]
+    sentry_add_breadcrumb(breadcrumb_ts("global1", 1));
+    sentry_add_breadcrumb(breadcrumb_ts("global4", 4));
+
+#define TEST_CHECK_MESSAGE_EQUAL(breadcrumbs, index, message)                  \
+    TEST_CHECK_STRING_EQUAL(                                                   \
+        sentry_value_as_string(sentry_value_get_by_key(                        \
+            sentry_value_get_by_index(breadcrumbs, index), "message")),        \
+        message)
 
     SENTRY_WITH_SCOPE (global_scope) {
         // event: null
         sentry_value_t event = sentry_value_new_object();
 
-        // event <- global: ["global1", "global2"]
+        // event <- global: ["global1", "global4"]
         sentry__scope_apply_to_event(
             global_scope, options, event, SENTRY_SCOPE_BREADCRUMBS);
 
         sentry_value_t result = sentry_value_get_by_key(event, "breadcrumbs");
         TEST_CHECK(sentry_value_get_type(result) == SENTRY_VALUE_TYPE_LIST);
         TEST_CHECK(sentry_value_get_length(result) == 2);
-        TEST_CHECK_STRING_EQUAL(
-            sentry_value_as_string(sentry_value_get_by_key(
-                sentry_value_get_by_index(result, 0), "message")),
-            "global1");
-        TEST_CHECK_STRING_EQUAL(
-            sentry_value_as_string(sentry_value_get_by_key(
-                sentry_value_get_by_index(result, 1), "message")),
-            "global2");
+        TEST_CHECK_MESSAGE_EQUAL(result, 0, "global1");
+        TEST_CHECK_MESSAGE_EQUAL(result, 1, "global4");
 
         sentry_value_decref(event);
     }
 
     SENTRY_WITH_SCOPE (global_scope) {
-        // event: ["event1", "event2"]
+        // event: ["event3", "event5"]
         sentry_value_t event = sentry_value_new_object();
         {
             sentry_value_t breadcrumbs = sentry_value_new_list();
-            sentry_value_append(
-                breadcrumbs, sentry_value_new_breadcrumb(NULL, "event1"));
-            sentry_value_append(
-                breadcrumbs, sentry_value_new_breadcrumb(NULL, "event2"));
+            sentry_value_append(breadcrumbs, breadcrumb_ts("event3", 3));
+            sentry_value_append(breadcrumbs, breadcrumb_ts("event5", 5));
             sentry_value_set_by_key(event, "breadcrumbs", breadcrumbs);
         }
 
-        // event <- global: ["event1", "event2"]
+        // event <- global: ["global1", "event3", "global4", "event5"]
         sentry__scope_apply_to_event(
             global_scope, options, event, SENTRY_SCOPE_BREADCRUMBS);
 
         sentry_value_t result = sentry_value_get_by_key(event, "breadcrumbs");
         TEST_CHECK(sentry_value_get_type(result) == SENTRY_VALUE_TYPE_LIST);
-        TEST_CHECK(sentry_value_get_length(result) == 2);
-        TEST_CHECK_STRING_EQUAL(
-            sentry_value_as_string(sentry_value_get_by_key(
-                sentry_value_get_by_index(result, 0), "message")),
-            "event1");
-        TEST_CHECK_STRING_EQUAL(
-            sentry_value_as_string(sentry_value_get_by_key(
-                sentry_value_get_by_index(result, 1), "message")),
-            "event2");
+        TEST_CHECK(sentry_value_get_length(result) == 4);
+        TEST_CHECK_MESSAGE_EQUAL(result, 0, "global1");
+        TEST_CHECK_MESSAGE_EQUAL(result, 1, "event3");
+        TEST_CHECK_MESSAGE_EQUAL(result, 2, "global4");
+        TEST_CHECK_MESSAGE_EQUAL(result, 3, "event5");
 
         sentry_value_decref(event);
     }
 
     SENTRY_WITH_SCOPE (global_scope) {
-        // local: ["local1", "local2"]
+        // local: ["local2", "local6"]
         sentry_scope_t *local_scope = sentry_local_scope_new();
-        sentry_scope_add_breadcrumb(
-            local_scope, sentry_value_new_breadcrumb(NULL, "local1"));
-        sentry_scope_add_breadcrumb(
-            local_scope, sentry_value_new_breadcrumb(NULL, "local2"));
+        sentry_scope_add_breadcrumb(local_scope, breadcrumb_ts("local2", 2));
+        sentry_scope_add_breadcrumb(local_scope, breadcrumb_ts("local6", 6));
 
-        // event: ["event1", "event2"]
+        // event: ["event3", "event5"]
         sentry_value_t event = sentry_value_new_object();
         {
             sentry_value_t breadcrumbs = sentry_value_new_list();
-            sentry_value_append(
-                breadcrumbs, sentry_value_new_breadcrumb(NULL, "event1"));
-            sentry_value_append(
-                breadcrumbs, sentry_value_new_breadcrumb(NULL, "event2"));
+            sentry_value_append(breadcrumbs, breadcrumb_ts("event3", 3));
+            sentry_value_append(breadcrumbs, breadcrumb_ts("event5", 5));
             sentry_value_set_by_key(event, "breadcrumbs", breadcrumbs);
         }
 
-        // event <- local: ["event1", "event2"]
+        // event <- local: ["local2", "event3", "event5", "local6"]
         sentry__scope_apply_to_event(
             local_scope, options, event, SENTRY_SCOPE_BREADCRUMBS);
 
         sentry_value_t result = sentry_value_get_by_key(event, "breadcrumbs");
         TEST_CHECK(sentry_value_get_type(result) == SENTRY_VALUE_TYPE_LIST);
-        TEST_CHECK(sentry_value_get_length(result) == 2);
-        TEST_CHECK_STRING_EQUAL(
-            sentry_value_as_string(sentry_value_get_by_key(
-                sentry_value_get_by_index(result, 0), "message")),
-            "event1");
-        TEST_CHECK_STRING_EQUAL(
-            sentry_value_as_string(sentry_value_get_by_key(
-                sentry_value_get_by_index(result, 1), "message")),
-            "event2");
+        TEST_CHECK(sentry_value_get_length(result) == 4);
+        TEST_CHECK_MESSAGE_EQUAL(result, 0, "local2");
+        TEST_CHECK_MESSAGE_EQUAL(result, 1, "event3");
+        TEST_CHECK_MESSAGE_EQUAL(result, 2, "event5");
+        TEST_CHECK_MESSAGE_EQUAL(result, 3, "local6");
 
-        // event <- global: ["event1", "event2"]
+        // event <- global: ["local2", "event3", "global4", "event5", "local6"]
         sentry__scope_apply_to_event(
             global_scope, options, event, SENTRY_SCOPE_BREADCRUMBS);
 
         result = sentry_value_get_by_key(event, "breadcrumbs");
         TEST_CHECK(sentry_value_get_type(result) == SENTRY_VALUE_TYPE_LIST);
-        TEST_CHECK(sentry_value_get_length(result) == 2);
-        TEST_CHECK_STRING_EQUAL(
-            sentry_value_as_string(sentry_value_get_by_key(
-                sentry_value_get_by_index(result, 0), "message")),
-            "event1");
-        TEST_CHECK_STRING_EQUAL(
-            sentry_value_as_string(sentry_value_get_by_key(
-                sentry_value_get_by_index(result, 0), "message")),
-            "event1");
+        TEST_CHECK(sentry_value_get_length(result) == 5);
+        TEST_CHECK_MESSAGE_EQUAL(result, 0, "local2");
+        TEST_CHECK_MESSAGE_EQUAL(result, 1, "event3");
+        TEST_CHECK_MESSAGE_EQUAL(result, 2, "global4");
+        TEST_CHECK_MESSAGE_EQUAL(result, 3, "event5");
+        TEST_CHECK_MESSAGE_EQUAL(result, 4, "local6");
 
         sentry_scope_free(local_scope);
         sentry_value_decref(event);
