@@ -4,7 +4,7 @@
 
 **Breaking changes**:
 
-- Limiting the proguard rules in the NDK package, moves the burden of the configuration to it users. Please ensure to [configure proguard](http://proguard.sourceforge.net/manual/examples.html#native) so that native methods in your namespace can be symbolicated if the appear in stack traces. ([#1250](https://github.com/getsentry/sentry-native/pull/1250))
+- Limiting the proguard rules in the NDK package moves the burden of the configuration to its users. Please ensure to [configure proguard](http://proguard.sourceforge.net/manual/examples.html#native) in your project so native methods in your namespace can be symbolicated if they appear in stack traces. ([#1250](https://github.com/getsentry/sentry-native/pull/1250))
 
 **Features**:
 
@@ -16,7 +16,7 @@
 
 **Docs**:
 
-- Document convenience Powershell runners for formatting and tests on Windows. ([#1247](https://github.com/getsentry/sentry-native/pull/1247))
+- Document convenience PowerShell runners for formatting and tests on Windows. ([#1247](https://github.com/getsentry/sentry-native/pull/1247))
 
 ## 0.8.5
 
