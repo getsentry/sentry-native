@@ -6,6 +6,10 @@
 
 - Provide `before_send_transaction` callback. ([#1236](https://github.com/getsentry/sentry-native/pull/1236))
 
+**Fixes**:
+
+- Fix event tags, contexts, and extra data to take precedence when applying scope data. ([#1253](https://github.com/getsentry/sentry-native/pull/1253))
+
 **Docs**:
 
 - Document convenience Powershell runners for formatting and tests on Windows. ([#1247](https://github.com/getsentry/sentry-native/pull/1247))
