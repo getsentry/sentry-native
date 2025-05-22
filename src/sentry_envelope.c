@@ -284,6 +284,44 @@ sentry__envelope_add_transaction(
     sentry_value_incref(event_id);
     sentry__envelope_set_header(envelope, "event_id", event_id);
 
+    // add the Dynamic Sampling Context to the `trace` header
+    sentry_value_t dsc = sentry_value_new_object();
+    sentry_value_t trace_id = sentry_value_get_by_key(
+        sentry_value_get_by_key(
+            sentry_value_get_by_key(transaction, "contexts"), "trace"),
+        "trace_id");
+    sentry_value_incref(trace_id);
+    sentry_value_t transaction_name
+        = sentry_value_get_by_key(transaction, "transaction");
+    sentry_value_incref(transaction_name);
+    SENTRY_WITH_OPTIONS (options) {
+        sentry_value_set_by_key(dsc, "trace_id", trace_id);
+        if (options->dsn) {
+            sentry_value_set_by_key(dsc, "public_key",
+                sentry_value_new_string(options->dsn->public_key));
+            sentry_value_set_by_key(
+                dsc, "org_id", sentry_value_new_string(options->dsn->org_id));
+        }
+        sentry_value_set_by_key(dsc, "sample_rate",
+            sentry_value_new_double(options->traces_sample_rate));
+        if (options->traces_sampler)
+            sentry_value_set_by_key(
+                dsc, "sample_rate", sentry_value_new_double(1.0));
+        // TODO get from somewhere
+        sentry_value_set_by_key(
+            dsc, "sample_rand", sentry_value_new_double(0.123456));
+        // TODO get from somewhere; this will always be true, else we aren't
+        //  sending right?
+        sentry_value_set_by_key(
+            dsc, "sampled", sentry_value_new_string("true"));
+        sentry_value_set_by_key(
+            dsc, "release", sentry_value_new_string(options->release));
+        sentry_value_set_by_key(
+            dsc, "environment", sentry_value_new_string(options->environment));
+        sentry_value_set_by_key(dsc, "transaction", transaction_name);
+    }
+    sentry__envelope_set_header(envelope, "trace", dsc);
+
 #ifdef SENTRY_UNITTEST
     sentry_value_t now = sentry_value_new_string("2021-12-16T05:53:59.343Z");
 #else
