@@ -672,3 +672,113 @@ SENTRY_TEST(scope_breadcrumbs)
 
     sentry_close();
 }
+
+static sentry_value_t
+event_with_trace(const char *trace_id, const char *parent_span_id)
+{
+    sentry_value_t event = sentry_value_new_object();
+    sentry_value_t trace = sentry_value_new_object();
+    sentry_value_set_by_key(
+        trace, "trace_id", sentry_value_new_string(trace_id));
+    sentry_value_set_by_key(
+        trace, "parent_span_id", sentry_value_new_string(parent_span_id));
+
+    sentry_value_t contexts = sentry_value_new_object();
+    sentry_value_set_by_key(contexts, "trace", trace);
+    sentry_value_set_by_key(event, "contexts", contexts);
+    return event;
+}
+
+SENTRY_TEST(scope_trace)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_init(options);
+
+#define TEST_CHECK_TRACE_EQUAL(event, trace_id, parent_span_id)                \
+    do {                                                                       \
+        sentry_value_t contexts = sentry_value_get_by_key(event, "contexts");  \
+        sentry_value_t trace = sentry_value_get_by_key(contexts, "trace");     \
+        TEST_CHECK_STRING_EQUAL(                                               \
+            sentry_value_as_string(                                            \
+                sentry_value_get_by_key(trace, "trace_id")),                   \
+            trace_id);                                                         \
+        TEST_CHECK_STRING_EQUAL(                                               \
+            sentry_value_as_string(                                            \
+                sentry_value_get_by_key(trace, "parent_span_id")),             \
+            parent_span_id);                                                   \
+    } while (0)
+
+    // global: "global-xid"
+    sentry_set_trace("global-tid", "global-psid");
+
+    SENTRY_WITH_SCOPE (global_scope) {
+        // event: null
+        sentry_value_t event = sentry_value_new_object();
+
+        // event <- global: "global-xid"
+        sentry__scope_apply_to_event(
+            global_scope, options, event, SENTRY_SCOPE_NONE);
+        TEST_CHECK_TRACE_EQUAL(event, "global-tid", "global-psid");
+
+        sentry_value_decref(event);
+    }
+
+    SENTRY_WITH_SCOPE (global_scope) {
+        // event: "event-xid"
+        sentry_value_t event = event_with_trace("event-tid", "event-psid");
+
+        // event <- global: "event-xid"
+        sentry__scope_apply_to_event(
+            global_scope, options, event, SENTRY_SCOPE_NONE);
+        TEST_CHECK_TRACE_EQUAL(event, "event-tid", "event-psid");
+
+        sentry_value_decref(event);
+    }
+
+    SENTRY_WITH_SCOPE (global_scope) {
+        // local: null
+        sentry_scope_t *local_scope = sentry_local_scope_new();
+
+        // event: null
+        sentry_value_t event = sentry_value_new_object();
+
+        // event <- local: ""
+        sentry__scope_apply_to_event(
+            local_scope, options, event, SENTRY_SCOPE_NONE);
+        TEST_CHECK_TRACE_EQUAL(event, "", "");
+
+        // event <- global: ""
+        sentry__scope_apply_to_event(
+            global_scope, options, event, SENTRY_SCOPE_NONE);
+        TEST_CHECK_TRACE_EQUAL(event, "", "");
+
+        sentry_scope_free(local_scope);
+        sentry_value_decref(event);
+    }
+
+    SENTRY_WITH_SCOPE (global_scope) {
+        // local: "local-xid"
+        sentry_scope_t *local_scope = sentry_local_scope_new();
+        sentry_scope_set_trace(local_scope, "local-tid", "local-psid");
+
+        // event: "event-xid"
+        sentry_value_t event = event_with_trace("event-tid", "event-psid");
+
+        // event <- local: "event-xid"
+        sentry__scope_apply_to_event(
+            local_scope, options, event, SENTRY_SCOPE_NONE);
+        TEST_CHECK_TRACE_EQUAL(event, "event-tid", "event-psid");
+
+        // event <- global: "event-xid"
+        sentry__scope_apply_to_event(
+            local_scope, options, event, SENTRY_SCOPE_NONE);
+        TEST_CHECK_TRACE_EQUAL(event, "event-tid", "event-psid");
+
+        sentry_scope_free(local_scope);
+        sentry_value_decref(event);
+    }
+
+#undef TEST_CHECK_TRACE_EQUAL
+
+    sentry_close();
+}
