@@ -859,14 +859,6 @@ sentry_set_context_n(const char *key, size_t key_len, sentry_value_t value)
 }
 
 void
-sentry__set_propagation_context(const char *key, sentry_value_t value)
-{
-    SENTRY_WITH_SCOPE_MUT (scope) {
-        sentry_value_set_by_key(scope->propagation_context, key, value);
-    }
-}
-
-void
 sentry_remove_context(const char *key)
 {
     SENTRY_WITH_SCOPE_MUT (scope) {
@@ -921,8 +913,9 @@ sentry_remove_fingerprint(void)
 void
 sentry_set_trace(const char *trace_id, const char *parent_span_id)
 {
-    sentry_set_trace_n(trace_id, sentry__guarded_strlen(trace_id),
-        parent_span_id, sentry__guarded_strlen(parent_span_id));
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry_scope_set_trace(scope, trace_id, parent_span_id);
+    }
 }
 
 void
@@ -930,21 +923,8 @@ sentry_set_trace_n(const char *trace_id, size_t trace_id_len,
     const char *parent_span_id, size_t parent_span_id_len)
 {
     SENTRY_WITH_SCOPE_MUT (scope) {
-        sentry_value_t context = sentry_value_new_object();
-
-        sentry_value_set_by_key(
-            context, "type", sentry_value_new_string("trace"));
-
-        sentry_value_set_by_key(context, "trace_id",
-            sentry_value_new_string_n(trace_id, trace_id_len));
-        sentry_value_set_by_key(context, "parent_span_id",
-            sentry_value_new_string_n(parent_span_id, parent_span_id_len));
-
-        sentry_uuid_t span_id = sentry_uuid_new_v4();
-        sentry_value_set_by_key(
-            context, "span_id", sentry__value_new_span_uuid(&span_id));
-
-        sentry__set_propagation_context("trace", context);
+        sentry_scope_set_trace_n(
+            scope, trace_id, trace_id_len, parent_span_id, parent_span_id_len);
     }
 }
 
