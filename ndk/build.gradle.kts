@@ -21,7 +21,7 @@ buildscript {
         google()
     }
     dependencies {
-        classpath("com.android.tools.build:gradle:8.7.1")
+        classpath("com.android.tools.build:gradle:8.7.3")
         classpath(kotlin("gradle-plugin", version = "1.8.0"))
         classpath("com.vanniktech:gradle-maven-publish-plugin:0.18.0")
         // dokka is required by gradle-maven-publish-plugin.
@@ -106,7 +106,8 @@ subprojects {
             this.dependsOn("publishToMavenLocal")
             this.doLast {
                 val distributionFilePath =
-                    "${this.project.buildDir}${sep}distributions${sep}${this.project.name}-${this.project.version}.zip"
+                    "${this.project.layout.buildDirectory}${sep}distributions${sep}${this.project.name}-${this.project.version}.zip"
+
                 val file = File(distributionFilePath)
                 if (!file.exists()) throw IllegalStateException("Distribution file: $distributionFilePath does not exist")
                 if (file.length() == 0L) throw IllegalStateException("Distribution file: $distributionFilePath is empty")
