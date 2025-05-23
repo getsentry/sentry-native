@@ -5,6 +5,7 @@
 **Features**:
 
 - Provide `before_send_transaction` callback. ([#1236](https://github.com/getsentry/sentry-native/pull/1236))
+- Add Windows support for the `crashpad_wait_for_upload` flag. ([#1255](https://github.com/getsentry/sentry-native/pull/1255), [crashpad#126](https://github.com/getsentry/crashpad/pull/126))
 
 **Docs**:
 
