@@ -227,6 +227,7 @@ sentry__dsn_new_n(const char *raw_dsn, size_t raw_dsn_len)
     memset(&url, 0, sizeof(sentry_url_t));
     size_t path_len;
     char *project_id;
+    char org_id[64] = ""; // TODO figure out the max. size?
 
     sentry_dsn_t *dsn = SENTRY_MAKE(sentry_dsn_t);
     if (!dsn) {
@@ -250,6 +251,13 @@ sentry__dsn_new_n(const char *raw_dsn, size_t raw_dsn_len)
     }
 
     dsn->host = url.host;
+    const char *org_id_dot = strchr(url.host, '.');
+    if (org_id_dot && url.host[0] == 'o') {
+        size_t length = org_id_dot - url.host - 1; // leave the o
+        strncpy(org_id, url.host + 1, length);
+        org_id[length] = '\0'; // Null-terminate the string
+    }
+    dsn->org_id = sentry__string_clone(org_id);
     url.host = NULL;
     dsn->public_key = url.username;
     url.username = NULL;
@@ -312,6 +320,7 @@ sentry__dsn_decref(sentry_dsn_t *dsn)
     if (sentry__atomic_fetch_and_add(&dsn->refcount, -1) == 1) {
         sentry_free(dsn->raw);
         sentry_free(dsn->host);
+        sentry_free(dsn->org_id);
         sentry_free(dsn->path);
         sentry_free(dsn->public_key);
         sentry_free(dsn->secret_key);

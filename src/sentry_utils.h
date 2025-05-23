@@ -64,6 +64,7 @@ void sentry__url_cleanup(sentry_url_t *url);
 typedef struct sentry_dsn_s {
     char *raw;
     char *host;
+    char *org_id;
     char *path;
     char *secret_key;
     char *public_key;

@@ -66,7 +66,8 @@ SENTRY_TEST(basic_http_request_preparation_for_transaction)
         req->url, "https://sentry.invalid:443/api/42/envelope/");
 #ifndef SENTRY_TRANSPORT_COMPRESSION
     TEST_CHECK_STRING_EQUAL(req->body,
-        "{\"event_id\":\"c993afb6-b4ac-48a6-b61b-2558e601d65d\",\"sent_at\":"
+        "{\"event_id\":\"c993afb6-b4ac-48a6-b61b-2558e601d65d\",\"trace\":{},"
+        "\"sent_at\":"
         "\"2021-12-16T05:53:59.343Z\"}\n"
         "{\"type\":\"transaction\",\"length\":72}\n"
         "{\"event_id\":\"c993afb6-b4ac-48a6-b61b-2558e601d65d\",\"type\":"
