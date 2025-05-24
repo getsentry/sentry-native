@@ -272,12 +272,16 @@ typedef CONDITION_VARIABLE sentry_cond_t;
 #        ifdef SENTRY_LOCK_TRACES
 #            define sentry__cond_wait_timeout(CondVar, Lock, Timeout)          \
                 do {                                                           \
-                    SENTRY_DEBUGF(                                             \
-                        "Thread %d: SleepConditionVariableCS(" #CondVar        \
-                        ", " #Lock ", " #Timeout ")",                          \
+                    SENTRY_DEBUGF("Thread %d: Sleeping "                       \
+                                  "SleepConditionVariableCS(" #CondVar         \
+                                  ", " #Lock ", " #Timeout ")",                \
                         GetCurrentThreadId());                                 \
                     SleepConditionVariableCS(                                  \
                         CondVar, &(Lock)->critical_section, Timeout);          \
+                    SENTRY_DEBUGF(                                             \
+                        "Thread %d: Waking SleepConditionVariableCS(" #CondVar \
+                        ", " #Lock ", " #Timeout ")",                          \
+                        GetCurrentThreadId());                                 \
                 } while (0)
 #        else
 #            define sentry__cond_wait_timeout(CondVar, Lock, Timeout)          \
