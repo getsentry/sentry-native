@@ -7,6 +7,8 @@
 #include <assert.h>
 #include <stdio.h>
 
+#define SENTRY_LOCK_TRACES
+
 // This is a NOP for platforms that support static mutex initialization.
 #define SENTRY__MUTEX_INIT_DYN_ONCE(Mutex) ((void)0)
 
@@ -170,10 +172,14 @@ typedef struct sentry__winmutex_s sentry_mutex_t;
 #    ifdef SENTRY_LOCK_TRACES
 #        define sentry__mutex_lock(Lock)                                       \
             do {                                                               \
-                SENTRY_DEBUGF("Thread %d: InitializeCriticalSection(" #Lock    \
-                              ")",                                             \
+                SENTRY_DEBUGF(                                                 \
+                    "Thread %d: Acquiring InitializeCriticalSection(" #Lock    \
+                    ")",                                                       \
                     GetCurrentThreadId());                                     \
                 sentry__winmutex_lock(Lock);                                   \
+                SENTRY_DEBUGF(                                                 \
+                    "Thread %d: Holding InitializeCriticalSection(" #Lock ")", \
+                    GetCurrentThreadId());                                     \
             } while (0)
 #    else
 #        define sentry__mutex_lock(Lock) sentry__winmutex_lock(Lock)
@@ -181,9 +187,13 @@ typedef struct sentry__winmutex_s sentry_mutex_t;
 #    ifdef SENTRY_LOCK_TRACES
 #        define sentry__mutex_unlock(Lock)                                     \
             do {                                                               \
-                SENTRY_DEBUGF("Thread %d: LeaveCriticalSection(" #Lock ")",    \
+                SENTRY_DEBUGF(                                                 \
+                    "Thread %d: Releasing LeaveCriticalSection(" #Lock ")",    \
                     GetCurrentThreadId());                                     \
                 LeaveCriticalSection(&(Lock)->critical_section);               \
+                SENTRY_DEBUGF(                                                 \
+                    "Thread %d: Released LeaveCriticalSection(" #Lock ")",     \
+                    GetCurrentThreadId());                                     \
             } while (0)
 #    else
 #        define sentry__mutex_unlock(Lock)                                     \
@@ -229,11 +239,16 @@ typedef CONDITION_VARIABLE_PREVISTA sentry_cond_t;
                 do {                                                           \
                     SENTRY_DEBUGF(                                             \
                         "Thread %d: "                                          \
-                        "SleepConditionVariableCS_PREVISTA(" #CondVar          \
+                        "Sleeping SleepConditionVariableCS_PREVISTA(" #CondVar \
                         ", " #Lock ", " #Timeout ")",                          \
                         GetCurrentThreadId());                                 \
                     SleepConditionVariableCS_PREVISTA(                         \
                         CondVar, &(Lock)->critical_section, Timeout);          \
+                    SENTRY_DEBUGF(                                             \
+                        "Thread %d: "                                          \
+                        "Awoken SleepConditionVariableCS_PREVISTA(" #CondVar   \
+                        ", " #Lock ", " #Timeout ")",                          \
+                        GetCurrentThreadId());                                 \
                 } while (0)
 #        else
 #            define sentry__cond_wait_timeout(CondVar, Lock, Timeout)          \
@@ -273,10 +288,11 @@ typedef CONDITION_VARIABLE sentry_cond_t;
 #    define sentry__cond_wait(CondVar, Lock)                                   \
         sentry__cond_wait_timeout(CondVar, Lock, INFINITE)
 // On Windows we first unlock and the wake the condition variable
+// TODO: code and comment currently out of sync for testing
 #    define sentry__wake_and_unlock(Cond, Mutex)                               \
         do {                                                                   \
-            sentry__mutex_unlock(Mutex);                                       \
             sentry__cond_wake(Cond);                                           \
+            sentry__mutex_unlock(Mutex);                                       \
         } while (0)
 
 #else
