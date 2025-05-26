@@ -5,6 +5,7 @@
 #include "sentry_options.h"
 #include "sentry_path.h"
 #include "sentry_ratelimiter.h"
+#include "sentry_scope.h"
 #include "sentry_string.h"
 #include "sentry_transport.h"
 #include "sentry_value.h"
@@ -307,9 +308,13 @@ sentry__envelope_add_transaction(
         if (options->traces_sampler)
             sentry_value_set_by_key(
                 dsc, "sample_rate", sentry_value_new_double(1.0));
-        // TODO get from somewhere
-        sentry_value_set_by_key(
-            dsc, "sample_rand", sentry_value_new_double(0.123456));
+        SENTRY_WITH_SCOPE (scope) {
+            sentry_value_t sample_rand = sentry_value_get_by_key(
+                sentry_value_get_by_key(scope->propagation_context, "trace"),
+                "sample_rand");
+            sentry_value_set_by_key(dsc, "sample_rand", sample_rand);
+            sentry_value_incref(sample_rand);
+        }
         // TODO get from somewhere; this will always be true, else we aren't
         //  sending right?
         sentry_value_set_by_key(

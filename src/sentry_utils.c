@@ -7,6 +7,9 @@
 #include "sentry_string.h"
 #include "sentry_sync.h"
 #include "sentry_utils.h"
+
+#include "sentry_random.h"
+
 #include <locale.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -587,4 +590,17 @@ sentry__check_min_version(sentry_version_t actual, sentry_version_t expected)
     }
 
     return true;
+}
+
+void
+sentry__generate_sample_rand(sentry_value_t context)
+{
+    uint64_t rnd;
+    double sample_rand = 1.0;
+    do {
+        sentry__getrandom(&rnd, sizeof(rnd));
+        sample_rand = ((double)rnd / (double)(UINT64_MAX + 1.0));
+    } while (sample_rand == 1.0); // re-roll when generating 1.0
+    sentry_value_set_by_key(
+        context, "sample_rand", sentry_value_new_double(sample_rand));
 }

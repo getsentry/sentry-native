@@ -234,4 +234,10 @@ typedef struct {
 bool sentry__check_min_version(
     sentry_version_t actual, sentry_version_t expected);
 
+/**
+ * Generates and sets a sample_rand value on the given context.
+ * The value set will be in range [0.0, 1.0)
+ */
+void sentry__generate_sample_rand(sentry_value_t context);
+
 #endif
