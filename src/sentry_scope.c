@@ -596,8 +596,7 @@ sentry__scope_set_fingerprint_nva(sentry_scope_t *scope,
             sentry_value_new_string_n(fingerprint, fingerprint_len));
     }
 
-    sentry_value_decref(scope->fingerprint);
-    scope->fingerprint = fingerprint_value;
+    sentry_scope_set_fingerprints(scope, fingerprint_value);
 }
 
 void
@@ -622,6 +621,14 @@ sentry_scope_set_fingerprint_n(
     sentry__scope_set_fingerprint_nva(scope, fingerprint, fingerprint_len, va);
 
     va_end(va);
+}
+
+void
+sentry_scope_set_fingerprints(
+    sentry_scope_t *scope, sentry_value_t fingerprints)
+{
+    sentry_value_decref(scope->fingerprint);
+    scope->fingerprint = fingerprints;
 }
 
 void

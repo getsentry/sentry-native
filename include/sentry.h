@@ -1656,6 +1656,8 @@ SENTRY_API void sentry_scope_set_fingerprint(
     sentry_scope_t *scope, const char *fingerprint, ...);
 SENTRY_API void sentry_scope_set_fingerprint_n(sentry_scope_t *scope,
     const char *fingerprint, size_t fingerprint_len, ...);
+SENTRY_API void sentry_scope_set_fingerprints(
+    sentry_scope_t *scope, sentry_value_t fingerprints);
 
 /**
  * Removes the fingerprint.
