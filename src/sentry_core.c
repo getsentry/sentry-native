@@ -105,6 +105,12 @@ initialize_propagation_context(sentry_value_t *propagation_context)
     sentry_value_set_by_key(
         sentry_value_get_by_key(*propagation_context, "trace"), "span_id",
         sentry__value_new_span_uuid(&span_id));
+    uint64_t rnd;
+    sentry__getrandom(&rnd, sizeof(rnd));
+    double sample_rand = ((double)rnd / (double)UINT64_MAX);
+    sentry_value_set_by_key(
+        sentry_value_get_by_key(*propagation_context, "trace"), "sample_rand",
+        sentry_value_new_double(sample_rand));
 }
 
 #if defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_PS)
@@ -519,12 +525,13 @@ static
                     sampling_ctx->custom_sampling_context,
                     sampling_ctx->parent_sampled == NULL ? NULL
                                                          : &parent_sampled_int);
+            // TODO compare with sample_rand
             send = sentry__roll_dice(result);
         } else {
             if (sampling_ctx->parent_sampled != NULL) {
                 send = *sampling_ctx->parent_sampled;
             } else {
-                send = sentry__roll_dice(options->traces_sample_rate);
+                send = sampling_ctx->sample_rand < options->traces_sample_rate;
             }
         }
     }
@@ -943,6 +950,13 @@ sentry_set_trace_n(const char *trace_id, size_t trace_id_len,
         sentry_value_set_by_key(
             context, "span_id", sentry__value_new_span_uuid(&span_id));
 
+        // generate new sample_rand
+        uint64_t rnd;
+        sentry__getrandom(&rnd, sizeof(rnd));
+        double sample_rand = ((double)rnd / (double)UINT64_MAX);
+        sentry_value_set_by_key(
+            context, "sample_rand", sentry_value_new_double(sample_rand));
+
         sentry__set_propagation_context("trace", context);
     }
 }
@@ -1017,6 +1031,12 @@ sentry_transaction_start_ts(sentry_transaction_context_t *opaque_tx_ctx,
     sentry__value_merge_objects(tx, tx_ctx);
     sentry_sampling_context_t sampling_ctx
         = { opaque_tx_ctx, custom_sampling_ctx, NULL };
+    SENTRY_WITH_SCOPE (scope) {
+        sampling_ctx.sample_rand
+            = sentry_value_as_double(sentry_value_get_by_key(
+                sentry_value_get_by_key(scope->propagation_context, "trace"),
+                "sample_rand"));
+    }
     bool should_sample = sentry__should_send_transaction(tx_ctx, &sampling_ctx);
     sentry_value_set_by_key(
         tx, "sampled", sentry_value_new_bool(should_sample));

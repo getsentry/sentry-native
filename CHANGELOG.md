@@ -5,6 +5,7 @@
 **Features**:
 
 - Provide `before_send_transaction` callback. ([#1236](https://github.com/getsentry/sentry-native/pull/1236))
+- Add `Dynamic Sampling Context (DSC)` to events. ([#1254](https://github.com/getsentry/sentry-native/pull/1254)) 
 
 **Docs**:
 

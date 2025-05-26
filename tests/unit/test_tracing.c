@@ -288,6 +288,12 @@ SENTRY_TEST(transport_sampling_transactions)
 
     uint64_t sent_transactions = 0;
     for (int i = 0; i < 100; i++) {
+        sentry_uuid_t new_id = sentry_uuid_new_v4();
+        const sentry_value_t trace_id
+            = sentry__value_new_internal_uuid(&new_id);
+        const char *trace_id_str = sentry_value_as_string(trace_id);
+        sentry_set_trace(trace_id_str, "");
+        sentry_set_trace("", "");
         sentry_transaction_context_t *tx_ctx
             = sentry_transaction_context_new("honk", "beep");
         sentry_transaction_t *tx
@@ -301,7 +307,13 @@ SENTRY_TEST(transport_sampling_transactions)
     sentry_close();
 
     // exact value is nondeterministic because of rng
+    // TODO update test; since all tx are part of the same trace, they either
+    // all
+    //  get sampled, or none of them do. We now call `set_trace` to once again
+    //  distribute the samples
     TEST_CHECK(called_transport > 50 && called_transport < 100);
+    // TODO or we could add the check below (and remove `set_trace`)
+    // TEST_CHECK(called_transport == 0 || called_transport == 100);
     TEST_CHECK(called_transport == sent_transactions);
 }
 

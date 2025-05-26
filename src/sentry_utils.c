@@ -253,7 +253,7 @@ sentry__dsn_new_n(const char *raw_dsn, size_t raw_dsn_len)
     dsn->host = url.host;
     const char *org_id_dot = strchr(url.host, '.');
     if (org_id_dot && url.host[0] == 'o') {
-        size_t length = org_id_dot - url.host - 1; // leave the o
+        size_t length = (size_t)(org_id_dot - url.host - 1); // leave the o
         strncpy(org_id, url.host + 1, length);
         org_id[length] = '\0'; // Null-terminate the string
     }
