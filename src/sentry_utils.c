@@ -599,7 +599,7 @@ sentry__generate_sample_rand(sentry_value_t context)
     double sample_rand = 1.0;
     do {
         sentry__getrandom(&rnd, sizeof(rnd));
-        sample_rand = ((double)rnd / (double)(UINT64_MAX + 1.0));
+        sample_rand = (double)rnd / (double)UINT64_MAX;
     } while (sample_rand == 1.0); // re-roll when generating 1.0
     sentry_value_set_by_key(
         context, "sample_rand", sentry_value_new_double(sample_rand));
