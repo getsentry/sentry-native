@@ -230,7 +230,7 @@ sentry__dsn_new_n(const char *raw_dsn, size_t raw_dsn_len)
     memset(&url, 0, sizeof(sentry_url_t));
     size_t path_len;
     char *project_id;
-    char org_id[64] = ""; // TODO figure out the max. size?
+    char org_id[20] = "";
 
     sentry_dsn_t *dsn = SENTRY_MAKE(sentry_dsn_t);
     if (!dsn) {
