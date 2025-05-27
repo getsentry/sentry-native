@@ -1656,6 +1656,12 @@ SENTRY_API void sentry_scope_set_fingerprint(
     sentry_scope_t *scope, const char *fingerprint, ...);
 SENTRY_API void sentry_scope_set_fingerprint_n(sentry_scope_t *scope,
     const char *fingerprint, size_t fingerprint_len, ...);
+
+/**
+ * Sets the event fingerprints.
+ *
+ * This accepts a list of fingerprints created with `sentry_value_new_list`.
+ */
 SENTRY_API void sentry_scope_set_fingerprints(
     sentry_scope_t *scope, sentry_value_t fingerprints);
 
