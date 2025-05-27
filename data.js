@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1747323153217,
+  "lastUpdate": 1748351439753,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -898,6 +898,66 @@ window.BENCHMARK_DATA = {
             "value": 1.7654800000173054,
             "unit": "ms",
             "extra": "Min 1.742ms\nMax 1.870ms\nMean 1.788ms\nStdDev 0.053ms\nMedian 1.765ms\nCPU 0.568ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "mischan@abovevacant.com",
+            "name": "Mischan Toosarani-Hausberger",
+            "username": "supervacuus"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "c653de396546b870f563f320f15362282a2432b5",
+          "message": "chore: update gradle scripts to current AGP/SDK usage (#1256)",
+          "timestamp": "2025-05-27T15:08:13+02:00",
+          "tree_id": "f3df760bb7c0e2f55580d7011626ef29a7b77cff",
+          "url": "https://github.com/getsentry/sentry-native/commit/c653de396546b870f563f320f15362282a2432b5"
+        },
+        "date": 1748351438684,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 0.7662099999947714,
+            "unit": "ms",
+            "extra": "Min 0.740ms\nMax 0.853ms\nMean 0.777ms\nStdDev 0.045ms\nMedian 0.766ms\nCPU 0.767ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.7792150000227593,
+            "unit": "ms",
+            "extra": "Min 0.728ms\nMax 1.077ms\nMean 0.833ms\nStdDev 0.140ms\nMedian 0.779ms\nCPU 0.809ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 3.2964119999974173,
+            "unit": "ms",
+            "extra": "Min 3.179ms\nMax 16.782ms\nMean 5.975ms\nStdDev 6.041ms\nMedian 3.296ms\nCPU 1.712ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.013384999988375057,
+            "unit": "ms",
+            "extra": "Min 0.013ms\nMax 0.014ms\nMean 0.013ms\nStdDev 0.000ms\nMedian 0.013ms\nCPU 0.012ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.025447999973948754,
+            "unit": "ms",
+            "extra": "Min 0.024ms\nMax 0.034ms\nMean 0.027ms\nStdDev 0.004ms\nMedian 0.025ms\nCPU 0.026ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 2.043678000006821,
+            "unit": "ms",
+            "extra": "Min 1.927ms\nMax 2.130ms\nMean 2.017ms\nStdDev 0.087ms\nMedian 2.044ms\nCPU 0.612ms"
           }
         ]
       }
