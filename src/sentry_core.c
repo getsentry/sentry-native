@@ -521,8 +521,7 @@ static
                     sampling_ctx->custom_sampling_context,
                     sampling_ctx->parent_sampled == NULL ? NULL
                                                          : &parent_sampled_int);
-            // TODO compare with sample_rand
-            send = sentry__roll_dice(result);
+            send = sampling_ctx->sample_rand < result;
         } else {
             if (sampling_ctx->parent_sampled != NULL) {
                 send = *sampling_ctx->parent_sampled;
