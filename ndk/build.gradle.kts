@@ -105,12 +105,12 @@ subprojects {
         tasks.named("distZip").configure {
             this.dependsOn("publishToMavenLocal")
             this.doLast {
-                val distributionFilePath =
-                    "${this.project.layout.buildDirectory}${sep}distributions${sep}${this.project.name}-${this.project.version}.zip"
-
-                val file = File(distributionFilePath)
-                if (!file.exists()) throw IllegalStateException("Distribution file: $distributionFilePath does not exist")
-                if (file.length() == 0L) throw IllegalStateException("Distribution file: $distributionFilePath is empty")
+                val distZip =
+                    this.project.layout.buildDirectory.dir("distributions").map {
+                        it.file("${this.project.name}-${this.project.version}.zip")
+                    }.get().asFile
+                if (!distZip.exists()) throw IllegalStateException("Distribution file: ${distZip.absolutePath} does not exist")
+                if (distZip.length() == 0L) throw IllegalStateException("Distribution file: ${distZip.absolutePath} is empty")
             }
         }
 
