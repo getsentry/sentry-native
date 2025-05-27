@@ -341,7 +341,7 @@ if(SENTRY_TRANSPORT_CURL)
 		find_package(CURL REQUIRED)
 	endif()
 
-	target_link_libraries(sentry PRIVATE CURL::libcurl)
+	target_include_directories(sentry PRIVATE CURL::libcurl)
 endif()
 
 if(SENTRY_TRANSPORT_COMPRESSION)

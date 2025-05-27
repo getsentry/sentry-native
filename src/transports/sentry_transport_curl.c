@@ -13,9 +13,29 @@
 #include <curl/easy.h>
 #include <string.h>
 
+#include <dlfcn.h>
+
 #ifdef SENTRY_PLATFORM_NX
 #    include "sentry_transport_curl_nx.h"
 #endif
+
+static void *curl_handle = NULL;
+
+static CURLcode (*curl_global_init_func)(long flags);
+static curl_version_info_data *(*curl_version_info_func)(CURLversion);
+static void (*curl_global_cleanup_func)(void);
+
+static void (*curl_easy_reset_func)(CURL *curl);
+static CURLcode (*curl_easy_setopt_func)(CURL *curl, CURLoption option, ...);
+static struct curl_slist *(*curl_slist_append_func)(
+    struct curl_slist *list, const char *data);
+static void (*curl_slist_free_all_func)(struct curl_slist *list);
+
+static CURL *(*curl_easy_init_func)(void);
+static CURLcode (*curl_easy_getinfo_func)(CURL *curl, CURLINFO info, ...);
+static const char *(*curl_easy_strerror_func)(CURLcode);
+static CURLcode (*curl_easy_perform_func)(CURL *curl);
+static void (*curl_easy_cleanup_func)(CURL *curl);
 
 typedef struct curl_transport_state_s {
     sentry_dsn_t *dsn;
@@ -56,8 +76,8 @@ sentry__curl_bgworker_state_free(void *_state)
 {
     curl_bgworker_state_t *state = _state;
     if (state->curl_handle) {
-        curl_easy_cleanup(state->curl_handle);
-        curl_global_cleanup();
+        curl_easy_cleanup_func(state->curl_handle);
+        curl_global_cleanup_func();
     }
     sentry__dsn_decref(state->dsn);
     sentry__rate_limiter_free(state->ratelimiter);
@@ -74,16 +94,45 @@ static int
 sentry__curl_transport_start(
     const sentry_options_t *options, void *transport_state)
 {
-    static bool curl_initialized = false;
-    if (!curl_initialized) {
-        CURLcode rv = curl_global_init(CURL_GLOBAL_ALL);
+    if (!curl_handle) {
+        curl_handle = dlopen("libcurl.so.4", RTLD_LAZY);
+        if (!curl_handle) {
+            SENTRY_WARN("failed to load libcurl.so.4");
+            return 1;
+        }
+
+#define RESOLVE_CURL_SYMBOL(sym)                                               \
+    do {                                                                       \
+        *(void **)(&sym##_func) = dlsym(curl_handle, #sym);                    \
+        if (!sym##_func) {                                                     \
+            SENTRY_WARN("failed to resolve " #sym);                            \
+            return 1;                                                          \
+        }                                                                      \
+    } while (0)
+
+        RESOLVE_CURL_SYMBOL(curl_global_init);
+        RESOLVE_CURL_SYMBOL(curl_version_info);
+        RESOLVE_CURL_SYMBOL(curl_global_cleanup);
+        RESOLVE_CURL_SYMBOL(curl_easy_reset);
+        RESOLVE_CURL_SYMBOL(curl_slist_append);
+        RESOLVE_CURL_SYMBOL(curl_slist_free_all);
+        RESOLVE_CURL_SYMBOL(curl_easy_init);
+        RESOLVE_CURL_SYMBOL(curl_easy_setopt);
+        RESOLVE_CURL_SYMBOL(curl_easy_strerror);
+        RESOLVE_CURL_SYMBOL(curl_easy_perform);
+        RESOLVE_CURL_SYMBOL(curl_easy_cleanup);
+        RESOLVE_CURL_SYMBOL(curl_easy_getinfo);
+
+#undef RESOLVE_CURL_SYMBOL
+
+        CURLcode rv = curl_global_init_func(CURL_GLOBAL_ALL);
         if (rv != CURLE_OK) {
             SENTRY_WARNF("`curl_global_init` failed with code `%d`", (int)rv);
             return 1;
         }
 
         curl_version_info_data *version_data
-            = curl_version_info(CURLVERSION_NOW);
+            = curl_version_info_func(CURLVERSION_NOW);
 
         if (!version_data) {
             SENTRY_WARN("Failed to retrieve `curl_version_info`");
@@ -116,7 +165,7 @@ sentry__curl_transport_start(
     state->proxy = sentry__string_clone(options->proxy);
     state->user_agent = sentry__string_clone(options->user_agent);
     state->ca_certs = sentry__string_clone(options->ca_certs);
-    state->curl_handle = curl_easy_init();
+    state->curl_handle = curl_easy_init_func();
     state->debug = options->debug;
 
     sentry__bgworker_setname(bgworker, options->transport_thread_name);
@@ -148,7 +197,14 @@ static int
 sentry__curl_transport_shutdown(uint64_t timeout, void *transport_state)
 {
     sentry_bgworker_t *bgworker = (sentry_bgworker_t *)transport_state;
-    return sentry__bgworker_shutdown(bgworker, timeout);
+    int rv = sentry__bgworker_shutdown(bgworker, timeout);
+
+    // if (curl_handle) {
+    //     dlclose(curl_handle);
+    //     curl_handle = NULL;
+    // }
+
+    return rv;
 }
 
 static size_t
@@ -202,7 +258,7 @@ sentry__curl_send_task(void *_envelope, void *_state)
     }
 
     struct curl_slist *headers = NULL;
-    headers = curl_slist_append(headers, "expect:");
+    headers = curl_slist_append_func(headers, "expect:");
     for (size_t i = 0; i < req->headers_len; i++) {
         char buf[512];
         size_t written = (size_t)snprintf(buf, sizeof(buf), "%s:%s",
@@ -211,40 +267,40 @@ sentry__curl_send_task(void *_envelope, void *_state)
             continue;
         }
         buf[written] = '\0';
-        headers = curl_slist_append(headers, buf);
+        headers = curl_slist_append_func(headers, buf);
     }
 
     CURL *curl = state->curl_handle;
-    curl_easy_reset(curl);
+    curl_easy_reset_func(curl);
     if (state->debug) {
-        curl_easy_setopt(curl, CURLOPT_VERBOSE, 1);
-        curl_easy_setopt(curl, CURLOPT_WRITEDATA, stderr);
+        curl_easy_setopt_func(curl, CURLOPT_VERBOSE, 1);
+        curl_easy_setopt_func(curl, CURLOPT_WRITEDATA, stderr);
         // CURLOPT_WRITEFUNCTION will `fwrite` by default
     } else {
-        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, swallow_data);
+        curl_easy_setopt_func(curl, CURLOPT_WRITEFUNCTION, swallow_data);
     }
-    curl_easy_setopt(curl, CURLOPT_URL, req->url);
-    curl_easy_setopt(curl, CURLOPT_POST, (long)1);
-    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
-    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, req->body);
-    curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, (long)req->body_len);
-    curl_easy_setopt(curl, CURLOPT_USERAGENT, SENTRY_SDK_USER_AGENT);
+    curl_easy_setopt_func(curl, CURLOPT_URL, req->url);
+    curl_easy_setopt_func(curl, CURLOPT_POST, (long)1);
+    curl_easy_setopt_func(curl, CURLOPT_HTTPHEADER, headers);
+    curl_easy_setopt_func(curl, CURLOPT_POSTFIELDS, req->body);
+    curl_easy_setopt_func(curl, CURLOPT_POSTFIELDSIZE, (long)req->body_len);
+    curl_easy_setopt_func(curl, CURLOPT_USERAGENT, SENTRY_SDK_USER_AGENT);
 
     char error_buf[CURL_ERROR_SIZE];
     error_buf[0] = 0;
-    curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, error_buf);
+    curl_easy_setopt_func(curl, CURLOPT_ERRORBUFFER, error_buf);
 
     struct header_info info;
     info.retry_after = NULL;
     info.x_sentry_rate_limits = NULL;
-    curl_easy_setopt(curl, CURLOPT_HEADERDATA, (void *)&info);
-    curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, header_callback);
+    curl_easy_setopt_func(curl, CURLOPT_HEADERDATA, (void *)&info);
+    curl_easy_setopt_func(curl, CURLOPT_HEADERFUNCTION, header_callback);
 
     if (state->proxy) {
-        curl_easy_setopt(curl, CURLOPT_PROXY, state->proxy);
+        curl_easy_setopt_func(curl, CURLOPT_PROXY, state->proxy);
     }
     if (state->ca_certs) {
-        curl_easy_setopt(curl, CURLOPT_CAINFO, state->ca_certs);
+        curl_easy_setopt_func(curl, CURLOPT_CAINFO, state->ca_certs);
     }
 
 #ifdef SENTRY_PLATFORM_NX
@@ -254,12 +310,12 @@ sentry__curl_send_task(void *_envelope, void *_state)
 #endif
 
     if (rv == CURLE_OK) {
-        rv = curl_easy_perform(curl);
+        rv = curl_easy_perform_func(curl);
     }
 
     if (rv == CURLE_OK) {
         long response_code;
-        curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response_code);
+        curl_easy_getinfo_func(curl, CURLINFO_RESPONSE_CODE, &response_code);
 
         if (info.x_sentry_rate_limits) {
             sentry__rate_limiter_update_from_header(
@@ -280,11 +336,11 @@ sentry__curl_send_task(void *_envelope, void *_state)
                 (int)rv, error_buf);
         } else {
             SENTRY_WARNF("`curl_easy_perform` failed with code `%d`: %s",
-                (int)rv, curl_easy_strerror(rv));
+                (int)rv, curl_easy_strerror_func(rv));
         }
     }
 
-    curl_slist_free_all(headers);
+    curl_slist_free_all_func(headers);
     sentry_free(info.retry_after);
     sentry_free(info.x_sentry_rate_limits);
     sentry__prepared_http_request_free(req);
