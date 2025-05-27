@@ -627,6 +627,11 @@ void
 sentry_scope_set_fingerprints(
     sentry_scope_t *scope, sentry_value_t fingerprints)
 {
+    if (sentry_value_get_type(fingerprints) != SENTRY_VALUE_TYPE_LIST) {
+        SENTRY_WARN("invalid fingerprints type, expected list");
+        return;
+    }
+
     sentry_value_decref(scope->fingerprint);
     scope->fingerprint = fingerprints;
 }
