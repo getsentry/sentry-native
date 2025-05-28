@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1748420446585,
+  "lastUpdate": 1748420482484,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -3178,6 +3178,66 @@ window.BENCHMARK_DATA = {
             "value": 10.387799999989511,
             "unit": "ms",
             "extra": "Min 10.009ms\nMax 11.288ms\nMean 10.482ms\nStdDev 0.503ms\nMedian 10.388ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "6349682+vaind@users.noreply.github.com",
+            "name": "Ivan Dlugos",
+            "username": "vaind"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "6ca83891fdea3f141df66eb6a2f148ef465463c2",
+          "message": "fix: use custom page allocator on ps5 (#1257)",
+          "timestamp": "2025-05-28T10:16:54+02:00",
+          "tree_id": "839d7d4472a60b05ccb61e0105979c5205dd1bf1",
+          "url": "https://github.com/getsentry/sentry-native/commit/6ca83891fdea3f141df66eb6a2f148ef465463c2"
+        },
+        "date": 1748420474518,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 7.198899999934838,
+            "unit": "ms",
+            "extra": "Min 7.040ms\nMax 7.362ms\nMean 7.205ms\nStdDev 0.117ms\nMedian 7.199ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 7.8519999999571155,
+            "unit": "ms",
+            "extra": "Min 7.694ms\nMax 7.928ms\nMean 7.845ms\nStdDev 0.091ms\nMedian 7.852ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 18.344500000011976,
+            "unit": "ms",
+            "extra": "Min 17.691ms\nMax 19.164ms\nMean 18.492ms\nStdDev 0.581ms\nMedian 18.345ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.009999999974752427,
+            "unit": "ms",
+            "extra": "Min 0.009ms\nMax 0.015ms\nMean 0.011ms\nStdDev 0.003ms\nMedian 0.010ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.3092999999125823,
+            "unit": "ms",
+            "extra": "Min 0.302ms\nMax 0.337ms\nMean 0.316ms\nStdDev 0.016ms\nMedian 0.309ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 10.04169999998794,
+            "unit": "ms",
+            "extra": "Min 9.681ms\nMax 10.937ms\nMean 10.116ms\nStdDev 0.500ms\nMedian 10.042ms"
           }
         ]
       }
