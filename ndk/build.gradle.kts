@@ -74,14 +74,13 @@ subprojects {
         }
     }
 
-    if (!this.name.contains("sample")) {
+    if (!name.contains("sample")) {
         apply<DistributionPlugin>()
 
         val sep = File.separator
 
         configure<DistributionContainer> {
-
-            this.getByName("main").contents {
+            getByName("main").contents {
                 // non android modules
                 from("build${sep}libs")
                 from("build${sep}publications${sep}maven")
@@ -93,7 +92,7 @@ subprojects {
             }
 
             // craft only uses zip archives
-            this.forEach { dist ->
+            forEach { dist ->
                 if (dist.name == DistributionPlugin.MAIN_DISTRIBUTION_NAME) {
                     tasks.getByName("distTar").enabled = false
                 } else {
@@ -102,15 +101,16 @@ subprojects {
             }
         }
 
-        tasks.named("distZip").configure {
-            this.dependsOn("publishToMavenLocal")
-            this.doLast {
-                val distributionFilePath =
-                    "${this.project.layout.buildDirectory}${sep}distributions${sep}${this.project.name}-${this.project.version}.zip"
+        val distZipProvider =
+            project.layout.buildDirectory
+                .dir("distributions").map { it.file("${project.name}-${project.version}.zip") }
 
-                val file = File(distributionFilePath)
-                if (!file.exists()) throw IllegalStateException("Distribution file: $distributionFilePath does not exist")
-                if (file.length() == 0L) throw IllegalStateException("Distribution file: $distributionFilePath is empty")
+        tasks.named("distZip").configure {
+            dependsOn("publishToMavenLocal")
+            doLast {
+                val distZip = distZipProvider.get().asFile
+                require(distZip.exists()) { "Distribution file does not exist: ${distZip.absolutePath}" }
+                require(distZip.length() > 0L) { "Distribution file is empty: ${distZip.absolutePath}" }
             }
         }
 
