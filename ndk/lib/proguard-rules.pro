@@ -8,7 +8,7 @@
 -keep class io.sentry.ndk.DebugImage { *; }
 
 # For native methods, see http://proguard.sourceforge.net/manual/examples.html#native
--keepclasseswithmembernames,includedescriptorclasses class * {
+-keepclasseswithmembernames,includedescriptorclasses class io.sentry.ndk.** {
     native <methods>;
 }
 
