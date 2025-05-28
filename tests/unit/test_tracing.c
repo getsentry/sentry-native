@@ -19,6 +19,7 @@ SENTRY_TEST(basic_tracing_context)
 
     sentry_value_t tx = sentry_value_new_object();
     opaque_tx = sentry__transaction_new(sentry__value_clone(tx));
+    TEST_ASSERT(!!opaque_tx);
     sentry_value_set_by_key(tx, "op", sentry_value_new_string("honk.beep"));
     TEST_CHECK(sentry_value_is_null(
         sentry__value_get_trace_context(opaque_tx->inner)));
@@ -28,6 +29,7 @@ SENTRY_TEST(basic_tracing_context)
         tx, "trace_id", sentry__value_new_internal_uuid(&trace_id));
     sentry__transaction_decref(opaque_tx);
     opaque_tx = sentry__transaction_new(sentry__value_clone(tx));
+    TEST_ASSERT(!!opaque_tx);
     TEST_CHECK(sentry_value_is_null(
         sentry__value_get_trace_context(opaque_tx->inner)));
 
@@ -1089,6 +1091,7 @@ SENTRY_TEST(txn_tagging)
 {
     sentry_transaction_t *txn
         = sentry__transaction_new(sentry_value_new_object());
+    TEST_ASSERT(!!txn);
 
     sentry_transaction_set_tag(txn, "os.name", "Linux");
     check_after_set(txn->inner, "tags", "os.name", "Linux");
@@ -1103,7 +1106,9 @@ SENTRY_TEST(span_tagging)
 {
     sentry_transaction_t *txn
         = sentry__transaction_new(sentry_value_new_object());
+    TEST_ASSERT(!!txn);
     sentry_span_t *span = sentry__span_new(txn, sentry_value_new_object());
+    TEST_ASSERT(!!span);
 
     sentry_span_set_tag(span, "os.name", "Linux");
     check_after_set(span->inner, "tags", "os.name", "Linux");
@@ -1119,6 +1124,7 @@ SENTRY_TEST(txn_tagging_n)
 {
     sentry_transaction_t *txn
         = sentry__transaction_new(sentry_value_new_object());
+    TEST_ASSERT(!!txn);
 
     char tag[] = { 'o', 's', '.', 'n', 'a', 'm', 'e' };
     char tag_val[] = { 'L', 'i', 'n', 'u', 'x' };
@@ -1136,7 +1142,9 @@ SENTRY_TEST(span_tagging_n)
 {
     sentry_transaction_t *txn
         = sentry__transaction_new(sentry_value_new_object());
+    TEST_ASSERT(!!txn);
     sentry_span_t *span = sentry__span_new(txn, sentry_value_new_object());
+    TEST_ASSERT(!!span);
 
     char tag[] = { 'o', 's', '.', 'n', 'a', 'm', 'e' };
     char tag_val[] = { 'L', 'i', 'n', 'u', 'x' };
@@ -1154,6 +1162,7 @@ SENTRY_TEST(txn_name)
 {
     sentry_transaction_t *txn
         = sentry__transaction_new(sentry_value_new_object());
+    TEST_ASSERT(!!txn);
 
     char *txn_name = "the_txn";
     sentry_transaction_set_name(txn, txn_name);
@@ -1170,6 +1179,7 @@ SENTRY_TEST(txn_data)
 {
     sentry_transaction_t *txn
         = sentry__transaction_new(sentry_value_new_object());
+    TEST_ASSERT(!!txn);
 
     sentry_transaction_set_data(
         txn, "os.name", sentry_value_new_string("Linux"));
@@ -1185,7 +1195,9 @@ SENTRY_TEST(span_data)
 {
     sentry_transaction_t *txn
         = sentry__transaction_new(sentry_value_new_object());
+    TEST_ASSERT(!!txn);
     sentry_span_t *span = sentry__span_new(txn, sentry_value_new_object());
+    TEST_ASSERT(!!span);
 
     sentry_span_set_data(span, "os.name", sentry_value_new_string("Linux"));
     check_after_set(span->inner, "data", "os.name", "Linux");
@@ -1201,6 +1213,7 @@ SENTRY_TEST(txn_name_n)
 {
     sentry_transaction_t *txn
         = sentry__transaction_new(sentry_value_new_object());
+    TEST_ASSERT(!!txn);
     char txn_name[] = { 't', 'h', 'e', '_', 't', 'x', 'n' };
     sentry_transaction_set_name_n(txn, txn_name, sizeof(txn_name));
 
@@ -1208,7 +1221,9 @@ SENTRY_TEST(txn_name_n)
         = sentry_value_get_by_key(txn->inner, "transaction");
     TEST_CHECK(
         sentry_value_get_type(txn_name_value) == SENTRY_VALUE_TYPE_STRING);
-    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(txn_name_value), "the_txn");
+    const char *txn_name_str = sentry_value_as_string(txn_name_value);
+    TEST_ASSERT(!!txn_name_str);
+    TEST_CHECK_STRING_EQUAL(txn_name_str, "the_txn");
 
     sentry__transaction_decref(txn);
 }
@@ -1217,6 +1232,7 @@ SENTRY_TEST(txn_data_n)
 {
     sentry_transaction_t *txn
         = sentry__transaction_new(sentry_value_new_object());
+    TEST_ASSERT(!!txn);
 
     char data_k[] = { 'o', 's', '.', 'n', 'a', 'm', 'e' };
     char data_v[] = { 'L', 'i', 'n', 'u', 'x' };
@@ -1235,7 +1251,9 @@ SENTRY_TEST(span_data_n)
 {
     sentry_transaction_t *txn
         = sentry__transaction_new(sentry_value_new_object());
+    TEST_ASSERT(!!txn);
     sentry_span_t *span = sentry__span_new(txn, sentry_value_new_object());
+    TEST_ASSERT(!!span);
 
     char data_k[] = { 'o', 's', '.', 'n', 'a', 'm', 'e' };
     char data_v[] = { 'L', 'i', 'n', 'u', 'x' };
@@ -1268,6 +1286,7 @@ SENTRY_TEST(set_tag_allows_null_tag_and_value)
 {
     sentry_transaction_t *txn
         = sentry__transaction_new(sentry_value_new_object());
+    TEST_ASSERT(!!txn);
     sentry_transaction_set_tag(txn, NULL, NULL);
     sentry_value_t tags = sentry_value_get_by_key(txn->inner, "tags");
     TEST_CHECK(!sentry_value_is_null(tags));
@@ -1294,14 +1313,16 @@ SENTRY_TEST(set_tag_cuts_value_at_length_200)
 
     sentry_transaction_t *txn
         = sentry__transaction_new(sentry_value_new_object());
+    TEST_ASSERT(!!txn);
     sentry_transaction_set_tag(txn, "cut-off", test_value);
     sentry_value_t tags = sentry_value_get_by_key(txn->inner, "tags");
     TEST_CHECK(!sentry_value_is_null(tags));
     TEST_CHECK(sentry_value_get_type(tags) == SENTRY_VALUE_TYPE_OBJECT);
     TEST_CHECK(sentry_value_get_length(tags) == 1);
-    TEST_CHECK_INT_EQUAL(strlen(sentry_value_as_string(
-                             sentry_value_get_by_key(tags, "cut-off"))),
-        200);
+    const char *cut_off
+        = sentry_value_as_string(sentry_value_get_by_key(tags, "cut-off"));
+    TEST_ASSERT(!!cut_off);
+    TEST_CHECK_INT_EQUAL(strlen(cut_off), 200);
 
     sentry__transaction_decref(txn);
 }
@@ -1330,7 +1351,7 @@ SENTRY_TEST(set_trace)
 
         const char *span_id = sentry_value_as_string(
             sentry_value_get_by_key(propagation_trace_context, "span_id"));
-        TEST_ASSERT(span_id != NULL);
+        TEST_ASSERT(!!span_id);
         TEST_CHECK(strlen(span_id) > 0);
     }
 
@@ -1362,10 +1383,12 @@ apply_scope_and_check_trace_context(
     // check trace context content
     const char *event_trace_id = sentry_value_as_string(
         sentry_value_get_by_key(event_trace_context, "trace_id"));
+    TEST_ASSERT(!!event_trace_id);
     TEST_CHECK_STRING_EQUAL(event_trace_id, trace_id);
 
     const char *event_trace_parent_span_id = sentry_value_as_string(
         sentry_value_get_by_key(event_trace_context, "parent_span_id"));
+    TEST_ASSERT(!!event_trace_parent_span_id);
     TEST_CHECK_STRING_EQUAL(event_trace_parent_span_id, parent_span_id);
 
     sentry_uuid_t event_trace_span_id = sentry__value_as_uuid(
@@ -1390,10 +1413,12 @@ SENTRY_TEST(scoped_txn)
     const char *txn_parent_span_id = "a0f9fdf04f1a63df";
     sentry_transaction_context_t *tx_ctx_scoped
         = sentry_transaction_context_new("wow!", NULL);
+    TEST_ASSERT(!!tx_ctx_scoped);
     sentry_transaction_context_update_from_header(
         tx_ctx_scoped, "sentry-trace", trace_header);
     sentry_transaction_t *tx_scoped
         = sentry_transaction_start(tx_ctx_scoped, sentry_value_new_null());
+    TEST_ASSERT(!!tx_scoped);
 
     // when no set_trace was called yet, the scoped transaction should apply
     //  its trace/parent span ID (as set by update_from_header)
@@ -1421,14 +1446,18 @@ SENTRY_TEST(set_trace_id_before_scoped_txn)
 
     sentry_transaction_context_t *tx_ctx
         = sentry_transaction_context_new("wow!", NULL);
+    TEST_ASSERT(!!tx_ctx);
     sentry_transaction_context_update_from_header(
         tx_ctx, "sentry-trace", trace_header);
     sentry_transaction_t *tx
         = sentry_transaction_start(tx_ctx, sentry_value_new_null());
+    TEST_ASSERT(!!tx);
     sentry_span_t *span_child
         = sentry_transaction_start_child(tx, "op", "desc");
+    TEST_ASSERT(!!span_child);
     sentry_span_t *span_grandchild
         = sentry_span_start_child(span_child, "op_g", "desc_g");
+    TEST_ASSERT(!!span_grandchild);
 
     // set the direct trace
     const char *direct_trace_id = "aaaabbbbccccddddeeeeffff00001111";
@@ -1459,17 +1488,22 @@ SENTRY_TEST(set_trace_id_before_scoped_txn)
     // get span_ids from all tx/spans
     const char *tx_span_id
         = sentry_value_as_string(sentry_value_get_by_key(tx->inner, "span_id"));
+    TEST_ASSERT(!!tx_span_id);
 
     const char *tx_trace_id = sentry_value_as_string(
         sentry_value_get_by_key(tx->inner, "trace_id"));
+    TEST_ASSERT(!!tx_trace_id);
 
     const char *span_child_span_id = sentry_value_as_string(
         sentry_value_get_by_key(span_child->inner, "span_id"));
+    TEST_ASSERT(!!span_child_span_id);
     const char *span_child_parent_span_id = sentry_value_as_string(
         sentry_value_get_by_key(span_child->inner, "parent_span_id"));
+    TEST_ASSERT(!!span_child_parent_span_id);
 
     const char *span_grandchild_parent_span_id = sentry_value_as_string(
         sentry_value_get_by_key(span_grandchild->inner, "parent_span_id"));
+    TEST_ASSERT(!!span_grandchild_parent_span_id);
 
     // check if (set_trace)->root->child->grandchild is connected
     // parent_span_id should still be the one from update_from_header
@@ -1510,12 +1544,16 @@ SENTRY_TEST(set_trace_id_with_txn)
 
     sentry_transaction_context_t *tx_ctx
         = sentry_transaction_context_new("wow!", NULL);
+    TEST_ASSERT(!!tx_ctx);
     sentry_transaction_t *tx
         = sentry_transaction_start(tx_ctx, sentry_value_new_null());
+    TEST_ASSERT(!!tx);
     sentry_span_t *span_child
         = sentry_transaction_start_child(tx, "op", "desc");
+    TEST_ASSERT(!!span_child);
     sentry_span_t *span_grandchild
         = sentry_span_start_child(span_child, "op_g", "desc_g");
+    TEST_ASSERT(!!span_grandchild);
 
     // the direct trace should apply to any span that's started after it was set
     // check if trace_id was passed down properly
@@ -1531,12 +1569,16 @@ SENTRY_TEST(set_trace_id_with_txn)
 
     const char *tx_span_id
         = sentry_value_as_string(sentry_value_get_by_key(tx->inner, "span_id"));
+    TEST_ASSERT(!!tx_span_id);
     const char *span_child_span_id = sentry_value_as_string(
         sentry_value_get_by_key(span_child->inner, "span_id"));
+    TEST_ASSERT(!!span_child_span_id);
     const char *span_child_parent_span_id = sentry_value_as_string(
         sentry_value_get_by_key(span_child->inner, "parent_span_id"));
+    TEST_ASSERT(!!span_child_parent_span_id);
     const char *span_grandchild_parent_span_id = sentry_value_as_string(
         sentry_value_get_by_key(span_grandchild->inner, "parent_span_id"));
+    TEST_ASSERT(!!span_grandchild_parent_span_id);
     // check if (set_trace)->root->child->grandchild is connected
     TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
                                 tx->inner, "parent_span_id")),
@@ -1575,12 +1617,15 @@ SENTRY_TEST(set_trace_update_from_header)
     const char *txn_parent_span_id = "a0f9fdf04f1a63df";
     sentry_transaction_context_t *tx_ctx
         = sentry_transaction_context_new("wow!", NULL);
+    TEST_ASSERT(!!tx_ctx);
     sentry_transaction_context_update_from_header(
         tx_ctx, "sentry-trace", trace_header);
     sentry_transaction_t *tx
         = sentry_transaction_start(tx_ctx, sentry_value_new_null());
+    TEST_ASSERT(!!tx);
     sentry_span_t *span_child
         = sentry_transaction_start_child(tx, "op", "desc");
+    TEST_ASSERT(!!span_child);
 
     // check that trace_header data is applied (and not set_trace data)
     TEST_CHECK_STRING_EQUAL(
@@ -1640,13 +1685,17 @@ SENTRY_TEST(propagation_context_init)
 
     sentry_transaction_context_t *tx_ctx
         = sentry_transaction_context_new("wow!", NULL);
+    TEST_ASSERT(!!tx_ctx);
     sentry_transaction_t *tx
         = sentry_transaction_start(tx_ctx, sentry_value_new_null());
+    TEST_ASSERT(!!tx);
     sentry_span_t *span_child
         = sentry_transaction_start_child(tx, "op", "desc");
+    TEST_ASSERT(!!span_child);
 
     const char *propagation_context_trace_id = sentry_value_as_string(
         sentry_value_get_by_key(tx->inner, "trace_id"));
+    TEST_ASSERT(!!propagation_context_trace_id);
     // on SDK init, propagation_context is set with a trace_id and span_id
     // the trace_id is used for both events and spans
     apply_scope_and_check_trace_context(
