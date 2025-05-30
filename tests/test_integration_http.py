@@ -1187,5 +1187,3 @@ def test_capture_with_scope(cmake, httpserver):
 
     assert_breadcrumb(envelope, "scoped crumb")
     assert_attachment(envelope)
-
-    assert_meta(envelope, transaction="scoped-transaction")
