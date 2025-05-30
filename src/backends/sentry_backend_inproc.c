@@ -589,7 +589,7 @@ handle_ucontext(const sentry_ucontext_t *uctx)
 
         if (should_handle) {
             sentry_envelope_t *envelope = sentry__prepare_event(
-                options, event, NULL, !options->on_crash_func);
+                options, event, NULL, !options->on_crash_func, NULL);
             // TODO(tracing): Revisit when investigating transaction flushing
             //                during hard crashes.
 
