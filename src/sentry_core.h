@@ -120,6 +120,8 @@ sentry_options_t *sentry__options_lock(void);
  */
 void sentry__options_unlock(void);
 
+void sentry__set_propagation_context(const char *key, sentry_value_t value);
+
 #define SENTRY_WITH_OPTIONS(Options)                                           \
     for (const sentry_options_t *Options = sentry__options_getref(); Options;  \
         sentry_options_free((sentry_options_t *)Options), Options = NULL)

@@ -1678,11 +1678,6 @@ SENTRY_API void sentry_set_trace(
     const char *trace_id, const char *parent_span_id);
 SENTRY_API void sentry_set_trace_n(const char *trace_id, size_t trace_id_len,
     const char *parent_span_id, size_t parent_span_id_len);
-SENTRY_API void sentry_scope_set_trace(
-    sentry_scope_t *scope, const char *trace_id, const char *parent_span_id);
-SENTRY_API void sentry_scope_set_trace_n(sentry_scope_t *scope,
-    const char *trace_id, size_t trace_id_len, const char *parent_span_id,
-    size_t parent_span_id_len);
 
 /**
  * Sets the transaction.
@@ -1690,10 +1685,6 @@ SENTRY_API void sentry_scope_set_trace_n(sentry_scope_t *scope,
 SENTRY_API void sentry_set_transaction(const char *transaction);
 SENTRY_API void sentry_set_transaction_n(
     const char *transaction, size_t transaction_len);
-SENTRY_API void sentry_scope_set_transaction(
-    sentry_scope_t *scope, const char *transaction);
-SENTRY_API void sentry_scope_set_transaction_n(
-    sentry_scope_t *scope, const char *transaction, size_t transaction_len);
 
 /**
  * Sets the event level.

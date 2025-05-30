@@ -417,8 +417,6 @@ main(int argc, char **argv)
         sentry_value_t event = sentry_value_new_message_event(
             SENTRY_LEVEL_INFO, NULL, "Hello Scope!");
 
-        sentry_scope_set_transaction(scope, "scoped-transaction");
-
         sentry_value_t default_crumb
             = sentry_value_new_breadcrumb(NULL, "default level is info");
         sentry_scope_add_breadcrumb(scope, default_crumb);

@@ -85,8 +85,6 @@ void sentry__scope_set_fingerprint_va(
     sentry_scope_t *scope, const char *fingerprint, va_list va);
 void sentry__scope_set_fingerprint_nva(sentry_scope_t *scope,
     const char *fingerprint, size_t fingerprint_len, va_list va);
-void sentry__scope_set_propagation_context(
-    sentry_scope_t *scope, const char *type, sentry_value_t context);
 
 /**
  * These are convenience macros to automatically lock/unlock the global scope
