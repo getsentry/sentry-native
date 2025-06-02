@@ -35,10 +35,7 @@ jobs:
           xcodebuild build -project sentry-native-xcode/Sentry-Native.xcodeproj -sdk iphonesimulator
 
   docker:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: ./.github/workflows/docker.yml
+    uses: getsentry/sentry-native/.github/workflows/docker.yml@ci/alpine
 
   test:
     needs: [docker]
