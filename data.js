@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1748844704354,
+  "lastUpdate": 1748844833602,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -3358,6 +3358,66 @@ window.BENCHMARK_DATA = {
             "value": 10.04169999998794,
             "unit": "ms",
             "extra": "Min 9.681ms\nMax 10.937ms\nMean 10.116ms\nStdDev 0.500ms\nMedian 10.042ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "mischan@abovevacant.com",
+            "name": "Mischan Toosarani-Hausberger",
+            "username": "supervacuus"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "a1b3947584935eea5680ba54e8914ec913509566",
+          "message": "fix: limit proguard rules in the NDK package to local namespaces (#1250)\n\n* fix: limit proguard rules in the NDK package to local namespaces\n\n* rewörding",
+          "timestamp": "2025-06-02T08:08:51+02:00",
+          "tree_id": "ad71de44e8f71235e89c6e97cd355467f52ddf91",
+          "url": "https://github.com/getsentry/sentry-native/commit/a1b3947584935eea5680ba54e8914ec913509566"
+        },
+        "date": 1748844825844,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 7.176600000093458,
+            "unit": "ms",
+            "extra": "Min 6.999ms\nMax 7.295ms\nMean 7.153ms\nStdDev 0.137ms\nMedian 7.177ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 7.110500000180764,
+            "unit": "ms",
+            "extra": "Min 7.100ms\nMax 7.602ms\nMean 7.224ms\nStdDev 0.216ms\nMedian 7.111ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 18.32349999995131,
+            "unit": "ms",
+            "extra": "Min 17.499ms\nMax 18.526ms\nMean 18.110ms\nStdDev 0.483ms\nMedian 18.323ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.009500000032858225,
+            "unit": "ms",
+            "extra": "Min 0.009ms\nMax 0.010ms\nMean 0.010ms\nStdDev 0.000ms\nMedian 0.010ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.30299999980343273,
+            "unit": "ms",
+            "extra": "Min 0.297ms\nMax 0.330ms\nMean 0.306ms\nStdDev 0.014ms\nMedian 0.303ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 9.311100000104489,
+            "unit": "ms",
+            "extra": "Min 9.003ms\nMax 9.548ms\nMean 9.264ms\nStdDev 0.236ms\nMedian 9.311ms"
           }
         ]
       }
