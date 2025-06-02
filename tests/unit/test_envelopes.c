@@ -268,3 +268,30 @@ SENTRY_TEST(write_envelope_to_invalid_path)
     sentry_envelope_free(envelope);
     sentry_close();
 }
+
+SENTRY_TEST(write_raw_envelope_to_file)
+{
+    sentry_envelope_t *envelope = create_test_envelope();
+    const char *test_file_str = SENTRY_TEST_PATH_PREFIX "sentry_test_envelope";
+    sentry_path_t *test_file_path = sentry__path_from_str(test_file_str);
+    TEST_CHECK_INT_EQUAL(
+        sentry_envelope_write_to_file(envelope, test_file_str), 0);
+
+    sentry_envelope_t *raw_envelope
+        = sentry__envelope_from_path(test_file_path);
+    TEST_CHECK_INT_EQUAL(
+        sentry_envelope_write_to_file(raw_envelope, test_file_str), 0);
+
+    size_t test_file_size;
+    char *test_file_content
+        = sentry__path_read_to_buffer(test_file_path, &test_file_size);
+    TEST_CHECK_INT_EQUAL(test_file_size, strlen(SERIALIZED_ENVELOPE_STR));
+    TEST_CHECK_STRING_EQUAL(test_file_content, SERIALIZED_ENVELOPE_STR);
+    TEST_CHECK_INT_EQUAL(sentry__path_remove(test_file_path), 0);
+
+    sentry_free(test_file_content);
+    sentry__path_free(test_file_path);
+    sentry_envelope_free(envelope);
+    sentry_envelope_free(raw_envelope);
+    sentry_close();
+}

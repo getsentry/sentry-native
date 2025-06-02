@@ -13,6 +13,7 @@
 **Fixes**:
 
 - Reduce the scope of the proguard rules in the NDK package to local namespaces. ([#1250](https://github.com/getsentry/sentry-native/pull/1250))
+- Close the file and return 0 on success when writing raw envelopes. ([#1260](https://github.com/getsentry/sentry-native/pull/1260))
 
 **Docs**:
 
