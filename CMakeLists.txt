@@ -123,8 +123,10 @@ else()
 	set(SENTRY_DEFAULT_TRANSPORT "none")
 endif()
 
-set(SENTRY_TRANSPORT ${SENTRY_DEFAULT_TRANSPORT} CACHE STRING
-	"The HTTP transport that sentry uses to submit events to the sentry server, can be either 'none', 'curl' or 'winhttp' on windows.")
+if(NOT DEFINED SENTRY_TRANSPORT)
+	set(SENTRY_TRANSPORT ${SENTRY_DEFAULT_TRANSPORT} CACHE STRING
+		"The HTTP transport that sentry uses to submit events to the sentry server, can be either 'none', 'curl' or 'winhttp' on Windows.")
+endif()
 
 if(SENTRY_TRANSPORT STREQUAL "winhttp")
 	set(SENTRY_TRANSPORT_WINHTTP TRUE)
@@ -132,8 +134,12 @@ elseif(SENTRY_TRANSPORT STREQUAL "curl")
 	set(SENTRY_TRANSPORT_CURL TRUE)
 elseif(SENTRY_TRANSPORT STREQUAL "none")
 	set(SENTRY_TRANSPORT_NONE TRUE)
+elseif(SENTRY_TRANSPORT STREQUAL "custom")
+	message(DEBUG
+		"SENTRY_TRANSPORT set to 'custom' - a custom transport source must be added to the compilation unit by the downstream SDK.")
 else()
-	message(FATAL_ERROR "SENTRY_TRANSPORT must be one of 'none', 'curl' or 'winhttp'")
+	message(FATAL_ERROR "SENTRY_TRANSPORT must be one of 'none', 'curl' or 'winhttp'.
+		Downstream SDKs may choose to provide their own by specifying 'custom'.")
 endif()
 
 if(SENTRY_TRANSPORT_WINHTTP AND NOT WIN32)
