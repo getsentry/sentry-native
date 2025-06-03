@@ -34,11 +34,7 @@ jobs:
           cmake -B sentry-native-xcode -GXcode -DCMAKE_SYSTEM_NAME=iOS
           xcodebuild build -project sentry-native-xcode/Sentry-Native.xcodeproj -sdk iphonesimulator
 
-  docker:
-    uses: getsentry/sentry-native/.github/workflows/docker.yml@ci/alpine
-
   test:
-    needs: [docker]
     strategy:
       fail-fast: false
       matrix:
