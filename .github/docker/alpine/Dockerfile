@@ -10,12 +10,9 @@ RUN apk add \
     clang \
     cmake \
     curl \
-    curl-dev \
     file \
     git \
     icu \
-    libunwind-dev \
-    libunwind-static \
     linux-headers \
     lsb-release-minimal \
     mitmproxy \
@@ -28,8 +25,7 @@ RUN apk add \
     sudo \
     tar \
     tree \
-    wget \
-    xz-dev
+    wget
 
 RUN curl -sSL --retry 5 https://dot.net/v1/dotnet-install.sh | bash -eo pipefail /dev/stdin --channel 8.0 --install-dir /usr/share/dotnet
 RUN ln -s /usr/share/dotnet/dotnet /usr/local/bin/dotnet

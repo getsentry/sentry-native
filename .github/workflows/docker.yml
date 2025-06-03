@@ -7,6 +7,7 @@ on:
     paths:
       - '.github/docker/**'
   workflow_dispatch:
+  workflow_call:
 
 jobs:
   alpine:

@@ -34,7 +34,11 @@ jobs:
           cmake -B sentry-native-xcode -GXcode -DCMAKE_SYSTEM_NAME=iOS
           xcodebuild build -project sentry-native-xcode/Sentry-Native.xcodeproj -sdk iphonesimulator
 
+  docker:
+    uses: getsentry/sentry-native/.github/workflows/docker.yml@ci/alpine
+
   test:
+    needs: [docker]
     strategy:
       fail-fast: false
       matrix:
@@ -200,6 +204,12 @@ jobs:
           sudo dpkg --add-architecture i386
           sudo apt update
           sudo apt install cmake gcc-9-multilib g++-9-multilib zlib1g-dev:i386 libssl-dev:i386 libcurl4-openssl-dev:i386
+
+      - name: Installing Alpine Linux Dependencies
+        if: ${{ contains(matrix.container, 'alpine') }}
+        run: |
+          apk update
+          apk add curl-dev libunwind-dev libunwind-static xz-dev
 
         # https://github.com/actions/runner-images/issues/9491
       - name: Decrease vm.mmap_rnd_bit to prevent ASLR ASAN issues
