@@ -190,6 +190,7 @@ jobs:
           sudo apt-get install binutils-dev libssl-dev libelf-dev libstdc++-12-dev libdw-dev libiberty-dev
           git clone https://github.com/SimonKagstrom/kcov.git
           cd kcov
+          git checkout a6ff5ac44524d1bc9c298ca14c10edd41ded1cea # check whether a particular change introduced error logs
           mkdir build
           cd build
           cmake ..
