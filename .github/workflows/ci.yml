@@ -88,18 +88,18 @@ jobs:
             RUN_ANALYZER: code-checker,valgrind
           - name: Linux (GCC + musl + libunwind)
             os: ubuntu-latest
-            container: alpine:3.21
-            APK_PACKAGES: libunwind-dev libunwind-static
+            container: ghcr.io/getsentry/sentry-native-alpine:3.21
             CMAKE_DEFINES: -DSENTRY_LIBUNWIND_SHARED=OFF
             CC: gcc
             CXX: g++
+            SYSTEM_PYTHON: 1
           - name: Linux (clang + musl + libunwind)
             os: ubuntu-latest
-            container: alpine:3.21
-            APK_PACKAGES: clang libunwind-dev libunwind-static
+            container: ghcr.io/getsentry/sentry-native-alpine:3.21
             CMAKE_DEFINES: -DSENTRY_LIBUNWIND_SHARED=OFF
             CC: clang
             CXX: clang++
+            SYSTEM_PYTHON: 1
           - name: macOS 14 (xcode llvm)
             os: macos-14
             ERROR_ON_WARNINGS: 1
@@ -162,23 +162,15 @@ jobs:
       CMAKE_DEFINES: ${{ matrix.CMAKE_DEFINES }}
       SYSTEM_VERSION_COMPAT: ${{ matrix.SYSTEM_VERSION_COMPAT }}
       VS_GENERATOR_TOOLSET: ${{ matrix.VS_GENERATOR_TOOLSET }}
+      SYSTEM_PYTHON: ${{ matrix.SYSTEM_PYTHON }}
 
     steps:
-      - name: Installing Alpine Linux Dependencies
-        if: ${{ contains(matrix.container, 'alpine') }}
-        run: |
-          apk update
-          apk add bash build-base cargo cmake curl curl-dev git icu linux-headers mitmproxy perl python3-dev sudo xz-dev ${{ matrix.APK_PACKAGES }}
-          curl -sSL --retry 5 https://dot.net/v1/dotnet-install.sh | bash -eo pipefail /dev/stdin --channel 8.0 --install-dir /usr/share/dotnet
-          ln -s /usr/share/dotnet/dotnet /usr/local/bin/dotnet
-
       - uses: actions/checkout@v4
         with:
           submodules: recursive
       - uses: actions/setup-python@v5
-        if: ${{ !matrix.container }}
         with:
-          python-version: "3.11"
+          python-version: ${{ !env['SYSTEM_PYTHON'] && '3.11' || '' }}
           cache: "pip"
 
       - name: Installing Linux Dependencies
@@ -209,6 +201,12 @@ jobs:
           sudo dpkg --add-architecture i386
           sudo apt update
           sudo apt install cmake gcc-9-multilib g++-9-multilib zlib1g-dev:i386 libssl-dev:i386 libcurl4-openssl-dev:i386
+
+      - name: Installing Alpine Linux Dependencies
+        if: ${{ contains(matrix.container, 'alpine') }}
+        run: |
+          apk update
+          apk add curl-dev libunwind-dev libunwind-static xz-dev
 
         # https://github.com/actions/runner-images/issues/9491
       - name: Decrease vm.mmap_rnd_bit to prevent ASLR ASAN issues
@@ -274,18 +272,10 @@ jobs:
         if: ${{ runner.os == 'macOS' || runner.os == 'Linux' }}
         run: |
           echo "127.0.0.1   sentry.native.test" | sudo tee -a /etc/hosts
+          # remove "::1 localhost ..." to avoid conflicts with proxy tests (musl)
+          sed '/^::1/d' /etc/hosts | sudo tee /etc/hosts
           cat /etc/hosts
         shell: bash
-
-      - name: Prepare env for Alpine Linux
-        if: ${{ contains(matrix.container, 'alpine') }}
-        run: |
-          apk add moreutils
-          # comment out "::1 localhost ..." to avoid conflicts with proxy tests
-          sed '/^::1/ s/^/#/' /etc/hosts | sponge /etc/hosts
-          python3 -m venv .venv --system-site-packages
-          source .venv/bin/activate
-          echo "PATH=$PATH" >> $GITHUB_ENV
 
       - name: Test
         shell: bash
