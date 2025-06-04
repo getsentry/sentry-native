@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1749039321011,
+  "lastUpdate": 1749047520242,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -1438,6 +1438,66 @@ window.BENCHMARK_DATA = {
             "value": 1.7771920000200225,
             "unit": "ms",
             "extra": "Min 1.762ms\nMax 1.821ms\nMean 1.782ms\nStdDev 0.023ms\nMedian 1.777ms\nCPU 0.549ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "54cede931f9a76e291be9083d56702c7d20150cd",
+          "message": "feat: Add support for capturing events with local scopes (#1248)\n\n* wip: local scopes\n\n* merge breadcrumbs\n\n* add sentry_scope_set_trace\n\n* add sentry_scope_set_fingerprints()\n\n* check fingerprints value type\n\n* document sentry_scope_set_fingerprints() expected type\n\n* Revert sentry_scope_set_trace/transaction\n\n> Transactions/spans do not make sense in this setup since they aren't\n> cloned and cannot be retrieved to create children.\n\n* sentry_malloc -> SENTRY_MAKE\n\n* fix comparing null timestamps when merging breadcrumbs\n\n* take ownership\n\n* update example\n\n* partial revert of unit test changes in a48fea\n\ndon't assume any specific order for breadcrumbs with missing breadcrumbs\n\n* warn once if any breadcrumbs were missing timestamps\n\n* error handling for sentry_value_append()",
+          "timestamp": "2025-06-04T16:29:38+02:00",
+          "tree_id": "2c4e06d37f7f702c92c3effcb198b108f06a6b70",
+          "url": "https://github.com/getsentry/sentry-native/commit/54cede931f9a76e291be9083d56702c7d20150cd"
+        },
+        "date": 1749047519825,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 0.7159770000271237,
+            "unit": "ms",
+            "extra": "Min 0.708ms\nMax 0.749ms\nMean 0.722ms\nStdDev 0.017ms\nMedian 0.716ms\nCPU 0.722ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.7145550000018375,
+            "unit": "ms",
+            "extra": "Min 0.703ms\nMax 0.793ms\nMean 0.729ms\nStdDev 0.037ms\nMedian 0.715ms\nCPU 0.729ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 2.9981139999790685,
+            "unit": "ms",
+            "extra": "Min 2.913ms\nMax 3.154ms\nMean 3.034ms\nStdDev 0.097ms\nMedian 2.998ms\nCPU 1.555ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.012212000001454726,
+            "unit": "ms",
+            "extra": "Min 0.012ms\nMax 0.013ms\nMean 0.012ms\nStdDev 0.000ms\nMedian 0.012ms\nCPU 0.011ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.022342000022490538,
+            "unit": "ms",
+            "extra": "Min 0.022ms\nMax 0.023ms\nMean 0.023ms\nStdDev 0.001ms\nMedian 0.022ms\nCPU 0.022ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 1.85701599997401,
+            "unit": "ms",
+            "extra": "Min 1.830ms\nMax 2.468ms\nMean 1.979ms\nStdDev 0.275ms\nMedian 1.857ms\nCPU 0.604ms"
           }
         ]
       }
