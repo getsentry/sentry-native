@@ -1512,15 +1512,8 @@ typedef struct sentry_scope_s sentry_scope_t;
 
 /**
  * Creates a local scope.
- *
- * The return value must be freed with `sentry_scope_free`.
  */
 SENTRY_API sentry_scope_t *sentry_local_scope_new(void);
-
-/**
- * Deallocates previously allocated scope.
- */
-SENTRY_API void sentry_scope_free(sentry_scope_t *scope);
 
 /**
  * Sends a sentry event.
@@ -1530,6 +1523,12 @@ SENTRY_API void sentry_scope_free(sentry_scope_t *scope);
  * be used to send transactions.
  */
 SENTRY_API sentry_uuid_t sentry_capture_event(sentry_value_t event);
+
+/**
+ * Sends a sentry event with a local scope.
+ *
+ * Takes ownership of `scope`.
+ */
 SENTRY_API sentry_uuid_t sentry_capture_event_with_scope(
     sentry_value_t event, sentry_scope_t *scope);
 

@@ -576,6 +576,7 @@ sentry__prepare_event(const sentry_options_t *options, sentry_value_t event,
         SENTRY_DEBUG("merging local scope into event");
         sentry_scope_mode_t mode = SENTRY_SCOPE_BREADCRUMBS;
         sentry__scope_apply_to_event(local_scope, options, event, mode);
+        sentry__scope_free(local_scope);
     }
 
     SENTRY_WITH_SCOPE (scope) {

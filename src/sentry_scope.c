@@ -166,7 +166,7 @@ sentry_local_scope_new(void)
 }
 
 void
-sentry_scope_free(sentry_scope_t *scope)
+sentry__scope_free(sentry_scope_t *scope)
 {
     if (!scope) {
         return;

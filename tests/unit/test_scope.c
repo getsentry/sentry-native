@@ -89,7 +89,7 @@ SENTRY_TEST(scope_contexts)
         TEST_CHECK_CONTEXT_EQUAL(event, "local", "local");
         TEST_CHECK_CONTEXT_EQUAL(event, "scope", "local");
 
-        sentry_scope_free(local_scope);
+        sentry__scope_free(local_scope);
         sentry_value_decref(event);
     }
 
@@ -184,7 +184,7 @@ SENTRY_TEST(scope_extra)
         TEST_CHECK_EXTRA_EQUAL(event, "local", "local");
         TEST_CHECK_EXTRA_EQUAL(event, "scope", "local");
 
-        sentry_scope_free(local_scope);
+        sentry__scope_free(local_scope);
         sentry_value_decref(event);
     }
 
@@ -268,7 +268,7 @@ SENTRY_TEST(scope_fingerprint)
         TEST_CHECK_JSON_VALUE(sentry_value_get_by_key(event, "fingerprint"),
             "[\"event1\",\"event2\"]");
 
-        sentry_scope_free(local_scope);
+        sentry__scope_free(local_scope);
         sentry_value_decref(event);
     }
 
@@ -358,7 +358,7 @@ SENTRY_TEST(scope_tags)
         TEST_CHECK_TAG_EQUAL(event, "local", "local");
         TEST_CHECK_TAG_EQUAL(event, "scope", "local");
 
-        sentry_scope_free(local_scope);
+        sentry__scope_free(local_scope);
         sentry_value_decref(event);
     }
 
@@ -413,7 +413,7 @@ SENTRY_TEST(scope_user)
         TEST_CHECK_JSON_VALUE(sentry_value_get_by_key(event, "user"),
             "{\"id\":\"3\",\"username\":\"event\"}");
 
-        sentry_scope_free(local_scope);
+        sentry__scope_free(local_scope);
         sentry_value_decref(event);
     }
 
@@ -480,7 +480,7 @@ SENTRY_TEST(scope_level)
             local_scope, options, event, SENTRY_SCOPE_NONE);
         TEST_CHECK_LEVEL_EQUAL(event, "debug");
 
-        sentry_scope_free(local_scope);
+        sentry__scope_free(local_scope);
         sentry_value_decref(event);
     }
 
@@ -602,7 +602,7 @@ SENTRY_TEST(scope_breadcrumbs)
         TEST_CHECK_MESSAGE_EQUAL(result, 4, "event5");
         TEST_CHECK_MESSAGE_EQUAL(result, 5, "local6");
 
-        sentry_scope_free(local_scope);
+        sentry__scope_free(local_scope);
         sentry_value_decref(event);
     }
 
@@ -656,7 +656,7 @@ SENTRY_TEST(scope_breadcrumbs)
         TEST_CHECK_MESSAGE_EQUAL(result, 4, "eventx");
         TEST_CHECK_MESSAGE_EQUAL(result, 5, "local6");
 
-        sentry_scope_free(local_scope);
+        sentry__scope_free(local_scope);
         sentry_value_decref(event);
     }
 

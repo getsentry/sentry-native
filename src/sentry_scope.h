@@ -72,6 +72,11 @@ void sentry__scope_cleanup(void);
 void sentry__scope_flush_unlock(void);
 
 /**
+ * Deallocates a (local) scope.
+ */
+void sentry__scope_free(sentry_scope_t *scope);
+
+/**
  * This will merge the requested data which is in the given `scope` to the given
  * `event`.
  * See `sentry_scope_mode_t` for the different types of data that can be
