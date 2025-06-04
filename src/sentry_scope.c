@@ -320,6 +320,19 @@ cmp_breadcrumb(sentry_value_t a, sentry_value_t b, bool *error)
         sentry_value_as_string(timestamp_b));
 }
 
+static bool
+append_breadcrumb(sentry_value_t target, sentry_value_t source, size_t index)
+{
+    int rv = sentry_value_append(
+        target, sentry_value_get_by_index_owned(source, index));
+    if (rv != 0) {
+        SENTRY_ERROR("Failed to merge breadcrumbs");
+        sentry_value_decref(target);
+        return false;
+    }
+    return true;
+}
+
 static sentry_value_t
 merge_breadcrumbs(sentry_value_t list_a, sentry_value_t list_b, size_t max)
 {
@@ -371,20 +384,24 @@ merge_breadcrumbs(sentry_value_t list_a, sentry_value_t list_b, size_t max)
         sentry_value_t item_b = sentry_value_get_by_index(list_b, idx_b);
 
         if (cmp_breadcrumb(item_a, item_b, &error) <= 0) {
-            sentry_value_append(
-                result, sentry_value_get_by_index_owned(list_a, idx_a++));
+            if (!append_breadcrumb(result, list_a, idx_a++)) {
+                return sentry_value_new_null();
+            }
         } else {
-            sentry_value_append(
-                result, sentry_value_get_by_index_owned(list_b, idx_b++));
+            if (!append_breadcrumb(result, list_b, idx_b++)) {
+                return sentry_value_new_null();
+            }
         }
     }
     while (idx_a < len_a) {
-        sentry_value_append(
-            result, sentry_value_get_by_index_owned(list_a, idx_a++));
+        if (!append_breadcrumb(result, list_a, idx_a++)) {
+            return sentry_value_new_null();
+        }
     }
     while (idx_b < len_b) {
-        sentry_value_append(
-            result, sentry_value_get_by_index_owned(list_b, idx_b++));
+        if (!append_breadcrumb(result, list_b, idx_b++)) {
+            return sentry_value_new_null();
+        }
     }
 
     if (error) {
