@@ -425,8 +425,6 @@ main(int argc, char **argv)
         sentry_scope_add_breadcrumb(scope, debug_crumb);
 
         sentry_capture_event_with_scope(event, scope);
-
-        sentry_scope_free(scope);
     }
 
     if (has_arg(argc, argv, "capture-multiple")) {
