@@ -303,14 +303,16 @@ sentry__scope_get_span_or_transaction(void)
 #endif
 
 static int
-cmp_breadcrumb(sentry_value_t a, sentry_value_t b)
+cmp_breadcrumb(sentry_value_t a, sentry_value_t b, bool *error)
 {
     sentry_value_t timestamp_a = sentry_value_get_by_key(a, "timestamp");
     sentry_value_t timestamp_b = sentry_value_get_by_key(b, "timestamp");
     if (sentry_value_is_null(timestamp_a)) {
+        *error = true;
         return -1;
     }
     if (sentry_value_is_null(timestamp_b)) {
+        *error = true;
         return 1;
     }
 
@@ -338,6 +340,7 @@ merge_breadcrumbs(sentry_value_t list_a, sentry_value_t list_b, size_t max)
         return list_a;
     }
 
+    bool error = false;
     size_t idx_a = 0;
     size_t idx_b = 0;
     size_t total = len_a + len_b;
@@ -349,7 +352,7 @@ merge_breadcrumbs(sentry_value_t list_a, sentry_value_t list_b, size_t max)
         sentry_value_t item_a = sentry_value_get_by_index(list_a, idx_a);
         sentry_value_t item_b = sentry_value_get_by_index(list_b, idx_b);
 
-        if (cmp_breadcrumb(item_a, item_b) <= 0) {
+        if (cmp_breadcrumb(item_a, item_b, &error) <= 0) {
             idx_a++;
         } else {
             idx_b++;
@@ -367,7 +370,7 @@ merge_breadcrumbs(sentry_value_t list_a, sentry_value_t list_b, size_t max)
         sentry_value_t item_a = sentry_value_get_by_index(list_a, idx_a);
         sentry_value_t item_b = sentry_value_get_by_index(list_b, idx_b);
 
-        if (cmp_breadcrumb(item_a, item_b) <= 0) {
+        if (cmp_breadcrumb(item_a, item_b, &error) <= 0) {
             sentry_value_append(
                 result, sentry_value_get_by_index_owned(list_a, idx_a++));
         } else {
@@ -382,6 +385,11 @@ merge_breadcrumbs(sentry_value_t list_a, sentry_value_t list_b, size_t max)
     while (idx_b < len_b) {
         sentry_value_append(
             result, sentry_value_get_by_index_owned(list_b, idx_b++));
+    }
+
+    if (error) {
+        SENTRY_WARN("Detected missing timestamps while merging breadcrumbs. "
+                    "This may lead to unexpected results.");
     }
 
     return result;
