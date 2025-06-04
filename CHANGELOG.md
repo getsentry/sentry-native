@@ -4,6 +4,7 @@
 
 **Breaking changes**:
 
+- Limiting the proguard rules in the NDK package moves the burden of the configuration to its users. Please ensure to [configure proguard](http://proguard.sourceforge.net/manual/examples.html#native) in your project so native methods in your namespace can be symbolicated if they appear in stack traces. ([#1250](https://github.com/getsentry/sentry-native/pull/1250))
 - When tags, contexts, and extra data are applied to events, the event data now takes precedence over the scope data as outlined in the [Hub & Scope Refactoring](https://develop.sentry.dev/sdk/miscellaneous/hub_and_scope_refactoring/#how-is-scope-data-applied-to-events) developer document and the linked RFC [code example](https://github.com/getsentry/rfcs/blob/fn/merge-hub-scope/text/0122-sdk-hub-scope-merge.md#applying-scopes). ([#1253](https://github.com/getsentry/sentry-native/pull/1253))
 
 **Features**:
@@ -12,11 +13,13 @@
 
 **Fixes**:
 
+- Reduce the scope of the proguard rules in the NDK package to local namespaces. ([#1250](https://github.com/getsentry/sentry-native/pull/1250))
+- Close the file and return 0 on success when writing raw envelopes. ([#1260](https://github.com/getsentry/sentry-native/pull/1260))
 - Fix event tags, contexts, and extra data to take precedence when applying scope data. ([#1253](https://github.com/getsentry/sentry-native/pull/1253))
 
 **Docs**:
 
-- Document convenience Powershell runners for formatting and tests on Windows. ([#1247](https://github.com/getsentry/sentry-native/pull/1247))
+- Document convenience PowerShell runners for formatting and tests on Windows. ([#1247](https://github.com/getsentry/sentry-native/pull/1247))
 
 ## 0.8.5
 

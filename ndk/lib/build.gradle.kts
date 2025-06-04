@@ -7,7 +7,7 @@ plugins {
 var sentryNativeSrc: String = "${project.projectDir}/../.."
 
 android {
-    compileSdk = 34
+    compileSdk = 35
     namespace = "io.sentry.ndk"
 
     testBuildType = "debug"
@@ -52,6 +52,7 @@ android {
 
     buildFeatures {
         prefabPublishing = true
+        buildConfig = true
     }
 
     // creates
@@ -91,7 +92,7 @@ android {
         checkReleaseBuilds = true
     }
 
-    packagingOptions {
+    packaging {
         jniLibs {
             useLegacyPackaging = true
         }
