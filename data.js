@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1749039199884,
+  "lastUpdate": 1749039321011,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -4258,6 +4258,66 @@ window.BENCHMARK_DATA = {
             "value": 10.70279999999002,
             "unit": "ms",
             "extra": "Min 10.281ms\nMax 12.613ms\nMean 11.027ms\nStdDev 0.922ms\nMedian 10.703ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "6349682+vaind@users.noreply.github.com",
+            "name": "Ivan Dlugos",
+            "username": "vaind"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "31a8ee35ab3a77fcd201535ea814a3611ad34102",
+          "message": "feat: add PS SDK transport support (#1262)\n\n* feat: allow downstream SDKs to implement custom transport\n\n* add \"pshttp\" support to the list of supported ones",
+          "timestamp": "2025-06-04T14:10:02+02:00",
+          "tree_id": "397dcdefbc9b7cc6aafa6f596959832e93704850",
+          "url": "https://github.com/getsentry/sentry-native/commit/31a8ee35ab3a77fcd201535ea814a3611ad34102"
+        },
+        "date": 1749039308986,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 7.754000000090855,
+            "unit": "ms",
+            "extra": "Min 7.438ms\nMax 8.404ms\nMean 7.839ms\nStdDev 0.353ms\nMedian 7.754ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 7.32689999995273,
+            "unit": "ms",
+            "extra": "Min 7.126ms\nMax 7.906ms\nMean 7.426ms\nStdDev 0.299ms\nMedian 7.327ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 17.160900000021684,
+            "unit": "ms",
+            "extra": "Min 17.025ms\nMax 17.385ms\nMean 17.204ms\nStdDev 0.148ms\nMedian 17.161ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.011799999924733129,
+            "unit": "ms",
+            "extra": "Min 0.010ms\nMax 0.012ms\nMean 0.012ms\nStdDev 0.001ms\nMedian 0.012ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.33540000003995374,
+            "unit": "ms",
+            "extra": "Min 0.307ms\nMax 0.357ms\nMean 0.333ms\nStdDev 0.020ms\nMedian 0.335ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 9.452300000020841,
+            "unit": "ms",
+            "extra": "Min 9.335ms\nMax 9.864ms\nMean 9.557ms\nStdDev 0.222ms\nMedian 9.452ms"
           }
         ]
       }
