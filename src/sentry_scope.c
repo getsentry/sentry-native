@@ -307,9 +307,11 @@ cmp_breadcrumb(sentry_value_t a, sentry_value_t b)
 {
     sentry_value_t timestamp_a = sentry_value_get_by_key(a, "timestamp");
     sentry_value_t timestamp_b = sentry_value_get_by_key(b, "timestamp");
-    if (sentry_value_is_null(timestamp_a)
-        || sentry_value_is_null(timestamp_b)) {
-        return 0;
+    if (sentry_value_is_null(timestamp_a)) {
+        return -1;
+    }
+    if (sentry_value_is_null(timestamp_b)) {
+        return 1;
     }
 
     return strcmp(sentry_value_as_string(timestamp_a),
