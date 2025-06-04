@@ -572,9 +572,10 @@ sentry_envelope_write_to_path(
     }
 
     if (envelope->is_raw) {
-        return envelope->contents.raw.payload_len
-            != sentry__filewriter_write(fw, envelope->contents.raw.payload,
-                envelope->contents.raw.payload_len);
+        size_t rv = sentry__filewriter_write(fw, envelope->contents.raw.payload,
+            envelope->contents.raw.payload_len);
+        sentry__filewriter_free(fw);
+        return rv != 0;
     }
 
     sentry_jsonwriter_t *jw = sentry__jsonwriter_new_fw(fw);
