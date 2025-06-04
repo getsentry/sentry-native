@@ -230,7 +230,8 @@ sentry__dsn_new_n(const char *raw_dsn, size_t raw_dsn_len)
     memset(&url, 0, sizeof(sentry_url_t));
     size_t path_len;
     char *project_id;
-    char org_id[20] = "";
+    // org_id is u64 in relay, so needs 20 characters + null termination
+    char org_id[21] = "";
 
     sentry_dsn_t *dsn = SENTRY_MAKE(sentry_dsn_t);
     if (!dsn) {
@@ -257,7 +258,7 @@ sentry__dsn_new_n(const char *raw_dsn, size_t raw_dsn_len)
     const char *org_id_dot = strchr(url.host, '.');
     if (org_id_dot && url.host[0] == 'o') {
         size_t length = (size_t)(org_id_dot - url.host - 1); // leave the o
-        strncpy(org_id, url.host + 1, length);
+        strncpy(org_id, url.host + 1, MIN(length, 20));
         org_id[length] = '\0'; // Null-terminate the string
     }
     dsn->org_id = sentry__string_clone(org_id);
