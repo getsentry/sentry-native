@@ -1,4 +1,5 @@
 #include "sentry_scope.h"
+#include "sentry_alloc.h"
 #include "sentry_backend.h"
 #include "sentry_core.h"
 #include "sentry_database.h"
@@ -155,7 +156,7 @@ sentry__scope_flush_unlock(void)
 sentry_scope_t *
 sentry_local_scope_new(void)
 {
-    sentry_scope_t *scope = sentry_malloc(sizeof(sentry_scope_t));
+    sentry_scope_t *scope = SENTRY_MAKE(sentry_scope_t);
     if (!scope) {
         return NULL;
     }
