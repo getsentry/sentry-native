@@ -1,5 +1,6 @@
 #include "sentry_scope.h"
 #include "sentry_alloc.h"
+#include "sentry_attachment.h"
 #include "sentry_backend.h"
 #include "sentry_core.h"
 #include "sentry_database.h"
@@ -77,6 +78,7 @@ init_scope(sentry_scope_t *scope)
     scope->breadcrumbs = sentry_value_new_list();
     scope->level = SENTRY_LEVEL_ERROR;
     scope->client_sdk = sentry_value_new_null();
+    scope->attachments = NULL;
     scope->transaction_object = NULL;
     scope->span = NULL;
 }
@@ -109,6 +111,7 @@ cleanup_scope(sentry_scope_t *scope)
     sentry_value_decref(scope->propagation_context);
     sentry_value_decref(scope->breadcrumbs);
     sentry_value_decref(scope->client_sdk);
+    sentry__attachments_free(scope->attachments);
     sentry__transaction_decref(scope->transaction_object);
     sentry__span_decref(scope->span);
 }
@@ -669,3 +672,34 @@ sentry_scope_set_level(sentry_scope_t *scope, sentry_level_t level)
 {
     scope->level = level;
 }
+
+void
+sentry_scope_add_attachment(sentry_scope_t *scope, const char *path)
+{
+    sentry_scope_add_attachment_n(scope, path, sentry__guarded_strlen(path));
+}
+
+void
+sentry_scope_add_attachment_n(
+    sentry_scope_t *scope, const char *path, size_t path_len)
+{
+    sentry_path_t *attachment = sentry__path_from_str_n(path, path_len);
+    sentry__attachment_add(&scope->attachments, attachment, ATTACHMENT, NULL);
+}
+
+#ifdef SENTRY_PLATFORM_WINDOWS
+void
+sentry_scope_add_attachmentw(sentry_scope_t *scope, const wchar_t *path)
+{
+    size_t path_len = path ? wcslen(path) : 0;
+    sentry_scope_add_attachmentw_n(scope, path, path_len);
+}
+
+void
+sentry_scope_add_attachmentw_n(
+    sentry_scope_t *scope, const wchar_t *path, size_t path_len)
+{
+    sentry_path_t *attachment = sentry__path_from_wstr_n(path, path_len);
+    sentry__attachment_add(&scope->attachments, attachment, ATTACHMENT, NULL);
+}
+#endif
