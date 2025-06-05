@@ -4,7 +4,7 @@
 
 **Features**:
 
-- The `sentry_add_attachment` and `sentry_remove_attachment` (and their wide-string variants) have been added to modify the list of attachments that are sent along with sentry events after a call to `sentry_init`.
+- The `sentry_add_attachment`, `sentry_scope_add_attachment`, and `sentry_remove_attachment` (and their wide-string variants) have been added to modify the list of attachments that are sent along with sentry events after a call to `sentry_init`.
 
 ## Unreleased
 
