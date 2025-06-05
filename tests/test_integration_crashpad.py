@@ -289,11 +289,11 @@ def test_crashpad_wer_crash(cmake, httpserver, run_args):
     "run_args,build_args",
     [
         # if we crash, we want a dump
-        ([], {"SENTRY_TRANSPORT_COMPRESSION": "Off"}),
-        ([], {"SENTRY_TRANSPORT_COMPRESSION": "On"}),
+        (["attachment"], {"SENTRY_TRANSPORT_COMPRESSION": "Off"}),
+        (["attachment"], {"SENTRY_TRANSPORT_COMPRESSION": "On"}),
         # if we crash and before-send doesn't discard, we want a dump
         pytest.param(
-            ["before-send"],
+            ["attachment", "before-send"],
             {},
             marks=pytest.mark.skipif(
                 sys.platform == "darwin",
@@ -302,11 +302,19 @@ def test_crashpad_wer_crash(cmake, httpserver, run_args):
         ),
         # if on_crash() is non-discarding, a discarding before_send() is overruled, so we get a dump
         pytest.param(
-            ["discarding-before-send", "on-crash"],
+            ["attachment", "discarding-before-send", "on-crash"],
             {},
             marks=pytest.mark.skipif(
                 sys.platform == "darwin",
                 reason="crashpad doesn't provide SetFirstChanceExceptionHandler on macOS",
+            ),
+        ),
+        pytest.param(
+            ["attach-after-init"],
+            {},
+            marks=pytest.mark.skipif(
+                sys.platform == "darwin",
+                reason="crashpad doesn't support dynamic attachments on macOS",
             ),
         ),
     ],
@@ -329,7 +337,6 @@ def test_crashpad_dumping_crash(cmake, httpserver, run_args, build_args):
             [
                 "log",
                 "start-session",
-                "attachment",
                 "attach-view-hierarchy",
                 "overflow-breadcrumbs",
                 "crash",

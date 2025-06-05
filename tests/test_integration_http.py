@@ -1173,7 +1173,7 @@ def test_capture_with_scope(cmake, httpserver):
     run(
         tmp_path,
         "sentry_example",
-        ["log", "attachment", "capture-with-scope"],
+        ["log", "attach-to-scope", "capture-with-scope"],
         check=True,
         env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
     )
