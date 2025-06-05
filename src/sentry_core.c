@@ -1418,7 +1418,13 @@ sentry_capture_minidump_n(const char *path, size_t path_len)
 void
 sentry_add_attachment(const char *path)
 {
-    sentry_path_t *attachment = sentry__path_from_str(path);
+    sentry_add_attachment_n(path, sentry__guarded_strlen(path));
+}
+
+void
+sentry_add_attachment_n(const char *path, size_t path_len)
+{
+    sentry_path_t *attachment = sentry__path_from_str_n(path, path_len);
     SENTRY_WITH_OPTIONS (options) {
         if (options->backend && options->backend->add_attachment_func) {
             options->backend->add_attachment_func(options->backend, attachment);
@@ -1433,7 +1439,13 @@ sentry_add_attachment(const char *path)
 void
 sentry_remove_attachment(const char *path)
 {
-    sentry_path_t *attachment = sentry__path_from_str(path);
+    sentry_remove_attachment_n(path, sentry__guarded_strlen(path));
+}
+
+void
+sentry_remove_attachment_n(const char *path, size_t path_len)
+{
+    sentry_path_t *attachment = sentry__path_from_str_n(path, path_len);
     SENTRY_WITH_OPTIONS (options) {
         if (options->backend && options->backend->remove_attachment_func) {
             options->backend->remove_attachment_func(
@@ -1449,7 +1461,14 @@ sentry_remove_attachment(const char *path)
 void
 sentry_add_attachmentw(const wchar_t *path)
 {
-    sentry_path_t *attachment = sentry__path_from_wstr(path);
+    size_t path_len = path ? wcslen(path) : 0;
+    sentry_add_attachmentw_n(path, path_len);
+}
+
+void
+sentry_add_attachmentw_n(const wchar_t *path, size_t path_len)
+{
+    sentry_path_t *attachment = sentry__path_from_wstr_n(path, path_len);
     SENTRY_WITH_OPTIONS (options) {
         if (options->backend && options->backend->add_attachment_func) {
             options->backend->add_attachment_func(options->backend, attachment);
@@ -1464,7 +1483,14 @@ sentry_add_attachmentw(const wchar_t *path)
 void
 sentry_remove_attachmentw(const wchar_t *path)
 {
-    sentry_path_t *attachment = sentry__path_from_wstr(path);
+    size_t path_len = path ? wcslen(path) : 0;
+    sentry_remove_attachmentw_n(path, path_len);
+}
+
+void
+sentry_remove_attachmentw_n(const wchar_t *path, size_t path_len)
+{
+    sentry_path_t *attachment = sentry__path_from_wstr_n(path, path_len);
     SENTRY_WITH_OPTIONS (options) {
         if (options->backend && options->backend->remove_attachment_func) {
             options->backend->remove_attachment_func(
