@@ -2,16 +2,16 @@
 
 ## Unreleased
 
-
 **Breaking changes**:
 
-- Change transaction sampling to be trace-based. Now, for a given `traces_sample_rate`, either all transactions in a trace get sampled or none do with probability equal to that sample rate. ([#1254](https://github.com/getsentry/sentry-native/pull/1254))
 - Limiting the proguard rules in the NDK package moves the burden of the configuration to its users. Please ensure to [configure proguard](http://proguard.sourceforge.net/manual/examples.html#native) in your project so native methods in your namespace can be symbolicated if they appear in stack traces. ([#1250](https://github.com/getsentry/sentry-native/pull/1250))
 - When tags, contexts, and extra data are applied to events, the event data now takes precedence over the scope data as outlined in the [Hub & Scope Refactoring](https://develop.sentry.dev/sdk/miscellaneous/hub_and_scope_refactoring/#how-is-scope-data-applied-to-events) developer document and the linked RFC [code example](https://github.com/getsentry/rfcs/blob/fn/merge-hub-scope/text/0122-sdk-hub-scope-merge.md#applying-scopes). ([#1253](https://github.com/getsentry/sentry-native/pull/1253))
+- Change transaction sampling to be trace-based. Now, for a given `traces_sample_rate`, either all transactions in a trace get sampled or none do with probability equal to that sample rate. ([#1254](https://github.com/getsentry/sentry-native/pull/1254))
 
 **Features**:
 
 - Provide `before_send_transaction` callback. ([#1236](https://github.com/getsentry/sentry-native/pull/1236))
+- Add support for capturing events with local scopes. ([#1248](https://github.com/getsentry/sentry-native/pull/1248))
 - Add `Dynamic Sampling Context (DSC)` to events. ([#1254](https://github.com/getsentry/sentry-native/pull/1254))
 
 **Fixes**:

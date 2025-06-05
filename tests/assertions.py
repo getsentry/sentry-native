@@ -169,10 +169,10 @@ def assert_stacktrace(envelope, inside_exception=False, check_size=True):
         )
 
 
-def assert_breadcrumb_inner(breadcrumbs):
+def assert_breadcrumb_inner(breadcrumbs, message="debug crumb"):
     expected = {
         "type": "http",
-        "message": "debug crumb",
+        "message": message,
         "category": "example!",
         "level": "debug",
         "data": {
@@ -185,9 +185,9 @@ def assert_breadcrumb_inner(breadcrumbs):
     assert any(matches(b, expected) for b in breadcrumbs)
 
 
-def assert_breadcrumb(envelope):
+def assert_breadcrumb(envelope, message="debug crumb"):
     event = envelope.get_event()
-    assert_breadcrumb_inner(event["breadcrumbs"])
+    assert_breadcrumb_inner(event["breadcrumbs"], message)
 
 
 def assert_attachment(envelope):
