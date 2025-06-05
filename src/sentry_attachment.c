@@ -27,6 +27,9 @@ str_from_attachment_type(sentry_attachment_type_t attachment_type)
 static void
 sentry__attachment_free(sentry_attachment_t *attachment)
 {
+    if (!attachment) {
+        return;
+    }
     sentry__path_free(attachment->path);
     sentry_free(attachment);
 }
@@ -132,5 +135,21 @@ sentry__apply_attachments_to_envelope(
             sentry_value_new_string(
 #endif
                 sentry__path_filename(attachment->path)));
+    }
+}
+
+void
+sentry__attachments_extend(
+    sentry_attachment_t **attachments_ptr, sentry_attachment_t *attachments)
+{
+    if (!attachments) {
+        return;
+    }
+
+    for (sentry_attachment_t *attachment = attachments; attachment;
+        attachment = attachment->next) {
+        sentry__attachment_add(attachments_ptr,
+            sentry__path_clone(attachment->path), attachment->type,
+            attachment->content_type);
     }
 }
