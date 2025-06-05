@@ -1793,6 +1793,7 @@ SENTRY_EXPERIMENTAL_API void sentry_options_set_handler_strategy(
  * See the NOTE on attachments above for restrictions of this API.
  */
 SENTRY_API void sentry_add_attachment(const char *path);
+SENTRY_API void sentry_add_attachment_n(const char *path, size_t path_len);
 
 /**
  * Removes a previously added attachment.
@@ -1804,17 +1805,21 @@ SENTRY_API void sentry_add_attachment(const char *path);
  * See the NOTE on attachments above for restrictions of this API.
  */
 SENTRY_API void sentry_remove_attachment(const char *path);
+SENTRY_API void sentry_remove_attachment_n(const char *path, size_t path_len);
 
 #ifdef SENTRY_PLATFORM_WINDOWS
 /**
  * Wide char version of `sentry_add_attachment`.
  */
 SENTRY_API void sentry_add_attachmentw(const wchar_t *path);
+SENTRY_API void sentry_add_attachmentw_n(const wchar_t *path, size_t path_len);
 
 /**
  * Wide char version of `sentry_remove_attachment`.
  */
 SENTRY_API void sentry_remove_attachmentw(const wchar_t *path);
+SENTRY_API void sentry_remove_attachmentw_n(
+    const wchar_t *path, size_t path_len);
 #endif
 
 /* -- Session APIs -- */
