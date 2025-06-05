@@ -830,7 +830,6 @@ def test_event_trace_header(cmake, httpserver):
     assert trace_context["trace_id"] == trace_header["trace_id"]
 
 
-# TODO add test with sampled:false (e.g. event without sample_rate); should still have a `sample_rand` value and the other fields though
 def test_set_trace_event(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
 

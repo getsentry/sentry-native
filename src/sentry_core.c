@@ -246,7 +246,7 @@ sentry_init(sentry_options_t *options)
         }
         sentry_value_freeze(scope->client_sdk);
         initialize_propagation_context(&scope->propagation_context);
-        // TODO pass in scope, or make it call SENTRY_WITH_SCOPE?
+
         set_dynamic_sampling_context(scope);
     }
     if (backend && backend->user_consent_changed_func) {

@@ -91,9 +91,6 @@ SENTRY_TEST(url_parsing_with_path)
 
 SENTRY_TEST(dsn_parsing_complete)
 {
-    // TODO add test with max int org_id
-    //  add test with > max int org_id
-
     sentry_dsn_t *dsn = sentry__dsn_new(
         "http://username:password@o123456.example.com/foo/bar/42%21?x=y#z");
     TEST_CHECK(!!dsn);

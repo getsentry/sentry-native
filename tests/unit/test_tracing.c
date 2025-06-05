@@ -302,6 +302,7 @@ SENTRY_TEST(transport_sampling_transactions_set_trace)
 
     sentry_close();
 
+    // exact value is nondeterministic because of rng
     TEST_CHECK(called_transport > 50 && called_transport < 100);
     TEST_CHECK(called_transport == sent_transactions);
 }

@@ -772,7 +772,8 @@ sentry__span_iter_headers(sentry_value_t span,
         sentry_value_as_string(span_id),
         sentry_value_is_true(sampled) ? "1" : "0");
 
-    // TODO does the dsc need to be propagated here too?
+    // TODO propagate dsc into outgoing bagage header
+    //  https://develop.sentry.dev/sdk/telemetry/traces/dynamic-sampling-context/#baggage-header
 
     callback("sentry-trace", buf, userdata);
 }
