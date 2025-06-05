@@ -559,10 +559,12 @@ sentry__prepare_event(const sentry_options_t *options, sentry_value_t event,
         sentry__record_errors_on_current_session(1);
     }
 
+    sentry_attachment_t *all_attachments = NULL;
     if (local_scope) {
         SENTRY_DEBUG("merging local scope into event");
         sentry_scope_mode_t mode = SENTRY_SCOPE_BREADCRUMBS;
         sentry__scope_apply_to_event(local_scope, options, event, mode);
+        sentry__attachments_extend(&all_attachments, local_scope->attachments);
         sentry__scope_free(local_scope);
     }
 
@@ -571,6 +573,9 @@ sentry__prepare_event(const sentry_options_t *options, sentry_value_t event,
         sentry_scope_mode_t mode = SENTRY_SCOPE_ALL;
         if (!options->symbolize_stacktraces) {
             mode &= ~SENTRY_SCOPE_STACKTRACES;
+        }
+        if (all_attachments) {
+            sentry__attachments_extend(&all_attachments, scope->attachments);
         }
         sentry__scope_apply_to_event(scope, options, event, mode);
     }
@@ -592,8 +597,16 @@ sentry__prepare_event(const sentry_options_t *options, sentry_value_t event,
     }
 
     SENTRY_WITH_SCOPE (scope) {
-        sentry__apply_attachments_to_envelope(envelope, scope->attachments);
+        if (all_attachments) {
+            // all attachments merged from multiple scopes
+            sentry__apply_attachments_to_envelope(envelope, all_attachments);
+        } else {
+            // only global scope has attachments
+            sentry__apply_attachments_to_envelope(envelope, scope->attachments);
+        }
     }
+
+    sentry__attachments_free(all_attachments);
 
     return envelope;
 

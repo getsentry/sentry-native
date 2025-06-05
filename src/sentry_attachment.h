@@ -51,4 +51,11 @@ void sentry__attachment_remove(
 void sentry__apply_attachments_to_envelope(
     sentry_envelope_t *envelope, const sentry_attachment_t *attachments);
 
+/**
+ * Extends the linked list of attachments at `attachments_ptr` with all
+ * attachments in `attachments`.
+ */
+void sentry__attachments_extend(
+    sentry_attachment_t **attachments_ptr, sentry_attachment_t *attachments);
+
 #endif
