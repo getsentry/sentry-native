@@ -74,6 +74,7 @@ init_scope(sentry_scope_t *scope)
     scope->extra = sentry_value_new_object();
     scope->contexts = sentry_value_new_object();
     scope->propagation_context = sentry_value_new_object();
+    g_scope.dynamic_sampling_context = sentry_value_new_object();
     scope->breadcrumbs = sentry_value_new_list();
     scope->level = SENTRY_LEVEL_ERROR;
     scope->client_sdk = sentry_value_new_null();
@@ -90,10 +91,6 @@ get_scope(void)
 
     init_scope(&g_scope);
     sentry_value_set_by_key(g_scope.contexts, "os", sentry__get_os_context());
-    g_scope.propagation_context = sentry_value_new_object();
-    g_scope.dynamic_sampling_context = sentry_value_new_object();
-    g_scope.breadcrumbs = sentry_value_new_list();
-    g_scope.level = SENTRY_LEVEL_ERROR;
     g_scope.client_sdk = get_client_sdk();
 
     g_scope_initialized = true;
