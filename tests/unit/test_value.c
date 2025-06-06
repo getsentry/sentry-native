@@ -484,9 +484,11 @@ SENTRY_TEST(value_json_deeply_nested)
     }
 
     sentry_jsonwriter_t *jw = sentry__jsonwriter_new_sb(NULL);
+    TEST_ASSERT(!!jw);
     sentry__jsonwriter_write_value(jw, root);
     size_t serialized_len = 0;
     char *serialized = sentry__jsonwriter_into_string(jw, &serialized_len);
+    TEST_ASSERT(!!serialized);
     sentry_value_decref(root);
 
     sentry_value_t parsed = sentry__value_from_json(serialized, serialized_len);

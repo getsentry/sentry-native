@@ -84,6 +84,9 @@ static sentry_path_t *
 path_with_len(size_t len)
 {
     sentry_path_t *rv = SENTRY_MAKE(sentry_path_t);
+    if (!rv) {
+        return rv;
+    }
     rv->path = sentry_malloc(sizeof(wchar_t) * len);
     if (!rv->path) {
         sentry_free(rv);
@@ -406,6 +409,9 @@ sentry__path_create_dir_all(const sentry_path_t *path)
 
     size_t len = wcslen(path->path) + 1;
     p = sentry_malloc(sizeof(wchar_t) * len);
+    if (!p) {
+        return 1;
+    }
     memcpy(p, path->path, len * sizeof(wchar_t));
 
     for (ptr = p; *ptr; ptr++) {
@@ -512,12 +518,15 @@ sentry__path_read_to_buffer(const sentry_path_t *path, size_t *size_out)
     if (len == 0) {
         fclose(f);
         char *rv = sentry_malloc(1);
-        rv[0] = '\0';
+        if (rv) {
+            rv[0] = '\0';
+        }
         if (size_out) {
             *size_out = 0;
         }
         return rv;
-    } else if (len > MAX_READ_TO_BUFFER) {
+    }
+    if (len > MAX_READ_TO_BUFFER) {
         fclose(f);
         return NULL;
     }

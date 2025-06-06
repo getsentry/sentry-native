@@ -142,6 +142,9 @@ sentry__jsonwriter_new_sb(sentry_stringbuilder_t *sb)
     }
     sentry_jsonwriter_t *rv = SENTRY_MAKE(sentry_jsonwriter_t);
     if (!rv) {
+        if (owns_sb) {
+            sentry_free(sb);
+        }
         return NULL;
     }
 
@@ -678,6 +681,9 @@ sentry__value_from_json(const char *buf, size_t buflen)
 
     jsmntok_t *tokens
         = sentry_malloc(sizeof(jsmntok_t) * (size_t)(token_count));
+    if (!tokens) {
+        return sentry_value_new_null();
+    }
     jsmn_init(&jsmn_p);
     token_count
         = jsmn_parse(&jsmn_p, buf, buflen, tokens, (unsigned int)(token_count));
