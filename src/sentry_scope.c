@@ -79,6 +79,7 @@ init_scope(sentry_scope_t *scope)
     scope->client_sdk = sentry_value_new_null();
     scope->transaction_object = NULL;
     scope->span = NULL;
+    scope->trace_managed = true;
 }
 
 static sentry_scope_t *

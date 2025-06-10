@@ -93,17 +93,17 @@ sentry__should_skip_upload(void)
 }
 
 static void
-initialize_propagation_context(sentry_value_t *propagation_context)
+initialize_propagation_context(sentry_value_t propagation_context)
 {
     sentry_value_set_by_key(
-        *propagation_context, "trace", sentry_value_new_object());
+        propagation_context, "trace", sentry_value_new_object());
     sentry_uuid_t trace_id = sentry_uuid_new_v4();
     sentry_uuid_t span_id = sentry_uuid_new_v4();
     sentry_value_set_by_key(
-        sentry_value_get_by_key(*propagation_context, "trace"), "trace_id",
+        sentry_value_get_by_key(propagation_context, "trace"), "trace_id",
         sentry__value_new_internal_uuid(&trace_id));
     sentry_value_set_by_key(
-        sentry_value_get_by_key(*propagation_context, "trace"), "span_id",
+        sentry_value_get_by_key(propagation_context, "trace"), "span_id",
         sentry__value_new_span_uuid(&span_id));
 }
 
@@ -210,7 +210,7 @@ sentry_init(sentry_options_t *options)
             sentry_value_set_by_key(scope->client_sdk, "name", sdk_name);
         }
         sentry_value_freeze(scope->client_sdk);
-        initialize_propagation_context(&scope->propagation_context);
+        initialize_propagation_context(scope->propagation_context);
     }
     if (backend && backend->user_consent_changed_func) {
         backend->user_consent_changed_func(backend);
@@ -946,6 +946,7 @@ sentry_set_trace_n(const char *trace_id, size_t trace_id_len,
             context, "span_id", sentry__value_new_span_uuid(&span_id));
 
         sentry__set_propagation_context("trace", context);
+        scope->trace_managed = false;
     }
 }
 
@@ -1061,6 +1062,34 @@ sentry_transaction_finish_ts(
                 sentry__transaction_decref(scope->transaction_object);
                 scope->transaction_object = NULL;
             }
+        }
+        // if the SDK manages the trace (rather than the user or a downstream
+        // SDK) we break propagation context traces at transaction boundaries.
+        if (scope->trace_managed) {
+#if 0
+            // the other proposal, where we just reinitialize the propagation
+            // context, has been voted out.
+            initialize_propagation_context(scope->propagation_context);
+#else
+            // currently our favourite: we change the trace in the
+            // propagation context to the one the transaction created
+            sentry_value_t txn_trace_id
+                = sentry_value_get_by_key(tx, "trace_id");
+            sentry_value_incref(txn_trace_id);
+
+            sentry_value_set_by_key(
+                sentry_value_get_by_key(scope->propagation_context, "trace"),
+                "trace_id", txn_trace_id);
+            // TODO: what should we do with the span_id in the
+            //   propagation_context? We can't use the transaction's, because we
+            //   want to be outside the transaction's span hierarchy. Could we
+            //   just keep the initially created dummy or should generate a new
+            //   one?
+            // TODO: if there are no transactions, all the events will be still
+            //   part of the same trace. If this needs to be fixed too, then we
+            //   could expose a capture counter that resets the trace every N
+            //   events being captured. This might also be more
+#endif
         }
     }
     // The sampling decision should already be made for transactions

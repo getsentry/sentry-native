@@ -31,6 +31,7 @@ struct sentry_scope_s {
     // `name` property nested in transaction_object or span.
     sentry_transaction_t *transaction_object;
     sentry_span_t *span;
+    bool trace_managed;
 };
 
 /**
