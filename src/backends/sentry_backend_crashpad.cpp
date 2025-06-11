@@ -668,7 +668,6 @@ crashpad_backend_add_attachment(
 {
     auto *data = static_cast<crashpad_state_t *>(backend->data);
     if (!data || !data->client) {
-```
         return;
     }
     data->client->AddAttachment(base::FilePath(attachment->path));
