@@ -516,24 +516,7 @@ SENTRY_EXPERIMENTAL_API void sentry_event_value_add_stacktrace(
 typedef struct sentry_ucontext_s {
 #ifdef _WIN32
     EXCEPTION_POINTERS exception_ptrs;
-#elif defined(SENTRY_PLATFORM_PS)
-    /**
-     * ID of the thread that caused the crash,
-     * or -1 if an async exception occured,
-     * or -2 if the user triggered the crash dump manually.
-     */
-    pthread_t thread;
-    /**
-     * The reason code of the crash, refer to Kernel Reference.
-     */
-    int reason_code;
-    /**
-     * Non-zero if the cause of the crash was a GPU protection fault.
-     * Because GPU may still continue to run after the crash, this
-     * timestamp is used to pinpoint the exact time of the crash.
-     */
-    uint64_t gpu_timestamp;
-#else
+#elif !defined(SENTRY_PLATFORM_PS)
     int signum;
     siginfo_t *siginfo;
     ucontext_t *user_context;
