@@ -25,7 +25,7 @@ str_from_attachment_type(sentry_attachment_type_t attachment_type)
 }
 
 static void
-sentry__attachment_free(sentry_attachment_t *attachment)
+attachment_free(sentry_attachment_t *attachment)
 {
     if (!attachment) {
         return;
@@ -42,7 +42,7 @@ sentry__attachments_free(sentry_attachment_t *attachments)
         sentry_attachment_t *attachment = next_attachment;
         next_attachment = attachment->next;
 
-        sentry__attachment_free(attachment);
+        attachment_free(attachment);
     }
 }
 
@@ -69,7 +69,7 @@ sentry__attachment_add(sentry_attachment_t **attachments_ptr,
     for (sentry_attachment_t *last_attachment = *attachments_ptr;
         last_attachment; last_attachment = last_attachment->next) {
         if (sentry__path_eq(last_attachment->path, path)) {
-            sentry__attachment_free(attachment);
+            attachment_free(attachment);
             return;
         }
 
@@ -89,7 +89,7 @@ sentry__attachment_remove(
         attachment = attachment->next) {
         if (sentry__path_eq(attachment->path, path)) {
             *next_ptr = attachment->next;
-            sentry__attachment_free(attachment);
+            attachment_free(attachment);
             goto out;
         }
 
@@ -100,9 +100,6 @@ out:
     sentry__path_free(path);
 }
 
-/**
- * Reads the attachments from disk and adds them to the `envelope`.
- */
 void
 sentry__apply_attachments_to_envelope(
     sentry_envelope_t *envelope, const sentry_attachment_t *attachments)
