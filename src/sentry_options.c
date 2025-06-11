@@ -702,6 +702,18 @@ sentry_options_set_backend(sentry_options_t *opts, sentry_backend_t *backend)
     opts->backend = backend;
 }
 
+void
+sentry_options_set_enable_logs(sentry_options_t *opts, int enable_logs)
+{
+    opts->enable_logs = !!enable_logs;
+}
+
+int
+sentry_options_get_enable_logs(const sentry_options_t *opts)
+{
+    return opts->enable_logs;
+}
+
 #ifdef SENTRY_PLATFORM_LINUX
 
 sentry_handler_strategy_t

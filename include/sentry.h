@@ -1741,6 +1741,15 @@ typedef double (*sentry_traces_sampler_function)(
 SENTRY_EXPERIMENTAL_API void sentry_options_set_traces_sampler(
     sentry_options_t *opts, sentry_traces_sampler_function callback);
 
+/**
+ * Enables or disables the structured logging feature.
+ * When disabled, all calls to sentry_logger_X() are no-ops.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_options_set_enable_logs(
+    sentry_options_t *opts, int enable_logs);
+SENTRY_EXPERIMENTAL_API int sentry_options_get_enable_logs(
+    const sentry_options_t *opts);
+
 #ifdef SENTRY_PLATFORM_LINUX
 
 /**
