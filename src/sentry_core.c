@@ -599,10 +599,10 @@ sentry__prepare_event(const sentry_options_t *options, sentry_value_t event,
     SENTRY_WITH_SCOPE (scope) {
         if (all_attachments) {
             // all attachments merged from multiple scopes
-            sentry__apply_attachments_to_envelope(envelope, all_attachments);
+            sentry__envelope_add_attachments(envelope, all_attachments);
         } else {
             // only global scope has attachments
-            sentry__apply_attachments_to_envelope(envelope, scope->attachments);
+            sentry__envelope_add_attachments(envelope, scope->attachments);
         }
     }
 

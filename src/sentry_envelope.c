@@ -8,6 +8,7 @@
 #include "sentry_string.h"
 #include "sentry_transport.h"
 #include "sentry_value.h"
+#include <assert.h>
 #include <string.h>
 
 struct sentry_envelope_item_s {
@@ -345,9 +346,26 @@ sentry__envelope_add_session(
         envelope, payload, payload_len, "session");
 }
 
+static const char *
+str_from_attachment_type(sentry_attachment_type_t attachment_type)
+{
+    switch (attachment_type) {
+    case ATTACHMENT:
+        return "event.attachment";
+    case MINIDUMP:
+        return "event.minidump";
+    case VIEW_HIERARCHY:
+        return "event.view_hierarchy";
+    default:
+        UNREACHABLE("Unknown attachment type");
+        return "event.attachment";
+    }
+}
+
 sentry_envelope_item_t *
 sentry__envelope_add_attachment(sentry_envelope_t *envelope,
-    const sentry_path_t *attachment, const char *type)
+    const sentry_path_t *attachment, sentry_attachment_type_t type,
+    const char *content_type)
 {
     if (!envelope || !attachment) {
         return NULL;
@@ -355,11 +373,17 @@ sentry__envelope_add_attachment(sentry_envelope_t *envelope,
 
     sentry_envelope_item_t *item
         = sentry__envelope_add_from_path(envelope, attachment, "attachment");
-    if (type) {
-        sentry__envelope_item_set_header(
-            item, "attachment_type", sentry_value_new_string(type));
+    if (!item) {
+        return NULL;
     }
-
+    if (type != ATTACHMENT) { // don't need to set the default
+        sentry__envelope_item_set_header(item, "attachment_type",
+            sentry_value_new_string(str_from_attachment_type(type)));
+    }
+    if (content_type) {
+        sentry__envelope_item_set_header(
+            item, "content_type", sentry_value_new_string(content_type));
+    }
     sentry__envelope_item_set_header(item, "filename",
 #ifdef SENTRY_PLATFORM_WINDOWS
         sentry__value_new_string_from_wstr(
@@ -369,6 +393,22 @@ sentry__envelope_add_attachment(sentry_envelope_t *envelope,
             sentry__path_filename(attachment)));
 
     return item;
+}
+
+void
+sentry__envelope_add_attachments(
+    sentry_envelope_t *envelope, const sentry_attachment_t *attachments)
+{
+    if (!envelope || !attachments) {
+        return;
+    }
+
+    SENTRY_DEBUG("adding attachments to envelope");
+    for (const sentry_attachment_t *attachment = attachments; attachment;
+        attachment = attachment->next) {
+        sentry__envelope_add_attachment(envelope, attachment->path,
+            attachment->type, attachment->content_type);
+    }
 }
 
 sentry_envelope_item_t *

@@ -3,7 +3,6 @@
 
 #include "sentry_boot.h"
 
-#include "sentry_envelope.h"
 #include "sentry_path.h"
 
 /**
@@ -44,12 +43,6 @@ void sentry__attachment_add(sentry_attachment_t **attachments_ptr,
  */
 void sentry__attachment_remove(
     sentry_attachment_t **attachments_ptr, sentry_path_t *path);
-
-/**
- * Reads the attachments from disk and adds them to the `envelope`.
- */
-void sentry__apply_attachments_to_envelope(
-    sentry_envelope_t *envelope, const sentry_attachment_t *attachments);
 
 /**
  * Extends the linked list of attachments at `attachments_ptr` with all
