@@ -667,7 +667,8 @@ crashpad_backend_add_attachment(
     sentry_backend_t *backend, const sentry_path_t *attachment)
 {
     auto *data = static_cast<crashpad_state_t *>(backend->data);
-    if (!data->client) {
+    if (!data || !data->client) {
+```
         return;
     }
     data->client->AddAttachment(base::FilePath(attachment->path));
@@ -678,7 +679,7 @@ crashpad_backend_remove_attachment(
     sentry_backend_t *backend, const sentry_path_t *attachment)
 {
     auto *data = static_cast<crashpad_state_t *>(backend->data);
-    if (!data->client) {
+    if (!data || !data->client) {
         return;
     }
     data->client->RemoveAttachment(base::FilePath(attachment->path));
