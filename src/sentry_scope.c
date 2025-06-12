@@ -693,7 +693,7 @@ void
 sentry_scope_add_attachment_pathw(sentry_scope_t *scope, const wchar_t *path)
 {
     size_t path_len = path ? wcslen(path) : 0;
-    sentry_scope_add_attachmentw_n(scope, path, path_len);
+    sentry_scope_add_attachment_pathw_n(scope, path, path_len);
 }
 
 void
