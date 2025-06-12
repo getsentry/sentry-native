@@ -161,14 +161,12 @@ SENTRY_TEST(attachments_add_remove)
         = sentry_attach_file(SENTRY_TEST_PATH_PREFIX ".d.txt");
 #ifdef SENTRY_PLATFORM_WINDOWS
     sentry_attachment_t *attachment_ew = sentry_attach_filew(L".e.txt");
-    sentry_attachment_t *attachment_dw = sentry_attach_filew(L".d.txt");
 #endif
 
     sentry_remove_attachment(attachment_c);
     sentry_remove_attachment(attachment_d);
 #ifdef SENTRY_PLATFORM_WINDOWS
     sentry_remove_attachment(attachment_ew);
-    sentry_remove_attachment(attachment_dw);
 #endif
 
     sentry_path_t *path_a
