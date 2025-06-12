@@ -25,6 +25,8 @@ log_level_as_string(sentry_log_level_t level)
         return "ERROR";
     case SENTRY_LOG_LEVEL_FATAL:
         return "FATAL";
+    default:
+        return "UNKNOWN";
     }
 }
 
