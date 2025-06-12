@@ -1691,6 +1691,7 @@ SENTRY_TEST(propagation_context_init)
 
     const char *tx_trace_id = sentry_value_as_string(
         sentry_value_get_by_key(tx->inner, "trace_id"));
+
     // on SDK init, the `propagation_context` is initialized with a `trace_id`
     // and `span_id`. Unless `sentry_set_trace()` has been called, which means
     // the SDK no longer manages traces, the `trace_id` will be used for all
