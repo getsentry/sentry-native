@@ -452,12 +452,15 @@ sentry__path_read_to_buffer(const sentry_path_t *path, size_t *size_out)
     if (len == 0) {
         close(fd);
         char *rv = sentry_malloc(1);
-        rv[0] = '\0';
-        if (size_out) {
-            *size_out = 0;
+        if (rv) {
+            rv[0] = '\0';
+            if (size_out) {
+                *size_out = 0;
+            }
         }
         return rv;
-    } else if (len > MAX_READ_TO_BUFFER) {
+    }
+    if (len > MAX_READ_TO_BUFFER) {
         close(fd);
         return NULL;
     }

@@ -89,6 +89,9 @@ sentry__slice_consume_uint64(sentry_slice_t *a, uint64_t *num_out)
 {
     bool rv = false;
     char *buf = sentry_malloc(a->len + 1);
+    if (!buf) {
+        return rv;
+    }
     memcpy(buf, a->ptr, a->len);
     buf[a->len] = 0;
     char *end;
