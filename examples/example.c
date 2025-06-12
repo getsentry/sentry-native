@@ -16,6 +16,8 @@
 #    undef NDEBUG
 #endif
 
+#include "../src/sentry_options.h"
+
 #include <assert.h>
 
 #ifdef SENTRY_PLATFORM_WINDOWS
@@ -358,6 +360,18 @@ main(int argc, char **argv)
     }
 
     sentry_init(options);
+
+    // TODO incorporate into test
+    if (options->enable_logs) {
+        sentry_logger_debug(
+            "We log it up  %i percent, %s style\n", 100, "debug");
+        sentry_logger_info("We log it up  %i percent, %s style\n", 100, "info");
+        sentry_logger_warn("We log it up  %i percent, %s style\n", 100, "warn");
+        sentry_logger_error(
+            "We log it up  %i percent, %s style\n", 100, "error");
+        sentry_logger_fatal(
+            "We log it up  %i percent, %s style\n", 100, "fatal");
+    }
 
     if (!has_arg(argc, argv, "no-setup")) {
         sentry_set_transaction("test-transaction");
