@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1749727906609,
+  "lastUpdate": 1749727973312,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -3294,6 +3294,66 @@ window.BENCHMARK_DATA = {
             "value": 8.30687500001659,
             "unit": "ms",
             "extra": "Min 7.779ms\nMax 30.992ms\nMean 13.873ms\nStdDev 9.913ms\nMedian 8.307ms\nCPU 1.142ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "mischan@abovevacant.com",
+            "name": "Mischan Toosarani-Hausberger",
+            "username": "supervacuus"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "16fa6892134f162ddbfaaa94b230ca5cd8564e0a",
+          "message": "fix: introduce malloc/MAKE rv checks if missing (#1234)\n\n+ ensure that none of the test runs into a segfault by asserting on malloc return paths that propagate",
+          "timestamp": "2025-06-12T13:29:34+02:00",
+          "tree_id": "f8c1c235ae6bbe2d43730436229d5ee7e5ffc7e2",
+          "url": "https://github.com/getsentry/sentry-native/commit/16fa6892134f162ddbfaaa94b230ca5cd8564e0a"
+        },
+        "date": 1749727971483,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 3.219165999979623,
+            "unit": "ms",
+            "extra": "Min 3.087ms\nMax 4.996ms\nMean 3.644ms\nStdDev 0.792ms\nMedian 3.219ms\nCPU 2.151ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 5.754833999958464,
+            "unit": "ms",
+            "extra": "Min 3.733ms\nMax 7.690ms\nMean 5.951ms\nStdDev 1.510ms\nMedian 5.755ms\nCPU 3.622ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 18.791958000008435,
+            "unit": "ms",
+            "extra": "Min 16.743ms\nMax 20.023ms\nMean 18.632ms\nStdDev 1.258ms\nMedian 18.792ms\nCPU 6.216ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.062124999999468855,
+            "unit": "ms",
+            "extra": "Min 0.009ms\nMax 0.163ms\nMean 0.066ms\nStdDev 0.063ms\nMedian 0.062ms\nCPU 0.065ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.24074999998902058,
+            "unit": "ms",
+            "extra": "Min 0.211ms\nMax 0.567ms\nMean 0.313ms\nStdDev 0.147ms\nMedian 0.241ms\nCPU 0.313ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 10.79858400004241,
+            "unit": "ms",
+            "extra": "Min 9.541ms\nMax 26.964ms\nMean 14.451ms\nStdDev 7.257ms\nMedian 10.799ms\nCPU 1.400ms"
           }
         ]
       }
