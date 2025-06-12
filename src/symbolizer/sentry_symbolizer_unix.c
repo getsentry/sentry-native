@@ -112,7 +112,7 @@ sym_from_tb(void **sbase, char **sname, void *where)
  * Look for the base address and name of both a symbol and the corresponding
  * executable in memory. This is a simplistic reimplementation for AIX.
  *
- * Returns 1 on failure and 0 on success. "s" is the address of the symbol,
+ * Returns 0 on failure and 1 on success. "s" is the address of the symbol,
  * and "i" points to a Dl_info structure to fill. Note that i.dli_fname is
  * not const, and should be freed.
  */
