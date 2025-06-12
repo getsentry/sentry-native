@@ -4,7 +4,7 @@
 
 **Features**:
 
-- The `sentry_add_attachment_path`, `sentry_scope_add_attachment_path`, and `sentry_remove_attachment` (and their wide-string variants) have been added to modify the list of attachments that are sent along with sentry events after a call to `sentry_init`. ([#1266](https://github.com/getsentry/sentry-native/pull/1266))
+- The `sentry_attach_file`, `sentry_scope_attach_file` (and their wide-string variants), and `sentry_remove_attachment` have been added to modify the list of attachments that are sent along with sentry events after a call to `sentry_init`. ([#1266](https://github.com/getsentry/sentry-native/pull/1266))
 
 ## 0.9.0
 
