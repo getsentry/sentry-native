@@ -1788,15 +1788,16 @@ SENTRY_EXPERIMENTAL_API void sentry_options_set_handler_strategy(
  * Adds a new attachment to be sent along.
  *
  * `path` is assumed to be in platform-specific filesystem path encoding.
- * API Users on windows are encouraged to use `sentry_add_attachmentw` instead.
+ * API Users on windows are encouraged to use `sentry_add_attachment_pathw`
+ * instead.
  *
  * See the NOTE on attachments above for restrictions of this API.
  */
-SENTRY_API void sentry_add_attachment(const char *path);
-SENTRY_API void sentry_add_attachment_n(const char *path, size_t path_len);
-SENTRY_API void sentry_scope_add_attachment(
+SENTRY_API void sentry_add_attachment_path(const char *path);
+SENTRY_API void sentry_add_attachment_path_n(const char *path, size_t path_len);
+SENTRY_API void sentry_scope_add_attachment_path(
     sentry_scope_t *scope, const char *path);
-SENTRY_API void sentry_scope_add_attachment_n(
+SENTRY_API void sentry_scope_add_attachment_path_n(
     sentry_scope_t *scope, const char *path, size_t path_len);
 
 /**
@@ -1813,13 +1814,14 @@ SENTRY_API void sentry_remove_attachment_n(const char *path, size_t path_len);
 
 #ifdef SENTRY_PLATFORM_WINDOWS
 /**
- * Wide char version of `sentry_add_attachment`.
+ * Wide char version of `sentry_add_attachment_path`.
  */
-SENTRY_API void sentry_add_attachmentw(const wchar_t *path);
-SENTRY_API void sentry_add_attachmentw_n(const wchar_t *path, size_t path_len);
-SENTRY_API void sentry_scope_add_attachmentw(
+SENTRY_API void sentry_add_attachment_pathw(const wchar_t *path);
+SENTRY_API void sentry_add_attachment_pathw_n(
+    const wchar_t *path, size_t path_len);
+SENTRY_API void sentry_scope_add_attachment_pathw(
     sentry_scope_t *scope, const wchar_t *path);
-SENTRY_API void sentry_scope_add_attachmentw_n(
+SENTRY_API void sentry_scope_add_attachment_pathw_n(
     sentry_scope_t *scope, const wchar_t *path, size_t path_len);
 
 /**

@@ -1429,13 +1429,13 @@ sentry_capture_minidump_n(const char *path, size_t path_len)
 }
 
 void
-sentry_add_attachment(const char *path)
+sentry_add_attachment_path(const char *path)
 {
-    sentry_add_attachment_n(path, sentry__guarded_strlen(path));
+    sentry_add_attachment_path_n(path, sentry__guarded_strlen(path));
 }
 
 void
-sentry_add_attachment_n(const char *path, size_t path_len)
+sentry_add_attachment_path_n(const char *path, size_t path_len)
 {
     sentry_path_t *attachment = sentry__path_from_str_n(path, path_len);
     SENTRY_WITH_OPTIONS (options) {
@@ -1472,14 +1472,14 @@ sentry_remove_attachment_n(const char *path, size_t path_len)
 
 #ifdef SENTRY_PLATFORM_WINDOWS
 void
-sentry_add_attachmentw(const wchar_t *path)
+sentry_add_attachment_pathw(const wchar_t *path)
 {
     size_t path_len = path ? wcslen(path) : 0;
-    sentry_add_attachmentw_n(path, path_len);
+    sentry_add_attachment_pathw_n(path, path_len);
 }
 
 void
-sentry_add_attachmentw_n(const wchar_t *path, size_t path_len)
+sentry_add_attachment_pathw_n(const wchar_t *path, size_t path_len)
 {
     sentry_path_t *attachment = sentry__path_from_wstr_n(path, path_len);
     SENTRY_WITH_OPTIONS (options) {

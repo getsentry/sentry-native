@@ -99,13 +99,13 @@ SENTRY_TEST(attachments_add_dedupe)
 
     sentry_init(options);
 
-    sentry_add_attachment(SENTRY_TEST_PATH_PREFIX ".a.txt");
-    sentry_add_attachment(SENTRY_TEST_PATH_PREFIX ".b.txt");
-    sentry_add_attachment(SENTRY_TEST_PATH_PREFIX ".c.txt");
+    sentry_add_attachment_path(SENTRY_TEST_PATH_PREFIX ".a.txt");
+    sentry_add_attachment_path(SENTRY_TEST_PATH_PREFIX ".b.txt");
+    sentry_add_attachment_path(SENTRY_TEST_PATH_PREFIX ".c.txt");
 #ifdef SENTRY_PLATFORM_WINDOWS
-    sentry_add_attachmentw(L".a.txt");
-    sentry_add_attachmentw(L".b.txt");
-    sentry_add_attachmentw(L".c.txt");
+    sentry_add_attachment_pathw(L".a.txt");
+    sentry_add_attachment_pathw(L".b.txt");
+    sentry_add_attachment_pathw(L".c.txt");
 #endif
 
     sentry_path_t *path_a
@@ -155,18 +155,18 @@ SENTRY_TEST(attachments_add_remove)
 
     sentry_init(options);
 
-    sentry_add_attachment(SENTRY_TEST_PATH_PREFIX ".c.txt");
-    sentry_add_attachment(SENTRY_TEST_PATH_PREFIX ".d.txt");
+    sentry_add_attachment_path(SENTRY_TEST_PATH_PREFIX ".c.txt");
+    sentry_add_attachment_path(SENTRY_TEST_PATH_PREFIX ".d.txt");
 #ifdef SENTRY_PLATFORM_WINDOWS
-    sentry_add_attachmentw(L".e.txt");
-    sentry_add_attachmentw(L".d.txt");
+    sentry_add_attachment_pathw(L".e.txt");
+    sentry_add_attachment_pathw(L".d.txt");
 #endif
 
     sentry_remove_attachment(SENTRY_TEST_PATH_PREFIX ".c.txt");
     sentry_remove_attachment(SENTRY_TEST_PATH_PREFIX ".d.txt");
 #ifdef SENTRY_PLATFORM_WINDOWS
-    sentry_remove_attachmentw(L".e.txt");
-    sentry_remove_attachmentw(L".d.txt");
+    sentry_remove_attachment_from_filew(L".e.txt");
+    sentry_remove_attachment_from_filew(L".d.txt");
 #endif
 
     sentry_path_t *path_a

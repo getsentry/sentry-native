@@ -674,13 +674,14 @@ sentry_scope_set_level(sentry_scope_t *scope, sentry_level_t level)
 }
 
 void
-sentry_scope_add_attachment(sentry_scope_t *scope, const char *path)
+sentry_scope_add_attachment_path(sentry_scope_t *scope, const char *path)
 {
-    sentry_scope_add_attachment_n(scope, path, sentry__guarded_strlen(path));
+    sentry_scope_add_attachment_path_n(
+        scope, path, sentry__guarded_strlen(path));
 }
 
 void
-sentry_scope_add_attachment_n(
+sentry_scope_add_attachment_path_n(
     sentry_scope_t *scope, const char *path, size_t path_len)
 {
     sentry_path_t *attachment = sentry__path_from_str_n(path, path_len);
@@ -689,14 +690,14 @@ sentry_scope_add_attachment_n(
 
 #ifdef SENTRY_PLATFORM_WINDOWS
 void
-sentry_scope_add_attachmentw(sentry_scope_t *scope, const wchar_t *path)
+sentry_scope_add_attachment_pathw(sentry_scope_t *scope, const wchar_t *path)
 {
     size_t path_len = path ? wcslen(path) : 0;
     sentry_scope_add_attachmentw_n(scope, path, path_len);
 }
 
 void
-sentry_scope_add_attachmentw_n(
+sentry_scope_add_attachment_pathw_n(
     sentry_scope_t *scope, const wchar_t *path, size_t path_len)
 {
     sentry_path_t *attachment = sentry__path_from_wstr_n(path, path_len);
