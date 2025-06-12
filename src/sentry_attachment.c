@@ -15,10 +15,10 @@ attachment_free(sentry_attachment_t *attachment)
 void
 sentry__attachments_free(sentry_attachment_t *attachments)
 {
-    sentry_attachment_t *next_attachment = attachments;
-    while (next_attachment) {
-        sentry_attachment_t *attachment = next_attachment;
-        next_attachment = attachment->next;
+    sentry_attachment_t *it = attachments;
+    while (it) {
+        sentry_attachment_t *attachment = it;
+        it = attachment->next;
 
         attachment_free(attachment);
     }
@@ -69,7 +69,6 @@ sentry__attachments_remove(
 
     for (sentry_attachment_t *it = *attachments_ptr; it; it = it->next) {
         if (it == attachment || sentry__path_eq(it->path, attachment->path)) {
-
             *next_ptr = it->next;
             attachment_free(it);
             return;
@@ -83,14 +82,8 @@ void
 sentry__attachments_extend(
     sentry_attachment_t **attachments_ptr, sentry_attachment_t *attachments)
 {
-    if (!attachments) {
-        return;
-    }
-
-    for (sentry_attachment_t *attachment = attachments; attachment;
-        attachment = attachment->next) {
-        sentry__attachments_add(attachments_ptr,
-            sentry__path_clone(attachment->path), attachment->type,
-            attachment->content_type);
+    for (sentry_attachment_t *it = attachments; it; it = it->next) {
+        sentry__attachments_add(attachments_ptr, sentry__path_clone(it->path),
+            it->type, it->content_type);
     }
 }
