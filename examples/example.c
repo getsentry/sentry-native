@@ -402,7 +402,7 @@ main(int argc, char **argv)
     if (has_arg(argc, argv, "attach-after-init")) {
         // assuming the example / test is run directly from the cmake build
         // directory
-        sentry_add_attachment_path("./CMakeCache.txt");
+        sentry_attach_file("./CMakeCache.txt");
     }
 
     if (has_arg(argc, argv, "start-session")) {
@@ -433,7 +433,7 @@ main(int argc, char **argv)
         if (has_arg(argc, argv, "attach-to-scope")) {
             // assuming the example / test is run directly from the cmake build
             // directory
-            sentry_scope_add_attachment_path(scope, "./CMakeCache.txt");
+            sentry_scope_attach_file(scope, "./CMakeCache.txt");
         }
 
         sentry_capture_event_with_scope(event, scope);

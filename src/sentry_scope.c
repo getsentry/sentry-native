@@ -673,34 +673,36 @@ sentry_scope_set_level(sentry_scope_t *scope, sentry_level_t level)
     scope->level = level;
 }
 
-void
-sentry_scope_add_attachment_path(sentry_scope_t *scope, const char *path)
+sentry_attachment_t *
+sentry_scope_attach_file(sentry_scope_t *scope, const char *path)
 {
-    sentry_scope_add_attachment_path_n(
+    return sentry_scope_attach_file_n(
         scope, path, sentry__guarded_strlen(path));
 }
 
-void
-sentry_scope_add_attachment_path_n(
+sentry_attachment_t *
+sentry_scope_attach_file_n(
     sentry_scope_t *scope, const char *path, size_t path_len)
 {
     sentry_path_t *attachment = sentry__path_from_str_n(path, path_len);
-    sentry__attachment_add(&scope->attachments, attachment, ATTACHMENT, NULL);
+    return sentry__attachments_add(
+        &scope->attachments, attachment, ATTACHMENT, NULL);
 }
 
 #ifdef SENTRY_PLATFORM_WINDOWS
-void
-sentry_scope_add_attachment_pathw(sentry_scope_t *scope, const wchar_t *path)
+sentry_attachment_t *
+sentry_scope_attach_filew(sentry_scope_t *scope, const wchar_t *path)
 {
     size_t path_len = path ? wcslen(path) : 0;
-    sentry_scope_add_attachment_pathw_n(scope, path, path_len);
+    return sentry_scope_attach_filew_n(scope, path, path_len);
 }
 
-void
-sentry_scope_add_attachment_pathw_n(
+sentry_attachment_t *
+sentry_scope_attach_filew_n(
     sentry_scope_t *scope, const wchar_t *path, size_t path_len)
 {
     sentry_path_t *attachment = sentry__path_from_wstr_n(path, path_len);
-    sentry__attachment_add(&scope->attachments, attachment, ATTACHMENT, NULL);
+    return sentry__attachments_add(
+        &scope->attachments, attachment, ATTACHMENT, NULL);
 }
 #endif

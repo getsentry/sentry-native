@@ -1785,51 +1785,52 @@ SENTRY_EXPERIMENTAL_API void sentry_options_set_handler_strategy(
 #endif // SENTRY_PLATFORM_LINUX
 
 /**
+ * A sentry Attachment.
+ *
+ * See https://develop.sentry.dev/sdk/data-model/envelope-items/#attachment
+ */
+struct sentry_attachment_s;
+typedef struct sentry_attachment_s sentry_attachment_t;
+
+/**
  * Adds a new attachment to be sent along.
  *
  * `path` is assumed to be in platform-specific filesystem path encoding.
- * API Users on windows are encouraged to use `sentry_add_attachment_pathw`
- * instead.
+ * API Users on windows are encouraged to use `sentry_attach_filew` or
+ * `sentry_scope_attach_filew` instead.
+ *
+ * The returned `sentry_attachment_t` is owned by the SDK and will remain valid
+ * until the attachment is removed with `sentry_remove_attachment` or
+ * `sentry_close` is called
  *
  * See the NOTE on attachments above for restrictions of this API.
  */
-SENTRY_API void sentry_add_attachment_path(const char *path);
-SENTRY_API void sentry_add_attachment_path_n(const char *path, size_t path_len);
-SENTRY_API void sentry_scope_add_attachment_path(
+SENTRY_API sentry_attachment_t *sentry_attach_file(const char *path);
+SENTRY_API sentry_attachment_t *sentry_attach_file_n(
+    const char *path, size_t path_len);
+SENTRY_API sentry_attachment_t *sentry_scope_attach_file(
     sentry_scope_t *scope, const char *path);
-SENTRY_API void sentry_scope_add_attachment_path_n(
+SENTRY_API sentry_attachment_t *sentry_scope_attach_file_n(
     sentry_scope_t *scope, const char *path, size_t path_len);
 
 /**
- * Removes a previously added attachment.
- *
- * `path` is assumed to be in platform-specific filesystem path encoding.
- * API Users on windows are encouraged to use `sentry_remove_attachmentw`
- * instead.
+ * Removes and frees a previously added attachment.
  *
  * See the NOTE on attachments above for restrictions of this API.
  */
-SENTRY_API void sentry_remove_attachment(const char *path);
-SENTRY_API void sentry_remove_attachment_n(const char *path, size_t path_len);
+SENTRY_API void sentry_remove_attachment(sentry_attachment_t *attachment);
 
 #ifdef SENTRY_PLATFORM_WINDOWS
 /**
- * Wide char version of `sentry_add_attachment_path`.
+ * Wide char versions of `sentry_attach_file` and `sentry_scope_attach_file`.
  */
-SENTRY_API void sentry_add_attachment_pathw(const wchar_t *path);
-SENTRY_API void sentry_add_attachment_pathw_n(
+SENTRY_API sentry_attachment_t *sentry_attach_filew(const wchar_t *path);
+SENTRY_API sentry_attachment_t *sentry_attach_filew_n(
     const wchar_t *path, size_t path_len);
-SENTRY_API void sentry_scope_add_attachment_pathw(
+SENTRY_API sentry_attachment_t *sentry_scope_attach_filew(
     sentry_scope_t *scope, const wchar_t *path);
-SENTRY_API void sentry_scope_add_attachment_pathw_n(
+SENTRY_API sentry_attachment_t *sentry_scope_attach_filew_n(
     sentry_scope_t *scope, const wchar_t *path, size_t path_len);
-
-/**
- * Wide char version of `sentry_remove_attachment`.
- */
-SENTRY_API void sentry_remove_attachmentw(const wchar_t *path);
-SENTRY_API void sentry_remove_attachmentw_n(
-    const wchar_t *path, size_t path_len);
 #endif
 
 /* -- Session APIs -- */

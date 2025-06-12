@@ -24,18 +24,18 @@ sentry__attachments_free(sentry_attachment_t *attachments)
     }
 }
 
-void
-sentry__attachment_add(sentry_attachment_t **attachments_ptr,
+sentry_attachment_t *
+sentry__attachments_add(sentry_attachment_t **attachments_ptr,
     sentry_path_t *path, sentry_attachment_type_t attachment_type,
     const char *content_type)
 {
     if (!path) {
-        return;
+        return NULL;
     }
     sentry_attachment_t *attachment = SENTRY_MAKE(sentry_attachment_t);
     if (!attachment) {
         sentry__path_free(path);
-        return;
+        return NULL;
     }
     attachment->path = path;
     attachment->next = NULL;
@@ -44,38 +44,39 @@ sentry__attachment_add(sentry_attachment_t **attachments_ptr,
 
     sentry_attachment_t **next_ptr = attachments_ptr;
 
-    for (sentry_attachment_t *last_attachment = *attachments_ptr;
-        last_attachment; last_attachment = last_attachment->next) {
-        if (sentry__path_eq(last_attachment->path, path)) {
+    for (sentry_attachment_t *it = *attachments_ptr; it; it = it->next) {
+        if (sentry__path_eq(it->path, path)) {
             attachment_free(attachment);
-            return;
+            return it;
         }
 
-        next_ptr = &last_attachment->next;
+        next_ptr = &it->next;
     }
 
     *next_ptr = attachment;
+    return attachment;
 }
 
 void
-sentry__attachment_remove(
-    sentry_attachment_t **attachments_ptr, sentry_path_t *path)
+sentry__attachments_remove(
+    sentry_attachment_t **attachments_ptr, sentry_attachment_t *attachment)
 {
-    sentry_attachment_t **next_ptr = attachments_ptr;
-
-    for (sentry_attachment_t *attachment = *attachments_ptr; attachment;
-        attachment = attachment->next) {
-        if (sentry__path_eq(attachment->path, path)) {
-            *next_ptr = attachment->next;
-            attachment_free(attachment);
-            goto out;
-        }
-
-        next_ptr = &attachment->next;
+    if (!attachment) {
+        return;
     }
 
-out:
-    sentry__path_free(path);
+    sentry_attachment_t **next_ptr = attachments_ptr;
+
+    for (sentry_attachment_t *it = *attachments_ptr; it; it = it->next) {
+        if (it == attachment || sentry__path_eq(it->path, attachment->path)) {
+
+            *next_ptr = it->next;
+            attachment_free(it);
+            return;
+        }
+
+        next_ptr = &it->next;
+    }
 }
 
 void
@@ -88,7 +89,7 @@ sentry__attachments_extend(
 
     for (sentry_attachment_t *attachment = attachments; attachment;
         attachment = attachment->next) {
-        sentry__attachment_add(attachments_ptr,
+        sentry__attachments_add(attachments_ptr,
             sentry__path_clone(attachment->path), attachment->type,
             attachment->content_type);
     }

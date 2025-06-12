@@ -18,7 +18,6 @@ typedef enum {
  * This is a linked list of all the attachments registered via
  * `sentry_options_add_attachment`.
  */
-typedef struct sentry_attachment_s sentry_attachment_t;
 struct sentry_attachment_s {
     sentry_path_t *path;
     sentry_attachment_type_t type;
@@ -34,15 +33,15 @@ void sentry__attachments_free(sentry_attachment_t *attachments);
 /**
  * Adds an attachment to the attachments list at `attachments_ptr`.
  */
-void sentry__attachment_add(sentry_attachment_t **attachments_ptr,
-    sentry_path_t *path, sentry_attachment_type_t attachment_type,
-    const char *content_type);
+sentry_attachment_t *sentry__attachments_add(
+    sentry_attachment_t **attachments_ptr, sentry_path_t *path,
+    sentry_attachment_type_t attachment_type, const char *content_type);
 
 /**
  * Removes an attachment from the attachments list at `attachments_ptr`.
  */
-void sentry__attachment_remove(
-    sentry_attachment_t **attachments_ptr, sentry_path_t *path);
+void sentry__attachments_remove(
+    sentry_attachment_t **attachments_ptr, sentry_attachment_t *attachment);
 
 /**
  * Extends the linked list of attachments at `attachments_ptr` with all
