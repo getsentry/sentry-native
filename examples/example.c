@@ -353,6 +353,10 @@ main(int argc, char **argv)
         sentry_options_add_view_hierarchy(options, "./view-hierarchy.json");
     }
 
+    if (has_arg(argc, argv, "enable-logs")) {
+        sentry_options_set_enable_logs(options, true);
+    }
+
     sentry_init(options);
 
     if (!has_arg(argc, argv, "no-setup")) {

@@ -75,6 +75,7 @@ struct sentry_options_s {
     double traces_sample_rate;
     sentry_traces_sampler_function traces_sampler;
     size_t max_spans;
+    bool enable_logs;
 
     /* everything from here on down are options which are stored here but
        not exposed through the options API */
