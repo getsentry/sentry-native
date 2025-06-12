@@ -296,6 +296,34 @@ sentry__envelope_add_transaction(
 }
 
 sentry_envelope_item_t *
+sentry__envelope_add_logs(sentry_envelope_t *envelope, sentry_value_t logs)
+{
+    // TODO ensure this starts out correctly; we get {dsn:...} as a header
+    //  (but don't think we need it?)
+    sentry_envelope_item_t *item = envelope_add_item(envelope);
+    if (!item) {
+        return NULL;
+    }
+
+    sentry_jsonwriter_t *jw = sentry__jsonwriter_new_sb(NULL);
+    if (!jw) {
+        return NULL;
+    }
+
+    sentry__jsonwriter_write_value(jw, logs);
+    item->payload = sentry__jsonwriter_into_string(jw, &item->payload_len);
+
+    sentry__envelope_item_set_header(
+        item, "type", sentry_value_new_string("log"));
+    sentry__envelope_item_set_header(item, "item_count",
+        sentry_value_new_int32(sentry_value_get_length(logs)));
+    sentry__envelope_item_set_header(item, "content_type",
+        sentry_value_new_string("application/vnd.sentry.items.log+json"));
+
+    return item;
+}
+
+sentry_envelope_item_t *
 sentry__envelope_add_user_feedback(
     sentry_envelope_t *envelope, sentry_value_t user_feedback)
 {

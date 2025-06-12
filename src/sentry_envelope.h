@@ -43,6 +43,12 @@ sentry_envelope_item_t *sentry__envelope_add_transaction(
     sentry_envelope_t *envelope, sentry_value_t transaction);
 
 /**
+ * Add a list of logs to this envelope.
+ */
+sentry_envelope_item_t *sentry__envelope_add_logs(
+    sentry_envelope_t *envelope, sentry_value_t logs);
+
+/**
  * Add a user feedback to this envelope.
  */
 sentry_envelope_item_t *sentry__envelope_add_user_feedback(
