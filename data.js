@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1749816303720,
+  "lastUpdate": 1749816345188,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -3534,6 +3534,66 @@ window.BENCHMARK_DATA = {
             "value": 9.96445800001311,
             "unit": "ms",
             "extra": "Min 7.783ms\nMax 14.141ms\nMean 10.431ms\nStdDev 2.304ms\nMedian 9.964ms\nCPU 1.504ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "7ab3786ad5a60b26d1e0a105faadf6b5c6183cc8",
+          "message": "feat: Support modifying attachments after init (continued) (#1266)\n\n* feat: Support modifying attachments after init\n\nMoves the attachments to the scope, and adds `sentry_add_attachment` and\n`sentry_remove_attachment` and wstr variants that modify this attachment\nlist after calling init. Attachments are identified by their path.\n\n* feat: pass added and removed attachments to the backend\n\n* add `_n`\n\n* scope api\n\n* merge & apply attachments\n\n* update note on attachments\n\n* integration tests\n\n* Update README.md\n\n* Update CHANGELOG.md\n\n* Apply suggestions from code review\n\nCo-authored-by: Mischan Toosarani-Hausberger <mischan@abovevacant.com>\n\n* remove ticks\n\n* Apply more suggestions from code review\n\n* De-duplicate envelope attachment code\n\n- remove sentry__apply_attachments_to_envelope\n- add sentry__envelope_add_attachments\n- reuse sentry__envelope_add_attachment\n\n* sentry_add_attachment -> sentry_add_attachment_path\n\n* Update CHANGELOG.md\n\n* fixup: missed rename\n\n* fixup: another missed rename\n\n* remove_attachmentw() without _path\n\n* revise sentry_attach_file & removal\n\n* fix windows\n\n* Update CHANGELOG.md\n\n* clean up\n\n* fix attachments_add_remove on windows\n\n* Update CHANGELOG.md & NOTE on attachments\n\n* Update external/crashpad\n\n---------\n\nCo-authored-by: Arpad Borsos <arpad.borsos@googlemail.com>\nCo-authored-by: Mischan Toosarani-Hausberger <mischan@abovevacant.com>",
+          "timestamp": "2025-06-13T14:02:33+02:00",
+          "tree_id": "cb94ac9185e31f5e47c7ebc651235c14006bf020",
+          "url": "https://github.com/getsentry/sentry-native/commit/7ab3786ad5a60b26d1e0a105faadf6b5c6183cc8"
+        },
+        "date": 1749816343878,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 4.520042000024205,
+            "unit": "ms",
+            "extra": "Min 3.546ms\nMax 7.042ms\nMean 4.827ms\nStdDev 1.329ms\nMedian 4.520ms\nCPU 2.710ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 4.087958000013714,
+            "unit": "ms",
+            "extra": "Min 3.600ms\nMax 5.648ms\nMean 4.520ms\nStdDev 1.002ms\nMedian 4.088ms\nCPU 2.438ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 18.04466699996965,
+            "unit": "ms",
+            "extra": "Min 12.985ms\nMax 22.993ms\nMean 18.365ms\nStdDev 3.710ms\nMedian 18.045ms\nCPU 5.600ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.03741699998727199,
+            "unit": "ms",
+            "extra": "Min 0.012ms\nMax 0.079ms\nMean 0.041ms\nStdDev 0.025ms\nMedian 0.037ms\nCPU 0.041ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.32454099999768005,
+            "unit": "ms",
+            "extra": "Min 0.239ms\nMax 0.465ms\nMean 0.325ms\nStdDev 0.089ms\nMedian 0.325ms\nCPU 0.325ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 10.775292000005265,
+            "unit": "ms",
+            "extra": "Min 7.041ms\nMax 17.472ms\nMean 11.238ms\nStdDev 3.874ms\nMedian 10.775ms\nCPU 1.199ms"
           }
         ]
       }
