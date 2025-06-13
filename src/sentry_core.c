@@ -1437,17 +1437,37 @@ sentry_attach_file(const char *path)
 sentry_attachment_t *
 sentry_attach_file_n(const char *path, size_t path_len)
 {
-    sentry_path_t *attachment_path = sentry__path_from_str_n(path, path_len);
+    sentry_attachment_t *attachment
+        = sentry__attachment_from_path(sentry__path_from_str_n(path, path_len));
     SENTRY_WITH_OPTIONS (options) {
         if (options->backend && options->backend->add_attachment_func) {
             options->backend->add_attachment_func(
-                options->backend, attachment_path);
+                options->backend, attachment->path);
         }
     }
-    sentry_attachment_t *attachment = NULL;
     SENTRY_WITH_SCOPE_MUT (scope) {
         attachment = sentry__attachments_add(
-            &scope->attachments, attachment_path, ATTACHMENT, NULL);
+            &scope->attachments, attachment, ATTACHMENT, NULL);
+    }
+    return attachment;
+}
+
+sentry_attachment_t *
+sentry_attach_bytes(const char *buf, size_t buf_len, const char *filename)
+{
+    return sentry_attach_bytes_n(
+        buf, buf_len, filename, sentry__guarded_strlen(filename));
+}
+
+sentry_attachment_t *
+sentry_attach_bytes_n(
+    const char *buf, size_t buf_len, const char *filename, size_t filename_len)
+{
+    sentry_attachment_t *attachment = sentry__attachment_from_buffer(
+        buf, buf_len, sentry__path_from_str_n(filename, filename_len));
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        attachment = sentry__attachments_add(
+            &scope->attachments, attachment, ATTACHMENT, NULL);
     }
     return attachment;
 }
@@ -1477,17 +1497,37 @@ sentry_attach_filew(const wchar_t *path)
 sentry_attachment_t *
 sentry_attach_filew_n(const wchar_t *path, size_t path_len)
 {
-    sentry_path_t *attachment_path = sentry__path_from_wstr_n(path, path_len);
+    sentry_attachment_t *attachment = sentry__attachment_from_path(
+        sentry__path_from_wstr_n(path, path_len));
     SENTRY_WITH_OPTIONS (options) {
         if (options->backend && options->backend->add_attachment_func) {
             options->backend->add_attachment_func(
-                options->backend, attachment_path);
+                options->backend, attachment->path);
         }
     }
-    sentry_attachment_t *attachment = NULL;
     SENTRY_WITH_SCOPE_MUT (scope) {
         attachment = sentry__attachments_add(
-            &scope->attachments, attachment_path, ATTACHMENT, NULL);
+            &scope->attachments, attachment, ATTACHMENT, NULL);
+    }
+    return attachment;
+}
+
+sentry_attachment_t *
+sentry_attach_bytesw(const char *buf, size_t buf_len, const wchar_t *filename)
+{
+    size_t filename_len = filename ? wcslen(filename) : 0;
+    return sentry_attach_bytesw_n(buf, buf_len, filename, filename_len);
+}
+
+sentry_attachment_t *
+sentry_attach_bytesw_n(const char *buf, size_t buf_len, const wchar_t *filename,
+    size_t filename_len)
+{
+    sentry_attachment_t *attachment = sentry__attachment_from_buffer(
+        buf, buf_len, sentry__path_from_wstr_n(filename, filename_len));
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        attachment = sentry__attachments_add(
+            &scope->attachments, attachment, ATTACHMENT, NULL);
     }
     return attachment;
 }
