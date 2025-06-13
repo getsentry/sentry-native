@@ -307,3 +307,60 @@ SENTRY_TEST(attachments_extend)
     sentry__path_free(path_c);
     sentry__path_free(path_d);
 }
+
+SENTRY_TEST(attachment_content_type)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_init(options);
+
+    sentry_path_t *path_txt
+        = sentry__path_from_str(SENTRY_TEST_PATH_PREFIX ".a.txt");
+    sentry_path_t *path_html
+        = sentry__path_from_str(SENTRY_TEST_PATH_PREFIX ".b.html");
+    sentry_path_t *path_c = sentry__path_from_str(SENTRY_TEST_PATH_PREFIX ".c");
+
+    sentry__path_write_buffer(path_txt, "plain", 5);
+    sentry__path_write_buffer(path_html, "<html/>", 7);
+    sentry__path_write_buffer(path_c, "int main() {}", 13);
+
+    sentry_attachment_t *attachment_txt
+        = sentry_attach_file(SENTRY_TEST_PATH_PREFIX ".a.txt");
+    sentry_attachment_set_content_type(attachment_txt, "text/plain");
+
+    sentry_attachment_t *attachment_html
+        = sentry_attach_file(SENTRY_TEST_PATH_PREFIX ".b.html");
+    sentry_attachment_set_content_type(attachment_html, "text/html");
+
+    sentry_attachment_t *attachment_c
+        = sentry_attach_file(SENTRY_TEST_PATH_PREFIX ".c");
+    sentry_attachment_set_content_type(attachment_c, NULL);
+
+    SENTRY_WITH_SCOPE (scope) {
+        sentry_envelope_t *envelope = sentry__envelope_new();
+        sentry__envelope_add_attachments(envelope, scope->attachments);
+
+        char *serialized = sentry_envelope_serialize(envelope, NULL);
+        TEST_CHECK_STRING_EQUAL(serialized,
+            "{}\n"
+            "{\"type\":\"attachment\",\"length\":5,\"content_type\":\"text/"
+            "plain\","
+            "\"filename\":\".a.txt\"}\nplain\n"
+            "{\"type\":\"attachment\",\"length\":7,\"content_type\":\"text/"
+            "html\","
+            "\"filename\":\".b.html\"}\n<html/>"
+            "\n{\"type\":\"attachment\",\"length\":13,\"filename\":\".c\"}\n"
+            "int main() {}");
+        sentry_free(serialized);
+        sentry_envelope_free(envelope);
+    }
+
+    sentry_close();
+
+    sentry__path_remove(path_txt);
+    sentry__path_remove(path_html);
+    sentry__path_remove(path_c);
+
+    sentry__path_free(path_txt);
+    sentry__path_free(path_html);
+    sentry__path_free(path_c);
+}
