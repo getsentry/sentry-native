@@ -2,6 +2,7 @@ extern "C" {
 #include "sentry_boot.h"
 
 #include "sentry_alloc.h"
+#include "sentry_attachment.h"
 #include "sentry_backend.h"
 #include "sentry_core.h"
 #include "sentry_database.h"
@@ -169,8 +170,8 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
                 sentry_path_t *screenshot_path
                     = sentry__screenshot_get_path(options);
                 if (sentry__screenshot_capture(screenshot_path)) {
-                    sentry__envelope_add_attachment(
-                        envelope, screenshot_path, ATTACHMENT, nullptr);
+                    sentry__envelope_add_attachment(envelope,
+                        sentry__attachment_from_path(screenshot_path));
                 }
                 sentry__path_free(screenshot_path);
             }
