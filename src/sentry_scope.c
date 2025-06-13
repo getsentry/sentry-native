@@ -691,15 +691,15 @@ sentry_scope_attach_file_n(
 }
 
 sentry_attachment_t *
-sentry_scope_attach_buffer(sentry_scope_t *scope, const char *buf,
+sentry_scope_attach_bytes(sentry_scope_t *scope, const char *buf,
     size_t buf_len, const char *filename)
 {
-    return sentry_scope_attach_buffer_n(
+    return sentry_scope_attach_bytes_n(
         scope, buf, buf_len, filename, sentry__guarded_strlen(filename));
 }
 
 sentry_attachment_t *
-sentry_scope_attach_buffer_n(sentry_scope_t *scope, const char *buf,
+sentry_scope_attach_bytes_n(sentry_scope_t *scope, const char *buf,
     size_t buf_len, const char *filename, size_t filename_len)
 {
     sentry_attachment_t *attachment = sentry__attachment_from_buffer(
@@ -727,16 +727,16 @@ sentry_scope_attach_filew_n(
 }
 
 sentry_attachment_t *
-sentry_scope_attach_bufferw(sentry_scope_t *scope, const char *buf,
+sentry_scope_attach_bytesw(sentry_scope_t *scope, const char *buf,
     size_t buf_len, const wchar_t *filename)
 {
     size_t filename_len = filename ? wcslen(filename) : 0;
-    return sentry_scope_attach_bufferw_n(
+    return sentry_scope_attach_bytesw_n(
         scope, buf, buf_len, filename, filename_len);
 }
 
 sentry_attachment_t *
-sentry_scope_attach_bufferw_n(sentry_scope_t *scope, const char *buf,
+sentry_scope_attach_bytesw_n(sentry_scope_t *scope, const char *buf,
     size_t buf_len, const wchar_t *filename, size_t filename_len)
 {
     sentry_attachment_t *attachment = sentry__attachment_from_buffer(

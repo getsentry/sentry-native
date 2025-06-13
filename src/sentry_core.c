@@ -1453,14 +1453,14 @@ sentry_attach_file_n(const char *path, size_t path_len)
 }
 
 sentry_attachment_t *
-sentry_attach_buffer(const char *buf, size_t buf_len, const char *filename)
+sentry_attach_bytes(const char *buf, size_t buf_len, const char *filename)
 {
-    return sentry_attach_buffer_n(
+    return sentry_attach_bytes_n(
         buf, buf_len, filename, sentry__guarded_strlen(filename));
 }
 
 sentry_attachment_t *
-sentry_attach_buffer_n(
+sentry_attach_bytes_n(
     const char *buf, size_t buf_len, const char *filename, size_t filename_len)
 {
     sentry_attachment_t *attachment = sentry__attachment_from_buffer(
@@ -1513,15 +1513,15 @@ sentry_attach_filew_n(const wchar_t *path, size_t path_len)
 }
 
 sentry_attachment_t *
-sentry_attach_bufferw(const char *buf, size_t buf_len, const wchar_t *filename)
+sentry_attach_bytesw(const char *buf, size_t buf_len, const wchar_t *filename)
 {
     size_t filename_len = filename ? wcslen(filename) : 0;
-    return sentry_attach_bufferw_n(buf, buf_len, filename, filename_len);
+    return sentry_attach_bytesw_n(buf, buf_len, filename, filename_len);
 }
 
 sentry_attachment_t *
-sentry_attach_bufferw_n(const char *buf, size_t buf_len,
-    const wchar_t *filename, size_t filename_len)
+sentry_attach_bytesw_n(const char *buf, size_t buf_len, const wchar_t *filename,
+    size_t filename_len)
 {
     sentry_attachment_t *attachment = sentry__attachment_from_buffer(
         buf, buf_len, sentry__path_from_wstr_n(filename, filename_len));

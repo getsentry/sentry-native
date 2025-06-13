@@ -319,10 +319,9 @@ SENTRY_TEST(attachments_buffer)
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_init(options);
 
-    sentry_attachment_t *attachment_a = sentry_attach_buffer("a", 1, ".a.txt");
-    sentry_attachment_t *attachment_b = sentry_attach_buffer("bb", 2, ".b.txt");
-    sentry_attachment_t *attachment_c
-        = sentry_attach_buffer("ccc", 3, ".c.txt");
+    sentry_attachment_t *attachment_a = sentry_attach_bytes("a", 1, ".a.txt");
+    sentry_attachment_t *attachment_b = sentry_attach_bytes("bb", 2, ".b.txt");
+    sentry_attachment_t *attachment_c = sentry_attach_bytes("ccc", 3, ".c.txt");
 
     SENTRY_WITH_SCOPE (scope) {
         sentry_envelope_t *envelope = sentry__envelope_new();

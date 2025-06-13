@@ -1817,8 +1817,8 @@ SENTRY_API sentry_attachment_t *sentry_scope_attach_file_n(
  * Adds a new in-memory data buffer attachment to be sent along.
  *
  * `filename` is assumed to be in platform-specific filesystem path encoding.
- * API Users on windows are encouraged to use `sentry_attach_bufferw` or
- * `sentry_scope_attach_bufferw` instead.
+ * API Users on windows are encouraged to use `sentry_attach_bytesw` or
+ * `sentry_scope_attach_bytesw` instead.
  *
  * The returned `sentry_attachment_t` is owned by the SDK and will remain valid
  * until the attachment is removed with `sentry_remove_attachment` or
@@ -1826,14 +1826,13 @@ SENTRY_API sentry_attachment_t *sentry_scope_attach_file_n(
  *
  * See the NOTE on attachments above for restrictions of this API.
  */
-SENTRY_API sentry_attachment_t *sentry_attach_buffer(
+SENTRY_API sentry_attachment_t *sentry_attach_bytes(
     const char *buf, size_t buf_len, const char *filename);
-SENTRY_API sentry_attachment_t *sentry_attach_buffer_n(
+SENTRY_API sentry_attachment_t *sentry_attach_bytes_n(
     const char *buf, size_t buf_len, const char *filename, size_t filename_len);
-SENTRY_API sentry_attachment_t *sentry_scope_attach_buffer(
-    sentry_scope_t *scope, const char *buf, size_t buf_len,
-    const char *filename);
-SENTRY_API sentry_attachment_t *sentry_scope_attach_buffer_n(
+SENTRY_API sentry_attachment_t *sentry_scope_attach_bytes(sentry_scope_t *scope,
+    const char *buf, size_t buf_len, const char *filename);
+SENTRY_API sentry_attachment_t *sentry_scope_attach_bytes_n(
     sentry_scope_t *scope, const char *buf, size_t buf_len,
     const char *filename, size_t filename_len);
 
@@ -1857,17 +1856,16 @@ SENTRY_API sentry_attachment_t *sentry_scope_attach_filew_n(
     sentry_scope_t *scope, const wchar_t *path, size_t path_len);
 
 /**
- * Wide char versions of `sentry_attach_buffer` and
- * `sentry_scope_attach_buffer`.
+ * Wide char versions of `sentry_attach_bytes` and `sentry_scope_attach_bytes`.
  */
-SENTRY_API sentry_attachment_t *sentry_attach_bufferw(
+SENTRY_API sentry_attachment_t *sentry_attach_bytesw(
     const char *buf, size_t buf_len, const wchar_t *filename);
-SENTRY_API sentry_attachment_t *sentry_attach_bufferw_n(const char *buf,
+SENTRY_API sentry_attachment_t *sentry_attach_bytesw_n(const char *buf,
     size_t buf_len, const wchar_t *filename, size_t filename_len);
-SENTRY_API sentry_attachment_t *sentry_scope_attach_bufferw(
+SENTRY_API sentry_attachment_t *sentry_scope_attach_bytesw(
     sentry_scope_t *scope, const char *buf, size_t buf_len,
     const wchar_t *filename);
-SENTRY_API sentry_attachment_t *sentry_scope_attach_bufferw_n(
+SENTRY_API sentry_attachment_t *sentry_scope_attach_bytesw_n(
     sentry_scope_t *scope, const char *buf, size_t buf_len,
     const wchar_t *filename, size_t filename_len);
 #endif
