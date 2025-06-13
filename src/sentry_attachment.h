@@ -20,10 +20,17 @@ typedef enum {
  */
 struct sentry_attachment_s {
     sentry_path_t *path;
+    char *buf;
+    size_t buf_len;
     sentry_attachment_type_t type;
     char *content_type;
+    sentry_uuid_t uuid;
     sentry_attachment_t *next;
 };
+
+sentry_attachment_t *sentry__attachment_from_path(sentry_path_t *path);
+sentry_attachment_t *sentry__attachment_from_buffer(
+    const char *buf, size_t buf_len, sentry_path_t *filename);
 
 /**
  * Frees the linked list of `attachments`.
@@ -34,7 +41,7 @@ void sentry__attachments_free(sentry_attachment_t *attachments);
  * Adds an attachment to the attachments list at `attachments_ptr`.
  */
 sentry_attachment_t *sentry__attachments_add(
-    sentry_attachment_t **attachments_ptr, sentry_path_t *path,
+    sentry_attachment_t **attachments_ptr, sentry_attachment_t *attachment,
     sentry_attachment_type_t attachment_type, const char *content_type);
 
 /**

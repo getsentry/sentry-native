@@ -3,6 +3,8 @@
 #include "sentry_path.h"
 #include "sentry_string.h"
 
+#include <string.h>
+
 void
 sentry_attachment_set_content_type(
     sentry_attachment_t *attachment, const char *content_type)
@@ -24,6 +26,41 @@ sentry_attachment_set_content_type_n(sentry_attachment_t *attachment,
         = sentry__string_clone_n(content_type, content_type_len);
 }
 
+sentry_attachment_t *
+sentry__attachment_from_path(sentry_path_t *path)
+{
+    if (!path) {
+        return NULL;
+    }
+    sentry_attachment_t *attachment = SENTRY_MAKE(sentry_attachment_t);
+    if (!attachment) {
+        sentry__path_free(path);
+        return NULL;
+    }
+    memset(attachment, 0, sizeof(sentry_attachment_t));
+    attachment->path = path;
+    attachment->uuid = sentry_uuid_new_v4();
+    return attachment;
+}
+
+sentry_attachment_t *
+sentry__attachment_from_buffer(
+    const char *buf, size_t buf_len, sentry_path_t *filename)
+{
+    if (!buf || !buf_len || !filename) {
+        sentry__path_free(filename);
+        return NULL;
+    }
+    sentry_attachment_t *attachment = sentry__attachment_from_path(filename);
+    if (!attachment) {
+        return NULL;
+    }
+    attachment->buf = sentry_malloc(buf_len * sizeof(char));
+    memcpy(attachment->buf, buf, buf_len * sizeof(char));
+    attachment->buf_len = buf_len;
+    return attachment;
+}
+
 static void
 attachment_free(sentry_attachment_t *attachment)
 {
@@ -31,6 +68,7 @@ attachment_free(sentry_attachment_t *attachment)
         return;
     }
     sentry__path_free(attachment->path);
+    sentry_free(attachment->buf);
     sentry_free(attachment->content_type);
     sentry_free(attachment);
 }
@@ -47,28 +85,34 @@ sentry__attachments_free(sentry_attachment_t *attachments)
     }
 }
 
+static bool
+attachment_eq(const sentry_attachment_t *a, const sentry_attachment_t *b)
+{
+    if (a == b) {
+        return true;
+    }
+    if (!a || !b || !a->path || !b->path || a->type != b->type
+        || a->content_type != b->content_type) {
+        return false;
+    }
+    return sentry__path_eq(a->path, b->path);
+}
+
 sentry_attachment_t *
 sentry__attachments_add(sentry_attachment_t **attachments_ptr,
-    sentry_path_t *path, sentry_attachment_type_t attachment_type,
+    sentry_attachment_t *attachment, sentry_attachment_type_t attachment_type,
     const char *content_type)
 {
-    if (!path) {
-        return NULL;
-    }
-    sentry_attachment_t *attachment = SENTRY_MAKE(sentry_attachment_t);
     if (!attachment) {
-        sentry__path_free(path);
         return NULL;
     }
-    attachment->path = path;
-    attachment->next = NULL;
     attachment->type = attachment_type;
     attachment->content_type = sentry__string_clone(content_type);
 
     sentry_attachment_t **next_ptr = attachments_ptr;
 
     for (sentry_attachment_t *it = *attachments_ptr; it; it = it->next) {
-        if (sentry__path_eq(it->path, path)) {
+        if (attachment_eq(it, attachment)) {
             attachment_free(attachment);
             return it;
         }
@@ -91,7 +135,7 @@ sentry__attachments_remove(
     sentry_attachment_t **next_ptr = attachments_ptr;
 
     for (sentry_attachment_t *it = *attachments_ptr; it; it = it->next) {
-        if (it == attachment || sentry__path_eq(it->path, attachment->path)) {
+        if (attachment_eq(it, attachment)) {
             *next_ptr = it->next;
             attachment_free(it);
             return;
@@ -101,12 +145,44 @@ sentry__attachments_remove(
     }
 }
 
+static sentry_attachment_t *
+attachment_clone(const sentry_attachment_t *attachment)
+{
+    if (!attachment) {
+        return NULL;
+    }
+
+    sentry_attachment_t *clone = SENTRY_MAKE(sentry_attachment_t);
+    if (!clone) {
+        return NULL;
+    }
+    memset(clone, 0, sizeof(sentry_attachment_t));
+
+    if (attachment->path) {
+        clone->path = sentry__path_clone(attachment->path);
+    }
+    if (attachment->buf_len > 0) {
+        clone->buf_len = attachment->buf_len;
+        clone->buf = sentry_malloc(attachment->buf_len * sizeof(char));
+        if (!clone->buf) {
+            attachment_free(clone);
+            return NULL;
+        }
+        memcpy(clone->buf, attachment->buf, attachment->buf_len * sizeof(char));
+    }
+    clone->type = attachment->type;
+    clone->content_type = attachment->content_type;
+    clone->uuid = attachment->uuid;
+
+    return clone;
+}
+
 void
 sentry__attachments_extend(
     sentry_attachment_t **attachments_ptr, sentry_attachment_t *attachments)
 {
     for (sentry_attachment_t *it = attachments; it; it = it->next) {
-        sentry__attachments_add(attachments_ptr, sentry__path_clone(it->path),
-            it->type, it->content_type);
+        sentry__attachments_add(
+            attachments_ptr, attachment_clone(it), it->type, it->content_type);
     }
 }

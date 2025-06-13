@@ -662,26 +662,52 @@ crashpad_backend_prune_database(sentry_backend_t *backend)
 }
 
 #if defined(SENTRY_PLATFORM_WINDOWS) || defined(SENTRY_PLATFORM_LINUX)
+static crashpad::UUID
+to_crashpad_uuid(const sentry_uuid_t *uuid)
+{
+    char str[37];
+    sentry_uuid_as_string(uuid, str);
+
+    crashpad::UUID rv;
+    rv.InitializeFromString(str);
+    return rv;
+}
+
+static crashpad::Attachment
+to_crashpad_attachment(const sentry_attachment_t *attachment)
+{
+    if (attachment->buf) {
+        uint8_t *buf = reinterpret_cast<uint8_t *>(attachment->buf);
+        return crashpad::Attachment(
+            std::vector<uint8_t>(buf, buf + attachment->buf_len),
+            base::FilePath(attachment->path->path),
+            to_crashpad_uuid(&attachment->uuid));
+    }
+
+    return crashpad::Attachment(base::FilePath(attachment->path->path),
+        to_crashpad_uuid(&attachment->uuid));
+}
+
 static void
 crashpad_backend_add_attachment(
-    sentry_backend_t *backend, const sentry_path_t *attachment)
+    sentry_backend_t *backend, const sentry_attachment_t *attachment)
 {
     auto *data = static_cast<crashpad_state_t *>(backend->data);
     if (!data || !data->client) {
         return;
     }
-    data->client->AddAttachment(base::FilePath(attachment->path));
+    data->client->AddAttachment(to_crashpad_attachment(attachment));
 }
 
 static void
 crashpad_backend_remove_attachment(
-    sentry_backend_t *backend, const sentry_path_t *attachment)
+    sentry_backend_t *backend, const sentry_attachment_t *attachment)
 {
     auto *data = static_cast<crashpad_state_t *>(backend->data);
     if (!data || !data->client) {
         return;
     }
-    data->client->RemoveAttachment(base::FilePath(attachment->path));
+    data->client->RemoveAttachment(to_crashpad_uuid(&attachment->uuid));
 }
 #endif
 
