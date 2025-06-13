@@ -1861,15 +1861,15 @@ SENTRY_API sentry_attachment_t *sentry_scope_attach_filew_n(
  * `sentry_scope_attach_buffer`.
  */
 SENTRY_API sentry_attachment_t *sentry_attach_bufferw(
-    const char *buf, size_t buf_len, const wchar *filename);
+    const char *buf, size_t buf_len, const wchar_t *filename);
 SENTRY_API sentry_attachment_t *sentry_attach_bufferw_n(const char *buf,
-    size_t buf_len, const wchar *filename, size_t filename_len);
+    size_t buf_len, const wchar_t *filename, size_t filename_len);
 SENTRY_API sentry_attachment_t *sentry_scope_attach_bufferw(
     sentry_scope_t *scope, const char *buf, size_t buf_len,
-    const wchar *filename);
+    const wchar_t *filename);
 SENTRY_API sentry_attachment_t *sentry_scope_attach_bufferw_n(
     sentry_scope_t *scope, const char *buf, size_t buf_len,
-    const wchar *filename, size_t filename_len);
+    const wchar_t *filename, size_t filename_len);
 #endif
 
 /* -- Session APIs -- */
