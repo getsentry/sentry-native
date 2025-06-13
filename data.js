@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1749808414179,
+  "lastUpdate": 1749808453704,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -3414,6 +3414,66 @@ window.BENCHMARK_DATA = {
             "value": 10.79858400004241,
             "unit": "ms",
             "extra": "Min 9.541ms\nMax 26.964ms\nMean 14.451ms\nStdDev 7.257ms\nMedian 10.799ms\nCPU 1.400ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "mischan@abovevacant.com",
+            "name": "Mischan Toosarani-Hausberger",
+            "username": "supervacuus"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "1bf8db1646a8e6d3b497f3d173368192b75e05ba",
+          "message": "ci: drop windows-2019 runner images (#1274)",
+          "timestamp": "2025-06-13T11:51:12+02:00",
+          "tree_id": "732b83a0139c34a3b7fdfcb4247c8600cd7022b6",
+          "url": "https://github.com/getsentry/sentry-native/commit/1bf8db1646a8e6d3b497f3d173368192b75e05ba"
+        },
+        "date": 1749808452075,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 3.2723750000513974,
+            "unit": "ms",
+            "extra": "Min 2.704ms\nMax 4.173ms\nMean 3.410ms\nStdDev 0.645ms\nMedian 3.272ms\nCPU 1.929ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 3.5186659999908443,
+            "unit": "ms",
+            "extra": "Min 3.036ms\nMax 4.255ms\nMean 3.533ms\nStdDev 0.482ms\nMedian 3.519ms\nCPU 2.129ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 16.86683399998401,
+            "unit": "ms",
+            "extra": "Min 13.015ms\nMax 22.553ms\nMean 17.114ms\nStdDev 3.687ms\nMedian 16.867ms\nCPU 5.229ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.04012499994132668,
+            "unit": "ms",
+            "extra": "Min 0.031ms\nMax 0.045ms\nMean 0.038ms\nStdDev 0.007ms\nMedian 0.040ms\nCPU 0.037ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.19466599997031153,
+            "unit": "ms",
+            "extra": "Min 0.148ms\nMax 0.363ms\nMean 0.226ms\nStdDev 0.082ms\nMedian 0.195ms\nCPU 0.225ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 9.96445800001311,
+            "unit": "ms",
+            "extra": "Min 7.783ms\nMax 14.141ms\nMean 10.431ms\nStdDev 2.304ms\nMedian 9.964ms\nCPU 1.504ms"
           }
         ]
       }
