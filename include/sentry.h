@@ -16,11 +16,11 @@
  *
  * NOTE on attachments:
  *
- * Attachments are read lazily at the time of `sentry_capture_event` or at time
- * of a hard crash. Relative attachment paths will be resolved according to the
- * current working directory at the time of envelope creation.
- * When adding and removing attachments, they are matched according to their
- * given `path`. No normalization is performed.
+ * Attachments are read lazily at the time of `sentry_capture_event`,
+ * `sentry_capture_event_with_scope`, or at time of a hard crash. Relative
+ * attachment paths will be resolved according to the current working directory
+ * at the time of envelope creation. When adding and removing attachments, they
+ * are matched according to their given `path`. No normalization is performed.
  * When using the `crashpad` backend on macOS, the list of attachments that will
  * be added at the time of a hard crash will be frozen at the time of
  * `sentry_init`, and later modifications will not be reflected.
