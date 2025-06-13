@@ -320,8 +320,10 @@ SENTRY_TEST(attachments_buffer)
     sentry_init(options);
 
     sentry_attachment_t *attachment_a = sentry_attach_bytes("a", 1, ".a.txt");
-    sentry_attachment_t *attachment_b = sentry_attach_bytes("bb", 2, ".b.txt");
-    sentry_attachment_t *attachment_c = sentry_attach_bytes("ccc", 3, ".c.txt");
+    sentry_attachment_t *attachment_b
+        = sentry_attach_bytes("b\0b", 3, ".b.txt");
+    sentry_attachment_t *attachment_c
+        = sentry_attach_bytes("c\0c\0c", 5, ".c.txt");
 
     SENTRY_WITH_SCOPE (scope) {
         sentry_envelope_t *envelope = sentry__envelope_new();
@@ -332,10 +334,10 @@ SENTRY_TEST(attachments_buffer)
             "{}\n"
             "{\"type\":\"attachment\",\"length\":1,\"filename\":\".a.txt\"}"
             "\na\n"
-            "{\"type\":\"attachment\",\"length\":2,\"filename\":\".b.txt\"}"
-            "\nbb\n"
-            "{\"type\":\"attachment\",\"length\":3,\"filename\":\".c.txt\"}"
-            "\nccc");
+            "{\"type\":\"attachment\",\"length\":3,\"filename\":\".b.txt\"}"
+            "\nb\0b\n"
+            "{\"type\":\"attachment\",\"length\":5,\"filename\":\".c.txt\"}"
+            "\nc\0c\0c");
         sentry_free(serialized);
 
         sentry_envelope_free(envelope);
@@ -352,8 +354,8 @@ SENTRY_TEST(attachments_buffer)
             "{}\n"
             "{\"type\":\"attachment\",\"length\":1,\"filename\":\".a.txt\"}"
             "\na\n"
-            "{\"type\":\"attachment\",\"length\":3,\"filename\":\".c.txt\"}"
-            "\nccc");
+            "{\"type\":\"attachment\",\"length\":5,\"filename\":\".c.txt\"}"
+            "\nc\0c\0c");
         sentry_free(serialized);
 
         sentry_envelope_free(envelope);
