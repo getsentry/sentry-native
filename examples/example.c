@@ -399,6 +399,12 @@ main(int argc, char **argv)
         sentry_set_trace(direct_trace_id, direct_parent_span_id);
     }
 
+    if (has_arg(argc, argv, "attach-after-init")) {
+        // assuming the example / test is run directly from the cmake build
+        // directory
+        sentry_attach_file("./CMakeCache.txt");
+    }
+
     if (has_arg(argc, argv, "start-session")) {
         sentry_start_session();
     }
@@ -423,6 +429,12 @@ main(int argc, char **argv)
 
         sentry_value_t debug_crumb = create_debug_crumb("scoped crumb");
         sentry_scope_add_breadcrumb(scope, debug_crumb);
+
+        if (has_arg(argc, argv, "attach-to-scope")) {
+            // assuming the example / test is run directly from the cmake build
+            // directory
+            sentry_scope_attach_file(scope, "./CMakeCache.txt");
+        }
 
         sentry_capture_event_with_scope(event, scope);
     }
