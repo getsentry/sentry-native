@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1749816345188,
+  "lastUpdate": 1749816430724,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -5332,6 +5332,66 @@ window.BENCHMARK_DATA = {
             "value": 10.487099999977545,
             "unit": "ms",
             "extra": "Min 9.980ms\nMax 10.960ms\nMean 10.518ms\nStdDev 0.420ms\nMedian 10.487ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "7ab3786ad5a60b26d1e0a105faadf6b5c6183cc8",
+          "message": "feat: Support modifying attachments after init (continued) (#1266)\n\n* feat: Support modifying attachments after init\n\nMoves the attachments to the scope, and adds `sentry_add_attachment` and\n`sentry_remove_attachment` and wstr variants that modify this attachment\nlist after calling init. Attachments are identified by their path.\n\n* feat: pass added and removed attachments to the backend\n\n* add `_n`\n\n* scope api\n\n* merge & apply attachments\n\n* update note on attachments\n\n* integration tests\n\n* Update README.md\n\n* Update CHANGELOG.md\n\n* Apply suggestions from code review\n\nCo-authored-by: Mischan Toosarani-Hausberger <mischan@abovevacant.com>\n\n* remove ticks\n\n* Apply more suggestions from code review\n\n* De-duplicate envelope attachment code\n\n- remove sentry__apply_attachments_to_envelope\n- add sentry__envelope_add_attachments\n- reuse sentry__envelope_add_attachment\n\n* sentry_add_attachment -> sentry_add_attachment_path\n\n* Update CHANGELOG.md\n\n* fixup: missed rename\n\n* fixup: another missed rename\n\n* remove_attachmentw() without _path\n\n* revise sentry_attach_file & removal\n\n* fix windows\n\n* Update CHANGELOG.md\n\n* clean up\n\n* fix attachments_add_remove on windows\n\n* Update CHANGELOG.md & NOTE on attachments\n\n* Update external/crashpad\n\n---------\n\nCo-authored-by: Arpad Borsos <arpad.borsos@googlemail.com>\nCo-authored-by: Mischan Toosarani-Hausberger <mischan@abovevacant.com>",
+          "timestamp": "2025-06-13T14:02:33+02:00",
+          "tree_id": "cb94ac9185e31f5e47c7ebc651235c14006bf020",
+          "url": "https://github.com/getsentry/sentry-native/commit/7ab3786ad5a60b26d1e0a105faadf6b5c6183cc8"
+        },
+        "date": 1749816418230,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 7.112600000027669,
+            "unit": "ms",
+            "extra": "Min 6.979ms\nMax 7.785ms\nMean 7.262ms\nStdDev 0.331ms\nMedian 7.113ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 7.269100000030448,
+            "unit": "ms",
+            "extra": "Min 7.197ms\nMax 7.346ms\nMean 7.271ms\nStdDev 0.063ms\nMedian 7.269ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 17.21739999993588,
+            "unit": "ms",
+            "extra": "Min 16.987ms\nMax 17.570ms\nMean 17.239ms\nStdDev 0.244ms\nMedian 17.217ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.00959999988481286,
+            "unit": "ms",
+            "extra": "Min 0.009ms\nMax 0.012ms\nMean 0.010ms\nStdDev 0.001ms\nMedian 0.010ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.3127999998469022,
+            "unit": "ms",
+            "extra": "Min 0.305ms\nMax 0.342ms\nMean 0.319ms\nStdDev 0.015ms\nMedian 0.313ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 9.250600000086706,
+            "unit": "ms",
+            "extra": "Min 9.028ms\nMax 9.420ms\nMean 9.247ms\nStdDev 0.146ms\nMedian 9.251ms"
           }
         ]
       }
