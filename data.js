@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1749808453704,
+  "lastUpdate": 1749808580786,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -5152,6 +5152,66 @@ window.BENCHMARK_DATA = {
             "value": 9.36890000002677,
             "unit": "ms",
             "extra": "Min 9.207ms\nMax 9.515ms\nMean 9.347ms\nStdDev 0.116ms\nMedian 9.369ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "mischan@abovevacant.com",
+            "name": "Mischan Toosarani-Hausberger",
+            "username": "supervacuus"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "1bf8db1646a8e6d3b497f3d173368192b75e05ba",
+          "message": "ci: drop windows-2019 runner images (#1274)",
+          "timestamp": "2025-06-13T11:51:12+02:00",
+          "tree_id": "732b83a0139c34a3b7fdfcb4247c8600cd7022b6",
+          "url": "https://github.com/getsentry/sentry-native/commit/1bf8db1646a8e6d3b497f3d173368192b75e05ba"
+        },
+        "date": 1749808568805,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 8.146900000042478,
+            "unit": "ms",
+            "extra": "Min 7.824ms\nMax 8.813ms\nMean 8.234ms\nStdDev 0.423ms\nMedian 8.147ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 8.513799999946059,
+            "unit": "ms",
+            "extra": "Min 8.259ms\nMax 8.871ms\nMean 8.521ms\nStdDev 0.260ms\nMedian 8.514ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 21.51699999990342,
+            "unit": "ms",
+            "extra": "Min 20.260ms\nMax 21.897ms\nMean 21.275ms\nStdDev 0.677ms\nMedian 21.517ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.017500000012660166,
+            "unit": "ms",
+            "extra": "Min 0.016ms\nMax 0.023ms\nMean 0.018ms\nStdDev 0.003ms\nMedian 0.018ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.3534999999601496,
+            "unit": "ms",
+            "extra": "Min 0.335ms\nMax 0.456ms\nMean 0.370ms\nStdDev 0.049ms\nMedian 0.353ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 10.487099999977545,
+            "unit": "ms",
+            "extra": "Min 9.980ms\nMax 10.960ms\nMean 10.518ms\nStdDev 0.420ms\nMedian 10.487ms"
           }
         ]
       }
