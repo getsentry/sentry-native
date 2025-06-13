@@ -377,3 +377,35 @@ SENTRY_TEST(attachments_buffer)
 
     sentry_close();
 }
+
+SENTRY_TEST(attachment_content_type)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_init(options);
+
+    sentry_attachment_t *text_plain = sentry_attach_bytes("abc", 3, "foo.txt");
+    sentry_attachment_set_content_type(text_plain, "text/plain");
+
+    sentry_attachment_t *text_html
+        = sentry_attach_bytes("<html/>", 7, "bar.html");
+    sentry_attachment_set_content_type(text_html, "text/html");
+
+    SENTRY_WITH_SCOPE (scope) {
+        sentry_envelope_t *envelope = sentry__envelope_new();
+        sentry__envelope_add_attachments(envelope, scope->attachments);
+
+        char *serialized = sentry_envelope_serialize(envelope, NULL);
+        TEST_CHECK_STRING_EQUAL(serialized,
+            "{}\n"
+            "{\"type\":\"attachment\",\"length\":3,\"content_type\":\"text/"
+            "plain\","
+            "\"filename\":\"foo.txt\"}\nabc\n"
+            "{\"type\":\"attachment\",\"length\":7,\"content_type\":\"text/"
+            "html\","
+            "\"filename\":\"bar.html\"}\n<html/>");
+        sentry_free(serialized);
+        sentry_envelope_free(envelope);
+    }
+
+    sentry_close();
+}

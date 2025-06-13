@@ -1870,6 +1870,9 @@ SENTRY_API sentry_attachment_t *sentry_scope_attach_bytesw_n(
     const wchar_t *filename, size_t filename_len);
 #endif
 
+SENTRY_API void sentry_attachment_set_content_type(
+    sentry_attachment_t *attachment, const char *content_type);
+
 /* -- Session APIs -- */
 
 typedef enum {
