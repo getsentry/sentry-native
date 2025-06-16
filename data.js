@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1749821267225,
+  "lastUpdate": 1750069275182,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -1856,6 +1856,66 @@ window.BENCHMARK_DATA = {
             "value": 1.8075410000051306,
             "unit": "ms",
             "extra": "Min 1.791ms\nMax 1.872ms\nMean 1.818ms\nStdDev 0.031ms\nMedian 1.808ms\nCPU 0.543ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "6349682+vaind@users.noreply.github.com",
+            "name": "Ivan Dlugos",
+            "username": "vaind"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "931c468cb6dcb8856c60cd113ef044d9881ef62e",
+          "message": "test: define individual unit tests for CTEST (#1244)\n\n* test: define individual unit tests for CTEST\n\n* chore: add SENTRY_CTEST_INDIVIDUAL option\n\n* rename the aggregate test target to \"unit-tests\"",
+          "timestamp": "2025-06-16T12:19:00+02:00",
+          "tree_id": "a5600d12fbaa848014d06846b9b5d5ea7bf1a63a",
+          "url": "https://github.com/getsentry/sentry-native/commit/931c468cb6dcb8856c60cd113ef044d9881ef62e"
+        },
+        "date": 1750069274716,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 0.7305270000017572,
+            "unit": "ms",
+            "extra": "Min 0.691ms\nMax 0.756ms\nMean 0.728ms\nStdDev 0.024ms\nMedian 0.731ms\nCPU 0.728ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.6980859999998756,
+            "unit": "ms",
+            "extra": "Min 0.686ms\nMax 0.753ms\nMean 0.708ms\nStdDev 0.028ms\nMedian 0.698ms\nCPU 0.708ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 3.1155780000062805,
+            "unit": "ms",
+            "extra": "Min 2.948ms\nMax 3.280ms\nMean 3.107ms\nStdDev 0.140ms\nMedian 3.116ms\nCPU 1.511ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.012734000023328917,
+            "unit": "ms",
+            "extra": "Min 0.013ms\nMax 0.034ms\nMean 0.017ms\nStdDev 0.010ms\nMedian 0.013ms\nCPU 0.016ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.022481999991441626,
+            "unit": "ms",
+            "extra": "Min 0.022ms\nMax 0.023ms\nMean 0.022ms\nStdDev 0.001ms\nMedian 0.022ms\nCPU 0.022ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 1.7768529999955263,
+            "unit": "ms",
+            "extra": "Min 1.737ms\nMax 1.845ms\nMean 1.789ms\nStdDev 0.045ms\nMedian 1.777ms\nCPU 0.578ms"
           }
         ]
       }
