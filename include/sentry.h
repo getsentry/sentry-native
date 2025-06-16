@@ -1835,6 +1835,9 @@ SENTRY_API sentry_attachment_t *sentry_scope_attach_filew_n(
 
 SENTRY_API void sentry_attachment_set_content_type(
     sentry_attachment_t *attachment, const char *content_type);
+SENTRY_API void sentry_attachment_set_content_type_n(
+    sentry_attachment_t *attachment, const char *content_type,
+    size_t content_type_len);
 
 /* -- Session APIs -- */
 

@@ -7,12 +7,21 @@ void
 sentry_attachment_set_content_type(
     sentry_attachment_t *attachment, const char *content_type)
 {
+    sentry_attachment_set_content_type_n(
+        attachment, content_type, sentry__guarded_strlen(content_type));
+}
+
+void
+sentry_attachment_set_content_type_n(sentry_attachment_t *attachment,
+    const char *content_type, size_t content_type_len)
+{
     if (!attachment) {
         return;
     }
 
     sentry_free(attachment->content_type);
-    attachment->content_type = sentry__string_clone(content_type);
+    attachment->content_type
+        = sentry__string_clone_n(content_type, content_type_len);
 }
 
 static void
