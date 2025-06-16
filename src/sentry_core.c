@@ -3,6 +3,7 @@
 #include <stdarg.h>
 #include <string.h>
 
+#include "sentry_attachment.h"
 #include "sentry_backend.h"
 #include "sentry_core.h"
 #include "sentry_database.h"
@@ -211,6 +212,8 @@ sentry_init(sentry_options_t *options)
         }
         sentry_value_freeze(scope->client_sdk);
         initialize_propagation_context(scope->propagation_context);
+        scope->attachments = options->attachments;
+        options->attachments = NULL;
     }
     if (backend && backend->user_consent_changed_func) {
         backend->user_consent_changed_func(backend);
@@ -545,22 +548,6 @@ static
     return send;
 }
 
-static const char *
-str_from_attachment_type(sentry_attachment_type_t attachment_type)
-{
-    switch (attachment_type) {
-    case ATTACHMENT:
-        return "event.attachment";
-    case MINIDUMP:
-        return "event.minidump";
-    case VIEW_HIERARCHY:
-        return "event.view_hierarchy";
-    default:
-        UNREACHABLE("Unknown attachment type");
-        return "event.attachment";
-    }
-}
-
 sentry_envelope_t *
 sentry__prepare_event(const sentry_options_t *options, sentry_value_t event,
     sentry_uuid_t *event_id, bool invoke_before_send,
@@ -572,10 +559,12 @@ sentry__prepare_event(const sentry_options_t *options, sentry_value_t event,
         sentry__record_errors_on_current_session(1);
     }
 
+    sentry_attachment_t *all_attachments = NULL;
     if (local_scope) {
         SENTRY_DEBUG("merging local scope into event");
         sentry_scope_mode_t mode = SENTRY_SCOPE_BREADCRUMBS;
         sentry__scope_apply_to_event(local_scope, options, event, mode);
+        sentry__attachments_extend(&all_attachments, local_scope->attachments);
         sentry__scope_free(local_scope);
     }
 
@@ -584,6 +573,9 @@ sentry__prepare_event(const sentry_options_t *options, sentry_value_t event,
         sentry_scope_mode_t mode = SENTRY_SCOPE_ALL;
         if (!options->symbolize_stacktraces) {
             mode &= ~SENTRY_SCOPE_STACKTRACES;
+        }
+        if (all_attachments) {
+            sentry__attachments_extend(&all_attachments, scope->attachments);
         }
         sentry__scope_apply_to_event(scope, options, event, mode);
     }
@@ -604,31 +596,17 @@ sentry__prepare_event(const sentry_options_t *options, sentry_value_t event,
         goto fail;
     }
 
-    SENTRY_DEBUG("adding attachments to envelope");
-    for (sentry_attachment_t *attachment = options->attachments; attachment;
-        attachment = attachment->next) {
-        sentry_envelope_item_t *item = sentry__envelope_add_from_path(
-            envelope, attachment->path, "attachment");
-        if (!item) {
-            continue;
+    SENTRY_WITH_SCOPE (scope) {
+        if (all_attachments) {
+            // all attachments merged from multiple scopes
+            sentry__envelope_add_attachments(envelope, all_attachments);
+        } else {
+            // only global scope has attachments
+            sentry__envelope_add_attachments(envelope, scope->attachments);
         }
-        if (attachment->type != ATTACHMENT) { // don't need to set the default
-            sentry__envelope_item_set_header(item, "attachment_type",
-                sentry_value_new_string(
-                    str_from_attachment_type(attachment->type)));
-        }
-        if (attachment->content_type) {
-            sentry__envelope_item_set_header(item, "content_type",
-                sentry_value_new_string(attachment->content_type));
-        }
-        sentry__envelope_item_set_header(item, "filename",
-#ifdef SENTRY_PLATFORM_WINDOWS
-            sentry__value_new_string_from_wstr(
-#else
-            sentry_value_new_string(
-#endif
-                sentry__path_filename(attachment->path)));
     }
+
+    sentry__attachments_free(all_attachments);
 
     return envelope;
 
@@ -1478,3 +1456,68 @@ sentry_capture_minidump_n(const char *path, size_t path_len)
 
     return sentry_uuid_nil();
 }
+
+sentry_attachment_t *
+sentry_attach_file(const char *path)
+{
+    return sentry_attach_file_n(path, sentry__guarded_strlen(path));
+}
+
+sentry_attachment_t *
+sentry_attach_file_n(const char *path, size_t path_len)
+{
+    sentry_path_t *attachment_path = sentry__path_from_str_n(path, path_len);
+    SENTRY_WITH_OPTIONS (options) {
+        if (options->backend && options->backend->add_attachment_func) {
+            options->backend->add_attachment_func(
+                options->backend, attachment_path);
+        }
+    }
+    sentry_attachment_t *attachment = NULL;
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        attachment = sentry__attachments_add(
+            &scope->attachments, attachment_path, ATTACHMENT, NULL);
+    }
+    return attachment;
+}
+
+void
+sentry_remove_attachment(sentry_attachment_t *attachment)
+{
+    SENTRY_WITH_OPTIONS (options) {
+        if (options->backend && options->backend->remove_attachment_func) {
+            options->backend->remove_attachment_func(
+                options->backend, attachment->path);
+        }
+    }
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry__attachments_remove(&scope->attachments, attachment);
+    }
+}
+
+#ifdef SENTRY_PLATFORM_WINDOWS
+sentry_attachment_t *
+sentry_attach_filew(const wchar_t *path)
+{
+    size_t path_len = path ? wcslen(path) : 0;
+    return sentry_attach_filew_n(path, path_len);
+}
+
+sentry_attachment_t *
+sentry_attach_filew_n(const wchar_t *path, size_t path_len)
+{
+    sentry_path_t *attachment_path = sentry__path_from_wstr_n(path, path_len);
+    SENTRY_WITH_OPTIONS (options) {
+        if (options->backend && options->backend->add_attachment_func) {
+            options->backend->add_attachment_func(
+                options->backend, attachment_path);
+        }
+    }
+    sentry_attachment_t *attachment = NULL;
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        attachment = sentry__attachments_add(
+            &scope->attachments, attachment_path, ATTACHMENT, NULL);
+    }
+    return attachment;
+}
+#endif

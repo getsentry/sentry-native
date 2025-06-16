@@ -13,6 +13,17 @@
  * encoding, typically ANSI on Windows, UTF-8 macOS, and the locale encoding on
  * Linux; and they provide wchar-compatible alternatives on Windows which are
  * preferred.
+ *
+ * NOTE on attachments:
+ *
+ * Attachments are read lazily at the time of `sentry_capture_event`,
+ * `sentry_capture_event_with_scope`, or at time of a hard crash. Relative
+ * attachment paths will be resolved according to the current working directory
+ * at the time of envelope creation. When adding and removing attachments, they
+ * are matched according to their given `path`. No normalization is performed.
+ * When using the `crashpad` backend on macOS, the list of attachments that will
+ * be added at the time of a hard crash will be frozen at the time of
+ * `sentry_init`, and later modifications will not be reflected.
  */
 
 #ifndef SENTRY_H_INCLUDED
@@ -1215,6 +1226,8 @@ SENTRY_API int sentry_options_get_symbolize_stacktraces(
  * `path` is assumed to be in platform-specific filesystem path encoding.
  * API Users on windows are encouraged to use `sentry_options_add_attachmentw`
  * instead.
+ *
+ * See the NOTE on attachments above for restrictions of this API.
  */
 SENTRY_API void sentry_options_add_attachment(
     sentry_options_t *opts, const char *path);
@@ -1770,6 +1783,61 @@ SENTRY_EXPERIMENTAL_API void sentry_options_set_handler_strategy(
     sentry_options_t *opts, sentry_handler_strategy_t handler_strategy);
 
 #endif // SENTRY_PLATFORM_LINUX
+
+/**
+ * A sentry Attachment.
+ *
+ * See https://develop.sentry.dev/sdk/data-model/envelope-items/#attachment
+ */
+struct sentry_attachment_s;
+typedef struct sentry_attachment_s sentry_attachment_t;
+
+/**
+ * Adds a new attachment to be sent along.
+ *
+ * `path` is assumed to be in platform-specific filesystem path encoding.
+ * API Users on windows are encouraged to use `sentry_attach_filew` or
+ * `sentry_scope_attach_filew` instead.
+ *
+ * The returned `sentry_attachment_t` is owned by the SDK and will remain valid
+ * until the attachment is removed with `sentry_remove_attachment` or
+ * `sentry_close` is called
+ *
+ * See the NOTE on attachments above for restrictions of this API.
+ */
+SENTRY_API sentry_attachment_t *sentry_attach_file(const char *path);
+SENTRY_API sentry_attachment_t *sentry_attach_file_n(
+    const char *path, size_t path_len);
+SENTRY_API sentry_attachment_t *sentry_scope_attach_file(
+    sentry_scope_t *scope, const char *path);
+SENTRY_API sentry_attachment_t *sentry_scope_attach_file_n(
+    sentry_scope_t *scope, const char *path, size_t path_len);
+
+/**
+ * Removes and frees a previously added attachment.
+ *
+ * See the NOTE on attachments above for restrictions of this API.
+ */
+SENTRY_API void sentry_remove_attachment(sentry_attachment_t *attachment);
+
+#ifdef SENTRY_PLATFORM_WINDOWS
+/**
+ * Wide char versions of `sentry_attach_file` and `sentry_scope_attach_file`.
+ */
+SENTRY_API sentry_attachment_t *sentry_attach_filew(const wchar_t *path);
+SENTRY_API sentry_attachment_t *sentry_attach_filew_n(
+    const wchar_t *path, size_t path_len);
+SENTRY_API sentry_attachment_t *sentry_scope_attach_filew(
+    sentry_scope_t *scope, const wchar_t *path);
+SENTRY_API sentry_attachment_t *sentry_scope_attach_filew_n(
+    sentry_scope_t *scope, const wchar_t *path, size_t path_len);
+#endif
+
+SENTRY_API void sentry_attachment_set_content_type(
+    sentry_attachment_t *attachment, const char *content_type);
+SENTRY_API void sentry_attachment_set_content_type_n(
+    sentry_attachment_t *attachment, const char *content_type,
+    size_t content_type_len);
 
 /* -- Session APIs -- */
 

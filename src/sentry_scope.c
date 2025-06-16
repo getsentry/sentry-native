@@ -1,5 +1,6 @@
 #include "sentry_scope.h"
 #include "sentry_alloc.h"
+#include "sentry_attachment.h"
 #include "sentry_backend.h"
 #include "sentry_core.h"
 #include "sentry_database.h"
@@ -77,6 +78,7 @@ init_scope(sentry_scope_t *scope)
     scope->breadcrumbs = sentry_value_new_list();
     scope->level = SENTRY_LEVEL_ERROR;
     scope->client_sdk = sentry_value_new_null();
+    scope->attachments = NULL;
     scope->transaction_object = NULL;
     scope->span = NULL;
     scope->trace_managed = true;
@@ -110,6 +112,7 @@ cleanup_scope(sentry_scope_t *scope)
     sentry_value_decref(scope->propagation_context);
     sentry_value_decref(scope->breadcrumbs);
     sentry_value_decref(scope->client_sdk);
+    sentry__attachments_free(scope->attachments);
     sentry__transaction_decref(scope->transaction_object);
     sentry__span_decref(scope->span);
 }
@@ -670,3 +673,37 @@ sentry_scope_set_level(sentry_scope_t *scope, sentry_level_t level)
 {
     scope->level = level;
 }
+
+sentry_attachment_t *
+sentry_scope_attach_file(sentry_scope_t *scope, const char *path)
+{
+    return sentry_scope_attach_file_n(
+        scope, path, sentry__guarded_strlen(path));
+}
+
+sentry_attachment_t *
+sentry_scope_attach_file_n(
+    sentry_scope_t *scope, const char *path, size_t path_len)
+{
+    sentry_path_t *attachment = sentry__path_from_str_n(path, path_len);
+    return sentry__attachments_add(
+        &scope->attachments, attachment, ATTACHMENT, NULL);
+}
+
+#ifdef SENTRY_PLATFORM_WINDOWS
+sentry_attachment_t *
+sentry_scope_attach_filew(sentry_scope_t *scope, const wchar_t *path)
+{
+    size_t path_len = path ? wcslen(path) : 0;
+    return sentry_scope_attach_filew_n(scope, path, path_len);
+}
+
+sentry_attachment_t *
+sentry_scope_attach_filew_n(
+    sentry_scope_t *scope, const wchar_t *path, size_t path_len)
+{
+    sentry_path_t *attachment = sentry__path_from_wstr_n(path, path_len);
+    return sentry__attachments_add(
+        &scope->attachments, attachment, ATTACHMENT, NULL);
+}
+#endif

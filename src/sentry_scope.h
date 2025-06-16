@@ -3,6 +3,7 @@
 
 #include "sentry_boot.h"
 
+#include "sentry_attachment.h"
 #include "sentry_session.h"
 #include "sentry_value.h"
 
@@ -20,6 +21,7 @@ struct sentry_scope_s {
     sentry_value_t breadcrumbs;
     sentry_level_t level;
     sentry_value_t client_sdk;
+    sentry_attachment_t *attachments;
 
     // The span attached to this scope, if any.
     //
