@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1750069432334,
+  "lastUpdate": 1750082250917,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -1916,6 +1916,66 @@ window.BENCHMARK_DATA = {
             "value": 1.7768529999955263,
             "unit": "ms",
             "extra": "Min 1.737ms\nMax 1.845ms\nMean 1.789ms\nStdDev 0.045ms\nMedian 1.777ms\nCPU 0.578ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "455f0ef2be4a6c54c2453c1813d6dbe3d5cd9ed8",
+          "message": "feat: add sentry_attachment_set_content_type() (#1276)\n\n* feat: add sentry_attachment_set_content_type()\n\n* drop content_type_owned\n\n* add _n",
+          "timestamp": "2025-06-16T15:55:01+02:00",
+          "tree_id": "0af59a742a894ffc9893e993308fbf3fa7f147b9",
+          "url": "https://github.com/getsentry/sentry-native/commit/455f0ef2be4a6c54c2453c1813d6dbe3d5cd9ed8"
+        },
+        "date": 1750082250386,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 0.7263829999999416,
+            "unit": "ms",
+            "extra": "Min 0.688ms\nMax 0.753ms\nMean 0.719ms\nStdDev 0.029ms\nMedian 0.726ms\nCPU 0.718ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.7263850000072125,
+            "unit": "ms",
+            "extra": "Min 0.705ms\nMax 0.753ms\nMean 0.726ms\nStdDev 0.018ms\nMedian 0.726ms\nCPU 0.726ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 3.2489199999758966,
+            "unit": "ms",
+            "extra": "Min 3.080ms\nMax 3.320ms\nMean 3.219ms\nStdDev 0.091ms\nMedian 3.249ms\nCPU 1.632ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.012513000001490582,
+            "unit": "ms",
+            "extra": "Min 0.012ms\nMax 0.041ms\nMean 0.018ms\nStdDev 0.013ms\nMedian 0.013ms\nCPU 0.017ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.022061000038320344,
+            "unit": "ms",
+            "extra": "Min 0.021ms\nMax 0.023ms\nMean 0.022ms\nStdDev 0.000ms\nMedian 0.022ms\nCPU 0.021ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 1.851859999987937,
+            "unit": "ms",
+            "extra": "Min 1.823ms\nMax 1.880ms\nMean 1.851ms\nStdDev 0.022ms\nMedian 1.852ms\nCPU 0.579ms"
           }
         ]
       }
