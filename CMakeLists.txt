@@ -736,8 +736,6 @@ if(SENTRY_BUILD_EXAMPLES)
 
 	add_custom_command(TARGET sentry_example POST_BUILD
 		COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/view-hierarchy.json" "$<TARGET_FILE_DIR:sentry_example>/view-hierarchy.json")
-
-	add_test(NAME sentry_example COMMAND sentry_example)
 endif()
 
 # Limit the exported symbols when sentry is built as a shared library to those with a "sentry_" prefix:
