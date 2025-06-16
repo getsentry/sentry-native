@@ -11,11 +11,8 @@ sentry_attachment_set_content_type(
         return;
     }
 
-    if (attachment->content_type_owned) {
-        sentry_free((void *)attachment->content_type);
-    }
+    sentry_free(attachment->content_type);
     attachment->content_type = sentry__string_clone(content_type);
-    attachment->content_type_owned = true;
 }
 
 static void
@@ -25,9 +22,7 @@ attachment_free(sentry_attachment_t *attachment)
         return;
     }
     sentry__path_free(attachment->path);
-    if (attachment->content_type_owned) {
-        sentry_free((void *)attachment->content_type);
-    }
+    sentry_free(attachment->content_type);
     sentry_free(attachment);
 }
 
@@ -59,8 +54,7 @@ sentry__attachments_add(sentry_attachment_t **attachments_ptr,
     attachment->path = path;
     attachment->next = NULL;
     attachment->type = attachment_type;
-    attachment->content_type = content_type;
-    attachment->content_type_owned = false;
+    attachment->content_type = sentry__string_clone(content_type);
 
     sentry_attachment_t **next_ptr = attachments_ptr;
 
