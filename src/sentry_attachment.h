@@ -21,7 +21,7 @@ typedef enum {
 struct sentry_attachment_s {
     sentry_path_t *path;
     sentry_attachment_type_t type;
-    const char *content_type;
+    char *content_type;
     sentry_attachment_t *next;
 };
 

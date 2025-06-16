@@ -1,6 +1,28 @@
 #include "sentry_attachment.h"
 #include "sentry_alloc.h"
 #include "sentry_path.h"
+#include "sentry_string.h"
+
+void
+sentry_attachment_set_content_type(
+    sentry_attachment_t *attachment, const char *content_type)
+{
+    sentry_attachment_set_content_type_n(
+        attachment, content_type, sentry__guarded_strlen(content_type));
+}
+
+void
+sentry_attachment_set_content_type_n(sentry_attachment_t *attachment,
+    const char *content_type, size_t content_type_len)
+{
+    if (!attachment) {
+        return;
+    }
+
+    sentry_free(attachment->content_type);
+    attachment->content_type
+        = sentry__string_clone_n(content_type, content_type_len);
+}
 
 static void
 attachment_free(sentry_attachment_t *attachment)
@@ -9,6 +31,7 @@ attachment_free(sentry_attachment_t *attachment)
         return;
     }
     sentry__path_free(attachment->path);
+    sentry_free(attachment->content_type);
     sentry_free(attachment);
 }
 
@@ -40,7 +63,7 @@ sentry__attachments_add(sentry_attachment_t **attachments_ptr,
     attachment->path = path;
     attachment->next = NULL;
     attachment->type = attachment_type;
-    attachment->content_type = content_type;
+    attachment->content_type = sentry__string_clone(content_type);
 
     sentry_attachment_t **next_ptr = attachments_ptr;
 
