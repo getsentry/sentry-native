@@ -1,5 +1,9 @@
 # Changelog
 
+**Internal**:
+
+- Updated `breakpad` to 2025-06-13. ([#1277](https://github.com/getsentry/sentry-native/pull/1277), [breakpad#41](https://github.com/getsentry/breakpad/pull/41))
+
 ## 0.9.0
 
 **Breaking changes**:
