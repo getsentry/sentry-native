@@ -195,7 +195,21 @@ def assert_attachment(envelope):
         "type": "attachment",
         "filename": "CMakeCache.txt",
     }
-    assert any(matches(item.headers, expected) for item in envelope)
+    assert any(
+        matches(item.headers, expected)
+        and b"This is the CMakeCache file." in item.payload.bytes
+        for item in envelope
+    )
+
+    expected = {
+        "type": "attachment",
+        "filename": "bytes.bin",
+        "content_type": "application/octet-stream",
+    }
+    assert any(
+        matches(item.headers, expected) and item.payload.bytes == b"\xc0\xff\xee"
+        for item in envelope
+    )
 
 
 def assert_attachment_view_hierarchy(envelope):
@@ -313,6 +327,7 @@ class CrashpadAttachments:
     breadcrumb2: list
     view_hierarchy: dict
     cmake_cache: int
+    bytes_bin: bytes = None
 
 
 def _unpack_breadcrumbs(payload):
@@ -327,6 +342,7 @@ def _load_crashpad_attachments(msg):
     breadcrumb2 = []
     view_hierarchy = {}
     cmake_cache = -1
+    bytes_bin = None
     for part in msg.walk():
         if part.get_filename() is not None:
             assert part.get("Content-Type") is None
@@ -342,9 +358,11 @@ def _load_crashpad_attachments(msg):
                 view_hierarchy = json.loads(part.get_payload(decode=True))
             case "CMakeCache.txt":
                 cmake_cache = len(part.get_payload(decode=True))
+            case "bytes.bin":
+                bytes_bin = part.get_payload(decode=True)
 
     return CrashpadAttachments(
-        event, breadcrumb1, breadcrumb2, view_hierarchy, cmake_cache
+        event, breadcrumb1, breadcrumb2, view_hierarchy, cmake_cache, bytes_bin
     )
 
 
@@ -382,8 +400,10 @@ def assert_crashpad_upload(req, expect_attachment=False, expect_view_hierarchy=F
     assert_event_meta(attachments.event, integration="crashpad")
     if expect_attachment:
         assert attachments.cmake_cache > 0
+        assert attachments.bytes_bin == b"\xc0\xff\xee"
     else:
         assert attachments.cmake_cache == -1
+        assert attachments.bytes_bin == None
     if expect_view_hierarchy:
         assert_attachment_content_view_hierarchy(attachments.view_hierarchy)
     assert any(
