@@ -400,9 +400,11 @@ def assert_crashpad_upload(req, expect_attachment=False, expect_view_hierarchy=F
     assert_event_meta(attachments.event, integration="crashpad")
     if expect_attachment:
         assert attachments.cmake_cache > 0
-        assert attachments.bytes_bin == b"\xc0\xff\xee"
     else:
         assert attachments.cmake_cache == -1
+    if expect_attachment and (sys.platform == "win32" or sys.platform == "linux"):
+        assert attachments.bytes_bin == b"\xc0\xff\xee"
+    else:
         assert attachments.bytes_bin == None
     if expect_view_hierarchy:
         assert_attachment_content_view_hierarchy(attachments.view_hierarchy)
