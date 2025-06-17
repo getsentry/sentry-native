@@ -371,7 +371,8 @@ SENTRY_TEST(attachment_content_type)
     sentry__path_free(path_html);
     sentry__path_free(path_c);
 }
-SENTRY_TEST(attachments_buffer)
+
+SENTRY_TEST(attachments_bytes)
 {
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_init(options);
