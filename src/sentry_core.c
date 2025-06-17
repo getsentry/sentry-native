@@ -1496,8 +1496,8 @@ sentry_attach_filew(const wchar_t *path)
 sentry_attachment_t *
 sentry_attach_filew_n(const wchar_t *path, size_t path_len)
 {
-    return add_attachment(sentry__attachment_from_path(
-        sentry__path_from_wstr_n(path, path_len)));
+    return add_attachment(
+        sentry__attachment_from_path(sentry__path_from_wstr_n(path, path_len)));
 }
 
 sentry_attachment_t *
