@@ -31,13 +31,169 @@ log_level_as_string(sentry_log_level_t level)
     }
 }
 
+static void
+populate_message_parameters(
+    const char *message, va_list args, sentry_value_t attributes)
+{
+    if (!message || sentry_value_is_null(attributes)) {
+        return;
+    }
+
+    const char *fmt_ptr = message;
+    int param_index = 0;
+    va_list args_copy;
+    va_copy(args_copy, args);
+
+    while (*fmt_ptr) {
+        // Find the next format specifier
+        if (*fmt_ptr == '%') {
+            fmt_ptr++; // Skip the '%'
+
+            // Skip flags, width, and precision
+            while (*fmt_ptr
+                && (*fmt_ptr == '-' || *fmt_ptr == '+' || *fmt_ptr == ' '
+                    || *fmt_ptr == '#' || *fmt_ptr == '0')) {
+                fmt_ptr++;
+            }
+            while (*fmt_ptr && (*fmt_ptr >= '0' && *fmt_ptr <= '9')) {
+                fmt_ptr++;
+            }
+            if (*fmt_ptr == '.') {
+                fmt_ptr++;
+                while (*fmt_ptr && (*fmt_ptr >= '0' && *fmt_ptr <= '9')) {
+                    fmt_ptr++;
+                }
+            }
+
+            // Skip length modifiers
+            while (*fmt_ptr
+                && (*fmt_ptr == 'h' || *fmt_ptr == 'l' || *fmt_ptr == 'L'
+                    || *fmt_ptr == 'z' || *fmt_ptr == 'j' || *fmt_ptr == 't')) {
+                fmt_ptr++;
+            }
+
+            if (*fmt_ptr == '%') {
+                // Escaped '%', not a format specifier
+                fmt_ptr++;
+                continue;
+            }
+
+            // Get the conversion specifier
+            char conversion = *fmt_ptr;
+            if (conversion) {
+                char key[64];
+                snprintf(key, sizeof(key), "sentry.message.parameter.%d",
+                    param_index);
+
+                sentry_value_t param_obj = sentry_value_new_object();
+
+                switch (conversion) {
+                case 'd':
+                case 'i': {
+                    int val = va_arg(args_copy, int);
+                    sentry_value_set_by_key(
+                        param_obj, "value", sentry_value_new_int32(val));
+                    sentry_value_set_by_key(
+                        param_obj, "type", sentry_value_new_string("integer"));
+                    break;
+                }
+                case 'u':
+                case 'x':
+                case 'X':
+                case 'o': {
+                    unsigned int val = va_arg(args_copy, unsigned int);
+                    sentry_value_set_by_key(param_obj, "value",
+                        sentry_value_new_int32((int32_t)val));
+                    sentry_value_set_by_key(
+                        param_obj, "type", sentry_value_new_string("integer"));
+                    break;
+                }
+                case 'f':
+                case 'F':
+                case 'e':
+                case 'E':
+                case 'g':
+                case 'G': {
+                    double val = va_arg(args_copy, double);
+                    sentry_value_set_by_key(
+                        param_obj, "value", sentry_value_new_double(val));
+                    sentry_value_set_by_key(
+                        param_obj, "type", sentry_value_new_string("double"));
+                    break;
+                }
+                case 'c': {
+                    int val = va_arg(args_copy, int);
+                    char str[2] = { (char)val, '\0' };
+                    sentry_value_set_by_key(
+                        param_obj, "value", sentry_value_new_string(str));
+                    sentry_value_set_by_key(
+                        param_obj, "type", sentry_value_new_string("string"));
+                    break;
+                }
+                case 's': {
+                    const char *val = va_arg(args_copy, const char *);
+                    if (val) {
+                        sentry_value_set_by_key(
+                            param_obj, "value", sentry_value_new_string(val));
+                    } else {
+                        sentry_value_set_by_key(param_obj, "value",
+                            sentry_value_new_string("(null)"));
+                    }
+                    sentry_value_set_by_key(
+                        param_obj, "type", sentry_value_new_string("string"));
+                    break;
+                }
+                case 'p': {
+                    void *val = va_arg(args_copy, void *);
+                    char ptr_str[32];
+                    snprintf(ptr_str, sizeof(ptr_str), "%p", val);
+                    sentry_value_set_by_key(
+                        param_obj, "value", sentry_value_new_string(ptr_str));
+                    sentry_value_set_by_key(
+                        param_obj, "type", sentry_value_new_string("string"));
+                    break;
+                }
+                default:
+                    // Unknown format specifier, skip the argument
+                    (void)va_arg(args_copy, void *);
+                    sentry_value_set_by_key(param_obj, "value",
+                        sentry_value_new_string("(unknown)"));
+                    sentry_value_set_by_key(
+                        param_obj, "type", sentry_value_new_string("string"));
+                    break;
+                }
+
+                sentry_value_set_by_key(attributes, key, param_obj);
+                param_index++;
+                fmt_ptr++;
+            }
+        } else {
+            fmt_ptr++;
+        }
+    }
+
+    va_end(args_copy);
+}
+
 static sentry_value_t
 construct_log(sentry_log_level_t level, const char *message, va_list args)
 {
     sentry_value_t log = sentry_value_new_object();
     sentry_value_t attributes = sentry_value_new_object();
 
-    sentry_value_set_by_key(log, "body", sentry_value_new_string(message));
+    va_list args_copy;
+    va_copy(args_copy, args);
+    int size = vsnprintf(NULL, 0, message, args_copy) + 1;
+    va_end(args_copy);
+    char *fmt_message = sentry_malloc(size);
+    if (!fmt_message) {
+        return sentry_value_new_null();
+    }
+
+    vsnprintf(fmt_message, size, message, args);
+
+    sentry_value_set_by_key(log, "body", sentry_value_new_string(fmt_message));
+    sentry_free(fmt_message);
     sentry_value_set_by_key(
         log, "level", sentry_value_new_string(log_level_as_string(level)));
 
@@ -112,6 +268,9 @@ construct_log(sentry_log_level_t level, const char *message, va_list args)
     sentry_value_set_by_key(
         attributes, "sentry.message.template", message_template);
 
+    // Parse variadic arguments and add them to attributes
+    populate_message_parameters(message, args, attributes);
+
     sentry_value_set_by_key(log, "attributes", attributes);
 
     return log;
@@ -147,6 +306,15 @@ sentry__logs_log(sentry_log_level_t level, const char *message, va_list args)
 
 // TODO think about the structure below, is this how we want the API to
 //     function?
+void
+sentry_logger_trace(const char *message, ...)
+{
+    va_list args;
+    va_start(args, message);
+    sentry__logs_log(SENTRY_LOG_LEVEL_TRACE, message, args);
+    va_end(args);
+}
+
 void
 sentry_logger_debug(const char *message, ...)
 {
