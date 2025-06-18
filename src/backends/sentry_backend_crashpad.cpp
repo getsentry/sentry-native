@@ -663,6 +663,46 @@ crashpad_backend_prune_database(sentry_backend_t *backend)
 }
 
 #if defined(SENTRY_PLATFORM_WINDOWS) || defined(SENTRY_PLATFORM_LINUX)
+static bool
+ensure_unique_file(sentry_attachment_t *attachment)
+{
+    // if "filename.ext" exists, find next available "filename-N.ext"
+    base::FilePath path(attachment->path->path);
+    if (!crashpad::IsRegularFile(path)) {
+        return true;
+    }
+
+    base::FilePath dir = path.DirName();
+    // double-removal to support common double extensions like ".tar.gz"
+    base::FilePath basename
+        = path.BaseName().RemoveFinalExtension().RemoveFinalExtension();
+    base::FilePath::StringType extension
+        = path.RemoveFinalExtension().FinalExtension() + path.FinalExtension();
+    int n = 1;
+    do {
+#    if BUILDFLAG(IS_WIN)
+        base::FilePath::StringType tag = L"-" + std::to_wstring(n);
+#    else
+        base::FilePath::StringType tag = "-" + std::to_string(n);
+#    endif
+        path = dir.Append(basename.value() + tag + extension);
+    } while (crashpad::IsRegularFile(path) && ++n < 4096);
+
+    SENTRY_INFOF("renamed crashpad attachment from \"%" SENTRY_PATH_PRI
+                 "\" to \"%" SENTRY_PATH_PRI "\"",
+        sentry__path_filename(attachment->path),
+        path.BaseName().value().c_str());
+
+    sentry__path_free(attachment->path);
+#    ifdef SENTRY_PLATFORM_WINDOWS
+    attachment->path = sentry__path_from_wstr(path.value().c_str());
+#    else
+    attachment->path = sentry__path_from_str(path.value().c_str());
+#    endif
+
+    return !crashpad::IsRegularFile(path);
+}
+
 static void
 crashpad_backend_add_attachment(
     sentry_backend_t *backend, sentry_attachment_t *attachment)
@@ -682,53 +722,17 @@ crashpad_backend_add_attachment(
                 sentry__path_filename(attachment->path));
 #    endif
         }
+        if (!ensure_unique_file(attachment)
+            || sentry__path_write_buffer(
+                   attachment->path, attachment->buf, attachment->buf_len)
+                != 0) {
+            SENTRY_WARNF(
+                "failed to write crashpad attachment \"%" SENTRY_PATH_PRI "\"",
+                attachment->path->path);
+        }
     }
 
-    // if "filename.ext" exists, find next available "filename-N.ext"
-    base::FilePath path(attachment->path->path);
-    if (crashpad::IsRegularFile(path)) {
-        base::FilePath dir = path.DirName();
-        // double-removal to support common double extensions like ".tar.gz"
-        base::FilePath basename
-            = path.BaseName().RemoveFinalExtension().RemoveFinalExtension();
-        base::FilePath::StringType extension
-            = path.RemoveFinalExtension().FinalExtension()
-            + path.FinalExtension();
-        int n = 1;
-        do {
-#    if BUILDFLAG(IS_WIN)
-            base::FilePath::StringType ns = std::to_wstring(n);
-#    else
-            base::FilePath::StringType ns = std::to_string(n);
-#    endif
-            base::FilePath::StringType filename
-                = basename.value() + FILE_PATH_LITERAL("-") + ns + extension;
-            path = dir.Append(filename);
-        } while (crashpad::IsRegularFile(path) && ++n < 4096);
-
-        SENTRY_INFOF("renamed crashpad attachment from \"%" SENTRY_PATH_PRI
-                     "\" to \"%" SENTRY_PATH_PRI "\"",
-            sentry__path_filename(attachment->path),
-            path.BaseName().value().c_str());
-
-        sentry__path_free(attachment->path);
-#    ifdef SENTRY_PLATFORM_WINDOWS
-        attachment->path = sentry__path_from_wstr(path.value().c_str());
-#    else
-        attachment->path = sentry__path_from_str(path.value().c_str());
-#    endif
-    }
-
-    data->client->AddAttachment(path);
-
-    if (attachment->buf
-        && sentry__path_write_buffer(
-               attachment->path, attachment->buf, attachment->buf_len)
-            != 0) {
-        SENTRY_WARNF("failed to write crashpad attachment \"%" SENTRY_PATH_PRI
-                     "\"",
-            attachment->path->path);
-    }
+    data->client->AddAttachment(base::FilePath(attachment->path->path));
 }
 
 static void
