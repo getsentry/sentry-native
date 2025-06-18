@@ -672,8 +672,13 @@ resolve_attachment_buffer_path(const sentry_attachment_t *attachment)
     sentry_path_t *attachment_path = nullptr;
     SENTRY_WITH_OPTIONS (options) {
         sentry_path_t *current_run_folder = options->run->run_path;
+#    ifdef SENTRY_PLATFORM_WINDOWS
+        attachment_path = sentry__path_join_wstr(
+            current_run_folder, sentry__path_filename(attachment->path));
+#    else
         attachment_path = sentry__path_join_str(
             current_run_folder, sentry__path_filename(attachment->path));
+#    endif
     }
     return attachment_path;
 }
