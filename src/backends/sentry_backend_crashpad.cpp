@@ -75,34 +75,6 @@ safe_delete(T *&ptr)
     ptr = nullptr;
 }
 
-#if defined(SENTRY_PLATFORM_WINDOWS) || defined(SENTRY_PLATFORM_LINUX)
-static crashpad::UUID
-to_crashpad_uuid(const sentry_uuid_t *uuid)
-{
-    char str[37];
-    sentry_uuid_as_string(uuid, str);
-
-    crashpad::UUID rv;
-    rv.InitializeFromString(str);
-    return rv;
-}
-
-static crashpad::Attachment
-to_crashpad_attachment(const sentry_attachment_t *attachment)
-{
-    if (attachment->buf) {
-        uint8_t *buf = reinterpret_cast<uint8_t *>(attachment->buf);
-        return crashpad::Attachment(
-            std::vector<uint8_t>(buf, buf + attachment->buf_len),
-            base::FilePath(attachment->path->path),
-            to_crashpad_uuid(&attachment->uuid));
-    }
-
-    return crashpad::Attachment(base::FilePath(attachment->path->path),
-        to_crashpad_uuid(&attachment->uuid));
-}
-#endif
-
 extern "C" {
 
 #ifdef SENTRY_PLATFORM_LINUX
@@ -690,6 +662,48 @@ crashpad_backend_prune_database(sentry_backend_t *backend)
 }
 
 #if defined(SENTRY_PLATFORM_WINDOWS) || defined(SENTRY_PLATFORM_LINUX)
+static sentry_path_t *
+resolve_attachment_buffer_path(const sentry_attachment_t *attachment)
+{
+    if (!attachment || !attachment->buf) {
+        return nullptr;
+    }
+
+    sentry_path_t *attachment_path = nullptr;
+    SENTRY_WITH_OPTIONS (options) {
+        sentry_path_t *current_run_folder = options->run->run_path;
+        attachment_path = sentry__path_join_str(
+            current_run_folder, sentry__path_filename(attachment->path));
+    }
+    return attachment_path;
+}
+
+static sentry_path_t *
+remove_attachment_buffer(const sentry_attachment_t *attachment)
+{
+    sentry_path_t *path = resolve_attachment_buffer_path(attachment);
+    if (path && sentry__path_remove(path) != 0) {
+        SENTRY_WARNF("failed to remove crashpad attachment \"%" SENTRY_PATH_PRI
+                     "\"",
+            path->path);
+    }
+    return path;
+}
+
+static sentry_path_t *
+add_attachment_buffer(const sentry_attachment_t *attachment)
+{
+    sentry_path_t *path = resolve_attachment_buffer_path(attachment);
+    if (path
+        && sentry__path_write_buffer(path, attachment->buf, attachment->buf_len)
+            != 0) {
+        SENTRY_WARNF("failed to write crashpad attachment \"%" SENTRY_PATH_PRI
+                     "\"",
+            path->path);
+    }
+    return path;
+}
+
 static void
 crashpad_backend_add_attachment(
     sentry_backend_t *backend, const sentry_attachment_t *attachment)
@@ -698,7 +712,16 @@ crashpad_backend_add_attachment(
     if (!data || !data->client) {
         return;
     }
-    data->client->AddAttachment(to_crashpad_attachment(attachment));
+
+    if (attachment->buf) {
+        sentry_path_t *attachment_path = add_attachment_buffer(attachment);
+        if (attachment_path) {
+            data->client->AddAttachment(base::FilePath(attachment_path->path));
+            sentry__path_free(attachment_path);
+        }
+    } else {
+        data->client->AddAttachment(base::FilePath(attachment->path->path));
+    }
 }
 
 static void
@@ -709,7 +732,17 @@ crashpad_backend_remove_attachment(
     if (!data || !data->client) {
         return;
     }
-    data->client->RemoveAttachment(to_crashpad_uuid(&attachment->uuid));
+
+    if (attachment->buf) {
+        sentry_path_t *attachment_path = remove_attachment_buffer(attachment);
+        if (attachment_path) {
+            data->client->RemoveAttachment(
+                base::FilePath(attachment_path->path));
+            sentry__path_free(attachment_path);
+        }
+    } else {
+        data->client->RemoveAttachment(base::FilePath(attachment->path->path));
+    }
 }
 #endif
 
