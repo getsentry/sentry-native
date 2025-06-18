@@ -678,7 +678,9 @@ ensure_unique_file(sentry_attachment_t *attachment)
         = path.BaseName().RemoveFinalExtension().RemoveFinalExtension();
     base::FilePath::StringType extension
         = path.RemoveFinalExtension().FinalExtension() + path.FinalExtension();
+
     int n = 1;
+    constexpr int max_n = 4096;
     do {
 #    if BUILDFLAG(IS_WIN)
         base::FilePath::StringType tag = L"-" + std::to_wstring(n);
@@ -686,19 +688,17 @@ ensure_unique_file(sentry_attachment_t *attachment)
         base::FilePath::StringType tag = "-" + std::to_string(n);
 #    endif
         path = dir.Append(basename.value() + tag + extension);
-    } while (crashpad::IsRegularFile(path) && ++n < 4096);
+    } while (crashpad::IsRegularFile(path) && ++n < max_n);
 
-    SENTRY_INFOF("renamed crashpad attachment from \"%" SENTRY_PATH_PRI
-                 "\" to \"%" SENTRY_PATH_PRI "\"",
-        sentry__path_filename(attachment->path),
-        path.BaseName().value().c_str());
+    if (n < max_n) {
+        SENTRY_INFOF("renamed crashpad attachment from \"%" SENTRY_PATH_PRI
+                     "\" to \"%" SENTRY_PATH_PRI "\"",
+            sentry__path_filename(attachment->path),
+            path.BaseName().value().c_str());
+    }
 
     sentry__path_free(attachment->path);
-#    ifdef SENTRY_PLATFORM_WINDOWS
-    attachment->path = sentry__path_from_wstr(path.value().c_str());
-#    else
-    attachment->path = sentry__path_from_str(path.value().c_str());
-#    endif
+    attachment->path = sentry__path_new(path.value().c_str());
 
     return !crashpad::IsRegularFile(path);
 }
