@@ -662,56 +662,9 @@ crashpad_backend_prune_database(sentry_backend_t *backend)
 }
 
 #if defined(SENTRY_PLATFORM_WINDOWS) || defined(SENTRY_PLATFORM_LINUX)
-static sentry_path_t *
-resolve_attachment_buffer_path(const sentry_attachment_t *attachment)
-{
-    if (!attachment || !attachment->buf) {
-        return nullptr;
-    }
-
-    sentry_path_t *attachment_path = nullptr;
-    SENTRY_WITH_OPTIONS (options) {
-        sentry_path_t *current_run_folder = options->run->run_path;
-#    ifdef SENTRY_PLATFORM_WINDOWS
-        attachment_path = sentry__path_join_wstr(
-            current_run_folder, sentry__path_filename(attachment->path));
-#    else
-        attachment_path = sentry__path_join_str(
-            current_run_folder, sentry__path_filename(attachment->path));
-#    endif
-    }
-    return attachment_path;
-}
-
-static sentry_path_t *
-remove_attachment_buffer(const sentry_attachment_t *attachment)
-{
-    sentry_path_t *path = resolve_attachment_buffer_path(attachment);
-    if (path && sentry__path_remove(path) != 0) {
-        SENTRY_WARNF("failed to remove crashpad attachment \"%" SENTRY_PATH_PRI
-                     "\"",
-            path->path);
-    }
-    return path;
-}
-
-static sentry_path_t *
-add_attachment_buffer(const sentry_attachment_t *attachment)
-{
-    sentry_path_t *path = resolve_attachment_buffer_path(attachment);
-    if (path
-        && sentry__path_write_buffer(path, attachment->buf, attachment->buf_len)
-            != 0) {
-        SENTRY_WARNF("failed to write crashpad attachment \"%" SENTRY_PATH_PRI
-                     "\"",
-            path->path);
-    }
-    return path;
-}
-
 static void
 crashpad_backend_add_attachment(
-    sentry_backend_t *backend, const sentry_attachment_t *attachment)
+    sentry_backend_t *backend, sentry_attachment_t *attachment)
 {
     auto *data = static_cast<crashpad_state_t *>(backend->data);
     if (!data || !data->client) {
@@ -719,34 +672,57 @@ crashpad_backend_add_attachment(
     }
 
     if (attachment->buf) {
-        sentry_path_t *attachment_path = add_attachment_buffer(attachment);
-        if (attachment_path) {
-            data->client->AddAttachment(base::FilePath(attachment_path->path));
-            sentry__path_free(attachment_path);
+        SENTRY_WITH_OPTIONS (options) {
+#    ifdef SENTRY_PLATFORM_WINDOWS
+            attachment->path = sentry__path_join_wstr(options->run->run_path,
+                sentry__path_filename(attachment->path));
+#    else
+            attachment->path = sentry__path_join_str(options->run->run_path,
+                sentry__path_filename(attachment->path));
+#    endif
         }
-    } else {
-        data->client->AddAttachment(base::FilePath(attachment->path->path));
+    }
+
+    base::FilePath path
+        = data->client->AddAttachment(base::FilePath(attachment->path->path));
+
+    if (base::FilePath(attachment->path->path) != path) {
+        SENTRY_INFOF("crashpad renamed attachment from \"%" SENTRY_PATH_PRI
+                     "\" to \"%" SENTRY_PATH_PRI "\"",
+            sentry__path_filename(attachment->path),
+            path.BaseName().value().c_str());
+        sentry__path_free(attachment->path);
+#    ifdef SENTRY_PLATFORM_WINDOWS
+        attachment->path = sentry__path_from_wstr(path.value().c_str());
+#    else
+        attachment->path = sentry__path_from_str(path.value().c_str());
+#    endif
+    }
+
+    if (attachment->buf
+        && sentry__path_write_buffer(
+               attachment->path, attachment->buf, attachment->buf_len)
+            != 0) {
+        SENTRY_WARNF("failed to write crashpad attachment \"%" SENTRY_PATH_PRI
+                     "\"",
+            attachment->path->path);
     }
 }
 
 static void
 crashpad_backend_remove_attachment(
-    sentry_backend_t *backend, const sentry_attachment_t *attachment)
+    sentry_backend_t *backend, sentry_attachment_t *attachment)
 {
     auto *data = static_cast<crashpad_state_t *>(backend->data);
     if (!data || !data->client) {
         return;
     }
+    data->client->RemoveAttachment(base::FilePath(attachment->path->path));
 
-    if (attachment->buf) {
-        sentry_path_t *attachment_path = remove_attachment_buffer(attachment);
-        if (attachment_path) {
-            data->client->RemoveAttachment(
-                base::FilePath(attachment_path->path));
-            sentry__path_free(attachment_path);
-        }
-    } else {
-        data->client->RemoveAttachment(base::FilePath(attachment->path->path));
+    if (attachment->buf && sentry__path_remove(attachment->path) != 0) {
+        SENTRY_WARNF("failed to remove crashpad attachment \"%" SENTRY_PATH_PRI
+                     "\"",
+            attachment->path->path);
     }
 }
 #endif
