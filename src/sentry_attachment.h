@@ -24,7 +24,6 @@ struct sentry_attachment_s {
     size_t buf_len;
     sentry_attachment_type_t type;
     char *content_type;
-    sentry_uuid_t uuid;
     sentry_attachment_t *next;
 };
 
