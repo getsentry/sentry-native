@@ -1750,13 +1750,12 @@ SENTRY_EXPERIMENTAL_API void sentry_options_set_enable_logs(
 SENTRY_EXPERIMENTAL_API int sentry_options_get_enable_logs(
     const sentry_options_t *opts);
 
-// TODO think about API; functions or MACROs?
-SENTRY_EXPERIMENTAL_API void sentry_logger_trace(const char *message, ...);
-SENTRY_EXPERIMENTAL_API void sentry_logger_debug(const char *message, ...);
-SENTRY_EXPERIMENTAL_API void sentry_logger_info(const char *message, ...);
-SENTRY_EXPERIMENTAL_API void sentry_logger_warn(const char *message, ...);
-SENTRY_EXPERIMENTAL_API void sentry_logger_error(const char *message, ...);
-SENTRY_EXPERIMENTAL_API void sentry_logger_fatal(const char *message, ...);
+SENTRY_EXPERIMENTAL_API void sentry_log_trace(const char *message, ...);
+SENTRY_EXPERIMENTAL_API void sentry_log_debug(const char *message, ...);
+SENTRY_EXPERIMENTAL_API void sentry_log_info(const char *message, ...);
+SENTRY_EXPERIMENTAL_API void sentry_log_warn(const char *message, ...);
+SENTRY_EXPERIMENTAL_API void sentry_log_error(const char *message, ...);
+SENTRY_EXPERIMENTAL_API void sentry_log_fatal(const char *message, ...);
 
 #ifdef SENTRY_PLATFORM_LINUX
 

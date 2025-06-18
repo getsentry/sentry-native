@@ -11,6 +11,10 @@
 #include <stdarg.h>
 #include <stdio.h>
 
+// TODO discuss replacing this with sentry_level_t
+//      -> issue is 'warn' vs 'warning'
+//      https://develop.sentry.dev/sdk/data-model/event-payloads/#optional-attributes
+//      https://develop.sentry.dev/sdk/telemetry/logs/#log-severity-level
 char *
 log_level_as_string(sentry_log_level_t level)
 {
@@ -232,9 +236,12 @@ construct_log(sentry_log_level_t level, const char *message, va_list args)
         }
         sentry_value_set_by_key(
             parent_span_id, "type", sentry_value_new_string("string"));
-        // TODO should we only add if either exists?
-        sentry_value_set_by_key(
-            attributes, "sentry.trace.parent_span_id", parent_span_id);
+        if (scope->transaction_object || scope->span) {
+            sentry_value_set_by_key(
+                attributes, "sentry.trace.parent_span_id", parent_span_id);
+        } else {
+            sentry_value_decref(parent_span_id);
+        }
 
         if (!sentry_value_is_null(scope->user)) {
             sentry_value_t user_id = sentry_value_get_by_key(scope->user, "id");
@@ -324,10 +331,8 @@ sentry__logs_log(sentry_log_level_t level, const char *message, va_list args)
     }
 }
 
-// TODO think about the structure below, is this how we want the API to
-//     function?
 void
-sentry_logger_trace(const char *message, ...)
+sentry_log_trace(const char *message, ...)
 {
     va_list args;
     va_start(args, message);
@@ -336,7 +341,7 @@ sentry_logger_trace(const char *message, ...)
 }
 
 void
-sentry_logger_debug(const char *message, ...)
+sentry_log_debug(const char *message, ...)
 {
     va_list args;
     va_start(args, message);
@@ -345,7 +350,7 @@ sentry_logger_debug(const char *message, ...)
 }
 
 void
-sentry_logger_info(const char *message, ...)
+sentry_log_info(const char *message, ...)
 {
     va_list args;
     va_start(args, message);
@@ -354,7 +359,7 @@ sentry_logger_info(const char *message, ...)
 }
 
 void
-sentry_logger_warn(const char *message, ...)
+sentry_log_warn(const char *message, ...)
 {
     va_list args;
     va_start(args, message);
@@ -363,7 +368,7 @@ sentry_logger_warn(const char *message, ...)
 }
 
 void
-sentry_logger_error(const char *message, ...)
+sentry_log_error(const char *message, ...)
 {
     va_list args;
     va_start(args, message);
@@ -372,7 +377,7 @@ sentry_logger_error(const char *message, ...)
 }
 
 void
-sentry_logger_fatal(const char *message, ...)
+sentry_log_fatal(const char *message, ...)
 {
     va_list args;
     va_start(args, message);

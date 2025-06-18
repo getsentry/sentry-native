@@ -360,29 +360,27 @@ main(int argc, char **argv)
     }
 
     sentry_init(options);
-
+    sentry_value_t new_user
+        = sentry_value_new_user("42", "marvin", "hitch@hiker.com", NULL);
+    sentry_set_user(new_user);
     // TODO incorporate into test
     if (options->enable_logs) {
-        sentry_logger_trace(
-            "We log it up  %i percent, %s style\n", 100, "trace");
-        // sentry_logger_debug(
-        //     "We log it up  %i percent, %s style\n", 100, "debug");
-        // sentry_logger_info("We log it up  %i percent, %s style\n", 100,
-        // "info"); sentry_logger_warn("We log it up  %i percent, %s style\n",
-        // 100, "warn"); sentry_logger_error(
-        //     "We log it up  %i percent, %s style\n", 100, "error");
-        // sentry_logger_fatal(
-        //     "We log it up  %i percent, %s style\n", 100, "fatal");
+        sentry_log_trace("We log it up  %i percent, %s style\n", 100, "trace");
+        sentry_log_debug("We log it up  %i percent, %s style\n", 100, "debug");
+        sentry_log_info("We log it up  %i percent, %s style\n", 100, "info");
+        sentry_log_warn("We log it up  %i percent, %s style\n", 100, "warn");
+        sentry_log_error("We log it up  %i percent, %s style\n", 100, "error");
+        sentry_log_fatal("We log it up  %i percent, %s style\n", 100, "fatal");
 
         // Test the logger with various parameter types
-        sentry_logger_info(
+        sentry_log_info(
             "API call to %s completed in %d ms with %f success rate",
             "/api/products", 2500, 0.95);
 
-        sentry_logger_warn("Processing %d items, found %u errors, pointer: %p",
+        sentry_log_warn("Processing %d items, found %u errors, pointer: %p",
             100, 5u, (void *)0x12345678);
 
-        sentry_logger_error("Character '%c' is invalid", 'X');
+        sentry_log_error("Character '%c' is invalid", 'X');
     }
 
     if (!has_arg(argc, argv, "no-setup")) {
@@ -593,7 +591,7 @@ main(int argc, char **argv)
             sentry_capture_event(event);
         }
         if (options->enable_logs) {
-            sentry_logger_debug("logging after scoped transaction event");
+            sentry_log_debug("logging after scoped transaction event");
         }
 
         sentry_transaction_finish(tx);
