@@ -54,6 +54,7 @@ extern "C" {
 #include "client/crashpad_info.h"
 #include "client/prune_crash_reports.h"
 #include "client/settings.h"
+#include "util/file/filesystem.h"
 #ifdef __clang__
 #    pragma clang diagnostic pop
 #endif
@@ -683,14 +684,33 @@ crashpad_backend_add_attachment(
         }
     }
 
-    base::FilePath path
-        = data->client->AddAttachment(base::FilePath(attachment->path->path));
+    // if "filename.ext" exists, find next available "filename-N.ext"
+    base::FilePath path(attachment->path->path);
+    if (crashpad::IsRegularFile(path)) {
+        base::FilePath dir = path.DirName();
+        // double-removal to support common double extensions like ".tar.gz"
+        base::FilePath basename
+            = path.BaseName().RemoveFinalExtension().RemoveFinalExtension();
+        base::FilePath::StringType extension
+            = path.RemoveFinalExtension().FinalExtension()
+            + path.FinalExtension();
+        int n = 1;
+        do {
+#    if BUILDFLAG(IS_WIN)
+            base::FilePath::StringType ns = std::to_wstring(n);
+#    else
+            base::FilePath::StringType ns = std::to_string(n);
+#    endif
+            base::FilePath::StringType filename
+                = basename.value() + FILE_PATH_LITERAL("-") + ns + extension;
+            path = dir.Append(filename);
+        } while (crashpad::IsRegularFile(path) && ++n < 4096);
 
-    if (base::FilePath(attachment->path->path) != path) {
-        SENTRY_INFOF("crashpad renamed attachment from \"%" SENTRY_PATH_PRI
+        SENTRY_INFOF("renamed crashpad attachment from \"%" SENTRY_PATH_PRI
                      "\" to \"%" SENTRY_PATH_PRI "\"",
             sentry__path_filename(attachment->path),
             path.BaseName().value().c_str());
+
         sentry__path_free(attachment->path);
 #    ifdef SENTRY_PLATFORM_WINDOWS
         attachment->path = sentry__path_from_wstr(path.value().c_str());
@@ -698,6 +718,8 @@ crashpad_backend_add_attachment(
         attachment->path = sentry__path_from_str(path.value().c_str());
 #    endif
     }
+
+    data->client->AddAttachment(path);
 
     if (attachment->buf
         && sentry__path_write_buffer(
