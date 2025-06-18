@@ -314,7 +314,7 @@ sentry__envelope_add_logs(sentry_envelope_t *envelope, sentry_value_t logs)
     sentry__envelope_item_set_header(
         item, "type", sentry_value_new_string("log"));
     sentry__envelope_item_set_header(item, "item_count",
-        sentry_value_new_int32(sentry_value_get_length(logs)));
+        sentry_value_new_int32((int32_t)sentry_value_get_length(logs)));
     sentry__envelope_item_set_header(item, "content_type",
         sentry_value_new_string("application/vnd.sentry.items.log+json"));
 
