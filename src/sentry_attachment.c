@@ -39,7 +39,6 @@ sentry__attachment_from_path(sentry_path_t *path)
     }
     memset(attachment, 0, sizeof(sentry_attachment_t));
     attachment->path = path;
-    attachment->uuid = sentry_uuid_new_v4();
     return attachment;
 }
 
@@ -47,14 +46,20 @@ sentry_attachment_t *
 sentry__attachment_from_buffer(
     const char *buf, size_t buf_len, sentry_path_t *filename)
 {
-    if (!buf || !buf_len || !filename) {
+    if (!filename) {
+        return NULL;
+    }
+    if (!buf || !buf_len) {
         sentry__path_free(filename);
         return NULL;
     }
-    sentry_attachment_t *attachment = sentry__attachment_from_path(filename);
+    sentry_attachment_t *attachment = SENTRY_MAKE(sentry_attachment_t);
     if (!attachment) {
+        sentry__path_free(filename);
         return NULL;
     }
+    memset(attachment, 0, sizeof(sentry_attachment_t));
+    attachment->path = filename;
     attachment->buf = sentry_malloc(buf_len * sizeof(char));
     memcpy(attachment->buf, buf, buf_len * sizeof(char));
     attachment->buf_len = buf_len;
@@ -172,7 +177,6 @@ attachment_clone(const sentry_attachment_t *attachment)
     }
     clone->type = attachment->type;
     clone->content_type = attachment->content_type;
-    clone->uuid = attachment->uuid;
 
     return clone;
 }
