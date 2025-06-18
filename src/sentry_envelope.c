@@ -298,8 +298,6 @@ sentry__envelope_add_transaction(
 sentry_envelope_item_t *
 sentry__envelope_add_logs(sentry_envelope_t *envelope, sentry_value_t logs)
 {
-    // TODO ensure this starts out correctly; we get {dsn:...} as a header
-    //  (but don't think we need it?)
     sentry_envelope_item_t *item = envelope_add_item(envelope);
     if (!item) {
         return NULL;

@@ -2,6 +2,7 @@
 #include "sentry_core.h"
 #include "sentry_envelope.h"
 #include "sentry_options.h"
+#include "sentry_os.h"
 #include "sentry_scope.h"
 
 #include <stdio.h>
@@ -33,7 +34,7 @@ log_level_as_string(sentry_log_level_t level)
 
 static void
 populate_message_parameters(
-    const char *message, va_list args, sentry_value_t attributes)
+    sentry_value_t attributes, const char *message, va_list args)
 {
     if (!message || sentry_value_is_null(attributes)) {
         return;
@@ -175,6 +176,16 @@ populate_message_parameters(
     va_end(args_copy);
 }
 
+static void
+add_attribute(sentry_value_t attributes, sentry_value_t value, const char *type,
+    const char *name)
+{
+    sentry_value_t param_obj = sentry_value_new_object();
+    sentry_value_set_by_key(param_obj, "value", value);
+    sentry_value_set_by_key(param_obj, "type", sentry_value_new_string(type));
+    sentry_value_set_by_key(attributes, name, param_obj);
+}
+
 static sentry_value_t
 construct_log(sentry_log_level_t level, const char *message, va_list args)
 {
@@ -224,52 +235,59 @@ construct_log(sentry_log_level_t level, const char *message, va_list args)
         // TODO should we only add if either exists?
         sentry_value_set_by_key(
             attributes, "sentry.trace.parent_span_id", parent_span_id);
+
+        if (!sentry_value_is_null(scope->user)) {
+            sentry_value_t user_id = sentry_value_get_by_key(scope->user, "id");
+            if (!sentry_value_is_null(user_id)) {
+                add_attribute(attributes, user_id, "string", "user.id");
+            }
+            sentry_value_t user_username
+                = sentry_value_get_by_key(scope->user, "username");
+            if (!sentry_value_is_null(user_username)) {
+                add_attribute(attributes, user_username, "string", "user.name");
+            }
+            sentry_value_t user_email
+                = sentry_value_get_by_key(scope->user, "email");
+            if (!sentry_value_is_null(user_email)) {
+                add_attribute(attributes, user_email, "string", "user.email");
+            }
+        }
+        sentry_value_t os_context = sentry__get_os_context();
+        if (!sentry_value_is_null(os_context)) {
+            sentry_value_t os_name
+                = sentry_value_get_by_key(os_context, "name");
+            sentry_value_t os_version
+                = sentry_value_get_by_key(os_context, "version");
+            if (!sentry_value_is_null(os_name)) {
+                add_attribute(attributes, os_name, "string", "os.name");
+            }
+            if (!sentry_value_is_null(os_version)) {
+                add_attribute(attributes, os_version, "string", "os.version");
+            }
+        }
     }
 
     SENTRY_WITH_OPTIONS (options) {
         if (options->environment) {
-            sentry_value_t environment = sentry_value_new_object();
-            sentry_value_set_by_key(environment, "value",
-                sentry_value_new_string(options->environment));
-            sentry_value_set_by_key(
-                environment, "type", sentry_value_new_string("string"));
-            sentry_value_set_by_key(
-                attributes, "sentry.environment", environment);
+            add_attribute(attributes,
+                sentry_value_new_string(options->environment), "string",
+                "sentry.environment");
         }
         if (options->release) {
-            sentry_value_t release = sentry_value_new_object();
-            sentry_value_set_by_key(
-                release, "value", sentry_value_new_string(options->release));
-            sentry_value_set_by_key(
-                release, "type", sentry_value_new_string("string"));
-            sentry_value_set_by_key(attributes, "sentry.release", release);
+            add_attribute(attributes, sentry_value_new_string(options->release),
+                "string", "sentry.release");
         }
     }
 
-    sentry_value_t sdk_name = sentry_value_new_object();
-    sentry_value_set_by_key(
-        sdk_name, "value", sentry_value_new_string("sentry.native"));
-    sentry_value_set_by_key(
-        sdk_name, "type", sentry_value_new_string("string"));
-    sentry_value_set_by_key(attributes, "sentry.sdk.name", sdk_name);
-
-    sentry_value_t sdk_version = sentry_value_new_object();
-    sentry_value_set_by_key(
-        sdk_version, "value", sentry_value_new_string(sentry_sdk_version()));
-    sentry_value_set_by_key(
-        sdk_version, "type", sentry_value_new_string("string"));
-    sentry_value_set_by_key(attributes, "sentry.sdk.name", sdk_version);
-
-    sentry_value_t message_template = sentry_value_new_object();
-    sentry_value_set_by_key(
-        message_template, "value", sentry_value_new_string(message));
-    sentry_value_set_by_key(
-        message_template, "type", sentry_value_new_string("string"));
-    sentry_value_set_by_key(
-        attributes, "sentry.message.template", message_template);
+    add_attribute(attributes, sentry_value_new_string("sentry.native"),
+        "string", "sentry.sdk.name");
+    add_attribute(attributes, sentry_value_new_string(sentry_sdk_version()),
+        "string", "sentry.sdk.version");
+    add_attribute(attributes, sentry_value_new_string(message), "string",
+        "sentry.message.template");
 
     // Parse variadic arguments and add them to attributes
-    populate_message_parameters(message, args, attributes);
+    populate_message_parameters(attributes, message, args);
 
     sentry_value_set_by_key(log, "attributes", attributes);
 
@@ -295,6 +313,8 @@ sentry__logs_log(sentry_log_level_t level, const char *message, va_list args)
     sentry_value_append(logs_list, log);
     sentry_value_set_by_key(logs, "items", logs_list);
     // sending of the envelope
+    // TODO ensure envelope starts out correctly; we get {dsn:...} as a header
+    //  (but not sure we need it?) -> we could add bool to envelope creation
     sentry_envelope_t *envelope = sentry__envelope_new();
     sentry__envelope_add_logs(envelope, logs);
     // TODO remove debug write to file below
