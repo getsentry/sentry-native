@@ -22,6 +22,7 @@ extern "C" {
 #include "transports/sentry_disk_transport.h"
 }
 
+#include <filesystem>
 #include <map>
 #include <vector>
 
@@ -54,7 +55,6 @@ extern "C" {
 #include "client/crashpad_info.h"
 #include "client/prune_crash_reports.h"
 #include "client/settings.h"
-#include "util/file/filesystem.h"
 #ifdef __clang__
 #    pragma clang diagnostic pop
 #endif
@@ -663,44 +663,41 @@ crashpad_backend_prune_database(sentry_backend_t *backend)
 }
 
 #if defined(SENTRY_PLATFORM_WINDOWS) || defined(SENTRY_PLATFORM_LINUX)
+namespace fs = std::filesystem;
+
 static bool
 ensure_unique_file(sentry_attachment_t *attachment)
 {
     // if "filename.ext" exists, find next available "filename-N.ext"
-    base::FilePath path(attachment->path->path);
-    if (!crashpad::IsRegularFile(path)) {
+    fs::path path(attachment->path->path);
+    if (!fs::exists(path)) {
         return true;
     }
 
-    base::FilePath dir = path.DirName();
-    // double-removal to support common double extensions like ".tar.gz"
-    base::FilePath basename
-        = path.BaseName().RemoveFinalExtension().RemoveFinalExtension();
-    base::FilePath::StringType extension
-        = path.RemoveFinalExtension().FinalExtension() + path.FinalExtension();
+    // support common double-extensions like ".tar.gz"
+    fs::path basename = path.stem().stem();
+    fs::path extension = path.stem().extension();
+    extension += path.extension();
 
-    int n = 1;
-    constexpr int max_n = 4096;
+    size_t n = 1;
+    constexpr size_t max_n = 4096; // arbitrary but reasonable limit
     do {
-#    if BUILDFLAG(IS_WIN)
-        base::FilePath::StringType tag = L"-" + std::to_wstring(n);
-#    else
-        base::FilePath::StringType tag = "-" + std::to_string(n);
-#    endif
-        path = dir.Append(basename.value() + tag + extension);
-    } while (crashpad::IsRegularFile(path) && ++n < max_n);
+        fs::path filename = basename;
+        filename += fs::path("-" + std::to_string(n));
+        filename += extension;
+        path.replace_filename(filename);
+    } while (fs::exists(path) && ++n < max_n);
 
     if (n < max_n) {
         SENTRY_INFOF("renamed crashpad attachment from \"%" SENTRY_PATH_PRI
                      "\" to \"%" SENTRY_PATH_PRI "\"",
-            sentry__path_filename(attachment->path),
-            path.BaseName().value().c_str());
+            sentry__path_filename(attachment->path), path.filename().c_str());
     }
 
     sentry__path_free(attachment->path);
-    attachment->path = sentry__path_new(path.value().c_str());
+    attachment->path = sentry__path_new(path.c_str());
 
-    return !crashpad::IsRegularFile(path);
+    return !fs::exists(path);
 }
 
 static void
