@@ -57,6 +57,13 @@ sentry_attachment_t *sentry__attachments_add(
     sentry_attachment_type_t attachment_type, const char *content_type);
 
 /**
+ * Adds a file attachment to the attachments list at `attachments_ptr`.
+ */
+sentry_attachment_t *sentry__attachments_add_path(
+    sentry_attachment_t **attachments_ptr, sentry_path_t *path,
+    sentry_attachment_type_t attachment_type, const char *content_type);
+
+/**
  * Removes an attachment from the attachments list at `attachments_ptr`.
  */
 void sentry__attachments_remove(

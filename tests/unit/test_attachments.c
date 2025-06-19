@@ -229,26 +229,20 @@ SENTRY_TEST(attachments_extend)
     sentry__path_write_buffer(path_d, "ddd", 3);
 
     sentry_attachment_t *attachments_abc = NULL;
-    sentry__attachments_add(&attachments_abc,
-        sentry__attachment_from_path(sentry__path_clone(path_a)), ATTACHMENT,
-        NULL);
-    sentry__attachments_add(&attachments_abc,
-        sentry__attachment_from_path(sentry__path_clone(path_b)), ATTACHMENT,
-        NULL);
-    sentry__attachments_add(&attachments_abc,
-        sentry__attachment_from_path(sentry__path_clone(path_c)), ATTACHMENT,
-        NULL);
+    sentry__attachments_add_path(
+        &attachments_abc, sentry__path_clone(path_a), ATTACHMENT, NULL);
+    sentry__attachments_add_path(
+        &attachments_abc, sentry__path_clone(path_b), ATTACHMENT, NULL);
+    sentry__attachments_add_path(
+        &attachments_abc, sentry__path_clone(path_c), ATTACHMENT, NULL);
 
     sentry_attachment_t *attachments_bcd = NULL;
-    sentry__attachments_add(&attachments_bcd,
-        sentry__attachment_from_path(sentry__path_clone(path_b)), ATTACHMENT,
-        NULL);
-    sentry__attachments_add(&attachments_bcd,
-        sentry__attachment_from_path(sentry__path_clone(path_c)), ATTACHMENT,
-        NULL);
-    sentry__attachments_add(&attachments_bcd,
-        sentry__attachment_from_path(sentry__path_clone(path_d)), ATTACHMENT,
-        NULL);
+    sentry__attachments_add_path(
+        &attachments_bcd, sentry__path_clone(path_b), ATTACHMENT, NULL);
+    sentry__attachments_add_path(
+        &attachments_bcd, sentry__path_clone(path_c), ATTACHMENT, NULL);
+    sentry__attachments_add_path(
+        &attachments_bcd, sentry__path_clone(path_d), ATTACHMENT, NULL);
 
     sentry_attachment_t *all_attachments = NULL;
     sentry__attachments_extend(&all_attachments, attachments_abc);

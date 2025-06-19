@@ -684,9 +684,8 @@ sentry_attachment_t *
 sentry_scope_attach_file_n(
     sentry_scope_t *scope, const char *path, size_t path_len)
 {
-    return sentry__attachments_add(&scope->attachments,
-        sentry__attachment_from_path(sentry__path_from_str_n(path, path_len)),
-        ATTACHMENT, NULL);
+    return sentry__attachments_add_path(&scope->attachments,
+        sentry__path_from_str_n(path, path_len), ATTACHMENT, NULL);
 }
 
 sentry_attachment_t *
@@ -719,9 +718,8 @@ sentry_attachment_t *
 sentry_scope_attach_filew_n(
     sentry_scope_t *scope, const wchar_t *path, size_t path_len)
 {
-    return sentry__attachments_add(&scope->attachments,
-        sentry__attachment_from_path(sentry__path_from_wstr_n(path, path_len)),
-        ATTACHMENT, NULL);
+    return sentry__attachments_add_path(&scope->attachments,
+        sentry__path_from_wstr_n(path, path_len), ATTACHMENT, NULL);
 }
 
 sentry_attachment_t *

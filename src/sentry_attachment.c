@@ -129,6 +129,16 @@ sentry__attachments_add(sentry_attachment_t **attachments_ptr,
     return attachment;
 }
 
+sentry_attachment_t *
+sentry__attachments_add_path(sentry_attachment_t **attachments_ptr,
+    sentry_path_t *path, sentry_attachment_type_t attachment_type,
+    const char *content_type)
+{
+    sentry_attachment_t *attachment = sentry__attachment_from_path(path);
+    return sentry__attachments_add(
+        attachments_ptr, attachment, attachment_type, content_type);
+}
+
 void
 sentry__attachments_remove(
     sentry_attachment_t **attachments_ptr, sentry_attachment_t *attachment)
