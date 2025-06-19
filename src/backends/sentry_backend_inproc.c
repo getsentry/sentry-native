@@ -599,13 +599,12 @@ handle_ucontext(const sentry_ucontext_t *uctx)
             sentry__envelope_add_session(envelope, session);
 
             if (options->attach_screenshot) {
-                sentry_path_t *screenshot_path
-                    = sentry__screenshot_get_path(options);
-                if (sentry__screenshot_capture(screenshot_path)) {
-                    sentry__envelope_add_attachment(envelope,
-                        sentry__attachment_from_path(screenshot_path));
+                sentry_attachment_t *screenshot = sentry__attachment_from_path(
+                    sentry__screenshot_get_path(options));
+                if (sentry__screenshot_capture(screenshot->path)) {
+                    sentry__envelope_add_attachment(envelope, screenshot);
                 }
-                sentry__path_free(screenshot_path);
+                sentry__attachment_free(screenshot);
             }
 
             // capture the envelope with the disk transport

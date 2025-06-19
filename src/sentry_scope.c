@@ -684,10 +684,9 @@ sentry_attachment_t *
 sentry_scope_attach_file_n(
     sentry_scope_t *scope, const char *path, size_t path_len)
 {
-    sentry_attachment_t *attachment
-        = sentry__attachment_from_path(sentry__path_from_str_n(path, path_len));
-    return sentry__attachments_add(
-        &scope->attachments, attachment, ATTACHMENT, NULL);
+    return sentry__attachments_add(&scope->attachments,
+        sentry__attachment_from_path(sentry__path_from_str_n(path, path_len)),
+        ATTACHMENT, NULL);
 }
 
 sentry_attachment_t *
@@ -702,10 +701,10 @@ sentry_attachment_t *
 sentry_scope_attach_bytes_n(sentry_scope_t *scope, const char *buf,
     size_t buf_len, const char *filename, size_t filename_len)
 {
-    sentry_attachment_t *attachment = sentry__attachment_from_buffer(
-        buf, buf_len, sentry__path_from_str_n(filename, filename_len));
-    return sentry__attachments_add(
-        &scope->attachments, attachment, ATTACHMENT, NULL);
+    return sentry__attachments_add(&scope->attachments,
+        sentry__attachment_from_buffer(
+            buf, buf_len, sentry__path_from_str_n(filename, filename_len)),
+        ATTACHMENT, NULL);
 }
 
 #ifdef SENTRY_PLATFORM_WINDOWS
@@ -720,10 +719,9 @@ sentry_attachment_t *
 sentry_scope_attach_filew_n(
     sentry_scope_t *scope, const wchar_t *path, size_t path_len)
 {
-    sentry_attachment_t *attachment = sentry__attachment_from_path(
-        sentry__path_from_wstr_n(path, path_len));
-    return sentry__attachments_add(
-        &scope->attachments, attachment, ATTACHMENT, NULL);
+    return sentry__attachments_add(&scope->attachments,
+        sentry__attachment_from_path(sentry__path_from_wstr_n(path, path_len)),
+        ATTACHMENT, NULL);
 }
 
 sentry_attachment_t *
@@ -739,9 +737,9 @@ sentry_attachment_t *
 sentry_scope_attach_bytesw_n(sentry_scope_t *scope, const char *buf,
     size_t buf_len, const wchar_t *filename, size_t filename_len)
 {
-    sentry_attachment_t *attachment = sentry__attachment_from_buffer(
-        buf, buf_len, sentry__path_from_wstr_n(filename, filename_len));
-    return sentry__attachments_add(
-        &scope->attachments, attachment, ATTACHMENT, NULL);
+    return sentry__attachments_add(&scope->attachments,
+        sentry__attachment_from_buffer(
+            buf, buf_len, sentry__path_from_wstr_n(filename, filename_len)),
+        ATTACHMENT, NULL);
 }
 #endif

@@ -66,8 +66,8 @@ sentry__attachment_from_buffer(
     return attachment;
 }
 
-static void
-attachment_free(sentry_attachment_t *attachment)
+void
+sentry__attachment_free(sentry_attachment_t *attachment)
 {
     if (!attachment) {
         return;
@@ -86,7 +86,7 @@ sentry__attachments_free(sentry_attachment_t *attachments)
         sentry_attachment_t *attachment = it;
         it = attachment->next;
 
-        attachment_free(attachment);
+        sentry__attachment_free(attachment);
     }
 }
 
@@ -118,7 +118,7 @@ sentry__attachments_add(sentry_attachment_t **attachments_ptr,
 
     for (sentry_attachment_t *it = *attachments_ptr; it; it = it->next) {
         if (attachment_eq(it, attachment)) {
-            attachment_free(attachment);
+            sentry__attachment_free(attachment);
             return it;
         }
 
@@ -142,7 +142,7 @@ sentry__attachments_remove(
     for (sentry_attachment_t *it = *attachments_ptr; it; it = it->next) {
         if (attachment_eq(it, attachment)) {
             *next_ptr = it->next;
-            attachment_free(it);
+            sentry__attachment_free(it);
             return;
         }
 
@@ -170,7 +170,7 @@ attachment_clone(const sentry_attachment_t *attachment)
         clone->buf_len = attachment->buf_len;
         clone->buf = sentry_malloc(attachment->buf_len * sizeof(char));
         if (!clone->buf) {
-            attachment_free(clone);
+            sentry__attachment_free(clone);
             return NULL;
         }
         memcpy(clone->buf, attachment->buf, attachment->buf_len * sizeof(char));

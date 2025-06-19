@@ -27,9 +27,22 @@ struct sentry_attachment_s {
     sentry_attachment_t *next;
 };
 
+/**
+ *  Creates a new file attachment. Takes ownership of `path`.
+ */
 sentry_attachment_t *sentry__attachment_from_path(sentry_path_t *path);
+
+/**
+ * Creates a new byte attachment from a copy of `buf`. Takes ownership of
+ * `filename`.
+ */
 sentry_attachment_t *sentry__attachment_from_buffer(
     const char *buf, size_t buf_len, sentry_path_t *filename);
+
+/**
+ *  Frees the `attachment`.
+ */
+void sentry__attachment_free(sentry_attachment_t *attachment);
 
 /**
  * Frees the linked list of `attachments`.
