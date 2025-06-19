@@ -96,8 +96,7 @@ attachment_eq(const sentry_attachment_t *a, const sentry_attachment_t *b)
     if (a == b) {
         return true;
     }
-    if (!a || !b || !a->path || !b->path || a->type != b->type
-        || a->content_type != b->content_type) {
+    if (!a || !b || a->buf || b->buf || a->type != b->type) {
         return false;
     }
     return sentry__path_eq(a->path, b->path);
@@ -173,10 +172,11 @@ attachment_clone(const sentry_attachment_t *attachment)
     }
     memset(clone, 0, sizeof(sentry_attachment_t));
 
-    if (attachment->path) {
-        clone->path = sentry__path_clone(attachment->path);
-    }
-    if (attachment->buf_len > 0) {
+    clone->path = sentry__path_clone(attachment->path);
+    clone->type = attachment->type;
+    clone->content_type = sentry__string_clone(attachment->content_type);
+
+    if (attachment->buf) {
         clone->buf_len = attachment->buf_len;
         clone->buf = sentry_malloc(attachment->buf_len * sizeof(char));
         if (!clone->buf) {
@@ -185,8 +185,6 @@ attachment_clone(const sentry_attachment_t *attachment)
         }
         memcpy(clone->buf, attachment->buf, attachment->buf_len * sizeof(char));
     }
-    clone->type = attachment->type;
-    clone->content_type = attachment->content_type;
 
     return clone;
 }
