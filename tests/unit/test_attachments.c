@@ -351,7 +351,6 @@ SENTRY_TEST(attachment_content_type)
             "\n{\"type\":\"attachment\",\"length\":13,\"filename\":\".c\"}\n"
             "int main() {}");
         sentry_free(serialized);
-
         sentry_envelope_free(envelope);
     }
 

@@ -390,7 +390,6 @@ sentry__envelope_add_attachment(
         sentry__envelope_item_set_header(item, "content_type",
             sentry_value_new_string(attachment->content_type));
     }
-
     sentry__envelope_item_set_header(item, "filename",
 #ifdef SENTRY_PLATFORM_WINDOWS
         sentry__value_new_string_from_wstr(
