@@ -173,9 +173,6 @@ attachment_clone(const sentry_attachment_t *attachment)
     memset(clone, 0, sizeof(sentry_attachment_t));
 
     clone->path = sentry__path_clone(attachment->path);
-    clone->type = attachment->type;
-    clone->content_type = sentry__string_clone(attachment->content_type);
-
     if (attachment->buf) {
         clone->buf_len = attachment->buf_len;
         clone->buf = sentry_malloc(attachment->buf_len * sizeof(char));
