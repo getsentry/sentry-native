@@ -30,6 +30,34 @@
 #    define sleep_s(SECONDS) sleep(SECONDS)
 #endif
 
+#if defined(SENTRY_PLATFORM_WINDOWS)
+#    include <windows.h>
+unsigned long
+get_current_thread_id()
+{
+    return GetCurrentThreadId();
+}
+#elif defined(SENTRY_PLATFORM_MACOS)
+#    include <pthread.h>
+#    include <stdint.h>
+uint64_t
+get_current_thread_id()
+{
+    uint64_t tid;
+    pthread_threadid_np(NULL, &tid);
+    return tid;
+}
+#else
+#    include <stdint.h>
+#    include <sys/syscall.h>
+#    include <unistd.h>
+uint64_t
+get_current_thread_id()
+{
+    return (uint64_t)syscall(SYS_gettid);
+}
+#endif
+
 static double
 traces_sampler_callback(const sentry_transaction_context_t *transaction_ctx,
     sentry_value_t custom_sampling_ctx, const int *parent_sampled)
@@ -492,7 +520,10 @@ main(int argc, char **argv)
         sentry_value_t event = sentry_value_new_message_event(
             SENTRY_LEVEL_INFO, "my-logger", "Hello World!");
         if (has_arg(argc, argv, "add-stacktrace")) {
-            sentry_event_value_add_stacktrace(event, NULL, 0);
+            sentry_value_t thread
+                = sentry_value_new_thread(get_current_thread_id(), "main");
+            sentry_value_set_stacktrace(thread, NULL, 0);
+            sentry_event_add_thread(event, thread);
         }
         sentry_capture_event(event);
     }
