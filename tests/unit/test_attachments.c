@@ -375,6 +375,8 @@ SENTRY_TEST(attachments_bytes)
         = sentry_attach_bytes("b\0b", 3, ".b.txt");
     sentry_attachment_t *attachment_c
         = sentry_attach_bytes("c\0c\0c", 5, ".c.txt");
+    sentry_attachment_t *attachment_dupe
+        = sentry_attach_bytes("dupe", 4, ".c.txt");
 
     SENTRY_WITH_SCOPE (scope) {
         sentry_envelope_t *envelope = sentry__envelope_new();
@@ -388,13 +390,16 @@ SENTRY_TEST(attachments_bytes)
             "{\"type\":\"attachment\",\"length\":3,\"filename\":\".b.txt\"}"
             "\nb\0b\n"
             "{\"type\":\"attachment\",\"length\":5,\"filename\":\".c.txt\"}"
-            "\nc\0c\0c");
+            "\nc\0c\0c"
+            "\n{\"type\":\"attachment\",\"length\":5,\"filename\":\".c.txt\"}"
+            "\ndupe");
         sentry_free(serialized);
 
         sentry_envelope_free(envelope);
     }
 
     sentry_remove_attachment(attachment_b);
+    sentry_remove_attachment(attachment_dupe);
 
     SENTRY_WITH_SCOPE (scope) {
         sentry_envelope_t *envelope = sentry__envelope_new();

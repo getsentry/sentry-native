@@ -96,6 +96,7 @@ attachment_eq(const sentry_attachment_t *a, const sentry_attachment_t *b)
     if (a == b) {
         return true;
     }
+    // buffer attachments are not required to have unique filenames
     if (!a || !b || a->buf || b->buf || a->type != b->type) {
         return false;
     }
