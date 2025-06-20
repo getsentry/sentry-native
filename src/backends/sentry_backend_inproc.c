@@ -601,7 +601,8 @@ handle_ucontext(const sentry_ucontext_t *uctx)
             if (options->attach_screenshot) {
                 sentry_attachment_t *screenshot = sentry__attachment_from_path(
                     sentry__screenshot_get_path(options));
-                if (sentry__screenshot_capture(screenshot->path)) {
+                if (screenshot
+                    && sentry__screenshot_capture(screenshot->path)) {
                     sentry__envelope_add_attachment(envelope, screenshot);
                 }
                 sentry__attachment_free(screenshot);
