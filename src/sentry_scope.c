@@ -176,7 +176,7 @@ sentry__scope_free(sentry_scope_t *scope)
     sentry_free(scope);
 }
 
-#if !defined(SENTRY_PLATFORM_NX) && !defined(SENTRY_PLATFORM_PS)
+#if !defined(SENTRY_PLATFORM_NX)
 static void
 sentry__foreach_stacktrace(
     sentry_value_t event, void (*func)(sentry_value_t stacktrace))
@@ -517,7 +517,7 @@ sentry__scope_apply_to_event(const sentry_scope_t *scope,
         sentry_value_decref(scope_breadcrumbs);
     }
 
-#if !defined(SENTRY_PLATFORM_NX) && !defined(SENTRY_PLATFORM_PS)
+#if !defined(SENTRY_PLATFORM_NX)
     if (mode & SENTRY_SCOPE_MODULES) {
         sentry_value_t modules = sentry_get_modules_list();
         if (!sentry_value_is_null(modules)) {
