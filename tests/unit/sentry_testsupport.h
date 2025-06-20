@@ -73,9 +73,9 @@
 #ifdef SENTRY_TEST_PATH_PREFIX
 #    define SENTRY_TEST_OPTIONS_NEW(Varname)                                   \
         sentry_options_t *Varname = sentry_options_new();                      \
-        TEST_ASSERT(!!Varname);
-sentry_options_set_database_path(
-    Varname, SENTRY_TEST_PATH_PREFIX ".sentry-native")
+        TEST_ASSERT(!!Varname);                                                \
+        sentry_options_set_database_path(                                      \
+            Varname, SENTRY_TEST_PATH_PREFIX ".sentry-native");
 #else
 #    define SENTRY_TEST_PATH_PREFIX ""
 #    define SENTRY_TEST_OPTIONS_NEW(Varname)                                   \
