@@ -15,7 +15,7 @@
 //      -> issue is 'warn' vs 'warning'
 //      https://develop.sentry.dev/sdk/data-model/event-payloads/#optional-attributes
 //      https://develop.sentry.dev/sdk/telemetry/logs/#log-severity-level
-char *
+static char *
 log_level_as_string(sentry_log_level_t level)
 {
     switch (level) {
@@ -198,8 +198,9 @@ construct_log(sentry_log_level_t level, const char *message, va_list args)
 
     va_list args_copy;
     va_copy(args_copy, args);
-    int size = vsnprintf(NULL, 0, message, args_copy) + 1;
+    int len = vsnprintf(NULL, 0, message, args_copy) + 1;
     va_end(args_copy);
+    size_t size = (size_t)len;
     char *fmt_message = sentry_malloc(size);
     if (!fmt_message) {
         return sentry_value_new_null();
@@ -214,7 +215,7 @@ construct_log(sentry_log_level_t level, const char *message, va_list args)
 
     // timestamp in seconds
     sentry_value_set_by_key(log, "timestamp",
-        sentry_value_new_double(sentry__usec_time() / 1000000.0));
+        sentry_value_new_double((double)sentry__usec_time() / 1000000.0));
 
     SENTRY_WITH_SCOPE_MUT (scope) {
         sentry_value_set_by_key(log, "trace_id",
