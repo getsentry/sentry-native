@@ -258,13 +258,4 @@ sentry__path_new(const sentry_pathchar_t *s)
 #endif
 }
 
-/**
- * Return a path that is guaranteed to be unique.
- *
- * If the path does not exist, returns the path as-is. Otherwise, appens a "-N"
- * suffix to the basename until it finds a unique one, or returns `NULL` on
- * failure.
- */
-sentry_path_t *sentry__path_unique(sentry_path_t *path);
-
 #endif

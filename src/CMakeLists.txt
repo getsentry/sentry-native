@@ -48,7 +48,6 @@ sentry_target_sources_cwd(sentry
 	sentry_tracing.c
 	sentry_tracing.h
 	path/sentry_path.c
-	path/sentry_path.cpp
 	screenshot/sentry_screenshot.c
 	transports/sentry_disk_transport.c
 	transports/sentry_disk_transport.h
