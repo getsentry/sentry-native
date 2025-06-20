@@ -173,17 +173,22 @@ attachment_clone(const sentry_attachment_t *attachment)
     memset(clone, 0, sizeof(sentry_attachment_t));
 
     clone->path = sentry__path_clone(attachment->path);
+    if (!clone->path) {
+        goto fail;
+    }
     if (attachment->buf) {
         clone->buf_len = attachment->buf_len;
         clone->buf = sentry_malloc(attachment->buf_len * sizeof(char));
         if (!clone->buf) {
-            sentry__attachment_free(clone);
-            return NULL;
+            goto fail;
         }
         memcpy(clone->buf, attachment->buf, attachment->buf_len * sizeof(char));
     }
-
     return clone;
+
+fail:
+    sentry__attachment_free(clone);
+    return NULL;
 }
 
 void
