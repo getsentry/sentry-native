@@ -153,8 +153,9 @@ The example currently supports the following commands:
 - `log`: Enables debug logging.
 - `release-env`: Uses the `SENTRY_RELEASE` env-variable for the release,
   instead of a hardcoded value.
-- `attachment`: Adds an attachment, which is currently defined as the
-  `CMakeCache.txt` file, which is part of the CMake build folder.
+- `attachment`: Adds file and byte attachments, which are currently defined as the
+  `CMakeCache.txt` file, which is part of the CMake build folder, and a byte array
+  named as `bytes.bin`.
 - `attach-after-init`: Same as `attachment` but after the SDK has been initialized.
 - `stdout`: Uses a custom transport which dumps all envelopes to `stdout`.
 - `no-setup`: Skips all scope and breadcrumb initialization code.
