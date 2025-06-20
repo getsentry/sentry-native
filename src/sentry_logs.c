@@ -214,8 +214,9 @@ construct_log(sentry_log_level_t level, const char *message, va_list args)
         log, "level", sentry_value_new_string(log_level_as_string(level)));
 
     // timestamp in seconds
+    uint64_t usec_time = sentry__usec_time();
     sentry_value_set_by_key(log, "timestamp",
-        sentry_value_new_double((double)sentry__usec_time() / 1000000.0));
+        sentry_value_new_double((double)usec_time / 1000000.0));
 
     SENTRY_WITH_SCOPE_MUT (scope) {
         sentry_value_set_by_key(log, "trace_id",
