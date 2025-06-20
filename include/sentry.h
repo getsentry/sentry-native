@@ -1820,6 +1820,12 @@ SENTRY_API sentry_attachment_t *sentry_scope_attach_file_n(
  * API Users on windows are encouraged to use `sentry_attach_bytesw` or
  * `sentry_scope_attach_bytesw` instead.
  *
+ * NOTE: When using the `crashpad` backend, it writes byte attachments to disk
+ * into a flat directory structure. If multiple buffers are attached with the
+ * same `filename`, it will internally ensure unique filenames for attachments
+ * by appending a unique suffix to the filename. Therefore, attachments may show
+ * up with altered names in Sentry.
+ *
  * The returned `sentry_attachment_t` is owned by the SDK and will remain valid
  * until the attachment is removed with `sentry_remove_attachment` or
  * `sentry_close` is called.
