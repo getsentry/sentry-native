@@ -602,7 +602,7 @@ handle_ucontext(const sentry_ucontext_t *uctx)
                     = sentry__screenshot_get_path(options);
                 if (sentry__screenshot_capture(screenshot_path)) {
                     sentry__envelope_add_attachment(
-                        envelope, screenshot_path, NULL);
+                        envelope, screenshot_path, ATTACHMENT, NULL);
                 }
                 sentry__path_free(screenshot_path);
             }

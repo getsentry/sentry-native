@@ -2,6 +2,7 @@ extern "C" {
 #include "sentry_boot.h"
 
 #include "sentry_alloc.h"
+#include "sentry_attachment.h"
 #include "sentry_backend.h"
 #include "sentry_core.h"
 #include "sentry_database.h"
@@ -660,6 +661,30 @@ crashpad_backend_prune_database(sentry_backend_t *backend)
     crashpad::PruneCrashReportDatabase(data->db, &condition);
 }
 
+#if defined(SENTRY_PLATFORM_WINDOWS) || defined(SENTRY_PLATFORM_LINUX)
+static void
+crashpad_backend_add_attachment(
+    sentry_backend_t *backend, const sentry_path_t *attachment)
+{
+    auto *data = static_cast<crashpad_state_t *>(backend->data);
+    if (!data || !data->client) {
+        return;
+    }
+    data->client->AddAttachment(base::FilePath(attachment->path));
+}
+
+static void
+crashpad_backend_remove_attachment(
+    sentry_backend_t *backend, const sentry_path_t *attachment)
+{
+    auto *data = static_cast<crashpad_state_t *>(backend->data);
+    if (!data || !data->client) {
+        return;
+    }
+    data->client->RemoveAttachment(base::FilePath(attachment->path));
+}
+#endif
+
 sentry_backend_t *
 sentry__backend_new(void)
 {
@@ -687,6 +712,10 @@ sentry__backend_new(void)
     backend->user_consent_changed_func = crashpad_backend_user_consent_changed;
     backend->get_last_crash_func = crashpad_backend_last_crash;
     backend->prune_database_func = crashpad_backend_prune_database;
+#if defined(SENTRY_PLATFORM_WINDOWS) || defined(SENTRY_PLATFORM_LINUX)
+    backend->add_attachment_func = crashpad_backend_add_attachment;
+    backend->remove_attachment_func = crashpad_backend_remove_attachment;
+#endif
     backend->data = data;
     backend->can_capture_after_shutdown = true;
 

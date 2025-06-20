@@ -27,7 +27,7 @@ try_file_version(const LPCWSTR filename)
     }
 
     void *ffibuf = sentry_malloc(size);
-    if (!GetFileVersionInfoW(filename, 0, size, ffibuf)) {
+    if (ffibuf && !GetFileVersionInfoW(filename, 0, size, ffibuf)) {
         sentry_free(ffibuf);
         return NULL;
     }

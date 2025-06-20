@@ -155,6 +155,7 @@ The example currently supports the following commands:
   instead of a hardcoded value.
 - `attachment`: Adds an attachment, which is currently defined as the
   `CMakeCache.txt` file, which is part of the CMake build folder.
+- `attach-after-init`: Same as `attachment` but after the SDK has been initialized.
 - `stdout`: Uses a custom transport which dumps all envelopes to `stdout`.
 - `no-setup`: Skips all scope and breadcrumb initialization code.
 - `start-session`: Starts a new release-health session.
@@ -185,6 +186,7 @@ The example currently supports the following commands:
  This file can be found in `./tests/fixtures/view-hierachy.json`.
 - `set-trace`: Sets the scope `propagation_context`'s trace data to the given `trace_id="aaaabbbbccccddddeeeeffff00001111"` and `parent_span_id=""f0f0f0f0f0f0f0f0"`.
 - `capture-with-scope`: Captures an event with a local scope.
+- `attach-to-scope`: Same as `attachment` but attaches the file to the local scope.
 
 Only on Linux using crashpad:
 - `crashpad-wait-for-upload`: Couples application shutdown to complete the upload in the `crashpad_handler`.
