@@ -90,13 +90,19 @@ sentry__attachments_free(sentry_attachment_t *attachments)
     }
 }
 
+/**
+ * Compares attachments for equality to avoid adding duplicates and for removal.
+ *
+ * File attachments are considered equal if the paths are equal. Byte buffer
+ * attachments are only considered equal to themselves - they are not required
+ * to have unique filenames, and the bytes are not compared.
+ */
 static bool
 attachment_eq(const sentry_attachment_t *a, const sentry_attachment_t *b)
 {
     if (a == b) {
         return true;
     }
-    // buffer attachments are not required to have unique filenames
     if (!a || !b || a->buf || b->buf || a->type != b->type) {
         return false;
     }
