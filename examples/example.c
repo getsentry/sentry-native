@@ -16,8 +16,6 @@
 #    undef NDEBUG
 #endif
 
-#include "../src/sentry_options.h"
-
 #include <assert.h>
 
 #ifdef SENTRY_PLATFORM_WINDOWS
@@ -360,11 +358,9 @@ main(int argc, char **argv)
     }
 
     sentry_init(options);
-    sentry_value_t new_user
-        = sentry_value_new_user("42", "marvin", "hitch@hiker.com", NULL);
-    sentry_set_user(new_user);
+
     // TODO incorporate into test
-    if (options->enable_logs) {
+    if (sentry_options_get_enable_logs(options)) {
         sentry_log_trace("We log it up  %i percent, %s style\n", 100, "trace");
         sentry_log_debug("We log it up  %i percent, %s style\n", 100, "debug");
         sentry_log_info("We log it up  %i percent, %s style\n", 100, "info");
@@ -590,7 +586,7 @@ main(int argc, char **argv)
                 SENTRY_LEVEL_INFO, "my-logger", "Hello World!");
             sentry_capture_event(event);
         }
-        if (options->enable_logs) {
+        if (sentry_options_get_enable_logs(options)) {
             sentry_log_debug("logging after scoped transaction event");
         }
 

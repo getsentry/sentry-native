@@ -310,8 +310,6 @@ sentry__logs_log(sentry_log_level_t level, const char *message, va_list args)
         if (!options->enable_logs)
             return;
     }
-    SENTRY_INFOF("Logging level: %i\n", level);
-    vprintf(message, args);
     // create log from message
     sentry_value_t log = construct_log(level, message, args);
 
@@ -322,8 +320,6 @@ sentry__logs_log(sentry_log_level_t level, const char *message, va_list args)
     sentry_value_append(logs_list, log);
     sentry_value_set_by_key(logs, "items", logs_list);
     // sending of the envelope
-    // TODO ensure envelope starts out correctly; we get {dsn:...} as a header
-    //  (but not sure we need it?) -> we could add bool to envelope creation
     sentry_envelope_t *envelope = sentry__envelope_new();
     sentry__envelope_add_logs(envelope, logs);
     // TODO remove debug write to file below
