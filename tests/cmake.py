@@ -93,7 +93,7 @@ class CMake:
                 )
 
 
-def cmake(cwd, targets, options=None):
+def cmake(cwd, targets, options=None, cflags=[]):
     __tracebackhide__ = True
     if options is None:
         options = {}
@@ -153,7 +153,6 @@ def cmake(cwd, targets, options=None):
 
     # we have to set `-Werror` for this cmake invocation only, otherwise
     # completely unrelated things will break
-    cflags = []
     if os.environ.get("ERROR_ON_WARNINGS"):
         cflags.append("-Werror")
     if sys.platform == "win32" and not os.environ.get("TEST_MINGW"):
