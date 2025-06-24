@@ -20,6 +20,7 @@ typedef enum {
  */
 struct sentry_attachment_s {
     sentry_path_t *path;
+    sentry_path_t *filename;
     char *buf;
     size_t buf_len;
     sentry_attachment_type_t type;

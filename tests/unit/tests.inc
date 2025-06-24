@@ -1,7 +1,7 @@
 XX(assert_sdk_name)
 XX(assert_sdk_user_agent)
 XX(assert_sdk_version)
-XX(attachment_content_type)
+XX(attachment_properties)
 XX(attachments_add_dedupe)
 XX(attachments_add_remove)
 XX(attachments_bytes)
