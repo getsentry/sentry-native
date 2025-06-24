@@ -1799,6 +1799,10 @@ typedef struct sentry_attachment_s sentry_attachment_t;
  * API Users on windows are encouraged to use `sentry_attach_filew` or
  * `sentry_scope_attach_filew` instead.
  *
+ * The same file cannot be attached multiple times i.e. `path` must be unique.
+ * Calling this function multiple times with the same `path` is safe, but
+ * duplicate attachments with equal paths will not be added.
+ *
  * The returned `sentry_attachment_t` is owned by the SDK and will remain valid
  * until the attachment is removed with `sentry_remove_attachment` or
  * `sentry_close` is called.
@@ -1820,11 +1824,16 @@ SENTRY_API sentry_attachment_t *sentry_scope_attach_file_n(
  * API Users on windows are encouraged to use `sentry_attach_bytesw` or
  * `sentry_scope_attach_bytesw` instead.
  *
+ * `filename` is used to identify the attachment in the Sentry Web UI. It is
+ * recommended to use unique filenames to make attachments easier to
+ * differentiate. However, neither `filename` nor `buf` is used to reject
+ * duplicate attachments.
+ *
  * NOTE: When using the `crashpad` backend, it writes byte attachments to disk
  * into a flat directory structure. If multiple buffers are attached with the
  * same `filename`, it will internally ensure unique filenames for attachments
  * by appending a unique suffix to the filename. Therefore, attachments may show
- * up with altered names in Sentry.
+ * up with altered names in the Sentry Web UI.
  *
  * The returned `sentry_attachment_t` is owned by the SDK and will remain valid
  * until the attachment is removed with `sentry_remove_attachment` or
