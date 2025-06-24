@@ -196,17 +196,22 @@ construct_log(sentry_log_level_t level, const char *message, va_list args)
     sentry_value_t log = sentry_value_new_object();
     sentry_value_t attributes = sentry_value_new_object();
 
-    va_list args_copy;
-    va_copy(args_copy, args);
-    int len = vsnprintf(NULL, 0, message, args_copy) + 1;
-    va_end(args_copy);
+    va_list args_copy_1, args_copy_2, args_copy_3;
+    va_copy(args_copy_1, args);
+    va_copy(args_copy_2, args);
+    va_copy(args_copy_3, args);
+    int len = vsnprintf(NULL, 0, message, args_copy_1) + 1;
+    va_end(args_copy_1);
     size_t size = (size_t)len;
     char *fmt_message = sentry_malloc(size);
     if (!fmt_message) {
+        va_end(args_copy_2);
+        va_end(args_copy_3);
         return sentry_value_new_null();
     }
 
-    vsnprintf(fmt_message, size, message, args);
+    vsnprintf(fmt_message, size, message, args_copy_2);
+    va_end(args_copy_2);
 
     sentry_value_set_by_key(log, "body", sentry_value_new_string(fmt_message));
     sentry_free(fmt_message);
@@ -263,10 +268,10 @@ construct_log(sentry_log_level_t level, const char *message, va_list args)
         }
         sentry_value_t os_context = sentry__get_os_context();
         if (!sentry_value_is_null(os_context)) {
-            sentry_value_t os_name
-                = sentry_value_get_by_key(os_context, "name");
-            sentry_value_t os_version
-                = sentry_value_get_by_key(os_context, "version");
+            sentry_value_t os_name = sentry__value_clone(
+                sentry_value_get_by_key(os_context, "name"));
+            sentry_value_t os_version = sentry__value_clone(
+                sentry_value_get_by_key(os_context, "version"));
             if (!sentry_value_is_null(os_name)) {
                 add_attribute(attributes, os_name, "string", "os.name");
             }
@@ -274,6 +279,7 @@ construct_log(sentry_log_level_t level, const char *message, va_list args)
                 add_attribute(attributes, os_version, "string", "os.version");
             }
         }
+        sentry_value_decref(os_context);
     }
 
     SENTRY_WITH_OPTIONS (options) {
@@ -296,7 +302,8 @@ construct_log(sentry_log_level_t level, const char *message, va_list args)
         "sentry.message.template");
 
     // Parse variadic arguments and add them to attributes
-    populate_message_parameters(attributes, message, args);
+    populate_message_parameters(attributes, message, args_copy_3);
+    va_end(args_copy_3);
 
     sentry_value_set_by_key(log, "attributes", attributes);
 
@@ -327,6 +334,8 @@ sentry__logs_log(sentry_log_level_t level, const char *message, va_list args)
     SENTRY_WITH_OPTIONS (options) {
         sentry__capture_envelope(options->transport, envelope);
     }
+    // For now, free the logs object since envelope doesn't take ownership
+    sentry_value_decref(logs);
 }
 
 void
