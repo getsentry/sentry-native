@@ -5,34 +5,26 @@
 #include "sentry_os.h"
 #include "sentry_scope.h"
 
-#include <stdio.h>
+#include <stdarg.h>
 #include <string.h>
 
-#include <stdarg.h>
-#include <stdio.h>
-
-// TODO discuss replacing this with sentry_level_t
-//      -> issue is 'warn' vs 'warning'
-//      https://develop.sentry.dev/sdk/data-model/event-payloads/#optional-attributes
-//      https://develop.sentry.dev/sdk/telemetry/logs/#log-severity-level
-static char *
-log_level_as_string(sentry_log_level_t level)
+static const char *
+level_as_string(sentry_level_t level)
 {
     switch (level) {
-    case SENTRY_LOG_LEVEL_TRACE:
+    case SENTRY_LEVEL_TRACE:
         return "trace";
-    case SENTRY_LOG_LEVEL_DEBUG:
+    case SENTRY_LEVEL_DEBUG:
         return "debug";
-    case SENTRY_LOG_LEVEL_INFO:
-        return "info";
-    case SENTRY_LOG_LEVEL_WARN:
+    case SENTRY_LEVEL_WARNING:
         return "warn";
-    case SENTRY_LOG_LEVEL_ERROR:
+    case SENTRY_LEVEL_ERROR:
         return "error";
-    case SENTRY_LOG_LEVEL_FATAL:
+    case SENTRY_LEVEL_FATAL:
         return "fatal";
+    case SENTRY_LEVEL_INFO:
     default:
-        return "UNKNOWN";
+        return "unknown";
     }
 }
 
@@ -191,7 +183,7 @@ add_attribute(sentry_value_t attributes, sentry_value_t value, const char *type,
 }
 
 static sentry_value_t
-construct_log(sentry_log_level_t level, const char *message, va_list args)
+construct_log(sentry_level_t level, const char *message, va_list args)
 {
     sentry_value_t log = sentry_value_new_object();
     sentry_value_t attributes = sentry_value_new_object();
@@ -216,7 +208,7 @@ construct_log(sentry_log_level_t level, const char *message, va_list args)
     sentry_value_set_by_key(log, "body", sentry_value_new_string(fmt_message));
     sentry_free(fmt_message);
     sentry_value_set_by_key(
-        log, "level", sentry_value_new_string(log_level_as_string(level)));
+        log, "level", sentry_value_new_string(level_as_string(level)));
 
     // timestamp in seconds
     uint64_t usec_time = sentry__usec_time();
@@ -310,7 +302,7 @@ construct_log(sentry_log_level_t level, const char *message, va_list args)
 }
 
 void
-sentry__logs_log(sentry_log_level_t level, const char *message, va_list args)
+sentry__logs_log(sentry_level_t level, const char *message, va_list args)
 {
     bool enable_logs = false;
     SENTRY_WITH_OPTIONS (options) {
@@ -346,7 +338,7 @@ sentry_log_trace(const char *message, ...)
 {
     va_list args;
     va_start(args, message);
-    sentry__logs_log(SENTRY_LOG_LEVEL_TRACE, message, args);
+    sentry__logs_log(SENTRY_LEVEL_TRACE, message, args);
     va_end(args);
 }
 
@@ -355,7 +347,7 @@ sentry_log_debug(const char *message, ...)
 {
     va_list args;
     va_start(args, message);
-    sentry__logs_log(SENTRY_LOG_LEVEL_DEBUG, message, args);
+    sentry__logs_log(SENTRY_LEVEL_DEBUG, message, args);
     va_end(args);
 }
 
@@ -364,7 +356,7 @@ sentry_log_info(const char *message, ...)
 {
     va_list args;
     va_start(args, message);
-    sentry__logs_log(SENTRY_LOG_LEVEL_INFO, message, args);
+    sentry__logs_log(SENTRY_LEVEL_INFO, message, args);
     va_end(args);
 }
 
@@ -373,7 +365,7 @@ sentry_log_warn(const char *message, ...)
 {
     va_list args;
     va_start(args, message);
-    sentry__logs_log(SENTRY_LOG_LEVEL_WARN, message, args);
+    sentry__logs_log(SENTRY_LEVEL_WARNING, message, args);
     va_end(args);
 }
 
@@ -382,7 +374,7 @@ sentry_log_error(const char *message, ...)
 {
     va_list args;
     va_start(args, message);
-    sentry__logs_log(SENTRY_LOG_LEVEL_ERROR, message, args);
+    sentry__logs_log(SENTRY_LEVEL_ERROR, message, args);
     va_end(args);
 }
 
@@ -391,6 +383,6 @@ sentry_log_fatal(const char *message, ...)
 {
     va_list args;
     va_start(args, message);
-    sentry__logs_log(SENTRY_LOG_LEVEL_FATAL, message, args);
+    sentry__logs_log(SENTRY_LEVEL_FATAL, message, args);
     va_end(args);
 }

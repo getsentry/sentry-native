@@ -370,6 +370,7 @@ SENTRY_API char *sentry_value_to_json(sentry_value_t value);
  * Sentry levels for events and breadcrumbs.
  */
 typedef enum sentry_level_e {
+    SENTRY_LEVEL_TRACE = -2,
     SENTRY_LEVEL_DEBUG = -1,
     SENTRY_LEVEL_INFO = 0,
     SENTRY_LEVEL_WARNING = 1,

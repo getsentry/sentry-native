@@ -106,6 +106,8 @@ static const char *
 level_as_string(sentry_level_t level)
 {
     switch (level) {
+    case SENTRY_LEVEL_TRACE:
+        return "trace";
     case SENTRY_LEVEL_DEBUG:
         return "debug";
     case SENTRY_LEVEL_WARNING:
