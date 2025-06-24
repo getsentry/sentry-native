@@ -191,7 +191,8 @@ add_attribute(sentry_value_t attributes, sentry_value_t value, const char *type,
 }
 
 static sentry_value_t
-construct_log(sentry_log_level_t level, const char *message, va_list args)
+construct_log(const sentry_options_t *options, sentry_log_level_t level,
+    const char *message, va_list args)
 {
     sentry_value_t log = sentry_value_new_object();
     sentry_value_t attributes = sentry_value_new_object();
@@ -282,16 +283,13 @@ construct_log(sentry_log_level_t level, const char *message, va_list args)
         sentry_value_decref(os_context);
     }
 
-    SENTRY_WITH_OPTIONS (options) {
-        if (options->environment) {
-            add_attribute(attributes,
-                sentry_value_new_string(options->environment), "string",
-                "sentry.environment");
-        }
-        if (options->release) {
-            add_attribute(attributes, sentry_value_new_string(options->release),
-                "string", "sentry.release");
-        }
+    if (options->environment) {
+        add_attribute(attributes, sentry_value_new_string(options->environment),
+            "string", "sentry.environment");
+    }
+    if (options->release) {
+        add_attribute(attributes, sentry_value_new_string(options->release),
+            "string", "sentry.release");
     }
 
     add_attribute(attributes, sentry_value_new_string("sentry.native"),
@@ -314,28 +312,27 @@ void
 sentry__logs_log(sentry_log_level_t level, const char *message, va_list args)
 {
     SENTRY_WITH_OPTIONS (options) {
-        if (!options->enable_logs)
-            return;
-    }
-    // create log from message
-    sentry_value_t log = construct_log(level, message, args);
+        if (options->enable_logs) {
+            // create log from message
+            sentry_value_t log = construct_log(options, level, message, args);
 
-    // TODO split up the code below for batched log sending
-    //    e.g. could we store logs on the scope?
-    sentry_value_t logs = sentry_value_new_object();
-    sentry_value_t logs_list = sentry_value_new_list();
-    sentry_value_append(logs_list, log);
-    sentry_value_set_by_key(logs, "items", logs_list);
-    // sending of the envelope
-    sentry_envelope_t *envelope = sentry__envelope_new();
-    sentry__envelope_add_logs(envelope, logs);
-    // TODO remove debug write to file below
-    sentry_envelope_write_to_file(envelope, "logs_envelope.json");
-    SENTRY_WITH_OPTIONS (options) {
-        sentry__capture_envelope(options->transport, envelope);
+            // TODO split up the code below for batched log sending
+            //    e.g. could we store logs on the scope?
+            sentry_value_t logs = sentry_value_new_object();
+            sentry_value_t logs_list = sentry_value_new_list();
+            sentry_value_append(logs_list, log);
+            sentry_value_set_by_key(logs, "items", logs_list);
+            // sending of the envelope
+            sentry_envelope_t *envelope = sentry__envelope_new();
+            sentry__envelope_add_logs(envelope, logs);
+            // TODO remove debug write to file below
+            // sentry_envelope_write_to_file(envelope, "logs_envelope.json");
+            sentry__capture_envelope(options->transport, envelope);
+            // For now, free the logs object since envelope doesn't take
+            // ownership
+            sentry_value_decref(logs);
+        }
     }
-    // For now, free the logs object since envelope doesn't take ownership
-    sentry_value_decref(logs);
 }
 
 void
