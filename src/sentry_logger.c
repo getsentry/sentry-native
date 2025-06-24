@@ -69,6 +69,8 @@ const char *
 sentry__logger_describe(sentry_level_t level)
 {
     switch (level) {
+    case SENTRY_LEVEL_TRACE:
+        return "TRACE ";
     case SENTRY_LEVEL_DEBUG:
         return "DEBUG ";
     case SENTRY_LEVEL_INFO:
