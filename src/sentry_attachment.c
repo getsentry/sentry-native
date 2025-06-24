@@ -222,9 +222,11 @@ attachment_clone(const sentry_attachment_t *attachment)
     }
     memset(clone, 0, sizeof(sentry_attachment_t));
 
-    clone->path = sentry__path_clone(attachment->path);
-    if (!clone->path) {
-        goto fail;
+    if (attachment->path) {
+        clone->path = sentry__path_clone(attachment->path);
+        if (!clone->path) {
+            goto fail;
+        }
     }
     if (attachment->filename) {
         clone->filename = sentry__path_clone(attachment->filename);
