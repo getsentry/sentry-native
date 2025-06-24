@@ -93,7 +93,7 @@ SENTRY_TEST(lazy_attachments)
 
 SENTRY_TEST(attachments_add_dedupe)
 {
-    sentry_options_t *options = sentry_options_new();
+    SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_add_attachment(options, SENTRY_TEST_PATH_PREFIX ".a.txt");
     sentry_options_add_attachment(options, SENTRY_TEST_PATH_PREFIX ".b.txt");
 
@@ -135,7 +135,7 @@ SENTRY_TEST(attachments_add_dedupe)
 
     sentry_free(serialized);
 
-    sentry_shutdown();
+    sentry_close();
 
     sentry__path_remove(path_a);
     sentry__path_remove(path_b);
@@ -148,7 +148,7 @@ SENTRY_TEST(attachments_add_dedupe)
 
 SENTRY_TEST(attachments_add_remove)
 {
-    sentry_options_t *options = sentry_options_new();
+    SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_add_attachment(options, SENTRY_TEST_PATH_PREFIX ".a.txt");
     sentry_options_add_attachment(options, SENTRY_TEST_PATH_PREFIX ".c.txt");
     sentry_options_add_attachment(options, SENTRY_TEST_PATH_PREFIX ".b.txt");
@@ -198,7 +198,7 @@ SENTRY_TEST(attachments_add_remove)
 
     sentry_free(serialized);
 
-    sentry_shutdown();
+    sentry_close();
 
     sentry__path_remove(path_a);
     sentry__path_remove(path_b);
@@ -229,19 +229,19 @@ SENTRY_TEST(attachments_extend)
     sentry__path_write_buffer(path_d, "ddd", 3);
 
     sentry_attachment_t *attachments_abc = NULL;
-    sentry__attachments_add(
+    sentry__attachments_add_path(
         &attachments_abc, sentry__path_clone(path_a), ATTACHMENT, NULL);
-    sentry__attachments_add(
+    sentry__attachments_add_path(
         &attachments_abc, sentry__path_clone(path_b), ATTACHMENT, NULL);
-    sentry__attachments_add(
+    sentry__attachments_add_path(
         &attachments_abc, sentry__path_clone(path_c), ATTACHMENT, NULL);
 
     sentry_attachment_t *attachments_bcd = NULL;
-    sentry__attachments_add(
+    sentry__attachments_add_path(
         &attachments_bcd, sentry__path_clone(path_b), ATTACHMENT, NULL);
-    sentry__attachments_add(
+    sentry__attachments_add_path(
         &attachments_bcd, sentry__path_clone(path_c), ATTACHMENT, NULL);
-    sentry__attachments_add(
+    sentry__attachments_add_path(
         &attachments_bcd, sentry__path_clone(path_d), ATTACHMENT, NULL);
 
     sentry_attachment_t *all_attachments = NULL;
@@ -363,4 +363,73 @@ SENTRY_TEST(attachment_content_type)
     sentry__path_free(path_txt);
     sentry__path_free(path_html);
     sentry__path_free(path_c);
+}
+
+SENTRY_TEST(attachments_bytes)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_init(options);
+
+    sentry_attachment_t *attachment_a = sentry_attach_bytes("a", 1, ".a.txt");
+    sentry_attachment_t *attachment_b
+        = sentry_attach_bytes("b\0b", 3, ".b.txt");
+    sentry_attachment_t *attachment_c
+        = sentry_attach_bytes("c\0c\0c", 5, ".c.txt");
+    sentry_attachment_t *attachment_dupe
+        = sentry_attach_bytes("dupe", 4, ".c.txt");
+
+    SENTRY_WITH_SCOPE (scope) {
+        sentry_envelope_t *envelope = sentry__envelope_new();
+        sentry__envelope_add_attachments(envelope, scope->attachments);
+
+        char *serialized = sentry_envelope_serialize(envelope, NULL);
+        TEST_CHECK_STRING_EQUAL(serialized,
+            "{}\n"
+            "{\"type\":\"attachment\",\"length\":1,\"filename\":\".a.txt\"}"
+            "\na\n"
+            "{\"type\":\"attachment\",\"length\":3,\"filename\":\".b.txt\"}"
+            "\nb\0b\n"
+            "{\"type\":\"attachment\",\"length\":5,\"filename\":\".c.txt\"}"
+            "\nc\0c\0c"
+            "\n{\"type\":\"attachment\",\"length\":5,\"filename\":\".c.txt\"}"
+            "\ndupe");
+        sentry_free(serialized);
+
+        sentry_envelope_free(envelope);
+    }
+
+    sentry_remove_attachment(attachment_b);
+    sentry_remove_attachment(attachment_dupe);
+
+    SENTRY_WITH_SCOPE (scope) {
+        sentry_envelope_t *envelope = sentry__envelope_new();
+        sentry__envelope_add_attachments(envelope, scope->attachments);
+
+        char *serialized = sentry_envelope_serialize(envelope, NULL);
+        TEST_CHECK_STRING_EQUAL(serialized,
+            "{}\n"
+            "{\"type\":\"attachment\",\"length\":1,\"filename\":\".a.txt\"}"
+            "\na\n"
+            "{\"type\":\"attachment\",\"length\":5,\"filename\":\".c.txt\"}"
+            "\nc\0c\0c");
+        sentry_free(serialized);
+
+        sentry_envelope_free(envelope);
+    }
+
+    sentry_remove_attachment(attachment_a);
+    sentry_remove_attachment(attachment_c);
+
+    SENTRY_WITH_SCOPE (scope) {
+        sentry_envelope_t *envelope = sentry__envelope_new();
+        sentry__envelope_add_attachments(envelope, scope->attachments);
+
+        char *serialized = sentry_envelope_serialize(envelope, NULL);
+        TEST_CHECK_STRING_EQUAL(serialized, "{}");
+        sentry_free(serialized);
+
+        sentry_envelope_free(envelope);
+    }
+
+    sentry_close();
 }
