@@ -1,5 +1,5 @@
 #ifdef _WIN32
-#    ifndef _GAMING_XBOX_SCARLETT
+#    ifndef WIN32_LEAN_AND_MEAN
 #        define WIN32_LEAN_AND_MEAN
 #    endif
 #    define NOMINMAX
@@ -383,6 +383,12 @@ main(int argc, char **argv)
 
     sentry_init(options);
 
+    if (has_arg(argc, argv, "attachment")) {
+        sentry_attachment_t *bytes
+            = sentry_attach_bytes("\xc0\xff\xee", 3, "bytes.bin");
+        sentry_attachment_set_content_type(bytes, "application/octet-stream");
+    }
+
     if (!has_arg(argc, argv, "no-setup")) {
         sentry_set_transaction("test-transaction");
         sentry_set_level(SENTRY_LEVEL_WARNING);
@@ -431,6 +437,9 @@ main(int argc, char **argv)
         // assuming the example / test is run directly from the cmake build
         // directory
         sentry_attach_file("./CMakeCache.txt");
+        sentry_attachment_t *bytes
+            = sentry_attach_bytes("\xc0\xff\xee", 3, "bytes.bin");
+        sentry_attachment_set_content_type(bytes, "application/octet-stream");
     }
 
     if (has_arg(argc, argv, "start-session")) {
@@ -462,6 +471,10 @@ main(int argc, char **argv)
             // assuming the example / test is run directly from the cmake build
             // directory
             sentry_scope_attach_file(scope, "./CMakeCache.txt");
+            sentry_attachment_t *bytes = sentry_scope_attach_bytes(
+                scope, "\xc0\xff\xee", 3, "bytes.bin");
+            sentry_attachment_set_content_type(
+                bytes, "application/octet-stream");
         }
 
         sentry_capture_event_with_scope(event, scope);

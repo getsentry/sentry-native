@@ -12,7 +12,7 @@
 
 #ifdef SENTRY_PLATFORM_WINDOWS
 
-#    if !defined(_GAMING_XBOX_SCARLETT)
+#    if !defined(SENTRY_PLATFORM_XBOX_SCARLETT)
 #        include <stdlib.h>
 #        include <windows.h>
 #        define CURRENT_VERSION                                                \
@@ -107,7 +107,7 @@ sentry__get_windows_version(windows_version_t *win_ver)
     return 1;
 }
 
-#    endif // !defined(_GAMING_XBOX_SCARLETT)
+#    endif // !defined(SENTRY_PLATFORM_XBOX_SCARLETT)
 
 sentry_value_t
 sentry__get_os_context(void)
@@ -117,7 +117,7 @@ sentry__get_os_context(void)
         return os;
     }
 
-#    if defined(_GAMING_XBOX_SCARLETT)
+#    if defined(SENTRY_PLATFORM_XBOX_SCARLETT)
 #        pragma warning(push)
 #        pragma warning(disable : 4996)
     sentry_value_set_by_key(os, "name", sentry_value_new_string("Xbox"));
@@ -167,7 +167,7 @@ sentry__get_os_context(void)
 
     sentry_value_decref(os);
     return sentry_value_new_null();
-#    endif // defined(_GAMING_XBOX_SCARLETT)
+#    endif // defined(SENTRY_PLATFORM_XBOX_SCARLETT)
 }
 
 #    ifndef SENTRY_UNITTEST
@@ -304,7 +304,7 @@ sentry__set_default_thread_stack_guarantee(void)
 #    endif
 }
 
-#    if defined(SENTRY_BUILD_SHARED) && !defined(_GAMING_XBOX_SCARLETT)
+#    if defined(SENTRY_BUILD_SHARED) && !defined(SENTRY_PLATFORM_XBOX_SCARLETT)
 
 BOOL APIENTRY
 DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserved)
@@ -327,7 +327,8 @@ DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserved)
     return TRUE;
 }
 
-#    endif // defined(SENTRY_BUILD_SHARED) && !defined(_GAMING_XBOX_SCARLETT)
+#    endif // defined(SENTRY_BUILD_SHARED) &&
+           // !defined(SENTRY_PLATFORM_XBOX_SCARLETT)
 
 void
 sentry__get_system_time(LPFILETIME filetime)

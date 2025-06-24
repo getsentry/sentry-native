@@ -59,8 +59,7 @@ sentry_envelope_item_t *sentry__envelope_add_session(
  * Add an attachment to this envelope.
  */
 sentry_envelope_item_t *sentry__envelope_add_attachment(
-    sentry_envelope_t *envelope, const sentry_path_t *attachment,
-    sentry_attachment_type_t type, const char *content_type);
+    sentry_envelope_t *envelope, const sentry_attachment_t *attachment);
 
 /**
  * Add attachments to this envelope.
