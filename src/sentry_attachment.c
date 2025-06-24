@@ -91,7 +91,7 @@ sentry__attachments_free(sentry_attachment_t *attachments)
 }
 
 /**
- * Compares attachments for equality to avoid adding duplicates and for removal.
+ * Compares attachments for equality to avoid adding duplicates.
  *
  * File attachments are considered equal if the paths are equal. Byte buffer
  * attachments are only considered equal to themselves - they are not required
@@ -156,7 +156,7 @@ sentry__attachments_remove(
     sentry_attachment_t **next_ptr = attachments_ptr;
 
     for (sentry_attachment_t *it = *attachments_ptr; it; it = it->next) {
-        if (attachment_eq(it, attachment)) {
+        if (it == attachment) {
             *next_ptr = it->next;
             sentry__attachment_free(it);
             return;
