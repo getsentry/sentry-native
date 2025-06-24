@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1750775374622,
+  "lastUpdate": 1750775501847,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -4374,6 +4374,66 @@ window.BENCHMARK_DATA = {
             "value": 8.883332999971572,
             "unit": "ms",
             "extra": "Min 7.184ms\nMax 14.739ms\nMean 9.794ms\nStdDev 3.115ms\nMedian 8.883ms\nCPU 1.070ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "9dd7d6c61a1a3406fc613b4e2bad40baacc5453f",
+          "message": "feat: support attaching bytes (#1275)\n\n* feat: Support attaching bytes\n\n* fix: move to_crashpad_attachment out of extern C\n\n> warning C4190: 'to_crashpad_attachment' has C-linkage specified,\n> but returns UDT 'crashpad::Attachment' which is incompatible with C\n\n* fix: lint\n\n* fix: unreachable\n\n* test: integration\n\n* test: rename\n\n* test: attaching bytes to crashpad is supported on win32 and linux\n\n* crashpad: dump byte attachments on disk\n\n* fix: windows\n\n* let crashpad ensure unique file names\n\n* fix sentry__attachment_from_buffer\n\n* clean up unused uuid\n\n* Update external/crashpad\n\n* alternative: ensure unique file in sentry_backend_crashpad\n\n* clean up\n\n* clean up more\n\n* switch to std::filesystem\n\n* fix leaks in backends\n\n* add sentry__attachment_from_path for convenience and to reduce diff\n\n* fix self-review findings\n\n* revert accidental ws changes\n\n* fix attachment_clone\n\ntype & content_type are passed separately and content_type is cloned in\nsentry__attachments_add()\n\n* unit-testable sentry__path_unique() to back the \"-N.tar.gz\" claims\n\n* include <string>\n\n* ref: unique paths for byte attachments\n\n* add note about unique file names with crashpad\n\n* add missing null checks for screenshots\n\n* attachment_clone: add missing error handling\n\n* add note and missing test for buffer attachment comparison\n\n* Bump external/crashpad\n\n* Update external/crashpad\n\n* attachment_eq: clarify with a comment\n\n* document behavior regarding duplicate attachments\n\n* sentry__attachments_remove: replace attachment_eq with ptr cmp",
+          "timestamp": "2025-06-24T16:27:14+02:00",
+          "tree_id": "9e05ee000fa10a5e67a901a9fb21081b48123122",
+          "url": "https://github.com/getsentry/sentry-native/commit/9dd7d6c61a1a3406fc613b4e2bad40baacc5453f"
+        },
+        "date": 1750775500332,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 4.255125000042881,
+            "unit": "ms",
+            "extra": "Min 4.049ms\nMax 7.106ms\nMean 4.751ms\nStdDev 1.320ms\nMedian 4.255ms\nCPU 2.724ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 5.092708000006496,
+            "unit": "ms",
+            "extra": "Min 4.389ms\nMax 9.189ms\nMean 5.881ms\nStdDev 1.905ms\nMedian 5.093ms\nCPU 3.158ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 28.31025000000409,
+            "unit": "ms",
+            "extra": "Min 20.138ms\nMax 41.591ms\nMean 28.790ms\nStdDev 8.490ms\nMedian 28.310ms\nCPU 7.028ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.04058400003259521,
+            "unit": "ms",
+            "extra": "Min 0.009ms\nMax 0.042ms\nMean 0.033ms\nStdDev 0.014ms\nMedian 0.041ms\nCPU 0.032ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.26004099998999664,
+            "unit": "ms",
+            "extra": "Min 0.220ms\nMax 0.647ms\nMean 0.369ms\nStdDev 0.184ms\nMedian 0.260ms\nCPU 0.368ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 10.364083000013125,
+            "unit": "ms",
+            "extra": "Min 7.886ms\nMax 14.654ms\nMean 10.409ms\nStdDev 2.746ms\nMedian 10.364ms\nCPU 0.947ms"
           }
         ]
       }
