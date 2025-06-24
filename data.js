@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1750425709552,
+  "lastUpdate": 1750769751809,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -2096,6 +2096,66 @@ window.BENCHMARK_DATA = {
             "value": 1.9244839999714713,
             "unit": "ms",
             "extra": "Min 1.824ms\nMax 2.000ms\nMean 1.905ms\nStdDev 0.073ms\nMedian 1.924ms\nCPU 0.573ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "6349682+vaind@users.noreply.github.com",
+            "name": "Ivan Dlugos",
+            "username": "vaind"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "889d59aa2d165850e7fcdbedcb9770144638874f",
+          "message": "chore: xbox compilation fixes and cleanup (#1284)\n\n* fix: xbox compilation\n\n* replace checks of _GAMING_XBOX_SCARLETT with SENTRY_PLATFORM_XBOX_SCARLETT\n\n* test: skip tests for missing features",
+          "timestamp": "2025-06-24T14:52:27+02:00",
+          "tree_id": "c6bb64d8f4f63b2374351a0a9ea016cf2782b76e",
+          "url": "https://github.com/getsentry/sentry-native/commit/889d59aa2d165850e7fcdbedcb9770144638874f"
+        },
+        "date": 1750769750800,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 0.701599000024089,
+            "unit": "ms",
+            "extra": "Min 0.678ms\nMax 0.709ms\nMean 0.698ms\nStdDev 0.012ms\nMedian 0.702ms\nCPU 0.698ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.7303929999977754,
+            "unit": "ms",
+            "extra": "Min 0.718ms\nMax 0.744ms\nMean 0.732ms\nStdDev 0.010ms\nMedian 0.730ms\nCPU 0.731ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 2.9250919999981306,
+            "unit": "ms",
+            "extra": "Min 2.903ms\nMax 3.087ms\nMean 2.954ms\nStdDev 0.076ms\nMedian 2.925ms\nCPU 1.511ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.012091999991525881,
+            "unit": "ms",
+            "extra": "Min 0.012ms\nMax 0.012ms\nMean 0.012ms\nStdDev 0.000ms\nMedian 0.012ms\nCPU 0.011ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.022212000004628862,
+            "unit": "ms",
+            "extra": "Min 0.022ms\nMax 0.023ms\nMean 0.022ms\nStdDev 0.000ms\nMedian 0.022ms\nCPU 0.022ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 1.7865670000105638,
+            "unit": "ms",
+            "extra": "Min 1.757ms\nMax 1.813ms\nMean 1.789ms\nStdDev 0.023ms\nMedian 1.787ms\nCPU 0.566ms"
           }
         ]
       }
