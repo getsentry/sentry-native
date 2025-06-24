@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1750775501847,
+  "lastUpdate": 1750775538265,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -6592,6 +6592,66 @@ window.BENCHMARK_DATA = {
             "value": 9.321600000021135,
             "unit": "ms",
             "extra": "Min 9.135ms\nMax 9.569ms\nMean 9.349ms\nStdDev 0.169ms\nMedian 9.322ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "9dd7d6c61a1a3406fc613b4e2bad40baacc5453f",
+          "message": "feat: support attaching bytes (#1275)\n\n* feat: Support attaching bytes\n\n* fix: move to_crashpad_attachment out of extern C\n\n> warning C4190: 'to_crashpad_attachment' has C-linkage specified,\n> but returns UDT 'crashpad::Attachment' which is incompatible with C\n\n* fix: lint\n\n* fix: unreachable\n\n* test: integration\n\n* test: rename\n\n* test: attaching bytes to crashpad is supported on win32 and linux\n\n* crashpad: dump byte attachments on disk\n\n* fix: windows\n\n* let crashpad ensure unique file names\n\n* fix sentry__attachment_from_buffer\n\n* clean up unused uuid\n\n* Update external/crashpad\n\n* alternative: ensure unique file in sentry_backend_crashpad\n\n* clean up\n\n* clean up more\n\n* switch to std::filesystem\n\n* fix leaks in backends\n\n* add sentry__attachment_from_path for convenience and to reduce diff\n\n* fix self-review findings\n\n* revert accidental ws changes\n\n* fix attachment_clone\n\ntype & content_type are passed separately and content_type is cloned in\nsentry__attachments_add()\n\n* unit-testable sentry__path_unique() to back the \"-N.tar.gz\" claims\n\n* include <string>\n\n* ref: unique paths for byte attachments\n\n* add note about unique file names with crashpad\n\n* add missing null checks for screenshots\n\n* attachment_clone: add missing error handling\n\n* add note and missing test for buffer attachment comparison\n\n* Bump external/crashpad\n\n* Update external/crashpad\n\n* attachment_eq: clarify with a comment\n\n* document behavior regarding duplicate attachments\n\n* sentry__attachments_remove: replace attachment_eq with ptr cmp",
+          "timestamp": "2025-06-24T16:27:14+02:00",
+          "tree_id": "9e05ee000fa10a5e67a901a9fb21081b48123122",
+          "url": "https://github.com/getsentry/sentry-native/commit/9dd7d6c61a1a3406fc613b4e2bad40baacc5453f"
+        },
+        "date": 1750775522296,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 6.978399999979956,
+            "unit": "ms",
+            "extra": "Min 6.948ms\nMax 7.137ms\nMean 7.015ms\nStdDev 0.078ms\nMedian 6.978ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 7.523500000047534,
+            "unit": "ms",
+            "extra": "Min 7.373ms\nMax 8.009ms\nMean 7.581ms\nStdDev 0.255ms\nMedian 7.524ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 17.323499999974956,
+            "unit": "ms",
+            "extra": "Min 17.193ms\nMax 32.374ms\nMean 20.372ms\nStdDev 6.712ms\nMedian 17.323ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.00969999996414117,
+            "unit": "ms",
+            "extra": "Min 0.009ms\nMax 0.012ms\nMean 0.010ms\nStdDev 0.001ms\nMedian 0.010ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.30839999999443535,
+            "unit": "ms",
+            "extra": "Min 0.299ms\nMax 0.312ms\nMean 0.307ms\nStdDev 0.005ms\nMedian 0.308ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 9.430100000031416,
+            "unit": "ms",
+            "extra": "Min 8.961ms\nMax 9.523ms\nMean 9.361ms\nStdDev 0.228ms\nMedian 9.430ms"
           }
         ]
       }
