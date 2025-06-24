@@ -680,10 +680,10 @@ ensure_unique_path(sentry_attachment_t *attachment)
     sentry_path_t *old_path = attachment->path;
 #    ifdef SENTRY_PLATFORM_WINDOWS
     attachment->path = sentry__path_join_wstr(
-        base_path, sentry__path_filename(attachment->path));
+        base_path, sentry__path_filename(attachment->filename));
 #    else
     attachment->path = sentry__path_join_str(
-        base_path, sentry__path_filename(attachment->path));
+        base_path, sentry__path_filename(attachment->filename));
 #    endif
 
     sentry__path_free(base_path);
