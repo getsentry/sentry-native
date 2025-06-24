@@ -47,6 +47,9 @@ extern "C" {
 /* common platform detection */
 #ifdef _WIN32
 #    define SENTRY_PLATFORM_WINDOWS
+#    ifdef _GAMING_XBOX_SCARLETT
+#        define SENTRY_PLATFORM_XBOX_SCARLETT
+#    endif
 #elif defined(__APPLE__)
 #    include <TargetConditionals.h>
 #    if defined(TARGET_OS_OSX) && TARGET_OS_OSX
