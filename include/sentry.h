@@ -1286,6 +1286,14 @@ SENTRY_API void sentry_options_set_handler_path_n(
     sentry_options_t *opts, const char *path, size_t path_len);
 
 /**
+ * TODO
+ */
+SENTRY_API void sentry_options_set_feedback_handler_path(
+    sentry_options_t *opts, const char *path);
+SENTRY_API void sentry_options_set_feedback_handler_path_n(
+    sentry_options_t *opts, const char *path, size_t path_len);
+
+/**
  * Sets the path to the Sentry Database Directory.
  *
  * Sentry will use this path to persist user consent, sessions, and other
@@ -1342,6 +1350,14 @@ SENTRY_API void sentry_options_add_view_hierarchyw_n(
 SENTRY_API void sentry_options_set_handler_pathw(
     sentry_options_t *opts, const wchar_t *path);
 SENTRY_API void sentry_options_set_handler_pathw_n(
+    sentry_options_t *opts, const wchar_t *path, size_t path_len);
+
+/**
+ * Wide char version of `sentry_options_set_feedback_handler_path`.
+ */
+SENTRY_API void sentry_options_set_feedback_handler_pathw(
+    sentry_options_t *opts, const wchar_t *path);
+SENTRY_API void sentry_options_set_feedback_handler_pathw_n(
     sentry_options_t *opts, const wchar_t *path, size_t path_len);
 
 /**
