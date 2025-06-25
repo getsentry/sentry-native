@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1750842767634,
+  "lastUpdate": 1750842791187,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -2456,6 +2456,66 @@ window.BENCHMARK_DATA = {
             "value": 1.8661720000068271,
             "unit": "ms",
             "extra": "Min 1.860ms\nMax 1.917ms\nMean 1.877ms\nStdDev 0.023ms\nMedian 1.866ms\nCPU 0.597ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "6349682+vaind@users.noreply.github.com",
+            "name": "Ivan Dlugos",
+            "username": "vaind"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "3f7bbd6193bda6814a7258da31971f21bf61da26",
+          "message": "fix: compilation error if SENTRY_TEST_PATH_PREFIX is defined (#1279)\n\n* fix: compilation error if SENTRY_TEST_PATH_PREFIX is defined\n\n* run unit tests with custom path prefix\n\n* linter issue\n\n* fix cmake.py\n\n* Update tests/unit/sentry_testsupport.h",
+          "timestamp": "2025-06-25T11:10:59+02:00",
+          "tree_id": "be3a9dccafda19c04122b5283e8e33c4e4f818a2",
+          "url": "https://github.com/getsentry/sentry-native/commit/3f7bbd6193bda6814a7258da31971f21bf61da26"
+        },
+        "date": 1750842790750,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 0.7117220000054658,
+            "unit": "ms",
+            "extra": "Min 0.690ms\nMax 0.747ms\nMean 0.711ms\nStdDev 0.023ms\nMedian 0.712ms\nCPU 0.711ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.7212300000105643,
+            "unit": "ms",
+            "extra": "Min 0.691ms\nMax 0.728ms\nMean 0.716ms\nStdDev 0.015ms\nMedian 0.721ms\nCPU 0.715ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 2.866212000071755,
+            "unit": "ms",
+            "extra": "Min 2.799ms\nMax 3.026ms\nMean 2.884ms\nStdDev 0.094ms\nMedian 2.866ms\nCPU 1.514ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.012351999998827523,
+            "unit": "ms",
+            "extra": "Min 0.012ms\nMax 0.012ms\nMean 0.012ms\nStdDev 0.000ms\nMedian 0.012ms\nCPU 0.011ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.022252000007938477,
+            "unit": "ms",
+            "extra": "Min 0.022ms\nMax 0.024ms\nMean 0.023ms\nStdDev 0.001ms\nMedian 0.022ms\nCPU 0.022ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 1.7961080000077345,
+            "unit": "ms",
+            "extra": "Min 1.778ms\nMax 1.864ms\nMean 1.804ms\nStdDev 0.034ms\nMedian 1.796ms\nCPU 0.573ms"
           }
         ]
       }
