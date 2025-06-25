@@ -685,7 +685,7 @@ SENTRY_TEST(value_get_by_null_key)
 
 SENTRY_TEST(value_set_stacktrace)
 {
-#if defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_PS)
+#if defined(SENTRY_PLATFORM_NX)
     return SKIP_TEST();
 #endif
     sentry_value_t exc
