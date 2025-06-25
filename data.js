@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1750841728858,
+  "lastUpdate": 1750841874648,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -7132,6 +7132,66 @@ window.BENCHMARK_DATA = {
             "value": 9.40719999994144,
             "unit": "ms",
             "extra": "Min 9.356ms\nMax 9.728ms\nMean 9.493ms\nStdDev 0.160ms\nMedian 9.407ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "mischan@abovevacant.com",
+            "name": "Mischan Toosarani-Hausberger",
+            "username": "supervacuus"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "28fb3edd0ef3638059ab86d4f734f6cc5f0c9652",
+          "message": "meta: identify Xbox as a separate SDK name (#1287)\n\n* Update CHANGELOG.md\n* move static sdk identification + versioning below platform defs in order to reuse the platform defs rather than external ones.",
+          "timestamp": "2025-06-25T10:52:07+02:00",
+          "tree_id": "30ce0a45de61b725825d2c3bbd76a94c01d5a8bd",
+          "url": "https://github.com/getsentry/sentry-native/commit/28fb3edd0ef3638059ab86d4f734f6cc5f0c9652"
+        },
+        "date": 1750841862828,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 7.010600000057821,
+            "unit": "ms",
+            "extra": "Min 6.875ms\nMax 7.213ms\nMean 7.020ms\nStdDev 0.130ms\nMedian 7.011ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 7.370599999831029,
+            "unit": "ms",
+            "extra": "Min 7.262ms\nMax 7.650ms\nMean 7.424ms\nStdDev 0.145ms\nMedian 7.371ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 17.109800000071118,
+            "unit": "ms",
+            "extra": "Min 16.964ms\nMax 17.274ms\nMean 17.104ms\nStdDev 0.117ms\nMedian 17.110ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.011000000085914508,
+            "unit": "ms",
+            "extra": "Min 0.011ms\nMax 0.013ms\nMean 0.011ms\nStdDev 0.001ms\nMedian 0.011ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.3154999999424035,
+            "unit": "ms",
+            "extra": "Min 0.309ms\nMax 0.320ms\nMean 0.315ms\nStdDev 0.004ms\nMedian 0.315ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 9.180400000104783,
+            "unit": "ms",
+            "extra": "Min 9.046ms\nMax 9.395ms\nMean 9.201ms\nStdDev 0.151ms\nMedian 9.180ms"
           }
         ]
       }
