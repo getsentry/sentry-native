@@ -21,6 +21,7 @@ from .assertions import (
     assert_crashpad_upload,
     assert_session,
     assert_gzip_file_header,
+    assert_user_feedback,
 )
 from .conditions import has_crashpad, is_tsan
 
@@ -622,3 +623,64 @@ def test_crashpad_retry(cmake, httpserver):
     )  # run without crashing to retry send
 
     assert len(httpserver.log) == 1
+
+
+@pytest.mark.parametrize(
+    "run_args",
+    [
+        (["crash"]),
+    ],
+)
+def test_crashpad_feedback_handler(cmake, httpserver, run_args):
+    tmp_path = cmake(
+        ["sentry_example", "sentry_feedback"], {"SENTRY_BACKEND": "crashpad"}
+    )
+
+    # make sure we are isolated from previous runs
+    shutil.rmtree(tmp_path / ".sentry-native", ignore_errors=True)
+
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+    httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data("OK")
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
+
+    with httpserver.wait(timeout=10) as waiting:
+        child = run(
+            tmp_path,
+            "sentry_example",
+            ["log", "install-feedback-handler"] + run_args,
+            env=env,
+        )
+        assert child.returncode  # well, it's a crash after all
+    assert waiting.result
+
+    assert len(httpserver.log) == 2
+    outputs = (httpserver.log[0][0], httpserver.log[1][0])
+    feedback, multipart = (
+        (outputs[0].get_data(), outputs[1])
+        if b'"type":"feedback"' in outputs[0].get_data()
+        else (outputs[1].get_data(), outputs[0])
+    )
+
+    # from crashpad
+    assert_crashpad_upload(multipart)
+
+    # from feedback handler
+    envelope = Envelope.deserialize(feedback)
+    assert_user_feedback(envelope)
+
+
+@pytest.mark.skipif(
+    sys.platform != "win32",
+    reason="Test covers Windows-specific crashes which can only be covered via the Crashpad WER module",
+)
+# this test currently can't run on CI because the Windows-image doesn't properly support WER, if you want to run the
+# test locally, invoke pytest with the --with_crashpad_wer option which is matched with this marker in the runtest setup
+@pytest.mark.with_crashpad_wer
+@pytest.mark.parametrize(
+    "run_args",
+    [
+        (["fastfail"]),
+    ],
+)
+def test_crashpad_feedback_handler_wer(cmake, httpserver, run_args):
+    test_crashpad_feedback_handler(cmake, httpserver, run_args)

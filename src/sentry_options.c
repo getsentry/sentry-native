@@ -98,6 +98,7 @@ sentry_options_free(sentry_options_t *opts)
     sentry_free(opts->transport_thread_name);
     sentry__path_free(opts->database_path);
     sentry__path_free(opts->handler_path);
+    sentry__path_free(opts->feedback_handler_path);
     sentry_transport_free(opts->transport);
     sentry__backend_free(opts->backend);
     sentry__attachments_free(opts->attachments);
@@ -551,6 +552,22 @@ sentry_options_set_database_path_n(
     opts->database_path = sentry__path_from_str_n(path, path_len);
 }
 
+void
+sentry_options_set_feedback_handler_path(
+    sentry_options_t *opts, const char *path)
+{
+    sentry__path_free(opts->feedback_handler_path);
+    opts->feedback_handler_path = sentry__path_from_str(path);
+}
+
+void
+sentry_options_set_feedback_handler_path_n(
+    sentry_options_t *opts, const char *path, size_t path_len)
+{
+    sentry__path_free(opts->feedback_handler_path);
+    opts->feedback_handler_path = sentry__path_from_str_n(path, path_len);
+}
+
 #ifdef SENTRY_PLATFORM_WINDOWS
 void
 sentry_options_add_attachmentw_n(
@@ -595,6 +612,22 @@ sentry_options_set_handler_pathw(sentry_options_t *opts, const wchar_t *path)
 {
     size_t path_len = path ? wcslen(path) : 0;
     sentry_options_set_handler_pathw_n(opts, path, path_len);
+}
+
+void
+sentry_options_set_feedback_handler_pathw_n(
+    sentry_options_t *opts, const wchar_t *path, size_t path_len)
+{
+    sentry__path_free(opts->feedback_handler_path);
+    opts->feedback_handler_path = sentry__path_from_wstr_n(path, path_len);
+}
+
+void
+sentry_options_set_feedback_handler_pathw(
+    sentry_options_t *opts, const wchar_t *path)
+{
+    size_t path_len = path ? wcslen(path) : 0;
+    sentry_options_set_feedback_handler_pathw_n(opts, path, path_len);
 }
 
 void

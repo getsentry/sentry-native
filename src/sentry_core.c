@@ -11,6 +11,7 @@
 #include "sentry_options.h"
 #include "sentry_os.h"
 #include "sentry_path.h"
+#include "sentry_process.h"
 #include "sentry_random.h"
 #include "sentry_scope.h"
 #include "sentry_screenshot.h"
@@ -19,6 +20,7 @@
 #include "sentry_sync.h"
 #include "sentry_tracing.h"
 #include "sentry_transport.h"
+#include "sentry_uuid.h"
 #include "sentry_value.h"
 
 #ifdef SENTRY_INTEGRATION_QT
@@ -1443,6 +1445,29 @@ sentry_capture_feedback(sentry_value_t user_feedback)
         } else {
             sentry_value_decref(user_feedback);
         }
+    }
+}
+
+void
+sentry__launch_feedback_handler(sentry_value_t event)
+{
+    sentry_uuid_t event_id = sentry_uuid_nil();
+    sentry__ensure_event_id(event, &event_id);
+
+    SENTRY_WITH_OPTIONS (options) {
+        if (!options->feedback_handler_path) {
+            return;
+        }
+
+        sentry_path_t *feedback_path
+            = sentry__run_write_feedback(options->run, &event_id);
+        if (!feedback_path) {
+            return;
+        }
+
+        sentry__process_spawn(
+            options->feedback_handler_path, feedback_path->path, NULL);
+        sentry__path_free(feedback_path);
     }
 }
 

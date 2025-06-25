@@ -205,6 +205,71 @@ def test_user_report_http(cmake, httpserver):
     assert_user_report(envelope)
 
 
+@pytest.mark.parametrize(
+    "build_args",
+    [
+        ({"SENTRY_BACKEND": "inproc"}),
+        pytest.param(
+            {"SENTRY_BACKEND": "breakpad"},
+            marks=pytest.mark.skipif(
+                not has_breakpad, reason="test needs breakpad backend"
+            ),
+        ),
+    ],
+)
+def test_feedback_handler_http(cmake, httpserver, build_args):
+    tmp_path = cmake(["sentry_example", "sentry_feedback"], build_args)
+
+    # make sure we are isolated from previous runs
+    shutil.rmtree(tmp_path / ".sentry-native", ignore_errors=True)
+
+    httpserver.expect_oneshot_request(
+        "/api/123456/envelope/",
+        headers={"x-sentry-auth": auth_header},
+    ).respond_with_data("OK")
+    httpserver.expect_oneshot_request(
+        "/api/123456/envelope/",
+        headers={"x-sentry-auth": auth_header},
+    ).respond_with_data("OK")
+
+    with httpserver.wait(timeout=10) as waiting:
+        env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+        child = run(
+            tmp_path,
+            "sentry_example",
+            ["log", "install-feedback-handler", "crash"],
+            env=env,
+        )
+        assert child.returncode  # well, it's a crash after all
+
+        # the session crash heuristic on Mac uses timestamps, so make sure we have
+        # a small delay here
+        time.sleep(1)
+
+        run(
+            tmp_path,
+            "sentry_example",
+            ["log", "no-setup"],
+            check=True,
+            env=env,
+        )
+    assert waiting.result
+
+    assert len(httpserver.log) == 2
+    outputs = (httpserver.log[0][0], httpserver.log[1][0])
+    crash, feedback = (
+        (outputs[0].get_data(), outputs[1].get_data())
+        if b'"type":"feedback"' in outputs[1].get_data()
+        else (outputs[1].get_data(), outputs[0].get_data())
+    )
+
+    envelope = Envelope.deserialize(crash)
+    assert_meta(envelope, integration=build_args.get("SENTRY_BACKEND", ""))
+
+    envelope = Envelope.deserialize(feedback)
+    assert_user_feedback(envelope)
+
+
 def test_exception_and_session_http(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
 

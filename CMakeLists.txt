@@ -692,6 +692,7 @@ endif()
 
 if(SENTRY_BUILD_TESTS)
 	add_subdirectory(tests/unit)
+	add_subdirectory(tests/fixtures/feedback)
 	add_subdirectory(tests/fixtures/screenshot)
 	if(SENTRY_BUILD_BENCHMARKS)
 		set(BENCHMARK_ENABLE_TESTING OFF)
