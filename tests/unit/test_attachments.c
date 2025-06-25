@@ -308,7 +308,7 @@ SENTRY_TEST(attachments_extend)
     sentry__path_free(path_d);
 }
 
-SENTRY_TEST(attachment_content_type)
+SENTRY_TEST(attachment_properties)
 {
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_init(options);
@@ -326,10 +326,12 @@ SENTRY_TEST(attachment_content_type)
     sentry_attachment_t *attachment_txt
         = sentry_attach_file(SENTRY_TEST_PATH_PREFIX ".a.txt");
     sentry_attachment_set_content_type(attachment_txt, "text/plain");
+    sentry_attachment_set_filename(attachment_txt, "A.TXT");
 
     sentry_attachment_t *attachment_html
         = sentry_attach_file(SENTRY_TEST_PATH_PREFIX ".b.html");
     sentry_attachment_set_content_type(attachment_html, "text/html");
+    sentry_attachment_set_filename(attachment_html, "B.HTML");
 
     sentry_attachment_t *attachment_c
         = sentry_attach_file(SENTRY_TEST_PATH_PREFIX ".c");
@@ -344,10 +346,10 @@ SENTRY_TEST(attachment_content_type)
             "{}\n"
             "{\"type\":\"attachment\",\"length\":5,\"content_type\":\"text/"
             "plain\","
-            "\"filename\":\".a.txt\"}\nplain\n"
+            "\"filename\":\"A.TXT\"}\nplain\n"
             "{\"type\":\"attachment\",\"length\":7,\"content_type\":\"text/"
             "html\","
-            "\"filename\":\".b.html\"}\n<html/>"
+            "\"filename\":\"B.HTML\"}\n<html/>"
             "\n{\"type\":\"attachment\",\"length\":13,\"filename\":\".c\"}\n"
             "int main() {}");
         sentry_free(serialized);

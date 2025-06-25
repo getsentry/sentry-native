@@ -396,7 +396,8 @@ sentry__envelope_add_attachment(
 #else
         sentry_value_new_string(
 #endif
-            sentry__path_filename(attachment->path)));
+            sentry__path_filename(attachment->filename ? attachment->filename
+                                                       : attachment->path)));
 
     return item;
 }

@@ -26,6 +26,48 @@ sentry_attachment_set_content_type_n(sentry_attachment_t *attachment,
         = sentry__string_clone_n(content_type, content_type_len);
 }
 
+void
+sentry_attachment_set_filename(
+    sentry_attachment_t *attachment, const char *filename)
+{
+    sentry_attachment_set_filename_n(
+        attachment, filename, sentry__guarded_strlen(filename));
+}
+
+void
+sentry_attachment_set_filename_n(
+    sentry_attachment_t *attachment, const char *filename, size_t filename_len)
+{
+    if (!attachment) {
+        return;
+    }
+
+    sentry__path_free(attachment->filename);
+    attachment->filename = sentry__path_from_str_n(filename, filename_len);
+}
+
+#ifdef SENTRY_PLATFORM_WINDOWS
+void
+sentry_attachment_set_filenamew(
+    sentry_attachment_t *attachment, const wchar_t *filename)
+{
+    size_t filename_len = filename ? wcslen(filename) : 0;
+    sentry_attachment_set_filenamew_n(attachment, filename, filename_len);
+}
+
+void
+sentry_attachment_set_filenamew_n(sentry_attachment_t *attachment,
+    const wchar_t *filename, size_t filename_len)
+{
+    if (!attachment) {
+        return;
+    }
+
+    sentry__path_free(attachment->filename);
+    attachment->filename = sentry__path_from_wstr_n(filename, filename_len);
+}
+#endif
+
 sentry_attachment_t *
 sentry__attachment_from_path(sentry_path_t *path)
 {
@@ -59,7 +101,7 @@ sentry__attachment_from_buffer(
         return NULL;
     }
     memset(attachment, 0, sizeof(sentry_attachment_t));
-    attachment->path = filename;
+    attachment->filename = filename;
     attachment->buf = sentry_malloc(buf_len * sizeof(char));
     memcpy(attachment->buf, buf, buf_len * sizeof(char));
     attachment->buf_len = buf_len;
@@ -73,6 +115,7 @@ sentry__attachment_free(sentry_attachment_t *attachment)
         return;
     }
     sentry__path_free(attachment->path);
+    sentry__path_free(attachment->filename);
     sentry_free(attachment->buf);
     sentry_free(attachment->content_type);
     sentry_free(attachment);
@@ -179,9 +222,17 @@ attachment_clone(const sentry_attachment_t *attachment)
     }
     memset(clone, 0, sizeof(sentry_attachment_t));
 
-    clone->path = sentry__path_clone(attachment->path);
-    if (!clone->path) {
-        goto fail;
+    if (attachment->path) {
+        clone->path = sentry__path_clone(attachment->path);
+        if (!clone->path) {
+            goto fail;
+        }
+    }
+    if (attachment->filename) {
+        clone->filename = sentry__path_clone(attachment->filename);
+        if (!clone->filename) {
+            goto fail;
+        }
     }
     if (attachment->buf) {
         clone->buf_len = attachment->buf_len;

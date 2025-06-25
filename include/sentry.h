@@ -1888,11 +1888,33 @@ SENTRY_API sentry_attachment_t *sentry_scope_attach_bytesw_n(
     const wchar_t *filename, size_t filename_len);
 #endif
 
+/**
+ * Sets the content type of an attachment.
+ */
 SENTRY_API void sentry_attachment_set_content_type(
     sentry_attachment_t *attachment, const char *content_type);
 SENTRY_API void sentry_attachment_set_content_type_n(
     sentry_attachment_t *attachment, const char *content_type,
     size_t content_type_len);
+
+/**
+ * Sets the filename of an attachment.
+ */
+SENTRY_API void sentry_attachment_set_filename(
+    sentry_attachment_t *attachment, const char *filename);
+SENTRY_API void sentry_attachment_set_filename_n(
+    sentry_attachment_t *attachment, const char *filename, size_t filename_len);
+
+#ifdef SENTRY_PLATFORM_WINDOWS
+/**
+ * Wide char version of `sentry_attachment_set_filename`.
+ */
+SENTRY_API void sentry_attachment_set_filenamew(
+    sentry_attachment_t *attachment, const wchar_t *filename);
+SENTRY_API void sentry_attachment_set_filenamew_n(
+    sentry_attachment_t *attachment, const wchar_t *filename,
+    size_t filename_len);
+#endif
 
 /* -- Session APIs -- */
 
