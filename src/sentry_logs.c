@@ -16,13 +16,14 @@ level_as_string(sentry_level_t level)
         return "trace";
     case SENTRY_LEVEL_DEBUG:
         return "debug";
+    case SENTRY_LEVEL_INFO:
+        return "info";
     case SENTRY_LEVEL_WARNING:
         return "warn";
     case SENTRY_LEVEL_ERROR:
         return "error";
     case SENTRY_LEVEL_FATAL:
         return "fatal";
-    case SENTRY_LEVEL_INFO:
     default:
         return "unknown";
     }
