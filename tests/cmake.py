@@ -14,7 +14,7 @@ class CMake:
         self.runs = dict()
         self.factory = factory
 
-    def compile(self, targets, options=None):
+    def compile(self, targets, options=None, cflags=[]):
         # We build in tmp for all of our tests. Disable the warning MSVC generates to not clutter the build logs.
         if sys.platform == "win32":
             os.environ["IgnoreWarnIntDirInTempDetected"] = "True"
@@ -29,7 +29,7 @@ class CMake:
         if key not in self.runs:
             cwd = self.factory.mktemp("cmake")
             self.runs[key] = cwd
-            cmake(cwd, targets, options)
+            cmake(cwd, targets, options, cflags)
 
         return self.runs[key]
 
@@ -93,7 +93,7 @@ class CMake:
                 )
 
 
-def cmake(cwd, targets, options=None):
+def cmake(cwd, targets, options=None, cflags=[]):
     __tracebackhide__ = True
     if options is None:
         options = {}
@@ -153,7 +153,6 @@ def cmake(cwd, targets, options=None):
 
     # we have to set `-Werror` for this cmake invocation only, otherwise
     # completely unrelated things will break
-    cflags = []
     if os.environ.get("ERROR_ON_WARNINGS"):
         cflags.append("-Werror")
     if sys.platform == "win32" and not os.environ.get("TEST_MINGW"):
