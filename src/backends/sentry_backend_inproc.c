@@ -10,6 +10,7 @@
 #if defined(SENTRY_PLATFORM_WINDOWS)
 #    include "sentry_os.h"
 #endif
+#include "sentry_process.h"
 #include "sentry_scope.h"
 #include "sentry_screenshot.h"
 #include "sentry_sync.h"
@@ -609,10 +610,17 @@ handle_ucontext(const sentry_ucontext_t *uctx)
             }
 
             // capture the envelope with the disk transport
+            sentry_path_t *envelope_path
+                = sentry__run_get_envelope_path(options->run, envelope);
             sentry_transport_t *disk_transport
                 = sentry_new_disk_transport(options->run);
             sentry__capture_envelope(disk_transport, envelope);
             sentry__transport_dump_queue(disk_transport, options->run);
+            if (options->feedback_handler_path) {
+                sentry__spawn_process(
+                    options->feedback_handler_path, envelope_path->path, NULL);
+            }
+            sentry__path_free(envelope_path);
             sentry_transport_free(disk_transport);
         } else {
             SENTRY_DEBUG("event was discarded by the `on_crash` hook");
