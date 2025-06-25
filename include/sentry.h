@@ -33,17 +33,6 @@
 extern "C" {
 #endif
 
-/* SDK Version */
-#ifndef SENTRY_SDK_NAME
-#    ifdef __ANDROID__
-#        define SENTRY_SDK_NAME "sentry.native.android"
-#    else
-#        define SENTRY_SDK_NAME "sentry.native"
-#    endif
-#endif
-#define SENTRY_SDK_VERSION "0.9.0"
-#define SENTRY_SDK_USER_AGENT SENTRY_SDK_NAME "/" SENTRY_SDK_VERSION
-
 /* common platform detection */
 #ifdef _WIN32
 #    define SENTRY_PLATFORM_WINDOWS
@@ -78,6 +67,19 @@ extern "C" {
 #else
 #    error unsupported platform
 #endif
+
+/* SDK Version */
+#ifndef SENTRY_SDK_NAME
+#    if defined(SENTRY_PLATFORM_ANDROID)
+#        define SENTRY_SDK_NAME "sentry.native.android"
+#    elif defined(SENTRY_PLATFORM_XBOX_SCARLETT)
+#        define SENTRY_SDK_NAME "sentry.native.xbox"
+#    else
+#        define SENTRY_SDK_NAME "sentry.native"
+#    endif
+#endif
+#define SENTRY_SDK_VERSION "0.9.0"
+#define SENTRY_SDK_USER_AGENT SENTRY_SDK_NAME "/" SENTRY_SDK_VERSION
 
 /* marks a function as part of the sentry API */
 #ifndef SENTRY_API
