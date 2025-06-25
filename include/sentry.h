@@ -35,8 +35,10 @@ extern "C" {
 
 /* SDK Version */
 #ifndef SENTRY_SDK_NAME
-#    ifdef __ANDROID__
+#    if defined(__ANDROID__)
 #        define SENTRY_SDK_NAME "sentry.native.android"
+#    elif defined(_GAMING_XBOX_SCARLETT)
+#        define SENTRY_SDK_NAME "sentry.native.xbox"
 #    else
 #        define SENTRY_SDK_NAME "sentry.native"
 #    endif
