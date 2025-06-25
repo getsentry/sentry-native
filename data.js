@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1750842885419,
+  "lastUpdate": 1750842911339,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -7492,6 +7492,66 @@ window.BENCHMARK_DATA = {
             "value": 9.50120000015886,
             "unit": "ms",
             "extra": "Min 9.142ms\nMax 9.771ms\nMean 9.470ms\nStdDev 0.247ms\nMedian 9.501ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "6349682+vaind@users.noreply.github.com",
+            "name": "Ivan Dlugos",
+            "username": "vaind"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "3f7bbd6193bda6814a7258da31971f21bf61da26",
+          "message": "fix: compilation error if SENTRY_TEST_PATH_PREFIX is defined (#1279)\n\n* fix: compilation error if SENTRY_TEST_PATH_PREFIX is defined\n\n* run unit tests with custom path prefix\n\n* linter issue\n\n* fix cmake.py\n\n* Update tests/unit/sentry_testsupport.h",
+          "timestamp": "2025-06-25T11:10:59+02:00",
+          "tree_id": "be3a9dccafda19c04122b5283e8e33c4e4f818a2",
+          "url": "https://github.com/getsentry/sentry-native/commit/3f7bbd6193bda6814a7258da31971f21bf61da26"
+        },
+        "date": 1750842906279,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 7.718999999951848,
+            "unit": "ms",
+            "extra": "Min 7.176ms\nMax 8.211ms\nMean 7.700ms\nStdDev 0.465ms\nMedian 7.719ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 7.564699999875302,
+            "unit": "ms",
+            "extra": "Min 7.380ms\nMax 8.527ms\nMean 7.724ms\nStdDev 0.464ms\nMedian 7.565ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 24.53260000015689,
+            "unit": "ms",
+            "extra": "Min 22.515ms\nMax 47.073ms\nMean 28.691ms\nStdDev 10.420ms\nMedian 24.533ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.013099999932819628,
+            "unit": "ms",
+            "extra": "Min 0.012ms\nMax 0.044ms\nMean 0.019ms\nStdDev 0.014ms\nMedian 0.013ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.31979999994291575,
+            "unit": "ms",
+            "extra": "Min 0.305ms\nMax 0.329ms\nMean 0.318ms\nStdDev 0.010ms\nMedian 0.320ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 9.86020000004828,
+            "unit": "ms",
+            "extra": "Min 9.394ms\nMax 11.146ms\nMean 10.061ms\nStdDev 0.705ms\nMedian 9.860ms"
           }
         ]
       }
