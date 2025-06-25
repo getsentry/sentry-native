@@ -85,8 +85,8 @@ sentry__run_free(sentry_run_t *run)
     sentry_free(run);
 }
 
-bool
-sentry__run_write_envelope(
+sentry_path_t *
+sentry__run_get_envelope_path(
     const sentry_run_t *run, const sentry_envelope_t *envelope)
 {
     // 37 for the uuid, 9 for the `.envelope` suffix
@@ -95,8 +95,14 @@ sentry__run_write_envelope(
     sentry_uuid_as_string(&event_id, envelope_filename);
     strcpy(&envelope_filename[36], ".envelope");
 
-    sentry_path_t *output_path
-        = sentry__path_join_str(run->run_path, envelope_filename);
+    return sentry__path_join_str(run->run_path, envelope_filename);
+}
+
+bool
+sentry__run_write_envelope(
+    const sentry_run_t *run, const sentry_envelope_t *envelope)
+{
+    sentry_path_t *output_path = sentry__run_get_envelope_path(run, envelope);
     if (!output_path) {
         return false;
     }

@@ -12,6 +12,7 @@ extern "C" {
 #    include "sentry_os.h"
 #endif
 #include "sentry_path.h"
+#include "sentry_process.h"
 #include "sentry_screenshot.h"
 #include "sentry_string.h"
 #include "sentry_sync.h"
@@ -177,10 +178,17 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
             }
 
             // capture the envelope with the disk transport
+            sentry_path_t *envelope_path
+                = sentry__run_get_envelope_path(options->run, envelope);
             sentry_transport_t *disk_transport
                 = sentry_new_disk_transport(options->run);
             sentry__capture_envelope(disk_transport, envelope);
             sentry__transport_dump_queue(disk_transport, options->run);
+            if (options->feedback_handler_path) {
+                sentry__spawn_process(
+                    options->feedback_handler_path, envelope_path->path, NULL);
+            }
+            sentry__path_free(envelope_path);
             sentry_transport_free(disk_transport);
 
             // now that the envelope was written, we can remove the temporary
