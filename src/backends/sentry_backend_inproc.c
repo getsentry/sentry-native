@@ -622,7 +622,10 @@ handle_ucontext(const sentry_ucontext_t *uctx)
                     envelope_path->path,
                     NULL,
                 };
-                const sentry_pathchar_t *envp[] = { L"SENTRY_DSN=foo", NULL };
+                // build a wchar_t with "SENTRY_DSN=<dsn>" where <dsn> is the
+                // string from options->dsn
+                wchar_t *dsn = sentry__string_to_wstr(options->dsn);
+                const char *envp[] = { dsn, NULL };
                 sentry__process_spawn(argv, envp);
             }
             sentry__path_free(envelope_path);
