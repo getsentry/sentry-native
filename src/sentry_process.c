@@ -3,31 +3,30 @@
 #include "sentry_logger.h"
 
 bool
-sentry__spawn_process(const sentry_path_t *executable, ...)
+sentry__process_spawn(
+    const sentry_pathchar_t **argv, const sentry_pathchar_t **envp)
 {
-    SENTRY_DEBUGF("spawning \%" SENTRY_PATH_PRI, executable->path);
+    if (!argv || !argv[0]) {
+        return false;
+    }
+
+    SENTRY_DEBUGF("spawning \"%" SENTRY_PATH_PRI "\"", argv[0]);
 
 #ifdef SENTRY_PLATFORM_WINDOWS
-    size_t cli_len = wcslen(executable->path);
-    va_list args;
-    va_start(args, executable);
-    const wchar_t *arg;
-    while ((arg = va_arg(args, const wchar_t *)) != NULL) {
-        cli_len += 1 + wcslen(arg); // space + argument
+    size_t cli_len = 0;
+    for (const wchar_t **arg = argv; *arg; arg++) {
+        cli_len += wcslen(*arg) + 1; // space + null-terminator
     }
-    va_end(args);
 
-    wchar_t *cli = sentry_malloc((cli_len + 1) * sizeof(wchar_t));
+    wchar_t *cli = sentry_malloc(cli_len * sizeof(wchar_t));
     if (!cli) {
         return false;
     }
-    wcscpy(cli, executable->path);
-    va_start(args, executable);
-    while ((arg = va_arg(args, const wchar_t *)) != NULL) {
+    wcscpy(cli, argv[0]);
+    for (const wchar_t **arg = argv + 1; *arg; arg++) {
         wcscat(cli, L" ");
-        wcscat(cli, arg);
+        wcscat(cli, *arg);
     }
-    va_end(args);
 
     STARTUPINFOW si = { 0 };
     PROCESS_INFORMATION pi = { 0 };

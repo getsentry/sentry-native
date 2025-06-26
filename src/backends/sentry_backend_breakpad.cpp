@@ -185,8 +185,13 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
             sentry__capture_envelope(disk_transport, envelope);
             sentry__transport_dump_queue(disk_transport, options->run);
             if (options->feedback_handler_path) {
-                sentry__spawn_process(
-                    options->feedback_handler_path, envelope_path->path, NULL);
+                const sentry_pathchar_t *argv[] = {
+                    options->feedback_handler_path->path,
+                    envelope_path->path,
+                    NULL,
+                };
+                const sentry_pathchar_t *envp[] = { L"SENTRY_DSN=foo", NULL };
+                sentry__process_spawn(argv, NULL);
             }
             sentry__path_free(envelope_path);
             sentry_transport_free(disk_transport);
