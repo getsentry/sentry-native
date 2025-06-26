@@ -610,6 +610,9 @@ handle_ucontext(const sentry_ucontext_t *uctx)
             }
 
             // capture the envelope with the disk transport
+            sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
+            char event_id_str[37];
+            sentry_uuid_as_string(&event_id, event_id_str);
             sentry_path_t *envelope_path
                 = sentry__run_get_envelope_path(options->run, envelope);
             sentry_transport_t *disk_transport
@@ -617,16 +620,22 @@ handle_ucontext(const sentry_ucontext_t *uctx)
             sentry__capture_envelope(disk_transport, envelope);
             sentry__transport_dump_queue(disk_transport, options->run);
             if (options->feedback_handler_path) {
-                const sentry_pathchar_t *argv[] = {
-                    options->feedback_handler_path->path,
-                    envelope_path->path,
-                    NULL,
-                };
-                // build a wchar_t with "SENTRY_DSN=<dsn>" where <dsn> is the
-                // string from options->dsn
-                wchar_t *dsn = sentry__string_to_wstr(options->dsn);
-                const char *envp[] = { dsn, NULL };
-                sentry__process_spawn(argv, envp);
+                sentry_process_t *process
+                    = sentry__process_new(options->feedback_handler_path);
+#ifdef SENTRY_PLATFORM_WINDOWS
+                wchar_t *dsn_env = sentry__string_to_wstr(options->dsn->raw);
+                wchar_t *event_id_env = sentry__string_to_wstr(event_id_str);
+                sentry__process_set_env(process, L"SENTRY_DSN", dsn_env,
+                    L"SENTRY_EVENT_ID", event_id_env, NULL);
+                sentry_free(dsn_env);
+                sentry_free(event_id_env);
+#else
+                sentry__process_set_env(process, "SENTRY_DSN",
+                    options->dsn->raw, "SENTRY_EVENT_ID", event_id_str, NULL);
+#endif
+                sentry__process_spawn_with_args(
+                    process, envelope_path->path, NULL);
+                sentry__process_free(process);
             }
             sentry__path_free(envelope_path);
             sentry_transport_free(disk_transport);
