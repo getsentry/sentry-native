@@ -5,11 +5,9 @@
 #include "sentry_path.h"
 
 /**
- * Spawns a detached child process that runs the given executable.
- * Command line arguments can be passed as a variable argument list.
- * The arguments must of of type `const wchar_t *` on Windows or
- * `const char *` on POSIX, and must be terminated with `NULL`.
+ * Spawns a detached child process with the specified arguments and environment.
  */
-bool sentry__spawn_process(const sentry_path_t *executable, ...);
+bool sentry__process_spawn(
+    const sentry_pathchar_t **argv, const sentry_pathchar_t **envp);
 
 #endif
