@@ -370,6 +370,7 @@ SENTRY_API char *sentry_value_to_json(sentry_value_t value);
  * Sentry levels for events and breadcrumbs.
  */
 typedef enum sentry_level_e {
+    SENTRY_LEVEL_TRACE = -2,
     SENTRY_LEVEL_DEBUG = -1,
     SENTRY_LEVEL_INFO = 0,
     SENTRY_LEVEL_WARNING = 1,
@@ -1749,6 +1750,13 @@ SENTRY_EXPERIMENTAL_API void sentry_options_set_enable_logs(
     sentry_options_t *opts, int enable_logs);
 SENTRY_EXPERIMENTAL_API int sentry_options_get_enable_logs(
     const sentry_options_t *opts);
+
+SENTRY_EXPERIMENTAL_API void sentry_log_trace(const char *message, ...);
+SENTRY_EXPERIMENTAL_API void sentry_log_debug(const char *message, ...);
+SENTRY_EXPERIMENTAL_API void sentry_log_info(const char *message, ...);
+SENTRY_EXPERIMENTAL_API void sentry_log_warn(const char *message, ...);
+SENTRY_EXPERIMENTAL_API void sentry_log_error(const char *message, ...);
+SENTRY_EXPERIMENTAL_API void sentry_log_fatal(const char *message, ...);
 
 #ifdef SENTRY_PLATFORM_LINUX
 
