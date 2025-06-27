@@ -145,11 +145,6 @@ skip_precision(char *fmt_ptr)
     return fmt_ptr;
 }
 
-static char *
-extract_length()
-{
-}
-
 static void
 populate_message_parameters(
     sentry_value_t attributes, const char *message, va_list args)
@@ -158,7 +153,7 @@ populate_message_parameters(
         return;
     }
 
-    char *fmt_ptr = message;
+    const char *fmt_ptr = message;
     int param_index = 0;
     va_list args_copy;
     va_copy(args_copy, args);
