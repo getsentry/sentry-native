@@ -15,8 +15,8 @@ sentry__process_free(sentry_process_t *UNUSED(process))
 
 void
 sentry__process_set_env(sentry_process_t *UNUSED(process),
-    const sentry_pathchar_t *UNUSED(key),
-    const sentry_pathchar_t *UNUSED(value), ...)
+    const sentry_pathchar_t *UNUSED(key0),
+    const sentry_pathchar_t *UNUSED(value0), ...)
 {
 }
 
@@ -28,7 +28,7 @@ sentry__process_spawn(sentry_process_t *UNUSED(process))
 
 bool
 sentry__process_spawn_with_args(sentry_process_t *UNUSED(process),
-    const sentry_pathchar_t *UNUSED(arg), ...)
+    const sentry_pathchar_t *UNUSED(arg0), ...)
 {
     return false;
 }

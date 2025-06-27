@@ -190,9 +190,9 @@ sentry__process_spawn(sentry_process_t *process)
 
 bool
 sentry__process_spawn_with_args(
-    sentry_process_t *process, const sentry_pathchar_t *arg, ...)
+    sentry_process_t *process, const wchar_t *arg0, ...)
 {
-    if (!process || !arg) {
+    if (!process || !arg0) {
         return false;
     }
 
@@ -201,13 +201,13 @@ sentry__process_spawn_with_args(
         return false;
     }
 
-    append_argument(process, arg);
+    append_argument(process, arg0);
 
     va_list args;
-    va_start(args, arg);
-    const sentry_pathchar_t *a;
-    while ((a = va_arg(args, const sentry_pathchar_t *)) != NULL) {
-        append_argument(process, a);
+    va_start(args, arg0);
+    const wchar_t *argn;
+    while ((argn = va_arg(args, const wchar_t *)) != NULL) {
+        append_argument(process, argn);
     }
     va_end(args);
 

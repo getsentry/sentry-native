@@ -11,7 +11,7 @@ sentry_process_t *sentry__process_new(const sentry_path_t *executable);
 void sentry__process_free(sentry_process_t *process);
 
 void sentry__process_set_env(sentry_process_t *process,
-    const sentry_pathchar_t *key, const sentry_pathchar_t *value, ...);
+    const sentry_pathchar_t *key0, const sentry_pathchar_t *value0, ...);
 
 bool sentry__process_spawn(sentry_process_t *process);
 bool sentry__process_spawn_with_args(

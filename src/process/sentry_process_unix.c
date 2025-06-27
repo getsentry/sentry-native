@@ -14,35 +14,65 @@
 
 struct sentry_process_s {
     sentry_path_t *executable;
-    int argc;
     char **argv;
     char **envp;
 };
 
-static void
-free_argv(char **argv, int argc)
+static char **
+string_array_new(size_t len)
 {
-    if (!argv) {
-        return;
+    char **array = sentry_malloc(len * sizeof(char *) + 1);
+    if (array) {
+        array[len] = NULL;
+    }
+    return array;
+}
+
+static bool
+string_array_set_value(char **array, size_t index, const char *value)
+{
+    if (!array || !value) {
+        return false;
     }
 
-    for (int i = 0; i < argc; i++) {
-        sentry_free(argv[i]);
+    size_t len = strlen(value);
+    array[index] = sentry_malloc(len + 1);
+    if (!array[index]) {
+        return false;
     }
-    sentry_free(argv);
+    strcpy(array[index], value);
+    return true;
+}
+
+static bool
+string_array_set_key_value(
+    char **array, size_t index, const char *key, const char *value)
+{
+    if (!array || !key || !value) {
+        return false;
+    }
+
+    size_t key_len = strlen(key);
+    size_t value_len = strlen(value);
+    array[index] = sentry_malloc(key_len + 1 + value_len + 1);
+    if (!array[index]) {
+        return false;
+    }
+    snprintf(array[index], key_len + 1 + value_len + 1, "%s=%s", key, value);
+    return true;
 }
 
 static void
-free_envp(char **envp)
+string_array_free(char **array)
 {
-    if (!envp) {
+    if (!array) {
         return;
     }
 
-    for (int i = 0; envp[i]; i++) {
-        sentry_free(envp[i]);
+    for (int i = 0; array[i]; i++) {
+        sentry_free(array[i]);
     }
-    sentry_free(envp);
+    sentry_free(array);
 }
 
 sentry_process_t *
@@ -60,24 +90,6 @@ sentry__process_new(const sentry_path_t *executable)
         return NULL;
     }
 
-    process->argc = 1;
-    process->argv = sentry_malloc(2 * sizeof(char *));
-    if (!process->argv) {
-        sentry__path_free(process->executable);
-        sentry_free(process);
-        return NULL;
-    }
-
-    process->argv[0] = sentry_malloc(strlen(process->executable->path) + 1);
-    if (!process->argv[0]) {
-        sentry_free(process->argv);
-        sentry__path_free(process->executable);
-        sentry_free(process);
-        return NULL;
-    }
-    strcpy(process->argv[0], process->executable->path);
-    process->argv[1] = NULL;
-
     return process;
 }
 
@@ -88,138 +100,75 @@ sentry__process_free(sentry_process_t *process)
         return;
     }
 
-    free_argv(process->argv, process->argc);
-    free_envp(process->envp);
+    string_array_free(process->argv);
+    string_array_free(process->envp);
     sentry__path_free(process->executable);
     sentry_free(process);
 }
 
 void
-sentry__process_set_env(sentry_process_t *process, const sentry_pathchar_t *key,
-    const sentry_pathchar_t *value, ...)
+sentry__process_set_env(
+    sentry_process_t *process, const char *key0, const char *value0, ...)
 {
-    if (!process || !key || !value) {
+    if (!process || !key0 || !value0) {
         return;
     }
 
-    // Count environment variables to add
-    int extra_env_count = 1; // for the key=value pair
-    va_list args;
-    va_start(args, value);
-    const sentry_pathchar_t *k, *v;
-    while ((k = va_arg(args, const sentry_pathchar_t *)) != NULL
-        && (v = va_arg(args, const sentry_pathchar_t *)) != NULL) {
-        extra_env_count++;
-    }
-    va_end(args);
-
-    // Count current environment variables
-    int current_env_count = 0;
+    // current env + key0=value0 + variable key-value pairs
+    int env_len = 1;
     extern char **environ;
-    if (environ) {
-        while (environ[current_env_count]) {
-            current_env_count++;
-        }
+    while (environ && environ[env_len - 1]) {
+        env_len++;
     }
+    va_list args;
+    va_start(args, value0);
+    const char *key, *value;
+    while ((key = va_arg(args, const char *)) != NULL
+        && (value = va_arg(args, const char *)) != NULL) {
+        env_len++;
+    }
+    va_end(args);
 
-    // Free existing environment
-    free_envp(process->envp);
-
-    // Allocate array for environment variables
-    process->envp = sentry_malloc(
-        (current_env_count + extra_env_count + 1) * sizeof(char *));
-    if (!process->envp) {
+    // key0=value0
+    int i = 0;
+    char **envp = string_array_new(env_len);
+    if (!string_array_set_key_value(envp, i++, key0, value0)) {
+        string_array_free(envp);
         return;
     }
 
-    int env_index = 0;
-
-    // Add the new environment variables
-    size_t key_len = strlen(key);
-    size_t value_len = strlen(value);
-    process->envp[env_index] = sentry_malloc(key_len + 1 + value_len + 1);
-    if (process->envp[env_index]) {
-        snprintf(process->envp[env_index], key_len + 1 + value_len + 1, "%s=%s",
-            key, value);
-        env_index++;
-    }
-
-    va_start(args, value);
-    while ((k = va_arg(args, const sentry_pathchar_t *)) != NULL
-        && (v = va_arg(args, const sentry_pathchar_t *)) != NULL) {
-        size_t k_len = strlen(k);
-        size_t v_len = strlen(v);
-        process->envp[env_index] = sentry_malloc(k_len + 1 + v_len + 1);
-        if (process->envp[env_index]) {
-            snprintf(
-                process->envp[env_index], k_len + 1 + v_len + 1, "%s=%s", k, v);
-            env_index++;
+    // variable key-value pairs
+    va_start(args, value0);
+    while ((key = va_arg(args, const char *)) != NULL
+        && (value = va_arg(args, const char *)) != NULL) {
+        if (!string_array_set_key_value(envp, i++, key, value)) {
+            string_array_free(envp);
+            va_end(args);
+            return;
         }
     }
     va_end(args);
 
-    // Copy current environment
-    if (environ) {
-        for (int i = 0; i < current_env_count; i++) {
-            process->envp[env_index] = sentry_malloc(strlen(environ[i]) + 1);
-            if (process->envp[env_index]) {
-                strcpy(process->envp[env_index], environ[i]);
-                env_index++;
-            }
+    // current env
+    char **env = environ;
+    while (env && *env) {
+        if (!string_array_set_value(envp, i++, *env)) {
+            string_array_free(envp);
+            return;
         }
+        env++;
     }
 
-    // Null-terminate the array
-    process->envp[env_index] = NULL;
+    string_array_free(process->envp);
+    process->envp = envp;
 }
 
-static bool
-add_argument(sentry_process_t *process, const char *arg)
-{
-    if (!process || !arg) {
-        return false;
-    }
-
-    // Reallocate argv to fit the new argument
-    char **new_argv = sentry_malloc((process->argc + 2) * sizeof(char *));
-    if (!new_argv) {
-        return false;
-    }
-
-    // Copy existing arguments
-    for (int i = 0; i < process->argc; i++) {
-        new_argv[i] = process->argv[i];
-    }
-
-    // Add new argument
-    new_argv[process->argc] = sentry_malloc(strlen(arg) + 1);
-    if (!new_argv[process->argc]) {
-        sentry_free(new_argv);
-        return false;
-    }
-    strcpy(new_argv[process->argc], arg);
-
-    // Null-terminate
-    new_argv[process->argc + 1] = NULL;
-
-    // Replace old argv
-    sentry_free(process->argv);
-    process->argv = new_argv;
-    process->argc++;
-
-    return true;
-}
-
+/**
+ * Spawns a new fully detached subprocess by double-forking.
+ */
 bool
-sentry__process_spawn(sentry_process_t *process)
+spawn_process(sentry_process_t *process)
 {
-    if (!process || !process->executable || !process->argv) {
-        return false;
-    }
-
-    // POSIX implementation using double fork to create a fully detached
-    // subprocess This avoids zombie processes and ensures the child is
-    // completely independent
     pid_t pid1 = fork();
     if (pid1 == -1) {
         SENTRY_ERRORF("first fork() failed: %s", strerror(errno));
@@ -227,15 +176,15 @@ sentry__process_spawn(sentry_process_t *process)
     }
 
     if (pid1 == 0) {
-        // First child process
-        // Create new session and process group to detach from parent
+        // first child process: create new session and process group to detach
+        // from parent
         if (setsid() == -1) {
             SENTRY_ERRORF("setsid() failed: %s", strerror(errno));
             _exit(1);
         }
 
-        // Second fork to ensure the process is not a session leader
-        // and cannot acquire a controlling terminal (fully detached)
+        // second fork to ensure the process is not a session leader and cannot
+        // acquire a controlling terminal
         pid_t pid2 = fork();
         if (pid2 == -1) {
             SENTRY_ERRORF("second fork() failed: %s", strerror(errno));
@@ -243,8 +192,7 @@ sentry__process_spawn(sentry_process_t *process)
         }
 
         if (pid2 == 0) {
-            // Second child process - this will be the fully detached subprocess
-            // Redirect stdin, stdout, stderr to /dev/null
+            // second child process: redirect stdin/out/err to /dev/null
             int dev_null = open("/dev/null", O_RDWR);
             if (dev_null != -1) {
                 dup2(dev_null, STDIN_FILENO);
@@ -255,7 +203,7 @@ sentry__process_spawn(sentry_process_t *process)
                 }
             }
 
-            // Execute with environment
+            // finally, execute the process
             if (process->envp) {
                 execve(process->executable->path, process->argv, process->envp);
             } else {
@@ -265,51 +213,82 @@ sentry__process_spawn(sentry_process_t *process)
             SENTRY_ERRORF("execv failed: %s", strerror(errno));
             _exit(1);
         } else {
-            // First child exits immediately
+            // the first child exits immediately
             _exit(0);
         }
     } else {
-        // Parent process - wait for first child to exit
+        // parent process: wait for the first child to exit
         int status;
         if (waitpid(pid1, &status, 0) == -1) {
             SENTRY_ERRORF("waitpid() failed: %s", strerror(errno));
             return false;
         }
-
-        // Check if first child exited successfully
-        if (WIFEXITED(status) && WEXITSTATUS(status) == 0) {
-            return true;
-        } else {
+        if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
             SENTRY_ERRORF("child process failed with status %d", status);
             return false;
         }
+        return true;
     }
 }
 
 bool
-sentry__process_spawn_with_args(
-    sentry_process_t *process, const sentry_pathchar_t *arg, ...)
+sentry__process_spawn(sentry_process_t *process)
 {
-    if (!process || !arg) {
+    if (!process) {
         return false;
     }
 
-    // Add the first argument
-    if (!add_argument(process, arg)) {
+    char **argv = string_array_new(1);
+    if (!string_array_set_value(argv, 0, process->executable->path)) {
+        string_array_free(argv);
+        return NULL;
+    }
+
+    string_array_free(process->argv);
+    process->argv = argv;
+    return spawn_process(process);
+}
+
+bool
+sentry__process_spawn_with_args(
+    sentry_process_t *process, const char *arg0, ...)
+{
+    if (!process || !arg0) {
         return false;
     }
 
-    // Add remaining arguments
+    // exe + arg0 + variable args
+    int argc = 2;
     va_list args;
-    va_start(args, arg);
-    const sentry_pathchar_t *a;
-    while ((a = va_arg(args, const sentry_pathchar_t *)) != NULL) {
-        if (!add_argument(process, a)) {
+    va_start(args, arg0);
+    while (va_arg(args, const char *) != NULL) {
+        argc++;
+    }
+    va_end(args);
+
+    // exe, arg0
+    int i = 0;
+    char **argv = string_array_new(argc);
+    if (!string_array_set_value(argv, i++, process->executable->path)
+        || !string_array_set_value(argv, i++, arg0)) {
+        string_array_free(argv);
+        return false;
+    }
+
+    // variable args
+    va_start(args, arg0);
+    while (va_arg(args, const char *) != NULL) {
+        const char *argn = va_arg(args, const char *);
+        if (!string_array_set_value(argv, i++, argn)) {
             va_end(args);
+            string_array_free(argv);
             return false;
         }
     }
     va_end(args);
 
-    return sentry__process_spawn(process);
+    string_array_free(process->argv);
+    process->argv = argv;
+
+    return spawn_process(process);
 }
