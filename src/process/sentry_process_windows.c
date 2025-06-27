@@ -3,10 +3,14 @@
 #include "sentry_alloc.h"
 #include "sentry_logger.h"
 
+#include <stdarg.h>
+#include <string.h>
+#include <windows.h>
+
 struct sentry_process_s {
     sentry_path_t *executable;
-    sentry_pathchar_t *cli;
-    sentry_pathchar_t *env;
+    wchar_t *command_line;
+    wchar_t *environment_block;
 };
 
 sentry_process_t *
@@ -34,8 +38,8 @@ sentry__process_free(sentry_process_t *process)
         return;
     }
 
-    sentry_free(process->cli);
-    sentry_free(process->env);
+    sentry_free(process->command_line);
+    sentry_free(process->environment_block);
     sentry__path_free(process->executable);
     sentry_free(process);
 }
@@ -50,6 +54,7 @@ sentry__process_set_env(sentry_process_t *process, const sentry_pathchar_t *key,
 
     size_t env_len = 1; // block null-terminator
     env_len += wcslen(key) + 1 + wcslen(value) + 1; // "KEY=VALUE\0"
+
     va_list args;
     va_start(args, value);
     const sentry_pathchar_t *k, *v;
@@ -69,24 +74,25 @@ sentry__process_set_env(sentry_process_t *process, const sentry_pathchar_t *key,
         }
     }
 
-    sentry_free(process->env);
-    process->env = sentry_malloc(env_len * sizeof(wchar_t));
-    if (!process->env) {
+    sentry_free(process->environment_block);
+    process->environment_block = sentry_malloc(env_len * sizeof(wchar_t));
+    if (!process->environment_block) {
         if (env_current) {
             FreeEnvironmentStringsW(env_current);
         }
         return;
     }
 
-    sentry_pathchar_t *dest = process->env;
-    dest += swprintf(
-        dest, env_len - (dest - process->env), L"%s=%s", key, value);
+    sentry_pathchar_t *dest = process->environment_block;
+    dest += swprintf(dest, env_len - (dest - process->environment_block),
+        L"%s=%s", key, value);
     dest++; // null-terminator
 
     va_start(args, value);
     while ((k = va_arg(args, const sentry_pathchar_t *)) != NULL
         && (v = va_arg(args, const sentry_pathchar_t *)) != NULL) {
-        dest += swprintf(dest, env_len - (dest - process->env), L"%s=%s", k, v);
+        dest += swprintf(dest, env_len - (dest - process->environment_block),
+            L"%s=%s", k, v);
         dest++; // null-terminator
     }
     va_end(args);
@@ -105,6 +111,45 @@ sentry__process_set_env(sentry_process_t *process, const sentry_pathchar_t *key,
     *dest = L'\0';
 }
 
+static void
+build_command_line(sentry_process_t *process, const wchar_t *executable_path)
+{
+    sentry_free(process->command_line);
+
+    size_t len = wcslen(executable_path) + 1; // +1 for null terminator
+    process->command_line = sentry_malloc(len * sizeof(wchar_t));
+    if (!process->command_line) {
+        return;
+    }
+
+    wcscpy(process->command_line, executable_path);
+}
+
+static void
+append_argument(sentry_process_t *process, const wchar_t *arg)
+{
+    if (!process->command_line || !arg) {
+        return;
+    }
+
+    size_t current_len = wcslen(process->command_line);
+    size_t arg_len = wcslen(arg);
+    size_t new_len
+        = current_len + 1 + arg_len + 1; // space + arg + null terminator
+
+    wchar_t *new_command_line = sentry_malloc(new_len * sizeof(wchar_t));
+    if (!new_command_line) {
+        return;
+    }
+
+    wcscpy(new_command_line, process->command_line);
+    wcscat(new_command_line, L" ");
+    wcscat(new_command_line, arg);
+
+    sentry_free(process->command_line);
+    process->command_line = new_command_line;
+}
+
 bool
 sentry__process_spawn(sentry_process_t *process)
 {
@@ -113,21 +158,21 @@ sentry__process_spawn(sentry_process_t *process)
     }
 
     SENTRY_DEBUGF("spawning \"%" SENTRY_PATH_PRI "\"",
-        process->cli ? process->cli : process->executable->path);
+        process->command_line ? process->command_line
+                              : process->executable->path);
 
-#ifdef SENTRY_PLATFORM_WINDOWS
     STARTUPINFOW si = { 0 };
     PROCESS_INFORMATION pi = { 0 };
     si.cb = sizeof(si);
 
     BOOL rv = CreateProcessW(NULL, // lpApplicationName
-        process->cli ? process->cli
-                     : process->executable->path, // lpCommandLine
+        process->command_line ? process->command_line
+                              : process->executable->path, // lpCommandLine
         NULL, // lpProcessAttributes
         NULL, // lpThreadAttributes
         FALSE, // bInheritHandles
         DETACHED_PROCESS | CREATE_UNICODE_ENVIRONMENT, // dwCreationFlags
-        process->env, // lpEnvironment
+        process->environment_block, // lpEnvironment
         NULL, // lpCurrentDirectory
         &si, // lpStartupInfo
         &pi // lpProcessInformation
@@ -141,10 +186,6 @@ sentry__process_spawn(sentry_process_t *process)
     CloseHandle(pi.hProcess);
     CloseHandle(pi.hThread);
     return true;
-#else
-    // TODO: POSIX
-    return false;
-#endif
 }
 
 bool
@@ -155,30 +196,18 @@ sentry__process_spawn_with_args(
         return false;
     }
 
-    size_t cli_len = wcslen(process->executable->path) + 1; // space
-    cli_len += wcslen(arg) + 1; // space / null-terminator
+    build_command_line(process, process->executable->path);
+    if (!process->command_line) {
+        return false;
+    }
+
+    append_argument(process, arg);
 
     va_list args;
     va_start(args, arg);
     const sentry_pathchar_t *a;
     while ((a = va_arg(args, const sentry_pathchar_t *)) != NULL) {
-        cli_len += wcslen(a) + 1; // space / null-terminator
-    }
-    va_end(args);
-
-    sentry_free(process->cli);
-    process->cli = sentry_malloc(cli_len * sizeof(wchar_t));
-    if (!process->cli) {
-        return;
-    }
-    wcscpy(process->cli, process->executable->path);
-    wcscat(process->cli, L" ");
-    wcscat(process->cli, arg);
-
-    va_start(args, arg);
-    while ((a = va_arg(args, const sentry_pathchar_t *)) != NULL) {
-        wcscat(process->cli, L" ");
-        wcscat(process->cli, a);
+        append_argument(process, a);
     }
     va_end(args);
 
