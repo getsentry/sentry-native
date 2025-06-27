@@ -361,12 +361,12 @@ main(int argc, char **argv)
 
     // TODO incorporate into test
     if (sentry_options_get_enable_logs(options)) {
-        sentry_log_trace("We log it up  %i percent, %s style\n", 100, "trace");
-        sentry_log_debug("We log it up  %i percent, %s style\n", 100, "debug");
-        sentry_log_info("We log it up  %i percent, %s style\n", 100, "info");
-        sentry_log_warn("We log it up  %i percent, %s style\n", 100, "warn");
-        sentry_log_error("We log it up  %i percent, %s style\n", 100, "error");
-        sentry_log_fatal("We log it up  %i percent, %s style\n", 100, "fatal");
+        sentry_log_trace("We log it up  %i%%, %s style", 100, "trace");
+        sentry_log_debug("We log it up  %i%%, %s style", 100, "debug");
+        sentry_log_info("We log it up  %i%%, %s style", 100, "info");
+        sentry_log_warn("We log it up  %i%%, %s style", 100, "warn");
+        sentry_log_error("We log it up  %i%%, %s style", 100, "error");
+        sentry_log_fatal("We log it up  %i%%, %s style", 100, "fatal");
 
         // Test the logger with various parameter types
         sentry_log_info(
