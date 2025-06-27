@@ -11,6 +11,7 @@
 #include "sentry_options.h"
 #include "sentry_os.h"
 #include "sentry_path.h"
+#include "sentry_process.h"
 #include "sentry_random.h"
 #include "sentry_scope.h"
 #include "sentry_screenshot.h"
@@ -1339,6 +1340,45 @@ sentry_capture_user_feedback(sentry_value_t user_feedback)
         }
     }
     sentry_value_decref(user_feedback);
+}
+
+void
+sentry__launch_feedback_handler(sentry_value_t event)
+{
+    const char *event_id
+        = sentry_value_as_string(sentry__ensure_event_id(event, NULL));
+    SENTRY_DEBUGF("### sentry__launch_feedback_handler: %s", event_id);
+
+    SENTRY_WITH_OPTIONS (options) {
+        if (!options->feedback_handler_path) {
+            return;
+        }
+
+        // TODO: dump the event alone into a separate file?
+        sentry_path_t *tmp_path
+            = sentry__path_join_str(options->run->run_path, event_id);
+        sentry_path_t *envelope_path
+            = sentry__path_append_str(tmp_path, ".envelope");
+        sentry__path_free(tmp_path);
+
+        sentry_process_t *process
+            = sentry__process_new(options->feedback_handler_path);
+#ifdef SENTRY_PLATFORM_WINDOWS
+        wchar_t *dsnw = sentry__string_to_wstr(options->dsn->raw);
+        wchar_t *event_idw = sentry__string_to_wstr(event_id);
+        sentry__process_set_env(
+            process, L"SENTRY_DSN", dsnw, L"SENTRY_EVENT_ID", event_idw, NULL);
+        sentry_free(dsnw);
+        sentry_free(event_idw);
+#else
+        sentry__process_set_env(process, "SENTRY_DSN", options->dsn->raw,
+            "SENTRY_EVENT_ID", event_id, NULL);
+#endif
+        sentry__process_spawn_with_args(process, envelope_path->path, NULL);
+        sentry__process_free(process);
+
+        sentry__path_free(envelope_path);
+    }
 }
 
 int

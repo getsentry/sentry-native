@@ -10,7 +10,6 @@
 #if defined(SENTRY_PLATFORM_WINDOWS)
 #    include "sentry_os.h"
 #endif
-#include "sentry_process.h"
 #include "sentry_scope.h"
 #include "sentry_screenshot.h"
 #include "sentry_sync.h"
@@ -610,34 +609,10 @@ handle_ucontext(const sentry_ucontext_t *uctx)
             }
 
             // capture the envelope with the disk transport
-            sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
-            char event_id_str[37];
-            sentry_uuid_as_string(&event_id, event_id_str);
-            sentry_path_t *envelope_path
-                = sentry__run_get_envelope_path(options->run, envelope);
             sentry_transport_t *disk_transport
                 = sentry_new_disk_transport(options->run);
             sentry__capture_envelope(disk_transport, envelope);
             sentry__transport_dump_queue(disk_transport, options->run);
-            if (options->feedback_handler_path) {
-                sentry_process_t *process
-                    = sentry__process_new(options->feedback_handler_path);
-#ifdef SENTRY_PLATFORM_WINDOWS
-                wchar_t *dsn_env = sentry__string_to_wstr(options->dsn->raw);
-                wchar_t *event_id_env = sentry__string_to_wstr(event_id_str);
-                sentry__process_set_env(process, L"SENTRY_DSN", dsn_env,
-                    L"SENTRY_EVENT_ID", event_id_env, NULL);
-                sentry_free(dsn_env);
-                sentry_free(event_id_env);
-#else
-                sentry__process_set_env(process, "SENTRY_DSN",
-                    options->dsn->raw, "SENTRY_EVENT_ID", event_id_str, NULL);
-#endif
-                sentry__process_spawn_with_args(
-                    process, envelope_path->path, NULL);
-                sentry__process_free(process);
-            }
-            sentry__path_free(envelope_path);
             sentry_transport_free(disk_transport);
         } else {
             SENTRY_DEBUG("event was discarded by the `on_crash` hook");
@@ -646,6 +621,8 @@ handle_ucontext(const sentry_ucontext_t *uctx)
 
         // after capturing the crash event, dump all the envelopes to disk
         sentry__transport_dump_queue(options->transport, options->run);
+        // and launch the feedback handler
+        sentry__launch_feedback_handler(event);
     }
 
     SENTRY_INFO("crash has been captured");
