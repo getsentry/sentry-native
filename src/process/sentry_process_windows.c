@@ -45,22 +45,22 @@ sentry__process_free(sentry_process_t *process)
 }
 
 void
-sentry__process_set_env(sentry_process_t *process, const sentry_pathchar_t *key,
-    const sentry_pathchar_t *value, ...)
+sentry__process_set_env(
+    sentry_process_t *process, const wchar_t *key0, const wchar_t *value0, ...)
 {
-    if (!process || !key || !value) {
+    if (!process || !key0 || !value0) {
         return;
     }
 
     size_t env_len = 1; // block null-terminator
-    env_len += wcslen(key) + 1 + wcslen(value) + 1; // "KEY=VALUE\0"
+    env_len += wcslen(key0) + 1 + wcslen(value0) + 1; // "KEY=VALUE\0"
 
     va_list args;
-    va_start(args, value);
-    const sentry_pathchar_t *k, *v;
-    while ((k = va_arg(args, const sentry_pathchar_t *)) != NULL
-        && (v = va_arg(args, const sentry_pathchar_t *)) != NULL) {
-        env_len += wcslen(k) + 1 + wcslen(v) + 1; // "KEY=VALUE\0"
+    va_start(args, value0);
+    const wchar_t *key, *value;
+    while ((key = va_arg(args, const wchar_t *)) != NULL
+        && (value = va_arg(args, const wchar_t *)) != NULL) {
+        env_len += wcslen(key) + 1 + wcslen(value) + 1; // "KEY=VALUE\0"
     }
     va_end(args);
 
@@ -83,16 +83,16 @@ sentry__process_set_env(sentry_process_t *process, const sentry_pathchar_t *key,
         return;
     }
 
-    sentry_pathchar_t *dest = process->environment_block;
+    wchar_t *dest = process->environment_block;
     dest += swprintf(dest, env_len - (dest - process->environment_block),
-        L"%s=%s", key, value);
+        L"%s=%s", key0, value0);
     dest++; // null-terminator
 
-    va_start(args, value);
-    while ((k = va_arg(args, const sentry_pathchar_t *)) != NULL
-        && (v = va_arg(args, const sentry_pathchar_t *)) != NULL) {
+    va_start(args, value0);
+    while ((key = va_arg(args, const wchar_t *)) != NULL
+        && (value = va_arg(args, const wchar_t *)) != NULL) {
         dest += swprintf(dest, env_len - (dest - process->environment_block),
-            L"%s=%s", k, v);
+            L"%s=%s", key, value);
         dest++; // null-terminator
     }
     va_end(args);
@@ -157,7 +157,7 @@ sentry__process_spawn(sentry_process_t *process)
         return false;
     }
 
-    SENTRY_DEBUGF("spawning \"%" SENTRY_PATH_PRI "\"",
+    SENTRY_DEBUGF("spawning \"%S\"",
         process->command_line ? process->command_line
                               : process->executable->path);
 
