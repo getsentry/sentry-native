@@ -29,7 +29,7 @@ level_as_string(sentry_level_t level)
     }
 }
 
-sentry_value_t
+static sentry_value_t
 construct_param_from_conversion(const char conversion, va_list *args_copy)
 {
     sentry_value_t param_obj = sentry_value_new_object();
