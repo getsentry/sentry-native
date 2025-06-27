@@ -178,24 +178,10 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
             }
 
             // capture the envelope with the disk transport
-            sentry_path_t *envelope_path
-                = sentry__run_get_envelope_path(options->run, envelope);
             sentry_transport_t *disk_transport
                 = sentry_new_disk_transport(options->run);
             sentry__capture_envelope(disk_transport, envelope);
             sentry__transport_dump_queue(disk_transport, options->run);
-            if (options->feedback_handler_path) {
-                const sentry_pathchar_t *argv[] = {
-                    options->feedback_handler_path->path,
-                    envelope_path->path,
-                    NULL,
-                };
-                const sentry_pathchar_t *envp[] = { L"SENTRY_DSN=foo", NULL };
-                sentry__process_spawn(argv, NULL);
-            }
-            sentry__path_free(envelope_path);
-            sentry_transport_free(disk_transport);
-
             // now that the envelope was written, we can remove the temporary
             // minidump file
             sentry__path_remove(dump_path);
@@ -208,7 +194,8 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
         // after capturing the crash event, try to dump all the in-flight
         // data of the previous transports
         sentry__transport_dump_queue(options->transport, options->run);
-        // and restore the old transport
+        // and launch the feedback handler
+        sentry__launch_feedback_handler(event);
     }
     SENTRY_INFO("crash has been captured");
 
