@@ -112,8 +112,8 @@ construct_param_from_conversion(const char conversion, va_list *args_copy)
     return param_obj;
 }
 
-static char *
-skip_flags(char *fmt_ptr)
+static const char *
+skip_flags(const char *fmt_ptr)
 {
     while (*fmt_ptr
         && (*fmt_ptr == '-' || *fmt_ptr == '+' || *fmt_ptr == ' '
@@ -123,8 +123,8 @@ skip_flags(char *fmt_ptr)
     return fmt_ptr;
 }
 
-static char *
-skip_width(char *fmt_ptr)
+static const char *
+skip_width(const char *fmt_ptr)
 {
     while (*fmt_ptr && (*fmt_ptr >= '0' && *fmt_ptr <= '9')) {
         fmt_ptr++;
@@ -132,8 +132,8 @@ skip_width(char *fmt_ptr)
     return fmt_ptr;
 }
 
-static char *
-skip_precision(char *fmt_ptr)
+static const char *
+skip_precision(const char *fmt_ptr)
 {
 
     if (*fmt_ptr == '.') {
