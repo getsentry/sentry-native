@@ -454,6 +454,10 @@ main(int argc, char **argv)
         }
     }
 
+    if (has_arg(argc, argv, "clear-attachments")) {
+        sentry_clear_attachments();
+    }
+
     if (has_arg(argc, argv, "capture-with-scope")) {
         sentry_scope_t *scope = sentry_local_scope_new();
 

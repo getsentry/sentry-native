@@ -188,6 +188,7 @@ The example currently supports the following commands:
 - `set-trace`: Sets the scope `propagation_context`'s trace data to the given `trace_id="aaaabbbbccccddddeeeeffff00001111"` and `parent_span_id=""f0f0f0f0f0f0f0f0"`.
 - `capture-with-scope`: Captures an event with a local scope.
 - `attach-to-scope`: Same as `attachment` but attaches the file to the local scope.
+- `clear-attachments`: Clears all attachments from the global scope.
 
 Only on Linux using crashpad:
 - `crashpad-wait-for-upload`: Couples application shutdown to complete the upload in the `crashpad_handler`.
