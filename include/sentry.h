@@ -1690,12 +1690,19 @@ SENTRY_API void sentry_remove_fingerprint(void);
 
 /**
  * Set the trace. The primary use for this is to allow other SDKs to propagate
- * their trace context to connect events on all layers
+ * their trace context to connect events on all layers.
  */
 SENTRY_API void sentry_set_trace(
     const char *trace_id, const char *parent_span_id);
 SENTRY_API void sentry_set_trace_n(const char *trace_id, size_t trace_id_len,
     const char *parent_span_id, size_t parent_span_id_len);
+
+/**
+ * Generates a new random `trace_id` and `span_id` and sets these onto
+ * the propagation context. Use this to set a trace boundary for
+ * events/transactions.
+ */
+SENTRY_API void sentry_regenerate_trace();
 
 /**
  * Sets the transaction.
