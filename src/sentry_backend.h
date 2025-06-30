@@ -27,7 +27,6 @@ struct sentry_backend_s {
     void (*prune_database_func)(sentry_backend_t *);
     void (*add_attachment_func)(sentry_backend_t *, sentry_attachment_t *);
     void (*remove_attachment_func)(sentry_backend_t *, sentry_attachment_t *);
-    void (*clear_attachments_func)(sentry_backend_t *, sentry_attachment_t *);
     void *data;
     // Whether this backend still runs after shutdown_func was called.
     bool can_capture_after_shutdown;

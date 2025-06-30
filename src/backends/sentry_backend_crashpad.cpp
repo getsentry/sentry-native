@@ -715,20 +715,6 @@ crashpad_backend_add_attachment(
 }
 
 static void
-remove_buffer_file(sentry_attachment_t *attachment)
-{
-    if (!attachment || !attachment->buf) {
-        return;
-    }
-
-    if (sentry__path_remove(attachment->path) != 0) {
-        SENTRY_WARNF("failed to remove crashpad attachment \"%" SENTRY_PATH_PRI
-                     "\"",
-            attachment->path->path);
-    }
-}
-
-static void
 crashpad_backend_remove_attachment(
     sentry_backend_t *backend, sentry_attachment_t *attachment)
 {
@@ -737,20 +723,11 @@ crashpad_backend_remove_attachment(
         return;
     }
     data->client->RemoveAttachment(base::FilePath(attachment->path->path));
-    remove_buffer_file(attachment);
-}
 
-static void
-crashpad_backend_clear_attachments(
-    sentry_backend_t *backend, sentry_attachment_t *attachments)
-{
-    auto *data = static_cast<crashpad_state_t *>(backend->data);
-    if (!data || !data->client) {
-        return;
-    }
-    data->client->ClearAttachments();
-    for (sentry_attachment_t *it = attachments; it; it = it->next) {
-        remove_buffer_file(it);
+    if (attachment->buf && sentry__path_remove(attachment->path) != 0) {
+        SENTRY_WARNF("failed to remove crashpad attachment \"%" SENTRY_PATH_PRI
+                     "\"",
+            attachment->path->path);
     }
 }
 #endif
@@ -785,7 +762,6 @@ sentry__backend_new(void)
 #if defined(SENTRY_PLATFORM_WINDOWS) || defined(SENTRY_PLATFORM_LINUX)
     backend->add_attachment_func = crashpad_backend_add_attachment;
     backend->remove_attachment_func = crashpad_backend_remove_attachment;
-    backend->clear_attachments_func = crashpad_backend_clear_attachments;
 #endif
     backend->data = data;
     backend->can_capture_after_shutdown = true;
