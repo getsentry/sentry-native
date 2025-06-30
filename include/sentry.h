@@ -1702,7 +1702,7 @@ SENTRY_API void sentry_set_trace_n(const char *trace_id, size_t trace_id_len,
  * the propagation context. Use this to set a trace boundary for
  * events/transactions.
  */
-SENTRY_API void sentry_regenerate_trace();
+SENTRY_EXPERIMENTAL_API void sentry_regenerate_trace(void);
 
 /**
  * Sets the transaction.
