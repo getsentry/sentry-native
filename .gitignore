@@ -31,3 +31,6 @@ build
 # .NET
 bin/
 obj/
+
+# clangd
+.cache
