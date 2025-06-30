@@ -1857,6 +1857,11 @@ SENTRY_API sentry_attachment_t *sentry_scope_attach_bytes_n(
     const char *filename, size_t filename_len);
 
 /**
+ * Removes and frees all previously added attachments.
+ */
+SENTRY_API void sentry_clear_attachments(void);
+
+/**
  * Removes and frees a previously added attachment.
  *
  * See the NOTE on attachments above for restrictions of this API.
