@@ -715,14 +715,16 @@ crashpad_backend_add_attachment(
 }
 
 static void
-cleanup_unique_path(sentry_attachment_t *attachment, bool all)
+remove_buffer_file(sentry_attachment_t *attachment)
 {
-    for (sentry_attachment_t *it = attachment; it; it = all ? it->next : NULL) {
-        if (it->buf && sentry__path_remove(attachment->path) != 0) {
-            SENTRY_WARNF(
-                "failed to remove crashpad attachment \"%" SENTRY_PATH_PRI "\"",
-                attachment->path->path);
-        }
+    if (!attachment || !attachment->buf) {
+        return;
+    }
+
+    if (sentry__path_remove(attachment->path) != 0) {
+        SENTRY_WARNF("failed to remove crashpad attachment \"%" SENTRY_PATH_PRI
+                     "\"",
+            attachment->path->path);
     }
 }
 
@@ -735,7 +737,7 @@ crashpad_backend_remove_attachment(
         return;
     }
     data->client->RemoveAttachment(base::FilePath(attachment->path->path));
-    cleanup_unique_path(attachment, false);
+    remove_buffer_file(attachment);
 }
 
 static void
@@ -747,7 +749,9 @@ crashpad_backend_clear_attachments(
         return;
     }
     data->client->ClearAttachments();
-    cleanup_unique_path(attachments, true);
+    for (sentry_attachment_t *it = attachments; it; it = it->next) {
+        remove_buffer_file(it);
+    }
 }
 #endif
 
