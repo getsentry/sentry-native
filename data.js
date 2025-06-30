@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1751309549081,
+  "lastUpdate": 1751309555598,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -2694,6 +2694,66 @@ window.BENCHMARK_DATA = {
             "value": 1.7824170000153572,
             "unit": "ms",
             "extra": "Min 1.742ms\nMax 1.919ms\nMean 1.820ms\nStdDev 0.076ms\nMedian 1.782ms\nCPU 0.574ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "b24a2ef07bcb5016f2bf0d86bd5734ee53d8b38a",
+          "message": "feat: add `sentry_clear_attachments()` (#1290)\n\n* feat: add `sentry_clear_attachments()`\n\n* crashpad: clear attachments in one go\n\n* Bump external/crashpad\n\n* Update CHANGELOG.md\n\n* revise remove_buffer_file()\n\n* add integration test\n\n* revert clear_attachments_func\n\nan integration test revealed that it was too effective clearing even\nbreadcrumb attachments\n\n* swap lock order",
+          "timestamp": "2025-06-30T20:49:54+02:00",
+          "tree_id": "6e201fe7cb9ba9838bcaf761a2f37e56a20695de",
+          "url": "https://github.com/getsentry/sentry-native/commit/b24a2ef07bcb5016f2bf0d86bd5734ee53d8b38a"
+        },
+        "date": 1751309554539,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 0.7024550000096497,
+            "unit": "ms",
+            "extra": "Min 0.697ms\nMax 0.745ms\nMean 0.714ms\nStdDev 0.021ms\nMedian 0.702ms\nCPU 0.710ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.7042769999969778,
+            "unit": "ms",
+            "extra": "Min 0.688ms\nMax 0.827ms\nMean 0.725ms\nStdDev 0.057ms\nMedian 0.704ms\nCPU 0.708ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 2.885062000018479,
+            "unit": "ms",
+            "extra": "Min 2.816ms\nMax 2.992ms\nMean 2.892ms\nStdDev 0.064ms\nMedian 2.885ms\nCPU 1.523ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.012263000002121771,
+            "unit": "ms",
+            "extra": "Min 0.012ms\nMax 0.013ms\nMean 0.012ms\nStdDev 0.000ms\nMedian 0.012ms\nCPU 0.011ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.022292000011248092,
+            "unit": "ms",
+            "extra": "Min 0.022ms\nMax 0.120ms\nMean 0.042ms\nStdDev 0.044ms\nMedian 0.022ms\nCPU 0.030ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 1.8124449999845638,
+            "unit": "ms",
+            "extra": "Min 1.755ms\nMax 1.870ms\nMean 1.805ms\nStdDev 0.045ms\nMedian 1.812ms\nCPU 0.559ms"
           }
         ]
       }
