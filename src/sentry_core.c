@@ -1478,11 +1478,8 @@ sentry_clear_attachments(void)
     SENTRY_WITH_SCOPE_MUT (scope) {
         SENTRY_WITH_OPTIONS (options) {
             if (options->backend && options->backend->remove_attachment_func) {
-                for (sentry_attachment_t *it = scope->attachments; it;
-                    it = it->next) {
-                    options->backend->remove_attachment_func(
-                        options->backend, it);
-                }
+                options->backend->clear_attachments_func(
+                    options->backend, scope->attachments);
             }
         }
         sentry__attachments_free(scope->attachments);
