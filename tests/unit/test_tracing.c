@@ -1721,6 +1721,8 @@ SENTRY_TEST(propagation_context_init)
         strcmp(propagation_context_trace_id, new_propagation_context_trace_id)
         != 0);
 
+    sentry_free(propagation_context_trace_id);
+
     sentry_transaction_finish(tx_2);
 
     sentry_close();
