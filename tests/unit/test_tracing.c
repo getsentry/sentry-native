@@ -1693,7 +1693,7 @@ SENTRY_TEST(propagation_context_init)
         = sentry_transaction_start_child(tx, "op", "desc");
     TEST_ASSERT(!!span_child);
 
-    const char *propagation_context_trace_id = sentry__string_clone(
+    char *propagation_context_trace_id = sentry__string_clone(
         sentry_value_as_string(sentry_value_get_by_key(tx->inner, "trace_id")));
     TEST_ASSERT(!!propagation_context_trace_id);
     // on SDK init, propagation_context is set with a trace_id and span_id
