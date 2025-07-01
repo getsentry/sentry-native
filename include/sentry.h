@@ -36,7 +36,7 @@ extern "C" {
 /* common platform detection */
 #ifdef _WIN32
 #    define SENTRY_PLATFORM_WINDOWS
-#    ifdef _GAMING_XBOX_SCARLETT
+#    ifdef _GAMING_XBOX_SCARLETT || _GAMING_XBOX_XBOXONE
 #        define SENTRY_PLATFORM_XBOX_SCARLETT
 #    endif
 #elif defined(__APPLE__)
