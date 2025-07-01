@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1751309656544,
+  "lastUpdate": 1751361386342,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -2754,6 +2754,66 @@ window.BENCHMARK_DATA = {
             "value": 1.8124449999845638,
             "unit": "ms",
             "extra": "Min 1.755ms\nMax 1.870ms\nMean 1.805ms\nStdDev 0.045ms\nMedian 1.812ms\nCPU 0.559ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "60878493+JoshuaMoelans@users.noreply.github.com",
+            "name": "JoshuaMoelans",
+            "username": "JoshuaMoelans"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "3d9c118b7314f76c2350dfdd819e39feda033bf3",
+          "message": "feat: add `sentry_regenerate_trace()` (#1293)\n\n* add generate_trace() + test\n\n* changelog\n\n* fix\n\n* fix memleak\n\n* remove const to allow sentry_free\n\n---------\n\nCo-authored-by: Mischan Toosarani-Hausberger <mischan@abovevacant.com>",
+          "timestamp": "2025-07-01T11:14:09+02:00",
+          "tree_id": "abfab1993ac4ca8f50dc33019aa6de9b251dd9ae",
+          "url": "https://github.com/getsentry/sentry-native/commit/3d9c118b7314f76c2350dfdd819e39feda033bf3"
+        },
+        "date": 1751361385709,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 0.8065560000432015,
+            "unit": "ms",
+            "extra": "Min 0.743ms\nMax 0.885ms\nMean 0.805ms\nStdDev 0.054ms\nMedian 0.807ms\nCPU 0.791ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.7530960000394771,
+            "unit": "ms",
+            "extra": "Min 0.722ms\nMax 0.778ms\nMean 0.752ms\nStdDev 0.022ms\nMedian 0.753ms\nCPU 0.752ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 2.8710910000881995,
+            "unit": "ms",
+            "extra": "Min 2.809ms\nMax 2.970ms\nMean 2.880ms\nStdDev 0.071ms\nMedian 2.871ms\nCPU 1.515ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.01223299989305815,
+            "unit": "ms",
+            "extra": "Min 0.012ms\nMax 0.012ms\nMean 0.012ms\nStdDev 0.000ms\nMedian 0.012ms\nCPU 0.011ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.02211100002114108,
+            "unit": "ms",
+            "extra": "Min 0.022ms\nMax 0.023ms\nMean 0.022ms\nStdDev 0.000ms\nMedian 0.022ms\nCPU 0.022ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 1.8267289999585046,
+            "unit": "ms",
+            "extra": "Min 1.769ms\nMax 1.845ms\nMean 1.814ms\nStdDev 0.035ms\nMedian 1.827ms\nCPU 0.559ms"
           }
         ]
       }
