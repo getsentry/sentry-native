@@ -23,18 +23,18 @@ The parts that are different are explicitly called out.
   ```
 * Configure your build using (Xbox Series)
   ```
-  cmake
-    -B build
-    -G "Visual Studio 17 2022"
-    -A "Gaming.Xbox.Scarlett.x64"
+  cmake `
+    -B build `
+    -G "Visual Studio 17 2022" `
+    -A "Gaming.Xbox.Scarlett.x64" `
     -DCMAKE_TOOLCHAIN_FILE="./toolchains/xbox/gxdk_xs_toolchain.cmake"
   ```
 * Configure your build using (Xbox One)
   ```
-  cmake
-    -B build
-    -G "Visual Studio 17 2022"
-    -A "Gaming.Xbox.XboxOne.x64"
+  cmake `
+    -B build `
+    -G "Visual Studio 17 2022" `
+    -A "Gaming.Xbox.XboxOne.x64" `
     -DCMAKE_TOOLCHAIN_FILE="./toolchains/xbox/gxdk_xs_toolchain.cmake"
   ```
 * After this you can either build the library directly in the CLI with
