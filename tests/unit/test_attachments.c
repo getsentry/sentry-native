@@ -198,6 +198,17 @@ SENTRY_TEST(attachments_add_remove)
 
     sentry_free(serialized);
 
+    sentry_clear_attachments();
+
+    envelope = sentry__envelope_new();
+    SENTRY_WITH_SCOPE (scope) {
+        sentry__envelope_add_attachments(envelope, scope->attachments);
+    }
+    serialized = sentry_envelope_serialize(envelope, NULL);
+    sentry_envelope_free(envelope);
+    TEST_CHECK_STRING_EQUAL(serialized, "{}");
+    sentry_free(serialized);
+
     sentry_close();
 
     sentry__path_remove(path_a);

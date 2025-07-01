@@ -317,6 +317,14 @@ def test_crashpad_wer_crash(cmake, httpserver, run_args):
                 reason="crashpad doesn't support dynamic attachments on macOS",
             ),
         ),
+        pytest.param(
+            ["attachment", "attach-after-init", "clear-attachments"],
+            {},
+            marks=pytest.mark.skipif(
+                sys.platform == "darwin",
+                reason="crashpad doesn't support dynamic attachments on macOS",
+            ),
+        ),
     ],
 )
 def test_crashpad_dumping_crash(cmake, httpserver, run_args, build_args):
@@ -367,7 +375,9 @@ def test_crashpad_dumping_crash(cmake, httpserver, run_args, build_args):
     envelope = Envelope.deserialize(session.get_data())
     assert_session(envelope, {"status": "crashed", "errors": 1})
     assert_crashpad_upload(
-        multipart, expect_attachment=True, expect_view_hierarchy=True
+        multipart,
+        expect_attachment="clear-attachments" not in run_args,
+        expect_view_hierarchy="clear-attachments" not in run_args,
     )
 
 

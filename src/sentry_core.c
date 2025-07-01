@@ -1481,6 +1481,24 @@ sentry_attach_bytes_n(
 }
 
 void
+sentry_clear_attachments(void)
+{
+    SENTRY_WITH_OPTIONS (options) {
+        SENTRY_WITH_SCOPE_MUT (scope) {
+            if (options->backend && options->backend->remove_attachment_func) {
+                for (sentry_attachment_t *it = scope->attachments; it;
+                    it = it->next) {
+                    options->backend->remove_attachment_func(
+                        options->backend, it);
+                }
+            }
+            sentry__attachments_free(scope->attachments);
+            scope->attachments = NULL;
+        }
+    }
+}
+
+void
 sentry_remove_attachment(sentry_attachment_t *attachment)
 {
     SENTRY_WITH_OPTIONS (options) {

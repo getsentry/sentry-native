@@ -182,7 +182,8 @@ jobs:
           sudo apt-get install binutils-dev libssl-dev libelf-dev libstdc++-12-dev libdw-dev libiberty-dev
           git clone https://github.com/SimonKagstrom/kcov.git
           cd kcov
-          git checkout v43 # pin to a version without the current coveralls git integration
+          # pin to a known good version with the coveralls git integration and performance bottlenecks fixed
+          git checkout 8afe9f29c58ef575877664c7ba209328233b70cc
           mkdir build
           cd build
           cmake ..
