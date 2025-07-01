@@ -90,13 +90,6 @@ else()
     message(FATAL_ERROR "ERROR: Cannot locate Windows SDK (${WINDOWS_SDK_VER})")
 endif()
 
-
-if(EXISTS "${WindowsSdkDir}/Include/${SDKVersion}" )
-    message("Windows SDK = v${SDKVersion} in ${WindowsSdkDir}")
-else()
-    message(FATAL_ERROR "ERROR: Cannot locate Windows SDK (${SDKVersion})")
-endif()
-
 #--- Headers
 set(Console_EndpointIncludeRoot
         "${DurangoXdkInstallPath}/GXDK/gameKit/Include"
