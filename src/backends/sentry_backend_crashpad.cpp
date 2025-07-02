@@ -234,6 +234,7 @@ crashpad_backend_flush_scope(
     }
 
     sentry_value_t event = sentry_value_new_object();
+    sentry__ensure_event_id(event, NULL);
     // Since this will only be uploaded in case of a crash we must make this
     // event fatal.
     sentry_value_set_by_key(
