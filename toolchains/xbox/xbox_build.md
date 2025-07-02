@@ -35,7 +35,7 @@ The parts that are different are explicitly called out.
     -B build `
     -G "Visual Studio 17 2022" `
     -A "Gaming.Xbox.XboxOne.x64" `
-    -DCMAKE_TOOLCHAIN_FILE="./toolchains/xbox/gxdk_xs_toolchain.cmake"
+    -DCMAKE_TOOLCHAIN_FILE="./toolchains/xbox/gxdk_xo_toolchain.cmake"
   ```
 * After this you can either build the library directly in the CLI with
   `cmake --build build --config RelWithDebInfo` (or any other build config)
