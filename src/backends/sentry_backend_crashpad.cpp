@@ -194,18 +194,25 @@ crashpad_backend_flush_scope_to_event(const sentry_path_t *event_path,
             scope, options, crash_event, SENTRY_SCOPE_NONE);
     }
 
-    size_t mpack_size;
-    char *mpack = sentry_value_to_msgpack(crash_event, &mpack_size);
+    sentry_jsonwriter_t *jw = sentry__jsonwriter_new_sb(NULL);
+    if (!jw) {
+        sentry_value_decref(crash_event);
+        return;
+    }
+    sentry__jsonwriter_write_value(jw, crash_event);
+    size_t json_size;
+    char *json = sentry__jsonwriter_into_string(jw, &json_size);
     sentry_value_decref(crash_event);
-    if (!mpack) {
+    if (!json) {
         return;
     }
 
-    int rv = sentry__path_write_buffer(event_path, mpack, mpack_size);
-    sentry_free(mpack);
+    int rv = sentry__path_write_buffer(event_path, json, json_size);
+    sentry_free(json);
+    sentry__jsonwriter_free(jw);
 
     if (rv != 0) {
-        SENTRY_WARN("flushing scope to msgpack failed");
+        SENTRY_WARN("flushing scope to json failed");
     }
 }
 
