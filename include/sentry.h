@@ -1758,6 +1758,19 @@ SENTRY_EXPERIMENTAL_API void sentry_log_warn(const char *message, ...);
 SENTRY_EXPERIMENTAL_API void sentry_log_error(const char *message, ...);
 SENTRY_EXPERIMENTAL_API void sentry_log_fatal(const char *message, ...);
 
+SENTRY_EXPERIMENTAL_API void sentry_log_trace_value(
+    const char *message, sentry_value_t args);
+SENTRY_EXPERIMENTAL_API void sentry_log_debug_value(
+    const char *message, sentry_value_t args);
+SENTRY_EXPERIMENTAL_API void sentry_log_info_value(
+    const char *message, sentry_value_t args);
+SENTRY_EXPERIMENTAL_API void sentry_log_warn_value(
+    const char *message, sentry_value_t args);
+SENTRY_EXPERIMENTAL_API void sentry_log_error_value(
+    const char *message, sentry_value_t args);
+SENTRY_EXPERIMENTAL_API void sentry_log_fatal_value(
+    const char *message, sentry_value_t args);
+
 #ifdef SENTRY_PLATFORM_LINUX
 
 /**

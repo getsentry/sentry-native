@@ -32,10 +32,19 @@ level_as_string(sentry_level_t level)
 static sentry_value_t
 construct_param_from_conversion(const char conversion, va_list *args_copy)
 {
+    //  TODO look into int64 not being represented properly in JS (or maybe
+    //  Relay doesn't handle it?)
+    //      -> ask around if type is integer, we should be able to send int64
+    //      from native ld vs lld differs across platforms (but follows some
+    //      standard)
     sentry_value_t param_obj = sentry_value_new_object();
     switch (conversion) {
+        // printf("some 64-bit unsigned = %lld", foo); -> (platform dependent)
+        // printf("some 64-bit unsigned = %" PRIu64, foo); -> standardised
+        // PRIi64 for integers, PRIu64 for unsigned
     case 'd':
     case 'i': {
+        // to prevent issues, document specifiers + types applied to these
         int val = va_arg(*args_copy, int);
         sentry_value_set_by_key(
             param_obj, "value", sentry_value_new_int32(val));
@@ -43,7 +52,7 @@ construct_param_from_conversion(const char conversion, va_list *args_copy)
             param_obj, "type", sentry_value_new_string("integer"));
         break;
     }
-    case 'u':
+    case 'u': // TODO store unsigned ints as string
     case 'x':
     case 'X':
     case 'o': {
@@ -361,6 +370,263 @@ sentry__logs_log(sentry_level_t level, const char *message, va_list args)
     }
 }
 
+// This function would loop through the message, and for every int/double/string
+// identifier takes out one element from the args sentry_value_t list, and
+// places that with the correct 'value' and 'type' keys into the attributes, on
+// a key `sentry.message.parameters.X` where X is the 'name' stored in the
+// current argument's sentry_value_t object
+static void
+populate_message_parameters_value_t(
+    sentry_value_t attributes, const char *message, sentry_value_t args)
+{
+    if (!message || sentry_value_is_null(attributes)
+        || sentry_value_is_null(args)) {
+        return;
+    }
+
+    const char *fmt_ptr = message;
+    int param_index = 0;
+    size_t args_length = sentry_value_get_length(args);
+
+    while (*fmt_ptr && param_index < (int)args_length) {
+        // Find the next format specifier
+        if (*fmt_ptr == '%') {
+            fmt_ptr++; // Skip the '%'
+
+            if (*fmt_ptr == '%') {
+                // Escaped '%', not a format specifier
+                fmt_ptr++;
+                continue;
+            }
+
+            fmt_ptr = skip_flags(fmt_ptr);
+            fmt_ptr = skip_width(fmt_ptr);
+            fmt_ptr = skip_precision(fmt_ptr);
+
+            // Skip length modifiers
+            while (*fmt_ptr
+                && (*fmt_ptr == 'h' || *fmt_ptr == 'l' || *fmt_ptr == 'L'
+                    || *fmt_ptr == 'z' || *fmt_ptr == 'j' || *fmt_ptr == 't')) {
+                fmt_ptr++;
+            }
+
+            // Get the conversion specifier
+            char conversion = *fmt_ptr;
+            if (conversion) {
+                // Get the parameter object from the args list
+                sentry_value_t param_obj
+                    = sentry_value_get_by_index(args, param_index);
+                if (!sentry_value_is_null(param_obj)) {
+                    // Extract the name and value
+                    sentry_value_t name_val
+                        = sentry_value_get_by_key(param_obj, "name");
+                    sentry_value_t value_val
+                        = sentry_value_get_by_key(param_obj, "value");
+
+                    if (!sentry_value_is_null(name_val)
+                        && !sentry_value_is_null(value_val)) {
+                        const char *name_str = sentry_value_as_string(name_val);
+                        if (name_str && *name_str) {
+                            // Create the attribute key
+                            char key[256];
+                            snprintf(key, sizeof(key),
+                                "sentry.message.parameter.%s", name_str);
+
+                            // Determine the type based on the format specifier
+                            const char *type_str = "string"; // default
+                            // TODO we should maybe only accept i/d/s for the
+                            // three types?
+                            switch (conversion) {
+                            case 'd':
+                            case 'i':
+                            case 'u':
+                            case 'x':
+                            case 'X':
+                            case 'o':
+                                type_str = "integer";
+                                break;
+                            case 'f':
+                            case 'F':
+                            case 'e':
+                            case 'E':
+                            case 'g':
+                            case 'G':
+                                type_str = "double";
+                                break;
+                            case 'c':
+                            case 's':
+                            case 'p':
+                            default:
+                                type_str = "string";
+                                break;
+                            }
+
+                            // Create the attribute object
+                            sentry_value_t attr_obj = sentry_value_new_object();
+                            sentry_value_incref(value_val);
+                            sentry_value_set_by_key(
+                                attr_obj, "value", value_val);
+                            sentry_value_set_by_key(attr_obj, "type",
+                                sentry_value_new_string(type_str));
+                            sentry_value_set_by_key(attributes, key, attr_obj);
+                        }
+                    }
+                }
+
+                param_index++;
+                fmt_ptr++;
+            }
+        } else {
+            fmt_ptr++;
+        }
+    }
+}
+
+// TODO function that should go over the message, and match format specifiers to
+//  the elements of the passed-in sentry_value_t list
+static sentry_value_t
+construct_log_value_t(
+    sentry_level_t level, const char *message, sentry_value_t args)
+{
+    if (sentry_value_is_null(args)) {
+        return sentry_value_new_null();
+    }
+    sentry_value_t log = sentry_value_new_object();
+    sentry_value_t attributes = sentry_value_new_object();
+
+    // TODO find a way to parse the sentry_value_t list into the message body
+    //      -> piecewise applying value into format string
+    //          i.e. using stringbuilder
+
+    sentry_value_set_by_key(log, "body", sentry_value_new_string(message));
+    sentry_value_set_by_key(
+        log, "level", sentry_value_new_string(level_as_string(level)));
+
+    // timestamp in seconds
+    uint64_t usec_time = sentry__usec_time();
+    sentry_value_set_by_key(log, "timestamp",
+        sentry_value_new_double((double)usec_time / 1000000.0));
+
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry_value_set_by_key(log, "trace_id",
+            sentry__value_clone(sentry_value_get_by_key(
+                sentry_value_get_by_key(scope->propagation_context, "trace"),
+                "trace_id")));
+
+        sentry_value_t parent_span_id = sentry_value_new_object();
+        if (scope->transaction_object) {
+            sentry_value_set_by_key(parent_span_id, "value",
+                sentry__value_clone(sentry_value_get_by_key(
+                    scope->transaction_object->inner, "span_id")));
+        }
+
+        if (scope->span) {
+            sentry_value_set_by_key(parent_span_id, "value",
+                sentry__value_clone(
+                    sentry_value_get_by_key(scope->span->inner, "span_id")));
+        }
+        sentry_value_set_by_key(
+            parent_span_id, "type", sentry_value_new_string("string"));
+        if (scope->transaction_object || scope->span) {
+            sentry_value_set_by_key(
+                attributes, "sentry.trace.parent_span_id", parent_span_id);
+        } else {
+            sentry_value_decref(parent_span_id);
+        }
+
+        if (!sentry_value_is_null(scope->user)) {
+            sentry_value_t user_id = sentry_value_get_by_key(scope->user, "id");
+            if (!sentry_value_is_null(user_id)) {
+                add_attribute(attributes, user_id, "string", "user.id");
+            }
+            sentry_value_t user_username
+                = sentry_value_get_by_key(scope->user, "username");
+            if (!sentry_value_is_null(user_username)) {
+                add_attribute(attributes, user_username, "string", "user.name");
+            }
+            sentry_value_t user_email
+                = sentry_value_get_by_key(scope->user, "email");
+            if (!sentry_value_is_null(user_email)) {
+                add_attribute(attributes, user_email, "string", "user.email");
+            }
+        }
+        sentry_value_t os_context = sentry__get_os_context();
+        if (!sentry_value_is_null(os_context)) {
+            sentry_value_t os_name = sentry__value_clone(
+                sentry_value_get_by_key(os_context, "name"));
+            sentry_value_t os_version = sentry__value_clone(
+                sentry_value_get_by_key(os_context, "version"));
+            if (!sentry_value_is_null(os_name)) {
+                add_attribute(attributes, os_name, "string", "os.name");
+            }
+            if (!sentry_value_is_null(os_version)) {
+                add_attribute(attributes, os_version, "string", "os.version");
+            }
+        }
+        sentry_value_decref(os_context);
+    }
+    SENTRY_WITH_OPTIONS (options) {
+        if (options->environment) {
+            add_attribute(attributes,
+                sentry_value_new_string(options->environment), "string",
+                "sentry.environment");
+        }
+        if (options->release) {
+            add_attribute(attributes, sentry_value_new_string(options->release),
+                "string", "sentry.release");
+        }
+    }
+
+    add_attribute(attributes, sentry_value_new_string("sentry.native"),
+        "string", "sentry.sdk.name");
+    add_attribute(attributes, sentry_value_new_string(sentry_sdk_version()),
+        "string", "sentry.sdk.version");
+    add_attribute(attributes, sentry_value_new_string(message), "string",
+        "sentry.message.template");
+
+    // Parse variadic arguments and add them to attributes
+    populate_message_parameters_value_t(attributes, message, args);
+
+    sentry_value_set_by_key(log, "attributes", attributes);
+
+    return log;
+}
+
+// TODO write this function, which works similar to the va_list but uses
+//  a sentry_value_t list instead.
+void
+sentry__logs_log_value_t(
+    sentry_level_t level, const char *message, sentry_value_t args)
+{
+    bool enable_logs = false;
+    SENTRY_WITH_OPTIONS (options) {
+        if (options->enable_logs)
+            enable_logs = true;
+    }
+    if (enable_logs) {
+        // create log from message
+        sentry_value_t log = construct_log_value_t(level, message, args);
+
+        // TODO split up the code below for batched log sending
+        //    e.g. could we store logs on the scope?
+        sentry_value_t logs = sentry_value_new_object();
+        sentry_value_t logs_list = sentry_value_new_list();
+        sentry_value_append(logs_list, log);
+        sentry_value_set_by_key(logs, "items", logs_list);
+        // sending of the envelope
+        sentry_envelope_t *envelope = sentry__envelope_new();
+        sentry__envelope_add_logs(envelope, logs);
+        // TODO remove debug write to file below
+        sentry_envelope_write_to_file(envelope, "logs_envelope.json");
+        SENTRY_WITH_OPTIONS (options) {
+            sentry__capture_envelope(options->transport, envelope);
+        }
+        // For now, free the logs object since envelope doesn't take
+        // ownership
+        sentry_value_decref(logs);
+    }
+}
+
 void
 sentry_log_trace(const char *message, ...)
 {
@@ -413,4 +679,35 @@ sentry_log_fatal(const char *message, ...)
     va_start(args, message);
     sentry__logs_log(SENTRY_LEVEL_FATAL, message, args);
     va_end(args);
+}
+
+void
+sentry_log_trace_value(const char *message, sentry_value_t args)
+{
+    sentry__logs_log_value_t(SENTRY_LEVEL_TRACE, message, args);
+}
+void
+sentry_log_debug_value(const char *message, sentry_value_t args)
+{
+    sentry__logs_log_value_t(SENTRY_LEVEL_DEBUG, message, args);
+}
+void
+sentry_log_info_value(const char *message, sentry_value_t args)
+{
+    sentry__logs_log_value_t(SENTRY_LEVEL_INFO, message, args);
+}
+void
+sentry_log_warn_value(const char *message, sentry_value_t args)
+{
+    sentry__logs_log_value_t(SENTRY_LEVEL_WARNING, message, args);
+}
+void
+sentry_log_error_value(const char *message, sentry_value_t args)
+{
+    sentry__logs_log_value_t(SENTRY_LEVEL_ERROR, message, args);
+}
+void
+sentry_log_fatal_value(const char *message, sentry_value_t args)
+{
+    sentry__logs_log_value_t(SENTRY_LEVEL_FATAL, message, args);
 }
