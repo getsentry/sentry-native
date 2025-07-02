@@ -384,28 +384,20 @@ format_message_with_parameters(
         return sentry__string_clone(message);
     }
 
-    // Estimate buffer size (simple approach)
-    size_t estimated_size
-        = strlen(message) + args_length * 64; // generous estimate
-    char *result = sentry_malloc(estimated_size);
-    if (!result) {
-        return sentry__string_clone(message);
-    }
+    sentry_stringbuilder_t sb;
+    sentry__stringbuilder_init(&sb);
 
     const char *fmt_ptr = message;
-    char *result_ptr = result;
     int param_index = 0;
-    size_t remaining = estimated_size;
 
-    while (*fmt_ptr && remaining > 1) {
+    while (*fmt_ptr) {
         if (*fmt_ptr == '%') {
             const char *spec_start = fmt_ptr;
             fmt_ptr++; // Skip the '%'
 
             if (*fmt_ptr == '%') {
                 // Escaped '%'
-                *result_ptr++ = '%';
-                remaining--;
+                sentry__stringbuilder_append_char(&sb, '%');
                 fmt_ptr++;
                 continue;
             }
@@ -435,10 +427,13 @@ format_message_with_parameters(
                         // add to attributes
                         sentry_value_t param = sentry_value_new_object();
                         sentry_value_set_by_key(param, "value", value_val);
+
                         // Format the value based on the conversion specifier
                         size_t spec_len = fmt_ptr - spec_start + 1;
                         char spec_buf[32];
+
                         if (spec_len < sizeof(spec_buf)) {
+                            char formatted_value[256];
                             memcpy(spec_buf, spec_start, spec_len);
                             spec_buf[spec_len] = '\0';
 
@@ -447,8 +442,9 @@ format_message_with_parameters(
                             switch (conversion) {
                             case 'd':
                             case 'i':
-                                written = snprintf(result_ptr, remaining,
-                                    spec_buf, sentry_value_as_int32(value_val));
+                                written = snprintf(formatted_value,
+                                    sizeof(formatted_value), spec_buf,
+                                    sentry_value_as_int32(value_val));
                                 sentry_value_set_by_key(param, "type",
                                     sentry_value_new_string("integer"));
                                 break;
@@ -456,10 +452,10 @@ format_message_with_parameters(
                             case 'x':
                             case 'X':
                             case 'o':
-                                written
-                                    = snprintf(result_ptr, remaining, spec_buf,
-                                        (unsigned int)sentry_value_as_int32(
-                                            value_val));
+                                written = snprintf(formatted_value,
+                                    sizeof(formatted_value), spec_buf,
+                                    (unsigned int)sentry_value_as_int32(
+                                        value_val));
                                 sentry_value_set_by_key(param, "type",
                                     sentry_value_new_string("integer"));
                                 break;
@@ -469,24 +465,25 @@ format_message_with_parameters(
                             case 'E':
                             case 'g':
                             case 'G':
-                                written
-                                    = snprintf(result_ptr, remaining, spec_buf,
-                                        sentry_value_as_double(value_val));
+                                written = snprintf(formatted_value,
+                                    sizeof(formatted_value), spec_buf,
+                                    sentry_value_as_double(value_val));
                                 sentry_value_set_by_key(param, "type",
                                     sentry_value_new_string("double"));
                                 break;
                             case 'c':
-                                written
-                                    = snprintf(result_ptr, remaining, spec_buf,
-                                        (char)sentry_value_as_int32(value_val));
+                                written = snprintf(formatted_value,
+                                    sizeof(formatted_value), spec_buf,
+                                    (char)sentry_value_as_int32(value_val));
                                 sentry_value_set_by_key(param, "type",
                                     sentry_value_new_string("integer"));
                                 break;
                             case 's': {
                                 const char *str_val
                                     = sentry_value_as_string(value_val);
-                                written = snprintf(result_ptr, remaining,
-                                    spec_buf, str_val ? str_val : "(null)");
+                                written = snprintf(formatted_value,
+                                    sizeof(formatted_value), spec_buf,
+                                    str_val ? str_val : "(null)");
                                 sentry_value_set_by_key(param, "type",
                                     sentry_value_new_string("string"));
                                 break;
@@ -496,7 +493,8 @@ format_message_with_parameters(
                                 // be formatted as a string
                                 const char *str_val
                                     = sentry_value_as_string(value_val);
-                                written = snprintf(result_ptr, remaining, "%s",
+                                written = snprintf(formatted_value,
+                                    sizeof(formatted_value), "%s",
                                     str_val ? str_val : "(null)");
                                 sentry_value_set_by_key(param, "type",
                                     sentry_value_new_string("string"));
@@ -505,33 +503,36 @@ format_message_with_parameters(
                             default: {
                                 const char *str_val
                                     = sentry_value_as_string(value_val);
-                                written = snprintf(result_ptr, remaining, "%s",
+                                written = snprintf(formatted_value,
+                                    sizeof(formatted_value), "%s",
                                     str_val ? str_val : "(unknown)");
                                 sentry_value_set_by_key(param, "type",
                                     sentry_value_new_string("string"));
                                 break;
                             }
                             }
+
+                            // Append the formatted value to the string builder
+                            if (written > 0
+                                && written < (int)sizeof(formatted_value)) {
+                                sentry__stringbuilder_append_buf(
+                                    &sb, formatted_value, written);
+                            }
+
                             const char *param_name = sentry_value_as_string(
                                 sentry_value_get_by_key(param_obj, "name"));
 
-                            sentry_stringbuilder_t sb;
-                            sentry__stringbuilder_init(&sb);
+                            sentry_stringbuilder_t attr_sb;
+                            sentry__stringbuilder_init(&attr_sb);
                             sentry__stringbuilder_append(
-                                &sb, "sentry.message.parameter.");
-                            sentry__stringbuilder_append(&sb, param_name);
+                                &attr_sb, "sentry.message.parameter.");
+                            sentry__stringbuilder_append(&attr_sb, param_name);
                             char *attr_name
-                                = sentry__stringbuilder_into_string(&sb);
+                                = sentry__stringbuilder_into_string(&attr_sb);
 
                             sentry_value_set_by_key(
                                 attributes, attr_name, param);
-
                             sentry_free(attr_name);
-
-                            if (written > 0 && (size_t)written < remaining) {
-                                result_ptr += written;
-                                remaining -= written;
-                            }
                         }
                         param_index++;
                     }
@@ -542,29 +543,18 @@ format_message_with_parameters(
             } else {
                 // Copy the format specifier as-is if no parameter available
                 size_t spec_len = fmt_ptr - spec_start + 1;
-                size_t copy_len
-                    = spec_len < remaining ? spec_len : remaining - 1;
-                memcpy(result_ptr, spec_start, copy_len);
-                result_ptr += copy_len;
-                remaining -= copy_len;
+                sentry__stringbuilder_append_buf(&sb, spec_start, spec_len);
                 if (*fmt_ptr) {
                     fmt_ptr++;
                 }
             }
         } else {
-            *result_ptr++ = *fmt_ptr++;
-            remaining--;
+            sentry__stringbuilder_append_char(&sb, *fmt_ptr);
+            fmt_ptr++;
         }
     }
 
-    // Copy any remaining characters from the format string
-    while (*fmt_ptr && remaining > 1) {
-        *result_ptr++ = *fmt_ptr++;
-        remaining--;
-    }
-
-    *result_ptr = '\0';
-    return result;
+    return sentry__stringbuilder_into_string(&sb);
 }
 
 static sentry_value_t
