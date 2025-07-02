@@ -370,35 +370,47 @@ sentry__logs_log(sentry_level_t level, const char *message, va_list args)
     }
 }
 
-// This function would loop through the message, and for every int/double/string
-// identifier takes out one element from the args sentry_value_t list, and
-// places that with the correct 'value' and 'type' keys into the attributes, on
-// a key `sentry.message.parameters.X` where X is the 'name' stored in the
-// current argument's sentry_value_t object
-static void
-populate_message_parameters_value_t(
+// Helper function to format message with sentry_value_t parameters
+static char *
+format_message_with_parameters(
     sentry_value_t attributes, const char *message, sentry_value_t args)
 {
-    if (!message || sentry_value_is_null(attributes)
-        || sentry_value_is_null(args)) {
-        return;
+    if (!message || sentry_value_is_null(args)) {
+        return sentry__string_clone(message ? message : "");
+    }
+
+    size_t args_length = sentry_value_get_length(args);
+    if (args_length == 0) {
+        return sentry__string_clone(message);
+    }
+
+    // Estimate buffer size (simple approach)
+    size_t estimated_size
+        = strlen(message) + args_length * 64; // generous estimate
+    char *result = sentry_malloc(estimated_size);
+    if (!result) {
+        return sentry__string_clone(message);
     }
 
     const char *fmt_ptr = message;
+    char *result_ptr = result;
     int param_index = 0;
-    size_t args_length = sentry_value_get_length(args);
+    size_t remaining = estimated_size;
 
-    while (*fmt_ptr && param_index < (int)args_length) {
-        // Find the next format specifier
+    while (*fmt_ptr && remaining > 1) {
         if (*fmt_ptr == '%') {
+            const char *spec_start = fmt_ptr;
             fmt_ptr++; // Skip the '%'
 
             if (*fmt_ptr == '%') {
-                // Escaped '%', not a format specifier
+                // Escaped '%'
+                *result_ptr++ = '%';
+                remaining--;
                 fmt_ptr++;
                 continue;
             }
 
+            // Parse format specifier
             fmt_ptr = skip_flags(fmt_ptr);
             fmt_ptr = skip_width(fmt_ptr);
             fmt_ptr = skip_precision(fmt_ptr);
@@ -410,40 +422,46 @@ populate_message_parameters_value_t(
                 fmt_ptr++;
             }
 
-            // Get the conversion specifier
             char conversion = *fmt_ptr;
-            if (conversion) {
-                // Get the parameter object from the args list
+            if (conversion && param_index < (int)args_length) {
+                // Get the parameter value
                 sentry_value_t param_obj
                     = sentry_value_get_by_index(args, param_index);
+
                 if (!sentry_value_is_null(param_obj)) {
-                    // Extract the name and value
-                    sentry_value_t name_val
-                        = sentry_value_get_by_key(param_obj, "name");
                     sentry_value_t value_val
                         = sentry_value_get_by_key(param_obj, "value");
+                    if (!sentry_value_is_null(value_val)) {
+                        // add to attributes
+                        sentry_value_t param = sentry_value_new_object();
+                        sentry_value_set_by_key(param, "value", value_val);
+                        // Format the value based on the conversion specifier
+                        size_t spec_len = fmt_ptr - spec_start + 1;
+                        char spec_buf[32];
+                        if (spec_len < sizeof(spec_buf)) {
+                            memcpy(spec_buf, spec_start, spec_len);
+                            spec_buf[spec_len] = '\0';
 
-                    if (!sentry_value_is_null(name_val)
-                        && !sentry_value_is_null(value_val)) {
-                        const char *name_str = sentry_value_as_string(name_val);
-                        if (name_str && *name_str) {
-                            // Create the attribute key
-                            char key[256];
-                            snprintf(key, sizeof(key),
-                                "sentry.message.parameter.%s", name_str);
+                            int written = 0;
 
-                            // Determine the type based on the format specifier
-                            const char *type_str = "string"; // default
-                            // TODO we should maybe only accept i/d/s for the
-                            // three types?
                             switch (conversion) {
                             case 'd':
                             case 'i':
+                                written = snprintf(result_ptr, remaining,
+                                    spec_buf, sentry_value_as_int32(value_val));
+                                sentry_value_set_by_key(param, "type",
+                                    sentry_value_new_string("integer"));
+                                break;
                             case 'u':
                             case 'x':
                             case 'X':
                             case 'o':
-                                type_str = "integer";
+                                written
+                                    = snprintf(result_ptr, remaining, spec_buf,
+                                        (unsigned int)sentry_value_as_int32(
+                                            value_val));
+                                sentry_value_set_by_key(param, "type",
+                                    sentry_value_new_string("integer"));
                                 break;
                             case 'f':
                             case 'F':
@@ -451,39 +469,104 @@ populate_message_parameters_value_t(
                             case 'E':
                             case 'g':
                             case 'G':
-                                type_str = "double";
+                                written
+                                    = snprintf(result_ptr, remaining, spec_buf,
+                                        sentry_value_as_double(value_val));
+                                sentry_value_set_by_key(param, "type",
+                                    sentry_value_new_string("double"));
                                 break;
                             case 'c':
-                            case 's':
-                            case 'p':
-                            default:
-                                type_str = "string";
+                                written
+                                    = snprintf(result_ptr, remaining, spec_buf,
+                                        (char)sentry_value_as_int32(value_val));
+                                sentry_value_set_by_key(param, "type",
+                                    sentry_value_new_string("integer"));
+                                break;
+                            case 's': {
+                                const char *str_val
+                                    = sentry_value_as_string(value_val);
+                                written = snprintf(result_ptr, remaining,
+                                    spec_buf, str_val ? str_val : "(null)");
+                                sentry_value_set_by_key(param, "type",
+                                    sentry_value_new_string("string"));
                                 break;
                             }
+                            case 'p': {
+                                // For pointer, we expect the value to already
+                                // be formatted as a string
+                                const char *str_val
+                                    = sentry_value_as_string(value_val);
+                                written = snprintf(result_ptr, remaining, "%s",
+                                    str_val ? str_val : "(null)");
+                                sentry_value_set_by_key(param, "type",
+                                    sentry_value_new_string("string"));
+                                break;
+                            }
+                            default: {
+                                const char *str_val
+                                    = sentry_value_as_string(value_val);
+                                written = snprintf(result_ptr, remaining, "%s",
+                                    str_val ? str_val : "(unknown)");
+                                sentry_value_set_by_key(param, "type",
+                                    sentry_value_new_string("string"));
+                                break;
+                            }
+                            }
+                            const char *param_name = sentry_value_as_string(
+                                sentry_value_get_by_key(param_obj, "name"));
 
-                            // Create the attribute object
-                            sentry_value_t attr_obj = sentry_value_new_object();
-                            sentry_value_incref(value_val);
+                            sentry_stringbuilder_t sb;
+                            sentry__stringbuilder_init(&sb);
+                            sentry__stringbuilder_append(
+                                &sb, "sentry.message.parameter.");
+                            sentry__stringbuilder_append(&sb, param_name);
+                            char *attr_name
+                                = sentry__stringbuilder_into_string(&sb);
+
                             sentry_value_set_by_key(
-                                attr_obj, "value", value_val);
-                            sentry_value_set_by_key(attr_obj, "type",
-                                sentry_value_new_string(type_str));
-                            sentry_value_set_by_key(attributes, key, attr_obj);
+                                attributes, attr_name, param);
+
+                            sentry_free(attr_name);
+
+                            if (written > 0 && (size_t)written < remaining) {
+                                result_ptr += written;
+                                remaining -= written;
+                            }
                         }
+                        param_index++;
                     }
                 }
-
-                param_index++;
-                fmt_ptr++;
+                if (*fmt_ptr) {
+                    fmt_ptr++;
+                }
+            } else {
+                // Copy the format specifier as-is if no parameter available
+                size_t spec_len = fmt_ptr - spec_start + 1;
+                size_t copy_len
+                    = spec_len < remaining ? spec_len : remaining - 1;
+                memcpy(result_ptr, spec_start, copy_len);
+                result_ptr += copy_len;
+                remaining -= copy_len;
+                if (*fmt_ptr) {
+                    fmt_ptr++;
+                }
             }
         } else {
-            fmt_ptr++;
+            *result_ptr++ = *fmt_ptr++;
+            remaining--;
         }
     }
+
+    // Copy any remaining characters from the format string
+    while (*fmt_ptr && remaining > 1) {
+        *result_ptr++ = *fmt_ptr++;
+        remaining--;
+    }
+
+    *result_ptr = '\0';
+    return result;
 }
 
-// TODO function that should go over the message, and match format specifiers to
-//  the elements of the passed-in sentry_value_t list
 static sentry_value_t
 construct_log_value_t(
     sentry_level_t level, const char *message, sentry_value_t args)
@@ -494,11 +577,12 @@ construct_log_value_t(
     sentry_value_t log = sentry_value_new_object();
     sentry_value_t attributes = sentry_value_new_object();
 
-    // TODO find a way to parse the sentry_value_t list into the message body
-    //      -> piecewise applying value into format string
-    //          i.e. using stringbuilder
+    // Format the message with the parameters
+    char *formatted_message
+        = format_message_with_parameters(attributes, message, args);
 
-    sentry_value_set_by_key(log, "body", sentry_value_new_string(message));
+    sentry_value_set_by_key(
+        log, "body", sentry__value_new_string_owned(formatted_message));
     sentry_value_set_by_key(
         log, "level", sentry_value_new_string(level_as_string(level)));
 
@@ -584,16 +668,11 @@ construct_log_value_t(
     add_attribute(attributes, sentry_value_new_string(message), "string",
         "sentry.message.template");
 
-    // Parse variadic arguments and add them to attributes
-    populate_message_parameters_value_t(attributes, message, args);
-
     sentry_value_set_by_key(log, "attributes", attributes);
 
     return log;
 }
 
-// TODO write this function, which works similar to the va_list but uses
-//  a sentry_value_t list instead.
 void
 sentry__logs_log_value_t(
     sentry_level_t level, const char *message, sentry_value_t args)
