@@ -487,7 +487,7 @@ test_print_in_color__(int color, const char* fmt, ...)
         printf("\033[0m");
         return n;
     }
-#elif defined ACUTEST_WIN__ && (!defined _GAMING_XBOX_SCARLETT || !defined _GAMING_XBOX_XBOXONE)
+#elif defined ACUTEST_WIN__ && !defined _GAMING_XBOX
     {
         HANDLE h;
         CONSOLE_SCREEN_BUFFER_INFO info;
