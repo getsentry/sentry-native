@@ -12,7 +12,6 @@ extern "C" {
 #    include "sentry_os.h"
 #endif
 #include "sentry_path.h"
-#include "sentry_process.h"
 #include "sentry_screenshot.h"
 #include "sentry_string.h"
 #include "sentry_sync.h"

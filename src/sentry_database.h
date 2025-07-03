@@ -34,13 +34,6 @@ void sentry__run_clean(sentry_run_t *run);
 void sentry__run_free(sentry_run_t *run);
 
 /**
- * Returns the path to an envelope on the disk like so:
- * `<database>/<uuid>.run/<event-uuid>.envelope`
- */
-sentry_path_t *sentry__run_get_envelope_path(
-    const sentry_run_t *run, const sentry_envelope_t *envelope);
-
-/**
  * This will serialize and write the given envelope to disk into a file named
  * like so:
  * `<database>/<uuid>.run/<event-uuid>.envelope`
