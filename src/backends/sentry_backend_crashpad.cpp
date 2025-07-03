@@ -252,16 +252,19 @@ crashpad_backend_flush_scope(
     }
 
     sentry_value_t event = sentry_value_new_object();
-    sentry_value_set_by_key(event, "event_id", data->crash_event_id);
+    sentry_value_set_by_key(
+        event, "event_id", sentry__value_clone(data->crash_event_id));
     // Since this will only be uploaded in case of a crash we must make this
     // event fatal.
     sentry_value_set_by_key(
         event, "level", sentry__value_new_level(SENTRY_LEVEL_FATAL));
 
-    flush_scope_to_mpack(data->event_path, options, event);
+    sentry_value_incref(event);
+    flush_scope_to_event(data->event_path, options, event);
     if (data->feedback_path) {
-        flush_scope_to_json(data->feedback_path, options, event);
+        flush_scope_to_feedback(data->feedback_path, options, event);
     }
+    sentry_value_decref(event);
     data->scope_flush.store(false, std::memory_order_release);
 #endif
 }
@@ -306,8 +309,8 @@ sentry__crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
 
     SENTRY_WITH_OPTIONS (options) {
         auto state = static_cast<crashpad_state_t *>(options->backend->data);
-        sentry_value_t crash_event
-            = sentry__value_new_event_with_uuid(state->crash_event_id);
+        sentry_value_t crash_event = sentry__value_new_event_with_uuid(
+            sentry__value_clone(state->crash_event_id));
         sentry_value_set_by_key(
             crash_event, "level", sentry__value_new_level(SENTRY_LEVEL_FATAL));
 
