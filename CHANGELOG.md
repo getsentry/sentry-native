@@ -5,6 +5,7 @@
 **Features**:
 
 - Add `sentry_clear_attachments()` to allow clearing all previously added attachments in the global scope. ([#1290](https://github.com/getsentry/sentry-native/pull/1290))
+- Compiles also on Xbox One ([#1294](https://github.com/getsentry/sentry-native/pull/1294))
 
 ## 0.9.1
 
