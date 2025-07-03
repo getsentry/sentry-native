@@ -1361,12 +1361,21 @@ sentry__launch_feedback_handler(sentry_value_t event)
             return;
         }
 
-        // TODO: dump the event alone into a separate file?
-        sentry_path_t *tmp_path
+        sentry_path_t *source_base
             = sentry__path_join_str(options->run->run_path, event_id);
-        sentry_path_t *envelope_path
-            = sentry__path_append_str(tmp_path, ".envelope");
-        sentry__path_free(tmp_path);
+        sentry_path_t *source_path
+            = sentry__path_append_str(source_base, ".envelope");
+
+        sentry_path_t *target_dir
+            = sentry__path_join_str(options->database_path, "feedback");
+        sentry_path_t *target_base
+            = sentry__path_join_str(target_dir, event_id);
+        sentry_path_t *target_path
+            = sentry__path_append_str(target_base, ".envelope");
+
+        size_t buf_len = 0;
+        char *buf = sentry__path_read_to_buffer(source_path, &buf_len);
+        sentry__path_write_buffer(target_path, buf, buf_len);
 
         sentry_process_t *process
             = sentry__process_new(options->feedback_handler_path);
@@ -1381,10 +1390,14 @@ sentry__launch_feedback_handler(sentry_value_t event)
         sentry__process_set_env(process, "SENTRY_DSN", options->dsn->raw,
             "SENTRY_EVENT_ID", event_id, NULL);
 #endif
-        sentry__process_spawn_with_args(process, envelope_path->path, NULL);
+        sentry__process_spawn_with_args(process, target_path->path, NULL);
         sentry__process_free(process);
 
-        sentry__path_free(envelope_path);
+        sentry__path_free(source_base);
+        sentry__path_free(source_path);
+        sentry__path_free(target_dir);
+        sentry__path_free(target_base);
+        sentry__path_free(target_path);
     }
 }
 
