@@ -21,8 +21,8 @@ The parts that are different are explicitly called out.
   ```
     -DGDK_VERSION="241000"
   ```
-* Configure your build using (Xbox Series)
-  ```
+ * Configure your build using (Xbox Series X|S)
+  ```pwsh
   cmake `
     -B build `
     -G "Visual Studio 17 2022" `
@@ -30,7 +30,7 @@ The parts that are different are explicitly called out.
     -DCMAKE_TOOLCHAIN_FILE="./toolchains/xbox/gxdk_xs_toolchain.cmake"
   ```
 * Configure your build using (Xbox One)
-  ```
+  ```pwsh
   cmake `
     -B build `
     -G "Visual Studio 17 2022" `
