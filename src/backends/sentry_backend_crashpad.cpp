@@ -198,7 +198,6 @@ flush_scope_to_event(const sentry_path_t *event_path,
 
     size_t mpack_size;
     char *mpack = sentry_value_to_msgpack(crash_event, &mpack_size);
-    sentry_value_decref(crash_event);
     if (!mpack) {
         return;
     }
@@ -259,12 +258,12 @@ crashpad_backend_flush_scope(
     sentry_value_set_by_key(
         event, "level", sentry__value_new_level(SENTRY_LEVEL_FATAL));
 
-    sentry_value_incref(event);
     flush_scope_to_event(data->event_path, options, event);
     if (data->feedback_path) {
         flush_scope_to_feedback(data->feedback_path, options, event);
+    } else {
+        sentry_value_decref(event);
     }
-    sentry_value_decref(event);
     data->scope_flush.store(false, std::memory_order_release);
 #endif
 }
@@ -290,6 +289,8 @@ flush_scope_from_handler(
     flush_scope_to_event(state->event_path, options, crash_event);
     if (state->feedback_path) {
         flush_scope_to_feedback(state->feedback_path, options, crash_event);
+    } else {
+        sentry_value_decref(crash_event);
     }
 }
 
