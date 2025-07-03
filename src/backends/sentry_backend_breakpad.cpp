@@ -182,6 +182,8 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
                 = sentry_new_disk_transport(options->run);
             sentry__capture_envelope(disk_transport, envelope);
             sentry__transport_dump_queue(disk_transport, options->run);
+            sentry_transport_free(disk_transport);
+
             // now that the envelope was written, we can remove the temporary
             // minidump file
             sentry__path_remove(dump_path);
