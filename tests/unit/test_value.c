@@ -71,6 +71,129 @@ SENTRY_TEST(value_int32)
     TEST_CHECK(sentry_value_refcount(val) == 1);
 }
 
+SENTRY_TEST(value_int64)
+{
+    sentry_value_t val = sentry_value_new_int64(42LL);
+    TEST_CHECK(sentry_value_get_type(val) == SENTRY_VALUE_TYPE_INT64);
+    TEST_CHECK(sentry_value_as_int64(val) == 42LL);
+    // TODO only return NaN if outside of precision range?
+    TEST_CHECK(isnan(sentry_value_as_double(val)));
+    TEST_CHECK(sentry_value_is_true(val));
+    TEST_CHECK_JSON_VALUE(val, "42");
+    TEST_CHECK(sentry_value_refcount(val) == 1);
+    TEST_CHECK(sentry_value_is_frozen(val));
+    sentry_value_decref(val);
+
+    // Test large positive value
+    val = sentry_value_new_int64(INT64_MAX);
+    TEST_CHECK(sentry_value_get_type(val) == SENTRY_VALUE_TYPE_INT64);
+    TEST_CHECK(sentry_value_as_int64(val) == INT64_MAX);
+    TEST_CHECK(sentry_value_is_true(val));
+    TEST_CHECK_JSON_VALUE(val, "9223372036854775807");
+    sentry_value_decref(val);
+
+    // Test large negative value
+    val = sentry_value_new_int64(INT64_MIN);
+    TEST_CHECK(sentry_value_get_type(val) == SENTRY_VALUE_TYPE_INT64);
+    TEST_CHECK(sentry_value_as_int64(val) == INT64_MIN);
+    TEST_CHECK(sentry_value_is_true(val));
+    TEST_CHECK_JSON_VALUE(val, "-9223372036854775808");
+    sentry_value_decref(val);
+
+    // Test zero
+    val = sentry_value_new_int64(0LL);
+    TEST_CHECK(sentry_value_get_type(val) == SENTRY_VALUE_TYPE_INT64);
+    TEST_CHECK(sentry_value_as_int64(val) == 0LL);
+    TEST_CHECK(!sentry_value_is_true(val));
+    TEST_CHECK_JSON_VALUE(val, "0");
+    TEST_CHECK(sentry_value_refcount(val) == 1);
+    TEST_CHECK(sentry_value_is_frozen(val));
+    sentry_value_decref(val);
+
+    // Test cross-type conversion
+    val = sentry_value_new_int32(42);
+    TEST_CHECK(sentry_value_as_int64(val) == 42LL);
+    sentry_value_decref(val);
+
+    // Test double into uint64
+    val = sentry_value_new_double(123.456);
+    TEST_CHECK(sentry_value_as_uint64(val) == 123ULL);
+    sentry_value_decref(val);
+    val = sentry_value_new_double(-123.456);
+    TEST_CHECK(sentry_value_as_int64(val) == -123ULL);
+    sentry_value_decref(val);
+
+    // Test truncated double into uint64
+    val = sentry_value_new_double(42.99);
+    TEST_CHECK(sentry_value_as_int64(val) == 42ULL);
+    sentry_value_decref(val);
+    val = sentry_value_new_double(-42.99);
+    TEST_CHECK(sentry_value_as_int64(val) == -42ULL);
+    sentry_value_decref(val);
+
+    // Test large double reaching max uint64
+    val = sentry_value_new_double(1.7976931348623157E+308);
+    TEST_CHECK(sentry_value_as_int64(val) == INT64_MAX);
+    sentry_value_decref(val);
+}
+
+SENTRY_TEST(value_uint64)
+{
+    sentry_value_t val = sentry_value_new_uint64(42ULL);
+    TEST_CHECK(sentry_value_get_type(val) == SENTRY_VALUE_TYPE_UINT64);
+    TEST_CHECK(sentry_value_as_uint64(val) == 42ULL);
+    // TODO only return NaN if outside of precision range?
+    TEST_CHECK(isnan(sentry_value_as_double(val)));
+    TEST_CHECK(sentry_value_is_true(val));
+    TEST_CHECK_JSON_VALUE(val, "42");
+    TEST_CHECK(sentry_value_refcount(val) == 1);
+    TEST_CHECK(sentry_value_is_frozen(val));
+    sentry_value_decref(val);
+
+    // Test large positive value
+    val = sentry_value_new_uint64(UINT64_MAX);
+    TEST_CHECK(sentry_value_get_type(val) == SENTRY_VALUE_TYPE_UINT64);
+    TEST_CHECK(sentry_value_as_uint64(val) == UINT64_MAX);
+    TEST_CHECK(sentry_value_is_true(val));
+    TEST_CHECK_JSON_VALUE(val, "18446744073709551615");
+    sentry_value_decref(val);
+
+    // Test zero
+    val = sentry_value_new_uint64(0ULL);
+    TEST_CHECK(sentry_value_get_type(val) == SENTRY_VALUE_TYPE_UINT64);
+    TEST_CHECK(sentry_value_as_uint64(val) == 0ULL);
+    TEST_CHECK(!sentry_value_is_true(val));
+    TEST_CHECK_JSON_VALUE(val, "0");
+    TEST_CHECK(sentry_value_refcount(val) == 1);
+    TEST_CHECK(sentry_value_is_frozen(val));
+    sentry_value_decref(val);
+
+    // Test cross-type conversion
+    val = sentry_value_new_int32(42);
+    TEST_CHECK(sentry_value_as_uint64(val) == 42ULL);
+    sentry_value_decref(val);
+
+    // Test negative int32 to uint64 conversion
+    val = sentry_value_new_int32(-42);
+    TEST_CHECK(sentry_value_as_uint64(val) == 0ULL);
+    sentry_value_decref(val);
+
+    // Test double into uint64
+    val = sentry_value_new_double(123.456);
+    TEST_CHECK(sentry_value_as_uint64(val) == 123ULL);
+    sentry_value_decref(val);
+
+    // Test truncated double into uint64
+    val = sentry_value_new_double(42.99);
+    TEST_CHECK(sentry_value_as_uint64(val) == 42ULL);
+    sentry_value_decref(val);
+
+    // Test large double reaching max uint64
+    val = sentry_value_new_double(1.7976931348623157E+308);
+    TEST_CHECK(sentry_value_as_uint64(val) == UINT64_MAX);
+    sentry_value_decref(val);
+}
+
 SENTRY_TEST(value_double)
 {
     sentry_value_t val = sentry_value_new_double(42.05);
@@ -390,7 +513,7 @@ SENTRY_TEST(value_json_parsing)
         "\"surrogates\":\"𐐷\"}");
     sentry_value_decref(rv);
 
-    // unmatched surrogates don’t parse
+    // unmatched surrogates don't parse
     rv = sentry__value_from_json(STRING("\"\\uD801\""));
     TEST_CHECK(sentry_value_is_null(rv));
     rv = sentry__value_from_json(
@@ -461,7 +584,7 @@ SENTRY_TEST(value_json_surrogates)
     TEST_CHECK_JSON_VALUE(rv, "{\"surrogates\":\"oh 𐐷 hi\"}");
     sentry_value_decref(rv);
 
-    // unmatched surrogates don’t parse
+    // unmatched surrogates don't parse
     rv = sentry__value_from_json(STRING("\"\\uD801\""));
     TEST_CHECK(sentry_value_is_null(rv));
     rv = sentry__value_from_json(

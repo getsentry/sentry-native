@@ -73,6 +73,8 @@
 #define THING_TYPE_OBJECT 1
 #define THING_TYPE_STRING 2
 #define THING_TYPE_DOUBLE 3
+#define THING_TYPE_INT64 4
+#define THING_TYPE_UINT64 5
 
 /* internal value helpers */
 
@@ -80,6 +82,8 @@ typedef struct {
     union {
         void *_ptr;
         double _double;
+        int64_t _int64;
+        uint64_t _uint64;
     } payload;
     long refcount;
     uint8_t type;
@@ -325,6 +329,38 @@ sentry_value_new_double(double value)
 }
 
 sentry_value_t
+sentry_value_new_int64(int64_t value)
+{
+    thing_t *thing = sentry_malloc(sizeof(thing_t));
+    if (!thing) {
+        return sentry_value_new_null();
+    }
+    thing->payload._int64 = value;
+    thing->refcount = 1;
+    thing->type = (uint8_t)(THING_TYPE_INT64 | THING_TYPE_FROZEN);
+
+    sentry_value_t rv;
+    rv._bits = (uint64_t)(size_t)thing;
+    return rv;
+}
+
+sentry_value_t
+sentry_value_new_uint64(uint64_t value)
+{
+    thing_t *thing = sentry_malloc(sizeof(thing_t));
+    if (!thing) {
+        return sentry_value_new_null();
+    }
+    thing->payload._uint64 = value;
+    thing->refcount = 1;
+    thing->type = (uint8_t)(THING_TYPE_UINT64 | THING_TYPE_FROZEN);
+
+    sentry_value_t rv;
+    rv._bits = (uint64_t)(size_t)thing;
+    return rv;
+}
+
+sentry_value_t
 sentry_value_new_bool(int value)
 {
     sentry_value_t rv;
@@ -488,6 +524,10 @@ sentry_value_get_type(sentry_value_t value)
             return SENTRY_VALUE_TYPE_OBJECT;
         case THING_TYPE_DOUBLE:
             return SENTRY_VALUE_TYPE_DOUBLE;
+        case THING_TYPE_INT64:
+            return SENTRY_VALUE_TYPE_INT64;
+        case THING_TYPE_UINT64:
+            return SENTRY_VALUE_TYPE_UINT64;
         }
         UNREACHABLE("invalid thing type");
     } else if ((value._bits & TAG_MASK) == TAG_CONST) {
@@ -646,6 +686,26 @@ sentry__value_stringify(sentry_value_t value)
         buf[written] = '\0';
         return sentry__string_clone(buf);
     }
+    case SENTRY_VALUE_TYPE_INT64: {
+        char buf[24];
+        size_t written = (size_t)sentry__snprintf_c(
+            buf, sizeof(buf), "%lld", (long long)sentry_value_as_int64(value));
+        if (written >= sizeof(buf)) {
+            return sentry__string_clone("");
+        }
+        buf[written] = '\0';
+        return sentry__string_clone(buf);
+    }
+    case SENTRY_VALUE_TYPE_UINT64: {
+        char buf[24];
+        size_t written = (size_t)sentry__snprintf_c(buf, sizeof(buf), "%llu",
+            (unsigned long long)sentry_value_as_uint64(value));
+        if (written >= sizeof(buf)) {
+            return sentry__string_clone("");
+        }
+        buf[written] = '\0';
+        return sentry__string_clone(buf);
+    }
     }
 }
 
@@ -677,6 +737,10 @@ sentry__value_clone(sentry_value_t value)
     }
     case THING_TYPE_STRING:
     case THING_TYPE_DOUBLE:
+        sentry_value_incref(value);
+        return value;
+    case THING_TYPE_INT64:
+    case THING_TYPE_UINT64:
         sentry_value_incref(value);
         return value;
     default:
@@ -843,6 +907,50 @@ sentry_value_as_double(sentry_value_t value)
     }
 }
 
+int64_t
+sentry_value_as_int64(sentry_value_t value)
+{
+    if ((value._bits & TAG_MASK) == TAG_INT32) {
+        return (int64_t)sentry_value_as_int32(value);
+    }
+
+    const thing_t *thing = value_as_thing(value);
+    if (thing && thing_get_type(thing) == THING_TYPE_INT64) {
+        return thing->payload._int64;
+    }
+    if (thing && thing_get_type(thing) == THING_TYPE_UINT64) {
+        return (int64_t)thing->payload._uint64;
+    }
+    if (thing && thing_get_type(thing) == THING_TYPE_DOUBLE) {
+        return (int64_t)thing->payload._double;
+    }
+    return 0;
+}
+
+uint64_t
+sentry_value_as_uint64(sentry_value_t value)
+{
+    if ((value._bits & TAG_MASK) == TAG_INT32) {
+        int32_t int32_val = sentry_value_as_int32(value);
+        return int32_val >= 0 ? (uint64_t)int32_val : 0;
+    }
+
+    const thing_t *thing = value_as_thing(value);
+    if (thing && thing_get_type(thing) == THING_TYPE_UINT64) {
+        return thing->payload._uint64;
+    }
+    if (thing && thing_get_type(thing) == THING_TYPE_INT64) {
+        return thing->payload._int64 >= 0 ? (uint64_t)thing->payload._int64 : 0;
+    }
+    if (thing && thing_get_type(thing) == THING_TYPE_DOUBLE) {
+        // TODO no check for double out of uint64 range
+        // TODO double gets truncated (1.9 -> 1)
+        return thing->payload._double >= 0 ? (uint64_t)thing->payload._double
+                                           : 0;
+    }
+    return 0;
+}
+
 const char *
 sentry_value_as_string(sentry_value_t value)
 {
@@ -866,6 +974,10 @@ sentry_value_is_true(sentry_value_t value)
         return 0;
     case SENTRY_VALUE_TYPE_INT32:
         return sentry_value_as_int32(value) != 0;
+    case SENTRY_VALUE_TYPE_INT64:
+        return sentry_value_as_int64(value) != 0;
+    case SENTRY_VALUE_TYPE_UINT64:
+        return sentry_value_as_uint64(value) != 0;
     case SENTRY_VALUE_TYPE_DOUBLE:
         return sentry_value_as_double(value) != 0.0;
     case SENTRY_VALUE_TYPE_STRING:
@@ -929,6 +1041,12 @@ sentry__jsonwriter_write_value(sentry_jsonwriter_t *jw, sentry_value_t value)
         break;
     case SENTRY_VALUE_TYPE_INT32:
         sentry__jsonwriter_write_int32(jw, sentry_value_as_int32(value));
+        break;
+    case SENTRY_VALUE_TYPE_INT64:
+        sentry__jsonwriter_write_int64(jw, sentry_value_as_int64(value));
+        break;
+    case SENTRY_VALUE_TYPE_UINT64:
+        sentry__jsonwriter_write_uint64(jw, sentry_value_as_uint64(value));
         break;
     case SENTRY_VALUE_TYPE_DOUBLE:
         sentry__jsonwriter_write_double(jw, sentry_value_as_double(value));
