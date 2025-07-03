@@ -94,17 +94,17 @@ sentry__should_skip_upload(void)
 }
 
 static void
-initialize_propagation_context(sentry_value_t *propagation_context)
+generate_propagation_context(sentry_value_t propagation_context)
 {
     sentry_value_set_by_key(
-        *propagation_context, "trace", sentry_value_new_object());
+        propagation_context, "trace", sentry_value_new_object());
     sentry_uuid_t trace_id = sentry_uuid_new_v4();
     sentry_uuid_t span_id = sentry_uuid_new_v4();
     sentry_value_set_by_key(
-        sentry_value_get_by_key(*propagation_context, "trace"), "trace_id",
+        sentry_value_get_by_key(propagation_context, "trace"), "trace_id",
         sentry__value_new_internal_uuid(&trace_id));
     sentry_value_set_by_key(
-        sentry_value_get_by_key(*propagation_context, "trace"), "span_id",
+        sentry_value_get_by_key(propagation_context, "trace"), "span_id",
         sentry__value_new_span_uuid(&span_id));
 }
 
@@ -211,7 +211,7 @@ sentry_init(sentry_options_t *options)
             sentry_value_set_by_key(scope->client_sdk, "name", sdk_name);
         }
         sentry_value_freeze(scope->client_sdk);
-        initialize_propagation_context(&scope->propagation_context);
+        generate_propagation_context(scope->propagation_context);
         scope->attachments = options->attachments;
         options->attachments = NULL;
     }
@@ -924,6 +924,14 @@ sentry_set_trace_n(const char *trace_id, size_t trace_id_len,
             context, "span_id", sentry__value_new_span_uuid(&span_id));
 
         sentry__set_propagation_context("trace", context);
+    }
+}
+
+void
+sentry_regenerate_trace(void)
+{
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        generate_propagation_context(scope->propagation_context);
     }
 }
 
