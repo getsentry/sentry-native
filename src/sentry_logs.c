@@ -426,7 +426,8 @@ format_message_with_parameters(
                     if (!sentry_value_is_null(value_val)) {
                         // add to attributes
                         sentry_value_t param = sentry_value_new_object();
-                        sentry_value_set_by_key(param, "value", value_val);
+                        sentry_value_set_by_key(
+                            param, "value", sentry__value_clone(value_val));
 
                         // Format the value based on the conversion specifier
                         size_t spec_len = fmt_ptr - spec_start + 1;
