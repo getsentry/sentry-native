@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1751361538407,
+  "lastUpdate": 1751574654043,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -2814,6 +2814,66 @@ window.BENCHMARK_DATA = {
             "value": 1.8267289999585046,
             "unit": "ms",
             "extra": "Min 1.769ms\nMax 1.845ms\nMean 1.814ms\nStdDev 0.035ms\nMedian 1.827ms\nCPU 0.559ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "bruno@brunogarcia.com",
+            "name": "Bruno Garcia",
+            "username": "bruno-garcia"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "e0b3f8bba161a732463de2f32e00e89d154f7363",
+          "message": "compiles on xbox one (#1294)\n\n* feat: xbox one support\n\n* define\n\n* wip\n\n* multiline command\n\n* it builds\n\n* gxdk_base_toolchain.cmake\n\n* update external/breakpad\n\n* fix'n'tweak xbox defines\n\n* Revert \"gxdk_base_toolchain.cmake\"\n\nThis reverts commit 18541aa8e3cada297d5212932dc1ec898ed5d5e6.\n\n* gxdk_toolchain.cmake - take 2\n\nhttps://github.com/microsoft/Xbox-GDK-Samples/blob/aa45b831e7a71160a69a7d13e9d74844dc6aa210/Samples/Tools/CMakeGDKExample/gxdk_toolchain.cmake\n\n* fix formatting\n\n* toolchain md\n\n* changelog\n\n* Update external/breakpad\n\n---------\n\nCo-authored-by: J-P Nurmi <jpnurmi@gmail.com>",
+          "timestamp": "2025-07-03T16:28:39-04:00",
+          "tree_id": "53f3f9cfc8842ce0d121144d90fddafb2b803f5c",
+          "url": "https://github.com/getsentry/sentry-native/commit/e0b3f8bba161a732463de2f32e00e89d154f7363"
+        },
+        "date": 1751574653544,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 0.6976479999991625,
+            "unit": "ms",
+            "extra": "Min 0.688ms\nMax 0.721ms\nMean 0.701ms\nStdDev 0.013ms\nMedian 0.698ms\nCPU 0.700ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.6884109999987231,
+            "unit": "ms",
+            "extra": "Min 0.687ms\nMax 0.703ms\nMean 0.694ms\nStdDev 0.008ms\nMedian 0.688ms\nCPU 0.693ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 2.8273270000056527,
+            "unit": "ms",
+            "extra": "Min 2.792ms\nMax 2.956ms\nMean 2.846ms\nStdDev 0.065ms\nMedian 2.827ms\nCPU 1.486ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.012352999988252122,
+            "unit": "ms",
+            "extra": "Min 0.012ms\nMax 0.014ms\nMean 0.013ms\nStdDev 0.001ms\nMedian 0.012ms\nCPU 0.012ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.02168099999266815,
+            "unit": "ms",
+            "extra": "Min 0.021ms\nMax 0.022ms\nMean 0.022ms\nStdDev 0.001ms\nMedian 0.022ms\nCPU 0.021ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 1.74927599999819,
+            "unit": "ms",
+            "extra": "Min 1.714ms\nMax 1.823ms\nMean 1.756ms\nStdDev 0.040ms\nMedian 1.749ms\nCPU 0.545ms"
           }
         ]
       }
