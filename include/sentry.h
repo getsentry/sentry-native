@@ -36,8 +36,8 @@ extern "C" {
 /* common platform detection */
 #ifdef _WIN32
 #    define SENTRY_PLATFORM_WINDOWS
-#    ifdef _GAMING_XBOX_SCARLETT
-#        define SENTRY_PLATFORM_XBOX_SCARLETT
+#    ifdef _GAMING_XBOX
+#        define SENTRY_PLATFORM_XBOX
 #    endif
 #elif defined(__APPLE__)
 #    include <TargetConditionals.h>
@@ -72,7 +72,7 @@ extern "C" {
 #ifndef SENTRY_SDK_NAME
 #    if defined(SENTRY_PLATFORM_ANDROID)
 #        define SENTRY_SDK_NAME "sentry.native.android"
-#    elif defined(SENTRY_PLATFORM_XBOX_SCARLETT)
+#    elif defined(SENTRY_PLATFORM_XBOX)
 #        define SENTRY_SDK_NAME "sentry.native.xbox"
 #    else
 #        define SENTRY_SDK_NAME "sentry.native"

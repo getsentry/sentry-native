@@ -5,6 +5,7 @@
 **Features**:
 
 - Add `sentry_clear_attachments()` to allow clearing all previously added attachments in the global scope. ([#1290](https://github.com/getsentry/sentry-native/pull/1290))
+- Compiles also on Xbox One ([#1294](https://github.com/getsentry/sentry-native/pull/1294))
 - Provide `sentry_regenerate_trace()` to allow users to set manual trace boundaries. ([#1293](https://github.com/getsentry/sentry-native/pull/1293))
 
 ## 0.9.1
