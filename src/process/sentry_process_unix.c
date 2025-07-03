@@ -205,9 +205,10 @@ spawn_process(sentry_process_t *process)
 
             // finally, execute the process
             if (process->envp) {
-                execve(process->executable->path, process->argv, process->envp);
+                execvpe(
+                    process->executable->path, process->argv, process->envp);
             } else {
-                execv(process->executable->path, process->argv);
+                execvp(process->executable->path, process->argv);
             }
 
             SENTRY_ERRORF("execv failed: %s", strerror(errno));
