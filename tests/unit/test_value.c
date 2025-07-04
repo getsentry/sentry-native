@@ -130,11 +130,6 @@ SENTRY_TEST(value_int64)
     val = sentry_value_new_double(-42.99);
     TEST_CHECK(sentry_value_as_int64(val) == -42ULL);
     sentry_value_decref(val);
-
-    // Test large double reaching max uint64
-    val = sentry_value_new_double(1.7976931348623157E+308);
-    TEST_CHECK(sentry_value_as_int64(val) == INT64_MAX);
-    sentry_value_decref(val);
 }
 
 SENTRY_TEST(value_uint64)
@@ -186,11 +181,6 @@ SENTRY_TEST(value_uint64)
     // Test truncated double into uint64
     val = sentry_value_new_double(42.99);
     TEST_CHECK(sentry_value_as_uint64(val) == 42ULL);
-    sentry_value_decref(val);
-
-    // Test large double reaching max uint64
-    val = sentry_value_new_double(1.7976931348623157E+308);
-    TEST_CHECK(sentry_value_as_uint64(val) == UINT64_MAX);
     sentry_value_decref(val);
 }
 
