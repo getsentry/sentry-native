@@ -2,6 +2,7 @@
 
 #include "sentry_alloc.h"
 #include "sentry_logger.h"
+#include "sentry_string.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -12,162 +13,76 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-struct sentry_process_s {
-    sentry_path_t *executable;
-    char **argv;
-    char **envp;
-};
-
 static char **
-string_array_new(size_t len)
+argv_new(size_t len)
 {
-    char **array = sentry_malloc(len * sizeof(char *) + 1);
-    if (array) {
-        array[len] = NULL;
+    char **argv = sentry_malloc(len * sizeof(char *) + 1);
+    if (argv) {
+        argv[len] = NULL;
     }
-    return array;
+    return argv;
 }
 
 static bool
-string_array_set_value(char **array, size_t index, const char *value)
+argv_set(char **argv, size_t index, const char *value)
 {
-    if (!array || !value) {
+    if (!argv || !value) {
         return false;
     }
 
-    size_t len = strlen(value);
-    array[index] = sentry_malloc(len + 1);
-    if (!array[index]) {
+    argv[index] = sentry_malloc(strlen(value) + 1);
+    if (!argv[index]) {
         return false;
     }
-    strcpy(array[index], value);
+    strcpy(argv[index], value);
     return true;
 }
 
-static bool
-string_array_set_key_value(
-    char **array, size_t index, const char *key, const char *value)
+static char *
+argv_to_string(char **argv)
 {
-    if (!array || !key || !value) {
-        return false;
+    if (!argv) {
+        return NULL;
     }
 
-    size_t key_len = strlen(key);
-    size_t value_len = strlen(value);
-    array[index] = sentry_malloc(key_len + 1 + value_len + 1);
-    if (!array[index]) {
-        return false;
+    size_t len = 0;
+    for (int i = 0; argv[i]; i++) {
+        len += sentry__guarded_strlen(argv[i]) + 1;
     }
-    snprintf(array[index], key_len + 1 + value_len + 1, "%s=%s", key, value);
-    return true;
+
+    char *str = sentry_malloc(len);
+    if (!str) {
+        return NULL;
+    }
+    str[0] = '\0';
+
+    for (int i = 0; argv[i]; i++) {
+        if (i > 0) {
+            strcat(str, " ");
+        }
+        strcat(str, argv[i]);
+    }
+    return str;
 }
 
 static void
-string_array_free(char **array)
+argv_free(char **argv)
 {
-    if (!array) {
+    if (!argv) {
         return;
     }
 
-    for (int i = 0; array[i]; i++) {
-        sentry_free(array[i]);
+    for (int i = 0; argv[i]; i++) {
+        sentry_free(argv[i]);
     }
-    sentry_free(array);
-}
-
-sentry_process_t *
-sentry__process_new(const sentry_path_t *executable)
-{
-    sentry_process_t *process = SENTRY_MAKE(sentry_process_t);
-    if (!process) {
-        return NULL;
-    }
-    memset(process, 0, sizeof(sentry_process_t));
-
-    process->executable = sentry__path_clone(executable);
-    if (!process->executable) {
-        sentry_free(process);
-        return NULL;
-    }
-
-    return process;
-}
-
-void
-sentry__process_free(sentry_process_t *process)
-{
-    if (!process) {
-        return;
-    }
-
-    string_array_free(process->argv);
-    string_array_free(process->envp);
-    sentry__path_free(process->executable);
-    sentry_free(process);
-}
-
-void
-sentry__process_set_env(
-    sentry_process_t *process, const char *key0, const char *value0, ...)
-{
-    if (!process || !key0 || !value0) {
-        return;
-    }
-
-    // current env + key0=value0 + variable key-value pairs
-    int env_len = 1;
-    extern char **environ;
-    while (environ && environ[env_len - 1]) {
-        env_len++;
-    }
-    va_list args;
-    va_start(args, value0);
-    const char *key, *value;
-    while ((key = va_arg(args, const char *)) != NULL
-        && (value = va_arg(args, const char *)) != NULL) {
-        env_len++;
-    }
-    va_end(args);
-
-    // key0=value0
-    int i = 0;
-    char **envp = string_array_new(env_len);
-    if (!string_array_set_key_value(envp, i++, key0, value0)) {
-        string_array_free(envp);
-        return;
-    }
-
-    // variable key-value pairs
-    va_start(args, value0);
-    while ((key = va_arg(args, const char *)) != NULL
-        && (value = va_arg(args, const char *)) != NULL) {
-        if (!string_array_set_key_value(envp, i++, key, value)) {
-            string_array_free(envp);
-            va_end(args);
-            return;
-        }
-    }
-    va_end(args);
-
-    // current env
-    char **env = environ;
-    while (env && *env) {
-        if (!string_array_set_value(envp, i++, *env)) {
-            string_array_free(envp);
-            return;
-        }
-        env++;
-    }
-
-    string_array_free(process->envp);
-    process->envp = envp;
+    sentry_free(argv);
 }
 
 /**
  * Spawns a new fully detached subprocess by double-forking.
  */
 bool
-spawn_process(sentry_process_t *process)
+spawn_process(const char *executable, char **argv)
 {
     pid_t pid1 = fork();
     if (pid1 == -1) {
@@ -203,12 +118,7 @@ spawn_process(sentry_process_t *process)
                 }
             }
 
-            // finally, execute the process
-            if (process->envp) {
-                execve(process->executable->path, process->argv, process->envp);
-            } else {
-                execv(process->executable->path, process->argv);
-            }
+            execv(executable, argv);
 
             SENTRY_ERRORF("execv failed: %s", strerror(errno));
             _exit(1);
@@ -232,63 +142,52 @@ spawn_process(sentry_process_t *process)
 }
 
 bool
-sentry__process_spawn(sentry_process_t *process)
+sentry__process_spawn(const sentry_path_t *executable, const char *arg0, ...)
 {
-    if (!process) {
+    if (!executable) {
         return false;
     }
 
-    char **argv = string_array_new(1);
-    if (!string_array_set_value(argv, 0, process->executable->path)) {
-        string_array_free(argv);
-        return NULL;
-    }
-
-    string_array_free(process->argv);
-    process->argv = argv;
-    return spawn_process(process);
-}
-
-bool
-sentry__process_spawn_with_args(
-    sentry_process_t *process, const char *arg0, ...)
-{
-    if (!process || !arg0) {
-        return false;
-    }
-
-    // exe + arg0 + variable args
-    int argc = 2;
-    va_list args;
-    va_start(args, arg0);
-    while (va_arg(args, const char *) != NULL) {
+    int argc = 1;
+    if (arg0) {
         argc++;
+        va_list args;
+        va_start(args, arg0);
+        while (va_arg(args, const char *) != NULL) {
+            argc++;
+        }
+        va_end(args);
     }
-    va_end(args);
 
-    // exe, arg0
     int i = 0;
-    char **argv = string_array_new(argc);
-    if (!string_array_set_value(argv, i++, process->executable->path)
-        || !string_array_set_value(argv, i++, arg0)) {
-        string_array_free(argv);
+    char **argv = argv_new(argc);
+    if (!argv_set(argv, i++, executable->path)) {
+        argv_free(argv);
         return false;
     }
-
-    // variable args
-    va_start(args, arg0);
-    while (va_arg(args, const char *) != NULL) {
-        const char *argn = va_arg(args, const char *);
-        if (!string_array_set_value(argv, i++, argn)) {
-            va_end(args);
-            string_array_free(argv);
+    if (arg0) {
+        if (!argv_set(argv, i++, arg0)) {
+            argv_free(argv);
             return false;
         }
+        va_list args;
+        va_start(args, arg0);
+        while (va_arg(args, const char *) != NULL) {
+            const char *argn = va_arg(args, const char *);
+            if (!argv_set(argv, i++, argn)) {
+                va_end(args);
+                argv_free(argv);
+                return false;
+            }
+        }
+        va_end(args);
     }
-    va_end(args);
 
-    string_array_free(process->argv);
-    process->argv = argv;
+    char *cli = argv_to_string(argv);
+    SENTRY_DEBUGF("spawning %s", cli);
+    sentry_free(cli);
 
-    return spawn_process(process);
+    bool rv = spawn_process(executable->path, argv);
+    argv_free(argv);
+    return rv;
 }
