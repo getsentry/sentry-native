@@ -99,7 +99,6 @@ sentry_options_free(sentry_options_t *opts)
     sentry__path_free(opts->database_path);
     sentry__path_free(opts->handler_path);
     sentry__path_free(opts->feedback_handler_path);
-    sentry__path_free(opts->feedback_path);
     sentry_transport_free(opts->transport);
     sentry__backend_free(opts->backend);
     sentry__attachments_free(opts->attachments);

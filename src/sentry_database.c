@@ -39,17 +39,29 @@ sentry__run_new(const sentry_path_t *database_path)
         return NULL;
     }
 
+    // `<db>/feedback`
+    sentry_path_t *feedback_path
+        = sentry__path_join_str(database_path, "feedback");
+    if (!feedback_path) {
+        sentry__path_free(run_path);
+        sentry__path_free(lock_path);
+        sentry__path_free(session_path);
+        return NULL;
+    }
+
     sentry_run_t *run = SENTRY_MAKE(sentry_run_t);
     if (!run) {
         sentry__path_free(run_path);
-        sentry__path_free(session_path);
         sentry__path_free(lock_path);
+        sentry__path_free(session_path);
+        sentry__path_free(feedback_path);
         return NULL;
     }
 
     run->uuid = uuid;
     run->run_path = run_path;
     run->session_path = session_path;
+    run->feedback_path = feedback_path;
     run->lock = sentry__filelock_new(lock_path);
     if (!run->lock) {
         goto error;
@@ -82,6 +94,7 @@ sentry__run_free(sentry_run_t *run)
     }
     sentry__path_free(run->run_path);
     sentry__path_free(run->session_path);
+    sentry__path_free(run->feedback_path);
     sentry__filelock_free(run->lock);
     sentry_free(run);
 }
@@ -109,6 +122,39 @@ sentry__run_write_envelope(
 
     // the `write_to_path` returns > 0 on failure, but we would like a real bool
     return !rv;
+}
+
+sentry_path_t *
+sentry__run_write_feedback(
+    const sentry_run_t *run, const sentry_uuid_t *event_id)
+{
+    if (sentry__path_create_dir_all(run->feedback_path) != 0) {
+        SENTRY_ERRORF(
+            "mkdir failed: \"%" SENTRY_PATH_PRI "\"", run->feedback_path->path);
+        return NULL;
+    }
+
+    char *filename = sentry__uuid_as_filename(event_id, ".envelope");
+    sentry_path_t *source_path = sentry__path_join_str(run->run_path, filename);
+    sentry_path_t *target_path
+        = sentry__path_join_str(run->feedback_path, filename);
+
+    size_t buf_len = 0;
+    char *buf = sentry__path_read_to_buffer(source_path, &buf_len);
+    int rv = sentry__path_write_buffer(target_path, buf, buf_len);
+
+    sentry_free(filename);
+    sentry__path_free(source_path);
+    sentry_free(buf);
+
+    if (rv) {
+        SENTRY_ERRORF("failed to write feedback: \"%" SENTRY_PATH_PRI "\"",
+            target_path->path);
+        sentry__path_free(target_path);
+        return NULL;
+    }
+
+    return target_path;
 }
 
 bool

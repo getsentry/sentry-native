@@ -33,7 +33,6 @@ struct sentry_options_s {
     sentry_path_t *database_path;
     sentry_path_t *handler_path;
     sentry_path_t *feedback_handler_path;
-    sentry_path_t *feedback_path;
     sentry_logger_t logger;
     size_t max_breadcrumbs;
     bool debug;

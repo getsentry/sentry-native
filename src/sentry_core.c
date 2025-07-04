@@ -151,8 +151,6 @@ sentry_init(sentry_options_t *options)
     }
     SENTRY_INFOF("using database path \"%" SENTRY_PATH_PRI "\"",
         options->database_path->path);
-    options->feedback_path
-        = sentry__path_join_str(options->database_path, "feedback");
 
     // try to create and lock our run folder as early as possibly, since it is
     // fallible. since it does locking, it will not interfere with run folder
@@ -1356,31 +1354,15 @@ sentry__launch_feedback_handler(sentry_value_t event)
             return;
         }
 
-        if (sentry__path_create_dir_all(options->feedback_path) != 0) {
-            SENTRY_ERRORF("mkdir failed: \"%" SENTRY_PATH_PRI "\"",
-                options->feedback_path->path);
+        sentry_path_t *feedback_path
+            = sentry__run_write_feedback(options->run, &event_id);
+        if (!feedback_path) {
             return;
         }
 
-        // copy `<run>/<uuid>.envelope` -> `<db>/feedback/<uuid>.envelope`
-        char *filename = sentry__uuid_as_filename(&event_id, ".envelope");
-        sentry_path_t *source_path
-            = sentry__path_join_str(options->run->run_path, filename);
-        sentry_path_t *target_path
-            = sentry__path_join_str(options->feedback_path, filename);
-
-        size_t buf_len = 0;
-        char *buf = sentry__path_read_to_buffer(source_path, &buf_len);
-        sentry__path_write_buffer(target_path, buf, buf_len);
-
-        // transfer `<db>/feedback/<uuid>.envelope` to the feedback handler
         sentry__process_spawn(
-            options->feedback_handler_path, target_path->path, NULL);
-
-        sentry_free(filename);
-        sentry__path_free(source_path);
-        sentry__path_free(target_path);
-        sentry_free(buf);
+            options->feedback_handler_path, feedback_path->path, NULL);
+        sentry__path_free(feedback_path);
     }
 }
 
