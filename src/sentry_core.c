@@ -1377,21 +1377,8 @@ sentry__launch_feedback_handler(sentry_value_t event)
         char *buf = sentry__path_read_to_buffer(source_path, &buf_len);
         sentry__path_write_buffer(target_path, buf, buf_len);
 
-        sentry_process_t *process
-            = sentry__process_new(options->feedback_handler_path);
-#ifdef SENTRY_PLATFORM_WINDOWS
-        wchar_t *dsnw = sentry__string_to_wstr(options->dsn->raw);
-        wchar_t *event_idw = sentry__string_to_wstr(event_id);
-        sentry__process_set_env(
-            process, L"SENTRY_DSN", dsnw, L"SENTRY_EVENT_ID", event_idw, NULL);
-        sentry_free(dsnw);
-        sentry_free(event_idw);
-#else
-        sentry__process_set_env(process, "SENTRY_DSN", options->dsn->raw,
-            "SENTRY_EVENT_ID", event_id, NULL);
-#endif
-        sentry__process_spawn_with_args(process, target_path->path, NULL);
-        sentry__process_free(process);
+        sentry__process_spawn(
+            options->feedback_handler_path, target_path->path, NULL);
 
         sentry__path_free(source_base);
         sentry__path_free(source_path);
