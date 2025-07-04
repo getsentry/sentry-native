@@ -118,7 +118,11 @@ spawn_process(const char *executable, char **argv)
                 }
             }
 
-            execv(executable, argv);
+            if (strstr(executable, "/") != NULL) {
+                execv(executable, argv);
+            } else {
+                execvp(executable, argv);
+            }
 
             SENTRY_ERRORF("execv failed: %s", strerror(errno));
             _exit(1);
