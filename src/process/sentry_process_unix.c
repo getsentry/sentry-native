@@ -118,6 +118,7 @@ spawn_process(const char *executable, char **argv)
                 }
             }
 
+            // TODO: .app on macOS: `open -a <exe> --args <argv>`
             if (strstr(executable, "/") != NULL) {
                 execv(executable, argv);
             } else {

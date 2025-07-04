@@ -200,6 +200,7 @@ sentry__process_old_runs(const sentry_options_t *options, uint64_t last_crash)
     sentry_envelope_t *session_envelope = NULL;
     size_t session_num = 0;
 
+    // TODO: prune old expired(?) feedback
     while ((run_dir = sentry__pathiter_next(db_iter)) != NULL) {
         // skip over other files such as the saved consent or the last_crash
         // timestamp
