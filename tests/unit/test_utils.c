@@ -105,11 +105,19 @@ SENTRY_TEST(dsn_parsing_complete)
     TEST_CHECK_STRING_EQUAL(dsn->path, "/foo/bar");
     TEST_CHECK_STRING_EQUAL(dsn->project_id, "42%21");
     sentry__dsn_decref(dsn);
-
+}
+SENTRY_TEST(dsn_parsing_max_org_length)
+{
     // maximal org_id length
     SENTRY_TEST_DSN_NEW(dsn,
         "http://username:password@o18446744073709551615.example.com/foo/bar/"
         "42%21?x=y#z");
+    TEST_CHECK(dsn->is_valid);
+    TEST_CHECK(!dsn->is_secure);
+    TEST_CHECK_STRING_EQUAL(dsn->host, "o18446744073709551615.example.com");
+    TEST_CHECK_INT_EQUAL(dsn->port, 80);
+    TEST_CHECK_STRING_EQUAL(dsn->public_key, "username");
+    TEST_CHECK_STRING_EQUAL(dsn->secret_key, "password");
     TEST_CHECK_STRING_EQUAL(dsn->org_id, "18446744073709551615");
     sentry__dsn_decref(dsn);
 }
