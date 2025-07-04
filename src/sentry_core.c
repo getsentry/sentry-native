@@ -20,6 +20,7 @@
 #include "sentry_sync.h"
 #include "sentry_tracing.h"
 #include "sentry_transport.h"
+#include "sentry_uuid.h"
 #include "sentry_value.h"
 
 #ifdef SENTRY_INTEGRATION_QT
@@ -150,6 +151,8 @@ sentry_init(sentry_options_t *options)
     }
     SENTRY_INFOF("using database path \"%" SENTRY_PATH_PRI "\"",
         options->database_path->path);
+    options->feedback_path
+        = sentry__path_join_str(options->database_path, "feedback");
 
     // try to create and lock our run folder as early as possibly, since it is
     // fallible. since it does locking, it will not interfere with run folder
@@ -1352,39 +1355,39 @@ sentry_capture_user_feedback(sentry_value_t user_feedback)
 void
 sentry__launch_feedback_handler(sentry_value_t event)
 {
-    const char *event_id
-        = sentry_value_as_string(sentry__ensure_event_id(event, NULL));
-    SENTRY_DEBUGF("### sentry__launch_feedback_handler: %s", event_id);
+    sentry_uuid_t event_id = sentry_uuid_nil();
+    sentry__ensure_event_id(event, &event_id);
 
     SENTRY_WITH_OPTIONS (options) {
         if (!options->feedback_handler_path) {
             return;
         }
 
-        sentry_path_t *source_base
-            = sentry__path_join_str(options->run->run_path, event_id);
-        sentry_path_t *source_path
-            = sentry__path_append_str(source_base, ".envelope");
+        if (sentry__path_create_dir_all(options->feedback_path) != 0) {
+            SENTRY_ERRORF("mkdir failed: \"%" SENTRY_PATH_PRI "\"",
+                options->feedback_path->path);
+            return;
+        }
 
-        sentry_path_t *target_dir
-            = sentry__path_join_str(options->database_path, "feedback");
-        sentry_path_t *target_base
-            = sentry__path_join_str(target_dir, event_id);
+        // copy `<run>/<uuid>.envelope` -> `<db>/feedback/<uuid>.envelope`
+        char *filename = sentry__uuid_as_filename(&event_id, ".envelope");
+        sentry_path_t *source_path
+            = sentry__path_join_str(options->run->run_path, filename);
         sentry_path_t *target_path
-            = sentry__path_append_str(target_base, ".envelope");
+            = sentry__path_join_str(options->feedback_path, filename);
 
         size_t buf_len = 0;
         char *buf = sentry__path_read_to_buffer(source_path, &buf_len);
         sentry__path_write_buffer(target_path, buf, buf_len);
 
+        // transfer `<db>/feedback/<uuid>.envelope` to the feedback handler
         sentry__process_spawn(
             options->feedback_handler_path, target_path->path, NULL);
 
-        sentry__path_free(source_base);
+        sentry_free(filename);
         sentry__path_free(source_path);
-        sentry__path_free(target_dir);
-        sentry__path_free(target_base);
         sentry__path_free(target_path);
+        sentry_free(buf);
     }
 }
 
