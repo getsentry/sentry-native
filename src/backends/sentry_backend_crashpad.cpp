@@ -221,7 +221,8 @@ flush_scope_to_feedback(const sentry_path_t *event_path,
         sentry__envelope_add_session(envelope, options->session);
     }
 
-    if (sentry_envelope_write_to_path(envelope, event_path) != 0) {
+    if (sentry__path_create_dir_all(options->run->feedback_path) != 0
+        || sentry_envelope_write_to_path(envelope, event_path) != 0) {
         SENTRY_WARN("flushing scope to feedback failed");
     }
     sentry_envelope_free(envelope);
@@ -492,12 +493,11 @@ crashpad_backend_startup(
 
     base::FilePath feedback_handler;
     base::FilePath feedback_path;
-    if (options->feedback_handler_path
-        && sentry__path_create_dir_all(options->feedback_path) == 0) {
+    if (options->feedback_handler_path) {
         char *filename
             = sentry__uuid_as_filename(&data->crash_event_id, ".envelope");
         data->feedback_path
-            = sentry__path_join_str(options->feedback_path, filename);
+            = sentry__path_join_str(options->run->feedback_path, filename);
         sentry_free(filename);
 
         feedback_handler = base::FilePath(options->feedback_handler_path->path);
