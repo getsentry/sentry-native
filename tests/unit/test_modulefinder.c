@@ -7,7 +7,7 @@
 
 SENTRY_TEST(module_finder)
 {
-#if defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_XBOX)
+#if defined(SENTRY_PLATFORM_NX)
     return SKIP_TEST();
 #endif
     // make sure that we are able to do multiple cleanup cycles
