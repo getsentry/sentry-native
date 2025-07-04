@@ -43,7 +43,7 @@ SENTRY_TEST(fuzz_json)
 {
     // skipping on platforms that don't have access to fixtures on the local FS
 #if defined(SENTRY_PLATFORM_ANDROID) || defined(SENTRY_PLATFORM_NX)            \
-    || defined(SENTRY_PLATFORM_PS)
+    || defined(SENTRY_PLATFORM_PS) || defined(SENTRY_PLATFORM_XBOX)
     SKIP_TEST();
 #else
     sentry_path_t *path = sentry__path_from_str(__FILE__);
