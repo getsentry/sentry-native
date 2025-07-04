@@ -13,6 +13,17 @@
  * encoding, typically ANSI on Windows, UTF-8 macOS, and the locale encoding on
  * Linux; and they provide wchar-compatible alternatives on Windows which are
  * preferred.
+ *
+ * NOTE on attachments:
+ *
+ * Attachments are read lazily at the time of `sentry_capture_event`,
+ * `sentry_capture_event_with_scope`, or at time of a hard crash. Relative
+ * attachment paths will be resolved according to the current working directory
+ * at the time of envelope creation. When adding and removing attachments, they
+ * are matched according to their given `path`. No normalization is performed.
+ * When using the `crashpad` backend on macOS, the list of attachments that will
+ * be added at the time of a hard crash will be frozen at the time of
+ * `sentry_init`, and later modifications will not be reflected.
  */
 
 #ifndef SENTRY_H_INCLUDED
@@ -22,20 +33,12 @@
 extern "C" {
 #endif
 
-/* SDK Version */
-#ifndef SENTRY_SDK_NAME
-#    ifdef __ANDROID__
-#        define SENTRY_SDK_NAME "sentry.native.android"
-#    else
-#        define SENTRY_SDK_NAME "sentry.native"
-#    endif
-#endif
-#define SENTRY_SDK_VERSION "0.8.5"
-#define SENTRY_SDK_USER_AGENT SENTRY_SDK_NAME "/" SENTRY_SDK_VERSION
-
 /* common platform detection */
 #ifdef _WIN32
 #    define SENTRY_PLATFORM_WINDOWS
+#    ifdef _GAMING_XBOX
+#        define SENTRY_PLATFORM_XBOX
+#    endif
 #elif defined(__APPLE__)
 #    include <TargetConditionals.h>
 #    if defined(TARGET_OS_OSX) && TARGET_OS_OSX
@@ -64,6 +67,19 @@ extern "C" {
 #else
 #    error unsupported platform
 #endif
+
+/* SDK Version */
+#ifndef SENTRY_SDK_NAME
+#    if defined(SENTRY_PLATFORM_ANDROID)
+#        define SENTRY_SDK_NAME "sentry.native.android"
+#    elif defined(SENTRY_PLATFORM_XBOX)
+#        define SENTRY_SDK_NAME "sentry.native.xbox"
+#    else
+#        define SENTRY_SDK_NAME "sentry.native"
+#    endif
+#endif
+#define SENTRY_SDK_VERSION "0.9.1"
+#define SENTRY_SDK_USER_AGENT SENTRY_SDK_NAME "/" SENTRY_SDK_VERSION
 
 /* marks a function as part of the sentry API */
 #ifndef SENTRY_API
@@ -1215,6 +1231,8 @@ SENTRY_API int sentry_options_get_symbolize_stacktraces(
  * `path` is assumed to be in platform-specific filesystem path encoding.
  * API Users on windows are encouraged to use `sentry_options_add_attachmentw`
  * instead.
+ *
+ * See the NOTE on attachments above for restrictions of this API.
  */
 SENTRY_API void sentry_options_add_attachment(
     sentry_options_t *opts, const char *path);
@@ -1672,12 +1690,19 @@ SENTRY_API void sentry_remove_fingerprint(void);
 
 /**
  * Set the trace. The primary use for this is to allow other SDKs to propagate
- * their trace context to connect events on all layers
+ * their trace context to connect events on all layers.
  */
 SENTRY_API void sentry_set_trace(
     const char *trace_id, const char *parent_span_id);
 SENTRY_API void sentry_set_trace_n(const char *trace_id, size_t trace_id_len,
     const char *parent_span_id, size_t parent_span_id_len);
+
+/**
+ * Generates a new random `trace_id` and `span_id` and sets these onto
+ * the propagation context. Use this to set a trace boundary for
+ * events/transactions.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_regenerate_trace(void);
 
 /**
  * Sets the transaction.
@@ -1770,6 +1795,140 @@ SENTRY_EXPERIMENTAL_API void sentry_options_set_handler_strategy(
     sentry_options_t *opts, sentry_handler_strategy_t handler_strategy);
 
 #endif // SENTRY_PLATFORM_LINUX
+
+/**
+ * A sentry Attachment.
+ *
+ * See https://develop.sentry.dev/sdk/data-model/envelope-items/#attachment
+ */
+struct sentry_attachment_s;
+typedef struct sentry_attachment_s sentry_attachment_t;
+
+/**
+ * Attaches a file to be sent along with events.
+ *
+ * `path` is assumed to be in platform-specific filesystem path encoding.
+ * API Users on windows are encouraged to use `sentry_attach_filew` or
+ * `sentry_scope_attach_filew` instead.
+ *
+ * The same file cannot be attached multiple times i.e. `path` must be unique.
+ * Calling this function multiple times with the same `path` is safe, but
+ * duplicate attachments with equal paths will not be added.
+ *
+ * The returned `sentry_attachment_t` is owned by the SDK and will remain valid
+ * until the attachment is removed with `sentry_remove_attachment` or
+ * `sentry_close` is called.
+ *
+ * See the NOTE on attachments above for restrictions of this API.
+ */
+SENTRY_API sentry_attachment_t *sentry_attach_file(const char *path);
+SENTRY_API sentry_attachment_t *sentry_attach_file_n(
+    const char *path, size_t path_len);
+SENTRY_API sentry_attachment_t *sentry_scope_attach_file(
+    sentry_scope_t *scope, const char *path);
+SENTRY_API sentry_attachment_t *sentry_scope_attach_file_n(
+    sentry_scope_t *scope, const char *path, size_t path_len);
+
+/**
+ * Attaches bytes to be sent along with events.
+ *
+ * `filename` is assumed to be in platform-specific filesystem path encoding.
+ * API Users on windows are encouraged to use `sentry_attach_bytesw` or
+ * `sentry_scope_attach_bytesw` instead.
+ *
+ * `filename` is used to identify the attachment in the Sentry Web UI. It is
+ * recommended to use unique filenames to make attachments easier to
+ * differentiate. However, neither `filename` nor `buf` is used to reject
+ * duplicate attachments.
+ *
+ * NOTE: When using the `crashpad` backend, it writes byte attachments to disk
+ * into a flat directory structure. If multiple buffers are attached with the
+ * same `filename`, it will internally ensure unique filenames for attachments
+ * by appending a unique suffix to the filename. Therefore, attachments may show
+ * up with altered names in the Sentry Web UI.
+ *
+ * The returned `sentry_attachment_t` is owned by the SDK and will remain valid
+ * until the attachment is removed with `sentry_remove_attachment` or
+ * `sentry_close` is called.
+ *
+ * See the NOTE on attachments above for restrictions of this API.
+ */
+SENTRY_API sentry_attachment_t *sentry_attach_bytes(
+    const char *buf, size_t buf_len, const char *filename);
+SENTRY_API sentry_attachment_t *sentry_attach_bytes_n(
+    const char *buf, size_t buf_len, const char *filename, size_t filename_len);
+SENTRY_API sentry_attachment_t *sentry_scope_attach_bytes(sentry_scope_t *scope,
+    const char *buf, size_t buf_len, const char *filename);
+SENTRY_API sentry_attachment_t *sentry_scope_attach_bytes_n(
+    sentry_scope_t *scope, const char *buf, size_t buf_len,
+    const char *filename, size_t filename_len);
+
+/**
+ * Removes and frees all previously added attachments.
+ */
+SENTRY_API void sentry_clear_attachments(void);
+
+/**
+ * Removes and frees a previously added attachment.
+ *
+ * See the NOTE on attachments above for restrictions of this API.
+ */
+SENTRY_API void sentry_remove_attachment(sentry_attachment_t *attachment);
+
+#ifdef SENTRY_PLATFORM_WINDOWS
+/**
+ * Wide char versions of `sentry_attach_file` and `sentry_scope_attach_file`.
+ */
+SENTRY_API sentry_attachment_t *sentry_attach_filew(const wchar_t *path);
+SENTRY_API sentry_attachment_t *sentry_attach_filew_n(
+    const wchar_t *path, size_t path_len);
+SENTRY_API sentry_attachment_t *sentry_scope_attach_filew(
+    sentry_scope_t *scope, const wchar_t *path);
+SENTRY_API sentry_attachment_t *sentry_scope_attach_filew_n(
+    sentry_scope_t *scope, const wchar_t *path, size_t path_len);
+
+/**
+ * Wide char versions of `sentry_attach_bytes` and `sentry_scope_attach_bytes`.
+ */
+SENTRY_API sentry_attachment_t *sentry_attach_bytesw(
+    const char *buf, size_t buf_len, const wchar_t *filename);
+SENTRY_API sentry_attachment_t *sentry_attach_bytesw_n(const char *buf,
+    size_t buf_len, const wchar_t *filename, size_t filename_len);
+SENTRY_API sentry_attachment_t *sentry_scope_attach_bytesw(
+    sentry_scope_t *scope, const char *buf, size_t buf_len,
+    const wchar_t *filename);
+SENTRY_API sentry_attachment_t *sentry_scope_attach_bytesw_n(
+    sentry_scope_t *scope, const char *buf, size_t buf_len,
+    const wchar_t *filename, size_t filename_len);
+#endif
+
+/**
+ * Sets the content type of an attachment.
+ */
+SENTRY_API void sentry_attachment_set_content_type(
+    sentry_attachment_t *attachment, const char *content_type);
+SENTRY_API void sentry_attachment_set_content_type_n(
+    sentry_attachment_t *attachment, const char *content_type,
+    size_t content_type_len);
+
+/**
+ * Sets the filename of an attachment.
+ */
+SENTRY_API void sentry_attachment_set_filename(
+    sentry_attachment_t *attachment, const char *filename);
+SENTRY_API void sentry_attachment_set_filename_n(
+    sentry_attachment_t *attachment, const char *filename, size_t filename_len);
+
+#ifdef SENTRY_PLATFORM_WINDOWS
+/**
+ * Wide char version of `sentry_attachment_set_filename`.
+ */
+SENTRY_API void sentry_attachment_set_filenamew(
+    sentry_attachment_t *attachment, const wchar_t *filename);
+SENTRY_API void sentry_attachment_set_filenamew_n(
+    sentry_attachment_t *attachment, const wchar_t *filename,
+    size_t filename_len);
+#endif
 
 /* -- Session APIs -- */
 

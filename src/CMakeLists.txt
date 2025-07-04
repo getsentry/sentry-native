@@ -1,6 +1,8 @@
 sentry_target_sources_cwd(sentry
 	sentry_alloc.c
 	sentry_alloc.h
+	sentry_attachment.c
+	sentry_attachment.h
 	sentry_backend.c
 	sentry_backend.h
 	sentry_boot.h
@@ -147,9 +149,10 @@ endif()
 if(SENTRY_WITH_LIBUNWIND)
 	target_compile_definitions(sentry PRIVATE SENTRY_WITH_UNWINDER_LIBUNWIND)
 	sentry_target_sources_cwd(sentry
-			unwinder/sentry_unwinder_libunwind.c
+		unwinder/sentry_unwinder_libunwind.c
 	)
 endif()
+
 if(SENTRY_WITH_LIBUNWINDSTACK)
 	target_compile_definitions(sentry PRIVATE SENTRY_WITH_UNWINDER_LIBUNWINDSTACK)
 	sentry_target_sources_cwd(sentry
@@ -162,6 +165,10 @@ if(WIN32)
 	sentry_target_sources_cwd(sentry
 		unwinder/sentry_unwinder_dbghelp.c
 	)
+endif()
+
+if(PROSPERO)
+	target_compile_definitions(sentry PRIVATE SENTRY_WITH_UNWINDER_PS)
 endif()
 
 # integrations

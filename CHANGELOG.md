@@ -2,6 +2,31 @@
 
 ## Unreleased
 
+**Features**:
+
+- Add `sentry_clear_attachments()` to allow clearing all previously added attachments in the global scope. ([#1290](https://github.com/getsentry/sentry-native/pull/1290))
+- Compiles also on Xbox One ([#1294](https://github.com/getsentry/sentry-native/pull/1294))
+- Provide `sentry_regenerate_trace()` to allow users to set manual trace boundaries. ([#1293](https://github.com/getsentry/sentry-native/pull/1293))
+
+## 0.9.1
+
+**Features**:
+
+- The `sentry_attach_file/bytes`, `sentry_scope_attach_file/bytes` (and their wide-string variants), and `sentry_remove_attachment` have been added to modify the list of attachments that are sent along with sentry events after a call to `sentry_init`. ([#1266](https://github.com/getsentry/sentry-native/pull/1266), [#1275](https://github.com/getsentry/sentry-native/pull/1275))
+  - NOTE: When using the `crashpad` backend on macOS, the list of attachments that will be added at the time of a hard crash will be frozen at the time of `sentry_init`, and later modifications will not be reflected.
+- Add `sentry_attachment_set_content_type` to allow specifying the content type of attachments. ([#1276](https://github.com/getsentry/sentry-native/pull/1276))
+- Add `sentry_attachment_set_filename` to allow specifying the filename of attachments displayed in the Sentry WebUI. ([#1285](https://github.com/getsentry/sentry-native/pull/1285))
+
+**Meta**:
+
+- Identify Xbox as a separate SDK name `sentry.native.xbox`. ([#1287](https://github.com/getsentry/sentry-native/pull/1287))
+
+**Internal**:
+
+- Updated `breakpad` to 2025-06-13. ([#1277](https://github.com/getsentry/sentry-native/pull/1277), [breakpad#41](https://github.com/getsentry/breakpad/pull/41))
+
+## 0.9.0
+
 **Breaking changes**:
 
 - Limiting the proguard rules in the NDK package moves the burden of the configuration to its users. Please ensure to [configure proguard](http://proguard.sourceforge.net/manual/examples.html#native) in your project so native methods in your namespace can be symbolicated if they appear in stack traces. ([#1250](https://github.com/getsentry/sentry-native/pull/1250))

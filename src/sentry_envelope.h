@@ -4,6 +4,7 @@
 #include "sentry_boot.h"
 #include "sentry_core.h"
 
+#include "sentry_attachment.h"
 #include "sentry_path.h"
 #include "sentry_ratelimiter.h"
 #include "sentry_session.h"
@@ -58,8 +59,13 @@ sentry_envelope_item_t *sentry__envelope_add_session(
  * Add an attachment to this envelope.
  */
 sentry_envelope_item_t *sentry__envelope_add_attachment(
-    sentry_envelope_t *envelope, const sentry_path_t *attachment,
-    const char *type);
+    sentry_envelope_t *envelope, const sentry_attachment_t *attachment);
+
+/**
+ * Add attachments to this envelope.
+ */
+void sentry__envelope_add_attachments(
+    sentry_envelope_t *envelope, const sentry_attachment_t *attachments);
 
 /**
  * This will add the file contents from `path` as an envelope item of type

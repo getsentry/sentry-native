@@ -1,5 +1,5 @@
 #ifdef _WIN32
-#    ifndef _GAMING_XBOX_SCARLETT
+#    ifndef WIN32_LEAN_AND_MEAN
 #        define WIN32_LEAN_AND_MEAN
 #    endif
 #    define NOMINMAX
@@ -28,6 +28,34 @@
 #    include <unistd.h>
 
 #    define sleep_s(SECONDS) sleep(SECONDS)
+#endif
+
+#if defined(SENTRY_PLATFORM_WINDOWS)
+#    include <windows.h>
+unsigned long
+get_current_thread_id()
+{
+    return GetCurrentThreadId();
+}
+#elif defined(SENTRY_PLATFORM_MACOS)
+#    include <pthread.h>
+#    include <stdint.h>
+uint64_t
+get_current_thread_id()
+{
+    uint64_t tid;
+    pthread_threadid_np(NULL, &tid);
+    return tid;
+}
+#else
+#    include <stdint.h>
+#    include <sys/syscall.h>
+#    include <unistd.h>
+uint64_t
+get_current_thread_id()
+{
+    return (uint64_t)syscall(SYS_gettid);
+}
 #endif
 
 static double
@@ -355,6 +383,12 @@ main(int argc, char **argv)
 
     sentry_init(options);
 
+    if (has_arg(argc, argv, "attachment")) {
+        sentry_attachment_t *bytes
+            = sentry_attach_bytes("\xc0\xff\xee", 3, "bytes.bin");
+        sentry_attachment_set_content_type(bytes, "application/octet-stream");
+    }
+
     if (!has_arg(argc, argv, "no-setup")) {
         sentry_set_transaction("test-transaction");
         sentry_set_level(SENTRY_LEVEL_WARNING);
@@ -399,6 +433,15 @@ main(int argc, char **argv)
         sentry_set_trace(direct_trace_id, direct_parent_span_id);
     }
 
+    if (has_arg(argc, argv, "attach-after-init")) {
+        // assuming the example / test is run directly from the cmake build
+        // directory
+        sentry_attach_file("./CMakeCache.txt");
+        sentry_attachment_t *bytes
+            = sentry_attach_bytes("\xc0\xff\xee", 3, "bytes.bin");
+        sentry_attachment_set_content_type(bytes, "application/octet-stream");
+    }
+
     if (has_arg(argc, argv, "start-session")) {
         sentry_start_session();
     }
@@ -409,6 +452,10 @@ main(int argc, char **argv)
             snprintf(buffer, 4, "%zu", i);
             sentry_add_breadcrumb(sentry_value_new_breadcrumb(0, buffer));
         }
+    }
+
+    if (has_arg(argc, argv, "clear-attachments")) {
+        sentry_clear_attachments();
     }
 
     if (has_arg(argc, argv, "capture-with-scope")) {
@@ -423,6 +470,16 @@ main(int argc, char **argv)
 
         sentry_value_t debug_crumb = create_debug_crumb("scoped crumb");
         sentry_scope_add_breadcrumb(scope, debug_crumb);
+
+        if (has_arg(argc, argv, "attach-to-scope")) {
+            // assuming the example / test is run directly from the cmake build
+            // directory
+            sentry_scope_attach_file(scope, "./CMakeCache.txt");
+            sentry_attachment_t *bytes = sentry_scope_attach_bytes(
+                scope, "\xc0\xff\xee", 3, "bytes.bin");
+            sentry_attachment_set_content_type(
+                bytes, "application/octet-stream");
+        }
 
         sentry_capture_event_with_scope(event, scope);
     }
@@ -480,7 +537,10 @@ main(int argc, char **argv)
         sentry_value_t event = sentry_value_new_message_event(
             SENTRY_LEVEL_INFO, "my-logger", "Hello World!");
         if (has_arg(argc, argv, "add-stacktrace")) {
-            sentry_event_value_add_stacktrace(event, NULL, 0);
+            sentry_value_t thread
+                = sentry_value_new_thread(get_current_thread_id(), "main");
+            sentry_value_set_stacktrace(thread, NULL, 0);
+            sentry_event_add_thread(event, thread);
         }
         sentry_capture_event(event);
     }

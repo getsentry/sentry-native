@@ -9,6 +9,7 @@
 #include "sentry_string.h"
 #include "sentry_transport.h"
 #include "sentry_value.h"
+#include <assert.h>
 #include <string.h>
 
 struct sentry_envelope_item_s {
@@ -409,30 +410,75 @@ sentry__envelope_add_session(
         envelope, payload, payload_len, "session");
 }
 
+static const char *
+str_from_attachment_type(sentry_attachment_type_t attachment_type)
+{
+    switch (attachment_type) {
+    case ATTACHMENT:
+        return "event.attachment";
+    case MINIDUMP:
+        return "event.minidump";
+    case VIEW_HIERARCHY:
+        return "event.view_hierarchy";
+    default:
+        UNREACHABLE("Unknown attachment type");
+        return "event.attachment";
+    }
+}
+
 sentry_envelope_item_t *
-sentry__envelope_add_attachment(sentry_envelope_t *envelope,
-    const sentry_path_t *attachment, const char *type)
+sentry__envelope_add_attachment(
+    sentry_envelope_t *envelope, const sentry_attachment_t *attachment)
 {
     if (!envelope || !attachment) {
         return NULL;
     }
 
-    sentry_envelope_item_t *item
-        = sentry__envelope_add_from_path(envelope, attachment, "attachment");
-    if (type) {
-        sentry__envelope_item_set_header(
-            item, "attachment_type", sentry_value_new_string(type));
+    sentry_envelope_item_t *item = NULL;
+    if (attachment->buf) {
+        item = sentry__envelope_add_from_buffer(
+            envelope, attachment->buf, attachment->buf_len, "attachment");
+    } else {
+        item = sentry__envelope_add_from_path(
+            envelope, attachment->path, "attachment");
     }
-
+    if (!item) {
+        return NULL;
+    }
+    if (attachment->type != ATTACHMENT) { // don't need to set the default
+        sentry__envelope_item_set_header(item, "attachment_type",
+            sentry_value_new_string(
+                str_from_attachment_type(attachment->type)));
+    }
+    if (attachment->content_type) {
+        sentry__envelope_item_set_header(item, "content_type",
+            sentry_value_new_string(attachment->content_type));
+    }
     sentry__envelope_item_set_header(item, "filename",
 #ifdef SENTRY_PLATFORM_WINDOWS
         sentry__value_new_string_from_wstr(
 #else
         sentry_value_new_string(
 #endif
-            sentry__path_filename(attachment)));
+            sentry__path_filename(attachment->filename ? attachment->filename
+                                                       : attachment->path)));
 
     return item;
+}
+
+void
+sentry__envelope_add_attachments(
+    sentry_envelope_t *envelope, const sentry_attachment_t *attachments)
+{
+    if (!envelope || !attachments) {
+        return;
+    }
+
+    SENTRY_DEBUG("adding attachments to envelope");
+    for (const sentry_attachment_t *attachment = attachments; attachment;
+        attachment = attachment->next) {
+        sentry__envelope_add_attachment(envelope, attachment);
+    }
 }
 
 sentry_envelope_item_t *
@@ -558,7 +604,9 @@ sentry_envelope_serialize(const sentry_envelope_t *envelope, size_t *size_out)
 
     sentry__envelope_serialize_into_stringbuilder(envelope, &sb);
 
-    *size_out = sentry__stringbuilder_len(&sb);
+    if (size_out) {
+        *size_out = sentry__stringbuilder_len(&sb);
+    }
     return sentry__stringbuilder_into_string(&sb);
 }
 

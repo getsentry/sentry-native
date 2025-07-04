@@ -1,5 +1,6 @@
 #include "sentry_options.h"
 #include "sentry_alloc.h"
+#include "sentry_attachment.h"
 #include "sentry_backend.h"
 #include "sentry_database.h"
 #include "sentry_logger.h"
@@ -53,7 +54,8 @@ sentry_options_new(void)
     // AIX doesn't have reliable debug IDs for server-side symbolication,
     // and the diversity of Android makes it infeasible to have access to debug
     // files.
-#if defined(SENTRY_PLATFORM_ANDROID) || defined(SENTRY_PLATFORM_AIX)
+#if defined(SENTRY_PLATFORM_ANDROID) || defined(SENTRY_PLATFORM_AIX)           \
+    || defined(SENTRY_PLATFORM_PS)
         true;
 #else
         false;
@@ -79,13 +81,6 @@ sentry__options_incref(sentry_options_t *options)
     return options;
 }
 
-static void
-attachment_free(sentry_attachment_t *attachment)
-{
-    sentry__path_free(attachment->path);
-    sentry_free(attachment);
-}
-
 void
 sentry_options_free(sentry_options_t *opts)
 {
@@ -105,14 +100,7 @@ sentry_options_free(sentry_options_t *opts)
     sentry__path_free(opts->handler_path);
     sentry_transport_free(opts->transport);
     sentry__backend_free(opts->backend);
-
-    sentry_attachment_t *next_attachment = opts->attachments;
-    while (next_attachment) {
-        sentry_attachment_t *attachment = next_attachment;
-        next_attachment = attachment->next;
-
-        attachment_free(attachment);
-    }
+    sentry__attachments_free(opts->attachments);
     sentry__run_free(opts->run);
 
     sentry_free(opts);
@@ -496,52 +484,35 @@ sentry_options_get_shutdown_timeout(sentry_options_t *opts)
     return opts->shutdown_timeout;
 }
 
-static void
-add_attachment(sentry_options_t *opts, sentry_path_t *path,
-    sentry_attachment_type_t attachment_type, const char *content_type)
-{
-    if (!path) {
-        return;
-    }
-    sentry_attachment_t *attachment = SENTRY_MAKE(sentry_attachment_t);
-    if (!attachment) {
-        sentry__path_free(path);
-        return;
-    }
-    attachment->path = path;
-    attachment->next = opts->attachments;
-    attachment->type = attachment_type;
-    attachment->content_type = content_type;
-    opts->attachments = attachment;
-}
-
 void
 sentry_options_add_attachment(sentry_options_t *opts, const char *path)
 {
-    add_attachment(opts, sentry__path_from_str(path), ATTACHMENT, NULL);
+    sentry__attachments_add_path(
+        &opts->attachments, sentry__path_from_str(path), ATTACHMENT, NULL);
 }
 
 void
 sentry_options_add_attachment_n(
     sentry_options_t *opts, const char *path, size_t path_len)
 {
-    add_attachment(
-        opts, sentry__path_from_str_n(path, path_len), ATTACHMENT, NULL);
+    sentry__attachments_add_path(&opts->attachments,
+        sentry__path_from_str_n(path, path_len), ATTACHMENT, NULL);
 }
 
 void
 sentry_options_add_view_hierarchy(sentry_options_t *opts, const char *path)
 {
-    add_attachment(
-        opts, sentry__path_from_str(path), VIEW_HIERARCHY, "application/json");
+    sentry__attachments_add_path(&opts->attachments,
+        sentry__path_from_str(path), VIEW_HIERARCHY, "application/json");
 }
 
 void
 sentry_options_add_view_hierarchy_n(
     sentry_options_t *opts, const char *path, size_t path_len)
 {
-    add_attachment(opts, sentry__path_from_str_n(path, path_len),
-        VIEW_HIERARCHY, "application/json");
+    sentry__attachments_add_path(&opts->attachments,
+        sentry__path_from_str_n(path, path_len), VIEW_HIERARCHY,
+        "application/json");
 }
 
 void
@@ -585,8 +556,8 @@ void
 sentry_options_add_attachmentw_n(
     sentry_options_t *opts, const wchar_t *path, size_t path_len)
 {
-    add_attachment(
-        opts, sentry__path_from_wstr_n(path, path_len), ATTACHMENT, NULL);
+    sentry__attachments_add_path(&opts->attachments,
+        sentry__path_from_wstr_n(path, path_len), ATTACHMENT, NULL);
 }
 
 void
@@ -606,8 +577,9 @@ void
 sentry_options_add_view_hierarchyw_n(
     sentry_options_t *opts, const wchar_t *path, size_t path_len)
 {
-    add_attachment(opts, sentry__path_from_wstr_n(path, path_len),
-        VIEW_HIERARCHY, "application/json");
+    sentry__attachments_add_path(&opts->attachments,
+        sentry__path_from_wstr_n(path, path_len), VIEW_HIERARCHY,
+        "application/json");
 }
 
 void

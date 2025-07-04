@@ -11,6 +11,11 @@ endif()
 set(SENTRY_TOOLCHAINS_DIR "${CMAKE_CURRENT_LIST_DIR}/toolchains")
 if ("${CMAKE_GENERATOR_PLATFORM}" STREQUAL "Gaming.Xbox.Scarlett.x64")
 	include("${SENTRY_TOOLCHAINS_DIR}/xbox/CMakeGDKScarlett.cmake")
+	set(XBOX TRUE)
+endif()
+if ("${CMAKE_GENERATOR_PLATFORM}" STREQUAL "Gaming.Xbox.XboxOne.x64")
+	include("${SENTRY_TOOLCHAINS_DIR}/xbox/CMakeGDKXboxOne.cmake")
+	set(XBOX TRUE)
 endif()
 
 #read sentry-native version
@@ -76,7 +81,7 @@ option(SENTRY_BUILD_TESTS "Build sentry-native tests" "${SENTRY_MAIN_PROJECT}")
 option(SENTRY_BUILD_EXAMPLES "Build sentry-native example(s)" "${SENTRY_MAIN_PROJECT}")
 option(SENTRY_BUILD_BENCHMARKS "Build sentry-native benchmarks" OFF)
 
-if (NOT ("${CMAKE_GENERATOR_PLATFORM}" STREQUAL "Gaming.Xbox.Scarlett.x64"))
+if(NOT XBOX)
 	option(SENTRY_LINK_PTHREAD "Link platform threads library" ON)
 	if(SENTRY_LINK_PTHREAD)
 		set(THREADS_PREFER_PTHREAD_FLAG ON)
@@ -166,7 +171,7 @@ option(SENTRY_ENABLE_INSTALL "Enable sentry installation" "${SENTRY_MAIN_PROJECT
 if(MSVC AND CMAKE_GENERATOR_TOOLSET MATCHES "_xp$")
 	message(WARNING "Crashpad is not supported for MSVC with XP toolset. Default backend was switched to 'breakpad'")
 	set(SENTRY_DEFAULT_BACKEND "breakpad")
-elseif(MSVC AND "${CMAKE_GENERATOR_PLATFORM}" STREQUAL "Gaming.Xbox.Scarlett.x64")
+elseif(MSVC AND XBOX)
 	set(SENTRY_DEFAULT_BACKEND "breakpad")
 elseif((APPLE AND NOT IOS) OR WIN32 OR LINUX)
 	set(SENTRY_DEFAULT_BACKEND "crashpad")
@@ -223,7 +228,7 @@ if(ANDROID)
 	set(SENTRY_WITH_LIBUNWINDSTACK TRUE)
 elseif(MUSL)
 	set(SENTRY_WITH_LIBUNWIND TRUE)
-elseif(NOT WIN32)
+elseif(NOT WIN32 AND NOT PROSPERO)
 	set(SENTRY_WITH_LIBBACKTRACE TRUE)
 endif()
 
@@ -283,7 +288,7 @@ endfunction()
 # ===== sentry library =====
 
 add_library(sentry ${SENTRY_LIBRARY_TYPE} "${PROJECT_SOURCE_DIR}/vendor/mpack.c")
-if ("${CMAKE_GENERATOR_PLATFORM}" STREQUAL "Gaming.Xbox.Scarlett.x64")
+if (XBOX)
 	set_target_properties(sentry PROPERTIES VS_USER_PROPS gdk_build.props)
 endif()
 target_sources(sentry PRIVATE "${PROJECT_SOURCE_DIR}/include/sentry.h")
@@ -378,7 +383,7 @@ if(MSVC)
 
 	# using `/Wall` is not feasible, as it spews tons of warnings from windows headers
 	# supress C5105, introduced in VS 16.8, which breaks on the Windows SDKs own `winbase.h` header
-	if ("${CMAKE_GENERATOR_PLATFORM}" STREQUAL "Gaming.Xbox.Scarlett.x64")
+	if (XBOX)
 		target_compile_options(sentry PRIVATE $<BUILD_INTERFACE:/W4 /wd5105 /wd4115>)
 	else()
 		target_compile_options(sentry PRIVATE $<BUILD_INTERFACE:/W4 /wd5105>)
@@ -483,7 +488,7 @@ if(ANDROID)
 elseif(LINUX)
 	set(_SENTRY_PLATFORM_LIBS "dl" "rt")
 elseif(WIN32)
-	if ("${CMAKE_GENERATOR_PLATFORM}" STREQUAL "Gaming.Xbox.Scarlett.x64")
+	if (XBOX)
 		set(_SENTRY_PLATFORM_LIBS "version")
 	else()
 		set(_SENTRY_PLATFORM_LIBS "dbghelp" "shlwapi" "version")
@@ -495,7 +500,7 @@ if(SENTRY_TRANSPORT_WINHTTP)
 endif()
 
 # handle platform threads library
-if (NOT ("${CMAKE_GENERATOR_PLATFORM}" STREQUAL "Gaming.Xbox.Scarlett.x64"))
+if(NOT XBOX)
 	if(SENTRY_LINK_PTHREAD)
 		list(APPEND _SENTRY_PLATFORM_LIBS "Threads::Threads")
 	endif()
@@ -700,7 +705,7 @@ endif()
 
 if(SENTRY_BUILD_EXAMPLES)
 	add_executable(sentry_example examples/example.c)
-	if ("${CMAKE_GENERATOR_PLATFORM}" STREQUAL "Gaming.Xbox.Scarlett.x64")
+	if(XBOX)
 		set_target_properties(sentry_example PROPERTIES VS_USER_PROPS gdk_build.props)
 	endif()
 	target_link_libraries(sentry_example PRIVATE sentry)
@@ -736,8 +741,6 @@ if(SENTRY_BUILD_EXAMPLES)
 
 	add_custom_command(TARGET sentry_example POST_BUILD
 		COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/view-hierarchy.json" "$<TARGET_FILE_DIR:sentry_example>/view-hierarchy.json")
-
-	add_test(NAME sentry_example COMMAND sentry_example)
 endif()
 
 # Limit the exported symbols when sentry is built as a shared library to those with a "sentry_" prefix:

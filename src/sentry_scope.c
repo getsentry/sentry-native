@@ -1,5 +1,6 @@
 #include "sentry_scope.h"
 #include "sentry_alloc.h"
+#include "sentry_attachment.h"
 #include "sentry_backend.h"
 #include "sentry_core.h"
 #include "sentry_database.h"
@@ -78,6 +79,7 @@ init_scope(sentry_scope_t *scope)
     scope->breadcrumbs = sentry_value_new_list();
     scope->level = SENTRY_LEVEL_ERROR;
     scope->client_sdk = sentry_value_new_null();
+    scope->attachments = NULL;
     scope->transaction_object = NULL;
     scope->span = NULL;
 }
@@ -111,6 +113,7 @@ cleanup_scope(sentry_scope_t *scope)
     sentry_value_decref(scope->dynamic_sampling_context);
     sentry_value_decref(scope->breadcrumbs);
     sentry_value_decref(scope->client_sdk);
+    sentry__attachments_free(scope->attachments);
     sentry__transaction_decref(scope->transaction_object);
     sentry__span_decref(scope->span);
 }
@@ -178,7 +181,7 @@ sentry__scope_free(sentry_scope_t *scope)
     sentry_free(scope);
 }
 
-#if !defined(SENTRY_PLATFORM_NX) && !defined(SENTRY_PLATFORM_PS)
+#if !defined(SENTRY_PLATFORM_NX)
 static void
 sentry__foreach_stacktrace(
     sentry_value_t event, void (*func)(sentry_value_t stacktrace))
@@ -519,7 +522,7 @@ sentry__scope_apply_to_event(const sentry_scope_t *scope,
         sentry_value_decref(scope_breadcrumbs);
     }
 
-#if !defined(SENTRY_PLATFORM_NX) && !defined(SENTRY_PLATFORM_PS)
+#if !defined(SENTRY_PLATFORM_NX)
     if (mode & SENTRY_SCOPE_MODULES) {
         sentry_value_t modules = sentry_get_modules_list();
         if (!sentry_value_is_null(modules)) {
@@ -671,3 +674,72 @@ sentry_scope_set_level(sentry_scope_t *scope, sentry_level_t level)
 {
     scope->level = level;
 }
+
+sentry_attachment_t *
+sentry_scope_attach_file(sentry_scope_t *scope, const char *path)
+{
+    return sentry_scope_attach_file_n(
+        scope, path, sentry__guarded_strlen(path));
+}
+
+sentry_attachment_t *
+sentry_scope_attach_file_n(
+    sentry_scope_t *scope, const char *path, size_t path_len)
+{
+    return sentry__attachments_add_path(&scope->attachments,
+        sentry__path_from_str_n(path, path_len), ATTACHMENT, NULL);
+}
+
+sentry_attachment_t *
+sentry_scope_attach_bytes(sentry_scope_t *scope, const char *buf,
+    size_t buf_len, const char *filename)
+{
+    return sentry_scope_attach_bytes_n(
+        scope, buf, buf_len, filename, sentry__guarded_strlen(filename));
+}
+
+sentry_attachment_t *
+sentry_scope_attach_bytes_n(sentry_scope_t *scope, const char *buf,
+    size_t buf_len, const char *filename, size_t filename_len)
+{
+    return sentry__attachments_add(&scope->attachments,
+        sentry__attachment_from_buffer(
+            buf, buf_len, sentry__path_from_str_n(filename, filename_len)),
+        ATTACHMENT, NULL);
+}
+
+#ifdef SENTRY_PLATFORM_WINDOWS
+sentry_attachment_t *
+sentry_scope_attach_filew(sentry_scope_t *scope, const wchar_t *path)
+{
+    size_t path_len = path ? wcslen(path) : 0;
+    return sentry_scope_attach_filew_n(scope, path, path_len);
+}
+
+sentry_attachment_t *
+sentry_scope_attach_filew_n(
+    sentry_scope_t *scope, const wchar_t *path, size_t path_len)
+{
+    return sentry__attachments_add_path(&scope->attachments,
+        sentry__path_from_wstr_n(path, path_len), ATTACHMENT, NULL);
+}
+
+sentry_attachment_t *
+sentry_scope_attach_bytesw(sentry_scope_t *scope, const char *buf,
+    size_t buf_len, const wchar_t *filename)
+{
+    size_t filename_len = filename ? wcslen(filename) : 0;
+    return sentry_scope_attach_bytesw_n(
+        scope, buf, buf_len, filename, filename_len);
+}
+
+sentry_attachment_t *
+sentry_scope_attach_bytesw_n(sentry_scope_t *scope, const char *buf,
+    size_t buf_len, const wchar_t *filename, size_t filename_len)
+{
+    return sentry__attachments_add(&scope->attachments,
+        sentry__attachment_from_buffer(
+            buf, buf_len, sentry__path_from_wstr_n(filename, filename_len)),
+        ATTACHMENT, NULL);
+}
+#endif

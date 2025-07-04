@@ -487,7 +487,7 @@ test_print_in_color__(int color, const char* fmt, ...)
         printf("\033[0m");
         return n;
     }
-#elif defined ACUTEST_WIN__
+#elif defined ACUTEST_WIN__ && !defined _GAMING_XBOX
     {
         HANDLE h;
         CONSOLE_SCREEN_BUFFER_INFO info;
@@ -915,7 +915,7 @@ test_do_run__(const struct test__* test, int index)
 
 #ifdef __cplusplus
 #ifdef __has_feature
-// Support for `-fno-exceptions` 
+// Support for `-fno-exceptions`
 #if __has_feature(cxx_exceptions)
     #define ACUTEST_HAS_EXCEPTIONS
 #endif
