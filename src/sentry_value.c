@@ -1100,6 +1100,12 @@ value_to_msgpack(mpack_writer_t *writer, sentry_value_t value)
     case SENTRY_VALUE_TYPE_INT32:
         mpack_write_i32(writer, sentry_value_as_int32(value));
         break;
+    case SENTRY_VALUE_TYPE_INT64:
+        mpack_write_i64(writer, sentry_value_as_int64(value));
+        break;
+    case SENTRY_VALUE_TYPE_UINT64:
+        mpack_write_u64(writer, sentry_value_as_uint64(value));
+        break;
     case SENTRY_VALUE_TYPE_DOUBLE:
         mpack_write_double(writer, sentry_value_as_double(value));
         break;
