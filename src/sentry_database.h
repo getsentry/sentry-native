@@ -10,6 +10,7 @@ typedef struct sentry_run_s {
     sentry_uuid_t uuid;
     sentry_path_t *run_path;
     sentry_path_t *session_path;
+    sentry_path_t *feedback_path;
     sentry_filelock_t *lock;
 } sentry_run_t;
 
@@ -40,6 +41,14 @@ void sentry__run_free(sentry_run_t *run);
  */
 bool sentry__run_write_envelope(
     const sentry_run_t *run, const sentry_envelope_t *envelope);
+
+/**
+ * This will copy the specified event's envelope from:
+ * `<database>/<uuid>.run/<event-uuid>.envelope` to:
+ * `<database>/feedback/<event-uuid>.envelope`.
+ */
+sentry_path_t *sentry__run_write_feedback(
+    const sentry_run_t *run, const sentry_uuid_t *event_id);
 
 /**
  * This will serialize and write the given session to disk into a file named:

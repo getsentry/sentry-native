@@ -1,6 +1,7 @@
 #include "sentry_boot.h"
 
 #include "sentry_random.h"
+#include "sentry_string.h"
 #include "sentry_uuid.h"
 #include <stdio.h>
 #include <string.h>
@@ -127,6 +128,22 @@ sentry__span_uuid_as_string(const sentry_uuid_t *uuid, char str[17])
     snprintf(str, 17, "%02hhx%02hhx%02hhx%02hhx%02hhx%02hhx%02hhx%02hhx", B(0),
         B(1), B(2), B(3), B(4), B(5), B(6), B(7));
 #undef B
+}
+
+char *
+sentry__uuid_as_filename(const sentry_uuid_t *uuid, const char *suffix)
+{
+    // 36 for the uuid, suffix, and a null terminator
+    char *buf = sentry_malloc(36 + sentry__guarded_strlen(suffix) + 1);
+    if (!buf) {
+        return NULL;
+    }
+    sentry_uuid_as_string(uuid, buf);
+    buf[36] = '\0';
+    if (suffix) {
+        strcat(buf, suffix);
+    }
+    return buf;
 }
 
 #ifdef SENTRY_PLATFORM_WINDOWS
