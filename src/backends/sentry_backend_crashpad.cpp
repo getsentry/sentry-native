@@ -118,7 +118,7 @@ typedef struct {
     size_t num_breadcrumbs;
     std::atomic<bool> crashed;
     std::atomic<bool> scope_flush;
-    sentry_value_t crash_event_id;
+    sentry_uuid_t crash_event_id;
 } crashpad_state_t;
 
 /**
@@ -310,8 +310,8 @@ sentry__crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
 
     SENTRY_WITH_OPTIONS (options) {
         auto state = static_cast<crashpad_state_t *>(options->backend->data);
-        sentry_value_t crash_event = sentry__value_new_event_with_uuid(
-            sentry__value_clone(state->crash_event_id));
+        sentry_value_t crash_event
+            = sentry__value_new_event_with_uuid(&state->crash_event_id);
         sentry_value_set_by_key(
             crash_event, "level", sentry__value_new_level(SENTRY_LEVEL_FATAL));
 
@@ -450,8 +450,7 @@ crashpad_backend_startup(
     auto *data = static_cast<crashpad_state_t *>(backend->data);
 
     // prepare a predictable event ID for a potential future crash
-    sentry_uuid_t uuid = sentry__new_event_id();
-    data->crash_event_id = sentry__value_new_uuid(&uuid);
+    data->crash_event_id = sentry__new_event_id();
 
     base::FilePath database(options->database_path->path);
     base::FilePath handler(absolute_handler_path->path);
@@ -498,14 +497,16 @@ crashpad_backend_startup(
         sentry_path_t *feedback_dir
             = sentry__path_join_str(options->database_path, "feedback");
         sentry__path_create_dir_all(feedback_dir);
-        sentry_path_t *feedback_base = sentry__path_join_str(
-            feedback_dir, sentry_value_as_string(data->crash_event_id));
+
+        // 37 for the uuid, 9 for the `.envelope` suffix
+        char envelope_filename[37 + 9];
+        sentry_uuid_as_string(&data->crash_event_id, envelope_filename);
+        strcpy(&envelope_filename[36], ".envelope");
 
         data->feedback_path
-            = sentry__path_append_str(feedback_base, ".envelope");
+            = sentry__path_join_str(feedback_dir, envelope_filename);
         feedback_path = base::FilePath(data->feedback_path->path);
 
-        sentry__path_free(feedback_base);
         sentry__path_free(feedback_dir);
     }
 
@@ -650,7 +651,6 @@ crashpad_backend_free(sentry_backend_t *backend)
     sentry__path_free(data->breadcrumb1_path);
     sentry__path_free(data->breadcrumb2_path);
     sentry__path_free(data->feedback_path);
-    sentry_value_decref(data->crash_event_id);
     sentry_free(data);
 }
 
