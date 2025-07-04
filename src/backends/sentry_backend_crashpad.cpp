@@ -19,6 +19,7 @@ extern "C" {
 #    include "sentry_unix_pageallocator.h"
 #endif
 #include "sentry_utils.h"
+#include "sentry_uuid.h"
 #include "transports/sentry_disk_transport.h"
 }
 
@@ -491,23 +492,16 @@ crashpad_backend_startup(
 
     base::FilePath feedback_handler;
     base::FilePath feedback_path;
-    if (options->feedback_handler_path) {
-        feedback_handler = base::FilePath(options->feedback_handler_path->path);
-
-        sentry_path_t *feedback_dir
-            = sentry__path_join_str(options->database_path, "feedback");
-        sentry__path_create_dir_all(feedback_dir);
-
-        // 37 for the uuid, 9 for the `.envelope` suffix
-        char envelope_filename[37 + 9];
-        sentry_uuid_as_string(&data->crash_event_id, envelope_filename);
-        strcpy(&envelope_filename[36], ".envelope");
-
+    if (options->feedback_handler_path
+        && sentry__path_create_dir_all(options->feedback_path) == 0) {
+        char *filename
+            = sentry__uuid_as_filename(&data->crash_event_id, ".envelope");
         data->feedback_path
-            = sentry__path_join_str(feedback_dir, envelope_filename);
-        feedback_path = base::FilePath(data->feedback_path->path);
+            = sentry__path_join_str(options->feedback_path, filename);
+        sentry_free(filename);
 
-        sentry__path_free(feedback_dir);
+        feedback_handler = base::FilePath(options->feedback_handler_path->path);
+        feedback_path = base::FilePath(data->feedback_path->path);
     }
 
     std::vector<std::string> arguments { "--no-rate-limit" };

@@ -4,6 +4,7 @@
 #include "sentry_json.h"
 #include "sentry_options.h"
 #include "sentry_session.h"
+#include "sentry_uuid.h"
 #include <errno.h>
 #include <string.h>
 
@@ -89,14 +90,12 @@ bool
 sentry__run_write_envelope(
     const sentry_run_t *run, const sentry_envelope_t *envelope)
 {
-    // 37 for the uuid, 9 for the `.envelope` suffix
-    char envelope_filename[37 + 9];
     sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
-    sentry_uuid_as_string(&event_id, envelope_filename);
-    strcpy(&envelope_filename[36], ".envelope");
+    char *envelope_filename = sentry__uuid_as_filename(&event_id, ".envelope");
 
     sentry_path_t *output_path
         = sentry__path_join_str(run->run_path, envelope_filename);
+    sentry_free(envelope_filename);
     if (!output_path) {
         return false;
     }
