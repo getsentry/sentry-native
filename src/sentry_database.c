@@ -200,12 +200,28 @@ sentry__process_old_runs(const sentry_options_t *options, uint64_t last_crash)
     sentry_envelope_t *session_envelope = NULL;
     size_t session_num = 0;
 
-    // TODO: prune old expired(?) feedback
     while ((run_dir = sentry__pathiter_next(db_iter)) != NULL) {
         // skip over other files such as the saved consent or the last_crash
         // timestamp
-        if (!sentry__path_is_dir(run_dir)
-            || !sentry__path_ends_with(run_dir, ".run")) {
+        if (!sentry__path_is_dir(run_dir)) {
+            continue;
+        }
+
+        // prune 2+ hours old feedback files
+        if (sentry__path_filename_matches(run_dir, "feedback")) {
+            time_t now = time(NULL);
+            sentry_pathiter_t *it = sentry__path_iter_directory(run_dir);
+            const sentry_path_t *file;
+            while (it && (file = sentry__pathiter_next(it)) != NULL) {
+                time_t age = now - sentry__path_get_mtime(file);
+                if (age / 3600 >= 2) {
+                    sentry__path_remove(file);
+                }
+            }
+            continue;
+        }
+
+        if (!sentry__path_ends_with(run_dir, ".run")) {
             continue;
         }
 
