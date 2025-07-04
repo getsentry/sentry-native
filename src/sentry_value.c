@@ -82,8 +82,8 @@ typedef struct {
     union {
         void *_ptr;
         double _double;
-        int64_t _int64;
-        uint64_t _uint64;
+        int64_t _int64_data; // to avoid shadowing __int64 (C2628 error)
+        uint64_t _uint64_data;
     } payload;
     long refcount;
     uint8_t type;
@@ -337,7 +337,7 @@ sentry_value_new_int64(int64_t value)
     if (!thing) {
         return sentry_value_new_null();
     }
-    thing->payload._int64 = value;
+    thing->payload._int64_data = value;
     thing->refcount = 1;
     thing->type = (uint8_t)(THING_TYPE_INT64 | THING_TYPE_FROZEN);
 
@@ -353,7 +353,7 @@ sentry_value_new_uint64(uint64_t value)
     if (!thing) {
         return sentry_value_new_null();
     }
-    thing->payload._uint64 = value;
+    thing->payload._uint64_data = value;
     thing->refcount = 1;
     thing->type = (uint8_t)(THING_TYPE_UINT64 | THING_TYPE_FROZEN);
 
@@ -966,10 +966,10 @@ sentry_value_as_int64(sentry_value_t value)
 
     const thing_t *thing = value_as_thing(value);
     if (thing && thing_get_type(thing) == THING_TYPE_INT64) {
-        return thing->payload._int64;
+        return thing->payload._int64_data;
     }
     if (thing && thing_get_type(thing) == THING_TYPE_UINT64) {
-        return (int64_t)thing->payload._uint64;
+        return (int64_t)thing->payload._uint64_data;
     }
     if (thing && thing_get_type(thing) == THING_TYPE_DOUBLE) {
         return (int64_t)thing->payload._double;
@@ -987,10 +987,12 @@ sentry_value_as_uint64(sentry_value_t value)
 
     const thing_t *thing = value_as_thing(value);
     if (thing && thing_get_type(thing) == THING_TYPE_UINT64) {
-        return thing->payload._uint64;
+        return thing->payload._uint64_data;
     }
     if (thing && thing_get_type(thing) == THING_TYPE_INT64) {
-        return thing->payload._int64 >= 0 ? (uint64_t)thing->payload._int64 : 0;
+        return thing->payload._int64_data >= 0
+            ? (uint64_t)thing->payload._int64_data
+            : 0;
     }
     if (thing && thing_get_type(thing) == THING_TYPE_DOUBLE) {
         // TODO no check for double out of uint64 range
