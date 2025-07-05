@@ -346,7 +346,6 @@ sentry__crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
                 SENTRY_SESSION_STATUS_CRASHED);
             if (session) {
                 sentry_envelope_t *envelope = sentry__envelope_new();
-                sentry__envelope_add_event(envelope, crash_event);
                 sentry__envelope_add_session(envelope, session);
 
                 // capture the envelope with the disk transport
