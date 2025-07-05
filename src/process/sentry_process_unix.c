@@ -82,7 +82,7 @@ argv_free(char **argv)
  * Spawns a new fully detached subprocess by double-forking.
  */
 bool
-spawn_process(const char *executable, char **argv)
+spawn_process(char **argv)
 {
     pid_t pid1 = fork();
     if (pid1 == -1) {
@@ -118,11 +118,10 @@ spawn_process(const char *executable, char **argv)
                 }
             }
 
-            // TODO: .app on macOS: `open -a <exe> --args <argv>`
-            if (strstr(executable, "/") != NULL) {
-                execv(executable, argv);
+            if (strstr(argv[0], "/") != NULL) {
+                execv(argv[0], argv);
             } else {
-                execvp(executable, argv);
+                execvp(argv[0], argv);
             }
 
             SENTRY_ERRORF("execv failed: %s", strerror(errno));
@@ -153,8 +152,17 @@ sentry__process_spawn(const sentry_path_t *executable, const char *arg0, ...)
         return false;
     }
 
+#ifdef SENTRY_PLATFORM_MACOS
+    // open -a <executable>
+    int argc = 3;
+#else
     int argc = 1;
+#endif
+
     if (arg0) {
+#ifdef SENTRY_PLATFORM_MACOS
+        argc++; // --args
+#endif
         argc++;
         va_list args;
         va_start(args, arg0);
@@ -166,11 +174,26 @@ sentry__process_spawn(const sentry_path_t *executable, const char *arg0, ...)
 
     int i = 0;
     char **argv = argv_new(argc);
+
+#ifdef SENTRY_PLATFORM_MACOS
+    if (!argv_set(argv, i++, "open") || !argv_set(argv, i++, "-a")) {
+        argv_free(argv);
+        return false;
+    }
+#endif
+
     if (!argv_set(argv, i++, executable->path)) {
         argv_free(argv);
         return false;
     }
+
     if (arg0) {
+#ifdef SENTRY_PLATFORM_MACOS
+        if (!argv_set(argv, i++, "--args")) {
+            argv_free(argv);
+            return false;
+        }
+#endif
         if (!argv_set(argv, i++, arg0)) {
             argv_free(argv);
             return false;
@@ -192,7 +215,7 @@ sentry__process_spawn(const sentry_path_t *executable, const char *arg0, ...)
     SENTRY_DEBUGF("spawning %s", cli);
     sentry_free(cli);
 
-    bool rv = spawn_process(executable->path, argv);
+    bool rv = spawn_process(argv);
     argv_free(argv);
     return rv;
 }
