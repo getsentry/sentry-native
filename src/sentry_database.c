@@ -216,14 +216,14 @@ sentry__process_old_runs(const sentry_options_t *options, uint64_t last_crash)
             continue;
         }
 
-        // prune 2+ hours old feedback files
+        // prune 1h old feedback files
         if (sentry__path_filename_matches(run_dir, "feedback")) {
             time_t now = time(NULL);
             sentry_pathiter_t *it = sentry__path_iter_directory(run_dir);
             const sentry_path_t *file;
             while (it && (file = sentry__pathiter_next(it)) != NULL) {
                 time_t age = now - sentry__path_get_mtime(file);
-                if (age / 3600 >= 2) {
+                if (age / 3600 > 0) {
                     sentry__path_remove(file);
                 }
             }
