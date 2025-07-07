@@ -1290,16 +1290,18 @@ SENTRY_API void sentry_options_set_handler_path_n(
  *
  * The feedback handler is a separate process that gets spawned when a crash
  * occurs to collect additional user feedback or perform custom actions.
- * The handler receives the path to the crash event envelope as its first argument.
+ * The handler receives the path to the crash event envelope as its first
+ * argument.
  *
  * `path` is assumed to be in platform-specific filesystem path encoding.
- * API Users on windows are encouraged to use `sentry_options_set_feedback_handler_pathw`
- * instead.
+ * API Users on windows are encouraged to use
+ * `sentry_options_set_feedback_handler_pathw` instead.
  */
 SENTRY_API void sentry_options_set_feedback_handler_path(
     sentry_options_t *opts, const char *path);
 SENTRY_API void sentry_options_set_feedback_handler_path_n(
     sentry_options_t *opts, const char *path, size_t path_len);
+
 /**
  * Sets the path to the Sentry Database Directory.
  *
