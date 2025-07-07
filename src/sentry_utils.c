@@ -259,7 +259,7 @@ sentry__dsn_new_n(const char *raw_dsn, size_t raw_dsn_len)
     if (org_id_dot && url.host[0] == 'o') {
         size_t length = (size_t)(org_id_dot - url.host - 1); // leave the o
         strncpy(org_id, url.host + 1, MIN(length, 20));
-        org_id[length] = '\0'; // Null-terminate the string
+        org_id[MIN(length, 20)] = '\0'; // Null-terminate the string
         char *org_id_end_ptr;
         const unsigned long long int org_id_int
             = strtoull(org_id, &org_id_end_ptr, 10);
