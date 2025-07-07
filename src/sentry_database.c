@@ -136,11 +136,20 @@ sentry__run_write_feedback(
 
     char *filename = sentry__uuid_as_filename(event_id, ".envelope");
     sentry_path_t *source_path = sentry__path_join_str(run->run_path, filename);
-    sentry_path_t *target_path
-        = sentry__path_join_str(run->feedback_path, filename);
 
     size_t buf_len = 0;
     char *buf = sentry__path_read_to_buffer(source_path, &buf_len);
+    if (!buf || buf_len == 0) {
+        SENTRY_ERRORF("failed to read envelope: \"%" SENTRY_PATH_PRI "\"",
+            source_path->path);
+        sentry_free(filename);
+        sentry__path_free(source_path);
+        sentry_free(buf);
+        return NULL;
+    }
+
+    sentry_path_t *target_path
+        = sentry__path_join_str(run->feedback_path, filename);
     int rv = sentry__path_write_buffer(target_path, buf, buf_len);
 
     sentry_free(filename);
