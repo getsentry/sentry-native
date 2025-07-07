@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1751876608461,
+  "lastUpdate": 1751876642486,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -5810,6 +5810,66 @@ window.BENCHMARK_DATA = {
             "value": 5.948459000023831,
             "unit": "ms",
             "extra": "Min 5.546ms\nMax 7.963ms\nMean 6.248ms\nStdDev 0.975ms\nMedian 5.948ms\nCPU 0.902ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "rom4ek93@gmail.com",
+            "name": "Roman Zavarnitsyn",
+            "username": "romtsn"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "98b1bd883824ad6a63c2e6dcc2f07be407c73215",
+          "message": "ci(publishing): Use shim ossrh-staging-api server to publish to the new central repo  (#1299)\n\n* Update settings.xml\n\n* Update .craft.yml",
+          "timestamp": "2025-07-07T10:21:01+02:00",
+          "tree_id": "f6021f5cba3e334cd66083b22d42914810c758ac",
+          "url": "https://github.com/getsentry/sentry-native/commit/98b1bd883824ad6a63c2e6dcc2f07be407c73215"
+        },
+        "date": 1751876640544,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 4.506124999977601,
+            "unit": "ms",
+            "extra": "Min 3.781ms\nMax 9.004ms\nMean 5.318ms\nStdDev 2.094ms\nMedian 4.506ms\nCPU 2.696ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 3.864249999992353,
+            "unit": "ms",
+            "extra": "Min 3.231ms\nMax 13.772ms\nMean 5.707ms\nStdDev 4.518ms\nMedian 3.864ms\nCPU 2.751ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 12.853624999991098,
+            "unit": "ms",
+            "extra": "Min 11.529ms\nMax 29.157ms\nMean 16.148ms\nStdDev 7.388ms\nMedian 12.854ms\nCPU 5.034ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.031041999989156466,
+            "unit": "ms",
+            "extra": "Min 0.010ms\nMax 0.046ms\nMean 0.027ms\nStdDev 0.017ms\nMedian 0.031ms\nCPU 0.027ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.27716599998939273,
+            "unit": "ms",
+            "extra": "Min 0.237ms\nMax 0.346ms\nMean 0.280ms\nStdDev 0.041ms\nMedian 0.277ms\nCPU 0.279ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 6.318041999975321,
+            "unit": "ms",
+            "extra": "Min 6.007ms\nMax 6.575ms\nMean 6.285ms\nStdDev 0.208ms\nMedian 6.318ms\nCPU 0.951ms"
           }
         ]
       }
