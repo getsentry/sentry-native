@@ -9,7 +9,7 @@
 bool
 sentry__process_spawn(const sentry_path_t *executable, const wchar_t *arg0, ...)
 {
-    if (!executable) {
+    if (!executable || wcssmp(executable->path, L"") == 0) {
         return false;
     }
 
