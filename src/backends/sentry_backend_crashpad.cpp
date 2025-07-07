@@ -216,6 +216,9 @@ flush_scope_to_feedback(const sentry_path_t *event_path,
     const sentry_options_t *options, sentry_value_t crash_event)
 {
     sentry_envelope_t *envelope = sentry__envelope_new();
+    if (!envelope) {
+        return;
+    }
     sentry__envelope_add_event(envelope, crash_event);
     if (options->session) {
         sentry__envelope_add_session(envelope, options->session);
