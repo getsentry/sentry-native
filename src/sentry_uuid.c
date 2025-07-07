@@ -134,14 +134,16 @@ char *
 sentry__uuid_as_filename(const sentry_uuid_t *uuid, const char *suffix)
 {
     // 36 for the uuid, suffix, and a null terminator
-    char *buf = sentry_malloc(36 + sentry__guarded_strlen(suffix) + 1);
+    size_t suffix_len = sentry__guarded_strlen(suffix);
+    char *buf = sentry_malloc(36 + suffix_len + 1);
     if (!buf) {
         return NULL;
     }
     sentry_uuid_as_string(uuid, buf);
     buf[36] = '\0';
-    if (suffix) {
-        strcat(buf, suffix);
+    if (suffix_len > 0) {
+        memcpy(buf + 36, suffix, suffix_len);
+        buf[36 + suffix_len] = '\0';
     }
     return buf;
 }
