@@ -260,6 +260,14 @@ sentry__dsn_new_n(const char *raw_dsn, size_t raw_dsn_len)
         size_t length = (size_t)(org_id_dot - url.host - 1); // leave the o
         strncpy(org_id, url.host + 1, MIN(length, 20));
         org_id[length] = '\0'; // Null-terminate the string
+        char *org_id_end_ptr;
+        const unsigned long long int org_id_int
+            = strtoull(org_id, &org_id_end_ptr, 10);
+        // check if valid uint64 AND not actually the number 0
+        if (length > 20
+            || (org_id_int == 0ULL && org_id_end_ptr != org_id + length)) {
+            memset(org_id, '\0', 20);
+        }
     }
     dsn->org_id = sentry__string_clone(org_id);
     url.host = NULL;

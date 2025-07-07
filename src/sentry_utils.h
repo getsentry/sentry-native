@@ -64,6 +64,8 @@ void sentry__url_cleanup(sentry_url_t *url);
 typedef struct sentry_dsn_s {
     char *raw;
     char *host;
+    // TODO after u64 value type, change to uint64_t
+    //      -> how to handle empty org_id then?
     char *org_id;
     char *path;
     char *secret_key;
