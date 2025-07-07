@@ -152,16 +152,19 @@ sentry__process_spawn(const sentry_path_t *executable, const char *arg0, ...)
         return false;
     }
 
-#ifdef SENTRY_PLATFORM_MACOS
-    // open -a <executable>
-    int argc = 3;
-#else
     int argc = 1;
+#ifdef SENTRY_PLATFORM_MACOS
+    bool is_bundle = sentry__path_ends_with(executable, ".app");
+    if (is_bundle) {
+        argc += 2; // /usr/bin/open -a <bundle>
+    }
 #endif
 
     if (arg0) {
 #ifdef SENTRY_PLATFORM_MACOS
-        argc++; // --args
+        if (is_bundle) {
+            argc++; // --args
+        }
 #endif
         argc++;
         va_list args;
@@ -176,7 +179,9 @@ sentry__process_spawn(const sentry_path_t *executable, const char *arg0, ...)
     char **argv = argv_new(argc);
 
 #ifdef SENTRY_PLATFORM_MACOS
-    if (!argv_set(argv, i++, "open") || !argv_set(argv, i++, "-a")) {
+    if (is_bundle
+        && (!argv_set(argv, i++, "/usr/bin/open")
+            || !argv_set(argv, i++, "-a"))) {
         argv_free(argv);
         return false;
     }
@@ -189,7 +194,7 @@ sentry__process_spawn(const sentry_path_t *executable, const char *arg0, ...)
 
     if (arg0) {
 #ifdef SENTRY_PLATFORM_MACOS
-        if (!argv_set(argv, i++, "--args")) {
+        if (is_bundle && !argv_set(argv, i++, "--args")) {
             argv_free(argv);
             return false;
         }
