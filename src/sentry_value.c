@@ -1347,21 +1347,18 @@ sentry_value_new_stacktrace(void **ips, size_t len)
 }
 
 sentry_value_t
-sentry_value_new_feedback(const char *message, const char *contact_email,
-    const char *name, const char *url, const sentry_uuid_t *associated_event_id,
-    const sentry_uuid_t *replay_id)
+sentry_value_new_user_feedback(const sentry_uuid_t *uuid, const char *name,
+    const char *email, const char *message)
 {
-    return sentry_value_new_feedback_n(message, sentry__guarded_strlen(message),
-        contact_email, sentry__guarded_strlen(contact_email), name,
-        sentry__guarded_strlen(name), url, sentry__guarded_strlen(url),
-        associated_event_id, replay_id);
+    return sentry_value_new_user_feedback_n(uuid, name,
+        sentry__guarded_strlen(name), email, sentry__guarded_strlen(email),
+        message, sentry__guarded_strlen(message));
 }
 
 sentry_value_t
-sentry_value_new_feedback_n(const char *message, size_t message_len,
-    const char *contact_email, size_t contact_email_len, const char *name,
-    size_t name_len, const char *url, size_t url_len,
-    const sentry_uuid_t *associated_event_id, const sentry_uuid_t *replay_id)
+sentry_value_new_user_feedback_n(const sentry_uuid_t *uuid, const char *name,
+    size_t name_len, const char *email, size_t email_len, const char *message,
+    size_t message_len)
 {
     sentry_value_t rv = sentry_value_new_object();
 
@@ -1369,59 +1366,17 @@ sentry_value_new_feedback_n(const char *message, size_t message_len,
         sentry_value_set_by_key(
             rv, "message", sentry_value_new_string_n(message, message_len));
     }
-    if (contact_email) {
-        sentry_value_set_by_key(rv, "contact_email",
-            sentry_value_new_string_n(contact_email, contact_email_len));
-    }
-    if (name) {
-        sentry_value_set_by_key(
-            rv, "name", sentry_value_new_string_n(name, name_len));
-    }
-    if (url) {
-        sentry_value_set_by_key(
-            rv, "url", sentry_value_new_string_n(url, url_len));
-    }
-    if (associated_event_id) {
-        sentry_value_set_by_key(rv, "associated_event_id",
-            sentry__value_new_uuid(associated_event_id));
-    }
-    if (replay_id) {
-        sentry_value_set_by_key(
-            rv, "replay_id", sentry__value_new_uuid(replay_id));
-    }
-
-    return rv;
-}
-
-sentry_value_t
-sentry_value_new_user_feedback(const sentry_uuid_t *uuid, const char *name,
-    const char *email, const char *comments)
-{
-    return sentry_value_new_user_feedback_n(uuid, name,
-        sentry__guarded_strlen(name), email, sentry__guarded_strlen(email),
-        comments, sentry__guarded_strlen(comments));
-}
-
-sentry_value_t
-sentry_value_new_user_feedback_n(const sentry_uuid_t *uuid, const char *name,
-    size_t name_len, const char *email, size_t email_len, const char *comments,
-    size_t comments_len)
-{
-    sentry_value_t rv = sentry_value_new_object();
-
-    sentry_value_set_by_key(rv, "event_id", sentry__value_new_uuid(uuid));
-
-    if (name) {
-        sentry_value_set_by_key(
-            rv, "name", sentry_value_new_string_n(name, name_len));
-    }
     if (email) {
         sentry_value_set_by_key(
-            rv, "email", sentry_value_new_string_n(email, email_len));
+            rv, "contact_email", sentry_value_new_string_n(email, email_len));
     }
-    if (comments) {
+    if (name) {
         sentry_value_set_by_key(
-            rv, "comments", sentry_value_new_string_n(comments, comments_len));
+            rv, "name", sentry_value_new_string_n(name, name_len));
+    }
+    if (uuid) {
+        sentry_value_set_by_key(
+            rv, "associated_event_id", sentry__value_new_uuid(uuid));
     }
 
     return rv;

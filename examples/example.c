@@ -556,10 +556,10 @@ main(int argc, char **argv)
         sentry_capture_event(event);
     }
     if (has_arg(argc, argv, "capture-user-feedback")) {
-        sentry_value_t user_feedback = sentry_value_new_feedback(
-            "some-message", "some-email", "some-name", NULL, NULL, NULL);
+        sentry_value_t user_feedback = sentry_value_new_user_feedback(
+            NULL, "some-name", "some-email", "some-message");
 
-        sentry_capture_feedback(user_feedback);
+        sentry_capture_user_feedback(user_feedback);
     }
 
     if (has_arg(argc, argv, "capture-transaction")) {

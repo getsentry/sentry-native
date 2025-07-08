@@ -659,40 +659,22 @@ fail:
 }
 
 static sentry_envelope_t *
-prepare_feedback(sentry_value_t feedback)
+prepare_user_feedback(sentry_value_t user_feedback)
 {
     sentry_envelope_t *envelope = NULL;
 
     envelope = sentry__envelope_new();
-    if (!envelope || !sentry__envelope_add_feedback(envelope, feedback)) {
+    if (!envelope
+        || !sentry__envelope_add_user_feedback(envelope, user_feedback)) {
         goto fail;
     }
 
     return envelope;
 
 fail:
-    SENTRY_WARN("dropping feedback");
+    SENTRY_WARN("dropping user feedback");
     sentry_envelope_free(envelope);
-    sentry_value_decref(feedback);
-    return NULL;
-}
-
-static sentry_envelope_t *
-prepare_user_report(sentry_value_t user_report)
-{
-    sentry_envelope_t *envelope = NULL;
-
-    envelope = sentry__envelope_new();
-    if (!envelope || !sentry__envelope_add_user_report(envelope, user_report)) {
-        goto fail;
-    }
-
-    return envelope;
-
-fail:
-    SENTRY_WARN("dropping user report");
-    sentry_envelope_free(envelope);
-    sentry_value_decref(user_report);
+    sentry_value_decref(user_feedback);
     return NULL;
 }
 
@@ -1353,31 +1335,17 @@ fail:
 }
 
 void
-sentry_capture_feedback(sentry_value_t feedback)
+sentry_capture_user_feedback(sentry_value_t user_feedback)
 {
     sentry_envelope_t *envelope = NULL;
 
     SENTRY_WITH_OPTIONS (options) {
-        envelope = prepare_feedback(feedback);
+        envelope = prepare_user_feedback(user_feedback);
         if (envelope) {
             sentry__capture_envelope(options->transport, envelope);
         }
     }
-    sentry_value_decref(feedback);
-}
-
-void
-sentry_capture_user_feedback(sentry_value_t user_report)
-{
-    sentry_envelope_t *envelope = NULL;
-
-    SENTRY_WITH_OPTIONS (options) {
-        envelope = prepare_user_report(user_report);
-        if (envelope) {
-            sentry__capture_envelope(options->transport, envelope);
-        }
-    }
-    sentry_value_decref(user_report);
+    sentry_value_decref(user_feedback);
 }
 
 int

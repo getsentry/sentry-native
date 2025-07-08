@@ -1,4 +1,3 @@
-#include "sentry.h"
 #include "sentry_envelope.h"
 #include "sentry_json.h"
 #include "sentry_path.h"
@@ -80,16 +79,16 @@ SENTRY_TEST(basic_http_request_preparation_for_transaction)
     sentry__dsn_decref(dsn);
 }
 
-SENTRY_TEST(basic_http_request_preparation_for_feedback)
+SENTRY_TEST(basic_http_request_preparation_for_user_feedback)
 {
     SENTRY_TEST_DSN_NEW_DEFAULT(dsn);
 
     sentry_uuid_t event_id
         = sentry_uuid_from_string("c993afb6-b4ac-48a6-b61b-2558e601d65d");
     sentry_envelope_t *envelope = sentry__envelope_new();
-    sentry_value_t feedback = sentry_value_new_feedback(
-        "some-message", "some-email", "some-name", NULL, &event_id, NULL);
-    sentry__envelope_add_feedback(envelope, feedback);
+    sentry_value_t user_feedback = sentry_value_new_user_feedback(
+        &event_id, "some-name", "some-email", "some-message");
+    sentry__envelope_add_user_feedback(envelope, user_feedback);
 
     sentry_prepared_http_request_t *req
         = sentry__prepare_http_request(envelope, dsn, NULL, NULL);
@@ -144,38 +143,7 @@ SENTRY_TEST(basic_http_request_preparation_for_feedback)
     sentry_value_decref(line3_json);
 #endif
     sentry__prepared_http_request_free(req);
-    sentry_value_decref(feedback);
-    sentry_envelope_free(envelope);
-
-    sentry__dsn_decref(dsn);
-}
-
-SENTRY_TEST(basic_http_request_preparation_for_user_report)
-{
-    SENTRY_TEST_DSN_NEW_DEFAULT(dsn);
-
-    sentry_uuid_t event_id
-        = sentry_uuid_from_string("c993afb6-b4ac-48a6-b61b-2558e601d65d");
-    sentry_envelope_t *envelope = sentry__envelope_new();
-    sentry_value_t user_report = sentry_value_new_user_feedback(
-        &event_id, "some-name", "some-email", "some-comment");
-    sentry__envelope_add_user_report(envelope, user_report);
-
-    sentry_prepared_http_request_t *req
-        = sentry__prepare_http_request(envelope, dsn, NULL, NULL);
-    TEST_CHECK_STRING_EQUAL(req->method, "POST");
-    TEST_CHECK_STRING_EQUAL(
-        req->url, "https://sentry.invalid:443/api/42/envelope/");
-#ifndef SENTRY_TRANSPORT_COMPRESSION
-    TEST_CHECK_STRING_EQUAL(req->body,
-        "{\"event_id\":\"c993afb6-b4ac-48a6-b61b-2558e601d65d\"}\n"
-        "{\"type\":\"user_report\",\"length\":117}\n"
-        "{\"event_id\":\"c993afb6-b4ac-48a6-b61b-2558e601d65d\",\"name\":"
-        "\"some-name\",\"email\":\"some-email\",\"comments\":"
-        "\"some-comment\"}");
-#endif
-    sentry__prepared_http_request_free(req);
-    sentry_value_decref(user_report);
+    sentry_value_decref(user_feedback);
     sentry_envelope_free(envelope);
 
     sentry__dsn_decref(dsn);
