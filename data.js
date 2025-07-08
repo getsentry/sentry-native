@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1751991206132,
+  "lastUpdate": 1751991251588,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -5930,6 +5930,66 @@ window.BENCHMARK_DATA = {
             "value": 6.318041999975321,
             "unit": "ms",
             "extra": "Min 6.007ms\nMax 6.575ms\nMean 6.285ms\nStdDev 0.208ms\nMedian 6.318ms\nCPU 0.951ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "6349682+vaind@users.noreply.github.com",
+            "name": "Ivan Dlugos",
+            "username": "vaind"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "092202901f9b6fc16e94b7ce4ba2ac2b0afaee41",
+          "message": "chore: update xbox toolchain and disable FS-dependent tests (#1302)\n\n* disable tests that require FS access\n\n* disable modulefinder test\n\n* chore: update xbox toolchains\n\n* fixup\n\n* try to reenable modulefinder\n\n* chore: changelog",
+          "timestamp": "2025-07-08T18:10:43+02:00",
+          "tree_id": "d5a97fdb483155e76f97d6a071eb0df625af382b",
+          "url": "https://github.com/getsentry/sentry-native/commit/092202901f9b6fc16e94b7ce4ba2ac2b0afaee41"
+        },
+        "date": 1751991249978,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 6.6204170000219165,
+            "unit": "ms",
+            "extra": "Min 4.088ms\nMax 6.912ms\nMean 5.976ms\nStdDev 1.195ms\nMedian 6.620ms\nCPU 3.818ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 4.919125000014901,
+            "unit": "ms",
+            "extra": "Min 4.573ms\nMax 6.358ms\nMean 5.313ms\nStdDev 0.760ms\nMedian 4.919ms\nCPU 3.091ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 11.550166999995781,
+            "unit": "ms",
+            "extra": "Min 10.829ms\nMax 15.676ms\nMean 12.302ms\nStdDev 1.928ms\nMedian 11.550ms\nCPU 4.412ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.038874999972904334,
+            "unit": "ms",
+            "extra": "Min 0.016ms\nMax 0.199ms\nMean 0.066ms\nStdDev 0.075ms\nMedian 0.039ms\nCPU 0.066ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.24987499995177131,
+            "unit": "ms",
+            "extra": "Min 0.234ms\nMax 0.295ms\nMean 0.256ms\nStdDev 0.024ms\nMedian 0.250ms\nCPU 0.256ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 7.20429199998307,
+            "unit": "ms",
+            "extra": "Min 6.571ms\nMax 8.089ms\nMean 7.212ms\nStdDev 0.566ms\nMedian 7.204ms\nCPU 1.099ms"
           }
         ]
       }
