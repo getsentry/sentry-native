@@ -290,8 +290,8 @@ SENTRY_TEST(transport_sampling_transactions_set_trace)
 
     uint64_t sent_transactions = 0;
     for (int i = 0; i < 100; i++) {
-        // empty set_trace just to re-roll `sample_rand`
-        sentry_set_trace("", "");
+        // regenerate trace to re-roll `sample_rand`
+        sentry_regenerate_trace();
         sentry_transaction_context_t *tx_ctx
             = sentry_transaction_context_new("honk", "beep");
         sentry_transaction_t *tx
