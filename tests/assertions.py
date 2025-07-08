@@ -42,13 +42,13 @@ def assert_session(envelope, extra_assertion=None):
 def assert_user_feedback(envelope):
     user_feedback = None
     for item in envelope:
-        if item.headers.get("type") == "user_report" and item.payload.json is not None:
-            user_feedback = item.payload.json
+        if item.headers.get("type") == "feedback" and item.payload.json is not None:
+            user_feedback = item.payload.json["contexts"]["feedback"]
 
     assert user_feedback is not None
     assert user_feedback["name"] == "some-name"
-    assert user_feedback["email"] == "some-email"
-    assert user_feedback["comments"] == "some-comment"
+    assert user_feedback["contact_email"] == "some-email"
+    assert user_feedback["message"] == "some-message"
 
 
 def assert_meta(

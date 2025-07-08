@@ -2419,11 +2419,13 @@ SENTRY_EXPERIMENTAL_API void sentry_transaction_set_name_n(
     sentry_transaction_t *transaction, const char *name, size_t name_len);
 
 /**
- * Creates a new User Feedback with a specific name, email and comments.
+ * Creates a deprecated User Report with a specific name, email and comments.
+ * Deprecated: Please use `sentry_value_new_feedback` instead.
  *
- * See https://develop.sentry.dev/sdk/envelopes/#user-feedback
+ * See
+ * https://develop.sentry.dev/sdk/data-model/envelope-items/#user-report---deprecated
  *
- * User Feedback has to be associated with a specific event that has been
+ * User Report has to be associated with a specific event that has been
  * sent to Sentry earlier.
  */
 SENTRY_API sentry_value_t sentry_value_new_user_feedback(
@@ -2435,9 +2437,30 @@ SENTRY_API sentry_value_t sentry_value_new_user_feedback_n(
     size_t comments_len);
 
 /**
+ * Captures a deprecated User Report and sends it to Sentry.
+ * Deprecated: Please use `sentry_capture_feedback` instead.
+ */
+SENTRY_API void sentry_capture_user_feedback(sentry_value_t user_report);
+
+/**
+ * Creates a new User Feedback with a message (required), and a number of
+ * optional attributes: contact email, name, url, associated event ID, and
+ * replay ID.
+ *
+ * See https://develop.sentry.dev/sdk/data-model/envelope-items/#user-feedback
+ */
+SENTRY_API sentry_value_t sentry_value_new_feedback(const char *message,
+    const char *contact_email, const char *name, const char *url,
+    const sentry_uuid_t *associated_event_id, const sentry_uuid_t *replay_id);
+SENTRY_API sentry_value_t sentry_value_new_feedback_n(const char *message,
+    size_t message_len, const char *contact_email, size_t contact_email_len,
+    const char *name, size_t name_len, const char *url, size_t url_len,
+    const sentry_uuid_t *associated_event_id, const sentry_uuid_t *replay_id);
+
+/**
  * Captures a manually created User Feedback and sends it to Sentry.
  */
-SENTRY_API void sentry_capture_user_feedback(sentry_value_t user_feedback);
+SENTRY_API void sentry_capture_feedback(sentry_value_t feedback);
 
 /**
  * The status of a Span or Transaction.

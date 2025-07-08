@@ -297,8 +297,32 @@ sentry__envelope_add_transaction(
 }
 
 sentry_envelope_item_t *
-sentry__envelope_add_user_feedback(
-    sentry_envelope_t *envelope, sentry_value_t user_feedback)
+sentry__envelope_add_feedback(
+    sentry_envelope_t *envelope, sentry_value_t feedback)
+{
+    sentry_value_t event = sentry_value_new_event();
+    sentry_value_t contexts = sentry_value_get_by_key(event, "contexts");
+    if (sentry_value_is_null(contexts)) {
+        contexts = sentry_value_new_object();
+    }
+    sentry_value_set_by_key(contexts, "feedback", feedback);
+    sentry_value_set_by_key(event, "contexts", contexts);
+
+    sentry_envelope_item_t *item = sentry__envelope_add_event(envelope, event);
+    if (!item) {
+        sentry_value_decref(event);
+        return NULL;
+    }
+
+    sentry__envelope_item_set_header(
+        item, "type", sentry_value_new_string("feedback"));
+
+    return item;
+}
+
+sentry_envelope_item_t *
+sentry__envelope_add_user_report(
+    sentry_envelope_t *envelope, sentry_value_t user_report)
 {
     sentry_envelope_item_t *item = envelope_add_item(envelope);
     if (!item) {
@@ -310,9 +334,9 @@ sentry__envelope_add_user_feedback(
         return NULL;
     }
 
-    sentry_value_t event_id = sentry__ensure_event_id(user_feedback, NULL);
+    sentry_value_t event_id = sentry__ensure_event_id(user_report, NULL);
 
-    sentry__jsonwriter_write_value(jw, user_feedback);
+    sentry__jsonwriter_write_value(jw, user_report);
     item->payload = sentry__jsonwriter_into_string(jw, &item->payload_len);
 
     sentry__envelope_item_set_header(
