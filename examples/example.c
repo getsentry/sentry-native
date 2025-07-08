@@ -381,6 +381,15 @@ main(int argc, char **argv)
         sentry_options_add_view_hierarchy(options, "./view-hierarchy.json");
     }
 
+    if (has_arg(argc, argv, "install-feedback-handler")) {
+#ifdef SENTRY_PLATFORM_WINDOWS
+        sentry_options_set_feedback_handler_pathw(
+            options, L"sentry_feedback.exe");
+#else
+        sentry_options_set_feedback_handler_path(options, "./sentry_feedback");
+#endif
+    }
+
     sentry_init(options);
 
     if (has_arg(argc, argv, "attachment")) {

@@ -21,6 +21,7 @@ from .assertions import (
     assert_crashpad_upload,
     assert_session,
     assert_gzip_file_header,
+    assert_user_feedback,
 )
 from .conditions import has_crashpad
 
@@ -619,3 +620,35 @@ def test_crashpad_retry(cmake, httpserver):
     )  # run without crashing to retry send
 
     assert len(httpserver.log) == 1
+
+
+def test_crashpad_feedback_handler(cmake, httpserver):
+    tmp_path = cmake(
+        ["sentry_example", "sentry_feedback"], {"SENTRY_BACKEND": "crashpad"}
+    )
+
+    # make sure we are isolated from previous runs
+    shutil.rmtree(tmp_path / ".sentry-native", ignore_errors=True)
+
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+    httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data("OK")
+    httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
+
+    child = run(
+        tmp_path,
+        "sentry_example",
+        ["log", "install-feedback-handler", "crash"],
+        env=env,
+    )
+    assert child.returncode  # well, it's a crash after all
+
+    assert len(httpserver.log) == 2
+
+    # from crashpad
+    multipart = httpserver.log[0][0]
+    assert_crashpad_upload(multipart)
+
+    # from feedback handler
+    output = httpserver.log[1][0].get_data()
+    envelope = Envelope.deserialize(output)
+    assert_user_feedback(envelope)
