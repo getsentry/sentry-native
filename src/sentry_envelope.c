@@ -284,6 +284,8 @@ sentry__envelope_add_event(sentry_envelope_t *envelope, sentry_value_t event)
                     dsc, "sampled", sentry_value_new_string("true"));
             }
         } else {
+            // only for testing; in production, the SDK should always have a
+            // non-null sample_rand. We don't set "sampled" to keep dsc empty
             SENTRY_WARN("couldn't retrieve sample_rand from scope to apply to "
                         "the dynamic sampling context");
         }
