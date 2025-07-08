@@ -99,17 +99,18 @@ SENTRY_TEST(basic_http_request_preparation_for_feedback)
 #ifndef SENTRY_TRANSPORT_COMPRESSION
     char *line1 = req->body;
     char *line1_end = strchr(line1, '\n');
+    TEST_CHECK(line1_end != NULL);
     line1_end[0] = '\0';
     TEST_CHECK_STRING_EQUAL(
         line1, "{\"event_id\":\"4c035723-8638-4c3a-923f-2ab9d08b4018\"}");
 
-    char *line2 = line1_end ? line1_end + 1 : NULL;
-    char *line2_end = line2 ? strchr(line2, '\n') : NULL;
+    char *line2 = line1_end + 1;
+    char *line2_end = strchr(line2, '\n');
+    TEST_CHECK(line2_end != NULL);
     line2_end[0] = '\0';
     TEST_CHECK_STRING_EQUAL(line2, "{\"type\":\"feedback\",\"length\":273}");
 
-    char *line3 = line2_end ? line2_end + 1 : NULL;
-    char *line3_end = line3 ? strchr(line3, '\n') : NULL;
+    char *line3 = line2_end + 1;
     sentry_value_t line3_json = sentry__value_from_json(line3, strlen(line3));
     TEST_CHECK(!sentry_value_is_null(line3_json));
 
