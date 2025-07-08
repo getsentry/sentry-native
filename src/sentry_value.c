@@ -666,6 +666,18 @@ sentry__value_as_uuid(sentry_value_t value)
 char *
 sentry__value_stringify(sentry_value_t value)
 {
+#define STRINGIFY_NUMERIC(fmt, value_fn)                                       \
+    do {                                                                       \
+        char buf[24];                                                          \
+        size_t written                                                         \
+            = (size_t)sentry__snprintf_c(buf, sizeof(buf), fmt, value_fn);     \
+        if (written >= sizeof(buf)) {                                          \
+            return sentry__string_clone("");                                   \
+        }                                                                      \
+        buf[written] = '\0';                                                   \
+        return sentry__string_clone(buf);                                      \
+    } while (0)
+
     switch (sentry_value_get_type(value)) {
     case SENTRY_VALUE_TYPE_LIST:
     case SENTRY_VALUE_TYPE_OBJECT:
@@ -676,39 +688,17 @@ sentry__value_stringify(sentry_value_t value)
             sentry_value_is_true(value) ? "true" : "false");
     case SENTRY_VALUE_TYPE_STRING:
         return sentry__string_clone(sentry_value_as_string(value));
+    case SENTRY_VALUE_TYPE_INT64:
+        STRINGIFY_NUMERIC("%" PRIi64, sentry_value_as_int64(value));
+    case SENTRY_VALUE_TYPE_UINT64:
+        STRINGIFY_NUMERIC("%" PRIi64, sentry_value_as_uint64(value));
     case SENTRY_VALUE_TYPE_INT32:
     case SENTRY_VALUE_TYPE_DOUBLE:
-    default: {
-        char buf[24];
-        size_t written = (size_t)sentry__snprintf_c(
-            buf, sizeof(buf), "%g", sentry_value_as_double(value));
-        if (written >= sizeof(buf)) {
-            return sentry__string_clone("");
-        }
-        buf[written] = '\0';
-        return sentry__string_clone(buf);
+    default:
+        STRINGIFY_NUMERIC("%g", sentry_value_as_double(value));
     }
-    case SENTRY_VALUE_TYPE_INT64: {
-        char buf[24];
-        size_t written = (size_t)sentry__snprintf_c(
-            buf, sizeof(buf), "%" PRIi64, sentry_value_as_int64(value));
-        if (written >= sizeof(buf)) {
-            return sentry__string_clone("");
-        }
-        buf[written] = '\0';
-        return sentry__string_clone(buf);
-    }
-    case SENTRY_VALUE_TYPE_UINT64: {
-        char buf[24];
-        size_t written = (size_t)sentry__snprintf_c(
-            buf, sizeof(buf), "%" PRIi64, sentry_value_as_uint64(value));
-        if (written >= sizeof(buf)) {
-            return sentry__string_clone("");
-        }
-        buf[written] = '\0';
-        return sentry__string_clone(buf);
-    }
-    }
+
+#undef STRINGIFY_NUMERIC
 }
 
 sentry_value_t
@@ -935,9 +925,18 @@ sentry_value_as_int32(sentry_value_t value)
 {
     if ((value._bits & TAG_MASK) == TAG_INT32) {
         return (int32_t)((int64_t)value._bits >> 32);
-    } else {
-        return 0;
     }
+    const thing_t *thing = value_as_thing(value);
+    if (thing && thing_get_type(thing) == THING_TYPE_INT64) {
+        SENTRY_WARN("Cannot convert int64 into int32, returning 0");
+    }
+    if (thing && thing_get_type(thing) == THING_TYPE_UINT64) {
+        SENTRY_WARN("Cannot convert uint64 into int32, returning 0");
+    }
+    if (thing && thing_get_type(thing) == THING_TYPE_DOUBLE) {
+        SENTRY_WARN("Cannot convert double into int32, returning 0");
+    }
+    return 0;
 }
 
 double
@@ -950,9 +949,15 @@ sentry_value_as_double(sentry_value_t value)
     const thing_t *thing = value_as_thing(value);
     if (thing && thing_get_type(thing) == THING_TYPE_DOUBLE) {
         return thing->payload._double;
-    } else {
-        return (double)NAN;
     }
+    if (thing && thing_get_type(thing) == THING_TYPE_INT64) {
+        SENTRY_WARN("Cannot convert int64 into double, returning NAN");
+    }
+    if (thing && thing_get_type(thing) == THING_TYPE_UINT64) {
+        SENTRY_WARN("Cannot convert uint64 into double, returning NAN");
+    }
+
+    return (double)NAN;
 }
 
 int64_t
@@ -967,10 +972,10 @@ sentry_value_as_int64(sentry_value_t value)
         return thing->payload._i64;
     }
     if (thing && thing_get_type(thing) == THING_TYPE_UINT64) {
-        return (int64_t)thing->payload._u64;
+        SENTRY_WARN("Cannot convert uint64 into int64, returning 0");
     }
     if (thing && thing_get_type(thing) == THING_TYPE_DOUBLE) {
-        return (int64_t)thing->payload._double;
+        SENTRY_WARN("Cannot convert double into int64, returning 0");
     }
     return 0;
 }
@@ -979,8 +984,8 @@ uint64_t
 sentry_value_as_uint64(sentry_value_t value)
 {
     if ((value._bits & TAG_MASK) == TAG_INT32) {
-        int32_t int32_val = sentry_value_as_int32(value);
-        return int32_val >= 0 ? (uint64_t)int32_val : 0;
+        SENTRY_WARN("Cannot convert int32 into uint64, returning 0");
+        return 0;
     }
 
     const thing_t *thing = value_as_thing(value);
@@ -988,13 +993,10 @@ sentry_value_as_uint64(sentry_value_t value)
         return thing->payload._u64;
     }
     if (thing && thing_get_type(thing) == THING_TYPE_INT64) {
-        return thing->payload._i64 >= 0 ? (uint64_t)thing->payload._i64 : 0;
+        SENTRY_WARN("Cannot convert int64 into uint64, returning 0");
     }
     if (thing && thing_get_type(thing) == THING_TYPE_DOUBLE) {
-        // TODO no check for double out of uint64 range
-        // TODO double gets truncated (1.9 -> 1)
-        return thing->payload._double >= 0 ? (uint64_t)thing->payload._double
-                                           : 0;
+        SENTRY_WARN("Cannot convert int64 into uint64, returning 0");
     }
     return 0;
 }
@@ -1005,9 +1007,8 @@ sentry_value_as_string(sentry_value_t value)
     const thing_t *thing = value_as_thing(value);
     if (thing && thing_get_type(thing) == THING_TYPE_STRING) {
         return (const char *)thing->payload._ptr;
-    } else {
-        return "";
     }
+    return "";
 }
 
 sentry_value_t
