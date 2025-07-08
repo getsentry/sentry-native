@@ -117,13 +117,13 @@ SENTRY_TEST(value_int64)
 
     // Test double into uint64
     val = sentry_value_new_double(123.456);
-    TEST_CHECK(sentry_value_as_uint64(val) == 123ULL);
+    TEST_CHECK(sentry_value_as_int64(val) == 123ULL);
     sentry_value_decref(val);
     val = sentry_value_new_double(-123.456);
     TEST_CHECK(sentry_value_as_int64(val) == -123ULL);
     sentry_value_decref(val);
 
-    // Test truncated double into uint64
+    // Test truncated double into int64
     val = sentry_value_new_double(42.99);
     TEST_CHECK(sentry_value_as_int64(val) == 42ULL);
     sentry_value_decref(val);
