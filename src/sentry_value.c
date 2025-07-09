@@ -1376,7 +1376,7 @@ sentry_value_new_user_feedback_n(const sentry_uuid_t *uuid, const char *name,
     }
     if (uuid) {
         sentry_value_set_by_key(
-            rv, "associated_event_id", sentry__value_new_uuid(uuid));
+            rv, "associated_event_id", sentry__value_new_internal_uuid(uuid));
     }
 
     return rv;

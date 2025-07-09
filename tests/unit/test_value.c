@@ -833,7 +833,7 @@ SENTRY_TEST(user_feedback_is_valid)
         "some-message");
     TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
                                 user_feedback, "associated_event_id")),
-        "c993afb6-b4ac-48a6-b61b-2558e601d65d");
+        "c993afb6b4ac48a6b61b2558e601d65d");
 
     sentry_value_decref(user_feedback);
 }

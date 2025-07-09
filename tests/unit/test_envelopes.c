@@ -107,7 +107,7 @@ SENTRY_TEST(basic_http_request_preparation_for_user_feedback)
     char *line2_end = strchr(line2, '\n');
     TEST_CHECK(line2_end != NULL);
     line2_end[0] = '\0';
-    TEST_CHECK_STRING_EQUAL(line2, "{\"type\":\"feedback\",\"length\":273}");
+    TEST_CHECK_STRING_EQUAL(line2, "{\"type\":\"feedback\",\"length\":269}");
 
     char *line3 = line2_end + 1;
     sentry_value_t line3_json = sentry__value_from_json(line3, strlen(line3));
@@ -139,7 +139,7 @@ SENTRY_TEST(basic_http_request_preparation_for_user_feedback)
         "some-name");
     TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
                                 actual, "associated_event_id")),
-        "c993afb6-b4ac-48a6-b61b-2558e601d65d");
+        "c993afb6b4ac48a6b61b2558e601d65d");
     sentry_value_decref(line3_json);
 #endif
     sentry__prepared_http_request_free(req);
