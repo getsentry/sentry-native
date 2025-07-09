@@ -205,8 +205,8 @@ sentry__process_spawn(const sentry_path_t *executable, const char *arg0, ...)
         }
         va_list args;
         va_start(args, arg0);
-        while (va_arg(args, const char *) != NULL) {
-            const char *argn = va_arg(args, const char *);
+        const char *argn;
+        while ((argn = va_arg(args, const char *)) != NULL) {
             if (!argv_set(argv, i++, argn)) {
                 va_end(args);
                 argv_free(argv);
