@@ -116,14 +116,15 @@ int
 sentry_init(sentry_options_t *options)
 #endif
 {
+   // pre-init here, so we can consistently use bailing out to :fail
+    sentry_transport_t *transport = NULL;
+
+    sentry_close();
+
     SENTRY__MUTEX_INIT_DYN_ONCE(g_options_lock);
     // this function is to be called only once, so we do not allow more than one
     // caller
     sentry__mutex_lock(&g_options_lock);
-    // pre-init here, so we can consistently use bailing out to :fail
-    sentry_transport_t *transport = NULL;
-
-    sentry_close();
 
     sentry_logger_t logger = { NULL, NULL, SENTRY_LEVEL_DEBUG };
     if (options->debug) {
