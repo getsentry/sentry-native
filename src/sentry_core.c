@@ -909,8 +909,10 @@ void
 sentry_set_trace_n(const char *trace_id, size_t trace_id_len,
     const char *parent_span_id, size_t parent_span_id_len)
 {
+    sentry_value_t context = sentry_value_new_null();
+
     SENTRY_WITH_SCOPE_MUT (scope) {
-        sentry_value_t context = sentry_value_new_object();
+        context = sentry_value_new_object();
 
         sentry_value_set_by_key(
             context, "type", sentry_value_new_string("trace"));
@@ -923,7 +925,9 @@ sentry_set_trace_n(const char *trace_id, size_t trace_id_len,
         sentry_uuid_t span_id = sentry_uuid_new_v4();
         sentry_value_set_by_key(
             context, "span_id", sentry__value_new_span_uuid(&span_id));
+    }
 
+    if (!sentry_value_is_null(context)) {
         sentry__set_propagation_context("trace", context);
     }
 }
