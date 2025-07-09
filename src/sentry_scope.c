@@ -298,10 +298,11 @@ get_span_or_transaction(const sentry_scope_t *scope)
 sentry_value_t
 sentry__scope_get_span_or_transaction(void)
 {
+    sentry_value_t result = sentry_value_new_null();
     SENTRY_WITH_SCOPE (scope) {
-        return get_span_or_transaction(scope);
+        result = get_span_or_transaction(scope);
     }
-    return sentry_value_new_null();
+    return result;
 }
 #endif
 
