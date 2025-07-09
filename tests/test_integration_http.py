@@ -37,7 +37,7 @@ from .assertions import (
     assert_failed_proxy_auth_request,
     assert_attachment_view_hierarchy,
 )
-from .conditions import has_http, has_breakpad, has_files, has_crashpad
+from .conditions import has_http, has_breakpad, has_files, has_crashpad, is_valgrind
 
 pytestmark = pytest.mark.skipif(not has_http, reason="tests need http")
 
@@ -179,10 +179,15 @@ def test_user_feedback_http(cmake, httpserver):
     "build_args",
     [
         ({"SENTRY_BACKEND": "inproc"}),
-        ({"SENTRY_BACKEND": "breakpad"}),
+        pytest.param(
+            {"SENTRY_BACKEND": "breakpad"},
+            marks=pytest.mark.skipif(
+                not has_breakpad, reason="test needs breakpad backend"
+            ),
+        ),
     ],
 )
-def test_user_feedback_handler_http(cmake, httpserver, build_args):
+def test_feedback_handler_http(cmake, httpserver, build_args):
     tmp_path = cmake(["sentry_example", "sentry_feedback"], build_args)
 
     httpserver.expect_request(

@@ -37,6 +37,7 @@ main(int argc, char *argv[])
     }
 
     sentry_options_t *options = sentry_options_new();
+    sentry_options_set_backend(options, NULL);
     sentry_options_set_dsn(options, dsn);
     sentry_options_set_debug(options, true);
     sentry_init(options);
