@@ -2438,13 +2438,12 @@ SENTRY_EXPERIMENTAL_API void sentry_transaction_set_name_n(
  *
  * See
  * https://develop.sentry.dev/sdk/data-model/envelope-items/#user-report---deprecated
- *
- * Deprecated: Please use `sentry_value_new_feedback` and
- * `sentry_capture_feedback` instead.
  */
+SENTRY_DEPRECATED("Use `sentry_value_new_feedback` instead")
 SENTRY_API sentry_value_t sentry_value_new_user_feedback(
     const sentry_uuid_t *uuid, const char *name, const char *email,
     const char *comments);
+SENTRY_DEPRECATED("Use `sentry_value_new_feedback_n` instead")
 SENTRY_API sentry_value_t sentry_value_new_user_feedback_n(
     const sentry_uuid_t *uuid, const char *name, size_t name_len,
     const char *email, size_t email_len, const char *comments,
@@ -2452,10 +2451,8 @@ SENTRY_API sentry_value_t sentry_value_new_user_feedback_n(
 
 /**
  * Captures a deprecated User Report and sends it to Sentry.
- *
- * Deprecated: Please use `sentry_value_new_feedback` and
- * `sentry_capture_feedback` instead.
  */
+SENTRY_DEPRECATED("Use `sentry_capture_feedback` instead")
 SENTRY_API void sentry_capture_user_feedback(sentry_value_t user_report);
 
 /**
