@@ -556,28 +556,20 @@ main(int argc, char **argv)
         sentry_capture_event(event);
     }
     if (has_arg(argc, argv, "capture-user-feedback")) {
-        sentry_value_t user_feedback = sentry_value_new_user_feedback(
-            NULL, "some-name", "some-email", "some-message");
+        sentry_value_t user_feedback = sentry_value_new_feedback(
+            "some-message", "some-email", "some-name", NULL);
 
-        sentry_capture_user_feedback(user_feedback);
+        sentry_capture_feedback(user_feedback);
     }
     if (has_arg(argc, argv, "capture-user-report")) {
         sentry_value_t event = sentry_value_new_message_event(
             SENTRY_LEVEL_INFO, "my-logger", "Hello user feedback!");
         sentry_uuid_t event_id = sentry_capture_event(event);
-        char buf[37];
-        sentry_uuid_as_string(&event_id, buf);
 
-        sentry_value_t user_report = sentry_value_new_object();
-        sentry_value_set_by_key(
-            user_report, "event_id", sentry_value_new_string(buf));
-        sentry_value_set_by_key(
-            user_report, "name", sentry_value_new_string("some-name"));
-        sentry_value_set_by_key(
-            user_report, "email", sentry_value_new_string("some-email"));
-        sentry_value_set_by_key(
-            user_report, "comments", sentry_value_new_string("some-message"));
-        sentry_capture_user_feedback(user_report);
+        sentry_value_t user_feedback = sentry_value_new_user_feedback(
+            &event_id, "some-name", "some-email", "some-comment");
+
+        sentry_capture_user_feedback(user_feedback);
     }
 
     if (has_arg(argc, argv, "capture-transaction")) {

@@ -659,6 +659,25 @@ fail:
 }
 
 static sentry_envelope_t *
+prepare_user_report(sentry_value_t user_report)
+{
+    sentry_envelope_t *envelope = NULL;
+
+    envelope = sentry__envelope_new();
+    if (!envelope || !sentry__envelope_add_user_report(envelope, user_report)) {
+        goto fail;
+    }
+
+    return envelope;
+
+fail:
+    SENTRY_WARN("dropping user report");
+    sentry_envelope_free(envelope);
+    sentry_value_decref(user_report);
+    return NULL;
+}
+
+static sentry_envelope_t *
 prepare_user_feedback(sentry_value_t user_feedback)
 {
     sentry_envelope_t *envelope = NULL;
@@ -1335,7 +1354,21 @@ fail:
 }
 
 void
-sentry_capture_user_feedback(sentry_value_t user_feedback)
+sentry_capture_user_feedback(sentry_value_t user_report)
+{
+    sentry_envelope_t *envelope = NULL;
+
+    SENTRY_WITH_OPTIONS (options) {
+        envelope = prepare_user_report(user_report);
+        if (envelope) {
+            sentry__capture_envelope(options->transport, envelope);
+        }
+    }
+    sentry_value_decref(user_report);
+}
+
+void
+sentry_capture_feedback(sentry_value_t user_feedback)
 {
     sentry_envelope_t *envelope = NULL;
 

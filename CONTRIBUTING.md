@@ -190,7 +190,6 @@ The example currently supports the following commands:
 - `attach-to-scope`: Same as `attachment` but attaches the file to the local scope.
 - `clear-attachments`: Clears all attachments from the global scope.
 - `capture-user-feedback`: Captures a user feedback event.
-- `capture-user-report`: Captures an event together with a legacy user report.
 
 Only on Linux using crashpad:
 - `crashpad-wait-for-upload`: Couples application shutdown to complete the upload in the `crashpad_handler`.

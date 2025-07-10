@@ -30,6 +30,7 @@ from .assertions import (
     assert_inproc_crash,
     assert_session,
     assert_user_feedback,
+    assert_user_report,
     assert_minidump,
     assert_breakpad_crash,
     assert_gzip_content_encoding,
@@ -201,7 +202,7 @@ def test_user_report_http(cmake, httpserver):
     output = httpserver.log[1][0].get_data()
     envelope = Envelope.deserialize(output)
 
-    assert_user_feedback(envelope)
+    assert_user_report(envelope)
 
 
 def test_exception_and_session_http(cmake, httpserver):

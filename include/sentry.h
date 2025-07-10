@@ -2419,30 +2419,51 @@ SENTRY_EXPERIMENTAL_API void sentry_transaction_set_name_n(
     sentry_transaction_t *transaction, const char *name, size_t name_len);
 
 /**
- * Creates a new User Feedback with a specific name, email and message.
+ * Creates a deprecated User Report with a specific name, email and comments.
+ *
+ * See
+ * https://develop.sentry.dev/sdk/data-model/envelope-items/#user-report---deprecated
+ *
+ * Deprecated: Please use `sentry_value_new_feedback` and
+ * `sentry_capture_feedback` instead.
+ */
+SENTRY_API sentry_value_t sentry_value_new_user_feedback(
+    const sentry_uuid_t *uuid, const char *name, const char *email,
+    const char *comments);
+SENTRY_API sentry_value_t sentry_value_new_user_feedback_n(
+    const sentry_uuid_t *uuid, const char *name, size_t name_len,
+    const char *email, size_t email_len, const char *comments,
+    size_t comments_len);
+
+/**
+ * Captures a deprecated User Report and sends it to Sentry.
+ *
+ * Deprecated: Please use `sentry_value_new_feedback` and
+ * `sentry_capture_feedback` instead.
+ */
+SENTRY_API void sentry_capture_user_feedback(sentry_value_t user_report);
+
+/**
+ * Creates a new User Feedback with a specific message (required), and optional
+ * contact_email, name, message, and associated_event_id.
  *
  * See https://develop.sentry.dev/sdk/data-model/envelope-items/#user-feedback
  *
  * User Feedback can be associated with a specific event that has been
  * sent to Sentry earlier.
  */
-SENTRY_API sentry_value_t sentry_value_new_user_feedback(
-    const sentry_uuid_t *uuid, const char *name, const char *email,
-    const char *message);
-SENTRY_API sentry_value_t sentry_value_new_user_feedback_n(
-    const sentry_uuid_t *uuid, const char *name, size_t name_len,
-    const char *email, size_t email_len, const char *message,
-    size_t message_len);
+SENTRY_API sentry_value_t sentry_value_new_feedback(const char *message,
+    const char *contact_email, const char *name,
+    const sentry_uuid_t *associated_event_id);
+SENTRY_API sentry_value_t sentry_value_new_feedback_n(const char *message,
+    size_t message_len, const char *contact_email, size_t contact_email_len,
+    const char *name, size_t name_len,
+    const sentry_uuid_t *associated_event_id);
 
 /**
  * Captures a manually created User Feedback and sends it to Sentry.
- *
- * Note: This function automatically converts old deprecated User Report objects
- * to the new User Feedback format. See
- * https://develop.sentry.dev/sdk/data-model/envelope-items/#user-report---deprecated
- * and https://develop.sentry.dev/sdk/data-model/envelope-items/#user-feedback.
  */
-SENTRY_API void sentry_capture_user_feedback(sentry_value_t user_feedback);
+SENTRY_API void sentry_capture_feedback(sentry_value_t user_feedback);
 
 /**
  * The status of a Span or Transaction.

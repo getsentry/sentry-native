@@ -51,6 +51,18 @@ def assert_user_feedback(envelope):
     assert user_feedback["message"] == "some-message"
 
 
+def assert_user_report(envelope):
+    user_report = None
+    for item in envelope:
+        if item.headers.get("type") == "user_report" and item.payload.json is not None:
+            user_report = item.payload.json
+
+    assert user_report is not None
+    assert user_report["name"] == "some-name"
+    assert user_report["email"] == "some-email"
+    assert user_report["comments"] == "some-comment"
+
+
 def assert_meta(
     envelope,
     release="test-example-release",
