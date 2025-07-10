@@ -86,8 +86,10 @@ SENTRY_TEST(basic_http_request_preparation_for_user_report)
     sentry_uuid_t event_id
         = sentry_uuid_from_string("c993afb6-b4ac-48a6-b61b-2558e601d65d");
     sentry_envelope_t *envelope = sentry__envelope_new();
-    sentry_value_t user_report = sentry_value_new_user_feedback(
-        &event_id, "some-name", "some-email", "some-comment");
+    sentry_value_t user_report;
+    SENTRY_TEST_DEPRECATED(
+        user_report = sentry_value_new_user_feedback(
+            &event_id, "some-name", "some-email", "some-comment"));
     sentry__envelope_add_user_report(envelope, user_report);
 
     sentry_prepared_http_request_t *req
