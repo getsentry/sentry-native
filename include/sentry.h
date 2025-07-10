@@ -100,17 +100,23 @@ extern "C" {
 #    endif
 #endif
 
-#if defined(__has_attribute) && __has_attribute(deprecated)
-#    define SENTRY_DEPRECATED(msg) __attribute__((deprecated(msg)))
-#elif defined(__GNUC__)                                                        \
-    && (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 5)) /* GCC 4.5 */
-#    define SENTRY_DEPRECATED(msg) __attribute__((deprecated(msg)))
-#elif defined(__clang__) && __clang__major__ >= 3 /* Clang 3.0 */
-#    define SENTRY_DEPRECATED(msg) __attribute__((deprecated(msg)))
-#elif defined(_MSC_VER) && _MSC_VER >= 1400 /* VS 2005 (8.0) */
-#    define SENTRY_DEPRECATED(msg) __declspec(deprecated(msg))
-#else
-#    define SENTRY_DEPRECATED(msg)
+#ifdef __has_attribute
+#    if __has_attribute(deprecated)
+#        define SENTRY_DEPRECATED(msg) __attribute__((deprecated(msg)))
+#    endif
+#endif
+#ifndef SENTRY_DEPRECATED
+#    if defined(__GNUC__)                                                      \
+        && (__GNUC__ > 4                                                       \
+            || (__GNUC__ == 4 && __GNUC_MINOR__ >= 5)) /* GCC 4.5 */
+#        define SENTRY_DEPRECATED(msg) __attribute__((deprecated(msg)))
+#    elif defined(__clang__) && __clang__major__ >= 3 /* Clang 3.0 */
+#        define SENTRY_DEPRECATED(msg) __attribute__((deprecated(msg)))
+#    elif defined(_MSC_VER) && _MSC_VER >= 1400 /* VS 2005 (8.0) */
+#        define SENTRY_DEPRECATED(msg) __declspec(deprecated(msg))
+#    else
+#        define SENTRY_DEPRECATED(msg)
+#    endif
 #endif
 
 /* marks a function as experimental api */
