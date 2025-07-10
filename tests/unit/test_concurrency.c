@@ -26,8 +26,11 @@ send_envelope_test_concurrent(const sentry_envelope_t *envelope, void *data)
 static void
 init_framework(long *called)
 {
+    sentry__mutex_lock(&g_test_check_mutex);
     SENTRY_TEST_OPTIONS_NEW(options);
+    sentry__mutex_unlock(&g_test_check_mutex);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+
     SENTRY_TEST_DEPRECATED(sentry_options_set_transport(options,
         sentry_new_function_transport(send_envelope_test_concurrent, called)));
     sentry_options_set_release(options, "prod");
