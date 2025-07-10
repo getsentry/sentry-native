@@ -22,8 +22,8 @@ init_framework(long *called)
 {
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
-    sentry_options_set_transport(options,
-        sentry_new_function_transport(send_envelope_test_concurrent, called));
+    SENTRY_TEST_DEPRECATED(sentry_options_set_transport(options,
+        sentry_new_function_transport(send_envelope_test_concurrent, called)));
     sentry_options_set_release(options, "prod");
     sentry_options_set_require_user_consent(options, false);
     sentry_options_set_auto_session_tracking(options, true);

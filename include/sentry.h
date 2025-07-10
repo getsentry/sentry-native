@@ -100,6 +100,25 @@ extern "C" {
 #    endif
 #endif
 
+#ifdef __has_attribute
+#    if __has_attribute(deprecated)
+#        define SENTRY_DEPRECATED(msg) __attribute__((deprecated(msg)))
+#    endif
+#endif
+#ifndef SENTRY_DEPRECATED
+#    if defined(__GNUC__)                                                      \
+        && (__GNUC__ > 4                                                       \
+            || (__GNUC__ == 4 && __GNUC_MINOR__ >= 5)) /* GCC 4.5 */
+#        define SENTRY_DEPRECATED(msg) __attribute__((deprecated(msg)))
+#    elif defined(__clang__) && __clang__major__ >= 3 /* Clang 3.0 */
+#        define SENTRY_DEPRECATED(msg) __attribute__((deprecated(msg)))
+#    elif defined(_MSC_VER) && _MSC_VER >= 1400 /* VS 2005 (8.0) */
+#        define SENTRY_DEPRECATED(msg) __declspec(deprecated(msg))
+#    else
+#        define SENTRY_DEPRECATED(msg)
+#    endif
+#endif
+
 /* marks a function as experimental api */
 #ifndef SENTRY_EXPERIMENTAL_API
 #    define SENTRY_EXPERIMENTAL_API SENTRY_API
@@ -515,13 +534,13 @@ SENTRY_EXPERIMENTAL_API char *sentry_value_to_msgpack(
  * Adds a stack trace to an event.
  *
  * The stack trace is added as part of a new thread object.
- * This function is **deprecated** in favor of using
- * `sentry_value_new_stacktrace` in combination with `sentry_value_new_thread`
- * and `sentry_event_add_thread`.
  *
  * If `ips` is NULL the current stack trace is captured, otherwise `len`
  * stack trace instruction pointers are attached to the event.
  */
+SENTRY_DEPRECATED(
+    "Use `sentry_value_new_stacktrace` in combination with "
+    "`sentry_value_new_thread` and `sentry_event_add_thread` instead")
 SENTRY_EXPERIMENTAL_API void sentry_event_value_add_stacktrace(
     sentry_value_t event, void **ips, size_t len);
 
@@ -772,11 +791,8 @@ SENTRY_API void sentry_transport_free(sentry_transport_t *transport);
  * It is a convenience function which works with a borrowed `data`, and will
  * automatically free the envelope, so the user provided function does not need
  * to do that.
- *
- * This function is *deprecated* and will be removed in a future version.
- * It is here for backwards compatibility. Users should migrate to the
- * `sentry_transport_new` API.
  */
+SENTRY_DEPRECATED("Use `sentry_transport_new` instead")
 SENTRY_API sentry_transport_t *sentry_new_function_transport(
     void (*func)(const sentry_envelope_t *envelope, void *data), void *data);
 
@@ -1053,13 +1069,13 @@ SENTRY_API const char *sentry_options_get_proxy(const sentry_options_t *opts);
 /**
  * Configures the proxy.
  *
- * This is a **deprecated** alias for `sentry_options_set_proxy(_n)`.
- *
  * The given proxy has to include the full scheme,
  * eg. `http://some.proxy/.
  */
+SENTRY_DEPRECATED("Use `sentry_options_set_proxy` instead")
 SENTRY_API void sentry_options_set_http_proxy(
     sentry_options_t *opts, const char *proxy);
+SENTRY_DEPRECATED("Use `sentry_options_set_proxy_n` instead")
 SENTRY_API void sentry_options_set_http_proxy_n(
     sentry_options_t *opts, const char *proxy, size_t proxy_len);
 
@@ -1465,10 +1481,9 @@ SENTRY_API int sentry_close(void);
 /**
  * Shuts down the sentry client and forces transports to flush out.
  *
- * This is a **deprecated** alias for `sentry_close`.
- *
  * Returns 0 on success.
  */
+SENTRY_DEPRECATED("Use `sentry_close` instead")
 SENTRY_API int sentry_shutdown(void);
 
 /**
@@ -2599,14 +2614,14 @@ SENTRY_EXPERIMENTAL_API const char *sentry_sdk_version(void);
 
 /**
  * Sentry SDK name set during build time.
- * Deprecated: Please use sentry_options_get_sdk_name instead.
  */
+SENTRY_DEPRECATED("Use `sentry_options_get_sdk_name` instead")
 SENTRY_EXPERIMENTAL_API const char *sentry_sdk_name(void);
 
 /**
  * Sentry SDK User-Agent set during build time.
- * Deprecated: Please use sentry_options_get_user_agent instead.
  */
+SENTRY_DEPRECATED("Use `sentry_options_get_user_agent` instead")
 SENTRY_EXPERIMENTAL_API const char *sentry_sdk_user_agent(void);
 
 #ifdef __cplusplus
