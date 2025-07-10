@@ -278,7 +278,13 @@ class Item(object):
         headers = json.loads(line)
         length = headers["length"]
         payload = f.read(length)
-        if headers.get("type") in ["event", "session", "transaction", "user_report"]:
+        if headers.get("type") in [
+            "event",
+            "feedback",
+            "session",
+            "transaction",
+            "user_report",
+        ]:
             rv = cls(headers=headers, payload=PayloadRef(json=json.loads(payload)))
         else:
             rv = cls(headers=headers, payload=payload)

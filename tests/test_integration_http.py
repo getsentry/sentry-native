@@ -37,7 +37,7 @@ from .assertions import (
     assert_failed_proxy_auth_request,
     assert_attachment_view_hierarchy,
 )
-from .conditions import has_http, has_breakpad, has_files, has_crashpad
+from .conditions import has_http, has_breakpad, has_files, has_crashpad, is_valgrind
 
 pytestmark = pytest.mark.skipif(not has_http, reason="tests need http")
 
@@ -168,13 +168,44 @@ def test_user_feedback_http(cmake, httpserver):
         env=env,
     )
 
-    assert len(httpserver.log) == 2
+    assert len(httpserver.log) == 1
     output = httpserver.log[0][0].get_data()
     envelope = Envelope.deserialize(output)
 
-    assert_event(envelope, "Hello user feedback!")
+    assert_user_feedback(envelope)
 
-    output = httpserver.log[1][0].get_data()
+
+@pytest.mark.parametrize(
+    "build_args",
+    [
+        ({"SENTRY_BACKEND": "inproc"}),
+        pytest.param(
+            {"SENTRY_BACKEND": "breakpad"},
+            marks=pytest.mark.skipif(
+                not has_breakpad, reason="test needs breakpad backend"
+            ),
+        ),
+    ],
+)
+def test_feedback_handler_http(cmake, httpserver, build_args):
+    tmp_path = cmake(["sentry_example", "sentry_feedback"], build_args)
+
+    httpserver.expect_request(
+        "/api/123456/envelope/",
+        headers={"x-sentry-auth": auth_header},
+    ).respond_with_data("OK")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    child = run(
+        tmp_path,
+        "sentry_example",
+        ["log", "install-feedback-handler", "crash"],
+        env=env,
+    )
+    assert child.returncode  # well, it's a crash after all
+
+    assert len(httpserver.log) == 1
+    output = httpserver.log[0][0].get_data()
     envelope = Envelope.deserialize(output)
 
     assert_user_feedback(envelope)

@@ -381,6 +381,15 @@ main(int argc, char **argv)
         sentry_options_add_view_hierarchy(options, "./view-hierarchy.json");
     }
 
+    if (has_arg(argc, argv, "install-feedback-handler")) {
+#ifdef SENTRY_PLATFORM_WINDOWS
+        sentry_options_set_feedback_handler_pathw(
+            options, L"sentry_feedback.exe");
+#else
+        sentry_options_set_feedback_handler_path(options, "./sentry_feedback");
+#endif
+    }
+
     sentry_init(options);
 
     if (has_arg(argc, argv, "attachment")) {
@@ -556,12 +565,8 @@ main(int argc, char **argv)
         sentry_capture_event(event);
     }
     if (has_arg(argc, argv, "capture-user-feedback")) {
-        sentry_value_t event = sentry_value_new_message_event(
-            SENTRY_LEVEL_INFO, "my-logger", "Hello user feedback!");
-        sentry_uuid_t event_id = sentry_capture_event(event);
-
         sentry_value_t user_feedback = sentry_value_new_user_feedback(
-            &event_id, "some-name", "some-email", "some-comment");
+            NULL, "some-name", "some-email", "some-message");
 
         sentry_capture_user_feedback(user_feedback);
     }
