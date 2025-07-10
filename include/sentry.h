@@ -2436,6 +2436,11 @@ SENTRY_API sentry_value_t sentry_value_new_user_feedback_n(
 
 /**
  * Captures a manually created User Feedback and sends it to Sentry.
+ *
+ * Note: This function automatically converts old deprecated User Report objects
+ * to the new User Feedback format. See
+ * https://develop.sentry.dev/sdk/data-model/envelope-items/#user-report---deprecated
+ * and https://develop.sentry.dev/sdk/data-model/envelope-items/#user-feedback.
  */
 SENTRY_API void sentry_capture_user_feedback(sentry_value_t user_feedback);
 

@@ -296,22 +296,23 @@ sentry__envelope_add_transaction(
     return item;
 }
 
-static void
+static bool
 rename_key(sentry_value_t object, const char *from, const char *to)
 {
     sentry_value_t old_value = sentry_value_get_by_key(object, from);
     if (sentry_value_is_null(old_value)) {
-        return;
+        return false;
     }
 
     sentry_value_t new_value = sentry_value_get_by_key(object, to);
     if (!sentry_value_is_null(new_value)) {
-        return;
+        return false;
     }
 
     sentry_value_incref(old_value);
     sentry_value_set_by_key(object, to, old_value);
     sentry_value_remove_by_key(object, from);
+    return true;
 }
 
 sentry_envelope_item_t *
@@ -319,9 +320,15 @@ sentry__envelope_add_user_feedback(
     sentry_envelope_t *envelope, sentry_value_t user_feedback)
 {
     // convert a deprecated "user report" to a new "user feedback"
-    rename_key(user_feedback, "event_id", "associated_event_id");
-    rename_key(user_feedback, "email", "contact_email");
-    rename_key(user_feedback, "comments", "message");
+    // https://develop.sentry.dev/sdk/data-model/envelope-items/#user-report---deprecated
+    bool converted
+        = rename_key(user_feedback, "event_id", "associated_event_id");
+    converted |= rename_key(user_feedback, "email", "contact_email");
+    converted |= rename_key(user_feedback, "comments", "message");
+    if (converted) {
+        SENTRY_INFO(
+            "converted a deprecated user report to a new user feedback object");
+    }
 
     sentry_value_t event = sentry_value_new_event();
     sentry_value_t contexts = sentry_value_get_by_key(event, "contexts");
