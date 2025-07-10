@@ -77,6 +77,18 @@ jobs:
             CXX: clang++-19
             ERROR_ON_WARNINGS: 1
             RUN_ANALYZER: asan,llvm-cov
+          - name: Linux (clang 19 + tsan)
+            os: ubuntu-24.04
+            CC: clang-19
+            CXX: clang++-19
+            ERROR_ON_WARNINGS: 1
+            RUN_ANALYZER: tsan
+          - name: Linux Arm64 (clang 19 + tsan)
+            os: ubuntu-24.04-arm
+            CC: clang-19
+            CXX: clang++-19
+            ERROR_ON_WARNINGS: 1
+            RUN_ANALYZER: tsan
           - name: Linux (clang 19 + kcov)
             os: ubuntu-24.04
             CC: clang-19
