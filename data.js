@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1751991294161,
+  "lastUpdate": 1752164258115,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -2994,6 +2994,66 @@ window.BENCHMARK_DATA = {
             "value": 1.8610429999625921,
             "unit": "ms",
             "extra": "Min 1.812ms\nMax 1.920ms\nMean 1.863ms\nStdDev 0.040ms\nMedian 1.861ms\nCPU 0.591ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "9ed9a70d71d98a1f38f8194334c9d1a40bcaed85",
+          "message": "meta: add SENTRY_DEPRECATED(msg) macro (#1308)\n\n* meta: add SENTRY_DEPRECATED(msg) macro\n\n* fix deprecation warnings in tests\n\n* Update CHANGELOG.md\n\n* add version checks to be safe\n\n* try to make msvc happy\n\n* add SENTRY_TEST_DEPRECATED\n\n* Revert \"fix deprecation warnings in tests\"\n\nThis reverts commit 0245434bd1a37e3057111e6bb0272c23c2157963.\n\n* Use SENTRY_TEST_DEPRECATED\n\n* fix SENTRY_TEST_DEPRECATED formatting",
+          "timestamp": "2025-07-10T18:15:12+02:00",
+          "tree_id": "411d1040913b5a1fd7d66d55cd2fd3756c37ce12",
+          "url": "https://github.com/getsentry/sentry-native/commit/9ed9a70d71d98a1f38f8194334c9d1a40bcaed85"
+        },
+        "date": 1752164257087,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 0.7074179999904118,
+            "unit": "ms",
+            "extra": "Min 0.688ms\nMax 0.744ms\nMean 0.713ms\nStdDev 0.023ms\nMedian 0.707ms\nCPU 0.711ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.7158549999957131,
+            "unit": "ms",
+            "extra": "Min 0.701ms\nMax 0.723ms\nMean 0.715ms\nStdDev 0.009ms\nMedian 0.716ms\nCPU 0.714ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 2.886969000002182,
+            "unit": "ms",
+            "extra": "Min 2.830ms\nMax 2.936ms\nMean 2.883ms\nStdDev 0.041ms\nMedian 2.887ms\nCPU 1.520ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.012263000002121771,
+            "unit": "ms",
+            "extra": "Min 0.012ms\nMax 0.012ms\nMean 0.012ms\nStdDev 0.000ms\nMedian 0.012ms\nCPU 0.011ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.022472000011930504,
+            "unit": "ms",
+            "extra": "Min 0.022ms\nMax 0.023ms\nMean 0.023ms\nStdDev 0.001ms\nMedian 0.022ms\nCPU 0.022ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 1.8118319999871346,
+            "unit": "ms",
+            "extra": "Min 1.770ms\nMax 1.884ms\nMean 1.823ms\nStdDev 0.043ms\nMedian 1.812ms\nCPU 0.589ms"
           }
         ]
       }
