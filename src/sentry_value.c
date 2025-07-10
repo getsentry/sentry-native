@@ -1350,9 +1350,11 @@ sentry_value_t
 sentry_value_new_user_feedback(const sentry_uuid_t *uuid, const char *name,
     const char *email, const char *comments)
 {
+    SENTRY_SUPPRESS_DEPRECATED
     return sentry_value_new_user_feedback_n(uuid, name,
         sentry__guarded_strlen(name), email, sentry__guarded_strlen(email),
         comments, sentry__guarded_strlen(comments));
+    SENTRY_RESTORE_DEPRECATED
 }
 
 sentry_value_t

@@ -119,6 +119,21 @@ extern "C" {
 #    endif
 #endif
 
+#if defined(__GNUC__) || defined(__clang__)
+#    define SENTRY_SUPPRESS_DEPRECATED                                         \
+        _Pragma("GCC diagnostic push");                                        \
+        _Pragma("GCC diagnostic ignored \"-Wdeprecated-declarations\"")
+#    define SENTRY_RESTORE_DEPRECATED _Pragma("GCC diagnostic pop")
+#elif defined(_MSC_VER)
+#    define SENTRY_SUPPRESS_DEPRECATED                                         \
+        __pragma(warning(push));                                               \
+        __pragma(warning(disable : 4996))
+#    define SENTRY_RESTORE_DEPRECATED __pragma(warning(pop))
+#else
+#    define SENTRY_SUPPRESS_DEPRECATED
+#    define SENTRY_RESTORE_DEPRECATED
+#endif
+
 /* marks a function as experimental api */
 #ifndef SENTRY_EXPERIMENTAL_API
 #    define SENTRY_EXPERIMENTAL_API SENTRY_API

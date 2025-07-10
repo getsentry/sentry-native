@@ -58,21 +58,6 @@ get_current_thread_id()
 }
 #endif
 
-#if defined(__GNUC__) || defined(__clang__)
-#    define SUPPRESS_DEPRECATED                                                \
-        _Pragma("GCC diagnostic push");                                        \
-        _Pragma("GCC diagnostic ignored \"-Wdeprecated-declarations\"")
-#    define RESTORE_WARNINGS _Pragma("GCC diagnostic pop")
-#elif defined(_MSC_VER)
-#    define SUPPRESS_DEPRECATED                                                \
-        __pragma(warning(push));                                               \
-        __pragma(warning(disable : 4996))
-#    define RESTORE_WARNINGS __pragma(warning(pop))
-#else
-#    define SUPPRESS_DEPRECATED
-#    define RESTORE_WARNINGS
-#endif
-
 static double
 traces_sampler_callback(const sentry_transaction_context_t *transaction_ctx,
     sentry_value_t custom_sampling_ctx, const int *parent_sampled)
@@ -581,12 +566,12 @@ main(int argc, char **argv)
             SENTRY_LEVEL_INFO, "my-logger", "Hello user feedback!");
         sentry_uuid_t event_id = sentry_capture_event(event);
 
-        SUPPRESS_DEPRECATED
+        SENTRY_SUPPRESS_DEPRECATED
         sentry_value_t user_feedback = sentry_value_new_user_feedback(
             &event_id, "some-name", "some-email", "some-comment");
 
         sentry_capture_user_feedback(user_feedback);
-        RESTORE_WARNINGS
+        SENTRY_RESTORE_DEPRECATED
     }
 
     if (has_arg(argc, argv, "capture-transaction")) {
