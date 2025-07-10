@@ -259,7 +259,7 @@ SENTRY_TEST(attachments_extend)
     sentry__attachments_extend(&all_attachments, attachments_abc);
     TEST_CHECK(all_attachments != NULL);
 
-    SENTRY_WITH_SCOPE (scope) {
+    {
         sentry_envelope_t *envelope = sentry__envelope_new();
         sentry__envelope_add_attachments(envelope, all_attachments);
 
@@ -281,7 +281,7 @@ SENTRY_TEST(attachments_extend)
     sentry__attachments_extend(&all_attachments, attachments_bcd);
     TEST_CHECK(all_attachments != NULL);
 
-    SENTRY_WITH_SCOPE (scope) {
+    {
         sentry_envelope_t *envelope = sentry__envelope_new();
         sentry__envelope_add_attachments(envelope, all_attachments);
 
@@ -348,9 +348,11 @@ SENTRY_TEST(attachment_properties)
         = sentry_attach_file(SENTRY_TEST_PATH_PREFIX ".c");
     sentry_attachment_set_content_type(attachment_c, NULL);
 
-    SENTRY_WITH_SCOPE (scope) {
+    {
         sentry_envelope_t *envelope = sentry__envelope_new();
-        sentry__envelope_add_attachments(envelope, scope->attachments);
+        SENTRY_WITH_SCOPE (scope) {
+            sentry__envelope_add_attachments(envelope, scope->attachments);
+        }
 
         char *serialized = sentry_envelope_serialize(envelope, NULL);
         TEST_CHECK_STRING_EQUAL(serialized,
@@ -366,7 +368,6 @@ SENTRY_TEST(attachment_properties)
         sentry_free(serialized);
         sentry_envelope_free(envelope);
     }
-
     sentry_close();
 
     sentry__path_remove(path_txt);
@@ -391,10 +392,11 @@ SENTRY_TEST(attachments_bytes)
     sentry_attachment_t *attachment_dupe
         = sentry_attach_bytes("dupe", 4, ".c.txt");
 
-    SENTRY_WITH_SCOPE (scope) {
+    {
         sentry_envelope_t *envelope = sentry__envelope_new();
-        sentry__envelope_add_attachments(envelope, scope->attachments);
-
+        SENTRY_WITH_SCOPE (scope) {
+            sentry__envelope_add_attachments(envelope, scope->attachments);
+        }
         char *serialized = sentry_envelope_serialize(envelope, NULL);
         TEST_CHECK_STRING_EQUAL(serialized,
             "{}\n"
@@ -414,9 +416,11 @@ SENTRY_TEST(attachments_bytes)
     sentry_remove_attachment(attachment_b);
     sentry_remove_attachment(attachment_dupe);
 
-    SENTRY_WITH_SCOPE (scope) {
+    {
         sentry_envelope_t *envelope = sentry__envelope_new();
-        sentry__envelope_add_attachments(envelope, scope->attachments);
+        SENTRY_WITH_SCOPE (scope) {
+            sentry__envelope_add_attachments(envelope, scope->attachments);
+        }
 
         char *serialized = sentry_envelope_serialize(envelope, NULL);
         TEST_CHECK_STRING_EQUAL(serialized,
@@ -433,10 +437,11 @@ SENTRY_TEST(attachments_bytes)
     sentry_remove_attachment(attachment_a);
     sentry_remove_attachment(attachment_c);
 
-    SENTRY_WITH_SCOPE (scope) {
+    {
         sentry_envelope_t *envelope = sentry__envelope_new();
-        sentry__envelope_add_attachments(envelope, scope->attachments);
-
+        SENTRY_WITH_SCOPE (scope) {
+            sentry__envelope_add_attachments(envelope, scope->attachments);
+        }
         char *serialized = sentry_envelope_serialize(envelope, NULL);
         TEST_CHECK_STRING_EQUAL(serialized, "{}");
         sentry_free(serialized);
