@@ -576,7 +576,7 @@ main(int argc, char **argv)
         sentry_value_set_by_key(
             user_report, "email", sentry_value_new_string("some-email"));
         sentry_value_set_by_key(
-            user_report, "comments", sentry_value_new_string("some-comment"));
+            user_report, "comments", sentry_value_new_string("some-message"));
         sentry_capture_user_feedback(user_report);
     }
 

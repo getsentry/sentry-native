@@ -296,43 +296,32 @@ sentry__envelope_add_transaction(
     return item;
 }
 
-static sentry_envelope_item_t *
-add_legacy_user_report(sentry_envelope_t *envelope, sentry_value_t user_report)
+static void
+rename_key(sentry_value_t object, const char *from, const char *to)
 {
-    sentry_envelope_item_t *item = envelope_add_item(envelope);
-    if (!item) {
-        return NULL;
+    sentry_value_t old_value = sentry_value_get_by_key(object, from);
+    if (sentry_value_is_null(old_value)) {
+        return;
     }
 
-    sentry_jsonwriter_t *jw = sentry__jsonwriter_new_sb(NULL);
-    if (!jw) {
-        return NULL;
+    sentry_value_t new_value = sentry_value_get_by_key(object, to);
+    if (!sentry_value_is_null(new_value)) {
+        return;
     }
 
-    sentry_value_t event_id = sentry__ensure_event_id(user_report, NULL);
-
-    sentry__jsonwriter_write_value(jw, user_report);
-    item->payload = sentry__jsonwriter_into_string(jw, &item->payload_len);
-
-    sentry__envelope_item_set_header(
-        item, "type", sentry_value_new_string("user_report"));
-    sentry_value_t length = sentry_value_new_int32((int32_t)item->payload_len);
-    sentry__envelope_item_set_header(item, "length", length);
-
-    sentry_value_incref(event_id);
-    sentry__envelope_set_header(envelope, "event_id", event_id);
-
-    return item;
+    sentry_value_incref(old_value);
+    sentry_value_set_by_key(object, to, old_value);
+    sentry_value_remove_by_key(object, from);
 }
 
 sentry_envelope_item_t *
 sentry__envelope_add_user_feedback(
     sentry_envelope_t *envelope, sentry_value_t user_feedback)
 {
-    if (!sentry_value_is_null(
-            sentry_value_get_by_key(user_feedback, "event_id"))) {
-        return add_legacy_user_report(envelope, user_feedback);
-    }
+    // convert a deprecated "user report" to a new "user feedback"
+    rename_key(user_feedback, "event_id", "associated_event_id");
+    rename_key(user_feedback, "email", "contact_email");
+    rename_key(user_feedback, "comments", "message");
 
     sentry_value_t event = sentry_value_new_event();
     sentry_value_t contexts = sentry_value_get_by_key(event, "contexts");
