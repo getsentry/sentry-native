@@ -16,8 +16,9 @@ noop_send(const sentry_envelope_t *UNUSED(envelope), void *UNUSED(data))
 
 SENTRY_TEST(init_failure)
 {
-    sentry_transport_t *transport
-        = sentry_new_function_transport(noop_send, NULL);
+    sentry_transport_t *transport = NULL;
+    SENTRY_TEST_DEPRECATED(
+        transport = sentry_new_function_transport(noop_send, NULL));
     TEST_ASSERT(!!transport);
     sentry_transport_set_startup_func(transport, transport_startup_fail);
 

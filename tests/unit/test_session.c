@@ -57,8 +57,8 @@ SENTRY_TEST(session_basics)
     uint64_t called = 0;
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
-    sentry_options_set_transport(
-        options, sentry_new_function_transport(send_envelope, &called));
+    SENTRY_TEST_DEPRECATED(sentry_options_set_transport(
+        options, sentry_new_function_transport(send_envelope, &called)));
     sentry_options_set_release(options, "my_release");
 
     // the default environment is always `production` if not overwritten by the
@@ -141,8 +141,8 @@ SENTRY_TEST(count_sampled_events)
 
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
-    sentry_options_set_transport(options,
-        sentry_new_function_transport(send_sampled_envelope, &assertion));
+    SENTRY_TEST_DEPRECATED(sentry_options_set_transport(options,
+        sentry_new_function_transport(send_sampled_envelope, &assertion)));
     sentry_options_set_release(options, "my_release");
     sentry_options_set_sample_rate(options, 0.5);
     sentry_init(options);
