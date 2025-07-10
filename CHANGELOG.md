@@ -12,6 +12,10 @@
 
 - Update Xbox toolchain to include `UseDebugLibraries` fix for Debug builds. ([#1302](https://github.com/getsentry/sentry-native/pull/1302))
 
+**Meta**:
+
+- Marked deprecated functions with `SENTRY_DEPRECATED(msg)`. ([#1308](https://github.com/getsentry/sentry-native/pull/1308))
+
 ## 0.9.1
 
 **Features**:

@@ -33,8 +33,8 @@ SENTRY_TEST(basic_function_transport)
     uint64_t called = 0;
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
-    sentry_options_set_transport(options,
-        sentry_new_function_transport(send_envelope_test_basic, &called));
+    SENTRY_TEST_DEPRECATED(sentry_options_set_transport(options,
+        sentry_new_function_transport(send_envelope_test_basic, &called)));
     sentry_options_set_release(options, "prod");
     sentry_options_set_require_user_consent(options, true);
     sentry_init(options);
@@ -85,9 +85,9 @@ SENTRY_TEST(sampling_before_send)
 
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
-    sentry_options_set_transport(options,
+    SENTRY_TEST_DEPRECATED(sentry_options_set_transport(options,
         sentry_new_function_transport(
-            counting_transport_func, &called_transport));
+            counting_transport_func, &called_transport)));
     sentry_options_set_before_send(options, before_send, &called_beforesend);
     sentry_options_set_sample_rate(options, 0.75);
     sentry_init(options);
@@ -127,9 +127,9 @@ SENTRY_TEST(discarding_before_send)
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
     // Disable sessions or this test would fail if env:SENTRY_RELEASE is set.
     sentry_options_set_auto_session_tracking(options, 0);
-    sentry_options_set_transport(options,
+    SENTRY_TEST_DEPRECATED(sentry_options_set_transport(options,
         sentry_new_function_transport(
-            counting_transport_func, &called_transport));
+            counting_transport_func, &called_transport)););
     sentry_options_set_before_send(
         options, discarding_before_send, &called_beforesend);
     sentry_init(options);

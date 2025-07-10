@@ -28,9 +28,9 @@ SENTRY_TEST(lazy_attachments)
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_auto_session_tracking(options, false);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
-    sentry_options_set_transport(options,
+    SENTRY_TEST_DEPRECATED(sentry_options_set_transport(options,
         sentry_new_function_transport(
-            send_envelope_test_attachments, &testdata));
+            send_envelope_test_attachments, &testdata)));
     char rel[] = { 't', 'e', 's', 't' };
     sentry_options_set_release_n(options, rel, sizeof(rel));
 
