@@ -11,12 +11,13 @@ typedef struct {
 } sentry_attachments_testdata_t;
 
 static void
-send_envelope_test_attachments(const sentry_envelope_t *envelope, void *_data)
+send_envelope_test_attachments(sentry_envelope_t *envelope, void *_data)
 {
     sentry_attachments_testdata_t *data = _data;
     data->called += 1;
     sentry__envelope_serialize_into_stringbuilder(
         envelope, &data->serialized_envelope);
+    sentry_envelope_free(envelope);
 }
 
 SENTRY_TEST(lazy_attachments)
@@ -28,9 +29,10 @@ SENTRY_TEST(lazy_attachments)
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_auto_session_tracking(options, false);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
-    sentry_options_set_transport(options,
-        sentry_new_function_transport(
-            send_envelope_test_attachments, &testdata));
+    sentry_transport_t *transport
+        = sentry_transport_new(send_envelope_test_attachments);
+    sentry_transport_set_state(transport, &testdata);
+    sentry_options_set_transport(options, transport);
     char rel[] = { 't', 'e', 's', 't' };
     sentry_options_set_release_n(options, rel, sizeof(rel));
 
