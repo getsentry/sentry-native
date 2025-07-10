@@ -3,6 +3,8 @@
 
 #include <sentry_sync.h>
 
+static sentry_mutex_t g_test_check_mutex = SENTRY__MUTEX_INIT;
+
 static void
 send_envelope_test_concurrent(const sentry_envelope_t *envelope, void *data)
 {
@@ -12,8 +14,12 @@ send_envelope_test_concurrent(const sentry_envelope_t *envelope, void *data)
     if (!sentry_value_is_null(event)) {
         const char *event_id = sentry_value_as_string(
             sentry_value_get_by_key(event, "event_id"));
+        // Protect the test check with a mutex since the test framework
+        // global variables that track checks are not thread-safe.
+        sentry__mutex_lock(&g_test_check_mutex);
         TEST_CHECK_STRING_EQUAL(
             event_id, "4c035723-8638-4c3a-923f-2ab9d08b4018");
+        sentry__mutex_unlock(&g_test_check_mutex);
     }
 }
 
