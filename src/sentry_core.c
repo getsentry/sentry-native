@@ -116,7 +116,7 @@ int
 sentry_init(sentry_options_t *options)
 #endif
 {
-   // pre-init here, so we can consistently use bailing out to :fail
+    // pre-init here, so we can consistently use bailing out to :fail
     sentry_transport_t *transport = NULL;
 
     sentry_close();
