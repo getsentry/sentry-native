@@ -80,25 +80,6 @@ char *sentry__value_stringify(sentry_value_t value);
 sentry_value_t sentry__value_clone(sentry_value_t value);
 
 /**
- * This appends `v` to the List `value`.
- *
- * On non-full lists, exponentially reallocate space to accommodate new values
- * (until we reach `max`). After reaching max, the oldest value is removed to
- * make space for the new one.
- *
- * `max` should stay fixed over multiple invocations.
- *
- * Returns 0 on success.
- */
-int sentry__value_append_ringbuffer(
-    sentry_value_t value, sentry_value_t v, size_t max);
-
-/**
- * Converts ring buffer to linear list
- */
-sentry_value_t sentry__value_ring_buffer_to_list(sentry_value_t rb);
-
-/**
  * Deep-merges object src into dst.
  *
  * For each key-value pair in the src object the same key in the dst object

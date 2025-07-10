@@ -6,6 +6,7 @@
 #include "sentry_database.h"
 #include "sentry_options.h"
 #include "sentry_os.h"
+#include "sentry_ringbuffer.h"
 #include "sentry_string.h"
 #include "sentry_symbolizer.h"
 #include "sentry_sync.h"
@@ -75,7 +76,7 @@ init_scope(sentry_scope_t *scope)
     scope->extra = sentry_value_new_object();
     scope->contexts = sentry_value_new_object();
     scope->propagation_context = sentry_value_new_object();
-    scope->breadcrumbs = sentry_value_new_list();
+    scope->breadcrumbs = sentry__ringbuffer_new(SENTRY_BREADCRUMBS_MAX);
     scope->level = SENTRY_LEVEL_ERROR;
     scope->client_sdk = sentry_value_new_null();
     scope->attachments = NULL;
@@ -109,7 +110,7 @@ cleanup_scope(sentry_scope_t *scope)
     sentry_value_decref(scope->extra);
     sentry_value_decref(scope->contexts);
     sentry_value_decref(scope->propagation_context);
-    sentry_value_decref(scope->breadcrumbs);
+    sentry__ringbuffer_free(scope->breadcrumbs);
     sentry_value_decref(scope->client_sdk);
     sentry__attachments_free(scope->attachments);
     sentry__transaction_decref(scope->transaction_object);
@@ -514,7 +515,7 @@ sentry__scope_apply_to_event(const sentry_scope_t *scope,
         sentry_value_t event_breadcrumbs
             = sentry_value_get_by_key(event, "breadcrumbs");
         sentry_value_t scope_breadcrumbs
-            = sentry__value_ring_buffer_to_list(scope->breadcrumbs);
+            = sentry__ringbuffer_to_list(scope->breadcrumbs);
         sentry_value_set_by_key(event, "breadcrumbs",
             merge_breadcrumbs(event_breadcrumbs, scope_breadcrumbs,
                 options->max_breadcrumbs));
@@ -546,13 +547,7 @@ sentry__scope_apply_to_event(const sentry_scope_t *scope,
 void
 sentry_scope_add_breadcrumb(sentry_scope_t *scope, sentry_value_t breadcrumb)
 {
-    size_t max_breadcrumbs = SENTRY_BREADCRUMBS_MAX;
-    SENTRY_WITH_OPTIONS (options) {
-        max_breadcrumbs = options->max_breadcrumbs;
-    }
-
-    sentry__value_append_ringbuffer(
-        scope->breadcrumbs, breadcrumb, max_breadcrumbs);
+    sentry__ringbuffer_append(scope->breadcrumbs, breadcrumb);
 }
 
 void
