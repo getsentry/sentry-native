@@ -93,15 +93,18 @@
 #if defined(__GNUC__) || defined(__clang__)
 #    define SENTRY_TEST_DEPRECATED(call)                                       \
         do {                                                                   \
-            _Pragma("GCC diagnostic push") _Pragma(                            \
-                "GCC diagnostic ignored \"-Wdeprecated-declarations\"") call;  \
-            _Pragma("GCC diagnostic pop")                                      \
+            _Pragma("GCC diagnostic push");                                    \
+            _Pragma("GCC diagnostic ignored \"-Wdeprecated-declarations\"");   \
+            call;                                                              \
+            _Pragma("GCC diagnostic pop");                                     \
         } while (0)
 #elif defined(_MSC_VER)
 #    define SENTRY_TEST_DEPRECATED(call)                                       \
         do {                                                                   \
-            __pragma(warning(push)) __pragma(warning(disable : 4996)) call;    \
-            __pragma(warning(pop))                                             \
+            __pragma(warning(push));                                           \
+            __pragma(warning(disable : 4996));                                 \
+            call;                                                              \
+            __pragma(warning(pop));                                            \
         } while (0)
 #else
 #    define SENTRY_TEST_DEPRECATED(call) call
