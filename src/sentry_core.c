@@ -1343,9 +1343,10 @@ sentry_capture_user_feedback(sentry_value_t user_feedback)
         envelope = prepare_user_feedback(user_feedback);
         if (envelope) {
             sentry__capture_envelope(options->transport, envelope);
+        } else {
+            sentry_value_decref(user_feedback);
         }
     }
-    sentry_value_decref(user_feedback);
 }
 
 int

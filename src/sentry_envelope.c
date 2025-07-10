@@ -335,8 +335,7 @@ sentry__envelope_add_user_feedback(
     if (sentry_value_is_null(contexts)) {
         contexts = sentry_value_new_object();
     }
-    sentry_value_set_by_key(
-        contexts, "feedback", sentry__value_clone(user_feedback));
+    sentry_value_set_by_key(contexts, "feedback", user_feedback);
     sentry_value_set_by_key(event, "contexts", contexts);
 
     sentry_envelope_item_t *item = sentry__envelope_add_event(envelope, event);
