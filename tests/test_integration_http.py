@@ -30,6 +30,7 @@ from .assertions import (
     assert_inproc_crash,
     assert_session,
     assert_user_feedback,
+    assert_user_report,
     assert_minidump,
     assert_breakpad_crash,
     assert_gzip_content_encoding,
@@ -168,6 +169,30 @@ def test_user_feedback_http(cmake, httpserver):
         env=env,
     )
 
+    assert len(httpserver.log) == 1
+    output = httpserver.log[0][0].get_data()
+    envelope = Envelope.deserialize(output)
+
+    assert_user_feedback(envelope)
+
+
+def test_user_report_http(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+
+    httpserver.expect_request(
+        "/api/123456/envelope/",
+        headers={"x-sentry-auth": auth_header},
+    ).respond_with_data("OK")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "capture-user-report"],
+        check=True,
+        env=env,
+    )
+
     assert len(httpserver.log) == 2
     output = httpserver.log[0][0].get_data()
     envelope = Envelope.deserialize(output)
@@ -177,7 +202,7 @@ def test_user_feedback_http(cmake, httpserver):
     output = httpserver.log[1][0].get_data()
     envelope = Envelope.deserialize(output)
 
-    assert_user_feedback(envelope)
+    assert_user_report(envelope)
 
 
 def test_exception_and_session_http(cmake, httpserver):
