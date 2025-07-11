@@ -556,14 +556,22 @@ main(int argc, char **argv)
         sentry_capture_event(event);
     }
     if (has_arg(argc, argv, "capture-user-feedback")) {
+        sentry_value_t user_feedback = sentry_value_new_feedback(
+            "some-message", "some-email", "some-name", NULL);
+
+        sentry_capture_feedback(user_feedback);
+    }
+    if (has_arg(argc, argv, "capture-user-report")) {
         sentry_value_t event = sentry_value_new_message_event(
             SENTRY_LEVEL_INFO, "my-logger", "Hello user feedback!");
         sentry_uuid_t event_id = sentry_capture_event(event);
 
+        SENTRY_SUPPRESS_DEPRECATED
         sentry_value_t user_feedback = sentry_value_new_user_feedback(
             &event_id, "some-name", "some-email", "some-comment");
 
         sentry_capture_user_feedback(user_feedback);
+        SENTRY_RESTORE_DEPRECATED
     }
 
     if (has_arg(argc, argv, "capture-transaction")) {
