@@ -40,16 +40,6 @@ set(CMAKE_CXX_FLAGS_INIT "$ENV{CFLAGS} ${CMAKE_CXX_FLAGS_INIT} -D_GAMING_DESKTOP
 # Add GDK props file
 file(GENERATE OUTPUT gdk_build.props INPUT ${CMAKE_CURRENT_LIST_DIR}/gdk_build.props)
 
-function(add_executable target_name)
-  _add_executable(${target_name} ${ARGN})
-  set_target_properties(${target_name} PROPERTIES VS_USER_PROPS gdk_build.props)
-endfunction()
-
-function(add_library target_name)
-  _add_library(${target_name} ${ARGN})
-  set_target_properties(${target_name} PROPERTIES VS_USER_PROPS gdk_build.props)
-endfunction()
-
 # Find DXC compiler
 if(NOT GDK_DXCTool)
   set(GDK_DXCTool "dxc.exe")
@@ -57,6 +47,6 @@ if(NOT GDK_DXCTool)
 endif()
 
 # The MicrosoftGame.Config file needs to be in the directory with the project to enable deploy for Gaming.Desktop.x64
-file(GENERATE OUTPUT MicrosoftGame.Config INPUT ${CMAKE_CURRENT_LIST_DIR}/MicrosoftGameConfig.mgc)
+#file(GENERATE OUTPUT MicrosoftGame.Config INPUT ${CMAKE_CURRENT_LIST_DIR}/MicrosoftGameConfig.mgc)
 
 set(_GRDK_TOOLCHAIN_ ON)

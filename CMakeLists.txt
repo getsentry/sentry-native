@@ -17,6 +17,10 @@ if ("${CMAKE_GENERATOR_PLATFORM}" STREQUAL "Gaming.Xbox.XboxOne.x64")
 	include("${SENTRY_TOOLCHAINS_DIR}/xbox/CMakeGDKXboxOne.cmake")
 	set(XBOX TRUE)
 endif()
+if ("${CMAKE_GENERATOR_PLATFORM}" STREQUAL "Gaming.Desktop.x64")
+	include("${SENTRY_TOOLCHAINS_DIR}/xbox/CMakeGDKDesktop.cmake")
+	set(XBOX TRUE)
+endif()
 
 #read sentry-native version
 file(READ "include/sentry.h" _SENTRY_HEADER_CONTENT)
