@@ -150,6 +150,7 @@ jobs:
             os: windows-2025
             GDK_VERSION: 2504.1.4046
             CMAKE_DEFINES: -DCMAKE_TOOLCHAIN_FILE="./toolchains/xbox/grdk_toolchain.cmake"
+            VS_GENERATOR_TOOLSET: GRDK
 
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
