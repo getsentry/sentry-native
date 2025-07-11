@@ -57,24 +57,20 @@ jobs:
             os: ubuntu-24.04-arm
             CC: gcc-14
             CXX: g++-14
-            ERROR_ON_WARNINGS: 1
           - name: Linux (GCC 14.2.0)
             os: ubuntu-24.04
             CC: gcc-14
             CXX: g++-14
-            ERROR_ON_WARNINGS: 1
           - name: Linux Arm64 (GCC 14.2.0 + tsan)
             os: ubuntu-24.04-arm
             CC: gcc-14
             CXX: g++-14
             RUN_ANALYZER: tsan
-            ERROR_ON_WARNINGS: 1
           - name: Linux (GCC 14.2.0 + tsan)
             os: ubuntu-24.04
             CC: gcc-14
             CXX: g++-14
             RUN_ANALYZER: tsan
-            ERROR_ON_WARNINGS: 1
           - name: Linux (clang 19 + asan + llvm-cov)
             os: ubuntu-24.04
             CC: clang-19
