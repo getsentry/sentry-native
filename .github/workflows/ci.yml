@@ -271,8 +271,8 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: |
-            "C:\Program Files (x86)\Microsoft GDK\${{ env['GDK_VERSION'] }}\GRDK"
-            "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Microsoft\VC\v170\Platforms\Gaming.Desktop.x64\${{ env['GDK_VERSION'] }}"
+            "C:/Program Files (x86)/Microsoft GDK/${{ env['GDK_VERSION'] }}"
+            "C:/Program Files/Microsoft Visual Studio/2022/Enterprise/MSBuild/Microsoft/VC/v170/Platforms/Gaming.Desktop.x64/${{ env['GDK_VERSION'] }}"
           key: gdk-${{ env['GDK_VERSION'] }}
 
       - name: Setup GDK
@@ -285,8 +285,8 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: |
-            "C:\Program Files (x86)\Microsoft GDK\${{ env['GDK_VERSION'] }}\GRDK"
-            "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Microsoft\VC\v170\Platforms\Gaming.Desktop.x64\${{ env['GDK_VERSION'] }}"
+            "C:/Program Files (x86)/Microsoft GDK/${{ env['GDK_VERSION'] }}"
+            "C:/Program Files/Microsoft Visual Studio/2022/Enterprise/MSBuild/Microsoft/VC/v170/Platforms/Gaming.Desktop.x64/${{ env['GDK_VERSION'] }}"
           key: gdk-${{ env['GDK_VERSION'] }}
 
       - name: Add sentry.native.test hostname
