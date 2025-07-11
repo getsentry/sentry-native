@@ -148,7 +148,8 @@ jobs:
             ANDROID_ARCH: x86_64
           - name: Windows (Gaming.Desktop.x64)
             os: windows-2025
-            GDK_VERSION: 2504.1.4046
+            GDK_VERSION: 250401
+            GDK_WINGET_VERSION: 2504.1.4046
             CMAKE_DEFINES: -DCMAKE_TOOLCHAIN_FILE="./toolchains/xbox/grdk_toolchain.cmake" -DGDK_VERSION=250401
             VS_GENERATOR_TOOLSET: GRDK
 
@@ -169,6 +170,7 @@ jobs:
       VS_GENERATOR_TOOLSET: ${{ matrix.VS_GENERATOR_TOOLSET }}
       SYSTEM_PYTHON: ${{ matrix.SYSTEM_PYTHON }}
       GDK_VERSION: ${{ matrix.GDK_VERSION }}
+      GDK_WINGET_VERSION: ${{ matrix.GDK_WINGET_VERSION }}
 
     steps:
       - uses: actions/checkout@v4
@@ -274,9 +276,9 @@ jobs:
           key: gdk-${{ env['GDK_VERSION'] }}
 
       - name: Setup GDK
-        if: ${{ runner.os == 'Windows' && env['GDK_VERSION'] && steps.cache-gdk.outputs.cache-hit != 'true'}}
+        if: ${{ runner.os == 'Windows' && env['GDK_WINGET_VERSION'] && steps.cache-gdk.outputs.cache-hit != 'true'}}
         run: |
-          winget install --accept-source-agreements --accept-package-agreements --silent --disable-interactivity --version $env:GDK_VERSION Microsoft.Gaming.GDK
+          winget install --accept-source-agreements --accept-package-agreements --silent --disable-interactivity --version $env:GDK_WINGET_VERSION Microsoft.Gaming.GDK
 
       - name: Cache GDK
         if: ${{ runner.os == 'Windows' && env['GDK_VERSION'] }}
