@@ -275,10 +275,18 @@ jobs:
             C:/Program Files/Microsoft Visual Studio/2022/Enterprise/MSBuild/Microsoft/VC/v170/Platforms/Gaming.Desktop.x64/${{ env['GDK_VERSION'] }}
           key: gdk-${{ env['GDK_VERSION'] }}
 
-      - name: Setup GDK
+      - name: Install GDK
         if: ${{ runner.os == 'Windows' && env['GDK_WINGET_VERSION'] && steps.cache-gdk.outputs.cache-hit != 'true' }}
         run: |
           winget install --accept-source-agreements --accept-package-agreements --silent --disable-interactivity --version $env:GDK_WINGET_VERSION Microsoft.Gaming.GDK
+
+      - name: Setup GDK
+        run: |
+          $path = 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\GDK'
+          if (-not (Test-Path $path)) {
+            New-Item -Path $path -Force | Out-Null
+          }
+          Set-ItemProperty -Path $path -Name GRDKInstallPath -Value 'C:\Program Files (x86)\Microsoft GDK\'
 
       - name: Cache GDK
         if: ${{ runner.os == 'Windows' && env['GDK_VERSION'] && steps.cache-gdk.outputs.cache-hit != 'true' }}
