@@ -241,7 +241,7 @@ jobs:
         run: . "scripts\install-llvm-mingw.ps1"
 
       - name: Set up zlib for Windows
-        if: ${{ runner.os == 'Windows' }}
+        if: ${{ runner.os == 'Windows' && !env['GDK_VERSION'] }}
         shell: powershell
         run: . "scripts\install-zlib.ps1"
 
