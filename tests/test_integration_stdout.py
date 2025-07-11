@@ -19,7 +19,7 @@ from .assertions import (
     assert_crash_timestamp,
     assert_breakpad_crash,
 )
-from .conditions import has_breakpad, has_files
+from .conditions import has_breakpad, has_files, is_tsan
 
 
 def test_capture_stdout(cmake):
@@ -151,6 +151,8 @@ def run_crash_stdout_for(backend, cmake, example_args):
     return run_stdout_for(backend, cmake, ["attachment", "crash"] + example_args)
 
 
+
+@pytest.mark.skipif(is_tsan, reason="Can't run tsan on DEADLYSIGNAL tests")
 def test_inproc_crash_stdout(cmake):
     tmp_path, output = run_crash_stdout_for("inproc", cmake, [])
 
@@ -163,6 +165,7 @@ def test_inproc_crash_stdout(cmake):
     assert_inproc_crash(envelope)
 
 
+@pytest.mark.skipif(is_tsan, reason="Can't run tsan on DEADLYSIGNAL tests")
 def test_inproc_crash_stdout_before_send(cmake):
     tmp_path, output = run_crash_stdout_for("inproc", cmake, ["before-send"])
 
@@ -176,6 +179,7 @@ def test_inproc_crash_stdout_before_send(cmake):
     assert_before_send(envelope)
 
 
+@pytest.mark.skipif(is_tsan, reason="Can't run tsan on DEADLYSIGNAL tests")
 def test_inproc_crash_stdout_discarding_on_crash(cmake):
     tmp_path, output = run_crash_stdout_for("inproc", cmake, ["discarding-on-crash"])
 
@@ -185,6 +189,7 @@ def test_inproc_crash_stdout_discarding_on_crash(cmake):
     assert_crash_timestamp(has_files, tmp_path)
 
 
+@pytest.mark.skipif(is_tsan, reason="Can't run tsan on DEADLYSIGNAL tests")
 def test_inproc_crash_stdout_before_send_and_on_crash(cmake):
     tmp_path, output = run_crash_stdout_for(
         "inproc", cmake, ["before-send", "on-crash"]
