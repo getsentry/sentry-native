@@ -274,7 +274,7 @@ jobs:
           key: gdk-${{ env['GDK_VERSION'] }}
 
       - name: Setup GDK
-        if: ${{ runner.os == 'Windows' && env['GDK_VERSION'] }}
+        if: ${{ runner.os == 'Windows' && env['GDK_VERSION'] && steps.cache-gdk.outputs.cache-hit != 'true'}}
         run: |
           winget install --accept-source-agreements --accept-package-agreements --silent --disable-interactivity --version $env:GDK_VERSION Microsoft.Gaming.GDK
 
