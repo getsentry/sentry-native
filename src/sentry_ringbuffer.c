@@ -88,7 +88,5 @@ sentry__ringbuffer_set_max_size(sentry_ringbuffer_t *rb, size_t max_size)
     if (current_len > 0) {
         return;
     }
-
-    // Simply update the max_size since the list is empty
     rb->max_size = max_size;
 }

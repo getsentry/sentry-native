@@ -62,6 +62,7 @@ def _setup_crashpad_proxy_test(cmake, httpserver, proxy):
 
     return env, proxy_process, tmp_path
 
+
 @pytest.mark.skipif(is_tsan, reason="Can't run tsan on DEADLYSIGNAL tests")
 def test_crashpad_crash_proxy_env(cmake, httpserver):
     if not shutil.which("mitmdump"):

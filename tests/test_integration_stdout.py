@@ -151,7 +151,6 @@ def run_crash_stdout_for(backend, cmake, example_args):
     return run_stdout_for(backend, cmake, ["attachment", "crash"] + example_args)
 
 
-
 @pytest.mark.skipif(is_tsan, reason="Can't run tsan on DEADLYSIGNAL tests")
 def test_inproc_crash_stdout(cmake):
     tmp_path, output = run_crash_stdout_for("inproc", cmake, [])
