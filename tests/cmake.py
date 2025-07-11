@@ -149,7 +149,9 @@ def cmake(cwd, targets, options=None, cflags=[]):
     if "asan" in os.environ.get("RUN_ANALYZER", ""):
         config_cmd.append("-DWITH_ASAN_OPTION=ON")
     if "tsan" in os.environ.get("RUN_ANALYZER", ""):
-        os.environ["TSAN_OPTIONS"] = "second_deadlock_stack=1"
+        module_dir = Path(__file__).resolve().parent
+        supp_file = module_dir / "tsan.supp"
+        os.environ["TSAN_OPTIONS"] = f"detect_deadlocks=1:second_deadlock_stack=1:suppressions={supp_file}"
         config_cmd.append("-DWITH_TSAN_OPTION=ON")
 
     # we have to set `-Werror` for this cmake invocation only, otherwise
