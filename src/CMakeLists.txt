@@ -24,6 +24,8 @@ sentry_target_sources_cwd(sentry
 	sentry_path.h
 	sentry_ratelimiter.c
 	sentry_ratelimiter.h
+	sentry_ringbuffer.c
+	sentry_ringbuffer.h
 	sentry_sampling_context.h
 	sentry_scope.c
 	sentry_scope.h

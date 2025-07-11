@@ -6,6 +6,8 @@ import sys
 
 import pytest
 
+from tests.conditions import is_tsan, is_x86, is_asan
+
 project_fixture_path = pathlib.Path("tests/fixtures/dotnet_signal")
 
 
@@ -54,16 +56,9 @@ def run_dotnet_native_crash(tmp_path):
     return run_dotnet(tmp_path, ["dotnet", "run", "native-crash"])
 
 
-skip_condition = (
-    sys.platform != "linux"
-    or bool(os.environ.get("TEST_X86"))
-    or "asan" in os.environ.get("RUN_ANALYZER", "")
-)
-
-
 @pytest.mark.skipif(
-    skip_condition,
-    reason="dotnet signal handling is currently only supported on 64-bit Linux",
+    sys.platform != "linux" or is_x86 or is_asan or is_tsan,
+    reason="dotnet signal handling is currently only supported on 64-bit Linux without sanitizers",
 )
 def test_dotnet_signals_inproc(cmake):
     try:

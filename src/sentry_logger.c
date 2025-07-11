@@ -1,6 +1,5 @@
 #include "sentry_logger.h"
 #include "sentry_core.h"
-#include "sentry_options.h"
 #include "sentry_string.h"
 
 #include <stdio.h>

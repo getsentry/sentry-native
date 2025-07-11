@@ -22,9 +22,12 @@ from .assertions import (
     assert_session,
     assert_gzip_file_header,
 )
-from .conditions import has_crashpad
+from .conditions import has_crashpad, is_tsan
 
-pytestmark = pytest.mark.skipif(not has_crashpad, reason="tests need crashpad backend")
+pytestmark = pytest.mark.skipif(
+    not has_crashpad or is_tsan,
+    reason="tests need crashpad backend and not run with TSAN",
+)
 
 # Windows and Linux are currently able to flush all the state on crash
 flushes_state = sys.platform != "darwin"
