@@ -265,29 +265,29 @@ jobs:
         run: bash scripts/start-android.sh
         timeout-minutes: 20
 
-      - name: Restore GDK
-        if: ${{ runner.os == 'Windows' && env['GDK_VERSION'] }}
-        id: cache-gdk
-        uses: actions/cache/restore@v4
-        with:
-          path: |
-            C:/Program Files (x86)/Microsoft GDK/${{ env['GDK_VERSION'] }}
-            C:/Program Files/Microsoft Visual Studio/2022/Enterprise/MSBuild/Microsoft/VC/v170/Platforms/Gaming.Desktop.x64/${{ env['GDK_VERSION'] }}
-          key: gdk-${{ env['GDK_VERSION'] }}
+      # - name: Restore GDK
+      #   if: ${{ runner.os == 'Windows' && env['GDK_VERSION'] }}
+      #   id: cache-gdk
+      #   uses: actions/cache/restore@v4
+      #   with:
+      #     path: |
+      #       C:/Program Files (x86)/Microsoft GDK/${{ env['GDK_VERSION'] }}
+      #       C:/Program Files/Microsoft Visual Studio/2022/Enterprise/MSBuild/Microsoft/VC/v170/Platforms/Gaming.Desktop.x64/${{ env['GDK_VERSION'] }}
+      #     key: gdk-${{ env['GDK_VERSION'] }}
 
       - name: Setup GDK
-        if: ${{ runner.os == 'Windows' && env['GDK_WINGET_VERSION'] && steps.cache-gdk.outputs.cache-hit != 'true' }}
+        if: ${{ runner.os == 'Windows' && env['GDK_WINGET_VERSION'] }} # && steps.cache-gdk.outputs.cache-hit != 'true'
         run: |
           winget install --accept-source-agreements --accept-package-agreements --silent --disable-interactivity --version $env:GDK_WINGET_VERSION Microsoft.Gaming.GDK
 
-      - name: Cache GDK
-        if: ${{ runner.os == 'Windows' && env['GDK_VERSION'] && steps.cache-gdk.outputs.cache-hit != 'true' }}
-        uses: actions/cache/save@v4
-        with:
-          path: |
-            C:/Program Files (x86)/Microsoft GDK/${{ env['GDK_VERSION'] }}
-            C:/Program Files/Microsoft Visual Studio/2022/Enterprise/MSBuild/Microsoft/VC/v170/Platforms/Gaming.Desktop.x64/${{ env['GDK_VERSION'] }}
-          key: gdk-${{ env['GDK_VERSION'] }}
+      # - name: Cache GDK
+      #   if: ${{ runner.os == 'Windows' && env['GDK_VERSION'] && steps.cache-gdk.outputs.cache-hit != 'true' }}
+      #   uses: actions/cache/save@v4
+      #   with:
+      #     path: |
+      #       C:/Program Files (x86)/Microsoft GDK/${{ env['GDK_VERSION'] }}
+      #       C:/Program Files/Microsoft Visual Studio/2022/Enterprise/MSBuild/Microsoft/VC/v170/Platforms/Gaming.Desktop.x64/${{ env['GDK_VERSION'] }}
+      #     key: gdk-${{ env['GDK_VERSION'] }}
 
       - name: Add sentry.native.test hostname
         if: ${{ runner.os == 'Windows' }}
