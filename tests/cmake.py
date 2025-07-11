@@ -150,12 +150,11 @@ def cmake(cwd, targets, options=None, cflags=[]):
         config_cmd.append("-DWITH_ASAN_OPTION=ON")
     if "tsan" in os.environ.get("RUN_ANALYZER", ""):
         module_dir = Path(__file__).resolve().parent
-        supp_file = module_dir / "tsan.supp"
         tsan_options = {
-            "verbosity": 2,
+            "verbosity": 1,
             "detect_deadlocks": 1,
             "second_deadlock_stack": 1,
-            "suppressions": supp_file,
+            "suppressions": module_dir / "tsan.supp",
         }
         os.environ["TSAN_OPTIONS"] = ":".join(
             f"{key}={value}" for key, value in tsan_options.items()

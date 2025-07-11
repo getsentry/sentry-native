@@ -297,7 +297,6 @@ def test_abnormal_session(cmake, httpserver):
         ({"SENTRY_TRANSPORT_COMPRESSION": "On"}),
     ],
 )
-@pytest.mark.skipif(is_tsan, reason="Can't run tsan on DEADLYSIGNAL tests")
 def test_inproc_crash_http(cmake, httpserver, build_args):
     build_args.update({"SENTRY_BACKEND": "inproc"})
     tmp_path = cmake(["sentry_example"], build_args)
@@ -344,7 +343,6 @@ def test_inproc_crash_http(cmake, httpserver, build_args):
     assert_inproc_crash(envelope)
 
 
-@pytest.mark.skipif(is_tsan, reason="Can't run tsan on DEADLYSIGNAL tests")
 def test_inproc_reinstall(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "inproc"})
 
@@ -373,7 +371,6 @@ def test_inproc_reinstall(cmake, httpserver):
     assert len(httpserver.log) == 1
 
 
-@pytest.mark.skipif(is_tsan, reason="Can't run tsan on DEADLYSIGNAL tests")
 def test_inproc_dump_inflight(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "inproc"})
 
@@ -401,7 +398,6 @@ def test_inproc_dump_inflight(cmake, httpserver):
         ({"SENTRY_TRANSPORT_COMPRESSION": "On"}),
     ],
 )
-@pytest.mark.skipif(is_tsan, reason="Can't run tsan on DEADLYSIGNAL tests")
 def test_breakpad_crash_http(cmake, httpserver, build_args):
     build_args.update({"SENTRY_BACKEND": "breakpad"})
     tmp_path = cmake(["sentry_example"], build_args)
@@ -450,7 +446,6 @@ def test_breakpad_crash_http(cmake, httpserver, build_args):
 
 
 @pytest.mark.skipif(not has_breakpad, reason="test needs breakpad backend")
-@pytest.mark.skipif(is_tsan, reason="Can't run tsan on DEADLYSIGNAL tests")
 def test_breakpad_reinstall(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "breakpad"})
 
@@ -480,7 +475,6 @@ def test_breakpad_reinstall(cmake, httpserver):
 
 
 @pytest.mark.skipif(not has_breakpad, reason="test needs breakpad backend")
-@pytest.mark.skipif(is_tsan, reason="Can't run tsan on DEADLYSIGNAL tests")
 def test_breakpad_dump_inflight(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "breakpad"})
 
