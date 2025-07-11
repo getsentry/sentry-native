@@ -36,7 +36,7 @@ else()
 endif()
 
 if(NOT EXISTS "${Console_SdkRoot}/${GDK_VERSION}")
-    message(FATAL_ERROR "ERROR: Cannot locate Microsoft Game Development Kit (GDK) - ${GDK_VERSION}")
+    message(FATAL_ERROR "ERROR: Cannot locate Microsoft Game Development Kit (GDK) - ${GDK_VERSION} in ${Console_SdkRoot}")
 endif()
 
 #--- GameRuntime Library (for Xbox these are included in the Console_Libs variable)
