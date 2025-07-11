@@ -24,7 +24,7 @@ from .assertions import (
 )
 from .conditions import has_crashpad, is_tsan
 
-pytestmark = pytest.mark.skipif(not has_crashpad, reason="tests need crashpad backend")
+pytestmark = pytest.mark.skipif(not has_crashpad or is_tsan, reason="tests need crashpad backend and not run with TSAN")
 
 # Windows and Linux are currently able to flush all the state on crash
 flushes_state = sys.platform != "darwin"
@@ -63,7 +63,6 @@ def _setup_crashpad_proxy_test(cmake, httpserver, proxy):
     return env, proxy_process, tmp_path
 
 
-@pytest.mark.skipif(is_tsan, reason="Can't run tsan on DEADLYSIGNAL tests")
 def test_crashpad_crash_proxy_env(cmake, httpserver):
     if not shutil.which("mitmdump"):
         pytest.skip("mitmdump is not installed")
@@ -84,7 +83,6 @@ def test_crashpad_crash_proxy_env(cmake, httpserver):
         proxy_test_finally(1, httpserver, proxy_process)
 
 
-@pytest.mark.skipif(is_tsan, reason="Can't run tsan on DEADLYSIGNAL tests")
 def test_crashpad_crash_proxy_env_port_incorrect(cmake, httpserver):
     if not shutil.which("mitmdump"):
         pytest.skip("mitmdump is not installed")
@@ -105,7 +103,6 @@ def test_crashpad_crash_proxy_env_port_incorrect(cmake, httpserver):
         proxy_test_finally(0, httpserver, proxy_process)
 
 
-@pytest.mark.skipif(is_tsan, reason="Can't run tsan on DEADLYSIGNAL tests")
 def test_crashpad_proxy_set_empty(cmake, httpserver):
     if not shutil.which("mitmdump"):
         pytest.skip("mitmdump is not installed")
@@ -129,7 +126,6 @@ def test_crashpad_proxy_set_empty(cmake, httpserver):
         proxy_test_finally(1, httpserver, proxy_process, expected_proxy_logsize=0)
 
 
-@pytest.mark.skipif(is_tsan, reason="Can't run tsan on DEADLYSIGNAL tests")
 def test_crashpad_proxy_https_not_http(cmake, httpserver):
     if not shutil.which("mitmdump"):
         pytest.skip("mitmdump is not installed")
@@ -166,7 +162,6 @@ def test_crashpad_proxy_https_not_http(cmake, httpserver):
     ],
 )
 @pytest.mark.parametrize("proxy_running", [True, False])
-@pytest.mark.skipif(is_tsan, reason="Can't run tsan on DEADLYSIGNAL tests")
 def test_crashpad_crash_proxy(cmake, httpserver, run_args, proxy_running):
     if not shutil.which("mitmdump"):
         pytest.skip("mitmdump is not installed")
@@ -197,7 +192,6 @@ def test_crashpad_crash_proxy(cmake, httpserver, run_args, proxy_running):
         proxy_test_finally(expected_logsize, httpserver, proxy_process)
 
 
-@pytest.mark.skipif(is_tsan, reason="Can't run tsan on DEADLYSIGNAL tests")
 def test_crashpad_reinstall(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "crashpad"})
 
@@ -333,7 +327,6 @@ def test_crashpad_wer_crash(cmake, httpserver, run_args):
         ),
     ],
 )
-@pytest.mark.skipif(is_tsan, reason="Can't run tsan on DEADLYSIGNAL tests")
 def test_crashpad_dumping_crash(cmake, httpserver, run_args, build_args):
     build_args.update({"SENTRY_BACKEND": "crashpad"})
     tmp_path = cmake(["sentry_example"], build_args)
@@ -408,7 +401,6 @@ def test_crashpad_dumping_crash(cmake, httpserver, run_args, build_args):
         ),
     ],
 )
-@pytest.mark.skipif(is_tsan, reason="Can't run tsan on DEADLYSIGNAL tests")
 def test_crashpad_dumping_stack_overflow(cmake, httpserver, build_args):
     build_args.update({"SENTRY_BACKEND": "crashpad"})
     tmp_path = cmake(["sentry_example"], build_args)
@@ -469,7 +461,6 @@ def is_session_envelope(data):
     "run_args",
     [(["discarding-before-send"]), (["discarding-on-crash"])],
 )
-@pytest.mark.skipif(is_tsan, reason="Can't run tsan on DEADLYSIGNAL tests")
 def test_crashpad_non_dumping_crash(cmake, httpserver, run_args):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "crashpad"})
 
@@ -546,7 +537,6 @@ def test_crashpad_crash_after_shutdown(cmake, httpserver):
 
 
 @pytest.mark.skipif(not flushes_state, reason="test needs state flushing")
-@pytest.mark.skipif(is_tsan, reason="Can't run tsan on DEADLYSIGNAL tests")
 def test_crashpad_dump_inflight(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "crashpad"})
 
@@ -571,7 +561,6 @@ def test_crashpad_dump_inflight(cmake, httpserver):
     assert len(httpserver.log) >= 11
 
 
-@pytest.mark.skipif(is_tsan, reason="Can't run tsan on DEADLYSIGNAL tests")
 def test_disable_backend(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "crashpad"})
 
@@ -600,7 +589,6 @@ def test_disable_backend(cmake, httpserver):
     sys.platform != "darwin" or not os.getenv("CI"),
     reason="retry mechanism test only runs on macOS in CI",
 )
-@pytest.mark.skipif(is_tsan, reason="Can't run tsan on DEADLYSIGNAL tests")
 def test_crashpad_retry(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "crashpad"})
 
