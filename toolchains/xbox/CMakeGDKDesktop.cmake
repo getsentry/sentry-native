@@ -33,9 +33,7 @@ find_program(MAKEPKG_TOOL makepkg.exe
 
 message("MGC Tool = ${MAKEPKG_TOOL}")
 
-find_program(DIRECTX_DXC_TOOL dxc.exe
-        REQUIRED NO_SYSTEM_ENVIRONMENT_PATH NO_CMAKE_SYSTEM_PATH NO_DEFAULT_PATH
-        HINTS "${Console_SdkRoot}/${GDK_VERSION}")
+find_program(DIRECTX_DXC_TOOL dxc.exe REQUIRED)
 
 message("DXC Compiler = ${DIRECTX_DXC_TOOL}")
 
