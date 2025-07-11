@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1752229957474,
+  "lastUpdate": 1752230303100,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -6170,6 +6170,66 @@ window.BENCHMARK_DATA = {
             "value": 5.649790999996185,
             "unit": "ms",
             "extra": "Min 5.485ms\nMax 5.948ms\nMean 5.681ms\nStdDev 0.204ms\nMedian 5.650ms\nCPU 0.811ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "bffc57deb53808b26e11ef2683c05340195f8b0d",
+          "message": "feat: implement the new User Feedback API (#1304)\n\n* feat: implement the new User Feedback API\n\nhttps://develop.sentry.dev/sdk/data-model/envelope-items/#user-feedback\n\n* Fix heap-use-after-free\n\n* Update CHANGELOG.md\n\n* remove unused line3_end\n\n* what if we reused the old API?\n\n* use internal id to fix event association in Sentry Web UI\n\n* restore integration test for legacy user report\n\n* convert a deprecated \"user report\" to a new \"user feedback\"\n\n* conversion: note in docs & log info message\n\n* let sentry__envelope_add_user_feedback take ownership\n\n* revert back to option 1\n\n* deprecate sentry_value_new_user_feedback() & sentry_capture_user_feedback()\n\n* fix remaining deprecation warnings\n\n* msvc",
+          "timestamp": "2025-07-11T12:28:24+02:00",
+          "tree_id": "09bfefa430d3e1795ffea5c12ce54d3a1bc21273",
+          "url": "https://github.com/getsentry/sentry-native/commit/bffc57deb53808b26e11ef2683c05340195f8b0d"
+        },
+        "date": 1752230301890,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 3.1378749999930733,
+            "unit": "ms",
+            "extra": "Min 2.905ms\nMax 3.518ms\nMean 3.217ms\nStdDev 0.242ms\nMedian 3.138ms\nCPU 1.753ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 3.133000000048014,
+            "unit": "ms",
+            "extra": "Min 3.024ms\nMax 3.221ms\nMean 3.119ms\nStdDev 0.082ms\nMedian 3.133ms\nCPU 1.736ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 10.95041600001423,
+            "unit": "ms",
+            "extra": "Min 10.059ms\nMax 14.996ms\nMean 11.516ms\nStdDev 2.005ms\nMedian 10.950ms\nCPU 3.906ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.03420899997763627,
+            "unit": "ms",
+            "extra": "Min 0.029ms\nMax 0.150ms\nMean 0.056ms\nStdDev 0.052ms\nMedian 0.034ms\nCPU 0.055ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.22916600005373766,
+            "unit": "ms",
+            "extra": "Min 0.165ms\nMax 0.256ms\nMean 0.226ms\nStdDev 0.036ms\nMedian 0.229ms\nCPU 0.226ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 6.121832999951948,
+            "unit": "ms",
+            "extra": "Min 5.640ms\nMax 7.104ms\nMean 6.220ms\nStdDev 0.556ms\nMedian 6.122ms\nCPU 0.900ms"
           }
         ]
       }
