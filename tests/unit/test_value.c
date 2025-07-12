@@ -1,5 +1,4 @@
 #include "sentry_json.h"
-#include "sentry_ringbuffer.h"
 #include "sentry_testsupport.h"
 #include "sentry_value.h"
 #include <locale.h>
@@ -175,70 +174,6 @@ SENTRY_TEST(value_list)
     sentry_value_freeze(val);
     TEST_CHECK(sentry_value_is_frozen(val));
     sentry_value_decref(val);
-}
-
-SENTRY_TEST(ringbuffer_append)
-{
-    sentry_ringbuffer_t *rb = sentry__ringbuffer_new(5);
-    TEST_ASSERT(!!rb);
-    for (int32_t i = 1; i <= 10; i++) {
-        sentry__ringbuffer_append(rb, sentry_value_new_int32(i));
-    }
-    sentry__ringbuffer_append(rb, sentry_value_new_int32(1010));
-#define CHECK_IDX(Idx, Val)                                                    \
-    TEST_CHECK_INT_EQUAL(                                                      \
-        sentry_value_as_int32(sentry_value_get_by_index(rb->list, Idx)), Val)
-    CHECK_IDX(0, 1010);
-    CHECK_IDX(1, 7);
-    CHECK_IDX(2, 8);
-    CHECK_IDX(3, 9);
-    CHECK_IDX(4, 10);
-    sentry__ringbuffer_free(rb);
-}
-
-SENTRY_TEST(value_ringbuffer)
-{
-    const sentry_value_t v0 = sentry_value_new_object();
-    sentry_value_set_by_key(v0, "key", sentry_value_new_int32((int32_t)0));
-    const sentry_value_t v1 = sentry_value_new_object();
-    sentry_value_set_by_key(v1, "key", sentry_value_new_int32((int32_t)1));
-    const sentry_value_t v2 = sentry_value_new_object();
-    sentry_value_set_by_key(v2, "key", sentry_value_new_int32((int32_t)2));
-    const sentry_value_t v3 = sentry_value_new_object();
-    sentry_value_set_by_key(v3, "key", sentry_value_new_int32((int32_t)3));
-
-    sentry_ringbuffer_t *rb = sentry__ringbuffer_new(3);
-    TEST_ASSERT(!!rb);
-    sentry__ringbuffer_append(rb, v0);
-    TEST_CHECK_INT_EQUAL(sentry_value_refcount(v0), 1);
-    sentry_value_incref(v0);
-    TEST_CHECK_INT_EQUAL(sentry_value_refcount(v0), 2);
-
-    sentry__ringbuffer_append(rb, v1);
-    TEST_CHECK_INT_EQUAL(sentry_value_refcount(v1), 1);
-    sentry__ringbuffer_append(rb, v2);
-    TEST_CHECK_INT_EQUAL(sentry_value_refcount(v2), 1);
-    sentry__ringbuffer_append(rb, v3);
-    TEST_CHECK_INT_EQUAL(sentry_value_refcount(v3), 1);
-    TEST_CHECK_INT_EQUAL(sentry_value_refcount(v0), 1);
-
-    const sentry_value_t l = sentry__ringbuffer_to_list(rb);
-    TEST_CHECK_INT_EQUAL(sentry_value_get_length(l), 3);
-    TEST_CHECK_INT_EQUAL(sentry_value_refcount(v3), 2);
-    TEST_CHECK_INT_EQUAL(sentry_value_refcount(v2), 2);
-    TEST_CHECK_INT_EQUAL(sentry_value_refcount(v1), 2);
-#define CHECK_KEY_IDX(List, Idx, Val)                                          \
-    TEST_CHECK_INT_EQUAL(sentry_value_as_int32(sentry_value_get_by_key(        \
-                             sentry_value_get_by_index(List, Idx), "key")),    \
-        Val)
-
-    CHECK_KEY_IDX(l, 0, 1);
-    CHECK_KEY_IDX(l, 1, 2);
-    CHECK_KEY_IDX(l, 2, 3);
-
-    sentry_value_decref(l);
-    sentry__ringbuffer_free(rb);
-    sentry_value_decref(v0); // one manual incref
 }
 
 SENTRY_TEST(value_object)
