@@ -19,7 +19,7 @@ runs:
 
     - name: Restore GDK registry
       id: gdk-registry
-      uses: actions/restore/cache@v4
+      uses: actions/cache/restore@v4
       with:
         path: ${{ runner.temp }}/gdk.reg
         key: setup-gdk-registry-${{ inputs.gdk-version }}
