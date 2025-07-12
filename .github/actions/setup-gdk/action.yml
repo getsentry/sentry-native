@@ -1,0 +1,43 @@
+name: Setup GDK
+description: Installs Microsoft.Gaming.GDK using WinGet
+inputs:
+  gdk-version:
+    description: GDK version to install (e.g. 2504.1.4046)
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Cache GDK directory
+      id: cache-gdk-directory
+      uses: actions/cache@v4
+      with:
+        path: |
+          C:/Program Files (x86)/Microsoft GDK
+          C:/Program Files/Microsoft Visual Studio/2022/Enterprise/MSBuild/Microsoft/VC/v170/Platforms/Gaming.Desktop.x64
+        key: setup-gdk-directory-${{ inputs.gdk-version }}
+
+    - name: Cache GDK registry
+      id: cache-gdk-registry
+      uses: actions/cache@v4
+      with:
+        path: ${{ runner.temp }}/gdk.reg
+        key: setup-gdk-registry-${{ inputs.gdk-version }}
+
+    - name: Install GDK
+      shell: pwsh
+      if: ${{ steps.cache-gdk-directory.outputs.cache-hit != 'true' }}
+      run: |
+        winget install --accept-source-agreements --accept-package-agreements --silent --disable-interactivity --version ${{ inputs.gdk-version }} Microsoft.Gaming.GDK
+
+    - name: Import GDK registry
+      shell: pwsh
+      if: ${{ steps.cache-gdk-registry.outputs.cache-hit == 'true' }}
+      run: |
+        reg import "$env:RUNNER_TEMP\gdk.reg"
+
+    - name: Export GDK registry
+      shell: pwsh
+      if: ${{ steps.cache-gdk-registry.outputs.cache-hit != 'true' }}
+      run: |
+        reg export "HKLM\SOFTWARE\WOW6432Node\Microsoft\GDK" "$env:RUNNER_TEMP\gdk.reg"
