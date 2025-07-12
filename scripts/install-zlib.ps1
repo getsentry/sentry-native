@@ -35,10 +35,10 @@ cmake.exe --build "${ZLIB_BUILD_PATH}" --target zlibstatic
 Copy-Item "${ZLIB_SOURCE_PATH}\zlib.h" "${ZLIB_BUILD_PATH}"
 
 # Append zlib CMAKE_DEFINES to the runner env.
-if ($env:TEST_MINGW -eq 1 -or ![string]::IsNullOrEmpty($env:GDK_VERSION)) {
+if ($env:TEST_MINGW -eq 1) {
     $NEW_CMAKE_DEFINES="CMAKE_DEFINES=${env:CMAKE_DEFINES} -DZLIB_LIBRARY=${ZLIB_BUILD_PATH}\libzlibstatic.a -DZLIB_INCLUDE_DIR=${ZLIB_BUILD_PATH} -GNinja"
 }
 Else {
-    $NEW_CMAKE_DEFINES="CMAKE_DEFINES=-DZLIB_LIBRARY=${ZLIB_BUILD_PATH}\Debug\zlibstaticd.lib -DZLIB_INCLUDE_DIR=${ZLIB_BUILD_PATH}"
+    $NEW_CMAKE_DEFINES="CMAKE_DEFINES=${env:CMAKE_DEFINES} -DZLIB_LIBRARY=${ZLIB_BUILD_PATH}\Debug\zlibstaticd.lib -DZLIB_INCLUDE_DIR=${ZLIB_BUILD_PATH}"
 }
 $NEW_CMAKE_DEFINES | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
