@@ -36,8 +36,12 @@ extern "C" {
 /* common platform detection */
 #ifdef _WIN32
 #    define SENTRY_PLATFORM_WINDOWS
-#    if defined(_GAMING_XBOX) || defined(_GAMING_DESKTOP) // TODO
+#    if defined(_GAMING_XBOX)
 #        define SENTRY_PLATFORM_XBOX
+#        define SENTRY_PLATFORM_GDK
+#    endif
+#    if defined(_GAMING_DESKTOP)
+#        define SENTRY_PLATFORM_GDK
 #    endif
 #elif defined(__APPLE__)
 #    include <TargetConditionals.h>
