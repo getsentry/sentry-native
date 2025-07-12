@@ -281,6 +281,7 @@ jobs:
           winget install --accept-source-agreements --accept-package-agreements --silent --disable-interactivity --version $env:GDK_WINGET_VERSION Microsoft.Gaming.GDK
 
       - name: Setup GDK
+        if: ${{ runner.os == 'Windows' && env['GDK_VERSION'] }}
         run: |
           $path = 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\GDK'
           if (-not (Test-Path $path)) {
