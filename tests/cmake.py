@@ -140,6 +140,10 @@ def cmake(cwd, targets, options=None, cflags=[]):
         config_cmd.append("-A x64")
         config_cmd.append("-T ClangCL")
 
+    if os.environ.get("VS_GENERATOR_TOOLSET") == "GRDK":
+        config_cmd.append("-G Visual Studio 17 2022")
+        config_cmd.append("-A Gaming.Desktop.x64")
+
     for key, value in options.items():
         config_cmd.append("-D{}={}".format(key, value))
     if sys.platform == "win32" and os.environ.get("TEST_X86"):
