@@ -8,52 +8,35 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: Restore GDK directory
-      id: gdk-directory
+    - name: Restore GDK
+      id: cache-gdk
       uses: actions/cache/restore@v4
       with:
         path: |
           C:/Program Files (x86)/Microsoft GDK
           C:/Program Files/Microsoft Visual Studio/2022/Enterprise/MSBuild/Microsoft/VC/v170/Platforms/Gaming.Desktop.x64
-        key: setup-gdk-directory-${{ inputs.gdk-version }}
+          ${{ runner.temp }}/gdk.reg
+        key: setup-gdk-${{ inputs.gdk-version }}
 
-    - name: Restore GDK registry
-      id: gdk-registry
-      uses: actions/cache/restore@v4
-      with:
-        path: ${{ runner.temp }}/gdk.reg
-        key: setup-gdk-registry-${{ inputs.gdk-version }}
-
-    - name: Install GDK
+    - name: Setup GDK
+      if: ${{ steps.cache-gdk.outputs.cache-hit == 'true' }}
       shell: pwsh
-      if: steps.gdk-directory.outputs.cache-hit != 'true'
-      run: |
-        winget install --accept-source-agreements --accept-package-agreements --silent --disable-interactivity --version ${{ inputs.gdk-version }} Microsoft.Gaming.GDK
-
-    - name: Cache GDK directory
-      if: steps.gdk-directory.outputs.cache-hit != 'true'
-      uses: actions/cache/save@v4
-      with:
-        path: |
-          C:/Program Files (x86)/Microsoft GDK
-          C:/Program Files/Microsoft Visual Studio/2022/Enterprise/MSBuild/Microsoft/VC/v170/Platforms/Gaming.Desktop.x64
-        key: setup-gdk-directory-${{ inputs.gdk-version }}
-
-    - name: Import GDK registry
-      shell: pwsh
-      if: steps.gdk-registry.outputs.cache-hit == 'true'
       run: |
         reg import "$env:RUNNER_TEMP\gdk.reg"
 
-    - name: Export GDK registry
+    - name: Install GDK
+      if: ${{ steps.cache-gdk.outputs.cache-hit != 'true' }}
       shell: pwsh
-      if: steps.gdk-registry.outputs.cache-hit != 'true'
       run: |
+        winget install --accept-source-agreements --accept-package-agreements --silent --disable-interactivity --version ${{ inputs.gdk-version }} Microsoft.Gaming.GDK
         reg export "HKLM\SOFTWARE\WOW6432Node\Microsoft\GDK" "$env:RUNNER_TEMP\gdk.reg"
 
-    - name: Cache GDK registry
-      if: steps.gdk-registry.outputs.cache-hit != 'true'
+    - name: Cache GDK
+      if: ${{ steps.cache-gdk.outputs.cache-hit != 'true' }}
       uses: actions/cache/save@v4
       with:
-        path: ${{ runner.temp }}/gdk.reg
-        key: setup-gdk-registry-${{ inputs.gdk-version }}
+        path: |
+          C:/Program Files (x86)/Microsoft GDK
+          C:/Program Files/Microsoft Visual Studio/2022/Enterprise/MSBuild/Microsoft/VC/v170/Platforms/Gaming.Desktop.x64
+          ${{ runner.temp }}/gdk.reg
+        key: setup-gdk-${{ inputs.gdk-version }}
