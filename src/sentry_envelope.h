@@ -44,6 +44,12 @@ sentry_envelope_item_t *sentry__envelope_add_transaction(
     sentry_envelope_t *envelope, sentry_value_t transaction);
 
 /**
+ * Add a deprecated user report to this envelope.
+ */
+sentry_envelope_item_t *sentry__envelope_add_user_report(
+    sentry_envelope_t *envelope, sentry_value_t user_report);
+
+/**
  * Add a user feedback to this envelope.
  */
 sentry_envelope_item_t *sentry__envelope_add_user_feedback(

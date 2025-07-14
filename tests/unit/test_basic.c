@@ -4,7 +4,7 @@
 #include "sentry_testsupport.h"
 
 static void
-send_envelope_test_basic(const sentry_envelope_t *envelope, void *data)
+send_envelope_test_basic(sentry_envelope_t *envelope, void *data)
 {
     uint64_t *called = data;
     *called += 1;
@@ -26,6 +26,7 @@ send_envelope_test_basic(const sentry_envelope_t *envelope, void *data)
             sentry_value_get_by_key(event, "transaction"));
         TEST_CHECK_STRING_EQUAL(trans, "demo-trans");
     }
+    sentry_envelope_free(envelope);
 }
 
 SENTRY_TEST(basic_function_transport)
@@ -33,8 +34,10 @@ SENTRY_TEST(basic_function_transport)
     uint64_t called = 0;
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
-    sentry_options_set_transport(options,
-        sentry_new_function_transport(send_envelope_test_basic, &called));
+    sentry_transport_t *transport
+        = sentry_transport_new(send_envelope_test_basic);
+    sentry_transport_set_state(transport, &called);
+    sentry_options_set_transport(options, transport);
     sentry_options_set_release(options, "prod");
     sentry_options_set_require_user_consent(options, true);
     sentry_init(options);
@@ -63,10 +66,11 @@ SENTRY_TEST(basic_function_transport)
 }
 
 static void
-counting_transport_func(const sentry_envelope_t *UNUSED(envelope), void *data)
+counting_transport_func(sentry_envelope_t *envelope, void *data)
 {
     uint64_t *called = data;
     *called += 1;
+    sentry_envelope_free(envelope);
 }
 
 static sentry_value_t
@@ -85,9 +89,10 @@ SENTRY_TEST(sampling_before_send)
 
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
-    sentry_options_set_transport(options,
-        sentry_new_function_transport(
-            counting_transport_func, &called_transport));
+    sentry_transport_t *transport
+        = sentry_transport_new(counting_transport_func);
+    sentry_transport_set_state(transport, &called_transport);
+    sentry_options_set_transport(options, transport);
     sentry_options_set_before_send(options, before_send, &called_beforesend);
     sentry_options_set_sample_rate(options, 0.75);
     sentry_init(options);
@@ -127,9 +132,10 @@ SENTRY_TEST(discarding_before_send)
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
     // Disable sessions or this test would fail if env:SENTRY_RELEASE is set.
     sentry_options_set_auto_session_tracking(options, 0);
-    sentry_options_set_transport(options,
-        sentry_new_function_transport(
-            counting_transport_func, &called_transport));
+    sentry_transport_t *transport
+        = sentry_transport_new(counting_transport_func);
+    sentry_transport_set_state(transport, &called_transport);
+    sentry_options_set_transport(options, transport);
     sentry_options_set_before_send(
         options, discarding_before_send, &called_beforesend);
     sentry_init(options);
@@ -225,7 +231,7 @@ SENTRY_TEST(capture_minidump_basic)
 {
     // skipping on platforms that don't have access to fixtures on the local FS
 #if defined(SENTRY_PLATFORM_ANDROID) || defined(SENTRY_PLATFORM_NX)            \
-    || defined(SENTRY_PLATFORM_PS)
+    || defined(SENTRY_PLATFORM_PS) || defined(SENTRY_PLATFORM_XBOX)
     SKIP_TEST();
 #else
     SENTRY_TEST_OPTIONS_NEW(options);

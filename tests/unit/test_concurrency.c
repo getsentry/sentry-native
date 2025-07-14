@@ -4,7 +4,7 @@
 #include <sentry_sync.h>
 
 static void
-send_envelope_test_concurrent(const sentry_envelope_t *envelope, void *data)
+send_envelope_test_concurrent(sentry_envelope_t *envelope, void *data)
 {
     sentry__atomic_fetch_and_add((long *)data, 1);
 
@@ -15,6 +15,7 @@ send_envelope_test_concurrent(const sentry_envelope_t *envelope, void *data)
         TEST_CHECK_STRING_EQUAL(
             event_id, "4c035723-8638-4c3a-923f-2ab9d08b4018");
     }
+    sentry_envelope_free(envelope);
 }
 
 static void
@@ -22,8 +23,10 @@ init_framework(long *called)
 {
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
-    sentry_options_set_transport(options,
-        sentry_new_function_transport(send_envelope_test_concurrent, called));
+    sentry_transport_t *transport
+        = sentry_transport_new(send_envelope_test_concurrent);
+    sentry_transport_set_state(transport, called);
+    sentry_options_set_transport(options, transport);
     sentry_options_set_release(options, "prod");
     sentry_options_set_require_user_consent(options, false);
     sentry_options_set_auto_session_tracking(options, true);

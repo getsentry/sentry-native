@@ -1350,9 +1350,11 @@ sentry_value_t
 sentry_value_new_user_feedback(const sentry_uuid_t *uuid, const char *name,
     const char *email, const char *comments)
 {
+    SENTRY_SUPPRESS_DEPRECATED
     return sentry_value_new_user_feedback_n(uuid, name,
         sentry__guarded_strlen(name), email, sentry__guarded_strlen(email),
         comments, sentry__guarded_strlen(comments));
+    SENTRY_RESTORE_DEPRECATED
 }
 
 sentry_value_t
@@ -1375,6 +1377,42 @@ sentry_value_new_user_feedback_n(const sentry_uuid_t *uuid, const char *name,
     if (comments) {
         sentry_value_set_by_key(
             rv, "comments", sentry_value_new_string_n(comments, comments_len));
+    }
+
+    return rv;
+}
+
+sentry_value_t
+sentry_value_new_feedback(const char *message, const char *contact_email,
+    const char *name, const sentry_uuid_t *associated_event_id)
+{
+    return sentry_value_new_feedback_n(message, sentry__guarded_strlen(message),
+        contact_email, sentry__guarded_strlen(contact_email), name,
+        sentry__guarded_strlen(name), associated_event_id);
+}
+
+sentry_value_t
+sentry_value_new_feedback_n(const char *message, size_t message_len,
+    const char *contact_email, size_t contact_email_len, const char *name,
+    size_t name_len, const sentry_uuid_t *associated_event_id)
+{
+    sentry_value_t rv = sentry_value_new_object();
+
+    if (message) {
+        sentry_value_set_by_key(
+            rv, "message", sentry_value_new_string_n(message, message_len));
+    }
+    if (contact_email) {
+        sentry_value_set_by_key(rv, "contact_email",
+            sentry_value_new_string_n(contact_email, contact_email_len));
+    }
+    if (name) {
+        sentry_value_set_by_key(
+            rv, "name", sentry_value_new_string_n(name, name_len));
+    }
+    if (associated_event_id) {
+        sentry_value_set_by_key(rv, "associated_event_id",
+            sentry__value_new_internal_uuid(associated_event_id));
     }
 
     return rv;

@@ -90,4 +90,11 @@
     sentry_dsn_t *Varname = sentry__dsn_new(DSN_URL);                          \
     TEST_ASSERT(!!Varname)
 
+#define SENTRY_TEST_DEPRECATED(call)                                           \
+    do {                                                                       \
+        SENTRY_SUPPRESS_DEPRECATED                                             \
+        call;                                                                  \
+        SENTRY_RESTORE_DEPRECATED                                              \
+    } while (0)
+
 #endif // SENTRY_TEST_SUPPORT_H_INCLUDED

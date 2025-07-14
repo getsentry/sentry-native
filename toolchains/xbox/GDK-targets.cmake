@@ -1,5 +1,5 @@
 # Adapted by Sentry from:
-# https://github.com/microsoft/Xbox-GDK-Samples/blob/e5328b9c06443739ec9c7c0089a36c5743c9da15/Samples/Tools/CMakeExample/CMake/GDK-targets.cmake
+# https://github.com/microsoft/Xbox-GDK-Samples/blob/710f4bd9095d3796d07505249a7b383857e8a23f/Samples/Tools/CMakeExample/CMake/GDK-targets.cmake
 #
 # GDK-targets.cmake : Defines library imports for the Microsoft GDK shared libraries
 #

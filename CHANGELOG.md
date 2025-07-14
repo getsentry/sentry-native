@@ -11,6 +11,16 @@
 - Compiles also on Xbox One ([#1294](https://github.com/getsentry/sentry-native/pull/1294))
 - Provide `sentry_regenerate_trace()` to allow users to set manual trace boundaries. ([#1293](https://github.com/getsentry/sentry-native/pull/1293))
 - Add `Dynamic Sampling Context (DSC)` to events. ([#1254](https://github.com/getsentry/sentry-native/pull/1254))
+- Add `sentry_value_new_feedback` and `sentry_capture_feedback` to allow capturing [User Feedback](https://develop.sentry.dev/sdk/data-model/envelope-items/#user-feedback). ([#1304](https://github.com/getsentry/sentry-native/pull/1304))
+  - Deprecate `sentry_value_new_user_feedback` and `sentry_capture_user_feedback` in favor of the new API.
+
+**Fixes**:
+
+- Update Xbox toolchain to include `UseDebugLibraries` fix for Debug builds. ([#1302](https://github.com/getsentry/sentry-native/pull/1302))
+
+**Meta**:
+
+- Marked deprecated functions with `SENTRY_DEPRECATED(msg)`. ([#1308](https://github.com/getsentry/sentry-native/pull/1308))
 
 ## 0.9.1
 

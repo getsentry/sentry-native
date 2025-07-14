@@ -100,6 +100,40 @@ extern "C" {
 #    endif
 #endif
 
+#ifdef __has_attribute
+#    if __has_attribute(deprecated)
+#        define SENTRY_DEPRECATED(msg) __attribute__((deprecated(msg)))
+#    endif
+#endif
+#ifndef SENTRY_DEPRECATED
+#    if defined(__GNUC__)                                                      \
+        && (__GNUC__ > 4                                                       \
+            || (__GNUC__ == 4 && __GNUC_MINOR__ >= 5)) /* GCC 4.5 */
+#        define SENTRY_DEPRECATED(msg) __attribute__((deprecated(msg)))
+#    elif defined(__clang__) && __clang__major__ >= 3 /* Clang 3.0 */
+#        define SENTRY_DEPRECATED(msg) __attribute__((deprecated(msg)))
+#    elif defined(_MSC_VER) && _MSC_VER >= 1400 /* VS 2005 (8.0) */
+#        define SENTRY_DEPRECATED(msg) __declspec(deprecated(msg))
+#    else
+#        define SENTRY_DEPRECATED(msg)
+#    endif
+#endif
+
+#if defined(__GNUC__) || defined(__clang__)
+#    define SENTRY_SUPPRESS_DEPRECATED                                         \
+        _Pragma("GCC diagnostic push");                                        \
+        _Pragma("GCC diagnostic ignored \"-Wdeprecated-declarations\"")
+#    define SENTRY_RESTORE_DEPRECATED _Pragma("GCC diagnostic pop")
+#elif defined(_MSC_VER)
+#    define SENTRY_SUPPRESS_DEPRECATED                                         \
+        __pragma(warning(push));                                               \
+        __pragma(warning(disable : 4996))
+#    define SENTRY_RESTORE_DEPRECATED __pragma(warning(pop))
+#else
+#    define SENTRY_SUPPRESS_DEPRECATED
+#    define SENTRY_RESTORE_DEPRECATED
+#endif
+
 /* marks a function as experimental api */
 #ifndef SENTRY_EXPERIMENTAL_API
 #    define SENTRY_EXPERIMENTAL_API SENTRY_API
@@ -515,13 +549,13 @@ SENTRY_EXPERIMENTAL_API char *sentry_value_to_msgpack(
  * Adds a stack trace to an event.
  *
  * The stack trace is added as part of a new thread object.
- * This function is **deprecated** in favor of using
- * `sentry_value_new_stacktrace` in combination with `sentry_value_new_thread`
- * and `sentry_event_add_thread`.
  *
  * If `ips` is NULL the current stack trace is captured, otherwise `len`
  * stack trace instruction pointers are attached to the event.
  */
+SENTRY_DEPRECATED(
+    "Use `sentry_value_new_stacktrace` in combination with "
+    "`sentry_value_new_thread` and `sentry_event_add_thread` instead")
 SENTRY_EXPERIMENTAL_API void sentry_event_value_add_stacktrace(
     sentry_value_t event, void **ips, size_t len);
 
@@ -772,11 +806,8 @@ SENTRY_API void sentry_transport_free(sentry_transport_t *transport);
  * It is a convenience function which works with a borrowed `data`, and will
  * automatically free the envelope, so the user provided function does not need
  * to do that.
- *
- * This function is *deprecated* and will be removed in a future version.
- * It is here for backwards compatibility. Users should migrate to the
- * `sentry_transport_new` API.
  */
+SENTRY_DEPRECATED("Use `sentry_transport_new` instead")
 SENTRY_API sentry_transport_t *sentry_new_function_transport(
     void (*func)(const sentry_envelope_t *envelope, void *data), void *data);
 
@@ -1053,13 +1084,13 @@ SENTRY_API const char *sentry_options_get_proxy(const sentry_options_t *opts);
 /**
  * Configures the proxy.
  *
- * This is a **deprecated** alias for `sentry_options_set_proxy(_n)`.
- *
  * The given proxy has to include the full scheme,
  * eg. `http://some.proxy/.
  */
+SENTRY_DEPRECATED("Use `sentry_options_set_proxy` instead")
 SENTRY_API void sentry_options_set_http_proxy(
     sentry_options_t *opts, const char *proxy);
+SENTRY_DEPRECATED("Use `sentry_options_set_proxy_n` instead")
 SENTRY_API void sentry_options_set_http_proxy_n(
     sentry_options_t *opts, const char *proxy, size_t proxy_len);
 
@@ -1465,10 +1496,9 @@ SENTRY_API int sentry_close(void);
 /**
  * Shuts down the sentry client and forces transports to flush out.
  *
- * This is a **deprecated** alias for `sentry_close`.
- *
  * Returns 0 on success.
  */
+SENTRY_DEPRECATED("Use `sentry_close` instead")
 SENTRY_API int sentry_shutdown(void);
 
 /**
@@ -2419,25 +2449,48 @@ SENTRY_EXPERIMENTAL_API void sentry_transaction_set_name_n(
     sentry_transaction_t *transaction, const char *name, size_t name_len);
 
 /**
- * Creates a new User Feedback with a specific name, email and comments.
+ * Creates a deprecated User Report with a specific name, email and comments.
  *
- * See https://develop.sentry.dev/sdk/envelopes/#user-feedback
- *
- * User Feedback has to be associated with a specific event that has been
- * sent to Sentry earlier.
+ * See
+ * https://develop.sentry.dev/sdk/data-model/envelope-items/#user-report---deprecated
  */
+SENTRY_DEPRECATED("Use `sentry_value_new_feedback` instead")
 SENTRY_API sentry_value_t sentry_value_new_user_feedback(
     const sentry_uuid_t *uuid, const char *name, const char *email,
     const char *comments);
+SENTRY_DEPRECATED("Use `sentry_value_new_feedback_n` instead")
 SENTRY_API sentry_value_t sentry_value_new_user_feedback_n(
     const sentry_uuid_t *uuid, const char *name, size_t name_len,
     const char *email, size_t email_len, const char *comments,
     size_t comments_len);
 
 /**
+ * Captures a deprecated User Report and sends it to Sentry.
+ */
+SENTRY_DEPRECATED("Use `sentry_capture_feedback` instead")
+SENTRY_API void sentry_capture_user_feedback(sentry_value_t user_report);
+
+/**
+ * Creates a new User Feedback with a specific message (required), and optional
+ * contact_email, name, message, and associated_event_id.
+ *
+ * See https://develop.sentry.dev/sdk/data-model/envelope-items/#user-feedback
+ *
+ * User Feedback can be associated with a specific event that has been
+ * sent to Sentry earlier.
+ */
+SENTRY_API sentry_value_t sentry_value_new_feedback(const char *message,
+    const char *contact_email, const char *name,
+    const sentry_uuid_t *associated_event_id);
+SENTRY_API sentry_value_t sentry_value_new_feedback_n(const char *message,
+    size_t message_len, const char *contact_email, size_t contact_email_len,
+    const char *name, size_t name_len,
+    const sentry_uuid_t *associated_event_id);
+
+/**
  * Captures a manually created User Feedback and sends it to Sentry.
  */
-SENTRY_API void sentry_capture_user_feedback(sentry_value_t user_feedback);
+SENTRY_API void sentry_capture_feedback(sentry_value_t user_feedback);
 
 /**
  * The status of a Span or Transaction.
@@ -2573,14 +2626,14 @@ SENTRY_EXPERIMENTAL_API const char *sentry_sdk_version(void);
 
 /**
  * Sentry SDK name set during build time.
- * Deprecated: Please use sentry_options_get_sdk_name instead.
  */
+SENTRY_DEPRECATED("Use `sentry_options_get_sdk_name` instead")
 SENTRY_EXPERIMENTAL_API const char *sentry_sdk_name(void);
 
 /**
  * Sentry SDK User-Agent set during build time.
- * Deprecated: Please use sentry_options_get_user_agent instead.
  */
+SENTRY_DEPRECATED("Use `sentry_options_get_user_agent` instead")
 SENTRY_EXPERIMENTAL_API const char *sentry_sdk_user_agent(void);
 
 #ifdef __cplusplus
