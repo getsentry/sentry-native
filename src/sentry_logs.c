@@ -38,7 +38,7 @@ construct_param_from_conversion(const char conversion, va_list *args_copy)
     case 'i': {
         int val = va_arg(*args_copy, int);
         sentry_value_set_by_key(
-            param_obj, "value", sentry_value_new_int32(val));
+            param_obj, "value", sentry_value_new_int64(val));
         sentry_value_set_by_key(
             param_obj, "type", sentry_value_new_string("integer"));
         break;
@@ -48,10 +48,10 @@ construct_param_from_conversion(const char conversion, va_list *args_copy)
     case 'X':
     case 'o': {
         unsigned int val = va_arg(*args_copy, unsigned int);
+        sentry_value_set_by_key(param_obj, "value",
+            sentry_value_new_string(sentry__uint64_to_string(val)));
         sentry_value_set_by_key(
-            param_obj, "value", sentry_value_new_int32((int32_t)val));
-        sentry_value_set_by_key(
-            param_obj, "type", sentry_value_new_string("integer"));
+            param_obj, "type", sentry_value_new_string("string"));
         break;
     }
     case 'f':
