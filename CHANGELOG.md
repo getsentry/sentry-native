@@ -11,6 +11,7 @@
 **Fixes**:
 
 - Update Xbox toolchain to include `UseDebugLibraries` fix for Debug builds. ([#1302](https://github.com/getsentry/sentry-native/pull/1302))
+- Fix GDK version selection for Xbox by propagating `XdkEditionTarget` to MSBuild. ([#1312](https://github.com/getsentry/sentry-native/pull/1312))
 
 **Meta**:
 
