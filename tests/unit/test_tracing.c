@@ -271,7 +271,7 @@ SENTRY_TEST(basic_function_transport_transaction_ts)
     run_basic_function_transport_transaction(true);
 }
 
-SENTRY_TEST(transport_sampling_transactions)
+SENTRY_TEST(transport_sampling_transactions_set_trace)
 {
     uint64_t called_transport = 0;
 
@@ -290,6 +290,8 @@ SENTRY_TEST(transport_sampling_transactions)
 
     uint64_t sent_transactions = 0;
     for (int i = 0; i < 100; i++) {
+        // regenerate trace to re-roll `sample_rand`
+        sentry_regenerate_trace();
         sentry_transaction_context_t *tx_ctx
             = sentry_transaction_context_new("honk", "beep");
         sentry_transaction_t *tx
@@ -304,6 +306,41 @@ SENTRY_TEST(transport_sampling_transactions)
 
     // exact value is nondeterministic because of rng
     TEST_CHECK(called_transport > 50 && called_transport < 100);
+    TEST_CHECK(called_transport == sent_transactions);
+}
+
+SENTRY_TEST(transport_sampling_transactions)
+{
+    uint64_t called_transport = 0;
+
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    // Disable sessions or this test would fail if env:SENTRY_RELEASE is set.
+    sentry_options_set_auto_session_tracking(options, 0);
+
+    sentry_transport_t *transport
+        = sentry_transport_new(send_transaction_envelope_test_basic);
+    sentry_transport_set_state(transport, &called_transport);
+    sentry_options_set_transport(options, transport);
+
+    sentry_options_set_traces_sample_rate(options, 0.5);
+    sentry_init(options);
+
+    uint64_t sent_transactions = 0;
+    for (int i = 0; i < 100; i++) {
+        sentry_transaction_context_t *tx_ctx
+            = sentry_transaction_context_new("honk", "beep");
+        sentry_transaction_t *tx
+            = sentry_transaction_start(tx_ctx, sentry_value_new_null());
+        sentry_uuid_t event_id = sentry_transaction_finish(tx);
+        if (!sentry_uuid_is_nil(&event_id)) {
+            sent_transactions += 1;
+        }
+    }
+
+    sentry_close();
+    // within one trace, either all or no transactions get sampled
+    TEST_CHECK(called_transport == 0 || called_transport == 100);
     TEST_CHECK(called_transport == sent_transactions);
 }
 

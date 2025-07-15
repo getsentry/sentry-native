@@ -75,6 +75,7 @@ init_scope(sentry_scope_t *scope)
     scope->extra = sentry_value_new_object();
     scope->contexts = sentry_value_new_object();
     scope->propagation_context = sentry_value_new_object();
+    scope->dynamic_sampling_context = sentry_value_new_object();
     scope->breadcrumbs = sentry_value_new_list();
     scope->level = SENTRY_LEVEL_ERROR;
     scope->client_sdk = sentry_value_new_null();
@@ -109,6 +110,7 @@ cleanup_scope(sentry_scope_t *scope)
     sentry_value_decref(scope->extra);
     sentry_value_decref(scope->contexts);
     sentry_value_decref(scope->propagation_context);
+    sentry_value_decref(scope->dynamic_sampling_context);
     sentry_value_decref(scope->breadcrumbs);
     sentry_value_decref(scope->client_sdk);
     sentry__attachments_free(scope->attachments);
