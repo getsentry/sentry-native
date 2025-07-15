@@ -121,7 +121,7 @@ jobs:
             SYSTEM_VERSION_COMPAT: 0
             RUN_ANALYZER: asan,llvm-cov
           - name: Windows (old VS, 32-bit)
-            os: windows-2019
+            os: windows-2022
             TEST_X86: 1
           - name: Windows (latest)
             os: windows-latest
