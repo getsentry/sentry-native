@@ -28,7 +28,7 @@ add_executable(sentry_test_unit
 	test_fuzzfailures.c
 	test_info.c
 	test_logger.c
-    test_logs.c
+	test_logs.c
 	test_modulefinder.c
 	test_mpack.c
 	test_options.c

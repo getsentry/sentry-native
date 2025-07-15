@@ -317,7 +317,7 @@ sentry_value_new_int32(int32_t value)
 sentry_value_t
 sentry_value_new_double(double value)
 {
-    thing_t *thing = sentry_malloc(sizeof(thing_t));
+    thing_t *thing = SENTRY_MAKE(thing_t);
     if (!thing) {
         return sentry_value_new_null();
     }
@@ -333,7 +333,7 @@ sentry_value_new_double(double value)
 sentry_value_t
 sentry_value_new_int64(int64_t value)
 {
-    thing_t *thing = sentry_malloc(sizeof(thing_t));
+    thing_t *thing = SENTRY_MAKE(thing_t);
     if (!thing) {
         return sentry_value_new_null();
     }
@@ -349,7 +349,7 @@ sentry_value_new_int64(int64_t value)
 sentry_value_t
 sentry_value_new_uint64(uint64_t value)
 {
-    thing_t *thing = sentry_malloc(sizeof(thing_t));
+    thing_t *thing = SENTRY_MAKE(thing_t);
     if (!thing) {
         return sentry_value_new_null();
     }
@@ -666,6 +666,9 @@ sentry__value_as_uuid(sentry_value_t value)
 char *
 sentry__value_stringify(sentry_value_t value)
 {
+    // returns empty string if snprintf fails
+    // (returning -1, so casting this to size_t it becomes > the buffer size)
+    // or if the value is too large for the buffer
 #define STRINGIFY_NUMERIC(fmt, value_fn)                                       \
     do {                                                                       \
         char buf[24];                                                          \

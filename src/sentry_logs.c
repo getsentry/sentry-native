@@ -145,6 +145,17 @@ skip_precision(const char *fmt_ptr)
     return fmt_ptr;
 }
 
+static const char *
+skip_length(const char *fmt_ptr)
+{
+    while (*fmt_ptr
+        && (*fmt_ptr == 'h' || *fmt_ptr == 'l' || *fmt_ptr == 'L'
+            || *fmt_ptr == 'z' || *fmt_ptr == 'j' || *fmt_ptr == 't')) {
+        fmt_ptr++;
+    }
+    return fmt_ptr;
+}
+
 static void
 populate_message_parameters(
     sentry_value_t attributes, const char *message, va_list args)
@@ -172,13 +183,7 @@ populate_message_parameters(
             fmt_ptr = skip_flags(fmt_ptr);
             fmt_ptr = skip_width(fmt_ptr);
             fmt_ptr = skip_precision(fmt_ptr);
-
-            // Skip length modifiers
-            while (*fmt_ptr
-                && (*fmt_ptr == 'h' || *fmt_ptr == 'l' || *fmt_ptr == 'L'
-                    || *fmt_ptr == 'z' || *fmt_ptr == 'j' || *fmt_ptr == 't')) {
-                fmt_ptr++;
-            }
+            fmt_ptr = skip_length(fmt_ptr);
 
             // Get the conversion specifier
             char conversion = *fmt_ptr;
