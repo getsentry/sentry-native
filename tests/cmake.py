@@ -14,8 +14,10 @@ class CMake:
         self.runs = dict()
         self.factory = factory
 
-    def compile(self, targets, options=None, cflags=[]):
+    def compile(self, targets, options=None, cflags=None):
         # We build in tmp for all of our tests. Disable the warning MSVC generates to not clutter the build logs.
+        if cflags is None:
+            cflags = []
         if sys.platform == "win32":
             os.environ["IgnoreWarnIntDirInTempDetected"] = "True"
 
@@ -93,7 +95,9 @@ class CMake:
                 )
 
 
-def cmake(cwd, targets, options=None, cflags=[]):
+def cmake(cwd, targets, options=None, cflags=None):
+    if cflags is None:
+        cflags = []
     __tracebackhide__ = True
     if options is None:
         options = {}
@@ -151,7 +155,7 @@ def cmake(cwd, targets, options=None, cflags=[]):
     if "tsan" in os.environ.get("RUN_ANALYZER", ""):
         module_dir = Path(__file__).resolve().parent
         tsan_options = {
-            "verbosity": 1,
+            "verbosity": 2,
             "detect_deadlocks": 1,
             "second_deadlock_stack": 1,
             "suppressions": module_dir / "tsan.supp",

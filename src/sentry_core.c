@@ -111,35 +111,34 @@ generate_propagation_context(sentry_value_t propagation_context)
 }
 
 static void
-set_dynamic_sampling_context(sentry_scope_t *scope)
+set_dynamic_sampling_context(sentry_options_t *options, sentry_scope_t *scope)
 {
     sentry_value_decref(scope->dynamic_sampling_context);
     // add the Dynamic Sampling Context to the `trace` header
     sentry_value_t dsc = sentry_value_new_object();
 
-    SENTRY_WITH_OPTIONS (options) {
-        if (options->dsn) {
-            sentry_value_set_by_key(dsc, "public_key",
-                sentry_value_new_string(options->dsn->public_key));
-            sentry_value_set_by_key(
-                dsc, "org_id", sentry_value_new_string(options->dsn->org_id));
-        }
-        sentry_value_set_by_key(dsc, "sample_rate",
-            sentry_value_new_double(options->traces_sample_rate));
-        if (options->traces_sampler) {
-            sentry_value_set_by_key(
-                dsc, "sample_rate", sentry_value_new_double(1.0));
-        }
-        sentry_value_t sample_rand = sentry_value_get_by_key(
-            sentry_value_get_by_key(scope->propagation_context, "trace"),
-            "sample_rand");
-        sentry_value_set_by_key(dsc, "sample_rand", sample_rand);
-        sentry_value_incref(sample_rand);
+    if (options->dsn) {
+        sentry_value_set_by_key(dsc, "public_key",
+            sentry_value_new_string(options->dsn->public_key));
         sentry_value_set_by_key(
-            dsc, "release", sentry_value_new_string(options->release));
-        sentry_value_set_by_key(
-            dsc, "environment", sentry_value_new_string(options->environment));
+            dsc, "org_id", sentry_value_new_string(options->dsn->org_id));
     }
+    sentry_value_set_by_key(dsc, "sample_rate",
+        sentry_value_new_double(options->traces_sample_rate));
+    if (options->traces_sampler) {
+        sentry_value_set_by_key(
+            dsc, "sample_rate", sentry_value_new_double(1.0));
+    }
+    sentry_value_t sample_rand = sentry_value_get_by_key(
+        sentry_value_get_by_key(scope->propagation_context, "trace"),
+        "sample_rand");
+    sentry_value_set_by_key(dsc, "sample_rand", sample_rand);
+    sentry_value_incref(sample_rand);
+    sentry_value_set_by_key(
+        dsc, "release", sentry_value_new_string(options->release));
+    sentry_value_set_by_key(
+        dsc, "environment", sentry_value_new_string(options->environment));
+
     scope->dynamic_sampling_context = dsc;
 }
 
@@ -253,8 +252,8 @@ sentry_init(sentry_options_t *options)
 
         sentry__ringbuffer_set_max_size(
             scope->breadcrumbs, options->max_breadcrumbs);
-        
-        set_dynamic_sampling_context(scope);
+
+        set_dynamic_sampling_context(options, scope);
     }
     if (backend && backend->user_consent_changed_func) {
         backend->user_consent_changed_func(backend);
