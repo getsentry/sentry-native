@@ -259,9 +259,15 @@ sentry__envelope_add_event(sentry_envelope_t *envelope, sentry_value_t event)
     SENTRY_WITH_OPTIONS (options) {
         traces_sample_rate = options->traces_sample_rate;
     }
+    sentry_value_t dsc = sentry_value_new_null();
+    sentry_value_t sample_rand = sentry_value_new_null();
     SENTRY_WITH_SCOPE (scope) {
-        sentry_value_t dsc
-            = sentry__value_clone(scope->dynamic_sampling_context);
+        dsc = sentry__value_clone(scope->dynamic_sampling_context);
+        sample_rand = sentry_value_get_by_key(
+            sentry_value_get_by_key(scope->propagation_context, "trace"),
+            "sample_rand");
+    }
+    if (!sentry_value_is_null(dsc)) {
         sentry_value_t trace_id = sentry_value_get_by_key(
             sentry_value_get_by_key(
                 sentry_value_get_by_key(event, "contexts"), "trace"),
@@ -273,9 +279,6 @@ sentry__envelope_add_event(sentry_envelope_t *envelope, sentry_value_t event)
             SENTRY_WARN("couldn't retrieve trace_id from scope to apply to the "
                         "dynamic sampling context");
         }
-        sentry_value_t sample_rand = sentry_value_get_by_key(
-            sentry_value_get_by_key(scope->propagation_context, "trace"),
-            "sample_rand");
         if (!sentry_value_is_null(sample_rand)) {
             if (sentry_value_as_double(sample_rand) >= traces_sample_rate) {
                 sentry_value_set_by_key(
@@ -298,6 +301,8 @@ sentry__envelope_add_event(sentry_envelope_t *envelope, sentry_value_t event)
                 sentry_value_new_double(0.01006918276309107));
 #endif
             sentry__envelope_set_header(envelope, "trace", dsc);
+        } else {
+            sentry_value_decref(dsc);
         }
     }
 
@@ -332,9 +337,13 @@ sentry__envelope_add_transaction(
     sentry_value_incref(event_id);
     sentry__envelope_set_header(envelope, "event_id", event_id);
 
+    sentry_value_t dsc = sentry_value_new_null();
+
     SENTRY_WITH_SCOPE (scope) {
-        sentry_value_t dsc
-            = sentry__value_clone(scope->dynamic_sampling_context);
+        dsc = sentry__value_clone(scope->dynamic_sampling_context);
+    }
+
+    if (!sentry_value_is_null(dsc)) {
         sentry_value_t trace_id = sentry_value_get_by_key(
             sentry_value_get_by_key(
                 sentry_value_get_by_key(transaction, "contexts"), "trace"),
@@ -357,6 +366,8 @@ sentry__envelope_add_transaction(
         // only add dsc if it has values
         if (sentry_value_is_true(dsc)) {
             sentry__envelope_set_header(envelope, "trace", dsc);
+        } else {
+            sentry_value_decref(dsc);
         }
     }
 
