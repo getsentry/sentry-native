@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1752571835341,
+  "lastUpdate": 1752571933883,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -9646,6 +9646,66 @@ window.BENCHMARK_DATA = {
             "value": 10.527200000012726,
             "unit": "ms",
             "extra": "Min 10.291ms\nMax 11.207ms\nMean 10.717ms\nStdDev 0.418ms\nMedian 10.527ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "60878493+JoshuaMoelans@users.noreply.github.com",
+            "name": "JoshuaMoelans",
+            "username": "JoshuaMoelans"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "cbaaf1e9590781327ff9eda35b01fefcddd669c0",
+          "message": "feat: add dynamic sampling context (#1254)\n\n* initial DSC implementation\n\n* add `sample_rand`\n\n* fix `sample_rand` generation\n\n* fix the fix + add test\n\n* update org_id expected size\n\n* add test + changelog + sample_rand for traces_sampler\n\n* add test + changelog + sample_rand for traces_sampler + dsc for events\n\n* add org_id tests\n\n* fix CHANGELOG.md\n\n* cleanup\n\n* post-merge fix\n\n* post-merge fix v2\n\n* split up test\n\n* fix CHANGELOG.md\n\n* org_id handling update\n\n* asan overflow fix\n\n* add warnings for missing DSC fields\n\n* swap `sentry_set_trace` for `sentry_regenerate_trace`\n\n* add clarifying note\n\n---------\n\nCo-authored-by: Mischan Toosarani-Hausberger <mischan@abovevacant.com>",
+          "timestamp": "2025-07-15T11:28:05+02:00",
+          "tree_id": "5c65231fce6629c7190a21ad5faca8a1575b5042",
+          "url": "https://github.com/getsentry/sentry-native/commit/cbaaf1e9590781327ff9eda35b01fefcddd669c0"
+        },
+        "date": 1752571928635,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 9.169100000008257,
+            "unit": "ms",
+            "extra": "Min 8.747ms\nMax 12.199ms\nMean 9.859ms\nStdDev 1.441ms\nMedian 9.169ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 9.73319999997102,
+            "unit": "ms",
+            "extra": "Min 9.354ms\nMax 12.760ms\nMean 10.265ms\nStdDev 1.411ms\nMedian 9.733ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 25.40470000002415,
+            "unit": "ms",
+            "extra": "Min 21.810ms\nMax 30.882ms\nMean 25.313ms\nStdDev 3.647ms\nMedian 25.405ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.010499999973490048,
+            "unit": "ms",
+            "extra": "Min 0.010ms\nMax 0.011ms\nMean 0.011ms\nStdDev 0.001ms\nMedian 0.010ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.3687999999897329,
+            "unit": "ms",
+            "extra": "Min 0.324ms\nMax 0.437ms\nMean 0.374ms\nStdDev 0.047ms\nMedian 0.369ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 12.074200000029123,
+            "unit": "ms",
+            "extra": "Min 10.762ms\nMax 13.266ms\nMean 12.031ms\nStdDev 1.110ms\nMedian 12.074ms"
           }
         ]
       }
