@@ -77,6 +77,7 @@ init_scope(sentry_scope_t *scope)
     scope->contexts = sentry_value_new_object();
     scope->propagation_context = sentry_value_new_object();
     scope->breadcrumbs = sentry__ringbuffer_new(SENTRY_BREADCRUMBS_MAX);
+    scope->dynamic_sampling_context = sentry_value_new_object();
     scope->level = SENTRY_LEVEL_ERROR;
     scope->client_sdk = sentry_value_new_null();
     scope->attachments = NULL;
@@ -111,6 +112,7 @@ cleanup_scope(sentry_scope_t *scope)
     sentry_value_decref(scope->contexts);
     sentry_value_decref(scope->propagation_context);
     sentry__ringbuffer_free(scope->breadcrumbs);
+    sentry_value_decref(scope->dynamic_sampling_context);
     sentry_value_decref(scope->client_sdk);
     sentry__attachments_free(scope->attachments);
     sentry__transaction_decref(scope->transaction_object);

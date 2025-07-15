@@ -20,6 +20,7 @@ struct sentry_scope_s {
     sentry_value_t contexts;
     sentry_value_t propagation_context;
     sentry_ringbuffer_t *breadcrumbs;
+    sentry_value_t dynamic_sampling_context;
     sentry_level_t level;
     sentry_value_t client_sdk;
     sentry_attachment_t *attachments;

@@ -106,6 +106,41 @@ generate_propagation_context(sentry_value_t propagation_context)
     sentry_value_set_by_key(
         sentry_value_get_by_key(propagation_context, "trace"), "span_id",
         sentry__value_new_span_uuid(&span_id));
+    sentry__generate_sample_rand(
+        sentry_value_get_by_key(propagation_context, "trace"));
+}
+
+static void
+set_dynamic_sampling_context(sentry_scope_t *scope)
+{
+    sentry_value_decref(scope->dynamic_sampling_context);
+    // add the Dynamic Sampling Context to the `trace` header
+    sentry_value_t dsc = sentry_value_new_object();
+
+    SENTRY_WITH_OPTIONS (options) {
+        if (options->dsn) {
+            sentry_value_set_by_key(dsc, "public_key",
+                sentry_value_new_string(options->dsn->public_key));
+            sentry_value_set_by_key(
+                dsc, "org_id", sentry_value_new_string(options->dsn->org_id));
+        }
+        sentry_value_set_by_key(dsc, "sample_rate",
+            sentry_value_new_double(options->traces_sample_rate));
+        if (options->traces_sampler) {
+            sentry_value_set_by_key(
+                dsc, "sample_rate", sentry_value_new_double(1.0));
+        }
+        sentry_value_t sample_rand = sentry_value_get_by_key(
+            sentry_value_get_by_key(scope->propagation_context, "trace"),
+            "sample_rand");
+        sentry_value_set_by_key(dsc, "sample_rand", sample_rand);
+        sentry_value_incref(sample_rand);
+        sentry_value_set_by_key(
+            dsc, "release", sentry_value_new_string(options->release));
+        sentry_value_set_by_key(
+            dsc, "environment", sentry_value_new_string(options->environment));
+    }
+    scope->dynamic_sampling_context = dsc;
 }
 
 #if defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_PS)
@@ -218,6 +253,8 @@ sentry_init(sentry_options_t *options)
 
         sentry__ringbuffer_set_max_size(
             scope->breadcrumbs, options->max_breadcrumbs);
+        
+        set_dynamic_sampling_context(scope);
     }
     if (backend && backend->user_consent_changed_func) {
         backend->user_consent_changed_func(backend);
@@ -537,12 +574,12 @@ static
                     sampling_ctx->custom_sampling_context,
                     sampling_ctx->parent_sampled == NULL ? NULL
                                                          : &parent_sampled_int);
-            send = sentry__roll_dice(result);
+            send = sampling_ctx->sample_rand < result;
         } else {
             if (sampling_ctx->parent_sampled != NULL) {
                 send = *sampling_ctx->parent_sampled;
             } else {
-                send = sentry__roll_dice(options->traces_sample_rate);
+                send = sampling_ctx->sample_rand < options->traces_sample_rate;
             }
         }
     }
@@ -950,6 +987,8 @@ sentry_set_trace_n(const char *trace_id, size_t trace_id_len,
     }
 
     if (!sentry_value_is_null(context)) {
+        sentry__generate_sample_rand(context);
+
         sentry__set_propagation_context("trace", context);
     }
 }
@@ -1030,8 +1069,15 @@ sentry_transaction_start_ts(sentry_transaction_context_t *opaque_tx_ctx,
     sentry_value_remove_by_key(tx, "timestamp");
 
     sentry__value_merge_objects(tx, tx_ctx);
+    double sample_rand = 1.0;
+    SENTRY_WITH_SCOPE (scope) {
+        sample_rand = sentry_value_as_double(sentry_value_get_by_key(
+            sentry_value_get_by_key(scope->propagation_context, "trace"),
+            "sample_rand"));
+    }
     sentry_sampling_context_t sampling_ctx
-        = { opaque_tx_ctx, custom_sampling_ctx, NULL };
+        = { opaque_tx_ctx, custom_sampling_ctx, NULL, sample_rand };
+
     bool should_sample = sentry__should_send_transaction(tx_ctx, &sampling_ctx);
     sentry_value_set_by_key(
         tx, "sampled", sentry_value_new_bool(should_sample));

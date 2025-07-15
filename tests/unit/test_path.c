@@ -236,6 +236,7 @@ SENTRY_TEST(path_directory)
     sentry__path_free(path_4);
 #endif
 
+    sentry__path_remove_all(path_1);
     sentry__path_free(path_1);
     sentry__path_free(path_2);
 }
