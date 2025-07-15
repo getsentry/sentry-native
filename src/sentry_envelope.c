@@ -333,7 +333,7 @@ sentry__envelope_add_transaction(
     sentry__envelope_set_header(envelope, "event_id", event_id);
 
     SENTRY_WITH_SCOPE (scope) {
-        sentry_value_t dsc = scope->dynamic_sampling_context;
+        sentry_value_t dsc = sentry__value_clone(scope->dynamic_sampling_context);
         sentry_value_t trace_id = sentry_value_get_by_key(
             sentry_value_get_by_key(
                 sentry_value_get_by_key(transaction, "contexts"), "trace"),
@@ -355,7 +355,6 @@ sentry__envelope_add_transaction(
         }
         // only add dsc if it has values
         if (sentry_value_is_true(dsc)) {
-            sentry_value_incref(dsc);
             sentry__envelope_set_header(envelope, "trace", dsc);
         }
     }
