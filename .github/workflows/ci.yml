@@ -164,6 +164,11 @@ jobs:
             ANDROID_API: 35
             ANDROID_NDK: 27.2.12479018
             ANDROID_ARCH: x86_64
+          - name: Windows (Gaming.Desktop.x64)
+            os: windows-2025
+            GDK_VERSION: 2504.1.4046
+            CMAKE_DEFINES: -DCMAKE_TOOLCHAIN_FILE="./toolchains/xbox/grdk_toolchain.cmake" -DGDK_VERSION=250401
+            VS_GENERATOR_TOOLSET: GRDK
 
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
@@ -181,6 +186,7 @@ jobs:
       SYSTEM_VERSION_COMPAT: ${{ matrix.SYSTEM_VERSION_COMPAT }}
       VS_GENERATOR_TOOLSET: ${{ matrix.VS_GENERATOR_TOOLSET }}
       SYSTEM_PYTHON: ${{ matrix.SYSTEM_PYTHON }}
+      GDK_VERSION: ${{ matrix.GDK_VERSION }}
 
     steps:
       - uses: actions/checkout@v4
@@ -274,6 +280,12 @@ jobs:
         if: ${{ env['ANDROID_API'] }}
         run: bash scripts/start-android.sh
         timeout-minutes: 20
+
+      - name: Setup GDK
+        if: ${{ runner.os == 'Windows' && env['GDK_VERSION'] }}
+        uses: ./.github/actions/setup-gdk
+        with:
+          gdk-version: ${{ env['GDK_VERSION'] }}
 
       - name: Add sentry.native.test hostname
         if: ${{ runner.os == 'Windows' }}
