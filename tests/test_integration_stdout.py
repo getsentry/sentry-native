@@ -19,7 +19,7 @@ from .assertions import (
     assert_crash_timestamp,
     assert_breakpad_crash,
 )
-from .conditions import has_breakpad, has_files, is_tsan
+from .conditions import has_breakpad, has_files
 
 
 def test_capture_stdout(cmake):
