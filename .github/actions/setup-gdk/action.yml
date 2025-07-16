@@ -27,8 +27,10 @@ runs:
     - name: Install GDK
       if: ${{ steps.cache-gdk.outputs.cache-hit != 'true' }}
       shell: pwsh
+      env:
+        GDK_VERSION: ${{ inputs.gdk-version }}
       run: |
-        winget install --accept-source-agreements --accept-package-agreements --silent --disable-interactivity --version ${{ inputs.gdk-version }} Microsoft.Gaming.GDK
+        winget install --accept-source-agreements --accept-package-agreements --silent --disable-interactivity --version "$env:GDK_VERSION" Microsoft.Gaming.GDK
         reg export "HKLM\SOFTWARE\WOW6432Node\Microsoft\GDK" "$env:RUNNER_TEMP\gdk.reg"
 
     - name: Cache GDK
