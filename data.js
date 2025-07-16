@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1752590649281,
+  "lastUpdate": 1752679398539,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -3354,6 +3354,66 @@ window.BENCHMARK_DATA = {
             "value": 1.7759690000502815,
             "unit": "ms",
             "extra": "Min 1.770ms\nMax 1.833ms\nMean 1.797ms\nStdDev 0.032ms\nMedian 1.776ms\nCPU 0.576ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "mischan@abovevacant.com",
+            "name": "Mischan Toosarani-Hausberger",
+            "username": "supervacuus"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "70f38a25655323f2e1e336a8771725c335c41319",
+          "message": "ci: enable tsan + fix: rework breadcrumb ringbuffer (#1309)\n\n* adapt python test runner\n\n* fix lock-order inversion in `sentry_start_session()`\n\nThis will typically not hit because the inversion is relevant with the lock acquisition in `sentry_init()` and these two are typically not called from two different threads at the same time.\n\nHowever, consistent lock-order is such a basic sanity step and will guard us from future functions that also require scope- and options-locks.\n\n* properly synchronize `executed_after_shutdown` in `SENTRY_TEST(task_queue)`\n\n* move pre-init in sentry_init outside the options lock\n\n* move set_context outside the scope lock in set_trace so we can prevent unnecessary scope lock recursion\n\n* fix early exit in sentry__scope_get_span_or_transaction (only relevant for tests)\n\n* fix concurrent access to TEST_CHECK macro, which updates an unsynced global in the test-framework\n\n* minor format\n\n* extract the ringbuffer into a separate module\n\nthis allows us to keep state close and remove the need to retrieve max_breadcrumbs from the options after sentry_init(). Which in turn removes the need for nested locks.\n\n* add \"lock handling\" to the contributor docs\n\n* synchronize access to acutest state in the concurrency unit tests\n\n* limit SENTRY_WITH_SCOPE in attachment tests to the lines that actually need the scope\n\n* introduce tsan configs into the matrix\n\n* remove ringbuffer get_len definition\n\n* add tsan.supp + support in test runner\n\n* disable tsan in integration tests that involve DEADLYSIGNALS\n\n* add GCC based TSAN tests as a toolchain cross-check\n\n* clean up\n\n* revert Werror for GCC due to crashpad (not solving this here)\n\n* increase TSAN verbosity for the internal check that fails\n\n* disable all crashpad runs for tsan since it fails an internal check when forking the handler\n\n* format\n\n* re-enable all crashing tests in the http/stdout integration tests\n\nI falsely assumed an issue in the signal handler itself because the internal check triggered by crashpad_handler forking coincided with DEADLYSIGNAL.\n\nTurns out DEADLYSIGNAL is handled in TSAN like in ASAN, i.e. non-fatal (puh).\n\nThe culprit for crashpad is the fork during initialization, which breaks with TSAN invariants.\n\n* move ringbuffer tests in separate tu\n\n* missed cmake update\n\n* get rid of another unnecessary lock nesting\n\n* clone the DSC when prepping for the envelope header\n\n* clone the DSC when prepping for the envelope header (also in event path)\n\n* dramatically limit scope lock when prepping envelopes.\n\nAlso ensure that the cloned DSC is freed if we don't add it as a header.\n\n* remove unused imports\n\n---------\n\nCo-authored-by: JoshuaMoelans <60878493+JoshuaMoelans@users.noreply.github.com>",
+          "timestamp": "2025-07-16T17:21:01+02:00",
+          "tree_id": "2861324adb9817ab119e8c2571dda42436827416",
+          "url": "https://github.com/getsentry/sentry-native/commit/70f38a25655323f2e1e336a8771725c335c41319"
+        },
+        "date": 1752679397791,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 0.7171340000127202,
+            "unit": "ms",
+            "extra": "Min 0.699ms\nMax 0.740ms\nMean 0.720ms\nStdDev 0.016ms\nMedian 0.717ms\nCPU 0.720ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.7228249999968739,
+            "unit": "ms",
+            "extra": "Min 0.714ms\nMax 0.814ms\nMean 0.739ms\nStdDev 0.042ms\nMedian 0.723ms\nCPU 0.726ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 2.9558749999978318,
+            "unit": "ms",
+            "extra": "Min 2.847ms\nMax 2.961ms\nMean 2.919ms\nStdDev 0.053ms\nMedian 2.956ms\nCPU 1.515ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.012142999992192927,
+            "unit": "ms",
+            "extra": "Min 0.012ms\nMax 0.012ms\nMean 0.012ms\nStdDev 0.000ms\nMedian 0.012ms\nCPU 0.011ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.022220999994715385,
+            "unit": "ms",
+            "extra": "Min 0.022ms\nMax 0.023ms\nMean 0.022ms\nStdDev 0.000ms\nMedian 0.022ms\nCPU 0.022ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 1.77151100001538,
+            "unit": "ms",
+            "extra": "Min 1.720ms\nMax 1.822ms\nMean 1.771ms\nStdDev 0.037ms\nMedian 1.772ms\nCPU 0.542ms"
           }
         ]
       }
