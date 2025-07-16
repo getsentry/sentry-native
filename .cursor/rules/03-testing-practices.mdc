@@ -1,0 +1,137 @@
+# Testing Practices
+
+## Test Structure
+
+**Unit Tests** ([tests/unit/](mdc:tests/unit/)):
+- Located in `tests/unit/test_*.c`
+- Registered in [tests/unit/tests.inc](mdc:tests/unit/tests.inc) using `XX(test_name)` macro
+- Built into single `sentry_test_unit` executable
+
+**Integration Tests** ([tests/](mdc:tests/)):
+- Python-based using pytest framework
+- Test real SDK behavior with `sentry_example` binary
+- HTTP server mocking with `pytest-httpserver`
+- Cross-platform CI execution
+
+## Unit Test Conventions
+
+**Test Function Structure:**
+```c
+SENTRY_TEST(descriptive_test_name)
+{
+    // Setup phase
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://key@example.com/42");
+    sentry_init(options);
+
+    // Test phase
+    sentry_value_t event = sentry_value_new_event();
+    sentry_uuid_t event_id = sentry_capture_event(event);
+
+    // Verification phase
+    TEST_CHECK(!sentry_uuid_is_nil(&event_id));
+    TEST_CHECK_STRING_EQUAL(actual_str, "expected");
+
+    // Cleanup phase
+    sentry_close();
+}
+```
+
+**Assertion Macros:**
+- `TEST_CHECK(condition)` - Basic condition check
+- `TEST_CHECK_STRING_EQUAL(actual, expected)` - String comparison
+- `TEST_CHECK_INT_EQUAL(actual, expected)` - Integer comparison
+- `TEST_CHECK_JSON_VALUE(value, json_string)` - JSON structure comparison
+
+**Memory Management in Tests:**
+```c
+// Always clean up test artifacts
+sentry_path_t *path = sentry__path_from_str(".test-db");
+sentry__path_remove_all(path);  // Clean before test
+// ... test code ...
+sentry__path_remove_all(path);  // Clean after test
+sentry__path_free(path);
+```
+
+## Integration Test Patterns
+
+**Basic HTTP Test:**
+```python
+def test_capture_event(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "crashpad"})
+
+    # Mock HTTP endpoint
+    httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
+
+    # Run example with test DSN
+    run(tmp_path, "sentry_example", ["capture-event"],
+        env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)))
+
+    # Verify request received
+    assert len(httpserver.log) == 1
+    envelope = Envelope.deserialize(httpserver.log[0].get_data())
+    assert_event(envelope.get_event())
+```
+
+**Platform-Specific Tests:**
+```python
+# Use condition decorators for platform/feature requirements
+@pytest.mark.skipif(not has_crashpad, reason="needs crashpad backend")
+def test_crashpad_specific_feature():
+    pass
+
+@pytest.mark.skipif(is_android, reason="not supported on Android")
+def test_desktop_only_feature():
+    pass
+```
+
+## Test Execution Environments
+
+**CI Matrix** (see [.github/workflows/ci.yml](mdc:.github/workflows/ci.yml)):
+- Multiple compilers: GCC 9-14, Clang 19, MSVC 2019/2022
+- Multiple architectures: x86, x64, arm64
+- Multiple platforms: Windows, macOS, Linux, Android
+- Analysis tools: ASan, Valgrind, Coverage (kcov/llvm-cov)
+
+**Local Development:**
+```bash
+# Run all tests
+make test
+
+# Run specific unit test
+./build/sentry_test_unit test_name
+
+# Run integration tests with filters
+pytest tests/ -k "test_pattern" --verbose
+```
+
+## Example Program Usage
+
+The [sentry_example](mdc:examples/example.c) binary supports extensive test scenarios:
+
+**Common Test Commands:**
+- `capture-event` - Basic event capture
+- `crash` - Trigger segmentation fault
+- `attachment` - Test file attachments
+- `before-send` - Test filtering hooks
+- `capture-transaction` - Performance monitoring
+- `start-session` - Release health sessions
+
+**Platform-Specific Commands:**
+- `fastfail` (Windows) - Test Control Flow Guard crashes
+- `stack-overflow` - Test stack overflow handling
+- `http-proxy` - Test proxy configuration
+
+## Test Data Management
+
+**Fixtures:** [tests/fixtures/](mdc:tests/fixtures/)
+- Minidump samples for crash processing tests
+- OS release files for environment detection tests
+- View hierarchy JSON for UI attachment tests
+
+**Test Isolation:**
+- Each test gets isolated temporary directory
+- Database paths use test-specific prefixes
+- HTTP servers use random available ports
+
+Reference [tests/README.md](mdc:tests) for detailed testing setup and [CONTRIBUTING.md](mdc:CONTRIBUTING.md) for development workflow.
