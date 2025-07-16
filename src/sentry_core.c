@@ -111,35 +111,34 @@ generate_propagation_context(sentry_value_t propagation_context)
 }
 
 static void
-set_dynamic_sampling_context(sentry_scope_t *scope)
+set_dynamic_sampling_context(sentry_options_t *options, sentry_scope_t *scope)
 {
     sentry_value_decref(scope->dynamic_sampling_context);
     // add the Dynamic Sampling Context to the `trace` header
     sentry_value_t dsc = sentry_value_new_object();
 
-    SENTRY_WITH_OPTIONS (options) {
-        if (options->dsn) {
-            sentry_value_set_by_key(dsc, "public_key",
-                sentry_value_new_string(options->dsn->public_key));
-            sentry_value_set_by_key(
-                dsc, "org_id", sentry_value_new_string(options->dsn->org_id));
-        }
-        sentry_value_set_by_key(dsc, "sample_rate",
-            sentry_value_new_double(options->traces_sample_rate));
-        if (options->traces_sampler) {
-            sentry_value_set_by_key(
-                dsc, "sample_rate", sentry_value_new_double(1.0));
-        }
-        sentry_value_t sample_rand = sentry_value_get_by_key(
-            sentry_value_get_by_key(scope->propagation_context, "trace"),
-            "sample_rand");
-        sentry_value_set_by_key(dsc, "sample_rand", sample_rand);
-        sentry_value_incref(sample_rand);
+    if (options->dsn) {
+        sentry_value_set_by_key(dsc, "public_key",
+            sentry_value_new_string(options->dsn->public_key));
         sentry_value_set_by_key(
-            dsc, "release", sentry_value_new_string(options->release));
-        sentry_value_set_by_key(
-            dsc, "environment", sentry_value_new_string(options->environment));
+            dsc, "org_id", sentry_value_new_string(options->dsn->org_id));
     }
+    sentry_value_set_by_key(dsc, "sample_rate",
+        sentry_value_new_double(options->traces_sample_rate));
+    if (options->traces_sampler) {
+        sentry_value_set_by_key(
+            dsc, "sample_rate", sentry_value_new_double(1.0));
+    }
+    sentry_value_t sample_rand = sentry_value_get_by_key(
+        sentry_value_get_by_key(scope->propagation_context, "trace"),
+        "sample_rand");
+    sentry_value_set_by_key(dsc, "sample_rand", sample_rand);
+    sentry_value_incref(sample_rand);
+    sentry_value_set_by_key(
+        dsc, "release", sentry_value_new_string(options->release));
+    sentry_value_set_by_key(
+        dsc, "environment", sentry_value_new_string(options->environment));
+
     scope->dynamic_sampling_context = dsc;
 }
 
@@ -151,12 +150,13 @@ int
 sentry_init(sentry_options_t *options)
 #endif
 {
+    // pre-init here, so we can consistently use bailing out to :fail
+    sentry_transport_t *transport = NULL;
+
     SENTRY__MUTEX_INIT_DYN_ONCE(g_options_lock);
     // this function is to be called only once, so we do not allow more than one
     // caller
     sentry__mutex_lock(&g_options_lock);
-    // pre-init here, so we can consistently use bailing out to :fail
-    sentry_transport_t *transport = NULL;
 
     sentry_close();
 
@@ -250,7 +250,10 @@ sentry_init(sentry_options_t *options)
         scope->attachments = options->attachments;
         options->attachments = NULL;
 
-        set_dynamic_sampling_context(scope);
+        sentry__ringbuffer_set_max_size(
+            scope->breadcrumbs, options->max_breadcrumbs);
+
+        set_dynamic_sampling_context(options, scope);
     }
     if (backend && backend->user_consent_changed_func) {
         backend->user_consent_changed_func(backend);
@@ -964,8 +967,10 @@ void
 sentry_set_trace_n(const char *trace_id, size_t trace_id_len,
     const char *parent_span_id, size_t parent_span_id_len)
 {
+    sentry_value_t context = sentry_value_new_null();
+
     SENTRY_WITH_SCOPE_MUT (scope) {
-        sentry_value_t context = sentry_value_new_object();
+        context = sentry_value_new_object();
 
         sentry_value_set_by_key(
             context, "type", sentry_value_new_string("trace"));
@@ -978,7 +983,9 @@ sentry_set_trace_n(const char *trace_id, size_t trace_id_len,
         sentry_uuid_t span_id = sentry_uuid_new_v4();
         sentry_value_set_by_key(
             context, "span_id", sentry__value_new_span_uuid(&span_id));
+    }
 
+    if (!sentry_value_is_null(context)) {
         sentry__generate_sample_rand(context);
 
         sentry__set_propagation_context("trace", context);

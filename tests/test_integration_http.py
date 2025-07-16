@@ -38,7 +38,7 @@ from .assertions import (
     assert_failed_proxy_auth_request,
     assert_attachment_view_hierarchy,
 )
-from .conditions import has_http, has_breakpad, has_files, has_crashpad
+from .conditions import has_http, has_breakpad, has_files
 
 pytestmark = pytest.mark.skipif(not has_http, reason="tests need http")
 
