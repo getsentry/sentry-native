@@ -4,6 +4,7 @@
 #include "sentry_boot.h"
 
 #include <stdio.h>
+#include <time.h>
 
 #ifdef SENTRY_PLATFORM_WINDOWS
 typedef wchar_t sentry_pathchar_t;
@@ -151,6 +152,12 @@ int sentry__path_touch(const sentry_path_t *path);
  * This will return the size of the file at `path`, or 0 on failure.
  */
 size_t sentry__path_get_size(const sentry_path_t *path);
+
+/**
+ * This will return the last modification time of the file at `path`, or 0 on
+ * failure.
+ */
+time_t sentry__path_get_mtime(const sentry_path_t *path);
 
 /**
  * This will read all the content of `path` into a newly allocated buffer, and
