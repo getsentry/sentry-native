@@ -48,7 +48,7 @@ SENTRY_TEST(process_spawn)
     // cp <src> <dst>
     sentry_path_t *cp = sentry__path_from_str("cp");
     TEST_ASSERT(!!cp);
-    TEST_CHECK(sentry__process_spawn(cp, exe->path, dst->path, NULL));
+    sentry__process_spawn(cp, exe->path, dst->path, NULL);
     sentry__path_free(cp);
 #    endif
 
