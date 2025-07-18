@@ -48,13 +48,16 @@ SENTRY_TEST(process_spawn)
     sentry__path_free(cp);
 #    endif
 
+    size_t size = sentry__path_get_size(exe);
+
+    // wait up to 5s for the detached copy process
     int i = 0;
-    while (i++ < 100 && !sentry__path_is_file(dst)) {
+    while (i++ < 100
+        && (!sentry__path_is_file(dst) || sentry__path_get_size(dst) < size)) {
         sleep_ms(50);
     }
     TEST_CHECK(sentry__path_is_file(dst));
-    TEST_CHECK_INT_EQUAL(
-        sentry__path_get_size(exe), sentry__path_get_size(dst));
+    TEST_CHECK_INT_EQUAL(sentry__path_get_size(dst), size);
 
     sentry__path_remove(dst);
     sentry__path_free(exe);
