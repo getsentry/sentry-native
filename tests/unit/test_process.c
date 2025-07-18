@@ -17,6 +17,10 @@ SENTRY_TEST(process_invalid)
     sentry_path_t *empty = sentry__path_from_str("");
     TEST_CHECK(!sentry__process_spawn(empty, NULL));
     sentry__path_free(empty);
+
+    sentry_path_t *nul = sentry__path_from_str_owned(NULL);
+    TEST_CHECK(!sentry__process_spawn(nul, NULL));
+    sentry__path_free(nul);
 }
 
 SENTRY_TEST(process_spawn)
