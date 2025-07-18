@@ -81,13 +81,13 @@ argv_free(char **argv)
 /**
  * Spawns a new fully detached subprocess by double-forking.
  */
-bool
+static void
 spawn_process(char **argv)
 {
     pid_t pid1 = fork();
     if (pid1 == -1) {
         SENTRY_ERRORF("first fork() failed: %s", strerror(errno));
-        return false;
+        return;
     }
 
     if (pid1 == 0) {
@@ -135,21 +135,17 @@ spawn_process(char **argv)
         int status;
         if (waitpid(pid1, &status, 0) == -1) {
             SENTRY_ERRORF("waitpid() failed: %s", strerror(errno));
-            return false;
-        }
-        if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+        } else if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
             SENTRY_ERRORF("child process failed with status %d", status);
-            return false;
         }
-        return true;
     }
 }
 
-bool
+void
 sentry__process_spawn(const sentry_path_t *executable, const char *arg0, ...)
 {
     if (!executable || !executable->path || strcmp(executable->path, "") == 0) {
-        return false;
+        return;
     }
 
     int argc = 1;
@@ -183,25 +179,25 @@ sentry__process_spawn(const sentry_path_t *executable, const char *arg0, ...)
         && (!argv_set(argv, i++, "/usr/bin/open")
             || !argv_set(argv, i++, "-a"))) {
         argv_free(argv);
-        return false;
+        return;
     }
 #endif
 
     if (!argv_set(argv, i++, executable->path)) {
         argv_free(argv);
-        return false;
+        return;
     }
 
     if (arg0) {
 #ifdef SENTRY_PLATFORM_MACOS
         if (is_bundle && !argv_set(argv, i++, "--args")) {
             argv_free(argv);
-            return false;
+            return;
         }
 #endif
         if (!argv_set(argv, i++, arg0)) {
             argv_free(argv);
-            return false;
+            return;
         }
         va_list args;
         va_start(args, arg0);
@@ -210,7 +206,7 @@ sentry__process_spawn(const sentry_path_t *executable, const char *arg0, ...)
             if (!argv_set(argv, i++, argn)) {
                 va_end(args);
                 argv_free(argv);
-                return false;
+                return;
             }
         }
         va_end(args);
@@ -220,7 +216,6 @@ sentry__process_spawn(const sentry_path_t *executable, const char *arg0, ...)
     SENTRY_DEBUGF("spawning %s", cli);
     sentry_free(cli);
 
-    bool rv = spawn_process(argv);
+    spawn_process(argv);
     argv_free(argv);
-    return rv;
 }

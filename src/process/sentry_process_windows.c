@@ -6,12 +6,12 @@
 #include <stdarg.h>
 #include <windows.h>
 
-bool
+void
 sentry__process_spawn(const sentry_path_t *executable, const wchar_t *arg0, ...)
 {
     if (!executable || !executable->path
         || wcscmp(executable->path, L"") == 0) {
-        return false;
+        return;
     }
 
     size_t cli_len = wcslen(executable->path) + 1; // \0
@@ -28,7 +28,7 @@ sentry__process_spawn(const sentry_path_t *executable, const wchar_t *arg0, ...)
 
     wchar_t *cli = sentry_malloc(cli_len * sizeof(wchar_t));
     if (!cli) {
-        return false;
+        return;
     }
     wcscpy(cli, executable->path);
     if (arg0) {
@@ -66,10 +66,9 @@ sentry__process_spawn(const sentry_path_t *executable, const wchar_t *arg0, ...)
 
     if (!rv) {
         SENTRY_ERRORF("CreateProcess failed: %lu", GetLastError());
-        return false;
+        return;
     }
 
     CloseHandle(pi.hProcess);
     CloseHandle(pi.hThread);
-    return true;
 }

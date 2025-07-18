@@ -10,16 +10,17 @@
 #    define sleep_ms(SECONDS) usleep(SECONDS * 1000)
 #endif
 
+// merely tests that it doesn't crash with invalid arguments
 SENTRY_TEST(process_invalid)
 {
-    TEST_CHECK(!sentry__process_spawn(NULL, NULL));
+    sentry__process_spawn(NULL, NULL);
 
     sentry_path_t *empty = sentry__path_from_str("");
-    TEST_CHECK(!sentry__process_spawn(empty, NULL));
+    sentry__process_spawn(empty, NULL);
     sentry__path_free(empty);
 
     sentry_path_t *nul = sentry__path_from_str_owned(NULL);
-    TEST_CHECK(!sentry__process_spawn(nul, NULL));
+    sentry__process_spawn(nul, NULL);
     sentry__path_free(nul);
 }
 
@@ -41,8 +42,7 @@ SENTRY_TEST(process_spawn)
     // cmd /C copy <src> <dst>
     sentry_path_t *cmd = sentry__path_from_str("cmd.exe");
     TEST_ASSERT(!!cmd);
-    TEST_CHECK(
-        sentry__process_spawn(cmd, L"/C", L"copy", exe->path, dst->path, NULL));
+    sentry__process_spawn(cmd, L"/C", L"copy", exe->path, dst->path, NULL);
     sentry__path_free(cmd);
 #    else
     // cp <src> <dst>
