@@ -143,6 +143,7 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
         }
 
         if (should_handle) {
+            sentry_value_incref(event);
             sentry_envelope_t *envelope = sentry__prepare_event(
                 options, event, nullptr, !options->on_crash_func, NULL);
             sentry_session_t *session = sentry__end_current_session_with_status(
@@ -189,13 +190,14 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
             sentry__path_free(dump_path);
         } else {
             SENTRY_DEBUG("event was discarded by the `on_crash` hook");
-            sentry_value_decref(event);
         }
 
         // after capturing the crash event, try to dump all the in-flight
         // data of the previous transports
         sentry__transport_dump_queue(options->transport, options->run);
-        // and restore the old transport
+        // and launch the feedback handler
+        sentry__launch_feedback_handler(event);
+        sentry_value_decref(event);
     }
     SENTRY_INFO("crash has been captured");
 
