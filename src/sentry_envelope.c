@@ -756,8 +756,7 @@ sentry_envelope_read_from_file_n(const char *path, size_t path_len)
     if (envelope) {
         const char *newline = memchr(envelope->contents.raw.payload, '\n',
             envelope->contents.raw.payload_len);
-        size_t headers_len = newline ? newline - envelope->contents.raw.payload
-                                     : envelope->contents.raw.payload_len;
+        size_t headers_len = (size_t)(newline - envelope->contents.raw.payload);
         envelope->headers = sentry__value_from_json(
             envelope->contents.raw.payload, headers_len);
     }
