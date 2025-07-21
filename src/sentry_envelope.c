@@ -208,8 +208,21 @@ sentry_uuid_t
 sentry__envelope_get_event_id(const sentry_envelope_t *envelope)
 {
     if (envelope->is_raw) {
-        return sentry_uuid_nil();
-    }
+        const char *payload = envelope->contents.raw.payload;
+        size_t payload_len = envelope->contents.raw.payload_len;
+        if (!payload || payload_len == 0) {
+            return sentry_uuid_nil();
+        }
+
+        const char *newline = memchr(payload, '\n', payload_len);
+        size_t headers_len
+            = newline ? (size_t)(newline - payload) : payload_len;
+        sentry_value_t headers = sentry__value_from_json(payload, headers_len);
+        sentry_uuid_t event_id = sentry_uuid_from_string(sentry_value_as_string(
+            sentry_value_get_by_key(headers, "event_id")));
+        sentry_value_decref(headers);
+        return event_id;
+    };
     return sentry_uuid_from_string(sentry_value_as_string(
         sentry_value_get_by_key(envelope->contents.items.headers, "event_id")));
 }

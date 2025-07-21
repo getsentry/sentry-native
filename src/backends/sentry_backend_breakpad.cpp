@@ -143,7 +143,6 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
         }
 
         if (should_handle) {
-            sentry_value_incref(event);
             sentry_envelope_t *envelope = sentry__prepare_event(
                 options, event, nullptr, !options->on_crash_func, NULL);
             sentry_session_t *session = sentry__end_current_session_with_status(
@@ -177,12 +176,16 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
                 sentry__attachment_free(screenshot);
             }
 
-            // capture the envelope with the disk transport
-            sentry_transport_t *disk_transport
-                = sentry_new_disk_transport(options->run);
-            sentry__capture_envelope(disk_transport, envelope);
-            sentry__transport_dump_queue(disk_transport, options->run);
-            sentry_transport_free(disk_transport);
+            if (options->feedback_handler_path) {
+                sentry__launch_feedback_handler(envelope);
+            } else {
+                // capture the envelope with the disk transport
+                sentry_transport_t *disk_transport
+                    = sentry_new_disk_transport(options->run);
+                sentry__capture_envelope(disk_transport, envelope);
+                sentry__transport_dump_queue(disk_transport, options->run);
+                sentry_transport_free(disk_transport);
+            }
 
             // now that the envelope was written, we can remove the temporary
             // minidump file
@@ -190,14 +193,13 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
             sentry__path_free(dump_path);
         } else {
             SENTRY_DEBUG("event was discarded by the `on_crash` hook");
+            sentry_value_decref(event);
         }
 
         // after capturing the crash event, try to dump all the in-flight
         // data of the previous transports
         sentry__transport_dump_queue(options->transport, options->run);
-        // and launch the feedback handler
-        sentry__launch_feedback_handler(event);
-        sentry_value_decref(event);
+        // and restore the old transport
     }
     SENTRY_INFO("crash has been captured");
 

@@ -22,6 +22,7 @@
 #include "sentry_transport.h"
 #include "sentry_uuid.h"
 #include "sentry_value.h"
+#include "transports/sentry_disk_transport.h"
 
 #ifdef SENTRY_INTEGRATION_QT
 #    include "integrations/sentry_integration_qt.h"
@@ -1449,24 +1450,33 @@ sentry_capture_feedback(sentry_value_t user_feedback)
 }
 
 void
-sentry__launch_feedback_handler(sentry_value_t event)
+sentry__launch_feedback_handler(sentry_envelope_t *envelope)
 {
-    sentry_uuid_t event_id = sentry_uuid_nil();
-    sentry__ensure_event_id(event, &event_id);
+    // sentry_uuid_t event_id = sentry_uuid_nil();
+    // sentry__ensure_event_id(event, &event_id);
 
     SENTRY_WITH_OPTIONS (options) {
         if (!options->feedback_handler_path) {
             return;
         }
 
-        sentry_path_t *feedback_path
-            = sentry__run_write_feedback(options->run, &event_id);
-        if (!feedback_path) {
-            return;
-        }
+        // capture the envelope with the disk transport
+        sentry_transport_t *disk_transport
+            = sentry_new_feedback_transport(options->run);
+        sentry__capture_envelope(disk_transport, envelope);
+        sentry__transport_dump_queue(disk_transport, options->run);
+        sentry_transport_free(disk_transport);
 
-        sentry__process_spawn(
-            options->feedback_handler_path, feedback_path->path, NULL);
+        sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
+        char *envelope_filename
+            = sentry__uuid_as_filename(&event_id, ".envelope");
+
+        sentry_path_t *feedback_path = sentry__path_join_str(
+            options->run->feedback_path, envelope_filename);
+        if (feedback_path) {
+            sentry__process_spawn(
+                options->feedback_handler_path, feedback_path->path, NULL);
+        }
         sentry__path_free(feedback_path);
     }
 }

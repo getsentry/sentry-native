@@ -43,12 +43,12 @@ bool sentry__run_write_envelope(
     const sentry_run_t *run, const sentry_envelope_t *envelope);
 
 /**
- * This will copy the specified event's envelope from:
- * `<database>/<uuid>.run/<event-uuid>.envelope` to:
- * `<database>/feedback/<event-uuid>.envelope`.
+ * This will serialize and write the given envelope to disk into a file named
+ * like so:
+ * `<database>/feedback/<event-uuid>.envelope`
  */
 sentry_path_t *sentry__run_write_feedback(
-    const sentry_run_t *run, const sentry_uuid_t *event_id);
+    const sentry_run_t *run, const sentry_envelope_t *envelope);
 
 /**
  * This will serialize and write the given session to disk into a file named:

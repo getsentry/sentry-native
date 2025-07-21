@@ -22,19 +22,20 @@ main(int argc, char *argv[])
         return EXIT_FAILURE;
     }
 
-    FILE *envelope = fopen(argv[1], "r");
-    if (!envelope) {
-        fprintf(stderr, "ERROR: %s (%s)\n", argv[1], strerror(errno));
+    char *path = argv[1];
+    FILE *file = fopen(path, "r");
+    if (!file) {
+        fprintf(stderr, "ERROR: %s (%s)\n", path, strerror(errno));
         return EXIT_FAILURE;
     }
 
     char header[768];
-    if (!fgets(header, sizeof(header), envelope)) {
-        fprintf(stderr, "ERROR: %s (%s)\n", argv[1], strerror(errno));
-        fclose(envelope);
+    if (!fgets(header, sizeof(header), file)) {
+        fprintf(stderr, "ERROR: %s (%s)\n", path, strerror(errno));
+        fclose(file);
         return EXIT_FAILURE;
     }
-    fclose(envelope);
+    fclose(file);
 
     char dsn[513];
     char event_id[37];
@@ -54,7 +55,10 @@ main(int argc, char *argv[])
     sentry_value_t feedback = sentry_value_new_feedback(
         "some-message", "some-email", "some-name", &uuid);
 
+    sentry_capture_envelope(sentry_envelope_read_from_file(path));
     sentry_capture_feedback(feedback);
 
     sentry_close();
+
+    remove(path);
 }

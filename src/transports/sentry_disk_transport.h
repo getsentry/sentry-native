@@ -11,4 +11,11 @@
  */
 sentry_transport_t *sentry_new_disk_transport(const sentry_run_t *run);
 
+/**
+ * This creates a new transport that serializes envelopes to disk in the given
+ * `feedback` directory.
+ * See `sentry__run_write_feedback`.
+ */
+sentry_transport_t *sentry_new_feedback_transport(const sentry_run_t *run);
+
 #endif

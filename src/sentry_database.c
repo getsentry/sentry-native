@@ -99,34 +99,49 @@ sentry__run_free(sentry_run_t *run)
     sentry_free(run);
 }
 
+static sentry_path_t *
+write_envelope(const sentry_path_t *path, const sentry_envelope_t *envelope)
+{
+    sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
+    char *envelope_filename = sentry__uuid_as_filename(&event_id, ".envelope");
+    if (!envelope_filename) {
+        return NULL;
+    }
+
+    sentry_uuid_as_string(&event_id, envelope_filename);
+    strcpy(&envelope_filename[36], ".envelope");
+
+    sentry_path_t *output_path = sentry__path_join_str(path, envelope_filename);
+    sentry_free(envelope_filename);
+    if (!output_path) {
+        return NULL;
+    }
+
+    int rv = sentry_envelope_write_to_path(envelope, output_path);
+    if (rv) {
+        SENTRY_WARN("writing envelope to file failed");
+        sentry__path_free(output_path);
+        return NULL;
+    }
+
+    return output_path;
+}
+
 bool
 sentry__run_write_envelope(
     const sentry_run_t *run, const sentry_envelope_t *envelope)
 {
-    sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
-    char *envelope_filename = sentry__uuid_as_filename(&event_id, ".envelope");
-
-    sentry_path_t *output_path
-        = sentry__path_join_str(run->run_path, envelope_filename);
-    sentry_free(envelope_filename);
-    if (!output_path) {
-        return false;
+    sentry_path_t *output_path = write_envelope(run->run_path, envelope);
+    if (output_path) {
+        sentry__path_free(output_path);
+        return true;
     }
-
-    int rv = sentry_envelope_write_to_path(envelope, output_path);
-    sentry__path_free(output_path);
-
-    if (rv) {
-        SENTRY_WARN("writing envelope to file failed");
-    }
-
-    // the `write_to_path` returns > 0 on failure, but we would like a real bool
-    return !rv;
+    return false;
 }
 
 sentry_path_t *
 sentry__run_write_feedback(
-    const sentry_run_t *run, const sentry_uuid_t *event_id)
+    const sentry_run_t *run, const sentry_envelope_t *envelope)
 {
     if (sentry__path_create_dir_all(run->feedback_path) != 0) {
         SENTRY_ERRORF(
@@ -134,36 +149,7 @@ sentry__run_write_feedback(
         return NULL;
     }
 
-    char *filename = sentry__uuid_as_filename(event_id, ".envelope");
-    sentry_path_t *source_path = sentry__path_join_str(run->run_path, filename);
-
-    size_t buf_len = 0;
-    char *buf = sentry__path_read_to_buffer(source_path, &buf_len);
-    if (!buf || buf_len == 0) {
-        SENTRY_ERRORF("failed to read envelope: \"%" SENTRY_PATH_PRI "\"",
-            source_path->path);
-        sentry_free(filename);
-        sentry__path_free(source_path);
-        sentry_free(buf);
-        return NULL;
-    }
-
-    sentry_path_t *target_path
-        = sentry__path_join_str(run->feedback_path, filename);
-    int rv = sentry__path_write_buffer(target_path, buf, buf_len);
-
-    sentry_free(filename);
-    sentry__path_free(source_path);
-    sentry_free(buf);
-
-    if (rv) {
-        SENTRY_ERRORF("failed to write feedback: \"%" SENTRY_PATH_PRI "\"",
-            target_path->path);
-        sentry__path_free(target_path);
-        return NULL;
-    }
-
-    return target_path;
+    return write_envelope(run->feedback_path, envelope);
 }
 
 bool

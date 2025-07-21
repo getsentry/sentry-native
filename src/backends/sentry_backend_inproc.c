@@ -589,7 +589,6 @@ handle_ucontext(const sentry_ucontext_t *uctx)
         }
 
         if (should_handle) {
-            sentry_value_incref(event);
             sentry_envelope_t *envelope = sentry__prepare_event(
                 options, event, NULL, !options->on_crash_func, NULL);
             // TODO(tracing): Revisit when investigating transaction flushing
@@ -609,21 +608,23 @@ handle_ucontext(const sentry_ucontext_t *uctx)
                 sentry__attachment_free(screenshot);
             }
 
-            // capture the envelope with the disk transport
-            sentry_transport_t *disk_transport
-                = sentry_new_disk_transport(options->run);
-            sentry__capture_envelope(disk_transport, envelope);
-            sentry__transport_dump_queue(disk_transport, options->run);
-            sentry_transport_free(disk_transport);
+            if (options->feedback_handler_path) {
+                sentry__launch_feedback_handler(envelope);
+            } else {
+                // capture the envelope with the disk transport
+                sentry_transport_t *disk_transport
+                    = sentry_new_disk_transport(options->run);
+                sentry__capture_envelope(disk_transport, envelope);
+                sentry__transport_dump_queue(disk_transport, options->run);
+                sentry_transport_free(disk_transport);
+            }
         } else {
             SENTRY_DEBUG("event was discarded by the `on_crash` hook");
+            sentry_value_decref(event);
         }
 
         // after capturing the crash event, dump all the envelopes to disk
         sentry__transport_dump_queue(options->transport, options->run);
-        // and launch the feedback handler
-        sentry__launch_feedback_handler(event);
-        sentry_value_decref(event);
     }
 
     SENTRY_INFO("crash has been captured");
