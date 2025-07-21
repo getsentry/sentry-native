@@ -1128,7 +1128,7 @@ sentry__value_new_level(sentry_level_t level)
 }
 
 sentry_value_t
-sentry__value_new_event_with_uuid(const sentry_uuid_t *uuid)
+sentry__value_new_event_with_id(const sentry_uuid_t *event_id)
 {
     sentry_value_t rv = sentry_value_new_object();
 
