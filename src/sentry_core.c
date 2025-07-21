@@ -447,6 +447,14 @@ sentry__capture_envelope(
     sentry__transport_send_envelope(transport, envelope);
 }
 
+void
+sentry_capture_envelope(sentry_envelope_t *envelope)
+{
+    SENTRY_WITH_OPTIONS (options) {
+        sentry__capture_envelope(options->transport, envelope);
+    }
+}
+
 static bool
 event_is_considered_error(sentry_value_t event)
 {

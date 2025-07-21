@@ -319,6 +319,7 @@ SENTRY_TEST(write_envelope_to_file_null)
 {
     sentry_envelope_t *empty_envelope = sentry__envelope_new();
 
+    TEST_CHECK(!sentry_envelope_read_from_file(NULL));
     TEST_CHECK_INT_EQUAL(
         sentry_envelope_write_to_file(NULL, "irrelevant/path"), 1);
     TEST_CHECK_INT_EQUAL(
@@ -336,6 +337,7 @@ SENTRY_TEST(write_envelope_to_invalid_path)
     sentry_envelope_t *envelope = create_test_envelope();
     const char *test_file_str = SENTRY_TEST_PATH_PREFIX
         "./directory_that_does_not_exist/sentry_test_envelope";
+    TEST_CHECK(!sentry_envelope_read_from_file(test_file_str));
     sentry_path_t *test_file_path = sentry__path_from_str(test_file_str);
     int rv = sentry_envelope_write_to_file(envelope, test_file_str);
     TEST_CHECK_INT_EQUAL(rv, 1);
@@ -355,7 +357,7 @@ SENTRY_TEST(write_raw_envelope_to_file)
         sentry_envelope_write_to_file(envelope, test_file_str), 0);
 
     sentry_envelope_t *raw_envelope
-        = sentry__envelope_from_path(test_file_path);
+        = sentry_envelope_read_from_file(test_file_str);
     TEST_CHECK_INT_EQUAL(
         sentry_envelope_write_to_file(raw_envelope, test_file_str), 0);
 
@@ -367,6 +369,39 @@ SENTRY_TEST(write_raw_envelope_to_file)
     TEST_CHECK_INT_EQUAL(sentry__path_remove(test_file_path), 0);
 
     sentry_free(test_file_content);
+    sentry__path_free(test_file_path);
+    sentry_envelope_free(envelope);
+    sentry_envelope_free(raw_envelope);
+    sentry_close();
+}
+
+SENTRY_TEST(raw_envelope_headers)
+{
+    sentry_envelope_t *envelope = create_test_envelope();
+    const char *test_file_str = SENTRY_TEST_PATH_PREFIX "sentry_test_envelope";
+    sentry_path_t *test_file_path = sentry__path_from_str(test_file_str);
+    TEST_CHECK_INT_EQUAL(
+        sentry_envelope_write_to_file(envelope, test_file_str), 0);
+
+    sentry_envelope_t *raw_envelope
+        = sentry_envelope_read_from_file(test_file_str);
+
+    sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
+    char event_id_str[37];
+    sentry_uuid_as_string(&event_id, event_id_str);
+
+    sentry_uuid_t raw_event_id = sentry__envelope_get_event_id(raw_envelope);
+    char raw_event_id_str[37];
+    sentry_uuid_as_string(&raw_event_id, raw_event_id_str);
+    TEST_CHECK_STRING_EQUAL(event_id_str, raw_event_id_str);
+
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_envelope_get_header(raw_envelope, "dsn")),
+        "https://foo@sentry.invalid/42");
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_envelope_get_header(
+                                raw_envelope, "event_id")),
+        "c993afb6-b4ac-48a6-b61b-2558e601d65d");
+
     sentry__path_free(test_file_path);
     sentry_envelope_free(envelope);
     sentry_envelope_free(raw_envelope);

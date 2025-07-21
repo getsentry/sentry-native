@@ -663,6 +663,16 @@ typedef struct sentry_envelope_s sentry_envelope_t;
 SENTRY_API void sentry_envelope_free(sentry_envelope_t *envelope);
 
 /**
+ * Given an Envelope, returns the header if present.
+ *
+ * This returns a borrowed value to the headers in the Envelope.
+ */
+SENTRY_API sentry_value_t sentry_envelope_get_header(
+    const sentry_envelope_t *envelope, const char *key);
+SENTRY_API sentry_value_t sentry_envelope_get_header_n(
+    const sentry_envelope_t *envelope, const char *key, size_t key_len);
+
+/**
  * Given an Envelope, returns the embedded Event if there is one.
  *
  * This returns a borrowed value to the Event in the Envelope.
@@ -697,6 +707,20 @@ SENTRY_API int sentry_envelope_write_to_file(
     const sentry_envelope_t *envelope, const char *path);
 SENTRY_API int sentry_envelope_write_to_file_n(
     const sentry_envelope_t *envelope, const char *path, size_t path_len);
+
+/**
+ * Reads an envelope from a file.
+ *
+ * `path` is assumed to be in platform-specific filesystem path encoding.
+ */
+SENTRY_API sentry_envelope_t *sentry_envelope_read_from_file(const char *path);
+SENTRY_API sentry_envelope_t *sentry_envelope_read_from_file_n(
+    const char *path, size_t path_len);
+
+/**
+ * Submits an envelope, first checking for consent.
+ */
+SENTRY_API void sentry_capture_envelope(sentry_envelope_t *envelope);
 
 /**
  * The Sentry Client Options.
