@@ -1132,7 +1132,7 @@ sentry__value_new_event_with_id(const sentry_uuid_t *event_id)
 {
     sentry_value_t rv = sentry_value_new_object();
 
-    sentry_value_set_by_key(rv, "event_id", sentry__value_new_uuid(uuid));
+    sentry_value_set_by_key(rv, "event_id", sentry__value_new_uuid(event_id));
 
     sentry_value_set_by_key(rv, "timestamp",
         sentry__value_new_string_owned(
@@ -1146,8 +1146,8 @@ sentry__value_new_event_with_id(const sentry_uuid_t *event_id)
 sentry_value_t
 sentry_value_new_event(void)
 {
-    sentry_uuid_t uuid = sentry__new_event_id();
-    return sentry__value_new_event_with_uuid(&uuid);
+    sentry_uuid_t event_id = sentry__new_event_id();
+    return sentry__value_new_event_with_id(&event_id);
 }
 
 sentry_value_t

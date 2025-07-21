@@ -287,7 +287,7 @@ sentry__crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
     SENTRY_WITH_OPTIONS (options) {
         auto state = static_cast<crashpad_state_t *>(options->backend->data);
         sentry_value_t crash_event
-            = sentry__value_new_event_with_uuid(&state->crash_event_id);
+            = sentry__value_new_event_with_id(&state->crash_event_id);
         sentry_value_set_by_key(
             crash_event, "level", sentry__value_new_level(SENTRY_LEVEL_FATAL));
 
