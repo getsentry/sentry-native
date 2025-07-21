@@ -19,6 +19,7 @@ from .proxy import (
 )
 from .assertions import (
     assert_crashpad_upload,
+    assert_meta,
     assert_session,
     assert_gzip_file_header,
     assert_user_feedback,
@@ -640,7 +641,7 @@ def test_crashpad_feedback_handler(cmake, httpserver, run_args):
     shutil.rmtree(tmp_path / ".sentry-native", ignore_errors=True)
 
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
-    httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data("OK")
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
 
     with httpserver.wait(timeout=10) as waiting:
@@ -655,16 +656,15 @@ def test_crashpad_feedback_handler(cmake, httpserver, run_args):
 
     assert len(httpserver.log) == 2
     outputs = (httpserver.log[0][0], httpserver.log[1][0])
-    feedback, multipart = (
-        (outputs[0].get_data(), outputs[1])
-        if b'"type":"feedback"' in outputs[0].get_data()
-        else (outputs[1].get_data(), outputs[0])
+    crash, feedback = (
+        (outputs[0].get_data(), outputs[1].get_data())
+        if b'"type":"feedback"' in outputs[1].get_data()
+        else (outputs[1].get_data(), outputs[0].get_data())
     )
 
-    # from crashpad
-    assert_crashpad_upload(multipart)
+    envelope = Envelope.deserialize(crash)
+    assert_meta(envelope, integration="crashpad")
 
-    # from feedback handler
     envelope = Envelope.deserialize(feedback)
     assert_user_feedback(envelope)
 
