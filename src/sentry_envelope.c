@@ -738,30 +738,127 @@ sentry_envelope_write_to_file(
     return sentry_envelope_write_to_file_n(envelope, path, strlen(path));
 }
 
+// https://develop.sentry.dev/sdk/data-model/envelopes/
+static sentry_envelope_t *
+parse_envelope_from_file(sentry_path_t *path)
+{
+    if (!path) {
+        return NULL;
+    }
+
+    size_t buf_len = 0;
+    char *buf = sentry__path_read_to_buffer(path, &buf_len);
+    sentry__path_free(path);
+    if (!buf) {
+        return NULL;
+    }
+
+    sentry_envelope_t *envelope = sentry__envelope_new();
+    if (!envelope) {
+        goto fail;
+    }
+
+    const char *ptr = buf;
+    const char *end = buf + buf_len;
+
+    // headers
+    const char *headers_end = memchr(ptr, '\n', end - ptr);
+    if (!headers_end) {
+        headers_end = end;
+    }
+    size_t headers_len = (size_t)(headers_end - ptr);
+    sentry_value_decref(envelope->headers);
+    envelope->headers = sentry__value_from_json(ptr, headers_len);
+    if (sentry_value_is_null(envelope->headers)) {
+        envelope->headers = sentry_value_new_object();
+    }
+
+    ptr = headers_end + 1; // skip newline
+
+    // items
+    while (ptr < end) {
+        sentry_envelope_item_t *item = envelope_add_item(envelope);
+        if (!item) {
+            goto fail;
+        }
+
+        // item headers
+        const char *item_headers_end = memchr(ptr, '\n', end - ptr);
+        if (!item_headers_end) {
+            item_headers_end = end;
+        }
+        size_t item_headers_len = (size_t)(item_headers_end - ptr);
+        sentry_value_decref(item->headers);
+        item->headers = sentry__value_from_json(ptr, item_headers_len);
+        if (sentry_value_is_null(item->headers)) {
+            goto fail;
+        }
+        ptr = item_headers_end + 1; // skip newline
+
+        // item payload
+        sentry_value_t length
+            = sentry_value_get_by_key(item->headers, "length");
+        if (sentry_value_is_null(length)) {
+            // find newline or end of buffer
+            const char *payload_end = memchr(ptr, '\n', end - ptr);
+            if (!payload_end) {
+                payload_end = end;
+            }
+            item->payload_len = (size_t)(payload_end - ptr);
+        } else {
+            item->payload_len = (size_t)sentry_value_as_int32(length);
+        }
+        if (item->payload_len <= 0 || ptr + item->payload_len > end) {
+            goto fail;
+        }
+        item->payload = sentry_malloc(item->payload_len + 1);
+        if (!item->payload) {
+            goto fail;
+        }
+        memcpy(item->payload, ptr, item->payload_len);
+        item->payload[item->payload_len] = '\0';
+
+        // item event/transaction
+        const char *type = sentry_value_as_string(
+            sentry_value_get_by_key(item->headers, "type"));
+        if (type
+            && (sentry__string_eq(type, "event")
+                || sentry__string_eq(type, "transaction"))) {
+            item->event
+                = sentry__value_from_json(item->payload, item->payload_len);
+        }
+
+        ptr += item->payload_len;
+        while (ptr < end && *ptr == '\n') {
+            ptr++;
+        }
+    }
+
+    sentry_free(buf);
+    return envelope;
+
+fail:
+    sentry_envelope_free(envelope);
+    sentry_free(buf);
+    return NULL;
+}
+
 sentry_envelope_t *
 sentry_envelope_read_from_file(const char *path)
 {
-    return sentry_envelope_read_from_file_n(path, sentry__guarded_strlen(path));
+    if (!path) {
+        return NULL;
+    }
+    return parse_envelope_from_file(sentry__path_from_str(path));
 }
 
 sentry_envelope_t *
 sentry_envelope_read_from_file_n(const char *path, size_t path_len)
 {
-    sentry_path_t *path_obj = sentry__path_from_str_n(path, path_len);
-    if (!path_obj || path_len == 0) {
+    if (!path || path_len == 0) {
         return NULL;
     }
-
-    sentry_envelope_t *envelope = sentry__envelope_from_path(path_obj);
-    if (envelope) {
-        const char *newline = memchr(envelope->contents.raw.payload, '\n',
-            envelope->contents.raw.payload_len);
-        size_t headers_len = (size_t)(newline - envelope->contents.raw.payload);
-        envelope->headers = sentry__value_from_json(
-            envelope->contents.raw.payload, headers_len);
-    }
-    sentry__path_free(path_obj);
-    return envelope;
+    return parse_envelope_from_file(sentry__path_from_str_n(path, path_len));
 }
 
 #ifdef SENTRY_UNITTEST
