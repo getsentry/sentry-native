@@ -868,6 +868,26 @@ sentry_envelope_read_from_file_n(const char *path, size_t path_len)
     return parse_envelope_from_file(sentry__path_from_str_n(path, path_len));
 }
 
+#ifdef SENTRY_PLATFORM_WINDOWS
+sentry_envelope_t *
+sentry_envelope_read_from_filew(const wchar_t *path)
+{
+    if (!path) {
+        return NULL;
+    }
+    return parse_envelope_from_file(sentry__path_from_wstr(path));
+}
+
+sentry_envelope_t *
+sentry_envelope_read_from_filew_n(const wchar_t *path, size_t path_len)
+{
+    if (!path || path_len == 0) {
+        return NULL;
+    }
+    return parse_envelope_from_file(sentry__path_from_wstr_n(path, path_len));
+}
+#endif
+
 #ifdef SENTRY_UNITTEST
 size_t
 sentry__envelope_get_item_count(const sentry_envelope_t *envelope)

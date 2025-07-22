@@ -712,10 +712,24 @@ SENTRY_API int sentry_envelope_write_to_file_n(
  * Reads an envelope from a file.
  *
  * `path` is assumed to be in platform-specific filesystem path encoding.
+ *
+ * API Users on windows are encouraged to use `sentry_envelope_read_from_filew`
+ * instead.
  */
 SENTRY_API sentry_envelope_t *sentry_envelope_read_from_file(const char *path);
 SENTRY_API sentry_envelope_t *sentry_envelope_read_from_file_n(
     const char *path, size_t path_len);
+
+#ifdef SENTRY_PLATFORM_WINDOWS
+/**
+ * Wide char versions of `sentry_envelope_read_from_file` and
+ * `sentry_envelope_read_from_file_n`.
+ */
+SENTRY_API sentry_envelope_t *sentry_envelope_read_from_filew(
+    const wchar_t *path);
+SENTRY_API sentry_envelope_t *sentry_envelope_read_from_filew_n(
+    const wchar_t *path, size_t path_len);
+#endif
 
 /**
  * Submits an envelope, first checking for consent.
