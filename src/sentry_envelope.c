@@ -762,7 +762,7 @@ parse_envelope_from_file(sentry_path_t *path)
     const char *end = buf + buf_len;
 
     // headers
-    const char *headers_end = memchr(ptr, '\n', end - ptr);
+    const char *headers_end = memchr(ptr, '\n', (size_t)(end - ptr));
     if (!headers_end) {
         headers_end = end;
     }
@@ -783,7 +783,7 @@ parse_envelope_from_file(sentry_path_t *path)
         }
 
         // item headers
-        const char *item_headers_end = memchr(ptr, '\n', end - ptr);
+        const char *item_headers_end = memchr(ptr, '\n', (size_t)(end - ptr));
         if (!item_headers_end) {
             item_headers_end = end;
         }
@@ -800,7 +800,7 @@ parse_envelope_from_file(sentry_path_t *path)
             = sentry_value_get_by_key(item->headers, "length");
         if (sentry_value_is_null(length)) {
             // find newline or end of buffer
-            const char *payload_end = memchr(ptr, '\n', end - ptr);
+            const char *payload_end = memchr(ptr, '\n', (size_t)(end - ptr));
             if (!payload_end) {
                 payload_end = end;
             }
