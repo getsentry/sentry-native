@@ -1452,9 +1452,6 @@ sentry_capture_feedback(sentry_value_t user_feedback)
 void
 sentry__launch_feedback_handler(sentry_envelope_t *envelope)
 {
-    // sentry_uuid_t event_id = sentry_uuid_nil();
-    // sentry__ensure_event_id(event, &event_id);
-
     SENTRY_WITH_OPTIONS (options) {
         if (!options->feedback_handler_path) {
             return;

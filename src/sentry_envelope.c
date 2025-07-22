@@ -209,7 +209,7 @@ sentry__envelope_get_event_id(const sentry_envelope_t *envelope)
 {
     if (envelope->is_raw) {
         return sentry_uuid_nil();
-    };
+    }
     return sentry_uuid_from_string(sentry_value_as_string(
         sentry_value_get_by_key(envelope->contents.items.headers, "event_id")));
 }
