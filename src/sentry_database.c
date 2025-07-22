@@ -52,8 +52,8 @@ sentry__run_new(const sentry_path_t *database_path)
     sentry_run_t *run = SENTRY_MAKE(sentry_run_t);
     if (!run) {
         sentry__path_free(run_path);
-        sentry__path_free(lock_path);
         sentry__path_free(session_path);
+        sentry__path_free(lock_path);
         sentry__path_free(feedback_path);
         return NULL;
     }
@@ -107,9 +107,6 @@ write_envelope(const sentry_path_t *path, const sentry_envelope_t *envelope)
     if (!envelope_filename) {
         return NULL;
     }
-
-    sentry_uuid_as_string(&event_id, envelope_filename);
-    strcpy(&envelope_filename[36], ".envelope");
 
     sentry_path_t *output_path = sentry__path_join_str(path, envelope_filename);
     sentry_free(envelope_filename);
