@@ -1457,16 +1457,16 @@ sentry__launch_feedback_handler(sentry_envelope_t *envelope)
             return;
         }
 
+        sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
+        char *envelope_filename
+            = sentry__uuid_as_filename(&event_id, ".envelope");
+
         // capture the envelope with the disk transport
         sentry_transport_t *disk_transport
             = sentry_new_feedback_transport(options->run);
         sentry__capture_envelope(disk_transport, envelope);
         sentry__transport_dump_queue(disk_transport, options->run);
         sentry_transport_free(disk_transport);
-
-        sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
-        char *envelope_filename
-            = sentry__uuid_as_filename(&event_id, ".envelope");
 
         sentry_path_t *feedback_path = sentry__path_join_str(
             options->run->feedback_path, envelope_filename);
