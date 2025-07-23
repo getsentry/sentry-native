@@ -1450,10 +1450,10 @@ sentry_capture_feedback(sentry_value_t user_feedback)
 }
 
 void
-sentry__launch_feedback_handler(sentry_envelope_t *envelope)
+sentry__launch_crash_reporter(sentry_envelope_t *envelope)
 {
     SENTRY_WITH_OPTIONS (options) {
-        if (!options->feedback_handler_path) {
+        if (!options->crash_reporter) {
             return;
         }
 
@@ -1463,18 +1463,18 @@ sentry__launch_feedback_handler(sentry_envelope_t *envelope)
 
         // capture the envelope with the disk transport
         sentry_transport_t *disk_transport
-            = sentry_new_feedback_transport(options->run);
+            = sentry_new_report_disk_transport(options->run);
         sentry__capture_envelope(disk_transport, envelope);
         sentry__transport_dump_queue(disk_transport, options->run);
         sentry_transport_free(disk_transport);
 
-        sentry_path_t *feedback_path = sentry__path_join_str(
-            options->run->feedback_path, envelope_filename);
-        if (feedback_path) {
+        sentry_path_t *report_path = sentry__path_join_str(
+            options->run->report_path, envelope_filename);
+        if (report_path) {
             sentry__process_spawn(
-                options->feedback_handler_path, feedback_path->path, NULL);
+                options->crash_reporter, report_path->path, NULL);
         }
-        sentry__path_free(feedback_path);
+        sentry__path_free(report_path);
     }
 }
 

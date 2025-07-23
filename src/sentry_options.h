@@ -32,7 +32,7 @@ struct sentry_options_s {
     char *user_agent;
     sentry_path_t *database_path;
     sentry_path_t *handler_path;
-    sentry_path_t *feedback_handler_path;
+    sentry_path_t *crash_reporter;
     sentry_logger_t logger;
     size_t max_breadcrumbs;
     bool debug;

@@ -176,8 +176,8 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
                 sentry__attachment_free(screenshot);
             }
 
-            if (options->feedback_handler_path) {
-                sentry__launch_feedback_handler(envelope);
+            if (options->crash_reporter) {
+                sentry__launch_crash_reporter(envelope);
             } else {
                 // capture the envelope with the disk transport
                 sentry_transport_t *disk_transport
