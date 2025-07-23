@@ -122,7 +122,7 @@ void sentry__options_unlock(void);
 
 void sentry__set_propagation_context(const char *key, sentry_value_t value);
 
-void sentry__launch_feedback_handler(sentry_envelope_t *envelope);
+void sentry__launch_crash_reporter(sentry_envelope_t *envelope);
 
 #define SENTRY_WITH_OPTIONS(Options)                                           \
     for (const sentry_options_t *Options = sentry__options_getref(); Options;  \

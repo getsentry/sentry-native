@@ -632,9 +632,9 @@ def test_crashpad_retry(cmake, httpserver):
         (["crash"]),
     ],
 )
-def test_crashpad_feedback_handler(cmake, httpserver, run_args):
+def test_crashpad_crash_reporter(cmake, httpserver, run_args):
     tmp_path = cmake(
-        ["sentry_example", "sentry_feedback"], {"SENTRY_BACKEND": "crashpad"}
+        ["sentry_example", "sentry_crash_reporter"], {"SENTRY_BACKEND": "crashpad"}
     )
 
     # make sure we are isolated from previous runs
@@ -648,7 +648,7 @@ def test_crashpad_feedback_handler(cmake, httpserver, run_args):
         child = run(
             tmp_path,
             "sentry_example",
-            ["log", "install-feedback-handler"] + run_args,
+            ["log", "crash-reporter"] + run_args,
             env=env,
         )
         assert child.returncode  # well, it's a crash after all
@@ -682,5 +682,5 @@ def test_crashpad_feedback_handler(cmake, httpserver, run_args):
         (["fastfail"]),
     ],
 )
-def test_crashpad_feedback_handler_wer(cmake, httpserver, run_args):
-    test_crashpad_feedback_handler(cmake, httpserver, run_args)
+def test_crashpad_crash_reporter_wer(cmake, httpserver, run_args):
+    test_crashpad_crash_reporter(cmake, httpserver, run_args)

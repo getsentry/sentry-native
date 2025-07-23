@@ -39,10 +39,10 @@ sentry__run_new(const sentry_path_t *database_path)
         return NULL;
     }
 
-    // `<db>/feedback`
-    sentry_path_t *feedback_path
-        = sentry__path_join_str(database_path, "feedback");
-    if (!feedback_path) {
+    // `<db>/reports`
+    sentry_path_t *report_path
+        = sentry__path_join_str(database_path, "reports");
+    if (!report_path) {
         sentry__path_free(run_path);
         sentry__path_free(lock_path);
         sentry__path_free(session_path);
@@ -54,14 +54,14 @@ sentry__run_new(const sentry_path_t *database_path)
         sentry__path_free(run_path);
         sentry__path_free(session_path);
         sentry__path_free(lock_path);
-        sentry__path_free(feedback_path);
+        sentry__path_free(report_path);
         return NULL;
     }
 
     run->uuid = uuid;
     run->run_path = run_path;
     run->session_path = session_path;
-    run->feedback_path = feedback_path;
+    run->report_path = report_path;
     run->lock = sentry__filelock_new(lock_path);
     if (!run->lock) {
         goto error;
@@ -94,7 +94,7 @@ sentry__run_free(sentry_run_t *run)
     }
     sentry__path_free(run->run_path);
     sentry__path_free(run->session_path);
-    sentry__path_free(run->feedback_path);
+    sentry__path_free(run->report_path);
     sentry__filelock_free(run->lock);
     sentry_free(run);
 }
@@ -137,16 +137,16 @@ sentry__run_write_envelope(
 }
 
 sentry_path_t *
-sentry__run_write_feedback(
+sentry__run_write_report(
     const sentry_run_t *run, const sentry_envelope_t *envelope)
 {
-    if (sentry__path_create_dir_all(run->feedback_path) != 0) {
+    if (sentry__path_create_dir_all(run->report_path) != 0) {
         SENTRY_ERRORF(
-            "mkdir failed: \"%" SENTRY_PATH_PRI "\"", run->feedback_path->path);
+            "mkdir failed: \"%" SENTRY_PATH_PRI "\"", run->report_path->path);
         return NULL;
     }
 
-    return write_envelope(run->feedback_path, envelope);
+    return write_envelope(run->report_path, envelope);
 }
 
 bool
@@ -199,8 +199,8 @@ sentry__process_old_runs(const sentry_options_t *options, uint64_t last_crash)
             continue;
         }
 
-        // prune 1h old feedback files
-        if (sentry__path_filename_matches(run_dir, "feedback")) {
+        // prune 1h old crash report files
+        if (sentry__path_filename_matches(run_dir, "reports")) {
             time_t now = time(NULL);
             sentry_pathiter_t *it = sentry__path_iter_directory(run_dir);
             const sentry_path_t *file;
