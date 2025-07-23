@@ -131,12 +131,13 @@ SENTRY_TEST(task_queue)
     TEST_CHECK_JSON_VALUE(list, "[4,5,6,4,5,6]");
     sentry_value_decref(list);
 
-    sentry__bgworker_decref(bgw);
-
     // wait for the trailing task to be finished
     sentry__mutex_lock(&executed_lock);
     sentry__cond_wait_timeout(&trailing_task_done, &executed_lock, 1000);
     TEST_CHECK(executed_after_shutdown);
+    sentry__mutex_unlock(&executed_lock);
+
+    sentry__bgworker_decref(bgw);
 }
 
 SENTRY_TEST(bgworker_flush)
