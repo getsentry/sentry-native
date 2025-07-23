@@ -28,19 +28,19 @@ sentry_new_disk_transport(const sentry_run_t *run)
 }
 
 static void
-send_feedback_disk_transport(sentry_envelope_t *envelope, void *state)
+send_report_disk_transport(sentry_envelope_t *envelope, void *state)
 {
     const sentry_run_t *run = state;
 
-    sentry__run_write_feedback(run, envelope);
+    sentry__run_write_report(run, envelope);
     sentry_envelope_free(envelope);
 }
 
 sentry_transport_t *
-sentry_new_feedback_transport(const sentry_run_t *run)
+sentry_new_report_disk_transport(const sentry_run_t *run)
 {
     sentry_transport_t *transport
-        = sentry_transport_new(send_feedback_disk_transport);
+        = sentry_transport_new(send_report_disk_transport);
     if (!transport) {
         return NULL;
     }

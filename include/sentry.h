@@ -1387,20 +1387,20 @@ SENTRY_API void sentry_options_set_handler_path_n(
     sentry_options_t *opts, const char *path, size_t path_len);
 
 /**
- * Sets the path to the feedback handler executable.
+ * Sets the path to the crash reporter executable.
  *
- * The feedback handler is a separate process that gets spawned when a crash
+ * The crash reporter is a separate process that gets spawned when a crash
  * occurs to collect additional user feedback or perform custom actions.
- * The handler receives the path to the crash event envelope as its first
+ * The crash reporter receives the path to the crash event envelope as its first
  * argument.
  *
  * `path` is assumed to be in platform-specific filesystem path encoding.
  * API Users on windows are encouraged to use
- * `sentry_options_set_feedback_handler_pathw` instead.
+ * `sentry_options_set_crash_reporter_pathw` instead.
  */
-SENTRY_API void sentry_options_set_feedback_handler_path(
+SENTRY_API void sentry_options_set_crash_reporter_path(
     sentry_options_t *opts, const char *path);
-SENTRY_API void sentry_options_set_feedback_handler_path_n(
+SENTRY_API void sentry_options_set_crash_reporter_path_n(
     sentry_options_t *opts, const char *path, size_t path_len);
 
 /**
@@ -1463,11 +1463,11 @@ SENTRY_API void sentry_options_set_handler_pathw_n(
     sentry_options_t *opts, const wchar_t *path, size_t path_len);
 
 /**
- * Wide char version of `sentry_options_set_feedback_handler_path`.
+ * Wide char version of `sentry_options_set_crash_reporter_path`.
  */
-SENTRY_API void sentry_options_set_feedback_handler_pathw(
+SENTRY_API void sentry_options_set_crash_reporter_pathw(
     sentry_options_t *opts, const wchar_t *path);
-SENTRY_API void sentry_options_set_feedback_handler_pathw_n(
+SENTRY_API void sentry_options_set_crash_reporter_pathw_n(
     sentry_options_t *opts, const wchar_t *path, size_t path_len);
 
 /**

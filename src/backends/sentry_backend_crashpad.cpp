@@ -115,7 +115,7 @@ typedef struct {
     sentry_path_t *event_path;
     sentry_path_t *breadcrumb1_path;
     sentry_path_t *breadcrumb2_path;
-    sentry_path_t *feedback_path;
+    sentry_path_t *report_path;
     size_t num_breadcrumbs;
     std::atomic<bool> crashed;
     std::atomic<bool> scope_flush;
@@ -199,6 +199,7 @@ flush_scope_to_event(const sentry_path_t *event_path,
 
     size_t mpack_size;
     char *mpack = sentry_value_to_msgpack(crash_event, &mpack_size);
+    sentry_value_decref(crash_event);
     if (!mpack) {
         return;
     }
@@ -212,11 +213,18 @@ flush_scope_to_event(const sentry_path_t *event_path,
 }
 
 static void
-flush_scope_to_feedback(const sentry_path_t *event_path,
+flush_scope_to_report(const sentry_path_t *event_path,
     const sentry_options_t *options, sentry_value_t crash_event)
 {
+    SENTRY_WITH_SCOPE (scope) {
+        // we want the scope without any modules or breadcrumbs
+        sentry__scope_apply_to_event(
+            scope, options, crash_event, SENTRY_SCOPE_NONE);
+    }
+
     sentry_envelope_t *envelope = sentry__envelope_new();
     if (!envelope) {
+        sentry_value_decref(crash_event);
         return;
     }
     sentry__envelope_add_event(envelope, crash_event);
@@ -224,9 +232,9 @@ flush_scope_to_feedback(const sentry_path_t *event_path,
         sentry__envelope_add_session(envelope, options->session);
     }
 
-    if (sentry__path_create_dir_all(options->run->feedback_path) != 0
+    if (sentry__path_create_dir_all(options->run->report_path) != 0
         || sentry_envelope_write_to_path(envelope, event_path) != 0) {
-        SENTRY_WARN("flushing scope to feedback failed");
+        SENTRY_WARN("flushing scope to report failed");
     }
     sentry_envelope_free(envelope);
 }
@@ -263,11 +271,10 @@ crashpad_backend_flush_scope(
     sentry_value_set_by_key(
         event, "level", sentry__value_new_level(SENTRY_LEVEL_FATAL));
 
-    flush_scope_to_event(data->event_path, options, event);
-    if (data->feedback_path) {
-        flush_scope_to_feedback(data->feedback_path, options, event);
+    if (data->report_path) {
+        flush_scope_to_report(data->report_path, options, event);
     } else {
-        sentry_value_decref(event);
+        flush_scope_to_event(data->event_path, options, event);
     }
     data->scope_flush.store(false, std::memory_order_release);
 #endif
@@ -290,12 +297,11 @@ flush_scope_from_handler(
         expected = false;
     }
 
-    // now we are the sole flusher and can flush into the crash event
-    flush_scope_to_event(state->event_path, options, crash_event);
-    if (state->feedback_path) {
-        flush_scope_to_feedback(state->feedback_path, options, crash_event);
+    // now we are the sole flusher and can flush into the crash report/event
+    if (state->report_path) {
+        flush_scope_to_report(state->report_path, options, crash_event);
     } else {
-        sentry_value_decref(crash_event);
+        flush_scope_to_event(state->event_path, options, crash_event);
     }
 }
 
@@ -494,17 +500,17 @@ crashpad_backend_startup(
         sentry__path_free(screenshot_path);
     }
 
-    base::FilePath feedback_handler;
-    base::FilePath feedback_path;
-    if (options->feedback_handler_path) {
+    base::FilePath crash_reporter;
+    base::FilePath crash_report;
+    if (options->crash_reporter) {
         char *filename
             = sentry__uuid_as_filename(&data->crash_event_id, ".envelope");
-        data->feedback_path
-            = sentry__path_join_str(options->run->feedback_path, filename);
+        data->report_path
+            = sentry__path_join_str(options->run->report_path, filename);
         sentry_free(filename);
 
-        feedback_handler = base::FilePath(options->feedback_handler_path->path);
-        feedback_path = base::FilePath(data->feedback_path->path);
+        crash_reporter = base::FilePath(options->crash_reporter->path);
+        crash_report = base::FilePath(data->report_path->path);
     }
 
     std::vector<std::string> arguments { "--no-rate-limit" };
@@ -534,7 +540,7 @@ crashpad_backend_startup(
         minidump_url ? minidump_url : "", proxy_url, annotations, arguments,
         /* restartable */ true,
         /* asynchronous_start */ false, attachments, screenshot,
-        options->crashpad_wait_for_upload, feedback_handler, feedback_path);
+        options->crashpad_wait_for_upload, crash_reporter, crash_report);
     sentry_free(minidump_url);
 
 #ifdef SENTRY_PLATFORM_WINDOWS
@@ -647,7 +653,7 @@ crashpad_backend_free(sentry_backend_t *backend)
     sentry__path_free(data->event_path);
     sentry__path_free(data->breadcrumb1_path);
     sentry__path_free(data->breadcrumb2_path);
-    sentry__path_free(data->feedback_path);
+    sentry__path_free(data->report_path);
     sentry_free(data);
 }
 

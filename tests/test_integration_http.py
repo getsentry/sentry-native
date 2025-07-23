@@ -217,8 +217,8 @@ def test_user_report_http(cmake, httpserver):
         ),
     ],
 )
-def test_feedback_handler_http(cmake, httpserver, build_args):
-    tmp_path = cmake(["sentry_example", "sentry_feedback"], build_args)
+def test_crash_reporter_http(cmake, httpserver, build_args):
+    tmp_path = cmake(["sentry_example", "sentry_crash_reporter"], build_args)
 
     # make sure we are isolated from previous runs
     shutil.rmtree(tmp_path / ".sentry-native", ignore_errors=True)
@@ -237,7 +237,7 @@ def test_feedback_handler_http(cmake, httpserver, build_args):
         child = run(
             tmp_path,
             "sentry_example",
-            ["log", "install-feedback-handler", "crash"],
+            ["log", "crash-reporter", "crash"],
             env=env,
         )
         assert child.returncode  # well, it's a crash after all

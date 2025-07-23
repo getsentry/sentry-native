@@ -381,12 +381,13 @@ main(int argc, char **argv)
         sentry_options_add_view_hierarchy(options, "./view-hierarchy.json");
     }
 
-    if (has_arg(argc, argv, "install-feedback-handler")) {
+    if (has_arg(argc, argv, "crash-reporter")) {
 #ifdef SENTRY_PLATFORM_WINDOWS
-        sentry_options_set_feedback_handler_pathw(
-            options, L"sentry_feedback.exe");
+        sentry_options_set_crash_reporter_pathw(
+            options, L"sentry_crash_reporter.exe");
 #else
-        sentry_options_set_feedback_handler_path(options, "./sentry_feedback");
+        sentry_options_set_crash_reporter_path(
+            options, "./sentry_crash_reporter");
 #endif
     }
 
