@@ -2,6 +2,14 @@
 #include "sentry_string.h"
 #include "sentry_testsupport.h"
 
+#ifdef SENTRY_PLATFORM_WINDOWS
+#    include <windows.h>
+#    define sleep_s(SECONDS) Sleep(SECONDS * 1000)
+#else
+#    include <unistd.h>
+#    define sleep_s(SECONDS) sleep(SECONDS)
+#endif
+
 SENTRY_TEST(recursive_paths)
 {
     sentry_path_t *base = sentry__path_from_str(SENTRY_TEST_PATH_PREFIX ".foo");
@@ -239,4 +247,31 @@ SENTRY_TEST(path_directory)
     sentry__path_remove_all(path_1);
     sentry__path_free(path_1);
     sentry__path_free(path_2);
+}
+
+SENTRY_TEST(path_mtime)
+{
+    sentry_path_t *path
+        = sentry__path_from_str(SENTRY_TEST_PATH_PREFIX "foo.txt");
+    TEST_ASSERT(!!path);
+
+    TEST_CHECK(sentry__path_remove(path) == 0);
+    TEST_CHECK(!sentry__path_is_file(path));
+    TEST_CHECK(sentry__path_get_mtime(path) <= 0);
+
+    sentry__path_touch(path);
+    TEST_CHECK(sentry__path_is_file(path));
+
+    const time_t before = sentry__path_get_mtime(path);
+    TEST_CHECK(before > 0);
+
+    sleep_s(1);
+
+    sentry__path_write_buffer(path, "after", 5);
+    const time_t after = sentry__path_get_mtime(path);
+    TEST_CHECK(after > 0);
+    TEST_CHECK(before < after);
+
+    sentry__path_remove(path);
+    sentry__path_free(path);
 }

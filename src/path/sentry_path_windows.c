@@ -329,6 +329,17 @@ sentry__path_get_size(const sentry_path_t *path)
     }
 }
 
+time_t
+sentry__path_get_mtime(const sentry_path_t *path)
+{
+    struct _stat buf;
+    if (_wstat(path->path, &buf) == 0) {
+        return (time_t)buf.st_mtime;
+    } else {
+        return 0;
+    }
+}
+
 sentry_path_t *
 sentry__path_append_str(const sentry_path_t *base, const char *suffix)
 {
