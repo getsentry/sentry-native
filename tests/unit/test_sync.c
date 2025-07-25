@@ -137,6 +137,10 @@ SENTRY_TEST(task_queue)
     sentry__mutex_lock(&executed_lock);
     sentry__cond_wait_timeout(&trailing_task_done, &executed_lock, 1000);
     TEST_CHECK(executed_after_shutdown);
+    sentry__mutex_unlock(&executed_lock);
+
+    // give the worker thread a moment to exit and release resources
+    sleep_s(1);
 }
 
 SENTRY_TEST(bgworker_flush)
