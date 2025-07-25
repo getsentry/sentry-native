@@ -261,13 +261,13 @@ SENTRY_TEST(path_mtime)
     sentry__path_touch(path);
     TEST_CHECK(sentry__path_is_file(path));
 
-    int before = sentry__path_get_mtime(path);
+    const time_t before = sentry__path_get_mtime(path);
     TEST_CHECK(before > 0);
 
     sleep_s(1);
 
     sentry__path_write_buffer(path, "after", 5);
-    int after = sentry__path_get_mtime(path);
+    const time_t after = sentry__path_get_mtime(path);
     TEST_CHECK(after > 0);
     TEST_CHECK(before < after);
 
