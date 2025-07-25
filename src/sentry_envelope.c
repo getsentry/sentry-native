@@ -76,7 +76,7 @@ sentry_value_t
 sentry_envelope_get_header_n(
     const sentry_envelope_t *envelope, const char *key, size_t key_len)
 {
-    if (envelope->is_raw) {
+    if (!envelope || envelope->is_raw) {
         return sentry_value_new_null();
     }
     return sentry_value_get_by_key_n(
