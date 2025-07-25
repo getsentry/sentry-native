@@ -14,7 +14,7 @@ static char *const SERIALIZED_ENVELOPE_STR
       "\"production\",\"sampled\":\"false\"}}\n"
       "{\"type\":\"event\",\"length\":71}\n"
       "{\"event_id\":\"c993afb6-b4ac-48a6-b61b-2558e601d65d\",\"some-"
-      "context\":null}\n"
+      "context\":1234}\n"
       "{\"type\":\"minidump\",\"length\":4}\n"
       "MDMP\n"
       "{\"type\":\"attachment\",\"length\":12}\n"
@@ -263,7 +263,8 @@ create_test_envelope()
     sentry_value_t event = sentry_value_new_object();
     sentry_value_set_by_key(
         event, "event_id", sentry__value_new_uuid(&event_id));
-    sentry_value_set_by_key(event, "some-context", sentry_value_new_null());
+    sentry_value_set_by_key(
+        event, "some-context", sentry_value_new_int32(1234));
     sentry__envelope_add_event(envelope, event);
 
     char dmp[] = "MDMP";
@@ -315,10 +316,11 @@ SENTRY_TEST(basic_write_envelope_to_file)
     sentry_close();
 }
 
-SENTRY_TEST(write_envelope_to_file_null)
+SENTRY_TEST(read_write_envelope_to_file_null)
 {
     sentry_envelope_t *empty_envelope = sentry__envelope_new();
 
+    TEST_CHECK(!sentry_envelope_read_from_file(NULL));
     TEST_CHECK_INT_EQUAL(
         sentry_envelope_write_to_file(NULL, "irrelevant/path"), 1);
     TEST_CHECK_INT_EQUAL(
@@ -331,11 +333,12 @@ SENTRY_TEST(write_envelope_to_file_null)
     sentry_envelope_free(empty_envelope);
 }
 
-SENTRY_TEST(write_envelope_to_invalid_path)
+SENTRY_TEST(read_write_envelope_to_invalid_path)
 {
     sentry_envelope_t *envelope = create_test_envelope();
     const char *test_file_str = SENTRY_TEST_PATH_PREFIX
         "./directory_that_does_not_exist/sentry_test_envelope";
+    TEST_CHECK(!sentry_envelope_read_from_file(test_file_str));
     sentry_path_t *test_file_path = sentry__path_from_str(test_file_str);
     int rv = sentry_envelope_write_to_file(envelope, test_file_str);
     TEST_CHECK_INT_EQUAL(rv, 1);
@@ -370,5 +373,78 @@ SENTRY_TEST(write_raw_envelope_to_file)
     sentry__path_free(test_file_path);
     sentry_envelope_free(envelope);
     sentry_envelope_free(raw_envelope);
+    sentry_close();
+}
+
+SENTRY_TEST(parse_envelope)
+{
+    const char *test_file_str = SENTRY_TEST_PATH_PREFIX "sentry_test_envelope";
+    sentry_path_t *test_file_path = sentry__path_from_str(test_file_str);
+    TEST_CHECK_INT_EQUAL(
+        sentry__path_write_buffer(test_file_path, SERIALIZED_ENVELOPE_STR,
+            strlen(SERIALIZED_ENVELOPE_STR)),
+        0);
+
+    sentry_envelope_t *envelope = sentry_envelope_read_from_file(test_file_str);
+    TEST_CHECK(!!envelope);
+
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_envelope_get_header(envelope, "dsn")),
+        "https://foo@sentry.invalid/42");
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_envelope_get_header(
+                                envelope, "event_id")),
+        "c993afb6-b4ac-48a6-b61b-2558e601d65d");
+
+    sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
+    char event_id_str[37];
+    sentry_uuid_as_string(&event_id, event_id_str);
+    TEST_CHECK_STRING_EQUAL(
+        event_id_str, "c993afb6-b4ac-48a6-b61b-2558e601d65d");
+
+    TEST_CHECK_INT_EQUAL(sentry__envelope_get_item_count(envelope), 3);
+
+    sentry_value_t event = sentry_envelope_get_event(envelope);
+    TEST_CHECK(!sentry_value_is_null(event));
+    TEST_CHECK_INT_EQUAL(
+        sentry_value_as_int32(sentry_value_get_by_key(event, "some-context")),
+        1234);
+
+    const sentry_envelope_item_t *item = sentry__envelope_get_item(envelope, 0);
+    TEST_CHECK(!!item);
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry__envelope_item_get_header(item, "type")),
+        "event");
+    size_t ev_len = 0;
+    TEST_CHECK_STRING_EQUAL(sentry__envelope_item_get_payload(item, &ev_len),
+        "{\"event_id\":\"c993afb6-b4ac-48a6-b61b-2558e601d65d\","
+        "\"some-context\":1234}");
+
+    const sentry_envelope_item_t *minidump
+        = sentry__envelope_get_item(envelope, 1);
+    TEST_CHECK(!!minidump);
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(
+            sentry__envelope_item_get_header(minidump, "type")),
+        "minidump");
+    size_t dmp_len = 0;
+    TEST_CHECK_STRING_EQUAL(
+        sentry__envelope_item_get_payload(minidump, &dmp_len), "MDMP");
+    TEST_CHECK_INT_EQUAL(dmp_len, 4);
+
+    const sentry_envelope_item_t *attachment
+        = sentry__envelope_get_item(envelope, 2);
+    TEST_CHECK(!!attachment);
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(
+            sentry__envelope_item_get_header(attachment, "type")),
+        "attachment");
+    size_t attachment_len = 0;
+    TEST_CHECK_STRING_EQUAL(
+        sentry__envelope_item_get_payload(attachment, &attachment_len),
+        "Hello World!");
+    TEST_CHECK_INT_EQUAL(attachment_len, 12);
+
+    sentry__path_free(test_file_path);
+    sentry_envelope_free(envelope);
     sentry_close();
 }

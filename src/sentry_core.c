@@ -11,6 +11,7 @@
 #include "sentry_options.h"
 #include "sentry_os.h"
 #include "sentry_path.h"
+#include "sentry_process.h"
 #include "sentry_random.h"
 #include "sentry_scope.h"
 #include "sentry_screenshot.h"
@@ -19,7 +20,9 @@
 #include "sentry_sync.h"
 #include "sentry_tracing.h"
 #include "sentry_transport.h"
+#include "sentry_uuid.h"
 #include "sentry_value.h"
+#include "transports/sentry_disk_transport.h"
 
 #ifdef SENTRY_INTEGRATION_QT
 #    include "integrations/sentry_integration_qt.h"
@@ -445,6 +448,14 @@ sentry__capture_envelope(
         return;
     }
     sentry__transport_send_envelope(transport, envelope);
+}
+
+void
+sentry_capture_envelope(sentry_envelope_t *envelope)
+{
+    SENTRY_WITH_OPTIONS (options) {
+        sentry__capture_envelope(options->transport, envelope);
+    }
 }
 
 static bool
@@ -1432,6 +1443,35 @@ sentry_capture_feedback(sentry_value_t user_feedback)
         } else {
             sentry_value_decref(user_feedback);
         }
+    }
+}
+
+void
+sentry__launch_crash_reporter(sentry_envelope_t *envelope)
+{
+    SENTRY_WITH_OPTIONS (options) {
+        if (!options->crash_reporter) {
+            return;
+        }
+
+        sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
+        char *envelope_filename
+            = sentry__uuid_as_filename(&event_id, ".envelope");
+
+        // capture the envelope with the disk transport
+        sentry_transport_t *disk_transport
+            = sentry_new_report_disk_transport(options->run);
+        sentry__capture_envelope(disk_transport, envelope);
+        sentry__transport_dump_queue(disk_transport, options->run);
+        sentry_transport_free(disk_transport);
+
+        sentry_path_t *report_path = sentry__path_join_str(
+            options->run->report_path, envelope_filename);
+        if (report_path) {
+            sentry__process_spawn(
+                options->crash_reporter, report_path->path, NULL);
+        }
+        sentry__path_free(report_path);
     }
 }
 

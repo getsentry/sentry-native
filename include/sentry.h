@@ -663,6 +663,16 @@ typedef struct sentry_envelope_s sentry_envelope_t;
 SENTRY_API void sentry_envelope_free(sentry_envelope_t *envelope);
 
 /**
+ * Given an Envelope, returns the header if present.
+ *
+ * This returns a borrowed value to the headers in the Envelope.
+ */
+SENTRY_API sentry_value_t sentry_envelope_get_header(
+    const sentry_envelope_t *envelope, const char *key);
+SENTRY_API sentry_value_t sentry_envelope_get_header_n(
+    const sentry_envelope_t *envelope, const char *key, size_t key_len);
+
+/**
  * Given an Envelope, returns the embedded Event if there is one.
  *
  * This returns a borrowed value to the Event in the Envelope.
@@ -697,6 +707,34 @@ SENTRY_API int sentry_envelope_write_to_file(
     const sentry_envelope_t *envelope, const char *path);
 SENTRY_API int sentry_envelope_write_to_file_n(
     const sentry_envelope_t *envelope, const char *path, size_t path_len);
+
+/**
+ * Reads an envelope from a file.
+ *
+ * `path` is assumed to be in platform-specific filesystem path encoding.
+ *
+ * API Users on windows are encouraged to use `sentry_envelope_read_from_filew`
+ * instead.
+ */
+SENTRY_API sentry_envelope_t *sentry_envelope_read_from_file(const char *path);
+SENTRY_API sentry_envelope_t *sentry_envelope_read_from_file_n(
+    const char *path, size_t path_len);
+
+#ifdef SENTRY_PLATFORM_WINDOWS
+/**
+ * Wide char versions of `sentry_envelope_read_from_file` and
+ * `sentry_envelope_read_from_file_n`.
+ */
+SENTRY_API sentry_envelope_t *sentry_envelope_read_from_filew(
+    const wchar_t *path);
+SENTRY_API sentry_envelope_t *sentry_envelope_read_from_filew_n(
+    const wchar_t *path, size_t path_len);
+#endif
+
+/**
+ * Submits an envelope, first checking for consent.
+ */
+SENTRY_API void sentry_capture_envelope(sentry_envelope_t *envelope);
 
 /**
  * The Sentry Client Options.
@@ -1317,6 +1355,23 @@ SENTRY_API void sentry_options_set_handler_path_n(
     sentry_options_t *opts, const char *path, size_t path_len);
 
 /**
+ * Sets the path to the crash reporter executable.
+ *
+ * The crash reporter is a separate process that gets spawned when a crash
+ * occurs to collect additional user feedback or perform custom actions.
+ * The crash reporter receives the path to the crash event envelope as its first
+ * argument.
+ *
+ * `path` is assumed to be in platform-specific filesystem path encoding.
+ * API Users on windows are encouraged to use
+ * `sentry_options_set_crash_reporter_pathw` instead.
+ */
+SENTRY_API void sentry_options_set_crash_reporter_path(
+    sentry_options_t *opts, const char *path);
+SENTRY_API void sentry_options_set_crash_reporter_path_n(
+    sentry_options_t *opts, const char *path, size_t path_len);
+
+/**
  * Sets the path to the Sentry Database Directory.
  *
  * Sentry will use this path to persist user consent, sessions, and other
@@ -1373,6 +1428,14 @@ SENTRY_API void sentry_options_add_view_hierarchyw_n(
 SENTRY_API void sentry_options_set_handler_pathw(
     sentry_options_t *opts, const wchar_t *path);
 SENTRY_API void sentry_options_set_handler_pathw_n(
+    sentry_options_t *opts, const wchar_t *path, size_t path_len);
+
+/**
+ * Wide char version of `sentry_options_set_crash_reporter_path`.
+ */
+SENTRY_API void sentry_options_set_crash_reporter_pathw(
+    sentry_options_t *opts, const wchar_t *path);
+SENTRY_API void sentry_options_set_crash_reporter_pathw_n(
     sentry_options_t *opts, const wchar_t *path, size_t path_len);
 
 /**

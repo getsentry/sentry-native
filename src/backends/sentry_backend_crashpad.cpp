@@ -19,6 +19,7 @@ extern "C" {
 #    include "sentry_unix_pageallocator.h"
 #endif
 #include "sentry_utils.h"
+#include "sentry_uuid.h"
 #include "transports/sentry_disk_transport.h"
 }
 
@@ -114,9 +115,11 @@ typedef struct {
     sentry_path_t *event_path;
     sentry_path_t *breadcrumb1_path;
     sentry_path_t *breadcrumb2_path;
+    sentry_path_t *report_path;
     size_t num_breadcrumbs;
     std::atomic<bool> crashed;
     std::atomic<bool> scope_flush;
+    sentry_uuid_t crash_event_id;
 } crashpad_state_t;
 
 /**
@@ -185,7 +188,7 @@ crashpad_register_wer_module(
 #endif
 
 static void
-crashpad_backend_flush_scope_to_event(const sentry_path_t *event_path,
+flush_scope_to_event(const sentry_path_t *event_path,
     const sentry_options_t *options, sentry_value_t crash_event)
 {
     SENTRY_WITH_SCOPE (scope) {
@@ -207,6 +210,33 @@ crashpad_backend_flush_scope_to_event(const sentry_path_t *event_path,
     if (rv != 0) {
         SENTRY_WARN("flushing scope to msgpack failed");
     }
+}
+
+static void
+flush_scope_to_report(const sentry_path_t *event_path,
+    const sentry_options_t *options, sentry_value_t crash_event)
+{
+    SENTRY_WITH_SCOPE (scope) {
+        // we want the scope without any modules or breadcrumbs
+        sentry__scope_apply_to_event(
+            scope, options, crash_event, SENTRY_SCOPE_NONE);
+    }
+
+    sentry_envelope_t *envelope = sentry__envelope_new();
+    if (!envelope) {
+        sentry_value_decref(crash_event);
+        return;
+    }
+    sentry__envelope_add_event(envelope, crash_event);
+    if (options->session) {
+        sentry__envelope_add_session(envelope, options->session);
+    }
+
+    if (sentry__path_create_dir_all(options->run->report_path) != 0
+        || sentry_envelope_write_to_path(envelope, event_path) != 0) {
+        SENTRY_WARN("flushing scope to report failed");
+    }
+    sentry_envelope_free(envelope);
 }
 
 // This function is necessary for macOS since it has no `FirstChanceHandler`.
@@ -234,12 +264,18 @@ crashpad_backend_flush_scope(
     }
 
     sentry_value_t event = sentry_value_new_object();
+    sentry_value_set_by_key(
+        event, "event_id", sentry__value_new_uuid(&data->crash_event_id));
     // Since this will only be uploaded in case of a crash we must make this
     // event fatal.
     sentry_value_set_by_key(
         event, "level", sentry__value_new_level(SENTRY_LEVEL_FATAL));
 
-    crashpad_backend_flush_scope_to_event(data->event_path, options, event);
+    if (data->report_path) {
+        flush_scope_to_report(data->report_path, options, event);
+    } else {
+        flush_scope_to_event(data->event_path, options, event);
+    }
     data->scope_flush.store(false, std::memory_order_release);
 #endif
 }
@@ -261,9 +297,12 @@ flush_scope_from_handler(
         expected = false;
     }
 
-    // now we are the sole flusher and can flush into the crash event
-    crashpad_backend_flush_scope_to_event(
-        state->event_path, options, crash_event);
+    // now we are the sole flusher and can flush into the crash report/event
+    if (state->report_path) {
+        flush_scope_to_report(state->report_path, options, crash_event);
+    } else {
+        flush_scope_to_event(state->event_path, options, crash_event);
+    }
 }
 
 #    ifdef SENTRY_PLATFORM_WINDOWS
@@ -281,7 +320,9 @@ sentry__crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
     bool should_dump = true;
 
     SENTRY_WITH_OPTIONS (options) {
-        sentry_value_t crash_event = sentry_value_new_event();
+        auto state = static_cast<crashpad_state_t *>(options->backend->data);
+        sentry_value_t crash_event
+            = sentry__value_new_event_with_id(&state->crash_event_id);
         sentry_value_set_by_key(
             crash_event, "level", sentry__value_new_level(SENTRY_LEVEL_FATAL));
 
@@ -418,6 +459,10 @@ crashpad_backend_startup(
     sentry_path_t *current_run_folder = options->run->run_path;
     auto *data = static_cast<crashpad_state_t *>(backend->data);
 
+    // pre-generate event ID for a potential future crash to be able to
+    // associate feedback with the crash event.
+    data->crash_event_id = sentry__new_event_id();
+
     base::FilePath database(options->database_path->path);
     base::FilePath handler(absolute_handler_path->path);
 
@@ -455,6 +500,19 @@ crashpad_backend_startup(
         sentry__path_free(screenshot_path);
     }
 
+    base::FilePath crash_reporter;
+    base::FilePath crash_envelope;
+    if (options->crash_reporter) {
+        char *filename
+            = sentry__uuid_as_filename(&data->crash_event_id, ".envelope");
+        data->report_path
+            = sentry__path_join_str(options->run->report_path, filename);
+        sentry_free(filename);
+
+        crash_reporter = base::FilePath(options->crash_reporter->path);
+        crash_envelope = base::FilePath(data->report_path->path);
+    }
+
     std::vector<std::string> arguments { "--no-rate-limit" };
 
     // Initialize database first, flushing the consent later on as part of
@@ -482,7 +540,7 @@ crashpad_backend_startup(
         minidump_url ? minidump_url : "", proxy_url, annotations, arguments,
         /* restartable */ true,
         /* asynchronous_start */ false, attachments, screenshot,
-        options->crashpad_wait_for_upload);
+        options->crashpad_wait_for_upload, crash_reporter, crash_envelope);
     sentry_free(minidump_url);
 
 #ifdef SENTRY_PLATFORM_WINDOWS
@@ -595,6 +653,7 @@ crashpad_backend_free(sentry_backend_t *backend)
     sentry__path_free(data->event_path);
     sentry__path_free(data->breadcrumb1_path);
     sentry__path_free(data->breadcrumb2_path);
+    sentry__path_free(data->report_path);
     sentry_free(data);
 }
 

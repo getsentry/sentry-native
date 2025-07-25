@@ -46,6 +46,11 @@ sentry_value_t sentry__value_new_internal_uuid(const sentry_uuid_t *uuid);
 sentry_value_t sentry__value_new_uuid(const sentry_uuid_t *uuid);
 
 /**
+ * Creates a new Event with the given `event_id`.
+ */
+sentry_value_t sentry__value_new_event_with_id(const sentry_uuid_t *event_id);
+
+/**
  * Creates a new String Value from the given `level`.
  * This can be `debug`, `warning`, `error`, `fatal`, or `info`.
  */
