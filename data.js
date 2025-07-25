@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1753457673653,
+  "lastUpdate": 1753457694520,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -10546,6 +10546,66 @@ window.BENCHMARK_DATA = {
             "value": 10.870400000044356,
             "unit": "ms",
             "extra": "Min 10.543ms\nMax 11.390ms\nMean 10.918ms\nStdDev 0.317ms\nMedian 10.870ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "205831fda2ece8c784259f7abac6d297a65474a6",
+          "message": "ref: crashpad: pre-generate crash event ID (#1319)\n\n* ref: crashpad: generate event ID on the client side\n\n* Update CHANGELOG.md\n\n* Update src/sentry_value.c\n\nCo-authored-by: Ivan Dlugos <6349682+vaind@users.noreply.github.com>\n\n* fixup\n\n* Update src/sentry_value.h\n\nCo-authored-by: JoshuaMoelans <60878493+JoshuaMoelans@users.noreply.github.com>\n\n---------\n\nCo-authored-by: Ivan Dlugos <6349682+vaind@users.noreply.github.com>\nCo-authored-by: JoshuaMoelans <60878493+JoshuaMoelans@users.noreply.github.com>",
+          "timestamp": "2025-07-25T17:30:53+02:00",
+          "tree_id": "2ae22807fa39861d2995772f90de749f8f52b9b0",
+          "url": "https://github.com/getsentry/sentry-native/commit/205831fda2ece8c784259f7abac6d297a65474a6"
+        },
+        "date": 1753457690288,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 9.02229999999804,
+            "unit": "ms",
+            "extra": "Min 8.880ms\nMax 9.663ms\nMean 9.181ms\nStdDev 0.324ms\nMedian 9.022ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 9.457999999995081,
+            "unit": "ms",
+            "extra": "Min 9.040ms\nMax 9.957ms\nMean 9.432ms\nStdDev 0.353ms\nMedian 9.458ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 20.856799999990017,
+            "unit": "ms",
+            "extra": "Min 20.443ms\nMax 22.946ms\nMean 21.225ms\nStdDev 0.999ms\nMedian 20.857ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.013100000046506466,
+            "unit": "ms",
+            "extra": "Min 0.010ms\nMax 0.016ms\nMean 0.013ms\nStdDev 0.003ms\nMedian 0.013ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.37040000000843065,
+            "unit": "ms",
+            "extra": "Min 0.315ms\nMax 0.396ms\nMean 0.365ms\nStdDev 0.030ms\nMedian 0.370ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 11.158099999988735,
+            "unit": "ms",
+            "extra": "Min 10.882ms\nMax 12.209ms\nMean 11.373ms\nStdDev 0.544ms\nMedian 11.158ms"
           }
         ]
       }
