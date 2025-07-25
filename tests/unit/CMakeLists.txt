@@ -35,6 +35,7 @@ add_executable(sentry_test_unit
 	test_options.c
 	test_os.c
 	test_path.c
+	test_process.c
 	test_ratelimiter.c
 	test_ringbuffer.c
 	test_sampling.c
