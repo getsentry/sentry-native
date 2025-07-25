@@ -450,6 +450,9 @@ sentry__capture_envelope(
 void
 sentry_capture_envelope(sentry_envelope_t *envelope)
 {
+    if (!envelope) {
+        return;
+    }
     SENTRY_WITH_OPTIONS (options) {
         sentry__capture_envelope(options->transport, envelope);
     }
