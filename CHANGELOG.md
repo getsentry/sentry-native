@@ -18,6 +18,7 @@
 
 - Update Xbox toolchain to include `UseDebugLibraries` fix for Debug builds. ([#1302](https://github.com/getsentry/sentry-native/pull/1302))
 - Fix GDK version selection for Xbox by propagating `XdkEditionTarget` to MSBuild. ([#1312](https://github.com/getsentry/sentry-native/pull/1312))
+- Fix WinHTTP initialization timing to prevent error 12007 on Xbox platform. ([#1321](https://github.com/getsentry/sentry-native/pull/1321))
 
 **Meta**:
 
