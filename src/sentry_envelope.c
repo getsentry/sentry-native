@@ -745,17 +745,10 @@ sentry_envelope_write_to_file(
 }
 
 // https://develop.sentry.dev/sdk/data-model/envelopes/
-static sentry_envelope_t *
-parse_envelope_from_file(sentry_path_t *path)
+sentry_envelope_t *
+sentry_envelope_deserialize(const char *buf, size_t buf_len)
 {
-    if (!path) {
-        return NULL;
-    }
-
-    size_t buf_len = 0;
-    char *buf = sentry__path_read_to_buffer(path, &buf_len);
-    sentry__path_free(path);
-    if (!buf) {
+    if (!buf || buf_len == 0) {
         return NULL;
     }
 
@@ -776,8 +769,9 @@ parse_envelope_from_file(sentry_path_t *path)
     sentry_value_decref(envelope->contents.items.headers);
     envelope->contents.items.headers
         = sentry__value_from_json(ptr, headers_len);
-    if (sentry_value_is_null(envelope->contents.items.headers)) {
-        envelope->contents.items.headers = sentry_value_new_object();
+    if (sentry_value_get_type(envelope->contents.items.headers)
+        != SENTRY_VALUE_TYPE_OBJECT) {
+        goto fail;
     }
 
     ptr = headers_end + 1; // skip newline
@@ -802,52 +796,76 @@ parse_envelope_from_file(sentry_path_t *path)
         }
         ptr = item_headers_end + 1; // skip newline
 
+        if (ptr > end) {
+            goto fail;
+        }
+
         // item payload
         sentry_value_t length
             = sentry_value_get_by_key(item->headers, "length");
         if (sentry_value_is_null(length)) {
-            // find newline or end of buffer
+            // length omitted -> find newline or end of buffer
             const char *payload_end = memchr(ptr, '\n', (size_t)(end - ptr));
             if (!payload_end) {
                 payload_end = end;
             }
             item->payload_len = (size_t)(payload_end - ptr);
         } else {
-            item->payload_len = (size_t)sentry_value_as_int32(length);
+            int payload_len = sentry_value_as_int32(length);
+            if (payload_len < 0) {
+                goto fail;
+            }
+            item->payload_len = (size_t)payload_len;
         }
-        if (item->payload_len == 0 || ptr + item->payload_len > end) {
-            goto fail;
-        }
-        item->payload = sentry_malloc(item->payload_len + 1);
-        if (!item->payload) {
-            goto fail;
-        }
-        memcpy(item->payload, ptr, item->payload_len);
-        item->payload[item->payload_len] = '\0';
+        if (item->payload_len > 0) {
+            if (ptr + item->payload_len > end) {
+                goto fail;
+            }
+            item->payload = sentry_malloc(item->payload_len + 1);
+            if (!item->payload) {
+                goto fail;
+            }
+            memcpy(item->payload, ptr, item->payload_len);
+            item->payload[item->payload_len] = '\0';
 
-        // item event/transaction
-        const char *type = sentry_value_as_string(
-            sentry_value_get_by_key(item->headers, "type"));
-        if (type
-            && (sentry__string_eq(type, "event")
-                || sentry__string_eq(type, "transaction"))) {
-            item->event
-                = sentry__value_from_json(item->payload, item->payload_len);
+            // item event/transaction
+            const char *type = sentry_value_as_string(
+                sentry_value_get_by_key(item->headers, "type"));
+            if (type
+                && (sentry__string_eq(type, "event")
+                    || sentry__string_eq(type, "transaction"))) {
+                item->event
+                    = sentry__value_from_json(item->payload, item->payload_len);
+            }
+
+            ptr += item->payload_len;
         }
 
-        ptr += item->payload_len;
         while (ptr < end && *ptr == '\n') {
             ptr++;
         }
     }
 
-    sentry_free(buf);
     return envelope;
 
 fail:
     sentry_envelope_free(envelope);
-    sentry_free(buf);
     return NULL;
+}
+
+static sentry_envelope_t *
+parse_envelope_from_file(sentry_path_t *path)
+{
+    if (!path) {
+        return NULL;
+    }
+
+    size_t buf_len = 0;
+    char *buf = sentry__path_read_to_buffer(path, &buf_len);
+    sentry_envelope_t *envelope = sentry_envelope_deserialize(buf, buf_len);
+    sentry_free(buf);
+    sentry__path_free(path);
+    return envelope;
 }
 
 sentry_envelope_t *

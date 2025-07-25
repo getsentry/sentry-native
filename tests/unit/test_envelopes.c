@@ -376,7 +376,7 @@ SENTRY_TEST(write_raw_envelope_to_file)
     sentry_close();
 }
 
-SENTRY_TEST(parse_envelope)
+SENTRY_TEST(read_envelope_from_file)
 {
     const char *test_file_str = SENTRY_TEST_PATH_PREFIX "sentry_test_envelope";
     sentry_path_t *test_file_path = sentry__path_from_str(test_file_str);
@@ -447,4 +447,226 @@ SENTRY_TEST(parse_envelope)
     sentry__path_free(test_file_path);
     sentry_envelope_free(envelope);
     sentry_close();
+}
+
+SENTRY_TEST(deserialize_envelope)
+{
+    const char *buf
+        = "{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https:/"
+          "/e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}\n"
+          "{\"type\":\"attachment\",\"length\":10,\"content_type\":\"text/"
+          "plain\",\"filename\":\"hello.txt\"}\n"
+          "\xef\xbb\xbfHello\r\n\n"
+          "{\"type\":\"event\",\"length\":41,\"content_type\":\"application/"
+          "json\",\"filename\":\"application.log\"}\n"
+          "{\"message\":\"hello world\",\"level\":\"error\"}\n";
+
+    sentry_envelope_t *envelope = sentry_envelope_deserialize(buf, strlen(buf));
+    TEST_CHECK(!!envelope);
+    TEST_CHECK_INT_EQUAL(sentry__envelope_get_item_count(envelope), 2);
+
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_envelope_get_header(envelope, "dsn")),
+        "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42");
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_envelope_get_header(
+                                envelope, "event_id")),
+        "9ec79c33ec9942ab8353589fcb2e04dc");
+    TEST_CHECK_JSON_VALUE(sentry_envelope_get_event(envelope),
+        "{\"message\":\"hello world\",\"level\":\"error\"}");
+
+    const sentry_envelope_item_t *attachment
+        = sentry__envelope_get_item(envelope, 0);
+    TEST_CHECK(!!attachment);
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(
+            sentry__envelope_item_get_header(attachment, "type")),
+        "attachment");
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(
+            sentry__envelope_item_get_header(attachment, "filename")),
+        "hello.txt");
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(
+            sentry__envelope_item_get_header(attachment, "content_type")),
+        "text/plain");
+    size_t attachment_len = 0;
+    TEST_CHECK_STRING_EQUAL(
+        sentry__envelope_item_get_payload(attachment, &attachment_len),
+        "\xef\xbb\xbfHello\r\n");
+    TEST_CHECK_INT_EQUAL(attachment_len, 10);
+
+    sentry_envelope_free(envelope);
+}
+
+static void
+test_deserialize_envelope_empty_attachments(const char *buf, size_t buf_len)
+{
+    sentry_envelope_t *envelope = sentry_envelope_deserialize(buf, buf_len);
+    TEST_CHECK(!!envelope);
+    TEST_CHECK_INT_EQUAL(sentry__envelope_get_item_count(envelope), 2);
+
+    TEST_CHECK(
+        sentry_value_is_null(sentry_envelope_get_header(envelope, "dsn")));
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_envelope_get_header(
+                                envelope, "event_id")),
+        "9ec79c33ec9942ab8353589fcb2e04dc");
+    TEST_CHECK(sentry_value_is_null(sentry_envelope_get_event(envelope)));
+
+    for (int i = 0; i < 2; ++i) {
+        const sentry_envelope_item_t *attachment
+            = sentry__envelope_get_item(envelope, i);
+        TEST_CHECK(!!attachment);
+        TEST_CHECK_STRING_EQUAL(
+            sentry_value_as_string(
+                sentry__envelope_item_get_header(attachment, "type")),
+            "attachment");
+        TEST_CHECK_INT_EQUAL(
+            sentry_value_as_int32(
+                sentry__envelope_item_get_header(attachment, "length")),
+            0);
+        size_t attachment_len = 0;
+        TEST_CHECK(
+            !sentry__envelope_item_get_payload(attachment, &attachment_len));
+        TEST_CHECK_INT_EQUAL(attachment_len, 0);
+    }
+
+    sentry_envelope_free(envelope);
+}
+
+SENTRY_TEST(deserialize_envelope_empty_attachments)
+{
+    const char *buf = "{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\"}\n"
+                      "{\"type\":\"attachment\",\"length\":0}\n"
+                      "\n"
+                      "{\"type\":\"attachment\",\"length\":0}\n"
+                      "\n";
+    size_t buf_len = strlen(buf);
+
+    // trailing newline
+    test_deserialize_envelope_empty_attachments(buf, buf_len);
+
+    // eof
+    test_deserialize_envelope_empty_attachments(buf, buf_len - 1);
+}
+
+static void
+test_deserialize_envelope_implicit_length(const char *buf, size_t buf_len)
+{
+    sentry_envelope_t *envelope = sentry_envelope_deserialize(buf, buf_len);
+    TEST_CHECK(!!envelope);
+    TEST_CHECK_INT_EQUAL(sentry__envelope_get_item_count(envelope), 1);
+
+    TEST_CHECK(
+        sentry_value_is_null(sentry_envelope_get_header(envelope, "dsn")));
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_envelope_get_header(
+                                envelope, "event_id")),
+        "9ec79c33ec9942ab8353589fcb2e04dc");
+    TEST_CHECK(sentry_value_is_null(sentry_envelope_get_event(envelope)));
+
+    const sentry_envelope_item_t *attachment
+        = sentry__envelope_get_item(envelope, 0);
+    TEST_CHECK(!!attachment);
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(
+            sentry__envelope_item_get_header(attachment, "type")),
+        "attachment");
+    TEST_CHECK_INT_EQUAL(sentry_value_as_int32(sentry__envelope_item_get_header(
+                             attachment, "length")),
+        0);
+    size_t attachment1_len = 0;
+    TEST_CHECK_STRING_EQUAL(
+        sentry__envelope_item_get_payload(attachment, &attachment1_len),
+        "helloworld");
+    TEST_CHECK_INT_EQUAL(attachment1_len, 10);
+
+    sentry_envelope_free(envelope);
+}
+
+SENTRY_TEST(deserialize_envelope_implicit_length)
+{
+    const char *buf = "{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\"}\n"
+                      "{\"type\":\"attachment\"}\n"
+                      "helloworld\n";
+    size_t buf_len = strlen(buf);
+
+    // trailing newline
+    test_deserialize_envelope_implicit_length(buf, buf_len);
+
+    // eof
+    test_deserialize_envelope_implicit_length(buf, buf_len - 1);
+}
+
+SENTRY_TEST(deserialize_envelope_no_headers)
+{
+    const char *session = "{\"started\": "
+                          "\"2020-02-07T14:16:00Z\",\"attrs\":{\"release\":"
+                          "\"sentry-test@1.0.0\"}"
+                          "}";
+    char buf[512];
+    snprintf(buf, sizeof(buf),
+        "{}\n"
+        "{\"type\":\"session\"}\n"
+        "%s",
+        session);
+
+    sentry_envelope_t *envelope = sentry_envelope_deserialize(buf, strlen(buf));
+    TEST_CHECK(!!envelope);
+    TEST_CHECK_INT_EQUAL(sentry__envelope_get_item_count(envelope), 1);
+
+    TEST_CHECK(
+        sentry_value_is_null(sentry_envelope_get_header(envelope, "dsn")));
+    TEST_CHECK(
+        sentry_value_is_null(sentry_envelope_get_header(envelope, "event_id")));
+    TEST_CHECK(sentry_value_is_null(sentry_envelope_get_event(envelope)));
+
+    const sentry_envelope_item_t *item = sentry__envelope_get_item(envelope, 0);
+    TEST_CHECK(!!item);
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry__envelope_item_get_header(item, "type")),
+        "session");
+    TEST_CHECK(
+        sentry_value_is_null(sentry__envelope_item_get_header(item, "length")));
+    size_t session_len = 0;
+    TEST_CHECK_STRING_EQUAL(
+        sentry__envelope_item_get_payload(item, &session_len), session);
+    TEST_CHECK_INT_EQUAL(session_len, strlen(session));
+
+    sentry_envelope_free(envelope);
+}
+
+static void
+test_deserialize_envelope_empty(const char *buf, size_t buf_len)
+{
+    sentry_envelope_t *envelope = sentry_envelope_deserialize(buf, buf_len);
+    TEST_CHECK(!!envelope);
+    TEST_CHECK_INT_EQUAL(sentry__envelope_get_item_count(envelope), 0);
+
+    TEST_CHECK(
+        sentry_value_is_null(sentry_envelope_get_header(envelope, "dsn")));
+    TEST_CHECK(
+        sentry_value_is_null(sentry_envelope_get_header(envelope, "event_id")));
+    TEST_CHECK(sentry_value_is_null(sentry_envelope_get_event(envelope)));
+
+    sentry_envelope_free(envelope);
+}
+
+SENTRY_TEST(deserialize_envelope_empty)
+{
+    const char *buf = "{}\n";
+    size_t buf_len = strlen(buf);
+
+    // trailing newline
+    test_deserialize_envelope_empty(buf, buf_len);
+
+    // eof
+    test_deserialize_envelope_empty(buf, buf_len - 1);
+}
+
+SENTRY_TEST(deserialize_envelope_invalid)
+{
+    TEST_CHECK(!sentry_envelope_deserialize("", 0));
+    TEST_CHECK(!sentry_envelope_deserialize("{}", 0));
+    TEST_CHECK(!sentry_envelope_deserialize("\n", 1));
+    TEST_CHECK(!sentry_envelope_deserialize("{}\n{}", 5));
+    TEST_CHECK(!sentry_envelope_deserialize("invalid", 7));
 }

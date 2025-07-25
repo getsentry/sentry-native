@@ -709,7 +709,17 @@ SENTRY_API int sentry_envelope_write_to_file_n(
     const sentry_envelope_t *envelope, const char *path, size_t path_len);
 
 /**
- * Reads an envelope from a file.
+ * De-serializes an envelope.
+ *
+ * The return value needs to be freed with sentry_envelope_free().
+ *
+ * Returns NULL on failure.
+ */
+SENTRY_API sentry_envelope_t *sentry_envelope_deserialize(
+    const char *buf, size_t buf_len);
+
+/**
+ * De-serializes an envelope from a file.
  *
  * `path` is assumed to be in platform-specific filesystem path encoding.
  *
