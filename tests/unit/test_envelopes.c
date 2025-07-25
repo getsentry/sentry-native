@@ -671,6 +671,8 @@ SENTRY_TEST(deserialize_envelope_invalid)
     TEST_CHECK(!sentry_envelope_deserialize("{}\ninvalid\n", 11));
     TEST_CHECK(!sentry_envelope_deserialize("invalid", 7));
     TEST_CHECK(!sentry_envelope_deserialize("{}\n{\"length\":-1}\n", 17));
+    // TODO: SIZE_MAX
+    // https://github.com/getsentry/sentry-native/pull/1301
     char buf[128];
     snprintf(buf, sizeof(buf), "{}\n{\"length\":%d}\n", INT32_MAX);
     TEST_CHECK(!sentry_envelope_deserialize(buf, strlen(buf)));

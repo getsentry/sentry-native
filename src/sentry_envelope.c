@@ -815,6 +815,8 @@ sentry_envelope_deserialize(const char *buf, size_t buf_len)
             }
             item->payload_len = (size_t)(payload_end - ptr);
         } else {
+            // TODO: sentry_value_as_uint64
+            // https://github.com/getsentry/sentry-native/pull/1301
             int payload_len = sentry_value_as_int32(length);
             if (payload_len < 0) {
                 goto fail;
@@ -822,6 +824,8 @@ sentry_envelope_deserialize(const char *buf, size_t buf_len)
             item->payload_len = (size_t)payload_len;
         }
         if (item->payload_len > 0) {
+            // TODO: SIZE_MAX
+            // https://github.com/getsentry/sentry-native/pull/1301
             if (ptr + item->payload_len > end
                 || item->payload_len > INT32_MAX - 1) {
                 goto fail;
