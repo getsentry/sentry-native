@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1753452380869,
+  "lastUpdate": 1753452457070,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -10366,6 +10366,66 @@ window.BENCHMARK_DATA = {
             "value": 11.892500000044492,
             "unit": "ms",
             "extra": "Min 11.437ms\nMax 13.189ms\nMean 12.246ms\nStdDev 0.808ms\nMedian 11.893ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "c3aa571d4eceffcaf4987cde769c92f2bc099753",
+          "message": "feat: add `sentry__path_get_mtime()` (#1317)\n\n* feat: add `sentry__path_get_mtime()`\n\n* Apply suggestions from code review\n\nCo-authored-by: JoshuaMoelans <60878493+JoshuaMoelans@users.noreply.github.com>\n\n---------\n\nCo-authored-by: JoshuaMoelans <60878493+JoshuaMoelans@users.noreply.github.com>",
+          "timestamp": "2025-07-25T16:03:41+02:00",
+          "tree_id": "3baeb34b123904e7fdce41b8585a07d9d6e6d617",
+          "url": "https://github.com/getsentry/sentry-native/commit/c3aa571d4eceffcaf4987cde769c92f2bc099753"
+        },
+        "date": 1753452452501,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 9.19669999996131,
+            "unit": "ms",
+            "extra": "Min 8.606ms\nMax 10.325ms\nMean 9.218ms\nStdDev 0.690ms\nMedian 9.197ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 9.041000000024724,
+            "unit": "ms",
+            "extra": "Min 8.659ms\nMax 10.419ms\nMean 9.201ms\nStdDev 0.705ms\nMedian 9.041ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 20.890699999995377,
+            "unit": "ms",
+            "extra": "Min 20.009ms\nMax 25.334ms\nMean 21.668ms\nStdDev 2.172ms\nMedian 20.891ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.013299999977789412,
+            "unit": "ms",
+            "extra": "Min 0.011ms\nMax 0.020ms\nMean 0.014ms\nStdDev 0.003ms\nMedian 0.013ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.34089999996922415,
+            "unit": "ms",
+            "extra": "Min 0.305ms\nMax 0.594ms\nMean 0.389ms\nStdDev 0.117ms\nMedian 0.341ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 10.870400000044356,
+            "unit": "ms",
+            "extra": "Min 10.543ms\nMax 11.390ms\nMean 10.918ms\nStdDev 0.317ms\nMedian 10.870ms"
           }
         ]
       }
