@@ -501,7 +501,7 @@ crashpad_backend_startup(
     }
 
     base::FilePath crash_reporter;
-    base::FilePath crash_report;
+    base::FilePath crash_envelope;
     if (options->crash_reporter) {
         char *filename
             = sentry__uuid_as_filename(&data->crash_event_id, ".envelope");
@@ -510,7 +510,7 @@ crashpad_backend_startup(
         sentry_free(filename);
 
         crash_reporter = base::FilePath(options->crash_reporter->path);
-        crash_report = base::FilePath(data->report_path->path);
+        crash_envelope = base::FilePath(data->report_path->path);
     }
 
     std::vector<std::string> arguments { "--no-rate-limit" };
@@ -540,7 +540,7 @@ crashpad_backend_startup(
         minidump_url ? minidump_url : "", proxy_url, annotations, arguments,
         /* restartable */ true,
         /* asynchronous_start */ false, attachments, screenshot,
-        options->crashpad_wait_for_upload, crash_reporter, crash_report);
+        options->crashpad_wait_for_upload, crash_reporter, crash_envelope);
     sentry_free(minidump_url);
 
 #ifdef SENTRY_PLATFORM_WINDOWS
