@@ -406,9 +406,7 @@ sentry__bgworker_shutdown(sentry_bgworker_t *bgw, uint64_t timeout)
         uint64_t now = sentry__monotonic_time();
         if (now > started && now - started > timeout) {
             sentry__atomic_store(&bgw->running, 0);
-#ifndef SENTRY_UNITTEST
             sentry__thread_detach(bgw->thread_id);
-#endif
             sentry__mutex_unlock(&bgw->task_lock);
             SENTRY_WARN(
                 "background thread failed to shut down cleanly within timeout");
@@ -528,13 +526,5 @@ void
 sentry__leave_signal_handler(void)
 {
     __sync_fetch_and_and(&g_in_signal_handler, 0);
-}
-#endif
-
-#ifdef SENTRY_UNITTEST
-sentry_threadid_t
-sentry__bgworker_get_threadid(sentry_bgworker_t *bgw)
-{
-    return bgw->thread_id;
 }
 #endif

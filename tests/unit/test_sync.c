@@ -117,7 +117,6 @@ SENTRY_TEST(task_queue)
         bgw, sleep_task, drop_greaterthan, (void *)6);
     TEST_CHECK_INT_EQUAL(dropped, 6);
 
-    sentry_threadid_t thread_id = sentry__bgworker_get_threadid(bgw);
     int shutdown = sentry__bgworker_shutdown(bgw, 500);
     TEST_CHECK_INT_EQUAL(shutdown, 1);
 
@@ -138,9 +137,6 @@ SENTRY_TEST(task_queue)
     sentry__mutex_lock(&executed_lock);
     sentry__cond_wait_timeout(&trailing_task_done, &executed_lock, 1000);
     TEST_CHECK(executed_after_shutdown);
-    sentry__mutex_unlock(&executed_lock);
-
-    sentry__thread_join(thread_id);
 }
 
 SENTRY_TEST(bgworker_flush)

@@ -453,8 +453,4 @@ size_t sentry__bgworker_foreach_matching(sentry_bgworker_t *bgw,
     sentry_task_exec_func_t exec_func,
     bool (*callback)(void *task_data, void *data), void *data);
 
-#ifdef SENTRY_UNITTEST
-sentry_threadid_t sentry__bgworker_get_threadid(sentry_bgworker_t *bgw);
-#endif
-
 #endif
