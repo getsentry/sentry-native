@@ -139,7 +139,9 @@ SENTRY_TEST(task_queue)
     TEST_CHECK(executed_after_shutdown);
     sentry__mutex_unlock(&executed_lock);
 
-    sentry__thread_join(shutdown);
+    if (shutdown != 0) {
+        sentry__thread_join(shutdown);
+    }
 }
 
 SENTRY_TEST(bgworker_flush)
