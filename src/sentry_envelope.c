@@ -774,7 +774,10 @@ sentry_envelope_deserialize(const char *buf, size_t buf_len)
         goto fail;
     }
 
-    ptr = headers_end + 1; // skip newline
+    ptr = headers_end;
+    if (ptr < end) {
+        ptr++; // skip newline
+    }
 
     // items
     while (ptr < end) {
