@@ -791,7 +791,7 @@ sentry_envelope_deserialize(const char *buf, size_t buf_len)
         size_t item_headers_len = (size_t)(item_headers_end - ptr);
         sentry_value_decref(item->headers);
         item->headers = sentry__value_from_json(ptr, item_headers_len);
-        if (sentry_value_is_null(item->headers)) {
+        if (sentry_value_get_type(item->headers) != SENTRY_VALUE_TYPE_OBJECT) {
             goto fail;
         }
         ptr = item_headers_end + 1; // skip newline

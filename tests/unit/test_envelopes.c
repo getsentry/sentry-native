@@ -668,5 +668,6 @@ SENTRY_TEST(deserialize_envelope_invalid)
     TEST_CHECK(!sentry_envelope_deserialize("{}", 0));
     TEST_CHECK(!sentry_envelope_deserialize("\n", 1));
     TEST_CHECK(!sentry_envelope_deserialize("{}\n{}", 5));
+    TEST_CHECK(!sentry_envelope_deserialize("{}\ninvalid\n", 11));
     TEST_CHECK(!sentry_envelope_deserialize("invalid", 7));
 }
