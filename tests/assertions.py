@@ -85,6 +85,8 @@ def assert_event_meta(
     transaction_data=None,
     sdk_override=None,
 ):
+    assert event["event_id"]
+
     extra = {
         "extra stuff": "some value",
         "…unicode key…": "őá…–🤮🚀¿ 한글 테스트",

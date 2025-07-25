@@ -863,3 +863,23 @@ SENTRY_TEST(user_feedback_is_valid)
 
     sentry_value_decref(user_feedback);
 }
+
+SENTRY_TEST(event_with_id)
+{
+    sentry_uuid_t event_id
+        = sentry_uuid_from_string("ad59c6f8-eb88-4dca-b330-94dee9a46fe8");
+
+    sentry_value_t event = sentry__value_new_event_with_id(&event_id);
+
+    TEST_CHECK(!sentry_value_is_null(event));
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(event, "event_id")),
+        "ad59c6f8-eb88-4dca-b330-94dee9a46fe8");
+    TEST_CHECK(
+        !sentry_value_is_null(sentry_value_get_by_key(event, "timestamp")));
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(event, "platform")),
+        "native");
+
+    sentry_value_decref(event);
+}

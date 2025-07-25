@@ -19,6 +19,7 @@ extern "C" {
 #    include "sentry_unix_pageallocator.h"
 #endif
 #include "sentry_utils.h"
+#include "sentry_uuid.h"
 #include "transports/sentry_disk_transport.h"
 }
 
@@ -117,6 +118,7 @@ typedef struct {
     size_t num_breadcrumbs;
     std::atomic<bool> crashed;
     std::atomic<bool> scope_flush;
+    sentry_uuid_t crash_event_id;
 } crashpad_state_t;
 
 /**
@@ -234,6 +236,8 @@ crashpad_backend_flush_scope(
     }
 
     sentry_value_t event = sentry_value_new_object();
+    sentry_value_set_by_key(
+        event, "event_id", sentry__value_new_uuid(&data->crash_event_id));
     // Since this will only be uploaded in case of a crash we must make this
     // event fatal.
     sentry_value_set_by_key(
@@ -281,7 +285,9 @@ sentry__crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
     bool should_dump = true;
 
     SENTRY_WITH_OPTIONS (options) {
-        sentry_value_t crash_event = sentry_value_new_event();
+        auto state = static_cast<crashpad_state_t *>(options->backend->data);
+        sentry_value_t crash_event
+            = sentry__value_new_event_with_id(&state->crash_event_id);
         sentry_value_set_by_key(
             crash_event, "level", sentry__value_new_level(SENTRY_LEVEL_FATAL));
 
@@ -417,6 +423,10 @@ crashpad_backend_startup(
         absolute_handler_path->path);
     sentry_path_t *current_run_folder = options->run->run_path;
     auto *data = static_cast<crashpad_state_t *>(backend->data);
+
+    // pre-generate event ID for a potential future crash to be able to
+    // associate feedback with the crash event.
+    data->crash_event_id = sentry__new_event_id();
 
     base::FilePath database(options->database_path->path);
     base::FilePath handler(absolute_handler_path->path);
