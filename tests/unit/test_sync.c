@@ -44,7 +44,7 @@ SENTRY_TEST(background_worker)
             sentry__bgworker_submit(bgw, task_func, cleanup_func, &ts);
         }
 
-        TEST_CHECK_INT_EQUAL(sentry__bgworker_shutdown(bgw, 5000, NULL), 0);
+        TEST_CHECK_INT_EQUAL(sentry__bgworker_shutdown(bgw, 5000), 0);
         sentry__bgworker_decref(bgw);
 
         TEST_CHECK_INT_EQUAL(ts.executed, 10);
@@ -117,8 +117,8 @@ SENTRY_TEST(task_queue)
         bgw, sleep_task, drop_greaterthan, (void *)6);
     TEST_CHECK_INT_EQUAL(dropped, 6);
 
-    sentry_threadid_t thread_id;
-    int shutdown = sentry__bgworker_shutdown(bgw, 500, &thread_id);
+    sentry_threadid_t thread_id = sentry__bgworker_get_threadid(bgw);
+    int shutdown = sentry__bgworker_shutdown(bgw, 500);
     TEST_CHECK_INT_EQUAL(shutdown, 1);
 
     // submit another task to the worker which is still in shutdown
@@ -159,7 +159,7 @@ SENTRY_TEST(bgworker_flush)
     flush = sentry__bgworker_flush(bgw, 1000);
     TEST_CHECK_INT_EQUAL(flush, 0);
 
-    int shutdown = sentry__bgworker_shutdown(bgw, 500, NULL);
+    int shutdown = sentry__bgworker_shutdown(bgw, 500);
     TEST_CHECK_INT_EQUAL(shutdown, 0);
     sentry__bgworker_decref(bgw);
 }

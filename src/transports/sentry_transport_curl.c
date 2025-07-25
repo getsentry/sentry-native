@@ -148,7 +148,7 @@ static int
 sentry__curl_transport_shutdown(uint64_t timeout, void *transport_state)
 {
     sentry_bgworker_t *bgworker = (sentry_bgworker_t *)transport_state;
-    return sentry__bgworker_shutdown(bgworker, timeout, NULL);
+    return sentry__bgworker_shutdown(bgworker, timeout);
 }
 
 static size_t
