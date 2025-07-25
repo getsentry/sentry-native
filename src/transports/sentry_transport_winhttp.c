@@ -157,7 +157,7 @@ sentry__winhttp_transport_shutdown(uint64_t timeout, void *transport_state)
     sentry_bgworker_t *bgworker = (sentry_bgworker_t *)transport_state;
     winhttp_bgworker_state_t *state = sentry__bgworker_get_state(bgworker);
 
-    int rv = sentry__bgworker_shutdown(bgworker, timeout);
+    int rv = sentry__bgworker_shutdown(bgworker, timeout, NULL);
     if (rv != 0) {
         // Seems like some requests are taking too long/hanging
         // Just close them to make sure the background thread is exiting.

@@ -422,13 +422,15 @@ int sentry__bgworker_flush(sentry_bgworker_t *bgw, uint64_t timeout);
 
 /**
  * This will try to shut down the background worker thread, with a `timeout`.
- * Returns 0 on success, or thread ID on timeout.
+ * Returns 0 on success, or 1 on timeout.
  *
- * NOTE: It is the caller's responsibility to join or detach the returned thread
- * on timeout.
+ * NOTE: If `out_thread_id` is NULL, the background worker thread is detached on
+ * timeout. Otherwise, it will be set to the thread ID of the background worker
+ * thread and the caller is responsible for joining or detaching the returned
+ * thread on timeout.
  */
-sentry_threadid_t sentry__bgworker_shutdown(
-    sentry_bgworker_t *bgw, uint64_t timeout);
+int sentry__bgworker_shutdown(
+    sentry_bgworker_t *bgw, uint64_t timeout, sentry_threadid_t *out_thread_id);
 
 /**
  * This will set a preferable thread name for background worker.
