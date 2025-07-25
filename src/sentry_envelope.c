@@ -10,6 +10,7 @@
 #include "sentry_transport.h"
 #include "sentry_value.h"
 #include <assert.h>
+#include <limits.h>
 #include <string.h>
 
 struct sentry_envelope_item_s {
@@ -821,7 +822,8 @@ sentry_envelope_deserialize(const char *buf, size_t buf_len)
             item->payload_len = (size_t)payload_len;
         }
         if (item->payload_len > 0) {
-            if (ptr + item->payload_len > end) {
+            if (ptr + item->payload_len > end
+                || item->payload_len > INT32_MAX - 1) {
                 goto fail;
             }
             item->payload = sentry_malloc(item->payload_len + 1);
