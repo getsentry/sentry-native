@@ -815,7 +815,7 @@ parse_envelope_from_file(sentry_path_t *path)
         } else {
             item->payload_len = (size_t)sentry_value_as_int32(length);
         }
-        if (item->payload_len <= 0 || ptr + item->payload_len > end) {
+        if (item->payload_len == 0 || ptr + item->payload_len > end) {
             goto fail;
         }
         item->payload = sentry_malloc(item->payload_len + 1);
