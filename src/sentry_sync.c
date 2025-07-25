@@ -382,7 +382,7 @@ shutdown_task(void *task_data, void *UNUSED(state))
     sentry__atomic_store(&bgw->running, 0);
 }
 
-int
+sentry_threadid_t
 sentry__bgworker_shutdown(sentry_bgworker_t *bgw, uint64_t timeout)
 {
     if (!sentry__atomic_fetch(&bgw->running)) {
@@ -406,11 +406,10 @@ sentry__bgworker_shutdown(sentry_bgworker_t *bgw, uint64_t timeout)
         uint64_t now = sentry__monotonic_time();
         if (now > started && now - started > timeout) {
             sentry__atomic_store(&bgw->running, 0);
-            sentry__thread_detach(bgw->thread_id);
             sentry__mutex_unlock(&bgw->task_lock);
             SENTRY_WARN(
                 "background thread failed to shut down cleanly within timeout");
-            return 1;
+            return bgw->thread_id;
         }
 
         // this will implicitly release the lock, and re-acquire on wake

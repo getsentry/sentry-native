@@ -117,8 +117,8 @@ SENTRY_TEST(task_queue)
         bgw, sleep_task, drop_greaterthan, (void *)6);
     TEST_CHECK_INT_EQUAL(dropped, 6);
 
-    int shutdown = sentry__bgworker_shutdown(bgw, 500);
-    TEST_CHECK_INT_EQUAL(shutdown, 1);
+    sentry_threadid_t shutdown = sentry__bgworker_shutdown(bgw, 500);
+    TEST_CHECK(shutdown != 0);
 
     // submit another task to the worker which is still in shutdown
     bool executed_after_shutdown = false;
@@ -139,8 +139,7 @@ SENTRY_TEST(task_queue)
     TEST_CHECK(executed_after_shutdown);
     sentry__mutex_unlock(&executed_lock);
 
-    // give the worker thread a moment to exit and release resources
-    sleep_s(1);
+    sentry__thread_join(shutdown);
 }
 
 SENTRY_TEST(bgworker_flush)
