@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1753534086838,
+  "lastUpdate": 1753768583682,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -3594,6 +3594,66 @@ window.BENCHMARK_DATA = {
             "value": 1.7881060000206617,
             "unit": "ms",
             "extra": "Min 1.787ms\nMax 1.877ms\nMean 1.815ms\nStdDev 0.041ms\nMedian 1.788ms\nCPU 0.556ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "2ac959eff4f76935fcdd4c81dd1cca1056c01f77",
+          "message": "feat: read and capture envelopes (#1320)\n\n* feat: raw envelope headers\n\n* Update CHANGELOG.md\n\n* move parsing to sentry_envelope_read_from_file()\n\n* cast\n\n* feat: parse whole envelope\n\n* Fix ClangCL warnings\n\nD:\\a\\sentry-native\\sentry-native\\src\\sentry_envelope.c(765,53): error : implicit conversion changes signedness: 'long long' to 'unsigned long long' [-Werror,-Wsign-conversion] [C:\\Users\\runneradmin\\AppData\\Local\\Temp\\pytest-of-runneradmin\\pytest-0\\cmake0\\sentry.vcxproj]\nD:\\a\\sentry-native\\sentry-native\\src\\sentry_envelope.c(786,62): error : implicit conversion changes signedness: 'long long' to 'unsigned long long' [-Werror,-Wsign-conversion] [C:\\Users\\runneradmin\\AppData\\Local\\Temp\\pytest-of-runneradmin\\pytest-0\\cmake0\\sentry.vcxproj]\nD:\\a\\sentry-native\\sentry-native\\src\\sentry_envelope.c(803,61): error : implicit conversion changes signedness: 'long long' to 'unsigned long long' [-Werror,-Wsign-conversion] [C:\\Users\\runneradmin\\AppData\\Local\\Temp\\pytest-of-runneradmin\\pytest-0\\cmake0\\sentry.vcxproj]\n\n* revert unnecessary changes\n\n* Wide-string variant for Windows\n\n* Improve tests\n\n* size_t payload_len\n\nCo-authored-by: Ivan Dlugos <6349682+vaind@users.noreply.github.com>\n\n* sentry_envelope_deserialize + tests\n\n* validate headers\n\n* don't advance ptr past the buffer even if it's never used\n\nmight make cursor satisfied?\n\n* sentry_capture_envelope: add extra null check\n\n* sentry_envelope_get_header_n: add null check\n\n* prevent overflow\n\n* add TODO comments for sentry_value_as_uint64 + SIZE_MAX\n\n---------\n\nCo-authored-by: Ivan Dlugos <6349682+vaind@users.noreply.github.com>",
+          "timestamp": "2025-07-29T07:54:02+02:00",
+          "tree_id": "358171b00995b08d09eb24f60a2f2080cb3bbcb8",
+          "url": "https://github.com/getsentry/sentry-native/commit/2ac959eff4f76935fcdd4c81dd1cca1056c01f77"
+        },
+        "date": 1753768582999,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 0.7568090000091843,
+            "unit": "ms",
+            "extra": "Min 0.737ms\nMax 0.780ms\nMean 0.757ms\nStdDev 0.017ms\nMedian 0.757ms\nCPU 0.755ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.7341459999992139,
+            "unit": "ms",
+            "extra": "Min 0.693ms\nMax 0.758ms\nMean 0.730ms\nStdDev 0.025ms\nMedian 0.734ms\nCPU 0.730ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 2.9879660000062813,
+            "unit": "ms",
+            "extra": "Min 2.936ms\nMax 3.040ms\nMean 2.985ms\nStdDev 0.045ms\nMedian 2.988ms\nCPU 1.546ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.012193000003435372,
+            "unit": "ms",
+            "extra": "Min 0.012ms\nMax 0.012ms\nMean 0.012ms\nStdDev 0.000ms\nMedian 0.012ms\nCPU 0.011ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.023374000022613473,
+            "unit": "ms",
+            "extra": "Min 0.022ms\nMax 0.036ms\nMean 0.026ms\nStdDev 0.006ms\nMedian 0.023ms\nCPU 0.025ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 1.8253469999933714,
+            "unit": "ms",
+            "extra": "Min 1.760ms\nMax 1.866ms\nMean 1.810ms\nStdDev 0.044ms\nMedian 1.825ms\nCPU 0.567ms"
           }
         ]
       }
