@@ -464,6 +464,28 @@ SENTRY_TEST(value_json_parsing)
     TEST_CHECK_INT_EQUAL(sentry_value_as_int32(rv), 42);
     sentry_value_decref(rv);
 
+    rv = sentry__value_from_json(STRING("-9223372036854775808"));
+    TEST_CHECK(sentry_value_get_type(rv) == SENTRY_VALUE_TYPE_INT64);
+    TEST_CHECK_INT_EQUAL(
+        sentry_value_as_int64(rv), (int64_t)-9223372036854775808);
+    sentry_value_decref(rv);
+
+    rv = sentry__value_from_json(STRING("-9223372036854775809"));
+    TEST_CHECK(sentry_value_get_type(rv) == SENTRY_VALUE_TYPE_DOUBLE);
+    TEST_CHECK_INT_EQUAL(sentry_value_as_double(rv), -9.2233720368547758E+18);
+    sentry_value_decref(rv);
+
+    rv = sentry__value_from_json(STRING("18446744073709551615"));
+    TEST_CHECK(sentry_value_get_type(rv) == SENTRY_VALUE_TYPE_UINT64);
+    TEST_CHECK_UINT64_EQUAL(
+        sentry_value_as_uint64(rv), (uint64_t)18446744073709551615);
+    sentry_value_decref(rv);
+
+    rv = sentry__value_from_json(STRING("18446744073709551616"));
+    TEST_CHECK(sentry_value_get_type(rv) == SENTRY_VALUE_TYPE_DOUBLE);
+    TEST_CHECK(sentry_value_as_double(rv) == 1.8446744073709552E+19);
+    sentry_value_decref(rv);
+
     rv = sentry__value_from_json(STRING("false"));
     TEST_CHECK(sentry_value_get_type(rv) == SENTRY_VALUE_TYPE_BOOL);
     TEST_CHECK(!sentry_value_is_true(rv));
@@ -594,10 +616,10 @@ SENTRY_TEST(value_json_locales)
     TEST_CHECK(sentry_value_as_double(sentry_value_get_by_key(rv, "dbl_min"))
         == 2.2250738585072014e-308);
 
-    TEST_CHECK(sentry_value_as_double(sentry_value_get_by_key(rv, "max_int32"))
+    TEST_CHECK(sentry_value_as_int64(sentry_value_get_by_key(rv, "max_int32"))
         == 4294967295.);
     TEST_CHECK(
-        sentry_value_as_double(sentry_value_get_by_key(rv, "max_safe_int"))
+        sentry_value_as_int64(sentry_value_get_by_key(rv, "max_safe_int"))
         == 9007199254740991.);
 
     // we format to 16 digits:

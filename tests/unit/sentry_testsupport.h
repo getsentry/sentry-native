@@ -48,6 +48,13 @@
         TEST_CHECK_(_a == _b, "%lld == %lld", _a, _b);                         \
     } while (0)
 
+#define TEST_CHECK_UINT64_EQUAL(A, B)                                          \
+    do {                                                                       \
+        unsigned long long _a = (unsigned long long)(A);                       \
+        unsigned long long _b = (unsigned long long)(B);                       \
+        TEST_CHECK_(_a == _b, "%llu == %llu", _a, _b);                         \
+    } while (0)
+
 #define TEST_ASSERT_INT_EQUAL(A, B)                                            \
     do {                                                                       \
         long long _a = (long long)(A);                                         \
