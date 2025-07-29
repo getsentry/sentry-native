@@ -578,141 +578,6 @@ decode_string_inplace(char *buf)
     return true;
 }
 
-static bool
-is_integer_string(const char *start, int len)
-{
-    if (len <= 0) {
-        return false;
-    }
-
-    int i = 0;
-    // Skip optional minus sign
-    if (start[0] == '-') {
-        i = 1;
-        if (len == 1) {
-            return false; // Just a minus sign
-        }
-    }
-
-    // Check remaining characters are all digits
-    for (; i < len; i++) {
-        char c = start[i];
-        if (c < '0' || c > '9') {
-            return false;
-        }
-    }
-
-    return true;
-}
-
-static char *
-make_null_terminated_string(const char *start, int len)
-{
-    char *temp = sentry_malloc((size_t)len + 1);
-    if (!temp) {
-        return NULL;
-    }
-    memcpy(temp, start, (size_t)len);
-    temp[len] = '\0';
-    return temp;
-}
-
-static bool
-try_parse_int32(const char *start, int len, int32_t *out)
-{
-    char *temp = make_null_terminated_string(start, len);
-    if (!temp) {
-        return false;
-    }
-
-    char *endptr;
-    errno = 0;
-    long val = strtol(temp, &endptr, 10);
-    bool success = (*endptr == '\0' && errno == 0 && val >= INT32_MIN
-        && val <= INT32_MAX);
-
-    if (success) {
-        *out = (int32_t)val;
-    }
-
-    sentry_free(temp);
-    return success;
-}
-
-static bool
-try_parse_int64(const char *start, int len, int64_t *out)
-{
-    char *temp = make_null_terminated_string(start, len);
-    if (!temp) {
-        return false;
-    }
-
-    char *endptr;
-    errno = 0;
-    long long val = strtoll(temp, &endptr, 10);
-    bool success = (*endptr == '\0' && errno == 0);
-
-    if (success) {
-        *out = (int64_t)val;
-    }
-
-    sentry_free(temp);
-    return success;
-}
-
-static bool
-try_parse_uint64(const char *start, int len, uint64_t *out)
-{
-    // Don't try to parse negative numbers as uint64
-    if (len > 0 && start[0] == '-') {
-        return false;
-    }
-
-    char *temp = make_null_terminated_string(start, len);
-    if (!temp) {
-        return false;
-    }
-
-    char *endptr;
-    errno = 0;
-    unsigned long long val = strtoull(temp, &endptr, 10);
-    bool success = (*endptr == '\0' && errno == 0);
-
-    if (success) {
-        *out = (uint64_t)val;
-    }
-
-    sentry_free(temp);
-    return success;
-}
-
-static sentry_value_t
-parse_large_integer(const char *start, int len)
-{
-    // For negative numbers, only try int64
-    if (len > 0 && start[0] == '-') {
-        int64_t i64_val;
-        if (try_parse_int64(start, len, &i64_val)) {
-            return sentry_value_new_int64(i64_val);
-        }
-    } else {
-        // For positive numbers, prefer int64 but fall back to uint64 if needed
-        int64_t i64_val;
-        if (try_parse_int64(start, len, &i64_val)) {
-            return sentry_value_new_int64(i64_val);
-        }
-
-        uint64_t u64_val;
-        if (try_parse_uint64(start, len, &u64_val)) {
-            return sentry_value_new_uint64(u64_val);
-        }
-    }
-
-    // Both failed, fallback to double
-    double val = sentry__strtod_c(start, NULL);
-    return sentry_value_new_double(val);
-}
-
 static size_t
 tokens_to_value(jsmntok_t *tokens, size_t token_count, const char *buf,
     sentry_value_t *value_out)
@@ -750,19 +615,39 @@ tokens_to_value(jsmntok_t *tokens, size_t token_count, const char *buf,
             rv = sentry_value_new_null();
             break;
         default: {
-            const char *num_start = buf + root->start;
-            int num_len = root->end - root->start;
+            bool success = false;
+            char *endptr;
+            errno = 0;
 
-            if (is_integer_string(num_start, num_len)) {
-                int32_t i32_val;
-                if (try_parse_int32(num_start, num_len, &i32_val)) {
-                    rv = sentry_value_new_int32(i32_val);
-                } else {
-                    rv = parse_large_integer(num_start, num_len);
+            if (buf[root->start] == '-') {
+                const long long ll_val
+                    = strtoll(buf + root->start, &endptr, 10);
+                if (endptr == buf + root->end && errno == 0) {
+                    if (ll_val >= INT32_MIN && ll_val <= INT32_MAX) {
+                        rv = sentry_value_new_int32((int32_t)ll_val);
+                    } else {
+                        rv = sentry_value_new_int64((int64_t)ll_val);
+                    }
+                    success = true;
                 }
             } else {
-                // Contains decimal point or exponent, parse as double
-                double val = sentry__strtod_c(num_start, NULL);
+                const unsigned long long ull_val
+                    = strtoull(buf + root->start, &endptr, 10);
+                if (endptr == buf + root->end && errno == 0) {
+                    if (ull_val <= INT32_MAX) {
+                        rv = sentry_value_new_int32((int32_t)ull_val);
+                    } else if (ull_val <= INT64_MAX) {
+                        rv = sentry_value_new_int64((int64_t)ull_val);
+                    } else {
+                        rv = sentry_value_new_uint64((uint64_t)ull_val);
+                    }
+                    success = true;
+                }
+            }
+
+            // Both failed, fallback to double
+            if (!success) {
+                double val = sentry__strtod_c(buf + root->start, NULL);
                 rv = sentry_value_new_double(val);
             }
             break;
