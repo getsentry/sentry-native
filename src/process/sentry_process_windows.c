@@ -50,7 +50,7 @@ sentry__process_spawn(const sentry_path_t *executable, const wchar_t *arg0, ...)
     PROCESS_INFORMATION pi = { 0 };
     si.cb = sizeof(si);
 
-    BOOL rv = CreateProcessW(NULL, // lpApplicationName
+    BOOL rv = CreateProcessW(executable->path, // lpApplicationName
         cli, // lpCommandLine
         NULL, // lpProcessAttributes
         NULL, // lpThreadAttributes

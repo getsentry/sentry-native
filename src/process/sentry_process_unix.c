@@ -118,11 +118,7 @@ spawn_process(char **argv)
                 }
             }
 
-            if (strstr(argv[0], "/") != NULL) {
-                execv(argv[0], argv);
-            } else {
-                execvp(argv[0], argv);
-            }
+            execv(argv[0], argv);
 
             SENTRY_ERRORF("execv failed: %s", strerror(errno));
             _exit(1);
