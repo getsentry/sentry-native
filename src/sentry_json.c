@@ -381,9 +381,11 @@ sentry__jsonwriter_write_int64(sentry_jsonwriter_t *jw, int64_t val)
 void
 sentry__jsonwriter_write_uint64(sentry_jsonwriter_t *jw, uint64_t val)
 {
+    // TODO currently all uint64 values should be sent as strings; update when
+    // this changes
     if (can_write_item(jw)) {
-        char buf[24];
-        snprintf(buf, sizeof(buf), "%" PRIu64, val);
+        char buf[26];
+        snprintf(buf, sizeof(buf), "\"%" PRIu64 "\"", val);
         write_str(jw, buf);
     }
 }
