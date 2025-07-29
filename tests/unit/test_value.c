@@ -3,6 +3,7 @@
 #include "sentry_value.h"
 #include <locale.h>
 #include <math.h>
+#include <stdint.h>
 
 SENTRY_TEST(value_null)
 {
@@ -466,8 +467,7 @@ SENTRY_TEST(value_json_parsing)
 
     rv = sentry__value_from_json(STRING("-9223372036854775808"));
     TEST_CHECK(sentry_value_get_type(rv) == SENTRY_VALUE_TYPE_INT64);
-    TEST_CHECK_INT_EQUAL(
-        sentry_value_as_int64(rv), (int64_t)-9223372036854775808);
+    TEST_CHECK_INT_EQUAL(sentry_value_as_int64(rv), INT64_MIN);
     sentry_value_decref(rv);
 
     rv = sentry__value_from_json(STRING("-9223372036854775809"));
@@ -477,8 +477,7 @@ SENTRY_TEST(value_json_parsing)
 
     rv = sentry__value_from_json(STRING("18446744073709551615"));
     TEST_CHECK(sentry_value_get_type(rv) == SENTRY_VALUE_TYPE_UINT64);
-    TEST_CHECK_UINT64_EQUAL(
-        sentry_value_as_uint64(rv), (uint64_t)18446744073709551615);
+    TEST_CHECK_UINT64_EQUAL(sentry_value_as_uint64(rv), UINT64_MAX);
     sentry_value_decref(rv);
 
     rv = sentry__value_from_json(STRING("18446744073709551616"));
