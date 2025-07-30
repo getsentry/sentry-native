@@ -33,7 +33,7 @@ SENTRY_TEST(process_spawn)
     TEST_CHECK(sentry__path_is_file(exe));
 
     sentry_path_t *dst = sentry__path_from_str(
-        SENTRY_TEST_PATH_PREFIX ".sentry_test_unit_process_spawn");
+        SENTRY_TEST_PATH_PREFIX ".sentry_test_unit process_spawn");
     TEST_ASSERT(!!dst);
     TEST_CHECK(sentry__path_remove(dst) == 0);
     TEST_CHECK(!sentry__path_is_file(dst));

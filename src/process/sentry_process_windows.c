@@ -6,6 +6,67 @@
 #include <stdarg.h>
 #include <windows.h>
 
+static size_t
+quote_arg(const wchar_t *src, wchar_t *dst)
+{
+    if (!wcschr(src, L' ') && !wcschr(src, L'"')) {
+        if (dst) {
+            wcscpy(dst, src);
+        }
+        return wcslen(src);
+    }
+
+    size_t len = 0;
+
+    // opening quote
+    if (dst) {
+        dst[len] = L'"';
+    }
+    len++;
+
+    // escape quotes and backslashes
+    for (const wchar_t *p = src; *p; ++p) {
+        if (*p == L'"') {
+            if (dst) {
+                dst[len] = L'\\';
+                dst[len + 1] = L'"';
+            }
+            len += 2;
+        } else if (*p == L'\\') {
+            const wchar_t *q = p;
+            size_t slashes = 0;
+            while (*q == L'\\') {
+                slashes++;
+                q++;
+            }
+            if (*q == L'"') {
+                // backslashes followed by a quote -> double the backslashes to
+                // escape each backslash
+                slashes *= 2;
+            }
+            for (size_t i = 0; i < slashes; ++i) {
+                if (dst) {
+                    dst[len] = L'\\';
+                }
+                len++;
+            }
+            p = q - 1;
+        } else {
+            if (dst) {
+                dst[len] = *p;
+            }
+            len++;
+        }
+    }
+
+    // closing quote
+    if (dst) {
+        dst[len] = L'"';
+        dst[len + 1] = L'\0';
+    }
+    return ++len;
+}
+
 void
 sentry__process_spawn(const sentry_path_t *executable, const wchar_t *arg0, ...)
 {
@@ -14,14 +75,14 @@ sentry__process_spawn(const sentry_path_t *executable, const wchar_t *arg0, ...)
         return;
     }
 
-    size_t cli_len = wcslen(executable->path) + 1; // \0
+    size_t cli_len = quote_arg(executable->path, NULL) + 1; // \0
     if (arg0) {
-        cli_len += wcslen(arg0) + 1; // space
+        cli_len += quote_arg(arg0, NULL) + 1; // space
         va_list args;
         va_start(args, arg0);
         const wchar_t *argn;
         while ((argn = va_arg(args, const wchar_t *)) != NULL) {
-            cli_len += wcslen(argn) + 1; // space
+            cli_len += quote_arg(argn, NULL) + 1; // space
         }
         va_end(args);
     }
@@ -30,19 +91,21 @@ sentry__process_spawn(const sentry_path_t *executable, const wchar_t *arg0, ...)
     if (!cli) {
         return;
     }
-    wcscpy(cli, executable->path);
+
+    size_t offset = quote_arg(executable->path, cli);
     if (arg0) {
-        wcscat(cli, L" ");
-        wcscat(cli, arg0);
+        cli[offset++] = L' ';
+        offset += quote_arg(arg0, cli + offset);
         va_list args;
         va_start(args, arg0);
         const wchar_t *argn;
         while ((argn = va_arg(args, const wchar_t *)) != NULL) {
-            wcscat(cli, L" ");
-            wcscat(cli, argn);
+            cli[offset++] = L' ';
+            offset += quote_arg(argn, cli + offset);
         }
         va_end(args);
     }
+    cli[offset] = L'\0';
 
     SENTRY_DEBUGF("spawning %S", cli);
 
