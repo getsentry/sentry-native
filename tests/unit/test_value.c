@@ -456,63 +456,55 @@ SENTRY_TEST(value_freezing)
 
 SENTRY_TEST(value_stringify)
 {
+#define STRINGIFY_AND_CHECK(Val, Expected)                                     \
+    do {                                                                       \
+        char *stringified = sentry__value_stringify(rv);                       \
+        TEST_CHECK_STRING_EQUAL(stringified, Expected);                        \
+        sentry_free(stringified);                                              \
+        sentry_value_decref(rv);                                               \
+    } while (0)
+
     sentry_value_t rv = sentry_value_new_list();
-    TEST_CHECK_STRING_EQUAL(sentry__value_stringify(rv), "");
-    sentry_value_decref(rv);
+    STRINGIFY_AND_CHECK(rv, "");
 
     rv = sentry_value_new_object();
-    TEST_CHECK_STRING_EQUAL(sentry__value_stringify(rv), "");
-    sentry_value_decref(rv);
+    STRINGIFY_AND_CHECK(rv, "");
 
     rv = sentry_value_new_null();
-    TEST_CHECK_STRING_EQUAL(sentry__value_stringify(rv), "");
-    sentry_value_decref(rv);
+    STRINGIFY_AND_CHECK(rv, "");
 
     rv = sentry_value_new_bool(true);
-    TEST_CHECK_STRING_EQUAL(sentry__value_stringify(rv), "true");
-    sentry_value_decref(rv);
+    STRINGIFY_AND_CHECK(rv, "true");
 
     rv = sentry_value_new_bool(false);
-    TEST_CHECK_STRING_EQUAL(sentry__value_stringify(rv), "false");
-    sentry_value_decref(rv);
+    STRINGIFY_AND_CHECK(rv, "false");
 
     rv = sentry_value_new_string("hello");
-    TEST_CHECK_STRING_EQUAL(sentry__value_stringify(rv), "hello");
-    sentry_value_decref(rv);
+    STRINGIFY_AND_CHECK(rv, "hello");
 
     rv = sentry_value_new_int64(INT64_MIN);
-    TEST_CHECK_STRING_EQUAL(
-        sentry__value_stringify(rv), "-9223372036854775808");
-    sentry_value_decref(rv);
+    STRINGIFY_AND_CHECK(rv, "-9223372036854775808");
 
     rv = sentry_value_new_uint64(UINT64_MAX);
-    TEST_CHECK_STRING_EQUAL(
-        sentry__value_stringify(rv), "18446744073709551615");
-    sentry_value_decref(rv);
+    STRINGIFY_AND_CHECK(rv, "18446744073709551615");
 
     rv = sentry_value_new_int32(42);
-    TEST_CHECK_STRING_EQUAL(sentry__value_stringify(rv), "42");
-    sentry_value_decref(rv);
+    STRINGIFY_AND_CHECK(rv, "42");
 
     rv = sentry_value_new_int32(INT32_MAX);
-    TEST_CHECK_STRING_EQUAL(sentry__value_stringify(rv), "2147483647");
-    sentry_value_decref(rv);
+    STRINGIFY_AND_CHECK(rv, "2147483647");
 
     rv = sentry_value_new_double(3.14);
-    TEST_CHECK_STRING_EQUAL(sentry__value_stringify(rv), "3.14");
-    sentry_value_decref(rv);
+    STRINGIFY_AND_CHECK(rv, "3.14");
 
     rv = sentry_value_new_double(1000000000000000);
-    TEST_CHECK_STRING_EQUAL(sentry__value_stringify(rv), "1e+15");
-    sentry_value_decref(rv);
+    STRINGIFY_AND_CHECK(rv, "1e+15");
 
     rv = sentry_value_new_double(INFINITY);
-    TEST_CHECK_STRING_EQUAL(sentry__value_stringify(rv), "inf");
-    sentry_value_decref(rv);
+    STRINGIFY_AND_CHECK(rv, "inf");
 
     rv = sentry_value_new_double(NAN);
-    TEST_CHECK_STRING_EQUAL(sentry__value_stringify(rv), "nan");
-    sentry_value_decref(rv);
+    STRINGIFY_AND_CHECK(rv, "nan");
 }
 
 #define STRING(X) X, (sizeof(X) - 1)
