@@ -454,6 +454,67 @@ SENTRY_TEST(value_freezing)
     sentry_value_decref(val);
 }
 
+SENTRY_TEST(value_stringify)
+{
+    sentry_value_t rv = sentry_value_new_list();
+    TEST_CHECK_STRING_EQUAL(sentry__value_stringify(rv), "");
+    sentry_value_decref(rv);
+
+    rv = sentry_value_new_object();
+    TEST_CHECK_STRING_EQUAL(sentry__value_stringify(rv), "");
+    sentry_value_decref(rv);
+
+    rv = sentry_value_new_null();
+    TEST_CHECK_STRING_EQUAL(sentry__value_stringify(rv), "");
+    sentry_value_decref(rv);
+
+    rv = sentry_value_new_bool(true);
+    TEST_CHECK_STRING_EQUAL(sentry__value_stringify(rv), "true");
+    sentry_value_decref(rv);
+
+    rv = sentry_value_new_bool(false);
+    TEST_CHECK_STRING_EQUAL(sentry__value_stringify(rv), "false");
+    sentry_value_decref(rv);
+
+    rv = sentry_value_new_string("hello");
+    TEST_CHECK_STRING_EQUAL(sentry__value_stringify(rv), "hello");
+    sentry_value_decref(rv);
+
+    rv = sentry_value_new_int64(INT64_MIN);
+    TEST_CHECK_STRING_EQUAL(
+        sentry__value_stringify(rv), "-9223372036854775808");
+    sentry_value_decref(rv);
+
+    rv = sentry_value_new_uint64(UINT64_MAX);
+    TEST_CHECK_STRING_EQUAL(
+        sentry__value_stringify(rv), "18446744073709551615");
+    sentry_value_decref(rv);
+
+    rv = sentry_value_new_int32(42);
+    TEST_CHECK_STRING_EQUAL(sentry__value_stringify(rv), "42");
+    sentry_value_decref(rv);
+
+    rv = sentry_value_new_int32(INT32_MAX);
+    TEST_CHECK_STRING_EQUAL(sentry__value_stringify(rv), "2147483647");
+    sentry_value_decref(rv);
+
+    rv = sentry_value_new_double(3.14);
+    TEST_CHECK_STRING_EQUAL(sentry__value_stringify(rv), "3.14");
+    sentry_value_decref(rv);
+
+    rv = sentry_value_new_double(1000000000000000);
+    TEST_CHECK_STRING_EQUAL(sentry__value_stringify(rv), "1e+15");
+    sentry_value_decref(rv);
+
+    rv = sentry_value_new_double(INFINITY);
+    TEST_CHECK_STRING_EQUAL(sentry__value_stringify(rv), "inf");
+    sentry_value_decref(rv);
+
+    rv = sentry_value_new_double(NAN);
+    TEST_CHECK_STRING_EQUAL(sentry__value_stringify(rv), "nan");
+    sentry_value_decref(rv);
+}
+
 #define STRING(X) X, (sizeof(X) - 1)
 
 SENTRY_TEST(value_json_parsing)

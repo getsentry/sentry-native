@@ -689,8 +689,9 @@ sentry__value_stringify(sentry_value_t value)
     case SENTRY_VALUE_TYPE_INT64:
         STRINGIFY_NUMERIC("%" PRIi64, sentry_value_as_int64(value));
     case SENTRY_VALUE_TYPE_UINT64:
-        STRINGIFY_NUMERIC("%" PRIi64, sentry_value_as_uint64(value));
+        STRINGIFY_NUMERIC("%" PRIu64, sentry_value_as_uint64(value));
     case SENTRY_VALUE_TYPE_INT32:
+        STRINGIFY_NUMERIC("%d", sentry_value_as_int32(value));
     case SENTRY_VALUE_TYPE_DOUBLE:
     default:
         STRINGIFY_NUMERIC("%g", sentry_value_as_double(value));
@@ -946,7 +947,7 @@ sentry_value_as_uint64(sentry_value_t value)
         SENTRY_WARN("Cannot convert int64 into uint64, returning 0");
     }
     if (thing && thing_get_type(thing) == THING_TYPE_DOUBLE) {
-        SENTRY_WARN("Cannot convert int64 into uint64, returning 0");
+        SENTRY_WARN("Cannot convert double into uint64, returning 0");
     }
     return 0;
 }
