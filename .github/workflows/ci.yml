@@ -356,5 +356,6 @@ jobs:
           name: ${{ github.sha }}
           if-no-files-found: error
           path: |
-            ndk/lib/build/distributions/*.zip
             sentry-native.zip
+            ndk/lib/build/distributions/*.zip
+            ndk/lib/build/intermediates/merged_native_libs/release/mergeReleaseNativeLibs/out/lib/*
