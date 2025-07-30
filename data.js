@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1753875233002,
+  "lastUpdate": 1753875328458,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -11086,6 +11086,66 @@ window.BENCHMARK_DATA = {
             "value": 10.674400000027617,
             "unit": "ms",
             "extra": "Min 10.469ms\nMax 11.280ms\nMean 10.771ms\nStdDev 0.331ms\nMedian 10.674ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "93d69f4172c530d8e4ac581df2e80d97e24c7398",
+          "message": "feat: add `sentry__process_spawn()` (#1318)\n\n* feat: add `sentry__process_spawn()`\n\n* stabilize SENTRY_TEST(process_spawn)\n\n* add null checks for executable->path\n\n* test: drop sentry__process_spawn return value check\n\njust to see if the CI/Valgrind is happy with the rest\n\n* sentry__process_spawn: remove falsy return value\n\nas claude put it\n\n> This is inherent to fully detached processes - you can't reliably detect launch success without IPC\n\n* avoid path lookup for security reasons\n\n* add note that arguments are not sanitized\n\n* windows: quote args if necessary",
+          "timestamp": "2025-07-30T13:30:36+02:00",
+          "tree_id": "6593bb13efcc69f02e077905dd2d47340e30e417",
+          "url": "https://github.com/getsentry/sentry-native/commit/93d69f4172c530d8e4ac581df2e80d97e24c7398"
+        },
+        "date": 1753875321602,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 9.731799999997293,
+            "unit": "ms",
+            "extra": "Min 9.684ms\nMax 10.468ms\nMean 9.966ms\nStdDev 0.367ms\nMedian 9.732ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 10.496400000022277,
+            "unit": "ms",
+            "extra": "Min 9.646ms\nMax 11.741ms\nMean 10.488ms\nStdDev 0.823ms\nMedian 10.496ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 20.856400000013764,
+            "unit": "ms",
+            "extra": "Min 19.937ms\nMax 21.124ms\nMean 20.617ms\nStdDev 0.485ms\nMedian 20.856ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.011700000015935075,
+            "unit": "ms",
+            "extra": "Min 0.010ms\nMax 0.012ms\nMean 0.011ms\nStdDev 0.001ms\nMedian 0.012ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.36670000002914094,
+            "unit": "ms",
+            "extra": "Min 0.354ms\nMax 0.441ms\nMean 0.392ms\nStdDev 0.043ms\nMedian 0.367ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 11.064000000033047,
+            "unit": "ms",
+            "extra": "Min 10.950ms\nMax 11.725ms\nMean 11.201ms\nStdDev 0.326ms\nMedian 11.064ms"
           }
         ]
       }
