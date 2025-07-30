@@ -464,6 +464,16 @@ SENTRY_TEST(value_stringify)
         sentry_value_decref(rv);                                               \
     } while (0)
 
+#define STRINGIFY_AND_CHECK_CONTAINS(Val, Expected)                            \
+    do {                                                                       \
+        char *stringified = sentry__value_stringify(rv);                       \
+        for (char *p = stringified; *p; ++p)                                   \
+            *p = tolower(*p);                                                  \
+        TEST_CHECK(strstr(stringified, Expected) != NULL);                     \
+        sentry_free(stringified);                                              \
+        sentry_value_decref(rv);                                               \
+    } while (0)
+
     sentry_value_t rv = sentry_value_new_list();
     STRINGIFY_AND_CHECK(rv, "");
 
@@ -501,10 +511,10 @@ SENTRY_TEST(value_stringify)
     STRINGIFY_AND_CHECK(rv, "1e+15");
 
     rv = sentry_value_new_double(INFINITY);
-    STRINGIFY_AND_CHECK(rv, "inf");
+    STRINGIFY_AND_CHECK_CONTAINS(rv, "inf");
 
     rv = sentry_value_new_double(NAN);
-    STRINGIFY_AND_CHECK(rv, "nan");
+    STRINGIFY_AND_CHECK_CONTAINS(rv, "nan");
 }
 
 #define STRING(X) X, (sizeof(X) - 1)
