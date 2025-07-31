@@ -36,7 +36,7 @@ construct_param_from_conversion(const char conversion, va_list *args_copy)
     switch (conversion) {
     case 'd':
     case 'i': {
-        int val = va_arg(*args_copy, int);
+        long long val = va_arg(*args_copy, long long);
         sentry_value_set_by_key(
             param_obj, "value", sentry_value_new_int64(val));
         sentry_value_set_by_key(
@@ -47,9 +47,10 @@ construct_param_from_conversion(const char conversion, va_list *args_copy)
     case 'x':
     case 'X':
     case 'o': {
-        unsigned int val = va_arg(*args_copy, unsigned int);
-        sentry_value_set_by_key(param_obj, "value",
-            sentry__value_new_string_owned(sentry__uint64_to_string(val)));
+        unsigned long long int val = va_arg(*args_copy, unsigned long long int);
+        sentry_value_set_by_key(
+            param_obj, "value", sentry_value_new_uint64(val));
+        // TODO update once unsigned 64-bit can be sent
         sentry_value_set_by_key(
             param_obj, "type", sentry_value_new_string("string"));
         break;
@@ -356,7 +357,7 @@ sentry__logs_log(sentry_level_t level, const char *message, va_list args)
         sentry_envelope_t *envelope = sentry__envelope_new();
         sentry__envelope_add_logs(envelope, logs);
         // TODO remove debug write to file below
-        // sentry_envelope_write_to_file(envelope, "logs_envelope.json");
+        sentry_envelope_write_to_file(envelope, "logs_envelope.json");
         SENTRY_WITH_OPTIONS (options) {
             sentry__capture_envelope(options->transport, envelope);
         }

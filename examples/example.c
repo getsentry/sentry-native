@@ -395,6 +395,12 @@ main(int argc, char **argv)
 
     // TODO incorporate into test
     if (sentry_options_get_enable_logs(options)) {
+        sentry_log_warn(
+            "This is a big number %" PRIu64, (uint64_t)18446744073709551615);
+        sentry_log_warn("This is a medium number as unsigned %" PRIu64,
+            (uint64_t)9007199254740991);
+        sentry_log_warn("This is a medium number as signed %" PRId64,
+            (int64_t)9007199254740991);
         sentry_log_trace("We log it up  %i%%, %s style", 100, "trace");
         sentry_log_debug("We log it up  %i%%, %s style", 100, "debug");
         sentry_log_info("We log it up  %i%%, %s style", 100, "info");
