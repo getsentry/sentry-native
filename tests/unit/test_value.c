@@ -458,20 +458,20 @@ SENTRY_TEST(value_stringify)
 {
 #define STRINGIFY_AND_CHECK(Val, Expected)                                     \
     do {                                                                       \
-        char *stringified = sentry__value_stringify(rv);                       \
+        char *stringified = sentry__value_stringify(Val);                      \
         TEST_CHECK_STRING_EQUAL(stringified, Expected);                        \
         sentry_free(stringified);                                              \
-        sentry_value_decref(rv);                                               \
+        sentry_value_decref(Val);                                              \
     } while (0)
 
 #define STRINGIFY_AND_CHECK_CONTAINS(Val, Expected)                            \
     do {                                                                       \
-        char *stringified = sentry__value_stringify(rv);                       \
+        char *stringified = sentry__value_stringify(Val);                      \
         for (char *p = stringified; *p; ++p)                                   \
             *p = tolower(*p);                                                  \
         TEST_CHECK(strstr(stringified, Expected) != NULL);                     \
         sentry_free(stringified);                                              \
-        sentry_value_decref(rv);                                               \
+        sentry_value_decref(Val);                                              \
     } while (0)
 
     sentry_value_t rv = sentry_value_new_list();
