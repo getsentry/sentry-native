@@ -3,6 +3,7 @@
 #include "sentry_value.h"
 #include <locale.h>
 #include <math.h>
+#include <stdint.h>
 
 SENTRY_TEST(value_null)
 {
@@ -69,6 +70,112 @@ SENTRY_TEST(value_int32)
     TEST_CHECK(sentry_value_is_frozen(val));
     sentry_value_decref(val);
     TEST_CHECK(sentry_value_refcount(val) == 1);
+}
+
+SENTRY_TEST(value_int64)
+{
+    sentry_value_t val = sentry_value_new_int64(42LL);
+    TEST_CHECK(sentry_value_get_type(val) == SENTRY_VALUE_TYPE_INT64);
+    TEST_CHECK(sentry_value_as_int64(val) == 42LL);
+    // We don't convert int64 to double
+    TEST_CHECK(isnan(sentry_value_as_double(val)));
+    // We don't convert int64 to int32
+    TEST_CHECK(sentry_value_as_int32(val) == 0);
+    TEST_CHECK(sentry_value_is_true(val));
+    TEST_CHECK_JSON_VALUE(val, "42");
+    TEST_CHECK(sentry_value_refcount(val) == 1);
+    TEST_CHECK(sentry_value_is_frozen(val));
+    sentry_value_decref(val);
+
+    // Test large positive value
+    val = sentry_value_new_int64(INT64_MAX);
+    TEST_CHECK(sentry_value_get_type(val) == SENTRY_VALUE_TYPE_INT64);
+    TEST_CHECK(sentry_value_as_int64(val) == INT64_MAX);
+    TEST_CHECK(sentry_value_is_true(val));
+    TEST_CHECK_JSON_VALUE(val, "9223372036854775807");
+    sentry_value_decref(val);
+
+    // Test large negative value
+    val = sentry_value_new_int64(INT64_MIN);
+    TEST_CHECK(sentry_value_get_type(val) == SENTRY_VALUE_TYPE_INT64);
+    TEST_CHECK(sentry_value_as_int64(val) == INT64_MIN);
+    TEST_CHECK(sentry_value_is_true(val));
+    TEST_CHECK_JSON_VALUE(val, "-9223372036854775808");
+    sentry_value_decref(val);
+
+    // Test zero
+    val = sentry_value_new_int64(0LL);
+    TEST_CHECK(sentry_value_get_type(val) == SENTRY_VALUE_TYPE_INT64);
+    TEST_CHECK(sentry_value_as_int64(val) == 0LL);
+    TEST_CHECK(!sentry_value_is_true(val));
+    TEST_CHECK_JSON_VALUE(val, "0");
+    TEST_CHECK(sentry_value_refcount(val) == 1);
+    TEST_CHECK(sentry_value_is_frozen(val));
+    sentry_value_decref(val);
+
+    // We do convert int32 to int64
+    val = sentry_value_new_int32(42);
+    TEST_CHECK(sentry_value_as_int64(val) == 42LL);
+    sentry_value_decref(val);
+
+    // We don't convert uint64 to int64
+    val = sentry_value_new_uint64(-42LL);
+    TEST_CHECK(sentry_value_as_int64(val) == 0);
+    sentry_value_decref(val);
+
+    // We don't convert double to int64
+    val = sentry_value_new_double(42.99);
+    TEST_CHECK(sentry_value_as_int64(val) == 0);
+    sentry_value_decref(val);
+}
+
+SENTRY_TEST(value_uint64)
+{
+    sentry_value_t val = sentry_value_new_uint64(42ULL);
+    TEST_CHECK(sentry_value_get_type(val) == SENTRY_VALUE_TYPE_UINT64);
+    TEST_CHECK(sentry_value_as_uint64(val) == 42ULL);
+    // We don't convert uint64 to double
+    TEST_CHECK(isnan(sentry_value_as_double(val)));
+    // We don't convert uint64 to int32
+    TEST_CHECK(sentry_value_as_int32(val) == 0);
+    TEST_CHECK(sentry_value_is_true(val));
+    TEST_CHECK_JSON_VALUE(val, "\"42\"");
+    TEST_CHECK(sentry_value_refcount(val) == 1);
+    TEST_CHECK(sentry_value_is_frozen(val));
+    sentry_value_decref(val);
+
+    // Test large positive value
+    val = sentry_value_new_uint64(UINT64_MAX);
+    TEST_CHECK(sentry_value_get_type(val) == SENTRY_VALUE_TYPE_UINT64);
+    TEST_CHECK(sentry_value_as_uint64(val) == UINT64_MAX);
+    TEST_CHECK(sentry_value_is_true(val));
+    TEST_CHECK_JSON_VALUE(val, "\"18446744073709551615\"");
+    sentry_value_decref(val);
+
+    // Test zero
+    val = sentry_value_new_uint64(0ULL);
+    TEST_CHECK(sentry_value_get_type(val) == SENTRY_VALUE_TYPE_UINT64);
+    TEST_CHECK(sentry_value_as_uint64(val) == 0ULL);
+    TEST_CHECK(!sentry_value_is_true(val));
+    TEST_CHECK_JSON_VALUE(val, "\"0\"");
+    TEST_CHECK(sentry_value_refcount(val) == 1);
+    TEST_CHECK(sentry_value_is_frozen(val));
+    sentry_value_decref(val);
+
+    // We don't convert int32 to uint64
+    val = sentry_value_new_int32(42);
+    TEST_CHECK(sentry_value_as_uint64(val) == 0);
+    sentry_value_decref(val);
+
+    // We don't convert double to uint64
+    val = sentry_value_new_double(123.456);
+    TEST_CHECK(sentry_value_as_uint64(val) == 0);
+    sentry_value_decref(val);
+
+    // We don't convert int64 to uint64
+    val = sentry_value_new_int64(42LL);
+    TEST_CHECK(sentry_value_as_uint64(val) == 0);
+    sentry_value_decref(val);
 }
 
 SENTRY_TEST(value_double)
@@ -347,6 +454,69 @@ SENTRY_TEST(value_freezing)
     sentry_value_decref(val);
 }
 
+SENTRY_TEST(value_stringify)
+{
+#define STRINGIFY_AND_CHECK(Val, Expected)                                     \
+    do {                                                                       \
+        char *stringified = sentry__value_stringify(Val);                      \
+        TEST_CHECK_STRING_EQUAL(stringified, Expected);                        \
+        sentry_free(stringified);                                              \
+        sentry_value_decref(Val);                                              \
+    } while (0)
+
+#define STRINGIFY_AND_CHECK_CONTAINS(Val, Expected)                            \
+    do {                                                                       \
+        char *stringified = sentry__value_stringify(Val);                      \
+        for (char *p = stringified; *p; ++p)                                   \
+            *p = tolower(*p);                                                  \
+        TEST_CHECK(strstr(stringified, Expected) != NULL);                     \
+        sentry_free(stringified);                                              \
+        sentry_value_decref(Val);                                              \
+    } while (0)
+
+    sentry_value_t rv = sentry_value_new_list();
+    STRINGIFY_AND_CHECK(rv, "");
+
+    rv = sentry_value_new_object();
+    STRINGIFY_AND_CHECK(rv, "");
+
+    rv = sentry_value_new_null();
+    STRINGIFY_AND_CHECK(rv, "");
+
+    rv = sentry_value_new_bool(true);
+    STRINGIFY_AND_CHECK(rv, "true");
+
+    rv = sentry_value_new_bool(false);
+    STRINGIFY_AND_CHECK(rv, "false");
+
+    rv = sentry_value_new_string("hello");
+    STRINGIFY_AND_CHECK(rv, "hello");
+
+    rv = sentry_value_new_int64(INT64_MIN);
+    STRINGIFY_AND_CHECK(rv, "-9223372036854775808");
+
+    rv = sentry_value_new_uint64(UINT64_MAX);
+    STRINGIFY_AND_CHECK(rv, "18446744073709551615");
+
+    rv = sentry_value_new_int32(42);
+    STRINGIFY_AND_CHECK(rv, "42");
+
+    rv = sentry_value_new_int32(INT32_MAX);
+    STRINGIFY_AND_CHECK(rv, "2147483647");
+
+    rv = sentry_value_new_double(3.14);
+    STRINGIFY_AND_CHECK(rv, "3.14");
+
+    rv = sentry_value_new_double(1000000000000000);
+    STRINGIFY_AND_CHECK(rv, "1e+15");
+
+    rv = sentry_value_new_double(INFINITY);
+    STRINGIFY_AND_CHECK_CONTAINS(rv, "inf");
+
+    rv = sentry_value_new_double(NAN);
+    STRINGIFY_AND_CHECK_CONTAINS(rv, "nan");
+}
+
 #define STRING(X) X, (sizeof(X) - 1)
 
 SENTRY_TEST(value_json_parsing)
@@ -356,6 +526,26 @@ SENTRY_TEST(value_json_parsing)
     rv = sentry__value_from_json(STRING("42"));
     TEST_CHECK(sentry_value_get_type(rv) == SENTRY_VALUE_TYPE_INT32);
     TEST_CHECK_INT_EQUAL(sentry_value_as_int32(rv), 42);
+    sentry_value_decref(rv);
+
+    rv = sentry__value_from_json(STRING("-9223372036854775808"));
+    TEST_CHECK(sentry_value_get_type(rv) == SENTRY_VALUE_TYPE_INT64);
+    TEST_CHECK_INT_EQUAL(sentry_value_as_int64(rv), INT64_MIN);
+    sentry_value_decref(rv);
+
+    rv = sentry__value_from_json(STRING("-9223372036854775809"));
+    TEST_CHECK(sentry_value_get_type(rv) == SENTRY_VALUE_TYPE_DOUBLE);
+    TEST_CHECK_INT_EQUAL(sentry_value_as_double(rv), -9.2233720368547758E+18);
+    sentry_value_decref(rv);
+
+    rv = sentry__value_from_json(STRING("18446744073709551615"));
+    TEST_CHECK(sentry_value_get_type(rv) == SENTRY_VALUE_TYPE_UINT64);
+    TEST_CHECK_UINT64_EQUAL(sentry_value_as_uint64(rv), UINT64_MAX);
+    sentry_value_decref(rv);
+
+    rv = sentry__value_from_json(STRING("18446744073709551616"));
+    TEST_CHECK(sentry_value_get_type(rv) == SENTRY_VALUE_TYPE_DOUBLE);
+    TEST_CHECK(sentry_value_as_double(rv) == 1.8446744073709552E+19);
     sentry_value_decref(rv);
 
     rv = sentry__value_from_json(STRING("false"));
@@ -390,7 +580,7 @@ SENTRY_TEST(value_json_parsing)
         "\"surrogates\":\"𐐷\"}");
     sentry_value_decref(rv);
 
-    // unmatched surrogates don’t parse
+    // unmatched surrogates don't parse
     rv = sentry__value_from_json(STRING("\"\\uD801\""));
     TEST_CHECK(sentry_value_is_null(rv));
     rv = sentry__value_from_json(
@@ -461,7 +651,7 @@ SENTRY_TEST(value_json_surrogates)
     TEST_CHECK_JSON_VALUE(rv, "{\"surrogates\":\"oh 𐐷 hi\"}");
     sentry_value_decref(rv);
 
-    // unmatched surrogates don’t parse
+    // unmatched surrogates don't parse
     rv = sentry__value_from_json(STRING("\"\\uD801\""));
     TEST_CHECK(sentry_value_is_null(rv));
     rv = sentry__value_from_json(
@@ -488,10 +678,10 @@ SENTRY_TEST(value_json_locales)
     TEST_CHECK(sentry_value_as_double(sentry_value_get_by_key(rv, "dbl_min"))
         == 2.2250738585072014e-308);
 
-    TEST_CHECK(sentry_value_as_double(sentry_value_get_by_key(rv, "max_int32"))
+    TEST_CHECK(sentry_value_as_int64(sentry_value_get_by_key(rv, "max_int32"))
         == 4294967295.);
     TEST_CHECK(
-        sentry_value_as_double(sentry_value_get_by_key(rv, "max_safe_int"))
+        sentry_value_as_int64(sentry_value_get_by_key(rv, "max_safe_int"))
         == 9007199254740991.);
 
     // we format to 16 digits:
