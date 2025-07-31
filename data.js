@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1753945140384,
+  "lastUpdate": 1753958424024,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -3774,6 +3774,66 @@ window.BENCHMARK_DATA = {
             "value": 1.7563229999950636,
             "unit": "ms",
             "extra": "Min 1.734ms\nMax 1.774ms\nMean 1.753ms\nStdDev 0.016ms\nMedian 1.756ms\nCPU 0.549ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "60878493+JoshuaMoelans@users.noreply.github.com",
+            "name": "JoshuaMoelans",
+            "username": "JoshuaMoelans"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "98b38912bc3ed32e4b014cac72cd8f2aff497608",
+          "message": "feat: add `(u)int64 sentry_value_t` type (#1326)\n\n* add (u)int64 sentry_value_t type\n\n* add value_to_msgpack missing switch cases\n\n* remove undefined behavior test (C99 6.3.1.4)\n\n* avoid Windows sized integer name collision\n\n* cleanup & apply code review feedback\n\n* more cleanup & remove type coercion\n\n* correctly parse (u)int64 in sentry__value_from_json\n\n* CHANGELOG.md\n\n* always send uint64 as string\n\n* simplify value_from_json integer parsing\n\n* use stdint macros instead of literals\n\n* fixed value_stringify + added unit test\n\n* Apply suggestions from code review\n\nCo-authored-by: J-P Nurmi <jpnurmi@gmail.com>\n\n* free stringify memory + cleanup test\n\n* stringify NAN / INFINITY test with contains check\n\n* add explanation/link for writing uint64 as string\n\n* Fix macro not using parameter\n\n* update ndk gradle dependencies\n\n---------\n\nCo-authored-by: J-P Nurmi <jpnurmi@gmail.com>",
+          "timestamp": "2025-07-31T12:37:10+02:00",
+          "tree_id": "783406732616d145a8f2eb92a5a95fc86cfd6c7f",
+          "url": "https://github.com/getsentry/sentry-native/commit/98b38912bc3ed32e4b014cac72cd8f2aff497608"
+        },
+        "date": 1753958423508,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 0.7159750000198528,
+            "unit": "ms",
+            "extra": "Min 0.711ms\nMax 0.720ms\nMean 0.716ms\nStdDev 0.003ms\nMedian 0.716ms\nCPU 0.716ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.7295700000042871,
+            "unit": "ms",
+            "extra": "Min 0.701ms\nMax 0.837ms\nMean 0.746ms\nStdDev 0.053ms\nMedian 0.730ms\nCPU 0.730ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 2.9872050000108175,
+            "unit": "ms",
+            "extra": "Min 2.816ms\nMax 3.107ms\nMean 2.967ms\nStdDev 0.108ms\nMedian 2.987ms\nCPU 1.543ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.012052999977640866,
+            "unit": "ms",
+            "extra": "Min 0.012ms\nMax 0.012ms\nMean 0.012ms\nStdDev 0.000ms\nMedian 0.012ms\nCPU 0.011ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.022241000010581047,
+            "unit": "ms",
+            "extra": "Min 0.022ms\nMax 0.023ms\nMean 0.022ms\nStdDev 0.001ms\nMedian 0.022ms\nCPU 0.022ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 1.828384000020833,
+            "unit": "ms",
+            "extra": "Min 1.806ms\nMax 1.854ms\nMean 1.829ms\nStdDev 0.018ms\nMedian 1.828ms\nCPU 0.567ms"
           }
         ]
       }
