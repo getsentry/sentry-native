@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1753945080099,
+  "lastUpdate": 1753945140384,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -11266,6 +11266,66 @@ window.BENCHMARK_DATA = {
             "value": 11.064000000033047,
             "unit": "ms",
             "extra": "Min 10.950ms\nMax 11.725ms\nMean 11.201ms\nStdDev 0.326ms\nMedian 11.064ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "markus.hintersteiner@sentry.io",
+            "name": "Markus Hintersteiner",
+            "username": "markushi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "e2c2c0523ba9d14dac0c969216594c975a2a7709",
+          "message": "fix(ci): Fix missing debug symbol upload for craft (#1327)\n\nThe `libsentry.so` and `libsentry-android.so` files where not uploaded to the git release sha, causing craft to be unable to find and upload these symbols to our symbol server.\n\n#skip-changelog",
+          "timestamp": "2025-07-31T08:54:57+02:00",
+          "tree_id": "a844f7ca37cb51840d220a0fbee724d848064acf",
+          "url": "https://github.com/getsentry/sentry-native/commit/e2c2c0523ba9d14dac0c969216594c975a2a7709"
+        },
+        "date": 1753945135764,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 8.663699999999608,
+            "unit": "ms",
+            "extra": "Min 8.252ms\nMax 8.905ms\nMean 8.572ms\nStdDev 0.283ms\nMedian 8.664ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 8.612700000014684,
+            "unit": "ms",
+            "extra": "Min 8.319ms\nMax 8.938ms\nMean 8.644ms\nStdDev 0.260ms\nMedian 8.613ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 20.59200000007877,
+            "unit": "ms",
+            "extra": "Min 19.675ms\nMax 22.118ms\nMean 20.872ms\nStdDev 0.942ms\nMedian 20.592ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.015200000007098424,
+            "unit": "ms",
+            "extra": "Min 0.013ms\nMax 0.048ms\nMean 0.022ms\nStdDev 0.015ms\nMedian 0.015ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.34110000001419394,
+            "unit": "ms",
+            "extra": "Min 0.324ms\nMax 0.381ms\nMean 0.349ms\nStdDev 0.022ms\nMedian 0.341ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 10.556400000041322,
+            "unit": "ms",
+            "extra": "Min 10.192ms\nMax 11.600ms\nMean 10.676ms\nStdDev 0.541ms\nMedian 10.556ms"
           }
         ]
       }
