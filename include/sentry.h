@@ -401,12 +401,12 @@ SENTRY_API size_t sentry_value_get_length(sentry_value_t value);
 SENTRY_API int32_t sentry_value_as_int32(sentry_value_t value);
 
 /**
- * Converts a value into a 64 bit signed integer.
+ * Converts a value into a 64-bit signed integer.
  */
 SENTRY_API int64_t sentry_value_as_int64(sentry_value_t value);
 
 /**
- * Converts a value into a 64 bit unsigned integer.
+ * Converts a value into a 64-bit unsigned integer.
  */
 SENTRY_API uint64_t sentry_value_as_uint64(sentry_value_t value);
 
