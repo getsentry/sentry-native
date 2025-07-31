@@ -4,6 +4,7 @@
 #include "sentry_json.h"
 #include "sentry_options.h"
 #include "sentry_session.h"
+#include "sentry_uuid.h"
 #include <errno.h>
 #include <string.h>
 
@@ -38,17 +39,29 @@ sentry__run_new(const sentry_path_t *database_path)
         return NULL;
     }
 
+    // `<db>/reports`
+    sentry_path_t *report_path
+        = sentry__path_join_str(database_path, "reports");
+    if (!report_path) {
+        sentry__path_free(run_path);
+        sentry__path_free(lock_path);
+        sentry__path_free(session_path);
+        return NULL;
+    }
+
     sentry_run_t *run = SENTRY_MAKE(sentry_run_t);
     if (!run) {
         sentry__path_free(run_path);
         sentry__path_free(session_path);
         sentry__path_free(lock_path);
+        sentry__path_free(report_path);
         return NULL;
     }
 
     run->uuid = uuid;
     run->run_path = run_path;
     run->session_path = session_path;
+    run->report_path = report_path;
     run->lock = sentry__filelock_new(lock_path);
     if (!run->lock) {
         goto error;
@@ -81,35 +94,59 @@ sentry__run_free(sentry_run_t *run)
     }
     sentry__path_free(run->run_path);
     sentry__path_free(run->session_path);
+    sentry__path_free(run->report_path);
     sentry__filelock_free(run->lock);
     sentry_free(run);
+}
+
+static sentry_path_t *
+write_envelope(const sentry_path_t *path, const sentry_envelope_t *envelope)
+{
+    sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
+    char *envelope_filename = sentry__uuid_as_filename(&event_id, ".envelope");
+    if (!envelope_filename) {
+        return NULL;
+    }
+
+    sentry_path_t *output_path = sentry__path_join_str(path, envelope_filename);
+    sentry_free(envelope_filename);
+    if (!output_path) {
+        return NULL;
+    }
+
+    int rv = sentry_envelope_write_to_path(envelope, output_path);
+    if (rv) {
+        SENTRY_WARN("writing envelope to file failed");
+        sentry__path_free(output_path);
+        return NULL;
+    }
+
+    return output_path;
 }
 
 bool
 sentry__run_write_envelope(
     const sentry_run_t *run, const sentry_envelope_t *envelope)
 {
-    // 37 for the uuid, 9 for the `.envelope` suffix
-    char envelope_filename[37 + 9];
-    sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
-    sentry_uuid_as_string(&event_id, envelope_filename);
-    strcpy(&envelope_filename[36], ".envelope");
+    sentry_path_t *output_path = write_envelope(run->run_path, envelope);
+    if (output_path) {
+        sentry__path_free(output_path);
+        return true;
+    }
+    return false;
+}
 
-    sentry_path_t *output_path
-        = sentry__path_join_str(run->run_path, envelope_filename);
-    if (!output_path) {
-        return false;
+sentry_path_t *
+sentry__run_write_report(
+    const sentry_run_t *run, const sentry_envelope_t *envelope)
+{
+    if (sentry__path_create_dir_all(run->report_path) != 0) {
+        SENTRY_ERRORF(
+            "mkdir failed: \"%" SENTRY_PATH_PRI "\"", run->report_path->path);
+        return NULL;
     }
 
-    int rv = sentry_envelope_write_to_path(envelope, output_path);
-    sentry__path_free(output_path);
-
-    if (rv) {
-        SENTRY_WARN("writing envelope to file failed");
-    }
-
-    // the `write_to_path` returns > 0 on failure, but we would like a real bool
-    return !rv;
+    return write_envelope(run->report_path, envelope);
 }
 
 bool
@@ -158,8 +195,26 @@ sentry__process_old_runs(const sentry_options_t *options, uint64_t last_crash)
     while ((run_dir = sentry__pathiter_next(db_iter)) != NULL) {
         // skip over other files such as the saved consent or the last_crash
         // timestamp
-        if (!sentry__path_is_dir(run_dir)
-            || !sentry__path_ends_with(run_dir, ".run")) {
+        if (!sentry__path_is_dir(run_dir)) {
+            continue;
+        }
+
+        // prune 1h old crash report files
+        if (sentry__path_filename_matches(run_dir, "reports")) {
+            time_t now = time(NULL);
+            sentry_pathiter_t *it = sentry__path_iter_directory(run_dir);
+            const sentry_path_t *file;
+            while (it && (file = sentry__pathiter_next(it)) != NULL) {
+                time_t age = now - sentry__path_get_mtime(file);
+                if (age / 3600 > 0) {
+                    sentry__path_remove(file);
+                }
+            }
+            sentry__pathiter_free(it);
+            continue;
+        }
+
+        if (!sentry__path_ends_with(run_dir, ".run")) {
             continue;
         }
 
