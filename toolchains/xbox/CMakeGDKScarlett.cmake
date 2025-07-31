@@ -38,7 +38,7 @@ if (NOT DEFINED VCInstallDir)
 
     if (MSVC_TOOLSET_VERSION MATCHES "143")
         foreach(vsedition IN LISTS GDK_VS_EDITIONS)
-            cmmake_path(SET VCInstallDir "$ENV{ProgramFiles}/Microsoft Visual Studio/2022/${vsedition}/VC")
+            cmake_path(SET VCInstallDir "$ENV{ProgramFiles}/Microsoft Visual Studio/2022/${vsedition}/VC")
             if(EXISTS ${VCInstallDir})
                 break()
             endif()

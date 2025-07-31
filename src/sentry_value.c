@@ -741,54 +741,6 @@ sentry__value_clone(sentry_value_t value)
     }
 }
 
-/**
- * This appends `v` to the List `value`.
- * To make this work properly as a ring buffer, the value list needs to have
- * the ring buffer start index as the first element
- * (e.g, 1 until max is exceeded, then it will update for each added item)
- *
- * It will remove the oldest value in the list, in case the total number of
- * items would exceed `max`.
- *
- * The list is of size `max + 1` to store the start index.
- *
- * Returns 0 on success.
- */
-int
-sentry__value_append_ringbuffer(
-    sentry_value_t value, sentry_value_t v, size_t max)
-{
-    thing_t *thing = value_as_unfrozen_thing(value);
-    if (!thing || thing_get_type(thing) != THING_TYPE_LIST) {
-        goto fail;
-    }
-
-    list_t *l = thing->payload._ptr;
-    if (l->len == 0) {
-        sentry_value_append(value, sentry_value_new_int32(1));
-    }
-    if (l->len < max + 1) {
-        return sentry_value_append(value, v);
-    }
-    if (l->len > max + 1) {
-        SENTRY_WARNF("Cannot reduce Ringbuffer list size from %d to %d.",
-            l->len - 1, max);
-        goto fail;
-    }
-    const int32_t start_idx = sentry_value_as_int32(l->items[0]);
-
-    sentry_value_decref(l->items[start_idx]);
-    l->items[start_idx] = v;
-    l->items[0] = sentry_value_new_int32((start_idx % (int32_t)max) + 1);
-
-    l->len = max + 1;
-    return 0;
-
-fail:
-    sentry_value_decref(v);
-    return 1;
-}
-
 int
 sentry_value_set_by_index(sentry_value_t value, size_t index, sentry_value_t v)
 {
@@ -1012,28 +964,6 @@ sentry_value_as_string(sentry_value_t value)
         return (const char *)thing->payload._ptr;
     }
     return "";
-}
-
-sentry_value_t
-sentry__value_ring_buffer_to_list(const sentry_value_t rb)
-{
-    const thing_t *thing = value_as_thing(rb);
-    if (!thing || thing_get_type(thing) != THING_TYPE_LIST) {
-        return sentry_value_new_null();
-    }
-    const list_t *rb_list = thing->payload._ptr;
-    if (rb_list->len == 0) {
-        return sentry_value_new_list();
-    }
-    const size_t start_idx = (size_t)sentry_value_as_int32(rb_list->items[0]);
-
-    sentry_value_t rv = sentry_value_new_list();
-    for (size_t i = 0; i < rb_list->len - 1; i++) {
-        const size_t idx = (start_idx - 1 + i) % (rb_list->len - 1) + 1;
-        sentry_value_incref(rb_list->items[idx]);
-        sentry_value_append(rv, rb_list->items[idx]);
-    }
-    return rv;
 }
 
 int
@@ -1326,12 +1256,11 @@ sentry__value_new_level(sentry_level_t level)
 }
 
 sentry_value_t
-sentry_value_new_event(void)
+sentry__value_new_event_with_id(const sentry_uuid_t *event_id)
 {
     sentry_value_t rv = sentry_value_new_object();
 
-    sentry_uuid_t uuid = sentry__new_event_id();
-    sentry_value_set_by_key(rv, "event_id", sentry__value_new_uuid(&uuid));
+    sentry_value_set_by_key(rv, "event_id", sentry__value_new_uuid(event_id));
 
     sentry_value_set_by_key(rv, "timestamp",
         sentry__value_new_string_owned(
@@ -1340,6 +1269,13 @@ sentry_value_new_event(void)
     sentry_value_set_by_key(rv, "platform", sentry_value_new_string("native"));
 
     return rv;
+}
+
+sentry_value_t
+sentry_value_new_event(void)
+{
+    sentry_uuid_t event_id = sentry__new_event_id();
+    return sentry__value_new_event_with_id(&event_id);
 }
 
 sentry_value_t
@@ -1478,9 +1414,11 @@ sentry_value_t
 sentry_value_new_user_feedback(const sentry_uuid_t *uuid, const char *name,
     const char *email, const char *comments)
 {
+    SENTRY_SUPPRESS_DEPRECATED
     return sentry_value_new_user_feedback_n(uuid, name,
         sentry__guarded_strlen(name), email, sentry__guarded_strlen(email),
         comments, sentry__guarded_strlen(comments));
+    SENTRY_RESTORE_DEPRECATED
 }
 
 sentry_value_t
@@ -1503,6 +1441,42 @@ sentry_value_new_user_feedback_n(const sentry_uuid_t *uuid, const char *name,
     if (comments) {
         sentry_value_set_by_key(
             rv, "comments", sentry_value_new_string_n(comments, comments_len));
+    }
+
+    return rv;
+}
+
+sentry_value_t
+sentry_value_new_feedback(const char *message, const char *contact_email,
+    const char *name, const sentry_uuid_t *associated_event_id)
+{
+    return sentry_value_new_feedback_n(message, sentry__guarded_strlen(message),
+        contact_email, sentry__guarded_strlen(contact_email), name,
+        sentry__guarded_strlen(name), associated_event_id);
+}
+
+sentry_value_t
+sentry_value_new_feedback_n(const char *message, size_t message_len,
+    const char *contact_email, size_t contact_email_len, const char *name,
+    size_t name_len, const sentry_uuid_t *associated_event_id)
+{
+    sentry_value_t rv = sentry_value_new_object();
+
+    if (message) {
+        sentry_value_set_by_key(
+            rv, "message", sentry_value_new_string_n(message, message_len));
+    }
+    if (contact_email) {
+        sentry_value_set_by_key(rv, "contact_email",
+            sentry_value_new_string_n(contact_email, contact_email_len));
+    }
+    if (name) {
+        sentry_value_set_by_key(
+            rv, "name", sentry_value_new_string_n(name, name_len));
+    }
+    if (associated_event_id) {
+        sentry_value_set_by_key(rv, "associated_event_id",
+            sentry__value_new_internal_uuid(associated_event_id));
     }
 
     return rv;

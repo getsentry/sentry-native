@@ -267,6 +267,17 @@ sentry__path_get_size(const sentry_path_t *path)
     }
 }
 
+time_t
+sentry__path_get_mtime(const sentry_path_t *path)
+{
+    struct stat buf;
+    if (stat(path->path, &buf) == 0) {
+        return (time_t)buf.st_mtime;
+    } else {
+        return 0;
+    }
+}
+
 sentry_path_t *
 sentry__path_append_str(const sentry_path_t *base, const char *suffix)
 {
@@ -452,12 +463,15 @@ sentry__path_read_to_buffer(const sentry_path_t *path, size_t *size_out)
     if (len == 0) {
         close(fd);
         char *rv = sentry_malloc(1);
-        rv[0] = '\0';
-        if (size_out) {
-            *size_out = 0;
+        if (rv) {
+            rv[0] = '\0';
+            if (size_out) {
+                *size_out = 0;
+            }
         }
         return rv;
-    } else if (len > MAX_READ_TO_BUFFER) {
+    }
+    if (len > MAX_READ_TO_BUFFER) {
         close(fd);
         return NULL;
     }

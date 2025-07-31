@@ -43,19 +43,22 @@ SENTRY_TEST(fuzz_json)
 {
     // skipping on platforms that don't have access to fixtures on the local FS
 #if defined(SENTRY_PLATFORM_ANDROID) || defined(SENTRY_PLATFORM_NX)            \
-    || defined(SENTRY_PLATFORM_PS)
+    || defined(SENTRY_PLATFORM_PS) || defined(SENTRY_PLATFORM_XBOX)
     SKIP_TEST();
 #else
     sentry_path_t *path = sentry__path_from_str(__FILE__);
+    TEST_ASSERT(!!path);
     sentry_path_t *dir = sentry__path_dir(path);
+    TEST_ASSERT(!!dir);
     sentry__path_free(path);
     path = sentry__path_join_str(dir, "../fuzzing-failures/");
+    TEST_ASSERT(!!path);
     sentry__path_free(dir);
 
     size_t items = 0;
     const sentry_path_t *p;
     sentry_pathiter_t *piter = sentry__path_iter_directory(path);
-    TEST_ASSERT(piter != NULL);
+    TEST_ASSERT(!!piter);
     while ((p = sentry__pathiter_next(piter)) != NULL) {
         parse_json_roundtrip(p);
         items += 1;

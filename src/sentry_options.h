@@ -3,6 +3,7 @@
 
 #include "sentry_boot.h"
 
+#include "sentry_attachment.h"
 #include "sentry_database.h"
 #include "sentry_logger.h"
 #include "sentry_session.h"
@@ -13,25 +14,6 @@
 #define SENTRY_DEFAULT_SHUTDOWN_TIMEOUT 2000
 
 struct sentry_backend_s;
-/**
- * The attachment_type.
- */
-typedef enum {
-    ATTACHMENT,
-    MINIDUMP,
-    VIEW_HIERARCHY,
-} sentry_attachment_type_t;
-/**
- * This is a linked list of all the attachments registered via
- * `sentry_options_add_attachment`.
- */
-typedef struct sentry_attachment_s sentry_attachment_t;
-struct sentry_attachment_s {
-    sentry_path_t *path;
-    sentry_attachment_type_t type;
-    const char *content_type;
-    sentry_attachment_t *next;
-};
 
 /**
  * This is the main options struct, which is being accessed throughout all of
