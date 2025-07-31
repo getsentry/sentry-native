@@ -815,10 +815,14 @@ sentry_envelope_deserialize(const char *buf, size_t buf_len)
             }
             item->payload_len = (size_t)(payload_end - ptr);
         } else if (sentry_value_get_type(length) == SENTRY_VALUE_TYPE_UINT64) {
-            item->payload_len = (size_t)sentry_value_as_uint64(length);
+            uint64_t payload_len = sentry_value_as_uint64(length);
+            if (payload_len >= SIZE_MAX) {
+                goto fail;
+            }
+            item->payload_len = (size_t)payload_len;
         } else {
             int64_t payload_len = sentry_value_as_int64(length);
-            if (payload_len < 0) {
+            if (payload_len < 0 || (uint64_t)payload_len >= SIZE_MAX) {
                 goto fail;
             }
             item->payload_len = (size_t)payload_len;
