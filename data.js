@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1754046272615,
+  "lastUpdate": 1754046353791,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -11626,6 +11626,66 @@ window.BENCHMARK_DATA = {
             "value": 11.11470000000736,
             "unit": "ms",
             "extra": "Min 10.552ms\nMax 12.875ms\nMean 11.414ms\nStdDev 0.888ms\nMedian 11.115ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "79bf2dbc59b2cf149913f819deb4777707e193cd",
+          "message": "ref: use SIZE_MAX in sentry_envelope_deserialize (#1328)\n\n* ref: use SIZE_MAX in sentry_envelope_deserialize\n\n* restore payload_len < 0 check\n\n* fix length parsing vuln\n\n* Update src/sentry_envelope.c\n\nCo-authored-by: JoshuaMoelans <60878493+JoshuaMoelans@users.noreply.github.com>\n\n---------\n\nCo-authored-by: JoshuaMoelans <60878493+JoshuaMoelans@users.noreply.github.com>",
+          "timestamp": "2025-08-01T13:01:26+02:00",
+          "tree_id": "fa61a69295ded8986cd7509f2eed29058bb5cb08",
+          "url": "https://github.com/getsentry/sentry-native/commit/79bf2dbc59b2cf149913f819deb4777707e193cd"
+        },
+        "date": 1754046345961,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 9.957799999995132,
+            "unit": "ms",
+            "extra": "Min 9.595ms\nMax 12.417ms\nMean 10.360ms\nStdDev 1.164ms\nMedian 9.958ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 9.66760000000022,
+            "unit": "ms",
+            "extra": "Min 9.115ms\nMax 10.323ms\nMean 9.756ms\nStdDev 0.500ms\nMedian 9.668ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 22.982800000022507,
+            "unit": "ms",
+            "extra": "Min 22.162ms\nMax 45.239ms\nMean 27.476ms\nStdDev 9.979ms\nMedian 22.983ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.012099999935344385,
+            "unit": "ms",
+            "extra": "Min 0.010ms\nMax 0.015ms\nMean 0.012ms\nStdDev 0.002ms\nMedian 0.012ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.3960999999890191,
+            "unit": "ms",
+            "extra": "Min 0.308ms\nMax 0.405ms\nMean 0.370ms\nStdDev 0.044ms\nMedian 0.396ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 11.792399999990266,
+            "unit": "ms",
+            "extra": "Min 10.983ms\nMax 15.645ms\nMean 12.491ms\nStdDev 1.851ms\nMedian 11.792ms"
           }
         ]
       }
