@@ -72,8 +72,6 @@ extern "C" {
 #ifndef SENTRY_SDK_NAME
 #    if defined(SENTRY_PLATFORM_ANDROID)
 #        define SENTRY_SDK_NAME "sentry.native.android"
-#    elif defined(SENTRY_PLATFORM_XBOX)
-#        define SENTRY_SDK_NAME "sentry.native.xbox"
 #    else
 #        define SENTRY_SDK_NAME "sentry.native"
 #    endif
