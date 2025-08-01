@@ -829,7 +829,7 @@ sentry_envelope_deserialize(const char *buf, size_t buf_len)
         }
         if (item->payload_len > 0) {
             if (ptr + item->payload_len > end
-                || item->payload_len > SIZE_MAX - 1) {
+                || item->payload_len >= SIZE_MAX) {
                 goto fail;
             }
             item->payload = sentry_malloc(item->payload_len + 1);
