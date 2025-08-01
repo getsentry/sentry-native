@@ -814,20 +814,22 @@ sentry_envelope_deserialize(const char *buf, size_t buf_len)
                 payload_end = end;
             }
             item->payload_len = (size_t)(payload_end - ptr);
+        } else if (sentry_value_get_type(length) == SENTRY_VALUE_TYPE_UINT64) {
+            uint64_t payload_len = sentry_value_as_uint64(length);
+            if (payload_len >= SIZE_MAX) {
+                goto fail;
+            }
+            item->payload_len = (size_t)payload_len;
         } else {
-            // TODO: sentry_value_as_uint64
-            // https://github.com/getsentry/sentry-native/pull/1301
-            int payload_len = sentry_value_as_int32(length);
-            if (payload_len < 0) {
+            int64_t payload_len = sentry_value_as_int64(length);
+            if (payload_len < 0 || (uint64_t)payload_len >= SIZE_MAX) {
                 goto fail;
             }
             item->payload_len = (size_t)payload_len;
         }
         if (item->payload_len > 0) {
-            // TODO: SIZE_MAX
-            // https://github.com/getsentry/sentry-native/pull/1301
             if (ptr + item->payload_len > end
-                || item->payload_len > INT32_MAX - 1) {
+                || item->payload_len >= SIZE_MAX) {
                 goto fail;
             }
             item->payload = sentry_malloc(item->payload_len + 1);
