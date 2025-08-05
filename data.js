@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1754046353791,
+  "lastUpdate": 1754381172234,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -3894,6 +3894,66 @@ window.BENCHMARK_DATA = {
             "value": 1.8406269999786673,
             "unit": "ms",
             "extra": "Min 1.780ms\nMax 1.876ms\nMean 1.832ms\nStdDev 0.035ms\nMedian 1.841ms\nCPU 0.594ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "60878493+JoshuaMoelans@users.noreply.github.com",
+            "name": "JoshuaMoelans",
+            "username": "JoshuaMoelans"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "aa0dd4b5707af1134cbd3cab8730e9e4fcdfcb11",
+          "message": "fix: add wildcard entries to valgrind suppression for pthread stack leak (#1330)",
+          "timestamp": "2025-08-05T10:02:56+02:00",
+          "tree_id": "36e09335b55bdfbcb825b1513e776d9972ae5283",
+          "url": "https://github.com/getsentry/sentry-native/commit/aa0dd4b5707af1134cbd3cab8730e9e4fcdfcb11"
+        },
+        "date": 1754381171551,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 0.7310449999806679,
+            "unit": "ms",
+            "extra": "Min 0.705ms\nMax 0.774ms\nMean 0.734ms\nStdDev 0.026ms\nMedian 0.731ms\nCPU 0.730ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.7251549999978124,
+            "unit": "ms",
+            "extra": "Min 0.703ms\nMax 0.874ms\nMean 0.751ms\nStdDev 0.070ms\nMedian 0.725ms\nCPU 0.732ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 2.905801999986579,
+            "unit": "ms",
+            "extra": "Min 2.868ms\nMax 2.999ms\nMean 2.931ms\nStdDev 0.057ms\nMedian 2.906ms\nCPU 1.497ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.012132999984260096,
+            "unit": "ms",
+            "extra": "Min 0.012ms\nMax 0.013ms\nMean 0.012ms\nStdDev 0.000ms\nMedian 0.012ms\nCPU 0.011ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.022301999990759214,
+            "unit": "ms",
+            "extra": "Min 0.022ms\nMax 0.023ms\nMean 0.022ms\nStdDev 0.001ms\nMedian 0.022ms\nCPU 0.022ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 1.8124279999938153,
+            "unit": "ms",
+            "extra": "Min 1.768ms\nMax 1.858ms\nMean 1.813ms\nStdDev 0.035ms\nMedian 1.812ms\nCPU 0.580ms"
           }
         ]
       }
