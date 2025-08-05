@@ -1734,8 +1734,8 @@ SENTRY_TEST(propagation_context_init)
         = sentry_transaction_start_child(tx, "op", "desc");
     TEST_ASSERT(!!span_child);
 
-    const char *tx_trace_id = sentry_value_as_string(
-        sentry_value_get_by_key(tx->inner, "trace_id"));
+    const char *tx_trace_id = sentry__string_clone(
+        sentry_value_as_string(sentry_value_get_by_key(tx->inner, "trace_id")));
 
     // on SDK init, the `propagation_context` is initialized with a `trace_id`
     // and `span_id`. Unless `sentry_set_trace()` has been called, which means
@@ -1760,41 +1760,10 @@ SENTRY_TEST(propagation_context_init)
     // the transaction boundary
     apply_scope_and_check_trace_context(options, tx_trace_id, "", true);
 
-    // TODO check
-    char *propagation_context_trace_id = sentry__string_clone(
-        sentry_value_as_string(sentry_value_get_by_key(tx->inner, "trace_id")));
-    TEST_ASSERT(!!propagation_context_trace_id);
-    // on SDK init, propagation_context is set with a trace_id and span_id
-    // the trace_id is used for both events and spans
-    apply_scope_and_check_trace_context(
-        options, propagation_context_trace_id, "", true);
-
-    // now generate a new trace which should be different from before
+    // now manually generate a new trace which should be different from before
     sentry_regenerate_trace();
-    // TODO transactions will always have a different trace; change to check for
-    // an event
-    //  e.g.
-    apply_scope_and_check_trace_context(
-        options, propagation_context_trace_id, "", false);
-
-    sentry_transaction_context_t *tx_ctx_2
-        = sentry_transaction_context_new("wow!", NULL);
-    TEST_ASSERT(!!tx_ctx_2);
-    sentry_transaction_t *tx_2
-        = sentry_transaction_start(tx_ctx_2, sentry_value_new_null());
-    TEST_ASSERT(!!tx_2);
-    const char *new_propagation_context_trace_id = sentry_value_as_string(
-        sentry_value_get_by_key(tx_2->inner, "trace_id"));
-    apply_scope_and_check_trace_context(
-        options, new_propagation_context_trace_id, "");
-    // ensure different trace_id before and after generate_trace()
-    TEST_ASSERT(
-        strcmp(propagation_context_trace_id, new_propagation_context_trace_id)
-        != 0);
-
-    sentry_free(propagation_context_trace_id);
-
-    sentry_transaction_finish(tx_2);
+    apply_scope_and_check_trace_context(options, tx_trace_id, "", false);
+    sentry_free(tx_trace_id);
 
     sentry_close();
 }
