@@ -30,6 +30,7 @@ from .assertions import (
     assert_inproc_crash,
     assert_session,
     assert_user_feedback,
+    assert_user_report,
     assert_minidump,
     assert_breakpad_crash,
     assert_gzip_content_encoding,
@@ -37,13 +38,13 @@ from .assertions import (
     assert_failed_proxy_auth_request,
     assert_attachment_view_hierarchy,
 )
-from .conditions import has_http, has_breakpad, has_files, has_crashpad
+from .conditions import has_http, has_breakpad, has_files
 
 pytestmark = pytest.mark.skipif(not has_http, reason="tests need http")
 
 # fmt: off
 auth_header = (
-    "Sentry sentry_key=uiaeosnrtdy, sentry_version=7, sentry_client=sentry.native/0.9.0"
+    "Sentry sentry_key=uiaeosnrtdy, sentry_version=7, sentry_client=sentry.native/0.9.1"
 )
 # fmt: on
 
@@ -168,6 +169,30 @@ def test_user_feedback_http(cmake, httpserver):
         env=env,
     )
 
+    assert len(httpserver.log) == 1
+    output = httpserver.log[0][0].get_data()
+    envelope = Envelope.deserialize(output)
+
+    assert_user_feedback(envelope)
+
+
+def test_user_report_http(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+
+    httpserver.expect_request(
+        "/api/123456/envelope/",
+        headers={"x-sentry-auth": auth_header},
+    ).respond_with_data("OK")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "capture-user-report"],
+        check=True,
+        env=env,
+    )
+
     assert len(httpserver.log) == 2
     output = httpserver.log[0][0].get_data()
     envelope = Envelope.deserialize(output)
@@ -177,7 +202,7 @@ def test_user_feedback_http(cmake, httpserver):
     output = httpserver.log[1][0].get_data()
     envelope = Envelope.deserialize(output)
 
-    assert_user_feedback(envelope)
+    assert_user_report(envelope)
 
 
 def test_exception_and_session_http(cmake, httpserver):
@@ -730,6 +755,105 @@ def test_transaction_event(cmake, httpserver):
     assert (
         trace_context["span_id"] != event.payload.json["contexts"]["trace"]["span_id"]
     )
+
+
+def test_transaction_trace_header(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+
+    httpserver.expect_oneshot_request(
+        "/api/123456/envelope/",
+        headers={"x-sentry-auth": auth_header},
+    ).respond_with_data("OK")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_RELEASE="🤮🚀")
+
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "set-trace", "capture-transaction"],
+        check=True,
+        env=env,
+    )
+
+    assert len(httpserver.log) == 1
+    event_req = httpserver.log[0][0]
+    event_body = event_req.get_data()
+
+    event_envelope = Envelope.deserialize(event_body)
+
+    # Extract the one-and-only-item
+    (event,) = event_envelope.items
+
+    payload = event.payload.json
+
+    # See https://develop.sentry.dev/sdk/data-model/event-payloads/contexts/#trace-context
+    trace_context = payload["contexts"]["trace"]
+
+    # See https://develop.sentry.dev/sdk/telemetry/traces/dynamic-sampling-context/#dsc-specification
+    trace_header = event_envelope.headers["trace"]
+    # assert for random value to exist & be in the expected range
+    assert ("sample_rand" in trace_header) and (0 <= trace_header["sample_rand"] < 1)
+    del trace_header["sample_rand"]
+    assert trace_header == {
+        "environment": "development",
+        "org_id": "",
+        "public_key": "uiaeosnrtdy",
+        "release": "test-example-release",
+        "sample_rate": 1,
+        "sampled": "true",
+        "trace_id": "aaaabbbbccccddddeeeeffff00001111",
+        "transaction": "little.teapot",
+    }
+
+    assert trace_context["trace_id"] == trace_header["trace_id"]
+
+
+def test_event_trace_header(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+
+    httpserver.expect_oneshot_request(
+        "/api/123456/envelope/",
+        headers={"x-sentry-auth": auth_header},
+    ).respond_with_data("OK")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_RELEASE="🤮🚀")
+
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "set-trace", "capture-event"],
+        check=True,
+        env=env,
+    )
+
+    assert len(httpserver.log) == 1
+    event_req = httpserver.log[0][0]
+    event_body = event_req.get_data()
+
+    event_envelope = Envelope.deserialize(event_body)
+
+    # Extract the one-and-only-item
+    (event,) = event_envelope.items
+
+    payload = event.payload.json
+
+    # See https://develop.sentry.dev/sdk/data-model/event-payloads/contexts/#trace-context
+    trace_context = payload["contexts"]["trace"]
+
+    # See https://develop.sentry.dev/sdk/telemetry/traces/dynamic-sampling-context/#dsc-specification
+    trace_header = event_envelope.headers["trace"]
+    # assert for random value to exist & be in the expected range
+    assert ("sample_rand" in trace_header) and (0 <= trace_header["sample_rand"] < 1)
+    del trace_header["sample_rand"]
+    assert trace_header == {
+        "environment": "development",
+        "org_id": "",
+        "public_key": "uiaeosnrtdy",
+        "release": "test-example-release",
+        "sample_rate": 0,  # since we don't capture-transaction
+        "sampled": "false",  # now sample_rand >= traces_sample_rate (=0)
+        "trace_id": "aaaabbbbccccddddeeeeffff00001111",
+    }
+
+    assert trace_context["trace_id"] == trace_header["trace_id"]
 
 
 def test_set_trace_event(cmake, httpserver):

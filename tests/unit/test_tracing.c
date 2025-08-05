@@ -271,7 +271,7 @@ SENTRY_TEST(basic_function_transport_transaction_ts)
     run_basic_function_transport_transaction(true);
 }
 
-SENTRY_TEST(transport_sampling_transactions)
+SENTRY_TEST(transport_sampling_transactions_set_trace)
 {
     uint64_t called_transport = 0;
 
@@ -290,6 +290,8 @@ SENTRY_TEST(transport_sampling_transactions)
 
     uint64_t sent_transactions = 0;
     for (int i = 0; i < 100; i++) {
+        // regenerate trace to re-roll `sample_rand`
+        sentry_regenerate_trace();
         sentry_transaction_context_t *tx_ctx
             = sentry_transaction_context_new("honk", "beep");
         sentry_transaction_t *tx
@@ -304,6 +306,41 @@ SENTRY_TEST(transport_sampling_transactions)
 
     // exact value is nondeterministic because of rng
     TEST_CHECK(called_transport > 50 && called_transport < 100);
+    TEST_CHECK(called_transport == sent_transactions);
+}
+
+SENTRY_TEST(transport_sampling_transactions)
+{
+    uint64_t called_transport = 0;
+
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    // Disable sessions or this test would fail if env:SENTRY_RELEASE is set.
+    sentry_options_set_auto_session_tracking(options, 0);
+
+    sentry_transport_t *transport
+        = sentry_transport_new(send_transaction_envelope_test_basic);
+    sentry_transport_set_state(transport, &called_transport);
+    sentry_options_set_transport(options, transport);
+
+    sentry_options_set_traces_sample_rate(options, 0.5);
+    sentry_init(options);
+
+    uint64_t sent_transactions = 0;
+    for (int i = 0; i < 100; i++) {
+        sentry_transaction_context_t *tx_ctx
+            = sentry_transaction_context_new("honk", "beep");
+        sentry_transaction_t *tx
+            = sentry_transaction_start(tx_ctx, sentry_value_new_null());
+        sentry_uuid_t event_id = sentry_transaction_finish(tx);
+        if (!sentry_uuid_is_nil(&event_id)) {
+            sent_transactions += 1;
+        }
+    }
+
+    sentry_close();
+    // within one trace, either all or no transactions get sampled
+    TEST_CHECK(called_transport == 0 || called_transport == 100);
     TEST_CHECK(called_transport == sent_transactions);
 }
 
@@ -1222,6 +1259,7 @@ SENTRY_TEST(txn_name_n)
     TEST_CHECK(
         sentry_value_get_type(txn_name_value) == SENTRY_VALUE_TYPE_STRING);
     const char *txn_name_str = sentry_value_as_string(txn_name_value);
+    TEST_ASSERT(!!txn_name_str);
     TEST_CHECK_STRING_EQUAL(txn_name_str, "the_txn");
 
     sentry__transaction_decref(txn);
@@ -1320,6 +1358,7 @@ SENTRY_TEST(set_tag_cuts_value_at_length_200)
     TEST_CHECK(sentry_value_get_length(tags) == 1);
     const char *cut_off
         = sentry_value_as_string(sentry_value_get_by_key(tags, "cut-off"));
+    TEST_ASSERT(!!cut_off);
     TEST_CHECK_INT_EQUAL(strlen(cut_off), 200);
 
     sentry__transaction_decref(txn);
@@ -1349,6 +1388,7 @@ SENTRY_TEST(set_trace)
 
         const char *span_id = sentry_value_as_string(
             sentry_value_get_by_key(propagation_trace_context, "span_id"));
+        TEST_ASSERT(!!span_id);
         TEST_CHECK(strlen(span_id) > 0);
     }
 
@@ -1389,6 +1429,7 @@ apply_scope_and_check_trace_context(sentry_options_t *options,
 
     const char *event_trace_parent_span_id = sentry_value_as_string(
         sentry_value_get_by_key(event_trace_context, "parent_span_id"));
+    TEST_ASSERT(!!event_trace_parent_span_id);
     TEST_CHECK_STRING_EQUAL(event_trace_parent_span_id, parent_span_id);
 
     sentry_uuid_t event_trace_span_id = sentry__value_as_uuid(
@@ -1569,12 +1610,16 @@ SENTRY_TEST(set_trace_id_with_txn)
 
     const char *tx_span_id
         = sentry_value_as_string(sentry_value_get_by_key(tx->inner, "span_id"));
+    TEST_ASSERT(!!tx_span_id);
     const char *span_child_span_id = sentry_value_as_string(
         sentry_value_get_by_key(span_child->inner, "span_id"));
+    TEST_ASSERT(!!span_child_span_id);
     const char *span_child_parent_span_id = sentry_value_as_string(
         sentry_value_get_by_key(span_child->inner, "parent_span_id"));
+    TEST_ASSERT(!!span_child_parent_span_id);
     const char *span_grandchild_parent_span_id = sentry_value_as_string(
         sentry_value_get_by_key(span_grandchild->inner, "parent_span_id"));
+    TEST_ASSERT(!!span_grandchild_parent_span_id);
     // check if (set_trace)->root->child->grandchild is connected
     TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
                                 tx->inner, "parent_span_id")),
@@ -1714,6 +1759,42 @@ SENTRY_TEST(propagation_context_init)
     // again, the trace would be the same, even if we send the event outside
     // the transaction boundary
     apply_scope_and_check_trace_context(options, tx_trace_id, "", true);
+
+    // TODO check
+    char *propagation_context_trace_id = sentry__string_clone(
+        sentry_value_as_string(sentry_value_get_by_key(tx->inner, "trace_id")));
+    TEST_ASSERT(!!propagation_context_trace_id);
+    // on SDK init, propagation_context is set with a trace_id and span_id
+    // the trace_id is used for both events and spans
+    apply_scope_and_check_trace_context(
+        options, propagation_context_trace_id, "", true);
+
+    // now generate a new trace which should be different from before
+    sentry_regenerate_trace();
+    // TODO transactions will always have a different trace; change to check for
+    // an event
+    //  e.g.
+    apply_scope_and_check_trace_context(
+        options, propagation_context_trace_id, "", false);
+
+    sentry_transaction_context_t *tx_ctx_2
+        = sentry_transaction_context_new("wow!", NULL);
+    TEST_ASSERT(!!tx_ctx_2);
+    sentry_transaction_t *tx_2
+        = sentry_transaction_start(tx_ctx_2, sentry_value_new_null());
+    TEST_ASSERT(!!tx_2);
+    const char *new_propagation_context_trace_id = sentry_value_as_string(
+        sentry_value_get_by_key(tx_2->inner, "trace_id"));
+    apply_scope_and_check_trace_context(
+        options, new_propagation_context_trace_id, "");
+    // ensure different trace_id before and after generate_trace()
+    TEST_ASSERT(
+        strcmp(propagation_context_trace_id, new_propagation_context_trace_id)
+        != 0);
+
+    sentry_free(propagation_context_trace_id);
+
+    sentry_transaction_finish(tx_2);
 
     sentry_close();
 }

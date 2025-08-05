@@ -42,13 +42,25 @@ def assert_session(envelope, extra_assertion=None):
 def assert_user_feedback(envelope):
     user_feedback = None
     for item in envelope:
-        if item.headers.get("type") == "user_report" and item.payload.json is not None:
-            user_feedback = item.payload.json
+        if item.headers.get("type") == "feedback" and item.payload.json is not None:
+            user_feedback = item.payload.json["contexts"]["feedback"]
 
     assert user_feedback is not None
     assert user_feedback["name"] == "some-name"
-    assert user_feedback["email"] == "some-email"
-    assert user_feedback["comments"] == "some-comment"
+    assert user_feedback["contact_email"] == "some-email"
+    assert user_feedback["message"] == "some-message"
+
+
+def assert_user_report(envelope):
+    user_report = None
+    for item in envelope:
+        if item.headers.get("type") == "user_report" and item.payload.json is not None:
+            user_report = item.payload.json
+
+    assert user_report is not None
+    assert user_report["name"] == "some-name"
+    assert user_report["email"] == "some-email"
+    assert user_report["comments"] == "some-comment"
 
 
 def assert_meta(
@@ -73,6 +85,8 @@ def assert_event_meta(
     transaction_data=None,
     sdk_override=None,
 ):
+    assert event["event_id"]
+
     extra = {
         "extra stuff": "some value",
         "…unicode key…": "őá…–🤮🚀¿ 한글 테스트",
@@ -91,9 +105,9 @@ def assert_event_meta(
     }
     expected_sdk = {
         "name": "sentry.native",
-        "version": "0.9.0",
+        "version": "0.9.1",
         "packages": [
-            {"name": "github:getsentry/sentry-native", "version": "0.9.0"},
+            {"name": "github:getsentry/sentry-native", "version": "0.9.1"},
         ],
     }
     if is_android:
@@ -195,7 +209,21 @@ def assert_attachment(envelope):
         "type": "attachment",
         "filename": "CMakeCache.txt",
     }
-    assert any(matches(item.headers, expected) for item in envelope)
+    assert any(
+        matches(item.headers, expected)
+        and b"This is the CMakeCache file." in item.payload.bytes
+        for item in envelope
+    )
+
+    expected = {
+        "type": "attachment",
+        "filename": "bytes.bin",
+        "content_type": "application/octet-stream",
+    }
+    assert any(
+        matches(item.headers, expected) and item.payload.bytes == b"\xc0\xff\xee"
+        for item in envelope
+    )
 
 
 def assert_attachment_view_hierarchy(envelope):
@@ -313,6 +341,7 @@ class CrashpadAttachments:
     breadcrumb2: list
     view_hierarchy: dict
     cmake_cache: int
+    bytes_bin: bytes = None
 
 
 def _unpack_breadcrumbs(payload):
@@ -327,6 +356,7 @@ def _load_crashpad_attachments(msg):
     breadcrumb2 = []
     view_hierarchy = {}
     cmake_cache = -1
+    bytes_bin = None
     for part in msg.walk():
         if part.get_filename() is not None:
             assert part.get("Content-Type") is None
@@ -342,9 +372,11 @@ def _load_crashpad_attachments(msg):
                 view_hierarchy = json.loads(part.get_payload(decode=True))
             case "CMakeCache.txt":
                 cmake_cache = len(part.get_payload(decode=True))
+            case "bytes.bin":
+                bytes_bin = part.get_payload(decode=True)
 
     return CrashpadAttachments(
-        event, breadcrumb1, breadcrumb2, view_hierarchy, cmake_cache
+        event, breadcrumb1, breadcrumb2, view_hierarchy, cmake_cache, bytes_bin
     )
 
 
@@ -384,6 +416,10 @@ def assert_crashpad_upload(req, expect_attachment=False, expect_view_hierarchy=F
         assert attachments.cmake_cache > 0
     else:
         assert attachments.cmake_cache == -1
+    if expect_attachment and (sys.platform == "win32" or sys.platform == "linux"):
+        assert attachments.bytes_bin == b"\xc0\xff\xee"
+    else:
+        assert attachments.bytes_bin == None
     if expect_view_hierarchy:
         assert_attachment_content_view_hierarchy(attachments.view_hierarchy)
     assert any(

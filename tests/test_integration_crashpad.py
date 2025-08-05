@@ -22,9 +22,12 @@ from .assertions import (
     assert_session,
     assert_gzip_file_header,
 )
-from .conditions import has_crashpad
+from .conditions import has_crashpad, is_tsan
 
-pytestmark = pytest.mark.skipif(not has_crashpad, reason="tests need crashpad backend")
+pytestmark = pytest.mark.skipif(
+    not has_crashpad or is_tsan,
+    reason="tests need crashpad backend and not run with TSAN",
+)
 
 # Windows and Linux are currently able to flush all the state on crash
 flushes_state = sys.platform != "darwin"
@@ -317,6 +320,14 @@ def test_crashpad_wer_crash(cmake, httpserver, run_args):
                 reason="crashpad doesn't support dynamic attachments on macOS",
             ),
         ),
+        pytest.param(
+            ["attachment", "attach-after-init", "clear-attachments"],
+            {},
+            marks=pytest.mark.skipif(
+                sys.platform == "darwin",
+                reason="crashpad doesn't support dynamic attachments on macOS",
+            ),
+        ),
     ],
 )
 def test_crashpad_dumping_crash(cmake, httpserver, run_args, build_args):
@@ -367,7 +378,9 @@ def test_crashpad_dumping_crash(cmake, httpserver, run_args, build_args):
     envelope = Envelope.deserialize(session.get_data())
     assert_session(envelope, {"status": "crashed", "errors": 1})
     assert_crashpad_upload(
-        multipart, expect_attachment=True, expect_view_hierarchy=True
+        multipart,
+        expect_attachment="clear-attachments" not in run_args,
+        expect_view_hierarchy="clear-attachments" not in run_args,
     )
 
 

@@ -1,14 +1,14 @@
 # Adapted by Sentry from:
-# https://github.com/microsoft/Xbox-GDK-Samples/blob/aa45b831e7a71160a69a7d13e9d74844dc6aa210/Samples/Tools/CMakeGDKExample/gxdk_xs_toolchain.cmake
+# https://github.com/microsoft/Xbox-GDK-Samples/blob/710f4bd9095d3796d07505249a7b383857e8a23f/Samples/Tools/CMakeGDKExample/gxdk_toolchain.cmake
 #
-# grdk_toolchain.cmake : CMake Toolchain file for Gaming.Xbox.Scarlett.x64
+# grdk_toolchain.cmake : CMake Toolchain file for Gaming.Xbox.XboxOne.x64
 #
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
 
 mark_as_advanced(CMAKE_TOOLCHAIN_FILE)
 
-if(_GXDK_XS_TOOLCHAIN_)
+if(_GXDK_TOOLCHAIN_)
     return()
 endif()
 
@@ -21,8 +21,8 @@ set(CMAKE_TRY_COMPILE_PLATFORM_VARIABLES GDK_VERSION)
 set(CMAKE_SYSTEM_NAME WINDOWS)
 set(CMAKE_SYSTEM_VERSION ${GDK_VERSION})
 
-set(CMAKE_GENERATOR_PLATFORM "Gaming.Xbox.Scarlett.x64" CACHE STRING "" FORCE)
-set(CMAKE_VS_PLATFORM_NAME "Gaming.Xbox.Scarlett.x64" CACHE STRING "" FORCE)
+set(CMAKE_GENERATOR_PLATFORM "Gaming.Xbox.XboxOne.x64" CACHE STRING "" FORCE)
+set(CMAKE_VS_PLATFORM_NAME "Gaming.Xbox.XboxOne.x64" CACHE STRING "" FORCE)
 
 # Ensure our platform toolset is x64
 set(CMAKE_VS_PLATFORM_TOOLSET_HOST_ARCHITECTURE "x64" CACHE STRING "" FORCE)
@@ -38,7 +38,7 @@ if(${CMAKE_VERSION} GREATER_EQUAL "3.30")
 endif()
 
 # Sets platform defines
-set(CMAKE_CXX_FLAGS_INIT "$ENV{CFLAGS} ${CMAKE_CXX_FLAGS_INIT} -D_GAMING_XBOX -D_GAMING_XBOX_SCARLETT -DWINAPI_FAMILY=WINAPI_FAMILY_GAMES -D_ATL_NO_DEFAULT_LIBS -D__WRL_NO_DEFAULT_LIB__ -D_CRT_USE_WINAPI_PARTITION_APP -D_UITHREADCTXT_SUPPORT=0 -D__WRL_CLASSIC_COM_STRICT__ /arch:AVX2 /favor:AMD64" CACHE STRING "" FORCE)
+set(CMAKE_CXX_FLAGS_INIT "$ENV{CFLAGS} ${CMAKE_CXX_FLAGS_INIT} -D_GAMING_XBOX -D_GAMING_XBOX_ONE -DWINAPI_FAMILY=WINAPI_FAMILY_GAMES -D_ATL_NO_DEFAULT_LIBS -D__WRL_NO_DEFAULT_LIB__ -D_CRT_USE_WINAPI_PARTITION_APP -D_UITHREADCTXT_SUPPORT=0 -D__WRL_CLASSIC_COM_STRICT__ /arch:AVX /favor:AMD64" CACHE STRING "" FORCE)
 
 # Set platform libraries
 set(CMAKE_CXX_STANDARD_LIBRARIES_INIT "xgameplatform.lib" CACHE STRING "" FORCE)
@@ -59,10 +59,10 @@ if(NOT GDK_DXCTool)
     find_program(
             GDK_DXCTool
             NAMES dxc
-            PATHS "${Console_SdkRoot}/${GDK_VERSION}/GXDK/bin/Scarlett"
+            PATHS "${Console_SdkRoot}/${GDK_VERSION}/GXDK/bin/XboxOne"
     )
 
     mark_as_advanced(GDK_DXCTool)
 endif()
 
-set(_GXDK_XS_TOOLCHAIN_ ON)
+set(_GXDK_TOOLCHAIN_ ON)

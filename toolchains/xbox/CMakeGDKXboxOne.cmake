@@ -1,22 +1,22 @@
 # Adapted by Sentry from:
-# https://github.com/microsoft/Xbox-GDK-Samples/blob/e5328b9c06443739ec9c7c0089a36c5743c9da15/Samples/Tools/CMakeExample/CMake/CMakeGDKScarlett.cmake
+# https://raw.githubusercontent.com/microsoft/Xbox-GDK-Samples/710f4bd9095d3796d07505249a7b383857e8a23f/Samples/Tools/CMakeExample/CMake/CMakeGDKXboxOne.cmake
 #
-# CMakeGDKScarlett.cmake : CMake definitions for Microsoft GDK targeting Xbox Series X|S
+# CMakeGDKXboxOne.cmake : CMake definitions for Microsoft GDK targeting Xbox One/Xbox One S/Xbox One X
 #
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
 
 mark_as_advanced(CMAKE_TOOLCHAIN_FILE)
 
-if(_GDK_SCARLETT_TOOLCHAIN_)
+if(_GDK_XBOX_ONE_TOOLCHAIN_)
     return()
 endif()
 
-set(XBOX_CONSOLE_TARGET "scarlett" CACHE STRING "")
-
-#--- Microsoft Game Development Kit
+set(XBOX_CONSOLE_TARGET "xboxone" CACHE STRING "")
 
 include("${CMAKE_CURRENT_LIST_DIR}/DetectGDK.cmake")
+
+message("XdkEditionTarget = ${XdkEditionTarget}")
 
 set(CMAKE_TRY_COMPILE_PLATFORM_VARIABLES GDK_VERSION BUILD_USING_BWOI)
 
@@ -93,9 +93,9 @@ endif()
 #--- Headers
 set(Console_EndpointIncludeRoot
         "${DurangoXdkInstallPath}/GXDK/gameKit/Include"
-        "${DurangoXdkInstallPath}/GXDK/gameKit/Include/Scarlett"
+        "${DurangoXdkInstallPath}/GXDK/gameKit/Include/XboxOne"
         "${DurangoXdkInstallPath}/GRDK/gameKit/Include")
-set(Console_WindowsIncludeRoot ${WINDOWS_SDK}/Include/${WINDOWS_SDK_VER})
+set(Console_WindowsIncludeRoot ${WindowsSdkDir}/Include/${SDKVersion})
 set(Console_SdkIncludeRoot
         "${Console_EndpointIncludeRoot}"
         "${Console_WindowsIncludeRoot}/um"
@@ -118,21 +118,21 @@ endif()
 set(Console_LibRoot ${WINDOWS_SDK}/Lib/${WINDOWS_SDK_VER})
 set(Console_EndpointLibRoot
         "${DurangoXdkInstallPath}/GXDK/gameKit/Lib/amd64"
-        "${DurangoXdkInstallPath}/GXDK/gameKit/Lib/amd64/Scarlett"
+        "${DurangoXdkInstallPath}/GXDK/gameKit/Lib/amd64/XboxOne"
         "${DurangoXdkInstallPath}/GRDK/gameKit/Lib/amd64")
 set(Console_SdkLibPath
         "${Console_EndpointLibRoot}"
         "${Console_LibRoot}/ucrt/x64"
         "${Console_LibRoot}/um/x64")
 
-set(Console_Libs pixevt.lib d3d12_xs.lib xgameplatform.lib xgameruntime.lib xmem.lib xg_xs.lib)
+set(Console_Libs pixevt.lib d3d12_x.lib xgameplatform.lib xgameruntime.lib xmem.lib xg_x.lib)
 
 #--- Binaries
 set(GameOSFilePath ${DurangoXdkInstallPath}/GXDK/sideload/gameos.xvd)
 
 set(Console_UCRTRedistDebug ${WINDOWS_SDK}/bin/${WINDOWS_SDK_VER}/x64/ucrt)
 if(NOT EXISTS ${Console_UCRTRedistDebug}/ucrtbased.dll)
-    message(FATAL_ERROR "ERROR: Cannot locate ucrtbased.dll in the Windows SDK (${WINDOWS_SDK_VER})")
+    message(FATAL_ERROR "ERROR: Cannot locate ucrtbased.dll in the Windows SDK (${SDKVersion})")
 endif()
 
 set(CRTPlatformToolset 143)
@@ -158,7 +158,7 @@ message("MGC Tool = ${MAKEPKG_TOOL}")
 
 find_program(DIRECTX_DXC_TOOL dxc.exe
         REQUIRED NO_SYSTEM_ENVIRONMENT_PATH NO_CMAKE_SYSTEM_PATH NO_DEFAULT_PATH
-        HINTS "${DurangoXdkInstallPath}/GXDK/bin/Scarlett")
+        HINTS "${DurangoXdkInstallPath}/GXDK/bin/XboxOne")
 
 message("DXC Compiler = ${DIRECTX_DXC_TOOL}")
 
@@ -178,8 +178,8 @@ set(Console_Defines _UNICODE UNICODE)
 # Game Core on Xbox preprocessor definitions
 set(Console_Defines ${Console_Defines} WIN32_LEAN_AND_MEAN _GAMING_XBOX WINAPI_FAMILY=WINAPI_FAMILY_GAMES)
 
-# Preprocessor definition for Xbox Series X|S
-set(Console_Defines ${Console_Defines} _GAMING_XBOX_SCARLETT)
+# Preprocessor definition for Xbox One/Xbox One S/Xbox One X
+set(Console_Defines ${Console_Defines} _GAMING_XBOX_XBOXONE)
 
 # Additional recommended preprocessor defines
 set(Console_Defines ${Console_Defines} _CRT_USE_WINAPI_PARTITION_APP _UITHREADCTXT_SUPPORT=0 __WRL_CLASSIC_COM_STRICT__)
@@ -206,19 +206,19 @@ endforeach()
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
     # /favor:AMD64
-    # /arch:AVX2
-    set(Console_ArchOptions /favor:AMD64 /arch:AVX2)
+    # /arch:AVX
+    set(Console_ArchOptions /favor:AMD64 /arch:AVX)
 
-    # Scarlett titles should use this switch to optimize the vzeroupper codegen (requires VS 2019 16.3 or later)
-    if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 19.23)
-        set(Console_ArchOptions ${Console_ArchOptions} /d2vzeroupper)
-        set(Console_ArchOptions_LTCG /d2:-vzeroupper)
+    # Xbox One titles should use this switch to optimize the vzeroupper codegen with VS 2022
+    if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 19.30)
+        set(Console_ArchOptions ${Console_ArchOptions} /d2vzeroupper-)
+        set(Console_ArchOptions_LTCG /d2:-vzeroupper-)
     endif()
 
 endif()
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-    # -march=znver2 to target AMD Hercules CPU (requires clang v9; otherwise use znver1)
-    set(Console_ArchOptions -march=$<IF:$<VERSION_GREATER_EQUAL:$<CXX_COMPILER_VERSION>,9.0>,znver2,znver1>)
+    # -march=btver2 to target AMD Jaguar CPU
+   set(Console_ArchOptions -march=btver2)
 endif()
 
-set(_GDK_SCARLETT_TOOLCHAIN_ ON)
+set(_GDK_XBOX_ONE_TOOLCHAIN_ ON)

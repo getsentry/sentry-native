@@ -6,6 +6,7 @@
 #include "sentry_database.h"
 #include "sentry_options.h"
 #include "sentry_os.h"
+#include "sentry_ringbuffer.h"
 #include "sentry_string.h"
 #include "sentry_symbolizer.h"
 #include "sentry_sync.h"
@@ -75,7 +76,8 @@ init_scope(sentry_scope_t *scope)
     scope->extra = sentry_value_new_object();
     scope->contexts = sentry_value_new_object();
     scope->propagation_context = sentry_value_new_object();
-    scope->breadcrumbs = sentry_value_new_list();
+    scope->breadcrumbs = sentry__ringbuffer_new(SENTRY_BREADCRUMBS_MAX);
+    scope->dynamic_sampling_context = sentry_value_new_object();
     scope->level = SENTRY_LEVEL_ERROR;
     scope->client_sdk = sentry_value_new_null();
     scope->attachments = NULL;
@@ -110,7 +112,8 @@ cleanup_scope(sentry_scope_t *scope)
     sentry_value_decref(scope->extra);
     sentry_value_decref(scope->contexts);
     sentry_value_decref(scope->propagation_context);
-    sentry_value_decref(scope->breadcrumbs);
+    sentry__ringbuffer_free(scope->breadcrumbs);
+    sentry_value_decref(scope->dynamic_sampling_context);
     sentry_value_decref(scope->client_sdk);
     sentry__attachments_free(scope->attachments);
     sentry__transaction_decref(scope->transaction_object);
@@ -180,7 +183,7 @@ sentry__scope_free(sentry_scope_t *scope)
     sentry_free(scope);
 }
 
-#if !defined(SENTRY_PLATFORM_NX) && !defined(SENTRY_PLATFORM_PS)
+#if !defined(SENTRY_PLATFORM_NX)
 static void
 sentry__foreach_stacktrace(
     sentry_value_t event, void (*func)(sentry_value_t stacktrace))
@@ -299,10 +302,11 @@ get_span_or_transaction(const sentry_scope_t *scope)
 sentry_value_t
 sentry__scope_get_span_or_transaction(void)
 {
+    sentry_value_t result = sentry_value_new_null();
     SENTRY_WITH_SCOPE (scope) {
-        return get_span_or_transaction(scope);
+        result = get_span_or_transaction(scope);
     }
-    return sentry_value_new_null();
+    return result;
 }
 #endif
 
@@ -514,14 +518,14 @@ sentry__scope_apply_to_event(const sentry_scope_t *scope,
         sentry_value_t event_breadcrumbs
             = sentry_value_get_by_key(event, "breadcrumbs");
         sentry_value_t scope_breadcrumbs
-            = sentry__value_ring_buffer_to_list(scope->breadcrumbs);
+            = sentry__ringbuffer_to_list(scope->breadcrumbs);
         sentry_value_set_by_key(event, "breadcrumbs",
             merge_breadcrumbs(event_breadcrumbs, scope_breadcrumbs,
                 options->max_breadcrumbs));
         sentry_value_decref(scope_breadcrumbs);
     }
 
-#if !defined(SENTRY_PLATFORM_NX) && !defined(SENTRY_PLATFORM_PS)
+#if !defined(SENTRY_PLATFORM_NX)
     if (mode & SENTRY_SCOPE_MODULES) {
         sentry_value_t modules = sentry_get_modules_list();
         if (!sentry_value_is_null(modules)) {
@@ -546,13 +550,7 @@ sentry__scope_apply_to_event(const sentry_scope_t *scope,
 void
 sentry_scope_add_breadcrumb(sentry_scope_t *scope, sentry_value_t breadcrumb)
 {
-    size_t max_breadcrumbs = SENTRY_BREADCRUMBS_MAX;
-    SENTRY_WITH_OPTIONS (options) {
-        max_breadcrumbs = options->max_breadcrumbs;
-    }
-
-    sentry__value_append_ringbuffer(
-        scope->breadcrumbs, breadcrumb, max_breadcrumbs);
+    sentry__ringbuffer_append(scope->breadcrumbs, breadcrumb);
 }
 
 void
@@ -685,9 +683,26 @@ sentry_attachment_t *
 sentry_scope_attach_file_n(
     sentry_scope_t *scope, const char *path, size_t path_len)
 {
-    sentry_path_t *attachment = sentry__path_from_str_n(path, path_len);
-    return sentry__attachments_add(
-        &scope->attachments, attachment, ATTACHMENT, NULL);
+    return sentry__attachments_add_path(&scope->attachments,
+        sentry__path_from_str_n(path, path_len), ATTACHMENT, NULL);
+}
+
+sentry_attachment_t *
+sentry_scope_attach_bytes(sentry_scope_t *scope, const char *buf,
+    size_t buf_len, const char *filename)
+{
+    return sentry_scope_attach_bytes_n(
+        scope, buf, buf_len, filename, sentry__guarded_strlen(filename));
+}
+
+sentry_attachment_t *
+sentry_scope_attach_bytes_n(sentry_scope_t *scope, const char *buf,
+    size_t buf_len, const char *filename, size_t filename_len)
+{
+    return sentry__attachments_add(&scope->attachments,
+        sentry__attachment_from_buffer(
+            buf, buf_len, sentry__path_from_str_n(filename, filename_len)),
+        ATTACHMENT, NULL);
 }
 
 #ifdef SENTRY_PLATFORM_WINDOWS
@@ -702,8 +717,26 @@ sentry_attachment_t *
 sentry_scope_attach_filew_n(
     sentry_scope_t *scope, const wchar_t *path, size_t path_len)
 {
-    sentry_path_t *attachment = sentry__path_from_wstr_n(path, path_len);
-    return sentry__attachments_add(
-        &scope->attachments, attachment, ATTACHMENT, NULL);
+    return sentry__attachments_add_path(&scope->attachments,
+        sentry__path_from_wstr_n(path, path_len), ATTACHMENT, NULL);
+}
+
+sentry_attachment_t *
+sentry_scope_attach_bytesw(sentry_scope_t *scope, const char *buf,
+    size_t buf_len, const wchar_t *filename)
+{
+    size_t filename_len = filename ? wcslen(filename) : 0;
+    return sentry_scope_attach_bytesw_n(
+        scope, buf, buf_len, filename, filename_len);
+}
+
+sentry_attachment_t *
+sentry_scope_attach_bytesw_n(sentry_scope_t *scope, const char *buf,
+    size_t buf_len, const wchar_t *filename, size_t filename_len)
+{
+    return sentry__attachments_add(&scope->attachments,
+        sentry__attachment_from_buffer(
+            buf, buf_len, sentry__path_from_wstr_n(filename, filename_len)),
+        ATTACHMENT, NULL);
 }
 #endif

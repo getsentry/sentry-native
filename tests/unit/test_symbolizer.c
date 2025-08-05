@@ -30,7 +30,7 @@ asserter(const sentry_frame_info_t *info, void *data)
 
 SENTRY_TEST(symbolizer)
 {
-#if defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_PS)
+#if defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_XBOX)
     return SKIP_TEST();
 #endif
     int called = 0;

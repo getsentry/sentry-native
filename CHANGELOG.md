@@ -2,11 +2,49 @@
 
 ## Unreleased
 
+**Breaking changes**:
+- Change transaction sampling to be trace-based. Now, for a given `traces_sample_rate`, either all transactions in a trace get sampled or none do with probability equal to that sample rate. ([#1254](https://github.com/getsentry/sentry-native/pull/1254))
+
 **Features**:
 
-- The `sentry_attach_file`, `sentry_scope_attach_file` (and their wide-string variants), and `sentry_remove_attachment` have been added to modify the list of attachments that are sent along with sentry events after a call to `sentry_init`. ([#1266](https://github.com/getsentry/sentry-native/pull/1266))
+- Add `sentry_clear_attachments()` to allow clearing all previously added attachments in the global scope. ([#1290](https://github.com/getsentry/sentry-native/pull/1290))
+- Compiles also on Xbox One ([#1294](https://github.com/getsentry/sentry-native/pull/1294))
+- Provide `sentry_regenerate_trace()` to allow users to set manual trace boundaries. ([#1293](https://github.com/getsentry/sentry-native/pull/1293))
+- Add `Dynamic Sampling Context (DSC)` to events. ([#1254](https://github.com/getsentry/sentry-native/pull/1254))
+- Add `sentry_value_new_feedback` and `sentry_capture_feedback` to allow capturing [User Feedback](https://develop.sentry.dev/sdk/data-model/envelope-items/#user-feedback). ([#1304](https://github.com/getsentry/sentry-native/pull/1304))
+  - Deprecate `sentry_value_new_user_feedback` and `sentry_capture_user_feedback` in favor of the new API.
+- Add `sentry_envelope_read_from_file`, `sentry_envelope_get_header`, and `sentry_capture_envelope`. ([#1320](https://github.com/getsentry/sentry-native/pull/1320))
+- Add `(u)int64` `sentry_value_t` type. ([#1326](https://github.com/getsentry/sentry-native/pull/1326))
+
+**Fixes**:
+
+- Update Xbox toolchain to include `UseDebugLibraries` fix for Debug builds. ([#1302](https://github.com/getsentry/sentry-native/pull/1302))
+- Fix GDK version selection for Xbox by propagating `XdkEditionTarget` to MSBuild. ([#1312](https://github.com/getsentry/sentry-native/pull/1312))
+
+**Meta**:
+
+- Marked deprecated functions with `SENTRY_DEPRECATED(msg)`. ([#1308](https://github.com/getsentry/sentry-native/pull/1308))
+
+**Internal:**
+
+- Crash events from Crashpad now have `event_id` defined similarly to other backends. This makes it possible to associate feedback at the time of crash. ([#1319](https://github.com/getsentry/sentry-native/pull/1319))
+
+## 0.9.1
+
+**Features**:
+
+- The `sentry_attach_file/bytes`, `sentry_scope_attach_file/bytes` (and their wide-string variants), and `sentry_remove_attachment` have been added to modify the list of attachments that are sent along with sentry events after a call to `sentry_init`. ([#1266](https://github.com/getsentry/sentry-native/pull/1266), [#1275](https://github.com/getsentry/sentry-native/pull/1275))
   - NOTE: When using the `crashpad` backend on macOS, the list of attachments that will be added at the time of a hard crash will be frozen at the time of `sentry_init`, and later modifications will not be reflected.
 - Add `sentry_attachment_set_content_type` to allow specifying the content type of attachments. ([#1276](https://github.com/getsentry/sentry-native/pull/1276))
+- Add `sentry_attachment_set_filename` to allow specifying the filename of attachments displayed in the Sentry WebUI. ([#1285](https://github.com/getsentry/sentry-native/pull/1285))
+
+**Meta**:
+
+- Identify Xbox as a separate SDK name `sentry.native.xbox`. ([#1287](https://github.com/getsentry/sentry-native/pull/1287))
+
+**Internal**:
+
+- Updated `breakpad` to 2025-06-13. ([#1277](https://github.com/getsentry/sentry-native/pull/1277), [breakpad#41](https://github.com/getsentry/breakpad/pull/41))
 
 ## 0.9.0
 

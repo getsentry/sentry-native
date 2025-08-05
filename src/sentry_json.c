@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <errno.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -368,6 +369,30 @@ sentry__jsonwriter_write_int32(sentry_jsonwriter_t *jw, int32_t val)
 }
 
 void
+sentry__jsonwriter_write_int64(sentry_jsonwriter_t *jw, int64_t val)
+{
+    if (can_write_item(jw)) {
+        char buf[24];
+        snprintf(buf, sizeof(buf), "%" PRId64, val);
+        write_str(jw, buf);
+    }
+}
+
+void
+sentry__jsonwriter_write_uint64(sentry_jsonwriter_t *jw, uint64_t val)
+{
+    // TODO currently all uint64 values should be sent as strings; update when
+    // this changes and 64-bit unsigned integers can be ingested properly
+    // see
+    // https://github.com/getsentry/sentry-native/pull/1326#discussion_r2241965997
+    if (can_write_item(jw)) {
+        char buf[26];
+        snprintf(buf, sizeof(buf), "\"%" PRIu64 "\"", val);
+        write_str(jw, buf);
+    }
+}
+
+void
 sentry__jsonwriter_write_double(sentry_jsonwriter_t *jw, double val)
 {
     if (can_write_item(jw)) {
@@ -592,17 +617,39 @@ tokens_to_value(jsmntok_t *tokens, size_t token_count, const char *buf,
             rv = sentry_value_new_null();
             break;
         default: {
-            double val = sentry__strtod_c(buf + root->start, NULL);
-#ifdef __clang__
-#    pragma clang diagnostic push
-#    pragma clang diagnostic ignored "-Wfloat-equal"
-#endif
-            if (val == (double)(int32_t)val) {
-#ifdef __clang__
-#    pragma clang diagnostic pop
-#endif
-                rv = sentry_value_new_int32((int32_t)val);
+            bool success = false;
+            char *endptr;
+            errno = 0;
+
+            if (buf[root->start] == '-') {
+                const long long ll_val
+                    = strtoll(buf + root->start, &endptr, 10);
+                if (endptr == buf + root->end && errno == 0) {
+                    if (ll_val >= INT32_MIN && ll_val <= INT32_MAX) {
+                        rv = sentry_value_new_int32((int32_t)ll_val);
+                    } else {
+                        rv = sentry_value_new_int64((int64_t)ll_val);
+                    }
+                    success = true;
+                }
             } else {
+                const unsigned long long ull_val
+                    = strtoull(buf + root->start, &endptr, 10);
+                if (endptr == buf + root->end && errno == 0) {
+                    if (ull_val <= INT32_MAX) {
+                        rv = sentry_value_new_int32((int32_t)ull_val);
+                    } else if (ull_val <= INT64_MAX) {
+                        rv = sentry_value_new_int64((int64_t)ull_val);
+                    } else {
+                        rv = sentry_value_new_uint64((uint64_t)ull_val);
+                    }
+                    success = true;
+                }
+            }
+
+            // Both failed, fallback to double
+            if (!success) {
+                double val = sentry__strtod_c(buf + root->start, NULL);
                 rv = sentry_value_new_double(val);
             }
             break;

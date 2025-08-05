@@ -22,8 +22,11 @@ sentry_target_sources_cwd(sentry
 	sentry_os.c
 	sentry_os.h
 	sentry_path.h
+	sentry_process.h
 	sentry_ratelimiter.c
 	sentry_ratelimiter.h
+	sentry_ringbuffer.c
+	sentry_ringbuffer.h
 	sentry_sampling_context.h
 	sentry_scope.c
 	sentry_scope.h
@@ -63,12 +66,14 @@ if(WIN32)
 		sentry_windows_dbghelp.c
 		sentry_windows_dbghelp.h
 		path/sentry_path_windows.c
+		process/sentry_process_windows.c
 		symbolizer/sentry_symbolizer_windows.c
 	)
 elseif(NX OR PROSPERO)
 	sentry_target_sources_cwd(sentry
 		sentry_unix_spinlock.h
 		path/sentry_path_unix.c
+		process/sentry_process_none.c
 	)
 else()
 	sentry_target_sources_cwd(sentry
@@ -79,6 +84,7 @@ else()
 		sentry_unix_spinlock.h
 		symbolizer/sentry_symbolizer_unix.c
 		path/sentry_path_unix.c
+		process/sentry_process_unix.c
 	)
 endif()
 
@@ -149,9 +155,10 @@ endif()
 if(SENTRY_WITH_LIBUNWIND)
 	target_compile_definitions(sentry PRIVATE SENTRY_WITH_UNWINDER_LIBUNWIND)
 	sentry_target_sources_cwd(sentry
-			unwinder/sentry_unwinder_libunwind.c
+		unwinder/sentry_unwinder_libunwind.c
 	)
 endif()
+
 if(SENTRY_WITH_LIBUNWINDSTACK)
 	target_compile_definitions(sentry PRIVATE SENTRY_WITH_UNWINDER_LIBUNWINDSTACK)
 	sentry_target_sources_cwd(sentry
@@ -164,6 +171,10 @@ if(WIN32)
 	sentry_target_sources_cwd(sentry
 		unwinder/sentry_unwinder_dbghelp.c
 	)
+endif()
+
+if(PROSPERO)
+	target_compile_definitions(sentry PRIVATE SENTRY_WITH_UNWINDER_PS)
 endif()
 
 # integrations

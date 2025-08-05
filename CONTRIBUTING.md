@@ -153,8 +153,9 @@ The example currently supports the following commands:
 - `log`: Enables debug logging.
 - `release-env`: Uses the `SENTRY_RELEASE` env-variable for the release,
   instead of a hardcoded value.
-- `attachment`: Adds an attachment, which is currently defined as the
-  `CMakeCache.txt` file, which is part of the CMake build folder.
+- `attachment`: Adds file and byte attachments, which are currently defined as the
+  `CMakeCache.txt` file, which is part of the CMake build folder, and a byte array
+  named as `bytes.bin`.
 - `attach-after-init`: Same as `attachment` but after the SDK has been initialized.
 - `stdout`: Uses a custom transport which dumps all envelopes to `stdout`.
 - `no-setup`: Skips all scope and breadcrumb initialization code.
@@ -187,6 +188,8 @@ The example currently supports the following commands:
 - `set-trace`: Sets the scope `propagation_context`'s trace data to the given `trace_id="aaaabbbbccccddddeeeeffff00001111"` and `parent_span_id=""f0f0f0f0f0f0f0f0"`.
 - `capture-with-scope`: Captures an event with a local scope.
 - `attach-to-scope`: Same as `attachment` but attaches the file to the local scope.
+- `clear-attachments`: Clears all attachments from the global scope.
+- `capture-user-feedback`: Captures a user feedback event.
 
 Only on Linux using crashpad:
 - `crashpad-wait-for-upload`: Couples application shutdown to complete the upload in the `crashpad_handler`.
@@ -208,3 +211,24 @@ Creates a python virtualenv, and runs all the benchmarks through `pytest`.
 
 When all the python dependencies have been installed, the benchmarks can also be
 invoked directly.
+
+## Handling locks
+
+There are a couple of rules based on the current usage of mutexes in the Native SDK that should always be 
+applied in order not to have to fight boring concurrency bugs:
+
+* we use recursive mutexes throughout the code-base
+* these primarily allow us to call public interfaces from internal code instead of having a layer in-between
+* but they come at the risk of less clarity whether a lock release still leaves a live lock 
+* they should not be considered as convenience:
+  * reduce the amount of recursive locking to an absolute minimum
+  * instead of retrieval via global locks, pass shared state like `options` or `scope` around in internal helpers 
+  * or better yet: extract what you need into locals, then release the lock early
+* we provide lexical scope macros `SENTRY_WITH_OPTIONS` and `SENTRY_WITH_SCOPE` (and variants) as convenience wrappers
+* if you use them be aware of the following:
+  * as mentioned above, while the macros are convenience, their lexical scope should be as short as possible
+  * avoid nesting them unless strictly necessary
+  * if you nest them (directly or via callees), the `options` lock **must always be acquired before** the `scope` lock
+  * never early-return or jump (via `goto` or `return`) from within a `SENTRY_WITH_*` block: doing so skips the corresponding release or cleanup
+  * in particular, since `options` are readonly after `sentry_init()` the lock is only acquired to increment the refcount for the duration of `SENTRY_WITH_OPTIONS`
+  * however, `SENTRY_WITH_SCOPE` (and variants) always hold the lock for the entirety of their lexical scope
