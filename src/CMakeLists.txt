@@ -116,6 +116,11 @@ elseif(SENTRY_TRANSPORT_WINHTTP)
 	sentry_target_sources_cwd(sentry
 		transports/sentry_transport_winhttp.c
 	)
+	if (XBOX)
+		sentry_target_sources_cwd(sentry
+			transports/sentry_transport_xnetworking.cpp
+		)
+	endif()
 elseif(SENTRY_TRANSPORT_NONE)
 	sentry_target_sources_cwd(sentry
 		transports/sentry_transport_none.c

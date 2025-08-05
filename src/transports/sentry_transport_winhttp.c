@@ -13,6 +13,10 @@
 #include <string.h>
 #include <winhttp.h>
 
+#ifdef SENTRY_PLATFORM_XBOX
+HRESULT sentry__transport_ensure_network_initialized();
+#endif // SENTRY_PLATFORM_XBOX
+
 typedef struct {
     sentry_dsn_t *dsn;
     wchar_t *user_agent;
@@ -38,6 +42,31 @@ sentry__winhttp_bgworker_state_new(void)
     state->ratelimiter = sentry__rate_limiter_new();
 
     return state;
+}
+
+static void
+sentry__winhttp_session_start(void *_state)
+{
+    winhttp_bgworker_state_t *state = _state;
+    if (state->proxy) {
+        state->session
+            = WinHttpOpen(state->user_agent, WINHTTP_ACCESS_TYPE_NAMED_PROXY,
+                state->proxy, WINHTTP_NO_PROXY_BYPASS, 0);
+    } else {
+#if _WIN32_WINNT >= 0x0603
+        state->session = WinHttpOpen(state->user_agent,
+            WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY, WINHTTP_NO_PROXY_NAME,
+            WINHTTP_NO_PROXY_BYPASS, 0);
+#endif
+        // On windows 8.0 or lower, WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY does
+        // not work on error we fallback to
+        // WINHTTP_ACCESS_TYPE_DEFAULT_PROXY
+        if (!state->session) {
+            state->session = WinHttpOpen(state->user_agent,
+                WINHTTP_ACCESS_TYPE_DEFAULT_PROXY, WINHTTP_NO_PROXY_NAME,
+                WINHTTP_NO_PROXY_BYPASS, 0);
+        }
+    }
 }
 
 static void
@@ -118,28 +147,14 @@ sentry__winhttp_transport_start(
         }
     }
 
-    if (state->proxy) {
-        state->session
-            = WinHttpOpen(state->user_agent, WINHTTP_ACCESS_TYPE_NAMED_PROXY,
-                state->proxy, WINHTTP_NO_PROXY_BYPASS, 0);
-    } else {
-#if _WIN32_WINNT >= 0x0603
-        state->session = WinHttpOpen(state->user_agent,
-            WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY, WINHTTP_NO_PROXY_NAME,
-            WINHTTP_NO_PROXY_BYPASS, 0);
-#endif
-        // On windows 8.0 or lower, WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY does
-        // not work on error we fallback to WINHTTP_ACCESS_TYPE_DEFAULT_PROXY
-        if (!state->session) {
-            state->session = WinHttpOpen(state->user_agent,
-                WINHTTP_ACCESS_TYPE_DEFAULT_PROXY, WINHTTP_NO_PROXY_NAME,
-                WINHTTP_NO_PROXY_BYPASS, 0);
-        }
-    }
+#ifndef SENTRY_PLATFORM_XBOX
+    sentry__winhttp_session_start(state);
+
     if (!state->session) {
         SENTRY_WARN("`WinHttpOpen` failed");
         return 1;
     }
+#endif // !SENTRY_PLATFORM_XBOX
 
     return sentry__bgworker_start(bgworker);
 }
@@ -186,6 +201,20 @@ sentry__winhttp_send_task(void *_envelope, void *_state)
 {
     sentry_envelope_t *envelope = (sentry_envelope_t *)_envelope;
     winhttp_bgworker_state_t *state = (winhttp_bgworker_state_t *)_state;
+
+#ifdef SENTRY_PLATFORM_XBOX
+    if (!state->session) {
+        SENTRY_DEBUG(
+            "ensuring xbox network is initialized for WinHttp transport");
+        sentry__transport_ensure_network_initialized();
+        sentry__winhttp_session_start(state);
+
+        if (!state->session) {
+            SENTRY_WARN("`WinHttpOpen` failed");
+            return;
+        }
+    }
+#endif // SENTRY_PLATFORM_XBOX
 
     uint64_t started = sentry__monotonic_time();
 
