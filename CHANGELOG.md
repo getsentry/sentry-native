@@ -3,12 +3,15 @@
 ## Unreleased
 
 **Breaking changes**:
+
 - Change transaction sampling to be trace-based. Now, for a given `traces_sample_rate`, either all transactions in a trace get sampled or none do with probability equal to that sample rate. ([#1254](https://github.com/getsentry/sentry-native/pull/1254))
+- By using transactions as automatic trace boundaries, transactions will, by default, no longer be part of the same singular trace. This is not the case when setting trace boundaries explicitly (`sentry_regenerate_trace()` or `sentry_set_trace()`) which turns off the automatic management of trace boundaries.
 
 **Features**:
 
 - Add `sentry_clear_attachments()` to allow clearing all previously added attachments in the global scope. ([#1290](https://github.com/getsentry/sentry-native/pull/1290))
 - Compiles also on Xbox One ([#1294](https://github.com/getsentry/sentry-native/pull/1294))
+- Automatically set trace boundaries with every transaction. ([#1270](https://github.com/getsentry/sentry-native/pull/1270))
 - Provide `sentry_regenerate_trace()` to allow users to set manual trace boundaries. ([#1293](https://github.com/getsentry/sentry-native/pull/1293))
 - Add `Dynamic Sampling Context (DSC)` to events. ([#1254](https://github.com/getsentry/sentry-native/pull/1254))
 - Add `sentry_value_new_feedback` and `sentry_capture_feedback` to allow capturing [User Feedback](https://develop.sentry.dev/sdk/data-model/envelope-items/#user-feedback). ([#1304](https://github.com/getsentry/sentry-native/pull/1304))
