@@ -187,6 +187,8 @@ typedef enum {
     SENTRY_VALUE_TYPE_NULL,
     SENTRY_VALUE_TYPE_BOOL,
     SENTRY_VALUE_TYPE_INT32,
+    SENTRY_VALUE_TYPE_INT64,
+    SENTRY_VALUE_TYPE_UINT64,
     SENTRY_VALUE_TYPE_DOUBLE,
     SENTRY_VALUE_TYPE_STRING,
     SENTRY_VALUE_TYPE_LIST,
@@ -249,6 +251,16 @@ SENTRY_API sentry_value_t sentry_value_new_null(void);
  * Creates a new 32-bit signed integer value.
  */
 SENTRY_API sentry_value_t sentry_value_new_int32(int32_t value);
+
+/**
+ * Creates a new 64-bit signed integer value.
+ */
+SENTRY_API sentry_value_t sentry_value_new_int64(int64_t value);
+
+/**
+ * Creates a new 64-bit unsigned integer value.
+ */
+SENTRY_API sentry_value_t sentry_value_new_uint64(uint64_t value);
 
 /**
  * Creates a new double value.
@@ -387,6 +399,16 @@ SENTRY_API size_t sentry_value_get_length(sentry_value_t value);
  * Converts a value into a 32bit signed integer.
  */
 SENTRY_API int32_t sentry_value_as_int32(sentry_value_t value);
+
+/**
+ * Converts a value into a 64-bit signed integer.
+ */
+SENTRY_API int64_t sentry_value_as_int64(sentry_value_t value);
+
+/**
+ * Converts a value into a 64-bit unsigned integer.
+ */
+SENTRY_API uint64_t sentry_value_as_uint64(sentry_value_t value);
 
 /**
  * Converts a value into a double value.
@@ -663,6 +685,16 @@ typedef struct sentry_envelope_s sentry_envelope_t;
 SENTRY_API void sentry_envelope_free(sentry_envelope_t *envelope);
 
 /**
+ * Given an Envelope, returns the header if present.
+ *
+ * This returns a borrowed value to the headers in the Envelope.
+ */
+SENTRY_API sentry_value_t sentry_envelope_get_header(
+    const sentry_envelope_t *envelope, const char *key);
+SENTRY_API sentry_value_t sentry_envelope_get_header_n(
+    const sentry_envelope_t *envelope, const char *key, size_t key_len);
+
+/**
  * Given an Envelope, returns the embedded Event if there is one.
  *
  * This returns a borrowed value to the Event in the Envelope.
@@ -697,6 +729,44 @@ SENTRY_API int sentry_envelope_write_to_file(
     const sentry_envelope_t *envelope, const char *path);
 SENTRY_API int sentry_envelope_write_to_file_n(
     const sentry_envelope_t *envelope, const char *path, size_t path_len);
+
+/**
+ * De-serializes an envelope.
+ *
+ * The return value needs to be freed with sentry_envelope_free().
+ *
+ * Returns NULL on failure.
+ */
+SENTRY_API sentry_envelope_t *sentry_envelope_deserialize(
+    const char *buf, size_t buf_len);
+
+/**
+ * De-serializes an envelope from a file.
+ *
+ * `path` is assumed to be in platform-specific filesystem path encoding.
+ *
+ * API Users on windows are encouraged to use `sentry_envelope_read_from_filew`
+ * instead.
+ */
+SENTRY_API sentry_envelope_t *sentry_envelope_read_from_file(const char *path);
+SENTRY_API sentry_envelope_t *sentry_envelope_read_from_file_n(
+    const char *path, size_t path_len);
+
+#ifdef SENTRY_PLATFORM_WINDOWS
+/**
+ * Wide char versions of `sentry_envelope_read_from_file` and
+ * `sentry_envelope_read_from_file_n`.
+ */
+SENTRY_API sentry_envelope_t *sentry_envelope_read_from_filew(
+    const wchar_t *path);
+SENTRY_API sentry_envelope_t *sentry_envelope_read_from_filew_n(
+    const wchar_t *path, size_t path_len);
+#endif
+
+/**
+ * Submits an envelope, first checking for consent.
+ */
+SENTRY_API void sentry_capture_envelope(sentry_envelope_t *envelope);
 
 /**
  * The Sentry Client Options.
