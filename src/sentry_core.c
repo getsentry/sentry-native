@@ -1014,8 +1014,6 @@ sentry_regenerate_trace(void)
 {
     SENTRY_WITH_SCOPE_MUT (scope) {
         generate_propagation_context(scope->propagation_context);
-
-        // TODO: changing this should actually fail a test
         scope->trace_managed = false;
     }
 }

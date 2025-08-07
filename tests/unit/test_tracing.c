@@ -1395,10 +1395,8 @@ SENTRY_TEST(set_trace)
     sentry_close();
 }
 
-void
-apply_scope_and_check_trace_context(sentry_options_t *options,
-    const char *trace_id, const char *parent_span_id,
-    bool assume_trace_equality)
+sentry_value_t
+apply_scope_for_trace_context(sentry_options_t *options)
 {
     // simulate scope application onto an event
     sentry_value_t event = sentry_value_new_object();
@@ -1418,9 +1416,18 @@ apply_scope_and_check_trace_context(sentry_options_t *options,
     TEST_CHECK(
         sentry_value_get_type(event_trace_context) == SENTRY_VALUE_TYPE_OBJECT);
 
-    // check trace context content
+    sentry_value_incref(event_trace_context);
+    sentry_value_decref(event);
+
+    return event_trace_context;
+}
+
+void
+check_trace_context(sentry_value_t trace_context, const char *trace_id,
+    const char *parent_span_id, bool assume_trace_equality)
+{
     const char *event_trace_id = sentry_value_as_string(
-        sentry_value_get_by_key(event_trace_context, "trace_id"));
+        sentry_value_get_by_key(trace_context, "trace_id"));
     if (assume_trace_equality) {
         TEST_CHECK_STRING_EQUAL(event_trace_id, trace_id);
     } else {
@@ -1428,15 +1435,25 @@ apply_scope_and_check_trace_context(sentry_options_t *options,
     }
 
     const char *event_trace_parent_span_id = sentry_value_as_string(
-        sentry_value_get_by_key(event_trace_context, "parent_span_id"));
+        sentry_value_get_by_key(trace_context, "parent_span_id"));
     TEST_ASSERT(!!event_trace_parent_span_id);
     TEST_CHECK_STRING_EQUAL(event_trace_parent_span_id, parent_span_id);
 
     sentry_uuid_t event_trace_span_id = sentry__value_as_uuid(
-        sentry_value_get_by_key(event_trace_context, "span_id"));
+        sentry_value_get_by_key(trace_context, "span_id"));
     TEST_CHECK(!sentry_uuid_is_nil(&event_trace_span_id));
 
-    sentry_value_decref(event);
+    sentry_value_decref(trace_context);
+}
+
+void
+apply_scope_and_check_trace_context(sentry_options_t *options,
+    const char *trace_id, const char *parent_span_id,
+    bool assume_trace_equality)
+{
+    sentry_value_t event_trace_context = apply_scope_for_trace_context(options);
+    check_trace_context(
+        event_trace_context, trace_id, parent_span_id, assume_trace_equality);
 }
 
 SENTRY_TEST(scoped_txn)
@@ -1762,9 +1779,33 @@ SENTRY_TEST(propagation_context_init)
 
     // now manually generate a new trace which should be different from before
     sentry_regenerate_trace();
-    apply_scope_and_check_trace_context(options, tx_trace_id, "", false);
+    sentry_value_t regenerated_trace = apply_scope_for_trace_context(options);
+    char *regenerated_trace_id = sentry__string_clone(sentry_value_as_string(
+        sentry_value_get_by_key(regenerated_trace, "trace_id")));
+
+    check_trace_context(regenerated_trace, tx_trace_id, "", false);
     sentry_free(tx_trace_id);
 
+    // once a trace has been regenerated manually, the user is responsible to
+    // manage the traces. From then on transactions no longer act as trace
+    // boundaries.
+    sentry_transaction_context_t *tx_ctx2
+        = sentry_transaction_context_new("wow!", NULL);
+    TEST_ASSERT(!!tx_ctx2);
+    sentry_transaction_t *tx2
+        = sentry_transaction_start(tx_ctx2, sentry_value_new_null());
+    TEST_ASSERT(!!tx2);
+    char *tx_trace_id2 = sentry__string_clone(sentry_value_as_string(
+        sentry_value_get_by_key(tx2->inner, "trace_id")));
+
+    // regenerating the trace turned off automatic trace management, so we that
+    // the transaction has the same trace_id as the one being applied after
+    // regenerating the trace previously.
+    TEST_CHECK_STRING_EQUAL(regenerated_trace_id, tx_trace_id2);
+    sentry_transaction_finish(tx2);
+
+    sentry_free(tx_trace_id2);
+    sentry_free(regenerated_trace_id);
     sentry_close();
 }
 
