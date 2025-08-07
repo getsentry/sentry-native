@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1754563841057,
+  "lastUpdate": 1754563874780,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -12166,6 +12166,66 @@ window.BENCHMARK_DATA = {
             "value": 10.356500000000324,
             "unit": "ms",
             "extra": "Min 10.298ms\nMax 10.507ms\nMean 10.374ms\nStdDev 0.086ms\nMedian 10.357ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "6349682+vaind@users.noreply.github.com",
+            "name": "Ivan Dlugos",
+            "username": "vaind"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "305dec3449cf43975d7987510382f7149c435115",
+          "message": "chore: move xbox toolchain to sentry-xbox repository (#1329)\n\n* chore: move xbox toolchain to sentry-xbox repository\n\n* update platform support docs\n\n* chore: changelog\n\n* Update CHANGELOG.md\n\n* cleanup\n\n* keep sentry.native.xbox as sdk name\n\n* restore xbox_build.md\n\n* fixup: restore sentry.h properly",
+          "timestamp": "2025-08-07T12:47:11+02:00",
+          "tree_id": "80b06a68781990309fa25116c73e2f3092a1aee8",
+          "url": "https://github.com/getsentry/sentry-native/commit/305dec3449cf43975d7987510382f7149c435115"
+        },
+        "date": 1754563869919,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 9.055099999955019,
+            "unit": "ms",
+            "extra": "Min 8.095ms\nMax 9.934ms\nMean 8.897ms\nStdDev 0.733ms\nMedian 9.055ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 9.11750000000211,
+            "unit": "ms",
+            "extra": "Min 8.727ms\nMax 12.132ms\nMean 9.973ms\nStdDev 1.514ms\nMedian 9.118ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 24.213900000063404,
+            "unit": "ms",
+            "extra": "Min 21.276ms\nMax 39.112ms\nMean 26.680ms\nStdDev 7.388ms\nMedian 24.214ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.013699999954042141,
+            "unit": "ms",
+            "extra": "Min 0.013ms\nMax 0.017ms\nMean 0.014ms\nStdDev 0.002ms\nMedian 0.014ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.3504000000020824,
+            "unit": "ms",
+            "extra": "Min 0.316ms\nMax 0.407ms\nMean 0.355ms\nStdDev 0.039ms\nMedian 0.350ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 10.533599999916987,
+            "unit": "ms",
+            "extra": "Min 10.260ms\nMax 14.178ms\nMean 11.243ms\nStdDev 1.661ms\nMedian 10.534ms"
           }
         ]
       }
