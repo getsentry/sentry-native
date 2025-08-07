@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1754555593819,
+  "lastUpdate": 1754555605384,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -7970,6 +7970,66 @@ window.BENCHMARK_DATA = {
             "value": 5.002041000011559,
             "unit": "ms",
             "extra": "Min 4.917ms\nMax 5.085ms\nMean 4.999ms\nStdDev 0.062ms\nMedian 5.002ms\nCPU 0.698ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "60878493+JoshuaMoelans@users.noreply.github.com",
+            "name": "JoshuaMoelans",
+            "username": "JoshuaMoelans"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "32e09d06b5184e562b8f2762400bf3e9e5e806f3",
+          "message": "chore: Change issue template type to label (#1332)\n\n* Update issue template\n\nWe no longer use Issue Type, but Labels instead.\n\n* Update .github/ISSUE_TEMPLATE/bug_report.md\n\n---------\n\nCo-authored-by: Karl Heinz Struggl <kahest@users.noreply.github.com>",
+          "timestamp": "2025-08-07T10:29:17+02:00",
+          "tree_id": "ac35ea7b9bca448a239326161fcc223f8bce0c32",
+          "url": "https://github.com/getsentry/sentry-native/commit/32e09d06b5184e562b8f2762400bf3e9e5e806f3"
+        },
+        "date": 1754555603270,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 3.46691700002566,
+            "unit": "ms",
+            "extra": "Min 2.958ms\nMax 3.832ms\nMean 3.461ms\nStdDev 0.319ms\nMedian 3.467ms\nCPU 1.993ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 3.080000000011296,
+            "unit": "ms",
+            "extra": "Min 2.786ms\nMax 3.696ms\nMean 3.128ms\nStdDev 0.358ms\nMedian 3.080ms\nCPU 1.751ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 10.358458999974118,
+            "unit": "ms",
+            "extra": "Min 9.540ms\nMax 11.927ms\nMean 10.455ms\nStdDev 0.902ms\nMedian 10.358ms\nCPU 3.851ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.013000000024021574,
+            "unit": "ms",
+            "extra": "Min 0.008ms\nMax 0.037ms\nMean 0.019ms\nStdDev 0.013ms\nMedian 0.013ms\nCPU 0.018ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.21091700000397395,
+            "unit": "ms",
+            "extra": "Min 0.160ms\nMax 0.264ms\nMean 0.216ms\nStdDev 0.040ms\nMedian 0.211ms\nCPU 0.216ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 5.767832999993061,
+            "unit": "ms",
+            "extra": "Min 5.446ms\nMax 6.022ms\nMean 5.706ms\nStdDev 0.242ms\nMedian 5.768ms\nCPU 0.884ms"
           }
         ]
       }
