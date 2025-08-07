@@ -1791,6 +1791,9 @@ SENTRY_API void sentry_remove_fingerprint(void);
 /**
  * Set the trace. The primary use for this is to allow other SDKs to propagate
  * their trace context to connect events on all layers.
+ *
+ * Once a trace is managed by the downstream SDK using this function,
+ * transactions no longer act as automatic trace boundaries.
  */
 SENTRY_API void sentry_set_trace(
     const char *trace_id, const char *parent_span_id);
@@ -1801,6 +1804,14 @@ SENTRY_API void sentry_set_trace_n(const char *trace_id, size_t trace_id_len,
  * Generates a new random `trace_id` and `span_id` and sets these onto
  * the propagation context. Use this to set a trace boundary for
  * events/transactions.
+ *
+ * Once you regenerate a trace manually, transactions no longer act as automatic
+ * trace boundaries. This means all following transactions will be part of the
+ * same trace until you regenerate the trace again.
+ *
+ * We urge you not to use this function if you use the Native SDK in the context
+ * of a downstream SDK like Android, .NET, Unity or Unreal, because it will
+ * interfere with cross-SDK traces which are managed by these SDKs.
  */
 SENTRY_EXPERIMENTAL_API void sentry_regenerate_trace(void);
 
