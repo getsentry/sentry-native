@@ -3,23 +3,19 @@
 ## Unreleased
 
 **Breaking changes**:
+
 - Change transaction sampling to be trace-based. Now, for a given `traces_sample_rate`, either all transactions in a trace get sampled or none do with probability equal to that sample rate. ([#1254](https://github.com/getsentry/sentry-native/pull/1254))
+- Moved Xbox toolchains to an Xbox-specific repository [sentry-xbox](https://github.com/getsentry/sentry-xbox). You can request access to the repository by following the instructions in [Xbox documentation](https://docs.sentry.io/platforms/xbox/)  ([#1329](https://github.com/getsentry/sentry-native/pull/1329))
 
 **Features**:
 
 - Add `sentry_clear_attachments()` to allow clearing all previously added attachments in the global scope. ([#1290](https://github.com/getsentry/sentry-native/pull/1290))
-- Compiles also on Xbox One ([#1294](https://github.com/getsentry/sentry-native/pull/1294))
 - Provide `sentry_regenerate_trace()` to allow users to set manual trace boundaries. ([#1293](https://github.com/getsentry/sentry-native/pull/1293))
 - Add `Dynamic Sampling Context (DSC)` to events. ([#1254](https://github.com/getsentry/sentry-native/pull/1254))
 - Add `sentry_value_new_feedback` and `sentry_capture_feedback` to allow capturing [User Feedback](https://develop.sentry.dev/sdk/data-model/envelope-items/#user-feedback). ([#1304](https://github.com/getsentry/sentry-native/pull/1304))
   - Deprecate `sentry_value_new_user_feedback` and `sentry_capture_user_feedback` in favor of the new API.
 - Add `sentry_envelope_read_from_file`, `sentry_envelope_get_header`, and `sentry_capture_envelope`. ([#1320](https://github.com/getsentry/sentry-native/pull/1320))
 - Add `(u)int64` `sentry_value_t` type. ([#1326](https://github.com/getsentry/sentry-native/pull/1326))
-
-**Fixes**:
-
-- Update Xbox toolchain to include `UseDebugLibraries` fix for Debug builds. ([#1302](https://github.com/getsentry/sentry-native/pull/1302))
-- Fix GDK version selection for Xbox by propagating `XdkEditionTarget` to MSBuild. ([#1312](https://github.com/getsentry/sentry-native/pull/1312))
 
 **Meta**:
 
