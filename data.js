@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1754563874780,
+  "lastUpdate": 1754648862449,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -8150,6 +8150,66 @@ window.BENCHMARK_DATA = {
             "value": 7.312582999929873,
             "unit": "ms",
             "extra": "Min 5.986ms\nMax 10.903ms\nMean 7.866ms\nStdDev 1.831ms\nMedian 7.313ms\nCPU 1.037ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "mischan@abovevacant.com",
+            "name": "Mischan Toosarani-Hausberger",
+            "username": "supervacuus"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "6466da9d27bde1f4c9fe5c01aeaf74f0b3f837ee",
+          "message": "feat: manage trace life-cycle (#1270)\n\n* feat: manage trace duration\n\n* format after web-editor merge\n\n* clean up regenerate_trace() test after merge\n\n* prevent warning-as-error\n\n* add changelog\n\n* ensure trace_managed is turned off when regenerating a trace\n\n* update breaking changes\n\n* test that transaction no longer act as trace boundaries after a user regenerates a trace\n\n* highlight the topic of automatic trace boundaries in the docs for `sentry_set_trace()` and `sentry_regenerate_trace()`\n\n* Update tests/unit/test_tracing.c\n\nCo-authored-by: JoshuaMoelans <60878493+JoshuaMoelans@users.noreply.github.com>\n\n* remove duplicate includes in sentry_core.c\n\n* tighten regenerate part of the test against the trace generated during the previous transaction\n\n---------\n\nCo-authored-by: JoshuaMoelans <60878493+JoshuaMoelans@users.noreply.github.com>",
+          "timestamp": "2025-08-08T12:24:46+02:00",
+          "tree_id": "13cad9add2e8e83d579991f58deca96160144236",
+          "url": "https://github.com/getsentry/sentry-native/commit/6466da9d27bde1f4c9fe5c01aeaf74f0b3f837ee"
+        },
+        "date": 1754648860503,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 3.036916000041856,
+            "unit": "ms",
+            "extra": "Min 2.791ms\nMax 3.379ms\nMean 3.026ms\nStdDev 0.226ms\nMedian 3.037ms\nCPU 1.640ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 3.4116670000230442,
+            "unit": "ms",
+            "extra": "Min 3.074ms\nMax 3.852ms\nMean 3.415ms\nStdDev 0.304ms\nMedian 3.412ms\nCPU 1.839ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 11.526375000016742,
+            "unit": "ms",
+            "extra": "Min 9.584ms\nMax 14.017ms\nMean 11.964ms\nStdDev 1.801ms\nMedian 11.526ms\nCPU 4.523ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.03254099999594473,
+            "unit": "ms",
+            "extra": "Min 0.010ms\nMax 0.034ms\nMean 0.028ms\nStdDev 0.010ms\nMedian 0.033ms\nCPU 0.028ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.2317500000117434,
+            "unit": "ms",
+            "extra": "Min 0.202ms\nMax 0.333ms\nMean 0.246ms\nStdDev 0.053ms\nMedian 0.232ms\nCPU 0.245ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 6.627041999990979,
+            "unit": "ms",
+            "extra": "Min 6.506ms\nMax 10.481ms\nMean 7.401ms\nStdDev 1.724ms\nMedian 6.627ms\nCPU 1.033ms"
           }
         ]
       }
