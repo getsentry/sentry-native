@@ -10,19 +10,27 @@
 #include <string.h>
 #include <unistd.h>
 
-const int QUEUE_LENGTH = 100;
-const int FLUSH_TIMER = 5;
+#define QUEUE_LENGTH 100
+#define FLUSH_TIMER 5
+
+typedef struct {
+    sentry_value_t logs[QUEUE_LENGTH];
+    volatile long count; // Number of logs in this buffer
+} log_buffer_t;
 
 struct logs_queue {
-    sentry_value_t
-        queue[QUEUE_LENGTH]; // TODO could this be sentry_value_t list?
-    long index;
-    long adding;
-    long timer_running; // atomic flag: 1 if timer thread is active, 0 otherwise
-    long flushing; // atomic flag: 1 if currently flushing, 0 otherwise
+    log_buffer_t buffers[2]; // Double buffer
+    volatile long
+        active_buffer; // 0 or 1 - which buffer is currently active for writing
+    volatile long
+        timer_running; // atomic flag: 1 if timer thread is active, 0 otherwise
+    volatile long flushing; // atomic flag: 1 if currently flushing, 0 otherwise
 } typedef LogQueue;
 
-LogQueue lq;
+LogQueue lq = { .buffers = { { .count = 0 }, { .count = 0 } },
+    .active_buffer = 0,
+    .timer_running = 0,
+    .flushing = 0 };
 
 // Forward declaration for timer thread function
 SENTRY_THREAD_FN timer_thread_func(void *arg);
@@ -30,21 +38,54 @@ SENTRY_THREAD_FN timer_thread_func(void *arg);
 static void
 flush_logs(void)
 {
-    // Use atomic fetch and add to ensure only one thread flushes at a time
-    long was_flushing = sentry__atomic_fetch_and_add(&lq.flushing, 1);
-    if (was_flushing != 0) {
-        // Another thread is already flushing, decrement and return
-        sentry__atomic_fetch_and_add(&lq.flushing, -1);
+    // Use atomic compare-and-swap to ensure only one thread flushes at a time
+    long expected = 0;
+    // TODO platform-agnostic?
+    if (!__sync_bool_compare_and_swap(&lq.flushing, expected, 1)) {
+        // Another thread is already flushing
         return;
     }
 
+    // Determine which buffer to flush
+    long current_active = sentry__atomic_fetch(&lq.active_buffer);
+    long flush_buffer_idx
+        = current_active; // Start by trying to flush the active buffer
+
+    // Check if active buffer has any logs to flush
+    if (sentry__atomic_fetch(&lq.buffers[current_active].count) == 0) {
+        // Active buffer is empty, try the other buffer
+        flush_buffer_idx = 1 - current_active;
+        if (sentry__atomic_fetch(&lq.buffers[flush_buffer_idx].count) == 0) {
+            // Both buffers are empty, nothing to flush
+            sentry__atomic_store(&lq.flushing, 0);
+            return;
+        }
+    } else {
+        // Active buffer has logs, switch to the other buffer for new writes
+        long new_active = 1 - current_active;
+        sentry__atomic_store(&lq.active_buffer, new_active);
+    }
+
+    log_buffer_t *flush_buffer = &lq.buffers[flush_buffer_idx];
+    long count = sentry__atomic_fetch(&flush_buffer->count);
+
+    if (count == 0) {
+        // Buffer became empty while we were setting up, nothing to do
+        sentry__atomic_store(&lq.flushing, 0);
+        return;
+    }
+
+    // Create envelope with logs from the buffer being flushed
     sentry_value_t logs = sentry_value_new_object();
     sentry_value_t logs_list = sentry_value_new_list();
-    for (int i = 0; i < sentry__atomic_fetch(&lq.index); i++) {
-        sentry_value_append(logs_list, lq.queue[i]);
+
+    for (long i = 0; i < count; i++) {
+        sentry_value_append(logs_list, flush_buffer->logs[i]);
     }
+
     sentry_value_set_by_key(logs, "items", logs_list);
-    // sending of the envelope
+
+    // Send the envelope
     sentry_envelope_t *envelope = sentry__envelope_new();
     sentry__envelope_add_logs(envelope, logs);
     // TODO remove debug write to file below
@@ -52,53 +93,91 @@ flush_logs(void)
     SENTRY_WITH_OPTIONS (options) {
         sentry__capture_envelope(options->transport, envelope);
     }
-    // free the logs object since envelope doesn't take
+
+    // Free the logs object since envelope doesn't take ownership
     sentry_value_decref(logs);
-    sentry__atomic_store(&lq.index, 0);
+
+    // Reset the flushed buffer - this is now safe since we switched active
+    // buffer
+    sentry__atomic_store(&flush_buffer->count, 0);
 
     // Clear flushing flag
-    sentry__atomic_fetch_and_add(&lq.flushing, -1);
+    sentry__atomic_store(&lq.flushing, 0);
 }
 
 static bool
 enqueu_log(sentry_value_t log)
 {
-    // atomically fetch index and add one
-    long log_idx = sentry__atomic_fetch_and_add(&lq.index, 1);
-    sentry__atomic_fetch_and_add(&lq.adding, 1);
-    if (log_idx >= QUEUE_LENGTH) { // already flushing
-        // TODO send client report?
-        SENTRY_WARN("Losing log");
-        return false;
-    }
-    lq.queue[log_idx] = log;
-    if (log_idx == QUEUE_LENGTH - 1) {
-        flush_logs();
-    }
-    sentry__atomic_fetch_and_add(&lq.adding, -1);
+    // Retry loop in case buffer switches during our attempt
+    for (int retry = 0; retry < 10; retry++) {
+        // Get current active buffer index
+        long buffer_idx = sentry__atomic_fetch(&lq.active_buffer);
+        log_buffer_t *current_buffer = &lq.buffers[buffer_idx];
 
-    // Start timer thread if this is the first log and timer is not already
-    // running
-    if (log_idx == 0) {
-        long was_running = sentry__atomic_fetch_and_add(&lq.timer_running, 1);
-        if (was_running == 0) {
-            // We're the first to set the timer, spawn the thread
-            sentry_threadid_t timer_thread;
-            sentry__thread_init(&timer_thread);
-            if (sentry__thread_spawn(&timer_thread, timer_thread_func, NULL)
-                != 0) {
-                SENTRY_WARN("Failed to spawn timer thread");
-                sentry__atomic_fetch_and_add(&lq.timer_running, -1);
-            } else {
-                sentry__thread_detach(timer_thread);
+        // Try to get a slot in the current buffer
+        long log_idx = sentry__atomic_fetch_and_add(&current_buffer->count, 1);
+
+        if (log_idx < QUEUE_LENGTH) {
+            // Successfully got a slot, write the log
+            current_buffer->logs[log_idx] = log;
+
+            // Check if this buffer is now full and trigger flush
+            if (log_idx == QUEUE_LENGTH - 1) {
+                flush_logs();
             }
+
+            // Start timer thread if this is the first log in any buffer
+            bool should_start_timer = false;
+            if (log_idx == 0) {
+                // Check if the other buffer is also empty
+                long other_buffer_idx = 1 - buffer_idx;
+                if (sentry__atomic_fetch(&lq.buffers[other_buffer_idx].count)
+                    == 0) {
+                    should_start_timer = true;
+                }
+            }
+
+            if (should_start_timer) {
+                long was_running
+                    = sentry__atomic_fetch_and_add(&lq.timer_running, 1);
+                if (was_running == 0) {
+                    // We're the first to set the timer, spawn the thread
+                    sentry_threadid_t timer_thread;
+                    sentry__thread_init(&timer_thread);
+                    if (sentry__thread_spawn(
+                            &timer_thread, timer_thread_func, NULL)
+                        != 0) {
+                        SENTRY_WARN("Failed to spawn timer thread");
+                        sentry__atomic_fetch_and_add(&lq.timer_running, -1);
+                    } else {
+                        sentry__thread_detach(timer_thread);
+                    }
+                } else {
+                    // Timer was already running, decrement back
+                    sentry__atomic_fetch_and_add(&lq.timer_running, -1);
+                }
+            }
+
+            return true;
         } else {
-            // Timer was already running, decrement back
-            sentry__atomic_fetch_and_add(&lq.timer_running, -1);
+            // Buffer is full, roll back our increment
+            sentry__atomic_fetch_and_add(&current_buffer->count, -1);
+
+            // Try to trigger a flush to switch buffers
+            flush_logs();
+
+            // Brief pause before retry to allow flush to complete
+#ifdef SENTRY_PLATFORM_WINDOWS
+            Sleep(1);
+#else
+            usleep(1000); // 1ms
+#endif
         }
     }
 
-    return true;
+    // All retries exhausted - both buffers are likely full
+    SENTRY_WARN("Unable to enqueue log - all buffers full");
+    return false;
 }
 
 SENTRY_THREAD_FN
@@ -113,7 +192,7 @@ timer_thread_func(void *arg)
     sleep(FLUSH_TIMER);
 #endif
 
-    // Try to flush logs
+    // Try to flush logs - this will flush whichever buffer has content
     flush_logs();
 
     // Reset timer state - decrement the counter
