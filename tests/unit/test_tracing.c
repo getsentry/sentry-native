@@ -1798,7 +1798,7 @@ SENTRY_TEST(propagation_context_init)
     char *tx_trace_id2 = sentry__string_clone(sentry_value_as_string(
         sentry_value_get_by_key(tx2->inner, "trace_id")));
 
-    // regenerating the trace turned off automatic trace management, so we that
+    // regenerating the trace turned off automatic trace management, so
     // the transaction has the same trace_id as the one being applied after
     // regenerating the trace previously.
     TEST_CHECK_STRING_EQUAL(regenerated_trace_id, tx_trace_id2);
