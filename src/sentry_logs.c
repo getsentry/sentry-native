@@ -8,23 +8,39 @@
 
 #include <stdarg.h>
 #include <string.h>
+#include <unistd.h>
 
-const int QUEUE_LENGTH = 10;
+const int QUEUE_LENGTH = 100;
+const int FLUSH_TIMER = 5;
 
 struct logs_queue {
-    sentry_value_t queue[QUEUE_LENGTH]; // could just be sentry_value_t list?
+    sentry_value_t
+        queue[QUEUE_LENGTH]; // TODO could this be sentry_value_t list?
     long index;
     long adding;
+    long timer_running; // atomic flag: 1 if timer thread is active, 0 otherwise
+    long flushing; // atomic flag: 1 if currently flushing, 0 otherwise
 } typedef LogQueue;
 
 LogQueue lq;
 
+// Forward declaration for timer thread function
+SENTRY_THREAD_FN timer_thread_func(void *arg);
+
 static void
-flush_logs()
+flush_logs(void)
 {
+    // Use atomic fetch and add to ensure only one thread flushes at a time
+    long was_flushing = sentry__atomic_fetch_and_add(&lq.flushing, 1);
+    if (was_flushing != 0) {
+        // Another thread is already flushing, decrement and return
+        sentry__atomic_fetch_and_add(&lq.flushing, -1);
+        return;
+    }
+
     sentry_value_t logs = sentry_value_new_object();
     sentry_value_t logs_list = sentry_value_new_list();
-    for (int i = 0; i < QUEUE_LENGTH; i++) {
+    for (int i = 0; i < sentry__atomic_fetch(&lq.index); i++) {
         sentry_value_append(logs_list, lq.queue[i]);
     }
     sentry_value_set_by_key(logs, "items", logs_list);
@@ -32,13 +48,16 @@ flush_logs()
     sentry_envelope_t *envelope = sentry__envelope_new();
     sentry__envelope_add_logs(envelope, logs);
     // TODO remove debug write to file below
-    sentry_envelope_write_to_file(envelope, "logs_envelope.json");
+    // sentry_envelope_write_to_file(envelope, "logs_envelope.json");
     SENTRY_WITH_OPTIONS (options) {
         sentry__capture_envelope(options->transport, envelope);
     }
     // free the logs object since envelope doesn't take
     sentry_value_decref(logs);
     sentry__atomic_store(&lq.index, 0);
+
+    // Clear flushing flag
+    sentry__atomic_fetch_and_add(&lq.flushing, -1);
 }
 
 static bool
@@ -47,7 +66,7 @@ enqueu_log(sentry_value_t log)
     // atomically fetch index and add one
     long log_idx = sentry__atomic_fetch_and_add(&lq.index, 1);
     sentry__atomic_fetch_and_add(&lq.adding, 1);
-    if (log_idx >= 100) { // already flushing
+    if (log_idx >= QUEUE_LENGTH) { // already flushing
         // TODO send client report?
         SENTRY_WARN("Losing log");
         return false;
@@ -57,6 +76,50 @@ enqueu_log(sentry_value_t log)
         flush_logs();
     }
     sentry__atomic_fetch_and_add(&lq.adding, -1);
+
+    // Start timer thread if this is the first log and timer is not already
+    // running
+    if (log_idx == 0) {
+        long was_running = sentry__atomic_fetch_and_add(&lq.timer_running, 1);
+        if (was_running == 0) {
+            // We're the first to set the timer, spawn the thread
+            sentry_threadid_t timer_thread;
+            sentry__thread_init(&timer_thread);
+            if (sentry__thread_spawn(&timer_thread, timer_thread_func, NULL)
+                != 0) {
+                SENTRY_WARN("Failed to spawn timer thread");
+                sentry__atomic_fetch_and_add(&lq.timer_running, -1);
+            } else {
+                sentry__thread_detach(timer_thread);
+            }
+        } else {
+            // Timer was already running, decrement back
+            sentry__atomic_fetch_and_add(&lq.timer_running, -1);
+        }
+    }
+
+    return true;
+}
+
+SENTRY_THREAD_FN
+timer_thread_func(void *arg)
+{
+    (void)arg; // unused parameter
+
+    // Sleep for 5 seconds
+#ifdef SENTRY_PLATFORM_WINDOWS
+    Sleep(FLUSH_TIMER * 1000);
+#else
+    sleep(FLUSH_TIMER);
+#endif
+
+    // Try to flush logs
+    flush_logs();
+
+    // Reset timer state - decrement the counter
+    sentry__atomic_fetch_and_add(&lq.timer_running, -1);
+
+    return 0;
 }
 
 static const char *
