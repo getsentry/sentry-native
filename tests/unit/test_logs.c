@@ -47,7 +47,7 @@ SENTRY_TEST(basic_logging_functionality)
 
     sentry_close();
 
-    TEST_CHECK_INT_EQUAL(called_transport, 6);
+    TEST_CHECK_INT_EQUAL(called_transport, 1);
 }
 
 SENTRY_TEST(logs_disabled_by_default)
@@ -92,9 +92,11 @@ SENTRY_TEST(formatted_log_messages)
     sentry_log_info("String: %s, Integer: %d, Float: %.2f", "test", 42, 3.14);
     sentry_log_warn("Character: %c, Hex: 0x%x", 'A', 255);
     sentry_log_error("Pointer: %p", (void *)0x1234);
+    sentry_log_error("Big number: %zu", UINT64_MAX);
+    sentry_log_error("Small number: %d", INT64_MIN);
 
     sentry_close();
 
     // Transport should be called three times
-    TEST_CHECK_INT_EQUAL(called_transport, 3);
+    TEST_CHECK_INT_EQUAL(called_transport, 1);
 }

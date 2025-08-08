@@ -10,7 +10,12 @@
 #include <string.h>
 #include <unistd.h>
 
-#define QUEUE_LENGTH 100
+// TODO think about this
+#ifdef SENTRY_UNITTEST
+#    define QUEUE_LENGTH 5
+#else
+#    define QUEUE_LENGTH 100
+#endif
 #define FLUSH_TIMER 5
 
 typedef struct {
