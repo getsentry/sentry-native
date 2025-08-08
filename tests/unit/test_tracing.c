@@ -1784,7 +1784,6 @@ SENTRY_TEST(propagation_context_init)
         sentry_value_get_by_key(regenerated_trace, "trace_id")));
 
     check_trace_context(regenerated_trace, tx_trace_id, "", false);
-    sentry_free(tx_trace_id);
 
     // once a trace has been regenerated manually, the user is responsible to
     // manage the traces. From then on transactions no longer act as trace
@@ -1802,10 +1801,17 @@ SENTRY_TEST(propagation_context_init)
     // the transaction has the same trace_id as the one being applied after
     // regenerating the trace previously.
     TEST_CHECK_STRING_EQUAL(regenerated_trace_id, tx_trace_id2);
+
+    // The regenerated trace should be different from the trace of the previous
+    // transaction
+    TEST_CHECK(strcmp(regenerated_trace_id, tx_trace_id) != 0);
+
     sentry_transaction_finish(tx2);
 
+    sentry_free(tx_trace_id);
     sentry_free(tx_trace_id2);
     sentry_free(regenerated_trace_id);
+
     sentry_close();
 }
 
