@@ -9,17 +9,20 @@
 #include "sentry_database.h"
 #include "sentry_envelope.h"
 #include "sentry_options.h"
-#include "sentry_os.h"
 #include "sentry_path.h"
 #include "sentry_random.h"
 #include "sentry_scope.h"
-#include "sentry_screenshot.h"
 #include "sentry_session.h"
 #include "sentry_string.h"
 #include "sentry_sync.h"
 #include "sentry_tracing.h"
 #include "sentry_transport.h"
 #include "sentry_value.h"
+
+#ifdef SENTRY_PLATFORM_WINDOWS
+#    include "sentry_os.h"
+#    include "sentry_screenshot.h"
+#endif
 
 #ifdef SENTRY_INTEGRATION_QT
 #    include "integrations/sentry_integration_qt.h"
@@ -994,6 +997,7 @@ sentry_set_trace_n(const char *trace_id, size_t trace_id_len,
         sentry_uuid_t span_id = sentry_uuid_new_v4();
         sentry_value_set_by_key(
             context, "span_id", sentry__value_new_span_uuid(&span_id));
+        scope->trace_managed = false;
     }
 
     if (!sentry_value_is_null(context)) {
@@ -1008,6 +1012,7 @@ sentry_regenerate_trace(void)
 {
     SENTRY_WITH_SCOPE_MUT (scope) {
         generate_propagation_context(scope->propagation_context);
+        scope->trace_managed = false;
     }
 }
 
@@ -1130,6 +1135,17 @@ sentry_transaction_finish_ts(
                 sentry__transaction_decref(scope->transaction_object);
                 scope->transaction_object = NULL;
             }
+        }
+        // if the SDK manages the trace (rather than the user or a downstream
+        // SDK) we break propagation context traces at transaction boundaries.
+        if (scope->trace_managed) {
+            sentry_value_t txn_trace_id
+                = sentry_value_get_by_key(tx, "trace_id");
+            sentry_value_incref(txn_trace_id);
+
+            sentry_value_set_by_key(
+                sentry_value_get_by_key(scope->propagation_context, "trace"),
+                "trace_id", txn_trace_id);
         }
     }
     // The sampling decision should already be made for transactions

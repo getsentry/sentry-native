@@ -49,8 +49,12 @@ transaction_context_new_n(sentry_slice_t name, sentry_slice_t operation)
         sentry_value_new_string_n(name.ptr, name.len));
 
     SENTRY_WITH_SCOPE_MUT (scope) {
-        if (!sentry_value_is_null(
+        if (!scope->trace_managed
+            && !sentry_value_is_null(
                 sentry_value_get_by_key(scope->propagation_context, "trace"))) {
+            // The trace is managed from outside, so we use the propagation
+            // context as the trace source for this transaction. This means that
+            // either a downstream SDK or the user manages trace life-cycles.
             sentry_value_set_by_key(transaction_context, "trace_id",
                 sentry__value_clone(sentry_value_get_by_key(
                     sentry_value_get_by_key(

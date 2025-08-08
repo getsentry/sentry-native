@@ -4,12 +4,14 @@
 
 **Breaking changes**:
 
-- Change transaction sampling to be trace-based. Now, for a given `traces_sample_rate`, either all transactions in a trace get sampled or none do with probability equal to that sample rate. ([#1254](https://github.com/getsentry/sentry-native/pull/1254))
-- Moved Xbox toolchains to an Xbox-specific repository [sentry-xbox](https://github.com/getsentry/sentry-xbox). You can request access to the repository by following the instructions in [Xbox documentation](https://docs.sentry.io/platforms/xbox/)  ([#1329](https://github.com/getsentry/sentry-native/pull/1329))
+- By using transactions as automatic trace boundaries, transactions will, by default, no longer be part of the same singular trace. This is not the case when setting trace boundaries explicitly (`sentry_regenerate_trace()` or `sentry_set_trace()`), which turns off the automatic management of trace boundaries. ([#1270](https://github.com/getsentry/sentry-native/pull/1270))
+- Change transaction sampling to be trace-based. This does not affect you when transactions are used for automatic trace boundaries (as described above), since every transaction is part of a new trace. However, if you manage trace boundaries manually (using `sentry_regenerate_trace()`) or run the Native SDK inside a downstream SDK like the Unity SDK, where these SDKs will manage the trace boundaries, for a given `traces_sample_rate`, either all transactions in a trace get sampled or none do with probability equal to that sample rate. ([#1254](https://github.com/getsentry/sentry-native/pull/1254))
+- Moved Xbox toolchains to an Xbox-specific repository [sentry-xbox](https://github.com/getsentry/sentry-xbox). You can request access to the repository by following the instructions in [Xbox documentation](https://docs.sentry.io/platforms/xbox/). ([#1329](https://github.com/getsentry/sentry-native/pull/1329))
 
 **Features**:
 
 - Add `sentry_clear_attachments()` to allow clearing all previously added attachments in the global scope. ([#1290](https://github.com/getsentry/sentry-native/pull/1290))
+- Automatically set trace boundaries with every transaction. ([#1270](https://github.com/getsentry/sentry-native/pull/1270))
 - Provide `sentry_regenerate_trace()` to allow users to set manual trace boundaries. ([#1293](https://github.com/getsentry/sentry-native/pull/1293))
 - Add `Dynamic Sampling Context (DSC)` to events. ([#1254](https://github.com/getsentry/sentry-native/pull/1254))
 - Add `sentry_value_new_feedback` and `sentry_capture_feedback` to allow capturing [User Feedback](https://develop.sentry.dev/sdk/data-model/envelope-items/#user-feedback). ([#1304](https://github.com/getsentry/sentry-native/pull/1304))
