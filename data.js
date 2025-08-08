@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1754648926886,
+  "lastUpdate": 1754654183464,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -4134,6 +4134,66 @@ window.BENCHMARK_DATA = {
             "value": 1.7872959997475846,
             "unit": "ms",
             "extra": "Min 1.764ms\nMax 1.879ms\nMean 1.811ms\nStdDev 0.048ms\nMedian 1.787ms\nCPU 0.543ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "mischan@abovevacant.com",
+            "name": "Mischan Toosarani-Hausberger",
+            "username": "supervacuus"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "d5c34db05c6d8cca302c2dface5063b0488df5be",
+          "message": "craft: only include zip artifacts for github target (#1333)\n\n#skip-changelog",
+          "timestamp": "2025-08-08T13:53:16+02:00",
+          "tree_id": "bbe859661565e9a10a808263d75f3a5c6cf8aecf",
+          "url": "https://github.com/getsentry/sentry-native/commit/d5c34db05c6d8cca302c2dface5063b0488df5be"
+        },
+        "date": 1754654182679,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 0.7228540000028261,
+            "unit": "ms",
+            "extra": "Min 0.709ms\nMax 0.737ms\nMean 0.722ms\nStdDev 0.010ms\nMedian 0.723ms\nCPU 0.721ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.714648000013085,
+            "unit": "ms",
+            "extra": "Min 0.696ms\nMax 0.721ms\nMean 0.710ms\nStdDev 0.011ms\nMedian 0.715ms\nCPU 0.709ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 2.876587000002928,
+            "unit": "ms",
+            "extra": "Min 2.830ms\nMax 3.616ms\nMean 3.042ms\nStdDev 0.330ms\nMedian 2.877ms\nCPU 1.521ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.012101999999458712,
+            "unit": "ms",
+            "extra": "Min 0.012ms\nMax 0.012ms\nMean 0.012ms\nStdDev 0.000ms\nMedian 0.012ms\nCPU 0.011ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.022242000000005646,
+            "unit": "ms",
+            "extra": "Min 0.022ms\nMax 0.023ms\nMean 0.022ms\nStdDev 0.000ms\nMedian 0.022ms\nCPU 0.022ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 1.766112000012754,
+            "unit": "ms",
+            "extra": "Min 1.750ms\nMax 1.845ms\nMean 1.785ms\nStdDev 0.038ms\nMedian 1.766ms\nCPU 0.557ms"
           }
         ]
       }
