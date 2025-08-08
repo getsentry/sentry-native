@@ -4,9 +4,60 @@
 #include "sentry_options.h"
 #include "sentry_os.h"
 #include "sentry_scope.h"
+#include "sentry_sync.h"
 
 #include <stdarg.h>
 #include <string.h>
+
+const int QUEUE_LENGTH = 10;
+
+struct logs_queue {
+    sentry_value_t queue[QUEUE_LENGTH]; // could just be sentry_value_t list?
+    long index;
+    long adding;
+} typedef LogQueue;
+
+LogQueue lq;
+
+static void
+flush_logs()
+{
+    sentry_value_t logs = sentry_value_new_object();
+    sentry_value_t logs_list = sentry_value_new_list();
+    for (int i = 0; i < QUEUE_LENGTH; i++) {
+        sentry_value_append(logs_list, lq.queue[i]);
+    }
+    sentry_value_set_by_key(logs, "items", logs_list);
+    // sending of the envelope
+    sentry_envelope_t *envelope = sentry__envelope_new();
+    sentry__envelope_add_logs(envelope, logs);
+    // TODO remove debug write to file below
+    sentry_envelope_write_to_file(envelope, "logs_envelope.json");
+    SENTRY_WITH_OPTIONS (options) {
+        sentry__capture_envelope(options->transport, envelope);
+    }
+    // free the logs object since envelope doesn't take
+    sentry_value_decref(logs);
+    sentry__atomic_store(&lq.index, 0);
+}
+
+static bool
+enqueu_log(sentry_value_t log)
+{
+    // atomically fetch index and add one
+    long log_idx = sentry__atomic_fetch_and_add(&lq.index, 1);
+    sentry__atomic_fetch_and_add(&lq.adding, 1);
+    if (log_idx >= 100) { // already flushing
+        // TODO send client report?
+        SENTRY_WARN("Losing log");
+        return false;
+    }
+    lq.queue[log_idx] = log;
+    if (log_idx == QUEUE_LENGTH - 1) {
+        flush_logs();
+    }
+    sentry__atomic_fetch_and_add(&lq.adding, -1);
+}
 
 static const char *
 level_as_string(sentry_level_t level)
@@ -346,24 +397,7 @@ sentry__logs_log(sentry_level_t level, const char *message, va_list args)
     if (enable_logs) {
         // create log from message
         sentry_value_t log = construct_log(level, message, args);
-
-        // TODO split up the code below for batched log sending
-        //    e.g. could we store logs on the scope?
-        sentry_value_t logs = sentry_value_new_object();
-        sentry_value_t logs_list = sentry_value_new_list();
-        sentry_value_append(logs_list, log);
-        sentry_value_set_by_key(logs, "items", logs_list);
-        // sending of the envelope
-        sentry_envelope_t *envelope = sentry__envelope_new();
-        sentry__envelope_add_logs(envelope, logs);
-        // TODO remove debug write to file below
-        sentry_envelope_write_to_file(envelope, "logs_envelope.json");
-        SENTRY_WITH_OPTIONS (options) {
-            sentry__capture_envelope(options->transport, envelope);
-        }
-        // For now, free the logs object since envelope doesn't take
-        // ownership
-        sentry_value_decref(logs);
+        enqueu_log(log);
     }
 }
 
