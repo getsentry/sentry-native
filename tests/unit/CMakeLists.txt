@@ -31,6 +31,7 @@ add_executable(sentry_test_unit
 	test_failures.c
 	test_feedback.c
 	test_fuzzfailures.c
+	test_gpu.c
 	test_info.c
 	test_logger.c
 	test_logs.c
