@@ -122,10 +122,9 @@ def test_gpu_context_structure_validation(cmake):
             assert memory_size >= 1024 * 1024, "GPU memory size seems too small"
 
 
+@pytest.mark.skipif(sys.platform != "darwin", reason="Apple Silicon test only runs on macOS")
 def test_gpu_context_apple_silicon(cmake):
     """Test GPU context on Apple Silicon systems (if running on macOS)."""
-    if sys.platform != "darwin":
-        pytest.skip("Apple Silicon test only runs on macOS")
 
     tmp_path = cmake(
         ["sentry_example"],
