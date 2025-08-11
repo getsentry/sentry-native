@@ -97,7 +97,7 @@ endif()
 option(SENTRY_PIC "Build sentry (and dependent) libraries as position independent libraries" ON)
 
 option(SENTRY_TRANSPORT_COMPRESSION "Enable transport gzip compression" OFF)
-option(SENTRY_WITH_GPU_INFO "Build with GPU information gathering support" ON)
+option(SENTRY_WITH_GPU_INFO "Build with GPU information gathering support" OFF)
 
 option(SENTRY_BUILD_TESTS "Build sentry-native tests" "${SENTRY_MAIN_PROJECT}")
 option(SENTRY_BUILD_EXAMPLES "Build sentry-native example(s)" "${SENTRY_MAIN_PROJECT}")
