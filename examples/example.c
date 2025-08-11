@@ -278,31 +278,19 @@ DWORD WINAPI
 log_thread_func(LPVOID lpParam)
 {
     (void)lpParam;
-    int LOG_COUNT = 25;
+    int LOG_COUNT = 100;
     for (int i = 0; i < LOG_COUNT; i++) {
         sentry_log_debug(
             "thread log %d on thread %lu", i, get_current_thread_id());
     }
     return 0;
 }
-#elif defined(SENTRY_PLATFORM_MACOS)
-void *
-log_thread_func(void *arg)
-{
-    (void)arg;
-    int LOG_COUNT = 100;
-    for (int i = 0; i < LOG_COUNT; i++) {
-        sentry_log_debug(
-            "thread log %d on thread %llu", i, get_current_thread_id());
-    }
-    return NULL;
-}
 #else
 void *
 log_thread_func(void *arg)
 {
     (void)arg;
-    int LOG_COUNT = 25;
+    int LOG_COUNT = 100;
     for (int i = 0; i < LOG_COUNT; i++) {
         sentry_log_debug(
             "thread log %d on thread %llu", i, get_current_thread_id());
@@ -449,8 +437,8 @@ main(int argc, char **argv)
         if (has_arg(argc, argv, "logs-threads")) {
             // we should see two envelopes make its way to Sentry
             // Spawn multiple threads to test concurrent logging
+            const int NUM_THREADS = 50;
 #ifdef SENTRY_PLATFORM_WINDOWS
-            const int NUM_THREADS = 3;
             HANDLE threads[NUM_THREADS];
             for (int t = 0; t < NUM_THREADS; t++) {
                 threads[t]
@@ -461,7 +449,6 @@ main(int argc, char **argv)
                 CloseHandle(threads[t]);
             }
 #else
-            const int NUM_THREADS = 50;
             pthread_t threads[NUM_THREADS];
             for (int t = 0; t < NUM_THREADS; t++) {
                 pthread_create(&threads[t], NULL, log_thread_func, NULL);
