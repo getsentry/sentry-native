@@ -424,6 +424,8 @@ sentry__envelope_add_logs(sentry_envelope_t *envelope, sentry_value_t logs)
             sentry_value_get_by_key(logs, "items"))));
     sentry__envelope_item_set_header(item, "content_type",
         sentry_value_new_string("application/vnd.sentry.items.log+json"));
+    sentry_value_t length = sentry_value_new_int32((int32_t)item->payload_len);
+    sentry__envelope_item_set_header(item, "length", length);
 
     return item;
 }

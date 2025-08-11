@@ -24,6 +24,7 @@
 #    define sleep_s(SECONDS) Sleep((SECONDS) * 1000)
 #else
 
+#    include <pthread.h>
 #    include <signal.h>
 #    include <unistd.h>
 
@@ -272,6 +273,44 @@ create_debug_crumb(const char *message)
     return debug_crumb;
 }
 
+#ifdef SENTRY_PLATFORM_WINDOWS
+DWORD WINAPI
+log_thread_func(LPVOID lpParam)
+{
+    (void)lpParam;
+    int LOG_COUNT = 25;
+    for (int i = 0; i < LOG_COUNT; i++) {
+        sentry_log_debug(
+            "thread log %d on thread %lu", i, get_current_thread_id());
+    }
+    return 0;
+}
+#elif defined(SENTRY_PLATFORM_MACOS)
+void *
+log_thread_func(void *arg)
+{
+    (void)arg;
+    int LOG_COUNT = 100;
+    for (int i = 0; i < LOG_COUNT; i++) {
+        sentry_log_debug(
+            "thread log %d on thread %llu", i, get_current_thread_id());
+    }
+    return NULL;
+}
+#else
+void *
+log_thread_func(void *arg)
+{
+    (void)arg;
+    int LOG_COUNT = 25;
+    for (int i = 0; i < LOG_COUNT; i++) {
+        sentry_log_debug(
+            "thread log %d on thread %llu", i, get_current_thread_id());
+    }
+    return NULL;
+}
+#endif
+
 int
 main(int argc, char **argv)
 {
@@ -395,28 +434,44 @@ main(int argc, char **argv)
 
     // TODO incorporate into test
     if (sentry_options_get_enable_logs(options)) {
-        sentry_log_warn(
-            "This is a big number %" PRIu64, (uint64_t)18446744073709551615);
-        sentry_log_warn("This is a medium number as unsigned %" PRIu64,
-            (uint64_t)9007199254740991);
-        sentry_log_warn("This is a medium number as signed %" PRId64,
-            (int64_t)9007199254740991);
-        sentry_log_trace("We log it up  %i%%, %s style", 100, "trace");
-        sentry_log_debug("We log it up  %i%%, %s style", 100, "debug");
-        sentry_log_info("We log it up  %i%%, %s style", 100, "info");
-        sentry_log_warn("We log it up  %i%%, %s style", 100, "warn");
-        sentry_log_error("We log it up  %i%%, %s style", 100, "error");
-        sentry_log_fatal("We log it up  %i%%, %s style", 100, "fatal");
+        if (has_arg(argc, argv, "logs-timer")) {
+            for (int i = 0; i < 10; i++) {
+                sentry_log_info("Informational log nr.%d", i);
+            }
+#ifdef SENTRY_PLATFORM_WINDOWS
+            Sleep(6000);
 
-        // Test the logger with various parameter types
-        sentry_log_info(
-            "API call to %s completed in %d ms with %f success rate",
-            "/api/products", 2500, 0.95);
-
-        sentry_log_warn("Processing %d items, found %u errors, pointer: %p",
-            100, 5u, (void *)0x12345678);
-
-        sentry_log_error("Character '%c' is invalid", 'X');
+#else
+            sleep_s(6);
+#endif
+            sentry_log_debug("post-sleep log");
+        }
+        if (has_arg(argc, argv, "logs-threads")) {
+            // we should see two envelopes make its way to Sentry
+            // Spawn multiple threads to test concurrent logging
+#ifdef SENTRY_PLATFORM_WINDOWS
+            const int NUM_THREADS = 3;
+            HANDLE threads[NUM_THREADS];
+            for (int t = 0; t < NUM_THREADS; t++) {
+                threads[t]
+                    = CreateThread(NULL, 0, log_thread_func, NULL, 0, NULL);
+            }
+            Sleep(6000);
+            for (int t = 0; t < NUM_THREADS; t++) {
+                CloseHandle(threads[t]);
+            }
+#else
+            const int NUM_THREADS = 50;
+            pthread_t threads[NUM_THREADS];
+            for (int t = 0; t < NUM_THREADS; t++) {
+                pthread_create(&threads[t], NULL, log_thread_func, NULL);
+            }
+            sleep_s(6);
+            for (int t = 0; t < NUM_THREADS; t++) {
+                pthread_join(threads[t], NULL);
+            }
+#endif
+        }
     }
 
     if (!has_arg(argc, argv, "no-setup")) {

@@ -47,7 +47,9 @@ SENTRY_TEST(basic_logging_functionality)
 
     sentry_close();
 
-    TEST_CHECK_INT_EQUAL(called_transport, 1);
+    // TODO for now we set unit test buffer size to 5; does this make sense?
+    //  Or should we just pump out 100+ logs to fill a batch in a for-loop?
+    TEST_CHECK_INT_EQUAL(called_transport, 2);
 }
 
 SENTRY_TEST(logs_disabled_by_default)
