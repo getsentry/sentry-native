@@ -142,7 +142,8 @@ get_gpu_info_linux_pci(void)
             sentry_free(device_str);
         }
 
-        gpu_info->vendor_name = sentry__gpu_vendor_id_to_name(gpu_info->vendor_id);
+        gpu_info->vendor_name
+            = sentry__gpu_vendor_id_to_name(gpu_info->vendor_id);
 
         break;
     }
@@ -225,11 +226,11 @@ get_system_memory_size(void)
 {
     size_t memory_size = 0;
     size_t size = sizeof(memory_size);
-    
+
     if (sysctlbyname("hw.memsize", &memory_size, &size, NULL, 0) == 0) {
         return memory_size;
     }
-    
+
     return 0;
 }
 
@@ -250,7 +251,8 @@ get_gpu_info_macos_agx(void)
 
     memset(gpu_info, 0, sizeof(sentry_gpu_info_t));
     gpu_info->driver_version = sentry__string_clone("Apple AGX Driver");
-    gpu_info->memory_size = get_system_memory_size(); // Unified memory architecture
+    gpu_info->memory_size
+        = get_system_memory_size(); // Unified memory architecture
     gpu_info->name = chip_name;
     gpu_info->vendor_name = sentry__string_clone("Apple Inc.");
     gpu_info->vendor_id = 0x106B; // Apple vendor ID
@@ -339,7 +341,8 @@ get_gpu_info_macos_pci(void)
                             }
                         }
 
-                        gpu_info->vendor_name = sentry__gpu_vendor_id_to_name(gpu_info->vendor_id);
+                        gpu_info->vendor_name = sentry__gpu_vendor_id_to_name(
+                            gpu_info->vendor_id);
                     }
 
                     CFRelease(properties);

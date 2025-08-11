@@ -4,10 +4,10 @@
 #include "sentry_logger.h"
 #include "sentry_string.h"
 
-#include <windows.h>
 #include <d3d9.h>
 #include <dxgi.h>
 #include <wbemidl.h>
+#include <windows.h>
 
 #pragma comment(lib, "d3d9.lib")
 #pragma comment(lib, "dxgi.lib")
@@ -102,7 +102,8 @@ get_gpu_info_d3d9(void)
         return NULL;
     }
 
-    HRESULT hr = d3d->lpVtbl->GetAdapterIdentifier(d3d, D3DADAPTER_DEFAULT, 0, &adapter_id);
+    HRESULT hr = d3d->lpVtbl->GetAdapterIdentifier(
+        d3d, D3DADAPTER_DEFAULT, 0, &adapter_id);
     if (FAILED(hr)) {
         SENTRY_DEBUG("Failed to get D3D9 adapter identifier");
         d3d->lpVtbl->Release(d3d);
