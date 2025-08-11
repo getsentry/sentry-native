@@ -32,13 +32,24 @@ struct logs_queue {
     volatile long flushing; // atomic flag: 1 if currently flushing, 0 otherwise
 } typedef LogQueue;
 
-LogQueue lq = { .buffers = { { .count = 0 }, { .count = 0 } },
-    .active_buffer = 0,
-    .timer_running = 0,
-    .flushing = 0 };
+// Global logs state including bgworker for timer management
+static struct {
+    LogQueue queue;
+    sentry_bgworker_t *timer_worker;
+    volatile long
+        timer_task_submitted; // 1 if timer task is submitted, 0 otherwise
+} g_logs_state = { .queue = { .buffers = { { .count = 0 }, { .count = 0 } },
+                       .active_buffer = 0,
+                       .timer_running = 0,
+                       .flushing = 0 },
+    .timer_worker = NULL,
+    .timer_task_submitted = 0 };
 
-// Forward declaration for timer thread function
-SENTRY_THREAD_FN timer_thread_func(void *arg);
+// Convenience macro to access the queue
+#define lq g_logs_state.queue
+
+// Forward declaration for timer task function
+static void timer_task_func(void *task_data, void *worker_state);
 
 static void
 flush_logs(void)
@@ -59,6 +70,7 @@ flush_logs(void)
     // Check if active buffer has any logs to flush
     if (sentry__atomic_fetch(&lq.buffers[current_active].count) == 0) {
         // Active buffer is empty, try the other buffer
+        // TODO do we want this?
         flush_buffer_idx = 1 - current_active;
         if (sentry__atomic_fetch(&lq.buffers[flush_buffer_idx].count) == 0) {
             // Both buffers are empty, nothing to flush
@@ -74,7 +86,7 @@ flush_logs(void)
     log_buffer_t *flush_buffer = &lq.buffers[flush_buffer_idx];
     long count = sentry__atomic_fetch(&flush_buffer->count);
 
-    if (count == 0) {
+    if (count == 0) { // TODO when can this happen?
         // Buffer became empty while we were setting up, nothing to do
         sentry__atomic_store(&lq.flushing, 0);
         return;
@@ -114,7 +126,8 @@ static bool
 enqueu_log(sentry_value_t log)
 {
     // Retry loop in case buffer switches during our attempt
-    for (int retry = 0; retry < 10; retry++) {
+    // TODO do we want this? adds busy waiting of 1ms
+    for (int retry = 0; retry < 1; retry++) {
         // Get current active buffer index
         long buffer_idx = sentry__atomic_fetch(&lq.active_buffer);
         log_buffer_t *current_buffer = &lq.buffers[buffer_idx];
@@ -146,16 +159,51 @@ enqueu_log(sentry_value_t log)
                 long was_running
                     = sentry__atomic_fetch_and_add(&lq.timer_running, 1);
                 if (was_running == 0) {
-                    // We're the first to set the timer, spawn the thread
-                    sentry_threadid_t timer_thread;
-                    sentry__thread_init(&timer_thread);
-                    if (sentry__thread_spawn(
-                            &timer_thread, timer_thread_func, NULL)
-                        != 0) {
-                        SENTRY_WARN("Failed to spawn timer thread");
+                    // We're the first to set the timer, ensure bgworker exists
+                    // and submit task
+                    if (!g_logs_state.timer_worker) {
+                        g_logs_state.timer_worker
+                            = sentry__bgworker_new(NULL, NULL);
+                        if (g_logs_state.timer_worker) {
+                            sentry__bgworker_setname(
+                                g_logs_state.timer_worker, "sentry-timer");
+                            if (sentry__bgworker_start(
+                                    g_logs_state.timer_worker)
+                                != 0) {
+                                SENTRY_WARN("Failed to start timer bgworker");
+                                sentry__bgworker_decref(
+                                    g_logs_state.timer_worker);
+                                g_logs_state.timer_worker = NULL;
+                                sentry__atomic_fetch_and_add(
+                                    &lq.timer_running, -1);
+                            }
+                        } else {
+                            SENTRY_WARN("Failed to create timer bgworker");
+                            sentry__atomic_fetch_and_add(&lq.timer_running, -1);
+                        }
+                    }
+
+                    // Submit timer task if worker is available and no task is
+                    // already submitted
+                    if (g_logs_state.timer_worker
+                        && !sentry__atomic_fetch(
+                            &g_logs_state.timer_task_submitted)) {
+                        sentry__atomic_store(
+                            &g_logs_state.timer_task_submitted, 1);
+                        if (sentry__bgworker_submit(g_logs_state.timer_worker,
+                                timer_task_func, NULL, NULL)
+                            != 0) {
+                            SENTRY_WARN("Failed to submit timer task");
+                            sentry__atomic_fetch_and_add(&lq.timer_running, -1);
+                            sentry__atomic_store(
+                                &g_logs_state.timer_task_submitted, 0);
+                        }
+                    } else if (!g_logs_state.timer_worker) {
+                        // No worker available, reset the running flag
                         sentry__atomic_fetch_and_add(&lq.timer_running, -1);
                     } else {
-                        sentry__thread_detach(timer_thread);
+                        // Task already submitted, reset the running flag
+                        sentry__atomic_fetch_and_add(&lq.timer_running, -1);
                     }
                 } else {
                     // Timer was already running, decrement back
@@ -185,10 +233,11 @@ enqueu_log(sentry_value_t log)
     return false;
 }
 
-SENTRY_THREAD_FN
-timer_thread_func(void *arg)
+static void
+timer_task_func(void *task_data, void *worker_state)
 {
-    (void)arg; // unused parameter
+    (void)task_data; // unused parameter
+    (void)worker_state; // unused parameter
 
     // Sleep for 5 seconds
 #ifdef SENTRY_PLATFORM_WINDOWS
@@ -200,10 +249,9 @@ timer_thread_func(void *arg)
     // Try to flush logs - this will flush whichever buffer has content
     flush_logs();
 
-    // Reset timer state - decrement the counter
+    // Reset timer state - decrement the counter and mark task as completed
     sentry__atomic_fetch_and_add(&lq.timer_running, -1);
-
-    return 0;
+    sentry__atomic_store(&g_logs_state.timer_task_submitted, 0);
 }
 
 static const char *
@@ -600,4 +648,31 @@ sentry_log_fatal(const char *message, ...)
     va_start(args, message);
     sentry__logs_log(SENTRY_LEVEL_FATAL, message, args);
     va_end(args);
+}
+
+void
+sentry__logs_shutdown(uint64_t timeout)
+{
+    SENTRY_DEBUG("shutting down logs system");
+
+    // Shutdown the timer bgworker if it exists
+    if (g_logs_state.timer_worker) {
+        if (sentry__bgworker_shutdown(g_logs_state.timer_worker, timeout)
+            != 0) {
+            SENTRY_WARN(
+                "timer bgworker did not shut down cleanly within timeout");
+        }
+        // TODO this already happens inside worker_thread
+        // sentry__bgworker_decref(g_logs_state.timer_worker);
+        // g_logs_state.timer_worker = NULL;
+    }
+
+    // Reset state flags
+    sentry__atomic_store(&g_logs_state.timer_task_submitted, 0);
+    sentry__atomic_store(&lq.timer_running, 0);
+
+    // Perform final flush to ensure any remaining logs are sent
+    flush_logs();
+
+    SENTRY_DEBUG("logs system shutdown complete");
 }
