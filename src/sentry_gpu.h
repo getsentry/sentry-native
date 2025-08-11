@@ -1,0 +1,48 @@
+#ifndef SENTRY_GPU_H_INCLUDED
+#define SENTRY_GPU_H_INCLUDED
+
+#include "sentry_boot.h"
+#include "sentry_value.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+typedef struct sentry_gpu_info_s {
+    char *name;
+    char *vendor_name;
+    char *driver_version;
+    unsigned int vendor_id;
+    unsigned int device_id;
+    size_t memory_size;
+} sentry_gpu_info_t;
+
+/**
+ * Retrieves GPU information for the current system.
+ * Returns a sentry_gpu_info_t structure that must be freed with
+ * sentry__free_gpu_info, or NULL if no GPU information could be obtained.
+ */
+sentry_gpu_info_t *sentry__get_gpu_info(void);
+
+/**
+ * Frees the GPU information structure returned by sentry__get_gpu_info.
+ */
+void sentry__free_gpu_info(sentry_gpu_info_t *gpu_info);
+
+/**
+ * Maps a GPU vendor ID to a vendor name string.
+ * Returns a newly allocated string that must be freed, or NULL if unknown.
+ */
+char *sentry__gpu_vendor_id_to_name(unsigned int vendor_id);
+
+/**
+ * Creates a sentry value object containing GPU context information.
+ * Returns a sentry_value_t object with GPU data, or null value if unavailable.
+ */
+sentry_value_t sentry__get_gpu_context(void);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif
