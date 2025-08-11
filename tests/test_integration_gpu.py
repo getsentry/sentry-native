@@ -90,8 +90,9 @@ def test_gpu_context_structure_validation(cmake):
 
         # Validate that we have at least basic identifying information
         identifying_fields = ["name", "vendor_name", "vendor_id", "device_id"]
-        assert any(field in gpu_context for field in identifying_fields), \
-            f"GPU context should contain at least one of: {identifying_fields}"
+        assert any(
+            field in gpu_context for field in identifying_fields
+        ), f"GPU context should contain at least one of: {identifying_fields}"
 
         # If name is present, it should be meaningful
         if "name" in gpu_context:
@@ -165,7 +166,9 @@ def test_gpu_context_apple_silicon(cmake):
         if "memory_size" in gpu_context:
             memory_size = gpu_context["memory_size"]
             # Should be a reasonable system memory size (at least 8GB)
-            assert memory_size >= 8 * 1024 * 1024 * 1024, "Apple Silicon should report unified memory"
+            assert (
+                memory_size >= 8 * 1024 * 1024 * 1024
+            ), "Apple Silicon should report unified memory"
 
 
 def test_gpu_context_cross_platform_compatibility(cmake):

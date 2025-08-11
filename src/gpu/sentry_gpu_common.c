@@ -54,31 +54,37 @@ sentry__get_gpu_context(void)
 
     // Add GPU name
     if (gpu_info->name) {
-        sentry_value_set_by_key(gpu_context, "name", sentry_value_new_string(gpu_info->name));
+        sentry_value_set_by_key(
+            gpu_context, "name", sentry_value_new_string(gpu_info->name));
     }
 
     // Add vendor information
     if (gpu_info->vendor_name) {
-        sentry_value_set_by_key(gpu_context, "vendor_name", sentry_value_new_string(gpu_info->vendor_name));
+        sentry_value_set_by_key(gpu_context, "vendor_name",
+            sentry_value_new_string(gpu_info->vendor_name));
     }
-    
+
     if (gpu_info->vendor_id != 0) {
-        sentry_value_set_by_key(gpu_context, "vendor_id", sentry_value_new_int32(gpu_info->vendor_id));
+        sentry_value_set_by_key(gpu_context, "vendor_id",
+            sentry_value_new_int32(gpu_info->vendor_id));
     }
 
     // Add device ID
     if (gpu_info->device_id != 0) {
-        sentry_value_set_by_key(gpu_context, "device_id", sentry_value_new_int32(gpu_info->device_id));
+        sentry_value_set_by_key(gpu_context, "device_id",
+            sentry_value_new_int32(gpu_info->device_id));
     }
 
     // Add memory size
     if (gpu_info->memory_size > 0) {
-        sentry_value_set_by_key(gpu_context, "memory_size", sentry_value_new_int64(gpu_info->memory_size));
+        sentry_value_set_by_key(gpu_context, "memory_size",
+            sentry_value_new_int64(gpu_info->memory_size));
     }
 
     // Add driver version
     if (gpu_info->driver_version) {
-        sentry_value_set_by_key(gpu_context, "driver_version", sentry_value_new_string(gpu_info->driver_version));
+        sentry_value_set_by_key(gpu_context, "driver_version",
+            sentry_value_new_string(gpu_info->driver_version));
     }
 
     sentry__free_gpu_info(gpu_info);

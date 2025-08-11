@@ -96,13 +96,13 @@ get_scope(void)
 
     init_scope(&g_scope);
     sentry_value_set_by_key(g_scope.contexts, "os", sentry__get_os_context());
-    
+
     // Add GPU context if GPU info is enabled
     sentry_value_t gpu_context = sentry__get_gpu_context();
     if (!sentry_value_is_null(gpu_context)) {
         sentry_value_set_by_key(g_scope.contexts, "gpu", gpu_context);
     }
-    
+
     g_scope.client_sdk = get_client_sdk();
 
     g_scope_initialized = true;

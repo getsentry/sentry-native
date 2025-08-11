@@ -1,13 +1,14 @@
 #include "sentry_gpu.h"
-#include "sentry_testsupport.h"
 #include "sentry_scope.h"
+#include "sentry_testsupport.h"
 
 SENTRY_TEST(gpu_info_basic)
 {
     sentry_gpu_info_t *gpu_info = sentry__get_gpu_info();
 
 #ifdef SENTRY_WITH_GPU_INFO
-    // When GPU support is enabled, we should get some GPU information (at least on most systems)
+    // When GPU support is enabled, we should get some GPU information (at least
+    // on most systems)
     if (gpu_info) {
         // Check that at least one field is populated
         bool has_info = false;
@@ -41,7 +42,8 @@ SENTRY_TEST(gpu_info_basic)
 
         sentry__free_gpu_info(gpu_info);
     } else {
-        // It's okay if no GPU info is available on some systems (VMs, headless systems, etc.)
+        // It's okay if no GPU info is available on some systems (VMs, headless
+        // systems, etc.)
         TEST_MSG("No GPU information available on this system");
     }
 #else
@@ -128,22 +130,26 @@ SENTRY_TEST(gpu_context_scope_integration)
 {
     // Test that GPU context is properly integrated into scope
     sentry_value_t gpu_context = sentry__get_gpu_context();
-    
+
 #ifdef SENTRY_WITH_GPU_INFO
     // When GPU support is enabled, check if we get a valid context
     if (!sentry_value_is_null(gpu_context)) {
-        TEST_CHECK(sentry_value_get_type(gpu_context) == SENTRY_VALUE_TYPE_OBJECT);
-        
+        TEST_CHECK(
+            sentry_value_get_type(gpu_context) == SENTRY_VALUE_TYPE_OBJECT);
+
         // Check that at least one field is present in the context
         bool has_field = false;
         sentry_value_t name = sentry_value_get_by_key(gpu_context, "name");
-        sentry_value_t vendor_name = sentry_value_get_by_key(gpu_context, "vendor_name");
-        sentry_value_t vendor_id = sentry_value_get_by_key(gpu_context, "vendor_id");
-        
-        if (!sentry_value_is_null(name) || !sentry_value_is_null(vendor_name) || !sentry_value_is_null(vendor_id)) {
+        sentry_value_t vendor_name
+            = sentry_value_get_by_key(gpu_context, "vendor_name");
+        sentry_value_t vendor_id
+            = sentry_value_get_by_key(gpu_context, "vendor_id");
+
+        if (!sentry_value_is_null(name) || !sentry_value_is_null(vendor_name)
+            || !sentry_value_is_null(vendor_id)) {
             has_field = true;
         }
-        
+
         TEST_CHECK(has_field);
         TEST_MSG("GPU context should contain at least one valid field");
     } else {
