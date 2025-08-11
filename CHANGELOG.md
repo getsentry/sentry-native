@@ -88,6 +88,10 @@
 - Use proper SDK name determination for structured logs `sdk.name` attribute. ([#1399](https://github.com/getsentry/sentry-native/pull/1399))
 - Serialize `uint64` values as numerical instead of string. ([#1408](https://github.com/getsentry/sentry-native/pull/1408))
 
+**Features**:
+
+- Implement the GPU Info gathering within the Native SDK ([#1336](https://github.com/getsentry/sentry-native/pull/1336))
+
 ## 0.11.2
 
 **Fixes**:
