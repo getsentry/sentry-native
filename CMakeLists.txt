@@ -97,6 +97,7 @@ endif()
 option(SENTRY_PIC "Build sentry (and dependent) libraries as position independent libraries" ON)
 
 option(SENTRY_TRANSPORT_COMPRESSION "Enable transport gzip compression" OFF)
+option(SENTRY_WITH_GPU_INFO "Build with GPU information gathering support" OFF)
 
 option(SENTRY_BUILD_TESTS "Build sentry-native tests" "${SENTRY_MAIN_PROJECT}")
 option(SENTRY_BUILD_EXAMPLES "Build sentry-native example(s)" "${SENTRY_MAIN_PROJECT}")
@@ -589,6 +590,16 @@ if(NOT XBOX)
 	if(SENTRY_LINK_PTHREAD)
 		list(APPEND _SENTRY_PLATFORM_LIBS "Threads::Threads")
 	endif()
+endif()
+
+# handle Apple frameworks for GPU info
+if(APPLE AND SENTRY_WITH_GPU_INFO)
+	list(APPEND _SENTRY_PLATFORM_LIBS "-framework CoreFoundation" "-framework IOKit")
+endif()
+
+# handle Windows libraries for GPU info
+if(WIN32 AND SENTRY_WITH_GPU_INFO)
+	list(APPEND _SENTRY_PLATFORM_LIBS "d3d9" "dxgi" "ole32" "oleaut32")
 endif()
 
 # apply platform libraries to sentry library

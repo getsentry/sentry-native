@@ -210,3 +210,29 @@ else()
 		screenshot/sentry_screenshot_none.c
 	)
 endif()
+
+# gpu
+if(SENTRY_WITH_GPU_INFO)
+	target_compile_definitions(sentry PRIVATE SENTRY_WITH_GPU_INFO)
+	sentry_target_sources_cwd(sentry
+		sentry_gpu.h
+		gpu/sentry_gpu_common.c
+	)
+
+	if(WIN32)
+		sentry_target_sources_cwd(sentry
+			gpu/sentry_gpu_windows.c
+		)
+	elseif(NX OR PROSPERO)
+		# NX and Prospero do not support GPU info gathering from native SDK
+	else()
+		sentry_target_sources_cwd(sentry
+			gpu/sentry_gpu_unix.c
+		)
+	endif()
+else()
+	sentry_target_sources_cwd(sentry
+		sentry_gpu.h
+		gpu/sentry_gpu_none.c
+	)
+endif()
