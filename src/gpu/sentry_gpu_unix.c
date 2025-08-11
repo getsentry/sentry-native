@@ -21,6 +21,7 @@
 #    include <sys/sysctl.h>
 #endif
 
+#ifdef SENTRY_PLATFORM_LINUX
 static char *
 read_file_content(const char *filepath)
 {
@@ -82,8 +83,6 @@ parse_hex_id(const char *hex_str)
 
     return result;
 }
-
-#ifdef SENTRY_PLATFORM_LINUX
 static sentry_gpu_info_t *
 get_gpu_info_linux_pci(void)
 {

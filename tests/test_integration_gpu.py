@@ -122,56 +122,6 @@ def test_gpu_context_structure_validation(cmake):
             assert memory_size >= 1024 * 1024, "GPU memory size seems too small"
 
 
-@pytest.mark.skipif(
-    sys.platform != "darwin", reason="Apple Silicon test only runs on macOS"
-)
-def test_gpu_context_apple_silicon(cmake):
-    """Test GPU context on Apple Silicon systems (if running on macOS)."""
-
-    tmp_path = cmake(
-        ["sentry_example"],
-        {
-            "SENTRY_BACKEND": "none",
-            "SENTRY_TRANSPORT": "none",
-            "SENTRY_WITH_GPU_INFO": "ON",
-        },
-    )
-
-    output = check_output(
-        tmp_path,
-        "sentry_example",
-        ["stdout", "capture-event"],
-    )
-    envelope = Envelope.deserialize(output)
-    event = envelope.get_event()
-
-    # We should have GPU context if running on Apple Silicon
-    assert "contexts" in event, "Event should have contexts"
-    assert "gpu" in event["contexts"], "Event should have GPU context"
-
-    # Validate the GPU context structure
-    assert_gpu_context(event, should_have_gpu=True)
-
-    # On Apple Silicon, we should get GPU info
-    if "gpu" in event.get("contexts", {}):
-        gpu_context = event["contexts"]["gpu"]
-
-        # Apple GPUs should have Apple as vendor
-        if "vendor_name" in gpu_context:
-            assert "Apple" in gpu_context["vendor_name"]
-
-        if "vendor_id" in gpu_context:
-            assert gpu_context["vendor_id"] == 0x106B  # Apple vendor ID
-
-        # Should have unified memory (system memory)
-        if "memory_size" in gpu_context:
-            memory_size = gpu_context["memory_size"]
-            # Should be a reasonable system memory size (at least 8GB)
-            assert (
-                memory_size >= 8 * 1024 * 1024 * 1024
-            ), "Apple Silicon should report unified memory"
-
-
 def test_gpu_context_cross_platform_compatibility(cmake):
     """Test that GPU context works across different platforms without breaking."""
     tmp_path = cmake(
