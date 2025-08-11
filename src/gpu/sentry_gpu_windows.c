@@ -27,7 +27,7 @@ wchar_to_utf8(const wchar_t *wstr)
         return NULL;
     }
 
-    char *str = sentry_malloc(len);
+    char *str = sentry_malloc((size_t)len);
     if (!str) {
         return NULL;
     }
