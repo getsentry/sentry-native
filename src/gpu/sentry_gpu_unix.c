@@ -14,7 +14,7 @@
 #    include <sys/stat.h>
 #endif
 
-#ifdef SENTRY_PLATFORM_DARWIN
+#ifdef SENTRY_PLATFORM_MACOS
 #    include <CoreFoundation/CoreFoundation.h>
 #    include <IOKit/IOKitLib.h>
 #    include <IOKit/graphics/IOGraphicsLib.h>
@@ -192,7 +192,7 @@ get_gpu_info_linux_drm(void)
 }
 #endif
 
-#ifdef SENTRY_PLATFORM_DARWIN
+#ifdef SENTRY_PLATFORM_MACOS
 static char *
 get_apple_chip_name(void)
 {
@@ -389,7 +389,7 @@ sentry__get_gpu_info(void)
     }
 #endif
 
-#ifdef SENTRY_PLATFORM_DARWIN
+#ifdef SENTRY_PLATFORM_MACOS
     gpu_info = get_gpu_info_macos();
 #endif
 

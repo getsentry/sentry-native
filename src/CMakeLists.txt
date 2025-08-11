@@ -223,12 +223,12 @@ if(SENTRY_WITH_GPU_INFO)
 		sentry_target_sources_cwd(sentry
 			gpu/sentry_gpu_windows.c
 		)
-	elseif(NX OR PROSPERO)
-		# NX and Prospero do not support GPU info gathering from native SDK
-	else()
+	elseif((APPLE AND NOT IOS) OR LINUX)
 		sentry_target_sources_cwd(sentry
 			gpu/sentry_gpu_unix.c
 		)
+	else()
+		# Other Platforms don't support GPU info gathering from native SDK
 	endif()
 else()
 	sentry_target_sources_cwd(sentry

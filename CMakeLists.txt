@@ -593,7 +593,7 @@ if(NOT XBOX)
 endif()
 
 # handle Apple frameworks for GPU info
-if(APPLE AND SENTRY_WITH_GPU_INFO)
+if((APPLE AND NOT IOS) AND SENTRY_WITH_GPU_INFO)
 	list(APPEND _SENTRY_PLATFORM_LIBS "-framework CoreFoundation" "-framework IOKit")
 endif()
 
