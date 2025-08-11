@@ -228,7 +228,10 @@ if(SENTRY_WITH_GPU_INFO)
 			gpu/sentry_gpu_unix.c
 		)
 	else()
-		# Other Platforms don't support GPU info gathering from native SDK
+		# For platforms that do not support GPU info gathering, we provide a no-op implementation
+		sentry_target_sources_cwd(sentry
+			gpu/sentry_gpu_none.c
+		)
 	endif()
 else()
 	sentry_target_sources_cwd(sentry
