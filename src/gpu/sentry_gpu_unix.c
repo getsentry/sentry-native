@@ -360,7 +360,6 @@ get_gpu_info_macos_pci(void)
     IOObjectRelease(iterator);
     return gpu_info;
 }
-#endif
 
 static sentry_gpu_info_t *
 get_gpu_info_macos(void)
@@ -377,6 +376,7 @@ get_gpu_info_macos(void)
     gpu_info = get_gpu_info_macos_pci();
     return gpu_info;
 }
+#endif
 
 sentry_gpu_info_t *
 sentry__get_gpu_info(void)
