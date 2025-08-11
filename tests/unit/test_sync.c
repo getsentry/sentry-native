@@ -59,11 +59,17 @@ sleep_task(void *UNUSED(data), void *UNUSED(state))
 }
 
 static sentry_cond_t trailing_task_done;
+#ifdef SENTRY__MUTEX_INIT_DYN
+SENTRY__MUTEX_INIT_DYN(executed_lock)
+#else
 static sentry_mutex_t executed_lock = SENTRY__MUTEX_INIT;
+#endif
 
 static void
 trailing_task(void *data, void *UNUSED(state))
 {
+    SENTRY__MUTEX_INIT_DYN_ONCE(executed_lock);
+
     sentry__mutex_lock(&executed_lock);
     bool *executed = (bool *)data;
     *executed = true;
@@ -93,6 +99,8 @@ collect(void *task, void *data)
 
 SENTRY_TEST(task_queue)
 {
+    SENTRY__MUTEX_INIT_DYN_ONCE(executed_lock);
+
     sentry__cond_init(&trailing_task_done);
     sentry_bgworker_t *bgw = sentry__bgworker_new(NULL, NULL);
     TEST_ASSERT(!!bgw);
