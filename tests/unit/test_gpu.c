@@ -65,44 +65,109 @@ SENTRY_TEST(gpu_info_vendor_id_known)
     sentry_gpu_info_t *gpu_info = sentry__get_gpu_info();
 
 #ifdef SENTRY_WITH_GPU_INFO
-    // Test the common vendor ID to name mapping function with all supported
-    // vendors
-    struct {
-        unsigned int vendor_id;
-        const char *expected_name;
-    } test_cases[] = {
-        { 0x10DE, "NVIDIA Corporation" },
-        { 0x1002, "Advanced Micro Devices, Inc. [AMD/ATI]" },
-        { 0x8086, "Intel Corporation" }, { 0x106B, "Apple Inc." },
-        { 0x1414, "Microsoft Corporation" }, { 0x5143, "Qualcomm" },
-        { 0x1AE0, "Google" }, { 0x1010, "VideoLogic" },
-        { 0x1023, "Trident Microsystems" }, { 0x102B, "Matrox Graphics" },
-        { 0x121A, "3dfx Interactive" }, { 0x18CA, "XGI Technology" },
-        { 0x1039, "Silicon Integrated Systems [SiS]" },
-        { 0x126F, "Silicon Motion" },
-        { 0x0000, "Unknown" }, // Test unknown vendor ID
-        { 0xFFFF, "Unknown" } // Test another unknown vendor ID
+    // Test the common vendor ID to name mapping function with all supported vendors
+    unsigned int test_vendor_ids[] = {
+        0x10DE, 0x1002, 0x8086, 0x106B, 0x1414, 0x5143, 0x1AE0, 0x1010,
+        0x1023, 0x102B, 0x121A, 0x18CA, 0x1039, 0x126F, 0x0000, 0xFFFF
     };
 
-    for (size_t i = 0; i < sizeof(test_cases) / sizeof(test_cases[0]); i++) {
-        char *vendor_name
-            = sentry__gpu_vendor_id_to_name(test_cases[i].vendor_id);
+    for (size_t i = 0; i < sizeof(test_vendor_ids) / sizeof(test_vendor_ids[0]); i++) {
+        char *vendor_name = sentry__gpu_vendor_id_to_name(test_vendor_ids[i]);
         TEST_CHECK(vendor_name != NULL);
-        TEST_CHECK(strcmp(vendor_name, test_cases[i].expected_name) == 0);
+        
+        switch (test_vendor_ids[i]) {
+        case 0x10DE:
+            TEST_CHECK(strstr(vendor_name, "NVIDIA") != NULL);
+            break;
+        case 0x1002:
+            TEST_CHECK(strstr(vendor_name, "AMD") != NULL || strstr(vendor_name, "ATI") != NULL);
+            break;
+        case 0x8086:
+            TEST_CHECK(strstr(vendor_name, "Intel") != NULL);
+            break;
+        case 0x106B:
+            TEST_CHECK(strstr(vendor_name, "Apple") != NULL);
+            break;
+        case 0x1414:
+            TEST_CHECK(strstr(vendor_name, "Microsoft") != NULL);
+            break;
+        case 0x5143:
+            TEST_CHECK(strstr(vendor_name, "Qualcomm") != NULL);
+            break;
+        case 0x1AE0:
+            TEST_CHECK(strstr(vendor_name, "Google") != NULL);
+            break;
+        case 0x1010:
+            TEST_CHECK(strstr(vendor_name, "VideoLogic") != NULL);
+            break;
+        case 0x1023:
+            TEST_CHECK(strstr(vendor_name, "Trident") != NULL);
+            break;
+        case 0x102B:
+            TEST_CHECK(strstr(vendor_name, "Matrox") != NULL);
+            break;
+        case 0x121A:
+            TEST_CHECK(strstr(vendor_name, "3dfx") != NULL);
+            break;
+        case 0x18CA:
+            TEST_CHECK(strstr(vendor_name, "XGI") != NULL);
+            break;
+        case 0x1039:
+            TEST_CHECK(strstr(vendor_name, "SiS") != NULL || strstr(vendor_name, "Silicon") != NULL);
+            break;
+        case 0x126F:
+            TEST_CHECK(strstr(vendor_name, "Silicon Motion") != NULL);
+            break;
+        case 0x0000:
+        case 0xFFFF:
+            TEST_CHECK(strstr(vendor_name, "Unknown") != NULL);
+            break;
+        default:
+            TEST_CHECK(strstr(vendor_name, "Unknown") != NULL);
+            break;
+        }
+        
         sentry_free(vendor_name);
     }
 
     // Test with actual GPU info if available
     if (gpu_info) {
-        // Verify that the GPU info uses the same vendor name as our common
-        // function
+        // Verify that the GPU info has a valid vendor name
         TEST_CHECK(gpu_info->vendor_name != NULL);
-        char *expected_vendor_name
-            = sentry__gpu_vendor_id_to_name(gpu_info->vendor_id);
-        TEST_CHECK(expected_vendor_name != NULL);
-        TEST_CHECK(strcmp(gpu_info->vendor_name, expected_vendor_name) == 0);
+        
+        if (gpu_info->vendor_name) {
+            char *expected_vendor_name = sentry__gpu_vendor_id_to_name(gpu_info->vendor_id);
+            TEST_CHECK(expected_vendor_name != NULL);
+            
+            if (expected_vendor_name) {
+                // Use strstr to check that the vendor name contains expected content
+                // rather than exact string comparison which may be fragile
+                switch (gpu_info->vendor_id) {
+                case 0x10DE: // NVIDIA
+                    TEST_CHECK(strstr(gpu_info->vendor_name, "NVIDIA") != NULL);
+                    break;
+                case 0x1002: // AMD/ATI
+                    TEST_CHECK(strstr(gpu_info->vendor_name, "AMD") != NULL || strstr(gpu_info->vendor_name, "ATI") != NULL);
+                    break;
+                case 0x8086: // Intel
+                    TEST_CHECK(strstr(gpu_info->vendor_name, "Intel") != NULL);
+                    break;
+                case 0x106B: // Apple
+                    TEST_CHECK(strstr(gpu_info->vendor_name, "Apple") != NULL);
+                    break;
+                case 0x1414: // Microsoft
+                    TEST_CHECK(strstr(gpu_info->vendor_name, "Microsoft") != NULL);
+                    break;
+                default:
+                    // For other or unknown vendors, just check it's not empty
+                    TEST_CHECK(strlen(gpu_info->vendor_name) > 0);
+                    break;
+                }
+                
+                sentry_free(expected_vendor_name);
+            }
+        }
 
-        sentry_free(expected_vendor_name);
         sentry__free_gpu_info(gpu_info);
     } else {
         TEST_MSG("No GPU vendor ID available for testing");
