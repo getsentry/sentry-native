@@ -599,7 +599,7 @@ endif()
 
 # handle Windows libraries for GPU info
 if(WIN32 AND SENTRY_WITH_GPU_INFO)
-	list(APPEND _SENTRY_PLATFORM_LIBS "d3d9" "dxgi" "ole32" "oleaut32")
+	list(APPEND _SENTRY_PLATFORM_LIBS "d3d9" "dxgi" "dxguid" "ole32" "oleaut32")
 endif()
 
 # apply platform libraries to sentry library
