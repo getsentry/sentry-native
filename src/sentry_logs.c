@@ -45,9 +45,12 @@ flush_logs_single_queue(void)
         return;
     }
 
+    uint64_t before_flush = sentry__usec_time();
+
     sentry_value_t logs = sentry_value_new_object();
     sentry_value_t log_items = sentry_value_new_list();
-    for (int i = 0; i < sentry__atomic_fetch(&g_logs_single_state.queue.index);
+    int i;
+    for (i = 0; i < sentry__atomic_fetch(&g_logs_single_state.queue.index);
         i++) {
         sentry_value_append(
             log_items, sentry__value_clone(g_logs_single_state.queue.logs[i]));
@@ -64,6 +67,8 @@ flush_logs_single_queue(void)
     sentry_value_decref(logs);
     sentry__atomic_store(&g_logs_single_state.queue.index, 0);
     sentry__atomic_fetch_and_add(&g_logs_single_state.flushing, -1);
+    SENTRY_DEBUGF("Time to flush %i items is %llu us\n", i,
+        sentry__usec_time() - before_flush);
 }
 
 static void
@@ -110,6 +115,8 @@ generate_timer_task(void)
 static bool
 enqueue_log_single(sentry_value_t log)
 {
+    uint64_t before = sentry__usec_time();
+
     if (sentry__atomic_fetch(&g_logs_single_state.flushing) == 1) {
         goto fail;
     }
@@ -145,9 +152,12 @@ enqueue_log_single(sentry_value_t log)
                     &g_logs_single_state.timer_running, -1);
             }
         }
+        SENTRY_DEBUGF("Time to successful enqueue log is %llu us\n",
+            sentry__usec_time() - before);
         return true;
     }
     // Buffer is full, roll back our increment
+    // THIS LOGICALLY CANNOT HAPPEN (UNREACHABLE?)
     sentry__atomic_fetch_and_add(&g_logs_single_state.queue.index, -1);
 fail:
     // All retries exhausted - both buffers are likely full
@@ -155,6 +165,8 @@ fail:
         "Unable to enqueue log at time %f - all buffers full. Log body: %s",
         sentry_value_as_double(sentry_value_get_by_key(log, "timestamp")),
         sentry_value_as_string(sentry_value_get_by_key(log, "body")));
+    SENTRY_DEBUGF("Time to failed enqueue log is %llu us\n",
+        sentry__usec_time() - before);
     return false;
 }
 
