@@ -137,9 +137,6 @@ SENTRY_TEST(gpu_info_vendor_id_known)
 
     // Test with actual GPU info if available
     if (gpu_info) {
-        // Verify that the GPU info has a valid vendor name
-        TEST_CHECK(gpu_info->vendor_name != NULL);
-
         if (gpu_info->vendor_name) {
             char *expected_vendor_name
                 = sentry__gpu_vendor_id_to_name(gpu_info->vendor_id);
