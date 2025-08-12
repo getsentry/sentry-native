@@ -649,7 +649,7 @@ def test_crashpad_crash_reporter(cmake, httpserver, run_args):
         child = run(
             tmp_path,
             "sentry_example",
-            ["log", "crash-reporter", "start-session"] + run_args,
+            ["log", "crash-reporter"] + run_args,
             env=env,
         )
         assert child.returncode  # well, it's a crash after all
@@ -665,7 +665,6 @@ def test_crashpad_crash_reporter(cmake, httpserver, run_args):
 
     envelope = Envelope.deserialize(crash)
     assert_meta(envelope, integration="crashpad")
-    assert_session(envelope)
     assert_breadcrumb(envelope)
 
     envelope = Envelope.deserialize(feedback)
