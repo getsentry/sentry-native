@@ -21,6 +21,7 @@
 typedef struct {
     sentry_value_t logs[QUEUE_LENGTH];
     volatile long count; // Number of logs in this buffer
+    volatile long adding; // Number of logs trying to get added to this buffer
 } log_buffer_t;
 
 struct logs_queue {
@@ -38,10 +39,11 @@ static struct {
     sentry_bgworker_t *timer_worker;
     volatile long
         timer_task_submitted; // 1 if timer task is submitted, 0 otherwise
-} g_logs_state = { .queue = { .buffers = { { .count = 0 }, { .count = 0 } },
-                       .active_buffer = 0,
-                       .timer_running = 0,
-                       .flushing = 0 },
+} g_logs_state = { .queue
+    = { .buffers = { { .count = 0, .adding = 0 }, { .count = 0, .adding = 0 } },
+        .active_buffer = 0,
+        .timer_running = 0,
+        .flushing = 0 },
     .timer_worker = NULL,
     .timer_task_submitted = 0 };
 
@@ -52,7 +54,7 @@ static struct {
 static void timer_task_func(void *task_data, void *worker_state);
 
 static void
-flush_logs(void)
+flush_logs(int from_length)
 {
     // Use atomic compare-and-swap to ensure only one thread flushes at a time
     // TODO is this platform-agnostic?
@@ -68,6 +70,16 @@ flush_logs(void)
     sentry__atomic_store(&lq.active_buffer, new_active);
 
     log_buffer_t *flush_buffer = &lq.buffers[current_active_buffer_idx];
+    while (sentry__atomic_fetch(&flush_buffer->adding) != from_length) {
+        SENTRY_DEBUG("waiting for add to be finished");
+        // TODO is there a better way to do this than a busy wait?
+#ifdef SENTRY_PLATFORM_WINDOWS
+        Sleep(1);
+#else
+        usleep(20); // 1ms
+#endif
+    }
+    // all adds have concluded
     long count = sentry__atomic_fetch(&flush_buffer->count);
 
     // Check if active buffer has any logs to flush
@@ -121,22 +133,27 @@ enqueu_log(sentry_value_t log)
         // Get current active buffer index
         long buffer_idx = sentry__atomic_fetch(&lq.active_buffer);
         log_buffer_t *current_buffer = &lq.buffers[buffer_idx];
+        // TODO we should add 1 to the 'adding' counter here, even if it fails
+        //  to avoid flush mistiming with an in-flight log
+        sentry__atomic_fetch_and_add(&current_buffer->adding, 1);
 
         // Try to get a slot in the current buffer
         long log_idx = sentry__atomic_fetch_and_add(&current_buffer->count, 1);
-        long buffer_is_flushing;
+        // long buffer_is_flushing;
 
         // TODO we also need to check that the queue isn't begin flushed right
         // now? or that there are still an X amount of logs being added which
         // would make the queue full?
         //  -> think the latter is implicit in atomically getting the count
+        // TODO the && !lq.flushing isn't necessary UNLESS both queues are
+        // flushing! if (log_idx < QUEUE_LENGTH && !lq.flushing) {
         if (log_idx < QUEUE_LENGTH) {
             // Successfully got a slot, write the log
             current_buffer->logs[log_idx] = log;
 
             // Check if this buffer is now full and trigger flush
             if (log_idx == QUEUE_LENGTH - 1) {
-                flush_logs();
+                flush_logs(1);
             }
 
             // Start timer thread if this is the first log in any buffer
@@ -203,7 +220,7 @@ enqueu_log(sentry_value_t log)
                     sentry__atomic_fetch_and_add(&lq.timer_running, -1);
                 }
             }
-
+            sentry__atomic_fetch_and_add(&current_buffer->adding, -1);
             return true;
         }
         // Buffer is full, roll back our increment
@@ -212,7 +229,7 @@ enqueu_log(sentry_value_t log)
         // TODO the flush below only makes sense if we retry
         // Try to trigger a flush to switch buffers
         if (RETRY_COUNT) {
-            flush_logs();
+            // flush_logs();
 
             // Brief pause before retry to allow flush to complete
 #ifdef SENTRY_PLATFORM_WINDOWS
@@ -221,6 +238,7 @@ enqueu_log(sentry_value_t log)
             usleep(1000); // 1ms
 #endif
         }
+        sentry__atomic_fetch_and_add(&current_buffer->adding, -1);
     }
 
     // All retries exhausted - both buffers are likely full
@@ -243,7 +261,7 @@ timer_task_func(void *task_data, void *worker_state)
 #endif
 
     // Try to flush logs - this will flush whichever buffer has content
-    flush_logs();
+    flush_logs(0);
 
     // Reset timer state - decrement the counter and mark task as completed
     sentry__atomic_fetch_and_add(&lq.timer_running, -1);
@@ -668,7 +686,7 @@ sentry__logs_shutdown(uint64_t timeout)
     sentry__atomic_store(&lq.timer_running, 0);
 
     // Perform final flush to ensure any remaining logs are sent
-    flush_logs();
+    flush_logs(0);
 
     SENTRY_DEBUG("logs system shutdown complete");
 }
