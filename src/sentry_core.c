@@ -8,6 +8,7 @@
 #include "sentry_core.h"
 #include "sentry_database.h"
 #include "sentry_envelope.h"
+#include "sentry_logs.h"
 #include "sentry_options.h"
 #include "sentry_os.h"
 #include "sentry_path.h"
@@ -323,6 +324,9 @@ sentry_close(void)
             SENTRY_DEBUG("shutting down backend");
             options->backend->shutdown_func(options->backend);
         }
+
+        // Shutdown logs system before transport to ensure logs are flushed
+        sentry__logs_shutdown(options->shutdown_timeout);
 
         if (options->transport) {
             if (sentry__transport_shutdown(

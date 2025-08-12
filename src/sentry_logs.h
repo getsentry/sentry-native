@@ -5,4 +5,11 @@
 
 void sentry__logs_log(sentry_level_t level, const char *message, va_list args);
 
+/**
+ * Instructs the logs bgworker to shut down.
+ *
+ * Returns 0 on success.
+ */
+void sentry__logs_shutdown(uint64_t timeout);
+
 #endif

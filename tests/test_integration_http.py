@@ -37,6 +37,7 @@ from .assertions import (
     assert_gzip_file_header,
     assert_failed_proxy_auth_request,
     assert_attachment_view_hierarchy,
+    assert_logs,
 )
 from .conditions import has_http, has_breakpad, has_files
 
@@ -1311,3 +1312,66 @@ def test_capture_with_scope(cmake, httpserver):
 
     assert_breadcrumb(envelope, "scoped crumb")
     assert_attachment(envelope)
+
+
+def test_logs_timer(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+
+    # make sure we are isolated from previous runs
+    shutil.rmtree(tmp_path / ".sentry-native", ignore_errors=True)
+
+    httpserver.expect_request(
+        "/api/123456/envelope/",
+        headers={"x-sentry-auth": auth_header},
+    ).respond_with_data("OK")
+
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "enable-logs", "logs-timer"],
+        check=True,
+        env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+    )
+
+    assert len(httpserver.log) == 2
+
+    req_0 = httpserver.log[0][0]
+    body_0 = req_0.get_data()
+
+    envelope_0 = Envelope.deserialize(body_0)
+    assert_logs(envelope_0, 10)
+
+    req_1 = httpserver.log[1][0]
+    body_1 = req_1.get_data()
+
+    envelope_1 = Envelope.deserialize(body_1)
+    assert_logs(envelope_1)
+
+
+def test_logs_threaded(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+
+    # make sure we are isolated from previous runs
+    shutil.rmtree(tmp_path / ".sentry-native", ignore_errors=True)
+
+    httpserver.expect_request(
+        "/api/123456/envelope/",
+        headers={"x-sentry-auth": auth_header},
+    ).respond_with_data("OK")
+
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "enable-logs", "logs-threads"],
+        check=True,
+        env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+    )
+
+    assert len(httpserver.log) == 50
+
+    for i in range(50):
+        req = httpserver.log[i][0]
+        body = req.get_data()
+
+        envelope = Envelope.deserialize(body)
+        assert_logs(envelope, 100)
