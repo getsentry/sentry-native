@@ -55,39 +55,24 @@ static void
 flush_logs(void)
 {
     // Use atomic compare-and-swap to ensure only one thread flushes at a time
-    long expected = 0;
-    // TODO platform-agnostic?
-    if (!__sync_bool_compare_and_swap(&lq.flushing, expected, 1)) {
+    // TODO is this platform-agnostic?
+    if (!__sync_bool_compare_and_swap(&lq.flushing, 0, 1)) {
         // Another thread is already flushing
         return;
     }
 
     // Determine which buffer to flush
-    long current_active = sentry__atomic_fetch(&lq.active_buffer);
-    long flush_buffer_idx
-        = current_active; // Start by trying to flush the active buffer
+    long current_active_buffer_idx = sentry__atomic_fetch(&lq.active_buffer);
+    // Active buffer has logs, switch to the other buffer for new writes
+    long new_active = 1 - current_active_buffer_idx;
+    sentry__atomic_store(&lq.active_buffer, new_active);
 
-    // Check if active buffer has any logs to flush
-    if (sentry__atomic_fetch(&lq.buffers[current_active].count) == 0) {
-        // Active buffer is empty, try the other buffer
-        // TODO do we want this?
-        flush_buffer_idx = 1 - current_active;
-        if (sentry__atomic_fetch(&lq.buffers[flush_buffer_idx].count) == 0) {
-            // Both buffers are empty, nothing to flush
-            sentry__atomic_store(&lq.flushing, 0);
-            return;
-        }
-    } else {
-        // Active buffer has logs, switch to the other buffer for new writes
-        long new_active = 1 - current_active;
-        sentry__atomic_store(&lq.active_buffer, new_active);
-    }
-
-    log_buffer_t *flush_buffer = &lq.buffers[flush_buffer_idx];
+    log_buffer_t *flush_buffer = &lq.buffers[current_active_buffer_idx];
     long count = sentry__atomic_fetch(&flush_buffer->count);
 
-    if (count == 0) { // TODO when can this happen?
-        // Buffer became empty while we were setting up, nothing to do
+    // Check if active buffer has any logs to flush
+    if (count == 0) {
+        // no need to swap
         sentry__atomic_store(&lq.flushing, 0);
         return;
     }
@@ -97,6 +82,9 @@ flush_logs(void)
     sentry_value_t logs_list = sentry_value_new_list();
 
     for (long i = 0; i < count; i++) {
+        // TODO reason about using a `sentry_value_t` list instead, as we could
+        // then just
+        //  set the logs["items"] to that value
         sentry_value_append(logs_list, flush_buffer->logs[i]);
     }
 
@@ -112,10 +100,11 @@ flush_logs(void)
     }
 
     // Free the logs object since envelope doesn't take ownership
+    // TODO if we replace by `sentry_value_t`, we could still decref +
+    // sentry_value_new_list?
     sentry_value_decref(logs);
 
-    // Reset the flushed buffer - this is now safe since we switched active
-    // buffer
+    // Reset the flushed buffer
     sentry__atomic_store(&flush_buffer->count, 0);
 
     // Clear flushing flag
@@ -126,15 +115,21 @@ static bool
 enqueu_log(sentry_value_t log)
 {
     // Retry loop in case buffer switches during our attempt
-    // TODO do we want this? adds busy waiting of 1ms
-    for (int retry = 0; retry < 1; retry++) {
+    // TODO do we want this? adds busy waiting of 1ms per retry
+    int RETRY_COUNT = 0;
+    for (int retry = 0; retry <= RETRY_COUNT; retry++) {
         // Get current active buffer index
         long buffer_idx = sentry__atomic_fetch(&lq.active_buffer);
         log_buffer_t *current_buffer = &lq.buffers[buffer_idx];
 
         // Try to get a slot in the current buffer
         long log_idx = sentry__atomic_fetch_and_add(&current_buffer->count, 1);
+        long buffer_is_flushing;
 
+        // TODO we also need to check that the queue isn't begin flushed right
+        // now? or that there are still an X amount of logs being added which
+        // would make the queue full?
+        //  -> think the latter is implicit in atomically getting the count
         if (log_idx < QUEUE_LENGTH) {
             // Successfully got a slot, write the log
             current_buffer->logs[log_idx] = log;
@@ -166,7 +161,7 @@ enqueu_log(sentry_value_t log)
                             = sentry__bgworker_new(NULL, NULL);
                         if (g_logs_state.timer_worker) {
                             sentry__bgworker_setname(
-                                g_logs_state.timer_worker, "sentry-timer");
+                                g_logs_state.timer_worker, "sentry-logs-timer");
                             if (sentry__bgworker_start(
                                     g_logs_state.timer_worker)
                                 != 0) {
@@ -198,11 +193,9 @@ enqueu_log(sentry_value_t log)
                             sentry__atomic_store(
                                 &g_logs_state.timer_task_submitted, 0);
                         }
-                    } else if (!g_logs_state.timer_worker) {
-                        // No worker available, reset the running flag
-                        sentry__atomic_fetch_and_add(&lq.timer_running, -1);
                     } else {
-                        // Task already submitted, reset the running flag
+                        // Worker unavailable or task already submitted,
+                        // reset the running flag
                         sentry__atomic_fetch_and_add(&lq.timer_running, -1);
                     }
                 } else {
@@ -212,11 +205,13 @@ enqueu_log(sentry_value_t log)
             }
 
             return true;
-        } else {
-            // Buffer is full, roll back our increment
-            sentry__atomic_fetch_and_add(&current_buffer->count, -1);
+        }
+        // Buffer is full, roll back our increment
+        sentry__atomic_fetch_and_add(&current_buffer->count, -1);
 
-            // Try to trigger a flush to switch buffers
+        // TODO the flush below only makes sense if we retry
+        // Try to trigger a flush to switch buffers
+        if (RETRY_COUNT) {
             flush_logs();
 
             // Brief pause before retry to allow flush to complete
@@ -229,7 +224,8 @@ enqueu_log(sentry_value_t log)
     }
 
     // All retries exhausted - both buffers are likely full
-    SENTRY_WARN("Unable to enqueue log - all buffers full");
+    SENTRY_WARNF("Unable to enqueue log - all buffers full. Log body: %s",
+        sentry_value_as_string(sentry_value_get_by_key(log, "body")));
     return false;
 }
 
@@ -662,7 +658,7 @@ sentry__logs_shutdown(uint64_t timeout)
             SENTRY_WARN(
                 "timer bgworker did not shut down cleanly within timeout");
         }
-        // TODO this already happens inside worker_thread
+        // TODO this already happens inside worker_thread right?
         // sentry__bgworker_decref(g_logs_state.timer_worker);
         // g_logs_state.timer_worker = NULL;
     }

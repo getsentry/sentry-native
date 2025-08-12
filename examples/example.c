@@ -426,16 +426,12 @@ main(int argc, char **argv)
             for (int i = 0; i < 10; i++) {
                 sentry_log_info("Informational log nr.%d", i);
             }
-#ifdef SENTRY_PLATFORM_WINDOWS
-            Sleep(6000);
-
-#else
+            // sleep >5s to trigger logs timer
             sleep_s(6);
-#endif
+            // we should see two envelopes make its way to Sentry
             sentry_log_debug("post-sleep log");
         }
         if (has_arg(argc, argv, "logs-threads")) {
-            // we should see two envelopes make its way to Sentry
             // Spawn multiple threads to test concurrent logging
             const int NUM_THREADS = 50;
 #ifdef SENTRY_PLATFORM_WINDOWS
@@ -444,7 +440,7 @@ main(int argc, char **argv)
                 threads[t]
                     = CreateThread(NULL, 0, log_thread_func, NULL, 0, NULL);
             }
-            Sleep(6000);
+            sleep_s(3000);
             for (int t = 0; t < NUM_THREADS; t++) {
                 CloseHandle(threads[t]);
             }
@@ -453,7 +449,7 @@ main(int argc, char **argv)
             for (int t = 0; t < NUM_THREADS; t++) {
                 pthread_create(&threads[t], NULL, log_thread_func, NULL);
             }
-            sleep_s(6);
+            sleep_s(3);
             for (int t = 0; t < NUM_THREADS; t++) {
                 pthread_join(threads[t], NULL);
             }
