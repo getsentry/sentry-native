@@ -13,31 +13,6 @@
 #pragma comment(lib, "ole32.lib")
 #pragma comment(lib, "oleaut32.lib")
 
-static char *
-wchar_to_utf8(const wchar_t *wstr)
-{
-    if (!wstr) {
-        return NULL;
-    }
-
-    int len = WideCharToMultiByte(CP_UTF8, 0, wstr, -1, NULL, 0, NULL, NULL);
-    if (len <= 0) {
-        return NULL;
-    }
-
-    char *str = sentry_malloc((size_t)len);
-    if (!str) {
-        return NULL;
-    }
-
-    if (WideCharToMultiByte(CP_UTF8, 0, wstr, -1, str, len, NULL, NULL) <= 0) {
-        sentry_free(str);
-        return NULL;
-    }
-
-    return str;
-}
-
 static sentry_gpu_info_t *
 get_gpu_info_dxgi(void)
 {
@@ -76,7 +51,7 @@ get_gpu_info_dxgi(void)
 
     memset(gpu_info, 0, sizeof(sentry_gpu_info_t));
 
-    gpu_info->name = wchar_to_utf8(desc.Description);
+    gpu_info->name = sentry__string_from_wstr(desc.Description);
     gpu_info->vendor_id = desc.VendorId;
     gpu_info->device_id = desc.DeviceId;
     gpu_info->memory_size = desc.DedicatedVideoMemory;
