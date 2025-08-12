@@ -213,27 +213,19 @@ flush_scope_to_event(const sentry_path_t *event_path,
 }
 
 static void
-flush_scope_to_report(const sentry_path_t *event_path,
-    const sentry_options_t *options, sentry_value_t crash_event)
+flush_scope_to_report(
+    const sentry_path_t *report_path, const sentry_options_t *options)
 {
-    SENTRY_WITH_SCOPE (scope) {
-        // we want the scope without any modules or breadcrumbs
-        sentry__scope_apply_to_event(
-            scope, options, crash_event, SENTRY_SCOPE_NONE);
-    }
-
     sentry_envelope_t *envelope = sentry__envelope_new();
     if (!envelope) {
-        sentry_value_decref(crash_event);
         return;
     }
-    sentry__envelope_add_event(envelope, crash_event);
     if (options->session) {
         sentry__envelope_add_session(envelope, options->session);
     }
 
     if (sentry__path_create_dir_all(options->run->report_path) != 0
-        || sentry_envelope_write_to_path(envelope, event_path) != 0) {
+        || sentry_envelope_write_to_path(envelope, report_path) != 0) {
         SENTRY_WARN("flushing scope to report failed");
     }
     sentry_envelope_free(envelope);
@@ -271,10 +263,9 @@ crashpad_backend_flush_scope(
     sentry_value_set_by_key(
         event, "level", sentry__value_new_level(SENTRY_LEVEL_FATAL));
 
+    flush_scope_to_event(data->event_path, options, event);
     if (data->report_path) {
-        flush_scope_to_report(data->report_path, options, event);
-    } else {
-        flush_scope_to_event(data->event_path, options, event);
+        flush_scope_to_report(data->report_path, options);
     }
     data->scope_flush.store(false, std::memory_order_release);
 #endif
@@ -298,10 +289,9 @@ flush_scope_from_handler(
     }
 
     // now we are the sole flusher and can flush into the crash report/event
+    flush_scope_to_event(state->event_path, options, crash_event);
     if (state->report_path) {
-        flush_scope_to_report(state->report_path, options, crash_event);
-    } else {
-        flush_scope_to_event(state->event_path, options, crash_event);
+        flush_scope_to_report(state->report_path, options);
     }
 }
 
