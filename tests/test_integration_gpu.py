@@ -113,6 +113,12 @@ def test_gpu_context_structure_validation(cmake):
             assert isinstance(vendor_id, int)
             assert vendor_id > 0  # Should be a real vendor ID
 
+        # Check device_id is now a string
+        if "device_id" in gpu_context:
+            device_id = gpu_context["device_id"]
+            assert isinstance(device_id, str)
+            assert len(device_id) > 0  # Should not be empty
+
         # Memory size should be reasonable if present
         if "memory_size" in gpu_context:
             memory_size = gpu_context["memory_size"]
