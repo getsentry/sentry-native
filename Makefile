@@ -25,17 +25,6 @@ test-unit: update-test-discovery CMakeLists.txt
 	./unit-build/sentry_test_unit
 .PHONY: test-unit
 
-test-unit-gpu: update-test-discovery CMakeLists.txt
-	@mkdir -p unit-build
-	@cd unit-build; cmake \
-		-DCMAKE_RUNTIME_OUTPUT_DIRECTORY=$(PWD)/unit-build \
-		-DSENTRY_BACKEND=none \
-		-DSENTRY_WITH_GPU_INFO=ON \
-		..
-	@cmake --build unit-build --target sentry_test_unit --parallel
-	./unit-build/sentry_test_unit
-.PHONY: test-unit
-
 test-integration: setup-venv
 	.venv/bin/pytest tests --verbose
 .PHONY: test-integration
