@@ -33,8 +33,12 @@ sentry__gpu_vendor_id_to_name(unsigned int vendor_id)
         return sentry__string_clone("Silicon Integrated Systems [SiS]");
     case 0x126F:
         return sentry__string_clone("Silicon Motion");
-    default:
-        return sentry__string_clone("Unknown");
+    default: {
+        char unknown_vendor[64];
+        snprintf(unknown_vendor, sizeof(unknown_vendor), "Unknown (0x%04X)",
+            vendor_id);
+        return sentry__string_clone(unknown_vendor);
+    }
     }
 }
 
@@ -71,8 +75,11 @@ sentry__get_gpu_context(void)
 
     // Add device ID
     if (gpu_info->device_id != 0) {
-        sentry_value_set_by_key(gpu_context, "device_id",
-            sentry_value_new_int32((int32_t)gpu_info->device_id));
+        char device_id_str[32];
+        snprintf(
+            device_id_str, sizeof(device_id_str), "%u", gpu_info->device_id);
+        sentry_value_set_by_key(
+            gpu_context, "device_id", sentry_value_new_string(device_id_str));
     }
 
     // Add memory size

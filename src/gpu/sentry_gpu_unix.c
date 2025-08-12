@@ -4,6 +4,7 @@
 #include "sentry_logger.h"
 #include "sentry_string.h"
 
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -99,7 +100,7 @@ get_gpu_info_linux_pci(void)
             continue;
         }
 
-        char class_path[512];
+        char class_path[PATH_MAX];
         snprintf(class_path, sizeof(class_path),
             "/sys/bus/pci/devices/%s/class", entry->d_name);
 
@@ -122,7 +123,7 @@ get_gpu_info_linux_pci(void)
 
         memset(gpu_info, 0, sizeof(sentry_gpu_info_t));
 
-        char vendor_path[512], device_path[512];
+        char vendor_path[PATH_MAX], device_path[PATH_MAX];
         snprintf(vendor_path, sizeof(vendor_path),
             "/sys/bus/pci/devices/%s/vendor", entry->d_name);
         snprintf(device_path, sizeof(device_path),
@@ -167,12 +168,12 @@ get_gpu_info_linux_drm(void)
             continue;
         }
 
-        char name_path[512];
+        char name_path[PATH_MAX];
         snprintf(name_path, sizeof(name_path),
             "/sys/class/drm/%s/device/driver", entry->d_name);
 
-        char link_target[512];
-        ssize_t len = readlink(name_path, link_target, sizeof(link_target) - 1);
+        char link_target[PATH_MAX];
+        ssize_t len = readlink(name_path, link_target, PATH_MAX - 1);
         if (len > 0) {
             link_target[len] = '\0';
             char *driver_name = strrchr(link_target, '/');
