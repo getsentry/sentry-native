@@ -102,9 +102,11 @@ def assert_gpu_context(event, should_have_gpu=None):
 
         if "vendor_id" in gpu_context:
             assert isinstance(
-                gpu_context["vendor_id"], int
-            ), "GPU vendor_id should be an integer"
-            assert gpu_context["vendor_id"] >= 0, "GPU vendor_id should be non-negative"
+                gpu_context["vendor_id"], str
+            ), "GPU vendor_id should be a string"
+            assert (
+                len(gpu_context["vendor_id"]) > 0
+            ), "GPU vendor_id should not be empty"
 
         if "device_id" in gpu_context:
             assert isinstance(

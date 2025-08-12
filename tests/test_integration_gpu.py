@@ -110,8 +110,10 @@ def test_gpu_context_structure_validation(cmake):
 
         if "vendor_id" in gpu_context:
             vendor_id = gpu_context["vendor_id"]
-            assert isinstance(vendor_id, int)
-            assert vendor_id > 0  # Should be a real vendor ID
+            assert isinstance(vendor_id, str)
+            assert len(vendor_id) > 0  # Should not be empty
+            # Should be a valid number when converted
+            assert vendor_id.isdigit(), "vendor_id should be a numeric string"
 
         # Check device_id is now a string
         if "device_id" in gpu_context:
