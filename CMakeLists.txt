@@ -97,7 +97,44 @@ endif()
 option(SENTRY_PIC "Build sentry (and dependent) libraries as position independent libraries" ON)
 
 option(SENTRY_TRANSPORT_COMPRESSION "Enable transport gzip compression" OFF)
-option(SENTRY_WITH_GPU_INFO "Build with GPU information gathering support" OFF)
+
+# GPU information gathering support - enabled by default on supported platforms only
+set(SENTRY_GPU_INFO_DEFAULT OFF)
+
+# Only enable GPU info on supported platforms
+if(WIN32)
+	# Check for Windows DirectX headers and libraries
+	find_path(DXGI_INCLUDE_DIR dxgi.h)
+	find_library(DXGI_LIBRARY dxgi)
+	find_library(DXGUID_LIBRARY dxguid)
+	find_library(OLE32_LIBRARY ole32)
+	find_library(OLEAUT32_LIBRARY oleaut32)
+
+	if(DXGI_INCLUDE_DIR AND DXGI_LIBRARY AND DXGUID_LIBRARY AND OLE32_LIBRARY AND OLEAUT32_LIBRARY)
+		set(SENTRY_GPU_INFO_DEFAULT ON)
+	else()
+		message(WARNING "GPU Info: Required Windows libraries not found, disabling GPU support")
+	endif()
+elseif(APPLE AND NOT IOS)
+	# Check for macOS frameworks
+	find_library(COREFOUNDATION_FRAMEWORK CoreFoundation)
+	find_library(IOKIT_FRAMEWORK IOKit)
+
+	if(COREFOUNDATION_FRAMEWORK AND IOKIT_FRAMEWORK)
+		set(SENTRY_GPU_INFO_DEFAULT ON)
+	else()
+		message(WARNING "GPU Info: Required macOS frameworks not found, disabling GPU support")
+	endif()
+elseif(LINUX)
+	# On Linux, GPU info gathering is available
+	# This could be extended to check for specific libraries like libdrm, etc.
+	set(SENTRY_GPU_INFO_DEFAULT ON)
+else()
+	# Disable GPU info on all other platforms (Android, iOS, AIX, etc.)
+	message(STATUS "GPU Info: Platform not supported, GPU information gathering disabled")
+endif()
+
+option(SENTRY_WITH_GPU_INFO "Build with GPU information gathering support" ${SENTRY_GPU_INFO_DEFAULT})
 
 option(SENTRY_BUILD_TESTS "Build sentry-native tests" "${SENTRY_MAIN_PROJECT}")
 option(SENTRY_BUILD_EXAMPLES "Build sentry-native example(s)" "${SENTRY_MAIN_PROJECT}")
@@ -599,7 +636,7 @@ endif()
 
 # handle Windows libraries for GPU info
 if(WIN32 AND SENTRY_WITH_GPU_INFO)
-	list(APPEND _SENTRY_PLATFORM_LIBS "d3d9" "dxgi" "dxguid" "ole32" "oleaut32")
+	list(APPEND _SENTRY_PLATFORM_LIBS "dxgi" "dxguid" "ole32" "oleaut32")
 endif()
 
 # apply platform libraries to sentry library

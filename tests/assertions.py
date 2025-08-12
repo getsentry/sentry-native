@@ -108,9 +108,11 @@ def assert_gpu_context(event, should_have_gpu=None):
 
         if "device_id" in gpu_context:
             assert isinstance(
-                gpu_context["device_id"], int
-            ), "GPU device_id should be an integer"
-            assert gpu_context["device_id"] >= 0, "GPU device_id should be non-negative"
+                gpu_context["device_id"], str
+            ), "GPU device_id should be a string"
+            assert (
+                len(gpu_context["device_id"]) > 0
+            ), "GPU device_id should not be empty"
 
         if "memory_size" in gpu_context:
             assert isinstance(

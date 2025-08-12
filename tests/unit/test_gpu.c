@@ -124,9 +124,11 @@ SENTRY_TEST(gpu_info_vendor_id_known)
         case 0x0000:
         case 0xFFFF:
             TEST_CHECK(strstr(vendor_name, "Unknown") != NULL);
+            TEST_CHECK(strstr(vendor_name, "0x") != NULL);
             break;
         default:
             TEST_CHECK(strstr(vendor_name, "Unknown") != NULL);
+            TEST_CHECK(strstr(vendor_name, "0x") != NULL);
             break;
         }
 
