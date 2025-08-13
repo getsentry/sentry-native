@@ -23,6 +23,8 @@ typedef struct {
     volatile long index;
 } log_single_buffer_t;
 
+// TODO look at mutex init for inspiration on how to dynamically init (at
+// runtime since function call is not compile-time available)
 static struct {
     log_single_buffer_t queue;
     sentry_bgworker_t *timer_worker;
@@ -52,9 +54,7 @@ flush_logs_single_queue(void)
     int i;
     for (i = 0; i < sentry__atomic_fetch(&g_logs_single_state.queue.index);
         i++) {
-        sentry_value_append(
-            log_items, sentry__value_clone(g_logs_single_state.queue.logs[i]));
-        sentry_value_decref(g_logs_single_state.queue.logs[i]);
+        sentry_value_append(log_items, g_logs_single_state.queue.logs[i]);
     }
     sentry_value_set_by_key(logs, "items", log_items);
     // sending of the envelope
@@ -63,8 +63,6 @@ flush_logs_single_queue(void)
     SENTRY_WITH_OPTIONS (options) {
         sentry__capture_envelope(options->transport, envelope);
     }
-    // free the logs object since envelope doesn't take ownership
-    sentry_value_decref(logs);
     sentry__atomic_store(&g_logs_single_state.queue.index, 0);
     sentry__atomic_fetch_and_add(&g_logs_single_state.flushing, -1);
     SENTRY_DEBUGF("Time to flush %i items is %llu us\n", i,
@@ -121,14 +119,19 @@ enqueue_log_single(sentry_value_t log)
         goto fail;
     }
     // Try to get a slot in the current buffer
+    // TODO up latch counter by 1
     long log_idx
         = sentry__atomic_fetch_and_add(&g_logs_single_state.queue.index, 1);
     if (log_idx < QUEUE_LENGTH) {
         // Successfully got a slot, write the log
         g_logs_single_state.queue.logs[log_idx] = log;
+        // TODO reduce latch counter by 1 (down from QUEUE_LENGTH)
 
         // Check if this buffer is now full and trigger flush
         if (log_idx == QUEUE_LENGTH - 1) {
+            // TODO this blocks; we could send this into a task queue
+            //  could use conditionVar (timer/condition)
+            // spinloop until latch counter is 0
             flush_logs_single_queue();
         }
 
@@ -159,16 +162,21 @@ enqueue_log_single(sentry_value_t log)
     // Buffer is full, roll back our increment
     // THIS LOGICALLY CANNOT HAPPEN (UNREACHABLE?)
     sentry__atomic_fetch_and_add(&g_logs_single_state.queue.index, -1);
+
 fail:
-    // All retries exhausted - both buffers are likely full
-    SENTRY_WARNF(
-        "Unable to enqueue log at time %f - all buffers full. Log body: %s",
-        sentry_value_as_double(sentry_value_get_by_key(log, "timestamp")),
-        sentry_value_as_string(sentry_value_get_by_key(log, "body")));
     SENTRY_DEBUGF("Time to failed enqueue log is %llu us\n",
         sentry__usec_time() - before);
+    // All retries exhausted - both buffers are likely full
+    // TODO think about how to report this (e.g. client reports)
+    SENTRY_WARN("Unable to enqueue log");
+    // SENTRY_WARNF(
+    //     "Unable to enqueue log at time %f - all buffers full. Log body: %s",
+    //     sentry_value_as_double(sentry_value_get_by_key(log, "timestamp")),
+    //     sentry_value_as_string(sentry_value_get_by_key(log, "body")));
     return false;
 }
+
+sentry_mutex_t cond;
 
 static void
 timer_task_func(void *task_data, void *worker_state)
@@ -176,6 +184,7 @@ timer_task_func(void *task_data, void *worker_state)
     (void)task_data; // unused parameter
     (void)worker_state; // unused parameter
 
+    // TODO replace by sentry__cond_wait_timeout
     // Sleep for 5 seconds
 #ifdef SENTRY_PLATFORM_WINDOWS
     Sleep(FLUSH_TIMER * 1000);
