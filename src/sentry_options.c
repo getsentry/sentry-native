@@ -618,8 +618,8 @@ void
 sentry_options_set_external_crash_reporter_pathw_n(
     sentry_options_t *opts, const wchar_t *path, size_t path_len)
 {
-    sentry__path_free(opts->crash_reporter);
-    opts->crash_reporter = sentry__path_from_wstr_n(path, path_len);
+    sentry__path_free(opts->external_crash_reporter);
+    opts->external_crash_reporter = sentry__path_from_wstr_n(path, path_len);
 }
 
 void
