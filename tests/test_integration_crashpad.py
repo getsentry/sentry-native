@@ -633,7 +633,7 @@ def test_crashpad_retry(cmake, httpserver):
         (["crash"]),
     ],
 )
-def test_crashpad_crash_reporter(cmake, httpserver, run_args):
+def test_crashpad_external_crash_reporter(cmake, httpserver, run_args):
     tmp_path = cmake(
         ["sentry_example", "sentry_crash_reporter"], {"SENTRY_BACKEND": "crashpad"}
     )
@@ -684,5 +684,5 @@ def test_crashpad_crash_reporter(cmake, httpserver, run_args):
         (["fastfail"]),
     ],
 )
-def test_crashpad_crash_reporter_wer(cmake, httpserver, run_args):
-    test_crashpad_crash_reporter(cmake, httpserver, run_args)
+def test_crashpad_external_crash_reporter_wer(cmake, httpserver, run_args):
+    test_crashpad_external_crash_reporter(cmake, httpserver, run_args)

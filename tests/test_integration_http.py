@@ -217,7 +217,7 @@ def test_user_report_http(cmake, httpserver):
         ),
     ],
 )
-def test_crash_reporter_http(cmake, httpserver, build_args):
+def test_external_crash_reporter_http(cmake, httpserver, build_args):
     tmp_path = cmake(["sentry_example", "sentry_crash_reporter"], build_args)
 
     # make sure we are isolated from previous runs

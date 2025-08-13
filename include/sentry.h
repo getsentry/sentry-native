@@ -1391,21 +1391,21 @@ SENTRY_API void sentry_options_set_handler_path_n(
  * present crash information to the user, collect additional user feedback, and
  * perform custom actions at the time of a crash.
  *
- * The crash reporter is a separate process that gets spawned when a crash
- * occurs. The crash reporter receives a path to the crash event envelope as its
- * only command-line argument.
+ * The external crash reporter is a separate process that gets spawned when a
+ * crash occurs. The external crash reporter receives a path to the crash event
+ * envelope as its only command-line argument.
  *
- * Note: The crash reporter is responsible for submitting the crash event
- * envelope to Sentry. If using the Native SDK, this can be done using the
+ * Note: The external crash reporter is responsible for submitting the crash
+ * event envelope to Sentry. If using the Native SDK, this can be done using the
  * `sentry_capture_envelope` function.
  *
  * `path` is assumed to be in platform-specific filesystem path encoding.
  * API Users on windows are encouraged to use
- * `sentry_options_set_crash_reporter_pathw` instead.
+ * `sentry_options_set_external_crash_reporter_pathw` instead.
  */
-SENTRY_API void sentry_options_set_crash_reporter_path(
+SENTRY_API void sentry_options_set_external_crash_reporter_path(
     sentry_options_t *opts, const char *path);
-SENTRY_API void sentry_options_set_crash_reporter_path_n(
+SENTRY_API void sentry_options_set_external_crash_reporter_path_n(
     sentry_options_t *opts, const char *path, size_t path_len);
 
 /**
@@ -1468,11 +1468,11 @@ SENTRY_API void sentry_options_set_handler_pathw_n(
     sentry_options_t *opts, const wchar_t *path, size_t path_len);
 
 /**
- * Wide char version of `sentry_options_set_crash_reporter_path`.
+ * Wide char version of `sentry_options_set_external_crash_reporter_path`.
  */
-SENTRY_API void sentry_options_set_crash_reporter_pathw(
+SENTRY_API void sentry_options_set_external_crash_reporter_pathw(
     sentry_options_t *opts, const wchar_t *path);
-SENTRY_API void sentry_options_set_crash_reporter_pathw_n(
+SENTRY_API void sentry_options_set_external_crash_reporter_pathw_n(
     sentry_options_t *opts, const wchar_t *path, size_t path_len);
 
 /**

@@ -15,7 +15,7 @@
   - Deprecate `sentry_value_new_user_feedback` and `sentry_capture_user_feedback` in favor of the new API.
 - Add `sentry_envelope_read_from_file`, `sentry_envelope_get_header`, and `sentry_capture_envelope`. ([#1320](https://github.com/getsentry/sentry-native/pull/1320))
 - Add `(u)int64` `sentry_value_t` type. ([#1326](https://github.com/getsentry/sentry-native/pull/1326))
-- Add `sentry_options_set_crash_reporter_path` to allow specifying an external crash reporter. ([#1303](https://github.com/getsentry/sentry-native/pull/1303))
+- Add `sentry_options_set_external_crash_reporter_path` to allow specifying an external crash reporter. ([#1303](https://github.com/getsentry/sentry-native/pull/1303))
 
 **Fixes**:
 

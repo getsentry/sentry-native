@@ -608,8 +608,8 @@ handle_ucontext(const sentry_ucontext_t *uctx)
                 sentry__attachment_free(screenshot);
             }
 
-            if (options->crash_reporter) {
-                sentry__launch_crash_reporter(envelope);
+            if (options->external_crash_reporter) {
+                sentry__launch_external_crash_reporter(envelope);
             } else {
                 // capture the envelope with the disk transport
                 sentry_transport_t *disk_transport

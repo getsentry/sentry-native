@@ -39,10 +39,10 @@ sentry__run_new(const sentry_path_t *database_path)
         return NULL;
     }
 
-    // `<db>/reports`
-    sentry_path_t *report_path
-        = sentry__path_join_str(database_path, "reports");
-    if (!report_path) {
+    // `<db>/external`
+    sentry_path_t *external_path
+        = sentry__path_join_str(database_path, "external");
+    if (!external_path) {
         sentry__path_free(run_path);
         sentry__path_free(lock_path);
         sentry__path_free(session_path);
@@ -54,14 +54,14 @@ sentry__run_new(const sentry_path_t *database_path)
         sentry__path_free(run_path);
         sentry__path_free(session_path);
         sentry__path_free(lock_path);
-        sentry__path_free(report_path);
+        sentry__path_free(external_path);
         return NULL;
     }
 
     run->uuid = uuid;
     run->run_path = run_path;
     run->session_path = session_path;
-    run->report_path = report_path;
+    run->external_path = external_path;
     run->lock = sentry__filelock_new(lock_path);
     if (!run->lock) {
         goto error;
@@ -94,7 +94,7 @@ sentry__run_free(sentry_run_t *run)
     }
     sentry__path_free(run->run_path);
     sentry__path_free(run->session_path);
-    sentry__path_free(run->report_path);
+    sentry__path_free(run->external_path);
     sentry__filelock_free(run->lock);
     sentry_free(run);
 }
@@ -137,16 +137,16 @@ sentry__run_write_envelope(
 }
 
 sentry_path_t *
-sentry__run_write_report(
+sentry__run_write_external(
     const sentry_run_t *run, const sentry_envelope_t *envelope)
 {
-    if (sentry__path_create_dir_all(run->report_path) != 0) {
+    if (sentry__path_create_dir_all(run->external_path) != 0) {
         SENTRY_ERRORF(
-            "mkdir failed: \"%" SENTRY_PATH_PRI "\"", run->report_path->path);
+            "mkdir failed: \"%" SENTRY_PATH_PRI "\"", run->external_path->path);
         return NULL;
     }
 
-    return write_envelope(run->report_path, envelope);
+    return write_envelope(run->external_path, envelope);
 }
 
 bool
@@ -199,8 +199,8 @@ sentry__process_old_runs(const sentry_options_t *options, uint64_t last_crash)
             continue;
         }
 
-        // prune 1h old crash report files
-        if (sentry__path_filename_matches(run_dir, "reports")) {
+        // prune 1h old external crash report files
+        if (sentry__path_filename_matches(run_dir, "external")) {
             time_t now = time(NULL);
             sentry_pathiter_t *it = sentry__path_iter_directory(run_dir);
             const sentry_path_t *file;

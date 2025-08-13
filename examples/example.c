@@ -383,10 +383,10 @@ main(int argc, char **argv)
 
     if (has_arg(argc, argv, "crash-reporter")) {
 #ifdef SENTRY_PLATFORM_WINDOWS
-        sentry_options_set_crash_reporter_pathw(
+        sentry_options_set_external_crash_reporter_pathw(
             options, L"sentry_crash_reporter.exe");
 #else
-        sentry_options_set_crash_reporter_path(
+        sentry_options_set_external_crash_reporter_path(
             options, "./sentry_crash_reporter");
 #endif
     }
