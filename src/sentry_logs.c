@@ -627,23 +627,22 @@ sentry__logs_shutdown(uint64_t timeout)
     SENTRY_DEBUG("shutting down logs system");
 
     // Shutdown the timer bgworker if it exists
+    // TODO timeout is 2000ms by default; do we actually need this?
+    //  we could force-kill after the request_flush
+    // Perform final flush to ensure any remaining logs are sent
+    sentry__cond_wake(&g_logs_single_state.request_flush);
+
     if (g_logs_single_state.timer_worker) {
         if (sentry__bgworker_shutdown(g_logs_single_state.timer_worker, timeout)
             != 0) {
             SENTRY_WARN(
                 "timer bgworker did not shut down cleanly within timeout");
         }
-        // TODO this already happens inside worker_thread right?
-        // sentry__bgworker_decref(g_logs_state.timer_worker);
-        // g_logs_state.timer_worker = NULL;
     }
 
     // Reset state flags
     sentry__atomic_store(&g_logs_single_state.timer_task_submitted, 0);
     sentry__atomic_store(&g_logs_single_state.timer_running, 0);
-
-    // Perform final flush to ensure any remaining logs are sent
-    flush_logs_single_queue();
 
     SENTRY_DEBUG("logs system shutdown complete");
 }
