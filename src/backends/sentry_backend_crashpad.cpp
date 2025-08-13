@@ -215,7 +215,7 @@ flush_scope_to_event(const sentry_path_t *event_path,
 // Prepares an envelope with DSN, event ID, and session if available, for an
 // external crash reporter.
 static void
-flush_external_crash_report(const sentry_path_t *report_path,
+flush_external_crash_report(
     const sentry_options_t *options, const sentry_uuid_t *crash_event_id)
 {
     sentry_envelope_t *envelope = sentry__envelope_new();
@@ -265,8 +265,7 @@ crashpad_backend_flush_scope(
 
     flush_scope_to_event(data->event_path, options, event);
     if (data->external_report_path) {
-        flush_external_crash_report(
-            data->external_report_path, options, &data->crash_event_id);
+        flush_external_crash_report(options, &data->crash_event_id);
     }
     data->scope_flush.store(false, std::memory_order_release);
 #endif
@@ -292,8 +291,7 @@ flush_scope_from_handler(
     // now we are the sole flusher and can flush into the crash event
     flush_scope_to_event(state->event_path, options, crash_event);
     if (state->external_report_path) {
-        flush_external_crash_report(
-            state->external_report_path, options, &state->crash_event_id);
+        flush_external_crash_report(options, &state->crash_event_id);
     }
 }
 
