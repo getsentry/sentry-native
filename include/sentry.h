@@ -1387,20 +1387,23 @@ SENTRY_API void sentry_options_set_handler_path_n(
     sentry_options_t *opts, const char *path, size_t path_len);
 
 /**
- * Sets the path to an external crash reporter executable that can be used to
- * present crash information to the user, collect additional user feedback, and
- * perform custom actions at the time of a crash.
+ * Sets the path to an external crash reporter executable, which can be used to
+ * display crash information to the user, collect user feedback, or perform
+ * other actions when a crash occurs.
  *
- * The external crash reporter is a separate process that gets spawned when a
- * crash occurs. The external crash reporter receives a path to the crash event
- * envelope as its only command-line argument.
+ * The external crash reporter is a user-defined executable, distinct from the
+ * system crash reporter, that is launched by the Native SDK upon a crash. It
+ * receives the path to the crash report as its only command-line argument and
+ * is responsible for submitting the crash report to Sentry. If using the Native
+ * SDK, this can be done using the `sentry_capture_envelope` function.
  *
- * Note: The external crash reporter is responsible for submitting the crash
- * event envelope to Sentry. If using the Native SDK, this can be done using the
- * `sentry_capture_envelope` function.
+ * A well-behaving external crash reporter should delete the crash report
+ * after handling it. As a safeguard, the Native SDK automatically removes
+ * crash reports older than one hour on startup to prevent filling up the disk
+ * with stale crash reports.
  *
- * `path` is assumed to be in platform-specific filesystem path encoding.
- * API Users on windows are encouraged to use
+ * The `path` parameter should use platform-specific filesystem encoding.
+ * On Windows, API users are encouraged to use
  * `sentry_options_set_external_crash_reporter_pathw` instead.
  */
 SENTRY_API void sentry_options_set_external_crash_reporter_path(
