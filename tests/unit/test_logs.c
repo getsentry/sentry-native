@@ -3,7 +3,13 @@
 
 #include "sentry_envelope.h"
 
-// TODO these tests will need updating after batching is implemented
+#ifdef SENTRY_PLATFORM_WINDOWS
+#    include <windows.h>
+#    define sleep_ms(MILLISECONDS) Sleep(MILLISECONDS)
+#else
+#    include <unistd.h>
+#    define sleep_ms(SECONDS) usleep(SECONDS * 1000)
+#endif
 
 static void
 validate_logs_envelope(sentry_envelope_t *envelope, void *data)
@@ -45,7 +51,7 @@ SENTRY_TEST(basic_logging_functionality)
     sentry_log_error("Error message");
     // TODO this fatal log gets dropped, since the queue is full (being flushed)
     sentry_log_fatal("Fatal message");
-    sleep(1); // give the bgworker enough time to flush
+    sleep_ms(20); // give the bgworker enough time to flush
     sentry_close();
 
     // TODO for now we set unit test buffer size to 5; does this make sense?
@@ -97,7 +103,7 @@ SENTRY_TEST(formatted_log_messages)
     sentry_log_error("Pointer: %p", (void *)0x1234);
     sentry_log_error("Big number: %zu", UINT64_MAX);
     sentry_log_error("Small number: %d", INT64_MIN);
-    sleep(1); // give the bgworker enough time to flush
+    sleep_ms(20); // give the bgworker enough time to flush
 
     sentry_close();
 
