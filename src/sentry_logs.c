@@ -31,6 +31,7 @@ static struct {
     volatile long timer_task_submitted;
     volatile long timer_running;
     volatile long flushing;
+    sentry_cond_t request_flush;
 } g_logs_single_state = { { .index = 0 }, .timer_worker = NULL,
     .timer_task_submitted = 0, .timer_running = 0, .flushing = 0 };
 
@@ -52,8 +53,8 @@ flush_logs_single_queue(void)
     sentry_value_t logs = sentry_value_new_object();
     sentry_value_t log_items = sentry_value_new_list();
     int i;
-    for (i = 0; i < sentry__atomic_fetch(&g_logs_single_state.queue.index);
-        i++) {
+    long queue_len = sentry__atomic_fetch(&g_logs_single_state.queue.index);
+    for (i = 0; i < queue_len; i++) {
         sentry_value_append(log_items, g_logs_single_state.queue.logs[i]);
     }
     sentry_value_set_by_key(logs, "items", log_items);
@@ -129,10 +130,9 @@ enqueue_log_single(sentry_value_t log)
 
         // Check if this buffer is now full and trigger flush
         if (log_idx == QUEUE_LENGTH - 1) {
-            // TODO this blocks; we could send this into a task queue
-            //  could use conditionVar (timer/condition)
-            // spinloop until latch counter is 0
-            flush_logs_single_queue();
+            // TODO spinloop until latch counter is 0
+            // flush_logs_single_queue();
+            sentry__cond_wake(&g_logs_single_state.request_flush);
         }
 
         // Start timer thread if this is the first log in any buffer
@@ -145,6 +145,7 @@ enqueue_log_single(sentry_value_t log)
                 // We're the first to set the timer, ensure bgworker exists
                 // and submit task
                 if (!g_logs_single_state.timer_worker) {
+                    sentry__cond_init(&g_logs_single_state.request_flush);
                     setup_bgworker();
                 }
 
@@ -181,16 +182,20 @@ sentry_mutex_t cond;
 static void
 timer_task_func(void *task_data, void *worker_state)
 {
+    SENTRY_DEBUG("Starting timer_task_func");
     (void)task_data; // unused parameter
     (void)worker_state; // unused parameter
 
-    // TODO replace by sentry__cond_wait_timeout
-    // Sleep for 5 seconds
-#ifdef SENTRY_PLATFORM_WINDOWS
-    Sleep(FLUSH_TIMER * 1000);
-#else
-    sleep(FLUSH_TIMER);
-#endif
+    sentry_mutex_t task_lock;
+    sentry__mutex_init(&task_lock); // Initialize the mutex
+    sentry__mutex_lock(&task_lock); // Lock before cond_wait
+
+    // Sleep for 5 seconds or until request_flush hits
+    sentry__cond_wait_timeout(
+        &g_logs_single_state.request_flush, &task_lock, 5000);
+
+    sentry__mutex_unlock(&task_lock); // Unlock after cond_wait returns
+    sentry__mutex_free(&task_lock); // Clean up
 
     // Try to flush logs - this will flush whichever buffer has content
     flush_logs_single_queue();
