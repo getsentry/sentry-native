@@ -59,9 +59,7 @@ flush_logs_single_queue(void)
     //      T2: queue[99] = log_T2
     //      T2 -> flush
     //      loops over queue until log_idx 99, but 98 was not written yet!
-    while (sentry__atomic_fetch(&g_logs_single_state.queue.adding)) {
-        // this busy wait causes more logs to be lost :/
-    }
+    while (sentry__atomic_fetch(&g_logs_single_state.queue.adding)) { }
 
     sentry_value_t logs = sentry_value_new_object();
     sentry_value_t log_items = sentry_value_new_list();
