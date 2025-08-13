@@ -71,6 +71,7 @@ def assert_meta(
     transaction_data=None,
     sdk_override=None,
 ):
+    assert envelope.headers["event_id"]
     event = envelope.get_event()
     assert_event_meta(
         event, release, integration, transaction, transaction_data, sdk_override

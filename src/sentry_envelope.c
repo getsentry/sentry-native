@@ -214,6 +214,14 @@ sentry__envelope_get_event_id(const sentry_envelope_t *envelope)
         sentry_value_get_by_key(envelope->contents.items.headers, "event_id")));
 }
 
+void
+sentry__envelope_set_event_id(
+    sentry_envelope_t *envelope, const sentry_uuid_t *event_id)
+{
+    sentry_value_t value = sentry__value_new_uuid(event_id);
+    sentry__envelope_set_header(envelope, "event_id", value);
+}
+
 sentry_value_t
 sentry_envelope_get_event(const sentry_envelope_t *envelope)
 {
@@ -260,7 +268,8 @@ sentry__envelope_add_event(sentry_envelope_t *envelope, sentry_value_t event)
         return NULL;
     }
 
-    sentry_value_t event_id = sentry__ensure_event_id(event, NULL);
+    sentry_uuid_t event_id;
+    sentry__ensure_event_id(event, &event_id);
 
     item->event = event;
     sentry__jsonwriter_write_value(jw, event);
@@ -271,8 +280,7 @@ sentry__envelope_add_event(sentry_envelope_t *envelope, sentry_value_t event)
     sentry_value_t length = sentry_value_new_int32((int32_t)item->payload_len);
     sentry__envelope_item_set_header(item, "length", length);
 
-    sentry_value_incref(event_id);
-    sentry__envelope_set_header(envelope, "event_id", event_id);
+    sentry__envelope_set_event_id(envelope, &event_id);
 
     double traces_sample_rate = 0.0;
     SENTRY_WITH_OPTIONS (options) {
@@ -342,7 +350,8 @@ sentry__envelope_add_transaction(
         return NULL;
     }
 
-    sentry_value_t event_id = sentry__ensure_event_id(transaction, NULL);
+    sentry_uuid_t event_id;
+    sentry__ensure_event_id(transaction, &event_id);
 
     item->event = transaction;
     sentry__jsonwriter_write_value(jw, transaction);
@@ -353,8 +362,7 @@ sentry__envelope_add_transaction(
     sentry_value_t length = sentry_value_new_int32((int32_t)item->payload_len);
     sentry__envelope_item_set_header(item, "length", length);
 
-    sentry_value_incref(event_id);
-    sentry__envelope_set_header(envelope, "event_id", event_id);
+    sentry__envelope_set_event_id(envelope, &event_id);
 
     sentry_value_t dsc = sentry_value_new_null();
 
@@ -415,7 +423,8 @@ sentry__envelope_add_user_report(
         return NULL;
     }
 
-    sentry_value_t event_id = sentry__ensure_event_id(user_report, NULL);
+    sentry_uuid_t event_id;
+    sentry__ensure_event_id(user_report, &event_id);
 
     sentry__jsonwriter_write_value(jw, user_report);
     item->payload = sentry__jsonwriter_into_string(jw, &item->payload_len);
@@ -425,8 +434,7 @@ sentry__envelope_add_user_report(
     sentry_value_t length = sentry_value_new_int32((int32_t)item->payload_len);
     sentry__envelope_item_set_header(item, "length", length);
 
-    sentry_value_incref(event_id);
-    sentry__envelope_set_header(envelope, "event_id", event_id);
+    sentry__envelope_set_event_id(envelope, &event_id);
 
     return item;
 }
