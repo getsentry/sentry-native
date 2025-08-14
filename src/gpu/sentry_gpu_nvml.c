@@ -29,36 +29,36 @@ load_nvml(void)
     }
 
     nvml->nvmlInit
-        = (nvmlReturn_t (*)(void))GetProcAddress(nvml->handle, "nvmlInit_v2");
+        = (nvmlReturn_t(*)(void))GetProcAddress(nvml->handle, "nvmlInit_v2");
     if (!nvml->nvmlInit) {
         nvml->nvmlInit
-            = (nvmlReturn_t (*)(void))GetProcAddress(nvml->handle, "nvmlInit");
+            = (nvmlReturn_t(*)(void))GetProcAddress(nvml->handle, "nvmlInit");
     }
 
     nvml->nvmlShutdown
-        = (nvmlReturn_t (*)(void))GetProcAddress(nvml->handle, "nvmlShutdown");
-    nvml->nvmlDeviceGetCount = (nvmlReturn_t (*)(unsigned int *))GetProcAddress(
+        = (nvmlReturn_t(*)(void))GetProcAddress(nvml->handle, "nvmlShutdown");
+    nvml->nvmlDeviceGetCount = (nvmlReturn_t(*)(unsigned int *))GetProcAddress(
         nvml->handle, "nvmlDeviceGetCount_v2");
     if (!nvml->nvmlDeviceGetCount) {
-        nvml->nvmlDeviceGetCount = (nvmlReturn_t (*)(
+        nvml->nvmlDeviceGetCount = (nvmlReturn_t(*)(
             unsigned int *))GetProcAddress(nvml->handle, "nvmlDeviceGetCount");
     }
 
     nvml->nvmlDeviceGetHandleByIndex
-        = (nvmlReturn_t (*)(unsigned int, nvmlDevice_t *))GetProcAddress(
+        = (nvmlReturn_t(*)(unsigned int, nvmlDevice_t *))GetProcAddress(
             nvml->handle, "nvmlDeviceGetHandleByIndex_v2");
     if (!nvml->nvmlDeviceGetHandleByIndex) {
         nvml->nvmlDeviceGetHandleByIndex
-            = (nvmlReturn_t (*)(unsigned int, nvmlDevice_t *))GetProcAddress(
+            = (nvmlReturn_t(*)(unsigned int, nvmlDevice_t *))GetProcAddress(
                 nvml->handle, "nvmlDeviceGetHandleByIndex");
     }
 
-    nvml->nvmlDeviceGetName = (nvmlReturn_t (*)(nvmlDevice_t, char *,
+    nvml->nvmlDeviceGetName = (nvmlReturn_t(*)(nvmlDevice_t, char *,
         unsigned int))GetProcAddress(nvml->handle, "nvmlDeviceGetName");
-    nvml->nvmlDeviceGetMemoryInfo = (nvmlReturn_t (*)(nvmlDevice_t,
+    nvml->nvmlDeviceGetMemoryInfo = (nvmlReturn_t(*)(nvmlDevice_t,
         void *))GetProcAddress(nvml->handle, "nvmlDeviceGetMemoryInfo");
     nvml->nvmlSystemGetDriverVersion
-        = (nvmlReturn_t (*)(char *, unsigned int))GetProcAddress(
+        = (nvmlReturn_t(*)(char *, unsigned int))GetProcAddress(
             nvml->handle, "nvmlSystemGetDriverVersion");
 #else
     nvml->handle = dlopen("libnvidia-ml.so.1", RTLD_LAZY);
@@ -71,13 +71,18 @@ load_nvml(void)
         return NULL;
     }
 
-    *(void**)(&nvml->nvmlInit) = dlsym(nvml->handle, "nvmlInit");
-    *(void**)(&nvml->nvmlShutdown) = dlsym(nvml->handle, "nvmlShutdown");
-    *(void**)(&nvml->nvmlDeviceGetCount) = dlsym(nvml->handle, "nvmlDeviceGetCount");
-    *(void**)(&nvml->nvmlDeviceGetHandleByIndex) = dlsym(nvml->handle, "nvmlDeviceGetHandleByIndex");
-    *(void**)(&nvml->nvmlDeviceGetName) = dlsym(nvml->handle, "nvmlDeviceGetName");
-    *(void**)(&nvml->nvmlDeviceGetMemoryInfo) = dlsym(nvml->handle, "nvmlDeviceGetMemoryInfo");
-    *(void**)(&nvml->nvmlSystemGetDriverVersion) = dlsym(nvml->handle, "nvmlSystemGetDriverVersion");
+    *(void **)(&nvml->nvmlInit) = dlsym(nvml->handle, "nvmlInit");
+    *(void **)(&nvml->nvmlShutdown) = dlsym(nvml->handle, "nvmlShutdown");
+    *(void **)(&nvml->nvmlDeviceGetCount)
+        = dlsym(nvml->handle, "nvmlDeviceGetCount");
+    *(void **)(&nvml->nvmlDeviceGetHandleByIndex)
+        = dlsym(nvml->handle, "nvmlDeviceGetHandleByIndex");
+    *(void **)(&nvml->nvmlDeviceGetName)
+        = dlsym(nvml->handle, "nvmlDeviceGetName");
+    *(void **)(&nvml->nvmlDeviceGetMemoryInfo)
+        = dlsym(nvml->handle, "nvmlDeviceGetMemoryInfo");
+    *(void **)(&nvml->nvmlSystemGetDriverVersion)
+        = dlsym(nvml->handle, "nvmlSystemGetDriverVersion");
 #endif
 
     if (!nvml->nvmlInit || !nvml->nvmlShutdown || !nvml->nvmlDeviceGetCount

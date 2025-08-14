@@ -90,10 +90,10 @@ def test_gpu_context_structure_validation(cmake):
 
         # Handle both single GPU (legacy) and multi-GPU (array) formats
         gpu_list = gpu_context if isinstance(gpu_context, list) else [gpu_context]
-        
+
         # Ensure we have at least one GPU
         assert len(gpu_list) > 0, "GPU context should contain at least one GPU"
-        
+
         # Validate each GPU in the context
         for i, gpu in enumerate(gpu_list):
             # Validate that we have at least basic identifying information
@@ -108,34 +108,48 @@ def test_gpu_context_structure_validation(cmake):
                 assert isinstance(name, str), f"GPU {i} name should be a string"
                 assert len(name) > 0, f"GPU {i} name should not be empty"
                 # Should not be just a generic placeholder
-                assert name != "Unknown", f"GPU {i} name should be meaningful, not 'Unknown'"
+                assert (
+                    name != "Unknown"
+                ), f"GPU {i} name should be meaningful, not 'Unknown'"
 
             # If vendor info is present, validate it
             if "vendor_name" in gpu:
                 vendor_name = gpu["vendor_name"]
-                assert isinstance(vendor_name, str), f"GPU {i} vendor_name should be a string"
+                assert isinstance(
+                    vendor_name, str
+                ), f"GPU {i} vendor_name should be a string"
                 assert len(vendor_name) > 0, f"GPU {i} vendor_name should not be empty"
 
             if "vendor_id" in gpu:
                 vendor_id = gpu["vendor_id"]
-                assert isinstance(vendor_id, str), f"GPU {i} vendor_id should be a string"
+                assert isinstance(
+                    vendor_id, str
+                ), f"GPU {i} vendor_id should be a string"
                 assert len(vendor_id) > 0, f"GPU {i} vendor_id should not be empty"
                 # Should be a valid number when converted
-                assert vendor_id.isdigit(), f"GPU {i} vendor_id should be a numeric string"
+                assert (
+                    vendor_id.isdigit()
+                ), f"GPU {i} vendor_id should be a numeric string"
 
             # Check device_id is now a string
             if "device_id" in gpu:
                 device_id = gpu["device_id"]
-                assert isinstance(device_id, str), f"GPU {i} device_id should be a string"
+                assert isinstance(
+                    device_id, str
+                ), f"GPU {i} device_id should be a string"
                 assert len(device_id) > 0, f"GPU {i} device_id should not be empty"
 
             # Memory size should be reasonable if present
             if "memory_size" in gpu:
                 memory_size = gpu["memory_size"]
-                assert isinstance(memory_size, int), f"GPU {i} memory_size should be an integer"
+                assert isinstance(
+                    memory_size, int
+                ), f"GPU {i} memory_size should be an integer"
                 assert memory_size > 0, f"GPU {i} memory_size should be positive"
                 # Should be at least 1MB (very conservative)
-                assert memory_size >= 1024 * 1024, f"GPU {i} memory size seems too small"
+                assert (
+                    memory_size >= 1024 * 1024
+                ), f"GPU {i} memory size seems too small"
 
 
 def test_gpu_context_cross_platform_compatibility(cmake):
@@ -187,46 +201,52 @@ def test_gpu_context_multi_gpu_support(cmake):
     assert_event(envelope)
 
     event = envelope.get_event()
-    
+
     # Check if GPU context is present
     if "gpu" in event.get("contexts", {}):
         gpu_context = event["contexts"]["gpu"]
-        
+
         if isinstance(gpu_context, list):
             # Multi-GPU array format
             print(f"Found {len(gpu_context)} GPUs in the system")
-            
+
             # Test that we have at least one GPU
             assert len(gpu_context) > 0, "GPU array should not be empty"
-            
+
             # Test for potential hybrid setups (NVIDIA + other vendors)
             nvidia_count = 0
             other_vendors = set()
-            
+
             for i, gpu in enumerate(gpu_context):
                 print(f"GPU {i}: {gpu}")
-                
+
                 if "vendor_id" in gpu:
-                    vendor_id = int(gpu["vendor_id"]) if gpu["vendor_id"].isdigit() else 0
-                    if vendor_id == 0x10de or vendor_id == 4318:  # NVIDIA
+                    vendor_id = (
+                        int(gpu["vendor_id"]) if gpu["vendor_id"].isdigit() else 0
+                    )
+                    if vendor_id == 0x10DE or vendor_id == 4318:  # NVIDIA
                         nvidia_count += 1
                     else:
                         other_vendors.add(vendor_id)
-            
+
             if nvidia_count > 0 and len(other_vendors) > 0:
-                print(f"Hybrid GPU setup detected: {nvidia_count} NVIDIA + {len(other_vendors)} other vendor(s)")
-                
+                print(
+                    f"Hybrid GPU setup detected: {nvidia_count} NVIDIA + {len(other_vendors)} other vendor(s)"
+                )
+
                 # In hybrid setups, NVIDIA GPUs should potentially have more detailed info
                 for gpu in gpu_context:
                     if "vendor_id" in gpu:
-                        vendor_id = int(gpu["vendor_id"]) if gpu["vendor_id"].isdigit() else 0
-                        if vendor_id == 0x10de or vendor_id == 4318:  # NVIDIA
+                        vendor_id = (
+                            int(gpu["vendor_id"]) if gpu["vendor_id"].isdigit() else 0
+                        )
+                        if vendor_id == 0x10DE or vendor_id == 4318:  # NVIDIA
                             print(f"NVIDIA GPU details: {gpu}")
                             # Could have driver_version and memory_size from NVML
-                            
+
         elif isinstance(gpu_context, dict):
             # Legacy single GPU format - still valid
             print("Single GPU detected (legacy format)")
-            
+
     # The main validation is handled by assert_gpu_context
     assert_gpu_context(event)

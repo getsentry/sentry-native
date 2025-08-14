@@ -11,13 +11,13 @@ SENTRY_TEST(gpu_info_basic)
     // on most systems)
     if (gpu_list && gpu_list->count > 0) {
         printf("Found %u GPU(s):\n", gpu_list->count);
-        
+
         // Check that at least one GPU has populated fields
         bool has_info = false;
         for (unsigned int i = 0; i < gpu_list->count; i++) {
             sentry_gpu_info_t *gpu_info = gpu_list->gpus[i];
             printf("GPU %u:\n", i);
-            
+
             if (gpu_info->name && strlen(gpu_info->name) > 0) {
                 has_info = true;
                 printf("  Name: %s\n", gpu_info->name);
@@ -34,7 +34,8 @@ SENTRY_TEST(gpu_info_basic)
                 has_info = true;
                 printf("  Device ID: 0x%04X\n", gpu_info->device_id);
             }
-            if (gpu_info->driver_version && strlen(gpu_info->driver_version) > 0) {
+            if (gpu_info->driver_version
+                && strlen(gpu_info->driver_version) > 0) {
                 has_info = true;
                 printf("  Driver Version: %s\n", gpu_info->driver_version);
             }
@@ -147,36 +148,40 @@ SENTRY_TEST(gpu_info_vendor_id_known)
     if (gpu_list && gpu_list->count > 0) {
         for (unsigned int i = 0; i < gpu_list->count; i++) {
             sentry_gpu_info_t *gpu_info = gpu_list->gpus[i];
-            
+
             if (gpu_info->vendor_name) {
                 char *expected_vendor_name
                     = sentry__gpu_vendor_id_to_name(gpu_info->vendor_id);
                 TEST_CHECK(expected_vendor_name != NULL);
 
                 if (expected_vendor_name) {
-                    // Use strstr to check that the vendor name contains expected
-                    // content rather than exact string comparison which may be
-                    // fragile
+                    // Use strstr to check that the vendor name contains
+                    // expected content rather than exact string comparison
+                    // which may be fragile
                     switch (gpu_info->vendor_id) {
                     case 0x10DE: // NVIDIA
-                        TEST_CHECK(strstr(gpu_info->vendor_name, "NVIDIA") != NULL);
+                        TEST_CHECK(
+                            strstr(gpu_info->vendor_name, "NVIDIA") != NULL);
                         break;
                     case 0x1002: // AMD/ATI
                         TEST_CHECK(strstr(gpu_info->vendor_name, "AMD") != NULL
                             || strstr(gpu_info->vendor_name, "ATI") != NULL);
                         break;
                     case 0x8086: // Intel
-                        TEST_CHECK(strstr(gpu_info->vendor_name, "Intel") != NULL);
+                        TEST_CHECK(
+                            strstr(gpu_info->vendor_name, "Intel") != NULL);
                         break;
                     case 0x106B: // Apple
-                        TEST_CHECK(strstr(gpu_info->vendor_name, "Apple") != NULL);
+                        TEST_CHECK(
+                            strstr(gpu_info->vendor_name, "Apple") != NULL);
                         break;
                     case 0x1414: // Microsoft
                         TEST_CHECK(
                             strstr(gpu_info->vendor_name, "Microsoft") != NULL);
                         break;
                     default:
-                        // For other or unknown vendors, just check it's not empty
+                        // For other or unknown vendors, just check it's not
+                        // empty
                         TEST_CHECK(strlen(gpu_info->vendor_name) > 0);
                         break;
                     }
@@ -239,18 +244,22 @@ SENTRY_TEST(gpu_context_scope_integration)
 
         if (gpu_count > 0) {
             printf("Found %zu GPU(s) in context\n", gpu_count);
-            
+
             // Check that at least one GPU has valid fields
             bool has_field = false;
             for (size_t i = 0; i < gpu_count; i++) {
                 sentry_value_t gpu = sentry_value_get_by_index(gpu_context, i);
-                TEST_CHECK(sentry_value_get_type(gpu) == SENTRY_VALUE_TYPE_OBJECT);
-                
-                sentry_value_t name = sentry_value_get_by_key(gpu, "name");
-                sentry_value_t vendor_name = sentry_value_get_by_key(gpu, "vendor_name");
-                sentry_value_t vendor_id = sentry_value_get_by_key(gpu, "vendor_id");
+                TEST_CHECK(
+                    sentry_value_get_type(gpu) == SENTRY_VALUE_TYPE_OBJECT);
 
-                if (!sentry_value_is_null(name) || !sentry_value_is_null(vendor_name)
+                sentry_value_t name = sentry_value_get_by_key(gpu, "name");
+                sentry_value_t vendor_name
+                    = sentry_value_get_by_key(gpu, "vendor_name");
+                sentry_value_t vendor_id
+                    = sentry_value_get_by_key(gpu, "vendor_id");
+
+                if (!sentry_value_is_null(name)
+                    || !sentry_value_is_null(vendor_name)
                     || !sentry_value_is_null(vendor_id)) {
                     has_field = true;
                     break;
@@ -280,22 +289,23 @@ SENTRY_TEST(gpu_info_multi_gpu_support)
 #ifdef SENTRY_WITH_GPU_INFO
     if (gpu_list && gpu_list->count > 0) {
         printf("Testing multi-GPU support with %u GPU(s)\n", gpu_list->count);
-        
+
         // Test that all GPUs in the list are properly initialized
         for (unsigned int i = 0; i < gpu_list->count; i++) {
             sentry_gpu_info_t *gpu_info = gpu_list->gpus[i];
             TEST_CHECK(gpu_info != NULL);
-            
+
             // At least vendor_id should be set for each GPU
-            if (gpu_info->vendor_id == 0 && (!gpu_info->name || strlen(gpu_info->name) == 0)) {
+            if (gpu_info->vendor_id == 0
+                && (!gpu_info->name || strlen(gpu_info->name) == 0)) {
                 TEST_MSG("GPU entry has no identifying information");
             }
-            
-            printf("GPU %u: vendor_id=0x%04X, name=%s\n", i, 
-                   gpu_info->vendor_id, 
-                   gpu_info->name ? gpu_info->name : "(null)");
+
+            printf("GPU %u: vendor_id=0x%04X, name=%s\n", i,
+                gpu_info->vendor_id,
+                gpu_info->name ? gpu_info->name : "(null)");
         }
-        
+
         // Test that we don't have duplicate pointers in the array
         if (gpu_list->count > 1) {
             for (unsigned int i = 0; i < gpu_list->count - 1; i++) {
@@ -304,7 +314,7 @@ SENTRY_TEST(gpu_info_multi_gpu_support)
                 }
             }
         }
-        
+
         sentry__free_gpu_list(gpu_list);
     } else {
         TEST_MSG("No multi-GPU setup detected - this is normal");
@@ -323,18 +333,18 @@ SENTRY_TEST(gpu_info_hybrid_setup_simulation)
 #ifdef SENTRY_WITH_GPU_INFO
     if (gpu_list && gpu_list->count > 1) {
         printf("Hybrid GPU setup detected with %u GPUs\n", gpu_list->count);
-        
+
         bool has_nvidia = false;
         bool has_other = false;
-        
+
         for (unsigned int i = 0; i < gpu_list->count; i++) {
             sentry_gpu_info_t *gpu_info = gpu_list->gpus[i];
-            
+
             if (gpu_info->vendor_id == 0x10de) { // NVIDIA
                 has_nvidia = true;
-                printf("Found NVIDIA GPU: %s\n", 
-                       gpu_info->name ? gpu_info->name : "Unknown");
-                
+                printf("Found NVIDIA GPU: %s\n",
+                    gpu_info->name ? gpu_info->name : "Unknown");
+
                 // NVIDIA GPUs should have more detailed info if NVML worked
                 if (gpu_info->driver_version) {
                     printf("  Driver: %s\n", gpu_info->driver_version);
@@ -344,16 +354,16 @@ SENTRY_TEST(gpu_info_hybrid_setup_simulation)
                 }
             } else {
                 has_other = true;
-                printf("Found other GPU: vendor=0x%04X, name=%s\n", 
-                       gpu_info->vendor_id,
-                       gpu_info->name ? gpu_info->name : "Unknown");
+                printf("Found other GPU: vendor=0x%04X, name=%s\n",
+                    gpu_info->vendor_id,
+                    gpu_info->name ? gpu_info->name : "Unknown");
             }
         }
-        
+
         if (has_nvidia && has_other) {
             TEST_MSG("Successfully detected hybrid NVIDIA + other GPU setup");
         }
-        
+
         sentry__free_gpu_list(gpu_list);
     } else {
         TEST_MSG("No hybrid GPU setup detected - this is normal");

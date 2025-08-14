@@ -79,24 +79,24 @@ def assert_gpu_context(event, should_have_gpu=None):
 
     if has_gpu:
         gpu_context = event["contexts"]["gpu"]
-        
+
         # GPU context can now be either a single object (legacy) or an array (multi-GPU)
         if isinstance(gpu_context, list):
             # Multi-GPU array format
             assert len(gpu_context) > 0, "GPU context array should not be empty"
-            
+
             # Validate each GPU in the array
             for i, gpu in enumerate(gpu_context):
                 assert isinstance(gpu, dict), f"GPU {i} should be an object"
-                
+
                 # At least one identifying field should be present
                 identifying_fields = ["name", "vendor_name", "vendor_id", "device_id"]
                 assert any(
                     field in gpu for field in identifying_fields
                 ), f"GPU {i} should contain at least one of: {identifying_fields}"
-                
+
                 _validate_single_gpu_context(gpu, f"GPU {i}")
-                
+
         elif isinstance(gpu_context, dict):
             # Legacy single GPU object format
             # At least one identifying field should be present
@@ -104,17 +104,21 @@ def assert_gpu_context(event, should_have_gpu=None):
             assert any(
                 field in gpu_context for field in identifying_fields
             ), f"GPU context should contain at least one of: {identifying_fields}"
-            
+
             _validate_single_gpu_context(gpu_context, "GPU")
         else:
-            assert False, f"GPU context should be either an object or array, got {type(gpu_context)}"
+            assert (
+                False
+            ), f"GPU context should be either an object or array, got {type(gpu_context)}"
 
 
 def _validate_single_gpu_context(gpu_context, gpu_name):
     """Helper function to validate a single GPU context object."""
     # Validate field types and values
     if "name" in gpu_context:
-        assert isinstance(gpu_context["name"], str), f"{gpu_name} name should be a string"
+        assert isinstance(
+            gpu_context["name"], str
+        ), f"{gpu_name} name should be a string"
         assert len(gpu_context["name"]) > 0, f"{gpu_name} name should not be empty"
 
     if "vendor_name" in gpu_context:
@@ -145,13 +149,17 @@ def _validate_single_gpu_context(gpu_context, gpu_name):
         assert isinstance(
             gpu_context["memory_size"], int
         ), f"{gpu_name} memory_size should be an integer"
-        assert gpu_context["memory_size"] > 0, f"{gpu_name} memory_size should be positive"
+        assert (
+            gpu_context["memory_size"] > 0
+        ), f"{gpu_name} memory_size should be positive"
 
     if "driver_version" in gpu_context:
         assert isinstance(
             gpu_context["driver_version"], str
         ), f"{gpu_name} driver_version should be a string"
-        assert len(gpu_context["driver_version"]) > 0, f"{gpu_name} driver_version should not be empty"
+        assert (
+            len(gpu_context["driver_version"]) > 0
+        ), f"{gpu_name} driver_version should not be empty"
 
 
 def assert_user_report(envelope):
