@@ -221,11 +221,15 @@ if(SENTRY_WITH_GPU_INFO)
 	if(WIN32)
 		sentry_target_sources_cwd(sentry
 			gpu/sentry_gpu_common.c
+			gpu/sentry_gpu_nvml.h
+			gpu/sentry_gpu_nvml.c
 			gpu/sentry_gpu_windows.c
 		)
 	elseif((APPLE AND NOT IOS) OR LINUX)
 		sentry_target_sources_cwd(sentry
 			gpu/sentry_gpu_common.c
+			gpu/sentry_gpu_nvml.h
+			gpu/sentry_gpu_nvml.c
 			gpu/sentry_gpu_unix.c
 		)
 	else()
