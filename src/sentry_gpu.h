@@ -17,17 +17,27 @@ typedef struct sentry_gpu_info_s {
     size_t memory_size;
 } sentry_gpu_info_t;
 
+typedef struct sentry_gpu_list_s {
+    sentry_gpu_info_t **gpus;
+    unsigned int count;
+} sentry_gpu_list_t;
+
 /**
  * Retrieves GPU information for the current system.
  * Returns a sentry_gpu_info_t structure that must be freed with
  * sentry__free_gpu_info, or NULL if no GPU information could be obtained.
  */
-sentry_gpu_info_t *sentry__get_gpu_info(void);
+sentry_gpu_list_t *sentry__get_gpu_info(void);
 
 /**
  * Frees the GPU information structure returned by sentry__get_gpu_info.
  */
 void sentry__free_gpu_info(sentry_gpu_info_t *gpu_info);
+
+/**
+ * Frees the GPU list structure returned by sentry__get_all_gpu_info.
+ */
+void sentry__free_gpu_list(sentry_gpu_list_t *gpu_list);
 
 /**
  * Maps a GPU vendor ID to a vendor name string.
