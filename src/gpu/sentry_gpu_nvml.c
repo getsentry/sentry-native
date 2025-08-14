@@ -71,16 +71,13 @@ load_nvml(void)
         return NULL;
     }
 
-    nvml->nvmlInit = dlsym(nvml->handle, "nvmlInit");
-    nvml->nvmlShutdown = dlsym(nvml->handle, "nvmlShutdown");
-    nvml->nvmlDeviceGetCount = dlsym(nvml->handle, "nvmlDeviceGetCount");
-    nvml->nvmlDeviceGetHandleByIndex
-        = dlsym(nvml->handle, "nvmlDeviceGetHandleByIndex");
-    nvml->nvmlDeviceGetName = dlsym(nvml->handle, "nvmlDeviceGetName");
-    nvml->nvmlDeviceGetMemoryInfo
-        = dlsym(nvml->handle, "nvmlDeviceGetMemoryInfo");
-    nvml->nvmlSystemGetDriverVersion
-        = dlsym(nvml->handle, "nvmlSystemGetDriverVersion");
+    *(void**)(&nvml->nvmlInit) = dlsym(nvml->handle, "nvmlInit");
+    *(void**)(&nvml->nvmlShutdown) = dlsym(nvml->handle, "nvmlShutdown");
+    *(void**)(&nvml->nvmlDeviceGetCount) = dlsym(nvml->handle, "nvmlDeviceGetCount");
+    *(void**)(&nvml->nvmlDeviceGetHandleByIndex) = dlsym(nvml->handle, "nvmlDeviceGetHandleByIndex");
+    *(void**)(&nvml->nvmlDeviceGetName) = dlsym(nvml->handle, "nvmlDeviceGetName");
+    *(void**)(&nvml->nvmlDeviceGetMemoryInfo) = dlsym(nvml->handle, "nvmlDeviceGetMemoryInfo");
+    *(void**)(&nvml->nvmlSystemGetDriverVersion) = dlsym(nvml->handle, "nvmlSystemGetDriverVersion");
 #endif
 
     if (!nvml->nvmlInit || !nvml->nvmlShutdown || !nvml->nvmlDeviceGetCount
