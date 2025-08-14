@@ -8,7 +8,6 @@
 
 #include <stdarg.h>
 #include <string.h>
-#include <unistd.h>
 
 // TODO think about this
 #ifdef SENTRY_UNITTEST
@@ -32,6 +31,7 @@ static struct {
     sentry_bgworker_t *timer_worker;
     volatile long timer_task_submitted;
     volatile long timer_running;
+    volatile long timer_stop;
     volatile long flushing;
     sentry_cond_t request_flush;
     sentry_cond_t adding_done;
@@ -53,7 +53,6 @@ flush_logs_single_queue(void)
         return;
     }
     uint64_t before_flush = sentry__usec_time();
-    // TODO add logic to avoid empty-queue flush
 
     // Wait for all adding operations to complete using condition variable
     sentry__mutex_lock(&g_logs_single_state.adding_lock);
@@ -212,7 +211,7 @@ timer_task_func(void *task_data, void *worker_state)
     (void)worker_state; // unused parameter
     while (true) {
         // check if timer_running is false (only on shutdown)
-        if (sentry__atomic_fetch(&g_logs_single_state.timer_running) == 0) {
+        if (sentry__atomic_fetch(&g_logs_single_state.timer_stop) == 1) {
             break;
         }
         sentry_mutex_t task_lock;
@@ -228,11 +227,6 @@ timer_task_func(void *task_data, void *worker_state)
 
         // Try to flush logs
         flush_logs_single_queue();
-
-        // // Reset timer state - decrement the counter and mark task as
-        // completed not needed anymore
-        // sentry__atomic_fetch_and_add(&g_logs_single_state.timer_running, -1);
-        // sentry__atomic_store(&g_logs_single_state.timer_task_submitted, 0);
     }
 }
 
@@ -644,7 +638,7 @@ sentry__logs_shutdown(uint64_t timeout)
     flush_logs_single_queue();
 
     // Signal the timer task to stop running before shutting down the worker
-    sentry__atomic_store(&g_logs_single_state.timer_running, 0);
+    sentry__atomic_store(&g_logs_single_state.timer_stop, 1);
 
     if (g_logs_single_state.timer_worker) {
         if (sentry__bgworker_shutdown(g_logs_single_state.timer_worker, timeout)

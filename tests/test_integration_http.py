@@ -1369,6 +1369,7 @@ def test_logs_threaded(cmake, httpserver):
 
     # currently, we drop logs while flushing (about 20% if we have 'nonstop' log-calls)
     assert 40 <= len(httpserver.log) <= 50
+    total_count = 0
 
     for i in range(len(httpserver.log)):
         req = httpserver.log[i][0]
@@ -1376,3 +1377,6 @@ def test_logs_threaded(cmake, httpserver):
 
         envelope = Envelope.deserialize(body)
         assert_logs(envelope)  # TODO what is the expected item count?
+        total_count += envelope.items[0].headers["item_count"]
+
+    print(f"Total amount of captured logs: {total_count}")
