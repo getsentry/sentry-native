@@ -103,31 +103,10 @@ set(SENTRY_GPU_INFO_DEFAULT OFF)
 
 # Only enable GPU info on supported platforms
 if(WIN32)
-	# Check for Windows DirectX headers and libraries
-	find_path(DXGI_INCLUDE_DIR dxgi.h)
-	find_library(DXGI_LIBRARY dxgi)
-	find_library(DXGUID_LIBRARY dxguid)
-	find_library(OLE32_LIBRARY ole32)
-	find_library(OLEAUT32_LIBRARY oleaut32)
-
-	if(DXGI_INCLUDE_DIR AND DXGI_LIBRARY AND DXGUID_LIBRARY AND OLE32_LIBRARY AND OLEAUT32_LIBRARY)
-		set(SENTRY_GPU_INFO_DEFAULT ON)
-	else()
-		message(WARNING "GPU Info: Required Windows libraries not found, disabling GPU support")
-	endif()
+	set(SENTRY_GPU_INFO_DEFAULT ON)
 elseif(APPLE AND NOT IOS)
-	# Check for macOS frameworks
-	find_library(COREFOUNDATION_FRAMEWORK CoreFoundation)
-	find_library(IOKIT_FRAMEWORK IOKit)
-
-	if(COREFOUNDATION_FRAMEWORK AND IOKIT_FRAMEWORK)
-		set(SENTRY_GPU_INFO_DEFAULT ON)
-	else()
-		message(WARNING "GPU Info: Required macOS frameworks not found, disabling GPU support")
-	endif()
+	set(SENTRY_GPU_INFO_DEFAULT ON)
 elseif(LINUX)
-	# On Linux, GPU info gathering is available
-	# This could be extended to check for specific libraries like libdrm, etc.
 	set(SENTRY_GPU_INFO_DEFAULT ON)
 else()
 	# Disable GPU info on all other platforms (Android, iOS, AIX, etc.)
