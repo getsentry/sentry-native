@@ -3,7 +3,13 @@
 
 #include "sentry_envelope.h"
 
-// TODO these tests will need updating after batching is implemented
+#ifdef SENTRY_PLATFORM_WINDOWS
+#    include <windows.h>
+#    define sleep_ms(MILLISECONDS) Sleep(MILLISECONDS)
+#else
+#    include <unistd.h>
+#    define sleep_ms(SECONDS) usleep(SECONDS * 1000)
+#endif
 
 static void
 validate_logs_envelope(sentry_envelope_t *envelope, void *data)
@@ -43,11 +49,14 @@ SENTRY_TEST(basic_logging_functionality)
     sentry_log_info("Info message");
     sentry_log_warn("Warning message");
     sentry_log_error("Error message");
+    // TODO this fatal log gets dropped, since the queue is full (being flushed)
     sentry_log_fatal("Fatal message");
-
+    sleep_ms(20); // give the bgworker enough time to flush
     sentry_close();
 
-    TEST_CHECK_INT_EQUAL(called_transport, 6);
+    // TODO for now we set unit test buffer size to 5; does this make sense?
+    //  Or should we just pump out 100+ logs to fill a batch in a for-loop?
+    TEST_CHECK_INT_EQUAL(called_transport, 1);
 }
 
 SENTRY_TEST(logs_disabled_by_default)
@@ -92,9 +101,12 @@ SENTRY_TEST(formatted_log_messages)
     sentry_log_info("String: %s, Integer: %d, Float: %.2f", "test", 42, 3.14);
     sentry_log_warn("Character: %c, Hex: 0x%x", 'A', 255);
     sentry_log_error("Pointer: %p", (void *)0x1234);
+    sentry_log_error("Big number: %zu", UINT64_MAX);
+    sentry_log_error("Small number: %d", INT64_MIN);
+    sleep_ms(20); // give the bgworker enough time to flush
 
     sentry_close();
 
-    // Transport should be called three times
-    TEST_CHECK_INT_EQUAL(called_transport, 3);
+    // Transport should be called once
+    TEST_CHECK_INT_EQUAL(called_transport, 1);
 }

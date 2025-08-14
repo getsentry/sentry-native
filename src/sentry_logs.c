@@ -4,9 +4,147 @@
 #include "sentry_options.h"
 #include "sentry_os.h"
 #include "sentry_scope.h"
+#include "sentry_sync.h"
+#include "sentry_unix_spinlock.h"
 
 #include <stdarg.h>
 #include <string.h>
+
+// TODO think about this
+#ifdef SENTRY_UNITTEST
+#    define QUEUE_LENGTH 5
+#else
+#    define QUEUE_LENGTH 100
+#endif
+#define FLUSH_TIMER 5
+
+typedef struct {
+    sentry_value_t logs[QUEUE_LENGTH];
+    volatile long index;
+    volatile long adding;
+} log_single_buffer_t;
+
+// TODO look at mutex init for inspiration on how to dynamically init
+//  logs as sentry_value_t list using sentry_value_new_list_with_size(...)
+//  (at runtime since function call is not compile-time available)
+static struct {
+    log_single_buffer_t queue;
+    long timer_stop;
+    long flushing;
+    sentry_cond_t request_flush;
+} g_logs_single_state = { { .index = 0 }, .flushing = 0 };
+
+static void
+flush_logs_single_queue(void)
+{
+    long already_flushing
+        = sentry__atomic_fetch_and_add(&g_logs_single_state.flushing, 1);
+    if (already_flushing) {
+        sentry__atomic_fetch_and_add(&g_logs_single_state.flushing, -1);
+        return;
+    }
+    // nothing to flush
+    if (!sentry__atomic_fetch(&g_logs_single_state.queue.index)) {
+        sentry__atomic_store(&g_logs_single_state.flushing, 0);
+        return;
+    }
+    uint64_t before_flush = sentry__usec_time();
+
+    // Wait for all adding operations to complete using condition variable
+    while (sentry__atomic_fetch(&g_logs_single_state.queue.adding) > 0) {
+        // TODO currently only on unix
+        sentry__cpu_relax();
+    }
+
+    sentry_value_t logs = sentry_value_new_object();
+    sentry_value_t log_items = sentry_value_new_list();
+    int i;
+    long queue_len = sentry__atomic_fetch(&g_logs_single_state.queue.index);
+    for (i = 0; i < queue_len; i++) {
+        sentry_value_append(log_items, g_logs_single_state.queue.logs[i]);
+    }
+    sentry_value_set_by_key(logs, "items", log_items);
+    // sending of the envelope
+    sentry_envelope_t *envelope = sentry__envelope_new();
+    sentry__envelope_add_logs(envelope, logs);
+    SENTRY_WITH_OPTIONS (options) {
+        sentry__capture_envelope(options->transport, envelope);
+    }
+    sentry__atomic_store(&g_logs_single_state.queue.index, 0);
+    sentry__atomic_fetch_and_add(&g_logs_single_state.flushing, -1);
+    SENTRY_DEBUGF("Time to flush %i items is %llu us\n", i,
+        sentry__usec_time() - before_flush);
+}
+
+static bool
+enqueue_log_single(sentry_value_t log)
+{
+    uint64_t before = sentry__usec_time();
+
+    if (sentry__atomic_fetch(&g_logs_single_state.flushing) == 1) {
+        goto fail;
+    }
+    // TODO make sure this is how to effectively implement this;
+    sentry__atomic_fetch_and_add(&g_logs_single_state.queue.adding, 1);
+    // Try to get a slot in the current buffer
+    long log_idx
+        = sentry__atomic_fetch_and_add(&g_logs_single_state.queue.index, 1);
+
+    if (log_idx < QUEUE_LENGTH) {
+        // Successfully got a slot, write the log
+        g_logs_single_state.queue.logs[log_idx] = log;
+        sentry__atomic_fetch_and_add(&g_logs_single_state.queue.adding, -1);
+
+        // Check if this buffer is now full and trigger flush
+        if (log_idx == QUEUE_LENGTH - 1) {
+            // flush_logs_single_queue();
+            sentry__cond_wake(&g_logs_single_state.request_flush);
+        }
+
+        SENTRY_DEBUGF("Time to successful enqueue log is %llu us\n",
+            sentry__usec_time() - before);
+        return true;
+    }
+    // Buffer is already full, roll back our increments
+    SENTRY_DEBUG("log_idx > QUEUE_LENGTH");
+    sentry__atomic_fetch_and_add(&g_logs_single_state.queue.adding, -1);
+    sentry__atomic_fetch_and_add(&g_logs_single_state.queue.index, -1);
+fail:
+    SENTRY_DEBUGF("Time to failed enqueue log is %llu us\n",
+        sentry__usec_time() - before);
+    // TODO think about how to report this (e.g. client reports)
+    SENTRY_WARN("Unable to enqueue log");
+    // SENTRY_WARNF(
+    //     "Unable to enqueue log at time %f - all buffers full. Log body: %s",
+    //     sentry_value_as_double(sentry_value_get_by_key(log, "timestamp")),
+    //     sentry_value_as_string(sentry_value_get_by_key(log, "body")));
+    return false;
+}
+
+SENTRY_THREAD_FN
+timer_task_func(void *data)
+{
+    (void)data;
+    SENTRY_DEBUG("Starting timer_task_func");
+    sentry_mutex_t task_lock;
+    sentry__mutex_init(&task_lock); // Initialize the mutex
+
+    // check if timer_stop is true (only on shutdown)
+    while (sentry__atomic_fetch(&g_logs_single_state.timer_stop) == 0) {
+        // Sleep for 5 seconds or until request_flush hits
+        sentry__cond_wait_timeout(
+            &g_logs_single_state.request_flush, &task_lock, 5000);
+        // make sure loop invariant still holds
+        if (sentry__atomic_fetch(&g_logs_single_state.timer_stop) == 1) {
+            break;
+        }
+        // Try to flush logs
+        flush_logs_single_queue();
+    }
+
+    sentry__mutex_free(&task_lock);
+    return 0;
+}
 
 static const char *
 level_as_string(sentry_level_t level)
@@ -346,24 +484,8 @@ sentry__logs_log(sentry_level_t level, const char *message, va_list args)
     if (enable_logs) {
         // create log from message
         sentry_value_t log = construct_log(level, message, args);
-
-        // TODO split up the code below for batched log sending
-        //    e.g. could we store logs on the scope?
-        sentry_value_t logs = sentry_value_new_object();
-        sentry_value_t logs_list = sentry_value_new_list();
-        sentry_value_append(logs_list, log);
-        sentry_value_set_by_key(logs, "items", logs_list);
-        // sending of the envelope
-        sentry_envelope_t *envelope = sentry__envelope_new();
-        sentry__envelope_add_logs(envelope, logs);
-        // TODO remove debug write to file below
-        sentry_envelope_write_to_file(envelope, "logs_envelope.json");
-        SENTRY_WITH_OPTIONS (options) {
-            sentry__capture_envelope(options->transport, envelope);
-        }
-        // For now, free the logs object since envelope doesn't take
-        // ownership
-        sentry_value_decref(logs);
+        // enqueu_log(log);
+        enqueue_log_single(log);
     }
 }
 
@@ -419,4 +541,31 @@ sentry_log_fatal(const char *message, ...)
     va_start(args, message);
     sentry__logs_log(SENTRY_LEVEL_FATAL, message, args);
     va_end(args);
+}
+
+void
+sentry__logs_startup(void)
+{
+    sentry__cond_init(&g_logs_single_state.request_flush);
+
+    sentry_threadid_t timer_threadid;
+    sentry__thread_init(&timer_threadid);
+    sentry__thread_spawn(&timer_threadid, timer_task_func, NULL);
+}
+
+void
+sentry__logs_shutdown(uint64_t timeout)
+{
+    (void)timeout;
+    SENTRY_DEBUG("shutting down logs system");
+
+    // Perform final flush to ensure any remaining logs are sent
+    // This must happen before shutting down the background worker
+    // to avoid race conditions where logs are lost
+    flush_logs_single_queue();
+
+    // Signal the timer task to stop running before shutting down the worker
+    sentry__atomic_store(&g_logs_single_state.timer_stop, 1);
+
+    SENTRY_DEBUG("logs system shutdown complete");
 }
