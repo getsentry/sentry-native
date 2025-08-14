@@ -45,7 +45,7 @@ sentry__get_gpu_info(void)
     unsigned int adapter_count = 0;
     unsigned int non_nvidia_count = 0;
     IDXGIAdapter *temp_adapter = NULL;
-    
+
     while (factory->lpVtbl->EnumAdapters(factory, adapter_count, &temp_adapter)
         != DXGI_ERROR_NOT_FOUND) {
         if (temp_adapter) {
@@ -64,25 +64,28 @@ sentry__get_gpu_info(void)
     if (non_nvidia_count > 0) {
         unsigned int nvidia_count = gpu_list->count;
         unsigned int total_count = nvidia_count + non_nvidia_count;
-        
+
         // Expand or allocate the GPU array
-        sentry_gpu_info_t **all_gpus = sentry_malloc(sizeof(sentry_gpu_info_t*) * total_count);
+        sentry_gpu_info_t **all_gpus
+            = sentry_malloc(sizeof(sentry_gpu_info_t *) * total_count);
         if (!all_gpus) {
             factory->lpVtbl->Release(factory);
             return gpu_list; // Return what we have
         }
-        
+
         // Copy existing NVIDIA GPUs if any
         for (unsigned int i = 0; i < nvidia_count; i++) {
             all_gpus[i] = gpu_list->gpus[i];
         }
-        
+
         // Free old array (but keep the GPU info structs)
         sentry_free(gpu_list->gpus);
         gpu_list->gpus = all_gpus;
-        
-        // Enumerate adapters and add non-NVIDIA ones (or all if no NVIDIA found)
-        for (unsigned int i = 0; i < adapter_count && gpu_list->count < total_count; i++) {
+
+        // Enumerate adapters and add non-NVIDIA ones (or all if no NVIDIA
+        // found)
+        for (unsigned int i = 0;
+            i < adapter_count && gpu_list->count < total_count; i++) {
             IDXGIAdapter *adapter = NULL;
             DXGI_ADAPTER_DESC desc;
 
@@ -103,7 +106,8 @@ sentry__get_gpu_info(void)
                 continue;
             }
 
-            sentry_gpu_info_t *gpu_info = sentry_malloc(sizeof(sentry_gpu_info_t));
+            sentry_gpu_info_t *gpu_info
+                = sentry_malloc(sizeof(sentry_gpu_info_t));
             if (!gpu_info) {
                 adapter->lpVtbl->Release(adapter);
                 continue;
@@ -115,7 +119,8 @@ sentry__get_gpu_info(void)
             gpu_info->vendor_id = desc.VendorId;
             gpu_info->device_id = desc.DeviceId;
             gpu_info->memory_size = desc.DedicatedVideoMemory;
-            gpu_info->vendor_name = sentry__gpu_vendor_id_to_name(desc.VendorId);
+            gpu_info->vendor_name
+                = sentry__gpu_vendor_id_to_name(desc.VendorId);
 
             gpu_list->gpus[gpu_list->count] = gpu_info;
             gpu_list->count++;
