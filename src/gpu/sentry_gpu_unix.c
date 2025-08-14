@@ -1,6 +1,7 @@
 #include "sentry_gpu.h"
 
 #include "sentry_alloc.h"
+#include "sentry_gpu_nvml.h"
 #include "sentry_logger.h"
 #include "sentry_string.h"
 
@@ -12,182 +13,12 @@
 
 #ifdef SENTRY_PLATFORM_LINUX
 #    include <dirent.h>
+#    include <dlfcn.h>
 #    include <sys/stat.h>
 #endif
 
 #ifdef SENTRY_PLATFORM_MACOS
 #    include <sys/sysctl.h>
-#endif
-
-#ifdef SENTRY_PLATFORM_LINUX
-static char *
-read_file_content(const char *filepath)
-{
-    FILE *file = fopen(filepath, "r");
-    if (!file) {
-        return NULL;
-    }
-
-    fseek(file, 0, SEEK_END);
-    long length = ftell(file);
-    fseek(file, 0, SEEK_SET);
-
-    if (length <= 0) {
-        fclose(file);
-        return NULL;
-    }
-
-    char *content = sentry_malloc(length + 1);
-    if (!content) {
-        fclose(file);
-        return NULL;
-    }
-
-    size_t read_size = fread(content, 1, length, file);
-    fclose(file);
-
-    content[read_size] = '\0';
-
-    char *newline = strchr(content, '\n');
-    if (newline) {
-        *newline = '\0';
-    }
-
-    return content;
-}
-
-static unsigned int
-parse_hex_id(const char *hex_str)
-{
-    if (!hex_str) {
-        return 0;
-    }
-
-    char *prefixed_str = NULL;
-    if (strncmp(hex_str, "0x", 2) != 0) {
-        size_t len = strlen(hex_str) + 3;
-        prefixed_str = sentry_malloc(len);
-        if (prefixed_str) {
-            snprintf(prefixed_str, len, "0x%s", hex_str);
-        }
-    }
-
-    unsigned int result = (unsigned int)strtoul(
-        prefixed_str ? prefixed_str : hex_str, NULL, 16);
-
-    if (prefixed_str) {
-        sentry_free(prefixed_str);
-    }
-
-    return result;
-}
-static sentry_gpu_info_t *
-get_gpu_info_linux_pci(void)
-{
-    DIR *pci_dir = opendir("/sys/bus/pci/devices");
-    if (!pci_dir) {
-        return NULL;
-    }
-
-    sentry_gpu_info_t *gpu_info = NULL;
-    struct dirent *entry;
-
-    while ((entry = readdir(pci_dir)) != NULL) {
-        if (entry->d_name[0] == '.') {
-            continue;
-        }
-
-        char class_path[PATH_MAX];
-        snprintf(class_path, sizeof(class_path),
-            "/sys/bus/pci/devices/%s/class", entry->d_name);
-
-        char *class_str = read_file_content(class_path);
-        if (!class_str) {
-            continue;
-        }
-
-        unsigned int class_code = parse_hex_id(class_str);
-        sentry_free(class_str);
-
-        if ((class_code >> 16) != 0x03) {
-            continue;
-        }
-
-        gpu_info = sentry_malloc(sizeof(sentry_gpu_info_t));
-        if (!gpu_info) {
-            break;
-        }
-
-        memset(gpu_info, 0, sizeof(sentry_gpu_info_t));
-
-        char vendor_path[PATH_MAX], device_path[PATH_MAX];
-        snprintf(vendor_path, sizeof(vendor_path),
-            "/sys/bus/pci/devices/%s/vendor", entry->d_name);
-        snprintf(device_path, sizeof(device_path),
-            "/sys/bus/pci/devices/%s/device", entry->d_name);
-
-        char *vendor_str = read_file_content(vendor_path);
-        char *device_str = read_file_content(device_path);
-
-        if (vendor_str) {
-            gpu_info->vendor_id = parse_hex_id(vendor_str);
-            sentry_free(vendor_str);
-        }
-
-        if (device_str) {
-            gpu_info->device_id = parse_hex_id(device_str);
-            sentry_free(device_str);
-        }
-
-        gpu_info->vendor_name
-            = sentry__gpu_vendor_id_to_name(gpu_info->vendor_id);
-
-        break;
-    }
-
-    closedir(pci_dir);
-    return gpu_info;
-}
-
-static sentry_gpu_info_t *
-get_gpu_info_linux_drm(void)
-{
-    DIR *drm_dir = opendir("/sys/class/drm");
-    if (!drm_dir) {
-        return NULL;
-    }
-
-    sentry_gpu_info_t *gpu_info = NULL;
-    struct dirent *entry;
-
-    while ((entry = readdir(drm_dir)) != NULL) {
-        if (strncmp(entry->d_name, "card", 4) != 0) {
-            continue;
-        }
-
-        char name_path[PATH_MAX];
-        snprintf(name_path, sizeof(name_path),
-            "/sys/class/drm/%s/device/driver", entry->d_name);
-
-        char link_target[PATH_MAX];
-        ssize_t len = readlink(name_path, link_target, PATH_MAX - 1);
-        if (len > 0) {
-            link_target[len] = '\0';
-            char *driver_name = strrchr(link_target, '/');
-            if (driver_name) {
-                gpu_info = sentry_malloc(sizeof(sentry_gpu_info_t));
-                if (gpu_info) {
-                    memset(gpu_info, 0, sizeof(sentry_gpu_info_t));
-                    gpu_info->name = sentry__string_clone(driver_name + 1);
-                }
-                break;
-            }
-        }
-    }
-
-    closedir(drm_dir);
-    return gpu_info;
-}
 #endif
 
 #ifdef SENTRY_PLATFORM_MACOS
@@ -268,34 +99,42 @@ get_gpu_info_macos(void)
 }
 #endif
 
-sentry_gpu_info_t *
+sentry_gpu_list_t *
 sentry__get_gpu_info(void)
 {
-    sentry_gpu_info_t *gpu_info = NULL;
-
+    sentry_gpu_list_t *gpu_list = NULL;
 #ifdef SENTRY_PLATFORM_LINUX
-    gpu_info = get_gpu_info_linux_pci();
-    if (!gpu_info) {
-        gpu_info = get_gpu_info_linux_drm();
+    // Try NVML first for NVIDIA GPUs
+    gpu_list = sentry__get_gpu_info_nvidia_nvml();
+    if (!gpu_list) {
+        return NULL;
     }
 #endif
 
 #ifdef SENTRY_PLATFORM_MACOS
-    gpu_info = get_gpu_info_macos();
-#endif
-
-    return gpu_info;
-}
-
-void
-sentry__free_gpu_info(sentry_gpu_info_t *gpu_info)
-{
-    if (!gpu_info) {
-        return;
+    gpu_list = sentry_malloc(sizeof(sentry_gpu_list_t));
+    if (!gpu_list) {
+        return NULL;
     }
 
-    sentry_free(gpu_info->name);
-    sentry_free(gpu_info->vendor_name);
-    sentry_free(gpu_info->driver_version);
-    sentry_free(gpu_info);
+    gpu_list->gpus = NULL;
+    gpu_list->count = 0;
+
+    // For macOS, we typically have one integrated GPU
+    sentry_gpu_info_t *macos_gpu = get_gpu_info_macos();
+    if (macos_gpu) {
+        gpu_list->gpus = sentry_malloc(sizeof(sentry_gpu_info_t *));
+        if (gpu_list->gpus) {
+            gpu_list->gpus[0] = macos_gpu;
+            gpu_list->count = 1;
+        } else {
+            sentry__free_gpu_info(macos_gpu);
+        }
+    } else {
+        sentry_free(gpu_list);
+        return NULL;
+    }
+#endif
+
+    return gpu_list;
 }

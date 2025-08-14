@@ -42,17 +42,11 @@ sentry__gpu_vendor_id_to_name(unsigned int vendor_id)
     }
 }
 
-sentry_value_t
-sentry__get_gpu_context(void)
+static sentry_value_t
+create_gpu_context_from_info(sentry_gpu_info_t *gpu_info)
 {
-    sentry_gpu_info_t *gpu_info = sentry__get_gpu_info();
-    if (!gpu_info) {
-        return sentry_value_new_null();
-    }
-
     sentry_value_t gpu_context = sentry_value_new_object();
     if (sentry_value_is_null(gpu_context)) {
-        sentry__free_gpu_info(gpu_info);
         return gpu_context;
     }
 
@@ -97,7 +91,61 @@ sentry__get_gpu_context(void)
             sentry_value_new_string(gpu_info->driver_version));
     }
 
-    sentry__free_gpu_info(gpu_info);
     sentry_value_freeze(gpu_context);
     return gpu_context;
+}
+
+void
+sentry__free_gpu_info(sentry_gpu_info_t *gpu_info)
+{
+    if (!gpu_info) {
+        return;
+    }
+
+    sentry_free(gpu_info->name);
+    sentry_free(gpu_info->vendor_name);
+    sentry_free(gpu_info->driver_version);
+    sentry_free(gpu_info);
+}
+
+void
+sentry__free_gpu_list(sentry_gpu_list_t *gpu_list)
+{
+    if (!gpu_list) {
+        return;
+    }
+
+    for (unsigned int i = 0; i < gpu_list->count; i++) {
+        sentry__free_gpu_info(gpu_list->gpus[i]);
+    }
+
+    sentry_free(gpu_list->gpus);
+    sentry_free(gpu_list);
+}
+
+sentry_value_t
+sentry__get_gpu_context(void)
+{
+    sentry_gpu_list_t *gpu_list = sentry__get_gpu_info();
+    if (!gpu_list) {
+        return sentry_value_new_null();
+    }
+
+    sentry_value_t gpu_array = sentry_value_new_list();
+    if (sentry_value_is_null(gpu_array)) {
+        sentry__free_gpu_list(gpu_list);
+        return gpu_array;
+    }
+
+    for (unsigned int i = 0; i < gpu_list->count; i++) {
+        sentry_value_t gpu_context
+            = create_gpu_context_from_info(gpu_list->gpus[i]);
+        if (!sentry_value_is_null(gpu_context)) {
+            sentry_value_append(gpu_array, gpu_context);
+        }
+    }
+
+    sentry__free_gpu_list(gpu_list);
+    sentry_value_freeze(gpu_array);
+    return gpu_array;
 }
