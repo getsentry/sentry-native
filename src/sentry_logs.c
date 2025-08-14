@@ -34,6 +34,8 @@ static struct {
     volatile long timer_running;
     volatile long flushing;
     sentry_cond_t request_flush;
+    sentry_cond_t adding_done;
+    sentry_mutex_t adding_lock;
 } g_logs_single_state = { { .index = 0 }, .timer_worker = NULL,
     .timer_task_submitted = 0, .timer_running = 0, .flushing = 0 };
 
@@ -52,14 +54,14 @@ flush_logs_single_queue(void)
     }
     uint64_t before_flush = sentry__usec_time();
     // TODO add logic to avoid empty-queue flush
-    // TODO check if this is a proper 'adding' counter spinlock
-    //  otherwise we could have:
-    //      T1: log_idx = 98
-    //      T2: log_idx = 99
-    //      T2: queue[99] = log_T2
-    //      T2 -> flush
-    //      loops over queue until log_idx 99, but 98 was not written yet!
-    while (sentry__atomic_fetch(&g_logs_single_state.queue.adding)) { }
+
+    // Wait for all adding operations to complete using condition variable
+    sentry__mutex_lock(&g_logs_single_state.adding_lock);
+    while (sentry__atomic_fetch(&g_logs_single_state.queue.adding) > 0) {
+        sentry__cond_wait(
+            &g_logs_single_state.adding_done, &g_logs_single_state.adding_lock);
+    }
+    sentry__mutex_unlock(&g_logs_single_state.adding_lock);
 
     sentry_value_t logs = sentry_value_new_object();
     sentry_value_t log_items = sentry_value_new_list();
@@ -140,7 +142,12 @@ enqueue_log_single(sentry_value_t log)
     if (log_idx < QUEUE_LENGTH) {
         // Successfully got a slot, write the log
         g_logs_single_state.queue.logs[log_idx] = log;
-        sentry__atomic_fetch_and_add(&g_logs_single_state.queue.adding, -1);
+        long adding_count = sentry__atomic_fetch_and_add(
+            &g_logs_single_state.queue.adding, -1);
+        // If this was the last adding operation, signal the condition
+        if (adding_count == 1) {
+            sentry__cond_wake(&g_logs_single_state.adding_done);
+        }
 
         // Check if this buffer is now full and trigger flush
         if (log_idx == QUEUE_LENGTH - 1) {
@@ -159,6 +166,8 @@ enqueue_log_single(sentry_value_t log)
                 // and submit task
                 if (!g_logs_single_state.timer_worker) {
                     sentry__cond_init(&g_logs_single_state.request_flush);
+                    sentry__cond_init(&g_logs_single_state.adding_done);
+                    sentry__mutex_init(&g_logs_single_state.adding_lock);
                     // start single task to run indefinitely
                     setup_bgworker();
                     generate_timer_task();
@@ -175,8 +184,13 @@ enqueue_log_single(sentry_value_t log)
     }
     // Buffer is already full, roll back our increments
     SENTRY_DEBUG("log_idx > QUEUE_LENGTH");
-    sentry__atomic_fetch_and_add(&g_logs_single_state.queue.adding, -1);
+    long adding_count
+        = sentry__atomic_fetch_and_add(&g_logs_single_state.queue.adding, -1);
     sentry__atomic_fetch_and_add(&g_logs_single_state.queue.index, -1);
+    // If this was the last adding operation, signal the condition
+    if (adding_count == 1) {
+        sentry__cond_wake(&g_logs_single_state.adding_done);
+    }
 
 fail:
     SENTRY_DEBUGF("Time to failed enqueue log is %llu us\n",
@@ -189,8 +203,6 @@ fail:
     //     sentry_value_as_string(sentry_value_get_by_key(log, "body")));
     return false;
 }
-
-sentry_mutex_t cond;
 
 static void
 timer_task_func(void *task_data, void *worker_state)
@@ -638,6 +650,9 @@ sentry__logs_shutdown(uint64_t timeout)
             SENTRY_WARN(
                 "timer bgworker did not shut down cleanly within timeout");
         }
+        // Clean up the condition variable and mutex that were initialized
+        // when the timer_worker was created
+        // sentry__mutex_free(&g_logs_single_state.adding_lock);
     }
 
     // Reset state flags
