@@ -285,6 +285,10 @@ sentry_init(sentry_options_t *options)
         sentry_start_session();
     }
 
+    if (options->enable_logs) {
+        sentry__logs_startup();
+    }
+
     sentry__mutex_unlock(&g_options_lock);
     return 0;
 
