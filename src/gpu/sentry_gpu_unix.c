@@ -16,9 +16,6 @@
 #endif
 
 #ifdef SENTRY_PLATFORM_MACOS
-#    include <CoreFoundation/CoreFoundation.h>
-#    include <IOKit/IOKitLib.h>
-#    include <IOKit/graphics/IOGraphicsLib.h>
 #    include <sys/sysctl.h>
 #endif
 
@@ -261,119 +258,12 @@ get_gpu_info_macos_agx(void)
 }
 
 static sentry_gpu_info_t *
-get_gpu_info_macos_pci(void)
-{
-    sentry_gpu_info_t *gpu_info = NULL;
-    io_iterator_t iterator = IO_OBJECT_NULL;
-
-    mach_port_t main_port;
-#    if defined(MAC_OS_VERSION_12_0)                                           \
-        && MAC_OS_X_VERSION_MIN_REQUIRED >= MAC_OS_VERSION_12_0
-    main_port = kIOMainPortDefault;
-#    else
-    main_port = kIOMasterPortDefault;
-#    endif
-
-    kern_return_t result = IOServiceGetMatchingServices(
-        main_port, IOServiceMatching("IOPCIDevice"), &iterator);
-
-    if (result != KERN_SUCCESS) {
-        return NULL;
-    }
-
-    io_object_t service;
-    while ((service = IOIteratorNext(iterator)) != IO_OBJECT_NULL) {
-        CFMutableDictionaryRef properties = NULL;
-        result = IORegistryEntryCreateCFProperties(
-            service, &properties, kCFAllocatorDefault, kNilOptions);
-
-        if (result == KERN_SUCCESS && properties) {
-            CFNumberRef class_code_ref
-                = CFDictionaryGetValue(properties, CFSTR("class-code"));
-            if (class_code_ref
-                && CFGetTypeID(class_code_ref) == CFNumberGetTypeID()) {
-                uint32_t class_code = 0;
-                CFNumberGetValue(
-                    class_code_ref, kCFNumberSInt32Type, &class_code);
-
-                if ((class_code >> 16) == 0x03) {
-                    gpu_info = sentry_malloc(sizeof(sentry_gpu_info_t));
-                    if (gpu_info) {
-                        memset(gpu_info, 0, sizeof(sentry_gpu_info_t));
-
-                        CFNumberRef vendor_id_ref = CFDictionaryGetValue(
-                            properties, CFSTR("vendor-id"));
-                        if (vendor_id_ref
-                            && CFGetTypeID(vendor_id_ref)
-                                == CFNumberGetTypeID()) {
-                            uint32_t vendor_id = 0;
-                            CFNumberGetValue(
-                                vendor_id_ref, kCFNumberSInt32Type, &vendor_id);
-                            gpu_info->vendor_id = vendor_id;
-                        }
-
-                        CFNumberRef device_id_ref = CFDictionaryGetValue(
-                            properties, CFSTR("device-id"));
-                        if (device_id_ref
-                            && CFGetTypeID(device_id_ref)
-                                == CFNumberGetTypeID()) {
-                            uint32_t device_id = 0;
-                            CFNumberGetValue(
-                                device_id_ref, kCFNumberSInt32Type, &device_id);
-                            gpu_info->device_id = device_id;
-                        }
-
-                        CFStringRef model_ref
-                            = CFDictionaryGetValue(properties, CFSTR("model"));
-                        if (model_ref
-                            && CFGetTypeID(model_ref) == CFStringGetTypeID()) {
-                            CFIndex length = CFStringGetLength(model_ref);
-                            CFIndex maxSize = CFStringGetMaximumSizeForEncoding(
-                                                  length, kCFStringEncodingUTF8)
-                                + 1;
-                            char *model_str = sentry_malloc(maxSize);
-                            if (model_str
-                                && CFStringGetCString(model_ref, model_str,
-                                    maxSize, kCFStringEncodingUTF8)) {
-                                gpu_info->name = model_str;
-                            } else {
-                                sentry_free(model_str);
-                            }
-                        }
-
-                        gpu_info->vendor_name = sentry__gpu_vendor_id_to_name(
-                            gpu_info->vendor_id);
-                    }
-
-                    CFRelease(properties);
-                    IOObjectRelease(service);
-                    break;
-                }
-            }
-
-            CFRelease(properties);
-        }
-
-        IOObjectRelease(service);
-    }
-
-    IOObjectRelease(iterator);
-    return gpu_info;
-}
-
-static sentry_gpu_info_t *
 get_gpu_info_macos(void)
 {
     sentry_gpu_info_t *gpu_info = NULL;
 
     // Try Apple Silicon GPU first
     gpu_info = get_gpu_info_macos_agx();
-    if (gpu_info) {
-        return gpu_info;
-    }
-
-    // Fallback to PCI-based GPUs (Intel Macs, eGPUs, etc.)
-    gpu_info = get_gpu_info_macos_pci();
     return gpu_info;
 }
 #endif
