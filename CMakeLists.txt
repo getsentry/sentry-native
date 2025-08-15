@@ -70,6 +70,23 @@ option(SENTRY_PIC "Build sentry (and dependent) libraries as position independen
 
 option(SENTRY_TRANSPORT_COMPRESSION "Enable transport gzip compression" OFF)
 
+# GPU information gathering support - enabled by default on supported platforms only
+set(SENTRY_GPU_INFO_DEFAULT OFF)
+
+# Only enable GPU info on supported platforms
+if(WIN32)
+	set(SENTRY_GPU_INFO_DEFAULT ON)
+elseif(APPLE AND NOT IOS)
+	set(SENTRY_GPU_INFO_DEFAULT ON)
+elseif(LINUX)
+	set(SENTRY_GPU_INFO_DEFAULT ON)
+else()
+	# Disable GPU info on all other platforms (Android, iOS, AIX, etc.)
+	message(STATUS "GPU Info: Platform not supported, GPU information gathering disabled")
+endif()
+
+option(SENTRY_WITH_GPU_INFO "Build with GPU information gathering support" ${SENTRY_GPU_INFO_DEFAULT})
+
 option(SENTRY_BUILD_TESTS "Build sentry-native tests" "${SENTRY_MAIN_PROJECT}")
 option(SENTRY_BUILD_EXAMPLES "Build sentry-native example(s)" "${SENTRY_MAIN_PROJECT}")
 option(SENTRY_BUILD_BENCHMARKS "Build sentry-native benchmarks" OFF)
@@ -497,6 +514,16 @@ if(NOT XBOX)
 	if(SENTRY_LINK_PTHREAD)
 		list(APPEND _SENTRY_PLATFORM_LIBS "Threads::Threads")
 	endif()
+endif()
+
+# handle Apple frameworks for GPU info
+if((APPLE AND NOT IOS) AND SENTRY_WITH_GPU_INFO)
+	list(APPEND _SENTRY_PLATFORM_LIBS "-framework CoreFoundation" "-framework IOKit")
+endif()
+
+# handle Windows libraries for GPU info
+if(WIN32 AND SENTRY_WITH_GPU_INFO)
+	list(APPEND _SENTRY_PLATFORM_LIBS "dxgi" "dxguid" "ole32" "oleaut32")
 endif()
 
 # apply platform libraries to sentry library

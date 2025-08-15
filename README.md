@@ -295,6 +295,12 @@ using `cmake -D BUILD_SHARED_LIBS=OFF ..`.
   tuning the thread stack guarantee parameters. Warnings and errors in the process of setting thread stack guarantees
   will always be logged.
 
+- `SENTRY_WITH_GPU_INFO` (Default: `OFF`):
+  Enables GPU information collection and reporting. When enabled, the SDK will attempt to gather GPU details such as
+  GPU name, vendor, memory size, and driver version, which are included in event contexts. The implementation uses
+  platform-specific APIs: DXGI and Direct3D9 on Windows, IOKit on macOS, and PCI/DRM on Linux. Setting this to
+  `OFF` disables GPU information collection entirely, which can reduce dependencies and binary size.
+
 ### Support Matrix
 
 | Feature    | Windows | macOS | Linux | Android | iOS   |

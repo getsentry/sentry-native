@@ -196,3 +196,37 @@ else()
 		screenshot/sentry_screenshot_none.c
 	)
 endif()
+
+# gpu
+if(SENTRY_WITH_GPU_INFO)
+	target_compile_definitions(sentry PRIVATE SENTRY_WITH_GPU_INFO)
+	sentry_target_sources_cwd(sentry
+		sentry_gpu.h
+		gpu/sentry_gpu_common.c
+	)
+
+	if(WIN32)
+		sentry_target_sources_cwd(sentry
+			gpu/sentry_gpu_nvml.h
+			gpu/sentry_gpu_nvml.c
+			gpu/sentry_gpu_windows.c
+		)
+	elseif((APPLE AND NOT IOS) OR LINUX)
+		sentry_target_sources_cwd(sentry
+			gpu/sentry_gpu_nvml.h
+			gpu/sentry_gpu_nvml.c
+			gpu/sentry_gpu_unix.c
+		)
+	else()
+		# For platforms that do not support GPU info gathering, we provide a no-op implementation
+		sentry_target_sources_cwd(sentry
+			gpu/sentry_gpu_none.c
+		)
+	endif()
+else()
+	sentry_target_sources_cwd(sentry
+		sentry_gpu.h
+		gpu/sentry_gpu_common.c
+		gpu/sentry_gpu_none.c
+	)
+endif()
