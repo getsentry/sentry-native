@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1755261473632,
+  "lastUpdate": 1755261510981,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -12820,6 +12820,66 @@ window.BENCHMARK_DATA = {
             "value": 11.796100000083243,
             "unit": "ms",
             "extra": "Min 11.208ms\nMax 15.148ms\nMean 12.491ms\nStdDev 1.556ms\nMedian 11.796ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "mischan@abovevacant.com",
+            "name": "Mischan Toosarani-Hausberger",
+            "username": "supervacuus"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "9be6fe583b880fbec2aabba4dace46d1e8e36c49",
+          "message": "fix: correctly apply dynamic mutex initialization in unit-tests (#1337)",
+          "timestamp": "2025-08-15T14:34:33+02:00",
+          "tree_id": "610f922e0756a9b20a560e76fb48ab2144165858",
+          "url": "https://github.com/getsentry/sentry-native/commit/9be6fe583b880fbec2aabba4dace46d1e8e36c49"
+        },
+        "date": 1755261506587,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 8.667199999990771,
+            "unit": "ms",
+            "extra": "Min 7.957ms\nMax 8.897ms\nMean 8.500ms\nStdDev 0.375ms\nMedian 8.667ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 8.446400000025278,
+            "unit": "ms",
+            "extra": "Min 8.063ms\nMax 9.966ms\nMean 8.735ms\nStdDev 0.815ms\nMedian 8.446ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 19.032699999968372,
+            "unit": "ms",
+            "extra": "Min 18.828ms\nMax 19.535ms\nMean 19.088ms\nStdDev 0.269ms\nMedian 19.033ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.009799999986626062,
+            "unit": "ms",
+            "extra": "Min 0.009ms\nMax 0.012ms\nMean 0.010ms\nStdDev 0.001ms\nMedian 0.010ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.2991999999721884,
+            "unit": "ms",
+            "extra": "Min 0.294ms\nMax 0.469ms\nMean 0.332ms\nStdDev 0.076ms\nMedian 0.299ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 10.598800000025221,
+            "unit": "ms",
+            "extra": "Min 10.239ms\nMax 11.193ms\nMean 10.717ms\nStdDev 0.391ms\nMedian 10.599ms"
           }
         ]
       }
