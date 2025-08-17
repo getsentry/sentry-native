@@ -2,7 +2,11 @@
 #include <string.h>
 
 #ifdef SENTRY_EMBED_INFO
-SENTRY_API const char sentry_library_info[];
+#    ifdef _WIN32
+extern SENTRY_API const char sentry_library_info[];
+#    else
+extern const char sentry_library_info[];
+#    endif
 #endif
 
 SENTRY_TEST(embedded_info_basic)

@@ -301,6 +301,11 @@ if(SENTRY_EMBED_INFO)
 		string(TIMESTAMP SENTRY_BUILD_ID "%Y-%m-%d %H:%M:%S UTC" UTC)
 	endif()
 
+	# Ensure custom items end with semicolon if not empty
+	if(SENTRY_EMBED_INFO_ITEMS AND NOT SENTRY_EMBED_INFO_ITEMS MATCHES ";$")
+		set(SENTRY_EMBED_INFO_ITEMS "${SENTRY_EMBED_INFO_ITEMS};")
+	endif()
+
 	# Ensure the output directory exists
 	file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/src")
 
