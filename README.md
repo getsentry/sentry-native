@@ -98,7 +98,7 @@ per platform, and can also be configured for cross-compilation.
 System-wide installation of the resulting sentry library is also possible via
 CMake.
 
-The prerequisites for building differ depending on the platform and backend. You will always need `CMake` to build the code. Additionally, when using the `crashpad` backend, `zlib` is required. On Linux and macOS, `libcurl` is a prerequisite. For more details, check out  the [contribution guide](./CONTRIBUTING.md).
+The prerequisites for building differ depending on the platform and backend. You will always need `CMake` to build the code. Additionally, when using the `crashpad` backend, `zlib` is required. On Linux and macOS, `libcurl` is a prerequisite. When GPU information gathering is enabled (`SENTRY_WITH_GPU_INFO=ON`), the **Vulkan SDK** is required for cross-platform GPU detection. For more details, check out  the [contribution guide](./CONTRIBUTING.md).
 
 Building the Breakpad and Crashpad backends requires a `C++17` compatible compiler.
 
@@ -302,8 +302,9 @@ using `cmake -D BUILD_SHARED_LIBS=OFF ..`.
 - `SENTRY_WITH_GPU_INFO` (Default: `OFF`):
   Enables GPU information collection and reporting. When enabled, the SDK will attempt to gather GPU details such as
   GPU name, vendor, memory size, and driver version, which are included in event contexts. The implementation uses
-  platform-specific APIs: DXGI and Direct3D9 on Windows, IOKit on macOS, and PCI/DRM on Linux. Setting this to
-  `OFF` disables GPU information collection entirely, which can reduce dependencies and binary size.
+  the Vulkan API for cross-platform GPU detection. **Requires the Vulkan SDK to be installed** - if not found,
+  GPU information gathering will be automatically disabled during build. Setting this to `OFF` disables GPU 
+  information collection entirely, which can reduce dependencies and binary size.
 
 ### Support Matrix
 

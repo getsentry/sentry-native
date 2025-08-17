@@ -227,59 +227,75 @@ SENTRY_TEST(gpu_info_memory_allocation)
 
 SENTRY_TEST(gpu_context_scope_integration)
 {
-    // Test that GPU context is properly integrated into scope
-    sentry_value_t gpu_context = sentry__get_gpu_context();
+    // Test that GPU contexts are properly integrated into scope
+    sentry_value_t contexts = sentry_value_new_object();
+    TEST_CHECK(!sentry_value_is_null(contexts));
+
+    sentry__add_gpu_contexts(contexts);
 
 #ifdef SENTRY_WITH_GPU_INFO
-    // When GPU support is enabled, check if we get a valid context
+    // When GPU support is enabled, check if we get valid contexts
+    sentry_value_t gpu_context = sentry_value_get_by_key(contexts, "gpu");
+
     if (!sentry_value_is_null(gpu_context)) {
-        // GPU context is now an array of GPU objects
+        // GPU context should be an object with type "gpu"
         TEST_CHECK(
-            sentry_value_get_type(gpu_context) == SENTRY_VALUE_TYPE_LIST);
+            sentry_value_get_type(gpu_context) == SENTRY_VALUE_TYPE_OBJECT);
 
-        // Check that we have at least one GPU in the array
-        size_t gpu_count = sentry_value_get_length(gpu_context);
-        TEST_CHECK(gpu_count > 0);
-        TEST_MSG("GPU context array should contain at least one GPU");
+        // Check that type field is set to "gpu"
+        sentry_value_t type_field
+            = sentry_value_get_by_key(gpu_context, "type");
+        TEST_CHECK(!sentry_value_is_null(type_field));
+        TEST_CHECK(
+            sentry_value_get_type(type_field) == SENTRY_VALUE_TYPE_STRING);
 
-        if (gpu_count > 0) {
-            printf("Found %zu GPU(s) in context\n", gpu_count);
+        const char *type_str = sentry_value_as_string(type_field);
+        TEST_CHECK(type_str != NULL);
+        TEST_CHECK(strcmp(type_str, "gpu") == 0);
 
-            // Check that at least one GPU has valid fields
-            bool has_field = false;
-            for (size_t i = 0; i < gpu_count; i++) {
-                sentry_value_t gpu = sentry_value_get_by_index(gpu_context, i);
-                TEST_CHECK(
-                    sentry_value_get_type(gpu) == SENTRY_VALUE_TYPE_OBJECT);
+        // Check that at least one GPU has valid fields
+        sentry_value_t name = sentry_value_get_by_key(gpu_context, "name");
+        sentry_value_t vendor_name
+            = sentry_value_get_by_key(gpu_context, "vendor_name");
+        sentry_value_t vendor_id
+            = sentry_value_get_by_key(gpu_context, "vendor_id");
 
-                sentry_value_t name = sentry_value_get_by_key(gpu, "name");
-                sentry_value_t vendor_name
-                    = sentry_value_get_by_key(gpu, "vendor_name");
-                sentry_value_t vendor_id
-                    = sentry_value_get_by_key(gpu, "vendor_id");
+        bool has_field = !sentry_value_is_null(name)
+            || !sentry_value_is_null(vendor_name)
+            || !sentry_value_is_null(vendor_id);
+        TEST_CHECK(has_field);
+        TEST_MSG("Primary GPU should contain valid fields");
 
-                if (!sentry_value_is_null(name)
-                    || !sentry_value_is_null(vendor_name)
-                    || !sentry_value_is_null(vendor_id)) {
-                    has_field = true;
-                    break;
-                }
+        // Check for additional GPUs (gpu2, gpu3, etc.)
+        for (int i = 2; i <= 4; i++) {
+            char context_key[16];
+            snprintf(context_key, sizeof(context_key), "gpu%d", i);
+            sentry_value_t additional_gpu
+                = sentry_value_get_by_key(contexts, context_key);
+
+            if (!sentry_value_is_null(additional_gpu)) {
+                printf("Found additional GPU context: %s\n", context_key);
+
+                // Check type field
+                sentry_value_t type_field
+                    = sentry_value_get_by_key(additional_gpu, "type");
+                TEST_CHECK(!sentry_value_is_null(type_field));
+                const char *type_str = sentry_value_as_string(type_field);
+                TEST_CHECK(type_str != NULL);
+                TEST_CHECK(strcmp(type_str, "gpu") == 0);
             }
-
-            TEST_CHECK(has_field);
-            TEST_MSG("At least one GPU should contain valid fields");
         }
-
-        // Free the GPU context
-        sentry_value_decref(gpu_context);
     } else {
         TEST_MSG("No GPU context available on this system");
     }
 #else
-    // When GPU support is disabled, should always get null
+    // When GPU support is disabled, should not have gpu context
+    sentry_value_t gpu_context = sentry_value_get_by_key(contexts, "gpu");
     TEST_CHECK(sentry_value_is_null(gpu_context));
-    TEST_MSG("GPU support disabled - correctly returned null context");
+    TEST_MSG("GPU support disabled - correctly no GPU context");
 #endif
+
+    sentry_value_decref(contexts);
 }
 
 SENTRY_TEST(gpu_info_multi_gpu_support)
