@@ -6,15 +6,9 @@
 #include <string.h>
 #include <vulkan/vulkan.h>
 
-static VkInstance vulkan_instance = VK_NULL_HANDLE;
-
-static bool
-init_vulkan_instance(void)
+static VkInstance
+create_vulkan_instance(void)
 {
-    if (vulkan_instance != VK_NULL_HANDLE) {
-        return true;
-    }
-
     VkApplicationInfo app_info = { 0 };
     app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
     app_info.pApplicationName = "Sentry GPU Info";
@@ -27,22 +21,14 @@ init_vulkan_instance(void)
     create_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
     create_info.pApplicationInfo = &app_info;
 
-    VkResult result = vkCreateInstance(&create_info, NULL, &vulkan_instance);
+    VkInstance instance = VK_NULL_HANDLE;
+    VkResult result = vkCreateInstance(&create_info, NULL, &instance);
     if (result != VK_SUCCESS) {
         SENTRY_DEBUGF("Failed to create Vulkan instance: %d", result);
-        return false;
+        return VK_NULL_HANDLE;
     }
 
-    return true;
-}
-
-static void
-cleanup_vulkan_instance(void)
-{
-    if (vulkan_instance != VK_NULL_HANDLE) {
-        vkDestroyInstance(vulkan_instance, NULL);
-        vulkan_instance = VK_NULL_HANDLE;
-    }
+    return instance;
 }
 
 static sentry_gpu_info_t *
@@ -98,39 +84,37 @@ create_gpu_info_from_device(VkPhysicalDevice device)
 sentry_gpu_list_t *
 sentry__get_gpu_info(void)
 {
-    if (!init_vulkan_instance()) {
+    VkInstance instance = create_vulkan_instance();
+    if (instance == VK_NULL_HANDLE) {
         return NULL;
     }
 
     uint32_t device_count = 0;
-    VkResult result
-        = vkEnumeratePhysicalDevices(vulkan_instance, &device_count, NULL);
+    VkResult result = vkEnumeratePhysicalDevices(instance, &device_count, NULL);
     if (result != VK_SUCCESS || device_count == 0) {
         SENTRY_DEBUGF("Failed to enumerate Vulkan devices: %d", result);
-        cleanup_vulkan_instance();
+        vkDestroyInstance(instance, NULL);
         return NULL;
     }
 
-    VkPhysicalDevice *devices
-        = sentry_malloc(sizeof(VkPhysicalDevice) * device_count);
+    VkPhysicalDevice *devices = sentry_malloc(sizeof(VkPhysicalDevice) * device_count);
     if (!devices) {
-        cleanup_vulkan_instance();
+        vkDestroyInstance(instance, NULL);
         return NULL;
     }
 
-    result
-        = vkEnumeratePhysicalDevices(vulkan_instance, &device_count, devices);
+    result = vkEnumeratePhysicalDevices(instance, &device_count, devices);
     if (result != VK_SUCCESS) {
         SENTRY_DEBUGF("Failed to get Vulkan physical devices: %d", result);
         sentry_free(devices);
-        cleanup_vulkan_instance();
+        vkDestroyInstance(instance, NULL);
         return NULL;
     }
 
     sentry_gpu_list_t *gpu_list = sentry_malloc(sizeof(sentry_gpu_list_t));
     if (!gpu_list) {
         sentry_free(devices);
-        cleanup_vulkan_instance();
+        vkDestroyInstance(instance, NULL);
         return NULL;
     }
 
@@ -138,7 +122,7 @@ sentry__get_gpu_info(void)
     if (!gpu_list->gpus) {
         sentry_free(gpu_list);
         sentry_free(devices);
-        cleanup_vulkan_instance();
+        vkDestroyInstance(instance, NULL);
         return NULL;
     }
 
@@ -153,7 +137,7 @@ sentry__get_gpu_info(void)
     }
 
     sentry_free(devices);
-    cleanup_vulkan_instance();
+    vkDestroyInstance(instance, NULL);
 
     if (gpu_list->count == 0) {
         sentry_free(gpu_list->gpus);
