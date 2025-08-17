@@ -1,11 +1,5 @@
 # Changelog
 
-## Unreleased
-
-**Features**:
-
-- Add version embedding functionality for platform SDKs ([#1340](https://github.com/getsentry/sentry-native/pull/1340))
-
 ## 0.10.0
 
 **Breaking changes**:
