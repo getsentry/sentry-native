@@ -97,7 +97,8 @@ sentry__get_gpu_info(void)
         return NULL;
     }
 
-    VkPhysicalDevice *devices = sentry_malloc(sizeof(VkPhysicalDevice) * device_count);
+    VkPhysicalDevice *devices
+        = sentry_malloc(sizeof(VkPhysicalDevice) * device_count);
     if (!devices) {
         vkDestroyInstance(instance, NULL);
         return NULL;
