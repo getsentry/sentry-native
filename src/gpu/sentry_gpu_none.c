@@ -1,7 +1,7 @@
 #include "sentry_gpu.h"
 
-void
-sentry__add_gpu_contexts(sentry_value_t contexts)
+sentry_gpu_list_t *
+sentry__get_gpu_info(void)
 {
-    (void)contexts;
+    return NULL;
 }
