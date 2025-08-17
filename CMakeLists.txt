@@ -115,6 +115,17 @@ endif()
 
 option(SENTRY_WITH_GPU_INFO "Build with GPU information gathering support" ${SENTRY_GPU_INFO_DEFAULT})
 
+# Vulkan SDK for GPU info (when enabled)
+if(SENTRY_WITH_GPU_INFO)
+	find_package(Vulkan QUIET)
+	if(NOT Vulkan_FOUND)
+		message(WARNING "Vulkan SDK not found, disabling GPU information gathering")
+		set(SENTRY_WITH_GPU_INFO OFF CACHE BOOL "Build with GPU information gathering support" FORCE)
+	else()
+		message(STATUS "Vulkan SDK found: ${Vulkan_LIBRARY}")
+	endif()
+endif()
+
 option(SENTRY_BUILD_TESTS "Build sentry-native tests" "${SENTRY_MAIN_PROJECT}")
 option(SENTRY_BUILD_EXAMPLES "Build sentry-native example(s)" "${SENTRY_MAIN_PROJECT}")
 option(SENTRY_BUILD_BENCHMARKS "Build sentry-native benchmarks" OFF)
@@ -608,14 +619,9 @@ if(NOT XBOX)
 	endif()
 endif()
 
-# handle Apple frameworks for GPU info
-if((APPLE AND NOT IOS) AND SENTRY_WITH_GPU_INFO)
-	list(APPEND _SENTRY_PLATFORM_LIBS "-framework CoreFoundation" "-framework IOKit")
-endif()
-
-# handle Windows libraries for GPU info
-if(WIN32 AND SENTRY_WITH_GPU_INFO)
-	list(APPEND _SENTRY_PLATFORM_LIBS "dxgi" "dxguid" "ole32" "oleaut32")
+# handle Vulkan for GPU info  
+if(SENTRY_WITH_GPU_INFO)
+	target_link_libraries(sentry PRIVATE Vulkan::Vulkan)
 endif()
 
 # apply platform libraries to sentry library

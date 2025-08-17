@@ -70,7 +70,15 @@ def assert_gpu_context(event, should_have_gpu=None):
         # Just validate structure if present
         assert_gpu_context(event)
     """
-    has_gpu = "gpu" in event.get("contexts", {})
+    contexts = event.get("contexts", {})
+
+    # Find all GPU contexts (gpu, gpu2, gpu3, etc.)
+    gpu_contexts = {}
+    for key, value in contexts.items():
+        if key == "gpu" or (key.startswith("gpu") and key[3:].isdigit()):
+            gpu_contexts[key] = value
+
+    has_gpu = len(gpu_contexts) > 0
 
     if should_have_gpu is True:
         assert has_gpu, "Expected GPU context to be present"
@@ -78,38 +86,21 @@ def assert_gpu_context(event, should_have_gpu=None):
         assert not has_gpu, "Expected GPU context to be absent"
 
     if has_gpu:
-        gpu_context = event["contexts"]["gpu"]
+        # Validate each GPU context
+        for context_key, gpu_context in gpu_contexts.items():
+            assert isinstance(gpu_context, dict), f"{context_key} should be an object"
 
-        # GPU context can now be either a single object (legacy) or an array (multi-GPU)
-        if isinstance(gpu_context, list):
-            # Multi-GPU array format
-            assert len(gpu_context) > 0, "GPU context array should not be empty"
+            # Check that type field is set to "gpu"
+            assert "type" in gpu_context, f"{context_key} should have a 'type' field"
+            assert gpu_context["type"] == "gpu", f"{context_key} type should be 'gpu'"
 
-            # Validate each GPU in the array
-            for i, gpu in enumerate(gpu_context):
-                assert isinstance(gpu, dict), f"GPU {i} should be an object"
-
-                # At least one identifying field should be present
-                identifying_fields = ["name", "vendor_name", "vendor_id", "device_id"]
-                assert any(
-                    field in gpu for field in identifying_fields
-                ), f"GPU {i} should contain at least one of: {identifying_fields}"
-
-                _validate_single_gpu_context(gpu, f"GPU {i}")
-
-        elif isinstance(gpu_context, dict):
-            # Legacy single GPU object format
             # At least one identifying field should be present
             identifying_fields = ["name", "vendor_name", "vendor_id", "device_id"]
             assert any(
                 field in gpu_context for field in identifying_fields
-            ), f"GPU context should contain at least one of: {identifying_fields}"
+            ), f"{context_key} should contain at least one of: {identifying_fields}"
 
-            _validate_single_gpu_context(gpu_context, "GPU")
-        else:
-            assert (
-                False
-            ), f"GPU context should be either an object or array, got {type(gpu_context)}"
+            _validate_single_gpu_context(gpu_context, context_key)
 
 
 def _validate_single_gpu_context(gpu_context, gpu_name):

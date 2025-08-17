@@ -219,17 +219,10 @@ if(SENTRY_WITH_GPU_INFO)
 		gpu/sentry_gpu_common.c
 	)
 
-	if(WIN32)
+	if(WIN32 OR (APPLE AND NOT IOS) OR LINUX)
 		sentry_target_sources_cwd(sentry
-			gpu/sentry_gpu_nvml.h
-			gpu/sentry_gpu_nvml.c
-			gpu/sentry_gpu_windows.c
-		)
-	elseif((APPLE AND NOT IOS) OR LINUX)
-		sentry_target_sources_cwd(sentry
-			gpu/sentry_gpu_nvml.h
-			gpu/sentry_gpu_nvml.c
-			gpu/sentry_gpu_unix.c
+			gpu/sentry_gpu_vulkan.h
+			gpu/sentry_gpu_vulkan.c
 		)
 	else()
 		# For platforms that do not support GPU info gathering, we provide a no-op implementation

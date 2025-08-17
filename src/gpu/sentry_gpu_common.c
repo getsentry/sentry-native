@@ -50,6 +50,9 @@ create_gpu_context_from_info(sentry_gpu_info_t *gpu_info)
         return gpu_context;
     }
 
+    // Add type field for frontend recognition
+    sentry_value_set_by_key(gpu_context, "type", sentry_value_new_string("gpu"));
+
     // Add GPU name
     if (gpu_info->name) {
         sentry_value_set_by_key(
@@ -123,29 +126,26 @@ sentry__free_gpu_list(sentry_gpu_list_t *gpu_list)
     sentry_free(gpu_list);
 }
 
-sentry_value_t
-sentry__get_gpu_context(void)
+void
+sentry__add_gpu_contexts(sentry_value_t contexts)
 {
     sentry_gpu_list_t *gpu_list = sentry__get_gpu_info();
     if (!gpu_list) {
-        return sentry_value_new_null();
-    }
-
-    sentry_value_t gpu_array = sentry_value_new_list();
-    if (sentry_value_is_null(gpu_array)) {
-        sentry__free_gpu_list(gpu_list);
-        return gpu_array;
+        return;
     }
 
     for (unsigned int i = 0; i < gpu_list->count; i++) {
-        sentry_value_t gpu_context
-            = create_gpu_context_from_info(gpu_list->gpus[i]);
+        sentry_value_t gpu_context = create_gpu_context_from_info(gpu_list->gpus[i]);
         if (!sentry_value_is_null(gpu_context)) {
-            sentry_value_append(gpu_array, gpu_context);
+            char context_key[16];
+            if (i == 0) {
+                snprintf(context_key, sizeof(context_key), "gpu");
+            } else {
+                snprintf(context_key, sizeof(context_key), "gpu%u", i + 1);
+            }
+            sentry_value_set_by_key(contexts, context_key, gpu_context);
         }
     }
 
     sentry__free_gpu_list(gpu_list);
-    sentry_value_freeze(gpu_array);
-    return gpu_array;
 }

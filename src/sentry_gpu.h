@@ -46,10 +46,10 @@ void sentry__free_gpu_list(sentry_gpu_list_t *gpu_list);
 char *sentry__gpu_vendor_id_to_name(unsigned int vendor_id);
 
 /**
- * Creates a sentry value object containing GPU context information.
- * Returns a sentry_value_t object with GPU data, or null value if unavailable.
+ * Adds GPU context information to the provided contexts object.
+ * Creates individual contexts named "gpu", "gpu2", "gpu3", etc. for each GPU.
  */
-sentry_value_t sentry__get_gpu_context(void);
+void sentry__add_gpu_contexts(sentry_value_t contexts);
 
 #ifdef __cplusplus
 }
