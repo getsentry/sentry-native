@@ -1,0 +1,11 @@
+// src/sentry_embedded_info.cpp.in
+#include "sentry.h"
+
+extern "C" const char sentry_library_info[] = 
+    "SENTRY_VERSION:" SENTRY_SDK_VERSION ";"
+    "PLATFORM:@SENTRY_BUILD_PLATFORM@;"
+    "BUILD:@SENTRY_BUILD_ID@;"
+    "VARIANT:@SENTRY_BUILD_VARIANT@;"
+    "CONFIG:@CMAKE_BUILD_TYPE@;"
+    "@SENTRY_EMBED_INFO_ITEMS@"
+    "END";
