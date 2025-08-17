@@ -243,9 +243,21 @@ def cmake(cwd, targets, options=None, cflags=None):
 
     print("{} > {}".format(cwd, " ".join(buildcmd)), flush=True)
     try:
-        subprocess.run(buildcmd, cwd=cwd, check=True)
-    except subprocess.CalledProcessError:
-        raise pytest.fail.Exception("cmake build failed") from None
+        result = subprocess.run(
+            buildcmd, cwd=cwd, check=True, capture_output=True, text=True
+        )
+        if result.stdout:
+            print(result.stdout)
+        if result.stderr:
+            print(result.stderr, file=sys.stderr)
+    except subprocess.CalledProcessError as e:
+        if e.stdout:
+            print("Build stdout:", e.stdout)
+        if e.stderr:
+            print("Build stderr:", e.stderr, file=sys.stderr)
+        raise pytest.fail.Exception(
+            f"cmake build failed with return code {e.returncode}"
+        )
 
     # check if the DLL and EXE artifacts contain version-information
     if platform.system() == "Windows":
