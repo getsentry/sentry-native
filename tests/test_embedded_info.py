@@ -2,6 +2,7 @@ import os
 import subprocess
 import pytest
 from . import run
+from .conditions import has_http
 
 
 def test_embedded_info_enabled(cmake):
@@ -82,6 +83,7 @@ def test_embedded_info_disabled(cmake):
     )
 
 
+@pytest.mark.skipif(not has_http, reason="test needs http transport (curl)")
 def test_embedded_info_binary_inspection(cmake):
     """Test that embedded info appears in the actual binary"""
     cwd = cmake(
