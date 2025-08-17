@@ -31,7 +31,11 @@ SENTRY_TEST(embedded_info_format)
 {
 #ifdef SENTRY_EMBED_INFO
     // Test that the string is properly semicolon-separated
+#    ifdef _WIN32
+    char *info = _strdup(sentry_library_info);
+#    else
     char *info = strdup(sentry_library_info);
+#    endif
     TEST_CHECK(info != NULL);
 
     int field_count = 0;

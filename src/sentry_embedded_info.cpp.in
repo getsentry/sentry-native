@@ -2,7 +2,8 @@
 #include "sentry.h"
 
 #ifdef _WIN32
-extern "C" SENTRY_API const char sentry_library_info[] = 
+extern "C" {
+SENTRY_API const char sentry_library_info[] = 
 #else
 extern "C" const char sentry_library_info[] = 
 #endif
@@ -13,3 +14,6 @@ extern "C" const char sentry_library_info[] =
     "CONFIG:@CMAKE_BUILD_TYPE@;"
     "@SENTRY_EMBED_INFO_ITEMS@"
     "END";
+#ifdef _WIN32
+}
+#endif
