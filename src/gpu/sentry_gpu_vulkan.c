@@ -71,25 +71,22 @@ create_gpu_info_from_device(VkPhysicalDevice device)
 
     if (properties.vendorID == 0x10DE) {
         snprintf(driver_version_str, sizeof(driver_version_str), "%u.%u.%u.%u",
-            (driver_version >> 22) & 0x3FF,
-            (driver_version >> 14) & 0xFF,
-            (driver_version >> 6) & 0xFF,
-            driver_version & 0x3F);
+            (driver_version >> 22) & 0x3FF, (driver_version >> 14) & 0xFF,
+            (driver_version >> 6) & 0xFF, driver_version & 0x3F);
     } else if (properties.vendorID == 0x8086) {
         snprintf(driver_version_str, sizeof(driver_version_str), "%u.%u",
-            driver_version >> 14,
-            driver_version & 0x3FFF);
+            driver_version >> 14, driver_version & 0x3FFF);
     } else {
         snprintf(driver_version_str, sizeof(driver_version_str), "%u.%u.%u",
-            VK_VERSION_MAJOR(driver_version),
-            VK_VERSION_MINOR(driver_version),
+            VK_VERSION_MAJOR(driver_version), VK_VERSION_MINOR(driver_version),
             VK_VERSION_PATCH(driver_version));
     }
     gpu_info->driver_version = sentry__string_clone(driver_version_str);
 
     size_t total_memory = 0;
     for (uint32_t i = 0; i < memory_properties.memoryHeapCount; i++) {
-        if (memory_properties.memoryHeaps[i].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT) {
+        if (memory_properties.memoryHeaps[i].flags
+            & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT) {
             total_memory += memory_properties.memoryHeaps[i].size;
         }
     }
@@ -106,20 +103,23 @@ sentry__get_gpu_info(void)
     }
 
     uint32_t device_count = 0;
-    VkResult result = vkEnumeratePhysicalDevices(vulkan_instance, &device_count, NULL);
+    VkResult result
+        = vkEnumeratePhysicalDevices(vulkan_instance, &device_count, NULL);
     if (result != VK_SUCCESS || device_count == 0) {
         SENTRY_DEBUGF("Failed to enumerate Vulkan devices: %d", result);
         cleanup_vulkan_instance();
         return NULL;
     }
 
-    VkPhysicalDevice *devices = sentry_malloc(sizeof(VkPhysicalDevice) * device_count);
+    VkPhysicalDevice *devices
+        = sentry_malloc(sizeof(VkPhysicalDevice) * device_count);
     if (!devices) {
         cleanup_vulkan_instance();
         return NULL;
     }
 
-    result = vkEnumeratePhysicalDevices(vulkan_instance, &device_count, devices);
+    result
+        = vkEnumeratePhysicalDevices(vulkan_instance, &device_count, devices);
     if (result != VK_SUCCESS) {
         SENTRY_DEBUGF("Failed to get Vulkan physical devices: %d", result);
         sentry_free(devices);

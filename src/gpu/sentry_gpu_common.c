@@ -51,7 +51,8 @@ create_gpu_context_from_info(sentry_gpu_info_t *gpu_info)
     }
 
     // Add type field for frontend recognition
-    sentry_value_set_by_key(gpu_context, "type", sentry_value_new_string("gpu"));
+    sentry_value_set_by_key(
+        gpu_context, "type", sentry_value_new_string("gpu"));
 
     // Add GPU name
     if (gpu_info->name) {
@@ -135,7 +136,8 @@ sentry__add_gpu_contexts(sentry_value_t contexts)
     }
 
     for (unsigned int i = 0; i < gpu_list->count; i++) {
-        sentry_value_t gpu_context = create_gpu_context_from_info(gpu_list->gpus[i]);
+        sentry_value_t gpu_context
+            = create_gpu_context_from_info(gpu_list->gpus[i]);
         if (!sentry_value_is_null(gpu_context)) {
             char context_key[16];
             if (i == 0) {
