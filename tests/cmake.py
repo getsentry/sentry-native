@@ -218,9 +218,21 @@ def cmake(cwd, targets, options=None, cflags=None):
 
     print("\n{} > {}".format(cwd, " ".join(config_cmd)), flush=True)
     try:
-        subprocess.run(config_cmd, cwd=cwd, env=env, check=True)
-    except subprocess.CalledProcessError:
-        raise pytest.fail.Exception("cmake configure failed") from None
+        result = subprocess.run(
+            config_cmd, cwd=cwd, env=env, check=True, capture_output=True, text=True
+        )
+        if result.stdout:
+            print(result.stdout)
+        if result.stderr:
+            print(result.stderr, file=sys.stderr)
+    except subprocess.CalledProcessError as e:
+        if e.stdout:
+            print("Configure stdout:", e.stdout)
+        if e.stderr:
+            print("Configure stderr:", e.stderr, file=sys.stderr)
+        raise pytest.fail.Exception(
+            f"cmake configure failed with return code {e.returncode}"
+        )
 
     # CodeChecker invocations and options are documented here:
     # https://github.com/Ericsson/codechecker/blob/master/docs/analyzer/user_guide.md
