@@ -3,9 +3,11 @@
 
 #ifdef SENTRY_EMBED_INFO
 extern const char sentry_library_info[];
+#endif
 
 SENTRY_TEST(embedded_info_basic)
 {
+#ifdef SENTRY_EMBED_INFO
     // Test that the embedded info string exists and has expected format
     TEST_CHECK(sentry_library_info != NULL);
     TEST_CHECK(strlen(sentry_library_info) > 0);
@@ -16,10 +18,14 @@ SENTRY_TEST(embedded_info_basic)
     TEST_CHECK(strstr(sentry_library_info, "BUILD:") != NULL);
     TEST_CHECK(strstr(sentry_library_info, "CONFIG:") != NULL);
     TEST_CHECK(strstr(sentry_library_info, "END") != NULL);
+#else
+    SKIP_TEST();
+#endif
 }
 
 SENTRY_TEST(embedded_info_format)
 {
+#ifdef SENTRY_EMBED_INFO
     // Test that the string is properly semicolon-separated
     char *info = strdup(sentry_library_info);
     TEST_CHECK(info != NULL);
@@ -40,10 +46,14 @@ SENTRY_TEST(embedded_info_format)
     TEST_CHECK(field_count >= 6);
 
     free(info);
+#else
+    SKIP_TEST();
+#endif
 }
 
 SENTRY_TEST(embedded_info_sentry_version)
 {
+#ifdef SENTRY_EMBED_INFO
     // Test that SENTRY_VERSION field contains the actual SDK version
     const char *version_field = strstr(sentry_library_info, "SENTRY_VERSION:");
     TEST_CHECK(version_field != NULL);
@@ -56,45 +66,27 @@ SENTRY_TEST(embedded_info_sentry_version)
     size_t version_len = version_end - version_start;
     TEST_CHECK(version_len > 0);
 
+    // Extract the embedded version string
+    char embedded_version[32];
+    strncpy(embedded_version, version_start, version_len);
+    embedded_version[version_len] = '\0';
+
     // Version should contain at least one dot (e.g., "0.10.0")
-    char version[32];
-    strncpy(version, version_start, version_len);
-    version[version_len] = '\0';
-    TEST_CHECK(strchr(version, '.') != NULL);
-}
+    TEST_CHECK(strchr(embedded_version, '.') != NULL);
 
-SENTRY_TEST(embedded_info_disabled)
-{
-    // When SENTRY_EMBED_INFO is defined, this test should pass
-    // When SENTRY_EMBED_INFO is not defined, other tests don't exist
-    TEST_CHECK(1); // Always pass
-}
-
+    // Test that it matches the actual SDK version
+    TEST_CHECK_STRING_EQUAL(embedded_version, SENTRY_SDK_VERSION);
 #else
-
-// When SENTRY_EMBED_INFO is not defined, provide stub implementations
-SENTRY_TEST(embedded_info_basic)
-{
-    // Feature is disabled, nothing to test for embedded symbols
-    TEST_CHECK(1);
-}
-
-SENTRY_TEST(embedded_info_format)
-{
-    // Feature is disabled, nothing to test for format
-    TEST_CHECK(1);
-}
-
-SENTRY_TEST(embedded_info_sentry_version)
-{
-    // Feature is disabled, nothing to test for version
-    TEST_CHECK(1);
+    SKIP_TEST();
+#endif
 }
 
 SENTRY_TEST(embedded_info_disabled)
 {
+#ifndef SENTRY_EMBED_INFO
     // When SENTRY_EMBED_INFO is not defined, the feature is properly disabled
     TEST_CHECK(1); // Always pass - confirms the feature is disabled
-}
-
+#else
+    SKIP_TEST(); // Skip when embedding is enabled
 #endif
+}
