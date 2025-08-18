@@ -2,6 +2,8 @@
 #include <string.h>
 
 #ifdef SENTRY_EMBED_INFO
+// The embedded info symbol is always compiled into the test executable itself,
+// so we always use extern for the declaration
 #    ifdef _WIN32
 extern SENTRY_API const char sentry_library_info[];
 #    else

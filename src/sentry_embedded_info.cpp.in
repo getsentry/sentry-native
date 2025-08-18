@@ -1,9 +1,16 @@
 // src/sentry_embedded_info.cpp.in
 #include "sentry.h"
 
+// On Windows with DLL builds, we need extern to ensure external linkage
+// for const variables, as const in C++ has internal linkage by default
 #ifdef _WIN32
+#  ifdef SENTRY_BUILD_SHARED
+extern "C" {
+extern SENTRY_API const char sentry_library_info[] = 
+#  else
 extern "C" {
 SENTRY_API const char sentry_library_info[] = 
+#  endif
 #else
 extern "C" const char sentry_library_info[] = 
 #endif
