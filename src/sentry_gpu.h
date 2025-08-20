@@ -14,7 +14,7 @@ typedef struct sentry_gpu_info_s {
     char *driver_version;
     unsigned int vendor_id;
     unsigned int device_id;
-    size_t memory_size;
+    uint64_t memory_size;
 } sentry_gpu_info_t;
 
 typedef struct sentry_gpu_list_s {
