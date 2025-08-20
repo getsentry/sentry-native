@@ -2,6 +2,8 @@
 #include "sentry_scope.h"
 #include "sentry_testsupport.h"
 
+#include <inttypes.h>
+
 SENTRY_TEST(gpu_info_basic)
 {
     sentry_gpu_list_t *gpu_list = sentry__get_gpu_info();
@@ -366,7 +368,7 @@ SENTRY_TEST(gpu_info_hybrid_setup_simulation)
                     printf("  Driver: %s\n", gpu_info->driver_version);
                 }
                 if (gpu_info->memory_size > 0) {
-                    printf("  Memory: %zu bytes\n", gpu_info->memory_size);
+                    printf("  Memory: %" PRIu64 " bytes\n", gpu_info->memory_size);
                 }
             } else {
                 has_other = true;
