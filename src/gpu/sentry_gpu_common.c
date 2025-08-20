@@ -86,7 +86,7 @@ create_gpu_context_from_info(sentry_gpu_info_t *gpu_info)
     // Add memory size
     if (gpu_info->memory_size > 0) {
         sentry_value_set_by_key(gpu_context, "memory_size",
-            sentry_value_new_int64((int64_t)gpu_info->memory_size));
+            sentry_value_new_uint64(gpu_info->memory_size));
     }
 
     // Add driver version

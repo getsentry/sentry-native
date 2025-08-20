@@ -164,7 +164,7 @@ create_gpu_info_from_device(VkPhysicalDevice device)
 
     gpu_info->driver_version = sentry__string_clone(driver_version_str);
 
-    size_t total_memory = 0;
+    uint64_t total_memory = 0;
     for (uint32_t i = 0; i < memory_properties.memoryHeapCount; i++) {
         if (memory_properties.memoryHeaps[i].flags
             & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT) {
