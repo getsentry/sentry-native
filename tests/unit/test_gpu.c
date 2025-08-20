@@ -368,7 +368,8 @@ SENTRY_TEST(gpu_info_hybrid_setup_simulation)
                     printf("  Driver: %s\n", gpu_info->driver_version);
                 }
                 if (gpu_info->memory_size > 0) {
-                    printf("  Memory: %" PRIu64 " bytes\n", gpu_info->memory_size);
+                    printf(
+                        "  Memory: %" PRIu64 " bytes\n", gpu_info->memory_size);
                 }
             } else {
                 has_other = true;
