@@ -43,7 +43,8 @@ SENTRY_TEST(gpu_info_basic)
             }
             if (gpu_info->memory_size > 0) {
                 has_info = true;
-                printf("  Memory Size: %" PRIu64 " bytes\n", gpu_info->memory_size);
+                printf("  Memory Size: %" PRIu64 " bytes\n",
+                    gpu_info->memory_size);
             }
         }
 
