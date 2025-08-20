@@ -14,7 +14,6 @@ extern "C" {
  */
 sentry_gpu_list_t *sentry__get_gpu_info(void);
 
-
 #ifdef __cplusplus
 }
 #endif
