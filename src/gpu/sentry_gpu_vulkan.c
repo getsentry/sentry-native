@@ -54,19 +54,10 @@ create_gpu_info_from_device(VkPhysicalDevice device)
 
     char driver_version_str[64];
     uint32_t driver_version = properties.driverVersion;
+    snprintf(driver_version_str, sizeof(driver_version_str), "%u.%u.%u",
+        VK_VERSION_MAJOR(driver_version), VK_VERSION_MINOR(driver_version),
+        VK_VERSION_PATCH(driver_version));
 
-    if (properties.vendorID == 0x10DE) {
-        snprintf(driver_version_str, sizeof(driver_version_str), "%u.%u.%u.%u",
-            (driver_version >> 22) & 0x3FF, (driver_version >> 14) & 0xFF,
-            (driver_version >> 6) & 0xFF, driver_version & 0x3F);
-    } else if (properties.vendorID == 0x8086) {
-        snprintf(driver_version_str, sizeof(driver_version_str), "%u.%u",
-            driver_version >> 14, driver_version & 0x3FFF);
-    } else {
-        snprintf(driver_version_str, sizeof(driver_version_str), "%u.%u.%u",
-            VK_VERSION_MAJOR(driver_version), VK_VERSION_MINOR(driver_version),
-            VK_VERSION_PATCH(driver_version));
-    }
     gpu_info->driver_version = sentry__string_clone(driver_version_str);
 
     size_t total_memory = 0;
