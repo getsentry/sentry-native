@@ -13,8 +13,10 @@ extern "C" {
  * sentry__free_gpu_list, or NULL if no GPU information could be obtained.
  */
 sentry_gpu_list_t *sentry__get_gpu_info(void);
-#endif
+
 
 #ifdef __cplusplus
 }
+#endif
+
 #endif

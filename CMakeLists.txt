@@ -115,15 +115,10 @@ endif()
 
 option(SENTRY_WITH_GPU_INFO "Build with GPU information gathering support" ${SENTRY_GPU_INFO_DEFAULT})
 
-# Vulkan SDK for GPU info (when enabled)
+# GPU info enabled - no longer requires Vulkan SDK (uses headers submodule + dynamic linking)
 if(SENTRY_WITH_GPU_INFO)
-	find_package(Vulkan QUIET)
-	if(NOT Vulkan_FOUND)
-		message(WARNING "Vulkan SDK not found, disabling GPU information gathering")
-		set(SENTRY_WITH_GPU_INFO OFF CACHE BOOL "Build with GPU information gathering support" FORCE)
-	else()
-		message(STATUS "Vulkan SDK found: ${Vulkan_LIBRARY}")
-	endif()
+	add_subdirectory(external/vulkan-headers)
+	message(STATUS "GPU information gathering enabled (using vulkan-headers submodule)")
 endif()
 
 option(SENTRY_BUILD_TESTS "Build sentry-native tests" "${SENTRY_MAIN_PROJECT}")
@@ -619,9 +614,9 @@ if(NOT XBOX)
 	endif()
 endif()
 
-# handle Vulkan for GPU info  
+# handle Vulkan headers for GPU info  
 if(SENTRY_WITH_GPU_INFO)
-	target_link_libraries(sentry PRIVATE Vulkan::Vulkan)
+	target_link_libraries(sentry PRIVATE Vulkan::Headers)
 endif()
 
 # apply platform libraries to sentry library
