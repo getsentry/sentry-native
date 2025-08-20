@@ -117,7 +117,6 @@ option(SENTRY_WITH_GPU_INFO "Build with GPU information gathering support" ${SEN
 
 # GPU info enabled - no longer requires Vulkan SDK (uses headers submodule + dynamic linking)
 if(SENTRY_WITH_GPU_INFO)
-	add_subdirectory(external/vulkan-headers)
 	message(STATUS "GPU information gathering enabled (using vulkan-headers submodule)")
 endif()
 
@@ -616,7 +615,8 @@ endif()
 
 # handle Vulkan headers for GPU info  
 if(SENTRY_WITH_GPU_INFO)
-	target_link_libraries(sentry PRIVATE Vulkan::Headers)
+	target_include_directories(sentry PRIVATE 
+		"$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/vulkan-headers/include>")
 endif()
 
 # apply platform libraries to sentry library
