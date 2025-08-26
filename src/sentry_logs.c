@@ -20,8 +20,8 @@
 
 typedef struct {
     sentry_value_t logs[QUEUE_LENGTH];
-    volatile long index;
-    volatile long adding;
+    long index;
+    long adding;
 } log_single_buffer_t;
 
 // TODO look at mutex init for inspiration on how to dynamically init
@@ -53,13 +53,19 @@ flush_logs_single_queue(void)
     // Wait for all adding operations to complete using condition variable
     while (sentry__atomic_fetch(&g_logs_single_state.queue.adding) > 0) {
         // TODO currently only on unix
+#ifdef SENTRY_PLATFORM_UNIX
         sentry__cpu_relax();
+#endif
     }
 
     sentry_value_t logs = sentry_value_new_object();
     sentry_value_t log_items = sentry_value_new_list();
     int i;
-    long queue_len = sentry__atomic_fetch(&g_logs_single_state.queue.index);
+    // TODO combine into compare-exchange; safe to do because 'adding' blocker
+    //  prevents other threads from accessing queue.index
+    const long queue_len
+        = sentry__atomic_fetch(&g_logs_single_state.queue.index);
+    sentry__atomic_store(&g_logs_single_state.queue.index, 0);
     for (i = 0; i < queue_len; i++) {
         sentry_value_append(log_items, g_logs_single_state.queue.logs[i]);
     }
@@ -70,7 +76,6 @@ flush_logs_single_queue(void)
     SENTRY_WITH_OPTIONS (options) {
         sentry__capture_envelope(options->transport, envelope);
     }
-    sentry__atomic_store(&g_logs_single_state.queue.index, 0);
     sentry__atomic_fetch_and_add(&g_logs_single_state.flushing, -1);
     SENTRY_DEBUGF("Time to flush %i items is %llu us\n", i,
         sentry__usec_time() - before_flush);
@@ -84,7 +89,7 @@ enqueue_log_single(sentry_value_t log)
     if (sentry__atomic_fetch(&g_logs_single_state.flushing) == 1) {
         goto fail;
     }
-    // TODO make sure this is how to effectively implement this;
+
     sentry__atomic_fetch_and_add(&g_logs_single_state.queue.adding, 1);
     // Try to get a slot in the current buffer
     long log_idx
@@ -128,20 +133,36 @@ timer_task_func(void *data)
     SENTRY_DEBUG("Starting timer_task_func");
     sentry_mutex_t task_lock;
     sentry__mutex_init(&task_lock); // Initialize the mutex
+    sentry__mutex_lock(&task_lock);
 
     // check if timer_stop is true (only on shutdown)
     while (sentry__atomic_fetch(&g_logs_single_state.timer_stop) == 0) {
         // Sleep for 5 seconds or until request_flush hits
-        sentry__cond_wait_timeout(
+        int triggered_by = sentry__cond_wait_timeout(
             &g_logs_single_state.request_flush, &task_lock, 5000);
+
         // make sure loop invariant still holds
         if (sentry__atomic_fetch(&g_logs_single_state.timer_stop) == 1) {
             break;
         }
+
+        switch (triggered_by) {
+        case 0:
+            SENTRY_DEBUG("Logs flushing by condition variable");
+            break;
+        case ETIMEDOUT:
+            SENTRY_DEBUG("Logs flushed by timeout");
+            break;
+        default:
+            SENTRY_WARN("Logs flush trigger returned unexpected value");
+            break;
+        }
+
         // Try to flush logs
         flush_logs_single_queue();
     }
 
+    sentry__mutex_unlock(&task_lock);
     sentry__mutex_free(&task_lock);
     return 0;
 }
@@ -559,13 +580,11 @@ sentry__logs_shutdown(uint64_t timeout)
     (void)timeout;
     SENTRY_DEBUG("shutting down logs system");
 
-    // Perform final flush to ensure any remaining logs are sent
-    // This must happen before shutting down the background worker
-    // to avoid race conditions where logs are lost
-    flush_logs_single_queue();
-
     // Signal the timer task to stop running before shutting down the worker
     sentry__atomic_store(&g_logs_single_state.timer_stop, 1);
+
+    // Perform final flush to ensure any remaining logs are sent
+    flush_logs_single_queue();
 
     SENTRY_DEBUG("logs system shutdown complete");
 }
