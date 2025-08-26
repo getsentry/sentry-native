@@ -188,7 +188,7 @@ jobs:
           submodules: recursive
       - uses: actions/setup-python@v5
         with:
-          python-version: ${{ !env['SYSTEM_PYTHON'] && '3.11' || '' }}
+          python-version: ${{ !env['SYSTEM_PYTHON'] && '3.12' || '' }}
           cache: "pip"
 
       - name: Installing Linux Dependencies
