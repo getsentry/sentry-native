@@ -505,8 +505,9 @@ sentry__logs_log(sentry_level_t level, const char *message, va_list args)
     if (enable_logs) {
         // create log from message
         sentry_value_t log = construct_log(level, message, args);
-        // enqueu_log(log);
-        enqueue_log_single(log);
+        if (!enqueue_log_single(log)) {
+            sentry_value_decref(log);
+        }
     }
 }
 
