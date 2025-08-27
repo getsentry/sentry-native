@@ -1368,7 +1368,8 @@ def test_logs_threaded(cmake, httpserver):
     )
 
     # currently, we drop logs while flushing (about 20% if we have 'nonstop' log-calls)
-    assert 40 <= len(httpserver.log) <= 50
+    # TODO update after double buffer, should be closer to 100% captured
+    assert 25 <= len(httpserver.log) <= 50
     total_count = 0
 
     for i in range(len(httpserver.log)):

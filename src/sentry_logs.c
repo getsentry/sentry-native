@@ -5,8 +5,9 @@
 #include "sentry_os.h"
 #include "sentry_scope.h"
 #include "sentry_sync.h"
-#include "sentry_unix_spinlock.h"
-
+#if defined(SENTRY_PLATFORM_UNIX) || defined(SENTRY_PLATFORM_NX)
+#    include "sentry_unix_spinlock.h"
+#endif
 #include <stdarg.h>
 #include <string.h>
 
@@ -76,6 +77,7 @@ flush_logs_single_queue(void)
     SENTRY_WITH_OPTIONS (options) {
         sentry__capture_envelope(options->transport, envelope);
     }
+    sentry_value_decref(logs);
     sentry__atomic_fetch_and_add(&g_logs_single_state.flushing, -1);
     SENTRY_DEBUGF("Time to flush %i items is %llu us\n", i,
         sentry__usec_time() - before_flush);
