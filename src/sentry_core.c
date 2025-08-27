@@ -315,6 +315,16 @@ sentry_flush(uint64_t timeout)
 int
 sentry_close(void)
 {
+    // Shutdown logs system before locking options to ensure logs are flushed
+    // TODO is this the only way? we got a potential deadlock on the options
+    // otherwise
+    //  (for envelope creation, see sentry__envelope_new)
+    SENTRY_WITH_OPTIONS (options) {
+        if (options->enable_logs) {
+            sentry__logs_shutdown(options->shutdown_timeout);
+        }
+    }
+
     SENTRY__MUTEX_INIT_DYN_ONCE(g_options_lock);
     // this function is to be called only once, so we do not allow more than one
     // caller
@@ -328,9 +338,6 @@ sentry_close(void)
             SENTRY_DEBUG("shutting down backend");
             options->backend->shutdown_func(options->backend);
         }
-
-        // Shutdown logs system before transport to ensure logs are flushed
-        sentry__logs_shutdown(options->shutdown_timeout);
 
         if (options->transport) {
             if (sentry__transport_shutdown(

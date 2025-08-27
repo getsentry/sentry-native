@@ -10,6 +10,7 @@
 #endif
 #include <stdarg.h>
 #include <string.h>
+#include <unistd.h>
 
 // TODO think about this
 #ifdef SENTRY_UNITTEST
@@ -63,11 +64,8 @@ flush_logs_single_queue(void)
     sentry_value_t logs = sentry_value_new_object();
     sentry_value_t log_items = sentry_value_new_list();
     int i;
-    // TODO combine into compare-exchange; safe to do because 'adding' blocker
-    //  prevents other threads from accessing queue.index
     const long queue_len
-        = sentry__atomic_fetch(&g_logs_single_state.queue.index);
-    sentry__atomic_store(&g_logs_single_state.queue.index, 0);
+        = sentry__atomic_store(&g_logs_single_state.queue.index, 0);
     for (i = 0; i < queue_len; i++) {
         sentry_value_append(log_items, g_logs_single_state.queue.logs[i]);
     }
@@ -105,7 +103,6 @@ enqueue_log_single(sentry_value_t log)
 
         // Check if this buffer is now full and trigger flush
         if (log_idx == QUEUE_LENGTH - 1) {
-            // flush_logs_single_queue();
             sentry__cond_wake(&g_logs_single_state.request_flush);
         }
 
@@ -592,10 +589,14 @@ sentry__logs_shutdown(uint64_t timeout)
     (void)timeout;
     SENTRY_DEBUG("shutting down logs system");
 
-    // Signal the timer task to stop running before shutting down the worker
-    sentry__atomic_store(&g_logs_single_state.timer_stop, 1);
+    // Signal the timer task to stop running
+    if (sentry__atomic_store(&g_logs_single_state.timer_stop, 1)) {
+        SENTRY_DEBUG("preventing double shutdown of logs system");
+        return;
+    }
+    sentry__cond_wake(&g_logs_single_state.request_flush);
+    sentry__thread_join(g_logs_single_state.timer_threadid);
 
-    // TODO what if flush in progress? should we wait for 'timeout' seconds?
     // Perform final flush to ensure any remaining logs are sent
     flush_logs_single_queue();
 

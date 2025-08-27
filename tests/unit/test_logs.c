@@ -54,7 +54,6 @@ SENTRY_TEST(basic_logging_functionality)
     // sleep to finish flush of the first 5, otherwise failed enqueue
     sleep_ms(20);
     sentry_log_fatal("Fatal message");
-    sleep_ms(20); // TODO build in wait during logs shutdown
     sentry_close();
 
     // TODO for now we set unit test buffer size to 5; does this make sense?
@@ -106,7 +105,6 @@ SENTRY_TEST(formatted_log_messages)
     sentry_log_error("Pointer: %p", (void *)0x1234);
     sentry_log_error("Big number: %zu", UINT64_MAX);
     sentry_log_error("Small number: %d", INT64_MIN);
-    sleep_ms(20); // TODO build in wait during logs shutdown
 
     sentry_close();
 
