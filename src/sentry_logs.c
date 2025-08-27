@@ -33,6 +33,7 @@ static struct {
     long timer_stop;
     long flushing;
     sentry_cond_t request_flush;
+    sentry_threadid_t timer_threadid;
 } g_logs_single_state = { { .index = 0 }, .flushing = 0 };
 
 static void
@@ -572,9 +573,9 @@ sentry__logs_startup(void)
 {
     sentry__cond_init(&g_logs_single_state.request_flush);
 
-    sentry_threadid_t timer_threadid;
-    sentry__thread_init(&timer_threadid);
-    sentry__thread_spawn(&timer_threadid, timer_task_func, NULL);
+    sentry__thread_init(&g_logs_single_state.timer_threadid);
+    sentry__thread_spawn(
+        &g_logs_single_state.timer_threadid, timer_task_func, NULL);
 }
 
 void
@@ -586,8 +587,11 @@ sentry__logs_shutdown(uint64_t timeout)
     // Signal the timer task to stop running before shutting down the worker
     sentry__atomic_store(&g_logs_single_state.timer_stop, 1);
 
+    // TODO what if flush in progress? should we wait for 'timeout' seconds?
     // Perform final flush to ensure any remaining logs are sent
     flush_logs_single_queue();
+
+    sentry__thread_free(&g_logs_single_state.timer_threadid);
 
     SENTRY_DEBUG("logs system shutdown complete");
 }

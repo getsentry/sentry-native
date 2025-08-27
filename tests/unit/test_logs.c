@@ -8,7 +8,7 @@
 #    define sleep_ms(MILLISECONDS) Sleep(MILLISECONDS)
 #else
 #    include <unistd.h>
-#    define sleep_ms(SECONDS) usleep(SECONDS * 1000)
+#    define sleep_ms(MILLISECONDS) usleep(MILLISECONDS * 1000)
 #endif
 
 static void
@@ -49,14 +49,15 @@ SENTRY_TEST(basic_logging_functionality)
     sentry_log_info("Info message");
     sentry_log_warn("Warning message");
     sentry_log_error("Error message");
-    // TODO this fatal log gets dropped, since the queue is full (being flushed)
+    // sleep to finish flush of the first 5, otherwise failed enqueue
+    sleep_ms(20);
     sentry_log_fatal("Fatal message");
-    sleep_ms(20); // give the bgworker enough time to flush
+    sleep_ms(20); // TODO build in wait during logs shutdown
     sentry_close();
 
     // TODO for now we set unit test buffer size to 5; does this make sense?
     //  Or should we just pump out 100+ logs to fill a batch in a for-loop?
-    TEST_CHECK_INT_EQUAL(called_transport, 1);
+    TEST_CHECK_INT_EQUAL(called_transport, 2);
 }
 
 SENTRY_TEST(logs_disabled_by_default)
@@ -103,7 +104,7 @@ SENTRY_TEST(formatted_log_messages)
     sentry_log_error("Pointer: %p", (void *)0x1234);
     sentry_log_error("Big number: %zu", UINT64_MAX);
     sentry_log_error("Small number: %d", INT64_MIN);
-    sleep_ms(20); // give the bgworker enough time to flush
+    sleep_ms(20); // TODO build in wait during logs shutdown
 
     sentry_close();
 
