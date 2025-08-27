@@ -141,7 +141,7 @@ timer_task_func(void *data)
             &g_logs_single_state.request_flush, &task_lock, 5000);
 
         // make sure loop invariant still holds
-        if (sentry__atomic_fetch(&g_logs_single_state.timer_stop) == 1) {
+        if (sentry__atomic_fetch(&g_logs_single_state.timer_stop) != 0) {
             break;
         }
 
@@ -589,7 +589,7 @@ sentry__logs_shutdown(uint64_t timeout)
     SENTRY_DEBUG("shutting down logs system");
 
     // Signal the timer task to stop running
-    if (sentry__atomic_store(&g_logs_single_state.timer_stop, 1)) {
+    if (sentry__atomic_store(&g_logs_single_state.timer_stop, 1) != 0) {
         SENTRY_DEBUG("preventing double shutdown of logs system");
         return;
     }
