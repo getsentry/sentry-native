@@ -42,6 +42,8 @@ SENTRY_TEST(basic_logging_functionality)
     sentry_options_set_transport(options, transport);
 
     sentry_init(options);
+    // TODO if we don't sleep, log timer_task might not start in time to flush
+    sleep_ms(20);
 
     // These should not crash and should respect the enable_logs option
     sentry_log_trace("Trace message");
