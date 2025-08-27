@@ -41,6 +41,9 @@ get_current_thread_id()
 #elif defined(SENTRY_PLATFORM_MACOS)
 #    include <pthread.h>
 #    include <stdint.h>
+
+#    define NUM_THREADS 50
+
 uint64_t
 get_current_thread_id()
 {
@@ -433,7 +436,6 @@ main(int argc, char **argv)
         }
         if (has_arg(argc, argv, "logs-threads")) {
             // Spawn multiple threads to test concurrent logging
-            const int NUM_THREADS = 50;
 #ifdef SENTRY_PLATFORM_WINDOWS
             HANDLE threads[NUM_THREADS];
             for (int t = 0; t < NUM_THREADS; t++) {
