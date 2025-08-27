@@ -10,7 +10,6 @@
 #endif
 #include <stdarg.h>
 #include <string.h>
-#include <unistd.h>
 
 // TODO think about this
 #ifdef SENTRY_UNITTEST

@@ -41,9 +41,6 @@ get_current_thread_id()
 #elif defined(SENTRY_PLATFORM_MACOS)
 #    include <pthread.h>
 #    include <stdint.h>
-
-#    define NUM_THREADS 50
-
 uint64_t
 get_current_thread_id()
 {
@@ -61,6 +58,8 @@ get_current_thread_id()
     return (uint64_t)syscall(SYS_gettid);
 }
 #endif
+
+#define NUM_THREADS 50
 
 static double
 traces_sampler_callback(const sentry_transaction_context_t *transaction_ctx,
