@@ -1566,7 +1566,7 @@ SENTRY_API int sentry_close(void);
 /**
  * Shuts down the sentry client and forces transports to flush out.
  *
- * Returns 0 on success.
+ * Returns the number of envelopes that have been dumped.
  */
 SENTRY_DEPRECATED("Use `sentry_close` instead")
 SENTRY_API int sentry_shutdown(void);
