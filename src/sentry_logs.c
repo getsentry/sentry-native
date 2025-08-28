@@ -147,6 +147,12 @@ timer_task_func(void *data)
 
         switch (triggered_by) {
         case 0:
+#ifdef SENTRY_PLATFORM_WINDOWS
+            if (GetLastError() == ERROR_TIMEOUT) {
+                SENTRY_DEBUG("Logs flushed by timeout");
+                break;
+            }
+#endif
             SENTRY_DEBUG("Logs flushing by condition variable");
             break;
 #ifdef SENTRY_PLATFORM_UNIX
@@ -155,12 +161,6 @@ timer_task_func(void *data)
             break;
 #endif
         default:
-#ifdef SENTRY_PLATFORM_WINDOWS
-            if (GetLastError() == ERROR_TIMEOUT) {
-                SENTRY_DEBUG("Logs flushed by timeout");
-                break;
-            }
-#endif
             SENTRY_WARN("Logs flush trigger returned unexpected value");
             break;
         }

@@ -441,7 +441,7 @@ main(int argc, char **argv)
                 threads[t]
                     = CreateThread(NULL, 0, log_thread_func, NULL, 0, NULL);
             }
-            sleep_s(3000);
+            sleep_s(3);
             for (int t = 0; t < NUM_THREADS; t++) {
                 CloseHandle(threads[t]);
             }
