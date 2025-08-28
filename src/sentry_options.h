@@ -56,6 +56,7 @@ struct sentry_options_s {
     /* Experimentally exposed */
     double traces_sample_rate;
     sentry_traces_sampler_function traces_sampler;
+    void *traces_sampler_data;
     size_t max_spans;
 
     /* everything from here on down are options which are stored here but

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Breaking changes**:
+
+- Add `user_data` parameter to `traces_sampler`
+
 ## 0.10.0
 
 **Breaking changes**:

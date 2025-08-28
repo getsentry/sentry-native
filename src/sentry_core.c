@@ -586,7 +586,8 @@ static
                     sampling_ctx->transaction_context,
                     sampling_ctx->custom_sampling_context,
                     sampling_ctx->parent_sampled == NULL ? NULL
-                                                         : &parent_sampled_int);
+                                                         : &parent_sampled_int,
+                    options->traces_sampler_data);
             send = sampling_ctx->sample_rand < result;
         } else {
             if (sampling_ctx->parent_sampled != NULL) {
