@@ -162,7 +162,7 @@ timer_task_func(void *data)
 #endif
         default:
             SENTRY_WARN("Logs flush trigger returned unexpected value");
-            break;
+            continue;
         }
 
         // Try to flush logs
