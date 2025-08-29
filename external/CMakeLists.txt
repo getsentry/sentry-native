@@ -186,3 +186,4 @@ target_include_directories(breakpad_client
 	PUBLIC
 	"$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>"
 )
+
