@@ -31,7 +31,9 @@
     pthread stack possibly lost in test_task_queue
     Memcheck:Leak
     fun:calloc
+    ...
     fun:pthread_create*
+    ...
     fun:sentry__bgworker_start
     fun:test_sentry_task_queue
 }

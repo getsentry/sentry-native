@@ -44,7 +44,7 @@ pytestmark = pytest.mark.skipif(not has_http, reason="tests need http")
 
 # fmt: off
 auth_header = (
-    "Sentry sentry_key=uiaeosnrtdy, sentry_version=7, sentry_client=sentry.native/0.9.1"
+    "Sentry sentry_key=uiaeosnrtdy, sentry_version=7, sentry_client=sentry.native/0.10.0"
 )
 # fmt: on
 
@@ -811,9 +811,10 @@ def test_transaction_event(cmake, httpserver):
     tx_trace_id = uuid.UUID(hex=trace_context["trace_id"])
     assert tx_trace_id
     event_trace_id = uuid.UUID(hex=event.payload.json["contexts"]["trace"]["trace_id"])
-    # by default, transactions and events should have the same trace id (picked up from the propagation context)
-    assert tx_trace_id == event_trace_id
-    assert_event(event_envelope, "Hello World!", trace_context["trace_id"])
+    # by default, transactions and events will have different trace id's because transactions create their own traces
+    # unless a client explicitly called `sentry_set_trace()` (which transfers the burden of management to the caller).
+    assert tx_trace_id != event_trace_id
+    assert_event(event_envelope, "Hello World!", "")
     # non-scoped tx should differ in span_id from the event span_id
     assert trace_context["span_id"]
     assert (
