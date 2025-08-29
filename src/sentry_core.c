@@ -1465,17 +1465,27 @@ sentry_capture_feedback(sentry_value_t user_feedback)
     }
 }
 
-void
+bool
 sentry__launch_external_crash_reporter(sentry_envelope_t *envelope)
 {
     SENTRY_WITH_OPTIONS (options) {
         if (!options->external_crash_reporter) {
-            return;
+            return false;
         }
 
         sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
         char *envelope_filename
             = sentry__uuid_as_filename(&event_id, ".envelope");
+        if (!envelope_filename) {
+            return false;
+        }
+
+        sentry_path_t *report_path = sentry__path_join_str(
+            options->run->external_path, envelope_filename);
+        if (!report_path) {
+            sentry_free(envelope_filename);
+            return false;
+        }
 
         // capture the envelope with the disk transport
         sentry_transport_t *disk_transport
@@ -1484,15 +1494,12 @@ sentry__launch_external_crash_reporter(sentry_envelope_t *envelope)
         sentry__transport_dump_queue(disk_transport, options->run);
         sentry_transport_free(disk_transport);
 
-        sentry_path_t *report_path = sentry__path_join_str(
-            options->run->external_path, envelope_filename);
-        if (report_path) {
-            sentry__process_spawn(
-                options->external_crash_reporter, report_path->path, NULL);
-        }
+        sentry__process_spawn(
+            options->external_crash_reporter, report_path->path, NULL);
         sentry__path_free(report_path);
         sentry_free(envelope_filename);
     }
+    return true;
 }
 
 int
