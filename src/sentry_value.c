@@ -110,6 +110,8 @@ static const char *
 level_as_string(sentry_level_t level)
 {
     switch (level) {
+    case SENTRY_LEVEL_TRACE:
+        return "trace";
     case SENTRY_LEVEL_DEBUG:
         return "debug";
     case SENTRY_LEVEL_WARNING:
@@ -315,7 +317,7 @@ sentry_value_new_int32(int32_t value)
 sentry_value_t
 sentry_value_new_double(double value)
 {
-    thing_t *thing = sentry_malloc(sizeof(thing_t));
+    thing_t *thing = SENTRY_MAKE(thing_t);
     if (!thing) {
         return sentry_value_new_null();
     }
@@ -331,7 +333,7 @@ sentry_value_new_double(double value)
 sentry_value_t
 sentry_value_new_int64(int64_t value)
 {
-    thing_t *thing = sentry_malloc(sizeof(thing_t));
+    thing_t *thing = SENTRY_MAKE(thing_t);
     if (!thing) {
         return sentry_value_new_null();
     }
@@ -347,7 +349,7 @@ sentry_value_new_int64(int64_t value)
 sentry_value_t
 sentry_value_new_uint64(uint64_t value)
 {
-    thing_t *thing = sentry_malloc(sizeof(thing_t));
+    thing_t *thing = SENTRY_MAKE(thing_t);
     if (!thing) {
         return sentry_value_new_null();
     }
