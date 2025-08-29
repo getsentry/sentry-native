@@ -99,44 +99,39 @@ sentry__run_free(sentry_run_t *run)
     sentry_free(run);
 }
 
-static sentry_path_t *
+static bool
 write_envelope(const sentry_path_t *path, const sentry_envelope_t *envelope)
 {
     sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
     char *envelope_filename = sentry__uuid_as_filename(&event_id, ".envelope");
     if (!envelope_filename) {
-        return NULL;
+        return false;
     }
 
     sentry_path_t *output_path = sentry__path_join_str(path, envelope_filename);
     sentry_free(envelope_filename);
     if (!output_path) {
-        return NULL;
+        return false;
     }
 
     int rv = sentry_envelope_write_to_path(envelope, output_path);
+    sentry__path_free(output_path);
     if (rv) {
         SENTRY_WARN("writing envelope to file failed");
-        sentry__path_free(output_path);
-        return NULL;
+        return false;
     }
 
-    return output_path;
+    return true;
 }
 
 bool
 sentry__run_write_envelope(
     const sentry_run_t *run, const sentry_envelope_t *envelope)
 {
-    sentry_path_t *output_path = write_envelope(run->run_path, envelope);
-    if (output_path) {
-        sentry__path_free(output_path);
-        return true;
-    }
-    return false;
+    return write_envelope(run->run_path, envelope);
 }
 
-sentry_path_t *
+bool
 sentry__run_write_external(
     const sentry_run_t *run, const sentry_envelope_t *envelope)
 {

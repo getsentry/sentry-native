@@ -47,7 +47,7 @@ bool sentry__run_write_envelope(
  * like so:
  * `<database>/external/<event-uuid>.envelope`
  */
-sentry_path_t *sentry__run_write_external(
+bool sentry__run_write_external(
     const sentry_run_t *run, const sentry_envelope_t *envelope);
 
 /**
