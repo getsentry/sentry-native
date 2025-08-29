@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Breaking changes**:
+
+- Add `user_data` parameter to `traces_sampler`. ([#1346](https://github.com/getsentry/sentry-native/pull/1346))
+
 ## 0.10.0
 
 **Breaking changes**:
