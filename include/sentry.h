@@ -434,7 +434,7 @@ SENTRY_API int sentry_value_is_null(sentry_value_t value);
  * Serialize a sentry value to JSON.
  *
  * The string is freshly allocated and must be freed with
- * `sentry_string_free`.
+ * `sentry_free`.
  */
 SENTRY_API char *sentry_value_to_json(sentry_value_t value);
 
@@ -561,7 +561,7 @@ SENTRY_EXPERIMENTAL_API void sentry_event_add_thread(
  * Serialize a sentry value to msgpack.
  *
  * The string is freshly allocated and must be freed with
- * `sentry_string_free`.  Since msgpack is not zero terminated
+ * `sentry_free`.  Since msgpack is not zero terminated
  * the size is written to the `size_out` parameter.
  */
 SENTRY_EXPERIMENTAL_API char *sentry_value_to_msgpack(
@@ -713,7 +713,7 @@ SENTRY_EXPERIMENTAL_API sentry_value_t sentry_envelope_get_transaction(
 /**
  * Serializes the envelope.
  *
- * The return value needs to be freed with sentry_string_free().
+ * The return value needs to be freed with sentry_free().
  */
 SENTRY_API char *sentry_envelope_serialize(
     const sentry_envelope_t *envelope, size_t *size_out);
