@@ -138,7 +138,7 @@ sentry__run_write_external(
     if (sentry__path_create_dir_all(run->external_path) != 0) {
         SENTRY_ERRORF(
             "mkdir failed: \"%" SENTRY_PATH_PRI "\"", run->external_path->path);
-        return NULL;
+        return false;
     }
 
     return write_envelope(run->external_path, envelope);
