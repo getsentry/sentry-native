@@ -499,8 +499,11 @@ crashpad_backend_startup(
             = sentry__path_join_str(options->run->external_path, filename);
         sentry_free(filename);
 
-        crash_reporter = base::FilePath(options->external_crash_reporter->path);
-        crash_envelope = base::FilePath(data->external_report_path->path);
+        if (data->external_report_path) {
+            crash_reporter
+                = base::FilePath(options->external_crash_reporter->path);
+            crash_envelope = base::FilePath(data->external_report_path->path);
+        }
     }
 
     std::vector<std::string> arguments { "--no-rate-limit" };
