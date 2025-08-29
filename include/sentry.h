@@ -1551,7 +1551,7 @@ SENTRY_API int sentry_flush(uint64_t timeout);
 /**
  * Shuts down the sentry client and forces transports to flush out.
  *
- * Returns 0 on success.
+ * Returns the number of envelopes that have been dumped.
  *
  * Note that this does not uninstall any crash handler installed by our
  * backends, which will still process crashes after `sentry_close()`, except
@@ -1566,7 +1566,7 @@ SENTRY_API int sentry_close(void);
 /**
  * Shuts down the sentry client and forces transports to flush out.
  *
- * Returns 0 on success.
+ * Returns the number of envelopes that have been dumped.
  */
 SENTRY_DEPRECATED("Use `sentry_close` instead")
 SENTRY_API int sentry_shutdown(void);
