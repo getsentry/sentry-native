@@ -492,7 +492,7 @@ set_tag_n(sentry_value_t item, sentry_slice_t tag, sentry_slice_t value)
         tags = sentry_value_new_object();
         sentry_value_set_by_key(item, "tags", tags);
     }
-    char *s = sentry__string_clone_max_n(value.ptr, value.len, 200);
+    char *s = sentry__string_clone_max_n(value.ptr, value.len, value.len);
     sentry_value_t tag_value
         = s ? sentry__value_new_string_owned(s) : sentry_value_new_null();
     sentry_value_set_by_key_n(tags, tag.ptr, tag.len, tag_value);
