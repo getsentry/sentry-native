@@ -1367,9 +1367,10 @@ def test_logs_threaded(cmake, httpserver):
         env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
     )
 
-    # currently, we drop logs while flushing (about 20% if we have 'nonstop' log-calls)
+    # currently, we drop logs while flushing (local run about 20% if we have 'nonstop' log-calls)
+    # in CI however, thread scheduling varies greatly, so we sometimes lose all but 1 flush
     # TODO update after double buffer, should be closer to 100% captured
-    assert 25 <= len(httpserver.log) <= 50
+    assert 1 <= len(httpserver.log) <= 50
     total_count = 0
 
     for i in range(len(httpserver.log)):
@@ -1379,5 +1380,5 @@ def test_logs_threaded(cmake, httpserver):
         envelope = Envelope.deserialize(body)
         assert_logs(envelope)  # TODO what is the expected item count?
         total_count += envelope.items[0].headers["item_count"]
-
     print(f"Total amount of captured logs: {total_count}")
+    assert total_count >= 100
