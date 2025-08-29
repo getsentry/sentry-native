@@ -284,6 +284,7 @@ class Item(object):
             "session",
             "transaction",
             "user_report",
+            "log",
         ]:
             rv = cls(headers=headers, payload=PayloadRef(json=json.loads(payload)))
         else:

@@ -5,4 +5,14 @@
 
 void sentry__logs_log(sentry_level_t level, const char *message, va_list args);
 
+/**
+ * Sets up the logs timer/flush thread
+ */
+void sentry__logs_startup(void);
+
+/**
+ * Instructs the logs timer/flush thread to shut down.
+ */
+void sentry__logs_shutdown(uint64_t timeout);
+
 #endif
