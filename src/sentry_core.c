@@ -1490,6 +1490,11 @@ sentry__launch_external_crash_reporter(sentry_envelope_t *envelope)
         // capture the envelope with the disk transport
         sentry_transport_t *disk_transport
             = sentry_new_external_disk_transport(options->run);
+        if (!disk_transport) {
+            sentry__path_free(report_path);
+            sentry_free(envelope_filename);
+            return false;
+        }
         sentry__capture_envelope(disk_transport, envelope);
         sentry__transport_dump_queue(disk_transport, options->run);
         sentry_transport_free(disk_transport);
