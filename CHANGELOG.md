@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Implement the GPU Info gathering within the Native SDK ([#1336](https://github.com/getsentry/sentry-native/pull/1336))
+
 ## 0.10.0
 
 **Breaking changes**:
