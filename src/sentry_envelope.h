@@ -32,6 +32,12 @@ sentry_envelope_t *sentry__envelope_from_path(const sentry_path_t *path);
 sentry_uuid_t sentry__envelope_get_event_id(const sentry_envelope_t *envelope);
 
 /**
+ * Set the event ID header for this envelope.
+ */
+void sentry__envelope_set_event_id(
+    sentry_envelope_t *envelope, const sentry_uuid_t *event_id);
+
+/**
  * Add an event to this envelope.
  */
 sentry_envelope_item_t *sentry__envelope_add_event(

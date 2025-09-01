@@ -381,6 +381,16 @@ main(int argc, char **argv)
         sentry_options_add_view_hierarchy(options, "./view-hierarchy.json");
     }
 
+    if (has_arg(argc, argv, "crash-reporter")) {
+#ifdef SENTRY_PLATFORM_WINDOWS
+        sentry_options_set_external_crash_reporter_pathw(
+            options, L"sentry_crash_reporter.exe");
+#else
+        sentry_options_set_external_crash_reporter_path(
+            options, "./sentry_crash_reporter");
+#endif
+    }
+
     sentry_init(options);
 
     if (has_arg(argc, argv, "attachment")) {
