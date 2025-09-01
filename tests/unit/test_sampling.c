@@ -94,9 +94,8 @@ SENTRY_TEST(sampling_transaction)
     {
         // test the traces_sampler callback
         SENTRY_TEST_OPTIONS_NEW(options);
-        void *random_address = (void *)0x12345678; // example random address
         sentry_options_set_traces_sampler(
-            options, traces_sampler_callback, random_address);
+            options, traces_sampler_callback, (void *)0x12345678);
         sentry_options_set_traces_sample_rate(options, 1.0);
         TEST_CHECK(sentry_init(options) == 0);
 
