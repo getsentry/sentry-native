@@ -146,9 +146,9 @@ LLVM + Clang are mandatory here : they are required to generate .pdb files, used
 
 For your application to generate the appropriate .pdb output, you need to activate CodeView file format generation on your application target. To do so, update your own CMakeLists.txt with something like `target_compile_options(${yourApplicationTarget} PRIVATE -gcodeview)`.
 
-If you use a MSYS2 environement to compile with MinGW, make sure to :
+If you use a MSYS2 environment to compile with MinGW, make sure to :
 
-- Create an environement variable `MINGW_ROOT` (ex : `C:/msys64/mingw64`)
+- Create an environment variable `MINGW_ROOT` (ex : `C:/msys64/mingw64`)
 - Run from `mingw64.exe` : `pacman -S --needed - < ./toolchains/msys2-mingw64-pkglist.txt`
 - Build as :
 
