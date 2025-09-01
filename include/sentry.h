@@ -713,7 +713,7 @@ SENTRY_EXPERIMENTAL_API sentry_value_t sentry_envelope_get_transaction(
 /**
  * Serializes the envelope.
  *
- * The return value needs to be freed with sentry_free().
+ * The return value needs to be freed with `sentry_free`.
  */
 SENTRY_API char *sentry_envelope_serialize(
     const sentry_envelope_t *envelope, size_t *size_out);
