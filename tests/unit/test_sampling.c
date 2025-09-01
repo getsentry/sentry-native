@@ -15,7 +15,8 @@ traces_sampler_callback(const sentry_transaction_context_t *transaction_ctx,
     sentry_value_t custom_sampling_ctx, const int *parent_sampled,
     void *user_data)
 {
-    (void)user_data;
+    TEST_CHECK(user_data == (void *)0x12345678);
+
     const char *name = sentry_transaction_context_get_name(transaction_ctx);
     const char *operation
         = sentry_transaction_context_get_operation(transaction_ctx);
@@ -93,8 +94,9 @@ SENTRY_TEST(sampling_transaction)
     {
         // test the traces_sampler callback
         SENTRY_TEST_OPTIONS_NEW(options);
+        void *random_address = (void *)0x12345678; // example random address
         sentry_options_set_traces_sampler(
-            options, traces_sampler_callback, NULL);
+            options, traces_sampler_callback, random_address);
         sentry_options_set_traces_sample_rate(options, 1.0);
         TEST_CHECK(sentry_init(options) == 0);
 
