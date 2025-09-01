@@ -153,11 +153,16 @@ timer_task_func(void *data)
                 break;
             }
 #endif
-            SENTRY_DEBUG("Logs flushing by condition variable");
+            SENTRY_DEBUG("Logs flushed by condition variable");
             break;
 #ifdef SENTRY_PLATFORM_UNIX
         case ETIMEDOUT:
             SENTRY_DEBUG("Logs flushed by timeout");
+            break;
+#endif
+#ifdef SENTRY_PLATFORM_WINDOWS
+        case 1:
+            SENTRY_DEBUG("Logs flushed by condition variable");
             break;
 #endif
         default:
