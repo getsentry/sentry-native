@@ -17,15 +17,27 @@ typedef enum {
 /**
  * This is a linked list of all the attachments registered via
  * `sentry_options_add_attachment`.
+ *
+ * This struct represents a union of two attachment types:
+ * - File attachments: `path` is set, `buf`/`buf_len` are NULL/0
+ * - Buffer attachments: `buf`/`buf_len` are set, `path` is NULL
+ *
+ * The `filename` field is used for both types to specify the attachment
+ * name in the envelope (defaults to basename of `path` for file attachments).
  */
 struct sentry_attachment_s {
-    sentry_path_t *path;
-    sentry_path_t *filename;
-    char *buf;
-    size_t buf_len;
+    // File attachment data (mutually exclusive with buffer data)
+    sentry_path_t *path; // Full path to file on disk (NULL for buffers)
+
+    // Buffer attachment data (mutually exclusive with file data)
+    char *buf; // In-memory buffer content (NULL for files)
+    size_t buf_len; // Buffer size in bytes (0 for files)
+
+    // Common fields for both attachment types
+    sentry_path_t *filename; // Attachment name in envelope (can be NULL)
     sentry_attachment_type_t type;
     char *content_type;
-    sentry_attachment_t *next;
+    sentry_attachment_t *next; // Linked list pointer
 };
 
 /**
