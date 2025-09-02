@@ -218,21 +218,9 @@ def cmake(cwd, targets, options=None, cflags=None):
 
     print("\n{} > {}".format(cwd, " ".join(config_cmd)), flush=True)
     try:
-        result = subprocess.run(
-            config_cmd, cwd=cwd, env=env, check=True, capture_output=True, text=True
-        )
-        if result.stdout:
-            print(result.stdout)
-        if result.stderr:
-            print(result.stderr, file=sys.stderr)
-    except subprocess.CalledProcessError as e:
-        if e.stdout:
-            print("Configure stdout:", e.stdout)
-        if e.stderr:
-            print("Configure stderr:", e.stderr, file=sys.stderr)
-        raise pytest.fail.Exception(
-            f"cmake configure failed with return code {e.returncode}"
-        )
+        subprocess.run(config_cmd, cwd=cwd, env=env, check=True)
+    except subprocess.CalledProcessError:
+        raise pytest.fail.Exception("cmake configure failed") from None
 
     # CodeChecker invocations and options are documented here:
     # https://github.com/Ericsson/codechecker/blob/master/docs/analyzer/user_guide.md
@@ -255,21 +243,9 @@ def cmake(cwd, targets, options=None, cflags=None):
 
     print("{} > {}".format(cwd, " ".join(buildcmd)), flush=True)
     try:
-        result = subprocess.run(
-            buildcmd, cwd=cwd, check=True, capture_output=True, text=True
-        )
-        if result.stdout:
-            print(result.stdout)
-        if result.stderr:
-            print(result.stderr, file=sys.stderr)
-    except subprocess.CalledProcessError as e:
-        if e.stdout:
-            print("Build stdout:", e.stdout)
-        if e.stderr:
-            print("Build stderr:", e.stderr, file=sys.stderr)
-        raise pytest.fail.Exception(
-            f"cmake build failed with return code {e.returncode}"
-        )
+        subprocess.run(buildcmd, cwd=cwd, check=True)
+    except subprocess.CalledProcessError:
+        raise pytest.fail.Exception("cmake build failed") from None
 
     # check if the DLL and EXE artifacts contain version-information
     if platform.system() == "Windows":
