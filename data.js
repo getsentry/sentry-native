@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1756836233990,
+  "lastUpdate": 1756836341613,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -13714,6 +13714,66 @@ window.BENCHMARK_DATA = {
             "value": 10.60640000002877,
             "unit": "ms",
             "extra": "Min 9.927ms\nMax 11.059ms\nMean 10.460ms\nStdDev 0.475ms\nMedian 10.606ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "6349682+vaind@users.noreply.github.com",
+            "name": "Ivan Dlugos",
+            "username": "vaind"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "c3fb970a28edd6d661b7c044920b264e83fc42c3",
+          "message": "chore: disable mtime tests on switch (#1357)",
+          "timestamp": "2025-09-02T20:01:35+02:00",
+          "tree_id": "71d8af7c78c034a7cfdae1412ffd78b31f30c5ff",
+          "url": "https://github.com/getsentry/sentry-native/commit/c3fb970a28edd6d661b7c044920b264e83fc42c3"
+        },
+        "date": 1756836336802,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 8.544700000015837,
+            "unit": "ms",
+            "extra": "Min 8.200ms\nMax 8.745ms\nMean 8.505ms\nStdDev 0.220ms\nMedian 8.545ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 8.922400000017205,
+            "unit": "ms",
+            "extra": "Min 8.766ms\nMax 9.501ms\nMean 9.074ms\nStdDev 0.327ms\nMedian 8.922ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 37.04559999999901,
+            "unit": "ms",
+            "extra": "Min 21.102ms\nMax 90.253ms\nMean 51.366ms\nStdDev 29.382ms\nMedian 37.046ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.018699999998261774,
+            "unit": "ms",
+            "extra": "Min 0.013ms\nMax 0.019ms\nMean 0.017ms\nStdDev 0.003ms\nMedian 0.019ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.36910000000034415,
+            "unit": "ms",
+            "extra": "Min 0.318ms\nMax 0.408ms\nMean 0.365ms\nStdDev 0.039ms\nMedian 0.369ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 10.998999999969783,
+            "unit": "ms",
+            "extra": "Min 10.575ms\nMax 12.701ms\nMean 11.369ms\nStdDev 0.902ms\nMedian 10.999ms"
           }
         ]
       }
