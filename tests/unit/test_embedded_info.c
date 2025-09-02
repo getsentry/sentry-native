@@ -16,7 +16,7 @@ SENTRY_TEST(embedded_info_basic)
 {
 #ifdef SENTRY_EMBED_INFO
     // Test that the embedded info string exists and has expected format
-    TEST_CHECK(sentry_library_info != NULL);
+    TEST_ASSERT(sentry_library_info != NULL);
     TEST_CHECK(strlen(sentry_library_info) > 0);
 
     // Test that required fields are present
