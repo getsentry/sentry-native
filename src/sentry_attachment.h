@@ -27,17 +27,19 @@ typedef enum {
  */
 struct sentry_attachment_s {
     // File attachment data (mutually exclusive with buffer data)
-    sentry_path_t *path;        // Full path to file on disk (NULL for buffer attachments)
-    
-    // Buffer attachment data (mutually exclusive with file data)  
-    char *buf;                  // In-memory buffer content (NULL for file attachments)
-    size_t buf_len;             // Buffer size in bytes (0 for file attachments)
-    
+    sentry_path_t
+        *path; // Full path to file on disk (NULL for buffer attachments)
+
+    // Buffer attachment data (mutually exclusive with file data)
+    char *buf; // In-memory buffer content (NULL for file attachments)
+    size_t buf_len; // Buffer size in bytes (0 for file attachments)
+
     // Common fields for both attachment types
-    sentry_path_t *filename;    // Attachment name in envelope (can be set for both types)
+    sentry_path_t
+        *filename; // Attachment name in envelope (can be set for both types)
     sentry_attachment_type_t type;
     char *content_type;
-    sentry_attachment_t *next;  // Linked list pointer
+    sentry_attachment_t *next; // Linked list pointer
 };
 
 /**
