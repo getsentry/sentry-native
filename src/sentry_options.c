@@ -661,10 +661,11 @@ sentry_options_get_traces_sample_rate(sentry_options_t *opts)
 }
 
 void
-sentry_options_set_traces_sampler(
-    sentry_options_t *opts, sentry_traces_sampler_function callback)
+sentry_options_set_traces_sampler(sentry_options_t *opts,
+    sentry_traces_sampler_function callback, void *user_data)
 {
     opts->traces_sampler = callback;
+    opts->traces_sampler_data = user_data;
 }
 
 void
