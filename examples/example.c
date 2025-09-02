@@ -158,6 +158,33 @@ discarding_before_transaction_callback(sentry_value_t tx, void *user_data)
     return tx;
 }
 
+static sentry_value_t
+before_send_log_callback(sentry_value_t log, void *user_data)
+{
+    (void)user_data;
+    sentry_value_t attribute = sentry_value_new_object();
+    sentry_value_set_by_key(
+        attribute, "value", sentry_value_new_string("little"));
+    sentry_value_set_by_key(
+        attribute, "type", sentry_value_new_string("string"));
+    sentry_value_set_by_key(sentry_value_get_by_key(log, "attributes"),
+        "coffeepot.size", attribute);
+    return log;
+}
+
+static sentry_value_t
+discarding_before_send_log_callback(sentry_value_t log, void *user_data)
+{
+    (void)user_data;
+    if (sentry_value_is_null(
+            sentry_value_get_by_key(sentry_value_get_by_key(log, "attributes"),
+                "sentry.message.template"))) {
+        sentry_value_decref(log);
+        return sentry_value_new_null();
+    }
+    return log;
+}
+
 static void
 print_envelope(sentry_envelope_t *envelope, void *unused_state)
 {
@@ -374,6 +401,16 @@ main(int argc, char **argv)
             options, discarding_before_transaction_callback, NULL);
     }
 
+    if (has_arg(argc, argv, "before-send-log")) {
+        sentry_options_set_before_send_log(
+            options, before_send_log_callback, NULL);
+    }
+
+    if (has_arg(argc, argv, "discarding-before-send-log")) {
+        sentry_options_set_before_send_log(
+            options, discarding_before_send_log_callback, NULL);
+    }
+
     if (has_arg(argc, argv, "traces-sampler")) {
         sentry_options_set_traces_sampler(options, traces_sampler_callback);
     }
@@ -424,6 +461,9 @@ main(int argc, char **argv)
 
     // TODO incorporate into test
     if (sentry_options_get_enable_logs(options)) {
+        if (has_arg(argc, argv, "capture-log")) {
+            sentry_log_debug("I'm a log message!");
+        }
         if (has_arg(argc, argv, "logs-timer")) {
             for (int i = 0; i < 10; i++) {
                 sentry_log_info("Informational log nr.%d", i);

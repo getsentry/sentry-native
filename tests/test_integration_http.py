@@ -1382,3 +1382,66 @@ def test_logs_threaded(cmake, httpserver):
         total_count += envelope.items[0].headers["item_count"]
     print(f"Total amount of captured logs: {total_count}")
     assert total_count >= 100
+
+
+def test_before_send_log(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+
+    httpserver.expect_oneshot_request(
+        "/api/123456/envelope/",
+        headers={"x-sentry-auth": auth_header},
+    ).respond_with_data("OK")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_RELEASE="🤮🚀")
+
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "enable-logs", "capture-log", "before-send-log"],
+        check=True,
+        env=env,
+    )
+
+    assert len(httpserver.log) == 1
+    req = httpserver.log[0][0]
+    body = req.get_data()
+
+    envelope = Envelope.deserialize(body)
+
+    # Show what the envelope looks like if the test fails.
+    envelope.print_verbose()
+
+    # Extract the log item
+    (log_item,) = envelope.items
+
+    assert log_item.headers["type"] == "log"
+    payload = log_item.payload.json
+
+    # Get the first log item from the logs payload
+    log_entry = payload["items"][0]
+    attributes = log_entry["attributes"]
+
+    # Check that the before_send_log callback added the expected attribute
+    assert "coffeepot.size" in attributes
+    assert attributes["coffeepot.size"]["value"] == "little"
+    assert attributes["coffeepot.size"]["type"] == "string"
+
+
+def test_before_send_log_discard(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+
+    httpserver.expect_oneshot_request(
+        "/api/123456/envelope/",
+        headers={"x-sentry-auth": auth_header},
+    ).respond_with_data("OK")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_RELEASE="🤮🚀")
+
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "enable-logs", "capture-log", "discarding-before-send-log"],
+        check=True,
+        env=env,
+    )
+
+    # log should have been discarded
+    assert len(httpserver.log) == 0

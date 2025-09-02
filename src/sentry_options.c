@@ -84,6 +84,7 @@ sentry__options_incref(sentry_options_t *options)
 void
 sentry_options_free(sentry_options_t *opts)
 {
+    SENTRY_DEBUG("called sentry_options_free");
     if (!opts || sentry__atomic_fetch_and_add(&opts->refcount, -1) != 1) {
         return;
     }
@@ -151,6 +152,14 @@ sentry_options_set_before_transaction(
 {
     opts->before_transaction_func = func;
     opts->before_transaction_data = user_data;
+}
+
+void
+sentry_options_set_before_send_log(sentry_options_t *opts,
+    sentry_before_send_log_function_t func, void *user_data)
+{
+    opts->before_send_log_func = func;
+    opts->before_send_log_data = user_data;
 }
 
 void

@@ -1883,6 +1883,23 @@ SENTRY_EXPERIMENTAL_API void sentry_log_warn(const char *message, ...);
 SENTRY_EXPERIMENTAL_API void sentry_log_error(const char *message, ...);
 SENTRY_EXPERIMENTAL_API void sentry_log_fatal(const char *message, ...);
 
+/**
+ * Type of the `before_send_log` callback.
+ *
+ * The callback takes ownership of the `log`, and should usually return
+ * that same log. In case the log should be discarded, the
+ * callback needs to call `sentry_value_decref` on the provided log, and
+ * return a `sentry_value_new_null()` instead.
+ */
+typedef sentry_value_t (*sentry_before_send_log_function_t)(
+    sentry_value_t log, void *user_data);
+
+/**
+ * Sets the `before_send_log` callback.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_options_set_before_send_log(
+    sentry_options_t *opts, sentry_before_send_log_function_t func, void *data);
+
 #ifdef SENTRY_PLATFORM_LINUX
 
 /**
