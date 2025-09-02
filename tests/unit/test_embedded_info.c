@@ -38,7 +38,7 @@ SENTRY_TEST(embedded_info_format)
 #    else
     char *info = strdup(sentry_library_info);
 #    endif
-    TEST_CHECK(info != NULL);
+    TEST_ASSERT(info != NULL);
 
     int field_count = 0;
     char *token = strtok(info, ";");
