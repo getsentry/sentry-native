@@ -1,4 +1,5 @@
 #include "sentry_testsupport.h"
+#include <stdlib.h>
 #include <string.h>
 
 #ifdef SENTRY_EMBED_INFO
@@ -66,18 +67,19 @@ SENTRY_TEST(embedded_info_sentry_version)
 #ifdef SENTRY_EMBED_INFO
     // Test that SENTRY_VERSION field contains the actual SDK version
     const char *version_field = strstr(sentry_library_info, "SENTRY_VERSION:");
-    TEST_CHECK(version_field != NULL);
+    TEST_ASSERT(version_field != NULL);
 
     // Extract the version value
     const char *version_start = version_field + strlen("SENTRY_VERSION:");
     const char *version_end = strchr(version_start, ';');
-    TEST_CHECK(version_end != NULL);
+    TEST_ASSERT(version_end != NULL);
 
     size_t version_len = version_end - version_start;
-    TEST_CHECK(version_len > 0);
+    TEST_ASSERT(version_len > 0);
 
-    // Extract the embedded version string
-    char embedded_version[32];
+    // Use dynamic allocation or larger buffer
+    char *embedded_version = malloc(version_len + 1);
+    TEST_ASSERT(embedded_version != NULL);
     strncpy(embedded_version, version_start, version_len);
     embedded_version[version_len] = '\0';
 
@@ -86,6 +88,8 @@ SENTRY_TEST(embedded_info_sentry_version)
 
     // Test that it matches the actual SDK version
     TEST_CHECK_STRING_EQUAL(embedded_version, SENTRY_SDK_VERSION);
+
+    free(embedded_version);
 #else
     SKIP_TEST();
 #endif
