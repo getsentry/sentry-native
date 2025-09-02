@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1756812541863,
+  "lastUpdate": 1756812597483,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -13360,6 +13360,66 @@ window.BENCHMARK_DATA = {
             "value": 11.68399999983194,
             "unit": "ms",
             "extra": "Min 11.334ms\nMax 12.090ms\nMean 11.676ms\nStdDev 0.277ms\nMedian 11.684ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "6349682+vaind@users.noreply.github.com",
+            "name": "Ivan Dlugos",
+            "username": "vaind"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "7f84073d0c7494eb26be1a6b3f48271ba2fa8576",
+          "message": "docs: improve sentry_attachment_s struct documentation (#1352)\n\n* docs: improve sentry_attachment_s struct documentation\n\nClarify that the struct represents a union of two attachment types:\n- File attachments (path-based)\n- Buffer attachments (in-memory)\n\nAdd inline comments to group fields by usage and explain the\ndifference between 'path' (filesystem path) and 'filename'\n(envelope attachment name). This addresses confusion about\nwhy both fields exist and when each is used.\n\n🤖 Generated with [Claude Code](https://claude.ai/code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\n\n* fix: apply clang-format to attachment struct documentation\n\nFix code formatting to match project style guidelines.\n\n🤖 Generated with [Claude Code](https://claude.ai/code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\n\n* docs: clarify filename field can be NULL in attachment struct\n\nUpdate inline comment to indicate that filename field can be NULL,\nin which case the basename of path is used as the attachment name.\n\n🤖 Generated with [Claude Code](https://claude.ai/code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\n\n---------\n\nCo-authored-by: Claude <noreply@anthropic.com>",
+          "timestamp": "2025-09-02T13:26:05+02:00",
+          "tree_id": "fc01b008492f1219ab6c3299712bbe1005d2c395",
+          "url": "https://github.com/getsentry/sentry-native/commit/7f84073d0c7494eb26be1a6b3f48271ba2fa8576"
+        },
+        "date": 1756812593272,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 8.094699999901422,
+            "unit": "ms",
+            "extra": "Min 7.948ms\nMax 8.122ms\nMean 8.052ms\nStdDev 0.083ms\nMedian 8.095ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 8.695400000078735,
+            "unit": "ms",
+            "extra": "Min 8.347ms\nMax 9.742ms\nMean 8.875ms\nStdDev 0.548ms\nMedian 8.695ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 22.473999999988337,
+            "unit": "ms",
+            "extra": "Min 22.166ms\nMax 25.194ms\nMean 22.950ms\nStdDev 1.266ms\nMedian 22.474ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.022700000045006163,
+            "unit": "ms",
+            "extra": "Min 0.018ms\nMax 0.024ms\nMean 0.022ms\nStdDev 0.003ms\nMedian 0.023ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.36720000002787856,
+            "unit": "ms",
+            "extra": "Min 0.349ms\nMax 0.400ms\nMean 0.370ms\nStdDev 0.019ms\nMedian 0.367ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 12.117600000010498,
+            "unit": "ms",
+            "extra": "Min 11.477ms\nMax 12.478ms\nMean 12.017ms\nStdDev 0.471ms\nMedian 12.118ms"
           }
         ]
       }
