@@ -84,6 +84,7 @@ sentry__options_incref(sentry_options_t *options)
 void
 sentry_options_free(sentry_options_t *opts)
 {
+    SENTRY_DEBUG("called sentry_options_free");
     if (!opts || sentry__atomic_fetch_and_add(&opts->refcount, -1) != 1) {
         return;
     }
