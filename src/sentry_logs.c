@@ -328,12 +328,13 @@ skip_length(const char *fmt_ptr)
     return fmt_ptr;
 }
 
-static void
+// returns how many parameters were added to the attributes object
+static int
 populate_message_parameters(
     sentry_value_t attributes, const char *message, va_list args)
 {
     if (!message || sentry_value_is_null(attributes)) {
-        return;
+        return 0;
     }
 
     const char *fmt_ptr = message;
@@ -375,6 +376,7 @@ populate_message_parameters(
     }
 
     va_end(args_copy);
+    return param_index;
 }
 
 static void
@@ -494,11 +496,13 @@ construct_log(sentry_level_t level, const char *message, va_list args)
         "string", "sentry.sdk.name");
     add_attribute(attributes, sentry_value_new_string(sentry_sdk_version()),
         "string", "sentry.sdk.version");
-    add_attribute(attributes, sentry_value_new_string(message), "string",
-        "sentry.message.template");
 
     // Parse variadic arguments and add them to attributes
-    populate_message_parameters(attributes, message, args_copy_3);
+    if (populate_message_parameters(attributes, message, args_copy_3)) {
+        // only add message template if we have parameters
+        add_attribute(attributes, sentry_value_new_string(message), "string",
+            "sentry.message.template");
+    }
     va_end(args_copy_3);
 
     sentry_value_set_by_key(log, "attributes", attributes);
@@ -517,6 +521,17 @@ sentry__logs_log(sentry_level_t level, const char *message, va_list args)
     if (enable_logs) {
         // create log from message
         sentry_value_t log = construct_log(level, message, args);
+        SENTRY_WITH_OPTIONS (options) {
+            if (options->before_send_log_func) {
+                log = options->before_send_log_func(
+                    log, options->before_send_log_data);
+                if (sentry_value_is_null(log)) {
+                    SENTRY_DEBUG(
+                        "log was discarded by the `before_send_log` hook");
+                    return;
+                }
+            }
+        }
         if (!enqueue_log_single(log)) {
             sentry_value_decref(log);
         }
