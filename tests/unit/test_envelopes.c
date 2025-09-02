@@ -10,7 +10,7 @@ static char *const SERIALIZED_ENVELOPE_STR
     = "{\"dsn\":\"https://foo@sentry.invalid/42\","
       "\"event_id\":\"c993afb6-b4ac-48a6-b61b-2558e601d65d\",\"trace\":{"
       "\"public_key\":\"foo\",\"org_id\":\"\",\"sample_rate\":0,\"sample_"
-      "rand\":0.01006918276309107,\"release\":null,\"environment\":"
+      "rand\":0.01006918276309107,\"release\":\"test-release\",\"environment\":"
       "\"production\",\"sampled\":\"false\"}}\n"
       "{\"type\":\"event\",\"length\":71}\n"
       "{\"event_id\":\"c993afb6-b4ac-48a6-b61b-2558e601d65d\",\"some-"
@@ -255,6 +255,7 @@ create_test_envelope()
 {
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_release(options, "test-release");
     sentry_init(options);
 
     sentry_uuid_t event_id
