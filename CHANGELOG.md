@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Internal:**
+
+- Correctly apply dynamic mutex initialization in unit-tests (fixes running unit-tests in downstream console SDKs) ([#1337](https://github.com/getsentry/sentry-native/pull/1337))
+
 ## 0.10.0
 
 **Breaking changes**:
