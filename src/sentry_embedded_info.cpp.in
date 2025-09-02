@@ -1,19 +1,11 @@
 // src/sentry_embedded_info.cpp.in
 #include "sentry.h"
 
-// On Windows with DLL builds, we need extern to ensure external linkage
-// for const variables, as const in C++ has internal linkage by default
-#ifdef _WIN32
-#  ifdef SENTRY_BUILD_SHARED
-extern "C" {
-extern SENTRY_API const char sentry_library_info[] = 
-#  else
-extern "C" {
-SENTRY_API const char sentry_library_info[] = 
-#  endif
-#else
-extern "C" const char sentry_library_info[] = 
-#endif
+// Forward declaration to satisfy ClangCL's -Wmissing-variable-declarations
+extern "C" SENTRY_API const char sentry_library_info[];
+
+// Definition
+extern "C" SENTRY_API const char sentry_library_info[] =
     "SENTRY_VERSION:" SENTRY_SDK_VERSION ";"
     "PLATFORM:@SENTRY_BUILD_PLATFORM@;"
     "BUILD:@SENTRY_BUILD_ID@;"
@@ -21,6 +13,3 @@ extern "C" const char sentry_library_info[] =
     "CONFIG:@CMAKE_BUILD_TYPE@;"
     "@SENTRY_EMBED_INFO_ITEMS@"
     "END";
-#ifdef _WIN32
-}
-#endif
