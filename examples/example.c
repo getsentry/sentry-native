@@ -461,6 +461,9 @@ main(int argc, char **argv)
 
     // TODO incorporate into test
     if (sentry_options_get_enable_logs(options)) {
+        if (has_arg(argc, argv, "capture-log")) {
+            sentry_log_debug("I'm a log message!");
+        }
         if (has_arg(argc, argv, "logs-timer")) {
             for (int i = 0; i < 10; i++) {
                 sentry_log_info("Informational log nr.%d", i);
