@@ -9,6 +9,10 @@
 #include "sentry_transport.h"
 #include "sentry_utils.h"
 
+#ifdef SENTRY_PLATFORM_XBOX
+#include "sentry_transport_xbox.h"
+#endif
+
 #include <stdlib.h>
 #include <string.h>
 #include <winhttp.h>
@@ -211,6 +215,15 @@ sentry__winhttp_send_task(void *_envelope, void *_state)
     url_components.dwUrlPathLength = 1024;
 
     WinHttpCrackUrl(url, 0, 0, &url_components);
+
+#ifdef SENTRY_PLATFORM_XBOX
+    // Ensure Xbox network connectivity is initialized before HTTP requests
+    if (!sentry__xbox_ensure_network_initialized(60)) {
+        SENTRY_WARN("Xbox: Network not ready, skipping HTTP request");
+        goto exit;
+    }
+#endif
+
     if (!state->connect) {
         state->connect = WinHttpConnect(state->session,
             url_components.lpszHostName, url_components.nPort, 0);
