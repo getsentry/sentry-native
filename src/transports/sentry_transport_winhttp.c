@@ -10,7 +10,7 @@
 #include "sentry_utils.h"
 
 #ifdef SENTRY_PLATFORM_XBOX
-#include "sentry_transport_xbox.h"
+#    include "sentry_transport_xbox.h"
 #endif
 
 #include <stdlib.h>
