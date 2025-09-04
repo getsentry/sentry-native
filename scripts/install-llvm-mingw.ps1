@@ -55,6 +55,18 @@ Expand-Archive -LiteralPath "${NINJA_DL_PATH}" -DestinationPath "${NINJA_INSTALL
 "PATH=${NINJA_INSTALL_PATH}; $env:PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
 # export CMAKE_DEFINES to the runner environment
+$cmakeDefines = @()
 
-"CMAKE_DEFINES=${env:CMAKE_DEFINES} -DCMAKE_C_COMPILER=${env:MINGW_PKG_PREFIX}-gcc -DCMAKE_CXX_COMPILER=${env:MINGW_PKG_PREFIX}-g++ -DCMAKE_RC_COMPILER=${env:MINGW_PKG_PREFIX}-windres -DCMAKE_ASM_MASM_COMPILER:FILEPATH=${LLVM_MINGW_INSTALL_PATH}\bin\${env:MINGW_ASM_MASM_COMPILER}.exe -DCMAKE_ASM_MASM_FLAGS=${env:MINGW_ASM_MASM_FLAGS}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+if ($env:CMAKE_DEFINES) {
+  $cmakeDefines += $env:CMAKE_DEFINES
+}
 
+$cmakeDefines += @(
+  "-DCMAKE_C_COMPILER=$($env:MINGW_PKG_PREFIX)-gcc"
+  "-DCMAKE_CXX_COMPILER=$($env:MINGW_PKG_PREFIX)-g++"
+  "-DCMAKE_RC_COMPILER=$($env:MINGW_PKG_PREFIX)-windres"
+  "-DCMAKE_ASM_MASM_COMPILER:FILEPATH=$($env:LLVM_MINGW_INSTALL_PATH -replace '\\','/')/bin/$($env:MINGW_ASM_MASM_COMPILER).exe"
+  "-DCMAKE_ASM_MASM_FLAGS=$env:MINGW_ASM_MASM_FLAGS"
+)
+
+"CMAKE_DEFINES=$($cmakeDefines -join ' ')" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
