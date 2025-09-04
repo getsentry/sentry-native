@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1756987124963,
+  "lastUpdate": 1756987258503,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -14074,6 +14074,66 @@ window.BENCHMARK_DATA = {
             "value": 12.27840000001379,
             "unit": "ms",
             "extra": "Min 11.259ms\nMax 12.422ms\nMean 12.109ms\nStdDev 0.479ms\nMedian 12.278ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "6349682+vaind@users.noreply.github.com",
+            "name": "Ivan Dlugos",
+            "username": "vaind"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "9a5c14f9aefdba6b3727c6601e4b56ff69dc840b",
+          "message": "fix: Add Xbox networking initialization to WinHTTP transport (#1359)\n\n* fix: Add Xbox networking initialization to WinHTTP transport\n\n- Add Xbox-specific network initialization before WinHTTP operations\n- Ensures Xbox XNetworking APIs are ready before HTTP requests\n- Fixes WinHTTP error 12007 (ERROR_WINHTTP_CANNOT_CONNECT) on Xbox platforms\n- Uses 60-second timeout to prevent indefinite blocking\n- Graceful failure with warning when network not ready\n- Minimal changes using existing SENTRY_PLATFORM_XBOX ifdef pattern\n\nAddresses Xbox networking requirements where WinHTTP needs network\nconnectivity to be established through Xbox-specific APIs before\nHTTP operations can succeed.\n\n* Fix include formatting for Xbox transport header\n\n* Remove timeout from Xbox network initialization check\n\n* chore: changelog",
+          "timestamp": "2025-09-04T13:56:28+02:00",
+          "tree_id": "e672e3fdfb108799d74252406362c7619a47a67e",
+          "url": "https://github.com/getsentry/sentry-native/commit/9a5c14f9aefdba6b3727c6601e4b56ff69dc840b"
+        },
+        "date": 1756987251959,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 9.109200000011697,
+            "unit": "ms",
+            "extra": "Min 8.895ms\nMax 12.556ms\nMean 10.134ms\nStdDev 1.606ms\nMedian 9.109ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 9.839300000066942,
+            "unit": "ms",
+            "extra": "Min 9.361ms\nMax 10.110ms\nMean 9.772ms\nStdDev 0.307ms\nMedian 9.839ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 32.362499999976535,
+            "unit": "ms",
+            "extra": "Min 28.638ms\nMax 42.994ms\nMean 33.410ms\nStdDev 5.582ms\nMedian 32.362ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.016500000015184924,
+            "unit": "ms",
+            "extra": "Min 0.015ms\nMax 0.025ms\nMean 0.018ms\nStdDev 0.004ms\nMedian 0.017ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.5102999999735403,
+            "unit": "ms",
+            "extra": "Min 0.507ms\nMax 0.526ms\nMean 0.515ms\nStdDev 0.009ms\nMedian 0.510ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 16.547800000012103,
+            "unit": "ms",
+            "extra": "Min 15.588ms\nMax 18.851ms\nMean 17.003ms\nStdDev 1.301ms\nMedian 16.548ms"
           }
         ]
       }
