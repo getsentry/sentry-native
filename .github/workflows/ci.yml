@@ -244,6 +244,21 @@ jobs:
         if: ${{ runner.os == 'macOS' && matrix.os == 'macos-15-large' && matrix.RUN_ANALYZER == 'asan,llvm-cov' }}
         run: echo $(brew --prefix llvm@18)/bin >> $GITHUB_PATH
 
+      - name: Remove Strawberry Perl from PATH
+        if: ${{ runner.os == 'Windows' }}
+        shell: powershell
+        run: |
+          $strawberryBins = @(
+            'C:\Strawberry\c\bin',
+            'C:\Strawberry\perl\site\bin',
+            'C:\Strawberry\perl\bin'
+          )
+
+          $cleanedPaths   = $env:Path -split ';' | Where-Object { $_ -and ($strawberryBins -notcontains $_) }
+          $newPath = ($cleanedPaths -join ';')
+
+          "PATH=$newPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      
       - name: Installing LLVM-MINGW Dependencies
         if: ${{ runner.os == 'Windows' && env['TEST_MINGW'] }}
         shell: powershell
