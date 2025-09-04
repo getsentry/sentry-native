@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1756989646732,
+  "lastUpdate": 1756989699192,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -14254,6 +14254,66 @@ window.BENCHMARK_DATA = {
             "value": 16.547800000012103,
             "unit": "ms",
             "extra": "Min 15.588ms\nMax 18.851ms\nMean 17.003ms\nStdDev 1.301ms\nMedian 16.548ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "mischan@abovevacant.com",
+            "name": "Mischan Toosarani-Hausberger",
+            "username": "supervacuus"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "519554ff62e1b77564345d25c531e99dda7337f8",
+          "message": "ci: fix failing mingw build (#1361)\n\n* ci: fix failing mingw build\n\n* split `ASM_MASM_COMPILER` and `_FLAGS`\n\n* add `ASM_MASM_FLAGS` in `mingw` install step\n\n* specify the `CMAKE_ASM_MASM_COMPILER` as a `FILEPATH`\n\n* clean up CMAKE_DEFINES construction so it is easier to diff in the future\n\n* fix `LLVM_MINGW_INSTALL_PATH` to be referenced locally rather than $env",
+          "timestamp": "2025-09-04T14:37:14+02:00",
+          "tree_id": "2becc32e0808fdb8ac76c1c6cc5cb9ecdee8c216",
+          "url": "https://github.com/getsentry/sentry-native/commit/519554ff62e1b77564345d25c531e99dda7337f8"
+        },
+        "date": 1756989693417,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 10.196100000030128,
+            "unit": "ms",
+            "extra": "Min 9.819ms\nMax 13.568ms\nMean 10.935ms\nStdDev 1.546ms\nMedian 10.196ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 10.363099999949554,
+            "unit": "ms",
+            "extra": "Min 10.105ms\nMax 12.254ms\nMean 10.682ms\nStdDev 0.888ms\nMedian 10.363ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 25.54269999995995,
+            "unit": "ms",
+            "extra": "Min 25.132ms\nMax 26.013ms\nMean 25.550ms\nStdDev 0.408ms\nMedian 25.543ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.011800000038419967,
+            "unit": "ms",
+            "extra": "Min 0.012ms\nMax 0.015ms\nMean 0.013ms\nStdDev 0.002ms\nMedian 0.012ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.43110000001433946,
+            "unit": "ms",
+            "extra": "Min 0.385ms\nMax 0.558ms\nMean 0.461ms\nStdDev 0.069ms\nMedian 0.431ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 14.442700000017794,
+            "unit": "ms",
+            "extra": "Min 14.113ms\nMax 15.352ms\nMean 14.673ms\nStdDev 0.527ms\nMedian 14.443ms"
           }
         ]
       }
