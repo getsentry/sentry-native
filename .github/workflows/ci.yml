@@ -150,7 +150,8 @@ jobs:
             os: windows-latest
             TEST_MINGW: 1
             MINGW_PKG_PREFIX: x86_64-w64-mingw32
-            MINGW_ASM_MASM_COMPILER: llvm-ml;-m64
+            MINGW_ASM_MASM_COMPILER: llvm-ml
+            MINGW_ASM_MASM_FLAGS: -m64
           # The Android emulator is currently only available on macos, see:
           # https://docs.microsoft.com/en-us/azure/devops/pipelines/ecosystems/android?view=azure-devops#test-on-the-android-emulator
           # TODO: switch to reactivecircus/android-emulator-runner, concurrently running emulators continuously fail now.
@@ -265,6 +266,7 @@ jobs:
         env:
           MINGW_PKG_PREFIX: ${{ matrix.MINGW_PKG_PREFIX }}
           MINGW_ASM_MASM_COMPILER: ${{ matrix.MINGW_ASM_MASM_COMPILER }}
+          MINGW_ASM_MASM_FLAGS: ${{ matrix.MINGW_ASM_MASM_FLAGS }}
         run: . "scripts\install-llvm-mingw.ps1"
 
       - name: Set up zlib for Windows
