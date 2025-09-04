@@ -218,7 +218,7 @@ sentry__winhttp_send_task(void *_envelope, void *_state)
 
 #ifdef SENTRY_PLATFORM_XBOX
     // Ensure Xbox network connectivity is initialized before HTTP requests
-    if (!sentry__xbox_ensure_network_initialized(60)) {
+    if (!sentry__xbox_ensure_network_initialized()) {
         SENTRY_WARN("Xbox: Network not ready, skipping HTTP request");
         goto exit;
     }
