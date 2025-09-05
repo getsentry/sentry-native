@@ -1059,7 +1059,7 @@ sentry__jsonwriter_write_value(sentry_jsonwriter_t *jw, sentry_value_t value)
     case SENTRY_VALUE_TYPE_LIST: {
         const thing_t *thing = value_as_thing(value);
         if (!thing) {
-            assert(!"thing of a list is NULL during serialization");
+            assert(!(bool)"thing of a list is NULL during serialization");
             return;
         }
 
@@ -1074,7 +1074,7 @@ sentry__jsonwriter_write_value(sentry_jsonwriter_t *jw, sentry_value_t value)
     case SENTRY_VALUE_TYPE_OBJECT: {
         const thing_t *thing = value_as_thing(value);
         if (!thing) {
-            assert(!"thing of an object is NULL during serialization");
+            assert(!(bool)"thing of an object is NULL during serialization");
             return;
         }
 
