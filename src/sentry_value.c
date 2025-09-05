@@ -1057,7 +1057,13 @@ sentry__jsonwriter_write_value(sentry_jsonwriter_t *jw, sentry_value_t value)
         sentry__jsonwriter_write_str(jw, sentry_value_as_string(value));
         break;
     case SENTRY_VALUE_TYPE_LIST: {
-        const list_t *l = value_as_thing(value)->payload._ptr;
+        const thing_t *thing = value_as_thing(value);
+        if (!thing) {
+            assert(!"thing of a list is NULL during serialization");
+            return;
+        }
+
+        const list_t *l = thing->payload._ptr;
         sentry__jsonwriter_write_list_start(jw);
         for (size_t i = 0; i < l->len; i++) {
             sentry__jsonwriter_write_value(jw, l->items[i]);
@@ -1066,7 +1072,13 @@ sentry__jsonwriter_write_value(sentry_jsonwriter_t *jw, sentry_value_t value)
         break;
     }
     case SENTRY_VALUE_TYPE_OBJECT: {
-        const obj_t *o = value_as_thing(value)->payload._ptr;
+        const thing_t *thing = value_as_thing(value);
+        if (!thing) {
+            assert(!"thing of an object is NULL during serialization");
+            return;
+        }
+
+        const obj_t *o = thing->payload._ptr;
         sentry__jsonwriter_write_object_start(jw);
         for (size_t i = 0; i < o->len; i++) {
             sentry__jsonwriter_write_key(jw, o->pairs[i].k);
