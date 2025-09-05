@@ -284,6 +284,7 @@ log_thread_func(LPVOID lpParam)
     for (int i = 0; i < LOG_COUNT; i++) {
         sentry_log_debug(
             "thread log %d on thread %lu", i, get_current_thread_id());
+        Sleep(1);
     }
     return 0;
 }
