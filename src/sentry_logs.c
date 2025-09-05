@@ -87,7 +87,10 @@ enqueue_log_single(sentry_value_t log)
     uint64_t before = sentry__usec_time();
 
     if (sentry__atomic_fetch(&g_logs_single_state.flushing) == 1) {
-        goto fail;
+        SENTRY_WARN("Unable to enqueue log: flush in progress");
+        SENTRY_DEBUGF("Time to failed enqueue log is %llu us",
+            sentry__usec_time() - before);
+        return false;
     }
 
     sentry__atomic_fetch_and_add(&g_logs_single_state.queue.adding, 1);
@@ -95,34 +98,34 @@ enqueue_log_single(sentry_value_t log)
     long log_idx
         = sentry__atomic_fetch_and_add(&g_logs_single_state.queue.index, 1);
 
-    if (log_idx < QUEUE_LENGTH) {
-        // Successfully got a slot, write the log
-        g_logs_single_state.queue.logs[log_idx] = log;
+    if (log_idx >= QUEUE_LENGTH) {
+        // Buffer is already full, roll back our increments
+        SENTRY_WARN("Unable to enqueue log: buffer full");
         sentry__atomic_fetch_and_add(&g_logs_single_state.queue.adding, -1);
-
-        // Check if this buffer is now full and trigger flush
-        if (log_idx == QUEUE_LENGTH - 1) {
-            sentry__cond_wake(&g_logs_single_state.request_flush);
-        }
-
-        SENTRY_DEBUGF("Time to successful enqueue log is %llu us\n",
+        sentry__atomic_fetch_and_add(&g_logs_single_state.queue.index, -1);
+        SENTRY_DEBUGF("Time to failed enqueue log is %llu us",
             sentry__usec_time() - before);
-        return true;
+        // TODO think about how to report this (e.g. client reports)
+        // SENTRY_WARNF(
+        //     "Unable to enqueue log at time %f - all buffers full. Log body:
+        //     %s", sentry_value_as_double(sentry_value_get_by_key(log,
+        //     "timestamp")),
+        //     sentry_value_as_string(sentry_value_get_by_key(log, "body")));
+        return false;
     }
-    // Buffer is already full, roll back our increments
-    SENTRY_DEBUG("log_idx > QUEUE_LENGTH");
+
+    // Successfully got a slot, write the log
+    g_logs_single_state.queue.logs[log_idx] = log;
     sentry__atomic_fetch_and_add(&g_logs_single_state.queue.adding, -1);
-    sentry__atomic_fetch_and_add(&g_logs_single_state.queue.index, -1);
-fail:
-    SENTRY_DEBUGF("Time to failed enqueue log is %llu us\n",
+
+    // Check if this buffer is now full and trigger flush
+    if (log_idx == QUEUE_LENGTH - 1) {
+        sentry__cond_wake(&g_logs_single_state.request_flush);
+    }
+
+    SENTRY_DEBUGF("Time to successful enqueue log is %llu us\n",
         sentry__usec_time() - before);
-    // TODO think about how to report this (e.g. client reports)
-    SENTRY_WARN("Unable to enqueue log");
-    // SENTRY_WARNF(
-    //     "Unable to enqueue log at time %f - all buffers full. Log body: %s",
-    //     sentry_value_as_double(sentry_value_get_by_key(log, "timestamp")),
-    //     sentry_value_as_string(sentry_value_get_by_key(log, "body")));
-    return false;
+    return true;
 }
 
 SENTRY_THREAD_FN
