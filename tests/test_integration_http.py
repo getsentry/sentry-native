@@ -1359,6 +1359,8 @@ def test_logs_threaded(cmake, httpserver):
         headers={"x-sentry-auth": auth_header},
     ).respond_with_data("OK")
 
+    # TODO: a significant amount of variability in these tests is due to the "print"-logging to stdout
+    #       i think it is fair to turn them off once these tests should run in CI to get more stable bounds
     run(
         tmp_path,
         "sentry_example",

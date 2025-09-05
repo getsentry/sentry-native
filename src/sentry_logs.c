@@ -380,6 +380,10 @@ populate_message_parameters(
     va_end(args_copy);
 }
 
+/**
+ * This function assumes that `value` is owned, so we have to make sure that the
+ * `value` was created or cloned by the caller or even better inc_refed.
+ */
 static void
 add_attribute(sentry_value_t attributes, sentry_value_t value, const char *type,
     const char *name)
@@ -424,22 +428,28 @@ construct_log(sentry_level_t level, const char *message, va_list args)
         sentry_value_new_double((double)usec_time / 1000000.0));
 
     SENTRY_WITH_SCOPE_MUT (scope) {
-        sentry_value_set_by_key(log, "trace_id",
-            sentry__value_clone(sentry_value_get_by_key(
-                sentry_value_get_by_key(scope->propagation_context, "trace"),
-                "trace_id")));
+        sentry_value_t trace_id = sentry_value_get_by_key(
+            sentry_value_get_by_key(scope->propagation_context, "trace"),
+            "trace_id");
+        sentry_value_incref(trace_id);
+        sentry_value_set_by_key(log, "trace_id", trace_id);
 
         sentry_value_t parent_span_id = sentry_value_new_object();
         if (scope->transaction_object) {
-            sentry_value_set_by_key(parent_span_id, "value",
-                sentry__value_clone(sentry_value_get_by_key(
-                    scope->transaction_object->inner, "span_id")));
-        }
-
-        if (scope->span) {
-            sentry_value_set_by_key(parent_span_id, "value",
-                sentry__value_clone(
-                    sentry_value_get_by_key(scope->span->inner, "span_id")));
+            sentry_value_t span_id = sentry_value_get_by_key(
+                scope->transaction_object->inner, "span_id");
+            sentry_value_incref(span_id);
+            sentry_value_set_by_key(parent_span_id, "value", span_id);
+        } else if (scope->span) {
+            // TODO: this sets the same key "value" as the above so this should
+            //       either be an else or come first and let the transaction be
+            //       the first. The way it is currently laid out looks like an
+            //       accidental overwrite that just relies on a non-local
+            //       contract.
+            sentry_value_t span_id
+                = sentry_value_get_by_key(scope->span->inner, "span_id");
+            sentry_value_incref(span_id);
+            sentry_value_set_by_key(parent_span_id, "value", span_id);
         }
         sentry_value_set_by_key(
             parent_span_id, "type", sentry_value_new_string("string"));
@@ -453,34 +463,38 @@ construct_log(sentry_level_t level, const char *message, va_list args)
         if (!sentry_value_is_null(scope->user)) {
             sentry_value_t user_id = sentry_value_get_by_key(scope->user, "id");
             if (!sentry_value_is_null(user_id)) {
+                sentry_value_incref(user_id);
                 add_attribute(attributes, user_id, "string", "user.id");
             }
             sentry_value_t user_username
                 = sentry_value_get_by_key(scope->user, "username");
             if (!sentry_value_is_null(user_username)) {
+                sentry_value_incref(user_username);
                 add_attribute(attributes, user_username, "string", "user.name");
             }
             sentry_value_t user_email
                 = sentry_value_get_by_key(scope->user, "email");
             if (!sentry_value_is_null(user_email)) {
+                sentry_value_incref(user_email);
                 add_attribute(attributes, user_email, "string", "user.email");
             }
         }
-        sentry_value_t os_context = sentry__get_os_context();
-        if (!sentry_value_is_null(os_context)) {
-            sentry_value_t os_name = sentry__value_clone(
-                sentry_value_get_by_key(os_context, "name"));
-            sentry_value_t os_version = sentry__value_clone(
-                sentry_value_get_by_key(os_context, "version"));
-            if (!sentry_value_is_null(os_name)) {
-                add_attribute(attributes, os_name, "string", "os.name");
-            }
-            if (!sentry_value_is_null(os_version)) {
-                add_attribute(attributes, os_version, "string", "os.version");
-            }
-        }
-        sentry_value_decref(os_context);
     }
+    sentry_value_t os_context = sentry__get_os_context();
+    if (!sentry_value_is_null(os_context)) {
+        sentry_value_t os_name = sentry_value_get_by_key(os_context, "name");
+        sentry_value_t os_version
+            = sentry_value_get_by_key(os_context, "version");
+        if (!sentry_value_is_null(os_name)) {
+            sentry_value_incref(os_name);
+            add_attribute(attributes, os_name, "string", "os.name");
+        }
+        if (!sentry_value_is_null(os_version)) {
+            sentry_value_incref(os_version);
+            add_attribute(attributes, os_version, "string", "os.version");
+        }
+    }
+    sentry_value_decref(os_context);
     SENTRY_WITH_OPTIONS (options) {
         if (options->environment) {
             add_attribute(attributes,
