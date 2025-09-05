@@ -600,8 +600,12 @@ sentry__logs_startup(void)
     sentry__cond_init(&g_logs_single_state.request_flush);
 
     sentry__thread_init(&g_logs_single_state.timer_threadid);
-    sentry__thread_spawn(
+    int spawn_result = sentry__thread_spawn(
         &g_logs_single_state.timer_threadid, timer_task_func, NULL);
+
+    if (spawn_result == 1) {
+        SENTRY_ERROR("Failed to start logs timer task");
+    }
 }
 
 void
