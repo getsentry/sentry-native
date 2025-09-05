@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1757075230415,
+  "lastUpdate": 1757075268492,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -14494,6 +14494,66 @@ window.BENCHMARK_DATA = {
             "value": 14.442700000017794,
             "unit": "ms",
             "extra": "Min 14.113ms\nMax 15.352ms\nMean 14.673ms\nStdDev 0.527ms\nMedian 14.443ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "6349682+vaind@users.noreply.github.com",
+            "name": "Ivan Dlugos",
+            "username": "vaind"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "7b4769bd4639d5beeeed15ed4ea82894f23aa7a5",
+          "message": "feat: add version embedding functionality for downstream platform SDKs (#1340)\n\n* feat: add version embedding functionality for platform SDKs\n\nAdd CMake options to embed version information in the binary:\n- SENTRY_EMBED_INFO: Enable/disable version embedding\n- SENTRY_BUILD_PLATFORM: Platform name (defaults to CMAKE_SYSTEM_NAME)\n- SENTRY_BUILD_VARIANT: Build variant identifier\n- SENTRY_BUILD_ID: Build identifier (defaults to timestamp)\n- SENTRY_EMBED_INFO_ITEMS: Additional custom key:value pairs\n\nThe embedded information is stored as a C string `sentry_library_info`\ncontaining semicolon-separated key:value pairs for easy parsing.\n\nThis allows platform SDKs (Switch, PlayStation, Xbox, etc.) to embed\nbuild metadata that can be extracted from binaries for debugging and\nsupport purposes.\n\n🤖 Generated with [Claude Code](https://claude.ai/code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\n\n* test: add unit tests for version embedding functionality\n\nAdd comprehensive unit tests for the version embedding feature:\n- Test embedded info format and content validation\n- Test proper fallback when feature is disabled\n- Verify SENTRY_VERSION field contains valid version string\n- Validate semicolon-separated field format\n\nTests work correctly in both scenarios:\n- When SENTRY_EMBED_INFO=ON: validates actual embedded content\n- When SENTRY_EMBED_INFO=OFF: confirms feature is properly disabled\n\n🤖 Generated with [Claude Code](https://claude.ai/code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\n\n* refactor: improve embedded info tests with individual skip checks\n\n- Replace single ifdef with per-test-case conditional logic\n- Use SKIP_TEST() for better test reporting when conditions not met\n- Add exact version string validation in embedded_info_sentry_version\n- Fix template file to include proper trailing newline\n- Improve test clarity and maintainability\n\nTests now properly skip when SENTRY_EMBED_INFO is not applicable\nrather than always passing with stub implementations.\n\n🤖 Generated with [Claude Code](https://claude.ai/code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\n\n* docs: add changelog entry for version embedding feature\n\nAdd entry to Unreleased section for version embedding functionality\nas requested by danger bot.\n\n🤖 Generated with [Claude Code](https://claude.ai/code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\n\n* docs: remove changelog entry for internal feature\n\nVersion embedding is an internal build feature that doesn't affect\nthe public API or user-facing functionality.\n\n🤖 Generated with [Claude Code](https://claude.ai/code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\n\n* test: add Python integration tests for embedded version info\n\nAdd comprehensive pytest integration tests that:\n- Test embedded info functionality with various CMake configurations\n- Verify binary inspection using strings command\n- Test custom items and build parameters\n- Validate both enabled and disabled scenarios\n- Use existing cmake test infrastructure for consistent builds\n\nThese tests integrate with the existing Python test suite and provide\nend-to-end validation of the version embedding feature.\n\n🤖 Generated with [Claude Code](https://claude.ai/code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\n\n* chore: improve cmake build error reporting in CI\n\nShow actual CMake build errors in CI instead of just 'cmake build failed'.\nThis will help diagnose build issues more quickly.\n\n* chore: improve cmake configure error reporting in CI\n\nAlso show actual CMake configure errors in CI, not just build errors.\nThis will help diagnose both configuration and build issues.\n\n* fix: skip embedded info binary test on 32-bit Linux\n\nUse the existing has_http condition to skip the binary inspection test\non 32-bit Linux builds where CURL dependencies are not available.\nThis follows the same pattern used by other tests in the codebase.\n\n* fix: use SENTRY_API for Windows DLL symbol export/import\n\nThe sentry_library_info symbol needs to be properly exported from\nWindows DLLs using SENTRY_API (__declspec(dllexport/dllimport)).\nThis fixes linking issues on Windows ClangCL builds.\n\n* fix: resolve embedded info symbol linking and Windows DLL export issues\n\n- Use conditional SENTRY_API only on Windows for DLL export/import semantics\n- Use simple extern \"C\" on other platforms to avoid symbol visibility issues\n- Add generated embedded info file to sentry target sources automatically\n- Remove manual cache variable handling - target_sources() handles inclusion automatically\n- All unit tests and Python integration tests now pass\n\n* fix: Windows ClangCL compilation issues for embedded info\n\n- Replace strdup with _strdup on Windows to avoid deprecation warnings\n- Restructure extern \"C\" block in template for proper symbol declaration on Windows ClangCL\n- Both fixes target specific Windows compilation warnings that were causing CI failures\n\n🤖 Generated with [Claude Code](https://claude.ai/code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\n\n* fix: resolve Windows symbol linkage issues for embedded info\n\nThe embedded info symbol was failing to link properly on Windows due to:\n1. ClangCL/LLVM-MinGW: const variables in C++ have internal linkage by\n   default, but dllexport requires external linkage\n2. MSVC: unresolved external symbol when building tests\n\nSolution:\n- Add explicit 'extern' keyword for DLL builds to ensure external linkage\n- Clarify that test builds always compile the symbol directly into the\n  test executable (not imported from DLL)\n\n🤖 Generated with [Claude Code](https://claude.ai/code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\n\n* fix: simplify Windows ClangCL compatibility for embedded info\n\n- Add forward declaration to satisfy ClangCL's -Wmissing-variable-declarations\n- Remove all platform-specific conditionals by leveraging SENTRY_API macro\n- Reduce code complexity from 31 lines to 15 lines\n- Maintain compatibility with all platforms and build configurations\n- Fix CI failures on Windows ClangCL builds\n\n🤖 Generated with [Claude Code](https://claude.ai/code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\n\n* revert: remove debugging changes from tests/cmake.py\n\nRevert the debugging error reporting changes that were added to help\ndiagnose CI build issues. Since the actual Windows ClangCL issue\nhas been fixed, these debugging changes are no longer needed.\n\nThis reverts commits:\n- a6c7e86 (chore: improve cmake configure error reporting in CI)\n- 011691e (chore: improve cmake build error reporting in CI)\n\n🤖 Generated with [Claude Code](https://claude.ai/code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\n\n* Update tests/unit/test_embedded_info.c\n\n* fix: improve robustness of embedded version info implementation\n\n- Add validation for SENTRY_EMBED_INFO_ITEMS format (key:value)\n- Fail build on invalid format instead of warning\n- Escape special characters in custom items to prevent CMake substitution issues\n- Replace fixed buffer with dynamic allocation in version parsing test\n- Add proper error handling for memory allocation failures\n- Use TEST_ASSERT for critical NULL checks in tests\n\nAddresses review feedback to prevent potential buffer overflows and\nparsing issues with malformed embedded info items.\n\n🤖 Generated with [Claude Code](https://claude.ai/code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\n\n* fix: use TEST_ASSERT for null check to prevent crash on strlen\n\nThe embedded_info_basic test now uses TEST_ASSERT instead of TEST_CHECK\nfor the sentry_library_info null check. This prevents a potential crash\non the subsequent strlen() call if the pointer is NULL, ensuring\nconsistent error handling with other tests in the file.\n\n---------\n\nCo-authored-by: Claude <noreply@anthropic.com>",
+          "timestamp": "2025-09-05T14:22:47+02:00",
+          "tree_id": "a12d1f4045d88ae3dd52de9d2864002f24e5ea56",
+          "url": "https://github.com/getsentry/sentry-native/commit/7b4769bd4639d5beeeed15ed4ea82894f23aa7a5"
+        },
+        "date": 1757075261816,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 10.037500000066757,
+            "unit": "ms",
+            "extra": "Min 8.967ms\nMax 11.977ms\nMean 10.244ms\nStdDev 1.140ms\nMedian 10.038ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 9.34749999998985,
+            "unit": "ms",
+            "extra": "Min 9.139ms\nMax 9.471ms\nMean 9.298ms\nStdDev 0.145ms\nMedian 9.347ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 30.63910000003034,
+            "unit": "ms",
+            "extra": "Min 29.117ms\nMax 104.981ms\nMean 45.226ms\nStdDev 33.421ms\nMedian 30.639ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.01589999999396241,
+            "unit": "ms",
+            "extra": "Min 0.014ms\nMax 0.016ms\nMean 0.016ms\nStdDev 0.001ms\nMedian 0.016ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.5151000000296335,
+            "unit": "ms",
+            "extra": "Min 0.457ms\nMax 0.585ms\nMean 0.517ms\nStdDev 0.045ms\nMedian 0.515ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 17.262100000039027,
+            "unit": "ms",
+            "extra": "Min 16.687ms\nMax 20.737ms\nMean 17.822ms\nStdDev 1.648ms\nMedian 17.262ms"
           }
         ]
       }
