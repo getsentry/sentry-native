@@ -519,6 +519,7 @@ sentry__logs_log(sentry_level_t level, const char *message, va_list args)
         if (options->enable_logs)
             enable_logs = true;
     }
+    int discarded = false;
     if (enable_logs) {
         // create log from message
         sentry_value_t log = construct_log(level, message, args);
@@ -529,8 +530,12 @@ sentry__logs_log(sentry_level_t level, const char *message, va_list args)
                 if (sentry_value_is_null(log)) {
                     SENTRY_DEBUG(
                         "log was discarded by the `before_send_log` hook");
+                    discarded = true;
                 }
             }
+        }
+        if (discarded) {
+            return;
         }
         if (!enqueue_log_single(log)) {
             sentry_value_decref(log);
