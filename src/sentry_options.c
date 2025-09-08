@@ -154,6 +154,14 @@ sentry_options_set_before_transaction(
 }
 
 void
+sentry_options_set_before_send_log(sentry_options_t *opts,
+    sentry_before_send_log_function_t func, void *user_data)
+{
+    opts->before_send_log_func = func;
+    opts->before_send_log_data = user_data;
+}
+
+void
 sentry_options_set_dsn_n(
     sentry_options_t *opts, const char *raw_dsn, size_t raw_dsn_len)
 {
