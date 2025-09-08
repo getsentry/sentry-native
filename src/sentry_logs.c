@@ -87,7 +87,10 @@ enqueue_log_single(sentry_value_t log)
     uint64_t before = sentry__usec_time();
 
     if (sentry__atomic_fetch(&g_logs_single_state.flushing) == 1) {
-        goto fail;
+        SENTRY_WARN("Unable to enqueue log: flush in progress");
+        SENTRY_DEBUGF("Time to failed enqueue log is %llu us",
+            sentry__usec_time() - before);
+        return false;
     }
 
     sentry__atomic_fetch_and_add(&g_logs_single_state.queue.adding, 1);
@@ -95,34 +98,34 @@ enqueue_log_single(sentry_value_t log)
     long log_idx
         = sentry__atomic_fetch_and_add(&g_logs_single_state.queue.index, 1);
 
-    if (log_idx < QUEUE_LENGTH) {
-        // Successfully got a slot, write the log
-        g_logs_single_state.queue.logs[log_idx] = log;
+    if (log_idx >= QUEUE_LENGTH) {
+        // Buffer is already full, roll back our increments
+        SENTRY_WARN("Unable to enqueue log: buffer full");
         sentry__atomic_fetch_and_add(&g_logs_single_state.queue.adding, -1);
-
-        // Check if this buffer is now full and trigger flush
-        if (log_idx == QUEUE_LENGTH - 1) {
-            sentry__cond_wake(&g_logs_single_state.request_flush);
-        }
-
-        SENTRY_DEBUGF("Time to successful enqueue log is %llu us\n",
+        sentry__atomic_fetch_and_add(&g_logs_single_state.queue.index, -1);
+        SENTRY_DEBUGF("Time to failed enqueue log is %llu us",
             sentry__usec_time() - before);
-        return true;
+        // TODO think about how to report this (e.g. client reports)
+        // SENTRY_WARNF(
+        //     "Unable to enqueue log at time %f - all buffers full. Log body:
+        //     %s", sentry_value_as_double(sentry_value_get_by_key(log,
+        //     "timestamp")),
+        //     sentry_value_as_string(sentry_value_get_by_key(log, "body")));
+        return false;
     }
-    // Buffer is already full, roll back our increments
-    SENTRY_DEBUG("log_idx > QUEUE_LENGTH");
+
+    // Successfully got a slot, write the log
+    g_logs_single_state.queue.logs[log_idx] = log;
     sentry__atomic_fetch_and_add(&g_logs_single_state.queue.adding, -1);
-    sentry__atomic_fetch_and_add(&g_logs_single_state.queue.index, -1);
-fail:
-    SENTRY_DEBUGF("Time to failed enqueue log is %llu us\n",
+
+    // Check if this buffer is now full and trigger flush
+    if (log_idx == QUEUE_LENGTH - 1) {
+        sentry__cond_wake(&g_logs_single_state.request_flush);
+    }
+
+    SENTRY_DEBUGF("Time to successful enqueue log is %llu us\n",
         sentry__usec_time() - before);
-    // TODO think about how to report this (e.g. client reports)
-    SENTRY_WARN("Unable to enqueue log");
-    // SENTRY_WARNF(
-    //     "Unable to enqueue log at time %f - all buffers full. Log body: %s",
-    //     sentry_value_as_double(sentry_value_get_by_key(log, "timestamp")),
-    //     sentry_value_as_string(sentry_value_get_by_key(log, "body")));
-    return false;
+    return true;
 }
 
 SENTRY_THREAD_FN
@@ -379,6 +382,10 @@ populate_message_parameters(
     return param_index;
 }
 
+/**
+ * This function assumes that `value` is owned, so we have to make sure that the
+ * `value` was created or cloned by the caller or even better inc_refed.
+ */
 static void
 add_attribute(sentry_value_t attributes, sentry_value_t value, const char *type,
     const char *name)
@@ -423,22 +430,28 @@ construct_log(sentry_level_t level, const char *message, va_list args)
         sentry_value_new_double((double)usec_time / 1000000.0));
 
     SENTRY_WITH_SCOPE_MUT (scope) {
-        sentry_value_set_by_key(log, "trace_id",
-            sentry__value_clone(sentry_value_get_by_key(
-                sentry_value_get_by_key(scope->propagation_context, "trace"),
-                "trace_id")));
+        sentry_value_t trace_id = sentry_value_get_by_key(
+            sentry_value_get_by_key(scope->propagation_context, "trace"),
+            "trace_id");
+        sentry_value_incref(trace_id);
+        sentry_value_set_by_key(log, "trace_id", trace_id);
 
         sentry_value_t parent_span_id = sentry_value_new_object();
         if (scope->transaction_object) {
-            sentry_value_set_by_key(parent_span_id, "value",
-                sentry__value_clone(sentry_value_get_by_key(
-                    scope->transaction_object->inner, "span_id")));
-        }
-
-        if (scope->span) {
-            sentry_value_set_by_key(parent_span_id, "value",
-                sentry__value_clone(
-                    sentry_value_get_by_key(scope->span->inner, "span_id")));
+            sentry_value_t span_id = sentry_value_get_by_key(
+                scope->transaction_object->inner, "span_id");
+            sentry_value_incref(span_id);
+            sentry_value_set_by_key(parent_span_id, "value", span_id);
+        } else if (scope->span) {
+            // TODO: this sets the same key "value" as the above so this should
+            //       either be an else or come first and let the transaction be
+            //       the first. The way it is currently laid out looks like an
+            //       accidental overwrite that just relies on a non-local
+            //       contract.
+            sentry_value_t span_id
+                = sentry_value_get_by_key(scope->span->inner, "span_id");
+            sentry_value_incref(span_id);
+            sentry_value_set_by_key(parent_span_id, "value", span_id);
         }
         sentry_value_set_by_key(
             parent_span_id, "type", sentry_value_new_string("string"));
@@ -452,34 +465,38 @@ construct_log(sentry_level_t level, const char *message, va_list args)
         if (!sentry_value_is_null(scope->user)) {
             sentry_value_t user_id = sentry_value_get_by_key(scope->user, "id");
             if (!sentry_value_is_null(user_id)) {
+                sentry_value_incref(user_id);
                 add_attribute(attributes, user_id, "string", "user.id");
             }
             sentry_value_t user_username
                 = sentry_value_get_by_key(scope->user, "username");
             if (!sentry_value_is_null(user_username)) {
+                sentry_value_incref(user_username);
                 add_attribute(attributes, user_username, "string", "user.name");
             }
             sentry_value_t user_email
                 = sentry_value_get_by_key(scope->user, "email");
             if (!sentry_value_is_null(user_email)) {
+                sentry_value_incref(user_email);
                 add_attribute(attributes, user_email, "string", "user.email");
             }
         }
-        sentry_value_t os_context = sentry__get_os_context();
-        if (!sentry_value_is_null(os_context)) {
-            sentry_value_t os_name = sentry__value_clone(
-                sentry_value_get_by_key(os_context, "name"));
-            sentry_value_t os_version = sentry__value_clone(
-                sentry_value_get_by_key(os_context, "version"));
-            if (!sentry_value_is_null(os_name)) {
-                add_attribute(attributes, os_name, "string", "os.name");
-            }
-            if (!sentry_value_is_null(os_version)) {
-                add_attribute(attributes, os_version, "string", "os.version");
-            }
-        }
-        sentry_value_decref(os_context);
     }
+    sentry_value_t os_context = sentry__get_os_context();
+    if (!sentry_value_is_null(os_context)) {
+        sentry_value_t os_name = sentry_value_get_by_key(os_context, "name");
+        sentry_value_t os_version
+            = sentry_value_get_by_key(os_context, "version");
+        if (!sentry_value_is_null(os_name)) {
+            sentry_value_incref(os_name);
+            add_attribute(attributes, os_name, "string", "os.name");
+        }
+        if (!sentry_value_is_null(os_version)) {
+            sentry_value_incref(os_version);
+            add_attribute(attributes, os_version, "string", "os.version");
+        }
+    }
+    sentry_value_decref(os_context);
     SENTRY_WITH_OPTIONS (options) {
         if (options->environment) {
             add_attribute(attributes,
@@ -603,8 +620,12 @@ sentry__logs_startup(void)
     sentry__cond_init(&g_logs_single_state.request_flush);
 
     sentry__thread_init(&g_logs_single_state.timer_threadid);
-    sentry__thread_spawn(
+    int spawn_result = sentry__thread_spawn(
         &g_logs_single_state.timer_threadid, timer_task_func, NULL);
+
+    if (spawn_result == 1) {
+        SENTRY_ERROR("Failed to start logs timer task");
+    }
 }
 
 void
