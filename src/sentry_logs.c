@@ -527,8 +527,8 @@ construct_log(sentry_level_t level, const char *message, va_list args)
     return log;
 }
 
-// TODO change to int return
-void
+// TODO int or enum for result?
+int
 sentry__logs_log(sentry_level_t level, const char *message, va_list args)
 {
     bool enable_logs = false;
@@ -536,7 +536,6 @@ sentry__logs_log(sentry_level_t level, const char *message, va_list args)
         if (options->enable_logs)
             enable_logs = true;
     }
-    int discarded = false;
     if (enable_logs) {
         // create log from message
         sentry_value_t log = construct_log(level, message, args);
@@ -544,74 +543,79 @@ sentry__logs_log(sentry_level_t level, const char *message, va_list args)
             if (options->before_send_log_func) {
                 log = options->before_send_log_func(
                     log, options->before_send_log_data);
-                if (sentry_value_is_null(log)) {
-                    SENTRY_DEBUG(
-                        "log was discarded by the `before_send_log` hook");
-                    discarded = true;
-                }
             }
         }
-        if (discarded) {
-            return;
+        if (sentry_value_is_null(log)) {
+            SENTRY_DEBUG("log was discarded by the `before_send_log` hook");
+            return -1;
         }
+
         if (!enqueue_log_single(log)) {
             sentry_value_decref(log);
+            return 1; // failed to enqueue
         }
     }
+    return 0;
 }
 
-void
+int
 sentry_log_trace(const char *message, ...)
 {
     va_list args;
     va_start(args, message);
-    sentry__logs_log(SENTRY_LEVEL_TRACE, message, args);
+    const int result = sentry__logs_log(SENTRY_LEVEL_TRACE, message, args);
     va_end(args);
+    return result;
 }
 
-void
+int
 sentry_log_debug(const char *message, ...)
 {
     va_list args;
     va_start(args, message);
-    sentry__logs_log(SENTRY_LEVEL_DEBUG, message, args);
+    const int result = sentry__logs_log(SENTRY_LEVEL_DEBUG, message, args);
     va_end(args);
+    return result;
 }
 
-void
+int
 sentry_log_info(const char *message, ...)
 {
     va_list args;
     va_start(args, message);
-    sentry__logs_log(SENTRY_LEVEL_INFO, message, args);
+    const int result = sentry__logs_log(SENTRY_LEVEL_INFO, message, args);
     va_end(args);
+    return result;
 }
 
-void
+int
 sentry_log_warn(const char *message, ...)
 {
     va_list args;
     va_start(args, message);
-    sentry__logs_log(SENTRY_LEVEL_WARNING, message, args);
+    const int result = sentry__logs_log(SENTRY_LEVEL_WARNING, message, args);
     va_end(args);
+    return result;
 }
 
-void
+int
 sentry_log_error(const char *message, ...)
 {
     va_list args;
     va_start(args, message);
-    sentry__logs_log(SENTRY_LEVEL_ERROR, message, args);
+    const int result = sentry__logs_log(SENTRY_LEVEL_ERROR, message, args);
     va_end(args);
+    return result;
 }
 
-void
+int
 sentry_log_fatal(const char *message, ...)
 {
     va_list args;
     va_start(args, message);
-    sentry__logs_log(SENTRY_LEVEL_FATAL, message, args);
+    const int result = sentry__logs_log(SENTRY_LEVEL_FATAL, message, args);
     va_end(args);
+    return result;
 }
 
 void
