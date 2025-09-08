@@ -510,6 +510,7 @@ construct_log(sentry_level_t level, const char *message, va_list args)
     return log;
 }
 
+// TODO change to int return
 void
 sentry__logs_log(sentry_level_t level, const char *message, va_list args)
 {
@@ -528,7 +529,6 @@ sentry__logs_log(sentry_level_t level, const char *message, va_list args)
                 if (sentry_value_is_null(log)) {
                     SENTRY_DEBUG(
                         "log was discarded by the `before_send_log` hook");
-                    return;
                 }
             }
         }
