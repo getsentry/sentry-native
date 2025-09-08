@@ -21,64 +21,105 @@
 
 typedef struct {
     sentry_value_t logs[QUEUE_LENGTH];
-    long index;
-    long adding;
-} log_single_buffer_t;
+    long index; // next free slot
+    long adding; // counts the in-flight writers on this buffer
+    long sealed; // 0=writeable, 1=sealed (meaning we drop)
+} log_buffer_t;
 
 // TODO look at mutex init for inspiration on how to dynamically init
 //  logs as sentry_value_t list using sentry_value_new_list_with_size(...)
 //  (at runtime since function call is not compile-time available)
 static struct {
-    log_single_buffer_t queue;
+    log_buffer_t buffers[2];
+    long active;
     long timer_stop;
     long flushing;
+    long switch_gen;
     sentry_cond_t request_flush;
     sentry_threadid_t timer_threadid;
-} g_logs_single_state = { { .index = 0 }, .flushing = 0 };
+} g_logs_single_state = {
+    {
+        {
+            .index = 0,
+            .adding = 0,
+            .sealed = 0,
+        },
+        {
+            .index = 0,
+            .adding = 0,
+            .sealed = 0,
+        },
+    },
+    .active = 0,
+    .flushing = 0,
+    .switch_gen = 0,
+};
 
 static void
 flush_logs_single_queue(void)
 {
-    long already_flushing
-        = sentry__atomic_fetch_and_add(&g_logs_single_state.flushing, 1);
-    if (already_flushing) {
-        sentry__atomic_fetch_and_add(&g_logs_single_state.flushing, -1);
-        return;
-    }
-    // nothing to flush
-    if (!sentry__atomic_fetch(&g_logs_single_state.queue.index)) {
-        sentry__atomic_store(&g_logs_single_state.flushing, 0);
-        return;
-    }
     uint64_t before_flush = sentry__usec_time();
+    long already_flushing
+        = sentry__atomic_store(&g_logs_single_state.flushing, 1);
+    if (already_flushing) {
+        return;
+    }
 
-    // Wait for all adding operations to complete using condition variable
-    while (sentry__atomic_fetch(&g_logs_single_state.queue.adding) > 0) {
+    // prep both buffers
+    long old_idx = sentry__atomic_fetch(&g_logs_single_state.active);
+    long new_idx = 1 - old_idx;
+    log_buffer_t *old_buf = &g_logs_single_state.buffers[old_idx];
+    log_buffer_t *new_buf = &g_logs_single_state.buffers[new_idx];
+
+    // prep the new buffer
+    sentry__atomic_store(&new_buf->index, 0);
+    sentry__atomic_store(&new_buf->adding, 0);
+    sentry__atomic_store(&new_buf->sealed, 0);
+
+    // and make it active (after this we're good to go producer side)
+    sentry__atomic_store(&g_logs_single_state.active, new_idx);
+    sentry__atomic_fetch_and_add(&g_logs_single_state.switch_gen, 1);
+    SENTRY_DEBUGF("Time to switch buffer is %llu us\n",
+        sentry__usec_time() - before_flush);
+    // seal old
+    sentry__atomic_store(&old_buf->sealed, 1);
+
+    // Wait for all adding in-flight producers of the old
+    while (sentry__atomic_fetch(&old_buf->adding) > 0) {
         // TODO currently only on unix
 #ifdef SENTRY_PLATFORM_UNIX
         sentry__cpu_relax();
 #endif
     }
 
-    sentry_value_t logs = sentry_value_new_object();
-    sentry_value_t log_items = sentry_value_new_list();
-    int i;
-    const long queue_len
-        = sentry__atomic_store(&g_logs_single_state.queue.index, 0);
-    for (i = 0; i < queue_len; i++) {
-        sentry_value_append(log_items, g_logs_single_state.queue.logs[i]);
+    long n = sentry__atomic_store(&old_buf->index, 0);
+    if (n > QUEUE_LENGTH) {
+        n = QUEUE_LENGTH;
     }
-    sentry_value_set_by_key(logs, "items", log_items);
-    // sending of the envelope
-    sentry_envelope_t *envelope = sentry__envelope_new();
-    sentry__envelope_add_logs(envelope, logs);
-    SENTRY_WITH_OPTIONS (options) {
-        sentry__capture_envelope(options->transport, envelope);
+
+    if (n > 0) {
+        // now we can do the actual batching of the old buffer
+        before_flush = sentry__usec_time();
+
+        sentry_value_t logs = sentry_value_new_object();
+        sentry_value_t log_items = sentry_value_new_list();
+        int i;
+        for (i = 0; i < n; i++) {
+            sentry_value_append(log_items, old_buf->logs[i]);
+        }
+        sentry_value_set_by_key(logs, "items", log_items);
+        // sending of the envelope
+        sentry_envelope_t *envelope = sentry__envelope_new();
+        sentry__envelope_add_logs(envelope, logs);
+        SENTRY_WITH_OPTIONS (options) {
+            sentry__capture_envelope(options->transport, envelope);
+        }
+        sentry_value_decref(logs);
+        SENTRY_DEBUGF("Time to flush %i items is %llu us\n", i,
+            sentry__usec_time() - before_flush);
     }
-    sentry_value_decref(logs);
-    sentry__atomic_fetch_and_add(&g_logs_single_state.flushing, -1);
-    SENTRY_DEBUGF("Time to flush %i items is %llu us\n", i,
-        sentry__usec_time() - before_flush);
+
+    sentry__atomic_store(&g_logs_single_state.flushing, 0);
 }
 
 static bool
@@ -86,25 +127,43 @@ enqueue_log_single(sentry_value_t log)
 {
     uint64_t before = sentry__usec_time();
 
-    if (sentry__atomic_fetch(&g_logs_single_state.flushing) == 1) {
-        SENTRY_WARN("Unable to enqueue log: flush in progress");
-        SENTRY_DEBUGF("Time to failed enqueue log is %llu us",
-            sentry__usec_time() - before);
+    long buf_idx = sentry__atomic_fetch(&g_logs_single_state.active);
+    long switch_gen = sentry__atomic_fetch(&g_logs_single_state.switch_gen);
+    log_buffer_t *active = &g_logs_single_state.buffers[buf_idx];
+
+    // TODO: could just be the return value instead of the explicit negative
+    if (sentry__atomic_fetch(&active->sealed) != 0) {
+        SENTRY_DEBUGF("Time to failed enqueue log is %llu us (active buffer sealed, %d, %d)",
+            sentry__usec_time() - before, buf_idx, switch_gen);
         return false;
     }
 
-    sentry__atomic_fetch_and_add(&g_logs_single_state.queue.adding, 1);
+    sentry__atomic_fetch_and_add(&active->adding, 1);
+    // TODO: why do we check again for active and sealed and what guarantee does
+    // it give us? is this because adding acts as a boundary?
+    long buf_idx_new = sentry__atomic_fetch(&g_logs_single_state.active);
+    long sealed = sentry__atomic_fetch(&active->sealed);
+    if (buf_idx != buf_idx_new) {
+        sentry__atomic_fetch_and_add(&g_logs_single_state.active, -1);
+        SENTRY_DEBUGF("Time to failed enqueue log is %llu us (buf_idx changed after adding, %d, %d)",
+            sentry__usec_time() - before, buf_idx, switch_gen);
+        return false;
+    }
+    if (sealed != 0) {
+        sentry__atomic_fetch_and_add(&g_logs_single_state.active, -1);
+        SENTRY_DEBUGF("Time to failed enqueue log is %llu us (sealed after adding, %d, %d)",
+            sentry__usec_time() - before, buf_idx, switch_gen);
+        return false;
+    }
+
     // Try to get a slot in the current buffer
-    long log_idx
-        = sentry__atomic_fetch_and_add(&g_logs_single_state.queue.index, 1);
+    long log_idx = sentry__atomic_fetch_and_add(&active->index, 1);
 
     if (log_idx >= QUEUE_LENGTH) {
         // Buffer is already full, roll back our increments
-        SENTRY_WARN("Unable to enqueue log: buffer full");
-        sentry__atomic_fetch_and_add(&g_logs_single_state.queue.adding, -1);
-        sentry__atomic_fetch_and_add(&g_logs_single_state.queue.index, -1);
-        SENTRY_DEBUGF("Time to failed enqueue log is %llu us",
-            sentry__usec_time() - before);
+        sentry__atomic_fetch_and_add(&active->adding, -1);
+        SENTRY_DEBUGF("Time to failed enqueue log is %llu us (buffer full, %d, %d)",
+            sentry__usec_time() - before, sentry__atomic_fetch(&g_logs_single_state.active), sentry__atomic_fetch(&g_logs_single_state.switch_gen));
         // TODO think about how to report this (e.g. client reports)
         // SENTRY_WARNF(
         //     "Unable to enqueue log at time %f - all buffers full. Log body:
@@ -115,16 +174,16 @@ enqueue_log_single(sentry_value_t log)
     }
 
     // Successfully got a slot, write the log
-    g_logs_single_state.queue.logs[log_idx] = log;
-    sentry__atomic_fetch_and_add(&g_logs_single_state.queue.adding, -1);
+    active->logs[log_idx] = log;
+    sentry__atomic_fetch_and_add(&active->adding, -1);
 
     // Check if this buffer is now full and trigger flush
     if (log_idx == QUEUE_LENGTH - 1) {
         sentry__cond_wake(&g_logs_single_state.request_flush);
     }
 
-    SENTRY_DEBUGF("Time to successful enqueue log is %llu us\n",
-        sentry__usec_time() - before);
+    SENTRY_DEBUGF("Time to successful enqueue log is %llu us (%d, %d)",
+        sentry__usec_time() - before, buf_idx, switch_gen);
     return true;
 }
 
@@ -156,7 +215,7 @@ timer_task_func(void *data)
                 break;
             }
 #endif
-            SENTRY_DEBUG("Logs flushed by condition variable");
+            SENTRY_DEBUG("Logs flushed by filled buffer");
             break;
 #ifdef SENTRY_PLATFORM_UNIX
         case ETIMEDOUT:
@@ -165,7 +224,7 @@ timer_task_func(void *data)
 #endif
 #ifdef SENTRY_PLATFORM_WINDOWS
         case 1:
-            SENTRY_DEBUG("Logs flushed by condition variable");
+            SENTRY_DEBUG("Logs flushed by filled buffer");
             break;
 #endif
         default:
