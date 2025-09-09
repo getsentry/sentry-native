@@ -74,6 +74,12 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
     void *UNUSED(context), bool succeeded)
 #endif
 {
+    SENTRY_WITH_OPTIONS (options) {
+        if (options->before_crash_func) {
+            options->before_crash_func(options->before_crash_data);
+        }
+    }
+
     SENTRY_INFO("entering breakpad minidump callback");
 
     // this is a bit strange, according to docs, `succeeded` should be true when
