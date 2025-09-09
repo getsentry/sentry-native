@@ -451,7 +451,9 @@ main(int argc, char **argv)
         sentry_options_set_enable_logs(options, true);
     }
 
-    sentry_init(options);
+    if (0 != sentry_init(options)) {
+        return EXIT_FAILURE;
+    }
 
     if (has_arg(argc, argv, "attachment")) {
         sentry_attachment_t *bytes
@@ -761,4 +763,6 @@ main(int argc, char **argv)
     if (has_arg(argc, argv, "crash-after-shutdown")) {
         trigger_crash();
     }
+
+    return EXIT_SUCCESS;
 }
