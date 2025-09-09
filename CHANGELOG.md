@@ -5,6 +5,7 @@
 **Internal:**
 
 - Support downstream Xbox SDK specifying networking initialization mechanism ([#1359](https://github.com/getsentry/sentry-native/pull/1359))
+- Add before crash hook to allow modifying other callbacks before crash handling ([#1366](https://github.com/getsentry/sentry-native/pull/1366))
 
 ## 0.10.1
 
