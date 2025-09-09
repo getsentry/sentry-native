@@ -33,7 +33,7 @@ static struct {
     log_buffer_t buffers[2]; // double buffer
     long active_idx; // (atomic) index to the active buffer
     long flushing; // (atomic) reentrancy guard to the flusher
-    long batching_thread_stop; // (atomic) run variable of the batching thread
+    long batching_stop; // (atomic) run variable of the batching thread
     sentry_cond_t request_flush; // condition variable to schedule a flush
     sentry_threadid_t batching_thread; // the batching thread
 } g_logs_single_state = {
@@ -220,13 +220,13 @@ batching_thread_func(void *data)
     sentry__mutex_lock(&task_lock);
 
     // check if thread got a shut-down signal
-    while (sentry__atomic_fetch(&g_logs_single_state.batching_thread_stop) == 0) {
+    while (sentry__atomic_fetch(&g_logs_single_state.batching_stop) == 0) {
         // Sleep for 5 seconds or until request_flush hits
         const int triggered_by = sentry__cond_wait_timeout(
             &g_logs_single_state.request_flush, &task_lock, 5000);
 
         // make sure loop invariant still holds
-        if (sentry__atomic_fetch(&g_logs_single_state.batching_thread_stop) != 0) {
+        if (sentry__atomic_fetch(&g_logs_single_state.batching_stop) != 0) {
             break;
         }
 
@@ -717,7 +717,7 @@ sentry__logs_shutdown(uint64_t timeout)
     SENTRY_DEBUG("shutting down logs system");
 
     // Signal the batching thread to stop running
-    if (sentry__atomic_store(&g_logs_single_state.batching_thread_stop, 1) != 0) {
+    if (sentry__atomic_store(&g_logs_single_state.batching_stop, 1) != 0) {
         SENTRY_DEBUG("preventing double shutdown of logs system");
         return;
     }
