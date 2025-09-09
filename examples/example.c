@@ -481,7 +481,9 @@ main(int argc, char **argv)
                 threads[t]
                     = CreateThread(NULL, 0, log_thread_func, NULL, 0, NULL);
             }
-            sleep_s(3);
+
+            WaitForMultipleObjects(NUM_THREADS, threads, TRUE, INFINITE);
+
             for (int t = 0; t < NUM_THREADS; t++) {
                 CloseHandle(threads[t]);
             }
@@ -490,7 +492,6 @@ main(int argc, char **argv)
             for (int t = 0; t < NUM_THREADS; t++) {
                 pthread_create(&threads[t], NULL, log_thread_func, NULL);
             }
-            sleep_s(3);
             for (int t = 0; t < NUM_THREADS; t++) {
                 pthread_join(threads[t], NULL);
             }
