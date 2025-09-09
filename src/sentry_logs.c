@@ -21,8 +21,8 @@
 
 typedef struct {
     sentry_value_t logs[QUEUE_LENGTH];
-    long index; // (atomic) next free slot
-    long adding; // (atomic) counts the in-flight writers on this buffer
+    long index; // (atomic) index for producer threads to get a unique slot
+    long adding; // (atomic) count of in-flight writers on this buffer
     long sealed; // (atomic) 0=writeable, 1=sealed (meaning we drop)
 } log_buffer_t;
 
