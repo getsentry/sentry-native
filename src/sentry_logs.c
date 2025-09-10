@@ -26,9 +26,6 @@ typedef struct {
     long sealed; // (atomic) 0=writeable, 1=sealed (meaning we drop)
 } log_buffer_t;
 
-// TODO look at mutex init for inspiration on how to dynamically init
-//  logs as sentry_value_t list using sentry_value_new_list_with_size(...)
-//  (at runtime since function call is not compile-time available)
 static struct {
     log_buffer_t buffers[2]; // double buffer
     long active_idx; // (atomic) index to the active buffer
@@ -36,7 +33,7 @@ static struct {
     long batching_stop; // (atomic) run variable of the batching thread
     sentry_cond_t request_flush; // condition variable to schedule a flush
     sentry_threadid_t batching_thread; // the batching thread
-} g_logs_single_state = {
+} g_logs_state = {
     {
         {
             .index = 0,
@@ -54,19 +51,19 @@ static struct {
 };
 
 static void
-flush_logs_single_queue(void)
+flush_logs_queue(void)
 {
     const long already_flushing
-        = sentry__atomic_store(&g_logs_single_state.flushing, 1);
+        = sentry__atomic_store(&g_logs_state.flushing, 1);
     if (already_flushing) {
         return;
     }
 
     // prep both buffers
-    long old_buf_idx = sentry__atomic_fetch(&g_logs_single_state.active_idx);
+    long old_buf_idx = sentry__atomic_fetch(&g_logs_state.active_idx);
     long new_buf_idx = 1 - old_buf_idx;
-    log_buffer_t *old_buf = &g_logs_single_state.buffers[old_buf_idx];
-    log_buffer_t *new_buf = &g_logs_single_state.buffers[new_buf_idx];
+    log_buffer_t *old_buf = &g_logs_state.buffers[old_buf_idx];
+    log_buffer_t *new_buf = &g_logs_state.buffers[new_buf_idx];
 
     // reset new buffer...
     sentry__atomic_store(&new_buf->index, 0);
@@ -74,7 +71,7 @@ flush_logs_single_queue(void)
     sentry__atomic_store(&new_buf->sealed, 0);
 
     // ...and make it active (after this we're good to go producer side)
-    sentry__atomic_store(&g_logs_single_state.active_idx, new_buf_idx);
+    sentry__atomic_store(&g_logs_state.active_idx, new_buf_idx);
 
     // seal old buffer
     sentry__atomic_store(&old_buf->sealed, 1);
@@ -94,7 +91,6 @@ flush_logs_single_queue(void)
 
     if (n > 0) {
         // now we can do the actual batching of the old buffer
-        const uint64_t before_flush = sentry__usec_time();
 
         sentry_value_t logs = sentry_value_new_object();
         sentry_value_t log_items = sentry_value_new_list();
@@ -110,32 +106,23 @@ flush_logs_single_queue(void)
             sentry__capture_envelope(options->transport, envelope);
         }
         sentry_value_decref(logs);
-        SENTRY_DEBUGF("Time to flush %i items is %llu us\n", i,
-            sentry__usec_time() - before_flush);
     }
 
-    sentry__atomic_store(&g_logs_single_state.flushing, 0);
+    sentry__atomic_store(&g_logs_state.flushing, 0);
 }
 
 #define ENQUEUE_MAX_RETRIES 2
 
 static bool
-enqueue_log_single(sentry_value_t log)
+enqueue_log(sentry_value_t log)
 {
-    const uint64_t before = sentry__usec_time();
-
     for (int attempt = 0; attempt <= ENQUEUE_MAX_RETRIES; attempt++) {
         // retrieve the active buffer
-        const long active_idx
-            = sentry__atomic_fetch(&g_logs_single_state.active_idx);
-        log_buffer_t *active = &g_logs_single_state.buffers[active_idx];
+        const long active_idx = sentry__atomic_fetch(&g_logs_state.active_idx);
+        log_buffer_t *active = &g_logs_state.buffers[active_idx];
 
         // if the buffer is already sealed we retry or drop and exit early.
         if (sentry__atomic_fetch(&active->sealed) != 0) {
-            SENTRY_DEBUGF(
-                "Time to failed enqueue log is %llu us (active buffer sealed)",
-                sentry__usec_time() - before);
-
             if (attempt == ENQUEUE_MAX_RETRIES) {
                 return false;
             }
@@ -148,13 +135,10 @@ enqueue_log_single(sentry_value_t log)
         // true we have to unblock the flusher and retry or drop the log.
         sentry__atomic_fetch_and_add(&active->adding, 1);
         const long active_idx_check
-            = sentry__atomic_fetch(&g_logs_single_state.active_idx);
+            = sentry__atomic_fetch(&g_logs_state.active_idx);
         const long sealed_check = sentry__atomic_fetch(&active->sealed);
         if (active_idx != active_idx_check) {
             sentry__atomic_fetch_and_add(&active->adding, -1);
-            SENTRY_DEBUGF("Time to failed enqueue log is %llu us (active "
-                          "buffer changed after adding)",
-                sentry__usec_time() - before);
             if (attempt == ENQUEUE_MAX_RETRIES) {
                 return false;
             }
@@ -162,9 +146,6 @@ enqueue_log_single(sentry_value_t log)
         }
         if (sealed_check) {
             sentry__atomic_fetch_and_add(&active->adding, -1);
-            SENTRY_DEBUGF("Time to failed enqueue log is %llu us (buffer "
-                          "sealed after adding)",
-                sentry__usec_time() - before);
             if (attempt == ENQUEUE_MAX_RETRIES) {
                 return false;
             }
@@ -183,27 +164,15 @@ enqueue_log_single(sentry_value_t log)
             // introduce additional watermarks here to trigger the flush earlier
             // under high contention.
             if (log_idx == QUEUE_LENGTH - 1) {
-                sentry__cond_wake(&g_logs_single_state.request_flush);
+                sentry__cond_wake(&g_logs_state.request_flush);
             }
-            SENTRY_DEBUGF("Time to successful enqueue log is %llu us",
-                sentry__usec_time() - before);
             return true;
         }
 
         // Buffer is already full, roll back our increments and retry or drop.
         sentry__atomic_fetch_and_add(&active->adding, -1);
         if (attempt == ENQUEUE_MAX_RETRIES) {
-            SENTRY_DEBUGF("Time to failed enqueue log is %llu us (got slot "
-                          "when buffer full)",
-                sentry__usec_time() - before);
-            // TODO think about how to report this (e.g. client reports)
-            // SENTRY_WARNF(
-            //     "Unable to enqueue log at time %f - all buffers full. Log
-            //     body: %s",
-            //     sentry_value_as_double(sentry_value_get_by_key(log,
-            //     "timestamp")),
-            //     sentry_value_as_string(sentry_value_get_by_key(log,
-            //     "body")));
+            // TODO report this (e.g. client reports)
             return false;
         }
     }
@@ -220,13 +189,13 @@ batching_thread_func(void *data)
     sentry__mutex_lock(&task_lock);
 
     // check if thread got a shut-down signal
-    while (sentry__atomic_fetch(&g_logs_single_state.batching_stop) == 0) {
+    while (sentry__atomic_fetch(&g_logs_state.batching_stop) == 0) {
         // Sleep for 5 seconds or until request_flush hits
         const int triggered_by = sentry__cond_wait_timeout(
-            &g_logs_single_state.request_flush, &task_lock, 5000);
+            &g_logs_state.request_flush, &task_lock, 5000);
 
         // make sure loop invariant still holds
-        if (sentry__atomic_fetch(&g_logs_single_state.batching_stop) != 0) {
+        if (sentry__atomic_fetch(&g_logs_state.batching_stop) != 0) {
             break;
         }
 
@@ -256,7 +225,7 @@ batching_thread_func(void *data)
         }
 
         // Try to flush logs
-        flush_logs_single_queue();
+        flush_logs_queue();
     }
 
     sentry__mutex_unlock(&task_lock);
@@ -649,7 +618,7 @@ sentry__logs_log(sentry_level_t level, const char *message, va_list args)
         if (discarded) {
             return SENTRY_LOG_RETURN_DISCARD;
         }
-        if (!enqueue_log_single(log)) {
+        if (!enqueue_log(log)) {
             sentry_value_decref(log);
             return SENTRY_LOG_RETURN_FAILED;
         }
@@ -727,11 +696,11 @@ sentry_log_fatal(const char *message, ...)
 void
 sentry__logs_startup(void)
 {
-    sentry__cond_init(&g_logs_single_state.request_flush);
+    sentry__cond_init(&g_logs_state.request_flush);
 
-    sentry__thread_init(&g_logs_single_state.batching_thread);
+    sentry__thread_init(&g_logs_state.batching_thread);
     int spawn_result = sentry__thread_spawn(
-        &g_logs_single_state.batching_thread, batching_thread_func, NULL);
+        &g_logs_state.batching_thread, batching_thread_func, NULL);
 
     if (spawn_result == 1) {
         SENTRY_ERROR("Failed to start batching thread");
@@ -745,17 +714,17 @@ sentry__logs_shutdown(uint64_t timeout)
     SENTRY_DEBUG("shutting down logs system");
 
     // Signal the batching thread to stop running
-    if (sentry__atomic_store(&g_logs_single_state.batching_stop, 1) != 0) {
+    if (sentry__atomic_store(&g_logs_state.batching_stop, 1) != 0) {
         SENTRY_DEBUG("preventing double shutdown of logs system");
         return;
     }
-    sentry__cond_wake(&g_logs_single_state.request_flush);
-    sentry__thread_join(g_logs_single_state.batching_thread);
+    sentry__cond_wake(&g_logs_state.request_flush);
+    sentry__thread_join(g_logs_state.batching_thread);
 
     // Perform final flush to ensure any remaining logs are sent
-    flush_logs_single_queue();
+    flush_logs_queue();
 
-    sentry__thread_free(&g_logs_single_state.batching_thread);
+    sentry__thread_free(&g_logs_state.batching_thread);
 
     SENTRY_DEBUG("logs system shutdown complete");
 }
