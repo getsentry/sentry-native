@@ -525,11 +525,6 @@ construct_log(sentry_level_t level, const char *message, va_list args)
             sentry_value_incref(span_id);
             sentry_value_set_by_key(parent_span_id, "value", span_id);
         } else if (scope->span) {
-            // TODO: this sets the same key "value" as the above so this should
-            //       either be an else or come first and let the transaction be
-            //       the first. The way it is currently laid out looks like an
-            //       accidental overwrite that just relies on a non-local
-            //       contract.
             sentry_value_t span_id
                 = sentry_value_get_by_key(scope->span->inner, "span_id");
             sentry_value_incref(span_id);
@@ -563,22 +558,23 @@ construct_log(sentry_level_t level, const char *message, va_list args)
                 add_attribute(attributes, user_email, "string", "user.email");
             }
         }
-    }
-    sentry_value_t os_context = sentry__get_os_context();
-    if (!sentry_value_is_null(os_context)) {
-        sentry_value_t os_name = sentry_value_get_by_key(os_context, "name");
-        sentry_value_t os_version
-            = sentry_value_get_by_key(os_context, "version");
-        if (!sentry_value_is_null(os_name)) {
-            sentry_value_incref(os_name);
-            add_attribute(attributes, os_name, "string", "os.name");
+        sentry_value_t os_context
+            = sentry_value_get_by_key(scope->contexts, "os");
+        if (!sentry_value_is_null(os_context)) {
+            sentry_value_t os_name
+                = sentry_value_get_by_key(os_context, "name");
+            sentry_value_t os_version
+                = sentry_value_get_by_key(os_context, "version");
+            if (!sentry_value_is_null(os_name)) {
+                sentry_value_incref(os_name);
+                add_attribute(attributes, os_name, "string", "os.name");
+            }
+            if (!sentry_value_is_null(os_version)) {
+                sentry_value_incref(os_version);
+                add_attribute(attributes, os_version, "string", "os.version");
+            }
         }
-        if (!sentry_value_is_null(os_version)) {
-            sentry_value_incref(os_version);
-            add_attribute(attributes, os_version, "string", "os.version");
-        }
     }
-    sentry_value_decref(os_context);
     SENTRY_WITH_OPTIONS (options) {
         if (options->environment) {
             add_attribute(attributes,
