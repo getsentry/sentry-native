@@ -623,8 +623,7 @@ construct_log(sentry_level_t level, const char *message, va_list args)
     return log;
 }
 
-// TODO change to int return
-void
+log_return_value_t
 sentry__logs_log(sentry_level_t level, const char *message, va_list args)
 {
     bool enable_logs = false;
@@ -648,66 +647,81 @@ sentry__logs_log(sentry_level_t level, const char *message, va_list args)
             }
         }
         if (discarded) {
-            return;
+            return SENTRY_LOG_RETURN_DISCARD;
         }
         if (!enqueue_log_single(log)) {
             sentry_value_decref(log);
+            return SENTRY_LOG_RETURN_FAILED;
         }
+        return SENTRY_LOG_RETURN_SUCCESS;
     }
+    return SENTRY_LOG_RETURN_DISABLED;
 }
 
-void
+log_return_value_t
 sentry_log_trace(const char *message, ...)
 {
     va_list args;
     va_start(args, message);
-    sentry__logs_log(SENTRY_LEVEL_TRACE, message, args);
+    log_return_value_t result
+        = sentry__logs_log(SENTRY_LEVEL_TRACE, message, args);
     va_end(args);
+    return result;
 }
 
-void
+log_return_value_t
 sentry_log_debug(const char *message, ...)
 {
     va_list args;
     va_start(args, message);
-    sentry__logs_log(SENTRY_LEVEL_DEBUG, message, args);
+    const log_return_value_t result
+        = sentry__logs_log(SENTRY_LEVEL_DEBUG, message, args);
     va_end(args);
+    return result;
 }
 
-void
+log_return_value_t
 sentry_log_info(const char *message, ...)
 {
     va_list args;
     va_start(args, message);
-    sentry__logs_log(SENTRY_LEVEL_INFO, message, args);
+    const log_return_value_t result
+        = sentry__logs_log(SENTRY_LEVEL_INFO, message, args);
     va_end(args);
+    return result;
 }
 
-void
+log_return_value_t
 sentry_log_warn(const char *message, ...)
 {
     va_list args;
     va_start(args, message);
-    sentry__logs_log(SENTRY_LEVEL_WARNING, message, args);
+    const log_return_value_t result
+        = sentry__logs_log(SENTRY_LEVEL_WARNING, message, args);
     va_end(args);
+    return result;
 }
 
-void
+log_return_value_t
 sentry_log_error(const char *message, ...)
 {
     va_list args;
     va_start(args, message);
-    sentry__logs_log(SENTRY_LEVEL_ERROR, message, args);
+    const log_return_value_t result
+        = sentry__logs_log(SENTRY_LEVEL_ERROR, message, args);
     va_end(args);
+    return result;
 }
 
-void
+log_return_value_t
 sentry_log_fatal(const char *message, ...)
 {
     va_list args;
     va_start(args, message);
-    sentry__logs_log(SENTRY_LEVEL_FATAL, message, args);
+    const log_return_value_t result
+        = sentry__logs_log(SENTRY_LEVEL_FATAL, message, args);
     va_end(args);
+    return result;
 }
 
 void

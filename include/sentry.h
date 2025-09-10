@@ -1876,12 +1876,24 @@ SENTRY_EXPERIMENTAL_API void sentry_options_set_enable_logs(
 SENTRY_EXPERIMENTAL_API int sentry_options_get_enable_logs(
     const sentry_options_t *opts);
 
-SENTRY_EXPERIMENTAL_API void sentry_log_trace(const char *message, ...);
-SENTRY_EXPERIMENTAL_API void sentry_log_debug(const char *message, ...);
-SENTRY_EXPERIMENTAL_API void sentry_log_info(const char *message, ...);
-SENTRY_EXPERIMENTAL_API void sentry_log_warn(const char *message, ...);
-SENTRY_EXPERIMENTAL_API void sentry_log_error(const char *message, ...);
-SENTRY_EXPERIMENTAL_API void sentry_log_fatal(const char *message, ...);
+typedef enum {
+    SENTRY_LOG_RETURN_SUCCESS = 0,
+    SENTRY_LOG_RETURN_DISCARD = 1,
+    SENTRY_LOG_RETURN_FAILED = 2,
+    SENTRY_LOG_RETURN_DISABLED = 3
+} log_return_value_t;
+SENTRY_EXPERIMENTAL_API log_return_value_t sentry_log_trace(
+    const char *message, ...);
+SENTRY_EXPERIMENTAL_API log_return_value_t sentry_log_debug(
+    const char *message, ...);
+SENTRY_EXPERIMENTAL_API log_return_value_t sentry_log_info(
+    const char *message, ...);
+SENTRY_EXPERIMENTAL_API log_return_value_t sentry_log_warn(
+    const char *message, ...);
+SENTRY_EXPERIMENTAL_API log_return_value_t sentry_log_error(
+    const char *message, ...);
+SENTRY_EXPERIMENTAL_API log_return_value_t sentry_log_fatal(
+    const char *message, ...);
 
 /**
  * Type of the `before_send_log` callback.
