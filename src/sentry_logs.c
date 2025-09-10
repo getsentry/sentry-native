@@ -478,39 +478,16 @@ add_attribute(sentry_value_t attributes, sentry_value_t value, const char *type,
     sentry_value_set_by_key(attributes, name, param_obj);
 }
 
-static sentry_value_t
-construct_log(sentry_level_t level, const char *message, va_list args)
+/**
+ * Extracts data from the scope and options, and adds it to the attributes
+ * as well as directly setting `trace_id` for the log.
+ *
+ * We clone most values instead of incref, since they might otherwise change
+ * between constructing the log & flushing it to an envelope.
+ */
+static void
+add_scope_and_options_data(sentry_value_t log, sentry_value_t attributes)
 {
-    sentry_value_t log = sentry_value_new_object();
-    sentry_value_t attributes = sentry_value_new_object();
-
-    va_list args_copy_1, args_copy_2, args_copy_3;
-    va_copy(args_copy_1, args);
-    va_copy(args_copy_2, args);
-    va_copy(args_copy_3, args);
-    int len = vsnprintf(NULL, 0, message, args_copy_1) + 1;
-    va_end(args_copy_1);
-    size_t size = (size_t)len;
-    char *fmt_message = sentry_malloc(size);
-    if (!fmt_message) {
-        va_end(args_copy_2);
-        va_end(args_copy_3);
-        return sentry_value_new_null();
-    }
-
-    vsnprintf(fmt_message, size, message, args_copy_2);
-    va_end(args_copy_2);
-
-    sentry_value_set_by_key(log, "body", sentry_value_new_string(fmt_message));
-    sentry_free(fmt_message);
-    sentry_value_set_by_key(
-        log, "level", sentry_value_new_string(level_as_string(level)));
-
-    // timestamp in seconds
-    uint64_t usec_time = sentry__usec_time();
-    sentry_value_set_by_key(log, "timestamp",
-        sentry_value_new_double((double)usec_time / 1000000.0));
-
     SENTRY_WITH_SCOPE_MUT (scope) {
         sentry_value_t trace_id = sentry_value_get_by_key(
             sentry_value_get_by_key(scope->propagation_context, "trace"),
@@ -545,12 +522,14 @@ construct_log(sentry_level_t level, const char *message, va_list args)
                 sentry_value_incref(user_id);
                 add_attribute(attributes, user_id, "string", "user.id");
             }
+
             sentry_value_t user_username
                 = sentry_value_get_by_key(scope->user, "username");
             if (!sentry_value_is_null(user_username)) {
                 sentry_value_incref(user_username);
                 add_attribute(attributes, user_username, "string", "user.name");
             }
+
             sentry_value_t user_email
                 = sentry_value_get_by_key(scope->user, "email");
             if (!sentry_value_is_null(user_email)) {
@@ -575,6 +554,7 @@ construct_log(sentry_level_t level, const char *message, va_list args)
             }
         }
     }
+
     SENTRY_WITH_OPTIONS (options) {
         if (options->environment) {
             add_attribute(attributes,
@@ -591,6 +571,44 @@ construct_log(sentry_level_t level, const char *message, va_list args)
         "string", "sentry.sdk.name");
     add_attribute(attributes, sentry_value_new_string(sentry_sdk_version()),
         "string", "sentry.sdk.version");
+}
+
+static sentry_value_t
+construct_log(sentry_level_t level, const char *message, va_list args)
+{
+    sentry_value_t log = sentry_value_new_object();
+    sentry_value_t attributes = sentry_value_new_object();
+
+    va_list args_copy_1, args_copy_2, args_copy_3;
+    va_copy(args_copy_1, args);
+    va_copy(args_copy_2, args);
+    va_copy(args_copy_3, args);
+    int len = vsnprintf(NULL, 0, message, args_copy_1) + 1;
+    va_end(args_copy_1);
+    size_t size = (size_t)len;
+    char *fmt_message = sentry_malloc(size);
+    if (!fmt_message) {
+        va_end(args_copy_2);
+        va_end(args_copy_3);
+        return sentry_value_new_null();
+    }
+
+    vsnprintf(fmt_message, size, message, args_copy_2);
+    va_end(args_copy_2);
+
+    sentry_value_set_by_key(log, "body", sentry_value_new_string(fmt_message));
+    sentry_free(fmt_message);
+    sentry_value_set_by_key(
+        log, "level", sentry_value_new_string(level_as_string(level)));
+
+    // timestamp in seconds
+    uint64_t usec_time = sentry__usec_time();
+    sentry_value_set_by_key(log, "timestamp",
+        sentry_value_new_double((double)usec_time / 1000000.0));
+
+    // adds data from the scope & options to the attributes, and adds `trace_id`
+    // to the log
+    add_scope_and_options_data(log, attributes);
 
     // Parse variadic arguments and add them to attributes
     if (populate_message_parameters(attributes, message, args_copy_3)) {

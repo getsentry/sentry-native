@@ -248,6 +248,13 @@ def assert_logs(envelope, expected_item_count=1, expected_trace_id=None):
     assert "level" in log_item
     assert "timestamp" in log_item  # TODO do we need to validate the timestamp?
     assert "trace_id" in log_item
+    assert "attributes" in log_item
+    assert "os.name" in log_item["attributes"]
+    assert "os.version" in log_item["attributes"]
+    assert "sentry.environment" in log_item["attributes"]
+    assert "sentry.release" in log_item["attributes"]
+    assert "sentry.sdk.name" in log_item["attributes"]
+    assert "sentry.sdk.version" in log_item["attributes"]
     # TODO think about whether we wanna check this; probably yes, to test interaction with tracing
     if expected_trace_id:
         assert log_item["trace_id"] == expected_trace_id
