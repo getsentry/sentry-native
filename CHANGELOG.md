@@ -6,6 +6,16 @@
 
 - Add `user_data` parameter to `traces_sampler`. ([#1346](https://github.com/getsentry/sentry-native/pull/1346))
 
+**Internal:**
+
+- Support downstream Xbox SDK specifying networking initialization mechanism. ([#1359](https://github.com/getsentry/sentry-native/pull/1359))
+
+## 0.10.1
+
+**Internal:**
+
+- Correctly apply dynamic mutex initialization in unit-tests (fixes running unit-tests in downstream console SDKs) ([#1337](https://github.com/getsentry/sentry-native/pull/1337))
+
 ## 0.10.0
 
 **Breaking changes**:

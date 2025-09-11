@@ -78,7 +78,7 @@ extern "C" {
 #        define SENTRY_SDK_NAME "sentry.native"
 #    endif
 #endif
-#define SENTRY_SDK_VERSION "0.10.0"
+#define SENTRY_SDK_VERSION "0.10.1"
 #define SENTRY_SDK_USER_AGENT SENTRY_SDK_NAME "/" SENTRY_SDK_VERSION
 
 /* marks a function as part of the sentry API */
@@ -434,7 +434,7 @@ SENTRY_API int sentry_value_is_null(sentry_value_t value);
  * Serialize a sentry value to JSON.
  *
  * The string is freshly allocated and must be freed with
- * `sentry_string_free`.
+ * `sentry_free`.
  */
 SENTRY_API char *sentry_value_to_json(sentry_value_t value);
 
@@ -561,7 +561,7 @@ SENTRY_EXPERIMENTAL_API void sentry_event_add_thread(
  * Serialize a sentry value to msgpack.
  *
  * The string is freshly allocated and must be freed with
- * `sentry_string_free`.  Since msgpack is not zero terminated
+ * `sentry_free`.  Since msgpack is not zero terminated
  * the size is written to the `size_out` parameter.
  */
 SENTRY_EXPERIMENTAL_API char *sentry_value_to_msgpack(
@@ -713,7 +713,7 @@ SENTRY_EXPERIMENTAL_API sentry_value_t sentry_envelope_get_transaction(
 /**
  * Serializes the envelope.
  *
- * The return value needs to be freed with sentry_string_free().
+ * The return value needs to be freed with `sentry_free`.
  */
 SENTRY_API char *sentry_envelope_serialize(
     const sentry_envelope_t *envelope, size_t *size_out);
@@ -1551,7 +1551,7 @@ SENTRY_API int sentry_flush(uint64_t timeout);
 /**
  * Shuts down the sentry client and forces transports to flush out.
  *
- * Returns 0 on success.
+ * Returns the number of envelopes that have been dumped.
  *
  * Note that this does not uninstall any crash handler installed by our
  * backends, which will still process crashes after `sentry_close()`, except
@@ -1566,7 +1566,7 @@ SENTRY_API int sentry_close(void);
 /**
  * Shuts down the sentry client and forces transports to flush out.
  *
- * Returns 0 on success.
+ * Returns the number of envelopes that have been dumped.
  */
 SENTRY_DEPRECATED("Use `sentry_close` instead")
 SENTRY_API int sentry_shutdown(void);

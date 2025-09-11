@@ -251,6 +251,9 @@ SENTRY_TEST(path_directory)
 
 SENTRY_TEST(path_mtime)
 {
+#if defined(SENTRY_PLATFORM_NX)
+    return SKIP_TEST();
+#endif
     sentry_path_t *path
         = sentry__path_from_str(SENTRY_TEST_PATH_PREFIX "foo.txt");
     TEST_ASSERT(!!path);
