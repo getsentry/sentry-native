@@ -245,6 +245,10 @@ jobs:
         if: ${{ runner.os == 'macOS' && matrix.os == 'macos-15-large' && matrix.RUN_ANALYZER == 'asan,llvm-cov' }}
         run: echo $(brew --prefix llvm@18)/bin >> $GITHUB_PATH
 
+      - name: Set macOS SDKROOT
+        if: ${{ runner.os == 'macOS' }}
+        run: echo "SDKROOT=$(xcrun --sdk macosx --show-sdk-path)" >> "$GITHUB_ENV"
+
       - name: Remove Strawberry Perl from PATH
         if: ${{ runner.os == 'Windows' }}
         shell: powershell
