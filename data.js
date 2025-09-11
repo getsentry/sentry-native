@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1757599626193,
+  "lastUpdate": 1757599642419,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -14974,6 +14974,66 @@ window.BENCHMARK_DATA = {
             "value": 14.766799999961222,
             "unit": "ms",
             "extra": "Min 14.614ms\nMax 15.271ms\nMean 14.847ms\nStdDev 0.258ms\nMedian 14.767ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "mischan@abovevacant.com",
+            "name": "Mischan Toosarani-Hausberger",
+            "username": "supervacuus"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "97a4a99dfdd59f8e032a4d27dfeb3836ae61d950",
+          "message": "ci: replace deprecated functions in tests and acutest (#1369)\n\n* replace sprintf with snprintf in acutest.h\n* replace vsprintf with vsnprintf in test_logger.c\n* replace sprintf with snprintf in test_value.c",
+          "timestamp": "2025-09-11T16:02:26+02:00",
+          "tree_id": "cb4251a4f02e8e5a8d336b4c00509688ecf6cc63",
+          "url": "https://github.com/getsentry/sentry-native/commit/97a4a99dfdd59f8e032a4d27dfeb3836ae61d950"
+        },
+        "date": 1757599635442,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 10.378099999968526,
+            "unit": "ms",
+            "extra": "Min 10.139ms\nMax 10.851ms\nMean 10.419ms\nStdDev 0.297ms\nMedian 10.378ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 10.639900000001035,
+            "unit": "ms",
+            "extra": "Min 10.298ms\nMax 10.751ms\nMean 10.590ms\nStdDev 0.174ms\nMedian 10.640ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 26.54389999997875,
+            "unit": "ms",
+            "extra": "Min 25.764ms\nMax 27.439ms\nMean 26.502ms\nStdDev 0.739ms\nMedian 26.544ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.013200000012147939,
+            "unit": "ms",
+            "extra": "Min 0.011ms\nMax 0.014ms\nMean 0.012ms\nStdDev 0.001ms\nMedian 0.013ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.41190000001734006,
+            "unit": "ms",
+            "extra": "Min 0.373ms\nMax 0.452ms\nMean 0.414ms\nStdDev 0.034ms\nMedian 0.412ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 15.213900000048852,
+            "unit": "ms",
+            "extra": "Min 14.902ms\nMax 16.299ms\nMean 15.395ms\nStdDev 0.582ms\nMedian 15.214ms"
           }
         ]
       }
