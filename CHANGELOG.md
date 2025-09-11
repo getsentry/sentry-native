@@ -6,6 +6,10 @@
 
 - Support downstream Xbox SDK specifying networking initialization mechanism ([#1359](https://github.com/getsentry/sentry-native/pull/1359))
 
+**Docs**:
+
+- Document the CMake 4 requirement on macOS `SDKROOT` due to its empty default for `CMAKE_OSX_SYSROOT` in the `README`. ([#1368](https://github.com/getsentry/sentry-native/pull/1368))
+
 ## 0.10.1
 
 **Internal:**
