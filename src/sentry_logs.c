@@ -168,7 +168,9 @@ enqueue_log(sentry_value_t log)
             }
             return true;
         }
-
+        // ping the batching thread to flush, since we could miss a cond_wake
+        // on adding the last item
+        sentry__cond_wake(&g_logs_state.request_flush);
         // Buffer is already full, roll back our increments and retry or drop.
         sentry__atomic_fetch_and_add(&active->adding, -1);
         if (attempt == ENQUEUE_MAX_RETRIES) {
@@ -177,6 +179,20 @@ enqueue_log(sentry_value_t log)
         }
     }
     return false;
+}
+
+// checks whether the currently active buffer should be flushed.
+// otherwise we could miss the trigger of adding the last log if we're actively
+// flushing the other buffer already.
+static bool
+check_for_flush_condition(void)
+{
+    // In flush_logs_queue, after finishing a flush:
+    long current_active = sentry__atomic_fetch(&g_logs_state.active_idx);
+    log_buffer_t *current_buf = &g_logs_state.buffers[current_active];
+
+    // Check if current active buffer is also full
+    return sentry__atomic_fetch(&current_buf->index) >= QUEUE_LENGTH;
 }
 
 SENTRY_THREAD_FN
@@ -225,7 +241,9 @@ batching_thread_func(void *data)
         }
 
         // Try to flush logs
-        flush_logs_queue();
+        do {
+            flush_logs_queue();
+        } while (check_for_flush_condition());
     }
 
     sentry__mutex_unlock(&task_lock);
