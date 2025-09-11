@@ -1867,15 +1867,18 @@ struct sentry_transaction_context_s;
 typedef struct sentry_transaction_context_s sentry_transaction_context_t;
 typedef double (*sentry_traces_sampler_function)(
     const sentry_transaction_context_t *transaction_ctx,
-    sentry_value_t custom_sampling_ctx, const int *parent_sampled);
+    sentry_value_t custom_sampling_ctx, const int *parent_sampled,
+    void *user_data);
 
 /**
  * Sets the traces sampler callback. Should be a function that returns a double
  * and takes in a sentry_transaction_context_t pointer, a sentry_value_t for
- * a custom sampling context and an int pointer for the parent sampled flag.
+ * a custom sampling context int pointer for the parent sampled flag and some
+ * optional user_data.
  */
 SENTRY_EXPERIMENTAL_API void sentry_options_set_traces_sampler(
-    sentry_options_t *opts, sentry_traces_sampler_function callback);
+    sentry_options_t *opts, sentry_traces_sampler_function callback,
+    void *user_data);
 
 #ifdef SENTRY_PLATFORM_LINUX
 
