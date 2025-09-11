@@ -2,7 +2,6 @@
 #include "sentry_options.h"
 #include "sentry_testsupport.h"
 #include <stdbool.h>
-#include <stdint.h>
 
 static volatile bool g_before_crash_called = false;
 static volatile int g_before_crash_call_count = 0;
@@ -26,7 +25,7 @@ reset_before_crash_state(void)
 
 SENTRY_TEST(before_crash_func_call)
 {
-    void *user_data = (void *)(uintptr_t)0xDEADC0DE;
+    void *user_data = (void *)0xDEADC0DE;
     reset_before_crash_state();
 
     SENTRY_TEST_OPTIONS_NEW(options);
@@ -82,12 +81,12 @@ SENTRY_TEST(before_crash_func_change)
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
 
     // Set initial before_crash_func
-    void *user_data1 = (void *)(uintptr_t)0x11111111;
+    void *user_data1 = (void *)0x11111111;
     sentry_options_set_before_crash(
         options, test_before_crash_func, user_data1);
 
     // Change to different user data
-    void *user_data2 = (void *)(uintptr_t)0x22222222;
+    void *user_data2 = (void *)0x22222222;
     sentry_options_set_before_crash(
         options, test_before_crash_func, user_data2);
 
