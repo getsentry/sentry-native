@@ -1,3 +1,5 @@
+#include "sentry_core.h"
+#include "sentry_options.h"
 #include "sentry_testsupport.h"
 #include <stdbool.h>
 
@@ -21,27 +23,25 @@ reset_before_crash_state(void)
     g_before_crash_user_data = NULL;
 }
 
-static void
-test_before_crash_common(void *user_data)
+SENTRY_TEST(before_crash_func_call)
 {
     reset_before_crash_state();
 
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
-    sentry_options_set_before_crash(options, test_before_crash_func, user_data);
+    sentry_options_set_before_crash(
+        options, test_before_crash_func, 0xDEADC0DE);
     sentry_options_set_auto_session_tracking(options, false);
 
     TEST_CHECK_INT_EQUAL(sentry_init(options), 0);
 
     // Verify before_crash_func is set correctly in options
-    SENTRY_WITH_OPTIONS (opts) {
-        TEST_CHECK(opts->before_crash_func == test_before_crash_func);
-        TEST_CHECK(opts->before_crash_data == user_data);
+    TEST_CHECK(options->before_crash_func == test_before_crash_func);
+    TEST_CHECK(options->before_crash_data == user_data);
 
-        // Call the before_crash_func directly to test it
-        if (opts->before_crash_func) {
-            opts->before_crash_func(opts->before_crash_data);
-        }
+    // Call the before_crash_func directly to test it
+    if (options->before_crash_func) {
+        options->before_crash_func(options->before_crash_data);
     }
 
     sentry_close();
@@ -50,36 +50,6 @@ test_before_crash_common(void *user_data)
     TEST_CHECK(g_before_crash_called);
     TEST_CHECK_INT_EQUAL(g_before_crash_call_count, 1);
     TEST_CHECK(g_before_crash_user_data == user_data);
-}
-
-SENTRY_TEST(before_crash_func_crashpad)
-{
-#ifdef SENTRY_BACKEND_CRASHPAD
-    void *user_data = (void *)0x12345678;
-    test_before_crash_common(user_data);
-#else
-    SKIP_TEST();
-#endif
-}
-
-SENTRY_TEST(before_crash_func_breakpad)
-{
-#ifdef SENTRY_BACKEND_BREAKPAD
-    void *user_data = (void *)0x87654321;
-    test_before_crash_common(user_data);
-#else
-    SKIP_TEST();
-#endif
-}
-
-SENTRY_TEST(before_crash_func_inproc)
-{
-#ifdef SENTRY_BACKEND_INPROC
-    void *user_data = (void *)0xABCDEF00;
-    test_before_crash_common(user_data);
-#else
-    SKIP_TEST();
-#endif
 }
 
 SENTRY_TEST(before_crash_func_not_set)
@@ -94,9 +64,7 @@ SENTRY_TEST(before_crash_func_not_set)
     TEST_CHECK_INT_EQUAL(sentry_init(options), 0);
 
     // Verify before_crash_func is not set
-    SENTRY_WITH_OPTIONS (opts) {
-        TEST_CHECK(opts->before_crash_func == NULL);
-    }
+    TEST_CHECK(options->before_crash_func == NULL);
 
     sentry_close();
 
@@ -126,14 +94,12 @@ SENTRY_TEST(before_crash_func_change)
     TEST_CHECK_INT_EQUAL(sentry_init(options), 0);
 
     // Verify the updated user_data is set
-    SENTRY_WITH_OPTIONS (opts) {
-        TEST_CHECK(opts->before_crash_func == test_before_crash_func);
-        TEST_CHECK(opts->before_crash_data == user_data2);
+    TEST_CHECK(options->before_crash_func == test_before_crash_func);
+    TEST_CHECK(options->before_crash_data == user_data2);
 
-        // Call the before_crash_func to test it
-        if (opts->before_crash_func) {
-            opts->before_crash_func(opts->before_crash_data);
-        }
+    // Call the before_crash_func to test it
+    if (options->before_crash_func) {
+        options->before_crash_func(options->before_crash_data);
     }
 
     sentry_close();
