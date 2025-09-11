@@ -247,7 +247,7 @@ jobs:
 
       - name: Set macOS SDKROOT
         if: ${{ runner.os == 'macOS' }}
-        run: echo "SDKROOT=macosx" >> "$GITHUB_ENV"
+        run: echo "SDKROOT=$(xcrun --sdk macosx --show-sdk-path)" >> "$GITHUB_ENV"
 
       - name: Remove Strawberry Perl from PATH
         if: ${{ runner.os == 'Windows' }}
