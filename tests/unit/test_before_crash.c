@@ -25,12 +25,12 @@ reset_before_crash_state(void)
 
 SENTRY_TEST(before_crash_func_call)
 {
+    void *user_data = (void *)0xDEADC0DE;
     reset_before_crash_state();
 
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
-    sentry_options_set_before_crash(
-        options, test_before_crash_func, 0xDEADC0DE);
+    sentry_options_set_before_crash(options, test_before_crash_func, user_data);
     sentry_options_set_auto_session_tracking(options, false);
 
     TEST_CHECK_INT_EQUAL(sentry_init(options), 0);
