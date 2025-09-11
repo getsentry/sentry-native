@@ -138,6 +138,14 @@ sentry_options_set_before_send(
 }
 
 void
+sentry_options_set_before_crash(sentry_options_t *opts,
+    sentry_before_crash_function_t func, void *user_data)
+{
+    opts->before_crash_func = func;
+    opts->before_crash_data = user_data;
+}
+
+void
 sentry_options_set_on_crash(
     sentry_options_t *opts, sentry_crash_function_t func, void *user_data)
 {

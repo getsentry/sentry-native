@@ -990,6 +990,36 @@ SENTRY_API void sentry_options_set_before_send(
     sentry_options_t *opts, sentry_event_function_t func, void *user_data);
 
 /**
+ * Type of the `before_crash` callback.
+ *
+ * The `before_crash` callback is invoked immediately when a crash is detected,
+ * before any crash processing begins. This provides an opportunity to perform
+ * cleanup or disable logging operations at the earliest possible moment during
+ * crash handling.
+ *
+ * Unlike `on_crash`, this callback does not receive an event object and is not
+ * intended for event filtering or modification. It is purely for performing
+ * early crash-time operations like flushing logs, closing files, or other
+ * cleanup tasks.
+ *
+ * The callback has a void return type as it is not intended to filter or
+ * modify crash events.
+ *
+ * This function may be invoked inside of a signal handler and must be safe for
+ * that purpose, see https://man7.org/linux/man-pages/man7/signal-safety.7.html.
+ * On Windows, it may be called from inside of a `UnhandledExceptionFilter`.
+ */
+typedef void (*sentry_before_crash_function_t)(void *user_data);
+
+/**
+ * Sets the `before_crash` callback.
+ *
+ * See the `sentry_before_crash_function_t` typedef above for more information.
+ */
+SENTRY_API void sentry_options_set_before_crash(sentry_options_t *opts,
+    sentry_before_crash_function_t func, void *user_data);
+
+/**
  * Type of the `on_crash` callback.
  *
  * The `on_crash` callback replaces the `before_send` callback for crash events.

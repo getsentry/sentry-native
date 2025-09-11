@@ -280,6 +280,13 @@ sentry__crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
 {
     sentry__page_allocator_enable();
 #    endif
+
+    SENTRY_WITH_OPTIONS (options) {
+        if (options->before_crash_func) {
+            options->before_crash_func(options->before_crash_data);
+        }
+    }
+
     SENTRY_INFO("flushing session and queue before crashpad handler");
 
     bool should_dump = true;

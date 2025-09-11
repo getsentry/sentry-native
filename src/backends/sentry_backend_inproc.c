@@ -523,6 +523,12 @@ make_signal_event(
 static void
 handle_ucontext(const sentry_ucontext_t *uctx)
 {
+    SENTRY_WITH_OPTIONS (options) {
+        if (options->before_crash_func) {
+            options->before_crash_func(options->before_crash_data);
+        }
+    }
+
     SENTRY_INFO("entering signal handler");
 
     const struct signal_slot *sig_slot = NULL;
