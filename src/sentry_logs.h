@@ -3,7 +3,8 @@
 
 #include "sentry_boot.h"
 
-void sentry__logs_log(sentry_level_t level, const char *message, va_list args);
+log_return_value_t sentry__logs_log(
+    sentry_level_t level, const char *message, va_list args);
 
 /**
  * Sets up the logs timer/flush thread

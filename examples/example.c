@@ -311,7 +311,6 @@ log_thread_func(LPVOID lpParam)
     for (int i = 0; i < LOG_COUNT; i++) {
         sentry_log_debug(
             "thread log %d on thread %lu", i, get_current_thread_id());
-        Sleep(1);
     }
     return 0;
 }
@@ -452,7 +451,9 @@ main(int argc, char **argv)
         sentry_options_set_enable_logs(options, true);
     }
 
-    sentry_init(options);
+    if (0 != sentry_init(options)) {
+        return EXIT_FAILURE;
+    }
 
     if (has_arg(argc, argv, "attachment")) {
         sentry_attachment_t *bytes
@@ -482,7 +483,9 @@ main(int argc, char **argv)
                 threads[t]
                     = CreateThread(NULL, 0, log_thread_func, NULL, 0, NULL);
             }
-            sleep_s(3);
+
+            WaitForMultipleObjects(NUM_THREADS, threads, TRUE, INFINITE);
+
             for (int t = 0; t < NUM_THREADS; t++) {
                 CloseHandle(threads[t]);
             }
@@ -491,7 +494,6 @@ main(int argc, char **argv)
             for (int t = 0; t < NUM_THREADS; t++) {
                 pthread_create(&threads[t], NULL, log_thread_func, NULL);
             }
-            sleep_s(3);
             for (int t = 0; t < NUM_THREADS; t++) {
                 pthread_join(threads[t], NULL);
             }
@@ -761,4 +763,6 @@ main(int argc, char **argv)
     if (has_arg(argc, argv, "crash-after-shutdown")) {
         trigger_crash();
     }
+
+    return EXIT_SUCCESS;
 }
