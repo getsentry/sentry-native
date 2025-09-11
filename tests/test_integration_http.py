@@ -1348,6 +1348,82 @@ def test_logs_timer(cmake, httpserver):
     assert_logs(envelope_1)
 
 
+def test_logs_event(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+
+    # make sure we are isolated from previous runs
+    shutil.rmtree(tmp_path / ".sentry-native", ignore_errors=True)
+
+    httpserver.expect_request(
+        "/api/123456/envelope/",
+        headers={"x-sentry-auth": auth_header},
+    ).respond_with_data("OK")
+
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "enable-logs", "capture-log", "capture-event"],
+        check=True,
+        env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+    )
+
+    assert len(httpserver.log) == 2
+
+    event_req = httpserver.log[0][0]
+    event_body = event_req.get_data()
+
+    event_envelope = Envelope.deserialize(event_body)
+    assert_event(event_envelope)
+    # ensure that the event and the log are part of the same trace
+    event_trace_id = event_envelope.items[0].payload.json["contexts"]["trace"][
+        "trace_id"
+    ]
+
+    log_req = httpserver.log[1][0]
+    log_body = log_req.get_data()
+
+    log_envelope = Envelope.deserialize(log_body)
+    assert_logs(log_envelope, 1, event_trace_id)
+
+
+def test_logs_scoped_transaction(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+
+    # make sure we are isolated from previous runs
+    shutil.rmtree(tmp_path / ".sentry-native", ignore_errors=True)
+
+    httpserver.expect_request(
+        "/api/123456/envelope/",
+        headers={"x-sentry-auth": auth_header},
+    ).respond_with_data("OK")
+
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "enable-logs", "capture-log", "capture-event"],
+        check=True,
+        env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+    )
+
+    assert len(httpserver.log) == 2
+
+    event_req = httpserver.log[0][0]
+    event_body = event_req.get_data()
+
+    event_envelope = Envelope.deserialize(event_body)
+    assert_event(event_envelope)
+    # ensure that the event and the log are part of the same trace
+    event_trace_id = event_envelope.items[0].payload.json["contexts"]["trace"][
+        "trace_id"
+    ]
+
+    log_req = httpserver.log[1][0]
+    log_body = log_req.get_data()
+
+    log_envelope = Envelope.deserialize(log_body)
+    assert_logs(log_envelope, 1, event_trace_id)
+
+
 def test_logs_threaded(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
 
