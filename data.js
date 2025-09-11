@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1757595373838,
+  "lastUpdate": 1757595379287,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -14854,6 +14854,66 @@ window.BENCHMARK_DATA = {
             "value": 23.353799999995317,
             "unit": "ms",
             "extra": "Min 22.719ms\nMax 26.468ms\nMean 23.867ms\nStdDev 1.484ms\nMedian 23.354ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "60878493+JoshuaMoelans@users.noreply.github.com",
+            "name": "JoshuaMoelans",
+            "username": "JoshuaMoelans"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "89e25d48b5eabbbda65846bd9165caa02841642d",
+          "message": "feat: update `traces_sampler` to also take `user_data` argument (#1346)\n\n* update `traces_sampler` to also take `user_data` argument\n\n* update CHANGELOG.md\n\n* actually check user_data\n\n* remove unnecessary allocation",
+          "timestamp": "2025-09-11T14:51:48+02:00",
+          "tree_id": "c8f1401406f930b763977ad7aa85153206da45ec",
+          "url": "https://github.com/getsentry/sentry-native/commit/89e25d48b5eabbbda65846bd9165caa02841642d"
+        },
+        "date": 1757595372721,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 10.71700000011333,
+            "unit": "ms",
+            "extra": "Min 10.321ms\nMax 15.010ms\nMean 11.751ms\nStdDev 1.929ms\nMedian 10.717ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 10.733999999956723,
+            "unit": "ms",
+            "extra": "Min 10.498ms\nMax 51.115ms\nMean 18.752ms\nStdDev 18.092ms\nMedian 10.734ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 27.347400000053312,
+            "unit": "ms",
+            "extra": "Min 26.171ms\nMax 30.082ms\nMean 27.510ms\nStdDev 1.554ms\nMedian 27.347ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.011300000096525764,
+            "unit": "ms",
+            "extra": "Min 0.011ms\nMax 0.015ms\nMean 0.012ms\nStdDev 0.002ms\nMedian 0.011ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.3827999998975429,
+            "unit": "ms",
+            "extra": "Min 0.372ms\nMax 0.499ms\nMean 0.416ms\nStdDev 0.057ms\nMedian 0.383ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 14.766799999961222,
+            "unit": "ms",
+            "extra": "Min 14.614ms\nMax 15.271ms\nMean 14.847ms\nStdDev 0.258ms\nMedian 14.767ms"
           }
         ]
       }
