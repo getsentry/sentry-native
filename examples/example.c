@@ -24,6 +24,7 @@
 #    define sleep_s(SECONDS) Sleep((SECONDS) * 1000)
 #else
 
+#    include <pthread.h>
 #    include <signal.h>
 #    include <unistd.h>
 
@@ -57,6 +58,8 @@ get_current_thread_id()
     return (uint64_t)syscall(SYS_gettid);
 }
 #endif
+
+#define NUM_THREADS 50
 
 static double
 traces_sampler_callback(const sentry_transaction_context_t *transaction_ctx,
@@ -153,6 +156,33 @@ discarding_before_transaction_callback(sentry_value_t tx, void *user_data)
         return sentry_value_new_null();
     }
     return tx;
+}
+
+static sentry_value_t
+before_send_log_callback(sentry_value_t log, void *user_data)
+{
+    (void)user_data;
+    sentry_value_t attribute = sentry_value_new_object();
+    sentry_value_set_by_key(
+        attribute, "value", sentry_value_new_string("little"));
+    sentry_value_set_by_key(
+        attribute, "type", sentry_value_new_string("string"));
+    sentry_value_set_by_key(sentry_value_get_by_key(log, "attributes"),
+        "coffeepot.size", attribute);
+    return log;
+}
+
+static sentry_value_t
+discarding_before_send_log_callback(sentry_value_t log, void *user_data)
+{
+    (void)user_data;
+    if (sentry_value_is_null(
+            sentry_value_get_by_key(sentry_value_get_by_key(log, "attributes"),
+                "sentry.message.template"))) {
+        sentry_value_decref(log);
+        return sentry_value_new_null();
+    }
+    return log;
 }
 
 static void
@@ -272,6 +302,32 @@ create_debug_crumb(const char *message)
     return debug_crumb;
 }
 
+#ifdef SENTRY_PLATFORM_WINDOWS
+DWORD WINAPI
+log_thread_func(LPVOID lpParam)
+{
+    (void)lpParam;
+    int LOG_COUNT = 100;
+    for (int i = 0; i < LOG_COUNT; i++) {
+        sentry_log_debug(
+            "thread log %d on thread %lu", i, get_current_thread_id());
+    }
+    return 0;
+}
+#else
+void *
+log_thread_func(void *arg)
+{
+    (void)arg;
+    int LOG_COUNT = 100;
+    for (int i = 0; i < LOG_COUNT; i++) {
+        sentry_log_debug(
+            "thread log %d on thread %llu", i, get_current_thread_id());
+    }
+    return NULL;
+}
+#endif
+
 int
 main(int argc, char **argv)
 {
@@ -345,6 +401,16 @@ main(int argc, char **argv)
             options, discarding_before_transaction_callback, NULL);
     }
 
+    if (has_arg(argc, argv, "before-send-log")) {
+        sentry_options_set_before_send_log(
+            options, before_send_log_callback, NULL);
+    }
+
+    if (has_arg(argc, argv, "discarding-before-send-log")) {
+        sentry_options_set_before_send_log(
+            options, discarding_before_send_log_callback, NULL);
+    }
+
     if (has_arg(argc, argv, "traces-sampler")) {
         sentry_options_set_traces_sampler(options, traces_sampler_callback);
     }
@@ -385,7 +451,9 @@ main(int argc, char **argv)
         sentry_options_set_enable_logs(options, true);
     }
 
-    sentry_init(options);
+    if (0 != sentry_init(options)) {
+        return EXIT_FAILURE;
+    }
 
     if (has_arg(argc, argv, "attachment")) {
         sentry_attachment_t *bytes
@@ -395,28 +463,42 @@ main(int argc, char **argv)
 
     // TODO incorporate into test
     if (sentry_options_get_enable_logs(options)) {
-        sentry_log_warn(
-            "This is a big number %" PRIu64, 18446744073709551615ULL);
-        sentry_log_warn("This is a medium number as unsigned %" PRIu64,
-            9007199254740991ULL);
-        sentry_log_warn(
-            "This is a medium number as signed %" PRId64, 9007199254740991LL);
-        sentry_log_trace("We log it up  %i%%, %s style", 100, "trace");
-        sentry_log_debug("We log it up  %i%%, %s style", 100, "debug");
-        sentry_log_info("We log it up  %i%%, %s style", 100, "info");
-        sentry_log_warn("We log it up  %i%%, %s style", 100, "warn");
-        sentry_log_error("We log it up  %i%%, %s style", 100, "error");
-        sentry_log_fatal("We log it up  %i%%, %s style", 100, "fatal");
+        if (has_arg(argc, argv, "capture-log")) {
+            sentry_log_debug("I'm a log message!");
+        }
+        if (has_arg(argc, argv, "logs-timer")) {
+            for (int i = 0; i < 10; i++) {
+                sentry_log_info("Informational log nr.%d", i);
+            }
+            // sleep >5s to trigger logs timer
+            sleep_s(6);
+            // we should see two envelopes make its way to Sentry
+            sentry_log_debug("post-sleep log");
+        }
+        if (has_arg(argc, argv, "logs-threads")) {
+            // Spawn multiple threads to test concurrent logging
+#ifdef SENTRY_PLATFORM_WINDOWS
+            HANDLE threads[NUM_THREADS];
+            for (int t = 0; t < NUM_THREADS; t++) {
+                threads[t]
+                    = CreateThread(NULL, 0, log_thread_func, NULL, 0, NULL);
+            }
 
-        // Test the logger with various parameter types
-        sentry_log_info(
-            "API call to %s completed in %d ms with %f success rate",
-            "/api/products", 2500, 0.95);
+            WaitForMultipleObjects(NUM_THREADS, threads, TRUE, INFINITE);
 
-        sentry_log_warn("Processing %d items, found %u errors, pointer: %p",
-            100, 5u, (void *)0x12345678);
-
-        sentry_log_error("Character '%c' is invalid", 'X');
+            for (int t = 0; t < NUM_THREADS; t++) {
+                CloseHandle(threads[t]);
+            }
+#else
+            pthread_t threads[NUM_THREADS];
+            for (int t = 0; t < NUM_THREADS; t++) {
+                pthread_create(&threads[t], NULL, log_thread_func, NULL);
+            }
+            for (int t = 0; t < NUM_THREADS; t++) {
+                pthread_join(threads[t], NULL);
+            }
+#endif
+        }
     }
 
     if (!has_arg(argc, argv, "no-setup")) {
@@ -681,4 +763,6 @@ main(int argc, char **argv)
     if (has_arg(argc, argv, "crash-after-shutdown")) {
         trigger_crash();
     }
+
+    return EXIT_SUCCESS;
 }

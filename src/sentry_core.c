@@ -8,6 +8,7 @@
 #include "sentry_core.h"
 #include "sentry_database.h"
 #include "sentry_envelope.h"
+#include "sentry_logs.h"
 #include "sentry_options.h"
 #include "sentry_os.h"
 #include "sentry_path.h"
@@ -284,6 +285,10 @@ sentry_init(sentry_options_t *options)
         sentry_start_session();
     }
 
+    if (options->enable_logs) {
+        sentry__logs_startup();
+    }
+
     sentry__mutex_unlock(&g_options_lock);
     return 0;
 
@@ -310,6 +315,16 @@ sentry_flush(uint64_t timeout)
 int
 sentry_close(void)
 {
+    // Shutdown logs system before locking options to ensure logs are flushed
+    // TODO is this the only way? we got a potential deadlock on the options
+    // otherwise
+    //  (for envelope creation, see sentry__envelope_new)
+    SENTRY_WITH_OPTIONS (options) {
+        if (options->enable_logs) {
+            sentry__logs_shutdown(options->shutdown_timeout);
+        }
+    }
+
     SENTRY__MUTEX_INIT_DYN_ONCE(g_options_lock);
     // this function is to be called only once, so we do not allow more than one
     // caller

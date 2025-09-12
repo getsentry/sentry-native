@@ -4,9 +4,255 @@
 #include "sentry_options.h"
 #include "sentry_os.h"
 #include "sentry_scope.h"
-
+#include "sentry_sync.h"
+#if defined(SENTRY_PLATFORM_UNIX) || defined(SENTRY_PLATFORM_NX)
+#    include "sentry_unix_spinlock.h"
+#endif
 #include <stdarg.h>
 #include <string.h>
+
+// TODO think about this
+#ifdef SENTRY_UNITTEST
+#    define QUEUE_LENGTH 5
+#else
+#    define QUEUE_LENGTH 100
+#endif
+#define FLUSH_TIMER 5
+
+typedef struct {
+    sentry_value_t logs[QUEUE_LENGTH];
+    long index; // (atomic) index for producer threads to get a unique slot
+    long adding; // (atomic) count of in-flight writers on this buffer
+    long sealed; // (atomic) 0=writeable, 1=sealed (meaning we drop)
+} log_buffer_t;
+
+static struct {
+    log_buffer_t buffers[2]; // double buffer
+    long active_idx; // (atomic) index to the active buffer
+    long flushing; // (atomic) reentrancy guard to the flusher
+    long batching_stop; // (atomic) run variable of the batching thread
+    sentry_cond_t request_flush; // condition variable to schedule a flush
+    sentry_threadid_t batching_thread; // the batching thread
+} g_logs_state = {
+    {
+        {
+            .index = 0,
+            .adding = 0,
+            .sealed = 0,
+        },
+        {
+            .index = 0,
+            .adding = 0,
+            .sealed = 0,
+        },
+    },
+    .active_idx = 0,
+    .flushing = 0,
+};
+
+// checks whether the currently active buffer should be flushed.
+// otherwise we could miss the trigger of adding the last log if we're actively
+// flushing the other buffer already.
+// we can safely check the state of the active buffer, as the only thread that
+// can change which buffer is active is the one calling this check function
+// inside flush_logs_queue() below
+static bool
+check_for_flush_condition(void)
+{
+    // In flush_logs_queue, after finishing a flush:
+    long current_active = sentry__atomic_fetch(&g_logs_state.active_idx);
+    log_buffer_t *current_buf = &g_logs_state.buffers[current_active];
+
+    // Check if current active buffer is also full
+    // We could even lower the threshold for high-contention scenarios
+    return sentry__atomic_fetch(&current_buf->index) >= QUEUE_LENGTH;
+}
+
+static void
+flush_logs_queue(void)
+{
+    const long already_flushing
+        = sentry__atomic_store(&g_logs_state.flushing, 1);
+    if (already_flushing) {
+        return;
+    }
+    do {
+        // prep both buffers
+        long old_buf_idx = sentry__atomic_fetch(&g_logs_state.active_idx);
+        long new_buf_idx = 1 - old_buf_idx;
+        log_buffer_t *old_buf = &g_logs_state.buffers[old_buf_idx];
+        log_buffer_t *new_buf = &g_logs_state.buffers[new_buf_idx];
+
+        // reset new buffer...
+        sentry__atomic_store(&new_buf->index, 0);
+        sentry__atomic_store(&new_buf->adding, 0);
+        sentry__atomic_store(&new_buf->sealed, 0);
+
+        // ...and make it active (after this we're good to go producer side)
+        sentry__atomic_store(&g_logs_state.active_idx, new_buf_idx);
+
+        // seal old buffer
+        sentry__atomic_store(&old_buf->sealed, 1);
+
+        // Wait for all in-flight producers of the old buffer
+        while (sentry__atomic_fetch(&old_buf->adding) > 0) {
+            // TODO currently only on unix
+#ifdef SENTRY_PLATFORM_UNIX
+            sentry__cpu_relax();
+#endif
+        }
+
+        long n = sentry__atomic_store(&old_buf->index, 0);
+        if (n > QUEUE_LENGTH) {
+            n = QUEUE_LENGTH;
+        }
+
+        if (n > 0) {
+            // now we can do the actual batching of the old buffer
+
+            sentry_value_t logs = sentry_value_new_object();
+            sentry_value_t log_items = sentry_value_new_list();
+            int i;
+            for (i = 0; i < n; i++) {
+                sentry_value_append(log_items, old_buf->logs[i]);
+            }
+            sentry_value_set_by_key(logs, "items", log_items);
+
+            sentry_envelope_t *envelope = sentry__envelope_new();
+            sentry__envelope_add_logs(envelope, logs);
+            SENTRY_WITH_OPTIONS (options) {
+                sentry__capture_envelope(options->transport, envelope);
+            }
+            sentry_value_decref(logs);
+        }
+    } while (check_for_flush_condition());
+
+    sentry__atomic_store(&g_logs_state.flushing, 0);
+}
+
+#define ENQUEUE_MAX_RETRIES 2
+
+static bool
+enqueue_log(sentry_value_t log)
+{
+    for (int attempt = 0; attempt <= ENQUEUE_MAX_RETRIES; attempt++) {
+        // retrieve the active buffer
+        const long active_idx = sentry__atomic_fetch(&g_logs_state.active_idx);
+        log_buffer_t *active = &g_logs_state.buffers[active_idx];
+
+        // if the buffer is already sealed we retry or drop and exit early.
+        if (sentry__atomic_fetch(&active->sealed) != 0) {
+            if (attempt == ENQUEUE_MAX_RETRIES) {
+                return false;
+            }
+            continue;
+        }
+
+        // `adding` is our boundary for this buffer since it keeps the flusher
+        // blocked. We have to recheck that the flusher hasn't already switched
+        // the active buffer or sealed the one this thread is on. If either is
+        // true we have to unblock the flusher and retry or drop the log.
+        sentry__atomic_fetch_and_add(&active->adding, 1);
+        const long active_idx_check
+            = sentry__atomic_fetch(&g_logs_state.active_idx);
+        const long sealed_check = sentry__atomic_fetch(&active->sealed);
+        if (active_idx != active_idx_check) {
+            sentry__atomic_fetch_and_add(&active->adding, -1);
+            if (attempt == ENQUEUE_MAX_RETRIES) {
+                return false;
+            }
+            continue;
+        }
+        if (sealed_check) {
+            sentry__atomic_fetch_and_add(&active->adding, -1);
+            if (attempt == ENQUEUE_MAX_RETRIES) {
+                return false;
+            }
+            continue;
+        }
+
+        // Now we can finally request a slot and check if the log fits in this
+        // buffer.
+        const long log_idx = sentry__atomic_fetch_and_add(&active->index, 1);
+        if (log_idx < QUEUE_LENGTH) {
+            // got a slot, write log to the buffer and unblock flusher
+            active->logs[log_idx] = log;
+            sentry__atomic_fetch_and_add(&active->adding, -1);
+
+            // Check if active buffer is now full and trigger flush. We could
+            // introduce additional watermarks here to trigger the flush earlier
+            // under high contention.
+            if (log_idx == QUEUE_LENGTH - 1) {
+                sentry__cond_wake(&g_logs_state.request_flush);
+            }
+            return true;
+        }
+        // ping the batching thread to flush, since we could miss a cond_wake
+        // on adding the last item
+        sentry__cond_wake(&g_logs_state.request_flush);
+        // Buffer is already full, roll back our increments and retry or drop.
+        sentry__atomic_fetch_and_add(&active->adding, -1);
+        if (attempt == ENQUEUE_MAX_RETRIES) {
+            // TODO report this (e.g. client reports)
+            return false;
+        }
+    }
+    return false;
+}
+
+SENTRY_THREAD_FN
+batching_thread_func(void *data)
+{
+    (void)data;
+    SENTRY_DEBUG("Starting batching thread");
+    sentry_mutex_t task_lock;
+    sentry__mutex_init(&task_lock);
+    sentry__mutex_lock(&task_lock);
+
+    // check if thread got a shut-down signal
+    while (sentry__atomic_fetch(&g_logs_state.batching_stop) == 0) {
+        // Sleep for 5 seconds or until request_flush hits
+        const int triggered_by = sentry__cond_wait_timeout(
+            &g_logs_state.request_flush, &task_lock, 5000);
+
+        // make sure loop invariant still holds
+        if (sentry__atomic_fetch(&g_logs_state.batching_stop) != 0) {
+            break;
+        }
+
+        switch (triggered_by) {
+        case 0:
+#ifdef SENTRY_PLATFORM_WINDOWS
+            if (GetLastError() == ERROR_TIMEOUT) {
+                SENTRY_DEBUG("Logs flushed by timeout");
+                break;
+            }
+#endif
+            SENTRY_DEBUG("Logs flushed by filled buffer");
+            break;
+#ifdef SENTRY_PLATFORM_UNIX
+        case ETIMEDOUT:
+            SENTRY_DEBUG("Logs flushed by timeout");
+            break;
+#endif
+#ifdef SENTRY_PLATFORM_WINDOWS
+        case 1:
+            SENTRY_DEBUG("Logs flushed by filled buffer");
+            break;
+#endif
+        default:
+            SENTRY_WARN("Logs flush trigger returned unexpected value");
+            continue;
+        }
+
+        // Try to flush logs
+        flush_logs_queue();
+    }
+
+    sentry__mutex_unlock(&task_lock);
+    sentry__mutex_free(&task_lock);
+    return 0;
+}
 
 static const char *
 level_as_string(sentry_level_t level)
@@ -157,12 +403,13 @@ skip_length(const char *fmt_ptr)
     return fmt_ptr;
 }
 
-static void
+// returns how many parameters were added to the attributes object
+static int
 populate_message_parameters(
     sentry_value_t attributes, const char *message, va_list args)
 {
     if (!message || sentry_value_is_null(attributes)) {
-        return;
+        return 0;
     }
 
     const char *fmt_ptr = message;
@@ -204,8 +451,13 @@ populate_message_parameters(
     }
 
     va_end(args_copy);
+    return param_index;
 }
 
+/**
+ * This function assumes that `value` is owned, so we have to make sure that the
+ * `value` was created or cloned by the caller or even better inc_refed.
+ */
 static void
 add_attribute(sentry_value_t attributes, sentry_value_t value, const char *type,
     const char *name)
@@ -214,6 +466,101 @@ add_attribute(sentry_value_t attributes, sentry_value_t value, const char *type,
     sentry_value_set_by_key(param_obj, "value", value);
     sentry_value_set_by_key(param_obj, "type", sentry_value_new_string(type));
     sentry_value_set_by_key(attributes, name, param_obj);
+}
+
+/**
+ * Extracts data from the scope and options, and adds it to the attributes
+ * as well as directly setting `trace_id` for the log.
+ *
+ * We clone most values instead of incref, since they might otherwise change
+ * between constructing the log & flushing it to an envelope.
+ */
+static void
+add_scope_and_options_data(sentry_value_t log, sentry_value_t attributes)
+{
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry_value_t trace_id = sentry_value_get_by_key(
+            sentry_value_get_by_key(scope->propagation_context, "trace"),
+            "trace_id");
+        sentry_value_incref(trace_id);
+        sentry_value_set_by_key(log, "trace_id", trace_id);
+
+        sentry_value_t parent_span_id = sentry_value_new_object();
+        if (scope->transaction_object) {
+            sentry_value_t span_id = sentry_value_get_by_key(
+                scope->transaction_object->inner, "span_id");
+            sentry_value_incref(span_id);
+            sentry_value_set_by_key(parent_span_id, "value", span_id);
+        } else if (scope->span) {
+            sentry_value_t span_id
+                = sentry_value_get_by_key(scope->span->inner, "span_id");
+            sentry_value_incref(span_id);
+            sentry_value_set_by_key(parent_span_id, "value", span_id);
+        }
+        sentry_value_set_by_key(
+            parent_span_id, "type", sentry_value_new_string("string"));
+        if (scope->transaction_object || scope->span) {
+            sentry_value_set_by_key(
+                attributes, "sentry.trace.parent_span_id", parent_span_id);
+        } else {
+            sentry_value_decref(parent_span_id);
+        }
+
+        if (!sentry_value_is_null(scope->user)) {
+            sentry_value_t user_id = sentry_value_get_by_key(scope->user, "id");
+            if (!sentry_value_is_null(user_id)) {
+                sentry_value_incref(user_id);
+                add_attribute(attributes, user_id, "string", "user.id");
+            }
+
+            sentry_value_t user_username
+                = sentry_value_get_by_key(scope->user, "username");
+            if (!sentry_value_is_null(user_username)) {
+                sentry_value_incref(user_username);
+                add_attribute(attributes, user_username, "string", "user.name");
+            }
+
+            sentry_value_t user_email
+                = sentry_value_get_by_key(scope->user, "email");
+            if (!sentry_value_is_null(user_email)) {
+                sentry_value_incref(user_email);
+                add_attribute(attributes, user_email, "string", "user.email");
+            }
+        }
+        sentry_value_t os_context
+            = sentry_value_get_by_key(scope->contexts, "os");
+        if (!sentry_value_is_null(os_context)) {
+            sentry_value_t os_name
+                = sentry_value_get_by_key(os_context, "name");
+            sentry_value_t os_version
+                = sentry_value_get_by_key(os_context, "version");
+            if (!sentry_value_is_null(os_name)) {
+                sentry_value_incref(os_name);
+                add_attribute(attributes, os_name, "string", "os.name");
+            }
+            if (!sentry_value_is_null(os_version)) {
+                sentry_value_incref(os_version);
+                add_attribute(attributes, os_version, "string", "os.version");
+            }
+        }
+    }
+
+    SENTRY_WITH_OPTIONS (options) {
+        if (options->environment) {
+            add_attribute(attributes,
+                sentry_value_new_string(options->environment), "string",
+                "sentry.environment");
+        }
+        if (options->release) {
+            add_attribute(attributes, sentry_value_new_string(options->release),
+                "string", "sentry.release");
+        }
+    }
+
+    add_attribute(attributes, sentry_value_new_string("sentry.native"),
+        "string", "sentry.sdk.name");
+    add_attribute(attributes, sentry_value_new_string(sentry_sdk_version()),
+        "string", "sentry.sdk.version");
 }
 
 static sentry_value_t
@@ -249,85 +596,16 @@ construct_log(sentry_level_t level, const char *message, va_list args)
     sentry_value_set_by_key(log, "timestamp",
         sentry_value_new_double((double)usec_time / 1000000.0));
 
-    SENTRY_WITH_SCOPE_MUT (scope) {
-        sentry_value_set_by_key(log, "trace_id",
-            sentry__value_clone(sentry_value_get_by_key(
-                sentry_value_get_by_key(scope->propagation_context, "trace"),
-                "trace_id")));
-
-        sentry_value_t parent_span_id = sentry_value_new_object();
-        if (scope->transaction_object) {
-            sentry_value_set_by_key(parent_span_id, "value",
-                sentry__value_clone(sentry_value_get_by_key(
-                    scope->transaction_object->inner, "span_id")));
-        }
-
-        if (scope->span) {
-            sentry_value_set_by_key(parent_span_id, "value",
-                sentry__value_clone(
-                    sentry_value_get_by_key(scope->span->inner, "span_id")));
-        }
-        sentry_value_set_by_key(
-            parent_span_id, "type", sentry_value_new_string("string"));
-        if (scope->transaction_object || scope->span) {
-            sentry_value_set_by_key(
-                attributes, "sentry.trace.parent_span_id", parent_span_id);
-        } else {
-            sentry_value_decref(parent_span_id);
-        }
-
-        if (!sentry_value_is_null(scope->user)) {
-            sentry_value_t user_id = sentry_value_get_by_key(scope->user, "id");
-            if (!sentry_value_is_null(user_id)) {
-                add_attribute(attributes, user_id, "string", "user.id");
-            }
-            sentry_value_t user_username
-                = sentry_value_get_by_key(scope->user, "username");
-            if (!sentry_value_is_null(user_username)) {
-                add_attribute(attributes, user_username, "string", "user.name");
-            }
-            sentry_value_t user_email
-                = sentry_value_get_by_key(scope->user, "email");
-            if (!sentry_value_is_null(user_email)) {
-                add_attribute(attributes, user_email, "string", "user.email");
-            }
-        }
-        sentry_value_t os_context = sentry__get_os_context();
-        if (!sentry_value_is_null(os_context)) {
-            sentry_value_t os_name = sentry__value_clone(
-                sentry_value_get_by_key(os_context, "name"));
-            sentry_value_t os_version = sentry__value_clone(
-                sentry_value_get_by_key(os_context, "version"));
-            if (!sentry_value_is_null(os_name)) {
-                add_attribute(attributes, os_name, "string", "os.name");
-            }
-            if (!sentry_value_is_null(os_version)) {
-                add_attribute(attributes, os_version, "string", "os.version");
-            }
-        }
-        sentry_value_decref(os_context);
-    }
-    SENTRY_WITH_OPTIONS (options) {
-        if (options->environment) {
-            add_attribute(attributes,
-                sentry_value_new_string(options->environment), "string",
-                "sentry.environment");
-        }
-        if (options->release) {
-            add_attribute(attributes, sentry_value_new_string(options->release),
-                "string", "sentry.release");
-        }
-    }
-
-    add_attribute(attributes, sentry_value_new_string("sentry.native"),
-        "string", "sentry.sdk.name");
-    add_attribute(attributes, sentry_value_new_string(sentry_sdk_version()),
-        "string", "sentry.sdk.version");
-    add_attribute(attributes, sentry_value_new_string(message), "string",
-        "sentry.message.template");
+    // adds data from the scope & options to the attributes, and adds `trace_id`
+    // to the log
+    add_scope_and_options_data(log, attributes);
 
     // Parse variadic arguments and add them to attributes
-    populate_message_parameters(attributes, message, args_copy_3);
+    if (populate_message_parameters(attributes, message, args_copy_3)) {
+        // only add message template if we have parameters
+        add_attribute(attributes, sentry_value_new_string(message), "string",
+            "sentry.message.template");
+    }
     va_end(args_copy_3);
 
     sentry_value_set_by_key(log, "attributes", attributes);
@@ -335,7 +613,7 @@ construct_log(sentry_level_t level, const char *message, va_list args)
     return log;
 }
 
-void
+log_return_value_t
 sentry__logs_log(sentry_level_t level, const char *message, va_list args)
 {
     bool enable_logs = false;
@@ -344,79 +622,130 @@ sentry__logs_log(sentry_level_t level, const char *message, va_list args)
             enable_logs = true;
     }
     if (enable_logs) {
+        bool discarded = false;
         // create log from message
         sentry_value_t log = construct_log(level, message, args);
-
-        // TODO split up the code below for batched log sending
-        //    e.g. could we store logs on the scope?
-        sentry_value_t logs = sentry_value_new_object();
-        sentry_value_t logs_list = sentry_value_new_list();
-        sentry_value_append(logs_list, log);
-        sentry_value_set_by_key(logs, "items", logs_list);
-        // sending of the envelope
-        sentry_envelope_t *envelope = sentry__envelope_new();
-        sentry__envelope_add_logs(envelope, logs);
-        // TODO remove debug write to file below
-        sentry_envelope_write_to_file(envelope, "logs_envelope.json");
         SENTRY_WITH_OPTIONS (options) {
-            sentry__capture_envelope(options->transport, envelope);
+            if (options->before_send_log_func) {
+                log = options->before_send_log_func(
+                    log, options->before_send_log_data);
+                if (sentry_value_is_null(log)) {
+                    SENTRY_DEBUG(
+                        "log was discarded by the `before_send_log` hook");
+                    discarded = true;
+                }
+            }
         }
-        // For now, free the logs object since envelope doesn't take
-        // ownership
-        sentry_value_decref(logs);
+        if (discarded) {
+            return SENTRY_LOG_RETURN_DISCARD;
+        }
+        if (!enqueue_log(log)) {
+            sentry_value_decref(log);
+            return SENTRY_LOG_RETURN_FAILED;
+        }
+        return SENTRY_LOG_RETURN_SUCCESS;
     }
+    return SENTRY_LOG_RETURN_DISABLED;
 }
 
-void
+log_return_value_t
 sentry_log_trace(const char *message, ...)
 {
     va_list args;
     va_start(args, message);
-    sentry__logs_log(SENTRY_LEVEL_TRACE, message, args);
+    log_return_value_t result
+        = sentry__logs_log(SENTRY_LEVEL_TRACE, message, args);
     va_end(args);
+    return result;
 }
 
-void
+log_return_value_t
 sentry_log_debug(const char *message, ...)
 {
     va_list args;
     va_start(args, message);
-    sentry__logs_log(SENTRY_LEVEL_DEBUG, message, args);
+    const log_return_value_t result
+        = sentry__logs_log(SENTRY_LEVEL_DEBUG, message, args);
     va_end(args);
+    return result;
 }
 
-void
+log_return_value_t
 sentry_log_info(const char *message, ...)
 {
     va_list args;
     va_start(args, message);
-    sentry__logs_log(SENTRY_LEVEL_INFO, message, args);
+    const log_return_value_t result
+        = sentry__logs_log(SENTRY_LEVEL_INFO, message, args);
     va_end(args);
+    return result;
 }
 
-void
+log_return_value_t
 sentry_log_warn(const char *message, ...)
 {
     va_list args;
     va_start(args, message);
-    sentry__logs_log(SENTRY_LEVEL_WARNING, message, args);
+    const log_return_value_t result
+        = sentry__logs_log(SENTRY_LEVEL_WARNING, message, args);
     va_end(args);
+    return result;
 }
 
-void
+log_return_value_t
 sentry_log_error(const char *message, ...)
 {
     va_list args;
     va_start(args, message);
-    sentry__logs_log(SENTRY_LEVEL_ERROR, message, args);
+    const log_return_value_t result
+        = sentry__logs_log(SENTRY_LEVEL_ERROR, message, args);
     va_end(args);
+    return result;
 }
 
-void
+log_return_value_t
 sentry_log_fatal(const char *message, ...)
 {
     va_list args;
     va_start(args, message);
-    sentry__logs_log(SENTRY_LEVEL_FATAL, message, args);
+    const log_return_value_t result
+        = sentry__logs_log(SENTRY_LEVEL_FATAL, message, args);
     va_end(args);
+    return result;
+}
+
+void
+sentry__logs_startup(void)
+{
+    sentry__cond_init(&g_logs_state.request_flush);
+
+    sentry__thread_init(&g_logs_state.batching_thread);
+    int spawn_result = sentry__thread_spawn(
+        &g_logs_state.batching_thread, batching_thread_func, NULL);
+
+    if (spawn_result == 1) {
+        SENTRY_ERROR("Failed to start batching thread");
+    }
+}
+
+void
+sentry__logs_shutdown(uint64_t timeout)
+{
+    (void)timeout;
+    SENTRY_DEBUG("shutting down logs system");
+
+    // Signal the batching thread to stop running
+    if (sentry__atomic_store(&g_logs_state.batching_stop, 1) != 0) {
+        SENTRY_DEBUG("preventing double shutdown of logs system");
+        return;
+    }
+    sentry__cond_wake(&g_logs_state.request_flush);
+    sentry__thread_join(g_logs_state.batching_thread);
+
+    // Perform final flush to ensure any remaining logs are sent
+    flush_logs_queue();
+
+    sentry__thread_free(&g_logs_state.batching_thread);
+
+    SENTRY_DEBUG("logs system shutdown complete");
 }

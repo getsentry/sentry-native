@@ -37,6 +37,7 @@ from .assertions import (
     assert_gzip_file_header,
     assert_failed_proxy_auth_request,
     assert_attachment_view_hierarchy,
+    assert_logs,
 )
 from .conditions import has_http, has_breakpad, has_files
 
@@ -1311,3 +1312,176 @@ def test_capture_with_scope(cmake, httpserver):
 
     assert_breadcrumb(envelope, "scoped crumb")
     assert_attachment(envelope)
+
+
+def test_logs_timer(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+
+    # make sure we are isolated from previous runs
+    shutil.rmtree(tmp_path / ".sentry-native", ignore_errors=True)
+
+    httpserver.expect_request(
+        "/api/123456/envelope/",
+        headers={"x-sentry-auth": auth_header},
+    ).respond_with_data("OK")
+
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "enable-logs", "logs-timer"],
+        check=True,
+        env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+    )
+
+    assert len(httpserver.log) == 2
+
+    req_0 = httpserver.log[0][0]
+    body_0 = req_0.get_data()
+
+    envelope_0 = Envelope.deserialize(body_0)
+    assert_logs(envelope_0, 10)
+
+    req_1 = httpserver.log[1][0]
+    body_1 = req_1.get_data()
+
+    envelope_1 = Envelope.deserialize(body_1)
+    assert_logs(envelope_1)
+
+
+def test_logs_event(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+
+    # make sure we are isolated from previous runs
+    shutil.rmtree(tmp_path / ".sentry-native", ignore_errors=True)
+
+    httpserver.expect_request(
+        "/api/123456/envelope/",
+        headers={"x-sentry-auth": auth_header},
+    ).respond_with_data("OK")
+
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "enable-logs", "capture-log", "capture-event"],
+        check=True,
+        env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+    )
+
+    assert len(httpserver.log) == 2
+
+    event_req = httpserver.log[0][0]
+    event_body = event_req.get_data()
+
+    event_envelope = Envelope.deserialize(event_body)
+    assert_event(event_envelope)
+    # ensure that the event and the log are part of the same trace
+    event_trace_id = event_envelope.items[0].payload.json["contexts"]["trace"][
+        "trace_id"
+    ]
+
+    log_req = httpserver.log[1][0]
+    log_body = log_req.get_data()
+
+    log_envelope = Envelope.deserialize(log_body)
+    assert_logs(log_envelope, 1, event_trace_id)
+
+
+def test_logs_threaded(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+
+    # make sure we are isolated from previous runs
+    shutil.rmtree(tmp_path / ".sentry-native", ignore_errors=True)
+
+    httpserver.expect_request(
+        "/api/123456/envelope/",
+        headers={"x-sentry-auth": auth_header},
+    ).respond_with_data("OK")
+
+    # TODO: a significant amount of variability in these tests is due to the "print"-logging to stdout
+    #       i think it is fair to turn them off once these tests should run in CI to get more stable bounds
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "enable-logs", "logs-threads"],
+        check=True,
+        env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+    )
+
+    # currently, we drop logs while flushing (local run about 20% if we have 'nonstop' log-calls)
+    # in CI however, thread scheduling varies greatly, so we sometimes lose all but 1 flush
+    # TODO update after double buffer, should be closer to 100% captured
+    assert 1 <= len(httpserver.log) <= 50
+    total_count = 0
+
+    for i in range(len(httpserver.log)):
+        req = httpserver.log[i][0]
+        body = req.get_data()
+
+        envelope = Envelope.deserialize(body)
+        assert_logs(envelope)  # TODO what is the expected item count?
+        total_count += envelope.items[0].headers["item_count"]
+    print(f"Total amount of captured logs: {total_count}")
+    assert total_count >= 100
+
+
+def test_before_send_log(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+
+    httpserver.expect_oneshot_request(
+        "/api/123456/envelope/",
+        headers={"x-sentry-auth": auth_header},
+    ).respond_with_data("OK")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_RELEASE="🤮🚀")
+
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "enable-logs", "capture-log", "before-send-log"],
+        check=True,
+        env=env,
+    )
+
+    assert len(httpserver.log) == 1
+    req = httpserver.log[0][0]
+    body = req.get_data()
+
+    envelope = Envelope.deserialize(body)
+
+    # Show what the envelope looks like if the test fails.
+    envelope.print_verbose()
+
+    # Extract the log item
+    (log_item,) = envelope.items
+
+    assert log_item.headers["type"] == "log"
+    payload = log_item.payload.json
+
+    # Get the first log item from the logs payload
+    log_entry = payload["items"][0]
+    attributes = log_entry["attributes"]
+
+    # Check that the before_send_log callback added the expected attribute
+    assert "coffeepot.size" in attributes
+    assert attributes["coffeepot.size"]["value"] == "little"
+    assert attributes["coffeepot.size"]["type"] == "string"
+
+
+def test_before_send_log_discard(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+
+    httpserver.expect_oneshot_request(
+        "/api/123456/envelope/",
+        headers={"x-sentry-auth": auth_header},
+    ).respond_with_data("OK")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_RELEASE="🤮🚀")
+
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "enable-logs", "capture-log", "discarding-before-send-log"],
+        check=True,
+        env=env,
+    )
+
+    # log should have been discarded
+    assert len(httpserver.log) == 0
