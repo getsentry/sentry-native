@@ -1428,6 +1428,7 @@ def test_logs_scoped_transaction(cmake, httpserver):
     tx_body = tx_req.get_data()
 
     tx_envelope = Envelope.deserialize(tx_body)
+    # ensure that the transaction, event, and logs are part of the same trace
     tx_trace_id = tx_envelope.items[0].payload.json["contexts"]["trace"]["trace_id"]
     assert tx_trace_id == event_trace_id
 

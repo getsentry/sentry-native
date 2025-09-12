@@ -751,7 +751,7 @@ main(int argc, char **argv)
 
         sentry_transaction_finish(tx);
         if (has_arg(argc, argv, "logs-scoped-transaction")) {
-            sentry_log_debug("logging during scoped transaction event");
+            sentry_log_debug("logging after scoped transaction event");
         }
     }
 
