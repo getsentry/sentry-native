@@ -18,7 +18,7 @@ test_logger(
         TEST_CHECK(level == SENTRY_LEVEL_WARNING);
 
         char formatted[128];
-        vsprintf(formatted, message, args);
+        vsnprintf(formatted, sizeof(formatted), message, args);
 
         TEST_CHECK_STRING_EQUAL(formatted, "Oh this is bad");
     }

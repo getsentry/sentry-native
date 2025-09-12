@@ -8,15 +8,6 @@ else()
 	cmake_minimum_required(VERSION 3.10)
 	cmake_policy(SET CMP0077 NEW)
 endif()
-set(SENTRY_TOOLCHAINS_DIR "${CMAKE_CURRENT_LIST_DIR}/toolchains")
-if ("${CMAKE_GENERATOR_PLATFORM}" STREQUAL "Gaming.Xbox.Scarlett.x64")
-	include("${SENTRY_TOOLCHAINS_DIR}/xbox/CMakeGDKScarlett.cmake")
-	set(XBOX TRUE)
-endif()
-if ("${CMAKE_GENERATOR_PLATFORM}" STREQUAL "Gaming.Xbox.XboxOne.x64")
-	include("${SENTRY_TOOLCHAINS_DIR}/xbox/CMakeGDKXboxOne.cmake")
-	set(XBOX TRUE)
-endif()
 
 #read sentry-native version
 file(READ "include/sentry.h" _SENTRY_HEADER_CONTENT)
@@ -60,6 +51,8 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "AIX" OR CMAKE_SYSTEM_NAME STREQUAL "OS400")
 	set(AIX TRUE)
 elseif(CMAKE_SYSTEM_NAME STREQUAL "Prospero")
 	set(PROSPERO TRUE)
+elseif("${CMAKE_GENERATOR_PLATFORM}" MATCHES "Gaming\\.Xbox\\.(Scarlett|XboxOne)\\.x64")
+	set(XBOX TRUE)
 endif()
 
 #setup sentry library type
@@ -80,6 +73,25 @@ option(SENTRY_TRANSPORT_COMPRESSION "Enable transport gzip compression" OFF)
 option(SENTRY_BUILD_TESTS "Build sentry-native tests" "${SENTRY_MAIN_PROJECT}")
 option(SENTRY_BUILD_EXAMPLES "Build sentry-native example(s)" "${SENTRY_MAIN_PROJECT}")
 option(SENTRY_BUILD_BENCHMARKS "Build sentry-native benchmarks" OFF)
+
+# Platform version embedding options
+option(SENTRY_EMBED_INFO "Embed version information in binary" OFF)
+set(SENTRY_BUILD_PLATFORM "${CMAKE_SYSTEM_NAME}" CACHE STRING "Platform name for embedded version (e.g., switch, playstation, xbox)")
+set(SENTRY_BUILD_VARIANT "" CACHE STRING "Build variant for embedded version (e.g., native, unreal)")
+set(SENTRY_BUILD_ID "" CACHE STRING "Build identifier for embedded version (defaults to timestamp)")
+set(SENTRY_EMBED_INFO_ITEMS "" CACHE STRING "Additional items to embed (semicolon-separated key:value pairs)")
+
+# Validate the format of custom items
+if(SENTRY_EMBED_INFO_ITEMS)
+	# Convert semicolon-separated string to list for iteration
+	string(REPLACE ";" "\n" TEMP_ITEMS "${SENTRY_EMBED_INFO_ITEMS}")
+	string(REPLACE "\n" ";" ITEMS_LIST "${TEMP_ITEMS}")
+	foreach(ITEM IN LISTS ITEMS_LIST)
+		if(ITEM AND NOT ITEM MATCHES "^[^:]+:[^:]*$")
+			message(FATAL_ERROR "Invalid embedded info item format: ${ITEM}. Expected format: key:value")
+		endif()
+	endforeach()
+endif()
 
 if(NOT XBOX)
 	option(SENTRY_LINK_PTHREAD "Link platform threads library" ON)
@@ -293,6 +305,37 @@ if (XBOX)
 endif()
 target_sources(sentry PRIVATE "${PROJECT_SOURCE_DIR}/include/sentry.h")
 add_library(sentry::sentry ALIAS sentry)
+
+# Configure version embedding if enabled
+if(SENTRY_EMBED_INFO)
+	# Use timestamp as default build ID if not specified
+	if(NOT SENTRY_BUILD_ID)
+		string(TIMESTAMP SENTRY_BUILD_ID "%Y-%m-%d %H:%M:%S UTC" UTC)
+	endif()
+
+	# Validate and escape special characters in custom items if needed
+	if(SENTRY_EMBED_INFO_ITEMS)
+		# Sanitize input to prevent CMake substitution issues
+		string(REPLACE "\"" "\\\"" SENTRY_EMBED_INFO_ITEMS "${SENTRY_EMBED_INFO_ITEMS}")
+	endif()
+
+	# Ensure custom items end with semicolon if not empty
+	if(SENTRY_EMBED_INFO_ITEMS AND NOT SENTRY_EMBED_INFO_ITEMS MATCHES ";$")
+		set(SENTRY_EMBED_INFO_ITEMS "${SENTRY_EMBED_INFO_ITEMS};")
+	endif()
+
+	# Ensure the output directory exists
+	file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/src")
+
+	configure_file(
+		"${CMAKE_CURRENT_SOURCE_DIR}/src/sentry_embedded_info.cpp.in"
+		"${CMAKE_CURRENT_BINARY_DIR}/src/sentry_embedded_info.cpp"
+		@ONLY
+	)
+
+	target_sources(sentry PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/src/sentry_embedded_info.cpp")
+endif()
+
 add_subdirectory(src)
 
 target_compile_definitions(sentry PRIVATE SENTRY_HANDLER_STACK_SIZE=${SENTRY_HANDLER_STACK_SIZE})

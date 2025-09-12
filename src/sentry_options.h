@@ -58,6 +58,7 @@ struct sentry_options_s {
     /* Experimentally exposed */
     double traces_sample_rate;
     sentry_traces_sampler_function traces_sampler;
+    void *traces_sampler_data;
     size_t max_spans;
     bool enable_logs;
 

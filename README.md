@@ -1,4 +1,4 @@
-[![Conan Center](https://shields.io/conan/v/sentry-native)](https://conan.io/center/recipes/sentry-native) [![homebrew](https://img.shields.io/homebrew/v/sentry-native)](https://formulae.brew.sh/formula/sentry-native) [![nixpkgs unstable](https://repology.org/badge/version-for-repo/nix_unstable/sentry-native.svg)](https://github.com/NixOS/nixpkgs/blob/nixos-unstable/pkgs/by-name/se/sentry-native/package.nix) [![vcpkg](https://shields.io/vcpkg/v/sentry-native)](https://vcpkg.link/ports/sentry-native) 
+[![Conan Center](https://shields.io/conan/v/sentry-native)](https://conan.io/center/recipes/sentry-native) [![homebrew](https://img.shields.io/homebrew/v/sentry-native)](https://formulae.brew.sh/formula/sentry-native) [![nixpkgs unstable](https://repology.org/badge/version-for-repo/nix_unstable/sentry-native.svg)](https://github.com/NixOS/nixpkgs/blob/nixos-unstable/pkgs/by-name/se/sentry-native/package.nix) [![vcpkg](https://shields.io/vcpkg/v/sentry-native)](https://vcpkg.link/ports/sentry-native)
 <p align="center">
   <a href="https://sentry.io/?utm_source=github&utm_medium=logo" target="_blank">
     <picture>
@@ -72,6 +72,9 @@ The SDK currently supports and is tested on the following OS/Compiler variations
 - macOS 13, 14, 15 with respective most recent Apple compiler toolchain and LLVM clang 15 + 18
 - Android API35 built by NDK27 toolchain
 - Android API16 built by NDK19 toolchain
+- PlayStation via [sentry-playstation](https://github.com/getsentry/sentry-playstation). See [PlayStation documentation](https://docs.sentry.io/platforms/playstation/) to get access.
+- Xbox via [sentry-xbox](https://github.com/getsentry/sentry-xbox). See [Xbox documentation](https://docs.sentry.io/platforms/xbox/) to get access.
+- Nintendo Switch via [sentry-switch](https://github.com/getsentry/sentry-switch). See [Nintendo Switch documentation](https://docs.sentry.io/platforms/nintendo-switch/) to get access.
 
 Additionally, the SDK should support the following platforms, although they are
 not automatically tested, so breakage may occur:
@@ -143,9 +146,9 @@ LLVM + Clang are mandatory here : they are required to generate .pdb files, used
 
 For your application to generate the appropriate .pdb output, you need to activate CodeView file format generation on your application target. To do so, update your own CMakeLists.txt with something like `target_compile_options(${yourApplicationTarget} PRIVATE -gcodeview)`.
 
-If you use a MSYS2 environement to compile with MinGW, make sure to :
+If you use a MSYS2 environment to compile with MinGW, make sure to :
 
-- Create an environement variable `MINGW_ROOT` (ex : `C:/msys64/mingw64`)
+- Create an environment variable `MINGW_ROOT` (ex : `C:/msys64/mingw64`)
 - Run from `mingw64.exe` : `pacman -S --needed - < ./toolchains/msys2-mingw64-pkglist.txt`
 - Build as :
 
@@ -159,7 +162,7 @@ $ ninja -C build
 **MacOS**:
 
 Building universal binaries/libraries is possible out of the box when using the
-[`CMAKE_OSX_ARCHITECTURES`](https://cmake.org/cmake/help/latest/variable/CMAKE_OSX_ARCHITECTURES.html) define, both with the `Xcode` generator as well
+[`CMAKE_OSX_ARCHITECTURES`](https://cmake.org/cmake/help/latest/variable/CMAKE_OSX_ARCHITECTURES.html) variable, both with the `Xcode` generator as well
 as the default generator:
 
 ```sh
@@ -176,12 +179,16 @@ $ lipo -info defaultbuild/libsentry.dylib
 Architectures in the fat file: defaultbuild/libsentry.dylib are: x86_64 arm64
 ```
 
-Make sure that MacOSX SDK 11 or later is used. It is possible that this requires
-manually overriding the `SDKROOT`:
+Ensure that macOS SDK 11 or later is used (we currently only test against versions 13 and above). This may require
+specifying the `SDKROOT`:
 
 ```sh
 $ export SDKROOT=$(xcrun --sdk macosx --show-sdk-path)
 ```
+
+If you build on macOS using _CMake 4_, then you _must_ specify the `SDKROOT`, because 
+[CMake 4 defaults to an empty `CMAKE_OSX_SYSROOT`](https://cmake.org/cmake/help/latest/variable/CMAKE_OSX_SYSROOT.html), 
+which could lead to inconsistent include paths when CMake tries to gather the `sysroot` later in the build.
 
 ### Compile-Time Options
 

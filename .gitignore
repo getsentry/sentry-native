@@ -34,3 +34,5 @@ obj/
 
 # clangd
 .cache
+
+sentry-native.sln

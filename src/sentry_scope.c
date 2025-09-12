@@ -83,6 +83,7 @@ init_scope(sentry_scope_t *scope)
     scope->attachments = NULL;
     scope->transaction_object = NULL;
     scope->span = NULL;
+    scope->trace_managed = true;
 }
 
 static sentry_scope_t *

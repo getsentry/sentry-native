@@ -288,12 +288,12 @@ SENTRY_TEST(value_object)
     sentry_value_t val = sentry_value_new_object();
     for (size_t i = 0; i < 10; i++) {
         char key[100];
-        sprintf(key, "key%d", (int)i);
+        snprintf(key, sizeof(key), "key%d", (int)i);
         sentry_value_set_by_key(val, key, sentry_value_new_int32((int32_t)i));
     }
     for (size_t i = 0; i < 20; i++) {
         char key[100];
-        sprintf(key, "key%d", (int)i);
+        snprintf(key, sizeof(key), "key%d", (int)i);
         sentry_value_t child = sentry_value_get_by_key(val, key);
         if (i < 10) {
             TEST_CHECK(sentry_value_as_int32(child) == (int32_t)i);
@@ -316,7 +316,7 @@ SENTRY_TEST(value_object)
 
     for (size_t i = 0; i < 10; i += 2) {
         char key[100];
-        sprintf(key, "key%d", (int)i);
+        snprintf(key, sizeof(key), "key%d", (int)i);
         sentry_value_remove_by_key(val, key);
     }
 

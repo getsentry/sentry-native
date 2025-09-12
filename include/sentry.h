@@ -78,7 +78,7 @@ extern "C" {
 #        define SENTRY_SDK_NAME "sentry.native"
 #    endif
 #endif
-#define SENTRY_SDK_VERSION "0.9.1"
+#define SENTRY_SDK_VERSION "0.10.1"
 #define SENTRY_SDK_USER_AGENT SENTRY_SDK_NAME "/" SENTRY_SDK_VERSION
 
 /* marks a function as part of the sentry API */
@@ -434,7 +434,7 @@ SENTRY_API int sentry_value_is_null(sentry_value_t value);
  * Serialize a sentry value to JSON.
  *
  * The string is freshly allocated and must be freed with
- * `sentry_string_free`.
+ * `sentry_free`.
  */
 SENTRY_API char *sentry_value_to_json(sentry_value_t value);
 
@@ -562,7 +562,7 @@ SENTRY_EXPERIMENTAL_API void sentry_event_add_thread(
  * Serialize a sentry value to msgpack.
  *
  * The string is freshly allocated and must be freed with
- * `sentry_string_free`.  Since msgpack is not zero terminated
+ * `sentry_free`.  Since msgpack is not zero terminated
  * the size is written to the `size_out` parameter.
  */
 SENTRY_EXPERIMENTAL_API char *sentry_value_to_msgpack(
@@ -714,7 +714,7 @@ SENTRY_EXPERIMENTAL_API sentry_value_t sentry_envelope_get_transaction(
 /**
  * Serializes the envelope.
  *
- * The return value needs to be freed with sentry_string_free().
+ * The return value needs to be freed with `sentry_free`.
  */
 SENTRY_API char *sentry_envelope_serialize(
     const sentry_envelope_t *envelope, size_t *size_out);
@@ -1552,7 +1552,7 @@ SENTRY_API int sentry_flush(uint64_t timeout);
 /**
  * Shuts down the sentry client and forces transports to flush out.
  *
- * Returns 0 on success.
+ * Returns the number of envelopes that have been dumped.
  *
  * Note that this does not uninstall any crash handler installed by our
  * backends, which will still process crashes after `sentry_close()`, except
@@ -1567,7 +1567,7 @@ SENTRY_API int sentry_close(void);
 /**
  * Shuts down the sentry client and forces transports to flush out.
  *
- * Returns 0 on success.
+ * Returns the number of envelopes that have been dumped.
  */
 SENTRY_DEPRECATED("Use `sentry_close` instead")
 SENTRY_API int sentry_shutdown(void);
@@ -1792,6 +1792,9 @@ SENTRY_API void sentry_remove_fingerprint(void);
 /**
  * Set the trace. The primary use for this is to allow other SDKs to propagate
  * their trace context to connect events on all layers.
+ *
+ * Once a trace is managed by the downstream SDK using this function,
+ * transactions no longer act as automatic trace boundaries.
  */
 SENTRY_API void sentry_set_trace(
     const char *trace_id, const char *parent_span_id);
@@ -1802,6 +1805,14 @@ SENTRY_API void sentry_set_trace_n(const char *trace_id, size_t trace_id_len,
  * Generates a new random `trace_id` and `span_id` and sets these onto
  * the propagation context. Use this to set a trace boundary for
  * events/transactions.
+ *
+ * Once you regenerate a trace manually, transactions no longer act as automatic
+ * trace boundaries. This means all following transactions will be part of the
+ * same trace until you regenerate the trace again.
+ *
+ * We urge you not to use this function if you use the Native SDK in the context
+ * of a downstream SDK like Android, .NET, Unity or Unreal, because it will
+ * interfere with cross-SDK traces which are managed by these SDKs.
  */
 SENTRY_EXPERIMENTAL_API void sentry_regenerate_trace(void);
 
@@ -1857,15 +1868,18 @@ struct sentry_transaction_context_s;
 typedef struct sentry_transaction_context_s sentry_transaction_context_t;
 typedef double (*sentry_traces_sampler_function)(
     const sentry_transaction_context_t *transaction_ctx,
-    sentry_value_t custom_sampling_ctx, const int *parent_sampled);
+    sentry_value_t custom_sampling_ctx, const int *parent_sampled,
+    void *user_data);
 
 /**
  * Sets the traces sampler callback. Should be a function that returns a double
  * and takes in a sentry_transaction_context_t pointer, a sentry_value_t for
- * a custom sampling context and an int pointer for the parent sampled flag.
+ * a custom sampling context int pointer for the parent sampled flag and some
+ * optional user_data.
  */
 SENTRY_EXPERIMENTAL_API void sentry_options_set_traces_sampler(
-    sentry_options_t *opts, sentry_traces_sampler_function callback);
+    sentry_options_t *opts, sentry_traces_sampler_function callback,
+    void *user_data);
 
 /**
  * Enables or disables the structured logging feature.

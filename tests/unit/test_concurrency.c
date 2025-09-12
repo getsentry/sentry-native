@@ -3,11 +3,17 @@
 
 #include <sentry_sync.h>
 
+#ifdef SENTRY__MUTEX_INIT_DYN
+SENTRY__MUTEX_INIT_DYN(g_test_check_mutex)
+#else
 static sentry_mutex_t g_test_check_mutex = SENTRY__MUTEX_INIT;
+#endif
 
 static void
 send_envelope_test_concurrent(sentry_envelope_t *envelope, void *data)
 {
+    SENTRY__MUTEX_INIT_DYN_ONCE(g_test_check_mutex);
+
     sentry__atomic_fetch_and_add((long *)data, 1);
 
     sentry_value_t event = sentry_envelope_get_event(envelope);
@@ -27,6 +33,8 @@ send_envelope_test_concurrent(sentry_envelope_t *envelope, void *data)
 static void
 init_framework(long *called)
 {
+    SENTRY__MUTEX_INIT_DYN_ONCE(g_test_check_mutex);
+
     sentry__mutex_lock(&g_test_check_mutex);
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry__mutex_unlock(&g_test_check_mutex);
