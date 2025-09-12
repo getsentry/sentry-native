@@ -53,6 +53,9 @@ static struct {
 // checks whether the currently active buffer should be flushed.
 // otherwise we could miss the trigger of adding the last log if we're actively
 // flushing the other buffer already.
+// we can safely check the state of the active buffer, as the only thread that
+// can change which buffer is active is the one calling this check function
+// inside flush_logs_queue() below
 static bool
 check_for_flush_condition(void)
 {
@@ -61,6 +64,7 @@ check_for_flush_condition(void)
     log_buffer_t *current_buf = &g_logs_state.buffers[current_active];
 
     // Check if current active buffer is also full
+    // We could even lower the threshold for high-contention scenarios
     return sentry__atomic_fetch(&current_buf->index) >= QUEUE_LENGTH;
 }
 
