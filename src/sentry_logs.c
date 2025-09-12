@@ -181,6 +181,7 @@ enqueue_log(sentry_value_t log)
             // Check if active buffer is now full and trigger flush. We could
             // introduce additional watermarks here to trigger the flush earlier
             // under high contention.
+            // TODO replace with a level-triggered flag
             if (log_idx == QUEUE_LENGTH - 1) {
                 sentry__cond_wake(&g_logs_state.request_flush);
             }
@@ -274,6 +275,7 @@ level_as_string(sentry_level_t level)
     }
 }
 
+// TODO to be portable, pass in the length format specifier
 static sentry_value_t
 construct_param_from_conversion(const char conversion, va_list *args_copy)
 {

@@ -265,6 +265,9 @@ sentry__envelope_add_event(sentry_envelope_t *envelope, sentry_value_t event)
     item->event = event;
     sentry__jsonwriter_write_value(jw, event);
     item->payload = sentry__jsonwriter_into_string(jw, &item->payload_len);
+    if (!item->payload) {
+        return NULL;
+    }
 
     sentry__envelope_item_set_header(
         item, "type", sentry_value_new_string("event"));

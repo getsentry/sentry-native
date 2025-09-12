@@ -318,10 +318,9 @@ sentry_flush(uint64_t timeout)
 int
 sentry_close(void)
 {
-    // Shutdown logs system before locking options to ensure logs are flushed
-    // TODO is this the only way? we got a potential deadlock on the options
-    // otherwise
-    //  (for envelope creation, see sentry__envelope_new)
+    // Shutdown logs system before locking options to ensure logs are flushed.
+    // This prevents a potential deadlock on the options during log envelope
+    // creation.
     SENTRY_WITH_OPTIONS (options) {
         if (options->enable_logs) {
             sentry__logs_shutdown(options->shutdown_timeout);

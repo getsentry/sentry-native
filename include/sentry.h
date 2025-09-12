@@ -1890,12 +1890,44 @@ SENTRY_EXPERIMENTAL_API void sentry_options_set_enable_logs(
 SENTRY_EXPERIMENTAL_API int sentry_options_get_enable_logs(
     const sentry_options_t *opts);
 
+/**
+ * The potential returns of calling any of the sentry_logs_X functions
+ * - Success means a log was enqueued
+ * - Discard means the `before_send_log` function discarded the log
+ * - Failed means the log wasn't enqueued. This happens if the buffers are full
+ * - Disabled means the option `enable_logs` was false.
+ */
 typedef enum {
     SENTRY_LOG_RETURN_SUCCESS = 0,
     SENTRY_LOG_RETURN_DISCARD = 1,
     SENTRY_LOG_RETURN_FAILED = 2,
     SENTRY_LOG_RETURN_DISABLED = 3
 } log_return_value_t;
+
+/**
+ * Structured logging interface. Minimally blocks the client trying to log,
+ * but is therefor lossy when enqueueing a log fails
+ * (e.g. when both buffers are full).
+ *
+ * Format string restrictions:
+ * Only a subset of printf format specifiers are supported for parameter
+ * extraction. Supported specifiers include:
+ * - %d, %i - signed integers (treated as long long)
+ * - %u, %x, %X, %o - unsigned integers (treated as unsigned long long)
+ * - %f, %F, %e, %E, %g, %G - floating point numbers (treated as double)
+ * - %c - single character
+ * - %s - null-terminated string (null pointers are handled as "(null)")
+ * - %p - pointer value (formatted as hexadecimal string)
+ *
+ * Unsupported format specifiers will consume their corresponding argument
+ * but will be recorded as "(unknown)" in the structured log data.
+ * Length modifiers (h, l, L, z, j, t) are parsed but ignored.
+ *
+ * Because of this, please only use 64-bit types for parameters.
+ *
+ * Flags, width, and precision specifiers are parsed but currently ignored for
+ * parameter extraction purposes.
+ */
 SENTRY_EXPERIMENTAL_API log_return_value_t sentry_log_trace(
     const char *message, ...);
 SENTRY_EXPERIMENTAL_API log_return_value_t sentry_log_debug(
