@@ -50,6 +50,20 @@ static struct {
     .flushing = 0,
 };
 
+// checks whether the currently active buffer should be flushed.
+// otherwise we could miss the trigger of adding the last log if we're actively
+// flushing the other buffer already.
+static bool
+check_for_flush_condition(void)
+{
+    // In flush_logs_queue, after finishing a flush:
+    long current_active = sentry__atomic_fetch(&g_logs_state.active_idx);
+    log_buffer_t *current_buf = &g_logs_state.buffers[current_active];
+
+    // Check if current active buffer is also full
+    return sentry__atomic_fetch(&current_buf->index) >= QUEUE_LENGTH;
+}
+
 static void
 flush_logs_queue(void)
 {
@@ -58,55 +72,56 @@ flush_logs_queue(void)
     if (already_flushing) {
         return;
     }
+    do {
+        // prep both buffers
+        long old_buf_idx = sentry__atomic_fetch(&g_logs_state.active_idx);
+        long new_buf_idx = 1 - old_buf_idx;
+        log_buffer_t *old_buf = &g_logs_state.buffers[old_buf_idx];
+        log_buffer_t *new_buf = &g_logs_state.buffers[new_buf_idx];
 
-    // prep both buffers
-    long old_buf_idx = sentry__atomic_fetch(&g_logs_state.active_idx);
-    long new_buf_idx = 1 - old_buf_idx;
-    log_buffer_t *old_buf = &g_logs_state.buffers[old_buf_idx];
-    log_buffer_t *new_buf = &g_logs_state.buffers[new_buf_idx];
+        // reset new buffer...
+        sentry__atomic_store(&new_buf->index, 0);
+        sentry__atomic_store(&new_buf->adding, 0);
+        sentry__atomic_store(&new_buf->sealed, 0);
 
-    // reset new buffer...
-    sentry__atomic_store(&new_buf->index, 0);
-    sentry__atomic_store(&new_buf->adding, 0);
-    sentry__atomic_store(&new_buf->sealed, 0);
+        // ...and make it active (after this we're good to go producer side)
+        sentry__atomic_store(&g_logs_state.active_idx, new_buf_idx);
 
-    // ...and make it active (after this we're good to go producer side)
-    sentry__atomic_store(&g_logs_state.active_idx, new_buf_idx);
+        // seal old buffer
+        sentry__atomic_store(&old_buf->sealed, 1);
 
-    // seal old buffer
-    sentry__atomic_store(&old_buf->sealed, 1);
-
-    // Wait for all in-flight producers of the old buffer
-    while (sentry__atomic_fetch(&old_buf->adding) > 0) {
-        // TODO currently only on unix
+        // Wait for all in-flight producers of the old buffer
+        while (sentry__atomic_fetch(&old_buf->adding) > 0) {
+            // TODO currently only on unix
 #ifdef SENTRY_PLATFORM_UNIX
-        sentry__cpu_relax();
+            sentry__cpu_relax();
 #endif
-    }
-
-    long n = sentry__atomic_store(&old_buf->index, 0);
-    if (n > QUEUE_LENGTH) {
-        n = QUEUE_LENGTH;
-    }
-
-    if (n > 0) {
-        // now we can do the actual batching of the old buffer
-
-        sentry_value_t logs = sentry_value_new_object();
-        sentry_value_t log_items = sentry_value_new_list();
-        int i;
-        for (i = 0; i < n; i++) {
-            sentry_value_append(log_items, old_buf->logs[i]);
         }
-        sentry_value_set_by_key(logs, "items", log_items);
 
-        sentry_envelope_t *envelope = sentry__envelope_new();
-        sentry__envelope_add_logs(envelope, logs);
-        SENTRY_WITH_OPTIONS (options) {
-            sentry__capture_envelope(options->transport, envelope);
+        long n = sentry__atomic_store(&old_buf->index, 0);
+        if (n > QUEUE_LENGTH) {
+            n = QUEUE_LENGTH;
         }
-        sentry_value_decref(logs);
-    }
+
+        if (n > 0) {
+            // now we can do the actual batching of the old buffer
+
+            sentry_value_t logs = sentry_value_new_object();
+            sentry_value_t log_items = sentry_value_new_list();
+            int i;
+            for (i = 0; i < n; i++) {
+                sentry_value_append(log_items, old_buf->logs[i]);
+            }
+            sentry_value_set_by_key(logs, "items", log_items);
+
+            sentry_envelope_t *envelope = sentry__envelope_new();
+            sentry__envelope_add_logs(envelope, logs);
+            SENTRY_WITH_OPTIONS (options) {
+                sentry__capture_envelope(options->transport, envelope);
+            }
+            sentry_value_decref(logs);
+        }
+    } while (check_for_flush_condition());
 
     sentry__atomic_store(&g_logs_state.flushing, 0);
 }
@@ -181,20 +196,6 @@ enqueue_log(sentry_value_t log)
     return false;
 }
 
-// checks whether the currently active buffer should be flushed.
-// otherwise we could miss the trigger of adding the last log if we're actively
-// flushing the other buffer already.
-static bool
-check_for_flush_condition(void)
-{
-    // In flush_logs_queue, after finishing a flush:
-    long current_active = sentry__atomic_fetch(&g_logs_state.active_idx);
-    log_buffer_t *current_buf = &g_logs_state.buffers[current_active];
-
-    // Check if current active buffer is also full
-    return sentry__atomic_fetch(&current_buf->index) >= QUEUE_LENGTH;
-}
-
 SENTRY_THREAD_FN
 batching_thread_func(void *data)
 {
@@ -241,9 +242,7 @@ batching_thread_func(void *data)
         }
 
         // Try to flush logs
-        do {
-            flush_logs_queue();
-        } while (check_for_flush_condition());
+        flush_logs_queue();
     }
 
     sentry__mutex_unlock(&task_lock);
