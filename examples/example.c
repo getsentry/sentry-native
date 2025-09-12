@@ -465,7 +465,6 @@ main(int argc, char **argv)
         sentry_attachment_set_content_type(bytes, "application/octet-stream");
     }
 
-    // TODO incorporate into test
     if (sentry_options_get_enable_logs(options)) {
         if (has_arg(argc, argv, "capture-log")) {
             sentry_log_debug("I'm a log message!");
@@ -745,12 +744,15 @@ main(int argc, char **argv)
             sentry_value_t event = sentry_value_new_message_event(
                 SENTRY_LEVEL_INFO, "my-logger", "Hello World!");
             sentry_capture_event(event);
-        }
-        if (sentry_options_get_enable_logs(options)) {
-            sentry_log_debug("logging after scoped transaction event");
+            if (has_arg(argc, argv, "logs-scoped-transaction")) {
+                sentry_log_debug("logging during scoped transaction event");
+            }
         }
 
         sentry_transaction_finish(tx);
+        if (has_arg(argc, argv, "logs-scoped-transaction")) {
+            sentry_log_debug("logging during scoped transaction event");
+        }
     }
 
     if (has_arg(argc, argv, "capture-minidump")) {

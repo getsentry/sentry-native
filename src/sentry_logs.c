@@ -11,7 +11,6 @@
 #include <stdarg.h>
 #include <string.h>
 
-// TODO think about this
 #ifdef SENTRY_UNITTEST
 #    define QUEUE_LENGTH 5
 #else
@@ -486,24 +485,33 @@ add_scope_and_options_data(sentry_value_t log, sentry_value_t attributes)
         sentry_value_set_by_key(log, "trace_id", trace_id);
 
         sentry_value_t parent_span_id = sentry_value_new_object();
+        sentry_value_t scoped_span_trace_id = sentry_value_new_null();
         if (scope->transaction_object) {
             sentry_value_t span_id = sentry_value_get_by_key(
                 scope->transaction_object->inner, "span_id");
             sentry_value_incref(span_id);
             sentry_value_set_by_key(parent_span_id, "value", span_id);
+            scoped_span_trace_id = sentry_value_get_by_key(
+                scope->transaction_object->inner, "trace_id");
+            sentry_value_incref(scoped_span_trace_id);
         } else if (scope->span) {
             sentry_value_t span_id
                 = sentry_value_get_by_key(scope->span->inner, "span_id");
             sentry_value_incref(span_id);
             sentry_value_set_by_key(parent_span_id, "value", span_id);
+            scoped_span_trace_id
+                = sentry_value_get_by_key(scope->span->inner, "trace_id");
+            sentry_value_incref(scoped_span_trace_id);
         }
         sentry_value_set_by_key(
             parent_span_id, "type", sentry_value_new_string("string"));
         if (scope->transaction_object || scope->span) {
             sentry_value_set_by_key(
                 attributes, "sentry.trace.parent_span_id", parent_span_id);
+            sentry_value_set_by_key(log, "trace_id", scoped_span_trace_id);
         } else {
             sentry_value_decref(parent_span_id);
+            sentry_value_decref(scoped_span_trace_id);
         }
 
         if (!sentry_value_is_null(scope->user)) {
