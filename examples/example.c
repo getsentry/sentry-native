@@ -59,8 +59,6 @@ get_current_thread_id()
 }
 #endif
 
-#define NUM_THREADS 50
-
 static double
 traces_sampler_callback(const sentry_transaction_context_t *transaction_ctx,
     sentry_value_t custom_sampling_ctx, const int *parent_sampled,
@@ -305,15 +303,19 @@ create_debug_crumb(const char *message)
     return debug_crumb;
 }
 
+#define NUM_THREADS 50
+#define NUM_LOGS 100 // how many log calls each thread makes
+#define LOG_SLEEP_US 500 // time (in us) between log calls
+
 #ifdef SENTRY_PLATFORM_WINDOWS
 DWORD WINAPI
 log_thread_func(LPVOID lpParam)
 {
     (void)lpParam;
-    int LOG_COUNT = 100;
-    for (int i = 0; i < LOG_COUNT; i++) {
+    for (int i = 0; i < NUM_LOGS; i++) {
         sentry_log_debug(
             "thread log %d on thread %lu", i, get_current_thread_id());
+        usleep(LOG_SLEEP_US);
     }
     return 0;
 }
@@ -322,10 +324,10 @@ void *
 log_thread_func(void *arg)
 {
     (void)arg;
-    int LOG_COUNT = 100;
-    for (int i = 0; i < LOG_COUNT; i++) {
+    for (int i = 0; i < NUM_LOGS; i++) {
         sentry_log_debug(
             "thread log %d on thread %llu", i, get_current_thread_id());
+        usleep(LOG_SLEEP_US);
     }
     return NULL;
 }
