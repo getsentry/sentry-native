@@ -6,6 +6,10 @@
 
 - Add `user_data` parameter to `traces_sampler`. ([#1346](https://github.com/getsentry/sentry-native/pull/1346))
 
+**Features**:
+
+- Add support for structured logs. ([#1271](https://github.com/getsentry/sentry-native/pull/1271/))
+
 **Internal:**
 
 - Support downstream Xbox SDK specifying networking initialization mechanism. ([#1359](https://github.com/getsentry/sentry-native/pull/1359))
