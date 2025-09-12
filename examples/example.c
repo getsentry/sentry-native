@@ -305,7 +305,13 @@ create_debug_crumb(const char *message)
 
 #define NUM_THREADS 50
 #define NUM_LOGS 100 // how many log calls each thread makes
-#define LOG_SLEEP_US 500 // time (in us) between log calls
+#define LOG_SLEEP_MS 1 // time (in ms) between log calls
+
+#if defined(SENTRY_PLATFORM_WINDOWS)
+#    define sleep_ms(MILLISECONDS) Sleep(MILLISECONDS)
+#else
+#    define sleep_ms(SECONDS) usleep(SECONDS * 1000)
+#endif
 
 #ifdef SENTRY_PLATFORM_WINDOWS
 DWORD WINAPI
@@ -315,7 +321,7 @@ log_thread_func(LPVOID lpParam)
     for (int i = 0; i < NUM_LOGS; i++) {
         sentry_log_debug(
             "thread log %d on thread %lu", i, get_current_thread_id());
-        usleep(LOG_SLEEP_US);
+        sleep_ms(LOG_SLEEP_MS);
     }
     return 0;
 }
@@ -327,7 +333,7 @@ log_thread_func(void *arg)
     for (int i = 0; i < NUM_LOGS; i++) {
         sentry_log_debug(
             "thread log %d on thread %llu", i, get_current_thread_id());
-        usleep(LOG_SLEEP_US);
+        sleep_ms(LOG_SLEEP_MS);
     }
     return NULL;
 }
