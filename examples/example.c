@@ -310,7 +310,7 @@ create_debug_crumb(const char *message)
 #if defined(SENTRY_PLATFORM_WINDOWS)
 #    define sleep_ms(MILLISECONDS) Sleep(MILLISECONDS)
 #else
-#    define sleep_ms(SECONDS) usleep(SECONDS * 1000)
+#    define sleep_ms(MILLISECONDS) usleep(MILLISECONDS * 1000)
 #endif
 
 #ifdef SENTRY_PLATFORM_WINDOWS
