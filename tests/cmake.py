@@ -218,7 +218,7 @@ def cmake(cwd, targets, options=None, cflags=None):
 
     print("\n{} > {}".format(cwd, " ".join(config_cmd)), flush=True)
 
-    # Run with output streaming and capture for enhanced error reporting
+    # Run with output capture, only print on failure
     process = subprocess.Popen(
         config_cmd,
         cwd=cwd,
@@ -229,11 +229,10 @@ def cmake(cwd, targets, options=None, cflags=None):
         bufsize=1,
     )
 
-    # Stream output in real-time while capturing it
+    # Capture output without streaming
     captured_output = []
     try:
         for line in process.stdout:
-            print(line, end="", flush=True)  # Show real-time output
             captured_output.append(line)
 
         return_code = process.wait()
@@ -284,7 +283,7 @@ def cmake(cwd, targets, options=None, cflags=None):
 
     print("{} > {}".format(cwd, " ".join(buildcmd)), flush=True)
 
-    # Run with output streaming and capture for enhanced error reporting
+    # Run with output capture, only print on failure
     process = subprocess.Popen(
         buildcmd,
         cwd=cwd,
@@ -294,11 +293,10 @@ def cmake(cwd, targets, options=None, cflags=None):
         bufsize=1,
     )
 
-    # Stream output in real-time while capturing it
+    # Capture output without streaming
     captured_output = []
     try:
         for line in process.stdout:
-            print(line, end="", flush=True)  # Show real-time output
             captured_output.append(line)
 
         return_code = process.wait()
