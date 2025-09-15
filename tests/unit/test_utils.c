@@ -273,7 +273,8 @@ SENTRY_TEST(page_allocator)
 {
 #if !defined(SENTRY_PLATFORM_UNIX) || defined(SENTRY_PLATFORM_PS)
     SKIP_TEST();
-#else
+#endif
+
     const size_t size = 4096;
     char *p_before = sentry_malloc(size);
     TEST_ASSERT(!!p_before);
@@ -301,7 +302,6 @@ SENTRY_TEST(page_allocator)
 
     /* now we can free p_before though */
     sentry_free(p_before);
-#endif
 }
 
 SENTRY_TEST(os)

@@ -17,7 +17,7 @@
 
 #define CONCAT(A, B) A##B
 #define SENTRY_TEST(Name) void CONCAT(test_sentry_, Name)(void)
-#define SKIP_TEST() (void)0
+#define SKIP_TEST() return
 
 #define TEST_CHECK_STRING_EQUAL(Val, ReferenceVal)                             \
     do {                                                                       \
