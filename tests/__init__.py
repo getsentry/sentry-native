@@ -17,6 +17,55 @@ pytest.register_assert_rewrite("tests.assertions")
 from tests.assertions import assert_no_proxy_request
 
 
+def format_error_output(title, command, working_dir, return_code, output=None, limit_lines=50):
+    """
+    Format detailed error information for failed commands.
+    
+    Args:
+        title: Error title (e.g., "CMAKE CONFIGURE FAILED")
+        command: Command that failed (list or string)
+        working_dir: Working directory where command was run
+        return_code: Return code from the failed command
+        output: Output from the failed command (optional)
+        limit_lines: Maximum number of lines to show from output (default: 50)
+    
+    Returns:
+        Formatted error message string
+    """
+    error_details = []
+    error_details.append("=" * 60)
+    error_details.append(title)
+    error_details.append("=" * 60)
+    
+    if isinstance(command, list):
+        command_str = ' '.join(command)
+    else:
+        command_str = str(command)
+    
+    error_details.append(f"Command: {command_str}")
+    error_details.append(f"Working directory: {working_dir}")
+    error_details.append(f"Return code: {return_code}")
+    
+    if output:
+        if isinstance(output, bytes):
+            output = output.decode('utf-8', errors='replace')
+        
+        output_lines = output.strip().split('\n')
+        if len(output_lines) > limit_lines:
+            error_details.append(f"--- OUTPUT (last {limit_lines} lines) ---")
+            last_lines = output_lines[-limit_lines:]
+        else:
+            error_details.append("--- OUTPUT ---")
+            last_lines = output_lines
+        
+        error_details.append('\n'.join(last_lines))
+    
+    error_details.append("=" * 60)
+    
+    # Ensure the error message ends with a newline
+    return "\n".join(error_details) + "\n"
+
+
 def make_dsn(httpserver, auth="uiaeosnrtdy", id=123456, proxy_host=False):
     url = urllib.parse.urlsplit(httpserver.url_for("/{}".format(id)))
     # We explicitly use `127.0.0.1` here, because on Windows, `localhost` will
@@ -89,27 +138,15 @@ def run(cwd, exe, args, env=dict(os.environ), **kwargs):
                 sys.stdout.buffer.write(child.stdout)
         elif should_capture_android and child.returncode != 0:
             # Enhanced error reporting for Android test execution failures
-            error_details = []
-            error_details.append("=" * 60)
-            error_details.append("ANDROID TEST EXECUTION FAILED")
-            error_details.append("=" * 60)
-            error_details.append(f"Executable: {exe}")
-            error_details.append(f"Arguments: {' '.join(args)}")
-            error_details.append(f"Return code: {child.returncode}")
-            
-            # Display captured output (last 50 lines to avoid too much noise)
-            if child.stdout:
-                output_text = child.stdout.decode('utf-8', errors='replace')
-                output_lines = output_text.strip().split('\n')
-                error_details.append("--- OUTPUT (last 50 lines) ---")
-                last_lines = output_lines[-50:] if len(output_lines) > 50 else output_lines
-                error_details.append('\n'.join(last_lines))
-            
-            error_details.append("=" * 60)
-            
-            # Print the detailed error information
-            error_message = "\n".join(error_details)
-            print(error_message, flush=True)
+            command = f"{exe} {' '.join(args)}"
+            error_message = format_error_output(
+                "ANDROID TEST EXECUTION FAILED",
+                command,
+                "/data/local/tmp",
+                child.returncode,
+                child.stdout
+            )
+            print(error_message, end="", flush=True)
         
         if kwargs.get("check") and child.returncode:
             raise subprocess.CalledProcessError(
@@ -162,26 +199,15 @@ def run(cwd, exe, args, env=dict(os.environ), **kwargs):
             result = subprocess.run([*cmd, *args], cwd=cwd, env=env, **kwargs_with_capture)
             if result.returncode != 0 and kwargs.get("check"):
                 # Enhanced error reporting for test execution failures
-                error_details = []
-                error_details.append("=" * 60)
-                error_details.append("TEST EXECUTION FAILED")
-                error_details.append("=" * 60)
-                error_details.append(f"Command: {' '.join(cmd + args)}")
-                error_details.append(f"Working directory: {cwd}")
-                error_details.append(f"Return code: {result.returncode}")
-                
-                # Display captured output (last 50 lines to avoid too much noise)
-                if result.stdout:
-                    output_lines = result.stdout.strip().split('\n')
-                    error_details.append("--- OUTPUT (last 50 lines) ---")
-                    last_lines = output_lines[-50:] if len(output_lines) > 50 else output_lines
-                    error_details.append('\n'.join(last_lines))
-                
-                error_details.append("=" * 60)
-                
-                # Print the detailed error information
-                error_message = "\n".join(error_details)
-                print(error_message, flush=True)
+                command = cmd + args
+                error_message = format_error_output(
+                    "TEST EXECUTION FAILED",
+                    command,
+                    cwd,
+                    result.returncode,
+                    result.stdout
+                )
+                print(error_message, end="", flush=True)
                 
                 raise subprocess.CalledProcessError(result.returncode, result.args)
             return result

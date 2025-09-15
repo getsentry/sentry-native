@@ -7,6 +7,7 @@ import platform
 from pathlib import Path
 
 import pytest
+from tests import format_error_output
 
 
 class CMake:
@@ -241,24 +242,14 @@ def cmake(cwd, targets, options=None, cflags=None):
 
     except subprocess.CalledProcessError as e:
         # Enhanced error reporting with captured output
-        error_details = []
-        error_details.append("=" * 60)
-        error_details.append("CMAKE CONFIGURE FAILED")
-        error_details.append("=" * 60)
-        error_details.append(f"Command: {' '.join(config_cmd)}")
-        error_details.append(f"Working directory: {cwd}")
-        error_details.append(f"Return code: {e.returncode}")
-
-        # Display captured output
-        if captured_output:
-            error_details.append("--- OUTPUT ---")
-            error_details.append("".join(captured_output).strip())
-
-        error_details.append("=" * 60)
-
-        # Print the detailed error information
-        error_message = "\n".join(error_details)
-        print(error_message, flush=True)
+        error_message = format_error_output(
+            "CMAKE CONFIGURE FAILED",
+            config_cmd,
+            cwd,
+            e.returncode,
+            "".join(captured_output)
+        )
+        print(error_message, end="", flush=True)
 
         raise pytest.fail.Exception("cmake configure failed") from None
 
@@ -303,27 +294,14 @@ def cmake(cwd, targets, options=None, cflags=None):
 
     except subprocess.CalledProcessError as e:
         # Enhanced error reporting with captured output
-        error_details = []
-        error_details.append("=" * 60)
-        error_details.append("CMAKE BUILD FAILED")
-        error_details.append("=" * 60)
-        error_details.append(f"Command: {' '.join(buildcmd)}")
-        error_details.append(f"Working directory: {cwd}")
-        error_details.append(f"Return code: {e.returncode}")
-
-        # Display captured output (last 50 lines to avoid too much noise)
-        if captured_output:
-            error_details.append("--- OUTPUT (last 50 lines) ---")
-            last_lines = (
-                captured_output[-50:] if len(captured_output) > 50 else captured_output
-            )
-            error_details.append("".join(last_lines).strip())
-
-        error_details.append("=" * 60)
-
-        # Print the detailed error information
-        error_message = "\n".join(error_details)
-        print(error_message, flush=True)
+        error_message = format_error_output(
+            "CMAKE BUILD FAILED",
+            buildcmd,
+            cwd,
+            e.returncode,
+            "".join(captured_output)
+        )
+        print(error_message, end="", flush=True)
 
         raise pytest.fail.Exception("cmake build failed") from None
 
