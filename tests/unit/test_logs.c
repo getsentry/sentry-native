@@ -159,6 +159,8 @@ SENTRY_TEST(logs_param_conversion)
     test_param_conversion_helper(
         "%" PRId64 " %" PRId64 " %" PRId64, (int64_t)a, (int64_t)b, (int64_t)c);
 #else
+    // since we read these values as 64-bit, this is still undefined behaviour
+    // but it works because the variadic arguments are passed in 8-byte slots
     test_param_conversion_helper("%d %d %d", a, b, c);
 #endif
 }
