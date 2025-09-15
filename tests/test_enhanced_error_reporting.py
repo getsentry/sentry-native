@@ -59,41 +59,52 @@ def test_cmake_successful_configure_shows_no_extra_output(tmp_path):
 
 def test_enhanced_error_format():
     """Test that the error formatting function creates properly formatted output."""
-    # This is a unit test for the error formatting logic we added
+    from . import format_error_output
 
-    # Create mock subprocess.CalledProcessError
+    # Test data
     mock_cmd = ["cmake", "-DTEST=1", "/some/source"]
     mock_cwd = "/some/build/dir"
     mock_returncode = 1
-    mock_stderr = "CMake Error: Invalid option TEST"
-    mock_stdout = "-- Configuring incomplete, errors occurred!"
+    mock_output = "CMake Error: Invalid option TEST\n-- Configuring incomplete, errors occurred!"
 
-    # Format error details using the same logic as in cmake.py
-    error_details = []
-    error_details.append("=" * 60)
-    error_details.append("CMAKE CONFIGURE FAILED")
-    error_details.append("=" * 60)
-    error_details.append(f"Command: {' '.join(mock_cmd)}")
-    error_details.append(f"Working directory: {mock_cwd}")
-    error_details.append(f"Return code: {mock_returncode}")
-
-    if mock_stderr and mock_stderr.strip():
-        error_details.append("--- STDERR ---")
-        error_details.append(mock_stderr.strip())
-    if mock_stdout and mock_stdout.strip():
-        error_details.append("--- STDOUT ---")
-        error_details.append(mock_stdout.strip())
-
-    error_details.append("=" * 60)
-    error_message = "\n".join(error_details)
+    # Use the actual format_error_output function
+    error_message = format_error_output(
+        "CMAKE CONFIGURE FAILED", mock_cmd, mock_cwd, mock_returncode, mock_output
+    )
 
     # Verify the formatted output contains expected sections
     assert "CMAKE CONFIGURE FAILED" in error_message
     assert "Command: cmake -DTEST=1 /some/source" in error_message
     assert "Working directory: /some/build/dir" in error_message
     assert "Return code: 1" in error_message
-    assert "--- STDERR ---" in error_message
+    assert "--- OUTPUT ---" in error_message
     assert "CMake Error: Invalid option TEST" in error_message
-    assert "--- STDOUT ---" in error_message
     assert "-- Configuring incomplete, errors occurred!" in error_message
-    assert error_message.count("=" * 60) == 3  # Header, middle, and footer
+    assert error_message.count("=" * 60) == 3  # Header, title separator, and footer
+    assert error_message.endswith("\n")  # Ensure proper newline ending
+
+
+def test_format_error_output_input_validation():
+    """Test input validation of the format_error_output function."""
+    from . import format_error_output
+
+    # Test with invalid limit_lines (should default to 50)
+    result = format_error_output("TEST", ["cmd"], "/dir", 1, "output", limit_lines=-1)
+    assert "--- OUTPUT ---" in result
+
+    # Test with empty/None output (should handle gracefully)
+    result = format_error_output("TEST", ["cmd"], "/dir", 1, None)
+    assert "--- OUTPUT ---" not in result
+    assert "Return code: 1" in result
+
+    # Test with empty title (should use default)
+    result = format_error_output("", ["cmd"], "/dir", 1)
+    assert "COMMAND FAILED" in result
+
+    # Test with string command (should be handled)
+    result = format_error_output("TEST", "single_command", "/dir", 1)
+    assert "Command: single_command" in result
+
+    # Test with bytes output (should be decoded)
+    result = format_error_output("TEST", ["cmd"], "/dir", 1, b"bytes output")
+    assert "bytes output" in result
