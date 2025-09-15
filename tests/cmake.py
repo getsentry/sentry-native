@@ -217,25 +217,29 @@ def cmake(cwd, targets, options=None, cflags=None):
     config_cmd.append(source_dir)
 
     print("\n{} > {}".format(cwd, " ".join(config_cmd)), flush=True)
-    
+
     # Run with output streaming and capture for enhanced error reporting
     process = subprocess.Popen(
-        config_cmd, cwd=cwd, env=env, 
-        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, 
-        universal_newlines=True, bufsize=1
+        config_cmd,
+        cwd=cwd,
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        universal_newlines=True,
+        bufsize=1,
     )
-    
+
     # Stream output in real-time while capturing it
     captured_output = []
     try:
         for line in process.stdout:
-            print(line, end='', flush=True)  # Show real-time output
+            print(line, end="", flush=True)  # Show real-time output
             captured_output.append(line)
-        
+
         return_code = process.wait()
         if return_code != 0:
             raise subprocess.CalledProcessError(return_code, config_cmd)
-            
+
     except subprocess.CalledProcessError as e:
         # Enhanced error reporting with captured output
         error_details = []
@@ -245,18 +249,18 @@ def cmake(cwd, targets, options=None, cflags=None):
         error_details.append(f"Command: {' '.join(config_cmd)}")
         error_details.append(f"Working directory: {cwd}")
         error_details.append(f"Return code: {e.returncode}")
-        
+
         # Display captured output
         if captured_output:
             error_details.append("--- OUTPUT ---")
-            error_details.append(''.join(captured_output).strip())
-        
+            error_details.append("".join(captured_output).strip())
+
         error_details.append("=" * 60)
-        
+
         # Print the detailed error information
         error_message = "\n".join(error_details)
         print(error_message, flush=True)
-        
+
         raise pytest.fail.Exception("cmake configure failed") from None
 
     # CodeChecker invocations and options are documented here:
@@ -279,25 +283,28 @@ def cmake(cwd, targets, options=None, cflags=None):
         ]
 
     print("{} > {}".format(cwd, " ".join(buildcmd)), flush=True)
-    
+
     # Run with output streaming and capture for enhanced error reporting
     process = subprocess.Popen(
-        buildcmd, cwd=cwd,
-        stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-        universal_newlines=True, bufsize=1
+        buildcmd,
+        cwd=cwd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        universal_newlines=True,
+        bufsize=1,
     )
-    
+
     # Stream output in real-time while capturing it
     captured_output = []
     try:
         for line in process.stdout:
-            print(line, end='', flush=True)  # Show real-time output  
+            print(line, end="", flush=True)  # Show real-time output
             captured_output.append(line)
-        
+
         return_code = process.wait()
         if return_code != 0:
             raise subprocess.CalledProcessError(return_code, buildcmd)
-            
+
     except subprocess.CalledProcessError as e:
         # Enhanced error reporting with captured output
         error_details = []
@@ -307,19 +314,21 @@ def cmake(cwd, targets, options=None, cflags=None):
         error_details.append(f"Command: {' '.join(buildcmd)}")
         error_details.append(f"Working directory: {cwd}")
         error_details.append(f"Return code: {e.returncode}")
-        
+
         # Display captured output (last 50 lines to avoid too much noise)
         if captured_output:
             error_details.append("--- OUTPUT (last 50 lines) ---")
-            last_lines = captured_output[-50:] if len(captured_output) > 50 else captured_output
-            error_details.append(''.join(last_lines).strip())
-        
+            last_lines = (
+                captured_output[-50:] if len(captured_output) > 50 else captured_output
+            )
+            error_details.append("".join(last_lines).strip())
+
         error_details.append("=" * 60)
-        
+
         # Print the detailed error information
         error_message = "\n".join(error_details)
         print(error_message, flush=True)
-        
+
         raise pytest.fail.Exception("cmake build failed") from None
 
     # check if the DLL and EXE artifacts contain version-information
