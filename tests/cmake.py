@@ -7,7 +7,7 @@ import platform
 from pathlib import Path
 
 import pytest
-from tests import format_error_output
+from tests import format_error_output, run_with_capture_on_failure
 
 
 class CMake:
@@ -220,37 +220,11 @@ def cmake(cwd, targets, options=None, cflags=None):
     config_cmd.append(source_dir)
 
     # Run with output capture, only print on failure
-    process = subprocess.Popen(
-        config_cmd,
-        cwd=cwd,
-        env=env,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        universal_newlines=True,
-        bufsize=1,
-    )
-
-    # Capture output without streaming
-    captured_output = []
     try:
-        for line in process.stdout:
-            captured_output.append(line)
-
-        return_code = process.wait()
-        if return_code != 0:
-            raise subprocess.CalledProcessError(return_code, config_cmd)
-
-    except subprocess.CalledProcessError as e:
-        # Enhanced error reporting with captured output
-        error_message = format_error_output(
-            "CMAKE CONFIGURE FAILED",
-            config_cmd,
-            cwd,
-            e.returncode,
-            "".join(captured_output)
+        run_with_capture_on_failure(
+            config_cmd, cwd, env, "CMAKE CONFIGURE FAILED", pytest.fail.Exception
         )
-        print(error_message, end="", flush=True)
-
+    except pytest.fail.Exception:
         raise pytest.fail.Exception("cmake configure failed") from None
 
     # CodeChecker invocations and options are documented here:
@@ -273,36 +247,11 @@ def cmake(cwd, targets, options=None, cflags=None):
         ]
 
     # Run with output capture, only print on failure
-    process = subprocess.Popen(
-        buildcmd,
-        cwd=cwd,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        universal_newlines=True,
-        bufsize=1,
-    )
-
-    # Capture output without streaming
-    captured_output = []
     try:
-        for line in process.stdout:
-            captured_output.append(line)
-
-        return_code = process.wait()
-        if return_code != 0:
-            raise subprocess.CalledProcessError(return_code, buildcmd)
-
-    except subprocess.CalledProcessError as e:
-        # Enhanced error reporting with captured output
-        error_message = format_error_output(
-            "CMAKE BUILD FAILED",
-            buildcmd,
-            cwd,
-            e.returncode,
-            "".join(captured_output)
+        run_with_capture_on_failure(
+            buildcmd, cwd, None, "CMAKE BUILD FAILED", pytest.fail.Exception
         )
-        print(error_message, end="", flush=True)
-
+    except pytest.fail.Exception:
         raise pytest.fail.Exception("cmake build failed") from None
 
     # check if the DLL and EXE artifacts contain version-information

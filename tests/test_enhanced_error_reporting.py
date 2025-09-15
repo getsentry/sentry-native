@@ -8,10 +8,12 @@ information is captured and displayed to help with debugging.
 import subprocess
 import tempfile
 import os
+import shutil
 import pytest
 from .cmake import cmake
 
 
+@pytest.mark.skipif(not shutil.which("cmake"), reason="cmake not available")
 def test_cmake_error_reporting(tmp_path):
     """Test that cmake failures show detailed error information."""
     # Create a temporary working directory
@@ -22,11 +24,12 @@ def test_cmake_error_reporting(tmp_path):
     # - Fail at configure (if dependencies missing) with "cmake configure failed"
     # - Fail at build (if dependencies available) with "cmake build failed"
     # Both scenarios should show enhanced error reporting
-    
+
     with pytest.raises(pytest.fail.Exception, match="cmake .* failed"):
         cmake(cwd, ["nonexistent_target_that_will_fail"], {}, [])
 
 
+@pytest.mark.skipif(not shutil.which("cmake"), reason="cmake not available")
 def test_cmake_successful_configure_shows_no_extra_output(tmp_path):
     """Test that successful cmake operations don't show error reporting sections."""
     # This test verifies that our enhanced error reporting doesn't interfere
