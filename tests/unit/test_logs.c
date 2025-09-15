@@ -150,8 +150,15 @@ test_param_conversion_helper(const char *format, ...)
 
 SENTRY_TEST(logs_param_conversion)
 {
-    // TODO add tests showing the current limitation for 32-bit integers
-    //  as we skip the length formatter when parsing
+    // TODO this test shows the current limitation for parsing integers on
+    //  32-bit systems
     int a = 1, b = 2, c = 3;
+#if defined(__i386__) || defined(_M_IX86) || defined(__arm__)
+    // Currently, on 32-bit platforms, we need to cast to long long since the
+    // parameter conversion expects long long for %d/%i format specifiers
+    test_param_conversion_helper(
+        "%lld %lld %lld", (long long)a, (long long)b, (long long)c);
+#else
     test_param_conversion_helper("%d %d %d", a, b, c);
+#endif
 }
