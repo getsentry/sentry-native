@@ -157,7 +157,7 @@ SENTRY_TEST(logs_param_conversion)
     // Currently, on 32-bit platforms, we need to cast to long long since the
     // parameter conversion expects long long for %d/%i format specifiers
     test_param_conversion_helper(
-        "%lld %lld %lld", (long long)a, (long long)b, (long long)c);
+        "%" PRId64 " %" PRId64 " %" PRId64, (int64_t)a, (int64_t)b, (int64_t)c);
 #else
     test_param_conversion_helper("%d %d %d", a, b, c);
 #endif
