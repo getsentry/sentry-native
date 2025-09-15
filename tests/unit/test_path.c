@@ -49,8 +49,7 @@ SENTRY_TEST(path_joining_unix)
 {
 #ifndef SENTRY_PLATFORM_UNIX
     SKIP_TEST();
-#endif
-
+#else
     sentry_path_t *path = sentry__path_new("foo/bar/baz.txt");
     TEST_ASSERT(!!path);
     sentry_path_t *joined;
@@ -71,6 +70,7 @@ SENTRY_TEST(path_joining_unix)
     sentry__path_free(joined);
 
     sentry__path_free(path);
+#endif
 }
 
 SENTRY_TEST(path_from_str_null)

@@ -233,7 +233,7 @@ SENTRY_TEST(capture_minidump_basic)
 #if defined(SENTRY_PLATFORM_ANDROID) || defined(SENTRY_PLATFORM_NX)            \
     || defined(SENTRY_PLATFORM_PS) || defined(SENTRY_PLATFORM_XBOX)
     SKIP_TEST();
-#endif
+#else
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_init(options);
 
@@ -243,13 +243,13 @@ SENTRY_TEST(capture_minidump_basic)
     sentry_path_t *minidump_path
         = sentry__path_join_str(dir, minidump_rel_path);
 
-#if defined(SENTRY_PLATFORM_WINDOWS)
+#    if defined(SENTRY_PLATFORM_WINDOWS)
     char *path_str = sentry__string_from_wstr(minidump_path->path);
     const sentry_uuid_t event_id = sentry_capture_minidump(path_str);
     sentry_free(path_str);
-#else
+#    else
     const sentry_uuid_t event_id = sentry_capture_minidump(minidump_path->path);
-#endif
+#    endif
     TEST_CHECK(!sentry_uuid_is_nil(&event_id));
 
     sentry__path_free(minidump_path);
@@ -257,6 +257,7 @@ SENTRY_TEST(capture_minidump_basic)
     sentry__path_free(path);
 
     sentry_close();
+#endif
 }
 
 SENTRY_TEST(capture_minidump_null_path)

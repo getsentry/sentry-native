@@ -45,8 +45,7 @@ SENTRY_TEST(fuzz_json)
 #if defined(SENTRY_PLATFORM_ANDROID) || defined(SENTRY_PLATFORM_NX)            \
     || defined(SENTRY_PLATFORM_PS) || defined(SENTRY_PLATFORM_XBOX)
     SKIP_TEST();
-#endif
-
+#else
     sentry_path_t *path = sentry__path_from_str(__FILE__);
     TEST_ASSERT(!!path);
     sentry_path_t *dir = sentry__path_dir(path);
@@ -68,4 +67,5 @@ SENTRY_TEST(fuzz_json)
 
     sentry__pathiter_free(piter);
     sentry__path_free(path);
+#endif
 }
