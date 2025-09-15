@@ -81,6 +81,7 @@ SENTRY_TEST(logger_enable_disable_functionality)
     data.assert_now = true;
     SENTRY_WARNF("Oh this is %s", "bad");
     TEST_CHECK_INT_EQUAL(data.called, 1);
+    data.assert_now = false;
 
     // Clear the logger instance
     SENTRY_TEST_OPTIONS_NEW(clean_options);
