@@ -320,7 +320,7 @@ jobs:
       - name: Install Python Dependencies
         shell: bash
         run: |
-          pip install --upgrade --requirement tests/requirements.txt
+          pip install --upgrade --requirement tests/requirements.txt --quiet
 
       - name: Test
         shell: bash

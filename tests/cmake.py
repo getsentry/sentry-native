@@ -91,7 +91,9 @@ class CMake:
                         "--merge",
                         coveragedir,
                         *coverage_dirs,
-                    ]
+                    ],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
                 )
 
 
@@ -380,4 +382,6 @@ def cmake(cwd, targets, options=None, cflags=None):
             ],
             cwd=cwd,
             check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
         )
