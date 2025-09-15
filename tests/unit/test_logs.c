@@ -111,3 +111,47 @@ SENTRY_TEST(formatted_log_messages)
     // Transport should be called once
     TEST_CHECK_INT_EQUAL(called_transport, 1);
 }
+
+static void
+test_param_conversion_helper(const char *format, ...)
+{
+    sentry_value_t attributes = sentry_value_new_object();
+    va_list args;
+    va_start(args, format);
+    int param_count = populate_message_parameters(attributes, format, args);
+    va_end(args);
+
+    // Verify we got the expected number of parameters
+    TEST_CHECK_INT_EQUAL(param_count, 3);
+
+    // Verify the parameters were extracted correctly
+    sentry_value_t param0
+        = sentry_value_get_by_key(attributes, "sentry.message.parameter.0");
+    sentry_value_t param1
+        = sentry_value_get_by_key(attributes, "sentry.message.parameter.1");
+    sentry_value_t param2
+        = sentry_value_get_by_key(attributes, "sentry.message.parameter.2");
+
+    TEST_CHECK(!sentry_value_is_null(param0));
+    TEST_CHECK(!sentry_value_is_null(param1));
+    TEST_CHECK(!sentry_value_is_null(param2));
+
+    // Check the values
+    sentry_value_t value0 = sentry_value_get_by_key(param0, "value");
+    sentry_value_t value1 = sentry_value_get_by_key(param1, "value");
+    sentry_value_t value2 = sentry_value_get_by_key(param2, "value");
+
+    TEST_CHECK_INT_EQUAL(sentry_value_as_int64(value0), 1);
+    TEST_CHECK_INT_EQUAL(sentry_value_as_int64(value1), 2);
+    TEST_CHECK_INT_EQUAL(sentry_value_as_int64(value2), 3);
+
+    sentry_value_decref(attributes);
+}
+
+SENTRY_TEST(logs_param_conversion)
+{
+    // TODO add tests showing the current limitation for 32-bit integers
+    //  as we skip the length formatter when parsing
+    int a = 1, b = 2, c = 3;
+    test_param_conversion_helper("%d %d %d", a, b, c);
+}
