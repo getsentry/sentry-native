@@ -77,7 +77,7 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
 {
     // Disable logging during crash handling if the option is set
     SENTRY_WITH_OPTIONS (options) {
-        if (!options->handler_logging_enabled) {
+        if (!options->enable_logging_when_crashed) {
             sentry__logger_disable();
         }
     }
@@ -206,13 +206,6 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
         // and restore the old transport
     }
     SENTRY_INFO("crash has been captured");
-
-    // Re-enable logging after crash handling if the option is set
-    SENTRY_WITH_OPTIONS (options) {
-        if (!options->handler_logging_enabled) {
-            sentry__logger_enable();
-        }
-    }
 
 #ifndef SENTRY_PLATFORM_WINDOWS
     sentry__leave_signal_handler();

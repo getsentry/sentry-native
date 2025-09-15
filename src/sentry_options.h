@@ -41,7 +41,7 @@ struct sentry_options_s {
     bool system_crash_reporter_enabled;
     bool attach_screenshot;
     bool crashpad_wait_for_upload;
-    bool handler_logging_enabled;
+    bool enable_logging_when_crashed;
 
     sentry_attachment_t *attachments;
     sentry_run_t *run;

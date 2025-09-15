@@ -6,10 +6,12 @@
 
 - Add `user_data` parameter to `traces_sampler`. ([#1346](https://github.com/getsentry/sentry-native/pull/1346))
 
+**Features:**
+- Add a configuration to disable logging in crash handlers - `sentry_options_set_logger_is_signal_safe()` ([#1371](https://github.com/getsentry/sentry-native/pull/1371))
+
 **Internal:**
 
 - Support downstream Xbox SDK specifying networking initialization mechanism. ([#1359](https://github.com/getsentry/sentry-native/pull/1359))
-- Implement logging enable/disable feature, with crash handler options ([#1371](https://github.com/getsentry/sentry-native/pull/1371))
 
 **Docs**:
 

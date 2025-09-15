@@ -283,7 +283,7 @@ sentry__crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
 #    endif
     // Disable logging during crash handling if the option is set
     SENTRY_WITH_OPTIONS (options) {
-        if (!options->handler_logging_enabled) {
+        if (!options->enable_logging_when_crashed) {
             sentry__logger_disable();
         }
     }
@@ -345,12 +345,6 @@ sentry__crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
 
     SENTRY_INFO("handing control over to crashpad");
 
-    // Re-enable logging after crash handling if the option is set
-    SENTRY_WITH_OPTIONS (options) {
-        if (!options->handler_logging_enabled) {
-            sentry__logger_enable();
-        }
-    }
     // If we __don't__ want a minidump produced by crashpad we need to either
     // exit or longjmp at this point. The crashpad client handler which calls
     // back here (SetFirstChanceExceptionHandler) does the same if the

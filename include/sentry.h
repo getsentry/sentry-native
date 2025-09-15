@@ -1276,6 +1276,15 @@ SENTRY_API void sentry_options_set_logger(
     sentry_options_t *opts, sentry_logger_function_t func, void *userdata);
 
 /**
+ * Enables or disables console logging after crash.
+ * When disabled, Sentry will not invoke logger callbacks after crash
+ * has been detected. This can be useful to avoid potential issues during
+ * crash handling that logging might cause. This is enabled by default.
+ */
+SENTRY_API void sentry_options_set_logger_enabled_when_crashed(
+    sentry_options_t *opts, int enabled);
+
+/**
  * Enables or disables automatic session tracking.
  *
  * Automatic session tracking is enabled by default and is equivalent to calling
@@ -1498,15 +1507,6 @@ SENTRY_API void sentry_options_set_system_crash_reporter_enabled(
  */
 SENTRY_API void sentry_options_set_crashpad_wait_for_upload(
     sentry_options_t *opts, int wait_for_upload);
-
-/**
- * Enables or disables console logging during crash handling.
- * When disabled, Sentry will not invoke logger callbacks during crash
- * handler execution. This can be useful to avoid potential issues during
- * crash handling. This is enabled by default.
- */
-SENTRY_API void sentry_options_set_handler_logging_enabled(
-    sentry_options_t *opts, int enabled);
 
 /**
  * Sets the maximum time (in milliseconds) to wait for the asynchronous

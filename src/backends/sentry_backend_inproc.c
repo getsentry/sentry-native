@@ -526,7 +526,7 @@ handle_ucontext(const sentry_ucontext_t *uctx)
 {
     // Disable logging during crash handling if the option is set
     SENTRY_WITH_OPTIONS (options) {
-        if (!options->handler_logging_enabled) {
+        if (!options->enable_logging_when_crashed) {
             sentry__logger_disable();
         }
     }
@@ -632,13 +632,6 @@ handle_ucontext(const sentry_ucontext_t *uctx)
     }
 
     SENTRY_INFO("crash has been captured");
-
-    // Re-enable logging after crash handling if the option is set
-    SENTRY_WITH_OPTIONS (options) {
-        if (!options->handler_logging_enabled) {
-            sentry__logger_enable();
-        }
-    }
 
 #ifdef SENTRY_PLATFORM_UNIX
     // reset signal handlers and invoke the original ones.  This will then tear
