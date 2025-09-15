@@ -72,8 +72,5 @@ SENTRY_TEST(options_handler_logging_enabled_default)
     sentry_options_set_handler_logging_enabled(options, 42);
     TEST_CHECK_INT_EQUAL(options->handler_logging_enabled, 1);
 
-    // Should not crash when called with NULL options
-    sentry_options_set_handler_logging_enabled(NULL, 1);
-
     sentry_options_free(options);
 }

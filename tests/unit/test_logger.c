@@ -65,7 +65,7 @@ SENTRY_TEST(logger_enable_disable_functionality)
 
     // Test logging is enabled by default
     data.assert_now = true;
-    SENTRY_WARNF("Log %s", "this");
+    SENTRY_WARNF("Oh this is %s", "bad");
     TEST_CHECK_INT_EQUAL(data.called, 1);
 
     // Test disabling logging
@@ -79,7 +79,7 @@ SENTRY_TEST(logger_enable_disable_functionality)
     sentry__logger_enable();
     data.called = 0;
     data.assert_now = true;
-    SENTRY_WARNF("Log %s", "this");
+    SENTRY_WARNF("Oh this is %s", "bad");
     TEST_CHECK_INT_EQUAL(data.called, 1);
 
     // Clear the logger instance
