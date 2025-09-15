@@ -7,6 +7,7 @@ extern "C" {
 #include "sentry_core.h"
 #include "sentry_database.h"
 #include "sentry_envelope.h"
+#include "sentry_logger.h"
 #include "sentry_options.h"
 #ifdef SENTRY_PLATFORM_WINDOWS
 #    include "sentry_os.h"
@@ -74,6 +75,13 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
     void *UNUSED(context), bool succeeded)
 #endif
 {
+    // Disable logging during crash handling if the option is set
+    SENTRY_WITH_OPTIONS (options) {
+        if (!options->handler_logging_enabled) {
+            sentry__logger_disable();
+        }
+    }
+
     SENTRY_INFO("entering breakpad minidump callback");
 
     // this is a bit strange, according to docs, `succeeded` should be true when
@@ -198,6 +206,13 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
         // and restore the old transport
     }
     SENTRY_INFO("crash has been captured");
+
+    // Re-enable logging after crash handling if the option is set
+    SENTRY_WITH_OPTIONS (options) {
+        if (!options->handler_logging_enabled) {
+            sentry__logger_enable();
+        }
+    }
 
 #ifndef SENTRY_PLATFORM_WINDOWS
     sentry__leave_signal_handler();

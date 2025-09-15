@@ -1,5 +1,6 @@
 #include "sentry_core.h"
 #include "sentry_logger.h"
+#include "sentry_sync.h"
 #include "sentry_testsupport.h"
 
 typedef struct {
@@ -50,4 +51,39 @@ SENTRY_TEST(custom_logger)
         sentry_init(options);
         sentry_close();
     }
+}
+
+SENTRY_TEST(logger_enable_disable_functionality)
+{
+    logger_test_t data = { 0, false };
+
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_debug(options, true);
+    sentry_options_set_logger(options, test_logger, &data);
+
+    sentry_init(options);
+
+    // Test logging is enabled by default
+    data.assert_now = true;
+    SENTRY_WARNF("Log %s", "this");
+    TEST_CHECK_INT_EQUAL(data.called, 1);
+
+    // Test disabling logging
+    sentry__logger_disable();
+    data.called = 0;
+    data.assert_now = false;
+    SENTRY_WARNF("Don't log %s", "this");
+    TEST_CHECK_INT_EQUAL(data.called, 0);
+
+    // Test re-enabling logging
+    sentry__logger_enable();
+    data.called = 0;
+    data.assert_now = true;
+    SENTRY_WARNF("Log %s", "this");
+    TEST_CHECK_INT_EQUAL(data.called, 1);
+
+    // Clear the logger instance
+    SENTRY_TEST_OPTIONS_NEW(clean_options);
+    sentry_init(clean_options);
+    sentry_close();
 }

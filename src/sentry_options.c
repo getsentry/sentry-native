@@ -50,6 +50,7 @@ sentry_options_new(void)
     opts->system_crash_reporter_enabled = false;
     opts->attach_screenshot = false;
     opts->crashpad_wait_for_upload = false;
+    opts->handler_logging_enabled = true;
     opts->symbolize_stacktraces =
     // AIX doesn't have reliable debug IDs for server-side symbolication,
     // and the diversity of Android makes it infeasible to have access to debug
@@ -691,3 +692,9 @@ sentry_options_set_handler_strategy(
 }
 
 #endif // SENTRY_PLATFORM_LINUX
+
+void
+sentry_options_set_handler_logging_enabled(sentry_options_t *opts, int val)
+{
+    opts->handler_logging_enabled = !!val;
+}

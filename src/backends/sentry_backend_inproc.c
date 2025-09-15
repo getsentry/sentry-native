@@ -6,6 +6,7 @@
 #include "sentry_core.h"
 #include "sentry_database.h"
 #include "sentry_envelope.h"
+#include "sentry_logger.h"
 #include "sentry_options.h"
 #if defined(SENTRY_PLATFORM_WINDOWS)
 #    include "sentry_os.h"
@@ -523,6 +524,13 @@ make_signal_event(
 static void
 handle_ucontext(const sentry_ucontext_t *uctx)
 {
+    // Disable logging during crash handling if the option is set
+    SENTRY_WITH_OPTIONS (options) {
+        if (!options->handler_logging_enabled) {
+            sentry__logger_disable();
+        }
+    }
+
     SENTRY_INFO("entering signal handler");
 
     const struct signal_slot *sig_slot = NULL;
@@ -624,6 +632,13 @@ handle_ucontext(const sentry_ucontext_t *uctx)
     }
 
     SENTRY_INFO("crash has been captured");
+
+    // Re-enable logging after crash handling if the option is set
+    SENTRY_WITH_OPTIONS (options) {
+        if (!options->handler_logging_enabled) {
+            sentry__logger_enable();
+        }
+    }
 
 #ifdef SENTRY_PLATFORM_UNIX
     // reset signal handlers and invoke the original ones.  This will then tear

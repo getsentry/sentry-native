@@ -1500,6 +1500,15 @@ SENTRY_API void sentry_options_set_crashpad_wait_for_upload(
     sentry_options_t *opts, int wait_for_upload);
 
 /**
+ * Enables or disables console logging during crash handling.
+ * When disabled, Sentry will not invoke logger callbacks during crash
+ * handler execution. This can be useful to avoid potential issues during
+ * crash handling. This is enabled by default.
+ */
+SENTRY_API void sentry_options_set_handler_logging_enabled(
+    sentry_options_t *opts, int enabled);
+
+/**
  * Sets the maximum time (in milliseconds) to wait for the asynchronous
  * tasks to end on shutdown, before attempting a forced termination.
  */

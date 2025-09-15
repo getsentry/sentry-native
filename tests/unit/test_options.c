@@ -52,3 +52,28 @@ SENTRY_TEST(options_sdk_name_invalid)
 
     sentry_options_free(options);
 }
+
+SENTRY_TEST(options_handler_logging_enabled_default)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+
+    // Enabled by default
+    TEST_CHECK_INT_EQUAL(options->handler_logging_enabled, 1);
+
+    // Test setting to false
+    sentry_options_set_handler_logging_enabled(options, 0);
+    TEST_CHECK_INT_EQUAL(options->handler_logging_enabled, 0);
+
+    // Test setting to true
+    sentry_options_set_handler_logging_enabled(options, 1);
+    TEST_CHECK_INT_EQUAL(options->handler_logging_enabled, 1);
+
+    // Test setting with non-zero value (should be converted to 1)
+    sentry_options_set_handler_logging_enabled(options, 42);
+    TEST_CHECK_INT_EQUAL(options->handler_logging_enabled, 1);
+
+    // Should not crash when called with NULL options
+    sentry_options_set_handler_logging_enabled(NULL, 1);
+
+    sentry_options_free(options);
+}
