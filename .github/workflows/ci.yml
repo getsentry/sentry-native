@@ -317,10 +317,14 @@ jobs:
           cat /etc/hosts
         shell: bash
 
-      - name: Test
+      - name: Install Python Dependencies
         shell: bash
         run: |
           pip install --upgrade --requirement tests/requirements.txt
+
+      - name: Test
+        shell: bash
+        run: |
           [ "${{ matrix.CC }}" ] && export CC="${{ matrix.CC }}"
           [ "${{ matrix.CXX }}" ] && export CXX="${{ matrix.CXX }}"
           pytest --capture=no --verbose tests

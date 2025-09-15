@@ -216,8 +216,6 @@ def cmake(cwd, targets, options=None, cflags=None):
 
     config_cmd.append(source_dir)
 
-    print("\n{} > {}".format(cwd, " ".join(config_cmd)), flush=True)
-
     # Run with output capture, only print on failure
     process = subprocess.Popen(
         config_cmd,
@@ -280,8 +278,6 @@ def cmake(cwd, targets, options=None, cflags=None):
             "--build",
             " ".join(buildcmd),
         ]
-
-    print("{} > {}".format(cwd, " ".join(buildcmd)), flush=True)
 
     # Run with output capture, only print on failure
     process = subprocess.Popen(

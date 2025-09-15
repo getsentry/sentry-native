@@ -55,7 +55,13 @@ def run(cwd, exe, args, env=dict(os.environ), **kwargs):
         # older android emulators do not correctly pass down the returncode
         # so we basically echo the return code, and parse it manually
         is_pipe = kwargs.get("stdout") == subprocess.PIPE
-        kwargs["stdout"] = subprocess.PIPE
+        should_capture_android = not is_pipe and "stdout" not in kwargs
+        
+        if should_capture_android:
+            # Capture output for potential display on failure
+            kwargs["stdout"] = subprocess.PIPE
+            kwargs["stderr"] = subprocess.STDOUT
+            
         child = subprocess.run(
             [
                 "{}/platform-tools/adb".format(os.environ["ANDROID_HOME"]),
@@ -76,8 +82,35 @@ def run(cwd, exe, args, env=dict(os.environ), **kwargs):
         stdout = child.stdout
         child.returncode = int(stdout[stdout.rfind(b"ret:") :][4:])
         child.stdout = stdout[: stdout.rfind(b"ret:")]
-        if not is_pipe:
-            sys.stdout.buffer.write(child.stdout)
+        
+        # Only write output to stdout if not capturing or on success
+        if not should_capture_android or child.returncode == 0:
+            if not is_pipe:
+                sys.stdout.buffer.write(child.stdout)
+        elif should_capture_android and child.returncode != 0:
+            # Enhanced error reporting for Android test execution failures
+            error_details = []
+            error_details.append("=" * 60)
+            error_details.append("ANDROID TEST EXECUTION FAILED")
+            error_details.append("=" * 60)
+            error_details.append(f"Executable: {exe}")
+            error_details.append(f"Arguments: {' '.join(args)}")
+            error_details.append(f"Return code: {child.returncode}")
+            
+            # Display captured output (last 50 lines to avoid too much noise)
+            if child.stdout:
+                output_text = child.stdout.decode('utf-8', errors='replace')
+                output_lines = output_text.strip().split('\n')
+                error_details.append("--- OUTPUT (last 50 lines) ---")
+                last_lines = output_lines[-50:] if len(output_lines) > 50 else output_lines
+                error_details.append('\n'.join(last_lines))
+            
+            error_details.append("=" * 60)
+            
+            # Print the detailed error information
+            error_message = "\n".join(error_details)
+            print(error_message, flush=True)
+        
         if kwargs.get("check") and child.returncode:
             raise subprocess.CalledProcessError(
                 child.returncode, child.args, output=child.stdout, stderr=child.stderr
@@ -114,14 +147,60 @@ def run(cwd, exe, args, env=dict(os.environ), **kwargs):
             "--leak-check=yes",
             *cmd,
         ]
-    try:
-        return subprocess.run([*cmd, *args], cwd=cwd, env=env, **kwargs)
-    except subprocess.CalledProcessError:
-        raise pytest.fail.Exception(
-            "running command failed: {cmd} {args}".format(
-                cmd=" ".join(cmd), args=" ".join(args)
-            )
-        ) from None
+    
+    # Capture output unless explicitly requested to pipe to caller or stream to stdout
+    should_capture = kwargs.get("stdout") != subprocess.PIPE and "stdout" not in kwargs
+    
+    if should_capture:
+        # Capture both stdout and stderr for potential display on failure
+        kwargs_with_capture = kwargs.copy()
+        kwargs_with_capture["stdout"] = subprocess.PIPE
+        kwargs_with_capture["stderr"] = subprocess.STDOUT
+        kwargs_with_capture["universal_newlines"] = True
+        
+        try:
+            result = subprocess.run([*cmd, *args], cwd=cwd, env=env, **kwargs_with_capture)
+            if result.returncode != 0 and kwargs.get("check"):
+                # Enhanced error reporting for test execution failures
+                error_details = []
+                error_details.append("=" * 60)
+                error_details.append("TEST EXECUTION FAILED")
+                error_details.append("=" * 60)
+                error_details.append(f"Command: {' '.join(cmd + args)}")
+                error_details.append(f"Working directory: {cwd}")
+                error_details.append(f"Return code: {result.returncode}")
+                
+                # Display captured output (last 50 lines to avoid too much noise)
+                if result.stdout:
+                    output_lines = result.stdout.strip().split('\n')
+                    error_details.append("--- OUTPUT (last 50 lines) ---")
+                    last_lines = output_lines[-50:] if len(output_lines) > 50 else output_lines
+                    error_details.append('\n'.join(last_lines))
+                
+                error_details.append("=" * 60)
+                
+                # Print the detailed error information
+                error_message = "\n".join(error_details)
+                print(error_message, flush=True)
+                
+                raise subprocess.CalledProcessError(result.returncode, result.args)
+            return result
+        except subprocess.CalledProcessError:
+            raise pytest.fail.Exception(
+                "running command failed: {cmd} {args}".format(
+                    cmd=" ".join(cmd), args=" ".join(args)
+                )
+            ) from None
+    else:
+        # Use original behavior when stdout is explicitly handled by caller
+        try:
+            return subprocess.run([*cmd, *args], cwd=cwd, env=env, **kwargs)
+        except subprocess.CalledProcessError:
+            raise pytest.fail.Exception(
+                "running command failed: {cmd} {args}".format(
+                    cmd=" ".join(cmd), args=" ".join(args)
+                )
+            ) from None
 
 
 def check_output(*args, **kwargs):
