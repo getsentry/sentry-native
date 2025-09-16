@@ -3,7 +3,8 @@ import subprocess
 
 import pytest
 
-from .conditions import has_breakpad, has_crashpad, has_http
+from . import run
+from .conditions import has_breakpad, has_crashpad
 
 
 def _run_logger_crash_test(backend, cmake, logger_option):
@@ -25,26 +26,27 @@ def _run_logger_crash_test(backend, cmake, logger_option):
     # Make sure we are isolated from previous runs
     shutil.rmtree(tmp_path / ".sentry-native", ignore_errors=True)
 
-    # Run the example with the specified logger option
-    try:
-        output = subprocess.check_output(
-            [
-                str(tmp_path / "sentry_example"),
-                logger_option,  # enable or disable logging during crash
-                "log",  # Enable debug logging
-                "test-logger",  # Use our custom test logger
-                "test-logger-before-crash",  # Log before crash
-                "assert",  # Trigger crash
-            ],
-            cwd=tmp_path,
-            timeout=30,
-            stderr=subprocess.STDOUT,
-        ).decode("utf-8", errors="replace")
-        # This should not return normally due to crash
-        assert False, f"Expected crash but process completed normally. Output: {output}"
-    except subprocess.CalledProcessError as e:
-        # Expected behavior - the process crashed
-        output = e.stdout.decode("utf-8", errors="replace")
+    # Run the example with the specified logger option - expect it to crash
+    child = run(
+        tmp_path,
+        "sentry_example",
+        [
+            logger_option,  # enable or disable logging during crash
+            "log",  # Enable debug logging
+            "test-logger",  # Use our custom test logger
+            "test-logger-before-crash",  # Log before crash
+            "assert",  # Trigger crash
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+
+    # Process should have crashed (non-zero exit code)
+    assert (
+        child.returncode != 0
+    ), f"Expected crash but process completed normally. Output: {child.stdout.decode('utf-8', errors='replace')}"
+
+    output = child.stdout.decode("utf-8", errors="replace")
 
     # Parse the output to check logging behavior
     parsed_data = parse_logger_output(output)
