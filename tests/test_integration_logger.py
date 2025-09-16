@@ -134,7 +134,7 @@ def test_logger_enabled_when_crashed(backend, cmake):
         pytest.param(
             "inproc",
             marks=pytest.mark.skipif(
-                bool(os.environ.get("ANDROID_API")),
+                is_android,
                 reason="skip inproc tests on Android",
             ),
         ),
