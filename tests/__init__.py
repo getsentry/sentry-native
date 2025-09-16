@@ -136,6 +136,22 @@ def run_with_capture_on_failure(
             raise failure_exception_class("command failed") from None
         else:
             raise
+    finally:
+        # Ensure proper cleanup of the subprocess
+        if process.poll() is None:
+            # Process is still running, terminate it
+            try:
+                process.terminate()
+                # Give the process a moment to terminate gracefully
+                try:
+                    process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    # Force kill if it doesn't terminate within 5 seconds
+                    process.kill()
+                    process.wait()
+            except (OSError, ValueError):
+                # Process might already be terminated or invalid
+                pass
 
 
 def make_dsn(httpserver, auth="uiaeosnrtdy", id=123456, proxy_host=False):

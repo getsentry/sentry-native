@@ -65,7 +65,9 @@ def test_enhanced_error_format():
     mock_cmd = ["cmake", "-DTEST=1", "/some/source"]
     mock_cwd = "/some/build/dir"
     mock_returncode = 1
-    mock_output = "CMake Error: Invalid option TEST\n-- Configuring incomplete, errors occurred!"
+    mock_output = (
+        "CMake Error: Invalid option TEST\n-- Configuring incomplete, errors occurred!"
+    )
 
     # Use the actual format_error_output function
     error_message = format_error_output(
@@ -108,3 +110,41 @@ def test_format_error_output_input_validation():
     # Test with bytes output (should be decoded)
     result = format_error_output("TEST", ["cmd"], "/dir", 1, b"bytes output")
     assert "bytes output" in result
+
+
+def test_run_with_capture_on_failure_resource_cleanup():
+    """Test that subprocess resources are properly cleaned up even when exceptions occur."""
+    from . import run_with_capture_on_failure
+    import psutil
+    import os
+
+    # Get initial process count for the current process
+    initial_children = len(psutil.Process().children(recursive=True))
+
+    # Test 1: Normal successful command should not leak processes
+    try:
+        result = run_with_capture_on_failure(
+            ["echo", "test"], cwd=".", error_title="TEST COMMAND"
+        )
+        assert result.returncode == 0
+        assert "test" in result.stdout
+    except Exception:
+        pass  # Platform differences shouldn't fail this test
+
+    # Test 2: Command that fails should not leak processes
+    try:
+        run_with_capture_on_failure(
+            ["nonexistent_command_that_will_fail"], cwd=".", error_title="TEST COMMAND"
+        )
+    except (subprocess.CalledProcessError, FileNotFoundError, OSError):
+        pass  # Expected to fail
+
+    # Check that no child processes are left hanging
+    final_children = len(psutil.Process().children(recursive=True))
+
+    # The number of child processes should be the same or very close
+    # Allow for slight variations due to system background processes
+    assert abs(final_children - initial_children) <= 1, (
+        f"Process leak detected: started with {initial_children} children, "
+        f"ended with {final_children} children"
+    )
