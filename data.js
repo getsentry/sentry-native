@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1758051048646,
+  "lastUpdate": 1758051085113,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -15574,6 +15574,66 @@ window.BENCHMARK_DATA = {
             "value": 14.068100000031336,
             "unit": "ms",
             "extra": "Min 13.567ms\nMax 15.162ms\nMean 14.248ms\nStdDev 0.678ms\nMedian 14.068ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "amir.mujacic@sentry.io",
+            "name": "Amir Mujacic",
+            "username": "mujacica"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "48ae2ec8bdc691f311efe1c3f5c8d77ee35a5f25",
+          "message": "feat: Implement logging enable/disable feature, with option to disable logging in handlers (#1371)\n\n* Implemented logging enable/disable feature\n* Added a new option to enable/disable handling while handling crashes\n* Extended all backends to support new feature\n* Extended unit tests\n* Added logger integration tests\n\n---------\n\nCo-authored-by: Mischan Toosarani-Hausberger <mischan@abovevacant.com>",
+          "timestamp": "2025-09-16T21:26:55+02:00",
+          "tree_id": "4f36d73fa594209d674fee086531b2b7febedd87",
+          "url": "https://github.com/getsentry/sentry-native/commit/48ae2ec8bdc691f311efe1c3f5c8d77ee35a5f25"
+        },
+        "date": 1758051078852,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 11.175500000035754,
+            "unit": "ms",
+            "extra": "Min 10.427ms\nMax 15.728ms\nMean 12.074ms\nStdDev 2.161ms\nMedian 11.176ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 10.84790000004432,
+            "unit": "ms",
+            "extra": "Min 10.666ms\nMax 11.036ms\nMean 10.851ms\nStdDev 0.177ms\nMedian 10.848ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 27.702699999963443,
+            "unit": "ms",
+            "extra": "Min 27.199ms\nMax 30.388ms\nMean 28.579ms\nStdDev 1.474ms\nMedian 27.703ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.014899999996487168,
+            "unit": "ms",
+            "extra": "Min 0.013ms\nMax 0.017ms\nMean 0.015ms\nStdDev 0.002ms\nMedian 0.015ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.5180999999083724,
+            "unit": "ms",
+            "extra": "Min 0.416ms\nMax 0.570ms\nMean 0.494ms\nStdDev 0.067ms\nMedian 0.518ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 15.60909999989235,
+            "unit": "ms",
+            "extra": "Min 15.104ms\nMax 15.727ms\nMean 15.492ms\nStdDev 0.247ms\nMedian 15.609ms"
           }
         ]
       }
