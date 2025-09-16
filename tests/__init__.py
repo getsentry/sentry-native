@@ -226,8 +226,18 @@ def run(cwd, exe, args, env=dict(os.environ), **kwargs):
                 # Fallback if return code parsing fails
                 child.returncode = child.returncode or 1
         else:
-            # If ret: pattern not found, use the subprocess return code
-            child.returncode = child.returncode or 1
+            # If ret: pattern not found, try to extract return code from output
+            # Handle cases like "139Segmentation fault" where 139 is the return code
+            import re
+            match = re.search(rb'^(\d+)', stdout)
+            if match:
+                try:
+                    child.returncode = int(match.group(1))
+                    child.stdout = stdout
+                except ValueError:
+                    child.returncode = child.returncode or 1
+            else:
+                child.returncode = child.returncode or 1
 
         # Only write output to stdout if not capturing or on success
         if not capture_output or child.returncode == 0:
