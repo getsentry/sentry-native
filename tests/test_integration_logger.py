@@ -106,7 +106,8 @@ def parse_logger_output(output):
                     not has_crashpad, reason="crashpad backend not available"
                 ),
                 pytest.mark.skipif(
-                    sys.platform == "darwin", reason="crashpad has no client handler on macOS"
+                    sys.platform == "darwin",
+                    reason="crashpad has no client handler on macOS",
                 ),
             ],
         ),
