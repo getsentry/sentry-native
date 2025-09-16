@@ -202,7 +202,7 @@ jobs:
           git clone https://github.com/SimonKagstrom/kcov.git
           cd kcov
           # pin to a known good version with the coveralls git integration and performance bottlenecks fixed
-          git checkout 8afe9f29c58ef575877664c7ba209328233b70cc
+          git checkout b370df05ccc96facfd83a9e101e35263457b8035
           mkdir build
           cd build
           cmake ..
