@@ -276,8 +276,11 @@ level_as_string(sentry_level_t level)
 }
 
 // TODO to be portable, pass in the length format specifier
-static sentry_value_t
-construct_param_from_conversion(const char conversion, va_list *args_copy)
+#ifndef SENTRY_UNITTEST
+static
+#endif
+    sentry_value_t
+    construct_param_from_conversion(const char conversion, va_list *args_copy)
 {
     sentry_value_t param_obj = sentry_value_new_object();
     switch (conversion) {
@@ -405,9 +408,12 @@ skip_length(const char *fmt_ptr)
 }
 
 // returns how many parameters were added to the attributes object
-static int
-populate_message_parameters(
-    sentry_value_t attributes, const char *message, va_list args)
+#ifndef SENTRY_UNITTEST
+static
+#endif
+    int
+    populate_message_parameters(
+        sentry_value_t attributes, const char *message, va_list args)
 {
     if (!message || sentry_value_is_null(attributes)) {
         return 0;

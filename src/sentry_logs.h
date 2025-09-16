@@ -16,4 +16,9 @@ void sentry__logs_startup(void);
  */
 void sentry__logs_shutdown(uint64_t timeout);
 
+#ifdef SENTRY_UNITTEST
+int populate_message_parameters(
+    sentry_value_t attributes, const char *message, va_list args);
+#endif
+
 #endif
