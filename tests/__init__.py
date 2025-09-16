@@ -18,9 +18,7 @@ pytest.register_assert_rewrite("tests.assertions")
 from tests.assertions import assert_no_proxy_request
 
 
-def format_error_output(
-    title, command, working_dir, return_code, output=None, limit_lines=50
-):
+def format_error_output(title, command, working_dir, return_code, output=None):
     """
     Format detailed error information for failed commands.
 
@@ -30,15 +28,10 @@ def format_error_output(
         working_dir: Working directory where command was run
         return_code: Return code from the failed command
         output: Output from the failed command (optional)
-        limit_lines: Maximum number of lines to show from output (default: 50)
 
     Returns:
         Formatted error message string
     """
-    # Input validation
-    if limit_lines <= 0:
-        limit_lines = 50
-
     if not output:
         output = ""
 
@@ -63,15 +56,8 @@ def format_error_output(
         if isinstance(output, bytes):
             output = output.decode("utf-8", errors="replace")
 
-        output_lines = output.strip().split("\n")
-        if len(output_lines) > limit_lines:
-            error_details.append(f"--- OUTPUT (last {limit_lines} lines) ---")
-            last_lines = output_lines[-limit_lines:]
-        else:
-            error_details.append("--- OUTPUT ---")
-            last_lines = output_lines
-
-        error_details.append("\n".join(last_lines))
+        error_details.append("--- OUTPUT ---")
+        error_details.append(output.strip())
 
     error_details.append("=" * 60)
 

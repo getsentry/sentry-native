@@ -90,10 +90,6 @@ def test_format_error_output_input_validation():
     """Test input validation of the format_error_output function."""
     from . import format_error_output
 
-    # Test with invalid limit_lines (should default to 50)
-    result = format_error_output("TEST", ["cmd"], "/dir", 1, "output", limit_lines=-1)
-    assert "--- OUTPUT ---" in result
-
     # Test with empty/None output (should handle gracefully)
     result = format_error_output("TEST", ["cmd"], "/dir", 1, None)
     assert "--- OUTPUT ---" not in result
