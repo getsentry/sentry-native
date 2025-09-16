@@ -217,28 +217,26 @@ def run(cwd, exe, args, env=dict(os.environ), **kwargs):
             **kwargs,
         )
         stdout = child.stdout
-        # Parse return code from Android output
-        ret_pos = stdout.rfind(b"ret:")
-        if ret_pos != -1:
-            # Extract from expected "ret:NNN" format
+        # Parse return code from Android output using regex
+        # Handle both "ret:NNN" format and "NNNSegmentation fault" format
+        match = re.search(rb'ret:(\d+)|^(\d+)', stdout)
+        if match:
             try:
-                child.returncode = int(stdout[ret_pos + 4:])
-                child.stdout = stdout[:ret_pos]
-            except ValueError:
-                # Fallback to regex extraction
-                match = re.search(rb'^(\d+)', stdout)
-                try:
-                    child.returncode = int(match.group(1)) if match else (child.returncode or 1)
-                except (ValueError, AttributeError):
-                    child.returncode = child.returncode or 1
-                child.stdout = stdout
-        else:
-            # No ret: pattern, try extracting from start of output
-            match = re.search(rb'^(\d+)', stdout)
-            try:
-                child.returncode = int(match.group(1)) if match else (child.returncode or 1)
+                # Extract from either group (ret:NNN or NNN at start)
+                returncode = int(match.group(1) or match.group(2))
+                if match.group(1):
+                    # Found ret:NNN pattern, strip it from output
+                    child.stdout = stdout[:match.start()]
+                else:
+                    # Found NNN at start, keep full output
+                    child.stdout = stdout
+                child.returncode = returncode
             except (ValueError, AttributeError):
                 child.returncode = child.returncode or 1
+                child.stdout = stdout
+        else:
+            # No return code pattern found, use fallback
+            child.returncode = child.returncode or 1
             child.stdout = stdout
 
         # Only write output to stdout if not capturing or on success
