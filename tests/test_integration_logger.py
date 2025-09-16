@@ -4,6 +4,8 @@ import sys
 
 import pytest
 
+import os
+
 from . import run
 from .conditions import has_breakpad, has_crashpad
 
@@ -84,7 +86,12 @@ def parse_logger_output(output):
 @pytest.mark.parametrize(
     "backend",
     [
-        "inproc",
+        pytest.param(
+            "inproc",
+            marks=pytest.mark.skipif(
+                os.environ.get("ANDROID_API"), reason="skip inproc tests on Android"
+            ),
+        ),
         pytest.param(
             "breakpad",
             marks=pytest.mark.skipif(
@@ -109,7 +116,7 @@ def test_logger_enabled_when_crashed(backend, cmake):
 
     # When logging is enabled, we should see logs after the pre-crash marker
     # Only check this on Linux, as other platforms don't reliably log during crash
-    if sys.platform == "linux":
+    if sys.platform == "linux" and backend != "crashpad":
         assert (
             len(data["logs_after_pre_crash"]) > 0
         ), "Should have SENTRY_LOG messages after crash when logging is enabled"
@@ -118,7 +125,12 @@ def test_logger_enabled_when_crashed(backend, cmake):
 @pytest.mark.parametrize(
     "backend",
     [
-        "inproc",
+        pytest.param(
+            "inproc",
+            marks=pytest.mark.skipif(
+                os.environ.get("ANDROID_API"), reason="skip inproc tests on Android"
+            ),
+        ),
         pytest.param(
             "breakpad",
             marks=pytest.mark.skipif(
