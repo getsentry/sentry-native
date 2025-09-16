@@ -148,7 +148,7 @@ def run_with_capture_on_failure(
                 except subprocess.TimeoutExpired:
                     # Force kill if it doesn't terminate within 5 seconds
                     process.kill()
-                    process.wait()
+                    process.wait(timeout=1)
             except (OSError, ValueError):
                 # Process might already be terminated or invalid
                 pass
