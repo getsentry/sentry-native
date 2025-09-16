@@ -112,14 +112,10 @@ def test_format_error_output_input_validation():
     assert "bytes output" in result
 
 
-@pytest.mark.skipif(not shutil.which("python"), reason="python not available")
 def test_run_with_capture_on_failure_resource_cleanup():
     """Test that subprocess resources are properly cleaned up even when exceptions occur."""
     from . import run_with_capture_on_failure
-    try:
-        import psutil
-    except ImportError:
-        pytest.skip("psutil not available - skipping resource cleanup test")
+    import psutil
     import os
 
     # Get initial process count for the current process
