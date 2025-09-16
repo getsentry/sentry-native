@@ -110,6 +110,8 @@ static const char *
 level_as_string(sentry_level_t level)
 {
     switch (level) {
+    case SENTRY_LEVEL_TRACE:
+        return "trace";
     case SENTRY_LEVEL_DEBUG:
         return "debug";
     case SENTRY_LEVEL_WARNING:
@@ -315,7 +317,7 @@ sentry_value_new_int32(int32_t value)
 sentry_value_t
 sentry_value_new_double(double value)
 {
-    thing_t *thing = sentry_malloc(sizeof(thing_t));
+    thing_t *thing = SENTRY_MAKE(thing_t);
     if (!thing) {
         return sentry_value_new_null();
     }
@@ -331,7 +333,7 @@ sentry_value_new_double(double value)
 sentry_value_t
 sentry_value_new_int64(int64_t value)
 {
-    thing_t *thing = sentry_malloc(sizeof(thing_t));
+    thing_t *thing = SENTRY_MAKE(thing_t);
     if (!thing) {
         return sentry_value_new_null();
     }
@@ -347,7 +349,7 @@ sentry_value_new_int64(int64_t value)
 sentry_value_t
 sentry_value_new_uint64(uint64_t value)
 {
-    thing_t *thing = sentry_malloc(sizeof(thing_t));
+    thing_t *thing = SENTRY_MAKE(thing_t);
     if (!thing) {
         return sentry_value_new_null();
     }
@@ -1055,7 +1057,13 @@ sentry__jsonwriter_write_value(sentry_jsonwriter_t *jw, sentry_value_t value)
         sentry__jsonwriter_write_str(jw, sentry_value_as_string(value));
         break;
     case SENTRY_VALUE_TYPE_LIST: {
-        const list_t *l = value_as_thing(value)->payload._ptr;
+        const thing_t *thing = value_as_thing(value);
+        if (!thing) {
+            UNREACHABLE("thing of a list is NULL during serialization");
+            return;
+        }
+
+        const list_t *l = thing->payload._ptr;
         sentry__jsonwriter_write_list_start(jw);
         for (size_t i = 0; i < l->len; i++) {
             sentry__jsonwriter_write_value(jw, l->items[i]);
@@ -1064,7 +1072,13 @@ sentry__jsonwriter_write_value(sentry_jsonwriter_t *jw, sentry_value_t value)
         break;
     }
     case SENTRY_VALUE_TYPE_OBJECT: {
-        const obj_t *o = value_as_thing(value)->payload._ptr;
+        const thing_t *thing = value_as_thing(value);
+        if (!thing) {
+            UNREACHABLE("thing of an object is NULL during serialization");
+            return;
+        }
+
+        const obj_t *o = thing->payload._ptr;
         sentry__jsonwriter_write_object_start(jw);
         for (size_t i = 0; i < o->len; i++) {
             sentry__jsonwriter_write_key(jw, o->pairs[i].k);

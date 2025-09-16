@@ -265,6 +265,9 @@ sentry__envelope_add_event(sentry_envelope_t *envelope, sentry_value_t event)
     item->event = event;
     sentry__jsonwriter_write_value(jw, event);
     item->payload = sentry__jsonwriter_into_string(jw, &item->payload_len);
+    if (!item->payload) {
+        return NULL;
+    }
 
     sentry__envelope_item_set_header(
         item, "type", sentry_value_new_string("event"));
@@ -397,6 +400,35 @@ sentry__envelope_add_transaction(
         sentry__usec_time_to_iso8601(sentry__usec_time()));
 #endif
     sentry__envelope_set_header(envelope, "sent_at", now);
+
+    return item;
+}
+
+sentry_envelope_item_t *
+sentry__envelope_add_logs(sentry_envelope_t *envelope, sentry_value_t logs)
+{
+    sentry_envelope_item_t *item = envelope_add_item(envelope);
+    if (!item) {
+        return NULL;
+    }
+
+    sentry_jsonwriter_t *jw = sentry__jsonwriter_new_sb(NULL);
+    if (!jw) {
+        return NULL;
+    }
+
+    sentry__jsonwriter_write_value(jw, logs);
+    item->payload = sentry__jsonwriter_into_string(jw, &item->payload_len);
+
+    sentry__envelope_item_set_header(
+        item, "type", sentry_value_new_string("log"));
+    sentry__envelope_item_set_header(item, "item_count",
+        sentry_value_new_int32((int32_t)sentry_value_get_length(
+            sentry_value_get_by_key(logs, "items"))));
+    sentry__envelope_item_set_header(item, "content_type",
+        sentry_value_new_string("application/vnd.sentry.items.log+json"));
+    sentry_value_t length = sentry_value_new_int32((int32_t)item->payload_len);
+    sentry__envelope_item_set_header(item, "length", length);
 
     return item;
 }
