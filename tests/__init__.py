@@ -216,8 +216,18 @@ def run(cwd, exe, args, env=dict(os.environ), **kwargs):
             **kwargs,
         )
         stdout = child.stdout
-        child.returncode = int(stdout[stdout.rfind(b"ret:") :][4:])
-        child.stdout = stdout[: stdout.rfind(b"ret:")]
+        ret_pos = stdout.rfind(b"ret:")
+        if ret_pos != -1:
+            # Extract return code from the expected format
+            try:
+                child.returncode = int(stdout[ret_pos + 4:])
+                child.stdout = stdout[:ret_pos]
+            except ValueError:
+                # Fallback if return code parsing fails
+                child.returncode = child.returncode or 1
+        else:
+            # If ret: pattern not found, use the subprocess return code
+            child.returncode = child.returncode or 1
 
         # Only write output to stdout if not capturing or on success
         if not capture_output or child.returncode == 0:
