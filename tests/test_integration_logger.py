@@ -18,7 +18,9 @@ def _run_logger_crash_test(backend, cmake, logger_option):
         tuple: (output, parsed_data) where output is the raw subprocess output
                and parsed_data is the parsed logging data
     """
-    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": backend})
+    tmp_path = cmake(
+        ["sentry_example"], {"SENTRY_BACKEND": backend, "SENTRY_TRANSPORT": "none"}
+    )
 
     # Make sure we are isolated from previous runs
     shutil.rmtree(tmp_path / ".sentry-native", ignore_errors=True)
@@ -79,12 +81,7 @@ def parse_logger_output(output):
 @pytest.mark.parametrize(
     "backend",
     [
-        pytest.param(
-            "inproc",
-            marks=pytest.mark.skipif(
-                not has_http, reason="inproc backend needs http transport"
-            ),
-        ),
+        "inproc",
         pytest.param(
             "breakpad",
             marks=pytest.mark.skipif(
@@ -116,12 +113,7 @@ def test_logger_enabled_when_crashed(backend, cmake):
 @pytest.mark.parametrize(
     "backend",
     [
-        pytest.param(
-            "inproc",
-            marks=pytest.mark.skipif(
-                not has_http, reason="inproc backend needs http transport"
-            ),
-        ),
+        "inproc",
         pytest.param(
             "breakpad",
             marks=pytest.mark.skipif(
