@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1758005732367,
+  "lastUpdate": 1758005751066,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -10122,6 +10122,66 @@ window.BENCHMARK_DATA = {
             "value": 7.108249999987493,
             "unit": "ms",
             "extra": "Min 6.690ms\nMax 11.478ms\nMean 8.509ms\nStdDev 2.305ms\nMedian 7.108ms\nCPU 1.002ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "6349682+vaind@users.noreply.github.com",
+            "name": "Ivan Dlugos",
+            "username": "vaind"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "c2adc7e6dc2c5f9aff6dcbbd465f79230d9b8d17",
+          "message": "fix: resolve 'void function returning a value' compilation warnings (#1372)\n\n* fix: resolve 'void function returning a value' compilation warnings\n\n- Change SKIP_TEST() macro from `(void)0` to `return`\n- Fix incorrect usage of `return SKIP_TEST()` patterns in test files\n- Clean up conditional compilation blocks to prevent unreachable code\n- Remove unused test entry from tests.inc\n\n🤖 Generated with [Claude Code](https://claude.ai/code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\n\n* Apply suggestion from @vaind\n\n* fix: restore conditional compilation blocks in test files\n\nFix build failures on Windows by properly restoring #if/#else/#endif\nblocks that were incorrectly restructured. Test code should only run\non supported platforms, not on all platforms after SKIP_TEST().\n\n🤖 Generated with [Claude Code](https://claude.ai/code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\n\n---------\n\nCo-authored-by: Claude <noreply@anthropic.com>",
+          "timestamp": "2025-09-16T08:50:44+02:00",
+          "tree_id": "c932d6075a603989e1a8f55c9f1b0a6cc7236415",
+          "url": "https://github.com/getsentry/sentry-native/commit/c2adc7e6dc2c5f9aff6dcbbd465f79230d9b8d17"
+        },
+        "date": 1758005748706,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 4.7898749999149,
+            "unit": "ms",
+            "extra": "Min 4.365ms\nMax 9.462ms\nMean 5.784ms\nStdDev 2.131ms\nMedian 4.790ms\nCPU 2.757ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 5.776125000011234,
+            "unit": "ms",
+            "extra": "Min 5.418ms\nMax 7.099ms\nMean 5.971ms\nStdDev 0.655ms\nMedian 5.776ms\nCPU 3.289ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 16.206750000037573,
+            "unit": "ms",
+            "extra": "Min 15.508ms\nMax 23.602ms\nMean 18.542ms\nStdDev 3.691ms\nMedian 16.207ms\nCPU 5.513ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.01887500002339948,
+            "unit": "ms",
+            "extra": "Min 0.011ms\nMax 0.056ms\nMean 0.024ms\nStdDev 0.019ms\nMedian 0.019ms\nCPU 0.023ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.28395899994393403,
+            "unit": "ms",
+            "extra": "Min 0.257ms\nMax 0.336ms\nMean 0.291ms\nStdDev 0.030ms\nMedian 0.284ms\nCPU 0.290ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 7.7502920000824815,
+            "unit": "ms",
+            "extra": "Min 6.655ms\nMax 8.213ms\nMean 7.491ms\nStdDev 0.779ms\nMedian 7.750ms\nCPU 0.964ms"
           }
         ]
       }
