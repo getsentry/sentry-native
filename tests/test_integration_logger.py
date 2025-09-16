@@ -3,7 +3,7 @@ import subprocess
 
 import pytest
 
-from .conditions import has_breakpad, has_crashpad
+from .conditions import has_breakpad, has_crashpad, has_http
 
 
 def _run_logger_crash_test(backend, cmake, logger_option):
@@ -32,7 +32,7 @@ def _run_logger_crash_test(backend, cmake, logger_option):
                 "log",  # Enable debug logging
                 "test-logger",  # Use our custom test logger
                 "test-logger-before-crash",  # Log before crash
-                "crash",  # Trigger crash
+                "assert",  # Trigger crash
             ],
             cwd=tmp_path,
             timeout=30,
@@ -47,7 +47,7 @@ def _run_logger_crash_test(backend, cmake, logger_option):
     # Parse the output to check logging behavior
     parsed_data = parse_logger_output(output)
 
-    return output, parsed_data
+    return parsed_data
 
 
 def parse_logger_output(output):
@@ -79,7 +79,12 @@ def parse_logger_output(output):
 @pytest.mark.parametrize(
     "backend",
     [
-        "inproc",
+        pytest.param(
+            "inproc",
+            marks=pytest.mark.skipif(
+                not has_http, reason="inproc backend needs http transport"
+            ),
+        ),
         pytest.param(
             "breakpad",
             marks=pytest.mark.skipif(
@@ -96,7 +101,7 @@ def parse_logger_output(output):
 )
 def test_logger_enabled_when_crashed(backend, cmake):
     """Test that logging works during crash handling when enabled (default behavior)."""
-    output, data = _run_logger_crash_test(backend, cmake, "enable-logger-when-crashed")
+    data = _run_logger_crash_test(backend, cmake, "enable-logger-when-crashed")
 
     # Verify that pre-crash logging worked
     assert data["pre_crash_log_completed"], "Pre-crash log marker should be present"
@@ -111,7 +116,12 @@ def test_logger_enabled_when_crashed(backend, cmake):
 @pytest.mark.parametrize(
     "backend",
     [
-        "inproc",
+        pytest.param(
+            "inproc",
+            marks=pytest.mark.skipif(
+                not has_http, reason="inproc backend needs http transport"
+            ),
+        ),
         pytest.param(
             "breakpad",
             marks=pytest.mark.skipif(
@@ -128,7 +138,7 @@ def test_logger_enabled_when_crashed(backend, cmake):
 )
 def test_logger_disabled_when_crashed(backend, cmake):
     """Test that logging is disabled during crash handling when the option is set."""
-    output, data = _run_logger_crash_test(backend, cmake, "disable-logger-when-crashed")
+    data = _run_logger_crash_test(backend, cmake, "disable-logger-when-crashed")
 
     # Verify that pre-crash logging worked
     assert data["pre_crash_log_completed"], "Pre-crash log marker should be present"
@@ -138,4 +148,4 @@ def test_logger_disabled_when_crashed(backend, cmake):
     # The last log should be from before the crash
     assert (
         len(data["logs_after_pre_crash"]) == 0
-    ), "Should have NO SENTRY_LOG messages after crash when logging is disabled"
+    ), f"Should have NO SENTRY_LOG messages after crash when logging is disabled, but got: {data['logs_after_pre_crash']}"
