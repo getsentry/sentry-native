@@ -6,6 +6,10 @@
 
 - Add `user_data` parameter to `traces_sampler`. ([#1346](https://github.com/getsentry/sentry-native/pull/1346))
 
+**Fixes**:
+
+- Prevent `crashpad` from leaking Objective-C ARC compile options into any parent target linkage. ([#1375](https://github.com/getsentry/sentry-native/pull/1375), [crashpad#134](https://github.com/getsentry/crashpad/pull/134)) 
+
 **Internal:**
 
 - Support downstream Xbox SDK specifying networking initialization mechanism. ([#1359](https://github.com/getsentry/sentry-native/pull/1359))
