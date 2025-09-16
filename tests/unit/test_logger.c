@@ -64,6 +64,7 @@ SENTRY_TEST(logger_enable_disable_functionality)
     sentry_init(options);
 
     // Test logging is enabled by default
+    data.called = 0;
     data.assert_now = true;
     SENTRY_WARNF("Oh this is %s", "bad");
     TEST_CHECK_INT_EQUAL(data.called, 1);
