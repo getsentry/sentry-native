@@ -9,6 +9,7 @@ import pytest
 import pprint
 import textwrap
 import socket
+import re
 
 sourcedir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
@@ -216,28 +217,29 @@ def run(cwd, exe, args, env=dict(os.environ), **kwargs):
             **kwargs,
         )
         stdout = child.stdout
+        # Parse return code from Android output
         ret_pos = stdout.rfind(b"ret:")
         if ret_pos != -1:
-            # Extract return code from the expected format
+            # Extract from expected "ret:NNN" format
             try:
                 child.returncode = int(stdout[ret_pos + 4:])
                 child.stdout = stdout[:ret_pos]
             except ValueError:
-                # Fallback if return code parsing fails
-                child.returncode = child.returncode or 1
-        else:
-            # If ret: pattern not found, try to extract return code from output
-            # Handle cases like "139Segmentation fault" where 139 is the return code
-            import re
-            match = re.search(rb'^(\d+)', stdout)
-            if match:
+                # Fallback to regex extraction
+                match = re.search(rb'^(\d+)', stdout)
                 try:
-                    child.returncode = int(match.group(1))
-                    child.stdout = stdout
-                except ValueError:
+                    child.returncode = int(match.group(1)) if match else (child.returncode or 1)
+                except (ValueError, AttributeError):
                     child.returncode = child.returncode or 1
-            else:
+                child.stdout = stdout
+        else:
+            # No ret: pattern, try extracting from start of output
+            match = re.search(rb'^(\d+)', stdout)
+            try:
+                child.returncode = int(match.group(1)) if match else (child.returncode or 1)
+            except (ValueError, AttributeError):
                 child.returncode = child.returncode or 1
+            child.stdout = stdout
 
         # Only write output to stdout if not capturing or on success
         if not capture_output or child.returncode == 0:
