@@ -219,10 +219,10 @@ def run(cwd, exe, args, env=dict(os.environ), **kwargs):
         stdout = child.stdout
         # Parse return code from Android output using regex
         # Handle "ret:NNN" format
-        match = re.search(rb'ret:(\d+)', stdout)
+        match = re.search(rb"ret:(\d+)", stdout)
         if match:
             child.returncode = int(match.group(1))
-            child.stdout = stdout[:match.start()]
+            child.stdout = stdout[: match.start()]
         else:
             # If no ret: pattern found, something is wrong
             child.returncode = child.returncode or 1
