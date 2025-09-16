@@ -89,7 +89,7 @@ def parse_logger_output(output):
         pytest.param(
             "inproc",
             marks=pytest.mark.skipif(
-                is_android,
+                bool(is_android),
                 reason="skip inproc tests on Android",
             ),
         ),
@@ -135,7 +135,7 @@ def test_logger_enabled_when_crashed(backend, cmake):
         pytest.param(
             "inproc",
             marks=pytest.mark.skipif(
-                is_android,
+                bool(is_android),
                 reason="skip inproc tests on Android",
             ),
         ),
