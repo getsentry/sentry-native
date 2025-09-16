@@ -109,7 +109,7 @@ def test_logger_enabled_when_crashed(backend, cmake):
 
     # When logging is enabled, we should see logs after the pre-crash marker
     # Only check this on Linux, as other platforms don't reliably log during crash
-    if sys.platform != "linux":
+    if sys.platform == "linux":
         assert (
             len(data["logs_after_pre_crash"]) > 0
         ), "Should have SENTRY_LOG messages after crash when logging is enabled"
