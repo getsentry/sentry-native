@@ -38,7 +38,7 @@ def _run_logger_crash_test(backend, cmake, logger_option):
             "log",  # Enable debug logging
             "test-logger",  # Use our custom test logger
             "test-logger-before-crash",  # Log before crash
-            "assert",  # Trigger crash
+            "crash",  # Trigger crash
         ],
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
