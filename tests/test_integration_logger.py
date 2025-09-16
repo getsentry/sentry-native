@@ -7,7 +7,7 @@ import pytest
 import os
 
 from . import run
-from .conditions import has_breakpad, has_crashpad
+from .conditions import has_breakpad, has_crashpad, is_android
 
 
 def _run_logger_crash_test(backend, cmake, logger_option):
