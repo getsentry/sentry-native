@@ -553,7 +553,7 @@ sentry__capture_event(sentry_value_t event, sentry_scope_t *local_scope)
                         envelope, mut_options->session);
                     // we're assuming that if a session is added to an envelope
                     // it will be sent onwards.  This means we now need to set
-                    // the init flag to false because we're no longer the
+                    // the init flag to false because we're no longer in the
                     // initial session update.
                     mut_options->session->init = false;
                 }
