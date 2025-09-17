@@ -17,6 +17,7 @@
 #include "sentry_sync.h"
 #include "sentry_tracing.h"
 #include "sentry_transport.h"
+#include "sentry_tsan.h"
 #include "sentry_value.h"
 
 #ifdef SENTRY_PLATFORM_WINDOWS
@@ -534,14 +535,28 @@ sentry__capture_event(sentry_value_t event, sentry_scope_t *local_scope)
                 options, event, &event_id, true, local_scope);
         }
         if (envelope) {
-            if (options->session) {
+            // Accept a racy read here, since SENTRY_WITH_OPTIONS only prevents
+            // the options from being deallocated while we use them, but no lock
+            // is active and session could change during session shutdown.
+            // We recheck below inside the lock and don't pay for a lock here.
+            // This also means we accept a missed window of opportunity if an
+            // event is being sent concurrently to session initialization, which
+            // is an acceptable design trade-off.
+            SENTRY_TSAN_IGNORE_READS_BEGIN();
+            bool has_session = options->session;
+            SENTRY_TSAN_IGNORE_READS_END();
+            if (has_session) {
                 sentry_options_t *mut_options = sentry__options_lock();
-                sentry__envelope_add_session(envelope, mut_options->session);
-                // we're assuming that if a session is added to an envelope
-                // it will be sent onwards.  This means we now need to set
-                // the init flag to false because we're no longer the
-                // initial session update.
-                mut_options->session->init = false;
+                // recheck inside the lock since our previous read is racy.
+                if (mut_options->session) {
+                    sentry__envelope_add_session(
+                        envelope, mut_options->session);
+                    // we're assuming that if a session is added to an envelope
+                    // it will be sent onwards.  This means we now need to set
+                    // the init flag to false because we're no longer in the
+                    // initial session update.
+                    mut_options->session->init = false;
+                }
                 sentry__options_unlock();
             }
 
