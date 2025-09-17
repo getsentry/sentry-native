@@ -8,6 +8,12 @@ typedef struct {
     bool assert_now;
 } logger_test_t;
 
+// Note: All logger unit-tests must only run from the transportless unit-test
+// suite, since the transport can concurrently log while we do our
+// single-threaded test assertions here, leading to flaky test runs.
+// To blacklist a test, add to the respective list of `test_unit_transport`
+// in the `tests/test_unit.py` unit-test runner.
+
 static void
 test_logger(
     sentry_level_t level, const char *message, va_list args, void *_data)
