@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1758119074401,
+  "lastUpdate": 1758119082514,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -5270,6 +5270,66 @@ window.BENCHMARK_DATA = {
             "value": 1.8187240000315796,
             "unit": "ms",
             "extra": "Min 1.798ms\nMax 1.957ms\nMean 1.840ms\nStdDev 0.066ms\nMedian 1.819ms\nCPU 0.599ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "mischan@abovevacant.com",
+            "name": "Mischan Toosarani-Hausberger",
+            "username": "supervacuus"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "677e85e6af15c3e22e789ad72e571b0bb64f5d9e",
+          "message": "tests: remove flaky logger test from transport suite (#1378)",
+          "timestamp": "2025-09-17T16:21:35+02:00",
+          "tree_id": "3f74562eefd76d4183f15c399cff4de674a1d201",
+          "url": "https://github.com/getsentry/sentry-native/commit/677e85e6af15c3e22e789ad72e571b0bb64f5d9e"
+        },
+        "date": 1758119081723,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 0.727533000144831,
+            "unit": "ms",
+            "extra": "Min 0.718ms\nMax 0.735ms\nMean 0.726ms\nStdDev 0.007ms\nMedian 0.728ms\nCPU 0.726ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.7099700001163001,
+            "unit": "ms",
+            "extra": "Min 0.699ms\nMax 0.718ms\nMean 0.709ms\nStdDev 0.007ms\nMedian 0.710ms\nCPU 0.709ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 2.909749000082229,
+            "unit": "ms",
+            "extra": "Min 2.849ms\nMax 2.990ms\nMean 2.910ms\nStdDev 0.052ms\nMedian 2.910ms\nCPU 1.518ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.012302999948587967,
+            "unit": "ms",
+            "extra": "Min 0.012ms\nMax 0.012ms\nMean 0.012ms\nStdDev 0.000ms\nMedian 0.012ms\nCPU 0.012ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.022672000113743707,
+            "unit": "ms",
+            "extra": "Min 0.023ms\nMax 0.024ms\nMean 0.023ms\nStdDev 0.001ms\nMedian 0.023ms\nCPU 0.022ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 1.7820340001435397,
+            "unit": "ms",
+            "extra": "Min 1.731ms\nMax 1.843ms\nMean 1.782ms\nStdDev 0.041ms\nMedian 1.782ms\nCPU 0.545ms"
           }
         ]
       }
