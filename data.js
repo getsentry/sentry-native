@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1758051085113,
+  "lastUpdate": 1758119061565,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -5210,6 +5210,66 @@ window.BENCHMARK_DATA = {
             "value": 1.8023369999582428,
             "unit": "ms",
             "extra": "Min 1.750ms\nMax 1.830ms\nMean 1.797ms\nStdDev 0.030ms\nMedian 1.802ms\nCPU 0.550ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "mischan@abovevacant.com",
+            "name": "Mischan Toosarani-Hausberger",
+            "username": "supervacuus"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "f4f7379551ab50e51ccb359550f936e2bd7aba98",
+          "message": "fix: TOCTOU race between session life-cycle and event capture (#1377)\n\n* fix: TOCTOU race between session life-cycle and event capture\n\n* Apply suggestion from @mujacica\n\nCo-authored-by: Amir Mujacic <amir.mujacic@sentry.io>\n\n---------\n\nCo-authored-by: Amir Mujacic <amir.mujacic@sentry.io>",
+          "timestamp": "2025-09-17T16:20:20+02:00",
+          "tree_id": "bc7b1da117ccf1cce1551544b6129d4dd79fd2dd",
+          "url": "https://github.com/getsentry/sentry-native/commit/f4f7379551ab50e51ccb359550f936e2bd7aba98"
+        },
+        "date": 1758119060214,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 0.7178540000722933,
+            "unit": "ms",
+            "extra": "Min 0.698ms\nMax 0.725ms\nMean 0.713ms\nStdDev 0.013ms\nMedian 0.718ms\nCPU 0.713ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.7257990000653081,
+            "unit": "ms",
+            "extra": "Min 0.716ms\nMax 0.741ms\nMean 0.726ms\nStdDev 0.010ms\nMedian 0.726ms\nCPU 0.726ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 2.9222240000308375,
+            "unit": "ms",
+            "extra": "Min 2.919ms\nMax 2.965ms\nMean 2.932ms\nStdDev 0.019ms\nMedian 2.922ms\nCPU 1.552ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.012323000078140467,
+            "unit": "ms",
+            "extra": "Min 0.012ms\nMax 0.012ms\nMean 0.012ms\nStdDev 0.000ms\nMedian 0.012ms\nCPU 0.011ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.022743000045011286,
+            "unit": "ms",
+            "extra": "Min 0.022ms\nMax 0.024ms\nMean 0.023ms\nStdDev 0.000ms\nMedian 0.023ms\nCPU 0.022ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 1.8187240000315796,
+            "unit": "ms",
+            "extra": "Min 1.798ms\nMax 1.957ms\nMean 1.840ms\nStdDev 0.066ms\nMedian 1.819ms\nCPU 0.599ms"
           }
         ]
       }
