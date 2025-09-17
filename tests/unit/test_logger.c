@@ -8,6 +8,10 @@ typedef struct {
     bool assert_now;
 } logger_test_t;
 
+// Note: All logger unit-tests must only run from the transportless unit-test
+// suite, since the transport can concurrently log while we do our
+// single-threaded test assertions here, leading to flaky test runs.
+
 static void
 test_logger(
     sentry_level_t level, const char *message, va_list args, void *_data)
