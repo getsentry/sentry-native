@@ -12,6 +12,10 @@
 - Fall back on `JWASM` in the _MinGW_ `crashpad` build only if _no_ `CMAKE_ASM_MASM_COMPILER` has been defined. ([#1375](https://github.com/getsentry/sentry-native/pull/1375), [crashpad#133](https://github.com/getsentry/crashpad/pull/133))
 - Prevent `crashpad` from leaking Objective-C ARC compile options into any parent target linkage. ([#1375](https://github.com/getsentry/sentry-native/pull/1375), [crashpad#134](https://github.com/getsentry/crashpad/pull/134))
 
+**Features:**
+
+- Add a configuration to disable logging after a crash has been detected - `sentry_options_set_logger_enabled_when_crashed()`. ([#1371](https://github.com/getsentry/sentry-native/pull/1371))
+
 **Internal:**
 
 - Support downstream Xbox SDK specifying networking initialization mechanism. ([#1359](https://github.com/getsentry/sentry-native/pull/1359))
