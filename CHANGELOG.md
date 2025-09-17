@@ -6,11 +6,15 @@
 
 - Add `user_data` parameter to `traces_sampler`. ([#1346](https://github.com/getsentry/sentry-native/pull/1346))
 
-**Features:**
+**Fixes**:
+
+- Fixed a TOCTOU race between session init/shutdown and event capture. ([#1377](https://github.com/getsentry/sentry-native/pull/1377))
+
+**Features**:
 
 - Add a configuration to disable logging after a crash has been detected - `sentry_options_set_logger_enabled_when_crashed()`. ([#1371](https://github.com/getsentry/sentry-native/pull/1371))
 
-**Internal:**
+**Internal**:
 
 - Support downstream Xbox SDK specifying networking initialization mechanism. ([#1359](https://github.com/getsentry/sentry-native/pull/1359))
 
@@ -20,9 +24,9 @@
 
 ## 0.10.1
 
-**Internal:**
+**Internal**:
 
-- Correctly apply dynamic mutex initialization in unit-tests (fixes running unit-tests in downstream console SDKs) ([#1337](https://github.com/getsentry/sentry-native/pull/1337))
+- Correctly apply dynamic mutex initialization in unit-tests (fixes running unit-tests in downstream console SDKs). ([#1337](https://github.com/getsentry/sentry-native/pull/1337))
 
 ## 0.10.0
 
@@ -47,7 +51,7 @@
 
 - Marked deprecated functions with `SENTRY_DEPRECATED(msg)`. ([#1308](https://github.com/getsentry/sentry-native/pull/1308))
 
-**Internal:**
+**Internal**:
 
 - Crash events from Crashpad now have `event_id` defined similarly to other backends. This makes it possible to associate feedback at the time of crash. ([#1319](https://github.com/getsentry/sentry-native/pull/1319))
 
