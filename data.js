@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1758119173353,
+  "lastUpdate": 1758176495381,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -5330,6 +5330,66 @@ window.BENCHMARK_DATA = {
             "value": 1.7820340001435397,
             "unit": "ms",
             "extra": "Min 1.731ms\nMax 1.843ms\nMean 1.782ms\nStdDev 0.041ms\nMedian 1.782ms\nCPU 0.545ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "mischan@abovevacant.com",
+            "name": "Mischan Toosarani-Hausberger",
+            "username": "supervacuus"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "fc52e8bf0e503d9376356c3bc3302796f6ae1c86",
+          "message": "fix: prevent crashpad from leaking Objective-C ARC compile options (#1375)",
+          "timestamp": "2025-09-18T08:18:26+02:00",
+          "tree_id": "8067a7673e04c4738d6ea17b702f9f944532971a",
+          "url": "https://github.com/getsentry/sentry-native/commit/fc52e8bf0e503d9376356c3bc3302796f6ae1c86"
+        },
+        "date": 1758176494653,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 0.7140339999978096,
+            "unit": "ms",
+            "extra": "Min 0.704ms\nMax 0.779ms\nMean 0.735ms\nStdDev 0.034ms\nMedian 0.714ms\nCPU 0.726ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.7185020000406439,
+            "unit": "ms",
+            "extra": "Min 0.703ms\nMax 0.726ms\nMean 0.717ms\nStdDev 0.009ms\nMedian 0.719ms\nCPU 0.717ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 2.949009999952068,
+            "unit": "ms",
+            "extra": "Min 2.890ms\nMax 3.095ms\nMean 2.962ms\nStdDev 0.081ms\nMedian 2.949ms\nCPU 1.543ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.01226300003054348,
+            "unit": "ms",
+            "extra": "Min 0.012ms\nMax 0.012ms\nMean 0.012ms\nStdDev 0.000ms\nMedian 0.012ms\nCPU 0.011ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.022291999925982964,
+            "unit": "ms",
+            "extra": "Min 0.022ms\nMax 0.022ms\nMean 0.022ms\nStdDev 0.000ms\nMedian 0.022ms\nCPU 0.022ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 1.8128320000414533,
+            "unit": "ms",
+            "extra": "Min 1.776ms\nMax 1.857ms\nMean 1.816ms\nStdDev 0.029ms\nMedian 1.813ms\nCPU 0.570ms"
           }
         ]
       }
