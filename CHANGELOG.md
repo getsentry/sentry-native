@@ -8,6 +8,9 @@
 
 **Fixes**:
 
+- Include `stddef.h` explicitly in `crashpad` since future `libc++` revisions will stop providing this include transitively. ([#1375](https://github.com/getsentry/sentry-native/pull/1375), [crashpad#132](https://github.com/getsentry/crashpad/pull/132))
+- Fall back on `JWASM` in the _MinGW_ `crashpad` build only if _no_ `CMAKE_ASM_MASM_COMPILER` has been defined. ([#1375](https://github.com/getsentry/sentry-native/pull/1375), [crashpad#133](https://github.com/getsentry/crashpad/pull/133))
+- Prevent `crashpad` from leaking Objective-C ARC compile options into any parent target linkage. ([#1375](https://github.com/getsentry/sentry-native/pull/1375), [crashpad#134](https://github.com/getsentry/crashpad/pull/134))
 - Fixed a TOCTOU race between session init/shutdown and event capture. ([#1377](https://github.com/getsentry/sentry-native/pull/1377))
 
 **Features**:
@@ -17,6 +20,7 @@
 **Internal**:
 
 - Support downstream Xbox SDK specifying networking initialization mechanism. ([#1359](https://github.com/getsentry/sentry-native/pull/1359))
+- Added `crashpad` support infrastructure for the external crash reporter feature. ([#1375](https://github.com/getsentry/sentry-native/pull/1375), [crashpad#131](https://github.com/getsentry/crashpad/pull/131))
 
 **Docs**:
 
