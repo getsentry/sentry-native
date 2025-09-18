@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1758203678416,
+  "lastUpdate": 1758203736137,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -11082,6 +11082,66 @@ window.BENCHMARK_DATA = {
             "value": 6.746709000253759,
             "unit": "ms",
             "extra": "Min 6.170ms\nMax 13.472ms\nMean 7.881ms\nStdDev 3.141ms\nMedian 6.747ms\nCPU 1.155ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "mischan@abovevacant.com",
+            "name": "Mischan Toosarani-Hausberger",
+            "username": "supervacuus"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "1a246665b0fdd82615915dea306b556955f10c78",
+          "message": "fix: make windows resource generation multi-config aware (#1383)",
+          "timestamp": "2025-09-18T15:49:55+02:00",
+          "tree_id": "94167e45c2a7dfa8af8fc86fccc528ecfc7a9ab2",
+          "url": "https://github.com/getsentry/sentry-native/commit/1a246665b0fdd82615915dea306b556955f10c78"
+        },
+        "date": 1758203733712,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 7.495666999943751,
+            "unit": "ms",
+            "extra": "Min 4.459ms\nMax 9.309ms\nMean 7.265ms\nStdDev 1.855ms\nMedian 7.496ms\nCPU 4.087ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 5.964332999951694,
+            "unit": "ms",
+            "extra": "Min 4.277ms\nMax 8.090ms\nMean 6.180ms\nStdDev 1.390ms\nMedian 5.964ms\nCPU 2.859ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 32.62870899993686,
+            "unit": "ms",
+            "extra": "Min 16.921ms\nMax 49.353ms\nMean 31.860ms\nStdDev 11.943ms\nMedian 32.629ms\nCPU 9.382ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.0430420000157028,
+            "unit": "ms",
+            "extra": "Min 0.014ms\nMax 0.071ms\nMean 0.042ms\nStdDev 0.025ms\nMedian 0.043ms\nCPU 0.041ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.3161659999477706,
+            "unit": "ms",
+            "extra": "Min 0.254ms\nMax 0.971ms\nMean 0.506ms\nStdDev 0.313ms\nMedian 0.316ms\nCPU 0.506ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 9.802499999977954,
+            "unit": "ms",
+            "extra": "Min 6.380ms\nMax 13.612ms\nMean 10.091ms\nStdDev 2.760ms\nMedian 9.802ms\nCPU 1.325ms"
           }
         ]
       }
