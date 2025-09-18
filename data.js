@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1758206797018,
+  "lastUpdate": 1758206918112,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -11322,6 +11322,66 @@ window.BENCHMARK_DATA = {
             "value": 10.973083999999744,
             "unit": "ms",
             "extra": "Min 7.838ms\nMax 20.542ms\nMean 12.519ms\nStdDev 4.777ms\nMedian 10.973ms\nCPU 1.253ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "53753460+JanFellner@users.noreply.github.com",
+            "name": "Janohmat",
+            "username": "JanFellner"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "558f724583df0c4a44a95fe7b64efea50b9ba660",
+          "message": "fix: add `crashpad_mpack` to the MSVC static runtime config (#1386)\n\n+ properly aligned sorting order of wer lib to follow the leading code segment",
+          "timestamp": "2025-09-18T16:44:06+02:00",
+          "tree_id": "3a5c0872440d9dfd4b61396cb6d8e9a4485b3fb2",
+          "url": "https://github.com/getsentry/sentry-native/commit/558f724583df0c4a44a95fe7b64efea50b9ba660"
+        },
+        "date": 1758206916192,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 3.989834000009296,
+            "unit": "ms",
+            "extra": "Min 3.011ms\nMax 5.948ms\nMean 4.324ms\nStdDev 1.310ms\nMedian 3.990ms\nCPU 2.294ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 3.9173750000145446,
+            "unit": "ms",
+            "extra": "Min 3.414ms\nMax 4.976ms\nMean 4.075ms\nStdDev 0.579ms\nMedian 3.917ms\nCPU 2.385ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 22.439749999989544,
+            "unit": "ms",
+            "extra": "Min 13.192ms\nMax 51.992ms\nMean 27.565ms\nStdDev 15.218ms\nMedian 22.440ms\nCPU 5.958ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.023375000012038072,
+            "unit": "ms",
+            "extra": "Min 0.009ms\nMax 0.026ms\nMean 0.021ms\nStdDev 0.007ms\nMedian 0.023ms\nCPU 0.020ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.46341699999175034,
+            "unit": "ms",
+            "extra": "Min 0.270ms\nMax 0.525ms\nMean 0.417ms\nStdDev 0.111ms\nMedian 0.463ms\nCPU 0.416ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 11.323875000016415,
+            "unit": "ms",
+            "extra": "Min 6.886ms\nMax 14.665ms\nMean 11.519ms\nStdDev 3.218ms\nMedian 11.324ms\nCPU 1.200ms"
           }
         ]
       }
