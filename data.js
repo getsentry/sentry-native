@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1758191866966,
+  "lastUpdate": 1758191894691,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -10842,6 +10842,66 @@ window.BENCHMARK_DATA = {
             "value": 10.913957999946433,
             "unit": "ms",
             "extra": "Min 6.919ms\nMax 18.725ms\nMean 11.463ms\nStdDev 4.524ms\nMedian 10.914ms\nCPU 1.643ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "6349682+vaind@users.noreply.github.com",
+            "name": "Ivan Dlugos",
+            "username": "vaind"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "88ee955084439e264acc8379a9d298fddb54af18",
+          "message": "feat: Add comprehensive semver support for SENTRY_SDK_VERSION parsing (#1379)\n\n* chore: support + and - suffixes in SENTRY_SDK_VERSION parsing\n\nThe regex now matches versions with build metadata or pre-release suffixes\nlike '0.10.1+20250917' or '1.0.0-alpha+build.123', extracting only the base\nsemver part for CMAKE project VERSION while preserving the full version string\nin the header.\n\nUses * quantifier to support multiple suffixes in version strings.\n\nThis enables console SDKs to embed their own versioning schemes while\nmaintaining CMake compatibility.\n\n* refactor: update version extraction to support full semver format and improve resource file generation",
+          "timestamp": "2025-09-18T12:33:56+02:00",
+          "tree_id": "a098430fc6b0146f150551ebc4d70284c375ac8d",
+          "url": "https://github.com/getsentry/sentry-native/commit/88ee955084439e264acc8379a9d298fddb54af18"
+        },
+        "date": 1758191892678,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 3.698250000070402,
+            "unit": "ms",
+            "extra": "Min 3.290ms\nMax 5.164ms\nMean 4.162ms\nStdDev 0.889ms\nMedian 3.698ms\nCPU 2.358ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 3.6737499999617285,
+            "unit": "ms",
+            "extra": "Min 3.189ms\nMax 4.750ms\nMean 3.767ms\nStdDev 0.585ms\nMedian 3.674ms\nCPU 2.066ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 17.953958000134662,
+            "unit": "ms",
+            "extra": "Min 12.019ms\nMax 21.483ms\nMean 16.862ms\nStdDev 3.811ms\nMedian 17.954ms\nCPU 5.561ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.028250000013940735,
+            "unit": "ms",
+            "extra": "Min 0.009ms\nMax 0.041ms\nMean 0.024ms\nStdDev 0.014ms\nMedian 0.028ms\nCPU 0.024ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.2824999999120337,
+            "unit": "ms",
+            "extra": "Min 0.263ms\nMax 0.617ms\nMean 0.386ms\nStdDev 0.159ms\nMedian 0.282ms\nCPU 0.386ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 6.8230839999614545,
+            "unit": "ms",
+            "extra": "Min 6.031ms\nMax 7.820ms\nMean 7.002ms\nStdDev 0.743ms\nMedian 6.823ms\nCPU 0.943ms"
           }
         ]
       }
