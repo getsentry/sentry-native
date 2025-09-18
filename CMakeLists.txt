@@ -9,16 +9,30 @@ else()
 	cmake_policy(SET CMP0077 NEW)
 endif()
 
-#read sentry-native version
-file(READ "include/sentry.h" _SENTRY_HEADER_CONTENT)
-string(REGEX MATCH "#define SENTRY_SDK_VERSION \"([0-9\.]+)\"" _SENTRY_VERSION_MATCH "${_SENTRY_HEADER_CONTENT}")
-set(SENTRY_VERSION "${CMAKE_MATCH_1}")
-unset(_SENTRY_HEADER_CONTENT)
-unset(_SENTRY_VERSION_MATCH)
+# Extract version string from SENTRY_SDK_VERSION define in sentry.h
+file(READ "include/sentry.h" _VERSION_STR_TMP)
+# Supports full semver format including prerelease and build metadata
+string(REGEX MATCH "#define SENTRY_SDK_VERSION \"([^\"]+)\"" _VERSION_STR_TMP "${_VERSION_STR_TMP}")
+set(SENTRY_VERSION_FULL "${CMAKE_MATCH_1}")
+# Extract just the major.minor.patch part from the full version
+string(REGEX MATCH "^([0-9]+)\\.([0-9]+)\\.([0-9]+)" _VERSION_STR_TMP "${SENTRY_VERSION_FULL}")
+set(SENTRY_VERSION_MAJOR "${CMAKE_MATCH_1}")
+set(SENTRY_VERSION_MINOR "${CMAKE_MATCH_2}")
+set(SENTRY_VERSION_PATCH "${CMAKE_MATCH_3}")
+set(SENTRY_VERSION_BASE "${SENTRY_VERSION_MAJOR}.${SENTRY_VERSION_MINOR}.${SENTRY_VERSION_PATCH}")
+unset(_VERSION_STR_TMP)
+
+message(STATUS "Sentry SDK version (full): ${SENTRY_VERSION_FULL}")
+message(STATUS "Sentry SDK version (base): ${SENTRY_VERSION_BASE}")
+message(STATUS "Sentry SDK version major='${SENTRY_VERSION_MAJOR}' minor='${SENTRY_VERSION_MINOR}' patch='${SENTRY_VERSION_PATCH}'")
+
+if(NOT SENTRY_VERSION_FULL OR NOT SENTRY_VERSION_BASE OR SENTRY_VERSION_MAJOR STREQUAL "" OR SENTRY_VERSION_MINOR STREQUAL "" OR SENTRY_VERSION_PATCH STREQUAL "")
+    message(FATAL_ERROR "Parsed Sentry SDK version '${SENTRY_VERSION_FULL}' does not match expected semver format")
+endif()
 
 project(Sentry-Native
 	LANGUAGES C CXX ASM
-	VERSION ${SENTRY_VERSION}
+	VERSION ${SENTRY_VERSION_BASE}
 )
 
 set(SENTRY_MAIN_PROJECT OFF)
@@ -710,7 +724,7 @@ configure_package_config_file(sentry-config.cmake.in sentry-config.cmake
 # We would have liked to use `SameMinorVersion`, but that is only supported on
 # CMake >= 3.11.
 write_basic_package_version_file(sentry-config-version.cmake
-	VERSION ${SENTRY_VERSION}
+	VERSION ${SENTRY_VERSION_BASE}
 	COMPATIBILITY SameMajorVersion)
 
 sentry_install(TARGETS sentry EXPORT sentry
