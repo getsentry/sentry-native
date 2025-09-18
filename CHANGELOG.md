@@ -13,6 +13,7 @@
 - Prevent `crashpad` from leaking Objective-C ARC compile options into any parent target linkage. ([#1375](https://github.com/getsentry/sentry-native/pull/1375), [crashpad#134](https://github.com/getsentry/crashpad/pull/134))
 - Fixed a TOCTOU race between session init/shutdown and event capture. ([#1377](https://github.com/getsentry/sentry-native/pull/1377))
 - Make the Windows resource generation aware of config-specific output paths for multi-config generators. ([#1383](https://github.com/getsentry/sentry-native/pull/1383))
+- Remove the `ASM` language from the top-level CMake project, as this triggered CMake policy `CMP194` which isn't applicable to the top-level. ([#1384](https://github.com/getsentry/sentry-native/pull/1384))
 
 **Features**:
 
