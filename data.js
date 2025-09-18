@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1758206921772,
+  "lastUpdate": 1758208497321,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -5690,6 +5690,66 @@ window.BENCHMARK_DATA = {
             "value": 1.8907309999747213,
             "unit": "ms",
             "extra": "Min 1.859ms\nMax 1.934ms\nMean 1.897ms\nStdDev 0.036ms\nMedian 1.891ms\nCPU 0.596ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "mischan@abovevacant.com",
+            "name": "Mischan Toosarani-Hausberger",
+            "username": "supervacuus"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "b5a603f5a9a29261b437ccd5ecac962e34396d2f",
+          "message": "test: add build test for static runtime with crashpad (#1387)\n\n* test: add build test for static runtime with crashpad\n\n* add contribution thanks to unreleased section\n\n* add doc string to test, so people know where to look for fix to the failing test",
+          "timestamp": "2025-09-18T17:12:23+02:00",
+          "tree_id": "05e065fba5884a91f3cd134269eb73ad761e084d",
+          "url": "https://github.com/getsentry/sentry-native/commit/b5a603f5a9a29261b437ccd5ecac962e34396d2f"
+        },
+        "date": 1758208495917,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 0.7756820000395237,
+            "unit": "ms",
+            "extra": "Min 0.765ms\nMax 0.830ms\nMean 0.789ms\nStdDev 0.027ms\nMedian 0.776ms\nCPU 0.789ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.7939160000205447,
+            "unit": "ms",
+            "extra": "Min 0.745ms\nMax 0.824ms\nMean 0.784ms\nStdDev 0.032ms\nMedian 0.794ms\nCPU 0.784ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 3.2306370000014795,
+            "unit": "ms",
+            "extra": "Min 3.204ms\nMax 3.527ms\nMean 3.335ms\nStdDev 0.157ms\nMedian 3.231ms\nCPU 1.715ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.013555000009546347,
+            "unit": "ms",
+            "extra": "Min 0.013ms\nMax 0.014ms\nMean 0.013ms\nStdDev 0.001ms\nMedian 0.014ms\nCPU 0.012ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.024144999997588457,
+            "unit": "ms",
+            "extra": "Min 0.024ms\nMax 0.028ms\nMean 0.025ms\nStdDev 0.002ms\nMedian 0.024ms\nCPU 0.024ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 1.9940849999784405,
+            "unit": "ms",
+            "extra": "Min 1.966ms\nMax 2.220ms\nMean 2.042ms\nStdDev 0.106ms\nMedian 1.994ms\nCPU 0.637ms"
           }
         ]
       }
