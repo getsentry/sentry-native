@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1758203736137,
+  "lastUpdate": 1758204946041,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -11142,6 +11142,66 @@ window.BENCHMARK_DATA = {
             "value": 9.802499999977954,
             "unit": "ms",
             "extra": "Min 6.380ms\nMax 13.612ms\nMean 10.091ms\nStdDev 2.760ms\nMedian 9.802ms\nCPU 1.325ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "mischan@abovevacant.com",
+            "name": "Mischan Toosarani-Hausberger",
+            "username": "supervacuus"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "c0a06b173b793d4280c0d55199ccc515510085d2",
+          "message": "fix: remove ASM language from the top-level CMake project (#1384)\n\nWe currently have no assembler requirement in the top-level project and thus were triggering CMake policy CMP194. There should be no assembler configuration at all as long as we haven't added any of the subprojects.\n\nAlso, ensure that breakpad has an assembler for its Linux getcontext implementation",
+          "timestamp": "2025-09-18T16:11:03+02:00",
+          "tree_id": "efd9a3b4f3c57ce93506be56fd57eab0c5b3c3a4",
+          "url": "https://github.com/getsentry/sentry-native/commit/c0a06b173b793d4280c0d55199ccc515510085d2"
+        },
+        "date": 1758204943431,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 6.70162499997673,
+            "unit": "ms",
+            "extra": "Min 4.462ms\nMax 11.828ms\nMean 7.090ms\nStdDev 2.920ms\nMedian 6.702ms\nCPU 4.014ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 3.2517919999861533,
+            "unit": "ms",
+            "extra": "Min 3.118ms\nMax 3.910ms\nMean 3.436ms\nStdDev 0.344ms\nMedian 3.252ms\nCPU 1.966ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 44.31737499999144,
+            "unit": "ms",
+            "extra": "Min 22.534ms\nMax 84.283ms\nMean 46.359ms\nStdDev 25.048ms\nMedian 44.317ms\nCPU 7.680ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.009834000024966372,
+            "unit": "ms",
+            "extra": "Min 0.010ms\nMax 0.053ms\nMean 0.018ms\nStdDev 0.019ms\nMedian 0.010ms\nCPU 0.018ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.2954169999611622,
+            "unit": "ms",
+            "extra": "Min 0.220ms\nMax 0.601ms\nMean 0.354ms\nStdDev 0.154ms\nMedian 0.295ms\nCPU 0.353ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 10.973083999999744,
+            "unit": "ms",
+            "extra": "Min 7.838ms\nMax 20.542ms\nMean 12.519ms\nStdDev 4.777ms\nMedian 10.973ms\nCPU 1.253ms"
           }
         ]
       }
