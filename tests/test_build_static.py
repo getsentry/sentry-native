@@ -55,6 +55,20 @@ def test_static_crashpad(cmake):
     )
 
 
+@pytest.mark.skipif(not has_crashpad, reason="test needs crashpad backend")
+@pytest.mark.skipif(not sys.platform == "win32", reason="test requires Windows")
+def test_static_crashpad_static_runtime(cmake):
+    tmp_path = cmake(
+        ["sentry_example"],
+        {
+            "SENTRY_BACKEND": "crashpad",
+            "SENTRY_TRANSPORT": "none",
+            "BUILD_SHARED_LIBS": "OFF",
+            "SENTRY_BUILD_RUNTIMESTATIC": "ON",
+        },
+    )
+
+
 @pytest.mark.skipif(not has_breakpad, reason="test needs breakpad backend")
 def test_static_breakpad(cmake):
     tmp_path = cmake(
