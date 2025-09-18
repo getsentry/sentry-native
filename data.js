@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1758191913280,
+  "lastUpdate": 1758202136785,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -5450,6 +5450,66 @@ window.BENCHMARK_DATA = {
             "value": 1.807659000064632,
             "unit": "ms",
             "extra": "Min 1.792ms\nMax 1.902ms\nMean 1.827ms\nStdDev 0.046ms\nMedian 1.808ms\nCPU 0.571ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "mischan@abovevacant.com",
+            "name": "Mischan Toosarani-Hausberger",
+            "username": "supervacuus"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "2a4d53a774139e2022374d4f7c883fd673c0e7de",
+          "message": "fix: update `crashpad` submodule to a commit on `getsentry` branch (#1385)",
+          "timestamp": "2025-09-18T15:26:25+02:00",
+          "tree_id": "645a305111ce82664a61462cd406493943d78a53",
+          "url": "https://github.com/getsentry/sentry-native/commit/2a4d53a774139e2022374d4f7c883fd673c0e7de"
+        },
+        "date": 1758202136085,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 0.7561479999935727,
+            "unit": "ms",
+            "extra": "Min 0.749ms\nMax 0.786ms\nMean 0.763ms\nStdDev 0.015ms\nMedian 0.756ms\nCPU 0.763ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.7406499999973448,
+            "unit": "ms",
+            "extra": "Min 0.711ms\nMax 0.808ms\nMean 0.749ms\nStdDev 0.039ms\nMedian 0.741ms\nCPU 0.736ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 3.177375999996457,
+            "unit": "ms",
+            "extra": "Min 3.092ms\nMax 3.566ms\nMean 3.267ms\nStdDev 0.200ms\nMedian 3.177ms\nCPU 1.594ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.01258300000017698,
+            "unit": "ms",
+            "extra": "Min 0.012ms\nMax 0.013ms\nMean 0.013ms\nStdDev 0.000ms\nMedian 0.013ms\nCPU 0.012ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.022892999993473495,
+            "unit": "ms",
+            "extra": "Min 0.022ms\nMax 0.025ms\nMean 0.023ms\nStdDev 0.001ms\nMedian 0.023ms\nCPU 0.022ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 1.9362230000012914,
+            "unit": "ms",
+            "extra": "Min 1.885ms\nMax 1.952ms\nMean 1.923ms\nStdDev 0.029ms\nMedian 1.936ms\nCPU 0.620ms"
           }
         ]
       }
