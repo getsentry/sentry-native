@@ -490,7 +490,6 @@ main(int argc, char **argv)
         sentry_options_set_logger_enabled_when_crashed(options, 1);
     }
 
-    sentry_init(options);
     if (has_arg(argc, argv, "enable-logs")) {
         sentry_options_set_enable_logs(options, true);
     }
