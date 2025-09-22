@@ -186,6 +186,22 @@ discarding_before_send_log_callback(sentry_value_t log, void *user_data)
     return log;
 }
 
+// Test logger that outputs in a format the integration tests can parse
+static void
+test_logger_callback(
+    sentry_level_t level, const char *message, va_list args, void *userdata)
+{
+    (void)level;
+    (void)userdata;
+
+    char formatted_message[1024];
+    vsnprintf(formatted_message, sizeof(formatted_message), message, args);
+
+    // Output in a format that the Python tests can detect
+    printf("SENTRY_LOG:%s\n", formatted_message);
+    fflush(stdout);
+}
+
 static void
 print_envelope(sentry_envelope_t *envelope, void *unused_state)
 {
@@ -459,6 +475,22 @@ main(int argc, char **argv)
         sentry_options_add_view_hierarchy(options, "./view-hierarchy.json");
     }
 
+    if (has_arg(argc, argv, "test-logger")) {
+        // Set up the test logger for integration tests
+        sentry_options_set_logger(options, test_logger_callback, NULL);
+    }
+
+    if (has_arg(argc, argv, "disable-logger-when-crashed")) {
+        // Disable logging during crash handling
+        sentry_options_set_logger_enabled_when_crashed(options, 0);
+    }
+
+    if (has_arg(argc, argv, "enable-logger-when-crashed")) {
+        // Explicitly enable logging during crash handling (default behavior)
+        sentry_options_set_logger_enabled_when_crashed(options, 1);
+    }
+
+    sentry_init(options);
     if (has_arg(argc, argv, "enable-logs")) {
         sentry_options_set_enable_logs(options, true);
     }
@@ -624,6 +656,12 @@ main(int argc, char **argv)
 
     if (has_arg(argc, argv, "sleep")) {
         sleep_s(10);
+    }
+
+    if (has_arg(argc, argv, "test-logger-before-crash")) {
+        // Output marker directly using printf for test parsing
+        printf("pre-crash-log-message\n");
+        fflush(stdout);
     }
 
     if (has_arg(argc, argv, "crash")) {

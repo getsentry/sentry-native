@@ -78,7 +78,7 @@ extern "C" {
 #        define SENTRY_SDK_NAME "sentry.native"
 #    endif
 #endif
-#define SENTRY_SDK_VERSION "0.10.1"
+#define SENTRY_SDK_VERSION "0.11.0"
 #define SENTRY_SDK_USER_AGENT SENTRY_SDK_NAME "/" SENTRY_SDK_VERSION
 
 /* marks a function as part of the sentry API */
@@ -1275,6 +1275,15 @@ typedef void (*sentry_logger_function_t)(
  */
 SENTRY_API void sentry_options_set_logger(
     sentry_options_t *opts, sentry_logger_function_t func, void *userdata);
+
+/**
+ * Enables or disables console logging after crash.
+ * When disabled, Sentry will not invoke logger callbacks after crash
+ * has been detected. This can be useful to avoid potential issues during
+ * crash handling that logging might cause. This is enabled by default.
+ */
+SENTRY_API void sentry_options_set_logger_enabled_when_crashed(
+    sentry_options_t *opts, int enabled);
 
 /**
  * Enables or disables automatic session tracking.
