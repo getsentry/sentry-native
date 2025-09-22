@@ -111,3 +111,56 @@ SENTRY_TEST(formatted_log_messages)
     // Transport should be called once
     TEST_CHECK_INT_EQUAL(called_transport, 1);
 }
+
+static void
+test_param_conversion_helper(const char *format, ...)
+{
+    sentry_value_t attributes = sentry_value_new_object();
+    va_list args;
+    va_start(args, format);
+    int param_count = populate_message_parameters(attributes, format, args);
+    va_end(args);
+
+    // Verify we got the expected number of parameters
+    TEST_CHECK_INT_EQUAL(param_count, 3);
+
+    // Verify the parameters were extracted correctly
+    sentry_value_t param0
+        = sentry_value_get_by_key(attributes, "sentry.message.parameter.0");
+    sentry_value_t param1
+        = sentry_value_get_by_key(attributes, "sentry.message.parameter.1");
+    sentry_value_t param2
+        = sentry_value_get_by_key(attributes, "sentry.message.parameter.2");
+
+    TEST_CHECK(!sentry_value_is_null(param0));
+    TEST_CHECK(!sentry_value_is_null(param1));
+    TEST_CHECK(!sentry_value_is_null(param2));
+
+    // Check the values
+    sentry_value_t value0 = sentry_value_get_by_key(param0, "value");
+    sentry_value_t value1 = sentry_value_get_by_key(param1, "value");
+    sentry_value_t value2 = sentry_value_get_by_key(param2, "value");
+
+    TEST_CHECK_INT_EQUAL(sentry_value_as_int64(value0), 1);
+    TEST_CHECK_INT_EQUAL(sentry_value_as_int64(value1), 2);
+    TEST_CHECK_INT_EQUAL(sentry_value_as_int64(value2), 3);
+
+    sentry_value_decref(attributes);
+}
+
+SENTRY_TEST(logs_param_conversion)
+{
+    // TODO this test shows the current limitation for parsing integers on
+    //  32-bit systems
+    int a = 1, b = 2, c = 3;
+#if defined(__i386__) || defined(_M_IX86) || defined(__arm__)
+    // Currently, on 32-bit platforms, we need to cast to a 64-bit integer type
+    // since the parameter conversion expects long long for %d format specifiers
+    test_param_conversion_helper(
+        "%" PRId64 " %" PRId64 " %" PRId64, (int64_t)a, (int64_t)b, (int64_t)c);
+#else
+    // since we read these values as 64-bit, this is still undefined behaviour
+    // but it works because the variadic arguments are passed in 8-byte slots
+    test_param_conversion_helper("%d %d %d", a, b, c);
+#endif
+}
