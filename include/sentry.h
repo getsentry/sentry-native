@@ -1891,7 +1891,7 @@ SENTRY_EXPERIMENTAL_API int sentry_options_get_enable_logs(
     const sentry_options_t *opts);
 
 /**
- * The potential returns of calling any of the sentry_logs_X functions
+ * The potential returns of calling any of the sentry_log_X functions
  * - Success means a log was enqueued
  * - Discard means the `before_send_log` function discarded the log
  * - Failed means the log wasn't enqueued. This happens if the buffers are full
@@ -1906,7 +1906,7 @@ typedef enum {
 
 /**
  * Structured logging interface. Minimally blocks the client trying to log,
- * but is therefor lossy when enqueueing a log fails
+ * but is therefore lossy when enqueueing a log fails
  * (e.g. when both buffers are full).
  *
  * Format string restrictions:
@@ -1923,7 +1923,7 @@ typedef enum {
  * but will be recorded as "(unknown)" in the structured log data.
  * Length modifiers (h, l, L, z, j, t) are parsed but ignored.
  *
- * Because of this, please only use 64-bit types for parameters.
+ * Because of this, please only use 64-bit types/casts for your arguments.
  *
  * Flags, width, and precision specifiers are parsed but currently ignored for
  * parameter extraction purposes.
