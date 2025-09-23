@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1758634554125,
+  "lastUpdate": 1758634637636,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -17488,6 +17488,66 @@ window.BENCHMARK_DATA = {
             "value": 14.173100000050454,
             "unit": "ms",
             "extra": "Min 13.255ms\nMax 16.963ms\nMean 14.673ms\nStdDev 1.428ms\nMedian 14.173ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "60878493+JoshuaMoelans@users.noreply.github.com",
+            "name": "JoshuaMoelans",
+            "username": "JoshuaMoelans"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "1f8e4c45f03d1036161132aa0bc990316ee99c3a",
+          "message": "feat: structured logging  (#1271)\n\n* add sentry logs option\n\n* add sentry logs option to example\n\n* feat(logs): add sentry log API + send first logs (#1272)\n\n* add sentry log API + send first logs\n\n* fix log_level_as_string\n\n* attach attributes to logs\n\n* attach formatted message + args\n\n* add to example\n\n* add more attributes\n\n* cleanup\n\n* windows warning-as-error\n\n* windows warning-as-error v2\n\n* windows warning-as-error v2 (final)\n\n* add unit tests for initial logs\n\n* memleak attempted fix\n\n* memleak attempted fix 2\n\n* cleanup\n\n* use `sentry_level_t` instead of new log level enum\n\n* add SENTRY_LEVEL_TRACE to sentry_logger\n\n* quick anti-brownout fix\n- see https://github.com/getsentry/sentry-native/pull/1274\n\n* fix missing SENTRY_LEVEL_INFO string return\n\n* fix logger level check + add test\n\n* cleanup logs parameter extraction\n\n* warn-as-error fix\n\n* const char* fix\n\n* static function\n\n* feat(logs): add (u)int64 sentry_value_t type (#1301)\n\n* add (u)int64 sentry_value_t type\n\n* add value_to_msgpack missing switch cases\n\n* remove undefined behavior test (C99 6.3.1.4)\n\n* avoid Windows sized integer name collision\n\n* cleanup & apply code review feedback\n\n* more cleanup & remove type coercion\n\n* update logs param conversion\n\n* own uint64 string\n\n* apply suggestions from code review\n\n* fixed log parameter conversion\n\n* update example to avoid warning-as-error\n\n* feat(logs): batching (#1338)\n\n* initial queue attempt\n\n* add timer\n\n* prototype double buffer approach\n\n* update logs unit tests for batching\n\n* replace timer with bgworker\n\n* add first integration tests\n\n* update example.c with correct log thread amounts\n\n* cleanup\n\n* add wait for 'adding' logs in flush logic\n\n* go back to single queue for performance testing\n\n* add time checks\n\n* add ToDos + cleanup sentry_value_t cloning\n\n* initial attempt\n\n* cond_wait for timer + 'adding' spinlock\n\n* add sleep for tests\n\n* add sleep for tests\n\n* force flush before attempting timer_worker shutdown\n\n* add proper cond_wait for 'adding' counter\n\n* revert to manual flush on shutdown instead of timer thread flush\n\n* add separate timer_stop atomic\n\n* cleanup + replace 'adding' cond_wait by pure spinlock\n\n* change bgworker for simpler thread implementation\n\n* cleanup\n\n* fix memleak\n\n* fixes\n\n* cleanup\n\n* cleanup\n\n* windows fixes\n\n* update shutdown order\n\n* fixes\n\n* explicit check to stop timer task\n\n* windows cleanup\n\n* loosen threaded test assertion for CI\n- too much variability in thread scheduling, so we can expect pretty much anything\n\n* add continue for unexpected logs flush trigger instead of attempting flush\n\n* Windows re-add condition variable trigger case\n\n* feat(logs): add `before_send_log` (#1355)\n\n* add `before_send_log` callback\n\n* add `before_send_log` callback tests\n\n* (temporary) add debug for calling sentry_options_free\n\n* remove early return\n\n* add late return\n\n* cleanup\n\n* fix ownership issues in single buffer batching (#1362)\n\n* let the producer thread sleep for 1ms between logs\n\n* fix two missing NULL checks in the json serializer\n\n* clean up logging and early exits in `enqueue_log_single()`\n\n* clean up ownerships in logs\n\n* eliminate clones (we expect that everything outlives the logs being sent except local construction)\n* use incref everywhere where we ref global state. this was the cause of the UAF, partially solved with the clones but a few were missing. no reason to clone if we do not want to disconnect for a particular object graph\n* clarify that add_attribute expects ownership\n* minimize scope_mut by moving os_context out\n* raise that log output in throughput tests add to variability (stdout logging should be turned off when running a limit)\n\n* log error in case we weren't able to start the log batching worker\n\n* fix clang-cl warning\n\n* ci: fix failing mingw build (#1361)\n\n* ci: fix failing mingw build\n\n* split `ASM_MASM_COMPILER` and `_FLAGS`\n\n* add `ASM_MASM_FLAGS` in `mingw` install step\n\n* specify the `CMAKE_ASM_MASM_COMPILER` as a `FILEPATH`\n\n* clean up CMAKE_DEFINES construction so it is easier to diff in the future\n\n* fix `LLVM_MINGW_INSTALL_PATH` to be referenced locally rather than $env\n\n(cherry picked from commit 519554ff62e1b77564345d25c531e99dda7337f8)\n\n* use UNREACHABLE macro to fix anal warnings\n\n* batching double buffered (#1365)\n\n* first attempt at double buffered\n\n* remove the sleep from the windows thread func\n\n* clean up thread waiting in the example\n\n* adapt the double buffer to use retries, fix remaining issues, clean up and write inline docs\n\n* return early in example on sentry_init error.\n\n* fix formatting via shorter name for thread gate atomic\n\n* improve inline docs of log_buffer_t members\n\n* fetch os_context from scope\n\n* move scope/options data retrieval into separate function + add expected keys to test\n\n* update logs API to return status code\n\n* cleanup\n\n* add log-event trace connection test\n\n* remove duplicate test\n\n* specify macOS SDKROOT\n\n---------\n\nCo-authored-by: JoshuaMoelans <60878493+JoshuaMoelans@users.noreply.github.com>\n\n* add flush retry for missed flush requests\n\n* move flush retry into flush function\n\n* add docs\n\n---------\n\nCo-authored-by: Mischan Toosarani-Hausberger <mischan@abovevacant.com>\n\n* update CHANGELOG.md\n\n* use `trace_id` from scoped spans for logs\n\n* fix copy-paste leftover + docs\n\n* add log_sleep for thread test + variable NUM_LOGS\n\n* no `usleep` on windows :(\n\n* fix seconds->milliseconds\n\n* cleanup\n\n* test(logs): add 32-bit vargs test (#1370)\n\n* add vargs conversion test\n\n* add ifdef for 32-bit systems\n\n* Update tests/unit/test_logs.c\n\nCo-authored-by: Mischan Toosarani-Hausberger <mischan@abovevacant.com>\n\n* add comment\n\n* fix comment\n\n---------\n\nCo-authored-by: Mischan Toosarani-Hausberger <mischan@abovevacant.com>\n\n* Apply suggestions from code review\n\nCo-authored-by: Mischan Toosarani-Hausberger <mischan@abovevacant.com>\n\n* post-merge cleanup\n\n* pin ruamel version\n\n* let's unpin ruamel.yaml.clib to get 0.2.14\n\nwhich seemingly fixes the missing header:\r\n\r\nhttps://sourceforge.net/p/ruamel-yaml-clib/tickets/47/#de77\n\n* add empty payload check\n\n* log output of logger tests if we fail to find the pre-crash marker\n\n* fix: move `is_tsan` marker into the `has_crashpad` condition...\n\n...so we can ignore in which module a `crashpad` test runs.\n\n* fix: update `has_crashpad` condition comment\n\n* really only move `is_tsan`, but keep the module level `pytestmark`\n\n* CHANGELOG.md update\n\n* CHANGELOG.md update\n\n* CHANGELOG.md update\n\n---------\n\nCo-authored-by: Mischan Toosarani-Hausberger <mischan@abovevacant.com>",
+          "timestamp": "2025-09-23T15:33:10+02:00",
+          "tree_id": "07d49002e802577c1f9e9e522cb2e235992f8cf7",
+          "url": "https://github.com/getsentry/sentry-native/commit/1f8e4c45f03d1036161132aa0bc990316ee99c3a"
+        },
+        "date": 1758634633379,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 10.392199999841978,
+            "unit": "ms",
+            "extra": "Min 9.927ms\nMax 11.551ms\nMean 10.596ms\nStdDev 0.675ms\nMedian 10.392ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 10.781999999835534,
+            "unit": "ms",
+            "extra": "Min 10.210ms\nMax 23.259ms\nMean 13.649ms\nStdDev 5.518ms\nMedian 10.782ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 26.839099999961036,
+            "unit": "ms",
+            "extra": "Min 26.550ms\nMax 29.131ms\nMean 27.241ms\nStdDev 1.077ms\nMedian 26.839ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.013899999885325087,
+            "unit": "ms",
+            "extra": "Min 0.013ms\nMax 0.016ms\nMean 0.014ms\nStdDev 0.001ms\nMedian 0.014ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.4378000003271154,
+            "unit": "ms",
+            "extra": "Min 0.414ms\nMax 0.506ms\nMean 0.450ms\nStdDev 0.035ms\nMedian 0.438ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 15.379899999970803,
+            "unit": "ms",
+            "extra": "Min 14.750ms\nMax 15.428ms\nMean 15.236ms\nStdDev 0.280ms\nMedian 15.380ms"
           }
         ]
       }
