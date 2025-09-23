@@ -11,6 +11,7 @@ from . import (
     run,
     Envelope,
 )
+from .conditions import has_crashpad
 from .proxy import (
     setup_proxy_env_vars,
     cleanup_proxy_env_vars,
@@ -21,6 +22,11 @@ from .assertions import (
     assert_crashpad_upload,
     assert_session,
     assert_gzip_file_header,
+)
+
+pytestmark = pytest.mark.skipif(
+    not has_crashpad,
+    reason="Tests need a crashpad backend and a valid environment for it",
 )
 
 # Windows and Linux are currently able to flush all the state on crash
