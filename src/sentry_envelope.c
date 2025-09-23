@@ -350,6 +350,9 @@ sentry__envelope_add_transaction(
     item->event = transaction;
     sentry__jsonwriter_write_value(jw, transaction);
     item->payload = sentry__jsonwriter_into_string(jw, &item->payload_len);
+    if (!item->payload) {
+        return NULL;
+    }
 
     sentry__envelope_item_set_header(
         item, "type", sentry_value_new_string("transaction"));
@@ -419,6 +422,9 @@ sentry__envelope_add_logs(sentry_envelope_t *envelope, sentry_value_t logs)
 
     sentry__jsonwriter_write_value(jw, logs);
     item->payload = sentry__jsonwriter_into_string(jw, &item->payload_len);
+    if (!item->payload) {
+        return NULL;
+    }
 
     sentry__envelope_item_set_header(
         item, "type", sentry_value_new_string("log"));
@@ -451,6 +457,9 @@ sentry__envelope_add_user_report(
 
     sentry__jsonwriter_write_value(jw, user_report);
     item->payload = sentry__jsonwriter_into_string(jw, &item->payload_len);
+    if (!item->payload) {
+        return NULL;
+    }
 
     sentry__envelope_item_set_header(
         item, "type", sentry_value_new_string("user_report"));
