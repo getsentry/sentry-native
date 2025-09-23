@@ -4,7 +4,7 @@
 
 **Features**:
 
-- Add support for structured logs. ([#1271](https://github.com/getsentry/sentry-native/pull/1271/))
+- Add support for structured logs. It is currently experimental, and one can enable it by setting `sentry_options_set_enable_logs`. When enabled, you can capture a log using `sentry_log_X()` with `X` a log level (`trace`, `debug`, `info`, `warn`, `error`, `fatal`). Logs can be filtered by setting the `before_send_log` hook.   ([#1271](https://github.com/getsentry/sentry-native/pull/1271/))
 
 ## 0.11.0
 
