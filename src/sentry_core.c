@@ -8,6 +8,7 @@
 #include "sentry_core.h"
 #include "sentry_database.h"
 #include "sentry_envelope.h"
+#include "sentry_logs.h"
 #include "sentry_options.h"
 #include "sentry_path.h"
 #include "sentry_random.h"
@@ -165,6 +166,7 @@ sentry_init(sentry_options_t *options)
     sentry_close();
 
     sentry_logger_t logger = { NULL, NULL, SENTRY_LEVEL_DEBUG };
+
     if (options->debug) {
         logger = options->logger;
     }
@@ -287,6 +289,10 @@ sentry_init(sentry_options_t *options)
         sentry_start_session();
     }
 
+    if (options->enable_logs) {
+        sentry__logs_startup();
+    }
+
     sentry__mutex_unlock(&g_options_lock);
     return 0;
 
@@ -313,6 +319,15 @@ sentry_flush(uint64_t timeout)
 int
 sentry_close(void)
 {
+    // Shutdown logs system before locking options to ensure logs are flushed.
+    // This prevents a potential deadlock on the options during log envelope
+    // creation.
+    SENTRY_WITH_OPTIONS (options) {
+        if (options->enable_logs) {
+            sentry__logs_shutdown(options->shutdown_timeout);
+        }
+    }
+
     SENTRY__MUTEX_INIT_DYN_ONCE(g_options_lock);
     // this function is to be called only once, so we do not allow more than one
     // caller

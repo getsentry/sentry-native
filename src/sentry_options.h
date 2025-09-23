@@ -53,12 +53,15 @@ struct sentry_options_s {
     void *on_crash_data;
     sentry_transaction_function_t before_transaction_func;
     void *before_transaction_data;
+    sentry_before_send_log_function_t before_send_log_func;
+    void *before_send_log_data;
 
     /* Experimentally exposed */
     double traces_sample_rate;
     sentry_traces_sampler_function traces_sampler;
     void *traces_sampler_data;
     size_t max_spans;
+    bool enable_logs;
 
     /* everything from here on down are options which are stored here but
        not exposed through the options API */

@@ -21,6 +21,11 @@ void sentry__logger_log(sentry_level_t level, const char *message, ...);
 void sentry__logger_enable(void);
 void sentry__logger_disable(void);
 
+#define SENTRY_TRACEF(message, ...)                                            \
+    sentry__logger_log(SENTRY_LEVEL_TRACE, message, __VA_ARGS__)
+
+#define SENTRY_TRACE(message) sentry__logger_log(SENTRY_LEVEL_TRACE, message)
+
 #define SENTRY_DEBUGF(message, ...)                                            \
     sentry__logger_log(SENTRY_LEVEL_DEBUG, message, __VA_ARGS__)
 
