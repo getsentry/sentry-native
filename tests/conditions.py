@@ -25,7 +25,12 @@ has_breakpad = (
 )
 # crashpad requires http, needs porting to AIX, and doesn’t work with kcov/valgrind either
 has_crashpad = (
-    has_http and not is_valgrind and not is_kcov and not is_android and not is_aix
+    has_http
+    and not is_valgrind
+    and not is_kcov
+    and not is_android
+    and not is_aix
+    and not is_tsan
 )
 # android has no local filesystem
 has_files = not is_android
