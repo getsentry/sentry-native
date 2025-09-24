@@ -39,13 +39,7 @@ sentry__symbolize(
     }
 
     char *mod_path = sentry__string_from_wstr(mod_path_w);
-    if (!mod_path) {
-        return false;
-    }
     char *symbol_name = sentry__string_from_wstr(symbol_info->Name);
-    if (!symbol_name) {
-        return false;
-    }
 
     sentry_frame_info_t frame_info = { 0 };
     frame_info.load_addr = (void *)(uintptr_t)symbol_info->ModBase;
