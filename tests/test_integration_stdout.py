@@ -95,7 +95,7 @@ def test_capture_exception_from_utf8_path_stdout(cmake):
 
     assert_meta(envelope)
     assert_breadcrumb(envelope)
-    assert_stacktrace(envelope, inside_exception=True)
+    assert_stacktrace(envelope, inside_exception=True, check_package=True)
     assert_exception(envelope)
 
     # delete the cyrillic directory, but only after we asserted on stack frame packages being files

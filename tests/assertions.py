@@ -168,7 +168,9 @@ def assert_event_meta(
         )
 
 
-def assert_stacktrace(envelope, inside_exception=False, check_size=True):
+def assert_stacktrace(
+    envelope, inside_exception=False, check_size=True, check_package=False
+):
     event = envelope.get_event()
 
     parent = event["exception"] if inside_exception else event["threads"]
