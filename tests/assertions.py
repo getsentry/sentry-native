@@ -6,6 +6,7 @@ import re
 import sys
 from dataclasses import dataclass
 from datetime import datetime, UTC
+from pathlib import Path
 
 import msgpack
 
@@ -177,10 +178,13 @@ def assert_stacktrace(envelope, inside_exception=False, check_size=True):
     if check_size:
         assert len(frames) > 0
         assert all(frame["instruction_addr"].startswith("0x") for frame in frames)
-        assert any(
-            frame.get("function") is not None and frame.get("package") is not None
-            for frame in frames
-        )
+        for frame in frames:
+            assert frame.get("function") is not None, "frame has no function"
+            frame_package = frame.get("package")
+            assert frame_package is not None, "frame has no package"
+            assert Path(
+                frame_package
+            ).is_file(), f"package is not a valid file path: '{frame_package}'"
 
 
 def assert_breadcrumb_inner(breadcrumbs, message="debug crumb"):
