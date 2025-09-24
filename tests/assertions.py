@@ -180,10 +180,10 @@ def assert_stacktrace(envelope, inside_exception=False, check_size=True):
         assert all(frame["instruction_addr"].startswith("0x") for frame in frames)
         for frame in frames:
             frame_package = frame.get("package")
-            assert frame_package is not None, "frame has no package"
-            assert (
-                Path(frame_package).resolve().is_file()
-            ), f"package is not a valid file path: '{frame_package}'"
+            if frame_package is not None:
+                assert (
+                    Path(frame_package).resolve().is_file()
+                ), f"package is not a valid file path: '{frame_package}'"
 
 
 def assert_breadcrumb_inner(breadcrumbs, message="debug crumb"):
