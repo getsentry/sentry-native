@@ -54,6 +54,14 @@ def _run_logger_crash_test(backend, cmake, logger_option):
     # Parse the output to check logging behavior
     parsed_data = parse_logger_output(output)
 
+    # TODO: let's disable the logger tests on crashpad tsan (we already had a couple of issues at that boundary)
+    # however, first let's check if we can get any sensible output when we can't find the marker
+    if not parsed_data["pre_crash_log_completed"]:
+        print("Failed to parse the pre-crash log marker")
+        print("---Output start")
+        print(output)
+        print("---Output end")
+
     return parsed_data
 
 

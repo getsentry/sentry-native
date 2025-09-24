@@ -155,6 +155,14 @@ sentry_options_set_before_transaction(
 }
 
 void
+sentry_options_set_before_send_log(sentry_options_t *opts,
+    sentry_before_send_log_function_t func, void *user_data)
+{
+    opts->before_send_log_func = func;
+    opts->before_send_log_data = user_data;
+}
+
+void
 sentry_options_set_dsn_n(
     sentry_options_t *opts, const char *raw_dsn, size_t raw_dsn_len)
 {
@@ -680,6 +688,18 @@ sentry_options_set_backend(sentry_options_t *opts, sentry_backend_t *backend)
 {
     sentry__backend_free(opts->backend);
     opts->backend = backend;
+}
+
+void
+sentry_options_set_enable_logs(sentry_options_t *opts, int enable_logs)
+{
+    opts->enable_logs = !!enable_logs;
+}
+
+int
+sentry_options_get_enable_logs(const sentry_options_t *opts)
+{
+    return opts->enable_logs;
 }
 
 #ifdef SENTRY_PLATFORM_LINUX

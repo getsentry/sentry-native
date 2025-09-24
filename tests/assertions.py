@@ -105,9 +105,9 @@ def assert_event_meta(
     }
     expected_sdk = {
         "name": "sentry.native",
-        "version": "0.11.0",
+        "version": "0.11.1",
         "packages": [
-            {"name": "github:getsentry/sentry-native", "version": "0.11.0"},
+            {"name": "github:getsentry/sentry-native", "version": "0.11.1"},
         ],
     }
     if is_android:
@@ -224,6 +224,38 @@ def assert_attachment(envelope):
         matches(item.headers, expected) and item.payload.bytes == b"\xc0\xff\xee"
         for item in envelope
     )
+
+
+def assert_logs(envelope, expected_item_count=1, expected_trace_id=None):
+    logs = None
+    for item in envelope:
+        assert item.headers.get("type") == "log"
+        # >= because of random #lost logs in test_logs_threaded
+        assert item.headers.get("item_count") >= expected_item_count
+        assert (
+            item.headers.get("content_type") == "application/vnd.sentry.items.log+json"
+        )
+        logs = item.payload.json
+
+    assert isinstance(logs, dict)
+    assert "items" in logs
+    # >= because of random #lost logs in test_logs_threaded
+    assert len(logs["items"]) >= expected_item_count
+    for i in range(expected_item_count):
+        log_item = logs["items"][i]
+        assert "body" in log_item
+        assert "level" in log_item
+        assert "timestamp" in log_item  # TODO do we need to validate the timestamp?
+        assert "trace_id" in log_item
+        assert "attributes" in log_item
+        assert "os.name" in log_item["attributes"]
+        assert "os.version" in log_item["attributes"]
+        assert "sentry.environment" in log_item["attributes"]
+        assert "sentry.release" in log_item["attributes"]
+        assert "sentry.sdk.name" in log_item["attributes"]
+        assert "sentry.sdk.version" in log_item["attributes"]
+        if expected_trace_id:
+            assert log_item["trace_id"] == expected_trace_id
 
 
 def assert_attachment_view_hierarchy(envelope):

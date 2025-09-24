@@ -6,6 +6,12 @@
 
 - Windows: Make symbolication independent of the system ANSI code page by making narrow UTF-8 strings canonical. ([#1389](https://github.com/getsentry/sentry-native/pull/1389))
 
+## 0.11.1
+
+**Features**:
+
+- Add support for structured logs. It is currently experimental, and one can enable it by setting `sentry_options_set_enable_logs`. When enabled, you can capture a log using `sentry_log_info()` (or another log level). Logs can be filtered by setting the `before_send_log` hook. ([#1271](https://github.com/getsentry/sentry-native/pull/1271/))
+
 ## 0.11.0
 
 **Breaking changes**:
