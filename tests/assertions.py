@@ -180,12 +180,21 @@ def assert_stacktrace(
     if check_size:
         assert len(frames) > 0
         assert all(frame["instruction_addr"].startswith("0x") for frame in frames)
+        assert any(
+            frame.get("function") is not None and frame.get("package") is not None
+            for frame in frames
+        )
+
+    if check_package:
         for frame in frames:
             frame_package = frame.get("package")
             if frame_package is not None:
-                assert (
-                    Path(frame_package).resolve().is_file()
-                ), f"package is not a valid file path: '{frame_package}'"
+                frame_package_path = Path(frame_package)
+                # only assert on absolute paths, since letting pathlib resolve relative paths is cheating
+                if frame_package_path.is_absolute():
+                    assert (
+                        frame_package_path.is_file()
+                    ), f"package is not a valid file path: '{frame_package}'"
 
 
 def assert_breadcrumb_inner(breadcrumbs, message="debug crumb"):
