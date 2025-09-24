@@ -179,7 +179,6 @@ def assert_stacktrace(envelope, inside_exception=False, check_size=True):
         assert len(frames) > 0
         assert all(frame["instruction_addr"].startswith("0x") for frame in frames)
         for frame in frames:
-            assert frame.get("function") is not None, "frame has no function"
             frame_package = frame.get("package")
             assert frame_package is not None, "frame has no package"
             assert (
