@@ -182,9 +182,9 @@ def assert_stacktrace(envelope, inside_exception=False, check_size=True):
             assert frame.get("function") is not None, "frame has no function"
             frame_package = frame.get("package")
             assert frame_package is not None, "frame has no package"
-            assert Path(
-                frame_package
-            ).is_file(), f"package is not a valid file path: '{frame_package}'"
+            assert (
+                Path(frame_package).resolve().is_file()
+            ), f"package is not a valid file path: '{frame_package}'"
 
 
 def assert_breadcrumb_inner(breadcrumbs, message="debug crumb"):

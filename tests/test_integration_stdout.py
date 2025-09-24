@@ -98,6 +98,9 @@ def test_capture_exception_from_utf8_path_stdout(cmake):
     assert_stacktrace(envelope, inside_exception=True)
     assert_exception(envelope)
 
+    # delete the cyrillic directory, but only after we asserted on stack frame packages being files
+    shutil.rmtree(cwd)
+
 
 def test_dynamic_sdk_name_override(cmake):
     tmp_path = cmake(
