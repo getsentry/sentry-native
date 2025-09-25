@@ -6,10 +6,9 @@
 
 #ifndef SENTRY_PLATFORM_XBOX
 #    include <dbghelp.h>
-#else
-#    include <Psapi.h>
 #endif
-#include <tlhelp32.h>
+#include <Psapi.h>
+#include <TlHelp32.h>
 
 static bool g_initialized = false;
 static sentry_mutex_t g_mutex = SENTRY__MUTEX_INIT;
@@ -93,6 +92,23 @@ extract_pdb_info(uintptr_t module_addr, sentry_value_t module)
 }
 
 static void
+log_library_load_error(const wchar_t *module_filename_w)
+{
+    const DWORD ec = GetLastError();
+    LPWSTR msg_w = NULL;
+    FormatMessageW(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM
+            | FORMAT_MESSAGE_IGNORE_INSERTS,
+        NULL, ec, 0, (LPWSTR)&msg_w, 0, NULL);
+    char *msg = sentry__string_from_wstr(msg_w);
+    char *module_filename = sentry__string_from_wstr(module_filename_w);
+    SENTRY_ERRORF("LoadLibraryExW failed (%lu): %s (\"%s\")\n", ec,
+        msg ? msg : "(no message)", module_filename);
+    sentry_free(module_filename);
+    sentry_free(msg);
+    LocalFree(msg_w);
+}
+
+static void
 load_modules(void)
 {
 #ifndef SENTRY_PLATFORM_XBOX
@@ -104,11 +120,25 @@ load_modules(void)
 
     if (Module32FirstW(snapshot, &module)) {
         do {
-            HMODULE handle = LoadLibraryExW(
-                module.szExePath, NULL, LOAD_LIBRARY_AS_DATAFILE);
+            wchar_t module_filename_w[MAX_PATH];
+            HMODULE module_handle = NULL;
+            if (GetModuleFileNameExW(GetCurrentProcess(), module.hModule,
+                    module_filename_w, MAX_PATH)) {
+                module_handle = LoadLibraryExW(
+                    module_filename_w, NULL, LOAD_LIBRARY_AS_DATAFILE);
+            } else {
+                char *module_name = sentry__string_from_wstr(module.szModule);
+                SENTRY_ERRORF(
+                    "Failed to get module filename for %s", module_name);
+                sentry_free(module_name);
+                continue;
+            }
+            if (!module_handle) {
+                log_library_load_error(module_filename_w);
+                continue;
+            }
             MEMORY_BASIC_INFORMATION vmem_info = { 0 };
-            if (handle
-                && sizeof(vmem_info)
+            if (sizeof(vmem_info)
                     == VirtualQuery(
                         module.modBaseAddr, &vmem_info, sizeof(vmem_info))
                 && vmem_info.State == MEM_COMMIT) {
@@ -120,11 +150,11 @@ load_modules(void)
                 sentry_value_set_by_key(rv, "image_size",
                     sentry_value_new_int32((int32_t)module.modBaseSize));
                 sentry_value_set_by_key(rv, "code_file",
-                    sentry__value_new_string_from_wstr(module.szExePath));
+                    sentry__value_new_string_from_wstr(module_filename_w));
                 extract_pdb_info((uintptr_t)module.modBaseAddr, rv);
                 sentry_value_append(g_modules, rv);
             }
-            FreeLibrary(handle);
+            FreeLibrary(module_handle);
         } while (Module32NextW(snapshot, &module));
     }
 
