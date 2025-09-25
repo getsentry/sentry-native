@@ -4,7 +4,7 @@
 
 **Fixes**:
 
-- Windows: Make symbolication independent of the system ANSI code page by making narrow UTF-8 strings canonical. ([#1389](https://github.com/getsentry/sentry-native/pull/1389))
+- Windows: Make symbolication and the modulefinder independent of the system ANSI code page. ([#1389](https://github.com/getsentry/sentry-native/pull/1389))
 
 ## 0.11.1
 
