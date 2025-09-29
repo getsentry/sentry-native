@@ -15,15 +15,19 @@ static void
 validate_logs_envelope(sentry_envelope_t *envelope, void *data)
 {
     uint64_t *called = data;
-    *called += 1;
 
     // Verify we have at least one envelope item
     TEST_CHECK(sentry__envelope_get_item_count(envelope) > 0);
 
-    // Get the first item and check it's a logs item
+    // Get the first item and check its type
     const sentry_envelope_item_t *item = sentry__envelope_get_item(envelope, 0);
     sentry_value_t type_header = sentry__envelope_item_get_header(item, "type");
-    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(type_header), "log");
+    const char *type = sentry_value_as_string(type_header);
+
+    // Only validate and count log envelopes, skip others (e.g., session)
+    if (strcmp(type, "log") == 0) {
+        *called += 1;
+    }
 
     sentry_envelope_free(envelope);
 }
@@ -98,6 +102,8 @@ SENTRY_TEST(formatted_log_messages)
     sentry_options_set_transport(options, transport);
 
     sentry_init(options);
+    // Allow log timer_task to start
+    sleep_ms(20);
 
     // Test format specifiers
     sentry_log_info("String: %s, Integer: %d, Float: %.2f", "test", 42, 3.14);

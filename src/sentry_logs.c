@@ -733,6 +733,9 @@ sentry_log_fatal(const char *message, ...)
 void
 sentry__logs_startup(void)
 {
+    // Reset batching_stop flag in case logs system was previously shutdown
+    sentry__atomic_store(&g_logs_state.batching_stop, 0);
+
     sentry__cond_init(&g_logs_state.request_flush);
 
     sentry__thread_init(&g_logs_state.batching_thread);
