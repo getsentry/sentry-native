@@ -35,12 +35,12 @@ def assert_run_dir_with_envelope(database_path):
     ), f"There is more than one crash envelope ({len(crash_envelopes)}"
 
 
-def run_dotnet(tmp_path, args):
+def run_dotnet(tmp_path, args=[]):
     env = os.environ.copy()
     env["LD_LIBRARY_PATH"] = str(tmp_path) + ":" + env.get("LD_LIBRARY_PATH", "")
     return subprocess.Popen(
-        args,
-        cwd=str(project_fixture_path),
+        [str(tmp_path / "bin/test_dotnet")] + args,
+        cwd=tmp_path,
         env=env,
         text=True,
         stdout=subprocess.PIPE,
@@ -49,11 +49,11 @@ def run_dotnet(tmp_path, args):
 
 
 def run_dotnet_managed_exception(tmp_path):
-    return run_dotnet(tmp_path, ["dotnet", "run"])
+    return run_dotnet(tmp_path, ["managed-exception"])
 
 
 def run_dotnet_native_crash(tmp_path):
-    return run_dotnet(tmp_path, ["dotnet", "run", "native-crash"])
+    return run_dotnet(tmp_path, ["native-crash"])
 
 
 @pytest.mark.skipif(
@@ -83,19 +83,46 @@ def test_dotnet_signals_inproc(cmake):
             check=True,
         )
 
-        # this runs the dotnet program with the Native SDK and chain-at-start, when managed code raises a signal that CLR convert to an exception.
+        # AOT-compile the dotnet program
+        subprocess.run(
+            [
+                "dotnet",
+                "publish",
+                "-o",
+                str(tmp_path / "bin"),
+            ],
+            cwd=project_fixture_path,
+            check=True,
+        )
+
+        # this runs the dotnet program with the Native SDK and chain-at-start, and triggers a `NullReferenceException`
+        # raising a signal that CLR converts to a managed exception, which is then handled by the managed code and
+        # not leaked out to the native code so no crash is registered.
+        dotnet_run = run_dotnet(tmp_path)
+        dotnet_run_stdout, dotnet_run_stderr = dotnet_run.communicate()
+
+        # the program handles the `NullReferenceException`, so the Native SDK won't register a crash.
+        assert dotnet_run.returncode == 0
+        assert not (
+            "NullReferenceException" in dotnet_run_stderr
+        ), f"Managed exception run failed.\nstdout:\n{dotnet_run_stdout}\nstderr:\n{dotnet_run_stderr}"
+        database_path = tmp_path / ".sentry-native"
+        assert database_path.exists(), "No database-path exists"
+        assert not (database_path / "last_crash").exists(), "A crash was registered"
+        assert_empty_run_dir(database_path)
+
+        # this runs the dotnet program with the Native SDK and chain-at-start, and triggers a `NullReferenceException`
+        # raising a signal that CLR converts to a managed exception. in this case, the managed code does not handle
+        # the exception, so it is leaked out to the native code and a crash is registered.
         dotnet_run = run_dotnet_managed_exception(tmp_path)
         dotnet_run_stdout, dotnet_run_stderr = dotnet_run.communicate()
 
-        # the program will fail with a `NullReferenceException`, but the Native SDK won't register a crash.
+        # the program does not handle the `NullReferenceException`, so the Native SDK will register a crash.
         assert dotnet_run.returncode != 0
         assert (
             "NullReferenceException" in dotnet_run_stderr
         ), f"Managed exception run failed.\nstdout:\n{dotnet_run_stdout}\nstderr:\n{dotnet_run_stderr}"
-        database_path = project_fixture_path / ".sentry-native"
-        assert database_path.exists(), "No database-path exists"
-        assert not (database_path / "last_crash").exists(), "A crash was registered"
-        assert_empty_run_dir(database_path)
+        assert (database_path / "last_crash").exists(), "A crash was registered"
 
         # this runs the dotnet program with the Native SDK and chain-at-start, when an actual native crash raises a signal
         dotnet_run = run_dotnet_native_crash(tmp_path)

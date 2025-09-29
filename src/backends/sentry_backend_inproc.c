@@ -455,6 +455,53 @@ registers_from_uctx(const sentry_ucontext_t *uctx)
     return registers;
 }
 
+#ifdef SENTRY_PLATFORM_LINUX
+static uintptr_t
+get_stack_pointer(const sentry_ucontext_t *uctx)
+{
+#    if defined(__i386__)
+    return uctx->user_context->uc_mcontext.gregs[REG_ESP];
+#    elif defined(__x86_64)
+    return uctx->user_context->uc_mcontext.gregs[REG_RSP];
+#    elif defined(__ARM_EABI__)
+    return uctx->user_context->uc_mcontext.arm_sp;
+#    elif defined(__aarch64__)
+    return uctx->user_context->uc_mcontext.sp;
+#    elif defined(__mips__)
+    return uctx->user_context->uc_mcontext.gregs[MD_CONTEXT_MIPS_REG_SP];
+#    elif defined(__riscv)
+    return uctx->user_context->uc_mcontext.__gregs[MD_CONTEXT_RISCV_REG_SP];
+#    else
+    SENTRY_WARN("get_stack_pointer is not implemented for this architecture. "
+                "Signal chaining may not work as expected.");
+    return NULL;
+#    endif
+}
+
+static uintptr_t
+get_instruction_pointer(const sentry_ucontext_t *uctx)
+{
+#    if defined(__i386__)
+    return uctx->user_context->uc_mcontext.gregs[REG_EIP];
+#    elif defined(__x86_64)
+    return uctx->user_context->uc_mcontext.gregs[REG_RIP];
+#    elif defined(__ARM_EABI__)
+    return uctx->user_context->uc_mcontext.arm_pc;
+#    elif defined(__aarch64__)
+    return uctx->user_context->uc_mcontext.pc;
+#    elif defined(__mips__)
+    return uctx->user_context->uc_mcontext.pc;
+#    elif defined(__riscv)
+    return uctx->user_context->uc_mcontext.__gregs[MD_CONTEXT_RISCV_REG_PC];
+#    else
+    SENTRY_WARN(
+        "get_instruction_pointer is not implemented for this architecture. "
+        "Signal chaining may not work as expected.");
+    return NULL;
+#    endif
+}
+#endif
+
 static sentry_value_t
 make_signal_event(
     const struct signal_slot *sig_slot, const sentry_ucontext_t *uctx)
@@ -569,10 +616,23 @@ handle_ucontext(const sentry_ucontext_t *uctx)
             // the next signal coming in if we didn't "leave" here.
             sentry__leave_signal_handler();
 
+            uintptr_t ip = get_instruction_pointer(uctx);
+            uintptr_t sp = get_stack_pointer(uctx);
+
             // invoke the previous handler (typically the CLR/Mono
             // signal-to-managed-exception handler)
             invoke_signal_handler(
                 uctx->signum, uctx->siginfo, (void *)uctx->user_context);
+
+            // If the instruction or stack pointer changed, CLR/Mono converted
+            // the signal into a managed exception:
+            // https://github.com/dotnet/runtime/blob/6d96e28597e7da0d790d495ba834cc4908e442cd/src/mono/mono/mini/exceptions-arm64.c#L538
+            if (ip != get_instruction_pointer(uctx)
+                || sp != get_stack_pointer(uctx)) {
+                SENTRY_DEBUG("runtime converted the signal to a managed "
+                             "exception, we do not handle the signal");
+                return;
+            }
 
             // let's re-enter because it means this was an actual native crash
             sentry__enter_signal_handler();
