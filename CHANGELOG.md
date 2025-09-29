@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+**Fixes**:
+- Fix interop with managed .NET runtimes. ([#1392](https://github.com/getsentry/sentry-native/pull/1392))
+
 ## 0.11.1
 
 **Features**:
