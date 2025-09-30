@@ -840,7 +840,7 @@ sentry__logs_wait_for_thread_startup(void)
     for (int i = 0; i < max_attempts; i++) {
         const long state = sentry__atomic_fetch(&g_logs_state.thread_state);
         if (state == SENTRY_LOGS_THREAD_RUNNING) {
-            SENTRY_TRACEF(
+            SENTRY_DEBUGF(
                 "logs thread ready after %d ms", i * check_interval_ms);
             return;
         }
