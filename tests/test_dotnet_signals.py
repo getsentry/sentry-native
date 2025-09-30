@@ -35,7 +35,9 @@ def assert_run_dir_with_envelope(database_path):
     ), f"There is more than one crash envelope ({len(crash_envelopes)}"
 
 
-def run_dotnet(tmp_path, args=[]):
+def run_dotnet(tmp_path, args=None):
+    if args is None:
+        args = []
     env = os.environ.copy()
     env["LD_LIBRARY_PATH"] = str(tmp_path) + ":" + env.get("LD_LIBRARY_PATH", "")
     return subprocess.Popen(
