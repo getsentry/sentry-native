@@ -229,8 +229,11 @@ batching_thread_func(void *data)
     sentry__mutex_init(&task_lock);
     sentry__mutex_lock(&task_lock);
 
-    // Transition from STARTING to RUNNING
+    // Transition from STARTING to RUNNING using compare-and-swap
+    // CAS ensures atomic state verification: only succeeds if state is STARTING
     // If CAS fails, shutdown already set state to STOPPED, so exit immediately
+    // Uses sequential consistency to ensure all thread initialization is
+    // visible
     if (!sentry__atomic_compare_swap(&g_logs_state.thread_state,
             (long)SENTRY_LOGS_THREAD_STARTING,
             (long)SENTRY_LOGS_THREAD_RUNNING)) {
@@ -782,6 +785,8 @@ sentry__logs_startup(void)
     if (spawn_result == 1) {
         SENTRY_ERROR("Failed to start batching thread");
         // Failed to spawn, reset to STOPPED
+        // Note: condition variable doesn't need explicit cleanup for static
+        // storage (pthread_cond_t on POSIX and CONDITION_VARIABLE on Windows)
         sentry__atomic_store(
             &g_logs_state.thread_state, (long)SENTRY_LOGS_THREAD_STOPPED);
     }
@@ -794,6 +799,9 @@ sentry__logs_shutdown(uint64_t timeout)
     SENTRY_DEBUG("shutting down logs system");
 
     // Atomically transition to STOPPED and get the previous state
+    // This handles the race where thread might be in STARTING state:
+    // - If thread's CAS hasn't run yet: CAS will fail, thread exits cleanly
+    // - If thread already transitioned to RUNNING: normal shutdown path
     const long old_state = sentry__atomic_store(
         &g_logs_state.thread_state, (long)SENTRY_LOGS_THREAD_STOPPED);
 

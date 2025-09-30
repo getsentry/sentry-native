@@ -387,6 +387,13 @@ sentry__atomic_fetch(volatile long *val)
 /**
  * Compare and swap: atomically compare *val with expected, and if equal,
  * set *val to desired. Returns true if the swap occurred.
+ *
+ * Uses sequential consistency (ATOMIC_SEQ_CST / InterlockedCompareExchange)
+ * to ensure all memory operations are visible across threads. This is
+ * appropriate for thread synchronization and state machine transitions.
+ *
+ * Note: The ABA problem (where a value changes A->B->A between reads) is not
+ * a concern for simple integer-based state machines with monotonic transitions.
  */
 static inline bool
 sentry__atomic_compare_swap(volatile long *val, long expected, long desired)
