@@ -51,6 +51,7 @@ sentry_options_new(void)
     opts->attach_screenshot = false;
     opts->crashpad_wait_for_upload = false;
     opts->enable_logging_when_crashed = true;
+    opts->propagate_traceparent = false;
     opts->symbolize_stacktraces =
     // AIX doesn't have reliable debug IDs for server-side symbolication,
     // and the diversity of Android makes it infeasible to have access to debug
@@ -718,3 +719,16 @@ sentry_options_set_handler_strategy(
 }
 
 #endif // SENTRY_PLATFORM_LINUX
+
+void
+sentry_options_set_propagate_traceparent(
+    sentry_options_t *opts, int propagate_traceparent)
+{
+    opts->propagate_traceparent = !!propagate_traceparent;
+}
+
+int
+sentry_options_get_propagate_traceparent(const sentry_options_t *opts)
+{
+    return opts->propagate_traceparent;
+}
