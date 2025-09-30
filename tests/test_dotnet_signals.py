@@ -35,7 +35,86 @@ def assert_run_dir_with_envelope(database_path):
     ), f"There is more than one crash envelope ({len(crash_envelopes)}"
 
 
-def run_dotnet(tmp_path, args=None):
+def run_jit(tmp_path, args):
+    env = os.environ.copy()
+    env["LD_LIBRARY_PATH"] = str(tmp_path) + ":" + env.get("LD_LIBRARY_PATH", "")
+    return subprocess.Popen(
+        args,
+        cwd=str(project_fixture_path),
+        env=env,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+
+
+def run_jit_managed_exception(tmp_path):
+    return run_jit(tmp_path, ["dotnet", "run", "managed-exception"])
+
+
+def run_jit_native_crash(tmp_path):
+    return run_jit(tmp_path, ["dotnet", "run", "native-crash"])
+
+
+@pytest.mark.skipif(
+    sys.platform != "linux" or is_x86 or is_asan or is_tsan,
+    reason="dotnet JIT signal handling is currently only supported on 64-bit Linux without sanitizers",
+)
+def test_jit_signals_inproc(cmake):
+    try:
+        # build native client library with inproc and the example for crash dumping
+        tmp_path = cmake(
+            ["sentry"],
+            {"SENTRY_BACKEND": "inproc", "SENTRY_TRANSPORT": "none"},
+        )
+
+        # build the crashing native library
+        subprocess.run(
+            [
+                "gcc",
+                "-Wall",
+                "-Wextra",
+                "-fPIC",
+                "-shared",
+                str(project_fixture_path / "crash.c"),
+                "-o",
+                str(tmp_path / "libcrash.so"),
+            ],
+            check=True,
+        )
+
+        # this runs the dotnet program with the Native SDK and chain-at-start, when managed code raises a signal that CLR convert to an exception.
+        dotnet_run = run_jit_managed_exception(tmp_path)
+        dotnet_run_stdout, dotnet_run_stderr = dotnet_run.communicate()
+
+        # the program will fail with a `NullReferenceException`, but the Native SDK won't register a crash.
+        assert dotnet_run.returncode != 0
+        assert (
+            "NullReferenceException" in dotnet_run_stderr
+        ), f"Managed exception run failed.\nstdout:\n{dotnet_run_stdout}\nstderr:\n{dotnet_run_stderr}"
+        database_path = project_fixture_path / ".sentry-native"
+        assert database_path.exists(), "No database-path exists"
+        assert not (database_path / "last_crash").exists(), "A crash was registered"
+        assert_empty_run_dir(database_path)
+
+        # this runs the dotnet program with the Native SDK and chain-at-start, when an actual native crash raises a signal
+        dotnet_run = run_jit_native_crash(tmp_path)
+        dotnet_run_stdout, dotnet_run_stderr = dotnet_run.communicate()
+
+        # the program will fail with a SIGSEGV, that has been processed by the Native SDK which produced a crash envelope
+        assert dotnet_run.returncode != 0
+        assert (
+            "crash has been captured" in dotnet_run_stderr
+        ), f"Native exception run failed.\nstdout:\n{dotnet_run_stdout}\nstderr:\n{dotnet_run_stderr}"
+        assert (database_path / "last_crash").exists()
+        assert_run_dir_with_envelope(database_path)
+    finally:
+        shutil.rmtree(project_fixture_path / ".sentry-native", ignore_errors=True)
+        shutil.rmtree(project_fixture_path / "bin", ignore_errors=True)
+        shutil.rmtree(project_fixture_path / "obj", ignore_errors=True)
+
+
+def run_aot(tmp_path, args=None):
     if args is None:
         args = []
     env = os.environ.copy()
@@ -50,19 +129,19 @@ def run_dotnet(tmp_path, args=None):
     )
 
 
-def run_dotnet_managed_exception(tmp_path):
-    return run_dotnet(tmp_path, ["managed-exception"])
+def run_aot_managed_exception(tmp_path):
+    return run_aot(tmp_path, ["managed-exception"])
 
 
-def run_dotnet_native_crash(tmp_path):
-    return run_dotnet(tmp_path, ["native-crash"])
+def run_aot_native_crash(tmp_path):
+    return run_aot(tmp_path, ["native-crash"])
 
 
 @pytest.mark.skipif(
     sys.platform != "linux" or is_x86 or is_asan or is_tsan,
-    reason="dotnet signal handling is currently only supported on 64-bit Linux without sanitizers",
+    reason="dotnet AOT signal handling is currently only supported on 64-bit Linux without sanitizers",
 )
-def test_dotnet_signals_inproc(cmake):
+def test_aot_signals_inproc(cmake):
     try:
         # build native client library with inproc and the example for crash dumping
         tmp_path = cmake(
@@ -90,6 +169,8 @@ def test_dotnet_signals_inproc(cmake):
             [
                 "dotnet",
                 "publish",
+                "-p:PublishAot=true",
+                "-p:Configuration=Release",
                 "-o",
                 str(tmp_path / "bin"),
             ],
@@ -97,10 +178,10 @@ def test_dotnet_signals_inproc(cmake):
             check=True,
         )
 
-        # this runs the dotnet program with the Native SDK and chain-at-start, and triggers a `NullReferenceException`
+        # this runs the dotnet program in AOT mode with the Native SDK and chain-at-start, and triggers a `NullReferenceException`
         # raising a signal that CLR converts to a managed exception, which is then handled by the managed code and
         # not leaked out to the native code so no crash is registered.
-        dotnet_run = run_dotnet(tmp_path)
+        dotnet_run = run_aot(tmp_path)
         dotnet_run_stdout, dotnet_run_stderr = dotnet_run.communicate()
 
         # the program handles the `NullReferenceException`, so the Native SDK won't register a crash.
@@ -113,21 +194,8 @@ def test_dotnet_signals_inproc(cmake):
         assert not (database_path / "last_crash").exists(), "A crash was registered"
         assert_empty_run_dir(database_path)
 
-        # this runs the dotnet program with the Native SDK and chain-at-start, and triggers a `NullReferenceException`
-        # raising a signal that CLR converts to a managed exception. in this case, the managed code does not handle
-        # the exception, so it is leaked out to the native code and a crash is registered.
-        dotnet_run = run_dotnet_managed_exception(tmp_path)
-        dotnet_run_stdout, dotnet_run_stderr = dotnet_run.communicate()
-
-        # the program does not handle the `NullReferenceException`, so the Native SDK will register a crash.
-        assert dotnet_run.returncode != 0
-        assert (
-            "NullReferenceException" in dotnet_run_stderr
-        ), f"Managed exception run failed.\nstdout:\n{dotnet_run_stdout}\nstderr:\n{dotnet_run_stderr}"
-        assert (database_path / "last_crash").exists(), "A crash was registered"
-
         # this runs the dotnet program with the Native SDK and chain-at-start, when an actual native crash raises a signal
-        dotnet_run = run_dotnet_native_crash(tmp_path)
+        dotnet_run = run_aot_native_crash(tmp_path)
         dotnet_run_stdout, dotnet_run_stderr = dotnet_run.communicate()
 
         # the program will fail with a SIGSEGV, that has been processed by the Native SDK which produced a crash envelope
@@ -138,6 +206,6 @@ def test_dotnet_signals_inproc(cmake):
         assert (database_path / "last_crash").exists()
         assert_run_dir_with_envelope(database_path)
     finally:
-        shutil.rmtree(project_fixture_path / ".sentry-native", ignore_errors=True)
+        shutil.rmtree(tmp_path / ".sentry-native", ignore_errors=True)
         shutil.rmtree(project_fixture_path / "bin", ignore_errors=True)
         shutil.rmtree(project_fixture_path / "obj", ignore_errors=True)
