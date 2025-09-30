@@ -624,9 +624,10 @@ handle_ucontext(const sentry_ucontext_t *uctx)
             invoke_signal_handler(
                 uctx->signum, uctx->siginfo, (void *)uctx->user_context);
 
-            // If the instruction or stack pointer changed, CLR/Mono converted
-            // the signal into a managed exception and transferred execution to
-            // a managed exception handler.
+            // If the execution returns here in AOT mode, and the instruction
+            // or stack pointer were changed, it means CLR/Mono converted the
+            // signal into a managed exception and transferred execution to a
+            // managed exception handler.
             // https://github.com/dotnet/runtime/blob/6d96e28597e7da0d790d495ba834cc4908e442cd/src/mono/mono/mini/exceptions-arm64.c#L538
             if (ip != get_instruction_pointer(uctx)
                 || sp != get_stack_pointer(uctx)) {
