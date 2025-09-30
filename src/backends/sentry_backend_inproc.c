@@ -580,20 +580,6 @@ handle_ucontext(const sentry_ucontext_t *uctx)
 
     SENTRY_INFO("entering signal handler");
 
-    const struct signal_slot *sig_slot = NULL;
-    for (int i = 0; i < SIGNAL_COUNT; ++i) {
-#ifdef SENTRY_PLATFORM_UNIX
-        if (SIGNAL_DEFINITIONS[i].signum == uctx->signum) {
-#elif defined SENTRY_PLATFORM_WINDOWS
-        if (SIGNAL_DEFINITIONS[i].signum
-            == uctx->exception_ptrs.ExceptionRecord->ExceptionCode) {
-#else
-#    error Unsupported platform
-#endif
-            sig_slot = &SIGNAL_DEFINITIONS[i];
-        }
-    }
-
 #ifdef SENTRY_PLATFORM_UNIX
     // inform the sentry_sync system that we're in a signal handler.  This will
     // make mutexes spin on a spinlock instead as it's no longer safe to use a
@@ -615,6 +601,9 @@ handle_ucontext(const sentry_ucontext_t *uctx)
             // handler and that would mean we couldn't enter this handler with
             // the next signal coming in if we didn't "leave" here.
             sentry__leave_signal_handler();
+            if (!options->enable_logging_when_crashed) {
+                sentry__logger_enable();
+            }
 
             uintptr_t ip = get_instruction_pointer(uctx);
             uintptr_t sp = get_stack_pointer(uctx);
@@ -637,11 +626,28 @@ handle_ucontext(const sentry_ucontext_t *uctx)
             }
 
             // let's re-enter because it means this was an actual native crash
+            if (!options->enable_logging_when_crashed) {
+                sentry__logger_disable();
+            }
             sentry__enter_signal_handler();
             SENTRY_DEBUG(
                 "return from runtime signal handler, we handle the signal");
         }
 #endif
+
+        const struct signal_slot *sig_slot = NULL;
+        for (int i = 0; i < SIGNAL_COUNT; ++i) {
+#ifdef SENTRY_PLATFORM_UNIX
+            if (SIGNAL_DEFINITIONS[i].signum == uctx->signum) {
+#elif defined SENTRY_PLATFORM_WINDOWS
+            if (SIGNAL_DEFINITIONS[i].signum
+                == uctx->exception_ptrs.ExceptionRecord->ExceptionCode) {
+#else
+#    error Unsupported platform
+#endif
+                sig_slot = &SIGNAL_DEFINITIONS[i];
+            }
+        }
 
 #ifdef SENTRY_PLATFORM_UNIX
         // use a signal-safe allocator before we tear down.
