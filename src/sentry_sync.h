@@ -384,6 +384,27 @@ sentry__atomic_fetch(volatile long *val)
     return sentry__atomic_fetch_and_add(val, 0);
 }
 
+/**
+ * Compare and swap: atomically compare *val with expected, and if equal,
+ * set *val to desired. Returns true if the swap occurred.
+ */
+static inline bool
+sentry__atomic_compare_swap(volatile long *val, long expected, long desired)
+{
+#ifdef SENTRY_PLATFORM_WINDOWS
+#    if SIZEOF_LONG == 8
+    return InterlockedCompareExchange64((LONG64 *)val, desired, expected)
+        == expected;
+#    else
+    return InterlockedCompareExchange((LONG *)val, desired, expected)
+        == expected;
+#    endif
+#else
+    return __atomic_compare_exchange_n(
+        val, &expected, desired, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST);
+#endif
+}
+
 struct sentry_bgworker_s;
 typedef struct sentry_bgworker_s sentry_bgworker_t;
 

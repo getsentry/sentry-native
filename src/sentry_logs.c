@@ -31,8 +31,10 @@
 typedef enum {
     /** Thread is not running (initial state or after shutdown) */
     SENTRY_LOGS_THREAD_STOPPED = 0,
+    /** Thread is starting up but not yet ready */
+    SENTRY_LOGS_THREAD_STARTING = 1,
     /** Thread is running and processing logs */
-    SENTRY_LOGS_THREAD_RUNNING = 1,
+    SENTRY_LOGS_THREAD_RUNNING = 2,
 } sentry_logs_thread_state_t;
 
 typedef struct {
@@ -227,9 +229,16 @@ batching_thread_func(void *data)
     sentry__mutex_init(&task_lock);
     sentry__mutex_lock(&task_lock);
 
-    // Signal that thread is now running
-    sentry__atomic_store(
-        &g_logs_state.thread_state, (long)SENTRY_LOGS_THREAD_RUNNING);
+    // Transition from STARTING to RUNNING
+    // If CAS fails, shutdown already set state to STOPPED, so exit immediately
+    if (!sentry__atomic_compare_swap(&g_logs_state.thread_state,
+            (long)SENTRY_LOGS_THREAD_STARTING,
+            (long)SENTRY_LOGS_THREAD_RUNNING)) {
+        SENTRY_DEBUG("logs thread detected shutdown during startup, exiting");
+        sentry__mutex_unlock(&task_lock);
+        sentry__mutex_free(&task_lock);
+        return 0;
+    }
 
     // Main loop: run while state is RUNNING
     while (sentry__atomic_fetch(&g_logs_state.thread_state)
@@ -758,9 +767,11 @@ sentry_log_fatal(const char *message, ...)
 void
 sentry__logs_startup(void)
 {
-    // Reset to stopped state in case logs system was previously shutdown
+    // Mark thread as starting before actually spawning so thread can transition
+    // to RUNNING. This prevents shutdown from thinking the thread was never
+    // started if it races with the thread's initialization.
     sentry__atomic_store(
-        &g_logs_state.thread_state, (long)SENTRY_LOGS_THREAD_STOPPED);
+        &g_logs_state.thread_state, (long)SENTRY_LOGS_THREAD_STARTING);
 
     sentry__cond_init(&g_logs_state.request_flush);
 
@@ -770,6 +781,9 @@ sentry__logs_startup(void)
 
     if (spawn_result == 1) {
         SENTRY_ERROR("Failed to start batching thread");
+        // Failed to spawn, reset to STOPPED
+        sentry__atomic_store(
+            &g_logs_state.thread_state, (long)SENTRY_LOGS_THREAD_STOPPED);
     }
 }
 
@@ -779,17 +793,20 @@ sentry__logs_shutdown(uint64_t timeout)
     (void)timeout;
     SENTRY_DEBUG("shutting down logs system");
 
-    // Atomically transition from RUNNING to STOPPED
+    // Atomically transition to STOPPED and get the previous state
     const long old_state = sentry__atomic_store(
         &g_logs_state.thread_state, (long)SENTRY_LOGS_THREAD_STOPPED);
 
+    // If thread was never started, nothing to do
     if (old_state == SENTRY_LOGS_THREAD_STOPPED) {
-        SENTRY_DEBUG("logs thread not running, skipping shutdown");
+        SENTRY_DEBUG("logs thread was not started, skipping shutdown");
         return;
     }
 
-    // Thread was running, signal it to stop
+    // Thread was started (either STARTING or RUNNING), signal it to stop
     sentry__cond_wake(&g_logs_state.request_flush);
+
+    // Always join the thread to avoid leaks
     sentry__thread_join(g_logs_state.batching_thread);
 
     // Perform final flush to ensure any remaining logs are sent
