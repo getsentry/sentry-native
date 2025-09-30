@@ -1880,6 +1880,7 @@ SENTRY_TEST(traceparent_header_generation)
     sentry_transaction_t *tx
         = sentry_transaction_start(tx_ctx, sentry_value_new_null());
 
+    // Test transaction header generation
     traceparent_header_collector_t collector = { 0 };
     sentry_transaction_iter_headers(
         tx, collect_traceparent_headers, &collector);
@@ -1905,34 +1906,20 @@ SENTRY_TEST(traceparent_header_generation)
     TEST_CHECK(strstr(collector.traceparent_value, trace_id) != NULL);
     TEST_CHECK(strstr(collector.traceparent_value, span_id) != NULL);
 
-    sentry_transaction_finish(tx);
-    sentry_close();
-}
-
-SENTRY_TEST(traceparent_header_spans)
-{
-    SENTRY_TEST_OPTIONS_NEW(options);
-    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
-    sentry_options_set_traces_sample_rate(options, 1.0);
-    sentry_options_set_propagate_traceparent(options, 1);
-    sentry_init(options);
-
-    sentry_transaction_context_t *tx_ctx
-        = sentry_transaction_context_new("test", "test");
-    sentry_transaction_t *tx
-        = sentry_transaction_start(tx_ctx, sentry_value_new_null());
+    // Test span header generation
     sentry_span_t *span
         = sentry_transaction_start_child(tx, "child", "child-span");
 
-    traceparent_header_collector_t collector = { 0 };
-    sentry_span_iter_headers(span, collect_traceparent_headers, &collector);
+    traceparent_header_collector_t span_collector = { 0 };
+    sentry_span_iter_headers(
+        span, collect_traceparent_headers, &span_collector);
 
     // Should have both headers for spans too
-    TEST_CHECK(collector.sentry_trace_found);
-    TEST_CHECK(collector.traceparent_found);
+    TEST_CHECK(span_collector.sentry_trace_found);
+    TEST_CHECK(span_collector.traceparent_found);
 
-    // Verify traceparent format
-    TEST_CHECK(strncmp(collector.traceparent_value, "00-", 3) == 0);
+    // Verify traceparent format for spans
+    TEST_CHECK(strncmp(span_collector.traceparent_value, "00-", 3) == 0);
 
     sentry_span_finish(span);
     sentry_transaction_finish(tx);
