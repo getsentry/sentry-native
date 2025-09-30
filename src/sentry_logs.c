@@ -13,10 +13,27 @@
 
 #ifdef SENTRY_UNITTEST
 #    define QUEUE_LENGTH 5
+#    ifdef SENTRY_PLATFORM_WINDOWS
+#        include <windows.h>
+#        define sleep_ms(MILLISECONDS) Sleep(MILLISECONDS)
+#    else
+#        include <unistd.h>
+#        define sleep_ms(MILLISECONDS) usleep(MILLISECONDS * 1000)
+#    endif
 #else
 #    define QUEUE_LENGTH 100
 #endif
 #define FLUSH_TIMER 5
+
+/**
+ * Thread lifecycle states for the logs batching thread.
+ */
+typedef enum {
+    /** Thread is not running (initial state or after shutdown) */
+    SENTRY_LOGS_THREAD_STOPPED = 0,
+    /** Thread is running and processing logs */
+    SENTRY_LOGS_THREAD_RUNNING = 1,
+} sentry_logs_thread_state_t;
 
 typedef struct {
     sentry_value_t logs[QUEUE_LENGTH];
@@ -29,7 +46,7 @@ static struct {
     log_buffer_t buffers[2]; // double buffer
     long active_idx; // (atomic) index to the active buffer
     long flushing; // (atomic) reentrancy guard to the flusher
-    long batching_stop; // (atomic) run variable of the batching thread
+    long thread_state; // (atomic) sentry_logs_thread_state_t
     sentry_cond_t request_flush; // condition variable to schedule a flush
     sentry_threadid_t batching_thread; // the batching thread
 } g_logs_state = {
@@ -47,6 +64,7 @@ static struct {
     },
     .active_idx = 0,
     .flushing = 0,
+    .thread_state = SENTRY_LOGS_THREAD_STOPPED,
 };
 
 // checks whether the currently active buffer should be flushed.
@@ -209,14 +227,20 @@ batching_thread_func(void *data)
     sentry__mutex_init(&task_lock);
     sentry__mutex_lock(&task_lock);
 
-    // check if thread got a shut-down signal
-    while (sentry__atomic_fetch(&g_logs_state.batching_stop) == 0) {
+    // Signal that thread is now running
+    sentry__atomic_store(
+        &g_logs_state.thread_state, (long)SENTRY_LOGS_THREAD_RUNNING);
+
+    // Main loop: run while state is RUNNING
+    while (sentry__atomic_fetch(&g_logs_state.thread_state)
+        == SENTRY_LOGS_THREAD_RUNNING) {
         // Sleep for 5 seconds or until request_flush hits
         const int triggered_by = sentry__cond_wait_timeout(
             &g_logs_state.request_flush, &task_lock, 5000);
 
-        // make sure loop invariant still holds
-        if (sentry__atomic_fetch(&g_logs_state.batching_stop) != 0) {
+        // Check if we should still be running
+        if (sentry__atomic_fetch(&g_logs_state.thread_state)
+            != SENTRY_LOGS_THREAD_RUNNING) {
             break;
         }
 
@@ -251,6 +275,7 @@ batching_thread_func(void *data)
 
     sentry__mutex_unlock(&task_lock);
     sentry__mutex_free(&task_lock);
+    SENTRY_DEBUG("batching thread exiting");
     return 0;
 }
 
@@ -733,8 +758,9 @@ sentry_log_fatal(const char *message, ...)
 void
 sentry__logs_startup(void)
 {
-    // Reset batching_stop flag in case logs system was previously shutdown
-    sentry__atomic_store(&g_logs_state.batching_stop, 0);
+    // Reset to stopped state in case logs system was previously shutdown
+    sentry__atomic_store(
+        &g_logs_state.thread_state, (long)SENTRY_LOGS_THREAD_STOPPED);
 
     sentry__cond_init(&g_logs_state.request_flush);
 
@@ -753,11 +779,16 @@ sentry__logs_shutdown(uint64_t timeout)
     (void)timeout;
     SENTRY_DEBUG("shutting down logs system");
 
-    // Signal the batching thread to stop running
-    if (sentry__atomic_store(&g_logs_state.batching_stop, 1) != 0) {
-        SENTRY_DEBUG("preventing double shutdown of logs system");
+    // Atomically transition from RUNNING to STOPPED
+    const long old_state = sentry__atomic_store(
+        &g_logs_state.thread_state, (long)SENTRY_LOGS_THREAD_STOPPED);
+
+    if (old_state == SENTRY_LOGS_THREAD_STOPPED) {
+        SENTRY_DEBUG("logs thread not running, skipping shutdown");
         return;
     }
+
+    // Thread was running, signal it to stop
     sentry__cond_wake(&g_logs_state.request_flush);
     sentry__thread_join(g_logs_state.batching_thread);
 
@@ -768,3 +799,30 @@ sentry__logs_shutdown(uint64_t timeout)
 
     SENTRY_DEBUG("logs system shutdown complete");
 }
+
+#ifdef SENTRY_UNITTEST
+/**
+ * Wait for the logs batching thread to be ready.
+ * This is a test-only helper to avoid race conditions in tests.
+ */
+void
+sentry__logs_wait_for_thread_startup(void)
+{
+    const int max_wait_ms = 1000;
+    const int check_interval_ms = 10;
+    const int max_attempts = max_wait_ms / check_interval_ms;
+
+    for (int i = 0; i < max_attempts; i++) {
+        const long state = sentry__atomic_fetch(&g_logs_state.thread_state);
+        if (state == SENTRY_LOGS_THREAD_RUNNING) {
+            SENTRY_TRACEF(
+                "logs thread ready after %d ms", i * check_interval_ms);
+            return;
+        }
+        sleep_ms(check_interval_ms);
+    }
+
+    SENTRY_WARNF(
+        "logs thread failed to start within %d ms timeout", max_wait_ms);
+}
+#endif

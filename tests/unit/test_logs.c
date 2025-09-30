@@ -46,8 +46,7 @@ SENTRY_TEST(basic_logging_functionality)
     sentry_options_set_transport(options, transport);
 
     sentry_init(options);
-    // TODO if we don't sleep, log timer_task might not start in time to flush
-    sleep_ms(20);
+    sentry__logs_wait_for_thread_startup();
 
     // These should not crash and should respect the enable_logs option
     sentry_log_trace("Trace message");
@@ -55,7 +54,7 @@ SENTRY_TEST(basic_logging_functionality)
     sentry_log_info("Info message");
     sentry_log_warn("Warning message");
     sentry_log_error("Error message");
-    // sleep to finish flush of the first 5, otherwise failed enqueue
+    // Sleep to allow first batch to flush (testing batch timing behavior)
     sleep_ms(20);
     sentry_log_fatal("Fatal message");
     sentry_close();
@@ -102,8 +101,7 @@ SENTRY_TEST(formatted_log_messages)
     sentry_options_set_transport(options, transport);
 
     sentry_init(options);
-    // Allow log timer_task to start
-    sleep_ms(20);
+    sentry__logs_wait_for_thread_startup();
 
     // Test format specifiers
     sentry_log_info("String: %s, Integer: %d, Float: %.2f", "test", 42, 3.14);

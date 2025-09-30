@@ -19,6 +19,12 @@ void sentry__logs_shutdown(uint64_t timeout);
 #ifdef SENTRY_UNITTEST
 int populate_message_parameters(
     sentry_value_t attributes, const char *message, va_list args);
+
+/**
+ * Wait for the logs batching thread to be ready.
+ * This is a test-only helper to avoid race conditions in tests.
+ */
+void sentry__logs_wait_for_thread_startup(void);
 #endif
 
 #endif
