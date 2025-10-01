@@ -7,6 +7,7 @@
 #ifndef SENTRY_PLATFORM_XBOX
 #    include <dbghelp.h>
 #endif
+#define PSAPI_VERSION 2
 #include <Psapi.h>
 #include <TlHelp32.h>
 
