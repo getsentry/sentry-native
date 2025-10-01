@@ -102,6 +102,18 @@ log_library_load_error(const wchar_t *module_filename_w)
         NULL, ec, 0, (LPWSTR)&msg_w, 0, NULL);
     char *msg = sentry__string_from_wstr(msg_w);
     char *module_filename = sentry__string_from_wstr(module_filename_w);
+    if (!msg || !module_filename) {
+        if (module_filename) {
+            sentry_free(module_filename);
+        }
+        if (msg) {
+            sentry_free(msg);
+        }
+        if (msg_w) {
+            LocalFree(msg_w);
+        }
+        return;
+    }
     SENTRY_ERRORF("LoadLibraryExW failed (%lu): %s (\"%s\")\n", ec,
         msg ? msg : "(no message)", module_filename);
     sentry_free(module_filename);
@@ -129,9 +141,11 @@ load_modules(void)
                     module_filename_w, NULL, LOAD_LIBRARY_AS_DATAFILE);
             } else {
                 char *module_name = sentry__string_from_wstr(module.szModule);
-                SENTRY_ERRORF(
-                    "Failed to get module filename for %s", module_name);
-                sentry_free(module_name);
+                if (module_name) {
+                    SENTRY_ERRORF(
+                        "Failed to get module filename for %s", module_name);
+                    sentry_free(module_name);
+                }
                 continue;
             }
             if (!module_handle) {
