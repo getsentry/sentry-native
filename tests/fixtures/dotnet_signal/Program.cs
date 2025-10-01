@@ -51,13 +51,16 @@ class Program
             {
                 Console.WriteLine("dereference a NULL object from managed code");
                 var s = default(string);
-                var c = s.Length;
+                var c = s!.Length;
             }
-            catch (NullReferenceException exception)
+            catch (NullReferenceException)
             {
-                Console.WriteLine("dereference another NULL object from managed code");
-                var s = default(string);
-                var c = s.Length;
+                if (args is ["managed-exception"])
+                {
+                    Console.WriteLine("dereference another NULL object from managed code");
+                    var s = default(string);
+                    var c = s!.Length;
+                }
             }
         }
     }
