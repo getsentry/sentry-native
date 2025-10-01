@@ -7,7 +7,7 @@
 #include <dbghelp.h>
 #include <malloc.h>
 
-// follow the maximum path length documented here: 
+// follow the maximum path length documented here:
 // https://learn.microsoft.com/en-us/windows/win32/fileio/maximum-file-path-limitation
 #define MAX_PATH_BUFFER_SIZE 32768
 
@@ -39,8 +39,8 @@ sentry__symbolize(
     if (!mod_path_w) {
         return false;
     }
-    const DWORD n = GetModuleFileNameW(
-        (HMODULE)(uintptr_t)symbol_info->ModBase, mod_path_w, MAX_PATH_BUFFER_SIZE);
+    const DWORD n = GetModuleFileNameW((HMODULE)(uintptr_t)symbol_info->ModBase,
+        mod_path_w, MAX_PATH_BUFFER_SIZE);
     if (n == 0 || n >= MAX_PATH_BUFFER_SIZE) {
         sentry_free(mod_path_w);
         return false;

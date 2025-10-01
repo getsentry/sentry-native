@@ -17,7 +17,7 @@ static sentry_value_t g_modules = { 0 };
 
 #define CV_SIGNATURE 0x53445352
 
-// follow the maximum path length documented here: 
+// follow the maximum path length documented here:
 // https://learn.microsoft.com/en-us/windows/win32/fileio/maximum-file-path-limitation
 #define MAX_PATH_BUFFER_SIZE 32768
 
@@ -136,7 +136,9 @@ load_modules(void)
     g_modules = sentry_value_new_list();
     wchar_t *module_filename_w = NULL;
 
-    if (Module32FirstW(snapshot, &module) && (module_filename_w = sentry_malloc(sizeof(wchar_t) * MAX_PATH_BUFFER_SIZE))) {
+    if (Module32FirstW(snapshot, &module)
+        && (module_filename_w
+            = sentry_malloc(sizeof(wchar_t) * MAX_PATH_BUFFER_SIZE))) {
         do {
             HMODULE module_handle = NULL;
             if (GetModuleFileNameExW(GetCurrentProcess(), module.hModule,
