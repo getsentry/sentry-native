@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1758644740407,
+  "lastUpdate": 1759324601691,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -5926,6 +5926,66 @@ window.BENCHMARK_DATA = {
             "value": 1.9207209999763108,
             "unit": "ms",
             "extra": "Min 1.835ms\nMax 1.947ms\nMean 1.897ms\nStdDev 0.047ms\nMedian 1.921ms\nCPU 0.599ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "6349682+vaind@users.noreply.github.com",
+            "name": "Ivan Dlugos",
+            "username": "vaind"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "f2eaa5ea85181022e354e76e8accaafb9654e619",
+          "message": "test: Fix test failures when session tracking is enabled (#1393)\n\n* fix(logs): Fix test failures when session tracking is enabled\n\nThis commit fixes 3 test failures in test_logs.c that occur when\nauto-session tracking is enabled (the default):\n- basic_logging_functionality\n- formatted_log_messages\n- logs_disabled_by_default\n\nRoot causes and fixes:\n\n1. validate_logs_envelope counted all envelopes but only validated logs\n   - Session envelopes from sentry_close() were triggering assertions\n   - Fixed by filtering: only count/validate log envelopes, skip others\n\n2. formatted_log_messages didn't wait for batching thread to start\n   - Added sleep_ms(20) after sentry_init() to match other tests\n\n3. batching_stop flag wasn't reset between sentry_init() calls\n   - Once set to 1 during shutdown, subsequent startups would fail\n   - Fixed by resetting to 0 in sentry__logs_startup()\n\nThese issues were discovered in console SDK testing where session\ntracking is enabled by default and tests run sequentially in a single\nprocess.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\n\n* fix(logs): Eliminate thread startup race with enum state machine\n\nThis commit eliminates the thread startup race condition by:\n\n1. Replacing batching_stop with enum-based thread_state\n   - SENTRY_LOGS_THREAD_STOPPED (0): Not running\n   - SENTRY_LOGS_THREAD_RUNNING (1): Thread active and processing logs\n   - Improves code clarity and makes thread lifecycle explicit\n\n2. Thread signals RUNNING state after initialization\n   - Batching thread sets state to RUNNING after mutex setup\n   - Provides deterministic indication that thread is ready\n\n3. Adding test-only helper: sentry__logs_wait_for_thread_startup()\n   - Polls thread_state until RUNNING (max 1 second)\n   - Zero production overhead (only compiled with SENTRY_UNITTEST)\n   - Tests explicitly wait for thread readiness instead of arbitrary sleeps\n\n4. Updating shutdown to use atomic state transition\n   - Atomically transitions from RUNNING to STOPPED\n   - Detects double shutdown or never-started cases\n   - Returns early if thread wasn't running\n\nBenefits:\n- Eliminates race where logs could be enqueued before thread starts\n- Tests are deterministic (no arbitrary timing assumptions)\n- Code is clearer with explicit state names\n- No production overhead (test helper is ifdef'd out)\n\nThe one remaining sleep in basic_logging_functionality test is intentional\n- it tests batch timing behavior (wait for buffer flush).\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\n\n* fix(logs): Fix thread lifecycle race condition causing memory leaks\n\nThis commit fixes a race condition in the logs batching thread lifecycle\nthat caused valgrind to report 336 byte memory leaks in CI tests.\n\n## Problem\n\nWhen `sentry__logs_shutdown()` ran before the batching thread transitioned\nfrom initial state to RUNNING, the two-state model couldn't distinguish\nbetween \"never started\" and \"starting but not yet running\", causing\nshutdown to skip joining the thread.\n\n## Solution\n\n1. Added three-state lifecycle enum:\n   - STOPPED (0): Thread never started or shut down\n   - STARTING (1): Thread spawned but not yet initialized\n   - RUNNING (2): Thread active and processing logs\n\n2. Added `sentry__atomic_compare_swap()` primitive for atomic state\n   verification (cross-platform: Windows InterlockedCompareExchange,\n   POSIX __atomic_compare_exchange_n)\n\n3. Startup sets state to STARTING before spawning thread\n\n4. Thread uses CAS to verify STARTING → RUNNING transition\n   - If CAS fails (shutdown already set to STOPPED), exits cleanly\n   - Guarantees thread only runs if it successfully transitioned\n\n5. Shutdown always joins thread if old state != STOPPED\n\n## Benefits\n\n- Eliminates race condition where shutdown could miss a spawned thread\n- Thread explicitly verifies state transition with CAS\n- No memory leaks in any shutdown scenario\n- All 212 unit tests pass\n- All log integration tests pass\n\nFixes test failures:\n- test_before_send_log\n- test_before_send_log_discard\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\n\n* docs(logs): Address code review comments with clarifying documentation\n\nAddresses bot review feedback by adding documentation without changing behavior:\n\n1. **CAS memory ordering**: Added comment explaining sequential consistency\n   usage for thread state transitions and why it's appropriate for\n   synchronization\n\n2. **Condition variable cleanup**: Added note explaining that static storage\n   condition variables don't require explicit cleanup on POSIX and Windows\n\n3. **CAS function documentation**: Enhanced docstring to document memory\n   ordering guarantees and note that ABA problem isn't a concern for simple\n   integer state machines\n\n4. **Shutdown race handling**: Added comment explaining how the atomic CAS\n   in the thread prevents the race when shutdown occurs during STARTING state\n\nAll changes are documentation/comments only - no behavior changes.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\n\n* Update src/sentry_logs.c\n\nCo-authored-by: JoshuaMoelans <60878493+JoshuaMoelans@users.noreply.github.com>\n\n---------\n\nCo-authored-by: Claude <noreply@anthropic.com>\nCo-authored-by: JoshuaMoelans <60878493+JoshuaMoelans@users.noreply.github.com>",
+          "timestamp": "2025-10-01T15:13:00+02:00",
+          "tree_id": "79d54543a6ba3238fb5ed3d695de389139eeaa37",
+          "url": "https://github.com/getsentry/sentry-native/commit/f2eaa5ea85181022e354e76e8accaafb9654e619"
+        },
+        "date": 1759324600916,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 0.7598669999993035,
+            "unit": "ms",
+            "extra": "Min 0.744ms\nMax 0.802ms\nMean 0.766ms\nStdDev 0.025ms\nMedian 0.760ms\nCPU 0.765ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.7296910000036405,
+            "unit": "ms",
+            "extra": "Min 0.717ms\nMax 0.735ms\nMean 0.729ms\nStdDev 0.007ms\nMedian 0.730ms\nCPU 0.728ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 2.9144119999955365,
+            "unit": "ms",
+            "extra": "Min 2.863ms\nMax 2.942ms\nMean 2.910ms\nStdDev 0.031ms\nMedian 2.914ms\nCPU 1.543ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.012422999986938521,
+            "unit": "ms",
+            "extra": "Min 0.012ms\nMax 0.013ms\nMean 0.012ms\nStdDev 0.000ms\nMedian 0.012ms\nCPU 0.012ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.026619999971444486,
+            "unit": "ms",
+            "extra": "Min 0.026ms\nMax 0.027ms\nMean 0.027ms\nStdDev 0.000ms\nMedian 0.027ms\nCPU 0.026ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 1.8261629999756224,
+            "unit": "ms",
+            "extra": "Min 1.757ms\nMax 1.870ms\nMean 1.818ms\nStdDev 0.046ms\nMedian 1.826ms\nCPU 0.570ms"
           }
         ]
       }
