@@ -106,9 +106,9 @@ def assert_event_meta(
     }
     expected_sdk = {
         "name": "sentry.native",
-        "version": "0.11.1",
+        "version": "0.11.2",
         "packages": [
-            {"name": "github:getsentry/sentry-native", "version": "0.11.1"},
+            {"name": "github:getsentry/sentry-native", "version": "0.11.2"},
         ],
     }
     if is_android:
