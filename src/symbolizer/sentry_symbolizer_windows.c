@@ -7,6 +7,10 @@
 #include <dbghelp.h>
 #include <malloc.h>
 
+// follow the maximum path length documented here: 
+// https://learn.microsoft.com/en-us/windows/win32/fileio/maximum-file-path-limitation
+#define MAX_PATH_BUFFER_SIZE 32768
+
 bool
 sentry__symbolize(
     void *addr, void (*func)(const sentry_frame_info_t *, void *), void *data)
@@ -31,10 +35,14 @@ sentry__symbolize(
         return false;
     }
 
-    WCHAR mod_path_w[MAX_PATH];
+    wchar_t *mod_path_w = sentry_malloc(sizeof(wchar_t) * MAX_PATH_BUFFER_SIZE);
+    if (!mod_path_w) {
+        return false;
+    }
     const DWORD n = GetModuleFileNameW(
-        (HMODULE)(uintptr_t)symbol_info->ModBase, mod_path_w, MAX_PATH);
-    if (n == 0 || n >= MAX_PATH) {
+        (HMODULE)(uintptr_t)symbol_info->ModBase, mod_path_w, MAX_PATH_BUFFER_SIZE);
+    if (n == 0 || n >= MAX_PATH_BUFFER_SIZE) {
+        sentry_free(mod_path_w);
         return false;
     }
 
@@ -51,6 +59,7 @@ sentry__symbolize(
 
     sentry_free(mod_path);
     sentry_free(symbol_name);
+    sentry_free(mod_path_w);
 #endif // SENTRY_PLATFORM_XBOX
 
     return true;
