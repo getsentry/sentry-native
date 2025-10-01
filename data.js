@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1759338512469,
+  "lastUpdate": 1759338609492,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -18022,6 +18022,66 @@ window.BENCHMARK_DATA = {
             "value": 19.66909999998734,
             "unit": "ms",
             "extra": "Min 18.964ms\nMax 57.091ms\nMean 27.102ms\nStdDev 16.771ms\nMedian 19.669ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "mischan@abovevacant.com",
+            "name": "Mischan Toosarani-Hausberger",
+            "username": "supervacuus"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "1af38cceda2e71faaf1f9c863b7bfd4ed547edcc",
+          "message": "fix(win): make symbolication and modulefinder independent of the system ANSI code page. (#1389)\n\n* fix(win): make symbolication independent of the system ANSI code page.\n\n* allow `NULL` module paths and symbol names.\n\n* add an integration test that runs the example from a cyrillic directory and validates the package paths\n\n* resolve relative paths + clean up subdir\n\n* remove the assertion that a frame must have a function\n\n* only assert on the frame_package being a file if it exists...\n\n...however, no longer assert that a frame_package exists.\n\n* isolate package assertions to new test\n\n* don't conflate checking any function/package with checking package file validity\n\n* also adapt the windows modulefinder to be independent system ACP.\n\nThe szExePath generated for actual UTF-8 paths was already filled with mojibake :-) so LoadLibrary couldn't find any local modules.\n\nThis is actually connected to the symbolication:\n\n* in the server, if a module was found, the backend would assign packages to frames based on the instruction address and the module address range\n* if the module couldn't be found, as was the case previously, it had to use the frame package provided\n\nSo, now we fixed both and they should overlap.\n\n* update the CHANGELOG\n\n* explicitly specify `PSAPI_VERSION` because we only want to link kernel32\n\n* check string_from_wstr return values\n\n* use a heap-allocated 32K buffer for module paths\n\n* use a heap-allocated 32K buffer for symbol paths\n\n* move allocation into wrapping if\n\n* format after webui edit",
+          "timestamp": "2025-10-01T19:05:53+02:00",
+          "tree_id": "af39dce154179b27fe43ba8a47078e2d30a43ffa",
+          "url": "https://github.com/getsentry/sentry-native/commit/1af38cceda2e71faaf1f9c863b7bfd4ed547edcc"
+        },
+        "date": 1759338605269,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 10.571900000002188,
+            "unit": "ms",
+            "extra": "Min 9.237ms\nMax 11.965ms\nMean 10.519ms\nStdDev 1.232ms\nMedian 10.572ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 9.648599999991347,
+            "unit": "ms",
+            "extra": "Min 9.342ms\nMax 12.447ms\nMean 10.153ms\nStdDev 1.301ms\nMedian 9.649ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 24.293699999986984,
+            "unit": "ms",
+            "extra": "Min 23.501ms\nMax 30.888ms\nMean 25.599ms\nStdDev 3.083ms\nMedian 24.294ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.01150000002780871,
+            "unit": "ms",
+            "extra": "Min 0.011ms\nMax 0.012ms\nMean 0.012ms\nStdDev 0.000ms\nMedian 0.012ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.42350000001079025,
+            "unit": "ms",
+            "extra": "Min 0.382ms\nMax 0.473ms\nMean 0.420ms\nStdDev 0.035ms\nMedian 0.424ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 13.288199999976769,
+            "unit": "ms",
+            "extra": "Min 13.029ms\nMax 13.648ms\nMean 13.265ms\nStdDev 0.255ms\nMedian 13.288ms"
           }
         ]
       }
