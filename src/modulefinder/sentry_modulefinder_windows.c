@@ -17,6 +17,10 @@ static sentry_value_t g_modules = { 0 };
 
 #define CV_SIGNATURE 0x53445352
 
+// follow the maximum path length documented here: 
+// https://learn.microsoft.com/en-us/windows/win32/fileio/maximum-file-path-limitation
+#define MAX_PATH_BUFFER_SIZE 32768
+
 struct CodeViewRecord70 {
     uint32_t signature;
     GUID pdb_signature;
@@ -132,11 +136,12 @@ load_modules(void)
     g_modules = sentry_value_new_list();
 
     if (Module32FirstW(snapshot, &module)) {
+        wchar_t *module_filename_w = sentry_malloc(sizeof(wchar_t) * MAX_PATH_BUFFER_SIZE);
+        
         do {
-            wchar_t module_filename_w[MAX_PATH];
             HMODULE module_handle = NULL;
             if (GetModuleFileNameExW(GetCurrentProcess(), module.hModule,
-                    module_filename_w, MAX_PATH)) {
+                    module_filename_w, MAX_PATH_BUFFER_SIZE)) {
                 module_handle = LoadLibraryExW(
                     module_filename_w, NULL, LOAD_LIBRARY_AS_DATAFILE);
             } else {
@@ -171,6 +176,8 @@ load_modules(void)
             }
             FreeLibrary(module_handle);
         } while (Module32NextW(snapshot, &module));
+
+        sentry_free(module_filename_w);
     }
 
     CloseHandle(snapshot);
