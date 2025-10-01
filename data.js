@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1759338609492,
+  "lastUpdate": 1759338649131,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -12034,6 +12034,66 @@ window.BENCHMARK_DATA = {
             "value": 17.579915999988316,
             "unit": "ms",
             "extra": "Min 9.855ms\nMax 27.905ms\nMean 17.572ms\nStdDev 6.879ms\nMedian 17.580ms\nCPU 1.446ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "mischan@abovevacant.com",
+            "name": "Mischan Toosarani-Hausberger",
+            "username": "supervacuus"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "1af38cceda2e71faaf1f9c863b7bfd4ed547edcc",
+          "message": "fix(win): make symbolication and modulefinder independent of the system ANSI code page. (#1389)\n\n* fix(win): make symbolication independent of the system ANSI code page.\n\n* allow `NULL` module paths and symbol names.\n\n* add an integration test that runs the example from a cyrillic directory and validates the package paths\n\n* resolve relative paths + clean up subdir\n\n* remove the assertion that a frame must have a function\n\n* only assert on the frame_package being a file if it exists...\n\n...however, no longer assert that a frame_package exists.\n\n* isolate package assertions to new test\n\n* don't conflate checking any function/package with checking package file validity\n\n* also adapt the windows modulefinder to be independent system ACP.\n\nThe szExePath generated for actual UTF-8 paths was already filled with mojibake :-) so LoadLibrary couldn't find any local modules.\n\nThis is actually connected to the symbolication:\n\n* in the server, if a module was found, the backend would assign packages to frames based on the instruction address and the module address range\n* if the module couldn't be found, as was the case previously, it had to use the frame package provided\n\nSo, now we fixed both and they should overlap.\n\n* update the CHANGELOG\n\n* explicitly specify `PSAPI_VERSION` because we only want to link kernel32\n\n* check string_from_wstr return values\n\n* use a heap-allocated 32K buffer for module paths\n\n* use a heap-allocated 32K buffer for symbol paths\n\n* move allocation into wrapping if\n\n* format after webui edit",
+          "timestamp": "2025-10-01T19:05:53+02:00",
+          "tree_id": "af39dce154179b27fe43ba8a47078e2d30a43ffa",
+          "url": "https://github.com/getsentry/sentry-native/commit/1af38cceda2e71faaf1f9c863b7bfd4ed547edcc"
+        },
+        "date": 1759338647314,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 7.751084000005903,
+            "unit": "ms",
+            "extra": "Min 3.965ms\nMax 16.732ms\nMean 8.744ms\nStdDev 4.758ms\nMedian 7.751ms\nCPU 3.527ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 8.534041000018533,
+            "unit": "ms",
+            "extra": "Min 4.298ms\nMax 9.837ms\nMean 7.495ms\nStdDev 2.317ms\nMedian 8.534ms\nCPU 4.362ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 14.713874999984,
+            "unit": "ms",
+            "extra": "Min 12.265ms\nMax 18.701ms\nMean 15.627ms\nStdDev 2.684ms\nMedian 14.714ms\nCPU 4.435ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.030541999990418844,
+            "unit": "ms",
+            "extra": "Min 0.022ms\nMax 0.046ms\nMean 0.031ms\nStdDev 0.009ms\nMedian 0.031ms\nCPU 0.031ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.31033300001581665,
+            "unit": "ms",
+            "extra": "Min 0.274ms\nMax 0.618ms\nMean 0.405ms\nStdDev 0.160ms\nMedian 0.310ms\nCPU 0.392ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 9.509124999908636,
+            "unit": "ms",
+            "extra": "Min 7.213ms\nMax 21.565ms\nMean 11.389ms\nStdDev 5.770ms\nMedian 9.509ms\nCPU 0.985ms"
           }
         ]
       }
