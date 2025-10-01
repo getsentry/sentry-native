@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Fixes**:
+
+- Windows: Make symbolication and the modulefinder independent of the system ANSI code page. ([#1389](https://github.com/getsentry/sentry-native/pull/1389))
+
 ## 0.11.1
 
 **Features**:
