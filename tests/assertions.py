@@ -50,6 +50,7 @@ def assert_user_feedback(envelope):
     assert user_feedback is not None
     assert user_feedback["name"] == "some-name"
     assert user_feedback["contact_email"] == "some-email"
+    assert user_feedback["message"] == "some-message"
 
 
 def assert_gpu_context(event, should_have_gpu=None):
