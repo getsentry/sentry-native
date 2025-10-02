@@ -502,7 +502,7 @@ static
  * This function assumes that `value` is owned, so we have to make sure that the
  * `value` was created or cloned by the caller or even better inc_refed.
  *
- * Replaces attribute[name] if it already exists
+ * Replaces attributes[name] if it already exists.
  */
 static void
 add_attribute(sentry_value_t attributes, sentry_value_t value, const char *type,
