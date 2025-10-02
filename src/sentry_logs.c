@@ -608,10 +608,11 @@ add_scope_and_options_data(sentry_value_t log, sentry_value_t attributes)
             add_attribute(attributes, sentry_value_new_string(options->release),
                 "string", "sentry.release");
         }
+        add_attribute(attributes,
+            sentry_value_new_string(sentry_options_get_sdk_name(options)),
+            "string", "sentry.sdk.name");
     }
 
-    add_attribute(attributes, sentry_value_new_string(sentry_sdk_name()),
-        "string", "sentry.sdk.name");
     add_attribute(attributes, sentry_value_new_string(sentry_sdk_version()),
         "string", "sentry.sdk.version");
 }
