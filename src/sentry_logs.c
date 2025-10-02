@@ -610,7 +610,7 @@ add_scope_and_options_data(sentry_value_t log, sentry_value_t attributes)
         }
     }
 
-    add_attribute(attributes, sentry_value_new_string("sentry.native"),
+    add_attribute(attributes, sentry_value_new_string(sentry_sdk_name()),
         "string", "sentry.sdk.name");
     add_attribute(attributes, sentry_value_new_string(sentry_sdk_version()),
         "string", "sentry.sdk.version");
