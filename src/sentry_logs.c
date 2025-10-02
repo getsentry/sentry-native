@@ -501,11 +501,17 @@ static
 /**
  * This function assumes that `value` is owned, so we have to make sure that the
  * `value` was created or cloned by the caller or even better inc_refed.
+ *
+ * Replaces attributes[name] if it already exists.
  */
 static void
 add_attribute(sentry_value_t attributes, sentry_value_t value, const char *type,
     const char *name)
 {
+    if (!sentry_value_is_null(sentry_value_get_by_key(attributes, name))) {
+        // already exists, so we remove and create a new one
+        sentry_value_remove_by_key(attributes, name);
+    }
     sentry_value_t param_obj = sentry_value_new_object();
     sentry_value_set_by_key(param_obj, "value", value);
     sentry_value_set_by_key(param_obj, "type", sentry_value_new_string(type));
@@ -598,6 +604,10 @@ add_scope_and_options_data(sentry_value_t log, sentry_value_t attributes)
         }
     }
 
+    // fallback in case options doesn't set it
+    add_attribute(attributes, sentry_value_new_string(SENTRY_SDK_NAME),
+        "string", "sentry.sdk.name");
+
     SENTRY_WITH_OPTIONS (options) {
         if (options->environment) {
             add_attribute(attributes,
@@ -608,10 +618,11 @@ add_scope_and_options_data(sentry_value_t log, sentry_value_t attributes)
             add_attribute(attributes, sentry_value_new_string(options->release),
                 "string", "sentry.release");
         }
+        add_attribute(attributes,
+            sentry_value_new_string(sentry_options_get_sdk_name(options)),
+            "string", "sentry.sdk.name");
     }
 
-    add_attribute(attributes, sentry_value_new_string("sentry.native"),
-        "string", "sentry.sdk.name");
     add_attribute(attributes, sentry_value_new_string(sentry_sdk_version()),
         "string", "sentry.sdk.version");
 }
