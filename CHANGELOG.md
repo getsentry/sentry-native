@@ -4,7 +4,7 @@
 
 **Fixes**:
 
-- Use proper `SENTRY_SDK_NAME` for structured logs `sdk.name` attribute. ([#1399](https://github.com/getsentry/sentry-native/pull/1399))
+- Use proper SDK name determination for structured logs `sdk.name` attribute. ([#1399](https://github.com/getsentry/sentry-native/pull/1399))
 
 ## 0.11.2
 
