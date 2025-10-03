@@ -362,12 +362,6 @@ sentry_transaction_context_update_from_header_n(
 
             // Extract flags (2 hex chars)
             const char *flags_start = value + 53;
-            if (value_len < 55) {
-                SENTRY_WARN("invalid traceparent format: missing flags");
-                sentry_free(trace_id_str);
-                sentry_free(span_id_str);
-                return;
-            }
 
             // Parse sampled flag from the last bit of flags
             char flags_str[3] = { flags_start[0], flags_start[1], '\0' };
