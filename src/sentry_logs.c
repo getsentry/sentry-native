@@ -826,7 +826,8 @@ sentry__logs_shutdown(uint64_t timeout)
     sentry__cond_wake(&g_logs_state.request_flush);
 
     // Always join the thread to avoid leaks
-    sentry__thread_join(g_logs_state.batching_thread);
+    // TODO can we disable this when calling shutdown from a crashing app
+    // sentry__thread_join(g_logs_state.batching_thread);
 
     // Perform final flush to ensure any remaining logs are sent
     flush_logs_queue();
@@ -834,6 +835,31 @@ sentry__logs_shutdown(uint64_t timeout)
     sentry__thread_free(&g_logs_state.batching_thread);
 
     SENTRY_DEBUG("logs system shutdown complete");
+}
+
+void
+sentry__logs_flush_crash_safe(void)
+{
+    SENTRY_DEBUG("crash-safe logs flush");
+
+    // Check if logs system is initialized
+    const long state = sentry__atomic_fetch(&g_logs_state.thread_state);
+    if (state == SENTRY_LOGS_THREAD_STOPPED) {
+        SENTRY_DEBUG("logs thread not running, skipping crash-safe flush");
+        return;
+    }
+
+    // Signal the thread to stop (but don't wait for it)
+    sentry__atomic_store(
+        &g_logs_state.thread_state, (long)SENTRY_LOGS_THREAD_STOPPED);
+    sentry__cond_wake(&g_logs_state.request_flush);
+
+    // Perform direct flush without thread synchronization
+    // This is safe because we're in a crash scenario and the main thread
+    // is likely dead or dying anyway
+    flush_logs_queue();
+
+    SENTRY_DEBUG("crash-safe logs flush complete");
 }
 
 #ifdef SENTRY_UNITTEST

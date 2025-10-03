@@ -22,6 +22,7 @@ from .assertions import (
     assert_crashpad_upload,
     assert_session,
     assert_gzip_file_header,
+    assert_logs,
 )
 
 pytestmark = pytest.mark.skipif(
@@ -562,6 +563,48 @@ def test_crashpad_dump_inflight(cmake, httpserver):
 
     # we trigger 10 normal events, and 1 crash
     assert len(httpserver.log) >= 11
+
+
+def test_crashpad_logs_on_crash(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "crashpad"})
+
+    # make sure we are isolated from previous runs
+    shutil.rmtree(tmp_path / ".sentry-native", ignore_errors=True)
+
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+    httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data("OK")
+    httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
+
+    with httpserver.wait(timeout=10) as waiting:
+        child = run(
+            tmp_path,
+            "sentry_example",
+            ["log", "enable-logs", "capture-log", "crash"],
+            env=env,
+        )
+        assert child.returncode  # well, it's a crash after all
+
+    assert waiting.result
+
+    run(tmp_path, "sentry_example", ["log", "no-setup"], check=True, env=env)
+
+    # we expect 1 envelope with the log, and 1 for the crash
+    assert len(httpserver.log) == 2
+
+    # Find the logs envelope
+    logs_envelope = None
+    for req in httpserver.log:
+        body = req[0].get_data()
+        envelope = Envelope.deserialize(body)
+        for item in envelope.items:
+            if item.headers.get("type") == "log":
+                logs_envelope = envelope
+                break
+        if logs_envelope:
+            break
+
+    assert logs_envelope is not None
+    assert_logs(logs_envelope, 1)
 
 
 def test_disable_backend(cmake, httpserver):

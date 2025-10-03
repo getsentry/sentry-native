@@ -1534,3 +1534,113 @@ def test_before_send_log_discard(cmake, httpserver):
 
     # log should have been discarded
     assert len(httpserver.log) == 0
+
+
+def test_logs_on_crash(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+
+    httpserver.expect_oneshot_request(
+        "/api/123456/envelope/",
+        headers={"x-sentry-auth": auth_header},
+    ).respond_with_data("OK")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_RELEASE="🤮🚀")
+
+    child = run(
+        tmp_path,
+        "sentry_example",
+        ["log", "enable-logs", "capture-log", "crash"],
+        env=env,
+    )
+    assert child.returncode  # well, it's a crash after all
+
+    # log should have been discarded since we have no backend to hook into the crash
+    assert len(httpserver.log) == 0
+
+
+def test_inproc_logs_on_crash(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "inproc"})
+
+    httpserver.expect_request(
+        "/api/123456/envelope/",
+        headers={"x-sentry-auth": auth_header},
+    ).respond_with_data("OK")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    child = run(
+        tmp_path,
+        "sentry_example",
+        ["log", "enable-logs", "capture-log", "crash"],
+        env=env,
+    )
+    assert child.returncode  # well, it's a crash after all
+
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "no-setup"],
+        check=True,
+        env=env,
+    )
+
+    # we expect 1 envelope with the log, and 1 for the crash
+    assert len(httpserver.log) == 2
+
+    # Find the logs envelope
+    logs_envelope = None
+    for req in httpserver.log:
+        body = req[0].get_data()
+        envelope = Envelope.deserialize(body)
+        for item in envelope.items:
+            if item.headers.get("type") == "log":
+                logs_envelope = envelope
+                break
+        if logs_envelope:
+            break
+
+    assert logs_envelope is not None
+    assert_logs(logs_envelope, 1)
+
+
+@pytest.mark.skipif(not has_breakpad, reason="test needs breakpad backend")
+def test_breakpad_logs_on_crash(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "breakpad"})
+
+    httpserver.expect_request(
+        "/api/123456/envelope/",
+        headers={"x-sentry-auth": auth_header},
+    ).respond_with_data("OK")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    child = run(
+        tmp_path,
+        "sentry_example",
+        ["log", "enable-logs", "capture-log", "crash"],
+        env=env,
+    )
+    assert child.returncode  # well, it's a crash after all
+
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "no-setup"],
+        check=True,
+        env=env,
+    )
+
+    # we expect 1 envelope with the log, and 1 for the crash
+    assert len(httpserver.log) == 2
+
+    # Find the logs envelope
+    logs_envelope = None
+    for req in httpserver.log:
+        body = req[0].get_data()
+        envelope = Envelope.deserialize(body)
+        for item in envelope.items:
+            if item.headers.get("type") == "log":
+                logs_envelope = envelope
+                break
+        if logs_envelope:
+            break
+
+    assert logs_envelope is not None
+    assert_logs(logs_envelope, 1)
