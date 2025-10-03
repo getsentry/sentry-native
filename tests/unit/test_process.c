@@ -7,7 +7,7 @@
 #    define sleep_ms(MILLISECONDS) Sleep(MILLISECONDS)
 #else
 #    include <unistd.h>
-#    define sleep_ms(SECONDS) usleep(SECONDS * 1000)
+#    define sleep_ms(MILLISECONDS) usleep(MILLISECONDS * 1000)
 #endif
 
 // merely tests that it doesn't crash with invalid arguments

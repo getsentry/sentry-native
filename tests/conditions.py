@@ -23,9 +23,14 @@ has_breakpad = (
     and not is_android
     and not (is_asan and sys.platform == "darwin")
 )
-# crashpad requires http, needs porting to AIX, and doesn’t work with kcov/valgrind either
+# crashpad requires http, needs porting to AIX, and doesn’t work with kcov/valgrind/tsan either
 has_crashpad = (
-    has_http and not is_valgrind and not is_kcov and not is_android and not is_aix
+    has_http
+    and not is_valgrind
+    and not is_kcov
+    and not is_android
+    and not is_aix
+    and not is_tsan
 )
 # android has no local filesystem
 has_files = not is_android

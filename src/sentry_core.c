@@ -8,6 +8,7 @@
 #include "sentry_core.h"
 #include "sentry_database.h"
 #include "sentry_envelope.h"
+#include "sentry_logs.h"
 #include "sentry_options.h"
 #include "sentry_path.h"
 #include "sentry_process.h"
@@ -18,6 +19,7 @@
 #include "sentry_sync.h"
 #include "sentry_tracing.h"
 #include "sentry_transport.h"
+#include "sentry_tsan.h"
 #include "sentry_uuid.h"
 #include "sentry_value.h"
 #include "transports/sentry_disk_transport.h"
@@ -167,6 +169,7 @@ sentry_init(sentry_options_t *options)
     sentry_close();
 
     sentry_logger_t logger = { NULL, NULL, SENTRY_LEVEL_DEBUG };
+
     if (options->debug) {
         logger = options->logger;
     }
@@ -289,6 +292,10 @@ sentry_init(sentry_options_t *options)
         sentry_start_session();
     }
 
+    if (options->enable_logs) {
+        sentry__logs_startup();
+    }
+
     sentry__mutex_unlock(&g_options_lock);
     return 0;
 
@@ -315,6 +322,15 @@ sentry_flush(uint64_t timeout)
 int
 sentry_close(void)
 {
+    // Shutdown logs system before locking options to ensure logs are flushed.
+    // This prevents a potential deadlock on the options during log envelope
+    // creation.
+    SENTRY_WITH_OPTIONS (options) {
+        if (options->enable_logs) {
+            sentry__logs_shutdown(options->shutdown_timeout);
+        }
+    }
+
     SENTRY__MUTEX_INIT_DYN_ONCE(g_options_lock);
     // this function is to be called only once, so we do not allow more than one
     // caller
@@ -537,14 +553,28 @@ sentry__capture_event(sentry_value_t event, sentry_scope_t *local_scope)
                 options, event, &event_id, true, local_scope);
         }
         if (envelope) {
-            if (options->session) {
+            // Accept a racy read here, since SENTRY_WITH_OPTIONS only prevents
+            // the options from being deallocated while we use them, but no lock
+            // is active and session could change during session shutdown.
+            // We recheck below inside the lock and don't pay for a lock here.
+            // This also means we accept a missed window of opportunity if an
+            // event is being sent concurrently to session initialization, which
+            // is an acceptable design trade-off.
+            SENTRY_TSAN_IGNORE_READS_BEGIN();
+            bool has_session = options->session;
+            SENTRY_TSAN_IGNORE_READS_END();
+            if (has_session) {
                 sentry_options_t *mut_options = sentry__options_lock();
-                sentry__envelope_add_session(envelope, mut_options->session);
-                // we're assuming that if a session is added to an envelope
-                // it will be sent onwards.  This means we now need to set
-                // the init flag to false because we're no longer the
-                // initial session update.
-                mut_options->session->init = false;
+                // recheck inside the lock since our previous read is racy.
+                if (mut_options->session) {
+                    sentry__envelope_add_session(
+                        envelope, mut_options->session);
+                    // we're assuming that if a session is added to an envelope
+                    // it will be sent onwards.  This means we now need to set
+                    // the init flag to false because we're no longer in the
+                    // initial session update.
+                    mut_options->session->init = false;
+                }
                 sentry__options_unlock();
             }
 
@@ -589,7 +619,8 @@ static
                     sampling_ctx->transaction_context,
                     sampling_ctx->custom_sampling_context,
                     sampling_ctx->parent_sampled == NULL ? NULL
-                                                         : &parent_sampled_int);
+                                                         : &parent_sampled_int,
+                    options->traces_sampler_data);
             send = sampling_ctx->sample_rand < result;
         } else {
             if (sampling_ctx->parent_sampled != NULL) {

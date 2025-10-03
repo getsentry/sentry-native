@@ -50,6 +50,7 @@ sentry_options_new(void)
     opts->system_crash_reporter_enabled = false;
     opts->attach_screenshot = false;
     opts->crashpad_wait_for_upload = false;
+    opts->enable_logging_when_crashed = true;
     opts->symbolize_stacktraces =
     // AIX doesn't have reliable debug IDs for server-side symbolication,
     // and the diversity of Android makes it infeasible to have access to debug
@@ -152,6 +153,14 @@ sentry_options_set_before_transaction(
 {
     opts->before_transaction_func = func;
     opts->before_transaction_data = user_data;
+}
+
+void
+sentry_options_set_before_send_log(sentry_options_t *opts,
+    sentry_before_send_log_function_t func, void *user_data)
+{
+    opts->before_send_log_func = func;
+    opts->before_send_log_data = user_data;
 }
 
 void
@@ -420,6 +429,12 @@ void
 sentry_options_set_logger_level(sentry_options_t *opts, sentry_level_t level)
 {
     opts->logger.logger_level = level;
+}
+
+void
+sentry_options_set_logger_enabled_when_crashed(sentry_options_t *opts, int val)
+{
+    opts->enable_logging_when_crashed = !!val;
 }
 
 void
@@ -694,10 +709,11 @@ sentry_options_get_traces_sample_rate(sentry_options_t *opts)
 }
 
 void
-sentry_options_set_traces_sampler(
-    sentry_options_t *opts, sentry_traces_sampler_function callback)
+sentry_options_set_traces_sampler(sentry_options_t *opts,
+    sentry_traces_sampler_function callback, void *user_data)
 {
     opts->traces_sampler = callback;
+    opts->traces_sampler_data = user_data;
 }
 
 void
@@ -705,6 +721,18 @@ sentry_options_set_backend(sentry_options_t *opts, sentry_backend_t *backend)
 {
     sentry__backend_free(opts->backend);
     opts->backend = backend;
+}
+
+void
+sentry_options_set_enable_logs(sentry_options_t *opts, int enable_logs)
+{
+    opts->enable_logs = !!enable_logs;
+}
+
+int
+sentry_options_get_enable_logs(const sentry_options_t *opts)
+{
+    return opts->enable_logs;
 }
 
 #ifdef SENTRY_PLATFORM_LINUX

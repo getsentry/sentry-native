@@ -7,6 +7,7 @@ extern "C" {
 #include "sentry_core.h"
 #include "sentry_database.h"
 #include "sentry_envelope.h"
+#include "sentry_logger.h"
 #include "sentry_options.h"
 #ifdef SENTRY_PLATFORM_WINDOWS
 #    include "sentry_os.h"
@@ -74,6 +75,13 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
     void *UNUSED(context), bool succeeded)
 #endif
 {
+    // Disable logging during crash handling if the option is set
+    SENTRY_WITH_OPTIONS (options) {
+        if (!options->enable_logging_when_crashed) {
+            sentry__logger_disable();
+        }
+    }
+
     SENTRY_INFO("entering breakpad minidump callback");
 
     // this is a bit strange, according to docs, `succeeded` should be true when

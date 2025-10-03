@@ -3,8 +3,61 @@
 ## Unreleased
 
 **Features**:
-
 - Add `sentry_options_set_external_crash_reporter_path` to allow specifying an external crash reporter. ([#1303](https://github.com/getsentry/sentry-native/pull/1303))
+
+**Fixes**:
+
+- Use proper SDK name determination for structured logs `sdk.name` attribute. ([#1399](https://github.com/getsentry/sentry-native/pull/1399))
+
+## 0.11.2
+
+**Fixes**:
+
+- Windows: Make symbolication and the modulefinder independent of the system ANSI code page. ([#1389](https://github.com/getsentry/sentry-native/pull/1389))
+
+## 0.11.1
+
+**Features**:
+
+- Add support for structured logs. It is currently experimental, and one can enable it by setting `sentry_options_set_enable_logs`. When enabled, you can capture a log using `sentry_log_info()` (or another log level). Logs can be filtered by setting the `before_send_log` hook. ([#1271](https://github.com/getsentry/sentry-native/pull/1271/))
+
+## 0.11.0
+
+**Breaking changes**:
+
+- Add `user_data` parameter to `traces_sampler`. ([#1346](https://github.com/getsentry/sentry-native/pull/1346))
+
+**Fixes**:
+
+- Include `stddef.h` explicitly in `crashpad` since future `libc++` revisions will stop providing this include transitively. ([#1375](https://github.com/getsentry/sentry-native/pull/1375), [crashpad#132](https://github.com/getsentry/crashpad/pull/132))
+- Fall back on `JWASM` in the _MinGW_ `crashpad` build only if _no_ `CMAKE_ASM_MASM_COMPILER` has been defined. ([#1375](https://github.com/getsentry/sentry-native/pull/1375), [crashpad#133](https://github.com/getsentry/crashpad/pull/133))
+- Prevent `crashpad` from leaking Objective-C ARC compile options into any parent target linkage. ([#1375](https://github.com/getsentry/sentry-native/pull/1375), [crashpad#134](https://github.com/getsentry/crashpad/pull/134))
+- Fixed a TOCTOU race between session init/shutdown and event capture. ([#1377](https://github.com/getsentry/sentry-native/pull/1377))
+- Make the Windows resource generation aware of config-specific output paths for multi-config generators. ([#1383](https://github.com/getsentry/sentry-native/pull/1383))
+- Remove the `ASM` language from the top-level CMake project, as this triggered CMake policy `CMP194` which isn't applicable to the top-level. ([#1384](https://github.com/getsentry/sentry-native/pull/1384))
+
+**Features**:
+
+- Add a configuration to disable logging after a crash has been detected - `sentry_options_set_logger_enabled_when_crashed()`. ([#1371](https://github.com/getsentry/sentry-native/pull/1371))
+
+**Internal**:
+
+- Support downstream Xbox SDK specifying networking initialization mechanism. ([#1359](https://github.com/getsentry/sentry-native/pull/1359))
+- Added `crashpad` support infrastructure for the external crash reporter feature. ([#1375](https://github.com/getsentry/sentry-native/pull/1375), [crashpad#131](https://github.com/getsentry/crashpad/pull/131))
+
+**Docs**:
+
+- Document the CMake 4 requirement on macOS `SDKROOT` due to its empty default for `CMAKE_OSX_SYSROOT` in the `README`. ([#1368](https://github.com/getsentry/sentry-native/pull/1368))
+
+**Thank you**:
+
+- [JanFellner](https://github.com/JanFellner)
+
+## 0.10.1
+
+**Internal**:
+
+- Correctly apply dynamic mutex initialization in unit-tests (fixes running unit-tests in downstream console SDKs). ([#1337](https://github.com/getsentry/sentry-native/pull/1337))
 
 ## 0.10.0
 
@@ -29,7 +82,7 @@
 
 - Marked deprecated functions with `SENTRY_DEPRECATED(msg)`. ([#1308](https://github.com/getsentry/sentry-native/pull/1308))
 
-**Internal:**
+**Internal**:
 
 - Crash events from Crashpad now have `event_id` defined similarly to other backends. This makes it possible to associate feedback at the time of crash. ([#1319](https://github.com/getsentry/sentry-native/pull/1319))
 

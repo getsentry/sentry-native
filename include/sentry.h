@@ -78,7 +78,7 @@ extern "C" {
 #        define SENTRY_SDK_NAME "sentry.native"
 #    endif
 #endif
-#define SENTRY_SDK_VERSION "0.10.0"
+#define SENTRY_SDK_VERSION "0.11.2"
 #define SENTRY_SDK_USER_AGENT SENTRY_SDK_NAME "/" SENTRY_SDK_VERSION
 
 /* marks a function as part of the sentry API */
@@ -434,7 +434,7 @@ SENTRY_API int sentry_value_is_null(sentry_value_t value);
  * Serialize a sentry value to JSON.
  *
  * The string is freshly allocated and must be freed with
- * `sentry_string_free`.
+ * `sentry_free`.
  */
 SENTRY_API char *sentry_value_to_json(sentry_value_t value);
 
@@ -442,6 +442,7 @@ SENTRY_API char *sentry_value_to_json(sentry_value_t value);
  * Sentry levels for events and breadcrumbs.
  */
 typedef enum sentry_level_e {
+    SENTRY_LEVEL_TRACE = -2,
     SENTRY_LEVEL_DEBUG = -1,
     SENTRY_LEVEL_INFO = 0,
     SENTRY_LEVEL_WARNING = 1,
@@ -561,7 +562,7 @@ SENTRY_EXPERIMENTAL_API void sentry_event_add_thread(
  * Serialize a sentry value to msgpack.
  *
  * The string is freshly allocated and must be freed with
- * `sentry_string_free`.  Since msgpack is not zero terminated
+ * `sentry_free`.  Since msgpack is not zero terminated
  * the size is written to the `size_out` parameter.
  */
 SENTRY_EXPERIMENTAL_API char *sentry_value_to_msgpack(
@@ -713,7 +714,7 @@ SENTRY_EXPERIMENTAL_API sentry_value_t sentry_envelope_get_transaction(
 /**
  * Serializes the envelope.
  *
- * The return value needs to be freed with sentry_string_free().
+ * The return value needs to be freed with `sentry_free`.
  */
 SENTRY_API char *sentry_envelope_serialize(
     const sentry_envelope_t *envelope, size_t *size_out);
@@ -1274,6 +1275,15 @@ typedef void (*sentry_logger_function_t)(
  */
 SENTRY_API void sentry_options_set_logger(
     sentry_options_t *opts, sentry_logger_function_t func, void *userdata);
+
+/**
+ * Enables or disables console logging after crash.
+ * When disabled, Sentry will not invoke logger callbacks after crash
+ * has been detected. This can be useful to avoid potential issues during
+ * crash handling that logging might cause. This is enabled by default.
+ */
+SENTRY_API void sentry_options_set_logger_enabled_when_crashed(
+    sentry_options_t *opts, int enabled);
 
 /**
  * Enables or disables automatic session tracking.
@@ -1900,15 +1910,95 @@ struct sentry_transaction_context_s;
 typedef struct sentry_transaction_context_s sentry_transaction_context_t;
 typedef double (*sentry_traces_sampler_function)(
     const sentry_transaction_context_t *transaction_ctx,
-    sentry_value_t custom_sampling_ctx, const int *parent_sampled);
+    sentry_value_t custom_sampling_ctx, const int *parent_sampled,
+    void *user_data);
 
 /**
  * Sets the traces sampler callback. Should be a function that returns a double
  * and takes in a sentry_transaction_context_t pointer, a sentry_value_t for
- * a custom sampling context and an int pointer for the parent sampled flag.
+ * a custom sampling context int pointer for the parent sampled flag and some
+ * optional user_data.
  */
 SENTRY_EXPERIMENTAL_API void sentry_options_set_traces_sampler(
-    sentry_options_t *opts, sentry_traces_sampler_function callback);
+    sentry_options_t *opts, sentry_traces_sampler_function callback,
+    void *user_data);
+
+/**
+ * Enables or disables the structured logging feature.
+ * When disabled, all calls to sentry_logger_X() are no-ops.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_options_set_enable_logs(
+    sentry_options_t *opts, int enable_logs);
+SENTRY_EXPERIMENTAL_API int sentry_options_get_enable_logs(
+    const sentry_options_t *opts);
+
+/**
+ * The potential returns of calling any of the sentry_log_X functions
+ * - Success means a log was enqueued
+ * - Discard means the `before_send_log` function discarded the log
+ * - Failed means the log wasn't enqueued. This happens if the buffers are full
+ * - Disabled means the option `enable_logs` was false.
+ */
+typedef enum {
+    SENTRY_LOG_RETURN_SUCCESS = 0,
+    SENTRY_LOG_RETURN_DISCARD = 1,
+    SENTRY_LOG_RETURN_FAILED = 2,
+    SENTRY_LOG_RETURN_DISABLED = 3
+} log_return_value_t;
+
+/**
+ * Structured logging interface. Minimally blocks the client trying to log,
+ * but is therefore lossy when enqueueing a log fails
+ * (e.g. when both buffers are full).
+ *
+ * Format string restrictions:
+ * Only a subset of printf format specifiers are supported for parameter
+ * extraction. Supported specifiers include:
+ * - %d, %i - signed integers (treated as long long)
+ * - %u, %x, %X, %o - unsigned integers (treated as unsigned long long)
+ * - %f, %F, %e, %E, %g, %G - floating point numbers (treated as double)
+ * - %c - single character
+ * - %s - null-terminated string (null pointers are handled as "(null)")
+ * - %p - pointer value (formatted as hexadecimal string)
+ *
+ * Unsupported format specifiers will consume their corresponding argument
+ * but will be recorded as "(unknown)" in the structured log data.
+ * Length modifiers (h, l, L, z, j, t) are parsed but ignored.
+ *
+ * Because of this, please only use 64-bit types/casts for your arguments.
+ *
+ * Flags, width, and precision specifiers are parsed but currently ignored for
+ * parameter extraction purposes.
+ */
+SENTRY_EXPERIMENTAL_API log_return_value_t sentry_log_trace(
+    const char *message, ...);
+SENTRY_EXPERIMENTAL_API log_return_value_t sentry_log_debug(
+    const char *message, ...);
+SENTRY_EXPERIMENTAL_API log_return_value_t sentry_log_info(
+    const char *message, ...);
+SENTRY_EXPERIMENTAL_API log_return_value_t sentry_log_warn(
+    const char *message, ...);
+SENTRY_EXPERIMENTAL_API log_return_value_t sentry_log_error(
+    const char *message, ...);
+SENTRY_EXPERIMENTAL_API log_return_value_t sentry_log_fatal(
+    const char *message, ...);
+
+/**
+ * Type of the `before_send_log` callback.
+ *
+ * The callback takes ownership of the `log`, and should usually return
+ * that same log. In case the log should be discarded, the
+ * callback needs to call `sentry_value_decref` on the provided log, and
+ * return a `sentry_value_new_null()` instead.
+ */
+typedef sentry_value_t (*sentry_before_send_log_function_t)(
+    sentry_value_t log, void *user_data);
+
+/**
+ * Sets the `before_send_log` callback.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_options_set_before_send_log(
+    sentry_options_t *opts, sentry_before_send_log_function_t func, void *data);
 
 #ifdef SENTRY_PLATFORM_LINUX
 
