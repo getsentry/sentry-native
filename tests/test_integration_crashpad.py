@@ -593,16 +593,8 @@ def test_crashpad_logs_on_crash(cmake, httpserver):
     assert len(httpserver.log) == 2
 
     # Find the logs envelope
-    logs_envelope = None
-    for req in httpserver.log:
-        body = req[0].get_data()
-        envelope = Envelope.deserialize(body)
-        for item in envelope.items:
-            if item.headers.get("type") == "log":
-                logs_envelope = envelope
-                break
-        if logs_envelope:
-            break
+    req = httpserver.log[1]
+    logs_envelope = Envelope.deserialize(req[0].get_data())
 
     assert logs_envelope is not None
     assert_logs(logs_envelope, 1)
