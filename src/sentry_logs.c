@@ -88,11 +88,13 @@ check_for_flush_condition(void)
 }
 
 static void
-flush_logs_queue(void)
+flush_logs_queue(bool crash_safe)
 {
+    SENTRY_DEBUGF("flush_logs_queue called (crash_safe=%d)", crash_safe);
     const long already_flushing
         = sentry__atomic_store(&g_logs_state.flushing, 1);
     if (already_flushing) {
+        SENTRY_DEBUG("flush_logs_queue: already flushing, returning");
         return;
     }
     do {
@@ -128,6 +130,7 @@ flush_logs_queue(void)
 
         if (n > 0) {
             // now we can do the actual batching of the old buffer
+            SENTRY_DEBUGF("flush_logs_queue: flushing %ld logs", n);
 
             sentry_value_t logs = sentry_value_new_object();
             sentry_value_t log_items = sentry_value_new_list();
@@ -139,10 +142,25 @@ flush_logs_queue(void)
 
             sentry_envelope_t *envelope = sentry__envelope_new();
             sentry__envelope_add_logs(envelope, logs);
+
             SENTRY_WITH_OPTIONS (options) {
-                sentry__capture_envelope(options->transport, envelope);
+                if (crash_safe) {
+                    // Write directly to disk to avoid transport queuing during
+                    // crash
+                    SENTRY_DEBUG(
+                        "flush_logs_queue: writing envelope directly to disk");
+                    sentry__run_write_envelope(options->run, envelope);
+                    sentry_envelope_free(envelope);
+                } else {
+                    // Normal operation: use transport for HTTP transmission
+                    SENTRY_DEBUG(
+                        "flush_logs_queue: capturing envelope via transport");
+                    sentry__capture_envelope(options->transport, envelope);
+                }
             }
             sentry_value_decref(logs);
+        } else {
+            SENTRY_DEBUG("flush_logs_queue: no logs to flush");
         }
     } while (check_for_flush_condition());
 
@@ -197,12 +215,14 @@ enqueue_log(sentry_value_t log)
             // got a slot, write log to the buffer and unblock flusher
             active->logs[log_idx] = log;
             sentry__atomic_fetch_and_add(&active->adding, -1);
+            SENTRY_DEBUGF("enqueue_log: enqueued log at index %ld", log_idx);
 
             // Check if active buffer is now full and trigger flush. We could
             // introduce additional watermarks here to trigger the flush earlier
             // under high contention.
             // TODO replace with a level-triggered flag
             if (log_idx == QUEUE_LENGTH - 1) {
+                SENTRY_DEBUG("enqueue_log: buffer full, waking flush thread");
                 sentry__cond_wake(&g_logs_state.request_flush);
             }
             return true;
@@ -282,7 +302,7 @@ batching_thread_func(void *data)
         }
 
         // Try to flush logs
-        flush_logs_queue();
+        flush_logs_queue(false);
     }
 
     sentry__mutex_unlock(&task_lock);
@@ -686,6 +706,7 @@ sentry__logs_log(sentry_level_t level, const char *message, va_list args)
             enable_logs = true;
     }
     if (enable_logs) {
+        SENTRY_DEBUGF("sentry__logs_log: logging message: %s", message);
         bool discarded = false;
         // create log from message
         sentry_value_t log = construct_log(level, message, args);
@@ -830,7 +851,7 @@ sentry__logs_shutdown(uint64_t timeout)
     // sentry__thread_join(g_logs_state.batching_thread);
 
     // Perform final flush to ensure any remaining logs are sent
-    flush_logs_queue();
+    flush_logs_queue(false);
 
     sentry__thread_free(&g_logs_state.batching_thread);
 
@@ -854,10 +875,10 @@ sentry__logs_flush_crash_safe(void)
         &g_logs_state.thread_state, (long)SENTRY_LOGS_THREAD_STOPPED);
     sentry__cond_wake(&g_logs_state.request_flush);
 
-    // Perform direct flush without thread synchronization
+    // Perform crash-safe flush directly to disk to avoid transport queuing
     // This is safe because we're in a crash scenario and the main thread
     // is likely dead or dying anyway
-    flush_logs_queue();
+    flush_logs_queue(true);
 
     SENTRY_DEBUG("crash-safe logs flush complete");
 }
