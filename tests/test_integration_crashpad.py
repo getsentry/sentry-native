@@ -565,6 +565,7 @@ def test_crashpad_dump_inflight(cmake, httpserver):
     assert len(httpserver.log) >= 11
 
 
+@pytest.mark.skipif(not flushes_state, reason="test needs state flushing")
 def test_crashpad_logs_on_crash(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "crashpad"})
 
