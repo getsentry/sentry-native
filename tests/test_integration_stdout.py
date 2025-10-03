@@ -1,7 +1,9 @@
 import os
+import shutil
 import subprocess
 import sys
 import time
+from pathlib import Path
 
 import pytest
 
@@ -18,6 +20,7 @@ from .assertions import (
     assert_no_before_send,
     assert_crash_timestamp,
     assert_breakpad_crash,
+    assert_exception,
 )
 from .conditions import has_breakpad, has_files
 
@@ -44,6 +47,59 @@ def test_capture_stdout(cmake):
     assert_stacktrace(envelope)
 
     assert_event(envelope)
+
+
+def copy_except(src: Path, dst: Path, exceptions: list[str] = None) -> None:
+    """
+    Recursively copy everything from src to dst, except for entries whose
+    names are in `exceptions`.
+    """
+    exceptions = set(exceptions or [])
+
+    dst.mkdir(parents=True, exist_ok=True)
+
+    for entry in src.iterdir():
+        if entry.name in exceptions:
+            continue
+
+        dest = dst / entry.name
+        if entry.is_dir():
+            shutil.copytree(entry, dest, symlinks=True)
+        else:
+            shutil.copy2(entry, dest)
+
+
+@pytest.mark.skipif(not has_files, reason="test needs a local filesystem")
+def test_capture_exception_from_utf8_path_stdout(cmake):
+    """
+    This test verifies that we can handle symbolication from an utf-8 path.
+    """
+    tmp_path = cmake(
+        ["sentry_example"],
+        {
+            "SENTRY_BACKEND": "none",
+            "SENTRY_TRANSPORT": "none",
+        },
+    )
+    # create a cyrillic subdirectory in tmp_path and copy tmp_path into it
+    cwd = tmp_path / "кириллица-тест"
+    cwd.mkdir()
+    copy_except(tmp_path, cwd, exceptions=["кириллица-тест"])
+
+    output = check_output(
+        cwd,
+        "sentry_example",
+        ["stdout", "capture-exception", "add-stacktrace"],
+    )
+    envelope = Envelope.deserialize(output)
+
+    assert_meta(envelope)
+    assert_breadcrumb(envelope)
+    assert_stacktrace(envelope, inside_exception=True, check_package=True)
+    assert_exception(envelope)
+
+    # delete the cyrillic directory, but only after we asserted on stack frame packages being files
+    shutil.rmtree(cwd)
 
 
 def test_dynamic_sdk_name_override(cmake):
