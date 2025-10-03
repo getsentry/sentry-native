@@ -318,8 +318,8 @@ sentry_transaction_context_update_from_header_n(
 
         if (is_traceparent) {
             // Parse W3C traceparent header: 00-<traceId>-<spanId>-<flags>
-            if (value_len < 55) { // Minimum length: 00-32char-16char-02char
-                SENTRY_WARN("invalid traceparent format: too short");
+            if (value_len != 55) { // length: 00-32char-16char-02char
+                SENTRY_WARN("invalid traceparent format: length mismatch");
                 return;
             }
 
