@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+**Features**:
+- Add `traceparent` header support. ([#1394](https://github.com/getsentry/sentry-native/pull/1394))
+
 **Fixes**:
 
 - Use proper SDK name determination for structured logs `sdk.name` attribute. ([#1399](https://github.com/getsentry/sentry-native/pull/1399))
