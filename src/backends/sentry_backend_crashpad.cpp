@@ -8,6 +8,7 @@ extern "C" {
 #include "sentry_database.h"
 #include "sentry_envelope.h"
 #include "sentry_logger.h"
+#include "sentry_logs.h"
 #include "sentry_options.h"
 #ifdef SENTRY_PLATFORM_WINDOWS
 #    include "sentry_os.h"
@@ -285,6 +286,11 @@ sentry__crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
     SENTRY_WITH_OPTIONS (options) {
         if (!options->enable_logging_when_crashed) {
             sentry__logger_disable();
+        }
+
+        // Flush logs in a crash-safe manner before crash handling
+        if (options->enable_logs) {
+            sentry__logs_flush_crash_safe();
         }
     }
 
