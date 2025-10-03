@@ -847,8 +847,7 @@ sentry__logs_shutdown(uint64_t timeout)
     sentry__cond_wake(&g_logs_state.request_flush);
 
     // Always join the thread to avoid leaks
-    // TODO can we disable this when calling shutdown from a crashing app
-    // sentry__thread_join(g_logs_state.batching_thread);
+    sentry__thread_join(g_logs_state.batching_thread);
 
     // Perform final flush to ensure any remaining logs are sent
     flush_logs_queue(false);
