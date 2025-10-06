@@ -353,7 +353,12 @@ def test_crashpad_dumping_crash(cmake, httpserver, run_args, build_args):
     # a small delay here
     time.sleep(1)
 
-    run(tmp_path, "sentry_example", ["log", "no-setup"], check=True, env=env)
+    child = run(tmp_path, "sentry_example", ["log", "no-setup"], env=env)
+    # TODO: apply these to all by moving the assertion into the run
+    #       have two run_x() one that assumes success and one for failure
+    assert (
+        child.returncode == 0
+    ), f"Second invocation failed with return code {child.returncode}"
 
     assert len(httpserver.log) == 2
     session_request, multipart = split_log_request_cond(

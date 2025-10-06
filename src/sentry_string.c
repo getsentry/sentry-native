@@ -93,6 +93,29 @@ sentry__string_from_wstr(const wchar_t *s)
     return rv;
 }
 
+char *
+sentry__string_from_wstr_n(const wchar_t *s, size_t s_len)
+{
+    if (!s) {
+        return NULL;
+    }
+
+    int len
+        = WideCharToMultiByte(CP_UTF8, 0, s, (int)s_len, NULL, 0, NULL, NULL);
+    if (len <= 0) {
+        return NULL;
+    }
+
+    char *rv = sentry_malloc((size_t)len + 1);
+    if (!rv) {
+        return NULL;
+    }
+
+    WideCharToMultiByte(CP_UTF8, 0, s, (int)s_len, rv, len, NULL, NULL);
+    rv[len] = '\0';
+    return rv;
+}
+
 wchar_t *
 sentry__string_to_wstr(const char *s)
 {
