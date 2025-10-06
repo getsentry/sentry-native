@@ -185,9 +185,7 @@ sentry__envelope_from_path(const sentry_path_t *path)
     size_t buf_len;
     char *buf = sentry__path_read_to_buffer(path, &buf_len);
     if (!buf) {
-        SENTRY_WARNF("failed to read raw envelope from \"%" SENTRY_PATH_PRI
-                     "\"",
-            path->path);
+        SENTRY_WARNF("failed to read raw envelope from \"%s\"", path->path);
         return NULL;
     }
 
@@ -569,13 +567,8 @@ sentry__envelope_add_attachment(
             sentry_value_new_string(attachment->content_type));
     }
     sentry__envelope_item_set_header(item, "filename",
-#ifdef SENTRY_PLATFORM_WINDOWS
-        sentry__value_new_string_from_wstr(
-#else
-        sentry_value_new_string(
-#endif
-            sentry__path_filename(attachment->filename ? attachment->filename
-                                                       : attachment->path)));
+        sentry_value_new_string(sentry__path_filename(
+            attachment->filename ? attachment->filename : attachment->path)));
 
     return item;
 }
@@ -615,9 +608,7 @@ sentry__envelope_add_from_path(
     size_t buf_len;
     char *buf = sentry__path_read_to_buffer(path, &buf_len);
     if (!buf) {
-        SENTRY_WARNF("failed to read envelope item from \"%" SENTRY_PATH_PRI
-                     "\"",
-            path->path);
+        SENTRY_WARNF("failed to read envelope item from \"%s\"", path->path);
         return NULL;
     }
     // NOTE: function will free `buf` on error

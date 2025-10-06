@@ -255,10 +255,17 @@ sentry__winhttp_send_task(void *_envelope, void *_state)
 
     char *headers_buf = sentry__stringbuilder_into_string(&sb);
     headers = sentry__string_to_wstr(headers_buf);
+
+    if (headers_buf) {
+        SENTRY_DEBUGF("sending request using winhttp to \"%s\":\n%s", req->url,
+            headers_buf);
+    }
     sentry_free(headers_buf);
 
-    SENTRY_DEBUGF(
-        "sending request using winhttp to \"%s\":\n%S", req->url, headers);
+    if (!headers) {
+        SENTRY_WARN("sentry__winhttp_send_task: failed to allocate headers");
+        goto exit;
+    }
 
     if (state->proxy_username && state->proxy_password) {
         WinHttpSetCredentials(state->request, WINHTTP_AUTH_TARGET_PROXY,

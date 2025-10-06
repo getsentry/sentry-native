@@ -136,8 +136,7 @@ sentry__run_write_external(
     const sentry_run_t *run, const sentry_envelope_t *envelope)
 {
     if (sentry__path_create_dir_all(run->external_path) != 0) {
-        SENTRY_ERRORF(
-            "mkdir failed: \"%" SENTRY_PATH_PRI "\"", run->external_path->path);
+        SENTRY_ERRORF("mkdir failed: \"%s\"", run->external_path->path);
         return false;
     }
 
@@ -228,11 +227,7 @@ sentry__process_old_runs(const sentry_options_t *options, uint64_t last_crash)
             continue;
         }
         // make sure we don't delete ourselves if the lock check fails
-#ifdef SENTRY_PLATFORM_WINDOWS
-        if (wcscmp(options->run->run_path->path, run_dir->path) == 0) {
-#else
         if (strcmp(options->run->run_path->path, run_dir->path) == 0) {
-#endif
             continue;
         }
         sentry_pathiter_t *run_iter = sentry__path_iter_directory(run_dir);
