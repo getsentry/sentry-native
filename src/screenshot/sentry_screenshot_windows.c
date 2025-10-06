@@ -176,12 +176,11 @@ sentry__screenshot_capture(const sentry_path_t *path)
     SelectClipRgn(hdc, region);
     BitBlt(hdc, 0, 0, width, height, src, box.left, box.top, SRCCOPY);
 
-    bool rv = save_bitmap(bitmap, path->path);
+    bool rv = save_bitmap(bitmap, sentry__path_to_wstr(path));
     if (!rv) {
-        SENTRY_WARNF(
-            "Failed to save screenshot: \"%" SENTRY_PATH_PRI "\"", path->path);
+        SENTRY_WARNF("Failed to save screenshot: \"%s\"", path->path);
     } else {
-        SENTRY_DEBUGF("Saved screenshot: \"%" SENTRY_PATH_PRI "\"", path->path);
+        SENTRY_DEBUGF("Saved screenshot: \"%s\"", path->path);
     }
 
     DeleteObject(bitmap);

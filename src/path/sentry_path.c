@@ -1,6 +1,35 @@
 #include "sentry_path.h"
 #include "sentry_alloc.h"
 
+sentry_path_t *
+sentry__path_from_str_n(const char *s, size_t s_len)
+{
+    char *path = sentry__string_clone_n(s, s_len);
+    if (!path) {
+        return NULL;
+    }
+    // NOTE: function will free `path` on error
+    return sentry__path_from_str_owned(path);
+}
+
+sentry_path_t *
+sentry__path_from_str(const char *s)
+{
+    return s ? sentry__path_from_str_n(s, strlen(s)) : NULL;
+}
+
+sentry_path_t *
+sentry__path_from_str_owned(char *s)
+{
+    sentry_path_t *rv = SENTRY_MAKE(sentry_path_t);
+    if (!rv) {
+        sentry_free(s);
+        return NULL;
+    }
+    rv->path = s;
+    return rv;
+}
+
 void
 sentry__path_free(sentry_path_t *path)
 {
@@ -16,7 +45,7 @@ sentry__path_eq(const sentry_path_t *path_a, const sentry_path_t *path_b)
 {
     size_t i = 0;
     while (path_a->path[i] == path_b->path[i]) {
-        if (path_a->path[i] == (sentry_pathchar_t)0) {
+        if (path_a->path[i] == (char)0) {
             return true;
         }
         i++;

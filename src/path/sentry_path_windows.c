@@ -13,6 +13,15 @@
 #include <sys/locking.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <wchar.h>
+
+// follow the maximum path length documented here:
+// https://learn.microsoft.com/en-us/windows/win32/fileio/maximum-file-path-limitation
+#define MAX_PATH_BUFFER_SIZE 32768
+
+// Temporary: disable UTF-8 path fixes to test if ACP-dependent code works
+// Uncomment to use narrow (ACP-dependent) paths instead of wide-char paths
+// #define SENTRY_USE_NARROW_PATHS 1
 
 // only read this many bytes to memory ever
 static const size_t MAX_READ_TO_BUFFER = 134217728;
@@ -50,8 +59,13 @@ sentry__filelock_try_lock(sentry_filelock_t *lock)
 {
     lock->is_locked = false;
 
-    int fd = _wopen(
-        lock->path->path, _O_RDWR | _O_CREAT | _O_TRUNC, _S_IREAD | _S_IWRITE);
+    wchar_t *path_w = sentry__path_to_wstr(lock->path);
+    if (!path_w) {
+        return false;
+    }
+    int fd
+        = _wopen(path_w, _O_RDWR | _O_CREAT | _O_TRUNC, _S_IREAD | _S_IWRITE);
+    sentry_free(path_w);
     if (fd < 0) {
         return false;
     }
@@ -87,7 +101,7 @@ path_with_len(size_t len)
     if (!rv) {
         return rv;
     }
-    rv->path = sentry_malloc(sizeof(wchar_t) * len);
+    rv->path = sentry_malloc(sizeof(char) * len);
     if (!rv->path) {
         sentry_free(rv);
         return NULL;
@@ -98,25 +112,56 @@ path_with_len(size_t len)
 sentry_path_t *
 sentry__path_absolute(const sentry_path_t *path)
 {
-    wchar_t full[_MAX_PATH];
-    if (!_wfullpath(full, path->path, _MAX_PATH)) {
+    // We must use `_wfullpath` here since `_fullpath` depends on the system
+    // ANSI code page, we want to be independent of. This means we have to
+    // convert our canonical representation back to wide-string. But we can
+    // specify NULL as the first argument to get it for arbitrarily sized paths.
+    wchar_t *path_wstr = sentry__path_to_wstr(path);
+    if (!path_wstr) {
         return NULL;
     }
-    return sentry__path_from_wstr(full);
+    wchar_t *full = _wfullpath(NULL, path_wstr, 0);
+    sentry_free(path_wstr);
+    if (!full) {
+        return NULL;
+    }
+    sentry_path_t *rv = SENTRY_MAKE(sentry_path_t);
+    if (!rv) {
+        sentry_free(full);
+        return NULL;
+    }
+    // we convert the wide-string absolute path back to canonical narrow UTF-8
+    rv->path = sentry__string_from_wstr(full);
+    sentry_free(full);
+    return rv;
 }
 
 sentry_path_t *
 sentry__path_current_exe(void)
 {
-    // inspired by:
-    // https://github.com/rust-lang/rust/blob/183e893aaae581bd0ab499ba56b6c5e118557dc7/src/libstd/sys/windows/os.rs#L234-L239
-    sentry_path_t *path = path_with_len(MAX_PATH);
-    size_t len = GetModuleFileNameW(NULL, path->path, MAX_PATH);
+    // Let's be safe here and use the "new" 32K character limit for paths.
+    wchar_t *path_wstr = sentry_malloc(MAX_PATH_BUFFER_SIZE * sizeof(wchar_t));
+    const size_t len
+        = GetModuleFileNameW(NULL, path_wstr, MAX_PATH_BUFFER_SIZE);
     if (!len) {
         SENTRY_WARN("unable to get current exe path");
-        sentry__path_free(path);
+        sentry_free(path_wstr);
         return NULL;
     }
+    sentry_path_t *path = SENTRY_MAKE(sentry_path_t);
+    if (!path) {
+        sentry_free(path_wstr);
+        return path;
+    }
+    // convert the path to our canonical narrow UTF-8...
+    path->path = sentry__string_from_wstr(path_wstr);
+    if (!path->path) {
+        sentry_free(path);
+        sentry_free(path_wstr);
+        return NULL;
+    }
+
+    sentry_free(path_wstr);
     return path;
 }
 
@@ -129,10 +174,9 @@ sentry__path_dir(const sentry_path_t *path)
     }
 
     // find the filename part and truncate just in front of it if possible
-    sentry_pathchar_t *filename
-        = (sentry_pathchar_t *)sentry__path_filename(dir_path);
+    char *filename = (char *)sentry__path_filename(dir_path);
     if (filename > dir_path->path) {
-        *(filename - 1) = L'\0';
+        *(filename - 1) = '\0';
     }
     return dir_path;
 }
@@ -143,10 +187,15 @@ sentry__path_from_wstr_n(const wchar_t *s, size_t s_len)
     if (!s) {
         return NULL;
     }
-    sentry_path_t *rv = path_with_len(s_len + 1);
-    if (rv) {
-        memcpy(rv->path, s, s_len * sizeof(wchar_t));
-        rv->path[s_len] = 0;
+
+    sentry_path_t *rv = SENTRY_MAKE(sentry_path_t);
+    if (!rv) {
+        return rv;
+    }
+    rv->path = sentry__string_from_wstr_n(s, s_len);
+    if (!rv->path) {
+        sentry_free(rv);
+        return NULL;
     }
     return rv;
 }
@@ -161,105 +210,26 @@ sentry__path_from_wstr(const wchar_t *s)
 }
 
 sentry_path_t *
-sentry__path_join_wstr(const sentry_path_t *base, const wchar_t *other)
+sentry__path_join_wstr(const sentry_path_t *base, const wchar_t *other_w)
 {
-    if (isalpha(other[0]) && other[1] == L':') {
-        return sentry__path_from_wstr(other);
-    } else if (other[0] == L'/' || other[0] == L'\\') {
-        if (isalpha(base->path[0]) && base->path[1] == L':') {
-            size_t other_len = wcslen(other);
-            sentry_path_t *rv = path_with_len(other_len + 3);
-            if (!rv) {
-                return NULL;
-            }
-            rv->path[0] = base->path[0];
-            rv->path[1] = L':';
-            memcpy(rv->path + 2, other, sizeof(wchar_t) * other_len);
-            rv->path[other_len + 2] = L'\0';
-            return rv;
-        } else {
-            return sentry__path_from_wstr(other);
-        }
-    } else {
-        size_t base_len = wcslen(base->path);
-        size_t other_len = wcslen(other);
-        size_t len = base_len + other_len + 1;
-        bool need_sep = false;
-        if (base_len && base->path[base_len - 1] != L'/'
-            && base->path[base_len - 1] != L'\\') {
-            len += 1;
-            need_sep = true;
-        }
-        sentry_path_t *rv = path_with_len(len);
-        if (!rv) {
-            return NULL;
-        }
-        memcpy(rv->path, base->path, sizeof(wchar_t) * base_len);
-        if (need_sep) {
-            rv->path[base_len] = L'\\';
-        }
-        memcpy(rv->path + base_len + (need_sep ? 1 : 0), other,
-            sizeof(wchar_t) * (other_len + 1));
-        return rv;
-    }
-}
-
-sentry_path_t *
-sentry__path_from_str_n(const char *s, size_t s_len)
-{
-    if (!s) {
+    char *other = sentry__string_from_wstr(other_w);
+    if (!other) {
         return NULL;
     }
-    sentry_path_t *rv = SENTRY_MAKE(sentry_path_t);
-    if (!rv) {
-        return NULL;
-    }
-    size_t src_size = sizeof(char) * s_len;
-    size_t dst_size = sizeof(wchar_t) * (s_len + 1);
-    rv->path = sentry_malloc(dst_size);
-    if (!rv->path) {
-        goto error;
-    }
-    int conv_len = MultiByteToWideChar(
-        CP_ACP, 0, s, (int)src_size, rv->path, (int)s_len);
-    if (conv_len == 0) {
-        goto error;
-    }
-    rv->path[conv_len] = 0;
-    return rv;
-
-error:
-    sentry_free(rv);
-    return NULL;
-}
-
-sentry_path_t *
-sentry__path_from_str(const char *s)
-{
-    if (!s) {
-        return NULL;
-    }
-
-    return sentry__path_from_str_n(s, strlen(s));
-}
-
-sentry_path_t *
-sentry__path_from_str_owned(char *s)
-{
-    sentry_path_t *rv = sentry__path_from_str(s);
-    sentry_free(s);
+    sentry_path_t *rv = sentry__path_join_str(base, other);
+    sentry_free(other);
     return rv;
 }
 
-const sentry_pathchar_t *
+const char *
 sentry__path_filename(const sentry_path_t *path)
 {
-    const wchar_t *s = path->path;
-    const wchar_t *ptr = s;
-    size_t idx = wcslen(s);
+    const char *s = path->path;
+    const char *ptr = s;
+    size_t idx = strlen(s);
 
     while (true) {
-        if (s[idx] == L'/' || s[idx] == L'\\') {
+        if (s[idx] == '/' || s[idx] == '\\') {
             ptr = s + idx + 1;
             break;
         }
@@ -280,7 +250,7 @@ sentry__path_filename_matches(const sentry_path_t *path, const char *filename)
     if (!fn) {
         return false;
     }
-    bool matches = _wcsicmp(sentry__path_filename(path), fn->path) == 0;
+    bool matches = strcmp(sentry__path_filename(path), fn->path) == 0;
     sentry__path_free(fn);
     return matches;
 }
@@ -292,14 +262,14 @@ sentry__path_ends_with(const sentry_path_t *path, const char *suffix)
     if (!s) {
         return false;
     }
-    size_t pathlen = wcslen(path->path);
-    size_t suffixlen = wcslen(s->path);
+    size_t pathlen = strlen(path->path);
+    size_t suffixlen = strlen(s->path);
     if (suffixlen > pathlen) {
         sentry__path_free(s);
         return false;
     }
 
-    bool matches = _wcsicmp(&path->path[pathlen - suffixlen], s->path) == 0;
+    bool matches = strcmp(&path->path[pathlen - suffixlen], s->path) == 0;
     sentry__path_free(s);
     return matches;
 }
@@ -307,37 +277,59 @@ sentry__path_ends_with(const sentry_path_t *path, const char *suffix)
 bool
 sentry__path_is_dir(const sentry_path_t *path)
 {
+    wchar_t *path_w = sentry__path_to_wstr(path);
+    if (!path_w) {
+        return false;
+    }
     struct _stat buf;
-    return _wstat(path->path, &buf) == 0 && S_ISDIR(buf.st_mode);
+    bool result = _wstat(path_w, &buf) == 0 && S_ISDIR(buf.st_mode);
+    sentry_free(path_w);
+    return result;
 }
 
 bool
 sentry__path_is_file(const sentry_path_t *path)
 {
+    wchar_t *path_w = sentry__path_to_wstr(path);
+    if (!path_w) {
+        return false;
+    }
     struct _stat buf;
-    return _wstat(path->path, &buf) == 0 && S_ISREG(buf.st_mode);
+    bool result = _wstat(path_w, &buf) == 0 && S_ISREG(buf.st_mode);
+    sentry_free(path_w);
+    return result;
 }
 
 size_t
 sentry__path_get_size(const sentry_path_t *path)
 {
-    struct _stat buf;
-    if (_wstat(path->path, &buf) == 0 && S_ISREG(buf.st_mode)) {
-        return (size_t)buf.st_size;
-    } else {
+    wchar_t *path_w = sentry__path_to_wstr(path);
+    if (!path_w) {
         return 0;
     }
+    struct _stat buf;
+    size_t result = 0;
+    if (_wstat(path_w, &buf) == 0 && S_ISREG(buf.st_mode)) {
+        result = (size_t)buf.st_size;
+    }
+    sentry_free(path_w);
+    return result;
 }
 
 time_t
 sentry__path_get_mtime(const sentry_path_t *path)
 {
-    struct _stat buf;
-    if (_wstat(path->path, &buf) == 0) {
-        return (time_t)buf.st_mtime;
-    } else {
+    wchar_t *path_w = sentry__path_to_wstr(path);
+    if (!path_w) {
         return 0;
     }
+    struct _stat buf;
+    time_t result = 0;
+    if (_wstat(path_w, &buf) == 0) {
+        result = (time_t)buf.st_mtime;
+    }
+    sentry_free(path_w);
+    return result;
 }
 
 sentry_path_t *
@@ -349,15 +341,15 @@ sentry__path_append_str(const sentry_path_t *base, const char *suffix)
         return NULL;
     }
 
-    // concat into new path
-    size_t len_base = wcslen(base->path);
-    size_t len_suffix = wcslen(suffix_path->path);
+    // concat into a new path
+    size_t len_base = strlen(base->path);
+    size_t len_suffix = strlen(suffix_path->path);
     size_t len = len_base + len_suffix + 1;
     sentry_path_t *rv = path_with_len(len);
     if (rv) {
-        memcpy(rv->path, base->path, len_base * sizeof(wchar_t));
+        memcpy(rv->path, base->path, len_base * sizeof(char));
         memcpy(rv->path + len_base, suffix_path->path,
-            (len_suffix + 1) * sizeof(wchar_t));
+            (len_suffix + 1) * sizeof(char));
     }
     sentry__path_free(suffix_path);
 
@@ -367,12 +359,44 @@ sentry__path_append_str(const sentry_path_t *base, const char *suffix)
 sentry_path_t *
 sentry__path_join_str(const sentry_path_t *base, const char *other)
 {
-    sentry_path_t *other_path = sentry__path_from_str(other);
-    if (!other_path) {
+    if (isalpha(other[0]) && other[1] == ':') {
+        return sentry__path_from_str(other);
+    }
+    if (other[0] == '/' || other[0] == '\\') {
+        if (isalpha(base->path[0]) && base->path[1] == ':') {
+            size_t other_len = strlen(other);
+            sentry_path_t *rv = path_with_len(other_len + 3);
+            if (!rv) {
+                return NULL;
+            }
+            rv->path[0] = base->path[0];
+            rv->path[1] = ':';
+            memcpy(rv->path + 2, other, sizeof(char) * other_len);
+            rv->path[other_len + 2] = '\0';
+            return rv;
+        }
+        return sentry__path_from_str(other);
+    }
+    size_t base_len = strlen(base->path);
+    size_t other_len = strlen(other);
+    size_t len = base_len + other_len + 1;
+    bool need_sep = false;
+    if (base_len && base->path[base_len - 1] != '/'
+        && base->path[base_len - 1] != '\\') {
+        len += 1;
+        need_sep = true;
+    }
+    sentry_path_t *rv = path_with_len(len);
+    if (!rv) {
         return NULL;
     }
-    sentry_path_t *rv = sentry__path_join_wstr(base, other_path->path);
-    sentry__path_free(other_path);
+    memcpy(rv->path, base->path, sizeof(char) * base_len);
+    if (need_sep) {
+        rv->path[base_len] = '\\';
+    }
+    memcpy(rv->path + base_len + (need_sep ? 1 : 0), other,
+        sizeof(char) * (other_len + 1));
+
     return rv;
 }
 
@@ -383,53 +407,69 @@ sentry__path_clone(const sentry_path_t *path)
     if (!rv) {
         return NULL;
     }
-    rv->path = _wcsdup(path->path);
+    rv->path = _strdup(path->path);
     return rv;
 }
 
 int
 sentry__path_remove(const sentry_path_t *path)
 {
-    if (!sentry__path_is_dir(path)) {
-        if (DeleteFileW(path->path)) {
-            return 0;
-        }
-        return GetLastError() == ERROR_FILE_NOT_FOUND ? 0 : 1;
-    } else {
-        if (RemoveDirectoryW(path->path)) {
-            return 0;
-        }
+    wchar_t *path_w = sentry__path_to_wstr(path);
+    if (!path_w) {
         return 1;
     }
+    int result;
+    if (!sentry__path_is_dir(path)) {
+        if (DeleteFileW(path_w)) {
+            result = 0;
+        } else {
+            result = GetLastError() == ERROR_FILE_NOT_FOUND ? 0 : 1;
+        }
+    } else {
+        if (RemoveDirectoryW(path_w)) {
+            result = 0;
+        } else {
+            result = 1;
+        }
+    }
+    sentry_free(path_w);
+    return result;
 }
 
 int
 sentry__path_create_dir_all(const sentry_path_t *path)
 {
-    wchar_t *p = NULL;
-    wchar_t *ptr = NULL;
+    char *p = NULL;
+    char *ptr = NULL;
     int rv = 0;
 #define _TRY_MAKE_DIR                                                          \
     do {                                                                       \
-        if (!CreateDirectoryW(p, NULL)                                         \
-            && GetLastError() != ERROR_ALREADY_EXISTS) {                       \
+        wchar_t *p_w = sentry__string_to_wstr(p);                              \
+        if (!p_w) {                                                            \
+            rv = 1;                                                            \
+            goto done;                                                         \
+        }                                                                      \
+        BOOL success = CreateDirectoryW(p_w, NULL);                            \
+        DWORD err = GetLastError();                                            \
+        sentry_free(p_w);                                                      \
+        if (!success && err != ERROR_ALREADY_EXISTS) {                         \
             rv = 1;                                                            \
             goto done;                                                         \
         }                                                                      \
     } while (0)
 
-    size_t len = wcslen(path->path) + 1;
-    p = sentry_malloc(sizeof(wchar_t) * len);
+    size_t len = strlen(path->path) + 1;
+    p = sentry_malloc(sizeof(char) * len);
     if (!p) {
         return 1;
     }
-    memcpy(p, path->path, len * sizeof(wchar_t));
+    memcpy(p, path->path, len * sizeof(char));
 
     for (ptr = p; *ptr; ptr++) {
-        if ((*ptr == L'\\' || *ptr == L'/') && ptr != p && ptr[-1] != L':') {
+        if ((*ptr == '\\' || *ptr == '/') && ptr != p && ptr[-1] != ':') {
             *ptr = 0;
             _TRY_MAKE_DIR;
-            *ptr = L'\\';
+            *ptr = '\\';
         }
     }
     _TRY_MAKE_DIR;
@@ -460,17 +500,27 @@ sentry__pathiter_next(sentry_pathiter_t *piter)
 
     while (true) {
         if (piter->dir_handle == INVALID_HANDLE_VALUE) {
-            size_t path_len = wcslen(piter->parent->path);
-            wchar_t *pattern = sentry_malloc(sizeof(wchar_t) * (path_len + 3));
-            if (!pattern) {
+            // Convert parent path from UTF-8 to wide-char for FindFirstFileW.
+            // We don't use sentry__path_to_wstr here because piter->parent is
+            // const and we shouldn't modify it by caching.
+            wchar_t *parent_path_w
+                = sentry__string_to_wstr(piter->parent->path);
+            if (!parent_path_w) {
                 return NULL;
             }
-            memcpy(pattern, piter->parent->path, sizeof(wchar_t) * path_len);
+            size_t path_len = wcslen(parent_path_w);
+            wchar_t *pattern = sentry_malloc(sizeof(wchar_t) * (path_len + 3));
+            if (!pattern) {
+                sentry_free(parent_path_w);
+                return NULL;
+            }
+            memcpy(pattern, parent_path_w, sizeof(wchar_t) * path_len);
             pattern[path_len] = L'\\';
             pattern[path_len + 1] = L'*';
-            pattern[path_len + 2] = 0;
+            pattern[path_len + 2] = L'\0';
             piter->dir_handle = FindFirstFileW(pattern, &data);
             sentry_free(pattern);
+            sentry_free(parent_path_w);
             if (piter->dir_handle == INVALID_HANDLE_VALUE) {
                 return NULL;
             }
@@ -479,10 +529,8 @@ sentry__pathiter_next(sentry_pathiter_t *piter)
                 return NULL;
             }
         }
-        if (wcscmp(data.cFileName, L".") == 0
-            || wcscmp(data.cFileName, L"..") == 0) {
-            continue;
-        } else {
+        if (wcscmp(data.cFileName, L".") != 0
+            && wcscmp(data.cFileName, L"..") != 0) {
             break;
         }
     }
@@ -510,7 +558,12 @@ sentry__pathiter_free(sentry_pathiter_t *piter)
 int
 sentry__path_touch(const sentry_path_t *path)
 {
-    FILE *f = _wfopen(path->path, L"a");
+    wchar_t *path_w = sentry__path_to_wstr(path);
+    if (!path_w) {
+        return 1;
+    }
+    FILE *f = _wfopen(path_w, L"a");
+    sentry_free(path_w);
     if (f) {
         fclose(f);
         return 0;
@@ -521,7 +574,12 @@ sentry__path_touch(const sentry_path_t *path)
 char *
 sentry__path_read_to_buffer(const sentry_path_t *path, size_t *size_out)
 {
-    FILE *f = _wfopen(path->path, L"rb");
+    wchar_t *path_w = sentry__path_to_wstr(path);
+    if (!path_w) {
+        return NULL;
+    }
+    FILE *f = _wfopen(path_w, L"rb");
+    sentry_free(path_w);
     if (!f) {
         return NULL;
     }
@@ -573,7 +631,12 @@ static int
 write_buffer_with_mode(const sentry_path_t *path, const char *buf,
     size_t buf_len, const wchar_t *mode)
 {
-    FILE *f = _wfopen(path->path, mode);
+    wchar_t *path_w = sentry__path_to_wstr(path);
+    if (!path_w) {
+        return 1;
+    }
+    FILE *f = _wfopen(path_w, mode);
+    sentry_free(path_w);
     if (!f) {
         return 1;
     }
@@ -606,7 +669,12 @@ struct sentry_filewriter_s {
 MUST_USE sentry_filewriter_t *
 sentry__filewriter_new(const sentry_path_t *path)
 {
-    FILE *f = _wfopen(path->path, L"wb");
+    wchar_t *path_w = sentry__path_to_wstr(path);
+    if (!path_w) {
+        return NULL;
+    }
+    FILE *f = _wfopen(path_w, L"wb");
+    sentry_free(path_w);
     if (!f) {
         return NULL;
     }
@@ -633,7 +701,8 @@ sentry__filewriter_write(
         size_t n = fwrite(buf, 1, buf_len, filewriter->f);
         if (n == 0 && errno == EINVAL) {
             continue;
-        } else if (n < buf_len) {
+        }
+        if (n < buf_len) {
             break;
         }
         filewriter->byte_count += n;
@@ -656,7 +725,7 @@ sentry__filewriter_free(sentry_filewriter_t *filewriter)
 }
 
 size_t
-sentry__filewriter_byte_count(sentry_filewriter_t *filewriter)
+sentry__filewriter_byte_count(const sentry_filewriter_t *filewriter)
 {
     return filewriter->byte_count;
 }
