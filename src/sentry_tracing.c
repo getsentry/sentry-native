@@ -868,7 +868,8 @@ sentry__span_iter_headers(sentry_value_t span,
         return;
     }
 
-    char buf[64];
+    // (32 char trace_id)-(16-char span_id)-(0|1) + null terminator
+    char buf[52];
     snprintf(buf, sizeof(buf), "%s-%s-%s", sentry_value_as_string(trace_id),
         sentry_value_as_string(span_id),
         sentry_value_is_true(sampled) ? "1" : "0");
@@ -879,7 +880,8 @@ sentry__span_iter_headers(sentry_value_t span,
     callback("sentry-trace", buf, userdata);
     SENTRY_WITH_OPTIONS (options) {
         if (options->propagate_traceparent) {
-            char traceparent[64];
+            // 00-(32 char trace_id)-(16-char span_id)-(00|01) + null terminator
+            char traceparent[56];
             snprintf(traceparent, sizeof(traceparent), "00-%s-%s-%s",
                 sentry_value_as_string(trace_id),
                 sentry_value_as_string(span_id),

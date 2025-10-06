@@ -1818,8 +1818,8 @@ SENTRY_TEST(propagation_context_init)
 typedef struct {
     int sentry_trace_found;
     int traceparent_found;
-    char sentry_trace_value[128];
-    char traceparent_value[128];
+    char sentry_trace_value[64];
+    char traceparent_value[64];
 } traceparent_header_collector_t;
 
 static void
@@ -1863,6 +1863,8 @@ SENTRY_TEST(traceparent_header_disabled_by_default)
     TEST_CHECK(collector.sentry_trace_found);
     TEST_CHECK(!collector.traceparent_found);
 
+    TEST_CHECK_INT_EQUAL(strlen(collector.sentry_trace_value), 51);
+
     sentry_transaction_finish(tx);
     sentry_close();
 }
@@ -1889,6 +1891,8 @@ SENTRY_TEST(traceparent_header_generation)
     TEST_CHECK(collector.sentry_trace_found);
     TEST_CHECK(collector.traceparent_found);
 
+    // Verify expected traceparent length
+    TEST_CHECK_INT_EQUAL(strlen(collector.traceparent_value), 55);
     // Verify traceparent format: starts with "00-"
     TEST_CHECK(strncmp(collector.traceparent_value, "00-", 3) == 0);
 
