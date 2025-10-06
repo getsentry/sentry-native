@@ -17,6 +17,7 @@
 
 - Use proper SDK name determination for structured logs `sdk.name` attribute. ([#1399](https://github.com/getsentry/sentry-native/pull/1399))
 - Serialize `uint64` values as numerical instead of string. ([#1408](https://github.com/getsentry/sentry-native/pull/1408))
+- Make narrow UTF-8 the canonical path encoding across platforms. ([#1413](https://github.com/getsentry/sentry-native/pull/1413))
 
 ## 0.11.2
 

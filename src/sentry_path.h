@@ -2,20 +2,15 @@
 #define SENTRY_PATH_H_INCLUDED
 
 #include "sentry_boot.h"
+#include "sentry_string.h"
 
-#include <stdio.h>
 #include <time.h>
 
-#ifdef SENTRY_PLATFORM_WINDOWS
-typedef wchar_t sentry_pathchar_t;
-#    define SENTRY_PATH_PRI "S"
-#else
-typedef char sentry_pathchar_t;
-#    define SENTRY_PATH_PRI "s"
-#endif
-
 struct sentry_path_s {
-    sentry_pathchar_t *path;
+    char *path;
+#ifdef SENTRY_PLATFORM_WINDOWS
+    wchar_t *path_w;
+#endif
 };
 
 struct sentry_filelock_s {
@@ -93,7 +88,7 @@ void sentry__path_free(sentry_path_t *path);
  * This will return a pointer to the last path segment, which is typically the
  * file or directory name
  */
-const sentry_pathchar_t *sentry__path_filename(const sentry_path_t *path);
+const char *sentry__path_filename(const sentry_path_t *path);
 
 /**
  * Returns whether the two paths are equal.
@@ -160,7 +155,7 @@ size_t sentry__path_get_size(const sentry_path_t *path);
 time_t sentry__path_get_mtime(const sentry_path_t *path);
 
 /**
- * This will read all the content of `path` into a newly allocated buffer, and
+ * This will read all the content of `path` into a newly allocated buffer and
  * write its size into `size_out`.
  */
 char *sentry__path_read_to_buffer(const sentry_path_t *path, size_t *size_out);
@@ -200,8 +195,8 @@ sentry_filelock_t *sentry__filelock_new(sentry_path_t *path);
 
 /**
  * This will try to acquire a lock on the given file.
- * The function will return `false` when no lock can be acquired, for example if
- * the lock is being held by another process.
+ * The function will return `false` when no lock can be acquired, for example,
+ * if the lock is being held by another process.
  */
 bool sentry__filelock_try_lock(sentry_filelock_t *lock);
 
@@ -230,14 +225,14 @@ size_t sentry__filewriter_write(
 /**
  * Retrieves the count of written bytes.
  */
-size_t sentry__filewriter_byte_count(sentry_filewriter_t *filewriter);
+size_t sentry__filewriter_byte_count(const sentry_filewriter_t *filewriter);
 
 /**
  * Frees the filewriter and closes the handle.
  */
 void sentry__filewriter_free(sentry_filewriter_t *filewriter);
 
-/* windows specific API additions */
+/* windows-specific API additions */
 #ifdef SENTRY_PLATFORM_WINDOWS
 /**
  * Create a new path from a Wide String.
@@ -250,19 +245,21 @@ sentry_path_t *sentry__path_from_wstr_n(const wchar_t *s, size_t s_len);
  */
 sentry_path_t *sentry__path_join_wstr(
     const sentry_path_t *base, const wchar_t *other);
+
+/**
+ * This will return a wide character pointer to the last path segment, which
+ * is typically the file or directory name.
+ */
+const wchar_t *sentry__path_filename_w(const sentry_path_t *path);
 #endif
 
 /**
- * Create a new path from the platform native string type.
+ * Create a new path from string.
  */
 static inline sentry_path_t *
-sentry__path_new(const sentry_pathchar_t *s)
+sentry__path_new(const char *s)
 {
-#ifdef SENTRY_PLATFORM_WINDOWS
-    return sentry__path_from_wstr(s);
-#else
     return sentry__path_from_str(s);
-#endif
 }
 
 #endif
