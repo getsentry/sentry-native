@@ -346,17 +346,19 @@ parse_traceparent(
     // Extract flags (2 hex chars)
     const char *flags_start = value + 53;
 
-    // Parse sampled flag from the last bit of flags
+    // Parse flags - only accept 00 (not sampled) or 01 (sampled) per W3C spec
     char flags_str[3] = { flags_start[0], flags_start[1], '\0' };
-    unsigned int flags_value = 0;
-    if (sscanf(flags_str, "%02x", &flags_value) != 1) {
-        SENTRY_WARN("invalid traceparent format: invalid flags");
+    bool sampled;
+    if (strncmp(flags_str, "00", 2) == 0) {
+        sampled = false;
+    } else if (strncmp(flags_str, "01", 2) == 0) {
+        sampled = true;
+    } else {
+        SENTRY_WARN("invalid traceparent format: flags must be 00 or 01");
         sentry_free(trace_id_str);
         sentry_free(span_id_str);
         return;
     }
-
-    bool sampled = (flags_value & 0x01) != 0;
 
     sentry_value_t inner = tx_ctx->inner;
     sentry_value_set_by_key(

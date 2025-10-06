@@ -2062,14 +2062,35 @@ SENTRY_TEST(traceparent_sampling_flags)
         sentry_value_get_by_key(tx_ctx->inner, "sampled")));
     sentry__transaction_context_free(tx_ctx);
 
-    // Test other flag values that have sampled bit set (03, 05, etc.)
-    const char *other_sampled_traceparent
+    // Test invalid flag values (03, 05, etc.) - should be rejected
+    const char *invalid_flags_traceparent
         = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-03";
     tx_ctx = sentry_transaction_context_new("test", "test");
+
+    // Store original trace_id and parent_span_id to verify they remain
+    // unchanged
+    sentry_value_t original_trace_id
+        = sentry_value_get_by_key(tx_ctx->inner, "trace_id");
+    sentry_value_t original_parent_span_id
+        = sentry_value_get_by_key(tx_ctx->inner, "parent_span_id");
+
     sentry_transaction_context_update_from_header(
-        tx_ctx, "traceparent", other_sampled_traceparent);
-    TEST_CHECK(sentry_value_is_true(
-        sentry_value_get_by_key(tx_ctx->inner, "sampled")));
+        tx_ctx, "traceparent", invalid_flags_traceparent);
+
+    // Verify that the update failed and values remain unchanged
+    sentry_value_t current_trace_id
+        = sentry_value_get_by_key(tx_ctx->inner, "trace_id");
+    sentry_value_t current_parent_span_id
+        = sentry_value_get_by_key(tx_ctx->inner, "parent_span_id");
+
+    // The trace_id should remain the original (not the one from the invalid
+    // traceparent)
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(original_trace_id),
+        sentry_value_as_string(current_trace_id));
+    // parent_span_id should remain unchanged (null or original value)
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(original_parent_span_id),
+        sentry_value_as_string(current_parent_span_id));
+
     sentry__transaction_context_free(tx_ctx);
 
     sentry_close();
