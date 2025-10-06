@@ -296,7 +296,7 @@ parse_sentry_trace(
     sentry_value_set_by_key(inner, "sampled", sentry_value_new_bool(sampled));
 }
 
-void
+static void
 parse_traceparent(
     sentry_transaction_context_t *tx_ctx, const char *value, size_t value_len)
 {
