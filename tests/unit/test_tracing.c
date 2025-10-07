@@ -1861,7 +1861,8 @@ SENTRY_TEST(traceparent_header_disabled_by_default)
     TEST_CHECK(collector.sentry_trace_found);
     TEST_CHECK(!collector.traceparent_found);
 
-    TEST_CHECK_INT_EQUAL(strlen(collector.sentry_trace_value), 51);
+    TEST_CHECK_INT_EQUAL(
+        strlen(collector.sentry_trace_value), SENTRY_TRACE_LEN);
 
     sentry_transaction_finish(tx);
     sentry_close();
@@ -1890,7 +1891,7 @@ SENTRY_TEST(traceparent_header_generation)
     TEST_CHECK(collector.traceparent_found);
 
     // Verify expected traceparent length
-    TEST_CHECK_INT_EQUAL(strlen(collector.traceparent_value), 55);
+    TEST_CHECK_INT_EQUAL(strlen(collector.traceparent_value), TRACEPARENT_LEN);
     // Verify traceparent format: starts with "00-"
     TEST_CHECK(strncmp(collector.traceparent_value, "00-", 3) == 0);
 
@@ -2013,7 +2014,8 @@ SENTRY_TEST(traceparent_case_insensitive)
         = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01";
     const char *expected_trace_id = "4bf92f3577b34da6a3ce929d0e0e4736";
 
-    // Test case-insensitive header parsing
+    // Test case-insensitive header parsing, since we can expect any casing
+    // as per https://www.w3.org/TR/trace-context/#header-name
     const char *header_variants[]
         = { "traceparent", "TRACEPARENT", "TraceParent", "TrAcEpArEnT", NULL };
 
