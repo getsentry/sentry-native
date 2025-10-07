@@ -307,7 +307,7 @@ parse_traceparent(
     }
 
     // Check version
-    if (value[0] != '0' || value[1] != '0' || value[2] != '-') {
+    if (strncmp(value, "00-", 3) != 0) {
         SENTRY_WARN("invalid traceparent format: unsupported version "
                     "or missing delimiter");
         return;
