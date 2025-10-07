@@ -1834,10 +1834,9 @@ collect_traceparent_headers(const char *key, const char *value, void *userdata)
         collector->sentry_trace_value[value_len] = '\0';
     } else if (strcmp(key, "traceparent") == 0) {
         collector->traceparent_found = 1;
-        strncpy(collector->traceparent_value, value,
-            sizeof(collector->traceparent_value) - 1);
-        collector->traceparent_value[sizeof(collector->traceparent_value) - 1]
-            = '\0';
+        const size_t value_len = sizeof(collector->traceparent_value) - 1;
+        strncpy(collector->traceparent_value, value, value_len);
+        collector->traceparent_value[value_len] = '\0';
     }
 }
 
