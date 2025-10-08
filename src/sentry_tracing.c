@@ -1,7 +1,9 @@
 #include "sentry_tracing.h"
 #include "sentry.h"
 #include "sentry_alloc.h"
+#include "sentry_core.h"
 #include "sentry_logger.h"
+#include "sentry_options.h"
 #include "sentry_scope.h"
 #include "sentry_slice.h"
 #include "sentry_string.h"
@@ -229,29 +231,26 @@ is_valid_span_id(const char *span_id)
     return is_valid_id(span_id, 16, "span id");
 }
 
-void
-sentry_transaction_context_update_from_header_n(
-    sentry_transaction_context_t *tx_ctx, const char *key, size_t key_len,
-    const char *value, size_t value_len)
+static bool
+compare_header_key(
+    const char *key, size_t key_len, const char *expected, size_t expected_len)
 {
-    if (!tx_ctx) {
-        return;
+    if (key_len != expected_len) {
+        return false;
     }
-
-    // do case-insensitive header key comparison
-    const char sentry_trace[] = "sentry-trace";
-    const size_t sentry_trace_len = sizeof(sentry_trace) - 1;
-    if (key_len != sentry_trace_len) {
-        return;
-    }
-    for (size_t i = 0; i < sentry_trace_len; i++) {
-        if (tolower(key[i]) != sentry_trace[i]) {
-            return;
+    for (size_t i = 0; i < expected_len; i++) {
+        if (tolower(key[i]) != expected[i]) {
+            return false;
         }
     }
+    return true;
+}
 
-    // https://develop.sentry.dev/sdk/performance/#header-sentry-trace
-    // sentry-trace = traceid-spanid(-sampled)?
+static void
+parse_sentry_trace(
+    sentry_transaction_context_t *tx_ctx, const char *value, size_t value_len)
+{
+    // Parse sentry-trace header: traceid-spanid(-sampled)?
     const char *trace_id_start = value;
     const char *trace_id_end = memchr(trace_id_start, '-', value_len);
     if (!trace_id_end) {
@@ -295,6 +294,25 @@ sentry_transaction_context_update_from_header_n(
 
     bool sampled = *(span_id_end + 1) == '1';
     sentry_value_set_by_key(inner, "sampled", sentry_value_new_bool(sampled));
+}
+
+void
+sentry_transaction_context_update_from_header_n(
+    sentry_transaction_context_t *tx_ctx, const char *key, size_t key_len,
+    const char *value, size_t value_len)
+{
+    if (!tx_ctx) {
+        return;
+    }
+
+    // do case-insensitive header key comparison
+    const char sentry_trace[] = "sentry-trace";
+    const size_t sentry_trace_len = sizeof(sentry_trace) - 1;
+    bool is_sentry_trace
+        = compare_header_key(key, key_len, sentry_trace, sentry_trace_len);
+    if (is_sentry_trace) {
+        parse_sentry_trace(tx_ctx, value, value_len);
+    }
 }
 
 void
@@ -771,15 +789,29 @@ sentry__span_iter_headers(sentry_value_t span,
         return;
     }
 
-    char buf[64];
+    // (32 char trace_id)-(16-char span_id)-(0|1) + null terminator
+    char buf[SENTRY_TRACE_LEN + 1];
     snprintf(buf, sizeof(buf), "%s-%s-%s", sentry_value_as_string(trace_id),
         sentry_value_as_string(span_id),
         sentry_value_is_true(sampled) ? "1" : "0");
+    callback("sentry-trace", buf, userdata);
 
     // TODO propagate dsc into outgoing bagage header
     //  https://develop.sentry.dev/sdk/telemetry/traces/dynamic-sampling-context/#baggage-header
 
-    callback("sentry-trace", buf, userdata);
+    SENTRY_WITH_OPTIONS (options) {
+        if (options->propagate_traceparent) {
+            // 00-(32 char trace_id)-(16-char span_id)-(00|01) + null terminator
+            char traceparent[SENTRY_W3C_TRACEPARENT_LEN + 1];
+            snprintf(traceparent, sizeof(traceparent), "00-%s-%s-%s",
+                sentry_value_as_string(trace_id),
+                sentry_value_as_string(span_id),
+                sentry_value_is_true(sampled) ? "01" : "00");
+            // emit as lowercase as described on the W3C spec
+            // https://www.w3.org/TR/trace-context/#header-name
+            callback("traceparent", traceparent, userdata);
+        }
+    }
 }
 
 void

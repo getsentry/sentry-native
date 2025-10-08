@@ -1891,6 +1891,26 @@ SENTRY_EXPERIMENTAL_API void sentry_options_set_traces_sampler(
     void *user_data);
 
 /**
+ * Enables or disables propagation of the W3C Trace Context `traceparent`
+ * header.
+ *
+ * When enabled, the `traceparent` header will be included alongside the
+ * `sentry-trace` header in outgoing HTTP requests for distributed tracing
+ * interoperability with OpenTelemetry (OTel) services.
+ *
+ * This is disabled by default.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_options_set_propagate_traceparent(
+    sentry_options_t *opts, int propagate_traceparent);
+
+/**
+ * Returns whether W3C Trace Context `traceparent` header propagation is
+ * enabled.
+ */
+SENTRY_EXPERIMENTAL_API int sentry_options_get_propagate_traceparent(
+    const sentry_options_t *opts);
+
+/**
  * Enables or disables the structured logging feature.
  * When disabled, all calls to sentry_logger_X() are no-ops.
  */

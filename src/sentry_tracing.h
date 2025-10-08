@@ -4,6 +4,14 @@
 #include "sentry_slice.h"
 #include "sentry_value.h"
 
+// W3C traceparent header: 00-<traceId>-<spanId>-<flags>
+// length: 00-32char-16char-02char
+#define SENTRY_W3C_TRACEPARENT_LEN 55
+
+// sentry-trace header: <traceId>-<spanId>-<sampled>
+// length: 32char-16char-01char
+#define SENTRY_TRACE_LEN 51
+
 /**
  * A span.
  */
