@@ -296,77 +296,6 @@ parse_sentry_trace(
     sentry_value_set_by_key(inner, "sampled", sentry_value_new_bool(sampled));
 }
 
-static void
-parse_traceparent(
-    sentry_transaction_context_t *tx_ctx, const char *value, size_t value_len)
-{
-    // Parse W3C traceparent header: 00-<traceId>-<spanId>-<flags>
-    if (value_len != 55) { // length: 00-32char-16char-02char
-        SENTRY_WARN("invalid traceparent format: length mismatch");
-        return;
-    }
-
-    // Check version
-    if (strncmp(value, "00-", 3) != 0) {
-        SENTRY_WARN("invalid traceparent format: unsupported version "
-                    "or missing delimiter");
-        return;
-    }
-
-    // Extract trace ID (32 hex chars)
-    const char *trace_id_start = value + 3;
-    if (value[35] != '-') {
-        SENTRY_WARN("invalid traceparent format: missing delimiter "
-                    "after trace ID");
-        return;
-    }
-
-    char *trace_id_str = sentry__string_clone_n(trace_id_start, 32);
-    if (!is_valid_trace_id(trace_id_str)) {
-        sentry_free(trace_id_str);
-        return;
-    }
-
-    // Extract span ID (16 hex chars)
-    const char *span_id_start = value + 36;
-    if (value[52] != '-') {
-        SENTRY_WARN("invalid traceparent format: missing delimiter "
-                    "after span ID");
-        sentry_free(trace_id_str);
-        return;
-    }
-
-    char *span_id_str = sentry__string_clone_n(span_id_start, 16);
-    if (!is_valid_span_id(span_id_str)) {
-        sentry_free(trace_id_str);
-        sentry_free(span_id_str);
-        return;
-    }
-
-    // Extract flags (2 hex chars)
-    const char *flags_start = value + 53;
-
-    // Parse flags - only accept 00 (not sampled) or 01 (sampled) per W3C spec
-    char flags_str[3] = { flags_start[0], flags_start[1], '\0' };
-    bool sampled;
-    if (strncmp(flags_str, "00", 2) == 0) {
-        sampled = false;
-    } else if (strncmp(flags_str, "01", 2) == 0) {
-        sampled = true;
-    } else {
-        SENTRY_WARN("invalid traceparent format: flags must be 00 or 01");
-        sentry_free(trace_id_str);
-        sentry_free(span_id_str);
-        return;
-    }
-
-    sentry_value_t inner = tx_ctx->inner;
-    sentry_value_set_by_key(
-        inner, "trace_id", sentry__value_new_string_owned(trace_id_str));
-    sentry_value_set_by_key(
-        inner, "parent_span_id", sentry__value_new_string_owned(span_id_str));
-    sentry_value_set_by_key(inner, "sampled", sentry_value_new_bool(sampled));
-}
 void
 sentry_transaction_context_update_from_header_n(
     sentry_transaction_context_t *tx_ctx, const char *key, size_t key_len,
@@ -383,16 +312,6 @@ sentry_transaction_context_update_from_header_n(
         = compare_header_key(key, key_len, sentry_trace, sentry_trace_len);
     if (is_sentry_trace) {
         parse_sentry_trace(tx_ctx, value, value_len);
-        return;
-    }
-
-    // Check for traceparent header: 00-<traceId>-<spanId>-<sampled>
-    const char traceparent[] = "traceparent";
-    const size_t traceparent_len = sizeof(traceparent) - 1;
-    bool is_traceparent
-        = compare_header_key(key, key_len, traceparent, traceparent_len);
-    if (is_traceparent) {
-        parse_traceparent(tx_ctx, value, value_len);
     }
 }
 
@@ -875,11 +794,11 @@ sentry__span_iter_headers(sentry_value_t span,
     snprintf(buf, sizeof(buf), "%s-%s-%s", sentry_value_as_string(trace_id),
         sentry_value_as_string(span_id),
         sentry_value_is_true(sampled) ? "1" : "0");
+    callback("sentry-trace", buf, userdata);
 
     // TODO propagate dsc into outgoing bagage header
     //  https://develop.sentry.dev/sdk/telemetry/traces/dynamic-sampling-context/#baggage-header
 
-    callback("sentry-trace", buf, userdata);
     SENTRY_WITH_OPTIONS (options) {
         if (options->propagate_traceparent) {
             // 00-(32 char trace_id)-(16-char span_id)-(00|01) + null terminator
@@ -888,6 +807,8 @@ sentry__span_iter_headers(sentry_value_t span,
                 sentry_value_as_string(trace_id),
                 sentry_value_as_string(span_id),
                 sentry_value_is_true(sampled) ? "01" : "00");
+            // emit as lowercase as described on the W3C spec
+            // https://www.w3.org/TR/trace-context/#header-name
             callback("traceparent", traceparent, userdata);
         }
     }

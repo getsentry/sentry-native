@@ -1861,7 +1861,8 @@ SENTRY_TEST(traceparent_header_disabled_by_default)
     TEST_CHECK(collector.sentry_trace_found);
     TEST_CHECK(!collector.traceparent_found);
 
-    TEST_CHECK_INT_EQUAL(strlen(collector.sentry_trace_value), 51);
+    TEST_CHECK_INT_EQUAL(
+        strlen(collector.sentry_trace_value), SENTRY_TRACE_LEN);
 
     sentry_transaction_finish(tx);
     sentry_close();
@@ -1890,7 +1891,7 @@ SENTRY_TEST(traceparent_header_generation)
     TEST_CHECK(collector.traceparent_found);
 
     // Verify expected traceparent length
-    TEST_CHECK_INT_EQUAL(strlen(collector.traceparent_value), 55);
+    TEST_CHECK_INT_EQUAL(strlen(collector.traceparent_value), TRACEPARENT_LEN);
     // Verify traceparent format: starts with "00-"
     TEST_CHECK(strncmp(collector.traceparent_value, "00-", 3) == 0);
 
@@ -1925,172 +1926,6 @@ SENTRY_TEST(traceparent_header_generation)
 
     sentry_span_finish(span);
     sentry_transaction_finish(tx);
-    sentry_close();
-}
-
-SENTRY_TEST(traceparent_parsing)
-{
-    SENTRY_TEST_OPTIONS_NEW(options);
-    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
-    sentry_options_set_traces_sample_rate(options, 1.0);
-    sentry_init(options);
-
-    const char *test_traceparent
-        = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01";
-    const char *expected_trace_id = "4bf92f3577b34da6a3ce929d0e0e4736";
-    const char *expected_parent_span_id = "00f067aa0ba902b7";
-
-    // Test parsing from traceparent header
-    sentry_transaction_context_t *tx_ctx
-        = sentry_transaction_context_new("test", "test");
-    sentry_transaction_context_update_from_header(
-        tx_ctx, "traceparent", test_traceparent);
-
-    // Verify the parsed values
-    CHECK_STRING_PROPERTY(tx_ctx->inner, "trace_id", expected_trace_id);
-    CHECK_STRING_PROPERTY(
-        tx_ctx->inner, "parent_span_id", expected_parent_span_id);
-    TEST_CHECK(sentry_value_is_true(
-        sentry_value_get_by_key(tx_ctx->inner, "sampled")));
-
-    sentry__transaction_context_free(tx_ctx);
-    sentry_close();
-}
-
-SENTRY_TEST(traceparent_parsing_invalid_formats)
-{
-    SENTRY_TEST_OPTIONS_NEW(options);
-    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
-    sentry_init(options);
-
-    sentry_transaction_context_t *tx_ctx
-        = sentry_transaction_context_new("test", "test");
-
-    // Store original trace_id to verify it doesn't change on invalid input
-    const char *original_trace_id = sentry_value_as_string(
-        sentry_value_get_by_key(tx_ctx->inner, "trace_id"));
-    char original_trace_id_copy[64];
-    strncpy(original_trace_id_copy, original_trace_id,
-        sizeof(original_trace_id_copy) - 1);
-    original_trace_id_copy[sizeof(original_trace_id_copy) - 1] = '\0';
-
-    // Test various invalid formats
-    const char *invalid_headers[] = {
-        "01-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01", // Wrong
-                                                                   // version
-        "00-4bf92f3577b34da6a3ce929d0e0e473-00f067aa0ba902b7-01", // Short
-                                                                  // trace_id
-        "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7", // Missing flags
-        "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902-01", // Short
-                                                                 // span_id
-        "invalid-header-format", // Completely invalid
-        "00", // Too short
-        NULL
-    };
-
-    for (int i = 0; invalid_headers[i] != NULL; i++) {
-        sentry_transaction_context_update_from_header(
-            tx_ctx, "traceparent", invalid_headers[i]);
-
-        // Verify trace_id remains unchanged
-        const char *current_trace_id = sentry_value_as_string(
-            sentry_value_get_by_key(tx_ctx->inner, "trace_id"));
-        TEST_CHECK_STRING_EQUAL(current_trace_id, original_trace_id_copy);
-    }
-
-    sentry__transaction_context_free(tx_ctx);
-    sentry_close();
-}
-
-SENTRY_TEST(traceparent_case_insensitive)
-{
-    SENTRY_TEST_OPTIONS_NEW(options);
-    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
-    sentry_options_set_traces_sample_rate(options, 1.0);
-    sentry_init(options);
-
-    const char *test_traceparent
-        = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01";
-    const char *expected_trace_id = "4bf92f3577b34da6a3ce929d0e0e4736";
-
-    // Test case-insensitive header parsing
-    const char *header_variants[]
-        = { "traceparent", "TRACEPARENT", "TraceParent", "TrAcEpArEnT", NULL };
-
-    for (int i = 0; header_variants[i] != NULL; i++) {
-        sentry_transaction_context_t *tx_ctx
-            = sentry_transaction_context_new("test", "test");
-        sentry_transaction_context_update_from_header(
-            tx_ctx, header_variants[i], test_traceparent);
-
-        // Should parse successfully regardless of case
-        CHECK_STRING_PROPERTY(tx_ctx->inner, "trace_id", expected_trace_id);
-
-        sentry__transaction_context_free(tx_ctx);
-    }
-
-    sentry_close();
-}
-
-SENTRY_TEST(traceparent_sampling_flags)
-{
-    SENTRY_TEST_OPTIONS_NEW(options);
-    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
-    sentry_options_set_traces_sample_rate(options, 1.0);
-    sentry_init(options);
-
-    // Test sampled flag (01)
-    const char *sampled_traceparent
-        = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01";
-    sentry_transaction_context_t *tx_ctx
-        = sentry_transaction_context_new("test", "test");
-    sentry_transaction_context_update_from_header(
-        tx_ctx, "traceparent", sampled_traceparent);
-    TEST_CHECK(sentry_value_is_true(
-        sentry_value_get_by_key(tx_ctx->inner, "sampled")));
-    sentry__transaction_context_free(tx_ctx);
-
-    // Test not sampled flag (00)
-    const char *unsampled_traceparent
-        = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-00";
-    tx_ctx = sentry_transaction_context_new("test", "test");
-    sentry_transaction_context_update_from_header(
-        tx_ctx, "traceparent", unsampled_traceparent);
-    TEST_CHECK(!sentry_value_is_true(
-        sentry_value_get_by_key(tx_ctx->inner, "sampled")));
-    sentry__transaction_context_free(tx_ctx);
-
-    // Test invalid flag values (03, 05, etc.) - should be rejected
-    const char *invalid_flags_traceparent
-        = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-03";
-    tx_ctx = sentry_transaction_context_new("test", "test");
-
-    // Store original trace_id and parent_span_id to verify they remain
-    // unchanged
-    sentry_value_t original_trace_id
-        = sentry_value_get_by_key(tx_ctx->inner, "trace_id");
-    sentry_value_t original_parent_span_id
-        = sentry_value_get_by_key(tx_ctx->inner, "parent_span_id");
-
-    sentry_transaction_context_update_from_header(
-        tx_ctx, "traceparent", invalid_flags_traceparent);
-
-    // Verify that the update failed and values remain unchanged
-    sentry_value_t current_trace_id
-        = sentry_value_get_by_key(tx_ctx->inner, "trace_id");
-    sentry_value_t current_parent_span_id
-        = sentry_value_get_by_key(tx_ctx->inner, "parent_span_id");
-
-    // The trace_id should remain the original (not the one from the invalid
-    // traceparent)
-    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(original_trace_id),
-        sentry_value_as_string(current_trace_id));
-    // parent_span_id should remain unchanged (null or original value)
-    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(original_parent_span_id),
-        sentry_value_as_string(current_parent_span_id));
-
-    sentry__transaction_context_free(tx_ctx);
-
     sentry_close();
 }
 
