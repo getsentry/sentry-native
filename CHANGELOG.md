@@ -4,7 +4,7 @@
 
 **Features**:
 
-- Add `traceparent` header support. ([#1394](https://github.com/getsentry/sentry-native/pull/1394))
+- Add support for outgoing W3C traceparent header propagation with the `propagate_traceparent` option. ([#1394](https://github.com/getsentry/sentry-native/pull/1394))
 
 **Fixes**:
 
