@@ -1898,16 +1898,16 @@ SENTRY_TEST(traceparent_header_generation)
     // Extract components from both headers to verify consistency
     const char *trace_id = sentry_value_as_string(
         sentry_value_get_by_key(tx->inner, "trace_id"));
-    const char *span_id
+    const char *tx_span_id
         = sentry_value_as_string(sentry_value_get_by_key(tx->inner, "span_id"));
 
     // Verify sentry-trace contains the correct trace and span IDs
     TEST_CHECK(strstr(collector.sentry_trace_value, trace_id) != NULL);
-    TEST_CHECK(strstr(collector.sentry_trace_value, span_id) != NULL);
+    TEST_CHECK(strstr(collector.sentry_trace_value, tx_span_id) != NULL);
 
     // Verify traceparent contains the correct trace and span IDs
     TEST_CHECK(strstr(collector.traceparent_value, trace_id) != NULL);
-    TEST_CHECK(strstr(collector.traceparent_value, span_id) != NULL);
+    TEST_CHECK(strstr(collector.traceparent_value, tx_span_id) != NULL);
 
     // Test span header generation
     sentry_span_t *span
@@ -1923,6 +1923,21 @@ SENTRY_TEST(traceparent_header_generation)
 
     // Verify traceparent format for spans
     TEST_CHECK(strncmp(span_collector.traceparent_value, "00-", 3) == 0);
+
+    // Extract components from both headers to verify consistency
+    const char *span_trace_id = sentry_value_as_string(
+        sentry_value_get_by_key(span->inner, "trace_id"));
+    const char *span_id = sentry_value_as_string(
+        sentry_value_get_by_key(span->inner, "span_id"));
+
+    // Verify sentry-trace contains the correct trace and span IDs
+    TEST_CHECK(
+        strstr(span_collector.sentry_trace_value, span_trace_id) != NULL);
+    TEST_CHECK(strstr(span_collector.sentry_trace_value, span_id) != NULL);
+
+    // Verify traceparent contains the correct trace and span IDs
+    TEST_CHECK(strstr(span_collector.traceparent_value, span_trace_id) != NULL);
+    TEST_CHECK(strstr(span_collector.traceparent_value, span_id) != NULL);
 
     sentry_span_finish(span);
     sentry_transaction_finish(tx);
