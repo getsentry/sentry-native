@@ -6,7 +6,7 @@
 
 // W3C traceparent header: 00-<traceId>-<spanId>-<flags>
 // length: 00-32char-16char-02char
-#define TRACEPARENT_LEN 55
+#define SENTRY_W3C_TRACEPARENT_LEN 55
 
 // sentry-trace header: <traceId>-<spanId>-<sampled>
 // length: 32char-16char-01char

@@ -1891,7 +1891,8 @@ SENTRY_TEST(traceparent_header_generation)
     TEST_CHECK(collector.traceparent_found);
 
     // Verify expected traceparent length
-    TEST_CHECK_INT_EQUAL(strlen(collector.traceparent_value), TRACEPARENT_LEN);
+    TEST_CHECK_INT_EQUAL(
+        strlen(collector.traceparent_value), SENTRY_W3C_TRACEPARENT_LEN);
     // Verify traceparent format: starts with "00-"
     TEST_CHECK(strncmp(collector.traceparent_value, "00-", 3) == 0);
 
