@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1759925347970,
+  "lastUpdate": 1759925351679,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -12390,6 +12390,66 @@ window.BENCHMARK_DATA = {
             "value": 15.362165999931676,
             "unit": "ms",
             "extra": "Min 11.729ms\nMax 19.386ms\nMean 15.291ms\nStdDev 2.748ms\nMedian 15.362ms\nCPU 2.562ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "60878493+JoshuaMoelans@users.noreply.github.com",
+            "name": "JoshuaMoelans",
+            "username": "JoshuaMoelans"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "5d60bff97af44caf9562a8cc09eaa43ffb13f60c",
+          "message": "feat: outgoing `traceparent` header support (#1394)\n\n* initial traceparent support\n\n* CHANGELOG.md update\n\n* consolidate tests\n\n* remove redundant value_len check\n\n* check for exact length\n\n* reuse header key comparison + extract parsing per header type\n\n* static internal helper\n\n* add size bounds + checks for headers\n\n* only accept 00 or 01 sampling flag\n\n* Apply suggestion from @supervacuus\n\nCo-authored-by: Mischan Toosarani-Hausberger <mischan@abovevacant.com>\n\n* Apply suggestion from @supervacuus\n\nCo-authored-by: Mischan Toosarani-Hausberger <mischan@abovevacant.com>\n\n* Apply suggestion from @supervacuus\n\nCo-authored-by: Mischan Toosarani-Hausberger <mischan@abovevacant.com>\n\n* Apply suggestion from @supervacuus\n\nCo-authored-by: Mischan Toosarani-Hausberger <mischan@abovevacant.com>\n\n* fix(traceparent): only support outgoing for now (#1406)\n\n* cleanup\n\n* remove feature of parsing incoming traceparent\n\n* re-add len macros\n\n* add tests to verify consistency of trace and span IDs across headers for transactions and spans\n\n* use trace header sizes in header propagation\n\n* update CHANGELOG.md\n\n---------\n\nCo-authored-by: Mischan Toosarani-Hausberger <mischan@abovevacant.com>",
+          "timestamp": "2025-10-08T14:04:10+02:00",
+          "tree_id": "36a2dbd35ef80ef461861e2b3086e53ad6bdf150",
+          "url": "https://github.com/getsentry/sentry-native/commit/5d60bff97af44caf9562a8cc09eaa43ffb13f60c"
+        },
+        "date": 1759925348979,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 4.325999999991836,
+            "unit": "ms",
+            "extra": "Min 3.549ms\nMax 7.455ms\nMean 5.081ms\nStdDev 1.689ms\nMedian 4.326ms\nCPU 2.966ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 4.728625000012698,
+            "unit": "ms",
+            "extra": "Min 3.959ms\nMax 5.511ms\nMean 4.761ms\nStdDev 0.615ms\nMedian 4.729ms\nCPU 2.697ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 29.937624999945456,
+            "unit": "ms",
+            "extra": "Min 20.981ms\nMax 151.304ms\nMean 52.376ms\nStdDev 55.445ms\nMedian 29.938ms\nCPU 8.458ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.02529199997525211,
+            "unit": "ms",
+            "extra": "Min 0.010ms\nMax 0.039ms\nMean 0.025ms\nStdDev 0.012ms\nMedian 0.025ms\nCPU 0.024ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.3022920000148588,
+            "unit": "ms",
+            "extra": "Min 0.278ms\nMax 0.813ms\nMean 0.409ms\nStdDev 0.228ms\nMedian 0.302ms\nCPU 0.409ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 20.52012499996181,
+            "unit": "ms",
+            "extra": "Min 10.523ms\nMax 30.952ms\nMean 20.204ms\nStdDev 8.927ms\nMedian 20.520ms\nCPU 1.262ms"
           }
         ]
       }
