@@ -7,6 +7,7 @@
 #include "sentry_database.h"
 #include "sentry_envelope.h"
 #include "sentry_logger.h"
+#include "sentry_logs.h"
 #include "sentry_options.h"
 #if defined(SENTRY_PLATFORM_WINDOWS)
 #    include "sentry_os.h"
@@ -528,6 +529,11 @@ handle_ucontext(const sentry_ucontext_t *uctx)
     SENTRY_WITH_OPTIONS (options) {
         if (!options->enable_logging_when_crashed) {
             sentry__logger_disable();
+        }
+
+        // Flush logs in a crash-safe manner before crash handling
+        if (options->enable_logs) {
+            sentry__logs_flush_crash_safe();
         }
     }
 
