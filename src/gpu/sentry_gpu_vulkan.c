@@ -216,7 +216,7 @@ sentry__get_gpu_info(void)
         return NULL;
     }
 
-    sentry_gpu_list_t *gpu_list = sentry_malloc(sizeof(sentry_gpu_list_t));
+    sentry_gpu_list_t *gpu_list = SENTRY_MAKE(sentry_gpu_list_t);
     if (!gpu_list) {
         sentry_free(devices);
         pfn_vkDestroyInstance(instance, NULL);
