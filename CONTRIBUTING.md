@@ -240,4 +240,4 @@ applied in order not to have to fight boring concurrency bugs:
 
 ## Runtime Library Requirements
 
-**Vulkan**: libraries (e.g. libvulkan, vulkan-1) are required for gathering GPU Context data. Native SDK provides vendored Headers of Vulkan for easier compilation and integration, however it relies on the libraries being installed in a known location.
+**Vulkan**: libraries (e.g. libvulkan, vulkan-1, MoltenVK) are required for gathering GPU Context data. Native SDK provides vendored Headers of Vulkan for easier compilation and integration, however it relies on the libraries being installed in a known location.
