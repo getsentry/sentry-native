@@ -87,7 +87,7 @@ SENTRY_TEST(gpu_info_vendor_id_known)
     for (size_t i = 0; i < sizeof(test_vendor_ids) / sizeof(test_vendor_ids[0]);
         i++) {
         char *vendor_name = sentry__gpu_vendor_id_to_name(test_vendor_ids[i]);
-        TEST_CHECK(vendor_name != NULL);
+        TEST_ASSERT(vendor_name != NULL);
 
         switch (test_vendor_ids[i]) {
         case 0x10DE:

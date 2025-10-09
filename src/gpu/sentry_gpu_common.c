@@ -45,6 +45,11 @@ sentry__gpu_vendor_id_to_name(unsigned int vendor_id)
 static sentry_value_t
 create_gpu_context_from_info(sentry_gpu_info_t *gpu_info)
 {
+    if (!gpu_info) {
+        SENTRY_WARN("No GPU info provided. Skipping GPU context creation.");
+        return sentry_value_new_null();
+    }
+
     sentry_value_t gpu_context = sentry_value_new_object();
     if (sentry_value_is_null(gpu_context)) {
         return gpu_context;

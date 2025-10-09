@@ -27,6 +27,10 @@
 #endif
 
 // Dynamic function pointers
+// Note: These are not thread-safe, but this is not a concern for our use case.
+// We are only accessing these during scope initialization, which is explicitly
+// locked, so it's fair to assume that only single-threadded access is happening
+// here.
 static PFN_vkCreateInstance pfn_vkCreateInstance = NULL;
 static PFN_vkDestroyInstance pfn_vkDestroyInstance = NULL;
 static PFN_vkEnumeratePhysicalDevices pfn_vkEnumeratePhysicalDevices = NULL;
@@ -64,7 +68,7 @@ load_vulkan_library(void)
 #endif
 
     if (!vulkan_library) {
-        SENTRY_DEBUG("Failed to load Vulkan library");
+        SENTRY_WARN("Failed to load Vulkan library");
         return false;
     }
 
@@ -86,13 +90,13 @@ load_vulkan_library(void)
     if (!pfn_vkCreateInstance || !pfn_vkDestroyInstance
         || !pfn_vkEnumeratePhysicalDevices || !pfn_vkGetPhysicalDeviceProperties
         || !pfn_vkGetPhysicalDeviceMemoryProperties) {
-        SENTRY_DEBUG("Failed to load required Vulkan functions");
+        SENTRY_WARN("Failed to load required Vulkan functions");
         SENTRY_FREE_LIBRARY(vulkan_library);
         vulkan_library = NULL;
         return false;
     }
 
-    SENTRY_DEBUG("Successfully loaded Vulkan library and functions");
+    SENTRY_INFO("Successfully loaded Vulkan library and functions");
     return true;
 }
 
