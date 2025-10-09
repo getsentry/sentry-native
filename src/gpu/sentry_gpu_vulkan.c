@@ -26,6 +26,11 @@
 #    define SENTRY_FREE_LIBRARY(handle) dlclose(handle)
 #endif
 
+// Define MoltenVK constants if not available
+#ifndef VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR
+#    define VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR 0x00000001
+#endif
+
 // Dynamic function pointers
 // Note: These are not thread-safe, but this is not a concern for our use case.
 // We are only accessing these during scope initialization, which is explicitly
@@ -128,6 +133,20 @@ create_vulkan_instance(void)
     VkInstanceCreateInfo create_info = { 0 };
     create_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
     create_info.pApplicationInfo = &app_info;
+
+#ifdef __APPLE__
+    // Required extensions for MoltenVK on macOS
+    const char *extensions[] = { "VK_KHR_portability_enumeration",
+        "VK_KHR_get_physical_device_properties2" };
+    create_info.enabledExtensionCount = 2;
+    create_info.ppEnabledExtensionNames = extensions;
+
+    // Required flag for MoltenVK on macOS
+    create_info.flags = VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
+
+    // Disable validation layers on macOS as they may not be available
+    create_info.enabledLayerCount = 0;
+#endif
 
     VkInstance instance = VK_NULL_HANDLE;
     VkResult result = pfn_vkCreateInstance(&create_info, NULL, &instance);
