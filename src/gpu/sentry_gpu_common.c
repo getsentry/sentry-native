@@ -1,4 +1,5 @@
 #include "sentry_gpu.h"
+#include "sentry_logger.h"
 #include "sentry_string.h"
 
 char *
@@ -148,7 +149,7 @@ sentry__add_gpu_contexts(sentry_value_t contexts)
             if (i == 0) {
                 snprintf(context_key, sizeof(context_key), "gpu");
             } else {
-                snprintf(context_key, sizeof(context_key), "gpu%u", i + 1);
+                snprintf(context_key, sizeof(context_key), "gpu%u", i);
             }
             sentry_value_set_by_key(contexts, context_key, gpu_context);
         }
