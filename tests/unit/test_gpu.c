@@ -152,6 +152,7 @@ SENTRY_TEST(gpu_info_vendor_id_known)
     if (gpu_list && gpu_list->count > 0) {
         for (unsigned int i = 0; i < gpu_list->count; i++) {
             sentry_gpu_info_t *gpu_info = gpu_list->gpus[i];
+            TEST_ASSERT(!!gpu_info);
 
             if (gpu_info->vendor_name) {
                 char *expected_vendor_name
