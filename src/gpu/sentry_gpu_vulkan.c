@@ -144,7 +144,7 @@ create_gpu_info_from_device(VkPhysicalDevice device)
     pfn_vkGetPhysicalDeviceProperties(device, &properties);
     pfn_vkGetPhysicalDeviceMemoryProperties(device, &memory_properties);
 
-    sentry_gpu_info_t *gpu_info = sentry_malloc(sizeof(sentry_gpu_info_t));
+    sentry_gpu_info_t *gpu_info = SENTRY_MAKE(sentry_gpu_info_t);
     if (!gpu_info) {
         return NULL;
     }
