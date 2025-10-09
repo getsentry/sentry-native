@@ -175,7 +175,9 @@ create_gpu_info_from_device(VkPhysicalDevice device)
             total_memory += memory_properties.memoryHeaps[i].size;
         }
     }
-    gpu_info->memory_size = total_memory;
+
+    // Sentry expects memory size in MB, and Vulkan reports in bytes
+    gpu_info->memory_size = total_memory / (1024 * 1024);
 
     return gpu_info;
 }
