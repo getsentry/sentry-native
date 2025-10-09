@@ -18,6 +18,7 @@ SENTRY_TEST(gpu_info_basic)
         bool has_info = false;
         for (unsigned int i = 0; i < gpu_list->count; i++) {
             sentry_gpu_info_t *gpu_info = gpu_list->gpus[i];
+            TEST_ASSERT(!!gpu_info);
             printf("GPU %u:\n", i);
 
             if (gpu_info->name && strlen(gpu_info->name) > 0) {
