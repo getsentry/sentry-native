@@ -1,4 +1,5 @@
 [![Conan Center](https://shields.io/conan/v/sentry-native)](https://conan.io/center/recipes/sentry-native) [![homebrew](https://img.shields.io/homebrew/v/sentry-native)](https://formulae.brew.sh/formula/sentry-native) [![nixpkgs unstable](https://repology.org/badge/version-for-repo/nix_unstable/sentry-native.svg)](https://github.com/NixOS/nixpkgs/blob/nixos-unstable/pkgs/by-name/se/sentry-native/package.nix) [![vcpkg](https://shields.io/vcpkg/v/sentry-native)](https://vcpkg.link/ports/sentry-native)
+
 <p align="center">
   <a href="https://sentry.io/?utm_source=github&utm_medium=logo" target="_blank">
     <picture>
@@ -10,6 +11,7 @@
 </p>
 
 # Official Sentry SDK for C/C++ <!-- omit in toc -->
+
 [![GH Workflow](https://img.shields.io/github/actions/workflow/status/getsentry/sentry-native/ci.yml?branch=master)](https://github.com/getsentry/sentry-native/actions)
 [![codecov](https://codecov.io/gh/getsentry/sentry-native/branch/master/graph/badge.svg)](https://codecov.io/gh/getsentry/sentry-native)
 
@@ -184,8 +186,8 @@ specifying the `SDKROOT`:
 $ export SDKROOT=$(xcrun --sdk macosx --show-sdk-path)
 ```
 
-If you build on macOS using _CMake 4_, then you _must_ specify the `SDKROOT`, because 
-[CMake 4 defaults to an empty `CMAKE_OSX_SYSROOT`](https://cmake.org/cmake/help/latest/variable/CMAKE_OSX_SYSROOT.html), 
+If you build on macOS using _CMake 4_, then you _must_ specify the `SDKROOT`, because
+[CMake 4 defaults to an empty `CMAKE_OSX_SYSROOT`](https://cmake.org/cmake/help/latest/variable/CMAKE_OSX_SYSROOT.html),
 which could lead to inconsistent include paths when CMake tries to gather the `sysroot` later in the build.
 
 ### Compile-Time Options
@@ -305,7 +307,7 @@ using `cmake -D BUILD_SHARED_LIBS=OFF ..`.
   Enables GPU information collection and reporting. When enabled, the SDK will attempt to gather GPU details such as
   GPU name, vendor, memory size, and driver version, which are included in event contexts. The implementation uses
   the Vulkan API for cross-platform GPU detection. **Requires the Vulkan SDK to be installed** - if not found,
-  GPU information gathering will be automatically disabled during build. Setting this to `OFF` disables GPU 
+  GPU information gathering will be automatically disabled during build. Setting this to `OFF` disables GPU
   information collection entirely, which can reduce dependencies and binary size.
 
 ### Support Matrix
