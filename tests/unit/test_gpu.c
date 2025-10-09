@@ -361,7 +361,7 @@ SENTRY_TEST(gpu_info_hybrid_setup_simulation)
         for (unsigned int i = 0; i < gpu_list->count; i++) {
             sentry_gpu_info_t *gpu_info = gpu_list->gpus[i];
 
-            if (gpu_info->vendor_id == 0x10de) { // NVIDIA
+            if (gpu_info->vendor_id == 0x10DE) { // NVIDIA
                 has_nvidia = true;
                 printf("Found NVIDIA GPU: %s\n",
                     gpu_info->name ? gpu_info->name : "Unknown");
