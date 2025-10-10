@@ -335,9 +335,11 @@ static
     case 'X':
     case 'o': {
         unsigned long long int val = va_arg(*args_copy, unsigned long long int);
+        // TODO update once unsigned 64-bit can be sent as non-string
+        char buf[26];
+        snprintf(buf, sizeof(buf), "%" PRIu64, val);
         sentry_value_set_by_key(
-            param_obj, "value", sentry_value_new_uint64(val));
-        // TODO update once unsigned 64-bit can be sent
+            param_obj, "value", sentry_value_new_string(buf));
         sentry_value_set_by_key(
             param_obj, "type", sentry_value_new_string("string"));
         break;
