@@ -1815,5 +1815,135 @@ SENTRY_TEST(propagation_context_init)
     sentry_close();
 }
 
+typedef struct {
+    int sentry_trace_found;
+    int traceparent_found;
+    char sentry_trace_value[64];
+    char traceparent_value[64];
+} traceparent_header_collector_t;
+
+static void
+collect_traceparent_headers(const char *key, const char *value, void *userdata)
+{
+    traceparent_header_collector_t *collector
+        = (traceparent_header_collector_t *)userdata;
+    if (strcmp(key, "sentry-trace") == 0) {
+        collector->sentry_trace_found = 1;
+        const size_t value_len = sizeof(collector->sentry_trace_value) - 1;
+        strncpy(collector->sentry_trace_value, value, value_len);
+        collector->sentry_trace_value[value_len] = '\0';
+    } else if (strcmp(key, "traceparent") == 0) {
+        collector->traceparent_found = 1;
+        const size_t value_len = sizeof(collector->traceparent_value) - 1;
+        strncpy(collector->traceparent_value, value, value_len);
+        collector->traceparent_value[value_len] = '\0';
+    }
+}
+
+SENTRY_TEST(traceparent_header_disabled_by_default)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_traces_sample_rate(options, 1.0);
+    // Note: not enabling traceparent propagation
+    sentry_init(options);
+
+    sentry_transaction_context_t *tx_ctx
+        = sentry_transaction_context_new("test", "test");
+    sentry_transaction_t *tx
+        = sentry_transaction_start(tx_ctx, sentry_value_new_null());
+
+    traceparent_header_collector_t collector = { 0 };
+    sentry_transaction_iter_headers(
+        tx, collect_traceparent_headers, &collector);
+
+    // Should have sentry-trace but not traceparent
+    TEST_CHECK(collector.sentry_trace_found);
+    TEST_CHECK(!collector.traceparent_found);
+
+    TEST_CHECK_INT_EQUAL(
+        strlen(collector.sentry_trace_value), SENTRY_TRACE_LEN);
+
+    sentry_transaction_finish(tx);
+    sentry_close();
+}
+
+SENTRY_TEST(traceparent_header_generation)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_traces_sample_rate(options, 1.0);
+    sentry_options_set_propagate_traceparent(options, 1);
+    sentry_init(options);
+
+    sentry_transaction_context_t *tx_ctx
+        = sentry_transaction_context_new("test", "test");
+    sentry_transaction_t *tx
+        = sentry_transaction_start(tx_ctx, sentry_value_new_null());
+
+    // Test transaction header generation
+    traceparent_header_collector_t collector = { 0 };
+    sentry_transaction_iter_headers(
+        tx, collect_traceparent_headers, &collector);
+
+    // Should have both headers
+    TEST_CHECK(collector.sentry_trace_found);
+    TEST_CHECK(collector.traceparent_found);
+
+    // Verify expected traceparent length
+    TEST_CHECK_INT_EQUAL(
+        strlen(collector.traceparent_value), SENTRY_W3C_TRACEPARENT_LEN);
+    // Verify traceparent format: starts with "00-"
+    TEST_CHECK(strncmp(collector.traceparent_value, "00-", 3) == 0);
+
+    // Extract components from both headers to verify consistency
+    const char *trace_id = sentry_value_as_string(
+        sentry_value_get_by_key(tx->inner, "trace_id"));
+    const char *tx_span_id
+        = sentry_value_as_string(sentry_value_get_by_key(tx->inner, "span_id"));
+
+    // Verify sentry-trace contains the correct trace and span IDs
+    TEST_CHECK(strstr(collector.sentry_trace_value, trace_id) != NULL);
+    TEST_CHECK(strstr(collector.sentry_trace_value, tx_span_id) != NULL);
+
+    // Verify traceparent contains the correct trace and span IDs
+    TEST_CHECK(strstr(collector.traceparent_value, trace_id) != NULL);
+    TEST_CHECK(strstr(collector.traceparent_value, tx_span_id) != NULL);
+
+    // Test span header generation
+    sentry_span_t *span
+        = sentry_transaction_start_child(tx, "child", "child-span");
+
+    traceparent_header_collector_t span_collector = { 0 };
+    sentry_span_iter_headers(
+        span, collect_traceparent_headers, &span_collector);
+
+    // Should have both headers for spans too
+    TEST_CHECK(span_collector.sentry_trace_found);
+    TEST_CHECK(span_collector.traceparent_found);
+
+    // Verify traceparent format for spans
+    TEST_CHECK(strncmp(span_collector.traceparent_value, "00-", 3) == 0);
+
+    // Extract components from both headers to verify consistency
+    const char *span_trace_id = sentry_value_as_string(
+        sentry_value_get_by_key(span->inner, "trace_id"));
+    const char *span_id = sentry_value_as_string(
+        sentry_value_get_by_key(span->inner, "span_id"));
+
+    // Verify sentry-trace contains the correct trace and span IDs
+    TEST_CHECK(
+        strstr(span_collector.sentry_trace_value, span_trace_id) != NULL);
+    TEST_CHECK(strstr(span_collector.sentry_trace_value, span_id) != NULL);
+
+    // Verify traceparent contains the correct trace and span IDs
+    TEST_CHECK(strstr(span_collector.traceparent_value, span_trace_id) != NULL);
+    TEST_CHECK(strstr(span_collector.traceparent_value, span_id) != NULL);
+
+    sentry_span_finish(span);
+    sentry_transaction_finish(tx);
+    sentry_close();
+}
+
 #undef IS_NULL
 #undef CHECK_STRING_PROPERTY

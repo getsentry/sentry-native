@@ -3,6 +3,8 @@
 ## Unreleased
 
 **Features**:
+
+- Add support for outgoing W3C traceparent header propagation with the `propagate_traceparent` option. ([#1394](https://github.com/getsentry/sentry-native/pull/1394))
 - Add `sentry_options_set_external_crash_reporter_path` to allow specifying an external crash reporter. ([#1303](https://github.com/getsentry/sentry-native/pull/1303))
 
 **Fixes**:
