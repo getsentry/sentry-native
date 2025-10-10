@@ -139,7 +139,7 @@ SENTRY_TEST(value_uint64)
     // We don't convert uint64 to int32
     TEST_CHECK(sentry_value_as_int32(val) == 0);
     TEST_CHECK(sentry_value_is_true(val));
-    TEST_CHECK_JSON_VALUE(val, "\"42\"");
+    TEST_CHECK_JSON_VALUE(val, "42");
     TEST_CHECK(sentry_value_refcount(val) == 1);
     TEST_CHECK(sentry_value_is_frozen(val));
     sentry_value_decref(val);
@@ -149,7 +149,7 @@ SENTRY_TEST(value_uint64)
     TEST_CHECK(sentry_value_get_type(val) == SENTRY_VALUE_TYPE_UINT64);
     TEST_CHECK(sentry_value_as_uint64(val) == UINT64_MAX);
     TEST_CHECK(sentry_value_is_true(val));
-    TEST_CHECK_JSON_VALUE(val, "\"18446744073709551615\"");
+    TEST_CHECK_JSON_VALUE(val, "18446744073709551615");
     sentry_value_decref(val);
 
     // Test zero
@@ -157,7 +157,7 @@ SENTRY_TEST(value_uint64)
     TEST_CHECK(sentry_value_get_type(val) == SENTRY_VALUE_TYPE_UINT64);
     TEST_CHECK(sentry_value_as_uint64(val) == 0ULL);
     TEST_CHECK(!sentry_value_is_true(val));
-    TEST_CHECK_JSON_VALUE(val, "\"0\"");
+    TEST_CHECK_JSON_VALUE(val, "0");
     TEST_CHECK(sentry_value_refcount(val) == 1);
     TEST_CHECK(sentry_value_is_frozen(val));
     sentry_value_decref(val);
