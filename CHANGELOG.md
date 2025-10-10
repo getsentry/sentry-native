@@ -4,6 +4,7 @@
 
 **Features**:
 
+- Add pkg-config support ([#1411](https://github.com/getsentry/sentry-native/pull/1411))
 - Add support for outgoing W3C traceparent header propagation with the `propagate_traceparent` option. ([#1394](https://github.com/getsentry/sentry-native/pull/1394))
 
 **Fixes**:
