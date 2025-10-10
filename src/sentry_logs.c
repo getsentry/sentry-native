@@ -337,7 +337,9 @@ static
         unsigned long long int val = va_arg(*args_copy, unsigned long long int);
         // TODO update once unsigned 64-bit can be sent as non-string
         char buf[26];
-        snprintf(buf, sizeof(buf), "%llu", val);
+        char format[8];
+        snprintf(format, sizeof(format), "%%ll%c", conversion);
+        snprintf(buf, sizeof(buf), format, val);
         sentry_value_set_by_key(
             param_obj, "value", sentry_value_new_string(buf));
         sentry_value_set_by_key(
