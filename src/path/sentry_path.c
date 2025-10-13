@@ -30,7 +30,6 @@ sentry__path_from_str_owned(char *s)
 #ifdef SENTRY_PLATFORM_WINDOWS
     rv->path_w = sentry__string_to_wstr(s);
     if (!rv->path_w) {
-        sentry_free(s);
         sentry__path_free(rv);
         return NULL;
     }
