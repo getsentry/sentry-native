@@ -247,10 +247,12 @@ test_param_conversion_types(const char *format, ...)
 
     // Validate %p (pointer) - should be string type with pointer representation
     TEST_CHECK_STRING_EQUAL(sentry_value_as_string(type5), "string");
-    // Pointer value should start with "0x" (platform dependent format)
+    // Pointer value format is platform-dependent, but should contain the hex
+    // digits (can be upper- or lower-cased)
     const char *ptr_str = sentry_value_as_string(value5);
     TEST_CHECK(ptr_str != NULL);
-    TEST_CHECK(strncmp(ptr_str, "0x", 2) == 0);
+    TEST_CHECK(strstr(ptr_str, "12345abc") != NULL
+        || strstr(ptr_str, "12345ABC") != NULL);
 
     // Validate %x (hex uint64) - should be string type with hex representation
     TEST_CHECK_STRING_EQUAL(sentry_value_as_string(type6), "string");
@@ -266,7 +268,7 @@ SENTRY_TEST(logs_param_types)
     double c = 3.14159;
     char d = 'A';
     const char *e = "test";
-    void *f = (void *)0x12345678;
+    void *f = (void *)0x12345abc;
     uint64_t g = 0xDEADBEEFDEADBEEF;
     test_param_conversion_types("%u %d %f %c %s %p %x", a, b, c, d, e, f, g);
 }
