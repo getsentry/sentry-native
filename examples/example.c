@@ -494,6 +494,16 @@ main(int argc, char **argv)
         sentry_options_set_enable_logs(options, true);
     }
 
+    if (has_arg(argc, argv, "crash-reporter")) {
+#ifdef SENTRY_PLATFORM_WINDOWS
+        sentry_options_set_external_crash_reporter_pathw(
+            options, L"sentry_crash_reporter.exe");
+#else
+        sentry_options_set_external_crash_reporter_path(
+            options, "./sentry_crash_reporter");
+#endif
+    }
+
     if (0 != sentry_init(options)) {
         return EXIT_FAILURE;
     }
