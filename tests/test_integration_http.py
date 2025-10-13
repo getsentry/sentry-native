@@ -1585,17 +1585,8 @@ def test_inproc_logs_on_crash(cmake, httpserver):
     # we expect 1 envelope with the log, and 1 for the crash
     assert len(httpserver.log) == 2
 
-    # Find the logs envelope
-    logs_envelope = None
-    for req in httpserver.log:
-        body = req[0].get_data()
-        envelope = Envelope.deserialize(body)
-        for item in envelope.items:
-            if item.headers.get("type") == "log":
-                logs_envelope = envelope
-                break
-        if logs_envelope:
-            break
+    log_req = httpserver.log[0]
+    logs_envelope = Envelope.deserialize(log_req[0].get_data())
 
     assert logs_envelope is not None
     assert_logs(logs_envelope, 1)
@@ -1630,17 +1621,8 @@ def test_breakpad_logs_on_crash(cmake, httpserver):
     # we expect 1 envelope with the log, and 1 for the crash
     assert len(httpserver.log) == 2
 
-    # Find the logs envelope
-    logs_envelope = None
-    for req in httpserver.log:
-        body = req[0].get_data()
-        envelope = Envelope.deserialize(body)
-        for item in envelope.items:
-            if item.headers.get("type") == "log":
-                logs_envelope = envelope
-                break
-        if logs_envelope:
-            break
+    log_req = httpserver.log[0]
+    logs_envelope = Envelope.deserialize(log_req[0].get_data())
 
     assert logs_envelope is not None
     assert_logs(logs_envelope, 1)
