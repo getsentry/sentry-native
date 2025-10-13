@@ -71,6 +71,16 @@ extern "C" {
 #    pragma warning(pop)
 #endif
 
+// Provide an accessor for path here, since crashpad uses platform-dependent
+// strings in the same interface and thus the same code could require access
+// to both encodings across platforms. This is usually not the case, as path_w
+// is used in code sections or translation units solely building for Windows.
+#ifdef SENTRY_PLATFORM_WINDOWS
+#    define SENTRY_PATH_PLATFORM_STR(PATH) PATH->path_w
+#else
+#    define SENTRY_PATH_PLATFORM_STR(PATH) PATH->path
+#endif
+
 template <typename T>
 static void
 safe_delete(T *&ptr)
@@ -471,8 +481,8 @@ crashpad_backend_startup(
     // associate feedback with the crash event.
     data->crash_event_id = sentry__new_event_id();
 
-    base::FilePath database(options->database_path->path_w);
-    base::FilePath handler(absolute_handler_path->path_w);
+    base::FilePath database(SENTRY_PATH_PLATFORM_STR(options->database_path));
+    base::FilePath handler(SENTRY_PATH_PLATFORM_STR(absolute_handler_path));
 
     std::map<std::string, std::string> annotations;
     std::vector<base::FilePath> attachments;
@@ -480,7 +490,7 @@ crashpad_backend_startup(
     // register attachments
     for (sentry_attachment_t *attachment = options->attachments; attachment;
         attachment = attachment->next) {
-        attachments.emplace_back(attachment->path->path_w);
+        attachments.emplace_back(SENTRY_PATH_PLATFORM_STR(attachment->path));
     }
 
     // and add the serialized event, and two rotating breadcrumb files
@@ -497,14 +507,14 @@ crashpad_backend_startup(
     sentry__path_touch(data->breadcrumb2_path);
 
     attachments.insert(attachments.end(),
-        { base::FilePath(data->event_path->path_w),
-            base::FilePath(data->breadcrumb1_path->path_w),
-            base::FilePath(data->breadcrumb2_path->path_w) });
+        { base::FilePath(SENTRY_PATH_PLATFORM_STR(data->event_path)),
+            base::FilePath(SENTRY_PATH_PLATFORM_STR(data->breadcrumb1_path)),
+            base::FilePath(SENTRY_PATH_PLATFORM_STR(data->breadcrumb2_path)) });
 
     base::FilePath screenshot;
     if (options->attach_screenshot) {
         sentry_path_t *screenshot_path = sentry__screenshot_get_path(options);
-        screenshot = base::FilePath(screenshot_path->path_w);
+        screenshot = base::FilePath(SENTRY_PATH_PLATFORM_STR(screenshot_path));
         sentry__path_free(screenshot_path);
     }
 
@@ -518,9 +528,10 @@ crashpad_backend_startup(
         sentry_free(filename);
 
         if (data->external_report_path) {
-            crash_reporter
-                = base::FilePath(options->external_crash_reporter->path_w);
-            crash_envelope = base::FilePath(data->external_report_path->path_w);
+            crash_reporter = base::FilePath(
+                SENTRY_PATH_PLATFORM_STR(options->external_crash_reporter));
+            crash_envelope = base::FilePath(
+                SENTRY_PATH_PLATFORM_STR(data->external_report_path));
         }
     }
 
@@ -775,7 +786,8 @@ crashpad_backend_add_attachment(
         }
     }
 
-    data->client->AddAttachment(base::FilePath(attachment->path->path_w));
+    data->client->AddAttachment(
+        base::FilePath(SENTRY_PATH_PLATFORM_STR(attachment->path)));
 }
 
 static void
@@ -786,7 +798,8 @@ crashpad_backend_remove_attachment(
     if (!data || !data->client) {
         return;
     }
-    data->client->RemoveAttachment(base::FilePath(attachment->path->path_w));
+    data->client->RemoveAttachment(
+        base::FilePath(SENTRY_PATH_PLATFORM_STR(attachment->path)));
 
     if (attachment->buf && sentry__path_remove(attachment->path) != 0) {
         SENTRY_WARNF("failed to remove crashpad attachment \"%s\"",
