@@ -2,6 +2,7 @@
 #include "sentry_testsupport.h"
 
 #include "sentry_envelope.h"
+#include <string.h>
 
 #ifdef SENTRY_PLATFORM_WINDOWS
 #    include <windows.h>
@@ -167,4 +168,105 @@ SENTRY_TEST(logs_param_conversion)
     // but it works because the variadic arguments are passed in 8-byte slots
     test_param_conversion_helper("%d %d %d", a, b, c);
 #endif
+}
+
+static void
+test_param_conversion_types(const char *format, ...)
+{
+    sentry_value_t attributes = sentry_value_new_object();
+    va_list args;
+    va_start(args, format);
+    int param_count = populate_message_parameters(attributes, format, args);
+    va_end(args);
+
+    // Verify we got the expected number of parameters
+    TEST_CHECK_INT_EQUAL(param_count, 7);
+
+    // Verify the parameters were extracted correctly
+    sentry_value_t param0
+        = sentry_value_get_by_key(attributes, "sentry.message.parameter.0");
+    sentry_value_t param1
+        = sentry_value_get_by_key(attributes, "sentry.message.parameter.1");
+    sentry_value_t param2
+        = sentry_value_get_by_key(attributes, "sentry.message.parameter.2");
+    sentry_value_t param3
+        = sentry_value_get_by_key(attributes, "sentry.message.parameter.3");
+    sentry_value_t param4
+        = sentry_value_get_by_key(attributes, "sentry.message.parameter.4");
+    sentry_value_t param5
+        = sentry_value_get_by_key(attributes, "sentry.message.parameter.5");
+    sentry_value_t param6
+        = sentry_value_get_by_key(attributes, "sentry.message.parameter.6");
+
+    TEST_CHECK(!sentry_value_is_null(param0));
+    TEST_CHECK(!sentry_value_is_null(param1));
+    TEST_CHECK(!sentry_value_is_null(param2));
+    TEST_CHECK(!sentry_value_is_null(param3));
+    TEST_CHECK(!sentry_value_is_null(param4));
+    TEST_CHECK(!sentry_value_is_null(param5));
+    TEST_CHECK(!sentry_value_is_null(param6));
+
+    // Check the values and types
+    sentry_value_t value0 = sentry_value_get_by_key(param0, "value");
+    sentry_value_t value1 = sentry_value_get_by_key(param1, "value");
+    sentry_value_t value2 = sentry_value_get_by_key(param2, "value");
+    sentry_value_t value3 = sentry_value_get_by_key(param3, "value");
+    sentry_value_t value4 = sentry_value_get_by_key(param4, "value");
+    sentry_value_t value5 = sentry_value_get_by_key(param5, "value");
+    sentry_value_t value6 = sentry_value_get_by_key(param6, "value");
+
+    sentry_value_t type0 = sentry_value_get_by_key(param0, "type");
+    sentry_value_t type1 = sentry_value_get_by_key(param1, "type");
+    sentry_value_t type2 = sentry_value_get_by_key(param2, "type");
+    sentry_value_t type3 = sentry_value_get_by_key(param3, "type");
+    sentry_value_t type4 = sentry_value_get_by_key(param4, "type");
+    sentry_value_t type5 = sentry_value_get_by_key(param5, "type");
+    sentry_value_t type6 = sentry_value_get_by_key(param6, "type");
+
+    // Validate %u (unsigned) - should be string type with UINT64_MAX value
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(type0), "string");
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(value0), "18446744073709551615");
+
+    // Validate %d (signed integer) - should be integer type with INT64_MIN
+    // value
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(type1), "integer");
+    TEST_CHECK_INT_EQUAL(sentry_value_as_int64(value1), INT64_MIN);
+
+    // Validate %f (float) - should be double type with 3.14159 value
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(type2), "double");
+    TEST_CHECK(sentry_value_as_double(value2) == 3.14159);
+
+    // Validate %c (character) - should be string type with 'A' value
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(type3), "string");
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(value3), "A");
+
+    // Validate %s (string) - should be string type with "test" value
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(type4), "string");
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(value4), "test");
+
+    // Validate %p (pointer) - should be string type with pointer representation
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(type5), "string");
+    // Pointer value should start with "0x" (platform dependent format)
+    const char *ptr_str = sentry_value_as_string(value5);
+    TEST_CHECK(ptr_str != NULL);
+    TEST_CHECK(strncmp(ptr_str, "0x", 2) == 0);
+
+    // Validate %x (hex uint64) - should be string type with hex representation
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(type6), "string");
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(value6), "deadbeefdeadbeef");
+
+    sentry_value_decref(attributes);
+}
+
+SENTRY_TEST(logs_param_types)
+{
+    uint64_t a = UINT64_MAX;
+    int64_t b = INT64_MIN;
+    double c = 3.14159;
+    char d = 'A';
+    const char *e = "test";
+    void *f = (void *)0x12345678;
+    uint64_t g = 0xDEADBEEFDEADBEEF;
+    test_param_conversion_types("%u %d %f %c %s %p %x", a, b, c, d, e, f, g);
 }
