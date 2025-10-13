@@ -106,7 +106,7 @@ sentry__process_spawn(const sentry_path_t *executable, const char *arg0, ...)
     }
     cli[offset] = '\0';
 
-    SENTRY_DEBUGF("spawning %S", cli);
+    SENTRY_DEBUGF("spawning %s", cli);
 
     STARTUPINFOW si = { 0 };
     PROCESS_INFORMATION pi = { 0 };
