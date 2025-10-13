@@ -9,6 +9,7 @@ sentry__gpu_vendor_id_to_name(unsigned int vendor_id)
     case 0x10DE:
         return sentry__string_clone("NVIDIA Corporation");
     case 0x1002:
+    case 0x1022:
         return sentry__string_clone("Advanced Micro Devices, Inc. [AMD/ATI]");
     case 0x8086:
         return sentry__string_clone("Intel Corporation");
@@ -17,6 +18,7 @@ sentry__gpu_vendor_id_to_name(unsigned int vendor_id)
     case 0x1414:
         return sentry__string_clone("Microsoft Corporation");
     case 0x5143:
+    case 0x17CB:
         return sentry__string_clone("Qualcomm");
     case 0x1AE0:
         return sentry__string_clone("Google");
