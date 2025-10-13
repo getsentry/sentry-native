@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1760353484967,
+  "lastUpdate": 1760353578281,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -18976,6 +18976,66 @@ window.BENCHMARK_DATA = {
             "value": 13.776799999959621,
             "unit": "ms",
             "extra": "Min 13.455ms\nMax 15.989ms\nMean 14.238ms\nStdDev 1.017ms\nMedian 13.777ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "60878493+JoshuaMoelans@users.noreply.github.com",
+            "name": "JoshuaMoelans",
+            "username": "JoshuaMoelans"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "596b7028f4a21d9149b19fadddf9f22637033833",
+          "message": "fix: serialize `uint64_t` values as numerical instead of string (#1408)\n\n* serialize uint64 values as numerical instead of string\n\n* CHANGELOG.md\n\n* construct unsigned int log params as sentry_value_t string type\n\n* change format to expected unsigned long long int\n\n* pass through the conversion character\n\n* add tests for logs parameter conversion types\n\n* less strict pointer argument check",
+          "timestamp": "2025-10-13T12:59:42+02:00",
+          "tree_id": "acc8756665bf1dc426802ee02e7ca0bdef390421",
+          "url": "https://github.com/getsentry/sentry-native/commit/596b7028f4a21d9149b19fadddf9f22637033833"
+        },
+        "date": 1760353563497,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 12.465099999985796,
+            "unit": "ms",
+            "extra": "Min 11.908ms\nMax 53.503ms\nMean 21.280ms\nStdDev 18.098ms\nMedian 12.465ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 15.307099999972706,
+            "unit": "ms",
+            "extra": "Min 12.405ms\nMax 16.626ms\nMean 14.624ms\nStdDev 1.769ms\nMedian 15.307ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 34.89959999990333,
+            "unit": "ms",
+            "extra": "Min 32.489ms\nMax 45.052ms\nMean 37.892ms\nStdDev 6.220ms\nMedian 34.900ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.024899999971239595,
+            "unit": "ms",
+            "extra": "Min 0.018ms\nMax 0.034ms\nMean 0.026ms\nStdDev 0.006ms\nMedian 0.025ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.6098999999721855,
+            "unit": "ms",
+            "extra": "Min 0.531ms\nMax 0.689ms\nMean 0.616ms\nStdDev 0.058ms\nMedian 0.610ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 30.174399999964407,
+            "unit": "ms",
+            "extra": "Min 29.070ms\nMax 30.581ms\nMean 29.961ms\nStdDev 0.612ms\nMedian 30.174ms"
           }
         ]
       }
