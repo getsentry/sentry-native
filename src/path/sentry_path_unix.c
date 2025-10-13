@@ -189,7 +189,7 @@ sentry__path_dir(const sentry_path_t *path)
 }
 #endif
 
-const sentry_pathchar_t *
+const char *
 sentry__path_filename(const sentry_path_t *path)
 {
     const char *c = strrchr(path->path, '/');
@@ -570,7 +570,7 @@ sentry__filewriter_free(sentry_filewriter_t *filewriter)
 }
 
 size_t
-sentry__filewriter_byte_count(sentry_filewriter_t *filewriter)
+sentry__filewriter_byte_count(const sentry_filewriter_t *filewriter)
 {
     return filewriter->byte_count;
 }
