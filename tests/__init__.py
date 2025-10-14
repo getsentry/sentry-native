@@ -49,6 +49,26 @@ def _check_sentry_native_resolves_to_localhost():
         pytest.skip("sentry.native.test does not resolve to localhost")
 
 
+def is_session_envelope(data):
+    return b'"type":"session"' in data
+
+
+def is_logs_envelope(data):
+    return b'"type":"log"' in data
+
+
+def is_feedback_envelope(data):
+    return b'"type":"feedback"' in data
+
+
+def split_log_request_cond(httpserver_log, cond):
+    return (
+        (httpserver_log[0][0], httpserver_log[1][0])
+        if cond(httpserver_log[0][0].get_data())
+        else (httpserver_log[1][0], httpserver_log[0][0])
+    )
+
+
 def run(cwd, exe, args, env=dict(os.environ), **kwargs):
     __tracebackhide__ = True
     if os.environ.get("ANDROID_API"):

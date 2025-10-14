@@ -10,6 +10,10 @@ from . import (
     make_dsn,
     run,
     Envelope,
+    split_log_request_cond,
+    is_session_envelope,
+    is_logs_envelope,
+    is_feedback_envelope,
 )
 from .conditions import has_crashpad
 from .proxy import (
@@ -274,13 +278,10 @@ def test_crashpad_wer_crash(cmake, httpserver, run_args):
     run(tmp_path, "sentry_example", ["log", "no-setup"], check=True, env=env)
 
     assert len(httpserver.log) == 2
-    outputs = (httpserver.log[0][0], httpserver.log[1][0])
-    session, multipart = (
-        (outputs[0].get_data(), outputs[1])
-        if b'"type":"session"' in outputs[0].get_data()
-        else (outputs[1].get_data(), outputs[0])
+    session_request, multipart = split_log_request_cond(
+        httpserver.log, is_session_envelope
     )
-
+    session = session_request.get_data()
     envelope = Envelope.deserialize(session)
 
     assert_session(envelope, {"status": "crashed", "errors": 1})
@@ -370,16 +371,14 @@ def test_crashpad_dumping_crash(cmake, httpserver, run_args, build_args):
     run(tmp_path, "sentry_example", ["log", "no-setup"], check=True, env=env)
 
     assert len(httpserver.log) == 2
-    session, multipart = (
-        (httpserver.log[0][0], httpserver.log[1][0])
-        if is_session_envelope(httpserver.log[0][0].get_data())
-        else (httpserver.log[1][0], httpserver.log[0][0])
+    session_request, multipart = split_log_request_cond(
+        httpserver.log, is_session_envelope
     )
-
+    session = session_request.get_data()
     if build_args.get("SENTRY_TRANSPORT_COMPRESSION") == "On":
-        assert_gzip_file_header(session.get_data())
+        assert_gzip_file_header(session)
 
-    envelope = Envelope.deserialize(session.get_data())
+    envelope = Envelope.deserialize(session)
     assert_session(envelope, {"status": "crashed", "errors": 1})
     assert_crashpad_upload(
         multipart,
@@ -443,21 +442,16 @@ def test_crashpad_dumping_stack_overflow(cmake, httpserver, build_args):
     run(tmp_path, "sentry_example", ["log", "no-setup"], check=True, env=env)
 
     assert len(httpserver.log) == 2
-    session, multipart = (
-        (httpserver.log[0][0], httpserver.log[1][0])
-        if is_session_envelope(httpserver.log[0][0].get_data())
-        else (httpserver.log[1][0], httpserver.log[0][0])
+    session_request, multipart = split_log_request_cond(
+        httpserver.log, is_session_envelope
     )
+    session = session_request.get_data()
 
-    envelope = Envelope.deserialize(session.get_data())
+    envelope = Envelope.deserialize(session)
     assert_session(envelope, {"status": "crashed", "errors": 1})
     assert_crashpad_upload(
         multipart, expect_attachment=True, expect_view_hierarchy=True
     )
-
-
-def is_session_envelope(data):
-    return b'"type":"session"' in data
 
 
 @pytest.mark.skipif(
@@ -594,12 +588,8 @@ def test_crashpad_logs_on_crash(cmake, httpserver):
 
     # we expect 1 envelope with the log, and 1 for the crash
     assert len(httpserver.log) == 2
-    outputs = (httpserver.log[0][0], httpserver.log[1][0])
-    crash, logs = (
-        (outputs[0].get_data(), outputs[1].get_data())
-        if b'"type":"log"' in outputs[1].get_data()
-        else (outputs[1].get_data(), outputs[0].get_data())
-    )
+    logs_request, multipart = split_log_request_cond(httpserver.log, is_logs_envelope)
+    logs = logs_request.get_data()
 
     logs_envelope = Envelope.deserialize(logs)
 
@@ -696,12 +686,11 @@ def test_crashpad_external_crash_reporter(cmake, httpserver, run_args):
     assert waiting.result
 
     assert len(httpserver.log) == 2
-    outputs = (httpserver.log[0][0], httpserver.log[1][0])
-    crash, feedback = (
-        (outputs[0].get_data(), outputs[1].get_data())
-        if b'"type":"feedback"' in outputs[1].get_data()
-        else (outputs[1].get_data(), outputs[0].get_data())
+    feedback_request, crash_request = split_log_request_cond(
+        httpserver.log, is_feedback_envelope
     )
+    feedback = feedback_request.get_data()
+    crash = crash_request.get_data()
 
     envelope = Envelope.deserialize(crash)
     assert_meta(envelope, integration="crashpad")

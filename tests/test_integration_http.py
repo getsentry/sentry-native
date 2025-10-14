@@ -13,6 +13,9 @@ from . import (
     make_dsn,
     run,
     Envelope,
+    split_log_request_cond,
+    is_feedback_envelope,
+    is_logs_envelope,
 )
 from .proxy import (
     setup_proxy_env_vars,
@@ -257,12 +260,11 @@ def test_external_crash_reporter_http(cmake, httpserver, build_args):
     assert waiting.result
 
     assert len(httpserver.log) == 2
-    outputs = (httpserver.log[0][0], httpserver.log[1][0])
-    crash, feedback = (
-        (outputs[0].get_data(), outputs[1].get_data())
-        if b'"type":"feedback"' in outputs[1].get_data()
-        else (outputs[1].get_data(), outputs[0].get_data())
+    feedback_request, crash_request = split_log_request_cond(
+        httpserver.log, is_feedback_envelope
     )
+    feedback = feedback_request.get_data()
+    crash = crash_request.get_data()
 
     envelope = Envelope.deserialize(crash)
     assert_meta(envelope, integration=build_args.get("SENTRY_BACKEND", ""))
@@ -1649,12 +1651,10 @@ def test_inproc_logs_on_crash(cmake, httpserver):
 
     # we expect 1 envelope with the log, and 1 for the crash
     assert len(httpserver.log) == 2
-    outputs = (httpserver.log[0][0], httpserver.log[1][0])
-    crash, logs = (
-        (outputs[0].get_data(), outputs[1].get_data())
-        if b'"type":"log"' in outputs[1].get_data()
-        else (outputs[1].get_data(), outputs[0].get_data())
+    logs_request, crash_request = split_log_request_cond(
+        httpserver.log, is_logs_envelope
     )
+    logs = logs_request.get_data()
 
     logs_envelope = Envelope.deserialize(logs)
 
@@ -1690,12 +1690,10 @@ def test_breakpad_logs_on_crash(cmake, httpserver):
 
     # we expect 1 envelope with the log, and 1 for the crash
     assert len(httpserver.log) == 2
-    outputs = (httpserver.log[0][0], httpserver.log[1][0])
-    crash, logs = (
-        (outputs[0].get_data(), outputs[1].get_data())
-        if b'"type":"log"' in outputs[1].get_data()
-        else (outputs[1].get_data(), outputs[0].get_data())
+    logs_request, crash_request = split_log_request_cond(
+        httpserver.log, is_logs_envelope
     )
+    logs = logs_request.get_data()
 
     logs_envelope = Envelope.deserialize(logs)
 
