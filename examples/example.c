@@ -572,6 +572,7 @@ main(int argc, char **argv)
         sentry_set_context("runtime", context);
 
         sentry_value_t user = sentry_value_new_object();
+        sentry_value_new_user(NULL, NULL, NULL, NULL);
         sentry_value_set_by_key(user, "id", sentry_value_new_string("42"));
         sentry_value_set_by_key(
             user, "username", sentry_value_new_string("some_name"));

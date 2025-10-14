@@ -324,6 +324,11 @@ SENTRY_API sentry_value_t sentry_value_new_user_n(const char *id, size_t id_len,
     const char *username, size_t username_len, const char *email,
     size_t email_len, const char *ip_address, size_t ip_address_len);
 
+SENTRY_API sentry_value_t sentry_value_new_attribute(
+    const char *type, sentry_value_t value, const char *unit);
+SENTRY_API sentry_value_t sentry_value_new_attribute_n(const char *type,
+    size_t type_len, sentry_value_t value, const char *unit, size_t unit_len);
+
 /**
  * Returns the type of the value passed.
  */

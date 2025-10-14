@@ -509,6 +509,44 @@ sentry_value_new_user(const char *id, const char *username, const char *email,
         ip_address, ip_address ? strlen(ip_address) : 0);
 }
 
+sentry_value_t
+sentry_value_new_attribute_n(const char *type, size_t type_len,
+    sentry_value_t value, const char *unit, size_t unit_len)
+{
+    // Check if type is valid
+    if (!type || type_len == 0) {
+        return sentry_value_new_null();
+    }
+
+    // Check if type is one of the allowed values
+    if (!((type_len == 6 && strncmp(type, "string", 6) == 0)
+            || (type_len == 7 && strncmp(type, "integer", 7) == 0)
+            || (type_len == 6 && strncmp(type, "double", 6) == 0)
+            || (type_len == 7 && strncmp(type, "boolean", 7) == 0))) {
+        return sentry_value_new_null();
+    }
+
+    sentry_value_t attribute = sentry_value_new_object();
+    sentry_value_set_by_key(
+        attribute, "type", sentry_value_new_string_n(type, type_len));
+    sentry_value_set_by_key(attribute, "value", value);
+    // TODO should we validate whether the "value" matches the given "type"?
+    if (unit && unit_len) {
+        sentry_value_set_by_key(
+            attribute, "unit", sentry_value_new_string_n(unit, unit_len));
+    }
+    return attribute;
+}
+
+sentry_value_t
+sentry_value_new_attribute(
+    const char *type, sentry_value_t value, const char *unit)
+{
+    return type ? sentry_value_new_attribute_n(
+                      type, strlen(type), value, unit, unit ? strlen(unit) : 0)
+                : sentry_value_new_null();
+}
+
 sentry_value_type_t
 sentry_value_get_type(sentry_value_t value)
 {
