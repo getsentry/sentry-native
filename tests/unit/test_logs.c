@@ -12,13 +12,23 @@
 #    define sleep_ms(MILLISECONDS) usleep(MILLISECONDS * 1000)
 #endif
 
+typedef struct {
+    uint64_t called_count;
+    bool has_validation_error;
+} transport_validation_data_t;
+
 static void
 validate_logs_envelope(sentry_envelope_t *envelope, void *data)
 {
-    uint64_t *called = data;
+    transport_validation_data_t *validation_data = data;
 
-    // Verify we have at least one envelope item
-    TEST_CHECK(sentry__envelope_get_item_count(envelope) > 0);
+    // Check we have at least one envelope item (store error flag instead of
+    // TEST_CHECK)
+    if (sentry__envelope_get_item_count(envelope) == 0) {
+        validation_data->has_validation_error = true;
+        sentry_envelope_free(envelope);
+        return;
+    }
 
     // Get the first item and check its type
     const sentry_envelope_item_t *item = sentry__envelope_get_item(envelope, 0);
@@ -27,7 +37,7 @@ validate_logs_envelope(sentry_envelope_t *envelope, void *data)
 
     // Only validate and count log envelopes, skip others (e.g., session)
     if (strcmp(type, "log") == 0) {
-        *called += 1;
+        validation_data->called_count += 1;
     }
 
     sentry_envelope_free(envelope);
@@ -35,7 +45,7 @@ validate_logs_envelope(sentry_envelope_t *envelope, void *data)
 
 SENTRY_TEST(basic_logging_functionality)
 {
-    uint64_t called_transport = 0;
+    transport_validation_data_t validation_data = { 0, false };
 
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
@@ -43,7 +53,7 @@ SENTRY_TEST(basic_logging_functionality)
 
     sentry_transport_t *transport
         = sentry_transport_new(validate_logs_envelope);
-    sentry_transport_set_state(transport, &called_transport);
+    sentry_transport_set_state(transport, &validation_data);
     sentry_options_set_transport(options, transport);
 
     sentry_init(options);
@@ -60,19 +70,21 @@ SENTRY_TEST(basic_logging_functionality)
     TEST_CHECK_INT_EQUAL(sentry_log_fatal("Fatal message"), 0);
     sentry_close();
 
-    TEST_CHECK_INT_EQUAL(called_transport, 2);
+    // Validate results on main thread (no race condition)
+    TEST_CHECK(!validation_data.has_validation_error);
+    TEST_CHECK_INT_EQUAL(validation_data.called_count, 2);
 }
 
 SENTRY_TEST(logs_disabled_by_default)
 {
-    uint64_t called_transport = 0;
+    transport_validation_data_t validation_data = { 0, false };
 
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
 
     sentry_transport_t *transport
         = sentry_transport_new(validate_logs_envelope);
-    sentry_transport_set_state(transport, &called_transport);
+    sentry_transport_set_state(transport, &validation_data);
     sentry_options_set_transport(options, transport);
 
     // Don't explicitly enable logs - they should be disabled by default
@@ -83,12 +95,13 @@ SENTRY_TEST(logs_disabled_by_default)
     sentry_close();
 
     // Transport should not be called since logs are disabled
-    TEST_CHECK_INT_EQUAL(called_transport, 0);
+    TEST_CHECK(!validation_data.has_validation_error);
+    TEST_CHECK_INT_EQUAL(validation_data.called_count, 0);
 }
 
 SENTRY_TEST(formatted_log_messages)
 {
-    uint64_t called_transport = 0;
+    transport_validation_data_t validation_data = { 0, false };
 
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
@@ -96,7 +109,7 @@ SENTRY_TEST(formatted_log_messages)
 
     sentry_transport_t *transport
         = sentry_transport_new(validate_logs_envelope);
-    sentry_transport_set_state(transport, &called_transport);
+    sentry_transport_set_state(transport, &validation_data);
     sentry_options_set_transport(options, transport);
 
     sentry_init(options);
@@ -115,7 +128,8 @@ SENTRY_TEST(formatted_log_messages)
     sentry_close();
 
     // Transport should be called once
-    TEST_CHECK_INT_EQUAL(called_transport, 1);
+    TEST_CHECK(!validation_data.has_validation_error);
+    TEST_CHECK_INT_EQUAL(validation_data.called_count, 1);
 }
 
 static void
