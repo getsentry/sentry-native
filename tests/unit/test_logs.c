@@ -50,18 +50,16 @@ SENTRY_TEST(basic_logging_functionality)
     sentry__logs_wait_for_thread_startup();
 
     // These should not crash and should respect the enable_logs option
-    sentry_log_trace("Trace message");
-    sentry_log_debug("Debug message");
-    sentry_log_info("Info message");
-    sentry_log_warn("Warning message");
-    sentry_log_error("Error message");
+    TEST_CHECK_INT_EQUAL(sentry_log_trace("Trace message"), 0);
+    TEST_CHECK_INT_EQUAL(sentry_log_debug("Debug message"), 0);
+    TEST_CHECK_INT_EQUAL(sentry_log_info("Info message"), 0);
+    TEST_CHECK_INT_EQUAL(sentry_log_warn("Warning message"), 0);
+    TEST_CHECK_INT_EQUAL(sentry_log_error("Error message"), 0);
     // Sleep to allow first batch to flush (testing batch timing behavior)
     sleep_ms(20);
-    sentry_log_fatal("Fatal message");
+    TEST_CHECK_INT_EQUAL(sentry_log_fatal("Fatal message"), 0);
     sentry_close();
 
-    // TODO for now we set unit test buffer size to 5; does this make sense?
-    //  Or should we just pump out 100+ logs to fill a batch in a for-loop?
     TEST_CHECK_INT_EQUAL(called_transport, 2);
 }
 
@@ -80,7 +78,7 @@ SENTRY_TEST(logs_disabled_by_default)
     // Don't explicitly enable logs - they should be disabled by default
     sentry_init(options);
 
-    sentry_log_info("This should not be sent");
+    TEST_CHECK_INT_EQUAL(sentry_log_info("This should not be sent"), 3);
 
     sentry_close();
 
@@ -105,11 +103,14 @@ SENTRY_TEST(formatted_log_messages)
     sentry__logs_wait_for_thread_startup();
 
     // Test format specifiers
-    sentry_log_info("String: %s, Integer: %d, Float: %.2f", "test", 42, 3.14);
-    sentry_log_warn("Character: %c, Hex: 0x%x", 'A', 255);
-    sentry_log_error("Pointer: %p", (void *)0x1234);
-    sentry_log_error("Big number: %zu", UINT64_MAX);
-    sentry_log_error("Small number: %d", INT64_MIN);
+    TEST_CHECK_INT_EQUAL(sentry_log_info("String: %s, Integer: %d, Float: %.2f",
+                             "test", 42, 3.14),
+        0);
+    TEST_CHECK_INT_EQUAL(
+        sentry_log_warn("Character: %c, Hex: 0x%x", 'A', 255), 0);
+    TEST_CHECK_INT_EQUAL(sentry_log_error("Pointer: %p", (void *)0x1234), 0);
+    TEST_CHECK_INT_EQUAL(sentry_log_error("Big number: %zu", UINT64_MAX), 0);
+    TEST_CHECK_INT_EQUAL(sentry_log_error("Small number: %d", INT64_MIN), 0);
 
     sentry_close();
 
