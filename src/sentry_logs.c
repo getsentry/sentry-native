@@ -91,11 +91,23 @@ static void
 flush_logs_queue(bool crash_safe)
 {
     SENTRY_DEBUGF("flush_logs_queue called (crash_safe=%d)", crash_safe);
-    const long already_flushing
-        = sentry__atomic_store(&g_logs_state.flushing, 1);
-    if (already_flushing) {
-        SENTRY_DEBUG("flush_logs_queue: already flushing, returning");
-        return;
+
+    if (crash_safe) {
+        // In crash-safe mode, spin lock until we can acquire flushing
+        SENTRY_DEBUG("flush_logs_queue: crash-safe mode, acquiring `flushing`");
+        while (!sentry__atomic_compare_swap(&g_logs_state.flushing, 0, 1)) {
+#ifdef SENTRY_PLATFORM_UNIX
+            sentry__cpu_relax();
+#endif
+        }
+    } else {
+        // Normal mode: try once and return if already flushing
+        const long already_flushing
+            = sentry__atomic_store(&g_logs_state.flushing, 1);
+        if (already_flushing) {
+            SENTRY_DEBUG("flush_logs_queue: already flushing, returning");
+            return;
+        }
     }
     do {
         // prep both buffers
@@ -117,7 +129,6 @@ flush_logs_queue(bool crash_safe)
 
         // Wait for all in-flight producers of the old buffer
         while (sentry__atomic_fetch(&old_buf->adding) > 0) {
-            // TODO currently only on unix
 #ifdef SENTRY_PLATFORM_UNIX
             sentry__cpu_relax();
 #endif
@@ -873,10 +884,10 @@ sentry__logs_flush_crash_safe(void)
         return;
     }
 
-    // Signal the thread to stop but don't wait and instead detach it.
+    // Signal the thread to stop but don't wait, since the crash-safe flush
+    // will spin-lock on flushing anyway.
     sentry__atomic_store(
         &g_logs_state.thread_state, (long)SENTRY_LOGS_THREAD_STOPPED);
-    sentry__thread_detach(g_logs_state.batching_thread);
 
     // Perform crash-safe flush directly to disk to avoid transport queuing
     // This is safe because we're in a crash scenario and the main thread
