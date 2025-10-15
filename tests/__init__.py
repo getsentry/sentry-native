@@ -9,12 +9,136 @@ import pytest
 import pprint
 import textwrap
 import socket
+import re
 
 sourcedir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
 # https://docs.pytest.org/en/latest/assert.html#assert-details
 pytest.register_assert_rewrite("tests.assertions")
 from tests.assertions import assert_no_proxy_request
+
+
+def format_error_output(title, command, working_dir, return_code, output=None):
+    """
+    Format detailed error information for failed commands.
+
+    Args:
+        title: Error title (e.g., "CMAKE CONFIGURE FAILED")
+        command: Command that failed (list or string)
+        working_dir: Working directory where command was run
+        return_code: Return code from the failed command
+        output: Output from the failed command (optional)
+
+    Returns:
+        Formatted error message string
+    """
+    if not output:
+        output = ""
+
+    if not title:
+        title = "COMMAND FAILED"
+
+    error_details = []
+    error_details.append("=" * 60)
+    error_details.append(title)
+    error_details.append("=" * 60)
+
+    if isinstance(command, list):
+        command_str = " ".join(str(arg) for arg in command)
+    else:
+        command_str = str(command)
+
+    error_details.append(f"Command: {command_str}")
+    error_details.append(f"Working directory: {working_dir}")
+    error_details.append(f"Return code: {return_code}")
+
+    if output:
+        if isinstance(output, bytes):
+            output = output.decode("utf-8", errors="replace")
+
+        error_details.append("--- OUTPUT ---")
+        error_details.append(output.strip())
+
+    error_details.append("=" * 60)
+
+    # Ensure the error message ends with a newline
+    return "\n".join(error_details) + "\n"
+
+
+def run_with_capture_on_failure(
+    command, cwd, env=None, error_title="COMMAND FAILED", failure_exception_class=None
+):
+    """
+    Run a subprocess command with output capture, only printing output on failure.
+
+    Args:
+        command: Command to run (list)
+        cwd: Working directory
+        env: Environment variables (optional)
+        error_title: Title for error reporting (default: "COMMAND FAILED")
+        failure_exception_class: Exception class to raise on failure (optional)
+
+    Returns:
+        subprocess.CompletedProcess result on success
+
+    Raises:
+        failure_exception_class if provided, otherwise subprocess.CalledProcessError
+    """
+    if env is None:
+        env = os.environ
+
+    process = subprocess.Popen(
+        command,
+        cwd=cwd,
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        universal_newlines=True,
+        bufsize=1,
+    )
+
+    # Capture output without streaming
+    captured_output = []
+    try:
+        for line in process.stdout:
+            captured_output.append(line)
+
+        return_code = process.wait()
+        if return_code != 0:
+            raise subprocess.CalledProcessError(return_code, command)
+
+        # Return a successful result
+        return subprocess.CompletedProcess(
+            command, return_code, stdout="".join(captured_output)
+        )
+
+    except subprocess.CalledProcessError as e:
+        # Enhanced error reporting with captured output
+        error_message = format_error_output(
+            error_title, command, cwd, e.returncode, "".join(captured_output)
+        )
+        print(error_message, end="", flush=True)
+
+        if failure_exception_class:
+            raise failure_exception_class("command failed") from None
+        else:
+            raise
+    finally:
+        # Ensure proper cleanup of the subprocess
+        if process.poll() is None:
+            # Process is still running, terminate it
+            try:
+                process.terminate()
+                # Give the process a moment to terminate gracefully
+                try:
+                    process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    # Force kill if it doesn't terminate within 5 seconds
+                    process.kill()
+                    process.wait(timeout=1)
+            except (OSError, ValueError):
+                # Process might already be terminated or invalid
+                pass
 
 
 def make_dsn(httpserver, auth="uiaeosnrtdy", id=123456, proxy_host=False):
@@ -54,8 +178,13 @@ def run(cwd, exe, args, env=dict(os.environ), **kwargs):
     if os.environ.get("ANDROID_API"):
         # older android emulators do not correctly pass down the returncode
         # so we basically echo the return code, and parse it manually
-        is_pipe = kwargs.get("stdout") == subprocess.PIPE
-        kwargs["stdout"] = subprocess.PIPE
+        capture_output = kwargs.get("stdout") != subprocess.PIPE
+
+        if capture_output:
+            # Capture output for potential display on failure
+            kwargs["stdout"] = subprocess.PIPE
+            kwargs["stderr"] = subprocess.STDOUT
+
         child = subprocess.run(
             [
                 "{}/platform-tools/adb".format(os.environ["ANDROID_HOME"]),
@@ -74,10 +203,33 @@ def run(cwd, exe, args, env=dict(os.environ), **kwargs):
             **kwargs,
         )
         stdout = child.stdout
-        child.returncode = int(stdout[stdout.rfind(b"ret:") :][4:])
-        child.stdout = stdout[: stdout.rfind(b"ret:")]
-        if not is_pipe:
-            sys.stdout.buffer.write(child.stdout)
+        # Parse return code from Android output using regex
+        # Handle "ret:NNN" format
+        match = re.search(rb"ret:(\d+)", stdout)
+        if match:
+            child.returncode = int(match.group(1))
+            child.stdout = stdout[: match.start()]
+        else:
+            # If no ret: pattern found, something is wrong
+            child.returncode = child.returncode or 1
+            child.stdout = stdout
+
+        # Only write output to stdout if not capturing or on success
+        if not capture_output or child.returncode == 0:
+            if kwargs.get("stdout") != subprocess.PIPE:
+                sys.stdout.buffer.write(child.stdout)
+        elif capture_output and child.returncode != 0:
+            # Enhanced error reporting for Android test execution failures
+            command = f"{exe} {' '.join(args)}"
+            error_message = format_error_output(
+                "ANDROID TEST EXECUTION FAILED",
+                command,
+                "/data/local/tmp",
+                child.returncode,
+                child.stdout,
+            )
+            print(error_message, end="", flush=True)
+
         if kwargs.get("check") and child.returncode:
             raise subprocess.CalledProcessError(
                 child.returncode, child.args, output=child.stdout, stderr=child.stderr
@@ -114,14 +266,51 @@ def run(cwd, exe, args, env=dict(os.environ), **kwargs):
             "--leak-check=yes",
             *cmd,
         ]
-    try:
-        return subprocess.run([*cmd, *args], cwd=cwd, env=env, **kwargs)
-    except subprocess.CalledProcessError:
-        raise pytest.fail.Exception(
-            "running command failed: {cmd} {args}".format(
-                cmd=" ".join(cmd), args=" ".join(args)
+
+    # Capture output unless explicitly requested to pipe to caller or stream to stdout
+    should_capture = kwargs.get("stdout") != subprocess.PIPE and "stdout" not in kwargs
+
+    if should_capture:
+        # Capture both stdout and stderr for potential display on failure
+        kwargs_with_capture = kwargs.copy()
+        kwargs_with_capture["stdout"] = subprocess.PIPE
+        kwargs_with_capture["stderr"] = subprocess.STDOUT
+        kwargs_with_capture["universal_newlines"] = True
+
+        try:
+            result = subprocess.run(
+                [*cmd, *args], cwd=cwd, env=env, **kwargs_with_capture
             )
-        ) from None
+            if result.returncode != 0 and kwargs.get("check"):
+                # Enhanced error reporting for test execution failures
+                command = cmd + args
+                error_message = format_error_output(
+                    "TEST EXECUTION FAILED",
+                    command,
+                    cwd,
+                    result.returncode,
+                    result.stdout,
+                )
+                print(error_message, end="", flush=True)
+
+                raise subprocess.CalledProcessError(result.returncode, result.args)
+            return result
+        except subprocess.CalledProcessError:
+            raise pytest.fail.Exception(
+                "running command failed: {cmd} {args}".format(
+                    cmd=" ".join(cmd), args=" ".join(args)
+                )
+            ) from None
+    else:
+        # Use original behavior when stdout is explicitly handled by caller
+        try:
+            return subprocess.run([*cmd, *args], cwd=cwd, env=env, **kwargs)
+        except subprocess.CalledProcessError:
+            raise pytest.fail.Exception(
+                "running command failed: {cmd} {args}".format(
+                    cmd=" ".join(cmd), args=" ".join(args)
+                )
+            ) from None
 
 
 def check_output(*args, **kwargs):
