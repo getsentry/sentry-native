@@ -224,9 +224,6 @@ def test_user_report_http(cmake, httpserver):
 def test_external_crash_reporter_http(cmake, httpserver, build_args):
     tmp_path = cmake(["sentry_example", "sentry_crash_reporter"], build_args)
 
-    # make sure we are isolated from previous runs
-    shutil.rmtree(tmp_path / ".sentry-native", ignore_errors=True)
-
     httpserver.expect_oneshot_request(
         "/api/123456/envelope/",
         headers={"x-sentry-auth": auth_header},
@@ -1095,9 +1092,6 @@ def test_set_trace_transaction_update_from_header_event(cmake, httpserver):
 def test_capture_minidump(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
 
-    # make sure we are isolated from previous runs
-    shutil.rmtree(tmp_path / ".sentry-native", ignore_errors=True)
-
     httpserver.expect_oneshot_request(
         "/api/123456/envelope/",
         headers={"x-sentry-auth": auth_header},
@@ -1129,9 +1123,6 @@ def _setup_http_proxy_test(cmake, httpserver, proxy, proxy_auth=None):
     proxy_process = start_mitmdump(proxy, proxy_auth) if proxy else None
 
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
-
-    # make sure we are isolated from previous runs
-    shutil.rmtree(tmp_path / ".sentry-native", ignore_errors=True)
 
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver, proxy_host=True))
     httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
@@ -1355,9 +1346,6 @@ def test_capture_proxy(cmake, httpserver, run_args, proxy_running):
 def test_capture_with_scope(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
 
-    # make sure we are isolated from previous runs
-    shutil.rmtree(tmp_path / ".sentry-native", ignore_errors=True)
-
     httpserver.expect_oneshot_request(
         "/api/123456/envelope/",
         headers={"x-sentry-auth": auth_header},
@@ -1384,9 +1372,6 @@ def test_capture_with_scope(cmake, httpserver):
 
 def test_logs_timer(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
-
-    # make sure we are isolated from previous runs
-    shutil.rmtree(tmp_path / ".sentry-native", ignore_errors=True)
 
     httpserver.expect_request(
         "/api/123456/envelope/",
@@ -1418,9 +1403,6 @@ def test_logs_timer(cmake, httpserver):
 
 def test_logs_event(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
-
-    # make sure we are isolated from previous runs
-    shutil.rmtree(tmp_path / ".sentry-native", ignore_errors=True)
 
     httpserver.expect_request(
         "/api/123456/envelope/",
@@ -1456,9 +1438,6 @@ def test_logs_event(cmake, httpserver):
 
 def test_logs_scoped_transaction(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
-
-    # make sure we are isolated from previous runs
-    shutil.rmtree(tmp_path / ".sentry-native", ignore_errors=True)
 
     httpserver.expect_request(
         "/api/123456/envelope/",
@@ -1508,9 +1487,6 @@ def test_logs_scoped_transaction(cmake, httpserver):
 
 def test_logs_threaded(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
-
-    # make sure we are isolated from previous runs
-    shutil.rmtree(tmp_path / ".sentry-native", ignore_errors=True)
 
     httpserver.expect_request(
         "/api/123456/envelope/",
