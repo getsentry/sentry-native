@@ -14,7 +14,7 @@ class CMake:
         self.runs = dict()
         self.factory = factory
 
-    def compile(self, targets, options=None, cflags=None):
+    def compile(self, targets, options=None, cflags=None, clean=True):
         # We build in tmp for all of our tests. Disable the warning MSVC generates to not clutter the build logs.
         if cflags is None:
             cflags = []
@@ -36,8 +36,9 @@ class CMake:
 
         build_tmp_path = self.runs[key]
 
-        # ensure that there are no left-overs from previous runs
-        shutil.rmtree(build_tmp_path / ".sentry-native", ignore_errors=True)
+        if clean:
+            # ensure that there are no left-overs from previous runs
+            shutil.rmtree(build_tmp_path / ".sentry-native", ignore_errors=True)
 
         return build_tmp_path
 
