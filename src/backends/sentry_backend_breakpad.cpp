@@ -126,12 +126,12 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
         event, "level", sentry__value_new_level(SENTRY_LEVEL_FATAL));
 
     SENTRY_WITH_OPTIONS (options) {
-        sentry__write_crash_marker(options);
-
         // Flush logs in a crash-safe manner before crash handling
         if (options->enable_logs) {
             sentry__logs_flush_crash_safe();
         }
+
+        sentry__write_crash_marker(options);
 
         bool should_handle = true;
 

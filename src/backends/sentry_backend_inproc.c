@@ -530,11 +530,6 @@ handle_ucontext(const sentry_ucontext_t *uctx)
         if (!options->enable_logging_when_crashed) {
             sentry__logger_disable();
         }
-
-        // Flush logs in a crash-safe manner before crash handling
-        if (options->enable_logs) {
-            sentry__logs_flush_crash_safe();
-        }
     }
 
     SENTRY_INFO("entering signal handler");
@@ -561,6 +556,10 @@ handle_ucontext(const sentry_ucontext_t *uctx)
 #endif
 
     SENTRY_WITH_OPTIONS (options) {
+        // Flush logs in a crash-safe manner before crash handling
+        if (options->enable_logs) {
+            sentry__logs_flush_crash_safe();
+        }
 #ifdef SENTRY_PLATFORM_LINUX
         // On Linux (and thus Android) CLR/Mono converts signals provoked by
         // AOT/JIT-generated native code into managed code exceptions. In these
