@@ -13,18 +13,18 @@
 
 #ifdef SENTRY_UNITTEST
 #    define QUEUE_LENGTH 5
-#    ifdef SENTRY_PLATFORM_WINDOWS
-#        include <windows.h>
-#        define sleep_ms(MILLISECONDS) Sleep(MILLISECONDS)
-#    else
-#        include <unistd.h>
-#        define sleep_ms(MILLISECONDS) usleep(MILLISECONDS * 1000)
-#    endif
 #else
 #    define QUEUE_LENGTH 100
 #endif
 #define FLUSH_TIMER 5
 
+#ifdef SENTRY_PLATFORM_WINDOWS
+#    include <windows.h>
+#    define sleep_ms(MILLISECONDS) Sleep(MILLISECONDS)
+#else
+#    include <unistd.h>
+#    define sleep_ms(MILLISECONDS) usleep(MILLISECONDS * 1000)
+#endif
 /**
  * Thread lifecycle states for the logs batching thread.
  */
@@ -93,12 +93,21 @@ flush_logs_queue(bool crash_safe)
     SENTRY_DEBUGF("flush_logs_queue called (crash_safe=%d)", crash_safe);
 
     if (crash_safe) {
-        // In crash-safe mode, spin lock until we can acquire flushing
-        SENTRY_DEBUG("flush_logs_queue: crash-safe mode, acquiring `flushing`");
+        // In crash-safe mode, spin lock with timeout and backoff
+        int attempts = 0;
         while (!sentry__atomic_compare_swap(&g_logs_state.flushing, 0, 1)) {
-#ifdef SENTRY_PLATFORM_UNIX
-            sentry__cpu_relax();
-#endif
+            const int max_attempts = 200;
+            if (++attempts > max_attempts) {
+                SENTRY_WARN("flush_logs_queue: timeout waiting for flushing "
+                            "lock in crash-safe mode");
+                return;
+            }
+
+            // Exponential backoff max_attempts: 10ms + 500ms + 1000ms max-wait
+            const int sleep_time = (attempts < 10) ? 1
+                : (attempts < 100)                 ? 5
+                                                   : 10;
+            sleep_ms(sleep_time);
         }
     } else {
         // Normal mode: try once and return if already flushing
