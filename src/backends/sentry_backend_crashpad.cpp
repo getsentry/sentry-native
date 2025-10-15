@@ -5,6 +5,7 @@ extern "C" {
 #include "sentry_attachment.h"
 #include "sentry_backend.h"
 #include "sentry_core.h"
+#include "sentry_cpu_relax.h"
 #include "sentry_database.h"
 #include "sentry_envelope.h"
 #include "sentry_logger.h"
@@ -288,6 +289,7 @@ flush_scope_from_handler(
     while (!state->scope_flush.compare_exchange_strong(
         expected, true, std::memory_order_acquire)) {
         expected = false;
+        sentry__cpu_relax();
     }
 
     // now we are the sole flusher and can flush into the crash event

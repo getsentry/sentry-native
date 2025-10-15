@@ -1,13 +1,11 @@
 #include "sentry_logs.h"
 #include "sentry_core.h"
+#include "sentry_cpu_relax.h"
 #include "sentry_envelope.h"
 #include "sentry_options.h"
 #include "sentry_os.h"
 #include "sentry_scope.h"
 #include "sentry_sync.h"
-#if defined(SENTRY_PLATFORM_UNIX) || defined(SENTRY_PLATFORM_NX)
-#    include "sentry_unix_spinlock.h"
-#endif
 #include <stdarg.h>
 #include <string.h>
 
@@ -87,6 +85,21 @@ check_for_flush_condition(void)
     return sentry__atomic_fetch(&current_buf->index) >= QUEUE_LENGTH;
 }
 
+// Use a sleep spinner around a monotonic timer so we don't syscall sleep from
+// a signal handler. While this is strictly needed only there, there is no
+// reason not to use the same implementation across platforms.
+static void
+crash_safe_sleep_ms(uint64_t delay_ms)
+{
+    const uint64_t start = sentry__monotonic_time();
+    const uint64_t end = start + delay_ms;
+    while (sentry__monotonic_time() < end) {
+        for (int i = 0; i < 64; i++) {
+            sentry__cpu_relax();
+        }
+    }
+}
+
 static void
 flush_logs_queue(bool crash_safe)
 {
@@ -103,11 +116,12 @@ flush_logs_queue(bool crash_safe)
                 return;
             }
 
-            // Exponential backoff max_attempts: 10ms + 500ms + 1000ms max-wait
+            // backoff max-wait with max_attempts = 200 based sleep slots:
+            // 9ms + 450ms + 1010ms = 1500ish ms
             const uint32_t sleep_time = (attempts < 10) ? 1
                 : (attempts < 100)                      ? 5
                                                         : 10;
-            sleep_ms(sleep_time);
+            crash_safe_sleep_ms(sleep_time);
         }
     } else {
         // Normal mode: try once and return if already flushing
@@ -138,9 +152,7 @@ flush_logs_queue(bool crash_safe)
 
         // Wait for all in-flight producers of the old buffer
         while (sentry__atomic_fetch(&old_buf->adding) > 0) {
-#ifdef SENTRY_PLATFORM_UNIX
             sentry__cpu_relax();
-#endif
         }
 
         long n = sentry__atomic_store(&old_buf->index, 0);
