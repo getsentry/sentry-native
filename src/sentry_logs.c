@@ -873,10 +873,10 @@ sentry__logs_flush_crash_safe(void)
         return;
     }
 
-    // Signal the thread to stop (but don't wait for it)
+    // Signal the thread to stop but don't wait and instead detach it.
     sentry__atomic_store(
         &g_logs_state.thread_state, (long)SENTRY_LOGS_THREAD_STOPPED);
-    sentry__cond_wake(&g_logs_state.request_flush);
+    sentry__thread_detach(g_logs_state.batching_thread);
 
     // Perform crash-safe flush directly to disk to avoid transport queuing
     // This is safe because we're in a crash scenario and the main thread
