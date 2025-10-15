@@ -104,9 +104,9 @@ flush_logs_queue(bool crash_safe)
             }
 
             // Exponential backoff max_attempts: 10ms + 500ms + 1000ms max-wait
-            const int sleep_time = (attempts < 10) ? 1
-                : (attempts < 100)                 ? 5
-                                                   : 10;
+            const uint32_t sleep_time = (attempts < 10) ? 1
+                : (attempts < 100)                      ? 5
+                                                        : 10;
             sleep_ms(sleep_time);
         }
     } else {
