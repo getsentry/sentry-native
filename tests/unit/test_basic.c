@@ -157,7 +157,11 @@ SENTRY_TEST(crash_marker)
     TEST_ASSERT(!sentry__path_create_dir_all(database_path));
 
     SENTRY_TEST_OPTIONS_NEW(options);
+#ifdef SENTRY_PLATFORM_WINDOWS
+    sentry_options_set_database_pathw(options, database_path->path);
+#else
     sentry_options_set_database_path(options, database_path->path);
+#endif
 
     // There is no marker in the beginning but clearing returns true if the
     // marker doesn't exist (i.e., we get an `ENOENT` or `ERROR_FILE_NOT_FOUND`)
