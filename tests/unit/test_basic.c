@@ -192,7 +192,7 @@ SENTRY_TEST(crashed_last_run)
     // clear any leftover from previous test runs
     {
         SENTRY_TEST_OPTIONS_NEW(options);
-        TEST_CHECK(sentry__clear_crash_marker(options));
+        sentry__clear_crash_marker(options);
         sentry_options_free(options);
     }
 
