@@ -103,8 +103,6 @@ crash_safe_sleep_ms(uint64_t delay_ms)
 static void
 flush_logs_queue(bool crash_safe)
 {
-    SENTRY_DEBUGF("flush_logs_queue called (crash_safe=%d)", crash_safe);
-
     if (crash_safe) {
         // In crash-safe mode, spin lock with timeout and backoff
         int attempts = 0;
@@ -128,7 +126,6 @@ flush_logs_queue(bool crash_safe)
         const long already_flushing
             = sentry__atomic_store(&g_logs_state.flushing, 1);
         if (already_flushing) {
-            SENTRY_DEBUG("flush_logs_queue: already flushing, returning");
             return;
         }
     }
@@ -162,7 +159,6 @@ flush_logs_queue(bool crash_safe)
 
         if (n > 0) {
             // now we can do the actual batching of the old buffer
-            SENTRY_DEBUGF("flush_logs_queue: flushing %ld logs", n);
 
             sentry_value_t logs = sentry_value_new_object();
             sentry_value_t log_items = sentry_value_new_list();
@@ -179,20 +175,14 @@ flush_logs_queue(bool crash_safe)
                 if (crash_safe) {
                     // Write directly to disk to avoid transport queuing during
                     // crash
-                    SENTRY_DEBUG(
-                        "flush_logs_queue: writing envelope directly to disk");
                     sentry__run_write_envelope(options->run, envelope);
                     sentry_envelope_free(envelope);
                 } else {
                     // Normal operation: use transport for HTTP transmission
-                    SENTRY_DEBUG(
-                        "flush_logs_queue: capturing envelope via transport");
                     sentry__capture_envelope(options->transport, envelope);
                 }
             }
             sentry_value_decref(logs);
-        } else {
-            SENTRY_DEBUG("flush_logs_queue: no logs to flush");
         }
     } while (check_for_flush_condition());
 
@@ -247,14 +237,12 @@ enqueue_log(sentry_value_t log)
             // got a slot, write log to the buffer and unblock flusher
             active->logs[log_idx] = log;
             sentry__atomic_fetch_and_add(&active->adding, -1);
-            SENTRY_DEBUGF("enqueue_log: enqueued log at index %ld", log_idx);
 
             // Check if active buffer is now full and trigger flush. We could
             // introduce additional watermarks here to trigger the flush earlier
             // under high contention.
             // TODO replace with a level-triggered flag
             if (log_idx == QUEUE_LENGTH - 1) {
-                SENTRY_DEBUG("enqueue_log: buffer full, waking flush thread");
                 sentry__cond_wake(&g_logs_state.request_flush);
             }
             return true;
@@ -312,20 +300,20 @@ batching_thread_func(void *data)
         case 0:
 #ifdef SENTRY_PLATFORM_WINDOWS
             if (GetLastError() == ERROR_TIMEOUT) {
-                SENTRY_DEBUG("Logs flushed by timeout");
+                SENTRY_TRACE("Logs flushed by timeout");
                 break;
             }
 #endif
-            SENTRY_DEBUG("Logs flushed by filled buffer");
+            SENTRY_TRACE("Logs flushed by filled buffer");
             break;
 #ifdef SENTRY_PLATFORM_UNIX
         case ETIMEDOUT:
-            SENTRY_DEBUG("Logs flushed by timeout");
+            SENTRY_TRACE("Logs flushed by timeout");
             break;
 #endif
 #ifdef SENTRY_PLATFORM_WINDOWS
         case 1:
-            SENTRY_DEBUG("Logs flushed by filled buffer");
+            SENTRY_TRACE("Logs flushed by filled buffer");
             break;
 #endif
         default:
@@ -742,7 +730,6 @@ sentry__logs_log(sentry_level_t level, const char *message, va_list args)
             enable_logs = true;
     }
     if (enable_logs) {
-        SENTRY_DEBUGF("sentry__logs_log: logging message: %s", message);
         bool discarded = false;
         // create log from message
         sentry_value_t log = construct_log(level, message, args);
@@ -901,7 +888,6 @@ sentry__logs_flush_crash_safe(void)
     // Check if logs system is initialized
     const long state = sentry__atomic_fetch(&g_logs_state.thread_state);
     if (state == SENTRY_LOGS_THREAD_STOPPED) {
-        SENTRY_DEBUG("logs thread not running, skipping crash-safe flush");
         return;
     }
 
