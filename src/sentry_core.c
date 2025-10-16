@@ -1504,8 +1504,6 @@ sentry_capture_feedback_with_hint(
         envelope = prepare_user_feedback(user_feedback, hint);
         if (envelope) {
             sentry__capture_envelope(options->transport, envelope);
-        } else {
-            sentry_value_decref(user_feedback);
         }
     }
 
