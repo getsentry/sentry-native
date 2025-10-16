@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- Add attachment support to user feedback ([#1414](https://github.com/getsentry/sentry-native/pull/1414))
+
 ## 0.11.3
 
 **Features**:
