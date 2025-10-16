@@ -2725,10 +2725,6 @@ typedef struct sentry_feedback_hint_s sentry_feedback_hint_t;
 
 /**
  * Creates a new feedback hint.
- *
- * The hint can be used to attach files or binary data to feedback submissions.
- * Must be freed with sentry_feedback_hint_free() if not passed to
- * sentry_capture_feedback_with_hint().
  */
 SENTRY_API sentry_feedback_hint_t *sentry_feedback_hint_new(void);
 
