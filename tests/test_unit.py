@@ -3,14 +3,11 @@ import pytest
 from . import run
 from .conditions import has_http
 
-_UNIT_TESTS_NO_CLEAN_DB = ["crashed_last_run", "crash_marker"]
-
 
 def test_unit(cmake, unittest):
     cwd = cmake(
         ["sentry_test_unit"],
         {"SENTRY_BACKEND": "none", "SENTRY_TRANSPORT": "none"},
-        clean=unittest not in _UNIT_TESTS_NO_CLEAN_DB,
     )
     env = dict(os.environ)
     run(cwd, "sentry_test_unit", ["--no-summary", unittest], check=True, env=env)
@@ -24,7 +21,6 @@ def test_unit_transport(cmake, unittest):
     cwd = cmake(
         ["sentry_test_unit"],
         {"SENTRY_BACKEND": "none"},
-        clean=unittest not in _UNIT_TESTS_NO_CLEAN_DB,
     )
     env = dict(os.environ)
     run(cwd, "sentry_test_unit", ["--no-summary", unittest], check=True, env=env)
@@ -35,7 +31,6 @@ def test_unit_with_test_path(cmake, unittest):
         ["sentry_test_unit"],
         {"SENTRY_BACKEND": "none", "SENTRY_TRANSPORT": "none"},
         cflags=["-DSENTRY_TEST_PATH_PREFIX=./"],
-        clean=unittest not in _UNIT_TESTS_NO_CLEAN_DB,
     )
     env = dict(os.environ)
     run(cwd, "sentry_test_unit", ["--no-summary", unittest], check=True, env=env)

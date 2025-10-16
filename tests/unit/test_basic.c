@@ -151,13 +151,20 @@ SENTRY_TEST(discarding_before_send)
 
 SENTRY_TEST(crash_marker)
 {
+    // We don't use sentry_init() in this test so we must create a database dir
+    sentry_path_t *database_path = sentry__path_from_str(".sentry-native");
+    TEST_ASSERT(!!database_path);
+    TEST_ASSERT(!sentry__path_create_dir_all(database_path));
+
     SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_database_path(options, database_path->path);
 
-    // clear returns true, regardless if the file exists
+    // There is no marker in the beginning but clearing returns true if the
+    // marker doesn't exist (i.e., we get an `ENOENT` or `ERROR_FILE_NOT_FOUND`)
     TEST_CHECK(sentry__clear_crash_marker(options));
-
-    // write should normally be true, even when called multiple times
+    // We can also verify this with has_crash_marker
     TEST_CHECK(!sentry__has_crash_marker(options));
+
     TEST_CHECK(sentry__write_crash_marker(options));
     TEST_CHECK(sentry__has_crash_marker(options));
     TEST_CHECK(sentry__write_crash_marker(options));
@@ -168,6 +175,9 @@ SENTRY_TEST(crash_marker)
     TEST_CHECK(sentry__clear_crash_marker(options));
 
     sentry_options_free(options);
+
+    sentry__path_remove_all(database_path);
+    sentry__path_free(database_path);
 }
 
 SENTRY_TEST(crashed_last_run)
