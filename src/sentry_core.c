@@ -767,8 +767,8 @@ fail:
 }
 
 static sentry_envelope_t *
-prepare_user_feedback(sentry_value_t user_feedback,
-    sentry_feedback_hint_t *hint)
+prepare_user_feedback(
+    sentry_value_t user_feedback, sentry_feedback_hint_t *hint)
 {
     sentry_envelope_t *envelope = NULL;
 
@@ -778,7 +778,6 @@ prepare_user_feedback(sentry_value_t user_feedback,
         goto fail;
     }
 
-    // Add attachments from hint if present
     if (hint && hint->attachments) {
         sentry__envelope_add_attachments(envelope, hint->attachments);
     }
@@ -1510,9 +1509,8 @@ sentry_capture_feedback_with_hint(
         }
     }
 
-    // Take ownership: free hint after use
     if (hint) {
-        sentry_feedback_hint_free(hint);
+        sentry__feedback_hint_free(hint);
     }
 }
 

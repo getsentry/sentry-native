@@ -19,7 +19,7 @@ sentry_feedback_hint_new(void)
 }
 
 void
-sentry_feedback_hint_free(sentry_feedback_hint_t *hint)
+sentry__feedback_hint_free(sentry_feedback_hint_t *hint)
 {
     if (!hint) {
         return;

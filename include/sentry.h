@@ -2733,14 +2733,6 @@ typedef struct sentry_feedback_hint_s sentry_feedback_hint_t;
 SENTRY_API sentry_feedback_hint_t *sentry_feedback_hint_new(void);
 
 /**
- * Frees a feedback hint.
- *
- * Note: You should NOT call this if the hint was passed to
- * sentry_capture_feedback_with_hint(), as that function takes ownership.
- */
-SENTRY_API void sentry_feedback_hint_free(sentry_feedback_hint_t *hint);
-
-/**
  * Attaches a file to a feedback hint.
  *
  * The file will be read and sent when the feedback is captured.
@@ -2752,7 +2744,7 @@ SENTRY_API sentry_attachment_t *sentry_feedback_hint_attach_file_n(
     sentry_feedback_hint_t *hint, const char *path, size_t path_len);
 
 /**
- * Attaches binary data to a feedback hint.
+ * Attaches bytes to a feedback hint.
  *
  * The data is copied internally and will be sent when the feedback is captured.
  * Returns a pointer to the attachment, or NULL on error.
@@ -2785,12 +2777,10 @@ SENTRY_API sentry_attachment_t *sentry_feedback_hint_attach_bytesw_n(
 #endif
 
 /**
- * Captures feedback with a hint (e.g., attachments).
+ * Captures a manually created feedback with a hint and sends it to Sentry.
  *
  * This function takes ownership of both the feedback value and the hint,
- * which will be freed automatically. Users should NOT call
- * sentry_value_decref() on the feedback or sentry_feedback_hint_free()
- * on the hint after calling this function.
+ * which will be freed automatically.
  *
  * The hint parameter can be NULL if no additional context is needed.
  */
