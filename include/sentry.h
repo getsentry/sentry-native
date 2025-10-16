@@ -2717,6 +2717,87 @@ SENTRY_API sentry_value_t sentry_value_new_feedback_n(const char *message,
 SENTRY_API void sentry_capture_feedback(sentry_value_t user_feedback);
 
 /**
+ * A hint that can be passed to feedback capture to provide additional context,
+ * such as attachments.
+ */
+struct sentry_feedback_hint_s;
+typedef struct sentry_feedback_hint_s sentry_feedback_hint_t;
+
+/**
+ * Creates a new feedback hint.
+ *
+ * The hint can be used to attach files or binary data to feedback submissions.
+ * Must be freed with sentry_feedback_hint_free() if not passed to
+ * sentry_capture_feedback_with_hint().
+ */
+SENTRY_API sentry_feedback_hint_t *sentry_feedback_hint_new(void);
+
+/**
+ * Frees a feedback hint.
+ *
+ * Note: You should NOT call this if the hint was passed to
+ * sentry_capture_feedback_with_hint(), as that function takes ownership.
+ */
+SENTRY_API void sentry_feedback_hint_free(sentry_feedback_hint_t *hint);
+
+/**
+ * Attaches a file to a feedback hint.
+ *
+ * The file will be read and sent when the feedback is captured.
+ * Returns a pointer to the attachment, or NULL on error.
+ */
+SENTRY_API sentry_attachment_t *sentry_feedback_hint_attach_file(
+    sentry_feedback_hint_t *hint, const char *path);
+SENTRY_API sentry_attachment_t *sentry_feedback_hint_attach_file_n(
+    sentry_feedback_hint_t *hint, const char *path, size_t path_len);
+
+/**
+ * Attaches binary data to a feedback hint.
+ *
+ * The data is copied internally and will be sent when the feedback is captured.
+ * Returns a pointer to the attachment, or NULL on error.
+ */
+SENTRY_API sentry_attachment_t *sentry_feedback_hint_attach_bytes(
+    sentry_feedback_hint_t *hint, const char *buf, size_t buf_len,
+    const char *filename);
+SENTRY_API sentry_attachment_t *sentry_feedback_hint_attach_bytes_n(
+    sentry_feedback_hint_t *hint, const char *buf, size_t buf_len,
+    const char *filename, size_t filename_len);
+
+#ifdef SENTRY_PLATFORM_WINDOWS
+/**
+ * Wide char version of `sentry_feedback_hint_attach_file`.
+ */
+SENTRY_API sentry_attachment_t *sentry_feedback_hint_attach_filew(
+    sentry_feedback_hint_t *hint, const wchar_t *path);
+SENTRY_API sentry_attachment_t *sentry_feedback_hint_attach_filew_n(
+    sentry_feedback_hint_t *hint, const wchar_t *path, size_t path_len);
+
+/**
+ * Wide char version of `sentry_feedback_hint_attach_bytes`.
+ */
+SENTRY_API sentry_attachment_t *sentry_feedback_hint_attach_bytesw(
+    sentry_feedback_hint_t *hint, const char *buf, size_t buf_len,
+    const wchar_t *filename);
+SENTRY_API sentry_attachment_t *sentry_feedback_hint_attach_bytesw_n(
+    sentry_feedback_hint_t *hint, const char *buf, size_t buf_len,
+    const wchar_t *filename, size_t filename_len);
+#endif
+
+/**
+ * Captures feedback with a hint (e.g., attachments).
+ *
+ * This function takes ownership of both the feedback value and the hint,
+ * which will be freed automatically. Users should NOT call
+ * sentry_value_decref() on the feedback or sentry_feedback_hint_free()
+ * on the hint after calling this function.
+ *
+ * The hint parameter can be NULL if no additional context is needed.
+ */
+SENTRY_API void sentry_capture_feedback_with_hint(
+    sentry_value_t user_feedback, sentry_feedback_hint_t *hint);
+
+/**
  * The status of a Span or Transaction.
  *
  * See https://develop.sentry.dev/sdk/event-payloads/span/ for documentation.
