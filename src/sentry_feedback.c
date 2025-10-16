@@ -29,8 +29,7 @@ sentry__feedback_hint_free(sentry_feedback_hint_t *hint)
 }
 
 sentry_attachment_t *
-sentry_feedback_hint_attach_file(
-    sentry_feedback_hint_t *hint, const char *path)
+sentry_feedback_hint_attach_file(sentry_feedback_hint_t *hint, const char *path)
 {
     return sentry_feedback_hint_attach_file_n(
         hint, path, sentry__guarded_strlen(path));
@@ -43,9 +42,8 @@ sentry_feedback_hint_attach_file_n(
     if (!hint) {
         return NULL;
     }
-    return sentry__attachments_add_path(
-        &hint->attachments, sentry__path_from_str_n(path, path_len), ATTACHMENT,
-        NULL);
+    return sentry__attachments_add_path(&hint->attachments,
+        sentry__path_from_str_n(path, path_len), ATTACHMENT, NULL);
 }
 
 sentry_attachment_t *
@@ -90,8 +88,8 @@ sentry_feedback_hint_attach_filew_n(
 }
 
 sentry_attachment_t *
-sentry_feedback_hint_attach_bytesw(sentry_feedback_hint_t *hint, const char *buf,
-    size_t buf_len, const wchar_t *filename)
+sentry_feedback_hint_attach_bytesw(sentry_feedback_hint_t *hint,
+    const char *buf, size_t buf_len, const wchar_t *filename)
 {
     size_t filename_len = filename ? wcslen(filename) : 0;
     return sentry_feedback_hint_attach_bytesw_n(
