@@ -40,7 +40,8 @@ write_loop(FILE *f, const char *buf, size_t buf_len)
         size_t n = fwrite(buf, 1, buf_len, f);
         if (n == 0 && errno == EINVAL) {
             continue;
-        } else if (n < buf_len) {
+        }
+        if (n < buf_len) {
             break;
         }
         buf += n;
@@ -91,7 +92,7 @@ path_with_len(size_t len)
 {
     sentry_path_t *rv = SENTRY_MAKE(sentry_path_t);
     if (!rv) {
-        return rv;
+        return NULL;
     }
     rv->path = sentry_malloc(sizeof(char) * len);
     if (!rv->path) {
@@ -100,7 +101,7 @@ path_with_len(size_t len)
     }
     // let call sites allocate, because the narrow UTF-8 length passed in here
     // comes from strlen which always returns an encoding-dependent byte length,
-    // and so we must know the string to get its wide length.
+    // and so we must read the full string to get its wide length.
     rv->path_w = NULL;
 
     return rv;
@@ -109,14 +110,12 @@ path_with_len(size_t len)
 sentry_path_t *
 sentry__path_absolute(const sentry_path_t *path)
 {
-    // We must use `_wfullpath` here since `_fullpath` depends on the system
-    // ANSI code page, we want to be independent of. This means we have to
-    // convert our canonical representation back to wide-string. But we can
-    // specify NULL as the first argument to get it for arbitrarily sized paths.
     wchar_t *path_wstr = path->path_w;
     if (!path_wstr) {
         return NULL;
     }
+    // `_wfullpath` allocates the buffer that `full` points to. If we ever want
+    // to eliminate external allocations, that would be one place to fix.
     wchar_t *full = _wfullpath(NULL, path_wstr, 0);
     if (!full) {
         return NULL;
@@ -148,7 +147,7 @@ sentry__path_current_exe(void)
     sentry_path_t *path = SENTRY_MAKE(sentry_path_t);
     if (!path) {
         sentry_free(path_wstr);
-        return path;
+        return NULL;
     }
     // convert the path to our canonical narrow UTF-8...
     path->path = sentry__string_from_wstr(path_wstr);
@@ -161,7 +160,7 @@ sentry__path_current_exe(void)
     // ...and create a fit-sized buffer for the wide-char so we can free the 64k
     path->path_w = sentry_malloc(sizeof(wchar_t) * (len + 1));
     if (!path->path_w) {
-        sentry_free(path->path_w);
+        sentry_free(path->path);
         sentry_free(path);
         sentry_free(path_wstr);
         return NULL;
@@ -201,7 +200,7 @@ sentry__path_from_wstr_n(const wchar_t *s, size_t s_len)
 
     sentry_path_t *rv = SENTRY_MAKE(sentry_path_t);
     if (!rv) {
-        return rv;
+        return NULL;
     }
     rv->path = sentry__string_from_wstr_n(s, s_len);
     if (!rv->path) {
@@ -326,8 +325,7 @@ sentry__path_is_dir(const sentry_path_t *path)
         return false;
     }
     struct _stat buf;
-    bool result = _wstat(path_w, &buf) == 0 && S_ISDIR(buf.st_mode);
-    return result;
+    return _wstat(path_w, &buf) == 0 && S_ISDIR(buf.st_mode);
 }
 
 bool
@@ -338,8 +336,7 @@ sentry__path_is_file(const sentry_path_t *path)
         return false;
     }
     struct _stat buf;
-    bool result = _wstat(path_w, &buf) == 0 && S_ISREG(buf.st_mode);
-    return result;
+    return _wstat(path_w, &buf) == 0 && S_ISREG(buf.st_mode);
 }
 
 size_t
@@ -632,7 +629,7 @@ sentry__path_read_to_buffer(const sentry_path_t *path, size_t *size_out)
     if (!f) {
         return NULL;
     }
-    size_t len = sentry__path_get_size(path);
+    const size_t len = sentry__path_get_size(path);
     if (len == 0) {
         fclose(f);
         char *rv = sentry_malloc(1);
