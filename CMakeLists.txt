@@ -322,9 +322,22 @@ add_library(sentry::sentry ALIAS sentry)
 
 # Configure version embedding if enabled
 if(SENTRY_EMBED_INFO)
-	# Use timestamp as default build ID if not specified
-	if(NOT SENTRY_BUILD_ID)
-		string(TIMESTAMP SENTRY_BUILD_ID "%Y-%m-%d %H:%M:%S UTC" UTC)
+	# Extract build ID from SENTRY_VERSION_FULL if present (format: major.minor.patch+build-id)
+	# This handles cases where downstream SDKs modify sentry.h to include build metadata
+	set(SENTRY_EMBEDDED_VERSION "${SENTRY_VERSION_BASE}")
+	set(SENTRY_EMBEDDED_BUILD_ID "")
+
+	if(SENTRY_VERSION_FULL MATCHES "^[0-9]+\\.[0-9]+\\.[0-9]+\\+(.+)$")
+		# Version contains build metadata after '+', extract it
+		set(SENTRY_EMBEDDED_BUILD_ID "${CMAKE_MATCH_1}")
+	endif()
+
+	# SENTRY_BUILD_ID cache variable takes precedence over extracted build ID
+	if(SENTRY_BUILD_ID)
+		set(SENTRY_EMBEDDED_BUILD_ID "${SENTRY_BUILD_ID}")
+	elseif(NOT SENTRY_EMBEDDED_BUILD_ID)
+		# No build ID found in version or provided, use timestamp as default
+		string(TIMESTAMP SENTRY_EMBEDDED_BUILD_ID "%Y-%m-%d %H:%M:%S UTC" UTC)
 	endif()
 
 	# Validate and escape special characters in custom items if needed
