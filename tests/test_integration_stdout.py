@@ -197,8 +197,7 @@ def run_stdout_for(backend, cmake, example_args, build_args=None):
 
     tmp_path = cmake(["sentry_example"], build_args)
 
-    child = run(tmp_path, "sentry_example", example_args)
-    assert child.returncode  # well, it's a crash after all
+    run(tmp_path, "sentry_example", example_args, expect_failure=True)
 
     return tmp_path, check_output(tmp_path, "sentry_example", ["stdout", "no-setup"])
 
