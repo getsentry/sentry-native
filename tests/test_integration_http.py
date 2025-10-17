@@ -39,7 +39,7 @@ from .assertions import (
     assert_attachment_view_hierarchy,
     assert_logs,
 )
-from .conditions import has_http, has_breakpad, has_files
+from .conditions import has_http, has_breakpad, has_files, is_kcov
 
 pytestmark = pytest.mark.skipif(not has_http, reason="tests need http")
 
@@ -241,7 +241,9 @@ def test_external_crash_reporter_http(cmake, httpserver, build_args):
             ["log", "crash-reporter", "crash"],
             env=env,
         )
-        assert child.returncode  # well, it's a crash after all
+        # kcov exits with 0 even when the process crashes
+        if not is_kcov:
+            assert child.returncode  # well, it's a crash after all
 
         # the session crash heuristic on Mac uses timestamps, so make sure we have
         # a small delay here
@@ -379,7 +381,9 @@ def test_inproc_crash_http(cmake, httpserver, build_args):
         ["log", "start-session", "attachment", "attach-view-hierarchy", "crash"],
         env=env,
     )
-    assert child.returncode  # well, it's a crash after all
+    # kcov exits with 0 even when the process crashes
+    if not is_kcov:
+        assert child.returncode  # well, it's a crash after all
 
     run(
         tmp_path,
@@ -424,7 +428,9 @@ def test_inproc_reinstall(cmake, httpserver):
         ["log", "reinstall", "crash"],
         env=env,
     )
-    assert child.returncode  # well, it's a crash after all
+    # kcov exits with 0 even when the process crashes
+    if not is_kcov:
+        assert child.returncode  # well, it's a crash after all
 
     run(
         tmp_path,
@@ -449,7 +455,9 @@ def test_inproc_dump_inflight(cmake, httpserver):
     child = run(
         tmp_path, "sentry_example", ["log", "capture-multiple", "crash"], env=env
     )
-    assert child.returncode  # well, it's a crash after all
+    # kcov exits with 0 even when the process crashes
+    if not is_kcov:
+        assert child.returncode  # well, it's a crash after all
     run(tmp_path, "sentry_example", ["log", "no-setup"], check=True, env=env)
 
     # we trigger 10 normal events, and 1 crash
