@@ -483,7 +483,7 @@ sentry__path_clone(const sentry_path_t *path)
 }
 
 static int
-is_last_error_path_not_found()
+is_last_error_path_not_found(void)
 {
     const DWORD last_error = GetLastError();
     return last_error == ERROR_PATH_NOT_FOUND
