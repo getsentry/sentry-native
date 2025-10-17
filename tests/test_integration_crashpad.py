@@ -81,8 +81,13 @@ def test_crashpad_crash_proxy_env(cmake, httpserver):
         )
 
         with httpserver.wait(timeout=10) as waiting:
-            child = run(tmp_path, "sentry_example", ["log", "crash"], env=env)
-            assert child.returncode  # well, it's a crash after all
+            run(
+                tmp_path,
+                "sentry_example",
+                ["log", "crash"],
+                expect_failure=True,
+                env=env,
+            )
         assert waiting.result
     finally:
         cleanup_proxy_env_vars()
@@ -102,8 +107,13 @@ def test_crashpad_crash_proxy_env_port_incorrect(cmake, httpserver):
 
         with pytest.raises(AssertionError):
             with httpserver.wait(timeout=10):
-                child = run(tmp_path, "sentry_example", ["log", "crash"], env=env)
-                assert child.returncode  # well, it's a crash after all
+                run(
+                    tmp_path,
+                    "sentry_example",
+                    ["log", "crash"],
+                    expect_failure=True,
+                    env=env,
+                )
     finally:
         cleanup_proxy_env_vars()
         proxy_test_finally(0, httpserver, proxy_process)
@@ -121,10 +131,13 @@ def test_crashpad_proxy_set_empty(cmake, httpserver):
         )
 
         with httpserver.wait(timeout=10) as waiting:
-            child = run(
-                tmp_path, "sentry_example", ["log", "crash", "proxy-empty"], env=env
+            run(
+                tmp_path,
+                "sentry_example",
+                ["log", "crash", "proxy-empty"],
+                expect_failure=True,
+                env=env,
             )
-            assert child.returncode  # well, it's a crash after all
         assert waiting.result
 
     finally:
@@ -145,8 +158,13 @@ def test_crashpad_proxy_https_not_http(cmake, httpserver):
         )
 
         with httpserver.wait(timeout=10) as waiting:
-            child = run(tmp_path, "sentry_example", ["log", "crash"], env=env)
-            assert child.returncode  # well, it's a crash after all
+            run(
+                tmp_path,
+                "sentry_example",
+                ["log", "crash"],
+                expect_failure=True,
+                env=env,
+            )
         assert waiting.result
 
     finally:
@@ -183,10 +201,13 @@ def test_crashpad_crash_proxy(cmake, httpserver, run_args, proxy_running):
 
         try:
             with httpserver.wait(timeout=10) as waiting:
-                child = run(
-                    tmp_path, "sentry_example", ["log", "crash"] + run_args, env=env
+                run(
+                    tmp_path,
+                    "sentry_example",
+                    ["log", "crash"] + run_args,
+                    expect_failure=True,
+                    env=env,
                 )
-                assert child.returncode  # well, it's a crash after all
         except AssertionError:
             expected_logsize = 0
             return
@@ -208,8 +229,13 @@ def test_crashpad_reinstall(cmake, httpserver):
     httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data("OK")
 
     with httpserver.wait(timeout=10) as waiting:
-        child = run(tmp_path, "sentry_example", ["log", "reinstall", "crash"], env=env)
-        assert child.returncode  # well, it's a crash after all
+        run(
+            tmp_path,
+            "sentry_example",
+            ["log", "reinstall", "crash"],
+            expect_failure=True,
+            env=env,
+        )
 
     assert waiting.result
 
@@ -249,7 +275,7 @@ def test_crashpad_wer_crash(cmake, httpserver, run_args):
     httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
 
     with httpserver.wait(timeout=10) as waiting:
-        child = run(
+        run(
             tmp_path,
             "sentry_example",
             [
@@ -260,9 +286,9 @@ def test_crashpad_wer_crash(cmake, httpserver, run_args):
                 "overflow-breadcrumbs",
             ]
             + run_args,
+            expect_failure=True,
             env=env,
         )
-        assert child.returncode  # well, it's a crash after all
 
     assert waiting.result
 
@@ -345,7 +371,7 @@ def test_crashpad_dumping_crash(cmake, httpserver, run_args, build_args):
     httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
 
     with httpserver.wait(timeout=10) as waiting:
-        child = run(
+        run(
             tmp_path,
             "sentry_example",
             [
@@ -356,9 +382,9 @@ def test_crashpad_dumping_crash(cmake, httpserver, run_args, build_args):
                 "crash",
             ]
             + run_args,
+            expect_failure=True,
             env=env,
         )
-        assert child.returncode  # well, it's a crash after all
 
     assert waiting.result
 
@@ -366,12 +392,7 @@ def test_crashpad_dumping_crash(cmake, httpserver, run_args, build_args):
     # a small delay here
     time.sleep(1)
 
-    child = run(tmp_path, "sentry_example", ["log", "no-setup"], env=env)
-    # TODO: apply these to all by moving the assertion into the run
-    #       have two run_x() one that assumes success and one for failure
-    assert (
-        child.returncode == 0
-    ), f"Second invocation failed with return code {child.returncode}"
+    run(tmp_path, "sentry_example", ["log", "no-setup"], check=True, env=env)
 
     assert len(httpserver.log) == 2
     session, multipart = (
@@ -424,7 +445,7 @@ def test_crashpad_dumping_stack_overflow(cmake, httpserver, build_args):
     httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
 
     with httpserver.wait(timeout=10) as waiting:
-        child = run(
+        run(
             tmp_path,
             "sentry_example",
             [
@@ -434,9 +455,9 @@ def test_crashpad_dumping_stack_overflow(cmake, httpserver, build_args):
                 "attach-view-hierarchy",
                 "stack-overflow",
             ],
+            expect_failure=True,
             env=env,
         )
-        assert child.returncode  # well, it's a crash after all
 
     assert waiting.result
 
@@ -482,7 +503,7 @@ def test_crashpad_non_dumping_crash(cmake, httpserver, run_args):
     httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
 
     with httpserver.wait(timeout=5, raise_assertions=False) as waiting:
-        child = run(
+        run(
             tmp_path,
             "sentry_example",
             [
@@ -493,9 +514,9 @@ def test_crashpad_non_dumping_crash(cmake, httpserver, run_args):
                 "crash",
             ]
             + run_args,
+            expect_failure=True,
             env=env,
         )
-        assert child.returncode  # well, it's a crash after all
 
     assert waiting.result is False
 
@@ -526,13 +547,13 @@ def test_crashpad_crash_after_shutdown(cmake, httpserver):
     httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data("OK")
 
     with httpserver.wait(timeout=10) as waiting:
-        child = run(
+        run(
             tmp_path,
             "sentry_example",
             ["log", "crash-after-shutdown"],
+            expect_failure=True,
             env=env,
         )
-        assert child.returncode  # well, it's a crash after all
 
     assert waiting.result
 
@@ -559,10 +580,13 @@ def test_crashpad_dump_inflight(cmake, httpserver):
     httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
 
     with httpserver.wait(timeout=10) as waiting:
-        child = run(
-            tmp_path, "sentry_example", ["log", "capture-multiple", "crash"], env=env
+        run(
+            tmp_path,
+            "sentry_example",
+            ["log", "capture-multiple", "crash"],
+            expect_failure=True,
+            env=env,
         )
-        assert child.returncode  # well, it's a crash after all
 
     assert waiting.result
 
@@ -581,11 +605,13 @@ def test_disable_backend(cmake, httpserver):
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
 
     with httpserver.wait(timeout=5, raise_assertions=False) as waiting:
-        child = run(
-            tmp_path, "sentry_example", ["disable-backend", "log", "crash"], env=env
+        run(
+            tmp_path,
+            "sentry_example",
+            ["disable-backend", "log", "crash"],
+            expect_failure=True,
+            env=env,
         )
-        # we crash so process should return non-zero
-        assert child.returncode
 
     # crashpad is disabled, and we are only crashing, so we expect the wait to timeout
     assert waiting.result is False
@@ -613,21 +639,17 @@ def test_crashpad_retry(cmake, httpserver):
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
     httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data("OK")
 
-    child = run(
-        tmp_path, "sentry_example", ["log", "crash"], env=env
-    )  # crash but fail to send data
-    assert child.returncode  # well, it's a crash after all
+    # crash but fail to send data
+    run(tmp_path, "sentry_example", ["log", "crash"], expect_failure=True, env=env)
 
     assert len(httpserver.log) == 0
 
     subprocess.run(
-        ["sudo", "ifconfig", "lo0", "up"]
+        ["sudo", "ifconfig", "lo0", "up"], check=True
     )  # Enables the loopback network interface again
     # don't rmtree here, we don't want to be isolated (example should pick up previous crash from .sentry-native DB)
     # we also sleep to give Crashpad enough time to handle the previous crash
-    child = run(
-        tmp_path, "sentry_example", ["log", "sleep"], env=env
-    )  # run without crashing to retry send
+    run(tmp_path, "sentry_example", ["log", "sleep"], check=True, env=env)
 
     assert len(httpserver.log) == 1
 
@@ -651,13 +673,13 @@ def test_crashpad_external_crash_reporter(cmake, httpserver, run_args):
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
 
     with httpserver.wait(timeout=10) as waiting:
-        child = run(
+        run(
             tmp_path,
             "sentry_example",
             ["log", "crash-reporter"] + run_args,
+            expect_failure=True,
             env=env,
         )
-        assert child.returncode  # well, it's a crash after all
     assert waiting.result
 
     assert len(httpserver.log) == 2
