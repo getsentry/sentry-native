@@ -1,30 +1,28 @@
 #include "sentry_logs.h"
 #include "sentry_core.h"
+#include "sentry_cpu_relax.h"
 #include "sentry_envelope.h"
 #include "sentry_options.h"
 #include "sentry_os.h"
 #include "sentry_scope.h"
 #include "sentry_sync.h"
-#if defined(SENTRY_PLATFORM_UNIX) || defined(SENTRY_PLATFORM_NX)
-#    include "sentry_unix_spinlock.h"
-#endif
 #include <stdarg.h>
 #include <string.h>
 
 #ifdef SENTRY_UNITTEST
 #    define QUEUE_LENGTH 5
-#    ifdef SENTRY_PLATFORM_WINDOWS
-#        include <windows.h>
-#        define sleep_ms(MILLISECONDS) Sleep(MILLISECONDS)
-#    else
-#        include <unistd.h>
-#        define sleep_ms(MILLISECONDS) usleep(MILLISECONDS * 1000)
-#    endif
 #else
 #    define QUEUE_LENGTH 100
 #endif
 #define FLUSH_TIMER 5
 
+#ifdef SENTRY_PLATFORM_WINDOWS
+#    include <windows.h>
+#    define sleep_ms(MILLISECONDS) Sleep(MILLISECONDS)
+#else
+#    include <unistd.h>
+#    define sleep_ms(MILLISECONDS) usleep(MILLISECONDS * 1000)
+#endif
 /**
  * Thread lifecycle states for the logs batching thread.
  */
@@ -87,13 +85,49 @@ check_for_flush_condition(void)
     return sentry__atomic_fetch(&current_buf->index) >= QUEUE_LENGTH;
 }
 
+// Use a sleep spinner around a monotonic timer so we don't syscall sleep from
+// a signal handler. While this is strictly needed only there, there is no
+// reason not to use the same implementation across platforms.
 static void
-flush_logs_queue(void)
+crash_safe_sleep_ms(uint64_t delay_ms)
 {
-    const long already_flushing
-        = sentry__atomic_store(&g_logs_state.flushing, 1);
-    if (already_flushing) {
-        return;
+    const uint64_t start = sentry__monotonic_time();
+    const uint64_t end = start + delay_ms;
+    while (sentry__monotonic_time() < end) {
+        for (int i = 0; i < 64; i++) {
+            sentry__cpu_relax();
+        }
+    }
+}
+
+static void
+flush_logs_queue(bool crash_safe)
+{
+    if (crash_safe) {
+        // In crash-safe mode, spin lock with timeout and backoff
+        int attempts = 0;
+        while (!sentry__atomic_compare_swap(&g_logs_state.flushing, 0, 1)) {
+            const int max_attempts = 200;
+            if (++attempts > max_attempts) {
+                SENTRY_WARN("flush_logs_queue: timeout waiting for flushing "
+                            "lock in crash-safe mode");
+                return;
+            }
+
+            // backoff max-wait with max_attempts = 200 based sleep slots:
+            // 9ms + 450ms + 1010ms = 1500ish ms
+            const uint32_t sleep_time = (attempts < 10) ? 1
+                : (attempts < 100)                      ? 5
+                                                        : 10;
+            crash_safe_sleep_ms(sleep_time);
+        }
+    } else {
+        // Normal mode: try once and return if already flushing
+        const long already_flushing
+            = sentry__atomic_store(&g_logs_state.flushing, 1);
+        if (already_flushing) {
+            return;
+        }
     }
     do {
         // prep both buffers
@@ -115,10 +149,7 @@ flush_logs_queue(void)
 
         // Wait for all in-flight producers of the old buffer
         while (sentry__atomic_fetch(&old_buf->adding) > 0) {
-            // TODO currently only on unix
-#ifdef SENTRY_PLATFORM_UNIX
             sentry__cpu_relax();
-#endif
         }
 
         long n = sentry__atomic_store(&old_buf->index, 0);
@@ -139,8 +170,17 @@ flush_logs_queue(void)
 
             sentry_envelope_t *envelope = sentry__envelope_new();
             sentry__envelope_add_logs(envelope, logs);
+
             SENTRY_WITH_OPTIONS (options) {
-                sentry__capture_envelope(options->transport, envelope);
+                if (crash_safe) {
+                    // Write directly to disk to avoid transport queuing during
+                    // crash
+                    sentry__run_write_envelope(options->run, envelope);
+                    sentry_envelope_free(envelope);
+                } else {
+                    // Normal operation: use transport for HTTP transmission
+                    sentry__capture_envelope(options->transport, envelope);
+                }
             }
             sentry_value_decref(logs);
         }
@@ -260,20 +300,20 @@ batching_thread_func(void *data)
         case 0:
 #ifdef SENTRY_PLATFORM_WINDOWS
             if (GetLastError() == ERROR_TIMEOUT) {
-                SENTRY_DEBUG("Logs flushed by timeout");
+                SENTRY_TRACE("Logs flushed by timeout");
                 break;
             }
 #endif
-            SENTRY_DEBUG("Logs flushed by filled buffer");
+            SENTRY_TRACE("Logs flushed by filled buffer");
             break;
 #ifdef SENTRY_PLATFORM_UNIX
         case ETIMEDOUT:
-            SENTRY_DEBUG("Logs flushed by timeout");
+            SENTRY_TRACE("Logs flushed by timeout");
             break;
 #endif
 #ifdef SENTRY_PLATFORM_WINDOWS
         case 1:
-            SENTRY_DEBUG("Logs flushed by filled buffer");
+            SENTRY_TRACE("Logs flushed by filled buffer");
             break;
 #endif
         default:
@@ -282,7 +322,7 @@ batching_thread_func(void *data)
         }
 
         // Try to flush logs
-        flush_logs_queue();
+        flush_logs_queue(false);
     }
 
     sentry__mutex_unlock(&task_lock);
@@ -833,11 +873,35 @@ sentry__logs_shutdown(uint64_t timeout)
     sentry__thread_join(g_logs_state.batching_thread);
 
     // Perform final flush to ensure any remaining logs are sent
-    flush_logs_queue();
+    flush_logs_queue(false);
 
     sentry__thread_free(&g_logs_state.batching_thread);
 
     SENTRY_DEBUG("logs system shutdown complete");
+}
+
+void
+sentry__logs_flush_crash_safe(void)
+{
+    SENTRY_DEBUG("crash-safe logs flush");
+
+    // Check if logs system is initialized
+    const long state = sentry__atomic_fetch(&g_logs_state.thread_state);
+    if (state == SENTRY_LOGS_THREAD_STOPPED) {
+        return;
+    }
+
+    // Signal the thread to stop but don't wait, since the crash-safe flush
+    // will spin-lock on flushing anyway.
+    sentry__atomic_store(
+        &g_logs_state.thread_state, (long)SENTRY_LOGS_THREAD_STOPPED);
+
+    // Perform crash-safe flush directly to disk to avoid transport queuing
+    // This is safe because we're in a crash scenario and the main thread
+    // is likely dead or dying anyway
+    flush_logs_queue(true);
+
+    SENTRY_DEBUG("crash-safe logs flush complete");
 }
 
 #ifdef SENTRY_UNITTEST

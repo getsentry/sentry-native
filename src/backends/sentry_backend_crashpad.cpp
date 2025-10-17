@@ -5,9 +5,11 @@ extern "C" {
 #include "sentry_attachment.h"
 #include "sentry_backend.h"
 #include "sentry_core.h"
+#include "sentry_cpu_relax.h"
 #include "sentry_database.h"
 #include "sentry_envelope.h"
 #include "sentry_logger.h"
+#include "sentry_logs.h"
 #include "sentry_options.h"
 #ifdef SENTRY_PLATFORM_WINDOWS
 #    include "sentry_os.h"
@@ -287,6 +289,7 @@ flush_scope_from_handler(
     while (!state->scope_flush.compare_exchange_strong(
         expected, true, std::memory_order_acquire)) {
         expected = false;
+        sentry__cpu_relax();
     }
 
     // now we are the sole flusher and can flush into the crash event
@@ -305,6 +308,7 @@ static bool
 sentry__crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
 {
     sentry__page_allocator_enable();
+    sentry__enter_signal_handler();
 #    endif
     // Disable logging during crash handling if the option is set
     SENTRY_WITH_OPTIONS (options) {
@@ -318,6 +322,10 @@ sentry__crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
     bool should_dump = true;
 
     SENTRY_WITH_OPTIONS (options) {
+        // Flush logs in a crash-safe manner before crash handling
+        if (options->enable_logs) {
+            sentry__logs_flush_crash_safe();
+        }
         auto state = static_cast<crashpad_state_t *>(options->backend->data);
         sentry_value_t crash_event
             = sentry__value_new_event_with_id(&state->crash_event_id);
@@ -403,6 +411,10 @@ sentry__crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
         _exit(EXIT_FAILURE);
 #    endif
     }
+
+#    ifndef SENTRY_PLATFORM_WINDOWS
+    sentry__leave_signal_handler();
+#    endif
 
     // we did not "handle" the signal, so crashpad should do that.
     return false;

@@ -6,7 +6,8 @@ from .conditions import has_http
 
 def test_unit(cmake, unittest):
     cwd = cmake(
-        ["sentry_test_unit"], {"SENTRY_BACKEND": "none", "SENTRY_TRANSPORT": "none"}
+        ["sentry_test_unit"],
+        {"SENTRY_BACKEND": "none", "SENTRY_TRANSPORT": "none"},
     )
     env = dict(os.environ)
     run(cwd, "sentry_test_unit", ["--no-summary", unittest], check=True, env=env)
@@ -17,7 +18,10 @@ def test_unit_transport(cmake, unittest):
     if unittest in ["custom_logger", "logger_enable_disable_functionality"]:
         pytest.skip("excluded from transport test-suite")
 
-    cwd = cmake(["sentry_test_unit"], {"SENTRY_BACKEND": "none"})
+    cwd = cmake(
+        ["sentry_test_unit"],
+        {"SENTRY_BACKEND": "none"},
+    )
     env = dict(os.environ)
     run(cwd, "sentry_test_unit", ["--no-summary", unittest], check=True, env=env)
 

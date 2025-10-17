@@ -8,6 +8,7 @@ extern "C" {
 #include "sentry_database.h"
 #include "sentry_envelope.h"
 #include "sentry_logger.h"
+#include "sentry_logs.h"
 #include "sentry_options.h"
 #ifdef SENTRY_PLATFORM_WINDOWS
 #    include "sentry_os.h"
@@ -125,6 +126,11 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
         event, "level", sentry__value_new_level(SENTRY_LEVEL_FATAL));
 
     SENTRY_WITH_OPTIONS (options) {
+        // Flush logs in a crash-safe manner before crash handling
+        if (options->enable_logs) {
+            sentry__logs_flush_crash_safe();
+        }
+
         sentry__write_crash_marker(options);
 
         bool should_handle = true;

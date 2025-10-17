@@ -28,12 +28,18 @@ class CMake:
             ";".join(f"{k}={v}" for k, v in options.items()),
         )
 
+        # cache the build configuration
         if key not in self.runs:
             cwd = self.factory.mktemp("cmake")
             self.runs[key] = cwd
             cmake(cwd, targets, options, cflags)
 
-        return self.runs[key]
+        build_tmp_path = self.runs[key]
+
+        # ensure that there are no left-overs from previous runs
+        shutil.rmtree(build_tmp_path / ".sentry-native", ignore_errors=True)
+
+        return build_tmp_path
 
     def destroy(self):
         sourcedir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))

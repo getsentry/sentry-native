@@ -10,6 +10,7 @@
 **Fixes**:
 
 - Use proper SDK name determination for structured logs `sdk.name` attribute. ([#1399](https://github.com/getsentry/sentry-native/pull/1399))
+- Add logs flush on crash. This is not available for macOS with the `crashpad` backend. ([#1404](https://github.com/getsentry/sentry-native/pull/1404))
 - Serialize `uint64` values as numerical instead of string. ([#1408](https://github.com/getsentry/sentry-native/pull/1408))
 
 ## 0.11.2

@@ -12,13 +12,23 @@
 #    define sleep_ms(MILLISECONDS) usleep(MILLISECONDS * 1000)
 #endif
 
+typedef struct {
+    uint64_t called_count;
+    bool has_validation_error;
+} transport_validation_data_t;
+
 static void
 validate_logs_envelope(sentry_envelope_t *envelope, void *data)
 {
-    uint64_t *called = data;
+    transport_validation_data_t *validation_data = data;
 
-    // Verify we have at least one envelope item
-    TEST_CHECK(sentry__envelope_get_item_count(envelope) > 0);
+    // Check we have at least one envelope item (store error flag instead of
+    // TEST_CHECK)
+    if (sentry__envelope_get_item_count(envelope) == 0) {
+        validation_data->has_validation_error = true;
+        sentry_envelope_free(envelope);
+        return;
+    }
 
     // Get the first item and check its type
     const sentry_envelope_item_t *item = sentry__envelope_get_item(envelope, 0);
@@ -27,7 +37,7 @@ validate_logs_envelope(sentry_envelope_t *envelope, void *data)
 
     // Only validate and count log envelopes, skip others (e.g., session)
     if (strcmp(type, "log") == 0) {
-        *called += 1;
+        validation_data->called_count += 1;
     }
 
     sentry_envelope_free(envelope);
@@ -35,7 +45,7 @@ validate_logs_envelope(sentry_envelope_t *envelope, void *data)
 
 SENTRY_TEST(basic_logging_functionality)
 {
-    uint64_t called_transport = 0;
+    transport_validation_data_t validation_data = { 0, false };
 
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
@@ -43,54 +53,55 @@ SENTRY_TEST(basic_logging_functionality)
 
     sentry_transport_t *transport
         = sentry_transport_new(validate_logs_envelope);
-    sentry_transport_set_state(transport, &called_transport);
+    sentry_transport_set_state(transport, &validation_data);
     sentry_options_set_transport(options, transport);
 
     sentry_init(options);
     sentry__logs_wait_for_thread_startup();
 
     // These should not crash and should respect the enable_logs option
-    sentry_log_trace("Trace message");
-    sentry_log_debug("Debug message");
-    sentry_log_info("Info message");
-    sentry_log_warn("Warning message");
-    sentry_log_error("Error message");
+    TEST_CHECK_INT_EQUAL(sentry_log_trace("Trace message"), 0);
+    TEST_CHECK_INT_EQUAL(sentry_log_debug("Debug message"), 0);
+    TEST_CHECK_INT_EQUAL(sentry_log_info("Info message"), 0);
+    TEST_CHECK_INT_EQUAL(sentry_log_warn("Warning message"), 0);
+    TEST_CHECK_INT_EQUAL(sentry_log_error("Error message"), 0);
     // Sleep to allow first batch to flush (testing batch timing behavior)
     sleep_ms(20);
-    sentry_log_fatal("Fatal message");
+    TEST_CHECK_INT_EQUAL(sentry_log_fatal("Fatal message"), 0);
     sentry_close();
 
-    // TODO for now we set unit test buffer size to 5; does this make sense?
-    //  Or should we just pump out 100+ logs to fill a batch in a for-loop?
-    TEST_CHECK_INT_EQUAL(called_transport, 2);
+    // Validate results on main thread (no race condition)
+    TEST_CHECK(!validation_data.has_validation_error);
+    TEST_CHECK_INT_EQUAL(validation_data.called_count, 2);
 }
 
 SENTRY_TEST(logs_disabled_by_default)
 {
-    uint64_t called_transport = 0;
+    transport_validation_data_t validation_data = { 0, false };
 
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
 
     sentry_transport_t *transport
         = sentry_transport_new(validate_logs_envelope);
-    sentry_transport_set_state(transport, &called_transport);
+    sentry_transport_set_state(transport, &validation_data);
     sentry_options_set_transport(options, transport);
 
     // Don't explicitly enable logs - they should be disabled by default
     sentry_init(options);
 
-    sentry_log_info("This should not be sent");
+    TEST_CHECK_INT_EQUAL(sentry_log_info("This should not be sent"), 3);
 
     sentry_close();
 
     // Transport should not be called since logs are disabled
-    TEST_CHECK_INT_EQUAL(called_transport, 0);
+    TEST_CHECK(!validation_data.has_validation_error);
+    TEST_CHECK_INT_EQUAL(validation_data.called_count, 0);
 }
 
 SENTRY_TEST(formatted_log_messages)
 {
-    uint64_t called_transport = 0;
+    transport_validation_data_t validation_data = { 0, false };
 
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
@@ -98,23 +109,27 @@ SENTRY_TEST(formatted_log_messages)
 
     sentry_transport_t *transport
         = sentry_transport_new(validate_logs_envelope);
-    sentry_transport_set_state(transport, &called_transport);
+    sentry_transport_set_state(transport, &validation_data);
     sentry_options_set_transport(options, transport);
 
     sentry_init(options);
     sentry__logs_wait_for_thread_startup();
 
     // Test format specifiers
-    sentry_log_info("String: %s, Integer: %d, Float: %.2f", "test", 42, 3.14);
-    sentry_log_warn("Character: %c, Hex: 0x%x", 'A', 255);
-    sentry_log_error("Pointer: %p", (void *)0x1234);
-    sentry_log_error("Big number: %zu", UINT64_MAX);
-    sentry_log_error("Small number: %d", INT64_MIN);
+    TEST_CHECK_INT_EQUAL(sentry_log_info("String: %s, Integer: %d, Float: %.2f",
+                             "test", 42, 3.14),
+        0);
+    TEST_CHECK_INT_EQUAL(
+        sentry_log_warn("Character: %c, Hex: 0x%x", 'A', 255), 0);
+    TEST_CHECK_INT_EQUAL(sentry_log_error("Pointer: %p", (void *)0x1234), 0);
+    TEST_CHECK_INT_EQUAL(sentry_log_error("Big number: %zu", UINT64_MAX), 0);
+    TEST_CHECK_INT_EQUAL(sentry_log_error("Small number: %d", INT64_MIN), 0);
 
     sentry_close();
 
     // Transport should be called once
-    TEST_CHECK_INT_EQUAL(called_transport, 1);
+    TEST_CHECK(!validation_data.has_validation_error);
+    TEST_CHECK_INT_EQUAL(validation_data.called_count, 1);
 }
 
 static void
