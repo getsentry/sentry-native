@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Internal**:
+
+- Add `SENTRY_SDK_VERSION` CMake cache variable to allow downstream SDKs to override the SDK version at configuration time. When set with build metadata (e.g., `0.11.3+20251016-9e31c9f-dirty`), the build ID is automatically extracted and used in `sentry_library_info`, correctly separating version (`SENTRY_VERSION:0.11.3`) from build ID (`BUILD:20251016-9e31c9f-dirty`). ([#TBD](https://github.com/getsentry/sentry-native/pull/TBD))
+
 ## 0.11.3
 
 **Features**:

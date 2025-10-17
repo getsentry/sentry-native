@@ -86,10 +86,46 @@ SENTRY_TEST(embedded_info_sentry_version)
     // Version should contain at least one dot (e.g., "0.10.0")
     TEST_CHECK(strchr(embedded_version, '.') != NULL);
 
-    // Test that it matches the actual SDK version
-    TEST_CHECK_STRING_EQUAL(embedded_version, SENTRY_SDK_VERSION);
+    // Test that embedded version is the base version (major.minor.patch)
+    // It should NOT contain build metadata (e.g., +build-id)
+    TEST_CHECK(strchr(embedded_version, '+') == NULL);
+
+    // Verify embedded version starts with the same prefix as SENTRY_SDK_VERSION
+    // (handles cases where SENTRY_SDK_VERSION may include build metadata)
+    size_t embedded_len = strlen(embedded_version);
+    TEST_CHECK(
+        strncmp(embedded_version, SENTRY_SDK_VERSION, embedded_len) == 0);
 
     free(embedded_version);
+#else
+    SKIP_TEST();
+#endif
+}
+
+SENTRY_TEST(embedded_info_build_id)
+{
+#ifdef SENTRY_EMBED_INFO
+    // Test that BUILD field is present and non-empty
+    const char *build_field = strstr(sentry_library_info, "BUILD:");
+    TEST_ASSERT(build_field != NULL);
+
+    // Extract the build ID value
+    const char *build_start = build_field + strlen("BUILD:");
+    const char *build_end = strchr(build_start, ';');
+    TEST_ASSERT(build_end != NULL);
+
+    size_t build_len = build_end - build_start;
+    TEST_ASSERT(build_len > 0);
+
+    // Build ID should not be empty
+    char *build_id = malloc(build_len + 1);
+    TEST_ASSERT(build_id != NULL);
+    strncpy(build_id, build_start, build_len);
+    build_id[build_len] = '\0';
+
+    TEST_CHECK(strlen(build_id) > 0);
+
+    free(build_id);
 #else
     SKIP_TEST();
 #endif

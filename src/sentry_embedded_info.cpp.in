@@ -6,9 +6,9 @@ extern "C" SENTRY_API const char sentry_library_info[];
 
 // Definition
 extern "C" SENTRY_API const char sentry_library_info[] =
-    "SENTRY_VERSION:" SENTRY_SDK_VERSION ";"
+    "SENTRY_VERSION:@SENTRY_VERSION_BASE@;"
     "PLATFORM:@SENTRY_BUILD_PLATFORM@;"
-    "BUILD:@SENTRY_BUILD_ID@;"
+    "BUILD:@SENTRY_EMBEDDED_BUILD_ID@;"
     "VARIANT:@SENTRY_BUILD_VARIANT@;"
     "CONFIG:@CMAKE_BUILD_TYPE@;"
     "@SENTRY_EMBED_INFO_ITEMS@"
