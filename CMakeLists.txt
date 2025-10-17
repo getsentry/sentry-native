@@ -331,7 +331,8 @@ if(SENTRY_EMBED_INFO)
 		set(SENTRY_EMBEDDED_BUILD_ID "${CMAKE_MATCH_1}")
 	else()
 		# No build ID found in version or provided, use timestamp as default
-		string(TIMESTAMP SENTRY_EMBEDDED_BUILD_ID "%Y-%m-%d %H:%M:%S UTC" UTC)
+		# Format: YYYYMMDD-HHMMSS (semver-compliant: alphanumerics and hyphens only)
+		string(TIMESTAMP SENTRY_EMBEDDED_BUILD_ID "%Y%m%d-%H%M%S" UTC)
 	endif()
 
 	# Validate and escape special characters in custom items if needed
