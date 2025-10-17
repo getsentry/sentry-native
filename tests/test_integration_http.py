@@ -206,6 +206,7 @@ def test_user_report_http(cmake, httpserver):
     assert_user_report(envelope)
 
 
+@pytest.mark.skipif(is_kcov, reason="kcov exits with 0 even when the process crashes")
 @pytest.mark.parametrize(
     "build_args",
     [
@@ -241,9 +242,7 @@ def test_external_crash_reporter_http(cmake, httpserver, build_args):
             ["log", "crash-reporter", "crash"],
             env=env,
         )
-        # kcov exits with 0 even when the process crashes
-        if not is_kcov:
-            assert child.returncode  # well, it's a crash after all
+        assert child.returncode  # well, it's a crash after all
 
         # the session crash heuristic on Mac uses timestamps, so make sure we have
         # a small delay here
@@ -358,6 +357,7 @@ def test_abnormal_session(cmake, httpserver):
     assert_session(envelope1, {"status": "abnormal", "errors": 0, "duration": 10})
 
 
+@pytest.mark.skipif(is_kcov, reason="kcov exits with 0 even when the process crashes")
 @pytest.mark.parametrize(
     "build_args",
     [
@@ -381,9 +381,7 @@ def test_inproc_crash_http(cmake, httpserver, build_args):
         ["log", "start-session", "attachment", "attach-view-hierarchy", "crash"],
         env=env,
     )
-    # kcov exits with 0 even when the process crashes
-    if not is_kcov:
-        assert child.returncode  # well, it's a crash after all
+    assert child.returncode  # well, it's a crash after all
 
     run(
         tmp_path,
@@ -413,6 +411,7 @@ def test_inproc_crash_http(cmake, httpserver, build_args):
     assert_inproc_crash(envelope)
 
 
+@pytest.mark.skipif(is_kcov, reason="kcov exits with 0 even when the process crashes")
 def test_inproc_reinstall(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "inproc"})
 
@@ -428,9 +427,7 @@ def test_inproc_reinstall(cmake, httpserver):
         ["log", "reinstall", "crash"],
         env=env,
     )
-    # kcov exits with 0 even when the process crashes
-    if not is_kcov:
-        assert child.returncode  # well, it's a crash after all
+    assert child.returncode  # well, it's a crash after all
 
     run(
         tmp_path,
@@ -443,6 +440,7 @@ def test_inproc_reinstall(cmake, httpserver):
     assert len(httpserver.log) == 1
 
 
+@pytest.mark.skipif(is_kcov, reason="kcov exits with 0 even when the process crashes")
 def test_inproc_dump_inflight(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "inproc"})
 
@@ -455,9 +453,7 @@ def test_inproc_dump_inflight(cmake, httpserver):
     child = run(
         tmp_path, "sentry_example", ["log", "capture-multiple", "crash"], env=env
     )
-    # kcov exits with 0 even when the process crashes
-    if not is_kcov:
-        assert child.returncode  # well, it's a crash after all
+    assert child.returncode  # well, it's a crash after all
     run(tmp_path, "sentry_example", ["log", "no-setup"], check=True, env=env)
 
     # we trigger 10 normal events, and 1 crash
