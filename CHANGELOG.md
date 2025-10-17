@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Internal**:
+
+- Automatically extract build ID from version string in `sentry_library_info` when downstream SDKs modify `sentry.h` to include build metadata in semver format (e.g., `0.11.3+20251016-9e31c9f-dirty`). The embedded info now correctly separates version (`SENTRY_VERSION:0.11.3`) from build ID (`BUILD:20251016-9e31c9f-dirty`). ([#1416](https://github.com/getsentry/sentry-native/pull/1416))
+
 ## 0.11.3
 
 **Features**:
