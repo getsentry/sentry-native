@@ -465,7 +465,6 @@ sentry__path_join_str(const sentry_path_t *base, const char *other)
     return rv;
 }
 
-
 sentry_path_t *
 sentry__path_clone(const sentry_path_t *path)
 {
