@@ -139,7 +139,10 @@ bool sentry__path_is_file(const sentry_path_t *path);
  * Remove the directory or file referred to by `path`.
  * This will *not* recursively delete any directory content. Use
  * `sentry__path_remove_all` for that.
- * Returns 0 on success.
+ *
+ * Returns 0 on success. Success means that a file or directory was either
+ * successfully removed or didn't exist before removal. Anything else is a
+ * failure (i.e., return != 0).
  */
 int sentry__path_remove(const sentry_path_t *path);
 
