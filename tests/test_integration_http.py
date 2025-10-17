@@ -39,7 +39,7 @@ from .assertions import (
     assert_attachment_view_hierarchy,
     assert_logs,
 )
-from .conditions import has_http, has_breakpad, has_files
+from .conditions import has_http, has_breakpad, has_files, is_kcov
 
 pytestmark = pytest.mark.skipif(not has_http, reason="tests need http")
 
@@ -206,6 +206,7 @@ def test_user_report_http(cmake, httpserver):
     assert_user_report(envelope)
 
 
+@pytest.mark.skipif(is_kcov, reason="kcov exits with 0 even when the process crashes")
 @pytest.mark.parametrize(
     "build_args",
     [
@@ -356,6 +357,7 @@ def test_abnormal_session(cmake, httpserver):
     assert_session(envelope1, {"status": "abnormal", "errors": 0, "duration": 10})
 
 
+
 @pytest.mark.parametrize(
     "build_args",
     [
@@ -409,6 +411,7 @@ def test_inproc_crash_http(cmake, httpserver, build_args):
     assert_inproc_crash(envelope)
 
 
+
 def test_inproc_reinstall(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "inproc"})
 
@@ -435,6 +438,7 @@ def test_inproc_reinstall(cmake, httpserver):
     )
 
     assert len(httpserver.log) == 1
+
 
 
 def test_inproc_dump_inflight(cmake, httpserver):
