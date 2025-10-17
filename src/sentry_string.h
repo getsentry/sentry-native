@@ -223,7 +223,7 @@ wchar_t *sentry__string_to_wstr(const char *s);
 /**
  * Implements a wide string clone/dup using our allocator.
  */
-wchar_t * sentry__string_clone_wstr(const wchar_t* str);
+wchar_t *sentry__string_clone_wstr(const wchar_t *str);
 #endif
 
 /**
