@@ -474,6 +474,14 @@ sentry__path_clone(const sentry_path_t *path)
     return rv;
 }
 
+static int
+is_last_error_path_not_found()
+{
+    const DWORD last_error = GetLastError();
+    return last_error == ERROR_PATH_NOT_FOUND
+        || last_error == ERROR_FILE_NOT_FOUND;
+}
+
 int
 sentry__path_remove(const sentry_path_t *path)
 {
@@ -481,21 +489,10 @@ sentry__path_remove(const sentry_path_t *path)
     if (!path_w) {
         return 1;
     }
-    int result;
-    if (!sentry__path_is_dir(path)) {
-        if (DeleteFileW(path_w)) {
-            result = 0;
-        } else {
-            result = GetLastError() == ERROR_FILE_NOT_FOUND ? 0 : 1;
-        }
-    } else {
-        if (RemoveDirectoryW(path_w)) {
-            result = 0;
-        } else {
-            result = 1;
-        }
-    }
-    return result;
+    const BOOL removal_success = sentry__path_is_dir(path)
+        ? RemoveDirectoryW(path_w)
+        : DeleteFileW(path_w);
+    return removal_success ? 0 : !is_last_error_path_not_found();
 }
 
 int
