@@ -25,6 +25,10 @@
 - Serialize `uint64` values as numerical instead of string. ([#1408](https://github.com/getsentry/sentry-native/pull/1408))
 - Make narrow UTF-8 the canonical path encoding on Windows. ([#1413](https://github.com/getsentry/sentry-native/pull/1413))
 
+**Internal**:
+
+- CI: bump Python to `3.12`. ([#1413](https://github.com/getsentry/sentry-native/pull/1413))
+
 ## 0.11.2
 
 **Fixes**:
