@@ -325,20 +325,13 @@ if(SENTRY_EMBED_INFO)
 	# SENTRY_BUILD_ID cache variable takes precedence
 	if(SENTRY_BUILD_ID)
 		set(SENTRY_EMBEDDED_BUILD_ID "${SENTRY_BUILD_ID}")
-	else()
+	elseif(SENTRY_VERSION_FULL MATCHES "^[0-9]+\\.[0-9]+\\.[0-9]+\\+(.+)$")
 		# Extract build ID from SENTRY_VERSION_FULL if present (format: major.minor.patch+build-id)
 		# This handles cases where downstream SDKs modify sentry.h to include build metadata
-		set(SENTRY_EMBEDDED_BUILD_ID "")
-
-		if(SENTRY_VERSION_FULL MATCHES "^[0-9]+\\.[0-9]+\\.[0-9]+\\+(.+)$")
-			# Version contains build metadata after '+', extract it
-			set(SENTRY_EMBEDDED_BUILD_ID "${CMAKE_MATCH_1}")
-		endif()
-
-		if(NOT SENTRY_EMBEDDED_BUILD_ID)
-			# No build ID found in version, use timestamp as default
-			string(TIMESTAMP SENTRY_EMBEDDED_BUILD_ID "%Y-%m-%d %H:%M:%S UTC" UTC)
-		endif()
+		set(SENTRY_EMBEDDED_BUILD_ID "${CMAKE_MATCH_1}")
+	else()
+		# No build ID found in version or provided, use timestamp as default
+		string(TIMESTAMP SENTRY_EMBEDDED_BUILD_ID "%Y-%m-%d %H:%M:%S UTC" UTC)
 	endif()
 
 	# Validate and escape special characters in custom items if needed
