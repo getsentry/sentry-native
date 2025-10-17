@@ -4,7 +4,7 @@
 #include "sentry_string.h"
 
 #ifdef SENTRY_PLATFORM_WINDOWS
-#include <wchar.h>
+#    include <wchar.h>
 #endif
 
 #define INITIAL_BUFFER_SIZE 128
@@ -139,7 +139,8 @@ sentry__string_to_wstr(const char *s)
     return rv;
 }
 
-wchar_t* sentry__string_clone_wstr(const wchar_t* str)
+wchar_t *
+sentry__string_clone_wstr(const wchar_t *str)
 {
     size_t str_len = wcslen(str);
     wchar_t *clone = sentry_malloc(sizeof(wchar_t) * (str_len + 1));
