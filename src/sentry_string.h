@@ -219,6 +219,11 @@ char *sentry__string_from_wstr_n(const wchar_t *s, size_t s_len);
  * Convert a normal string to a Wide String.
  */
 wchar_t *sentry__string_to_wstr(const char *s);
+
+/**
+ * Implements a wide string clone/dup using our allocator.
+ */
+wchar_t * sentry__string_clone_wstr(const wchar_t* str);
 #endif
 
 /**
