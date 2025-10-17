@@ -357,7 +357,7 @@ def test_abnormal_session(cmake, httpserver):
     assert_session(envelope1, {"status": "abnormal", "errors": 0, "duration": 10})
 
 
-@pytest.mark.skipif(is_kcov, reason="kcov exits with 0 even when the process crashes")
+
 @pytest.mark.parametrize(
     "build_args",
     [
@@ -411,7 +411,7 @@ def test_inproc_crash_http(cmake, httpserver, build_args):
     assert_inproc_crash(envelope)
 
 
-@pytest.mark.skipif(is_kcov, reason="kcov exits with 0 even when the process crashes")
+
 def test_inproc_reinstall(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "inproc"})
 
@@ -440,7 +440,7 @@ def test_inproc_reinstall(cmake, httpserver):
     assert len(httpserver.log) == 1
 
 
-@pytest.mark.skipif(is_kcov, reason="kcov exits with 0 even when the process crashes")
+
 def test_inproc_dump_inflight(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "inproc"})
 
