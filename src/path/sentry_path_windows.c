@@ -128,6 +128,11 @@ sentry__path_absolute(const sentry_path_t *path)
     // we convert the wide-string absolute path back to canonical narrow UTF-8
     // and use the returned and allocate full as our wide string cache.
     rv->path = sentry__string_from_wstr(full);
+    if (!rv->path) {
+        sentry_free(full);
+        sentry_free(rv);
+        return NULL;
+    }
     rv->path_w = full;
     return rv;
 }
@@ -158,15 +163,13 @@ sentry__path_current_exe(void)
     }
 
     // ...and create a fit-sized buffer for the wide-char so we can free the 64k
-    path->path_w = sentry_malloc(sizeof(wchar_t) * (len + 1));
+    path->path_w = sentry__string_clone_wstr(path_wstr);
     if (!path->path_w) {
         sentry_free(path->path);
         sentry_free(path);
         sentry_free(path_wstr);
         return NULL;
     }
-    wmemcpy(path->path_w, path_wstr, len);
-    path->path_w[len] = L'\0';
     sentry_free(path_wstr);
     return path;
 }
@@ -372,16 +375,15 @@ sentry__path_get_mtime(const sentry_path_t *path)
 sentry_path_t *
 sentry__path_append_str(const sentry_path_t *base, const char *suffix)
 {
-    // convert to wstr
     sentry_path_t *suffix_path = sentry__path_from_str(suffix);
     if (!suffix_path) {
         return NULL;
     }
 
     // concat into a new path
-    size_t len_base = strlen(base->path);
-    size_t len_suffix = strlen(suffix_path->path);
-    size_t len = len_base + len_suffix + 1;
+    const size_t len_base = strlen(base->path);
+    const size_t len_suffix = strlen(suffix_path->path);
+    const size_t len = len_base + len_suffix + 1;
     sentry_path_t *rv = path_with_len(len);
     if (rv) {
         memcpy(rv->path, base->path, len_base * sizeof(char));
@@ -389,6 +391,10 @@ sentry__path_append_str(const sentry_path_t *base, const char *suffix)
             (len_suffix + 1) * sizeof(char));
 
         rv->path_w = sentry__string_to_wstr(rv->path);
+        if (!rv->path_w) {
+            sentry__path_free(rv);
+            return NULL;
+        }
     }
     sentry__path_free(suffix_path);
 
@@ -459,6 +465,7 @@ sentry__path_join_str(const sentry_path_t *base, const char *other)
     return rv;
 }
 
+
 sentry_path_t *
 sentry__path_clone(const sentry_path_t *path)
 {
@@ -466,8 +473,13 @@ sentry__path_clone(const sentry_path_t *path)
     if (!rv) {
         return NULL;
     }
-    rv->path = _strdup(path->path);
-    rv->path_w = _wcsdup(path->path_w);
+
+    rv->path = sentry__string_clone(path->path);
+    rv->path_w = sentry__string_clone_wstr(path->path_w);
+    if (!rv->path || !rv->path_w) {
+        sentry__path_free(rv);
+        return NULL;
+    }
     return rv;
 }
 

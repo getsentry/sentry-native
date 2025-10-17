@@ -3,6 +3,10 @@
 #include "sentry_alloc.h"
 #include "sentry_string.h"
 
+#ifdef SENTRY_PLATFORM_WINDOWS
+#include <wchar.h>
+#endif
+
 #define INITIAL_BUFFER_SIZE 128
 
 void
@@ -133,6 +137,18 @@ sentry__string_to_wstr(const char *s)
     }
     MultiByteToWideChar(CP_UTF8, 0, s, -1, rv, len);
     return rv;
+}
+
+wchar_t* sentry__string_clone_wstr(const wchar_t* str)
+{
+    size_t str_len = wcslen(str);
+    wchar_t *clone = sentry_malloc(sizeof(wchar_t) * (str_len + 1));
+    if (!clone) {
+        return NULL;
+    }
+    wmemcpy(clone, str, str_len);
+    clone[str_len] = L'\0';
+    return clone;
 }
 #endif
 
