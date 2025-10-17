@@ -13,12 +13,13 @@ endif()
 set(SENTRY_SDK_VERSION "" CACHE STRING "Override the SDK version (supports full semver format with build metadata)")
 
 # Extract version string from SENTRY_SDK_VERSION cache variable or sentry.h
-if(SENTRY_SDK_VERSION)
+if(NOT SENTRY_SDK_VERSION STREQUAL "")
 	set(SENTRY_VERSION_FULL "${SENTRY_SDK_VERSION}")
 else()
 	file(READ "include/sentry.h" _VERSION_STR_TMP)
 	# Supports full semver format including prerelease and build metadata
-	string(REGEX MATCH "#define SENTRY_SDK_VERSION \"([^\"]+)\"" _VERSION_STR_TMP "${_VERSION_STR_TMP}")
+	# The regex handles optional leading whitespace for the #define
+	string(REGEX MATCH "#[ \t]*define[ \t]+SENTRY_SDK_VERSION[ \t]+\"([^\"]+)\"" _VERSION_STR_TMP "${_VERSION_STR_TMP}")
 	set(SENTRY_VERSION_FULL "${CMAKE_MATCH_1}")
 	unset(_VERSION_STR_TMP)
 endif()
@@ -31,7 +32,7 @@ set(SENTRY_VERSION_PATCH "${CMAKE_MATCH_3}")
 set(SENTRY_VERSION_BASE "${SENTRY_VERSION_MAJOR}.${SENTRY_VERSION_MINOR}.${SENTRY_VERSION_PATCH}")
 unset(_VERSION_PARSE_TMP)
 
-if(SENTRY_SDK_VERSION)
+if(NOT SENTRY_SDK_VERSION STREQUAL "")
 	message(STATUS "Sentry SDK version (full): ${SENTRY_VERSION_FULL} (overridden via SENTRY_SDK_VERSION)")
 else()
 	message(STATUS "Sentry SDK version (full): ${SENTRY_VERSION_FULL}")
