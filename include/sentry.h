@@ -1409,11 +1409,11 @@ SENTRY_EXPERIMENTAL_API void sentry_options_set_attach_screenshot(
  *
  * Meaning if your application resides in
  *
- * C:\path\to\your\application.exe
+ * "C:\path\to\your\application.exe"
  *
  * then the handler path will be set (by default) to
  *
- * C:\path\to\your\crashpad_handler.exe
+ * "C:\path\to\your\crashpad_handler.exe"
  *
  * It is recommended that library users set an explicit handler path, depending
  * on the directory/executable structure of their app.
