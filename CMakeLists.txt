@@ -324,7 +324,6 @@ add_library(sentry::sentry ALIAS sentry)
 if(SENTRY_EMBED_INFO)
 	# Extract build ID from SENTRY_VERSION_FULL if present (format: major.minor.patch+build-id)
 	# This handles cases where downstream SDKs modify sentry.h to include build metadata
-	set(SENTRY_EMBEDDED_VERSION "${SENTRY_VERSION_BASE}")
 	set(SENTRY_EMBEDDED_BUILD_ID "")
 
 	if(SENTRY_VERSION_FULL MATCHES "^[0-9]+\\.[0-9]+\\.[0-9]+\\+(.+)$")
