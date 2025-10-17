@@ -390,7 +390,7 @@ endif()
 
 # If SDK version was overridden via CMake, pass it as a compile definition
 # This allows sentry.h to use the overridden version
-if (SENTRY_SDK_VERSION)
+if (NOT SENTRY_SDK_VERSION STREQUAL "")
 	target_compile_definitions(sentry PRIVATE SENTRY_SDK_VERSION="${SENTRY_VERSION_FULL}")
 endif()
 
