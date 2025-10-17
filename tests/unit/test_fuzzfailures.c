@@ -8,7 +8,6 @@
 static void
 parse_json_roundtrip(const sentry_path_t *path)
 {
-    // printf("Running %" SENTRY_PATH_PRI "\n", path->path);
     size_t buf_len = 0;
     char *buf = sentry__path_read_to_buffer(path, &buf_len);
     if (!buf) {

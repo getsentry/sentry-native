@@ -137,8 +137,8 @@ load_modules(void)
     wchar_t *module_filename_w = NULL;
 
     if (Module32FirstW(snapshot, &module)
-        && (module_filename_w
-            = sentry_malloc(sizeof(wchar_t) * MAX_PATH_BUFFER_SIZE))) {
+        && ((module_filename_w
+            = sentry_malloc(sizeof(wchar_t) * MAX_PATH_BUFFER_SIZE)))) {
         do {
             HMODULE module_handle = NULL;
             if (GetModuleFileNameExW(GetCurrentProcess(), module.hModule,
