@@ -22,6 +22,7 @@
 **Internal**:
 
 - CI: bump Python to `3.12`. ([#1413](https://github.com/getsentry/sentry-native/pull/1413))
+- Remove any `MAX_PATH` dependencies in `crashpad` and `breakpad`. ([#1413](https://github.com/getsentry/sentry-native/pull/1413), [breakpad#43](https://github.com/getsentry/breakpad/pull/43), [crashpad#135](https://github.com/getsentry/crashpad/pull/135))
 
 ## 0.11.2
 
