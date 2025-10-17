@@ -9,20 +9,33 @@ else()
 	cmake_policy(SET CMP0077 NEW)
 endif()
 
-# Extract version string from SENTRY_SDK_VERSION define in sentry.h
-file(READ "include/sentry.h" _VERSION_STR_TMP)
-# Supports full semver format including prerelease and build metadata
-string(REGEX MATCH "#define SENTRY_SDK_VERSION \"([^\"]+)\"" _VERSION_STR_TMP "${_VERSION_STR_TMP}")
-set(SENTRY_VERSION_FULL "${CMAKE_MATCH_1}")
+# Allow downstream SDKs to override the SDK version at CMake configuration time
+set(SENTRY_SDK_VERSION "" CACHE STRING "Override the SDK version (supports full semver format with build metadata)")
+
+# Extract version string from SENTRY_SDK_VERSION cache variable or sentry.h
+if(SENTRY_SDK_VERSION)
+	set(SENTRY_VERSION_FULL "${SENTRY_SDK_VERSION}")
+else()
+	file(READ "include/sentry.h" _VERSION_STR_TMP)
+	# Supports full semver format including prerelease and build metadata
+	string(REGEX MATCH "#define SENTRY_SDK_VERSION \"([^\"]+)\"" _VERSION_STR_TMP "${_VERSION_STR_TMP}")
+	set(SENTRY_VERSION_FULL "${CMAKE_MATCH_1}")
+	unset(_VERSION_STR_TMP)
+endif()
+
 # Extract just the major.minor.patch part from the full version
-string(REGEX MATCH "^([0-9]+)\\.([0-9]+)\\.([0-9]+)" _VERSION_STR_TMP "${SENTRY_VERSION_FULL}")
+string(REGEX MATCH "^([0-9]+)\\.([0-9]+)\\.([0-9]+)" _VERSION_PARSE_TMP "${SENTRY_VERSION_FULL}")
 set(SENTRY_VERSION_MAJOR "${CMAKE_MATCH_1}")
 set(SENTRY_VERSION_MINOR "${CMAKE_MATCH_2}")
 set(SENTRY_VERSION_PATCH "${CMAKE_MATCH_3}")
 set(SENTRY_VERSION_BASE "${SENTRY_VERSION_MAJOR}.${SENTRY_VERSION_MINOR}.${SENTRY_VERSION_PATCH}")
-unset(_VERSION_STR_TMP)
+unset(_VERSION_PARSE_TMP)
 
-message(STATUS "Sentry SDK version (full): ${SENTRY_VERSION_FULL}")
+if(SENTRY_SDK_VERSION)
+	message(STATUS "Sentry SDK version (full): ${SENTRY_VERSION_FULL} (overridden via SENTRY_SDK_VERSION)")
+else()
+	message(STATUS "Sentry SDK version (full): ${SENTRY_VERSION_FULL}")
+endif()
 message(STATUS "Sentry SDK version (base): ${SENTRY_VERSION_BASE}")
 message(STATUS "Sentry SDK version major='${SENTRY_VERSION_MAJOR}' minor='${SENTRY_VERSION_MINOR}' patch='${SENTRY_VERSION_PATCH}'")
 
@@ -373,6 +386,12 @@ endif()
 
 if (NOT SENTRY_SDK_NAME STREQUAL "")
 	target_compile_definitions(sentry PRIVATE SENTRY_SDK_NAME="${SENTRY_SDK_NAME}")
+endif()
+
+# If SDK version was overridden via CMake, pass it as a compile definition
+# This allows sentry.h to use the overridden version
+if (SENTRY_SDK_VERSION)
+	target_compile_definitions(sentry PRIVATE SENTRY_SDK_VERSION="${SENTRY_VERSION_FULL}")
 endif()
 
 # we do not need this on android, only linux
