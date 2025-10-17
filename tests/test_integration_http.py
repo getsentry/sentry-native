@@ -236,13 +236,13 @@ def test_external_crash_reporter_http(cmake, httpserver, build_args):
 
     with httpserver.wait(timeout=10) as waiting:
         env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
-        child = run(
+        run(
             tmp_path,
             "sentry_example",
             ["log", "crash-reporter", "crash"],
+            expect_failure=True,
             env=env,
         )
-        assert child.returncode  # well, it's a crash after all
 
         # the session crash heuristic on Mac uses timestamps, so make sure we have
         # a small delay here
@@ -373,13 +373,13 @@ def test_inproc_crash_http(cmake, httpserver, build_args):
     ).respond_with_data("OK")
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
 
-    child = run(
+    run(
         tmp_path,
         "sentry_example",
         ["log", "start-session", "attachment", "attach-view-hierarchy", "crash"],
+        expect_failure=True,
         env=env,
     )
-    assert child.returncode  # well, it's a crash after all
 
     run(
         tmp_path,
@@ -418,13 +418,13 @@ def test_inproc_reinstall(cmake, httpserver):
         headers={"x-sentry-auth": auth_header},
     ).respond_with_data("OK")
 
-    child = run(
+    run(
         tmp_path,
         "sentry_example",
         ["log", "reinstall", "crash"],
+        expect_failure=True,
         env=env,
     )
-    assert child.returncode  # well, it's a crash after all
 
     run(
         tmp_path,
@@ -446,10 +446,13 @@ def test_inproc_dump_inflight(cmake, httpserver):
     ).respond_with_data("OK")
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
 
-    child = run(
-        tmp_path, "sentry_example", ["log", "capture-multiple", "crash"], env=env
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "capture-multiple", "crash"],
+        expect_failure=True,
+        env=env,
     )
-    assert child.returncode  # well, it's a crash after all
     run(tmp_path, "sentry_example", ["log", "no-setup"], check=True, env=env)
 
     # we trigger 10 normal events, and 1 crash
@@ -474,13 +477,13 @@ def test_breakpad_crash_http(cmake, httpserver, build_args):
     ).respond_with_data("OK")
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
 
-    child = run(
+    run(
         tmp_path,
         "sentry_example",
         ["log", "start-session", "attachment", "attach-view-hierarchy", "crash"],
+        expect_failure=True,
         env=env,
     )
-    assert child.returncode  # well, it's a crash after all
 
     run(
         tmp_path,
@@ -521,13 +524,13 @@ def test_breakpad_reinstall(cmake, httpserver):
         headers={"x-sentry-auth": auth_header},
     ).respond_with_data("OK")
 
-    child = run(
+    run(
         tmp_path,
         "sentry_example",
         ["log", "reinstall", "crash"],
+        expect_failure=True,
         env=env,
     )
-    assert child.returncode  # well, it's a crash after all
 
     run(
         tmp_path,
@@ -550,10 +553,13 @@ def test_breakpad_dump_inflight(cmake, httpserver):
     ).respond_with_data("OK")
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
 
-    child = run(
-        tmp_path, "sentry_example", ["log", "capture-multiple", "crash"], env=env
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "capture-multiple", "crash"],
+        expect_failure=True,
+        env=env,
     )
-    assert child.returncode  # well, it's a crash after all
 
     run(tmp_path, "sentry_example", ["log", "no-setup"], check=True, env=env)
 
@@ -584,14 +590,13 @@ def test_shutdown_timeout(cmake, httpserver):
 
     # Using `sleep-after-shutdown` here means that the background worker will
     # deref/free itself, so we will not leak in that case!
-    child = run(
+    run(
         tmp_path,
         "sentry_example",
         ["log", "capture-multiple", "sleep-after-shutdown"],
         env=env,
         check=True,
     )
-    assert child.returncode == 0
 
     httpserver.clear_all_handlers()
     httpserver.clear_log()

@@ -295,7 +295,7 @@ def cmake(cwd, targets, options=None, cflags=None):
             "compilation.json",
         ]
         print("{} > {}".format(cwd, " ".join(checkcmd)), flush=True)
-        child = subprocess.run(checkcmd, cwd=cwd, check=True)
+        subprocess.run(checkcmd, cwd=cwd, check=True)
 
     if os.environ.get("ANDROID_API"):
         # copy the output to the android image via adb

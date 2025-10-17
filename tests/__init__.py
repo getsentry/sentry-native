@@ -69,7 +69,9 @@ def split_log_request_cond(httpserver_log, cond):
     )
 
 
-def run(cwd, exe, args, env=dict(os.environ), **kwargs):
+def run(cwd, exe, args, expect_failure=False, env=None, **kwargs):
+    if env is None:
+        env = dict(os.environ)
     __tracebackhide__ = True
     if os.environ.get("ANDROID_API"):
         # older android emulators do not correctly pass down the returncode
@@ -98,6 +100,10 @@ def run(cwd, exe, args, env=dict(os.environ), **kwargs):
         child.stdout = stdout[: stdout.rfind(b"ret:")]
         if not is_pipe:
             sys.stdout.buffer.write(child.stdout)
+        if expect_failure:
+            assert child.returncode != 0, (
+                f"command unexpectedly successful: {exe} {" ".join(args)}"
+            )
         if kwargs.get("check") and child.returncode:
             raise subprocess.CalledProcessError(
                 child.returncode, child.args, output=child.stdout, stderr=child.stderr
@@ -135,7 +141,12 @@ def run(cwd, exe, args, env=dict(os.environ), **kwargs):
             *cmd,
         ]
     try:
-        return subprocess.run([*cmd, *args], cwd=cwd, env=env, **kwargs)
+        result = subprocess.run([*cmd, *args], cwd=cwd, env=env, **kwargs)
+        if expect_failure:
+            assert result.returncode != 0, (
+                f"command unexpectedly successful: {cmd} {" ".join(args)}"
+            )
+        return result
     except subprocess.CalledProcessError:
         raise pytest.fail.Exception(
             "running command failed: {cmd} {args}".format(
