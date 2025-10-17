@@ -29,8 +29,27 @@ typedef struct sentry_filewriter_s sentry_filewriter_t;
 /**
  * NOTE on encodings:
  *
- * When not stated otherwise, all `char` functions defined here will assume an
- * OS-specific encoding, typically ANSI on Windows, and UTF-8 on Unix.
+ * All `char` represent OS-dependent encoding. On UNIXes the path encoding is
+ * based on the locale settings, which often means UTF-8 (macOS forces it,
+ * Android defaults to it on all layers, and many Linux configurations default
+ * to it too, but there is much more variety).
+ * However, the locale can be set to anything so that we consider paths as an
+ * opaque bytestream that we just pass through.
+ * On Windows, we use UTF-8 as the canonical narrow string encoding and provide
+ * a wide character string as an additional path member `path_w`, which all
+ * functions below must keep in sync.
+ *
+ * If you add a new function that creates paths, you must take care of
+ * synchronizing the contents of `path` and `path_w` on Windows. Further must
+ * you ensure that `char` on Windows stays independent of the ANSI code page.
+ *
+ * In particular this means:
+ * - always do full conversions between the narrow and wide characters
+ * - always use the wide variant of Win32 APIs when leaving the SDK boundary
+ *   (the narrow APIs interpret a `char*` according to the configured ACP)
+ * - never assume you can calculate the buffer size for one encoding out of the
+ *   buffer size for the other (use our string helpers or, if you must, the
+ *   Win32 multibyte APIs with `CP_UTF8`!)
  */
 
 /**
