@@ -438,7 +438,6 @@ def test_inproc_reinstall(cmake, httpserver):
     assert len(httpserver.log) == 1
 
 
-
 def test_inproc_dump_inflight(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "inproc"})
 
