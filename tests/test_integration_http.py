@@ -357,7 +357,6 @@ def test_abnormal_session(cmake, httpserver):
     assert_session(envelope1, {"status": "abnormal", "errors": 0, "duration": 10})
 
 
-
 @pytest.mark.parametrize(
     "build_args",
     [
