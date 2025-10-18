@@ -410,7 +410,6 @@ def test_inproc_crash_http(cmake, httpserver, build_args):
     assert_inproc_crash(envelope)
 
 
-
 def test_inproc_reinstall(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "inproc"})
 
