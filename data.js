@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1760897747938,
+  "lastUpdate": 1760897842808,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -19330,6 +19330,66 @@ window.BENCHMARK_DATA = {
             "value": 13.063300000112577,
             "unit": "ms",
             "extra": "Min 12.859ms\nMax 13.299ms\nMean 13.071ms\nStdDev 0.159ms\nMedian 13.063ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "198982749+Copilot@users.noreply.github.com",
+            "name": "Copilot",
+            "username": "Copilot"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "e041a2b5e48e80f842b7d3f8e6680110b01b51d2",
+          "message": "test: Fix flaky test_external_crash_reporter_http when running with kcov (#1419)\n\n* Initial plan\n\n* Fix crash test assertions to handle kcov's exit code behavior\n\nCo-authored-by: vaind <6349682+vaind@users.noreply.github.com>\n\n* Skip entire crash tests when running with kcov instead of conditional assertions\n\nCo-authored-by: vaind <6349682+vaind@users.noreply.github.com>\n\n* Only skip test_external_crash_reporter_http when running with kcov\n\nCo-authored-by: vaind <6349682+vaind@users.noreply.github.com>\n\n* Update tests/test_integration_http.py\n\n* Update tests/test_integration_http.py\n\n* Update tests/test_integration_http.py\n\n---------\n\nCo-authored-by: copilot-swe-agent[bot] <198982749+Copilot@users.noreply.github.com>\nCo-authored-by: vaind <6349682+vaind@users.noreply.github.com>",
+          "timestamp": "2025-10-19T20:11:55+02:00",
+          "tree_id": "409d8b4e4ef9fc4ae7a225adaa3f7b15d3ec01b4",
+          "url": "https://github.com/getsentry/sentry-native/commit/e041a2b5e48e80f842b7d3f8e6680110b01b51d2"
+        },
+        "date": 1760897830010,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 10.168000000021493,
+            "unit": "ms",
+            "extra": "Min 9.928ms\nMax 10.710ms\nMean 10.208ms\nStdDev 0.317ms\nMedian 10.168ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 10.435600000050727,
+            "unit": "ms",
+            "extra": "Min 10.015ms\nMax 11.061ms\nMean 10.474ms\nStdDev 0.375ms\nMedian 10.436ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 27.8437000000622,
+            "unit": "ms",
+            "extra": "Min 27.488ms\nMax 29.259ms\nMean 28.074ms\nStdDev 0.704ms\nMedian 27.844ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.015599999983351154,
+            "unit": "ms",
+            "extra": "Min 0.014ms\nMax 0.016ms\nMean 0.015ms\nStdDev 0.001ms\nMedian 0.016ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.44270000000778964,
+            "unit": "ms",
+            "extra": "Min 0.425ms\nMax 0.537ms\nMean 0.467ms\nStdDev 0.046ms\nMedian 0.443ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 15.915799999902447,
+            "unit": "ms",
+            "extra": "Min 15.572ms\nMax 16.183ms\nMean 15.879ms\nStdDev 0.233ms\nMedian 15.916ms"
           }
         ]
       }
