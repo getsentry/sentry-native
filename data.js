@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1760956724745,
+  "lastUpdate": 1760956750575,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -19510,6 +19510,66 @@ window.BENCHMARK_DATA = {
             "value": 15.915799999902447,
             "unit": "ms",
             "extra": "Min 15.572ms\nMax 16.183ms\nMean 15.879ms\nStdDev 0.233ms\nMedian 15.916ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "60878493+JoshuaMoelans@users.noreply.github.com",
+            "name": "JoshuaMoelans",
+            "username": "JoshuaMoelans"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "781bfc3d1d08c21d7cc5dc2d936437151ff86b50",
+          "message": "fix(logs): add logs flush on crash (#1404)\n\n* Add logs-on-crash\n\n* skip crashpad test on macos\n\n* add straight-to-disk writing of log envelopes if crashing\n\n* CHANGELOG.md\n\n* restore thread join for normal shutdown\n\n* directly take log item from httpserver log for crashpad test\n\n* update CHANGELOG.md\n\n* we know which envelope has the log\n\n* we **don't** know which envelope has the log\n\n* add more general request fetch from httpserver function\n\n* add logs return value checks\n\n* fix tsan global data race on logs validation\n\n* move database-path cleanup into the cmake build cache fixture\n\nthis eliminates boilerplate noise in the tests but also reduces the chance of forgetting it in a test.\n\n* in the crash-safe logs flush detach the batcher thread and don't wake it since we flush anyway.\n\n* don't clean for unit-test crash_marker\n\n* don't detach in crash-safe but spin-lock in its flusher to acquire flushing.\n\n* add clean parameter to cmake fixture\n\n* ensure logs flushing in crash handlers happens within the handler sync bounds.\n\n* bound the spin lock in the logs flusher during crash-safe mode\n\n* exclude crashed_last_run unit-test from cleaning database paths\n\n* use an unsigned integer for the sleep_time of the crash-safe logs flusher spinlock\n\n* provide cross-platform cpu_relax and replace syscall sleep with spinners.\n\n* isolate `crash_marker` unit test and eliminate exceptions to database cleaning in the pytest configuration\n\n* platform path special case in crash_marker unit test\n\n* crashed_last_run can no longer assume that a database path exists\n\nthis means when it does its clearing a TEST_CHECK cannot assume that a directory even exists (in which case clear_crash_marker would actually fail versus the case were only the marker file didn't exist).\n\n* clean up log statements\n\n* bump CI python to 3.12\n\n* fix CHANGELOG.md\n\n---------\n\nCo-authored-by: Mischan Toosarani-Hausberger <mischan@abovevacant.com>",
+          "timestamp": "2025-10-20T12:34:28+02:00",
+          "tree_id": "ea1d5e826ae0cc6003f7c1eb7fbcd66ed24787c0",
+          "url": "https://github.com/getsentry/sentry-native/commit/781bfc3d1d08c21d7cc5dc2d936437151ff86b50"
+        },
+        "date": 1760956743880,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 10.792900000069494,
+            "unit": "ms",
+            "extra": "Min 9.489ms\nMax 13.443ms\nMean 11.122ms\nStdDev 1.506ms\nMedian 10.793ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 9.917099999938728,
+            "unit": "ms",
+            "extra": "Min 9.800ms\nMax 10.098ms\nMean 9.943ms\nStdDev 0.120ms\nMedian 9.917ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 24.981600000046456,
+            "unit": "ms",
+            "extra": "Min 24.291ms\nMax 25.778ms\nMean 24.996ms\nStdDev 0.579ms\nMedian 24.982ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.011699999959091656,
+            "unit": "ms",
+            "extra": "Min 0.012ms\nMax 0.014ms\nMean 0.013ms\nStdDev 0.001ms\nMedian 0.012ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.38309999990815413,
+            "unit": "ms",
+            "extra": "Min 0.382ms\nMax 0.509ms\nMean 0.409ms\nStdDev 0.056ms\nMedian 0.383ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 15.57530000013685,
+            "unit": "ms",
+            "extra": "Min 13.721ms\nMax 17.255ms\nMean 15.283ms\nStdDev 1.376ms\nMedian 15.575ms"
           }
         ]
       }
