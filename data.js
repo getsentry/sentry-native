@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1760970873009,
+  "lastUpdate": 1760970927587,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -13106,6 +13106,66 @@ window.BENCHMARK_DATA = {
             "value": 10.31104199995525,
             "unit": "ms",
             "extra": "Min 9.660ms\nMax 16.922ms\nMean 11.618ms\nStdDev 3.005ms\nMedian 10.311ms\nCPU 1.095ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "6349682+vaind@users.noreply.github.com",
+            "name": "Ivan Dlugos",
+            "username": "vaind"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "516c15046cc5c99b8f571b7d086568f9f464fb9d",
+          "message": "feat: Add SENTRY_SDK_VERSION CMake override for downstream SDKs (#1417)\n\n* feat: Auto-split build ID from version in sentry_library_info\n\nWhen downstream SDKs modify sentry.h to include build metadata in the\nversion string (e.g., 0.11.3+20251016-9e31c9f-dirty), the embedded\nlibrary info now automatically extracts the build ID from the version.\n\nChanges:\n- Parse build metadata from SENTRY_VERSION_FULL if present\n- Use base version (major.minor.patch) for SENTRY_VERSION field\n- Use extracted build ID for BUILD field\n- SENTRY_BUILD_ID cache variable still takes precedence\n- Update template to use new SENTRY_EMBEDDED_VERSION and SENTRY_EMBEDDED_BUILD_ID\n- Update tests to validate base version format\n- Add test for build ID field\n\nThis ensures the embedded info format is:\nSENTRY_VERSION:0.11.3;BUILD:20251016-9e31c9f-dirty\ninstead of:\nSENTRY_VERSION:0.11.3+20251016-9e31c9f-dirty;BUILD:0.11.3+20251016-9e31c9f-dirty\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\n\n* refactor: Use SENTRY_VERSION_BASE directly instead of SENTRY_EMBEDDED_VERSION\n\nSimplifies the code by reusing the existing SENTRY_VERSION_BASE variable\nwhich already contains the major.minor.patch format without build metadata.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\n\n* refactor: Skip parsing if SENTRY_BUILD_ID is already set\n\nOptimizes the logic to check SENTRY_BUILD_ID cache variable first.\nOnly attempts to extract build ID from version string if not explicitly provided.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\n\n* refactor: Simplify build ID logic with if-elseif-else chain\n\nCleaner and more readable conditional structure.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\n\n* fix: Use semver-compliant format for default build ID timestamp\n\nAccording to semver.org spec, build metadata must contain only ASCII\nalphanumerics and hyphens [0-9A-Za-z-]. Spaces are not allowed.\n\nChanged from: \"2025-10-17 10:59:00 UTC\"\nChanged to: \"20251017-105900\"\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\n\n* docs: Add changelog entry for automatic build ID extraction\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\n\n* feat: Add SENTRY_SDK_VERSION cache variable for downstream SDK override\n\nDownstream SDKs can now override the SDK version at CMake configuration time\nusing -DSENTRY_SDK_VERSION=\"version+build-id\". This allows setting the version\nwithout modifying sentry.h.\n\nWhen SENTRY_SDK_VERSION is set:\n- The full version (with build metadata) is used for embedded library info\n- Build ID is automatically extracted from the version string\n- sentry.h uses the overridden version via compile definition\n- Version parsing happens at CMake configuration time\n\nExample usage:\ncmake -DSENTRY_SDK_VERSION=\"0.11.3+20251016-9e31c9f-dirty\" ...\n\nResults in embedded info:\nSENTRY_VERSION:0.11.3;BUILD:20251016-9e31c9f-dirty;...\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\n\n* fix: Check SENTRY_SDK_VERSION for empty string instead of truthiness\n\nAligns with the pattern used for SENTRY_SDK_NAME check.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\n\n* fix: Use SENTRY_SDK_VERSION directly for compile definitions instead of SENTRY_VERSION_FULL\n\n* test: Add Python tests for SENTRY_SDK_VERSION override\n\nAdded two new integration tests:\n\n1. test_sdk_version_override: Verifies that setting SENTRY_SDK_VERSION\n   correctly separates version and build ID in the embedded library info.\n\n2. test_sdk_version_override_with_explicit_build_id: Verifies that\n   explicit SENTRY_BUILD_ID takes precedence over extracted build ID\n   from the version string.\n\nBoth tests inspect the actual binary using the strings command to\nvalidate the embedded information.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\n\n* fix: Update regex to handle whitespace before SENTRY_SDK_VERSION define\n\nThe #ifndef guard adds leading whitespace to the #define line, so the\nregex needs to handle optional leading whitespace and whitespace between\ntokens.\n\nThis fixes the issue where CMake couldn't parse the version from sentry.h\nwhen SENTRY_SDK_VERSION was not overridden.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\n\n* fix: Update changelog entry for SENTRY_SDK_VERSION CMake cache variable to clarify build ID extraction\n\n---------\n\nCo-authored-by: Claude <noreply@anthropic.com>",
+          "timestamp": "2025-10-20T16:29:45+02:00",
+          "tree_id": "36357cd075aa73d5d4b5394d2f4dd607533620a8",
+          "url": "https://github.com/getsentry/sentry-native/commit/516c15046cc5c99b8f571b7d086568f9f464fb9d"
+        },
+        "date": 1760970924892,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 7.895208000036291,
+            "unit": "ms",
+            "extra": "Min 4.499ms\nMax 11.963ms\nMean 7.975ms\nStdDev 2.670ms\nMedian 7.895ms\nCPU 4.747ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 6.9113330000050155,
+            "unit": "ms",
+            "extra": "Min 5.229ms\nMax 10.286ms\nMean 7.153ms\nStdDev 2.126ms\nMedian 6.911ms\nCPU 4.063ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 40.25975000001836,
+            "unit": "ms",
+            "extra": "Min 27.301ms\nMax 80.355ms\nMean 45.189ms\nStdDev 20.449ms\nMedian 40.260ms\nCPU 9.567ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.031999999976051186,
+            "unit": "ms",
+            "extra": "Min 0.017ms\nMax 0.190ms\nMean 0.078ms\nStdDev 0.079ms\nMedian 0.032ms\nCPU 0.078ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.24679099999502796,
+            "unit": "ms",
+            "extra": "Min 0.230ms\nMax 0.744ms\nMean 0.386ms\nStdDev 0.225ms\nMedian 0.247ms\nCPU 0.385ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 15.14924999997902,
+            "unit": "ms",
+            "extra": "Min 12.625ms\nMax 26.508ms\nMean 18.610ms\nStdDev 6.175ms\nMedian 15.149ms\nCPU 1.964ms"
           }
         ]
       }
