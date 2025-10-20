@@ -39,7 +39,7 @@ from .assertions import (
     assert_attachment_view_hierarchy,
     assert_logs,
 )
-from .conditions import has_http, has_breakpad, has_files
+from .conditions import has_http, has_breakpad, has_files, is_kcov
 
 pytestmark = pytest.mark.skipif(not has_http, reason="tests need http")
 
@@ -206,6 +206,7 @@ def test_user_report_http(cmake, httpserver):
     assert_user_report(envelope)
 
 
+@pytest.mark.skipif(is_kcov, reason="kcov exits with 0 even when the process crashes")
 @pytest.mark.parametrize(
     "build_args",
     [
