@@ -42,13 +42,13 @@ from .assertions import (
     assert_attachment_view_hierarchy,
     assert_logs,
 )
-from .conditions import has_http, has_breakpad, has_files
+from .conditions import has_http, has_breakpad, has_files, is_kcov
 
 pytestmark = pytest.mark.skipif(not has_http, reason="tests need http")
 
 # fmt: off
 auth_header = (
-    "Sentry sentry_key=uiaeosnrtdy, sentry_version=7, sentry_client=sentry.native/0.11.2"
+    "Sentry sentry_key=uiaeosnrtdy, sentry_version=7, sentry_client=sentry.native/0.11.3"
 )
 # fmt: on
 
@@ -209,6 +209,7 @@ def test_user_report_http(cmake, httpserver):
     assert_user_report(envelope)
 
 
+@pytest.mark.skipif(is_kcov, reason="kcov exits with 0 even when the process crashes")
 @pytest.mark.parametrize(
     "build_args",
     [
