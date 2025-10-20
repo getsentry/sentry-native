@@ -142,6 +142,9 @@ sentry__string_to_wstr(const char *s)
 wchar_t *
 sentry__string_clone_wstr(const wchar_t *str)
 {
+    if (!str) {
+        return NULL;
+    }
     size_t str_len = wcslen(str);
     wchar_t *clone = sentry_malloc(sizeof(wchar_t) * (str_len + 1));
     if (!clone) {
