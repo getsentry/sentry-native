@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Fixes**:
+
+- Add logs flush on crash. This is not available for macOS with the `crashpad` backend. ([#1404](https://github.com/getsentry/sentry-native/pull/1404))
+
 **Internal**:
 
 - Add `SENTRY_SDK_VERSION` CMake cache variable to allow downstream SDKs to override the SDK version at configuration time. ([#1417](https://github.com/getsentry/sentry-native/pull/1417))

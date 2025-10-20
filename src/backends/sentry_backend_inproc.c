@@ -7,6 +7,7 @@
 #include "sentry_database.h"
 #include "sentry_envelope.h"
 #include "sentry_logger.h"
+#include "sentry_logs.h"
 #include "sentry_options.h"
 #if defined(SENTRY_PLATFORM_WINDOWS)
 #    include "sentry_os.h"
@@ -555,6 +556,10 @@ handle_ucontext(const sentry_ucontext_t *uctx)
 #endif
 
     SENTRY_WITH_OPTIONS (options) {
+        // Flush logs in a crash-safe manner before crash handling
+        if (options->enable_logs) {
+            sentry__logs_flush_crash_safe();
+        }
 #ifdef SENTRY_PLATFORM_LINUX
         // On Linux (and thus Android) CLR/Mono converts signals provoked by
         // AOT/JIT-generated native code into managed code exceptions. In these

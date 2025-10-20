@@ -16,6 +16,13 @@ void sentry__logs_startup(void);
  */
 void sentry__logs_shutdown(uint64_t timeout);
 
+/**
+ * Crash-safe logs flush that avoids thread synchronization.
+ * This should be used during crash handling to flush logs without
+ * waiting for the batching thread to shut down cleanly.
+ */
+void sentry__logs_flush_crash_safe(void);
+
 #ifdef SENTRY_UNITTEST
 int populate_message_parameters(
     sentry_value_t attributes, const char *message, va_list args);
