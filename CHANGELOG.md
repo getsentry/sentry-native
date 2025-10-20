@@ -5,6 +5,12 @@
 **Fixes**:
 
 - Add logs flush on crash. This is not available for macOS with the `crashpad` backend. ([#1404](https://github.com/getsentry/sentry-native/pull/1404))
+- Make narrow UTF-8 the canonical path encoding on Windows. ([#1413](https://github.com/getsentry/sentry-native/pull/1413))
+
+**Internal**:
+
+- CI: bump Python to `3.12`. ([#1413](https://github.com/getsentry/sentry-native/pull/1413))
+- Remove any `MAX_PATH` dependencies in `crashpad` and `breakpad`. ([#1413](https://github.com/getsentry/sentry-native/pull/1413), [breakpad#43](https://github.com/getsentry/breakpad/pull/43), [crashpad#135](https://github.com/getsentry/crashpad/pull/135))
 
 ## 0.11.3
 
@@ -17,12 +23,6 @@
 
 - Use proper SDK name determination for structured logs `sdk.name` attribute. ([#1399](https://github.com/getsentry/sentry-native/pull/1399))
 - Serialize `uint64` values as numerical instead of string. ([#1408](https://github.com/getsentry/sentry-native/pull/1408))
-- Make narrow UTF-8 the canonical path encoding on Windows. ([#1413](https://github.com/getsentry/sentry-native/pull/1413))
-
-**Internal**:
-
-- CI: bump Python to `3.12`. ([#1413](https://github.com/getsentry/sentry-native/pull/1413))
-- Remove any `MAX_PATH` dependencies in `crashpad` and `breakpad`. ([#1413](https://github.com/getsentry/sentry-native/pull/1413), [breakpad#43](https://github.com/getsentry/breakpad/pull/43), [crashpad#135](https://github.com/getsentry/crashpad/pull/135))
 
 ## 0.11.2
 
