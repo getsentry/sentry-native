@@ -46,9 +46,6 @@ def test_capture_screenshot(cmake, httpserver, build_args):
     build_args.update({"SENTRY_TRANSPORT": "none"})
     tmp_path = cmake(["sentry_screenshot"], build_args)
 
-    # make sure we are isolated from previous runs
-    shutil.rmtree(tmp_path / ".sentry-native", ignore_errors=True)
-
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
 
     child = run(tmp_path, "sentry_screenshot", ["crash"], env=env)
@@ -69,9 +66,6 @@ def test_capture_screenshot(cmake, httpserver, build_args):
 )
 def test_capture_screenshot_crashpad(cmake, httpserver, run_args):
     tmp_path = cmake(["sentry_screenshot"], {"SENTRY_BACKEND": "crashpad"})
-
-    # make sure we are isolated from previous runs
-    shutil.rmtree(tmp_path / ".sentry-native", ignore_errors=True)
 
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
     httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data("OK")
