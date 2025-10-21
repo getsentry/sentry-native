@@ -468,12 +468,6 @@ get_stack_pointer(const sentry_ucontext_t *uctx)
     return uctx->user_context->uc_mcontext.arm_sp;
 #    elif defined(__aarch64__)
     return uctx->user_context->uc_mcontext.sp;
-#    elif defined(__mips__) || defined(__mips64__)
-    return uctx->user_context->uc_mcontext.gregs[29]; // REG_SP
-#    elif defined(__riscv)
-    return uctx->user_context->uc_mcontext.__gregs[2]; // REG_SP
-#    elif defined(__s390x__)
-    return uctx->user_context->uc_mcontext.gregs[15];
 #    else
     SENTRY_WARN("get_stack_pointer is not implemented for this architecture. "
                 "Signal chaining may not work as expected.");
@@ -492,12 +486,6 @@ get_instruction_pointer(const sentry_ucontext_t *uctx)
     return uctx->user_context->uc_mcontext.arm_pc;
 #    elif defined(__aarch64__)
     return uctx->user_context->uc_mcontext.pc;
-#    elif defined(__mips__) || defined(__mips64__)
-    return uctx->user_context->uc_mcontext.pc;
-#    elif defined(__riscv)
-    return uctx->user_context->uc_mcontext.__gregs[0]; // REG_PC
-#    elif defined(__s390x__)
-    return uctx->user_context->uc_mcontext.psw.addr;
 #    else
     SENTRY_WARN(
         "get_instruction_pointer is not implemented for this architecture. "
