@@ -35,7 +35,7 @@ def assert_run_dir_with_envelope(database_path):
     ), f"There is more than one crash envelope ({len(crash_envelopes)}"
 
 
-def run_jit(tmp_path, args):
+def run_dotnet(tmp_path, args):
     env = os.environ.copy()
     env["LD_LIBRARY_PATH"] = str(tmp_path) + ":" + env.get("LD_LIBRARY_PATH", "")
     return subprocess.Popen(
@@ -48,19 +48,19 @@ def run_jit(tmp_path, args):
     )
 
 
-def run_jit_managed_exception(tmp_path):
-    return run_jit(tmp_path, ["dotnet", "run", "managed-exception"])
+def run_dotnet_managed_exception(tmp_path):
+    return run_dotnet(tmp_path, ["dotnet", "run", "managed-exception"])
 
 
-def run_jit_native_crash(tmp_path):
-    return run_jit(tmp_path, ["dotnet", "run", "native-crash"])
+def run_dotnet_native_crash(tmp_path):
+    return run_dotnet(tmp_path, ["dotnet", "run", "native-crash"])
 
 
 @pytest.mark.skipif(
     sys.platform != "linux" or is_x86 or is_asan or is_tsan,
-    reason="dotnet JIT signal handling is currently only supported on 64-bit Linux without sanitizers",
+    reason="dotnet signal handling is currently only supported on 64-bit Linux without sanitizers",
 )
-def test_jit_signals_inproc(cmake):
+def test_dotnet_signals_inproc(cmake):
     try:
         # build native client library with inproc and the example for crash dumping
         tmp_path = cmake(
@@ -84,7 +84,7 @@ def test_jit_signals_inproc(cmake):
         )
 
         # this runs the dotnet program with the Native SDK and chain-at-start, when managed code raises a signal that CLR convert to an exception.
-        dotnet_run = run_jit_managed_exception(tmp_path)
+        dotnet_run = run_dotnet_managed_exception(tmp_path)
         dotnet_run_stdout, dotnet_run_stderr = dotnet_run.communicate()
 
         # the program will fail with a `NullReferenceException`, but the Native SDK won't register a crash.
@@ -98,7 +98,7 @@ def test_jit_signals_inproc(cmake):
         assert_empty_run_dir(database_path)
 
         # this runs the dotnet program with the Native SDK and chain-at-start, when an actual native crash raises a signal
-        dotnet_run = run_jit_native_crash(tmp_path)
+        dotnet_run = run_dotnet_native_crash(tmp_path)
         dotnet_run_stdout, dotnet_run_stderr = dotnet_run.communicate()
 
         # the program will fail with a SIGSEGV, that has been processed by the Native SDK which produced a crash envelope
