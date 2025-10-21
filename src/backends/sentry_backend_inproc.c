@@ -586,6 +586,8 @@ handle_ucontext(const sentry_ucontext_t *uctx)
     SENTRY_INFO("entering signal handler");
 
 #ifdef SENTRY_PLATFORM_UNIX
+    sentry_handler_strategy_t strategy = SENTRY_HANDLER_STRATEGY_DEFAULT;
+
     // inform the sentry_sync system that we're in a signal handler.  This will
     // make mutexes spin on a spinlock instead as it's no longer safe to use a
     // pthread mutex.
@@ -603,8 +605,8 @@ handle_ucontext(const sentry_ucontext_t *uctx)
         // cases, we shouldn't react to the signal at all and let their handler
         // discontinue the signal chain by invoking the runtime handler before
         // we process the signal.
-        if (sentry_options_get_handler_strategy(options)
-            == SENTRY_HANDLER_STRATEGY_CHAIN_AT_START) {
+        strategy = sentry_options_get_handler_strategy(options);
+        if (strategy == SENTRY_HANDLER_STRATEGY_CHAIN_AT_START) {
             SENTRY_DEBUG("defer to runtime signal handler at start");
             // there is a good chance that we won't return from the previous
             // handler and that would mean we couldn't enter this handler with
@@ -719,8 +721,10 @@ handle_ucontext(const sentry_ucontext_t *uctx)
     // forward as we're not restoring the page allocator.
     reset_signal_handlers();
     sentry__leave_signal_handler();
-    invoke_signal_handler(
-        uctx->signum, uctx->siginfo, (void *)uctx->user_context);
+    if (strategy != SENTRY_HANDLER_STRATEGY_CHAIN_AT_START) {
+        invoke_signal_handler(
+            uctx->signum, uctx->siginfo, (void *)uctx->user_context);
+    }
 #endif
 }
 
