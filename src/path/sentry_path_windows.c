@@ -114,26 +114,34 @@ sentry__path_absolute(const sentry_path_t *path)
     if (!path_wstr) {
         return NULL;
     }
-    // `_wfullpath` allocates the buffer that `full` points to. If we ever want
-    // to eliminate external allocations, that would be one place to fix.
+    // _wfullpath allocates a correctly sized buffer for the absolute path when
+    // passing in a NULL buffer. This limits allocation to a minimum (instead of
+    // passing in a MAX_PATH_BUFFER_SIZE buffer). But we must clone at the end,
+    // so we return a `sentry_malloc()` allocated buffer rather than one from
+    // the system allocator (which allows us to open our allocator).
     wchar_t *full = _wfullpath(NULL, path_wstr, 0);
     if (!full) {
         return NULL;
     }
     sentry_path_t *rv = SENTRY_MAKE(sentry_path_t);
     if (!rv) {
-        sentry_free(full);
+        free(full);
         return NULL;
     }
     // we convert the wide-string absolute path back to canonical narrow UTF-8
-    // and use the returned and allocate full as our wide string cache.
     rv->path = sentry__string_from_wstr(full);
     if (!rv->path) {
-        sentry_free(full);
+        free(full);
         sentry_free(rv);
         return NULL;
     }
-    rv->path_w = full;
+    rv->path_w = sentry__string_clone_wstr(full);
+    free(full);
+    if (!rv->path_w) {
+        sentry_free(rv->path);
+        sentry_free(rv);
+        return NULL;
+    }
     return rv;
 }
 
