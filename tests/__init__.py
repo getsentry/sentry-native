@@ -72,6 +72,10 @@ def split_log_request_cond(httpserver_log, cond):
 def run(cwd, exe, args, expect_failure=False, env=None, **kwargs):
     if env is None:
         env = dict(os.environ)
+    if kwargs.get("check"):
+        raise pytest.fail.Exception(
+            "`check` is inferred from `expect_failure`, and should not be passed in the kwargs"
+        )
     check = expect_failure == False
     __tracebackhide__ = True
     if os.environ.get("ANDROID_API"):
@@ -110,7 +114,7 @@ def run(cwd, exe, args, expect_failure=False, env=None, **kwargs):
             assert child.returncode == 0, (
                 f"command failed unexpectedly: {exe} {" ".join(args)}"
             )
-        if kwargs.get("check") and child.returncode:
+        if check and child.returncode:
             raise subprocess.CalledProcessError(
                 child.returncode, child.args, output=child.stdout, stderr=child.stderr
             )
