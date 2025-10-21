@@ -20,7 +20,7 @@ sentry__stringbuilder_init(sentry_stringbuilder_t *sb)
 char *
 sentry__stringbuilder_reserve(sentry_stringbuilder_t *sb, size_t len)
 {
-    size_t needed = sb->len + len;
+    const size_t needed = sb->len + len;
     if (!sb->buf || needed > sb->allocated) {
         size_t new_alloc_size = sb->allocated;
         if (new_alloc_size == 0) {
@@ -145,7 +145,7 @@ sentry__string_clone_wstr(const wchar_t *str)
     if (!str) {
         return NULL;
     }
-    size_t str_len = wcslen(str);
+    const size_t str_len = wcslen(str);
     wchar_t *clone = sentry_malloc(sizeof(wchar_t) * (str_len + 1));
     if (!clone) {
         return NULL;
