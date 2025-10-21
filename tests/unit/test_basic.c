@@ -335,8 +335,6 @@ SENTRY_TEST(basic_transport_thread_name)
         const char *actual_thread_name
             = sentry__bgworker_get_thread_name(bgworker);
 
-        // TODO This test should fail initially because winhttp transport
-        // doesn't call sentry__bgworker_setname() like curl transport does.
         if (actual_thread_name) {
             TEST_CHECK_STRING_EQUAL(actual_thread_name, expected_thread_name);
         } else {
