@@ -99,6 +99,8 @@ sentry__winhttp_transport_start(
     state->user_agent = sentry__string_to_wstr(opts->user_agent);
     state->debug = opts->debug;
 
+    sentry__bgworker_setname(bgworker, opts->transport_thread_name);
+
     const char *env_proxy = opts->dsn
         ? getenv(opts->dsn->is_secure ? "https_proxy" : "http_proxy")
         : NULL;
