@@ -152,7 +152,7 @@ def run(cwd, exe, args, expect_failure=False, env=None, **kwargs):
             )
         else:
             assert result.returncode == 0, (
-                f"command failed unexpectedly: {exe} {" ".join(args)}"
+                f"command failed unexpectedly: {cmd} {" ".join(args)}"
             )
         return result
     except subprocess.CalledProcessError:
