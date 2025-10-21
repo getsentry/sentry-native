@@ -557,7 +557,7 @@ SENTRY_EXPERIMENTAL_API sentry_value_t sentry_value_new_stacktrace(
  *
  * The value argument must be either an exception or a thread object.
  *
- * If `ips` is NULL, the current stack trace is captured, otherwise `len` stack
+ * If `ips` is NULL, the current stack trace is captured. Otherwise, `len` stack
  * trace instruction pointers are attached to the event.
  */
 SENTRY_EXPERIMENTAL_API void sentry_value_set_stacktrace(
