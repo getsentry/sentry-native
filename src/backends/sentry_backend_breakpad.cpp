@@ -8,6 +8,7 @@ extern "C" {
 #include "sentry_database.h"
 #include "sentry_envelope.h"
 #include "sentry_logger.h"
+#include "sentry_logs.h"
 #include "sentry_options.h"
 #ifdef SENTRY_PLATFORM_WINDOWS
 #    include "sentry_os.h"
@@ -125,6 +126,11 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
         event, "level", sentry__value_new_level(SENTRY_LEVEL_FATAL));
 
     SENTRY_WITH_OPTIONS (options) {
+        // Flush logs in a crash-safe manner before crash handling
+        if (options->enable_logs) {
+            sentry__logs_flush_crash_safe();
+        }
+
         sentry__write_crash_marker(options);
 
         bool should_handle = true;
@@ -184,12 +190,14 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
                 sentry__attachment_free(screenshot);
             }
 
-            // capture the envelope with the disk transport
-            sentry_transport_t *disk_transport
-                = sentry_new_disk_transport(options->run);
-            sentry__capture_envelope(disk_transport, envelope);
-            sentry__transport_dump_queue(disk_transport, options->run);
-            sentry_transport_free(disk_transport);
+            if (!sentry__launch_external_crash_reporter(envelope)) {
+                // capture the envelope with the disk transport
+                sentry_transport_t *disk_transport
+                    = sentry_new_disk_transport(options->run);
+                sentry__capture_envelope(disk_transport, envelope);
+                sentry__transport_dump_queue(disk_transport, options->run);
+                sentry_transport_free(disk_transport);
+            }
 
             // now that the envelope was written, we can remove the temporary
             // minidump file

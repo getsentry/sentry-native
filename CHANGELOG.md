@@ -3,7 +3,31 @@
 ## Unreleased
 
 **Fixes**:
+
+- Add logs flush on crash. This is not available for macOS with the `crashpad` backend. ([#1404](https://github.com/getsentry/sentry-native/pull/1404))
 - Fix AOT interop with managed .NET runtimes. ([#1392](https://github.com/getsentry/sentry-native/pull/1392))
+
+**Internal**:
+
+- Add `SENTRY_SDK_VERSION` CMake cache variable to allow downstream SDKs to override the SDK version at configuration time. ([#1417](https://github.com/getsentry/sentry-native/pull/1417))
+
+## 0.11.3
+
+**Features**:
+
+- Add support for outgoing W3C traceparent header propagation with the `propagate_traceparent` option. ([#1394](https://github.com/getsentry/sentry-native/pull/1394))
+- Add `sentry_options_set_external_crash_reporter_path` to allow specifying an external crash reporter. ([#1303](https://github.com/getsentry/sentry-native/pull/1303))
+
+**Fixes**:
+
+- Use proper SDK name determination for structured logs `sdk.name` attribute. ([#1399](https://github.com/getsentry/sentry-native/pull/1399))
+- Serialize `uint64` values as numerical instead of string. ([#1408](https://github.com/getsentry/sentry-native/pull/1408))
+
+## 0.11.2
+
+**Fixes**:
+
+- Windows: Make symbolication and the modulefinder independent of the system ANSI code page. ([#1389](https://github.com/getsentry/sentry-native/pull/1389))
 
 ## 0.11.1
 

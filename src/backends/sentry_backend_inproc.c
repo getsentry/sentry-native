@@ -7,6 +7,7 @@
 #include "sentry_database.h"
 #include "sentry_envelope.h"
 #include "sentry_logger.h"
+#include "sentry_logs.h"
 #include "sentry_options.h"
 #if defined(SENTRY_PLATFORM_WINDOWS)
 #    include "sentry_os.h"
@@ -592,6 +593,10 @@ handle_ucontext(const sentry_ucontext_t *uctx)
 #endif
 
     SENTRY_WITH_OPTIONS (options) {
+        // Flush logs in a crash-safe manner before crash handling
+        if (options->enable_logs) {
+            sentry__logs_flush_crash_safe();
+        }
 #ifdef SENTRY_PLATFORM_LINUX
         // On Linux (and thus Android) CLR/Mono converts signals provoked by
         // AOT/JIT-generated native code into managed code exceptions. In these
@@ -688,12 +693,14 @@ handle_ucontext(const sentry_ucontext_t *uctx)
                 sentry__attachment_free(screenshot);
             }
 
-            // capture the envelope with the disk transport
-            sentry_transport_t *disk_transport
-                = sentry_new_disk_transport(options->run);
-            sentry__capture_envelope(disk_transport, envelope);
-            sentry__transport_dump_queue(disk_transport, options->run);
-            sentry_transport_free(disk_transport);
+            if (!sentry__launch_external_crash_reporter(envelope)) {
+                // capture the envelope with the disk transport
+                sentry_transport_t *disk_transport
+                    = sentry_new_disk_transport(options->run);
+                sentry__capture_envelope(disk_transport, envelope);
+                sentry__transport_dump_queue(disk_transport, options->run);
+                sentry_transport_free(disk_transport);
+            }
         } else {
             SENTRY_DEBUG("event was discarded by the `on_crash` hook");
             sentry_value_decref(event);

@@ -6,6 +6,7 @@ import re
 import sys
 from dataclasses import dataclass
 from datetime import datetime, UTC
+from pathlib import Path
 
 import msgpack
 
@@ -71,6 +72,7 @@ def assert_meta(
     transaction_data=None,
     sdk_override=None,
 ):
+    assert envelope.headers["event_id"]
     event = envelope.get_event()
     assert_event_meta(
         event, release, integration, transaction, transaction_data, sdk_override
@@ -105,9 +107,9 @@ def assert_event_meta(
     }
     expected_sdk = {
         "name": "sentry.native",
-        "version": "0.11.1",
+        "version": "0.11.3",
         "packages": [
-            {"name": "github:getsentry/sentry-native", "version": "0.11.1"},
+            {"name": "github:getsentry/sentry-native", "version": "0.11.3"},
         ],
     }
     if is_android:
@@ -167,7 +169,9 @@ def assert_event_meta(
         )
 
 
-def assert_stacktrace(envelope, inside_exception=False, check_size=True):
+def assert_stacktrace(
+    envelope, inside_exception=False, check_size=True, check_package=False
+):
     event = envelope.get_event()
 
     parent = event["exception"] if inside_exception else event["threads"]
@@ -181,6 +185,17 @@ def assert_stacktrace(envelope, inside_exception=False, check_size=True):
             frame.get("function") is not None and frame.get("package") is not None
             for frame in frames
         )
+
+    if check_package:
+        for frame in frames:
+            frame_package = frame.get("package")
+            if frame_package is not None:
+                frame_package_path = Path(frame_package)
+                # only assert on absolute paths, since letting pathlib resolve relative paths is cheating
+                if frame_package_path.is_absolute():
+                    assert (
+                        frame_package_path.is_file()
+                    ), f"package is not a valid file path: '{frame_package}'"
 
 
 def assert_breadcrumb_inner(breadcrumbs, message="debug crumb"):
