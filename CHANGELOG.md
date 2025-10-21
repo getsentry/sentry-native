@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Breaking changes**:
+
+- If you use a narrow string path interface (for instance, `sentry_options_set_database_path()`) on _Windows_ rather than one of the wide string variants (`sentry_options_set_database_pathw()`), then the expected encoding is now UTF-8. ([#1413](https://github.com/getsentry/sentry-native/pull/1413))
+
 **Fixes**:
 
 - Add logs flush on crash. This is not available for macOS with the `crashpad` backend. ([#1404](https://github.com/getsentry/sentry-native/pull/1404))
