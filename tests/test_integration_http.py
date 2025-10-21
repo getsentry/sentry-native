@@ -1594,13 +1594,13 @@ def test_logs_on_crash(cmake, httpserver):
     ).respond_with_data("OK")
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_RELEASE="🤮🚀")
 
-    child = run(
+    run(
         tmp_path,
         "sentry_example",
         ["log", "enable-logs", "capture-log", "crash"],
+        expect_failure=True,
         env=env,
     )
-    assert child.returncode  # well, it's a crash after all
 
     # log should have been discarded since we have no backend to hook into the crash
     assert len(httpserver.log) == 0
@@ -1615,13 +1615,13 @@ def test_inproc_logs_on_crash(cmake, httpserver):
     ).respond_with_data("OK")
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
 
-    child = run(
+    run(
         tmp_path,
         "sentry_example",
         ["log", "enable-logs", "capture-log", "crash"],
+        expect_failure=True,
         env=env,
     )
-    assert child.returncode  # well, it's a crash after all
 
     run(
         tmp_path,
@@ -1654,13 +1654,13 @@ def test_breakpad_logs_on_crash(cmake, httpserver):
     ).respond_with_data("OK")
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
 
-    child = run(
+    run(
         tmp_path,
         "sentry_example",
         ["log", "enable-logs", "capture-log", "crash"],
+        expect_failure=True,
         env=env,
     )
-    assert child.returncode  # well, it's a crash after all
 
     run(
         tmp_path,

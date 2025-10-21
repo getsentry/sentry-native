@@ -573,13 +573,13 @@ def test_crashpad_logs_on_crash(cmake, httpserver):
     httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
 
     with httpserver.wait(timeout=10) as waiting:
-        child = run(
+        run(
             tmp_path,
             "sentry_example",
             ["log", "enable-logs", "capture-log", "crash"],
+            expect_failure=True,
             env=env,
         )
-        assert child.returncode  # well, it's a crash after all
 
     assert waiting.result
 
