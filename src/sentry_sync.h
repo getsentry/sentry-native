@@ -460,6 +460,14 @@ int sentry__bgworker_shutdown(sentry_bgworker_t *bgw, uint64_t timeout);
  */
 void sentry__bgworker_setname(sentry_bgworker_t *bgw, const char *thread_name);
 
+#ifdef SENTRY_UNITTEST
+/**
+ * Test helper function to get the thread name from a bgworker.
+ * Only available in unit tests.
+ */
+const char *sentry__bgworker_get_thread_name(sentry_bgworker_t *bgw);
+#endif
+
 /**
  * This will submit a new task to the background thread.
  *

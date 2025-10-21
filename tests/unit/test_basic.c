@@ -1,7 +1,10 @@
 #include "sentry_core.h"
 #include "sentry_database.h"
+#include "sentry_options.h"
 #include "sentry_string.h"
+#include "sentry_sync.h"
 #include "sentry_testsupport.h"
+#include "sentry_transport.h"
 
 static void
 send_envelope_test_basic(sentry_envelope_t *envelope, void *data)
@@ -301,6 +304,47 @@ SENTRY_TEST(capture_minidump_invalid_path)
     const sentry_uuid_t event_id
         = sentry_capture_minidump("some_invalid_minidump_path");
     TEST_CHECK(sentry_uuid_is_nil(&event_id));
+
+    sentry_close();
+}
+
+SENTRY_TEST(basic_transport_thread_name)
+{
+    const char *expected_thread_name = "sentry::worker_thread";
+
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_transport_thread_name(options, expected_thread_name);
+
+    // Initialize sentry which should start the transport and set the thread
+    // name
+    TEST_CHECK_INT_EQUAL(sentry_init(options), 0);
+
+    // Access the transport through runtime options to check if thread name was
+    // set
+    SENTRY_WITH_OPTIONS (runtime_options) {
+        TEST_ASSERT(!!runtime_options->transport);
+
+        // Get the bgworker from the transport (for HTTP transports)
+        sentry_bgworker_t *bgworker
+            = (sentry_bgworker_t *)sentry__transport_get_bgworker(
+                runtime_options->transport);
+        TEST_ASSERT(!!bgworker);
+
+        // Check if the thread name was properly set on the bgworker
+        const char *actual_thread_name
+            = sentry__bgworker_get_thread_name(bgworker);
+
+        // This test should fail initially because winhttp transport doesn't
+        // call sentry__bgworker_setname() like curl transport does.
+        if (actual_thread_name) {
+            TEST_CHECK_STRING_EQUAL(actual_thread_name, expected_thread_name);
+        } else {
+            TEST_CHECK(false); // Fail if thread_name is NULL
+            TEST_MSG("Transport thread name was not set - winhttp transport "
+                     "does not call sentry__bgworker_setname()");
+        }
+    }
 
     sentry_close();
 }
