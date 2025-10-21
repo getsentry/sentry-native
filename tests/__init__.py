@@ -104,6 +104,10 @@ def run(cwd, exe, args, expect_failure=False, env=None, **kwargs):
             assert child.returncode != 0, (
                 f"command unexpectedly successful: {exe} {" ".join(args)}"
             )
+        else:
+            assert child.returncode == 0, (
+                f"command failed unexpectedly: {exe} {" ".join(args)}"
+            )
         if kwargs.get("check") and child.returncode:
             raise subprocess.CalledProcessError(
                 child.returncode, child.args, output=child.stdout, stderr=child.stderr
@@ -145,6 +149,10 @@ def run(cwd, exe, args, expect_failure=False, env=None, **kwargs):
         if expect_failure:
             assert result.returncode != 0, (
                 f"command unexpectedly successful: {cmd} {" ".join(args)}"
+            )
+        else:
+            assert result.returncode == 0, (
+                f"command failed unexpectedly: {exe} {" ".join(args)}"
             )
         return result
     except subprocess.CalledProcessError:
