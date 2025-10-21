@@ -28,7 +28,6 @@ def test_embedded_info_enabled(cmake):
         cwd,
         "sentry_test_unit",
         ["--no-summary", "embedded_info_basic"],
-        check=True,
         env=env,
     )
 
@@ -37,7 +36,6 @@ def test_embedded_info_enabled(cmake):
         cwd,
         "sentry_test_unit",
         ["--no-summary", "embedded_info_format"],
-        check=True,
         env=env,
     )
 
@@ -46,7 +44,6 @@ def test_embedded_info_enabled(cmake):
         cwd,
         "sentry_test_unit",
         ["--no-summary", "embedded_info_sentry_version"],
-        check=True,
         env=env,
     )
 
@@ -69,7 +66,6 @@ def test_embedded_info_disabled(cmake):
         cwd,
         "sentry_test_unit",
         ["--no-summary", "embedded_info_disabled"],
-        check=True,
         env=env,
     )
 
@@ -78,7 +74,6 @@ def test_embedded_info_disabled(cmake):
         cwd,
         "sentry_test_unit",
         ["--no-summary", "embedded_info_basic"],
-        check=True,
         env=env,
     )
 
@@ -147,6 +142,5 @@ def test_embedded_info_custom_items(cmake):
         cwd,
         "sentry_test_unit",
         ["--no-summary", "embedded_info_format"],
-        check=True,
         env=env,
     )

@@ -10,7 +10,7 @@ def test_unit(cmake, unittest):
         {"SENTRY_BACKEND": "none", "SENTRY_TRANSPORT": "none"},
     )
     env = dict(os.environ)
-    run(cwd, "sentry_test_unit", ["--no-summary", unittest], check=True, env=env)
+    run(cwd, "sentry_test_unit", ["--no-summary", unittest], env=env)
 
 
 @pytest.mark.skipif(not has_http, reason="tests need http transport")
@@ -23,7 +23,7 @@ def test_unit_transport(cmake, unittest):
         {"SENTRY_BACKEND": "none"},
     )
     env = dict(os.environ)
-    run(cwd, "sentry_test_unit", ["--no-summary", unittest], check=True, env=env)
+    run(cwd, "sentry_test_unit", ["--no-summary", unittest], env=env)
 
 
 def test_unit_with_test_path(cmake, unittest):
@@ -33,4 +33,4 @@ def test_unit_with_test_path(cmake, unittest):
         cflags=["-DSENTRY_TEST_PATH_PREFIX=./"],
     )
     env = dict(os.environ)
-    run(cwd, "sentry_test_unit", ["--no-summary", unittest], check=True, env=env)
+    run(cwd, "sentry_test_unit", ["--no-summary", unittest], env=env)

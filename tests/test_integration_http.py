@@ -74,7 +74,6 @@ def test_capture_http(cmake, httpserver, build_args):
         tmp_path,
         "sentry_example",
         ["log", "release-env", "capture-event", "add-stacktrace"],
-        check=True,
         env=env,
     )
 
@@ -109,14 +108,12 @@ def test_session_http(cmake, httpserver):
         tmp_path,
         "sentry_example",
         ["log", "release-env", "start-session"],
-        check=True,
         env=env,
     )
     run(
         tmp_path,
         "sentry_example",
         ["log", "start-session"],
-        check=True,
         env=env,
     )
 
@@ -140,7 +137,6 @@ def test_capture_and_session_http(cmake, httpserver):
         tmp_path,
         "sentry_example",
         ["log", "start-session", "capture-event"],
-        check=True,
         env=env,
     )
 
@@ -169,7 +165,6 @@ def test_user_feedback_http(cmake, httpserver):
         tmp_path,
         "sentry_example",
         ["log", "capture-user-feedback"],
-        check=True,
         env=env,
     )
 
@@ -193,7 +188,6 @@ def test_user_report_http(cmake, httpserver):
         tmp_path,
         "sentry_example",
         ["log", "capture-user-report"],
-        check=True,
         env=env,
     )
 
@@ -252,7 +246,6 @@ def test_external_crash_reporter_http(cmake, httpserver, build_args):
             tmp_path,
             "sentry_example",
             ["log", "no-setup"],
-            check=True,
             env=env,
         )
     assert waiting.result
@@ -284,7 +277,6 @@ def test_exception_and_session_http(cmake, httpserver):
         tmp_path,
         "sentry_example",
         ["log", "start-session", "capture-exception", "add-stacktrace"],
-        check=True,
         env=env,
     )
 
@@ -339,7 +331,6 @@ def test_abnormal_session(cmake, httpserver):
         tmp_path,
         "sentry_example",
         ["log", "no-setup"],
-        check=True,
         env=env,
     )
 
@@ -385,7 +376,6 @@ def test_inproc_crash_http(cmake, httpserver, build_args):
         tmp_path,
         "sentry_example",
         ["log", "no-setup"],
-        check=True,
         env=env,
     )
 
@@ -430,7 +420,6 @@ def test_inproc_reinstall(cmake, httpserver):
         tmp_path,
         "sentry_example",
         ["log", "no-setup"],
-        check=True,
         env=env,
     )
 
@@ -453,7 +442,7 @@ def test_inproc_dump_inflight(cmake, httpserver):
         expect_failure=True,
         env=env,
     )
-    run(tmp_path, "sentry_example", ["log", "no-setup"], check=True, env=env)
+    run(tmp_path, "sentry_example", ["log", "no-setup"], env=env)
 
     # we trigger 10 normal events, and 1 crash
     assert len(httpserver.log) >= 11
@@ -489,7 +478,6 @@ def test_breakpad_crash_http(cmake, httpserver, build_args):
         tmp_path,
         "sentry_example",
         ["log", "no-setup"],
-        check=True,
         env=env,
     )
 
@@ -536,7 +524,6 @@ def test_breakpad_reinstall(cmake, httpserver):
         tmp_path,
         "sentry_example",
         ["log", "no-setup"],
-        check=True,
         env=env,
     )
 
@@ -561,7 +548,7 @@ def test_breakpad_dump_inflight(cmake, httpserver):
         env=env,
     )
 
-    run(tmp_path, "sentry_example", ["log", "no-setup"], check=True, env=env)
+    run(tmp_path, "sentry_example", ["log", "no-setup"], env=env)
 
     # we trigger 10 normal events, and 1 crash
     assert len(httpserver.log) >= 11
@@ -595,7 +582,6 @@ def test_shutdown_timeout(cmake, httpserver):
         "sentry_example",
         ["log", "capture-multiple", "sleep-after-shutdown"],
         env=env,
-        check=True,
     )
 
     httpserver.clear_all_handlers()
@@ -606,7 +592,7 @@ def test_shutdown_timeout(cmake, httpserver):
         headers={"x-sentry-auth": auth_header},
     ).respond_with_data("OK")
 
-    run(tmp_path, "sentry_example", ["log", "no-setup"], check=True, env=env)
+    run(tmp_path, "sentry_example", ["log", "no-setup"], env=env)
 
     assert len(httpserver.log) == 10
 
@@ -635,7 +621,6 @@ def test_transaction_only(cmake, httpserver, build_args):
         tmp_path,
         "sentry_example",
         ["log", "capture-transaction"],
-        check=True,
         env=env,
     )
 
@@ -699,7 +684,6 @@ def test_before_transaction_callback(cmake, httpserver):
         tmp_path,
         "sentry_example",
         ["log", "capture-transaction", "before-transaction"],
-        check=True,
         env=env,
     )
 
@@ -759,7 +743,6 @@ def test_before_transaction_discard(cmake, httpserver):
         tmp_path,
         "sentry_example",
         ["log", "capture-transaction", "discarding-before-transaction"],
-        check=True,
         env=env,
     )
 
@@ -780,7 +763,6 @@ def test_transaction_event(cmake, httpserver):
         tmp_path,
         "sentry_example",
         ["log", "capture-transaction", "capture-event"],
-        check=True,
         env=env,
     )
 
@@ -841,7 +823,6 @@ def test_transaction_trace_header(cmake, httpserver):
         tmp_path,
         "sentry_example",
         ["log", "set-trace", "capture-transaction"],
-        check=True,
         env=env,
     )
 
@@ -891,7 +872,6 @@ def test_event_trace_header(cmake, httpserver):
         tmp_path,
         "sentry_example",
         ["log", "set-trace", "capture-event"],
-        check=True,
         env=env,
     )
 
@@ -940,7 +920,6 @@ def test_set_trace_event(cmake, httpserver):
         tmp_path,
         "sentry_example",
         ["log", "set-trace", "capture-event"],
-        check=True,
         env=env,
     )
 
@@ -976,7 +955,6 @@ def test_set_trace_transaction_scoped_event(cmake, httpserver):
         tmp_path,
         "sentry_example",
         ["log", "capture-transaction", "scope-transaction-event"],
-        check=True,
         env=env,
     )
 
@@ -1041,7 +1019,6 @@ def test_set_trace_transaction_update_from_header_event(cmake, httpserver):
             "update-tx-from-header",
             "scope-transaction-event",
         ],
-        check=True,
         env=env,
     )
 
@@ -1107,7 +1084,6 @@ def test_capture_minidump(cmake, httpserver):
         tmp_path,
         "sentry_example",
         ["log", "attachment", "attach-view-hierarchy", "capture-minidump"],
-        check=True,
         env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
     )
 
@@ -1151,7 +1127,6 @@ def test_proxy_from_env(cmake, httpserver):
             tmp_path,
             "sentry_example",
             ["log", "capture-event"],
-            check=True,
             env=env,
         )
 
@@ -1175,7 +1150,6 @@ def test_proxy_from_env_port_incorrect(cmake, httpserver):
             tmp_path,
             "sentry_example",
             ["log", "capture-event"],
-            check=True,
             env=env,
         )
 
@@ -1198,7 +1172,6 @@ def test_proxy_auth(cmake, httpserver):
             tmp_path,
             "sentry_example",
             ["log", "capture-event", "http-proxy-auth"],
-            check=True,
             env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver, proxy_host=True)),
         )
     finally:
@@ -1224,7 +1197,6 @@ def test_proxy_auth_incorrect(cmake, httpserver):
             tmp_path,
             "sentry_example",
             ["log", "capture-event", "http-proxy-auth"],
-            check=True,
             env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver, proxy_host=True)),
         )
     finally:
@@ -1250,7 +1222,6 @@ def test_proxy_ipv6(cmake, httpserver):
             tmp_path,
             "sentry_example",
             ["log", "capture-event", "http-proxy-ipv6"],
-            check=True,
             env=env,
         )
 
@@ -1273,7 +1244,6 @@ def test_proxy_set_empty(cmake, httpserver):
             tmp_path,
             "sentry_example",
             ["log", "capture-event", "proxy-empty"],
-            check=True,
             env=env,
         )
 
@@ -1298,7 +1268,6 @@ def test_proxy_https_not_http(cmake, httpserver):
             tmp_path,
             "sentry_example",
             ["log", "capture-event"],
-            check=True,
             env=env,
         )
 
@@ -1338,7 +1307,6 @@ def test_capture_proxy(cmake, httpserver, run_args, proxy_running):
             "sentry_example",
             ["log", "capture-event"]
             + run_args,  # only passes if given proxy is running
-            check=True,
             env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver, proxy_host=True)),
         )
         if proxy_running:
@@ -1361,7 +1329,6 @@ def test_capture_with_scope(cmake, httpserver):
         tmp_path,
         "sentry_example",
         ["log", "attach-to-scope", "capture-with-scope"],
-        check=True,
         env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
     )
 
@@ -1388,7 +1355,6 @@ def test_logs_timer(cmake, httpserver):
         tmp_path,
         "sentry_example",
         ["log", "enable-logs", "logs-timer"],
-        check=True,
         env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
     )
 
@@ -1419,7 +1385,6 @@ def test_logs_event(cmake, httpserver):
         tmp_path,
         "sentry_example",
         ["log", "enable-logs", "capture-log", "capture-event"],
-        check=True,
         env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
     )
 
@@ -1460,7 +1425,6 @@ def test_logs_scoped_transaction(cmake, httpserver):
             "capture-transaction",
             "scope-transaction-event",
         ],
-        check=True,
         env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
     )
 
@@ -1503,7 +1467,6 @@ def test_logs_threaded(cmake, httpserver):
         tmp_path,
         "sentry_example",
         ["log", "enable-logs", "logs-threads"],
-        check=True,
         env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
     )
 
@@ -1535,7 +1498,6 @@ def test_before_send_log(cmake, httpserver):
         tmp_path,
         "sentry_example",
         ["log", "enable-logs", "capture-log", "before-send-log"],
-        check=True,
         env=env,
     )
 
@@ -1577,7 +1539,6 @@ def test_before_send_log_discard(cmake, httpserver):
         tmp_path,
         "sentry_example",
         ["log", "enable-logs", "capture-log", "discarding-before-send-log"],
-        check=True,
         env=env,
     )
 
@@ -1627,7 +1588,6 @@ def test_inproc_logs_on_crash(cmake, httpserver):
         tmp_path,
         "sentry_example",
         ["log", "no-setup"],
-        check=True,
         env=env,
     )
 
@@ -1666,7 +1626,6 @@ def test_breakpad_logs_on_crash(cmake, httpserver):
         tmp_path,
         "sentry_example",
         ["log", "no-setup"],
-        check=True,
         env=env,
     )
 

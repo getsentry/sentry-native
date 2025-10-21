@@ -50,7 +50,6 @@ def test_crashpad_capture(cmake, httpserver):
         tmp_path,
         "sentry_example",
         ["log", "start-session", "capture-event"],
-        check=True,
         env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
     )
 
@@ -235,7 +234,7 @@ def test_crashpad_reinstall(cmake, httpserver):
 
     assert waiting.result
 
-    run(tmp_path, "sentry_example", ["log", "no-setup"], check=True, env=env)
+    run(tmp_path, "sentry_example", ["log", "no-setup"], env=env)
 
     assert len(httpserver.log) == 1
 
@@ -289,7 +288,7 @@ def test_crashpad_wer_crash(cmake, httpserver, run_args):
     # a small delay here
     time.sleep(1)
 
-    run(tmp_path, "sentry_example", ["log", "no-setup"], check=True, env=env)
+    run(tmp_path, "sentry_example", ["log", "no-setup"], env=env)
 
     assert len(httpserver.log) == 2
     session_request, multipart = split_log_request_cond(
@@ -379,7 +378,7 @@ def test_crashpad_dumping_crash(cmake, httpserver, run_args, build_args):
     # a small delay here
     time.sleep(1)
 
-    run(tmp_path, "sentry_example", ["log", "no-setup"], check=True, env=env)
+    run(tmp_path, "sentry_example", ["log", "no-setup"], env=env)
 
     assert len(httpserver.log) == 2
     session_request, multipart = split_log_request_cond(
@@ -447,7 +446,7 @@ def test_crashpad_dumping_stack_overflow(cmake, httpserver, build_args):
     # a small delay here
     time.sleep(1)
 
-    run(tmp_path, "sentry_example", ["log", "no-setup"], check=True, env=env)
+    run(tmp_path, "sentry_example", ["log", "no-setup"], env=env)
 
     assert len(httpserver.log) == 2
     session_request, multipart = split_log_request_cond(
@@ -498,7 +497,7 @@ def test_crashpad_non_dumping_crash(cmake, httpserver, run_args):
     # a small delay here
     time.sleep(1)
 
-    run(tmp_path, "sentry_example", ["log", "no-setup"], check=True, env=env)
+    run(tmp_path, "sentry_example", ["log", "no-setup"], env=env)
 
     assert len(httpserver.log) == 1
     output = httpserver.log[0][0]
@@ -532,7 +531,7 @@ def test_crashpad_crash_after_shutdown(cmake, httpserver):
     # a small delay here
     time.sleep(1)
 
-    run(tmp_path, "sentry_example", ["log", "no-setup"], check=True, env=env)
+    run(tmp_path, "sentry_example", ["log", "no-setup"], env=env)
 
     assert len(httpserver.log) == 1
 
@@ -558,7 +557,7 @@ def test_crashpad_dump_inflight(cmake, httpserver):
 
     assert waiting.result
 
-    run(tmp_path, "sentry_example", ["log", "no-setup"], check=True, env=env)
+    run(tmp_path, "sentry_example", ["log", "no-setup"], env=env)
 
     # we trigger 10 normal events, and 1 crash
     assert len(httpserver.log) >= 11
@@ -583,7 +582,7 @@ def test_crashpad_logs_on_crash(cmake, httpserver):
 
     assert waiting.result
 
-    run(tmp_path, "sentry_example", ["log", "no-setup"], check=True, env=env)
+    run(tmp_path, "sentry_example", ["log", "no-setup"], env=env)
 
     # we expect 1 envelope with the log, and 1 for the crash
     assert len(httpserver.log) == 2
@@ -613,7 +612,7 @@ def test_disable_backend(cmake, httpserver):
     # crashpad is disabled, and we are only crashing, so we expect the wait to timeout
     assert waiting.result is False
 
-    run(tmp_path, "sentry_example", ["log", "no-setup"], check=True, env=env)
+    run(tmp_path, "sentry_example", ["log", "no-setup"], env=env)
 
     # crashpad is disabled, and we are only crashing, so we expect no requests
     assert len(httpserver.log) == 0
@@ -643,7 +642,7 @@ def test_crashpad_retry(cmake, httpserver):
     )  # Enables the loopback network interface again
     # don't rmtree here, we don't want to be isolated (example should pick up previous crash from .sentry-native DB)
     # we also sleep to give Crashpad enough time to handle the previous crash
-    run(tmp_path, "sentry_example", ["log", "sleep"], check=True, env=env)
+    run(tmp_path, "sentry_example", ["log", "sleep"], env=env)
 
     assert len(httpserver.log) == 1
 
