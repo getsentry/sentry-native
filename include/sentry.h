@@ -25,7 +25,7 @@
  *   system level.
  * The above makes it very hard for us to track which kind of encoding to
  * expect (and often it isn't clear to the application developer either).
- * Moreover, in contrast to the UINXes at certain points we have to make the
+ * Moreover, in contrast to the UNIXes at certain points we have to make the
  * call (consider logging and serialization/persistence of paths as well as when
  * handling paths of modules and when symbolizing stack frames).
  * Thus, on Windows the Native SDK canonicalizes narrow character strings for
