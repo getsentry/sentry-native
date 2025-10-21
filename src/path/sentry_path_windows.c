@@ -308,8 +308,8 @@ sentry__path_ends_with(const sentry_path_t *path, const char *suffix)
     if (!s) {
         return false;
     }
-    size_t pathlen = strlen(path->path);
-    size_t suffixlen = strlen(s->path);
+    const size_t pathlen = strlen(path->path);
+    const size_t suffixlen = strlen(s->path);
     if (suffixlen > pathlen) {
         sentry__path_free(s);
         return false;
@@ -412,7 +412,7 @@ sentry__path_join_str(const sentry_path_t *base, const char *other)
     if (other[0] == '/' || other[0] == '\\') {
         // ...we depend on `base` being a drive path to prepend that drive
         if (isalpha(base->path[0]) && base->path[1] == ':') {
-            size_t other_len = strlen(other);
+            const size_t other_len = strlen(other);
             sentry_path_t *rv = path_with_len(other_len + 3);
             if (!rv) {
                 return NULL;
@@ -435,8 +435,8 @@ sentry__path_join_str(const sentry_path_t *base, const char *other)
     }
 
     // in all other cases we join the two paths
-    size_t base_len = strlen(base->path);
-    size_t other_len = strlen(other);
+    const size_t base_len = strlen(base->path);
+    const size_t other_len = strlen(other);
     size_t len = base_len + other_len + 1;
     bool need_sep = false;
     if (base_len && base->path[base_len - 1] != '/'
@@ -525,7 +525,7 @@ sentry__path_create_dir_all(const sentry_path_t *path)
         }                                                                      \
     } while (0)
 
-    size_t len = strlen(path->path) + 1;
+    const size_t len = strlen(path->path) + 1;
     p = sentry_malloc(sizeof(char) * len);
     if (!p) {
         return 1;
