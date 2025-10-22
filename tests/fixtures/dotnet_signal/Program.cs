@@ -59,7 +59,7 @@ class Program
         }
         else if (args.Contains("unhandled-managed-exception"))
         {
-            Console.WriteLine("dereference another NULL object from managed code");
+            Console.WriteLine("dereference a NULL object from managed code (unhandled)");
             var s = default(string);
             var c = s.Length;
         }
