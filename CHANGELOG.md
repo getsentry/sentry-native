@@ -9,6 +9,7 @@
 **Internal**:
 
 - Add `SENTRY_SDK_VERSION` CMake cache variable to allow downstream SDKs to override the SDK version at configuration time. ([#1417](https://github.com/getsentry/sentry-native/pull/1417))
+- Updated `crashpad` to 2025-10-22. ([#1426](https://github.com/getsentry/sentry-native/pull/1426), [crashpad#136](https://github.com/getsentry/crashpad/pull/136), [mini_chromium#4](https://github.com/getsentry/mini_chromium/pull/4)).
 
 ## 0.11.3
 
