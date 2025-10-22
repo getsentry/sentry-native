@@ -52,6 +52,10 @@ def run_dotnet_managed_exception(tmp_path):
     return run_dotnet(tmp_path, ["dotnet", "run", "managed-exception"])
 
 
+def run_dotnet_unhandled_managed_exception(tmp_path):
+    return run_dotnet(tmp_path, ["dotnet", "run", "unhandled-managed-exception"])
+
+
 def run_dotnet_native_crash(tmp_path):
     return run_dotnet(tmp_path, ["dotnet", "run", "native-crash"])
 
@@ -84,7 +88,23 @@ def test_dotnet_signals_inproc(cmake):
         )
 
         # this runs the dotnet program with the Native SDK and chain-at-start, when managed code raises a signal that CLR convert to an exception.
+        # raising a signal that CLR converts to a managed exception, which is then handled by the managed code and
+        # not leaked out to the native code so no crash is registered.
         dotnet_run = run_dotnet_managed_exception(tmp_path)
+        dotnet_run_stdout, dotnet_run_stderr = dotnet_run.communicate()
+
+        # the program handles the `NullReferenceException`, so the Native SDK won't register a crash.
+        assert dotnet_run.returncode == 0
+        assert not (
+            "NullReferenceException" in dotnet_run_stderr
+        ), f"Managed exception run failed.\nstdout:\n{dotnet_run_stdout}\nstderr:\n{dotnet_run_stderr}"
+        database_path = project_fixture_path / ".sentry-native"
+        assert database_path.exists(), "No database-path exists"
+        assert not (database_path / "last_crash").exists(), "A crash was registered"
+        assert_empty_run_dir(database_path)
+
+        # this runs the dotnet program with the Native SDK and chain-at-start, when managed code raises a signal that CLR convert to an exception.
+        dotnet_run = run_dotnet_unhandled_managed_exception(tmp_path)
         dotnet_run_stdout, dotnet_run_stderr = dotnet_run.communicate()
 
         # the program will fail with a `NullReferenceException`, but the Native SDK won't register a crash.
