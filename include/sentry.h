@@ -1574,6 +1574,20 @@ SENTRY_API void sentry_options_set_crashpad_wait_for_upload(
     sentry_options_t *opts, int wait_for_upload);
 
 /**
+ * Enables stack capture adjustment for the Crashpad backend.
+ * When enabled, Crashpad will adjust the stack capture range based on the
+ * current stack pointer instead of using TEB StackLimit/StackBase values.
+ *
+ * This is useful when running under Wine/Proton where the TEB values may
+ * be incorrect, leading to excessively large stack captures. This is
+ * disabled by default.
+ *
+ * This setting only has an effect when using the `crashpad` backend on Windows.
+ */
+SENTRY_API void sentry_options_set_crashpad_adjust_stack_capture(
+    sentry_options_t *opts, int enabled);
+
+/**
  * Sets the maximum time (in milliseconds) to wait for the asynchronous
  * tasks to end on shutdown before attempting a forced termination.
  */

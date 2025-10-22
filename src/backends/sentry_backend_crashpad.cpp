@@ -597,14 +597,21 @@ crashpad_backend_startup(
     }
 #endif
 
+    crashpad::CrashpadInfo *crashpad_info
+        = crashpad::CrashpadInfo::GetCrashpadInfo();
+
     if (!options->system_crash_reporter_enabled) {
         // Disable the system crash reporter. Especially on macOS, it takes
         // substantial time *after* crashpad has done its job.
-        crashpad::CrashpadInfo *crashpad_info
-            = crashpad::CrashpadInfo::GetCrashpadInfo();
         crashpad_info->set_system_crash_reporter_forwarding(
             crashpad::TriState::kDisabled);
     }
+
+    if (options->crashpad_adjust_stack_capture) {
+        // Enable stack capture adjustment to work around Wine/Proton TEB issues
+        crashpad_info->set_adjust_stack_capture(crashpad::TriState::kEnabled);
+    }
+
     return 0;
 }
 
