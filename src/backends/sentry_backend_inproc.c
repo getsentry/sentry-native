@@ -574,9 +574,8 @@ handle_ucontext(const sentry_ucontext_t *uctx)
 
     SENTRY_INFO("entering signal handler");
 
-#ifdef SENTRY_PLATFORM_UNIX
     sentry_handler_strategy_t strategy = SENTRY_HANDLER_STRATEGY_DEFAULT;
-
+#ifdef SENTRY_PLATFORM_UNIX
     // inform the sentry_sync system that we're in a signal handler.  This will
     // make mutexes spin on a spinlock instead as it's no longer safe to use a
     // pthread mutex.
