@@ -72,6 +72,11 @@ def split_log_request_cond(httpserver_log, cond):
 def run(cwd, exe, args, expect_failure=False, env=None, **kwargs):
     if env is None:
         env = dict(os.environ)
+    if kwargs.get("check"):
+        raise pytest.fail.Exception(
+            "`check` is inferred from `expect_failure`, and should not be passed in the kwargs"
+        )
+    check = expect_failure == False
     __tracebackhide__ = True
     if os.environ.get("ANDROID_API"):
         # older android emulators do not correctly pass down the returncode
@@ -93,6 +98,7 @@ def run(cwd, exe, args, expect_failure=False, env=None, **kwargs):
                     exe, " ".join(args)
                 ),
             ],
+            check=check,
             **kwargs,
         )
         stdout = child.stdout
@@ -104,7 +110,11 @@ def run(cwd, exe, args, expect_failure=False, env=None, **kwargs):
             assert child.returncode != 0, (
                 f"command unexpectedly successful: {exe} {" ".join(args)}"
             )
-        if kwargs.get("check") and child.returncode:
+        else:
+            assert child.returncode == 0, (
+                f"command failed unexpectedly: {exe} {" ".join(args)}"
+            )
+        if check and child.returncode:
             raise subprocess.CalledProcessError(
                 child.returncode, child.args, output=child.stdout, stderr=child.stderr
             )
@@ -141,10 +151,14 @@ def run(cwd, exe, args, expect_failure=False, env=None, **kwargs):
             *cmd,
         ]
     try:
-        result = subprocess.run([*cmd, *args], cwd=cwd, env=env, **kwargs)
+        result = subprocess.run([*cmd, *args], cwd=cwd, env=env, check=check, **kwargs)
         if expect_failure:
             assert result.returncode != 0, (
                 f"command unexpectedly successful: {cmd} {" ".join(args)}"
+            )
+        else:
+            assert result.returncode == 0, (
+                f"command failed unexpectedly: {cmd} {" ".join(args)}"
             )
         return result
     except subprocess.CalledProcessError:
@@ -156,7 +170,7 @@ def run(cwd, exe, args, expect_failure=False, env=None, **kwargs):
 
 
 def check_output(*args, **kwargs):
-    stdout = run(*args, check=True, stdout=subprocess.PIPE, **kwargs).stdout
+    stdout = run(*args, stdout=subprocess.PIPE, **kwargs).stdout
     # capturing stdout on windows actually encodes "\n" as "\r\n", which we
     # revert, because it messes with envelope decoding
     stdout = stdout.replace(b"\r\n", b"\n")
