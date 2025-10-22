@@ -496,8 +496,8 @@ get_instruction_pointer(const sentry_ucontext_t *uctx)
 #endif
 
 static sentry_value_t
-make_signal_event(
-    const struct signal_slot *sig_slot, const sentry_ucontext_t *uctx)
+make_signal_event(const struct signal_slot *sig_slot,
+    const sentry_ucontext_t *uctx, sentry_handler_strategy_t strategy)
 {
     sentry_value_t event = sentry_value_new_event();
     sentry_value_set_by_key(
@@ -533,10 +533,11 @@ make_signal_event(
         = sentry_unwind_stack_from_ucontext(uctx, &backtrace[0], MAX_FRAMES);
     SENTRY_DEBUGF(
         "captured backtrace from ucontext with %lu frames", frame_count);
-    // if unwinding from a ucontext didn't yield any results, try again with a
-    // direct unwind. this is most likely the case when using `libbacktrace`,
-    // since that does not allow to unwind from a ucontext at all.
-    if (!frame_count) {
+    // if unwinding from a ucontext didn't yield any results and we haven't
+    // chained signal handlers, try again with a direct unwind. this is most
+    // likely the case when using `libbacktrace`, since that does not allow to
+    // unwind from a ucontext at all.
+    if (!frame_count && strategy != SENTRY_HANDLER_STRATEGY_CHAIN_AT_START) {
         frame_count = sentry_unwind_stack(NULL, &backtrace[0], MAX_FRAMES);
     }
     SENTRY_DEBUGF("captured backtrace with %lu frames", frame_count);
@@ -653,7 +654,7 @@ handle_ucontext(const sentry_ucontext_t *uctx)
             sentry__logs_flush_crash_safe();
         }
 
-        sentry_value_t event = make_signal_event(sig_slot, uctx);
+        sentry_value_t event = make_signal_event(sig_slot, uctx, strategy);
         bool should_handle = true;
         sentry__write_crash_marker(options);
 
