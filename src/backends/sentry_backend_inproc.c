@@ -583,10 +583,6 @@ handle_ucontext(const sentry_ucontext_t *uctx)
 #endif
 
     SENTRY_WITH_OPTIONS (options) {
-        // Flush logs in a crash-safe manner before crash handling
-        if (options->enable_logs) {
-            sentry__logs_flush_crash_safe();
-        }
 #ifdef SENTRY_PLATFORM_LINUX
         // On Linux (and thus Android) CLR/Mono converts signals provoked by
         // AOT/JIT-generated native code into managed code exceptions. In these
@@ -652,6 +648,10 @@ handle_ucontext(const sentry_ucontext_t *uctx)
         // use a signal-safe allocator before we tear down.
         sentry__page_allocator_enable();
 #endif
+        // Flush logs in a crash-safe manner before crash handling
+        if (options->enable_logs) {
+            sentry__logs_flush_crash_safe();
+        }
 
         sentry_value_t event = make_signal_event(sig_slot, uctx);
         bool should_handle = true;
