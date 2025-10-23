@@ -16,49 +16,21 @@
 
 #ifdef _WIN32
 #    include <windows.h>
-
-static char *
-wstr_to_utf8(const wchar_t *wstr)
-{
-    if (!wstr) {
-        return NULL;
-    }
-    const int len
-        = WideCharToMultiByte(CP_UTF8, 0, wstr, -1, NULL, 0, NULL, NULL);
-    if (len <= 0) {
-        return NULL;
-    }
-    char *utf8 = malloc(len);
-    if (!utf8) {
-        return NULL;
-    }
-    WideCharToMultiByte(CP_UTF8, 0, wstr, -1, utf8, len, NULL, NULL);
-    return utf8;
-}
-
-// Use a wide-string CLI interface for ACP independence wrt the console and
-// convert the wide strings back to narrow UTF-8 when printing to stderr, so
-// we don't depend on a locale configuration in the CRT.
 int
 wmain(int argc, wchar_t *argv[])
 {
+    // Set console output to UTF-8 so `fwprintf` outputs the wides correctly
+    SetConsoleOutputCP(CP_UTF8);
+
     if (argc != 2) {
-        char *argv0_utf8 = wstr_to_utf8(argv[0]);
-        fprintf(stderr, "Usage: %s <envelope>\n",
-            argv0_utf8 ? argv0_utf8 : "crash_reporter");
-        free(argv0_utf8);
+        fwprintf(stderr, L"Usage: %ls <envelope>\n", argv[0]);
         return EXIT_FAILURE;
     }
 
     wchar_t *path = argv[1];
     sentry_envelope_t *envelope = sentry_envelope_read_from_filew(path);
     if (!envelope) {
-        char *path_utf8 = wstr_to_utf8(path);
-        char *error_utf8 = wstr_to_utf8(_wcserror(errno));
-        fprintf(stderr, "ERROR: %s (%s)\n", path_utf8 ? path_utf8 : "<path>",
-            error_utf8 ? error_utf8 : strerror(errno));
-        free(path_utf8);
-        free(error_utf8);
+        fwprintf(stderr, L"ERROR: %ls (%ls)\n", path, _wcserror(errno));
         return EXIT_FAILURE;
     }
 #else
