@@ -14,6 +14,54 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef _WIN32
+#    include <windows.h>
+
+static char *
+wstr_to_utf8(const wchar_t *wstr)
+{
+    if (!wstr) {
+        return NULL;
+    }
+    const int len
+        = WideCharToMultiByte(CP_UTF8, 0, wstr, -1, NULL, 0, NULL, NULL);
+    if (len <= 0) {
+        return NULL;
+    }
+    char *utf8 = malloc(len);
+    if (!utf8) {
+        return NULL;
+    }
+    WideCharToMultiByte(CP_UTF8, 0, wstr, -1, utf8, len, NULL, NULL);
+    return utf8;
+}
+
+// Use a wide-string CLI interface for ACP independence wrt the console and
+// convert the wide strings back to narrow UTF-8 when printing to stderr, so
+// we don't depend on a locale configuration in the CRT.
+int
+wmain(int argc, wchar_t *argv[])
+{
+    if (argc != 2) {
+        char *argv0_utf8 = wstr_to_utf8(argv[0]);
+        fprintf(stderr, "Usage: %s <envelope>\n",
+            argv0_utf8 ? argv0_utf8 : "crash_reporter");
+        free(argv0_utf8);
+        return EXIT_FAILURE;
+    }
+
+    wchar_t *path = argv[1];
+    sentry_envelope_t *envelope = sentry_envelope_read_from_filew(path);
+    if (!envelope) {
+        char *path_utf8 = wstr_to_utf8(path);
+        char *error_utf8 = wstr_to_utf8(_wcserror(errno));
+        fprintf(stderr, "ERROR: %s (%s)\n", path_utf8 ? path_utf8 : "<path>",
+            error_utf8 ? error_utf8 : strerror(errno));
+        free(path_utf8);
+        free(error_utf8);
+        return EXIT_FAILURE;
+    }
+#else
 int
 main(int argc, char *argv[])
 {
@@ -28,6 +76,7 @@ main(int argc, char *argv[])
         fprintf(stderr, "ERROR: %s (%s)\n", path, strerror(errno));
         return EXIT_FAILURE;
     }
+#endif
 
     sentry_value_t dsn = sentry_envelope_get_header(envelope, "dsn");
     sentry_value_t event_id = sentry_envelope_get_header(envelope, "event_id");
@@ -48,5 +97,9 @@ main(int argc, char *argv[])
 
     sentry_close();
 
+#ifdef _WIN32
+    _wremove(path);
+#else
     remove(path);
+#endif
 }
