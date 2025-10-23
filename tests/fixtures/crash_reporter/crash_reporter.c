@@ -14,7 +14,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#ifdef _WIN32
+#if defined(_WIN32) && defined(_MSC_VER)
 #    include <windows.h>
 int
 wmain(int argc, wchar_t *argv[])
@@ -69,7 +69,7 @@ main(int argc, char *argv[])
 
     sentry_close();
 
-#ifdef _WIN32
+#if defined(_WIN32) && defined(_MSC_VER)
     _wremove(path);
 #else
     remove(path);
