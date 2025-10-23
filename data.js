@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1761224019428,
+  "lastUpdate": 1761224037343,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -6642,6 +6642,66 @@ window.BENCHMARK_DATA = {
             "value": 1.8168779999996332,
             "unit": "ms",
             "extra": "Min 1.789ms\nMax 1.899ms\nMean 1.838ms\nStdDev 0.047ms\nMedian 1.817ms\nCPU 0.566ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "60878493+JoshuaMoelans@users.noreply.github.com",
+            "name": "JoshuaMoelans",
+            "username": "JoshuaMoelans"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "3e596e87208372d08ddf44a7d6982ffcafbd6fc0",
+          "message": "fix: re-add setting thread name for Windows transport (#1424)\n\n* add unit test\n\n* only run on test_unit_transport\n\n* add `sentry__bgworker_setname` again\n\n* Update tests/unit/test_basic.c\n\n* update CHANGELOG.md",
+          "timestamp": "2025-10-23T14:49:29+02:00",
+          "tree_id": "57fb18a82876841eba8d31a99b26f9510b9b1b3a",
+          "url": "https://github.com/getsentry/sentry-native/commit/3e596e87208372d08ddf44a7d6982ffcafbd6fc0"
+        },
+        "date": 1761224036430,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 0.7993420000502738,
+            "unit": "ms",
+            "extra": "Min 0.786ms\nMax 0.837ms\nMean 0.805ms\nStdDev 0.020ms\nMedian 0.799ms\nCPU 0.804ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.7381360000522363,
+            "unit": "ms",
+            "extra": "Min 0.706ms\nMax 0.832ms\nMean 0.757ms\nStdDev 0.051ms\nMedian 0.738ms\nCPU 0.741ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 3.3307120000358736,
+            "unit": "ms",
+            "extra": "Min 3.107ms\nMax 3.450ms\nMean 3.278ms\nStdDev 0.160ms\nMedian 3.331ms\nCPU 1.647ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.01242400003320654,
+            "unit": "ms",
+            "extra": "Min 0.012ms\nMax 0.013ms\nMean 0.012ms\nStdDev 0.000ms\nMedian 0.012ms\nCPU 0.012ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.027201000023069355,
+            "unit": "ms",
+            "extra": "Min 0.026ms\nMax 0.034ms\nMean 0.029ms\nStdDev 0.003ms\nMedian 0.027ms\nCPU 0.028ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 1.8440819999909763,
+            "unit": "ms",
+            "extra": "Min 1.831ms\nMax 1.901ms\nMean 1.856ms\nStdDev 0.028ms\nMedian 1.844ms\nCPU 0.580ms"
           }
         ]
       }
