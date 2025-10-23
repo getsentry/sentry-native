@@ -239,6 +239,30 @@ def test_crashpad_reinstall(cmake, httpserver):
     assert len(httpserver.log) == 1
 
 
+import psutil
+import time
+
+
+def wait_for_no_werfault(timeout=30.0, poll_interval=0.5):
+    """
+    Wait until no WerFault.exe process is running. Returns True if all WerFault processes have exited within timeout,
+    False otherwise. Of course, this could find any WerFault.exe process running on the system, not just the one
+    handling our crash. However, I prefer that to getting failed test runs because a WerFault.exe from a previous run
+    still actively accesses the crashing process or the CWD from a previous run.
+    """
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        werfaults = [
+            p
+            for p in psutil.process_iter(["name"])
+            if p.info["name"] and p.info["name"].lower() == "werfault.exe"
+        ]
+        if not werfaults:
+            return True
+        time.sleep(poll_interval)
+    return False
+
+
 @pytest.mark.skipif(
     sys.platform != "win32",
     reason="Test covers Windows-specific crashes which can only be covered via the Crashpad WER module",
@@ -284,10 +308,6 @@ def test_crashpad_wer_crash(cmake, httpserver, run_args):
 
     assert waiting.result
 
-    # the session crash heuristic on Mac uses timestamps, so make sure we have
-    # a small delay here
-    time.sleep(1)
-
     run(tmp_path, "sentry_example", ["log", "no-setup"], env=env)
 
     assert len(httpserver.log) == 2
@@ -302,8 +322,7 @@ def test_crashpad_wer_crash(cmake, httpserver, run_args):
         multipart, expect_attachment=True, expect_view_hierarchy=True
     )
 
-    # Windows throttles WER crash reporting frequency, so let's wait a bit
-    time.sleep(2)
+    assert wait_for_no_werfault()
 
 
 @pytest.mark.parametrize(
