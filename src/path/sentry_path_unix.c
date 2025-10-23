@@ -189,36 +189,7 @@ sentry__path_dir(const sentry_path_t *path)
 }
 #endif
 
-sentry_path_t *
-sentry__path_from_str_n(const char *s, size_t s_len)
-{
-    char *path = sentry__string_clone_n(s, s_len);
-    if (!path) {
-        return NULL;
-    }
-    // NOTE: function will free `path` on error
-    return sentry__path_from_str_owned(path);
-}
-
-sentry_path_t *
-sentry__path_from_str(const char *s)
-{
-    return s ? sentry__path_from_str_n(s, strlen(s)) : NULL;
-}
-
-sentry_path_t *
-sentry__path_from_str_owned(char *s)
-{
-    sentry_path_t *rv = SENTRY_MAKE(sentry_path_t);
-    if (!rv) {
-        sentry_free(s);
-        return NULL;
-    }
-    rv->path = s;
-    return rv;
-}
-
-const sentry_pathchar_t *
+const char *
 sentry__path_filename(const sentry_path_t *path)
 {
     const char *c = strrchr(path->path, '/');
@@ -599,7 +570,7 @@ sentry__filewriter_free(sentry_filewriter_t *filewriter)
 }
 
 size_t
-sentry__filewriter_byte_count(sentry_filewriter_t *filewriter)
+sentry__filewriter_byte_count(const sentry_filewriter_t *filewriter)
 {
     return filewriter->byte_count;
 }

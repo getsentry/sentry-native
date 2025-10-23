@@ -55,7 +55,7 @@ SENTRY_TEST(basic_function_transport)
         SENTRY_LEVEL_INFO, "root", "Hello World!"));
 
     sentry_value_t obj = sentry_value_new_object();
-    // something that is not a uuid, as this will be forcibly changed
+    // something that is not a UUID, as this will be forcibly changed
     sentry_value_set_by_key(obj, "event_id", sentry_value_new_int32(1234));
     sentry_capture_event(obj);
 
@@ -161,12 +161,12 @@ SENTRY_TEST(crash_marker)
 
     SENTRY_TEST_OPTIONS_NEW(options);
 #ifdef SENTRY_PLATFORM_WINDOWS
-    sentry_options_set_database_pathw(options, database_path->path);
+    sentry_options_set_database_pathw(options, database_path->path_w);
 #else
     sentry_options_set_database_path(options, database_path->path);
 #endif
 
-    // There is no marker in the beginning but clearing returns true if the
+    // There is no marker in the beginning, but clearing returns true if the
     // marker doesn't exist (i.e., we get an `ENOENT` or `ERROR_FILE_NOT_FOUND`)
     TEST_CHECK(sentry__clear_crash_marker(options));
     // We can also verify this with has_crash_marker
@@ -199,12 +199,12 @@ SENTRY_TEST(crashed_last_run)
         sentry_options_free(options);
     }
 
-    const char *dsn_str = "https://foo@sentry.invalid/42";
     const char dsn[] = { 'h', 't', 't', 'p', 's', ':', '/', '/', 'f', 'o', 'o',
         '@', 's', 'e', 'n', 't', 'r', 'y', '.', 'i', 'n', 'v', 'a', 'l', 'i',
         'd', '/', '4', '2' };
 
     {
+        const char *dsn_str = "https://foo@sentry.invalid/42";
         SENTRY_TEST_OPTIONS_NEW(options);
         sentry_options_set_dsn_n(options, dsn, sizeof(dsn));
         TEST_CHECK_STRING_EQUAL(sentry_options_get_dsn(options), dsn_str);
@@ -260,13 +260,7 @@ SENTRY_TEST(capture_minidump_basic)
     sentry_path_t *minidump_path
         = sentry__path_join_str(dir, minidump_rel_path);
 
-#    if defined(SENTRY_PLATFORM_WINDOWS)
-    char *path_str = sentry__string_from_wstr(minidump_path->path);
-    const sentry_uuid_t event_id = sentry_capture_minidump(path_str);
-    sentry_free(path_str);
-#    else
     const sentry_uuid_t event_id = sentry_capture_minidump(minidump_path->path);
-#    endif
     TEST_CHECK(!sentry_uuid_is_nil(&event_id));
 
     sentry__path_free(minidump_path);
@@ -286,8 +280,9 @@ SENTRY_TEST(capture_minidump_null_path)
 
 SENTRY_TEST(capture_minidump_without_sentry_init)
 {
-    // if the path initialization was successful, but the SDK wasn't initialized
-    // capturing will fail at the point of acquiring the active options.
+    // if the path initialization was successful, but the SDK wasn't
+    // initialized, capturing will fail at the point of acquiring the active
+    // options.
     const sentry_uuid_t event_id
         = sentry_capture_minidump("irrelevant_minidump_path");
     TEST_CHECK(sentry_uuid_is_nil(&event_id));

@@ -14,6 +14,26 @@
 #include <stdlib.h>
 #include <string.h>
 
+#if defined(_WIN32) && defined(_MSC_VER)
+#    include <windows.h>
+int
+wmain(int argc, wchar_t *argv[])
+{
+    // Set console output to UTF-8 so `fwprintf` outputs the wides correctly
+    SetConsoleOutputCP(CP_UTF8);
+
+    if (argc != 2) {
+        fwprintf(stderr, L"Usage: %ls <envelope>\n", argv[0]);
+        return EXIT_FAILURE;
+    }
+
+    wchar_t *path = argv[1];
+    sentry_envelope_t *envelope = sentry_envelope_read_from_filew(path);
+    if (!envelope) {
+        fwprintf(stderr, L"ERROR: %ls (%ls)\n", path, _wcserror(errno));
+        return EXIT_FAILURE;
+    }
+#else
 int
 main(int argc, char *argv[])
 {
@@ -28,6 +48,7 @@ main(int argc, char *argv[])
         fprintf(stderr, "ERROR: %s (%s)\n", path, strerror(errno));
         return EXIT_FAILURE;
     }
+#endif
 
     sentry_value_t dsn = sentry_envelope_get_header(envelope, "dsn");
     sentry_value_t event_id = sentry_envelope_get_header(envelope, "event_id");
@@ -48,5 +69,9 @@ main(int argc, char *argv[])
 
     sentry_close();
 
+#if defined(_WIN32) && defined(_MSC_VER)
+    _wremove(path);
+#else
     remove(path);
+#endif
 }

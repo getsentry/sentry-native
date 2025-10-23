@@ -43,7 +43,7 @@ SENTRY_TEST(process_spawn)
     sentry_path_t *cmd
         = sentry__path_from_str("C:\\Windows\\System32\\cmd.exe");
     TEST_ASSERT(!!cmd);
-    sentry__process_spawn(cmd, L"/C", L"copy", exe->path, dst->path, NULL);
+    sentry__process_spawn(cmd, "/C", "copy", exe->path, dst->path, NULL);
     sentry__path_free(cmd);
 #    else
     // /bin/cp <src> <dst>

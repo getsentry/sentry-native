@@ -209,10 +209,21 @@ sentry__uint64_to_string(uint64_t val)
  * Create a utf-8 string from a Wide String.
  */
 char *sentry__string_from_wstr(const wchar_t *s);
+
+/**
+ * Create a utf-8 string from a Wide String with length.
+ * We cannot assume that string to be null-terminated.
+ */
+char *sentry__string_from_wstr_n(const wchar_t *s, size_t s_len);
 /**
  * Convert a normal string to a Wide String.
  */
 wchar_t *sentry__string_to_wstr(const char *s);
+
+/**
+ * Implements a wide string clone/dup using our allocator.
+ */
+wchar_t *sentry__string_clone_wstr(const wchar_t *s);
 #endif
 
 /**
