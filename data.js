@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1761253072303,
+  "lastUpdate": 1761253114148,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -20410,6 +20410,66 @@ window.BENCHMARK_DATA = {
             "value": 19.942300000138857,
             "unit": "ms",
             "extra": "Min 14.931ms\nMax 25.736ms\nMean 20.997ms\nStdDev 4.378ms\nMedian 19.942ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "mischan@abovevacant.com",
+            "name": "Mischan Toosarani-Hausberger",
+            "username": "supervacuus"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "853bf2d98a5b55e2300de8f74a05d010ed929aa9",
+          "message": "fix(win): make narrow utf-8 the canoncial path encoding (#1413)\n\n* fix: make narrow utf-8 canonical across platforms\n\n* fix unix path effects\n\n* sentry__filewriter_byte_count now takes a const filewriter\n* sentry__path_filename always returns a char.\n\n* provide a platform-dependent accessor for the crashpad backend\n\n* eliminate double-free sentry__path_from_str_owned.\n\n* use correct format specifier for cli in debug logger for spawn\n\n* Apply suggestion from @JoshuaMoelans\n\nCo-authored-by: JoshuaMoelans <60878493+JoshuaMoelans@users.noreply.github.com>\n\n* introduce `expect_failure` parameter to integration test run()\n\n* reintroduce wide string comparisons in unit-tests\n\n* update changelog\n\n* clarify encoding in public header and clean up inline docs generally\n\n* clarify encoding in the path header\n\n* clarify remove behavior in the path header and fix windows implementation\n\n* apply review feedback and various cleanups\n\n* clean up\n\nsentry__path_append_str()\nsentry__path_absolute()\nsentry__path_clone()\n\n* update changelog\n\n* format\n\n* update breakpad\n\n* fix \"unknown command tag name\"\n\n* update breakpad\n\n* update crashpad\n\n* update changelog\n\n* fix is_last_error_path_not_found() definition\n\n* update breakpad to handler branch\n\n* fixup changelog after master rebase\n\n* add NULL check to sentry__string_clone_wstr\n\n* clean up crash_marker path strin accessor\n\n* add more `const` (#1422)\n\n* Update include/sentry.h\n\nCo-authored-by: JoshuaMoelans <60878493+JoshuaMoelans@users.noreply.github.com>\n\n* Update include/sentry.h\n\nCo-authored-by: JoshuaMoelans <60878493+JoshuaMoelans@users.noreply.github.com>\n\n* limit system allocated `_wfullpath()` buffer to the `sentry__path_absolute()` scope\n\nuse `free()` internally in the function, and\nclone the resulting wide-string at the end so we can be sure that the absolute path being passed around is not using system allocated buffer.\n\n* document breaking change\n\n* fix(logs): add `expect_failure` to logs_on_crash tests (#1421)\n\n* add check for unexpected fail\n\n* refactor logs tests to use expect_failure\n\n* add missing `expect_failure` for logger tests\n\n* fix copy mistake\n\n* infer check `expect_failure` and remove from passed-in kwargs\n\n* remove check from run_benchmark\n\n* add check for `check` in kwargs\n\n* Try to run the entire test-suite against a UTF-8 CWD\n\n* realign with crashpad getsentry branch like master\n\n* make the external crashreporter fixture wide-string aware on Windows.\n\n* clean up external crashreporter fixture (fwprintf + SetConsoleOutputCP instead of explict wide to multibyte conversion)\n\n* use wmain in the external crash reporter fixture only when building for _MSC_VER\n\n* wait at the end of the WER integration tests that no WerFault.exe instances are still running\n\n* clean up wide-to-multibyte string handling\n\n---------\n\nCo-authored-by: JoshuaMoelans <60878493+JoshuaMoelans@users.noreply.github.com>",
+          "timestamp": "2025-10-23T22:53:39+02:00",
+          "tree_id": "5cc4f94c0935a1cd1ff626ba9eeb36e76630043d",
+          "url": "https://github.com/getsentry/sentry-native/commit/853bf2d98a5b55e2300de8f74a05d010ed929aa9"
+        },
+        "date": 1761253107692,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 10.923599999983935,
+            "unit": "ms",
+            "extra": "Min 10.292ms\nMax 13.495ms\nMean 11.364ms\nStdDev 1.274ms\nMedian 10.924ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 10.213800000030915,
+            "unit": "ms",
+            "extra": "Min 10.054ms\nMax 11.365ms\nMean 10.631ms\nStdDev 0.663ms\nMedian 10.214ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 25.978900000040994,
+            "unit": "ms",
+            "extra": "Min 25.243ms\nMax 26.167ms\nMean 25.747ms\nStdDev 0.423ms\nMedian 25.979ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.012999999967178155,
+            "unit": "ms",
+            "extra": "Min 0.013ms\nMax 0.016ms\nMean 0.014ms\nStdDev 0.002ms\nMedian 0.013ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.4207000000064909,
+            "unit": "ms",
+            "extra": "Min 0.378ms\nMax 0.537ms\nMean 0.450ms\nStdDev 0.076ms\nMedian 0.421ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 14.303900000015801,
+            "unit": "ms",
+            "extra": "Min 13.438ms\nMax 14.809ms\nMean 14.268ms\nStdDev 0.514ms\nMedian 14.304ms"
           }
         ]
       }
