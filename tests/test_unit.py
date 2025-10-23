@@ -5,6 +5,8 @@ from .conditions import has_http
 
 
 def test_unit(cmake, unittest):
+    if unittest in ["basic_transport_thread_name"]:
+        pytest.skip("excluded from unit test-suite")
     cwd = cmake(
         ["sentry_test_unit"],
         {"SENTRY_BACKEND": "none", "SENTRY_TRANSPORT": "none"},
@@ -27,6 +29,8 @@ def test_unit_transport(cmake, unittest):
 
 
 def test_unit_with_test_path(cmake, unittest):
+    if unittest in ["basic_transport_thread_name"]:
+        pytest.skip("excluded from unit test-suite")
     cwd = cmake(
         ["sentry_test_unit"],
         {"SENTRY_BACKEND": "none", "SENTRY_TRANSPORT": "none"},
