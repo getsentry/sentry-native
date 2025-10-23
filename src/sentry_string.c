@@ -89,7 +89,8 @@ sentry__string_from_wstr(const wchar_t *s)
     if (!s) {
         return NULL;
     }
-    const int len = WideCharToMultiByte(CP_UTF8, 0, s, -1, NULL, 0, NULL, NULL);
+    const int len = WideCharToMultiByte(
+        CP_UTF8, WC_ERR_INVALID_CHARS, s, -1, NULL, 0, NULL, NULL);
     if (len <= 0) {
         return NULL;
     }
@@ -97,7 +98,12 @@ sentry__string_from_wstr(const wchar_t *s)
     if (!rv) {
         return NULL;
     }
-    WideCharToMultiByte(CP_UTF8, 0, s, -1, rv, len, NULL, NULL);
+    const int written = WideCharToMultiByte(
+        CP_UTF8, WC_ERR_INVALID_CHARS, s, -1, rv, len, NULL, NULL);
+    if (written != len) {
+        sentry_free(rv);
+        return NULL;
+    }
     return rv;
 }
 
@@ -107,9 +113,17 @@ sentry__string_from_wstr_n(const wchar_t *s, size_t s_len)
     if (!s) {
         return NULL;
     }
+    if (s_len == 0) {
+        char *rv = sentry_malloc(1);
+        if (!rv) {
+            return NULL;
+        }
+        rv[0] = '\0';
+        return rv;
+    }
 
-    const int len
-        = WideCharToMultiByte(CP_UTF8, 0, s, (int)s_len, NULL, 0, NULL, NULL);
+    const int len = WideCharToMultiByte(
+        CP_UTF8, WC_ERR_INVALID_CHARS, s, (int)s_len, NULL, 0, NULL, NULL);
     if (len <= 0) {
         return NULL;
     }
@@ -119,7 +133,12 @@ sentry__string_from_wstr_n(const wchar_t *s, size_t s_len)
         return NULL;
     }
 
-    WideCharToMultiByte(CP_UTF8, 0, s, (int)s_len, rv, len, NULL, NULL);
+    const int written = WideCharToMultiByte(
+        CP_UTF8, WC_ERR_INVALID_CHARS, s, (int)s_len, rv, len, NULL, NULL);
+    if (written != len) {
+        sentry_free(rv);
+        return NULL;
+    }
     rv[len] = '\0';
     return rv;
 }
@@ -127,7 +146,11 @@ sentry__string_from_wstr_n(const wchar_t *s, size_t s_len)
 wchar_t *
 sentry__string_to_wstr(const char *s)
 {
-    const int len = MultiByteToWideChar(CP_UTF8, 0, s, -1, NULL, 0);
+    if (!s) {
+        return NULL;
+    }
+    const int len
+        = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, s, -1, NULL, 0);
     if (len <= 0) {
         return NULL;
     }
@@ -135,23 +158,27 @@ sentry__string_to_wstr(const char *s)
     if (!rv) {
         return NULL;
     }
-    MultiByteToWideChar(CP_UTF8, 0, s, -1, rv, len);
+    const int written
+        = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, s, -1, rv, len);
+    if (written != len) {
+        sentry_free(rv);
+        return NULL;
+    }
     return rv;
 }
 
 wchar_t *
-sentry__string_clone_wstr(const wchar_t *str)
+sentry__string_clone_wstr(const wchar_t *s)
 {
-    if (!str) {
+    if (!s) {
         return NULL;
     }
-    const size_t str_len = wcslen(str);
-    wchar_t *clone = sentry_malloc(sizeof(wchar_t) * (str_len + 1));
+    const size_t s_len = wcslen(s) + 1;
+    wchar_t *clone = sentry_malloc(sizeof(wchar_t) * s_len);
     if (!clone) {
         return NULL;
     }
-    wmemcpy(clone, str, str_len);
-    clone[str_len] = L'\0';
+    wmemcpy(clone, s, s_len);
     return clone;
 }
 #endif
