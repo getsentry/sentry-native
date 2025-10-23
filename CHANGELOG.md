@@ -5,6 +5,7 @@
 **Fixes**:
 
 - Add logs flush on crash. This is not available for macOS with the `crashpad` backend. ([#1404](https://github.com/getsentry/sentry-native/pull/1404))
+- Fix AOT interop with managed .NET runtimes. ([#1392](https://github.com/getsentry/sentry-native/pull/1392))
 
 **Internal**:
 
