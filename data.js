@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1761217061844,
+  "lastUpdate": 1761217189616,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -19870,6 +19870,66 @@ window.BENCHMARK_DATA = {
             "value": 14.725699999985409,
             "unit": "ms",
             "extra": "Min 14.126ms\nMax 17.230ms\nMean 15.168ms\nStdDev 1.280ms\nMedian 14.726ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "6349682+vaind@users.noreply.github.com",
+            "name": "Ivan Dlugos",
+            "username": "vaind"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "0a0d729324ae2c602d97221cc24024edf7dcc847",
+          "message": "chore(ci): Migrate danger workflow from v2 to v3 (#1412)\n\nConverts danger workflow from reusable workflow (v2) to composite\naction (v3). This is a breaking change that requires restructuring\nthe job definition.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-authored-by: Claude <noreply@anthropic.com>",
+          "timestamp": "2025-10-23T12:53:52+02:00",
+          "tree_id": "11abfea50785b1069a2f8d1177e977c1ccb9ab60",
+          "url": "https://github.com/getsentry/sentry-native/commit/0a0d729324ae2c602d97221cc24024edf7dcc847"
+        },
+        "date": 1761217180088,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 11.097500000005311,
+            "unit": "ms",
+            "extra": "Min 10.245ms\nMax 11.994ms\nMean 11.136ms\nStdDev 0.689ms\nMedian 11.098ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 13.924799999927018,
+            "unit": "ms",
+            "extra": "Min 10.774ms\nMax 20.903ms\nMean 14.277ms\nStdDev 4.057ms\nMedian 13.925ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 31.57910000004449,
+            "unit": "ms",
+            "extra": "Min 29.249ms\nMax 33.890ms\nMean 31.687ms\nStdDev 1.770ms\nMedian 31.579ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.020700000050055678,
+            "unit": "ms",
+            "extra": "Min 0.015ms\nMax 0.026ms\nMean 0.020ms\nStdDev 0.004ms\nMedian 0.021ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.42220000000270375,
+            "unit": "ms",
+            "extra": "Min 0.384ms\nMax 0.484ms\nMean 0.426ms\nStdDev 0.038ms\nMedian 0.422ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 19.355000000018663,
+            "unit": "ms",
+            "extra": "Min 18.781ms\nMax 21.534ms\nMean 19.799ms\nStdDev 1.151ms\nMedian 19.355ms"
           }
         ]
       }
