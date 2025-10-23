@@ -39,6 +39,14 @@ class CMake:
         # ensure that there are no left-overs from previous runs
         shutil.rmtree(build_tmp_path / ".sentry-native", ignore_errors=True)
 
+        # Inject a sub-path into the temporary build directory as the CWD for all tests to verify UTF-8 path handling.
+        if os.environ.get("UTF8_TEST_CWD"):
+            # this is Thai and translates to "this is a test directory"
+            utf8_subpath = build_tmp_path / "นี่คือไดเร็กทอรีทดสอบ"
+            shutil.rmtree(utf8_subpath, ignore_errors=True)
+            shutil.copytree(build_tmp_path, utf8_subpath, dirs_exist_ok=True)
+            return utf8_subpath
+
         return build_tmp_path
 
     def destroy(self):
