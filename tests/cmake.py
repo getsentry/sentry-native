@@ -7,6 +7,7 @@ import platform
 from pathlib import Path
 
 import pytest
+from tests import format_error_output, run_with_capture_on_failure
 
 
 class CMake:
@@ -97,7 +98,9 @@ class CMake:
                         "--merge",
                         coveragedir,
                         *coverage_dirs,
-                    ]
+                    ],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
                 )
 
 
@@ -222,10 +225,12 @@ def cmake(cwd, targets, options=None, cflags=None):
 
     config_cmd.append(source_dir)
 
-    print("\n{} > {}".format(cwd, " ".join(config_cmd)), flush=True)
+    # Run with output capture, only print on failure
     try:
-        subprocess.run(config_cmd, cwd=cwd, env=env, check=True)
-    except subprocess.CalledProcessError:
+        run_with_capture_on_failure(
+            config_cmd, cwd, env, "CMAKE CONFIGURE FAILED", pytest.fail.Exception
+        )
+    except pytest.fail.Exception:
         raise pytest.fail.Exception("cmake configure failed") from None
 
     # CodeChecker invocations and options are documented here:
@@ -247,10 +252,12 @@ def cmake(cwd, targets, options=None, cflags=None):
             " ".join(buildcmd),
         ]
 
-    print("{} > {}".format(cwd, " ".join(buildcmd)), flush=True)
+    # Run with output capture, only print on failure
     try:
-        subprocess.run(buildcmd, cwd=cwd, check=True)
-    except subprocess.CalledProcessError:
+        run_with_capture_on_failure(
+            buildcmd, cwd, None, "CMAKE BUILD FAILED", pytest.fail.Exception
+        )
+    except pytest.fail.Exception:
         raise pytest.fail.Exception("cmake build failed") from None
 
     # check if the DLL and EXE artifacts contain version-information
@@ -308,4 +315,6 @@ def cmake(cwd, targets, options=None, cflags=None):
             ],
             cwd=cwd,
             check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
         )
