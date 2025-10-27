@@ -56,6 +56,14 @@ sentry_transport_t *sentry__transport_new_default(void);
 size_t sentry__transport_dump_queue(
     sentry_transport_t *transport, sentry_run_t *run);
 
+#ifdef SENTRY_UNITTEST
+/**
+ * Test helper function to get the bgworker from a transport.
+ * Only available in unit tests and only works for HTTP transports.
+ */
+void *sentry__transport_get_bgworker(sentry_transport_t *transport);
+#endif
+
 typedef struct sentry_prepared_http_header_s {
     const char *key;
     char *value;

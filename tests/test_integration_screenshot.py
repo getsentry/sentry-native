@@ -48,8 +48,7 @@ def test_capture_screenshot(cmake, httpserver, build_args):
 
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
 
-    child = run(tmp_path, "sentry_screenshot", ["crash"], env=env)
-    assert child.returncode
+    run(tmp_path, "sentry_screenshot", ["crash"], expect_failure=True, env=env)
 
     assert_screenshot_file(tmp_path / ".sentry-native")
 
@@ -72,8 +71,7 @@ def test_capture_screenshot_crashpad(cmake, httpserver, run_args):
     httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
 
     with httpserver.wait(timeout=10) as waiting:
-        child = run(tmp_path, "sentry_screenshot", run_args, env=env)
-        assert child.returncode
+        run(tmp_path, "sentry_screenshot", run_args, expect_failure=True, env=env)
 
     assert waiting.result
 

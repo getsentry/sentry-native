@@ -128,6 +128,11 @@ endif()
 # backends
 if(SENTRY_BACKEND_CRASHPAD)
 	target_compile_definitions(sentry PRIVATE SENTRY_BACKEND_CRASHPAD)
+	if(MSVC)
+		target_compile_options(sentry PRIVATE
+			$<$<COMPILE_LANGUAGE:C,CXX>:/wd4127> # Conditional expression is constant.
+		)
+	endif()
 	sentry_target_sources_cwd(sentry
 		backends/sentry_backend_crashpad.cpp
 	)
