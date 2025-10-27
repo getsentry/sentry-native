@@ -533,10 +533,11 @@ make_signal_event(const struct signal_slot *sig_slot,
         = sentry_unwind_stack_from_ucontext(uctx, &backtrace[0], MAX_FRAMES);
     SENTRY_DEBUGF(
         "captured backtrace from ucontext with %lu frames", frame_count);
-    // if unwinding from a ucontext didn't yield any results and we haven't
-    // chained signal handlers, try again with a direct unwind. this is most
-    // likely the case when using `libbacktrace`, since that does not allow to
-    // unwind from a ucontext at all.
+    // if unwinding from a ucontext didn't yield any results, try again with a
+    // direct unwind. this is most likely the case when using `libbacktrace`,
+    // since that does not allow to unwind from a ucontext at all. the fallback
+    // is skipped with the "chain at start" strategy because `libbacktrace`
+    // crashes, and would likely not provide helpful information anyway.
     if (!frame_count && strategy != SENTRY_HANDLER_STRATEGY_CHAIN_AT_START) {
         frame_count = sentry_unwind_stack(NULL, &backtrace[0], MAX_FRAMES);
     }
