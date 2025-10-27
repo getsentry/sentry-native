@@ -352,18 +352,10 @@ def test_crashpad_wer_crash(cmake, httpserver, run_args):
         pytest.param(
             ["attach-after-init"],
             {},
-            marks=pytest.mark.skipif(
-                sys.platform == "darwin",
-                reason="crashpad doesn't support dynamic attachments on macOS",
-            ),
         ),
         pytest.param(
             ["attachment", "attach-after-init", "clear-attachments"],
             {},
-            marks=pytest.mark.skipif(
-                sys.platform == "darwin",
-                reason="crashpad doesn't support dynamic attachments on macOS",
-            ),
         ),
     ],
 )
