@@ -6,6 +6,7 @@
 
 - Auto-populate `event.user.id` with a persistent per-installation UUID when no explicit user ID is set. ([#1661](https://github.com/getsentry/sentry-native/pull/1661))
 - Crashpad: add error log for oversized envelopes (HTTP 413 Content Too Large). ([#1706](https://github.com/getsentry/sentry-native/pull/1706), [crashpad#155](https://github.com/getsentry/crashpad/pull/155))
+- Crashpad: support modifying attachments after `sentry_init` on macOS. ([#1705](https://github.com/getsentry/sentry-native/pull/1705), [crashpad#153](https://github.com/getsentry/crashpad/pull/153))
 
 **Fixes**:
 
