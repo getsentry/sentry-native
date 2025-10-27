@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1761582485747,
+  "lastUpdate": 1761582541356,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -20530,6 +20530,66 @@ window.BENCHMARK_DATA = {
             "value": 14.303900000015801,
             "unit": "ms",
             "extra": "Min 13.438ms\nMax 14.809ms\nMean 14.268ms\nStdDev 0.514ms\nMedian 14.304ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "9895a5c3ffab4e59e0c8020484cdd5dbc648666d",
+          "message": "fix: AOT interop with managed .NET runtimes (#1392)\n\nCo-authored-by: Mischan Toosarani-Hausberger <mischan@abovevacant.com>",
+          "timestamp": "2025-10-27T17:24:06+01:00",
+          "tree_id": "f6429b8c64e936896eac6ea6065711f2cdd03763",
+          "url": "https://github.com/getsentry/sentry-native/commit/9895a5c3ffab4e59e0c8020484cdd5dbc648666d"
+        },
+        "date": 1761582535694,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 11.630299999978888,
+            "unit": "ms",
+            "extra": "Min 11.230ms\nMax 12.684ms\nMean 11.826ms\nStdDev 0.643ms\nMedian 11.630ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 10.175600000025042,
+            "unit": "ms",
+            "extra": "Min 10.159ms\nMax 10.500ms\nMean 10.268ms\nStdDev 0.148ms\nMedian 10.176ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 32.40640000001349,
+            "unit": "ms",
+            "extra": "Min 29.951ms\nMax 56.282ms\nMean 36.888ms\nStdDev 10.954ms\nMedian 32.406ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.01629999997021514,
+            "unit": "ms",
+            "extra": "Min 0.016ms\nMax 0.020ms\nMean 0.017ms\nStdDev 0.002ms\nMedian 0.016ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.4543000000012398,
+            "unit": "ms",
+            "extra": "Min 0.425ms\nMax 0.499ms\nMean 0.461ms\nStdDev 0.034ms\nMedian 0.454ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 15.52070000002459,
+            "unit": "ms",
+            "extra": "Min 15.365ms\nMax 16.115ms\nMean 15.668ms\nStdDev 0.336ms\nMedian 15.521ms"
           }
         ]
       }
