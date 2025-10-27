@@ -11,6 +11,7 @@
 - Add logs flush on crash. This is not available for macOS with the `crashpad` backend. ([#1404](https://github.com/getsentry/sentry-native/pull/1404))
 - Make narrow UTF-8 the canonical path encoding on Windows. ([#1413](https://github.com/getsentry/sentry-native/pull/1413))
 - Re-add setting thread name for Windows transport. ([#1424](https://github.com/getsentry/sentry-native/pull/1424))
+- Fix AOT interop with managed .NET runtimes. ([#1392](https://github.com/getsentry/sentry-native/pull/1392))
 
 **Internal**:
 
