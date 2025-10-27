@@ -742,7 +742,8 @@ crashpad_backend_prune_database(sentry_backend_t *backend)
     crashpad::PruneCrashReportDatabase(data->db, &condition);
 }
 
-#if defined(SENTRY_PLATFORM_WINDOWS) || defined(SENTRY_PLATFORM_LINUX)
+#if defined(SENTRY_PLATFORM_WINDOWS) || defined(SENTRY_PLATFORM_LINUX)         \
+    || defined(SENTRY_PLATFORM_MACOS)
 static bool
 ensure_unique_path(sentry_attachment_t *attachment)
 {
@@ -835,7 +836,8 @@ sentry__backend_new(void)
     backend->user_consent_changed_func = crashpad_backend_user_consent_changed;
     backend->get_last_crash_func = crashpad_backend_last_crash;
     backend->prune_database_func = crashpad_backend_prune_database;
-#if defined(SENTRY_PLATFORM_WINDOWS) || defined(SENTRY_PLATFORM_LINUX)
+#if defined(SENTRY_PLATFORM_WINDOWS) || defined(SENTRY_PLATFORM_LINUX)         \
+    || defined(SENTRY_PLATFORM_MACOS)
     backend->add_attachment_func = crashpad_backend_add_attachment;
     backend->remove_attachment_func = crashpad_backend_remove_attachment;
 #endif
