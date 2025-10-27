@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1761253114148,
+  "lastUpdate": 1761582485747,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -6822,6 +6822,66 @@ window.BENCHMARK_DATA = {
             "value": 1.4738170000327955,
             "unit": "ms",
             "extra": "Min 1.462ms\nMax 1.483ms\nMean 1.475ms\nStdDev 0.009ms\nMedian 1.474ms\nCPU 0.384ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "9895a5c3ffab4e59e0c8020484cdd5dbc648666d",
+          "message": "fix: AOT interop with managed .NET runtimes (#1392)\n\nCo-authored-by: Mischan Toosarani-Hausberger <mischan@abovevacant.com>",
+          "timestamp": "2025-10-27T17:24:06+01:00",
+          "tree_id": "f6429b8c64e936896eac6ea6065711f2cdd03763",
+          "url": "https://github.com/getsentry/sentry-native/commit/9895a5c3ffab4e59e0c8020484cdd5dbc648666d"
+        },
+        "date": 1761582484230,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 0.8903709999970033,
+            "unit": "ms",
+            "extra": "Min 0.866ms\nMax 0.929ms\nMean 0.891ms\nStdDev 0.026ms\nMedian 0.890ms\nCPU 0.890ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.9010500000101729,
+            "unit": "ms",
+            "extra": "Min 0.875ms\nMax 0.936ms\nMean 0.901ms\nStdDev 0.023ms\nMedian 0.901ms\nCPU 0.899ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 3.472919999978785,
+            "unit": "ms",
+            "extra": "Min 3.324ms\nMax 3.632ms\nMean 3.475ms\nStdDev 0.111ms\nMedian 3.473ms\nCPU 1.811ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.014397000001054039,
+            "unit": "ms",
+            "extra": "Min 0.013ms\nMax 0.016ms\nMean 0.014ms\nStdDev 0.001ms\nMedian 0.014ms\nCPU 0.013ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.02948499999888554,
+            "unit": "ms",
+            "extra": "Min 0.029ms\nMax 0.103ms\nMean 0.044ms\nStdDev 0.033ms\nMedian 0.029ms\nCPU 0.037ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 2.2058490000063102,
+            "unit": "ms",
+            "extra": "Min 2.170ms\nMax 2.320ms\nMean 2.238ms\nStdDev 0.074ms\nMedian 2.206ms\nCPU 0.694ms"
           }
         ]
       }
