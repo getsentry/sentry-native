@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 set -eux
 
-#if [ "$(uname -s)" != "Linux" ]; then
-#    echo "Please use the GitHub Action."
-#    exit 1
-#fi
+if [ "$(uname -s)" != "Linux" ]; then
+    echo "Please use the GitHub Action."
+    exit 1
+fi
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd $SCRIPT_DIR/..
