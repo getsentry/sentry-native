@@ -995,6 +995,35 @@ typedef enum {
 } sentry_handler_strategy_t;
 
 /**
+ * The minidump capture mode for the native backend.
+ *
+ * This controls how much memory is captured in crash minidumps.
+ */
+typedef enum {
+    /**
+     * Capture only stack memory (~100KB-1MB).
+     * Fastest and smallest. Suitable for production environments with
+     * high crash volumes. Provides basic crash analysis.
+     */
+    SENTRY_MINIDUMP_MODE_STACK_ONLY = 0,
+
+    /**
+     * Capture stack + heap around crash site (~5-10MB).
+     * Balanced mode providing good crash analysis without excessive overhead.
+     * This is the default and recommended for most applications.
+     */
+    SENTRY_MINIDUMP_MODE_SMART = 1,
+
+    /**
+     * Capture full process memory (10s-100s MB).
+     * Most comprehensive debugging information but slowest to generate
+     * and upload. Best for development/staging environments or critical
+     * crash investigations.
+     */
+    SENTRY_MINIDUMP_MODE_FULL = 2,
+} sentry_minidump_mode_t;
+
+/**
  * Creates a new options struct.
  * Can be freed with `sentry_options_free`.
  */
@@ -1617,6 +1646,22 @@ SENTRY_EXPERIMENTAL_API int sentry_set_thread_stack_guarantee(
  */
 SENTRY_API void sentry_options_set_system_crash_reporter_enabled(
     sentry_options_t *opts, int enabled);
+
+/**
+ * Sets the minidump capture mode for the native backend.
+ *
+ * This controls how much memory is captured in crash minidumps.
+ * See `sentry_minidump_mode_t` for available modes.
+ *
+ * Larger captures provide more debugging information but take longer to generate
+ * and upload. For production, `SENTRY_MINIDUMP_MODE_STACK_ONLY` or
+ * `SENTRY_MINIDUMP_MODE_SMART` are recommended.
+ *
+ * This setting only has an effect when using the `native` backend.
+ * Default is `SENTRY_MINIDUMP_MODE_SMART`.
+ */
+SENTRY_API void sentry_options_set_minidump_mode(
+    sentry_options_t *opts, sentry_minidump_mode_t mode);
 
 /**
  * Enables a wait for the crash report upload to be finished before shutting

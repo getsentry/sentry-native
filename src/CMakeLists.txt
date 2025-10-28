@@ -152,6 +152,12 @@ elseif(SENTRY_BACKEND_INPROC)
 	sentry_target_sources_cwd(sentry
 		backends/sentry_backend_inproc.c
 	)
+elseif(SENTRY_BACKEND_NATIVE)
+	target_compile_definitions(sentry PRIVATE SENTRY_BACKEND_NATIVE)
+	sentry_target_sources_cwd(sentry
+		backends/sentry_backend_native.c
+	)
+	# Additional native backend sources are added via add_subdirectory in main CMakeLists.txt
 elseif(SENTRY_BACKEND_NONE)
 	sentry_target_sources_cwd(sentry
 		backends/sentry_backend_none.c

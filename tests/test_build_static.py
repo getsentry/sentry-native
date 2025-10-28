@@ -85,3 +85,14 @@ def test_static_breakpad(cmake):
             "BUILD_SHARED_LIBS": "OFF",
         },
     )
+
+
+def test_static_native(cmake):
+    cmake(
+        ["sentry_example"],
+        {
+            "SENTRY_BACKEND": "native",
+            "SENTRY_TRANSPORT": "none",
+            "BUILD_SHARED_LIBS": "OFF",
+        },
+    )
