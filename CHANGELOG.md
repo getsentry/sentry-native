@@ -8,7 +8,7 @@
 
 **Features**:
 
-- Support optional usage of stack pointer for captured stack frame ([#1427](https://github.com/getsentry/sentry-native/pull/1427))
+- Add an option to use the stack pointer as an upper limit for the stack capture range in `crashpad` on Windows. This is useful for targets like Proton/Wine, where one can't rely on the TEB-derived upper bound being correctly maintained by the system, leading to overly large stack captures per thread. ([#1427](https://github.com/getsentry/sentry-native/pull/1427), [crashpad#137](https://github.com/getsentry/crashpad/pull/137))
 
 **Fixes**:
 
