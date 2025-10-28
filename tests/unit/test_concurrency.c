@@ -38,6 +38,7 @@ init_framework(long *called)
     sentry__mutex_lock(&g_test_check_mutex);
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry__mutex_unlock(&g_test_check_mutex);
+
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
 
     sentry_transport_t *transport
@@ -48,6 +49,7 @@ init_framework(long *called)
     sentry_options_set_release(options, "prod");
     sentry_options_set_require_user_consent(options, false);
     sentry_options_set_auto_session_tracking(options, true);
+
     sentry_init(options);
 }
 
@@ -107,6 +109,7 @@ SENTRY_TEST(concurrent_init)
         sentry__thread_init(&threads[i]);
         sentry__thread_spawn(&threads[i], &thread_worker, &called);
     }
+
     for (size_t i = 0; i < THREADS_NUM; i++) {
         sentry__thread_join(threads[i]);
         sentry__thread_free(&threads[i]);

@@ -1734,3 +1734,76 @@ def test_logs_with_custom_attributes(cmake, httpserver):
     assert "sentry.sdk.name" in attributes_2
     assert attributes_2["sentry.sdk.name"]["value"] == "custom-sdk-name"
     assert attributes_2["sentry.sdk.name"]["type"] == "string"
+
+
+def test_native_crash_http(cmake, httpserver):
+    """Test native backend crash handling with HTTP transport"""
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
+
+    httpserver.expect_request(
+        "/api/123456/envelope/",
+        headers={"x-sentry-auth": auth_header},
+    ).respond_with_data("OK")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "attachment", "crash"],
+        expect_failure=True,
+        env=env,
+    )
+
+    # Restart to send the crash
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "no-setup"],
+        env=env,
+    )
+
+    assert len(httpserver.log) >= 1
+    req = httpserver.log[0][0]
+    envelope = Envelope.deserialize(req.get_data())
+
+    assert_minidump(envelope)
+    assert_breadcrumb(envelope)
+    assert_attachment(envelope)
+
+
+def test_native_logs_on_crash(cmake, httpserver):
+    """Test that logs are captured with native backend crashes"""
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
+
+    httpserver.expect_request(
+        "/api/123456/envelope/",
+        headers={"x-sentry-auth": auth_header},
+    ).respond_with_data("OK")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "enable-logs", "capture-log", "crash"],
+        expect_failure=True,
+        env=env,
+    )
+
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "no-setup"],
+        env=env,
+    )
+
+    # we expect 1 envelope with the log, and 1 for the crash
+    assert len(httpserver.log) == 2
+    logs_request, crash_request = split_log_request_cond(
+        httpserver.log, is_logs_envelope
+    )
+    logs = logs_request.get_data()
+
+    logs_envelope = Envelope.deserialize(logs)
+
+    assert logs_envelope is not None
+    assert_logs(logs_envelope, 1)
