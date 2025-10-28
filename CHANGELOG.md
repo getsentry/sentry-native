@@ -5,6 +5,7 @@
 **Breaking changes**:
 
 - If you use a narrow string path interface (for instance, `sentry_options_set_database_path()`) on _Windows_ rather than one of the wide string variants (`sentry_options_set_database_pathw()`), then the expected encoding is now UTF-8. ([#1413](https://github.com/getsentry/sentry-native/pull/1413))
+- Android NDK: `SentryNdk.init(NdkOptions)` now returns an `int` (0 success, non-zero failure) instead of `void`, exposing the result of `sentry_init()`. ([#1430](https://github.com/getsentry/sentry-native/pull/1430))
 
 **Fixes**:
 
