@@ -117,6 +117,7 @@ def parse_logger_output(output):
                 ),
             ],
         ),
+        "native",  # Native backend always available
     ],
 )
 def test_logger_enabled_when_crashed(backend, cmake):
@@ -157,6 +158,7 @@ def test_logger_enabled_when_crashed(backend, cmake):
                 not has_crashpad, reason="crashpad backend not available"
             ),
         ),
+        "native",  # Native backend always available
     ],
 )
 def test_logger_disabled_when_crashed(backend, cmake):

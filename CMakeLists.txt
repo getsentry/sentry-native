@@ -219,9 +219,12 @@ else()
 	set(SENTRY_DEFAULT_BACKEND "inproc")
 endif()
 
+# Native backend is available on all platforms as an alternative
+# It's lightweight (~5K LOC) and supports all platforms
+
 if(NOT DEFINED SENTRY_BACKEND)
 	set(SENTRY_BACKEND ${SENTRY_DEFAULT_BACKEND} CACHE STRING
-		"The sentry backend responsible for reporting crashes, can be either 'none', 'inproc', 'breakpad' or 'crashpad'.")
+		"The sentry backend responsible for reporting crashes, can be either 'none', 'inproc', 'breakpad', 'crashpad', or 'native'.")
 endif()
 
 if(SENTRY_BACKEND STREQUAL "crashpad")
@@ -230,6 +233,8 @@ elseif(SENTRY_BACKEND STREQUAL "inproc")
 	set(SENTRY_BACKEND_INPROC TRUE)
 elseif(SENTRY_BACKEND STREQUAL "breakpad")
 	set(SENTRY_BACKEND_BREAKPAD TRUE)
+elseif(SENTRY_BACKEND STREQUAL "native")
+	set(SENTRY_BACKEND_NATIVE TRUE)
 elseif(SENTRY_BACKEND STREQUAL "none")
 	set(SENTRY_BACKEND_NONE TRUE)
 elseif(SENTRY_BACKEND STREQUAL "custom")
@@ -237,7 +242,7 @@ elseif(SENTRY_BACKEND STREQUAL "custom")
 		"SENTRY_BACKEND set to 'custom' - a custom backend source must be added to the compilation unit by the downstream SDK.")
 else()
 	message(FATAL_ERROR
-		"SENTRY_BACKEND must be one of 'crashpad', 'inproc', 'breakpad' or 'none'.
+		"SENTRY_BACKEND must be one of 'crashpad', 'inproc', 'breakpad', 'native', or 'none'.
 		Downstream SDKs may choose to provide their own by specifying 'custom'.")
 endif()
 
@@ -729,6 +734,18 @@ elseif(SENTRY_BACKEND_BREAKPAD)
 	endif()
 elseif(SENTRY_BACKEND_INPROC)
 	target_compile_definitions(sentry PRIVATE SENTRY_WITH_INPROC_BACKEND)
+elseif(SENTRY_BACKEND_NATIVE)
+	target_compile_definitions(sentry PRIVATE SENTRY_WITH_NATIVE_BACKEND)
+
+	# Add native backend subdirectory
+	add_subdirectory(src/backends/native)
+
+	# The native backend requires C11 for atomics
+	set_property(TARGET sentry PROPERTY C_STANDARD 11)
+
+	if(DEFINED SENTRY_FOLDER)
+		# Native backend doesn't have separate targets to organize
+	endif()
 endif()
 
 option(SENTRY_INTEGRATION_QT "Build Qt integration")
