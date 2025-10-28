@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1761660452349,
+  "lastUpdate": 1761660524590,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -20770,6 +20770,66 @@ window.BENCHMARK_DATA = {
             "value": 15.52070000002459,
             "unit": "ms",
             "extra": "Min 15.365ms\nMax 16.115ms\nMean 15.668ms\nStdDev 0.336ms\nMedian 15.521ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "amir.mujacic@sentry.io",
+            "name": "Amir Mujacic",
+            "username": "mujacica"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "7c75e9e5e2d6138ed80e64f979b58504ce979e25",
+          "message": "feat(crashpad): Support optional usage of stack pointer for captured stack frame (#1427)\n\n* Support optional usage of stack pointer for captured stack frame\n\n---------\n\nCo-authored-by: Mischan Toosarani-Hausberger <mischan@abovevacant.com>",
+          "timestamp": "2025-10-28T15:03:19+01:00",
+          "tree_id": "1de843d8fbd12393393717d90dfb40d358de2973",
+          "url": "https://github.com/getsentry/sentry-native/commit/7c75e9e5e2d6138ed80e64f979b58504ce979e25"
+        },
+        "date": 1761660517933,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 10.141900000007809,
+            "unit": "ms",
+            "extra": "Min 9.613ms\nMax 10.693ms\nMean 10.077ms\nStdDev 0.438ms\nMedian 10.142ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 10.904299999992872,
+            "unit": "ms",
+            "extra": "Min 10.563ms\nMax 12.932ms\nMean 11.307ms\nStdDev 0.976ms\nMedian 10.904ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 26.100399999904766,
+            "unit": "ms",
+            "extra": "Min 25.214ms\nMax 26.797ms\nMean 26.011ms\nStdDev 0.766ms\nMedian 26.100ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.015200000007098424,
+            "unit": "ms",
+            "extra": "Min 0.014ms\nMax 0.016ms\nMean 0.015ms\nStdDev 0.001ms\nMedian 0.015ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.4249999999501597,
+            "unit": "ms",
+            "extra": "Min 0.387ms\nMax 0.427ms\nMean 0.411ms\nStdDev 0.020ms\nMedian 0.425ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 14.999499999930777,
+            "unit": "ms",
+            "extra": "Min 14.090ms\nMax 17.485ms\nMean 15.293ms\nStdDev 1.295ms\nMedian 14.999ms"
           }
         ]
       }
