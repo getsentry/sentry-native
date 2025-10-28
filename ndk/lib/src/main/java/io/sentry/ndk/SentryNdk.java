@@ -10,7 +10,10 @@ public final class SentryNdk {
 
   private SentryNdk() {}
 
-  private static native void initSentryNative(@NotNull final NdkOptions options);
+  /**
+   * Initializes sentry-native and returns 0 on success, non-zero on failure.
+   */
+  private static native int initSentryNative(@NotNull final NdkOptions options);
 
   private static native void shutdown();
 
@@ -19,9 +22,9 @@ public final class SentryNdk {
    *
    * @param options the SentryAndroidOptions
    */
-  public static void init(@NotNull final NdkOptions options) {
+  public static int init(@NotNull final NdkOptions options) {
     loadNativeLibraries();
-    initSentryNative(options);
+    return initSentryNative(options);
   }
 
   /** Closes the NDK integration */
