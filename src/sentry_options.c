@@ -71,6 +71,7 @@ sentry_options_new(void)
     opts->traces_sample_rate = 0.0;
     opts->max_spans = SENTRY_SPANS_MAX;
     opts->handler_strategy = SENTRY_HANDLER_STRATEGY_DEFAULT;
+    opts->minidump_mode = SENTRY_MINIDUMP_MODE_SMART; // Default: balanced mode
 
     return opts;
 }
@@ -480,6 +481,19 @@ sentry_options_set_system_crash_reporter_enabled(
     sentry_options_t *opts, int enabled)
 {
     opts->system_crash_reporter_enabled = !!enabled;
+}
+
+void
+sentry_options_set_minidump_mode(
+    sentry_options_t *opts, sentry_minidump_mode_t mode)
+{
+    // Clamp to valid range
+    if (mode < SENTRY_MINIDUMP_MODE_STACK_ONLY) {
+        mode = SENTRY_MINIDUMP_MODE_STACK_ONLY;
+    } else if (mode > SENTRY_MINIDUMP_MODE_FULL) {
+        mode = SENTRY_MINIDUMP_MODE_FULL;
+    }
+    opts->minidump_mode = mode;
 }
 
 void
