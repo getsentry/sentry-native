@@ -52,6 +52,7 @@ sentry_options_new(void)
     opts->crashpad_wait_for_upload = false;
     opts->enable_logging_when_crashed = true;
     opts->propagate_traceparent = false;
+    opts->crashpad_limit_stack_capture_to_sp = false;
     opts->symbolize_stacktraces =
     // AIX doesn't have reliable debug IDs for server-side symbolication,
     // and the diversity of Android makes it infeasible to have access to debug
@@ -486,6 +487,13 @@ sentry_options_set_crashpad_wait_for_upload(
     sentry_options_t *opts, int wait_for_upload)
 {
     opts->crashpad_wait_for_upload = !!wait_for_upload;
+}
+
+void
+sentry_options_set_crashpad_limit_stack_capture_to_sp(
+    sentry_options_t *opts, int enabled)
+{
+    opts->crashpad_limit_stack_capture_to_sp = !!enabled;
 }
 
 void
