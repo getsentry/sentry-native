@@ -249,9 +249,9 @@ static void send_envelope(sentry_envelope_t *envelope, void *data) {
 
 JNIEXPORT jint JNICALL
 Java_io_sentry_ndk_SentryNdk_initSentryNative(
-    JNIEnv *env,
-    jclass cls,
-    jobject sentry_ndk_options) {
+        JNIEnv *env,
+        jclass cls,
+        jobject sentry_ndk_options) {
     jclass options_cls = (*env)->GetObjectClass(env, sentry_ndk_options);
     jmethodID outbox_path_mid = (*env)->GetMethodID(env, options_cls, "getOutboxPath",
                                                     "()Ljava/lang/String;");
