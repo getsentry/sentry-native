@@ -609,7 +609,8 @@ crashpad_backend_startup(
 
     if (options->crashpad_limit_stack_capture_to_sp) {
         // Enable stack capture limit to work around Wine/Proton TEB issues
-        crashpad_info->set_limit_stack_capture_to_sp(crashpad::TriState::kEnabled);
+        crashpad_info->set_limit_stack_capture_to_sp(
+            crashpad::TriState::kEnabled);
     }
 
     return 0;
