@@ -159,6 +159,9 @@ native_backend_startup(
     // Set minidump mode from options
     ctx->minidump_mode = (sentry_minidump_mode_t)options->minidump_mode;
 
+    // Pass debug logging setting to daemon
+    ctx->debug_enabled = options->debug;
+
     // Set up event and breadcrumb paths
     sentry_path_t *run_path = options->run->run_path;
     sentry_path_t *db_path = options->database_path;
