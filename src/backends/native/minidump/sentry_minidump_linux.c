@@ -670,6 +670,51 @@ write_thread_context(minidump_writer_t *writer, const ucontext_t *uctx)
 
     return write_data(writer, &context, sizeof(context));
 
+#    elif defined(__i386__)
+    minidump_context_x86_t context = { 0 };
+    // Set flags for full context (control + integer + segments + floating point)
+    context.context_flags
+        = 0x0001003f; // CONTEXT_i386 | CONTEXT_CONTROL | CONTEXT_INTEGER |
+                      // CONTEXT_SEGMENTS | CONTEXT_FLOATING_POINT
+
+    // Copy general purpose registers from Linux ucontext
+    context.eax = uctx->uc_mcontext.gregs[REG_EAX];
+    context.ebx = uctx->uc_mcontext.gregs[REG_EBX];
+    context.ecx = uctx->uc_mcontext.gregs[REG_ECX];
+    context.edx = uctx->uc_mcontext.gregs[REG_EDX];
+    context.esi = uctx->uc_mcontext.gregs[REG_ESI];
+    context.edi = uctx->uc_mcontext.gregs[REG_EDI];
+    context.ebp = uctx->uc_mcontext.gregs[REG_EBP];
+    context.esp = uctx->uc_mcontext.gregs[REG_ESP];
+    context.eip = uctx->uc_mcontext.gregs[REG_EIP];
+    context.eflags = uctx->uc_mcontext.gregs[REG_EFL];
+    context.cs = uctx->uc_mcontext.gregs[REG_CS];
+    context.ds = uctx->uc_mcontext.gregs[REG_DS];
+    context.es = uctx->uc_mcontext.gregs[REG_ES];
+    context.fs = uctx->uc_mcontext.gregs[REG_FS];
+    context.gs = uctx->uc_mcontext.gregs[REG_GS];
+    context.ss = uctx->uc_mcontext.gregs[REG_SS];
+
+    // Copy FPU state if available (x87 FPU)
+    if (uctx->uc_mcontext.fpregs) {
+        const struct _libc_fpstate *fpregs
+            = (const struct _libc_fpstate *)uctx->uc_mcontext.fpregs;
+
+        context.float_save.control_word = fpregs->cw;
+        context.float_save.status_word = fpregs->sw;
+        context.float_save.tag_word = fpregs->tag;
+        context.float_save.error_offset = fpregs->ipoff;
+        context.float_save.error_selector = fpregs->cssel;
+        context.float_save.data_offset = fpregs->dataoff;
+        context.float_save.data_selector = fpregs->datasel;
+
+        // Copy ST0-ST7 (x87 FPU registers)
+        memcpy(context.float_save.register_area, fpregs->_st,
+            sizeof(fpregs->_st));
+    }
+
+    return write_data(writer, &context, sizeof(context));
+
 #    else
 #        error "Unsupported architecture for Linux"
 #    endif
