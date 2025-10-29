@@ -805,6 +805,15 @@ elseif(SENTRY_BACKEND_NATIVE)
 		target_link_libraries(sentry-crash PRIVATE ZLIB::ZLIB)
 	endif()
 
+	# Unwinder libraries (must match sentry target)
+	if(SENTRY_WITH_LIBUNWINDSTACK)
+		target_link_libraries(sentry-crash PRIVATE unwindstack)
+	endif()
+	if(SENTRY_WITH_LIBUNWIND)
+		target_include_directories(sentry-crash PRIVATE ${LIBUNWIND_INCLUDE_DIR})
+		target_link_libraries(sentry-crash PRIVATE ${LIBUNWIND_LIBRARIES})
+	endif()
+
 	# Make sentry library depend on crash daemon so it's always built together
 	add_dependencies(sentry sentry-crash)
 
