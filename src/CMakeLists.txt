@@ -156,8 +156,50 @@ elseif(SENTRY_BACKEND_NATIVE)
 	target_compile_definitions(sentry PRIVATE SENTRY_BACKEND_NATIVE)
 	sentry_target_sources_cwd(sentry
 		backends/sentry_backend_native.c
+		backends/native/sentry_crash_ipc.c
+		backends/native/sentry_crash_daemon.c
+		backends/native/sentry_crash_handler.c
+		backends/native/minidump/sentry_minidump_format.h
+		backends/native/minidump/sentry_minidump_writer.h
 	)
-	# Additional native backend sources are added via add_subdirectory in main CMakeLists.txt
+
+	# Platform-specific minidump writers
+	if(LINUX OR ANDROID)
+		sentry_target_sources_cwd(sentry
+			backends/native/minidump/sentry_minidump_linux.c
+		)
+	elseif(APPLE)
+		sentry_target_sources_cwd(sentry
+			backends/native/minidump/sentry_minidump_macos.c
+		)
+	elseif(WIN32)
+		sentry_target_sources_cwd(sentry
+			backends/native/minidump/sentry_minidump_windows.c
+		)
+	endif()
+
+	# Add include directory for native backend headers
+	target_include_directories(sentry PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/backends/native)
+
+	# Platform-specific libraries for native backend
+	if(LINUX OR ANDROID)
+		# Linux needs pthread and rt for shared memory
+		target_link_libraries(sentry PRIVATE pthread rt)
+	elseif(APPLE)
+		# macOS needs CoreFoundation and Security frameworks
+		find_library(COREFOUNDATION_LIBRARY CoreFoundation REQUIRED)
+		find_library(SECURITY_LIBRARY Security REQUIRED)
+		target_link_libraries(sentry PRIVATE
+			${COREFOUNDATION_LIBRARY}
+			${SECURITY_LIBRARY}
+		)
+	elseif(WIN32)
+		# Windows needs dbghelp for MiniDumpWriteDump
+		target_link_libraries(sentry PRIVATE dbghelp)
+	endif()
+
+	# Enable C11 for atomics support
+	set_property(TARGET sentry PROPERTY C_STANDARD 11)
 elseif(SENTRY_BACKEND_NONE)
 	sentry_target_sources_cwd(sentry
 		backends/sentry_backend_none.c
@@ -215,4 +257,74 @@ else()
 	sentry_target_sources_cwd(sentry
 		screenshot/sentry_screenshot_none.c
 	)
+endif()
+
+# Build sentry-crashdaemon executable (only for native backend)
+if(SENTRY_BACKEND_NATIVE)
+	# Get all sources that were added to sentry target
+	get_target_property(SENTRY_SOURCES sentry SOURCES)
+
+	# Create daemon executable with same sources plus daemon-specific files
+	add_executable(sentry-crashdaemon
+		${SENTRY_SOURCES}
+		backends/native/sentry_crash_daemon.c
+		backends/native/sentry_crash_ipc.c
+		backends/native/sentry_crash_context.h
+	)
+
+	# Define standalone mode and copy compile definitions from sentry
+	target_compile_definitions(sentry-crashdaemon PRIVATE
+		SENTRY_CRASH_DAEMON_STANDALONE
+		SENTRY_BUILD_STATIC
+		SENTRY_HANDLER_STACK_SIZE=${SENTRY_HANDLER_STACK_SIZE}
+	)
+
+	# Windows-specific compile definitions
+	if(WIN32)
+		target_compile_definitions(sentry-crashdaemon PRIVATE
+			SENTRY_THREAD_STACK_GUARANTEE_FACTOR=${SENTRY_THREAD_STACK_GUARANTEE_FACTOR}
+		)
+	endif()
+
+	# Copy include directories and compile definitions from sentry target
+	target_include_directories(sentry-crashdaemon PRIVATE
+		${PROJECT_SOURCE_DIR}/include
+		${PROJECT_SOURCE_DIR}/src
+		${CMAKE_CURRENT_SOURCE_DIR}
+		${CMAKE_CURRENT_SOURCE_DIR}/backends/native
+	)
+
+	# Link same libraries as sentry
+	if(WIN32)
+		target_link_libraries(sentry-crashdaemon PRIVATE dbghelp shlwapi version)
+		if(SENTRY_TRANSPORT_WINHTTP)
+			target_link_libraries(sentry-crashdaemon PRIVATE winhttp)
+		endif()
+	elseif(LINUX OR ANDROID)
+		target_link_libraries(sentry-crashdaemon PRIVATE pthread rt dl)
+	elseif(APPLE)
+		find_library(COREFOUNDATION_LIBRARY CoreFoundation REQUIRED)
+		find_library(SECURITY_LIBRARY Security REQUIRED)
+		target_link_libraries(sentry-crashdaemon PRIVATE
+			${COREFOUNDATION_LIBRARY}
+			${SECURITY_LIBRARY}
+		)
+	endif()
+
+	# Transport-specific libraries
+	if(SENTRY_TRANSPORT_CURL)
+		target_link_libraries(sentry-crashdaemon PRIVATE CURL::libcurl)
+	endif()
+
+	# Compression library
+	if(SENTRY_TRANSPORT_COMPRESSION)
+		target_link_libraries(sentry-crashdaemon PRIVATE ZLIB::ZLIB)
+	endif()
+
+	# Install daemon
+	install(TARGETS sentry-crashdaemon
+		RUNTIME DESTINATION bin
+	)
+
+	message(STATUS "Sentry crash daemon executable: enabled")
 endif()

@@ -1,11 +1,14 @@
-#include <errno.h>
-#include <fcntl.h>
-#include <pthread.h>
-#include <signal.h>
 #include <string.h>
-#include <sys/types.h>
-#include <sys/wait.h>
-#include <unistd.h>
+
+#if defined(SENTRY_PLATFORM_UNIX)
+#    include <errno.h>
+#    include <fcntl.h>
+#    include <pthread.h>
+#    include <signal.h>
+#    include <sys/types.h>
+#    include <sys/wait.h>
+#    include <unistd.h>
+#endif
 
 #include "sentry_alloc.h"
 #include "sentry_backend.h"
@@ -32,17 +35,17 @@
 // This lives for the entire backend lifetime and is shared across all threads
 #if defined(SENTRY_PLATFORM_WINDOWS)
 static HANDLE g_ipc_mutex = NULL;
-#elif !defined(SENTRY_PLATFORM_IOS)
+#else
 #    include <semaphore.h>
 static sem_t *g_ipc_init_sem = SEM_FAILED;
 static char g_ipc_sem_name[64] = { 0 };
+#endif
 
 // Mutex to protect IPC initialization (POSIX only, not iOS)
-#    ifdef SENTRY__MUTEX_INIT_DYN
+#ifdef SENTRY__MUTEX_INIT_DYN
 SENTRY__MUTEX_INIT_DYN(g_ipc_init_mutex)
-#    else
+#else
 static sentry_mutex_t g_ipc_init_mutex = SENTRY__MUTEX_INIT;
-#    endif
 #endif
 
 /**
@@ -162,14 +165,24 @@ native_backend_startup(
 
     // Store database path for daemon use
     if (db_path) {
+#ifdef _WIN32
+        strncpy_s(ctx->database_path, sizeof(ctx->database_path), db_path->path,
+            _TRUNCATE);
+#else
         strncpy(
             ctx->database_path, db_path->path, sizeof(ctx->database_path) - 1);
+        ctx->database_path[sizeof(ctx->database_path) - 1] = '\0';
+#endif
     }
 
     // Store DSN for daemon to send crashes
     if (options->dsn && options->dsn->raw) {
+#ifdef _WIN32
+        strncpy_s(ctx->dsn, sizeof(ctx->dsn), options->dsn->raw, _TRUNCATE);
+#else
         strncpy(ctx->dsn, options->dsn->raw, sizeof(ctx->dsn) - 1);
         ctx->dsn[sizeof(ctx->dsn) - 1] = '\0';
+#endif
     }
 
     state->event_path = sentry__path_join_str(run_path, "__sentry-event");
@@ -183,31 +196,53 @@ native_backend_startup(
     sentry__path_touch(state->breadcrumb2_path);
 
     // Copy paths to crash context
+#ifdef _WIN32
+    strncpy_s(ctx->event_path, sizeof(ctx->event_path), state->event_path->path,
+        _TRUNCATE);
+    strncpy_s(ctx->breadcrumb1_path, sizeof(ctx->breadcrumb1_path),
+        state->breadcrumb1_path->path, _TRUNCATE);
+    strncpy_s(ctx->breadcrumb2_path, sizeof(ctx->breadcrumb2_path),
+        state->breadcrumb2_path->path, _TRUNCATE);
+#else
     strncpy(
         ctx->event_path, state->event_path->path, sizeof(ctx->event_path) - 1);
+    ctx->event_path[sizeof(ctx->event_path) - 1] = '\0';
     strncpy(ctx->breadcrumb1_path, state->breadcrumb1_path->path,
         sizeof(ctx->breadcrumb1_path) - 1);
+    ctx->breadcrumb1_path[sizeof(ctx->breadcrumb1_path) - 1] = '\0';
     strncpy(ctx->breadcrumb2_path, state->breadcrumb2_path->path,
         sizeof(ctx->breadcrumb2_path) - 1);
+    ctx->breadcrumb2_path[sizeof(ctx->breadcrumb2_path) - 1] = '\0';
+#endif
 
     // Set up crash envelope path
     state->envelope_path = sentry__path_join_str(
         options->run->run_path, "__sentry-crash.envelope");
     if (state->envelope_path) {
+#ifdef _WIN32
+        strncpy_s(ctx->envelope_path, sizeof(ctx->envelope_path),
+            state->envelope_path->path, _TRUNCATE);
+#else
         strncpy(ctx->envelope_path, state->envelope_path->path,
             sizeof(ctx->envelope_path) - 1);
+        ctx->envelope_path[sizeof(ctx->envelope_path) - 1] = '\0';
+#endif
     }
 
     // Set up external crash reporter if configured
-    // Note: iOS does not support external reporters (fork/exec violates App
-    // Store policy)
-#if !defined(SENTRY_PLATFORM_IOS)
     if (options->external_crash_reporter) {
+#ifdef _WIN32
+        strncpy_s(ctx->external_reporter_path,
+            sizeof(ctx->external_reporter_path),
+            options->external_crash_reporter->path, _TRUNCATE);
+#else
         strncpy(ctx->external_reporter_path,
             options->external_crash_reporter->path,
             sizeof(ctx->external_reporter_path) - 1);
-    }
+        ctx->external_reporter_path[sizeof(ctx->external_reporter_path) - 1]
+            = '\0';
 #endif
+    }
 
 #if defined(SENTRY_PLATFORM_WINDOWS)
     // Release mutex after context configuration
@@ -232,18 +267,19 @@ native_backend_startup(
     }
 #else
     // Other platforms: Use out-of-process daemon
-    // Pass the notification handle (eventfd on Linux, semaphore on macOS)
+    // Pass the notification handle (eventfd on Linux, event on Windows)
 #    if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
     int notify_handle = state->ipc->eventfd;
-#    else
+    state->daemon_pid = sentry__crash_daemon_start(getpid(), notify_handle);
+#    elif defined(SENTRY_PLATFORM_MACOS)
     int notify_handle = 0; // Semaphore is passed differently on macOS
+    state->daemon_pid = sentry__crash_daemon_start(getpid(), notify_handle);
+#    elif defined(SENTRY_PLATFORM_WINDOWS)
+    HANDLE notify_handle = state->ipc->event_handle;
+    state->daemon_pid
+        = sentry__crash_daemon_start(GetCurrentProcessId(), notify_handle);
 #    endif
 
-    // Fork the daemon
-    // Note: fork() with held mutexes can cause issues in the child.
-    // We rely on the daemon not using any SDK functions that acquire
-    // g_options_lock.
-    state->daemon_pid = sentry__crash_daemon_start(getpid(), notify_handle);
     if (state->daemon_pid < 0) {
         SENTRY_WARN("failed to start crash daemon");
         sentry__crash_ipc_free(state->ipc);
@@ -255,7 +291,17 @@ native_backend_startup(
 
     if (sentry__crash_handler_init(state->ipc) < 0) {
         SENTRY_WARN("failed to initialize crash handler");
+#    if defined(SENTRY_PLATFORM_UNIX)
         kill(state->daemon_pid, SIGTERM);
+#    elif defined(SENTRY_PLATFORM_WINDOWS)
+        // On Windows, terminate the daemon process
+        HANDLE hDaemon
+            = OpenProcess(PROCESS_TERMINATE, FALSE, state->daemon_pid);
+        if (hDaemon) {
+            TerminateProcess(hDaemon, 1);
+            CloseHandle(hDaemon);
+        }
+#    endif
         sentry__crash_ipc_free(state->ipc);
         sentry_free(state);
         return 1;
@@ -280,13 +326,24 @@ native_backend_shutdown(sentry_backend_t *backend)
     // handler on iOS)
     sentry__crash_handler_shutdown();
 
-#if !defined(SENTRY_PLATFORM_IOS)
-
-    // Terminate daemon
+#if defined(SENTRY_PLATFORM_UNIX) && !defined(SENTRY_PLATFORM_IOS)
+    // Terminate daemon (Unix)
     if (state->daemon_pid > 0) {
         kill(state->daemon_pid, SIGTERM);
         // Wait for daemon to exit
         waitpid(state->daemon_pid, NULL, 0);
+    }
+#elif defined(SENTRY_PLATFORM_WINDOWS)
+    // Terminate daemon (Windows)
+    if (state->daemon_pid > 0) {
+        HANDLE hDaemon = OpenProcess(
+            PROCESS_TERMINATE | SYNCHRONIZE, FALSE, state->daemon_pid);
+        if (hDaemon) {
+            TerminateProcess(hDaemon, 0);
+            // Wait for daemon to exit (with timeout)
+            WaitForSingleObject(hDaemon, 5000); // 5 second timeout
+            CloseHandle(hDaemon);
+        }
     }
 #endif
 
@@ -376,7 +433,8 @@ native_backend_flush_scope(
         sentry_free(json_str);
     }
 
-    // Write attachment metadata (paths and filenames) so crash daemon can find them
+    // Write attachment metadata (paths and filenames) so crash daemon can find
+    // them
     SENTRY_WITH_SCOPE (scope) {
         if (scope->attachments) {
             sentry_path_t *run_path = sentry__path_dir(state->event_path);
@@ -408,8 +466,8 @@ native_backend_flush_scope(
                     char *attach_json = sentry_value_to_json(attach_list);
                     sentry_value_decref(attach_list);
                     if (attach_json) {
-                        sentry__path_write_buffer(attach_list_path, attach_json,
-                            strlen(attach_json));
+                        sentry__path_write_buffer(
+                            attach_list_path, attach_json, strlen(attach_json));
                         sentry_free(attach_json);
                     }
                     sentry__path_free(attach_list_path);
@@ -518,7 +576,8 @@ native_backend_add_attachment(
 {
     (void)backend; // Unused
 
-    // For buffer attachments, assign a path in the run directory and write to disk
+    // For buffer attachments, assign a path in the run directory and write to
+    // disk
     if (attachment->buf) {
         if (!attachment->path) {
             if (!ensure_attachment_path(attachment)) {
@@ -535,8 +594,9 @@ native_backend_add_attachment(
                 attachment->path->path);
         }
     }
-    // For file attachments, the path is already set and points to the actual file.
-    // The crash daemon will read these files from their original locations.
+    // For file attachments, the path is already set and points to the actual
+    // file. The crash daemon will read these files from their original
+    // locations.
 }
 
 /**

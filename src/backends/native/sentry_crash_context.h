@@ -1,11 +1,10 @@
 #ifndef SENTRY_CRASH_CONTEXT_H_INCLUDED
 #define SENTRY_CRASH_CONTEXT_H_INCLUDED
 
-#include "sentry_boot.h"
 #include "sentry.h" // For sentry_minidump_mode_t
+#include "sentry_boot.h"
 
 #include <limits.h>
-#include <stdatomic.h>
 #include <stdint.h>
 
 #if defined(SENTRY_PLATFORM_UNIX)
@@ -19,6 +18,8 @@
 #    include <unistd.h>
 #elif defined(SENTRY_PLATFORM_WINDOWS)
 #    include <windows.h>
+// Windows doesn't have pid_t - define it as DWORD
+typedef DWORD pid_t;
 #endif
 
 #define SENTRY_CRASH_MAGIC 0x53454E54 // "SENT"
@@ -31,15 +32,36 @@
 
 // Max path length in crash context
 // Use system PATH_MAX where available (typically 4096 on Linux/macOS, 260 on
-// Windows) Fall back to 1024 for safety on systems without PATH_MAX
-#ifdef PATH_MAX
+// Windows) Fall back to 4096 for safety on systems without PATH_MAX
+#if defined(PATH_MAX)
 #    define SENTRY_CRASH_MAX_PATH PATH_MAX
+#elif defined(MAX_PATH)
+#    define SENTRY_CRASH_MAX_PATH MAX_PATH
 #else
 #    define SENTRY_CRASH_MAX_PATH 4096
 #endif
 
-// Note: SENTRY_CRASH_SHM_SIZE is defined after sentry_crash_context_t
-// so we can calculate it using sizeof()
+// Buffer sizes for IPC and file operations
+#define SENTRY_CRASH_IPC_NAME_SIZE                                             \
+    64 // Size for IPC object names (shm, semaphore, event)
+#define SENTRY_CRASH_SIGNAL_STACK_SIZE 65536 // 64KB stack for signal handler
+#define SENTRY_CRASH_FILE_BUFFER_SIZE (8 * 1024) // 8KB for file I/O operations
+
+// Envelope and header buffer sizes
+#define SENTRY_CRASH_ENVELOPE_HEADER_SIZE 1024 // Envelope headers
+#define SENTRY_CRASH_ITEM_HEADER_SIZE 256 // Item headers (event, minidump)
+#define SENTRY_CRASH_READ_BUFFER_SIZE 8192 // General read buffer
+
+// String formatting buffer sizes
+#define SENTRY_CRASH_TIMESTAMP_SIZE 32 // Timestamp strings
+#define SENTRY_CRASH_PID_STRING_SIZE 32 // PID/TID string buffers
+
+// Memory and stack size limits
+#define SENTRY_CRASH_MAX_STACK_CAPTURE                                         \
+    (512 * 1024) // 512KB default stack capture
+#define SENTRY_CRASH_MAX_STACK_SIZE (1024 * 1024) // 1MB max stack size
+#define SENTRY_CRASH_MAX_REGION_SIZE                                           \
+    (64 * 1024 * 1024) // 64MB max memory region
 
 /**
  * Crash state machine for atomic coordination between app and daemon
@@ -150,9 +172,9 @@ typedef struct {
     uint32_t magic;
     uint32_t version;
 
-    // Atomic state machine
-    atomic_uint_fast32_t state;
-    atomic_uint_fast32_t sequence;
+    // Atomic state machine (accessed via sentry__atomic_* functions)
+    volatile long state;
+    volatile long sequence;
 
     // Process info
     pid_t crashed_pid;
@@ -191,7 +213,6 @@ typedef struct {
 
 // Shared memory size: calculated at compile-time based on actual struct size
 // Add 8KB padding for safety and future additions
-#define SENTRY_CRASH_SHM_SIZE \
-    (sizeof(sentry_crash_context_t) + (8 * 1024))
+#define SENTRY_CRASH_SHM_SIZE (sizeof(sentry_crash_context_t) + (8 * 1024))
 
 #endif

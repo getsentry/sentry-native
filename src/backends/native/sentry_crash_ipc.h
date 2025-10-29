@@ -25,20 +25,20 @@ typedef struct {
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
     int shm_fd;
     int eventfd;
-    char shm_name[64];
+    char shm_name[SENTRY_CRASH_IPC_NAME_SIZE];
     sem_t *init_sem;        // Named semaphore for initialization synchronization
-    char sem_name[64];
+    char sem_name[SENTRY_CRASH_IPC_NAME_SIZE];
 #elif defined(SENTRY_PLATFORM_MACOS)
     int shm_fd;
     int notify_pipe[2]; // Pipe for crash notifications (fork-safe)
-    char shm_name[64];
+    char shm_name[SENTRY_CRASH_IPC_NAME_SIZE];
     sem_t *init_sem;        // Named semaphore for initialization synchronization
-    char sem_name[64];
+    char sem_name[SENTRY_CRASH_IPC_NAME_SIZE];
 #elif defined(SENTRY_PLATFORM_WINDOWS)
     HANDLE shm_handle;
     HANDLE event_handle;
-    wchar_t shm_name[64];
-    wchar_t event_name[64];
+    wchar_t shm_name[SENTRY_CRASH_IPC_NAME_SIZE];
+    wchar_t event_name[SENTRY_CRASH_IPC_NAME_SIZE];
     HANDLE init_mutex;      // Named mutex for initialization synchronization
 #endif
 

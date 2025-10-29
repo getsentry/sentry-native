@@ -519,7 +519,7 @@ write_thread_stack(
 {
     // Read stack memory around SP
     // For safety, read a reasonable amount (64KB) from SP downwards
-    const size_t MAX_STACK_SIZE = 64 * 1024;
+    const size_t MAX_STACK_SIZE = SENTRY_CRASH_MAX_STACK_CAPTURE/8;
 
     // Stack grows downwards on macOS, so read from SP down to SP -
     // MAX_STACK_SIZE
@@ -916,7 +916,7 @@ should_include_region_macos(
 
         if (readable && writable) {
             // Limit to reasonable size (64MB per region)
-            return region->size <= (64 * 1024 * 1024);
+            return region->size <= (SENTRY_CRASH_MAX_STACK_CAPTURE/8 * 1024);
         }
     }
 
@@ -977,7 +977,7 @@ write_memory_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
         mach_vm_size_t region_size = region->size;
 
         // Limit individual region size
-        const size_t MAX_REGION_SIZE = 64 * 1024 * 1024; // 64MB
+        const size_t MAX_REGION_SIZE = SENTRY_CRASH_MAX_STACK_CAPTURE/8 * 1024; // 64MB
         if (region_size > MAX_REGION_SIZE) {
             region_size = MAX_REGION_SIZE;
         }

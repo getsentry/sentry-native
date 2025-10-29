@@ -11,35 +11,33 @@
 #include "sentry_options.h"
 #include "sentry_path.h"
 #include "sentry_process.h"
+#include "sentry_sync.h"
 #include "sentry_transport.h"
 #include "sentry_utils.h"
 #include "sentry_uuid.h"
 #include "sentry_value.h"
 #include "transports/sentry_disk_transport.h"
 
-#include <errno.h>
-#include <fcntl.h>
 #include <limits.h>
-#include <signal.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <sys/wait.h>
 #include <time.h>
-#include <unistd.h>
 
-// Buffer size for file I/O operations
-#define SENTRY_FILE_COPY_BUFFER_SIZE (8 * 1024) // 8KB
-
-// Path buffer size for constructing file paths
-// Use system PATH_MAX where available, fallback to 4096
-#ifdef PATH_MAX
-#    define SENTRY_PATH_BUFFER_SIZE PATH_MAX
-#else
-#    define SENTRY_PATH_BUFFER_SIZE 4096
+#if defined(SENTRY_PLATFORM_UNIX)
+#    include <errno.h>
+#    include <fcntl.h>
+#    include <signal.h>
+#    include <sys/stat.h>
+#    include <sys/types.h>
+#    include <sys/wait.h>
+#    include <unistd.h>
+#elif defined(SENTRY_PLATFORM_WINDOWS)
+#    include <fcntl.h>
+#    include <io.h>
+#    include <sys/stat.h>
+#    include <windows.h>
 #endif
 
 /**
@@ -50,50 +48,77 @@ static bool
 write_attachment_to_envelope(int fd, const char *file_path,
     const char *filename, const char *content_type)
 {
+#if defined(SENTRY_PLATFORM_UNIX)
     int attach_fd = open(file_path, O_RDONLY);
+#elif defined(SENTRY_PLATFORM_WINDOWS)
+    int attach_fd = _open(file_path, _O_RDONLY | _O_BINARY);
+#endif
     if (attach_fd < 0) {
         SENTRY_WARNF("Failed to open attachment file: %s", file_path);
         return false;
     }
 
+#if defined(SENTRY_PLATFORM_UNIX)
     struct stat st;
     if (fstat(attach_fd, &st) != 0) {
         SENTRY_WARNF("Failed to stat attachment file: %s", file_path);
         close(attach_fd);
         return false;
     }
+    long long file_size = (long long)st.st_size;
+#elif defined(SENTRY_PLATFORM_WINDOWS)
+    struct __stat64 st;
+    if (_fstat64(attach_fd, &st) != 0) {
+        SENTRY_WARNF("Failed to stat attachment file: %s", file_path);
+        _close(attach_fd);
+        return false;
+    }
+    long long file_size = (long long)st.st_size;
+#endif
 
     // Write attachment item header
+    char header[SENTRY_CRASH_ENVELOPE_HEADER_SIZE];
     int header_written;
     if (content_type) {
-        header_written = dprintf(fd,
+        header_written = snprintf(header, sizeof(header),
             "{\"type\":\"attachment\",\"length\":%lld,"
             "\"attachment_type\":\"event.attachment\","
             "\"content_type\":\"%s\","
             "\"filename\":\"%s\"}\n",
-            (long long)st.st_size, content_type,
-            filename ? filename : "attachment");
+            file_size, content_type, filename ? filename : "attachment");
     } else {
-        header_written = dprintf(fd,
+        header_written = snprintf(header, sizeof(header),
             "{\"type\":\"attachment\",\"length\":%lld,"
             "\"attachment_type\":\"event.attachment\","
             "\"filename\":\"%s\"}\n",
-            (long long)st.st_size, filename ? filename : "attachment");
+            file_size, filename ? filename : "attachment");
     }
 
-    if (header_written < 0) {
+    if (header_written < 0 || header_written >= (int)sizeof(header)) {
         SENTRY_WARN("Failed to write attachment header");
+#if defined(SENTRY_PLATFORM_UNIX)
         close(attach_fd);
+#elif defined(SENTRY_PLATFORM_WINDOWS)
+        _close(attach_fd);
+#endif
         return false;
     }
 
+#if defined(SENTRY_PLATFORM_UNIX)
+    write(fd, header, header_written);
+#elif defined(SENTRY_PLATFORM_WINDOWS)
+    _write(fd, header, header_written);
+#endif
+
     // Copy attachment content
-    char buf[SENTRY_FILE_COPY_BUFFER_SIZE];
+    char buf[SENTRY_CRASH_FILE_BUFFER_SIZE];
+#if defined(SENTRY_PLATFORM_UNIX)
     ssize_t n;
     while ((n = read(attach_fd, buf, sizeof(buf))) > 0) {
         ssize_t written = write(fd, buf, n);
         if (written != n) {
-            SENTRY_WARNF("Failed to write attachment content for: %s", file_path);
+            SENTRY_WARNF(
+                "Failed to write attachment content for: %s", file_path);
             close(attach_fd);
             return false;
         }
@@ -107,6 +132,27 @@ write_attachment_to_envelope(int fd, const char *file_path,
 
     write(fd, "\n", 1);
     close(attach_fd);
+#elif defined(SENTRY_PLATFORM_WINDOWS)
+    int n;
+    while ((n = _read(attach_fd, buf, sizeof(buf))) > 0) {
+        int written = _write(fd, buf, n);
+        if (written != n) {
+            SENTRY_WARNF(
+                "Failed to write attachment content for: %s", file_path);
+            _close(attach_fd);
+            return false;
+        }
+    }
+
+    if (n < 0) {
+        SENTRY_WARNF("Failed to read attachment file: %s", file_path);
+        _close(attach_fd);
+        return false;
+    }
+
+    _write(fd, "\n", 1);
+    _close(attach_fd);
+#endif
     return true;
 }
 
@@ -120,7 +166,12 @@ write_envelope_with_minidump(const sentry_options_t *options,
     const char *minidump_path, sentry_path_t *run_folder)
 {
     // Open envelope file for writing
+#if defined(SENTRY_PLATFORM_UNIX)
     int fd = open(envelope_path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+#elif defined(SENTRY_PLATFORM_WINDOWS)
+    int fd = _open(envelope_path, _O_WRONLY | _O_CREAT | _O_TRUNC | _O_BINARY,
+        _S_IREAD | _S_IWRITE);
+#endif
     if (fd < 0) {
         SENTRY_WARN("Failed to open envelope file for writing");
         return false;
@@ -129,10 +180,20 @@ write_envelope_with_minidump(const sentry_options_t *options,
     // Write envelope headers (just DSN if available)
     const char *dsn
         = options && options->dsn ? sentry_options_get_dsn(options) : NULL;
+    char header_buf[SENTRY_CRASH_ENVELOPE_HEADER_SIZE];
+    int header_len;
     if (dsn) {
-        dprintf(fd, "{\"dsn\":\"%s\"}\n", dsn);
+        header_len = snprintf(
+            header_buf, sizeof(header_buf), "{\"dsn\":\"%s\"}\n", dsn);
     } else {
-        dprintf(fd, "{}\n");
+        header_len = snprintf(header_buf, sizeof(header_buf), "{}\n");
+    }
+    if (header_len > 0 && header_len < (int)sizeof(header_buf)) {
+#if defined(SENTRY_PLATFORM_UNIX)
+        write(fd, header_buf, header_len);
+#elif defined(SENTRY_PLATFORM_WINDOWS)
+        _write(fd, header_buf, header_len);
+#endif
     }
 
     // Read event JSON data
@@ -144,35 +205,80 @@ write_envelope_with_minidump(const sentry_options_t *options,
 
         if (event_json && event_size > 0) {
             // Write event item header
-            dprintf(fd, "{\"type\":\"event\",\"length\":%zu}\n", event_size);
-            // Write JSON event payload
-            write(fd, event_json, event_size);
-            write(fd, "\n", 1);
+            char event_header[SENTRY_CRASH_ITEM_HEADER_SIZE];
+            int ev_header_len = snprintf(event_header, sizeof(event_header),
+                "{\"type\":\"event\",\"length\":%zu}\n", event_size);
+            if (ev_header_len > 0
+                && ev_header_len < (int)sizeof(event_header)) {
+#if defined(SENTRY_PLATFORM_UNIX)
+                write(fd, event_header, ev_header_len);
+                write(fd, event_json, event_size);
+                write(fd, "\n", 1);
+#elif defined(SENTRY_PLATFORM_WINDOWS)
+                _write(fd, event_header, ev_header_len);
+                _write(fd, event_json, (unsigned int)event_size);
+                _write(fd, "\n", 1);
+#endif
+            }
             sentry_free(event_json);
         }
     }
 
     // Add minidump as attachment
+#if defined(SENTRY_PLATFORM_UNIX)
     int minidump_fd = open(minidump_path, O_RDONLY);
+#elif defined(SENTRY_PLATFORM_WINDOWS)
+    int minidump_fd = _open(minidump_path, _O_RDONLY | _O_BINARY);
+#endif
     if (minidump_fd >= 0) {
+#if defined(SENTRY_PLATFORM_UNIX)
         struct stat st;
         if (fstat(minidump_fd, &st) == 0) {
+            long long minidump_size = (long long)st.st_size;
+#elif defined(SENTRY_PLATFORM_WINDOWS)
+        struct __stat64 st;
+        if (_fstat64(minidump_fd, &st) == 0) {
+            long long minidump_size = (long long)st.st_size;
+#endif
             // Write minidump item header
-            dprintf(fd,
-                "{\"type\":\"attachment\",\"length\":%lld,"
-                "\"attachment_type\":\"event.minidump\","
-                "\"filename\":\"minidump.dmp\"}\n",
-                (long long)st.st_size);
+            char minidump_header[SENTRY_CRASH_ITEM_HEADER_SIZE];
+            int md_header_len
+                = snprintf(minidump_header, sizeof(minidump_header),
+                    "{\"type\":\"attachment\",\"length\":%lld,"
+                    "\"attachment_type\":\"event.minidump\","
+                    "\"filename\":\"minidump.dmp\"}\n",
+                    minidump_size);
+
+            if (md_header_len > 0
+                && md_header_len < (int)sizeof(minidump_header)) {
+#if defined(SENTRY_PLATFORM_UNIX)
+                write(fd, minidump_header, md_header_len);
+#elif defined(SENTRY_PLATFORM_WINDOWS)
+                _write(fd, minidump_header, md_header_len);
+#endif
+            }
 
             // Copy minidump content
-            char buf[8192];
+            char buf[SENTRY_CRASH_READ_BUFFER_SIZE];
+#if defined(SENTRY_PLATFORM_UNIX)
             ssize_t n;
             while ((n = read(minidump_fd, buf, sizeof(buf))) > 0) {
                 write(fd, buf, n);
             }
             write(fd, "\n", 1);
+#elif defined(SENTRY_PLATFORM_WINDOWS)
+            int n;
+            while ((n = _read(minidump_fd, buf, sizeof(buf))) > 0) {
+                _write(fd, buf, n);
+            }
+            _write(fd, "\n", 1);
+#endif
         }
+#if defined(SENTRY_PLATFORM_UNIX)
         close(minidump_fd);
+#elif defined(SENTRY_PLATFORM_WINDOWS)
+        _close(minidump_fd);
+#endif
     }
 
     // Add scope attachments using metadata file
@@ -181,8 +287,8 @@ write_envelope_with_minidump(const sentry_options_t *options,
             = sentry__path_join_str(run_folder, "__sentry-attachments");
         if (attach_list_path) {
             size_t attach_json_len = 0;
-            char *attach_json
-                = sentry__path_read_to_buffer(attach_list_path, &attach_json_len);
+            char *attach_json = sentry__path_read_to_buffer(
+                attach_list_path, &attach_json_len);
             sentry__path_free(attach_list_path);
 
             if (attach_json && attach_json_len > 0) {
@@ -201,7 +307,8 @@ write_envelope_with_minidump(const sentry_options_t *options,
                         sentry_value_t filename_val
                             = sentry_value_get_by_key(attach_info, "filename");
                         sentry_value_t content_type_val
-                            = sentry_value_get_by_key(attach_info, "content_type");
+                            = sentry_value_get_by_key(
+                                attach_info, "content_type");
 
                         const char *path = sentry_value_as_string(path_val);
                         const char *filename
@@ -220,7 +327,11 @@ write_envelope_with_minidump(const sentry_options_t *options,
         }
     }
 
+#if defined(SENTRY_PLATFORM_UNIX)
     close(fd);
+#elif defined(SENTRY_PLATFORM_WINDOWS)
+    _close(fd);
+#endif
     SENTRY_INFO("Envelope written successfully");
     return true;
 }
@@ -239,10 +350,10 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
     sentry_crash_context_t *ctx = ipc->shmem;
 
     // Mark as processing
-    atomic_store(&ctx->state, SENTRY_CRASH_STATE_PROCESSING);
+    sentry__atomic_store(&ctx->state, SENTRY_CRASH_STATE_PROCESSING);
 
     // Generate minidump path in database directory
-    char minidump_path[SENTRY_PATH_BUFFER_SIZE];
+    char minidump_path[SENTRY_CRASH_MAX_PATH];
     const char *db_dir = ctx->database_path;
     int path_len = snprintf(minidump_path, sizeof(minidump_path),
         "%s/sentry-minidump-%d-%d.dmp", db_dir, ctx->crashed_pid,
@@ -260,9 +371,14 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
         SENTRY_INFO("Minidump written successfully");
 
         // Copy minidump path back to shared memory
+#ifdef _WIN32
+        strncpy_s(ctx->minidump_path, sizeof(ctx->minidump_path), minidump_path,
+            _TRUNCATE);
+#else
         strncpy(
             ctx->minidump_path, minidump_path, sizeof(ctx->minidump_path) - 1);
         ctx->minidump_path[sizeof(ctx->minidump_path) - 1] = '\0';
+#endif
 
         // Get event file path from context
         const char *event_path = ctx->event_path[0] ? ctx->event_path : NULL;
@@ -279,7 +395,7 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
             sentry__path_free(ev_path);
 
         // Create envelope file in database directory
-        char envelope_path[SENTRY_PATH_BUFFER_SIZE];
+        char envelope_path[SENTRY_CRASH_MAX_PATH];
         path_len = snprintf(envelope_path, sizeof(envelope_path),
             "%s/sentry-envelope-%d.env", db_dir, ctx->crashed_pid);
 
@@ -293,8 +409,8 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
 
         // Write envelope manually with all attachments from run folder
         // (avoids mutex-locked SDK functions)
-        if (!write_envelope_with_minidump(
-                options, envelope_path, event_path, minidump_path, run_folder)) {
+        if (!write_envelope_with_minidump(options, envelope_path, event_path,
+                minidump_path, run_folder)) {
             SENTRY_WARN("Failed to write envelope");
             if (run_folder) {
                 sentry__path_free(run_folder);
@@ -328,9 +444,13 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
             sentry_envelope_free(envelope);
         }
 
-        // Clean up temporary envelope file (keep minidump for inspection/debugging)
+        // Clean up temporary envelope file (keep minidump for
+        // inspection/debugging)
+#if defined(SENTRY_PLATFORM_UNIX)
         unlink(envelope_path);
-        // Note: minidump file is kept in database for debugging/inspection
+#elif defined(SENTRY_PLATFORM_WINDOWS)
+        _unlink(envelope_path);
+#endif
 
     cleanup:
         // Send all other envelopes from run folder (logs, etc.) before cleanup
@@ -382,7 +502,7 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
 
 done:
     // Mark as done
-    atomic_store(&ctx->state, SENTRY_CRASH_STATE_DONE);
+    sentry__atomic_store(&ctx->state, SENTRY_CRASH_STATE_DONE);
     SENTRY_DEBUG("Crash processing complete");
 }
 
@@ -392,13 +512,78 @@ done:
 static bool
 is_parent_alive(pid_t parent_pid)
 {
+#if defined(SENTRY_PLATFORM_UNIX)
     // Send signal 0 to check if process exists
     return kill(parent_pid, 0) == 0 || errno != ESRCH;
+#elif defined(SENTRY_PLATFORM_WINDOWS)
+    // Open handle to process with minimum rights
+    HANDLE hProcess = OpenProcess(SYNCHRONIZE, FALSE, parent_pid);
+    if (!hProcess) {
+        return false; // Process doesn't exist or can't be accessed
+    }
+    // Check if process has exited
+    DWORD exit_code;
+    bool alive
+        = GetExitCodeProcess(hProcess, &exit_code) && exit_code == STILL_ACTIVE;
+    CloseHandle(hProcess);
+    return alive;
+#endif
 }
 
+/**
+ * Custom logger function that writes to a file
+ * Used by the daemon to log its activity
+ */
+static void
+daemon_file_logger(
+    sentry_level_t level, const char *message, va_list args, void *userdata)
+{
+    FILE *log_file = (FILE *)userdata;
+    if (!log_file) {
+        return;
+    }
+
+    // Get current timestamp
+    time_t now = time(NULL);
+    struct tm *tm_info = localtime(&now);
+    char timestamp[SENTRY_CRASH_TIMESTAMP_SIZE];
+    strftime(timestamp, sizeof(timestamp), "%Y-%m-%d %H:%M:%S", tm_info);
+
+    // Map level to string
+    const char *level_str = "UNKNOWN";
+    switch (level) {
+    case SENTRY_LEVEL_DEBUG:
+        level_str = "DEBUG";
+        break;
+    case SENTRY_LEVEL_INFO:
+        level_str = "INFO";
+        break;
+    case SENTRY_LEVEL_WARNING:
+        level_str = "WARNING";
+        break;
+    case SENTRY_LEVEL_ERROR:
+        level_str = "ERROR";
+        break;
+    case SENTRY_LEVEL_FATAL:
+        level_str = "FATAL";
+        break;
+    }
+
+    // Write log entry
+    fprintf(log_file, "[%s] [%s] ", timestamp, level_str);
+    vfprintf(log_file, message, args);
+    fprintf(log_file, "\n");
+}
+
+#if defined(SENTRY_PLATFORM_UNIX)
 int
 sentry__crash_daemon_main(pid_t app_pid, int eventfd_handle)
+#elif defined(SENTRY_PLATFORM_WINDOWS)
+int
+sentry__crash_daemon_main(pid_t app_pid, HANDLE event_handle)
+#endif
 {
+#if defined(SENTRY_PLATFORM_UNIX)
     // Close standard streams to avoid interfering with parent
     close(STDIN_FILENO);
     close(STDOUT_FILENO);
@@ -414,6 +599,12 @@ sentry__crash_daemon_main(pid_t app_pid, int eventfd_handle)
             close(devnull);
         }
     }
+#elif defined(SENTRY_PLATFORM_WINDOWS)
+    // On Windows, redirect standard streams to NUL
+    (void)freopen("NUL", "r", stdin);
+    (void)freopen("NUL", "w", stdout);
+    (void)freopen("NUL", "w", stderr);
+#endif
 
     // Initialize IPC (attach to shared memory created by parent)
     sentry_crash_ipc_t *ipc = sentry__crash_ipc_init_daemon(app_pid);
@@ -421,10 +612,36 @@ sentry__crash_daemon_main(pid_t app_pid, int eventfd_handle)
         return 1;
     }
 
+    // Set up logging to file for daemon
+    char log_path[SENTRY_CRASH_MAX_PATH];
+    FILE *log_file = NULL;
+    int log_path_len
+        = snprintf(log_path, sizeof(log_path), "%s/sentry-daemon-%lu.log",
+            ipc->shmem->database_path, (unsigned long)app_pid);
+
+    if (log_path_len > 0 && log_path_len < (int)sizeof(log_path)) {
+#if defined(SENTRY_PLATFORM_UNIX)
+        log_file = fopen(log_path, "w");
+#elif defined(SENTRY_PLATFORM_WINDOWS)
+        log_file = fopen(log_path, "w");
+#endif
+        if (log_file) {
+            // Disable buffering for immediate writes
+            setvbuf(log_file, NULL, _IONBF, 0);
+        }
+    }
+
     // Initialize Sentry options for daemon (reuses all SDK infrastructure)
     // Options are passed explicitly to all functions, no global state
     sentry_options_t *options = sentry_options_new();
     if (options) {
+        // Enable debug logging
+        sentry_options_set_debug(options, 1);
+
+        // Set custom logger that writes to file
+        if (log_file) {
+            sentry_options_set_logger(options, daemon_file_logger, log_file);
+        }
         // Set DSN if configured
         if (ipc->shmem->dsn[0] != '\0') {
             sentry_options_set_dsn(options, ipc->shmem->dsn);
@@ -459,9 +676,12 @@ sentry__crash_daemon_main(pid_t app_pid, int eventfd_handle)
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
     // Use the inherited eventfd from parent
     ipc->eventfd = eventfd_handle;
-#else
-    // On other platforms, notification mechanism is set up by init_daemon
+#elif defined(SENTRY_PLATFORM_MACOS)
+    // On macOS, notification mechanism is set up by init_daemon
     (void)eventfd_handle;
+#elif defined(SENTRY_PLATFORM_WINDOWS)
+    // On Windows, use the event handle from parent
+    ipc->event_handle = event_handle;
 #endif
 
     SENTRY_DEBUG("Entering main loop");
@@ -472,7 +692,7 @@ sentry__crash_daemon_main(pid_t app_pid, int eventfd_handle)
         // Wait for crash notification (with timeout to check parent health)
         if (sentry__crash_ipc_wait(ipc, 5000)) { // 5 second timeout
             // Crash occurred!
-            uint32_t state = atomic_load(&ipc->shmem->state);
+            long state = sentry__atomic_fetch(&ipc->shmem->state);
             if (state == SENTRY_CRASH_STATE_CRASHED && !crash_processed) {
                 SENTRY_INFO("Crash notification received");
                 sentry__process_crash(options, ipc);
@@ -506,27 +726,177 @@ sentry__crash_daemon_main(pid_t app_pid, int eventfd_handle)
     }
     sentry__crash_ipc_free(ipc);
 
+    // Close log file
+    if (log_file) {
+        fclose(log_file);
+    }
+
     return 0;
 }
 
+#if defined(SENTRY_PLATFORM_UNIX)
 pid_t
 sentry__crash_daemon_start(pid_t app_pid, int eventfd_handle)
+#elif defined(SENTRY_PLATFORM_WINDOWS)
+pid_t
+sentry__crash_daemon_start(pid_t app_pid, HANDLE event_handle)
+#endif
 {
+#if defined(SENTRY_PLATFORM_UNIX)
+    // On Unix, fork and exec the sentry-crashdaemon executable
     pid_t daemon_pid = fork();
 
     if (daemon_pid < 0) {
         // Fork failed
+        SENTRY_WARN("Failed to fork daemon process");
         return -1;
     } else if (daemon_pid == 0) {
         // Child process - become daemon
-        // Create new session
         setsid();
 
-        // Run daemon main loop
-        int exit_code = sentry__crash_daemon_main(app_pid, eventfd_handle);
-        _exit(exit_code);
+        // Find sentry-crashdaemon in the same directory as current executable
+        char exe_path[SENTRY_CRASH_MAX_PATH];
+        ssize_t len
+            = readlink("/proc/self/exe", exe_path, sizeof(exe_path) - 1);
+        if (len != -1) {
+            exe_path[len] = '\0';
+            // Find last slash and replace with daemon name
+            char *last_slash = strrchr(exe_path, '/');
+            if (last_slash) {
+                *(last_slash + 1) = '\0';
+                strncat(exe_path, "sentry-crashdaemon",
+                    sizeof(exe_path) - strlen(exe_path) - 1);
+            }
+        } else {
+            // Fallback: try to find in PATH
+#    ifdef _WIN32
+            strncpy_s(
+                exe_path, sizeof(exe_path), "sentry-crashdaemon", _TRUNCATE);
+#    else
+            strncpy(exe_path, "sentry-crashdaemon", sizeof(exe_path) - 1);
+            exe_path[sizeof(exe_path) - 1] = '\0';
+#    endif
+        }
+
+        // Prepare arguments: daemon executable, app_pid, event_handle
+        char app_pid_str[SENTRY_CRASH_PID_STRING_SIZE];
+        char event_handle_str[SENTRY_CRASH_PID_STRING_SIZE];
+        snprintf(app_pid_str, sizeof(app_pid_str), "%d", app_pid);
+        snprintf(
+            event_handle_str, sizeof(event_handle_str), "%d", eventfd_handle);
+
+        // Execute daemon
+        char *args[] = { exe_path, app_pid_str, event_handle_str, NULL };
+        execv(exe_path, args);
+
+        // If exec fails, exit immediately
+        _exit(1);
     }
 
     // Parent process - return daemon PID
     return daemon_pid;
+
+#elif defined(SENTRY_PLATFORM_WINDOWS)
+    // On Windows, create a separate daemon process using CreateProcess
+    // Spawn the sentry-crashdaemon.exe executable
+
+    // Try to find sentry-crashdaemon.exe in the same directory as the current
+    // executable
+    wchar_t exe_dir[SENTRY_CRASH_MAX_PATH];
+    DWORD len = GetModuleFileNameW(NULL, exe_dir, SENTRY_CRASH_MAX_PATH);
+    if (len == 0 || len >= SENTRY_CRASH_MAX_PATH) {
+        SENTRY_WARN("Failed to get current executable path");
+        return (pid_t)-1;
+    }
+
+    // Remove filename to get directory
+    wchar_t *last_slash = wcsrchr(exe_dir, L'\\');
+    if (last_slash) {
+        *(last_slash + 1) = L'\0'; // Keep the trailing backslash
+    }
+
+    // Build full path to sentry-crashdaemon.exe
+    wchar_t daemon_path[SENTRY_CRASH_MAX_PATH];
+    int path_len = _snwprintf(daemon_path, SENTRY_CRASH_MAX_PATH,
+        L"%ssentry-crashdaemon.exe", exe_dir);
+    if (path_len < 0 || path_len >= SENTRY_CRASH_MAX_PATH) {
+        SENTRY_WARN("Daemon path too long");
+        return (pid_t)-1;
+    }
+
+    // Build command line: sentry-crashdaemon.exe <app_pid> <event_handle>
+    wchar_t cmd_line[SENTRY_CRASH_MAX_PATH + 128];
+    int cmd_len = _snwprintf(cmd_line, sizeof(cmd_line) / sizeof(wchar_t),
+        L"\"%s\" %lu %llu", daemon_path, (unsigned long)app_pid,
+        (unsigned long long)(uintptr_t)event_handle);
+
+    if (cmd_len < 0 || cmd_len >= (int)(sizeof(cmd_line) / sizeof(wchar_t))) {
+        SENTRY_WARN("Command line too long for daemon spawn");
+        return (pid_t)-1;
+    }
+
+    // Prepare process creation structures
+    STARTUPINFOW si;
+    PROCESS_INFORMATION pi;
+    ZeroMemory(&si, sizeof(si));
+    si.cb = sizeof(si);
+    // Hide console window for daemon
+    si.dwFlags = STARTF_USESHOWWINDOW;
+    si.wShowWindow = SW_HIDE;
+    ZeroMemory(&pi, sizeof(pi));
+
+    // Create the daemon process
+    if (!CreateProcessW(NULL, // Application name (use command line)
+            cmd_line, // Command line
+            NULL, // Process security attributes
+            NULL, // Thread security attributes
+            TRUE, // Inherit handles (for event_handle)
+            CREATE_NO_WINDOW | DETACHED_PROCESS, // Creation flags
+            NULL, // Environment
+            NULL, // Current directory
+            &si, // Startup info
+            &pi)) { // Process information
+        SENTRY_WARNF("Failed to create daemon process: %lu", GetLastError());
+        return (pid_t)-1;
+    }
+
+    // Close thread handle (we don't need it)
+    CloseHandle(pi.hThread);
+
+    // Close process handle (daemon is independent)
+    CloseHandle(pi.hProcess);
+
+    // Return daemon process ID
+    return pi.dwProcessId;
+#endif
 }
+
+// When built as standalone executable, provide main entry point
+#ifdef SENTRY_CRASH_DAEMON_STANDALONE
+
+int
+main(int argc, char **argv)
+{
+    // Expected arguments: <app_pid> <event_handle>
+    if (argc < 3) {
+        fprintf(stderr, "Usage: sentry-crashdaemon <app_pid> <event_handle>\n");
+        return 1;
+    }
+
+    // Parse arguments
+    pid_t app_pid = (pid_t)strtoul(argv[1], NULL, 10);
+
+#    if defined(SENTRY_PLATFORM_UNIX)
+    int event_handle = atoi(argv[2]);
+    return sentry__crash_daemon_main(app_pid, event_handle);
+#    elif defined(SENTRY_PLATFORM_WINDOWS)
+    unsigned long long event_handle_val = strtoull(argv[2], NULL, 10);
+    HANDLE event_handle = (HANDLE)(uintptr_t)event_handle_val;
+    return sentry__crash_daemon_main(app_pid, event_handle);
+#    else
+    fprintf(stderr, "Platform not supported\n");
+    return 1;
+#    endif
+}
+
+#endif // SENTRY_CRASH_DAEMON_STANDALONE
