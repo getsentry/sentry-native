@@ -841,9 +841,9 @@ sentry__crash_daemon_start(
 
 #elif defined(SENTRY_PLATFORM_WINDOWS)
     // On Windows, create a separate daemon process using CreateProcess
-    // Spawn the sentry-crashdaemon.exe executable
+    // Spawn the sentry-crash.exe executable
 
-    // Try to find sentry-crashdaemon.exe in the same directory as the current
+    // Try to find sentry-crash.exe in the same directory as the current
     // executable
     wchar_t exe_dir[SENTRY_CRASH_MAX_PATH];
     DWORD len = GetModuleFileNameW(NULL, exe_dir, SENTRY_CRASH_MAX_PATH);
@@ -858,10 +858,10 @@ sentry__crash_daemon_start(
         *(last_slash + 1) = L'\0'; // Keep the trailing backslash
     }
 
-    // Build full path to sentry-crashdaemon.exe
+    // Build full path to sentry-crash.exe
     wchar_t daemon_path[SENTRY_CRASH_MAX_PATH];
-    int path_len = _snwprintf(daemon_path, SENTRY_CRASH_MAX_PATH,
-        L"%ssentry-crashdaemon.exe", exe_dir);
+    int path_len = _snwprintf(
+        daemon_path, SENTRY_CRASH_MAX_PATH, L"%ssentry-crash.exe", exe_dir);
     if (path_len < 0 || path_len >= SENTRY_CRASH_MAX_PATH) {
         SENTRY_WARN("Daemon path too long");
         return (pid_t)-1;
@@ -874,7 +874,8 @@ sentry__crash_daemon_start(
         sentry_free(daemon_path_utf8);
     }
 
-    // Build command line: sentry-crashdaemon.exe <app_pid> <event_handle> <ready_event_handle>
+    // Build command line: sentry-crash.exe <app_pid> <event_handle>
+    // <ready_event_handle>
     wchar_t cmd_line[SENTRY_CRASH_MAX_PATH + 128];
     int cmd_len = _snwprintf(cmd_line, sizeof(cmd_line) / sizeof(wchar_t),
         L"\"%s\" %lu %llu %llu", daemon_path, (unsigned long)app_pid,
@@ -941,7 +942,8 @@ main(int argc, char **argv)
 {
     // Expected arguments: <app_pid> <notify_handle> <ready_handle>
     if (argc < 4) {
-        fprintf(stderr, "Usage: sentry-crashdaemon <app_pid> <notify_handle> <ready_handle>\n");
+        fprintf(stderr,
+            "Usage: sentry-crash <app_pid> <notify_handle> <ready_handle>\n");
         return 1;
     }
 
@@ -955,7 +957,8 @@ main(int argc, char **argv)
 #    elif defined(SENTRY_PLATFORM_MACOS)
     int notify_pipe_read = atoi(argv[2]);
     int ready_pipe_write = atoi(argv[3]);
-    return sentry__crash_daemon_main(app_pid, notify_pipe_read, ready_pipe_write);
+    return sentry__crash_daemon_main(
+        app_pid, notify_pipe_read, ready_pipe_write);
 #    elif defined(SENTRY_PLATFORM_WINDOWS)
     unsigned long long event_handle_val = strtoull(argv[2], NULL, 10);
     unsigned long long ready_event_val = strtoull(argv[3], NULL, 10);
