@@ -277,13 +277,16 @@ native_backend_startup(
     // Other platforms: Use out-of-process daemon
     // Pass the notification handles (eventfd/pipe on Unix, events on Windows)
 #    if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+    uint64_t tid = (uint64_t)pthread_self();
     state->daemon_pid = sentry__crash_daemon_start(
-        getpid(), state->ipc->notify_fd, state->ipc->ready_fd);
+        getpid(), tid, state->ipc->notify_fd, state->ipc->ready_fd);
 #    elif defined(SENTRY_PLATFORM_MACOS)
+    uint64_t tid = (uint64_t)pthread_self();
     state->daemon_pid = sentry__crash_daemon_start(
-        getpid(), state->ipc->notify_pipe[0], state->ipc->ready_pipe[1]);
+        getpid(), tid, state->ipc->notify_pipe[0], state->ipc->ready_pipe[1]);
 #    elif defined(SENTRY_PLATFORM_WINDOWS)
-    state->daemon_pid = sentry__crash_daemon_start(GetCurrentProcessId(),
+    uint64_t tid = (uint64_t)GetCurrentThreadId();
+    state->daemon_pid = sentry__crash_daemon_start(GetCurrentProcessId(), tid,
         state->ipc->event_handle, state->ipc->ready_event_handle);
 #    endif
 
@@ -296,7 +299,22 @@ native_backend_startup(
 
     SENTRY_DEBUGF("crash daemon started with PID %d", state->daemon_pid);
 
+#    if defined(SENTRY_PLATFORM_MACOS)
+    // Close unused pipe ends in parent process
+    close(state->ipc->notify_pipe[0]); // Daemon reads from this
+    close(state->ipc->ready_pipe[1]); // Daemon writes to this
+    state->ipc->notify_pipe[0] = -1;
+    state->ipc->ready_pipe[1] = -1;
+#    endif
+
 #    if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+    // Close unused eventfd ends in parent process
+    // (eventfds are bidirectional, but we only use one direction per fd)
+    // Parent writes to notify_fd, daemon reads from it - parent can close for
+    // reading Daemon writes to ready_fd, parent reads from it - parent can
+    // close for writing Actually, eventfds can't be closed for one direction,
+    // so keep them open
+
     // On Linux, allow the daemon to ptrace this process
     // This is required when Yama LSM ptrace_scope is enabled
     if (prctl(PR_SET_PTRACER, state->daemon_pid, 0, 0, 0) != 0) {
