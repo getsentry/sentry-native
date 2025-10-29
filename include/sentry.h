@@ -1653,8 +1653,8 @@ SENTRY_API void sentry_options_set_system_crash_reporter_enabled(
  * This controls how much memory is captured in crash minidumps.
  * See `sentry_minidump_mode_t` for available modes.
  *
- * Larger captures provide more debugging information but take longer to generate
- * and upload. For production, `SENTRY_MINIDUMP_MODE_STACK_ONLY` or
+ * Larger captures provide more debugging information but take longer to
+ * generate and upload. For production, `SENTRY_MINIDUMP_MODE_STACK_ONLY` or
  * `SENTRY_MINIDUMP_MODE_SMART` are recommended.
  *
  * This setting only has an effect when using the `native` backend.

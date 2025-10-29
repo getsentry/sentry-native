@@ -1,4 +1,4 @@
-#include <string.h>
+#include "sentry_boot.h"
 
 #if defined(SENTRY_PLATFORM_UNIX)
 #    include <errno.h>
@@ -9,6 +9,8 @@
 #    include <sys/wait.h>
 #    include <unistd.h>
 #endif
+
+#include <string.h>
 
 #include "sentry_alloc.h"
 #include "sentry_backend.h"
@@ -270,17 +272,16 @@ native_backend_startup(
     }
 #else
     // Other platforms: Use out-of-process daemon
-    // Pass the notification handle (eventfd on Linux, event on Windows)
+    // Pass the notification handles (eventfd/pipe on Unix, events on Windows)
 #    if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
-    int notify_handle = state->ipc->eventfd;
-    state->daemon_pid = sentry__crash_daemon_start(getpid(), notify_handle);
+    state->daemon_pid = sentry__crash_daemon_start(
+        getpid(), state->ipc->eventfd, state->ipc->ready_eventfd);
 #    elif defined(SENTRY_PLATFORM_MACOS)
-    int notify_handle = 0; // Semaphore is passed differently on macOS
-    state->daemon_pid = sentry__crash_daemon_start(getpid(), notify_handle);
+    state->daemon_pid = sentry__crash_daemon_start(
+        getpid(), state->ipc->notify_pipe[0], state->ipc->ready_pipe[1]);
 #    elif defined(SENTRY_PLATFORM_WINDOWS)
-    HANDLE notify_handle = state->ipc->event_handle;
-    state->daemon_pid
-        = sentry__crash_daemon_start(GetCurrentProcessId(), notify_handle);
+    state->daemon_pid = sentry__crash_daemon_start(GetCurrentProcessId(),
+        state->ipc->event_handle, state->ipc->ready_event_handle);
 #    endif
 
     if (state->daemon_pid < 0) {
@@ -296,6 +297,8 @@ native_backend_startup(
     if (!sentry__crash_ipc_wait_for_ready(
             state->ipc, SENTRY_CRASH_DAEMON_READY_TIMEOUT_MS)) {
         SENTRY_WARN("Daemon did not signal ready in time, proceeding anyway");
+    } else {
+        SENTRY_DEBUG("Daemon signaled ready");
     }
 
     if (sentry__crash_handler_init(state->ipc) < 0) {

@@ -28,7 +28,7 @@ SENTRY_TEST(minidump_header_size)
     header.version = MINIDUMP_VERSION;
 
     TEST_CHECK(header.signature == 0x504d444d); // 'MDMP' in little-endian
-    TEST_CHECK(header.version == 0xa793);       // Version 1.0
+    TEST_CHECK(header.version == 0xa793); // Version 1.0
 #else
     SKIP_TEST();
 #endif
@@ -47,7 +47,7 @@ SENTRY_TEST(minidump_directory_size)
     dir.data_size = 100;
     dir.rva = 1000;
 
-    TEST_CHECK(dir.stream_type == 7);  // SYSTEM_INFO is 7
+    TEST_CHECK(dir.stream_type == 7); // SYSTEM_INFO is 7
     TEST_CHECK(dir.data_size == 100);
     TEST_CHECK(dir.rva == 1000);
 #else
@@ -79,7 +79,8 @@ SENTRY_TEST(minidump_context_sizes)
 
 #    elif defined(__aarch64__)
     // ARM64 context: 4+4 + 29*8 + 3*8 + 32*16 + 4+4 + 8*8 + 8*8 + 2*4 + 2*8
-    // = 8 + 232 + 24 + 512 + 8 + 64 + 64 + 8 + 16 = 936 bytes (actual: 912 with packing)
+    // = 8 + 232 + 24 + 512 + 8 + 64 + 64 + 8 + 16 = 936 bytes (actual: 912 with
+    // packing)
     TEST_CHECK(sizeof(minidump_context_arm64_t) == 912);
 
     minidump_context_arm64_t ctx = { 0 };
@@ -106,7 +107,8 @@ SENTRY_TEST(minidump_context_sizes)
 SENTRY_TEST(minidump_module_structure)
 {
 #ifdef SENTRY_BACKEND_NATIVE
-    // Module structure size: 8 + 4*3 + 4 + 8*13 + 8*2 + 8*2 = 8 + 12 + 4 + 104 + 16 + 16 = 160 bytes
+    // Module structure size: 8 + 4*3 + 4 + 8*13 + 8*2 + 8*2 = 8 + 12 + 4 + 104
+    // + 16 + 16 = 160 bytes
     TEST_CHECK(sizeof(minidump_module_t) == 160);
 
     minidump_module_t module = { 0 };
@@ -234,7 +236,7 @@ SENTRY_TEST(minidump_cpu_architectures)
     TEST_CHECK(MINIDUMP_CPU_X86 == 0);
     TEST_CHECK(MINIDUMP_CPU_ARM == 5);
     TEST_CHECK(MINIDUMP_CPU_ARM64 == 12);
-    TEST_CHECK(MINIDUMP_CPU_X86_64 == 0x8664);  // AMD64/x86-64 architecture
+    TEST_CHECK(MINIDUMP_CPU_X86_64 == 0x8664); // AMD64/x86-64 architecture
 #else
     SKIP_TEST();
 #endif
@@ -332,12 +334,14 @@ SENTRY_TEST(minidump_structures_packed)
     // This is critical for binary format compatibility
 
 #    if defined(__x86_64__)
-    // x86_64 context: 6*8 + 4*2 + 6*2 + 2*4 + 8*8 + 16*8 + 512 + 26*16 + 6*8 = 1232
+    // x86_64 context: 6*8 + 4*2 + 6*2 + 2*4 + 8*8 + 16*8 + 512 + 26*16 + 6*8 =
+    // 1232
     size_t expected_x86_64 = 48 + 8 + 12 + 8 + 64 + 128 + 512 + 416 + 48;
     TEST_CHECK(sizeof(minidump_context_x86_64_t) == expected_x86_64);
 
 #    elif defined(__aarch64__)
-    // ARM64 context: 4 + 4 + 29*8 + 4*8 + 32*16 + 4 + 4 + 8*4 + 8*8 + 2*4 + 2*8 = 1344
+    // ARM64 context: 4 + 4 + 29*8 + 4*8 + 32*16 + 4 + 4 + 8*4 + 8*8 + 2*4 + 2*8
+    // = 1344
     size_t expected_arm64 = 8 + 232 + 32 + 512 + 8 + 32 + 64 + 8 + 16;
     TEST_CHECK(sizeof(minidump_context_arm64_t) <= expected_arm64 + 100);
 #    endif
