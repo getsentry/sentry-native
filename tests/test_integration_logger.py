@@ -7,7 +7,7 @@ import pytest
 import os
 
 from . import run
-from .conditions import has_breakpad, has_crashpad, is_android
+from .conditions import has_breakpad, has_crashpad, has_native, is_android
 
 
 def _run_logger_crash_test(backend, cmake, logger_option):
@@ -117,7 +117,14 @@ def parse_logger_output(output):
                 ),
             ],
         ),
-        "native",  # Native backend always available
+        pytest.param(
+            "native",
+            marks=[
+                pytest.mark.skipif(
+                    not has_native, reason="native backend not available"
+                ),
+            ],
+        ),
     ],
 )
 def test_logger_enabled_when_crashed(backend, cmake):
@@ -158,7 +165,14 @@ def test_logger_enabled_when_crashed(backend, cmake):
                 not has_crashpad, reason="crashpad backend not available"
             ),
         ),
-        "native",  # Native backend always available
+        pytest.param(
+            "native",
+            marks=[
+                pytest.mark.skipif(
+                    not has_native, reason="native backend not available"
+                ),
+            ],
+        ),
     ],
 )
 def test_logger_disabled_when_crashed(backend, cmake):

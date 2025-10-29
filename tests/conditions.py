@@ -37,4 +37,4 @@ has_files = not is_android
 
 # Native backend works on all platforms (lightweight, no external dependencies)
 # It's always available - tests explicitly set SENTRY_BACKEND: native in cmake
-has_native = True
+has_native = has_http

@@ -35,7 +35,7 @@ from .assertions import (
     assert_logs,
     assert_metrics,
 )
-from .conditions import has_http, has_breakpad, has_files, is_kcov
+from .conditions import has_http, has_breakpad, has_native, has_files, is_kcov
 
 pytestmark = pytest.mark.skipif(not has_http, reason="tests need http")
 
@@ -1581,6 +1581,7 @@ def test_metrics_on_crash(cmake, httpserver, backend):
     assert_metrics(metrics_envelope, 1)
 
 
+@pytest.mark.skipif(not has_native, reason="test needs native backend")
 def test_native_crash_http(cmake, httpserver):
     """Test native backend crash handling with HTTP transport"""
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
@@ -1616,6 +1617,7 @@ def test_native_crash_http(cmake, httpserver):
     assert_attachment(envelope)
 
 
+@pytest.mark.skipif(not has_native, reason="test needs native backend")
 def test_native_logs_on_crash(cmake, httpserver):
     """Test that logs are captured with native backend crashes"""
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
