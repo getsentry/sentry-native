@@ -14,7 +14,8 @@ sourcedir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
 # https://docs.pytest.org/en/latest/assert.html#assert-details
 pytest.register_assert_rewrite("tests.assertions")
-from tests.assertions import assert_no_proxy_request
+
+SENTRY_VERSION = "0.11.3"
 
 
 def make_dsn(httpserver, auth="uiaeosnrtdy", id=123456, proxy_host=False):
