@@ -781,9 +781,6 @@ elseif(SENTRY_BACKEND_NATIVE)
 	# Link same libraries as sentry
 	if(WIN32)
 		target_link_libraries(sentry-crash PRIVATE dbghelp shlwapi version)
-		if(SENTRY_TRANSPORT_WINHTTP)
-			target_link_libraries(sentry-crash PRIVATE winhttp)
-		endif()
 	elseif(LINUX OR ANDROID)
 		target_link_libraries(sentry-crash PRIVATE pthread rt dl)
 	elseif(APPLE)
@@ -797,8 +794,17 @@ elseif(SENTRY_BACKEND_NATIVE)
 
 	# Transport-specific libraries
 	if(SENTRY_TRANSPORT_CURL)
-		target_link_libraries(sentry-crash PRIVATE CURL::libcurl)
+		if(NOT TARGET CURL::libcurl) # Some other lib might bring libcurl already
+			find_package(CURL REQUIRED)
+		endif()
+
+		target_link_libraries(sentry PRIVATE CURL::libcurl)
 	endif()
+
+	if(SENTRY_TRANSPORT_WINHTTP)
+		target_link_libraries(sentry-crash PRIVATE winhttp)
+	endif()
+
 
 	# Compression library
 	if(SENTRY_TRANSPORT_COMPRESSION)
@@ -809,6 +815,7 @@ elseif(SENTRY_BACKEND_NATIVE)
 	if(SENTRY_WITH_LIBUNWINDSTACK)
 		target_link_libraries(sentry-crash PRIVATE unwindstack)
 	endif()
+
 	if(SENTRY_WITH_LIBUNWIND)
 		target_include_directories(sentry-crash PRIVATE ${LIBUNWIND_INCLUDE_DIR})
 		target_link_libraries(sentry-crash PRIVATE ${LIBUNWIND_LIBRARIES})
