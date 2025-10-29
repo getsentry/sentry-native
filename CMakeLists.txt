@@ -737,11 +737,8 @@ elseif(SENTRY_BACKEND_INPROC)
 elseif(SENTRY_BACKEND_NATIVE)
 	target_compile_definitions(sentry PRIVATE SENTRY_WITH_NATIVE_BACKEND)
 
-	# Add native backend subdirectory
-	add_subdirectory(src/backends/native)
-
-	# The native backend requires C11 for atomics
-	set_property(TARGET sentry PROPERTY C_STANDARD 11)
+	# Native backend sources and configuration are in src/CMakeLists.txt
+	# The native backend requires C11 for atomics (set in src/CMakeLists.txt)
 
 	if(DEFINED SENTRY_FOLDER)
 		# Native backend doesn't have separate targets to organize

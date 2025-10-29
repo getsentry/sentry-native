@@ -2,15 +2,17 @@
 
 #include "sentry_alloc.h"
 #include "sentry_logger.h"
+#include "sentry_sync.h"
 
-#include <errno.h>
-#include <fcntl.h>
 #include <stdio.h>
 #include <string.h>
-#include <sys/file.h>
-#include <unistd.h>
 
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+
+#    include <errno.h>
+#    include <fcntl.h>
+#    include <sys/file.h>
+#    include <unistd.h>
 
 sentry_crash_ipc_t *
 sentry__crash_ipc_init_app(sem_t *init_sem)
@@ -29,8 +31,8 @@ sentry__crash_ipc_init_app(sem_t *init_sem)
 
     // Acquire semaphore for exclusive access during initialization
     if (ipc->init_sem && sem_wait(ipc->init_sem) < 0) {
-        SENTRY_WARNF("failed to acquire initialization semaphore: %s",
-            strerror(errno));
+        SENTRY_WARNF(
+            "failed to acquire initialization semaphore: %s", strerror(errno));
         sentry_free(ipc);
         return NULL;
     }
@@ -102,8 +104,8 @@ sentry__crash_ipc_init_app(sem_t *init_sem)
         memset(ipc->shmem, 0, SENTRY_CRASH_SHM_SIZE);
         ipc->shmem->magic = SENTRY_CRASH_MAGIC;
         ipc->shmem->version = SENTRY_CRASH_VERSION;
-        atomic_store(&ipc->shmem->state, SENTRY_CRASH_STATE_READY);
-        atomic_store(&ipc->shmem->sequence, 0);
+        sentry__atomic_store(&ipc->shmem->state, SENTRY_CRASH_STATE_READY);
+        sentry__atomic_store(&ipc->shmem->sequence, 0);
     }
 
     // Release semaphore after initialization
@@ -111,8 +113,8 @@ sentry__crash_ipc_init_app(sem_t *init_sem)
         sem_post(ipc->init_sem);
     }
 
-    SENTRY_DEBUGF("initialized crash IPC (shm=%s, eventfd=%d)",
-        ipc->shm_name, ipc->eventfd);
+    SENTRY_DEBUGF("initialized crash IPC (shm=%s, eventfd=%d)", ipc->shm_name,
+        ipc->eventfd);
 
     return ipc;
 }
@@ -128,13 +130,13 @@ sentry__crash_ipc_init_daemon(pid_t app_pid)
     ipc->is_daemon = true;
 
     // Open existing shared memory created by app
-    snprintf(ipc->shm_name, sizeof(ipc->shm_name), "/sentry-crash-%d",
-        (int)app_pid);
+    snprintf(
+        ipc->shm_name, sizeof(ipc->shm_name), "/sentry-crash-%d", (int)app_pid);
 
     ipc->shm_fd = shm_open(ipc->shm_name, O_RDWR, 0600);
     if (ipc->shm_fd < 0) {
-        SENTRY_WARNF("daemon: failed to open shared memory: %s",
-            strerror(errno));
+        SENTRY_WARNF(
+            "daemon: failed to open shared memory: %s", strerror(errno));
         sentry_free(ipc);
         return NULL;
     }
@@ -143,8 +145,8 @@ sentry__crash_ipc_init_daemon(pid_t app_pid)
     ipc->shmem = mmap(NULL, SENTRY_CRASH_SHM_SIZE, PROT_READ | PROT_WRITE,
         MAP_SHARED, ipc->shm_fd, 0);
     if (ipc->shmem == MAP_FAILED) {
-        SENTRY_WARNF("daemon: failed to map shared memory: %s",
-            strerror(errno));
+        SENTRY_WARNF(
+            "daemon: failed to map shared memory: %s", strerror(errno));
         close(ipc->shm_fd);
         sentry_free(ipc);
         return NULL;
@@ -231,12 +233,15 @@ sentry__crash_ipc_free(sentry_crash_ipc_t *ipc)
         close(ipc->eventfd);
     }
 
-    // Note: Semaphore is now managed by backend, not IPC
-
     sentry_free(ipc);
 }
 
 #elif defined(SENTRY_PLATFORM_MACOS)
+
+#    include <errno.h>
+#    include <fcntl.h>
+#    include <sys/file.h>
+#    include <unistd.h>
 
 sentry_crash_ipc_t *
 sentry__crash_ipc_init_app(sem_t *init_sem)
@@ -255,8 +260,8 @@ sentry__crash_ipc_init_app(sem_t *init_sem)
 
     // Acquire semaphore for exclusive access during initialization
     if (ipc->init_sem && sem_wait(ipc->init_sem) < 0) {
-        SENTRY_WARNF("failed to acquire initialization semaphore: %s",
-            strerror(errno));
+        SENTRY_WARNF(
+            "failed to acquire initialization semaphore: %s", strerror(errno));
         sentry_free(ipc);
         return NULL;
     }
@@ -328,8 +333,8 @@ sentry__crash_ipc_init_app(sem_t *init_sem)
         memset(ipc->shmem, 0, SENTRY_CRASH_SHM_SIZE);
         ipc->shmem->magic = SENTRY_CRASH_MAGIC;
         ipc->shmem->version = SENTRY_CRASH_VERSION;
-        atomic_store(&ipc->shmem->state, SENTRY_CRASH_STATE_READY);
-        atomic_store(&ipc->shmem->sequence, 0);
+        sentry__atomic_store(&ipc->shmem->state, SENTRY_CRASH_STATE_READY);
+        sentry__atomic_store(&ipc->shmem->sequence, 0);
     }
 
     // Release semaphore after initialization
@@ -337,8 +342,8 @@ sentry__crash_ipc_init_app(sem_t *init_sem)
         sem_post(ipc->init_sem);
     }
 
-    SENTRY_DEBUGF("initialized crash IPC (shm=%s, pipe=%d/%d)",
-        ipc->shm_name, ipc->notify_pipe[0], ipc->notify_pipe[1]);
+    SENTRY_DEBUGF("initialized crash IPC (shm=%s, pipe=%d/%d)", ipc->shm_name,
+        ipc->notify_pipe[0], ipc->notify_pipe[1]);
 
     return ipc;
 }
@@ -353,13 +358,13 @@ sentry__crash_ipc_init_daemon(pid_t app_pid)
     memset(ipc, 0, sizeof(sentry_crash_ipc_t));
     ipc->is_daemon = true;
 
-    snprintf(ipc->shm_name, sizeof(ipc->shm_name), "/sentry-crash-%d",
-        (int)app_pid);
+    snprintf(
+        ipc->shm_name, sizeof(ipc->shm_name), "/sentry-crash-%d", (int)app_pid);
 
     ipc->shm_fd = shm_open(ipc->shm_name, O_RDWR, 0600);
     if (ipc->shm_fd < 0) {
-        SENTRY_WARNF("daemon: failed to open shared memory: %s",
-            strerror(errno));
+        SENTRY_WARNF(
+            "daemon: failed to open shared memory: %s", strerror(errno));
         sentry_free(ipc);
         return NULL;
     }
@@ -367,8 +372,8 @@ sentry__crash_ipc_init_daemon(pid_t app_pid)
     ipc->shmem = mmap(NULL, SENTRY_CRASH_SHM_SIZE, PROT_READ | PROT_WRITE,
         MAP_SHARED, ipc->shm_fd, 0);
     if (ipc->shmem == MAP_FAILED) {
-        SENTRY_WARNF("daemon: failed to map shared memory: %s",
-            strerror(errno));
+        SENTRY_WARNF(
+            "daemon: failed to map shared memory: %s", strerror(errno));
         close(ipc->shm_fd);
         sentry_free(ipc);
         return NULL;
@@ -456,8 +461,6 @@ sentry__crash_ipc_free(sentry_crash_ipc_t *ipc)
         shm_unlink(ipc->shm_name);
     }
 
-    // Note: Semaphore is now managed by backend, not IPC
-
     sentry_free(ipc);
 }
 
@@ -475,15 +478,15 @@ sentry__crash_ipc_init_app(HANDLE init_mutex)
     ipc->init_mutex = init_mutex; // Use provided mutex (managed by backend)
 
     // Create named shared memory
-    swprintf(ipc->shm_name, 64, L"Local\\SentryCrash-%lu",
-        GetCurrentProcessId());
+    swprintf(ipc->shm_name, SENTRY_CRASH_IPC_NAME_SIZE,
+        L"Local\\SentryCrash-%lu", GetCurrentProcessId());
 
     // Acquire mutex for exclusive access during initialization
     if (ipc->init_mutex) {
         DWORD result = WaitForSingleObject(ipc->init_mutex, INFINITE);
         if (result != WAIT_OBJECT_0) {
-            SENTRY_WARNF("failed to acquire initialization mutex: %lu",
-                GetLastError());
+            SENTRY_WARNF(
+                "failed to acquire initialization mutex: %lu", GetLastError());
             sentry_free(ipc);
             return NULL;
         }
@@ -520,8 +523,8 @@ sentry__crash_ipc_init_app(HANDLE init_mutex)
     }
 
     // Create named event for notifications
-    swprintf(ipc->event_name, 64, L"Local\\SentryCrashEvent-%lu",
-        GetCurrentProcessId());
+    swprintf(ipc->event_name, SENTRY_CRASH_IPC_NAME_SIZE,
+        L"Local\\SentryCrashEvent-%lu", GetCurrentProcessId());
     ipc->event_handle
         = CreateEventW(NULL, FALSE, FALSE, ipc->event_name); // Auto-reset
     if (!ipc->event_handle) {
@@ -540,8 +543,8 @@ sentry__crash_ipc_init_app(HANDLE init_mutex)
         memset(ipc->shmem, 0, SENTRY_CRASH_SHM_SIZE);
         ipc->shmem->magic = SENTRY_CRASH_MAGIC;
         ipc->shmem->version = SENTRY_CRASH_VERSION;
-        atomic_store(&ipc->shmem->state, SENTRY_CRASH_STATE_READY);
-        atomic_store(&ipc->shmem->sequence, 0);
+        sentry__atomic_store(&ipc->shmem->state, SENTRY_CRASH_STATE_READY);
+        sentry__atomic_store(&ipc->shmem->sequence, 0);
     }
 
     // Release mutex after initialization
@@ -565,12 +568,14 @@ sentry__crash_ipc_init_daemon(pid_t app_pid)
     ipc->is_daemon = true;
 
     // Open existing shared memory
-    swprintf(ipc->shm_name, 64, L"Local\\SentryCrash-%lu", (unsigned long)app_pid);
+    swprintf(ipc->shm_name, SENTRY_CRASH_IPC_NAME_SIZE,
+        L"Local\\SentryCrash-%lu", (unsigned long)app_pid);
 
-    ipc->shm_handle = OpenFileMappingW(FILE_MAP_ALL_ACCESS, FALSE, ipc->shm_name);
+    ipc->shm_handle
+        = OpenFileMappingW(FILE_MAP_ALL_ACCESS, FALSE, ipc->shm_name);
     if (!ipc->shm_handle) {
-        SENTRY_WARNF("daemon: failed to open shared memory: %lu",
-            GetLastError());
+        SENTRY_WARNF(
+            "daemon: failed to open shared memory: %lu", GetLastError());
         sentry_free(ipc);
         return NULL;
     }
@@ -578,8 +583,8 @@ sentry__crash_ipc_init_daemon(pid_t app_pid)
     ipc->shmem = MapViewOfFile(
         ipc->shm_handle, FILE_MAP_ALL_ACCESS, 0, 0, SENTRY_CRASH_SHM_SIZE);
     if (!ipc->shmem) {
-        SENTRY_WARNF("daemon: failed to map shared memory: %lu",
-            GetLastError());
+        SENTRY_WARNF(
+            "daemon: failed to map shared memory: %lu", GetLastError());
         CloseHandle(ipc->shm_handle);
         sentry_free(ipc);
         return NULL;
@@ -594,8 +599,8 @@ sentry__crash_ipc_init_daemon(pid_t app_pid)
     }
 
     // Open existing event
-    swprintf(ipc->event_name, 64, L"Local\\SentryCrashEvent-%lu",
-        (unsigned long)app_pid);
+    swprintf(ipc->event_name, SENTRY_CRASH_IPC_NAME_SIZE,
+        L"Local\\SentryCrashEvent-%lu", (unsigned long)app_pid);
     ipc->event_handle = OpenEventW(EVENT_ALL_ACCESS, FALSE, ipc->event_name);
     if (!ipc->event_handle) {
         SENTRY_WARNF("daemon: failed to open event: %lu", GetLastError());
