@@ -40,10 +40,10 @@ typedef enum {
 
 // CPU types (MINIDUMP_PROCESSOR_ARCHITECTURE)
 typedef enum {
-    MINIDUMP_CPU_X86 = 0,       // PROCESSOR_ARCHITECTURE_INTEL
-    MINIDUMP_CPU_ARM = 5,       // PROCESSOR_ARCHITECTURE_ARM
-    MINIDUMP_CPU_X86_64 = 9,    // PROCESSOR_ARCHITECTURE_AMD64
-    MINIDUMP_CPU_ARM64 = 12,    // PROCESSOR_ARCHITECTURE_ARM64
+    MINIDUMP_CPU_X86 = 0, // PROCESSOR_ARCHITECTURE_INTEL
+    MINIDUMP_CPU_ARM = 5, // PROCESSOR_ARCHITECTURE_ARM
+    MINIDUMP_CPU_X86_64 = 9, // PROCESSOR_ARCHITECTURE_AMD64
+    MINIDUMP_CPU_ARM64 = 12, // PROCESSOR_ARCHITECTURE_ARM64
 } minidump_cpu_type_t;
 
 // OS types
@@ -173,8 +173,8 @@ typedef struct {
     uint16_t reserved3;
     uint32_t mx_csr;
     uint32_t mx_csr_mask;
-    m128a_t float_registers[8];  // ST0-ST7 (x87 FPU registers)
-    m128a_t xmm_registers[16];   // XMM0-XMM15 (SSE registers)
+    m128a_t float_registers[8]; // ST0-ST7 (x87 FPU registers)
+    m128a_t xmm_registers[16]; // XMM0-XMM15 (SSE registers)
     uint8_t reserved4[96];
 } PACKED_ATTR xmm_save_area32_t;
 PACKED_STRUCT_END
@@ -220,7 +220,7 @@ typedef struct {
     uint64_t r15;
     uint64_t rip;
     xmm_save_area32_t float_save; // FPU and XMM state (512 bytes)
-    m128a_t vector_register[26];   // AVX extension registers
+    m128a_t vector_register[26]; // AVX extension registers
     uint64_t vector_control;
     uint64_t debug_control;
     uint64_t last_branch_to_rip;
@@ -243,18 +243,18 @@ PACKED_STRUCT_BEGIN
 typedef struct {
     uint32_t context_flags;
     uint32_t cpsr;
-    uint64_t regs[29];      // X0-X28
-    uint64_t fp;            // X29 (frame pointer)
-    uint64_t lr;            // X30 (link register)
-    uint64_t sp;            // Stack pointer
-    uint64_t pc;            // Program counter
+    uint64_t regs[29]; // X0-X28
+    uint64_t fp; // X29 (frame pointer)
+    uint64_t lr; // X30 (link register)
+    uint64_t sp; // Stack pointer
+    uint64_t pc; // Program counter
     uint128_struct fpsimd[32]; // NEON/FP registers V0-V31
-    uint32_t fpsr;          // Floating-point status register
-    uint32_t fpcr;          // Floating-point control register
-    uint32_t bcr[8];        // Debug breakpoint control registers
-    uint64_t bvr[8];        // Debug breakpoint value registers
-    uint32_t wcr[2];        // Debug watchpoint control registers
-    uint64_t wvr[2];        // Debug watchpoint value registers
+    uint32_t fpsr; // Floating-point status register
+    uint32_t fpcr; // Floating-point control register
+    uint32_t bcr[8]; // Debug breakpoint control registers
+    uint64_t bvr[8]; // Debug breakpoint value registers
+    uint32_t wcr[2]; // Debug watchpoint control registers
+    uint64_t wvr[2]; // Debug watchpoint value registers
 } PACKED_ATTR minidump_context_arm64_t;
 PACKED_STRUCT_END
 
@@ -332,9 +332,9 @@ PACKED_STRUCT_BEGIN
 typedef union {
     // For x86/x86_64 (when processor_architecture is X86 or AMD64)
     struct {
-        uint32_t vendor_id[3];              // cpuid 0: ebx, edx, ecx
-        uint32_t version_information;       // cpuid 1: eax
-        uint32_t feature_information;       // cpuid 1: edx
+        uint32_t vendor_id[3]; // cpuid 0: ebx, edx, ecx
+        uint32_t version_information; // cpuid 1: eax
+        uint32_t feature_information; // cpuid 1: edx
         uint32_t amd_extended_cpu_features; // cpuid 0x80000001: edx
     } PACKED_ALIGNED_ATTR(4) x86_cpu_info;
 
@@ -403,7 +403,8 @@ typedef struct {
     uint32_t checksum;
     uint32_t time_date_stamp;
     minidump_rva_t module_name_rva;
-    uint32_t version_info[13]; // VS_FIXEDFILEINFO: 13 uint32_t fields = 52 bytes
+    uint32_t
+        version_info[13]; // VS_FIXEDFILEINFO: 13 uint32_t fields = 52 bytes
     minidump_location_t cv_record;
     minidump_location_t misc_record;
     uint64_t reserved0;

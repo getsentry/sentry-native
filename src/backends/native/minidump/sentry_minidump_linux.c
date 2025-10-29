@@ -200,8 +200,8 @@ ptrace_get_thread_registers(pid_t tid, ucontext_t *uctx)
         uctx->uc_mcontext.gregs[REG_OLDMASK] = 0;
         uctx->uc_mcontext.gregs[REG_CR2] = 0;
         success = true;
-        SENTRY_DEBUGF("Thread %d: captured registers via ptrace, SP=0x%llx", tid,
-            (unsigned long long)regs.rsp);
+        SENTRY_DEBUGF("Thread %d: captured registers via ptrace, SP=0x%llx",
+            tid, (unsigned long long)regs.rsp);
     } else {
         SENTRY_DEBUGF("ptrace(PTRACE_GETREGS) failed for thread %d: %s", tid,
             strerror(errno));
@@ -220,8 +220,8 @@ ptrace_get_thread_registers(pid_t tid, ucontext_t *uctx)
         uctx->uc_mcontext.pc = regs.pc;
         uctx->uc_mcontext.pstate = regs.pstate;
         success = true;
-        SENTRY_DEBUGF("Thread %d: captured registers via ptrace, SP=0x%llx", tid,
-            (unsigned long long)regs.sp);
+        SENTRY_DEBUGF("Thread %d: captured registers via ptrace, SP=0x%llx",
+            tid, (unsigned long long)regs.sp);
     } else {
         SENTRY_DEBUGF("ptrace(PTRACE_GETREGSET) failed for thread %d: %s", tid,
             strerror(errno));
@@ -250,8 +250,8 @@ ptrace_get_thread_registers(pid_t tid, ucontext_t *uctx)
         uctx->uc_mcontext.gregs[REG_UESP] = regs.esp;
         uctx->uc_mcontext.gregs[REG_SS] = regs.xss;
         success = true;
-        SENTRY_DEBUGF("Thread %d: captured registers via ptrace, SP=0x%x", tid,
-            regs.esp);
+        SENTRY_DEBUGF(
+            "Thread %d: captured registers via ptrace, SP=0x%x", tid, regs.esp);
     } else {
         SENTRY_DEBUGF("ptrace(PTRACE_GETREGS) failed for thread %d: %s", tid,
             strerror(errno));
@@ -672,7 +672,8 @@ write_thread_context(minidump_writer_t *writer, const ucontext_t *uctx)
 
 #    elif defined(__i386__)
     minidump_context_x86_t context = { 0 };
-    // Set flags for full context (control + integer + segments + floating point)
+    // Set flags for full context (control + integer + segments + floating
+    // point)
     context.context_flags
         = 0x0001003f; // CONTEXT_i386 | CONTEXT_CONTROL | CONTEXT_INTEGER |
                       // CONTEXT_SEGMENTS | CONTEXT_FLOATING_POINT
@@ -709,8 +710,8 @@ write_thread_context(minidump_writer_t *writer, const ucontext_t *uctx)
         context.float_save.data_selector = fpregs->datasel;
 
         // Copy ST0-ST7 (x87 FPU registers)
-        memcpy(context.float_save.register_area, fpregs->_st,
-            sizeof(fpregs->_st));
+        memcpy(
+            context.float_save.register_area, fpregs->_st, sizeof(fpregs->_st));
     }
 
     return write_data(writer, &context, sizeof(context));
@@ -861,8 +862,8 @@ write_cv_record(minidump_writer_t *writer, const char *module_path,
     // Write raw Build ID bytes (typically 20 bytes for SHA-1)
     memcpy(cv_record + sizeof(signature), build_id, build_id_len);
 
-    SENTRY_DEBUGF("CV Record: signature=0x%x, build_id_len=%zu", signature,
-        build_id_len);
+    SENTRY_DEBUGF(
+        "CV Record: signature=0x%x, build_id_len=%zu", signature, build_id_len);
 
     minidump_rva_t rva = write_data(writer, cv_record, total_size);
     sentry_free(cv_record);
@@ -883,7 +884,8 @@ write_minidump_string(minidump_writer_t *writer, const char *str)
     size_t utf16_len = utf8_len; // Approximate (ASCII chars = 1:1)
 
     // Allocate buffer for UTF-16LE string (including null terminator)
-    uint32_t total_size = sizeof(uint32_t) + (utf16_len * 2) + 2; // +2 for null terminator
+    uint32_t total_size
+        = sizeof(uint32_t) + (utf16_len * 2) + 2; // +2 for null terminator
     uint8_t *buf = sentry_malloc(total_size);
     if (!buf) {
         return 0;
@@ -913,16 +915,15 @@ static minidump_rva_t
 write_thread_stack(minidump_writer_t *writer, uint64_t stack_pointer,
     size_t *stack_size_out, uint64_t *stack_start_out)
 {
-    SENTRY_DEBUGF("write_thread_stack: SP=0x%llx",
-        (unsigned long long)stack_pointer);
+    SENTRY_DEBUGF(
+        "write_thread_stack: SP=0x%llx", (unsigned long long)stack_pointer);
 
     // On x86_64, include the red zone (128 bytes below SP)
     // Leaf functions can use this area without adjusting SP
 #    if defined(__x86_64__)
     const size_t RED_ZONE = 128;
-    uint64_t capture_start = stack_pointer >= RED_ZONE
-        ? stack_pointer - RED_ZONE
-        : stack_pointer;
+    uint64_t capture_start
+        = stack_pointer >= RED_ZONE ? stack_pointer - RED_ZONE : stack_pointer;
 #    else
     uint64_t capture_start = stack_pointer;
 #    endif
@@ -978,7 +979,8 @@ write_thread_stack(minidump_writer_t *writer, uint64_t stack_pointer,
         *stack_start_out = capture_start; // Return the actual start address
         SENTRY_DEBUGF(
             "Read %zd bytes of stack memory from 0x%llx (SP was 0x%llx)", nread,
-            (unsigned long long)capture_start, (unsigned long long)stack_pointer);
+            (unsigned long long)capture_start,
+            (unsigned long long)stack_pointer);
     } else {
         SENTRY_WARNF(
             "Failed to read stack memory from process %d at 0x%llx (size %zu): "
@@ -1066,8 +1068,10 @@ write_thread_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
                 ucontext_t ptrace_ctx;
                 memset(&ptrace_ctx, 0, sizeof(ptrace_ctx));
 
-                if (ptrace_get_thread_registers(thread->thread_id, &ptrace_ctx)) {
-                    // Successfully got registers, update context and re-write it
+                if (ptrace_get_thread_registers(
+                        thread->thread_id, &ptrace_ctx)) {
+                    // Successfully got registers, update context and re-write
+                    // it
                     SENTRY_DEBUGF("Thread %u: successfully captured via ptrace",
                         thread->thread_id);
 
@@ -1088,14 +1092,14 @@ write_thread_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
                     if (ptrace_sp != 0) {
                         size_t stack_size = 0;
                         uint64_t stack_start = 0;
-                        thread->stack.memory.rva
-                            = write_thread_stack(writer, ptrace_sp, &stack_size, &stack_start);
+                        thread->stack.memory.rva = write_thread_stack(
+                            writer, ptrace_sp, &stack_size, &stack_start);
                         thread->stack.memory.size = stack_size;
                         thread->stack.start_address = stack_start;
 
-                        SENTRY_DEBUGF(
-                            "Thread %u: wrote ptrace context at RVA 0x%x, stack at "
-                            "RVA 0x%x (size %zu)",
+                        SENTRY_DEBUGF("Thread %u: wrote ptrace context at RVA "
+                                      "0x%x, stack at "
+                                      "RVA 0x%x (size %zu)",
                             thread->thread_id, thread->thread_context.rva,
                             thread->stack.memory.rva, stack_size);
                     }
@@ -1206,7 +1210,8 @@ write_module_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
     // Second pass: write module names and CV records, then update module list
     for (size_t i = 0; i < module_count; i++) {
         // Write module name
-        minidump_rva_t name_rva = write_minidump_string(writer, mod_infos[i].name);
+        minidump_rva_t name_rva
+            = write_minidump_string(writer, mod_infos[i].name);
 
         // Write CV record if we have a Build ID
         minidump_rva_t cv_rva = 0;
@@ -1232,7 +1237,8 @@ write_module_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
             == (off_t)name_rva_offset) {
             if (write(writer->fd, &name_rva, sizeof(name_rva))
                 != sizeof(name_rva)) {
-                SENTRY_WARNF("Failed to write module_name_rva for module %zu", i);
+                SENTRY_WARNF(
+                    "Failed to write module_name_rva for module %zu", i);
             }
         }
 
@@ -1249,8 +1255,7 @@ write_module_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
             if (actual_offset == (off_t)cv_offset) {
                 // Write size first, then rva (order in structure)
                 ssize_t written1 = write(writer->fd, &cv_size, sizeof(cv_size));
-                ssize_t written2
-                    = write(writer->fd, &cv_rva, sizeof(cv_rva));
+                ssize_t written2 = write(writer->fd, &cv_rva, sizeof(cv_rva));
 
                 if (written1 == sizeof(cv_size) && written2 == sizeof(cv_rva)) {
                     // Force flush to disk
@@ -1265,8 +1270,8 @@ write_module_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
                         i, written1, written2);
                 }
             } else {
-                SENTRY_WARNF(
-                    "Failed to seek to CV offset 0x%llx for module %zu (got 0x%llx)",
+                SENTRY_WARNF("Failed to seek to CV offset 0x%llx for module "
+                             "%zu (got 0x%llx)",
                     (unsigned long long)cv_offset, i,
                     (unsigned long long)actual_offset);
             }
@@ -1418,8 +1423,8 @@ write_memory_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
         }
 
         // Read memory from crashed process
-        ssize_t nread
-            = read_process_memory(writer, mapping->start, region_buffer, region_size);
+        ssize_t nread = read_process_memory(
+            writer, mapping->start, region_buffer, region_size);
 
         if (nread > 0) {
             mem->start_address = mapping->start;
