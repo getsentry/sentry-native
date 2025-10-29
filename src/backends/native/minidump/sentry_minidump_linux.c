@@ -672,11 +672,11 @@ write_thread_context(minidump_writer_t *writer, const ucontext_t *uctx)
 
 #    elif defined(__i386__)
     minidump_context_x86_t context = { 0 };
-    // Set flags for full context (control + integer + segments + floating
-    // point)
+    // Set flags for control + integer + segments (no floating point in this
+    // simplified struct)
     context.context_flags
-        = 0x0001003f; // CONTEXT_i386 | CONTEXT_CONTROL | CONTEXT_INTEGER |
-                      // CONTEXT_SEGMENTS | CONTEXT_FLOATING_POINT
+        = 0x0001001f; // CONTEXT_i386 | CONTEXT_CONTROL | CONTEXT_INTEGER |
+                      // CONTEXT_SEGMENTS
 
     // Copy general purpose registers from Linux ucontext
     context.eax = uctx->uc_mcontext.gregs[REG_EAX];
@@ -696,23 +696,16 @@ write_thread_context(minidump_writer_t *writer, const ucontext_t *uctx)
     context.gs = uctx->uc_mcontext.gregs[REG_GS];
     context.ss = uctx->uc_mcontext.gregs[REG_SS];
 
-    // Copy FPU state if available (x87 FPU)
-    if (uctx->uc_mcontext.fpregs) {
-        const struct _libc_fpstate *fpregs
-            = (const struct _libc_fpstate *)uctx->uc_mcontext.fpregs;
+    // Debug registers - zero out (not available from ucontext)
+    context.dr0 = 0;
+    context.dr1 = 0;
+    context.dr2 = 0;
+    context.dr3 = 0;
+    context.dr6 = 0;
+    context.dr7 = 0;
 
-        context.float_save.control_word = fpregs->cw;
-        context.float_save.status_word = fpregs->sw;
-        context.float_save.tag_word = fpregs->tag;
-        context.float_save.error_offset = fpregs->ipoff;
-        context.float_save.error_selector = fpregs->cssel;
-        context.float_save.data_offset = fpregs->dataoff;
-        context.float_save.data_selector = fpregs->datasel;
-
-        // Copy ST0-ST7 (x87 FPU registers)
-        memcpy(
-            context.float_save.register_area, fpregs->_st, sizeof(fpregs->_st));
-    }
+    // Note: FPU state not included in this simplified i386 context structure
+    // This is sufficient for stack unwinding and crash analysis
 
     return write_data(writer, &context, sizeof(context));
 
