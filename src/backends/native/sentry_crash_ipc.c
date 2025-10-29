@@ -84,8 +84,8 @@ sentry__crash_ipc_init_app(sem_t *init_sem)
     }
 
     // Create eventfd for crash notifications
-    ipc->eventfd = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
-    if (ipc->eventfd < 0) {
+    ipc->notify_fd = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
+    if (ipc->notify_fd < 0) {
         SENTRY_WARNF("failed to create eventfd: %s", strerror(errno));
         munmap(ipc->shmem, SENTRY_CRASH_SHM_SIZE);
         close(ipc->shm_fd);
@@ -100,10 +100,10 @@ sentry__crash_ipc_init_app(sem_t *init_sem)
     }
 
     // Create eventfd for daemon ready signal
-    ipc->ready_eventfd = eventfd(0, EFD_CLOEXEC);
-    if (ipc->ready_eventfd < 0) {
+    ipc->ready_fd = eventfd(0, EFD_CLOEXEC);
+    if (ipc->ready_fd < 0) {
         SENTRY_WARNF("failed to create ready eventfd: %s", strerror(errno));
-        close(ipc->eventfd);
+        close(ipc->notify_fd);
         munmap(ipc->shmem, SENTRY_CRASH_SHM_SIZE);
         close(ipc->shm_fd);
         if (!shm_exists) {
@@ -130,8 +130,8 @@ sentry__crash_ipc_init_app(sem_t *init_sem)
         sem_post(ipc->init_sem);
     }
 
-    SENTRY_DEBUGF("initialized crash IPC (shm=%s, eventfd=%d)", ipc->shm_name,
-        ipc->eventfd);
+    SENTRY_DEBUGF("initialized crash IPC (shm=%s, notify_fd=%d)", ipc->shm_name,
+        ipc->notify_fd);
 
     return ipc;
 }
@@ -180,11 +180,11 @@ sentry__crash_ipc_init_daemon(
     }
 
     // Eventfds are inherited from parent after fork - assign them
-    ipc->eventfd = notify_eventfd;
-    ipc->ready_eventfd = ready_eventfd;
+    ipc->notify_fd = notify_eventfd;
+    ipc->ready_fd = ready_eventfd;
 
     SENTRY_DEBUGF(
-        "daemon: attached to crash IPC (shm=%s, eventfd=%d, ready_eventfd=%d)",
+        "daemon: attached to crash IPC (shm=%s, notify_fd=%d, ready_notify_fd=%d)",
         ipc->shm_name, notify_eventfd, ready_eventfd);
 
     return ipc;
@@ -193,38 +193,41 @@ sentry__crash_ipc_init_daemon(
 void
 sentry__crash_ipc_notify(sentry_crash_ipc_t *ipc)
 {
-    if (!ipc || ipc->eventfd < 0) {
+    if (!ipc || ipc->notify_fd < 0) {
         return;
     }
 
     // Write to eventfd to wake up daemon
     // This is signal-safe
     uint64_t val = 1;
-    ssize_t written = write(ipc->eventfd, &val, sizeof(val));
+    ssize_t written = write(ipc->notify_fd, &val, sizeof(val));
     (void)written; // Ignore errors in signal handler
 }
 
 bool
 sentry__crash_ipc_wait(sentry_crash_ipc_t *ipc, int timeout_ms)
 {
-    if (!ipc || ipc->eventfd < 0) {
+    if (!ipc || ipc->notify_fd < 0) {
         return false;
     }
 
     fd_set readfds;
     FD_ZERO(&readfds);
-    FD_SET(ipc->eventfd, &readfds);
+    FD_SET(ipc->notify_fd, &readfds);
 
     struct timeval timeout;
     timeout.tv_sec = timeout_ms / 1000;
     timeout.tv_usec = (timeout_ms % 1000) * 1000;
 
-    int ret = select(ipc->eventfd + 1, &readfds, NULL, NULL,
+    int ret = select(ipc->notify_fd + 1, &readfds, NULL, NULL,
         timeout_ms >= 0 ? &timeout : NULL);
 
-    if (ret > 0 && FD_ISSET(ipc->eventfd, &readfds)) {
+    if (ret > 0 && FD_ISSET(ipc->notify_fd, &readfds)) {
         uint64_t val;
-        read(ipc->eventfd, &val, sizeof(val));
+        ssize_t result = read(ipc->notify_fd, &val, sizeof(val));
+        if (result < 0) {
+            SENTRY_WARN("Failed to read from notify_fd");
+        }
         return true;
     }
 
@@ -250,12 +253,12 @@ sentry__crash_ipc_free(sentry_crash_ipc_t *ipc)
         shm_unlink(ipc->shm_name);
     }
 
-    if (ipc->eventfd >= 0) {
-        close(ipc->eventfd);
+    if (ipc->notify_fd >= 0) {
+        close(ipc->notify_fd);
     }
 
-    if (ipc->ready_eventfd >= 0) {
-        close(ipc->ready_eventfd);
+    if (ipc->ready_fd >= 0) {
+        close(ipc->ready_fd);
     }
 
     sentry_free(ipc);
@@ -807,7 +810,7 @@ sentry__crash_ipc_signal_ready(sentry_crash_ipc_t *ipc)
 #elif defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
     // Signal via eventfd
     uint64_t val = 1;
-    if (write(ipc->ready_eventfd, &val, sizeof(val)) < 0) {
+    if (write(ipc->ready_fd, &val, sizeof(val)) < 0) {
         SENTRY_WARNF(
             "daemon: write to ready_eventfd failed: %s", strerror(errno));
     } else {
@@ -854,19 +857,19 @@ sentry__crash_ipc_wait_for_ready(sentry_crash_ipc_t *ipc, int timeout_ms)
     // Wait on ready_eventfd with poll/select
     fd_set readfds;
     FD_ZERO(&readfds);
-    FD_SET(ipc->ready_eventfd, &readfds);
+    FD_SET(ipc->ready_fd, &readfds);
 
     struct timeval timeout;
     timeout.tv_sec = timeout_ms / 1000;
     timeout.tv_usec = (timeout_ms % 1000) * 1000;
 
-    int result = select(ipc->ready_eventfd + 1, &readfds, NULL, NULL,
+    int result = select(ipc->ready_fd + 1, &readfds, NULL, NULL,
         timeout_ms >= 0 ? &timeout : NULL);
 
     if (result > 0) {
         // Read the eventfd value
         uint64_t val;
-        if (read(ipc->ready_eventfd, &val, sizeof(val)) < 0) {
+        if (read(ipc->ready_fd, &val, sizeof(val)) < 0) {
             SENTRY_WARNF("read from ready_eventfd failed: %s", strerror(errno));
             return false;
         }
