@@ -794,7 +794,7 @@ elseif(SENTRY_BACKEND_NATIVE)
 
 	# Transport-specific libraries
 	if(SENTRY_TRANSPORT_CURL)
-		target_link_libraries(sentry PRIVATE CURL::libcurl)
+		target_link_libraries(sentry-crash PRIVATE CURL::libcurl)
 	endif()
 
 	if(SENTRY_TRANSPORT_WINHTTP)
