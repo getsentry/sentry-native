@@ -376,8 +376,8 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
     char minidump_path[SENTRY_CRASH_MAX_PATH];
     const char *db_dir = ctx->database_path;
     int path_len = snprintf(minidump_path, sizeof(minidump_path),
-        "%s/sentry-minidump-%d-%d.dmp", db_dir, ctx->crashed_pid,
-        ctx->crashed_tid);
+        "%s/sentry-minidump-%lu-%lu.dmp", db_dir, (unsigned long)ctx->crashed_pid,
+        (unsigned long)ctx->crashed_tid);
 
     if (path_len < 0 || path_len >= (int)sizeof(minidump_path)) {
         SENTRY_WARN("Minidump path truncated or invalid");
@@ -426,7 +426,7 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
         // Create envelope file in database directory
         char envelope_path[SENTRY_CRASH_MAX_PATH];
         path_len = snprintf(envelope_path, sizeof(envelope_path),
-            "%s/sentry-envelope-%d.env", db_dir, ctx->crashed_pid);
+            "%s/sentry-envelope-%lu.env", db_dir, (unsigned long)ctx->crashed_pid);
 
         if (path_len < 0 || path_len >= (int)sizeof(envelope_path)) {
             SENTRY_WARN("Envelope path truncated or invalid");
@@ -895,11 +895,12 @@ sentry__crash_daemon_start(
         sentry_free(daemon_path_utf8);
     }
 
-    // Build command line: sentry-crash.exe <app_pid> <event_handle>
+    // Build command line: sentry-crash.exe <app_pid> <app_tid> <event_handle>
     // <ready_event_handle>
     wchar_t cmd_line[SENTRY_CRASH_MAX_PATH + 128];
     int cmd_len = _snwprintf(cmd_line, sizeof(cmd_line) / sizeof(wchar_t),
-        L"\"%s\" %lu %llu %llu", daemon_path, (unsigned long)app_pid,
+        L"\"%s\" %lu %llx %llu %llu", daemon_path, (unsigned long)app_pid,
+        (unsigned long long)app_tid,
         (unsigned long long)(uintptr_t)event_handle,
         (unsigned long long)(uintptr_t)ready_event_handle);
 
