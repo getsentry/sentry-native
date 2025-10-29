@@ -5,6 +5,7 @@
 #    include <dbghelp.h>
 #    include <windows.h>
 
+#    include "sentry.h"
 #    include "sentry_logger.h"
 #    include "sentry_minidump_writer.h"
 
@@ -51,16 +52,16 @@ sentry__write_minidump(
     // Determine minidump type based on configuration
     MINIDUMP_TYPE dump_type;
     switch (ctx->minidump_mode) {
-    case SENTRY_MINIDUMP_STACK_ONLY:
+    case SENTRY_MINIDUMP_MODE_STACK_ONLY:
         dump_type = MiniDumpNormal;
         break;
 
-    case SENTRY_MINIDUMP_SMART:
+    case SENTRY_MINIDUMP_MODE_SMART:
         dump_type
             = MiniDumpWithIndirectlyReferencedMemory | MiniDumpWithDataSegs;
         break;
 
-    case SENTRY_MINIDUMP_FULL:
+    case SENTRY_MINIDUMP_MODE_FULL:
         dump_type = MiniDumpWithFullMemory | MiniDumpWithHandleData
             | MiniDumpWithThreadInfo;
         break;

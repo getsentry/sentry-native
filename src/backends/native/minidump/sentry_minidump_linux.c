@@ -682,7 +682,7 @@ write_thread_stack(
 
     if (stack_start == 0) {
         // Stack mapping not found, use a reasonable range
-        const size_t DEFAULT_STACK_SIZE = 512 * 1024;
+        const size_t DEFAULT_STACK_SIZE = SENTRY_CRASH_MAX_STACK_CAPTURE;
         stack_start = stack_pointer;
         stack_end = stack_pointer + DEFAULT_STACK_SIZE;
     }
@@ -691,8 +691,8 @@ write_thread_stack(
     size_t stack_size = stack_end - stack_pointer;
 
     // Limit to 1MB
-    if (stack_size > 1024 * 1024) {
-        stack_size = 1024 * 1024;
+    if (stack_size > SENTRY_CRASH_MAX_STACK_SIZE) {
+        stack_size = SENTRY_CRASH_MAX_STACK_SIZE;
     }
 
     void *stack_buffer = sentry_malloc(stack_size);
@@ -920,7 +920,7 @@ should_include_region(const memory_mapping_t *mapping,
         if (mapping->name[0] == '\0' && mapping->permissions[0] == 'r'
             && mapping->permissions[1] == 'w') {
             // Limit to reasonable size to avoid huge dumps (max 64MB per region)
-            return (mapping->end - mapping->start) <= (64 * 1024 * 1024);
+            return (mapping->end - mapping->start) <= (64 * SENTRY_CRASH_MAX_STACK_SIZE);
         }
     }
 
@@ -971,7 +971,7 @@ write_memory_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
         uint64_t region_size = mapping->end - mapping->start;
 
         // Limit individual region size to avoid huge dumps
-        const size_t MAX_REGION_SIZE = 64 * 1024 * 1024; // 64MB
+        const size_t MAX_REGION_SIZE = 64 * SENTRY_CRASH_MAX_STACK_SIZE; // 64MB
         if (region_size > MAX_REGION_SIZE) {
             region_size = MAX_REGION_SIZE;
         }
