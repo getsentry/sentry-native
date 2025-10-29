@@ -3,6 +3,7 @@
 #if defined(SENTRY_PLATFORM_WINDOWS)
 
 #    include <dbghelp.h>
+#    include <stdio.h>
 #    include <windows.h>
 
 #    include "sentry.h"
@@ -42,12 +43,15 @@ sentry__write_minidump(
         return -1;
     }
 
-    // Prepare exception information
+    // Prepare exception information using original pointers from crashed
+    // process
     MINIDUMP_EXCEPTION_INFORMATION exception_info = { 0 };
     exception_info.ThreadId = ctx->crashed_tid;
-    exception_info.ExceptionPointers
-        = (PEXCEPTION_POINTERS)&ctx->platform.exception_record;
-    exception_info.ClientPointers = FALSE;
+    // Use original exception pointers from crashed process's address space
+    exception_info.ExceptionPointers = ctx->platform.exception_pointers;
+    // ClientPointers=TRUE tells Windows these pointers are in the target
+    // process
+    exception_info.ClientPointers = TRUE;
 
     // Determine minidump type based on configuration
     MINIDUMP_TYPE dump_type;
@@ -86,7 +90,7 @@ sentry__write_minidump(
         return -1;
     }
 
-    SENTRY_INFO("successfully wrote minidump");
+    SENTRY_DEBUG("successfully wrote minidump");
     return 0;
 }
 

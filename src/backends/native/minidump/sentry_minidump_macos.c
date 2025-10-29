@@ -519,7 +519,7 @@ write_thread_stack(
 {
     // Read stack memory around SP
     // For safety, read a reasonable amount (64KB) from SP downwards
-    const size_t MAX_STACK_SIZE = SENTRY_CRASH_MAX_STACK_CAPTURE/8;
+    const size_t MAX_STACK_SIZE = SENTRY_CRASH_MAX_STACK_CAPTURE / 8;
 
     // Stack grows downwards on macOS, so read from SP down to SP -
     // MAX_STACK_SIZE
@@ -654,7 +654,8 @@ write_thread_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
             minidump_thread_t *thread = &thread_list->threads[i];
             memset(thread, 0, sizeof(*thread));
 
-            // Use thread ID captured in signal handler (portable across processes)
+            // Use thread ID captured in signal handler (portable across
+            // processes)
             thread->thread_id = writer->crash_ctx->platform.threads[i].tid;
 
             // Write thread context (registers)
@@ -916,7 +917,7 @@ should_include_region_macos(
 
         if (readable && writable) {
             // Limit to reasonable size (64MB per region)
-            return region->size <= (SENTRY_CRASH_MAX_STACK_CAPTURE/8 * 1024);
+            return region->size <= (SENTRY_CRASH_MAX_STACK_CAPTURE / 8 * 1024);
         }
     }
 
@@ -966,7 +967,8 @@ write_memory_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
 
     // Write memory regions
     size_t mem_idx = 0;
-    for (size_t i = 0; i < writer->region_count && mem_idx < region_count; i++) {
+    for (size_t i = 0; i < writer->region_count && mem_idx < region_count;
+        i++) {
         if (!should_include_region_macos(&writer->regions[i], mode)) {
             continue;
         }
@@ -977,7 +979,8 @@ write_memory_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
         mach_vm_size_t region_size = region->size;
 
         // Limit individual region size
-        const size_t MAX_REGION_SIZE = SENTRY_CRASH_MAX_STACK_CAPTURE/8 * 1024; // 64MB
+        const size_t MAX_REGION_SIZE
+            = SENTRY_CRASH_MAX_STACK_CAPTURE / 8 * 1024; // 64MB
         if (region_size > MAX_REGION_SIZE) {
             region_size = MAX_REGION_SIZE;
         }
@@ -1045,7 +1048,9 @@ sentry__write_minidump(
     kern_return_t kr
         = task_for_pid(mach_task_self(), ctx->crashed_pid, &writer.task);
     if (kr != KERN_SUCCESS) {
-        SENTRY_DEBUGF("write_minidump: task_for_pid failed (%d), writing minimal minidump", kr);
+        SENTRY_DEBUGF("write_minidump: task_for_pid failed (%d), writing "
+                      "minimal minidump",
+            kr);
         // Without task port, write minimal minidump with all required streams
         // Matching Crashpad's minimum: SystemInfo, MiscInfo, ThreadList,
         // Exception, ModuleList, MemoryList
@@ -1208,7 +1213,7 @@ sentry__write_minidump(
 
     close(writer.fd);
 
-    SENTRY_INFO("successfully wrote minidump");
+    SENTRY_DEBUG("successfully wrote minidump");
     return 0;
 }
 

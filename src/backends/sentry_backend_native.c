@@ -65,7 +65,7 @@ static int
 native_backend_startup(
     sentry_backend_t *backend, const sentry_options_t *options)
 {
-    SENTRY_INFO("starting native backend");
+    SENTRY_DEBUG("starting native backend");
 
 #if defined(SENTRY_PLATFORM_WINDOWS)
     // Create process-wide mutex for IPC synchronization (Windows)
@@ -289,6 +289,12 @@ native_backend_startup(
 
     SENTRY_DEBUGF("crash daemon started with PID %d", state->daemon_pid);
 
+    // Wait for daemon to signal it's ready
+    if (!sentry__crash_ipc_wait_for_ready(
+            state->ipc, SENTRY_CRASH_DAEMON_READY_TIMEOUT_MS)) {
+        SENTRY_WARN("Daemon did not signal ready in time, proceeding anyway");
+    }
+
     if (sentry__crash_handler_init(state->ipc) < 0) {
         SENTRY_WARN("failed to initialize crash handler");
 #    if defined(SENTRY_PLATFORM_UNIX)
@@ -308,14 +314,14 @@ native_backend_startup(
     }
 #endif
 
-    SENTRY_INFO("native backend started successfully");
+    SENTRY_DEBUG("native backend started successfully");
     return 0;
 }
 
 static void
 native_backend_shutdown(sentry_backend_t *backend)
 {
-    SENTRY_INFO("shutting down native backend");
+    SENTRY_DEBUG("shutting down native backend");
 
     native_backend_state_t *state = (native_backend_state_t *)backend->data;
     if (!state) {
@@ -358,7 +364,7 @@ native_backend_shutdown(sentry_backend_t *backend)
     // and may be reused if backend is restarted within same process
 #endif
 
-    SENTRY_INFO("native backend shutdown complete");
+    SENTRY_DEBUG("native backend shutdown complete");
 }
 
 static void
@@ -612,7 +618,7 @@ native_backend_except(sentry_backend_t *backend, const sentry_ucontext_t *uctx)
             sentry__logger_disable();
         }
 
-        SENTRY_INFO("handling native backend exception");
+        SENTRY_DEBUG("handling native backend exception");
 
         // Flush logs in crash-safe manner
         if (options->enable_logs) {
@@ -700,8 +706,8 @@ native_backend_except(sentry_backend_t *backend, const sentry_ucontext_t *uctx)
                 // Dump any pending transport queue
                 sentry__transport_dump_queue(options->transport, options->run);
 
-                SENTRY_INFO("crash event and session written, daemon will "
-                            "create and send minidump");
+                SENTRY_DEBUG("crash event and session written, daemon will "
+                             "create and send minidump");
             }
         } else {
             SENTRY_DEBUG("event was discarded by the `on_crash` hook");

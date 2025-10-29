@@ -63,6 +63,13 @@ typedef DWORD pid_t;
 #define SENTRY_CRASH_MAX_REGION_SIZE                                           \
     (64 * 1024 * 1024) // 64MB max memory region
 
+// Timeout values for IPC and crash handling (in milliseconds)
+#define SENTRY_CRASH_DAEMON_READY_TIMEOUT_MS 10000 // 10 seconds to wait for daemon startup
+#define SENTRY_CRASH_DAEMON_WAIT_TIMEOUT_MS 5000   // 5 seconds between daemon health checks
+#define SENTRY_CRASH_HANDLER_POLL_INTERVAL_MS 100  // 100ms poll interval in exception handler
+#define SENTRY_CRASH_HANDLER_WAIT_TIMEOUT_MS 10000 // 10 seconds max wait for daemon to finish
+#define SENTRY_CRASH_TRANSPORT_SHUTDOWN_TIMEOUT_MS 2000 // 2 seconds for transport shutdown
+
 /**
  * Crash state machine for atomic coordination between app and daemon
  */
@@ -155,6 +162,10 @@ typedef struct {
     DWORD exception_code;
     EXCEPTION_RECORD exception_record;
     CONTEXT context;
+
+    // Original exception pointers in crashed process's address space
+    // (needed for out-of-process minidump writing with ClientPointers=TRUE)
+    EXCEPTION_POINTERS *exception_pointers;
 
     // Additional thread contexts
     DWORD num_threads;
