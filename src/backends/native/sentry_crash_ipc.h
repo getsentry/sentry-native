@@ -24,15 +24,17 @@ typedef struct {
 
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
     int shm_fd;
-    int eventfd;
+    int eventfd;           // Eventfd for crash notifications
+    int ready_eventfd;     // Eventfd for daemon ready signal
     char shm_name[SENTRY_CRASH_IPC_NAME_SIZE];
-    sem_t *init_sem;        // Named semaphore for initialization synchronization
+    sem_t *init_sem;       // Named semaphore for initialization synchronization
     char sem_name[SENTRY_CRASH_IPC_NAME_SIZE];
 #elif defined(SENTRY_PLATFORM_MACOS)
     int shm_fd;
-    int notify_pipe[2]; // Pipe for crash notifications (fork-safe)
+    int notify_pipe[2];   // Pipe for crash notifications (fork-safe)
+    int ready_pipe[2];    // Pipe for daemon ready signal (fork-safe)
     char shm_name[SENTRY_CRASH_IPC_NAME_SIZE];
-    sem_t *init_sem;        // Named semaphore for initialization synchronization
+    sem_t *init_sem;      // Named semaphore for initialization synchronization
     char sem_name[SENTRY_CRASH_IPC_NAME_SIZE];
 #elif defined(SENTRY_PLATFORM_WINDOWS)
     HANDLE shm_handle;
@@ -65,8 +67,19 @@ sentry_crash_ipc_t *sentry__crash_ipc_init_app(void);
 /**
  * Initialize IPC for daemon process.
  * Attaches to existing shared memory created by app.
+ * @param app_pid Parent process ID
+ * @param notify_handle Notification handle inherited from parent (eventfd on Linux, pipe fd on macOS, event on Windows)
+ * @param ready_handle Ready signal handle inherited from parent (eventfd on Linux, pipe fd on macOS, event on Windows)
  */
+#if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+sentry_crash_ipc_t *sentry__crash_ipc_init_daemon(pid_t app_pid, int notify_eventfd, int ready_eventfd);
+#elif defined(SENTRY_PLATFORM_MACOS)
+sentry_crash_ipc_t *sentry__crash_ipc_init_daemon(pid_t app_pid, int notify_pipe_read, int ready_pipe_write);
+#elif defined(SENTRY_PLATFORM_WINDOWS)
+sentry_crash_ipc_t *sentry__crash_ipc_init_daemon(pid_t app_pid, HANDLE event_handle, HANDLE ready_event_handle);
+#else
 sentry_crash_ipc_t *sentry__crash_ipc_init_daemon(pid_t app_pid);
+#endif
 
 /**
  * Signal that daemon is ready (called by daemon after initialization).

@@ -9,6 +9,11 @@ else()
 	cmake_policy(SET CMP0077 NEW)
 endif()
 
+# Allow target_link_libraries() in subdirectories
+if(POLICY CMP0079)
+	cmake_policy(SET CMP0079 NEW)
+endif()
+
 # Allow downstream SDKs to override the SDK version at CMake configuration time
 set(SENTRY_SDK_VERSION "" CACHE STRING "Override the SDK version (supports full semver format with build metadata)")
 

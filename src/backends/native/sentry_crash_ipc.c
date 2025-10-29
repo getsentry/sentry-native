@@ -83,10 +83,27 @@ sentry__crash_ipc_init_app(sem_t *init_sem)
         return NULL;
     }
 
-    // Create eventfd for notifications
+    // Create eventfd for crash notifications
     ipc->eventfd = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
     if (ipc->eventfd < 0) {
         SENTRY_WARNF("failed to create eventfd: %s", strerror(errno));
+        munmap(ipc->shmem, SENTRY_CRASH_SHM_SIZE);
+        close(ipc->shm_fd);
+        if (!shm_exists) {
+            shm_unlink(ipc->shm_name);
+        }
+        if (ipc->init_sem) {
+            sem_post(ipc->init_sem);
+        }
+        sentry_free(ipc);
+        return NULL;
+    }
+
+    // Create eventfd for daemon ready signal
+    ipc->ready_eventfd = eventfd(0, EFD_CLOEXEC);
+    if (ipc->ready_eventfd < 0) {
+        SENTRY_WARNF("failed to create ready eventfd: %s", strerror(errno));
+        close(ipc->eventfd);
         munmap(ipc->shmem, SENTRY_CRASH_SHM_SIZE);
         close(ipc->shm_fd);
         if (!shm_exists) {
@@ -120,7 +137,7 @@ sentry__crash_ipc_init_app(sem_t *init_sem)
 }
 
 sentry_crash_ipc_t *
-sentry__crash_ipc_init_daemon(pid_t app_pid)
+sentry__crash_ipc_init_daemon(pid_t app_pid, int notify_eventfd, int ready_eventfd)
 {
     sentry_crash_ipc_t *ipc = SENTRY_MAKE(sentry_crash_ipc_t);
     if (!ipc) {
@@ -161,10 +178,12 @@ sentry__crash_ipc_init_daemon(pid_t app_pid)
         return NULL;
     }
 
-    // Daemon receives eventfd from app via fork inheritance
-    // (eventfd will be set by daemon startup logic)
+    // Eventfds are inherited from parent after fork - assign them
+    ipc->eventfd = notify_eventfd;
+    ipc->ready_eventfd = ready_eventfd;
 
-    SENTRY_DEBUGF("daemon: attached to crash IPC (shm=%s)", ipc->shm_name);
+    SENTRY_DEBUGF("daemon: attached to crash IPC (shm=%s, eventfd=%d, ready_eventfd=%d)",
+        ipc->shm_name, notify_eventfd, ready_eventfd);
 
     return ipc;
 }
@@ -231,6 +250,10 @@ sentry__crash_ipc_free(sentry_crash_ipc_t *ipc)
 
     if (ipc->eventfd >= 0) {
         close(ipc->eventfd);
+    }
+
+    if (ipc->ready_eventfd >= 0) {
+        close(ipc->ready_eventfd);
     }
 
     sentry_free(ipc);
@@ -328,6 +351,23 @@ sentry__crash_ipc_init_app(sem_t *init_sem)
     // Make write end non-blocking for signal-safe writes
     fcntl(ipc->notify_pipe[1], F_SETFL, O_NONBLOCK);
 
+    // Create pipe for daemon ready signal (works across fork)
+    if (pipe(ipc->ready_pipe) < 0) {
+        SENTRY_WARNF("failed to create ready pipe: %s", strerror(errno));
+        close(ipc->notify_pipe[0]);
+        close(ipc->notify_pipe[1]);
+        munmap(ipc->shmem, SENTRY_CRASH_SHM_SIZE);
+        close(ipc->shm_fd);
+        if (!shm_exists) {
+            shm_unlink(ipc->shm_name);
+        }
+        if (ipc->init_sem) {
+            sem_post(ipc->init_sem);
+        }
+        sentry_free(ipc);
+        return NULL;
+    }
+
     // Initialize shared memory only if newly created
     if (!shm_exists) {
         memset(ipc->shmem, 0, SENTRY_CRASH_SHM_SIZE);
@@ -349,7 +389,7 @@ sentry__crash_ipc_init_app(sem_t *init_sem)
 }
 
 sentry_crash_ipc_t *
-sentry__crash_ipc_init_daemon(pid_t app_pid)
+sentry__crash_ipc_init_daemon(pid_t app_pid, int notify_pipe_read, int ready_pipe_write)
 {
     sentry_crash_ipc_t *ipc = SENTRY_MAKE(sentry_crash_ipc_t);
     if (!ipc) {
@@ -387,9 +427,14 @@ sentry__crash_ipc_init_daemon(pid_t app_pid)
         return NULL;
     }
 
-    // Pipe is inherited from parent after fork - no additional setup needed
+    // Pipes are inherited from parent after fork - assign the fds
+    ipc->notify_pipe[0] = notify_pipe_read;
+    ipc->notify_pipe[1] = -1; // Daemon doesn't write to notify pipe
+    ipc->ready_pipe[0] = -1;  // Daemon doesn't read from ready pipe
+    ipc->ready_pipe[1] = ready_pipe_write;
 
-    SENTRY_DEBUGF("daemon: attached to crash IPC (shm=%s)", ipc->shm_name);
+    SENTRY_DEBUGF("daemon: attached to crash IPC (shm=%s, notify_pipe=%d, ready_pipe=%d)",
+        ipc->shm_name, notify_pipe_read, ready_pipe_write);
 
     return ipc;
 }
@@ -455,6 +500,14 @@ sentry__crash_ipc_free(sentry_crash_ipc_t *ipc)
     }
     if (ipc->notify_pipe[1] >= 0) {
         close(ipc->notify_pipe[1]);
+    }
+
+    // Close ready pipes
+    if (ipc->ready_pipe[0] >= 0) {
+        close(ipc->ready_pipe[0]);
+    }
+    if (ipc->ready_pipe[1] >= 0) {
+        close(ipc->ready_pipe[1]);
     }
 
     if (!ipc->is_daemon && ipc->shm_name[0]) {
@@ -662,95 +715,6 @@ sentry__crash_ipc_init_daemon(pid_t app_pid)
 }
 
 void
-sentry__crash_ipc_signal_ready(sentry_crash_ipc_t *ipc)
-{
-#    if defined(SENTRY_PLATFORM_WINDOWS)
-    if (!ipc) {
-        SENTRY_WARN("signal_ready: ipc is NULL");
-        return;
-    }
-    if (!ipc->ready_event_handle) {
-        SENTRY_WARN("signal_ready: ready_event_handle is NULL");
-        return;
-    }
-    if (!SetEvent(ipc->ready_event_handle)) {
-        SENTRY_WARNF("daemon: SetEvent failed: %lu", GetLastError());
-    } else {
-        SENTRY_DEBUG("daemon: Successfully signaled ready to parent");
-    }
-#    else
-    // For Unix platforms, signal via semaphore
-    if (ipc && ipc->init_sem) {
-        sem_post(ipc->init_sem);
-        SENTRY_DEBUG("daemon: signaled ready to parent");
-    }
-#    endif
-}
-
-bool
-sentry__crash_ipc_wait_for_ready(sentry_crash_ipc_t *ipc, int timeout_ms)
-{
-    if (!ipc) {
-        return false;
-    }
-
-#    if defined(SENTRY_PLATFORM_WINDOWS)
-    if (!ipc->ready_event_handle) {
-        SENTRY_WARN("No ready event handle");
-        return false;
-    }
-
-    DWORD timeout = (timeout_ms >= 0) ? (DWORD)timeout_ms : INFINITE;
-    DWORD result = WaitForSingleObject(ipc->ready_event_handle, timeout);
-
-    if (result == WAIT_OBJECT_0) {
-        return true;
-    } else if (result == WAIT_TIMEOUT) {
-        return false;
-    } else {
-        SENTRY_WARNF(
-            "crash_ipc_wait_for_ready: unexpected result %lu, error %lu",
-            result, GetLastError());
-        return false;
-    }
-#    else
-    // For Unix platforms, wait on semaphore
-    if (!ipc->init_sem) {
-        SENTRY_WARN("No init semaphore");
-        return false;
-    }
-
-    if (timeout_ms < 0) {
-        // Wait indefinitely
-        if (sem_wait(ipc->init_sem) == 0) {
-            return true;
-        } else {
-            SENTRY_WARNF("sem_wait failed: %s", strerror(errno));
-            return false;
-        }
-    } else {
-        // Wait with timeout
-        struct timespec ts;
-        clock_gettime(CLOCK_REALTIME, &ts);
-        ts.tv_sec += timeout_ms / 1000;
-        ts.tv_nsec += (timeout_ms % 1000) * 1000000;
-        if (ts.tv_nsec >= 1000000000) {
-            ts.tv_sec += 1;
-            ts.tv_nsec -= 1000000000;
-        }
-
-        if (sem_timedwait(ipc->init_sem, &ts) == 0) {
-            return true;
-        } else if (errno == ETIMEDOUT) {
-            return false;
-        } else {
-            return false;
-        }
-    }
-#    endif
-}
-
-void
 sentry__crash_ipc_notify(sentry_crash_ipc_t *ipc)
 {
     if (!ipc || !ipc->event_handle) {
@@ -810,3 +774,126 @@ sentry__crash_ipc_free(sentry_crash_ipc_t *ipc)
 }
 
 #endif
+
+// Cross-platform ready signaling functions
+void
+sentry__crash_ipc_signal_ready(sentry_crash_ipc_t *ipc)
+{
+    if (!ipc) {
+        SENTRY_WARN("signal_ready: ipc is NULL");
+        return;
+    }
+
+#if defined(SENTRY_PLATFORM_WINDOWS)
+    if (!ipc->ready_event_handle) {
+        SENTRY_WARN("signal_ready: ready_event_handle is NULL");
+        return;
+    }
+    if (!SetEvent(ipc->ready_event_handle)) {
+        SENTRY_WARNF("daemon: SetEvent failed: %lu", GetLastError());
+    } else {
+        SENTRY_DEBUG("daemon: Successfully signaled ready to parent");
+    }
+#elif defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+    // Signal via eventfd
+    uint64_t val = 1;
+    if (write(ipc->ready_eventfd, &val, sizeof(val)) < 0) {
+        SENTRY_WARNF("daemon: write to ready_eventfd failed: %s", strerror(errno));
+    } else {
+        SENTRY_DEBUG("daemon: signaled ready to parent");
+    }
+#elif defined(SENTRY_PLATFORM_MACOS)
+    // Signal via pipe
+    char byte = 1;
+    if (write(ipc->ready_pipe[1], &byte, 1) < 0) {
+        SENTRY_WARNF("daemon: write to ready_pipe failed: %s", strerror(errno));
+    } else {
+        SENTRY_DEBUG("daemon: signaled ready to parent");
+    }
+#endif
+}
+
+bool
+sentry__crash_ipc_wait_for_ready(sentry_crash_ipc_t *ipc, int timeout_ms)
+{
+    if (!ipc) {
+        return false;
+    }
+
+#if defined(SENTRY_PLATFORM_WINDOWS)
+    if (!ipc->ready_event_handle) {
+        SENTRY_WARN("No ready event handle");
+        return false;
+    }
+
+    DWORD timeout = (timeout_ms >= 0) ? (DWORD)timeout_ms : INFINITE;
+    DWORD result = WaitForSingleObject(ipc->ready_event_handle, timeout);
+
+    if (result == WAIT_OBJECT_0) {
+        return true;
+    } else if (result == WAIT_TIMEOUT) {
+        return false;
+    } else {
+        SENTRY_WARNF(
+            "crash_ipc_wait_for_ready: unexpected result %lu, error %lu",
+            result, GetLastError());
+        return false;
+    }
+#elif defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+    // Wait on ready_eventfd with poll/select
+    fd_set readfds;
+    FD_ZERO(&readfds);
+    FD_SET(ipc->ready_eventfd, &readfds);
+
+    struct timeval timeout;
+    timeout.tv_sec = timeout_ms / 1000;
+    timeout.tv_usec = (timeout_ms % 1000) * 1000;
+
+    int result = select(ipc->ready_eventfd + 1, &readfds, NULL, NULL,
+        timeout_ms >= 0 ? &timeout : NULL);
+
+    if (result > 0) {
+        // Read the eventfd value
+        uint64_t val;
+        if (read(ipc->ready_eventfd, &val, sizeof(val)) < 0) {
+            SENTRY_WARNF("read from ready_eventfd failed: %s", strerror(errno));
+            return false;
+        }
+        return true;
+    } else if (result == 0) {
+        return false; // Timeout
+    } else {
+        SENTRY_WARNF("select on ready_eventfd failed: %s", strerror(errno));
+        return false;
+    }
+#elif defined(SENTRY_PLATFORM_MACOS)
+    // Wait on ready_pipe with select
+    fd_set readfds;
+    FD_ZERO(&readfds);
+    FD_SET(ipc->ready_pipe[0], &readfds);
+
+    struct timeval timeout;
+    timeout.tv_sec = timeout_ms / 1000;
+    timeout.tv_usec = (timeout_ms % 1000) * 1000;
+
+    int result = select(ipc->ready_pipe[0] + 1, &readfds, NULL, NULL,
+        timeout_ms >= 0 ? &timeout : NULL);
+
+    if (result > 0) {
+        // Read and discard the byte
+        char byte;
+        if (read(ipc->ready_pipe[0], &byte, 1) < 0) {
+            SENTRY_WARNF("read from ready_pipe failed: %s", strerror(errno));
+            return false;
+        }
+        return true;
+    } else if (result == 0) {
+        return false; // Timeout
+    } else {
+        SENTRY_WARNF("select on ready_pipe failed: %s", strerror(errno));
+        return false;
+    }
+#else
+    return false;
+#endif
+}
