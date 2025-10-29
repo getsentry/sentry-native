@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1761728631621,
+  "lastUpdate": 1761728719691,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -13946,6 +13946,66 @@ window.BENCHMARK_DATA = {
             "value": 5.52804199998036,
             "unit": "ms",
             "extra": "Min 5.375ms\nMax 6.733ms\nMean 5.956ms\nStdDev 0.675ms\nMedian 5.528ms\nCPU 0.738ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "60878493+JoshuaMoelans@users.noreply.github.com",
+            "name": "JoshuaMoelans",
+            "username": "JoshuaMoelans"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "0af834e39e0b2b981c9f3b3dcd9430045dfa554e",
+          "message": "chore: fix bump-version.sh matching spaces in sentry.h (#1431)\n\n* update bump-version.sh to handle sentry.h spaces\n\n* uncomment\n\n* regex independent of clang-format space amount",
+          "timestamp": "2025-10-29T10:00:56+01:00",
+          "tree_id": "10287ec11d2d33cc13f9f20e26525a3c7f5f5966",
+          "url": "https://github.com/getsentry/sentry-native/commit/0af834e39e0b2b981c9f3b3dcd9430045dfa554e"
+        },
+        "date": 1761728717951,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 3.048083000066981,
+            "unit": "ms",
+            "extra": "Min 3.029ms\nMax 3.220ms\nMean 3.077ms\nStdDev 0.081ms\nMedian 3.048ms\nCPU 1.672ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 3.100832999962222,
+            "unit": "ms",
+            "extra": "Min 3.022ms\nMax 3.978ms\nMean 3.272ms\nStdDev 0.404ms\nMedian 3.101ms\nCPU 1.750ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 11.058374999947773,
+            "unit": "ms",
+            "extra": "Min 10.704ms\nMax 18.409ms\nMean 12.728ms\nStdDev 3.254ms\nMedian 11.058ms\nCPU 4.378ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.02599999993435631,
+            "unit": "ms",
+            "extra": "Min 0.009ms\nMax 0.030ms\nMean 0.023ms\nStdDev 0.008ms\nMedian 0.026ms\nCPU 0.024ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.2771670001493476,
+            "unit": "ms",
+            "extra": "Min 0.225ms\nMax 0.320ms\nMean 0.276ms\nStdDev 0.034ms\nMedian 0.277ms\nCPU 0.276ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 5.997457999910694,
+            "unit": "ms",
+            "extra": "Min 5.661ms\nMax 19.812ms\nMean 8.702ms\nStdDev 6.215ms\nMedian 5.997ms\nCPU 1.164ms"
           }
         ]
       }
