@@ -193,6 +193,7 @@ typedef struct {
 
     // Configuration (set by app during init)
     sentry_minidump_mode_t minidump_mode;
+    bool debug_enabled; // Debug logging enabled in parent process
 
     // Platform-specific crash context
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)

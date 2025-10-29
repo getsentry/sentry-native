@@ -619,9 +619,13 @@ sentry__crash_daemon_main(pid_t app_pid, HANDLE event_handle)
             setvbuf(log_file, NULL, _IONBF, 0);
 
             // Set up Sentry logger to write to file
+            // Use log level from parent's debug setting
+            sentry_level_t log_level = ipc->shmem->debug_enabled
+                ? SENTRY_LEVEL_DEBUG
+                : SENTRY_LEVEL_INFO;
             sentry_logger_t file_logger = { .logger_func = daemon_file_logger,
                 .logger_data = log_file,
-                .logger_level = SENTRY_LEVEL_DEBUG };
+                .logger_level = log_level };
             sentry__logger_set_global(file_logger);
             sentry__logger_enable();
 
@@ -687,8 +691,8 @@ sentry__crash_daemon_main(pid_t app_pid, HANDLE event_handle)
         return 1;
     }
 
-    // Enable debug logging
-    sentry_options_set_debug(options, 1);
+    // Use debug logging setting from parent process
+    sentry_options_set_debug(options, ipc->shmem->debug_enabled);
 
     // Set custom logger that writes to file
     if (log_file) {
