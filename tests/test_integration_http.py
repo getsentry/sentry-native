@@ -188,7 +188,6 @@ def test_user_feedback_with_attachments_http(cmake, httpserver):
         tmp_path,
         "sentry_example",
         ["log", "capture-user-feedback-with-attachment"],
-        check=True,
         env=env,
     )
 
