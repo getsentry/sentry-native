@@ -80,11 +80,11 @@ sentry_crash_ipc_t *sentry__crash_ipc_init_app(void);
 sentry_crash_ipc_t *sentry__crash_ipc_init_daemon(
     pid_t app_pid, uint64_t app_tid, int notify_eventfd, int ready_eventfd);
 #elif defined(SENTRY_PLATFORM_MACOS)
-sentry_crash_ipc_t *sentry__crash_ipc_init_daemon(
-    pid_t app_pid, uint64_t app_tid, int notify_pipe_read, int ready_pipe_write);
+sentry_crash_ipc_t *sentry__crash_ipc_init_daemon(pid_t app_pid,
+    uint64_t app_tid, int notify_pipe_read, int ready_pipe_write);
 #elif defined(SENTRY_PLATFORM_WINDOWS)
-sentry_crash_ipc_t *sentry__crash_ipc_init_daemon(
-    pid_t app_pid, uint64_t app_tid, HANDLE event_handle, HANDLE ready_event_handle);
+sentry_crash_ipc_t *sentry__crash_ipc_init_daemon(pid_t app_pid,
+    uint64_t app_tid, HANDLE event_handle, HANDLE ready_event_handle);
 #endif
 
 /**
