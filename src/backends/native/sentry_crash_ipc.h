@@ -36,9 +36,11 @@ typedef struct {
     char sem_name[SENTRY_CRASH_IPC_NAME_SIZE];
 #elif defined(SENTRY_PLATFORM_WINDOWS)
     HANDLE shm_handle;
-    HANDLE event_handle;
+    HANDLE event_handle;            // Event for crash notifications (parent -> daemon)
+    HANDLE ready_event_handle;      // Event for daemon ready signal (daemon -> parent)
     wchar_t shm_name[SENTRY_CRASH_IPC_NAME_SIZE];
     wchar_t event_name[SENTRY_CRASH_IPC_NAME_SIZE];
+    wchar_t ready_event_name[SENTRY_CRASH_IPC_NAME_SIZE];
     HANDLE init_mutex;      // Named mutex for initialization synchronization
 #endif
 
@@ -65,6 +67,17 @@ sentry_crash_ipc_t *sentry__crash_ipc_init_app(void);
  * Attaches to existing shared memory created by app.
  */
 sentry_crash_ipc_t *sentry__crash_ipc_init_daemon(pid_t app_pid);
+
+/**
+ * Signal that daemon is ready (called by daemon after initialization).
+ */
+void sentry__crash_ipc_signal_ready(sentry_crash_ipc_t *ipc);
+
+/**
+ * Wait for daemon to signal ready (called by parent after spawning daemon).
+ * Returns true if daemon signaled ready, false on timeout or error.
+ */
+bool sentry__crash_ipc_wait_for_ready(sentry_crash_ipc_t *ipc, int timeout_ms);
 
 /**
  * Notify daemon that a crash occurred (called from signal handler).

@@ -481,6 +481,13 @@ sentry__crash_ipc_init_app(HANDLE init_mutex)
     swprintf(ipc->shm_name, SENTRY_CRASH_IPC_NAME_SIZE,
         L"Local\\SentryCrash-%lu", GetCurrentProcessId());
 
+    // Log the shared memory name
+    char *shm_name_utf8 = sentry__string_from_wstr(ipc->shm_name);
+    if (shm_name_utf8) {
+        SENTRY_DEBUGF("APP: Creating shared memory: %s", shm_name_utf8);
+        sentry_free(shm_name_utf8);
+    }
+
     // Acquire mutex for exclusive access during initialization
     if (ipc->init_mutex) {
         DWORD result = WaitForSingleObject(ipc->init_mutex, INFINITE);
@@ -525,10 +532,34 @@ sentry__crash_ipc_init_app(HANDLE init_mutex)
     // Create named event for notifications
     swprintf(ipc->event_name, SENTRY_CRASH_IPC_NAME_SIZE,
         L"Local\\SentryCrashEvent-%lu", GetCurrentProcessId());
-    ipc->event_handle
-        = CreateEventW(NULL, FALSE, FALSE, ipc->event_name); // Auto-reset
+
+    // Log the event name
+    char *event_name_utf8 = sentry__string_from_wstr(ipc->event_name);
+    if (event_name_utf8) {
+        SENTRY_DEBUGF("APP: Creating event: %s", event_name_utf8);
+        sentry_free(event_name_utf8);
+    }
+
+    ipc->event_handle = CreateEventW(NULL, FALSE, FALSE, ipc->event_name);
     if (!ipc->event_handle) {
         SENTRY_WARNF("failed to create event: %lu", GetLastError());
+        UnmapViewOfFile(ipc->shmem);
+        CloseHandle(ipc->shm_handle);
+        if (ipc->init_mutex) {
+            ReleaseMutex(ipc->init_mutex);
+        }
+        sentry_free(ipc);
+        return NULL;
+    }
+
+    // Create ready event for daemon to signal when it's initialized
+    swprintf(ipc->ready_event_name, SENTRY_CRASH_IPC_NAME_SIZE,
+        L"Local\\SentryCrashReady-%lu", GetCurrentProcessId());
+    ipc->ready_event_handle = CreateEventW(
+        NULL, TRUE, FALSE, ipc->ready_event_name); // Manual-reset
+    if (!ipc->ready_event_handle) {
+        SENTRY_WARNF("failed to create ready event: %lu", GetLastError());
+        CloseHandle(ipc->event_handle);
         UnmapViewOfFile(ipc->shmem);
         CloseHandle(ipc->shm_handle);
         if (ipc->init_mutex) {
@@ -601,9 +632,24 @@ sentry__crash_ipc_init_daemon(pid_t app_pid)
     // Open existing event
     swprintf(ipc->event_name, SENTRY_CRASH_IPC_NAME_SIZE,
         L"Local\\SentryCrashEvent-%lu", (unsigned long)app_pid);
-    ipc->event_handle = OpenEventW(EVENT_ALL_ACCESS, FALSE, ipc->event_name);
+
+    ipc->event_handle = OpenEventW(SYNCHRONIZE, FALSE, ipc->event_name);
     if (!ipc->event_handle) {
         SENTRY_WARNF("daemon: failed to open event: %lu", GetLastError());
+        UnmapViewOfFile(ipc->shmem);
+        CloseHandle(ipc->shm_handle);
+        sentry_free(ipc);
+        return NULL;
+    }
+
+    // Open ready event to signal when daemon is initialized
+    swprintf(ipc->ready_event_name, SENTRY_CRASH_IPC_NAME_SIZE,
+        L"Local\\SentryCrashReady-%lu", (unsigned long)app_pid);
+    ipc->ready_event_handle
+        = OpenEventW(EVENT_MODIFY_STATE, FALSE, ipc->ready_event_name);
+    if (!ipc->ready_event_handle) {
+        SENTRY_WARNF("daemon: failed to open ready event: %lu", GetLastError());
+        CloseHandle(ipc->event_handle);
         UnmapViewOfFile(ipc->shmem);
         CloseHandle(ipc->shm_handle);
         sentry_free(ipc);
@@ -616,26 +662,129 @@ sentry__crash_ipc_init_daemon(pid_t app_pid)
 }
 
 void
+sentry__crash_ipc_signal_ready(sentry_crash_ipc_t *ipc)
+{
+#    if defined(SENTRY_PLATFORM_WINDOWS)
+    if (!ipc) {
+        SENTRY_WARN("signal_ready: ipc is NULL");
+        return;
+    }
+    if (!ipc->ready_event_handle) {
+        SENTRY_WARN("signal_ready: ready_event_handle is NULL");
+        return;
+    }
+    if (!SetEvent(ipc->ready_event_handle)) {
+        SENTRY_WARNF("daemon: SetEvent failed: %lu", GetLastError());
+    } else {
+        SENTRY_DEBUG("daemon: Successfully signaled ready to parent");
+    }
+#    else
+    // For Unix platforms, signal via semaphore
+    if (ipc && ipc->init_sem) {
+        sem_post(ipc->init_sem);
+        SENTRY_DEBUG("daemon: signaled ready to parent");
+    }
+#    endif
+}
+
+bool
+sentry__crash_ipc_wait_for_ready(sentry_crash_ipc_t *ipc, int timeout_ms)
+{
+    if (!ipc) {
+        return false;
+    }
+
+#    if defined(SENTRY_PLATFORM_WINDOWS)
+    if (!ipc->ready_event_handle) {
+        SENTRY_WARN("No ready event handle");
+        return false;
+    }
+
+    DWORD timeout = (timeout_ms >= 0) ? (DWORD)timeout_ms : INFINITE;
+    DWORD result = WaitForSingleObject(ipc->ready_event_handle, timeout);
+
+    if (result == WAIT_OBJECT_0) {
+        return true;
+    } else if (result == WAIT_TIMEOUT) {
+        return false;
+    } else {
+        SENTRY_WARNF(
+            "crash_ipc_wait_for_ready: unexpected result %lu, error %lu",
+            result, GetLastError());
+        return false;
+    }
+#    else
+    // For Unix platforms, wait on semaphore
+    if (!ipc->init_sem) {
+        SENTRY_WARN("No init semaphore");
+        return false;
+    }
+
+    if (timeout_ms < 0) {
+        // Wait indefinitely
+        if (sem_wait(ipc->init_sem) == 0) {
+            return true;
+        } else {
+            SENTRY_WARNF("sem_wait failed: %s", strerror(errno));
+            return false;
+        }
+    } else {
+        // Wait with timeout
+        struct timespec ts;
+        clock_gettime(CLOCK_REALTIME, &ts);
+        ts.tv_sec += timeout_ms / 1000;
+        ts.tv_nsec += (timeout_ms % 1000) * 1000000;
+        if (ts.tv_nsec >= 1000000000) {
+            ts.tv_sec += 1;
+            ts.tv_nsec -= 1000000000;
+        }
+
+        if (sem_timedwait(ipc->init_sem, &ts) == 0) {
+            return true;
+        } else if (errno == ETIMEDOUT) {
+            return false;
+        } else {
+            return false;
+        }
+    }
+#    endif
+}
+
+void
 sentry__crash_ipc_notify(sentry_crash_ipc_t *ipc)
 {
     if (!ipc || !ipc->event_handle) {
+        SENTRY_WARN("crash_ipc_notify: ipc or event_handle is NULL!");
         return;
     }
 
-    SetEvent(ipc->event_handle);
+    if (!SetEvent(ipc->event_handle)) {
+        SENTRY_WARNF("crash_ipc_notify: SetEvent failed: %lu", GetLastError());
+    } else {
+        // Do nothing
+    }
 }
 
 bool
 sentry__crash_ipc_wait(sentry_crash_ipc_t *ipc, int timeout_ms)
 {
     if (!ipc || !ipc->event_handle) {
+        SENTRY_WARN("crash_ipc_wait: ipc or event_handle is NULL");
         return false;
     }
 
     DWORD timeout = (timeout_ms >= 0) ? (DWORD)timeout_ms : INFINITE;
     DWORD result = WaitForSingleObject(ipc->event_handle, timeout);
 
-    return result == WAIT_OBJECT_0;
+    if (result == WAIT_OBJECT_0) {
+        return true;
+    } else if (result == WAIT_TIMEOUT) {
+        return false;
+    } else {
+        SENTRY_WARNF("crash_ipc_wait: unexpected result %lu, error %lu", result,
+            GetLastError());
+        return false;
+    }
 }
 
 void

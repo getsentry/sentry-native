@@ -125,7 +125,7 @@ write_attachment_to_envelope(int fd, const char *file_path,
     }
 
     if (n < 0) {
-        SENTRY_WARNF("Failed to read attachment file: %s", file_path);
+        SENTRY_WARN("Failed to read attachment file: %s", file_path);
         close(attach_fd);
         return false;
     }
@@ -332,7 +332,7 @@ write_envelope_with_minidump(const sentry_options_t *options,
 #elif defined(SENTRY_PLATFORM_WINDOWS)
     _close(fd);
 #endif
-    SENTRY_INFO("Envelope written successfully");
+    SENTRY_DEBUG("Envelope written successfully");
     return true;
 }
 
@@ -345,12 +345,13 @@ write_envelope_with_minidump(const sentry_options_t *options,
 void
 sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
 {
-    SENTRY_DEBUG("Processing crash");
+    SENTRY_DEBUG("Processing crash - START");
 
     sentry_crash_context_t *ctx = ipc->shmem;
 
     // Mark as processing
     sentry__atomic_store(&ctx->state, SENTRY_CRASH_STATE_PROCESSING);
+    SENTRY_DEBUG("Marked state as PROCESSING");
 
     // Generate minidump path in database directory
     char minidump_path[SENTRY_CRASH_MAX_PATH];
@@ -364,11 +365,17 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
         goto done;
     }
 
-    SENTRY_DEBUG("Writing minidump");
+    SENTRY_DEBUGF("Writing minidump to: %s", minidump_path);
+    SENTRY_DEBUGF(
+        "About to call sentry__write_minidump, ctx=%p, crashed_pid=%d",
+        (void *)ctx, ctx->crashed_pid);
 
     // Write minidump
-    if (sentry__write_minidump(ctx, minidump_path) == 0) {
-        SENTRY_INFO("Minidump written successfully");
+    int minidump_result = sentry__write_minidump(ctx, minidump_path);
+    SENTRY_DEBUGF("sentry__write_minidump returned: %d", minidump_result);
+
+    if (minidump_result == 0) {
+        SENTRY_DEBUG("Minidump written successfully");
 
         // Copy minidump path back to shared memory
 #ifdef _WIN32
@@ -382,6 +389,8 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
 
         // Get event file path from context
         const char *event_path = ctx->event_path[0] ? ctx->event_path : NULL;
+        SENTRY_DEBUGF(
+            "Event path from context: %s", event_path ? event_path : "(null)");
         if (!event_path) {
             SENTRY_WARN("No event file from parent");
             goto done;
@@ -389,6 +398,7 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
 
         // Extract run folder path from event path (event is at
         // run_folder/__sentry-event)
+        SENTRY_DEBUG("Extracting run folder from event path");
         sentry_path_t *ev_path = sentry__path_from_str(event_path);
         sentry_path_t *run_folder = ev_path ? sentry__path_dir(ev_path) : NULL;
         if (ev_path)
@@ -407,8 +417,11 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
             goto done;
         }
 
+        SENTRY_DEBUGF("Creating envelope at: %s", envelope_path);
+
         // Write envelope manually with all attachments from run folder
         // (avoids mutex-locked SDK functions)
+        SENTRY_DEBUG("Writing envelope with minidump");
         if (!write_envelope_with_minidump(options, envelope_path, event_path,
                 minidump_path, run_folder)) {
             SENTRY_WARN("Failed to write envelope");
@@ -417,8 +430,10 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
             }
             goto done;
         }
+        SENTRY_DEBUG("Envelope written successfully");
 
         // Read envelope and send via transport
+        SENTRY_DEBUG("Reading envelope file back");
         sentry_path_t *env_path = sentry__path_from_str(envelope_path);
         if (!env_path) {
             SENTRY_WARN("Failed to create envelope path");
@@ -433,12 +448,13 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
             goto cleanup;
         }
 
-        SENTRY_INFO("Sending crash envelope via transport");
+        SENTRY_DEBUG("Envelope loaded, sending via transport");
 
         // Send directly via transport
         if (options && options->transport) {
+            SENTRY_DEBUG("Calling transport send_envelope");
             sentry__transport_send_envelope(options->transport, envelope);
-            SENTRY_INFO("Crash envelope sent successfully");
+            SENTRY_DEBUG("Crash envelope sent to transport (queued)");
         } else {
             SENTRY_WARN("No transport available for sending envelope");
             sentry_envelope_free(envelope);
@@ -455,10 +471,12 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
     cleanup:
         // Send all other envelopes from run folder (logs, etc.) before cleanup
         if (run_folder && options && options->transport) {
-            SENTRY_DEBUG("Sending additional envelopes from run folder");
+            SENTRY_DEBUG("Checking for additional envelopes in run folder");
             sentry_pathiter_t *piter = sentry__path_iter_directory(run_folder);
             if (piter) {
+                SENTRY_DEBUG("Iterating run folder for envelope files");
                 const sentry_path_t *file_path;
+                int envelope_count = 0;
                 while ((file_path = sentry__pathiter_next(piter)) != NULL) {
                     // Check if this is an envelope file (ends with .envelope)
                     const char *path_str = file_path->path;
@@ -472,15 +490,26 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
                         if (run_envelope) {
                             sentry__transport_send_envelope(
                                 options->transport, run_envelope);
+                            envelope_count++;
+                        } else {
+                            SENTRY_WARNF(
+                                "Failed to load envelope: %s", path_str);
                         }
                     }
                 }
+                SENTRY_DEBUGF("Sent %d additional envelopes from run folder",
+                    envelope_count);
                 sentry__pathiter_free(piter);
+            } else {
+                SENTRY_DEBUG("Could not iterate run folder");
             }
+        } else {
+            SENTRY_DEBUG("No run folder or transport for additional envelopes");
         }
 
         // Clean up the entire run folder (contains breadcrumbs, etc.)
         if (run_folder) {
+            SENTRY_DEBUG("Cleaning up run folder");
             sentry__path_remove_all(run_folder);
 
             // Also delete the lock file (run_folder.lock)
@@ -495,14 +524,16 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
             SENTRY_DEBUG("Cleaned up crash run folder and lock file");
         }
 
-        SENTRY_DEBUG("Cleaned up crash files");
+        SENTRY_DEBUG("Crash processing completed successfully");
     } else {
         SENTRY_WARN("Failed to write minidump");
     }
 
 done:
     // Mark as done
+    SENTRY_DEBUG("Marking crash state as DONE");
     sentry__atomic_store(&ctx->state, SENTRY_CRASH_STATE_DONE);
+    SENTRY_DEBUG("Processing crash - END");
     SENTRY_DEBUG("Crash processing complete");
 }
 
@@ -549,30 +580,14 @@ daemon_file_logger(
     char timestamp[SENTRY_CRASH_TIMESTAMP_SIZE];
     strftime(timestamp, sizeof(timestamp), "%Y-%m-%d %H:%M:%S", tm_info);
 
-    // Map level to string
-    const char *level_str = "UNKNOWN";
-    switch (level) {
-    case SENTRY_LEVEL_DEBUG:
-        level_str = "DEBUG";
-        break;
-    case SENTRY_LEVEL_INFO:
-        level_str = "INFO";
-        break;
-    case SENTRY_LEVEL_WARNING:
-        level_str = "WARNING";
-        break;
-    case SENTRY_LEVEL_ERROR:
-        level_str = "ERROR";
-        break;
-    case SENTRY_LEVEL_FATAL:
-        level_str = "FATAL";
-        break;
-    }
+    // Get level description from Sentry's formatter
+    const char *level_str = sentry__logger_describe(level);
 
     // Write log entry
-    fprintf(log_file, "[%s] [%s] ", timestamp, level_str);
+    fprintf(log_file, "[%s] %s", timestamp, level_str);
     vfprintf(log_file, message, args);
     fprintf(log_file, "\n");
+    fflush(log_file); // Flush immediately to ensure logs are written
 }
 
 #if defined(SENTRY_PLATFORM_UNIX)
@@ -583,6 +598,39 @@ int
 sentry__crash_daemon_main(pid_t app_pid, HANDLE event_handle)
 #endif
 {
+    // Initialize IPC first (attach to shared memory created by parent)
+    // We need this to get the database path for logging
+    sentry_crash_ipc_t *ipc = sentry__crash_ipc_init_daemon(app_pid);
+    if (!ipc) {
+        return 1;
+    }
+
+    // Set up logging to file for daemon BEFORE redirecting streams
+    char log_path[SENTRY_CRASH_MAX_PATH];
+    FILE *log_file = NULL;
+    int log_path_len
+        = snprintf(log_path, sizeof(log_path), "%s/sentry-daemon-%lu.log",
+            ipc->shmem->database_path, (unsigned long)app_pid);
+
+    if (log_path_len > 0 && log_path_len < (int)sizeof(log_path)) {
+        log_file = fopen(log_path, "w");
+        if (log_file) {
+            // Disable buffering for immediate writes
+            setvbuf(log_file, NULL, _IONBF, 0);
+
+            // Set up Sentry logger to write to file
+            sentry_logger_t file_logger = { .logger_func = daemon_file_logger,
+                .logger_data = log_file,
+                .logger_level = SENTRY_LEVEL_DEBUG };
+            sentry__logger_set_global(file_logger);
+            sentry__logger_enable();
+
+            SENTRY_DEBUG("=== Daemon starting ===");
+            SENTRY_DEBUGF("App PID: %lu", (unsigned long)app_pid);
+            SENTRY_DEBUGF("Database path: %s", ipc->shmem->database_path);
+        }
+    }
+
 #if defined(SENTRY_PLATFORM_UNIX)
     // Close standard streams to avoid interfering with parent
     close(STDIN_FILENO);
@@ -600,78 +648,89 @@ sentry__crash_daemon_main(pid_t app_pid, HANDLE event_handle)
         }
     }
 #elif defined(SENTRY_PLATFORM_WINDOWS)
-    // On Windows, redirect standard streams to NUL
+    // On Windows, redirect stdin/stdout to NUL
+    // But redirect stderr to the log file so fprintf(stderr) appears in the log
     (void)freopen("NUL", "r", stdin);
     (void)freopen("NUL", "w", stdout);
+
     (void)freopen("NUL", "w", stderr);
 #endif
 
-    // Initialize IPC (attach to shared memory created by parent)
-    sentry_crash_ipc_t *ipc = sentry__crash_ipc_init_daemon(app_pid);
-    if (!ipc) {
-        return 1;
-    }
+    SENTRY_DEBUG("Streams redirected");
 
-    // Set up logging to file for daemon
-    char log_path[SENTRY_CRASH_MAX_PATH];
-    FILE *log_file = NULL;
-    int log_path_len
-        = snprintf(log_path, sizeof(log_path), "%s/sentry-daemon-%lu.log",
-            ipc->shmem->database_path, (unsigned long)app_pid);
-
-    if (log_path_len > 0 && log_path_len < (int)sizeof(log_path)) {
-#if defined(SENTRY_PLATFORM_UNIX)
-        log_file = fopen(log_path, "w");
-#elif defined(SENTRY_PLATFORM_WINDOWS)
-        log_file = fopen(log_path, "w");
-#endif
-        if (log_file) {
-            // Disable buffering for immediate writes
-            setvbuf(log_file, NULL, _IONBF, 0);
+    // Log the IPC names and addresses
+    if (ipc && ipc->shm_name[0]) {
+        char *shm_name = sentry__string_from_wstr(ipc->shm_name);
+        if (shm_name) {
+            SENTRY_DEBUGF("Using shared memory: %s", shm_name);
+            sentry_free(shm_name);
         }
     }
+    if (ipc && ipc->event_name[0]) {
+        char *event_name = sentry__string_from_wstr(ipc->event_name);
+        if (event_name) {
+            SENTRY_DEBUGF("Using event: %s", event_name);
+            sentry_free(event_name);
+        }
+    }
+
+    SENTRY_DEBUG("Initializing Sentry options");
 
     // Initialize Sentry options for daemon (reuses all SDK infrastructure)
     // Options are passed explicitly to all functions, no global state
     sentry_options_t *options = sentry_options_new();
-    if (options) {
-        // Enable debug logging
-        sentry_options_set_debug(options, 1);
-
-        // Set custom logger that writes to file
+    if (!options) {
+        SENTRY_ERROR("sentry_options_new() failed");
         if (log_file) {
-            sentry_options_set_logger(options, daemon_file_logger, log_file);
+            fclose(log_file);
         }
-        // Set DSN if configured
-        if (ipc->shmem->dsn[0] != '\0') {
-            sentry_options_set_dsn(options, ipc->shmem->dsn);
-        }
-
-        // Create run with database path
-        sentry_path_t *db_path
-            = sentry__path_from_str(ipc->shmem->database_path);
-        if (db_path) {
-            options->run = sentry__run_new(db_path);
-            sentry__path_free(db_path);
-        }
-
-        // Set external crash reporter if configured
-        if (ipc->shmem->external_reporter_path[0] != '\0') {
-            sentry_path_t *reporter
-                = sentry__path_from_str(ipc->shmem->external_reporter_path);
-            if (reporter) {
-                options->external_crash_reporter = reporter;
-            }
-        }
-
-        // Initialize transport for sending envelopes
-        options->transport = sentry__transport_new_default();
-        if (options->transport) {
-            sentry__transport_startup(options->transport, options);
-        }
-
-        SENTRY_DEBUG("Daemon options initialized");
+        return 1;
     }
+
+    // Enable debug logging
+    sentry_options_set_debug(options, 1);
+
+    // Set custom logger that writes to file
+    if (log_file) {
+        sentry_options_set_logger(options, daemon_file_logger, log_file);
+    }
+
+    // Set DSN if configured
+    if (ipc->shmem->dsn[0] != '\0') {
+        SENTRY_DEBUGF("Setting DSN: %s", ipc->shmem->dsn);
+        sentry_options_set_dsn(options, ipc->shmem->dsn);
+    } else {
+        SENTRY_DEBUG("No DSN configured");
+    }
+
+    // Create run with database path
+    SENTRY_DEBUG("Creating run with database path");
+    sentry_path_t *db_path = sentry__path_from_str(ipc->shmem->database_path);
+    if (db_path) {
+        options->run = sentry__run_new(db_path);
+        sentry__path_free(db_path);
+    }
+
+    // Set external crash reporter if configured
+    if (ipc->shmem->external_reporter_path[0] != '\0') {
+        SENTRY_DEBUGF("Setting external reporter: %s",
+            ipc->shmem->external_reporter_path);
+        sentry_path_t *reporter
+            = sentry__path_from_str(ipc->shmem->external_reporter_path);
+        if (reporter) {
+            options->external_crash_reporter = reporter;
+        }
+    }
+
+    // Initialize transport for sending envelopes
+    SENTRY_DEBUG("Initializing transport");
+    options->transport = sentry__transport_new_default();
+    if (options->transport) {
+        SENTRY_DEBUG("Starting transport");
+        sentry__transport_startup(options->transport, options);
+    }
+
+    SENTRY_DEBUG("Daemon options fully initialized");
 
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
     // Use the inherited eventfd from parent
@@ -680,9 +739,14 @@ sentry__crash_daemon_main(pid_t app_pid, HANDLE event_handle)
     // On macOS, notification mechanism is set up by init_daemon
     (void)eventfd_handle;
 #elif defined(SENTRY_PLATFORM_WINDOWS)
-    // On Windows, use the event handle from parent
-    ipc->event_handle = event_handle;
+    // On Windows, event handle is already opened by name in init_daemon
+    // Don't overwrite it with the parent's handle (handles are per-process)
+    (void)event_handle;
 #endif
+
+    // Signal to parent that daemon is ready
+    SENTRY_DEBUG("Signaling ready to parent");
+    sentry__crash_ipc_signal_ready(ipc);
 
     SENTRY_DEBUG("Entering main loop");
 
@@ -690,11 +754,18 @@ sentry__crash_daemon_main(pid_t app_pid, HANDLE event_handle)
     bool crash_processed = false;
     while (true) {
         // Wait for crash notification (with timeout to check parent health)
-        if (sentry__crash_ipc_wait(ipc, 5000)) { // 5 second timeout
+        bool wait_result
+            = sentry__crash_ipc_wait(ipc, SENTRY_CRASH_DAEMON_WAIT_TIMEOUT_MS);
+        if (wait_result) {
             // Crash occurred!
+            SENTRY_DEBUG("Event signaled, checking crash state");
+
+            // Retry reading state with delays to handle CPU cache coherency
+            // issues Between processes, cache lines may take time to
+            // invalidate/sync
             long state = sentry__atomic_fetch(&ipc->shmem->state);
             if (state == SENTRY_CRASH_STATE_CRASHED && !crash_processed) {
-                SENTRY_INFO("Crash notification received");
+                SENTRY_DEBUG("Crash notification received, processing");
                 sentry__process_crash(options, ipc);
                 crash_processed = true;
 
@@ -704,6 +775,7 @@ sentry__crash_daemon_main(pid_t app_pid, HANDLE event_handle)
                 break;
             }
             // If crash already processed, just ignore spurious notifications
+            SENTRY_DEBUG("Spurious notification or already processed");
         }
 
         // Check if parent is still alive (only if no crash processed yet)
@@ -720,7 +792,8 @@ sentry__crash_daemon_main(pid_t app_pid, HANDLE event_handle)
         if (options->transport) {
             // Wait up to 2 seconds for transport to send pending envelopes
             // (crash envelope + logs envelope, etc.)
-            sentry__transport_shutdown(options->transport, 2000);
+            sentry__transport_shutdown(
+                options->transport, SENTRY_CRASH_TRANSPORT_SHUTDOWN_TIMEOUT_MS);
         }
         sentry_options_free(options);
     }
@@ -824,6 +897,13 @@ sentry__crash_daemon_start(pid_t app_pid, HANDLE event_handle)
         return (pid_t)-1;
     }
 
+    // Log the daemon path we're trying to launch for debugging
+    char *daemon_path_utf8 = sentry__string_from_wstr(daemon_path);
+    if (daemon_path_utf8) {
+        SENTRY_DEBUGF("Attempting to launch daemon: %s", daemon_path_utf8);
+        sentry_free(daemon_path_utf8);
+    }
+
     // Build command line: sentry-crashdaemon.exe <app_pid> <event_handle>
     wchar_t cmd_line[SENTRY_CRASH_MAX_PATH + 128];
     int cmd_len = _snwprintf(cmd_line, sizeof(cmd_line) / sizeof(wchar_t),
@@ -856,7 +936,18 @@ sentry__crash_daemon_start(pid_t app_pid, HANDLE event_handle)
             NULL, // Current directory
             &si, // Startup info
             &pi)) { // Process information
-        SENTRY_WARNF("Failed to create daemon process: %lu", GetLastError());
+        DWORD error = GetLastError();
+        char *daemon_path_err = sentry__string_from_wstr(daemon_path);
+        if (daemon_path_err) {
+            SENTRY_WARNF("Failed to create daemon process at '%s': Error %lu%s",
+                daemon_path_err, error,
+                error == 2       ? " (File not found)"
+                    : error == 3 ? " (Path not found)"
+                                 : "");
+            sentry_free(daemon_path_err);
+        } else {
+            SENTRY_WARNF("Failed to create daemon process: %lu", error);
+        }
         return (pid_t)-1;
     }
 
