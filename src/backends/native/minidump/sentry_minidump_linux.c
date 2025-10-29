@@ -62,6 +62,8 @@ typedef struct {
 // ARM64 signal context structures for accessing FPSIMD state
 #        define FPSIMD_MAGIC 0x46508001
 
+// Only define these if not already provided by system headers
+#        ifndef __ASM_SIGCONTEXT_H
 // Base header for context blocks in __reserved
 struct _aarch64_ctx {
     uint32_t magic;
@@ -75,6 +77,7 @@ struct fpsimd_context {
     uint32_t fpcr;
     __uint128_t vregs[32];
 };
+#        endif
 #    endif
 
 // Use process_vm_readv to read memory from crashed process

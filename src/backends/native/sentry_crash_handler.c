@@ -573,8 +573,6 @@ static LPTOP_LEVEL_EXCEPTION_FILTER g_previous_filter = NULL;
 static LONG WINAPI
 crash_exception_filter(EXCEPTION_POINTERS *exception_info)
 {
-    SENTRY_DEBUG("Exception handler triggered");
-
     // Only handle crash once
     static volatile long handling_crash = 0;
     if (!sentry__atomic_compare_swap(&handling_crash, 0, 1)) {
@@ -589,7 +587,6 @@ crash_exception_filter(EXCEPTION_POINTERS *exception_info)
         return EXCEPTION_CONTINUE_SEARCH;
     }
 
-    SENTRY_DEBUG("IPC available, processing crash");
     sentry_crash_context_t *ctx = ipc->shmem;
 
     // Fill crash context
@@ -692,7 +689,6 @@ crash_exception_filter(EXCEPTION_POINTERS *exception_info)
     }
 
     // Continue to default handler (which will terminate the process)
-    SENTRY_DEBUG("Returning to default handler");
     return EXCEPTION_CONTINUE_SEARCH;
 }
 
