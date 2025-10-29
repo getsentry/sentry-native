@@ -611,28 +611,28 @@ daemon_file_logger(
 
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
 int
-sentry__crash_daemon_main(pid_t app_pid, int notify_eventfd, int ready_eventfd)
+sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, int notify_eventfd, int ready_eventfd)
 #elif defined(SENTRY_PLATFORM_MACOS)
 int
 sentry__crash_daemon_main(
-    pid_t app_pid, int notify_pipe_read, int ready_pipe_write)
+    pid_t app_pid, uint64_t app_tid, int notify_pipe_read, int ready_pipe_write)
 #elif defined(SENTRY_PLATFORM_WINDOWS)
 int
 sentry__crash_daemon_main(
-    pid_t app_pid, HANDLE event_handle, HANDLE ready_event_handle)
+    pid_t app_pid, uint64_t app_tid, HANDLE event_handle, HANDLE ready_event_handle)
 #endif
 {
     // Initialize IPC first (attach to shared memory created by parent)
     // We need this to get the database path for logging
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
     sentry_crash_ipc_t *ipc
-        = sentry__crash_ipc_init_daemon(app_pid, notify_eventfd, ready_eventfd);
+        = sentry__crash_ipc_init_daemon(app_pid, app_tid, notify_eventfd, ready_eventfd);
 #elif defined(SENTRY_PLATFORM_MACOS)
     sentry_crash_ipc_t *ipc = sentry__crash_ipc_init_daemon(
-        app_pid, notify_pipe_read, ready_pipe_write);
+        app_pid, app_tid, notify_pipe_read, ready_pipe_write);
 #elif defined(SENTRY_PLATFORM_WINDOWS)
     sentry_crash_ipc_t *ipc = sentry__crash_ipc_init_daemon(
-        app_pid, event_handle, ready_event_handle);
+        app_pid, app_tid, event_handle, ready_event_handle);
 #endif
     if (!ipc) {
         return 1;
@@ -825,15 +825,15 @@ sentry__crash_daemon_main(
 
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
 pid_t
-sentry__crash_daemon_start(pid_t app_pid, int notify_eventfd, int ready_eventfd)
+sentry__crash_daemon_start(pid_t app_pid, uint64_t app_tid, int notify_eventfd, int ready_eventfd)
 #elif defined(SENTRY_PLATFORM_MACOS)
 pid_t
 sentry__crash_daemon_start(
-    pid_t app_pid, int notify_pipe_read, int ready_pipe_write)
+    pid_t app_pid, uint64_t app_tid, int notify_pipe_read, int ready_pipe_write)
 #elif defined(SENTRY_PLATFORM_WINDOWS)
 pid_t
 sentry__crash_daemon_start(
-    pid_t app_pid, HANDLE event_handle, HANDLE ready_event_handle)
+    pid_t app_pid, uint64_t app_tid, HANDLE event_handle, HANDLE ready_event_handle)
 #endif
 {
 #if defined(SENTRY_PLATFORM_UNIX)
@@ -850,10 +850,10 @@ sentry__crash_daemon_start(
 
         // Call daemon main with inherited fds
 #    if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
-        exit(sentry__crash_daemon_main(app_pid, notify_eventfd, ready_eventfd));
+        exit(sentry__crash_daemon_main(app_pid, app_tid, notify_eventfd, ready_eventfd));
 #    elif defined(SENTRY_PLATFORM_MACOS)
         exit(sentry__crash_daemon_main(
-            app_pid, notify_pipe_read, ready_pipe_write));
+            app_pid, app_tid, notify_pipe_read, ready_pipe_write));
 #    endif
     }
 
@@ -961,31 +961,32 @@ sentry__crash_daemon_start(
 int
 main(int argc, char **argv)
 {
-    // Expected arguments: <app_pid> <notify_handle> <ready_handle>
-    if (argc < 4) {
+    // Expected arguments: <app_pid> <app_tid> <notify_handle> <ready_handle>
+    if (argc < 5) {
         fprintf(stderr,
-            "Usage: sentry-crash <app_pid> <notify_handle> <ready_handle>\n");
+            "Usage: sentry-crash <app_pid> <app_tid> <notify_handle> <ready_handle>\n");
         return 1;
     }
 
     // Parse arguments
     pid_t app_pid = (pid_t)strtoul(argv[1], NULL, 10);
+    uint64_t app_tid = strtoull(argv[2], NULL, 16);
 
 #    if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
-    int notify_eventfd = atoi(argv[2]);
-    int ready_eventfd = atoi(argv[3]);
-    return sentry__crash_daemon_main(app_pid, notify_eventfd, ready_eventfd);
+    int notify_eventfd = atoi(argv[3]);
+    int ready_eventfd = atoi(argv[4]);
+    return sentry__crash_daemon_main(app_pid, app_tid, notify_eventfd, ready_eventfd);
 #    elif defined(SENTRY_PLATFORM_MACOS)
-    int notify_pipe_read = atoi(argv[2]);
-    int ready_pipe_write = atoi(argv[3]);
+    int notify_pipe_read = atoi(argv[3]);
+    int ready_pipe_write = atoi(argv[4]);
     return sentry__crash_daemon_main(
-        app_pid, notify_pipe_read, ready_pipe_write);
+        app_pid, app_tid, notify_pipe_read, ready_pipe_write);
 #    elif defined(SENTRY_PLATFORM_WINDOWS)
-    unsigned long long event_handle_val = strtoull(argv[2], NULL, 10);
-    unsigned long long ready_event_val = strtoull(argv[3], NULL, 10);
+    unsigned long long event_handle_val = strtoull(argv[3], NULL, 10);
+    unsigned long long ready_event_val = strtoull(argv[4], NULL, 10);
     HANDLE event_handle = (HANDLE)(uintptr_t)event_handle_val;
     HANDLE ready_event_handle = (HANDLE)(uintptr_t)ready_event_val;
-    return sentry__crash_daemon_main(app_pid, event_handle, ready_event_handle);
+    return sentry__crash_daemon_main(app_pid, app_tid, event_handle, ready_event_handle);
 #    else
     fprintf(stderr, "Platform not supported\n");
     return 1;
