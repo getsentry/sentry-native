@@ -72,7 +72,7 @@ get_tid(void)
 #    endif
 }
 
-#if defined(SENTRY_PLATFORM_MACOS)
+#    if defined(SENTRY_PLATFORM_MACOS)
 /**
  * Safe string copy (signal-safe, only used on macOS)
  */
@@ -89,7 +89,7 @@ safe_strncpy(char *dest, const char *src, size_t n)
     }
     dest[i] = '\0';
 }
-#endif // SENTRY_PLATFORM_MACOS
+#    endif // SENTRY_PLATFORM_MACOS
 
 /**
  * Signal handler (signal-safe)

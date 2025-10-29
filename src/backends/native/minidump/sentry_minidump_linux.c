@@ -9,9 +9,12 @@
 #    include <stdio.h>
 #    include <stdlib.h>
 #    include <string.h>
+#    include <sys/ptrace.h>
 #    include <sys/stat.h>
 #    include <sys/types.h>
 #    include <sys/uio.h>
+#    include <sys/user.h>
+#    include <sys/wait.h>
 #    include <time.h>
 #    include <unistd.h>
 
@@ -19,6 +22,12 @@
 #    include "sentry_logger.h"
 #    include "sentry_minidump_format.h"
 #    include "sentry_minidump_writer.h"
+
+// NT_PRSTATUS is defined in linux/elf.h but we can't include that
+// because it conflicts with elf.h. Define it here if not available.
+#    ifndef NT_PRSTATUS
+#        define NT_PRSTATUS 1
+#    endif
 
 #    if defined(__x86_64__)
 // x86_64 FPU state structure from Linux kernel (matches _fpstate)
@@ -39,16 +48,15 @@ struct linux_fxsave {
 };
 #    endif
 
-// CodeView record format for storing Build ID
-// CV signature: 'RSDS' for PDB 7.0 format (we use it for ELF Build ID too)
-#    define CV_SIGNATURE_RSDS 0x53445352 // "RSDS" in little-endian
+// CodeView record format for ELF modules with Build ID
+// CV signature: 'BpEL' (Breakpad ELF) - compatible with Breakpad/Crashpad
+#    define CV_SIGNATURE_ELF 0x4270454c // "BpEL" in little-endian
 
 typedef struct {
-    uint32_t cv_signature; // 'RSDS'
-    uint8_t signature[16]; // Build ID (MD5/SHA1 truncated to 16 bytes)
-    uint32_t age; // Always 0 for ELF
-    char pdb_file_name[1]; // Module path (variable length)
-} __attribute__((packed)) cv_info_pdb70_t;
+    uint32_t cv_signature; // 'BpEL' (0x4270454c)
+    uint8_t build_id[1]; // Variable length Build ID from ELF .note.gnu.build-id
+                         // Typically 20 bytes (SHA-1) but can vary
+} __attribute__((packed)) cv_info_elf_t;
 
 #    if defined(__aarch64__)
 // ARM64 signal context structures for accessing FPSIMD state
@@ -101,24 +109,210 @@ typedef struct {
     // Threads
     pid_t tids[SENTRY_CRASH_MAX_THREADS];
     size_t thread_count;
+
+    // Ptrace state
+    bool ptrace_attached;
 } minidump_writer_t;
 
 /**
- * Read memory from crashed process using process_vm_readv
+ * Attach to process using ptrace (must be called once before reading memory)
+ */
+static bool
+ptrace_attach_process(minidump_writer_t *writer)
+{
+    if (writer->ptrace_attached) {
+        return true;
+    }
+
+    pid_t pid = writer->crash_ctx->crashed_pid;
+    if (ptrace(PTRACE_ATTACH, pid, NULL, NULL) != 0) {
+        SENTRY_WARNF("ptrace(PTRACE_ATTACH) failed for PID %d: %s", pid,
+            strerror(errno));
+        return false;
+    }
+
+    // Wait for process to stop
+    int status;
+    if (waitpid(pid, &status, __WALL) < 0) {
+        SENTRY_WARNF("waitpid after PTRACE_ATTACH failed for PID %d: %s", pid,
+            strerror(errno));
+        ptrace(PTRACE_DETACH, pid, NULL, NULL);
+        return false;
+    }
+
+    writer->ptrace_attached = true;
+    SENTRY_DEBUGF("Successfully attached to process %d via ptrace", pid);
+    return true;
+}
+
+/**
+ * Get thread registers via ptrace (for non-crashed threads)
+ * Returns true if registers were successfully captured
+ */
+static bool
+ptrace_get_thread_registers(pid_t tid, ucontext_t *uctx)
+{
+    // Attach to the specific thread
+    if (ptrace(PTRACE_ATTACH, tid, NULL, NULL) != 0) {
+        SENTRY_DEBUGF("ptrace(PTRACE_ATTACH) failed for thread %d: %s", tid,
+            strerror(errno));
+        return false;
+    }
+
+    // Wait for thread to stop
+    int status;
+    if (waitpid(tid, &status, __WALL) < 0) {
+        SENTRY_DEBUGF("waitpid after PTRACE_ATTACH failed for thread %d: %s",
+            tid, strerror(errno));
+        ptrace(PTRACE_DETACH, tid, NULL, NULL);
+        return false;
+    }
+
+    // Get general purpose registers
+    bool success = false;
+
+#    if defined(__x86_64__)
+    struct user_regs_struct regs;
+    if (ptrace(PTRACE_GETREGS, tid, NULL, &regs) == 0) {
+        // Map to ucontext_t format
+        uctx->uc_mcontext.gregs[REG_R8] = regs.r8;
+        uctx->uc_mcontext.gregs[REG_R9] = regs.r9;
+        uctx->uc_mcontext.gregs[REG_R10] = regs.r10;
+        uctx->uc_mcontext.gregs[REG_R11] = regs.r11;
+        uctx->uc_mcontext.gregs[REG_R12] = regs.r12;
+        uctx->uc_mcontext.gregs[REG_R13] = regs.r13;
+        uctx->uc_mcontext.gregs[REG_R14] = regs.r14;
+        uctx->uc_mcontext.gregs[REG_R15] = regs.r15;
+        uctx->uc_mcontext.gregs[REG_RDI] = regs.rdi;
+        uctx->uc_mcontext.gregs[REG_RSI] = regs.rsi;
+        uctx->uc_mcontext.gregs[REG_RBP] = regs.rbp;
+        uctx->uc_mcontext.gregs[REG_RBX] = regs.rbx;
+        uctx->uc_mcontext.gregs[REG_RDX] = regs.rdx;
+        uctx->uc_mcontext.gregs[REG_RAX] = regs.rax;
+        uctx->uc_mcontext.gregs[REG_RCX] = regs.rcx;
+        uctx->uc_mcontext.gregs[REG_RSP] = regs.rsp;
+        uctx->uc_mcontext.gregs[REG_RIP] = regs.rip;
+        uctx->uc_mcontext.gregs[REG_EFL] = regs.eflags;
+        uctx->uc_mcontext.gregs[REG_CSGSFS]
+            = (regs.cs & 0xffff) | ((regs.gs & 0xffff) << 16);
+        uctx->uc_mcontext.gregs[REG_ERR] = 0;
+        uctx->uc_mcontext.gregs[REG_TRAPNO] = 0;
+        uctx->uc_mcontext.gregs[REG_OLDMASK] = 0;
+        uctx->uc_mcontext.gregs[REG_CR2] = 0;
+        success = true;
+        SENTRY_DEBUGF("Thread %d: captured registers via ptrace, SP=0x%llx", tid,
+            (unsigned long long)regs.rsp);
+    } else {
+        SENTRY_DEBUGF("ptrace(PTRACE_GETREGS) failed for thread %d: %s", tid,
+            strerror(errno));
+    }
+#    elif defined(__aarch64__)
+    struct user_regs_struct regs;
+    struct iovec iov;
+    iov.iov_base = &regs;
+    iov.iov_len = sizeof(regs);
+    if (ptrace(PTRACE_GETREGSET, tid, (void *)NT_PRSTATUS, &iov) == 0) {
+        // Map to ucontext_t format
+        for (int i = 0; i < 31; i++) {
+            uctx->uc_mcontext.regs[i] = regs.regs[i];
+        }
+        uctx->uc_mcontext.sp = regs.sp;
+        uctx->uc_mcontext.pc = regs.pc;
+        uctx->uc_mcontext.pstate = regs.pstate;
+        success = true;
+        SENTRY_DEBUGF("Thread %d: captured registers via ptrace, SP=0x%llx", tid,
+            (unsigned long long)regs.sp);
+    } else {
+        SENTRY_DEBUGF("ptrace(PTRACE_GETREGSET) failed for thread %d: %s", tid,
+            strerror(errno));
+    }
+#    elif defined(__i386__)
+    struct user_regs_struct regs;
+    if (ptrace(PTRACE_GETREGS, tid, NULL, &regs) == 0) {
+        // Map to ucontext_t format
+        uctx->uc_mcontext.gregs[REG_GS] = regs.xgs;
+        uctx->uc_mcontext.gregs[REG_FS] = regs.xfs;
+        uctx->uc_mcontext.gregs[REG_ES] = regs.xes;
+        uctx->uc_mcontext.gregs[REG_DS] = regs.xds;
+        uctx->uc_mcontext.gregs[REG_EDI] = regs.edi;
+        uctx->uc_mcontext.gregs[REG_ESI] = regs.esi;
+        uctx->uc_mcontext.gregs[REG_EBP] = regs.ebp;
+        uctx->uc_mcontext.gregs[REG_ESP] = regs.esp;
+        uctx->uc_mcontext.gregs[REG_EBX] = regs.ebx;
+        uctx->uc_mcontext.gregs[REG_EDX] = regs.edx;
+        uctx->uc_mcontext.gregs[REG_ECX] = regs.ecx;
+        uctx->uc_mcontext.gregs[REG_EAX] = regs.eax;
+        uctx->uc_mcontext.gregs[REG_TRAPNO] = 0;
+        uctx->uc_mcontext.gregs[REG_ERR] = 0;
+        uctx->uc_mcontext.gregs[REG_EIP] = regs.eip;
+        uctx->uc_mcontext.gregs[REG_CS] = regs.xcs;
+        uctx->uc_mcontext.gregs[REG_EFL] = regs.eflags;
+        uctx->uc_mcontext.gregs[REG_UESP] = regs.esp;
+        uctx->uc_mcontext.gregs[REG_SS] = regs.xss;
+        success = true;
+        SENTRY_DEBUGF("Thread %d: captured registers via ptrace, SP=0x%x", tid,
+            regs.esp);
+    } else {
+        SENTRY_DEBUGF("ptrace(PTRACE_GETREGS) failed for thread %d: %s", tid,
+            strerror(errno));
+    }
+#    endif
+
+    // Detach from thread
+    ptrace(PTRACE_DETACH, tid, NULL, NULL);
+    return success;
+}
+
+/**
+ * Read memory from crashed process using ptrace
  */
 static ssize_t
-read_process_memory(pid_t pid, uint64_t addr, void *buf, size_t len)
+read_process_memory(
+    minidump_writer_t *writer, uint64_t addr, void *buf, size_t len)
 {
-    struct iovec local[1];
-    struct iovec remote[1];
+    if (!ptrace_attach_process(writer)) {
+        return -1;
+    }
 
-    local[0].iov_base = buf;
-    local[0].iov_len = len;
-    remote[0].iov_base = (void *)addr;
-    remote[0].iov_len = len;
+    pid_t pid = writer->crash_ctx->crashed_pid;
 
-    ssize_t nread = process_vm_readv(pid, local, 1, remote, 1, 0);
-    return nread;
+    // Read memory word-by-word using ptrace(PTRACE_PEEKDATA)
+    size_t bytes_read = 0;
+    uint8_t *byte_buf = (uint8_t *)buf;
+    uint64_t current_addr = addr;
+
+    while (bytes_read < len) {
+        // Align to word boundary for ptrace
+        uint64_t aligned_addr = current_addr & ~(sizeof(long) - 1);
+        size_t offset_in_word = current_addr - aligned_addr;
+
+        errno = 0;
+        long word = ptrace(PTRACE_PEEKDATA, pid, aligned_addr, NULL);
+        if (errno != 0) {
+            if (bytes_read > 0) {
+                // Return partial read
+                return bytes_read;
+            }
+            SENTRY_DEBUGF("ptrace(PTRACE_PEEKDATA) failed at 0x%llx: %s",
+                (unsigned long long)aligned_addr, strerror(errno));
+            return -1;
+        }
+
+        // Copy relevant bytes from this word
+        uint8_t *word_bytes = (uint8_t *)&word;
+        size_t bytes_from_word
+            = sizeof(long) - offset_in_word < len - bytes_read
+            ? sizeof(long) - offset_in_word
+            : len - bytes_read;
+
+        memcpy(byte_buf + bytes_read, word_bytes + offset_in_word,
+            bytes_from_word);
+
+        bytes_read += bytes_from_word;
+        current_addr += bytes_from_word;
+    }
+
+    return bytes_read;
 }
 
 /**
@@ -599,30 +793,31 @@ static minidump_rva_t
 write_cv_record(minidump_writer_t *writer, const char *module_path,
     const uint8_t *build_id, size_t build_id_len)
 {
+    (void)module_path; // Not used in ELF format (only signature + build_id)
+
     if (!build_id || build_id_len == 0) {
         return 0;
     }
 
-    // Calculate size: header + path + null terminator
-    size_t path_len = strlen(module_path);
-    size_t total_size
-        = sizeof(cv_info_pdb70_t) + path_len; // +1 already in struct
+    // Calculate size: signature (4 bytes) + build_id (variable length)
+    // Note: Breakpad's format is just signature + raw build_id bytes
+    // No filename is stored in the CV record for ELF
+    size_t total_size = sizeof(uint32_t) + build_id_len;
 
-    cv_info_pdb70_t *cv_record = sentry_malloc(total_size);
+    uint8_t *cv_record = sentry_malloc(total_size);
     if (!cv_record) {
         return 0;
     }
 
-    cv_record->cv_signature = CV_SIGNATURE_RSDS;
-    cv_record->age = 0; // Not used for ELF
+    // Write 'BpEL' signature (0x4270454c)
+    uint32_t signature = CV_SIGNATURE_ELF;
+    memcpy(cv_record, &signature, sizeof(signature));
 
-    // Copy Build ID (truncate/pad to 16 bytes)
-    memset(cv_record->signature, 0, 16);
-    size_t copy_len = build_id_len < 16 ? build_id_len : 16;
-    memcpy(cv_record->signature, build_id, copy_len);
+    // Write raw Build ID bytes (typically 20 bytes for SHA-1)
+    memcpy(cv_record + sizeof(signature), build_id, build_id_len);
 
-    // Copy module path
-    memcpy(cv_record->pdb_file_name, module_path, path_len + 1);
+    SENTRY_DEBUGF("CV Record: signature=0x%x, build_id_len=%zu", signature,
+        build_id_len);
 
     minidump_rva_t rva = write_data(writer, cv_record, total_size);
     sentry_free(cv_record);
@@ -642,14 +837,14 @@ write_minidump_string(minidump_writer_t *writer, const char *str)
     size_t utf8_len = strlen(str);
     size_t utf16_len = utf8_len; // Approximate (ASCII chars = 1:1)
 
-    // Allocate buffer for UTF-16LE string
-    uint32_t total_size = sizeof(uint32_t) + (utf16_len * 2);
+    // Allocate buffer for UTF-16LE string (including null terminator)
+    uint32_t total_size = sizeof(uint32_t) + (utf16_len * 2) + 2; // +2 for null terminator
     uint8_t *buf = sentry_malloc(total_size);
     if (!buf) {
         return 0;
     }
 
-    // Write string length (in bytes, not including length field)
+    // Write string length (in bytes, NOT including null terminator)
     uint32_t string_bytes = utf16_len * 2;
     memcpy(buf, &string_bytes, sizeof(uint32_t));
 
@@ -658,6 +853,7 @@ write_minidump_string(minidump_writer_t *writer, const char *str)
     for (size_t i = 0; i < utf8_len; i++) {
         utf16[i] = (uint16_t)(unsigned char)str[i];
     }
+    utf16[utf8_len] = 0; // Null terminator
 
     minidump_rva_t rva = write_data(writer, buf, total_size);
     sentry_free(buf);
@@ -666,11 +862,26 @@ write_minidump_string(minidump_writer_t *writer, const char *str)
 
 /**
  * Write stack memory for a thread
+ * Returns RVA to stack data, and sets stack_size_out and stack_start_out
  */
 static minidump_rva_t
-write_thread_stack(
-    minidump_writer_t *writer, uint64_t stack_pointer, size_t *stack_size_out)
+write_thread_stack(minidump_writer_t *writer, uint64_t stack_pointer,
+    size_t *stack_size_out, uint64_t *stack_start_out)
 {
+    SENTRY_DEBUGF("write_thread_stack: SP=0x%llx",
+        (unsigned long long)stack_pointer);
+
+    // On x86_64, include the red zone (128 bytes below SP)
+    // Leaf functions can use this area without adjusting SP
+#    if defined(__x86_64__)
+    const size_t RED_ZONE = 128;
+    uint64_t capture_start = stack_pointer >= RED_ZONE
+        ? stack_pointer - RED_ZONE
+        : stack_pointer;
+#    else
+    uint64_t capture_start = stack_pointer;
+#    endif
+
     // Find the stack mapping for this thread
     uint64_t stack_start = 0;
     uint64_t stack_end = 0;
@@ -688,12 +899,17 @@ write_thread_stack(
     if (stack_start == 0) {
         // Stack mapping not found, use a reasonable range
         const size_t DEFAULT_STACK_SIZE = SENTRY_CRASH_MAX_STACK_CAPTURE;
-        stack_start = stack_pointer;
+        stack_start = capture_start;
         stack_end = stack_pointer + DEFAULT_STACK_SIZE;
     }
 
-    // Capture from SP to end of stack (upwards)
-    size_t stack_size = stack_end - stack_pointer;
+    // Ensure capture_start is within stack bounds
+    if (capture_start < stack_start) {
+        capture_start = stack_start;
+    }
+
+    // Capture from adjusted SP to end of stack (upwards)
+    size_t stack_size = stack_end - capture_start;
 
     // Limit to 1MB
     if (stack_size > SENTRY_CRASH_MAX_STACK_SIZE) {
@@ -706,16 +922,26 @@ write_thread_stack(
         return 0;
     }
 
-    // Read stack memory from crashed process
-    ssize_t nread = read_process_memory(writer->crash_ctx->crashed_pid,
-        stack_pointer, stack_buffer, stack_size);
+    // Read stack memory from crashed process (including red zone if applicable)
+    ssize_t nread
+        = read_process_memory(writer, capture_start, stack_buffer, stack_size);
 
     minidump_rva_t rva = 0;
     if (nread > 0) {
         rva = write_data(writer, stack_buffer, nread);
         *stack_size_out = nread;
+        *stack_start_out = capture_start; // Return the actual start address
+        SENTRY_DEBUGF(
+            "Read %zd bytes of stack memory from 0x%llx (SP was 0x%llx)", nread,
+            (unsigned long long)capture_start, (unsigned long long)stack_pointer);
     } else {
+        SENTRY_WARNF(
+            "Failed to read stack memory from process %d at 0x%llx (size %zu): "
+            "%s",
+            writer->crash_ctx->crashed_pid, (unsigned long long)capture_start,
+            stack_size, strerror(errno));
         *stack_size_out = 0;
+        *stack_start_out = 0;
     }
 
     sentry_free(stack_buffer);
@@ -770,18 +996,71 @@ write_thread_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
 #    elif defined(__i386__)
             sp = uctx->uc_mcontext.gregs[REG_ESP];
 #    endif
+
+            SENTRY_DEBUGF("Thread %u: has context, SP=0x%llx",
+                thread->thread_id, (unsigned long long)sp);
+
             if (sp != 0) {
                 size_t stack_size = 0;
+                uint64_t stack_start = 0;
                 thread->stack.memory.rva
-                    = write_thread_stack(writer, sp, &stack_size);
+                    = write_thread_stack(writer, sp, &stack_size, &stack_start);
                 thread->stack.memory.size = stack_size;
-                thread->stack.start_address = sp;
+                thread->stack.start_address = stack_start;
 
                 SENTRY_DEBUGF("Thread %u: wrote context at RVA 0x%x, stack at "
                               "RVA 0x%x (size %zu)",
                     thread->thread_id, thread->thread_context.rva,
                     thread->stack.memory.rva, stack_size);
+            } else {
+                // SP is 0, try to get registers via ptrace
+                SENTRY_DEBUGF(
+                    "Thread %u: SP is 0, attempting to capture via ptrace",
+                    thread->thread_id);
+
+                ucontext_t ptrace_ctx;
+                memset(&ptrace_ctx, 0, sizeof(ptrace_ctx));
+
+                if (ptrace_get_thread_registers(thread->thread_id, &ptrace_ctx)) {
+                    // Successfully got registers, update context and re-write it
+                    SENTRY_DEBUGF("Thread %u: successfully captured via ptrace",
+                        thread->thread_id);
+
+                    // Re-write the thread context with the captured registers
+                    thread->thread_context.rva
+                        = write_thread_context(writer, &ptrace_ctx);
+
+                    // Extract SP from captured context
+                    uint64_t ptrace_sp;
+#    if defined(__x86_64__)
+                    ptrace_sp = ptrace_ctx.uc_mcontext.gregs[REG_RSP];
+#    elif defined(__aarch64__)
+                    ptrace_sp = ptrace_ctx.uc_mcontext.sp;
+#    elif defined(__i386__)
+                    ptrace_sp = ptrace_ctx.uc_mcontext.gregs[REG_ESP];
+#    endif
+
+                    if (ptrace_sp != 0) {
+                        size_t stack_size = 0;
+                        uint64_t stack_start = 0;
+                        thread->stack.memory.rva
+                            = write_thread_stack(writer, ptrace_sp, &stack_size, &stack_start);
+                        thread->stack.memory.size = stack_size;
+                        thread->stack.start_address = stack_start;
+
+                        SENTRY_DEBUGF(
+                            "Thread %u: wrote ptrace context at RVA 0x%x, stack at "
+                            "RVA 0x%x (size %zu)",
+                            thread->thread_id, thread->thread_context.rva,
+                            thread->stack.memory.rva, stack_size);
+                    }
+                } else {
+                    SENTRY_WARNF("Thread %u: failed to capture via ptrace",
+                        thread->thread_id);
+                }
             }
+        } else {
+            SENTRY_DEBUGF("Thread %u: no context available", thread->thread_id);
         }
     }
 
@@ -799,6 +1078,9 @@ write_thread_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
 static int
 write_module_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
 {
+    SENTRY_DEBUGF("write_module_list_stream: processing %zu total mappings",
+        writer->mapping_count);
+
     // Count modules (mappings with executable flag and name)
     size_t module_count = 0;
     for (size_t i = 0; i < writer->mapping_count; i++) {
@@ -817,6 +1099,22 @@ write_module_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
     }
 
     module_list->count = module_count;
+    SENTRY_DEBUGF("Writing %zu modules to minidump", module_count);
+
+    // First pass: collect module info and Build IDs (don't write anything yet)
+    typedef struct {
+        uint8_t build_id[32];
+        size_t build_id_len;
+        char *name;
+        uint64_t base;
+        uint32_t size;
+    } module_info_t;
+    module_info_t *mod_infos
+        = sentry_malloc(sizeof(module_info_t) * module_count);
+    if (!mod_infos) {
+        sentry_free(module_list);
+        return -1;
+    }
 
     size_t mod_idx = 0;
     for (size_t i = 0; i < writer->mapping_count && mod_idx < module_count;
@@ -825,35 +1123,118 @@ write_module_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
 
         if (mapping->permissions[2] == 'x' && mapping->name[0] != '\0'
             && mapping->name[0] != '[') {
-            minidump_module_t *module = &module_list->modules[mod_idx++];
+            minidump_module_t *module = &module_list->modules[mod_idx];
             memset(module, 0, sizeof(*module));
 
             module->base_of_image = mapping->start;
             module->size_of_image = mapping->end - mapping->start;
 
-            // Write module name as UTF-16 string
-            module->module_name_rva
-                = write_minidump_string(writer, mapping->name);
+            // Set VS_FIXEDFILEINFO signature (first uint32_t of version_info)
+            // This is required for minidump processors to recognize the module
+            uint32_t version_sig = 0xFEEF04BD;
+            memcpy(&module->version_info[0], &version_sig, sizeof(version_sig));
 
-            // Extract and write Build ID for better symbolication
-            uint8_t build_id[32];
-            size_t build_id_len = extract_elf_build_id(
-                mapping->name, build_id, sizeof(build_id));
-            if (build_id_len > 0) {
-                minidump_rva_t cv_rva = write_cv_record(
-                    writer, mapping->name, build_id, build_id_len);
-                if (cv_rva) {
-                    module->cv_record.rva = cv_rva;
-                    module->cv_record.size
-                        = sizeof(cv_info_pdb70_t) + strlen(mapping->name);
-                }
-            }
+            // Store info for later writing
+            mod_infos[mod_idx].name = mapping->name;
+            mod_infos[mod_idx].base = mapping->start;
+            mod_infos[mod_idx].size = mapping->end - mapping->start;
+
+            // Extract Build ID but don't write anything yet
+            mod_infos[mod_idx].build_id_len = extract_elf_build_id(
+                mapping->name, mod_infos[mod_idx].build_id,
+                sizeof(mod_infos[mod_idx].build_id));
+
+            SENTRY_DEBUGF("Module: %s base=0x%llx size=0x%llx build_id_len=%zu",
+                mapping->name, (unsigned long long)mapping->start,
+                (unsigned long long)(mapping->end - mapping->start),
+                mod_infos[mod_idx].build_id_len);
+
+            mod_idx++;
         }
     }
 
+    // Write the module list structure FIRST (with zero RVAs)
     dir->stream_type = MINIDUMP_STREAM_MODULE_LIST;
     dir->rva = write_data(writer, module_list, list_size);
     dir->data_size = list_size;
+
+    // Second pass: write module names and CV records, then update module list
+    for (size_t i = 0; i < module_count; i++) {
+        // Write module name
+        minidump_rva_t name_rva = write_minidump_string(writer, mod_infos[i].name);
+
+        // Write CV record if we have a Build ID
+        minidump_rva_t cv_rva = 0;
+        uint32_t cv_size = 0;
+        if (mod_infos[i].build_id_len > 0) {
+            cv_rva = write_cv_record(
+                writer, "", mod_infos[i].build_id, mod_infos[i].build_id_len);
+            cv_size = sizeof(uint32_t) + mod_infos[i].build_id_len;
+            SENTRY_DEBUGF("CV Record: signature=0x4270454c, build_id_len=%zu",
+                mod_infos[i].build_id_len);
+        }
+
+        // Third pass: update specific fields in the module structure via lseek
+        // Save position AFTER writing name and CV record
+        off_t saved_pos = lseek(writer->fd, 0, SEEK_CUR);
+
+        // Update module_name_rva field
+        off_t name_rva_offset = dir->rva + sizeof(uint32_t)
+            + (i * sizeof(minidump_module_t))
+            + offsetof(minidump_module_t, module_name_rva);
+
+        if (lseek(writer->fd, name_rva_offset, SEEK_SET)
+            == (off_t)name_rva_offset) {
+            if (write(writer->fd, &name_rva, sizeof(name_rva))
+                != sizeof(name_rva)) {
+                SENTRY_WARNF("Failed to write module_name_rva for module %zu", i);
+            }
+        }
+
+        // Update cv_record fields (size and rva)
+        if (cv_size > 0) {
+            off_t cv_offset = dir->rva + sizeof(uint32_t)
+                + (i * sizeof(minidump_module_t))
+                + offsetof(minidump_module_t, cv_record);
+
+            SENTRY_DEBUGF("  Seeking to CV offset: 0x%llx for module %zu",
+                (unsigned long long)cv_offset, i);
+
+            off_t actual_offset = lseek(writer->fd, cv_offset, SEEK_SET);
+            if (actual_offset == (off_t)cv_offset) {
+                // Write size first, then rva (order in structure)
+                ssize_t written1 = write(writer->fd, &cv_size, sizeof(cv_size));
+                ssize_t written2
+                    = write(writer->fd, &cv_rva, sizeof(cv_rva));
+
+                if (written1 == sizeof(cv_size) && written2 == sizeof(cv_rva)) {
+                    // Force flush to disk
+                    fsync(writer->fd);
+                    SENTRY_DEBUGF(
+                        "  Updated module[%zu]: name_rva=0x%x, cv_rva=0x%x, "
+                        "cv_size=%u (flushed)",
+                        i, name_rva, cv_rva, cv_size);
+                } else {
+                    SENTRY_WARNF("Failed to write CV record for module %zu: "
+                                 "written1=%zd, written2=%zd",
+                        i, written1, written2);
+                }
+            } else {
+                SENTRY_WARNF(
+                    "Failed to seek to CV offset 0x%llx for module %zu (got 0x%llx)",
+                    (unsigned long long)cv_offset, i,
+                    (unsigned long long)actual_offset);
+            }
+        }
+
+        lseek(writer->fd, saved_pos, SEEK_SET);
+    }
+
+    // Final flush to ensure all writes are committed
+    fsync(writer->fd);
+    SENTRY_DEBUG("Flushed all module updates to disk");
+
+    sentry_free(mod_infos);
 
     sentry_free(module_list);
     return dir->rva ? 0 : -1;
@@ -992,8 +1373,8 @@ write_memory_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
         }
 
         // Read memory from crashed process
-        ssize_t nread = read_process_memory(writer->crash_ctx->crashed_pid,
-            mapping->start, region_buffer, region_size);
+        ssize_t nread
+            = read_process_memory(writer, mapping->start, region_buffer, region_size);
 
         if (nread > 0) {
             mem->start_address = mapping->start;
@@ -1024,6 +1405,8 @@ sentry__write_minidump(
     const sentry_crash_context_t *ctx, const char *output_path)
 {
     SENTRY_DEBUGF("writing minidump to %s", output_path);
+    SENTRY_DEBUGF("crashed_pid=%d, crashed_tid=%d, num_threads=%zu",
+        ctx->crashed_pid, ctx->crashed_tid, ctx->platform.num_threads);
 
     minidump_writer_t writer = { 0 };
     writer.crash_ctx = ctx;
@@ -1098,6 +1481,12 @@ sentry__write_minidump(
     }
 
     close(writer.fd);
+
+    // Detach from process if we attached
+    if (writer.ptrace_attached) {
+        ptrace(PTRACE_DETACH, ctx->crashed_pid, NULL, NULL);
+        SENTRY_DEBUGF("Detached from process %d", ctx->crashed_pid);
+    }
 
     SENTRY_DEBUG("successfully wrote minidump");
     return 0;

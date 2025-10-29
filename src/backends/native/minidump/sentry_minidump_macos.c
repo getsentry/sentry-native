@@ -807,6 +807,11 @@ write_module_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
         mdmodule->base_of_image = module->base_address;
         mdmodule->size_of_image = module->size;
 
+        // Set VS_FIXEDFILEINFO signature (first uint32_t of version_info)
+        // This is required for minidump processors to recognize the module
+        uint32_t version_sig = 0xFEEF04BD;
+        memcpy(&mdmodule->version_info[0], &version_sig, sizeof(version_sig));
+
         // Write module name as UTF-16 string
         mdmodule->module_name_rva = write_minidump_string(writer, module->name);
 
@@ -839,17 +844,6 @@ write_module_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
                 mdmodule->cv_record.rva = cv_rva;
                 mdmodule->cv_record.size
                     = sizeof(cv_info_pdb70_t) + strlen(module->name);
-
-                // Debug: Log UUID for first module
-                if (i == 0) {
-                    SENTRY_DEBUGF("Module 0 (%s): "
-                                  "UUID=%02x%02x%02x%02x-%02x%02x-%02x%02x-%"
-                                  "02x%02x-%02x%02x%02x%02x%02x%02x",
-                        module->name, uuid[0], uuid[1], uuid[2], uuid[3],
-                        uuid[4], uuid[5], uuid[6], uuid[7], uuid[8], uuid[9],
-                        uuid[10], uuid[11], uuid[12], uuid[13], uuid[14],
-                        uuid[15]);
-                }
             }
         }
     }

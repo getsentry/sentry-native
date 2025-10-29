@@ -8,6 +8,9 @@
 #    include <sys/types.h>
 #    include <sys/wait.h>
 #    include <unistd.h>
+#    if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+#        include <sys/prctl.h>
+#    endif
 #endif
 
 #include <string.h>
@@ -292,6 +295,19 @@ native_backend_startup(
     }
 
     SENTRY_DEBUGF("crash daemon started with PID %d", state->daemon_pid);
+
+#    if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+    // On Linux, allow the daemon to ptrace this process
+    // This is required when Yama LSM ptrace_scope is enabled
+    if (prctl(PR_SET_PTRACER, state->daemon_pid, 0, 0, 0) != 0) {
+        SENTRY_WARNF(
+            "prctl(PR_SET_PTRACER) failed: %s - daemon may not be able to "
+            "read process memory",
+            strerror(errno));
+    } else {
+        SENTRY_DEBUGF("Set daemon PID %d as ptracer", state->daemon_pid);
+    }
+#    endif
 
     // Wait for daemon to signal it's ready
     if (!sentry__crash_ipc_wait_for_ready(

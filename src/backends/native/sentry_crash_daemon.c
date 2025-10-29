@@ -739,12 +739,12 @@ sentry__crash_daemon_main(
         }
     }
 
-    // Initialize transport for sending envelopes
-    SENTRY_DEBUG("Initializing transport");
-    options->transport = sentry__transport_new_default();
+    // Transport is already initialized by sentry_options_new(), just start it
     if (options->transport) {
         SENTRY_DEBUG("Starting transport");
         sentry__transport_startup(options->transport, options);
+    } else {
+        SENTRY_WARN("No transport available");
     }
 
     SENTRY_DEBUG("Daemon options fully initialized");

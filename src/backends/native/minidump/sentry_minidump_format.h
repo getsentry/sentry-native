@@ -38,12 +38,12 @@ typedef enum {
     MINIDUMP_STREAM_LINUX_MAPS = 0x47670008,
 } minidump_stream_type_t;
 
-// CPU types
+// CPU types (MINIDUMP_PROCESSOR_ARCHITECTURE)
 typedef enum {
-    MINIDUMP_CPU_X86 = 0,
-    MINIDUMP_CPU_ARM = 5,
-    MINIDUMP_CPU_ARM64 = 12,
-    MINIDUMP_CPU_X86_64 = 0x8664,
+    MINIDUMP_CPU_X86 = 0,       // PROCESSOR_ARCHITECTURE_INTEL
+    MINIDUMP_CPU_ARM = 5,       // PROCESSOR_ARCHITECTURE_ARM
+    MINIDUMP_CPU_X86_64 = 9,    // PROCESSOR_ARCHITECTURE_AMD64
+    MINIDUMP_CPU_ARM64 = 12,    // PROCESSOR_ARCHITECTURE_ARM64
 } minidump_cpu_type_t;
 
 // OS types
@@ -403,7 +403,7 @@ typedef struct {
     uint32_t checksum;
     uint32_t time_date_stamp;
     minidump_rva_t module_name_rva;
-    uint64_t version_info[13]; // Simplified
+    uint32_t version_info[13]; // VS_FIXEDFILEINFO: 13 uint32_t fields = 52 bytes
     minidump_location_t cv_record;
     minidump_location_t misc_record;
     uint64_t reserved0;
