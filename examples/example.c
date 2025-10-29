@@ -731,6 +731,35 @@ main(int argc, char **argv)
 
         sentry_capture_feedback(user_feedback);
     }
+    if (has_arg(argc, argv, "capture-user-feedback-with-attachment")) {
+        sentry_value_t user_feedback = sentry_value_new_feedback(
+            "some-message", "some-email", "some-name", NULL);
+
+        // Create a hint and attach both file and byte data
+        sentry_feedback_hint_t *hint = sentry_feedback_hint_new();
+
+        // Create a temporary file for the attachment
+        const char *attachment_path = ".sentry-test-feedback-attachment";
+        FILE *f = fopen(attachment_path, "w");
+        if (f) {
+            fprintf(f, "This is feedback attachment content");
+            fclose(f);
+        }
+
+        // Attach a file
+        sentry_feedback_hint_attach_file(hint, attachment_path);
+
+        // Attach bytes data (e.g., binary data from memory)
+        const char *binary_data = "binary attachment data";
+        sentry_feedback_hint_attach_bytes(
+            hint, binary_data, strlen(binary_data), "additional-info.txt");
+
+        // Capture feedback with attachments
+        sentry_capture_feedback_with_hint(user_feedback, hint);
+
+        // Clean up the temporary file
+        remove(attachment_path);
+    }
     if (has_arg(argc, argv, "capture-user-report")) {
         sentry_value_t event = sentry_value_new_message_event(
             SENTRY_LEVEL_INFO, "my-logger", "Hello user feedback!");
