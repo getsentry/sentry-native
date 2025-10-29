@@ -745,12 +745,12 @@ elseif(SENTRY_BACKEND_NATIVE)
 	# Native backend sources and configuration are in src/CMakeLists.txt
 	# The native backend requires C11 for atomics (set in src/CMakeLists.txt)
 
-	# Build sentry-crashdaemon executable for native backend
+	# Build sentry-crash executable for native backend
 	# Get all sources that were added to sentry target
 	get_target_property(SENTRY_SOURCES sentry SOURCES)
 
 	# Create daemon executable with same sources plus daemon-specific files
-	add_executable(sentry-crashdaemon
+	add_executable(sentry-crash
 		${SENTRY_SOURCES}
 		src/backends/native/sentry_crash_daemon.c
 		src/backends/native/sentry_crash_ipc.c
@@ -758,7 +758,7 @@ elseif(SENTRY_BACKEND_NATIVE)
 	)
 
 	# Define standalone mode and copy compile definitions from sentry
-	target_compile_definitions(sentry-crashdaemon PRIVATE
+	target_compile_definitions(sentry-crash PRIVATE
 		SENTRY_CRASH_DAEMON_STANDALONE
 		SENTRY_BUILD_STATIC
 		SENTRY_HANDLER_STACK_SIZE=${SENTRY_HANDLER_STACK_SIZE}
@@ -766,13 +766,13 @@ elseif(SENTRY_BACKEND_NATIVE)
 
 	# Windows-specific compile definitions
 	if(WIN32)
-		target_compile_definitions(sentry-crashdaemon PRIVATE
+		target_compile_definitions(sentry-crash PRIVATE
 			SENTRY_THREAD_STACK_GUARANTEE_FACTOR=${SENTRY_THREAD_STACK_GUARANTEE_FACTOR}
 		)
 	endif()
 
 	# Copy include directories from sentry target
-	target_include_directories(sentry-crashdaemon PRIVATE
+	target_include_directories(sentry-crash PRIVATE
 		${PROJECT_SOURCE_DIR}/include
 		${PROJECT_SOURCE_DIR}/src
 		${PROJECT_SOURCE_DIR}/src/backends/native
@@ -780,16 +780,16 @@ elseif(SENTRY_BACKEND_NATIVE)
 
 	# Link same libraries as sentry
 	if(WIN32)
-		target_link_libraries(sentry-crashdaemon PRIVATE dbghelp shlwapi version)
+		target_link_libraries(sentry-crash PRIVATE dbghelp shlwapi version)
 		if(SENTRY_TRANSPORT_WINHTTP)
-			target_link_libraries(sentry-crashdaemon PRIVATE winhttp)
+			target_link_libraries(sentry-crash PRIVATE winhttp)
 		endif()
 	elseif(LINUX OR ANDROID)
-		target_link_libraries(sentry-crashdaemon PRIVATE pthread rt dl)
+		target_link_libraries(sentry-crash PRIVATE pthread rt dl)
 	elseif(APPLE)
 		find_library(COREFOUNDATION_LIBRARY CoreFoundation REQUIRED)
 		find_library(SECURITY_LIBRARY Security REQUIRED)
-		target_link_libraries(sentry-crashdaemon PRIVATE
+		target_link_libraries(sentry-crash PRIVATE
 			${COREFOUNDATION_LIBRARY}
 			${SECURITY_LIBRARY}
 		)
@@ -797,16 +797,19 @@ elseif(SENTRY_BACKEND_NATIVE)
 
 	# Transport-specific libraries
 	if(SENTRY_TRANSPORT_CURL)
-		target_link_libraries(sentry-crashdaemon PRIVATE CURL::libcurl)
+		target_link_libraries(sentry-crash PRIVATE CURL::libcurl)
 	endif()
 
 	# Compression library
 	if(SENTRY_TRANSPORT_COMPRESSION)
-		target_link_libraries(sentry-crashdaemon PRIVATE ZLIB::ZLIB)
+		target_link_libraries(sentry-crash PRIVATE ZLIB::ZLIB)
 	endif()
 
+	# Make sentry library depend on crash daemon so it's always built together
+	add_dependencies(sentry sentry-crash)
+
 	# Install daemon
-	install(TARGETS sentry-crashdaemon
+	install(TARGETS sentry-crash
 		RUNTIME DESTINATION bin
 	)
 
