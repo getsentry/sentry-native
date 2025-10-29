@@ -449,8 +449,8 @@ write_thread_context(
     // Copy FPU state from macOS float state
     context.mx_csr = mcontext->__fs.__fpu_mxcsr;
 
-    // On older macOS, __fpu_fcw and __fpu_fsw are structs, on newer they're uint16_t
-    // We need to extract the raw value in both cases
+    // On older macOS, __fpu_fcw and __fpu_fsw are structs, on newer they're
+    // uint16_t We need to extract the raw value in both cases
     uint16_t fcw, fsw;
     memcpy(&fcw, &mcontext->__fs.__fpu_fcw, sizeof(uint16_t));
     memcpy(&fsw, &mcontext->__fs.__fpu_fsw, sizeof(uint16_t));

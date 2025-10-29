@@ -5,9 +5,9 @@
 #include "sentry_crash_ipc.h"
 
 #if defined(SENTRY_PLATFORM_UNIX)
-#include <sys/types.h>
+#    include <sys/types.h>
 #elif defined(SENTRY_PLATFORM_WINDOWS)
-#include <windows.h>
+#    include <windows.h>
 #endif
 
 // Forward declaration
@@ -15,7 +15,8 @@ struct sentry_options_s;
 
 /**
  * Start crash daemon for monitoring app process
- * This forks a child process (Unix) or creates a new process (Windows) that waits for crashes
+ * This forks a child process (Unix) or creates a new process (Windows) that
+ * waits for crashes
  *
  * @param app_pid Parent application process ID
  * @param app_tid Parent application thread ID
@@ -24,26 +25,33 @@ struct sentry_options_s;
  * @return Daemon PID on success, -1 on failure
  */
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
-pid_t sentry__crash_daemon_start(pid_t app_pid, uint64_t app_tid, int notify_eventfd, int ready_eventfd);
+pid_t sentry__crash_daemon_start(
+    pid_t app_pid, uint64_t app_tid, int notify_eventfd, int ready_eventfd);
 #elif defined(SENTRY_PLATFORM_MACOS)
-pid_t sentry__crash_daemon_start(pid_t app_pid, uint64_t app_tid, int notify_pipe_read, int ready_pipe_write);
+pid_t sentry__crash_daemon_start(pid_t app_pid, uint64_t app_tid,
+    int notify_pipe_read, int ready_pipe_write);
 #elif defined(SENTRY_PLATFORM_WINDOWS)
-pid_t sentry__crash_daemon_start(pid_t app_pid, uint64_t app_tid, HANDLE event_handle, HANDLE ready_event_handle);
+pid_t sentry__crash_daemon_start(pid_t app_pid, uint64_t app_tid,
+    HANDLE event_handle, HANDLE ready_event_handle);
 #endif
 
 /**
- * Daemon main loop (runs in forked child on Unix, or separate process on Windows)
+ * Daemon main loop (runs in forked child on Unix, or separate process on
+ * Windows)
  * @param app_pid Parent process ID
  * @param app_tid Parent thread ID
  * @param notify_handle Notification handle for crash signals
  * @param ready_handle Ready signal handle to signal parent
  */
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
-int sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, int notify_eventfd, int ready_eventfd);
+int sentry__crash_daemon_main(
+    pid_t app_pid, uint64_t app_tid, int notify_eventfd, int ready_eventfd);
 #elif defined(SENTRY_PLATFORM_MACOS)
-int sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, int notify_pipe_read, int ready_pipe_write);
+int sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid,
+    int notify_pipe_read, int ready_pipe_write);
 #elif defined(SENTRY_PLATFORM_WINDOWS)
-int sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle, HANDLE ready_event_handle);
+int sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid,
+    HANDLE event_handle, HANDLE ready_event_handle);
 #endif
 
 /**
