@@ -70,6 +70,7 @@ sentry_crash_ipc_t *sentry__crash_ipc_init_app(void);
  * Initialize IPC for daemon process.
  * Attaches to existing shared memory created by app.
  * @param app_pid Parent process ID
+ * @param app_tid Parent thread ID
  * @param notify_handle Notification handle inherited from parent (eventfd on
  * Linux, pipe fd on macOS, event on Windows)
  * @param ready_handle Ready signal handle inherited from parent (eventfd on
@@ -77,13 +78,13 @@ sentry_crash_ipc_t *sentry__crash_ipc_init_app(void);
  */
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
 sentry_crash_ipc_t *sentry__crash_ipc_init_daemon(
-    pid_t app_pid, int notify_eventfd, int ready_eventfd);
+    pid_t app_pid, uint64_t app_tid, int notify_eventfd, int ready_eventfd);
 #elif defined(SENTRY_PLATFORM_MACOS)
 sentry_crash_ipc_t *sentry__crash_ipc_init_daemon(
-    pid_t app_pid, int notify_pipe_read, int ready_pipe_write);
+    pid_t app_pid, uint64_t app_tid, int notify_pipe_read, int ready_pipe_write);
 #elif defined(SENTRY_PLATFORM_WINDOWS)
 sentry_crash_ipc_t *sentry__crash_ipc_init_daemon(
-    pid_t app_pid, HANDLE event_handle, HANDLE ready_event_handle);
+    pid_t app_pid, uint64_t app_tid, HANDLE event_handle, HANDLE ready_event_handle);
 #endif
 
 /**
