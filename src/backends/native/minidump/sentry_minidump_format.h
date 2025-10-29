@@ -8,6 +8,19 @@
  * Based on Microsoft's minidump format specification
  */
 
+// Define PACKED macro for cross-compiler struct packing
+#ifdef _MSC_VER
+#    define PACKED_STRUCT_BEGIN __pragma(pack(push, 1))
+#    define PACKED_STRUCT_END __pragma(pack(pop))
+#    define PACKED_ATTR
+#    define PACKED_ALIGNED_ATTR(n) __declspec(align(n))
+#else
+#    define PACKED_STRUCT_BEGIN
+#    define PACKED_STRUCT_END
+#    define PACKED_ATTR __attribute__((packed))
+#    define PACKED_ALIGNED_ATTR(n) __attribute__((packed, aligned(n)))
+#endif
+
 #define MINIDUMP_SIGNATURE 0x504d444d // "MDMP"
 #define MINIDUMP_VERSION 0xa793
 
@@ -51,6 +64,8 @@ typedef uint32_t minidump_rva_t;
 /**
  * Minidump header (always at offset 0)
  */
+PACKED_STRUCT_BEGIN
+PACKED_STRUCT_BEGIN
 typedef struct {
     uint32_t signature; // Must be MINIDUMP_SIGNATURE
     uint32_t version; // Must be MINIDUMP_VERSION
@@ -59,57 +74,75 @@ typedef struct {
     uint32_t checksum;
     uint32_t time_date_stamp; // Unix timestamp
     uint64_t flags;
-} __attribute__((packed)) minidump_header_t;
+} PACKED_ATTR minidump_header_t;
+PACKED_STRUCT_END
+PACKED_STRUCT_END
 
 /**
  * Stream directory entry
  */
+PACKED_STRUCT_BEGIN
+PACKED_STRUCT_BEGIN
 typedef struct {
     uint32_t stream_type;
     uint32_t data_size;
     minidump_rva_t rva;
-} __attribute__((packed)) minidump_directory_t;
+} PACKED_ATTR minidump_directory_t;
+PACKED_STRUCT_END
+PACKED_STRUCT_END
 
 /**
  * Location descriptor (used for variable-length data)
  */
+PACKED_STRUCT_BEGIN
+PACKED_STRUCT_BEGIN
 typedef struct {
     uint32_t size;
     minidump_rva_t rva;
-} __attribute__((packed)) minidump_location_t;
+} PACKED_ATTR minidump_location_t;
+PACKED_STRUCT_END
+PACKED_STRUCT_END
 
 /**
  * Memory descriptor
  */
+PACKED_STRUCT_BEGIN
 typedef struct {
     uint64_t start_address;
     minidump_location_t memory;
-} __attribute__((packed)) minidump_memory_descriptor_t;
+} PACKED_ATTR minidump_memory_descriptor_t;
+PACKED_STRUCT_END
 
 /**
  * Memory64 descriptor (more compact for large memory dumps)
  */
+PACKED_STRUCT_BEGIN
 typedef struct {
     uint64_t start_address;
     uint64_t size;
-} __attribute__((packed)) minidump_memory64_descriptor_t;
+} PACKED_ATTR minidump_memory64_descriptor_t;
+PACKED_STRUCT_END
 
 /**
  * Memory list
  */
+PACKED_STRUCT_BEGIN
 typedef struct {
     uint32_t count;
     minidump_memory_descriptor_t ranges[]; // Variable length
-} __attribute__((packed)) minidump_memory_list_t;
+} PACKED_ATTR minidump_memory_list_t;
+PACKED_STRUCT_END
 
 /**
  * Memory64 list (includes base RVA for all memory)
  */
+PACKED_STRUCT_BEGIN
 typedef struct {
     uint64_t count;
     minidump_rva_t base_rva; // All memory starts here
     minidump_memory64_descriptor_t ranges[]; // Variable length
-} __attribute__((packed)) minidump_memory64_list_t;
+} PACKED_ATTR minidump_memory64_list_t;
+PACKED_STRUCT_END
 
 /**
  * Thread context (CPU state)
@@ -117,12 +150,15 @@ typedef struct {
  */
 #if defined(__x86_64__)
 // 128-bit value for XMM/FP registers
+PACKED_STRUCT_BEGIN
 typedef struct {
     uint64_t low;
     uint64_t high;
-} __attribute__((packed)) m128a_t;
+} PACKED_ATTR m128a_t;
+PACKED_STRUCT_END
 
 // x87 FPU and SSE/XMM state (512 bytes)
+PACKED_STRUCT_BEGIN
 typedef struct {
     uint16_t control_word;
     uint16_t status_word;
@@ -140,8 +176,10 @@ typedef struct {
     m128a_t float_registers[8];  // ST0-ST7 (x87 FPU registers)
     m128a_t xmm_registers[16];   // XMM0-XMM15 (SSE registers)
     uint8_t reserved4[96];
-} __attribute__((packed)) xmm_save_area32_t;
+} PACKED_ATTR xmm_save_area32_t;
+PACKED_STRUCT_END
 
+PACKED_STRUCT_BEGIN
 typedef struct {
     uint64_t p1_home;
     uint64_t p2_home;
@@ -189,15 +227,19 @@ typedef struct {
     uint64_t last_branch_from_rip;
     uint64_t last_exception_to_rip;
     uint64_t last_exception_from_rip;
-} __attribute__((packed)) minidump_context_x86_64_t;
+} PACKED_ATTR minidump_context_x86_64_t;
+PACKED_STRUCT_END
 
 #elif defined(__aarch64__)
 // 128-bit value for NEON registers
+PACKED_STRUCT_BEGIN
 typedef struct {
     uint64_t low;
     uint64_t high;
-} __attribute__((packed)) uint128_struct;
+} PACKED_ATTR uint128_struct;
+PACKED_STRUCT_END
 
+PACKED_STRUCT_BEGIN
 typedef struct {
     uint32_t context_flags;
     uint32_t cpsr;
@@ -213,9 +255,11 @@ typedef struct {
     uint64_t bvr[8];        // Debug breakpoint value registers
     uint32_t wcr[2];        // Debug watchpoint control registers
     uint64_t wvr[2];        // Debug watchpoint value registers
-} __attribute__((packed)) minidump_context_arm64_t;
+} PACKED_ATTR minidump_context_arm64_t;
+PACKED_STRUCT_END
 
 #elif defined(__i386__)
+PACKED_STRUCT_BEGIN
 typedef struct {
     uint32_t context_flags;
     uint32_t dr0;
@@ -240,9 +284,11 @@ typedef struct {
     uint32_t eflags;
     uint32_t esp;
     uint32_t ss;
-} __attribute__((packed)) minidump_context_x86_t;
+} PACKED_ATTR minidump_context_x86_t;
+PACKED_STRUCT_END
 
 #elif defined(__arm__)
+PACKED_STRUCT_BEGIN
 typedef struct {
     uint32_t context_flags;
     uint32_t r[13]; // R0-R12
@@ -250,12 +296,14 @@ typedef struct {
     uint32_t lr;
     uint32_t pc;
     uint32_t cpsr;
-} __attribute__((packed)) minidump_context_arm_t;
+} PACKED_ATTR minidump_context_arm_t;
+PACKED_STRUCT_END
 #endif
 
 /**
  * Thread descriptor
  */
+PACKED_STRUCT_BEGIN
 typedef struct {
     uint32_t thread_id;
     uint32_t suspend_count;
@@ -264,19 +312,23 @@ typedef struct {
     uint64_t teb; // Thread Environment Block
     minidump_memory_descriptor_t stack;
     minidump_location_t thread_context;
-} __attribute__((packed)) minidump_thread_t;
+} PACKED_ATTR minidump_thread_t;
+PACKED_STRUCT_END
 
 /**
  * Thread list
  */
+PACKED_STRUCT_BEGIN
 typedef struct {
     uint32_t count;
     minidump_thread_t threads[]; // Variable length
-} __attribute__((packed)) minidump_thread_list_t;
+} PACKED_ATTR minidump_thread_list_t;
+PACKED_STRUCT_END
 
 /**
  * CPU information union (varies by architecture)
  */
+PACKED_STRUCT_BEGIN
 typedef union {
     // For x86/x86_64 (when processor_architecture is X86 or AMD64)
     struct {
@@ -284,17 +336,19 @@ typedef union {
         uint32_t version_information;       // cpuid 1: eax
         uint32_t feature_information;       // cpuid 1: edx
         uint32_t amd_extended_cpu_features; // cpuid 0x80000001: edx
-    } __attribute__((packed, aligned(4))) x86_cpu_info;
+    } PACKED_ALIGNED_ATTR(4) x86_cpu_info;
 
     // For all other architectures (ARM, ARM64, etc.)
     struct {
         uint64_t processor_features[2]; // Feature flags
-    } __attribute__((packed, aligned(4))) other_cpu_info;
-} __attribute__((packed, aligned(4))) minidump_cpu_information_t;
+    } PACKED_ALIGNED_ATTR(4) other_cpu_info;
+} PACKED_ALIGNED_ATTR(4) minidump_cpu_information_t;
+PACKED_STRUCT_END
 
 /**
  * System info
  */
+PACKED_STRUCT_BEGIN
 typedef struct {
     uint16_t processor_architecture;
     uint16_t processor_level;
@@ -309,11 +363,13 @@ typedef struct {
     uint16_t suite_mask;
     uint16_t reserved2;
     minidump_cpu_information_t cpu;
-} __attribute__((packed, aligned(4))) minidump_system_info_t;
+} PACKED_ALIGNED_ATTR(4) minidump_system_info_t;
+PACKED_STRUCT_END
 
 /**
  * Exception information
  */
+PACKED_STRUCT_BEGIN
 typedef struct {
     uint32_t exception_code;
     uint32_t exception_flags;
@@ -322,21 +378,25 @@ typedef struct {
     uint32_t number_parameters;
     uint32_t unused_alignment;
     uint64_t exception_information[15];
-} __attribute__((packed)) minidump_exception_record_t;
+} PACKED_ATTR minidump_exception_record_t;
+PACKED_STRUCT_END
 
 /**
  * Exception stream
  */
+PACKED_STRUCT_BEGIN
 typedef struct {
     uint32_t thread_id;
     uint32_t alignment;
     minidump_exception_record_t exception_record;
     minidump_location_t thread_context;
-} __attribute__((packed)) minidump_exception_stream_t;
+} PACKED_ATTR minidump_exception_stream_t;
+PACKED_STRUCT_END
 
 /**
  * Module (shared library) descriptor
  */
+PACKED_STRUCT_BEGIN
 typedef struct {
     uint64_t base_of_image;
     uint32_t size_of_image;
@@ -348,22 +408,27 @@ typedef struct {
     minidump_location_t misc_record;
     uint64_t reserved0;
     uint64_t reserved1;
-} __attribute__((packed)) minidump_module_t;
+} PACKED_ATTR minidump_module_t;
+PACKED_STRUCT_END
 
 /**
  * Module list
  */
+PACKED_STRUCT_BEGIN
 typedef struct {
     uint32_t count;
     minidump_module_t modules[]; // Variable length
-} __attribute__((packed)) minidump_module_list_t;
+} PACKED_ATTR minidump_module_list_t;
+PACKED_STRUCT_END
 
 /**
  * String (UTF-16LE for Windows compatibility)
  */
+PACKED_STRUCT_BEGIN
 typedef struct {
     uint32_t length; // In bytes, not including null terminator
     uint16_t buffer[]; // Variable length
-} __attribute__((packed)) minidump_string_t;
+} PACKED_ATTR minidump_string_t;
+PACKED_STRUCT_END
 
 #endif
