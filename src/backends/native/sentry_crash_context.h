@@ -18,8 +18,13 @@
 #    include <unistd.h>
 #elif defined(SENTRY_PLATFORM_WINDOWS)
 #    include <windows.h>
-// Windows doesn't have pid_t - define it as DWORD
+// MinGW provides pid_t in sys/types.h, MSVC doesn't
+#    if defined(__MINGW32__) || defined(__MINGW64__)
+#        include <sys/types.h>
+#    else
+// MSVC doesn't have pid_t - define it as DWORD
 typedef DWORD pid_t;
+#    endif
 #endif
 
 #define SENTRY_CRASH_MAGIC 0x53454E54 // "SENT"

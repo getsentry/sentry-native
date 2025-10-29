@@ -448,8 +448,15 @@ write_thread_context(
 
     // Copy FPU state from macOS float state
     context.mx_csr = mcontext->__fs.__fpu_mxcsr;
-    context.float_save.control_word = mcontext->__fs.__fpu_fcw;
-    context.float_save.status_word = mcontext->__fs.__fpu_fsw;
+
+    // On older macOS, __fpu_fcw and __fpu_fsw are structs, on newer they're uint16_t
+    // We need to extract the raw value in both cases
+    uint16_t fcw, fsw;
+    memcpy(&fcw, &mcontext->__fs.__fpu_fcw, sizeof(uint16_t));
+    memcpy(&fsw, &mcontext->__fs.__fpu_fsw, sizeof(uint16_t));
+
+    context.float_save.control_word = fcw;
+    context.float_save.status_word = fsw;
     context.float_save.tag_word = mcontext->__fs.__fpu_ftw;
     context.float_save.error_opcode = mcontext->__fs.__fpu_fop;
     context.float_save.error_offset = mcontext->__fs.__fpu_ip;
