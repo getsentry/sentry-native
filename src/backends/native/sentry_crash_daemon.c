@@ -105,7 +105,9 @@ write_attachment_to_envelope(int fd, const char *file_path,
     }
 
 #if defined(SENTRY_PLATFORM_UNIX)
-    write(fd, header, header_written);
+    if (write(fd, header, header_written) != (ssize_t)header_written) {
+        SENTRY_WARN("Failed to write attachment header to envelope");
+    }
 #elif defined(SENTRY_PLATFORM_WINDOWS)
     _write(fd, header, header_written);
 #endif
@@ -130,7 +132,9 @@ write_attachment_to_envelope(int fd, const char *file_path,
         return false;
     }
 
-    write(fd, "\n", 1);
+    if (write(fd, "\n", 1) != 1) {
+        SENTRY_WARN("Failed to write newline to envelope");
+    }
     close(attach_fd);
 #elif defined(SENTRY_PLATFORM_WINDOWS)
     int n;
@@ -190,7 +194,9 @@ write_envelope_with_minidump(const sentry_options_t *options,
     }
     if (header_len > 0 && header_len < (int)sizeof(header_buf)) {
 #if defined(SENTRY_PLATFORM_UNIX)
-        write(fd, header_buf, header_len);
+        if (write(fd, header_buf, header_len) != header_len) {
+            SENTRY_WARN("Failed to write envelope header");
+        }
 #elif defined(SENTRY_PLATFORM_WINDOWS)
         _write(fd, header_buf, header_len);
 #endif
@@ -211,9 +217,15 @@ write_envelope_with_minidump(const sentry_options_t *options,
             if (ev_header_len > 0
                 && ev_header_len < (int)sizeof(event_header)) {
 #if defined(SENTRY_PLATFORM_UNIX)
-                write(fd, event_header, ev_header_len);
-                write(fd, event_json, event_size);
-                write(fd, "\n", 1);
+                if (write(fd, event_header, ev_header_len) != ev_header_len) {
+                    SENTRY_WARN("Failed to write event header to envelope");
+                }
+                if (write(fd, event_json, event_size) != (ssize_t)event_size) {
+                    SENTRY_WARN("Failed to write event data to envelope");
+                }
+                if (write(fd, "\n", 1) != 1) {
+                    SENTRY_WARN("Failed to write event newline to envelope");
+                }
 #elif defined(SENTRY_PLATFORM_WINDOWS)
                 _write(fd, event_header, ev_header_len);
                 _write(fd, event_json, (unsigned int)event_size);
@@ -252,7 +264,9 @@ write_envelope_with_minidump(const sentry_options_t *options,
             if (md_header_len > 0
                 && md_header_len < (int)sizeof(minidump_header)) {
 #if defined(SENTRY_PLATFORM_UNIX)
-                write(fd, minidump_header, md_header_len);
+                if (write(fd, minidump_header, md_header_len) != md_header_len) {
+                    SENTRY_WARN("Failed to write minidump header to envelope");
+                }
 #elif defined(SENTRY_PLATFORM_WINDOWS)
                 _write(fd, minidump_header, md_header_len);
 #endif
@@ -263,9 +277,14 @@ write_envelope_with_minidump(const sentry_options_t *options,
 #if defined(SENTRY_PLATFORM_UNIX)
             ssize_t n;
             while ((n = read(minidump_fd, buf, sizeof(buf))) > 0) {
-                write(fd, buf, n);
+                if (write(fd, buf, n) != n) {
+                    SENTRY_WARN("Failed to write minidump data to envelope");
+                    break;
+                }
             }
-            write(fd, "\n", 1);
+            if (write(fd, "\n", 1) != 1) {
+                SENTRY_WARN("Failed to write minidump newline to envelope");
+            }
 #elif defined(SENTRY_PLATFORM_WINDOWS)
             int n;
             while ((n = _read(minidump_fd, buf, sizeof(buf))) > 0) {
@@ -732,11 +751,13 @@ sentry__crash_daemon_main(
 
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
     // Use the inherited eventfd from parent
-    ipc->eventfd = eventfd_handle;
+    ipc->notify_fd = notify_eventfd;
+    ipc->ready_fd = ready_eventfd;
 #elif defined(SENTRY_PLATFORM_WINDOWS)
     // On Windows, event handle is already opened by name in init_daemon
     // Don't overwrite it with the parent's handle (handles are per-process)
     (void)event_handle;
+    (void)ready_event_handle;
 #endif
 
     // Signal to parent that daemon is ready
