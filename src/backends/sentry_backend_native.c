@@ -275,7 +275,7 @@ native_backend_startup(
     // Pass the notification handles (eventfd/pipe on Unix, events on Windows)
 #    if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
     state->daemon_pid = sentry__crash_daemon_start(
-        getpid(), state->ipc->eventfd, state->ipc->ready_eventfd);
+        getpid(), state->ipc->notify_fd, state->ipc->ready_fd);
 #    elif defined(SENTRY_PLATFORM_MACOS)
     state->daemon_pid = sentry__crash_daemon_start(
         getpid(), state->ipc->notify_pipe[0], state->ipc->ready_pipe[1]);
