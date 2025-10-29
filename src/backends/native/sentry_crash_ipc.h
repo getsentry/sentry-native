@@ -24,8 +24,8 @@ typedef struct {
 
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
     int shm_fd;
-    int eventfd; // Eventfd for crash notifications
-    int ready_eventfd; // Eventfd for daemon ready signal
+    int notify_fd; // Eventfd for crash notifications
+    int ready_fd; // Eventfd for daemon ready signal
     char shm_name[SENTRY_CRASH_IPC_NAME_SIZE];
     sem_t *init_sem; // Named semaphore for initialization synchronization
     char sem_name[SENTRY_CRASH_IPC_NAME_SIZE];

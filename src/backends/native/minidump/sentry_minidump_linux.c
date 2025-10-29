@@ -6,6 +6,8 @@
 #    include <errno.h>
 #    include <fcntl.h>
 #    include <stdbool.h>
+#    include <stdio.h>
+#    include <stdlib.h>
 #    include <string.h>
 #    include <sys/stat.h>
 #    include <sys/types.h>
@@ -241,7 +243,9 @@ write_data(minidump_writer_t *writer, const void *data, size_t size)
     uint32_t padding = (4 - (writer->current_offset % 4)) % 4;
     if (padding > 0) {
         const uint8_t zeros[4] = { 0 };
-        write(writer->fd, zeros, padding);
+        if (write(writer->fd, zeros, padding) != (ssize_t)padding) {
+            SENTRY_WARN("Failed to write padding bytes");
+        }
         writer->current_offset += padding;
     }
 
@@ -515,7 +519,7 @@ extract_elf_build_id(const char *elf_path, uint8_t *build_id, size_t max_len)
         return 0;
     }
 
-    if (lseek(fd, ehdr.e_shoff, SEEK_SET) != ehdr.e_shoff
+    if (lseek(fd, ehdr.e_shoff, SEEK_SET) != (off_t)ehdr.e_shoff
         || read(fd, shdr_buf, shdr_size) != (ssize_t)shdr_size) {
         sentry_free(shdr_buf);
         close(fd);
@@ -542,7 +546,7 @@ extract_elf_build_id(const char *elf_path, uint8_t *build_id, size_t max_len)
                 continue;
 
             if (lseek(fd, sections[i].sh_offset, SEEK_SET)
-                    == sections[i].sh_offset
+                    == (off_t)sections[i].sh_offset
                 && read(fd, note_buf, note_size) == (ssize_t)note_size) {
 
                 // Parse notes
