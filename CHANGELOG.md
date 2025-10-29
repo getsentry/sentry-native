@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Sentry native crash backend ([#1433](https://github.com/getsentry/sentry-native/pull/1433))
+
 **Fixes**:
 
 - Crashpad: namespace mpack to avoid ODR violation. ([#1476](https://github.com/getsentry/sentry-native/pull/1476), [crashpad#143](https://github.com/getsentry/crashpad/pull/143))

@@ -74,8 +74,8 @@ sentry__crash_ipc_init_app(sem_t *init_sem)
         if (st.st_size != SENTRY_CRASH_SHM_SIZE) {
             // Existing shm has wrong size, resize it
             if (ftruncate(ipc->shm_fd, SENTRY_CRASH_SHM_SIZE) < 0) {
-                SENTRY_WARNF(
-                    "failed to resize existing shared memory: %s", strerror(errno));
+                SENTRY_WARNF("failed to resize existing shared memory: %s",
+                    strerror(errno));
                 close(ipc->shm_fd);
                 if (ipc->init_sem) {
                     sem_post(ipc->init_sem);
@@ -217,8 +217,8 @@ sentry__crash_ipc_init_daemon(
     ipc->notify_fd = notify_eventfd;
     ipc->ready_fd = ready_eventfd;
 
-    SENTRY_DEBUGF(
-        "daemon: attached to crash IPC (shm=%s, notify_fd=%d, ready_notify_fd=%d)",
+    SENTRY_DEBUGF("daemon: attached to crash IPC (shm=%s, notify_fd=%d, "
+                  "ready_notify_fd=%d)",
         ipc->shm_name, notify_eventfd, ready_eventfd);
 
     return ipc;
@@ -365,8 +365,8 @@ sentry__crash_ipc_init_app(sem_t *init_sem)
         if (st.st_size != SENTRY_CRASH_SHM_SIZE) {
             // Existing shm has wrong size, resize it
             if (ftruncate(ipc->shm_fd, SENTRY_CRASH_SHM_SIZE) < 0) {
-                SENTRY_WARNF(
-                    "failed to resize existing shared memory: %s", strerror(errno));
+                SENTRY_WARNF("failed to resize existing shared memory: %s",
+                    strerror(errno));
                 close(ipc->shm_fd);
                 if (ipc->init_sem) {
                     sem_post(ipc->init_sem);
@@ -683,7 +683,8 @@ sentry__crash_ipc_init_app(HANDLE init_mutex)
         return NULL;
     }
 
-    // Create ready event for daemon to signal when it's initialized (using PID and thread ID)
+    // Create ready event for daemon to signal when it's initialized (using PID
+    // and thread ID)
     swprintf(ipc->ready_event_name, SENTRY_CRASH_IPC_NAME_SIZE,
         L"Local\\SentryCrashReady-%lu-%llx", GetCurrentProcessId(), tid);
     ipc->ready_event_handle = CreateEventW(
@@ -720,8 +721,8 @@ sentry__crash_ipc_init_app(HANDLE init_mutex)
 }
 
 sentry_crash_ipc_t *
-sentry__crash_ipc_init_daemon(
-    pid_t app_pid, uint64_t app_tid, HANDLE event_handle, HANDLE ready_event_handle)
+sentry__crash_ipc_init_daemon(pid_t app_pid, uint64_t app_tid,
+    HANDLE event_handle, HANDLE ready_event_handle)
 {
     // On Windows, we open events by name, so handles from parent are not used
     // (handles are per-process and cannot be directly inherited)
@@ -779,7 +780,8 @@ sentry__crash_ipc_init_daemon(
         return NULL;
     }
 
-    // Open ready event to signal when daemon is initialized (using PID and thread ID)
+    // Open ready event to signal when daemon is initialized (using PID and
+    // thread ID)
     swprintf(ipc->ready_event_name, SENTRY_CRASH_IPC_NAME_SIZE,
         L"Local\\SentryCrashReady-%lu-%llx", (unsigned long)app_pid, app_tid);
     ipc->ready_event_handle
