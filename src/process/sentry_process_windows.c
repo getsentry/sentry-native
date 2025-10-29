@@ -7,46 +7,46 @@
 #include <windows.h>
 
 static size_t
-quote_arg(const wchar_t *src, wchar_t *dst)
+quote_arg(const char *src, char *dst)
 {
-    if (!wcschr(src, L' ') && !wcschr(src, L'"')) {
+    if (!strchr(src, ' ') && !strchr(src, '"')) {
         if (dst) {
-            wcscpy(dst, src);
+            strcpy(dst, src);
         }
-        return wcslen(src);
+        return strlen(src);
     }
 
     size_t len = 0;
 
     // opening quote
     if (dst) {
-        dst[len] = L'"';
+        dst[len] = '"';
     }
     len++;
 
     // escape quotes and backslashes
-    for (const wchar_t *p = src; *p; ++p) {
-        if (*p == L'"') {
+    for (const char *p = src; *p; ++p) {
+        if (*p == '"') {
             if (dst) {
-                dst[len] = L'\\';
-                dst[len + 1] = L'"';
+                dst[len] = '\\';
+                dst[len + 1] = '"';
             }
             len += 2;
-        } else if (*p == L'\\') {
-            const wchar_t *q = p;
+        } else if (*p == '\\') {
+            const char *q = p;
             size_t slashes = 0;
-            while (*q == L'\\') {
+            while (*q == '\\') {
                 slashes++;
                 q++;
             }
-            if (*q == L'"') {
+            if (*q == '"') {
                 // backslashes followed by a quote -> double the backslashes to
                 // escape each backslash
                 slashes *= 2;
             }
             for (size_t i = 0; i < slashes; ++i) {
                 if (dst) {
-                    dst[len] = L'\\';
+                    dst[len] = '\\';
                 }
                 len++;
             }
@@ -61,17 +61,16 @@ quote_arg(const wchar_t *src, wchar_t *dst)
 
     // closing quote
     if (dst) {
-        dst[len] = L'"';
-        dst[len + 1] = L'\0';
+        dst[len] = '"';
+        dst[len + 1] = '\0';
     }
     return ++len;
 }
 
 void
-sentry__process_spawn(const sentry_path_t *executable, const wchar_t *arg0, ...)
+sentry__process_spawn(const sentry_path_t *executable, const char *arg0, ...)
 {
-    if (!executable || !executable->path
-        || wcscmp(executable->path, L"") == 0) {
+    if (!executable || !executable->path || strcmp(executable->path, "") == 0) {
         return;
     }
 
@@ -80,41 +79,48 @@ sentry__process_spawn(const sentry_path_t *executable, const wchar_t *arg0, ...)
         cli_len += quote_arg(arg0, NULL) + 1; // space
         va_list args;
         va_start(args, arg0);
-        const wchar_t *argn;
-        while ((argn = va_arg(args, const wchar_t *)) != NULL) {
+        const char *argn;
+        while ((argn = va_arg(args, const char *)) != NULL) {
             cli_len += quote_arg(argn, NULL) + 1; // space
         }
         va_end(args);
     }
 
-    wchar_t *cli = sentry_malloc(cli_len * sizeof(wchar_t));
+    char *cli = sentry_malloc(cli_len * sizeof(char));
     if (!cli) {
         return;
     }
 
     size_t offset = quote_arg(executable->path, cli);
     if (arg0) {
-        cli[offset++] = L' ';
+        cli[offset++] = ' ';
         offset += quote_arg(arg0, cli + offset);
         va_list args;
         va_start(args, arg0);
-        const wchar_t *argn;
-        while ((argn = va_arg(args, const wchar_t *)) != NULL) {
-            cli[offset++] = L' ';
+        const char *argn;
+        while ((argn = va_arg(args, const char *)) != NULL) {
+            cli[offset++] = ' ';
             offset += quote_arg(argn, cli + offset);
         }
         va_end(args);
     }
-    cli[offset] = L'\0';
+    cli[offset] = '\0';
 
-    SENTRY_DEBUGF("spawning %S", cli);
+    SENTRY_DEBUGF("spawning %s", cli);
 
     STARTUPINFOW si = { 0 };
     PROCESS_INFORMATION pi = { 0 };
     si.cb = sizeof(si);
 
-    BOOL rv = CreateProcessW(executable->path, // lpApplicationName
-        cli, // lpCommandLine
+    wchar_t *cli_w = sentry__string_to_wstr(cli);
+    if (!cli_w) {
+        SENTRY_ERROR(
+            "sentry__process_spawn: failed to convert CLI to wide string");
+        sentry_free(cli);
+        return;
+    }
+    BOOL rv = CreateProcessW(executable->path_w, // lpApplicationName
+        cli_w, // lpCommandLine
         NULL, // lpProcessAttributes
         NULL, // lpThreadAttributes
         FALSE, // bInheritHandles
@@ -125,6 +131,7 @@ sentry__process_spawn(const sentry_path_t *executable, const wchar_t *arg0, ...)
         &pi // lpProcessInformation
     );
 
+    sentry_free(cli_w);
     sentry_free(cli);
 
     if (!rv) {

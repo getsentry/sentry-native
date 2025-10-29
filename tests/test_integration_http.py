@@ -13,6 +13,9 @@ from . import (
     make_dsn,
     run,
     Envelope,
+    split_log_request_cond,
+    is_feedback_envelope,
+    is_logs_envelope,
 )
 from .proxy import (
     setup_proxy_env_vars,
@@ -39,7 +42,7 @@ from .assertions import (
     assert_attachment_view_hierarchy,
     assert_logs,
 )
-from .conditions import has_http, has_breakpad, has_files
+from .conditions import has_http, has_breakpad, has_files, is_kcov
 
 pytestmark = pytest.mark.skipif(not has_http, reason="tests need http")
 
@@ -71,7 +74,6 @@ def test_capture_http(cmake, httpserver, build_args):
         tmp_path,
         "sentry_example",
         ["log", "release-env", "capture-event", "add-stacktrace"],
-        check=True,
         env=env,
     )
 
@@ -106,14 +108,12 @@ def test_session_http(cmake, httpserver):
         tmp_path,
         "sentry_example",
         ["log", "release-env", "start-session"],
-        check=True,
         env=env,
     )
     run(
         tmp_path,
         "sentry_example",
         ["log", "start-session"],
-        check=True,
         env=env,
     )
 
@@ -137,7 +137,6 @@ def test_capture_and_session_http(cmake, httpserver):
         tmp_path,
         "sentry_example",
         ["log", "start-session", "capture-event"],
-        check=True,
         env=env,
     )
 
@@ -166,7 +165,6 @@ def test_user_feedback_http(cmake, httpserver):
         tmp_path,
         "sentry_example",
         ["log", "capture-user-feedback"],
-        check=True,
         env=env,
     )
 
@@ -224,7 +222,6 @@ def test_user_report_http(cmake, httpserver):
         tmp_path,
         "sentry_example",
         ["log", "capture-user-report"],
-        check=True,
         env=env,
     )
 
@@ -240,6 +237,7 @@ def test_user_report_http(cmake, httpserver):
     assert_user_report(envelope)
 
 
+@pytest.mark.skipif(is_kcov, reason="kcov exits with 0 even when the process crashes")
 @pytest.mark.parametrize(
     "build_args",
     [
@@ -255,9 +253,6 @@ def test_user_report_http(cmake, httpserver):
 def test_external_crash_reporter_http(cmake, httpserver, build_args):
     tmp_path = cmake(["sentry_example", "sentry_crash_reporter"], build_args)
 
-    # make sure we are isolated from previous runs
-    shutil.rmtree(tmp_path / ".sentry-native", ignore_errors=True)
-
     httpserver.expect_oneshot_request(
         "/api/123456/envelope/",
         headers={"x-sentry-auth": auth_header},
@@ -269,13 +264,13 @@ def test_external_crash_reporter_http(cmake, httpserver, build_args):
 
     with httpserver.wait(timeout=10) as waiting:
         env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
-        child = run(
+        run(
             tmp_path,
             "sentry_example",
             ["log", "crash-reporter", "crash"],
+            expect_failure=True,
             env=env,
         )
-        assert child.returncode  # well, it's a crash after all
 
         # the session crash heuristic on Mac uses timestamps, so make sure we have
         # a small delay here
@@ -285,18 +280,16 @@ def test_external_crash_reporter_http(cmake, httpserver, build_args):
             tmp_path,
             "sentry_example",
             ["log", "no-setup"],
-            check=True,
             env=env,
         )
     assert waiting.result
 
     assert len(httpserver.log) == 2
-    outputs = (httpserver.log[0][0], httpserver.log[1][0])
-    crash, feedback = (
-        (outputs[0].get_data(), outputs[1].get_data())
-        if b'"type":"feedback"' in outputs[1].get_data()
-        else (outputs[1].get_data(), outputs[0].get_data())
+    feedback_request, crash_request = split_log_request_cond(
+        httpserver.log, is_feedback_envelope
     )
+    feedback = feedback_request.get_data()
+    crash = crash_request.get_data()
 
     envelope = Envelope.deserialize(crash)
     assert_meta(envelope, integration=build_args.get("SENTRY_BACKEND", ""))
@@ -318,7 +311,6 @@ def test_exception_and_session_http(cmake, httpserver):
         tmp_path,
         "sentry_example",
         ["log", "start-session", "capture-exception", "add-stacktrace"],
-        check=True,
         env=env,
     )
 
@@ -373,7 +365,6 @@ def test_abnormal_session(cmake, httpserver):
         tmp_path,
         "sentry_example",
         ["log", "no-setup"],
-        check=True,
         env=env,
     )
 
@@ -407,19 +398,18 @@ def test_inproc_crash_http(cmake, httpserver, build_args):
     ).respond_with_data("OK")
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
 
-    child = run(
+    run(
         tmp_path,
         "sentry_example",
         ["log", "start-session", "attachment", "attach-view-hierarchy", "crash"],
+        expect_failure=True,
         env=env,
     )
-    assert child.returncode  # well, it's a crash after all
 
     run(
         tmp_path,
         "sentry_example",
         ["log", "no-setup"],
-        check=True,
         env=env,
     )
 
@@ -452,19 +442,18 @@ def test_inproc_reinstall(cmake, httpserver):
         headers={"x-sentry-auth": auth_header},
     ).respond_with_data("OK")
 
-    child = run(
+    run(
         tmp_path,
         "sentry_example",
         ["log", "reinstall", "crash"],
+        expect_failure=True,
         env=env,
     )
-    assert child.returncode  # well, it's a crash after all
 
     run(
         tmp_path,
         "sentry_example",
         ["log", "no-setup"],
-        check=True,
         env=env,
     )
 
@@ -480,11 +469,14 @@ def test_inproc_dump_inflight(cmake, httpserver):
     ).respond_with_data("OK")
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
 
-    child = run(
-        tmp_path, "sentry_example", ["log", "capture-multiple", "crash"], env=env
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "capture-multiple", "crash"],
+        expect_failure=True,
+        env=env,
     )
-    assert child.returncode  # well, it's a crash after all
-    run(tmp_path, "sentry_example", ["log", "no-setup"], check=True, env=env)
+    run(tmp_path, "sentry_example", ["log", "no-setup"], env=env)
 
     # we trigger 10 normal events, and 1 crash
     assert len(httpserver.log) >= 11
@@ -508,19 +500,18 @@ def test_breakpad_crash_http(cmake, httpserver, build_args):
     ).respond_with_data("OK")
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
 
-    child = run(
+    run(
         tmp_path,
         "sentry_example",
         ["log", "start-session", "attachment", "attach-view-hierarchy", "crash"],
+        expect_failure=True,
         env=env,
     )
-    assert child.returncode  # well, it's a crash after all
 
     run(
         tmp_path,
         "sentry_example",
         ["log", "no-setup"],
-        check=True,
         env=env,
     )
 
@@ -555,19 +546,18 @@ def test_breakpad_reinstall(cmake, httpserver):
         headers={"x-sentry-auth": auth_header},
     ).respond_with_data("OK")
 
-    child = run(
+    run(
         tmp_path,
         "sentry_example",
         ["log", "reinstall", "crash"],
+        expect_failure=True,
         env=env,
     )
-    assert child.returncode  # well, it's a crash after all
 
     run(
         tmp_path,
         "sentry_example",
         ["log", "no-setup"],
-        check=True,
         env=env,
     )
 
@@ -584,12 +574,15 @@ def test_breakpad_dump_inflight(cmake, httpserver):
     ).respond_with_data("OK")
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
 
-    child = run(
-        tmp_path, "sentry_example", ["log", "capture-multiple", "crash"], env=env
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "capture-multiple", "crash"],
+        expect_failure=True,
+        env=env,
     )
-    assert child.returncode  # well, it's a crash after all
 
-    run(tmp_path, "sentry_example", ["log", "no-setup"], check=True, env=env)
+    run(tmp_path, "sentry_example", ["log", "no-setup"], env=env)
 
     # we trigger 10 normal events, and 1 crash
     assert len(httpserver.log) >= 11
@@ -618,14 +611,12 @@ def test_shutdown_timeout(cmake, httpserver):
 
     # Using `sleep-after-shutdown` here means that the background worker will
     # deref/free itself, so we will not leak in that case!
-    child = run(
+    run(
         tmp_path,
         "sentry_example",
         ["log", "capture-multiple", "sleep-after-shutdown"],
         env=env,
-        check=True,
     )
-    assert child.returncode == 0
 
     httpserver.clear_all_handlers()
     httpserver.clear_log()
@@ -635,7 +626,7 @@ def test_shutdown_timeout(cmake, httpserver):
         headers={"x-sentry-auth": auth_header},
     ).respond_with_data("OK")
 
-    run(tmp_path, "sentry_example", ["log", "no-setup"], check=True, env=env)
+    run(tmp_path, "sentry_example", ["log", "no-setup"], env=env)
 
     assert len(httpserver.log) == 10
 
@@ -664,7 +655,6 @@ def test_transaction_only(cmake, httpserver, build_args):
         tmp_path,
         "sentry_example",
         ["log", "capture-transaction"],
-        check=True,
         env=env,
     )
 
@@ -728,7 +718,6 @@ def test_before_transaction_callback(cmake, httpserver):
         tmp_path,
         "sentry_example",
         ["log", "capture-transaction", "before-transaction"],
-        check=True,
         env=env,
     )
 
@@ -788,7 +777,6 @@ def test_before_transaction_discard(cmake, httpserver):
         tmp_path,
         "sentry_example",
         ["log", "capture-transaction", "discarding-before-transaction"],
-        check=True,
         env=env,
     )
 
@@ -809,7 +797,6 @@ def test_transaction_event(cmake, httpserver):
         tmp_path,
         "sentry_example",
         ["log", "capture-transaction", "capture-event"],
-        check=True,
         env=env,
     )
 
@@ -870,7 +857,6 @@ def test_transaction_trace_header(cmake, httpserver):
         tmp_path,
         "sentry_example",
         ["log", "set-trace", "capture-transaction"],
-        check=True,
         env=env,
     )
 
@@ -920,7 +906,6 @@ def test_event_trace_header(cmake, httpserver):
         tmp_path,
         "sentry_example",
         ["log", "set-trace", "capture-event"],
-        check=True,
         env=env,
     )
 
@@ -969,7 +954,6 @@ def test_set_trace_event(cmake, httpserver):
         tmp_path,
         "sentry_example",
         ["log", "set-trace", "capture-event"],
-        check=True,
         env=env,
     )
 
@@ -1005,7 +989,6 @@ def test_set_trace_transaction_scoped_event(cmake, httpserver):
         tmp_path,
         "sentry_example",
         ["log", "capture-transaction", "scope-transaction-event"],
-        check=True,
         env=env,
     )
 
@@ -1070,7 +1053,6 @@ def test_set_trace_transaction_update_from_header_event(cmake, httpserver):
             "update-tx-from-header",
             "scope-transaction-event",
         ],
-        check=True,
         env=env,
     )
 
@@ -1127,9 +1109,6 @@ def test_set_trace_transaction_update_from_header_event(cmake, httpserver):
 def test_capture_minidump(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
 
-    # make sure we are isolated from previous runs
-    shutil.rmtree(tmp_path / ".sentry-native", ignore_errors=True)
-
     httpserver.expect_oneshot_request(
         "/api/123456/envelope/",
         headers={"x-sentry-auth": auth_header},
@@ -1139,7 +1118,6 @@ def test_capture_minidump(cmake, httpserver):
         tmp_path,
         "sentry_example",
         ["log", "attachment", "attach-view-hierarchy", "capture-minidump"],
-        check=True,
         env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
     )
 
@@ -1162,9 +1140,6 @@ def _setup_http_proxy_test(cmake, httpserver, proxy, proxy_auth=None):
 
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
 
-    # make sure we are isolated from previous runs
-    shutil.rmtree(tmp_path / ".sentry-native", ignore_errors=True)
-
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver, proxy_host=True))
     httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
 
@@ -1186,7 +1161,6 @@ def test_proxy_from_env(cmake, httpserver):
             tmp_path,
             "sentry_example",
             ["log", "capture-event"],
-            check=True,
             env=env,
         )
 
@@ -1210,7 +1184,6 @@ def test_proxy_from_env_port_incorrect(cmake, httpserver):
             tmp_path,
             "sentry_example",
             ["log", "capture-event"],
-            check=True,
             env=env,
         )
 
@@ -1233,7 +1206,6 @@ def test_proxy_auth(cmake, httpserver):
             tmp_path,
             "sentry_example",
             ["log", "capture-event", "http-proxy-auth"],
-            check=True,
             env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver, proxy_host=True)),
         )
     finally:
@@ -1259,7 +1231,6 @@ def test_proxy_auth_incorrect(cmake, httpserver):
             tmp_path,
             "sentry_example",
             ["log", "capture-event", "http-proxy-auth"],
-            check=True,
             env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver, proxy_host=True)),
         )
     finally:
@@ -1285,7 +1256,6 @@ def test_proxy_ipv6(cmake, httpserver):
             tmp_path,
             "sentry_example",
             ["log", "capture-event", "http-proxy-ipv6"],
-            check=True,
             env=env,
         )
 
@@ -1308,7 +1278,6 @@ def test_proxy_set_empty(cmake, httpserver):
             tmp_path,
             "sentry_example",
             ["log", "capture-event", "proxy-empty"],
-            check=True,
             env=env,
         )
 
@@ -1333,7 +1302,6 @@ def test_proxy_https_not_http(cmake, httpserver):
             tmp_path,
             "sentry_example",
             ["log", "capture-event"],
-            check=True,
             env=env,
         )
 
@@ -1373,7 +1341,6 @@ def test_capture_proxy(cmake, httpserver, run_args, proxy_running):
             "sentry_example",
             ["log", "capture-event"]
             + run_args,  # only passes if given proxy is running
-            check=True,
             env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver, proxy_host=True)),
         )
         if proxy_running:
@@ -1387,9 +1354,6 @@ def test_capture_proxy(cmake, httpserver, run_args, proxy_running):
 def test_capture_with_scope(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
 
-    # make sure we are isolated from previous runs
-    shutil.rmtree(tmp_path / ".sentry-native", ignore_errors=True)
-
     httpserver.expect_oneshot_request(
         "/api/123456/envelope/",
         headers={"x-sentry-auth": auth_header},
@@ -1399,7 +1363,6 @@ def test_capture_with_scope(cmake, httpserver):
         tmp_path,
         "sentry_example",
         ["log", "attach-to-scope", "capture-with-scope"],
-        check=True,
         env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
     )
 
@@ -1417,9 +1380,6 @@ def test_capture_with_scope(cmake, httpserver):
 def test_logs_timer(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
 
-    # make sure we are isolated from previous runs
-    shutil.rmtree(tmp_path / ".sentry-native", ignore_errors=True)
-
     httpserver.expect_request(
         "/api/123456/envelope/",
         headers={"x-sentry-auth": auth_header},
@@ -1429,7 +1389,6 @@ def test_logs_timer(cmake, httpserver):
         tmp_path,
         "sentry_example",
         ["log", "enable-logs", "logs-timer"],
-        check=True,
         env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
     )
 
@@ -1451,9 +1410,6 @@ def test_logs_timer(cmake, httpserver):
 def test_logs_event(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
 
-    # make sure we are isolated from previous runs
-    shutil.rmtree(tmp_path / ".sentry-native", ignore_errors=True)
-
     httpserver.expect_request(
         "/api/123456/envelope/",
         headers={"x-sentry-auth": auth_header},
@@ -1463,7 +1419,6 @@ def test_logs_event(cmake, httpserver):
         tmp_path,
         "sentry_example",
         ["log", "enable-logs", "capture-log", "capture-event"],
-        check=True,
         env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
     )
 
@@ -1489,9 +1444,6 @@ def test_logs_event(cmake, httpserver):
 def test_logs_scoped_transaction(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
 
-    # make sure we are isolated from previous runs
-    shutil.rmtree(tmp_path / ".sentry-native", ignore_errors=True)
-
     httpserver.expect_request(
         "/api/123456/envelope/",
         headers={"x-sentry-auth": auth_header},
@@ -1507,7 +1459,6 @@ def test_logs_scoped_transaction(cmake, httpserver):
             "capture-transaction",
             "scope-transaction-event",
         ],
-        check=True,
         env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
     )
 
@@ -1541,9 +1492,6 @@ def test_logs_scoped_transaction(cmake, httpserver):
 def test_logs_threaded(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
 
-    # make sure we are isolated from previous runs
-    shutil.rmtree(tmp_path / ".sentry-native", ignore_errors=True)
-
     httpserver.expect_request(
         "/api/123456/envelope/",
         headers={"x-sentry-auth": auth_header},
@@ -1553,7 +1501,6 @@ def test_logs_threaded(cmake, httpserver):
         tmp_path,
         "sentry_example",
         ["log", "enable-logs", "logs-threads"],
-        check=True,
         env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
     )
 
@@ -1585,7 +1532,6 @@ def test_before_send_log(cmake, httpserver):
         tmp_path,
         "sentry_example",
         ["log", "enable-logs", "capture-log", "before-send-log"],
-        check=True,
         env=env,
     )
 
@@ -1627,9 +1573,104 @@ def test_before_send_log_discard(cmake, httpserver):
         tmp_path,
         "sentry_example",
         ["log", "enable-logs", "capture-log", "discarding-before-send-log"],
-        check=True,
         env=env,
     )
 
     # log should have been discarded
     assert len(httpserver.log) == 0
+
+
+def test_logs_on_crash(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+
+    httpserver.expect_oneshot_request(
+        "/api/123456/envelope/",
+        headers={"x-sentry-auth": auth_header},
+    ).respond_with_data("OK")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_RELEASE="🤮🚀")
+
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "enable-logs", "capture-log", "crash"],
+        expect_failure=True,
+        env=env,
+    )
+
+    # log should have been discarded since we have no backend to hook into the crash
+    assert len(httpserver.log) == 0
+
+
+def test_inproc_logs_on_crash(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "inproc"})
+
+    httpserver.expect_request(
+        "/api/123456/envelope/",
+        headers={"x-sentry-auth": auth_header},
+    ).respond_with_data("OK")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "enable-logs", "capture-log", "crash"],
+        expect_failure=True,
+        env=env,
+    )
+
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "no-setup"],
+        env=env,
+    )
+
+    # we expect 1 envelope with the log, and 1 for the crash
+    assert len(httpserver.log) == 2
+    logs_request, crash_request = split_log_request_cond(
+        httpserver.log, is_logs_envelope
+    )
+    logs = logs_request.get_data()
+
+    logs_envelope = Envelope.deserialize(logs)
+
+    assert logs_envelope is not None
+    assert_logs(logs_envelope, 1)
+
+
+@pytest.mark.skipif(not has_breakpad, reason="test needs breakpad backend")
+def test_breakpad_logs_on_crash(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "breakpad"})
+
+    httpserver.expect_request(
+        "/api/123456/envelope/",
+        headers={"x-sentry-auth": auth_header},
+    ).respond_with_data("OK")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "enable-logs", "capture-log", "crash"],
+        expect_failure=True,
+        env=env,
+    )
+
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "no-setup"],
+        env=env,
+    )
+
+    # we expect 1 envelope with the log, and 1 for the crash
+    assert len(httpserver.log) == 2
+    logs_request, crash_request = split_log_request_cond(
+        httpserver.log, is_logs_envelope
+    )
+    logs = logs_request.get_data()
+
+    logs_envelope = Envelope.deserialize(logs)
+
+    assert logs_envelope is not None
+    assert_logs(logs_envelope, 1)

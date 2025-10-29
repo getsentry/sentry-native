@@ -143,6 +143,9 @@ jobs:
             TEST_X86: 1
           - name: Windows (latest)
             os: windows-latest
+          - name: Windows (latest, UTF-8 paths)
+            os: windows-latest
+            UTF8_TEST_CWD: 1
           - name: Windows ClangCL (latest)
             os: windows-latest
             VS_GENERATOR_TOOLSET: ClangCL
@@ -182,6 +185,7 @@ jobs:
       SYSTEM_VERSION_COMPAT: ${{ matrix.SYSTEM_VERSION_COMPAT }}
       VS_GENERATOR_TOOLSET: ${{ matrix.VS_GENERATOR_TOOLSET }}
       SYSTEM_PYTHON: ${{ matrix.SYSTEM_PYTHON }}
+      UTF8_TEST_CWD: ${{ matrix.UTF8_TEST_CWD }}
 
     steps:
       - uses: actions/checkout@v4
@@ -189,7 +193,7 @@ jobs:
           submodules: recursive
       - uses: actions/setup-python@v5
         with:
-          python-version: ${{ !env['SYSTEM_PYTHON'] && '3.11' || '' }}
+          python-version: ${{ !env['SYSTEM_PYTHON'] && '3.12' || '' }}
           cache: "pip"
 
       - name: Installing Linux Dependencies
@@ -263,7 +267,7 @@ jobs:
           $newPath = ($cleanedPaths -join ';')
 
           "PATH=$newPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-      
+
       - name: Installing LLVM-MINGW Dependencies
         if: ${{ runner.os == 'Windows' && env['TEST_MINGW'] }}
         shell: powershell

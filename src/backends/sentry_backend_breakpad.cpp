@@ -8,6 +8,7 @@ extern "C" {
 #include "sentry_database.h"
 #include "sentry_envelope.h"
 #include "sentry_logger.h"
+#include "sentry_logs.h"
 #include "sentry_options.h"
 #ifdef SENTRY_PLATFORM_WINDOWS
 #    include "sentry_os.h"
@@ -104,7 +105,7 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
 
     sentry_path_t *dump_path = nullptr;
 #ifdef SENTRY_PLATFORM_WINDOWS
-    sentry_path_t *tmp_path = sentry__path_new(breakpad_dump_path);
+    sentry_path_t *tmp_path = sentry__path_from_wstr(breakpad_dump_path);
     dump_path = sentry__path_join_wstr(tmp_path, minidump_id);
     sentry__path_free(tmp_path);
     tmp_path = dump_path;
@@ -125,6 +126,11 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
         event, "level", sentry__value_new_level(SENTRY_LEVEL_FATAL));
 
     SENTRY_WITH_OPTIONS (options) {
+        // Flush logs in a crash-safe manner before crash handling
+        if (options->enable_logs) {
+            sentry__logs_flush_crash_safe();
+        }
+
         sentry__write_crash_marker(options);
 
         bool should_handle = true;
@@ -152,7 +158,7 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
 
         if (should_handle) {
             sentry_envelope_t *envelope = sentry__prepare_event(
-                options, event, nullptr, !options->on_crash_func, NULL);
+                options, event, nullptr, !options->on_crash_func, nullptr);
             sentry_session_t *session = sentry__end_current_session_with_status(
                 SENTRY_SESSION_STATUS_CRASHED);
             sentry__envelope_add_session(envelope, session);
@@ -166,12 +172,7 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
                     sentry_value_new_string("event.minidump"));
 
                 sentry__envelope_item_set_header(item, "filename",
-#ifdef SENTRY_PLATFORM_WINDOWS
-                    sentry__value_new_string_from_wstr(
-#else
-                    sentry_value_new_string(
-#endif
-                        sentry__path_filename(dump_path)));
+                    sentry_value_new_string(sentry__path_filename(dump_path)));
             }
 
             if (options->attach_screenshot) {
@@ -261,7 +262,7 @@ breakpad_backend_startup(
     sentry__set_default_thread_stack_guarantee();
 #    endif
     backend->data = new google_breakpad::ExceptionHandler(
-        current_run_folder->path, nullptr, breakpad_backend_callback, nullptr,
+        current_run_folder->path_w, nullptr, breakpad_backend_callback, nullptr,
         google_breakpad::ExceptionHandler::HANDLER_EXCEPTION);
 #elif defined(SENTRY_PLATFORM_MACOS)
     // If process is being debugged and there are breakpoints set it will cause

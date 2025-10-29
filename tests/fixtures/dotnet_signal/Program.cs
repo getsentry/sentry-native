@@ -45,7 +45,7 @@ class Program
         {
             native_crash();
         }
-        else
+        else if (args.Contains("managed-exception"))
         {
             try
             {
@@ -55,10 +55,13 @@ class Program
             }
             catch (NullReferenceException exception)
             {
-                Console.WriteLine("dereference another NULL object from managed code");
-                var s = default(string);
-                var c = s.Length;
             }
+        }
+        else if (args.Contains("unhandled-managed-exception"))
+        {
+            Console.WriteLine("dereference a NULL object from managed code (unhandled)");
+            var s = default(string);
+            var c = s.Length;
         }
     }
 }

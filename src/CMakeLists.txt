@@ -8,6 +8,7 @@ sentry_target_sources_cwd(sentry
 	sentry_boot.h
 	sentry_core.c
 	sentry_core.h
+	sentry_cpu_relax.h
 	sentry_database.c
 	sentry_database.h
 	sentry_envelope.c
@@ -129,6 +130,11 @@ endif()
 # backends
 if(SENTRY_BACKEND_CRASHPAD)
 	target_compile_definitions(sentry PRIVATE SENTRY_BACKEND_CRASHPAD)
+	if(MSVC)
+		target_compile_options(sentry PRIVATE
+			$<$<COMPILE_LANGUAGE:C,CXX>:/wd4127> # Conditional expression is constant.
+		)
+	endif()
 	sentry_target_sources_cwd(sentry
 		backends/sentry_backend_crashpad.cpp
 	)

@@ -69,39 +69,6 @@ def copy_except(src: Path, dst: Path, exceptions: list[str] = None) -> None:
             shutil.copy2(entry, dest)
 
 
-@pytest.mark.skipif(not has_files, reason="test needs a local filesystem")
-def test_capture_exception_from_utf8_path_stdout(cmake):
-    """
-    This test verifies that we can handle symbolication from an utf-8 path.
-    """
-    tmp_path = cmake(
-        ["sentry_example"],
-        {
-            "SENTRY_BACKEND": "none",
-            "SENTRY_TRANSPORT": "none",
-        },
-    )
-    # create a cyrillic subdirectory in tmp_path and copy tmp_path into it
-    cwd = tmp_path / "кириллица-тест"
-    cwd.mkdir()
-    copy_except(tmp_path, cwd, exceptions=["кириллица-тест"])
-
-    output = check_output(
-        cwd,
-        "sentry_example",
-        ["stdout", "capture-exception", "add-stacktrace"],
-    )
-    envelope = Envelope.deserialize(output)
-
-    assert_meta(envelope)
-    assert_breadcrumb(envelope)
-    assert_stacktrace(envelope, inside_exception=True, check_package=True)
-    assert_exception(envelope)
-
-    # delete the cyrillic directory, but only after we asserted on stack frame packages being files
-    shutil.rmtree(cwd)
-
-
 def test_dynamic_sdk_name_override(cmake):
     tmp_path = cmake(
         ["sentry_example"],
@@ -197,8 +164,7 @@ def run_stdout_for(backend, cmake, example_args, build_args=None):
 
     tmp_path = cmake(["sentry_example"], build_args)
 
-    child = run(tmp_path, "sentry_example", example_args)
-    assert child.returncode  # well, it's a crash after all
+    run(tmp_path, "sentry_example", example_args, expect_failure=True)
 
     return tmp_path, check_output(tmp_path, "sentry_example", ["stdout", "no-setup"])
 

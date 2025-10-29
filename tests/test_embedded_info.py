@@ -28,7 +28,6 @@ def test_embedded_info_enabled(cmake):
         cwd,
         "sentry_test_unit",
         ["--no-summary", "embedded_info_basic"],
-        check=True,
         env=env,
     )
 
@@ -37,7 +36,6 @@ def test_embedded_info_enabled(cmake):
         cwd,
         "sentry_test_unit",
         ["--no-summary", "embedded_info_format"],
-        check=True,
         env=env,
     )
 
@@ -46,7 +44,6 @@ def test_embedded_info_enabled(cmake):
         cwd,
         "sentry_test_unit",
         ["--no-summary", "embedded_info_sentry_version"],
-        check=True,
         env=env,
     )
 
@@ -69,7 +66,6 @@ def test_embedded_info_disabled(cmake):
         cwd,
         "sentry_test_unit",
         ["--no-summary", "embedded_info_disabled"],
-        check=True,
         env=env,
     )
 
@@ -78,7 +74,6 @@ def test_embedded_info_disabled(cmake):
         cwd,
         "sentry_test_unit",
         ["--no-summary", "embedded_info_basic"],
-        check=True,
         env=env,
     )
 
@@ -147,6 +142,97 @@ def test_embedded_info_custom_items(cmake):
         cwd,
         "sentry_test_unit",
         ["--no-summary", "embedded_info_format"],
-        check=True,
         env=env,
     )
+
+
+@pytest.mark.skipif(not has_http, reason="test needs http transport (curl)")
+def test_sdk_version_override(cmake):
+    """Test that SENTRY_SDK_VERSION override works correctly"""
+    cwd = cmake(
+        ["sentry"],
+        {
+            "SENTRY_EMBED_INFO": "ON",
+            "SENTRY_BUILD_PLATFORM": "version-test",
+            "SENTRY_BUILD_VARIANT": "override",
+            "SENTRY_SDK_VERSION": "0.11.3+20251016-test-build",
+        },
+    )
+
+    # Find the library file
+    library_file = None
+    for file in os.listdir(cwd):
+        if file.startswith("libsentry") and (
+            file.endswith(".so") or file.endswith(".dylib") or file.endswith(".dll")
+        ):
+            library_file = os.path.join(cwd, file)
+            break
+
+    if library_file is None:
+        pytest.skip("Could not find sentry library file")
+
+    # Use strings command to check embedded content
+    try:
+        result = subprocess.run(
+            ["strings", library_file], capture_output=True, text=True, check=True
+        )
+        output = result.stdout
+
+        # Verify that version and build ID are correctly separated
+        assert (
+            "SENTRY_VERSION:0.11.3;" in output
+        ), "Version should be base version without build metadata"
+        assert (
+            "BUILD:20251016-test-build;" in output
+        ), "Build ID should be extracted from version string"
+        assert "PLATFORM:version-test" in output
+        assert "VARIANT:override" in output
+
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        pytest.skip("strings command not available or failed")
+
+
+@pytest.mark.skipif(not has_http, reason="test needs http transport (curl)")
+def test_sdk_version_override_with_explicit_build_id(cmake):
+    """Test that explicit SENTRY_BUILD_ID takes precedence over extracted build ID"""
+    cwd = cmake(
+        ["sentry"],
+        {
+            "SENTRY_EMBED_INFO": "ON",
+            "SENTRY_BUILD_PLATFORM": "version-test",
+            "SENTRY_BUILD_VARIANT": "explicit-build",
+            "SENTRY_SDK_VERSION": "0.11.3+20251016-ignored",
+            "SENTRY_BUILD_ID": "explicit-build-id",
+        },
+    )
+
+    # Find the library file
+    library_file = None
+    for file in os.listdir(cwd):
+        if file.startswith("libsentry") and (
+            file.endswith(".so") or file.endswith(".dylib") or file.endswith(".dll")
+        ):
+            library_file = os.path.join(cwd, file)
+            break
+
+    if library_file is None:
+        pytest.skip("Could not find sentry library file")
+
+    # Use strings command to check embedded content
+    try:
+        result = subprocess.run(
+            ["strings", library_file], capture_output=True, text=True, check=True
+        )
+        output = result.stdout
+
+        # Verify that explicit build ID takes precedence
+        assert "SENTRY_VERSION:0.11.3;" in output, "Version should be base version"
+        assert (
+            "BUILD:explicit-build-id;" in output
+        ), "Explicit build ID should take precedence"
+        assert (
+            "BUILD:20251016-ignored" not in output
+        ), "Extracted build ID should not be used"
+
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        pytest.skip("strings command not available or failed")

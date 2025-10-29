@@ -26,9 +26,6 @@ def _run_logger_crash_test(backend, cmake, logger_option):
         ["sentry_example"], {"SENTRY_BACKEND": backend, "SENTRY_TRANSPORT": "none"}
     )
 
-    # Make sure we are isolated from previous runs
-    shutil.rmtree(tmp_path / ".sentry-native", ignore_errors=True)
-
     # Run the example with the specified logger option - expect it to crash
     child = run(
         tmp_path,
@@ -42,6 +39,7 @@ def _run_logger_crash_test(backend, cmake, logger_option):
         ],
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
+        expect_failure=True,
     )
 
     # Process should have crashed (non-zero exit code)
