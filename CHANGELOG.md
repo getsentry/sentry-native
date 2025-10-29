@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Features
+
+- Sentry native crash backend ([#1433](https://github.com/getsentry/sentry-native/pull/1433))
+
 ## 0.12.0
 
 **Breaking changes**:
