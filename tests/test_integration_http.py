@@ -16,6 +16,7 @@ from . import (
     split_log_request_cond,
     is_feedback_envelope,
     is_logs_envelope,
+    SENTRY_VERSION,
 )
 from .proxy import (
     setup_proxy_env_vars,
@@ -48,7 +49,7 @@ pytestmark = pytest.mark.skipif(not has_http, reason="tests need http")
 
 # fmt: off
 auth_header = (
-    "Sentry sentry_key=uiaeosnrtdy, sentry_version=7, sentry_client=sentry.native/0.11.3"
+    f"Sentry sentry_key=uiaeosnrtdy, sentry_version=7, sentry_client=sentry.native/{SENTRY_VERSION}"
 )
 # fmt: on
 

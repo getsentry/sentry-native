@@ -10,6 +10,7 @@ from pathlib import Path
 
 import msgpack
 
+from . import SENTRY_VERSION
 from .conditions import is_android
 
 VERSION_RE = re.compile(r"(\d+\.\d+\.\d+)[-.]?(.*)")
@@ -107,9 +108,9 @@ def assert_event_meta(
     }
     expected_sdk = {
         "name": "sentry.native",
-        "version": "0.11.3",
+        "version": SENTRY_VERSION,
         "packages": [
-            {"name": "github:getsentry/sentry-native", "version": "0.11.3"},
+            {"name": "github:getsentry/sentry-native", "version": SENTRY_VERSION},
         ],
     }
     if is_android:
