@@ -138,8 +138,8 @@ parse_proc_maps(minidump_writer_t *writer)
     char line[1024];
     writer->mapping_count = 0;
 
-    while (
-        fgets(line, sizeof(line), f) && writer->mapping_count < SENTRY_CRASH_MAX_MAPPINGS) {
+    while (fgets(line, sizeof(line), f)
+        && writer->mapping_count < SENTRY_CRASH_MAX_MAPPINGS) {
         memory_mapping_t *mapping = &writer->mappings[writer->mapping_count];
 
         // Parse line: "start-end perms offset dev inode pathname"
@@ -203,7 +203,8 @@ enumerate_threads(minidump_writer_t *writer)
     writer->thread_count = 0;
     struct dirent *entry;
 
-    while ((entry = readdir(dir)) && writer->thread_count < SENTRY_CRASH_MAX_THREADS) {
+    while ((entry = readdir(dir))
+        && writer->thread_count < SENTRY_CRASH_MAX_THREADS) {
         if (entry->d_name[0] == '.') {
             continue;
         }
@@ -919,8 +920,10 @@ should_include_region(const memory_mapping_t *mapping,
         // Include writable anonymous regions (likely heap allocations)
         if (mapping->name[0] == '\0' && mapping->permissions[0] == 'r'
             && mapping->permissions[1] == 'w') {
-            // Limit to reasonable size to avoid huge dumps (max 64MB per region)
-            return (mapping->end - mapping->start) <= (64 * SENTRY_CRASH_MAX_STACK_SIZE);
+            // Limit to reasonable size to avoid huge dumps (max 64MB per
+            // region)
+            return (mapping->end - mapping->start)
+                <= (64 * SENTRY_CRASH_MAX_STACK_SIZE);
         }
     }
 
@@ -934,8 +937,7 @@ static int
 write_memory_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
 {
     // Get crash address for SMART mode filtering
-    uint64_t crash_addr
-        = (uint64_t)writer->crash_ctx->platform.siginfo.si_addr;
+    uint64_t crash_addr = (uint64_t)writer->crash_ctx->platform.siginfo.si_addr;
 
     // Count regions to include based on mode
     size_t region_count = 0;
@@ -1093,7 +1095,7 @@ sentry__write_minidump(
 
     close(writer.fd);
 
-    SENTRY_INFO("successfully wrote minidump");
+    SENTRY_DEBUG("successfully wrote minidump");
     return 0;
 }
 

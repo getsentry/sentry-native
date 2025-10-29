@@ -460,21 +460,26 @@ crash_signal_handler(int signum, siginfo_t *info, void *context)
         // Successfully claimed crash slot, notify daemon
         sentry__crash_ipc_notify(ipc);
 
-        // Wait briefly for daemon to acknowledge (max 2 seconds)
-        for (int i = 0; i < 20; i++) {
+        // Wait for daemon to finish processing (keep process alive for
+        // minidump)
+        bool processing_started = false;
+        int elapsed_ms = 0;
+        while (elapsed_ms < SENTRY_CRASH_HANDLER_WAIT_TIMEOUT_MS) {
             long state = sentry__atomic_fetch(&ctx->state);
-            if (state == SENTRY_CRASH_STATE_PROCESSING) {
-                // Daemon is handling it
+            if (state == SENTRY_CRASH_STATE_PROCESSING && !processing_started) {
+                // Daemon started processing
+                processing_started = true;
+            } else if (state == SENTRY_CRASH_STATE_DONE) {
+                // Daemon finished processing
                 goto daemon_handling;
             }
 
-            // Sleep 100ms (signal-safe)
-            struct timespec ts = { .tv_sec = 0, .tv_nsec = 100000000 };
+            // Sleep using poll interval (signal-safe)
+            struct timespec ts = { .tv_sec = 0,
+                .tv_nsec = SENTRY_CRASH_HANDLER_POLL_INTERVAL_MS * 1000000LL };
             nanosleep(&ts, NULL);
+            elapsed_ms += SENTRY_CRASH_HANDLER_POLL_INTERVAL_MS;
         }
-
-        // Timeout waiting for daemon
-        // No fallback - daemon should always work
     }
 
 daemon_handling:
@@ -523,7 +528,7 @@ sentry__crash_handler_init(sentry_crash_ipc_t *ipc)
         }
     }
 
-    SENTRY_INFO("crash handler initialized");
+    SENTRY_DEBUG("crash handler initialized");
     return 0;
 }
 
@@ -545,7 +550,7 @@ sentry__crash_handler_shutdown(void)
 
     g_crash_ipc = NULL;
 
-    SENTRY_INFO("crash handler shutdown");
+    SENTRY_DEBUG("crash handler shutdown");
 }
 
 #elif defined(SENTRY_PLATFORM_WINDOWS)
@@ -560,18 +565,23 @@ static LPTOP_LEVEL_EXCEPTION_FILTER g_previous_filter = NULL;
 static LONG WINAPI
 crash_exception_filter(EXCEPTION_POINTERS *exception_info)
 {
+    SENTRY_DEBUG("Exception handler triggered\n");
+
     // Only handle crash once
     static volatile long handling_crash = 0;
     if (!sentry__atomic_compare_swap(&handling_crash, 0, 1)) {
         // Already handling a crash
+        SENTRY_WARN("Already handling crash, skipping\n");
         return EXCEPTION_CONTINUE_SEARCH;
     }
 
     sentry_crash_ipc_t *ipc = g_crash_ipc;
     if (!ipc || !ipc->shmem) {
+        SENTRY_WARN("No IPC or shared memory, skipping\n");
         return EXCEPTION_CONTINUE_SEARCH;
     }
 
+    SENTRY_DEBUG("IPC available, processing crash\n");
     sentry_crash_context_t *ctx = ipc->shmem;
 
     // Fill crash context
@@ -583,6 +593,8 @@ crash_exception_filter(EXCEPTION_POINTERS *exception_info)
         = exception_info->ExceptionRecord->ExceptionCode;
     ctx->platform.exception_record = *exception_info->ExceptionRecord;
     ctx->platform.context = *exception_info->ContextRecord;
+    // Store original exception pointers for out-of-process minidump writing
+    ctx->platform.exception_pointers = exception_info;
 
     // Capture all threads
     ctx->platform.num_threads = 0;
@@ -634,25 +646,45 @@ crash_exception_filter(EXCEPTION_POINTERS *exception_info)
     sentry_uctx.exception_ptrs = *exception_info;
     sentry_handle_exception(&sentry_uctx);
 
-    // Try to notify daemon
-    if (sentry__atomic_compare_swap(&ctx->state, SENTRY_CRASH_STATE_READY,
-            SENTRY_CRASH_STATE_CRASHED)) {
+    bool swap_result = sentry__atomic_compare_swap(
+        &ctx->state, SENTRY_CRASH_STATE_READY, SENTRY_CRASH_STATE_CRASHED);
 
+    if (swap_result) {
         // Successfully claimed crash slot, notify daemon
         sentry__crash_ipc_notify(ipc);
 
-        // Wait briefly for daemon to acknowledge (max 2 seconds)
-        for (int i = 0; i < 20; i++) {
+        SENTRY_DEBUG("Waiting for daemon to finish processing crash\n");
+        // Wait for daemon to finish processing (keep process alive for
+        // minidump)
+        bool processing_started = false;
+        int elapsed_ms = 0;
+        while (elapsed_ms < SENTRY_CRASH_HANDLER_WAIT_TIMEOUT_MS) {
             long state = sentry__atomic_fetch(&ctx->state);
-            if (state == SENTRY_CRASH_STATE_PROCESSING) {
-                // Daemon is handling it
+            if (state == SENTRY_CRASH_STATE_PROCESSING && !processing_started) {
+                // Daemon started processing
+                SENTRY_DEBUG("Daemon started processing crash\n");
+                processing_started = true;
+            } else if (state == SENTRY_CRASH_STATE_DONE) {
+                // Daemon finished processing
+                SENTRY_DEBUG("Daemon finished processing crash\n");
                 break;
             }
-            Sleep(100); // 100ms
+            Sleep(SENTRY_CRASH_HANDLER_POLL_INTERVAL_MS);
+            elapsed_ms += SENTRY_CRASH_HANDLER_POLL_INTERVAL_MS;
         }
+
+        if (elapsed_ms >= SENTRY_CRASH_HANDLER_WAIT_TIMEOUT_MS) {
+            SENTRY_WARN(
+                "Timeout waiting for daemon to finish, proceeding anyway\n");
+        }
+
+        SENTRY_DEBUG("Wait complete, allowing process to terminate\n");
+    } else {
+        SENTRY_DEBUG("Failed to claim crash slot\n");
     }
 
     // Continue to default handler (which will terminate the process)
+    SENTRY_DEBUG("Returning to default handler\n");
     return EXCEPTION_CONTINUE_SEARCH;
 }
 
@@ -668,7 +700,7 @@ sentry__crash_handler_init(sentry_crash_ipc_t *ipc)
     // Install exception filter
     g_previous_filter = SetUnhandledExceptionFilter(crash_exception_filter);
 
-    SENTRY_INFO("crash handler initialized (Windows SEH)");
+    SENTRY_DEBUG("crash handler initialized (Windows SEH)");
     return 0;
 }
 
@@ -683,7 +715,7 @@ sentry__crash_handler_shutdown(void)
 
     g_crash_ipc = NULL;
 
-    SENTRY_INFO("crash handler shutdown");
+    SENTRY_DEBUG("crash handler shutdown");
 }
 
 #endif // SENTRY_PLATFORM_WINDOWS
