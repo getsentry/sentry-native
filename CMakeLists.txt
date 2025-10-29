@@ -740,9 +740,76 @@ elseif(SENTRY_BACKEND_NATIVE)
 	# Native backend sources and configuration are in src/CMakeLists.txt
 	# The native backend requires C11 for atomics (set in src/CMakeLists.txt)
 
+	# Build sentry-crashdaemon executable for native backend
+	# Get all sources that were added to sentry target
+	get_target_property(SENTRY_SOURCES sentry SOURCES)
+
+	# Create daemon executable with same sources plus daemon-specific files
+	add_executable(sentry-crashdaemon
+		${SENTRY_SOURCES}
+		src/backends/native/sentry_crash_daemon.c
+		src/backends/native/sentry_crash_ipc.c
+		src/backends/native/sentry_crash_context.h
+	)
+
+	# Define standalone mode and copy compile definitions from sentry
+	target_compile_definitions(sentry-crashdaemon PRIVATE
+		SENTRY_CRASH_DAEMON_STANDALONE
+		SENTRY_BUILD_STATIC
+		SENTRY_HANDLER_STACK_SIZE=${SENTRY_HANDLER_STACK_SIZE}
+	)
+
+	# Windows-specific compile definitions
+	if(WIN32)
+		target_compile_definitions(sentry-crashdaemon PRIVATE
+			SENTRY_THREAD_STACK_GUARANTEE_FACTOR=${SENTRY_THREAD_STACK_GUARANTEE_FACTOR}
+		)
+	endif()
+
+	# Copy include directories from sentry target
+	target_include_directories(sentry-crashdaemon PRIVATE
+		${PROJECT_SOURCE_DIR}/include
+		${PROJECT_SOURCE_DIR}/src
+		${PROJECT_SOURCE_DIR}/src/backends/native
+	)
+
+	# Link same libraries as sentry
+	if(WIN32)
+		target_link_libraries(sentry-crashdaemon PRIVATE dbghelp shlwapi version)
+		if(SENTRY_TRANSPORT_WINHTTP)
+			target_link_libraries(sentry-crashdaemon PRIVATE winhttp)
+		endif()
+	elseif(LINUX OR ANDROID)
+		target_link_libraries(sentry-crashdaemon PRIVATE pthread rt dl)
+	elseif(APPLE)
+		find_library(COREFOUNDATION_LIBRARY CoreFoundation REQUIRED)
+		find_library(SECURITY_LIBRARY Security REQUIRED)
+		target_link_libraries(sentry-crashdaemon PRIVATE
+			${COREFOUNDATION_LIBRARY}
+			${SECURITY_LIBRARY}
+		)
+	endif()
+
+	# Transport-specific libraries
+	if(SENTRY_TRANSPORT_CURL)
+		target_link_libraries(sentry-crashdaemon PRIVATE CURL::libcurl)
+	endif()
+
+	# Compression library
+	if(SENTRY_TRANSPORT_COMPRESSION)
+		target_link_libraries(sentry-crashdaemon PRIVATE ZLIB::ZLIB)
+	endif()
+
+	# Install daemon
+	install(TARGETS sentry-crashdaemon
+		RUNTIME DESTINATION bin
+	)
+
 	if(DEFINED SENTRY_FOLDER)
 		# Native backend doesn't have separate targets to organize
 	endif()
+
+	message(STATUS "Sentry crash daemon executable: enabled")
 endif()
 
 option(SENTRY_INTEGRATION_QT "Build Qt integration")
