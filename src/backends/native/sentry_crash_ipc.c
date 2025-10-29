@@ -137,7 +137,8 @@ sentry__crash_ipc_init_app(sem_t *init_sem)
 }
 
 sentry_crash_ipc_t *
-sentry__crash_ipc_init_daemon(pid_t app_pid, int notify_eventfd, int ready_eventfd)
+sentry__crash_ipc_init_daemon(
+    pid_t app_pid, int notify_eventfd, int ready_eventfd)
 {
     sentry_crash_ipc_t *ipc = SENTRY_MAKE(sentry_crash_ipc_t);
     if (!ipc) {
@@ -182,7 +183,8 @@ sentry__crash_ipc_init_daemon(pid_t app_pid, int notify_eventfd, int ready_event
     ipc->eventfd = notify_eventfd;
     ipc->ready_eventfd = ready_eventfd;
 
-    SENTRY_DEBUGF("daemon: attached to crash IPC (shm=%s, eventfd=%d, ready_eventfd=%d)",
+    SENTRY_DEBUGF(
+        "daemon: attached to crash IPC (shm=%s, eventfd=%d, ready_eventfd=%d)",
         ipc->shm_name, notify_eventfd, ready_eventfd);
 
     return ipc;
@@ -389,7 +391,8 @@ sentry__crash_ipc_init_app(sem_t *init_sem)
 }
 
 sentry_crash_ipc_t *
-sentry__crash_ipc_init_daemon(pid_t app_pid, int notify_pipe_read, int ready_pipe_write)
+sentry__crash_ipc_init_daemon(
+    pid_t app_pid, int notify_pipe_read, int ready_pipe_write)
 {
     sentry_crash_ipc_t *ipc = SENTRY_MAKE(sentry_crash_ipc_t);
     if (!ipc) {
@@ -430,10 +433,11 @@ sentry__crash_ipc_init_daemon(pid_t app_pid, int notify_pipe_read, int ready_pip
     // Pipes are inherited from parent after fork - assign the fds
     ipc->notify_pipe[0] = notify_pipe_read;
     ipc->notify_pipe[1] = -1; // Daemon doesn't write to notify pipe
-    ipc->ready_pipe[0] = -1;  // Daemon doesn't read from ready pipe
+    ipc->ready_pipe[0] = -1; // Daemon doesn't read from ready pipe
     ipc->ready_pipe[1] = ready_pipe_write;
 
-    SENTRY_DEBUGF("daemon: attached to crash IPC (shm=%s, notify_pipe=%d, ready_pipe=%d)",
+    SENTRY_DEBUGF(
+        "daemon: attached to crash IPC (shm=%s, notify_pipe=%d, ready_pipe=%d)",
         ipc->shm_name, notify_pipe_read, ready_pipe_write);
 
     return ipc;
@@ -642,8 +646,14 @@ sentry__crash_ipc_init_app(HANDLE init_mutex)
 }
 
 sentry_crash_ipc_t *
-sentry__crash_ipc_init_daemon(pid_t app_pid)
+sentry__crash_ipc_init_daemon(
+    pid_t app_pid, HANDLE event_handle, HANDLE ready_event_handle)
 {
+    // On Windows, we open events by name, so handles from parent are not used
+    // (handles are per-process and cannot be directly inherited)
+    (void)event_handle;
+    (void)ready_event_handle;
+
     sentry_crash_ipc_t *ipc = SENTRY_MAKE(sentry_crash_ipc_t);
     if (!ipc) {
         return NULL;
@@ -798,7 +808,8 @@ sentry__crash_ipc_signal_ready(sentry_crash_ipc_t *ipc)
     // Signal via eventfd
     uint64_t val = 1;
     if (write(ipc->ready_eventfd, &val, sizeof(val)) < 0) {
-        SENTRY_WARNF("daemon: write to ready_eventfd failed: %s", strerror(errno));
+        SENTRY_WARNF(
+            "daemon: write to ready_eventfd failed: %s", strerror(errno));
     } else {
         SENTRY_DEBUG("daemon: signaled ready to parent");
     }
