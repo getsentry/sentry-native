@@ -88,11 +88,11 @@ def test_native_capture_minidump_generated(cmake, httpserver):
     with open(minidump_path, "rb") as f:
         # Read minidump signature (should be MDMP = 0x504d444d)
         signature = struct.unpack("<I", f.read(4))[0]
-        assert signature == 0x504d444d, "Minidump should have correct signature"
+        assert signature == 0x504D444D, "Minidump should have correct signature"
 
         # Read version (should be 0xa793 for version 1.0)
         version = struct.unpack("<I", f.read(4))[0]
-        assert version == 0xa793, "Minidump should have correct version"
+        assert version == 0xA793, "Minidump should have correct version"
 
 
 def test_native_breadcrumbs(cmake, httpserver):
@@ -349,7 +349,9 @@ def test_native_minidump_streams(cmake, httpserver):
 
         # Read stream count
         stream_count = struct.unpack("<I", f.read(4))[0]
-        assert stream_count >= 3, "Should have at least SystemInfo, ThreadList, ModuleList"
+        assert (
+            stream_count >= 3
+        ), "Should have at least SystemInfo, ThreadList, ModuleList"
 
         # Read stream directory RVA
         stream_dir_rva = struct.unpack("<I", f.read(4))[0]
