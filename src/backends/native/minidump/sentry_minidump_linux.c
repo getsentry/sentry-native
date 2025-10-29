@@ -674,9 +674,8 @@ write_thread_context(minidump_writer_t *writer, const ucontext_t *uctx)
     minidump_context_x86_t context = { 0 };
     // Set flags for control + integer + segments (no floating point in this
     // simplified struct)
-    context.context_flags
-        = 0x0001001f; // CONTEXT_i386 | CONTEXT_CONTROL | CONTEXT_INTEGER |
-                      // CONTEXT_SEGMENTS
+    context.context_flags = 0x0001001f; // CONTEXT_i386 | CONTEXT_CONTROL |
+                                        // CONTEXT_INTEGER | CONTEXT_SEGMENTS
 
     // Copy general purpose registers from Linux ucontext
     context.eax = uctx->uc_mcontext.gregs[REG_EAX];
