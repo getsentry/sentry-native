@@ -661,10 +661,12 @@ crash_exception_filter(EXCEPTION_POINTERS *exception_info)
         while (elapsed_ms < SENTRY_CRASH_HANDLER_WAIT_TIMEOUT_MS) {
             long state = sentry__atomic_fetch(&ctx->state);
             if (state == SENTRY_CRASH_STATE_PROCESSING && !processing_started) {
-                // Daemon started processing (no logging - exception filter context)
+                // Daemon started processing (no logging - exception filter
+                // context)
                 processing_started = true;
             } else if (state == SENTRY_CRASH_STATE_DONE) {
-                // Daemon finished processing (no logging - exception filter context)
+                // Daemon finished processing (no logging - exception filter
+                // context)
                 break;
             }
             Sleep(SENTRY_CRASH_HANDLER_POLL_INTERVAL_MS);

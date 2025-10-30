@@ -70,22 +70,22 @@ typedef DWORD pid_t;
 
 // Timeout values for IPC and crash handling (in milliseconds)
 // Increased timeout for sanitizer builds which are much slower
-#if defined(__SANITIZE_THREAD__) || defined(__SANITIZE_ADDRESS__)             \
+#if defined(__SANITIZE_THREAD__) || defined(__SANITIZE_ADDRESS__)              \
     || defined(__has_feature)
 #    if defined(__has_feature)
 #        if __has_feature(thread_sanitizer) || __has_feature(address_sanitizer)
-#            define SENTRY_CRASH_DAEMON_READY_TIMEOUT_MS                        \
+#            define SENTRY_CRASH_DAEMON_READY_TIMEOUT_MS                       \
                 30000 // 30 seconds for TSAN/ASAN builds
 #        else
-#            define SENTRY_CRASH_DAEMON_READY_TIMEOUT_MS                        \
+#            define SENTRY_CRASH_DAEMON_READY_TIMEOUT_MS                       \
                 10000 // 10 seconds to wait for daemon startup
 #        endif
 #    else
-#        define SENTRY_CRASH_DAEMON_READY_TIMEOUT_MS                            \
+#        define SENTRY_CRASH_DAEMON_READY_TIMEOUT_MS                           \
             30000 // 30 seconds for TSAN/ASAN builds
 #    endif
 #else
-#    define SENTRY_CRASH_DAEMON_READY_TIMEOUT_MS                                \
+#    define SENTRY_CRASH_DAEMON_READY_TIMEOUT_MS                               \
         10000 // 10 seconds to wait for daemon startup
 #endif
 #define SENTRY_CRASH_DAEMON_WAIT_TIMEOUT_MS                                    \
@@ -93,22 +93,22 @@ typedef DWORD pid_t;
 #define SENTRY_CRASH_HANDLER_POLL_INTERVAL_MS                                  \
     100 // 100ms poll interval in exception handler
 // Increased timeout for sanitizer builds
-#if defined(__SANITIZE_THREAD__) || defined(__SANITIZE_ADDRESS__)             \
+#if defined(__SANITIZE_THREAD__) || defined(__SANITIZE_ADDRESS__)              \
     || defined(__has_feature)
 #    if defined(__has_feature)
 #        if __has_feature(thread_sanitizer) || __has_feature(address_sanitizer)
-#            define SENTRY_CRASH_HANDLER_WAIT_TIMEOUT_MS                        \
+#            define SENTRY_CRASH_HANDLER_WAIT_TIMEOUT_MS                       \
                 30000 // 30 seconds for TSAN/ASAN builds
 #        else
-#            define SENTRY_CRASH_HANDLER_WAIT_TIMEOUT_MS                        \
+#            define SENTRY_CRASH_HANDLER_WAIT_TIMEOUT_MS                       \
                 10000 // 10 seconds max wait for daemon to finish
 #        endif
 #    else
-#        define SENTRY_CRASH_HANDLER_WAIT_TIMEOUT_MS                            \
+#        define SENTRY_CRASH_HANDLER_WAIT_TIMEOUT_MS                           \
             30000 // 30 seconds for TSAN/ASAN builds
 #    endif
 #else
-#    define SENTRY_CRASH_HANDLER_WAIT_TIMEOUT_MS                                \
+#    define SENTRY_CRASH_HANDLER_WAIT_TIMEOUT_MS                               \
         10000 // 10 seconds max wait for daemon to finish
 #endif
 #define SENTRY_CRASH_TRANSPORT_SHUTDOWN_TIMEOUT_MS                             \
