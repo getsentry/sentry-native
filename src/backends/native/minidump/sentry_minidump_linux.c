@@ -1479,7 +1479,11 @@ sentry__write_minidump(
     writer.current_offset = sizeof(minidump_header_t)
         + (stream_count * sizeof(minidump_directory_t));
 
+    SENTRY_DEBUGF("reserving space for %u streams, offset=%zu", stream_count,
+        writer.current_offset);
+
     if (lseek(writer.fd, writer.current_offset, SEEK_SET) < 0) {
+        SENTRY_WARN("lseek failed");
         close(writer.fd);
         unlink(output_path);
         return -1;
@@ -1489,9 +1493,13 @@ sentry__write_minidump(
     minidump_directory_t directories[5];
     int result = 0;
 
+    SENTRY_DEBUG("writing system info stream");
     result |= write_system_info_stream(&writer, &directories[0]);
+    SENTRY_DEBUG("writing thread list stream");
     result |= write_thread_list_stream(&writer, &directories[1]);
+    SENTRY_DEBUG("writing module list stream");
     result |= write_module_list_stream(&writer, &directories[2]);
+    SENTRY_DEBUG("writing exception stream");
     result |= write_exception_stream(&writer, &directories[3]);
 
     // Write memory list stream for SMART and FULL modes
