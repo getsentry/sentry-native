@@ -694,11 +694,13 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
     }
 
     // Set up logging to file for daemon BEFORE redirecting streams
+    // Use same naming scheme as shared memory (PID ^ TID hash) to handle
+    // multiple threads in same process
     char log_path[SENTRY_CRASH_MAX_PATH];
     FILE *log_file = NULL;
-    int log_path_len
-        = snprintf(log_path, sizeof(log_path), "%s/sentry-daemon-%lu.log",
-            ipc->shmem->database_path, (unsigned long)app_pid);
+    uint32_t id = (uint32_t)((app_pid ^ (app_tid & 0xFFFFFFFF)) & 0xFFFFFFFF);
+    int log_path_len = snprintf(log_path, sizeof(log_path),
+        "%s/sentry-daemon-%08x.log", ipc->shmem->database_path, id);
 
     if (log_path_len > 0 && log_path_len < (int)sizeof(log_path)) {
         log_file = fopen(log_path, "w");
@@ -959,6 +961,9 @@ sentry__crash_daemon_start(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
                 }
             }
         }
+
+        // Fallback: try from PATH
+        execvp("sentry-crash", argv);
 
         // exec failed - exit with error
         perror("Failed to exec sentry-crash");
