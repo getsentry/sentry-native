@@ -996,12 +996,16 @@ write_thread_stack(minidump_writer_t *writer, uint64_t stack_pointer,
 static int
 write_thread_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
 {
+    SENTRY_DEBUGF(
+        "write_thread_list_stream: %zu threads", writer->thread_count);
+
     // Calculate total size needed
     size_t list_size
         = sizeof(uint32_t) + (writer->thread_count * sizeof(minidump_thread_t));
 
     minidump_thread_list_t *thread_list = sentry_malloc(list_size);
     if (!thread_list) {
+        SENTRY_WARN("Failed to allocate thread list");
         return -1;
     }
 
@@ -1009,6 +1013,9 @@ write_thread_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
 
     // Fill in thread info with context and stack
     for (size_t i = 0; i < writer->thread_count; i++) {
+        SENTRY_DEBUGF("Processing thread %zu/%zu (tid=%d)", i + 1,
+            writer->thread_count, writer->tids[i]);
+
         minidump_thread_t *thread = &thread_list->threads[i];
         memset(thread, 0, sizeof(*thread));
 
@@ -1025,9 +1032,12 @@ write_thread_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
 
         // If we have context for this thread, write it
         if (uctx) {
+            SENTRY_DEBUGF("Thread %u: writing context", thread->thread_id);
             // Write thread context
             thread->thread_context.rva = write_thread_context(writer, uctx);
             thread->thread_context.size = get_context_size();
+            SENTRY_DEBUGF("Thread %u: context written at RVA 0x%x",
+                thread->thread_id, thread->thread_context.rva);
 
             // Write stack memory
             uint64_t sp;
