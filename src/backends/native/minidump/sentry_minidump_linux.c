@@ -630,11 +630,18 @@ write_thread_context(
     if (tid == writer->crash_ctx->crashed_tid && writer->ptrace_attached) {
         struct user_fpregs_struct fpregs;
         if (ptrace_get_fpregs(tid, &fpregs)) {
+            SENTRY_DEBUGF("Thread %d: copying FPU registers to context", tid);
+
             // Copy x87 FPU registers (ST0-ST7)
+            // Each ST register is 10 bytes (80-bit), but stored in 16-byte
+            // m128a_t Linux st_space is uint32_t[32], with each register
+            // occupying 4 uint32_t (16 bytes)
             for (int i = 0; i < 8; i++) {
-                memcpy(&context.float_save.float_registers[i * 10],
+                // Copy 10 bytes of actual FPU data, leave upper 6 bytes as zero
+                memcpy(&context.float_save.float_registers[i],
                     &fpregs.st_space[i * 4], 10);
             }
+            SENTRY_DEBUGF("Thread %d: copied x87 registers", tid);
 
             // Copy control/status words
             context.float_save.control_word = fpregs.cwd;
@@ -644,15 +651,20 @@ write_thread_context(
             context.float_save.error_selector = 0;
             context.float_save.data_offset = fpregs.rdp;
             context.float_save.data_selector = 0;
+            SENTRY_DEBUGF("Thread %d: copied control/status words", tid);
 
             // Copy XMM registers (XMM0-XMM15)
             memcpy(context.float_save.xmm_registers, fpregs.xmm_space,
                 sizeof(context.float_save.xmm_registers));
             context.float_save.mx_csr = fpregs.mxcsr;
+            SENTRY_DEBUGF("Thread %d: copied XMM registers", tid);
         }
     }
 
-    return write_data(writer, &context, sizeof(context));
+    SENTRY_DEBUGF("Thread %d: about to write context data", tid);
+    minidump_rva_t rva = write_data(writer, &context, sizeof(context));
+    SENTRY_DEBUGF("Thread %d: wrote context at RVA 0x%x", tid, rva);
+    return rva;
 
 #    elif defined(__aarch64__)
     (void)tid; // Unused on ARM64 - FPU state already in ucontext
