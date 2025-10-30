@@ -43,6 +43,20 @@
 #    include <windows.h>
 #endif
 
+// Provide default ASAN options for sentry-crash daemon executable
+// This suppresses false positives from fork() which ASAN doesn't handle well
+#if defined(__has_feature)
+#    if __has_feature(address_sanitizer)
+const char *
+__asan_default_options(void)
+{
+    // Disable stack-use-after-return detection which causes false positives
+    // with fork+exec since ASAN's shadow memory gets confused about ownership
+    return "detect_stack_use_after_return=0:halt_on_error=0";
+}
+#    endif
+#endif
+
 /**
  * Helper to write a file as an attachment to an envelope
  * Returns true on success, false on failure
@@ -465,7 +479,10 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
             sentry_path_t *screenshot_path
                 = sentry__path_join_str(run_folder, "screenshot.png");
             if (screenshot_path) {
-                if (sentry__screenshot_capture(screenshot_path)) {
+                // Pass the crashed app's PID so we capture its windows, not the
+                // daemon's
+                if (sentry__screenshot_capture(
+                        screenshot_path, (uint32_t)ctx->crashed_pid)) {
                     SENTRY_DEBUG("Screenshot captured successfully");
                 } else {
                     SENTRY_DEBUG("Screenshot capture failed");
@@ -890,6 +907,27 @@ sentry__crash_daemon_start(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
         // Child process - exec sentry-crash
         setsid();
 
+        // Clear FD_CLOEXEC on notify and ready fds so they survive exec
+#    if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+        int notify_flags = fcntl(notify_eventfd, F_GETFD);
+        if (notify_flags != -1) {
+            fcntl(notify_eventfd, F_SETFD, notify_flags & ~FD_CLOEXEC);
+        }
+        int ready_flags = fcntl(ready_eventfd, F_GETFD);
+        if (ready_flags != -1) {
+            fcntl(ready_eventfd, F_SETFD, ready_flags & ~FD_CLOEXEC);
+        }
+#    elif defined(SENTRY_PLATFORM_MACOS)
+        int notify_flags = fcntl(notify_pipe_read, F_GETFD);
+        if (notify_flags != -1) {
+            fcntl(notify_pipe_read, F_SETFD, notify_flags & ~FD_CLOEXEC);
+        }
+        int ready_flags = fcntl(ready_pipe_write, F_GETFD);
+        if (ready_flags != -1) {
+            fcntl(ready_pipe_write, F_SETFD, ready_flags & ~FD_CLOEXEC);
+        }
+#    endif
+
         // Convert arguments to strings for exec
         char pid_str[32], tid_str[32], notify_str[32], ready_str[32];
         snprintf(pid_str, sizeof(pid_str), "%d", (int)app_pid);
@@ -907,8 +945,8 @@ sentry__crash_daemon_start(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
 
         // Try to find sentry-crash in the same directory as libsentry
         Dl_info dl_info;
-        if (dladdr((void *)sentry__crash_daemon_start, &dl_info)
-            && dl_info.dli_fname) {
+        void *func_ptr = (void *)(uintptr_t)&sentry__crash_daemon_start;
+        if (dladdr(func_ptr, &dl_info) && dl_info.dli_fname) {
             char daemon_path[SENTRY_CRASH_MAX_PATH];
             const char *slash = strrchr(dl_info.dli_fname, '/');
             if (slash) {
@@ -917,6 +955,7 @@ sentry__crash_daemon_start(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
                     memcpy(daemon_path, dl_info.dli_fname, dir_len);
                     strcpy(daemon_path + dir_len, "sentry-crash");
                     execv(daemon_path, argv);
+                    // If execv fails, fall through to execvp
                 }
             }
         }
