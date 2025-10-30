@@ -433,13 +433,14 @@ native_backend_shutdown(sentry_backend_t *backend)
             FILE *log_file = fopen(log_path, "r");
 #endif
             if (log_file) {
-                fprintf(stderr,
-                    "\n========== Daemon Log (%s) ==========\n", shm_id);
+                fprintf(stderr, "\n========== Daemon Log (%s) ==========\n",
+                    shm_id);
                 char line[1024];
                 while (fgets(line, sizeof(line), log_file)) {
                     fprintf(stderr, "%s", line);
                 }
-                fprintf(stderr, "=========================================\n\n");
+                fprintf(
+                    stderr, "=========================================\n\n");
                 fclose(log_file);
             }
         }
