@@ -65,6 +65,9 @@ struct sentry_options_s {
     void *traces_sampler_data;
     size_t max_spans;
     bool enable_logs;
+    // no longer parses log messages as format strings, and takes the first varg
+    // as the attributes sentry_value_t object
+    bool logs_with_attributes;
 
     /* everything from here on down are options which are stored here but
        not exposed through the options API */

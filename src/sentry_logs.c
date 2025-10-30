@@ -677,25 +677,48 @@ construct_log(sentry_level_t level, const char *message, va_list args)
     sentry_value_t log = sentry_value_new_object();
     sentry_value_t attributes = sentry_value_new_object();
 
-    va_list args_copy_1, args_copy_2, args_copy_3;
-    va_copy(args_copy_1, args);
-    va_copy(args_copy_2, args);
-    va_copy(args_copy_3, args);
-    int len = vsnprintf(NULL, 0, message, args_copy_1) + 1;
-    va_end(args_copy_1);
-    size_t size = (size_t)len;
-    char *fmt_message = sentry_malloc(size);
-    if (!fmt_message) {
-        va_end(args_copy_2);
-        va_end(args_copy_3);
-        return sentry_value_new_null();
+    SENTRY_WITH_OPTIONS(options)
+    {
+        if (sentry_options_get_logs_with_attributes(options)) {
+            sentry_value_set_by_key(log, "body", sentry_value_new_string(message));
+            va_list args_copy;
+            va_copy(args_copy, args);
+            sentry_value_t custom_attributes = va_arg(args_copy, sentry_value_t);
+            va_end(args_copy);
+            // TODO find out if this is legal
+            sentry_value_decref(attributes);
+            attributes = custom_attributes;
+        }else {
+            va_list args_copy_1, args_copy_2, args_copy_3;
+            va_copy(args_copy_1, args);
+            va_copy(args_copy_2, args);
+            va_copy(args_copy_3, args);
+            int len = vsnprintf(NULL, 0, message, args_copy_1) + 1;
+            va_end(args_copy_1);
+            size_t size = (size_t)len;
+            char *fmt_message = sentry_malloc(size);
+            if (!fmt_message) {
+                va_end(args_copy_2);
+                va_end(args_copy_3);
+                return sentry_value_new_null();
+            }
+
+            vsnprintf(fmt_message, size, message, args_copy_2);
+            va_end(args_copy_2);
+
+            sentry_value_set_by_key(log, "body", sentry_value_new_string(fmt_message));
+            sentry_free(fmt_message);
+
+            // Parse variadic arguments and add them to attributes
+            if (populate_message_parameters(attributes, message, args_copy_3)) {
+                // only add message template if we have parameters
+                add_attribute(attributes, sentry_value_new_string(message), "string",
+                    "sentry.message.template");
+            }
+            va_end(args_copy_3);
+        }
     }
 
-    vsnprintf(fmt_message, size, message, args_copy_2);
-    va_end(args_copy_2);
-
-    sentry_value_set_by_key(log, "body", sentry_value_new_string(fmt_message));
-    sentry_free(fmt_message);
     sentry_value_set_by_key(
         log, "level", sentry_value_new_string(level_as_string(level)));
 
@@ -707,14 +730,6 @@ construct_log(sentry_level_t level, const char *message, va_list args)
     // adds data from the scope & options to the attributes, and adds `trace_id`
     // to the log
     add_scope_and_options_data(log, attributes);
-
-    // Parse variadic arguments and add them to attributes
-    if (populate_message_parameters(attributes, message, args_copy_3)) {
-        // only add message template if we have parameters
-        add_attribute(attributes, sentry_value_new_string(message), "string",
-            "sentry.message.template");
-    }
-    va_end(args_copy_3);
 
     sentry_value_set_by_key(log, "attributes", attributes);
 
