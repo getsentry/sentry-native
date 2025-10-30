@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- Add custom attributes API for logs. Treats the first `varg` passed into `sentry_logs_X(message,...)` as a `sentry_value_t` object of attributes. ([#1435](https://github.com/getsentry/sentry-native/pull/1435))
+
 ## 0.12.0
 
 **Breaking changes**:
