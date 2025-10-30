@@ -133,6 +133,7 @@ native_backend_startup(
     if (!state->ipc) {
         SENTRY_WARN("failed to initialize crash IPC");
         sentry_free(state);
+        backend->data = NULL;
         return 1;
     }
 
@@ -146,6 +147,7 @@ native_backend_startup(
                 GetLastError());
             sentry__crash_ipc_free(state->ipc);
             sentry_free(state);
+            backend->data = NULL;
             return 1;
         }
     }
@@ -155,6 +157,7 @@ native_backend_startup(
             strerror(errno));
         sentry__crash_ipc_free(state->ipc);
         sentry_free(state);
+        backend->data = NULL;
         return 1;
     }
 #endif
@@ -166,6 +169,7 @@ native_backend_startup(
 
     // Pass debug logging setting to daemon
     ctx->debug_enabled = options->debug;
+    ctx->attach_screenshot = options->attach_screenshot;
 
     // Set up event and breadcrumb paths
     sentry_path_t *run_path = options->run->run_path;
@@ -271,6 +275,7 @@ native_backend_startup(
         SENTRY_WARN("failed to initialize crash handler");
         sentry__crash_ipc_free(state->ipc);
         sentry_free(state);
+        backend->data = NULL;
         return 1;
     }
 #else
@@ -290,10 +295,16 @@ native_backend_startup(
         state->ipc->event_handle, state->ipc->ready_event_handle);
 #    endif
 
+    // On Windows, pid_t is unsigned (DWORD), so we check for 0 instead of < 0
+#if defined(SENTRY_PLATFORM_WINDOWS)
+    if (state->daemon_pid == 0) {
+#else
     if (state->daemon_pid < 0) {
+#endif
         SENTRY_WARN("failed to start crash daemon");
         sentry__crash_ipc_free(state->ipc);
         sentry_free(state);
+        backend->data = NULL;
         return 1;
     }
 
@@ -350,6 +361,7 @@ native_backend_startup(
 #    endif
         sentry__crash_ipc_free(state->ipc);
         sentry_free(state);
+        backend->data = NULL;
         return 1;
     }
 #endif

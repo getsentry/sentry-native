@@ -28,9 +28,12 @@ sentry__crash_ipc_init_app(sem_t *init_sem)
     ipc->init_sem = init_sem; // Use provided semaphore (managed by backend)
 
     // Create shared memory with unique name based on PID and thread ID
+    // macOS has a 31-character limit for POSIX shared memory names (PSEMNAMLEN)
+    // Format: /s-{8_hex_chars} = 11 chars total (well under 31 limit)
+    // We mix PID and TID to create a unique 32-bit identifier
     uint64_t tid = (uint64_t)pthread_self();
-    snprintf(ipc->shm_name, sizeof(ipc->shm_name), "/sentry-crash-%d-%llx",
-        (int)getpid(), (unsigned long long)tid);
+    uint32_t id = (uint32_t)((getpid() ^ (tid & 0xFFFFFFFF)) & 0xFFFFFFFF);
+    snprintf(ipc->shm_name, sizeof(ipc->shm_name), "/s-%08x", id);
 
     // Acquire semaphore for exclusive access during initialization
     if (ipc->init_sem && sem_wait(ipc->init_sem) < 0) {
@@ -182,8 +185,9 @@ sentry__crash_ipc_init_daemon(
     ipc->is_daemon = true;
 
     // Open existing shared memory created by app (using PID and thread ID)
-    snprintf(ipc->shm_name, sizeof(ipc->shm_name), "/sentry-crash-%d-%llx",
-        (int)app_pid, (unsigned long long)app_tid);
+    // Must match the format in sentry__crash_ipc_init_app
+    uint32_t id = (uint32_t)((app_pid ^ (app_tid & 0xFFFFFFFF)) & 0xFFFFFFFF);
+    snprintf(ipc->shm_name, sizeof(ipc->shm_name), "/s-%08x", id);
 
     ipc->shm_fd = shm_open(ipc->shm_name, O_RDWR, 0600);
     if (ipc->shm_fd < 0) {
@@ -319,9 +323,12 @@ sentry__crash_ipc_init_app(sem_t *init_sem)
     ipc->init_sem = init_sem; // Use provided semaphore (managed by backend)
 
     // Create shared memory with unique name based on PID and thread ID
+    // macOS has a 31-character limit for POSIX shared memory names (PSEMNAMLEN)
+    // Format: /s-{8_hex_chars} = 11 chars total (well under 31 limit)
+    // We mix PID and TID to create a unique 32-bit identifier
     uint64_t tid = (uint64_t)pthread_self();
-    snprintf(ipc->shm_name, sizeof(ipc->shm_name), "/sentry-crash-%d-%llx",
-        (int)getpid(), (unsigned long long)tid);
+    uint32_t id = (uint32_t)((getpid() ^ (tid & 0xFFFFFFFF)) & 0xFFFFFFFF);
+    snprintf(ipc->shm_name, sizeof(ipc->shm_name), "/s-%08x", id);
 
     // Acquire semaphore for exclusive access during initialization
     if (ipc->init_sem && sem_wait(ipc->init_sem) < 0) {
@@ -474,8 +481,9 @@ sentry__crash_ipc_init_daemon(
     ipc->is_daemon = true;
 
     // Open existing shared memory created by app (using PID and thread ID)
-    snprintf(ipc->shm_name, sizeof(ipc->shm_name), "/sentry-crash-%d-%llx",
-        (int)app_pid, (unsigned long long)app_tid);
+    // Must match the format in sentry__crash_ipc_init_app
+    uint32_t id = (uint32_t)((app_pid ^ (app_tid & 0xFFFFFFFF)) & 0xFFFFFFFF);
+    snprintf(ipc->shm_name, sizeof(ipc->shm_name), "/s-%08x", id);
 
     ipc->shm_fd = shm_open(ipc->shm_name, O_RDWR, 0600);
     if (ipc->shm_fd < 0) {
@@ -804,15 +812,13 @@ void
 sentry__crash_ipc_notify(sentry_crash_ipc_t *ipc)
 {
     if (!ipc || !ipc->event_handle) {
-        SENTRY_WARN("crash_ipc_notify: ipc or event_handle is NULL!");
+        // No logging - called from signal handler/exception filter
         return;
     }
 
-    if (!SetEvent(ipc->event_handle)) {
-        SENTRY_WARNF("crash_ipc_notify: SetEvent failed: %lu", GetLastError());
-    } else {
-        // Do nothing
-    }
+    // SetEvent is safe to call from exception filter
+    // Ignore errors silently - we're crashing anyway
+    SetEvent(ipc->event_handle);
 }
 
 bool
