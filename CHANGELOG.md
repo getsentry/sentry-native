@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- Add logs flush on `sentry_flush()`. ([#1434](https://github.com/getsentry/sentry-native/pull/1434))
+
 ## 0.12.0
 
 **Breaking changes**:
