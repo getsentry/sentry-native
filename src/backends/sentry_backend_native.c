@@ -296,11 +296,11 @@ native_backend_startup(
 #    endif
 
     // On Windows, pid_t is unsigned (DWORD), so we check for 0 instead of < 0
-#if defined(SENTRY_PLATFORM_WINDOWS)
+#    if defined(SENTRY_PLATFORM_WINDOWS)
     if (state->daemon_pid == 0) {
-#else
+#    else
     if (state->daemon_pid < 0) {
-#endif
+#    endif
         SENTRY_WARN("failed to start crash daemon");
         sentry__crash_ipc_free(state->ipc);
         sentry_free(state);
