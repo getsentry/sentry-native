@@ -9,6 +9,7 @@
 #    include "sentry.h"
 #    include "sentry_logger.h"
 #    include "sentry_minidump_writer.h"
+#    include "sentry_string.h"
 
 #    pragma comment(lib, "dbghelp.lib")
 
@@ -22,14 +23,22 @@ sentry__write_minidump(
 {
     SENTRY_DEBUGF("writing minidump to %s", output_path);
 
-    // Open output file
-    HANDLE file_handle = CreateFileA(output_path, GENERIC_WRITE, 0, NULL,
+    // Open output file - use wide character API for proper UTF-8 path support
+    wchar_t *woutput_path = sentry__string_to_wstr(output_path);
+    if (!woutput_path) {
+        SENTRY_WARN("failed to convert minidump path to wide string");
+        return -1;
+    }
+
+    HANDLE file_handle = CreateFileW(woutput_path, GENERIC_WRITE, 0, NULL,
         CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 
     if (file_handle == INVALID_HANDLE_VALUE) {
         SENTRY_WARNF("failed to create minidump file: %lu", GetLastError());
+        sentry_free(woutput_path);
         return -1;
     }
+    sentry_free(woutput_path);
 
     // Open crashed process
     HANDLE process_handle
@@ -39,7 +48,11 @@ sentry__write_minidump(
         SENTRY_WARNF("failed to open process %lu: %lu", ctx->crashed_pid,
             GetLastError());
         CloseHandle(file_handle);
-        DeleteFileA(output_path);
+        wchar_t *wdelete_path = sentry__string_to_wstr(output_path);
+        if (wdelete_path) {
+            DeleteFileW(wdelete_path);
+            sentry_free(wdelete_path);
+        }
         return -1;
     }
 
@@ -86,7 +99,11 @@ sentry__write_minidump(
 
     if (!success) {
         SENTRY_WARNF("MiniDumpWriteDump failed: %lu", error);
-        DeleteFileA(output_path);
+        wchar_t *wdelete_path2 = sentry__string_to_wstr(output_path);
+        if (wdelete_path2) {
+            DeleteFileW(wdelete_path2);
+            sentry_free(wdelete_path2);
+        }
         return -1;
     }
 

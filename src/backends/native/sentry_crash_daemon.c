@@ -432,9 +432,12 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
         strncpy_s(ctx->minidump_path, sizeof(ctx->minidump_path), minidump_path,
             _TRUNCATE);
 #else
-        strncpy(
-            ctx->minidump_path, minidump_path, sizeof(ctx->minidump_path) - 1);
-        ctx->minidump_path[sizeof(ctx->minidump_path) - 1] = '\0';
+        size_t path_len = strlen(minidump_path);
+        size_t copy_len = path_len < sizeof(ctx->minidump_path) - 1
+            ? path_len
+            : sizeof(ctx->minidump_path) - 1;
+        memcpy(ctx->minidump_path, minidump_path, copy_len);
+        ctx->minidump_path[copy_len] = '\0';
 #endif
 
         // Get event file path from context
@@ -509,6 +512,17 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
         SENTRY_DEBUG("Reading envelope file back");
 
         // Check if file exists and get size
+#if defined(SENTRY_PLATFORM_WINDOWS)
+        wchar_t *wenvelope_path = sentry__string_to_wstr(envelope_path);
+        struct _stat64 st;
+        if (wenvelope_path && _wstat64(wenvelope_path, &st) == 0) {
+            SENTRY_DEBUGF(
+                "Envelope file exists, size=%lld bytes", (long long)st.st_size);
+        } else {
+            SENTRY_WARNF("Envelope file stat failed: %s", strerror(errno));
+        }
+        sentry_free(wenvelope_path);
+#else
         struct stat st;
         if (stat(envelope_path, &st) == 0) {
             SENTRY_DEBUGF(
@@ -516,6 +530,7 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
         } else {
             SENTRY_WARNF("Envelope file stat failed: %s", strerror(errno));
         }
+#endif
 
         sentry_path_t *env_path = sentry__path_from_str(envelope_path);
         if (!env_path) {
@@ -548,7 +563,11 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
 #if defined(SENTRY_PLATFORM_UNIX)
         unlink(envelope_path);
 #elif defined(SENTRY_PLATFORM_WINDOWS)
-        _unlink(envelope_path);
+        wchar_t *wenvelope_unlink = sentry__string_to_wstr(envelope_path);
+        if (wenvelope_unlink) {
+            _wunlink(wenvelope_unlink);
+            sentry_free(wenvelope_unlink);
+        }
 #endif
 
     cleanup:
@@ -709,30 +728,47 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
     char log_path[SENTRY_CRASH_MAX_PATH];
     FILE *log_file = NULL;
     uint32_t id = (uint32_t)((app_pid ^ (app_tid & 0xFFFFFFFF)) & 0xFFFFFFFF);
+
+#if defined(SENTRY_PLATFORM_WINDOWS)
+    // On Windows, convert UTF-8 path to wide characters for proper file
+    // handling
+    int log_path_len = snprintf(log_path, sizeof(log_path),
+        "%s\\sentry-daemon-%08x.log", ipc->shmem->database_path, id);
+
+    if (log_path_len > 0 && log_path_len < (int)sizeof(log_path)) {
+        wchar_t *wlog_path = sentry__string_to_wstr(log_path);
+        if (wlog_path) {
+            log_file = _wfopen(wlog_path, L"w");
+            sentry_free(wlog_path);
+        }
+    }
+#else
     int log_path_len = snprintf(log_path, sizeof(log_path),
         "%s/sentry-daemon-%08x.log", ipc->shmem->database_path, id);
 
     if (log_path_len > 0 && log_path_len < (int)sizeof(log_path)) {
         log_file = fopen(log_path, "w");
-        if (log_file) {
-            // Disable buffering for immediate writes
-            setvbuf(log_file, NULL, _IONBF, 0);
+    }
+#endif
 
-            // Set up Sentry logger to write to file
-            // Use log level from parent's debug setting
-            sentry_level_t log_level = ipc->shmem->debug_enabled
-                ? SENTRY_LEVEL_DEBUG
-                : SENTRY_LEVEL_INFO;
-            sentry_logger_t file_logger = { .logger_func = daemon_file_logger,
-                .logger_data = log_file,
-                .logger_level = log_level };
-            sentry__logger_set_global(file_logger);
-            sentry__logger_enable();
+    if (log_file) {
+        // Disable buffering for immediate writes
+        setvbuf(log_file, NULL, _IONBF, 0);
 
-            SENTRY_DEBUG("=== Daemon starting ===");
-            SENTRY_DEBUGF("App PID: %lu", (unsigned long)app_pid);
-            SENTRY_DEBUGF("Database path: %s", ipc->shmem->database_path);
-        }
+        // Set up Sentry logger to write to file
+        // Use log level from parent's debug setting
+        sentry_level_t log_level = ipc->shmem->debug_enabled
+            ? SENTRY_LEVEL_DEBUG
+            : SENTRY_LEVEL_INFO;
+        sentry_logger_t file_logger = { .logger_func = daemon_file_logger,
+            .logger_data = log_file,
+            .logger_level = log_level };
+        sentry__logger_set_global(file_logger);
+        sentry__logger_enable();
+
+        SENTRY_DEBUG("=== Daemon starting ===");
+        SENTRY_DEBUGF("App PID: %lu", (unsigned long)app_pid);
+        SENTRY_DEBUGF("Database path: %s", ipc->shmem->database_path);
     }
 
 #if defined(SENTRY_PLATFORM_UNIX)

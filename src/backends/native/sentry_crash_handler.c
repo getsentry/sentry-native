@@ -496,19 +496,24 @@ daemon_handling:
             int fd = open(log_path, O_RDONLY);
             if (fd >= 0) {
                 const char *header = "\n========== Daemon Log (";
-                write(STDERR_FILENO, header, strlen(header));
-                write(STDERR_FILENO, shm_id, strlen(shm_id));
-                write(STDERR_FILENO, ") ==========\n", 13);
+                ssize_t rv = write(STDERR_FILENO, header, strlen(header));
+                (void)rv; // Ignore write errors in signal handler
+                rv = write(STDERR_FILENO, shm_id, strlen(shm_id));
+                (void)rv;
+                rv = write(STDERR_FILENO, ") ==========\n", 13);
+                (void)rv;
 
                 char buf[1024];
                 ssize_t n;
                 while ((n = read(fd, buf, sizeof(buf))) > 0) {
-                    write(STDERR_FILENO, buf, n);
+                    rv = write(STDERR_FILENO, buf, n);
+                    (void)rv;
                 }
 
                 const char *footer
                     = "=========================================\n\n";
-                write(STDERR_FILENO, footer, strlen(footer));
+                rv = write(STDERR_FILENO, footer, strlen(footer));
+                (void)rv;
                 close(fd);
             }
         }
