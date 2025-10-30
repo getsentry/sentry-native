@@ -1589,8 +1589,9 @@ sentry__write_minidump(
         return -1;
     }
 
-    if (write(writer.fd, directories, sizeof(directories))
-        != sizeof(directories)) {
+    // Write only the directory entries we actually used
+    size_t dir_size = stream_count * sizeof(minidump_directory_t);
+    if (write(writer.fd, directories, dir_size) != (ssize_t)dir_size) {
         close(writer.fd);
         unlink(output_path);
         return -1;
