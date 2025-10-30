@@ -27,8 +27,10 @@
 #include <time.h>
 
 #if defined(SENTRY_PLATFORM_UNIX)
+#    include <dlfcn.h>
 #    include <errno.h>
 #    include <fcntl.h>
+#    include <inttypes.h>
 #    include <signal.h>
 #    include <sys/stat.h>
 #    include <sys/types.h>
@@ -289,10 +291,13 @@ write_envelope_with_minidump(const sentry_options_t *options,
 #if defined(SENTRY_PLATFORM_UNIX)
             ssize_t n;
             while ((n = read(minidump_fd, buf, sizeof(buf))) > 0) {
-                if (write(fd, buf, n) != n) {
+                if (write(fd, buf, (size_t)n) != n) {
                     SENTRY_WARN("Failed to write minidump data to envelope");
                     break;
                 }
+            }
+            if (n < 0) {
+                SENTRY_WARN("Failed to read minidump data");
             }
             if (write(fd, "\n", 1) != 1) {
                 SENTRY_WARN("Failed to write minidump newline to envelope");
@@ -872,7 +877,9 @@ sentry__crash_daemon_start(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
 #endif
 {
 #if defined(SENTRY_PLATFORM_UNIX)
-    // On Unix, fork and call daemon main directly (no exec)
+    // Fork and exec sentry-crash executable
+    // Using exec (not just fork) avoids inheriting sanitizer state and is
+    // cleaner
     pid_t daemon_pid = fork();
 
     if (daemon_pid < 0) {
@@ -880,17 +887,43 @@ sentry__crash_daemon_start(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
         SENTRY_WARN("Failed to fork daemon process");
         return -1;
     } else if (daemon_pid == 0) {
-        // Child process - become daemon and call main directly
+        // Child process - exec sentry-crash
         setsid();
 
-        // Call daemon main with inherited fds
+        // Convert arguments to strings for exec
+        char pid_str[32], tid_str[32], notify_str[32], ready_str[32];
+        snprintf(pid_str, sizeof(pid_str), "%d", (int)app_pid);
+        snprintf(tid_str, sizeof(tid_str), "%" PRIx64, app_tid);
 #    if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
-        exit(sentry__crash_daemon_main(
-            app_pid, app_tid, notify_eventfd, ready_eventfd));
+        snprintf(notify_str, sizeof(notify_str), "%d", notify_eventfd);
+        snprintf(ready_str, sizeof(ready_str), "%d", ready_eventfd);
 #    elif defined(SENTRY_PLATFORM_MACOS)
-        exit(sentry__crash_daemon_main(
-            app_pid, app_tid, notify_pipe_read, ready_pipe_write));
+        snprintf(notify_str, sizeof(notify_str), "%d", notify_pipe_read);
+        snprintf(ready_str, sizeof(ready_str), "%d", ready_pipe_write);
 #    endif
+
+        char *argv[]
+            = { "sentry-crash", pid_str, tid_str, notify_str, ready_str, NULL };
+
+        // Try to find sentry-crash in the same directory as libsentry
+        Dl_info dl_info;
+        if (dladdr((void *)sentry__crash_daemon_start, &dl_info)
+            && dl_info.dli_fname) {
+            char daemon_path[SENTRY_CRASH_MAX_PATH];
+            const char *slash = strrchr(dl_info.dli_fname, '/');
+            if (slash) {
+                size_t dir_len = slash - dl_info.dli_fname + 1;
+                if (dir_len + strlen("sentry-crash") < sizeof(daemon_path)) {
+                    memcpy(daemon_path, dl_info.dli_fname, dir_len);
+                    strcpy(daemon_path + dir_len, "sentry-crash");
+                    execv(daemon_path, argv);
+                }
+            }
+        }
+
+        // exec failed - exit with error
+        perror("Failed to exec sentry-crash");
+        _exit(1);
     }
 
     // Parent process - return daemon PID

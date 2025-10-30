@@ -9,6 +9,7 @@
 #include <time.h>
 
 #if defined(SENTRY_PLATFORM_UNIX)
+#    include "sentry_unix_pageallocator.h"
 #    include <errno.h>
 #    include <fcntl.h>
 #    include <limits.h>
@@ -126,55 +127,13 @@ crash_signal_handler(int signum, siginfo_t *info, void *context)
     ctx->platform.siginfo = *info;
     ctx->platform.context = *uctx;
 
-    // Capture all threads on Linux
-    ctx->platform.num_threads = 0;
-
-    // Open /proc/self/task directory to enumerate threads
-    DIR *task_dir = opendir("/proc/self/task");
-    if (task_dir) {
-        struct dirent *entry;
-        while ((entry = readdir(task_dir)) != NULL
-            && ctx->platform.num_threads < SENTRY_CRASH_MAX_THREADS) {
-
-            // Skip "." and ".."
-            if (entry->d_name[0] == '.') {
-                continue;
-            }
-
-            pid_t tid = (pid_t)atoi(entry->d_name);
-            if (tid == 0) {
-                continue;
-            }
-
-            // Store thread ID
-            ctx->platform.threads[ctx->platform.num_threads].tid = tid;
-
-            // For the crashing thread, we already have the context from signal
-            // handler
-            if (tid == ctx->crashed_tid) {
-                ctx->platform.threads[ctx->platform.num_threads].context
-                    = *uctx;
-                ctx->platform.num_threads++;
-                continue;
-            }
-
-            // For other threads, try to read their context from
-            // /proc/[pid]/task/[tid]/ Note: This is not always possible from
-            // signal handler context We'll just store the TID and let the
-            // daemon read the state if possible
-            memset(&ctx->platform.threads[ctx->platform.num_threads].context, 0,
-                sizeof(ucontext_t));
-            ctx->platform.num_threads++;
-        }
-        closedir(task_dir);
-    }
-
-    // If we couldn't enumerate threads, at least store the crashing thread
-    if (ctx->platform.num_threads == 0) {
-        ctx->platform.threads[0].tid = ctx->crashed_tid;
-        ctx->platform.threads[0].context = *uctx;
-        ctx->platform.num_threads = 1;
-    }
+    // Store the crashing thread context
+    // Note: We DON'T enumerate threads here using opendir/readdir because
+    // they allocate memory (not signal-safe). The daemon's minidump writer
+    // will enumerate threads out-of-process by calling enumerate_threads().
+    ctx->platform.num_threads = 1;
+    ctx->platform.threads[0].tid = ctx->crashed_tid;
+    ctx->platform.threads[0].context = *uctx;
 #    elif defined(SENTRY_PLATFORM_MACOS)
     ctx->platform.signum = signum;
     ctx->platform.siginfo = *info;
@@ -447,8 +406,14 @@ crash_signal_handler(int signum, siginfo_t *info, void *context)
     }
 #    endif
 
+    // Enable signal-safe page allocator before calling exception handler
+    // This allows malloc/free to work safely in signal handler context
+#ifdef SENTRY_PLATFORM_UNIX
+    sentry__page_allocator_enable();
+#endif
+
     // Call Sentry's exception handler to invoke on_crash/before_send hooks
-    // This must happen BEFORE notifying the daemon
+    // Note: With page allocator enabled, this is now signal-safe
     sentry_ucontext_t sentry_uctx;
     sentry_uctx.signum = signum;
     sentry_uctx.siginfo = info;
