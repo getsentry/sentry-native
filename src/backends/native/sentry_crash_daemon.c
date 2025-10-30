@@ -11,6 +11,7 @@
 #include "sentry_options.h"
 #include "sentry_path.h"
 #include "sentry_process.h"
+#include "sentry_screenshot.h"
 #include "sentry_sync.h"
 #include "sentry_transport.h"
 #include "sentry_utils.h"
@@ -51,7 +52,10 @@ write_attachment_to_envelope(int fd, const char *file_path,
 #if defined(SENTRY_PLATFORM_UNIX)
     int attach_fd = open(file_path, O_RDONLY);
 #elif defined(SENTRY_PLATFORM_WINDOWS)
-    int attach_fd = _open(file_path, _O_RDONLY | _O_BINARY);
+    // Use wide-char API for proper UTF-8 path support
+    wchar_t *wpath = sentry__string_to_wstr(file_path);
+    int attach_fd = wpath ? _wopen(wpath, _O_RDONLY | _O_BINARY) : -1;
+    sentry_free(wpath);
 #endif
     if (attach_fd < 0) {
         SENTRY_WARNF("Failed to open attachment file: %s", file_path);
@@ -109,7 +113,7 @@ write_attachment_to_envelope(int fd, const char *file_path,
         SENTRY_WARN("Failed to write attachment header to envelope");
     }
 #elif defined(SENTRY_PLATFORM_WINDOWS)
-    _write(fd, header, header_written);
+    _write(fd, header, (unsigned int)header_written);
 #endif
 
     // Copy attachment content
@@ -139,7 +143,7 @@ write_attachment_to_envelope(int fd, const char *file_path,
 #elif defined(SENTRY_PLATFORM_WINDOWS)
     int n;
     while ((n = _read(attach_fd, buf, sizeof(buf))) > 0) {
-        int written = _write(fd, buf, n);
+        int written = _write(fd, buf, (unsigned int)n);
         if (written != n) {
             SENTRY_WARNF(
                 "Failed to write attachment content for: %s", file_path);
@@ -173,8 +177,13 @@ write_envelope_with_minidump(const sentry_options_t *options,
 #if defined(SENTRY_PLATFORM_UNIX)
     int fd = open(envelope_path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
 #elif defined(SENTRY_PLATFORM_WINDOWS)
-    int fd = _open(envelope_path, _O_WRONLY | _O_CREAT | _O_TRUNC | _O_BINARY,
-        _S_IREAD | _S_IWRITE);
+    // Use wide-char API for proper UTF-8 path support
+    wchar_t *wpath = sentry__string_to_wstr(envelope_path);
+    int fd
+        = wpath ? _wopen(wpath, _O_WRONLY | _O_CREAT | _O_TRUNC | _O_BINARY,
+                      _S_IREAD | _S_IWRITE)
+                : -1;
+    sentry_free(wpath);
 #endif
     if (fd < 0) {
         SENTRY_WARN("Failed to open envelope file for writing");
@@ -198,7 +207,7 @@ write_envelope_with_minidump(const sentry_options_t *options,
             SENTRY_WARN("Failed to write envelope header");
         }
 #elif defined(SENTRY_PLATFORM_WINDOWS)
-        _write(fd, header_buf, header_len);
+        _write(fd, header_buf, (unsigned int)header_len);
 #endif
     }
 
@@ -227,7 +236,7 @@ write_envelope_with_minidump(const sentry_options_t *options,
                     SENTRY_WARN("Failed to write event newline to envelope");
                 }
 #elif defined(SENTRY_PLATFORM_WINDOWS)
-                _write(fd, event_header, ev_header_len);
+                _write(fd, event_header, (unsigned int)ev_header_len);
                 _write(fd, event_json, (unsigned int)event_size);
                 _write(fd, "\n", 1);
 #endif
@@ -240,7 +249,10 @@ write_envelope_with_minidump(const sentry_options_t *options,
 #if defined(SENTRY_PLATFORM_UNIX)
     int minidump_fd = open(minidump_path, O_RDONLY);
 #elif defined(SENTRY_PLATFORM_WINDOWS)
-    int minidump_fd = _open(minidump_path, _O_RDONLY | _O_BINARY);
+    // Use wide-char API for proper UTF-8 path support
+    wchar_t *wpath_md = sentry__string_to_wstr(minidump_path);
+    int minidump_fd = wpath_md ? _wopen(wpath_md, _O_RDONLY | _O_BINARY) : -1;
+    sentry_free(wpath_md);
 #endif
     if (minidump_fd >= 0) {
 #if defined(SENTRY_PLATFORM_UNIX)
@@ -269,7 +281,7 @@ write_envelope_with_minidump(const sentry_options_t *options,
                     SENTRY_WARN("Failed to write minidump header to envelope");
                 }
 #elif defined(SENTRY_PLATFORM_WINDOWS)
-                _write(fd, minidump_header, md_header_len);
+                _write(fd, minidump_header, (unsigned int)md_header_len);
 #endif
             }
 
@@ -289,7 +301,7 @@ write_envelope_with_minidump(const sentry_options_t *options,
 #elif defined(SENTRY_PLATFORM_WINDOWS)
             int n;
             while ((n = _read(minidump_fd, buf, sizeof(buf))) > 0) {
-                _write(fd, buf, n);
+                _write(fd, buf, (unsigned int)n);
             }
             _write(fd, "\n", 1);
 #endif
@@ -439,6 +451,25 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
         }
 
         SENTRY_DEBUGF("Creating envelope at: %s", envelope_path);
+
+        // Capture screenshot if enabled (Windows only)
+        // This is done in the daemon process (out-of-process) because
+        // screenshot capture is NOT signal-safe (uses LoadLibrary, GDI+, etc.)
+#if defined(SENTRY_PLATFORM_WINDOWS)
+        if (options->attach_screenshot && run_folder) {
+            SENTRY_DEBUG("Capturing screenshot");
+            sentry_path_t *screenshot_path
+                = sentry__path_join_str(run_folder, "screenshot.png");
+            if (screenshot_path) {
+                if (sentry__screenshot_capture(screenshot_path)) {
+                    SENTRY_DEBUG("Screenshot captured successfully");
+                } else {
+                    SENTRY_DEBUG("Screenshot capture failed");
+                }
+                sentry__path_free(screenshot_path);
+            }
+        }
+#endif
 
         // Write envelope manually with all attachments from run folder
         // (avoids mutex-locked SDK functions)
@@ -707,8 +738,9 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
         return 1;
     }
 
-    // Use debug logging setting from parent process
+    // Use debug logging and screenshot settings from parent process
     sentry_options_set_debug(options, ipc->shmem->debug_enabled);
+    options->attach_screenshot = ipc->shmem->attach_screenshot;
 
     // Set custom logger that writes to file
     if (log_file) {
