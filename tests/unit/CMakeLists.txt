@@ -34,6 +34,7 @@ add_executable(sentry_test_unit
 	test_logs.c
 	test_modulefinder.c
 	test_mpack.c
+	test_native_backend.c
 	test_options.c
 	test_os.c
 	test_path.c
