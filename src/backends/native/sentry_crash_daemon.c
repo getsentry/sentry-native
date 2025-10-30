@@ -179,10 +179,9 @@ write_envelope_with_minidump(const sentry_options_t *options,
 #elif defined(SENTRY_PLATFORM_WINDOWS)
     // Use wide-char API for proper UTF-8 path support
     wchar_t *wpath = sentry__string_to_wstr(envelope_path);
-    int fd
-        = wpath ? _wopen(wpath, _O_WRONLY | _O_CREAT | _O_TRUNC | _O_BINARY,
-                      _S_IREAD | _S_IWRITE)
-                : -1;
+    int fd = wpath ? _wopen(wpath, _O_WRONLY | _O_CREAT | _O_TRUNC | _O_BINARY,
+                         _S_IREAD | _S_IWRITE)
+                   : -1;
     sentry_free(wpath);
 #endif
     if (fd < 0) {
