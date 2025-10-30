@@ -904,6 +904,15 @@ sentry__logs_flush_crash_safe(void)
     SENTRY_DEBUG("crash-safe logs flush complete");
 }
 
+void
+sentry__logs_force_flush(void)
+{
+    // TODO do we care about calling this while g_logs_state.flushing is true?
+    //      if there are logs added to the other buffer during that flush
+    //      we would not be flushing these (unless we wait)
+    flush_logs_queue(false);
+}
+
 #ifdef SENTRY_UNITTEST
 /**
  * Wait for the logs batching thread to be ready.
