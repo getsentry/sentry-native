@@ -655,6 +655,8 @@ write_thread_context(
     return write_data(writer, &context, sizeof(context));
 
 #    elif defined(__aarch64__)
+    (void)tid; // Unused on ARM64 - FPU state already in ucontext
+
     minidump_context_arm64_t context = { 0 };
     // Set flags for control + integer + fpsimd registers (FULL context)
     context.context_flags = 0x00400007; // ARM64 | Control | Integer | Fpsimd
@@ -698,6 +700,8 @@ write_thread_context(
     return write_data(writer, &context, sizeof(context));
 
 #    elif defined(__i386__)
+    (void)tid; // Unused on i386 - no FPU state in simplified context
+
     minidump_context_x86_t context = { 0 };
     // Set flags for control + integer + segments (no floating point in this
     // simplified struct)
