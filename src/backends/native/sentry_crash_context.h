@@ -112,7 +112,7 @@ typedef DWORD pid_t;
         10000 // 10 seconds max wait for daemon to finish
 #endif
 #define SENTRY_CRASH_TRANSPORT_SHUTDOWN_TIMEOUT_MS                             \
-    2000 // 2 seconds for transport shutdown
+    10000 // 10 seconds for transport shutdown (increased for TSAN/ASAN builds)
 
 /**
  * Crash state machine for atomic coordination between app and daemon
