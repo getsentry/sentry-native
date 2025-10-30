@@ -745,7 +745,8 @@ sentry_options_get_enable_logs(const sentry_options_t *opts)
 }
 
 void
-sentry_options_set_logs_with_attributes(sentry_options_t *opts, int logs_with_attributes)
+sentry_options_set_logs_with_attributes(
+    sentry_options_t *opts, int logs_with_attributes)
 {
     opts->logs_with_attributes = !!logs_with_attributes;
 }
