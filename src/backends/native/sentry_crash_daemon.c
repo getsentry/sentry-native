@@ -507,6 +507,16 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
 
         // Read envelope and send via transport
         SENTRY_DEBUG("Reading envelope file back");
+
+        // Check if file exists and get size
+        struct stat st;
+        if (stat(envelope_path, &st) == 0) {
+            SENTRY_DEBUGF(
+                "Envelope file exists, size=%ld bytes", (long)st.st_size);
+        } else {
+            SENTRY_WARNF("Envelope file stat failed: %s", strerror(errno));
+        }
+
         sentry_path_t *env_path = sentry__path_from_str(envelope_path);
         if (!env_path) {
             SENTRY_WARN("Failed to create envelope path");
