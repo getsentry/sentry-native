@@ -157,7 +157,7 @@ sentry__screenshot_capture(const sentry_path_t *path, uint32_t pid)
 {
 #ifdef SENTRY_PLATFORM_XBOX
     (sentry_path_t *)path;
-    (uint32_t) pid;
+    (uint32_t)pid;
     return false;
 #else
     // Use provided PID, or current process if 0

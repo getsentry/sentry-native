@@ -454,6 +454,66 @@ crash_signal_handler(int signum, siginfo_t *info, void *context)
 daemon_handling:
     // Re-raise signal to let system handle it
     SENTRY_DEBUG("Wait complete, allowing process to terminate");
+
+    // Dump daemon log for debugging (uses stdio, safe after page allocator
+    // enabled)
+    if (ipc && ipc->shm_name[0] != '\0' && ctx
+        && ctx->database_path[0] != '\0') {
+        // Extract hex ID from shared memory name (format: "/s-XXXXXXXX")
+        const char *shm_id = NULL;
+        for (const char *p = ipc->shm_name; *p; p++) {
+            if (*p == '-') {
+                shm_id = p + 1;
+                break;
+            }
+        }
+
+        if (shm_id) {
+            char log_path[SENTRY_CRASH_MAX_PATH];
+            int len = 0;
+            // Manually build path string (signal-safe)
+            for (const char *p = ctx->database_path;
+                *p && len < (int)sizeof(log_path) - 30; p++) {
+                log_path[len++] = *p;
+            }
+            const char *suffix = "/sentry-daemon-";
+            for (const char *p = suffix; *p && len < (int)sizeof(log_path) - 15;
+                p++) {
+                log_path[len++] = *p;
+            }
+            for (const char *p = shm_id; *p && len < (int)sizeof(log_path) - 5;
+                p++) {
+                log_path[len++] = *p;
+            }
+            const char *ext = ".log";
+            for (const char *p = ext; *p && len < (int)sizeof(log_path) - 1;
+                p++) {
+                log_path[len++] = *p;
+            }
+            log_path[len] = '\0';
+
+            // Try to open and dump log file
+            int fd = open(log_path, O_RDONLY);
+            if (fd >= 0) {
+                const char *header = "\n========== Daemon Log (";
+                write(STDERR_FILENO, header, strlen(header));
+                write(STDERR_FILENO, shm_id, strlen(shm_id));
+                write(STDERR_FILENO, ") ==========\n", 13);
+
+                char buf[1024];
+                ssize_t n;
+                while ((n = read(fd, buf, sizeof(buf))) > 0) {
+                    write(STDERR_FILENO, buf, n);
+                }
+
+                const char *footer
+                    = "=========================================\n\n";
+                write(STDERR_FILENO, footer, strlen(footer));
+                close(fd);
+            }
+        }
+    }
+
     raise(signum);
 }
 
