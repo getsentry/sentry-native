@@ -605,7 +605,9 @@ write_thread_context(minidump_writer_t *writer, const ucontext_t *uctx)
     context.cs = uctx->uc_mcontext.gregs[REG_CSGSFS] & 0xffff;
 
     // Copy FPU state if available
+    // Note: fpregs might be NULL or invalid, check carefully
     if (uctx->uc_mcontext.fpregs) {
+        SENTRY_DEBUG("Copying FPU state");
         const struct linux_fxsave *fxsave
             = (const struct linux_fxsave *)uctx->uc_mcontext.fpregs;
 
