@@ -408,9 +408,9 @@ crash_signal_handler(int signum, siginfo_t *info, void *context)
 
     // Enable signal-safe page allocator before calling exception handler
     // This allows malloc/free to work safely in signal handler context
-#ifdef SENTRY_PLATFORM_UNIX
+#    ifdef SENTRY_PLATFORM_UNIX
     sentry__page_allocator_enable();
-#endif
+#    endif
 
     // Call Sentry's exception handler to invoke on_crash/before_send hooks
     // Note: With page allocator enabled, this is now signal-safe
