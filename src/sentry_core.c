@@ -314,6 +314,9 @@ sentry_flush(uint64_t timeout)
 {
     int rv = 0;
     SENTRY_WITH_OPTIONS (options) {
+        if (options->enable_logs) {
+            sentry__logs_force_flush();
+        }
         rv = sentry__transport_flush(options->transport, timeout);
     }
     return rv;
