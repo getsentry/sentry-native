@@ -604,31 +604,11 @@ write_thread_context(minidump_writer_t *writer, const ucontext_t *uctx)
     context.eflags = uctx->uc_mcontext.gregs[REG_EFL];
     context.cs = uctx->uc_mcontext.gregs[REG_CSGSFS] & 0xffff;
 
-    // Copy FPU state if available
-    // Note: fpregs might be NULL or invalid, check carefully
-    if (uctx->uc_mcontext.fpregs) {
-        SENTRY_DEBUG("Copying FPU state");
-        const struct linux_fxsave *fxsave
-            = (const struct linux_fxsave *)uctx->uc_mcontext.fpregs;
-
-        context.mx_csr = fxsave->mxcsr;
-        context.float_save.control_word = fxsave->cwd;
-        context.float_save.status_word = fxsave->swd;
-        context.float_save.tag_word = fxsave->ftw;
-        context.float_save.error_opcode = fxsave->fop;
-        context.float_save.error_offset = (uint32_t)fxsave->rip;
-        context.float_save.data_offset = (uint32_t)fxsave->rdp;
-        context.float_save.mx_csr = fxsave->mxcsr;
-        context.float_save.mx_csr_mask = fxsave->mxcsr_mask;
-
-        // Copy ST0-ST7 (x87 FPU registers)
-        memcpy(context.float_save.float_registers, fxsave->st_space,
-            sizeof(fxsave->st_space));
-
-        // Copy XMM0-XMM15 (SSE registers)
-        memcpy(context.float_save.xmm_registers, fxsave->xmm_space,
-            sizeof(fxsave->xmm_space));
-    }
+    // Skip FPU state - the fpregs pointer is invalid in daemon process
+    // For crashed thread: fpregs points to parent process memory (inaccessible)
+    // For other threads: fpregs is never populated by our ptrace code
+    // TODO: Add PTRACE_GETFPREGS support if FPU registers are needed
+    // For now, general purpose registers are sufficient for stack unwinding
 
     return write_data(writer, &context, sizeof(context));
 
