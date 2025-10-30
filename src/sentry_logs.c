@@ -907,9 +907,9 @@ sentry__logs_flush_crash_safe(void)
 void
 sentry__logs_force_flush(void)
 {
-    // TODO do we care about calling this while g_logs_state.flushing is true?
-    //      if there are logs added to the other buffer during that flush
-    //      we would not be flushing these (unless we wait)
+    while (sentry__atomic_fetch(&g_logs_state.flushing)) {
+        sentry__cpu_relax();
+    }
     flush_logs_queue(false);
 }
 
