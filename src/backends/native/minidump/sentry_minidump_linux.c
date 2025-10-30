@@ -149,6 +149,26 @@ ptrace_attach_process(minidump_writer_t *writer)
 }
 
 /**
+ * Get FPU state via ptrace for x86_64
+ * Must be called while thread is attached
+ */
+#    if defined(__x86_64__)
+static bool
+ptrace_get_fpregs(pid_t tid, struct user_fpregs_struct *fpregs)
+{
+    if (ptrace(PTRACE_GETFPREGS, tid, NULL, fpregs) == 0) {
+        SENTRY_DEBUGF(
+            "Thread %d: successfully captured FPU state via ptrace", tid);
+        return true;
+    } else {
+        SENTRY_DEBUGF(
+            "Thread %d: PTRACE_GETFPREGS failed: %s", tid, strerror(errno));
+        return false;
+    }
+}
+#    endif
+
+/**
  * Get thread registers via ptrace (for non-crashed threads)
  * Returns true if registers were successfully captured
  */
@@ -569,7 +589,8 @@ find_fpsimd_context(const ucontext_t *uctx)
  * Convert Linux ucontext_t to minidump context
  */
 static minidump_rva_t
-write_thread_context(minidump_writer_t *writer, const ucontext_t *uctx)
+write_thread_context(
+    minidump_writer_t *writer, const ucontext_t *uctx, pid_t tid)
 {
     if (!uctx) {
         return 0;
@@ -604,11 +625,32 @@ write_thread_context(minidump_writer_t *writer, const ucontext_t *uctx)
     context.eflags = uctx->uc_mcontext.gregs[REG_EFL];
     context.cs = uctx->uc_mcontext.gregs[REG_CSGSFS] & 0xffff;
 
-    // Skip FPU state - the fpregs pointer is invalid in daemon process
-    // For crashed thread: fpregs points to parent process memory (inaccessible)
-    // For other threads: fpregs is never populated by our ptrace code
-    // TODO: Add PTRACE_GETFPREGS support if FPU registers are needed
-    // For now, general purpose registers are sufficient for stack unwinding
+    // Try to capture FPU state via ptrace for crashed thread
+    // The fpregs pointer from ucontext is invalid in daemon process
+    if (tid == writer->crash_ctx->crashed_tid && writer->ptrace_attached) {
+        struct user_fpregs_struct fpregs;
+        if (ptrace_get_fpregs(tid, &fpregs)) {
+            // Copy x87 FPU registers (ST0-ST7)
+            for (int i = 0; i < 8; i++) {
+                memcpy(&context.float_save.float_registers[i * 10],
+                    &fpregs.st_space[i * 4], 10);
+            }
+
+            // Copy control/status words
+            context.float_save.control_word = fpregs.cwd;
+            context.float_save.status_word = fpregs.swd;
+            context.float_save.tag_word = fpregs.ftw;
+            context.float_save.error_offset = fpregs.rip;
+            context.float_save.error_selector = 0;
+            context.float_save.data_offset = fpregs.rdp;
+            context.float_save.data_selector = 0;
+
+            // Copy XMM registers (XMM0-XMM15)
+            memcpy(context.float_save.xmm_registers, fpregs.xmm_space,
+                sizeof(context.float_save.xmm_registers));
+            context.float_save.mx_csr = fpregs.mxcsr;
+        }
+    }
 
     return write_data(writer, &context, sizeof(context));
 
@@ -1016,7 +1058,8 @@ write_thread_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
         if (uctx) {
             SENTRY_DEBUGF("Thread %u: writing context", thread->thread_id);
             // Write thread context
-            thread->thread_context.rva = write_thread_context(writer, uctx);
+            thread->thread_context.rva
+                = write_thread_context(writer, uctx, thread->thread_id);
             thread->thread_context.size = get_context_size();
             SENTRY_DEBUGF("Thread %u: context written at RVA 0x%x",
                 thread->thread_id, thread->thread_context.rva);
@@ -1063,8 +1106,8 @@ write_thread_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
                         thread->thread_id);
 
                     // Re-write the thread context with the captured registers
-                    thread->thread_context.rva
-                        = write_thread_context(writer, &ptrace_ctx);
+                    thread->thread_context.rva = write_thread_context(
+                        writer, &ptrace_ctx, thread->thread_id);
 
                     // Extract SP from captured context
                     uint64_t ptrace_sp;
@@ -1297,7 +1340,8 @@ write_exception_stream(minidump_writer_t *writer, minidump_directory_t *dir)
 
     // Write the crashing thread's context
     const ucontext_t *uctx = &writer->crash_ctx->platform.context;
-    exception_stream.thread_context.rva = write_thread_context(writer, uctx);
+    exception_stream.thread_context.rva
+        = write_thread_context(writer, uctx, writer->crash_ctx->crashed_tid);
     exception_stream.thread_context.size = get_context_size();
 
     SENTRY_DEBUGF("Exception: wrote context at RVA 0x%x for thread %u",
@@ -1460,6 +1504,17 @@ sentry__write_minidump(
         close(writer.fd);
         unlink(output_path);
         return -1;
+    }
+
+    // Attach to crashed process via ptrace early so we can:
+    // 1. Read memory using ptrace for memory list stream
+    // 2. Get FPU state for crashed thread via PTRACE_GETFPREGS
+    // 3. Get registers for threads with missing context via PTRACE_GETREGS
+    if (!ptrace_attach_process(&writer)) {
+        SENTRY_WARN(
+            "Failed to attach to process via ptrace, continuing without "
+            "it");
+        // Continue anyway - we can still write minidump without ptrace
     }
 
     // Reserve space for header and directory
