@@ -2004,10 +2004,10 @@ SENTRY_EXPERIMENTAL_API void sentry_options_set_enable_logs(
 SENTRY_EXPERIMENTAL_API int sentry_options_get_enable_logs(
     const sentry_options_t *opts);
 
-SENTRY_EXPERIMENTAL_API void
-sentry_options_set_logs_with_attributes(sentry_options_t *opts, int logs_with_attributes);
-SENTRY_EXPERIMENTAL_API int
-sentry_options_get_logs_with_attributes(const sentry_options_t *opts);
+SENTRY_EXPERIMENTAL_API void sentry_options_set_logs_with_attributes(
+    sentry_options_t *opts, int logs_with_attributes);
+SENTRY_EXPERIMENTAL_API int sentry_options_get_logs_with_attributes(
+    const sentry_options_t *opts);
 /**
  * The potential returns of calling any of the sentry_log_X functions
  * - Success means a log was enqueued

@@ -506,9 +506,6 @@ main(int argc, char **argv)
     if (has_arg(argc, argv, "log-attributes")) {
         sentry_options_set_logs_with_attributes(options, true);
     }
-    sentry_options_set_dsn(options,
-        "https://045ce095d4ffdbb1e3a221905190394e@o447951.ingest.us.sentry.io/"
-        "4509768482553856");
 
     if (0 != sentry_init(options)) {
         return EXIT_FAILURE;
