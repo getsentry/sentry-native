@@ -405,6 +405,46 @@ native_backend_shutdown(sentry_backend_t *backend)
     }
 #endif
 
+    // Dump daemon log file for debugging (especially useful in CI)
+    // Use same naming as shared memory to find the correct log file
+    if (state->ipc && state->ipc->shmem && state->ipc->shm_name[0] != '\0') {
+        char log_path[SENTRY_CRASH_MAX_PATH];
+        // Extract the hex ID from shared memory name (format: "/s-XXXXXXXX")
+        const char *shm_id = strchr(state->ipc->shm_name, '-');
+        int log_path_len = -1;
+        if (shm_id) {
+            shm_id++; // Skip the '-'
+#if defined(SENTRY_PLATFORM_WINDOWS)
+            log_path_len = _snprintf(log_path, sizeof(log_path),
+                "%s\\sentry-daemon-%s.log", state->ipc->shmem->database_path,
+                shm_id);
+#else
+            log_path_len = snprintf(log_path, sizeof(log_path),
+                "%s/sentry-daemon-%s.log", state->ipc->shmem->database_path,
+                shm_id);
+#endif
+        }
+        if (log_path_len > 0 && log_path_len < (int)sizeof(log_path)) {
+#if defined(SENTRY_PLATFORM_WINDOWS)
+            wchar_t *wpath = sentry__string_to_wstr(log_path);
+            FILE *log_file = wpath ? _wfopen(wpath, L"r") : NULL;
+            sentry_free(wpath);
+#else
+            FILE *log_file = fopen(log_path, "r");
+#endif
+            if (log_file) {
+                fprintf(stderr,
+                    "\n========== Daemon Log (%s) ==========\n", shm_id);
+                char line[1024];
+                while (fgets(line, sizeof(line), log_file)) {
+                    fprintf(stderr, "%s", line);
+                }
+                fprintf(stderr, "=========================================\n\n");
+                fclose(log_file);
+            }
+        }
+    }
+
     // Cleanup IPC
     if (state->ipc) {
         sentry__crash_ipc_free(state->ipc);
