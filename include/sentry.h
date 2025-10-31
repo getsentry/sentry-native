@@ -324,6 +324,13 @@ SENTRY_API sentry_value_t sentry_value_new_user_n(const char *id, size_t id_len,
     const char *username, size_t username_len, const char *email,
     size_t email_len, const char *ip_address, size_t ip_address_len);
 
+/**
+ * Creates a new attribute object.
+ * `type` and `value` are required, `unit` is optional.
+ *
+ * Moves ownership of `value` into the object. The caller does not
+ * have to call `sentry_value_decref` on it.
+ */
 SENTRY_API sentry_value_t sentry_value_new_attribute(
     const char *type, sentry_value_t value, const char *unit);
 SENTRY_API sentry_value_t sentry_value_new_attribute_n(const char *type,
