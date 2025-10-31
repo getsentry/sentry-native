@@ -515,6 +515,7 @@ sentry_value_new_attribute_n(const char *type, size_t type_len,
 {
     // Check if type is valid
     if (!type || type_len == 0) {
+        sentry_value_decref(value);
         return sentry_value_new_null();
     }
 
@@ -523,6 +524,9 @@ sentry_value_new_attribute_n(const char *type, size_t type_len,
             || (type_len == 7 && strncmp(type, "integer", 7) == 0)
             || (type_len == 6 && strncmp(type, "double", 6) == 0)
             || (type_len == 7 && strncmp(type, "boolean", 7) == 0))) {
+        SENTRY_DEBUG("attribute type has to be `string`, `integer`, `double` "
+                     "or `boolean`");
+        sentry_value_decref(value);
         return sentry_value_new_null();
     }
 
@@ -542,9 +546,12 @@ sentry_value_t
 sentry_value_new_attribute(
     const char *type, sentry_value_t value, const char *unit)
 {
-    return type ? sentry_value_new_attribute_n(
-                      type, strlen(type), value, unit, unit ? strlen(unit) : 0)
-                : sentry_value_new_null();
+    if (!type) {
+        sentry_value_decref(value);
+        return sentry_value_new_null();
+    }
+    return sentry_value_new_attribute_n(
+        type, strlen(type), value, unit, unit ? strlen(unit) : 0);
 }
 
 sentry_value_type_t
