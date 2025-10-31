@@ -163,11 +163,8 @@ static sentry_value_t
 before_send_log_callback(sentry_value_t log, void *user_data)
 {
     (void)user_data;
-    sentry_value_t attribute = sentry_value_new_object();
-    sentry_value_set_by_key(
-        attribute, "value", sentry_value_new_string("little"));
-    sentry_value_set_by_key(
-        attribute, "type", sentry_value_new_string("string"));
+    sentry_value_t attribute = sentry_value_new_attribute(
+        "string", sentry_value_new_string("little"), NULL);
     sentry_value_set_by_key(sentry_value_get_by_key(log, "attributes"),
         "coffeepot.size", attribute);
     return log;
