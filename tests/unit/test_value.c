@@ -437,7 +437,7 @@ SENTRY_TEST(value_attribute)
 {
     // Test valid attribute types
     sentry_value_t string_attr = sentry_value_new_attribute(
-        "string", sentry_value_new_string("test_value"), NULL);
+        sentry_value_new_string("test_value"), NULL);
     TEST_CHECK(sentry_value_get_type(string_attr) == SENTRY_VALUE_TYPE_OBJECT);
     TEST_CHECK_STRING_EQUAL(
         sentry_value_as_string(sentry_value_get_by_key(string_attr, "type")),
@@ -449,8 +449,8 @@ SENTRY_TEST(value_attribute)
         sentry_value_is_null(sentry_value_get_by_key(string_attr, "unit")));
     sentry_value_decref(string_attr);
 
-    sentry_value_t integer_attr = sentry_value_new_attribute(
-        "integer", sentry_value_new_int32(42), NULL);
+    sentry_value_t integer_attr
+        = sentry_value_new_attribute(sentry_value_new_int32(42), NULL);
     TEST_CHECK(sentry_value_get_type(integer_attr) == SENTRY_VALUE_TYPE_OBJECT);
     TEST_CHECK_STRING_EQUAL(
         sentry_value_as_string(sentry_value_get_by_key(integer_attr, "type")),
@@ -462,8 +462,8 @@ SENTRY_TEST(value_attribute)
         sentry_value_is_null(sentry_value_get_by_key(integer_attr, "unit")));
     sentry_value_decref(integer_attr);
 
-    sentry_value_t double_attr = sentry_value_new_attribute(
-        "double", sentry_value_new_double(3.14), NULL);
+    sentry_value_t double_attr
+        = sentry_value_new_attribute(sentry_value_new_double(3.14), NULL);
     TEST_CHECK(sentry_value_get_type(double_attr) == SENTRY_VALUE_TYPE_OBJECT);
     TEST_CHECK_STRING_EQUAL(
         sentry_value_as_string(sentry_value_get_by_key(double_attr, "type")),
@@ -475,8 +475,8 @@ SENTRY_TEST(value_attribute)
         sentry_value_is_null(sentry_value_get_by_key(double_attr, "unit")));
     sentry_value_decref(double_attr);
 
-    sentry_value_t boolean_attr = sentry_value_new_attribute(
-        "boolean", sentry_value_new_bool(true), NULL);
+    sentry_value_t boolean_attr
+        = sentry_value_new_attribute(sentry_value_new_bool(true), NULL);
     TEST_CHECK(sentry_value_get_type(boolean_attr) == SENTRY_VALUE_TYPE_OBJECT);
     TEST_CHECK_STRING_EQUAL(
         sentry_value_as_string(sentry_value_get_by_key(boolean_attr, "type")),
@@ -488,8 +488,8 @@ SENTRY_TEST(value_attribute)
     sentry_value_decref(boolean_attr);
 
     // Test attribute with unit
-    sentry_value_t attr_with_unit = sentry_value_new_attribute(
-        "integer", sentry_value_new_int32(100), "percent");
+    sentry_value_t attr_with_unit
+        = sentry_value_new_attribute(sentry_value_new_int32(100), "percent");
     TEST_CHECK(
         sentry_value_get_type(attr_with_unit) == SENTRY_VALUE_TYPE_OBJECT);
     TEST_CHECK_STRING_EQUAL(
@@ -503,27 +503,27 @@ SENTRY_TEST(value_attribute)
         "percent");
     sentry_value_decref(attr_with_unit);
 
-    // Test invalid attribute types
-    sentry_value_t invalid_attr = sentry_value_new_attribute(
-        "invalid_type", sentry_value_new_string("test"), NULL);
+    // Test invalid sentry_value_t types
+    sentry_value_t invalid_attr
+        = sentry_value_new_attribute(sentry_value_new_list(), NULL);
     TEST_CHECK(sentry_value_is_null(invalid_attr));
     sentry_value_decref(invalid_attr);
 
     // Test NULL type
-    sentry_value_t null_type_attr = sentry_value_new_attribute(
-        NULL, sentry_value_new_string("test"), NULL);
+    sentry_value_t null_type_attr
+        = sentry_value_new_attribute(sentry_value_new_null(), NULL);
     TEST_CHECK(sentry_value_is_null(null_type_attr));
     sentry_value_decref(null_type_attr);
 
-    // Test empty type
-    sentry_value_t empty_type_attr
-        = sentry_value_new_attribute("", sentry_value_new_string("test"), NULL);
-    TEST_CHECK(sentry_value_is_null(empty_type_attr));
-    sentry_value_decref(empty_type_attr);
+    // Test NULL type
+    sentry_value_t object_type_attr
+        = sentry_value_new_attribute(sentry_value_new_object(), NULL);
+    TEST_CHECK(sentry_value_is_null(null_type_attr));
+    sentry_value_decref(null_type_attr);
 
     // Test _n version with explicit lengths
     sentry_value_t string_attr_n = sentry_value_new_attribute_n(
-        "string", 6, sentry_value_new_string("test_n"), "bytes", 5);
+        sentry_value_new_string("test_n"), "bytes", 5);
     TEST_CHECK(
         sentry_value_get_type(string_attr_n) == SENTRY_VALUE_TYPE_OBJECT);
     TEST_CHECK_STRING_EQUAL(
@@ -536,35 +536,6 @@ SENTRY_TEST(value_attribute)
         sentry_value_as_string(sentry_value_get_by_key(string_attr_n, "unit")),
         "bytes");
     sentry_value_decref(string_attr_n);
-
-    // Test _n version with zero length type (should return null)
-    sentry_value_t zero_len_attr = sentry_value_new_attribute_n(
-        "string", 0, sentry_value_new_string("test"), NULL, 0);
-    TEST_CHECK(sentry_value_is_null(zero_len_attr));
-    sentry_value_decref(zero_len_attr);
-
-    // Test _n version with NULL type
-    sentry_value_t null_type_attr_n = sentry_value_new_attribute_n(
-        NULL, 6, sentry_value_new_string("test"), NULL, 0);
-    TEST_CHECK(sentry_value_is_null(null_type_attr_n));
-    sentry_value_decref(null_type_attr_n);
-
-    // Test _n version with partial string matching (should work for valid
-    // types)
-    const char *long_type = "string_with_extra_chars";
-    sentry_value_t partial_attr = sentry_value_new_attribute_n(
-        long_type, 6, sentry_value_new_string("partial"), NULL, 0);
-    TEST_CHECK(sentry_value_get_type(partial_attr) == SENTRY_VALUE_TYPE_OBJECT);
-    TEST_CHECK_STRING_EQUAL(
-        sentry_value_as_string(sentry_value_get_by_key(partial_attr, "type")),
-        "string");
-    sentry_value_decref(partial_attr);
-
-    // Test _n version with invalid partial string
-    sentry_value_t invalid_partial_attr = sentry_value_new_attribute_n(
-        "invalid", 7, sentry_value_new_string("test"), NULL, 0);
-    TEST_CHECK(sentry_value_is_null(invalid_partial_attr));
-    sentry_value_decref(invalid_partial_attr);
 }
 
 SENTRY_TEST(value_freezing)

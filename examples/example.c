@@ -163,8 +163,8 @@ static sentry_value_t
 before_send_log_callback(sentry_value_t log, void *user_data)
 {
     (void)user_data;
-    sentry_value_t attribute = sentry_value_new_attribute(
-        "string", sentry_value_new_string("little"), NULL);
+    sentry_value_t attribute
+        = sentry_value_new_attribute(sentry_value_new_string("little"), NULL);
     sentry_value_set_by_key(sentry_value_get_by_key(log, "attributes"),
         "coffeepot.size", attribute);
     return log;
@@ -511,11 +511,11 @@ main(int argc, char **argv)
     if (has_arg(argc, argv, "log-attributes")) {
         sentry_value_t attributes = sentry_value_new_object();
         sentry_value_t attr = sentry_value_new_attribute(
-            "string", sentry_value_new_string("my_attribute"), NULL);
+            sentry_value_new_string("my_attribute"), NULL);
         sentry_value_t attr_2 = sentry_value_new_attribute(
-            "integer", sentry_value_new_int64(INT64_MAX), "fermions");
+            sentry_value_new_int64(INT64_MAX), "fermions");
         sentry_value_t attr_3 = sentry_value_new_attribute(
-            "integer", sentry_value_new_int64(INT64_MIN), "bosons");
+            sentry_value_new_int64(INT64_MIN), "bosons");
         sentry_value_set_by_key(attributes, "my.custom.attribute", attr);
         sentry_value_set_by_key(attributes, "number.first", attr_2);
         sentry_value_set_by_key(attributes, "number.second", attr_3);
@@ -526,6 +526,18 @@ main(int argc, char **argv)
         //  passed-in value is accidentally not an object
         sentry_log_warn("logging with %s custom attributes",
             sentry_value_new_null(), "new_null as");
+        sentry_value_t param_attributes = sentry_value_new_object();
+        sentry_value_t param_attr = sentry_value_new_attribute(
+            sentry_value_new_string("parameter"), NULL);
+        sentry_value_set_by_key(
+            param_attributes, "message.parameter.0", param_attr);
+        sentry_log_fatal(
+            "logging with a custom parameter attributes", param_attributes);
+        sentry_value_t param_attributes_2 = sentry_value_new_object();
+        sentry_value_t param_attr_2 = sentry_value_new_attribute(
+            sentry_value_new_string("parameter"), NULL);
+        sentry_log_fatal("logging with a custom parameter %s attributes",
+            param_attributes, "and format-string");
     }
 
     if (has_arg(argc, argv, "attachment")) {

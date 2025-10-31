@@ -685,14 +685,12 @@ construct_log(sentry_level_t level, const char *message, va_list args)
             sentry_value_t custom_attributes
                 = va_arg(args_copy, sentry_value_t);
             va_end(args_copy);
-            // TODO is this enough to check whether this is a valid
-            // sentry_value_t object?
             if (sentry_value_get_type(custom_attributes)
                 == SENTRY_VALUE_TYPE_OBJECT) {
                 SENTRY_DEBUG("Discarded custom attributes on log: non-object "
                              "sentry_value_t passed in");
                 sentry_value_decref(attributes);
-                attributes = custom_attributes;
+                attributes = sentry__value_clone(custom_attributes);
             }
         }
 
