@@ -513,7 +513,6 @@ sentry_value_t
 sentry_value_new_attribute_n(
     sentry_value_t value, const char *unit, size_t unit_len)
 {
-    sentry_value_t attribute = sentry_value_new_object();
     char *type;
     switch (sentry_value_get_type(value)) {
     case SENTRY_VALUE_TYPE_BOOL:
@@ -537,6 +536,8 @@ sentry_value_new_attribute_n(
         sentry_value_decref(value);
         return sentry_value_new_null();
     }
+    sentry_value_t attribute = sentry_value_new_object();
+
     sentry_value_set_by_key(
         attribute, "type", sentry_value_new_string_n(type, strlen(type)));
     sentry_value_set_by_key(attribute, "value", value);
