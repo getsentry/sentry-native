@@ -510,31 +510,36 @@ sentry_value_new_user(const char *id, const char *username, const char *email,
 }
 
 sentry_value_t
-sentry_value_new_attribute_n(const char *type, size_t type_len,
+sentry_value_new_attribute_n(
     sentry_value_t value, const char *unit, size_t unit_len)
 {
-    // Check if type is valid
-    if (!type || type_len == 0) {
-        sentry_value_decref(value);
-        return sentry_value_new_null();
-    }
-
-    // Check if type is one of the allowed values
-    if (!((type_len == 6 && strncmp(type, "string", 6) == 0)
-            || (type_len == 7 && strncmp(type, "integer", 7) == 0)
-            || (type_len == 6 && strncmp(type, "double", 6) == 0)
-            || (type_len == 7 && strncmp(type, "boolean", 7) == 0))) {
-        SENTRY_DEBUG("attribute type has to be `string`, `integer`, `double` "
-                     "or `boolean`");
-        sentry_value_decref(value);
-        return sentry_value_new_null();
-    }
-
     sentry_value_t attribute = sentry_value_new_object();
+    char *type;
+    switch (sentry_value_get_type(value)) {
+    case SENTRY_VALUE_TYPE_BOOL:
+        type = "boolean";
+        break;
+    case SENTRY_VALUE_TYPE_INT32:
+    case SENTRY_VALUE_TYPE_INT64:
+    case SENTRY_VALUE_TYPE_UINT64:
+        type = "integer";
+        break;
+    case SENTRY_VALUE_TYPE_DOUBLE:
+        type = "double";
+        break;
+    case SENTRY_VALUE_TYPE_STRING:
+        type = "string";
+        break;
+    case SENTRY_VALUE_TYPE_NULL:
+    case SENTRY_VALUE_TYPE_LIST:
+    case SENTRY_VALUE_TYPE_OBJECT:
+    default:
+        sentry_value_decref(value);
+        return sentry_value_new_null();
+    }
     sentry_value_set_by_key(
-        attribute, "type", sentry_value_new_string_n(type, type_len));
+        attribute, "type", sentry_value_new_string_n(type, strlen(type)));
     sentry_value_set_by_key(attribute, "value", value);
-    // TODO should we validate whether the "value" matches the given "type"?
     if (unit && unit_len) {
         sentry_value_set_by_key(
             attribute, "unit", sentry_value_new_string_n(unit, unit_len));
@@ -543,15 +548,9 @@ sentry_value_new_attribute_n(const char *type, size_t type_len,
 }
 
 sentry_value_t
-sentry_value_new_attribute(
-    const char *type, sentry_value_t value, const char *unit)
+sentry_value_new_attribute(sentry_value_t value, const char *unit)
 {
-    if (!type) {
-        sentry_value_decref(value);
-        return sentry_value_new_null();
-    }
-    return sentry_value_new_attribute_n(
-        type, strlen(type), value, unit, unit ? strlen(unit) : 0);
+    return sentry_value_new_attribute_n(value, unit, unit ? strlen(unit) : 0);
 }
 
 sentry_value_type_t

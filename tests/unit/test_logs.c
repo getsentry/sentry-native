@@ -308,7 +308,7 @@ SENTRY_TEST(logs_custom_attributes_with_format_strings)
     // Test 1: Custom attributes with format string
     sentry_value_t attributes1 = sentry_value_new_object();
     sentry_value_t attr1 = sentry_value_new_attribute(
-        "string", sentry_value_new_string("custom_value"), NULL);
+        sentry_value_new_string("custom_value"), NULL);
     sentry_value_set_by_key(attributes1, "my.custom.attribute", attr1);
     TEST_CHECK_INT_EQUAL(sentry_log_info("User %s logged in with code %d",
                              attributes1, "Alice", 200),
@@ -321,16 +321,16 @@ SENTRY_TEST(logs_custom_attributes_with_format_strings)
 
     // Test 3: Custom attributes with no format parameters
     sentry_value_t attributes2 = sentry_value_new_object();
-    sentry_value_t attr2 = sentry_value_new_attribute(
-        "integer", sentry_value_new_int32(42), NULL);
+    sentry_value_t attr2
+        = sentry_value_new_attribute(sentry_value_new_int32(42), NULL);
     sentry_value_set_by_key(attributes2, "special.number", attr2);
     TEST_CHECK_INT_EQUAL(
         sentry_log_error("Simple message with custom attrs", attributes2), 0);
 
     // Test 4: Custom attributes with multiple format types
     sentry_value_t attributes3 = sentry_value_new_object();
-    sentry_value_t attr3 = sentry_value_new_attribute(
-        "string", sentry_value_new_string("tracking"), NULL);
+    sentry_value_t attr3
+        = sentry_value_new_attribute(sentry_value_new_string("tracking"), NULL);
     sentry_value_set_by_key(attributes3, "event.type", attr3);
     TEST_CHECK_INT_EQUAL(
         sentry_log_debug("Processing item %d of %d (%.1f%% complete)",
