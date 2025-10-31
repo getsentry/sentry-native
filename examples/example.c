@@ -163,11 +163,8 @@ static sentry_value_t
 before_send_log_callback(sentry_value_t log, void *user_data)
 {
     (void)user_data;
-    sentry_value_t attribute = sentry_value_new_object();
-    sentry_value_set_by_key(
-        attribute, "value", sentry_value_new_string("little"));
-    sentry_value_set_by_key(
-        attribute, "type", sentry_value_new_string("string"));
+    sentry_value_t attribute
+        = sentry_value_new_attribute(sentry_value_new_string("little"), NULL);
     sentry_value_set_by_key(sentry_value_get_by_key(log, "attributes"),
         "coffeepot.size", attribute);
     return log;
@@ -503,9 +500,44 @@ main(int argc, char **argv)
             options, "./sentry_crash_reporter");
 #endif
     }
+    if (has_arg(argc, argv, "log-attributes")) {
+        sentry_options_set_logs_with_attributes(options, true);
+    }
 
     if (0 != sentry_init(options)) {
         return EXIT_FAILURE;
+    }
+
+    if (has_arg(argc, argv, "log-attributes")) {
+        sentry_value_t attributes = sentry_value_new_object();
+        sentry_value_t attr = sentry_value_new_attribute(
+            sentry_value_new_string("my_attribute"), NULL);
+        sentry_value_t attr_2 = sentry_value_new_attribute(
+            sentry_value_new_int64(INT64_MAX), "fermions");
+        sentry_value_t attr_3 = sentry_value_new_attribute(
+            sentry_value_new_int64(INT64_MIN), "bosons");
+        sentry_value_set_by_key(attributes, "my.custom.attribute", attr);
+        sentry_value_set_by_key(attributes, "number.first", attr_2);
+        sentry_value_set_by_key(attributes, "number.second", attr_3);
+        sentry_log_debug("logging with %d custom attributes", attributes, 3);
+        sentry_log_debug("logging with %s custom attributes",
+            sentry_value_new_object(), "no");
+        // TODO add test that shows we still keep default attributes if
+        //  passed-in value is accidentally not an object
+        sentry_log_warn("logging with %s custom attributes",
+            sentry_value_new_null(), "new_null as");
+        sentry_value_t param_attributes = sentry_value_new_object();
+        sentry_value_t param_attr = sentry_value_new_attribute(
+            sentry_value_new_string("parameter"), NULL);
+        sentry_value_set_by_key(
+            param_attributes, "message.parameter.0", param_attr);
+        sentry_log_fatal(
+            "logging with a custom parameter attributes", param_attributes);
+        sentry_value_t param_attributes_2 = sentry_value_new_object();
+        sentry_value_t param_attr_2 = sentry_value_new_attribute(
+            sentry_value_new_string("parameter"), NULL);
+        sentry_log_fatal("logging with a custom parameter %s attributes",
+            param_attributes, "and format-string");
     }
 
     if (has_arg(argc, argv, "attachment")) {
@@ -571,10 +603,8 @@ main(int argc, char **argv)
             context, "name", sentry_value_new_string("testing-runtime"));
         sentry_set_context("runtime", context);
 
-        sentry_value_t user = sentry_value_new_object();
-        sentry_value_set_by_key(user, "id", sentry_value_new_string("42"));
-        sentry_value_set_by_key(
-            user, "username", sentry_value_new_string("some_name"));
+        sentry_value_t user
+            = sentry_value_new_user("42", "some_name", NULL, NULL);
         sentry_set_user(user);
 
         sentry_value_t default_crumb

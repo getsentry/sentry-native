@@ -509,6 +509,51 @@ sentry_value_new_user(const char *id, const char *username, const char *email,
         ip_address, ip_address ? strlen(ip_address) : 0);
 }
 
+sentry_value_t
+sentry_value_new_attribute_n(
+    sentry_value_t value, const char *unit, size_t unit_len)
+{
+    char *type;
+    switch (sentry_value_get_type(value)) {
+    case SENTRY_VALUE_TYPE_BOOL:
+        type = "boolean";
+        break;
+    case SENTRY_VALUE_TYPE_INT32:
+    case SENTRY_VALUE_TYPE_INT64:
+    case SENTRY_VALUE_TYPE_UINT64:
+        type = "integer";
+        break;
+    case SENTRY_VALUE_TYPE_DOUBLE:
+        type = "double";
+        break;
+    case SENTRY_VALUE_TYPE_STRING:
+        type = "string";
+        break;
+    case SENTRY_VALUE_TYPE_NULL:
+    case SENTRY_VALUE_TYPE_LIST:
+    case SENTRY_VALUE_TYPE_OBJECT:
+    default:
+        sentry_value_decref(value);
+        return sentry_value_new_null();
+    }
+    sentry_value_t attribute = sentry_value_new_object();
+
+    sentry_value_set_by_key(
+        attribute, "type", sentry_value_new_string_n(type, strlen(type)));
+    sentry_value_set_by_key(attribute, "value", value);
+    if (unit && unit_len) {
+        sentry_value_set_by_key(
+            attribute, "unit", sentry_value_new_string_n(unit, unit_len));
+    }
+    return attribute;
+}
+
+sentry_value_t
+sentry_value_new_attribute(sentry_value_t value, const char *unit)
+{
+    return sentry_value_new_attribute_n(value, unit, unit ? strlen(unit) : 0);
+}
+
 sentry_value_type_t
 sentry_value_get_type(sentry_value_t value)
 {

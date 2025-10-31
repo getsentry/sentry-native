@@ -325,6 +325,20 @@ SENTRY_API sentry_value_t sentry_value_new_user_n(const char *id, size_t id_len,
     size_t email_len, const char *ip_address, size_t ip_address_len);
 
 /**
+ * Creates a new attribute object.
+ *  value` is required, `unit` is optional.
+ *
+ *'value' must be a bool, int, double or string (not null, list, object)
+ *
+ * Moves ownership of `value` into the object. The caller does not
+ * have to call `sentry_value_decref` on it.
+ */
+SENTRY_API sentry_value_t sentry_value_new_attribute(
+    sentry_value_t value, const char *unit);
+SENTRY_API sentry_value_t sentry_value_new_attribute_n(
+    sentry_value_t value, const char *unit, size_t unit_len);
+
+/**
  * Returns the type of the value passed.
  */
 SENTRY_API sentry_value_type_t sentry_value_get_type(sentry_value_t value);
@@ -1999,6 +2013,10 @@ SENTRY_EXPERIMENTAL_API void sentry_options_set_enable_logs(
 SENTRY_EXPERIMENTAL_API int sentry_options_get_enable_logs(
     const sentry_options_t *opts);
 
+SENTRY_EXPERIMENTAL_API void sentry_options_set_logs_with_attributes(
+    sentry_options_t *opts, int logs_with_attributes);
+SENTRY_EXPERIMENTAL_API int sentry_options_get_logs_with_attributes(
+    const sentry_options_t *opts);
 /**
  * The potential returns of calling any of the sentry_log_X functions
  * - Success means a log was enqueued
