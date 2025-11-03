@@ -553,6 +553,7 @@ add_attribute(sentry_value_t attributes, sentry_value_t value, const char *type,
     const char *name)
 {
     if (!sentry_value_is_null(sentry_value_get_by_key(attributes, name))) {
+        sentry_value_decref(value);
         return;
     }
     sentry_value_t param_obj = sentry_value_new_object();
