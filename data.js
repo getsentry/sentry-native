@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1762166277586,
+  "lastUpdate": 1762166280458,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -21544,6 +21544,66 @@ window.BENCHMARK_DATA = {
             "value": 15.152700000044206,
             "unit": "ms",
             "extra": "Min 14.622ms\nMax 15.925ms\nMean 15.307ms\nStdDev 0.551ms\nMedian 15.153ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "6349682+vaind@users.noreply.github.com",
+            "name": "Ivan Dlugos",
+            "username": "vaind"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "39021484489e6a48cae307524231492a4c366079",
+          "message": "fix(tests): skip basic_transport_thread_name test on NX platform (#1439)\n\nThe basic_transport_thread_name test fails on NX (Nintendo Switch)\nbecause the transport won't start without a custom network_connect_func.\n\nThis change adds a platform check to skip the test on NX, preventing\nfalse test failures on that platform.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-authored-by: Claude <noreply@anthropic.com>",
+          "timestamp": "2025-11-03T11:33:35+01:00",
+          "tree_id": "7f5691dbb8f4de75930013d26913d98fd5543dea",
+          "url": "https://github.com/getsentry/sentry-native/commit/39021484489e6a48cae307524231492a4c366079"
+        },
+        "date": 1762166270690,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 10.005900000010115,
+            "unit": "ms",
+            "extra": "Min 9.398ms\nMax 10.973ms\nMean 10.098ms\nStdDev 0.640ms\nMedian 10.006ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 10.618700000009085,
+            "unit": "ms",
+            "extra": "Min 9.822ms\nMax 22.457ms\nMean 13.032ms\nStdDev 5.336ms\nMedian 10.619ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 28.20109999993292,
+            "unit": "ms",
+            "extra": "Min 24.862ms\nMax 46.915ms\nMean 30.890ms\nStdDev 9.082ms\nMedian 28.201ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.02250000000003638,
+            "unit": "ms",
+            "extra": "Min 0.021ms\nMax 0.027ms\nMean 0.023ms\nStdDev 0.002ms\nMedian 0.023ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.4356999999117761,
+            "unit": "ms",
+            "extra": "Min 0.421ms\nMax 0.444ms\nMean 0.434ms\nStdDev 0.010ms\nMedian 0.436ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 14.401399999997011,
+            "unit": "ms",
+            "extra": "Min 14.141ms\nMax 26.304ms\nMean 18.127ms\nStdDev 5.523ms\nMedian 14.401ms"
           }
         ]
       }
