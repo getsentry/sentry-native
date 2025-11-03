@@ -515,11 +515,11 @@ SENTRY_TEST(value_attribute)
     TEST_CHECK(sentry_value_is_null(null_type_attr));
     sentry_value_decref(null_type_attr);
 
-    // Test NULL type
+    // Test object type
     sentry_value_t object_type_attr
         = sentry_value_new_attribute(sentry_value_new_object(), NULL);
-    TEST_CHECK(sentry_value_is_null(null_type_attr));
-    sentry_value_decref(null_type_attr);
+    TEST_CHECK(sentry_value_is_null(object_type_attr));
+    sentry_value_decref(object_type_attr);
 
     // Test _n version with explicit lengths
     sentry_value_t string_attr_n = sentry_value_new_attribute_n(
