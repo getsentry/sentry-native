@@ -504,6 +504,8 @@ main(int argc, char **argv)
         sentry_options_set_logs_with_attributes(options, true);
     }
 
+    // sentry_options_set_sdk_name(options, "strange-sdk-name");
+
     if (0 != sentry_init(options)) {
         return EXIT_FAILURE;
     }
@@ -519,28 +521,27 @@ main(int argc, char **argv)
         sentry_value_set_by_key(attributes, "my.custom.attribute", attr);
         sentry_value_set_by_key(attributes, "number.first", attr_2);
         sentry_value_set_by_key(attributes, "number.second", attr_3);
+        // testing multiple attributes
         sentry_log_debug("logging with %d custom attributes", attributes, 3);
+        // testing no attributes
         sentry_log_debug("logging with %s custom attributes",
             sentry_value_new_object(), "no");
-        // TODO add test that shows we still keep default attributes if
-        //  passed-in value is accidentally not an object
-        //  + (not) overwriting default attributes
-        sentry_log_warn("logging with %s custom attributes",
-            sentry_value_new_null(), "new_null as");
+        // testing overwriting default attributes
         sentry_value_t param_attributes = sentry_value_new_object();
         sentry_value_t param_attr = sentry_value_new_attribute(
             sentry_value_new_string("parameter"), NULL);
+        sentry_value_t param_attr_2 = sentry_value_new_attribute(
+            sentry_value_new_string("custom-sdk-name"), NULL);
+        // TODO only sentry.message.parameter.X gets picked up by product
+        //  this will be in the envelope but not searchable!
         sentry_value_set_by_key(
             param_attributes, "message.parameter.0", param_attr);
-        // incref because we want to use it twice
-        sentry_value_incref(param_attributes);
-        sentry_value_incref(param_attributes);
-        sentry_log_fatal(
-            "logging with a custom parameter attributes", param_attributes);
+        sentry_value_set_by_key(
+            param_attributes, "sentry.sdk.name", param_attr_2);
+        // TODO discuss; param_attributes[message.parameter.0] gets overwritten
+        //  by 'and format string'. Is this expected?
         sentry_log_fatal("logging with a custom parameter %s attributes",
             param_attributes, "and format-string");
-        sentry_log_warn("logging once again with a custom parameter attribute",
-            param_attributes);
     }
 
     if (has_arg(argc, argv, "attachment")) {

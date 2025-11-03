@@ -546,15 +546,14 @@ static
  * This function assumes that `value` is owned, so we have to make sure that the
  * `value` was created or cloned by the caller or even better inc_refed.
  *
- * Replaces attributes[name] if it already exists.
+ * No-op if 'name' already exists in the attributes.
  */
 static void
 add_attribute(sentry_value_t attributes, sentry_value_t value, const char *type,
     const char *name)
 {
     if (!sentry_value_is_null(sentry_value_get_by_key(attributes, name))) {
-        // already exists, so we remove and create a new one
-        sentry_value_remove_by_key(attributes, name);
+        return;
     }
     sentry_value_t param_obj = sentry_value_new_object();
     sentry_value_set_by_key(param_obj, "value", value);
@@ -647,10 +646,6 @@ add_scope_and_options_data(sentry_value_t log, sentry_value_t attributes)
             }
         }
     }
-
-    // fallback in case options doesn't set it
-    add_attribute(attributes, sentry_value_new_string(SENTRY_SDK_NAME),
-        "string", "sentry.sdk.name");
 
     SENTRY_WITH_OPTIONS (options) {
         if (options->environment) {
