@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Fixes**:
+
+- PS5/Switch compilation regression (`sentry__process_spawn` signature change) ([#1436](https://github.com/getsentry/sentry-native/pull/1436))
+
 ## 0.12.0
 
 **Breaking changes**:
