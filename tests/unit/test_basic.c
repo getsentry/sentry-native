@@ -305,6 +305,11 @@ SENTRY_TEST(capture_minidump_invalid_path)
 
 SENTRY_TEST(basic_transport_thread_name)
 {
+#if defined(SENTRY_PLATFORM_NX)
+    // NX transport won't start without custom network_connect_func.
+    SKIP_TEST();
+#endif
+
     const char *expected_thread_name = "sentry::worker_thread";
 
     SENTRY_TEST_OPTIONS_NEW(options);
