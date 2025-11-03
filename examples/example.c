@@ -530,16 +530,12 @@ main(int argc, char **argv)
             sentry_value_new_string("parameter"), NULL);
         sentry_value_t param_attr_2 = sentry_value_new_attribute(
             sentry_value_new_string("custom-sdk-name"), NULL);
-        // TODO only sentry.message.parameter.X gets picked up by product
-        //  this will be in the envelope but not searchable!
         sentry_value_set_by_key(
             param_attributes, "sentry.message.parameter.0", param_attr);
         sentry_value_set_by_key(
             param_attributes, "sentry.sdk.name", param_attr_2);
-        // TODO discuss; param_attributes[message.parameter.0] gets
-        //  overwritten by 'and format string'. Is this expected?
-        sentry_log_fatal("logging with a custom parameter %s attributes",
-            param_attributes, "and format-string");
+        sentry_log_fatal(
+            "logging with a custom parameter attribute", param_attributes);
     }
 
     if (has_arg(argc, argv, "attachment")) {

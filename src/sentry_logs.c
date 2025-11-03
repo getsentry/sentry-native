@@ -683,7 +683,6 @@ construct_log(sentry_level_t level, const char *message, va_list args)
             va_end(args_copy);
             if (sentry_value_get_type(custom_attributes)
                 == SENTRY_VALUE_TYPE_OBJECT) {
-                // TODO do we want to inspect that the object is attribute-like?
                 sentry_value_decref(attributes);
                 attributes = sentry__value_clone(custom_attributes);
             } else {

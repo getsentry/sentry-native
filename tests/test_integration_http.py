@@ -1722,25 +1722,15 @@ def test_logs_with_custom_attributes(cmake, httpserver):
 
     # Test 3: Log with custom attributes that override defaults
     log_entry_2 = payload["items"][2]
-    assert (
-        log_entry_2["body"]
-        == "logging with a custom parameter and format-string attributes"
-    )
+    assert log_entry_2["body"] == "logging with a custom parameter attribute"
     attributes_2 = log_entry_2["attributes"]
 
     # Check custom attribute exists
-    # TODO this 'exists' but in sentry is not searchable!
-    assert "message.parameter.0" in attributes_2
-    assert attributes_2["message.parameter.0"]["value"] == "parameter"
-    assert attributes_2["message.parameter.0"]["type"] == "string"
+    assert "sentry.message.parameter.0" in attributes_2
+    assert attributes_2["sentry.message.parameter.0"]["value"] == "parameter"
+    assert attributes_2["sentry.message.parameter.0"]["type"] == "string"
 
     # Check that sentry.sdk.name was overwritten by custom attribute
     assert "sentry.sdk.name" in attributes_2
     assert attributes_2["sentry.sdk.name"]["value"] == "custom-sdk-name"
     assert attributes_2["sentry.sdk.name"]["type"] == "string"
-
-    # Check that format string parameter was parsed
-    # TODO this has overwritten "parameter" as the value (see above)
-    assert "sentry.message.parameter.0" in attributes_2
-    assert attributes_2["sentry.message.parameter.0"]["value"] == "and format-string"
-    assert attributes_2["sentry.message.parameter.0"]["type"] == "string"
