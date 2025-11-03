@@ -2068,7 +2068,7 @@ typedef enum {
  * When the option `logs_with_attributes` is enabled, the first varg is parsed
  * as a `sentry_value_t` object containing the initial attributes for the log.
  * You can pass `sentry_value_new_null()` to logs which don't need attributes.
- * TODO Default log attributes will (currently) overwrite passed-in attributes.
+ *
  * Ownership of the attributes is transferred to the log function.
  *
  * To re-use the same attributes, call `sentry_value_incref` on it

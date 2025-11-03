@@ -504,8 +504,6 @@ main(int argc, char **argv)
         sentry_options_set_logs_with_attributes(options, true);
     }
 
-    // sentry_options_set_sdk_name(options, "strange-sdk-name");
-
     if (0 != sentry_init(options)) {
         return EXIT_FAILURE;
     }
@@ -535,11 +533,11 @@ main(int argc, char **argv)
         // TODO only sentry.message.parameter.X gets picked up by product
         //  this will be in the envelope but not searchable!
         sentry_value_set_by_key(
-            param_attributes, "message.parameter.0", param_attr);
+            param_attributes, "sentry.message.parameter.0", param_attr);
         sentry_value_set_by_key(
             param_attributes, "sentry.sdk.name", param_attr_2);
-        // TODO discuss; param_attributes[message.parameter.0] gets overwritten
-        //  by 'and format string'. Is this expected?
+        // TODO discuss; param_attributes[message.parameter.0] gets
+        //  overwritten by 'and format string'. Is this expected?
         sentry_log_fatal("logging with a custom parameter %s attributes",
             param_attributes, "and format-string");
     }
