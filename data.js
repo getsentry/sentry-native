@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1762166334139,
+  "lastUpdate": 1762166344150,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -14542,6 +14542,66 @@ window.BENCHMARK_DATA = {
             "value": 26.871500000027027,
             "unit": "ms",
             "extra": "Min 16.598ms\nMax 36.801ms\nMean 27.154ms\nStdDev 7.971ms\nMedian 26.872ms\nCPU 2.456ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "6349682+vaind@users.noreply.github.com",
+            "name": "Ivan Dlugos",
+            "username": "vaind"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "d8f3c78af98a547d980bd9b1a1b2ee5a78fb1d0b",
+          "message": "fix: correct sentry__process_spawn signature in none implementation (#1436)\n\n* fix: correct sentry__process_spawn signature in none implementation\n\nPR #1413 changed the arg0 parameter from sentry_pathchar_t* to char*\nas part of making narrow UTF-8 the canonical path encoding, but the\nsignature in sentry_process_none.c was not updated.\n\nThis fixes the function signature to match the declaration, changing\narg0 from `const sentry_pathchar_t *` to `const char *`.\n\nFixes regression from #1413\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\n\n* Update CHANGELOG with unreleased fixes\n\nAdded unreleased section with fixes for PS5/Switch compilation regression.\n\n---------\n\nCo-authored-by: Claude <noreply@anthropic.com>",
+          "timestamp": "2025-11-03T11:33:55+01:00",
+          "tree_id": "0d779069eefe916fbb388ddc71ae94a1e9eb0e10",
+          "url": "https://github.com/getsentry/sentry-native/commit/d8f3c78af98a547d980bd9b1a1b2ee5a78fb1d0b"
+        },
+        "date": 1762166341984,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 8.459041999913097,
+            "unit": "ms",
+            "extra": "Min 5.381ms\nMax 14.181ms\nMean 9.059ms\nStdDev 3.281ms\nMedian 8.459ms\nCPU 4.261ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 3.668916999913563,
+            "unit": "ms",
+            "extra": "Min 3.371ms\nMax 5.245ms\nMean 3.895ms\nStdDev 0.777ms\nMedian 3.669ms\nCPU 2.347ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 12.616917000059402,
+            "unit": "ms",
+            "extra": "Min 10.658ms\nMax 17.527ms\nMean 13.179ms\nStdDev 2.624ms\nMedian 12.617ms\nCPU 4.511ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.027166999984729046,
+            "unit": "ms",
+            "extra": "Min 0.009ms\nMax 0.057ms\nMean 0.030ms\nStdDev 0.021ms\nMedian 0.027ms\nCPU 0.029ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.26770900001338305,
+            "unit": "ms",
+            "extra": "Min 0.234ms\nMax 0.298ms\nMean 0.266ms\nStdDev 0.023ms\nMedian 0.268ms\nCPU 0.266ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 6.846125000038228,
+            "unit": "ms",
+            "extra": "Min 5.981ms\nMax 9.771ms\nMean 7.416ms\nStdDev 1.442ms\nMedian 6.846ms\nCPU 0.897ms"
           }
         ]
       }
