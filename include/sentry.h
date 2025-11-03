@@ -2006,17 +2006,27 @@ SENTRY_EXPERIMENTAL_API int sentry_options_get_propagate_traceparent(
 
 /**
  * Enables or disables the structured logging feature.
- * When disabled, all calls to sentry_logger_X() are no-ops.
+ * When disabled, all calls to `sentry_log_X()` are no-ops.
  */
 SENTRY_EXPERIMENTAL_API void sentry_options_set_enable_logs(
     sentry_options_t *opts, int enable_logs);
 SENTRY_EXPERIMENTAL_API int sentry_options_get_enable_logs(
     const sentry_options_t *opts);
 
+/**
+ * Enables or disables custom attributes parsing for structured logging.
+ *
+ * When enabled, all `sentry_log_X()` functions expect a `sentry_value_t` object
+ * as the first variadic argument for custom log attributes. Remaining
+ * arguments are used for format string substitution.
+ *
+ * Disabled by default.
+ */
 SENTRY_EXPERIMENTAL_API void sentry_options_set_logs_with_attributes(
     sentry_options_t *opts, int logs_with_attributes);
 SENTRY_EXPERIMENTAL_API int sentry_options_get_logs_with_attributes(
     const sentry_options_t *opts);
+
 /**
  * The potential returns of calling any of the sentry_log_X functions
  * - Success means a log was enqueued
@@ -2054,6 +2064,15 @@ typedef enum {
  *
  * Flags, width, and precision specifiers are parsed but currently ignored for
  * parameter extraction purposes.
+ *
+ * When the option `logs_with_attributes` is enabled, the first varg is parsed
+ * as a `sentry_value_t` object containing the initial attributes for the log.
+ * You can pass `sentry_value_new_null()` to logs which don't need attributes.
+ * TODO Default log attributes will (currently) overwrite passed-in attributes.
+ * Ownership of the attributes is transferred to the log function.
+ *
+ * To re-use the same attributes, call `sentry_value_incref` on it
+ * before passing the attributes to the log function.
  */
 SENTRY_EXPERIMENTAL_API log_return_value_t sentry_log_trace(
     const char *message, ...);

@@ -524,6 +524,7 @@ main(int argc, char **argv)
             sentry_value_new_object(), "no");
         // TODO add test that shows we still keep default attributes if
         //  passed-in value is accidentally not an object
+        //  + (not) overwriting default attributes
         sentry_log_warn("logging with %s custom attributes",
             sentry_value_new_null(), "new_null as");
         sentry_value_t param_attributes = sentry_value_new_object();
@@ -531,13 +532,15 @@ main(int argc, char **argv)
             sentry_value_new_string("parameter"), NULL);
         sentry_value_set_by_key(
             param_attributes, "message.parameter.0", param_attr);
+        // incref because we want to use it twice
+        sentry_value_incref(param_attributes);
+        sentry_value_incref(param_attributes);
         sentry_log_fatal(
             "logging with a custom parameter attributes", param_attributes);
-        sentry_value_t param_attributes_2 = sentry_value_new_object();
-        sentry_value_t param_attr_2 = sentry_value_new_attribute(
-            sentry_value_new_string("parameter"), NULL);
         sentry_log_fatal("logging with a custom parameter %s attributes",
             param_attributes, "and format-string");
+        sentry_log_warn("logging once again with a custom parameter attribute",
+            param_attributes);
     }
 
     if (has_arg(argc, argv, "attachment")) {
