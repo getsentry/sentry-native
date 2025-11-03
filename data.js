@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1762166219864,
+  "lastUpdate": 1762166277586,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -7240,6 +7240,66 @@ window.BENCHMARK_DATA = {
             "value": 1.8044539999664266,
             "unit": "ms",
             "extra": "Min 1.762ms\nMax 1.835ms\nMean 1.800ms\nStdDev 0.031ms\nMedian 1.804ms\nCPU 0.577ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "6349682+vaind@users.noreply.github.com",
+            "name": "Ivan Dlugos",
+            "username": "vaind"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "7e96a5e1573228949f3c2821ef140b3f02a41357",
+          "message": "fix(tests): add SENTRY_TEST_PATH_PREFIX to crash_marker test database path (#1437)\n\nThe crash_marker test creates a database directory but was not using\nSENTRY_TEST_PATH_PREFIX like other tests. This could cause the test\nto write to an unexpected location on some platforms.\n\nThis change ensures the database path is properly prefixed with the\ntest path prefix, making it consistent with other tests in the suite.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-authored-by: Claude <noreply@anthropic.com>",
+          "timestamp": "2025-11-03T11:34:07+01:00",
+          "tree_id": "58db597e12719faf7c5b1f458d856c997c836ab5",
+          "url": "https://github.com/getsentry/sentry-native/commit/7e96a5e1573228949f3c2821ef140b3f02a41357"
+        },
+        "date": 1762166276062,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 0.7275250000020606,
+            "unit": "ms",
+            "extra": "Min 0.706ms\nMax 0.735ms\nMean 0.724ms\nStdDev 0.011ms\nMedian 0.728ms\nCPU 0.724ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.7427329999813992,
+            "unit": "ms",
+            "extra": "Min 0.704ms\nMax 0.777ms\nMean 0.744ms\nStdDev 0.027ms\nMedian 0.743ms\nCPU 0.743ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 2.882544999977199,
+            "unit": "ms",
+            "extra": "Min 2.815ms\nMax 2.936ms\nMean 2.879ms\nStdDev 0.044ms\nMedian 2.883ms\nCPU 1.515ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.012193000003435372,
+            "unit": "ms",
+            "extra": "Min 0.012ms\nMax 0.012ms\nMean 0.012ms\nStdDev 0.000ms\nMedian 0.012ms\nCPU 0.011ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.026299000012386387,
+            "unit": "ms",
+            "extra": "Min 0.025ms\nMax 0.027ms\nMean 0.026ms\nStdDev 0.001ms\nMedian 0.026ms\nCPU 0.026ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 1.761923999993087,
+            "unit": "ms",
+            "extra": "Min 1.737ms\nMax 1.800ms\nMean 1.766ms\nStdDev 0.024ms\nMedian 1.762ms\nCPU 0.548ms"
           }
         ]
       }
