@@ -155,7 +155,8 @@ SENTRY_TEST(discarding_before_send)
 SENTRY_TEST(crash_marker)
 {
     // We don't use sentry_init() in this test so we must create a database dir
-    sentry_path_t *database_path = sentry__path_from_str(".sentry-native");
+    sentry_path_t *database_path
+        = sentry__path_from_str(SENTRY_TEST_PATH_PREFIX ".sentry-native");
     TEST_ASSERT(!!database_path);
     TEST_ASSERT(!sentry__path_create_dir_all(database_path));
 
