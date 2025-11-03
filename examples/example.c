@@ -508,6 +508,8 @@ main(int argc, char **argv)
         return EXIT_FAILURE;
     }
 
+    sentry_get_crashed_last_run();
+
     if (has_arg(argc, argv, "log-attributes")) {
         sentry_value_t attributes = sentry_value_new_object();
         sentry_value_t attr = sentry_value_new_attribute(
@@ -520,7 +522,8 @@ main(int argc, char **argv)
         sentry_value_set_by_key(attributes, "number.first", attr_2);
         sentry_value_set_by_key(attributes, "number.second", attr_3);
         // testing multiple attributes
-        sentry_log_debug("logging with %d custom attributes", attributes, 3);
+        sentry_log_debug(
+            "logging with %d custom attributes", attributes, (int64_t)3);
         // testing no attributes
         sentry_log_debug("logging with %s custom attributes",
             sentry_value_new_object(), "no");
