@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- Add runtime API to query user consent requirement ([#1443](https://github.com/getsentry/sentry-native/pull/1443))
+
 ## 0.12.1
 
 **Fixes**:
