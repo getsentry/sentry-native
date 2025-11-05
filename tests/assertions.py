@@ -170,6 +170,16 @@ def assert_event_meta(
         )
 
 
+def is_valid_hex(s):
+    if not s.lower().startswith("0x"):
+        return False
+    try:
+        int(s, 0)
+        return True
+    except ValueError:
+        return False
+
+
 def assert_stacktrace(
     envelope, inside_exception=False, check_size=True, check_package=False
 ):
@@ -181,7 +191,7 @@ def assert_stacktrace(
 
     if check_size:
         assert len(frames) > 0
-        assert all(frame["instruction_addr"].startswith("0x") for frame in frames)
+        assert all(is_valid_hex(frame["instruction_addr"]) for frame in frames)
         assert any(
             frame.get("function") is not None and frame.get("package") is not None
             for frame in frames
