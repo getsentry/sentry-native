@@ -1020,7 +1020,8 @@ process_ucontext(const sentry_ucontext_t *uctx)
         static const char msg[] = "[sentry] FATAL crash in handler thread, "
                                   "falling back to previous handler\n";
 #ifdef SENTRY_PLATFORM_UNIX
-        (void)write(STDERR_FILENO, msg, sizeof(msg) - 1);
+        const ssize_t rv = write(STDERR_FILENO, msg, sizeof(msg) - 1);
+        (void)rv;
 #else
         OutputDebugStringA(msg);
         HANDLE stderr_handle = GetStdHandle(STD_ERROR_HANDLE);
