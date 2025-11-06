@@ -518,7 +518,8 @@ fatal_signal_lock_violation(void)
 {
     static const char msg[]
         = "[sentry] FATAL attempted to acquire mutex inside signal handler\n";
-    (void)write(STDERR_FILENO, msg, sizeof(msg) - 1);
+    const ssize_t rv = write(STDERR_FILENO, msg, sizeof(msg) - 1);
+    (void)rv;
     _exit(1);
 }
 #    endif
