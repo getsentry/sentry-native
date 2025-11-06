@@ -144,15 +144,6 @@ if(LINUX)
 		set(CMAKE_ASM_FLAGS  "${CMAKE_ASM_FLAGS} -m32 -D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE")
 		set_property(GLOBAL PROPERTY FIND_LIBRARY_USE_LIB64_PATHS OFF)
 	endif()
-
-        execute_process(
-                COMMAND ${CMAKE_C_COMPILER} -dumpmachine
-                OUTPUT_VARIABLE TARGET_TRIPLET
-                OUTPUT_STRIP_TRAILING_WHITESPACE
-        )
-        if(TARGET_TRIPLET MATCHES "musl")
-                set(MUSL TRUE)
-        endif()
 endif()
 
 # CMAKE_POSITION_INDEPENDENT_CODE must be set BEFORE adding any libraries (including subprojects)
@@ -266,9 +257,12 @@ endif()
 
 if(ANDROID)
 	set(SENTRY_WITH_LIBUNWINDSTACK TRUE)
-elseif(MUSL)
+elseif(LINUX)
 	set(SENTRY_WITH_LIBUNWIND TRUE)
+elseif(APPLE)
+	set(SENTRY_WITH_LIBUNWIND_MAC TRUE)
 elseif(NOT WIN32 AND NOT PROSPERO)
+	# this should never be true, but we keep it as fallback
 	set(SENTRY_WITH_LIBBACKTRACE TRUE)
 endif()
 

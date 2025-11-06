@@ -505,34 +505,117 @@ sentry__bgworker_get_thread_name(sentry_bgworker_t *bgw)
 
 #if defined(SENTRY_PLATFORM_UNIX) || defined(SENTRY_PLATFORM_NX)
 #    include "sentry_cpu_relax.h"
+#    include <unistd.h>
 
-static sig_atomic_t g_in_signal_handler = 0;
+static sig_atomic_t g_in_signal_handler __attribute__((aligned(64))) = 0;
 static sentry_threadid_t g_signal_handling_thread = { 0 };
+
+#    ifdef SENTRY_BACKEND_INPROC
+static sig_atomic_t g_signal_handler_can_lock __attribute__((aligned(64))) = 0;
+
+static void
+fatal_signal_lock_violation(void)
+{
+    static const char msg[]
+        = "[sentry] FATAL attempted to acquire mutex inside signal handler\n";
+    (void)write(STDERR_FILENO, msg, sizeof(msg) - 1);
+    _exit(1);
+}
+#    endif
 
 bool
 sentry__block_for_signal_handler(void)
 {
-    while (__sync_fetch_and_add(&g_in_signal_handler, 0)) {
-        if (sentry__threadid_equal(
-                sentry__current_thread(), g_signal_handling_thread)) {
-            return false;
+    for (;;) {
+        // if there is no signal handler active, we don't need to block
+        if (!__atomic_load_n(&g_in_signal_handler, __ATOMIC_RELAXED)) {
+            return true;
         }
+
+        sentry_threadid_t current = sentry__current_thread();
+        sentry_threadid_t handling
+            = __atomic_load_n(&g_signal_handling_thread, __ATOMIC_ACQUIRE);
+
+        if (sentry__threadid_equal(current, handling)) {
+#    ifdef SENTRY_BACKEND_INPROC
+            if (!__atomic_load_n(
+                    &g_signal_handler_can_lock, __ATOMIC_ACQUIRE)) {
+                fatal_signal_lock_violation();
+            }
+#    endif
+            return true;
+        }
+
+        // otherwise, spin
         sentry__cpu_relax();
     }
-    return true;
+}
+
+static bool
+is_handling_thread(void)
+{
+    sentry_threadid_t handling
+        = __atomic_load_n(&g_signal_handling_thread, __ATOMIC_ACQUIRE);
+    return sentry__threadid_equal(handling, sentry__current_thread());
 }
 
 void
 sentry__enter_signal_handler(void)
 {
-    sentry__block_for_signal_handler();
-    g_signal_handling_thread = sentry__current_thread();
-    __sync_fetch_and_or(&g_in_signal_handler, 1);
+    for (;;) {
+        // entering a signal handler while another runs, should block us
+        while (__atomic_load_n(&g_in_signal_handler, __ATOMIC_RELAXED)) {
+            // however, if we re-enter most likely a signal was raised from
+            // within the handler and then we should proceed.
+            // TODO: maybe pass in the signum and check for SIGABRT loops here
+            if (is_handling_thread()) {
+                return;
+            }
+        }
+
+        // RMW that both tests AND sets atomically so we know we won the race
+        if (__sync_lock_test_and_set(&g_in_signal_handler, 1) == 0) {
+            sentry_threadid_t current = sentry__current_thread();
+            // update the thread, now that no one else can and leave
+            __atomic_store_n(
+                &g_signal_handling_thread, current, __ATOMIC_RELEASE);
+#    ifdef SENTRY_BACKEND_INPROC
+            __atomic_store_n(&g_signal_handler_can_lock, 0, __ATOMIC_RELEASE);
+#    endif
+            return;
+        }
+
+        // otherwise, spin
+    }
+}
+
+bool
+sentry__switch_handler_thread(void)
+{
+    if (!__atomic_load_n(&g_in_signal_handler, __ATOMIC_ACQUIRE)) {
+        return false;
+    }
+
+    sentry_threadid_t current = sentry__current_thread();
+    __atomic_store_n(&g_signal_handling_thread, current, __ATOMIC_RELEASE);
+    // TODO: this is still insufficient as a safe-guard when crashing in the
+    // handler thread
+#    ifdef SENTRY_BACKEND_INPROC
+    __atomic_store_n(&g_signal_handler_can_lock, 1, __ATOMIC_RELEASE);
+#    endif
+
+    return true;
 }
 
 void
 sentry__leave_signal_handler(void)
 {
-    __sync_fetch_and_and(&g_in_signal_handler, 0);
+    // clean up the thread-id and drop the reentrancy guard
+    __atomic_store_n(
+        &g_signal_handling_thread, (sentry_threadid_t) { 0 }, __ATOMIC_RELAXED);
+#    ifdef SENTRY_BACKEND_INPROC
+    __atomic_store_n(&g_signal_handler_can_lock, 0, __ATOMIC_RELAXED);
+#    endif
+    __sync_lock_release(&g_in_signal_handler);
 }
 #endif

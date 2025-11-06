@@ -227,6 +227,7 @@ typedef CONDITION_VARIABLE sentry_cond_t;
 bool sentry__block_for_signal_handler(void);
 void sentry__enter_signal_handler(void);
 void sentry__leave_signal_handler(void);
+bool sentry__switch_handler_thread(void);
 
 typedef pthread_t sentry_threadid_t;
 typedef pthread_mutex_t sentry_mutex_t;

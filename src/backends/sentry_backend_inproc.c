@@ -4,6 +4,7 @@
 #include "sentry_alloc.h"
 #include "sentry_backend.h"
 #include "sentry_core.h"
+#include "sentry_cpu_relax.h"
 #include "sentry_database.h"
 #include "sentry_envelope.h"
 #include "sentry_logger.h"
@@ -18,13 +19,56 @@
 #include "sentry_transport.h"
 #include "sentry_unix_pageallocator.h"
 #include "transports/sentry_disk_transport.h"
+#include <errno.h>
+#include <limits.h>
 #include <string.h>
 
 #define SIGNAL_DEF(Sig, Desc) { Sig, #Sig, Desc }
 
 #define MAX_FRAMES 128
 
+// the data exchange between the signal handler and the handler thread
+typedef struct sentry_inproc_handler_state_s {
+    sentry_ucontext_t uctx;
 #ifdef SENTRY_PLATFORM_UNIX
+    siginfo_t siginfo_storage;
+    ucontext_t user_context_storage;
+#endif
+    const struct signal_slot *sig_slot;
+    sentry_handler_strategy_t strategy;
+} sentry_inproc_handler_state_t;
+
+// "data" struct containing options to prevent mutex access in signal handler
+typedef struct sentry_inproc_backend_config_s {
+    bool enable_logging_when_crashed;
+    sentry_handler_strategy_t handler_strategy;
+} sentry_inproc_backend_config_t;
+
+// global instance for data-exchange between signal handler and handler thread
+static sentry_inproc_handler_state_t g_handler_state;
+// global instance for backend configuration state
+static sentry_inproc_backend_config_t g_backend_config;
+
+// handler thread state and synchronization variables
+static sentry_threadid_t g_handler_thread;
+// true once the handler thread starts waiting
+static volatile long g_handler_thread_ready = 0;
+// shutdown loop invariant
+static volatile long g_handler_should_exit = 0;
+// signal handler tells handler thread to start working
+static volatile long g_handler_has_work = 0;
+// handler thread wakes signal handler from suspension after finishing the work
+static volatile long g_handler_work_done = 0;
+
+// trigger/schedule primitives that block the handler thread until we need it
+#ifdef SENTRY_PLATFORM_UNIX
+static int g_handler_pipe[2] = { -1, -1 };
+#elif defined(SENTRY_PLATFORM_WINDOWS)
+static HANDLE g_handler_semaphore = NULL;
+#endif
+
+#ifdef SENTRY_PLATFORM_UNIX
+#    include <unistd.h>
 struct signal_slot {
     int signum;
     const char *signame;
@@ -47,6 +91,8 @@ static const struct signal_slot SIGNAL_DEFINITIONS[SIGNAL_COUNT] = {
 };
 
 static void handle_signal(int signum, siginfo_t *info, void *user_context);
+static int start_handler_thread(void);
+static void stop_handler_thread(void);
 
 static void
 reset_signal_handlers(void)
@@ -77,8 +123,22 @@ invoke_signal_handler(int signum, siginfo_t *info, void *user_context)
 
 static int
 startup_inproc_backend(
-    sentry_backend_t *UNUSED(backend), const sentry_options_t *UNUSED(options))
+    sentry_backend_t *backend, const sentry_options_t *options)
 {
+    // get option state so we don't need to sync read during signal handling
+    g_backend_config.enable_logging_when_crashed
+        = options ? options->enable_logging_when_crashed : true;
+    g_backend_config.handler_strategy =
+#    if defined(SENTRY_PLATFORM_LINUX)
+        options ? sentry_options_get_handler_strategy(options) :
+#    endif
+                SENTRY_HANDLER_STRATEGY_DEFAULT;
+    if (backend) {
+        backend->data = &g_backend_config;
+    }
+
+    start_handler_thread();
+
     // save the old signal handlers
     memset(g_previous_handlers, 0, sizeof(g_previous_handlers));
     for (size_t i = 0; i < SIGNAL_COUNT; ++i) {
@@ -119,8 +179,10 @@ startup_inproc_backend(
 }
 
 static void
-shutdown_inproc_backend(sentry_backend_t *UNUSED(backend))
+shutdown_inproc_backend(sentry_backend_t *backend)
 {
+    stop_handler_thread();
+
     if (g_signal_stack.ss_sp) {
         g_signal_stack.ss_flags = SS_DISABLE;
         sigaltstack(&g_signal_stack, 0);
@@ -128,6 +190,9 @@ shutdown_inproc_backend(sentry_backend_t *UNUSED(backend))
         g_signal_stack.ss_sp = NULL;
     }
     reset_signal_handlers();
+    if (backend) {
+        backend->data = NULL;
+    }
 }
 
 #elif defined(SENTRY_PLATFORM_WINDOWS)
@@ -169,24 +234,39 @@ static LONG WINAPI handle_exception(EXCEPTION_POINTERS *);
 
 static int
 startup_inproc_backend(
-    sentry_backend_t *UNUSED(backend), const sentry_options_t *UNUSED(options))
+    sentry_backend_t *backend, const sentry_options_t *options)
 {
+    g_backend_config.enable_logging_when_crashed
+        = options ? options->enable_logging_when_crashed : true;
+    g_backend_config.handler_strategy = options
+        ? sentry_options_get_handler_strategy(options)
+        : SENTRY_HANDLER_STRATEGY_DEFAULT;
+    if (backend) {
+        backend->data = &g_backend_config;
+    }
+
 #    if !defined(SENTRY_BUILD_SHARED)                                          \
         && defined(SENTRY_THREAD_STACK_GUARANTEE_AUTO_INIT)
     sentry__set_default_thread_stack_guarantee();
 #    endif
+    start_handler_thread();
     g_previous_handler = SetUnhandledExceptionFilter(&handle_exception);
     SetErrorMode(SEM_FAILCRITICALERRORS);
     return 0;
 }
 
 static void
-shutdown_inproc_backend(sentry_backend_t *UNUSED(backend))
+shutdown_inproc_backend(sentry_backend_t *backend)
 {
+    stop_handler_thread();
+
     LPTOP_LEVEL_EXCEPTION_FILTER current_handler
         = SetUnhandledExceptionFilter(g_previous_handler);
     if (current_handler != &handle_exception) {
         SetUnhandledExceptionFilter(current_handler);
+    }
+    if (backend) {
+        backend->data = NULL;
     }
 }
 
@@ -517,6 +597,7 @@ make_signal_event(const struct signal_slot *sig_slot,
             signal_meta, "name", sentry_value_new_string(sig_slot->signame));
         // at least on windows, the signum is a true u32 which we can't
         // otherwise represent.
+        // TODO: does that still match reality?
         sentry_value_set_by_key(signal_meta, "number",
             sentry_value_new_double((double)sig_slot->signum));
     }
@@ -563,97 +644,32 @@ make_signal_event(const struct signal_slot *sig_slot,
     return event;
 }
 
+/**
+ * This is the signal-unsafe part of the inproc handler. Everything that
+ * requires stdio, time-formatting/-capture or serialization must happen here.
+ *
+ * Although we can use signal-unsafe functions here, this should still be
+ * written with care. Don't overly rely on thread synchronization since the
+ * program is in a crashed state. At least one thread no longer progresses and
+ * memory can be corrupted.
+ */
 static void
-handle_ucontext(const sentry_ucontext_t *uctx)
+process_ucontext_deferred(
+    const sentry_ucontext_t *uctx, const struct signal_slot *sig_slot)
 {
-    // Disable logging during crash handling if the option is set
-    SENTRY_WITH_OPTIONS (options) {
-        if (!options->enable_logging_when_crashed) {
-            sentry__logger_disable();
-        }
-    }
-
     SENTRY_INFO("entering signal handler");
 
-    sentry_handler_strategy_t strategy = SENTRY_HANDLER_STRATEGY_DEFAULT;
-#ifdef SENTRY_PLATFORM_UNIX
-    // inform the sentry_sync system that we're in a signal handler.  This will
-    // make mutexes spin on a spinlock instead as it's no longer safe to use a
-    // pthread mutex.
-    sentry__enter_signal_handler();
-#endif
-
     SENTRY_WITH_OPTIONS (options) {
-#ifdef SENTRY_PLATFORM_LINUX
-        // On Linux (and thus Android) CLR/Mono converts signals provoked by
-        // AOT/JIT-generated native code into managed code exceptions. In these
-        // cases, we shouldn't react to the signal at all and let their handler
-        // discontinue the signal chain by invoking the runtime handler before
-        // we process the signal.
-        strategy = sentry_options_get_handler_strategy(options);
-        if (strategy == SENTRY_HANDLER_STRATEGY_CHAIN_AT_START) {
-            SENTRY_DEBUG("defer to runtime signal handler at start");
-            // there is a good chance that we won't return from the previous
-            // handler and that would mean we couldn't enter this handler with
-            // the next signal coming in if we didn't "leave" here.
-            sentry__leave_signal_handler();
-            if (!options->enable_logging_when_crashed) {
-                sentry__logger_enable();
-            }
-
-            uintptr_t ip = get_instruction_pointer(uctx);
-            uintptr_t sp = get_stack_pointer(uctx);
-
-            // invoke the previous handler (typically the CLR/Mono
-            // signal-to-managed-exception handler)
-            invoke_signal_handler(
-                uctx->signum, uctx->siginfo, (void *)uctx->user_context);
-
-            // If the execution returns here in AOT mode, and the instruction
-            // or stack pointer were changed, it means CLR/Mono converted the
-            // signal into a managed exception and transferred execution to a
-            // managed exception handler.
-            // https://github.com/dotnet/runtime/blob/6d96e28597e7da0d790d495ba834cc4908e442cd/src/mono/mono/mini/exceptions-arm64.c#L538
-            if (ip != get_instruction_pointer(uctx)
-                || sp != get_stack_pointer(uctx)) {
-                SENTRY_DEBUG("runtime converted the signal to a managed "
-                             "exception, we do not handle the signal");
-                return;
-            }
-
-            // let's re-enter because it means this was an actual native crash
-            if (!options->enable_logging_when_crashed) {
-                sentry__logger_disable();
-            }
-            sentry__enter_signal_handler();
-            SENTRY_DEBUG(
-                "return from runtime signal handler, we handle the signal");
-        }
-#endif
-
-        const struct signal_slot *sig_slot = NULL;
-        for (int i = 0; i < SIGNAL_COUNT; ++i) {
-#ifdef SENTRY_PLATFORM_UNIX
-            if (SIGNAL_DEFINITIONS[i].signum == uctx->signum) {
-#elif defined SENTRY_PLATFORM_WINDOWS
-            if (SIGNAL_DEFINITIONS[i].signum
-                == uctx->exception_ptrs.ExceptionRecord->ExceptionCode) {
-#else
-#    error Unsupported platform
-#endif
-                sig_slot = &SIGNAL_DEFINITIONS[i];
-            }
-        }
-
-#ifdef SENTRY_PLATFORM_UNIX
-        // use a signal-safe allocator before we tear down.
-        sentry__page_allocator_enable();
-#endif
         // Flush logs in a crash-safe manner before crash handling
         if (options->enable_logs) {
             sentry__logs_flush_crash_safe();
         }
 
+        sentry_handler_strategy_t strategy =
+#if defined(SENTRY_PLATFORM_LINUX)
+            options ? sentry_options_get_handler_strategy(options) :
+#endif
+                    SENTRY_HANDLER_STRATEGY_DEFAULT;
         sentry_value_t event = make_signal_event(sig_slot, uctx, strategy);
         bool should_handle = true;
         sentry__write_crash_marker(options);
@@ -699,9 +715,325 @@ handle_ucontext(const sentry_ucontext_t *uctx)
 
         // after capturing the crash event, dump all the envelopes to disk
         sentry__transport_dump_queue(options->transport, options->run);
+
+        SENTRY_INFO("crash has been captured");
+    }
+}
+
+SENTRY_THREAD_FN
+handler_thread_main(void *UNUSED(data))
+{
+    sentry__atomic_store(&g_handler_thread_ready, 1);
+
+    while (!sentry__atomic_fetch(&g_handler_should_exit)) {
+#ifdef SENTRY_PLATFORM_UNIX
+        char command = 0;
+        ssize_t rv = read(g_handler_pipe[0], &command, 1);
+        if (rv == -1 && errno == EINTR) {
+            continue;
+        }
+        if (rv <= 0) {
+            if (sentry__atomic_fetch(&g_handler_should_exit)) {
+                break;
+            }
+            continue;
+        }
+#elif defined(SENTRY_PLATFORM_WINDOWS)
+        DWORD wait_result = WaitForSingleObject(g_handler_semaphore, INFINITE);
+        if (wait_result != WAIT_OBJECT_0) {
+            continue;
+        }
+        if (sentry__atomic_fetch(&g_handler_should_exit)) {
+            break;
+        }
+#endif
+
+        if (!sentry__atomic_fetch(&g_handler_has_work)) {
+            continue;
+        }
+
+#ifdef SENTRY_PLATFORM_UNIX
+        sentry__switch_handler_thread();
+#endif
+        process_ucontext_deferred(
+            &g_handler_state.uctx, g_handler_state.sig_slot);
+        sentry__atomic_store(&g_handler_has_work, 0);
+        sentry__atomic_store(&g_handler_work_done, 1);
     }
 
-    SENTRY_INFO("crash has been captured");
+#ifdef SENTRY_PLATFORM_WINDOWS
+    return 0;
+#else
+    return NULL;
+#endif
+}
+
+static int
+start_handler_thread(void)
+{
+    if (sentry__atomic_fetch(&g_handler_thread_ready)) {
+        return 0;
+    }
+
+    sentry__thread_init(&g_handler_thread);
+    sentry__atomic_store(&g_handler_should_exit, 0);
+    sentry__atomic_store(&g_handler_has_work, 0);
+    sentry__atomic_store(&g_handler_work_done, 0);
+
+#ifdef SENTRY_PLATFORM_UNIX
+    if (pipe(g_handler_pipe) != 0) {
+        SENTRY_WARNF("failed to create handler pipe: %s", strerror(errno));
+        return 1;
+    }
+#elif defined(SENTRY_PLATFORM_WINDOWS)
+    g_handler_semaphore = CreateSemaphoreW(NULL, 0, LONG_MAX, NULL);
+    if (!g_handler_semaphore) {
+        SENTRY_WARN("failed to create handler semaphore");
+        return 1;
+    }
+#endif
+
+    if (sentry__thread_spawn(&g_handler_thread, handler_thread_main, NULL)
+        != 0) {
+        SENTRY_WARN("failed to spawn handler thread");
+#ifdef SENTRY_PLATFORM_UNIX
+        close(g_handler_pipe[0]);
+        close(g_handler_pipe[1]);
+        g_handler_pipe[0] = -1;
+        g_handler_pipe[1] = -1;
+#elif defined(SENTRY_PLATFORM_WINDOWS)
+        CloseHandle(g_handler_semaphore);
+        g_handler_semaphore = NULL;
+#endif
+        return 1;
+    }
+
+    return 0;
+}
+
+static void
+stop_handler_thread(void)
+{
+    if (!sentry__atomic_fetch(&g_handler_thread_ready)) {
+        return;
+    }
+
+    sentry__atomic_store(&g_handler_should_exit, 1);
+
+#ifdef SENTRY_PLATFORM_UNIX
+    if (g_handler_pipe[1] >= 0) {
+        char c = 0;
+        ssize_t rv;
+        do {
+            rv = write(g_handler_pipe[1], &c, 1);
+        } while (rv == -1 && errno == EINTR);
+    }
+#elif defined(SENTRY_PLATFORM_WINDOWS)
+    if (g_handler_semaphore) {
+        ReleaseSemaphore(g_handler_semaphore, 1, NULL);
+    }
+#endif
+
+    sentry__thread_join(g_handler_thread);
+    sentry__thread_free(&g_handler_thread);
+
+#ifdef SENTRY_PLATFORM_UNIX
+    if (g_handler_pipe[0] >= 0) {
+        close(g_handler_pipe[0]);
+        g_handler_pipe[0] = -1;
+    }
+    if (g_handler_pipe[1] >= 0) {
+        close(g_handler_pipe[1]);
+        g_handler_pipe[1] = -1;
+    }
+#elif defined(SENTRY_PLATFORM_WINDOWS)
+    if (g_handler_semaphore) {
+        CloseHandle(g_handler_semaphore);
+        g_handler_semaphore = NULL;
+    }
+#endif
+
+    sentry__atomic_store(&g_handler_thread_ready, 0);
+    sentry__atomic_store(&g_handler_should_exit, 0);
+}
+
+static void
+dispatch_ucontext(const sentry_ucontext_t *uctx,
+    const struct signal_slot *sig_slot, sentry_handler_strategy_t strategy)
+{
+    if (!sentry__atomic_fetch(&g_handler_thread_ready)) {
+        process_ucontext_deferred(uctx, sig_slot);
+        return;
+    }
+
+    g_handler_state.uctx = *uctx;
+    g_handler_state.sig_slot = sig_slot;
+
+#ifdef SENTRY_PLATFORM_UNIX
+    if (uctx->siginfo) {
+        memcpy(&g_handler_state.siginfo_storage, uctx->siginfo,
+            sizeof(g_handler_state.siginfo_storage));
+        g_handler_state.uctx.siginfo = &g_handler_state.siginfo_storage;
+    } else {
+        g_handler_state.uctx.siginfo = NULL;
+    }
+
+    if (uctx->user_context) {
+        memcpy(&g_handler_state.user_context_storage, uctx->user_context,
+            sizeof(g_handler_state.user_context_storage));
+        g_handler_state.uctx.user_context
+            = &g_handler_state.user_context_storage;
+    } else {
+        g_handler_state.uctx.user_context = NULL;
+    }
+#endif
+
+    sentry__atomic_store(&g_handler_work_done, 0);
+    sentry__atomic_store(&g_handler_has_work, 1);
+
+    // signal the handler thread to start working
+#ifdef SENTRY_PLATFORM_UNIX
+    if (g_handler_pipe[1] >= 0) {
+        char c = 1;
+        ssize_t rv;
+        do {
+            rv = write(g_handler_pipe[1], &c, 1);
+        } while (rv == -1 && errno == EINTR);
+    }
+#elif defined(SENTRY_PLATFORM_WINDOWS)
+    if (g_handler_semaphore) {
+        ReleaseSemaphore(g_handler_semaphore, 1, NULL);
+    }
+#endif
+
+    // wait until the handler has done its work
+    while (!sentry__atomic_fetch(&g_handler_work_done)) {
+        sentry__cpu_relax();
+    }
+
+#ifdef SENTRY_PLATFORM_UNIX
+    sentry__switch_handler_thread();
+#endif
+}
+
+/**
+ * This is the signal-safe part of the inproc handler. Everything in here should
+ * not defer to more than the set of functions listed in:
+ * https://www.man7.org/linux/man-pages/man7/signal-safety.7.html
+ *
+ * That means:
+ *  - no heap allocations except for sentry_malloc() (page allocator enabled!!!)
+ *  - no stdio or any kind of libc string formatting
+ *  - no logging (at least not with the printf-based default logger)
+ *  - no pthread synchronization (SENTRY_WITH_OPTIONS will terminate with a log)
+ *  - in particular, don't access sentry interfaces that could request
+ *    access to options or the scope, those should go to the handler thread
+ *  - sentry_value_* and sentry_malloc are generally fine, because we use a safe
+ *    allocator, but keep in mind that some constructors create timestampy and
+ *    similar stringy and thus formatted values (and those are forbidden here).
+ *
+ *  If you are unsure about a particular function on a given target platform
+ *  please consult the signal-safety man page.
+ *
+ *  Another decision marker of whether code should go in here: do you must run
+ *  on the preempted crashed thread? Do you need to run before anything else?
+ */
+static void
+process_ucontext(const sentry_ucontext_t *uctx)
+{
+#ifdef SENTRY_PLATFORM_UNIX
+    sentry__enter_signal_handler();
+#endif
+
+    if (!g_backend_config.enable_logging_when_crashed) {
+        sentry__logger_disable();
+    }
+
+    sentry_handler_strategy_t strategy = g_backend_config.handler_strategy;
+
+#ifdef SENTRY_PLATFORM_LINUX
+    if (strategy == SENTRY_HANDLER_STRATEGY_CHAIN_AT_START) {
+        // On Linux (and thus Android) CLR/Mono converts signals provoked by
+        // AOT/JIT-generated native code into managed code exceptions. In these
+        // cases, we shouldn't react to the signal at all and let their handler
+        // discontinue the signal chain by invoking the runtime handler before
+        // we process the signal.
+        // there is a good chance that we won't return from the previous
+        // handler and that would mean we couldn't enter this handler with
+        // the next signal coming in if we didn't "leave" here.
+        sentry__leave_signal_handler();
+        if (!g_backend_config.enable_logging_when_crashed) {
+            sentry__logger_enable();
+        }
+
+        uintptr_t ip = get_instruction_pointer(uctx);
+        uintptr_t sp = get_stack_pointer(uctx);
+
+        // invoke the previous handler (typically the CLR/Mono
+        // signal-to-managed-exception handler)
+        invoke_signal_handler(
+            uctx->signum, uctx->siginfo, (void *)uctx->user_context);
+
+        // If the execution returns here in AOT mode, and the instruction
+        // or stack pointer were changed, it means CLR/Mono converted the
+        // signal into a managed exception and transferred execution to a
+        // managed exception handler.
+        // https://github.com/dotnet/runtime/blob/6d96e28597e7da0d790d495ba834cc4908e442cd/src/mono/mono/mini/exceptions-arm64.c#L538
+        if (ip != get_instruction_pointer(uctx)
+            || sp != get_stack_pointer(uctx)) {
+            return;
+        }
+
+        // let's re-enter because it means this was an actual native crash
+        if (!g_backend_config.enable_logging_when_crashed) {
+            sentry__logger_disable();
+        }
+        sentry__enter_signal_handler();
+        // return from runtime handler; continue processing the crash on the
+        // signal thread until the worker takes over
+    }
+#endif
+
+    const struct signal_slot *sig_slot = NULL;
+    for (int i = 0; i < SIGNAL_COUNT; ++i) {
+#ifdef SENTRY_PLATFORM_UNIX
+        if (SIGNAL_DEFINITIONS[i].signum == uctx->signum) {
+#elif defined SENTRY_PLATFORM_WINDOWS
+        if (SIGNAL_DEFINITIONS[i].signum
+            == uctx->exception_ptrs.ExceptionRecord->ExceptionCode) {
+#else
+#    error Unsupported platform
+#endif
+            sig_slot = &SIGNAL_DEFINITIONS[i];
+        }
+    }
+
+#ifdef SENTRY_PLATFORM_UNIX
+    // use a signal-safe allocator before we tear down.
+    sentry__page_allocator_enable();
+#endif
+
+    const sentry_threadid_t current_thread = sentry__current_thread();
+    if (g_handler_thread_ready
+        && sentry__threadid_equal(current_thread, g_handler_thread)) {
+        // This means our handler thread crashed, there is no safe way out:
+        // make an async-signal-safe log and defer to previous
+        static const char msg[] = "[sentry] FATAL crash in handler thread, "
+                                  "falling back to previous handler\n";
+#ifdef SENTRY_PLATFORM_UNIX
+        (void)write(STDERR_FILENO, msg, sizeof(msg) - 1);
+#else
+        OutputDebugStringA(msg);
+        HANDLE stderr_handle = GetStdHandle(STD_ERROR_HANDLE);
+        if (stderr_handle && stderr_handle != INVALID_HANDLE_VALUE) {
+            DWORD written;
+            WriteFile(stderr_handle, msg, (DWORD)strlen(msg), &written, NULL);
+        }
+#endif
+    } else {
+        // invoke the handler thread for signal unsafe actions
+        dispatch_ucontext(uctx, sig_slot, strategy);
+    }
 
 #ifdef SENTRY_PLATFORM_UNIX
     // reset signal handlers and invoke the original ones.  This will then tear
@@ -725,7 +1057,7 @@ handle_signal(int signum, siginfo_t *info, void *user_context)
     uctx.signum = signum;
     uctx.siginfo = info;
     uctx.user_context = (ucontext_t *)user_context;
-    handle_ucontext(&uctx);
+    process_ucontext(&uctx);
 }
 #elif defined SENTRY_PLATFORM_WINDOWS
 static LONG WINAPI
@@ -740,7 +1072,7 @@ handle_exception(EXCEPTION_POINTERS *ExceptionInfo)
     sentry_ucontext_t uctx;
     memset(&uctx, 0, sizeof(uctx));
     uctx.exception_ptrs = *ExceptionInfo;
-    handle_ucontext(&uctx);
+    process_ucontext(&uctx);
     return EXCEPTION_CONTINUE_SEARCH;
 }
 #endif
@@ -748,7 +1080,7 @@ handle_exception(EXCEPTION_POINTERS *ExceptionInfo)
 static void
 handle_except(sentry_backend_t *UNUSED(backend), const sentry_ucontext_t *uctx)
 {
-    handle_ucontext(uctx);
+    process_ucontext(uctx);
 }
 
 sentry_backend_t *
