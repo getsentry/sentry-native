@@ -35,7 +35,6 @@ typedef struct sentry_inproc_handler_state_s {
     ucontext_t user_context_storage;
 #endif
     const struct signal_slot *sig_slot;
-    sentry_handler_strategy_t strategy;
 } sentry_inproc_handler_state_t;
 
 // "data" struct containing options to prevent mutex access in signal handler
@@ -858,8 +857,8 @@ stop_handler_thread(void)
 }
 
 static void
-dispatch_ucontext(const sentry_ucontext_t *uctx,
-    const struct signal_slot *sig_slot, sentry_handler_strategy_t strategy)
+dispatch_ucontext(
+    const sentry_ucontext_t *uctx, const struct signal_slot *sig_slot)
 {
     if (!sentry__atomic_fetch(&g_handler_thread_ready)) {
         process_ucontext_deferred(uctx, sig_slot);
@@ -1032,7 +1031,7 @@ process_ucontext(const sentry_ucontext_t *uctx)
 #endif
     } else {
         // invoke the handler thread for signal unsafe actions
-        dispatch_ucontext(uctx, sig_slot, strategy);
+        dispatch_ucontext(uctx, sig_slot);
     }
 
 #ifdef SENTRY_PLATFORM_UNIX
