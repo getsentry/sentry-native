@@ -24,7 +24,9 @@ SENTRY_TEST(process_invalid)
     sentry__path_free(nul);
 }
 
-void find_cp_path(char* buf, size_t buf_len)
+#ifndef SENTRY_PLATFORM_WINDOWS
+void
+find_cp_path(char *buf, size_t buf_len)
 {
     FILE *fp = popen("command -v cp 2>/dev/null", "r");
     if (fp && fgets(buf, buf_len, fp)) {
@@ -34,6 +36,7 @@ void find_cp_path(char* buf, size_t buf_len)
         pclose(fp);
     }
 }
+#endif
 
 SENTRY_TEST(process_spawn)
 {
