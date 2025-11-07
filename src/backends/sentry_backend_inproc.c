@@ -947,7 +947,6 @@ process_ucontext(const sentry_ucontext_t *uctx)
         sentry__logger_disable();
     }
 
-
 #ifdef SENTRY_PLATFORM_LINUX
     sentry_handler_strategy_t strategy = g_backend_config.handler_strategy;
     if (strategy == SENTRY_HANDLER_STRATEGY_CHAIN_AT_START) {

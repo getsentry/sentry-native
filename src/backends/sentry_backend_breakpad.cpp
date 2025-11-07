@@ -261,22 +261,22 @@ breakpad_backend_startup(
         && defined(SENTRY_THREAD_STACK_GUARANTEE_AUTO_INIT)
     sentry__set_default_thread_stack_guarantee();
 #    endif
-    backend->data = new google_breakpad::ExceptionHandler(
+    backend->data = new (std::nothrow) google_breakpad::ExceptionHandler(
         current_run_folder->path_w, nullptr, breakpad_backend_callback, nullptr,
         google_breakpad::ExceptionHandler::HANDLER_EXCEPTION);
 #elif defined(SENTRY_PLATFORM_MACOS)
     // If process is being debugged and there are breakpoints set it will cause
     // task_set_exception_ports to crash the whole process and debugger
-    backend->data = new google_breakpad::ExceptionHandler(
+    backend->data = new (std::nothrow) google_breakpad::ExceptionHandler(
         current_run_folder->path, nullptr, breakpad_backend_callback, nullptr,
         !IsDebuggerActive(), nullptr);
 #elif defined(SENTRY_PLATFORM_IOS)
     backend->data
-        = new google_breakpad::ExceptionHandler(current_run_folder->path,
+        = new (std::nothrow) google_breakpad::ExceptionHandler(current_run_folder->path,
             nullptr, breakpad_backend_callback, nullptr, true, nullptr);
 #else
     google_breakpad::MinidumpDescriptor descriptor(current_run_folder->path);
-    backend->data = new google_breakpad::ExceptionHandler(
+    backend->data = new (std::nothrow) google_breakpad::ExceptionHandler(
         descriptor, nullptr, breakpad_backend_callback, nullptr, true, -1);
 #endif
     return backend->data == nullptr;
