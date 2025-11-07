@@ -66,6 +66,9 @@ static int g_handler_pipe[2] = { -1, -1 };
 static HANDLE g_handler_semaphore = NULL;
 #endif
 
+static int start_handler_thread(void);
+static void stop_handler_thread(void);
+
 #ifdef SENTRY_PLATFORM_UNIX
 #    include <unistd.h>
 struct signal_slot {
@@ -90,8 +93,6 @@ static const struct signal_slot SIGNAL_DEFINITIONS[SIGNAL_COUNT] = {
 };
 
 static void handle_signal(int signum, siginfo_t *info, void *user_context);
-static int start_handler_thread(void);
-static void stop_handler_thread(void);
 
 static void
 reset_signal_handlers(void)
@@ -237,9 +238,7 @@ startup_inproc_backend(
 {
     g_backend_config.enable_logging_when_crashed
         = options ? options->enable_logging_when_crashed : true;
-    g_backend_config.handler_strategy = options
-        ? sentry_options_get_handler_strategy(options)
-        : SENTRY_HANDLER_STRATEGY_DEFAULT;
+    g_backend_config.handler_strategy = SENTRY_HANDLER_STRATEGY_DEFAULT;
     if (backend) {
         backend->data = &g_backend_config;
     }
@@ -948,9 +947,9 @@ process_ucontext(const sentry_ucontext_t *uctx)
         sentry__logger_disable();
     }
 
-    sentry_handler_strategy_t strategy = g_backend_config.handler_strategy;
 
 #ifdef SENTRY_PLATFORM_LINUX
+    sentry_handler_strategy_t strategy = g_backend_config.handler_strategy;
     if (strategy == SENTRY_HANDLER_STRATEGY_CHAIN_AT_START) {
         // On Linux (and thus Android) CLR/Mono converts signals provoked by
         // AOT/JIT-generated native code into managed code exceptions. In these
