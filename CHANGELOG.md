@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Fixes**:
+
+- Use a signal-safe address formatter instead of `snprintf()`. ([#1444](https://github.com/getsentry/sentry-native/pull/1444)) 
+
 ## 0.12.1
 
 **Fixes**:
