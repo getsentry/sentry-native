@@ -127,11 +127,11 @@ def assert_event_meta(
             match = VERSION_RE.match(version)
             version = match.group(1)
             build = match.group(2)
+            expected_os_context = {"name": "Linux", "version": version}
+            if build:
+                expected_os_context["build"] = build
 
-            assert_matches(
-                event["contexts"]["os"],
-                {"name": "Linux", "version": version, "build": build},
-            )
+            assert_matches(event["contexts"]["os"], expected_os_context)
             assert "distribution_name" in event["contexts"]["os"]
             assert "distribution_version" in event["contexts"]["os"]
         elif sys.platform == "darwin":
