@@ -593,11 +593,11 @@ make_signal_event(const struct signal_slot *sig_slot,
     if (sig_slot) {
         sentry_value_set_by_key(
             signal_meta, "name", sentry_value_new_string(sig_slot->signame));
-        // at least on windows, the signum is a true u32 which we can't
-        // otherwise represent.
-        // TODO: does that still match reality?
-        sentry_value_set_by_key(signal_meta, "number",
-            sentry_value_new_double((double)sig_slot->signum));
+        // relay interprets the signal number as an i64:
+        // https://github.com/getsentry/relay/blob/e96e4b037cfddaa7b0fb97a0909d100dde034f8e/relay-event-schema/src/protocol/mechanism.rs#L52-L53
+        // This covers the signal number ranges of all supported platforms.
+        sentry_value_set_by_key(
+            signal_meta, "number", sentry_value_new_int64(sig_slot->signum));
     }
     sentry_value_set_by_key(mechanism_meta, "signal", signal_meta);
     sentry_value_set_by_key(
@@ -862,9 +862,8 @@ did_handler_thread_crash(void)
     if (g_handler_thread_ready
         && sentry__threadid_equal(current_thread, g_handler_thread)) {
 #ifdef SENTRY_PLATFORM_UNIX
-        static const char msg[]
-            = "[sentry] FATAL crash in handler thread, "
-              "falling back to previous handler\n";
+        static const char msg[] = "[sentry] FATAL crash in handler thread, "
+                                  "falling back to previous handler\n";
         const ssize_t rv = write(STDERR_FILENO, msg, sizeof(msg) - 1);
         (void)rv;
 #else

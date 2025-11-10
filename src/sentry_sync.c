@@ -567,8 +567,7 @@ sentry__enter_signal_handler(void)
         // entering a signal handler while another runs, should block us
         while (__atomic_load_n(&g_in_signal_handler, __ATOMIC_RELAXED)) {
             // however, if we re-enter most likely a signal was raised from
-            // within the handler and then we should proceed.
-            // TODO: maybe pass in the signum and check for SIGABRT loops here
+            // within the signal handler and then we should proceed.
             if (is_handling_thread()) {
                 return;
             }
@@ -599,8 +598,6 @@ sentry__switch_handler_thread(void)
 
     sentry_threadid_t current = sentry__current_thread();
     __atomic_store_n(&g_signal_handling_thread, current, __ATOMIC_RELEASE);
-    // TODO: this is still insufficient as a safe-guard when crashing in the
-    // handler thread
 #    ifdef SENTRY_BACKEND_INPROC
     __atomic_store_n(&g_signal_handler_can_lock, 1, __ATOMIC_RELEASE);
 #    endif
