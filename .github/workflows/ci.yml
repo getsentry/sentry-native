@@ -232,11 +232,6 @@ jobs:
           apk update
           apk add curl-dev libunwind-dev libunwind-static xz-dev
 
-        # https://github.com/actions/runner-images/issues/9491
-      - name: Decrease vm.mmap_rnd_bit to prevent ASLR ASAN issues
-        if: ${{ runner.os == 'Linux' && contains(env['RUN_ANALYZER'], 'asan') }}
-        run: sudo sysctl vm.mmap_rnd_bits=28
-
       - name: Installing CodeChecker
         if: ${{ contains(env['RUN_ANALYZER'], 'code-checker') }}
         run: sudo snap install codechecker --classic
