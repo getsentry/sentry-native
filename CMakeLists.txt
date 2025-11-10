@@ -835,11 +835,17 @@ if(SENTRY_BUILD_EXAMPLES)
 		set_target_properties(sentry_example PROPERTIES FOLDER ${SENTRY_FOLDER})
 	endif()
 
-	add_custom_command(TARGET sentry_example POST_BUILD
-		COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/minidump.dmp" "$<TARGET_FILE_DIR:sentry_example>/minidump.dmp")
+	if(CMAKE_GENERATOR STREQUAL "Xcode")
+		set(SENTRY_FIXTURE_OUTPUT_DIR "$<TARGET_BUNDLE_DIR:sentry_example>/..")
+	else()
+		set(SENTRY_FIXTURE_OUTPUT_DIR "$<TARGET_FILE_DIR:sentry_example>")
+	endif()
 
 	add_custom_command(TARGET sentry_example POST_BUILD
-		COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/view-hierarchy.json" "$<TARGET_FILE_DIR:sentry_example>/view-hierarchy.json")
+		COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/minidump.dmp" "${SENTRY_FIXTURE_OUTPUT_DIR}/minidump.dmp")
+
+	add_custom_command(TARGET sentry_example POST_BUILD
+		COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/view-hierarchy.json" "${SENTRY_FIXTURE_OUTPUT_DIR}/view-hierarchy.json")
 endif()
 
 # Limit the exported symbols when sentry is built as a shared library to those with a "sentry_" prefix:
