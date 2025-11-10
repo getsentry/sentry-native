@@ -948,8 +948,8 @@ process_ucontext(const sentry_ucontext_t *uctx)
     }
 
 #ifdef SENTRY_PLATFORM_LINUX
-    sentry_handler_strategy_t strategy = g_backend_config.handler_strategy;
-    if (strategy == SENTRY_HANDLER_STRATEGY_CHAIN_AT_START) {
+    if (g_backend_config.handler_strategy
+        == SENTRY_HANDLER_STRATEGY_CHAIN_AT_START) {
         // On Linux (and thus Android) CLR/Mono converts signals provoked by
         // AOT/JIT-generated native code into managed code exceptions. In these
         // cases, we shouldn't react to the signal at all and let their handler
@@ -1040,7 +1040,8 @@ process_ucontext(const sentry_ucontext_t *uctx)
     // forward as we're not restoring the page allocator.
     reset_signal_handlers();
     sentry__leave_signal_handler();
-    if (strategy != SENTRY_HANDLER_STRATEGY_CHAIN_AT_START) {
+    if (g_backend_config.handler_strategy
+        != SENTRY_HANDLER_STRATEGY_CHAIN_AT_START) {
         invoke_signal_handler(
             uctx->signum, uctx->siginfo, (void *)uctx->user_context);
     }
