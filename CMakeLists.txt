@@ -824,8 +824,7 @@ if(SENTRY_BUILD_EXAMPLES)
 		if (LINUX AND NOT SENTRY_BUILD_SHARED_LIBS)
 			target_link_options(sentry_example PRIVATE
 				-no-pie
-				-no-lto
-				-Wl,--disable-lto
+				-fno-lto
 			)
 			target_compile_options(sentry_example PRIVATE
 				-fno-pie
