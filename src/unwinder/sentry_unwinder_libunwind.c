@@ -43,14 +43,36 @@ sentry__unwind_stack_libunwind(
         }
     }
 
-    size_t frame_idx = 0;
-    while (unw_step(&cursor) > 0 && frame_idx < max_frames - 1) {
+    size_t n = 0;
+    // get the first frame
+    if (n < max_frames) {
         unw_word_t ip = 0;
-        unw_get_reg(&cursor, UNW_REG_IP, &ip);
-        ptrs[frame_idx] = (void *)ip;
-        unw_word_t sp = 0;
-        unw_get_reg(&cursor, UNW_REG_SP, &sp);
-        frame_idx++;
+        if (unw_get_reg(&cursor, UNW_REG_IP, &ip) == 0) {
+            return n;
+        }
+        ptrs[n++] = (void *)ip;
     }
-    return frame_idx + 1;
+    // walk the callers
+    unw_word_t prev_ip = (unw_word_t)ptrs[0];
+    unw_word_t prev_sp = 0;
+    (void)unw_get_reg(&cursor, UNW_REG_SP, &prev_sp);
+
+    while (n < max_frames && unw_step(&cursor) > 0) {
+        unw_word_t ip = 0, sp = 0;
+        // stop the walk if we fail to read IP
+        if (unw_get_reg(&cursor, UNW_REG_IP, &ip) < 0) {
+            break;
+        }
+        // SP is optional for progress
+        (void)unw_get_reg(&cursor, UNW_REG_SP, &sp);
+
+        // stop the walk if there is _no_ progress
+        if (ip == prev_ip && sp == prev_sp) {
+            break;
+        }
+        prev_ip = ip;
+        prev_sp = sp;
+        ptrs[n++] = (void *)ip;
+    }
+    return n;
 }

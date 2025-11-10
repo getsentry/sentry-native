@@ -12,7 +12,7 @@ valid_ptr(uintptr_t p)
 size_t
 fp_walk_from_uctx(const sentry_ucontext_t *uctx, void **ptrs, size_t max_frames)
 {
-    size_t frame_idx = 0;
+    size_t n = 0;
     struct __darwin_mcontext64 *mctx = uctx->user_context->uc_mcontext;
 #if defined(__arm64__)
     uintptr_t pc = (uintptr_t)mctx->__ss.__pc;
@@ -21,12 +21,12 @@ fp_walk_from_uctx(const sentry_ucontext_t *uctx, void **ptrs, size_t max_frames)
 
     // top frame: adjust pc−1 so it symbolizes inside the function
     if (pc) {
-        ptrs[frame_idx++] = (void *)(pc - 1);
+        ptrs[n++] = (void *)(pc - 1);
     }
 
     // next frame is from saved LR at current FP record
     if (lr) {
-        ptrs[frame_idx++] = (void *)(lr - 1);
+        ptrs[n++] = (void *)(lr - 1);
     }
 
     for (size_t i = 0; i < max_frames; ++i) {
@@ -42,7 +42,7 @@ fp_walk_from_uctx(const sentry_ucontext_t *uctx, void **ptrs, size_t max_frames)
             break;
         }
 
-        ptrs[frame_idx++] = (void *)(ret_addr - 1);
+        ptrs[n++] = (void *)(ret_addr - 1);
         if (next_fp <= fp) {
             break; // prevent loops
         }
@@ -54,7 +54,7 @@ fp_walk_from_uctx(const sentry_ucontext_t *uctx, void **ptrs, size_t max_frames)
 
     // top frame: adjust ip−1 so it symbolizes inside the function
     if (ip) {
-        ptrs[frame_idx++] = (void *)(ip - 1);
+        ptrs[n++] = (void *)(ip - 1);
     }
 
     for (size_t i = 0; i < max_frames; ++i) {
@@ -68,7 +68,7 @@ fp_walk_from_uctx(const sentry_ucontext_t *uctx, void **ptrs, size_t max_frames)
         if (!valid_ptr(next_bp) || !ret_addr) {
             break;
         }
-        ptrs[frame_idx++] = (void *)(ret_addr - 1);
+        ptrs[n++] = (void *)(ret_addr - 1);
         if (next_bp <= bp) {
             break;
         }
@@ -77,7 +77,7 @@ fp_walk_from_uctx(const sentry_ucontext_t *uctx, void **ptrs, size_t max_frames)
 #else
 #    error "Unsupported CPU architecture for macOS stackwalker"
 #endif
-    return frame_idx + 1;
+    return n;
 }
 
 size_t
@@ -107,20 +107,49 @@ sentry__unwind_stack_libunwind_mac(
         SENTRY_WARN("Failed to initialize libunwind with local context");
         return 0;
     }
-    size_t frame_idx = 0;
-    while (unw_step(&cursor) > 0 && frame_idx < max_frames - 1) {
+    size_t n = 0;
+    // get the first frame
+    if (n < max_frames) {
         unw_word_t ip = 0;
-        SENTRY_INFOF("ip: %p", ip);
-        unw_get_reg(&cursor, UNW_REG_IP, &ip);
+        if (unw_get_reg(&cursor, UNW_REG_IP, &ip) >= 0) {
+#if defined(__arm64__)
+            // Strip pointer authentication, for some reason ptrauth_strip() not
+            // working
+            // https://developer.apple.com/documentation/security/preparing_your_app_to_work_with_pointer_authentication
+            ip &= 0x7fffffffffffull;
+#endif
+            ptrs[n++] = (void *)ip;
+        } else {
+            return 0;
+        }
+    }
+    // walk the callers
+    unw_word_t prev_ip = (uintptr_t)ptrs[0];
+    unw_word_t prev_sp = 0;
+    (void)unw_get_reg(&cursor, UNW_REG_SP, &prev_sp);
+    while (n < max_frames && unw_step(&cursor) > 0) {
+        unw_word_t ip = 0, sp = 0;
+        // stop the walk if we fail to read IP
+        if (unw_get_reg(&cursor, UNW_REG_IP, &ip) < 0) {
+            break;
+        }
+        // SP is optional for progress
+        (void)unw_get_reg(&cursor, UNW_REG_SP, &sp);
+
+        // stop the walk if there is _no_ progress
+        if (ip == prev_ip && sp == prev_sp) {
+            break;
+        }
 #if defined(__arm64__)
         // Strip pointer authentication, for some reason ptrauth_strip() not
         // working
         // https://developer.apple.com/documentation/security/preparing_your_app_to_work_with_pointer_authentication
         ip &= 0x7fffffffffffull;
 #endif
-        ptrs[frame_idx] = (void *)ip;
-        frame_idx++;
+        prev_ip = ip;
+        prev_sp = sp;
+        ptrs[n++] = (void *)ip;
     }
 
-    return frame_idx + 1;
+    return n;
 }
