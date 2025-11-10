@@ -39,15 +39,15 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: Linux (GCC 9.5.0, 32-bit)
+          - name: Linux (GCC 10.5.0, 32-bit)
             os: ubuntu-22.04
-            CC: gcc-9
-            CXX: g++-9
+            CC: gcc-10
+            CXX: g++-10
             TEST_X86: 1
-          - name: Linux (GCC 9.5.0)
+          - name: Linux (GCC 10.5.0)
             os: ubuntu-22.04
-            CC: gcc-9
-            CXX: g++-9
+            CC: gcc-10
+            CXX: g++-10
             # ERROR_ON_WARNINGS: 1
           - name: Linux (GCC 12.3.0)
             os: ubuntu-24.04
@@ -213,7 +213,7 @@ jobs:
           make
           sudo make install
 
-      - name: Installing Linux GCC 9.4.0 Dependencies
+      - name: Installing Linux GCC 10.5.0 Dependencies
         if: ${{ runner.os == 'Linux' && matrix.os == 'ubuntu-22.04' && !env['TEST_X86'] && !matrix.container }}
         run: |
           sudo apt update
@@ -224,7 +224,7 @@ jobs:
         run: |
           sudo dpkg --add-architecture i386
           sudo apt update
-          sudo apt install cmake gcc-9-multilib g++-9-multilib zlib1g-dev:i386 libssl-dev:i386 libcurl4-openssl-dev:i386
+          sudo apt install cmake gcc-10-multilib g++-10-multilib zlib1g-dev:i386 libssl-dev:i386 libcurl4-openssl-dev:i386
 
       - name: Installing Alpine Linux Dependencies
         if: ${{ contains(matrix.container, 'alpine') }}
