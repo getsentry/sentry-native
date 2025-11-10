@@ -647,9 +647,9 @@ make_signal_event(const struct signal_slot *sig_slot,
  * requires stdio, time-formatting/-capture or serialization must happen here.
  *
  * Although we can use signal-unsafe functions here, this should still be
- * written with care. Don't overly rely on thread synchronization since the
- * program is in a crashed state. At least one thread no longer progresses and
- * memory can be corrupted.
+ * written with care. Don't rely on thread synchronization or the system
+ * allocator since the program is in a crashed state. At least one thread no
+ * longer progresses and memory can be corrupted.
  */
 static void
 process_ucontext_deferred(
@@ -861,14 +861,15 @@ did_handler_thread_crash(void)
     const sentry_threadid_t current_thread = sentry__current_thread();
     if (g_handler_thread_ready
         && sentry__threadid_equal(current_thread, g_handler_thread)) {
-        // This means our handler thread crashed, there is no safe way out:
-        // fall back to previous handler
-        static const char msg[] = "[sentry] FATAL crash in handler thread, "
-                                  "falling back to previous handler\n";
 #ifdef SENTRY_PLATFORM_UNIX
+        static const char msg[]
+            = "[sentry] FATAL crash in handler thread, "
+              "falling back to previous handler\n";
         const ssize_t rv = write(STDERR_FILENO, msg, sizeof(msg) - 1);
         (void)rv;
 #else
+        static const char msg[] = "[sentry] FATAL crash in handler thread, "
+                                  "UEF continues search\n";
         OutputDebugStringA(msg);
         HANDLE stderr_handle = GetStdHandle(STD_ERROR_HANDLE);
         if (stderr_handle && stderr_handle != INVALID_HANDLE_VALUE) {
@@ -944,12 +945,14 @@ dispatch_ucontext(
  * This is the signal-safe part of the inproc handler. Everything in here should
  * not defer to more than the set of functions listed in:
  * https://www.man7.org/linux/man-pages/man7/signal-safety.7.html
+ * Since this function runs as an UnhandledExceptionFilter on Windows, the rules
+ * are less strict, but similar in nature.
  *
  * That means:
  *  - no heap allocations except for sentry_malloc() (page allocator enabled!!!)
  *  - no stdio or any kind of libc string formatting
  *  - no logging (at least not with the printf-based default logger)
- *  - no pthread synchronization (SENTRY_WITH_OPTIONS will terminate with a log)
+ *  - no thread synchronization (SENTRY_WITH_OPTIONS will terminate with a log)
  *  - in particular, don't access sentry interfaces that could request
  *    access to options or the scope, those should go to the handler thread
  *  - sentry_value_* and sentry_malloc are generally fine, because we use a safe
@@ -1076,8 +1079,7 @@ handle_exception(EXCEPTION_POINTERS *ExceptionInfo)
         return EXCEPTION_CONTINUE_SEARCH;
     }
 
-    sentry_ucontext_t uctx;
-    memset(&uctx, 0, sizeof(uctx));
+    sentry_ucontext_t uctx = { 0 };
     uctx.exception_ptrs = *ExceptionInfo;
     process_ucontext(&uctx);
     return EXCEPTION_CONTINUE_SEARCH;
