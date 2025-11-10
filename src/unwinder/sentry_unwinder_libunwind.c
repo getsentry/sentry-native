@@ -21,12 +21,16 @@ sentry__unwind_stack_libunwind(
         }
     } else {
         unw_context_t uc;
+#ifdef __clang__
 // This pragma is required to build with Werror on ARM64 Ubuntu
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored                                               \
-    "-Wgnu-statement-expression-from-macro-expansion"
+#    pragma clang diagnostic push
+#    pragma clang diagnostic ignored                                           \
+        "-Wgnu-statement-expression-from-macro-expansion"
+#endif
         int ret = unw_getcontext(&uc);
-#pragma clang diagnostic pop
+#ifdef __clang__
+#    pragma clang diagnostic pop
+#endif
         if (ret != 0) {
             SENTRY_WARN("Failed to retrieve context with libunwind");
             return 0;
