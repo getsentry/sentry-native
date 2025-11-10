@@ -855,6 +855,32 @@ stop_handler_thread(void)
     sentry__atomic_store(&g_handler_should_exit, 0);
 }
 
+static bool
+did_handler_thread_crash(void)
+{
+    const sentry_threadid_t current_thread = sentry__current_thread();
+    if (g_handler_thread_ready
+        && sentry__threadid_equal(current_thread, g_handler_thread)) {
+        // This means our handler thread crashed, there is no safe way out:
+        // fall back to previous handler
+        static const char msg[] = "[sentry] FATAL crash in handler thread, "
+                                  "falling back to previous handler\n";
+#ifdef SENTRY_PLATFORM_UNIX
+        const ssize_t rv = write(STDERR_FILENO, msg, sizeof(msg) - 1);
+        (void)rv;
+#else
+        OutputDebugStringA(msg);
+        HANDLE stderr_handle = GetStdHandle(STD_ERROR_HANDLE);
+        if (stderr_handle && stderr_handle != INVALID_HANDLE_VALUE) {
+            DWORD written;
+            WriteFile(stderr_handle, msg, (DWORD)strlen(msg), &written, NULL);
+        }
+#endif
+        return true;
+    }
+    return false;
+}
+
 static void
 dispatch_ucontext(
     const sentry_ucontext_t *uctx, const struct signal_slot *sig_slot)
@@ -1010,25 +1036,7 @@ process_ucontext(const sentry_ucontext_t *uctx)
     sentry__page_allocator_enable();
 #endif
 
-    const sentry_threadid_t current_thread = sentry__current_thread();
-    if (g_handler_thread_ready
-        && sentry__threadid_equal(current_thread, g_handler_thread)) {
-        // This means our handler thread crashed, there is no safe way out:
-        // make an async-signal-safe log and defer to previous
-        static const char msg[] = "[sentry] FATAL crash in handler thread, "
-                                  "falling back to previous handler\n";
-#ifdef SENTRY_PLATFORM_UNIX
-        const ssize_t rv = write(STDERR_FILENO, msg, sizeof(msg) - 1);
-        (void)rv;
-#else
-        OutputDebugStringA(msg);
-        HANDLE stderr_handle = GetStdHandle(STD_ERROR_HANDLE);
-        if (stderr_handle && stderr_handle != INVALID_HANDLE_VALUE) {
-            DWORD written;
-            WriteFile(stderr_handle, msg, (DWORD)strlen(msg), &written, NULL);
-        }
-#endif
-    } else {
+    if (!did_handler_thread_crash()) {
         // invoke the handler thread for signal unsafe actions
         dispatch_ucontext(uctx, sig_slot);
     }

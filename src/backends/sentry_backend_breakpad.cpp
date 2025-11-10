@@ -267,13 +267,13 @@ breakpad_backend_startup(
 #elif defined(SENTRY_PLATFORM_MACOS)
     // If process is being debugged and there are breakpoints set it will cause
     // task_set_exception_ports to crash the whole process and debugger
-    backend->data = new (std::nothrow) google_breakpad::ExceptionHandler(
-        current_run_folder->path, nullptr, breakpad_backend_callback, nullptr,
-        !IsDebuggerActive(), nullptr);
+    backend->data = new (std::nothrow)
+        google_breakpad::ExceptionHandler(current_run_folder->path, nullptr,
+            breakpad_backend_callback, nullptr, !IsDebuggerActive(), nullptr);
 #elif defined(SENTRY_PLATFORM_IOS)
-    backend->data
-        = new (std::nothrow) google_breakpad::ExceptionHandler(current_run_folder->path,
-            nullptr, breakpad_backend_callback, nullptr, true, nullptr);
+    backend->data = new (std::nothrow)
+        google_breakpad::ExceptionHandler(current_run_folder->path, nullptr,
+            breakpad_backend_callback, nullptr, true, nullptr);
 #else
     google_breakpad::MinidumpDescriptor descriptor(current_run_folder->path);
     backend->data = new (std::nothrow) google_breakpad::ExceptionHandler(
