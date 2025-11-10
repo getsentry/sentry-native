@@ -679,6 +679,15 @@ if(SENTRY_BACKEND_CRASHPAD)
 		$<BUILD_INTERFACE:crashpad::client>
 		$<INSTALL_INTERFACE:sentry_crashpad::client>
 	)
+
+	# ignore #include_next <signal.h> warning being a GCC extension via pedantic
+	if (LINUX)
+		target_include_directories(sentry
+				SYSTEM PRIVATE
+				external/crashpad/compat/linux
+		)
+	endif()
+
 	install(EXPORT crashpad_export NAMESPACE sentry_crashpad:: FILE sentry_crashpad-targets.cmake
 		DESTINATION "${CMAKE_INSTALL_CMAKEDIR}"
 	)

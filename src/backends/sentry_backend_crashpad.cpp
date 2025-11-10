@@ -32,8 +32,6 @@ extern "C" {
 #if defined(__GNUC__)
 #    pragma GCC diagnostic push
 #    pragma GCC diagnostic ignored "-Wunused-parameter"
-#    pragma GCC diagnostic ignored "-Wgnu-zero-variadic-macro-arguments"
-#    pragma GCC diagnostic ignored "-Wfour-char-constants"
 #elif defined(_MSC_VER)
 #    pragma warning(push)
 #    pragma warning(disable : 4100) // unreferenced formal parameter
