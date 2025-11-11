@@ -614,21 +614,31 @@ endif()
 
 if(SENTRY_WITH_LIBUNWIND)
 	if(LINUX)
-		set(_multiarch_suffixes
-			i386-linux-gnu                 # Ubuntu/Debian i386 multilib
-			${CMAKE_LIBRARY_ARCHITECTURE}  # e.g. x86_64-linux-gnu, aarch64-linux-gnu
-		)
 		option(SENTRY_LIBUNWIND_SHARED "Link to shared libunwind" ${SENTRY_BUILD_SHARED_LIBS})
+
+		# ensure suffix and search paths for include and library search (specifically for multilib)
+		if(SENTRY_BUILD_FORCE32)
+			set(_unwind_triplet "i386-linux-gnu")
+			set(_i386_libpaths /usr/lib/i386-linux-gnu /lib/i386-linux-gnu /usr/lib32 /lib32)
+		else()
+			set(_unwind_triplet "${CMAKE_LIBRARY_ARCHITECTURE}")
+		endif()
+
 		find_path(LIBUNWIND_INCLUDE_DIR libunwind.h
 			PATH_SUFFIXES
-				${_multiarch_suffixes}
+				${_unwind_triplet}
 				libunwind # some distros put the libunwind headers into a subdirectory
 			REQUIRED)
 		if(SENTRY_LIBUNWIND_SHARED)
-			find_library(LIBUNWIND_LIBRARIES unwind PATH_SUFFIXES ${_multiarch_suffixes} REQUIRED)
+			find_library(LIBUNWIND_LIBRARIES unwind PATH_SUFFIXES ${_unwind_triplet} REQUIRED)
 		else()
-			find_library(LIBUNWIND_LIBRARIES libunwind.a PATH_SUFFIXES ${_multiarch_suffixes} REQUIRED)
-			find_library(LZMA_LIBRARY lzma PATH_SUFFIXES ${_multiarch_suffixes})
+			find_library(LIBUNWIND_LIBRARIES libunwind.a PATH_SUFFIXES ${_unwind_triplet} REQUIRED)
+			if(SENTRY_BUILD_FORCE32)
+				find_library(LZMA_LIBRARY lzma PATHS ${_i386_libpaths} NO_DEFAULT_PATH)
+			else()
+				find_library(LZMA_LIBRARY lzma PATH_SUFFIXES ${_unwind_triplet})
+			endif()
+
 			if(LZMA_LIBRARY)
 				list(APPEND LIBUNWIND_LIBRARIES ${LZMA_LIBRARY})
 			endif()
