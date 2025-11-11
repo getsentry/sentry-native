@@ -614,17 +614,21 @@ endif()
 
 if(SENTRY_WITH_LIBUNWIND)
 	if(LINUX)
+		set(_multiarch_suffixes
+			i386-linux-gnu                 # Ubuntu/Debian i386 multilib
+			${CMAKE_LIBRARY_ARCHITECTURE}  # e.g. x86_64-linux-gnu, aarch64-linux-gnu
+		)
 		option(SENTRY_LIBUNWIND_SHARED "Link to shared libunwind" ${SENTRY_BUILD_SHARED_LIBS})
 		find_path(LIBUNWIND_INCLUDE_DIR libunwind.h
 			PATH_SUFFIXES
-				${CMAKE_LIBRARY_ARCHITECTURE}
-				libunwind
+				${_multiarch_suffixes}
+				libunwind # some distros put the libunwind headers into a subdirectory
 			REQUIRED)
 		if(SENTRY_LIBUNWIND_SHARED)
-			find_library(LIBUNWIND_LIBRARIES unwind REQUIRED)
+			find_library(LIBUNWIND_LIBRARIES unwind PATH_SUFFIXES ${_multiarch_suffixes} REQUIRED)
 		else()
-			find_library(LIBUNWIND_LIBRARIES libunwind.a REQUIRED)
-			find_library(LZMA_LIBRARY lzma)
+			find_library(LIBUNWIND_LIBRARIES libunwind.a PATH_SUFFIXES ${_multiarch_suffixes} REQUIRED)
+			find_library(LZMA_LIBRARY lzma PATH_SUFFIXES ${_multiarch_suffixes})
 			if(LZMA_LIBRARY)
 				list(APPEND LIBUNWIND_LIBRARIES ${LZMA_LIBRARY})
 			endif()
