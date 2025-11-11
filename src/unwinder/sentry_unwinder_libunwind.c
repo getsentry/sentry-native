@@ -47,7 +47,7 @@ sentry__unwind_stack_libunwind(
     // get the first frame
     if (n < max_frames) {
         unw_word_t ip = 0;
-        if (unw_get_reg(&cursor, UNW_REG_IP, &ip) == 0) {
+        if (unw_get_reg(&cursor, UNW_REG_IP, &ip) < 0) {
             return n;
         }
         ptrs[n++] = (void *)ip;
