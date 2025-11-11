@@ -20,16 +20,16 @@ fp_walk_from_uctx(const sentry_ucontext_t *uctx, void **ptrs, size_t max_frames)
     uintptr_t lr = (uintptr_t)mctx->__ss.__lr;
 
     // top frame: adjust pc−1 so it symbolizes inside the function
-    if (pc) {
+    if (pc && n < max_frames) {
         ptrs[n++] = (void *)(pc - 1);
     }
 
     // next frame is from saved LR at current FP record
-    if (lr) {
+    if (lr && n < max_frames) {
         ptrs[n++] = (void *)(lr - 1);
     }
 
-    for (size_t i = 0; i < max_frames; ++i) {
+    while (n < max_frames) {
         if (!valid_ptr(fp)) {
             break;
         }
@@ -53,11 +53,11 @@ fp_walk_from_uctx(const sentry_ucontext_t *uctx, void **ptrs, size_t max_frames)
     uintptr_t bp = (uintptr_t)mctx->__ss.__rbp;
 
     // top frame: adjust ip−1 so it symbolizes inside the function
-    if (ip) {
+    if (ip && n < max_frames) {
         ptrs[n++] = (void *)(ip - 1);
     }
 
-    for (size_t i = 0; i < max_frames; ++i) {
+    while (n < max_frames) {
         if (!valid_ptr(bp)) {
             break;
         }
