@@ -615,7 +615,11 @@ endif()
 if(SENTRY_WITH_LIBUNWIND)
 	if(LINUX)
 		option(SENTRY_LIBUNWIND_SHARED "Link to shared libunwind" ${SENTRY_BUILD_SHARED_LIBS})
-		find_path(LIBUNWIND_INCLUDE_DIR libunwind.h PATH_SUFFIXES "" libunwind REQUIRED)
+		find_path(LIBUNWIND_INCLUDE_DIR libunwind.h
+			PATH_SUFFIXES
+				${CMAKE_LIBRARY_ARCHITECTURE}
+				libunwind
+			REQUIRED)
 		if(SENTRY_LIBUNWIND_SHARED)
 			find_library(LIBUNWIND_LIBRARIES unwind REQUIRED)
 		else()
