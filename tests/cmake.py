@@ -154,9 +154,7 @@ def cmake(cwd, targets, options=None, cflags=None):
     config_cmd = cmake.copy()
 
     if os.environ.get("VS_GENERATOR_TOOLSET") == "ClangCL":
-        config_cmd.append("-G Visual Studio 17 2022")
-        config_cmd.append("-A x64")
-        config_cmd.append("-T ClangCL")
+        configure_clang_cl(config_cmd)
 
     for key, value in options.items():
         config_cmd.append("-D{}={}".format(key, value))
@@ -167,17 +165,7 @@ def cmake(cwd, targets, options=None, cflags=None):
     if "asan" in os.environ.get("RUN_ANALYZER", ""):
         config_cmd.append("-DWITH_ASAN_OPTION=ON")
     if "tsan" in os.environ.get("RUN_ANALYZER", ""):
-        module_dir = Path(__file__).resolve().parent
-        tsan_options = {
-            "verbosity": 2,
-            "detect_deadlocks": 1,
-            "second_deadlock_stack": 1,
-            "suppressions": module_dir / "tsan.supp",
-        }
-        os.environ["TSAN_OPTIONS"] = ":".join(
-            f"{key}={value}" for key, value in tsan_options.items()
-        )
-        config_cmd.append("-DWITH_TSAN_OPTION=ON")
+        configure_tsan(config_cmd)
 
     # we have to set `-Werror` for this cmake invocation only, otherwise
     # completely unrelated things will break
@@ -190,39 +178,7 @@ def cmake(cwd, targets, options=None, cflags=None):
     if "gcc" in os.environ.get("RUN_ANALYZER", ""):
         cflags.append("-fanalyzer")
     if "llvm-cov" in os.environ.get("RUN_ANALYZER", ""):
-        if False and os.environ.get("VS_GENERATOR_TOOLSET") == "ClangCL":
-            # for clang-cl in CI we have to use `--coverage` rather than `fprofile-instr-generate` and provide an
-            # architecture-specific profiling library for it work:
-            # TODO: This currently doesn't work due to https://gitlab.kitware.com/cmake/cmake/-/issues/24025
-            #       The issue describes a behavior where generated object-name is specified via `/fo` using a target
-            #       directory, rather than a file-name (this is CMake behavior). While the `clang-cl` suggest that this
-            #       is supported the flag produces `.gcda` and `.gcno` files, which have no relation with the object-
-            #       file and which leads to failure to accumulate coverage data.
-            #       This would have to be fixed in clang-cl: https://github.com/llvm/llvm-project/issues/87304
-            #       Let's leave this in here for posterity, it would be great to get coverage analysis on Windows.
-            flags = "--coverage"
-            profile_lib = "clang_rt.profile-x86_64.lib"
-            config_cmd.append(f"-DCMAKE_EXE_LINKER_FLAGS='{profile_lib}'")
-            config_cmd.append(f"-DCMAKE_SHARED_LINKER_FLAGS='{profile_lib}'")
-            config_cmd.append(f"-DCMAKE_MODULE_LINKER_FLAGS='{profile_lib}'")
-        else:
-            flags = "-fprofile-instr-generate -fcoverage-mapping"
-        config_cmd.append("-DCMAKE_C_FLAGS='{}'".format(flags))
-
-        # Since we overwrite `CXXFLAGS` below, we must add the experimental library here for the GHA runner that builds
-        # sentry-native with LLVM clang for macOS (to run ASAN on macOS) rather than the version coming with XCode.
-        # TODO: remove this if the GHA runner image for macOS ever updates beyond llvm15.
-        if (
-            sys.platform == "darwin"
-            and os.environ.get("CC", "") == "clang"
-            and shutil.which("clang") == "/usr/local/opt/llvm@15/bin/clang"
-        ):
-            flags = (
-                flags
-                + " -L/usr/local/opt/llvm@15/lib/c++ -fexperimental-library -Wno-unused-command-line-argument"
-            )
-
-        config_cmd.append("-DCMAKE_CXX_FLAGS='{}'".format(flags))
+        configure_llvm_cov(config_cmd)
     if "CMAKE_DEFINES" in os.environ:
         config_cmd.extend(os.environ.get("CMAKE_DEFINES").split())
     env = dict(os.environ)
@@ -317,3 +273,59 @@ def cmake(cwd, targets, options=None, cflags=None):
             cwd=cwd,
             check=True,
         )
+
+
+def configure_clang_cl(config_cmd: list[str]):
+    config_cmd.append("-G Visual Studio 17 2022")
+    config_cmd.append("-A x64")
+    config_cmd.append("-T ClangCL")
+
+
+def configure_tsan(config_cmd: list[str]):
+    module_dir = Path(__file__).resolve().parent
+    tsan_options = {
+        "verbosity": 2,
+        "detect_deadlocks": 1,
+        "second_deadlock_stack": 1,
+        "suppressions": module_dir / "tsan.supp",
+    }
+    os.environ["TSAN_OPTIONS"] = ":".join(
+        f"{key}={value}" for key, value in tsan_options.items()
+    )
+    config_cmd.append("-DWITH_TSAN_OPTION=ON")
+
+
+def configure_llvm_cov(config_cmd: list[str]):
+    if False and os.environ.get("VS_GENERATOR_TOOLSET") == "ClangCL":
+        # for clang-cl in CI we have to use `--coverage` rather than `fprofile-instr-generate` and provide an
+        # architecture-specific profiling library for it work:
+        # TODO: This currently doesn't work due to https://gitlab.kitware.com/cmake/cmake/-/issues/24025
+        #       The issue describes a behavior where generated object-name is specified via `/fo` using a target
+        #       directory, rather than a file-name (this is CMake behavior). While the `clang-cl` suggest that this
+        #       is supported the flag produces `.gcda` and `.gcno` files, which have no relation with the object-
+        #       file and which leads to failure to accumulate coverage data.
+        #       This would have to be fixed in clang-cl: https://github.com/llvm/llvm-project/issues/87304
+        #       Let's leave this in here for posterity, it would be great to get coverage analysis on Windows.
+        flags = "--coverage"
+        profile_lib = "clang_rt.profile-x86_64.lib"
+        config_cmd.append(f"-DCMAKE_EXE_LINKER_FLAGS='{profile_lib}'")
+        config_cmd.append(f"-DCMAKE_SHARED_LINKER_FLAGS='{profile_lib}'")
+        config_cmd.append(f"-DCMAKE_MODULE_LINKER_FLAGS='{profile_lib}'")
+    else:
+        flags = "-fprofile-instr-generate -fcoverage-mapping"
+    config_cmd.append("-DCMAKE_C_FLAGS='{}'".format(flags))
+
+    # Since we overwrite `CXXFLAGS` below, we must add the experimental library here for the GHA runner that builds
+    # sentry-native with LLVM clang for macOS (to run ASAN on macOS) rather than the version coming with XCode.
+    # TODO: remove this if the GHA runner image for macOS ever updates beyond llvm15.
+    if (
+        sys.platform == "darwin"
+        and os.environ.get("CC", "") == "clang"
+        and shutil.which("clang") == "/usr/local/opt/llvm@15/bin/clang"
+    ):
+        flags = (
+            flags
+            + " -L/usr/local/opt/llvm@15/lib/c++ -fexperimental-library -Wno-unused-command-line-argument"
+        )
+
+    config_cmd.append("-DCMAKE_CXX_FLAGS='{}'".format(flags))
