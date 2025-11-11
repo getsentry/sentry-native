@@ -856,10 +856,10 @@ stop_handler_thread(void)
 }
 
 static bool
-did_handler_thread_crash(void)
+has_handler_thread_crashed(void)
 {
     const sentry_threadid_t current_thread = sentry__current_thread();
-    if (g_handler_thread_ready
+    if (sentry__atomic_fetch(&g_handler_thread_ready)
         && sentry__threadid_equal(current_thread, g_handler_thread)) {
 #ifdef SENTRY_PLATFORM_UNIX
         static const char msg[] = "[sentry] FATAL crash in handler thread, "
@@ -1038,7 +1038,7 @@ process_ucontext(const sentry_ucontext_t *uctx)
     sentry__page_allocator_enable();
 #endif
 
-    if (!did_handler_thread_crash()) {
+    if (!has_handler_thread_crashed()) {
         // invoke the handler thread for signal unsafe actions
         dispatch_ucontext(uctx, sig_slot);
     }
