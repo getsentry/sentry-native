@@ -910,6 +910,9 @@ dispatch_ucontext(
     } else {
         g_handler_state.uctx.user_context = NULL;
     }
+
+    // we leave the handler
+    sentry__leave_signal_handler();
 #endif
 
     sentry__atomic_store(&g_handler_work_done, 0);
@@ -936,7 +939,7 @@ dispatch_ucontext(
     }
 
 #ifdef SENTRY_PLATFORM_UNIX
-    sentry__switch_handler_thread();
+    sentry__enter_signal_handler();
 #endif
 }
 

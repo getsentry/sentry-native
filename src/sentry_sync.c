@@ -508,22 +508,13 @@ sentry__bgworker_get_thread_name(sentry_bgworker_t *bgw)
 #    include <unistd.h>
 
 static sig_atomic_t g_in_signal_handler __attribute__((aligned(64))) = 0;
-static sentry_threadid_t g_signal_handling_thread = { 0 };
 
 bool
 sentry__block_for_signal_handler(void)
 {
     for (;;) {
         // if there is no signal handler active, we don't need to block
-        if (!__atomic_load_n(&g_in_signal_handler, __ATOMIC_RELAXED)) {
-            return true;
-        }
-
-        sentry_threadid_t current = sentry__current_thread();
-        sentry_threadid_t handling
-            = __atomic_load_n(&g_signal_handling_thread, __ATOMIC_ACQUIRE);
-
-        if (sentry__threadid_equal(current, handling)) {
+        if (!__atomic_load_n(&g_in_signal_handler, __ATOMIC_ACQUIRE)) {
             return true;
         }
 
@@ -532,59 +523,29 @@ sentry__block_for_signal_handler(void)
     }
 }
 
-static bool
-is_handling_thread(void)
-{
-    sentry_threadid_t handling
-        = __atomic_load_n(&g_signal_handling_thread, __ATOMIC_ACQUIRE);
-    return sentry__threadid_equal(handling, sentry__current_thread());
-}
-
 void
 sentry__enter_signal_handler(void)
 {
     for (;;) {
         // entering a signal handler while another runs, should block us
         while (__atomic_load_n(&g_in_signal_handler, __ATOMIC_RELAXED)) {
-            // however, if we re-enter most likely a signal was raised from
-            // within the signal handler and then we should proceed.
-            if (is_handling_thread()) {
-                return;
-            }
+            sentry__cpu_relax();
         }
 
-        // RMW that both tests AND sets atomically so we know we won the race
-        if (__sync_lock_test_and_set(&g_in_signal_handler, 1) == 0) {
-            sentry_threadid_t current = sentry__current_thread();
-            // update the thread, now that no one else can and leave
-            __atomic_store_n(
-                &g_signal_handling_thread, current, __ATOMIC_RELEASE);
+        // atomically try to take ownership
+        sig_atomic_t prev
+            = __atomic_exchange_n(&g_in_signal_handler, 1, __ATOMIC_ACQ_REL);
+        if (prev == 0) {
             return;
         }
 
-        // otherwise, spin
+        // otherwise we've been raced, spin
     }
-}
-
-bool
-sentry__switch_handler_thread(void)
-{
-    if (!__atomic_load_n(&g_in_signal_handler, __ATOMIC_ACQUIRE)) {
-        return false;
-    }
-
-    sentry_threadid_t current = sentry__current_thread();
-    __atomic_store_n(&g_signal_handling_thread, current, __ATOMIC_RELEASE);
-
-    return true;
 }
 
 void
 sentry__leave_signal_handler(void)
 {
-    // clean up the thread-id and drop the reentrancy guard
-    __atomic_store_n(
-        &g_signal_handling_thread, (sentry_threadid_t) { 0 }, __ATOMIC_RELAXED);
-    __sync_lock_release(&g_in_signal_handler);
+    __atomic_store_n(&g_in_signal_handler, 0, __ATOMIC_RELEASE);
 }
 #endif
