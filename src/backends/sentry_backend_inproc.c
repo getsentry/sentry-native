@@ -750,9 +750,6 @@ handler_thread_main(void *UNUSED(data))
             continue;
         }
 
-#ifdef SENTRY_PLATFORM_UNIX
-        sentry__switch_handler_thread();
-#endif
         process_ucontext_deferred(
             &g_handler_state.uctx, g_handler_state.sig_slot);
         sentry__atomic_store(&g_handler_has_work, 0);
