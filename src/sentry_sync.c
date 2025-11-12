@@ -507,6 +507,7 @@ sentry__bgworker_get_thread_name(sentry_bgworker_t *bgw)
 #    include "sentry_cpu_relax.h"
 #    include <unistd.h>
 
+static sentry_threadid_t g_signal_handling_thread = { 0 };
 static sig_atomic_t g_in_signal_handler __attribute__((aligned(64))) = 0;
 
 bool
@@ -514,11 +515,18 @@ sentry__block_for_signal_handler(void)
 {
     for (;;) {
         // if there is no signal handler active, we don't need to block
-        if (!__atomic_load_n(&g_in_signal_handler, __ATOMIC_ACQUIRE)) {
-            return true;
+        // we can spin cheaply, but for the return we must acquire
+        if (!__atomic_load_n(&g_in_signal_handler, __ATOMIC_RELAXED)) {
+            return __atomic_load_n(&g_in_signal_handler, __ATOMIC_ACQUIRE) == 0;
         }
 
-        // otherwise, spin
+        // if we are on the signal handler thread we can also leave
+        if (sentry__threadid_equal(sentry__current_thread(),
+                __atomic_load_n(&g_signal_handling_thread, __ATOMIC_ACQUIRE))) {
+            return false;
+        }
+
+        // otherwise, we spin
         sentry__cpu_relax();
     }
 }
@@ -533,9 +541,11 @@ sentry__enter_signal_handler(void)
         }
 
         // atomically try to take ownership
-        sig_atomic_t prev
-            = __atomic_exchange_n(&g_in_signal_handler, 1, __ATOMIC_ACQ_REL);
-        if (prev == 0) {
+        if (__atomic_exchange_n(&g_in_signal_handler, 1, __ATOMIC_ACQ_REL)
+            == 0) {
+            // once we have, publish the handling thread too
+            sentry_threadid_t me = sentry__current_thread();
+            __atomic_store_n(&g_signal_handling_thread, me, __ATOMIC_RELEASE);
             return;
         }
 
@@ -546,6 +556,11 @@ sentry__enter_signal_handler(void)
 void
 sentry__leave_signal_handler(void)
 {
+    // reset handling thread
+    __atomic_store_n(
+        &g_signal_handling_thread, (sentry_threadid_t) { 0 }, __ATOMIC_RELAXED);
+
+    // reset handler flag
     __atomic_store_n(&g_in_signal_handler, 0, __ATOMIC_RELEASE);
 }
 #endif
