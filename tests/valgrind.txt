@@ -42,5 +42,6 @@
    libunwind writes buffers we do not manage
    Memcheck:Param
    write(buf)
+   ...
    obj:*/libunwind.so*
 }
