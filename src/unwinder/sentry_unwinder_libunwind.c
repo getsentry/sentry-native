@@ -53,11 +53,11 @@ sentry__unwind_stack_libunwind(
         ptrs[n++] = (void *)ip;
     }
     // walk the callers
+#ifdef TSAN_CI_ISSUE_ISOLATION
     unw_word_t prev_ip = (unw_word_t)ptrs[0];
     unw_word_t prev_sp = 0;
     (void)unw_get_reg(&cursor, UNW_REG_SP, &prev_sp);
 
-#ifdef TSAN_CI_ISSUE_ISOLATION
     while (n < max_frames && unw_step(&cursor) > 0) {
         unw_word_t ip = 0, sp = 0;
         // stop the walk if we fail to read IP
