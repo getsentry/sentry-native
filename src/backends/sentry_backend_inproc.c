@@ -882,7 +882,10 @@ static void
 dispatch_ucontext(
     const sentry_ucontext_t *uctx, const struct signal_slot *sig_slot)
 {
-    if (!sentry__atomic_fetch(&g_handler_thread_ready)) {
+    if (!sentry__atomic_fetch(&g_handler_thread_ready)
+        || has_handler_thread_crashed()) {
+        // directly execute unsafe part in signal handler as a last chance to
+        // report an error when the handler thread is unavailable.
         process_ucontext_deferred(uctx, sig_slot);
         return;
     }
@@ -1038,10 +1041,8 @@ process_ucontext(const sentry_ucontext_t *uctx)
     sentry__page_allocator_enable();
 #endif
 
-    if (!has_handler_thread_crashed()) {
-        // invoke the handler thread for signal unsafe actions
-        dispatch_ucontext(uctx, sig_slot);
-    }
+    // invoke the handler thread for signal unsafe actions
+    dispatch_ucontext(uctx, sig_slot);
 
 #ifdef SENTRY_PLATFORM_UNIX
     // reset signal handlers and invoke the original ones.  This will then tear
