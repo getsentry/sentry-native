@@ -53,28 +53,28 @@ sentry__unwind_stack_libunwind(
         ptrs[n++] = (void *)ip;
     }
     // walk the callers
-#ifdef TSAN_CI_ISSUE_ISOLATION
-    unw_word_t prev_ip = (unw_word_t)ptrs[0];
-    unw_word_t prev_sp = 0;
-    (void)unw_get_reg(&cursor, UNW_REG_SP, &prev_sp);
+    if (!uctx) {
+        unw_word_t prev_ip = (unw_word_t)ptrs[0];
+        unw_word_t prev_sp = 0;
+        (void)unw_get_reg(&cursor, UNW_REG_SP, &prev_sp);
 
-    while (n < max_frames && unw_step(&cursor) > 0) {
-        unw_word_t ip = 0, sp = 0;
-        // stop the walk if we fail to read IP
-        if (unw_get_reg(&cursor, UNW_REG_IP, &ip) < 0) {
-            break;
-        }
-        // SP is optional for progress
-        (void)unw_get_reg(&cursor, UNW_REG_SP, &sp);
+        while (n < max_frames && unw_step(&cursor) > 0) {
+            unw_word_t ip = 0, sp = 0;
+            // stop the walk if we fail to read IP
+            if (unw_get_reg(&cursor, UNW_REG_IP, &ip) < 0) {
+                break;
+            }
+            // SP is optional for progress
+            (void)unw_get_reg(&cursor, UNW_REG_SP, &sp);
 
-        // stop the walk if there is _no_ progress
-        if (ip == prev_ip && sp == prev_sp) {
-            break;
+            // stop the walk if there is _no_ progress
+            if (ip == prev_ip && sp == prev_sp) {
+                break;
+            }
+            prev_ip = ip;
+            prev_sp = sp;
+            ptrs[n++] = (void *)ip;
         }
-        prev_ip = ip;
-        prev_sp = sp;
-        ptrs[n++] = (void *)ip;
     }
-#endif
     return n;
 }
