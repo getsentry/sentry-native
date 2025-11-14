@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1763110441813,
+  "lastUpdate": 1763110563171,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -22138,6 +22138,66 @@ window.BENCHMARK_DATA = {
             "value": 15.20280000005414,
             "unit": "ms",
             "extra": "Min 14.287ms\nMax 16.383ms\nMean 15.346ms\nStdDev 0.872ms\nMedian 15.203ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "60878493+JoshuaMoelans@users.noreply.github.com",
+            "name": "JoshuaMoelans",
+            "username": "JoshuaMoelans"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "c5416e6f38021f445b50b415bf42f6bbf14b2fc0",
+          "message": "feat(logs): custom attributes API (#1435)\n\n* initial attributes value implementation\n\n* add logs custom attributes + option\n\n* CHANGELOG.md\n\n* format\n\n* format + cleanup\n\n* fix memleaks\n\n* update example.c log callback to use attribute creator\n\n* add custom-attributes X format string POC\n\n* infer attribute type from sentry_value_t value\n\n* fix attribute memleak\n\n* logs take ownership of custom attributes\n\n* fix unused variable\n\n* don't let default attributes overwrite custom ones\n\n* cleanup\n\n* decref duplicate attributes\n\n* cleanup TODOs\n\n* fix for 32-bit windows test",
+          "timestamp": "2025-11-14T09:51:28+01:00",
+          "tree_id": "cc8decc62668ec289a701daeaef5ce06ea188e01",
+          "url": "https://github.com/getsentry/sentry-native/commit/c5416e6f38021f445b50b415bf42f6bbf14b2fc0"
+        },
+        "date": 1763110557618,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 10.451499999987846,
+            "unit": "ms",
+            "extra": "Min 9.939ms\nMax 10.841ms\nMean 10.467ms\nStdDev 0.362ms\nMedian 10.451ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 10.700199999973847,
+            "unit": "ms",
+            "extra": "Min 10.649ms\nMax 11.105ms\nMean 10.833ms\nStdDev 0.213ms\nMedian 10.700ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 26.141100000018014,
+            "unit": "ms",
+            "extra": "Min 25.980ms\nMax 27.189ms\nMean 26.357ms\nStdDev 0.493ms\nMedian 26.141ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.013299999977789412,
+            "unit": "ms",
+            "extra": "Min 0.013ms\nMax 0.016ms\nMean 0.014ms\nStdDev 0.002ms\nMedian 0.013ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.48040000001492444,
+            "unit": "ms",
+            "extra": "Min 0.386ms\nMax 0.521ms\nMean 0.457ms\nStdDev 0.060ms\nMedian 0.480ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 14.47650000000067,
+            "unit": "ms",
+            "extra": "Min 14.299ms\nMax 14.821ms\nMean 14.544ms\nStdDev 0.225ms\nMedian 14.477ms"
           }
         ]
       }
