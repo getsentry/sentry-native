@@ -74,6 +74,7 @@ init_scope(sentry_scope_t *scope)
     scope->user = sentry_value_new_null();
     scope->tags = sentry_value_new_object();
     scope->extra = sentry_value_new_object();
+    scope->attributes = sentry_value_new_object();
     scope->contexts = sentry_value_new_object();
     scope->propagation_context = sentry_value_new_object();
     scope->breadcrumbs = sentry__ringbuffer_new(SENTRY_BREADCRUMBS_MAX);
@@ -110,6 +111,7 @@ cleanup_scope(sentry_scope_t *scope)
     sentry_value_decref(scope->user);
     sentry_value_decref(scope->tags);
     sentry_value_decref(scope->extra);
+    sentry_value_decref(scope->attributes);
     sentry_value_decref(scope->contexts);
     sentry_value_decref(scope->propagation_context);
     sentry__ringbuffer_free(scope->breadcrumbs);
