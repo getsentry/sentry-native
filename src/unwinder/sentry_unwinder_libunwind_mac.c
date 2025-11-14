@@ -9,7 +9,36 @@ valid_ptr(uintptr_t p)
     return p && (p % sizeof(uintptr_t) == 0);
 }
 
-size_t
+/**
+ * This does the same frame-pointer walk for arm64 and x86_64, with the only
+ * difference being which registers value is used as frame-pointer (fp vs rbp)
+ */
+static void
+fp_walk(uintptr_t fp, size_t *n, void **ptrs, size_t max_frames)
+{
+    while (*n < max_frames) {
+        if (!valid_ptr(fp)) {
+            break;
+        }
+
+        // arm64 frame record layout: [prev_fp, saved_lr] at fp and fp+8
+        // x86_64 frame record layout: [prev_rbp, saved_retaddr] at bp and bp+8
+        const uintptr_t *record = (uintptr_t *)fp;
+        const uintptr_t next_fp = record[0];
+        const uintptr_t ret_addr = record[1];
+        if (!valid_ptr(next_fp) || !ret_addr) {
+            break;
+        }
+
+        ptrs[(*n)++] = (void *)(ret_addr - 1);
+        if (next_fp <= fp) {
+            break; // prevent loops
+        }
+        fp = next_fp;
+    }
+}
+
+static size_t
 fp_walk_from_uctx(const sentry_ucontext_t *uctx, void **ptrs, size_t max_frames)
 {
     size_t n = 0;
@@ -29,25 +58,7 @@ fp_walk_from_uctx(const sentry_ucontext_t *uctx, void **ptrs, size_t max_frames)
         ptrs[n++] = (void *)(lr - 1);
     }
 
-    while (n < max_frames) {
-        if (!valid_ptr(fp)) {
-            break;
-        }
-
-        // arm64 frame record layout: [prev_fp, saved_lr] at fp and fp+8
-        uintptr_t *record = (uintptr_t *)fp;
-        uintptr_t next_fp = record[0];
-        uintptr_t ret_addr = record[1];
-        if (!valid_ptr(next_fp) || !ret_addr) {
-            break;
-        }
-
-        ptrs[n++] = (void *)(ret_addr - 1);
-        if (next_fp <= fp) {
-            break; // prevent loops
-        }
-        fp = next_fp;
-    }
+    fp_walk(fp, &n, ptrs, max_frames);
 #elif defined(__x86_64__)
     uintptr_t ip = (uintptr_t)mctx->__ss.__rip;
     uintptr_t bp = (uintptr_t)mctx->__ss.__rbp;
@@ -57,23 +68,7 @@ fp_walk_from_uctx(const sentry_ucontext_t *uctx, void **ptrs, size_t max_frames)
         ptrs[n++] = (void *)(ip - 1);
     }
 
-    while (n < max_frames) {
-        if (!valid_ptr(bp)) {
-            break;
-        }
-        // x86_64 frame record layout: [prev_rbp, saved_retaddr] at bp and bp+8
-        uintptr_t *record = (uintptr_t *)bp;
-        uintptr_t next_bp = record[0];
-        uintptr_t ret_addr = record[1];
-        if (!valid_ptr(next_bp) || !ret_addr) {
-            break;
-        }
-        ptrs[n++] = (void *)(ret_addr - 1);
-        if (next_bp <= bp) {
-            break;
-        }
-        bp = next_bp;
-    }
+    fp_walk(bp, &n, ptrs, max_frames);
 #else
 #    error "Unsupported CPU architecture for macOS stackwalker"
 #endif
@@ -85,7 +80,8 @@ sentry__unwind_stack_libunwind_mac(
     void *addr, const sentry_ucontext_t *uctx, void **ptrs, size_t max_frames)
 {
     if (addr) {
-        // we don't support stack walks from arbitrary addresses
+        size_t n = 0;
+        fp_walk((uintptr_t)addr, &n, ptrs, max_frames);
         return 0;
     }
 
