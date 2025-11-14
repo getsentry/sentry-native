@@ -323,3 +323,59 @@ SENTRY_TEST(logs_force_flush)
     TEST_CHECK(!validation_data.has_validation_error);
     TEST_CHECK_INT_EQUAL(validation_data.called_count, 6);
 }
+
+SENTRY_TEST(logs_custom_attributes_with_format_strings)
+{
+    transport_validation_data_t validation_data = { 0, false };
+
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_enable_logs(options, true);
+    sentry_options_set_logs_with_attributes(options, true);
+
+    sentry_transport_t *transport
+        = sentry_transport_new(validate_logs_envelope);
+    sentry_transport_set_state(transport, &validation_data);
+    sentry_options_set_transport(options, transport);
+
+    sentry_init(options);
+    sentry__logs_wait_for_thread_startup();
+
+    // Test 1: Custom attributes with format string
+    sentry_value_t attributes1 = sentry_value_new_object();
+    sentry_value_t attr1 = sentry_value_new_attribute(
+        sentry_value_new_string("custom_value"), NULL);
+    sentry_value_set_by_key(attributes1, "my.custom.attribute", attr1);
+    TEST_CHECK_INT_EQUAL(sentry_log_info("User %s logged in with code %d",
+                             attributes1, "Alice", 200),
+        0);
+
+    // Test 2: Null attributes with format string (should still work)
+    TEST_CHECK_INT_EQUAL(sentry_log_warn("No custom attrs: %s has %d items",
+                             sentry_value_new_null(), "cart", 5),
+        0);
+
+    // Test 3: Custom attributes with no format parameters
+    sentry_value_t attributes2 = sentry_value_new_object();
+    sentry_value_t attr2
+        = sentry_value_new_attribute(sentry_value_new_int32(42), NULL);
+    sentry_value_set_by_key(attributes2, "special.number", attr2);
+    TEST_CHECK_INT_EQUAL(
+        sentry_log_error("Simple message with custom attrs", attributes2), 0);
+
+    // Test 4: Custom attributes with multiple format types
+    sentry_value_t attributes3 = sentry_value_new_object();
+    sentry_value_t attr3
+        = sentry_value_new_attribute(sentry_value_new_string("tracking"), NULL);
+    sentry_value_set_by_key(attributes3, "event.type", attr3);
+    TEST_CHECK_INT_EQUAL(
+        sentry_log_debug("Processing item %d of %d (%.1f%% complete)",
+            attributes3, 3, 10, 30.0),
+        0);
+
+    sentry_close();
+
+    // Validate that logs were sent
+    TEST_CHECK(!validation_data.has_validation_error);
+    TEST_CHECK_INT_EQUAL(validation_data.called_count, 1);
+}

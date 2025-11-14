@@ -155,7 +155,8 @@ SENTRY_TEST(discarding_before_send)
 SENTRY_TEST(crash_marker)
 {
     // We don't use sentry_init() in this test so we must create a database dir
-    sentry_path_t *database_path = sentry__path_from_str(".sentry-native");
+    sentry_path_t *database_path
+        = sentry__path_from_str(SENTRY_TEST_PATH_PREFIX ".sentry-native");
     TEST_ASSERT(!!database_path);
     TEST_ASSERT(!sentry__path_create_dir_all(database_path));
 
@@ -305,6 +306,11 @@ SENTRY_TEST(capture_minidump_invalid_path)
 
 SENTRY_TEST(basic_transport_thread_name)
 {
+#if defined(SENTRY_PLATFORM_NX)
+    // NX transport won't start without custom network_connect_func.
+    SKIP_TEST();
+#endif
+
     const char *expected_thread_name = "sentry::worker_thread";
 
     SENTRY_TEST_OPTIONS_NEW(options);
