@@ -882,6 +882,12 @@ static void
 dispatch_ucontext(
     const sentry_ucontext_t *uctx, const struct signal_slot *sig_slot)
 {
+#ifdef SENTRY_WITH_UNWINDER_LIBBACKTRACE
+    // For targets that still use `backtrace()` as the sole unwinder we must
+    // run the signal-unsafe part in the signal handler like we did before.
+    process_ucontext_deferred(uctx, sig_slot);
+    return;
+#else
     if (!sentry__atomic_fetch(&g_handler_thread_ready)
         || has_handler_thread_crashed()) {
         // directly execute unsafe part in signal handler as a last chance to
@@ -893,7 +899,7 @@ dispatch_ucontext(
     g_handler_state.uctx = *uctx;
     g_handler_state.sig_slot = sig_slot;
 
-#ifdef SENTRY_PLATFORM_UNIX
+#    ifdef SENTRY_PLATFORM_UNIX
     if (uctx->siginfo) {
         memcpy(&g_handler_state.siginfo_storage, uctx->siginfo,
             sizeof(g_handler_state.siginfo_storage));
@@ -913,13 +919,13 @@ dispatch_ucontext(
 
     // we leave the handler
     sentry__leave_signal_handler();
-#endif
+#    endif
 
     sentry__atomic_store(&g_handler_work_done, 0);
     sentry__atomic_store(&g_handler_has_work, 1);
 
     // signal the handler thread to start working
-#ifdef SENTRY_PLATFORM_UNIX
+#    ifdef SENTRY_PLATFORM_UNIX
     if (g_handler_pipe[1] >= 0) {
         char c = 1;
         ssize_t rv;
@@ -927,19 +933,21 @@ dispatch_ucontext(
             rv = write(g_handler_pipe[1], &c, 1);
         } while (rv == -1 && errno == EINTR);
     }
-#elif defined(SENTRY_PLATFORM_WINDOWS)
+#    elif defined(SENTRY_PLATFORM_WINDOWS)
     if (g_handler_semaphore) {
         ReleaseSemaphore(g_handler_semaphore, 1, NULL);
     }
-#endif
+#    endif
 
     // wait until the handler has done its work
     while (!sentry__atomic_fetch(&g_handler_work_done)) {
         sentry__cpu_relax();
     }
 
-#ifdef SENTRY_PLATFORM_UNIX
+#    ifdef SENTRY_PLATFORM_UNIX
     sentry__enter_signal_handler();
+#    endif
+
 #endif
 }
 
