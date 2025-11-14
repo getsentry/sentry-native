@@ -508,8 +508,6 @@ main(int argc, char **argv)
         return EXIT_FAILURE;
     }
 
-    sentry_get_crashed_last_run();
-
     if (has_arg(argc, argv, "log-attributes")) {
         sentry_value_t attributes = sentry_value_new_object();
         sentry_value_t attr = sentry_value_new_attribute(

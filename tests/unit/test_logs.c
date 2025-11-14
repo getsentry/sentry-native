@@ -288,6 +288,42 @@ SENTRY_TEST(logs_param_types)
     test_param_conversion_types("%u %d %f %c %s %p %x", a, b, c, d, e, f, g);
 }
 
+SENTRY_TEST(logs_force_flush)
+{
+    transport_validation_data_t validation_data = { 0, false };
+
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_enable_logs(options, true);
+
+    sentry_transport_t *transport
+        = sentry_transport_new(validate_logs_envelope);
+    sentry_transport_set_state(transport, &validation_data);
+    sentry_options_set_transport(options, transport);
+
+    sentry_init(options);
+    sentry__logs_wait_for_thread_startup();
+
+    // These should not crash and should respect the enable_logs option
+    TEST_CHECK_INT_EQUAL(sentry_log_trace("Trace message"), 0);
+    sentry_flush(5000);
+    TEST_CHECK_INT_EQUAL(sentry_log_debug("Debug message"), 0);
+    sentry_flush(5000);
+    TEST_CHECK_INT_EQUAL(sentry_log_info("Info message"), 0);
+    sentry_flush(5000);
+    TEST_CHECK_INT_EQUAL(sentry_log_warn("Warning message"), 0);
+    sentry_flush(5000);
+    TEST_CHECK_INT_EQUAL(sentry_log_error("Error message"), 0);
+    sentry_flush(5000);
+    TEST_CHECK_INT_EQUAL(sentry_log_fatal("Fatal message"), 0);
+    sentry_flush(5000);
+    sentry_close();
+
+    // Validate results on main thread (no race condition)
+    TEST_CHECK(!validation_data.has_validation_error);
+    TEST_CHECK_INT_EQUAL(validation_data.called_count, 6);
+}
+
 SENTRY_TEST(logs_custom_attributes_with_format_strings)
 {
     transport_validation_data_t validation_data = { 0, false };
