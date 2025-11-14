@@ -65,6 +65,9 @@ def run_dotnet_native_crash(tmp_path):
     reason="dotnet signal handling is currently only supported on 64-bit Linux without sanitizers",
 )
 def test_dotnet_signals_inproc(cmake):
+    if shutil.which("dotnet") is None:
+        pytest.skip("dotnet is not installed")
+
     try:
         # build native client library with inproc and the example for crash dumping
         tmp_path = cmake(
@@ -166,6 +169,9 @@ def run_aot_native_crash(tmp_path):
     reason="dotnet AOT signal handling is currently only supported on 64-bit Linux without sanitizers",
 )
 def test_aot_signals_inproc(cmake):
+    if shutil.which("dotnet") is None:
+        pytest.skip("dotnet is not installed")
+
     try:
         # build native client library with inproc and the example for crash dumping
         tmp_path = cmake(

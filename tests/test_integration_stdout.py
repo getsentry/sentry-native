@@ -240,7 +240,7 @@ def test_inproc_crash_stdout_before_send_and_on_crash(cmake):
 )
 def test_inproc_stack_overflow_stdout(cmake, build_args):
     tmp_path, output = run_stdout_for(
-        "inproc", cmake, ["attachment", "stack-overflow"], build_args
+        "inproc", cmake, ["log", "attachment", "stack-overflow"], build_args
     )
 
     envelope = Envelope.deserialize(output)

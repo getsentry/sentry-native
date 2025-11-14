@@ -167,6 +167,13 @@ if(SENTRY_WITH_LIBUNWIND)
 	)
 endif()
 
+if(SENTRY_WITH_LIBUNWIND_MAC)
+	target_compile_definitions(sentry PRIVATE SENTRY_WITH_UNWINDER_LIBUNWIND_MAC)
+	sentry_target_sources_cwd(sentry
+			unwinder/sentry_unwinder_libunwind_mac.c
+	)
+endif()
+
 if(SENTRY_WITH_LIBUNWINDSTACK)
 	target_compile_definitions(sentry PRIVATE SENTRY_WITH_UNWINDER_LIBUNWINDSTACK)
 	sentry_target_sources_cwd(sentry
