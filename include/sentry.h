@@ -1849,11 +1849,11 @@ SENTRY_API void sentry_remove_extra(const char *key);
 SENTRY_API void sentry_remove_extra_n(const char *key, size_t key_len);
 
 /**
- * Sets global attributes to be applied to all:
+ * Sets attributes created with `sentry_value_new_attribute` to be applied to
+ * all:
  * - logs
- * Create attributes using `sentry_value_new_attribute`
+ *
  * TODO
- *  - implement
  *  - apply to logs (but only if log doesn't already have the attribute(s))
  *  - expand attributes to allow string[], int[], double[]
  */
@@ -1868,8 +1868,9 @@ SENTRY_API void sentry_scope_set_attribute_n(sentry_scope_t *scope,
     const char *key, size_t key_len, sentry_value_t attribute);
 SENTRY_API void sentry_scope_remove_attribute(
     sentry_scope_t *scope, const char *key);
-SENTRY_API void sentry_scope_remove_attribute(
+SENTRY_API void sentry_scope_remove_attribute_n(
     sentry_scope_t *scope, const char *key, size_t key_len);
+
 /**
  * Sets a context object.
  */

@@ -591,6 +591,38 @@ sentry_scope_set_extra_n(sentry_scope_t *scope, const char *key, size_t key_len,
 }
 
 void
+sentry_scope_set_attribute(
+    sentry_scope_t *scope, const char *key, sentry_value_t attribute)
+{
+    sentry_scope_set_attribute_n(scope, key, strlen(key), attribute);
+}
+
+void
+sentry_scope_set_attribute_n(sentry_scope_t *scope, const char *key,
+    size_t key_len, sentry_value_t attribute)
+{
+    if (sentry_value_is_null(sentry_value_get_by_key(attribute, "value"))
+        || sentry_value_is_null(sentry_value_get_by_key(attribute, "type"))) {
+        SENTRY_DEBUG("Cannot set attribute with missing 'value' or 'type'");
+        return;
+    }
+    sentry_value_set_by_key_n(scope->attributes, key, key_len, attribute);
+}
+
+void
+sentry_scope_remove_attribute(sentry_scope_t *scope, const char *key)
+{
+    sentry_value_remove_by_key(scope->attributes, key);
+}
+
+void
+sentry_scope_remove_attribute_n(
+    sentry_scope_t *scope, const char *key, size_t key_len)
+{
+    sentry_value_remove_by_key_n(scope->attributes, key, key_len);
+}
+
+void
 sentry_scope_set_context(
     sentry_scope_t *scope, const char *key, sentry_value_t value)
 {
