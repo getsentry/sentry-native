@@ -3,6 +3,7 @@
 #define UNW_LOCAL_ONLY
 #include <libunwind.h>
 #include <stdio.h>
+#include <unistd.h>
 
 typedef struct {
     uintptr_t lo, hi;
