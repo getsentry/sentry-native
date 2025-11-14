@@ -93,7 +93,7 @@ sentry__unwind_stack_libunwind(
 
     // ensure we have a valid stack pointer otherwise we only send the top frame
     mem_range_t stack = { 0, 0 };
-    if (uctx && !find_mem_range((uintptr_t)sp, &stack) == 0) {
+    if (uctx && !find_mem_range((uintptr_t)sp, &stack)) {
         SENTRY_WARNF("unwinder: SP (%p) is in unmapped memory likely due to "
                      "stack overflow",
             (void *)sp);
