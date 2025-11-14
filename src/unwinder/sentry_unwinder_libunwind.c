@@ -116,8 +116,9 @@ sentry__unwind_stack_libunwind(
     unw_word_t prev_sp = sp;
     size_t step_idx = 0;
     while (n < max_frames) {
-        SENTRY_DEBUGF("unwind: about to unw_step, step=%zu, prev_ip=%p prev_sp=%p",
-            step_idx, (void*)prev_ip, (void*)prev_sp);
+        SENTRY_DEBUGF(
+            "unwind: about to unw_step, step=%zu, prev_ip=%p prev_sp=%p",
+            step_idx, (void *)prev_ip, (void *)prev_sp);
         if (unw_step(&cursor) <= 0) {
             SENTRY_DEBUGF("unwind: unw_step failed at step=%zu", step_idx);
             break;
@@ -140,7 +141,8 @@ sentry__unwind_stack_libunwind(
         if (have_bounds) {
             intptr_t d_lo = (intptr_t)((uintptr_t)sp - stack.lo);
             intptr_t d_hi = (intptr_t)((uintptr_t)stack.hi - sp);
-            SENTRY_DEBUGF("unwind: unw_step %zu: ip=%p, sp=%p, d_lo=%zd, d_hi=%zd", n,
+            SENTRY_DEBUGF(
+                "unwind: unw_step %zu: ip=%p, sp=%p, d_lo=%zd, d_hi=%zd", n,
                 (void *)ip, (void *)sp, d_lo, d_hi);
         }
 
