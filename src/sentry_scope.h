@@ -17,6 +17,7 @@ struct sentry_scope_s {
     sentry_value_t user;
     sentry_value_t tags;
     sentry_value_t extra;
+    sentry_value_t attributes;
     sentry_value_t contexts;
     sentry_value_t propagation_context;
     sentry_ringbuffer_t *breadcrumbs;

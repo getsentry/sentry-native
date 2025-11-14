@@ -671,7 +671,10 @@ static sentry_value_t
 construct_log(sentry_level_t level, const char *message, va_list args)
 {
     sentry_value_t log = sentry_value_new_object();
-    sentry_value_t attributes = sentry_value_new_object();
+    sentry_value_t attributes;
+    SENTRY_WITH_SCOPE (scope) {
+        attributes = sentry__value_clone(scope->attributes);
+    }
 
     SENTRY_WITH_OPTIONS (options) {
         // Extract custom attributes if the option is enabled
