@@ -828,6 +828,7 @@ SENTRY_TEST(scope_local_attributes)
         sentry_value_t local_attributes = local_scope->attributes;
         TEST_CHECK(sentry_value_is_null(
             sentry_value_get_by_key(local_attributes, "invalid")));
+        sentry_value_decref(invalid_attr);
 
         sentry__scope_free(local_scope);
     }
