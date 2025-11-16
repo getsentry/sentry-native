@@ -643,6 +643,7 @@ SENTRY_TEST(scope_global_attributes)
         // Check that the attribute was NOT set
         TEST_CHECK(sentry_value_is_null(retrieved_attr));
     }
+    sentry_value_decref(invalid_attr_no_value);
 
     // Test invalid attribute missing 'type'
     sentry_value_t invalid_attr_no_type = sentry_value_new_object();
@@ -659,6 +660,7 @@ SENTRY_TEST(scope_global_attributes)
         // Check that the attribute was NOT set
         TEST_CHECK(sentry_value_is_null(retrieved_attr));
     }
+    sentry_value_decref(invalid_attr_no_type);
 
     // Test removing an attribute
     sentry_remove_attribute("valid_key");
