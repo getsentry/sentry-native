@@ -1,10 +1,13 @@
 # Changelog
 
-## 0.12.1
+## Unreleased
 
 **Features**:
 
 - Add custom attributes API for logs. When `logs_with_attributes` is set to `true`, treats the first `varg` passed into `sentry_logs_X(message,...)` as a `sentry_value_t` object of attributes. ([#1435](https://github.com/getsentry/sentry-native/pull/1435))
+- Add global attributes API. ([#1450](https://github.com/getsentry/sentry-native/pull/1450))
+
+## 0.12.1
 
 **Fixes**:
 
