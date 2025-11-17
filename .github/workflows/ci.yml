@@ -43,9 +43,11 @@ jobs:
             #   ubuntu 22.04
             #     GCC: 9-12
             #     clang: 11-15
+            #     kcov: 9-12
             #   ubuntu 24.04
             #     GCC: 9-14
             #     clang: 16-20
+            #     kcov: 9-14
             # note:
             #   Since available GCCs on 22.04 are a strict
             #   subset of the ones available on 24.04, we
@@ -59,7 +61,6 @@ jobs:
             os: ubuntu-24.04
             CC: gcc-9
             CXX: g++-9
-            # ERROR_ON_WARNINGS: 1
           - name: Linux (GCC 12.3.0)
             os: ubuntu-24.04
             CC: gcc-12
@@ -235,8 +236,12 @@ jobs:
             echo "Unknown CC: $CC" >&2
             exit 1
           fi
+
+      - name: Installing kcov dependencies
+        if: ${{ contains(env['RUN_ANALYZER'], 'kcov') }}
+        run: |
           # Install kcov from source
-          sudo apt-get install binutils-dev libssl-dev libelf-dev libstdc++-dev libdw-dev libiberty-dev
+          sudo apt-get install binutils-dev libssl-dev libelf-dev libstdc++-14-dev libdw-dev libiberty-dev
           git clone https://github.com/SimonKagstrom/kcov.git
           cd kcov
           # pin to a known good version with the coveralls git integration and performance bottlenecks fixed
