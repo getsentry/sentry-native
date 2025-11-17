@@ -153,6 +153,9 @@ elseif(SENTRY_BACKEND_NONE)
 endif()
 
 # unwinder
+sentry_target_sources_cwd(sentry
+	unwinder/sentry_unwinder.h
+)
 if(SENTRY_WITH_LIBBACKTRACE)
 	target_compile_definitions(sentry PRIVATE SENTRY_WITH_UNWINDER_LIBBACKTRACE)
 	sentry_target_sources_cwd(sentry

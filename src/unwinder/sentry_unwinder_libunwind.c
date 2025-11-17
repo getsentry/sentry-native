@@ -1,12 +1,9 @@
 #include "sentry_boot.h"
 #include "sentry_logger.h"
+#include "sentry_unwinder.h"
 #define UNW_LOCAL_ONLY
 #include <libunwind.h>
 #include <stdio.h>
-
-typedef struct {
-    uintptr_t lo, hi;
-} mem_range_t;
 
 /**
  * Looks up the memory range for a given pointer in /proc/self/maps.

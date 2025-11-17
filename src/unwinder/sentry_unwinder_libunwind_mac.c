@@ -1,12 +1,59 @@
 #include "sentry_boot.h"
 #include "sentry_logger.h"
+#include "sentry_unwinder.h"
 #include <libunwind.h>
+#include <mach/mach.h>
+#include <mach/mach_vm.h>
 
-// a very cheap pointer validation for starters
+// Basic pointer validation to make sure we stay inside mapped memory.
+static bool
+is_readable_ptr(uintptr_t p, size_t size)
+{
+    if (!p) {
+        return false;
+    }
+
+    mach_vm_address_t address = (mach_vm_address_t)p;
+    mach_vm_size_t region_size = 0;
+    vm_region_basic_info_data_64_t info;
+    mach_msg_type_number_t count = VM_REGION_BASIC_INFO_COUNT_64;
+    mach_port_t object = MACH_PORT_NULL;
+
+    kern_return_t kr = mach_vm_region(mach_task_self(), &address, &region_size,
+        VM_REGION_BASIC_INFO_64, (vm_region_info_t)&info, &count, &object);
+    if (object != MACH_PORT_NULL) {
+        mach_port_deallocate(mach_task_self(), object);
+    }
+    if (kr != KERN_SUCCESS) {
+        return false;
+    }
+
+    if (!(info.protection & VM_PROT_READ)) {
+        return false;
+    }
+
+    mem_range_t vm_region
+        = { (uintptr_t)address, (uintptr_t)address + (uintptr_t)region_size };
+    if (vm_region.hi < vm_region.lo) {
+        return false;
+    }
+
+    uintptr_t end = p + (uintptr_t)size;
+    if (end < p) {
+        return false;
+    }
+
+    return p >= vm_region.lo && end <= vm_region.hi;
+}
+
 static bool
 valid_ptr(uintptr_t p)
 {
-    return p && (p % sizeof(uintptr_t) == 0);
+    if (!p || (p % sizeof(uintptr_t)) != 0) {
+        return false;
+    }
+
+    return is_readable_ptr(p, sizeof(uintptr_t) * 2);
 }
 
 /**
