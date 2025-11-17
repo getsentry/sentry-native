@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1763385065598,
+  "lastUpdate": 1763385242674,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -22318,6 +22318,66 @@ window.BENCHMARK_DATA = {
             "value": 14.47650000000067,
             "unit": "ms",
             "extra": "Min 14.299ms\nMax 14.821ms\nMean 14.544ms\nStdDev 0.225ms\nMedian 14.477ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "tustanivsky@gmail.com",
+            "name": "Ivan Tustanivskyi",
+            "username": "tustanivsky"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "cbd88e51c05b7d89647fa28c493772e96d397575",
+          "message": "feat: add runtime API to query user consent requirement (#1443)\n\n* feat: add runtime API to query user consent requirement\n\n* update changelog\n\n* Add test for init without explicit consent configuration",
+          "timestamp": "2025-11-17T15:08:50+02:00",
+          "tree_id": "ddcab48ae00f75431f19aa2d2977fc4f8d3bd10e",
+          "url": "https://github.com/getsentry/sentry-native/commit/cbd88e51c05b7d89647fa28c493772e96d397575"
+        },
+        "date": 1763385232258,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 12.472699999989345,
+            "unit": "ms",
+            "extra": "Min 11.400ms\nMax 13.134ms\nMean 12.295ms\nStdDev 0.742ms\nMedian 12.473ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 12.484800000038376,
+            "unit": "ms",
+            "extra": "Min 9.993ms\nMax 13.216ms\nMean 11.848ms\nStdDev 1.363ms\nMedian 12.485ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 30.500700000061443,
+            "unit": "ms",
+            "extra": "Min 28.210ms\nMax 35.814ms\nMean 31.570ms\nStdDev 3.654ms\nMedian 30.501ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.011299999982838926,
+            "unit": "ms",
+            "extra": "Min 0.011ms\nMax 0.013ms\nMean 0.012ms\nStdDev 0.001ms\nMedian 0.011ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.3935999999384876,
+            "unit": "ms",
+            "extra": "Min 0.373ms\nMax 0.497ms\nMean 0.410ms\nStdDev 0.050ms\nMedian 0.394ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 17.23509999999351,
+            "unit": "ms",
+            "extra": "Min 15.215ms\nMax 24.388ms\nMean 18.611ms\nStdDev 3.584ms\nMedian 17.235ms"
           }
         ]
       }
