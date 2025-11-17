@@ -39,13 +39,24 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # toolchain per runner-image availability:
+            #   ubuntu 22.04
+            #     GCC: 9-12
+            #     clang: 11-15
+            #   ubuntu 24.04
+            #     GCC: 9-14
+            #     clang: 16-20
+            # note:
+            #   Since available GCCs on 22.04 are a strict
+            #   subset of the ones available on 24.04, we
+            #   run all GCC tests on the latter version.
           - name: Linux (GCC 9.5.0, 32-bit)
-            os: ubuntu-22.04
+            os: ubuntu-24.04
             CC: gcc-9
             CXX: g++-9
             TEST_X86: 1
           - name: Linux (GCC 9.5.0)
-            os: ubuntu-22.04
+            os: ubuntu-24.04
             CC: gcc-9
             CXX: g++-9
             # ERROR_ON_WARNINGS: 1
@@ -197,10 +208,10 @@ jobs:
           cache: "pip"
 
       - name: Installing Linux Dependencies
-        if: ${{ runner.os == 'Linux' && matrix.os != 'ubuntu-22.04' && !env['TEST_X86'] && !matrix.container }}
+        if: ${{ runner.os == 'Linux' && !env['TEST_X86'] && !matrix.container }}
         run: |
           sudo apt update
-          sudo apt install cmake clang-19 llvm g++-12 valgrind zlib1g-dev libcurl4-openssl-dev
+          sudo apt install cmake llvm ${CC} ${CXX} valgrind zlib1g-dev libcurl4-openssl-dev
           # Install kcov from source
           sudo apt-get install binutils-dev libssl-dev libelf-dev libstdc++-12-dev libdw-dev libiberty-dev
           git clone https://github.com/SimonKagstrom/kcov.git
@@ -213,18 +224,12 @@ jobs:
           make
           sudo make install
 
-      - name: Installing Linux GCC 9.4.0 Dependencies
-        if: ${{ runner.os == 'Linux' && matrix.os == 'ubuntu-22.04' && !env['TEST_X86'] && !matrix.container }}
-        run: |
-          sudo apt update
-          sudo apt install cmake llvm kcov g++ valgrind zlib1g-dev libcurl4-openssl-dev
-
       - name: Installing Linux 32-bit Dependencies
         if: ${{ runner.os == 'Linux' && env['TEST_X86'] && !matrix.container }}
         run: |
           sudo dpkg --add-architecture i386
           sudo apt update
-          sudo apt install cmake gcc-9-multilib g++-9-multilib zlib1g-dev:i386 libssl-dev:i386 libcurl4-openssl-dev:i386
+          sudo apt install cmake ${CC}-multilib ${CXX}-multilib zlib1g-dev:i386 libssl-dev:i386 libcurl4-openssl-dev:i386
 
       - name: Installing Alpine Linux Dependencies
         if: ${{ contains(matrix.container, 'alpine') }}
