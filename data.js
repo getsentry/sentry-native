@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1763385271140,
+  "lastUpdate": 1763390144123,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -7478,6 +7478,66 @@ window.BENCHMARK_DATA = {
             "value": 1.814319000004616,
             "unit": "ms",
             "extra": "Min 1.755ms\nMax 1.874ms\nMean 1.818ms\nStdDev 0.046ms\nMedian 1.814ms\nCPU 0.541ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "60878493+JoshuaMoelans@users.noreply.github.com",
+            "name": "JoshuaMoelans",
+            "username": "JoshuaMoelans"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "0a7a531b1c35290379fc1085a3f645c6cc101f4b",
+          "message": "chore: parametrize clang/gcc install for ubuntu CI (#1452)\n\n* update ci\n\n* update ci\n\n* remove CC/CXX env export in Test\n\n* check whether CC/CXX was set\n\n* add early-fail else on unknown CC value\n\n* cleanup\n- clang19->20\n- add clang-11 ubuntu 22.04 runner\n- remove libstdc++ specific version\n\n* separate kcov install\n\n* update crashpad",
+          "timestamp": "2025-11-17T15:33:04+01:00",
+          "tree_id": "90d2b1338cfa499de449535978bee33e3df77096",
+          "url": "https://github.com/getsentry/sentry-native/commit/0a7a531b1c35290379fc1085a3f645c6cc101f4b"
+        },
+        "date": 1763390142775,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 0.7480689999965762,
+            "unit": "ms",
+            "extra": "Min 0.704ms\nMax 0.807ms\nMean 0.751ms\nStdDev 0.041ms\nMedian 0.748ms\nCPU 0.737ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.7319689999860657,
+            "unit": "ms",
+            "extra": "Min 0.701ms\nMax 0.765ms\nMean 0.733ms\nStdDev 0.023ms\nMedian 0.732ms\nCPU 0.733ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 3.249657999987221,
+            "unit": "ms",
+            "extra": "Min 3.114ms\nMax 3.416ms\nMean 3.251ms\nStdDev 0.116ms\nMedian 3.250ms\nCPU 1.732ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.012554000022646505,
+            "unit": "ms",
+            "extra": "Min 0.012ms\nMax 0.015ms\nMean 0.013ms\nStdDev 0.001ms\nMedian 0.013ms\nCPU 0.012ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.02905399998098801,
+            "unit": "ms",
+            "extra": "Min 0.028ms\nMax 0.032ms\nMean 0.029ms\nStdDev 0.001ms\nMedian 0.029ms\nCPU 0.028ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 1.93388299999242,
+            "unit": "ms",
+            "extra": "Min 1.830ms\nMax 1.993ms\nMean 1.910ms\nStdDev 0.067ms\nMedian 1.934ms\nCPU 0.598ms"
           }
         ]
       }
