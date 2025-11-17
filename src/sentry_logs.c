@@ -932,6 +932,15 @@ sentry__logs_flush_crash_safe(void)
     SENTRY_DEBUG("crash-safe logs flush complete");
 }
 
+void
+sentry__logs_force_flush(void)
+{
+    while (sentry__atomic_fetch(&g_logs_state.flushing)) {
+        sentry__cpu_relax();
+    }
+    flush_logs_queue(false);
+}
+
 #ifdef SENTRY_UNITTEST
 /**
  * Wait for the logs batching thread to be ready.
