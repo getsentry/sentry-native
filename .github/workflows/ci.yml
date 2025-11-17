@@ -213,11 +213,13 @@ jobs:
         if: ${{ runner.os == 'Linux' && !env['TEST_X86'] && !matrix.container }}
         run: |
           sudo apt update
+          # Install common dependencies
+          sudo apt install cmake llvm valgrind zlib1g-dev libcurl4-openssl-dev
           # For GCC, install both gcc-X and g++-X. For Clang, only install clang-X (includes C++ compiler)
           if [[ "$CC" == gcc-* ]]; then
-            sudo apt install cmake llvm "${CC}" "${CXX}" valgrind zlib1g-dev libcurl4-openssl-dev
+            sudo apt install "${CC}" "${CXX}"
           elif [[ "$CC" == clang-* ]]; then
-            sudo apt install cmake llvm "${CC}" valgrind zlib1g-dev libcurl4-openssl-dev
+            sudo apt install "${CC}"
           fi
           # Install kcov from source
           sudo apt-get install binutils-dev libssl-dev libelf-dev libstdc++-12-dev libdw-dev libiberty-dev
