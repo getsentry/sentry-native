@@ -1726,6 +1726,16 @@ SENTRY_API void sentry_user_consent_reset(void);
 SENTRY_API sentry_user_consent_t sentry_user_consent_get(void);
 
 /**
+ * Checks whether user consent is required.
+ *
+ * This returns the value that was configured via
+ * `sentry_options_set_require_user_consent` during initialization.
+ *
+ * Returns 1 if user consent is required, 0 otherwise.
+ */
+SENTRY_API int sentry_user_consent_is_required(void);
+
+/**
  * A sentry Scope.
  *
  * See https://develop.sentry.dev/sdk/telemetry/scopes/
