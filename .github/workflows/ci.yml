@@ -39,16 +39,28 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: Linux (GCC 10.5.0, 32-bit)
-            os: ubuntu-22.04
-            CC: gcc-10
-            CXX: g++-10
+            # toolchain per runner-image availability:
+            #   ubuntu 22.04
+            #     GCC: 9-12
+            #     clang: 11-15
+            #     kcov: 9-12
+            #   ubuntu 24.04
+            #     GCC: 9-14
+            #     clang: 16-20
+            #     kcov: 9-14
+            # note:
+            #   Since available GCCs on 22.04 are a strict
+            #   subset of the ones available on 24.04, we
+            #   run all GCC tests on the latter version.
+          - name: Linux (GCC 9.5.0, 32-bit)
+            os: ubuntu-24.04
+            CC: gcc-9
+            CXX: g++-9
             TEST_X86: 1
-          - name: Linux (GCC 10.5.0)
-            os: ubuntu-22.04
-            CC: gcc-10
-            CXX: g++-10
-            # ERROR_ON_WARNINGS: 1
+          - name: Linux (GCC 9.5.0)
+            os: ubuntu-24.04
+            CC: gcc-9
+            CXX: g++-9
           - name: Linux (GCC 12.3.0)
             os: ubuntu-24.04
             CC: gcc-12
@@ -71,46 +83,26 @@ jobs:
             CC: gcc-14
             CXX: g++-14
             RUN_ANALYZER: tsan
-          - name: Linux (clang 19 + asan + llvm-cov)
+          - name: Linux (clang 11)
+            os: ubuntu-22.04
+            CC: clang-11
+            CXX: clang++-11
+          - name: Linux (clang 20 + asan + llvm-cov)
             os: ubuntu-24.04
-            CC: clang-19
-            CXX: clang++-19
+            CC: clang-20
+            CXX: clang++-20
             ERROR_ON_WARNINGS: 1
             RUN_ANALYZER: asan,llvm-cov
-          - name: Linux Arm64 (clang 19 + asan + llvm-cov)
+          - name: Linux Arm64 (clang 20 + asan + llvm-cov)
             os: ubuntu-24.04-arm
-            CC: clang-19
-            CXX: clang++-19
+            CC: clang-20
+            CXX: clang++-20
             ERROR_ON_WARNINGS: 1
             RUN_ANALYZER: asan,llvm-cov
-          - name: Linux (clang 19 + tsan)
+          - name: Linux (clang 20 + tsan)
             os: ubuntu-24.04
-            CC: clang-19
-            CXX: clang++-19
-            ERROR_ON_WARNINGS: 1
-            RUN_ANALYZER: tsan
-          - name: Linux Arm64 (clang 16 + tsan)
-            os: ubuntu-24.04-arm
-            CC: clang-16
-            CXX: clang++-16
-            ERROR_ON_WARNINGS: 1
-            RUN_ANALYZER: tsan
-          - name: Linux Arm64 (clang 17 + tsan)
-            os: ubuntu-24.04-arm
-            CC: clang-17
-            CXX: clang++-17
-            ERROR_ON_WARNINGS: 1
-            RUN_ANALYZER: tsan
-          - name: Linux Arm64 (clang 18 + tsan)
-            os: ubuntu-24.04-arm
-            CC: clang-18
-            CXX: clang++-18
-            ERROR_ON_WARNINGS: 1
-            RUN_ANALYZER: tsan
-          - name: Linux Arm64 (clang 19 + tsan)
-            os: ubuntu-24.04-arm
-            CC: clang-19
-            CXX: clang++-19
+            CC: clang-20
+            CXX: clang++-20
             ERROR_ON_WARNINGS: 1
             RUN_ANALYZER: tsan
           - name: Linux Arm64 (clang 20 + tsan)
@@ -119,13 +111,15 @@ jobs:
             CXX: clang++-20
             ERROR_ON_WARNINGS: 1
             RUN_ANALYZER: tsan
-          - name: Linux (clang 19 + kcov)
+          - name: Linux (clang 20 + kcov)
             os: ubuntu-24.04
-            CC: clang-19
-            CXX: clang++-19
+            CC: clang-20
+            CXX: clang++-20
             ERROR_ON_WARNINGS: 1
             RUN_ANALYZER: kcov
           - name: Linux (GCC 13.3.0 + code-checker + valgrind)
+            CC: gcc-13
+            CXX: g++-13
             os: ubuntu-24.04
             RUN_ANALYZER: code-checker,valgrind
           - name: Linux (GCC + musl + libunwind)
@@ -198,6 +192,8 @@ jobs:
     container: ${{ matrix.container }}
 
     env:
+      CC: ${{ matrix.CC }}
+      CXX: ${{ matrix.CXX }}
       TEST_X86: ${{ matrix.TEST_X86 }}
       TEST_MINGW: ${{ matrix.TEST_MINGW }}
       ERROR_ON_WARNINGS: ${{ matrix.ERROR_ON_WARNINGS }}
@@ -220,13 +216,32 @@ jobs:
           python-version: ${{ !env['SYSTEM_PYTHON'] && '3.12' || '' }}
           cache: "pip"
 
+      - name: Check Linux CC/CXX
+        if: ${{ runner.os == 'Linux' && !matrix.container }}
+        run: |
+          [ -n "$CC" ] && [ -n "$CXX" ] || { echo "Ubuntu runner configurations require toolchain selection via CC and CXX" >&2; exit 1; }
+
       - name: Installing Linux Dependencies
-        if: ${{ runner.os == 'Linux' && matrix.os != 'ubuntu-22.04' && !env['TEST_X86'] && !matrix.container }}
+        if: ${{ runner.os == 'Linux' && !env['TEST_X86'] && !matrix.container }}
         run: |
           sudo apt update
-          sudo apt install cmake clang-16 clang-17 clang-18 clang-19 clang-20 llvm g++-12 valgrind zlib1g-dev libcurl4-openssl-dev libunwind-dev
+          # Install common dependencies
+          sudo apt install cmake llvm valgrind zlib1g-dev libcurl4-openssl-dev libunwind-dev
+          # For GCC, install both gcc-X and g++-X. For Clang, only install clang-X (includes C++ compiler)
+          if [[ "$CC" == gcc-* ]]; then
+            sudo apt install "${CC}" "${CXX}"
+          elif [[ "$CC" == clang-* ]]; then
+            sudo apt install "${CC}"
+          else
+            echo "Unknown CC: $CC" >&2
+            exit 1
+          fi
+
+      - name: Installing kcov dependencies
+        if: ${{ contains(env['RUN_ANALYZER'], 'kcov') }}
+        run: |
           # Install kcov from source
-          sudo apt-get install binutils-dev libssl-dev libelf-dev libstdc++-12-dev libdw-dev libiberty-dev
+          sudo apt-get install binutils-dev libssl-dev libelf-dev libstdc++-14-dev libdw-dev libiberty-dev
           git clone https://github.com/SimonKagstrom/kcov.git
           cd kcov
           # pin to a known good version with the coveralls git integration and performance bottlenecks fixed
@@ -237,18 +252,12 @@ jobs:
           make
           sudo make install
 
-      - name: Installing Linux GCC 10.5.0 Dependencies
-        if: ${{ runner.os == 'Linux' && matrix.os == 'ubuntu-22.04' && !env['TEST_X86'] && !matrix.container }}
-        run: |
-          sudo apt update
-          sudo apt install cmake llvm kcov g++ valgrind zlib1g-dev libcurl4-openssl-dev libunwind-dev
-
       - name: Installing Linux 32-bit Dependencies
         if: ${{ runner.os == 'Linux' && env['TEST_X86'] && !matrix.container }}
         run: |
           sudo dpkg --add-architecture i386
           sudo apt update
-          sudo apt install cmake gcc-10-multilib g++-10-multilib zlib1g-dev:i386 libssl-dev:i386 libcurl4-openssl-dev:i386 libunwind-dev:i386 liblzma-dev:i386
+          sudo apt install cmake "${CC}-multilib" "${CXX}-multilib" zlib1g-dev:i386 libssl-dev:i386 libcurl4-openssl-dev:i386 libunwind-dev:i386 liblzma-dev:i386
 
       - name: Installing Alpine Linux Dependencies
         if: ${{ contains(matrix.container, 'alpine') }}
@@ -344,8 +353,6 @@ jobs:
         shell: bash
         run: |
           pip install --upgrade --requirement tests/requirements.txt
-          [ "${{ matrix.CC }}" ] && export CC="${{ matrix.CC }}"
-          [ "${{ matrix.CXX }}" ] && export CXX="${{ matrix.CXX }}"
           pytest --capture=no --verbose tests
 
       - name: Check NDK

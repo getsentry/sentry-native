@@ -26,7 +26,7 @@ Using the `sentry-native` SDK in a standalone use case is currently an experimen
 
 - [SDK Documentation](https://docs.sentry.io/platforms/native/)
 - [Discord](https://discord.gg/ez5KZN7) server for project discussions
-- Follow [@getsentry](https://twitter.com/getsentry) on Twitter for updates
+- Follow [@sentry](https://x.com/sentry) on X for updates
 
 ## Table of Contents <!-- omit in toc -->
 

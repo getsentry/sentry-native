@@ -314,6 +314,9 @@ sentry_flush(uint64_t timeout)
 {
     int rv = 0;
     SENTRY_WITH_OPTIONS (options) {
+        if (options->enable_logs) {
+            sentry__logs_force_flush();
+        }
         rv = sentry__transport_flush(options->transport, timeout);
     }
     return rv;
@@ -454,6 +457,16 @@ sentry_user_consent_get(void)
             (long *)&options->user_consent);
     }
     return rv;
+}
+
+int
+sentry_user_consent_is_required(void)
+{
+    int required = 0;
+    SENTRY_WITH_OPTIONS (options) {
+        required = options->require_user_consent;
+    }
+    return required;
 }
 
 void
