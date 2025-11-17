@@ -56,14 +56,14 @@ static volatile long g_handler_thread_ready = 0;
 static volatile long g_handler_should_exit = 0;
 // signal handler tells handler thread to start working
 static volatile long g_handler_has_work = 0;
-// handler thread wakes signal handler from suspension after finishing the work
-static volatile long g_handler_work_done = 0;
 
-// trigger/schedule primitives that block the handler thread until we need it
+// trigger/schedule primitives that block the other side until this side is done
 #ifdef SENTRY_PLATFORM_UNIX
 static int g_handler_pipe[2] = { -1, -1 };
+static int g_handler_ack_pipe[2] = { -1, -1 };
 #elif defined(SENTRY_PLATFORM_WINDOWS)
 static HANDLE g_handler_semaphore = NULL;
+static HANDLE g_handler_ack_semaphore = NULL;
 #endif
 
 static int start_handler_thread(void);
@@ -137,7 +137,9 @@ startup_inproc_backend(
         backend->data = &g_backend_config;
     }
 
-    start_handler_thread();
+    if (start_handler_thread() != 0) {
+        return 1;
+    }
 
     // save the old signal handlers
     memset(g_previous_handlers, 0, sizeof(g_previous_handlers));
@@ -247,7 +249,9 @@ startup_inproc_backend(
         && defined(SENTRY_THREAD_STACK_GUARANTEE_AUTO_INIT)
     sentry__set_default_thread_stack_guarantee();
 #    endif
-    start_handler_thread();
+    if (start_handler_thread() != 0) {
+        return 1;
+    }
     g_previous_handler = SetUnhandledExceptionFilter(&handle_exception);
     SetErrorMode(SEM_FAILCRITICALERRORS);
     return 0;
@@ -753,7 +757,19 @@ handler_thread_main(void *UNUSED(data))
         process_ucontext_deferred(
             &g_handler_state.uctx, g_handler_state.sig_slot);
         sentry__atomic_store(&g_handler_has_work, 0);
-        sentry__atomic_store(&g_handler_work_done, 1);
+#ifdef SENTRY_PLATFORM_UNIX
+        if (g_handler_ack_pipe[1] >= 0) {
+            char c = 1;
+            ssize_t rv;
+            do {
+                rv = write(g_handler_ack_pipe[1], &c, 1);
+            } while (rv == -1 && errno == EINTR);
+        }
+#elif defined(SENTRY_PLATFORM_WINDOWS)
+        if (g_handler_ack_semaphore) {
+            ReleaseSemaphore(g_handler_ack_semaphore, 1, NULL);
+        }
+#endif
     }
 
 #ifdef SENTRY_PLATFORM_WINDOWS
@@ -773,17 +789,31 @@ start_handler_thread(void)
     sentry__thread_init(&g_handler_thread);
     sentry__atomic_store(&g_handler_should_exit, 0);
     sentry__atomic_store(&g_handler_has_work, 0);
-    sentry__atomic_store(&g_handler_work_done, 0);
 
 #ifdef SENTRY_PLATFORM_UNIX
     if (pipe(g_handler_pipe) != 0) {
         SENTRY_WARNF("failed to create handler pipe: %s", strerror(errno));
         return 1;
     }
+    if (pipe(g_handler_ack_pipe) != 0) {
+        SENTRY_WARNF("failed to create handler ack pipe: %s", strerror(errno));
+        close(g_handler_pipe[0]);
+        close(g_handler_pipe[1]);
+        g_handler_pipe[0] = -1;
+        g_handler_pipe[1] = -1;
+        return 1;
+    }
 #elif defined(SENTRY_PLATFORM_WINDOWS)
     g_handler_semaphore = CreateSemaphoreW(NULL, 0, LONG_MAX, NULL);
     if (!g_handler_semaphore) {
         SENTRY_WARN("failed to create handler semaphore");
+        return 1;
+    }
+    g_handler_ack_semaphore = CreateSemaphoreW(NULL, 0, LONG_MAX, NULL);
+    if (!g_handler_ack_semaphore) {
+        SENTRY_WARN("failed to create handler ack semaphore");
+        CloseHandle(g_handler_semaphore);
+        g_handler_semaphore = NULL;
         return 1;
     }
 #endif
@@ -796,9 +826,15 @@ start_handler_thread(void)
         close(g_handler_pipe[1]);
         g_handler_pipe[0] = -1;
         g_handler_pipe[1] = -1;
+        close(g_handler_ack_pipe[0]);
+        close(g_handler_ack_pipe[1]);
+        g_handler_ack_pipe[0] = -1;
+        g_handler_ack_pipe[1] = -1;
 #elif defined(SENTRY_PLATFORM_WINDOWS)
         CloseHandle(g_handler_semaphore);
         g_handler_semaphore = NULL;
+        CloseHandle(g_handler_ack_semaphore);
+        g_handler_ack_semaphore = NULL;
 #endif
         return 1;
     }
@@ -841,10 +877,22 @@ stop_handler_thread(void)
         close(g_handler_pipe[1]);
         g_handler_pipe[1] = -1;
     }
+    if (g_handler_ack_pipe[0] >= 0) {
+        close(g_handler_ack_pipe[0]);
+        g_handler_ack_pipe[0] = -1;
+    }
+    if (g_handler_ack_pipe[1] >= 0) {
+        close(g_handler_ack_pipe[1]);
+        g_handler_ack_pipe[1] = -1;
+    }
 #elif defined(SENTRY_PLATFORM_WINDOWS)
     if (g_handler_semaphore) {
         CloseHandle(g_handler_semaphore);
         g_handler_semaphore = NULL;
+    }
+    if (g_handler_ack_semaphore) {
+        CloseHandle(g_handler_ack_semaphore);
+        g_handler_ack_semaphore = NULL;
     }
 #endif
 
@@ -921,7 +969,6 @@ dispatch_ucontext(
     sentry__leave_signal_handler();
 #    endif
 
-    sentry__atomic_store(&g_handler_work_done, 0);
     sentry__atomic_store(&g_handler_has_work, 1);
 
     // signal the handler thread to start working
@@ -940,9 +987,19 @@ dispatch_ucontext(
 #    endif
 
     // wait until the handler has done its work
-    while (!sentry__atomic_fetch(&g_handler_work_done)) {
-        sentry__cpu_relax();
+#    ifdef SENTRY_PLATFORM_UNIX
+    if (g_handler_ack_pipe[0] >= 0) {
+        char c = 0;
+        ssize_t rv;
+        do {
+            rv = read(g_handler_ack_pipe[0], &c, 1);
+        } while (rv == -1 && errno == EINTR);
     }
+#    elif defined(SENTRY_PLATFORM_WINDOWS)
+    if (g_handler_ack_semaphore) {
+        WaitForSingleObject(g_handler_ack_semaphore, INFINITE);
+    }
+#    endif
 
 #    ifdef SENTRY_PLATFORM_UNIX
     sentry__enter_signal_handler();
