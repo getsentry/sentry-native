@@ -211,7 +211,7 @@ jobs:
         if: ${{ runner.os == 'Linux' && !env['TEST_X86'] && !matrix.container }}
         run: |
           sudo apt update
-          sudo apt install cmake llvm ${CC} ${CXX} valgrind zlib1g-dev libcurl4-openssl-dev
+          sudo apt install cmake llvm "${CC}" "${CXX}" valgrind zlib1g-dev libcurl4-openssl-dev
           # Install kcov from source
           sudo apt-get install binutils-dev libssl-dev libelf-dev libstdc++-12-dev libdw-dev libiberty-dev
           git clone https://github.com/SimonKagstrom/kcov.git
@@ -229,7 +229,7 @@ jobs:
         run: |
           sudo dpkg --add-architecture i386
           sudo apt update
-          sudo apt install cmake ${CC}-multilib ${CXX}-multilib zlib1g-dev:i386 libssl-dev:i386 libcurl4-openssl-dev:i386
+          sudo apt install cmake "${CC}-multilib" "${CXX}-multilib" zlib1g-dev:i386 libssl-dev:i386 libcurl4-openssl-dev:i386
 
       - name: Installing Alpine Linux Dependencies
         if: ${{ contains(matrix.container, 'alpine') }}
