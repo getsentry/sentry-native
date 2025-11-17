@@ -227,6 +227,9 @@ jobs:
             sudo apt install "${CC}" "${CXX}"
           elif [[ "$CC" == clang-* ]]; then
             sudo apt install "${CC}"
+          else
+            echo "Unknown CC: $CC" >&2
+            exit 1
           fi
           # Install kcov from source
           sudo apt-get install binutils-dev libssl-dev libelf-dev libstdc++-12-dev libdw-dev libiberty-dev
