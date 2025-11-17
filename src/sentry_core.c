@@ -459,6 +459,16 @@ sentry_user_consent_get(void)
     return rv;
 }
 
+int
+sentry_user_consent_is_required(void)
+{
+    int required = 0;
+    SENTRY_WITH_OPTIONS (options) {
+        required = options->require_user_consent;
+    }
+    return required;
+}
+
 void
 sentry__capture_envelope(
     sentry_transport_t *transport, sentry_envelope_t *envelope)
