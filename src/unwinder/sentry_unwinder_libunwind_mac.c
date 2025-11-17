@@ -2,9 +2,13 @@
 #include "sentry_logger.h"
 #include "sentry_unwinder.h"
 #include <libunwind.h>
-#include <mach/mach.h>
-#include <mach/mach_vm.h>
 
+#if defined(SENTRY_PLATFORM_MACOS)
+#    include <mach/mach.h>
+#    include <mach/mach_vm.h>
+#endif
+
+#if defined(SENTRY_PLATFORM_MACOS)
 // Basic pointer validation to make sure we stay inside mapped memory.
 static bool
 is_readable_ptr(uintptr_t p, size_t size)
@@ -45,6 +49,7 @@ is_readable_ptr(uintptr_t p, size_t size)
 
     return p >= vm_region.lo && end <= vm_region.hi;
 }
+#endif
 
 static bool
 valid_ptr(uintptr_t p)
@@ -53,7 +58,11 @@ valid_ptr(uintptr_t p)
         return false;
     }
 
+#if defined(SENTRY_PLATFORM_MACOS)
     return is_readable_ptr(p, sizeof(uintptr_t) * 2);
+#else
+    return true;
+#endif
 }
 
 /**
