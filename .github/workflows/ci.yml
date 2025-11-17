@@ -339,8 +339,6 @@ jobs:
         shell: bash
         run: |
           pip install --upgrade --requirement tests/requirements.txt
-          [ "${{ matrix.CC }}" ] && export CC="${{ matrix.CC }}"
-          [ "${{ matrix.CXX }}" ] && export CXX="${{ matrix.CXX }}"
           pytest --capture=no --verbose tests
 
       - name: Check NDK
