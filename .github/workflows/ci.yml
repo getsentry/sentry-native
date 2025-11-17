@@ -185,6 +185,8 @@ jobs:
     container: ${{ matrix.container }}
 
     env:
+      CC: ${{ matrix.CC }}
+      CXX: ${{ matrix.CXX }}
       TEST_X86: ${{ matrix.TEST_X86 }}
       TEST_MINGW: ${{ matrix.TEST_MINGW }}
       ERROR_ON_WARNINGS: ${{ matrix.ERROR_ON_WARNINGS }}
