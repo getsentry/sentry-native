@@ -113,6 +113,8 @@ jobs:
             ERROR_ON_WARNINGS: 1
             RUN_ANALYZER: kcov
           - name: Linux (GCC 13.3.0 + code-checker + valgrind)
+            CC: gcc-13
+            CXX: g++-13
             os: ubuntu-24.04
             RUN_ANALYZER: code-checker,valgrind
           - name: Linux (GCC + musl + libunwind)
@@ -208,6 +210,11 @@ jobs:
         with:
           python-version: ${{ !env['SYSTEM_PYTHON'] && '3.12' || '' }}
           cache: "pip"
+
+      - name: Check Linux CC/CXX
+        if: ${{ runner.os == 'Linux' && !matrix.container }}
+        run: |
+          [ -n "$CC" ] && [ -n "$CXX" ] || { echo "Ubuntu runner configurations require toolchain selection via CC and CXX" >&2; exit 1; }
 
       - name: Installing Linux Dependencies
         if: ${{ runner.os == 'Linux' && !env['TEST_X86'] && !matrix.container }}
