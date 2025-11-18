@@ -1,7 +1,10 @@
 #include "sentry_core.h"
 #include "sentry_database.h"
+#include "sentry_options.h"
 #include "sentry_string.h"
+#include "sentry_sync.h"
 #include "sentry_testsupport.h"
+#include "sentry_transport.h"
 
 static void
 send_envelope_test_basic(sentry_envelope_t *envelope, void *data)
@@ -52,7 +55,7 @@ SENTRY_TEST(basic_function_transport)
         SENTRY_LEVEL_INFO, "root", "Hello World!"));
 
     sentry_value_t obj = sentry_value_new_object();
-    // something that is not a uuid, as this will be forcibly changed
+    // something that is not a UUID, as this will be forcibly changed
     sentry_value_set_by_key(obj, "event_id", sentry_value_new_int32(1234));
     sentry_capture_event(obj);
 
@@ -151,13 +154,25 @@ SENTRY_TEST(discarding_before_send)
 
 SENTRY_TEST(crash_marker)
 {
+    // We don't use sentry_init() in this test so we must create a database dir
+    sentry_path_t *database_path
+        = sentry__path_from_str(SENTRY_TEST_PATH_PREFIX ".sentry-native");
+    TEST_ASSERT(!!database_path);
+    TEST_ASSERT(!sentry__path_create_dir_all(database_path));
+
     SENTRY_TEST_OPTIONS_NEW(options);
+#ifdef SENTRY_PLATFORM_WINDOWS
+    sentry_options_set_database_pathw(options, database_path->path_w);
+#else
+    sentry_options_set_database_path(options, database_path->path);
+#endif
 
-    // clear returns true, regardless if the file exists
+    // There is no marker in the beginning, but clearing returns true if the
+    // marker doesn't exist (i.e., we get an `ENOENT` or `ERROR_FILE_NOT_FOUND`)
     TEST_CHECK(sentry__clear_crash_marker(options));
-
-    // write should normally be true, even when called multiple times
+    // We can also verify this with has_crash_marker
     TEST_CHECK(!sentry__has_crash_marker(options));
+
     TEST_CHECK(sentry__write_crash_marker(options));
     TEST_CHECK(sentry__has_crash_marker(options));
     TEST_CHECK(sentry__write_crash_marker(options));
@@ -168,6 +183,9 @@ SENTRY_TEST(crash_marker)
     TEST_CHECK(sentry__clear_crash_marker(options));
 
     sentry_options_free(options);
+
+    sentry__path_remove_all(database_path);
+    sentry__path_free(database_path);
 }
 
 SENTRY_TEST(crashed_last_run)
@@ -178,16 +196,16 @@ SENTRY_TEST(crashed_last_run)
     // clear any leftover from previous test runs
     {
         SENTRY_TEST_OPTIONS_NEW(options);
-        TEST_CHECK(sentry__clear_crash_marker(options));
+        sentry__clear_crash_marker(options);
         sentry_options_free(options);
     }
 
-    const char *dsn_str = "https://foo@sentry.invalid/42";
     const char dsn[] = { 'h', 't', 't', 'p', 's', ':', '/', '/', 'f', 'o', 'o',
         '@', 's', 'e', 'n', 't', 'r', 'y', '.', 'i', 'n', 'v', 'a', 'l', 'i',
         'd', '/', '4', '2' };
 
     {
+        const char *dsn_str = "https://foo@sentry.invalid/42";
         SENTRY_TEST_OPTIONS_NEW(options);
         sentry_options_set_dsn_n(options, dsn, sizeof(dsn));
         TEST_CHECK_STRING_EQUAL(sentry_options_get_dsn(options), dsn_str);
@@ -243,13 +261,7 @@ SENTRY_TEST(capture_minidump_basic)
     sentry_path_t *minidump_path
         = sentry__path_join_str(dir, minidump_rel_path);
 
-#    if defined(SENTRY_PLATFORM_WINDOWS)
-    char *path_str = sentry__string_from_wstr(minidump_path->path);
-    const sentry_uuid_t event_id = sentry_capture_minidump(path_str);
-    sentry_free(path_str);
-#    else
     const sentry_uuid_t event_id = sentry_capture_minidump(minidump_path->path);
-#    endif
     TEST_CHECK(!sentry_uuid_is_nil(&event_id));
 
     sentry__path_free(minidump_path);
@@ -269,8 +281,9 @@ SENTRY_TEST(capture_minidump_null_path)
 
 SENTRY_TEST(capture_minidump_without_sentry_init)
 {
-    // if the path initialization was successful, but the SDK wasn't initialized
-    // capturing will fail at the point of acquiring the active options.
+    // if the path initialization was successful, but the SDK wasn't
+    // initialized, capturing will fail at the point of acquiring the active
+    // options.
     const sentry_uuid_t event_id
         = sentry_capture_minidump("irrelevant_minidump_path");
     TEST_CHECK(sentry_uuid_is_nil(&event_id));
@@ -287,6 +300,49 @@ SENTRY_TEST(capture_minidump_invalid_path)
     const sentry_uuid_t event_id
         = sentry_capture_minidump("some_invalid_minidump_path");
     TEST_CHECK(sentry_uuid_is_nil(&event_id));
+
+    sentry_close();
+}
+
+SENTRY_TEST(basic_transport_thread_name)
+{
+#if defined(SENTRY_PLATFORM_NX)
+    // NX transport won't start without custom network_connect_func.
+    SKIP_TEST();
+#endif
+
+    const char *expected_thread_name = "sentry::worker_thread";
+
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_transport_thread_name(options, expected_thread_name);
+
+    // Initialize sentry which should start the transport and set the thread
+    // name
+    TEST_CHECK_INT_EQUAL(sentry_init(options), 0);
+
+    // Access the transport through runtime options to check if thread name was
+    // set
+    SENTRY_WITH_OPTIONS (runtime_options) {
+        TEST_ASSERT(!!runtime_options->transport);
+
+        // Get the bgworker from the transport (for HTTP transports)
+        sentry_bgworker_t *bgworker
+            = (sentry_bgworker_t *)sentry__transport_get_bgworker(
+                runtime_options->transport);
+        TEST_ASSERT(!!bgworker);
+
+        // Check if the thread name was properly set on the bgworker
+        const char *actual_thread_name
+            = sentry__bgworker_get_thread_name(bgworker);
+
+        if (actual_thread_name) {
+            TEST_CHECK_STRING_EQUAL(actual_thread_name, expected_thread_name);
+        } else {
+            TEST_CHECK(false); // Fail if thread_name is NULL
+            TEST_MSG("Transport thread name was not set ");
+        }
+    }
 
     sentry_close();
 }

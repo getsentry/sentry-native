@@ -9,16 +9,44 @@ else()
 	cmake_policy(SET CMP0077 NEW)
 endif()
 
-#read sentry-native version
-file(READ "include/sentry.h" _SENTRY_HEADER_CONTENT)
-string(REGEX MATCH "#define SENTRY_SDK_VERSION \"([0-9\.]+)\"" _SENTRY_VERSION_MATCH "${_SENTRY_HEADER_CONTENT}")
-set(SENTRY_VERSION "${CMAKE_MATCH_1}")
-unset(_SENTRY_HEADER_CONTENT)
-unset(_SENTRY_VERSION_MATCH)
+# Allow downstream SDKs to override the SDK version at CMake configuration time
+set(SENTRY_SDK_VERSION "" CACHE STRING "Override the SDK version (supports full semver format with build metadata)")
+
+# Extract version string from SENTRY_SDK_VERSION cache variable or sentry.h
+if(NOT SENTRY_SDK_VERSION STREQUAL "")
+	set(SENTRY_VERSION_FULL "${SENTRY_SDK_VERSION}")
+else()
+	file(READ "include/sentry.h" _VERSION_STR_TMP)
+	# Supports full semver format including prerelease and build metadata
+	# The regex handles optional leading whitespace for the #define
+	string(REGEX MATCH "#[ \t]*define[ \t]+SENTRY_SDK_VERSION[ \t]+\"([^\"]+)\"" _VERSION_STR_TMP "${_VERSION_STR_TMP}")
+	set(SENTRY_VERSION_FULL "${CMAKE_MATCH_1}")
+	unset(_VERSION_STR_TMP)
+endif()
+
+# Extract just the major.minor.patch part from the full version
+string(REGEX MATCH "^([0-9]+)\\.([0-9]+)\\.([0-9]+)" _VERSION_PARSE_TMP "${SENTRY_VERSION_FULL}")
+set(SENTRY_VERSION_MAJOR "${CMAKE_MATCH_1}")
+set(SENTRY_VERSION_MINOR "${CMAKE_MATCH_2}")
+set(SENTRY_VERSION_PATCH "${CMAKE_MATCH_3}")
+set(SENTRY_VERSION_BASE "${SENTRY_VERSION_MAJOR}.${SENTRY_VERSION_MINOR}.${SENTRY_VERSION_PATCH}")
+unset(_VERSION_PARSE_TMP)
+
+if(NOT SENTRY_SDK_VERSION STREQUAL "")
+	message(STATUS "Sentry SDK version (full): ${SENTRY_VERSION_FULL} (overridden via SENTRY_SDK_VERSION)")
+else()
+	message(STATUS "Sentry SDK version (full): ${SENTRY_VERSION_FULL}")
+endif()
+message(STATUS "Sentry SDK version (base): ${SENTRY_VERSION_BASE}")
+message(STATUS "Sentry SDK version major='${SENTRY_VERSION_MAJOR}' minor='${SENTRY_VERSION_MINOR}' patch='${SENTRY_VERSION_PATCH}'")
+
+if(NOT SENTRY_VERSION_FULL OR NOT SENTRY_VERSION_BASE OR SENTRY_VERSION_MAJOR STREQUAL "" OR SENTRY_VERSION_MINOR STREQUAL "" OR SENTRY_VERSION_PATCH STREQUAL "")
+    message(FATAL_ERROR "Parsed Sentry SDK version '${SENTRY_VERSION_FULL}' does not match expected semver format")
+endif()
 
 project(Sentry-Native
-	LANGUAGES C CXX ASM
-	VERSION ${SENTRY_VERSION}
+	LANGUAGES C CXX
+	VERSION ${SENTRY_VERSION_BASE}
 )
 
 set(SENTRY_MAIN_PROJECT OFF)
@@ -73,6 +101,25 @@ option(SENTRY_TRANSPORT_COMPRESSION "Enable transport gzip compression" OFF)
 option(SENTRY_BUILD_TESTS "Build sentry-native tests" "${SENTRY_MAIN_PROJECT}")
 option(SENTRY_BUILD_EXAMPLES "Build sentry-native example(s)" "${SENTRY_MAIN_PROJECT}")
 option(SENTRY_BUILD_BENCHMARKS "Build sentry-native benchmarks" OFF)
+
+# Platform version embedding options
+option(SENTRY_EMBED_INFO "Embed version information in binary" OFF)
+set(SENTRY_BUILD_PLATFORM "${CMAKE_SYSTEM_NAME}" CACHE STRING "Platform name for embedded version (e.g., switch, playstation, xbox)")
+set(SENTRY_BUILD_VARIANT "" CACHE STRING "Build variant for embedded version (e.g., native, unreal)")
+set(SENTRY_BUILD_ID "" CACHE STRING "Build identifier for embedded version (defaults to timestamp)")
+set(SENTRY_EMBED_INFO_ITEMS "" CACHE STRING "Additional items to embed (semicolon-separated key:value pairs)")
+
+# Validate the format of custom items
+if(SENTRY_EMBED_INFO_ITEMS)
+	# Convert semicolon-separated string to list for iteration
+	string(REPLACE ";" "\n" TEMP_ITEMS "${SENTRY_EMBED_INFO_ITEMS}")
+	string(REPLACE "\n" ";" ITEMS_LIST "${TEMP_ITEMS}")
+	foreach(ITEM IN LISTS ITEMS_LIST)
+		if(ITEM AND NOT ITEM MATCHES "^[^:]+:[^:]*$")
+			message(FATAL_ERROR "Invalid embedded info item format: ${ITEM}. Expected format: key:value")
+		endif()
+	endforeach()
+endif()
 
 if(NOT XBOX)
 	option(SENTRY_LINK_PTHREAD "Link platform threads library" ON)
@@ -286,6 +333,45 @@ if (XBOX)
 endif()
 target_sources(sentry PRIVATE "${PROJECT_SOURCE_DIR}/include/sentry.h")
 add_library(sentry::sentry ALIAS sentry)
+
+# Configure version embedding if enabled
+if(SENTRY_EMBED_INFO)
+	# SENTRY_BUILD_ID cache variable takes precedence
+	if(SENTRY_BUILD_ID)
+		set(SENTRY_EMBEDDED_BUILD_ID "${SENTRY_BUILD_ID}")
+	elseif(SENTRY_VERSION_FULL MATCHES "^[0-9]+\\.[0-9]+\\.[0-9]+\\+(.+)$")
+		# Extract build ID from SENTRY_VERSION_FULL if present (format: major.minor.patch+build-id)
+		# This handles cases where downstream SDKs modify sentry.h to include build metadata
+		set(SENTRY_EMBEDDED_BUILD_ID "${CMAKE_MATCH_1}")
+	else()
+		# No build ID found in version or provided, use timestamp as default
+		# Format: YYYYMMDD-HHMMSS (semver-compliant: alphanumerics and hyphens only)
+		string(TIMESTAMP SENTRY_EMBEDDED_BUILD_ID "%Y%m%d-%H%M%S" UTC)
+	endif()
+
+	# Validate and escape special characters in custom items if needed
+	if(SENTRY_EMBED_INFO_ITEMS)
+		# Sanitize input to prevent CMake substitution issues
+		string(REPLACE "\"" "\\\"" SENTRY_EMBED_INFO_ITEMS "${SENTRY_EMBED_INFO_ITEMS}")
+	endif()
+
+	# Ensure custom items end with semicolon if not empty
+	if(SENTRY_EMBED_INFO_ITEMS AND NOT SENTRY_EMBED_INFO_ITEMS MATCHES ";$")
+		set(SENTRY_EMBED_INFO_ITEMS "${SENTRY_EMBED_INFO_ITEMS};")
+	endif()
+
+	# Ensure the output directory exists
+	file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/src")
+
+	configure_file(
+		"${CMAKE_CURRENT_SOURCE_DIR}/src/sentry_embedded_info.cpp.in"
+		"${CMAKE_CURRENT_BINARY_DIR}/src/sentry_embedded_info.cpp"
+		@ONLY
+	)
+
+	target_sources(sentry PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/src/sentry_embedded_info.cpp")
+endif()
+
 add_subdirectory(src)
 
 target_compile_definitions(sentry PRIVATE SENTRY_HANDLER_STACK_SIZE=${SENTRY_HANDLER_STACK_SIZE})
@@ -301,6 +387,12 @@ endif()
 
 if (NOT SENTRY_SDK_NAME STREQUAL "")
 	target_compile_definitions(sentry PRIVATE SENTRY_SDK_NAME="${SENTRY_SDK_NAME}")
+endif()
+
+# If SDK version was overridden via CMake, pass it as a compile definition
+# This allows sentry.h to use the overridden version
+if (NOT SENTRY_SDK_VERSION STREQUAL "")
+	target_compile_definitions(sentry PRIVATE SENTRY_SDK_VERSION="${SENTRY_SDK_VERSION}")
 endif()
 
 # we do not need this on android, only linux
@@ -564,6 +656,7 @@ if(SENTRY_BACKEND_CRASHPAD)
 		set_property(TARGET crashpad_handler PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 		set_property(TARGET crashpad_handler_lib PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 		set_property(TARGET crashpad_minidump PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+		set_property(TARGET crashpad_mpack PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 		set_property(TARGET crashpad_snapshot PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 		set_property(TARGET crashpad_tools PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 		set_property(TARGET crashpad_util PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
@@ -579,12 +672,13 @@ if(SENTRY_BACKEND_CRASHPAD)
 		set_target_properties(crashpad_handler PROPERTIES FOLDER ${SENTRY_FOLDER})
 		set_target_properties(crashpad_handler_lib PROPERTIES FOLDER ${SENTRY_FOLDER})
 		set_target_properties(crashpad_minidump PROPERTIES FOLDER ${SENTRY_FOLDER})
+		set_target_properties(crashpad_mpack PROPERTIES FOLDER ${SENTRY_FOLDER})
 		set_target_properties(crashpad_snapshot PROPERTIES FOLDER ${SENTRY_FOLDER})
 		set_target_properties(crashpad_tools PROPERTIES FOLDER ${SENTRY_FOLDER})
 		set_target_properties(crashpad_util PROPERTIES FOLDER ${SENTRY_FOLDER})
+		set_target_properties(crashpad_wer PROPERTIES FOLDER ${SENTRY_FOLDER})
 		set_target_properties(crashpad_zlib PROPERTIES FOLDER ${SENTRY_FOLDER})
 		set_target_properties(mini_chromium PROPERTIES FOLDER ${SENTRY_FOLDER})
-		set_target_properties(crashpad_wer PROPERTIES FOLDER ${SENTRY_FOLDER})
 	endif()
 
 	target_link_libraries(sentry PRIVATE
@@ -660,7 +754,7 @@ configure_package_config_file(sentry-config.cmake.in sentry-config.cmake
 # We would have liked to use `SameMinorVersion`, but that is only supported on
 # CMake >= 3.11.
 write_basic_package_version_file(sentry-config-version.cmake
-	VERSION ${SENTRY_VERSION}
+	VERSION ${SENTRY_VERSION_BASE}
 	COMPATIBILITY SameMajorVersion)
 
 sentry_install(TARGETS sentry EXPORT sentry
@@ -685,6 +779,7 @@ endif()
 
 if(SENTRY_BUILD_TESTS)
 	add_subdirectory(tests/unit)
+	add_subdirectory(tests/fixtures/crash_reporter)
 	add_subdirectory(tests/fixtures/screenshot)
 	if(SENTRY_BUILD_BENCHMARKS)
 		set(BENCHMARK_ENABLE_TESTING OFF)

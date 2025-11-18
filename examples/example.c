@@ -24,6 +24,7 @@
 #    define sleep_s(SECONDS) Sleep((SECONDS) * 1000)
 #else
 
+#    include <pthread.h>
 #    include <signal.h>
 #    include <unistd.h>
 
@@ -60,8 +61,11 @@ get_current_thread_id()
 
 static double
 traces_sampler_callback(const sentry_transaction_context_t *transaction_ctx,
-    sentry_value_t custom_sampling_ctx, const int *parent_sampled)
+    sentry_value_t custom_sampling_ctx, const int *parent_sampled,
+    void *user_data)
 {
+    (void)user_data;
+
     if (parent_sampled != NULL) {
         if (*parent_sampled) {
             return 0.8; // high sample rate for children of sampled transactions
@@ -153,6 +157,46 @@ discarding_before_transaction_callback(sentry_value_t tx, void *user_data)
         return sentry_value_new_null();
     }
     return tx;
+}
+
+static sentry_value_t
+before_send_log_callback(sentry_value_t log, void *user_data)
+{
+    (void)user_data;
+    sentry_value_t attribute
+        = sentry_value_new_attribute(sentry_value_new_string("little"), NULL);
+    sentry_value_set_by_key(sentry_value_get_by_key(log, "attributes"),
+        "coffeepot.size", attribute);
+    return log;
+}
+
+static sentry_value_t
+discarding_before_send_log_callback(sentry_value_t log, void *user_data)
+{
+    (void)user_data;
+    if (sentry_value_is_null(
+            sentry_value_get_by_key(sentry_value_get_by_key(log, "attributes"),
+                "sentry.message.template"))) {
+        sentry_value_decref(log);
+        return sentry_value_new_null();
+    }
+    return log;
+}
+
+// Test logger that outputs in a format the integration tests can parse
+static void
+test_logger_callback(
+    sentry_level_t level, const char *message, va_list args, void *userdata)
+{
+    (void)level;
+    (void)userdata;
+
+    char formatted_message[1024];
+    vsnprintf(formatted_message, sizeof(formatted_message), message, args);
+
+    // Output in a format that the Python tests can detect
+    printf("SENTRY_LOG:%s\n", formatted_message);
+    fflush(stdout);
 }
 
 static void
@@ -272,6 +316,42 @@ create_debug_crumb(const char *message)
     return debug_crumb;
 }
 
+#define NUM_THREADS 50
+#define NUM_LOGS 100 // how many log calls each thread makes
+#define LOG_SLEEP_MS 1 // time (in ms) between log calls
+
+#if defined(SENTRY_PLATFORM_WINDOWS)
+#    define sleep_ms(MILLISECONDS) Sleep(MILLISECONDS)
+#else
+#    define sleep_ms(MILLISECONDS) usleep(MILLISECONDS * 1000)
+#endif
+
+#ifdef SENTRY_PLATFORM_WINDOWS
+DWORD WINAPI
+log_thread_func(LPVOID lpParam)
+{
+    (void)lpParam;
+    for (int i = 0; i < NUM_LOGS; i++) {
+        sentry_log_debug(
+            "thread log %d on thread %lu", i, get_current_thread_id());
+        sleep_ms(LOG_SLEEP_MS);
+    }
+    return 0;
+}
+#else
+void *
+log_thread_func(void *arg)
+{
+    (void)arg;
+    for (int i = 0; i < NUM_LOGS; i++) {
+        sentry_log_debug(
+            "thread log %d on thread %llu", i, get_current_thread_id());
+        sleep_ms(LOG_SLEEP_MS);
+    }
+    return NULL;
+}
+#endif
+
 int
 main(int argc, char **argv)
 {
@@ -345,8 +425,19 @@ main(int argc, char **argv)
             options, discarding_before_transaction_callback, NULL);
     }
 
+    if (has_arg(argc, argv, "before-send-log")) {
+        sentry_options_set_before_send_log(
+            options, before_send_log_callback, NULL);
+    }
+
+    if (has_arg(argc, argv, "discarding-before-send-log")) {
+        sentry_options_set_before_send_log(
+            options, discarding_before_send_log_callback, NULL);
+    }
+
     if (has_arg(argc, argv, "traces-sampler")) {
-        sentry_options_set_traces_sampler(options, traces_sampler_callback);
+        sentry_options_set_traces_sampler(
+            options, traces_sampler_callback, NULL);
     }
 
     if (has_arg(argc, argv, "override-sdk-name")) {
@@ -381,12 +472,116 @@ main(int argc, char **argv)
         sentry_options_add_view_hierarchy(options, "./view-hierarchy.json");
     }
 
-    sentry_init(options);
+    if (has_arg(argc, argv, "test-logger")) {
+        // Set up the test logger for integration tests
+        sentry_options_set_logger(options, test_logger_callback, NULL);
+    }
+
+    if (has_arg(argc, argv, "disable-logger-when-crashed")) {
+        // Disable logging during crash handling
+        sentry_options_set_logger_enabled_when_crashed(options, 0);
+    }
+
+    if (has_arg(argc, argv, "enable-logger-when-crashed")) {
+        // Explicitly enable logging during crash handling (default behavior)
+        sentry_options_set_logger_enabled_when_crashed(options, 1);
+    }
+
+    if (has_arg(argc, argv, "enable-logs")) {
+        sentry_options_set_enable_logs(options, true);
+    }
+
+    if (has_arg(argc, argv, "crash-reporter")) {
+#ifdef SENTRY_PLATFORM_WINDOWS
+        sentry_options_set_external_crash_reporter_pathw(
+            options, L"sentry_crash_reporter.exe");
+#else
+        sentry_options_set_external_crash_reporter_path(
+            options, "./sentry_crash_reporter");
+#endif
+    }
+    if (has_arg(argc, argv, "log-attributes")) {
+        sentry_options_set_logs_with_attributes(options, true);
+    }
+
+    if (0 != sentry_init(options)) {
+        return EXIT_FAILURE;
+    }
+
+    if (has_arg(argc, argv, "log-attributes")) {
+        sentry_value_t attributes = sentry_value_new_object();
+        sentry_value_t attr = sentry_value_new_attribute(
+            sentry_value_new_string("my_attribute"), NULL);
+        sentry_value_t attr_2 = sentry_value_new_attribute(
+            sentry_value_new_int64(INT64_MAX), "fermions");
+        sentry_value_t attr_3 = sentry_value_new_attribute(
+            sentry_value_new_int64(INT64_MIN), "bosons");
+        sentry_value_set_by_key(attributes, "my.custom.attribute", attr);
+        sentry_value_set_by_key(attributes, "number.first", attr_2);
+        sentry_value_set_by_key(attributes, "number.second", attr_3);
+        // testing multiple attributes
+        sentry_log_debug(
+            "logging with %d custom attributes", attributes, (int64_t)3);
+        // testing no attributes
+        sentry_log_debug("logging with %s custom attributes",
+            sentry_value_new_object(), "no");
+        // testing overwriting default attributes
+        sentry_value_t param_attributes = sentry_value_new_object();
+        sentry_value_t param_attr = sentry_value_new_attribute(
+            sentry_value_new_string("parameter"), NULL);
+        sentry_value_t param_attr_2 = sentry_value_new_attribute(
+            sentry_value_new_string("custom-sdk-name"), NULL);
+        sentry_value_set_by_key(
+            param_attributes, "sentry.message.parameter.0", param_attr);
+        sentry_value_set_by_key(
+            param_attributes, "sentry.sdk.name", param_attr_2);
+        sentry_log_fatal(
+            "logging with a custom parameter attribute", param_attributes);
+    }
 
     if (has_arg(argc, argv, "attachment")) {
         sentry_attachment_t *bytes
             = sentry_attach_bytes("\xc0\xff\xee", 3, "bytes.bin");
         sentry_attachment_set_content_type(bytes, "application/octet-stream");
+    }
+
+    if (sentry_options_get_enable_logs(options)) {
+        if (has_arg(argc, argv, "capture-log")) {
+            sentry_log_debug("I'm a log message!");
+        }
+        if (has_arg(argc, argv, "logs-timer")) {
+            for (int i = 0; i < 10; i++) {
+                sentry_log_info("Informational log nr.%d", i);
+            }
+            // sleep >5s to trigger logs timer
+            sleep_s(6);
+            // we should see two envelopes make its way to Sentry
+            sentry_log_debug("post-sleep log");
+        }
+        if (has_arg(argc, argv, "logs-threads")) {
+            // Spawn multiple threads to test concurrent logging
+#ifdef SENTRY_PLATFORM_WINDOWS
+            HANDLE threads[NUM_THREADS];
+            for (int t = 0; t < NUM_THREADS; t++) {
+                threads[t]
+                    = CreateThread(NULL, 0, log_thread_func, NULL, 0, NULL);
+            }
+
+            WaitForMultipleObjects(NUM_THREADS, threads, TRUE, INFINITE);
+
+            for (int t = 0; t < NUM_THREADS; t++) {
+                CloseHandle(threads[t]);
+            }
+#else
+            pthread_t threads[NUM_THREADS];
+            for (int t = 0; t < NUM_THREADS; t++) {
+                pthread_create(&threads[t], NULL, log_thread_func, NULL);
+            }
+            for (int t = 0; t < NUM_THREADS; t++) {
+                pthread_join(threads[t], NULL);
+            }
+#endif
+        }
     }
 
     if (!has_arg(argc, argv, "no-setup")) {
@@ -407,10 +602,8 @@ main(int argc, char **argv)
             context, "name", sentry_value_new_string("testing-runtime"));
         sentry_set_context("runtime", context);
 
-        sentry_value_t user = sentry_value_new_object();
-        sentry_value_set_by_key(user, "id", sentry_value_new_string("42"));
-        sentry_value_set_by_key(
-            user, "username", sentry_value_new_string("some_name"));
+        sentry_value_t user
+            = sentry_value_new_user("42", "some_name", NULL, NULL);
         sentry_set_user(user);
 
         sentry_value_t default_crumb
@@ -501,6 +694,12 @@ main(int argc, char **argv)
 
     if (has_arg(argc, argv, "sleep")) {
         sleep_s(10);
+    }
+
+    if (has_arg(argc, argv, "test-logger-before-crash")) {
+        // Output marker directly using printf for test parsing
+        printf("pre-crash-log-message\n");
+        fflush(stdout);
     }
 
     if (has_arg(argc, argv, "crash")) {
@@ -629,9 +828,15 @@ main(int argc, char **argv)
             sentry_value_t event = sentry_value_new_message_event(
                 SENTRY_LEVEL_INFO, "my-logger", "Hello World!");
             sentry_capture_event(event);
+            if (has_arg(argc, argv, "logs-scoped-transaction")) {
+                sentry_log_debug("logging during scoped transaction event");
+            }
         }
 
         sentry_transaction_finish(tx);
+        if (has_arg(argc, argv, "logs-scoped-transaction")) {
+            sentry_log_debug("logging after scoped transaction event");
+        }
     }
 
     if (has_arg(argc, argv, "capture-minidump")) {
@@ -648,4 +853,6 @@ main(int argc, char **argv)
     if (has_arg(argc, argv, "crash-after-shutdown")) {
         trigger_crash();
     }
+
+    return EXIT_SUCCESS;
 }

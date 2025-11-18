@@ -32,6 +32,7 @@ struct sentry_options_s {
     char *user_agent;
     sentry_path_t *database_path;
     sentry_path_t *handler_path;
+    sentry_path_t *external_crash_reporter;
     sentry_logger_t logger;
     size_t max_breadcrumbs;
     bool debug;
@@ -41,6 +42,9 @@ struct sentry_options_s {
     bool system_crash_reporter_enabled;
     bool attach_screenshot;
     bool crashpad_wait_for_upload;
+    bool enable_logging_when_crashed;
+    bool propagate_traceparent;
+    bool crashpad_limit_stack_capture_to_sp;
 
     sentry_attachment_t *attachments;
     sentry_run_t *run;
@@ -52,11 +56,18 @@ struct sentry_options_s {
     void *on_crash_data;
     sentry_transaction_function_t before_transaction_func;
     void *before_transaction_data;
+    sentry_before_send_log_function_t before_send_log_func;
+    void *before_send_log_data;
 
     /* Experimentally exposed */
     double traces_sample_rate;
     sentry_traces_sampler_function traces_sampler;
+    void *traces_sampler_data;
     size_t max_spans;
+    bool enable_logs;
+    // takes the first varg as a `sentry_value_t` object containing attributes
+    // if no custom attributes are to be passed, use `sentry_value_new_object()`
+    bool logs_with_attributes;
 
     /* everything from here on down are options which are stored here but
        not exposed through the options API */

@@ -495,8 +495,16 @@ sentry__bgworker_setname(sentry_bgworker_t *bgw, const char *thread_name)
     bgw->thread_name = sentry__string_clone(thread_name);
 }
 
+#ifdef SENTRY_UNITTEST
+const char *
+sentry__bgworker_get_thread_name(sentry_bgworker_t *bgw)
+{
+    return bgw ? bgw->thread_name : NULL;
+}
+#endif
+
 #if defined(SENTRY_PLATFORM_UNIX) || defined(SENTRY_PLATFORM_NX)
-#    include "sentry_unix_spinlock.h"
+#    include "sentry_cpu_relax.h"
 
 static sig_atomic_t g_in_signal_handler = 0;
 static sentry_threadid_t g_signal_handling_thread = { 0 };

@@ -384,6 +384,34 @@ sentry__atomic_fetch(volatile long *val)
     return sentry__atomic_fetch_and_add(val, 0);
 }
 
+/**
+ * Compare and swap: atomically compare *val with expected, and if equal,
+ * set *val to desired. Returns true if the swap occurred.
+ *
+ * Uses sequential consistency (ATOMIC_SEQ_CST / InterlockedCompareExchange)
+ * to ensure all memory operations are visible across threads. This is
+ * appropriate for thread synchronization and state machine transitions.
+ *
+ * Note: The ABA problem (where a value changes A->B->A between reads) is not
+ * a concern for simple integer-based state machines with monotonic transitions.
+ */
+static inline bool
+sentry__atomic_compare_swap(volatile long *val, long expected, long desired)
+{
+#ifdef SENTRY_PLATFORM_WINDOWS
+#    if SIZEOF_LONG == 8
+    return InterlockedCompareExchange64((LONG64 *)val, desired, expected)
+        == expected;
+#    else
+    return InterlockedCompareExchange((LONG *)val, desired, expected)
+        == expected;
+#    endif
+#else
+    return __atomic_compare_exchange_n(
+        val, &expected, desired, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST);
+#endif
+}
+
 struct sentry_bgworker_s;
 typedef struct sentry_bgworker_s sentry_bgworker_t;
 
@@ -431,6 +459,14 @@ int sentry__bgworker_shutdown(sentry_bgworker_t *bgw, uint64_t timeout);
  * Should be executed before worker start
  */
 void sentry__bgworker_setname(sentry_bgworker_t *bgw, const char *thread_name);
+
+#ifdef SENTRY_UNITTEST
+/**
+ * Test helper function to get the thread name from a bgworker.
+ * Only available in unit tests.
+ */
+const char *sentry__bgworker_get_thread_name(sentry_bgworker_t *bgw);
+#endif
 
 /**
  * This will submit a new task to the background thread.

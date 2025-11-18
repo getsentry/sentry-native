@@ -8,8 +8,10 @@
 #include "sentry_core.h"
 #include "sentry_database.h"
 #include "sentry_envelope.h"
+#include "sentry_logs.h"
 #include "sentry_options.h"
 #include "sentry_path.h"
+#include "sentry_process.h"
 #include "sentry_random.h"
 #include "sentry_scope.h"
 #include "sentry_session.h"
@@ -17,7 +19,10 @@
 #include "sentry_sync.h"
 #include "sentry_tracing.h"
 #include "sentry_transport.h"
+#include "sentry_tsan.h"
+#include "sentry_uuid.h"
 #include "sentry_value.h"
+#include "transports/sentry_disk_transport.h"
 
 #ifdef SENTRY_PLATFORM_WINDOWS
 #    include "sentry_os.h"
@@ -114,7 +119,8 @@ generate_propagation_context(sentry_value_t propagation_context)
 }
 
 static void
-set_dynamic_sampling_context(sentry_options_t *options, sentry_scope_t *scope)
+set_dynamic_sampling_context(
+    const sentry_options_t *options, sentry_scope_t *scope)
 {
     sentry_value_decref(scope->dynamic_sampling_context);
     // add the Dynamic Sampling Context to the `trace` header
@@ -164,6 +170,7 @@ sentry_init(sentry_options_t *options)
     sentry_close();
 
     sentry_logger_t logger = { NULL, NULL, SENTRY_LEVEL_DEBUG };
+
     if (options->debug) {
         logger = options->logger;
     }
@@ -185,8 +192,7 @@ sentry_init(sentry_options_t *options)
         SENTRY_DEBUG("falling back to non-absolute database path");
         options->database_path = database_path;
     }
-    SENTRY_INFOF("using database path \"%" SENTRY_PATH_PRI "\"",
-        options->database_path->path);
+    SENTRY_INFOF("using database path \"%s\"", options->database_path->path);
 
     // try to create and lock our run folder as early as possibly, since it is
     // fallible. since it does locking, it will not interfere with run folder
@@ -286,6 +292,10 @@ sentry_init(sentry_options_t *options)
         sentry_start_session();
     }
 
+    if (options->enable_logs) {
+        sentry__logs_startup();
+    }
+
     sentry__mutex_unlock(&g_options_lock);
     return 0;
 
@@ -304,6 +314,9 @@ sentry_flush(uint64_t timeout)
 {
     int rv = 0;
     SENTRY_WITH_OPTIONS (options) {
+        if (options->enable_logs) {
+            sentry__logs_force_flush();
+        }
         rv = sentry__transport_flush(options->transport, timeout);
     }
     return rv;
@@ -312,6 +325,15 @@ sentry_flush(uint64_t timeout)
 int
 sentry_close(void)
 {
+    // Shutdown logs system before locking options to ensure logs are flushed.
+    // This prevents a potential deadlock on the options during log envelope
+    // creation.
+    SENTRY_WITH_OPTIONS (options) {
+        if (options->enable_logs) {
+            sentry__logs_shutdown(options->shutdown_timeout);
+        }
+    }
+
     SENTRY__MUTEX_INIT_DYN_ONCE(g_options_lock);
     // this function is to be called only once, so we do not allow more than one
     // caller
@@ -437,6 +459,16 @@ sentry_user_consent_get(void)
     return rv;
 }
 
+int
+sentry_user_consent_is_required(void)
+{
+    int required = 0;
+    SENTRY_WITH_OPTIONS (options) {
+        required = options->require_user_consent;
+    }
+    return required;
+}
+
 void
 sentry__capture_envelope(
     sentry_transport_t *transport, sentry_envelope_t *envelope)
@@ -534,14 +566,28 @@ sentry__capture_event(sentry_value_t event, sentry_scope_t *local_scope)
                 options, event, &event_id, true, local_scope);
         }
         if (envelope) {
-            if (options->session) {
+            // Accept a racy read here, since SENTRY_WITH_OPTIONS only prevents
+            // the options from being deallocated while we use them, but no lock
+            // is active and the session could change during session shutdown.
+            // We recheck below inside the lock and don't pay for a lock here.
+            // This also means we accept a missed window of opportunity if an
+            // event is being sent concurrently to session initialization, which
+            // is an acceptable design trade-off.
+            SENTRY_TSAN_IGNORE_READS_BEGIN();
+            bool has_session = options->session;
+            SENTRY_TSAN_IGNORE_READS_END();
+            if (has_session) {
                 sentry_options_t *mut_options = sentry__options_lock();
-                sentry__envelope_add_session(envelope, mut_options->session);
-                // we're assuming that if a session is added to an envelope
-                // it will be sent onwards.  This means we now need to set
-                // the init flag to false because we're no longer the
-                // initial session update.
-                mut_options->session->init = false;
+                // recheck inside the lock since our previous read is racy.
+                if (mut_options->session) {
+                    sentry__envelope_add_session(
+                        envelope, mut_options->session);
+                    // we're assuming that if a session is added to an envelope,
+                    // it will be sent onwards.  This means we now need to set
+                    // the init flag to false because we're no longer in the
+                    // initial session update.
+                    mut_options->session->init = false;
+                }
                 sentry__options_unlock();
             }
 
@@ -586,7 +632,8 @@ static
                     sampling_ctx->transaction_context,
                     sampling_ctx->custom_sampling_context,
                     sampling_ctx->parent_sampled == NULL ? NULL
-                                                         : &parent_sampled_int);
+                                                         : &parent_sampled_int,
+                    options->traces_sampler_data);
             send = sampling_ctx->sample_rand < result;
         } else {
             if (sampling_ctx->parent_sampled != NULL) {
@@ -1462,6 +1509,48 @@ sentry_capture_feedback(sentry_value_t user_feedback)
     }
 }
 
+bool
+sentry__launch_external_crash_reporter(sentry_envelope_t *envelope)
+{
+    SENTRY_WITH_OPTIONS (options) {
+        if (!options->external_crash_reporter) {
+            return false;
+        }
+
+        sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
+        char *envelope_filename
+            = sentry__uuid_as_filename(&event_id, ".envelope");
+        if (!envelope_filename) {
+            return false;
+        }
+
+        sentry_path_t *report_path = sentry__path_join_str(
+            options->run->external_path, envelope_filename);
+        if (!report_path) {
+            sentry_free(envelope_filename);
+            return false;
+        }
+
+        // capture the envelope with the disk transport
+        sentry_transport_t *disk_transport
+            = sentry_new_external_disk_transport(options->run);
+        if (!disk_transport) {
+            sentry__path_free(report_path);
+            sentry_free(envelope_filename);
+            return false;
+        }
+        sentry__capture_envelope(disk_transport, envelope);
+        sentry__transport_dump_queue(disk_transport, options->run);
+        sentry_transport_free(disk_transport);
+
+        sentry__process_spawn(
+            options->external_crash_reporter, report_path->path, NULL);
+        sentry__path_free(report_path);
+        sentry_free(envelope_filename);
+    }
+    return true;
+}
+
 int
 sentry_get_crashed_last_run(void)
 {
@@ -1497,8 +1586,7 @@ sentry_capture_minidump_n(const char *path, size_t path_len)
         return sentry_uuid_nil();
     }
 
-    SENTRY_DEBUGF(
-        "Capturing minidump \"%" SENTRY_PATH_PRI "\"", dump_path->path);
+    SENTRY_DEBUGF("Capturing minidump \"%s\"", dump_path->path);
 
     SENTRY_WITH_OPTIONS (options) {
         sentry_uuid_t event_id;
@@ -1511,7 +1599,7 @@ sentry_capture_minidump_n(const char *path, size_t path_len)
         if (!envelope || sentry_uuid_is_nil(&event_id)) {
             sentry_value_decref(event);
         } else {
-            // the minidump is added as an attachment, with type
+            // the minidump is added as an attachment, with the type
             // `event.minidump`
             sentry_envelope_item_t *item = sentry__envelope_add_from_path(
                 envelope, dump_path, "attachment");
@@ -1523,18 +1611,12 @@ sentry_capture_minidump_n(const char *path, size_t path_len)
                     sentry_value_new_string("event.minidump"));
 
                 sentry__envelope_item_set_header(item, "filename",
-#ifdef SENTRY_PLATFORM_WINDOWS
-                    sentry__value_new_string_from_wstr(
-#else
-                    sentry_value_new_string(
-#endif
-                        sentry__path_filename(dump_path)));
+                    sentry_value_new_string(sentry__path_filename(dump_path)));
 
                 sentry__capture_envelope(options->transport, envelope);
 
-                SENTRY_INFOF("Minidump has been captured: \"%" SENTRY_PATH_PRI
-                             "\"",
-                    dump_path->path);
+                SENTRY_INFOF(
+                    "Minidump has been captured: \"%s\"", dump_path->path);
                 sentry__path_free(dump_path);
 
                 sentry_options_free((sentry_options_t *)options);
@@ -1543,8 +1625,7 @@ sentry_capture_minidump_n(const char *path, size_t path_len)
         }
     }
 
-    SENTRY_WARNF(
-        "Minidump was not captured: \"%" SENTRY_PATH_PRI "\"", dump_path->path);
+    SENTRY_WARNF("Minidump was not captured: \"%s\"", dump_path->path);
     sentry__path_free(dump_path);
 
     return sentry_uuid_nil();

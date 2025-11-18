@@ -1,5 +1,105 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- Add custom attributes API for logs. When `logs_with_attributes` is set to `true`, treats the first `varg` passed into `sentry_logs_X(message,...)` as a `sentry_value_t` object of attributes. ([#1435](https://github.com/getsentry/sentry-native/pull/1435))
+- Add runtime API to query user consent requirement. ([#1443](https://github.com/getsentry/sentry-native/pull/1443))
+- Add logs flush on `sentry_flush()`. ([#1434](https://github.com/getsentry/sentry-native/pull/1434))
+
+## 0.12.1
+
+**Fixes**:
+
+- PS5/Switch compilation regression (`sentry__process_spawn` signature change) ([#1436](https://github.com/getsentry/sentry-native/pull/1436))
+
+## 0.12.0
+
+**Breaking changes**:
+
+- If you use a narrow string path interface (for instance, `sentry_options_set_database_path()`) on _Windows_ rather than one of the wide string variants (`sentry_options_set_database_pathw()`), then the expected encoding is now UTF-8. ([#1413](https://github.com/getsentry/sentry-native/pull/1413))
+
+**Features**:
+
+- Add an option to use the stack pointer as an upper limit for the stack capture range in `crashpad` on Windows. This is useful for targets like Proton/Wine, where one can't rely on the TEB-derived upper bound being correctly maintained by the system, leading to overly large stack captures per thread. ([#1427](https://github.com/getsentry/sentry-native/pull/1427), [crashpad#137](https://github.com/getsentry/crashpad/pull/137))
+
+**Fixes**:
+
+- Add logs flush on crash. This is not available for macOS with the `crashpad` backend. ([#1404](https://github.com/getsentry/sentry-native/pull/1404))
+- Make narrow UTF-8 the canonical path encoding on Windows. ([#1413](https://github.com/getsentry/sentry-native/pull/1413))
+- Re-add setting thread name for Windows transport. ([#1424](https://github.com/getsentry/sentry-native/pull/1424))
+- Fix AOT interop with managed .NET runtimes. ([#1392](https://github.com/getsentry/sentry-native/pull/1392))
+
+**Internal**:
+
+- Add `SENTRY_SDK_VERSION` CMake cache variable to allow downstream SDKs to override the SDK version at configuration time. ([#1417](https://github.com/getsentry/sentry-native/pull/1417))
+- Updated `crashpad` to 2025-10-22. ([#1426](https://github.com/getsentry/sentry-native/pull/1426), [crashpad#136](https://github.com/getsentry/crashpad/pull/136), [mini_chromium#4](https://github.com/getsentry/mini_chromium/pull/4)).
+- CI: bump Python to `3.12`. ([#1413](https://github.com/getsentry/sentry-native/pull/1413))
+- Remove any `MAX_PATH` dependencies in `crashpad` and `breakpad`. ([#1413](https://github.com/getsentry/sentry-native/pull/1413), [breakpad#43](https://github.com/getsentry/breakpad/pull/43), [crashpad#135](https://github.com/getsentry/crashpad/pull/135))
+
+## 0.11.3
+
+**Features**:
+
+- Add support for outgoing W3C traceparent header propagation with the `propagate_traceparent` option. ([#1394](https://github.com/getsentry/sentry-native/pull/1394))
+- Add `sentry_options_set_external_crash_reporter_path` to allow specifying an external crash reporter. ([#1303](https://github.com/getsentry/sentry-native/pull/1303))
+
+**Fixes**:
+
+- Use proper SDK name determination for structured logs `sdk.name` attribute. ([#1399](https://github.com/getsentry/sentry-native/pull/1399))
+- Serialize `uint64` values as numerical instead of string. ([#1408](https://github.com/getsentry/sentry-native/pull/1408))
+
+## 0.11.2
+
+**Fixes**:
+
+- Windows: Make symbolication and the modulefinder independent of the system ANSI code page. ([#1389](https://github.com/getsentry/sentry-native/pull/1389))
+
+## 0.11.1
+
+**Features**:
+
+- Add support for structured logs. It is currently experimental, and one can enable it by setting `sentry_options_set_enable_logs`. When enabled, you can capture a log using `sentry_log_info()` (or another log level). Logs can be filtered by setting the `before_send_log` hook. ([#1271](https://github.com/getsentry/sentry-native/pull/1271/))
+
+## 0.11.0
+
+**Breaking changes**:
+
+- Add `user_data` parameter to `traces_sampler`. ([#1346](https://github.com/getsentry/sentry-native/pull/1346))
+
+**Fixes**:
+
+- Include `stddef.h` explicitly in `crashpad` since future `libc++` revisions will stop providing this include transitively. ([#1375](https://github.com/getsentry/sentry-native/pull/1375), [crashpad#132](https://github.com/getsentry/crashpad/pull/132))
+- Fall back on `JWASM` in the _MinGW_ `crashpad` build only if _no_ `CMAKE_ASM_MASM_COMPILER` has been defined. ([#1375](https://github.com/getsentry/sentry-native/pull/1375), [crashpad#133](https://github.com/getsentry/crashpad/pull/133))
+- Prevent `crashpad` from leaking Objective-C ARC compile options into any parent target linkage. ([#1375](https://github.com/getsentry/sentry-native/pull/1375), [crashpad#134](https://github.com/getsentry/crashpad/pull/134))
+- Fixed a TOCTOU race between session init/shutdown and event capture. ([#1377](https://github.com/getsentry/sentry-native/pull/1377))
+- Make the Windows resource generation aware of config-specific output paths for multi-config generators. ([#1383](https://github.com/getsentry/sentry-native/pull/1383))
+- Remove the `ASM` language from the top-level CMake project, as this triggered CMake policy `CMP194` which isn't applicable to the top-level. ([#1384](https://github.com/getsentry/sentry-native/pull/1384))
+
+**Features**:
+
+- Add a configuration to disable logging after a crash has been detected - `sentry_options_set_logger_enabled_when_crashed()`. ([#1371](https://github.com/getsentry/sentry-native/pull/1371))
+
+**Internal**:
+
+- Support downstream Xbox SDK specifying networking initialization mechanism. ([#1359](https://github.com/getsentry/sentry-native/pull/1359))
+- Added `crashpad` support infrastructure for the external crash reporter feature. ([#1375](https://github.com/getsentry/sentry-native/pull/1375), [crashpad#131](https://github.com/getsentry/crashpad/pull/131))
+
+**Docs**:
+
+- Document the CMake 4 requirement on macOS `SDKROOT` due to its empty default for `CMAKE_OSX_SYSROOT` in the `README`. ([#1368](https://github.com/getsentry/sentry-native/pull/1368))
+
+**Thank you**:
+
+- [JanFellner](https://github.com/JanFellner)
+
+## 0.10.1
+
+**Internal**:
+
+- Correctly apply dynamic mutex initialization in unit-tests (fixes running unit-tests in downstream console SDKs). ([#1337](https://github.com/getsentry/sentry-native/pull/1337))
+
 ## 0.10.0
 
 **Breaking changes**:
@@ -23,7 +123,7 @@
 
 - Marked deprecated functions with `SENTRY_DEPRECATED(msg)`. ([#1308](https://github.com/getsentry/sentry-native/pull/1308))
 
-**Internal:**
+**Internal**:
 
 - Crash events from Crashpad now have `event_id` defined similarly to other backends. This makes it possible to associate feedback at the time of crash. ([#1319](https://github.com/getsentry/sentry-native/pull/1319))
 

@@ -190,6 +190,10 @@ The example currently supports the following commands:
 - `attach-to-scope`: Same as `attachment` but attaches the file to the local scope.
 - `clear-attachments`: Clears all attachments from the global scope.
 - `capture-user-feedback`: Captures a user feedback event.
+- `test-logger`: Sets up a test logger for integration tests that outputs in a format the integration tests can parse.
+- `disable-logger-when-crashed`: Disables logging during crash handling.
+- `enable-logger-when-crashed`: Explicitly enables logging during crash handling (default behavior).
+- `test-logger-before-crash`: Outputs marker directly using printf for test parsing before crash.
 
 Only on Linux using crashpad:
 - `crashpad-wait-for-upload`: Couples application shutdown to complete the upload in the `crashpad_handler`.

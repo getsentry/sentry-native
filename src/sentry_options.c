@@ -50,6 +50,9 @@ sentry_options_new(void)
     opts->system_crash_reporter_enabled = false;
     opts->attach_screenshot = false;
     opts->crashpad_wait_for_upload = false;
+    opts->enable_logging_when_crashed = true;
+    opts->propagate_traceparent = false;
+    opts->crashpad_limit_stack_capture_to_sp = false;
     opts->symbolize_stacktraces =
     // AIX doesn't have reliable debug IDs for server-side symbolication,
     // and the diversity of Android makes it infeasible to have access to debug
@@ -98,6 +101,7 @@ sentry_options_free(sentry_options_t *opts)
     sentry_free(opts->transport_thread_name);
     sentry__path_free(opts->database_path);
     sentry__path_free(opts->handler_path);
+    sentry__path_free(opts->external_crash_reporter);
     sentry_transport_free(opts->transport);
     sentry__backend_free(opts->backend);
     sentry__attachments_free(opts->attachments);
@@ -151,6 +155,14 @@ sentry_options_set_before_transaction(
 {
     opts->before_transaction_func = func;
     opts->before_transaction_data = user_data;
+}
+
+void
+sentry_options_set_before_send_log(sentry_options_t *opts,
+    sentry_before_send_log_function_t func, void *user_data)
+{
+    opts->before_send_log_func = func;
+    opts->before_send_log_data = user_data;
 }
 
 void
@@ -422,6 +434,12 @@ sentry_options_set_logger_level(sentry_options_t *opts, sentry_level_t level)
 }
 
 void
+sentry_options_set_logger_enabled_when_crashed(sentry_options_t *opts, int val)
+{
+    opts->enable_logging_when_crashed = !!val;
+}
+
+void
 sentry_options_set_auto_session_tracking(sentry_options_t *opts, int val)
 {
     opts->auto_session_tracking = !!val;
@@ -469,6 +487,13 @@ sentry_options_set_crashpad_wait_for_upload(
     sentry_options_t *opts, int wait_for_upload)
 {
     opts->crashpad_wait_for_upload = !!wait_for_upload;
+}
+
+void
+sentry_options_set_crashpad_limit_stack_capture_to_sp(
+    sentry_options_t *opts, int enabled)
+{
+    opts->crashpad_limit_stack_capture_to_sp = !!enabled;
 }
 
 void
@@ -551,6 +576,22 @@ sentry_options_set_database_path_n(
     opts->database_path = sentry__path_from_str_n(path, path_len);
 }
 
+void
+sentry_options_set_external_crash_reporter_path(
+    sentry_options_t *opts, const char *path)
+{
+    sentry__path_free(opts->external_crash_reporter);
+    opts->external_crash_reporter = sentry__path_from_str(path);
+}
+
+void
+sentry_options_set_external_crash_reporter_path_n(
+    sentry_options_t *opts, const char *path, size_t path_len)
+{
+    sentry__path_free(opts->external_crash_reporter);
+    opts->external_crash_reporter = sentry__path_from_str_n(path, path_len);
+}
+
 #ifdef SENTRY_PLATFORM_WINDOWS
 void
 sentry_options_add_attachmentw_n(
@@ -595,6 +636,22 @@ sentry_options_set_handler_pathw(sentry_options_t *opts, const wchar_t *path)
 {
     size_t path_len = path ? wcslen(path) : 0;
     sentry_options_set_handler_pathw_n(opts, path, path_len);
+}
+
+void
+sentry_options_set_external_crash_reporter_pathw_n(
+    sentry_options_t *opts, const wchar_t *path, size_t path_len)
+{
+    sentry__path_free(opts->external_crash_reporter);
+    opts->external_crash_reporter = sentry__path_from_wstr_n(path, path_len);
+}
+
+void
+sentry_options_set_external_crash_reporter_pathw(
+    sentry_options_t *opts, const wchar_t *path)
+{
+    size_t path_len = path ? wcslen(path) : 0;
+    sentry_options_set_external_crash_reporter_pathw_n(opts, path, path_len);
 }
 
 void
@@ -661,10 +718,11 @@ sentry_options_get_traces_sample_rate(sentry_options_t *opts)
 }
 
 void
-sentry_options_set_traces_sampler(
-    sentry_options_t *opts, sentry_traces_sampler_function callback)
+sentry_options_set_traces_sampler(sentry_options_t *opts,
+    sentry_traces_sampler_function callback, void *user_data)
 {
     opts->traces_sampler = callback;
+    opts->traces_sampler_data = user_data;
 }
 
 void
@@ -672,6 +730,31 @@ sentry_options_set_backend(sentry_options_t *opts, sentry_backend_t *backend)
 {
     sentry__backend_free(opts->backend);
     opts->backend = backend;
+}
+
+void
+sentry_options_set_enable_logs(sentry_options_t *opts, int enable_logs)
+{
+    opts->enable_logs = !!enable_logs;
+}
+
+int
+sentry_options_get_enable_logs(const sentry_options_t *opts)
+{
+    return opts->enable_logs;
+}
+
+void
+sentry_options_set_logs_with_attributes(
+    sentry_options_t *opts, int logs_with_attributes)
+{
+    opts->logs_with_attributes = !!logs_with_attributes;
+}
+
+int
+sentry_options_get_logs_with_attributes(const sentry_options_t *opts)
+{
+    return opts->logs_with_attributes;
 }
 
 #ifdef SENTRY_PLATFORM_LINUX
@@ -690,3 +773,16 @@ sentry_options_set_handler_strategy(
 }
 
 #endif // SENTRY_PLATFORM_LINUX
+
+void
+sentry_options_set_propagate_traceparent(
+    sentry_options_t *opts, int propagate_traceparent)
+{
+    opts->propagate_traceparent = !!propagate_traceparent;
+}
+
+int
+sentry_options_get_propagate_traceparent(const sentry_options_t *opts)
+{
+    return opts->propagate_traceparent;
+}

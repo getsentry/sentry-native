@@ -25,11 +25,13 @@ add_executable(sentry_test_unit
 	test_basic.c
 	test_consent.c
 	test_concurrency.c
+	test_embedded_info.c
 	test_envelopes.c
 	test_failures.c
 	test_fuzzfailures.c
 	test_info.c
 	test_logger.c
+	test_logs.c
 	test_modulefinder.c
 	test_mpack.c
 	test_options.c
@@ -55,6 +57,11 @@ add_executable(sentry_test_unit
 
 # FIXME: cmake 3.13 introduced target_link_options
 target_compile_definitions(sentry_test_unit PRIVATE ${SENTRY_COMPILE_DEFINITIONS})
+
+# Add SENTRY_EMBED_INFO define to tests if embedding is enabled
+if(SENTRY_EMBED_INFO)
+	target_compile_definitions(sentry_test_unit PRIVATE SENTRY_EMBED_INFO=1)
+endif()
 target_include_directories(sentry_test_unit PRIVATE
 	${SENTRY_INTERFACE_INCLUDE_DIRECTORIES}
 	${SENTRY_INCLUDE_DIRECTORIES}

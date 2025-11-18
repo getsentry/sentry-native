@@ -6,6 +6,8 @@
 #include "sentry_core.h"
 #include "sentry_database.h"
 #include "sentry_envelope.h"
+#include "sentry_logger.h"
+#include "sentry_logs.h"
 #include "sentry_options.h"
 #if defined(SENTRY_PLATFORM_WINDOWS)
 #    include "sentry_os.h"
@@ -454,9 +456,48 @@ registers_from_uctx(const sentry_ucontext_t *uctx)
     return registers;
 }
 
+#ifdef SENTRY_PLATFORM_LINUX
+static uintptr_t
+get_stack_pointer(const sentry_ucontext_t *uctx)
+{
+#    if defined(__i386__)
+    return uctx->user_context->uc_mcontext.gregs[REG_ESP];
+#    elif defined(__x86_64__)
+    return uctx->user_context->uc_mcontext.gregs[REG_RSP];
+#    elif defined(__arm__)
+    return uctx->user_context->uc_mcontext.arm_sp;
+#    elif defined(__aarch64__)
+    return uctx->user_context->uc_mcontext.sp;
+#    else
+    SENTRY_WARN("get_stack_pointer is not implemented for this architecture. "
+                "Signal chaining may not work as expected.");
+    return NULL;
+#    endif
+}
+
+static uintptr_t
+get_instruction_pointer(const sentry_ucontext_t *uctx)
+{
+#    if defined(__i386__)
+    return uctx->user_context->uc_mcontext.gregs[REG_EIP];
+#    elif defined(__x86_64__)
+    return uctx->user_context->uc_mcontext.gregs[REG_RIP];
+#    elif defined(__arm__)
+    return uctx->user_context->uc_mcontext.arm_pc;
+#    elif defined(__aarch64__)
+    return uctx->user_context->uc_mcontext.pc;
+#    else
+    SENTRY_WARN(
+        "get_instruction_pointer is not implemented for this architecture. "
+        "Signal chaining may not work as expected.");
+    return NULL;
+#    endif
+}
+#endif
+
 static sentry_value_t
-make_signal_event(
-    const struct signal_slot *sig_slot, const sentry_ucontext_t *uctx)
+make_signal_event(const struct signal_slot *sig_slot,
+    const sentry_ucontext_t *uctx, sentry_handler_strategy_t strategy)
 {
     sentry_value_t event = sentry_value_new_event();
     sentry_value_set_by_key(
@@ -494,8 +535,10 @@ make_signal_event(
         "captured backtrace from ucontext with %lu frames", frame_count);
     // if unwinding from a ucontext didn't yield any results, try again with a
     // direct unwind. this is most likely the case when using `libbacktrace`,
-    // since that does not allow to unwind from a ucontext at all.
-    if (!frame_count) {
+    // since that does not allow to unwind from a ucontext at all. the fallback
+    // is skipped with the "chain at start" strategy because `libbacktrace`
+    // crashes, and would likely not provide helpful information anyway.
+    if (!frame_count && strategy != SENTRY_HANDLER_STRATEGY_CHAIN_AT_START) {
         frame_count = sentry_unwind_stack(NULL, &backtrace[0], MAX_FRAMES);
     }
     SENTRY_DEBUGF("captured backtrace with %lu frames", frame_count);
@@ -523,22 +566,16 @@ make_signal_event(
 static void
 handle_ucontext(const sentry_ucontext_t *uctx)
 {
-    SENTRY_INFO("entering signal handler");
-
-    const struct signal_slot *sig_slot = NULL;
-    for (int i = 0; i < SIGNAL_COUNT; ++i) {
-#ifdef SENTRY_PLATFORM_UNIX
-        if (SIGNAL_DEFINITIONS[i].signum == uctx->signum) {
-#elif defined SENTRY_PLATFORM_WINDOWS
-        if (SIGNAL_DEFINITIONS[i].signum
-            == uctx->exception_ptrs.ExceptionRecord->ExceptionCode) {
-#else
-#    error Unsupported platform
-#endif
-            sig_slot = &SIGNAL_DEFINITIONS[i];
+    // Disable logging during crash handling if the option is set
+    SENTRY_WITH_OPTIONS (options) {
+        if (!options->enable_logging_when_crashed) {
+            sentry__logger_disable();
         }
     }
 
+    SENTRY_INFO("entering signal handler");
+
+    sentry_handler_strategy_t strategy = SENTRY_HANDLER_STRATEGY_DEFAULT;
 #ifdef SENTRY_PLATFORM_UNIX
     // inform the sentry_sync system that we're in a signal handler.  This will
     // make mutexes spin on a spinlock instead as it's no longer safe to use a
@@ -553,32 +590,71 @@ handle_ucontext(const sentry_ucontext_t *uctx)
         // cases, we shouldn't react to the signal at all and let their handler
         // discontinue the signal chain by invoking the runtime handler before
         // we process the signal.
-        if (sentry_options_get_handler_strategy(options)
-            == SENTRY_HANDLER_STRATEGY_CHAIN_AT_START) {
+        strategy = sentry_options_get_handler_strategy(options);
+        if (strategy == SENTRY_HANDLER_STRATEGY_CHAIN_AT_START) {
             SENTRY_DEBUG("defer to runtime signal handler at start");
             // there is a good chance that we won't return from the previous
             // handler and that would mean we couldn't enter this handler with
             // the next signal coming in if we didn't "leave" here.
             sentry__leave_signal_handler();
+            if (!options->enable_logging_when_crashed) {
+                sentry__logger_enable();
+            }
+
+            uintptr_t ip = get_instruction_pointer(uctx);
+            uintptr_t sp = get_stack_pointer(uctx);
 
             // invoke the previous handler (typically the CLR/Mono
             // signal-to-managed-exception handler)
             invoke_signal_handler(
                 uctx->signum, uctx->siginfo, (void *)uctx->user_context);
 
+            // If the execution returns here in AOT mode, and the instruction
+            // or stack pointer were changed, it means CLR/Mono converted the
+            // signal into a managed exception and transferred execution to a
+            // managed exception handler.
+            // https://github.com/dotnet/runtime/blob/6d96e28597e7da0d790d495ba834cc4908e442cd/src/mono/mono/mini/exceptions-arm64.c#L538
+            if (ip != get_instruction_pointer(uctx)
+                || sp != get_stack_pointer(uctx)) {
+                SENTRY_DEBUG("runtime converted the signal to a managed "
+                             "exception, we do not handle the signal");
+                return;
+            }
+
             // let's re-enter because it means this was an actual native crash
+            if (!options->enable_logging_when_crashed) {
+                sentry__logger_disable();
+            }
             sentry__enter_signal_handler();
             SENTRY_DEBUG(
                 "return from runtime signal handler, we handle the signal");
         }
 #endif
 
+        const struct signal_slot *sig_slot = NULL;
+        for (int i = 0; i < SIGNAL_COUNT; ++i) {
+#ifdef SENTRY_PLATFORM_UNIX
+            if (SIGNAL_DEFINITIONS[i].signum == uctx->signum) {
+#elif defined SENTRY_PLATFORM_WINDOWS
+            if (SIGNAL_DEFINITIONS[i].signum
+                == uctx->exception_ptrs.ExceptionRecord->ExceptionCode) {
+#else
+#    error Unsupported platform
+#endif
+                sig_slot = &SIGNAL_DEFINITIONS[i];
+            }
+        }
+
 #ifdef SENTRY_PLATFORM_UNIX
         // use a signal-safe allocator before we tear down.
         sentry__page_allocator_enable();
 #endif
+        // Flush logs in a crash-safe manner before crash handling
+        if (options->enable_logs) {
+            sentry__logs_flush_crash_safe();
+        }
 
-        sentry_value_t event = make_signal_event(sig_slot, uctx);
+        sentry_value_t event = make_signal_event(sig_slot, uctx, strategy);
         bool should_handle = true;
         sentry__write_crash_marker(options);
 
@@ -608,12 +684,14 @@ handle_ucontext(const sentry_ucontext_t *uctx)
                 sentry__attachment_free(screenshot);
             }
 
-            // capture the envelope with the disk transport
-            sentry_transport_t *disk_transport
-                = sentry_new_disk_transport(options->run);
-            sentry__capture_envelope(disk_transport, envelope);
-            sentry__transport_dump_queue(disk_transport, options->run);
-            sentry_transport_free(disk_transport);
+            if (!sentry__launch_external_crash_reporter(envelope)) {
+                // capture the envelope with the disk transport
+                sentry_transport_t *disk_transport
+                    = sentry_new_disk_transport(options->run);
+                sentry__capture_envelope(disk_transport, envelope);
+                sentry__transport_dump_queue(disk_transport, options->run);
+                sentry_transport_free(disk_transport);
+            }
         } else {
             SENTRY_DEBUG("event was discarded by the `on_crash` hook");
             sentry_value_decref(event);
@@ -632,8 +710,10 @@ handle_ucontext(const sentry_ucontext_t *uctx)
     // forward as we're not restoring the page allocator.
     reset_signal_handlers();
     sentry__leave_signal_handler();
-    invoke_signal_handler(
-        uctx->signum, uctx->siginfo, (void *)uctx->user_context);
+    if (strategy != SENTRY_HANDLER_STRATEGY_CHAIN_AT_START) {
+        invoke_signal_handler(
+            uctx->signum, uctx->siginfo, (void *)uctx->user_context);
+    }
 #endif
 }
 

@@ -5,7 +5,7 @@ import time
 
 import pytest
 
-from tests import assert_no_proxy_request
+from tests.assertions import assert_no_proxy_request
 
 
 def setup_proxy_env_vars(port):

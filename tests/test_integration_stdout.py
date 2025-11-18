@@ -1,7 +1,9 @@
 import os
+import shutil
 import subprocess
 import sys
 import time
+from pathlib import Path
 
 import pytest
 
@@ -18,6 +20,7 @@ from .assertions import (
     assert_no_before_send,
     assert_crash_timestamp,
     assert_breakpad_crash,
+    assert_exception,
 )
 from .conditions import has_breakpad, has_files
 
@@ -44,6 +47,26 @@ def test_capture_stdout(cmake):
     assert_stacktrace(envelope)
 
     assert_event(envelope)
+
+
+def copy_except(src: Path, dst: Path, exceptions: list[str] = None) -> None:
+    """
+    Recursively copy everything from src to dst, except for entries whose
+    names are in `exceptions`.
+    """
+    exceptions = set(exceptions or [])
+
+    dst.mkdir(parents=True, exist_ok=True)
+
+    for entry in src.iterdir():
+        if entry.name in exceptions:
+            continue
+
+        dest = dst / entry.name
+        if entry.is_dir():
+            shutil.copytree(entry, dest, symlinks=True)
+        else:
+            shutil.copy2(entry, dest)
 
 
 def test_dynamic_sdk_name_override(cmake):
@@ -141,8 +164,7 @@ def run_stdout_for(backend, cmake, example_args, build_args=None):
 
     tmp_path = cmake(["sentry_example"], build_args)
 
-    child = run(tmp_path, "sentry_example", example_args)
-    assert child.returncode  # well, it's a crash after all
+    run(tmp_path, "sentry_example", example_args, expect_failure=True)
 
     return tmp_path, check_output(tmp_path, "sentry_example", ["stdout", "no-setup"])
 

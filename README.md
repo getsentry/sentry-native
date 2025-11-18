@@ -26,7 +26,7 @@ Using the `sentry-native` SDK in a standalone use case is currently an experimen
 
 - [SDK Documentation](https://docs.sentry.io/platforms/native/)
 - [Discord](https://discord.gg/ez5KZN7) server for project discussions
-- Follow [@getsentry](https://twitter.com/getsentry) on Twitter for updates
+- Follow [@sentry](https://x.com/sentry) on X for updates
 
 ## Table of Contents <!-- omit in toc -->
 
@@ -162,7 +162,7 @@ $ ninja -C build
 **MacOS**:
 
 Building universal binaries/libraries is possible out of the box when using the
-[`CMAKE_OSX_ARCHITECTURES`](https://cmake.org/cmake/help/latest/variable/CMAKE_OSX_ARCHITECTURES.html) define, both with the `Xcode` generator as well
+[`CMAKE_OSX_ARCHITECTURES`](https://cmake.org/cmake/help/latest/variable/CMAKE_OSX_ARCHITECTURES.html) variable, both with the `Xcode` generator as well
 as the default generator:
 
 ```sh
@@ -179,12 +179,16 @@ $ lipo -info defaultbuild/libsentry.dylib
 Architectures in the fat file: defaultbuild/libsentry.dylib are: x86_64 arm64
 ```
 
-Make sure that MacOSX SDK 11 or later is used. It is possible that this requires
-manually overriding the `SDKROOT`:
+Ensure that macOS SDK 11 or later is used (we currently only test against versions 13 and above). This may require
+specifying the `SDKROOT`:
 
 ```sh
 $ export SDKROOT=$(xcrun --sdk macosx --show-sdk-path)
 ```
+
+If you build on macOS using _CMake 4_, then you _must_ specify the `SDKROOT`, because 
+[CMake 4 defaults to an empty `CMAKE_OSX_SYSROOT`](https://cmake.org/cmake/help/latest/variable/CMAKE_OSX_SYSROOT.html), 
+which could lead to inconsistent include paths when CMake tries to gather the `sysroot` later in the build.
 
 ### Compile-Time Options
 
