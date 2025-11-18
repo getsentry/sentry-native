@@ -1035,14 +1035,6 @@ dispatch_ucontext(
 static void
 process_ucontext(const sentry_ucontext_t *uctx)
 {
-#ifdef SENTRY_PLATFORM_UNIX
-    sentry__enter_signal_handler();
-#endif
-
-    if (!g_backend_config.enable_logging_when_crashed) {
-        sentry__logger_disable();
-    }
-
 #ifdef SENTRY_PLATFORM_LINUX
     if (g_backend_config.handler_strategy
         == SENTRY_HANDLER_STRATEGY_CHAIN_AT_START) {
@@ -1051,14 +1043,6 @@ process_ucontext(const sentry_ucontext_t *uctx)
         // cases, we shouldn't react to the signal at all and let their handler
         // discontinue the signal chain by invoking the runtime handler before
         // we process the signal.
-        // there is a good chance that we won't return from the previous
-        // handler and that would mean we couldn't enter this handler with
-        // the next signal coming in if we didn't "leave" here.
-        sentry__leave_signal_handler();
-        if (!g_backend_config.enable_logging_when_crashed) {
-            sentry__logger_enable();
-        }
-
         uintptr_t ip = get_instruction_pointer(uctx);
         uintptr_t sp = get_stack_pointer(uctx);
 
@@ -1077,15 +1061,18 @@ process_ucontext(const sentry_ucontext_t *uctx)
             return;
         }
 
-        // let's re-enter because it means this was an actual native crash
-        if (!g_backend_config.enable_logging_when_crashed) {
-            sentry__logger_disable();
-        }
-        sentry__enter_signal_handler();
         // return from runtime handler; continue processing the crash on the
         // signal thread until the worker takes over
     }
 #endif
+
+#ifdef SENTRY_PLATFORM_UNIX
+    sentry__enter_signal_handler();
+#endif
+
+    if (!g_backend_config.enable_logging_when_crashed) {
+        sentry__logger_disable();
+    }
 
     const struct signal_slot *sig_slot = NULL;
     for (int i = 0; i < SIGNAL_COUNT; ++i) {
