@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1763486027186,
+  "lastUpdate": 1763486125838,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -22918,6 +22918,66 @@ window.BENCHMARK_DATA = {
             "value": 15.471100000013394,
             "unit": "ms",
             "extra": "Min 14.579ms\nMax 18.849ms\nMean 16.083ms\nStdDev 1.775ms\nMedian 15.471ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "60878493+JoshuaMoelans@users.noreply.github.com",
+            "name": "JoshuaMoelans",
+            "username": "JoshuaMoelans"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "96b3d348c311e806f870239ff26156f990146c9e",
+          "message": "chore: remove soon-to-be-deprecated macos-13 runner (#1454)\n\nhttps://github.com/actions/runner-images/issues/13046",
+          "timestamp": "2025-11-18T18:10:32+01:00",
+          "tree_id": "52fe88fbcd38e39606f3cec69ed7325e3025b3f2",
+          "url": "https://github.com/getsentry/sentry-native/commit/96b3d348c311e806f870239ff26156f990146c9e"
+        },
+        "date": 1763486119833,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 12.71129999997811,
+            "unit": "ms",
+            "extra": "Min 11.487ms\nMax 14.990ms\nMean 12.890ms\nStdDev 1.429ms\nMedian 12.711ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 13.14460000003237,
+            "unit": "ms",
+            "extra": "Min 11.904ms\nMax 14.072ms\nMean 13.118ms\nStdDev 0.951ms\nMedian 13.145ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 29.813400000023194,
+            "unit": "ms",
+            "extra": "Min 27.738ms\nMax 35.198ms\nMean 30.575ms\nStdDev 2.811ms\nMedian 29.813ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.027499999987412593,
+            "unit": "ms",
+            "extra": "Min 0.021ms\nMax 0.029ms\nMean 0.025ms\nStdDev 0.004ms\nMedian 0.027ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.5363999999872249,
+            "unit": "ms",
+            "extra": "Min 0.466ms\nMax 0.665ms\nMean 0.551ms\nStdDev 0.076ms\nMedian 0.536ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 17.449299999952927,
+            "unit": "ms",
+            "extra": "Min 15.557ms\nMax 20.491ms\nMean 18.114ms\nStdDev 2.220ms\nMedian 17.449ms"
           }
         ]
       }
