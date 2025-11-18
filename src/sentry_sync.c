@@ -517,7 +517,9 @@ sentry__block_for_signal_handler(void)
         // if there is no signal handler active, we don't need to block
         // we can spin cheaply, but for the return we must acquire
         if (!__atomic_load_n(&g_in_signal_handler, __ATOMIC_RELAXED)) {
-            return __atomic_load_n(&g_in_signal_handler, __ATOMIC_ACQUIRE) == 0;
+            if (__atomic_load_n(&g_in_signal_handler, __ATOMIC_ACQUIRE) == 0) {
+                return true;
+            }
         }
 
         // if we are on the signal handler thread we can also leave
