@@ -264,7 +264,7 @@ sentry__process_old_runs(const sentry_options_t *options, uint64_t last_crash)
                     sentry__envelope_add_session(session_envelope, session);
 
                     sentry__session_free(session);
-                    if ((++session_num) >= SENTRY_MAX_ENVELOPE_ITEMS) {
+                    if ((++session_num) >= SENTRY_MAX_ENVELOPE_SESSIONS) {
                         sentry__capture_envelope(
                             options->transport, session_envelope);
                         session_envelope = NULL;

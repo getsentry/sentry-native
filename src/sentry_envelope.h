@@ -10,7 +10,8 @@
 #include "sentry_session.h"
 #include "sentry_string.h"
 
-#define SENTRY_MAX_ENVELOPE_ITEMS 10
+// https://develop.sentry.dev/sdk/data-model/envelopes/#size-limits
+#define SENTRY_MAX_ENVELOPE_SESSIONS 100
 
 typedef struct sentry_envelope_item_s sentry_envelope_item_t;
 
