@@ -510,12 +510,13 @@ sentry_value_new_user(const char *id, const char *username, const char *email,
 }
 
 /**
- * Converts a sentry_value_t to its type string representation.
+ * Converts a sentry_value_t attribute to its type string representation.
  * For lists, checks the first element to determine the array type.
  * Returns NULL for unsupported types (NULL, OBJECT).
+ * https://develop.sentry.dev/sdk/telemetry/spans/span-protocol/#attribute-object-properties
  */
 static const char *
-value_type_to_str(sentry_value_t value)
+attribute_value_type_to_str(sentry_value_t value)
 {
     switch (sentry_value_get_type(value)) {
     case SENTRY_VALUE_TYPE_BOOL:
@@ -562,7 +563,7 @@ sentry_value_t
 sentry_value_new_attribute_n(
     sentry_value_t value, const char *unit, size_t unit_len)
 {
-    const char *type = value_type_to_str(value);
+    const char *type = attribute_value_type_to_str(value);
     if (!type) {
         sentry_value_decref(value);
         return sentry_value_new_null();
