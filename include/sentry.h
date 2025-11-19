@@ -1862,10 +1862,6 @@ SENTRY_API void sentry_remove_extra_n(const char *key, size_t key_len);
  * Sets attributes created with `sentry_value_new_attribute` to be applied to
  * all:
  * - logs
- *
- * TODO
- *  - apply to logs (but only if log doesn't already have the attribute(s))
- *  - expand attributes to allow string[], int[], double[]
  */
 SENTRY_API void sentry_set_attribute(const char *key, sentry_value_t attribute);
 SENTRY_API void sentry_set_attribute_n(
