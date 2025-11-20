@@ -138,7 +138,7 @@ sentry__unwind_stack_libunwind_mac(
     if (addr) {
         size_t n = 0;
         fp_walk((uintptr_t)addr, &n, ptrs, max_frames);
-        return 0;
+        return n;
     }
 
     if (uctx) {
