@@ -548,6 +548,9 @@ attribute_value_type_to_str(sentry_value_t value)
             return "double[]";
         case SENTRY_VALUE_TYPE_STRING:
             return "string[]";
+        case SENTRY_VALUE_TYPE_NULL:
+        case SENTRY_VALUE_TYPE_OBJECT:
+        case SENTRY_VALUE_TYPE_LIST:
         default:
             return NULL;
         }
