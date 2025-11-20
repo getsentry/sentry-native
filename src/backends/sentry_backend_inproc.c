@@ -23,8 +23,103 @@
 #include <limits.h>
 #include <string.h>
 
-#define SIGNAL_DEF(Sig, Desc) { Sig, #Sig, Desc }
+/**
+ * Inproc Backend Introduction
+ *
+ * As the name suggests the inproc backend runs the crash handling entirely
+ * inside the process and thus is the right choice for platforms that
+ * are limited in process creation/spawning/cloning (or even deploying a
+ * separate release artifact like with `crashpad`). It is also very lightweight
+ * in terms of toolchain dependencies because it does not require a C++ standard
+ * library.
+ *
+ * It targets UNIX and Windows (effectively supporting all target platforms of
+ * the Native SDK) and uses POSIX signal handling on UNIX and unhandled
+ * exception filters (UEF) on Windows. Whenever a signal handler is mentioned
+ * in the code or comments, one can replace that with UEF on Windows.
+ *
+ * In its current implementation it only gathers the crash context for the
+ * crashed thread and does not attempt to stop any other threads. While this
+ * can be considered a downside for some users, it allows additional handlers
+ * to process the crashed process again, which the other backends currenlty
+ * can't guarantee to work. Additional crash signals coming from other threads
+ * will be blocked indefinitely until previous handler takes over.
+ *
+ * The inproc backend splits the handler in two parts:
+ *   - a signal handler/unhandled exception filter that severely limits what we
+ *     can do, focusing on response to the OS mechanism and almost zero policy.
+ *   - a separate handler thread that does most of the typical sentry error
+ *     handling and policy implementation, with a bit more freedom.
+ *
+ * Only if the handler thread has crashed or is otherwise unavailable, will we
+ * execute the unsafe part inside the signal-handler itself, as a last chance
+ * fallback for report creation. The signal-handler part should not use any
+ * synchronization or signal-unsafe function from `libc` (see function-level
+ * comment), even access to options is ideally done before during
+ * initailization. If access to option or scope (or any other global context)
+ * is required this should happen in the handler thread.
+ *
+ * The handler thread is started during backend initialization and will be
+ * triggered by the signal handler via a POSIX pipe on which the handler thread
+ * blocks from the start (similarly on Windows, which uses a Semaphore). While
+ * the handler thread handles a crash, the signal handler (or UEF) blocks itself
+ * on an ACK pipe/semaphore. Once the handler thread is done processing the
+ * crash, it will unblock the signal handler which resets the synchronization
+ * during crash handling and invokes the handler chain.
+ *
+ * The most important functions and their meaning:
+ *
+ *  - `handle_signal`/`handle_exception`: top-level entry points called directly
+ *    from the operating system. They pack sentry_ucontext_t and call...
+ *  - `process_ucontext`: the actual signal-handler/UEF, primarily manages the
+ *    interaction with the OS and other handlers and calls..
+ *  - `dispatch_ucontext`: this is the place that decides on where to run the
+ *    sentry error event creation and that does the synchronization with...
+ *  - `handler_thread_main`: implements the handler thread loop, blocks until
+ *    unblocked by the signal handler and finally calls...
+ *  - `process_ucontext_deferred`: the implementation of sentry specific
+ *    handler policy leading to crash event construction, it defers to...
+ *  - `make_signal_event`: that is purely about making a crash event object and
+ *    filling the context data
+ *
+ * The `on_crash` and `before_send` hook usually run on the handler thread
+ * during `process_ucontext_deferred` but users cannot rely on any particular
+ * thread to call their callbacks. However, they can be sure that the crashed
+ * thread won't run during their the execution of their callback code.
+ *
+ * Note on unwinders:
+ *
+ * The backend relies on an unwinder that can backtrace from a user context.
+ * This is important because the unwinder usually runs in the context of the
+ * handler thread, where a direct backtrace makes no longer any sense (even if
+ * it was signal safe). We do not dispatch to the handler thread for targets
+ * that still use `libbacktrace`, and instead run the unsafe part directly in
+ * the signal handler. This is primarily to not break these target, but in
+ * general the `libbacktrace`-based unwinder should be considered deprecated.
+ *
+ * Notes on signal handling in other runtimes:
+ *
+ * The .net runtimes currently rely on signal handling to deliver managed
+ * exceptions caused from the generated native code. Due to the initialization
+ * order the inproc backend will receive those signals which it should not
+ * process. On setups like these it offers a handler strategy that chains the
+ * previous signal handler first, allowing the .net runtime handler to either
+ * immediately jump back into runtime code or reset IP/SP so that the returning
+ * signal handler continues from the managed exception rather then the crashed
+ * instruction.
+ *
+ * The Android runtime (ART) otoh, while also relying heavily on signal handling
+ * to communicate between generated code and the garbage collector entirely
+ * shields the signals from us (via `libsigchain` special handler ordering) and
+ * only forwards signals that are not relevant to runtime. However, it relies on
+ * each thread having a specific sigaltstack setup, which can lead to crashes if
+ * overriden. For this reason, we do not set the sigaltstack of any thread if
+ * one was already configured even if the size is smaller than we'd want. Since
+ * most of the handler runs in a separate thread the size limitation of any pre-
+ * configured `sigaltstack` is not a problem to our more complex handler code.
+ */
 
+#define SIGNAL_DEF(Sig, Desc) { Sig, #Sig, Desc }
 #define MAX_FRAMES 128
 
 // the data exchange between the signal handler and the handler thread
