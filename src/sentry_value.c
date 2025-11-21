@@ -535,8 +535,6 @@ attribute_value_type_to_str(sentry_value_t value)
             return NULL;
         }
         // Determine type based on first element
-        // TODO: should we check all items in the list, and only return if
-        //  they are all the same?
         switch (sentry_value_get_type(first_item)) {
         case SENTRY_VALUE_TYPE_BOOL:
             return "boolean[]";
