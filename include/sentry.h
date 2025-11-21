@@ -1869,14 +1869,6 @@ SENTRY_API void sentry_set_attribute_n(
     const char *key, size_t key_len, sentry_value_t attribute);
 SENTRY_API void sentry_remove_attribute(const char *key);
 SENTRY_API void sentry_remove_attribute_n(const char *key, size_t key_len);
-SENTRY_API void sentry_scope_set_attribute(
-    sentry_scope_t *scope, const char *key, sentry_value_t attribute);
-SENTRY_API void sentry_scope_set_attribute_n(sentry_scope_t *scope,
-    const char *key, size_t key_len, sentry_value_t attribute);
-SENTRY_API void sentry_scope_remove_attribute(
-    sentry_scope_t *scope, const char *key);
-SENTRY_API void sentry_scope_remove_attribute_n(
-    sentry_scope_t *scope, const char *key, size_t key_len);
 
 /**
  * Sets a context object.
