@@ -749,11 +749,16 @@ crashpad_backend_prune_database(sentry_backend_t *backend)
     // complete database to a maximum of 8M. That might still be a lot for
     // an embedded use-case, but minidumps on desktop can sometimes be quite
     // large.
-    data->db->CleanDatabase(60 * 60 * 24 * 2);
-    crashpad::BinaryPruneCondition condition(crashpad::BinaryPruneCondition::OR,
-        new crashpad::DatabaseSizePruneCondition(1024 * 8),
-        new crashpad::AgePruneCondition(2));
-    crashpad::PruneCrashReportDatabase(data->db, &condition);
+    SENTRY_WITH_OPTIONS (options) {
+        data->db->CleanDatabase(static_cast<time_t>(options->cache_max_age));
+        crashpad::BinaryPruneCondition condition(
+            crashpad::BinaryPruneCondition::OR,
+            new crashpad::DatabaseSizePruneCondition(
+                options->cache_max_size / 1024),
+            new crashpad::AgePruneCondition(
+                static_cast<int>(options->cache_max_age / (24 * 60 * 60))));
+        crashpad::PruneCrashReportDatabase(data->db, &condition);
+    }
 }
 
 #if defined(SENTRY_PLATFORM_WINDOWS) || defined(SENTRY_PLATFORM_LINUX)
