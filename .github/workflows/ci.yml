@@ -260,6 +260,15 @@ jobs:
         run: |
           apk update
           apk add curl-dev libunwind-dev libunwind-static xz-dev
+      # install manually until available by default (also for future .NET updates)
+      - name: Install .NET 10 SDK for ARM64 runners
+        if: ${{ runner.os == 'Linux' && runner.arch == 'ARM64' && !matrix.container }}
+        run: |
+          wget https://dot.net/v1/dotnet-install.sh -O dotnet-install.sh
+          chmod +x dotnet-install.sh
+          ./dotnet-install.sh --channel 10.0 --install-dir $HOME/.dotnet
+          echo "$HOME/.dotnet" >> $GITHUB_PATH
+          echo "DOTNET_ROOT=$HOME/.dotnet" >> $GITHUB_ENV
 
         # https://github.com/actions/runner-images/issues/9491
       - name: Decrease vm.mmap_rnd_bit to prevent ASLR ASAN issues
