@@ -954,6 +954,15 @@ typedef enum {
 } sentry_handler_strategy_t;
 
 /**
+ * The caching mode for crash reports.
+ */
+typedef enum {
+    SENTRY_CACHE_NONE = -1, // (default) No caching enabled
+    SENTRY_CACHE_NO_PURGE = 0, // TODO Never purges cached crashes
+    SENTRY_CACHE_OFFLINE = 1, // TODO Periodically checks if online
+} sentry_caching_mode_t;
+
+/**
  * Creates a new options struct.
  * Can be freed with `sentry_options_free`.
  */
@@ -1372,6 +1381,20 @@ SENTRY_API void sentry_options_set_symbolize_stacktraces(
  * Returns true if on-device symbolication of stack traces is enabled.
  */
 SENTRY_API int sentry_options_get_symbolize_stacktraces(
+    const sentry_options_t *opts);
+
+/**
+ * Sets the caching mode for crash reports.
+ *
+ * This controls how the SDK handles cached crash reports and offline scenarios.
+ */
+SENTRY_API void sentry_options_set_caching_mode(
+    sentry_options_t *opts, sentry_caching_mode_t mode);
+
+/**
+ * Gets the caching mode for crash reports.
+ */
+SENTRY_API sentry_caching_mode_t sentry_options_get_caching_mode(
     const sentry_options_t *opts);
 
 /**

@@ -53,6 +53,7 @@ sentry_options_new(void)
     opts->enable_logging_when_crashed = true;
     opts->propagate_traceparent = false;
     opts->crashpad_limit_stack_capture_to_sp = false;
+    opts->caching_mode = SENTRY_CACHE_NONE;
     opts->symbolize_stacktraces =
     // AIX doesn't have reliable debug IDs for server-side symbolication,
     // and the diversity of Android makes it infeasible to have access to debug
@@ -473,6 +474,19 @@ int
 sentry_options_get_symbolize_stacktraces(const sentry_options_t *opts)
 {
     return opts->symbolize_stacktraces;
+}
+
+void
+sentry_options_set_caching_mode(
+    sentry_options_t *opts, sentry_caching_mode_t mode)
+{
+    opts->caching_mode = mode;
+}
+
+sentry_caching_mode_t
+sentry_options_get_caching_mode(const sentry_options_t *opts)
+{
+    return opts->caching_mode;
 }
 
 void
