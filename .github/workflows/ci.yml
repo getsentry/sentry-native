@@ -260,7 +260,7 @@ jobs:
         run: |
           apk update
           apk add curl-dev libunwind-dev libunwind-static xz-dev
-
+      # install manually until available by default (also for future .NET updates)
       - name: Install .NET 10 SDK for ARM64 runners
         if: ${{ runner.os == 'Linux' && runner.arch == 'ARM64' && !matrix.container }}
         run: |
