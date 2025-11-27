@@ -39,7 +39,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # toolchain per runner-image availability:
+            # toolchain per runner-image availability:
             #   ubuntu 22.04
             #     GCC: 9-12
             #     clang: 11-15
@@ -140,6 +140,10 @@ jobs:
             os: macos-14
             ERROR_ON_WARNINGS: 1
             SYSTEM_VERSION_COMPAT: 0
+          - name: macOS 26 (xcode llvm)
+            os: macos-26
+            ERROR_ON_WARNINGS: 1
+            SYSTEM_VERSION_COMPAT: 0
           - name: macOS 14 (xcode llvm + universal)
             os: macos-14
             ERROR_ON_WARNINGS: 1
@@ -222,7 +226,7 @@ jobs:
         run: |
           sudo apt update
           # Install common dependencies
-          sudo apt install cmake llvm valgrind zlib1g-dev libcurl4-openssl-dev
+          sudo apt install cmake llvm valgrind zlib1g-dev libcurl4-openssl-dev libunwind-dev
           # For GCC, install both gcc-X and g++-X. For Clang, only install clang-X (includes C++ compiler)
           if [[ "$CC" == gcc-* ]]; then
             sudo apt install "${CC}" "${CXX}"
@@ -253,18 +257,13 @@ jobs:
         run: |
           sudo dpkg --add-architecture i386
           sudo apt update
-          sudo apt install cmake "${CC}-multilib" "${CXX}-multilib" zlib1g-dev:i386 libssl-dev:i386 libcurl4-openssl-dev:i386
+          sudo apt install cmake "${CC}-multilib" "${CXX}-multilib" zlib1g-dev:i386 libssl-dev:i386 libcurl4-openssl-dev:i386 libunwind-dev:i386 liblzma-dev:i386
 
       - name: Installing Alpine Linux Dependencies
         if: ${{ contains(matrix.container, 'alpine') }}
         run: |
           apk update
           apk add curl-dev libunwind-dev libunwind-static xz-dev
-
-        # https://github.com/actions/runner-images/issues/9491
-      - name: Decrease vm.mmap_rnd_bit to prevent ASLR ASAN issues
-        if: ${{ runner.os == 'Linux' && contains(env['RUN_ANALYZER'], 'asan') }}
-        run: sudo sysctl vm.mmap_rnd_bits=28
 
       - name: Installing CodeChecker
         if: ${{ contains(env['RUN_ANALYZER'], 'code-checker') }}

@@ -207,6 +207,18 @@ typedef CONDITION_VARIABLE sentry_cond_t;
 #    define sentry__cond_wait(CondVar, Lock)                                   \
         sentry__cond_wait_timeout(CondVar, Lock, INFINITE)
 
+static inline sentry_threadid_t
+sentry__current_thread(void)
+{
+    return GetCurrentThread();
+}
+
+static inline int
+sentry__threadid_equal(sentry_threadid_t a, sentry_threadid_t b)
+{
+    return GetThreadId(a) == GetThreadId(b);
+}
+
 #else
 #    include <errno.h>
 #    include <pthread.h>
