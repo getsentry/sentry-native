@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1764247745005,
+  "lastUpdate": 1764247867430,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -23038,6 +23038,66 @@ window.BENCHMARK_DATA = {
             "value": 17.449299999952927,
             "unit": "ms",
             "extra": "Min 15.557ms\nMax 20.491ms\nMean 18.114ms\nStdDev 2.220ms\nMedian 17.449ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "60878493+JoshuaMoelans@users.noreply.github.com",
+            "name": "JoshuaMoelans",
+            "username": "JoshuaMoelans"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "634e8a320de1086ad3b2a7b1598a420e4c5b0cc3",
+          "message": "chore: update Alpine Linux Dockerfile to install .NET 10.0 (#1458)",
+          "timestamp": "2025-11-27T13:46:43+01:00",
+          "tree_id": "30c69edd71d09773859eff89c69d800ac7e643f1",
+          "url": "https://github.com/getsentry/sentry-native/commit/634e8a320de1086ad3b2a7b1598a420e4c5b0cc3"
+        },
+        "date": 1764247862337,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 10.10129999997389,
+            "unit": "ms",
+            "extra": "Min 9.401ms\nMax 31.170ms\nMean 14.124ms\nStdDev 9.533ms\nMedian 10.101ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 10.411899999951402,
+            "unit": "ms",
+            "extra": "Min 10.061ms\nMax 10.541ms\nMean 10.328ms\nStdDev 0.212ms\nMedian 10.412ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 25.771299999973962,
+            "unit": "ms",
+            "extra": "Min 24.730ms\nMax 26.784ms\nMean 25.792ms\nStdDev 0.734ms\nMedian 25.771ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.019299999962640868,
+            "unit": "ms",
+            "extra": "Min 0.015ms\nMax 0.052ms\nMean 0.025ms\nStdDev 0.015ms\nMedian 0.019ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.4195000000208893,
+            "unit": "ms",
+            "extra": "Min 0.399ms\nMax 0.450ms\nMean 0.424ms\nStdDev 0.020ms\nMedian 0.420ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 14.39000000004853,
+            "unit": "ms",
+            "extra": "Min 13.864ms\nMax 16.365ms\nMean 14.649ms\nStdDev 0.990ms\nMedian 14.390ms"
           }
         ]
       }
