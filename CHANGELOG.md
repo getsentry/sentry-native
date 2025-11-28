@@ -7,6 +7,7 @@
 - Add custom attributes API for logs. When `logs_with_attributes` is set to `true`, treats the first `varg` passed into `sentry_logs_X(message,...)` as a `sentry_value_t` object of attributes. ([#1435](https://github.com/getsentry/sentry-native/pull/1435))
 - Add runtime API to query user consent requirement. ([#1443](https://github.com/getsentry/sentry-native/pull/1443))
 - Add logs flush on `sentry_flush()`. ([#1434](https://github.com/getsentry/sentry-native/pull/1434))
+- Add global attributes API. These are added to all `sentry_log_X` calls. ([#1450](https://github.com/getsentry/sentry-native/pull/1450))
 
 ## 0.12.1
 

@@ -942,6 +942,39 @@ sentry_remove_extra_n(const char *key, size_t key_len)
 }
 
 void
+sentry_set_attribute(const char *key, sentry_value_t attribute)
+{
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry__scope_set_attribute(scope, key, attribute);
+    }
+}
+
+void
+sentry_set_attribute_n(
+    const char *key, size_t key_len, sentry_value_t attribute)
+{
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry__scope_set_attribute_n(scope, key, key_len, attribute);
+    }
+}
+
+void
+sentry_remove_attribute(const char *key)
+{
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry__scope_remove_attribute(scope, key);
+    }
+}
+
+void
+sentry_remove_attribute_n(const char *key, size_t key_len)
+{
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry__scope_remove_attribute_n(scope, key, key_len);
+    }
+}
+
+void
 sentry_set_context(const char *key, sentry_value_t value)
 {
     SENTRY_WITH_SCOPE_MUT (scope) {

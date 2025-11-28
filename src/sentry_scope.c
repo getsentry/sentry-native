@@ -74,6 +74,7 @@ init_scope(sentry_scope_t *scope)
     scope->user = sentry_value_new_null();
     scope->tags = sentry_value_new_object();
     scope->extra = sentry_value_new_object();
+    scope->attributes = sentry_value_new_object();
     scope->contexts = sentry_value_new_object();
     scope->propagation_context = sentry_value_new_object();
     scope->breadcrumbs = sentry__ringbuffer_new(SENTRY_BREADCRUMBS_MAX);
@@ -110,6 +111,7 @@ cleanup_scope(sentry_scope_t *scope)
     sentry_value_decref(scope->user);
     sentry_value_decref(scope->tags);
     sentry_value_decref(scope->extra);
+    sentry_value_decref(scope->attributes);
     sentry_value_decref(scope->contexts);
     sentry_value_decref(scope->propagation_context);
     sentry__ringbuffer_free(scope->breadcrumbs);
@@ -586,6 +588,38 @@ sentry_scope_set_extra_n(sentry_scope_t *scope, const char *key, size_t key_len,
     sentry_value_t value)
 {
     sentry_value_set_by_key_n(scope->extra, key, key_len, value);
+}
+
+void
+sentry__scope_set_attribute(
+    sentry_scope_t *scope, const char *key, sentry_value_t attribute)
+{
+    sentry__scope_set_attribute_n(scope, key, strlen(key), attribute);
+}
+
+void
+sentry__scope_set_attribute_n(sentry_scope_t *scope, const char *key,
+    size_t key_len, sentry_value_t attribute)
+{
+    if (sentry_value_is_null(sentry_value_get_by_key(attribute, "value"))
+        || sentry_value_is_null(sentry_value_get_by_key(attribute, "type"))) {
+        SENTRY_DEBUG("Cannot set attribute with missing 'value' or 'type'");
+        return;
+    }
+    sentry_value_set_by_key_n(scope->attributes, key, key_len, attribute);
+}
+
+void
+sentry__scope_remove_attribute(sentry_scope_t *scope, const char *key)
+{
+    sentry_value_remove_by_key(scope->attributes, key);
+}
+
+void
+sentry__scope_remove_attribute_n(
+    sentry_scope_t *scope, const char *key, size_t key_len)
+{
+    sentry_value_remove_by_key_n(scope->attributes, key, key_len);
 }
 
 void
