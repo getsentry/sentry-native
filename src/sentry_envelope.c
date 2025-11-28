@@ -18,6 +18,7 @@ struct sentry_envelope_item_s {
     sentry_value_t event;
     char *payload;
     size_t payload_len;
+    sentry_envelope_item_t *next;
 };
 
 struct sentry_envelope_s {
@@ -25,7 +26,8 @@ struct sentry_envelope_s {
     union {
         struct {
             sentry_value_t headers;
-            sentry_envelope_item_t items[SENTRY_MAX_ENVELOPE_ITEMS];
+            sentry_envelope_item_t *first_item;
+            sentry_envelope_item_t *last_item;
             size_t item_count;
         } items;
         struct {
@@ -41,21 +43,34 @@ envelope_add_item(sentry_envelope_t *envelope)
     if (envelope->is_raw) {
         return NULL;
     }
-    if (envelope->contents.items.item_count >= SENTRY_MAX_ENVELOPE_ITEMS) {
-        return NULL;
-    }
+
     // TODO: Envelopes may have at most one event item or one transaction item,
     // and not one of both. Some checking should be done here or in
     // `sentry__envelope_add_[transaction|event]` to ensure this can't happen.
 
-    sentry_envelope_item_t *rv
-        = &envelope->contents.items
-               .items[envelope->contents.items.item_count++];
-    rv->headers = sentry_value_new_object();
-    rv->event = sentry_value_new_null();
-    rv->payload = NULL;
-    rv->payload_len = 0;
-    return rv;
+    // Allocate new item
+    sentry_envelope_item_t *item = SENTRY_MAKE(sentry_envelope_item_t);
+    if (!item) {
+        return NULL;
+    }
+
+    // Initialize item
+    item->headers = sentry_value_new_object();
+    item->event = sentry_value_new_null();
+    item->payload = NULL;
+    item->payload_len = 0;
+    item->next = NULL;
+
+    // Append to linked list
+    if (envelope->contents.items.last_item) {
+        envelope->contents.items.last_item->next = item;
+    } else {
+        envelope->contents.items.first_item = item;
+    }
+    envelope->contents.items.last_item = item;
+    envelope->contents.items.item_count++;
+
+    return item;
 }
 
 static void
@@ -141,9 +156,16 @@ sentry_envelope_free(sentry_envelope_t *envelope)
         return;
     }
     sentry_value_decref(envelope->contents.items.headers);
-    for (size_t i = 0; i < envelope->contents.items.item_count; i++) {
-        envelope_item_cleanup(&envelope->contents.items.items[i]);
+
+    // Free all items in the linked list
+    sentry_envelope_item_t *item = envelope->contents.items.first_item;
+    while (item) {
+        sentry_envelope_item_t *next = item->next;
+        envelope_item_cleanup(item);
+        sentry_free(item);
+        item = next;
     }
+
     sentry_free(envelope);
 }
 
@@ -166,6 +188,8 @@ sentry__envelope_new(void)
     }
 
     rv->is_raw = false;
+    rv->contents.items.first_item = NULL;
+    rv->contents.items.last_item = NULL;
     rv->contents.items.item_count = 0;
     rv->contents.items.headers = sentry_value_new_object();
 
@@ -226,12 +250,13 @@ sentry_envelope_get_event(const sentry_envelope_t *envelope)
     if (envelope->is_raw) {
         return sentry_value_new_null();
     }
-    for (size_t i = 0; i < envelope->contents.items.item_count; i++) {
 
-        if (!sentry_value_is_null(envelope->contents.items.items[i].event)
-            && !sentry__event_is_transaction(
-                envelope->contents.items.items[i].event)) {
-            return envelope->contents.items.items[i].event;
+    for (const sentry_envelope_item_t *item
+        = envelope->contents.items.first_item;
+        item; item = item->next) {
+        if (!sentry_value_is_null(item->event)
+            && !sentry__event_is_transaction(item->event)) {
+            return item->event;
         }
     }
     return sentry_value_new_null();
@@ -243,11 +268,13 @@ sentry_envelope_get_transaction(const sentry_envelope_t *envelope)
     if (envelope->is_raw) {
         return sentry_value_new_null();
     }
-    for (size_t i = 0; i < envelope->contents.items.item_count; i++) {
-        if (!sentry_value_is_null(envelope->contents.items.items[i].event)
-            && sentry__event_is_transaction(
-                envelope->contents.items.items[i].event)) {
-            return envelope->contents.items.items[i].event;
+
+    for (const sentry_envelope_item_t *item
+        = envelope->contents.items.first_item;
+        item; item = item->next) {
+        if (!sentry_value_is_null(item->event)
+            && sentry__event_is_transaction(item->event)) {
+            return item->event;
         }
     }
     return sentry_value_new_null();
@@ -657,8 +684,9 @@ sentry__envelope_serialize_into_stringbuilder(
     SENTRY_DEBUG("serializing envelope into buffer");
     sentry__envelope_serialize_headers_into_stringbuilder(envelope, sb);
 
-    for (size_t i = 0; i < envelope->contents.items.item_count; i++) {
-        const sentry_envelope_item_t *item = &envelope->contents.items.items[i];
+    for (const sentry_envelope_item_t *item
+        = envelope->contents.items.first_item;
+        item; item = item->next) {
         sentry__envelope_serialize_item_into_stringbuilder(item, sb);
     }
 }
@@ -679,8 +707,9 @@ sentry_envelope_serialize_ratelimited(const sentry_envelope_t *envelope,
     sentry__envelope_serialize_headers_into_stringbuilder(envelope, &sb);
 
     size_t serialized_items = 0;
-    for (size_t i = 0; i < envelope->contents.items.item_count; i++) {
-        const sentry_envelope_item_t *item = &envelope->contents.items.items[i];
+    for (const sentry_envelope_item_t *item
+        = envelope->contents.items.first_item;
+        item; item = item->next) {
         if (rl) {
             int category = envelope_item_get_ratelimiter_category(item);
             if (sentry__rate_limiter_is_disabled(rl, category)) {
@@ -736,9 +765,9 @@ sentry_envelope_write_to_path(
         sentry__jsonwriter_write_value(jw, envelope->contents.items.headers);
         sentry__jsonwriter_reset(jw);
 
-        for (size_t i = 0; i < envelope->contents.items.item_count; i++) {
-            const sentry_envelope_item_t *item
-                = &envelope->contents.items.items[i];
+        for (const sentry_envelope_item_t *item
+            = envelope->contents.items.first_item;
+            item; item = item->next) {
             const char newline = '\n';
             sentry__filewriter_write(fw, &newline, sizeof(char));
 
@@ -967,9 +996,22 @@ sentry__envelope_get_item_count(const sentry_envelope_t *envelope)
 const sentry_envelope_item_t *
 sentry__envelope_get_item(const sentry_envelope_t *envelope, size_t idx)
 {
-    return !envelope->is_raw && idx < envelope->contents.items.item_count
-        ? &envelope->contents.items.items[idx]
-        : NULL;
+    if (envelope->is_raw) {
+        return NULL;
+    }
+
+    // Traverse linked list to find item at index
+    size_t current_idx = 0;
+    for (const sentry_envelope_item_t *item
+        = envelope->contents.items.first_item;
+        item; item = item->next) {
+        if (current_idx == idx) {
+            return item;
+        }
+        current_idx++;
+    }
+
+    return NULL;
 }
 
 sentry_value_t
