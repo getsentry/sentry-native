@@ -454,6 +454,8 @@ SENTRY_TEST(attachments_bytes)
     sentry_close();
 }
 
+#define ATTACHMENT_COUNT 15
+
 SENTRY_TEST(attachments_more_than_ten)
 {
     sentry_attachments_testdata_t testdata;
@@ -473,7 +475,6 @@ SENTRY_TEST(attachments_more_than_ten)
     // Create 15 unique attachment files (more than the old
     // SENTRY_MAX_ENVELOPE_ITEMS of 10) to verify that the limit has been
     // removed for attachments
-    const int ATTACHMENT_COUNT = 15;
     sentry_path_t *attachment_paths[ATTACHMENT_COUNT];
     for (int i = 0; i < ATTACHMENT_COUNT; i++) {
         char filename[64];
