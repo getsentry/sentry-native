@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1764606344154,
+  "lastUpdate": 1764606367482,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -15854,6 +15854,66 @@ window.BENCHMARK_DATA = {
             "value": 10.18908300000021,
             "unit": "ms",
             "extra": "Min 8.060ms\nMax 18.207ms\nMean 11.621ms\nStdDev 3.947ms\nMedian 10.189ms\nCPU 1.444ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "60878493+JoshuaMoelans@users.noreply.github.com",
+            "name": "JoshuaMoelans",
+            "username": "JoshuaMoelans"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "b5b96960d3bbfb0e7a5ba3e9bfc7cef626d12291",
+          "message": "chore: update X and Discord links (#1460)\n\n* updated READMEs",
+          "timestamp": "2025-12-01T17:21:22+01:00",
+          "tree_id": "1916cce2ee3e827dee0dd2bd43632530b0538371",
+          "url": "https://github.com/getsentry/sentry-native/commit/b5b96960d3bbfb0e7a5ba3e9bfc7cef626d12291"
+        },
+        "date": 1764606365360,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 4.1417500000022756,
+            "unit": "ms",
+            "extra": "Min 3.171ms\nMax 6.669ms\nMean 4.580ms\nStdDev 1.471ms\nMedian 4.142ms\nCPU 2.729ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 4.333416999998008,
+            "unit": "ms",
+            "extra": "Min 3.490ms\nMax 6.625ms\nMean 4.712ms\nStdDev 1.313ms\nMedian 4.333ms\nCPU 2.500ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 28.5762079999472,
+            "unit": "ms",
+            "extra": "Min 10.998ms\nMax 118.368ms\nMean 55.944ms\nStdDev 51.242ms\nMedian 28.576ms\nCPU 5.586ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.02541700001756908,
+            "unit": "ms",
+            "extra": "Min 0.008ms\nMax 0.042ms\nMean 0.027ms\nStdDev 0.013ms\nMedian 0.025ms\nCPU 0.026ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.30470800004422927,
+            "unit": "ms",
+            "extra": "Min 0.248ms\nMax 0.424ms\nMean 0.311ms\nStdDev 0.069ms\nMedian 0.305ms\nCPU 0.310ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 10.109084000021085,
+            "unit": "ms",
+            "extra": "Min 7.657ms\nMax 13.570ms\nMean 10.607ms\nStdDev 2.835ms\nMedian 10.109ms\nCPU 1.029ms"
           }
         ]
       }
