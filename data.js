@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1764579769207,
+  "lastUpdate": 1764579863545,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -15498,6 +15498,66 @@ window.BENCHMARK_DATA = {
             "value": 8.252332999973078,
             "unit": "ms",
             "extra": "Min 6.983ms\nMax 17.440ms\nMean 9.910ms\nStdDev 4.286ms\nMedian 8.252ms\nCPU 1.815ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "60878493+JoshuaMoelans@users.noreply.github.com",
+            "name": "JoshuaMoelans",
+            "username": "JoshuaMoelans"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "079aacc4ecbd54235b3196c1be0f24e8ec6cff0c",
+          "message": "feat: implement global attributes API (#1450)\n\n* initial API\n\n* implement + test\n\n* add global attributes to logs\n\n* fix memleak in test\n\n* update CHANGELOG.md\n\n* fix memleak\n\n* initialize attributes\n\n* add list-type attribute support\n\n* cleanup\n\n* add explicit enum cases\n\n* move scope-based attributes into non-public API\n\n* cleanup\n\n* add attribute list test cases\n\n* update CHANGELOG.md\n\n* rookie mistake (lint)",
+          "timestamp": "2025-12-01T10:00:31+01:00",
+          "tree_id": "266a861f09616a9c0d93626c630728319adc6856",
+          "url": "https://github.com/getsentry/sentry-native/commit/079aacc4ecbd54235b3196c1be0f24e8ec6cff0c"
+        },
+        "date": 1764579861335,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 3.7695000000042,
+            "unit": "ms",
+            "extra": "Min 3.506ms\nMax 4.361ms\nMean 3.874ms\nStdDev 0.319ms\nMedian 3.770ms\nCPU 2.156ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 4.643333000018401,
+            "unit": "ms",
+            "extra": "Min 3.630ms\nMax 5.796ms\nMean 4.716ms\nStdDev 0.839ms\nMedian 4.643ms\nCPU 2.787ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 18.779333999987102,
+            "unit": "ms",
+            "extra": "Min 12.306ms\nMax 27.819ms\nMean 19.536ms\nStdDev 6.155ms\nMedian 18.779ms\nCPU 5.544ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.026417000015044323,
+            "unit": "ms",
+            "extra": "Min 0.008ms\nMax 0.031ms\nMean 0.021ms\nStdDev 0.011ms\nMedian 0.026ms\nCPU 0.020ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.2581250000162072,
+            "unit": "ms",
+            "extra": "Min 0.223ms\nMax 0.267ms\nMean 0.249ms\nStdDev 0.019ms\nMedian 0.258ms\nCPU 0.249ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 9.240666999971836,
+            "unit": "ms",
+            "extra": "Min 6.731ms\nMax 13.157ms\nMean 9.523ms\nStdDev 2.326ms\nMedian 9.241ms\nCPU 0.855ms"
           }
         ]
       }
