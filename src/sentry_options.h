@@ -44,6 +44,7 @@ struct sentry_options_s {
     bool crashpad_wait_for_upload;
     bool enable_logging_when_crashed;
     bool propagate_traceparent;
+    bool crashpad_limit_stack_capture_to_sp;
 
     sentry_attachment_t *attachments;
     sentry_run_t *run;
@@ -64,6 +65,9 @@ struct sentry_options_s {
     void *traces_sampler_data;
     size_t max_spans;
     bool enable_logs;
+    // takes the first varg as a `sentry_value_t` object containing attributes
+    // if no custom attributes are to be passed, use `sentry_value_new_object()`
+    bool logs_with_attributes;
 
     /* everything from here on down are options which are stored here but
        not exposed through the options API */

@@ -100,7 +100,7 @@ extern "C" {
 #    endif
 #endif
 #ifndef SENTRY_SDK_VERSION
-#    define SENTRY_SDK_VERSION "0.11.3"
+#    define SENTRY_SDK_VERSION "0.12.1"
 #endif
 #define SENTRY_SDK_USER_AGENT SENTRY_SDK_NAME "/" SENTRY_SDK_VERSION
 
@@ -323,6 +323,21 @@ SENTRY_API sentry_value_t sentry_value_new_user(const char *id,
 SENTRY_API sentry_value_t sentry_value_new_user_n(const char *id, size_t id_len,
     const char *username, size_t username_len, const char *email,
     size_t email_len, const char *ip_address, size_t ip_address_len);
+
+/**
+ * Creates a new attribute object.
+ *  value is required, unit is optional.
+ *
+ * value must be a bool, int, double or string `sentry_value_t`
+ * OR a list of bool, int, double or string (with all items being the same type)
+ *
+ * Moves ownership of value into the object. The caller does not
+ * have to call `sentry_value_decref` on it.
+ */
+SENTRY_API sentry_value_t sentry_value_new_attribute(
+    sentry_value_t value, const char *unit);
+SENTRY_API sentry_value_t sentry_value_new_attribute_n(
+    sentry_value_t value, const char *unit, size_t unit_len);
 
 /**
  * Returns the type of the value passed.
@@ -1574,6 +1589,22 @@ SENTRY_API void sentry_options_set_crashpad_wait_for_upload(
     sentry_options_t *opts, int wait_for_upload);
 
 /**
+ * Limits stack capture to stack pointer for the Crashpad backend.
+ * When enabled, Crashpad will use the current stack pointer as the upper bound
+ * of the stack capture range, once validated to be within TEB
+ * StackLimit/StackBase values. This reduces the capture range compared to
+ * using the full TEB-derived stack region.
+ *
+ * This is useful when running under Wine/Proton where the TEB values may
+ * be incorrect, leading to excessively large stack captures. This is
+ * disabled by default.
+ *
+ * This setting only has an effect when using the `crashpad` backend on Windows.
+ */
+SENTRY_API void sentry_options_set_crashpad_limit_stack_capture_to_sp(
+    sentry_options_t *opts, int enabled);
+
+/**
  * Sets the maximum time (in milliseconds) to wait for the asynchronous
  * tasks to end on shutdown before attempting a forced termination.
  */
@@ -1694,6 +1725,16 @@ SENTRY_API void sentry_user_consent_reset(void);
  * Checks the current state of user consent.
  */
 SENTRY_API sentry_user_consent_t sentry_user_consent_get(void);
+
+/**
+ * Checks whether user consent is required.
+ *
+ * This returns the value that was configured via
+ * `sentry_options_set_require_user_consent` during initialization.
+ *
+ * Returns 1 if user consent is required, 0 otherwise.
+ */
+SENTRY_API int sentry_user_consent_is_required(void);
 
 /**
  * A sentry Scope.
@@ -1817,6 +1858,17 @@ SENTRY_API void sentry_scope_set_extra_n(sentry_scope_t *scope, const char *key,
  */
 SENTRY_API void sentry_remove_extra(const char *key);
 SENTRY_API void sentry_remove_extra_n(const char *key, size_t key_len);
+
+/**
+ * Sets attributes created with `sentry_value_new_attribute` to be applied to
+ * all:
+ * - logs
+ */
+SENTRY_API void sentry_set_attribute(const char *key, sentry_value_t attribute);
+SENTRY_API void sentry_set_attribute_n(
+    const char *key, size_t key_len, sentry_value_t attribute);
+SENTRY_API void sentry_remove_attribute(const char *key);
+SENTRY_API void sentry_remove_attribute_n(const char *key, size_t key_len);
 
 /**
  * Sets a context object.
@@ -1976,11 +2028,25 @@ SENTRY_EXPERIMENTAL_API int sentry_options_get_propagate_traceparent(
 
 /**
  * Enables or disables the structured logging feature.
- * When disabled, all calls to sentry_logger_X() are no-ops.
+ * When disabled, all calls to `sentry_log_X()` are no-ops.
  */
 SENTRY_EXPERIMENTAL_API void sentry_options_set_enable_logs(
     sentry_options_t *opts, int enable_logs);
 SENTRY_EXPERIMENTAL_API int sentry_options_get_enable_logs(
+    const sentry_options_t *opts);
+
+/**
+ * Enables or disables custom attributes parsing for structured logging.
+ *
+ * When enabled, all `sentry_log_X()` functions expect a `sentry_value_t` object
+ * as the first variadic argument for custom log attributes. Remaining
+ * arguments are used for format string substitution.
+ *
+ * Disabled by default.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_options_set_logs_with_attributes(
+    sentry_options_t *opts, int logs_with_attributes);
+SENTRY_EXPERIMENTAL_API int sentry_options_get_logs_with_attributes(
     const sentry_options_t *opts);
 
 /**
@@ -2020,6 +2086,15 @@ typedef enum {
  *
  * Flags, width, and precision specifiers are parsed but currently ignored for
  * parameter extraction purposes.
+ *
+ * When the option `logs_with_attributes` is enabled, the first varg is parsed
+ * as a `sentry_value_t` object containing the initial attributes for the log.
+ * You can pass `sentry_value_new_null()` to logs which don't need attributes.
+ *
+ * Ownership of the attributes is transferred to the log function.
+ *
+ * To re-use the same attributes, call `sentry_value_incref` on it
+ * before passing the attributes to the log function.
  */
 SENTRY_EXPERIMENTAL_API log_return_value_t sentry_log_trace(
     const char *message, ...);
