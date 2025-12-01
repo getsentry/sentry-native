@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Fixes**:
+
+- Removed the 10-item limit per envelope for non-session data. Sessions are now limited to 100 per envelope, while other items (e.g., attachments) have no limit in amount. ([#1347](https://github.com/getsentry/sentry-native/pull/1347))
+
 ## 0.12.2
 
 **Features**:
