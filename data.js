@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1764582526970,
+  "lastUpdate": 1764582588385,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -15618,6 +15618,66 @@ window.BENCHMARK_DATA = {
             "value": 9.240666999971836,
             "unit": "ms",
             "extra": "Min 6.731ms\nMax 13.157ms\nMean 9.523ms\nStdDev 2.326ms\nMedian 9.241ms\nCPU 0.855ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jamescrosswell@users.noreply.github.com",
+            "name": "James Crosswell",
+            "username": "jamescrosswell"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "2ec8ebdbf3ec53164259689a58baa6ca377cb47d",
+          "message": "chore: bump dotnet signal tests to .net 10 (#1457)\n\n* Bump dotnet signal tests to .net 10\n\n* add dotnet install for ARM64 runner\n\n* Apply suggestion from @JoshuaMoelans\n\n---------\n\nCo-authored-by: JoshuaMoelans <60878493+JoshuaMoelans@users.noreply.github.com>",
+          "timestamp": "2025-12-01T10:46:10+01:00",
+          "tree_id": "f8e728a51a09ce83d5ecd65d93a2c19d026604e6",
+          "url": "https://github.com/getsentry/sentry-native/commit/2ec8ebdbf3ec53164259689a58baa6ca377cb47d"
+        },
+        "date": 1764582586859,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 3.25995800005785,
+            "unit": "ms",
+            "extra": "Min 3.130ms\nMax 3.340ms\nMean 3.226ms\nStdDev 0.091ms\nMedian 3.260ms\nCPU 1.772ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 3.2646249999288557,
+            "unit": "ms",
+            "extra": "Min 3.206ms\nMax 3.942ms\nMean 3.390ms\nStdDev 0.312ms\nMedian 3.265ms\nCPU 1.884ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 11.35104200011483,
+            "unit": "ms",
+            "extra": "Min 11.084ms\nMax 11.899ms\nMean 11.421ms\nStdDev 0.304ms\nMedian 11.351ms\nCPU 3.927ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.019040999859498697,
+            "unit": "ms",
+            "extra": "Min 0.009ms\nMax 0.021ms\nMean 0.015ms\nStdDev 0.006ms\nMedian 0.019ms\nCPU 0.015ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.2440419998492871,
+            "unit": "ms",
+            "extra": "Min 0.238ms\nMax 0.267ms\nMean 0.249ms\nStdDev 0.012ms\nMedian 0.244ms\nCPU 0.248ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 6.417457999987164,
+            "unit": "ms",
+            "extra": "Min 6.328ms\nMax 6.984ms\nMean 6.520ms\nStdDev 0.271ms\nMedian 6.417ms\nCPU 0.833ms"
           }
         ]
       }
