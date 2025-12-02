@@ -321,8 +321,8 @@ def test_abnormal_session(cmake, httpserver):
     )
     db_dir = tmp_path.joinpath(".sentry-native")
     db_dir.mkdir(exist_ok=True)
-    # 15 exceeds the max envelope items
-    for i in range(15):
+    # 101 exceeds the max session items
+    for i in range(101):
         run_dir = db_dir.joinpath(f"foo-{i}.run")
         run_dir.mkdir()
         with open(run_dir.joinpath("session.json"), "w") as session_file:
@@ -343,7 +343,7 @@ def test_abnormal_session(cmake, httpserver):
     for item in itertools.chain(envelope1, envelope2):
         if item.headers.get("type") == "session":
             session_count += 1
-    assert session_count == 15
+    assert session_count == 101
 
     assert_session(envelope1, {"status": "abnormal", "errors": 0, "duration": 10})
 
