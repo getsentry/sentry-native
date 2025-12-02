@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1764670828905,
+  "lastUpdate": 1764670929395,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -23932,6 +23932,66 @@ window.BENCHMARK_DATA = {
             "value": 13.624800000002324,
             "unit": "ms",
             "extra": "Min 13.546ms\nMax 14.312ms\nMean 13.788ms\nStdDev 0.322ms\nMedian 13.625ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "60878493+JoshuaMoelans@users.noreply.github.com",
+            "name": "JoshuaMoelans",
+            "username": "JoshuaMoelans"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "b8eae034cb668faacdc30801dd483ddb865e0bdd",
+          "message": "chore: SDK Truncation Logic (#1347)\n\n* no longer truncate tag value\n\n* restore span_set_tag truncation\n- reason: span tags are a legacy concept so we're not touching it ~dixit ingest\n\n* update MAX_ENVELOPE_ITEMS to only apply for sessions\n\n* change envelope items to linked list\n\n* add attachments MAX_ENVELOPE_ITEMS test\n- no longer limited to 10; we test for 15, but have tested up to 1000 attachments locally and that works\n\n* #define ATTACHMENT_COUNT\n\n* update CHANGELOG.md",
+          "timestamp": "2025-12-02T11:17:50+01:00",
+          "tree_id": "4f43199a38837a2d486766df5a2caf64b71f5538",
+          "url": "https://github.com/getsentry/sentry-native/commit/b8eae034cb668faacdc30801dd483ddb865e0bdd"
+        },
+        "date": 1764670923408,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 9.80069999997113,
+            "unit": "ms",
+            "extra": "Min 9.661ms\nMax 14.983ms\nMean 10.822ms\nStdDev 2.328ms\nMedian 9.801ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 10.325399999999263,
+            "unit": "ms",
+            "extra": "Min 9.533ms\nMax 11.299ms\nMean 10.383ms\nStdDev 0.627ms\nMedian 10.325ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 25.486899999975776,
+            "unit": "ms",
+            "extra": "Min 24.975ms\nMax 28.870ms\nMean 26.237ms\nStdDev 1.608ms\nMedian 25.487ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.01670000000331129,
+            "unit": "ms",
+            "extra": "Min 0.013ms\nMax 0.018ms\nMean 0.016ms\nStdDev 0.002ms\nMedian 0.017ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.43099999999185457,
+            "unit": "ms",
+            "extra": "Min 0.388ms\nMax 0.481ms\nMean 0.433ms\nStdDev 0.034ms\nMedian 0.431ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 14.432700000043042,
+            "unit": "ms",
+            "extra": "Min 13.820ms\nMax 15.207ms\nMean 14.556ms\nStdDev 0.565ms\nMedian 14.433ms"
           }
         ]
       }
