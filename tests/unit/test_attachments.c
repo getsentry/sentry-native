@@ -453,3 +453,72 @@ SENTRY_TEST(attachments_bytes)
 
     sentry_close();
 }
+
+#define ATTACHMENT_COUNT 15
+
+SENTRY_TEST(attachments_more_than_ten)
+{
+    sentry_attachments_testdata_t testdata;
+    testdata.called = 0;
+    sentry__stringbuilder_init(&testdata.serialized_envelope);
+
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_auto_session_tracking(options, false);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_transport_t *transport
+        = sentry_transport_new(send_envelope_test_attachments);
+    sentry_transport_set_state(transport, &testdata);
+    sentry_options_set_transport(options, transport);
+
+    sentry_init(options);
+
+    // Create 15 unique attachment files (more than the old
+    // SENTRY_MAX_ENVELOPE_ITEMS of 10) to verify that the limit has been
+    // removed for attachments
+    sentry_path_t *attachment_paths[ATTACHMENT_COUNT];
+    for (int i = 0; i < ATTACHMENT_COUNT; i++) {
+        char filename[64];
+        snprintf(filename, sizeof(filename),
+            SENTRY_TEST_PATH_PREFIX ".attachment%d.txt", i);
+        attachment_paths[i] = sentry__path_from_str(filename);
+        sentry__path_write_buffer(attachment_paths[i], "content", 7);
+        sentry_attach_file(filename);
+    }
+
+    char message[128];
+    snprintf(message, sizeof(message), "Event with %d attachments",
+        ATTACHMENT_COUNT);
+    sentry_capture_event(
+        sentry_value_new_message_event(SENTRY_LEVEL_INFO, "root", message));
+
+    char *serialized
+        = sentry_stringbuilder_take_string(&testdata.serialized_envelope);
+
+    // Count the number of attachment items in the envelope
+    // Each attachment appears as: {"type":"attachment",...}
+    int attachment_count = 0;
+    const char *search_pos = serialized;
+    const char *pattern = "\"type\":\"attachment\"";
+    while ((search_pos = strstr(search_pos, pattern)) != NULL) {
+        attachment_count++;
+        search_pos += strlen(pattern);
+    }
+
+    // Verify we have all 15 attachments in the envelope
+    TEST_CHECK_INT_EQUAL(attachment_count, ATTACHMENT_COUNT);
+    // Verify the envelope also contains the event
+    TEST_CHECK(strstr(serialized, "\"type\":\"event\"") != NULL);
+    TEST_CHECK(strstr(serialized, message) != NULL);
+
+    sentry_free(serialized);
+
+    sentry_close();
+
+    // Clean up all attachment files
+    for (int i = 0; i < ATTACHMENT_COUNT; i++) {
+        sentry__path_remove(attachment_paths[i]);
+        sentry__path_free(attachment_paths[i]);
+    }
+
+    TEST_CHECK_INT_EQUAL(testdata.called, 1);
+}

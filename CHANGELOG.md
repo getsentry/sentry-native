@@ -2,10 +2,15 @@
 
 ## Unreleased
 
-** Breaking Changes **
+**Breaking Changes**:
 
 - Android NDK: `SentryNdk.init(NdkOptions)` now throws an `Exception` if init fails (non-zero return code) rather than silently swallowing the error. ([#1430](https://github.com/getsentry/sentry-native/pull/1430))
 
+**Fixes**:
+
+- Removed the 10-item limit per envelope for non-session data. Sessions are now limited to 100 per envelope, while other items (e.g., attachments) have no limit in amount. ([#1347](https://github.com/getsentry/sentry-native/pull/1347))
+
+## 0.12.2
 
 **Features**:
 
