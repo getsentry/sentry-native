@@ -172,10 +172,7 @@ extern "C" {
 #elif defined(SENTRY_PLATFORM_PS)
 #    include <sys/signal.h>
 #else
-#include <signal.h>
-
-// For GCC/Clang, this will show the include path
-#pragma message("signal.h included from: " __FILE__)
+#    include <signal.h>
 #endif
 
 /**
