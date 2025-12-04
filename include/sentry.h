@@ -171,10 +171,11 @@ extern "C" {
 #    include <windows.h>
 #elif defined(SENTRY_PLATFORM_PS)
 #    include <sys/signal.h>
-#elif defined(SENTRY_PLATFORM_NX)
-// Nintendo Switch doesn't use POSIX signals for crash handling
 #else
-#    include <signal.h>
+#include <signal.h>
+
+// For GCC/Clang, this will show the include path
+#pragma message("signal.h included from: " __FILE__)
 #endif
 
 /**
@@ -630,8 +631,6 @@ typedef struct sentry_ucontext_s {
 #ifdef _WIN32
     EXCEPTION_POINTERS exception_ptrs;
 #elif defined(SENTRY_PLATFORM_PS)
-    int data;
-#elif defined(SENTRY_PLATFORM_NX)
     int data;
 #else
     int signum;
