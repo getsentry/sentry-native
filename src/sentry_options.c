@@ -53,7 +53,7 @@ sentry_options_new(void)
     opts->enable_logging_when_crashed = true;
     opts->propagate_traceparent = false;
     opts->crashpad_limit_stack_capture_to_sp = false;
-    opts->caching_mode = SENTRY_CACHE_NONE;
+    opts->caching_mode = SENTRY_CACHE_DEFAULT;
     opts->symbolize_stacktraces =
     // AIX doesn't have reliable debug IDs for server-side symbolication,
     // and the diversity of Android makes it infeasible to have access to debug

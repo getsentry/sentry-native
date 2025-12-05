@@ -503,6 +503,9 @@ main(int argc, char **argv)
     if (has_arg(argc, argv, "log-attributes")) {
         sentry_options_set_logs_with_attributes(options, true);
     }
+    if (has_arg(argc, argv, "cache-keep")) {
+        sentry_options_set_caching_mode(options, SENTRY_CACHE_KEEP);
+    }
 
     if (0 != sentry_init(options)) {
         return EXIT_FAILURE;

@@ -957,8 +957,8 @@ typedef enum {
  * The caching mode for crash reports.
  */
 typedef enum {
-    SENTRY_CACHE_NONE = -1, // (default) No caching enabled
-    SENTRY_CACHE_NO_PURGE = 0, // TODO Never purges cached crashes
+    SENTRY_CACHE_DEFAULT = -1, // (default) No special caching enabled
+    SENTRY_CACHE_KEEP = 0, // TODO Keep events/dmps around in secondary folder
     SENTRY_CACHE_OFFLINE = 1, // TODO Periodically checks if online
 } sentry_caching_mode_t;
 
