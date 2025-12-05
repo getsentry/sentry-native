@@ -11,6 +11,7 @@ typedef struct sentry_run_s {
     sentry_path_t *run_path;
     sentry_path_t *session_path;
     sentry_path_t *external_path;
+    sentry_path_t *cache_path;
     sentry_filelock_t *lock;
 } sentry_run_t;
 
@@ -48,6 +49,14 @@ bool sentry__run_write_envelope(
  * `<database>/external/<event-uuid>.envelope`
  */
 bool sentry__run_write_external(
+    const sentry_run_t *run, const sentry_envelope_t *envelope);
+
+/**
+ * This will serialize and write the given envelope to disk into a file named
+ * like so:
+ * `<database>/cache/<event-uuid>.envelope`
+ */
+bool sentry__run_write_cache(
     const sentry_run_t *run, const sentry_envelope_t *envelope);
 
 /**

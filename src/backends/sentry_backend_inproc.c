@@ -691,6 +691,15 @@ handle_ucontext(const sentry_ucontext_t *uctx)
                 sentry__capture_envelope(disk_transport, envelope);
                 sentry__transport_dump_queue(disk_transport, options->run);
                 sentry_transport_free(disk_transport);
+
+                // If SENTRY_CACHE_KEEP mode is enabled, write a copy to the
+                // cache directory
+                if (options->caching_mode == SENTRY_CACHE_KEEP) {
+                    SENTRY_DEBUGF(
+                        "writing crash envelope to cache path: \"%s\"",
+                        options->run->cache_path->path);
+                    sentry__run_write_cache(options->run, envelope);
+                }
             }
         } else {
             SENTRY_DEBUG("event was discarded by the `on_crash` hook");

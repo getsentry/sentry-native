@@ -49,12 +49,23 @@ sentry__run_new(const sentry_path_t *database_path)
         return NULL;
     }
 
+    // `<db>/cache`
+    sentry_path_t *cache_path = sentry__path_join_str(database_path, "cache");
+    if (!cache_path) {
+        sentry__path_free(run_path);
+        sentry__path_free(lock_path);
+        sentry__path_free(session_path);
+        sentry__path_free(external_path);
+        return NULL;
+    }
+
     sentry_run_t *run = SENTRY_MAKE(sentry_run_t);
     if (!run) {
         sentry__path_free(run_path);
         sentry__path_free(session_path);
         sentry__path_free(lock_path);
         sentry__path_free(external_path);
+        sentry__path_free(cache_path);
         return NULL;
     }
 
@@ -62,6 +73,7 @@ sentry__run_new(const sentry_path_t *database_path)
     run->run_path = run_path;
     run->session_path = session_path;
     run->external_path = external_path;
+    run->cache_path = cache_path;
     run->lock = sentry__filelock_new(lock_path);
     if (!run->lock) {
         goto error;
@@ -95,6 +107,7 @@ sentry__run_free(sentry_run_t *run)
     sentry__path_free(run->run_path);
     sentry__path_free(run->session_path);
     sentry__path_free(run->external_path);
+    sentry__path_free(run->cache_path);
     sentry__filelock_free(run->lock);
     sentry_free(run);
 }
@@ -141,6 +154,18 @@ sentry__run_write_external(
     }
 
     return write_envelope(run->external_path, envelope);
+}
+
+bool
+sentry__run_write_cache(
+    const sentry_run_t *run, const sentry_envelope_t *envelope)
+{
+    if (sentry__path_create_dir_all(run->cache_path) != 0) {
+        SENTRY_ERRORF("mkdir failed: \"%s\"", run->cache_path->path);
+        return false;
+    }
+
+    return write_envelope(run->cache_path, envelope);
 }
 
 bool
