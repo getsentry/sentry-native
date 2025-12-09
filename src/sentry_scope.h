@@ -17,6 +17,7 @@ struct sentry_scope_s {
     sentry_value_t user;
     sentry_value_t tags;
     sentry_value_t extra;
+    sentry_value_t attributes;
     sentry_value_t contexts;
     sentry_value_t propagation_context;
     sentry_ringbuffer_t *breadcrumbs;
@@ -95,6 +96,21 @@ void sentry__scope_set_fingerprint_va(
     sentry_scope_t *scope, const char *fingerprint, va_list va);
 void sentry__scope_set_fingerprint_nva(sentry_scope_t *scope,
     const char *fingerprint, size_t fingerprint_len, va_list va);
+
+/**
+ * Internal scope-based attribute functions.
+ * For now, these are only used by the non-scope API functions that operate
+ * on the global scope.
+ * Once we have attributes for events or scope-based logs/metrics/spans APIs
+ * these can become part of the public API too.
+ */
+void sentry__scope_set_attribute(
+    sentry_scope_t *scope, const char *key, sentry_value_t attribute);
+void sentry__scope_set_attribute_n(sentry_scope_t *scope, const char *key,
+    size_t key_len, sentry_value_t attribute);
+void sentry__scope_remove_attribute(sentry_scope_t *scope, const char *key);
+void sentry__scope_remove_attribute_n(
+    sentry_scope_t *scope, const char *key, size_t key_len);
 
 /**
  * These are convenience macros to automatically lock/unlock the global scope

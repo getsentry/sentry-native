@@ -536,6 +536,84 @@ SENTRY_TEST(value_attribute)
         sentry_value_as_string(sentry_value_get_by_key(string_attr_n, "unit")),
         "bytes");
     sentry_value_decref(string_attr_n);
+
+    // Test list attribute types (arrays)
+    sentry_value_t string_list = sentry_value_new_list();
+    sentry_value_append(string_list, sentry_value_new_string("foo"));
+    sentry_value_append(string_list, sentry_value_new_string("bar"));
+    sentry_value_t string_list_attr
+        = sentry_value_new_attribute(string_list, NULL);
+    TEST_CHECK(
+        sentry_value_get_type(string_list_attr) == SENTRY_VALUE_TYPE_OBJECT);
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
+                                string_list_attr, "type")),
+        "string[]");
+    sentry_value_t string_list_value
+        = sentry_value_get_by_key(string_list_attr, "value");
+    TEST_CHECK(
+        sentry_value_get_type(string_list_value) == SENTRY_VALUE_TYPE_LIST);
+    TEST_CHECK(sentry_value_get_length(string_list_value) == 2);
+    sentry_value_decref(string_list_attr);
+
+    sentry_value_t integer_list = sentry_value_new_list();
+    sentry_value_append(integer_list, sentry_value_new_int32(1));
+    sentry_value_append(integer_list, sentry_value_new_int32(2));
+    sentry_value_append(integer_list, sentry_value_new_int32(3));
+    sentry_value_t integer_list_attr
+        = sentry_value_new_attribute(integer_list, NULL);
+    TEST_CHECK(
+        sentry_value_get_type(integer_list_attr) == SENTRY_VALUE_TYPE_OBJECT);
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
+                                integer_list_attr, "type")),
+        "integer[]");
+    sentry_value_decref(integer_list_attr);
+
+    sentry_value_t double_list = sentry_value_new_list();
+    sentry_value_append(double_list, sentry_value_new_double(1.1));
+    sentry_value_append(double_list, sentry_value_new_double(2.2));
+    sentry_value_t double_list_attr
+        = sentry_value_new_attribute(double_list, NULL);
+    TEST_CHECK(
+        sentry_value_get_type(double_list_attr) == SENTRY_VALUE_TYPE_OBJECT);
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
+                                double_list_attr, "type")),
+        "double[]");
+    sentry_value_decref(double_list_attr);
+
+    sentry_value_t boolean_list = sentry_value_new_list();
+    sentry_value_append(boolean_list, sentry_value_new_bool(true));
+    sentry_value_append(boolean_list, sentry_value_new_bool(false));
+    sentry_value_t boolean_list_attr
+        = sentry_value_new_attribute(boolean_list, NULL);
+    TEST_CHECK(
+        sentry_value_get_type(boolean_list_attr) == SENTRY_VALUE_TYPE_OBJECT);
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
+                                boolean_list_attr, "type")),
+        "boolean[]");
+    sentry_value_decref(boolean_list_attr);
+
+    // Test empty list (should return null since first element is null)
+    sentry_value_t empty_list = sentry_value_new_list();
+    sentry_value_t empty_list_attr
+        = sentry_value_new_attribute(empty_list, NULL);
+    TEST_CHECK(sentry_value_is_null(empty_list_attr));
+    sentry_value_decref(empty_list_attr);
+
+    // Test list with nested list (unsupported, should return null)
+    sentry_value_t nested_list = sentry_value_new_list();
+    sentry_value_append(nested_list, sentry_value_new_list());
+    sentry_value_t nested_list_attr
+        = sentry_value_new_attribute(nested_list, NULL);
+    TEST_CHECK(sentry_value_is_null(nested_list_attr));
+    sentry_value_decref(nested_list_attr);
+
+    // Test list with object (unsupported, should return null)
+    sentry_value_t object_list = sentry_value_new_list();
+    sentry_value_append(object_list, sentry_value_new_object());
+    sentry_value_t object_list_attr
+        = sentry_value_new_attribute(object_list, NULL);
+    TEST_CHECK(sentry_value_is_null(object_list_attr));
+    sentry_value_decref(object_list_attr);
 }
 
 SENTRY_TEST(value_freezing)

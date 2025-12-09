@@ -7,11 +7,18 @@
 - inproc(Linux): the `inproc` backend on Linux now depends on "nognu" `libunwind`. ([#1446](https://github.com/getsentry/sentry-native/pull/1446))
 - inproc: since we split `inproc` into signal-handler/UEF part and a separate handler thread, `before_send` and `on_crash` could be called from other threads than the one that crashed. While this was never part of the contract, if your code relies on this, it will no longer work. ([#1446](https://github.com/getsentry/sentry-native/pull/1446))
 
+**Fixes**:
+
+- Removed the 10-item limit per envelope for non-session data. Sessions are now limited to 100 per envelope, while other items (e.g., attachments) have no limit in amount. ([#1347](https://github.com/getsentry/sentry-native/pull/1347))
+
+## 0.12.2
+
 **Features**:
 
 - Add custom attributes API for logs. When `logs_with_attributes` is set to `true`, treats the first `varg` passed into `sentry_logs_X(message,...)` as a `sentry_value_t` object of attributes. ([#1435](https://github.com/getsentry/sentry-native/pull/1435))
 - Add runtime API to query user consent requirement. ([#1443](https://github.com/getsentry/sentry-native/pull/1443))
 - Add logs flush on `sentry_flush()`. ([#1434](https://github.com/getsentry/sentry-native/pull/1434))
+- Add global attributes API. These are added to all `sentry_log_X` calls. ([#1450](https://github.com/getsentry/sentry-native/pull/1450))
 
 **Fixes**:
 
