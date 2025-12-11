@@ -23,15 +23,15 @@ jobs:
       - uses: actions/checkout@v4
       - run: make style
 
-  build-ios-crashpad:
-    name: Xcode Build for crashpad on iOS
+  build-ios-inproc:
+    name: Xcode Build for inproc on iOS
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: "recursive"
       - run: |
-          cmake -B sentry-native-xcode -GXcode -DCMAKE_SYSTEM_NAME=iOS -DSENTRY_BACKEND=crashpad
+          cmake -B sentry-native-xcode -GXcode -DCMAKE_SYSTEM_NAME=iOS -DSENTRY_BACKEND=inproc
           xcodebuild build -project sentry-native-xcode/Sentry-Native.xcodeproj -sdk iphonesimulator
 
   build-ios-breakpad:
