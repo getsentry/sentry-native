@@ -5,6 +5,7 @@
 **Fixes**:
 
 - Removed the 10-item limit per envelope for non-session data. Sessions are now limited to 100 per envelope, while other items (e.g., attachments) have no limit in amount. ([#1347](https://github.com/getsentry/sentry-native/pull/1347))
+- Align the `breakpad` interface changes introduced with [#1083](https://github.com/getsentry/sentry-native/pull/1083) with the corresponding iOS build. ([#1465](https://github.com/getsentry/sentry-native/pull/1465))
 
 ## 0.12.2
 
