@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1765469093235,
+  "lastUpdate": 1765469126292,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -24352,6 +24352,66 @@ window.BENCHMARK_DATA = {
             "value": 14.984199999958037,
             "unit": "ms",
             "extra": "Min 14.784ms\nMax 15.331ms\nMean 15.003ms\nStdDev 0.206ms\nMedian 14.984ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "mischan@abovevacant.com",
+            "name": "Mischan Toosarani-Hausberger",
+            "username": "supervacuus"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "4f983bbd51c9ee99e6e33f12d057464c12ffa511",
+          "message": "fix: iOS build for breakpad (#1465)\n\n* fix: iOS build for breakpad\n\n* clarify that build defaults to inproc for iOS rather than crashpad\n\n* bump llvm-mingw too (because why not)",
+          "timestamp": "2025-12-11T17:01:01+01:00",
+          "tree_id": "6603711443c9d7470600bff0ae06aef01a1da4d5",
+          "url": "https://github.com/getsentry/sentry-native/commit/4f983bbd51c9ee99e6e33f12d057464c12ffa511"
+        },
+        "date": 1765469121376,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 9.743499999984806,
+            "unit": "ms",
+            "extra": "Min 9.414ms\nMax 10.377ms\nMean 9.842ms\nStdDev 0.409ms\nMedian 9.743ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 10.5372000000159,
+            "unit": "ms",
+            "extra": "Min 10.152ms\nMax 11.978ms\nMean 10.811ms\nStdDev 0.716ms\nMedian 10.537ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 24.9117000000183,
+            "unit": "ms",
+            "extra": "Min 24.714ms\nMax 25.717ms\nMean 25.142ms\nStdDev 0.429ms\nMedian 24.912ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.012499999968440534,
+            "unit": "ms",
+            "extra": "Min 0.012ms\nMax 0.016ms\nMean 0.014ms\nStdDev 0.002ms\nMedian 0.012ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.42020000000775326,
+            "unit": "ms",
+            "extra": "Min 0.396ms\nMax 0.445ms\nMean 0.419ms\nStdDev 0.019ms\nMedian 0.420ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 15.379300000006424,
+            "unit": "ms",
+            "extra": "Min 14.091ms\nMax 17.735ms\nMean 15.782ms\nStdDev 1.485ms\nMedian 15.379ms"
           }
         ]
       }
