@@ -752,7 +752,7 @@ construct_log(sentry_level_t level, const char *message, va_list args)
     return log;
 }
 
-void
+static void
 debug_print_log(sentry_level_t level, const char *log_body)
 {
     // TODO if we enable our debug-macro as logging integration
