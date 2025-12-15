@@ -752,6 +752,31 @@ construct_log(sentry_level_t level, const char *message, va_list args)
     return log;
 }
 
+void
+debug_print_log(sentry_level_t level, const char *log_body)
+{
+    switch (level) {
+    case SENTRY_LEVEL_TRACE:
+        SENTRY_TRACEF("LOG: %s", log_body);
+        break;
+    case SENTRY_LEVEL_DEBUG:
+        SENTRY_DEBUGF("LOG: %s", log_body);
+        break;
+    case SENTRY_LEVEL_INFO:
+        SENTRY_INFOF("LOG: %s", log_body);
+        break;
+    case SENTRY_LEVEL_WARNING:
+        SENTRY_WARNF("LOG: %s", log_body);
+        break;
+    case SENTRY_LEVEL_ERROR:
+        SENTRY_ERRORF("LOG: %s", log_body);
+        break;
+    case SENTRY_LEVEL_FATAL:
+        SENTRY_FATALF("LOG: %s", log_body);
+        break;
+    }
+}
+
 log_return_value_t
 sentry__logs_log(sentry_level_t level, const char *message, va_list args)
 {
@@ -775,7 +800,7 @@ sentry__logs_log(sentry_level_t level, const char *message, va_list args)
                 }
             }
             if (options->debug) {
-                printf("LOG [%s]: %s\n", level_as_string(level),
+                debug_print_log(level,
                     sentry_value_as_string(
                         sentry_value_get_by_key(log, "body")));
             }
