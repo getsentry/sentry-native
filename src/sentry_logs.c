@@ -774,6 +774,11 @@ sentry__logs_log(sentry_level_t level, const char *message, va_list args)
                     discarded = true;
                 }
             }
+            if (options->debug) {
+                printf("LOG [%s]: %s\n", level_as_string(level),
+                    sentry_value_as_string(
+                        sentry_value_get_by_key(log, "body")));
+            }
         }
         if (discarded) {
             return SENTRY_LOG_RETURN_DISCARD;
