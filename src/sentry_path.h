@@ -153,6 +153,13 @@ int sentry__path_remove(const sentry_path_t *path);
 int sentry__path_remove_all(const sentry_path_t *path);
 
 /**
+ * Rename/move the file or directory from `src` to `dst`.
+ * This will overwrite `dst` if it already exists.
+ * Returns 0 on success.
+ */
+int sentry__path_rename(const sentry_path_t *src, const sentry_path_t *dst);
+
+/**
  * This will create the directory referred to by `path`, and any non-existing
  * parent directory.
  * Returns 0 on success.
