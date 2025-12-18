@@ -485,7 +485,7 @@ sentry_options_set_cache_keep(sentry_options_t *opts, int enabled)
 }
 
 void
-sentry_options_set_cache_max_size(sentry_options_t *opts, int size)
+sentry_options_set_cache_max_size(sentry_options_t *opts, size_t size)
 {
     opts->cache_max_size = size;
 }

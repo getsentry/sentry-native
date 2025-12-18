@@ -505,7 +505,7 @@ main(int argc, char **argv)
     }
     if (has_arg(argc, argv, "cache-keep")) {
         sentry_options_set_cache_keep(options, true);
-        sentry_options_set_cache_max_size(options, 160);
+        sentry_options_set_cache_max_size(options, 1000 * 8);
     }
 
     if (0 != sentry_init(options)) {
