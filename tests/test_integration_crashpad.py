@@ -614,6 +614,38 @@ def test_crashpad_logs_on_crash(cmake, httpserver):
     assert_logs(logs_envelope, 1)
 
 
+@pytest.mark.skipif(not flushes_state, reason="test needs state flushing")
+def test_crashpad_logs_and_session_on_crash(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "crashpad"})
+
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+    httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data("OK")
+    httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
+
+    with httpserver.wait(timeout=10) as waiting:
+        run(
+            tmp_path,
+            "sentry_example",
+            ["log", "enable-logs", "capture-log", "crash", "start-session"],
+            expect_failure=True,
+            env=env,
+        )
+
+    assert waiting.result
+
+    run(tmp_path, "sentry_example", ["log", "no-setup"], env=env)
+
+    # we expect 1 envelope with the log, 1 for the crash, and 1 for the session
+    assert len(httpserver.log) == 3
+    logs_request, multipart = split_log_request_cond(httpserver.log, is_logs_envelope)
+    logs = logs_request.get_data()
+
+    logs_envelope = Envelope.deserialize(logs)
+
+    assert logs_envelope is not None
+    assert_logs(logs_envelope, 1)
+
+
 def test_disable_backend(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "crashpad"})
 
