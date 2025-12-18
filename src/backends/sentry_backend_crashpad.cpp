@@ -217,29 +217,6 @@ flush_scope_to_event(const sentry_path_t *event_path,
     }
 
     int rv = sentry__path_write_buffer(event_path, mpack, mpack_size);
-
-    // If SENTRY_CACHE_KEEP is enabled, also write to cache directory
-    if (rv == 0 && options->caching_mode == SENTRY_CACHE_KEEP) {
-        auto state = static_cast<crashpad_state_t *>(options->backend->data);
-        char uuid_str[37];
-        sentry_uuid_as_string(&state->crash_event_id, uuid_str);
-
-        sentry_path_t *crash_cache_dir
-            = sentry__path_join_str(options->run->cache_path, uuid_str);
-        if (crash_cache_dir) {
-            if (sentry__path_create_dir_all(crash_cache_dir) == 0) {
-                sentry_path_t *cache_event_path = sentry__path_join_str(
-                    crash_cache_dir, sentry__path_filename(event_path));
-                if (cache_event_path) {
-                    sentry__path_write_buffer(
-                        cache_event_path, mpack, mpack_size);
-                    sentry__path_free(cache_event_path);
-                }
-            }
-            sentry__path_free(crash_cache_dir);
-        }
-    }
-
     sentry_free(mpack);
 
     if (rv != 0) {
@@ -401,15 +378,6 @@ sentry__crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
                 sentry__capture_envelope(disk_transport, envelope);
                 sentry__transport_dump_queue(disk_transport, options->run);
                 sentry_transport_free(disk_transport);
-
-                // If SENTRY_CACHE_KEEP mode is enabled, write a copy to the
-                // cache directory
-                if (options->caching_mode == SENTRY_CACHE_KEEP) {
-                    SENTRY_DEBUGF(
-                        "writing session envelope to cache path: \"%s\"",
-                        options->run->cache_path->path);
-                    sentry__run_write_cache(options->run, envelope);
-                }
             }
         } else {
             SENTRY_DEBUG("event was discarded");
@@ -701,33 +669,6 @@ crashpad_backend_add_breadcrumb(sentry_backend_t *backend,
     int rv = first_breadcrumb
         ? sentry__path_write_buffer(breadcrumb_file, mpack, mpack_size)
         : sentry__path_append_buffer(breadcrumb_file, mpack, mpack_size);
-
-    // If SENTRY_CACHE_KEEP is enabled, also write to cache directory
-    if (rv == 0 && options->caching_mode == SENTRY_CACHE_KEEP) {
-        char uuid_str[37];
-        sentry_uuid_as_string(&data->crash_event_id, uuid_str);
-
-        sentry_path_t *crash_cache_dir
-            = sentry__path_join_str(options->run->cache_path, uuid_str);
-        if (crash_cache_dir) {
-            if (sentry__path_create_dir_all(crash_cache_dir) == 0) {
-                sentry_path_t *cache_breadcrumb_path = sentry__path_join_str(
-                    crash_cache_dir, sentry__path_filename(breadcrumb_file));
-                if (cache_breadcrumb_path) {
-                    if (first_breadcrumb) {
-                        sentry__path_write_buffer(
-                            cache_breadcrumb_path, mpack, mpack_size);
-                    } else {
-                        sentry__path_append_buffer(
-                            cache_breadcrumb_path, mpack, mpack_size);
-                    }
-                    sentry__path_free(cache_breadcrumb_path);
-                }
-            }
-            sentry__path_free(crash_cache_dir);
-        }
-    }
-
     sentry_free(mpack);
 
     if (rv != 0) {
@@ -802,11 +743,14 @@ crashpad_backend_prune_database(sentry_backend_t *backend)
     // complete database to a maximum of 8M. That might still be a lot for
     // an embedded use-case, but minidumps on desktop can sometimes be quite
     // large.
-    data->db->CleanDatabase(60 * 60 * 24 * 2);
-    crashpad::BinaryPruneCondition condition(crashpad::BinaryPruneCondition::OR,
-        new crashpad::DatabaseSizePruneCondition(1024 * 8),
-        new crashpad::AgePruneCondition(2));
-    crashpad::PruneCrashReportDatabase(data->db, &condition);
+    SENTRY_WITH_OPTIONS (options) {
+        data->db->CleanDatabase(60 * 60 * 24 * options->cache_max_age);
+        crashpad::BinaryPruneCondition condition(
+            crashpad::BinaryPruneCondition::OR,
+            new crashpad::DatabaseSizePruneCondition(options->cache_max_size),
+            new crashpad::AgePruneCondition(options->cache_max_age));
+        crashpad::PruneCrashReportDatabase(data->db, &condition);
+    }
 }
 
 #if defined(SENTRY_PLATFORM_WINDOWS) || defined(SENTRY_PLATFORM_LINUX)

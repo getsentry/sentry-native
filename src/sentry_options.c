@@ -484,6 +484,18 @@ sentry_options_set_cache_keep(sentry_options_t *opts, int enabled)
     opts->cache_keep = !!enabled;
 }
 
+void
+sentry_options_set_cache_max_size(sentry_options_t *opts, int size)
+{
+    opts->cache_max_size = size;
+}
+
+void
+sentry_options_set_cache_max_age(sentry_options_t *opts, int age)
+{
+    opts->cache_max_age = age;
+}
+
 int
 sentry_options_get_cache_keep(const sentry_options_t *opts)
 {

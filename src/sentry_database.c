@@ -6,6 +6,7 @@
 #include "sentry_session.h"
 #include "sentry_uuid.h"
 #include <errno.h>
+#include <stdlib.h>
 #include <string.h>
 
 sentry_run_t *
@@ -311,6 +312,145 @@ sentry__process_old_runs(const sentry_options_t *options, uint64_t last_crash)
     sentry__pathiter_free(db_iter);
 
     sentry__capture_envelope(options->transport, session_envelope);
+}
+
+// Cache Pruning below is based on prune_crash_reports.cc from Crashpad
+
+/**
+ * A cache entry with its metadata for sorting and pruning decisions.
+ */
+typedef struct {
+    sentry_path_t *path;
+    time_t mtime;
+    size_t size_in_kb;
+} cache_entry_t;
+
+/**
+ * Calculate the total size of a directory (sum of all files).
+ */
+static size_t
+get_directory_size_in_kb(const sentry_path_t *dir)
+{
+    size_t total_bytes = 0;
+    sentry_pathiter_t *iter = sentry__path_iter_directory(dir);
+    if (!iter) {
+        return 0;
+    }
+    const sentry_path_t *entry;
+    while ((entry = sentry__pathiter_next(iter)) != NULL) {
+        if (sentry__path_is_file(entry)) {
+            total_bytes += sentry__path_get_size(entry);
+        }
+    }
+    sentry__pathiter_free(iter);
+    // Round up to next KB boundary
+    return (total_bytes + 1023) / 1024;
+}
+
+/**
+ * Comparison function to sort cache entries by mtime, newest first.
+ */
+static int
+compare_cache_entries_newest_first(const void *a, const void *b)
+{
+    const cache_entry_t *entry_a = (const cache_entry_t *)a;
+    const cache_entry_t *entry_b = (const cache_entry_t *)b;
+    // Newest first: if b is newer, return positive (b comes before a)
+    if (entry_b->mtime > entry_a->mtime) {
+        return 1;
+    }
+    if (entry_b->mtime < entry_a->mtime) {
+        return -1;
+    }
+    return 0;
+}
+
+void
+sentry__cleanup_cache(const sentry_options_t *options)
+{
+    if (!options->database_path) {
+        return;
+    }
+
+    sentry_path_t *cache_dir
+        = sentry__path_join_str(options->database_path, "cache");
+    if (!sentry__path_is_dir(cache_dir)) {
+        sentry__path_free(cache_dir);
+        return;
+    }
+
+    // First pass: collect all cache entries with their metadata
+    size_t entries_capacity = 16;
+    size_t entries_count = 0;
+    cache_entry_t *entries
+        = sentry_malloc(sizeof(cache_entry_t) * entries_capacity);
+    if (!entries) {
+        sentry__path_free(cache_dir);
+        return;
+    }
+
+    sentry_pathiter_t *iter = sentry__path_iter_directory(cache_dir);
+    const sentry_path_t *entry;
+    while (iter && (entry = sentry__pathiter_next(iter)) != NULL) {
+        if (!sentry__path_is_dir(entry)) {
+            continue;
+        }
+
+        // Grow array if needed
+        if (entries_count >= entries_capacity) {
+            entries_capacity *= 2;
+            cache_entry_t *new_entries
+                = sentry_malloc(sizeof(cache_entry_t) * entries_capacity);
+            if (!new_entries) {
+                break;
+            }
+            memcpy(new_entries, entries, sizeof(cache_entry_t) * entries_count);
+            sentry_free(entries);
+            entries = new_entries;
+        }
+
+        entries[entries_count].path = sentry__path_clone(entry);
+        entries[entries_count].mtime = sentry__path_get_mtime(entry);
+        entries[entries_count].size_in_kb = get_directory_size_in_kb(entry);
+        entries_count++;
+    }
+    sentry__pathiter_free(iter);
+
+    // Sort by mtime, newest first (like crashpad)
+    // This ensures we keep the newest entries when pruning by size
+    qsort(entries, entries_count, sizeof(cache_entry_t),
+        compare_cache_entries_newest_first);
+
+    // Calculate the age threshold
+    time_t now = time(NULL);
+    time_t oldest_allowed = now - (options->cache_max_age * 24 * 60 * 60);
+
+    // Prune entries: iterate newest-to-oldest, accumulating size
+    // Remove if: too old OR accumulated size exceeds limit
+    size_t accumulated_size_kb = 0;
+    for (size_t i = 0; i < entries_count; i++) {
+        bool should_prune = false;
+
+        // Age-based pruning
+        if (options->cache_max_age > 0 && entries[i].mtime < oldest_allowed) {
+            should_prune = true;
+        }
+
+        // Size-based pruning (accumulate size as we go, like crashpad)
+        accumulated_size_kb += entries[i].size_in_kb;
+        if (options->cache_max_size > 0
+            && accumulated_size_kb > (size_t)options->cache_max_size) {
+            should_prune = true;
+        }
+
+        if (should_prune) {
+            sentry__path_remove_all(entries[i].path);
+        }
+        sentry__path_free(entries[i].path);
+    }
+
+    sentry_free(entries);
+    sentry__path_free(cache_dir);
 }
 
 static const char *g_last_crash_filename = "last_crash";
