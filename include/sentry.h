@@ -1386,7 +1386,7 @@ SENTRY_API void sentry_options_set_cache_keep(
  * boundary.
  */
 SENTRY_API void sentry_options_set_cache_max_size(
-    sentry_options_t *opts, int size);
+    sentry_options_t *opts, size_t size);
 SENTRY_API void sentry_options_set_cache_max_age(
     sentry_options_t *opts, int age);
 
