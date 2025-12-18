@@ -11,6 +11,7 @@ from . import (
     run,
     Envelope,
     split_log_request_cond,
+    extract_request,
     is_session_envelope,
     is_logs_envelope,
     is_feedback_envelope,
@@ -637,13 +638,17 @@ def test_crashpad_logs_and_session_on_crash(cmake, httpserver):
 
     # we expect 1 envelope with the log, 1 for the crash, and 1 for the session
     assert len(httpserver.log) == 3
-    logs_request, multipart = split_log_request_cond(httpserver.log, is_logs_envelope)
-    logs = logs_request.get_data()
 
-    logs_envelope = Envelope.deserialize(logs)
+    logs_request, remaining = extract_request(httpserver.log, is_logs_envelope)
+    session_request, remaining = extract_request(remaining, is_session_envelope)
+    multipart = remaining[0][0]  # The crash/minidump
 
+    logs_envelope = Envelope.deserialize(logs_request.get_data())
     assert logs_envelope is not None
     assert_logs(logs_envelope, 1)
+
+    session_envelope = Envelope.deserialize(session_request.get_data())
+    assert session_envelope is not None
 
 
 def test_disable_backend(cmake, httpserver):

@@ -70,6 +70,21 @@ def split_log_request_cond(httpserver_log, cond):
     )
 
 
+def extract_request(httpserver_log, cond):
+    """
+    Extract a request matching the condition from the httpserver log.
+    Returns (matching_request, remaining_log_entries)
+
+    The remaining_log_entries preserves the original format so it can be
+    chained with subsequent extract_request calls.
+    """
+    for i, entry in enumerate(httpserver_log):
+        if cond(entry[0].get_data()):
+            others = [httpserver_log[j] for j in range(len(httpserver_log)) if j != i]
+            return (entry[0], others)
+    return (None, httpserver_log)
+
+
 def run(cwd, exe, args, expect_failure=False, env=None, **kwargs):
     if env is None:
         env = dict(os.environ)
