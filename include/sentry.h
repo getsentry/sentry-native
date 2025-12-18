@@ -954,15 +954,6 @@ typedef enum {
 } sentry_handler_strategy_t;
 
 /**
- * The caching mode for crash reports.
- */
-typedef enum {
-    SENTRY_CACHE_DEFAULT = -1, // (default) No special caching enabled
-    SENTRY_CACHE_KEEP = 0, // TODO Keep events/dmps around in secondary folder
-    SENTRY_CACHE_OFFLINE = 1, // TODO Periodically checks if online
-} sentry_caching_mode_t;
-
-/**
  * Creates a new options struct.
  * Can be freed with `sentry_options_free`.
  */
@@ -1384,18 +1375,16 @@ SENTRY_API int sentry_options_get_symbolize_stacktraces(
     const sentry_options_t *opts);
 
 /**
- * Sets the caching mode for crash reports.
- *
- * This controls how the SDK handles cached crash reports and offline scenarios.
+ * Sets whether we should keep files cached even when sent successfully.
+ * The database will be cleared based on cache_max_size and cache_max_age
  */
-SENTRY_API void sentry_options_set_caching_mode(
-    sentry_options_t *opts, sentry_caching_mode_t mode);
+SENTRY_API void sentry_options_set_cache_keep(
+    sentry_options_t *opts, int enabled);
 
 /**
  * Gets the caching mode for crash reports.
  */
-SENTRY_API sentry_caching_mode_t sentry_options_get_caching_mode(
-    const sentry_options_t *opts);
+SENTRY_API int sentry_options_get_cache_keep(const sentry_options_t *opts);
 
 /**
  * Adds a new attachment to be sent along.

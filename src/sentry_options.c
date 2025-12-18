@@ -53,7 +53,9 @@ sentry_options_new(void)
     opts->enable_logging_when_crashed = true;
     opts->propagate_traceparent = false;
     opts->crashpad_limit_stack_capture_to_sp = false;
-    opts->caching_mode = SENTRY_CACHE_DEFAULT;
+    opts->cache_keep = false;
+    opts->cache_max_age = 2;
+    opts->cache_max_size = 1024 * 8;
     opts->symbolize_stacktraces =
     // AIX doesn't have reliable debug IDs for server-side symbolication,
     // and the diversity of Android makes it infeasible to have access to debug
@@ -477,16 +479,15 @@ sentry_options_get_symbolize_stacktraces(const sentry_options_t *opts)
 }
 
 void
-sentry_options_set_caching_mode(
-    sentry_options_t *opts, sentry_caching_mode_t mode)
+sentry_options_set_cache_keep(sentry_options_t *opts, int enabled)
 {
-    opts->caching_mode = mode;
+    opts->cache_keep = !!enabled;
 }
 
-sentry_caching_mode_t
-sentry_options_get_caching_mode(const sentry_options_t *opts)
+int
+sentry_options_get_cache_keep(const sentry_options_t *opts)
 {
-    return opts->caching_mode;
+    return opts->cache_keep;
 }
 
 void

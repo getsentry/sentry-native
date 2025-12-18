@@ -504,7 +504,7 @@ main(int argc, char **argv)
         sentry_options_set_logs_with_attributes(options, true);
     }
     if (has_arg(argc, argv, "cache-keep")) {
-        sentry_options_set_caching_mode(options, SENTRY_CACHE_KEEP);
+        sentry_options_set_cache_keep(options, true);
     }
 
     if (0 != sentry_init(options)) {
