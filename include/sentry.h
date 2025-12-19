@@ -1375,25 +1375,10 @@ SENTRY_API int sentry_options_get_symbolize_stacktraces(
     const sentry_options_t *opts);
 
 /**
- * Sets whether we should keep files cached even when sent successfully.
- * The database will be cleared based on cache_max_size and cache_max_age
+ * Sets whether we should keep .dmp files for breakpad crashes
  */
-SENTRY_API void sentry_options_set_cache_keep(
+SENTRY_API void sentry_options_set_keep_dmp_on_crash(
     sentry_options_t *opts, int enabled);
-/**
- * Sets the maximum size (kb)/age (days) for the cache folder.
- * On startup, we check new->old entries, and remove those that go over either
- * boundary.
- */
-SENTRY_API void sentry_options_set_cache_max_size(
-    sentry_options_t *opts, size_t size);
-SENTRY_API void sentry_options_set_cache_max_age(
-    sentry_options_t *opts, int age);
-
-/**
- * Gets the caching mode for crash reports.
- */
-SENTRY_API int sentry_options_get_cache_keep(const sentry_options_t *opts);
 
 /**
  * Adds a new attachment to be sent along.
