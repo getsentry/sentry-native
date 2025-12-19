@@ -459,10 +459,6 @@ sentry__envelope_add_logs(sentry_envelope_t *envelope, sentry_value_t logs)
         return NULL;
     }
 
-    sentry_uuid_t event_id;
-    sentry__ensure_event_id(logs, &event_id);
-    sentry__envelope_set_event_id(envelope, &event_id);
-
     sentry__envelope_item_set_header(
         item, "type", sentry_value_new_string("log"));
     sentry__envelope_item_set_header(item, "item_count",
