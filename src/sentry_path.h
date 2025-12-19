@@ -151,6 +151,7 @@ int sentry__path_remove(const sentry_path_t *path);
  * Returns 0 on success.
  */
 int sentry__path_remove_all(const sentry_path_t *path);
+
 /**
  * This will create the directory referred to by `path`, and any non-existing
  * parent directory.
