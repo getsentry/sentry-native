@@ -142,6 +142,7 @@ sentry__run_write_external(
 
     return write_envelope(run->external_path, envelope);
 }
+
 bool
 sentry__run_write_session(
     const sentry_run_t *run, const sentry_session_t *session)

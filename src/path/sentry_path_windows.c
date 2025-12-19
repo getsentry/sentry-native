@@ -510,19 +510,6 @@ sentry__path_remove(const sentry_path_t *path)
         : DeleteFileW(path_w);
     return removal_success ? 0 : !is_last_error_path_not_found();
 }
-
-int
-sentry__path_rename(const sentry_path_t *src, const sentry_path_t *dst)
-{
-    wchar_t *src_w = src->path_w;
-    wchar_t *dst_w = dst->path_w;
-    if (!src_w || !dst_w) {
-        return 1;
-    }
-    // MOVEFILE_REPLACE_EXISTING allows overwriting the destination if it exists
-    return MoveFileExW(src_w, dst_w, MOVEFILE_REPLACE_EXISTING) ? 0 : 1;
-}
-
 int
 sentry__path_create_dir_all(const sentry_path_t *path)
 {

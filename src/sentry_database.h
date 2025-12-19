@@ -49,6 +49,7 @@ bool sentry__run_write_envelope(
  */
 bool sentry__run_write_external(
     const sentry_run_t *run, const sentry_envelope_t *envelope);
+
 /**
  * This will serialize and write the given session to disk into a file named:
  * `<database>/<uuid>.run/session.json`
