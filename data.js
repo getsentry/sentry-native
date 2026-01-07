@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1767777104090,
+  "lastUpdate": 1767777109068,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -16394,6 +16394,66 @@ window.BENCHMARK_DATA = {
             "value": 6.410082999991573,
             "unit": "ms",
             "extra": "Min 5.912ms\nMax 7.922ms\nMean 6.639ms\nStdDev 0.760ms\nMedian 6.410ms\nCPU 0.884ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "60878493+JoshuaMoelans@users.noreply.github.com",
+            "name": "JoshuaMoelans",
+            "username": "JoshuaMoelans"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "b03cd48d34937ba5a8ceef211003668e46ca56a4",
+          "message": "fix(logs): add debug output for structured logs when `debug` option is enabled (#1466)\n\n* add printf for logs when debug is true\n\n* use existing SENTRY_(LEVEL) macros\n\n* update CHANGELOG.md\n\n* add future TODO + fix null-log\n\n* make debug_print_log static",
+          "timestamp": "2026-01-07T10:08:17+01:00",
+          "tree_id": "0b5e7fada484cbc9d219adc5363e8e95e3d8747d",
+          "url": "https://github.com/getsentry/sentry-native/commit/b03cd48d34937ba5a8ceef211003668e46ca56a4"
+        },
+        "date": 1767777107549,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 3.337915999992447,
+            "unit": "ms",
+            "extra": "Min 3.008ms\nMax 3.995ms\nMean 3.360ms\nStdDev 0.399ms\nMedian 3.338ms\nCPU 1.680ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 3.284417000003259,
+            "unit": "ms",
+            "extra": "Min 3.194ms\nMax 3.592ms\nMean 3.321ms\nStdDev 0.157ms\nMedian 3.284ms\nCPU 1.954ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 12.918041999967045,
+            "unit": "ms",
+            "extra": "Min 10.818ms\nMax 15.890ms\nMean 12.745ms\nStdDev 2.043ms\nMedian 12.918ms\nCPU 3.896ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.016415999994023878,
+            "unit": "ms",
+            "extra": "Min 0.009ms\nMax 0.019ms\nMean 0.016ms\nStdDev 0.004ms\nMedian 0.016ms\nCPU 0.015ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.2858750000314103,
+            "unit": "ms",
+            "extra": "Min 0.226ms\nMax 0.352ms\nMean 0.289ms\nStdDev 0.052ms\nMedian 0.286ms\nCPU 0.289ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 9.252124999989064,
+            "unit": "ms",
+            "extra": "Min 8.443ms\nMax 9.745ms\nMean 9.182ms\nStdDev 0.520ms\nMedian 9.252ms\nCPU 0.763ms"
           }
         ]
       }
