@@ -126,11 +126,6 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
         event, "level", sentry__value_new_level(SENTRY_LEVEL_FATAL));
 
     SENTRY_WITH_OPTIONS (options) {
-        // Flush logs in a crash-safe manner before crash handling
-        if (options->enable_logs) {
-            sentry__logs_flush_crash_safe();
-        }
-
         sentry__write_crash_marker(options);
 
         bool should_handle = true;
@@ -155,6 +150,11 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
             sentry_value_t result
                 = options->on_crash_func(uctx, event, options->on_crash_data);
             should_handle = !sentry_value_is_null(result);
+        }
+
+        // Flush logs in a crash-safe manner before crash handling
+        if (options->enable_logs) {
+            sentry__logs_flush_crash_safe();
         }
 
         if (should_handle) {
