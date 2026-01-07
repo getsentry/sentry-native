@@ -752,6 +752,33 @@ construct_log(sentry_level_t level, const char *message, va_list args)
     return log;
 }
 
+static void
+debug_print_log(sentry_level_t level, const char *log_body)
+{
+    // TODO if we enable our debug-macro as logging integration
+    //  we need to avoid recursion here
+    switch (level) {
+    case SENTRY_LEVEL_TRACE:
+        SENTRY_TRACEF("LOG: %s", log_body);
+        break;
+    case SENTRY_LEVEL_DEBUG:
+        SENTRY_DEBUGF("LOG: %s", log_body);
+        break;
+    case SENTRY_LEVEL_INFO:
+        SENTRY_INFOF("LOG: %s", log_body);
+        break;
+    case SENTRY_LEVEL_WARNING:
+        SENTRY_WARNF("LOG: %s", log_body);
+        break;
+    case SENTRY_LEVEL_ERROR:
+        SENTRY_ERRORF("LOG: %s", log_body);
+        break;
+    case SENTRY_LEVEL_FATAL:
+        SENTRY_FATALF("LOG: %s", log_body);
+        break;
+    }
+}
+
 log_return_value_t
 sentry__logs_log(sentry_level_t level, const char *message, va_list args)
 {
@@ -773,6 +800,11 @@ sentry__logs_log(sentry_level_t level, const char *message, va_list args)
                         "log was discarded by the `before_send_log` hook");
                     discarded = true;
                 }
+            }
+            if (options->debug && !sentry_value_is_null(log)) {
+                debug_print_log(level,
+                    sentry_value_as_string(
+                        sentry_value_get_by_key(log, "body")));
             }
         }
         if (discarded) {
