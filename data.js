@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1767777109068,
+  "lastUpdate": 1767777155043,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -24652,6 +24652,66 @@ window.BENCHMARK_DATA = {
             "value": 15.275499999972908,
             "unit": "ms",
             "extra": "Min 14.971ms\nMax 15.559ms\nMean 15.269ms\nStdDev 0.217ms\nMedian 15.275ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "60878493+JoshuaMoelans@users.noreply.github.com",
+            "name": "JoshuaMoelans",
+            "username": "JoshuaMoelans"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "b03cd48d34937ba5a8ceef211003668e46ca56a4",
+          "message": "fix(logs): add debug output for structured logs when `debug` option is enabled (#1466)\n\n* add printf for logs when debug is true\n\n* use existing SENTRY_(LEVEL) macros\n\n* update CHANGELOG.md\n\n* add future TODO + fix null-log\n\n* make debug_print_log static",
+          "timestamp": "2026-01-07T10:08:17+01:00",
+          "tree_id": "0b5e7fada484cbc9d219adc5363e8e95e3d8747d",
+          "url": "https://github.com/getsentry/sentry-native/commit/b03cd48d34937ba5a8ceef211003668e46ca56a4"
+        },
+        "date": 1767777150235,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 9.036000000037347,
+            "unit": "ms",
+            "extra": "Min 8.833ms\nMax 10.718ms\nMean 9.380ms\nStdDev 0.767ms\nMedian 9.036ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 9.851300000036645,
+            "unit": "ms",
+            "extra": "Min 9.502ms\nMax 10.307ms\nMean 9.896ms\nStdDev 0.379ms\nMedian 9.851ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 23.797899999976835,
+            "unit": "ms",
+            "extra": "Min 23.446ms\nMax 24.008ms\nMean 23.715ms\nStdDev 0.244ms\nMedian 23.798ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.011200000017197453,
+            "unit": "ms",
+            "extra": "Min 0.011ms\nMax 0.018ms\nMean 0.013ms\nStdDev 0.003ms\nMedian 0.011ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.40369999999256834,
+            "unit": "ms",
+            "extra": "Min 0.386ms\nMax 0.555ms\nMean 0.437ms\nStdDev 0.070ms\nMedian 0.404ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 13.241900000025453,
+            "unit": "ms",
+            "extra": "Min 12.840ms\nMax 13.947ms\nMean 13.294ms\nStdDev 0.403ms\nMedian 13.242ms"
           }
         ]
       }
