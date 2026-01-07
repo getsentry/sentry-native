@@ -44,7 +44,7 @@ jobs:
         if: ${{ runner.os == 'Linux' }}
         run: |
           sudo apt update
-          sudo apt install -y libcurl4-openssl-dev
+          sudo apt install -y libcurl4-openssl-dev libunwind-dev
 
       - name: Benchmark
         shell: bash
