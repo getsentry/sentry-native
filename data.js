@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1767777043370,
+  "lastUpdate": 1767777104090,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -24532,6 +24532,66 @@ window.BENCHMARK_DATA = {
             "value": 15.379300000006424,
             "unit": "ms",
             "extra": "Min 14.091ms\nMax 17.735ms\nMean 15.782ms\nStdDev 1.485ms\nMedian 15.379ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "60878493+JoshuaMoelans@users.noreply.github.com",
+            "name": "JoshuaMoelans",
+            "username": "JoshuaMoelans"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "b6ed4c34646e743c9c202ab5fd1656892f89973d",
+          "message": "fix(logs): write nil-`event_id`-envelopes to random UUID filename (#1471)\n\n* add event_id to logs envelope\n- this avoids collisions with the nil-event_id-envelope for sessions on Crashpad\n\n* add test for logs+session on Crashpad\n\n* extract session/logs from request\n\n* remove event_id from logs\n\n* generate random UUID for envelopes without event_id",
+          "timestamp": "2026-01-07T10:07:06+01:00",
+          "tree_id": "8dc3b4cbe2bccde6be6f1ede08f4090c8f1cde2c",
+          "url": "https://github.com/getsentry/sentry-native/commit/b6ed4c34646e743c9c202ab5fd1656892f89973d"
+        },
+        "date": 1767777098883,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 13.76399999998057,
+            "unit": "ms",
+            "extra": "Min 11.859ms\nMax 42.290ms\nMean 19.015ms\nStdDev 13.043ms\nMedian 13.764ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 10.895399999981237,
+            "unit": "ms",
+            "extra": "Min 10.784ms\nMax 11.376ms\nMean 11.053ms\nStdDev 0.287ms\nMedian 10.895ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 28.779400000018995,
+            "unit": "ms",
+            "extra": "Min 26.322ms\nMax 44.348ms\nMean 32.022ms\nStdDev 7.433ms\nMedian 28.779ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.015700000005836046,
+            "unit": "ms",
+            "extra": "Min 0.014ms\nMax 0.020ms\nMean 0.016ms\nStdDev 0.002ms\nMedian 0.016ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.40869999997994455,
+            "unit": "ms",
+            "extra": "Min 0.389ms\nMax 0.503ms\nMean 0.435ms\nStdDev 0.048ms\nMedian 0.409ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 15.275499999972908,
+            "unit": "ms",
+            "extra": "Min 14.971ms\nMax 15.559ms\nMean 15.269ms\nStdDev 0.217ms\nMedian 15.275ms"
           }
         ]
       }
