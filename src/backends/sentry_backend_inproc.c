@@ -649,10 +649,6 @@ handle_ucontext(const sentry_ucontext_t *uctx)
         // use a signal-safe allocator before we tear down.
         sentry__page_allocator_enable();
 #endif
-        // Flush logs in a crash-safe manner before crash handling
-        if (options->enable_logs) {
-            sentry__logs_flush_crash_safe();
-        }
 
         sentry_value_t event = make_signal_event(sig_slot, uctx, strategy);
         bool should_handle = true;
@@ -662,6 +658,11 @@ handle_ucontext(const sentry_ucontext_t *uctx)
             SENTRY_DEBUG("invoking `on_crash` hook");
             event = options->on_crash_func(uctx, event, options->on_crash_data);
             should_handle = !sentry_value_is_null(event);
+        }
+
+        // Flush logs in a crash-safe manner before crash handling
+        if (options->enable_logs) {
+            sentry__logs_flush_crash_safe();
         }
 
         if (should_handle) {
