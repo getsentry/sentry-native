@@ -3,6 +3,7 @@
 
 #include "sentry_boot.h"
 
+#include "sentry_attachment.h"
 #include "sentry_database.h"
 #include "sentry_logger.h"
 #include "sentry_session.h"
@@ -13,25 +14,6 @@
 #define SENTRY_DEFAULT_SHUTDOWN_TIMEOUT 2000
 
 struct sentry_backend_s;
-/**
- * The attachment_type.
- */
-typedef enum {
-    ATTACHMENT,
-    MINIDUMP,
-    VIEW_HIERARCHY,
-} sentry_attachment_type_t;
-/**
- * This is a linked list of all the attachments registered via
- * `sentry_options_add_attachment`.
- */
-typedef struct sentry_attachment_s sentry_attachment_t;
-struct sentry_attachment_s {
-    sentry_path_t *path;
-    sentry_attachment_type_t type;
-    const char *content_type;
-    sentry_attachment_t *next;
-};
 
 /**
  * This is the main options struct, which is being accessed throughout all of
@@ -50,6 +32,7 @@ struct sentry_options_s {
     char *user_agent;
     sentry_path_t *database_path;
     sentry_path_t *handler_path;
+    sentry_path_t *external_crash_reporter;
     sentry_logger_t logger;
     size_t max_breadcrumbs;
     bool debug;
@@ -59,6 +42,9 @@ struct sentry_options_s {
     bool system_crash_reporter_enabled;
     bool attach_screenshot;
     bool crashpad_wait_for_upload;
+    bool enable_logging_when_crashed;
+    bool propagate_traceparent;
+    bool crashpad_limit_stack_capture_to_sp;
 
     sentry_attachment_t *attachments;
     sentry_run_t *run;
@@ -68,11 +54,20 @@ struct sentry_options_s {
     void *before_send_data;
     sentry_crash_function_t on_crash_func;
     void *on_crash_data;
+    sentry_transaction_function_t before_transaction_func;
+    void *before_transaction_data;
+    sentry_before_send_log_function_t before_send_log_func;
+    void *before_send_log_data;
 
     /* Experimentally exposed */
     double traces_sample_rate;
     sentry_traces_sampler_function traces_sampler;
+    void *traces_sampler_data;
     size_t max_spans;
+    bool enable_logs;
+    // takes the first varg as a `sentry_value_t` object containing attributes
+    // if no custom attributes are to be passed, use `sentry_value_new_object()`
+    bool logs_with_attributes;
 
     /* everything from here on down are options which are stored here but
        not exposed through the options API */
@@ -83,6 +78,11 @@ struct sentry_options_s {
     long refcount;
     uint64_t shutdown_timeout;
     sentry_handler_strategy_t handler_strategy;
+
+#ifdef SENTRY_PLATFORM_NX
+    void (*network_connect_func)(void);
+    bool send_default_pii;
+#endif
 };
 
 /**

@@ -21,7 +21,7 @@ buildscript {
         google()
     }
     dependencies {
-        classpath("com.android.tools.build:gradle:8.7.1")
+        classpath("com.android.tools.build:gradle:8.7.3")
         classpath(kotlin("gradle-plugin", version = "1.8.0"))
         classpath("com.vanniktech:gradle-maven-publish-plugin:0.18.0")
         // dokka is required by gradle-maven-publish-plugin.
@@ -74,14 +74,13 @@ subprojects {
         }
     }
 
-    if (!this.name.contains("sample")) {
+    if (!name.contains("sample")) {
         apply<DistributionPlugin>()
 
         val sep = File.separator
 
         configure<DistributionContainer> {
-
-            this.getByName("main").contents {
+            getByName("main").contents {
                 // non android modules
                 from("build${sep}libs")
                 from("build${sep}publications${sep}maven")
@@ -93,7 +92,7 @@ subprojects {
             }
 
             // craft only uses zip archives
-            this.forEach { dist ->
+            forEach { dist ->
                 if (dist.name == DistributionPlugin.MAIN_DISTRIBUTION_NAME) {
                     tasks.getByName("distTar").enabled = false
                 } else {
@@ -102,14 +101,16 @@ subprojects {
             }
         }
 
+        val distZipProvider =
+            project.layout.buildDirectory
+                .dir("distributions").map { it.file("${project.name}-${project.version}.zip") }
+
         tasks.named("distZip").configure {
-            this.dependsOn("publishToMavenLocal")
-            this.doLast {
-                val distributionFilePath =
-                    "${this.project.buildDir}${sep}distributions${sep}${this.project.name}-${this.project.version}.zip"
-                val file = File(distributionFilePath)
-                if (!file.exists()) throw IllegalStateException("Distribution file: $distributionFilePath does not exist")
-                if (file.length() == 0L) throw IllegalStateException("Distribution file: $distributionFilePath is empty")
+            dependsOn("publishToMavenLocal")
+            doLast {
+                val distZip = distZipProvider.get().asFile
+                require(distZip.exists()) { "Distribution file does not exist: ${distZip.absolutePath}" }
+                require(distZip.length() > 0L) { "Distribution file is empty: ${distZip.absolutePath}" }
             }
         }
 

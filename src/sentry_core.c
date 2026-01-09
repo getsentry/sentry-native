@@ -3,22 +3,31 @@
 #include <stdarg.h>
 #include <string.h>
 
+#include "sentry_attachment.h"
 #include "sentry_backend.h"
 #include "sentry_core.h"
 #include "sentry_database.h"
 #include "sentry_envelope.h"
+#include "sentry_logs.h"
 #include "sentry_options.h"
-#include "sentry_os.h"
 #include "sentry_path.h"
+#include "sentry_process.h"
 #include "sentry_random.h"
 #include "sentry_scope.h"
-#include "sentry_screenshot.h"
 #include "sentry_session.h"
 #include "sentry_string.h"
 #include "sentry_sync.h"
 #include "sentry_tracing.h"
 #include "sentry_transport.h"
+#include "sentry_tsan.h"
+#include "sentry_uuid.h"
 #include "sentry_value.h"
+#include "transports/sentry_disk_transport.h"
+
+#ifdef SENTRY_PLATFORM_WINDOWS
+#    include "sentry_os.h"
+#    include "sentry_screenshot.h"
+#endif
 
 #ifdef SENTRY_INTEGRATION_QT
 #    include "integrations/sentry_integration_qt.h"
@@ -92,19 +101,76 @@ sentry__should_skip_upload(void)
     return skip;
 }
 
+static void
+generate_propagation_context(sentry_value_t propagation_context)
+{
+    sentry_value_set_by_key(
+        propagation_context, "trace", sentry_value_new_object());
+    sentry_uuid_t trace_id = sentry_uuid_new_v4();
+    sentry_uuid_t span_id = sentry_uuid_new_v4();
+    sentry_value_set_by_key(
+        sentry_value_get_by_key(propagation_context, "trace"), "trace_id",
+        sentry__value_new_internal_uuid(&trace_id));
+    sentry_value_set_by_key(
+        sentry_value_get_by_key(propagation_context, "trace"), "span_id",
+        sentry__value_new_span_uuid(&span_id));
+    sentry__generate_sample_rand(
+        sentry_value_get_by_key(propagation_context, "trace"));
+}
+
+static void
+set_dynamic_sampling_context(
+    const sentry_options_t *options, sentry_scope_t *scope)
+{
+    sentry_value_decref(scope->dynamic_sampling_context);
+    // add the Dynamic Sampling Context to the `trace` header
+    sentry_value_t dsc = sentry_value_new_object();
+
+    if (options->dsn) {
+        sentry_value_set_by_key(dsc, "public_key",
+            sentry_value_new_string(options->dsn->public_key));
+        sentry_value_set_by_key(
+            dsc, "org_id", sentry_value_new_string(options->dsn->org_id));
+    }
+    sentry_value_set_by_key(dsc, "sample_rate",
+        sentry_value_new_double(options->traces_sample_rate));
+    if (options->traces_sampler) {
+        sentry_value_set_by_key(
+            dsc, "sample_rate", sentry_value_new_double(1.0));
+    }
+    sentry_value_t sample_rand = sentry_value_get_by_key(
+        sentry_value_get_by_key(scope->propagation_context, "trace"),
+        "sample_rand");
+    sentry_value_set_by_key(dsc, "sample_rand", sample_rand);
+    sentry_value_incref(sample_rand);
+    sentry_value_set_by_key(
+        dsc, "release", sentry_value_new_string(options->release));
+    sentry_value_set_by_key(
+        dsc, "environment", sentry_value_new_string(options->environment));
+
+    scope->dynamic_sampling_context = dsc;
+}
+
+#if defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_PS)
+int
+sentry__native_init(sentry_options_t *options)
+#else
 int
 sentry_init(sentry_options_t *options)
+#endif
 {
+    // pre-init here, so we can consistently use bailing out to :fail
+    sentry_transport_t *transport = NULL;
+
     SENTRY__MUTEX_INIT_DYN_ONCE(g_options_lock);
     // this function is to be called only once, so we do not allow more than one
     // caller
     sentry__mutex_lock(&g_options_lock);
-    // pre-init here, so we can consistently use bailing out to :fail
-    sentry_transport_t *transport = NULL;
 
     sentry_close();
 
     sentry_logger_t logger = { NULL, NULL, SENTRY_LEVEL_DEBUG };
+
     if (options->debug) {
         logger = options->logger;
     }
@@ -126,8 +192,7 @@ sentry_init(sentry_options_t *options)
         SENTRY_DEBUG("falling back to non-absolute database path");
         options->database_path = database_path;
     }
-    SENTRY_INFOF("using database path \"%" SENTRY_PATH_PRI "\"",
-        options->database_path->path);
+    SENTRY_INFOF("using database path \"%s\"", options->database_path->path);
 
     // try to create and lock our run folder as early as possibly, since it is
     // fallible. since it does locking, it will not interfere with run folder
@@ -148,8 +213,16 @@ sentry_init(sentry_options_t *options)
 
     if (transport) {
         if (sentry__transport_startup(transport, options) != 0) {
+#ifdef SENTRY_PLATFORM_NX
+            // A warning with more details is logged in the downstream SDK.
+            // Also, we want to continue - crash capture doesn't need transport.
+            sentry__transport_shutdown(transport, 0);
+            sentry_options_set_transport(options, NULL);
+            transport = NULL;
+#else
             SENTRY_WARN("failed to initialize transport");
             goto fail;
+#endif
         }
     }
 
@@ -182,6 +255,14 @@ sentry_init(sentry_options_t *options)
             sentry_value_set_by_key(scope->client_sdk, "name", sdk_name);
         }
         sentry_value_freeze(scope->client_sdk);
+        generate_propagation_context(scope->propagation_context);
+        scope->attachments = options->attachments;
+        options->attachments = NULL;
+
+        sentry__ringbuffer_set_max_size(
+            scope->breadcrumbs, options->max_breadcrumbs);
+
+        set_dynamic_sampling_context(options, scope);
     }
     if (backend && backend->user_consent_changed_func) {
         backend->user_consent_changed_func(backend);
@@ -190,6 +271,13 @@ sentry_init(sentry_options_t *options)
 #ifdef SENTRY_INTEGRATION_QT
     SENTRY_DEBUG("setting up Qt integration");
     sentry_integration_setup_qt();
+#endif
+
+#if defined(SENTRY_PLATFORM_WINDOWS)                                           \
+    && (!defined(SENTRY_BUILD_SHARED) || defined(SENTRY_PLATFORM_XBOX))
+    // This function must be positioned so that any dependents on its cached
+    // functions are invoked after it.
+    sentry__init_cached_kernel32_functions();
 #endif
 
     // after initializing the transport, we will submit all the unsent envelopes
@@ -204,9 +292,9 @@ sentry_init(sentry_options_t *options)
         sentry_start_session();
     }
 
-#ifdef SENTRY_PLATFORM_WINDOWS
-    sentry__init_cached_functions();
-#endif
+    if (options->enable_logs) {
+        sentry__logs_startup();
+    }
 
     sentry__mutex_unlock(&g_options_lock);
     return 0;
@@ -226,6 +314,9 @@ sentry_flush(uint64_t timeout)
 {
     int rv = 0;
     SENTRY_WITH_OPTIONS (options) {
+        if (options->enable_logs) {
+            sentry__logs_force_flush();
+        }
         rv = sentry__transport_flush(options->transport, timeout);
     }
     return rv;
@@ -234,6 +325,15 @@ sentry_flush(uint64_t timeout)
 int
 sentry_close(void)
 {
+    // Shutdown logs system before locking options to ensure logs are flushed.
+    // This prevents a potential deadlock on the options during log envelope
+    // creation.
+    SENTRY_WITH_OPTIONS (options) {
+        if (options->enable_logs) {
+            sentry__logs_shutdown(options->shutdown_timeout);
+        }
+    }
+
     SENTRY__MUTEX_INIT_DYN_ONCE(g_options_lock);
     // this function is to be called only once, so we do not allow more than one
     // caller
@@ -359,6 +459,16 @@ sentry_user_consent_get(void)
     return rv;
 }
 
+int
+sentry_user_consent_is_required(void)
+{
+    int required = 0;
+    SENTRY_WITH_OPTIONS (options) {
+        required = options->require_user_consent;
+    }
+    return required;
+}
+
 void
 sentry__capture_envelope(
     sentry_transport_t *transport, sentry_envelope_t *envelope)
@@ -370,6 +480,17 @@ sentry__capture_envelope(
         return;
     }
     sentry__transport_send_envelope(transport, envelope);
+}
+
+void
+sentry_capture_envelope(sentry_envelope_t *envelope)
+{
+    if (!envelope) {
+        return;
+    }
+    SENTRY_WITH_OPTIONS (options) {
+        sentry__capture_envelope(options->transport, envelope);
+    }
 }
 
 static bool
@@ -400,7 +521,17 @@ sentry_capture_event(sentry_value_t event)
     if (sentry__event_is_transaction(event)) {
         return sentry_uuid_nil();
     } else {
-        return sentry__capture_event(event);
+        return sentry__capture_event(event, NULL);
+    }
+}
+
+sentry_uuid_t
+sentry_capture_event_with_scope(sentry_value_t event, sentry_scope_t *scope)
+{
+    if (sentry__event_is_transaction(event)) {
+        return sentry_uuid_nil();
+    } else {
+        return sentry__capture_event(event, scope);
     }
 }
 
@@ -416,7 +547,7 @@ static
 }
 
 sentry_uuid_t
-sentry__capture_event(sentry_value_t event)
+sentry__capture_event(sentry_value_t event, sentry_scope_t *local_scope)
 {
     // `event_id` is only used as an argument to pure output parameters.
     // Initialization only happens to prevent compiler warnings.
@@ -431,17 +562,32 @@ sentry__capture_event(sentry_value_t event)
         if (sentry__event_is_transaction(event)) {
             envelope = sentry__prepare_transaction(options, event, &event_id);
         } else {
-            envelope = sentry__prepare_event(options, event, &event_id, true);
+            envelope = sentry__prepare_event(
+                options, event, &event_id, true, local_scope);
         }
         if (envelope) {
-            if (options->session) {
+            // Accept a racy read here, since SENTRY_WITH_OPTIONS only prevents
+            // the options from being deallocated while we use them, but no lock
+            // is active and the session could change during session shutdown.
+            // We recheck below inside the lock and don't pay for a lock here.
+            // This also means we accept a missed window of opportunity if an
+            // event is being sent concurrently to session initialization, which
+            // is an acceptable design trade-off.
+            SENTRY_TSAN_IGNORE_READS_BEGIN();
+            bool has_session = options->session;
+            SENTRY_TSAN_IGNORE_READS_END();
+            if (has_session) {
                 sentry_options_t *mut_options = sentry__options_lock();
-                sentry__envelope_add_session(envelope, mut_options->session);
-                // we're assuming that if a session is added to an envelope
-                // it will be sent onwards.  This means we now need to set
-                // the init flag to false because we're no longer the
-                // initial session update.
-                mut_options->session->init = false;
+                // recheck inside the lock since our previous read is racy.
+                if (mut_options->session) {
+                    sentry__envelope_add_session(
+                        envelope, mut_options->session);
+                    // we're assuming that if a session is added to an envelope,
+                    // it will be sent onwards.  This means we now need to set
+                    // the init flag to false because we're no longer in the
+                    // initial session update.
+                    mut_options->session->init = false;
+                }
                 sentry__options_unlock();
             }
 
@@ -486,13 +632,14 @@ static
                     sampling_ctx->transaction_context,
                     sampling_ctx->custom_sampling_context,
                     sampling_ctx->parent_sampled == NULL ? NULL
-                                                         : &parent_sampled_int);
-            send = sentry__roll_dice(result);
+                                                         : &parent_sampled_int,
+                    options->traces_sampler_data);
+            send = sampling_ctx->sample_rand < result;
         } else {
             if (sampling_ctx->parent_sampled != NULL) {
                 send = *sampling_ctx->parent_sampled;
             } else {
-                send = sentry__roll_dice(options->traces_sample_rate);
+                send = sampling_ctx->sample_rand < options->traces_sample_rate;
             }
         }
     }
@@ -502,25 +649,10 @@ static
     return send;
 }
 
-static const char *
-str_from_attachment_type(sentry_attachment_type_t attachment_type)
-{
-    switch (attachment_type) {
-    case ATTACHMENT:
-        return "event.attachment";
-    case MINIDUMP:
-        return "event.minidump";
-    case VIEW_HIERARCHY:
-        return "event.view_hierarchy";
-    default:
-        UNREACHABLE("Unknown attachment type");
-        return "event.attachment";
-    }
-}
-
 sentry_envelope_t *
 sentry__prepare_event(const sentry_options_t *options, sentry_value_t event,
-    sentry_uuid_t *event_id, bool invoke_before_send)
+    sentry_uuid_t *event_id, bool invoke_before_send,
+    sentry_scope_t *local_scope)
 {
     sentry_envelope_t *envelope = NULL;
 
@@ -528,11 +660,23 @@ sentry__prepare_event(const sentry_options_t *options, sentry_value_t event,
         sentry__record_errors_on_current_session(1);
     }
 
+    sentry_attachment_t *all_attachments = NULL;
+    if (local_scope) {
+        SENTRY_DEBUG("merging local scope into event");
+        sentry_scope_mode_t mode = SENTRY_SCOPE_BREADCRUMBS;
+        sentry__scope_apply_to_event(local_scope, options, event, mode);
+        sentry__attachments_extend(&all_attachments, local_scope->attachments);
+        sentry__scope_free(local_scope);
+    }
+
     SENTRY_WITH_SCOPE (scope) {
-        SENTRY_DEBUG("merging scope into event");
+        SENTRY_DEBUG("merging global scope into event");
         sentry_scope_mode_t mode = SENTRY_SCOPE_ALL;
         if (!options->symbolize_stacktraces) {
             mode &= ~SENTRY_SCOPE_STACKTRACES;
+        }
+        if (all_attachments) {
+            sentry__attachments_extend(&all_attachments, scope->attachments);
         }
         sentry__scope_apply_to_event(scope, options, event, mode);
     }
@@ -553,31 +697,17 @@ sentry__prepare_event(const sentry_options_t *options, sentry_value_t event,
         goto fail;
     }
 
-    SENTRY_DEBUG("adding attachments to envelope");
-    for (sentry_attachment_t *attachment = options->attachments; attachment;
-        attachment = attachment->next) {
-        sentry_envelope_item_t *item = sentry__envelope_add_from_path(
-            envelope, attachment->path, "attachment");
-        if (!item) {
-            continue;
+    SENTRY_WITH_SCOPE (scope) {
+        if (all_attachments) {
+            // all attachments merged from multiple scopes
+            sentry__envelope_add_attachments(envelope, all_attachments);
+        } else {
+            // only global scope has attachments
+            sentry__envelope_add_attachments(envelope, scope->attachments);
         }
-        if (attachment->type != ATTACHMENT) { // don't need to set the default
-            sentry__envelope_item_set_header(item, "attachment_type",
-                sentry_value_new_string(
-                    str_from_attachment_type(attachment->type)));
-        }
-        if (attachment->content_type) {
-            sentry__envelope_item_set_header(item, "content_type",
-                sentry_value_new_string(attachment->content_type));
-        }
-        sentry__envelope_item_set_header(item, "filename",
-#ifdef SENTRY_PLATFORM_WINDOWS
-            sentry__value_new_string_from_wstr(
-#else
-            sentry_value_new_string(
-#endif
-                sentry__path_filename(attachment->path)));
     }
+
+    sentry__attachments_free(all_attachments);
 
     return envelope;
 
@@ -601,6 +731,17 @@ sentry__prepare_transaction(const sentry_options_t *options,
         sentry__scope_apply_to_event(scope, options, transaction, mode);
     }
 
+    if (options->before_transaction_func) {
+        SENTRY_DEBUG("invoking `before_transaction` hook");
+        transaction = options->before_transaction_func(
+            transaction, options->before_transaction_data);
+        if (sentry_value_is_null(transaction)) {
+            SENTRY_DEBUG(
+                "transaction was discarded by the `before_transaction` hook");
+            return NULL;
+        }
+    }
+
     sentry__ensure_event_id(transaction, event_id);
     envelope = sentry__envelope_new();
     if (!envelope || !sentry__envelope_add_transaction(envelope, transaction)) {
@@ -615,6 +756,25 @@ fail:
     SENTRY_WARN("dropping transaction");
     sentry_envelope_free(envelope);
     sentry_value_decref(transaction);
+    return NULL;
+}
+
+static sentry_envelope_t *
+prepare_user_report(sentry_value_t user_report)
+{
+    sentry_envelope_t *envelope = NULL;
+
+    envelope = sentry__envelope_new();
+    if (!envelope || !sentry__envelope_add_user_report(envelope, user_report)) {
+        goto fail;
+    }
+
+    return envelope;
+
+fail:
+    SENTRY_WARN("dropping user report");
+    sentry_envelope_free(envelope);
+    sentry_value_decref(user_report);
     return NULL;
 }
 
@@ -688,8 +848,7 @@ sentry_set_user(sentry_value_t user)
     }
 
     SENTRY_WITH_SCOPE_MUT (scope) {
-        sentry_value_decref(scope->user);
-        scope->user = user;
+        sentry_scope_set_user(scope, user);
     }
 }
 
@@ -702,21 +861,18 @@ sentry_remove_user(void)
 void
 sentry_add_breadcrumb(sentry_value_t breadcrumb)
 {
-    size_t max_breadcrumbs = SENTRY_BREADCRUMBS_MAX;
     SENTRY_WITH_OPTIONS (options) {
         if (options->backend && options->backend->add_breadcrumb_func) {
             // the hook will *not* take ownership
             options->backend->add_breadcrumb_func(
                 options->backend, breadcrumb, options);
         }
-        max_breadcrumbs = options->max_breadcrumbs;
     }
 
     // the `no_flush` will avoid triggering *both* scope-change and
     // breadcrumb-add events.
     SENTRY_WITH_SCOPE_MUT_NO_FLUSH (scope) {
-        sentry__value_append_ringbuffer(
-            scope->breadcrumbs, breadcrumb, max_breadcrumbs);
+        sentry_scope_add_breadcrumb(scope, breadcrumb);
     }
 }
 
@@ -724,8 +880,7 @@ void
 sentry_set_tag(const char *key, const char *value)
 {
     SENTRY_WITH_SCOPE_MUT (scope) {
-        sentry_value_set_by_key(
-            scope->tags, key, sentry_value_new_string(value));
+        sentry_scope_set_tag(scope, key, value);
     }
 }
 
@@ -734,8 +889,7 @@ sentry_set_tag_n(
     const char *key, size_t key_len, const char *value, size_t value_len)
 {
     SENTRY_WITH_SCOPE_MUT (scope) {
-        sentry_value_set_by_key_n(scope->tags, key, key_len,
-            sentry_value_new_string_n(value, value_len));
+        sentry_scope_set_tag_n(scope, key, key_len, value, value_len);
     }
 }
 
@@ -759,7 +913,7 @@ void
 sentry_set_extra(const char *key, sentry_value_t value)
 {
     SENTRY_WITH_SCOPE_MUT (scope) {
-        sentry_value_set_by_key(scope->extra, key, value);
+        sentry_scope_set_extra(scope, key, value);
     }
 }
 
@@ -767,7 +921,7 @@ void
 sentry_set_extra_n(const char *key, size_t key_len, sentry_value_t value)
 {
     SENTRY_WITH_SCOPE_MUT (scope) {
-        sentry_value_set_by_key_n(scope->extra, key, key_len, value);
+        sentry_scope_set_extra_n(scope, key, key_len, value);
     }
 }
 
@@ -788,10 +942,43 @@ sentry_remove_extra_n(const char *key, size_t key_len)
 }
 
 void
+sentry_set_attribute(const char *key, sentry_value_t attribute)
+{
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry__scope_set_attribute(scope, key, attribute);
+    }
+}
+
+void
+sentry_set_attribute_n(
+    const char *key, size_t key_len, sentry_value_t attribute)
+{
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry__scope_set_attribute_n(scope, key, key_len, attribute);
+    }
+}
+
+void
+sentry_remove_attribute(const char *key)
+{
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry__scope_remove_attribute(scope, key);
+    }
+}
+
+void
+sentry_remove_attribute_n(const char *key, size_t key_len)
+{
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry__scope_remove_attribute_n(scope, key, key_len);
+    }
+}
+
+void
 sentry_set_context(const char *key, sentry_value_t value)
 {
     SENTRY_WITH_SCOPE_MUT (scope) {
-        sentry_value_set_by_key(scope->contexts, key, value);
+        sentry_scope_set_context(scope, key, value);
     }
 }
 
@@ -799,7 +986,15 @@ void
 sentry_set_context_n(const char *key, size_t key_len, sentry_value_t value)
 {
     SENTRY_WITH_SCOPE_MUT (scope) {
-        sentry_value_set_by_key_n(scope->contexts, key, key_len, value);
+        sentry_scope_set_context_n(scope, key, key_len, value);
+    }
+}
+
+void
+sentry__set_propagation_context(const char *key, sentry_value_t value)
+{
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry_value_set_by_key(scope->propagation_context, key, value);
     }
 }
 
@@ -822,39 +1017,28 @@ sentry_remove_context_n(const char *key, size_t key_len)
 void
 sentry_set_fingerprint_n(const char *fingerprint, size_t fingerprint_len, ...)
 {
-    sentry_value_t fingerprint_value = sentry_value_new_list();
-
     va_list va;
     va_start(va, fingerprint_len);
-    for (; fingerprint; fingerprint = va_arg(va, const char *)) {
-        sentry_value_append(fingerprint_value,
-            sentry_value_new_string_n(fingerprint, fingerprint_len));
-    }
-    va_end(va);
 
     SENTRY_WITH_SCOPE_MUT (scope) {
-        sentry_value_decref(scope->fingerprint);
-        scope->fingerprint = fingerprint_value;
+        sentry__scope_set_fingerprint_nva(
+            scope, fingerprint, fingerprint_len, va);
     }
+
+    va_end(va);
 }
 
 void
 sentry_set_fingerprint(const char *fingerprint, ...)
 {
-    sentry_value_t fingerprint_value = sentry_value_new_list();
-
     va_list va;
     va_start(va, fingerprint);
-    for (; fingerprint; fingerprint = va_arg(va, const char *)) {
-        sentry_value_append(
-            fingerprint_value, sentry_value_new_string(fingerprint));
-    }
-    va_end(va);
 
     SENTRY_WITH_SCOPE_MUT (scope) {
-        sentry_value_decref(scope->fingerprint);
-        scope->fingerprint = fingerprint_value;
+        sentry__scope_set_fingerprint_va(scope, fingerprint, va);
     }
+
+    va_end(va);
 }
 
 void
@@ -877,8 +1061,10 @@ void
 sentry_set_trace_n(const char *trace_id, size_t trace_id_len,
     const char *parent_span_id, size_t parent_span_id_len)
 {
+    sentry_value_t context = sentry_value_new_null();
+
     SENTRY_WITH_SCOPE_MUT (scope) {
-        sentry_value_t context = sentry_value_new_object();
+        context = sentry_value_new_object();
 
         sentry_value_set_by_key(
             context, "type", sentry_value_new_string("trace"));
@@ -891,8 +1077,22 @@ sentry_set_trace_n(const char *trace_id, size_t trace_id_len,
         sentry_uuid_t span_id = sentry_uuid_new_v4();
         sentry_value_set_by_key(
             context, "span_id", sentry__value_new_span_uuid(&span_id));
+        scope->trace_managed = false;
+    }
 
-        sentry_set_context("trace", context);
+    if (!sentry_value_is_null(context)) {
+        sentry__generate_sample_rand(context);
+
+        sentry__set_propagation_context("trace", context);
+    }
+}
+
+void
+sentry_regenerate_trace(void)
+{
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        generate_propagation_context(scope->propagation_context);
+        scope->trace_managed = false;
     }
 }
 
@@ -928,7 +1128,7 @@ void
 sentry_set_level(sentry_level_t level)
 {
     SENTRY_WITH_SCOPE_MUT (scope) {
-        scope->level = level;
+        sentry_scope_set_level(scope, level);
     }
 }
 
@@ -964,8 +1164,15 @@ sentry_transaction_start_ts(sentry_transaction_context_t *opaque_tx_ctx,
     sentry_value_remove_by_key(tx, "timestamp");
 
     sentry__value_merge_objects(tx, tx_ctx);
+    double sample_rand = 1.0;
+    SENTRY_WITH_SCOPE (scope) {
+        sample_rand = sentry_value_as_double(sentry_value_get_by_key(
+            sentry_value_get_by_key(scope->propagation_context, "trace"),
+            "sample_rand"));
+    }
     sentry_sampling_context_t sampling_ctx
-        = { opaque_tx_ctx, custom_sampling_ctx, NULL };
+        = { opaque_tx_ctx, custom_sampling_ctx, NULL, sample_rand };
+
     bool should_sample = sentry__should_send_transaction(tx_ctx, &sampling_ctx);
     sentry_value_set_by_key(
         tx, "sampled", sentry_value_new_bool(should_sample));
@@ -1008,6 +1215,17 @@ sentry_transaction_finish_ts(
                 sentry__transaction_decref(scope->transaction_object);
                 scope->transaction_object = NULL;
             }
+        }
+        // if the SDK manages the trace (rather than the user or a downstream
+        // SDK) we break propagation context traces at transaction boundaries.
+        if (scope->trace_managed) {
+            sentry_value_t txn_trace_id
+                = sentry_value_get_by_key(tx, "trace_id");
+            sentry_value_incref(txn_trace_id);
+
+            sentry_value_set_by_key(
+                sentry_value_get_by_key(scope->propagation_context, "trace"),
+                "trace_id", txn_trace_id);
         }
     }
     // The sampling decision should already be made for transactions
@@ -1059,7 +1277,7 @@ sentry_transaction_finish_ts(
 
     // This takes ownership of the transaction, generates an event ID, merges
     // scope
-    return sentry__capture_event(tx);
+    return sentry__capture_event(tx, NULL);
 fail:
     sentry__transaction_decref(opaque_tx);
     return sentry_uuid_nil();
@@ -1296,7 +1514,21 @@ fail:
 }
 
 void
-sentry_capture_user_feedback(sentry_value_t user_feedback)
+sentry_capture_user_feedback(sentry_value_t user_report)
+{
+    sentry_envelope_t *envelope = NULL;
+
+    SENTRY_WITH_OPTIONS (options) {
+        envelope = prepare_user_report(user_report);
+        if (envelope) {
+            sentry__capture_envelope(options->transport, envelope);
+        }
+    }
+    sentry_value_decref(user_report);
+}
+
+void
+sentry_capture_feedback(sentry_value_t user_feedback)
 {
     sentry_envelope_t *envelope = NULL;
 
@@ -1304,9 +1536,52 @@ sentry_capture_user_feedback(sentry_value_t user_feedback)
         envelope = prepare_user_feedback(user_feedback);
         if (envelope) {
             sentry__capture_envelope(options->transport, envelope);
+        } else {
+            sentry_value_decref(user_feedback);
         }
     }
-    sentry_value_decref(user_feedback);
+}
+
+bool
+sentry__launch_external_crash_reporter(sentry_envelope_t *envelope)
+{
+    SENTRY_WITH_OPTIONS (options) {
+        if (!options->external_crash_reporter) {
+            return false;
+        }
+
+        sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
+        char *envelope_filename
+            = sentry__uuid_as_filename(&event_id, ".envelope");
+        if (!envelope_filename) {
+            return false;
+        }
+
+        sentry_path_t *report_path = sentry__path_join_str(
+            options->run->external_path, envelope_filename);
+        if (!report_path) {
+            sentry_free(envelope_filename);
+            return false;
+        }
+
+        // capture the envelope with the disk transport
+        sentry_transport_t *disk_transport
+            = sentry_new_external_disk_transport(options->run);
+        if (!disk_transport) {
+            sentry__path_free(report_path);
+            sentry_free(envelope_filename);
+            return false;
+        }
+        sentry__capture_envelope(disk_transport, envelope);
+        sentry__transport_dump_queue(disk_transport, options->run);
+        sentry_transport_free(disk_transport);
+
+        sentry__process_spawn(
+            options->external_crash_reporter, report_path->path, NULL);
+        sentry__path_free(report_path);
+        sentry_free(envelope_filename);
+    }
+    return true;
 }
 
 int
@@ -1344,8 +1619,7 @@ sentry_capture_minidump_n(const char *path, size_t path_len)
         return sentry_uuid_nil();
     }
 
-    SENTRY_DEBUGF(
-        "Capturing minidump \"%" SENTRY_PATH_PRI "\"", dump_path->path);
+    SENTRY_DEBUGF("Capturing minidump \"%s\"", dump_path->path);
 
     SENTRY_WITH_OPTIONS (options) {
         sentry_uuid_t event_id;
@@ -1353,12 +1627,12 @@ sentry_capture_minidump_n(const char *path, size_t path_len)
         sentry_value_set_by_key(
             event, "level", sentry__value_new_level(SENTRY_LEVEL_FATAL));
         sentry_envelope_t *envelope
-            = sentry__prepare_event(options, event, &event_id, true);
+            = sentry__prepare_event(options, event, &event_id, true, NULL);
 
         if (!envelope || sentry_uuid_is_nil(&event_id)) {
             sentry_value_decref(event);
         } else {
-            // the minidump is added as an attachment, with type
+            // the minidump is added as an attachment, with the type
             // `event.minidump`
             sentry_envelope_item_t *item = sentry__envelope_add_from_path(
                 envelope, dump_path, "attachment");
@@ -1370,18 +1644,12 @@ sentry_capture_minidump_n(const char *path, size_t path_len)
                     sentry_value_new_string("event.minidump"));
 
                 sentry__envelope_item_set_header(item, "filename",
-#ifdef SENTRY_PLATFORM_WINDOWS
-                    sentry__value_new_string_from_wstr(
-#else
-                    sentry_value_new_string(
-#endif
-                        sentry__path_filename(dump_path)));
+                    sentry_value_new_string(sentry__path_filename(dump_path)));
 
                 sentry__capture_envelope(options->transport, envelope);
 
-                SENTRY_INFOF("Minidump has been captured: \"%" SENTRY_PATH_PRI
-                             "\"",
-                    dump_path->path);
+                SENTRY_INFOF(
+                    "Minidump has been captured: \"%s\"", dump_path->path);
                 sentry__path_free(dump_path);
 
                 sentry_options_free((sentry_options_t *)options);
@@ -1390,9 +1658,114 @@ sentry_capture_minidump_n(const char *path, size_t path_len)
         }
     }
 
-    SENTRY_WARNF(
-        "Minidump was not captured: \"%" SENTRY_PATH_PRI "\"", dump_path->path);
+    SENTRY_WARNF("Minidump was not captured: \"%s\"", dump_path->path);
     sentry__path_free(dump_path);
 
     return sentry_uuid_nil();
 }
+
+static sentry_attachment_t *
+add_attachment(sentry_attachment_t *attachment)
+{
+    SENTRY_WITH_OPTIONS (options) {
+        if (options->backend && options->backend->add_attachment_func) {
+            options->backend->add_attachment_func(options->backend, attachment);
+        }
+    }
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        attachment = sentry__attachments_add(
+            &scope->attachments, attachment, ATTACHMENT, NULL);
+    }
+    return attachment;
+}
+
+sentry_attachment_t *
+sentry_attach_file(const char *path)
+{
+    return sentry_attach_file_n(path, sentry__guarded_strlen(path));
+}
+
+sentry_attachment_t *
+sentry_attach_file_n(const char *path, size_t path_len)
+{
+    return add_attachment(
+        sentry__attachment_from_path(sentry__path_from_str_n(path, path_len)));
+}
+
+sentry_attachment_t *
+sentry_attach_bytes(const char *buf, size_t buf_len, const char *filename)
+{
+    return sentry_attach_bytes_n(
+        buf, buf_len, filename, sentry__guarded_strlen(filename));
+}
+
+sentry_attachment_t *
+sentry_attach_bytes_n(
+    const char *buf, size_t buf_len, const char *filename, size_t filename_len)
+{
+    return add_attachment(sentry__attachment_from_buffer(
+        buf, buf_len, sentry__path_from_str_n(filename, filename_len)));
+}
+
+void
+sentry_clear_attachments(void)
+{
+    SENTRY_WITH_OPTIONS (options) {
+        SENTRY_WITH_SCOPE_MUT (scope) {
+            if (options->backend && options->backend->remove_attachment_func) {
+                for (sentry_attachment_t *it = scope->attachments; it;
+                    it = it->next) {
+                    options->backend->remove_attachment_func(
+                        options->backend, it);
+                }
+            }
+            sentry__attachments_free(scope->attachments);
+            scope->attachments = NULL;
+        }
+    }
+}
+
+void
+sentry_remove_attachment(sentry_attachment_t *attachment)
+{
+    SENTRY_WITH_OPTIONS (options) {
+        if (options->backend && options->backend->remove_attachment_func) {
+            options->backend->remove_attachment_func(
+                options->backend, attachment);
+        }
+    }
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry__attachments_remove(&scope->attachments, attachment);
+    }
+}
+
+#ifdef SENTRY_PLATFORM_WINDOWS
+sentry_attachment_t *
+sentry_attach_filew(const wchar_t *path)
+{
+    size_t path_len = path ? wcslen(path) : 0;
+    return sentry_attach_filew_n(path, path_len);
+}
+
+sentry_attachment_t *
+sentry_attach_filew_n(const wchar_t *path, size_t path_len)
+{
+    return add_attachment(
+        sentry__attachment_from_path(sentry__path_from_wstr_n(path, path_len)));
+}
+
+sentry_attachment_t *
+sentry_attach_bytesw(const char *buf, size_t buf_len, const wchar_t *filename)
+{
+    size_t filename_len = filename ? wcslen(filename) : 0;
+    return sentry_attach_bytesw_n(buf, buf_len, filename, filename_len);
+}
+
+sentry_attachment_t *
+sentry_attach_bytesw_n(const char *buf, size_t buf_len, const wchar_t *filename,
+    size_t filename_len)
+{
+    return add_attachment(sentry__attachment_from_buffer(
+        buf, buf_len, sentry__path_from_wstr_n(filename, filename_len)));
+}
+#endif

@@ -2,10 +2,13 @@ extern "C" {
 #include "sentry_boot.h"
 
 #include "sentry_alloc.h"
+#include "sentry_attachment.h"
 #include "sentry_backend.h"
 #include "sentry_core.h"
 #include "sentry_database.h"
 #include "sentry_envelope.h"
+#include "sentry_logger.h"
+#include "sentry_logs.h"
 #include "sentry_options.h"
 #ifdef SENTRY_PLATFORM_WINDOWS
 #    include "sentry_os.h"
@@ -57,7 +60,7 @@ breakpad_backend_callback(const wchar_t *breakpad_dump_path,
     EXCEPTION_POINTERS *exinfo, MDRawAssertionInfo *UNUSED(assertion),
     bool succeeded)
 #elif defined(SENTRY_PLATFORM_DARWIN)
-#    ifdef SENTRY_BREAKPAD_SYSTEM
+#    if defined(SENTRY_BREAKPAD_SYSTEM) || defined(SENTRY_PLATFORM_IOS)
 static bool
 breakpad_backend_callback(const char *breakpad_dump_path,
     const char *minidump_id, void *UNUSED(context), bool succeeded)
@@ -73,6 +76,13 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
     void *UNUSED(context), bool succeeded)
 #endif
 {
+    // Disable logging during crash handling if the option is set
+    SENTRY_WITH_OPTIONS (options) {
+        if (!options->enable_logging_when_crashed) {
+            sentry__logger_disable();
+        }
+    }
+
     SENTRY_INFO("entering breakpad minidump callback");
 
     // this is a bit strange, according to docs, `succeeded` should be true when
@@ -95,7 +105,7 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
 
     sentry_path_t *dump_path = nullptr;
 #ifdef SENTRY_PLATFORM_WINDOWS
-    sentry_path_t *tmp_path = sentry__path_new(breakpad_dump_path);
+    sentry_path_t *tmp_path = sentry__path_from_wstr(breakpad_dump_path);
     dump_path = sentry__path_join_wstr(tmp_path, minidump_id);
     sentry__path_free(tmp_path);
     tmp_path = dump_path;
@@ -123,7 +133,8 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
         if (options->on_crash_func) {
             sentry_ucontext_t *uctx = nullptr;
 
-#if defined(SENTRY_PLATFORM_DARWIN) && !defined(SENTRY_BREAKPAD_SYSTEM)
+#if defined(SENTRY_PLATFORM_DARWIN)                                            \
+    && !(defined(SENTRY_BREAKPAD_SYSTEM) || defined(SENTRY_PLATFORM_IOS))
             sentry_ucontext_t uctx_data;
             uctx_data.user_context = user_context;
             uctx = &uctx_data;
@@ -141,9 +152,14 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
             should_handle = !sentry_value_is_null(result);
         }
 
+        // Flush logs in a crash-safe manner before crash handling
+        if (options->enable_logs) {
+            sentry__logs_flush_crash_safe();
+        }
+
         if (should_handle) {
             sentry_envelope_t *envelope = sentry__prepare_event(
-                options, event, nullptr, !options->on_crash_func);
+                options, event, nullptr, !options->on_crash_func, nullptr);
             sentry_session_t *session = sentry__end_current_session_with_status(
                 SENTRY_SESSION_STATUS_CRASHED);
             sentry__envelope_add_session(envelope, session);
@@ -157,30 +173,27 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
                     sentry_value_new_string("event.minidump"));
 
                 sentry__envelope_item_set_header(item, "filename",
-#ifdef SENTRY_PLATFORM_WINDOWS
-                    sentry__value_new_string_from_wstr(
-#else
-                    sentry_value_new_string(
-#endif
-                        sentry__path_filename(dump_path)));
+                    sentry_value_new_string(sentry__path_filename(dump_path)));
             }
 
             if (options->attach_screenshot) {
-                sentry_path_t *screenshot_path
-                    = sentry__screenshot_get_path(options);
-                if (sentry__screenshot_capture(screenshot_path)) {
-                    sentry__envelope_add_attachment(
-                        envelope, screenshot_path, NULL);
+                sentry_attachment_t *screenshot = sentry__attachment_from_path(
+                    sentry__screenshot_get_path(options));
+                if (screenshot
+                    && sentry__screenshot_capture(screenshot->path)) {
+                    sentry__envelope_add_attachment(envelope, screenshot);
                 }
-                sentry__path_free(screenshot_path);
+                sentry__attachment_free(screenshot);
             }
 
-            // capture the envelope with the disk transport
-            sentry_transport_t *disk_transport
-                = sentry_new_disk_transport(options->run);
-            sentry__capture_envelope(disk_transport, envelope);
-            sentry__transport_dump_queue(disk_transport, options->run);
-            sentry_transport_free(disk_transport);
+            if (!sentry__launch_external_crash_reporter(envelope)) {
+                // capture the envelope with the disk transport
+                sentry_transport_t *disk_transport
+                    = sentry_new_disk_transport(options->run);
+                sentry__capture_envelope(disk_transport, envelope);
+                sentry__transport_dump_queue(disk_transport, options->run);
+                sentry_transport_free(disk_transport);
+            }
 
             // now that the envelope was written, we can remove the temporary
             // minidump file
@@ -245,9 +258,12 @@ breakpad_backend_startup(
     sentry_path_t *current_run_folder = options->run->run_path;
 
 #ifdef SENTRY_PLATFORM_WINDOWS
-    sentry__reserve_thread_stack();
+#    if !defined(SENTRY_BUILD_SHARED)                                          \
+        && defined(SENTRY_THREAD_STACK_GUARANTEE_AUTO_INIT)
+    sentry__set_default_thread_stack_guarantee();
+#    endif
     backend->data = new google_breakpad::ExceptionHandler(
-        current_run_folder->path, NULL, breakpad_backend_callback, NULL,
+        current_run_folder->path_w, nullptr, breakpad_backend_callback, nullptr,
         google_breakpad::ExceptionHandler::HANDLER_EXCEPTION);
 #elif defined(SENTRY_PLATFORM_MACOS)
     // If process is being debugged and there are breakpoints set it will cause

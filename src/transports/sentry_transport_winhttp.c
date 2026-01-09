@@ -9,6 +9,10 @@
 #include "sentry_transport.h"
 #include "sentry_utils.h"
 
+#ifdef SENTRY_PLATFORM_XBOX
+#    include "sentry_transport_xbox.h"
+#endif
+
 #include <stdlib.h>
 #include <string.h>
 #include <winhttp.h>
@@ -94,6 +98,8 @@ sentry__winhttp_transport_start(
     state->dsn = sentry__dsn_incref(opts->dsn);
     state->user_agent = sentry__string_to_wstr(opts->user_agent);
     state->debug = opts->debug;
+
+    sentry__bgworker_setname(bgworker, opts->transport_thread_name);
 
     const char *env_proxy = opts->dsn
         ? getenv(opts->dsn->is_secure ? "https_proxy" : "http_proxy")
@@ -211,6 +217,15 @@ sentry__winhttp_send_task(void *_envelope, void *_state)
     url_components.dwUrlPathLength = 1024;
 
     WinHttpCrackUrl(url, 0, 0, &url_components);
+
+#ifdef SENTRY_PLATFORM_XBOX
+    // Ensure Xbox network connectivity is initialized before HTTP requests
+    if (!sentry__xbox_ensure_network_initialized()) {
+        SENTRY_WARN("Xbox: Network not ready, skipping HTTP request");
+        goto exit;
+    }
+#endif
+
     if (!state->connect) {
         state->connect = WinHttpConnect(state->session,
             url_components.lpszHostName, url_components.nPort, 0);
@@ -242,10 +257,17 @@ sentry__winhttp_send_task(void *_envelope, void *_state)
 
     char *headers_buf = sentry__stringbuilder_into_string(&sb);
     headers = sentry__string_to_wstr(headers_buf);
+
+    if (headers_buf) {
+        SENTRY_DEBUGF("sending request using winhttp to \"%s\":\n%s", req->url,
+            headers_buf);
+    }
     sentry_free(headers_buf);
 
-    SENTRY_DEBUGF(
-        "sending request using winhttp to \"%s\":\n%S", req->url, headers);
+    if (!headers) {
+        SENTRY_WARN("sentry__winhttp_send_task: failed to allocate headers");
+        goto exit;
+    }
 
     if (state->proxy_username && state->proxy_password) {
         WinHttpSetCredentials(state->request, WINHTTP_AUTH_TARGET_PROXY,

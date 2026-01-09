@@ -46,13 +46,9 @@ def test_capture_screenshot(cmake, httpserver, build_args):
     build_args.update({"SENTRY_TRANSPORT": "none"})
     tmp_path = cmake(["sentry_screenshot"], build_args)
 
-    # make sure we are isolated from previous runs
-    shutil.rmtree(tmp_path / ".sentry-native", ignore_errors=True)
-
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
 
-    child = run(tmp_path, "sentry_screenshot", ["crash"], env=env)
-    assert child.returncode
+    run(tmp_path, "sentry_screenshot", ["crash"], expect_failure=True, env=env)
 
     assert_screenshot_file(tmp_path / ".sentry-native")
 
@@ -70,16 +66,12 @@ def test_capture_screenshot(cmake, httpserver, build_args):
 def test_capture_screenshot_crashpad(cmake, httpserver, run_args):
     tmp_path = cmake(["sentry_screenshot"], {"SENTRY_BACKEND": "crashpad"})
 
-    # make sure we are isolated from previous runs
-    shutil.rmtree(tmp_path / ".sentry-native", ignore_errors=True)
-
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
     httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data("OK")
     httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
 
     with httpserver.wait(timeout=10) as waiting:
-        child = run(tmp_path, "sentry_screenshot", run_args, env=env)
-        assert child.returncode
+        run(tmp_path, "sentry_screenshot", run_args, expect_failure=True, env=env)
 
     assert waiting.result
 

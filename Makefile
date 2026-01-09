@@ -1,7 +1,7 @@
 all: test
 
 update-test-discovery:
-	@perl -ne 'print if s/SENTRY_TEST\(([^)]+)\).*/XX(\1)/' tests/unit/*.c | sort | grep -v define | uniq > tests/unit/tests.inc
+	@perl -ne 'print if s/SENTRY_TEST\(([^)]+)\).*/XX(\1)/' tests/unit/*.c | LC_ALL=C sort | grep -v define | uniq > tests/unit/tests.inc
 .PHONY: update-test-discovery
 
 build/Makefile: CMakeLists.txt
@@ -42,6 +42,10 @@ test-leaks: update-test-discovery CMakeLists.txt
 	@cmake --build leak-build --target sentry_test_unit --parallel
 	@ASAN_OPTIONS=detect_leaks=1 ./leak-build/sentry_test_unit
 .PHONY: test-leaks
+
+benchmark: setup-venv
+	.venv/bin/pytest tests/benchmark.py --verbose
+.PHONY: benchmark
 
 clean: build/Makefile
 	@$(MAKE) -C build clean

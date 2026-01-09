@@ -7,6 +7,9 @@
 #include "sentry_string.h"
 #include "sentry_sync.h"
 #include "sentry_utils.h"
+
+#include "sentry_random.h"
+
 #include <locale.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -227,6 +230,8 @@ sentry__dsn_new_n(const char *raw_dsn, size_t raw_dsn_len)
     memset(&url, 0, sizeof(sentry_url_t));
     size_t path_len;
     char *project_id;
+    // org_id is u64 in relay, so needs 20 characters + null termination
+    char org_id[21] = "";
 
     sentry_dsn_t *dsn = SENTRY_MAKE(sentry_dsn_t);
     if (!dsn) {
@@ -250,6 +255,21 @@ sentry__dsn_new_n(const char *raw_dsn, size_t raw_dsn_len)
     }
 
     dsn->host = url.host;
+    const char *org_id_dot = strchr(url.host, '.');
+    if (org_id_dot && url.host[0] == 'o') {
+        size_t length = (size_t)(org_id_dot - url.host - 1); // leave the o
+        strncpy(org_id, url.host + 1, MIN(length, 20));
+        org_id[MIN(length, 20)] = '\0'; // Null-terminate the string
+        char *org_id_end_ptr;
+        const unsigned long long int org_id_int
+            = strtoull(org_id, &org_id_end_ptr, 10);
+        // check if valid uint64 AND not actually the number 0
+        if (length > 20
+            || (org_id_int == 0ULL && org_id_end_ptr != org_id + length)) {
+            memset(org_id, '\0', 20);
+        }
+    }
+    dsn->org_id = sentry__string_clone(org_id);
     url.host = NULL;
     dsn->public_key = url.username;
     url.username = NULL;
@@ -312,6 +332,7 @@ sentry__dsn_decref(sentry_dsn_t *dsn)
     if (sentry__atomic_fetch_and_add(&dsn->refcount, -1) == 1) {
         sentry_free(dsn->raw);
         sentry_free(dsn->host);
+        sentry_free(dsn->org_id);
         sentry_free(dsn->path);
         sentry_free(dsn->public_key);
         sentry_free(dsn->secret_key);
@@ -389,7 +410,7 @@ sentry__usec_time_to_iso8601(uint64_t time)
     size_t buf_len = sizeof(buf);
     time_t secs = time / 1000000;
     struct tm *tm;
-#ifdef SENTRY_PLATFORM_WINDOWS
+#if defined(SENTRY_PLATFORM_WINDOWS) || defined(SENTRY_PLATFORM_PS)
     tm = gmtime(&secs);
 #else
     struct tm tm_buf;
@@ -424,6 +445,7 @@ sentry__usec_time_to_iso8601(uint64_t time)
     return sentry__string_clone(buf);
 }
 
+#ifndef SENTRY_PLATFORM_PS
 uint64_t
 sentry__iso8601_to_usec(const char *iso)
 {
@@ -460,9 +482,9 @@ sentry__iso8601_to_usec(const char *iso)
     tm.tm_hour = h;
     tm.tm_min = m;
     tm.tm_sec = s;
-#ifdef SENTRY_PLATFORM_WINDOWS
+#    ifdef SENTRY_PLATFORM_WINDOWS
     time_t time = _mkgmtime(&tm);
-#elif defined(SENTRY_PLATFORM_AIX)
+#    elif defined(SENTRY_PLATFORM_AIX)
     /*
      * timegm is a GNU extension that AIX doesn't support. We'll have to fake
      * it by setting TZ instead w/ mktime, then unsets it. Changes global env.
@@ -485,15 +507,16 @@ sentry__iso8601_to_usec(const char *iso)
         unsetenv("TZ");
     }
     tzset();
-#else
+#    else
     time_t time = timegm(&tm);
-#endif
+#    endif
     if (time == -1) {
         return 0;
     }
 
     return (uint64_t)time * 1000000 + (uint64_t)usec;
 }
+#endif
 
 #ifdef SENTRY_PLATFORM_WINDOWS
 #    define sentry__locale_t _locale_t
@@ -506,7 +529,8 @@ sentry__iso8601_to_usec(const char *iso)
 // if Android ever adds locale support in NDK we will have to revisit this code
 // to ensure the C locale is also used there.
 #if !defined(SENTRY_PLATFORM_ANDROID) && !defined(SENTRY_PLATFORM_IOS)         \
-    && !defined(SENTRY_PLATFORM_AIX) && !defined(SENTRY_PLATFORM_NX)
+    && !defined(SENTRY_PLATFORM_AIX) && !defined(SENTRY_PLATFORM_NX)           \
+    && !defined(SENTRY_PLATFORM_PS)
 #    define HAS_C_LOCALE
 #endif
 
@@ -575,4 +599,17 @@ sentry__check_min_version(sentry_version_t actual, sentry_version_t expected)
     }
 
     return true;
+}
+
+void
+sentry__generate_sample_rand(sentry_value_t context)
+{
+    uint64_t rnd;
+    double sample_rand = 1.0;
+    do {
+        sentry__getrandom(&rnd, sizeof(rnd));
+        sample_rand = (double)rnd / (double)UINT64_MAX;
+    } while (sample_rand == 1.0); // re-roll when generating 1.0
+    sentry_value_set_by_key(
+        context, "sample_rand", sentry_value_new_double(sample_rand));
 }

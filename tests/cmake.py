@@ -14,8 +14,10 @@ class CMake:
         self.runs = dict()
         self.factory = factory
 
-    def compile(self, targets, options=None):
+    def compile(self, targets, options=None, cflags=None):
         # We build in tmp for all of our tests. Disable the warning MSVC generates to not clutter the build logs.
+        if cflags is None:
+            cflags = []
         if sys.platform == "win32":
             os.environ["IgnoreWarnIntDirInTempDetected"] = "True"
 
@@ -26,12 +28,26 @@ class CMake:
             ";".join(f"{k}={v}" for k, v in options.items()),
         )
 
+        # cache the build configuration
         if key not in self.runs:
             cwd = self.factory.mktemp("cmake")
             self.runs[key] = cwd
-            cmake(cwd, targets, options)
+            cmake(cwd, targets, options, cflags)
 
-        return self.runs[key]
+        build_tmp_path = self.runs[key]
+
+        # ensure that there are no left-overs from previous runs
+        shutil.rmtree(build_tmp_path / ".sentry-native", ignore_errors=True)
+
+        # Inject a sub-path into the temporary build directory as the CWD for all tests to verify UTF-8 path handling.
+        if os.environ.get("UTF8_TEST_CWD"):
+            # this is Thai and translates to "this is a test directory"
+            utf8_subpath = build_tmp_path / "นี่คือไดเร็กทอรีทดสอบ"
+            shutil.rmtree(utf8_subpath, ignore_errors=True)
+            shutil.copytree(build_tmp_path, utf8_subpath, dirs_exist_ok=True)
+            return utf8_subpath
+
+        return build_tmp_path
 
     def destroy(self):
         sourcedir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
@@ -93,7 +109,9 @@ class CMake:
                 )
 
 
-def cmake(cwd, targets, options=None):
+def cmake(cwd, targets, options=None, cflags=None):
+    if cflags is None:
+        cflags = []
     __tracebackhide__ = True
     if options is None:
         options = {}
@@ -149,11 +167,20 @@ def cmake(cwd, targets, options=None):
     if "asan" in os.environ.get("RUN_ANALYZER", ""):
         config_cmd.append("-DWITH_ASAN_OPTION=ON")
     if "tsan" in os.environ.get("RUN_ANALYZER", ""):
+        module_dir = Path(__file__).resolve().parent
+        tsan_options = {
+            "verbosity": 2,
+            "detect_deadlocks": 1,
+            "second_deadlock_stack": 1,
+            "suppressions": module_dir / "tsan.supp",
+        }
+        os.environ["TSAN_OPTIONS"] = ":".join(
+            f"{key}={value}" for key, value in tsan_options.items()
+        )
         config_cmd.append("-DWITH_TSAN_OPTION=ON")
 
     # we have to set `-Werror` for this cmake invocation only, otherwise
     # completely unrelated things will break
-    cflags = []
     if os.environ.get("ERROR_ON_WARNINGS"):
         cflags.append("-Werror")
     if sys.platform == "win32" and not os.environ.get("TEST_MINGW"):
@@ -216,6 +243,8 @@ def cmake(cwd, targets, options=None):
     for target in targets:
         buildcmd.extend(["--target", target])
     buildcmd.append("--parallel")
+    if "CMAKE_BUILD_TYPE" in options:
+        buildcmd.extend(["--config", options["CMAKE_BUILD_TYPE"]])
     if "code-checker" in os.environ.get("RUN_ANALYZER", ""):
         buildcmd = [
             "codechecker",
@@ -274,7 +303,7 @@ def cmake(cwd, targets, options=None):
             "compilation.json",
         ]
         print("{} > {}".format(cwd, " ".join(checkcmd)), flush=True)
-        child = subprocess.run(checkcmd, cwd=cwd, check=True)
+        subprocess.run(checkcmd, cwd=cwd, check=True)
 
     if os.environ.get("ANDROID_API"):
         # copy the output to the android image via adb

@@ -4,10 +4,15 @@
 #include "sentry_string.h"
 #include "sentry_utils.h"
 
-#include <dirent.h>
+#ifdef SENTRY_PLATFORM_PS
+#    include <sys/dirent.h>
+#else
+#    include <dirent.h>
+#    include <libgen.h>
+#endif
+
 #include <errno.h>
 #include <fcntl.h>
-#include <libgen.h>
 #include <limits.h>
 #include <stdlib.h>
 #include <string.h>
@@ -26,11 +31,13 @@
 // only read this many bytes to memory ever
 static const size_t MAX_READ_TO_BUFFER = 134217728;
 
+#ifndef SENTRY_PLATFORM_PS
 struct sentry_pathiter_s {
     const sentry_path_t *parent;
     sentry_path_t *current;
     DIR *dir_handle;
 };
+#endif
 
 static size_t
 write_loop(int fd, const char *buf, size_t buf_len)
@@ -104,7 +111,8 @@ sentry__filelock_unlock(sentry_filelock_t *lock)
     lock->is_locked = false;
 }
 
-#ifndef SENTRY_PLATFORM_NX // defined in a downstream SDK.
+// Defined in a downstream SDK.
+#if !defined(SENTRY_PLATFORM_NX) && !defined(SENTRY_PLATFORM_PS)
 sentry_path_t *
 sentry__path_absolute(const sentry_path_t *path)
 {
@@ -160,6 +168,8 @@ sentry__path_current_exe(void)
     return NULL;
 }
 
+// Defined in a downstream SDK.
+#if !defined(SENTRY_PLATFORM_PS)
 sentry_path_t *
 sentry__path_dir(const sentry_path_t *path)
 {
@@ -177,37 +187,9 @@ sentry__path_dir(const sentry_path_t *path)
     }
     return sentry__path_from_str_owned(newpathbuf);
 }
+#endif
 
-sentry_path_t *
-sentry__path_from_str_n(const char *s, size_t s_len)
-{
-    char *path = sentry__string_clone_n(s, s_len);
-    if (!path) {
-        return NULL;
-    }
-    // NOTE: function will free `path` on error
-    return sentry__path_from_str_owned(path);
-}
-
-sentry_path_t *
-sentry__path_from_str(const char *s)
-{
-    return s ? sentry__path_from_str_n(s, strlen(s)) : NULL;
-}
-
-sentry_path_t *
-sentry__path_from_str_owned(char *s)
-{
-    sentry_path_t *rv = SENTRY_MAKE(sentry_path_t);
-    if (!rv) {
-        sentry_free(s);
-        return NULL;
-    }
-    rv->path = s;
-    return rv;
-}
-
-const sentry_pathchar_t *
+const char *
 sentry__path_filename(const sentry_path_t *path)
 {
     const char *c = strrchr(path->path, '/');
@@ -251,6 +233,17 @@ sentry__path_get_size(const sentry_path_t *path)
     struct stat buf;
     if (stat(path->path, &buf) == 0 && S_ISREG(buf.st_mode)) {
         return (size_t)buf.st_size;
+    } else {
+        return 0;
+    }
+}
+
+time_t
+sentry__path_get_mtime(const sentry_path_t *path)
+{
+    struct stat buf;
+    if (stat(path->path, &buf) == 0) {
+        return (time_t)buf.st_mtime;
     } else {
         return 0;
     }
@@ -361,6 +354,8 @@ done:
     return rv;
 }
 
+// Defined in a downstream SDK.
+#if !defined(SENTRY_PLATFORM_PS)
 sentry_pathiter_t *
 sentry__path_iter_directory(const sentry_path_t *path)
 {
@@ -413,6 +408,7 @@ sentry__pathiter_free(sentry_pathiter_t *piter)
     sentry__path_free(piter->current);
     sentry_free(piter);
 }
+#endif
 
 int
 sentry__path_touch(const sentry_path_t *path)
@@ -438,12 +434,15 @@ sentry__path_read_to_buffer(const sentry_path_t *path, size_t *size_out)
     if (len == 0) {
         close(fd);
         char *rv = sentry_malloc(1);
-        rv[0] = '\0';
-        if (size_out) {
-            *size_out = 0;
+        if (rv) {
+            rv[0] = '\0';
+            if (size_out) {
+                *size_out = 0;
+            }
         }
         return rv;
-    } else if (len > MAX_READ_TO_BUFFER) {
+    }
+    if (len > MAX_READ_TO_BUFFER) {
         close(fd);
         return NULL;
     }
@@ -571,7 +570,7 @@ sentry__filewriter_free(sentry_filewriter_t *filewriter)
 }
 
 size_t
-sentry__filewriter_byte_count(sentry_filewriter_t *filewriter)
+sentry__filewriter_byte_count(const sentry_filewriter_t *filewriter)
 {
     return filewriter->byte_count;
 }

@@ -19,7 +19,9 @@ afl-fuzz -i fuzzing-examples -o fuzzing-results -- fuzzing/sentry_fuzz_json @@
 #undef NDEBUG
 
 #ifdef _WIN32
-#    define WIN32_LEAN_AND_MEAN
+#    ifndef WIN32_LEAN_AND_MEAN
+#        define WIN32_LEAN_AND_MEAN
+#    endif
 #    define NOMINMAX
 #    define _CRT_SECURE_NO_WARNINGS
 #endif

@@ -15,6 +15,12 @@
 #    include <time.h>
 #endif
 
+#ifdef SENTRY_PLATFORM_PS
+#    undef MIN
+#    undef MAX
+#    define getenv(_) NULL
+#endif
+
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 
@@ -58,6 +64,9 @@ void sentry__url_cleanup(sentry_url_t *url);
 typedef struct sentry_dsn_s {
     char *raw;
     char *host;
+    // TODO after u64 value type, change to uint64_t
+    //      -> how to handle empty org_id then?
+    char *org_id;
     char *path;
     char *secret_key;
     char *public_key;
@@ -226,5 +235,11 @@ typedef struct {
  */
 bool sentry__check_min_version(
     sentry_version_t actual, sentry_version_t expected);
+
+/**
+ * Generates and sets a sample_rand value on the given context.
+ * The value set will be in range [0.0, 1.0)
+ */
+void sentry__generate_sample_rand(sentry_value_t context);
 
 #endif

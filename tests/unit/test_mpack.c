@@ -39,14 +39,16 @@ SENTRY_TEST(mpack_newlines)
 
     size_t size;
     char *buf = sentry_value_to_msgpack(o, &size);
+    TEST_ASSERT(!!buf);
 
     sentry_path_t *file
         = sentry__path_from_str(SENTRY_TEST_PATH_PREFIX ".mpack-buf");
+    TEST_ASSERT(!!file);
     sentry__path_append_buffer(file, buf, size);
 
     size_t size_rt;
     char *buf_rt = sentry__path_read_to_buffer(file, &size_rt);
-
+    TEST_ASSERT(!!buf_rt);
     TEST_CHECK_INT_EQUAL(size, size_rt);
     TEST_CHECK(!memcmp(buf, buf_rt, size));
 

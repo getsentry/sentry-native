@@ -46,6 +46,12 @@ sentry_value_t sentry__value_new_internal_uuid(const sentry_uuid_t *uuid);
 sentry_value_t sentry__value_new_uuid(const sentry_uuid_t *uuid);
 
 /**
+ * Creates a new Event with the given `event_id`.
+ * Used by Crashpad to allow associating feedback with the crash event.
+ */
+sentry_value_t sentry__value_new_event_with_id(const sentry_uuid_t *event_id);
+
+/**
  * Creates a new String Value from the given `level`.
  * This can be `debug`, `warning`, `error`, `fatal`, or `info`.
  */
@@ -78,25 +84,6 @@ char *sentry__value_stringify(sentry_value_t value);
  * On a frozen value this produces an unfrozen one.
  */
 sentry_value_t sentry__value_clone(sentry_value_t value);
-
-/**
- * This appends `v` to the List `value`.
- *
- * On non-full lists, exponentially reallocate space to accommodate new values
- * (until we reach `max`). After reaching max, the oldest value is removed to
- * make space for the new one.
- *
- * `max` should stay fixed over multiple invocations.
- *
- * Returns 0 on success.
- */
-int sentry__value_append_ringbuffer(
-    sentry_value_t value, sentry_value_t v, size_t max);
-
-/**
- * Converts ring buffer to linear list
- */
-sentry_value_t sentry__value_ring_buffer_to_list(sentry_value_t rb);
 
 /**
  * Deep-merges object src into dst.
