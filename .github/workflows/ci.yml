@@ -261,23 +261,6 @@ jobs:
           make
           sudo make install
 
-      - name: Install rustup on Windows 11 ARM64 (until the image has it)
-        if: ${{ matrix.os == 'windows-11-arm' }}
-        shell: pwsh
-        run: |
-          Invoke-WebRequest -Uri "https://static.rust-lang.org/rustup/dist/aarch64-pc-windows-msvc/rustup-init.exe" -OutFile rustup-init.exe
-          .\rustup-init.exe --default-toolchain none -y
-          "$env:USERPROFILE\.cargo\bin" | Out-File -Append -Encoding ascii $env:GITHUB_PATH
-          "CARGO_HOME=$env:USERPROFILE\.cargo" | Out-File -Append -Encoding ascii $env:GITHUB_ENV
-          tree "$env:ProgramFiles\OpenSSL" /F
-
-      - name: Install rust on Windows 11 ARM64 (until the image has it)
-        if: ${{ matrix.os == 'windows-11-arm' }}
-        shell: pwsh
-        run: |
-          rustup install stable
-          rustup target add aarch64-pc-windows-msvc
-
       - name: Installing Linux 32-bit Dependencies
         if: ${{ runner.os == 'Linux' && env['TEST_X86'] && !matrix.container }}
         run: |
