@@ -168,6 +168,8 @@ jobs:
             TEST_X86: 1
           - name: Windows (latest)
             os: windows-latest
+          - name: Windows arm64
+            os: windows-11-arm
           - name: Windows (latest, UTF-8 paths)
             os: windows-latest
             UTF8_TEST_CWD: 1

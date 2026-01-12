@@ -28,11 +28,13 @@ def test_static_lib(cmake):
             binary.seek(offset, 0)
             magic = binary.read(6)
             # https://docs.microsoft.com/en-us/windows/win32/debug/pe-format#signature-image-only
-            assert magic == (
-                b"PE\x00\x00\x4c\x01"
-                if os.environ.get("TEST_X86")
-                else b"PE\x00\x00\x64\x86"
-            )
+            if os.environ.get("TEST_X86"):
+                expected = b"PE\x00\x00\x4c\x01"  # IMAGE_FILE_MACHINE_I386
+            elif os.environ.get("PROCESSOR_ARCHITECTURE") == "ARM64":
+                expected = b"PE\x00\x00\x64\xaa"  # IMAGE_FILE_MACHINE_ARM64
+            else:
+                expected = b"PE\x00\x00\x64\x86"  # IMAGE_FILE_MACHINE_AMD64
+            assert magic == expected
     # similarly, we use `file` on linux
     if sys.platform == "linux":
         output = subprocess.check_output(

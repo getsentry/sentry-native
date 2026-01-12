@@ -445,8 +445,47 @@ registers_from_uctx(const sentry_ucontext_t *uctx)
         SET_REG("esp", Esp);
     }
 
-#    else
-    // _ARM64_
+#    elif defined(_M_ARM64)
+
+    if (ctx->ContextFlags & CONTEXT_INTEGER) {
+        SET_REG("x0", X0);
+        SET_REG("x1", X1);
+        SET_REG("x2", X2);
+        SET_REG("x3", X3);
+        SET_REG("x4", X4);
+        SET_REG("x5", X5);
+        SET_REG("x6", X6);
+        SET_REG("x7", X7);
+        SET_REG("x8", X8);
+        SET_REG("x9", X9);
+        SET_REG("x10", X10);
+        SET_REG("x11", X11);
+        SET_REG("x12", X12);
+        SET_REG("x13", X13);
+        SET_REG("x14", X14);
+        SET_REG("x15", X15);
+        SET_REG("x16", X16);
+        SET_REG("x17", X17);
+        // x18 is reserved as platform register on Windows
+        SET_REG("x19", X19);
+        SET_REG("x20", X20);
+        SET_REG("x21", X21);
+        SET_REG("x22", X22);
+        SET_REG("x23", X23);
+        SET_REG("x24", X24);
+        SET_REG("x25", X25);
+        SET_REG("x26", X26);
+        SET_REG("x27", X27);
+        SET_REG("x28", X28);
+    }
+
+    if (ctx->ContextFlags & CONTEXT_CONTROL) {
+        SET_REG("fp", Fp);
+        SET_REG("lr", Lr);
+        SET_REG("sp", Sp);
+        SET_REG("pc", Pc);
+    }
+
 #    endif
 
 #    undef SET_REG
