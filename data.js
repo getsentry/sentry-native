@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1768214664386,
+  "lastUpdate": 1768214807304,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -16810,6 +16810,66 @@ window.BENCHMARK_DATA = {
             "value": 19.290124999997715,
             "unit": "ms",
             "extra": "Min 12.357ms\nMax 36.980ms\nMean 21.182ms\nStdDev 9.543ms\nMedian 19.290ms\nCPU 1.343ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "60878493+JoshuaMoelans@users.noreply.github.com",
+            "name": "JoshuaMoelans",
+            "username": "JoshuaMoelans"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "1401e1142a715c123c56741f4579ec612bc2fc71",
+          "message": "chore: add windows arm64 CI runner (#1199)\n\n* check windows-11-arm runner\n\n* install rust on win11\n\n* separate rust install steps so seconds step pick up env\n\n* do not install clang-format via pip when on ARM64 windows\n\n* use DeMorgan do bypass the PEP508 expression limit\n\n* figure out if OpenSSL was correctly installed\n\n* try clang-format 20.1.5 (which has ARM64 wheels)\n\n* (test) temporarily skip mitmproxy on ARM64\n\n* update test_build_static for ARM64\n\n* add ARM64 Windows registers to inproc backend\n\n* remove rustup install since we skip mitmproxy anyway\n\n---------\n\nCo-authored-by: Mischan Toosarani-Hausberger <mischan@abovevacant.com>",
+          "timestamp": "2026-01-12T11:39:45+01:00",
+          "tree_id": "920ac6693da89ba290caf5827522eca664192f54",
+          "url": "https://github.com/getsentry/sentry-native/commit/1401e1142a715c123c56741f4579ec612bc2fc71"
+        },
+        "date": 1768214805250,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 7.8811249999262145,
+            "unit": "ms",
+            "extra": "Min 3.935ms\nMax 9.069ms\nMean 6.839ms\nStdDev 2.193ms\nMedian 7.881ms\nCPU 3.862ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 10.266666999996232,
+            "unit": "ms",
+            "extra": "Min 7.664ms\nMax 78.657ms\nMean 22.955ms\nStdDev 31.169ms\nMedian 10.267ms\nCPU 6.013ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 20.530291000000034,
+            "unit": "ms",
+            "extra": "Min 18.639ms\nMax 41.354ms\nMean 25.535ms\nStdDev 9.641ms\nMedian 20.530ms\nCPU 6.999ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.03591699999105913,
+            "unit": "ms",
+            "extra": "Min 0.009ms\nMax 0.077ms\nMean 0.034ms\nStdDev 0.028ms\nMedian 0.036ms\nCPU 0.034ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.5372910000005504,
+            "unit": "ms",
+            "extra": "Min 0.284ms\nMax 0.576ms\nMean 0.450ms\nStdDev 0.143ms\nMedian 0.537ms\nCPU 0.449ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 11.909124999988308,
+            "unit": "ms",
+            "extra": "Min 10.805ms\nMax 16.940ms\nMean 12.565ms\nStdDev 2.522ms\nMedian 11.909ms\nCPU 1.439ms"
           }
         ]
       }
