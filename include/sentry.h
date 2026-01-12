@@ -2768,12 +2768,12 @@ SENTRY_API void sentry_capture_feedback(sentry_value_t user_feedback);
  * such as attachments.
  */
 struct sentry_feedback_hint_s;
-typedef struct sentry_feedback_hint_s sentry_feedback_hint_t;
+typedef struct sentry_feedback_hint_s sentry_hint_t;
 
 /**
  * Creates a new feedback hint.
  */
-SENTRY_API sentry_feedback_hint_t *sentry_feedback_hint_new(void);
+SENTRY_API sentry_hint_t *sentry_hint_new(void);
 
 /**
  * Attaches a file to a feedback hint.
@@ -2781,10 +2781,10 @@ SENTRY_API sentry_feedback_hint_t *sentry_feedback_hint_new(void);
  * The file will be read and sent when the feedback is captured.
  * Returns a pointer to the attachment, or NULL on error.
  */
-SENTRY_API sentry_attachment_t *sentry_feedback_hint_attach_file(
-    sentry_feedback_hint_t *hint, const char *path);
-SENTRY_API sentry_attachment_t *sentry_feedback_hint_attach_file_n(
-    sentry_feedback_hint_t *hint, const char *path, size_t path_len);
+SENTRY_API sentry_attachment_t *sentry_hint_attach_file(
+    sentry_hint_t *hint, const char *path);
+SENTRY_API sentry_attachment_t *sentry_hint_attach_file_n(
+    sentry_hint_t *hint, const char *path, size_t path_len);
 
 /**
  * Attaches bytes to a feedback hint.
@@ -2793,29 +2793,29 @@ SENTRY_API sentry_attachment_t *sentry_feedback_hint_attach_file_n(
  * Returns a pointer to the attachment, or NULL on error.
  */
 SENTRY_API sentry_attachment_t *sentry_feedback_hint_attach_bytes(
-    sentry_feedback_hint_t *hint, const char *buf, size_t buf_len,
+    sentry_hint_t *hint, const char *buf, size_t buf_len,
     const char *filename);
 SENTRY_API sentry_attachment_t *sentry_feedback_hint_attach_bytes_n(
-    sentry_feedback_hint_t *hint, const char *buf, size_t buf_len,
+    sentry_hint_t *hint, const char *buf, size_t buf_len,
     const char *filename, size_t filename_len);
 
 #ifdef SENTRY_PLATFORM_WINDOWS
 /**
- * Wide char version of `sentry_feedback_hint_attach_file`.
+ * Wide char version of `sentry_hint_attach_file`.
  */
-SENTRY_API sentry_attachment_t *sentry_feedback_hint_attach_filew(
-    sentry_feedback_hint_t *hint, const wchar_t *path);
-SENTRY_API sentry_attachment_t *sentry_feedback_hint_attach_filew_n(
-    sentry_feedback_hint_t *hint, const wchar_t *path, size_t path_len);
+SENTRY_API sentry_attachment_t *sentry_hint_attach_filew(
+    sentry_hint_t *hint, const wchar_t *path);
+SENTRY_API sentry_attachment_t *sentry_hint_attach_filew_n(
+    sentry_hint_t *hint, const wchar_t *path, size_t path_len);
 
 /**
  * Wide char version of `sentry_feedback_hint_attach_bytes`.
  */
 SENTRY_API sentry_attachment_t *sentry_feedback_hint_attach_bytesw(
-    sentry_feedback_hint_t *hint, const char *buf, size_t buf_len,
+    sentry_hint_t *hint, const char *buf, size_t buf_len,
     const wchar_t *filename);
 SENTRY_API sentry_attachment_t *sentry_feedback_hint_attach_bytesw_n(
-    sentry_feedback_hint_t *hint, const char *buf, size_t buf_len,
+    sentry_hint_t *hint, const char *buf, size_t buf_len,
     const wchar_t *filename, size_t filename_len);
 #endif
 
@@ -2828,7 +2828,7 @@ SENTRY_API sentry_attachment_t *sentry_feedback_hint_attach_bytesw_n(
  * The hint parameter can be NULL if no additional context is needed.
  */
 SENTRY_API void sentry_capture_feedback_with_hint(
-    sentry_value_t user_feedback, sentry_feedback_hint_t *hint);
+    sentry_value_t user_feedback, sentry_hint_t *hint);
 
 /**
  * The status of a Span or Transaction.

@@ -97,10 +97,10 @@ SENTRY_TEST(feedback_with_file_attachment)
     sentry_value_t feedback = sentry_value_new_feedback(
         "test message", "test@example.com", "Test User", &event_id);
 
-    sentry_feedback_hint_t *hint = sentry_feedback_hint_new();
+    sentry_hint_t *hint = sentry_hint_new();
     TEST_CHECK(hint != NULL);
 
-    sentry_attachment_t *attachment = sentry_feedback_hint_attach_file(
+    sentry_attachment_t *attachment = sentry_hint_attach_file(
         hint, SENTRY_TEST_PATH_PREFIX ".feedback-attachment");
     TEST_CHECK(attachment != NULL);
 
@@ -134,7 +134,7 @@ SENTRY_TEST(feedback_with_bytes_attachment)
     sentry_value_t feedback = sentry_value_new_feedback(
         "test message", "test@example.com", "Test User", &event_id);
 
-    sentry_feedback_hint_t *hint = sentry_feedback_hint_new();
+    sentry_hint_t *hint = sentry_hint_new();
     TEST_CHECK(hint != NULL);
 
     const char binary_data[] = "binary\0data\0here";
@@ -176,10 +176,10 @@ SENTRY_TEST(feedback_with_multiple_attachments)
     sentry_value_t feedback = sentry_value_new_feedback(
         "test message", "test@example.com", "Test User", &event_id);
 
-    sentry_feedback_hint_t *hint = sentry_feedback_hint_new();
+    sentry_hint_t *hint = sentry_hint_new();
     TEST_CHECK(hint != NULL);
 
-    sentry_attachment_t *attachment1 = sentry_feedback_hint_attach_file(
+    sentry_attachment_t *attachment1 = sentry_hint_attach_file(
         hint, SENTRY_TEST_PATH_PREFIX ".feedback-file1");
     TEST_CHECK(attachment1 != NULL);
 
@@ -187,7 +187,7 @@ SENTRY_TEST(feedback_with_multiple_attachments)
         hint, "bytes content", 13, "bytes.txt");
     TEST_CHECK(attachment2 != NULL);
 
-    sentry_attachment_t *attachment3 = sentry_feedback_hint_attach_file(
+    sentry_attachment_t *attachment3 = sentry_hint_attach_file(
         hint, SENTRY_TEST_PATH_PREFIX ".feedback-file2");
     TEST_CHECK(attachment3 != NULL);
 

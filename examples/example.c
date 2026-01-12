@@ -736,7 +736,7 @@ main(int argc, char **argv)
             "some-message", "some-email", "some-name", NULL);
 
         // Create a hint and attach both file and byte data
-        sentry_feedback_hint_t *hint = sentry_feedback_hint_new();
+        sentry_hint_t *hint = sentry_hint_new();
 
         // Create a temporary file for the attachment
         const char *attachment_path = ".sentry-test-feedback-attachment";
@@ -747,7 +747,7 @@ main(int argc, char **argv)
         }
 
         // Attach a file
-        sentry_feedback_hint_attach_file(hint, attachment_path);
+        sentry_hint_attach_file(hint, attachment_path);
 
         // Attach bytes data (e.g., binary data from memory)
         const char *binary_data = "binary attachment data";

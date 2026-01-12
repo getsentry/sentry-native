@@ -7,19 +7,19 @@
 
 #include <string.h>
 
-sentry_feedback_hint_t *
-sentry_feedback_hint_new(void)
+sentry_hint_t *
+sentry_hint_new(void)
 {
-    sentry_feedback_hint_t *hint = SENTRY_MAKE(sentry_feedback_hint_t);
+    sentry_hint_t *hint = SENTRY_MAKE(sentry_hint_t);
     if (!hint) {
         return NULL;
     }
-    memset(hint, 0, sizeof(sentry_feedback_hint_t));
+    memset(hint, 0, sizeof(sentry_hint_t));
     return hint;
 }
 
 void
-sentry__feedback_hint_free(sentry_feedback_hint_t *hint)
+sentry__feedback_hint_free(sentry_hint_t *hint)
 {
     if (!hint) {
         return;
@@ -29,15 +29,15 @@ sentry__feedback_hint_free(sentry_feedback_hint_t *hint)
 }
 
 sentry_attachment_t *
-sentry_feedback_hint_attach_file(sentry_feedback_hint_t *hint, const char *path)
+sentry_hint_attach_file(sentry_hint_t *hint, const char *path)
 {
-    return sentry_feedback_hint_attach_file_n(
+    return sentry_hint_attach_file_n(
         hint, path, sentry__guarded_strlen(path));
 }
 
 sentry_attachment_t *
-sentry_feedback_hint_attach_file_n(
-    sentry_feedback_hint_t *hint, const char *path, size_t path_len)
+sentry_hint_attach_file_n(
+    sentry_hint_t *hint, const char *path, size_t path_len)
 {
     if (!hint) {
         return NULL;
@@ -47,7 +47,7 @@ sentry_feedback_hint_attach_file_n(
 }
 
 sentry_attachment_t *
-sentry_feedback_hint_attach_bytes(sentry_feedback_hint_t *hint, const char *buf,
+sentry_feedback_hint_attach_bytes(sentry_hint_t *hint, const char *buf,
     size_t buf_len, const char *filename)
 {
     return sentry_feedback_hint_attach_bytes_n(
@@ -55,7 +55,7 @@ sentry_feedback_hint_attach_bytes(sentry_feedback_hint_t *hint, const char *buf,
 }
 
 sentry_attachment_t *
-sentry_feedback_hint_attach_bytes_n(sentry_feedback_hint_t *hint,
+sentry_feedback_hint_attach_bytes_n(sentry_hint_t *hint,
     const char *buf, size_t buf_len, const char *filename, size_t filename_len)
 {
     if (!hint) {
@@ -69,16 +69,16 @@ sentry_feedback_hint_attach_bytes_n(sentry_feedback_hint_t *hint,
 
 #ifdef SENTRY_PLATFORM_WINDOWS
 sentry_attachment_t *
-sentry_feedback_hint_attach_filew(
-    sentry_feedback_hint_t *hint, const wchar_t *path)
+sentry_hint_attach_filew(
+    sentry_hint_t *hint, const wchar_t *path)
 {
     size_t path_len = path ? wcslen(path) : 0;
-    return sentry_feedback_hint_attach_filew_n(hint, path, path_len);
+    return sentry_hint_attach_filew_n(hint, path, path_len);
 }
 
 sentry_attachment_t *
-sentry_feedback_hint_attach_filew_n(
-    sentry_feedback_hint_t *hint, const wchar_t *path, size_t path_len)
+sentry_hint_attach_filew_n(
+    sentry_hint_t *hint, const wchar_t *path, size_t path_len)
 {
     if (!hint) {
         return NULL;
@@ -88,7 +88,7 @@ sentry_feedback_hint_attach_filew_n(
 }
 
 sentry_attachment_t *
-sentry_feedback_hint_attach_bytesw(sentry_feedback_hint_t *hint,
+sentry_feedback_hint_attach_bytesw(sentry_hint_t *hint,
     const char *buf, size_t buf_len, const wchar_t *filename)
 {
     size_t filename_len = filename ? wcslen(filename) : 0;
@@ -97,7 +97,7 @@ sentry_feedback_hint_attach_bytesw(sentry_feedback_hint_t *hint,
 }
 
 sentry_attachment_t *
-sentry_feedback_hint_attach_bytesw_n(sentry_feedback_hint_t *hint,
+sentry_feedback_hint_attach_bytesw_n(sentry_hint_t *hint,
     const char *buf, size_t buf_len, const wchar_t *filename,
     size_t filename_len)
 {

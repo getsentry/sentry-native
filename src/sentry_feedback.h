@@ -14,6 +14,6 @@ struct sentry_feedback_hint_s {
 /**
  * Frees a feedback hint (internal use only).
  */
-void sentry__feedback_hint_free(sentry_feedback_hint_t *hint);
+void sentry__feedback_hint_free(sentry_hint_t *hint);
 
 #endif
