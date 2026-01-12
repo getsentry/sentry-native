@@ -23,15 +23,26 @@ jobs:
       - uses: actions/checkout@v4
       - run: make style
 
-  build-ios:
-    name: Xcode Build for iOS
+  build-ios-inproc:
+    name: Xcode Build for inproc on iOS
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: "recursive"
       - run: |
-          cmake -B sentry-native-xcode -GXcode -DCMAKE_SYSTEM_NAME=iOS
+          cmake -B sentry-native-xcode -GXcode -DCMAKE_SYSTEM_NAME=iOS -DSENTRY_BACKEND=inproc
+          xcodebuild build -project sentry-native-xcode/Sentry-Native.xcodeproj -sdk iphonesimulator
+
+  build-ios-breakpad:
+    name: Xcode Build for breakpad on iOS
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: "recursive"
+      - run: |
+          cmake -B sentry-native-xcode -GXcode -DCMAKE_SYSTEM_NAME=iOS -DSENTRY_BACKEND=breakpad
           xcodebuild build -project sentry-native-xcode/Sentry-Native.xcodeproj -sdk iphonesimulator
 
   test:
@@ -39,16 +50,28 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # toolchain per runner-image availability:
+            #   ubuntu 22.04
+            #     GCC: 9-12
+            #     clang: 11-15
+            #     kcov: 9-12
+            #   ubuntu 24.04
+            #     GCC: 9-14
+            #     clang: 16-20
+            #     kcov: 9-14
+            # note:
+            #   Since available GCCs on 22.04 are a strict
+            #   subset of the ones available on 24.04, we
+            #   run all GCC tests on the latter version.
           - name: Linux (GCC 9.5.0, 32-bit)
-            os: ubuntu-22.04
+            os: ubuntu-24.04
             CC: gcc-9
             CXX: g++-9
             TEST_X86: 1
           - name: Linux (GCC 9.5.0)
-            os: ubuntu-22.04
+            os: ubuntu-24.04
             CC: gcc-9
             CXX: g++-9
-            # ERROR_ON_WARNINGS: 1
           - name: Linux (GCC 12.3.0)
             os: ubuntu-24.04
             CC: gcc-12
@@ -71,37 +94,43 @@ jobs:
             CC: gcc-14
             CXX: g++-14
             RUN_ANALYZER: tsan
-          - name: Linux (clang 19 + asan + llvm-cov)
+          - name: Linux (clang 11)
+            os: ubuntu-22.04
+            CC: clang-11
+            CXX: clang++-11
+          - name: Linux (clang 20 + asan + llvm-cov)
             os: ubuntu-24.04
-            CC: clang-19
-            CXX: clang++-19
+            CC: clang-20
+            CXX: clang++-20
             ERROR_ON_WARNINGS: 1
             RUN_ANALYZER: asan,llvm-cov
-          - name: Linux Arm64 (clang 19 + asan + llvm-cov)
+          - name: Linux Arm64 (clang 20 + asan + llvm-cov)
             os: ubuntu-24.04-arm
-            CC: clang-19
-            CXX: clang++-19
+            CC: clang-20
+            CXX: clang++-20
             ERROR_ON_WARNINGS: 1
             RUN_ANALYZER: asan,llvm-cov
-          - name: Linux (clang 19 + tsan)
+          - name: Linux (clang 20 + tsan)
             os: ubuntu-24.04
-            CC: clang-19
-            CXX: clang++-19
+            CC: clang-20
+            CXX: clang++-20
             ERROR_ON_WARNINGS: 1
             RUN_ANALYZER: tsan
-          - name: Linux Arm64 (clang 19 + tsan)
+          - name: Linux Arm64 (clang 20 + tsan)
             os: ubuntu-24.04-arm
-            CC: clang-19
-            CXX: clang++-19
+            CC: clang-20
+            CXX: clang++-20
             ERROR_ON_WARNINGS: 1
             RUN_ANALYZER: tsan
-          - name: Linux (clang 19 + kcov)
+          - name: Linux (clang 20 + kcov)
             os: ubuntu-24.04
-            CC: clang-19
-            CXX: clang++-19
+            CC: clang-20
+            CXX: clang++-20
             ERROR_ON_WARNINGS: 1
             RUN_ANALYZER: kcov
           - name: Linux (GCC 13.3.0 + code-checker + valgrind)
+            CC: gcc-13
+            CXX: g++-13
             os: ubuntu-24.04
             RUN_ANALYZER: code-checker,valgrind
           - name: Linux (GCC + musl + libunwind)
@@ -122,10 +151,6 @@ jobs:
             os: macos-14
             ERROR_ON_WARNINGS: 1
             SYSTEM_VERSION_COMPAT: 0
-          - name: macOS 13 (xcode llvm)
-            os: macos-13
-            ERROR_ON_WARNINGS: 1
-            SYSTEM_VERSION_COMPAT: 0
           - name: macOS 14 (xcode llvm + universal)
             os: macos-14
             ERROR_ON_WARNINGS: 1
@@ -143,6 +168,8 @@ jobs:
             TEST_X86: 1
           - name: Windows (latest)
             os: windows-latest
+          - name: Windows arm64
+            os: windows-11-arm
           - name: Windows (latest, UTF-8 paths)
             os: windows-latest
             UTF8_TEST_CWD: 1
@@ -174,6 +201,8 @@ jobs:
     container: ${{ matrix.container }}
 
     env:
+      CC: ${{ matrix.CC }}
+      CXX: ${{ matrix.CXX }}
       TEST_X86: ${{ matrix.TEST_X86 }}
       TEST_MINGW: ${{ matrix.TEST_MINGW }}
       ERROR_ON_WARNINGS: ${{ matrix.ERROR_ON_WARNINGS }}
@@ -196,13 +225,32 @@ jobs:
           python-version: ${{ !env['SYSTEM_PYTHON'] && '3.12' || '' }}
           cache: "pip"
 
+      - name: Check Linux CC/CXX
+        if: ${{ runner.os == 'Linux' && !matrix.container }}
+        run: |
+          [ -n "$CC" ] && [ -n "$CXX" ] || { echo "Ubuntu runner configurations require toolchain selection via CC and CXX" >&2; exit 1; }
+
       - name: Installing Linux Dependencies
-        if: ${{ runner.os == 'Linux' && matrix.os != 'ubuntu-22.04' && !env['TEST_X86'] && !matrix.container }}
+        if: ${{ runner.os == 'Linux' && !env['TEST_X86'] && !matrix.container }}
         run: |
           sudo apt update
-          sudo apt install cmake clang-19 llvm g++-12 valgrind zlib1g-dev libcurl4-openssl-dev
+          # Install common dependencies
+          sudo apt install cmake llvm valgrind zlib1g-dev libcurl4-openssl-dev
+          # For GCC, install both gcc-X and g++-X. For Clang, only install clang-X (includes C++ compiler)
+          if [[ "$CC" == gcc-* ]]; then
+            sudo apt install "${CC}" "${CXX}"
+          elif [[ "$CC" == clang-* ]]; then
+            sudo apt install "${CC}"
+          else
+            echo "Unknown CC: $CC" >&2
+            exit 1
+          fi
+
+      - name: Installing kcov dependencies
+        if: ${{ contains(env['RUN_ANALYZER'], 'kcov') }}
+        run: |
           # Install kcov from source
-          sudo apt-get install binutils-dev libssl-dev libelf-dev libstdc++-12-dev libdw-dev libiberty-dev
+          sudo apt-get install binutils-dev libssl-dev libelf-dev libstdc++-14-dev libdw-dev libiberty-dev
           git clone https://github.com/SimonKagstrom/kcov.git
           cd kcov
           # pin to a known good version with the coveralls git integration and performance bottlenecks fixed
@@ -213,24 +261,27 @@ jobs:
           make
           sudo make install
 
-      - name: Installing Linux GCC 9.4.0 Dependencies
-        if: ${{ runner.os == 'Linux' && matrix.os == 'ubuntu-22.04' && !env['TEST_X86'] && !matrix.container }}
-        run: |
-          sudo apt update
-          sudo apt install cmake llvm kcov g++ valgrind zlib1g-dev libcurl4-openssl-dev
-
       - name: Installing Linux 32-bit Dependencies
         if: ${{ runner.os == 'Linux' && env['TEST_X86'] && !matrix.container }}
         run: |
           sudo dpkg --add-architecture i386
           sudo apt update
-          sudo apt install cmake gcc-9-multilib g++-9-multilib zlib1g-dev:i386 libssl-dev:i386 libcurl4-openssl-dev:i386
+          sudo apt install cmake "${CC}-multilib" "${CXX}-multilib" zlib1g-dev:i386 libssl-dev:i386 libcurl4-openssl-dev:i386
 
       - name: Installing Alpine Linux Dependencies
         if: ${{ contains(matrix.container, 'alpine') }}
         run: |
           apk update
           apk add curl-dev libunwind-dev libunwind-static xz-dev
+      # install manually until available by default (also for future .NET updates)
+      - name: Install .NET 10 SDK for ARM64 runners
+        if: ${{ runner.os == 'Linux' && runner.arch == 'ARM64' && !matrix.container }}
+        run: |
+          wget https://dot.net/v1/dotnet-install.sh -O dotnet-install.sh
+          chmod +x dotnet-install.sh
+          ./dotnet-install.sh --channel 10.0 --install-dir $HOME/.dotnet
+          echo "$HOME/.dotnet" >> $GITHUB_PATH
+          echo "DOTNET_ROOT=$HOME/.dotnet" >> $GITHUB_ENV
 
         # https://github.com/actions/runner-images/issues/9491
       - name: Decrease vm.mmap_rnd_bit to prevent ASLR ASAN issues
@@ -325,8 +376,6 @@ jobs:
         shell: bash
         run: |
           pip install --upgrade --requirement tests/requirements.txt
-          [ "${{ matrix.CC }}" ] && export CC="${{ matrix.CC }}"
-          [ "${{ matrix.CXX }}" ] && export CXX="${{ matrix.CXX }}"
           pytest --capture=no --verbose tests
 
       - name: Check NDK

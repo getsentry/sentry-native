@@ -1,7 +1,7 @@
 import os
 import subprocess
 import pytest
-from . import run
+from . import run, SENTRY_VERSION
 from .conditions import has_http
 
 
@@ -155,7 +155,7 @@ def test_sdk_version_override(cmake):
             "SENTRY_EMBED_INFO": "ON",
             "SENTRY_BUILD_PLATFORM": "version-test",
             "SENTRY_BUILD_VARIANT": "override",
-            "SENTRY_SDK_VERSION": "0.11.3+20251016-test-build",
+            "SENTRY_SDK_VERSION": f"{SENTRY_VERSION}+20251016-test-build",
         },
     )
 
@@ -180,7 +180,7 @@ def test_sdk_version_override(cmake):
 
         # Verify that version and build ID are correctly separated
         assert (
-            "SENTRY_VERSION:0.11.3;" in output
+            f"SENTRY_VERSION:{SENTRY_VERSION};" in output
         ), "Version should be base version without build metadata"
         assert (
             "BUILD:20251016-test-build;" in output
@@ -201,7 +201,7 @@ def test_sdk_version_override_with_explicit_build_id(cmake):
             "SENTRY_EMBED_INFO": "ON",
             "SENTRY_BUILD_PLATFORM": "version-test",
             "SENTRY_BUILD_VARIANT": "explicit-build",
-            "SENTRY_SDK_VERSION": "0.11.3+20251016-ignored",
+            "SENTRY_SDK_VERSION": f"{SENTRY_VERSION}+20251016-ignored",
             "SENTRY_BUILD_ID": "explicit-build-id",
         },
     )
@@ -226,7 +226,9 @@ def test_sdk_version_override_with_explicit_build_id(cmake):
         output = result.stdout
 
         # Verify that explicit build ID takes precedence
-        assert "SENTRY_VERSION:0.11.3;" in output, "Version should be base version"
+        assert (
+            f"SENTRY_VERSION:{SENTRY_VERSION};" in output
+        ), "Version should be base version"
         assert (
             "BUILD:explicit-build-id;" in output
         ), "Explicit build ID should take precedence"

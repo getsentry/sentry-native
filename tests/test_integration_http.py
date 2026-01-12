@@ -16,6 +16,7 @@ from . import (
     split_log_request_cond,
     is_feedback_envelope,
     is_logs_envelope,
+    SENTRY_VERSION,
 )
 from .proxy import (
     setup_proxy_env_vars,
@@ -48,7 +49,7 @@ pytestmark = pytest.mark.skipif(not has_http, reason="tests need http")
 
 # fmt: off
 auth_header = (
-    "Sentry sentry_key=uiaeosnrtdy, sentry_version=7, sentry_client=sentry.native/0.11.3"
+    f"Sentry sentry_key=uiaeosnrtdy, sentry_version=7, sentry_client=sentry.native/{SENTRY_VERSION}"
 )
 # fmt: on
 
@@ -353,8 +354,8 @@ def test_abnormal_session(cmake, httpserver):
     )
     db_dir = tmp_path.joinpath(".sentry-native")
     db_dir.mkdir(exist_ok=True)
-    # 15 exceeds the max envelope items
-    for i in range(15):
+    # 101 exceeds the max session items
+    for i in range(101):
         run_dir = db_dir.joinpath(f"foo-{i}.run")
         run_dir.mkdir()
         with open(run_dir.joinpath("session.json"), "w") as session_file:
@@ -375,7 +376,7 @@ def test_abnormal_session(cmake, httpserver):
     for item in itertools.chain(envelope1, envelope2):
         if item.headers.get("type") == "session":
             session_count += 1
-    assert session_count == 15
+    assert session_count == 101
 
     assert_session(envelope1, {"status": "abnormal", "errors": 0, "duration": 10})
 
@@ -1673,3 +1674,96 @@ def test_breakpad_logs_on_crash(cmake, httpserver):
 
     assert logs_envelope is not None
     assert_logs(logs_envelope, 1)
+
+
+def test_logs_with_custom_attributes(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+
+    httpserver.expect_oneshot_request(
+        "/api/123456/envelope/",
+        headers={"x-sentry-auth": auth_header},
+    ).respond_with_data("OK")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "enable-logs", "log-attributes"],
+        env=env,
+    )
+
+    assert len(httpserver.log) == 1
+    req = httpserver.log[0][0]
+    body = req.get_data()
+
+    envelope = Envelope.deserialize(body)
+
+    # Show what the envelope looks like if the test fails
+    envelope.print_verbose()
+
+    # Extract the log item
+    (log_item,) = envelope.items
+
+    assert log_item.headers["type"] == "log"
+    payload = log_item.payload.json
+
+    # We expect 3 log entries based on the example
+    assert len(payload["items"]) == 3
+
+    # Test 1: Log with custom attributes and format string
+    log_entry_0 = payload["items"][0]
+    assert log_entry_0["body"] == "logging with 3 custom attributes"
+    attributes_0 = log_entry_0["attributes"]
+
+    # Check custom attributes exist
+    assert "my.custom.attribute" in attributes_0
+    assert attributes_0["my.custom.attribute"]["value"] == "my_attribute"
+    assert attributes_0["my.custom.attribute"]["type"] == "string"
+
+    assert "number.first" in attributes_0
+    assert attributes_0["number.first"]["value"] == 2**63 - 1  # INT64_MAX
+    assert attributes_0["number.first"]["type"] == "integer"
+    assert attributes_0["number.first"]["unit"] == "fermions"
+
+    assert "number.second" in attributes_0
+    assert attributes_0["number.second"]["value"] == -(2**63)  # INT64_MIN
+    assert attributes_0["number.second"]["type"] == "integer"
+    assert attributes_0["number.second"]["unit"] == "bosons"
+
+    # Check that format parameters were parsed
+    assert "sentry.message.parameter.0" in attributes_0
+    assert attributes_0["sentry.message.parameter.0"]["value"] == 3
+    assert attributes_0["sentry.message.parameter.0"]["type"] == "integer"
+
+    # Check that default attributes are still present
+    assert "sentry.sdk.name" in attributes_0
+    assert "sentry.sdk.version" in attributes_0
+
+    # Test 2: Log with empty custom attributes object
+    log_entry_1 = payload["items"][1]
+    assert log_entry_1["body"] == "logging with no custom attributes"
+    attributes_1 = log_entry_1["attributes"]
+
+    # Should still have default attributes
+    assert "sentry.sdk.name" in attributes_1
+    assert "sentry.sdk.version" in attributes_1
+
+    # Check that format string parameter was parsed
+    assert "sentry.message.parameter.0" in attributes_1
+    assert attributes_1["sentry.message.parameter.0"]["value"] == "no"
+    assert attributes_1["sentry.message.parameter.0"]["type"] == "string"
+
+    # Test 3: Log with custom attributes that override defaults
+    log_entry_2 = payload["items"][2]
+    assert log_entry_2["body"] == "logging with a custom parameter attribute"
+    attributes_2 = log_entry_2["attributes"]
+
+    # Check custom attribute exists
+    assert "sentry.message.parameter.0" in attributes_2
+    assert attributes_2["sentry.message.parameter.0"]["value"] == "parameter"
+    assert attributes_2["sentry.message.parameter.0"]["type"] == "string"
+
+    # Check that sentry.sdk.name was overwritten by custom attribute
+    assert "sentry.sdk.name" in attributes_2
+    assert attributes_2["sentry.sdk.name"]["value"] == "custom-sdk-name"
+    assert attributes_2["sentry.sdk.name"]["type"] == "string"

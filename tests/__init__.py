@@ -14,7 +14,8 @@ sourcedir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
 # https://docs.pytest.org/en/latest/assert.html#assert-details
 pytest.register_assert_rewrite("tests.assertions")
-from tests.assertions import assert_no_proxy_request
+
+SENTRY_VERSION = "0.12.3"
 
 
 def make_dsn(httpserver, auth="uiaeosnrtdy", id=123456, proxy_host=False):
@@ -67,6 +68,21 @@ def split_log_request_cond(httpserver_log, cond):
         if cond(httpserver_log[0][0].get_data())
         else (httpserver_log[1][0], httpserver_log[0][0])
     )
+
+
+def extract_request(httpserver_log, cond):
+    """
+    Extract a request matching the condition from the httpserver log.
+    Returns (matching_request, remaining_log_entries)
+
+    The remaining_log_entries preserves the original format so it can be
+    chained with subsequent extract_request calls.
+    """
+    for i, entry in enumerate(httpserver_log):
+        if cond(entry[0].get_data()):
+            others = [httpserver_log[j] for j in range(len(httpserver_log)) if j != i]
+            return (entry[0], others)
+    return (None, httpserver_log)
 
 
 def run(cwd, exe, args, expect_failure=False, env=None, **kwargs):

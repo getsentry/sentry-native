@@ -60,7 +60,7 @@ breakpad_backend_callback(const wchar_t *breakpad_dump_path,
     EXCEPTION_POINTERS *exinfo, MDRawAssertionInfo *UNUSED(assertion),
     bool succeeded)
 #elif defined(SENTRY_PLATFORM_DARWIN)
-#    ifdef SENTRY_BREAKPAD_SYSTEM
+#    if defined(SENTRY_BREAKPAD_SYSTEM) || defined(SENTRY_PLATFORM_IOS)
 static bool
 breakpad_backend_callback(const char *breakpad_dump_path,
     const char *minidump_id, void *UNUSED(context), bool succeeded)
@@ -126,11 +126,6 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
         event, "level", sentry__value_new_level(SENTRY_LEVEL_FATAL));
 
     SENTRY_WITH_OPTIONS (options) {
-        // Flush logs in a crash-safe manner before crash handling
-        if (options->enable_logs) {
-            sentry__logs_flush_crash_safe();
-        }
-
         sentry__write_crash_marker(options);
 
         bool should_handle = true;
@@ -138,7 +133,8 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
         if (options->on_crash_func) {
             sentry_ucontext_t *uctx = nullptr;
 
-#if defined(SENTRY_PLATFORM_DARWIN) && !defined(SENTRY_BREAKPAD_SYSTEM)
+#if defined(SENTRY_PLATFORM_DARWIN)                                            \
+    && !(defined(SENTRY_BREAKPAD_SYSTEM) || defined(SENTRY_PLATFORM_IOS))
             sentry_ucontext_t uctx_data;
             uctx_data.user_context = user_context;
             uctx = &uctx_data;
@@ -154,6 +150,11 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
             sentry_value_t result
                 = options->on_crash_func(uctx, event, options->on_crash_data);
             should_handle = !sentry_value_is_null(result);
+        }
+
+        // Flush logs in a crash-safe manner before crash handling
+        if (options->enable_logs) {
+            sentry__logs_flush_crash_safe();
         }
 
         if (should_handle) {

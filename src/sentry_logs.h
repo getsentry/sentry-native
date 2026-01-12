@@ -23,6 +23,8 @@ void sentry__logs_shutdown(uint64_t timeout);
  */
 void sentry__logs_flush_crash_safe(void);
 
+void sentry__logs_force_flush(void);
+
 #ifdef SENTRY_UNITTEST
 int populate_message_parameters(
     sentry_value_t attributes, const char *message, va_list args);

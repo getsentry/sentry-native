@@ -331,10 +331,6 @@ sentry__crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
     bool should_dump = true;
 
     SENTRY_WITH_OPTIONS (options) {
-        // Flush logs in a crash-safe manner before crash handling
-        if (options->enable_logs) {
-            sentry__logs_flush_crash_safe();
-        }
         auto state = static_cast<crashpad_state_t *>(options->backend->data);
         sentry_value_t crash_event
             = sentry__value_new_event_with_id(&state->crash_event_id);
@@ -359,6 +355,12 @@ sentry__crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
             crash_event = options->before_send_func(
                 crash_event, nullptr, options->before_send_data);
         }
+
+        // Flush logs in a crash-safe manner before crash handling
+        if (options->enable_logs) {
+            sentry__logs_flush_crash_safe();
+        }
+
         should_dump = !sentry_value_is_null(crash_event);
 
         if (should_dump) {

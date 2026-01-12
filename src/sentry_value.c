@@ -509,6 +509,85 @@ sentry_value_new_user(const char *id, const char *username, const char *email,
         ip_address, ip_address ? strlen(ip_address) : 0);
 }
 
+/**
+ * Converts a sentry_value_t attribute to its type string representation.
+ * For lists, checks the first element to determine the array type.
+ * Returns NULL for unsupported types (NULL, OBJECT).
+ * https://develop.sentry.dev/sdk/telemetry/spans/span-protocol/#attribute-object-properties
+ */
+static const char *
+attribute_value_type_to_str(sentry_value_t value)
+{
+    switch (sentry_value_get_type(value)) {
+    case SENTRY_VALUE_TYPE_BOOL:
+        return "boolean";
+    case SENTRY_VALUE_TYPE_INT32:
+    case SENTRY_VALUE_TYPE_INT64:
+    case SENTRY_VALUE_TYPE_UINT64:
+        return "integer";
+    case SENTRY_VALUE_TYPE_DOUBLE:
+        return "double";
+    case SENTRY_VALUE_TYPE_STRING:
+        return "string";
+    case SENTRY_VALUE_TYPE_LIST: {
+        sentry_value_t first_item = sentry_value_get_by_index(value, 0);
+        if (sentry_value_is_null(first_item)) {
+            return NULL;
+        }
+        // Determine type based on first element
+        switch (sentry_value_get_type(first_item)) {
+        case SENTRY_VALUE_TYPE_BOOL:
+            return "boolean[]";
+        case SENTRY_VALUE_TYPE_INT32:
+        case SENTRY_VALUE_TYPE_INT64:
+        case SENTRY_VALUE_TYPE_UINT64:
+            return "integer[]";
+        case SENTRY_VALUE_TYPE_DOUBLE:
+            return "double[]";
+        case SENTRY_VALUE_TYPE_STRING:
+            return "string[]";
+        case SENTRY_VALUE_TYPE_NULL:
+        case SENTRY_VALUE_TYPE_OBJECT:
+        case SENTRY_VALUE_TYPE_LIST:
+        default:
+            return NULL;
+        }
+    }
+    case SENTRY_VALUE_TYPE_NULL:
+    case SENTRY_VALUE_TYPE_OBJECT:
+    default:
+        return NULL;
+    }
+}
+
+sentry_value_t
+sentry_value_new_attribute_n(
+    sentry_value_t value, const char *unit, size_t unit_len)
+{
+    const char *type = attribute_value_type_to_str(value);
+    if (!type) {
+        sentry_value_decref(value);
+        return sentry_value_new_null();
+    }
+
+    sentry_value_t attribute = sentry_value_new_object();
+
+    sentry_value_set_by_key(
+        attribute, "type", sentry_value_new_string_n(type, strlen(type)));
+    sentry_value_set_by_key(attribute, "value", value);
+    if (unit && unit_len) {
+        sentry_value_set_by_key(
+            attribute, "unit", sentry_value_new_string_n(unit, unit_len));
+    }
+    return attribute;
+}
+
+sentry_value_t
+sentry_value_new_attribute(sentry_value_t value, const char *unit)
+{
+    return sentry_value_new_attribute_n(value, unit, unit ? strlen(unit) : 0);
+}
+
 sentry_value_type_t
 sentry_value_get_type(sentry_value_t value)
 {

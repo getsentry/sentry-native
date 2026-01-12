@@ -27,7 +27,7 @@ RUN apk add \
     tree \
     wget
 
-RUN curl -sSL --retry 5 https://dot.net/v1/dotnet-install.sh | bash -eo pipefail /dev/stdin --channel 8.0 --install-dir /usr/share/dotnet
+RUN curl -sSL --retry 5 https://dot.net/v1/dotnet-install.sh | bash -eo pipefail /dev/stdin --channel 10.0 --install-dir /usr/share/dotnet
 RUN ln -s /usr/share/dotnet/dotnet /usr/local/bin/dotnet
 
 # https://github.com/actions/runner-images/blob/main/images/ubuntu/scripts/build/install-python.sh
