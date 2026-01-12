@@ -2793,11 +2793,10 @@ SENTRY_API sentry_attachment_t *sentry_hint_attach_file_n(
  * Returns a pointer to the attachment, or NULL on error.
  */
 SENTRY_API sentry_attachment_t *sentry_feedback_hint_attach_bytes(
-    sentry_hint_t *hint, const char *buf, size_t buf_len,
-    const char *filename);
+    sentry_hint_t *hint, const char *buf, size_t buf_len, const char *filename);
 SENTRY_API sentry_attachment_t *sentry_feedback_hint_attach_bytes_n(
-    sentry_hint_t *hint, const char *buf, size_t buf_len,
-    const char *filename, size_t filename_len);
+    sentry_hint_t *hint, const char *buf, size_t buf_len, const char *filename,
+    size_t filename_len);
 
 #ifdef SENTRY_PLATFORM_WINDOWS
 /**

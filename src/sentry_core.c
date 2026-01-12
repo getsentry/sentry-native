@@ -767,8 +767,7 @@ fail:
 }
 
 static sentry_envelope_t *
-prepare_user_feedback(
-    sentry_value_t user_feedback, sentry_hint_t *hint)
+prepare_user_feedback(sentry_value_t user_feedback, sentry_hint_t *hint)
 {
     sentry_envelope_t *envelope = NULL;
 
