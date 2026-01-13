@@ -1,5 +1,7 @@
 all: test
 
+GIT_COMMON_DIR := $(shell git rev-parse --git-common-dir)
+
 update-test-discovery:
 	@perl -ne 'print if s/SENTRY_TEST\(([^)]+)\).*/XX(\1)/' tests/unit/*.c | LC_ALL=C sort | grep -v define | uniq > tests/unit/tests.inc
 .PHONY: update-test-discovery
@@ -54,15 +56,15 @@ clean: build/Makefile
 setup: setup-git setup-venv
 .PHONY: setup
 
-setup-git: .git/hooks/pre-commit
+setup-git: $(GIT_COMMON_DIR)/hooks/pre-commit
 	git submodule update --init --recursive
 .PHONY: setup-git
 
 setup-venv: .venv/bin/python
 .PHONY: setup-venv
 
-.git/hooks/pre-commit:
-	@cd .git/hooks && ln -sf ../../scripts/git-precommit-hook.sh pre-commit
+$(GIT_COMMON_DIR)/hooks/pre-commit:
+	@cd $(GIT_COMMON_DIR)/hooks && ln -sf $(PWD)/scripts/git-precommit-hook.sh pre-commit
 
 .venv/bin/python: Makefile tests/requirements.txt
 	@rm -rf .venv

@@ -6,6 +6,10 @@
 
 - Add attachment support to user feedback ([#1414](https://github.com/getsentry/sentry-native/pull/1414))
 
+**Fixes**:
+
+- Crashpad: namespace mpack to avoid ODR violation. ([#1476](https://github.com/getsentry/sentry-native/pull/1476), [crashpad#143](https://github.com/getsentry/crashpad/pull/143))
+
 ## 0.12.3
 
 **Fixes**:
