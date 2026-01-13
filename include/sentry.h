@@ -1376,6 +1376,12 @@ SENTRY_API int sentry_options_get_symbolize_stacktraces(
     const sentry_options_t *opts);
 
 /**
+ * Sets whether we should keep .dmp files for breakpad crashes
+ */
+SENTRY_API void sentry_options_set_keep_dmp_on_crash(
+    sentry_options_t *opts, int enabled);
+
+/**
  * Adds a new attachment to be sent along.
  *
  * `path` is assumed to be in a platform-specific filesystem path encoding.

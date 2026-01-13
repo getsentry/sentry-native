@@ -510,7 +510,6 @@ sentry__path_remove(const sentry_path_t *path)
         : DeleteFileW(path_w);
     return removal_success ? 0 : !is_last_error_path_not_found();
 }
-
 int
 sentry__path_create_dir_all(const sentry_path_t *path)
 {
