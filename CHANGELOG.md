@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Breaking Changes**:
+
+- Android NDK: `SentryNdk.init(NdkOptions)` now throws an `Exception` if init fails (non-zero return code) rather than silently swallowing the error. ([#1430](https://github.com/getsentry/sentry-native/pull/1430))
+
 **Fixes**:
 
 - Crashpad: namespace mpack to avoid ODR violation. ([#1476](https://github.com/getsentry/sentry-native/pull/1476), [crashpad#143](https://github.com/getsentry/crashpad/pull/143))
