@@ -1024,6 +1024,36 @@ typedef enum {
 } sentry_minidump_mode_t;
 
 /**
+ * Crash reporting mode for the native backend.
+ * Controls what data is collected and sent on crash.
+ */
+typedef enum {
+    /**
+     * Minidump only (legacy behavior).
+     * Write and send minidump for server-side symbolication.
+     * The server will unwind the stack and symbolicate.
+     */
+    SENTRY_CRASH_REPORTING_MODE_MINIDUMP = 0,
+
+    /**
+     * Native stackwalking only.
+     * Walk stack client-side in crash daemon, send JSON event with
+     * stacktraces and debug_meta. No minidump generated.
+     * Faster upload, smaller payload, but less debugging information.
+     */
+    SENTRY_CRASH_REPORTING_MODE_NATIVE = 1,
+
+    /**
+     * Native stackwalking with minidump attachment (default).
+     * Same as NATIVE mode, but also attaches minidump for debugging.
+     * Native stacktrace is primary event, minidump is attachment only.
+     * Best of both worlds: fast client-side unwinding with full minidump
+     * available for deep debugging when needed.
+     */
+    SENTRY_CRASH_REPORTING_MODE_NATIVE_WITH_MINIDUMP = 2,
+} sentry_crash_reporting_mode_t;
+
+/**
  * Creates a new options struct.
  * Can be freed with `sentry_options_free`.
  */
@@ -1662,6 +1692,28 @@ SENTRY_API void sentry_options_set_system_crash_reporter_enabled(
  */
 SENTRY_API void sentry_options_set_minidump_mode(
     sentry_options_t *opts, sentry_minidump_mode_t mode);
+
+/**
+ * Sets the crash reporting mode for the native backend.
+ *
+ * This controls how crash data is collected and what is sent to Sentry:
+ * - MINIDUMP: Traditional minidump-only mode (server-side unwinding)
+ * - NATIVE: Client-side stack unwinding, JSON event with stacktraces
+ * - NATIVE_WITH_MINIDUMP: Both native stacktrace and minidump attachment
+ *
+ * See `sentry_crash_reporting_mode_t` for detailed mode descriptions.
+ *
+ * This setting only has an effect when using the `native` backend.
+ * Default is `SENTRY_CRASH_REPORTING_MODE_NATIVE_WITH_MINIDUMP`.
+ */
+SENTRY_API void sentry_options_set_crash_reporting_mode(
+    sentry_options_t *opts, sentry_crash_reporting_mode_t mode);
+
+/**
+ * Gets the crash reporting mode for the native backend.
+ */
+SENTRY_API sentry_crash_reporting_mode_t
+sentry_options_get_crash_reporting_mode(const sentry_options_t *opts);
 
 /**
  * Enables a wait for the crash report upload to be finished before shutting

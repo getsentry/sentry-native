@@ -107,9 +107,12 @@ SENTRY_TEST(minidump_context_sizes)
 SENTRY_TEST(minidump_module_structure)
 {
 #ifdef SENTRY_BACKEND_NATIVE
-    // Module structure size: 8 + 4*3 + 4 + 8*13 + 8*2 + 8*2 = 8 + 12 + 4 + 104
-    // + 16 + 16 = 160 bytes
-    TEST_CHECK(sizeof(minidump_module_t) == 160);
+    // Module structure size:
+    // base_of_image (8) + size_of_image (4) + checksum (4) + time_date_stamp
+    // (4)
+    // + module_name_rva (4) + version_info[13] (52) + cv_record (8) +
+    // misc_record (8) + reserved0 (8) + reserved1 (8) = 108 bytes
+    TEST_CHECK(sizeof(minidump_module_t) == 108);
 
     minidump_module_t module = { 0 };
     module.base_of_image = 0x100000000;
@@ -233,10 +236,10 @@ SENTRY_TEST(minidump_stream_types)
 SENTRY_TEST(minidump_cpu_architectures)
 {
 #ifdef SENTRY_BACKEND_NATIVE
-    TEST_CHECK(MINIDUMP_CPU_X86 == 0);
-    TEST_CHECK(MINIDUMP_CPU_ARM == 5);
-    TEST_CHECK(MINIDUMP_CPU_ARM64 == 12);
-    TEST_CHECK(MINIDUMP_CPU_X86_64 == 0x8664); // AMD64/x86-64 architecture
+    TEST_CHECK(MINIDUMP_CPU_X86 == 0); // PROCESSOR_ARCHITECTURE_INTEL
+    TEST_CHECK(MINIDUMP_CPU_ARM == 5); // PROCESSOR_ARCHITECTURE_ARM
+    TEST_CHECK(MINIDUMP_CPU_ARM64 == 12); // PROCESSOR_ARCHITECTURE_ARM64
+    TEST_CHECK(MINIDUMP_CPU_X86_64 == 9); // PROCESSOR_ARCHITECTURE_AMD64
 #else
     SKIP_TEST();
 #endif

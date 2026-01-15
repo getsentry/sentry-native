@@ -493,3 +493,137 @@ def test_native_external_crash_reporter(cmake, httpserver):
     envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
     event = envelope.get_event()
     assert event is not None
+
+
+def test_crash_mode_minidump_only(cmake, httpserver):
+    """Mode 1: Should produce envelope with minidump attachment only"""
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
+    httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
+
+    # Crash with mode 1 (minidump only)
+    run_crash(
+        tmp_path,
+        "sentry_example",
+        ["log", "stdout", "crash-mode", "minidump", "crash"],
+        env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+    )
+
+    time.sleep(2)
+
+    # Restart to send the crash
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "no-setup"],
+        env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+    )
+
+    assert len(httpserver.log) >= 1
+    envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
+
+    # Should have minidump attachment
+    has_minidump = any(
+        item.type == "attachment"
+        and item.headers.get("attachment_type") == "event.minidump"
+        for item in envelope.items
+    )
+    assert has_minidump, "Mode 1 should include minidump"
+
+
+def test_crash_mode_native_only(cmake, httpserver):
+    """Mode 2: Should produce envelope with native stacktrace, no minidump"""
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
+    httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
+
+    # Crash with mode 2 (native only)
+    run_crash(
+        tmp_path,
+        "sentry_example",
+        ["log", "stdout", "crash-mode", "native", "crash"],
+        env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+    )
+
+    time.sleep(2)
+
+    # Restart to send the crash
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "no-setup"],
+        env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+    )
+
+    assert len(httpserver.log) >= 1
+    envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
+
+    # Should NOT have minidump
+    has_minidump = any(
+        item.type == "attachment"
+        and item.headers.get("attachment_type") == "event.minidump"
+        for item in envelope.items
+    )
+    assert not has_minidump, "Mode 2 should NOT include minidump"
+
+    # Should have native stacktrace
+    event = envelope.get_event()
+    assert event is not None
+    assert "exception" in event
+    exc = event["exception"]["values"][0]
+    assert exc["mechanism"]["type"] == "signalhandler"
+    assert "stacktrace" in exc
+    assert len(exc["stacktrace"]["frames"]) > 0
+
+    # Each frame should have instruction_addr
+    for frame in exc["stacktrace"]["frames"]:
+        assert "instruction_addr" in frame
+
+    # Should have debug_meta
+    assert "debug_meta" in event
+    assert len(event["debug_meta"]["images"]) > 0
+
+
+def test_crash_mode_native_with_minidump(cmake, httpserver):
+    """Mode 3 (default): Should have both native stacktrace AND minidump"""
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
+    httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
+
+    # Default mode should be NATIVE_WITH_MINIDUMP
+    run_crash(
+        tmp_path,
+        "sentry_example",
+        ["log", "stdout", "crash"],  # No crash-mode arg = use default
+        env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+    )
+
+    time.sleep(2)
+
+    # Restart to send the crash
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "no-setup"],
+        env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+    )
+
+    assert len(httpserver.log) >= 1
+    envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
+
+    # Should have BOTH minidump attachment
+    has_minidump = any(
+        item.type == "attachment"
+        and item.headers.get("attachment_type") == "event.minidump"
+        for item in envelope.items
+    )
+    assert has_minidump, "Mode 3 should include minidump"
+
+    # AND native stacktrace
+    event = envelope.get_event()
+    assert event is not None
+    assert "exception" in event
+    exc = event["exception"]["values"][0]
+    assert exc["mechanism"]["type"] == "signalhandler"
+    assert "stacktrace" in exc
+    assert len(exc["stacktrace"]["frames"]) > 0
+
+    # Should have debug_meta
+    assert "debug_meta" in event
