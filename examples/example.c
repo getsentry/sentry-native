@@ -630,11 +630,18 @@ main(int argc, char **argv)
         }
     }
 
+    // E2E test mode: generate unique test ID for event correlation
+    char e2e_test_id[37] = { 0 };
+    if (has_arg(argc, argv, "e2e-test")) {
+        sentry_uuid_t test_uuid = sentry_uuid_new_v4();
+        sentry_uuid_as_string(&test_uuid, e2e_test_id);
+    }
+
     if (0 != sentry_init(options)) {
         return EXIT_FAILURE;
     }
 
-    if (has_arg(argc, argv, "set-global-attribute")) {
+if (has_arg(argc, argv, "set-global-attribute")) {
         sentry_set_attribute("global.attribute.bool",
             sentry_value_new_attribute(sentry_value_new_bool(true), NULL));
         sentry_set_attribute("global.attribute.int",
@@ -653,6 +660,14 @@ main(int argc, char **argv)
         sentry_set_attribute("my.custom.attribute",
             sentry_value_new_attribute(
                 sentry_value_new_string("my_global_value"), NULL));
+    }
+
+    // E2E test mode: set tags and output test ID for event correlation
+    if (e2e_test_id[0] != '\0') {
+        sentry_set_tag("test.id", e2e_test_id);
+        sentry_set_tag("test.suite", "e2e");
+        printf("TEST_ID:%s\n", e2e_test_id);
+        fflush(stdout);
     }
 
     if (has_arg(argc, argv, "log-attributes")) {
