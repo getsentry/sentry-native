@@ -726,28 +726,49 @@ write_envelope_with_native_stacktrace(const sentry_options_t *options,
         }
     }
 
-    // Add other attachments from run folder
+    // Add scope attachments using metadata file
     if (run_folder) {
-        sentry_pathiter_t *piter = sentry__path_iter_directory(run_folder);
-        if (piter) {
-            const sentry_path_t *file_path;
-            while ((file_path = sentry__pathiter_next(piter)) != NULL) {
-                const char *path_str = file_path->path;
-                const char *basename = strrchr(path_str, '/');
-                if (!basename) {
-                    basename = strrchr(path_str, '\\');
-                }
-                basename = basename ? basename + 1 : path_str;
+        sentry_path_t *attach_list_path
+            = sentry__path_join_str(run_folder, "__sentry-attachments");
+        if (attach_list_path) {
+            size_t attach_json_len = 0;
+            char *attach_json = sentry__path_read_to_buffer(
+                attach_list_path, &attach_json_len);
+            sentry__path_free(attach_list_path);
 
-                // Skip event and breadcrumb files
-                if (strncmp(basename, "__sentry", 8) == 0) {
-                    continue;
-                }
+            if (attach_json && attach_json_len > 0) {
+                // Parse attachment list JSON
+                sentry_value_t attach_list
+                    = sentry__value_from_json(attach_json, attach_json_len);
+                sentry_free(attach_json);
 
-                // Add as attachment
-                write_attachment_to_envelope(fd, path_str, basename, NULL);
+                if (!sentry_value_is_null(attach_list)) {
+                    size_t len = sentry_value_get_length(attach_list);
+                    for (size_t i = 0; i < len; i++) {
+                        sentry_value_t attach_info
+                            = sentry_value_get_by_index(attach_list, i);
+                        sentry_value_t path_val
+                            = sentry_value_get_by_key(attach_info, "path");
+                        sentry_value_t filename_val
+                            = sentry_value_get_by_key(attach_info, "filename");
+                        sentry_value_t content_type_val
+                            = sentry_value_get_by_key(
+                                attach_info, "content_type");
+
+                        const char *path = sentry_value_as_string(path_val);
+                        const char *filename
+                            = sentry_value_as_string(filename_val);
+                        const char *content_type
+                            = sentry_value_as_string(content_type_val);
+
+                        if (path && filename) {
+                            write_attachment_to_envelope(
+                                fd, path, filename, content_type);
+                        }
+                    }
+                    sentry_value_decref(attach_list);
+                }
             }
-            sentry__pathiter_free(piter);
         }
     }
 
