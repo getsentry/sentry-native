@@ -752,6 +752,213 @@ build_stacktrace_for_thread(
     return stacktrace;
 }
 
+#if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+#    include <elf.h>
+
+/**
+ * Extract Build ID from ELF file (for debug_meta)
+ * Returns the Build ID length, or 0 if not found
+ */
+static size_t
+extract_elf_build_id_for_module(
+    const char *elf_path, uint8_t *build_id, size_t max_len)
+{
+    int fd = open(elf_path, O_RDONLY);
+    if (fd < 0) {
+        return 0;
+    }
+
+    // Read ELF header
+#    if defined(__x86_64__) || defined(__aarch64__)
+    Elf64_Ehdr ehdr;
+#    else
+    Elf32_Ehdr ehdr;
+#    endif
+
+    if (read(fd, &ehdr, sizeof(ehdr)) != sizeof(ehdr)) {
+        close(fd);
+        return 0;
+    }
+
+    // Verify ELF magic
+    if (memcmp(ehdr.e_ident, ELFMAG, SELFMAG) != 0) {
+        close(fd);
+        return 0;
+    }
+
+    // Read section headers
+    size_t shdr_size = ehdr.e_shentsize * ehdr.e_shnum;
+    void *shdr_buf = sentry_malloc(shdr_size);
+    if (!shdr_buf) {
+        close(fd);
+        return 0;
+    }
+
+    if (lseek(fd, ehdr.e_shoff, SEEK_SET) != (off_t)ehdr.e_shoff
+        || read(fd, shdr_buf, shdr_size) != (ssize_t)shdr_size) {
+        sentry_free(shdr_buf);
+        close(fd);
+        return 0;
+    }
+
+#    if defined(__x86_64__) || defined(__aarch64__)
+    Elf64_Shdr *sections = (Elf64_Shdr *)shdr_buf;
+#    else
+    Elf32_Shdr *sections = (Elf32_Shdr *)shdr_buf;
+#    endif
+
+    // Look for .note.gnu.build-id section
+    size_t build_id_len = 0;
+    for (int i = 0; i < ehdr.e_shnum; i++) {
+        if (sections[i].sh_type == SHT_NOTE) {
+            // Read note section
+            size_t note_size = sections[i].sh_size;
+            if (note_size > 4096) {
+                continue; // Sanity check
+            }
+
+            void *note_buf = sentry_malloc(note_size);
+            if (!note_buf) {
+                continue;
+            }
+
+            if (lseek(fd, sections[i].sh_offset, SEEK_SET)
+                    == (off_t)sections[i].sh_offset
+                && read(fd, note_buf, note_size) == (ssize_t)note_size) {
+
+                // Parse notes
+                uint8_t *ptr = (uint8_t *)note_buf;
+                uint8_t *end = ptr + note_size;
+
+                while (ptr + 12 <= end) {
+#    if defined(__x86_64__) || defined(__aarch64__)
+                    Elf64_Nhdr *nhdr = (Elf64_Nhdr *)ptr;
+#    else
+                    Elf32_Nhdr *nhdr = (Elf32_Nhdr *)ptr;
+#    endif
+                    ptr += sizeof(*nhdr);
+
+                    if (ptr + nhdr->n_namesz + nhdr->n_descsz > end) {
+                        break;
+                    }
+
+                    // Check if this is GNU Build ID (type 3, name "GNU\0")
+                    if (nhdr->n_type == 3 && nhdr->n_namesz == 4
+                        && memcmp(ptr, "GNU", 4) == 0) {
+
+                        ptr += ((nhdr->n_namesz + 3) & ~3); // Align to 4 bytes
+                        size_t len = nhdr->n_descsz < max_len ? nhdr->n_descsz
+                                                              : max_len;
+                        memcpy(build_id, ptr, len);
+                        build_id_len = len;
+                        sentry_free(note_buf);
+                        goto done;
+                    }
+
+                    ptr += ((nhdr->n_namesz + 3) & ~3);
+                    ptr += ((nhdr->n_descsz + 3) & ~3);
+                }
+            }
+
+            sentry_free(note_buf);
+        }
+    }
+
+done:
+    sentry_free(shdr_buf);
+    close(fd);
+    return build_id_len;
+}
+
+/**
+ * Capture modules from /proc/<pid>/maps for debug_meta
+ * This is called from the daemon to populate ctx->modules[] on Linux,
+ * since the signal handler cannot safely enumerate modules.
+ */
+static void
+capture_modules_from_proc_maps(sentry_crash_context_t *ctx)
+{
+    char maps_path[64];
+    snprintf(maps_path, sizeof(maps_path), "/proc/%d/maps", ctx->crashed_pid);
+
+    FILE *f = fopen(maps_path, "r");
+    if (!f) {
+        SENTRY_WARNF("Failed to open %s for module capture", maps_path);
+        return;
+    }
+
+    char line[1024];
+    ctx->module_count = 0;
+
+    while (fgets(line, sizeof(line), f)
+        && ctx->module_count < SENTRY_CRASH_MAX_MODULES) {
+
+        // Parse line: "start-end perms offset dev inode pathname"
+        unsigned long long start, end, offset;
+        char perms[5];
+        int pathname_offset = 0;
+
+        int parsed = sscanf(line, "%llx-%llx %4s %llx %*s %*s %n", &start, &end,
+            perms, &offset, &pathname_offset);
+
+        if (parsed < 4) {
+            continue;
+        }
+
+        // Only include executable mappings with a real path
+        if (perms[2] != 'x') {
+            continue; // Not executable
+        }
+
+        if (pathname_offset <= 0 || line[pathname_offset] == '\0'
+            || line[pathname_offset] == '[' || line[pathname_offset] == '\n') {
+            continue; // No pathname or special mapping like [stack]
+        }
+
+        const char *pathname = line + pathname_offset;
+        // Trim newline
+        size_t len = strlen(pathname);
+        if (len > 0 && pathname[len - 1] == '\n') {
+            len--;
+        }
+        if (len == 0) {
+            continue;
+        }
+
+        // Skip if offset != 0 (we only want the base mapping)
+        if (offset != 0) {
+            continue;
+        }
+
+        sentry_module_info_t *mod = &ctx->modules[ctx->module_count];
+
+        mod->base_address = start;
+        mod->size = end - start;
+
+        // Copy pathname
+        size_t copy_len
+            = len < sizeof(mod->name) - 1 ? len : sizeof(mod->name) - 1;
+        memcpy(mod->name, pathname, copy_len);
+        mod->name[copy_len] = '\0';
+
+        // Extract Build ID from ELF file
+        memset(mod->uuid, 0, sizeof(mod->uuid));
+        extract_elf_build_id_for_module(
+            mod->name, mod->uuid, sizeof(mod->uuid));
+
+        SENTRY_DEBUGF("Captured module: %s base=0x%llx size=0x%llx", mod->name,
+            (unsigned long long)mod->base_address,
+            (unsigned long long)mod->size);
+
+        ctx->module_count++;
+    }
+
+    fclose(f);
+    SENTRY_DEBUGF("Captured %u modules from /proc/%d/maps", ctx->module_count,
+        ctx->crashed_pid);
+}
+#endif // SENTRY_PLATFORM_LINUX || SENTRY_PLATFORM_ANDROID
+
 /**
  * Build stacktrace for the crashed thread.
  * Convenience wrapper around build_stacktrace_for_thread().
@@ -1580,6 +1787,15 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
             }
             sentry__path_free(screenshot_path);
         }
+    }
+#endif
+
+    // On Linux, capture modules from /proc/<pid>/maps for debug_meta
+    // This must be done before the crashed process exits
+#if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+    if (use_native_mode && ctx->module_count == 0) {
+        SENTRY_DEBUG("Capturing modules from /proc/maps for debug_meta");
+        capture_modules_from_proc_maps(ctx);
     }
 #endif
 
