@@ -40,6 +40,8 @@ signal_safe_memcpy(void *dest, const void *src, size_t n)
     }
 }
 
+// signal_safe_memzero is only used on macOS (for thread state zeroing)
+#if defined(SENTRY_PLATFORM_MACOS)
 /**
  * Signal-safe memory zero that bypasses TSAN/ASAN interception.
  */
@@ -51,6 +53,7 @@ signal_safe_memzero(void *dest, size_t n)
         d[i] = 0;
     }
 }
+#endif
 
 #if defined(SENTRY_PLATFORM_UNIX)
 
@@ -101,6 +104,8 @@ get_tid(void)
 #    endif
 }
 
+// safe_strncpy is only used on macOS (for stack path and module names)
+#    if defined(SENTRY_PLATFORM_MACOS)
 /**
  * Safe string copy (signal-safe)
  */
@@ -117,6 +122,7 @@ safe_strncpy(char *dest, const char *src, size_t n)
     }
     dest[i] = '\0';
 }
+#    endif
 
 /**
  * Signal handler (signal-safe)

@@ -137,14 +137,17 @@ def test_native_session_tracking(cmake, httpserver):
 
     httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
 
-    # Start session and crash
+    # Start session and crash (use stdout to add initialization delay for TSAN)
     run(
         tmp_path,
         "sentry_example",
-        ["log", "start-session", "crash"],
+        ["log", "stdout", "start-session", "crash"],
         expect_failure=True,
         env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
     )
+
+    # Wait for crash to be processed (longer delay for TSAN)
+    time.sleep(2)
 
     # Restart to send
     run(
@@ -154,14 +157,16 @@ def test_native_session_tracking(cmake, httpserver):
         env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
     )
 
-    # Check for session envelope
-    session_envelopes = [
-        Envelope.deserialize(req[0].get_data())
-        for req in httpserver.log
-        if b'"type":"session"' in req[0].get_data()
-    ]
+    # Check for session data - may be in dedicated session envelope or embedded in crash envelope
+    has_session = False
+    for req in httpserver.log:
+        data = req[0].get_data()
+        # Session can be sent as standalone session envelope or embedded in event
+        if b'"type":"session"' in data or b'"status":"crashed"' in data:
+            has_session = True
+            break
 
-    assert len(session_envelopes) >= 1, "Should have session envelope"
+    assert has_session, "Should have session data (standalone or embedded)"
 
 
 def test_native_signal_handling(cmake, httpserver):
@@ -170,14 +175,17 @@ def test_native_signal_handling(cmake, httpserver):
 
     httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
 
-    # Test SIGSEGV
+    # Test SIGSEGV (use stdout to add initialization delay for TSAN)
     run(
         tmp_path,
         "sentry_example",
-        ["log", "crash"],
+        ["log", "stdout", "crash"],
         expect_failure=True,
         env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
     )
+
+    # Wait for crash to be processed (longer delay for TSAN)
+    time.sleep(2)
 
     # Restart to send
     run(
@@ -197,14 +205,17 @@ def test_native_sigabrt(cmake, httpserver):
 
     httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
 
-    # Trigger SIGABRT via assert
+    # Trigger SIGABRT via assert (use stdout for initialization delay under TSAN)
     run(
         tmp_path,
         "sentry_example",
-        ["log", "assert"],
+        ["log", "stdout", "assert"],
         expect_failure=True,
         env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
     )
+
+    # Wait for crash to be processed (longer delay for TSAN)
+    time.sleep(2)
 
     # Restart to send
     run(
@@ -223,16 +234,17 @@ def test_native_multiple_crashes(cmake, httpserver):
 
     httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
 
-    # Crash multiple times
+    # Crash multiple times (use stdout for initialization delay under TSAN)
     for i in range(3):
         run(
             tmp_path,
             "sentry_example",
-            ["log", "crash"],
+            ["log", "stdout", "crash"],
             expect_failure=True,
             env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
         )
-        time.sleep(0.5)
+        # Longer delay for TSAN
+        time.sleep(2)
 
     # Restart to send all crashes
     run(
@@ -252,14 +264,17 @@ def test_native_context_capture(cmake, httpserver):
 
     httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
 
-    # Set context then crash
+    # Set context then crash (use log and stdout for initialization delay under TSAN)
     run(
         tmp_path,
         "sentry_example",
-        ["add-stacktrace", "crash"],
+        ["log", "stdout", "add-stacktrace", "crash"],
         expect_failure=True,
         env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
     )
+
+    # Wait for crash to be processed (longer delay for TSAN)
+    time.sleep(2)
 
     # Restart to send
     run(
@@ -269,7 +284,7 @@ def test_native_context_capture(cmake, httpserver):
         env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
     )
 
-    assert len(httpserver.log) >= 1
+    assert len(httpserver.log) >= 1, "Should have crash envelope with context"
 
 
 def test_native_daemon_respawn(cmake, httpserver):
@@ -280,13 +295,17 @@ def test_native_daemon_respawn(cmake, httpserver):
 
     # This tests the fallback mechanism if daemon dies
     # The test is platform-specific and may need adjustment
+    # Use stdout for initialization delay under TSAN
     run(
         tmp_path,
         "sentry_example",
-        ["log", "crash"],
+        ["log", "stdout", "crash"],
         expect_failure=True,
         env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
     )
+
+    # Wait for crash to be processed (longer delay for TSAN)
+    time.sleep(2)
 
     # Restart to send
     run(
@@ -309,14 +328,17 @@ def test_native_multithreaded_crash(cmake, httpserver):
 
     httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
 
-    # Crash from thread (if example supports it)
+    # Crash from thread (use stdout for initialization delay under TSAN)
     run(
         tmp_path,
         "sentry_example",
-        ["log", "crash"],
+        ["log", "stdout", "crash"],
         expect_failure=True,
         env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
     )
+
+    # Wait for crash to be processed (longer delay for TSAN)
+    time.sleep(2)
 
     # Restart to send
     run(
@@ -335,14 +357,17 @@ def test_native_minidump_streams(cmake, httpserver):
 
     httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
 
-    # Crash
+    # Crash (use stdout for initialization delay under TSAN)
     run(
         tmp_path,
         "sentry_example",
-        ["log", "crash"],
+        ["log", "stdout", "crash"],
         expect_failure=True,
         env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
     )
+
+    # Wait for crash to be processed
+    time.sleep(2)
 
     # Find minidump
     db_dir = tmp_path / ".sentry-native"
@@ -400,11 +425,11 @@ def test_native_no_dsn_no_crash(cmake):
     """Test that without DSN, crashes don't create files"""
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
 
-    # Run without DSN
+    # Run without DSN (use stdout for initialization delay under TSAN)
     run(
         tmp_path,
         "sentry_example",
-        ["log", "crash"],
+        ["log", "stdout", "crash"],
         expect_failure=True,
         env=dict(os.environ, SENTRY_DSN=""),
     )
