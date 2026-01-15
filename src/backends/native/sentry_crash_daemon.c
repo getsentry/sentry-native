@@ -184,6 +184,583 @@ write_attachment_to_envelope(int fd, const char *file_path,
 }
 
 /**
+ * Get signal name from signal number (for Unix platforms)
+ */
+static const char *
+get_signal_name(int signum)
+{
+#if defined(SENTRY_PLATFORM_UNIX)
+    switch (signum) {
+    case SIGABRT:
+        return "SIGABRT";
+    case SIGBUS:
+        return "SIGBUS";
+    case SIGFPE:
+        return "SIGFPE";
+    case SIGILL:
+        return "SIGILL";
+    case SIGSEGV:
+        return "SIGSEGV";
+    case SIGSYS:
+        return "SIGSYS";
+    case SIGTRAP:
+        return "SIGTRAP";
+    default:
+        return "UNKNOWN";
+    }
+#else
+    (void)signum;
+    return "EXCEPTION";
+#endif
+}
+
+/**
+ * Build registers value from crash context
+ */
+static sentry_value_t
+build_registers_from_ctx(const sentry_crash_context_t *ctx)
+{
+    sentry_value_t registers = sentry_value_new_object();
+
+#if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+    const ucontext_t *uctx = &ctx->platform.context;
+    uintptr_t *mctx = (uintptr_t *)&uctx->uc_mcontext;
+
+#    if defined(__x86_64__)
+    sentry_value_set_by_key(
+        registers, "r8", sentry__value_new_addr((uint64_t)mctx[0]));
+    sentry_value_set_by_key(
+        registers, "r9", sentry__value_new_addr((uint64_t)mctx[1]));
+    sentry_value_set_by_key(
+        registers, "r10", sentry__value_new_addr((uint64_t)mctx[2]));
+    sentry_value_set_by_key(
+        registers, "r11", sentry__value_new_addr((uint64_t)mctx[3]));
+    sentry_value_set_by_key(
+        registers, "r12", sentry__value_new_addr((uint64_t)mctx[4]));
+    sentry_value_set_by_key(
+        registers, "r13", sentry__value_new_addr((uint64_t)mctx[5]));
+    sentry_value_set_by_key(
+        registers, "r14", sentry__value_new_addr((uint64_t)mctx[6]));
+    sentry_value_set_by_key(
+        registers, "r15", sentry__value_new_addr((uint64_t)mctx[7]));
+    sentry_value_set_by_key(
+        registers, "rdi", sentry__value_new_addr((uint64_t)mctx[8]));
+    sentry_value_set_by_key(
+        registers, "rsi", sentry__value_new_addr((uint64_t)mctx[9]));
+    sentry_value_set_by_key(
+        registers, "rbp", sentry__value_new_addr((uint64_t)mctx[10]));
+    sentry_value_set_by_key(
+        registers, "rbx", sentry__value_new_addr((uint64_t)mctx[11]));
+    sentry_value_set_by_key(
+        registers, "rdx", sentry__value_new_addr((uint64_t)mctx[12]));
+    sentry_value_set_by_key(
+        registers, "rax", sentry__value_new_addr((uint64_t)mctx[13]));
+    sentry_value_set_by_key(
+        registers, "rcx", sentry__value_new_addr((uint64_t)mctx[14]));
+    sentry_value_set_by_key(
+        registers, "rsp", sentry__value_new_addr((uint64_t)mctx[15]));
+    sentry_value_set_by_key(
+        registers, "rip", sentry__value_new_addr((uint64_t)mctx[16]));
+#    elif defined(__aarch64__)
+    for (int i = 0; i < 29; i++) {
+        char name[4];
+        snprintf(name, sizeof(name), "x%d", i);
+        sentry_value_set_by_key(
+            registers, name, sentry__value_new_addr((uint64_t)mctx[i]));
+    }
+    sentry_value_set_by_key(
+        registers, "fp", sentry__value_new_addr((uint64_t)mctx[29]));
+    sentry_value_set_by_key(
+        registers, "lr", sentry__value_new_addr((uint64_t)mctx[30]));
+    sentry_value_set_by_key(
+        registers, "sp", sentry__value_new_addr((uint64_t)mctx[31]));
+    sentry_value_set_by_key(
+        registers, "pc", sentry__value_new_addr((uint64_t)mctx[32]));
+#    endif
+
+#elif defined(SENTRY_PLATFORM_MACOS)
+    const _STRUCT_MCONTEXT *mctx = &ctx->platform.mcontext;
+
+#    if defined(__x86_64__)
+    sentry_value_set_by_key(
+        registers, "rax", sentry__value_new_addr(mctx->__ss.__rax));
+    sentry_value_set_by_key(
+        registers, "rbx", sentry__value_new_addr(mctx->__ss.__rbx));
+    sentry_value_set_by_key(
+        registers, "rcx", sentry__value_new_addr(mctx->__ss.__rcx));
+    sentry_value_set_by_key(
+        registers, "rdx", sentry__value_new_addr(mctx->__ss.__rdx));
+    sentry_value_set_by_key(
+        registers, "rdi", sentry__value_new_addr(mctx->__ss.__rdi));
+    sentry_value_set_by_key(
+        registers, "rsi", sentry__value_new_addr(mctx->__ss.__rsi));
+    sentry_value_set_by_key(
+        registers, "rbp", sentry__value_new_addr(mctx->__ss.__rbp));
+    sentry_value_set_by_key(
+        registers, "rsp", sentry__value_new_addr(mctx->__ss.__rsp));
+    sentry_value_set_by_key(
+        registers, "r8", sentry__value_new_addr(mctx->__ss.__r8));
+    sentry_value_set_by_key(
+        registers, "r9", sentry__value_new_addr(mctx->__ss.__r9));
+    sentry_value_set_by_key(
+        registers, "r10", sentry__value_new_addr(mctx->__ss.__r10));
+    sentry_value_set_by_key(
+        registers, "r11", sentry__value_new_addr(mctx->__ss.__r11));
+    sentry_value_set_by_key(
+        registers, "r12", sentry__value_new_addr(mctx->__ss.__r12));
+    sentry_value_set_by_key(
+        registers, "r13", sentry__value_new_addr(mctx->__ss.__r13));
+    sentry_value_set_by_key(
+        registers, "r14", sentry__value_new_addr(mctx->__ss.__r14));
+    sentry_value_set_by_key(
+        registers, "r15", sentry__value_new_addr(mctx->__ss.__r15));
+    sentry_value_set_by_key(
+        registers, "rip", sentry__value_new_addr(mctx->__ss.__rip));
+#    elif defined(__aarch64__)
+    for (int i = 0; i < 29; i++) {
+        char name[4];
+        snprintf(name, sizeof(name), "x%d", i);
+        sentry_value_set_by_key(
+            registers, name, sentry__value_new_addr(mctx->__ss.__x[i]));
+    }
+    sentry_value_set_by_key(
+        registers, "fp", sentry__value_new_addr(mctx->__ss.__fp));
+    sentry_value_set_by_key(
+        registers, "lr", sentry__value_new_addr(mctx->__ss.__lr));
+    sentry_value_set_by_key(
+        registers, "sp", sentry__value_new_addr(mctx->__ss.__sp));
+    sentry_value_set_by_key(
+        registers, "pc", sentry__value_new_addr(mctx->__ss.__pc));
+#    endif
+
+#elif defined(SENTRY_PLATFORM_WINDOWS)
+    const CONTEXT *wctx = &ctx->platform.context;
+
+#    if defined(_M_AMD64)
+    sentry_value_set_by_key(
+        registers, "rax", sentry__value_new_addr(wctx->Rax));
+    sentry_value_set_by_key(
+        registers, "rbx", sentry__value_new_addr(wctx->Rbx));
+    sentry_value_set_by_key(
+        registers, "rcx", sentry__value_new_addr(wctx->Rcx));
+    sentry_value_set_by_key(
+        registers, "rdx", sentry__value_new_addr(wctx->Rdx));
+    sentry_value_set_by_key(
+        registers, "rdi", sentry__value_new_addr(wctx->Rdi));
+    sentry_value_set_by_key(
+        registers, "rsi", sentry__value_new_addr(wctx->Rsi));
+    sentry_value_set_by_key(
+        registers, "rbp", sentry__value_new_addr(wctx->Rbp));
+    sentry_value_set_by_key(
+        registers, "rsp", sentry__value_new_addr(wctx->Rsp));
+    sentry_value_set_by_key(registers, "r8", sentry__value_new_addr(wctx->R8));
+    sentry_value_set_by_key(registers, "r9", sentry__value_new_addr(wctx->R9));
+    sentry_value_set_by_key(
+        registers, "r10", sentry__value_new_addr(wctx->R10));
+    sentry_value_set_by_key(
+        registers, "r11", sentry__value_new_addr(wctx->R11));
+    sentry_value_set_by_key(
+        registers, "r12", sentry__value_new_addr(wctx->R12));
+    sentry_value_set_by_key(
+        registers, "r13", sentry__value_new_addr(wctx->R13));
+    sentry_value_set_by_key(
+        registers, "r14", sentry__value_new_addr(wctx->R14));
+    sentry_value_set_by_key(
+        registers, "r15", sentry__value_new_addr(wctx->R15));
+    sentry_value_set_by_key(
+        registers, "rip", sentry__value_new_addr(wctx->Rip));
+#    elif defined(_M_IX86)
+    sentry_value_set_by_key(
+        registers, "eax", sentry__value_new_addr(wctx->Eax));
+    sentry_value_set_by_key(
+        registers, "ebx", sentry__value_new_addr(wctx->Ebx));
+    sentry_value_set_by_key(
+        registers, "ecx", sentry__value_new_addr(wctx->Ecx));
+    sentry_value_set_by_key(
+        registers, "edx", sentry__value_new_addr(wctx->Edx));
+    sentry_value_set_by_key(
+        registers, "edi", sentry__value_new_addr(wctx->Edi));
+    sentry_value_set_by_key(
+        registers, "esi", sentry__value_new_addr(wctx->Esi));
+    sentry_value_set_by_key(
+        registers, "ebp", sentry__value_new_addr(wctx->Ebp));
+    sentry_value_set_by_key(
+        registers, "esp", sentry__value_new_addr(wctx->Esp));
+    sentry_value_set_by_key(
+        registers, "eip", sentry__value_new_addr(wctx->Eip));
+#    elif defined(_M_ARM64)
+    for (int i = 0; i < 29; i++) {
+        char name[4];
+        snprintf(name, sizeof(name), "x%d", i);
+        sentry_value_set_by_key(
+            registers, name, sentry__value_new_addr(wctx->X[i]));
+    }
+    sentry_value_set_by_key(registers, "fp", sentry__value_new_addr(wctx->Fp));
+    sentry_value_set_by_key(registers, "lr", sentry__value_new_addr(wctx->Lr));
+    sentry_value_set_by_key(registers, "sp", sentry__value_new_addr(wctx->Sp));
+    sentry_value_set_by_key(registers, "pc", sentry__value_new_addr(wctx->Pc));
+#    endif
+#endif
+
+    return registers;
+}
+
+/**
+ * Build stacktrace frames from module info in crash context.
+ * For now, we create a single frame with the instruction pointer.
+ * Full unwinding would require remote memory access.
+ */
+static sentry_value_t
+build_stacktrace_from_ctx(const sentry_crash_context_t *ctx)
+{
+    sentry_value_t stacktrace = sentry_value_new_object();
+    sentry_value_t frames = sentry_value_new_list();
+
+    // Get instruction pointer from crash context
+    uint64_t ip = 0;
+#if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+#    if defined(__x86_64__)
+    ip = (uint64_t)ctx->platform.context.uc_mcontext.gregs[REG_RIP];
+#    elif defined(__aarch64__)
+    ip = (uint64_t)ctx->platform.context.uc_mcontext.pc;
+#    elif defined(__i386__)
+    ip = (uint64_t)ctx->platform.context.uc_mcontext.gregs[REG_EIP];
+#    elif defined(__arm__)
+    ip = (uint64_t)ctx->platform.context.uc_mcontext.arm_pc;
+#    endif
+#elif defined(SENTRY_PLATFORM_MACOS)
+#    if defined(__x86_64__)
+    ip = ctx->platform.mcontext.__ss.__rip;
+#    elif defined(__aarch64__)
+    ip = ctx->platform.mcontext.__ss.__pc;
+#    endif
+#elif defined(SENTRY_PLATFORM_WINDOWS)
+#    if defined(_M_AMD64)
+    ip = ctx->platform.context.Rip;
+#    elif defined(_M_IX86)
+    ip = ctx->platform.context.Eip;
+#    elif defined(_M_ARM64)
+    ip = ctx->platform.context.Pc;
+#    endif
+#endif
+
+    if (ip != 0) {
+        sentry_value_t frame = sentry_value_new_object();
+        sentry_value_set_by_key(
+            frame, "instruction_addr", sentry__value_new_addr(ip));
+        sentry_value_append(frames, frame);
+    }
+
+    sentry_value_set_by_key(stacktrace, "frames", frames);
+    sentry_value_set_by_key(
+        stacktrace, "registers", build_registers_from_ctx(ctx));
+
+    return stacktrace;
+}
+
+/**
+ * Build native crash event with exception, mechanism, and debug_meta
+ */
+static sentry_value_t
+build_native_crash_event(
+    const sentry_crash_context_t *ctx, const char *event_file_path)
+{
+    // Read base event from parent's file
+    sentry_value_t event = sentry_value_new_null();
+    if (event_file_path && event_file_path[0]) {
+        sentry_path_t *ev_path = sentry__path_from_str(event_file_path);
+        if (ev_path) {
+            size_t event_size = 0;
+            char *event_json
+                = sentry__path_read_to_buffer(ev_path, &event_size);
+            sentry__path_free(ev_path);
+            if (event_json && event_size > 0) {
+                event = sentry__value_from_json(event_json, event_size);
+                sentry_free(event_json);
+            }
+        }
+    }
+
+    if (sentry_value_is_null(event)) {
+        event = sentry_value_new_event();
+    }
+
+    // Set platform to native
+    sentry_value_set_by_key(
+        event, "platform", sentry_value_new_string("native"));
+
+    // Set level to fatal
+    sentry_value_set_by_key(event, "level", sentry_value_new_string("fatal"));
+
+    // Build exception
+    const char *signal_name = "UNKNOWN";
+    int signal_number = 0;
+#if defined(SENTRY_PLATFORM_UNIX)
+    signal_number = ctx->platform.signum;
+    signal_name = get_signal_name(signal_number);
+#elif defined(SENTRY_PLATFORM_WINDOWS)
+    signal_number = (int)ctx->platform.exception_code;
+    signal_name = "EXCEPTION";
+#endif
+
+    sentry_value_t exc = sentry_value_new_object();
+    sentry_value_set_by_key(exc, "type", sentry_value_new_string(signal_name));
+
+    char value_buf[128];
+    snprintf(value_buf, sizeof(value_buf), "Fatal crash: %s", signal_name);
+    sentry_value_set_by_key(exc, "value", sentry_value_new_string(value_buf));
+
+    // Add mechanism
+    sentry_value_t mechanism = sentry_value_new_object();
+    sentry_value_set_by_key(
+        mechanism, "type", sentry_value_new_string("signalhandler"));
+    sentry_value_set_by_key(
+        mechanism, "synthetic", sentry_value_new_bool(true));
+    sentry_value_set_by_key(mechanism, "handled", sentry_value_new_bool(false));
+
+    // Add signal metadata
+    sentry_value_t meta = sentry_value_new_object();
+    sentry_value_t signal_info = sentry_value_new_object();
+    sentry_value_set_by_key(
+        signal_info, "number", sentry_value_new_int32(signal_number));
+    sentry_value_set_by_key(
+        signal_info, "name", sentry_value_new_string(signal_name));
+    sentry_value_set_by_key(meta, "signal", signal_info);
+    sentry_value_set_by_key(mechanism, "meta", meta);
+
+    sentry_value_set_by_key(exc, "mechanism", mechanism);
+
+    // Add stacktrace to exception
+    sentry_value_set_by_key(exc, "stacktrace", build_stacktrace_from_ctx(ctx));
+
+    // Wrap exception in values array
+    sentry_value_t exceptions = sentry_value_new_object();
+    sentry_value_t exc_values = sentry_value_new_list();
+    sentry_value_append(exc_values, exc);
+    sentry_value_set_by_key(exceptions, "values", exc_values);
+    sentry_value_set_by_key(event, "exception", exceptions);
+
+    // Add threads
+    sentry_value_t threads = sentry_value_new_object();
+    sentry_value_t thread_values = sentry_value_new_list();
+
+    sentry_value_t crashed_thread = sentry_value_new_object();
+    sentry_value_set_by_key(crashed_thread, "id",
+        sentry_value_new_int32((int32_t)ctx->crashed_tid));
+    sentry_value_set_by_key(
+        crashed_thread, "crashed", sentry_value_new_bool(true));
+    sentry_value_set_by_key(
+        crashed_thread, "current", sentry_value_new_bool(true));
+    sentry_value_set_by_key(
+        crashed_thread, "stacktrace", build_stacktrace_from_ctx(ctx));
+    sentry_value_append(thread_values, crashed_thread);
+
+    sentry_value_set_by_key(threads, "values", thread_values);
+    sentry_value_set_by_key(event, "threads", threads);
+
+    // Add debug_meta with module images
+    sentry_value_t modules = sentry_get_modules_list();
+    if (!sentry_value_is_null(modules)) {
+        sentry_value_t debug_meta = sentry_value_new_object();
+        sentry_value_set_by_key(debug_meta, "images", modules);
+        sentry_value_set_by_key(event, "debug_meta", debug_meta);
+    }
+
+    return event;
+}
+
+/**
+ * Write envelope with native stacktrace event
+ * If minidump_path is provided, also attach it as an attachment
+ */
+static bool
+write_envelope_with_native_stacktrace(const sentry_options_t *options,
+    const char *envelope_path, const sentry_crash_context_t *ctx,
+    const char *event_file_path, const char *minidump_path,
+    sentry_path_t *run_folder)
+{
+    // Build native crash event
+    sentry_value_t event = build_native_crash_event(ctx, event_file_path);
+
+    // Serialize event to JSON
+    char *event_json = sentry_value_to_json(event);
+    sentry_value_decref(event);
+
+    if (!event_json) {
+        SENTRY_WARN("Failed to serialize native crash event to JSON");
+        return false;
+    }
+
+    size_t event_size = strlen(event_json);
+
+    // Open envelope file for writing
+#if defined(SENTRY_PLATFORM_UNIX)
+    int fd = open(envelope_path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+#elif defined(SENTRY_PLATFORM_WINDOWS)
+    wchar_t *wpath = sentry__string_to_wstr(envelope_path);
+    int fd = wpath ? _wopen(wpath, _O_WRONLY | _O_CREAT | _O_TRUNC | _O_BINARY,
+                         _S_IREAD | _S_IWRITE)
+                   : -1;
+    sentry_free(wpath);
+#endif
+    if (fd < 0) {
+        SENTRY_WARN("Failed to open envelope file for writing");
+        sentry_free(event_json);
+        return false;
+    }
+
+    // Write envelope header
+    const char *dsn
+        = options && options->dsn ? sentry_options_get_dsn(options) : NULL;
+    char header_buf[SENTRY_CRASH_ENVELOPE_HEADER_SIZE];
+    int header_len;
+    if (dsn) {
+        header_len = snprintf(
+            header_buf, sizeof(header_buf), "{\"dsn\":\"%s\"}\n", dsn);
+    } else {
+        header_len = snprintf(header_buf, sizeof(header_buf), "{}\n");
+    }
+    if (header_len > 0 && header_len < (int)sizeof(header_buf)) {
+#if defined(SENTRY_PLATFORM_UNIX)
+        if (write(fd, header_buf, header_len) != header_len) {
+            SENTRY_WARN("Failed to write envelope header");
+        }
+#elif defined(SENTRY_PLATFORM_WINDOWS)
+        _write(fd, header_buf, (unsigned int)header_len);
+#endif
+    }
+
+    // Write event item
+    char event_header[SENTRY_CRASH_ITEM_HEADER_SIZE];
+    int ev_header_len = snprintf(event_header, sizeof(event_header),
+        "{\"type\":\"event\",\"length\":%zu}\n", event_size);
+    if (ev_header_len > 0 && ev_header_len < (int)sizeof(event_header)) {
+#if defined(SENTRY_PLATFORM_UNIX)
+        if (write(fd, event_header, ev_header_len) != ev_header_len) {
+            SENTRY_WARN("Failed to write event header to envelope");
+        }
+        if (write(fd, event_json, event_size) != (ssize_t)event_size) {
+            SENTRY_WARN("Failed to write event data to envelope");
+        }
+        if (write(fd, "\n", 1) != 1) {
+            SENTRY_WARN("Failed to write event newline to envelope");
+        }
+#elif defined(SENTRY_PLATFORM_WINDOWS)
+        _write(fd, event_header, (unsigned int)ev_header_len);
+        _write(fd, event_json, (unsigned int)event_size);
+        _write(fd, "\n", 1);
+#endif
+    }
+
+    sentry_free(event_json);
+
+    // Add minidump as attachment if provided
+    if (minidump_path && minidump_path[0]) {
+#if defined(SENTRY_PLATFORM_UNIX)
+        int minidump_fd = open(minidump_path, O_RDONLY);
+#elif defined(SENTRY_PLATFORM_WINDOWS)
+        wchar_t *wpath_md = sentry__string_to_wstr(minidump_path);
+        int minidump_fd
+            = wpath_md ? _wopen(wpath_md, _O_RDONLY | _O_BINARY) : -1;
+        sentry_free(wpath_md);
+#endif
+        if (minidump_fd >= 0) {
+#if defined(SENTRY_PLATFORM_UNIX)
+            struct stat st;
+            if (fstat(minidump_fd, &st) == 0) {
+                long long minidump_size = (long long)st.st_size;
+#elif defined(SENTRY_PLATFORM_WINDOWS)
+            struct __stat64 st;
+            if (_fstat64(minidump_fd, &st) == 0) {
+                long long minidump_size = (long long)st.st_size;
+#endif
+                // Write minidump attachment header
+                char md_header[SENTRY_CRASH_ITEM_HEADER_SIZE];
+                int md_header_len = snprintf(md_header, sizeof(md_header),
+                    "{\"type\":\"attachment\",\"length\":%lld,"
+                    "\"attachment_type\":\"event.minidump\","
+                    "\"filename\":\"minidump.dmp\"}\n",
+                    minidump_size);
+
+                if (md_header_len > 0
+                    && md_header_len < (int)sizeof(md_header)) {
+#if defined(SENTRY_PLATFORM_UNIX)
+                    if (write(fd, md_header, md_header_len) != md_header_len) {
+                        SENTRY_WARN(
+                            "Failed to write minidump header to envelope");
+                    }
+#elif defined(SENTRY_PLATFORM_WINDOWS)
+                    _write(fd, md_header, (unsigned int)md_header_len);
+#endif
+                }
+
+                // Copy minidump content
+                char buf[SENTRY_CRASH_FILE_BUFFER_SIZE];
+#if defined(SENTRY_PLATFORM_UNIX)
+                ssize_t n;
+                while ((n = read(minidump_fd, buf, sizeof(buf))) > 0) {
+                    if (write(fd, buf, n) != n) {
+                        SENTRY_WARN("Failed to write minidump to envelope");
+                        break;
+                    }
+                }
+                if (write(fd, "\n", 1) != 1) {
+                    SENTRY_WARN("Failed to write newline to envelope");
+                }
+                close(minidump_fd);
+#elif defined(SENTRY_PLATFORM_WINDOWS)
+                int n;
+                while ((n = _read(minidump_fd, buf, sizeof(buf))) > 0) {
+                    _write(fd, buf, (unsigned int)n);
+                }
+                _write(fd, "\n", 1);
+                _close(minidump_fd);
+#endif
+            } else {
+#if defined(SENTRY_PLATFORM_UNIX)
+                close(minidump_fd);
+#elif defined(SENTRY_PLATFORM_WINDOWS)
+                _close(minidump_fd);
+#endif
+            }
+        }
+    }
+
+    // Add other attachments from run folder
+    if (run_folder) {
+        sentry_pathiter_t *piter = sentry__path_iter_directory(run_folder);
+        if (piter) {
+            const sentry_path_t *file_path;
+            while ((file_path = sentry__pathiter_next(piter)) != NULL) {
+                const char *path_str = file_path->path;
+                const char *basename = strrchr(path_str, '/');
+                if (!basename) {
+                    basename = strrchr(path_str, '\\');
+                }
+                basename = basename ? basename + 1 : path_str;
+
+                // Skip event and breadcrumb files
+                if (strncmp(basename, "__sentry", 8) == 0) {
+                    continue;
+                }
+
+                // Add as attachment
+                write_attachment_to_envelope(fd, path_str, basename, NULL);
+            }
+            sentry__pathiter_free(piter);
+        }
+    }
+
+#if defined(SENTRY_PLATFORM_UNIX)
+    close(fd);
+#elif defined(SENTRY_PLATFORM_WINDOWS)
+    _close(fd);
+#endif
+
+    return true;
+}
+
+/**
  * Manually write a Sentry envelope with event, minidump, and attachments.
  * Format matches what Crashpad's Envelope class does.
  */
@@ -406,237 +983,280 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
     sentry__atomic_store(&ctx->state, SENTRY_CRASH_STATE_PROCESSING);
     SENTRY_DEBUG("Marked state as PROCESSING");
 
-    // Generate minidump path in database directory
-    char minidump_path[SENTRY_CRASH_MAX_PATH];
-    const char *db_dir = ctx->database_path;
-    int path_len = snprintf(minidump_path, sizeof(minidump_path),
-        "%s/sentry-minidump-%lu-%lu.dmp", db_dir,
-        (unsigned long)ctx->crashed_pid, (unsigned long)ctx->crashed_tid);
+    // Check crash reporting mode
+    int mode = ctx->crash_reporting_mode;
+    SENTRY_DEBUGF("Crash reporting mode: %d", mode);
 
-    if (path_len < 0 || path_len >= (int)sizeof(minidump_path)) {
-        SENTRY_WARN("Minidump path truncated or invalid");
+    // Determine if we need to write a minidump
+    // Mode 0 (MINIDUMP): Always write minidump
+    // Mode 1 (NATIVE): No minidump
+    // Mode 2 (NATIVE_WITH_MINIDUMP): Write minidump
+    bool need_minidump = (mode == SENTRY_CRASH_REPORTING_MODE_MINIDUMP
+        || mode == SENTRY_CRASH_REPORTING_MODE_NATIVE_WITH_MINIDUMP);
+
+    // Determine if we use native stacktrace mode
+    // Mode 0: Use minidump-only envelope (existing behavior)
+    // Mode 1 & 2: Use native stacktrace envelope
+    bool use_native_mode = (mode == SENTRY_CRASH_REPORTING_MODE_NATIVE
+        || mode == SENTRY_CRASH_REPORTING_MODE_NATIVE_WITH_MINIDUMP);
+
+    // Generate minidump path in database directory
+    char minidump_path[SENTRY_CRASH_MAX_PATH] = { 0 };
+    const char *db_dir = ctx->database_path;
+
+    if (need_minidump) {
+        int path_len = snprintf(minidump_path, sizeof(minidump_path),
+            "%s/sentry-minidump-%lu-%lu.dmp", db_dir,
+            (unsigned long)ctx->crashed_pid, (unsigned long)ctx->crashed_tid);
+
+        if (path_len < 0 || path_len >= (int)sizeof(minidump_path)) {
+            SENTRY_WARN("Minidump path truncated or invalid");
+            goto done;
+        }
+
+        SENTRY_DEBUGF("Writing minidump to: %s", minidump_path);
+        SENTRY_DEBUGF(
+            "About to call sentry__write_minidump, ctx=%p, crashed_pid=%d",
+            (void *)ctx, ctx->crashed_pid);
+
+        // Write minidump
+        int minidump_result = sentry__write_minidump(ctx, minidump_path);
+        SENTRY_DEBUGF("sentry__write_minidump returned: %d", minidump_result);
+
+        if (minidump_result != 0) {
+            SENTRY_WARN("Failed to write minidump");
+            minidump_path[0] = '\0'; // Clear path on failure
+        } else {
+            SENTRY_DEBUG("Minidump written successfully");
+
+            // Copy minidump path back to shared memory
+#ifdef _WIN32
+            strncpy_s(ctx->minidump_path, sizeof(ctx->minidump_path),
+                minidump_path, _TRUNCATE);
+#else
+            size_t mp_len = strlen(minidump_path);
+            size_t copy_len = mp_len < sizeof(ctx->minidump_path) - 1
+                ? mp_len
+                : sizeof(ctx->minidump_path) - 1;
+            memcpy(ctx->minidump_path, minidump_path, copy_len);
+            ctx->minidump_path[copy_len] = '\0';
+#endif
+        }
+    }
+
+    // For mode 0 (MINIDUMP only), we need a successful minidump
+    if (mode == SENTRY_CRASH_REPORTING_MODE_MINIDUMP
+        && minidump_path[0] == '\0') {
+        SENTRY_WARN("Minidump mode requires minidump, but minidump failed");
         goto done;
     }
 
-    SENTRY_DEBUGF("Writing minidump to: %s", minidump_path);
+    // Get event file path from context
+    const char *event_path = ctx->event_path[0] ? ctx->event_path : NULL;
     SENTRY_DEBUGF(
-        "About to call sentry__write_minidump, ctx=%p, crashed_pid=%d",
-        (void *)ctx, ctx->crashed_pid);
-
-    // Write minidump
-    int minidump_result = sentry__write_minidump(ctx, minidump_path);
-    SENTRY_DEBUGF("sentry__write_minidump returned: %d", minidump_result);
-
-    if (minidump_result == 0) {
-        SENTRY_DEBUG("Minidump written successfully");
-
-        // Copy minidump path back to shared memory
-#ifdef _WIN32
-        strncpy_s(ctx->minidump_path, sizeof(ctx->minidump_path), minidump_path,
-            _TRUNCATE);
-#else
-        size_t path_len = strlen(minidump_path);
-        size_t copy_len = path_len < sizeof(ctx->minidump_path) - 1
-            ? path_len
-            : sizeof(ctx->minidump_path) - 1;
-        memcpy(ctx->minidump_path, minidump_path, copy_len);
-        ctx->minidump_path[copy_len] = '\0';
-#endif
-
-        // Get event file path from context
-        const char *event_path = ctx->event_path[0] ? ctx->event_path : NULL;
-        SENTRY_DEBUGF(
-            "Event path from context: %s", event_path ? event_path : "(null)");
-        if (!event_path) {
-            SENTRY_WARN(
-                "No event file from parent - deleting orphaned minidump");
+        "Event path from context: %s", event_path ? event_path : "(null)");
+    if (!event_path) {
+        SENTRY_WARN("No event file from parent");
+        if (minidump_path[0]) {
             // Delete the orphaned minidump to prevent disk space leaks
-            unlink(minidump_path);
-            ctx->minidump_path[0] = '\0';
-            goto done;
-        }
-
-        // Extract run folder path from event path (event is at
-        // run_folder/__sentry-event)
-        SENTRY_DEBUG("Extracting run folder from event path");
-        sentry_path_t *ev_path = sentry__path_from_str(event_path);
-        sentry_path_t *run_folder = ev_path ? sentry__path_dir(ev_path) : NULL;
-        if (ev_path)
-            sentry__path_free(ev_path);
-
-        // Create envelope file in database directory
-        char envelope_path[SENTRY_CRASH_MAX_PATH];
-        path_len = snprintf(envelope_path, sizeof(envelope_path),
-            "%s/sentry-envelope-%lu.env", db_dir,
-            (unsigned long)ctx->crashed_pid);
-
-        if (path_len < 0 || path_len >= (int)sizeof(envelope_path)) {
-            SENTRY_WARN("Envelope path truncated or invalid");
-            if (run_folder) {
-                sentry__path_free(run_folder);
-            }
-            goto done;
-        }
-
-        SENTRY_DEBUGF("Creating envelope at: %s", envelope_path);
-
-        // Capture screenshot if enabled (Windows only)
-        // This is done in the daemon process (out-of-process) because
-        // screenshot capture is NOT signal-safe (uses LoadLibrary, GDI+, etc.)
-#if defined(SENTRY_PLATFORM_WINDOWS)
-        if (options->attach_screenshot && run_folder) {
-            SENTRY_DEBUG("Capturing screenshot");
-            sentry_path_t *screenshot_path
-                = sentry__path_join_str(run_folder, "screenshot.png");
-            if (screenshot_path) {
-                // Pass the crashed app's PID so we capture its windows, not the
-                // daemon's
-                if (sentry__screenshot_capture(
-                        screenshot_path, (uint32_t)ctx->crashed_pid)) {
-                    SENTRY_DEBUG("Screenshot captured successfully");
-                } else {
-                    SENTRY_DEBUG("Screenshot capture failed");
-                }
-                sentry__path_free(screenshot_path);
-            }
-        }
-#endif
-
-        // Write envelope manually with all attachments from run folder
-        // (avoids mutex-locked SDK functions)
-        SENTRY_DEBUG("Writing envelope with minidump");
-        if (!write_envelope_with_minidump(options, envelope_path, event_path,
-                minidump_path, run_folder)) {
-            SENTRY_WARN("Failed to write envelope");
-            if (run_folder) {
-                sentry__path_free(run_folder);
-            }
-            goto done;
-        }
-        SENTRY_DEBUG("Envelope written successfully");
-
-        // Read envelope and send via transport
-        SENTRY_DEBUG("Reading envelope file back");
-
-        // Check if file exists and get size
-#if defined(SENTRY_PLATFORM_WINDOWS)
-        wchar_t *wenvelope_path = sentry__string_to_wstr(envelope_path);
-        struct _stat64 st;
-        if (wenvelope_path && _wstat64(wenvelope_path, &st) == 0) {
-            SENTRY_DEBUGF(
-                "Envelope file exists, size=%lld bytes", (long long)st.st_size);
-        } else {
-            SENTRY_WARNF("Envelope file stat failed: %s", strerror(errno));
-        }
-        sentry_free(wenvelope_path);
-#else
-        struct stat st;
-        if (stat(envelope_path, &st) == 0) {
-            SENTRY_DEBUGF(
-                "Envelope file exists, size=%ld bytes", (long)st.st_size);
-        } else {
-            SENTRY_WARNF("Envelope file stat failed: %s", strerror(errno));
-        }
-#endif
-
-        sentry_path_t *env_path = sentry__path_from_str(envelope_path);
-        if (!env_path) {
-            SENTRY_WARN("Failed to create envelope path");
-            goto cleanup;
-        }
-
-        sentry_envelope_t *envelope = sentry__envelope_from_path(env_path);
-        sentry__path_free(env_path);
-
-        if (!envelope) {
-            SENTRY_WARN("Failed to read envelope file");
-            goto cleanup;
-        }
-
-        SENTRY_DEBUG("Envelope loaded, sending via transport");
-
-        // Send directly via transport
-        if (options && options->transport) {
-            SENTRY_DEBUG("Calling transport send_envelope");
-            sentry__transport_send_envelope(options->transport, envelope);
-            SENTRY_DEBUG("Crash envelope sent to transport (queued)");
-        } else {
-            SENTRY_WARN("No transport available for sending envelope");
-            sentry_envelope_free(envelope);
-        }
-
-        // Clean up temporary envelope file (keep minidump for
-        // inspection/debugging)
 #if defined(SENTRY_PLATFORM_UNIX)
-        unlink(envelope_path);
+            unlink(minidump_path);
 #elif defined(SENTRY_PLATFORM_WINDOWS)
-        wchar_t *wenvelope_unlink = sentry__string_to_wstr(envelope_path);
-        if (wenvelope_unlink) {
-            _wunlink(wenvelope_unlink);
-            sentry_free(wenvelope_unlink);
+            wchar_t *wpath = sentry__string_to_wstr(minidump_path);
+            if (wpath) {
+                _wunlink(wpath);
+                sentry_free(wpath);
+            }
+#endif
         }
+        ctx->minidump_path[0] = '\0';
+        goto done;
+    }
+
+    // Extract run folder path from event path (event is at
+    // run_folder/__sentry-event)
+    SENTRY_DEBUG("Extracting run folder from event path");
+    sentry_path_t *ev_path = sentry__path_from_str(event_path);
+    sentry_path_t *run_folder = ev_path ? sentry__path_dir(ev_path) : NULL;
+    if (ev_path)
+        sentry__path_free(ev_path);
+
+    // Create envelope file in database directory
+    char envelope_path[SENTRY_CRASH_MAX_PATH];
+    int path_len = snprintf(envelope_path, sizeof(envelope_path),
+        "%s/sentry-envelope-%lu.env", db_dir, (unsigned long)ctx->crashed_pid);
+
+    if (path_len < 0 || path_len >= (int)sizeof(envelope_path)) {
+        SENTRY_WARN("Envelope path truncated or invalid");
+        if (run_folder) {
+            sentry__path_free(run_folder);
+        }
+        goto done;
+    }
+
+    SENTRY_DEBUGF("Creating envelope at: %s", envelope_path);
+
+    // Capture screenshot if enabled (Windows only)
+    // This is done in the daemon process (out-of-process) because
+    // screenshot capture is NOT signal-safe (uses LoadLibrary, GDI+, etc.)
+#if defined(SENTRY_PLATFORM_WINDOWS)
+    if (options && options->attach_screenshot && run_folder) {
+        SENTRY_DEBUG("Capturing screenshot");
+        sentry_path_t *screenshot_path
+            = sentry__path_join_str(run_folder, "screenshot.png");
+        if (screenshot_path) {
+            // Pass the crashed app's PID so we capture its windows, not the
+            // daemon's
+            if (sentry__screenshot_capture(
+                    screenshot_path, (uint32_t)ctx->crashed_pid)) {
+                SENTRY_DEBUG("Screenshot captured successfully");
+            } else {
+                SENTRY_DEBUG("Screenshot capture failed");
+            }
+            sentry__path_free(screenshot_path);
+        }
+    }
 #endif
 
-    cleanup:
-        // Send all other envelopes from run folder (logs, etc.) before cleanup
-        if (run_folder && options && options->transport) {
-            SENTRY_DEBUG("Checking for additional envelopes in run folder");
-            sentry_pathiter_t *piter = sentry__path_iter_directory(run_folder);
-            if (piter) {
-                SENTRY_DEBUG("Iterating run folder for envelope files");
-                const sentry_path_t *file_path;
-                int envelope_count = 0;
-                while ((file_path = sentry__pathiter_next(piter)) != NULL) {
-                    // Check if this is an envelope file (ends with .envelope)
-                    const char *path_str = file_path->path;
-                    size_t len = strlen(path_str);
-                    if (len > 9
-                        && strcmp(path_str + len - 9, ".envelope") == 0) {
-                        SENTRY_DEBUGF(
-                            "Sending envelope from run folder: %s", path_str);
-                        sentry_envelope_t *run_envelope
-                            = sentry__envelope_from_path(file_path);
-                        if (run_envelope) {
-                            sentry__transport_send_envelope(
-                                options->transport, run_envelope);
-                            envelope_count++;
-                        } else {
-                            SENTRY_WARNF(
-                                "Failed to load envelope: %s", path_str);
-                        }
+    // Write envelope based on mode
+    bool envelope_written = false;
+    if (use_native_mode) {
+        // Mode 1 (NATIVE) or Mode 2 (NATIVE_WITH_MINIDUMP)
+        SENTRY_DEBUG("Writing envelope with native stacktrace");
+        envelope_written = write_envelope_with_native_stacktrace(options,
+            envelope_path, ctx, event_path,
+            minidump_path[0] ? minidump_path : NULL, run_folder);
+    } else {
+        // Mode 0 (MINIDUMP only)
+        SENTRY_DEBUG("Writing envelope with minidump");
+        envelope_written = write_envelope_with_minidump(
+            options, envelope_path, event_path, minidump_path, run_folder);
+    }
+
+    if (!envelope_written) {
+        SENTRY_WARN("Failed to write envelope");
+        if (run_folder) {
+            sentry__path_free(run_folder);
+        }
+        goto done;
+    }
+    SENTRY_DEBUG("Envelope written successfully");
+
+    // Read envelope and send via transport
+    SENTRY_DEBUG("Reading envelope file back");
+
+    // Check if file exists and get size
+#if defined(SENTRY_PLATFORM_WINDOWS)
+    wchar_t *wenvelope_path = sentry__string_to_wstr(envelope_path);
+    struct _stat64 st;
+    if (wenvelope_path && _wstat64(wenvelope_path, &st) == 0) {
+        SENTRY_DEBUGF(
+            "Envelope file exists, size=%lld bytes", (long long)st.st_size);
+    } else {
+        SENTRY_WARNF("Envelope file stat failed: %s", strerror(errno));
+    }
+    sentry_free(wenvelope_path);
+#else
+    struct stat st;
+    if (stat(envelope_path, &st) == 0) {
+        SENTRY_DEBUGF("Envelope file exists, size=%ld bytes", (long)st.st_size);
+    } else {
+        SENTRY_WARNF("Envelope file stat failed: %s", strerror(errno));
+    }
+#endif
+
+    sentry_path_t *env_path = sentry__path_from_str(envelope_path);
+    if (!env_path) {
+        SENTRY_WARN("Failed to create envelope path");
+        goto cleanup;
+    }
+
+    sentry_envelope_t *envelope = sentry__envelope_from_path(env_path);
+    sentry__path_free(env_path);
+
+    if (!envelope) {
+        SENTRY_WARN("Failed to read envelope file");
+        goto cleanup;
+    }
+
+    SENTRY_DEBUG("Envelope loaded, sending via transport");
+
+    // Send directly via transport
+    if (options && options->transport) {
+        SENTRY_DEBUG("Calling transport send_envelope");
+        sentry__transport_send_envelope(options->transport, envelope);
+        SENTRY_DEBUG("Crash envelope sent to transport (queued)");
+    } else {
+        SENTRY_WARN("No transport available for sending envelope");
+        sentry_envelope_free(envelope);
+    }
+
+    // Clean up temporary envelope file (keep minidump for
+    // inspection/debugging)
+#if defined(SENTRY_PLATFORM_UNIX)
+    unlink(envelope_path);
+#elif defined(SENTRY_PLATFORM_WINDOWS)
+    wchar_t *wenvelope_unlink = sentry__string_to_wstr(envelope_path);
+    if (wenvelope_unlink) {
+        _wunlink(wenvelope_unlink);
+        sentry_free(wenvelope_unlink);
+    }
+#endif
+
+cleanup:
+    // Send all other envelopes from run folder (logs, etc.) before cleanup
+    if (run_folder && options && options->transport) {
+        SENTRY_DEBUG("Checking for additional envelopes in run folder");
+        sentry_pathiter_t *piter = sentry__path_iter_directory(run_folder);
+        if (piter) {
+            SENTRY_DEBUG("Iterating run folder for envelope files");
+            const sentry_path_t *file_path;
+            int envelope_count = 0;
+            while ((file_path = sentry__pathiter_next(piter)) != NULL) {
+                // Check if this is an envelope file (ends with .envelope)
+                const char *path_str = file_path->path;
+                size_t len = strlen(path_str);
+                if (len > 9 && strcmp(path_str + len - 9, ".envelope") == 0) {
+                    SENTRY_DEBUGF(
+                        "Sending envelope from run folder: %s", path_str);
+                    sentry_envelope_t *run_envelope
+                        = sentry__envelope_from_path(file_path);
+                    if (run_envelope) {
+                        sentry__transport_send_envelope(
+                            options->transport, run_envelope);
+                        envelope_count++;
+                    } else {
+                        SENTRY_WARNF("Failed to load envelope: %s", path_str);
                     }
                 }
-                SENTRY_DEBUGF("Sent %d additional envelopes from run folder",
-                    envelope_count);
-                sentry__pathiter_free(piter);
-            } else {
-                SENTRY_DEBUG("Could not iterate run folder");
             }
+            SENTRY_DEBUGF(
+                "Sent %d additional envelopes from run folder", envelope_count);
+            sentry__pathiter_free(piter);
         } else {
-            SENTRY_DEBUG("No run folder or transport for additional envelopes");
+            SENTRY_DEBUG("Could not iterate run folder");
         }
-
-        // Clean up the entire run folder (contains breadcrumbs, etc.)
-        if (run_folder) {
-            SENTRY_DEBUG("Cleaning up run folder");
-            sentry__path_remove_all(run_folder);
-
-            // Also delete the lock file (run_folder.lock)
-            sentry_path_t *lock_path
-                = sentry__path_append_str(run_folder, ".lock");
-            if (lock_path) {
-                sentry__path_remove(lock_path);
-                sentry__path_free(lock_path);
-            }
-
-            sentry__path_free(run_folder);
-            SENTRY_DEBUG("Cleaned up crash run folder and lock file");
-        }
-
-        SENTRY_DEBUG("Crash processing completed successfully");
     } else {
-        SENTRY_WARN("Failed to write minidump");
+        SENTRY_DEBUG("No run folder or transport for additional envelopes");
     }
+
+    // Clean up the entire run folder (contains breadcrumbs, etc.)
+    if (run_folder) {
+        SENTRY_DEBUG("Cleaning up run folder");
+        sentry__path_remove_all(run_folder);
+
+        // Also delete the lock file (run_folder.lock)
+        sentry_path_t *lock_path = sentry__path_append_str(run_folder, ".lock");
+        if (lock_path) {
+            sentry__path_remove(lock_path);
+            sentry__path_free(lock_path);
+        }
+
+        sentry__path_free(run_folder);
+        SENTRY_DEBUG("Cleaned up crash run folder and lock file");
+    }
+
+    SENTRY_DEBUG("Crash processing completed successfully");
 
 done:
     // Mark as done

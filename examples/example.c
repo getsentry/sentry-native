@@ -284,6 +284,17 @@ make_proxy_url(char *buf, size_t buf_size, const char *scheme,
     }
 }
 
+static const char *
+get_arg_value(int argc, char **argv, const char *arg)
+{
+    for (int i = 1; i < argc - 1; i++) {
+        if (strcmp(argv[i], arg) == 0) {
+            return argv[i + 1];
+        }
+    }
+    return NULL;
+}
+
 #if defined(SENTRY_PLATFORM_WINDOWS) && !defined(__MINGW32__)                  \
     && !defined(__MINGW64__)
 
@@ -345,7 +356,14 @@ static void *invalid_mem = (void *)1;
 static void
 trigger_crash()
 {
+#if defined(__SANITIZE_ADDRESS__)                                              \
+    || (defined(__has_feature) && __has_feature(address_sanitizer))
+    // Under ASAN, raise signal directly to bypass ASAN's memory interception.
+    // ASAN intercepts memset and would abort before our signal handler runs.
+    raise(SIGSEGV);
+#else
     memset((char *)invalid_mem, 1, 100);
+#endif
 }
 
 static void
@@ -656,6 +674,22 @@ main(int argc, char **argv)
     if (has_arg(argc, argv, "discarding-before-breadcrumb")) {
         sentry_options_set_before_breadcrumb(
             options, discarding_before_breadcrumb_callback, NULL);
+    }
+
+    if (has_arg(argc, argv, "crash-mode")) {
+        const char *mode = get_arg_value(argc, argv, "crash-mode");
+        if (mode != NULL) {
+            if (strcmp(mode, "minidump") == 0) {
+                sentry_options_set_crash_reporting_mode(
+                    options, SENTRY_CRASH_REPORTING_MODE_MINIDUMP);
+            } else if (strcmp(mode, "native") == 0) {
+                sentry_options_set_crash_reporting_mode(
+                    options, SENTRY_CRASH_REPORTING_MODE_NATIVE);
+            } else if (strcmp(mode, "native-with-minidump") == 0) {
+                sentry_options_set_crash_reporting_mode(
+                    options, SENTRY_CRASH_REPORTING_MODE_NATIVE_WITH_MINIDUMP);
+            }
+        }
     }
 
     if (0 != sentry_init(options)) {
