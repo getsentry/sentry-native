@@ -1002,7 +1002,8 @@ sentry__crash_daemon_start(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
         char daemon_path[SENTRY_CRASH_MAX_PATH];
 
 #    if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
-        ssize_t exe_len = readlink("/proc/self/exe", exe_path, sizeof(exe_path) - 1);
+        ssize_t exe_len
+            = readlink("/proc/self/exe", exe_path, sizeof(exe_path) - 1);
         if (exe_len > 0) {
             exe_path[exe_len] = '\0';
             const char *slash = strrchr(exe_path, '/');
