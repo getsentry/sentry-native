@@ -982,8 +982,7 @@ static void
 enumerate_threads_from_proc(sentry_crash_context_t *ctx)
 {
     char task_path[64];
-    snprintf(
-        task_path, sizeof(task_path), "/proc/%d/task", ctx->crashed_pid);
+    snprintf(task_path, sizeof(task_path), "/proc/%d/task", ctx->crashed_pid);
 
     DIR *dir = opendir(task_path);
     if (!dir) {
