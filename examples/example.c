@@ -309,11 +309,19 @@ static void *invalid_mem = (void *)0xFFFFFFFFFFFFFF9B; // -100 for memset
 static void *invalid_mem = (void *)1;
 #endif
 
+// Detect Address Sanitizer (works for both GCC and Clang)
+#if defined(__SANITIZE_ADDRESS__)
+#    define SENTRY_ASAN_ACTIVE 1
+#elif defined(__has_feature)
+#    if __has_feature(address_sanitizer)
+#        define SENTRY_ASAN_ACTIVE 1
+#    endif
+#endif
+
 static void
 trigger_crash()
 {
-#if defined(__SANITIZE_ADDRESS__)                                              \
-    || (defined(__has_feature) && __has_feature(address_sanitizer))
+#ifdef SENTRY_ASAN_ACTIVE
     // Under ASAN, raise signal directly to bypass ASAN's memory interception.
     // ASAN intercepts memset and would abort before our signal handler runs.
     raise(SIGSEGV);
