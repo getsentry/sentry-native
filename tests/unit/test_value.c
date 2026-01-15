@@ -547,7 +547,7 @@ SENTRY_TEST(value_attribute)
         sentry_value_get_type(string_list_attr) == SENTRY_VALUE_TYPE_OBJECT);
     TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
                                 string_list_attr, "type")),
-        "string[]");
+        "array");
     sentry_value_t string_list_value
         = sentry_value_get_by_key(string_list_attr, "value");
     TEST_CHECK(
@@ -565,7 +565,7 @@ SENTRY_TEST(value_attribute)
         sentry_value_get_type(integer_list_attr) == SENTRY_VALUE_TYPE_OBJECT);
     TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
                                 integer_list_attr, "type")),
-        "integer[]");
+        "array");
     sentry_value_decref(integer_list_attr);
 
     sentry_value_t double_list = sentry_value_new_list();
@@ -577,7 +577,7 @@ SENTRY_TEST(value_attribute)
         sentry_value_get_type(double_list_attr) == SENTRY_VALUE_TYPE_OBJECT);
     TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
                                 double_list_attr, "type")),
-        "double[]");
+        "array");
     sentry_value_decref(double_list_attr);
 
     sentry_value_t boolean_list = sentry_value_new_list();
@@ -589,7 +589,7 @@ SENTRY_TEST(value_attribute)
         sentry_value_get_type(boolean_list_attr) == SENTRY_VALUE_TYPE_OBJECT);
     TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
                                 boolean_list_attr, "type")),
-        "boolean[]");
+        "array");
     sentry_value_decref(boolean_list_attr);
 
     // Test empty list (should return null since first element is null)
