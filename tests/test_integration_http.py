@@ -1602,13 +1602,17 @@ def test_native_crash_http(cmake, httpserver):
     ).respond_with_data("OK")
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
 
+    # Use stdout for initialization delay under TSAN
     run(
         tmp_path,
         "sentry_example",
-        ["log", "attachment", "crash"],
+        ["log", "stdout", "attachment", "crash"],
         expect_failure=True,
         env=env,
     )
+
+    # Wait for crash to be processed (longer delay for TSAN)
+    time.sleep(2)
 
     # Restart to send the crash
     run(
@@ -1638,13 +1642,17 @@ def test_native_logs_on_crash(cmake, httpserver):
     ).respond_with_data("OK")
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
 
+    # Use stdout for initialization delay under TSAN
     run(
         tmp_path,
         "sentry_example",
-        ["log", "enable-logs", "capture-log", "crash"],
+        ["log", "stdout", "enable-logs", "capture-log", "crash"],
         expect_failure=True,
         env=env,
     )
+
+    # Wait for crash to be processed (longer delay for TSAN)
+    time.sleep(2)
 
     run(
         tmp_path,
