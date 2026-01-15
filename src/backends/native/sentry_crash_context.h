@@ -192,8 +192,9 @@ typedef struct {
 #elif defined(SENTRY_PLATFORM_WINDOWS)
 
 // Disable warning C4324: structure was padded due to alignment specifier
-// The Windows CONTEXT structure has alignment requirements (especially on ARM64)
-// that cause padding in our wrapper structs. This is expected and harmless.
+// The Windows CONTEXT structure has alignment requirements (especially on
+// ARM64) that cause padding in our wrapper structs. This is expected and
+// harmless.
 #    ifdef _MSC_VER
 #        pragma warning(push)
 #        pragma warning(disable : 4324)
