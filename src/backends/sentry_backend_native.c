@@ -804,16 +804,23 @@ native_backend_except(sentry_backend_t *backend, const sentry_ucontext_t *uctx)
 
                 if (session) {
                     sentry_envelope_t *envelope = sentry__envelope_new();
-                    sentry__envelope_add_session(envelope, session);
+                    if (envelope) {
+                        sentry__envelope_add_session(envelope, session);
 
-                    // Write session envelope to disk
-                    sentry_transport_t *disk_transport
-                        = sentry_new_disk_transport(options->run);
-                    if (disk_transport) {
-                        sentry__capture_envelope(disk_transport, envelope);
-                        sentry__transport_dump_queue(
-                            disk_transport, options->run);
-                        sentry_transport_free(disk_transport);
+                        // Write session envelope to disk
+                        sentry_transport_t *disk_transport
+                            = sentry_new_disk_transport(options->run);
+                        if (disk_transport) {
+                            // sentry__capture_envelope takes ownership of
+                            // envelope
+                            sentry__capture_envelope(disk_transport, envelope);
+                            sentry__transport_dump_queue(
+                                disk_transport, options->run);
+                            sentry_transport_free(disk_transport);
+                        } else {
+                            // Failed to create transport, free envelope
+                            sentry_envelope_free(envelope);
+                        }
                     }
                 }
 
