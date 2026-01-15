@@ -35,7 +35,29 @@ from .assertions import (
     assert_logs,
     assert_metrics,
 )
-from .conditions import has_http, has_breakpad, has_native, has_files, is_kcov
+from .conditions import has_http, has_breakpad, has_native, has_files, is_kcov, is_asan
+
+
+def get_asan_crash_env(env):
+    """
+    Configure ASAN options for crash testing.
+    Disables ASAN's signal handling so our crash handler can run.
+    """
+    if not is_asan:
+        return env
+    # Preserve existing ASAN_OPTIONS and add signal handling overrides
+    asan_opts = env.get("ASAN_OPTIONS", "")
+    # Disable handling of crash signals so our handler can run
+    asan_signal_opts = (
+        "handle_segv=0:handle_sigbus=0:handle_abort=0:"
+        "handle_sigfpe=0:handle_sigill=0:allow_user_segv_handler=1"
+    )
+    if asan_opts:
+        env = dict(env, ASAN_OPTIONS=f"{asan_opts}:{asan_signal_opts}")
+    else:
+        env = dict(env, ASAN_OPTIONS=asan_signal_opts)
+    return env
+
 
 pytestmark = pytest.mark.skipif(not has_http, reason="tests need http")
 
@@ -1603,12 +1625,13 @@ def test_native_crash_http(cmake, httpserver):
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
 
     # Use stdout for initialization delay under TSAN
+    # Configure ASAN to not intercept crash signals
     run(
         tmp_path,
         "sentry_example",
         ["log", "stdout", "attachment", "crash"],
         expect_failure=True,
-        env=env,
+        env=get_asan_crash_env(env),
     )
 
     # Wait for crash to be processed (longer delay for TSAN)
@@ -1643,12 +1666,13 @@ def test_native_logs_on_crash(cmake, httpserver):
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
 
     # Use stdout for initialization delay under TSAN
+    # Configure ASAN to not intercept crash signals
     run(
         tmp_path,
         "sentry_example",
         ["log", "stdout", "enable-logs", "capture-log", "crash"],
         expect_failure=True,
-        env=env,
+        env=get_asan_crash_env(env),
     )
 
     # Wait for crash to be processed (longer delay for TSAN)

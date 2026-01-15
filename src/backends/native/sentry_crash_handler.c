@@ -415,9 +415,11 @@ crash_signal_handler(int signum, siginfo_t *info, void *context)
         }
 
         sentry_module_info_t *module = &ctx->modules[ctx->module_count++];
-        // _dyld_get_image_header() returns the actual loaded address (slide already applied)
-        // We use the header address directly as the base address for symbolication
-        (void)slide; // Slide is informational only - not needed for base_address
+        // _dyld_get_image_header() returns the actual loaded address (slide
+        // already applied) We use the header address directly as the base
+        // address for symbolication
+        (void)
+            slide; // Slide is informational only - not needed for base_address
         module->base_address = (uint64_t)header;
 
         // Calculate module size and extract UUID (signal-safe)
@@ -696,11 +698,12 @@ crash_exception_filter(EXCEPTION_POINTERS *exception_info)
     // Store only the crashing thread's context
     // Note: We intentionally do NOT suspend other threads to capture their
     // contexts here. Suspending threads in an exception filter is dangerous:
-    // - If a suspended thread holds the heap lock, we may deadlock on allocation
+    // - If a suspended thread holds the heap lock, we may deadlock on
+    // allocation
     // - If a suspended thread holds the loader lock, any DLL call may deadlock
-    // Instead, we rely on MiniDumpWriteDump (called by the daemon process) which
-    // safely captures all thread contexts from outside the crashed process using
-    // the debugger API with ClientPointers=TRUE.
+    // Instead, we rely on MiniDumpWriteDump (called by the daemon process)
+    // which safely captures all thread contexts from outside the crashed
+    // process using the debugger API with ClientPointers=TRUE.
     ctx->platform.num_threads = 1;
     ctx->platform.threads[0].thread_id = GetCurrentThreadId();
     ctx->platform.threads[0].context = *exception_info->ContextRecord;

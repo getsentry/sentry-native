@@ -32,8 +32,7 @@ sentry__crash_ipc_init_app(sem_t *init_sem)
     // Format: /sentry-{pid} - PID alone ensures uniqueness per process
     // Note: Only one crash handler per process is needed, and PID guarantees
     // uniqueness across the system at any given time.
-    snprintf(
-        ipc->shm_name, sizeof(ipc->shm_name), "/sentry-%d", (int)getpid());
+    snprintf(ipc->shm_name, sizeof(ipc->shm_name), "/sentry-%d", (int)getpid());
 
     // Acquire semaphore for exclusive access during initialization
     if (ipc->init_sem && sem_wait(ipc->init_sem) < 0) {
@@ -327,8 +326,7 @@ sentry__crash_ipc_init_app(sem_t *init_sem)
     // Format: /sentry-{pid} - PID alone ensures uniqueness per process
     // Note: Only one crash handler per process is needed, and PID guarantees
     // uniqueness across the system at any given time.
-    snprintf(
-        ipc->shm_name, sizeof(ipc->shm_name), "/sentry-%d", (int)getpid());
+    snprintf(ipc->shm_name, sizeof(ipc->shm_name), "/sentry-%d", (int)getpid());
 
     // Acquire semaphore for exclusive access during initialization
     if (ipc->init_sem && sem_wait(ipc->init_sem) < 0) {

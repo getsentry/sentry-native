@@ -20,7 +20,7 @@ from .assertions import (
     assert_meta,
     assert_session,
 )
-from .conditions import has_native, is_kcov
+from .conditions import has_native, is_kcov, is_asan
 
 
 pytestmark = pytest.mark.skipif(
@@ -33,7 +33,26 @@ def run_crash(tmp_path, exe, args, env):
     """
     Run a crash test, handling kcov's quirk of exiting with 0.
     kcov intercepts signals and may exit cleanly even when the program crashes.
+
+    When running under ASAN, we configure it to not intercept crash signals
+    so that our native crash handler can run and capture the crash.
     """
+    # When running under ASAN, disable ASAN's signal handling so our crash
+    # handler can run. ASAN would otherwise intercept SIGSEGV/SIGABRT/etc
+    # and terminate the process before our handler completes.
+    if is_asan:
+        # Preserve existing ASAN_OPTIONS and add signal handling overrides
+        asan_opts = env.get("ASAN_OPTIONS", "")
+        # Disable handling of crash signals so our handler can run
+        asan_signal_opts = (
+            "handle_segv=0:handle_sigbus=0:handle_abort=0:"
+            "handle_sigfpe=0:handle_sigill=0:allow_user_segv_handler=1"
+        )
+        if asan_opts:
+            env["ASAN_OPTIONS"] = f"{asan_opts}:{asan_signal_opts}"
+        else:
+            env["ASAN_OPTIONS"] = asan_signal_opts
+
     if is_kcov:
         try:
             run(tmp_path, exe, args, expect_failure=True, env=env)
