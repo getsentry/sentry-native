@@ -24,6 +24,34 @@
 #    include <winnt.h>
 #endif
 
+/**
+ * Signal-safe memory copy that bypasses TSAN/ASAN interception.
+ * Uses volatile to prevent compiler optimization and sanitizer hooks.
+ * This is critical for signal/exception handlers where intercepted memcpy is
+ * not safe.
+ */
+static void
+signal_safe_memcpy(void *dest, const void *src, size_t n)
+{
+    volatile unsigned char *d = (volatile unsigned char *)dest;
+    const volatile unsigned char *s = (const volatile unsigned char *)src;
+    for (size_t i = 0; i < n; i++) {
+        d[i] = s[i];
+    }
+}
+
+/**
+ * Signal-safe memory zero that bypasses TSAN/ASAN interception.
+ */
+static void
+signal_safe_memzero(void *dest, size_t n)
+{
+    volatile unsigned char *d = (volatile unsigned char *)dest;
+    for (size_t i = 0; i < n; i++) {
+        d[i] = 0;
+    }
+}
+
 #if defined(SENTRY_PLATFORM_UNIX)
 
 #    if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
@@ -73,9 +101,8 @@ get_tid(void)
 #    endif
 }
 
-#    if defined(SENTRY_PLATFORM_MACOS)
 /**
- * Safe string copy (signal-safe, only used on macOS)
+ * Safe string copy (signal-safe)
  */
 static void
 safe_strncpy(char *dest, const char *src, size_t n)
@@ -90,7 +117,6 @@ safe_strncpy(char *dest, const char *src, size_t n)
     }
     dest[i] = '\0';
 }
-#    endif // SENTRY_PLATFORM_MACOS
 
 /**
  * Signal handler (signal-safe)
@@ -124,8 +150,11 @@ crash_signal_handler(int signum, siginfo_t *info, void *context)
 
 #    if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
     ctx->platform.signum = signum;
-    ctx->platform.siginfo = *info;
-    ctx->platform.context = *uctx;
+    // Use signal-safe memcpy to avoid TSAN-intercepted memcpy in signal handler
+    signal_safe_memcpy(
+        &ctx->platform.siginfo, info, sizeof(ctx->platform.siginfo));
+    signal_safe_memcpy(
+        &ctx->platform.context, uctx, sizeof(ctx->platform.context));
 
     // Store the crashing thread context
     // Note: We DON'T enumerate threads here using opendir/readdir because
@@ -133,12 +162,16 @@ crash_signal_handler(int signum, siginfo_t *info, void *context)
     // will enumerate threads out-of-process by calling enumerate_threads().
     ctx->platform.num_threads = 1;
     ctx->platform.threads[0].tid = ctx->crashed_tid;
-    ctx->platform.threads[0].context = *uctx;
+    signal_safe_memcpy(&ctx->platform.threads[0].context, uctx,
+        sizeof(ctx->platform.threads[0].context));
 #    elif defined(SENTRY_PLATFORM_MACOS)
     ctx->platform.signum = signum;
-    ctx->platform.siginfo = *info;
+    // Use signal-safe memcpy to avoid TSAN-intercepted memcpy in signal handler
+    signal_safe_memcpy(
+        &ctx->platform.siginfo, info, sizeof(ctx->platform.siginfo));
     // Copy mcontext data (ucontext_t.uc_mcontext is just a pointer)
-    ctx->platform.mcontext = *uctx->uc_mcontext;
+    signal_safe_memcpy(&ctx->platform.mcontext, uctx->uc_mcontext,
+        sizeof(ctx->platform.mcontext));
 
     // Capture all threads (signal-safe on macOS)
     ctx->platform.num_threads = 0;
@@ -246,7 +279,7 @@ crash_signal_handler(int signum, siginfo_t *info, void *context)
                         &state_count);
                 if (state_kr != KERN_SUCCESS) {
                     // Failed to get state, but continue with other threads
-                    memset(&ctx->platform.threads[i].state, 0,
+                    signal_safe_memzero(&ctx->platform.threads[i].state,
                         sizeof(ctx->platform.threads[i].state));
                     ctx->platform.threads[i].stack_path[0] = '\0';
                     ctx->platform.threads[i].stack_size = 0;
@@ -369,7 +402,7 @@ crash_signal_handler(int signum, siginfo_t *info, void *context)
 
         // Calculate module size and extract UUID (signal-safe)
         uint32_t size = 0;
-        memset(module->uuid, 0, sizeof(module->uuid)); // Zero UUID by default
+        signal_safe_memzero(module->uuid, sizeof(module->uuid));
 
         if (header->magic == MH_MAGIC_64 || header->magic == MH_CIGAM_64) {
             const struct mach_header_64 *header64
@@ -391,7 +424,7 @@ crash_signal_handler(int signum, siginfo_t *info, void *context)
                     // Extract UUID for symbolication
                     const struct uuid_command *uuid_cmd
                         = (const struct uuid_command *)cmd;
-                    memcpy(module->uuid, uuid_cmd->uuid, 16);
+                    signal_safe_memcpy(module->uuid, uuid_cmd->uuid, 16);
                 }
 
                 cmds += cmd->cmdsize;
