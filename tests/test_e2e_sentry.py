@@ -236,7 +236,9 @@ class TestE2ECrashModes:
 
         # Run with crash - capture output for test ID
         # Enable structured logs and capture a log message before crashing
-        crash_args = ["log", "e2e-test", "enable-logs", "capture-log"] + mode_args + ["crash"]
+        crash_args = (
+            ["log", "e2e-test", "enable-logs", "capture-log"] + mode_args + ["crash"]
+        )
         output = run_crash_e2e(self.tmp_path, "sentry_example", crash_args, env=env)
         test_id = extract_test_id(output)
 
