@@ -28,6 +28,7 @@
 
 #if defined(SENTRY_PLATFORM_UNIX)
 #    include <arpa/inet.h>
+#    include <dirent.h>
 #    include <dlfcn.h>
 #    include <errno.h>
 #    include <fcntl.h>
@@ -971,6 +972,53 @@ capture_modules_from_proc_maps(sentry_crash_context_t *ctx)
     SENTRY_DEBUGF("Captured %u modules from /proc/%d/maps", ctx->module_count,
         ctx->crashed_pid);
 }
+
+/**
+ * Enumerate threads from /proc/<pid>/task for the native event
+ * This is called from the daemon to populate ctx->platform.threads[] on Linux,
+ * since the signal handler can only capture the crashing thread.
+ */
+static void
+enumerate_threads_from_proc(sentry_crash_context_t *ctx)
+{
+    char task_path[64];
+    snprintf(
+        task_path, sizeof(task_path), "/proc/%d/task", ctx->crashed_pid);
+
+    DIR *dir = opendir(task_path);
+    if (!dir) {
+        SENTRY_WARNF("Failed to open %s for thread enumeration", task_path);
+        return;
+    }
+
+    // Keep the crashed thread at index 0 (already captured by signal handler)
+    pid_t crashed_tid = ctx->platform.threads[0].tid;
+    size_t thread_count = 1; // Start at 1 since we already have crashed thread
+
+    struct dirent *entry;
+    while ((entry = readdir(dir)) && thread_count < SENTRY_CRASH_MAX_THREADS) {
+        if (entry->d_name[0] == '.') {
+            continue;
+        }
+
+        pid_t tid = (pid_t)atoi(entry->d_name);
+        if (tid <= 0 || tid == crashed_tid) {
+            continue; // Skip invalid or already-captured crashed thread
+        }
+
+        // Add this thread (without full context - just the TID)
+        ctx->platform.threads[thread_count].tid = tid;
+        memset(&ctx->platform.threads[thread_count].context, 0,
+            sizeof(ctx->platform.threads[thread_count].context));
+        thread_count++;
+    }
+
+    closedir(dir);
+
+    ctx->platform.num_threads = thread_count;
+    SENTRY_DEBUGF("Enumerated %zu threads from /proc/%d/task", thread_count,
+        ctx->crashed_pid);
+}
 #endif // SENTRY_PLATFORM_LINUX || SENTRY_PLATFORM_ANDROID
 
 /**
@@ -1804,12 +1852,18 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
     }
 #endif
 
-    // On Linux, capture modules from /proc/<pid>/maps for debug_meta
+    // On Linux, capture modules and threads from /proc for native mode
     // This must be done before the crashed process exits
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
-    if (use_native_mode && ctx->module_count == 0) {
-        SENTRY_DEBUG("Capturing modules from /proc/maps for debug_meta");
-        capture_modules_from_proc_maps(ctx);
+    if (use_native_mode) {
+        if (ctx->module_count == 0) {
+            SENTRY_DEBUG("Capturing modules from /proc/maps for debug_meta");
+            capture_modules_from_proc_maps(ctx);
+        }
+        if (ctx->platform.num_threads <= 1) {
+            SENTRY_DEBUG("Enumerating threads from /proc/task");
+            enumerate_threads_from_proc(ctx);
+        }
     }
 #endif
 
