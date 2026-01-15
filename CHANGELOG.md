@@ -26,7 +26,7 @@
 
 **Features**:
 
-- Sentry native crash backend ([#1433](https://github.com/getsentry/sentry-native/pull/1433))
+- Add new `native` crash handling backend as an alternative to `crashpad`, `breakpad`, and `inproc`. This backend uses an out-of-process daemon that monitors the application for crashes, generates minidumps, and sends crash reports to Sentry. It supports Linux, macOS, and Windows, and is fully compatible with TSAN and ASAN sanitizers. ([#1433](https://github.com/getsentry/sentry-native/pull/1433))
 
 **Fixes**:
 

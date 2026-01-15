@@ -191,6 +191,14 @@ typedef struct {
 
 #elif defined(SENTRY_PLATFORM_WINDOWS)
 
+// Disable warning C4324: structure was padded due to alignment specifier
+// The Windows CONTEXT structure has alignment requirements (especially on ARM64)
+// that cause padding in our wrapper structs. This is expected and harmless.
+#    ifdef _MSC_VER
+#        pragma warning(push)
+#        pragma warning(disable : 4324)
+#    endif
+
 /**
  * Windows thread context
  */
@@ -215,6 +223,10 @@ typedef struct {
     DWORD num_threads;
     sentry_thread_context_windows_t threads[SENTRY_CRASH_MAX_THREADS];
 } sentry_crash_platform_windows_t;
+
+#    ifdef _MSC_VER
+#        pragma warning(pop)
+#    endif
 
 #endif
 
