@@ -1,3 +1,9 @@
+// Define _DARWIN_C_SOURCE for pthread_threadid_np on macOS
+// Must be defined before including any system headers
+#if defined(__APPLE__) && !defined(_DARWIN_C_SOURCE)
+#    define _DARWIN_C_SOURCE
+#endif
+
 #include "sentry_crash_handler.h"
 
 #include "sentry_alloc.h"
@@ -24,6 +30,9 @@
 #    include <winnt.h>
 #endif
 
+// signal_safe_memcpy and signal_safe_memzero are only used on Unix
+// (for signal handler context copying)
+#if defined(SENTRY_PLATFORM_UNIX)
 /**
  * Signal-safe memory copy that bypasses TSAN/ASAN interception.
  * Uses volatile to prevent compiler optimization and sanitizer hooks.
@@ -41,7 +50,7 @@ signal_safe_memcpy(void *dest, const void *src, size_t n)
 }
 
 // signal_safe_memzero is only used on macOS (for thread state zeroing)
-#if defined(SENTRY_PLATFORM_MACOS)
+#    if defined(SENTRY_PLATFORM_MACOS)
 /**
  * Signal-safe memory zero that bypasses TSAN/ASAN interception.
  */
@@ -53,9 +62,7 @@ signal_safe_memzero(void *dest, size_t n)
         d[i] = 0;
     }
 }
-#endif
-
-#if defined(SENTRY_PLATFORM_UNIX)
+#    endif // SENTRY_PLATFORM_MACOS
 
 #    if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
 #        include <dirent.h>
@@ -97,8 +104,12 @@ get_tid(void)
 #    if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
     return (pid_t)syscall(SYS_gettid);
 #    elif defined(SENTRY_PLATFORM_MACOS)
-    // Use mach_thread_self() which is signal-safe on macOS
-    return (pid_t)mach_thread_self();
+    // Use pthread_threadid_np for a unique thread ID that matches
+    // what we store in the crash context. Note: mach_thread_self()
+    // would leak a Mach port reference in signal handler context.
+    uint64_t tid = 0;
+    pthread_threadid_np(pthread_self(), &tid);
+    return (pid_t)tid;
 #    else
     return getpid();
 #    endif
@@ -404,10 +415,13 @@ crash_signal_handler(int signum, siginfo_t *info, void *context)
         }
 
         sentry_module_info_t *module = &ctx->modules[ctx->module_count++];
-        module->base_address = (uint64_t)header + slide;
+        // _dyld_get_image_header() returns the actual loaded address (slide already applied)
+        // We use the header address directly as the base address for symbolication
+        (void)slide; // Slide is informational only - not needed for base_address
+        module->base_address = (uint64_t)header;
 
         // Calculate module size and extract UUID (signal-safe)
-        uint32_t size = 0;
+        uint64_t size = 0;
         signal_safe_memzero(module->uuid, sizeof(module->uuid));
 
         if (header->magic == MH_MAGIC_64 || header->magic == MH_CIGAM_64) {
@@ -422,7 +436,8 @@ crash_signal_handler(int signum, siginfo_t *info, void *context)
                 if (cmd->cmd == LC_SEGMENT_64) {
                     const struct segment_command_64 *seg
                         = (const struct segment_command_64 *)cmd;
-                    uint32_t seg_end = seg->vmaddr + seg->vmsize;
+                    // Use uint64_t to avoid overflow with large 64-bit segments
+                    uint64_t seg_end = seg->vmaddr + seg->vmsize;
                     if (seg_end > size) {
                         size = seg_end;
                     }
@@ -594,12 +609,24 @@ sentry__crash_handler_init(sentry_crash_ipc_t *ipc)
     sa.sa_sigaction = crash_signal_handler;
     sa.sa_flags = SA_SIGINFO | SA_ONSTACK;
 
+    size_t installed_count = 0;
     for (size_t i = 0; i < g_crash_signal_count; i++) {
         int sig = g_crash_signals[i];
         if (sigaction(sig, &sa, &g_previous_handlers[i]) < 0) {
             SENTRY_WARNF("failed to install handler for signal %d: %s", sig,
                 strerror(errno));
+            // Rollback all previously installed handlers
+            for (size_t j = 0; j < installed_count; j++) {
+                sigaction(g_crash_signals[j], &g_previous_handlers[j], NULL);
+            }
+            // Clean up signal stack
+            g_signal_stack.ss_flags = SS_DISABLE;
+            sigaltstack(&g_signal_stack, NULL);
+            sentry_free(g_signal_stack.ss_sp);
+            g_signal_stack.ss_sp = NULL;
+            return -1;
         }
+        installed_count++;
     }
 
     SENTRY_DEBUG("crash handler initialized");
@@ -666,50 +693,17 @@ crash_exception_filter(EXCEPTION_POINTERS *exception_info)
     // Store original exception pointers for out-of-process minidump writing
     ctx->platform.exception_pointers = exception_info;
 
-    // Capture all threads
-    ctx->platform.num_threads = 0;
-    HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
-    if (snapshot != INVALID_HANDLE_VALUE) {
-        THREADENTRY32 te = { 0 };
-        te.dwSize = sizeof(te);
-        DWORD current_pid = GetCurrentProcessId();
-        DWORD current_tid = GetCurrentThreadId();
-
-        if (Thread32First(snapshot, &te)) {
-            do {
-                if (te.th32OwnerProcessID == current_pid
-                    && ctx->platform.num_threads < SENTRY_CRASH_MAX_THREADS) {
-
-                    ctx->platform.threads[ctx->platform.num_threads].thread_id
-                        = te.th32ThreadID;
-
-                    // For the crashing thread, use the context from exception
-                    if (te.th32ThreadID == current_tid) {
-                        ctx->platform.threads[ctx->platform.num_threads].context
-                            = *exception_info->ContextRecord;
-                    } else {
-                        // For other threads, try to suspend and get context
-                        HANDLE thread = OpenThread(
-                            THREAD_ALL_ACCESS, FALSE, te.th32ThreadID);
-                        if (thread) {
-                            SuspendThread(thread);
-                            CONTEXT thread_ctx = { 0 };
-                            thread_ctx.ContextFlags = CONTEXT_ALL;
-                            if (GetThreadContext(thread, &thread_ctx)) {
-                                ctx->platform.threads[ctx->platform.num_threads]
-                                    .context
-                                    = thread_ctx;
-                            }
-                            ResumeThread(thread);
-                            CloseHandle(thread);
-                        }
-                    }
-                    ctx->platform.num_threads++;
-                }
-            } while (Thread32Next(snapshot, &te));
-        }
-        CloseHandle(snapshot);
-    }
+    // Store only the crashing thread's context
+    // Note: We intentionally do NOT suspend other threads to capture their
+    // contexts here. Suspending threads in an exception filter is dangerous:
+    // - If a suspended thread holds the heap lock, we may deadlock on allocation
+    // - If a suspended thread holds the loader lock, any DLL call may deadlock
+    // Instead, we rely on MiniDumpWriteDump (called by the daemon process) which
+    // safely captures all thread contexts from outside the crashed process using
+    // the debugger API with ClientPointers=TRUE.
+    ctx->platform.num_threads = 1;
+    ctx->platform.threads[0].thread_id = GetCurrentThreadId();
+    ctx->platform.threads[0].context = *exception_info->ContextRecord;
 
     // Call Sentry's exception handler
     sentry_ucontext_t sentry_uctx = { 0 };
