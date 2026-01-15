@@ -83,6 +83,8 @@ struct sentry_options_s {
     sentry_handler_strategy_t handler_strategy;
     int minidump_mode; // 0=stack_only, 1=smart, 2=full (see
                        // sentry_crash_context.h)
+    int crash_reporting_mode; // 0=minidump, 1=native, 2=native_with_minidump
+                              // (see sentry_crash_reporting_mode_t)
 
 #ifdef SENTRY_PLATFORM_NX
     void (*network_connect_func)(void);

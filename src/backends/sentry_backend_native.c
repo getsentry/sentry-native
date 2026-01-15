@@ -167,6 +167,9 @@ native_backend_startup(
     // Set minidump mode from options
     ctx->minidump_mode = (sentry_minidump_mode_t)options->minidump_mode;
 
+    // Set crash reporting mode from options
+    ctx->crash_reporting_mode = options->crash_reporting_mode;
+
     // Pass debug logging setting to daemon
     ctx->debug_enabled = options->debug;
     ctx->attach_screenshot = options->attach_screenshot;

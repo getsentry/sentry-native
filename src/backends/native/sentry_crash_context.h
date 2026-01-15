@@ -250,6 +250,7 @@ typedef struct {
 
     // Configuration (set by app during init)
     sentry_minidump_mode_t minidump_mode;
+    int crash_reporting_mode; // sentry_crash_reporting_mode_t
     bool debug_enabled; // Debug logging enabled in parent process
     bool attach_screenshot; // Screenshot attachment enabled in parent process
 

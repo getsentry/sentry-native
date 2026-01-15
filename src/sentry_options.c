@@ -72,6 +72,9 @@ sentry_options_new(void)
     opts->max_spans = SENTRY_SPANS_MAX;
     opts->handler_strategy = SENTRY_HANDLER_STRATEGY_DEFAULT;
     opts->minidump_mode = SENTRY_MINIDUMP_MODE_SMART; // Default: balanced mode
+    opts->crash_reporting_mode
+        = SENTRY_CRASH_REPORTING_MODE_NATIVE_WITH_MINIDUMP; // Default: best of
+                                                            // both worlds
 
     return opts;
 }
@@ -494,6 +497,26 @@ sentry_options_set_minidump_mode(
         mode = SENTRY_MINIDUMP_MODE_FULL;
     }
     opts->minidump_mode = mode;
+}
+
+void
+sentry_options_set_crash_reporting_mode(
+    sentry_options_t *opts, sentry_crash_reporting_mode_t mode)
+{
+    // Clamp to valid range (cast to int to handle negative values)
+    int imode = (int)mode;
+    if (imode < SENTRY_CRASH_REPORTING_MODE_MINIDUMP) {
+        imode = SENTRY_CRASH_REPORTING_MODE_MINIDUMP;
+    } else if (imode > SENTRY_CRASH_REPORTING_MODE_NATIVE_WITH_MINIDUMP) {
+        imode = SENTRY_CRASH_REPORTING_MODE_NATIVE_WITH_MINIDUMP;
+    }
+    opts->crash_reporting_mode = imode;
+}
+
+sentry_crash_reporting_mode_t
+sentry_options_get_crash_reporting_mode(const sentry_options_t *opts)
+{
+    return (sentry_crash_reporting_mode_t)opts->crash_reporting_mode;
 }
 
 void
