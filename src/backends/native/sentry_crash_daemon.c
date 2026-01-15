@@ -438,11 +438,17 @@ is_valid_code_addr(uint64_t addr)
     if (addr == 0 || addr < 0x1000) {
         return false;
     }
-#if defined(__LP64__) || defined(_WIN64)
-    // On 64-bit, addresses above the canonical limit are invalid
-    // User space is typically below 0x0000800000000000
+#if defined(__x86_64__) || defined(_M_AMD64)
+    // On x86_64, user space is below the canonical address boundary
     if (addr > 0x00007FFFFFFFFFFF) {
         return false;
+    }
+#elif defined(__aarch64__) || defined(_M_ARM64)
+    // On ARM64 with 48-bit VA, user space is typically 0x0 to 0xFFFF_FFFF_FFFF
+    // Kernel space starts at 0xFFFF_0000_0000_0000
+    // Addresses like 0xAAAA_xxxx are valid user space addresses with ASLR
+    if (addr >= 0xFFFF000000000000ULL) {
+        return false; // Kernel space
     }
 #endif
     return true;
@@ -911,11 +917,7 @@ capture_modules_from_proc_maps(sentry_crash_context_t *ctx)
             continue;
         }
 
-        // Only include executable mappings with a real path
-        if (perms[2] != 'x') {
-            continue; // Not executable
-        }
-
+        // Must have a valid pathname (not [stack], [heap], etc.)
         if (pathname_offset <= 0 || line[pathname_offset] == '\0'
             || line[pathname_offset] == '[' || line[pathname_offset] == '\n') {
             continue; // No pathname or special mapping like [stack]
@@ -931,15 +933,26 @@ capture_modules_from_proc_maps(sentry_crash_context_t *ctx)
             continue;
         }
 
-        // Skip if offset != 0 (we only want the base mapping)
-        if (offset != 0) {
+        // We want the first mapping for each file - check if already captured
+        bool already_captured = false;
+        for (uint32_t j = 0; j < ctx->module_count; j++) {
+            if (strncmp(ctx->modules[j].name, pathname, len) == 0
+                && ctx->modules[j].name[len] == '\0') {
+                already_captured = true;
+                break;
+            }
+        }
+        if (already_captured) {
             continue;
         }
 
         sentry_module_info_t *mod = &ctx->modules[ctx->module_count];
 
-        mod->base_address = start;
-        mod->size = end - start;
+        // Calculate base address: for PIE binaries, the file offset tells us
+        // how far into the file this mapping starts, so we subtract it to get
+        // the actual load base address
+        mod->base_address = start - offset;
+        mod->size = end - start + offset; // Approximate total size
 
         // Copy pathname
         size_t copy_len
@@ -1019,6 +1032,119 @@ enumerate_threads_from_proc(sentry_crash_context_t *ctx)
         ctx->crashed_pid);
 }
 #endif // SENTRY_PLATFORM_LINUX || SENTRY_PLATFORM_ANDROID
+
+#if defined(SENTRY_PLATFORM_WINDOWS)
+#    include <psapi.h>
+#    include <tlhelp32.h>
+
+/**
+ * Capture modules from the crashed process for debug_meta on Windows
+ */
+static void
+capture_modules_from_process(sentry_crash_context_t *ctx)
+{
+    HANDLE hProcess = OpenProcess(
+        PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, ctx->crashed_pid);
+    if (!hProcess) {
+        SENTRY_WARNF("Failed to open process %d for module enumeration",
+            ctx->crashed_pid);
+        return;
+    }
+
+    HMODULE hMods[SENTRY_CRASH_MAX_MODULES];
+    DWORD cbNeeded;
+
+    if (!EnumProcessModules(hProcess, hMods, sizeof(hMods), &cbNeeded)) {
+        SENTRY_WARN("EnumProcessModules failed");
+        CloseHandle(hProcess);
+        return;
+    }
+
+    DWORD module_count = cbNeeded / sizeof(HMODULE);
+    if (module_count > SENTRY_CRASH_MAX_MODULES) {
+        module_count = SENTRY_CRASH_MAX_MODULES;
+    }
+
+    ctx->module_count = 0;
+    for (DWORD i = 0; i < module_count; i++) {
+        sentry_module_info_t *mod = &ctx->modules[ctx->module_count];
+
+        // Get module file name
+        char modName[MAX_PATH];
+        if (!GetModuleFileNameExA(
+                hProcess, hMods[i], modName, sizeof(modName))) {
+            continue;
+        }
+
+        // Get module info for base address and size
+        MODULEINFO modInfo;
+        if (!GetModuleInformation(
+                hProcess, hMods[i], &modInfo, sizeof(modInfo))) {
+            continue;
+        }
+
+        mod->base_address = (uint64_t)(uintptr_t)modInfo.lpBaseOfDll;
+        mod->size = (uint64_t)modInfo.SizeOfImage;
+        strncpy(mod->name, modName, sizeof(mod->name) - 1);
+        mod->name[sizeof(mod->name) - 1] = '\0';
+
+        // Clear UUID - Windows uses PDB GUIDs which we can't easily get here
+        // The minidump will have proper CodeView records
+        memset(mod->uuid, 0, sizeof(mod->uuid));
+
+        SENTRY_DEBUGF("Captured module: %s base=0x%llx size=0x%llx", mod->name,
+            (unsigned long long)mod->base_address,
+            (unsigned long long)mod->size);
+
+        ctx->module_count++;
+    }
+
+    CloseHandle(hProcess);
+    SENTRY_DEBUGF("Captured %u modules from process %d", ctx->module_count,
+        ctx->crashed_pid);
+}
+
+/**
+ * Enumerate threads from the crashed process for the native event on Windows
+ */
+static void
+enumerate_threads_from_process(sentry_crash_context_t *ctx)
+{
+    HANDLE hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
+    if (hSnapshot == INVALID_HANDLE_VALUE) {
+        SENTRY_WARN("CreateToolhelp32Snapshot failed");
+        return;
+    }
+
+    // Keep the crashed thread at index 0 (already captured)
+    DWORD crashed_tid = (DWORD)ctx->crashed_tid;
+    DWORD thread_count = 1;
+
+    THREADENTRY32 te32;
+    te32.dwSize = sizeof(THREADENTRY32);
+
+    if (Thread32First(hSnapshot, &te32)) {
+        do {
+            if (te32.th32OwnerProcessID == (DWORD)ctx->crashed_pid
+                && te32.th32ThreadID != crashed_tid
+                && thread_count < SENTRY_CRASH_MAX_THREADS) {
+
+                ctx->platform.threads[thread_count].thread_id
+                    = te32.th32ThreadID;
+                memset(&ctx->platform.threads[thread_count].context, 0,
+                    sizeof(ctx->platform.threads[thread_count].context));
+                thread_count++;
+            }
+        } while (Thread32Next(hSnapshot, &te32));
+    }
+
+    CloseHandle(hSnapshot);
+
+    ctx->platform.num_threads = thread_count;
+    SENTRY_DEBUGF("Enumerated %u threads from process %d", thread_count,
+        ctx->crashed_pid);
+}
+#endif // SENTRY_PLATFORM_WINDOWS
 
 /**
  * Build stacktrace for the crashed thread.
@@ -1862,6 +1988,20 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
         if (ctx->platform.num_threads <= 1) {
             SENTRY_DEBUG("Enumerating threads from /proc/task");
             enumerate_threads_from_proc(ctx);
+        }
+    }
+#endif
+
+    // On Windows, capture modules and threads from the crashed process
+#if defined(SENTRY_PLATFORM_WINDOWS)
+    if (use_native_mode) {
+        if (ctx->module_count == 0) {
+            SENTRY_DEBUG("Capturing modules from crashed process");
+            capture_modules_from_process(ctx);
+        }
+        if (ctx->platform.num_threads <= 1) {
+            SENTRY_DEBUG("Enumerating threads from crashed process");
+            enumerate_threads_from_process(ctx);
         }
     }
 #endif
