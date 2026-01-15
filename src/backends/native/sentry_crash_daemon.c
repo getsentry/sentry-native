@@ -34,6 +34,7 @@
 #    include <signal.h>
 #    include <sys/stat.h>
 #    include <sys/types.h>
+#    include <sys/uio.h>
 #    include <sys/wait.h>
 #    include <unistd.h>
 #    if defined(SENTRY_PLATFORM_MACOS)
@@ -455,7 +456,8 @@ is_valid_code_addr(uint64_t addr)
  * @return Stacktrace value with frames array
  */
 static sentry_value_t
-build_stacktrace_for_thread(const sentry_crash_context_t *ctx, size_t thread_idx)
+build_stacktrace_for_thread(
+    const sentry_crash_context_t *ctx, size_t thread_idx)
 {
     sentry_value_t stacktrace = sentry_value_new_object();
     sentry_value_t frames = sentry_value_new_list();
@@ -525,7 +527,8 @@ build_stacktrace_for_thread(const sentry_crash_context_t *ctx, size_t thread_idx
         if (idx == SIZE_MAX) {
             idx = 0;
             for (size_t i = 0; i < ctx->platform.num_threads; i++) {
-                if (ctx->platform.threads[i].tid == (uint64_t)ctx->crashed_tid) {
+                if (ctx->platform.threads[i].tid
+                    == (uint64_t)ctx->crashed_tid) {
                     idx = i;
                     break;
                 }
@@ -576,7 +579,8 @@ build_stacktrace_for_thread(const sentry_crash_context_t *ctx, size_t thread_idx
                             (unsigned long long)stack_size,
                             (long long)(fp - sp));
                     } else {
-                        SENTRY_WARNF("Stack read failed: got %zd, expected %llu",
+                        SENTRY_WARNF(
+                            "Stack read failed: got %zd, expected %llu",
                             bytes_read, (unsigned long long)stack_size);
                         sentry_free(stack_buf);
                         stack_buf = NULL;
@@ -635,8 +639,8 @@ build_stacktrace_for_thread(const sentry_crash_context_t *ctx, size_t thread_idx
                 stack_buf = NULL;
             } else {
                 stack_size = (uint64_t)bytes_read;
-                SENTRY_DEBUGF("Read %zu bytes of stack from process",
-                    (size_t)bytes_read);
+                SENTRY_DEBUGF(
+                    "Read %zu bytes of stack from process", (size_t)bytes_read);
             }
         }
         CloseHandle(hProcess);
@@ -674,8 +678,8 @@ build_stacktrace_for_thread(const sentry_crash_context_t *ctx, size_t thread_idx
 
             // Read saved frame pointer and return address
             // Frame layout: [FP+0] = saved FP, [FP+8] = return addr
-            if (!read_stack_value(
-                    stack_buf, stack_start, stack_size, current_fp, &saved_fp)) {
+            if (!read_stack_value(stack_buf, stack_start, stack_size,
+                    current_fp, &saved_fp)) {
                 SENTRY_DEBUGF(
                     "Cannot read saved FP at 0x%llx (stack: 0x%llx - 0x%llx)",
                     (unsigned long long)current_fp,
@@ -703,14 +707,15 @@ build_stacktrace_for_thread(const sentry_crash_context_t *ctx, size_t thread_idx
 
             // Add frame
             temp_frames[frame_count] = sentry_value_new_object();
-            sentry_value_set_by_key(temp_frames[frame_count], "instruction_addr",
-                sentry__value_new_addr(return_addr));
+            sentry_value_set_by_key(temp_frames[frame_count],
+                "instruction_addr", sentry__value_new_addr(return_addr));
             frame_count++;
             walk_count++;
 
             // Check for end of chain
             if (saved_fp == 0 || saved_fp == current_fp) {
-                SENTRY_DEBUGF("End of frame chain at FP=0x%llx (saved_fp=0x%llx)",
+                SENTRY_DEBUGF(
+                    "End of frame chain at FP=0x%llx (saved_fp=0x%llx)",
                     (unsigned long long)current_fp,
                     (unsigned long long)saved_fp);
                 break;
@@ -947,7 +952,8 @@ build_native_crash_event(const sentry_crash_context_t *ctx,
     }
 
     // Add debug_meta with module images from crashed process
-    // (ctx->modules[] was captured in the signal handler of the crashed process)
+    // (ctx->modules[] was captured in the signal handler of the crashed
+    // process)
     if (ctx->module_count > 0) {
         sentry_value_t images = sentry_value_new_list();
 
@@ -963,7 +969,8 @@ build_native_crash_event(const sentry_crash_context_t *ctx,
             sentry_value_set_by_key(
                 image, "type", sentry_value_new_string("elf"));
 #elif defined(SENTRY_PLATFORM_WINDOWS)
-            sentry_value_set_by_key(image, "type", sentry_value_new_string("pe"));
+            sentry_value_set_by_key(
+                image, "type", sentry_value_new_string("pe"));
 #endif
 
             // Set code_file (path to the module)
@@ -974,13 +981,14 @@ build_native_crash_event(const sentry_crash_context_t *ctx,
 
             // Set image_addr as hex string
             char addr_buf[32];
-            snprintf(addr_buf, sizeof(addr_buf), "0x%" PRIx64, mod->base_address);
+            snprintf(
+                addr_buf, sizeof(addr_buf), "0x%" PRIx64, mod->base_address);
             sentry_value_set_by_key(
                 image, "image_addr", sentry_value_new_string(addr_buf));
 
-            // Set image_size
-            sentry_value_set_by_key(
-                image, "image_size", sentry_value_new_int32((int32_t)mod->size));
+            // Set image_size (use double to avoid overflow for large modules)
+            sentry_value_set_by_key(image, "image_size",
+                sentry_value_new_double((double)mod->size));
 
             // Set debug_id from UUID
             sentry_uuid_t uuid
@@ -994,8 +1002,8 @@ build_native_crash_event(const sentry_crash_context_t *ctx,
         sentry_value_t debug_meta = sentry_value_new_object();
         sentry_value_set_by_key(debug_meta, "images", images);
         sentry_value_set_by_key(event, "debug_meta", debug_meta);
-        SENTRY_DEBUGF(
-            "Added %u modules from crashed process to debug_meta", ctx->module_count);
+        SENTRY_DEBUGF("Added %u modules from crashed process to debug_meta",
+            ctx->module_count);
     }
 
     return event;
