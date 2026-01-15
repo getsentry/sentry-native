@@ -36,6 +36,9 @@
 #    include <sys/types.h>
 #    include <sys/wait.h>
 #    include <unistd.h>
+#    if defined(SENTRY_PLATFORM_MACOS)
+#        include <mach-o/dyld.h>
+#    endif
 #elif defined(SENTRY_PLATFORM_WINDOWS)
 #    include <fcntl.h>
 #    include <io.h>
@@ -991,11 +994,48 @@ sentry__crash_daemon_start(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
         char *argv[]
             = { "sentry-crash", pid_str, tid_str, notify_str, ready_str, NULL };
 
-        // Try to find sentry-crash in the same directory as libsentry
+        // Try multiple locations to find sentry-crash executable
+
+        // 1. Try to find sentry-crash relative to the main executable
+        //    This works best for test scenarios and bundled deployments
+        char exe_path[SENTRY_CRASH_MAX_PATH];
+        char daemon_path[SENTRY_CRASH_MAX_PATH];
+
+#    if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+        ssize_t exe_len = readlink("/proc/self/exe", exe_path, sizeof(exe_path) - 1);
+        if (exe_len > 0) {
+            exe_path[exe_len] = '\0';
+            const char *slash = strrchr(exe_path, '/');
+            if (slash) {
+                size_t dir_len = slash - exe_path + 1;
+                if (dir_len + strlen("sentry-crash") < sizeof(daemon_path)) {
+                    memcpy(daemon_path, exe_path, dir_len);
+                    strcpy(daemon_path + dir_len, "sentry-crash");
+                    execv(daemon_path, argv);
+                    // If execv fails, continue to next fallback
+                }
+            }
+        }
+#    elif defined(SENTRY_PLATFORM_MACOS)
+        uint32_t exe_size = sizeof(exe_path);
+        if (_NSGetExecutablePath(exe_path, &exe_size) == 0) {
+            const char *slash = strrchr(exe_path, '/');
+            if (slash) {
+                size_t dir_len = slash - exe_path + 1;
+                if (dir_len + strlen("sentry-crash") < sizeof(daemon_path)) {
+                    memcpy(daemon_path, exe_path, dir_len);
+                    strcpy(daemon_path + dir_len, "sentry-crash");
+                    execv(daemon_path, argv);
+                    // If execv fails, continue to next fallback
+                }
+            }
+        }
+#    endif
+
+        // 2. Try to find sentry-crash in the same directory as libsentry
         Dl_info dl_info;
         void *func_ptr = (void *)(uintptr_t)&sentry__crash_daemon_start;
         if (dladdr(func_ptr, &dl_info) && dl_info.dli_fname) {
-            char daemon_path[SENTRY_CRASH_MAX_PATH];
             const char *slash = strrchr(dl_info.dli_fname, '/');
             if (slash) {
                 size_t dir_len = slash - dl_info.dli_fname + 1;
@@ -1008,7 +1048,7 @@ sentry__crash_daemon_start(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
             }
         }
 
-        // Fallback: try from PATH
+        // 3. Fallback: try from PATH
         execvp("sentry-crash", argv);
 
         // exec failed - exit with error
