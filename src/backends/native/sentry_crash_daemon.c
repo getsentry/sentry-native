@@ -462,6 +462,9 @@ build_stacktrace_for_thread(
     sentry_value_t stacktrace = sentry_value_new_object();
     sentry_value_t frames = sentry_value_new_list();
 
+    // Suppress unused parameter warning on platforms where thread_idx isn't used
+    (void)thread_idx;
+
     // Get instruction pointer and frame pointer from crash context
     uint64_t ip = 0;
     uint64_t fp = 0;
