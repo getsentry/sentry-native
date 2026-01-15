@@ -46,6 +46,54 @@ jobs:
       - name: Install test dependencies
         run: pip install -r tests/requirements.txt
 
+      - name: Configure CMake
+        run: cmake -B build -DSENTRY_BACKEND=native -DSENTRY_BUILD_EXAMPLES=ON
+
+      - name: Build
+        run: cmake --build build --target sentry_example --parallel
+
+      - name: Generate dSYM (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          dsymutil build/sentry_example -o build/sentry_example.dSYM
+          dsymutil build/libsentry.dylib -o build/libsentry.dylib.dSYM
+
+      - name: Install sentry-cli (Unix)
+        if: runner.os != 'Windows'
+        run: curl -sL https://sentry.io/get-cli/ | bash
+
+      - name: Install sentry-cli (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          Invoke-WebRequest -Uri "https://release-registry.services.sentry.io/apps/sentry-cli/latest?response=download&arch=x86_64&platform=Windows&package=zip" -OutFile sentry-cli.zip
+          Expand-Archive sentry-cli.zip -DestinationPath .
+          echo "$PWD" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+        shell: pwsh
+
+      - name: Upload debug symbols to Sentry
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_E2E_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ secrets.SENTRY_E2E_ORG }}
+          SENTRY_PROJECT: ${{ secrets.SENTRY_E2E_PROJECT }}
+        run: |
+          if [ "$RUNNER_OS" == "macOS" ]; then
+            sentry-cli debug-files upload build/sentry_example.dSYM build/libsentry.dylib.dSYM
+          elif [ "$RUNNER_OS" == "Linux" ]; then
+            sentry-cli debug-files upload build/sentry_example build/libsentry.so
+          fi
+        shell: bash
+        if: runner.os != 'Windows'
+
+      - name: Upload debug symbols to Sentry (Windows)
+        if: runner.os == 'Windows'
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_E2E_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ secrets.SENTRY_E2E_ORG }}
+          SENTRY_PROJECT: ${{ secrets.SENTRY_E2E_PROJECT }}
+        run: |
+          sentry-cli debug-files upload build/Release/sentry_example.pdb build/Release/sentry.pdb
+        shell: pwsh
+
       - name: Add hosts entry (Linux/macOS)
         if: runner.os != 'Windows'
         run: sudo sh -c 'echo "127.0.0.1 sentry.native.test" >> /etc/hosts'
