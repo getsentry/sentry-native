@@ -197,9 +197,7 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
 
             // now that the envelope was written, we can remove the temporary
             // minidump file
-            if (!options->cache_keep) {
-                sentry__path_remove(dump_path);
-            }
+            sentry__path_remove(dump_path);
             sentry__path_free(dump_path);
         } else {
             SENTRY_DEBUG("event was discarded by the `on_crash` hook");
