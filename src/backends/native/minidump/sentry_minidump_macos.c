@@ -634,7 +634,11 @@ write_thread_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
             }
 
             // Get thread state (registers)
+            // Zero-initialize to ensure float/NEON state fields are not garbage
+            // since MACHINE_THREAD_STATE only populates integer registers
+            // (__ss)
             _STRUCT_MCONTEXT mcontext;
+            memset(&mcontext, 0, sizeof(mcontext));
             mach_msg_type_number_t state_count = MACHINE_THREAD_STATE_COUNT;
             if (thread_get_state(mach_thread, MACHINE_THREAD_STATE,
                     (thread_state_t)&mcontext, &state_count)
@@ -1176,10 +1180,7 @@ sentry__write_minidump(
         + (stream_count * sizeof(minidump_directory_t));
 
     if (lseek(writer.fd, writer.current_offset, SEEK_SET) < 0) {
-        mach_port_deallocate(mach_task_self(), writer.task);
-        close(writer.fd);
-        unlink(output_path);
-        return -1;
+        goto cleanup_error;
     }
 
     // Write streams
@@ -1191,36 +1192,24 @@ sentry__write_minidump(
     result |= write_exception_stream(&writer, &directories[2]);
 
     if (result < 0) {
-        mach_port_deallocate(mach_task_self(), writer.task);
-        close(writer.fd);
-        unlink(output_path);
-        return -1;
+        goto cleanup_error;
     }
 
     // Write header and directory
     if (lseek(writer.fd, 0, SEEK_SET) < 0) {
-        mach_port_deallocate(mach_task_self(), writer.task);
-        close(writer.fd);
-        unlink(output_path);
-        return -1;
+        goto cleanup_error;
     }
 
     if (write_header(&writer, stream_count) < 0) {
-        mach_port_deallocate(mach_task_self(), writer.task);
-        close(writer.fd);
-        unlink(output_path);
-        return -1;
+        goto cleanup_error;
     }
 
     if (write(writer.fd, directories, sizeof(directories))
         != sizeof(directories)) {
-        mach_port_deallocate(mach_task_self(), writer.task);
-        close(writer.fd);
-        unlink(output_path);
-        return -1;
+        goto cleanup_error;
     }
 
-    // Cleanup
+    // Cleanup - success path
     for (mach_msg_type_number_t i = 0; i < writer.thread_count; i++) {
         mach_port_deallocate(mach_task_self(), writer.threads[i]);
     }
@@ -1232,6 +1221,18 @@ sentry__write_minidump(
 
     SENTRY_DEBUG("successfully wrote minidump");
     return 0;
+
+cleanup_error:
+    // Cleanup - error path (same as success, but delete file and return error)
+    for (mach_msg_type_number_t i = 0; i < writer.thread_count; i++) {
+        mach_port_deallocate(mach_task_self(), writer.threads[i]);
+    }
+    vm_deallocate(mach_task_self(), (vm_address_t)writer.threads,
+        writer.thread_count * sizeof(thread_t));
+    mach_port_deallocate(mach_task_self(), writer.task);
+    close(writer.fd);
+    unlink(output_path);
+    return -1;
 }
 
 #endif // SENTRY_PLATFORM_MACOS
