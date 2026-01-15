@@ -183,13 +183,13 @@ write_attachment_to_envelope(int fd, const char *file_path,
     return true;
 }
 
+#if defined(SENTRY_PLATFORM_UNIX)
 /**
- * Get signal name from signal number (for Unix platforms)
+ * Get signal name from signal number (Unix platforms only)
  */
 static const char *
 get_signal_name(int signum)
 {
-#if defined(SENTRY_PLATFORM_UNIX)
     switch (signum) {
     case SIGABRT:
         return "SIGABRT";
@@ -208,11 +208,8 @@ get_signal_name(int signum)
     default:
         return "UNKNOWN";
     }
-#else
-    (void)signum;
-    return "EXCEPTION";
-#endif
 }
+#endif
 
 /**
  * Build registers value from crash context
