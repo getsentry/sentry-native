@@ -403,49 +403,341 @@ build_registers_from_ctx(const sentry_crash_context_t *ctx)
 }
 
 /**
- * Build stacktrace frames from module info in crash context.
- * For now, we create a single frame with the instruction pointer.
- * Full unwinding would require remote memory access.
+ * Maximum number of frames to unwind
+ */
+#define MAX_STACK_FRAMES 128
+
+/**
+ * Read a pointer-sized value from the stack buffer.
+ * Returns true if successful, false if address is outside the buffer.
+ */
+static bool
+read_stack_value(const uint8_t *stack_buf, uint64_t stack_start,
+    uint64_t stack_size, uint64_t addr, uint64_t *out_value)
+{
+    if (addr < stack_start
+        || addr + sizeof(uint64_t) > stack_start + stack_size) {
+        return false;
+    }
+    uint64_t offset = addr - stack_start;
+    memcpy(out_value, stack_buf + offset, sizeof(uint64_t));
+    return true;
+}
+
+/**
+ * Check if an address looks like a valid code pointer.
+ * Basic sanity check to avoid garbage in the stacktrace.
+ */
+static bool
+is_valid_code_addr(uint64_t addr)
+{
+    // Must be non-null and in typical code range
+    if (addr == 0 || addr < 0x1000) {
+        return false;
+    }
+#if defined(__LP64__) || defined(_WIN64)
+    // On 64-bit, addresses above the canonical limit are invalid
+    // User space is typically below 0x0000800000000000
+    if (addr > 0x00007FFFFFFFFFFF) {
+        return false;
+    }
+#endif
+    return true;
+}
+
+/**
+ * Build stacktrace frames for a specific thread using frame pointer-based
+ * unwinding. Reads the captured stack memory and walks the frame chain.
+ *
+ * @param ctx The crash context
+ * @param thread_idx Index of the thread in ctx->platform.threads[]
+ *                   Pass SIZE_MAX to use the crashed thread from mcontext
+ * @return Stacktrace value with frames array
  */
 static sentry_value_t
-build_stacktrace_from_ctx(const sentry_crash_context_t *ctx)
+build_stacktrace_for_thread(const sentry_crash_context_t *ctx, size_t thread_idx)
 {
     sentry_value_t stacktrace = sentry_value_new_object();
     sentry_value_t frames = sentry_value_new_list();
 
-    // Get instruction pointer from crash context
+    // Get instruction pointer and frame pointer from crash context
     uint64_t ip = 0;
+    uint64_t fp = 0;
+    uint64_t sp = 0;
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
 #    if defined(__x86_64__)
     ip = (uint64_t)ctx->platform.context.uc_mcontext.gregs[REG_RIP];
+    fp = (uint64_t)ctx->platform.context.uc_mcontext.gregs[REG_RBP];
+    sp = (uint64_t)ctx->platform.context.uc_mcontext.gregs[REG_RSP];
 #    elif defined(__aarch64__)
     ip = (uint64_t)ctx->platform.context.uc_mcontext.pc;
+    fp = (uint64_t)ctx->platform.context.uc_mcontext.regs[29]; // x29 is FP
+    sp = (uint64_t)ctx->platform.context.uc_mcontext.sp;
 #    elif defined(__i386__)
     ip = (uint64_t)ctx->platform.context.uc_mcontext.gregs[REG_EIP];
+    fp = (uint64_t)ctx->platform.context.uc_mcontext.gregs[REG_EBP];
+    sp = (uint64_t)ctx->platform.context.uc_mcontext.gregs[REG_ESP];
 #    elif defined(__arm__)
     ip = (uint64_t)ctx->platform.context.uc_mcontext.arm_pc;
+    fp = (uint64_t)ctx->platform.context.uc_mcontext.arm_fp;
+    sp = (uint64_t)ctx->platform.context.uc_mcontext.arm_sp;
 #    endif
 #elif defined(SENTRY_PLATFORM_MACOS)
 #    if defined(__x86_64__)
     ip = ctx->platform.mcontext.__ss.__rip;
+    fp = ctx->platform.mcontext.__ss.__rbp;
+    sp = ctx->platform.mcontext.__ss.__rsp;
 #    elif defined(__aarch64__)
     ip = ctx->platform.mcontext.__ss.__pc;
+    fp = ctx->platform.mcontext.__ss.__fp;
+    sp = ctx->platform.mcontext.__ss.__sp;
 #    endif
 #elif defined(SENTRY_PLATFORM_WINDOWS)
 #    if defined(_M_AMD64)
     ip = ctx->platform.context.Rip;
+    fp = ctx->platform.context.Rbp;
+    sp = ctx->platform.context.Rsp;
 #    elif defined(_M_IX86)
     ip = ctx->platform.context.Eip;
+    fp = ctx->platform.context.Ebp;
+    sp = ctx->platform.context.Esp;
 #    elif defined(_M_ARM64)
     ip = ctx->platform.context.Pc;
+    fp = ctx->platform.context.Fp;
+    sp = ctx->platform.context.Sp;
 #    endif
 #endif
 
-    if (ip != 0) {
-        sentry_value_t frame = sentry_value_new_object();
-        sentry_value_set_by_key(
-            frame, "instruction_addr", sentry__value_new_addr(ip));
-        sentry_value_append(frames, frame);
+    (void)sp; // May be unused depending on platform
+
+    // Try to read stack memory from the captured stack file or process memory
+    uint8_t *stack_buf = NULL;
+    uint64_t stack_start = 0;
+    uint64_t stack_size = 0;
+
+#if defined(SENTRY_PLATFORM_MACOS)
+    // On macOS, stack is saved to a file by the signal handler.
+    // Use the specified thread index, or find the crashed thread if SIZE_MAX.
+    if (ctx->platform.num_threads > 0) {
+        size_t idx = thread_idx;
+
+        // If SIZE_MAX, find the crashed thread
+        if (idx == SIZE_MAX) {
+            idx = 0;
+            for (size_t i = 0; i < ctx->platform.num_threads; i++) {
+                if (ctx->platform.threads[i].tid == (uint64_t)ctx->crashed_tid) {
+                    idx = i;
+                    break;
+                }
+            }
+        }
+
+        // Validate index
+        if (idx >= ctx->platform.num_threads) {
+            SENTRY_WARNF("Invalid thread index %zu (max %zu)", idx,
+                ctx->platform.num_threads);
+            sentry_value_set_by_key(stacktrace, "frames", frames);
+            return stacktrace;
+        }
+
+        const sentry_thread_context_darwin_t *thread
+            = &ctx->platform.threads[idx];
+
+        // Use IP/FP/SP from the thread state (matches saved stack)
+#    if defined(__x86_64__)
+        ip = thread->state.__ss.__rip;
+        fp = thread->state.__ss.__rbp;
+        sp = thread->state.__ss.__rsp;
+#    elif defined(__aarch64__)
+        ip = thread->state.__ss.__pc;
+        fp = thread->state.__ss.__fp;
+        sp = thread->state.__ss.__sp;
+#    endif
+
+        SENTRY_DEBUGF("Thread %zu: IP=0x%llx FP=0x%llx SP=0x%llx", idx,
+            (unsigned long long)ip, (unsigned long long)fp,
+            (unsigned long long)sp);
+
+        const char *stack_path = thread->stack_path;
+        stack_size = thread->stack_size;
+        if (stack_path[0] != '\0' && stack_size > 0) {
+            int stack_fd = open(stack_path, O_RDONLY);
+            if (stack_fd >= 0) {
+                stack_buf = sentry_malloc(stack_size);
+                if (stack_buf) {
+                    ssize_t bytes_read = read(stack_fd, stack_buf, stack_size);
+                    if (bytes_read == (ssize_t)stack_size) {
+                        // Stack was captured from SP upward
+                        stack_start = sp;
+                        SENTRY_DEBUGF(
+                            "Loaded stack: start=0x%llx size=%llu, FP offset "
+                            "from SP=%lld",
+                            (unsigned long long)stack_start,
+                            (unsigned long long)stack_size,
+                            (long long)(fp - sp));
+                    } else {
+                        SENTRY_WARNF("Stack read failed: got %zd, expected %llu",
+                            bytes_read, (unsigned long long)stack_size);
+                        sentry_free(stack_buf);
+                        stack_buf = NULL;
+                    }
+                }
+                close(stack_fd);
+            } else {
+                SENTRY_WARNF("Failed to open stack file: %s", stack_path);
+            }
+        } else {
+            SENTRY_DEBUGF("No stack file for thread %zu", idx);
+        }
+    }
+#elif defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+    // On Linux, use process_vm_readv to read stack memory from crashed process
+    if (ctx->platform.num_threads > 0) {
+        pid_t pid = ctx->crashed_pid;
+        stack_size = SENTRY_CRASH_MAX_STACK_CAPTURE;
+        stack_start = sp;
+        stack_buf = sentry_malloc(stack_size);
+        if (stack_buf) {
+            struct iovec local_iov
+                = { .iov_base = stack_buf, .iov_len = stack_size };
+            struct iovec remote_iov
+                = { .iov_base = (void *)stack_start, .iov_len = stack_size };
+            ssize_t bytes_read
+                = process_vm_readv(pid, &local_iov, 1, &remote_iov, 1, 0);
+            if (bytes_read <= 0) {
+                SENTRY_DEBUG(
+                    "process_vm_readv failed, falling back to single frame");
+                sentry_free(stack_buf);
+                stack_buf = NULL;
+            } else {
+                stack_size = (uint64_t)bytes_read;
+                SENTRY_DEBUGF(
+                    "Read %zd bytes of stack from process %d", bytes_read, pid);
+            }
+        }
+    }
+#elif defined(SENTRY_PLATFORM_WINDOWS)
+    // On Windows, use ReadProcessMemory
+    HANDLE hProcess
+        = OpenProcess(PROCESS_VM_READ, FALSE, (DWORD)ctx->crashed_pid);
+    if (hProcess) {
+        stack_size = SENTRY_CRASH_MAX_STACK_CAPTURE;
+        stack_start = sp;
+        stack_buf = sentry_malloc(stack_size);
+        if (stack_buf) {
+            SIZE_T bytes_read = 0;
+            if (!ReadProcessMemory(hProcess, (LPCVOID)(uintptr_t)stack_start,
+                    stack_buf, stack_size, &bytes_read)
+                || bytes_read == 0) {
+                SENTRY_DEBUG(
+                    "ReadProcessMemory failed, falling back to single frame");
+                sentry_free(stack_buf);
+                stack_buf = NULL;
+            } else {
+                stack_size = (uint64_t)bytes_read;
+                SENTRY_DEBUGF("Read %zu bytes of stack from process",
+                    (size_t)bytes_read);
+            }
+        }
+        CloseHandle(hProcess);
+    }
+#endif
+
+    // Build frame list - collect in callee-first order, then reverse for Sentry
+    sentry_value_t temp_frames[MAX_STACK_FRAMES];
+    int frame_count = 0;
+
+    // Add the crashing frame (instruction pointer)
+    if (ip != 0 && is_valid_code_addr(ip)) {
+        temp_frames[frame_count] = sentry_value_new_object();
+        sentry_value_set_by_key(temp_frames[frame_count], "instruction_addr",
+            sentry__value_new_addr(ip));
+        frame_count++;
+    }
+
+    // Walk the frame pointer chain if we have stack memory
+    if (stack_buf && fp != 0 && frame_count < MAX_STACK_FRAMES) {
+        uint64_t current_fp = fp;
+        int walk_count = 0;
+
+        // Check if FP is within captured stack range
+        uint64_t stack_end = stack_start + stack_size;
+        if (current_fp < stack_start || current_fp >= stack_end) {
+            SENTRY_WARNF("FP 0x%llx outside captured stack [0x%llx - 0x%llx]",
+                (unsigned long long)current_fp, (unsigned long long)stack_start,
+                (unsigned long long)stack_end);
+        }
+
+        while (walk_count < MAX_STACK_FRAMES - frame_count) {
+            uint64_t saved_fp = 0;
+            uint64_t return_addr = 0;
+
+            // Read saved frame pointer and return address
+            // Frame layout: [FP+0] = saved FP, [FP+8] = return addr
+            if (!read_stack_value(
+                    stack_buf, stack_start, stack_size, current_fp, &saved_fp)) {
+                SENTRY_DEBUGF(
+                    "Cannot read saved FP at 0x%llx (stack: 0x%llx - 0x%llx)",
+                    (unsigned long long)current_fp,
+                    (unsigned long long)stack_start,
+                    (unsigned long long)stack_end);
+                break;
+            }
+            if (!read_stack_value(stack_buf, stack_start, stack_size,
+                    current_fp + sizeof(uint64_t), &return_addr)) {
+                SENTRY_DEBUGF("Cannot read return addr at 0x%llx",
+                    (unsigned long long)(current_fp + sizeof(uint64_t)));
+                break;
+            }
+
+            SENTRY_DEBUGF("Frame %d: FP=0x%llx saved_fp=0x%llx ret=0x%llx",
+                walk_count, (unsigned long long)current_fp,
+                (unsigned long long)saved_fp, (unsigned long long)return_addr);
+
+            // Validate the return address
+            if (!is_valid_code_addr(return_addr)) {
+                SENTRY_DEBUGF("Invalid return addr 0x%llx",
+                    (unsigned long long)return_addr);
+                break;
+            }
+
+            // Add frame
+            temp_frames[frame_count] = sentry_value_new_object();
+            sentry_value_set_by_key(temp_frames[frame_count], "instruction_addr",
+                sentry__value_new_addr(return_addr));
+            frame_count++;
+            walk_count++;
+
+            // Check for end of chain
+            if (saved_fp == 0 || saved_fp == current_fp) {
+                SENTRY_DEBUGF("End of frame chain at FP=0x%llx (saved_fp=0x%llx)",
+                    (unsigned long long)current_fp,
+                    (unsigned long long)saved_fp);
+                break;
+            }
+
+            // Sanity check: frame pointer should increase (stack grows down)
+            if (saved_fp < current_fp) {
+                SENTRY_DEBUGF("FP went backwards: 0x%llx -> 0x%llx",
+                    (unsigned long long)current_fp,
+                    (unsigned long long)saved_fp);
+                break;
+            }
+
+            current_fp = saved_fp;
+        }
+
+        SENTRY_DEBUGF("Unwound %d frames total", frame_count);
+    }
+
+    // Free stack buffer
+    if (stack_buf) {
+        sentry_free(stack_buf);
+    }
+
+    // Sentry expects frames in reverse order (outermost caller first)
+    for (int i = frame_count - 1; i >= 0; i--) {
+        sentry_value_append(frames, temp_frames[i]);
     }
 
     sentry_value_set_by_key(stacktrace, "frames", frames);
@@ -456,11 +748,27 @@ build_stacktrace_from_ctx(const sentry_crash_context_t *ctx)
 }
 
 /**
- * Build native crash event with exception, mechanism, and debug_meta
+ * Build stacktrace for the crashed thread.
+ * Convenience wrapper around build_stacktrace_for_thread().
  */
 static sentry_value_t
-build_native_crash_event(
-    const sentry_crash_context_t *ctx, const char *event_file_path)
+build_stacktrace_from_ctx(const sentry_crash_context_t *ctx)
+{
+    return build_stacktrace_for_thread(ctx, SIZE_MAX);
+}
+
+/**
+ * Build native crash event with exception, mechanism, and debug_meta
+ *
+ * @param ctx Crash context
+ * @param event_file_path Path to event file from parent process
+ * @param include_threads Whether to include threads in the event.
+ *        Set to false when minidump is attached (Sentry extracts threads from
+ * minidump).
+ */
+static sentry_value_t
+build_native_crash_event(const sentry_crash_context_t *ctx,
+    const char *event_file_path, bool include_threads)
 {
     // Read base event from parent's file
     sentry_value_t event = sentry_value_new_null();
@@ -537,23 +845,106 @@ build_native_crash_event(
     sentry_value_set_by_key(exceptions, "values", exc_values);
     sentry_value_set_by_key(event, "exception", exceptions);
 
-    // Add threads
-    sentry_value_t threads = sentry_value_new_object();
-    sentry_value_t thread_values = sentry_value_new_list();
+    // Add threads only when minidump is NOT attached
+    // (When minidump is attached, Sentry extracts threads from it, avoiding
+    // duplication)
+    if (include_threads) {
+        sentry_value_t threads = sentry_value_new_object();
+        sentry_value_t thread_values = sentry_value_new_list();
 
-    sentry_value_t crashed_thread = sentry_value_new_object();
-    sentry_value_set_by_key(crashed_thread, "id",
-        sentry_value_new_int32((int32_t)ctx->crashed_tid));
-    sentry_value_set_by_key(
-        crashed_thread, "crashed", sentry_value_new_bool(true));
-    sentry_value_set_by_key(
-        crashed_thread, "current", sentry_value_new_bool(true));
-    sentry_value_set_by_key(
-        crashed_thread, "stacktrace", build_stacktrace_from_ctx(ctx));
-    sentry_value_append(thread_values, crashed_thread);
+#if defined(SENTRY_PLATFORM_MACOS)
+        // Add all captured threads
+        for (size_t i = 0; i < ctx->platform.num_threads; i++) {
+            const sentry_thread_context_darwin_t *tctx
+                = &ctx->platform.threads[i];
+            sentry_value_t thread = sentry_value_new_object();
 
-    sentry_value_set_by_key(threads, "values", thread_values);
-    sentry_value_set_by_key(event, "threads", threads);
+            sentry_value_set_by_key(
+                thread, "id", sentry_value_new_int32((int32_t)tctx->tid));
+
+            bool is_crashed = (tctx->tid == (uint64_t)ctx->crashed_tid);
+            sentry_value_set_by_key(
+                thread, "crashed", sentry_value_new_bool(is_crashed));
+            sentry_value_set_by_key(
+                thread, "current", sentry_value_new_bool(is_crashed));
+
+            // Build stacktrace for this thread
+            sentry_value_set_by_key(
+                thread, "stacktrace", build_stacktrace_for_thread(ctx, i));
+
+            sentry_value_append(thread_values, thread);
+        }
+        SENTRY_DEBUGF("Added %zu threads to event", ctx->platform.num_threads);
+#elif defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+        // Add all captured threads
+        for (size_t i = 0; i < ctx->platform.num_threads; i++) {
+            const sentry_thread_context_linux_t *tctx
+                = &ctx->platform.threads[i];
+            sentry_value_t thread = sentry_value_new_object();
+
+            sentry_value_set_by_key(
+                thread, "id", sentry_value_new_int32((int32_t)tctx->tid));
+
+            bool is_crashed = (tctx->tid == ctx->crashed_tid);
+            sentry_value_set_by_key(
+                thread, "crashed", sentry_value_new_bool(is_crashed));
+            sentry_value_set_by_key(
+                thread, "current", sentry_value_new_bool(is_crashed));
+
+            // For now, only build full stacktrace for crashed thread
+            // (Linux stack reading requires ptrace which might not work for all
+            // threads)
+            if (is_crashed) {
+                sentry_value_set_by_key(
+                    thread, "stacktrace", build_stacktrace_from_ctx(ctx));
+            }
+
+            sentry_value_append(thread_values, thread);
+        }
+        SENTRY_DEBUGF("Added %zu threads to event", ctx->platform.num_threads);
+#elif defined(SENTRY_PLATFORM_WINDOWS)
+        // Add all captured threads
+        for (DWORD i = 0; i < ctx->platform.num_threads; i++) {
+            const sentry_thread_context_windows_t *tctx
+                = &ctx->platform.threads[i];
+            sentry_value_t thread = sentry_value_new_object();
+
+            sentry_value_set_by_key(
+                thread, "id", sentry_value_new_int32((int32_t)tctx->thread_id));
+
+            bool is_crashed = (tctx->thread_id == (DWORD)ctx->crashed_tid);
+            sentry_value_set_by_key(
+                thread, "crashed", sentry_value_new_bool(is_crashed));
+            sentry_value_set_by_key(
+                thread, "current", sentry_value_new_bool(is_crashed));
+
+            // For now, only build full stacktrace for crashed thread
+            if (is_crashed) {
+                sentry_value_set_by_key(
+                    thread, "stacktrace", build_stacktrace_from_ctx(ctx));
+            }
+
+            sentry_value_append(thread_values, thread);
+        }
+        SENTRY_DEBUGF("Added %lu threads to event",
+            (unsigned long)ctx->platform.num_threads);
+#else
+        // Fallback: just add the crashed thread
+        sentry_value_t crashed_thread = sentry_value_new_object();
+        sentry_value_set_by_key(crashed_thread, "id",
+            sentry_value_new_int32((int32_t)ctx->crashed_tid));
+        sentry_value_set_by_key(
+            crashed_thread, "crashed", sentry_value_new_bool(true));
+        sentry_value_set_by_key(
+            crashed_thread, "current", sentry_value_new_bool(true));
+        sentry_value_set_by_key(
+            crashed_thread, "stacktrace", build_stacktrace_from_ctx(ctx));
+        sentry_value_append(thread_values, crashed_thread);
+#endif
+
+        sentry_value_set_by_key(threads, "values", thread_values);
+        sentry_value_set_by_key(event, "threads", threads);
+    }
 
     // Add debug_meta with module images
     sentry_value_t modules = sentry_get_modules_list();
@@ -577,7 +968,11 @@ write_envelope_with_native_stacktrace(const sentry_options_t *options,
     sentry_path_t *run_folder)
 {
     // Build native crash event
-    sentry_value_t event = build_native_crash_event(ctx, event_file_path);
+    // Include threads only when minidump is NOT attached (Sentry extracts
+    // threads from minidump, so including them would cause duplication)
+    bool include_threads = (minidump_path == NULL || minidump_path[0] == '\0');
+    sentry_value_t event
+        = build_native_crash_event(ctx, event_file_path, include_threads);
 
     // Serialize event to JSON
     char *event_json = sentry_value_to_json(event);
