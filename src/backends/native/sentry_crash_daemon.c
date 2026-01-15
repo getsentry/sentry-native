@@ -946,12 +946,56 @@ build_native_crash_event(const sentry_crash_context_t *ctx,
         sentry_value_set_by_key(event, "threads", threads);
     }
 
-    // Add debug_meta with module images
-    sentry_value_t modules = sentry_get_modules_list();
-    if (!sentry_value_is_null(modules)) {
+    // Add debug_meta with module images from crashed process
+    // (ctx->modules[] was captured in the signal handler of the crashed process)
+    if (ctx->module_count > 0) {
+        sentry_value_t images = sentry_value_new_list();
+
+        for (uint32_t i = 0; i < ctx->module_count; i++) {
+            const sentry_module_info_t *mod = &ctx->modules[i];
+            sentry_value_t image = sentry_value_new_object();
+
+            // Set image type based on platform
+#if defined(SENTRY_PLATFORM_MACOS)
+            sentry_value_set_by_key(
+                image, "type", sentry_value_new_string("macho"));
+#elif defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+            sentry_value_set_by_key(
+                image, "type", sentry_value_new_string("elf"));
+#elif defined(SENTRY_PLATFORM_WINDOWS)
+            sentry_value_set_by_key(image, "type", sentry_value_new_string("pe"));
+#endif
+
+            // Set code_file (path to the module)
+            if (mod->name[0]) {
+                sentry_value_set_by_key(
+                    image, "code_file", sentry_value_new_string(mod->name));
+            }
+
+            // Set image_addr as hex string
+            char addr_buf[32];
+            snprintf(addr_buf, sizeof(addr_buf), "0x%" PRIx64, mod->base_address);
+            sentry_value_set_by_key(
+                image, "image_addr", sentry_value_new_string(addr_buf));
+
+            // Set image_size
+            sentry_value_set_by_key(
+                image, "image_size", sentry_value_new_int32((int32_t)mod->size));
+
+            // Set debug_id from UUID
+            sentry_uuid_t uuid
+                = sentry_uuid_from_bytes((const char *)mod->uuid);
+            sentry_value_set_by_key(
+                image, "debug_id", sentry__value_new_uuid(&uuid));
+
+            sentry_value_append(images, image);
+        }
+
         sentry_value_t debug_meta = sentry_value_new_object();
-        sentry_value_set_by_key(debug_meta, "images", modules);
+        sentry_value_set_by_key(debug_meta, "images", images);
         sentry_value_set_by_key(event, "debug_meta", debug_meta);
+        SENTRY_DEBUGF(
+            "Added %u modules from crashed process to debug_meta", ctx->module_count);
     }
 
     return event;
