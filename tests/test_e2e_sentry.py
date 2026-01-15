@@ -281,20 +281,22 @@ class TestE2ECrashModes:
         ], f"Unexpected mechanism type: {exc['mechanism']['type']}"
 
         # Verify stacktrace (server-processed from minidump)
-        assert "stacktrace" in exc, "Minidump mode should have stacktrace (server-processed)"
+        assert (
+            "stacktrace" in exc
+        ), "Minidump mode should have stacktrace (server-processed)"
         frames = exc["stacktrace"]["frames"]
-        assert len(frames) >= 3, (
-            f"Minidump mode should have stacktrace (>= 3 frames), got {len(frames)} frames"
-        )
+        assert (
+            len(frames) >= 3
+        ), f"Minidump mode should have stacktrace (>= 3 frames), got {len(frames)} frames"
 
         # Verify threads are captured (from minidump)
         threads_data = get_threads_from_event(event)
         assert threads_data is not None, "Minidump mode should have threads data"
         assert "values" in threads_data, "Threads should have values"
         thread_count = len(threads_data["values"])
-        assert thread_count >= 3, (
-            f"Minidump mode should capture multiple threads (>= 3), got {thread_count}"
-        )
+        assert (
+            thread_count >= 3
+        ), f"Minidump mode should capture multiple threads (>= 3), got {thread_count}"
 
     def test_mode_native_e2e(self):
         """
@@ -338,9 +340,9 @@ class TestE2ECrashModes:
         assert threads_data is not None, "Native mode should have threads data"
         assert "values" in threads_data, "Threads should have values"
         thread_count = len(threads_data["values"])
-        assert thread_count >= 3, (
-            f"Native mode should capture multiple threads (>= 3), got {thread_count}"
-        )
+        assert (
+            thread_count >= 3
+        ), f"Native mode should capture multiple threads (>= 3), got {thread_count}"
 
     def test_mode_native_with_minidump_e2e(self):
         """
@@ -385,12 +387,14 @@ class TestE2ECrashModes:
 
         # Verify threads are captured (from minidump in this mode)
         threads_data = get_threads_from_event(event)
-        assert threads_data is not None, "Native-with-minidump mode should have threads data"
+        assert (
+            threads_data is not None
+        ), "Native-with-minidump mode should have threads data"
         assert "values" in threads_data, "Threads should have values"
         thread_count = len(threads_data["values"])
-        assert thread_count >= 3, (
-            f"Native-with-minidump mode should capture multiple threads (>= 3), got {thread_count}"
-        )
+        assert (
+            thread_count >= 3
+        ), f"Native-with-minidump mode should capture multiple threads (>= 3), got {thread_count}"
 
     def test_default_mode_is_native_with_minidump_e2e(self):
         """
@@ -424,6 +428,6 @@ class TestE2ECrashModes:
         assert threads_data is not None, "Default mode should have threads data"
         assert "values" in threads_data, "Threads should have values"
         thread_count = len(threads_data["values"])
-        assert thread_count >= 3, (
-            f"Default mode should capture multiple threads (>= 3), got {thread_count}"
-        )
+        assert (
+            thread_count >= 3
+        ), f"Default mode should capture multiple threads (>= 3), got {thread_count}"
