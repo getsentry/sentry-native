@@ -27,6 +27,7 @@
 #include <time.h>
 
 #if defined(SENTRY_PLATFORM_UNIX)
+#    include <arpa/inet.h>
 #    include <dlfcn.h>
 #    include <errno.h>
 #    include <fcntl.h>
@@ -462,7 +463,8 @@ build_stacktrace_for_thread(
     sentry_value_t stacktrace = sentry_value_new_object();
     sentry_value_t frames = sentry_value_new_list();
 
-    // Suppress unused parameter warning on platforms where thread_idx isn't used
+    // Suppress unused parameter warning on platforms where thread_idx isn't
+    // used
     (void)thread_idx;
 
     // Get instruction pointer and frame pointer from crash context
@@ -948,6 +950,15 @@ capture_modules_from_proc_maps(sentry_crash_context_t *ctx)
         memset(mod->uuid, 0, sizeof(mod->uuid));
         extract_elf_build_id_for_module(
             mod->name, mod->uuid, sizeof(mod->uuid));
+
+        // Convert to little-endian GUID format for Sentry debug_id
+        // (same byte swapping as sentry_modulefinder_linux.c)
+        uint32_t *a = (uint32_t *)mod->uuid;
+        *a = htonl(*a);
+        uint16_t *b = (uint16_t *)(mod->uuid + 4);
+        *b = htons(*b);
+        uint16_t *c = (uint16_t *)(mod->uuid + 6);
+        *c = htons(*c);
 
         SENTRY_DEBUGF("Captured module: %s base=0x%llx size=0x%llx", mod->name,
             (unsigned long long)mod->base_address,
