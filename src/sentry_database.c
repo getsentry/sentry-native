@@ -238,26 +238,16 @@ sentry__process_old_runs(const sentry_options_t *options, uint64_t last_crash)
         if (strcmp(options->run->run_path->path, run_dir->path) == 0) {
             continue;
         }
-        sentry_path_t *cached_run_dir = NULL;
+
+        sentry_path_t *cache_dir = NULL;
         if (options->cache_keep) {
-            sentry_path_t *cache_dir
-                = sentry__path_join_str(options->database_path, "cache");
+            cache_dir = sentry__path_join_str(options->database_path, "cache");
             sentry__path_create_dir_all(cache_dir);
-            cached_run_dir = sentry__path_join_str(
-                cache_dir, sentry__path_filename(run_dir));
-            sentry__path_create_dir_all(cached_run_dir);
-            sentry__path_free(cache_dir);
         }
 
         sentry_pathiter_t *run_iter = sentry__path_iter_directory(run_dir);
         const sentry_path_t *file;
         while (run_iter && (file = sentry__pathiter_next(run_iter)) != NULL) {
-            sentry_path_t *cached_file = NULL;
-            if (options->cache_keep) {
-                cached_file = sentry__path_join_str(
-                    cached_run_dir, sentry__path_filename(file));
-            }
-
             if (sentry__path_filename_matches(file, "session.json")) {
                 if (!session_envelope) {
                     session_envelope = sentry__envelope_new();
@@ -299,19 +289,22 @@ sentry__process_old_runs(const sentry_options_t *options, uint64_t last_crash)
             } else if (sentry__path_ends_with(file, ".envelope")) {
                 sentry_envelope_t *envelope = sentry__envelope_from_path(file);
                 sentry__capture_envelope(options->transport, envelope);
+
+                if (options->cache_keep) {
+                    sentry_path_t *cached_file = sentry__path_join_str(
+                        cache_dir, sentry__path_filename(file));
+                    sentry__path_rename(file, cached_file);
+                    sentry__path_free(cached_file);
+                    continue;
+                }
             }
 
-            if (options->cache_keep) {
-                sentry__path_rename(file, cached_file);
-                sentry__path_free(cached_file);
-            } else {
-                sentry__path_remove(file);
-            }
+            sentry__path_remove(file);
         }
         sentry__pathiter_free(run_iter);
 
         if (options->cache_keep) {
-            sentry__path_free(cached_run_dir);
+            sentry__path_free(cache_dir);
         }
 
         sentry__path_remove_all(run_dir);
@@ -333,26 +326,12 @@ typedef struct {
     size_t size_in_kb;
 } cache_entry_t;
 
-/**
- * Calculate the total size of a directory (sum of all files).
- */
 static size_t
-get_directory_size_in_kb(const sentry_path_t *dir)
+get_file_size_in_kb(const sentry_path_t *path)
 {
-    size_t total_bytes = 0;
-    sentry_pathiter_t *iter = sentry__path_iter_directory(dir);
-    if (!iter) {
-        return 0;
-    }
-    const sentry_path_t *entry;
-    while ((entry = sentry__pathiter_next(iter)) != NULL) {
-        if (sentry__path_is_file(entry)) {
-            total_bytes += sentry__path_get_size(entry);
-        }
-    }
-    sentry__pathiter_free(iter);
+    size_t bytes = sentry__path_get_size(path);
     // Round up to next KB boundary
-    return (total_bytes + 1023) / 1024;
+    return (bytes + 1023) / 1024;
 }
 
 /**
@@ -400,7 +379,7 @@ sentry__cleanup_cache(const sentry_options_t *options)
     sentry_pathiter_t *iter = sentry__path_iter_directory(cache_dir);
     const sentry_path_t *entry;
     while (iter && (entry = sentry__pathiter_next(iter)) != NULL) {
-        if (!sentry__path_is_dir(entry)) {
+        if (sentry__path_is_dir(entry)) {
             continue;
         }
 
@@ -419,7 +398,7 @@ sentry__cleanup_cache(const sentry_options_t *options)
 
         entries[entries_count].path = sentry__path_clone(entry);
         entries[entries_count].mtime = sentry__path_get_mtime(entry);
-        entries[entries_count].size_in_kb = get_directory_size_in_kb(entry);
+        entries[entries_count].size_in_kb = get_file_size_in_kb(entry);
         entries_count++;
     }
     sentry__pathiter_free(iter);
