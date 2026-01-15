@@ -523,11 +523,11 @@ def test_crash_mode_minidump_only(cmake, httpserver):
 
     # Should have minidump attachment
     has_minidump = any(
-        item.type == "attachment"
+        item.headers.get("type") == "attachment"
         and item.headers.get("attachment_type") == "event.minidump"
         for item in envelope.items
     )
-    assert has_minidump, "Mode 1 should include minidump"
+    assert has_minidump, "Minidump mode should include minidump"
 
 
 def test_crash_mode_native_only(cmake, httpserver):
@@ -558,11 +558,11 @@ def test_crash_mode_native_only(cmake, httpserver):
 
     # Should NOT have minidump
     has_minidump = any(
-        item.type == "attachment"
+        item.headers.get("type") == "attachment"
         and item.headers.get("attachment_type") == "event.minidump"
         for item in envelope.items
     )
-    assert not has_minidump, "Mode 2 should NOT include minidump"
+    assert not has_minidump, "Native mode should NOT include minidump"
 
     # Should have native stacktrace
     event = envelope.get_event()
@@ -610,11 +610,11 @@ def test_crash_mode_native_with_minidump(cmake, httpserver):
 
     # Should have BOTH minidump attachment
     has_minidump = any(
-        item.type == "attachment"
+        item.headers.get("type") == "attachment"
         and item.headers.get("attachment_type") == "event.minidump"
         for item in envelope.items
     )
-    assert has_minidump, "Mode 3 should include minidump"
+    assert has_minidump, "Native with minidump mode should include minidump"
 
     # AND native stacktrace
     event = envelope.get_event()
