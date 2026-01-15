@@ -1161,6 +1161,7 @@ sentry__write_minidump(
     kr = task_threads(writer.task, &writer.threads, &writer.thread_count);
     if (kr != KERN_SUCCESS) {
         SENTRY_WARNF("failed to get threads: %d", kr);
+        mach_port_deallocate(mach_task_self(), writer.task);
         close(writer.fd);
         unlink(output_path);
         return -1;
@@ -1175,6 +1176,7 @@ sentry__write_minidump(
         + (stream_count * sizeof(minidump_directory_t));
 
     if (lseek(writer.fd, writer.current_offset, SEEK_SET) < 0) {
+        mach_port_deallocate(mach_task_self(), writer.task);
         close(writer.fd);
         unlink(output_path);
         return -1;
@@ -1189,6 +1191,7 @@ sentry__write_minidump(
     result |= write_exception_stream(&writer, &directories[2]);
 
     if (result < 0) {
+        mach_port_deallocate(mach_task_self(), writer.task);
         close(writer.fd);
         unlink(output_path);
         return -1;
@@ -1196,12 +1199,14 @@ sentry__write_minidump(
 
     // Write header and directory
     if (lseek(writer.fd, 0, SEEK_SET) < 0) {
+        mach_port_deallocate(mach_task_self(), writer.task);
         close(writer.fd);
         unlink(output_path);
         return -1;
     }
 
     if (write_header(&writer, stream_count) < 0) {
+        mach_port_deallocate(mach_task_self(), writer.task);
         close(writer.fd);
         unlink(output_path);
         return -1;
@@ -1209,6 +1214,7 @@ sentry__write_minidump(
 
     if (write(writer.fd, directories, sizeof(directories))
         != sizeof(directories)) {
+        mach_port_deallocate(mach_task_self(), writer.task);
         close(writer.fd);
         unlink(output_path);
         return -1;
@@ -1220,6 +1226,7 @@ sentry__write_minidump(
     }
     vm_deallocate(mach_task_self(), (vm_address_t)writer.threads,
         writer.thread_count * sizeof(thread_t));
+    mach_port_deallocate(mach_task_self(), writer.task);
 
     close(writer.fd);
 
