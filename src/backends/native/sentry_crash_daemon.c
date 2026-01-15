@@ -448,7 +448,10 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
         SENTRY_DEBUGF(
             "Event path from context: %s", event_path ? event_path : "(null)");
         if (!event_path) {
-            SENTRY_WARN("No event file from parent");
+            SENTRY_WARN("No event file from parent - deleting orphaned minidump");
+            // Delete the orphaned minidump to prevent disk space leaks
+            unlink(minidump_path);
+            ctx->minidump_path[0] = '\0';
             goto done;
         }
 

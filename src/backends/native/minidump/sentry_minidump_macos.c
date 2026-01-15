@@ -521,33 +521,28 @@ write_thread_context(
  * Read and write stack memory for a thread
  */
 static minidump_rva_t
-write_thread_stack(
-    minidump_writer_t *writer, uint64_t stack_pointer, size_t *stack_size_out)
+write_thread_stack(minidump_writer_t *writer, uint64_t stack_pointer,
+    size_t *stack_size_out, uint64_t *stack_start_out)
 {
-    // Read stack memory around SP
-    // For safety, read a reasonable amount (64KB) from SP downwards
+    // Stack grows downward on macOS (toward lower addresses).
+    // SP points to the top of stack (lowest used address).
+    // Return addresses and saved registers are at addresses >= SP.
+    // We need to capture from SP *upward* for stack unwinding to work.
     const size_t MAX_STACK_SIZE = SENTRY_CRASH_MAX_STACK_CAPTURE / 8;
 
-    // Stack grows downwards on macOS, so read from SP down to SP -
-    // MAX_STACK_SIZE
-    mach_vm_address_t stack_start = (stack_pointer > MAX_STACK_SIZE)
-        ? (stack_pointer - MAX_STACK_SIZE)
-        : 0;
-    mach_vm_size_t stack_size = stack_pointer - stack_start;
-
-    if (stack_size == 0 || stack_size > MAX_STACK_SIZE) {
-        *stack_size_out = 0;
-        return 0;
-    }
+    // Capture from SP upward (where return addresses are stored)
+    mach_vm_address_t stack_start = stack_pointer;
+    mach_vm_size_t stack_size = MAX_STACK_SIZE;
 
     // Allocate buffer for stack memory
     void *stack_buffer = sentry_malloc(stack_size);
     if (!stack_buffer) {
         *stack_size_out = 0;
+        *stack_start_out = 0;
         return 0;
     }
 
-    // Try to read stack memory
+    // Try to read stack memory from SP upward
     kern_return_t kr
         = read_task_memory(writer->task, stack_start, stack_buffer, stack_size);
 
@@ -555,8 +550,20 @@ write_thread_stack(
     if (kr == KERN_SUCCESS) {
         rva = write_data(writer, stack_buffer, stack_size);
         *stack_size_out = stack_size;
+        *stack_start_out = stack_start;
     } else {
-        *stack_size_out = 0;
+        // Try with smaller size if full read fails (may hit unmapped memory)
+        stack_size = MAX_STACK_SIZE / 4;
+        kr = read_task_memory(
+            writer->task, stack_start, stack_buffer, stack_size);
+        if (kr == KERN_SUCCESS) {
+            rva = write_data(writer, stack_buffer, stack_size);
+            *stack_size_out = stack_size;
+            *stack_start_out = stack_start;
+        } else {
+            *stack_size_out = 0;
+            *stack_start_out = 0;
+        }
     }
 
     sentry_free(stack_buffer);
@@ -646,10 +653,11 @@ write_thread_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
                 sp = mcontext.__ss.__sp;
 #    endif
                 size_t stack_size = 0;
+                uint64_t stack_start = 0;
                 thread->stack.memory.rva
-                    = write_thread_stack(writer, sp, &stack_size);
+                    = write_thread_stack(writer, sp, &stack_size, &stack_start);
                 thread->stack.memory.size = stack_size;
-                thread->stack.start_address = sp;
+                thread->stack.start_address = stack_start;
             }
         }
     } else if (writer->crash_ctx
@@ -726,10 +734,11 @@ write_thread_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
                 // No saved stack, try to read from memory (will likely fail
                 // without task port)
                 size_t stack_size = 0;
+                uint64_t stack_start = 0;
                 thread->stack.memory.rva
-                    = write_thread_stack(writer, sp, &stack_size);
+                    = write_thread_stack(writer, sp, &stack_size, &stack_start);
                 thread->stack.memory.size = stack_size;
-                thread->stack.start_address = sp;
+                thread->stack.start_address = stack_start;
                 SENTRY_DEBUGF(
                     "Thread %zu: wrote stack from memory at RVA 0x%x, size %zu",
                     i, thread->stack.memory.rva, stack_size);

@@ -27,13 +27,13 @@ sentry__crash_ipc_init_app(sem_t *init_sem)
     ipc->is_daemon = false;
     ipc->init_sem = init_sem; // Use provided semaphore (managed by backend)
 
-    // Create shared memory with unique name based on PID and thread ID
+    // Create shared memory with unique name based on PID
     // macOS has a 31-character limit for POSIX shared memory names (PSEMNAMLEN)
-    // Format: /s-{8_hex_chars} = 11 chars total (well under 31 limit)
-    // We mix PID and TID to create a unique 32-bit identifier
-    uint64_t tid = (uint64_t)pthread_self();
-    uint32_t id = (uint32_t)((getpid() ^ (tid & 0xFFFFFFFF)) & 0xFFFFFFFF);
-    snprintf(ipc->shm_name, sizeof(ipc->shm_name), "/s-%08x", id);
+    // Format: /sentry-{pid} - PID alone ensures uniqueness per process
+    // Note: Only one crash handler per process is needed, and PID guarantees
+    // uniqueness across the system at any given time.
+    snprintf(
+        ipc->shm_name, sizeof(ipc->shm_name), "/sentry-%d", (int)getpid());
 
     // Acquire semaphore for exclusive access during initialization
     if (ipc->init_sem && sem_wait(ipc->init_sem) < 0) {
@@ -322,13 +322,13 @@ sentry__crash_ipc_init_app(sem_t *init_sem)
     ipc->is_daemon = false;
     ipc->init_sem = init_sem; // Use provided semaphore (managed by backend)
 
-    // Create shared memory with unique name based on PID and thread ID
+    // Create shared memory with unique name based on PID
     // macOS has a 31-character limit for POSIX shared memory names (PSEMNAMLEN)
-    // Format: /s-{8_hex_chars} = 11 chars total (well under 31 limit)
-    // We mix PID and TID to create a unique 32-bit identifier
-    uint64_t tid = (uint64_t)pthread_self();
-    uint32_t id = (uint32_t)((getpid() ^ (tid & 0xFFFFFFFF)) & 0xFFFFFFFF);
-    snprintf(ipc->shm_name, sizeof(ipc->shm_name), "/s-%08x", id);
+    // Format: /sentry-{pid} - PID alone ensures uniqueness per process
+    // Note: Only one crash handler per process is needed, and PID guarantees
+    // uniqueness across the system at any given time.
+    snprintf(
+        ipc->shm_name, sizeof(ipc->shm_name), "/sentry-%d", (int)getpid());
 
     // Acquire semaphore for exclusive access during initialization
     if (ipc->init_sem && sem_wait(ipc->init_sem) < 0) {
