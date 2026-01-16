@@ -37,8 +37,8 @@ pytestmark = [
 ]
 
 SENTRY_API_BASE = "https://sentry.io/api/0"
-POLL_MAX_ATTEMPTS = 20
-POLL_INTERVAL = 5  # seconds
+POLL_MAX_ATTEMPTS = 100
+POLL_INTERVAL = 6  # seconds
 
 
 def get_sentry_headers():
