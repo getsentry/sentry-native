@@ -562,15 +562,9 @@ build_stacktrace_for_thread(
 #elif defined(SENTRY_PLATFORM_WINDOWS)
     // Use thread-specific context, defaulting to crashed thread
     const CONTEXT *thread_context = &ctx->platform.context;
-    DWORD thread_id = (DWORD)ctx->crashed_tid;
-
-    if (thread_idx != SIZE_MAX && ctx->platform.num_threads > 0) {
-        if (thread_idx < ctx->platform.num_threads) {
-            const sentry_thread_context_windows_t *tctx
-                = &ctx->platform.threads[thread_idx];
-            thread_context = &tctx->context;
-            thread_id = tctx->thread_id;
-        }
+    if (thread_idx != SIZE_MAX && ctx->platform.num_threads > 0
+        && thread_idx < ctx->platform.num_threads) {
+        thread_context = &ctx->platform.threads[thread_idx].context;
     }
 
 #    if defined(_M_AMD64)
