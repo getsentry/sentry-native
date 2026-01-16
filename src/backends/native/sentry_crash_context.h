@@ -133,6 +133,9 @@ typedef struct {
     char name[SENTRY_CRASH_MAX_PATH];
     uint8_t uuid[16]; // Module UUID for symbolication
     uint32_t pdb_age; // PDB age (Windows PE only, appended to debug_id)
+#if defined(SENTRY_PLATFORM_WINDOWS)
+    char pdb_name[SENTRY_CRASH_MAX_PATH]; // PDB filename (Windows PE only)
+#endif
 } sentry_module_info_t;
 
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
