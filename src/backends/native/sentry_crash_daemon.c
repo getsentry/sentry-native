@@ -633,40 +633,51 @@ build_stacktrace_for_thread(
         }
     }
 #elif defined(SENTRY_PLATFORM_WINDOWS)
-    // On Windows, use ReadProcessMemory
-    // Start from the minimum of SP and FP to ensure we can walk frames
-    HANDLE hProcess
-        = OpenProcess(PROCESS_VM_READ, FALSE, (DWORD)ctx->crashed_pid);
+    // On Windows, use StackWalk64 for proper stack unwinding
+    // This uses PE unwind info and works reliably on x64/ARM64
+    HANDLE hProcess = OpenProcess(PROCESS_VM_READ | PROCESS_QUERY_INFORMATION,
+        FALSE, (DWORD)ctx->crashed_pid);
     if (hProcess) {
-        stack_size = SENTRY_CRASH_MAX_STACK_CAPTURE;
-        // Use minimum of SP and FP as start (FP might be below SP in some
-        // cases)
-        stack_start = (fp != 0 && fp < sp) ? fp : sp;
-        SENTRY_DEBUGF("Windows stack capture: SP=0x%llx FP=0x%llx start=0x%llx",
-            (unsigned long long)sp, (unsigned long long)fp,
-            (unsigned long long)stack_start);
-        stack_buf = sentry_malloc((size_t)stack_size);
-        if (stack_buf) {
-            SIZE_T bytes_read = 0;
-            if (!ReadProcessMemory(hProcess, (LPCVOID)(uintptr_t)stack_start,
-                    stack_buf, (SIZE_T)stack_size, &bytes_read)
-                || bytes_read == 0) {
-                SENTRY_WARNF("ReadProcessMemory failed (error %lu), falling "
-                             "back to single frame",
-                    GetLastError());
-                sentry_free(stack_buf);
-                stack_buf = NULL;
-            } else {
-                stack_size = (uint64_t)bytes_read;
-                SENTRY_DEBUGF(
-                    "Read %zu bytes of stack from process", (size_t)bytes_read);
+        void *stack_frames[MAX_STACK_FRAMES];
+        size_t dbghelp_frame_count
+            = walk_stack_with_dbghelp(hProcess, (DWORD)ctx->crashed_tid,
+                &ctx->platform.context, stack_frames, MAX_STACK_FRAMES);
+
+        if (dbghelp_frame_count > 0) {
+            // Build sentry frames from StackWalk64 results
+            sentry_value_t temp_frames[MAX_STACK_FRAMES];
+            int frame_count = 0;
+
+            for (size_t i = 0;
+                i < dbghelp_frame_count && frame_count < MAX_STACK_FRAMES;
+                i++) {
+                temp_frames[frame_count] = sentry_value_new_object();
+                sentry_value_set_by_key(temp_frames[frame_count],
+                    "instruction_addr",
+                    sentry__value_new_addr(
+                        (uint64_t)(uintptr_t)stack_frames[i]));
+                frame_count++;
             }
+
+            // Sentry expects frames in reverse order (outermost caller first)
+            for (int i = frame_count - 1; i >= 0; i--) {
+                sentry_value_append(frames, temp_frames[i]);
+            }
+
+            sentry_value_set_by_key(stacktrace, "frames", frames);
+            sentry_value_set_by_key(
+                stacktrace, "registers", build_registers_from_ctx(ctx));
+
+            CloseHandle(hProcess);
+            return stacktrace;
         }
+
         CloseHandle(hProcess);
     } else {
-        SENTRY_WARNF("Failed to open process %d for stack read (error %lu)",
+        SENTRY_WARNF("Failed to open process %d for stack walk (error %lu)",
             ctx->crashed_pid, GetLastError());
     }
+    // Fall through to add at least the IP frame below
 #endif
 
     // Build frame list - collect in callee-first order, then reverse for Sentry
@@ -1044,8 +1055,117 @@ enumerate_threads_from_proc(sentry_crash_context_t *ctx)
 #endif // SENTRY_PLATFORM_LINUX || SENTRY_PLATFORM_ANDROID
 
 #if defined(SENTRY_PLATFORM_WINDOWS)
+#    include <dbghelp.h>
 #    include <psapi.h>
 #    include <tlhelp32.h>
+
+// Global handle for ReadProcessMemory callback (set during stack walk)
+static HANDLE g_stack_walk_process = NULL;
+
+/**
+ * Custom read memory callback for StackWalk64 to read from crashed process
+ */
+static BOOL CALLBACK
+stack_walk_read_memory(HANDLE hProcess, DWORD64 lpBaseAddress, PVOID lpBuffer,
+    DWORD nSize, LPDWORD lpNumberOfBytesRead)
+{
+    (void)hProcess; // Use our global handle instead
+    SIZE_T bytesRead = 0;
+    BOOL result = ReadProcessMemory(g_stack_walk_process,
+        (LPCVOID)(uintptr_t)lpBaseAddress, lpBuffer, nSize, &bytesRead);
+    if (lpNumberOfBytesRead) {
+        *lpNumberOfBytesRead = (DWORD)bytesRead;
+    }
+    return result;
+}
+
+/**
+ * Walk stack using StackWalk64 for out-of-process unwinding
+ * Returns number of frames captured
+ */
+static size_t
+walk_stack_with_dbghelp(HANDLE hProcess, DWORD crashed_tid,
+    const CONTEXT *ctx_record, void **frames, size_t max_frames)
+{
+    // Open thread handle for the crashed thread
+    HANDLE hThread = OpenThread(
+        THREAD_GET_CONTEXT | THREAD_QUERY_INFORMATION, FALSE, crashed_tid);
+    if (!hThread) {
+        SENTRY_WARNF("Failed to open thread %lu for stack walk",
+            (unsigned long)crashed_tid);
+        return 0;
+    }
+
+    // Set up global handle for read callback
+    g_stack_walk_process = hProcess;
+
+    // Initialize dbghelp for the target process
+    SymSetOptions(SYMOPT_UNDNAME | SYMOPT_DEFERRED_LOADS);
+    if (!SymInitialize(hProcess, NULL, TRUE)) {
+        SENTRY_WARNF("SymInitialize failed: %lu", GetLastError());
+        CloseHandle(hThread);
+        return 0;
+    }
+
+    CONTEXT ctx = *ctx_record;
+    STACKFRAME64 stack_frame;
+    memset(&stack_frame, 0, sizeof(stack_frame));
+
+    DWORD machine_type;
+#    if defined(_M_AMD64)
+    machine_type = IMAGE_FILE_MACHINE_AMD64;
+    stack_frame.AddrPC.Offset = ctx.Rip;
+    stack_frame.AddrFrame.Offset = ctx.Rbp;
+    stack_frame.AddrStack.Offset = ctx.Rsp;
+#    elif defined(_M_IX86)
+    machine_type = IMAGE_FILE_MACHINE_I386;
+    stack_frame.AddrPC.Offset = ctx.Eip;
+    stack_frame.AddrFrame.Offset = ctx.Ebp;
+    stack_frame.AddrStack.Offset = ctx.Esp;
+#    elif defined(_M_ARM64)
+    machine_type = IMAGE_FILE_MACHINE_ARM64;
+    stack_frame.AddrPC.Offset = ctx.Pc;
+#        if defined(NONAMELESSUNION)
+    stack_frame.AddrFrame.Offset = ctx.DUMMYUNIONNAME.DUMMYSTRUCTNAME.Fp;
+#        else
+    stack_frame.AddrFrame.Offset = ctx.Fp;
+#        endif
+    stack_frame.AddrStack.Offset = ctx.Sp;
+#    elif defined(_M_ARM)
+    machine_type = IMAGE_FILE_MACHINE_ARM;
+    stack_frame.AddrPC.Offset = ctx.Pc;
+    stack_frame.AddrFrame.Offset = ctx.R11;
+    stack_frame.AddrStack.Offset = ctx.Sp;
+#    else
+    // Unsupported architecture
+    SymCleanup(hProcess);
+    CloseHandle(hThread);
+    return 0;
+#    endif
+    stack_frame.AddrPC.Mode = AddrModeFlat;
+    stack_frame.AddrFrame.Mode = AddrModeFlat;
+    stack_frame.AddrStack.Mode = AddrModeFlat;
+
+    size_t frame_count = 0;
+    while (frame_count < max_frames
+        && StackWalk64(machine_type, hProcess, hThread, &stack_frame, &ctx,
+            stack_walk_read_memory, SymFunctionTableAccess64,
+            SymGetModuleBase64, NULL)) {
+        if (stack_frame.AddrPC.Offset == 0) {
+            break;
+        }
+        frames[frame_count++] = (void *)(uintptr_t)stack_frame.AddrPC.Offset;
+        SENTRY_DEBUGF("StackWalk64 frame %zu: 0x%llx", frame_count - 1,
+            (unsigned long long)stack_frame.AddrPC.Offset);
+    }
+
+    SymCleanup(hProcess);
+    CloseHandle(hThread);
+    g_stack_walk_process = NULL;
+
+    SENTRY_DEBUGF("StackWalk64 captured %zu frames", frame_count);
+    return frame_count;
+}
 
 /**
  * Extract PE TimeDateStamp from a module file for code_id
