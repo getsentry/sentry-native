@@ -634,19 +634,26 @@ build_stacktrace_for_thread(
     }
 #elif defined(SENTRY_PLATFORM_WINDOWS)
     // On Windows, use ReadProcessMemory
+    // Start from the minimum of SP and FP to ensure we can walk frames
     HANDLE hProcess
         = OpenProcess(PROCESS_VM_READ, FALSE, (DWORD)ctx->crashed_pid);
     if (hProcess) {
         stack_size = SENTRY_CRASH_MAX_STACK_CAPTURE;
-        stack_start = sp;
+        // Use minimum of SP and FP as start (FP might be below SP in some
+        // cases)
+        stack_start = (fp != 0 && fp < sp) ? fp : sp;
+        SENTRY_DEBUGF("Windows stack capture: SP=0x%llx FP=0x%llx start=0x%llx",
+            (unsigned long long)sp, (unsigned long long)fp,
+            (unsigned long long)stack_start);
         stack_buf = sentry_malloc((size_t)stack_size);
         if (stack_buf) {
             SIZE_T bytes_read = 0;
             if (!ReadProcessMemory(hProcess, (LPCVOID)(uintptr_t)stack_start,
                     stack_buf, (SIZE_T)stack_size, &bytes_read)
                 || bytes_read == 0) {
-                SENTRY_DEBUG(
-                    "ReadProcessMemory failed, falling back to single frame");
+                SENTRY_WARNF("ReadProcessMemory failed (error %lu), falling "
+                             "back to single frame",
+                    GetLastError());
                 sentry_free(stack_buf);
                 stack_buf = NULL;
             } else {
@@ -656,6 +663,9 @@ build_stacktrace_for_thread(
             }
         }
         CloseHandle(hProcess);
+    } else {
+        SENTRY_WARNF("Failed to open process %d for stack read (error %lu)",
+            ctx->crashed_pid, GetLastError());
     }
 #endif
 
