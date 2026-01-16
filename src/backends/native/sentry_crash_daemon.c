@@ -639,11 +639,11 @@ build_stacktrace_for_thread(
     if (hProcess) {
         stack_size = SENTRY_CRASH_MAX_STACK_CAPTURE;
         stack_start = sp;
-        stack_buf = sentry_malloc(stack_size);
+        stack_buf = sentry_malloc((size_t)stack_size);
         if (stack_buf) {
             SIZE_T bytes_read = 0;
             if (!ReadProcessMemory(hProcess, (LPCVOID)(uintptr_t)stack_start,
-                    stack_buf, stack_size, &bytes_read)
+                    stack_buf, (SIZE_T)stack_size, &bytes_read)
                 || bytes_read == 0) {
                 SENTRY_DEBUG(
                     "ReadProcessMemory failed, falling back to single frame");
