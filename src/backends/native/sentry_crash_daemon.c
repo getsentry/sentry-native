@@ -1787,10 +1787,11 @@ build_native_crash_event(const sentry_crash_context_t *ctx,
             // The GUID bytes from PE are in Windows mixed-endian format
             // (Data1/2/3 are little-endian, Data4 is big-endian)
             {
-                // Cast to GUID structure and use sentry__uuid_from_native
-                // which handles the mixed-endian byte ordering correctly
-                const GUID *guid = (const GUID *)mod->uuid;
-                sentry_uuid_t uuid = sentry__uuid_from_native(guid);
+                // Copy to aligned GUID structure to avoid alignment issues
+                // (mod->uuid is uint8_t[] with 1-byte alignment, GUID needs 4)
+                GUID guid;
+                memcpy(&guid, mod->uuid, sizeof(GUID));
+                sentry_uuid_t uuid = sentry__uuid_from_native(&guid);
                 char debug_id_buf[50]; // GUID (36) + '-' (1) + age (up to 10) +
                                        // null
                 sentry_uuid_as_string(&uuid, debug_id_buf);
