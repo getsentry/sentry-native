@@ -425,6 +425,7 @@ crash_signal_handler(int signum, siginfo_t *info, void *context)
         // Calculate module size and extract UUID (signal-safe)
         uint64_t size = 0;
         signal_safe_memzero(module->uuid, sizeof(module->uuid));
+        module->pdb_age = 0; // Not used on macOS, only for Windows PE modules
 
         if (header->magic == MH_MAGIC_64 || header->magic == MH_CIGAM_64) {
             const struct mach_header_64 *header64

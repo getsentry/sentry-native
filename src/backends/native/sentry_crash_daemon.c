@@ -1038,16 +1038,26 @@ capture_modules_from_proc_maps(sentry_crash_context_t *ctx)
             continue;
         }
 
-        // We want the first mapping for each file - check if already captured
-        bool already_captured = false;
+        // Check if this file is already captured - if so, extend size if needed
+        sentry_module_info_t *existing_mod = NULL;
         for (uint32_t j = 0; j < ctx->module_count; j++) {
             if (strncmp(ctx->modules[j].name, pathname, len) == 0
                 && ctx->modules[j].name[len] == '\0') {
-                already_captured = true;
+                existing_mod = &ctx->modules[j];
                 break;
             }
         }
-        if (already_captured) {
+
+        if (existing_mod) {
+            // Update size to cover this mapping as well
+            // The module spans from base_address to max(end) of all its
+            // mappings
+            uint64_t new_end = end;
+            uint64_t current_end
+                = existing_mod->base_address + existing_mod->size;
+            if (new_end > current_end) {
+                existing_mod->size = new_end - existing_mod->base_address;
+            }
             continue;
         }
 
@@ -1057,7 +1067,8 @@ capture_modules_from_proc_maps(sentry_crash_context_t *ctx)
         // how far into the file this mapping starts, so we subtract it to get
         // the actual load base address
         mod->base_address = start - offset;
-        mod->size = end - start + offset; // Approximate total size
+        // Initial size covers from base to end of this mapping
+        mod->size = end - mod->base_address;
 
         // Copy pathname
         size_t copy_len
@@ -1067,6 +1078,7 @@ capture_modules_from_proc_maps(sentry_crash_context_t *ctx)
 
         // Extract Build ID from ELF file
         memset(mod->uuid, 0, sizeof(mod->uuid));
+        mod->pdb_age = 0; // Not used on Linux, only for Windows PE modules
         extract_elf_build_id_for_module(
             mod->name, mod->uuid, sizeof(mod->uuid));
 
@@ -1297,6 +1309,119 @@ get_pe_timestamp(const char *module_path)
     return coff_header.TimeDateStamp;
 }
 
+// CodeView signature for PDB 7.0 format (RSDS)
+#    define CV_SIGNATURE_RSDS 0x53445352
+
+/**
+ * CodeView PDB 7.0 debug info structure
+ */
+struct CodeViewRecord70 {
+    uint32_t signature;
+    GUID pdb_signature;
+    uint32_t pdb_age;
+    char pdb_filename[1];
+};
+
+/**
+ * Extract PDB debug info (GUID and age) from a module in another process
+ * Uses ReadProcessMemory to read PE headers from the crashed process
+ *
+ * @param hProcess Handle to the crashed process
+ * @param module_base Base address of the module in the crashed process
+ * @param uuid Output: 16-byte PDB GUID (set to zeros on failure)
+ * @param pdb_age Output: PDB age value (set to 0 on failure)
+ * @return true if PDB info was successfully extracted
+ */
+static bool
+extract_pdb_info_from_process(
+    HANDLE hProcess, uint64_t module_base, uint8_t *uuid, uint32_t *pdb_age)
+{
+    // Initialize outputs to zero
+    memset(uuid, 0, 16);
+    *pdb_age = 0;
+
+    if (!module_base) {
+        return false;
+    }
+
+    // Read DOS header
+    IMAGE_DOS_HEADER dos_header;
+    SIZE_T bytes_read;
+    if (!ReadProcessMemory(hProcess, (LPCVOID)(uintptr_t)module_base,
+            &dos_header, sizeof(dos_header), &bytes_read)
+        || bytes_read != sizeof(dos_header)
+        || dos_header.e_magic != IMAGE_DOS_SIGNATURE) {
+        return false;
+    }
+
+    // Read NT headers
+    IMAGE_NT_HEADERS nt_headers;
+    uint64_t nt_headers_addr = module_base + (uint64_t)dos_header.e_lfanew;
+    if (!ReadProcessMemory(hProcess, (LPCVOID)(uintptr_t)nt_headers_addr,
+            &nt_headers, sizeof(nt_headers), &bytes_read)
+        || bytes_read != sizeof(nt_headers)
+        || nt_headers.Signature != IMAGE_NT_SIGNATURE) {
+        return false;
+    }
+
+    // Get debug directory
+    IMAGE_DATA_DIRECTORY debug_dir
+        = nt_headers.OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_DEBUG];
+
+    if (debug_dir.VirtualAddress == 0 || debug_dir.Size == 0) {
+        // No debug directory
+        return false;
+    }
+
+    // Iterate through debug directory entries
+    size_t entry_count = debug_dir.Size / sizeof(IMAGE_DEBUG_DIRECTORY);
+    for (size_t i = 0; i < entry_count; i++) {
+        IMAGE_DEBUG_DIRECTORY debug_entry;
+        uint64_t entry_addr = module_base + debug_dir.VirtualAddress
+            + i * sizeof(IMAGE_DEBUG_DIRECTORY);
+
+        if (!ReadProcessMemory(hProcess, (LPCVOID)(uintptr_t)entry_addr,
+                &debug_entry, sizeof(debug_entry), &bytes_read)
+            || bytes_read != sizeof(debug_entry)) {
+            continue;
+        }
+
+        // Look for CodeView debug info
+        if (debug_entry.Type != IMAGE_DEBUG_TYPE_CODEVIEW) {
+            continue;
+        }
+
+        // Read CodeView header (just the fixed part, not the variable filename)
+        // The structure is: signature (4) + GUID (16) + age (4) + filename[]
+        uint8_t cv_header[24]; // signature + GUID + age
+        uint64_t cv_addr = module_base + debug_entry.AddressOfRawData;
+
+        if (!ReadProcessMemory(hProcess, (LPCVOID)(uintptr_t)cv_addr, cv_header,
+                sizeof(cv_header), &bytes_read)
+            || bytes_read != sizeof(cv_header)) {
+            continue;
+        }
+
+        // Check for RSDS signature (PDB 7.0)
+        uint32_t cv_sig;
+        memcpy(&cv_sig, cv_header, sizeof(cv_sig));
+        if (cv_sig != CV_SIGNATURE_RSDS) {
+            continue;
+        }
+
+        // Extract GUID (bytes 4-19)
+        memcpy(uuid, cv_header + 4, 16);
+
+        // Extract age (bytes 20-23)
+        memcpy(pdb_age, cv_header + 20, sizeof(*pdb_age));
+
+        SENTRY_DEBUGF("Extracted PDB info: age=%u", *pdb_age);
+        return true;
+    }
+
+    return false;
+}
+
 /**
  * Capture modules from the crashed process for debug_meta on Windows
  */
@@ -1348,13 +1473,13 @@ capture_modules_from_process(sentry_crash_context_t *ctx)
         strncpy(mod->name, modName, sizeof(mod->name) - 1);
         mod->name[sizeof(mod->name) - 1] = '\0';
 
-        // Clear UUID - Windows uses PDB GUIDs which we can't easily get here
-        // The minidump will have proper CodeView records
-        memset(mod->uuid, 0, sizeof(mod->uuid));
+        // Extract PDB GUID and age from PE debug directory
+        extract_pdb_info_from_process(
+            hProcess, mod->base_address, mod->uuid, &mod->pdb_age);
 
-        SENTRY_DEBUGF("Captured module: %s base=0x%llx size=0x%llx", mod->name,
-            (unsigned long long)mod->base_address,
-            (unsigned long long)mod->size);
+        SENTRY_DEBUGF("Captured module: %s base=0x%llx size=0x%llx pdb_age=%u",
+            mod->name, (unsigned long long)mod->base_address,
+            (unsigned long long)mod->size, mod->pdb_age);
 
         ctx->module_count++;
     }
@@ -1657,13 +1782,31 @@ build_native_crash_event(const sentry_crash_context_t *ctx,
                         image, "code_id", sentry_value_new_string(code_id_buf));
                 }
             }
-#endif
 
-            // Set debug_id from UUID
+            // Set debug_id from PDB GUID + age (format: GUID-age)
+            // The GUID bytes from PE are in Windows mixed-endian format
+            // (Data1/2/3 are little-endian, Data4 is big-endian)
+            {
+                // Cast to GUID structure and use sentry__uuid_from_native
+                // which handles the mixed-endian byte ordering correctly
+                const GUID *guid = (const GUID *)mod->uuid;
+                sentry_uuid_t uuid = sentry__uuid_from_native(guid);
+                char debug_id_buf[50]; // GUID (36) + '-' (1) + age (up to 10) +
+                                       // null
+                sentry_uuid_as_string(&uuid, debug_id_buf);
+                debug_id_buf[36] = '-';
+                snprintf(
+                    debug_id_buf + 37, 12, "%x", (unsigned int)mod->pdb_age);
+                sentry_value_set_by_key(
+                    image, "debug_id", sentry_value_new_string(debug_id_buf));
+            }
+#else
+            // Set debug_id from UUID (macOS/Linux)
             sentry_uuid_t uuid
                 = sentry_uuid_from_bytes((const char *)mod->uuid);
             sentry_value_set_by_key(
                 image, "debug_id", sentry__value_new_uuid(&uuid));
+#endif
 
             sentry_value_append(images, image);
         }
