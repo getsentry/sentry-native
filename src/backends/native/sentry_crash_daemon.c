@@ -43,10 +43,15 @@
 #        include <mach-o/dyld.h>
 #    endif
 #elif defined(SENTRY_PLATFORM_WINDOWS)
+#    include <dbghelp.h>
 #    include <fcntl.h>
 #    include <io.h>
 #    include <sys/stat.h>
 #    include <windows.h>
+
+// Forward declaration for StackWalk64-based stack unwinding (defined later)
+static size_t walk_stack_with_dbghelp(HANDLE hProcess, DWORD crashed_tid,
+    const CONTEXT *ctx_record, void **frames, size_t max_frames);
 #endif
 
 // Provide default ASAN options for sentry-crash daemon executable
@@ -1055,7 +1060,6 @@ enumerate_threads_from_proc(sentry_crash_context_t *ctx)
 #endif // SENTRY_PLATFORM_LINUX || SENTRY_PLATFORM_ANDROID
 
 #if defined(SENTRY_PLATFORM_WINDOWS)
-#    include <dbghelp.h>
 #    include <psapi.h>
 #    include <tlhelp32.h>
 
