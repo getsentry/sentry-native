@@ -1038,6 +1038,53 @@ enumerate_threads_from_proc(sentry_crash_context_t *ctx)
 #    include <tlhelp32.h>
 
 /**
+ * Extract PE TimeDateStamp from a module file for code_id
+ * Returns 0 on failure
+ */
+static DWORD
+get_pe_timestamp(const char *module_path)
+{
+    HANDLE hFile = CreateFileA(module_path, GENERIC_READ, FILE_SHARE_READ, NULL,
+        OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (hFile == INVALID_HANDLE_VALUE) {
+        return 0;
+    }
+
+    // Read DOS header
+    IMAGE_DOS_HEADER dos_header;
+    DWORD bytes_read;
+    if (!ReadFile(hFile, &dos_header, sizeof(dos_header), &bytes_read, NULL)
+        || bytes_read != sizeof(dos_header) || dos_header.e_magic != 0x5A4D) {
+        CloseHandle(hFile);
+        return 0;
+    }
+
+    // Seek to PE header
+    if (SetFilePointer(hFile, dos_header.e_lfanew, NULL, FILE_BEGIN)
+        == INVALID_SET_FILE_POINTER) {
+        CloseHandle(hFile);
+        return 0;
+    }
+
+    // Read PE signature and COFF header
+    DWORD pe_sig;
+    IMAGE_FILE_HEADER coff_header;
+    if (!ReadFile(hFile, &pe_sig, sizeof(pe_sig), &bytes_read, NULL)
+        || bytes_read != sizeof(pe_sig) || pe_sig != 0x00004550) {
+        CloseHandle(hFile);
+        return 0;
+    }
+    if (!ReadFile(hFile, &coff_header, sizeof(coff_header), &bytes_read, NULL)
+        || bytes_read != sizeof(coff_header)) {
+        CloseHandle(hFile);
+        return 0;
+    }
+
+    CloseHandle(hFile);
+    return coff_header.TimeDateStamp;
+}
+
+/**
  * Capture modules from the crashed process for debug_meta on Windows
  */
 static void
@@ -1383,6 +1430,21 @@ build_native_crash_event(const sentry_crash_context_t *ctx,
             // Set image_size (use double to avoid overflow for large modules)
             sentry_value_set_by_key(image, "image_size",
                 sentry_value_new_double((double)mod->size));
+
+#if defined(SENTRY_PLATFORM_WINDOWS)
+            // Set code_id for PE modules (TimeDateStamp + SizeOfImage)
+            // This helps Sentry identify the module without full debug info
+            if (mod->name[0]) {
+                DWORD timestamp = get_pe_timestamp(mod->name);
+                if (timestamp != 0) {
+                    char code_id_buf[32];
+                    snprintf(code_id_buf, sizeof(code_id_buf), "%08X%x",
+                        timestamp, (unsigned int)mod->size);
+                    sentry_value_set_by_key(
+                        image, "code_id", sentry_value_new_string(code_id_buf));
+                }
+            }
+#endif
 
             // Set debug_id from UUID
             sentry_uuid_t uuid
