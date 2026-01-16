@@ -499,8 +499,7 @@ enrich_frame_with_module_info(
         }
     }
     // No matching module found - log for debugging
-    SENTRY_DEBUGF(
-        "Frame 0x%llx NOT matched to any module (module_count=%u)",
+    SENTRY_DEBUGF("Frame 0x%llx NOT matched to any module (module_count=%u)",
         (unsigned long long)addr, ctx->module_count);
 }
 
