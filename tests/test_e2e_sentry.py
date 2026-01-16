@@ -163,6 +163,25 @@ def get_threads_from_event(event):
     return None
 
 
+def get_debug_meta_from_event(event):
+    """
+    Extract debug_meta data from Sentry API event response.
+
+    The API returns debug_meta in 'entries' array with type 'debugmeta'.
+    """
+    # Check entries array (Sentry API format)
+    entries = event.get("entries", [])
+    for entry in entries:
+        if entry.get("type") == "debugmeta":
+            return entry.get("data", {})
+
+    # Fallback: check direct debug_meta field
+    if "debug_meta" in event:
+        return event["debug_meta"]
+
+    return None
+
+
 def extract_test_id(output):
     """
     Extract TEST_ID from app output.
@@ -314,6 +333,36 @@ class TestE2ECrashModes:
         test_id = self.run_crash_and_send(["crash-mode", "native"])
 
         event = poll_sentry_for_event(test_id)
+
+        # DEBUG: Print debug_meta and frame information for troubleshooting
+        print("\n=== DEBUG: Event Structure Analysis ===")
+        debug_meta = get_debug_meta_from_event(event)
+        if debug_meta:
+            images = debug_meta.get("images", [])
+            print(f"debug_meta.images count: {len(images)}")
+            for i, img in enumerate(images[:5]):  # Print first 5 images
+                print(
+                    f"  Image {i}: type={img.get('type')}, "
+                    f"image_addr={img.get('image_addr')}, "
+                    f"image_size={img.get('image_size')}, "
+                    f"code_file={img.get('code_file', 'N/A')[:50]}"
+                )
+        else:
+            print("WARNING: No debug_meta found in event!")
+
+        exception_data = get_exception_from_event(event)
+        if exception_data and "values" in exception_data:
+            exc = exception_data["values"][0]
+            if "stacktrace" in exc:
+                frames = exc["stacktrace"]["frames"]
+                print(f"Stacktrace frames count: {len(frames)}")
+                for i, frame in enumerate(frames[-5:]):  # Print last 5 frames
+                    print(
+                        f"  Frame {len(frames)-5+i}: instruction_addr={frame.get('instructionAddr')}, "
+                        f"package={frame.get('package', 'N/A')}, "
+                        f"symbolicatorStatus={frame.get('symbolicatorStatus', 'N/A')}"
+                    )
+        print("=== END DEBUG ===\n")
 
         # Verify native stacktrace
         assert (
