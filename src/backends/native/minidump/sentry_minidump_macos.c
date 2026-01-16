@@ -727,8 +727,9 @@ write_thread_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
                         sentry_free(stack_buffer);
                     }
                     close(stack_fd);
-                    // Delete stack file after reading
-                    unlink(stack_path);
+                    // Note: Don't delete stack file here - the native
+                    // stacktrace builder also needs it. It will be cleaned up
+                    // when the run folder is deleted.
                 } else {
                     SENTRY_WARNF("Failed to open stack file: %s", stack_path);
                     thread->stack.memory.rva = 0;

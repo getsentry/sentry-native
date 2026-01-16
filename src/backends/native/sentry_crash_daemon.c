@@ -460,6 +460,47 @@ is_valid_code_addr(uint64_t addr)
 }
 
 /**
+ * Find the module containing the given address and add module info to frame.
+ * Sets 'package' (module name) and 'image_addr' on the frame if found.
+ *
+ * @param ctx The crash context containing module list
+ * @param frame The frame value to enrich
+ * @param addr The instruction address to look up
+ */
+static void
+enrich_frame_with_module_info(
+    const sentry_crash_context_t *ctx, sentry_value_t frame, uint64_t addr)
+{
+    for (uint32_t i = 0; i < ctx->module_count; i++) {
+        const sentry_module_info_t *mod = &ctx->modules[i];
+        if (addr >= mod->base_address && addr < mod->base_address + mod->size) {
+            // Set package to module name (basename for cleaner display)
+            const char *name = mod->name;
+            const char *basename = strrchr(name, '/');
+#ifdef _WIN32
+            if (!basename) {
+                basename = strrchr(name, '\\');
+            }
+#endif
+            if (basename) {
+                basename++; // Skip the separator
+            } else {
+                basename = name;
+            }
+            sentry_value_set_by_key(
+                frame, "package", sentry_value_new_string(basename));
+
+            // Set image_addr
+            sentry_value_set_by_key(
+                frame, "image_addr", sentry__value_new_addr(mod->base_address));
+            SENTRY_DEBUGF("Frame 0x%llx -> module %s", (unsigned long long)addr,
+                basename);
+            return;
+        }
+    }
+}
+
+/**
  * Build stacktrace frames for a specific thread using frame pointer-based
  * unwinding. Reads the captured stack memory and walks the frame chain.
  *
@@ -512,18 +553,31 @@ build_stacktrace_for_thread(
     sp = ctx->platform.mcontext.__ss.__sp;
 #    endif
 #elif defined(SENTRY_PLATFORM_WINDOWS)
+    // Use thread-specific context, defaulting to crashed thread
+    const CONTEXT *thread_context = &ctx->platform.context;
+    DWORD thread_id = (DWORD)ctx->crashed_tid;
+
+    if (thread_idx != SIZE_MAX && ctx->platform.num_threads > 0) {
+        if (thread_idx < ctx->platform.num_threads) {
+            const sentry_thread_context_windows_t *tctx
+                = &ctx->platform.threads[thread_idx];
+            thread_context = &tctx->context;
+            thread_id = tctx->thread_id;
+        }
+    }
+
 #    if defined(_M_AMD64)
-    ip = ctx->platform.context.Rip;
-    fp = ctx->platform.context.Rbp;
-    sp = ctx->platform.context.Rsp;
+    ip = thread_context->Rip;
+    fp = thread_context->Rbp;
+    sp = thread_context->Rsp;
 #    elif defined(_M_IX86)
-    ip = ctx->platform.context.Eip;
-    fp = ctx->platform.context.Ebp;
-    sp = ctx->platform.context.Esp;
+    ip = thread_context->Eip;
+    fp = thread_context->Ebp;
+    sp = thread_context->Esp;
 #    elif defined(_M_ARM64)
-    ip = ctx->platform.context.Pc;
-    fp = ctx->platform.context.Fp;
-    sp = ctx->platform.context.Sp;
+    ip = thread_context->Pc;
+    fp = thread_context->Fp;
+    sp = thread_context->Sp;
 #    endif
 #endif
 
@@ -640,13 +694,26 @@ build_stacktrace_for_thread(
 #elif defined(SENTRY_PLATFORM_WINDOWS)
     // On Windows, use StackWalk64 for proper stack unwinding
     // This uses PE unwind info and works reliably on x64/ARM64
+
+    // Get thread-specific context for stack walking
+    const CONTEXT *walk_context = &ctx->platform.context;
+    DWORD walk_thread_id = (DWORD)ctx->crashed_tid;
+    if (thread_idx != SIZE_MAX && ctx->platform.num_threads > 0
+        && thread_idx < ctx->platform.num_threads) {
+        const sentry_thread_context_windows_t *tctx
+            = &ctx->platform.threads[thread_idx];
+        walk_context = &tctx->context;
+        walk_thread_id = tctx->thread_id;
+    }
+
     HANDLE hProcess = OpenProcess(PROCESS_VM_READ | PROCESS_QUERY_INFORMATION,
         FALSE, (DWORD)ctx->crashed_pid);
     if (hProcess) {
         void *stack_frames[MAX_STACK_FRAMES];
-        size_t dbghelp_frame_count
-            = walk_stack_with_dbghelp(hProcess, (DWORD)ctx->crashed_tid,
-                &ctx->platform.context, stack_frames, MAX_STACK_FRAMES);
+        // Make a copy since StackWalk64 may modify the context
+        CONTEXT ctx_copy = *walk_context;
+        size_t dbghelp_frame_count = walk_stack_with_dbghelp(hProcess,
+            walk_thread_id, &ctx_copy, stack_frames, MAX_STACK_FRAMES);
 
         if (dbghelp_frame_count > 0) {
             // Build sentry frames from StackWalk64 results
@@ -656,11 +723,12 @@ build_stacktrace_for_thread(
             for (size_t i = 0;
                 i < dbghelp_frame_count && frame_count < MAX_STACK_FRAMES;
                 i++) {
+                uint64_t frame_addr = (uint64_t)(uintptr_t)stack_frames[i];
                 temp_frames[frame_count] = sentry_value_new_object();
                 sentry_value_set_by_key(temp_frames[frame_count],
-                    "instruction_addr",
-                    sentry__value_new_addr(
-                        (uint64_t)(uintptr_t)stack_frames[i]));
+                    "instruction_addr", sentry__value_new_addr(frame_addr));
+                enrich_frame_with_module_info(
+                    ctx, temp_frames[frame_count], frame_addr);
                 frame_count++;
             }
 
@@ -694,6 +762,7 @@ build_stacktrace_for_thread(
         temp_frames[frame_count] = sentry_value_new_object();
         sentry_value_set_by_key(temp_frames[frame_count], "instruction_addr",
             sentry__value_new_addr(ip));
+        enrich_frame_with_module_info(ctx, temp_frames[frame_count], ip);
         frame_count++;
     }
 
@@ -747,6 +816,8 @@ build_stacktrace_for_thread(
             temp_frames[frame_count] = sentry_value_new_object();
             sentry_value_set_by_key(temp_frames[frame_count],
                 "instruction_addr", sentry__value_new_addr(return_addr));
+            enrich_frame_with_module_info(
+                ctx, temp_frames[frame_count], return_addr);
             frame_count++;
             walk_count++;
 
@@ -1471,13 +1542,9 @@ build_native_crash_event(const sentry_crash_context_t *ctx,
             sentry_value_set_by_key(
                 thread, "current", sentry_value_new_bool(is_crashed));
 
-            // For now, only build full stacktrace for crashed thread
-            // (Linux stack reading requires ptrace which might not work for all
-            // threads)
-            if (is_crashed) {
-                sentry_value_set_by_key(
-                    thread, "stacktrace", build_stacktrace_from_ctx(ctx));
-            }
+            // Build stacktrace for this thread
+            sentry_value_set_by_key(
+                thread, "stacktrace", build_stacktrace_for_thread(ctx, i));
 
             sentry_value_append(thread_values, thread);
         }
@@ -1498,11 +1565,9 @@ build_native_crash_event(const sentry_crash_context_t *ctx,
             sentry_value_set_by_key(
                 thread, "current", sentry_value_new_bool(is_crashed));
 
-            // For now, only build full stacktrace for crashed thread
-            if (is_crashed) {
-                sentry_value_set_by_key(
-                    thread, "stacktrace", build_stacktrace_from_ctx(ctx));
-            }
+            // Build stacktrace for this thread
+            sentry_value_set_by_key(
+                thread, "stacktrace", build_stacktrace_for_thread(ctx, i));
 
             sentry_value_append(thread_values, thread);
         }
@@ -1573,7 +1638,7 @@ build_native_crash_event(const sentry_crash_context_t *ctx,
                 if (timestamp != 0) {
                     char code_id_buf[32];
                     snprintf(code_id_buf, sizeof(code_id_buf), "%08X%x",
-                        timestamp, (unsigned int)mod->size);
+                        (unsigned int)timestamp, (unsigned int)mod->size);
                     sentry_value_set_by_key(
                         image, "code_id", sentry_value_new_string(code_id_buf));
                 }
