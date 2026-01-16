@@ -525,22 +525,29 @@ build_stacktrace_for_thread(
     uint64_t fp = 0;
     uint64_t sp = 0;
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+    // Use thread-specific context, defaulting to crashed thread
+    const ucontext_t *thread_context = &ctx->platform.context;
+    if (thread_idx != SIZE_MAX && ctx->platform.num_threads > 0
+        && thread_idx < ctx->platform.num_threads) {
+        thread_context = &ctx->platform.threads[thread_idx].context;
+    }
+
 #    if defined(__x86_64__)
-    ip = (uint64_t)ctx->platform.context.uc_mcontext.gregs[REG_RIP];
-    fp = (uint64_t)ctx->platform.context.uc_mcontext.gregs[REG_RBP];
-    sp = (uint64_t)ctx->platform.context.uc_mcontext.gregs[REG_RSP];
+    ip = (uint64_t)thread_context->uc_mcontext.gregs[REG_RIP];
+    fp = (uint64_t)thread_context->uc_mcontext.gregs[REG_RBP];
+    sp = (uint64_t)thread_context->uc_mcontext.gregs[REG_RSP];
 #    elif defined(__aarch64__)
-    ip = (uint64_t)ctx->platform.context.uc_mcontext.pc;
-    fp = (uint64_t)ctx->platform.context.uc_mcontext.regs[29]; // x29 is FP
-    sp = (uint64_t)ctx->platform.context.uc_mcontext.sp;
+    ip = (uint64_t)thread_context->uc_mcontext.pc;
+    fp = (uint64_t)thread_context->uc_mcontext.regs[29]; // x29 is FP
+    sp = (uint64_t)thread_context->uc_mcontext.sp;
 #    elif defined(__i386__)
-    ip = (uint64_t)ctx->platform.context.uc_mcontext.gregs[REG_EIP];
-    fp = (uint64_t)ctx->platform.context.uc_mcontext.gregs[REG_EBP];
-    sp = (uint64_t)ctx->platform.context.uc_mcontext.gregs[REG_ESP];
+    ip = (uint64_t)thread_context->uc_mcontext.gregs[REG_EIP];
+    fp = (uint64_t)thread_context->uc_mcontext.gregs[REG_EBP];
+    sp = (uint64_t)thread_context->uc_mcontext.gregs[REG_ESP];
 #    elif defined(__arm__)
-    ip = (uint64_t)ctx->platform.context.uc_mcontext.arm_pc;
-    fp = (uint64_t)ctx->platform.context.uc_mcontext.arm_fp;
-    sp = (uint64_t)ctx->platform.context.uc_mcontext.arm_sp;
+    ip = (uint64_t)thread_context->uc_mcontext.arm_pc;
+    fp = (uint64_t)thread_context->uc_mcontext.arm_fp;
+    sp = (uint64_t)thread_context->uc_mcontext.arm_sp;
 #    endif
 #elif defined(SENTRY_PLATFORM_MACOS)
 #    if defined(__x86_64__)
@@ -847,6 +854,13 @@ build_stacktrace_for_thread(
     // Free stack buffer
     if (stack_buf) {
         sentry_free(stack_buf);
+    }
+
+    // If no frames, return null (Sentry rejects empty frames arrays)
+    if (frame_count == 0) {
+        sentry_value_decref(frames);
+        sentry_value_decref(stacktrace);
+        return sentry_value_new_null();
     }
 
     // Sentry expects frames in reverse order (outermost caller first)
@@ -1519,9 +1533,11 @@ build_native_crash_event(const sentry_crash_context_t *ctx,
             sentry_value_set_by_key(
                 thread, "current", sentry_value_new_bool(is_crashed));
 
-            // Build stacktrace for this thread
-            sentry_value_set_by_key(
-                thread, "stacktrace", build_stacktrace_for_thread(ctx, i));
+            // Build stacktrace for this thread (only add if non-empty)
+            sentry_value_t stacktrace = build_stacktrace_for_thread(ctx, i);
+            if (!sentry_value_is_null(stacktrace)) {
+                sentry_value_set_by_key(thread, "stacktrace", stacktrace);
+            }
 
             sentry_value_append(thread_values, thread);
         }
@@ -1542,9 +1558,11 @@ build_native_crash_event(const sentry_crash_context_t *ctx,
             sentry_value_set_by_key(
                 thread, "current", sentry_value_new_bool(is_crashed));
 
-            // Build stacktrace for this thread
-            sentry_value_set_by_key(
-                thread, "stacktrace", build_stacktrace_for_thread(ctx, i));
+            // Build stacktrace for this thread (only add if non-empty)
+            sentry_value_t stacktrace = build_stacktrace_for_thread(ctx, i);
+            if (!sentry_value_is_null(stacktrace)) {
+                sentry_value_set_by_key(thread, "stacktrace", stacktrace);
+            }
 
             sentry_value_append(thread_values, thread);
         }
@@ -1565,9 +1583,11 @@ build_native_crash_event(const sentry_crash_context_t *ctx,
             sentry_value_set_by_key(
                 thread, "current", sentry_value_new_bool(is_crashed));
 
-            // Build stacktrace for this thread
-            sentry_value_set_by_key(
-                thread, "stacktrace", build_stacktrace_for_thread(ctx, i));
+            // Build stacktrace for this thread (only add if non-empty)
+            sentry_value_t stacktrace = build_stacktrace_for_thread(ctx, i);
+            if (!sentry_value_is_null(stacktrace)) {
+                sentry_value_set_by_key(thread, "stacktrace", stacktrace);
+            }
 
             sentry_value_append(thread_values, thread);
         }
