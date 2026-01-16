@@ -1326,22 +1326,27 @@ struct CodeViewRecord70 {
 };
 
 /**
- * Extract PDB debug info (GUID and age) from a module in another process
- * Uses ReadProcessMemory to read PE headers from the crashed process
+ * Extract PDB debug info (GUID, age, and filename) from a module in another
+ * process. Uses ReadProcessMemory to read PE headers from the crashed process.
  *
  * @param hProcess Handle to the crashed process
  * @param module_base Base address of the module in the crashed process
  * @param uuid Output: 16-byte PDB GUID (set to zeros on failure)
  * @param pdb_age Output: PDB age value (set to 0 on failure)
+ * @param pdb_name Output: PDB filename buffer (set to empty on failure)
+ * @param pdb_name_size Size of pdb_name buffer
  * @return true if PDB info was successfully extracted
  */
 static bool
-extract_pdb_info_from_process(
-    HANDLE hProcess, uint64_t module_base, uint8_t *uuid, uint32_t *pdb_age)
+extract_pdb_info_from_process(HANDLE hProcess, uint64_t module_base,
+    uint8_t *uuid, uint32_t *pdb_age, char *pdb_name, size_t pdb_name_size)
 {
-    // Initialize outputs to zero
+    // Initialize outputs to zero/empty
     memset(uuid, 0, 16);
     *pdb_age = 0;
+    if (pdb_name && pdb_name_size > 0) {
+        pdb_name[0] = '\0';
+    }
 
     if (!module_base) {
         return false;
@@ -1418,7 +1423,28 @@ extract_pdb_info_from_process(
         // Extract age (bytes 20-23)
         memcpy(pdb_age, cv_header + 20, sizeof(*pdb_age));
 
-        SENTRY_DEBUGF("Extracted PDB info: age=%u", *pdb_age);
+        // Extract PDB filename (variable length, null-terminated, starts at
+        // byte 24) The filename can be up to (SizeOfData - 24) bytes
+        if (pdb_name && pdb_name_size > 0) {
+            size_t max_filename_len = pdb_name_size - 1;
+            if (debug_entry.SizeOfData > 24) {
+                size_t available = debug_entry.SizeOfData - 24;
+                if (available < max_filename_len) {
+                    max_filename_len = available;
+                }
+            }
+            uint64_t filename_addr = cv_addr + 24;
+            SIZE_T filename_read;
+            if (ReadProcessMemory(hProcess, (LPCVOID)(uintptr_t)filename_addr,
+                    pdb_name, max_filename_len, &filename_read)) {
+                pdb_name[filename_read] = '\0';
+                // Ensure null termination within buffer
+                pdb_name[pdb_name_size - 1] = '\0';
+            }
+        }
+
+        SENTRY_DEBUGF("Extracted PDB info: age=%u, pdb=%s", *pdb_age,
+            pdb_name ? pdb_name : "(null)");
         return true;
     }
 
@@ -1476,9 +1502,9 @@ capture_modules_from_process(sentry_crash_context_t *ctx)
         strncpy(mod->name, modName, sizeof(mod->name) - 1);
         mod->name[sizeof(mod->name) - 1] = '\0';
 
-        // Extract PDB GUID and age from PE debug directory
-        extract_pdb_info_from_process(
-            hProcess, mod->base_address, mod->uuid, &mod->pdb_age);
+        // Extract PDB GUID, age, and filename from PE debug directory
+        extract_pdb_info_from_process(hProcess, mod->base_address, mod->uuid,
+            &mod->pdb_age, mod->pdb_name, sizeof(mod->pdb_name));
 
         SENTRY_DEBUGF("Captured module: %s base=0x%llx size=0x%llx pdb_age=%u",
             mod->name, (unsigned long long)mod->base_address,
@@ -1775,12 +1801,12 @@ build_native_crash_event(const sentry_crash_context_t *ctx,
 
 #if defined(SENTRY_PLATFORM_WINDOWS)
             // Set code_id for PE modules (TimeDateStamp + SizeOfImage)
-            // This helps Sentry identify the module without full debug info
+            // Format: lowercase hex to match minidump format
             if (mod->name[0]) {
                 DWORD timestamp = get_pe_timestamp(mod->name);
                 if (timestamp != 0) {
                     char code_id_buf[32];
-                    snprintf(code_id_buf, sizeof(code_id_buf), "%08X%x",
+                    snprintf(code_id_buf, sizeof(code_id_buf), "%x%x",
                         (unsigned int)timestamp, (unsigned int)mod->size);
                     sentry_value_set_by_key(
                         image, "code_id", sentry_value_new_string(code_id_buf));
@@ -1804,6 +1830,12 @@ build_native_crash_event(const sentry_crash_context_t *ctx,
                     debug_id_buf + 37, 12, "%x", (unsigned int)mod->pdb_age);
                 sentry_value_set_by_key(
                     image, "debug_id", sentry_value_new_string(debug_id_buf));
+            }
+
+            // Set debug_file (path to PDB file for symbolication)
+            if (mod->pdb_name[0]) {
+                sentry_value_set_by_key(image, "debug_file",
+                    sentry_value_new_string(mod->pdb_name));
             }
 #else
             // Set debug_id from UUID (macOS/Linux)
