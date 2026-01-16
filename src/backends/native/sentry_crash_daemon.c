@@ -498,6 +498,10 @@ enrich_frame_with_module_info(
             return;
         }
     }
+    // No matching module found - log for debugging
+    SENTRY_DEBUGF(
+        "Frame 0x%llx NOT matched to any module (module_count=%u)",
+        (unsigned long long)addr, ctx->module_count);
 }
 
 /**
@@ -1733,6 +1737,7 @@ build_native_crash_event(const sentry_crash_context_t *ctx,
     // Add debug_meta with module images from crashed process
     // (ctx->modules[] was captured in the signal handler of the crashed
     // process)
+    SENTRY_DEBUGF("Module count for debug_meta: %u", ctx->module_count);
     if (ctx->module_count > 0) {
         sentry_value_t images = sentry_value_new_list();
 
@@ -1817,6 +1822,8 @@ build_native_crash_event(const sentry_crash_context_t *ctx,
         sentry_value_set_by_key(event, "debug_meta", debug_meta);
         SENTRY_DEBUGF("Added %u modules from crashed process to debug_meta",
             ctx->module_count);
+    } else {
+        SENTRY_WARN("No modules captured - debug_meta.images will be empty!");
     }
 
     return event;
