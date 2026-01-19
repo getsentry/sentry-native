@@ -65,7 +65,6 @@ typedef uint32_t minidump_rva_t;
  * Minidump header (always at offset 0)
  */
 PACKED_STRUCT_BEGIN
-PACKED_STRUCT_BEGIN
 typedef struct {
     uint32_t signature; // Must be MINIDUMP_SIGNATURE
     uint32_t version; // Must be MINIDUMP_VERSION
@@ -76,12 +75,10 @@ typedef struct {
     uint64_t flags;
 } PACKED_ATTR minidump_header_t;
 PACKED_STRUCT_END
-PACKED_STRUCT_END
 
 /**
  * Stream directory entry
  */
-PACKED_STRUCT_BEGIN
 PACKED_STRUCT_BEGIN
 typedef struct {
     uint32_t stream_type;
@@ -89,18 +86,15 @@ typedef struct {
     minidump_rva_t rva;
 } PACKED_ATTR minidump_directory_t;
 PACKED_STRUCT_END
-PACKED_STRUCT_END
 
 /**
  * Location descriptor (used for variable-length data)
  */
 PACKED_STRUCT_BEGIN
-PACKED_STRUCT_BEGIN
 typedef struct {
     uint32_t size;
     minidump_rva_t rva;
 } PACKED_ATTR minidump_location_t;
-PACKED_STRUCT_END
 PACKED_STRUCT_END
 
 /**

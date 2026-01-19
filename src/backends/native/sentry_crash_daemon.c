@@ -1801,13 +1801,14 @@ build_native_crash_event(const sentry_crash_context_t *ctx,
 
 #if defined(SENTRY_PLATFORM_WINDOWS)
             // Set code_id for PE modules (TimeDateStamp + SizeOfImage)
-            // Format: 8-digit zero-padded timestamp + size, lowercase hex
+            // Format: 8-digit zero-padded timestamp (lowercase) + size
+            // (uppercase) Must match sentry_modulefinder_windows.c format
             if (mod->name[0]) {
                 DWORD timestamp = get_pe_timestamp(mod->name);
                 if (timestamp != 0) {
                     char code_id_buf[32];
-                    snprintf(code_id_buf, sizeof(code_id_buf), "%08x%x",
-                        (unsigned int)timestamp, (unsigned int)mod->size);
+                    snprintf(code_id_buf, sizeof(code_id_buf), "%08lx%lX",
+                        (unsigned long)timestamp, (unsigned long)mod->size);
                     sentry_value_set_by_key(
                         image, "code_id", sentry_value_new_string(code_id_buf));
                 }
