@@ -183,8 +183,8 @@ SENTRY_TEST(feedback_with_multiple_attachments)
         hint, SENTRY_TEST_PATH_PREFIX ".feedback-file1");
     TEST_CHECK(attachment1 != NULL);
 
-    sentry_attachment_t *attachment2 = sentry_hint_attach_bytes(
-        hint, "bytes content", 13, "bytes.txt");
+    sentry_attachment_t *attachment2
+        = sentry_hint_attach_bytes(hint, "bytes content", 13, "bytes.txt");
     TEST_CHECK(attachment2 != NULL);
 
     sentry_attachment_t *attachment3 = sentry_hint_attach_file(

@@ -2853,9 +2853,8 @@ SENTRY_API sentry_attachment_t *sentry_hint_attach_file_n(
  */
 SENTRY_API sentry_attachment_t *sentry_hint_attach_bytes(
     sentry_hint_t *hint, const char *buf, size_t buf_len, const char *filename);
-SENTRY_API sentry_attachment_t *sentry_hint_attach_bytes_n(
-    sentry_hint_t *hint, const char *buf, size_t buf_len, const char *filename,
-    size_t filename_len);
+SENTRY_API sentry_attachment_t *sentry_hint_attach_bytes_n(sentry_hint_t *hint,
+    const char *buf, size_t buf_len, const char *filename, size_t filename_len);
 
 #ifdef SENTRY_PLATFORM_WINDOWS
 /**
@@ -2869,12 +2868,11 @@ SENTRY_API sentry_attachment_t *sentry_hint_attach_filew_n(
 /**
  * Wide char version of `sentry_hint_attach_bytes`.
  */
-SENTRY_API sentry_attachment_t *sentry_hint_attach_bytesw(
-    sentry_hint_t *hint, const char *buf, size_t buf_len,
-    const wchar_t *filename);
-SENTRY_API sentry_attachment_t *sentry_hint_attach_bytesw_n(
-    sentry_hint_t *hint, const char *buf, size_t buf_len,
-    const wchar_t *filename, size_t filename_len);
+SENTRY_API sentry_attachment_t *sentry_hint_attach_bytesw(sentry_hint_t *hint,
+    const char *buf, size_t buf_len, const wchar_t *filename);
+SENTRY_API sentry_attachment_t *sentry_hint_attach_bytesw_n(sentry_hint_t *hint,
+    const char *buf, size_t buf_len, const wchar_t *filename,
+    size_t filename_len);
 #endif
 
 /**
