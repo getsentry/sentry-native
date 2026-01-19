@@ -1,4 +1,4 @@
-#include "sentry_feedback.h"
+#include "sentry_hint.h"
 
 #include "sentry_alloc.h"
 #include "sentry_attachment.h"
@@ -19,7 +19,7 @@ sentry_hint_new(void)
 }
 
 void
-sentry__feedback_hint_free(sentry_hint_t *hint)
+sentry__hint_free(sentry_hint_t *hint)
 {
     if (!hint) {
         return;
@@ -46,15 +46,15 @@ sentry_hint_attach_file_n(
 }
 
 sentry_attachment_t *
-sentry_feedback_hint_attach_bytes(
+sentry_hint_attach_bytes(
     sentry_hint_t *hint, const char *buf, size_t buf_len, const char *filename)
 {
-    return sentry_feedback_hint_attach_bytes_n(
+    return sentry_hint_attach_bytes_n(
         hint, buf, buf_len, filename, sentry__guarded_strlen(filename));
 }
 
 sentry_attachment_t *
-sentry_feedback_hint_attach_bytes_n(sentry_hint_t *hint, const char *buf,
+sentry_hint_attach_bytes_n(sentry_hint_t *hint, const char *buf,
     size_t buf_len, const char *filename, size_t filename_len)
 {
     if (!hint) {
@@ -86,16 +86,16 @@ sentry_hint_attach_filew_n(
 }
 
 sentry_attachment_t *
-sentry_feedback_hint_attach_bytesw(sentry_hint_t *hint, const char *buf,
+sentry_hint_attach_bytesw(sentry_hint_t *hint, const char *buf,
     size_t buf_len, const wchar_t *filename)
 {
     size_t filename_len = filename ? wcslen(filename) : 0;
-    return sentry_feedback_hint_attach_bytesw_n(
+    return sentry_hint_attach_bytesw_n(
         hint, buf, buf_len, filename, filename_len);
 }
 
 sentry_attachment_t *
-sentry_feedback_hint_attach_bytesw_n(sentry_hint_t *hint, const char *buf,
+sentry_hint_attach_bytesw_n(sentry_hint_t *hint, const char *buf,
     size_t buf_len, const wchar_t *filename, size_t filename_len)
 {
     if (!hint) {

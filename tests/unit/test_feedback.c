@@ -1,6 +1,6 @@
 #include "sentry_attachment.h"
 #include "sentry_envelope.h"
-#include "sentry_feedback.h"
+#include "sentry_hint.h"
 #include "sentry_path.h"
 #include "sentry_testsupport.h"
 #include "sentry_transport.h"
@@ -138,7 +138,7 @@ SENTRY_TEST(feedback_with_bytes_attachment)
     TEST_CHECK(hint != NULL);
 
     const char binary_data[] = "binary\0data\0here";
-    sentry_attachment_t *attachment = sentry_feedback_hint_attach_bytes(
+    sentry_attachment_t *attachment = sentry_hint_attach_bytes(
         hint, binary_data, sizeof(binary_data) - 1, "binary.dat");
     TEST_CHECK(attachment != NULL);
 
@@ -183,7 +183,7 @@ SENTRY_TEST(feedback_with_multiple_attachments)
         hint, SENTRY_TEST_PATH_PREFIX ".feedback-file1");
     TEST_CHECK(attachment1 != NULL);
 
-    sentry_attachment_t *attachment2 = sentry_feedback_hint_attach_bytes(
+    sentry_attachment_t *attachment2 = sentry_hint_attach_bytes(
         hint, "bytes content", 13, "bytes.txt");
     TEST_CHECK(attachment2 != NULL);
 

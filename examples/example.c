@@ -780,7 +780,7 @@ main(int argc, char **argv)
 
         // Attach bytes data (e.g., binary data from memory)
         const char *binary_data = "binary attachment data";
-        sentry_feedback_hint_attach_bytes(
+        sentry_hint_attach_bytes(
             hint, binary_data, strlen(binary_data), "additional-info.txt");
 
         // Capture feedback with attachments

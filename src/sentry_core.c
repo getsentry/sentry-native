@@ -8,7 +8,7 @@
 #include "sentry_core.h"
 #include "sentry_database.h"
 #include "sentry_envelope.h"
-#include "sentry_feedback.h"
+#include "sentry_hint.h"
 #include "sentry_logs.h"
 #include "sentry_options.h"
 #include "sentry_path.h"
@@ -1553,7 +1553,7 @@ sentry_capture_feedback_with_hint(
     }
 
     if (hint) {
-        sentry__feedback_hint_free(hint);
+        sentry__hint_free(hint);
     }
 }
 
