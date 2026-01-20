@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1768911066222,
+  "lastUpdate": 1768911155654,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -25906,6 +25906,66 @@ window.BENCHMARK_DATA = {
             "value": 14.59829999998874,
             "unit": "ms",
             "extra": "Min 14.271ms\nMax 15.706ms\nMean 14.837ms\nStdDev 0.579ms\nMedian 14.598ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "ph.hofmann@pm.me",
+            "name": "Philipp Hofmann",
+            "username": "philipphofmann"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "01098b138c9ff5bb06fe0b542f27e02b4bc26cd2",
+          "message": "chore: ignore local Claude settings (#1484)\n\nAdd .claude/settings.local.json to .gitignore to prevent committing\nlocal Claude Code configuration.",
+          "timestamp": "2026-01-20T13:08:32+01:00",
+          "tree_id": "1b55ce20cfb90d79dcd9788140af7664802882a4",
+          "url": "https://github.com/getsentry/sentry-native/commit/01098b138c9ff5bb06fe0b542f27e02b4bc26cd2"
+        },
+        "date": 1768911150717,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 9.161299999959738,
+            "unit": "ms",
+            "extra": "Min 8.922ms\nMax 9.515ms\nMean 9.227ms\nStdDev 0.230ms\nMedian 9.161ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 9.587000000010448,
+            "unit": "ms",
+            "extra": "Min 9.489ms\nMax 10.483ms\nMean 9.730ms\nStdDev 0.424ms\nMedian 9.587ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 24.44890000003852,
+            "unit": "ms",
+            "extra": "Min 23.777ms\nMax 24.933ms\nMean 24.411ms\nStdDev 0.418ms\nMedian 24.449ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.012600000047768845,
+            "unit": "ms",
+            "extra": "Min 0.012ms\nMax 0.014ms\nMean 0.013ms\nStdDev 0.000ms\nMedian 0.013ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.4033999999819571,
+            "unit": "ms",
+            "extra": "Min 0.393ms\nMax 0.490ms\nMean 0.423ms\nStdDev 0.041ms\nMedian 0.403ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 14.116199999989476,
+            "unit": "ms",
+            "extra": "Min 13.594ms\nMax 14.506ms\nMean 14.016ms\nStdDev 0.389ms\nMedian 14.116ms"
           }
         ]
       }
