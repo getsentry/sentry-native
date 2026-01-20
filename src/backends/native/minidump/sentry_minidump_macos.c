@@ -248,14 +248,28 @@ extract_macho_uuid(const char *macho_path, uint8_t uuid[16])
 
     // Search for LC_UUID command
     uint8_t *ptr = (uint8_t *)commands_buf;
+    uint8_t *end = ptr + commands_size;
     bool found = false;
     for (uint32_t i = 0; i < header.ncmds && !found; i++) {
+        // Bounds check before reading load_command header
+        if (ptr + sizeof(struct load_command) > end) {
+            break;
+        }
         struct load_command *cmd = (struct load_command *)ptr;
 
+        // Validate cmdsize to prevent buffer over-read
+        if (cmd->cmdsize < sizeof(struct load_command)
+            || ptr + cmd->cmdsize > end) {
+            break;
+        }
+
         if (cmd->cmd == LC_UUID) {
-            struct uuid_command *uuid_cmd = (struct uuid_command *)ptr;
-            memcpy(uuid, uuid_cmd->uuid, 16);
-            found = true;
+            // Ensure we have enough data for uuid_command
+            if (ptr + sizeof(struct uuid_command) <= end) {
+                struct uuid_command *uuid_cmd = (struct uuid_command *)ptr;
+                memcpy(uuid, uuid_cmd->uuid, 16);
+                found = true;
+            }
             break;
         }
 
@@ -528,7 +542,7 @@ write_thread_stack(minidump_writer_t *writer, uint64_t stack_pointer,
     // SP points to the top of stack (lowest used address).
     // Return addresses and saved registers are at addresses >= SP.
     // We need to capture from SP *upward* for stack unwinding to work.
-    const size_t MAX_STACK_SIZE = SENTRY_CRASH_MAX_STACK_CAPTURE / 8;
+    const size_t MAX_STACK_SIZE = SENTRY_CRASH_MAX_STACK_CAPTURE;
 
     // Capture from SP upward (where return addresses are stored)
     mach_vm_address_t stack_start = stack_pointer;
@@ -582,6 +596,11 @@ write_thread_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
     if (thread_count == 0 && writer->crash_ctx) {
         if (writer->crash_ctx->platform.num_threads > 0) {
             thread_count = writer->crash_ctx->platform.num_threads;
+            // Bounds check to prevent out-of-bounds access on corrupted crash
+            // context
+            if (thread_count > SENTRY_CRASH_MAX_THREADS) {
+                thread_count = SENTRY_CRASH_MAX_THREADS;
+            }
             SENTRY_DEBUGF("Using %u threads from crash context", thread_count);
         } else {
             // Last resort: add at least the crashing thread
@@ -808,6 +827,11 @@ write_module_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
 {
     // Use modules from crash context (captured in signal handler)
     uint32_t module_count = writer->crash_ctx->module_count;
+
+    // Bounds check to prevent out-of-bounds access on corrupted crash context
+    if (module_count > SENTRY_CRASH_MAX_MODULES) {
+        module_count = SENTRY_CRASH_MAX_MODULES;
+    }
 
     size_t list_size
         = sizeof(uint32_t) + (module_count * sizeof(minidump_module_t));
