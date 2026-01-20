@@ -36,3 +36,6 @@ obj/
 .cache
 
 sentry-native.sln
+
+# Local Claude Code settings that should not be committed
+.claude/settings.local.json
