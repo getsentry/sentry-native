@@ -127,8 +127,11 @@ write_data(minidump_writer_t *writer, const void *data, size_t size)
     uint32_t padding = (4 - (writer->current_offset % 4)) % 4;
     if (padding > 0) {
         const uint8_t zeros[4] = { 0 };
-        write(writer->fd, zeros, padding);
-        writer->current_offset += padding;
+        if (write(writer->fd, zeros, padding) == (ssize_t)padding) {
+            writer->current_offset += padding;
+        }
+        // On padding write failure, don't update offset - RVA is still valid
+        // for the data that was written
     }
 
     return rva;
@@ -799,18 +802,14 @@ write_exception_stream(minidump_writer_t *writer, minidump_directory_t *dir)
         = (uint64_t)writer->crash_ctx->platform.siginfo.si_addr;
     exception_stream.exception_record.number_parameters = 0;
 
-    // Write the crashing thread's context
-    // Use the context from the first thread in the crash context (the crashing
-    // thread)
-    if (writer->crash_ctx->platform.num_threads > 0) {
-        const _STRUCT_MCONTEXT *crash_state
-            = &writer->crash_ctx->platform.threads[0].state;
-        exception_stream.thread_context.rva
-            = write_thread_context(writer, crash_state);
-        exception_stream.thread_context.size = get_context_size();
-        SENTRY_DEBUGF("Exception: wrote context at RVA 0x%x for thread %u",
-            exception_stream.thread_context.rva, exception_stream.thread_id);
-    }
+    // Write the crashing thread's context using the dedicated mcontext field
+    // (consistent with Linux which uses platform.context)
+    const _STRUCT_MCONTEXT *crash_state = &writer->crash_ctx->platform.mcontext;
+    exception_stream.thread_context.rva
+        = write_thread_context(writer, crash_state);
+    exception_stream.thread_context.size = get_context_size();
+    SENTRY_DEBUGF("Exception: wrote context at RVA 0x%x for thread %u",
+        exception_stream.thread_context.rva, exception_stream.thread_id);
 
     dir->stream_type = MINIDUMP_STREAM_EXCEPTION;
     dir->rva = write_data(writer, &exception_stream, sizeof(exception_stream));
@@ -1200,7 +1199,9 @@ sentry__write_minidump(
     enumerate_memory_regions(&writer);
 
     // Reserve space for header and directory
-    const uint32_t stream_count = 3; // system_info, threads, exception
+    // Write 5 streams: system_info, threads, exception, module_list,
+    // memory_list
+    const uint32_t stream_count = 5;
     writer.current_offset = sizeof(minidump_header_t)
         + (stream_count * sizeof(minidump_directory_t));
 
@@ -1209,12 +1210,14 @@ sentry__write_minidump(
     }
 
     // Write streams
-    minidump_directory_t directories[3];
+    minidump_directory_t directories[5];
     int result = 0;
 
     result |= write_system_info_stream(&writer, &directories[0]);
     result |= write_thread_list_stream(&writer, &directories[1]);
     result |= write_exception_stream(&writer, &directories[2]);
+    result |= write_module_list_stream(&writer, &directories[3]);
+    result |= write_memory_list_stream(&writer, &directories[4]);
 
     if (result < 0) {
         goto cleanup_error;
