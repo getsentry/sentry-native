@@ -460,10 +460,13 @@ write_data(minidump_writer_t *writer, const void *data, size_t size)
     uint32_t padding = (4 - (writer->current_offset % 4)) % 4;
     if (padding > 0) {
         const uint8_t zeros[4] = { 0 };
-        if (write(writer->fd, zeros, padding) != (ssize_t)padding) {
+        if (write(writer->fd, zeros, padding) == (ssize_t)padding) {
+            writer->current_offset += padding;
+        } else {
             SENTRY_WARN("Failed to write padding bytes");
+            // Don't update offset on failure - RVA is still valid for the data
+            // that was written
         }
-        writer->current_offset += padding;
     }
 
     return rva;
