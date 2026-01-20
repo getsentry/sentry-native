@@ -133,7 +133,7 @@ PACKED_STRUCT_END
 PACKED_STRUCT_BEGIN
 typedef struct {
     uint64_t count;
-    minidump_rva_t base_rva; // All memory starts here
+    uint64_t base_rva; // RVA64 per minidump spec - all memory starts here
     minidump_memory64_descriptor_t ranges[]; // Variable length
 } PACKED_ATTR minidump_memory64_list_t;
 PACKED_STRUCT_END
