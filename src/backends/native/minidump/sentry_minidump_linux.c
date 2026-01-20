@@ -840,9 +840,13 @@ extract_elf_build_id(const char *elf_path, uint8_t *build_id, size_t max_len)
                     ptr += sizeof(*nhdr);
 
                     // Use aligned sizes in bounds check since pointer advances
-                    // by aligned amounts
+                    // by aligned amounts. Also check for zero advancement to
+                    // prevent infinite loop on malformed notes (e.g., overflow
+                    // on 32-bit when n_namesz/n_descsz are near UINT32_MAX)
                     size_t aligned_namesz = ((nhdr->n_namesz + 3) & ~3);
                     size_t aligned_descsz = ((nhdr->n_descsz + 3) & ~3);
+                    if (aligned_namesz == 0 && aligned_descsz == 0)
+                        break; // Prevent infinite loop
                     if (ptr + aligned_namesz + aligned_descsz > end)
                         break;
 
