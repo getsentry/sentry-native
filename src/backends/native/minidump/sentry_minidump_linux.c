@@ -836,14 +836,18 @@ extract_elf_build_id(const char *elf_path, uint8_t *build_id, size_t max_len)
 #    endif
                     ptr += sizeof(*nhdr);
 
-                    if (ptr + nhdr->n_namesz + nhdr->n_descsz > end)
+                    // Use aligned sizes in bounds check since pointer advances
+                    // by aligned amounts
+                    size_t aligned_namesz = ((nhdr->n_namesz + 3) & ~3);
+                    size_t aligned_descsz = ((nhdr->n_descsz + 3) & ~3);
+                    if (ptr + aligned_namesz + aligned_descsz > end)
                         break;
 
                     // Check if this is GNU Build ID (type 3, name "GNU\0")
                     if (nhdr->n_type == 3 && nhdr->n_namesz == 4
                         && memcmp(ptr, "GNU", 4) == 0) {
 
-                        ptr += ((nhdr->n_namesz + 3) & ~3); // Align to 4 bytes
+                        ptr += aligned_namesz;
                         size_t len = nhdr->n_descsz < max_len ? nhdr->n_descsz
                                                               : max_len;
                         memcpy(build_id, ptr, len);
@@ -852,8 +856,8 @@ extract_elf_build_id(const char *elf_path, uint8_t *build_id, size_t max_len)
                         goto done;
                     }
 
-                    ptr += ((nhdr->n_namesz + 3) & ~3);
-                    ptr += ((nhdr->n_descsz + 3) & ~3);
+                    ptr += aligned_namesz;
+                    ptr += aligned_descsz;
                 }
             }
 
@@ -1063,7 +1067,13 @@ write_thread_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
 
         // Try to find this thread in the captured threads
         const ucontext_t *uctx = NULL;
-        for (size_t j = 0; j < writer->crash_ctx->platform.num_threads; j++) {
+        size_t num_threads = writer->crash_ctx->platform.num_threads;
+        // Bounds check to prevent out-of-bounds access on corrupted crash
+        // context
+        if (num_threads > SENTRY_CRASH_MAX_THREADS) {
+            num_threads = SENTRY_CRASH_MAX_THREADS;
+        }
+        for (size_t j = 0; j < num_threads; j++) {
             if (writer->crash_ctx->platform.threads[j].tid == writer->tids[i]) {
                 uctx = &writer->crash_ctx->platform.threads[j].context;
                 break;
