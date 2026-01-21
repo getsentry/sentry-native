@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1769003674242,
+  "lastUpdate": 1769003785281,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -17410,6 +17410,66 @@ window.BENCHMARK_DATA = {
             "value": 26.299166999933732,
             "unit": "ms",
             "extra": "Min 23.160ms\nMax 59.391ms\nMean 32.406ms\nStdDev 15.198ms\nMedian 26.299ms\nCPU 3.382ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "60878493+JoshuaMoelans@users.noreply.github.com",
+            "name": "JoshuaMoelans",
+            "username": "JoshuaMoelans"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "8680e942cc78a62fb4fad1936bd857e39be6ec38",
+          "message": "fix(logs): merge global and per-log attributes (#1486)\n\n* add logs attribute test\n\n* fix global-local attribute behavior\n- keys get merged, and local values overwrite existing global values for the same key\n\n* Update CHANGELOG.md",
+          "timestamp": "2026-01-21T14:52:14+01:00",
+          "tree_id": "f026e8e52607b23422c4ad548d245e3e3184c9cf",
+          "url": "https://github.com/getsentry/sentry-native/commit/8680e942cc78a62fb4fad1936bd857e39be6ec38"
+        },
+        "date": 1769003782886,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 4.413999999997031,
+            "unit": "ms",
+            "extra": "Min 3.967ms\nMax 8.880ms\nMean 5.639ms\nStdDev 2.071ms\nMedian 4.414ms\nCPU 3.183ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 4.290042000008043,
+            "unit": "ms",
+            "extra": "Min 3.749ms\nMax 5.452ms\nMean 4.319ms\nStdDev 0.685ms\nMedian 4.290ms\nCPU 2.461ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 14.517416999979105,
+            "unit": "ms",
+            "extra": "Min 12.415ms\nMax 21.864ms\nMean 15.571ms\nStdDev 3.721ms\nMedian 14.517ms\nCPU 5.031ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.02358300002924807,
+            "unit": "ms",
+            "extra": "Min 0.009ms\nMax 0.028ms\nMean 0.020ms\nStdDev 0.009ms\nMedian 0.024ms\nCPU 0.020ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.2682499999764332,
+            "unit": "ms",
+            "extra": "Min 0.220ms\nMax 0.302ms\nMean 0.262ms\nStdDev 0.031ms\nMedian 0.268ms\nCPU 0.262ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 8.036084000025312,
+            "unit": "ms",
+            "extra": "Min 6.958ms\nMax 12.132ms\nMean 9.239ms\nStdDev 2.580ms\nMedian 8.036ms\nCPU 0.906ms"
           }
         ]
       }
