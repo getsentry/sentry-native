@@ -475,6 +475,7 @@ def assert_crashpad_upload(req, expect_attachment=False, expect_view_hierarchy=F
         and b"\n\nMDMP" in part.as_bytes()
         for part in msg.walk()
     )
+    return attachments
 
 
 def assert_gzip_file_header(output):
