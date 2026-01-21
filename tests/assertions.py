@@ -475,6 +475,7 @@ def assert_crashpad_upload(req, expect_attachment=False, expect_view_hierarchy=F
         and b"\n\nMDMP" in part.as_bytes()
         for part in msg.walk()
     )
+    return attachments
 
 
 def assert_gzip_file_header(output):
@@ -495,3 +496,14 @@ def assert_failed_proxy_auth_request(stdout):
         and "407 Proxy Authentication Required" in stdout
         and "200 OK" not in stdout
     )
+
+
+def wait_for_file(path, timeout=10.0, poll_interval=0.1):
+    import time
+
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if path.exists():
+            return True
+        time.sleep(poll_interval)
+    return False
