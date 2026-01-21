@@ -5,6 +5,7 @@
 **Fixes**:
 
 - Crashpad: namespace mpack to avoid ODR violation. ([#1476](https://github.com/getsentry/sentry-native/pull/1476), [crashpad#143](https://github.com/getsentry/crashpad/pull/143))
+- Structured logs: stop local attributes overwriting all globally set attributes. They now get merged, and local values overwrite existing global values for the same key. ([#1486](https://github.com/getsentry/sentry-native/pull/1486))
 
 ## 0.12.3
 
