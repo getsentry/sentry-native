@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1768911321759,
+  "lastUpdate": 1769003674242,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -8674,6 +8674,66 @@ window.BENCHMARK_DATA = {
             "value": 1.855957999993052,
             "unit": "ms",
             "extra": "Min 1.806ms\nMax 1.912ms\nMean 1.849ms\nStdDev 0.043ms\nMedian 1.856ms\nCPU 0.590ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "60878493+JoshuaMoelans@users.noreply.github.com",
+            "name": "JoshuaMoelans",
+            "username": "JoshuaMoelans"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "8680e942cc78a62fb4fad1936bd857e39be6ec38",
+          "message": "fix(logs): merge global and per-log attributes (#1486)\n\n* add logs attribute test\n\n* fix global-local attribute behavior\n- keys get merged, and local values overwrite existing global values for the same key\n\n* Update CHANGELOG.md",
+          "timestamp": "2026-01-21T14:52:14+01:00",
+          "tree_id": "f026e8e52607b23422c4ad548d245e3e3184c9cf",
+          "url": "https://github.com/getsentry/sentry-native/commit/8680e942cc78a62fb4fad1936bd857e39be6ec38"
+        },
+        "date": 1769003673487,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 0.7968919999967738,
+            "unit": "ms",
+            "extra": "Min 0.753ms\nMax 0.873ms\nMean 0.803ms\nStdDev 0.050ms\nMedian 0.797ms\nCPU 0.803ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.7288050000084922,
+            "unit": "ms",
+            "extra": "Min 0.719ms\nMax 0.767ms\nMean 0.737ms\nStdDev 0.019ms\nMedian 0.729ms\nCPU 0.736ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 2.8842160000124295,
+            "unit": "ms",
+            "extra": "Min 2.844ms\nMax 2.943ms\nMean 2.888ms\nStdDev 0.042ms\nMedian 2.884ms\nCPU 1.514ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.012473999987605566,
+            "unit": "ms",
+            "extra": "Min 0.012ms\nMax 0.013ms\nMean 0.012ms\nStdDev 0.000ms\nMedian 0.012ms\nCPU 0.012ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.026189000010390373,
+            "unit": "ms",
+            "extra": "Min 0.026ms\nMax 0.027ms\nMean 0.026ms\nStdDev 0.000ms\nMedian 0.026ms\nCPU 0.025ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 1.8480500000066513,
+            "unit": "ms",
+            "extra": "Min 1.804ms\nMax 1.891ms\nMean 1.843ms\nStdDev 0.037ms\nMedian 1.848ms\nCPU 0.576ms"
           }
         ]
       }
