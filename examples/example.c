@@ -508,6 +508,27 @@ main(int argc, char **argv)
         return EXIT_FAILURE;
     }
 
+    if (has_arg(argc, argv, "set-global-attribute")) {
+        sentry_set_attribute("global.attribute.bool",
+            sentry_value_new_attribute(sentry_value_new_bool(true), NULL));
+        sentry_set_attribute("global.attribute.int",
+            sentry_value_new_attribute(sentry_value_new_int64(123), NULL));
+        sentry_set_attribute("global.attribute.double",
+            sentry_value_new_attribute(sentry_value_new_double(1.23), NULL));
+        sentry_set_attribute("global.attribute.string",
+            sentry_value_new_attribute(
+                sentry_value_new_string("my_global_value"), NULL));
+        sentry_value_t array = sentry_value_new_list();
+        sentry_value_append(array, sentry_value_new_string("item1"));
+        sentry_value_append(array, sentry_value_new_string("item2"));
+        sentry_set_attribute(
+            "global.attribute.array", sentry_value_new_attribute(array, NULL));
+        // same key as local attribute; value should be overwritten
+        sentry_set_attribute("my.custom.attribute",
+            sentry_value_new_attribute(
+                sentry_value_new_string("my_global_value"), NULL));
+    }
+
     if (has_arg(argc, argv, "log-attributes")) {
         sentry_value_t attributes = sentry_value_new_object();
         sentry_value_t attr = sentry_value_new_attribute(

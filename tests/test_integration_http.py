@@ -1734,3 +1734,68 @@ def test_logs_with_custom_attributes(cmake, httpserver):
     assert "sentry.sdk.name" in attributes_2
     assert attributes_2["sentry.sdk.name"]["value"] == "custom-sdk-name"
     assert attributes_2["sentry.sdk.name"]["type"] == "string"
+
+
+def test_logs_global_and_local_attributes_merge(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+
+    httpserver.expect_oneshot_request(
+        "/api/123456/envelope/",
+        headers={"x-sentry-auth": auth_header},
+    ).respond_with_data("OK")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "enable-logs", "set-global-attribute", "log-attributes"],
+        env=env,
+    )
+
+    assert len(httpserver.log) == 1
+    req = httpserver.log[0][0]
+    body = req.get_data()
+
+    envelope = Envelope.deserialize(body)
+
+    # Show what the envelope looks like if the test fails
+    envelope.print_verbose()
+
+    # Extract the log item
+    (log_item,) = envelope.items
+
+    assert log_item.headers["type"] == "log"
+    payload = log_item.payload.json
+
+    # We expect 3 log entries based on the log-attributes example
+    assert len(payload["items"]) == 3
+
+    log_entry_0 = payload["items"][0]
+    attributes_0 = log_entry_0["attributes"]
+
+    # Verify per-log (local) attributes are present
+
+    # passed as global and local attribute, but local should overwrite
+    assert "my.custom.attribute" in attributes_0
+    assert attributes_0["my.custom.attribute"]["value"] == "my_attribute"
+    assert attributes_0["my.custom.attribute"]["type"] == "string"
+
+    assert "global.attribute.bool" in attributes_0
+    assert attributes_0["global.attribute.bool"]["value"] == True
+    assert attributes_0["global.attribute.bool"]["type"] == "boolean"
+
+    assert "global.attribute.int" in attributes_0
+    assert attributes_0["global.attribute.int"]["value"] == 123
+    assert attributes_0["global.attribute.int"]["type"] == "integer"
+
+    assert "global.attribute.double" in attributes_0
+    assert attributes_0["global.attribute.double"]["value"] == 1.23
+    assert attributes_0["global.attribute.double"]["type"] == "double"
+
+    assert "global.attribute.string" in attributes_0
+    assert attributes_0["global.attribute.string"]["value"] == "my_global_value"
+    assert attributes_0["global.attribute.string"]["type"] == "string"
+
+    assert "global.attribute.array" in attributes_0
+    assert attributes_0["global.attribute.array"]["value"] == ["item1", "item2"]
+    assert attributes_0["global.attribute.array"]["type"] == "string[]"
