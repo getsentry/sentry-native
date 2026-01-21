@@ -1734,3 +1734,92 @@ def test_logs_with_custom_attributes(cmake, httpserver):
     assert "sentry.sdk.name" in attributes_2
     assert attributes_2["sentry.sdk.name"]["value"] == "custom-sdk-name"
     assert attributes_2["sentry.sdk.name"]["type"] == "string"
+
+
+def test_logs_global_and_local_attributes_merge(cmake, httpserver):
+    """
+    Test that global attributes (set via sentry_set_attribute) are merged with
+    per-log attributes when capturing a log entry.
+
+    This test validates the bug report where global attributes were being
+    completely overwritten by per-log attributes instead of being merged.
+
+    Expected behavior: Both global and per-log attributes should be present
+    in the captured log entry.
+    """
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+
+    httpserver.expect_oneshot_request(
+        "/api/123456/envelope/",
+        headers={"x-sentry-auth": auth_header},
+    ).respond_with_data("OK")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "enable-logs", "set-global-attribute", "log-attributes"],
+        env=env,
+    )
+
+    assert len(httpserver.log) == 1
+    req = httpserver.log[0][0]
+    body = req.get_data()
+
+    envelope = Envelope.deserialize(body)
+
+    # Show what the envelope looks like if the test fails
+    envelope.print_verbose()
+
+    # Extract the log item
+    (log_item,) = envelope.items
+
+    assert log_item.headers["type"] == "log"
+    payload = log_item.payload.json
+
+    # We expect 3 log entries based on the log-attributes example
+    assert len(payload["items"]) == 3
+
+    # Check the first log entry which has per-log custom attributes
+    log_entry_0 = payload["items"][0]
+    attributes_0 = log_entry_0["attributes"]
+
+    # Verify per-log (local) attributes are present
+    assert "my.custom.attribute" in attributes_0
+    assert attributes_0["my.custom.attribute"]["value"] == "my_attribute"
+    assert attributes_0["my.custom.attribute"]["type"] == "string"
+
+    # BUG: Global attributes should also be present but are currently missing
+    # due to the bug where per-log attributes completely replace global attributes
+    # instead of being merged.
+    #
+    # Expected: All global attributes set via set-global-attribute should be present:
+    # - global.attribute.bool
+    # - global.attribute.int
+    # - global.attribute.double
+    # - global.attribute.string
+    # - global.attribute.array
+    #
+    # The following assertions document the expected behavior:
+    assert "global.attribute.bool" in attributes_0, (
+        "Global attribute 'global.attribute.bool' should be present "
+        "(currently fails due to bug: global attributes overwritten by per-log attributes)"
+    )
+    assert attributes_0["global.attribute.bool"]["value"] == True
+    assert attributes_0["global.attribute.bool"]["type"] == "boolean"
+
+    assert "global.attribute.int" in attributes_0
+    assert attributes_0["global.attribute.int"]["value"] == 123
+    assert attributes_0["global.attribute.int"]["type"] == "integer"
+
+    assert "global.attribute.double" in attributes_0
+    assert attributes_0["global.attribute.double"]["value"] == 1.23
+    assert attributes_0["global.attribute.double"]["type"] == "double"
+
+    assert "global.attribute.string" in attributes_0
+    assert attributes_0["global.attribute.string"]["value"] == "my value"
+    assert attributes_0["global.attribute.string"]["type"] == "string"
+
+    assert "global.attribute.array" in attributes_0
+    assert attributes_0["global.attribute.array"]["value"] == ["item1", "item2"]
+    assert attributes_0["global.attribute.array"]["type"] == "string[]"
