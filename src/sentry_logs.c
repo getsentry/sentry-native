@@ -686,13 +686,16 @@ construct_log(sentry_level_t level, const char *message, va_list args)
             va_end(args_copy);
             if (sentry_value_get_type(custom_attributes)
                 == SENTRY_VALUE_TYPE_OBJECT) {
+                // Merge global attributes INTO per-log attributes
+                // (per-log attributes take precedence for conflicts)
+                sentry__value_merge_objects(custom_attributes, attributes);
                 sentry_value_decref(attributes);
-                attributes = sentry__value_clone(custom_attributes);
+                attributes = custom_attributes;
             } else {
                 SENTRY_DEBUG("Discarded custom attributes on log: non-object "
                              "sentry_value_t passed in");
+                sentry_value_decref(custom_attributes);
             }
-            sentry_value_decref(custom_attributes);
         }
 
         // Format the message with remaining args (or all args if not using

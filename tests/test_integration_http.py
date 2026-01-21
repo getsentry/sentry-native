@@ -1737,16 +1737,6 @@ def test_logs_with_custom_attributes(cmake, httpserver):
 
 
 def test_logs_global_and_local_attributes_merge(cmake, httpserver):
-    """
-    Test that global attributes (set via sentry_set_attribute) are merged with
-    per-log attributes when capturing a log entry.
-
-    This test validates the bug report where global attributes were being
-    completely overwritten by per-log attributes instead of being merged.
-
-    Expected behavior: Both global and per-log attributes should be present
-    in the captured log entry.
-    """
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
 
     httpserver.expect_oneshot_request(
@@ -1780,31 +1770,17 @@ def test_logs_global_and_local_attributes_merge(cmake, httpserver):
     # We expect 3 log entries based on the log-attributes example
     assert len(payload["items"]) == 3
 
-    # Check the first log entry which has per-log custom attributes
     log_entry_0 = payload["items"][0]
     attributes_0 = log_entry_0["attributes"]
 
     # Verify per-log (local) attributes are present
+
+    # passed as global and local attribute, but local should overwrite
     assert "my.custom.attribute" in attributes_0
     assert attributes_0["my.custom.attribute"]["value"] == "my_attribute"
     assert attributes_0["my.custom.attribute"]["type"] == "string"
 
-    # BUG: Global attributes should also be present but are currently missing
-    # due to the bug where per-log attributes completely replace global attributes
-    # instead of being merged.
-    #
-    # Expected: All global attributes set via set-global-attribute should be present:
-    # - global.attribute.bool
-    # - global.attribute.int
-    # - global.attribute.double
-    # - global.attribute.string
-    # - global.attribute.array
-    #
-    # The following assertions document the expected behavior:
-    assert "global.attribute.bool" in attributes_0, (
-        "Global attribute 'global.attribute.bool' should be present "
-        "(currently fails due to bug: global attributes overwritten by per-log attributes)"
-    )
+    assert "global.attribute.bool" in attributes_0
     assert attributes_0["global.attribute.bool"]["value"] == True
     assert attributes_0["global.attribute.bool"]["type"] == "boolean"
 
@@ -1817,7 +1793,7 @@ def test_logs_global_and_local_attributes_merge(cmake, httpserver):
     assert attributes_0["global.attribute.double"]["type"] == "double"
 
     assert "global.attribute.string" in attributes_0
-    assert attributes_0["global.attribute.string"]["value"] == "my value"
+    assert attributes_0["global.attribute.string"]["value"] == "my_global_value"
     assert attributes_0["global.attribute.string"]["type"] == "string"
 
     assert "global.attribute.array" in attributes_0
