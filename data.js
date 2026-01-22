@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1769077138311,
+  "lastUpdate": 1769077271093,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -26326,6 +26326,66 @@ window.BENCHMARK_DATA = {
             "value": 14.022399999987556,
             "unit": "ms",
             "extra": "Min 13.314ms\nMax 14.690ms\nMean 14.027ms\nStdDev 0.502ms\nMedian 14.022ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "60878493+JoshuaMoelans@users.noreply.github.com",
+            "name": "JoshuaMoelans",
+            "username": "JoshuaMoelans"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "0f80c115db7aebdd5a657f0690e2001acd87965c",
+          "message": "feat: add `ounce` support (#1482)\n\n* add defined(ounce)\n\n* split up __OUNCE__\n\n* update to __NINTENDO__",
+          "timestamp": "2026-01-22T11:16:04+01:00",
+          "tree_id": "09d388c7729e56a134be6e1322801d5090ce6c9a",
+          "url": "https://github.com/getsentry/sentry-native/commit/0f80c115db7aebdd5a657f0690e2001acd87965c"
+        },
+        "date": 1769077259465,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 9.784300000006851,
+            "unit": "ms",
+            "extra": "Min 9.499ms\nMax 9.851ms\nMean 9.723ms\nStdDev 0.142ms\nMedian 9.784ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 10.096599999997125,
+            "unit": "ms",
+            "extra": "Min 9.952ms\nMax 12.656ms\nMean 11.074ms\nStdDev 1.418ms\nMedian 10.097ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 26.656199999990804,
+            "unit": "ms",
+            "extra": "Min 24.923ms\nMax 27.990ms\nMean 26.458ms\nStdDev 1.398ms\nMedian 26.656ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.015200000007098424,
+            "unit": "ms",
+            "extra": "Min 0.013ms\nMax 0.021ms\nMean 0.016ms\nStdDev 0.003ms\nMedian 0.015ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.45549999998684143,
+            "unit": "ms",
+            "extra": "Min 0.388ms\nMax 0.522ms\nMean 0.450ms\nStdDev 0.055ms\nMedian 0.455ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 14.349199999969642,
+            "unit": "ms",
+            "extra": "Min 13.632ms\nMax 15.050ms\nMean 14.298ms\nStdDev 0.610ms\nMedian 14.349ms"
           }
         ]
       }
