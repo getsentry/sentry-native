@@ -416,7 +416,10 @@ def test_crashpad_dumping_crash(cmake, httpserver, run_args, build_args):
         expect_view_hierarchy="clear-attachments" not in run_args,
     )
     event_id = attachments.event["event_id"]
-    minidump = tmp_path / ".sentry-native" / "completed" / f"{event_id}.dmp"
+    if sys.platform == "win32":
+        minidump = tmp_path / ".sentry-native" / "reports" / f"{event_id}.dmp"
+    else:
+        minidump = tmp_path / ".sentry-native" / "completed" / f"{event_id}.dmp"
     assert minidump.exists()
 
 
