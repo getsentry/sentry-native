@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1769003801823,
+  "lastUpdate": 1769077111456,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -8734,6 +8734,66 @@ window.BENCHMARK_DATA = {
             "value": 1.8480500000066513,
             "unit": "ms",
             "extra": "Min 1.804ms\nMax 1.891ms\nMean 1.843ms\nStdDev 0.037ms\nMedian 1.848ms\nCPU 0.576ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "60878493+JoshuaMoelans@users.noreply.github.com",
+            "name": "JoshuaMoelans",
+            "username": "JoshuaMoelans"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "0f80c115db7aebdd5a657f0690e2001acd87965c",
+          "message": "feat: add `ounce` support (#1482)\n\n* add defined(ounce)\n\n* split up __OUNCE__\n\n* update to __NINTENDO__",
+          "timestamp": "2026-01-22T11:16:04+01:00",
+          "tree_id": "09d388c7729e56a134be6e1322801d5090ce6c9a",
+          "url": "https://github.com/getsentry/sentry-native/commit/0f80c115db7aebdd5a657f0690e2001acd87965c"
+        },
+        "date": 1769077110415,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 0.6394410000041262,
+            "unit": "ms",
+            "extra": "Min 0.611ms\nMax 0.661ms\nMean 0.636ms\nStdDev 0.021ms\nMedian 0.639ms\nCPU 0.636ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.646931999995104,
+            "unit": "ms",
+            "extra": "Min 0.633ms\nMax 0.728ms\nMean 0.659ms\nStdDev 0.039ms\nMedian 0.647ms\nCPU 0.654ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 2.7466119999814964,
+            "unit": "ms",
+            "extra": "Min 2.583ms\nMax 2.920ms\nMean 2.725ms\nStdDev 0.137ms\nMedian 2.747ms\nCPU 1.345ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.008681999986492883,
+            "unit": "ms",
+            "extra": "Min 0.008ms\nMax 0.009ms\nMean 0.009ms\nStdDev 0.000ms\nMedian 0.009ms\nCPU 0.008ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.01813599999422877,
+            "unit": "ms",
+            "extra": "Min 0.017ms\nMax 0.054ms\nMean 0.025ms\nStdDev 0.016ms\nMedian 0.018ms\nCPU 0.024ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 1.4689869999813254,
+            "unit": "ms",
+            "extra": "Min 1.396ms\nMax 1.528ms\nMean 1.472ms\nStdDev 0.054ms\nMedian 1.469ms\nCPU 0.374ms"
           }
         ]
       }
