@@ -1798,4 +1798,4 @@ def test_logs_global_and_local_attributes_merge(cmake, httpserver):
 
     assert "global.attribute.array" in attributes_0
     assert attributes_0["global.attribute.array"]["value"] == ["item1", "item2"]
-    assert attributes_0["global.attribute.array"]["type"] == "string[]"
+    assert attributes_0["global.attribute.array"]["type"] == "array"
