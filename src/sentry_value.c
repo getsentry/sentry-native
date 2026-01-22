@@ -511,9 +511,9 @@ sentry_value_new_user(const char *id, const char *username, const char *email,
 
 /**
  * Converts a sentry_value_t attribute to its type string representation.
- * For lists, checks the first element to determine the array type.
+ * For lists, checks the first element to determine if it is a scalar array.
  * Returns NULL for unsupported types (NULL, OBJECT).
- * https://develop.sentry.dev/sdk/telemetry/spans/span-protocol/#attribute-object-properties
+ * https://develop.sentry.dev/sdk/telemetry/attributes/
  */
 static const char *
 attribute_value_type_to_str(sentry_value_t value)
@@ -537,15 +537,12 @@ attribute_value_type_to_str(sentry_value_t value)
         // Determine type based on first element
         switch (sentry_value_get_type(first_item)) {
         case SENTRY_VALUE_TYPE_BOOL:
-            return "boolean[]";
         case SENTRY_VALUE_TYPE_INT32:
         case SENTRY_VALUE_TYPE_INT64:
-        case SENTRY_VALUE_TYPE_UINT64:
-            return "integer[]";
         case SENTRY_VALUE_TYPE_DOUBLE:
-            return "double[]";
         case SENTRY_VALUE_TYPE_STRING:
-            return "string[]";
+            return "array";
+        case SENTRY_VALUE_TYPE_UINT64: // TODO update when we support this
         case SENTRY_VALUE_TYPE_NULL:
         case SENTRY_VALUE_TYPE_OBJECT:
         case SENTRY_VALUE_TYPE_LIST:
