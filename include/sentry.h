@@ -1376,24 +1376,30 @@ SENTRY_API int sentry_options_get_symbolize_stacktraces(
     const sentry_options_t *opts);
 
 /**
- * Sets whether we should keep files cached even when sent successfully.
- * The database will be cleared based on cache_max_size and cache_max_age
+ * Enables or disables storing envelopes in a persistent cache.
+ *
+ * When enabled, envelopes are written to a `cache/` subdirectory within the
+ * database directory and retained regardless of send success or failure.
+ * The cache is cleared on startup based on the cache_max_size and cache_max_age
+ * options.
  */
 SENTRY_API void sentry_options_set_cache_keep(
     sentry_options_t *opts, int enabled);
+
 /**
- * Sets the maximum size (in bytes) for the cache folder.
- * On startup, we check new->old entries, and remove those that go over either
- * boundary.
+ * Sets the maximum size (in bytes) for the cache directory.
+ * On startup, cached entries are removed from oldest to newest until the
+ * directory size is within the max size limit.
  */
 SENTRY_API void sentry_options_set_cache_max_size(
-    sentry_options_t *opts, size_t size);
+    sentry_options_t *opts, size_t bytes);
+
 /**
- * Sets the maximum age (in seconds) for cache entries.
- * Cache entries older than this value will be removed.
+ * Sets the maximum age (in seconds) for cache entries in the cache directory.
+ * On startup, cached entries exceeding the max age limit are removed.
  */
 SENTRY_API void sentry_options_set_cache_max_age(
-    sentry_options_t *opts, uint64_t age);
+    sentry_options_t *opts, uint64_t seconds);
 
 /**
  * Gets the caching mode for crash reports.

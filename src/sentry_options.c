@@ -485,15 +485,15 @@ sentry_options_set_cache_keep(sentry_options_t *opts, int enabled)
 }
 
 void
-sentry_options_set_cache_max_size(sentry_options_t *opts, size_t size)
+sentry_options_set_cache_max_size(sentry_options_t *opts, size_t bytes)
 {
-    opts->cache_max_size = size;
+    opts->cache_max_size = bytes;
 }
 
 void
-sentry_options_set_cache_max_age(sentry_options_t *opts, uint64_t age)
+sentry_options_set_cache_max_age(sentry_options_t *opts, uint64_t seconds)
 {
-    opts->cache_max_age = age;
+    opts->cache_max_age = seconds;
 }
 
 int
