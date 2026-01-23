@@ -3,13 +3,24 @@ import time
 import pytest
 
 from . import run
-from .conditions import has_files
+from .conditions import has_breakpad, has_files
 
 pytestmark = pytest.mark.skipif(not has_files, reason="tests need local filesystem")
 
 
 @pytest.mark.parametrize("cache_keep", [True, False])
-@pytest.mark.parametrize("backend", ["inproc", "breakpad"])
+@pytest.mark.parametrize(
+    "backend",
+    [
+        "inproc",
+        pytest.param(
+            "breakpad",
+            marks=pytest.mark.skipif(
+                not has_breakpad, reason="breakpad backend not available"
+            ),
+        ),
+    ],
+)
 def test_cache_keep(cmake, backend, cache_keep):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": backend})
 
@@ -35,7 +46,18 @@ def test_cache_keep(cmake, backend, cache_keep):
         assert len(cache_files) == 1
 
 
-@pytest.mark.parametrize("backend", ["inproc", "breakpad"])
+@pytest.mark.parametrize(
+    "backend",
+    [
+        "inproc",
+        pytest.param(
+            "breakpad",
+            marks=pytest.mark.skipif(
+                not has_breakpad, reason="breakpad backend not available"
+            ),
+        ),
+    ],
+)
 def test_cache_max_size(cmake, backend):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": backend})
     cache_dir = tmp_path.joinpath(".sentry-native/cache")
@@ -68,7 +90,18 @@ def test_cache_max_size(cmake, backend):
     assert sum(f.stat().st_size for f in cache_files) <= 8 * 1000 * 1024
 
 
-@pytest.mark.parametrize("backend", ["inproc", "breakpad"])
+@pytest.mark.parametrize(
+    "backend",
+    [
+        "inproc",
+        pytest.param(
+            "breakpad",
+            marks=pytest.mark.skipif(
+                not has_breakpad, reason="breakpad backend not available"
+            ),
+        ),
+    ],
+)
 def test_cache_max_age(cmake, backend):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": backend})
     cache_dir = tmp_path.joinpath(".sentry-native/cache")
