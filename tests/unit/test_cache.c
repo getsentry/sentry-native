@@ -138,7 +138,7 @@ SENTRY_TEST(cache_max_age)
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
     sentry_options_set_cache_keep(options, true);
-    sentry_options_set_cache_max_age(options, 3); // 3 days
+    sentry_options_set_cache_max_age(options, 3 * 24 * 60 * 60); // 3 days
     sentry_init(options);
 
     sentry_path_t *cache_path
@@ -147,7 +147,7 @@ SENTRY_TEST(cache_max_age)
     TEST_ASSERT(sentry__path_remove_all(cache_path) == 0);
     TEST_ASSERT(sentry__path_create_dir_all(cache_path) == 0);
 
-    // 10 files, 0-9 days old
+    // 10 files, 0-9 days ago
     time_t now = time(NULL);
     for (int i = 0; i < 10; i++) {
         sentry_uuid_t event_id = sentry_uuid_new_v4();

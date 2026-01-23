@@ -54,7 +54,7 @@ sentry_options_new(void)
     opts->propagate_traceparent = false;
     opts->crashpad_limit_stack_capture_to_sp = false;
     opts->cache_keep = false;
-    opts->cache_max_age = 2;
+    opts->cache_max_age = 2 * 24 * 60 * 60;
     opts->cache_max_size = 1024 * 8;
     opts->symbolize_stacktraces =
     // AIX doesn't have reliable debug IDs for server-side symbolication,
@@ -491,7 +491,7 @@ sentry_options_set_cache_max_size(sentry_options_t *opts, size_t size)
 }
 
 void
-sentry_options_set_cache_max_age(sentry_options_t *opts, int age)
+sentry_options_set_cache_max_age(sentry_options_t *opts, uint64_t age)
 {
     opts->cache_max_age = age;
 }
