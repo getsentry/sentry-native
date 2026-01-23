@@ -19,9 +19,10 @@ set_file_mtime(const sentry_path_t *path, time_t mtime)
 #ifdef SENTRY_PLATFORM_WINDOWS
     HANDLE h = CreateFileW(path->path_w, FILE_WRITE_ATTRIBUTES, 0, NULL,
         OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-    ULARGE_INTEGER ft
-        = { (uint64_t)(mtime * 10000000ULL + 116444736000000000ULL) };
-    BOOL rv = SetFileTime(h, NULL, NULL, (FILETIME *)&ft);
+    // 100 ns intervals since January 1, 1601 (UTC)
+    uint64_t t = ((uint64_t)mtime * 10000000ULL) + 116444736000000000ULL;
+    FILETIME ft = { (DWORD)t, (DWORD)(t >> 32) };
+    BOOL rv = SetFileTime(h, NULL, NULL, &ft);
     CloseHandle(h);
     return rv ? 0 : -1;
 #else
