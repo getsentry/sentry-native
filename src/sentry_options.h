@@ -48,7 +48,7 @@ struct sentry_options_s {
     bool cache_keep;
 
     uint64_t cache_max_age;
-    size_t cache_max_size; // TODO in kb?
+    size_t cache_max_size;
 
     sentry_attachment_t *attachments;
     sentry_run_t *run;

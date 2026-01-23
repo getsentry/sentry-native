@@ -87,7 +87,7 @@ SENTRY_TEST(cache_max_size)
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
     sentry_options_set_cache_keep(options, true);
-    sentry_options_set_cache_max_size(options, 10); // 10 kb
+    sentry_options_set_cache_max_size(options, 10 * 1024); // 10 kb
     sentry_init(options);
 
     sentry_path_t *cache_path

@@ -323,16 +323,8 @@ sentry__process_old_runs(const sentry_options_t *options, uint64_t last_crash)
 typedef struct {
     sentry_path_t *path;
     time_t mtime;
-    size_t size_in_kb;
+    size_t size;
 } cache_entry_t;
-
-static size_t
-get_file_size_in_kb(const sentry_path_t *path)
-{
-    size_t bytes = sentry__path_get_size(path);
-    // Round up to next KB boundary
-    return (bytes + 1023) / 1024;
-}
 
 /**
  * Comparison function to sort cache entries by mtime, newest first.
@@ -398,7 +390,7 @@ sentry__cleanup_cache(const sentry_options_t *options)
 
         entries[entries_count].path = sentry__path_clone(entry);
         entries[entries_count].mtime = sentry__path_get_mtime(entry);
-        entries[entries_count].size_in_kb = get_file_size_in_kb(entry);
+        entries[entries_count].size = sentry__path_get_size(entry);
         entries_count++;
     }
     sentry__pathiter_free(iter);
@@ -414,7 +406,7 @@ sentry__cleanup_cache(const sentry_options_t *options)
 
     // Prune entries: iterate newest-to-oldest, accumulating size
     // Remove if: too old OR accumulated size exceeds limit
-    size_t accumulated_size_kb = 0;
+    size_t accumulated_size = 0;
     for (size_t i = 0; i < entries_count; i++) {
         bool should_prune = false;
 
@@ -424,9 +416,9 @@ sentry__cleanup_cache(const sentry_options_t *options)
         }
 
         // Size-based pruning (accumulate size as we go, like crashpad)
-        accumulated_size_kb += entries[i].size_in_kb;
+        accumulated_size += entries[i].size;
         if (options->cache_max_size > 0
-            && accumulated_size_kb > (size_t)options->cache_max_size) {
+            && accumulated_size > options->cache_max_size) {
             should_prune = true;
         }
 

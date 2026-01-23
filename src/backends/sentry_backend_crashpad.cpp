@@ -749,7 +749,8 @@ crashpad_backend_prune_database(sentry_backend_t *backend)
         data->db->CleanDatabase(options->cache_max_age);
         crashpad::BinaryPruneCondition condition(
             crashpad::BinaryPruneCondition::OR,
-            new crashpad::DatabaseSizePruneCondition(options->cache_max_size),
+            new crashpad::DatabaseSizePruneCondition(
+                options->cache_max_size / 1024),
             new crashpad::AgePruneCondition(
                 options->cache_max_age / (24 * 60 * 60)));
         crashpad::PruneCrashReportDatabase(data->db, &condition);

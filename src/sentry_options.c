@@ -55,7 +55,7 @@ sentry_options_new(void)
     opts->crashpad_limit_stack_capture_to_sp = false;
     opts->cache_keep = false;
     opts->cache_max_age = 2 * 24 * 60 * 60;
-    opts->cache_max_size = 1024 * 8;
+    opts->cache_max_size = 8 * 1024 * 1024;
     opts->symbolize_stacktraces =
     // AIX doesn't have reliable debug IDs for server-side symbolication,
     // and the diversity of Android makes it infeasible to have access to debug

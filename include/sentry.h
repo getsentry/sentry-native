@@ -1382,7 +1382,7 @@ SENTRY_API int sentry_options_get_symbolize_stacktraces(
 SENTRY_API void sentry_options_set_cache_keep(
     sentry_options_t *opts, int enabled);
 /**
- * Sets the maximum size (kb) for the cache folder.
+ * Sets the maximum size (in bytes) for the cache folder.
  * On startup, we check new->old entries, and remove those that go over either
  * boundary.
  */
