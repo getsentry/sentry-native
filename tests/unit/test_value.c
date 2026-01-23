@@ -4,6 +4,7 @@
 #include <locale.h>
 #include <math.h>
 #include <stdint.h>
+#include <string.h>
 
 SENTRY_TEST(value_null)
 {
@@ -1256,4 +1257,276 @@ SENTRY_TEST(event_with_id)
         "native");
 
     sentry_value_decref(event);
+}
+
+SENTRY_TEST(value_from_msgpack_empty)
+{
+    TEST_CHECK(sentry_value_is_null(sentry__value_from_msgpack(NULL, 0)));
+    TEST_CHECK(sentry_value_is_null(sentry__value_from_msgpack("", 0)));
+}
+
+SENTRY_TEST(value_from_msgpack_null)
+{
+    sentry_value_t val = sentry_value_new_null();
+    size_t size = 0;
+    char *buf = sentry_value_to_msgpack(val, &size);
+
+    sentry_value_t deserialized = sentry__value_from_msgpack(buf, size);
+    TEST_CHECK(sentry_value_get_type(deserialized) == SENTRY_VALUE_TYPE_NULL);
+    TEST_CHECK(sentry_value_is_null(deserialized));
+
+    sentry_free(buf);
+    sentry_value_decref(val);
+    sentry_value_decref(deserialized);
+}
+
+SENTRY_TEST(value_from_msgpack_bool)
+{
+    {
+        sentry_value_t val = sentry_value_new_bool(true);
+        size_t size = 0;
+        char *buf = sentry_value_to_msgpack(val, &size);
+
+        sentry_value_t deserialized = sentry__value_from_msgpack(buf, size);
+        TEST_CHECK(
+            sentry_value_get_type(deserialized) == SENTRY_VALUE_TYPE_BOOL);
+        TEST_CHECK(sentry_value_is_true(deserialized));
+
+        sentry_free(buf);
+        sentry_value_decref(val);
+        sentry_value_decref(deserialized);
+    }
+    {
+        sentry_value_t val = sentry_value_new_bool(false);
+        size_t size = 0;
+        char *buf = sentry_value_to_msgpack(val, &size);
+
+        sentry_value_t deserialized = sentry__value_from_msgpack(buf, size);
+        TEST_CHECK(
+            sentry_value_get_type(deserialized) == SENTRY_VALUE_TYPE_BOOL);
+        TEST_CHECK(!sentry_value_is_true(deserialized));
+
+        sentry_free(buf);
+        sentry_value_decref(val);
+        sentry_value_decref(deserialized);
+    }
+}
+
+SENTRY_TEST(value_from_msgpack_int32)
+{
+    {
+        sentry_value_t val = sentry_value_new_int32(42);
+        size_t size = 0;
+        char *buf = sentry_value_to_msgpack(val, &size);
+
+        sentry_value_t deserialized = sentry__value_from_msgpack(buf, size);
+        TEST_CHECK(
+            sentry_value_get_type(deserialized) == SENTRY_VALUE_TYPE_INT32);
+        TEST_CHECK(sentry_value_as_int32(deserialized) == 42);
+
+        sentry_free(buf);
+        sentry_value_decref(val);
+        sentry_value_decref(deserialized);
+    }
+    {
+        sentry_value_t val = sentry_value_new_int32(-123);
+        size_t size = 0;
+        char *buf = sentry_value_to_msgpack(val, &size);
+
+        sentry_value_t deserialized = sentry__value_from_msgpack(buf, size);
+        TEST_CHECK(
+            sentry_value_get_type(deserialized) == SENTRY_VALUE_TYPE_INT32);
+        TEST_CHECK(sentry_value_as_int32(deserialized) == -123);
+
+        sentry_free(buf);
+        sentry_value_decref(val);
+        sentry_value_decref(deserialized);
+    }
+}
+
+SENTRY_TEST(value_from_msgpack_int64)
+{
+    {
+        sentry_value_t val = sentry_value_new_int64((int64_t)INT32_MIN - 1);
+        size_t size = 0;
+        char *buf = sentry_value_to_msgpack(val, &size);
+
+        sentry_value_t deserialized = sentry__value_from_msgpack(buf, size);
+        TEST_CHECK(
+            sentry_value_get_type(deserialized) == SENTRY_VALUE_TYPE_INT64);
+        TEST_CHECK(
+            sentry_value_as_int64(deserialized) == (int64_t)INT32_MIN - 1);
+
+        sentry_free(buf);
+        sentry_value_decref(val);
+        sentry_value_decref(deserialized);
+    }
+    {
+        sentry_value_t val = sentry_value_new_int64(INT64_MIN);
+        size_t size = 0;
+        char *buf = sentry_value_to_msgpack(val, &size);
+
+        sentry_value_t deserialized = sentry__value_from_msgpack(buf, size);
+        TEST_CHECK(
+            sentry_value_get_type(deserialized) == SENTRY_VALUE_TYPE_INT64);
+        TEST_CHECK(sentry_value_as_int64(deserialized) == INT64_MIN);
+
+        sentry_free(buf);
+        sentry_value_decref(val);
+        sentry_value_decref(deserialized);
+    }
+}
+
+SENTRY_TEST(value_from_msgpack_uint64)
+{
+    sentry_value_t val = sentry_value_new_uint64((uint64_t)INT32_MAX + 1);
+    size_t size = 0;
+    char *buf = sentry_value_to_msgpack(val, &size);
+
+    sentry_value_t deserialized = sentry__value_from_msgpack(buf, size);
+    TEST_CHECK(sentry_value_get_type(deserialized) == SENTRY_VALUE_TYPE_UINT64);
+    TEST_CHECK(sentry_value_as_uint64(deserialized) == (uint64_t)INT32_MAX + 1);
+
+    sentry_free(buf);
+    sentry_value_decref(val);
+    sentry_value_decref(deserialized);
+}
+
+SENTRY_TEST(value_from_msgpack_double)
+{
+    sentry_value_t val = sentry_value_new_double(3.14159);
+    size_t size = 0;
+    char *buf = sentry_value_to_msgpack(val, &size);
+
+    sentry_value_t deserialized = sentry__value_from_msgpack(buf, size);
+    TEST_CHECK(sentry_value_get_type(deserialized) == SENTRY_VALUE_TYPE_DOUBLE);
+    double d = sentry_value_as_double(deserialized);
+    TEST_CHECK(d > 3.14 && d < 3.15);
+
+    sentry_free(buf);
+    sentry_value_decref(val);
+    sentry_value_decref(deserialized);
+}
+
+SENTRY_TEST(value_from_msgpack_string)
+{
+    sentry_value_t val = sentry_value_new_string("őá…–🤮🚀¿ 한글 테스트 \a\v");
+    size_t size = 0;
+    char *buf = sentry_value_to_msgpack(val, &size);
+
+    sentry_value_t deserialized = sentry__value_from_msgpack(buf, size);
+    TEST_CHECK(sentry_value_get_type(deserialized) == SENTRY_VALUE_TYPE_STRING);
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(deserialized), "őá…–🤮🚀¿ 한글 테스트 \a\v");
+
+    sentry_free(buf);
+    sentry_value_decref(val);
+    sentry_value_decref(deserialized);
+}
+
+SENTRY_TEST(value_from_msgpack_list)
+{
+    sentry_value_t inner = sentry_value_new_list();
+    sentry_value_append(inner, sentry_value_new_int32(1));
+    sentry_value_append(inner, sentry_value_new_int32(2));
+
+    sentry_value_t val = sentry_value_new_list();
+    sentry_value_append(val, inner);
+    sentry_value_append(val, sentry_value_new_string("outer"));
+
+    size_t size = 0;
+    char *buf = sentry_value_to_msgpack(val, &size);
+
+    sentry_value_t deserialized = sentry__value_from_msgpack(buf, size);
+    TEST_CHECK(sentry_value_get_type(deserialized) == SENTRY_VALUE_TYPE_LIST);
+    TEST_CHECK(sentry_value_get_length(deserialized) == 2);
+
+    sentry_value_t nested = sentry_value_get_by_index(deserialized, 0);
+    TEST_CHECK(sentry_value_get_type(nested) == SENTRY_VALUE_TYPE_LIST);
+    TEST_CHECK(sentry_value_get_length(nested) == 2);
+
+    sentry_value_t nested_elem0 = sentry_value_get_by_index(nested, 0);
+    TEST_CHECK(sentry_value_as_int32(nested_elem0) == 1);
+
+    sentry_value_t nested_elem1 = sentry_value_get_by_index(nested, 1);
+    TEST_CHECK(sentry_value_as_int32(nested_elem1) == 2);
+
+    sentry_free(buf);
+    sentry_value_decref(val);
+    sentry_value_decref(deserialized);
+}
+
+SENTRY_TEST(value_from_msgpack_object)
+{
+    sentry_value_t inner = sentry_value_new_object();
+    sentry_value_set_by_key(inner, "x", sentry_value_new_int32(10));
+    sentry_value_set_by_key(inner, "y", sentry_value_new_int32(20));
+
+    sentry_value_t val = sentry_value_new_object();
+    sentry_value_set_by_key(val, "position", inner);
+    sentry_value_set_by_key(val, "label", sentry_value_new_string("point"));
+
+    size_t size = 0;
+    char *buf = sentry_value_to_msgpack(val, &size);
+
+    sentry_value_t deserialized = sentry__value_from_msgpack(buf, size);
+    TEST_CHECK(sentry_value_get_type(deserialized) == SENTRY_VALUE_TYPE_OBJECT);
+
+    sentry_value_t position = sentry_value_get_by_key(deserialized, "position");
+    TEST_CHECK(sentry_value_get_type(position) == SENTRY_VALUE_TYPE_OBJECT);
+
+    sentry_value_t x = sentry_value_get_by_key(position, "x");
+    TEST_CHECK(sentry_value_as_int32(x) == 10);
+
+    sentry_value_t y = sentry_value_get_by_key(position, "y");
+    TEST_CHECK(sentry_value_as_int32(y) == 20);
+
+    sentry_free(buf);
+    sentry_value_decref(val);
+    sentry_value_decref(deserialized);
+}
+
+SENTRY_TEST(value_from_msgpack_flat_buffer)
+{
+    sentry_value_t val1 = sentry_value_new_int32(1);
+    size_t size1 = 0;
+    char *buf1 = sentry_value_to_msgpack(val1, &size1);
+
+    sentry_value_t val2 = sentry_value_new_int32(2);
+    size_t size2 = 0;
+    char *buf2 = sentry_value_to_msgpack(val2, &size2);
+
+    sentry_value_t val3 = sentry_value_new_string("three");
+    size_t size3 = 0;
+    char *buf3 = sentry_value_to_msgpack(val3, &size3);
+
+    char combined[256];
+    size_t combined_size = 0;
+    memcpy(combined + combined_size, buf1, size1);
+    combined_size += size1;
+    memcpy(combined + combined_size, buf2, size2);
+    combined_size += size2;
+    memcpy(combined + combined_size, buf3, size3);
+    combined_size += size3;
+
+    sentry_value_t result = sentry__value_from_msgpack(combined, combined_size);
+    TEST_CHECK(sentry_value_get_type(result) == SENTRY_VALUE_TYPE_LIST);
+    TEST_CHECK(sentry_value_get_length(result) == 3);
+
+    sentry_value_t elem0 = sentry_value_get_by_index(result, 0);
+    TEST_CHECK(sentry_value_as_int32(elem0) == 1);
+
+    sentry_value_t elem1 = sentry_value_get_by_index(result, 1);
+    TEST_CHECK(sentry_value_as_int32(elem1) == 2);
+
+    sentry_value_t elem2 = sentry_value_get_by_index(result, 2);
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(elem2), "three");
+
+    sentry_free(buf1);
+    sentry_free(buf2);
+    sentry_free(buf3);
+    sentry_value_decref(val1);
+    sentry_value_decref(val2);
+    sentry_value_decref(val3);
+    sentry_value_decref(result);
 }
