@@ -22,7 +22,9 @@ pytestmark = pytest.mark.skipif(not has_files, reason="tests need local filesyst
     ],
 )
 def test_cache_keep(cmake, backend, cache_keep):
-    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": backend})
+    tmp_path = cmake(
+        ["sentry_example"], {"SENTRY_BACKEND": backend, "SENTRY_TRANSPORT": "none"}
+    )
 
     run(
         tmp_path,
@@ -59,7 +61,9 @@ def test_cache_keep(cmake, backend, cache_keep):
     ],
 )
 def test_cache_max_size(cmake, backend):
-    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": backend})
+    tmp_path = cmake(
+        ["sentry_example"], {"SENTRY_BACKEND": backend, "SENTRY_TRANSPORT": "none"}
+    )
     cache_dir = tmp_path.joinpath(".sentry-native/cache")
 
     # 5 x 2mb
@@ -103,7 +107,9 @@ def test_cache_max_size(cmake, backend):
     ],
 )
 def test_cache_max_age(cmake, backend):
-    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": backend})
+    tmp_path = cmake(
+        ["sentry_example"], {"SENTRY_BACKEND": backend, "SENTRY_TRANSPORT": "none"}
+    )
     cache_dir = tmp_path.joinpath(".sentry-native/cache")
 
     for i in range(5):
