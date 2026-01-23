@@ -107,4 +107,14 @@ int sentry__value_merge_objects(sentry_value_t dst, sentry_value_t src);
 void sentry__jsonwriter_write_value(
     sentry_jsonwriter_t *jw, sentry_value_t value);
 
+/**
+ * Deserialize a sentry value from msgpack.
+ *
+ * If the buffer contains multiple sequential msgpack values (as in flat buffers
+ * like breadcrumb files), they are automatically wrapped in a list.
+ *
+ * The returned value must be released with `sentry_value_decref`.
+ */
+sentry_value_t sentry__value_from_msgpack(const char *buf, size_t buf_len);
+
 #endif
