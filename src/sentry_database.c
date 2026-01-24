@@ -402,7 +402,7 @@ sentry__cleanup_cache(const sentry_options_t *options)
 
     // Calculate the age threshold
     time_t now = time(NULL);
-    time_t oldest_allowed = now - options->cache_max_age;
+    time_t oldest_allowed = now - (time_t)options->cache_max_age;
 
     // Prune entries: iterate newest-to-oldest, accumulating size
     // Remove if: too old OR accumulated size exceeds limit
