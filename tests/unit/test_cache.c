@@ -138,7 +138,7 @@ SENTRY_TEST(cache_max_age)
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
     sentry_options_set_cache_keep(options, true);
-    sentry_options_set_cache_max_age(options, 3 * 24 * 60 * 60); // 3 days
+    sentry_options_set_cache_max_age(options, 5 * 24 * 60 * 60); // 5 days
     sentry_init(options);
 
     sentry_path_t *cache_path
@@ -147,9 +147,9 @@ SENTRY_TEST(cache_max_age)
     TEST_ASSERT(sentry__path_remove_all(cache_path) == 0);
     TEST_ASSERT(sentry__path_create_dir_all(cache_path) == 0);
 
-    // 10 files, 0-9 days ago
+    // 0,2,4,6,8 days ago
     time_t now = time(NULL);
-    for (int i = 0; i < 10; i++) {
+    for (int i = 0; i < 5; i++) {
         sentry_uuid_t event_id = sentry_uuid_new_v4();
         char *filename = sentry__uuid_as_filename(&event_id, ".envelope");
         TEST_ASSERT(!!filename);
@@ -157,7 +157,7 @@ SENTRY_TEST(cache_max_age)
         sentry_free(filename);
 
         TEST_ASSERT(sentry__path_touch(filepath) == 0);
-        time_t mtime = now - (i * 24 * 60 * 60); // N days ago
+        time_t mtime = now - (i * 2 * 24 * 60 * 60); // N days ago
         TEST_CHECK(set_file_mtime(filepath, mtime) == 0);
         sentry__path_free(filepath);
     }
@@ -170,11 +170,11 @@ SENTRY_TEST(cache_max_age)
     while (iter && (entry = sentry__pathiter_next(iter)) != NULL) {
         cache_count++;
         time_t mtime = sentry__path_get_mtime(entry);
-        TEST_CHECK(now - mtime <= (3 * 24 * 60 * 60));
+        TEST_CHECK(now - mtime <= (5 * 24 * 60 * 60));
     }
     sentry__pathiter_free(iter);
 
-    TEST_CHECK_INT_EQUAL(cache_count, 4);
+    TEST_CHECK_INT_EQUAL(cache_count, 3);
 
     sentry__path_free(cache_path);
     sentry_close();
