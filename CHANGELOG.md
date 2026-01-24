@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Add new offline caching options to persist envelopes locally, currently supported with the `inproc` and `breakpad` backends: `sentry_options_set_cache_keep`, `sentry_options_set_cache_max_size`, and `sentry_options_set_cache_max_age`. ([#1490](https://github.com/getsentry/sentry-native/pull/1490))
+
 **Fixes**:
 
 - Crashpad: namespace mpack to avoid ODR violation. ([#1476](https://github.com/getsentry/sentry-native/pull/1476), [crashpad#143](https://github.com/getsentry/crashpad/pull/143))
