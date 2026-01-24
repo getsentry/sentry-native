@@ -117,4 +117,11 @@ void sentry__jsonwriter_write_value(
  */
 sentry_value_t sentry__value_from_msgpack(const char *buf, size_t buf_len);
 
+/**
+ * Merges two breadcrumb lists in timestamp order, keeping at most `max` items.
+ * Returns a new list with the merged breadcrumbs.
+ */
+sentry_value_t sentry__value_merge_breadcrumbs(
+    sentry_value_t list_a, sentry_value_t list_b, size_t max);
+
 #endif
