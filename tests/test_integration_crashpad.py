@@ -31,6 +31,7 @@ from .assertions import (
     assert_gzip_file_header,
     assert_logs,
     assert_user_feedback,
+    wait_for_file,
 )
 
 pytestmark = pytest.mark.skipif(
@@ -420,7 +421,7 @@ def test_crashpad_dumping_crash(cmake, httpserver, run_args, build_args):
         minidump = tmp_path / ".sentry-native" / "reports" / f"{event_id}.dmp"
     else:
         minidump = tmp_path / ".sentry-native" / "completed" / f"{event_id}.dmp"
-    assert minidump.exists()
+    assert wait_for_file(minidump)
 
 
 @pytest.mark.parametrize(
