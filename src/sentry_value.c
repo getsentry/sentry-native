@@ -1643,6 +1643,8 @@ value_from_mpack(mpack_node_t node)
         uint64_t u64_val = mpack_node_u64(node);
         if (u64_val <= INT32_MAX) {
             return sentry_value_new_int32((int32_t)u64_val);
+        } else if (u64_val <= INT64_MAX) {
+            return sentry_value_new_int64((int64_t)u64_val);
         } else {
             return sentry_value_new_uint64(u64_val);
         }

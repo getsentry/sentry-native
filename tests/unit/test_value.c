@@ -1375,17 +1375,46 @@ SENTRY_TEST(value_from_msgpack_int64)
         sentry_value_decref(val);
         sentry_value_decref(deserialized);
     }
+    {
+        sentry_value_t val = sentry_value_new_int64((int64_t)INT32_MAX + 1);
+        size_t size = 0;
+        char *buf = sentry_value_to_msgpack(val, &size);
+
+        sentry_value_t deserialized = sentry__value_from_msgpack(buf, size);
+        TEST_CHECK(
+            sentry_value_get_type(deserialized) == SENTRY_VALUE_TYPE_INT64);
+        TEST_CHECK(
+            sentry_value_as_int64(deserialized) == (int64_t)INT32_MAX + 1);
+
+        sentry_free(buf);
+        sentry_value_decref(val);
+        sentry_value_decref(deserialized);
+    }
+    {
+        sentry_value_t val = sentry_value_new_int64(INT64_MAX);
+        size_t size = 0;
+        char *buf = sentry_value_to_msgpack(val, &size);
+
+        sentry_value_t deserialized = sentry__value_from_msgpack(buf, size);
+        TEST_CHECK(
+            sentry_value_get_type(deserialized) == SENTRY_VALUE_TYPE_INT64);
+        TEST_CHECK(sentry_value_as_int64(deserialized) == INT64_MAX);
+
+        sentry_free(buf);
+        sentry_value_decref(val);
+        sentry_value_decref(deserialized);
+    }
 }
 
 SENTRY_TEST(value_from_msgpack_uint64)
 {
-    sentry_value_t val = sentry_value_new_uint64((uint64_t)INT32_MAX + 1);
+    sentry_value_t val = sentry_value_new_uint64(UINT64_MAX);
     size_t size = 0;
     char *buf = sentry_value_to_msgpack(val, &size);
 
     sentry_value_t deserialized = sentry__value_from_msgpack(buf, size);
     TEST_CHECK(sentry_value_get_type(deserialized) == SENTRY_VALUE_TYPE_UINT64);
-    TEST_CHECK(sentry_value_as_uint64(deserialized) == (uint64_t)INT32_MAX + 1);
+    TEST_CHECK(sentry_value_as_uint64(deserialized) == UINT64_MAX);
 
     sentry_free(buf);
     sentry_value_decref(val);
