@@ -1650,7 +1650,6 @@ value_from_mpack(mpack_node_t node)
         }
     }
     case mpack_type_float:
-        return sentry_value_new_double((double)mpack_node_float(node));
     case mpack_type_double:
         return sentry_value_new_double(mpack_node_double(node));
     case mpack_type_str: {
