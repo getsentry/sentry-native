@@ -1709,15 +1709,13 @@ sentry__value_from_msgpack(const char *buf, size_t buf_len)
         mpack_tree_destroy(&tree);
 
         if (offset == 0 && sentry_value_is_null(result)) {
-            result = value;
-        } else {
-            if (sentry_value_get_type(result) != SENTRY_VALUE_TYPE_LIST) {
-                sentry_value_t list = sentry_value_new_list();
-                if (!sentry_value_is_null(list)) {
-                    sentry_value_append(list, result);
-                    result = list;
-                }
+            if (offset + size < buf_len) {
+                result = sentry_value_new_list();
+                sentry_value_append(result, value);
+            } else {
+                result = value;
             }
+        } else {
             sentry_value_append(result, value);
         }
 

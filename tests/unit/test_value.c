@@ -1488,7 +1488,9 @@ SENTRY_TEST(value_from_msgpack_object)
 
 SENTRY_TEST(value_from_msgpack_flat_buffer)
 {
-    sentry_value_t val1 = sentry_value_new_int32(1);
+    sentry_value_t val1 = sentry_value_new_list();
+    sentry_value_append(val1, sentry_value_new_int32(1));
+    sentry_value_append(val1, sentry_value_new_int32(2));
     size_t size1 = 0;
     char *buf1 = sentry_value_to_msgpack(val1, &size1);
 
@@ -1514,7 +1516,10 @@ SENTRY_TEST(value_from_msgpack_flat_buffer)
     TEST_CHECK(sentry_value_get_length(result) == 3);
 
     sentry_value_t elem0 = sentry_value_get_by_index(result, 0);
-    TEST_CHECK(sentry_value_as_int32(elem0) == 1);
+    TEST_CHECK(sentry_value_get_type(elem0) == SENTRY_VALUE_TYPE_LIST);
+    TEST_CHECK(sentry_value_get_length(elem0) == 2);
+    TEST_CHECK(sentry_value_as_int32(sentry_value_get_by_index(elem0, 0)) == 1);
+    TEST_CHECK(sentry_value_as_int32(sentry_value_get_by_index(elem0, 1)) == 2);
 
     sentry_value_t elem1 = sentry_value_get_by_index(result, 1);
     TEST_CHECK(sentry_value_as_int32(elem1) == 2);
