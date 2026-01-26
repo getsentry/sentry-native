@@ -1680,6 +1680,8 @@ value_from_mpack(mpack_node_t node)
         }
         return obj;
     }
+    case mpack_type_missing:
+    case mpack_type_bin:
     default:
         return sentry_value_new_null();
     }
