@@ -1658,18 +1658,18 @@ value_from_mpack(mpack_node_t node)
         return sentry_value_new_string_n(mpack_node_str(node), str_len);
     }
     case mpack_type_array: {
-        uint32_t arr_len = mpack_node_array_length(node);
+        size_t arr_len = mpack_node_array_length(node);
         sentry_value_t arr = sentry_value_new_list();
-        for (uint32_t i = 0; i < arr_len; i++) {
+        for (size_t i = 0; i < arr_len; i++) {
             sentry_value_append(
                 arr, value_from_mpack(mpack_node_array_at(node, i)));
         }
         return arr;
     }
     case mpack_type_map: {
-        uint32_t map_len = mpack_node_map_count(node);
+        size_t map_len = mpack_node_map_count(node);
         sentry_value_t obj = sentry_value_new_object();
-        for (uint32_t i = 0; i < map_len; i++) {
+        for (size_t i = 0; i < map_len; i++) {
             mpack_node_t key_node = mpack_node_map_key_at(node, i);
             if (mpack_node_type(key_node) != mpack_type_str) {
                 continue; // skip non-string keys
