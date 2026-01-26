@@ -1,7 +1,7 @@
 black==24.3.0
 pytest==8.1.1
 pytest-httpserver==1.0.10
-pytest-rerunfailures==16.1
+flaky==3.8.1
 msgpack==1.0.8
 pytest-xdist==3.5.0
 clang-format==20.1.5

@@ -8,6 +8,7 @@ import uuid
 import subprocess
 
 import pytest
+from flaky import flaky
 
 from . import (
     make_dsn,
@@ -555,7 +556,7 @@ def test_breakpad_dump_inflight(cmake, httpserver):
     assert len(httpserver.log) >= 11
 
 
-@pytest.mark.flaky(reruns=3)
+@flaky(max_runs=3)
 def test_shutdown_timeout(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
 
