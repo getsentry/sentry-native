@@ -18,6 +18,7 @@ extern "C" {
 #include "sentry_screenshot.h"
 #include "sentry_sync.h"
 #include "sentry_transport.h"
+#include "sentry_value.h"
 #ifdef SENTRY_PLATFORM_LINUX
 #    include "sentry_unix_pageallocator.h"
 #endif
@@ -432,6 +433,151 @@ sentry__crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
 }
 #endif
 
+static sentry_value_t
+read_msgpack_file(const sentry_path_t *path)
+{
+    size_t size;
+    char *data = sentry__path_read_to_buffer(path, &size);
+    if (!data) {
+        return sentry_value_new_null();
+    }
+    sentry_value_t value = sentry__value_from_msgpack(data, size);
+    sentry_free(data);
+    return value;
+}
+
+static sentry_path_t *
+report_minidump_path(const crashpad::CrashReportDatabase::Report &report)
+{
+    return
+#ifdef SENTRY_PLATFORM_WINDOWS
+        sentry__path_from_wstr(report.file_path.value().c_str());
+#else
+        sentry__path_from_str(report.file_path.value().c_str());
+#endif
+}
+
+static sentry_path_t *
+report_attachments_dir(const crashpad::CrashReportDatabase::Report &report,
+    const sentry_options_t *options)
+{
+    sentry_path_t *attachments_root
+        = sentry__path_join_str(options->database_path, "attachments");
+    if (!attachments_root) {
+        return nullptr;
+    }
+
+    sentry_path_t *attachments_dir = sentry__path_join_str(
+        attachments_root, report.uuid.ToString().c_str());
+
+    sentry__path_free(attachments_root);
+    return attachments_dir;
+}
+
+static sentry_envelope_t *
+report_to_envelope(const crashpad::CrashReportDatabase::Report &report,
+    const sentry_options_t *options)
+{
+    sentry_envelope_t *envelope = sentry__envelope_new();
+    sentry_path_t *minidump_path = report_minidump_path(report);
+    sentry_path_t *attachments_dir = report_attachments_dir(report, options);
+
+    if (!envelope || !minidump_path || !attachments_dir) {
+        sentry_envelope_free(envelope);
+        sentry__path_free(minidump_path);
+        sentry__path_free(attachments_dir);
+        return nullptr;
+    }
+
+    sentry_value_t event = sentry_value_new_null();
+    sentry_value_t breadcrumbs1 = sentry_value_new_null();
+    sentry_value_t breadcrumbs2 = sentry_value_new_null();
+    sentry_attachment_t *attachments = nullptr;
+
+    sentry_pathiter_t *iter = sentry__path_iter_directory(attachments_dir);
+    if (iter) {
+        const sentry_path_t *path;
+        while ((path = sentry__pathiter_next(iter)) != nullptr) {
+            const char *filename = sentry__path_filename(path);
+            if (strcmp(filename, "__sentry-event") == 0) {
+                event = read_msgpack_file(path);
+            } else if (strcmp(filename, "__sentry-breadcrumb1") == 0) {
+                breadcrumbs1 = read_msgpack_file(path);
+            } else if (strcmp(filename, "__sentry-breadcrumb2") == 0) {
+                breadcrumbs2 = read_msgpack_file(path);
+            } else {
+                sentry__attachments_add_path(&attachments,
+                    sentry__path_clone(path), ATTACHMENT, nullptr);
+            }
+        }
+        sentry__pathiter_free(iter);
+    }
+    sentry__path_free(attachments_dir);
+
+    sentry_value_set_by_key(event, "breadcrumbs",
+        sentry__value_merge_breadcrumbs(
+            breadcrumbs1, breadcrumbs2, options->max_breadcrumbs));
+    sentry__attachments_add_path(
+        &attachments, minidump_path, MINIDUMP, nullptr);
+
+    sentry__envelope_add_event(envelope, event);
+    sentry__envelope_add_attachments(envelope, attachments);
+
+    sentry_value_decref(breadcrumbs1);
+    sentry_value_decref(breadcrumbs2);
+    sentry__attachments_free(attachments);
+
+    return envelope;
+}
+
+static void
+process_completed_reports(
+    crashpad_state_t *state, const sentry_options_t *options)
+{
+    if (!state || !state->db || !options || !options->cache_keep) {
+        return;
+    }
+
+    std::vector<crashpad::CrashReportDatabase::Report> reports;
+    if (state->db->GetCompletedReports(&reports)
+            != crashpad::CrashReportDatabase::kNoError
+        || reports.empty()) {
+        return;
+    }
+
+    SENTRY_DEBUGF("caching %zu completed reports", reports.size());
+
+    sentry_path_t *cache_dir
+        = sentry__path_join_str(options->database_path, "cache");
+    if (!cache_dir || sentry__path_create_dir_all(cache_dir) != 0) {
+        SENTRY_WARN("failed to create cache dir");
+        sentry__path_free(cache_dir);
+        return;
+    }
+
+    for (const auto &report : reports) {
+        sentry_envelope_t *envelope = report_to_envelope(report, options);
+        if (!envelope) {
+            continue;
+        }
+
+        std::string filename = report.uuid.ToString() + ".envelope";
+        sentry_path_t *out_path
+            = sentry__path_join_str(cache_dir, filename.c_str());
+        if (!out_path
+            || sentry_envelope_write_to_path(envelope, out_path) != 0) {
+            SENTRY_WARNF("failed to cache \"%s\"", filename.c_str());
+        } else if (state->db->DeleteReport(report.uuid)
+            != crashpad::CrashReportDatabase::kNoError) {
+            SENTRY_WARNF("failed to delete \"%s\"", filename.c_str());
+        }
+        sentry__path_free(out_path);
+        sentry_envelope_free(envelope);
+    }
+
+    sentry__path_free(cache_dir);
+}
+
 static int
 crashpad_backend_startup(
     sentry_backend_t *backend, const sentry_options_t *options)
@@ -539,9 +685,13 @@ crashpad_backend_startup(
 
     std::vector<std::string> arguments { "--no-rate-limit" };
 
+    char report_id[37];
+    sentry_uuid_as_string(&data->crash_event_id, report_id);
+
     // Initialize database first, flushing the consent later on as part of
     // `sentry_init` will persist the upload flag.
     data->db = crashpad::CrashReportDatabase::Initialize(database).release();
+    process_completed_reports(data, options);
     data->client = new crashpad::CrashpadClient;
     char *minidump_url
         = sentry__dsn_get_minidump_url(options->dsn, options->user_agent);
@@ -564,7 +714,8 @@ crashpad_backend_startup(
         minidump_url ? minidump_url : "", proxy_url, annotations, arguments,
         /* restartable */ true,
         /* asynchronous_start */ false, attachments, screenshot,
-        options->crashpad_wait_for_upload, crash_reporter, crash_envelope);
+        options->crashpad_wait_for_upload, crash_reporter, crash_envelope,
+        report_id);
     sentry_free(minidump_url);
 
 #ifdef SENTRY_PLATFORM_WINDOWS
@@ -745,11 +896,16 @@ crashpad_backend_prune_database(sentry_backend_t *backend)
     // complete database to a maximum of 8M. That might still be a lot for
     // an embedded use-case, but minidumps on desktop can sometimes be quite
     // large.
-    data->db->CleanDatabase(60 * 60 * 24 * 2);
-    crashpad::BinaryPruneCondition condition(crashpad::BinaryPruneCondition::OR,
-        new crashpad::DatabaseSizePruneCondition(1024 * 8),
-        new crashpad::AgePruneCondition(2));
-    crashpad::PruneCrashReportDatabase(data->db, &condition);
+    SENTRY_WITH_OPTIONS (options) {
+        data->db->CleanDatabase(static_cast<time_t>(options->cache_max_age));
+        crashpad::BinaryPruneCondition condition(
+            crashpad::BinaryPruneCondition::OR,
+            new crashpad::DatabaseSizePruneCondition(
+                options->cache_max_size / 1024),
+            new crashpad::AgePruneCondition(
+                static_cast<int>(options->cache_max_age / (24 * 60 * 60))));
+        crashpad::PruneCrashReportDatabase(data->db, &condition);
+    }
 }
 
 #if defined(SENTRY_PLATFORM_WINDOWS) || defined(SENTRY_PLATFORM_LINUX)
