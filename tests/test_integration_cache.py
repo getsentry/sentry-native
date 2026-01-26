@@ -25,7 +25,9 @@ def test_cache_keep(cmake, backend, cache_keep):
     tmp_path = cmake(
         ["sentry_example"], {"SENTRY_BACKEND": backend, "SENTRY_TRANSPORT": "none"}
     )
+    cache_dir = tmp_path.joinpath(".sentry-native/cache")
 
+    # capture
     run(
         tmp_path,
         "sentry_example",
@@ -33,9 +35,9 @@ def test_cache_keep(cmake, backend, cache_keep):
         expect_failure=True,
     )
 
-    cache_dir = tmp_path.joinpath(".sentry-native/cache")
     assert not cache_dir.exists() or len(list(cache_dir.glob("*.envelope"))) == 0
 
+    # cache
     run(
         tmp_path,
         "sentry_example",
