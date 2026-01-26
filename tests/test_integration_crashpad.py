@@ -31,6 +31,7 @@ from .assertions import (
     assert_gzip_file_header,
     assert_logs,
     assert_user_feedback,
+    wait_for_file,
 )
 
 pytestmark = pytest.mark.skipif(
@@ -410,11 +411,17 @@ def test_crashpad_dumping_crash(cmake, httpserver, run_args, build_args):
 
     envelope = Envelope.deserialize(session)
     assert_session(envelope, {"status": "crashed", "errors": 1})
-    assert_crashpad_upload(
+    attachments = assert_crashpad_upload(
         multipart,
         expect_attachment="clear-attachments" not in run_args,
         expect_view_hierarchy="clear-attachments" not in run_args,
     )
+    event_id = attachments.event["event_id"]
+    if sys.platform == "win32":
+        minidump = tmp_path / ".sentry-native" / "reports" / f"{event_id}.dmp"
+    else:
+        minidump = tmp_path / ".sentry-native" / "completed" / f"{event_id}.dmp"
+    assert wait_for_file(minidump)
 
 
 @pytest.mark.parametrize(

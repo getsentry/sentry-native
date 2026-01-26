@@ -539,6 +539,9 @@ crashpad_backend_startup(
 
     std::vector<std::string> arguments { "--no-rate-limit" };
 
+    char report_id[37];
+    sentry_uuid_as_string(&data->crash_event_id, report_id);
+
     // Initialize database first, flushing the consent later on as part of
     // `sentry_init` will persist the upload flag.
     data->db = crashpad::CrashReportDatabase::Initialize(database).release();
@@ -564,7 +567,8 @@ crashpad_backend_startup(
         minidump_url ? minidump_url : "", proxy_url, annotations, arguments,
         /* restartable */ true,
         /* asynchronous_start */ false, attachments, screenshot,
-        options->crashpad_wait_for_upload, crash_reporter, crash_envelope);
+        options->crashpad_wait_for_upload, crash_reporter, crash_envelope,
+        report_id);
     sentry_free(minidump_url);
 
 #ifdef SENTRY_PLATFORM_WINDOWS
