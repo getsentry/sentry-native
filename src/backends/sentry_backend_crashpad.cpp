@@ -534,7 +534,7 @@ static void
 process_completed_reports(
     crashpad_state_t *state, const sentry_options_t *options)
 {
-    if (!state || !state->db || !options) {
+    if (!state || !state->db || !options || !options->cache_keep) {
         return;
     }
 
