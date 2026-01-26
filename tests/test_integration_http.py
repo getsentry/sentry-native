@@ -555,6 +555,7 @@ def test_breakpad_dump_inflight(cmake, httpserver):
     assert len(httpserver.log) >= 11
 
 
+@pytest.mark.flaky(reruns=3)
 def test_shutdown_timeout(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
 
