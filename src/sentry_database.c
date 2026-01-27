@@ -4,6 +4,7 @@
 #include "sentry_json.h"
 #include "sentry_logger.h"
 #include "sentry_options.h"
+#include "sentry_retry.h"
 #include "sentry_session.h"
 #include "sentry_utils.h"
 #include "sentry_uuid.h"
@@ -243,7 +244,7 @@ sentry__process_old_runs(const sentry_options_t *options, uint64_t last_crash)
         }
 
         sentry_path_t *cache_dir = NULL;
-        if (options->cache_keep) {
+        if (options->cache_keep && options->http_retry == 0) {
             cache_dir = sentry__path_join_str(options->database_path, "cache");
             if (cache_dir) {
                 sentry__path_create_dir_all(cache_dir);

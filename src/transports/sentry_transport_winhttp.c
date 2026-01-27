@@ -2,11 +2,11 @@
 #include "sentry_core.h"
 #include "sentry_database.h"
 #include "sentry_envelope.h"
-#include "sentry_retry.h"
 #include "sentry_logger.h"
 #include "sentry_options.h"
 #include "sentry_path.h"
 #include "sentry_ratelimiter.h"
+#include "sentry_retry.h"
 #include "sentry_string.h"
 #include "sentry_sync.h"
 #include "sentry_transport.h"
@@ -30,6 +30,7 @@ typedef struct {
     sentry_rate_limiter_t *ratelimiter;
     sentry_path_t *database_path;
     bool cache_keep;
+    int http_retry;
     HINTERNET session;
     HINTERNET connect;
     HINTERNET request;
@@ -126,6 +127,7 @@ sentry__winhttp_transport_start(
     state->debug = opts->debug;
     state->database_path = sentry__path_clone(opts->database_path);
     state->cache_keep = opts->cache_keep;
+    state->http_retry = opts->http_retry;
 
     sentry__bgworker_setname(bgworker, opts->transport_thread_name);
 
@@ -345,14 +347,14 @@ sentry__winhttp_send_task(void *_envelope, void *_state)
             WINHTTP_NO_HEADER_INDEX);
     }
 
-    sentry_send_result_t result = classify_winhttp_result(send_success, status_code);
+    sentry_send_result_t result
+        = classify_winhttp_result(send_success, status_code);
     sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
 
     switch (result) {
     case SENTRY_SEND_SUCCESS:
-        // Success - move to cache or delete from retry directory
         SENTRY_DEBUGF("envelope sent successfully (HTTP %lu)", status_code);
-        if (state->database_path) {
+        if (state->database_path && state->http_retry > 0) {
             if (state->cache_keep) {
                 sentry__retry_cache_envelope(state->database_path, &event_id);
             } else {
@@ -362,7 +364,6 @@ sentry__winhttp_send_task(void *_envelope, void *_state)
         break;
 
     case SENTRY_SEND_FAILURE: {
-        // HTTP error response - update rate limiter if applicable, then discard
         wchar_t buf[2048];
         DWORD buf_size = sizeof(buf);
 
@@ -387,20 +388,19 @@ sentry__winhttp_send_task(void *_envelope, void *_state)
             sentry__rate_limiter_update_from_429(state->ratelimiter);
         }
         SENTRY_WARNF("envelope discarded due to HTTP error %lu", status_code);
-        // Delete from retry directory (give up on this envelope)
-        if (state->database_path) {
+        if (state->database_path && state->http_retry > 0) {
             sentry__retry_remove_envelope(state->database_path, &event_id);
         }
         break;
     }
 
     case SENTRY_SEND_RETRY:
-        // Network error - persist to retry directory for later
         SENTRY_WARNF(
             "network error (code %lu), persisting for retry", last_error);
 
-        if (state->database_path) {
-            sentry__retry_write_envelope(state->database_path, envelope);
+        if (state->database_path && state->http_retry > 0) {
+            sentry__retry_write_envelope(
+                state->database_path, envelope, state->http_retry);
         }
         break;
     }

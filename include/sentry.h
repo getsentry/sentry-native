@@ -1464,6 +1464,22 @@ SENTRY_API void sentry_options_set_cache_max_age(
 SENTRY_API int sentry_options_get_cache_keep(const sentry_options_t *opts);
 
 /**
+ * Sets the maximum number of HTTP retry attempts for transient network errors.
+ *
+ * When set to a value greater than 0, envelopes that fail to send due to
+ * network errors are persisted to a `retry/` subdirectory and retried on
+ * the next startup. HTTP errors (4xx/5xx) are not retried as they indicate
+ * permanent failures. Set to 0 (default) to disable retries.
+ */
+SENTRY_API void sentry_options_set_http_retry(
+    sentry_options_t *opts, int attempts);
+
+/**
+ * Gets the maximum number of HTTP retry attempts.
+ */
+SENTRY_API int sentry_options_get_http_retry(const sentry_options_t *opts);
+
+/**
  * Adds a new attachment to be sent along.
  *
  * `path` is assumed to be in a platform-specific filesystem path encoding.

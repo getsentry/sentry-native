@@ -46,6 +46,7 @@ struct sentry_options_s {
     bool propagate_traceparent;
     bool crashpad_limit_stack_capture_to_sp;
     bool cache_keep;
+    int http_retry;
 
     time_t cache_max_age;
     size_t cache_max_size;

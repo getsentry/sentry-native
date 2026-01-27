@@ -593,6 +593,9 @@ main(int argc, char **argv)
         sentry_options_set_before_send_metric(
             options, discarding_before_send_metric_callback, NULL);
     }
+    if (has_arg(argc, argv, "http-retry")) {
+        sentry_options_set_http_retry(options, 5);
+    }
 
     if (0 != sentry_init(options)) {
         return EXIT_FAILURE;

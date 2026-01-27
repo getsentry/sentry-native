@@ -11,8 +11,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define SENTRY_MAX_RETRY_ATTEMPTS 5
-
 static sentry_path_t *
 get_retry_path(const sentry_path_t *database_path)
 {
@@ -152,10 +150,10 @@ write_to_cache(
 }
 
 bool
-sentry__retry_write_envelope(
-    const sentry_path_t *database_path, const sentry_envelope_t *envelope)
+sentry__retry_write_envelope(const sentry_path_t *database_path,
+    const sentry_envelope_t *envelope, int attempts)
 {
-    if (!database_path || !envelope) {
+    if (!database_path || !envelope || attempts <= 0) {
         return false;
     }
 
@@ -185,9 +183,9 @@ sentry__retry_write_envelope(
     }
 
     // If max retries exceeded, move to cache instead
-    if (next_attempt > SENTRY_MAX_RETRY_ATTEMPTS) {
-        SENTRY_WARNF("max retry attempts (%d) exceeded, moving to cache",
-            SENTRY_MAX_RETRY_ATTEMPTS);
+    if (next_attempt > attempts) {
+        SENTRY_WARNF(
+            "max retry attempts (%d) exceeded, moving to cache", attempts);
         sentry__path_free(retry_path);
         return write_to_cache(database_path, envelope);
     }
@@ -214,8 +212,8 @@ sentry__retry_write_envelope(
         return false;
     }
 
-    SENTRY_DEBUGF("wrote envelope to retry (attempt %d/%d)", next_attempt,
-        SENTRY_MAX_RETRY_ATTEMPTS);
+    SENTRY_DEBUGF(
+        "wrote envelope to retry (attempt %d/%d)", next_attempt, attempts);
     return true;
 }
 

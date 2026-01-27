@@ -510,6 +510,18 @@ sentry_options_get_cache_keep(const sentry_options_t *opts)
 }
 
 void
+sentry_options_set_http_retry(sentry_options_t *opts, int attempts)
+{
+    opts->http_retry = attempts > 0 ? attempts : 0;
+}
+
+int
+sentry_options_get_http_retry(const sentry_options_t *opts)
+{
+    return opts->http_retry;
+}
+
+void
 sentry_options_set_system_crash_reporter_enabled(
     sentry_options_t *opts, int enabled)
 {

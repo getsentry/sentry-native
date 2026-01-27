@@ -14,8 +14,8 @@
 #include "sentry_options.h"
 #include "sentry_path.h"
 #include "sentry_process.h"
-#include "sentry_retry.h"
 #include "sentry_random.h"
+#include "sentry_retry.h"
 #include "sentry_scope.h"
 #include "sentry_session.h"
 #include "sentry_string.h"
@@ -287,9 +287,9 @@ sentry_init(sentry_options_t *options)
     // and handle remaining sessions.
     SENTRY_DEBUG("processing and pruning old runs");
     sentry__process_old_runs(options, last_crash);
-#ifndef SENTRY_UNITTEST
-    sentry__retry_process_envelopes(options);
-#endif
+    if (options->http_retry > 0) {
+        sentry__retry_process_envelopes(options);
+    }
     if (backend && backend->prune_database_func) {
         backend->prune_database_func(backend);
     }

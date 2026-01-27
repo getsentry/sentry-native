@@ -55,6 +55,7 @@ SENTRY_TEST(cache_keep)
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
     sentry_options_set_cache_keep(options, true);
+    sentry_options_set_http_retry(options, 5);
     sentry_init(options);
 
     sentry_path_t *retry_path

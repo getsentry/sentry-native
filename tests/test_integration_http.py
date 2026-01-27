@@ -686,7 +686,12 @@ def test_http_retry_on_network_error(cmake, httpserver):
     unreachable_dsn = "http://uiaeosnrtdy@127.0.0.1:19999/123456"
     env_unreachable = dict(os.environ, SENTRY_DSN=unreachable_dsn)
 
-    run(tmp_path, "sentry_example", ["log", "capture-event"], env=env_unreachable)
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "http-retry", "capture-event"],
+        env=env_unreachable,
+    )
 
     assert retry_dir.exists()
     retry_files = list(retry_dir.glob("*.envelope"))
@@ -698,7 +703,12 @@ def test_http_retry_on_network_error(cmake, httpserver):
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
 
     with httpserver.wait(timeout=10) as waiting:
-        run(tmp_path, "sentry_example", ["log", "no-setup"], env=env_reachable)
+        run(
+            tmp_path,
+            "sentry_example",
+            ["log", "http-retry", "no-setup"],
+            env=env_reachable,
+        )
     assert waiting.result
 
     assert len(httpserver.log) == 1
@@ -717,19 +727,19 @@ def test_http_retry_multiple_attempts(cmake, httpserver):
     unreachable_dsn = "http://uiaeosnrtdy@127.0.0.1:19999/123456"
     env = dict(os.environ, SENTRY_DSN=unreachable_dsn)
 
-    run(tmp_path, "sentry_example", ["log", "capture-event"], env=env)
+    run(tmp_path, "sentry_example", ["log", "http-retry", "capture-event"], env=env)
 
     retry_files = list(retry_dir.glob("*.envelope"))
     assert len(retry_files) == 1
     assert ".1.envelope" in str(retry_files[0])
 
-    run(tmp_path, "sentry_example", ["log", "no-setup"], env=env)
+    run(tmp_path, "sentry_example", ["log", "http-retry", "no-setup"], env=env)
 
     retry_files = list(retry_dir.glob("*.envelope"))
     assert len(retry_files) == 1
     assert ".2.envelope" in str(retry_files[0])
 
-    run(tmp_path, "sentry_example", ["log", "no-setup"], env=env)
+    run(tmp_path, "sentry_example", ["log", "http-retry", "no-setup"], env=env)
 
     retry_files = list(retry_dir.glob("*.envelope"))
     assert len(retry_files) == 1
@@ -737,7 +747,7 @@ def test_http_retry_multiple_attempts(cmake, httpserver):
 
     # exhaust remaining attempts (max 5)
     for i in range(3):
-        run(tmp_path, "sentry_example", ["log", "no-setup"], env=env)
+        run(tmp_path, "sentry_example", ["log", "http-retry", "no-setup"], env=env)
 
     # moved to cache after max attempts
     retry_files = list(retry_dir.glob("*.envelope"))
@@ -760,7 +770,7 @@ def test_http_retry_with_cache_keep(cmake, httpserver):
     run(
         tmp_path,
         "sentry_example",
-        ["log", "cache-keep", "capture-event"],
+        ["log", "http-retry", "cache-keep", "capture-event"],
         env=env_unreachable,
     )
 
@@ -774,7 +784,7 @@ def test_http_retry_with_cache_keep(cmake, httpserver):
         run(
             tmp_path,
             "sentry_example",
-            ["log", "cache-keep", "no-setup"],
+            ["log", "http-retry", "cache-keep", "no-setup"],
             env=env_reachable,
         )
     assert waiting.result
