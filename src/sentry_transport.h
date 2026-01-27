@@ -7,6 +7,29 @@
 #include "sentry_utils.h"
 
 /**
+ * Classification of HTTP send results.
+ * Used to determine whether to retry, discard, or consider successful.
+ */
+typedef enum {
+    /**
+     * HTTP 2xx response received - envelope accepted.
+     */
+    SENTRY_SEND_SUCCESS,
+
+    /**
+     * Network error occurred (timeout, DNS failure, connection refused).
+     * Envelope should be cached to disk for retry on next startup.
+     */
+    SENTRY_SEND_RETRY,
+
+    /**
+     * HTTP response received but not 2xx (4xx, 5xx including 429).
+     * Envelope should be discarded (rate limiter updated separately for 429).
+     */
+    SENTRY_SEND_FAILURE
+} sentry_send_result_t;
+
+/**
  * Sets the dump function of the transport.
  *
  * This function is called during a hard crash to dump any internal send queue

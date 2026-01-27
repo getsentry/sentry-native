@@ -230,6 +230,19 @@ sentry_uuid_t
 sentry__envelope_get_event_id(const sentry_envelope_t *envelope)
 {
     if (envelope->is_raw) {
+        // Parse event_id from the first line (envelope header JSON)
+        const char *payload = envelope->contents.raw.payload;
+        size_t payload_len = envelope->contents.raw.payload_len;
+        const char *newline = memchr(payload, '\n', payload_len);
+        if (newline) {
+            sentry_value_t header
+                = sentry__value_from_json(payload, newline - payload);
+            sentry_uuid_t event_id
+                = sentry_uuid_from_string(sentry_value_as_string(
+                    sentry_value_get_by_key(header, "event_id")));
+            sentry_value_decref(header);
+            return event_id;
+        }
         return sentry_uuid_nil();
     }
     return sentry_uuid_from_string(sentry_value_as_string(

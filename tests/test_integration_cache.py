@@ -27,7 +27,6 @@ def test_cache_keep(cmake, backend, cache_keep):
     )
     cache_dir = tmp_path.joinpath(".sentry-native/cache")
 
-    # capture
     run(
         tmp_path,
         "sentry_example",
@@ -77,17 +76,15 @@ def test_cache_max_size(cmake, backend):
             expect_failure=True,
         )
 
+        # cache
+        run(tmp_path, "sentry_example", ["log", "cache-keep", "no-setup"])
+
         if cache_dir.exists():
-            cache_files = list(cache_dir.glob("*.envelope"))
-            for f in cache_files:
+            for f in cache_dir.glob("*.envelope"):
                 with open(f, "r+b") as file:
                     file.truncate(2 * 1024 * 1024)
 
-    run(
-        tmp_path,
-        "sentry_example",
-        ["log", "cache-keep", "no-setup"],
-    )
+    run(tmp_path, "sentry_example", ["log", "cache-keep", "no-setup"])
 
     # max 4mb
     assert cache_dir.exists()
@@ -122,19 +119,18 @@ def test_cache_max_age(cmake, backend):
             expect_failure=True,
         )
 
-    # 2,4,6,8,10 days old
+        # cache
+        run(tmp_path, "sentry_example", ["log", "cache-keep", "no-setup"])
+
+    # 0,2,4,6,8 days old
     assert cache_dir.exists()
     cache_files = list(cache_dir.glob("*.envelope"))
+    assert len(cache_files) == 5
     for i, f in enumerate(cache_files):
-        mtime = time.time() - ((i + 1) * 2 * 24 * 60 * 60)
+        mtime = time.time() - (i * 2 * 24 * 60 * 60)
         os.utime(str(f), (mtime, mtime))
 
-    # 0 days old
-    run(
-        tmp_path,
-        "sentry_example",
-        ["log", "cache-keep", "no-setup"],
-    )
+    run(tmp_path, "sentry_example", ["log", "cache-keep", "no-setup"])
 
     # max 5 days
     cache_files = list(cache_dir.glob("*.envelope"))

@@ -2,10 +2,13 @@
 #include "sentry_alloc.h"
 #include "sentry_envelope.h"
 #include "sentry_json.h"
+#include "sentry_logger.h"
 #include "sentry_options.h"
 #include "sentry_session.h"
+#include "sentry_utils.h"
 #include "sentry_uuid.h"
 #include <errno.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -290,7 +293,9 @@ sentry__process_old_runs(const sentry_options_t *options, uint64_t last_crash)
                 }
             } else if (sentry__path_ends_with(file, ".envelope")) {
                 sentry_envelope_t *envelope = sentry__envelope_from_path(file);
-                sentry__capture_envelope(options->transport, envelope);
+                if (envelope) {
+                    sentry__capture_envelope(options->transport, envelope);
+                }
 
                 if (cache_dir) {
                     sentry_path_t *cached_file = sentry__path_join_str(

@@ -2,12 +2,16 @@
 #include "sentry_core.h"
 #include "sentry_database.h"
 #include "sentry_envelope.h"
+#include "sentry_retry.h"
+#include "sentry_logger.h"
 #include "sentry_options.h"
+#include "sentry_path.h"
 #include "sentry_ratelimiter.h"
 #include "sentry_string.h"
 #include "sentry_sync.h"
 #include "sentry_transport.h"
 #include "sentry_utils.h"
+#include "sentry_uuid.h"
 
 #ifdef SENTRY_PLATFORM_XBOX
 #    include "sentry_transport_xbox.h"
@@ -24,11 +28,32 @@ typedef struct {
     wchar_t *proxy_username;
     wchar_t *proxy_password;
     sentry_rate_limiter_t *ratelimiter;
+    sentry_path_t *database_path;
+    bool cache_keep;
     HINTERNET session;
     HINTERNET connect;
     HINTERNET request;
     bool debug;
 } winhttp_bgworker_state_t;
+
+/**
+ * Classify the result of a WinHTTP operation.
+ */
+static sentry_send_result_t
+classify_winhttp_result(BOOL success, DWORD status_code)
+{
+    // Network error - should retry
+    if (!success) {
+        return SENTRY_SEND_RETRY;
+    }
+    // HTTP response received - check status
+    if (status_code >= 200 && status_code < 300) {
+        return SENTRY_SEND_SUCCESS;
+    }
+    // All non-2xx are failures (including 429, 5xx)
+    // Rate limiter is updated separately for 429
+    return SENTRY_SEND_FAILURE;
+}
 
 static winhttp_bgworker_state_t *
 sentry__winhttp_bgworker_state_new(void)
@@ -56,6 +81,7 @@ sentry__winhttp_bgworker_state_free(void *_state)
     }
     sentry__dsn_decref(state->dsn);
     sentry__rate_limiter_free(state->ratelimiter);
+    sentry__path_free(state->database_path);
     sentry_free(state->user_agent);
     sentry_free(state->proxy_username);
     sentry_free(state->proxy_password);
@@ -98,6 +124,8 @@ sentry__winhttp_transport_start(
     state->dsn = sentry__dsn_incref(opts->dsn);
     state->user_agent = sentry__string_to_wstr(opts->user_agent);
     state->debug = opts->debug;
+    state->database_path = sentry__path_clone(opts->database_path);
+    state->cache_keep = opts->cache_keep;
 
     sentry__bgworker_setname(bgworker, opts->transport_thread_name);
 
@@ -275,8 +303,12 @@ sentry__winhttp_send_task(void *_envelope, void *_state)
             state->proxy_password, 0);
     }
 
-    if (WinHttpSendRequest(state->request, headers, (DWORD)-1,
-            (LPVOID)req->body, (DWORD)req->body_len, (DWORD)req->body_len, 0)) {
+    BOOL send_success = WinHttpSendRequest(state->request, headers, (DWORD)-1,
+        (LPVOID)req->body, (DWORD)req->body_len, (DWORD)req->body_len, 0);
+    DWORD last_error = GetLastError();
+    DWORD status_code = 0;
+
+    if (send_success) {
         WinHttpReceiveResponse(state->request, NULL);
 
         if (state->debug) {
@@ -305,12 +337,34 @@ sentry__winhttp_send_task(void *_envelope, void *_state)
             }
         }
 
-        // lets just assume we won’t have headers > 2k
+        // Get the status code
+        DWORD status_code_size = sizeof(status_code);
+        WinHttpQueryHeaders(state->request,
+            WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
+            WINHTTP_HEADER_NAME_BY_INDEX, &status_code, &status_code_size,
+            WINHTTP_NO_HEADER_INDEX);
+    }
+
+    sentry_send_result_t result = classify_winhttp_result(send_success, status_code);
+    sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
+
+    switch (result) {
+    case SENTRY_SEND_SUCCESS:
+        // Success - move to cache or delete from retry directory
+        SENTRY_DEBUGF("envelope sent successfully (HTTP %lu)", status_code);
+        if (state->database_path) {
+            if (state->cache_keep) {
+                sentry__retry_cache_envelope(state->database_path, &event_id);
+            } else {
+                sentry__retry_remove_envelope(state->database_path, &event_id);
+            }
+        }
+        break;
+
+    case SENTRY_SEND_FAILURE: {
+        // HTTP error response - update rate limiter if applicable, then discard
         wchar_t buf[2048];
         DWORD buf_size = sizeof(buf);
-
-        DWORD status_code = 0;
-        DWORD status_code_size = sizeof(status_code);
 
         if (WinHttpQueryHeaders(state->request, WINHTTP_QUERY_CUSTOM,
                 L"x-sentry-rate-limits", buf, &buf_size,
@@ -329,16 +383,26 @@ sentry__winhttp_send_task(void *_envelope, void *_state)
                     state->ratelimiter, h);
                 sentry_free(h);
             }
-        } else if (WinHttpQueryHeaders(state->request,
-                       WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
-                       WINHTTP_HEADER_NAME_BY_INDEX, &status_code,
-                       &status_code_size, WINHTTP_NO_HEADER_INDEX)
-            && status_code == 429) {
+        } else if (status_code == 429) {
             sentry__rate_limiter_update_from_429(state->ratelimiter);
         }
-    } else {
+        SENTRY_WARNF("envelope discarded due to HTTP error %lu", status_code);
+        // Delete from retry directory (give up on this envelope)
+        if (state->database_path) {
+            sentry__retry_remove_envelope(state->database_path, &event_id);
+        }
+        break;
+    }
+
+    case SENTRY_SEND_RETRY:
+        // Network error - persist to retry directory for later
         SENTRY_WARNF(
-            "`WinHttpSendRequest` failed with code `%d`", GetLastError());
+            "network error (code %lu), persisting for retry", last_error);
+
+        if (state->database_path) {
+            sentry__retry_write_envelope(state->database_path, envelope);
+        }
+        break;
     }
 
     uint64_t now = sentry__monotonic_time();

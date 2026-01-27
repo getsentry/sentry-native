@@ -1,13 +1,16 @@
 #include "sentry_alloc.h"
 #include "sentry_core.h"
-#include "sentry_database.h"
 #include "sentry_envelope.h"
+#include "sentry_logger.h"
 #include "sentry_options.h"
+#include "sentry_path.h"
 #include "sentry_ratelimiter.h"
+#include "sentry_retry.h"
 #include "sentry_string.h"
 #include "sentry_sync.h"
 #include "sentry_transport.h"
 #include "sentry_utils.h"
+#include "sentry_uuid.h"
 
 #include <curl/curl.h>
 #include <curl/easy.h>
@@ -24,16 +27,38 @@ typedef struct curl_transport_state_s {
     char *proxy;
     char *ca_certs;
     sentry_rate_limiter_t *ratelimiter;
+    sentry_path_t *database_path;
+    bool cache_keep;
     bool debug;
 #ifdef SENTRY_PLATFORM_NX
     void *nx_state;
 #endif
 } curl_bgworker_state_t;
 
+/**
+ * Classify the result of a curl operation.
+ */
+static sentry_send_result_t
+classify_curl_result(CURLcode rv, long response_code)
+{
+    // Network error - should retry
+    if (rv != CURLE_OK) {
+        return SENTRY_SEND_RETRY;
+    }
+    // HTTP response received - check status
+    if (response_code >= 200 && response_code < 300) {
+        return SENTRY_SEND_SUCCESS;
+    }
+    // All non-2xx are failures (including 429, 5xx)
+    // Rate limiter is updated separately for 429
+    return SENTRY_SEND_FAILURE;
+}
+
 struct header_info {
     char *x_sentry_rate_limits;
     char *retry_after;
 };
+
 
 static curl_bgworker_state_t *
 sentry__curl_bgworker_state_new(void)
@@ -61,6 +86,7 @@ sentry__curl_bgworker_state_free(void *_state)
     }
     sentry__dsn_decref(state->dsn);
     sentry__rate_limiter_free(state->ratelimiter);
+    sentry__path_free(state->database_path);
     sentry_free(state->ca_certs);
     sentry_free(state->user_agent);
     sentry_free(state->proxy);
@@ -118,6 +144,8 @@ sentry__curl_transport_start(
     state->ca_certs = sentry__string_clone(options->ca_certs);
     state->curl_handle = curl_easy_init();
     state->debug = options->debug;
+    state->database_path = sentry__path_clone(options->database_path);
+    state->cache_keep = options->cache_keep;
 
     sentry__bgworker_setname(bgworker, options->transport_thread_name);
 
@@ -257,10 +285,29 @@ sentry__curl_send_task(void *_envelope, void *_state)
         rv = curl_easy_perform(curl);
     }
 
+    long response_code = 0;
     if (rv == CURLE_OK) {
-        long response_code;
         curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response_code);
+    }
 
+    sentry_send_result_t result = classify_curl_result(rv, response_code);
+    sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
+
+    switch (result) {
+    case SENTRY_SEND_SUCCESS:
+        // Success - move to cache or delete from retry directory
+        SENTRY_DEBUGF("envelope sent successfully (HTTP %ld)", response_code);
+        if (state->database_path) {
+            if (state->cache_keep) {
+                sentry__retry_cache_envelope(state->database_path, &event_id);
+            } else {
+                sentry__retry_remove_envelope(state->database_path, &event_id);
+            }
+        }
+        break;
+
+    case SENTRY_SEND_FAILURE:
+        // HTTP error response - update rate limiter if 429, then discard
         if (info.x_sentry_rate_limits) {
             sentry__rate_limiter_update_from_header(
                 state->ratelimiter, info.x_sentry_rate_limits);
@@ -270,18 +317,33 @@ sentry__curl_send_task(void *_envelope, void *_state)
         } else if (response_code == 429) {
             sentry__rate_limiter_update_from_429(state->ratelimiter);
         }
-    } else {
-        size_t len = strlen(error_buf);
-        if (len) {
-            if (error_buf[len - 1] == '\n') {
-                error_buf[len - 1] = 0;
-            }
-            SENTRY_WARNF("`curl_easy_perform` failed with code `%d`: %s",
-                (int)rv, error_buf);
-        } else {
-            SENTRY_WARNF("`curl_easy_perform` failed with code `%d`: %s",
-                (int)rv, curl_easy_strerror(rv));
+        SENTRY_WARNF("envelope discarded due to HTTP error %ld", response_code);
+        // Delete from retry directory (give up on this envelope)
+        if (state->database_path) {
+            sentry__retry_remove_envelope(state->database_path, &event_id);
         }
+        break;
+
+    case SENTRY_SEND_RETRY:
+        // Network error - persist to retry directory for later
+        {
+            size_t len = strlen(error_buf);
+            if (len) {
+                if (error_buf[len - 1] == '\n') {
+                    error_buf[len - 1] = 0;
+                }
+                SENTRY_WARNF("network error, persisting for retry: %s",
+                    error_buf);
+            } else {
+                SENTRY_WARNF("network error (code %d), persisting for retry: %s",
+                    (int)rv, curl_easy_strerror(rv));
+            }
+
+            if (state->database_path) {
+                sentry__retry_write_envelope(state->database_path, envelope);
+            }
+        }
+        break;
     }
 
     curl_slist_free_all(headers);
