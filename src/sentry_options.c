@@ -491,7 +491,7 @@ sentry_options_set_cache_max_size(sentry_options_t *opts, size_t bytes)
 }
 
 void
-sentry_options_set_cache_max_age(sentry_options_t *opts, uint64_t seconds)
+sentry_options_set_cache_max_age(sentry_options_t *opts, time_t seconds)
 {
     opts->cache_max_age = seconds;
 }

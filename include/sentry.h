@@ -165,6 +165,7 @@ extern "C" {
 #include <inttypes.h>
 #include <stdarg.h>
 #include <stddef.h>
+#include <time.h>
 
 /* context type dependencies */
 #ifdef _WIN32
@@ -1399,7 +1400,7 @@ SENTRY_API void sentry_options_set_cache_max_size(
  * On startup, cached entries exceeding the max age limit are removed.
  */
 SENTRY_API void sentry_options_set_cache_max_age(
-    sentry_options_t *opts, uint64_t seconds);
+    sentry_options_t *opts, time_t seconds);
 
 /**
  * Gets the caching mode for crash reports.

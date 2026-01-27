@@ -47,7 +47,7 @@ struct sentry_options_s {
     bool crashpad_limit_stack_capture_to_sp;
     bool cache_keep;
 
-    uint64_t cache_max_age;
+    time_t cache_max_age;
     size_t cache_max_size;
 
     sentry_attachment_t *attachments;
