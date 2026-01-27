@@ -15,8 +15,10 @@ from . import (
     run,
     Envelope,
     split_log_request_cond,
+    extract_request,
     is_feedback_envelope,
     is_logs_envelope,
+    is_metrics_envelope,
     SENTRY_VERSION,
 )
 from .proxy import (
@@ -43,6 +45,7 @@ from .assertions import (
     assert_failed_proxy_auth_request,
     assert_attachment_view_hierarchy,
     assert_logs,
+    assert_metrics,
 )
 from .conditions import has_http, has_breakpad, has_files, is_kcov
 
@@ -1801,3 +1804,283 @@ def test_logs_global_and_local_attributes_merge(cmake, httpserver):
     assert "global.attribute.array" in attributes_0
     assert attributes_0["global.attribute.array"]["value"] == ["item1", "item2"]
     assert attributes_0["global.attribute.array"]["type"] == "array"
+
+
+def test_metrics_capture(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+
+    httpserver.expect_request(
+        "/api/123456/envelope/",
+        headers={"x-sentry-auth": auth_header},
+    ).respond_with_data("OK")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "enable-metrics", "capture-metric"],
+        env=env,
+    )
+
+    assert len(httpserver.log) == 1
+
+    req = httpserver.log[0][0]
+    body = req.get_data()
+
+    envelope = Envelope.deserialize(body)
+    envelope.print_verbose()
+    assert_metrics(envelope, 1)
+
+
+def test_metrics_all_types(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+
+    httpserver.expect_request(
+        "/api/123456/envelope/",
+        headers={"x-sentry-auth": auth_header},
+    ).respond_with_data("OK")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "enable-metrics", "capture-metric-all-types"],
+        env=env,
+    )
+
+    assert len(httpserver.log) == 1
+
+    req = httpserver.log[0][0]
+    body = req.get_data()
+
+    envelope = Envelope.deserialize(body)
+    envelope.print_verbose()
+    assert_metrics(envelope, 3)
+
+    # Verify the different metric types
+    metrics = envelope.items[0].payload.json
+    types_found = {item["type"] for item in metrics["items"]}
+    assert types_found == {"counter", "gauge", "distribution"}
+
+
+def test_metrics_with_custom_attributes(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+
+    httpserver.expect_request(
+        "/api/123456/envelope/",
+        headers={"x-sentry-auth": auth_header},
+    ).respond_with_data("OK")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "enable-metrics", "metric-with-attributes"],
+        env=env,
+    )
+
+    assert len(httpserver.log) == 1
+
+    req = httpserver.log[0][0]
+    body = req.get_data()
+
+    envelope = Envelope.deserialize(body)
+    envelope.print_verbose()
+    assert_metrics(envelope, 1)
+
+    # Check custom attribute exists
+    metric_item = envelope.items[0].payload.json["items"][0]
+    attrs = metric_item["attributes"]
+    assert "my.custom.attribute" in attrs
+    assert attrs["my.custom.attribute"]["value"] == "my_value"
+    assert attrs["my.custom.attribute"]["type"] == "string"
+
+
+def test_metrics_timer(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+
+    httpserver.expect_request(
+        "/api/123456/envelope/",
+        headers={"x-sentry-auth": auth_header},
+    ).respond_with_data("OK")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "enable-metrics", "metrics-timer"],
+        env=env,
+    )
+
+    # We expect 2 envelopes: one from the timer flush (after sleep), one at shutdown
+    assert len(httpserver.log) == 2
+
+    req_0 = httpserver.log[0][0]
+    body_0 = req_0.get_data()
+    envelope_0 = Envelope.deserialize(body_0)
+    assert_metrics(envelope_0, 10)
+
+    req_1 = httpserver.log[1][0]
+    body_1 = req_1.get_data()
+    envelope_1 = Envelope.deserialize(body_1)
+    assert_metrics(envelope_1, 1)
+
+
+def test_metrics_scoped_transaction(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+
+    httpserver.expect_request(
+        "/api/123456/envelope/",
+        headers={"x-sentry-auth": auth_header},
+    ).respond_with_data("OK")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    run(
+        tmp_path,
+        "sentry_example",
+        [
+            "log",
+            "enable-metrics",
+            "metrics-scoped-transaction",
+            "capture-transaction",
+            "scope-transaction-event",
+        ],
+        env=env,
+    )
+
+    # Event, transaction, and metrics
+    assert len(httpserver.log) == 3
+
+    event_req = httpserver.log[0][0]
+    event_body = event_req.get_data()
+    event_envelope = Envelope.deserialize(event_body)
+    assert_event(event_envelope)
+
+    event_trace_id = event_envelope.items[0].payload.json["contexts"]["trace"][
+        "trace_id"
+    ]
+
+    tx_req = httpserver.log[1][0]
+    tx_body = tx_req.get_data()
+    tx_envelope = Envelope.deserialize(tx_body)
+    tx_trace_id = tx_envelope.items[0].payload.json["contexts"]["trace"]["trace_id"]
+    assert tx_trace_id == event_trace_id
+
+    metrics_req = httpserver.log[2][0]
+    metrics_body = metrics_req.get_data()
+    metrics_envelope = Envelope.deserialize(metrics_body)
+    assert_metrics(metrics_envelope, 1, event_trace_id)
+
+
+def test_before_send_metric(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+
+    httpserver.expect_oneshot_request(
+        "/api/123456/envelope/",
+        headers={"x-sentry-auth": auth_header},
+    ).respond_with_data("OK")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "enable-metrics", "capture-metric", "before-send-metric"],
+        env=env,
+    )
+
+    assert len(httpserver.log) == 1
+    req = httpserver.log[0][0]
+    body = req.get_data()
+
+    envelope = Envelope.deserialize(body)
+    envelope.print_verbose()
+
+    # Extract the metric item
+    (metric_item,) = envelope.items
+
+    assert metric_item.headers["type"] == "trace_metric"
+    payload = metric_item.payload.json
+
+    # Get the first metric item from the metrics payload
+    metric_entry = payload["items"][0]
+    attributes = metric_entry["attributes"]
+
+    # Check that the before_send_metric callback added the expected attribute
+    assert "coffeepot.size" in attributes
+    assert attributes["coffeepot.size"]["value"] == "little"
+    assert attributes["coffeepot.size"]["type"] == "string"
+
+
+def test_before_send_metric_discard(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+
+    httpserver.expect_oneshot_request(
+        "/api/123456/envelope/",
+        headers={"x-sentry-auth": auth_header},
+    ).respond_with_data("OK")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "enable-metrics", "capture-metric", "discarding-before-send-metric"],
+        env=env,
+    )
+
+    # metric should have been discarded
+    assert len(httpserver.log) == 0
+
+
+def test_metrics_disabled(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+
+    httpserver.expect_request(
+        "/api/123456/envelope/",
+        headers={"x-sentry-auth": auth_header},
+    ).respond_with_data("OK")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    # Run without enable-metrics flag
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "capture-metric"],
+        env=env,
+    )
+
+    # No metrics should be sent when feature is disabled
+    assert len(httpserver.log) == 0
+
+
+def test_metrics_event(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+
+    httpserver.expect_request(
+        "/api/123456/envelope/",
+        headers={"x-sentry-auth": auth_header},
+    ).respond_with_data("OK")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "enable-metrics", "capture-metric", "capture-event"],
+        env=env,
+    )
+
+    assert len(httpserver.log) == 2
+
+    event_req = httpserver.log[0][0]
+    event_body = event_req.get_data()
+    event_envelope = Envelope.deserialize(event_body)
+    assert_event(event_envelope)
+
+    # ensure that the event and the metric are part of the same trace
+    event_trace_id = event_envelope.items[0].payload.json["contexts"]["trace"][
+        "trace_id"
+    ]
+
+    metrics_req = httpserver.log[1][0]
+    metrics_body = metrics_req.get_data()
+    metrics_envelope = Envelope.deserialize(metrics_body)
+    assert_metrics(metrics_envelope, 1, event_trace_id)

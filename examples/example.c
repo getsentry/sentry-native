@@ -183,6 +183,25 @@ discarding_before_send_log_callback(sentry_value_t log, void *user_data)
     return log;
 }
 
+static sentry_value_t
+before_send_metric_callback(sentry_value_t metric, void *user_data)
+{
+    (void)user_data;
+    sentry_value_t attribute
+        = sentry_value_new_attribute(sentry_value_new_string("little"), NULL);
+    sentry_value_set_by_key(sentry_value_get_by_key(metric, "attributes"),
+        "coffeepot.size", attribute);
+    return metric;
+}
+
+static sentry_value_t
+discarding_before_send_metric_callback(sentry_value_t metric, void *user_data)
+{
+    (void)user_data;
+    sentry_value_decref(metric);
+    return sentry_value_new_null();
+}
+
 // Test logger that outputs in a format the integration tests can parse
 static void
 test_logger_callback(
@@ -504,6 +523,20 @@ main(int argc, char **argv)
         sentry_options_set_logs_with_attributes(options, true);
     }
 
+    if (has_arg(argc, argv, "enable-metrics")) {
+        sentry_options_set_enable_metrics(options, true);
+    }
+
+    if (has_arg(argc, argv, "before-send-metric")) {
+        sentry_options_set_before_send_metric(
+            options, before_send_metric_callback, NULL);
+    }
+
+    if (has_arg(argc, argv, "discarding-before-send-metric")) {
+        sentry_options_set_before_send_metric(
+            options, discarding_before_send_metric_callback, NULL);
+    }
+
     if (0 != sentry_init(options)) {
         return EXIT_FAILURE;
     }
@@ -602,6 +635,38 @@ main(int argc, char **argv)
                 pthread_join(threads[t], NULL);
             }
 #endif
+        }
+    }
+
+    if (sentry_options_get_enable_metrics(options)) {
+        if (has_arg(argc, argv, "capture-metric")) {
+            sentry_metrics_count(
+                "test.counter", 1.0, NULL, sentry_value_new_null());
+        }
+        if (has_arg(argc, argv, "capture-metric-all-types")) {
+            sentry_metrics_count(
+                "test.counter", 1.0, NULL, sentry_value_new_null());
+            sentry_metrics_gauge(
+                "test.gauge", 42.5, "percent", sentry_value_new_null());
+            sentry_metrics_distribution("test.distribution", 123.456,
+                "millisecond", sentry_value_new_null());
+        }
+        if (has_arg(argc, argv, "metric-with-attributes")) {
+            sentry_value_t attributes = sentry_value_new_object();
+            sentry_value_t attr = sentry_value_new_attribute(
+                sentry_value_new_string("my_value"), NULL);
+            sentry_value_set_by_key(attributes, "my.custom.attribute", attr);
+            sentry_metrics_count(
+                "test.counter.with.attributes", 1.0, NULL, attributes);
+        }
+        if (has_arg(argc, argv, "metrics-timer")) {
+            for (int i = 0; i < 10; i++) {
+                sentry_metrics_count(
+                    "batch.counter", 1.0, NULL, sentry_value_new_null());
+            }
+            sleep_s(6);
+            sentry_metrics_count(
+                "post.sleep.counter", 1.0, NULL, sentry_value_new_null());
         }
     }
 
@@ -851,6 +916,10 @@ main(int argc, char **argv)
             sentry_capture_event(event);
             if (has_arg(argc, argv, "logs-scoped-transaction")) {
                 sentry_log_debug("logging during scoped transaction event");
+            }
+            if (has_arg(argc, argv, "metrics-scoped-transaction")) {
+                sentry_metrics_count("scoped.transaction.metric", 1.0, NULL,
+                    sentry_value_new_null());
             }
         }
 

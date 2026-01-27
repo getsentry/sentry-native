@@ -58,6 +58,10 @@ def is_logs_envelope(data):
     return b'"type":"log"' in data
 
 
+def is_metrics_envelope(data):
+    return b'"type":"trace_metric"' in data
+
+
 def is_feedback_envelope(data):
     return b'"type":"feedback"' in data
 
@@ -346,6 +350,7 @@ class Item(object):
             "transaction",
             "user_report",
             "log",
+            "trace_metric",
         ]:
             rv = cls(headers=headers, payload=PayloadRef(json=json.loads(payload)))
         else:
