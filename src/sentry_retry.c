@@ -151,7 +151,7 @@ write_to_cache(
 
 bool
 sentry__retry_write_envelope(const sentry_path_t *database_path,
-    const sentry_envelope_t *envelope, int attempts)
+    const sentry_envelope_t *envelope, int attempts, bool cache_keep)
 {
     if (!database_path || !envelope || attempts <= 0) {
         return false;
@@ -182,12 +182,18 @@ sentry__retry_write_envelope(const sentry_path_t *database_path,
         remove_retry_file(retry_path, &event_id);
     }
 
-    // If max retries exceeded, move to cache instead
+    // If max retries exceeded, move to cache or discard
     if (next_attempt > attempts) {
-        SENTRY_WARNF(
-            "max retry attempts (%d) exceeded, moving to cache", attempts);
         sentry__path_free(retry_path);
-        return write_to_cache(database_path, envelope);
+        if (cache_keep) {
+            SENTRY_WARNF(
+                "max retry attempts (%d) exceeded, moving to cache", attempts);
+            return write_to_cache(database_path, envelope);
+        } else {
+            SENTRY_WARNF(
+                "max retry attempts (%d) exceeded, discarding", attempts);
+            return false;
+        }
     }
 
     // Write new retry file with incremented attempt

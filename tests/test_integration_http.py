@@ -749,13 +749,13 @@ def test_http_retry_multiple_attempts(cmake, httpserver):
     for i in range(3):
         run(tmp_path, "sentry_example", ["log", "http-retry", "no-setup"], env=env)
 
-    # moved to cache after max attempts
+    # discarded after max attempts (cache_keep not enabled)
     retry_files = list(retry_dir.glob("*.envelope"))
     assert len(retry_files) == 0
 
     cache_dir = tmp_path.joinpath(".sentry-native/cache")
-    cache_files = list(cache_dir.glob("*.envelope"))
-    assert len(cache_files) == 1
+    cache_files = list(cache_dir.glob("*.envelope")) if cache_dir.exists() else []
+    assert len(cache_files) == 0
 
 
 @pytest.mark.skipif(not has_files, reason="test needs a local filesystem")

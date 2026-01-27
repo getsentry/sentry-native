@@ -339,8 +339,8 @@ sentry__curl_send_task(void *_envelope, void *_state)
             }
 
             if (state->database_path && state->http_retry > 0) {
-                sentry__retry_write_envelope(
-                    state->database_path, envelope, state->http_retry);
+                sentry__retry_write_envelope(state->database_path, envelope,
+                    state->http_retry, state->cache_keep);
             }
         }
         break;

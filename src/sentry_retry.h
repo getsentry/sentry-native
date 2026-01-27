@@ -7,10 +7,10 @@
 /**
  * Write an envelope to the retry directory for later retry.
  * Creates `<database>/retry/<event-uuid>.<attempt>.envelope`.
- * If attempts limit is exceeded, moves to cache instead.
+ * If attempts limit is exceeded, moves to cache (if cache_keep) or discards.
  */
 bool sentry__retry_write_envelope(const sentry_path_t *database_path,
-    const sentry_envelope_t *envelope, int attempts);
+    const sentry_envelope_t *envelope, int attempts, bool cache_keep);
 
 /**
  * Remove an envelope from the retry directory.
