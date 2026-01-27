@@ -9,6 +9,7 @@
 #include "sentry_database.h"
 #include "sentry_envelope.h"
 #include "sentry_logs.h"
+#include "sentry_metrics.h"
 #include "sentry_options.h"
 #include "sentry_path.h"
 #include "sentry_process.h"
@@ -296,6 +297,10 @@ sentry_init(sentry_options_t *options)
         sentry__logs_startup();
     }
 
+    if (options->enable_metrics) {
+        sentry__metrics_startup();
+    }
+
     sentry__mutex_unlock(&g_options_lock);
     return 0;
 
@@ -317,6 +322,9 @@ sentry_flush(uint64_t timeout)
         if (options->enable_logs) {
             sentry__logs_force_flush();
         }
+        if (options->enable_metrics) {
+            sentry__metrics_force_flush();
+        }
         rv = sentry__transport_flush(options->transport, timeout);
     }
     return rv;
@@ -325,12 +333,15 @@ sentry_flush(uint64_t timeout)
 int
 sentry_close(void)
 {
-    // Shutdown logs system before locking options to ensure logs are flushed.
-    // This prevents a potential deadlock on the options during log envelope
-    // creation.
+    // Shutdown logs and metrics systems before locking options to ensure they
+    // are flushed. This prevents a potential deadlock on the options during
+    // envelope creation.
     SENTRY_WITH_OPTIONS (options) {
         if (options->enable_logs) {
             sentry__logs_shutdown(options->shutdown_timeout);
+        }
+        if (options->enable_metrics) {
+            sentry__metrics_shutdown(options->shutdown_timeout);
         }
     }
 
