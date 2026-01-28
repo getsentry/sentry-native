@@ -65,6 +65,30 @@ public class SentryNdkTest {
     // it does not crash
   }
 
+  @Test(expected = IllegalStateException.class)
+  public void initThrowsException() throws IOException {
+    final TemporaryFolder temporaryFolder = TemporaryFolder.builder().build();
+    temporaryFolder.create();
+    final File outboxPath = temporaryFolder.newFolder("outboxPath");
+
+    //noinspection DataFlowIssue
+    final NdkOptions options =
+        new NdkOptions(
+            null,
+            true,
+            outboxPath.getAbsolutePath(),
+            "1.0.0",
+            "production",
+            "dist",
+            100,
+            "io.sentry.ndk");
+
+    // when initialized with a NULL dsn
+    SentryNdk.init(options);
+
+    // then it does crash
+  }
+
   @Test
   public void messageCaught() throws IOException {
     final TemporaryFolder temporaryFolder = TemporaryFolder.builder().build();
