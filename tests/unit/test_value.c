@@ -5,6 +5,15 @@
 #include <math.h>
 #include <stdint.h>
 
+static sentry_value_t
+breadcrumb_with_ts(const char *message, const char *timestamp)
+{
+    sentry_value_t breadcrumb = sentry_value_new_breadcrumb(NULL, message);
+    sentry_value_set_by_key(
+        breadcrumb, "timestamp", sentry_value_new_string(timestamp));
+    return breadcrumb;
+}
+
 SENTRY_TEST(value_null)
 {
     sentry_value_t val = sentry_value_new_null();
@@ -1256,4 +1265,115 @@ SENTRY_TEST(event_with_id)
         "native");
 
     sentry_value_decref(event);
+}
+
+#define TEST_CHECK_MESSAGE_EQUAL(breadcrumbs, index, message)                  \
+    TEST_CHECK_STRING_EQUAL(                                                   \
+        sentry_value_as_string(sentry_value_get_by_key(                        \
+            sentry_value_get_by_index(breadcrumbs, index), "message")),        \
+        message)
+
+SENTRY_TEST(value_merge_breadcrumbs_both_empty)
+{
+    sentry_value_t list_a = sentry_value_new_list();
+    sentry_value_t list_b = sentry_value_new_list();
+
+    sentry_value_t result = sentry__value_merge_breadcrumbs(list_a, list_b, 10);
+    TEST_CHECK(sentry_value_is_null(result));
+
+    sentry_value_decref(list_a);
+    sentry_value_decref(list_b);
+}
+
+SENTRY_TEST(value_merge_breadcrumbs_one_empty)
+{
+    sentry_value_t list_a = sentry_value_new_list();
+    sentry_value_append(
+        list_a, breadcrumb_with_ts("a1", "2024-01-01T00:00:01"));
+    sentry_value_append(
+        list_a, breadcrumb_with_ts("a2", "2024-01-01T00:00:02"));
+    sentry_value_t list_b = sentry_value_new_list();
+
+    // list_b is empty -> return list_a
+    sentry_value_t result = sentry__value_merge_breadcrumbs(list_a, list_b, 10);
+    TEST_CHECK(sentry_value_get_type(result) == SENTRY_VALUE_TYPE_LIST);
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(result), 2);
+    TEST_CHECK_MESSAGE_EQUAL(result, 0, "a1");
+    TEST_CHECK_MESSAGE_EQUAL(result, 1, "a2");
+    sentry_value_decref(result);
+
+    // list_a is empty -> return list_b
+    sentry_value_t list_c = sentry_value_new_list();
+    result = sentry__value_merge_breadcrumbs(list_c, list_a, 10);
+    TEST_CHECK(sentry_value_get_type(result) == SENTRY_VALUE_TYPE_LIST);
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(result), 2);
+    TEST_CHECK_MESSAGE_EQUAL(result, 0, "a1");
+    TEST_CHECK_MESSAGE_EQUAL(result, 1, "a2");
+    sentry_value_decref(result);
+
+    sentry_value_decref(list_a);
+    sentry_value_decref(list_b);
+    sentry_value_decref(list_c);
+}
+
+SENTRY_TEST(value_merge_breadcrumbs_interleaved)
+{
+    sentry_value_t list_a = sentry_value_new_list();
+    sentry_value_append(
+        list_a, breadcrumb_with_ts("a1", "2024-01-01T00:00:01"));
+    sentry_value_append(
+        list_a, breadcrumb_with_ts("a4", "2024-01-01T00:00:04"));
+
+    sentry_value_t list_b = sentry_value_new_list();
+    sentry_value_append(
+        list_b, breadcrumb_with_ts("b2", "2024-01-01T00:00:02"));
+    sentry_value_append(
+        list_b, breadcrumb_with_ts("b3", "2024-01-01T00:00:03"));
+
+    sentry_value_t result = sentry__value_merge_breadcrumbs(list_a, list_b, 10);
+    TEST_CHECK(sentry_value_get_type(result) == SENTRY_VALUE_TYPE_LIST);
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(result), 4);
+    TEST_CHECK_MESSAGE_EQUAL(result, 0, "a1");
+    TEST_CHECK_MESSAGE_EQUAL(result, 1, "b2");
+    TEST_CHECK_MESSAGE_EQUAL(result, 2, "b3");
+    TEST_CHECK_MESSAGE_EQUAL(result, 3, "a4");
+
+    sentry_value_decref(result);
+    sentry_value_decref(list_a);
+    sentry_value_decref(list_b);
+}
+
+SENTRY_TEST(value_merge_breadcrumbs_max_limit)
+{
+    sentry_value_t list_a = sentry_value_new_list();
+    sentry_value_append(
+        list_a, breadcrumb_with_ts("a1", "2024-01-01T00:00:01"));
+    sentry_value_append(
+        list_a, breadcrumb_with_ts("a3", "2024-01-01T00:00:03"));
+
+    sentry_value_t list_b = sentry_value_new_list();
+    sentry_value_append(
+        list_b, breadcrumb_with_ts("b2", "2024-01-01T00:00:02"));
+    sentry_value_append(
+        list_b, breadcrumb_with_ts("b4", "2024-01-01T00:00:04"));
+
+    // max=3 -> oldest (a1) should be dropped
+    sentry_value_t result = sentry__value_merge_breadcrumbs(list_a, list_b, 3);
+    TEST_CHECK(sentry_value_get_type(result) == SENTRY_VALUE_TYPE_LIST);
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(result), 3);
+    TEST_CHECK_MESSAGE_EQUAL(result, 0, "b2");
+    TEST_CHECK_MESSAGE_EQUAL(result, 1, "a3");
+    TEST_CHECK_MESSAGE_EQUAL(result, 2, "b4");
+    sentry_value_decref(result);
+
+    // max=2 -> oldest two (a1, b2) should be dropped
+    result = sentry__value_merge_breadcrumbs(list_a, list_b, 2);
+    TEST_CHECK(sentry_value_get_type(result) == SENTRY_VALUE_TYPE_LIST);
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(result), 2);
+    TEST_CHECK_MESSAGE_EQUAL(result, 0, "a3");
+    TEST_CHECK_MESSAGE_EQUAL(result, 1, "b4");
+    sentry_value_decref(result);
+
+    sentry_value_decref(list_a);
+    sentry_value_decref(list_b);
 }
