@@ -6,6 +6,7 @@
 #include "sentry_os.h"
 #include "sentry_scope.h"
 #include "sentry_sync.h"
+#include "sentry_value.h"
 #include <stdarg.h>
 #include <string.h>
 
@@ -542,131 +543,6 @@ static
     return param_index;
 }
 
-/**
- * This function assumes that `value` is owned, so we have to make sure that the
- * `value` was created or cloned by the caller or even better inc_refed.
- *
- * No-op if 'name' already exists in the attributes.
- */
-static void
-add_attribute(sentry_value_t attributes, sentry_value_t value, const char *type,
-    const char *name)
-{
-    if (!sentry_value_is_null(sentry_value_get_by_key(attributes, name))) {
-        sentry_value_decref(value);
-        return;
-    }
-    sentry_value_t param_obj = sentry_value_new_object();
-    sentry_value_set_by_key(param_obj, "value", value);
-    sentry_value_set_by_key(param_obj, "type", sentry_value_new_string(type));
-    sentry_value_set_by_key(attributes, name, param_obj);
-}
-
-/**
- * Extracts data from the scope and options, and adds it to the attributes
- * as well as directly setting `trace_id` for the log.
- *
- * We clone most values instead of incref, since they might otherwise change
- * between constructing the log & flushing it to an envelope.
- */
-static void
-add_scope_and_options_data(sentry_value_t log, sentry_value_t attributes)
-{
-    SENTRY_WITH_SCOPE_MUT (scope) {
-        sentry_value_t trace_id = sentry_value_get_by_key(
-            sentry_value_get_by_key(scope->propagation_context, "trace"),
-            "trace_id");
-        sentry_value_incref(trace_id);
-        sentry_value_set_by_key(log, "trace_id", trace_id);
-
-        sentry_value_t parent_span_id = sentry_value_new_object();
-        sentry_value_t scoped_span_trace_id = sentry_value_new_null();
-        if (scope->transaction_object) {
-            sentry_value_t span_id = sentry_value_get_by_key(
-                scope->transaction_object->inner, "span_id");
-            sentry_value_incref(span_id);
-            sentry_value_set_by_key(parent_span_id, "value", span_id);
-            scoped_span_trace_id = sentry_value_get_by_key(
-                scope->transaction_object->inner, "trace_id");
-            sentry_value_incref(scoped_span_trace_id);
-        } else if (scope->span) {
-            sentry_value_t span_id
-                = sentry_value_get_by_key(scope->span->inner, "span_id");
-            sentry_value_incref(span_id);
-            sentry_value_set_by_key(parent_span_id, "value", span_id);
-            scoped_span_trace_id
-                = sentry_value_get_by_key(scope->span->inner, "trace_id");
-            sentry_value_incref(scoped_span_trace_id);
-        }
-        sentry_value_set_by_key(
-            parent_span_id, "type", sentry_value_new_string("string"));
-        if (scope->transaction_object || scope->span) {
-            sentry_value_set_by_key(
-                attributes, "sentry.trace.parent_span_id", parent_span_id);
-            sentry_value_set_by_key(log, "trace_id", scoped_span_trace_id);
-        } else {
-            sentry_value_decref(parent_span_id);
-            sentry_value_decref(scoped_span_trace_id);
-        }
-
-        if (!sentry_value_is_null(scope->user)) {
-            sentry_value_t user_id = sentry_value_get_by_key(scope->user, "id");
-            if (!sentry_value_is_null(user_id)) {
-                sentry_value_incref(user_id);
-                add_attribute(attributes, user_id, "string", "user.id");
-            }
-
-            sentry_value_t user_username
-                = sentry_value_get_by_key(scope->user, "username");
-            if (!sentry_value_is_null(user_username)) {
-                sentry_value_incref(user_username);
-                add_attribute(attributes, user_username, "string", "user.name");
-            }
-
-            sentry_value_t user_email
-                = sentry_value_get_by_key(scope->user, "email");
-            if (!sentry_value_is_null(user_email)) {
-                sentry_value_incref(user_email);
-                add_attribute(attributes, user_email, "string", "user.email");
-            }
-        }
-        sentry_value_t os_context
-            = sentry_value_get_by_key(scope->contexts, "os");
-        if (!sentry_value_is_null(os_context)) {
-            sentry_value_t os_name
-                = sentry_value_get_by_key(os_context, "name");
-            sentry_value_t os_version
-                = sentry_value_get_by_key(os_context, "version");
-            if (!sentry_value_is_null(os_name)) {
-                sentry_value_incref(os_name);
-                add_attribute(attributes, os_name, "string", "os.name");
-            }
-            if (!sentry_value_is_null(os_version)) {
-                sentry_value_incref(os_version);
-                add_attribute(attributes, os_version, "string", "os.version");
-            }
-        }
-    }
-
-    SENTRY_WITH_OPTIONS (options) {
-        if (options->environment) {
-            add_attribute(attributes,
-                sentry_value_new_string(options->environment), "string",
-                "sentry.environment");
-        }
-        if (options->release) {
-            add_attribute(attributes, sentry_value_new_string(options->release),
-                "string", "sentry.release");
-        }
-        add_attribute(attributes,
-            sentry_value_new_string(sentry_options_get_sdk_name(options)),
-            "string", "sentry.sdk.name");
-    }
-
-    add_attribute(attributes, sentry_value_new_string(sentry_sdk_version()),
-        "string", "sentry.sdk.version");
-}
-
 static sentry_value_t
 construct_log(sentry_level_t level, const char *message, va_list args)
 {
@@ -732,8 +608,9 @@ construct_log(sentry_level_t level, const char *message, va_list args)
         // Parse variadic arguments and add them to attributes
         if (populate_message_parameters(attributes, message, args_copy_3)) {
             // only add message template if we have parameters
-            add_attribute(attributes, sentry_value_new_string(message),
-                "string", "sentry.message.template");
+            sentry__value_add_attribute(attributes,
+                sentry_value_new_string(message), "string",
+                "sentry.message.template");
         }
         va_end(args_copy_3);
     }
@@ -748,7 +625,7 @@ construct_log(sentry_level_t level, const char *message, va_list args)
 
     // adds data from the scope & options to the attributes, and adds `trace_id`
     // to the log
-    add_scope_and_options_data(log, attributes);
+    sentry__apply_attributes(log, attributes);
 
     sentry_value_set_by_key(log, "attributes", attributes);
 

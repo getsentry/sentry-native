@@ -774,3 +774,85 @@ sentry_scope_attach_bytesw_n(sentry_scope_t *scope, const char *buf,
         ATTACHMENT, NULL);
 }
 #endif
+
+void
+sentry__scope_apply_attributes(const sentry_scope_t *scope,
+    sentry_value_t telemetry, sentry_value_t attributes)
+{
+    sentry_value_t trace_id = sentry_value_get_by_key(
+        sentry_value_get_by_key(scope->propagation_context, "trace"),
+        "trace_id");
+    sentry_value_incref(trace_id);
+    sentry_value_set_by_key(telemetry, "trace_id", trace_id);
+
+    sentry_value_t parent_span_id = sentry_value_new_object();
+    sentry_value_t scoped_span_trace_id = sentry_value_new_null();
+    if (scope->transaction_object) {
+        sentry_value_t span_id = sentry_value_get_by_key(
+            scope->transaction_object->inner, "span_id");
+        sentry_value_incref(span_id);
+        sentry_value_set_by_key(parent_span_id, "value", span_id);
+        scoped_span_trace_id = sentry_value_get_by_key(
+            scope->transaction_object->inner, "trace_id");
+        sentry_value_incref(scoped_span_trace_id);
+    } else if (scope->span) {
+        sentry_value_t span_id
+            = sentry_value_get_by_key(scope->span->inner, "span_id");
+        sentry_value_incref(span_id);
+        sentry_value_set_by_key(parent_span_id, "value", span_id);
+        scoped_span_trace_id
+            = sentry_value_get_by_key(scope->span->inner, "trace_id");
+        sentry_value_incref(scoped_span_trace_id);
+    }
+    sentry_value_set_by_key(
+        parent_span_id, "type", sentry_value_new_string("string"));
+    if (scope->transaction_object || scope->span) {
+        sentry_value_set_by_key(
+            attributes, "sentry.trace.parent_span_id", parent_span_id);
+        sentry_value_set_by_key(telemetry, "trace_id", scoped_span_trace_id);
+    } else {
+        sentry_value_decref(parent_span_id);
+        sentry_value_decref(scoped_span_trace_id);
+    }
+
+    if (!sentry_value_is_null(scope->user)) {
+        sentry_value_t user_id = sentry_value_get_by_key(scope->user, "id");
+        if (!sentry_value_is_null(user_id)) {
+            sentry_value_incref(user_id);
+            sentry__value_add_attribute(
+                attributes, user_id, "string", "user.id");
+        }
+
+        sentry_value_t user_username
+            = sentry_value_get_by_key(scope->user, "username");
+        if (!sentry_value_is_null(user_username)) {
+            sentry_value_incref(user_username);
+            sentry__value_add_attribute(
+                attributes, user_username, "string", "user.name");
+        }
+
+        sentry_value_t user_email
+            = sentry_value_get_by_key(scope->user, "email");
+        if (!sentry_value_is_null(user_email)) {
+            sentry_value_incref(user_email);
+            sentry__value_add_attribute(
+                attributes, user_email, "string", "user.email");
+        }
+    }
+    sentry_value_t os_context = sentry_value_get_by_key(scope->contexts, "os");
+    if (!sentry_value_is_null(os_context)) {
+        sentry_value_t os_name = sentry_value_get_by_key(os_context, "name");
+        sentry_value_t os_version
+            = sentry_value_get_by_key(os_context, "version");
+        if (!sentry_value_is_null(os_name)) {
+            sentry_value_incref(os_name);
+            sentry__value_add_attribute(
+                attributes, os_name, "string", "os.name");
+        }
+        if (!sentry_value_is_null(os_version)) {
+            sentry_value_incref(os_version);
+            sentry__value_add_attribute(
+                attributes, os_version, "string", "os.version");
+        }
+    }
+}

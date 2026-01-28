@@ -999,6 +999,32 @@ sentry__set_propagation_context(const char *key, sentry_value_t value)
 }
 
 void
+sentry__apply_attributes(sentry_value_t telemetry, sentry_value_t attributes)
+{
+    SENTRY_WITH_SCOPE (scope) {
+        sentry__scope_apply_attributes(scope, telemetry, attributes);
+    }
+    SENTRY_WITH_OPTIONS (options) {
+        if (options->environment) {
+            sentry__value_add_attribute(attributes,
+                sentry_value_new_string(options->environment), "string",
+                "sentry.environment");
+        }
+        if (options->release) {
+            sentry__value_add_attribute(attributes,
+                sentry_value_new_string(options->release), "string",
+                "sentry.release");
+        }
+        sentry__value_add_attribute(attributes,
+            sentry_value_new_string(sentry_options_get_sdk_name(options)),
+            "string", "sentry.sdk.name");
+    }
+    sentry__value_add_attribute(attributes,
+        sentry_value_new_string(sentry_sdk_version()), "string",
+        "sentry.sdk.version");
+}
+
+void
 sentry_remove_context(const char *key)
 {
     SENTRY_WITH_SCOPE_MUT (scope) {
