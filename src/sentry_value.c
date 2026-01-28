@@ -585,6 +585,20 @@ sentry_value_new_attribute(sentry_value_t value, const char *unit)
     return sentry_value_new_attribute_n(value, unit, unit ? strlen(unit) : 0);
 }
 
+void
+sentry__value_add_attribute(sentry_value_t attributes, sentry_value_t value,
+    const char *type, const char *name)
+{
+    if (!sentry_value_is_null(sentry_value_get_by_key(attributes, name))) {
+        sentry_value_decref(value);
+        return;
+    }
+    sentry_value_t param_obj = sentry_value_new_object();
+    sentry_value_set_by_key(param_obj, "value", value);
+    sentry_value_set_by_key(param_obj, "type", sentry_value_new_string(type));
+    sentry_value_set_by_key(attributes, name, param_obj);
+}
+
 sentry_value_type_t
 sentry_value_get_type(sentry_value_t value)
 {
