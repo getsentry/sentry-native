@@ -2830,7 +2830,8 @@ struct sentry_hint_s;
 typedef struct sentry_hint_s sentry_hint_t;
 
 /**
- * Creates a new hint.
+ * Creates a new hint to be passed into
+ * - `sentry_capture_feedback_with_hint`
  */
 SENTRY_API sentry_hint_t *sentry_hint_new(void);
 
