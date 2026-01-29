@@ -113,6 +113,7 @@ record_metric(sentry_metric_type_t type, const char *name, sentry_value_t value,
         }
         return SENTRY_METRICS_RESULT_SUCCESS;
     }
+    sentry_value_decref(value);
     sentry_value_decref(attributes);
     return SENTRY_METRICS_RESULT_DISABLED;
 }
