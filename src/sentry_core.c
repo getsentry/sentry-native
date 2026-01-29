@@ -8,6 +8,7 @@
 #include "sentry_core.h"
 #include "sentry_database.h"
 #include "sentry_envelope.h"
+#include "sentry_hint.h"
 #include "sentry_logs.h"
 #include "sentry_metrics.h"
 #include "sentry_options.h"
@@ -790,7 +791,7 @@ fail:
 }
 
 static sentry_envelope_t *
-prepare_user_feedback(sentry_value_t user_feedback)
+prepare_user_feedback(sentry_value_t user_feedback, sentry_hint_t *hint)
 {
     sentry_envelope_t *envelope = NULL;
 
@@ -798,6 +799,10 @@ prepare_user_feedback(sentry_value_t user_feedback)
     if (!envelope
         || !sentry__envelope_add_user_feedback(envelope, user_feedback)) {
         goto fail;
+    }
+
+    if (hint && hint->attachments) {
+        sentry__envelope_add_attachments(envelope, hint->attachments);
     }
 
     return envelope;
@@ -1567,15 +1572,25 @@ sentry_capture_user_feedback(sentry_value_t user_report)
 void
 sentry_capture_feedback(sentry_value_t user_feedback)
 {
+    // Reuse the implementation with NULL hint
+    sentry_capture_feedback_with_hint(user_feedback, NULL);
+}
+
+void
+sentry_capture_feedback_with_hint(
+    sentry_value_t user_feedback, sentry_hint_t *hint)
+{
     sentry_envelope_t *envelope = NULL;
 
     SENTRY_WITH_OPTIONS (options) {
-        envelope = prepare_user_feedback(user_feedback);
+        envelope = prepare_user_feedback(user_feedback, hint);
         if (envelope) {
             sentry__capture_envelope(options->transport, envelope);
-        } else {
-            sentry_value_decref(user_feedback);
         }
+    }
+
+    if (hint) {
+        sentry__hint_free(hint);
     }
 }
 
