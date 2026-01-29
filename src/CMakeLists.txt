@@ -5,6 +5,8 @@ sentry_target_sources_cwd(sentry
 	sentry_attachment.h
 	sentry_backend.c
 	sentry_backend.h
+	sentry_batcher.c
+	sentry_batcher.h
 	sentry_boot.h
 	sentry_core.c
 	sentry_core.h
