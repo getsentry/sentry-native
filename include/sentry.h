@@ -2179,6 +2179,11 @@ typedef enum {
  *   sentry_value_new_null(). Each attribute should be created with
  *   sentry_value_new_attribute().
  *
+ * Ownership of the attributes is transferred to the metric function.
+ *
+ * To re-use the same attributes, call `sentry_value_incref` on it
+ * before passing the attributes to the metric function.
+ *
  * Metrics are automatically associated with the current trace and span if
  * available. Default attributes (environment, release, SDK info) are attached
  * automatically.
