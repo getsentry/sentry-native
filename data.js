@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1769699434232,
+  "lastUpdate": 1769699498800,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -27760,6 +27760,66 @@ window.BENCHMARK_DATA = {
             "value": 15.785000000050786,
             "unit": "ms",
             "extra": "Min 15.003ms\nMax 16.927ms\nMean 15.862ms\nStdDev 0.736ms\nMedian 15.785ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "tustanivsky@gmail.com",
+            "name": "Ivan Tustanivskyi",
+            "username": "tustanivsky"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "54c12e277261e89ddcbd478490d52ffcc4eab961",
+          "message": "feat: Add attachment support to user feedback (#1414)\n\n* add attachment support for user feedback via hints\n\n* Add tests\n\n* Add new files to cmake\n\n* Clean up\n\n* Add more tests\n\n* Add missing empty line at the end of file\n\n* Update changelog\n\n* Fix double decref\n\n* Clean up comment\n\n* Fix tests\n\n* Rename feedback-specific hint type to generic one\n\n* Fix formatting\n\n* Fix changelog\n\n* Rename\n\n* Formatting\n\n* Lint\n\n* Update include/sentry.h\n\nCo-authored-by: JoshuaMoelans <60878493+JoshuaMoelans@users.noreply.github.com>\n\n---------\n\nCo-authored-by: JoshuaMoelans <60878493+JoshuaMoelans@users.noreply.github.com>",
+          "timestamp": "2026-01-29T17:06:31+02:00",
+          "tree_id": "76e4095935c9edc74c955fbc3509c322630cb2fc",
+          "url": "https://github.com/getsentry/sentry-native/commit/54c12e277261e89ddcbd478490d52ffcc4eab961"
+        },
+        "date": 1769699490671,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 9.185600000023442,
+            "unit": "ms",
+            "extra": "Min 9.035ms\nMax 9.938ms\nMean 9.439ms\nStdDev 0.453ms\nMedian 9.186ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 9.811200000001463,
+            "unit": "ms",
+            "extra": "Min 9.733ms\nMax 10.106ms\nMean 9.845ms\nStdDev 0.151ms\nMedian 9.811ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 24.76200000000972,
+            "unit": "ms",
+            "extra": "Min 23.953ms\nMax 28.699ms\nMean 25.629ms\nStdDev 1.923ms\nMedian 24.762ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.015300000029583316,
+            "unit": "ms",
+            "extra": "Min 0.013ms\nMax 0.017ms\nMean 0.015ms\nStdDev 0.002ms\nMedian 0.015ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.4018999999857442,
+            "unit": "ms",
+            "extra": "Min 0.389ms\nMax 0.537ms\nMean 0.432ms\nStdDev 0.061ms\nMedian 0.402ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 13.828499999988253,
+            "unit": "ms",
+            "extra": "Min 13.470ms\nMax 13.953ms\nMean 13.752ms\nStdDev 0.185ms\nMedian 13.828ms"
           }
         ]
       }
