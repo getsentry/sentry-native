@@ -641,11 +641,11 @@ main(int argc, char **argv)
     if (sentry_options_get_enable_metrics(options)) {
         if (has_arg(argc, argv, "capture-metric")) {
             sentry_metrics_count(
-                "test.counter", 1.0, NULL, sentry_value_new_null());
+                "test.counter", 1, NULL, sentry_value_new_null());
         }
         if (has_arg(argc, argv, "capture-metric-all-types")) {
             sentry_metrics_count(
-                "test.counter", 1.0, NULL, sentry_value_new_null());
+                "test.counter", 1, NULL, sentry_value_new_null());
             sentry_metrics_gauge(
                 "test.gauge", 42.5, "percent", sentry_value_new_null());
             sentry_metrics_distribution("test.distribution", 123.456,
@@ -657,16 +657,16 @@ main(int argc, char **argv)
                 sentry_value_new_string("my_value"), NULL);
             sentry_value_set_by_key(attributes, "my.custom.attribute", attr);
             sentry_metrics_count(
-                "test.counter.with.attributes", 1.0, NULL, attributes);
+                "test.counter.with.attributes", 1, NULL, attributes);
         }
         if (has_arg(argc, argv, "metrics-timer")) {
             for (int i = 0; i < 10; i++) {
                 sentry_metrics_count(
-                    "batch.counter", 1.0, NULL, sentry_value_new_null());
+                    "batch.counter", 1, NULL, sentry_value_new_null());
             }
             sleep_s(6);
             sentry_metrics_count(
-                "post.sleep.counter", 1.0, NULL, sentry_value_new_null());
+                "post.sleep.counter", 1, NULL, sentry_value_new_null());
         }
     }
 
@@ -918,7 +918,7 @@ main(int argc, char **argv)
                 sentry_log_debug("logging during scoped transaction event");
             }
             if (has_arg(argc, argv, "metrics-scoped-transaction")) {
-                sentry_metrics_count("scoped.transaction.metric", 1.0, NULL,
+                sentry_metrics_count("scoped.transaction.metric", 1, NULL,
                     sentry_value_new_null());
             }
         }

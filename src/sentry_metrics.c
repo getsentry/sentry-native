@@ -47,8 +47,8 @@ metric_type_string(sentry_metric_type_t type)
 }
 
 static sentry_value_t
-construct_metric(sentry_metric_type_t type, const char *name, double value,
-    const char *unit, sentry_value_t user_attributes)
+construct_metric(sentry_metric_type_t type, const char *name,
+    sentry_value_t value, const char *unit, sentry_value_t user_attributes)
 {
     sentry_value_t metric = sentry_value_new_object();
 
@@ -58,7 +58,7 @@ construct_metric(sentry_metric_type_t type, const char *name, double value,
     sentry_value_set_by_key(
         metric, "type", sentry_value_new_string(metric_type_string(type)));
     sentry_value_set_by_key(metric, "name", sentry_value_new_string(name));
-    sentry_value_set_by_key(metric, "value", sentry_value_new_double(value));
+    sentry_value_set_by_key(metric, "value", value);
     if (unit && unit[0] != '\0') {
         sentry_value_set_by_key(metric, "unit", sentry_value_new_string(unit));
     }
@@ -81,7 +81,7 @@ construct_metric(sentry_metric_type_t type, const char *name, double value,
 }
 
 static sentry_metrics_result_t
-record_metric(sentry_metric_type_t type, const char *name, double value,
+record_metric(sentry_metric_type_t type, const char *name, sentry_value_t value,
     const char *unit, sentry_value_t attributes)
 {
     bool enable_metrics = false;
@@ -118,25 +118,27 @@ record_metric(sentry_metric_type_t type, const char *name, double value,
 }
 
 sentry_metrics_result_t
-sentry_metrics_count(
-    const char *name, double value, const char *unit, sentry_value_t attributes)
+sentry_metrics_count(const char *name, int64_t value, const char *unit,
+    sentry_value_t attributes)
 {
-    return record_metric(SENTRY_METRIC_COUNT, name, value, unit, attributes);
+    return record_metric(SENTRY_METRIC_COUNT, name,
+        sentry_value_new_int64(value), unit, attributes);
 }
 
 sentry_metrics_result_t
 sentry_metrics_gauge(
     const char *name, double value, const char *unit, sentry_value_t attributes)
 {
-    return record_metric(SENTRY_METRIC_GAUGE, name, value, unit, attributes);
+    return record_metric(SENTRY_METRIC_GAUGE, name,
+        sentry_value_new_double(value), unit, attributes);
 }
 
 sentry_metrics_result_t
 sentry_metrics_distribution(
     const char *name, double value, const char *unit, sentry_value_t attributes)
 {
-    return record_metric(
-        SENTRY_METRIC_DISTRIBUTION, name, value, unit, attributes);
+    return record_metric(SENTRY_METRIC_DISTRIBUTION, name,
+        sentry_value_new_double(value), unit, attributes);
 }
 
 void
