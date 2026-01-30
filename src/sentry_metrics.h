@@ -9,9 +9,14 @@
 void sentry__metrics_startup(void);
 
 /**
- * Instructs the metrics timer/flush thread to shut down.
+ * Begin non-blocking shutdown of the metrics timer/flush thread.
  */
-void sentry__metrics_shutdown(uint64_t timeout);
+void sentry__metrics_shutdown_begin(void);
+
+/**
+ * Wait for the metrics timer/flush thread to complete shutdown.
+ */
+void sentry__metrics_shutdown_wait(uint64_t timeout);
 
 /**
  * Crash-safe metrics flush that avoids thread synchronization.
@@ -20,7 +25,15 @@ void sentry__metrics_shutdown(uint64_t timeout);
  */
 void sentry__metrics_flush_crash_safe(void);
 
-void sentry__metrics_force_flush(void);
+/**
+ * Begin non-blocking force flush of metrics.
+ */
+void sentry__metrics_force_flush_begin(void);
+
+/**
+ * Wait for the metrics force flush to complete.
+ */
+void sentry__metrics_force_flush_wait(void);
 
 #ifdef SENTRY_UNITTEST
 /**

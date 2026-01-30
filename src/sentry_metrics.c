@@ -148,10 +148,16 @@ sentry__metrics_startup(void)
 }
 
 void
-sentry__metrics_shutdown(uint64_t timeout)
+sentry__metrics_shutdown_begin(void)
 {
-    SENTRY_DEBUG("shutting down metrics system");
-    sentry__batcher_shutdown(&g_batcher, timeout);
+    SENTRY_DEBUG("beginning metrics system shutdown");
+    sentry__batcher_shutdown_begin(&g_batcher);
+}
+
+void
+sentry__metrics_shutdown_wait(uint64_t timeout)
+{
+    sentry__batcher_shutdown_wait(&g_batcher, timeout);
     SENTRY_DEBUG("metrics system shutdown complete");
 }
 
@@ -164,9 +170,15 @@ sentry__metrics_flush_crash_safe(void)
 }
 
 void
-sentry__metrics_force_flush(void)
+sentry__metrics_force_flush_begin(void)
 {
-    sentry__batcher_force_flush(&g_batcher);
+    sentry__batcher_force_flush_begin(&g_batcher);
+}
+
+void
+sentry__metrics_force_flush_wait(void)
+{
+    sentry__batcher_force_flush_wait(&g_batcher);
 }
 
 #ifdef SENTRY_UNITTEST

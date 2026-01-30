@@ -309,10 +309,8 @@ sentry__batcher_startup(
 }
 
 void
-sentry__batcher_shutdown(sentry_batcher_t *batcher, uint64_t timeout)
+sentry__batcher_shutdown_begin(sentry_batcher_t *batcher)
 {
-    (void)timeout;
-
     // Atomically transition to STOPPED and get the previous state
     // This handles the race where thread might be in STARTING state:
     // - If thread's CAS hasn't run yet: CAS will fail, thread exits cleanly
@@ -328,6 +326,12 @@ sentry__batcher_shutdown(sentry_batcher_t *batcher, uint64_t timeout)
 
     // Thread was started (either STARTING or RUNNING), signal it to stop
     sentry__cond_wake(&batcher->request_flush);
+}
+
+void
+sentry__batcher_shutdown_wait(sentry_batcher_t *batcher, uint64_t timeout)
+{
+    (void)timeout;
 
     // Always join the thread to avoid leaks
     sentry__thread_join(batcher->batching_thread);
@@ -359,7 +363,13 @@ sentry__batcher_flush_crash_safe(sentry_batcher_t *batcher)
 }
 
 void
-sentry__batcher_force_flush(sentry_batcher_t *batcher)
+sentry__batcher_force_flush_begin(sentry_batcher_t *batcher)
+{
+    sentry__cond_wake(&batcher->request_flush);
+}
+
+void
+sentry__batcher_force_flush_wait(sentry_batcher_t *batcher)
 {
     while (sentry__atomic_fetch(&batcher->flushing)) {
         sentry__cpu_relax();

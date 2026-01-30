@@ -320,11 +320,18 @@ sentry_flush(uint64_t timeout)
 {
     int rv = 0;
     SENTRY_WITH_OPTIONS (options) {
+        // flush logs and metrics in parallel
         if (options->enable_logs) {
-            sentry__logs_force_flush();
+            sentry__logs_force_flush_begin();
         }
         if (options->enable_metrics) {
-            sentry__metrics_force_flush();
+            sentry__metrics_force_flush_begin();
+        }
+        if (options->enable_logs) {
+            sentry__logs_force_flush_wait();
+        }
+        if (options->enable_metrics) {
+            sentry__metrics_force_flush_wait();
         }
         rv = sentry__transport_flush(options->transport, timeout);
     }
@@ -334,15 +341,21 @@ sentry_flush(uint64_t timeout)
 int
 sentry_close(void)
 {
-    // Shutdown logs and metrics systems before locking options to ensure they
-    // are flushed. This prevents a potential deadlock on the options during
-    // envelope creation.
+    // Shutdown logs and metrics in parallel before locking options to ensure
+    // they are flushed. This prevents a potential deadlock on the options
+    // during envelope creation.
     SENTRY_WITH_OPTIONS (options) {
         if (options->enable_logs) {
-            sentry__logs_shutdown(options->shutdown_timeout);
+            sentry__logs_shutdown_begin();
         }
         if (options->enable_metrics) {
-            sentry__metrics_shutdown(options->shutdown_timeout);
+            sentry__metrics_shutdown_begin();
+        }
+        if (options->enable_logs) {
+            sentry__logs_shutdown_wait(options->shutdown_timeout);
+        }
+        if (options->enable_metrics) {
+            sentry__metrics_shutdown_wait(options->shutdown_timeout);
         }
     }
 
