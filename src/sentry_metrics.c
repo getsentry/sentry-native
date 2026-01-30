@@ -3,6 +3,7 @@
 #include "sentry_core.h"
 #include "sentry_envelope.h"
 #include "sentry_options.h"
+#include "sentry_scope.h"
 #include "sentry_utils.h"
 #include "sentry_value.h"
 
@@ -63,13 +64,13 @@ construct_metric(sentry_metric_type_t type, const char *name,
         sentry_value_set_by_key(metric, "unit", sentry_value_new_string(unit));
     }
 
-    sentry_value_t attributes = sentry_value_new_object();
-    sentry__apply_attributes(metric, attributes);
-    if (sentry_value_get_type(user_attributes) == SENTRY_VALUE_TYPE_OBJECT
-        && sentry_value_get_length(user_attributes) > 0) {
-        sentry__value_merge_objects(attributes, user_attributes);
-    }
+    sentry_value_t attributes
+        = sentry_value_get_type(user_attributes) == SENTRY_VALUE_TYPE_OBJECT
+        ? sentry__value_clone(user_attributes)
+        : sentry_value_new_object();
     sentry_value_decref(user_attributes);
+
+    sentry__apply_attributes(metric, attributes);
 
     if (sentry_value_get_length(attributes) > 0) {
         sentry_value_set_by_key(metric, "attributes", attributes);
