@@ -325,6 +325,45 @@ SENTRY_API sentry_value_t sentry_value_new_user_n(const char *id, size_t id_len,
     size_t email_len, const char *ip_address, size_t ip_address_len);
 
 /**
+ * Measurement units for telemetry.
+ *
+ * These constants represent the standardized units supported by Sentry.
+ * Custom units can also be passed as arbitrary strings.
+ *
+ * See: https://develop.sentry.dev/sdk/telemetry/attributes/#units
+ */
+
+/* Duration units */
+#define SENTRY_UNIT_NANOSECOND "nanosecond"
+#define SENTRY_UNIT_MICROSECOND "microsecond"
+#define SENTRY_UNIT_MILLISECOND "millisecond"
+#define SENTRY_UNIT_SECOND "second"
+#define SENTRY_UNIT_MINUTE "minute"
+#define SENTRY_UNIT_HOUR "hour"
+#define SENTRY_UNIT_DAY "day"
+#define SENTRY_UNIT_WEEK "week"
+
+/* Information units */
+#define SENTRY_UNIT_BIT "bit"
+#define SENTRY_UNIT_BYTE "byte"
+#define SENTRY_UNIT_KILOBYTE "kilobyte"
+#define SENTRY_UNIT_KIBIBYTE "kibibyte"
+#define SENTRY_UNIT_MEGABYTE "megabyte"
+#define SENTRY_UNIT_MEBIBYTE "mebibyte"
+#define SENTRY_UNIT_GIGABYTE "gigabyte"
+#define SENTRY_UNIT_GIBIBYTE "gibibyte"
+#define SENTRY_UNIT_TERABYTE "terabyte"
+#define SENTRY_UNIT_TEBIBYTE "tebibyte"
+#define SENTRY_UNIT_PETABYTE "petabyte"
+#define SENTRY_UNIT_PEBIBYTE "pebibyte"
+#define SENTRY_UNIT_EXABYTE "exabyte"
+#define SENTRY_UNIT_EXBIBYTE "exbibyte"
+
+/* Fraction units */
+#define SENTRY_UNIT_RATIO "ratio"
+#define SENTRY_UNIT_PERCENT "percent"
+
+/**
  * Creates a new attribute object.
  *  value is required, unit is optional.
  *
@@ -2174,7 +2213,7 @@ typedef enum {
  * Metrics are buffered and sent in batches. Each metric includes:
  * - name: Hierarchical name with dot separators (e.g., "api.requests")
  * - value: The numeric value to record
- * - unit: Optional measurement unit (e.g., "millisecond", "byte"), or NULL
+ * - unit: Optional measurement unit (e.g., SENTRY_UNIT_MILLISECOND), or NULL
  * - attributes: Optional sentry_value_t object with custom attributes, or
  *   sentry_value_new_null(). Each attribute should be created with
  *   sentry_value_new_attribute().

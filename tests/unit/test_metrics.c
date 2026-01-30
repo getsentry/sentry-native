@@ -86,8 +86,8 @@ SENTRY_TEST(metrics_gauge)
     sentry__metrics_wait_for_thread_startup();
 
     // Record a gauge metric
-    TEST_CHECK_INT_EQUAL(sentry_metrics_gauge("test.gauge", 42.5, "percent",
-                             sentry_value_new_null()),
+    TEST_CHECK_INT_EQUAL(sentry_metrics_gauge("test.gauge", 42.5,
+                             SENTRY_UNIT_PERCENT, sentry_value_new_null()),
         SENTRY_METRICS_RESULT_SUCCESS);
 
     sentry_close();
@@ -113,8 +113,9 @@ SENTRY_TEST(metrics_distribution)
     sentry__metrics_wait_for_thread_startup();
 
     // Record a distribution metric
-    TEST_CHECK_INT_EQUAL(sentry_metrics_distribution("test.distribution",
-                             123.456, "millisecond", sentry_value_new_null()),
+    TEST_CHECK_INT_EQUAL(
+        sentry_metrics_distribution("test.distribution", 123.456,
+            SENTRY_UNIT_MILLISECOND, sentry_value_new_null()),
         SENTRY_METRICS_RESULT_SUCCESS);
 
     sentry_close();
@@ -297,7 +298,7 @@ SENTRY_TEST(metrics_force_flush)
         SENTRY_METRICS_RESULT_SUCCESS);
     sentry_flush(5000);
     TEST_CHECK_INT_EQUAL(sentry_metrics_distribution("dist.1", 100.0,
-                             "millisecond", sentry_value_new_null()),
+                             SENTRY_UNIT_MILLISECOND, sentry_value_new_null()),
         SENTRY_METRICS_RESULT_SUCCESS);
     sentry_flush(5000);
 

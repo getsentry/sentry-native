@@ -646,10 +646,10 @@ main(int argc, char **argv)
         if (has_arg(argc, argv, "capture-metric-all-types")) {
             sentry_metrics_count(
                 "test.counter", 1, NULL, sentry_value_new_null());
-            sentry_metrics_gauge(
-                "test.gauge", 42.5, "percent", sentry_value_new_null());
+            sentry_metrics_gauge("test.gauge", 42.5, SENTRY_UNIT_PERCENT,
+                sentry_value_new_null());
             sentry_metrics_distribution("test.distribution", 123.456,
-                "millisecond", sentry_value_new_null());
+                SENTRY_UNIT_MILLISECOND, sentry_value_new_null());
         }
         if (has_arg(argc, argv, "metric-with-attributes")) {
             sentry_value_t attributes = sentry_value_new_object();
