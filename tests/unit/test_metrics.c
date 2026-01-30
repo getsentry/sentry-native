@@ -60,7 +60,7 @@ SENTRY_TEST(metrics_count)
 
     // Record a counter metric
     TEST_CHECK_INT_EQUAL(
-        sentry_metrics_count("test.counter", 1, NULL, sentry_value_new_null()),
+        sentry_metrics_count("test.counter", 1, sentry_value_new_null()),
         SENTRY_METRICS_RESULT_SUCCESS);
 
     sentry_close();
@@ -147,8 +147,7 @@ SENTRY_TEST(metrics_with_attributes)
     sentry_value_set_by_key(
         attributes, "service", sentry_value_new_string("api"));
 
-    TEST_CHECK_INT_EQUAL(
-        sentry_metrics_count("requests.total", 1, NULL, attributes),
+    TEST_CHECK_INT_EQUAL(sentry_metrics_count("requests.total", 1, attributes),
         SENTRY_METRICS_RESULT_SUCCESS);
 
     sentry_close();
@@ -185,7 +184,7 @@ SENTRY_TEST(metrics_before_send_discard)
 
     // This metric should be discarded by the before_send hook
     TEST_CHECK_INT_EQUAL(
-        sentry_metrics_count("test.counter", 1, NULL, sentry_value_new_null()),
+        sentry_metrics_count("test.counter", 1, sentry_value_new_null()),
         SENTRY_METRICS_RESULT_DISCARD);
 
     sentry_close();
@@ -230,7 +229,7 @@ SENTRY_TEST(metrics_before_send_modify)
 
     // This metric should be modified by the before_send hook
     TEST_CHECK_INT_EQUAL(
-        sentry_metrics_count("test.counter", 1, NULL, sentry_value_new_null()),
+        sentry_metrics_count("test.counter", 1, sentry_value_new_null()),
         SENTRY_METRICS_RESULT_SUCCESS);
 
     sentry_close();
@@ -256,7 +255,7 @@ SENTRY_TEST(metrics_disabled)
 
     // These should return DISABLED since metrics are not enabled
     TEST_CHECK_INT_EQUAL(
-        sentry_metrics_count("test.counter", 1, NULL, sentry_value_new_null()),
+        sentry_metrics_count("test.counter", 1, sentry_value_new_null()),
         SENTRY_METRICS_RESULT_DISABLED);
     TEST_CHECK_INT_EQUAL(
         sentry_metrics_gauge("test.gauge", 42.5, NULL, sentry_value_new_null()),
@@ -290,7 +289,7 @@ SENTRY_TEST(metrics_force_flush)
 
     // Record multiple metrics with force flush between each
     TEST_CHECK_INT_EQUAL(
-        sentry_metrics_count("counter.1", 1, NULL, sentry_value_new_null()),
+        sentry_metrics_count("counter.1", 1, sentry_value_new_null()),
         SENTRY_METRICS_RESULT_SUCCESS);
     sentry_flush(5000);
     TEST_CHECK_INT_EQUAL(
@@ -343,7 +342,7 @@ SENTRY_TEST(metrics_default_attributes)
     sentry_init(options);
     sentry__metrics_wait_for_thread_startup();
 
-    sentry_metrics_count("test.metric", 1, NULL, sentry_value_new_null());
+    sentry_metrics_count("test.metric", 1, sentry_value_new_null());
     sentry_close();
 
     // Validate trace_id is set directly on metric

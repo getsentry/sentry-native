@@ -2233,8 +2233,7 @@ typedef enum {
  * request counts or error counts.
  */
 SENTRY_EXPERIMENTAL_API sentry_metrics_result_t sentry_metrics_count(
-    const char *name, int64_t value, const char *unit,
-    sentry_value_t attributes);
+    const char *name, int64_t value, sentry_value_t attributes);
 
 /**
  * Records a gauge metric. Gauges track values that can go up or down,

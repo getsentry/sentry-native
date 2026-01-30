@@ -119,11 +119,10 @@ record_metric(sentry_metric_type_t type, const char *name, sentry_value_t value,
 }
 
 sentry_metrics_result_t
-sentry_metrics_count(const char *name, int64_t value, const char *unit,
-    sentry_value_t attributes)
+sentry_metrics_count(const char *name, int64_t value, sentry_value_t attributes)
 {
     return record_metric(SENTRY_METRIC_COUNT, name,
-        sentry_value_new_int64(value), unit, attributes);
+        sentry_value_new_int64(value), NULL, attributes);
 }
 
 sentry_metrics_result_t
