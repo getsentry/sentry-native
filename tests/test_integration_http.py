@@ -2117,3 +2117,166 @@ def test_metrics_event(cmake, httpserver):
     metrics_body = metrics_req.get_data()
     metrics_envelope = Envelope.deserialize(metrics_body)
     assert_metrics(metrics_envelope, 1, event_trace_id)
+
+
+def test_metrics_threaded(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+
+    httpserver.expect_request(
+        "/api/123456/envelope/",
+        headers={"x-sentry-auth": auth_header},
+    ).respond_with_data("OK")
+
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "enable-metrics", "metrics-threads"],
+        env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+    )
+
+    # there is a chance we drop metrics while flushing buffers
+    assert 1 <= len(httpserver.log) <= 50
+    total_count = 0
+
+    for i in range(len(httpserver.log)):
+        req = httpserver.log[i][0]
+        body = req.get_data()
+
+        envelope = Envelope.deserialize(body)
+        assert_metrics(envelope)
+        total_count += envelope.items[0].headers["item_count"]
+    print(f"Total amount of captured metrics: {total_count}")
+    assert total_count >= 100
+
+
+def test_metrics_global_and_local_attributes_merge(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+
+    httpserver.expect_oneshot_request(
+        "/api/123456/envelope/",
+        headers={"x-sentry-auth": auth_header},
+    ).respond_with_data("OK")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "enable-metrics", "set-global-attribute", "metric-with-attributes"],
+        env=env,
+    )
+
+    assert len(httpserver.log) == 1
+    req = httpserver.log[0][0]
+    body = req.get_data()
+
+    envelope = Envelope.deserialize(body)
+
+    # Show what the envelope looks like if the test fails
+    envelope.print_verbose()
+
+    # Extract the metric item
+    (metric_item,) = envelope.items
+
+    assert metric_item.headers["type"] == "trace_metric"
+    payload = metric_item.payload.json
+
+    assert len(payload["items"]) == 1
+
+    metric_entry = payload["items"][0]
+    attributes = metric_entry["attributes"]
+
+    # Verify local attribute (should overwrite global with same key)
+    assert "my.custom.attribute" in attributes
+    assert attributes["my.custom.attribute"]["value"] == "my_value"
+    assert attributes["my.custom.attribute"]["type"] == "string"
+
+    # Verify global attributes are present
+    assert "global.attribute.bool" in attributes
+    assert attributes["global.attribute.bool"]["value"] == True
+    assert attributes["global.attribute.bool"]["type"] == "boolean"
+
+    assert "global.attribute.int" in attributes
+    assert attributes["global.attribute.int"]["value"] == 123
+    assert attributes["global.attribute.int"]["type"] == "integer"
+
+    assert "global.attribute.double" in attributes
+    assert attributes["global.attribute.double"]["value"] == 1.23
+    assert attributes["global.attribute.double"]["type"] == "double"
+
+    assert "global.attribute.string" in attributes
+    assert attributes["global.attribute.string"]["value"] == "my_global_value"
+    assert attributes["global.attribute.string"]["type"] == "string"
+
+    assert "global.attribute.array" in attributes
+    assert attributes["global.attribute.array"]["value"] == ["item1", "item2"]
+    assert attributes["global.attribute.array"]["type"] == "array"
+
+
+def test_metrics_discarded_on_crash_no_backend(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+
+    httpserver.expect_oneshot_request(
+        "/api/123456/envelope/",
+        headers={"x-sentry-auth": auth_header},
+    ).respond_with_data("OK")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_RELEASE="🤮🚀")
+
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "enable-metrics", "capture-metric", "crash"],
+        expect_failure=True,
+        env=env,
+    )
+
+    # metric should have been discarded since we have no backend to hook into the crash
+    assert len(httpserver.log) == 0
+
+
+@pytest.mark.parametrize(
+    "backend",
+    [
+        "inproc",
+        pytest.param(
+            "breakpad",
+            marks=pytest.mark.skipif(
+                not has_breakpad, reason="breakpad backend not available"
+            ),
+        ),
+    ],
+)
+def test_metrics_on_crash(cmake, httpserver, backend):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": backend})
+
+    httpserver.expect_request(
+        "/api/123456/envelope/",
+        headers={"x-sentry-auth": auth_header},
+    ).respond_with_data("OK")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "enable-metrics", "capture-metric", "crash"],
+        expect_failure=True,
+        env=env,
+    )
+
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "no-setup"],
+        env=env,
+    )
+
+    # we expect 1 envelope with the metric, and 1 for the crash
+    assert len(httpserver.log) == 2
+    metrics_request, crash_request = split_log_request_cond(
+        httpserver.log, is_metrics_envelope
+    )
+    metrics = metrics_request.get_data()
+
+    metrics_envelope = Envelope.deserialize(metrics)
+
+    assert metrics_envelope is not None
+    assert_metrics(metrics_envelope, 1)

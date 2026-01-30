@@ -336,8 +336,8 @@ create_debug_crumb(const char *message)
 }
 
 #define NUM_THREADS 50
-#define NUM_LOGS 100 // how many log calls each thread makes
-#define LOG_SLEEP_MS 1 // time (in ms) between log calls
+#define NUM_TELEMETRY 100 // how many telemetry calls each thread makes
+#define TELEMETRY_SLEEP_MS 1 // time (in ms) between telemetry calls
 
 #if defined(SENTRY_PLATFORM_WINDOWS)
 #    define sleep_ms(MILLISECONDS) Sleep(MILLISECONDS)
@@ -346,28 +346,79 @@ create_debug_crumb(const char *message)
 #endif
 
 #ifdef SENTRY_PLATFORM_WINDOWS
+typedef DWORD(WINAPI *thread_func_t)(LPVOID);
+
 DWORD WINAPI
 log_thread_func(LPVOID lpParam)
 {
     (void)lpParam;
-    for (int i = 0; i < NUM_LOGS; i++) {
+    for (int i = 0; i < NUM_TELEMETRY; i++) {
         sentry_log_debug(
             "thread log %d on thread %lu", i, get_current_thread_id());
-        sleep_ms(LOG_SLEEP_MS);
+        sleep_ms(TELEMETRY_SLEEP_MS);
     }
     return 0;
 }
+
+DWORD WINAPI
+metric_thread_func(LPVOID lpParam)
+{
+    (void)lpParam;
+    for (int i = 0; i < NUM_TELEMETRY; i++) {
+        sentry_metrics_count("thread.counter", 1, sentry_value_new_null());
+        sleep_ms(TELEMETRY_SLEEP_MS);
+    }
+    return 0;
+}
+
+static void
+run_threads(thread_func_t func)
+{
+    HANDLE threads[NUM_THREADS];
+    for (int t = 0; t < NUM_THREADS; t++) {
+        threads[t] = CreateThread(NULL, 0, func, NULL, 0, NULL);
+    }
+    WaitForMultipleObjects(NUM_THREADS, threads, TRUE, INFINITE);
+    for (int t = 0; t < NUM_THREADS; t++) {
+        CloseHandle(threads[t]);
+    }
+}
 #else
+typedef void *(*thread_func_t)(void *);
+
 void *
 log_thread_func(void *arg)
 {
     (void)arg;
-    for (int i = 0; i < NUM_LOGS; i++) {
+    for (int i = 0; i < NUM_TELEMETRY; i++) {
         sentry_log_debug(
             "thread log %d on thread %llu", i, get_current_thread_id());
-        sleep_ms(LOG_SLEEP_MS);
+        sleep_ms(TELEMETRY_SLEEP_MS);
     }
     return NULL;
+}
+
+void *
+metric_thread_func(void *arg)
+{
+    (void)arg;
+    for (int i = 0; i < NUM_TELEMETRY; i++) {
+        sentry_metrics_count("thread.counter", 1, sentry_value_new_null());
+        sleep_ms(TELEMETRY_SLEEP_MS);
+    }
+    return NULL;
+}
+
+static void
+run_threads(thread_func_t func)
+{
+    pthread_t threads[NUM_THREADS];
+    for (int t = 0; t < NUM_THREADS; t++) {
+        pthread_create(&threads[t], NULL, func, NULL);
+    }
+    for (int t = 0; t < NUM_THREADS; t++) {
+        pthread_join(threads[t], NULL);
+    }
 }
 #endif
 
@@ -613,28 +664,7 @@ main(int argc, char **argv)
             sentry_log_debug("post-sleep log");
         }
         if (has_arg(argc, argv, "logs-threads")) {
-            // Spawn multiple threads to test concurrent logging
-#ifdef SENTRY_PLATFORM_WINDOWS
-            HANDLE threads[NUM_THREADS];
-            for (int t = 0; t < NUM_THREADS; t++) {
-                threads[t]
-                    = CreateThread(NULL, 0, log_thread_func, NULL, 0, NULL);
-            }
-
-            WaitForMultipleObjects(NUM_THREADS, threads, TRUE, INFINITE);
-
-            for (int t = 0; t < NUM_THREADS; t++) {
-                CloseHandle(threads[t]);
-            }
-#else
-            pthread_t threads[NUM_THREADS];
-            for (int t = 0; t < NUM_THREADS; t++) {
-                pthread_create(&threads[t], NULL, log_thread_func, NULL);
-            }
-            for (int t = 0; t < NUM_THREADS; t++) {
-                pthread_join(threads[t], NULL);
-            }
-#endif
+            run_threads(log_thread_func);
         }
     }
 
@@ -664,6 +694,9 @@ main(int argc, char **argv)
             sleep_s(6);
             sentry_metrics_count(
                 "post.sleep.counter", 1, sentry_value_new_null());
+        }
+        if (has_arg(argc, argv, "metrics-threads")) {
+            run_threads(metric_thread_func);
         }
     }
 
