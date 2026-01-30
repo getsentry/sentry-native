@@ -122,6 +122,12 @@ void sentry__options_unlock(void);
 
 void sentry__set_propagation_context(const char *key, sentry_value_t value);
 
+/**
+ * Adds default attributes to the telemetry attributes object.
+ */
+void sentry__apply_attributes(
+    sentry_value_t telemetry, sentry_value_t attributes);
+
 bool sentry__launch_external_crash_reporter(sentry_envelope_t *envelope);
 
 #define SENTRY_WITH_OPTIONS(Options)                                           \

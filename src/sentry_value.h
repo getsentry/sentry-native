@@ -108,6 +108,14 @@ void sentry__jsonwriter_write_value(
     sentry_jsonwriter_t *jw, sentry_value_t value);
 
 /**
+ * Adds a typed attribute to the attributes object.
+ * No-op if the attribute already exists (preserves user precedence).
+ * Takes ownership of `value`.
+ */
+void sentry__value_add_attribute(sentry_value_t attributes,
+    sentry_value_t value, const char *type, const char *name);
+
+/**
  * Deserialize a sentry value from msgpack.
  *
  * If the buffer contains multiple sequential msgpack values (as in flat buffers
