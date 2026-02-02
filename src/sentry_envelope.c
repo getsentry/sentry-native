@@ -485,7 +485,7 @@ sentry__envelope_add_metrics(
     sentry_envelope_t *envelope, sentry_value_t metrics)
 {
     return add_telemetry(envelope, metrics, "trace_metric",
-        "application/vnd.sentry.items.metric+json");
+        "application/vnd.sentry.items.trace-metric+json");
 }
 
 sentry_envelope_item_t *
