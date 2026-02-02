@@ -8,6 +8,7 @@
 #include "sentry_core.h"
 #include "sentry_database.h"
 #include "sentry_envelope.h"
+#include "sentry_hint.h"
 #include "sentry_logs.h"
 #include "sentry_options.h"
 #include "sentry_path.h"
@@ -783,7 +784,7 @@ fail:
 }
 
 static sentry_envelope_t *
-prepare_user_feedback(sentry_value_t user_feedback)
+prepare_user_feedback(sentry_value_t user_feedback, sentry_hint_t *hint)
 {
     sentry_envelope_t *envelope = NULL;
 
@@ -791,6 +792,10 @@ prepare_user_feedback(sentry_value_t user_feedback)
     if (!envelope
         || !sentry__envelope_add_user_feedback(envelope, user_feedback)) {
         goto fail;
+    }
+
+    if (hint && hint->attachments) {
+        sentry__envelope_add_attachments(envelope, hint->attachments);
     }
 
     return envelope;
@@ -1000,6 +1005,32 @@ sentry__set_propagation_context(const char *key, sentry_value_t value)
     SENTRY_WITH_SCOPE_MUT (scope) {
         sentry_value_set_by_key(scope->propagation_context, key, value);
     }
+}
+
+void
+sentry__apply_attributes(sentry_value_t telemetry, sentry_value_t attributes)
+{
+    SENTRY_WITH_SCOPE (scope) {
+        sentry__scope_apply_attributes(scope, telemetry, attributes);
+    }
+    SENTRY_WITH_OPTIONS (options) {
+        if (options->environment) {
+            sentry__value_add_attribute(attributes,
+                sentry_value_new_string(options->environment), "string",
+                "sentry.environment");
+        }
+        if (options->release) {
+            sentry__value_add_attribute(attributes,
+                sentry_value_new_string(options->release), "string",
+                "sentry.release");
+        }
+        sentry__value_add_attribute(attributes,
+            sentry_value_new_string(sentry_options_get_sdk_name(options)),
+            "string", "sentry.sdk.name");
+    }
+    sentry__value_add_attribute(attributes,
+        sentry_value_new_string(sentry_sdk_version()), "string",
+        "sentry.sdk.version");
 }
 
 void
@@ -1534,15 +1565,25 @@ sentry_capture_user_feedback(sentry_value_t user_report)
 void
 sentry_capture_feedback(sentry_value_t user_feedback)
 {
+    // Reuse the implementation with NULL hint
+    sentry_capture_feedback_with_hint(user_feedback, NULL);
+}
+
+void
+sentry_capture_feedback_with_hint(
+    sentry_value_t user_feedback, sentry_hint_t *hint)
+{
     sentry_envelope_t *envelope = NULL;
 
     SENTRY_WITH_OPTIONS (options) {
-        envelope = prepare_user_feedback(user_feedback);
+        envelope = prepare_user_feedback(user_feedback, hint);
         if (envelope) {
             sentry__capture_envelope(options->transport, envelope);
-        } else {
-            sentry_value_decref(user_feedback);
         }
+    }
+
+    if (hint) {
+        sentry__hint_free(hint);
     }
 }
 

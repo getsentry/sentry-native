@@ -126,6 +126,12 @@ void sentry__scope_remove_attribute_n(
     for (sentry_scope_t *Scope = sentry__scope_lock(); Scope;                  \
         sentry__scope_unlock(), Scope = NULL)
 
+/**
+ * Adds scoped attributes to the telemetry attributes object.
+ */
+void sentry__scope_apply_attributes(const sentry_scope_t *scope,
+    sentry_value_t telemetry, sentry_value_t attributes);
+
 #endif
 
 // this is only used in unit tests

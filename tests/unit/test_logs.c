@@ -379,3 +379,34 @@ SENTRY_TEST(logs_custom_attributes_with_format_strings)
     TEST_CHECK(!validation_data.has_validation_error);
     TEST_CHECK_INT_EQUAL(validation_data.called_count, 1);
 }
+
+SENTRY_TEST(logs_custom_attributes_not_modified)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_enable_logs(options, true);
+    sentry_options_set_logs_with_attributes(options, true);
+    sentry_init(options);
+
+    sentry_set_attribute("global.key",
+        sentry_value_new_attribute(
+            sentry_value_new_string("global_value"), NULL));
+
+    sentry_value_t attrs = sentry_value_new_object();
+    sentry_value_set_by_key(attrs, "local.key",
+        sentry_value_new_attribute(
+            sentry_value_new_string("local_value"), NULL));
+    sentry_value_incref(attrs);
+
+    sentry_log_info("Test message", attrs);
+
+    // attrs should still contain only local.key, not global.key
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(attrs), 1);
+    TEST_CHECK(
+        !sentry_value_is_null(sentry_value_get_by_key(attrs, "local.key")));
+    TEST_CHECK(
+        sentry_value_is_null(sentry_value_get_by_key(attrs, "global.key")));
+
+    sentry_value_decref(attrs);
+    sentry_close();
+}
