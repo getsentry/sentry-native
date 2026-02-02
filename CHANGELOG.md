@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- Add new offline caching options to persist envelopes locally, currently supported with the `inproc` and `breakpad` backends: `sentry_options_set_cache_keep`, `sentry_options_set_cache_max_size`, and `sentry_options_set_cache_max_age`. ([#1490](https://github.com/getsentry/sentry-native/pull/1490))
+
 ## 0.12.5
 
 **Features**:
@@ -11,10 +17,6 @@
 - Structured logs: avoid modifying custom per-log attributes when merging with scope attributes. ([#1500](https://github.com/getsentry/sentry-native/pull/1500))
 
 ## 0.12.4
-
-**Features**:
-
-- Add new offline caching options to persist envelopes locally, currently supported with the `inproc` and `breakpad` backends: `sentry_options_set_cache_keep`, `sentry_options_set_cache_max_size`, and `sentry_options_set_cache_max_age`. ([#1490](https://github.com/getsentry/sentry-native/pull/1490))
 
 **Fixes**:
 
