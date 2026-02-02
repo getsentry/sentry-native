@@ -440,8 +440,9 @@ sentry__envelope_add_transaction(
     return item;
 }
 
-sentry_envelope_item_t *
-sentry__envelope_add_logs(sentry_envelope_t *envelope, sentry_value_t logs)
+static sentry_envelope_item_t *
+add_telemetry(sentry_envelope_t *envelope, sentry_value_t telemetry,
+    const char *type, const char *content_type)
 {
     sentry_envelope_item_t *item = envelope_add_item(envelope);
     if (!item) {
@@ -453,19 +454,19 @@ sentry__envelope_add_logs(sentry_envelope_t *envelope, sentry_value_t logs)
         return NULL;
     }
 
-    sentry__jsonwriter_write_value(jw, logs);
+    sentry__jsonwriter_write_value(jw, telemetry);
     item->payload = sentry__jsonwriter_into_string(jw, &item->payload_len);
     if (!item->payload) {
         return NULL;
     }
 
     sentry__envelope_item_set_header(
-        item, "type", sentry_value_new_string("log"));
+        item, "type", sentry_value_new_string(type));
     sentry__envelope_item_set_header(item, "item_count",
         sentry_value_new_int32((int32_t)sentry_value_get_length(
-            sentry_value_get_by_key(logs, "items"))));
-    sentry__envelope_item_set_header(item, "content_type",
-        sentry_value_new_string("application/vnd.sentry.items.log+json"));
+            sentry_value_get_by_key(telemetry, "items"))));
+    sentry__envelope_item_set_header(
+        item, "content_type", sentry_value_new_string(content_type));
     sentry_value_t length = sentry_value_new_int32((int32_t)item->payload_len);
     sentry__envelope_item_set_header(item, "length", length);
 
@@ -473,37 +474,18 @@ sentry__envelope_add_logs(sentry_envelope_t *envelope, sentry_value_t logs)
 }
 
 sentry_envelope_item_t *
+sentry__envelope_add_logs(sentry_envelope_t *envelope, sentry_value_t logs)
+{
+    return add_telemetry(
+        envelope, logs, "log", "application/vnd.sentry.items.log+json");
+}
+
+sentry_envelope_item_t *
 sentry__envelope_add_metrics(
     sentry_envelope_t *envelope, sentry_value_t metrics)
 {
-    sentry_envelope_item_t *item = envelope_add_item(envelope);
-    if (!item) {
-        return NULL;
-    }
-
-    sentry_jsonwriter_t *jw = sentry__jsonwriter_new_sb(NULL);
-    if (!jw) {
-        return NULL;
-    }
-
-    sentry__jsonwriter_write_value(jw, metrics);
-    item->payload = sentry__jsonwriter_into_string(jw, &item->payload_len);
-    if (!item->payload) {
-        return NULL;
-    }
-
-    sentry__envelope_item_set_header(
-        item, "type", sentry_value_new_string("trace_metric"));
-    sentry__envelope_item_set_header(item, "item_count",
-        sentry_value_new_int32((int32_t)sentry_value_get_length(
-            sentry_value_get_by_key(metrics, "items"))));
-    sentry__envelope_item_set_header(item, "content_type",
-        sentry_value_new_string(
-            "application/vnd.sentry.items.trace-metric+json"));
-    sentry_value_t length = sentry_value_new_int32((int32_t)item->payload_len);
-    sentry__envelope_item_set_header(item, "length", length);
-
-    return item;
+    return add_telemetry(envelope, metrics, "trace_metric",
+        "application/vnd.sentry.items.metric+json");
 }
 
 sentry_envelope_item_t *
