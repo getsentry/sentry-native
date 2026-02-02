@@ -1741,3 +1741,114 @@ sentry__value_from_msgpack(const char *buf, size_t buf_len)
 
     return result;
 }
+
+static int
+cmp_breadcrumb(sentry_value_t a, sentry_value_t b, bool *error)
+{
+    sentry_value_t timestamp_a = sentry_value_get_by_key(a, "timestamp");
+    sentry_value_t timestamp_b = sentry_value_get_by_key(b, "timestamp");
+    if (sentry_value_is_null(timestamp_a)) {
+        *error = true;
+        return -1;
+    }
+    if (sentry_value_is_null(timestamp_b)) {
+        *error = true;
+        return 1;
+    }
+
+    return strcmp(sentry_value_as_string(timestamp_a),
+        sentry_value_as_string(timestamp_b));
+}
+
+static bool
+append_breadcrumb(sentry_value_t target, sentry_value_t source, size_t index)
+{
+    int rv = sentry_value_append(
+        target, sentry_value_get_by_index_owned(source, index));
+    if (rv != 0) {
+        SENTRY_ERROR("Failed to merge breadcrumbs");
+        sentry_value_decref(target);
+        return false;
+    }
+    return true;
+}
+
+sentry_value_t
+sentry__value_merge_breadcrumbs(
+    sentry_value_t list_a, sentry_value_t list_b, size_t max)
+{
+    size_t len_a = sentry_value_get_type(list_a) == SENTRY_VALUE_TYPE_LIST
+        ? sentry_value_get_length(list_a)
+        : 0;
+    size_t len_b = sentry_value_get_type(list_b) == SENTRY_VALUE_TYPE_LIST
+        ? sentry_value_get_length(list_b)
+        : 0;
+
+    if (len_a == 0 && len_b == 0) {
+        return sentry_value_new_null();
+    } else if (len_a == 0) {
+        sentry_value_incref(list_b);
+        return list_b;
+    } else if (len_b == 0) {
+        sentry_value_incref(list_a);
+        return list_a;
+    }
+
+    bool error = false;
+    size_t idx_a = 0;
+    size_t idx_b = 0;
+    size_t total = len_a + len_b;
+    size_t skip = total > max ? total - max : 0;
+    sentry_value_t result = sentry__value_new_list_with_size(total - skip);
+
+    // skip oldest breadcrumbs to fit max
+    while (idx_a < len_a && idx_b < len_b && idx_a + idx_b < skip) {
+        sentry_value_t item_a = sentry_value_get_by_index(list_a, idx_a);
+        sentry_value_t item_b = sentry_value_get_by_index(list_b, idx_b);
+
+        if (cmp_breadcrumb(item_a, item_b, &error) <= 0) {
+            idx_a++;
+        } else {
+            idx_b++;
+        }
+    }
+    while (idx_a < len_a && idx_a + idx_b < skip) {
+        idx_a++;
+    }
+    while (idx_b < len_b && idx_a + idx_b < skip) {
+        idx_b++;
+    }
+
+    // merge the remaining breadcrumbs in timestamp order
+    while (idx_a < len_a && idx_b < len_b) {
+        sentry_value_t item_a = sentry_value_get_by_index(list_a, idx_a);
+        sentry_value_t item_b = sentry_value_get_by_index(list_b, idx_b);
+
+        if (cmp_breadcrumb(item_a, item_b, &error) <= 0) {
+            if (!append_breadcrumb(result, list_a, idx_a++)) {
+                return sentry_value_new_null();
+            }
+        } else {
+            if (!append_breadcrumb(result, list_b, idx_b++)) {
+                return sentry_value_new_null();
+            }
+        }
+    }
+    while (idx_a < len_a) {
+        if (!append_breadcrumb(result, list_a, idx_a++)) {
+            return sentry_value_new_null();
+        }
+    }
+    while (idx_b < len_b) {
+        if (!append_breadcrumb(result, list_b, idx_b++)) {
+            return sentry_value_new_null();
+        }
+    }
+
+    if (error) {
+        SENTRY_WARN("Detected missing timestamps while merging breadcrumbs. "
+                    "This may lead to unexpected results.");
+    }
+
+    return result;
+}
