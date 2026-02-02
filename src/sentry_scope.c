@@ -669,6 +669,8 @@ void
 sentry__scope_apply_attributes(const sentry_scope_t *scope,
     sentry_value_t telemetry, sentry_value_t attributes)
 {
+    sentry__value_merge_objects(attributes, scope->attributes);
+
     sentry_value_t trace_id = sentry_value_get_by_key(
         sentry_value_get_by_key(scope->propagation_context, "trace"),
         "trace_id");

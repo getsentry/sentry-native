@@ -6,6 +6,10 @@
 
 - Add attachment support to user feedback. ([#1414](https://github.com/getsentry/sentry-native/pull/1414))
 
+**Fixes**:
+
+- Structured logs: avoid modifying custom per-log attributes when merging with scope attributes. ([#1500](https://github.com/getsentry/sentry-native/pull/1500))
+
 ## 0.12.4
 
 **Fixes**:
