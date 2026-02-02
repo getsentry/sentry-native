@@ -15,7 +15,6 @@ from . import (
     run,
     Envelope,
     split_log_request_cond,
-    extract_request,
     is_feedback_envelope,
     is_logs_envelope,
     is_metrics_envelope,
