@@ -585,6 +585,20 @@ sentry_value_new_attribute(sentry_value_t value, const char *unit)
     return sentry_value_new_attribute_n(value, unit, unit ? strlen(unit) : 0);
 }
 
+void
+sentry__value_add_attribute(sentry_value_t attributes, sentry_value_t value,
+    const char *type, const char *name)
+{
+    if (!sentry_value_is_null(sentry_value_get_by_key(attributes, name))) {
+        sentry_value_decref(value);
+        return;
+    }
+    sentry_value_t param_obj = sentry_value_new_object();
+    sentry_value_set_by_key(param_obj, "value", value);
+    sentry_value_set_by_key(param_obj, "type", sentry_value_new_string(type));
+    sentry_value_set_by_key(attributes, name, param_obj);
+}
+
 sentry_value_type_t
 sentry_value_get_type(sentry_value_t value)
 {
@@ -1621,6 +1635,111 @@ sentry_event_value_add_stacktrace(sentry_value_t event, void **ips, size_t len)
     sentry_value_t thread = sentry_value_new_object();
     sentry_value_set_stacktrace(thread, ips, len);
     sentry_event_add_thread(event, thread);
+}
+
+static sentry_value_t
+value_from_mpack(mpack_node_t node)
+{
+    switch (mpack_node_type(node)) {
+    case mpack_type_nil:
+        return sentry_value_new_null();
+    case mpack_type_bool:
+        return sentry_value_new_bool(mpack_node_bool(node));
+    case mpack_type_int: {
+        int64_t i64_val = mpack_node_i64(node);
+        if (i64_val >= INT32_MIN && i64_val <= INT32_MAX) {
+            return sentry_value_new_int32((int32_t)i64_val);
+        } else {
+            return sentry_value_new_int64(i64_val);
+        }
+    }
+    case mpack_type_uint: {
+        uint64_t u64_val = mpack_node_u64(node);
+        if (u64_val <= INT32_MAX) {
+            return sentry_value_new_int32((int32_t)u64_val);
+        } else if (u64_val <= INT64_MAX) {
+            return sentry_value_new_int64((int64_t)u64_val);
+        } else {
+            return sentry_value_new_uint64(u64_val);
+        }
+    }
+    case mpack_type_float:
+    case mpack_type_double:
+        return sentry_value_new_double(mpack_node_double(node));
+    case mpack_type_str: {
+        size_t str_len = mpack_node_strlen(node);
+        return sentry_value_new_string_n(mpack_node_str(node), str_len);
+    }
+    case mpack_type_array: {
+        size_t arr_len = mpack_node_array_length(node);
+        sentry_value_t arr = sentry_value_new_list();
+        for (size_t i = 0; i < arr_len; i++) {
+            sentry_value_append(
+                arr, value_from_mpack(mpack_node_array_at(node, i)));
+        }
+        return arr;
+    }
+    case mpack_type_map: {
+        size_t map_len = mpack_node_map_count(node);
+        sentry_value_t obj = sentry_value_new_object();
+        for (size_t i = 0; i < map_len; i++) {
+            mpack_node_t key_node = mpack_node_map_key_at(node, i);
+            if (mpack_node_type(key_node) != mpack_type_str) {
+                continue; // skip non-string keys
+            }
+            mpack_node_t val_node = mpack_node_map_value_at(node, i);
+            size_t key_len = mpack_node_strlen(key_node);
+            sentry_value_set_by_key_n(obj, mpack_node_str(key_node), key_len,
+                value_from_mpack(val_node));
+        }
+        return obj;
+    }
+    case mpack_type_missing:
+    case mpack_type_bin:
+    default:
+        return sentry_value_new_null();
+    }
+}
+
+sentry_value_t
+sentry__value_from_msgpack(const char *buf, size_t buf_len)
+{
+    if (!buf || buf_len == 0) {
+        return sentry_value_new_null();
+    }
+
+    size_t offset = 0;
+    sentry_value_t result = sentry_value_new_null();
+
+    while (offset < buf_len) {
+        mpack_tree_t tree;
+        mpack_tree_init_data(&tree, buf + offset, buf_len - offset);
+        mpack_tree_parse(&tree);
+
+        if (mpack_tree_error(&tree) != mpack_ok) {
+            mpack_tree_destroy(&tree);
+            break;
+        }
+
+        size_t size = mpack_tree_size(&tree);
+        sentry_value_t value = value_from_mpack(mpack_tree_root(&tree));
+        mpack_tree_destroy(&tree);
+
+        if (offset == 0 && sentry_value_is_null(result)) {
+            if (offset + size < buf_len) {
+                result = sentry_value_new_list();
+                sentry_value_append(result, value);
+            } else {
+                result = value;
+            }
+        } else {
+            sentry_value_append(result, value);
+        }
+
+        offset += size;
+    }
+
+    return result;
 }
 
 static int

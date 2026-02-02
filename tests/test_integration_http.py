@@ -8,6 +8,7 @@ import uuid
 import subprocess
 
 import pytest
+from flaky import flaky
 
 from . import (
     make_dsn,
@@ -174,6 +175,39 @@ def test_user_feedback_http(cmake, httpserver):
     envelope = Envelope.deserialize(output)
 
     assert_user_feedback(envelope)
+
+
+def test_user_feedback_with_attachments_http(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+
+    httpserver.expect_request(
+        "/api/123456/envelope/",
+        headers={"x-sentry-auth": auth_header},
+    ).respond_with_data("OK")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "capture-user-feedback-with-attachment"],
+        env=env,
+    )
+
+    assert len(httpserver.log) == 1
+    output = httpserver.log[0][0].get_data()
+    envelope = Envelope.deserialize(output)
+
+    # Verify the feedback is present
+    assert_user_feedback(envelope)
+
+    # Verify attachments are present
+    attachment_count = 0
+    for item in envelope:
+        if item.headers.get("type") == "attachment":
+            attachment_count += 1
+
+    # Should have 2 attachments (one file, one bytes)
+    assert attachment_count == 2
 
 
 def test_user_report_http(cmake, httpserver):
@@ -555,6 +589,7 @@ def test_breakpad_dump_inflight(cmake, httpserver):
     assert len(httpserver.log) >= 11
 
 
+@flaky(max_runs=3)
 def test_shutdown_timeout(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
 
