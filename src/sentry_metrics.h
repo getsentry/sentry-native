@@ -11,10 +11,11 @@ void sentry__metrics_startup(void);
 /**
  * Begin non-blocking shutdown of the metrics timer/flush thread.
  */
-void sentry__metrics_shutdown_begin(void);
+bool sentry__metrics_shutdown_begin(void);
 
 /**
  * Wait for the metrics timer/flush thread to complete shutdown.
+ * Should only be called if sentry__metrics_shutdown_begin returned true.
  */
 void sentry__metrics_shutdown_wait(uint64_t timeout);
 

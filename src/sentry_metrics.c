@@ -148,11 +148,11 @@ sentry__metrics_startup(void)
     sentry__batcher_startup(&g_batcher, sentry__envelope_add_metrics);
 }
 
-void
+bool
 sentry__metrics_shutdown_begin(void)
 {
     SENTRY_DEBUG("beginning metrics system shutdown");
-    sentry__batcher_shutdown_begin(&g_batcher);
+    return sentry__batcher_shutdown_begin(&g_batcher);
 }
 
 void

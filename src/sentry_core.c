@@ -345,16 +345,18 @@ sentry_close(void)
     // they are flushed. This prevents a potential deadlock on the options
     // during envelope creation.
     SENTRY_WITH_OPTIONS (options) {
+        bool wait_logs = false;
         if (options->enable_logs) {
-            sentry__logs_shutdown_begin();
+            wait_logs = sentry__logs_shutdown_begin();
         }
+        bool wait_metrics = false;
         if (options->enable_metrics) {
-            sentry__metrics_shutdown_begin();
+            wait_metrics = sentry__metrics_shutdown_begin();
         }
-        if (options->enable_logs) {
+        if (wait_logs) {
             sentry__logs_shutdown_wait(options->shutdown_timeout);
         }
-        if (options->enable_metrics) {
+        if (wait_metrics) {
             sentry__metrics_shutdown_wait(options->shutdown_timeout);
         }
     }

@@ -308,7 +308,7 @@ sentry__batcher_startup(
     }
 }
 
-void
+bool
 sentry__batcher_shutdown_begin(sentry_batcher_t *batcher)
 {
     // Atomically transition to STOPPED and get the previous state
@@ -321,11 +321,12 @@ sentry__batcher_shutdown_begin(sentry_batcher_t *batcher)
     // If thread was never started, nothing to do
     if (old_state == SENTRY_BATCHER_THREAD_STOPPED) {
         SENTRY_DEBUG("batcher thread was not started, skipping shutdown");
-        return;
+        return false;
     }
 
     // Thread was started (either STARTING or RUNNING), signal it to stop
     sentry__cond_wake(&batcher->request_flush);
+    return true;
 }
 
 void

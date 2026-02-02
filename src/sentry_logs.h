@@ -14,10 +14,11 @@ void sentry__logs_startup(void);
 /**
  * Begin non-blocking shutdown of the logs timer/flush thread.
  */
-void sentry__logs_shutdown_begin(void);
+bool sentry__logs_shutdown_begin(void);
 
 /**
  * Wait for the logs timer/flush thread to complete shutdown.
+ * Should only be called if sentry__logs_shutdown_begin returned true.
  */
 void sentry__logs_shutdown_wait(uint64_t timeout);
 

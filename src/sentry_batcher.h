@@ -47,7 +47,7 @@ void sentry__batcher_flush(sentry_batcher_t *batcher, bool crash_safe);
 bool sentry__batcher_enqueue(sentry_batcher_t *batcher, sentry_value_t item);
 void sentry__batcher_startup(
     sentry_batcher_t *batcher, sentry_batch_func_t batch_func);
-void sentry__batcher_shutdown_begin(sentry_batcher_t *batcher);
+bool sentry__batcher_shutdown_begin(sentry_batcher_t *batcher);
 void sentry__batcher_shutdown_wait(sentry_batcher_t *batcher, uint64_t timeout);
 void sentry__batcher_flush_crash_safe(sentry_batcher_t *batcher);
 void sentry__batcher_force_flush_begin(sentry_batcher_t *batcher);
