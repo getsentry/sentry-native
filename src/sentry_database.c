@@ -242,7 +242,9 @@ sentry__process_old_runs(const sentry_options_t *options, uint64_t last_crash)
         sentry_path_t *cache_dir = NULL;
         if (options->cache_keep) {
             cache_dir = sentry__path_join_str(options->database_path, "cache");
-            sentry__path_create_dir_all(cache_dir);
+            if (cache_dir) {
+                sentry__path_create_dir_all(cache_dir);
+            }
         }
 
         sentry_pathiter_t *run_iter = sentry__path_iter_directory(run_dir);
@@ -290,10 +292,11 @@ sentry__process_old_runs(const sentry_options_t *options, uint64_t last_crash)
                 sentry_envelope_t *envelope = sentry__envelope_from_path(file);
                 sentry__capture_envelope(options->transport, envelope);
 
-                if (options->cache_keep) {
+                if (cache_dir) {
                     sentry_path_t *cached_file = sentry__path_join_str(
                         cache_dir, sentry__path_filename(file));
-                    if (sentry__path_rename(file, cached_file) != 0) {
+                    if (!cached_file
+                        || sentry__path_rename(file, cached_file) != 0) {
                         SENTRY_WARNF("failed to cache envelope \"%s\"",
                             sentry__path_filename(file));
                     }
@@ -356,7 +359,7 @@ sentry__cleanup_cache(const sentry_options_t *options)
 
     sentry_path_t *cache_dir
         = sentry__path_join_str(options->database_path, "cache");
-    if (!sentry__path_is_dir(cache_dir)) {
+    if (!cache_dir || !sentry__path_is_dir(cache_dir)) {
         sentry__path_free(cache_dir);
         return;
     }
