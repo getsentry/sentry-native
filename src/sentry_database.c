@@ -395,6 +395,9 @@ sentry__cleanup_cache(const sentry_options_t *options)
         }
 
         entries[entries_count].path = sentry__path_clone(entry);
+        if (!entries[entries_count].path) {
+            break;
+        }
         entries[entries_count].mtime = sentry__path_get_mtime(entry);
         entries[entries_count].size = sentry__path_get_size(entry);
         entries_count++;
