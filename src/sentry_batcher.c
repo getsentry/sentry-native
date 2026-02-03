@@ -47,7 +47,7 @@ check_for_flush_condition(sentry_batcher_t *batcher)
         >= SENTRY_BATCHER_QUEUE_LENGTH;
 }
 
-void
+bool
 sentry__batcher_flush(sentry_batcher_t *batcher, bool crash_safe)
 {
     if (crash_safe) {
@@ -59,7 +59,7 @@ sentry__batcher_flush(sentry_batcher_t *batcher, bool crash_safe)
                 SENTRY_WARN(
                     "sentry__batcher_flush: timeout waiting for flushing "
                     "lock in crash-safe mode");
-                return;
+                return false;
             }
 
             // backoff max-wait with max_attempts = 200 based sleep slots:
@@ -74,7 +74,7 @@ sentry__batcher_flush(sentry_batcher_t *batcher, bool crash_safe)
         const long already_flushing
             = sentry__atomic_store(&batcher->flushing, 1);
         if (already_flushing) {
-            return;
+            return false;
         }
     }
     do {
@@ -135,6 +135,7 @@ sentry__batcher_flush(sentry_batcher_t *batcher, bool crash_safe)
     } while (check_for_flush_condition(batcher));
 
     sentry__atomic_store(&batcher->flushing, 0);
+    return true;
 }
 
 #define ENQUEUE_MAX_RETRIES 2
@@ -372,10 +373,13 @@ sentry__batcher_force_flush_begin(sentry_batcher_t *batcher)
 void
 sentry__batcher_force_flush_wait(sentry_batcher_t *batcher)
 {
-    while (sentry__atomic_fetch(&batcher->flushing)) {
-        sentry__cpu_relax();
-    }
-    sentry__batcher_flush(batcher, false);
+    do {
+        // wait for in-progress flush to complete
+        while (sentry__atomic_fetch(&batcher->flushing)) {
+            sentry__cpu_relax();
+        }
+        // retry if the batcher thread (woken by _begin) wins the race
+    } while (!sentry__batcher_flush(batcher, false));
 }
 
 #ifdef SENTRY_UNITTEST
