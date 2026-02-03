@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Fixes**:
+
+- Breakpad: fix loader deadlock when capturing crash dump while network requests are in flight. ([#1502](https://github.com/getsentry/sentry-native/pull/1502))
+
 ## 0.12.5
 
 **Features**:
