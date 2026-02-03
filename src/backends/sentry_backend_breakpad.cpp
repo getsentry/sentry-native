@@ -262,6 +262,8 @@ breakpad_backend_startup(
         && defined(SENTRY_THREAD_STACK_GUARANTEE_AUTO_INIT)
     sentry__set_default_thread_stack_guarantee();
 #    endif
+    // Pre-load to prevent frequent LoadPsApi deadlocks in MiniDumpWriteDump
+    LoadLibraryA("psapi.dll");
     backend->data = new google_breakpad::ExceptionHandler(
         current_run_folder->path_w, nullptr, breakpad_backend_callback, nullptr,
         google_breakpad::ExceptionHandler::HANDLER_EXCEPTION);
