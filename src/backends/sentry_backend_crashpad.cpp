@@ -750,14 +750,29 @@ crashpad_backend_prune_database(sentry_backend_t *backend)
     // an embedded use-case, but minidumps on desktop can sometimes be quite
     // large.
     SENTRY_WITH_OPTIONS (options) {
-        data->db->CleanDatabase(options->cache_max_age);
-        crashpad::BinaryPruneCondition condition(
-            crashpad::BinaryPruneCondition::OR,
-            new crashpad::DatabaseSizePruneCondition(
-                options->cache_max_size / 1024),
-            new crashpad::AgePruneCondition(
-                static_cast<int>(options->cache_max_age / (24 * 60 * 60))));
-        crashpad::PruneCrashReportDatabase(data->db, &condition);
+        if (options->cache_max_age > 0) {
+            data->db->CleanDatabase(options->cache_max_age);
+        }
+
+        size_t max_kb = options->cache_max_size / 1024;
+        int max_days
+            = static_cast<int>(options->cache_max_age / (24 * 60 * 60));
+
+        std::unique_ptr<crashpad::PruneCondition> condition;
+        if (max_kb > 0 && max_days > 0) {
+            condition = std::make_unique<crashpad::BinaryPruneCondition>(
+                crashpad::BinaryPruneCondition::OR,
+                new crashpad::DatabaseSizePruneCondition(max_kb),
+                new crashpad::AgePruneCondition(max_days));
+        } else if (max_kb > 0) {
+            condition = std::make_unique<crashpad::DatabaseSizePruneCondition>(
+                max_kb);
+        } else if (max_days > 0) {
+            condition = std::make_unique<crashpad::AgePruneCondition>(max_days);
+        }
+        if (condition) {
+            crashpad::PruneCrashReportDatabase(data->db, condition.get());
+        }
     }
 }
 
