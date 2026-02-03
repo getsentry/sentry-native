@@ -422,17 +422,16 @@ sentry__cleanup_cache(const sentry_options_t *options)
         // Age-based pruning
         if (options->cache_max_age > 0 && entries[i].mtime < oldest_allowed) {
             should_prune = true;
-        }
-
-        // Size-based pruning (accumulate size as we go, like crashpad)
-        accumulated_size += entries[i].size;
-        if (options->cache_max_size > 0
-            && accumulated_size > options->cache_max_size) {
-            should_prune = true;
+        } else {
+            // Size-based pruning (accumulate size as we go, like crashpad)
+            accumulated_size += entries[i].size;
+            if (options->cache_max_size > 0
+                && accumulated_size > options->cache_max_size) {
+                should_prune = true;
+            }
         }
 
         if (should_prune) {
-            accumulated_size -= entries[i].size;
             sentry__path_remove_all(entries[i].path);
         }
         sentry__path_free(entries[i].path);

@@ -179,3 +179,67 @@ SENTRY_TEST(cache_max_age)
     sentry__path_free(cache_path);
     sentry_close();
 }
+
+SENTRY_TEST(cache_max_size_and_age)
+{
+    // Verify size pruning keeps newer entries, removes all older once limit
+    // hit. A (5KB), B (6KB), C (3KB) newest-to-oldest, max_size=10KB A+B=11KB
+    // exceeds limit -> B pruned, C (older) also pruned
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_cache_keep(options, true);
+    sentry_options_set_cache_max_size(options, 10 * 1024); // 10 KB
+    sentry_init(options);
+
+    sentry_path_t *cache_path
+        = sentry__path_join_str(options->database_path, "cache");
+    TEST_ASSERT(!!cache_path);
+    TEST_ASSERT(sentry__path_remove_all(cache_path) == 0);
+    TEST_ASSERT(sentry__path_create_dir_all(cache_path) == 0);
+
+    time_t now = time(NULL);
+
+    // A (newest, 5KB), B (middle, 6KB), C (oldest, 3KB)
+    struct {
+        const char *name;
+        size_t size;
+        time_t age;
+    } files[] = {
+        { "a.envelope", 5 * 1024, 0 }, // newest
+        { "b.envelope", 6 * 1024, 60 }, // 1 min old
+        { "c.envelope", 3 * 1024, 120 }, // 2 min old
+    };
+
+    for (size_t i = 0; i < sizeof(files) / sizeof(files[0]); i++) {
+        sentry_path_t *filepath
+            = sentry__path_join_str(cache_path, files[i].name);
+        TEST_ASSERT(!!filepath);
+
+        sentry_filewriter_t *fw = sentry__filewriter_new(filepath);
+        TEST_ASSERT(!!fw);
+        for (size_t j = 0; j < files[i].size / 10; j++) {
+            sentry__filewriter_write(fw, "0123456789", 10);
+        }
+        sentry__filewriter_free(fw);
+
+        TEST_CHECK(set_file_mtime(filepath, now - files[i].age) == 0);
+        sentry__path_free(filepath);
+    }
+
+    sentry__cleanup_cache(options);
+
+    // Verify: A kept, B and C removed (once limit hit, all older removed)
+    sentry_path_t *a_path = sentry__path_join_str(cache_path, "a.envelope");
+    sentry_path_t *b_path = sentry__path_join_str(cache_path, "b.envelope");
+    sentry_path_t *c_path = sentry__path_join_str(cache_path, "c.envelope");
+
+    TEST_CHECK(sentry__path_is_file(a_path)); // newest, kept
+    TEST_CHECK(!sentry__path_is_file(b_path)); // size-pruned
+    TEST_CHECK(!sentry__path_is_file(c_path)); // older than B, also pruned
+
+    sentry__path_free(a_path);
+    sentry__path_free(b_path);
+    sentry__path_free(c_path);
+    sentry__path_free(cache_path);
+    sentry_close();
+}
