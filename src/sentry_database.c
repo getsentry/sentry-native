@@ -293,7 +293,10 @@ sentry__process_old_runs(const sentry_options_t *options, uint64_t last_crash)
                 if (options->cache_keep) {
                     sentry_path_t *cached_file = sentry__path_join_str(
                         cache_dir, sentry__path_filename(file));
-                    sentry__path_rename(file, cached_file);
+                    if (sentry__path_rename(file, cached_file) != 0) {
+                        SENTRY_WARNF("failed to cache envelope \"%s\"",
+                            sentry__path_filename(file));
+                    }
                     sentry__path_free(cached_file);
                     continue;
                 }
