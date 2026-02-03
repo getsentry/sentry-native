@@ -426,6 +426,7 @@ sentry__cleanup_cache(const sentry_options_t *options)
         }
 
         if (should_prune) {
+            accumulated_size -= entries[i].size;
             sentry__path_remove_all(entries[i].path);
         }
         sentry__path_free(entries[i].path);
