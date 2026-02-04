@@ -124,6 +124,39 @@ SENTRY_TEST(metrics_distribution)
     TEST_CHECK_INT_EQUAL(validation_data.called_count, 1);
 }
 
+SENTRY_TEST(metrics_batch)
+{
+    transport_validation_data_t validation_data = { 0, false };
+
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_enable_metrics(options, true);
+
+    sentry_transport_t *transport
+        = sentry_transport_new(validate_metrics_envelope);
+    sentry_transport_set_state(transport, &validation_data);
+    sentry_options_set_transport(options, transport);
+
+    sentry_init(options);
+    sentry__metrics_wait_for_thread_startup();
+
+    // Batch buffer is 5 items in tests
+    for (int i = 0; i < 5; i++) {
+        TEST_CHECK_INT_EQUAL(
+            sentry_metrics_count("test.counter", 1, sentry_value_new_null()),
+            SENTRY_METRICS_RESULT_SUCCESS);
+    }
+    // Sleep to allow first batch to flush
+    sleep_ms(20);
+    TEST_CHECK_INT_EQUAL(
+        sentry_metrics_count("test.counter", 1, sentry_value_new_null()),
+        SENTRY_METRICS_RESULT_SUCCESS);
+    sentry_close();
+
+    TEST_CHECK(!validation_data.has_validation_error);
+    TEST_CHECK_INT_EQUAL(validation_data.called_count, 2);
+}
+
 SENTRY_TEST(metrics_with_attributes)
 {
     transport_validation_data_t validation_data = { 0, false };
