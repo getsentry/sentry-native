@@ -325,6 +325,14 @@ sentry__path_remove(const sentry_path_t *path)
 }
 
 int
+sentry__path_rename(const sentry_path_t *src, const sentry_path_t *dst)
+{
+    int status;
+    EINTR_RETRY(rename(src->path, dst->path), &status);
+    return status == 0 ? 0 : 1;
+}
+
+int
 sentry__path_create_dir_all(const sentry_path_t *path)
 {
     char *p, *ptr;
