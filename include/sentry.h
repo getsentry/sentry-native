@@ -365,7 +365,8 @@ SENTRY_API sentry_value_t sentry_value_new_user_n(const char *id, size_t id_len,
 
 /**
  * Creates a new attribute object.
- *  value is required, unit is optional, but has to be one of the `SENTRY_UNIT_X` macros.
+ *  value is required, unit is optional, but has to be one of the
+ * `SENTRY_UNIT_X` macros.
  *
  * value must be a bool, int, double or string `sentry_value_t`
  * OR a list of bool, int, double or string (with all items being the same type)
