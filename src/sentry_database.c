@@ -426,6 +426,10 @@ sentry__cleanup_cache(const sentry_options_t *options)
                 && accumulated_size > options->cache_max_size) {
                 should_prune = true;
             }
+            // Item count pruning
+            if (options->cache_max_items > 0 && i >= options->cache_max_items) {
+                should_prune = true;
+            }
         }
 
         if (should_prune) {

@@ -507,6 +507,7 @@ main(int argc, char **argv)
         sentry_options_set_cache_keep(options, true);
         sentry_options_set_cache_max_size(options, 4 * 1024 * 1024);
         sentry_options_set_cache_max_age(options, 5 * 24 * 60 * 60);
+        sentry_options_set_cache_max_items(options, 5);
     }
 
     if (0 != sentry_init(options)) {

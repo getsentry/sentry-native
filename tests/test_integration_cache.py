@@ -141,3 +141,41 @@ def test_cache_max_age(cmake, backend):
     assert len(cache_files) == 3
     for f in cache_files:
         assert time.time() - f.stat().st_mtime <= 5 * 24 * 60 * 60
+
+
+@pytest.mark.parametrize(
+    "backend",
+    [
+        "inproc",
+        pytest.param(
+            "breakpad",
+            marks=pytest.mark.skipif(
+                not has_breakpad, reason="breakpad backend not available"
+            ),
+        ),
+    ],
+)
+def test_cache_max_items(cmake, backend):
+    tmp_path = cmake(
+        ["sentry_example"], {"SENTRY_BACKEND": backend, "SENTRY_TRANSPORT": "none"}
+    )
+    cache_dir = tmp_path.joinpath(".sentry-native/cache")
+
+    for i in range(6):
+        run(
+            tmp_path,
+            "sentry_example",
+            ["log", "cache-keep", "crash"],
+            expect_failure=True,
+        )
+
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "cache-keep", "no-setup"],
+    )
+
+    # max 5 items
+    assert cache_dir.exists()
+    cache_files = list(cache_dir.glob("*.envelope"))
+    assert len(cache_files) == 5

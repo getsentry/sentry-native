@@ -783,6 +783,25 @@ private:
     size_t measured_size_;
 };
 
+class MaxItemsPruneCondition final : public crashpad::PruneCondition {
+public:
+    explicit MaxItemsPruneCondition(size_t max_items)
+        : max_items_(max_items)
+        , item_count_(0)
+    {
+    }
+
+    bool
+    ShouldPruneReport(const crashpad::CrashReportDatabase::Report &) override
+    {
+        return max_items_ > 0 && ++item_count_ > max_items_;
+    }
+
+private:
+    const size_t max_items_;
+    size_t item_count_;
+};
+
 static void
 crashpad_backend_prune_database(sentry_backend_t *backend)
 {
@@ -799,8 +818,11 @@ crashpad_backend_prune_database(sentry_backend_t *backend)
 
         crashpad::BinaryPruneCondition condition(
             crashpad::BinaryPruneCondition::OR,
-            new MaxSizePruneCondition(options->cache_max_size),
-            new MaxAgePruneCondition(options->cache_max_age));
+            new MaxItemsPruneCondition(options->cache_max_items),
+            new crashpad::BinaryPruneCondition(
+                crashpad::BinaryPruneCondition::OR,
+                new MaxSizePruneCondition(options->cache_max_size),
+                new MaxAgePruneCondition(options->cache_max_age)));
         crashpad::PruneCrashReportDatabase(data->db, &condition);
     }
 }

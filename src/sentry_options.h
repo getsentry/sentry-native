@@ -49,6 +49,7 @@ struct sentry_options_s {
 
     time_t cache_max_age;
     size_t cache_max_size;
+    size_t cache_max_items;
 
     sentry_attachment_t *attachments;
     sentry_run_t *run;

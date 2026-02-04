@@ -56,6 +56,7 @@ sentry_options_new(void)
     opts->cache_keep = false;
     opts->cache_max_age = 2 * 24 * 60 * 60;
     opts->cache_max_size = 8 * 1024 * 1024;
+    opts->cache_max_items = 30;
     opts->symbolize_stacktraces =
     // AIX doesn't have reliable debug IDs for server-side symbolication,
     // and the diversity of Android makes it infeasible to have access to debug
@@ -494,6 +495,12 @@ void
 sentry_options_set_cache_max_age(sentry_options_t *opts, time_t seconds)
 {
     opts->cache_max_age = seconds;
+}
+
+void
+sentry_options_set_cache_max_items(sentry_options_t *opts, size_t items)
+{
+    opts->cache_max_items = items;
 }
 
 int

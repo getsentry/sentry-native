@@ -1391,6 +1391,8 @@ SENTRY_API void sentry_options_set_cache_keep(
  * Sets the maximum size (in bytes) for the cache directory.
  * On startup, cached entries are removed from oldest to newest until the
  * directory size is within the max size limit.
+ *
+ * Defaults to 8 MB (8 * 1024 * 1024).
  */
 SENTRY_API void sentry_options_set_cache_max_size(
     sentry_options_t *opts, size_t bytes);
@@ -1398,9 +1400,21 @@ SENTRY_API void sentry_options_set_cache_max_size(
 /**
  * Sets the maximum age (in seconds) for cache entries in the cache directory.
  * On startup, cached entries exceeding the max age limit are removed.
+ *
+ * Defaults to 2 days (2 * 24 * 60 * 60).
  */
 SENTRY_API void sentry_options_set_cache_max_age(
     sentry_options_t *opts, time_t seconds);
+
+/**
+ * Sets the maximum number of items in the cache directory.
+ * On startup, cached entries are removed from oldest to newest until the
+ * directory contains at most the specified number of items.
+ *
+ * Defaults to 30.
+ */
+SENTRY_API void sentry_options_set_cache_max_items(
+    sentry_options_t *opts, size_t items);
 
 /**
  * Gets the caching mode for crash reports.
