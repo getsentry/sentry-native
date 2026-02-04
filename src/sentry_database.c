@@ -309,10 +309,7 @@ sentry__process_old_runs(const sentry_options_t *options, uint64_t last_crash)
         }
         sentry__pathiter_free(run_iter);
 
-        if (options->cache_keep) {
-            sentry__path_free(cache_dir);
-        }
-
+        sentry__path_free(cache_dir);
         sentry__path_remove_all(run_dir);
         sentry__filelock_free(lock);
     }
