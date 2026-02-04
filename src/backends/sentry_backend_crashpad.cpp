@@ -482,12 +482,10 @@ static sentry_envelope_t *
 report_to_envelope(const crashpad::CrashReportDatabase::Report &report,
     const sentry_options_t *options)
 {
-    sentry_envelope_t *envelope = sentry__envelope_new();
     sentry_path_t *minidump_path = report_minidump_path(report);
     sentry_path_t *attachments_dir = report_attachments_dir(report, options);
 
-    if (!envelope || !minidump_path || !attachments_dir) {
-        sentry_envelope_free(envelope);
+    if (!minidump_path || !attachments_dir) {
         sentry__path_free(minidump_path);
         sentry__path_free(attachments_dir);
         return nullptr;
@@ -518,14 +516,23 @@ report_to_envelope(const crashpad::CrashReportDatabase::Report &report,
     }
     sentry__path_free(attachments_dir);
 
-    sentry_value_set_by_key(event, "breadcrumbs",
-        sentry__value_merge_breadcrumbs(
-            breadcrumbs1, breadcrumbs2, options->max_breadcrumbs));
-    sentry__attachments_add_path(
-        &attachments, minidump_path, MINIDUMP, nullptr);
+    sentry_envelope_t *envelope = nullptr;
+    if (!sentry_value_is_null(event)) {
+        envelope = sentry__envelope_new();
+    }
+    if (envelope) {
+        sentry_value_set_by_key(event, "breadcrumbs",
+            sentry__value_merge_breadcrumbs(
+                breadcrumbs1, breadcrumbs2, options->max_breadcrumbs));
+        sentry__attachments_add_path(
+            &attachments, minidump_path, MINIDUMP, nullptr);
 
-    sentry__envelope_add_event(envelope, event);
-    sentry__envelope_add_attachments(envelope, attachments);
+        sentry__envelope_add_event(envelope, event);
+        sentry__envelope_add_attachments(envelope, attachments);
+    } else {
+        sentry__path_free(minidump_path);
+        sentry_value_decref(event);
+    }
 
     sentry_value_decref(breadcrumbs1);
     sentry_value_decref(breadcrumbs2);
@@ -560,12 +567,12 @@ process_completed_reports(
     }
 
     for (const auto &report : reports) {
+        std::string filename = report.uuid.ToString() + ".envelope";
         sentry_envelope_t *envelope = report_to_envelope(report, options);
         if (!envelope) {
+            SENTRY_WARNF("failed to convert \"%s\"", filename.c_str());
             continue;
         }
-
-        std::string filename = report.uuid.ToString() + ".envelope";
         sentry_path_t *out_path
             = sentry__path_join_str(cache_dir, filename.c_str());
         if (!out_path
