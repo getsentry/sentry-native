@@ -19,6 +19,9 @@ set_file_mtime(const sentry_path_t *path, time_t mtime)
 #ifdef SENTRY_PLATFORM_WINDOWS
     HANDLE h = CreateFileW(path->path_w, FILE_WRITE_ATTRIBUTES, 0, NULL,
         OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (h == INVALID_HANDLE_VALUE) {
+        return -1;
+    }
     // 100 ns intervals since January 1, 1601 (UTC)
     uint64_t t = ((uint64_t)mtime * 10000000ULL) + 116444736000000000ULL;
     FILETIME ft = { (DWORD)t, (DWORD)(t >> 32) };
@@ -158,7 +161,7 @@ SENTRY_TEST(cache_max_age)
 
         TEST_ASSERT(sentry__path_touch(filepath) == 0);
         time_t mtime = now - (i * 2 * 24 * 60 * 60); // N days ago
-        TEST_CHECK(set_file_mtime(filepath, mtime) == 0);
+        TEST_ASSERT(set_file_mtime(filepath, mtime) == 0);
         sentry__path_free(filepath);
     }
 
@@ -222,7 +225,7 @@ SENTRY_TEST(cache_max_size_and_age)
         }
         sentry__filewriter_free(fw);
 
-        TEST_CHECK(set_file_mtime(filepath, now - files[i].age) == 0);
+        TEST_ASSERT(set_file_mtime(filepath, now - files[i].age) == 0);
         sentry__path_free(filepath);
     }
 
