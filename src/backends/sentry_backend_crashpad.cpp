@@ -740,6 +740,49 @@ crashpad_backend_last_crash(sentry_backend_t *backend)
     return crash_time;
 }
 
+// seconds-based alternative to crashpad::AgePruneCondition (days)
+class MaxAgePruneCondition final : public crashpad::PruneCondition {
+public:
+    explicit MaxAgePruneCondition(time_t max_age)
+        : max_age_(max_age)
+        , oldest_report_time_(time(nullptr) - max_age)
+    {
+    }
+
+    bool
+    ShouldPruneReport(
+        const crashpad::CrashReportDatabase::Report &report) override
+    {
+        return max_age_ > 0 && report.creation_time < oldest_report_time_;
+    }
+
+private:
+    const time_t max_age_;
+    const time_t oldest_report_time_;
+};
+
+// bytes-based alternative to crashpad::DatabaseSizePruneCondition (kb)
+class MaxSizePruneCondition final : public crashpad::PruneCondition {
+public:
+    explicit MaxSizePruneCondition(size_t max_size)
+        : max_size_(max_size)
+        , measured_size_(0)
+    {
+    }
+
+    bool
+    ShouldPruneReport(
+        const crashpad::CrashReportDatabase::Report &report) override
+    {
+        measured_size_ += report.total_size;
+        return max_size_ > 0 && measured_size_ > max_size_;
+    }
+
+private:
+    const size_t max_size_;
+    size_t measured_size_;
+};
+
 static void
 crashpad_backend_prune_database(sentry_backend_t *backend)
 {
@@ -754,25 +797,11 @@ crashpad_backend_prune_database(sentry_backend_t *backend)
             data->db->CleanDatabase(options->cache_max_age);
         }
 
-        size_t max_kb = options->cache_max_size / 1024;
-        int max_days
-            = static_cast<int>(options->cache_max_age / (24 * 60 * 60));
-
-        std::unique_ptr<crashpad::PruneCondition> condition;
-        if (max_kb > 0 && max_days > 0) {
-            condition = std::make_unique<crashpad::BinaryPruneCondition>(
-                crashpad::BinaryPruneCondition::OR,
-                new crashpad::DatabaseSizePruneCondition(max_kb),
-                new crashpad::AgePruneCondition(max_days));
-        } else if (max_kb > 0) {
-            condition = std::make_unique<crashpad::DatabaseSizePruneCondition>(
-                max_kb);
-        } else if (max_days > 0) {
-            condition = std::make_unique<crashpad::AgePruneCondition>(max_days);
-        }
-        if (condition) {
-            crashpad::PruneCrashReportDatabase(data->db, condition.get());
-        }
+        crashpad::BinaryPruneCondition condition(
+            crashpad::BinaryPruneCondition::OR,
+            new MaxSizePruneCondition(options->cache_max_size),
+            new MaxAgePruneCondition(options->cache_max_age));
+        crashpad::PruneCrashReportDatabase(data->db, &condition);
     }
 }
 
