@@ -774,7 +774,7 @@ public:
     ShouldPruneReport(
         const crashpad::CrashReportDatabase::Report &report) override
     {
-        measured_size_ += report.total_size;
+        measured_size_ += static_cast<size_t>(report.total_size);
         return max_size_ > 0 && measured_size_ > max_size_;
     }
 
