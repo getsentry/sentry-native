@@ -25,7 +25,7 @@ static sentry_batcher_t g_batcher = {
     .active_idx = 0,
     .flushing = 0,
     .thread_state = SENTRY_BATCHER_THREAD_STOPPED,
-    .batch_func = NULL,
+    .batch_func = sentry__envelope_add_logs,
 };
 
 static const char *
@@ -460,7 +460,7 @@ sentry_log_fatal(const char *message, ...)
 void
 sentry__logs_startup(void)
 {
-    sentry__batcher_startup(&g_batcher, sentry__envelope_add_logs);
+    sentry__batcher_startup(&g_batcher);
 }
 
 bool

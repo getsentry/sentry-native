@@ -282,11 +282,8 @@ batcher_thread_func(void *data)
 }
 
 void
-sentry__batcher_startup(
-    sentry_batcher_t *batcher, sentry_batch_func_t batch_func)
+sentry__batcher_startup(sentry_batcher_t *batcher)
 {
-    batcher->batch_func = batch_func;
-
     // Mark thread as starting before actually spawning so thread can transition
     // to RUNNING. This prevents shutdown from thinking the thread was never
     // started if it races with the thread's initialization.
