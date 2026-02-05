@@ -40,6 +40,24 @@ void sentry__transport_set_dump_func(sentry_transport_t *transport,
     size_t (*dump_func)(sentry_run_t *run, void *state));
 
 /**
+ * Sets the retry envelope function of the transport.
+ *
+ * This function is called on startup to retry sending envelopes that were
+ * persisted due to network errors. If set, the transport supports HTTP retry.
+ */
+void sentry__transport_set_retry_envelope_func(sentry_transport_t *transport,
+    void (*retry_envelope_func)(sentry_envelope_t *envelope, void *state));
+
+/**
+ * Retry sending an envelope via the transport.
+ *
+ * Returns true if the transport supports retry and the envelope was submitted,
+ * false if the transport does not support retry.
+ */
+bool sentry__transport_retry_envelope(
+    sentry_transport_t *transport, sentry_envelope_t *envelope);
+
+/**
  * Submit the given envelope to the transport.
  */
 void sentry__transport_send_envelope(

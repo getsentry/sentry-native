@@ -475,6 +475,8 @@ sentry__transport_new_default(void)
     sentry_transport_set_shutdown_func(
         transport, sentry__winhttp_transport_shutdown);
     sentry__transport_set_dump_func(transport, sentry__winhttp_dump_queue);
+    sentry__transport_set_retry_envelope_func(
+        transport, sentry__winhttp_transport_send_envelope);
 
     return transport;
 }

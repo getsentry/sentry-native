@@ -5,6 +5,7 @@
 #include "sentry_logger.h"
 #include "sentry_options.h"
 #include "sentry_string.h"
+#include "sentry_transport.h"
 #include "sentry_uuid.h"
 
 #include <stdio.h>
@@ -300,7 +301,7 @@ sentry__retry_cache_envelope(
 void
 sentry__retry_process_envelopes(const sentry_options_t *options)
 {
-    if (!options || !options->database_path || !options->transport) {
+    if (!options || !options->database_path) {
         return;
     }
 
@@ -319,7 +320,11 @@ sentry__retry_process_envelopes(const sentry_options_t *options)
         sentry_envelope_t *envelope = sentry__envelope_from_path(file);
         if (envelope) {
             SENTRY_DEBUG("retrying envelope from disk");
-            sentry__capture_envelope(options->transport, envelope);
+            if (!sentry__transport_retry_envelope(
+                    options->transport, envelope)) {
+                // Transport doesn't support retry - free the envelope
+                sentry_envelope_free(envelope);
+            }
         } else {
             // Invalid envelope - remove it
             SENTRY_WARN("removing invalid envelope from retry directory");

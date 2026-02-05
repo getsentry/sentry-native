@@ -6,6 +6,7 @@
 #include "sentry_options.h"
 #include "sentry_retry.h"
 #include "sentry_session.h"
+#include "sentry_transport.h"
 #include "sentry_utils.h"
 #include "sentry_uuid.h"
 #include <errno.h>
@@ -243,8 +244,12 @@ sentry__process_old_runs(const sentry_options_t *options, uint64_t last_crash)
             continue;
         }
 
+        // http_retry only makes sense with transports that support retry
+        bool use_http_retry = options->http_retry > 0
+            && sentry__transport_retry_envelope(options->transport, NULL);
+
         sentry_path_t *cache_dir = NULL;
-        if (options->cache_keep && options->http_retry == 0) {
+        if (options->cache_keep && !use_http_retry) {
             cache_dir = sentry__path_join_str(options->database_path, "cache");
             if (cache_dir) {
                 sentry__path_create_dir_all(cache_dir);
