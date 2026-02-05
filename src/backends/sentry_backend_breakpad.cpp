@@ -184,7 +184,7 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
                 sentry_attachment_t *screenshot = sentry__attachment_from_path(
                     sentry__screenshot_get_path(options));
                 if (screenshot
-                    && sentry__screenshot_capture(screenshot->path)) {
+                    && sentry__screenshot_capture(screenshot->path, 0)) {
                     sentry__envelope_add_attachment(envelope, screenshot);
                 }
                 sentry__attachment_free(screenshot);
