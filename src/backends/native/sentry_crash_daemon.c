@@ -474,27 +474,13 @@ enrich_frame_with_module_info(
     for (uint32_t i = 0; i < ctx->module_count; i++) {
         const sentry_module_info_t *mod = &ctx->modules[i];
         if (addr >= mod->base_address && addr < mod->base_address + mod->size) {
-            // Set package to module name (basename for cleaner display)
-            const char *name = mod->name;
-            const char *basename = strrchr(name, '/');
-#ifdef _WIN32
-            if (!basename) {
-                basename = strrchr(name, '\\');
-            }
-#endif
-            if (basename) {
-                basename++; // Skip the separator
-            } else {
-                basename = name;
-            }
+            // Set package to full module path (matches minidump format)
             sentry_value_set_by_key(
-                frame, "package", sentry_value_new_string(basename));
-
-            // Set image_addr
-            sentry_value_set_by_key(
-                frame, "image_addr", sentry__value_new_addr(mod->base_address));
+                frame, "package", sentry_value_new_string(mod->name));
+            // Note: Do NOT set image_addr on frames - it's not present in
+            // minidump-derived events and may cause symbolicator issues
             SENTRY_DEBUGF("Frame 0x%llx -> module %s", (unsigned long long)addr,
-                basename);
+                mod->name);
             return;
         }
     }
@@ -731,6 +717,9 @@ build_stacktrace_for_thread(
                 temp_frames[frame_count] = sentry_value_new_object();
                 sentry_value_set_by_key(temp_frames[frame_count],
                     "instruction_addr", sentry__value_new_addr(frame_addr));
+                // First frame is from context, rest are from CFI unwinding
+                sentry_value_set_by_key(temp_frames[frame_count], "trust",
+                    sentry_value_new_string(i == 0 ? "context" : "cfi"));
                 enrich_frame_with_module_info(
                     ctx, temp_frames[frame_count], frame_addr);
                 frame_count++;
@@ -766,6 +755,9 @@ build_stacktrace_for_thread(
         temp_frames[frame_count] = sentry_value_new_object();
         sentry_value_set_by_key(temp_frames[frame_count], "instruction_addr",
             sentry__value_new_addr(ip));
+        // Trust "context" = from CPU context (the crashing frame)
+        sentry_value_set_by_key(temp_frames[frame_count], "trust",
+            sentry_value_new_string("context"));
         enrich_frame_with_module_info(ctx, temp_frames[frame_count], ip);
         frame_count++;
     }
@@ -820,6 +812,9 @@ build_stacktrace_for_thread(
             temp_frames[frame_count] = sentry_value_new_object();
             sentry_value_set_by_key(temp_frames[frame_count],
                 "instruction_addr", sentry__value_new_addr(return_addr));
+            // Trust "fp" = frame pointer based unwinding
+            sentry_value_set_by_key(temp_frames[frame_count], "trust",
+                sentry_value_new_string("fp"));
             enrich_frame_with_module_info(
                 ctx, temp_frames[frame_count], return_addr);
             frame_count++;
