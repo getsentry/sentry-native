@@ -1514,6 +1514,21 @@ capture_modules_from_process(sentry_crash_context_t *ctx)
 }
 
 /**
+ * Check if thread ID already exists in the threads array
+ */
+static bool
+thread_id_exists(
+    const sentry_crash_context_t *ctx, DWORD thread_id, DWORD count)
+{
+    for (DWORD i = 0; i < count; i++) {
+        if (ctx->platform.threads[i].thread_id == thread_id) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
  * Enumerate threads from the crashed process for the native event on Windows
  */
 static void
@@ -1534,16 +1549,24 @@ enumerate_threads_from_process(sentry_crash_context_t *ctx)
 
     if (Thread32First(hSnapshot, &te32)) {
         do {
-            if (te32.th32OwnerProcessID == (DWORD)ctx->crashed_pid
-                && te32.th32ThreadID != crashed_tid
-                && thread_count < SENTRY_CRASH_MAX_THREADS) {
-
-                ctx->platform.threads[thread_count].thread_id
-                    = te32.th32ThreadID;
-                memset(&ctx->platform.threads[thread_count].context, 0,
-                    sizeof(ctx->platform.threads[thread_count].context));
-                thread_count++;
+            // Skip if not our process, is the crashed thread, or already seen
+            if (te32.th32OwnerProcessID != (DWORD)ctx->crashed_pid
+                || te32.th32ThreadID == crashed_tid
+                || thread_count >= SENTRY_CRASH_MAX_THREADS) {
+                continue;
             }
+
+            // Check for duplicates (defensive - shouldn't happen normally)
+            if (thread_id_exists(ctx, te32.th32ThreadID, thread_count)) {
+                SENTRY_WARNF("Duplicate thread ID %lu in snapshot, skipping",
+                    (unsigned long)te32.th32ThreadID);
+                continue;
+            }
+
+            ctx->platform.threads[thread_count].thread_id = te32.th32ThreadID;
+            memset(&ctx->platform.threads[thread_count].context, 0,
+                sizeof(ctx->platform.threads[thread_count].context));
+            thread_count++;
         } while (Thread32Next(hSnapshot, &te32));
     }
 
