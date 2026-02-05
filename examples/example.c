@@ -575,8 +575,8 @@ main(int argc, char **argv)
     }
     if (has_arg(argc, argv, "cache-keep")) {
         sentry_options_set_cache_keep(options, true);
-        sentry_options_set_cache_max_size(options, 4 * 1024 * 1024);
-        sentry_options_set_cache_max_age(options, 5 * 24 * 60 * 60);
+        sentry_options_set_cache_max_size(options, 4 * 1024 * 1024); // 4 MB
+        sentry_options_set_cache_max_age(options, 5 * 24 * 60 * 60); // 5 days
         sentry_options_set_cache_max_items(options, 5);
     }
 
