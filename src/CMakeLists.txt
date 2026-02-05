@@ -166,10 +166,12 @@ elseif(SENTRY_BACKEND_NATIVE)
 	# Platform-specific minidump writers
 	if(LINUX OR ANDROID)
 		sentry_target_sources_cwd(sentry
+			backends/native/minidump/sentry_minidump_common.c
 			backends/native/minidump/sentry_minidump_linux.c
 		)
 	elseif(APPLE)
 		sentry_target_sources_cwd(sentry
+			backends/native/minidump/sentry_minidump_common.c
 			backends/native/minidump/sentry_minidump_macos.c
 		)
 	elseif(WIN32)
