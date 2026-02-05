@@ -152,9 +152,19 @@ def get_threads_from_event(event):
     """
     # Check entries array (Sentry API format)
     entries = event.get("entries", [])
-    for entry in entries:
-        if entry.get("type") == "threads":
-            return entry.get("data", {})
+    thread_entries = [e for e in entries if e.get("type") == "threads"]
+
+    # Debug: print if multiple thread entries found
+    if len(thread_entries) > 1:
+        print(f"\n=== WARNING: MULTIPLE THREAD ENTRIES FOUND: {len(thread_entries)} ===")
+        for i, te in enumerate(thread_entries):
+            data = te.get("data", {})
+            values = data.get("values", [])
+            print(f"  Entry {i}: {len(values)} threads")
+        print("=== END WARNING ===\n")
+
+    if thread_entries:
+        return thread_entries[0].get("data", {})
 
     # Fallback: check direct threads field
     if "threads" in event:
@@ -475,6 +485,16 @@ class TestE2ECrashModes:
         assert threads_data is not None, "Native mode should have threads data"
         assert "values" in threads_data, "Threads should have values"
         thread_count = len(threads_data["values"])
+        print(f"\n=== THREADS DEBUG (Native Mode) ===")
+        print(f"Total thread count: {thread_count}")
+        for i, t in enumerate(threads_data["values"]):
+            print(
+                f"  Thread {i}: id={t.get('id')}, "
+                f"crashed={t.get('crashed')}, "
+                f"current={t.get('current')}, "
+                f"name={t.get('name', 'N/A')}"
+            )
+        print("=== END THREADS DEBUG ===\n")
         assert (
             thread_count >= 1
         ), f"Native mode should capture threads (>= 1), got {thread_count}"
