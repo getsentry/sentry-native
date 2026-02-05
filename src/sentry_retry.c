@@ -320,6 +320,14 @@ sentry__retry_cache_envelope(
     sentry__path_free(cache_path);
 }
 
+static int
+compare_paths_by_filename(const void *a, const void *b)
+{
+    const sentry_path_t *pa = *(const sentry_path_t *const *)a;
+    const sentry_path_t *pb = *(const sentry_path_t *const *)b;
+    return strcmp(sentry__path_filename(pa), sentry__path_filename(pb));
+}
+
 void
 sentry__retry_process_envelopes(const sentry_options_t *options)
 {
@@ -332,27 +340,58 @@ sentry__retry_process_envelopes(const sentry_options_t *options)
         return;
     }
 
+    // Collect envelope paths
+    size_t count = 0;
+    size_t capacity = 8;
+    sentry_path_t **paths = sentry_malloc(capacity * sizeof(sentry_path_t *));
+    if (!paths) {
+        sentry__path_free(retry_path);
+        return;
+    }
+
     sentry_pathiter_t *iter = sentry__path_iter_directory(retry_path);
     const sentry_path_t *file;
     while (iter && (file = sentry__pathiter_next(iter)) != NULL) {
         if (!sentry__path_ends_with(file, ".envelope")) {
             continue;
         }
-
-        sentry_envelope_t *envelope = sentry__envelope_from_path(file);
-        if (envelope) {
-            SENTRY_DEBUG("retrying envelope from disk");
-            if (!sentry__transport_retry_envelope(
-                    options->transport, envelope)) {
-                // Transport doesn't support retry - free the envelope
-                sentry_envelope_free(envelope);
+        if (count == capacity) {
+            capacity *= 2;
+            sentry_path_t **tmp
+                = sentry_malloc(capacity * sizeof(sentry_path_t *));
+            if (!tmp) {
+                break;
             }
-        } else {
-            // Invalid envelope - remove it
-            SENTRY_WARN("removing invalid envelope from retry directory");
-            sentry__path_remove(file);
+            memcpy(tmp, paths, count * sizeof(sentry_path_t *));
+            sentry_free(paths);
+            paths = tmp;
+        }
+        paths[count] = sentry__path_clone(file);
+        if (paths[count]) {
+            count++;
         }
     }
     sentry__pathiter_free(iter);
     sentry__path_free(retry_path);
+
+    // Sort by filename (timestamp prefix gives oldest-first ordering)
+    if (count > 1) {
+        qsort(paths, count, sizeof(sentry_path_t *), compare_paths_by_filename);
+    }
+
+    for (size_t i = 0; i < count; i++) {
+        sentry_envelope_t *envelope = sentry__envelope_from_path(paths[i]);
+        if (envelope) {
+            SENTRY_DEBUG("retrying envelope from disk");
+            if (!sentry__transport_retry_envelope(
+                    options->transport, envelope)) {
+                sentry_envelope_free(envelope);
+            }
+        } else {
+            SENTRY_WARN("removing invalid envelope from retry directory");
+            sentry__path_remove(paths[i]);
+        }
+        sentry__path_free(paths[i]);
+    }
+    sentry_free(paths);
 }
