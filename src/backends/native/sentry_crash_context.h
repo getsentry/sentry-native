@@ -84,7 +84,8 @@ typedef DWORD pid_t;
 #    define SENTRY_CRASH_HANDLER_WAIT_TIMEOUT_MS 30000 // 30s for TSAN/ASAN
 #else
 #    define SENTRY_CRASH_DAEMON_READY_TIMEOUT_MS 10000 // 10s for daemon startup
-#    define SENTRY_CRASH_HANDLER_WAIT_TIMEOUT_MS 10000 // 10s max wait for daemon
+#    define SENTRY_CRASH_HANDLER_WAIT_TIMEOUT_MS                               \
+        10000 // 10s max wait for daemon
 #endif
 #define SENTRY_CRASH_DAEMON_WAIT_TIMEOUT_MS                                    \
     5000 // 5 seconds between daemon health checks

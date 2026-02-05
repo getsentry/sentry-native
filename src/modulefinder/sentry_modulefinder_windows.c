@@ -47,7 +47,7 @@ extract_pdb_info(uintptr_t module_addr, sentry_value_t module)
     }
 
     char id_buf[50];
-    snprintf(id_buf, sizeof(id_buf), "%08lx%lX",
+    snprintf(id_buf, sizeof(id_buf), "%08lX%lX",
         nt_headers->FileHeader.TimeDateStamp,
         nt_headers->OptionalHeader.SizeOfImage);
     sentry_value_set_by_key(module, "code_id", sentry_value_new_string(id_buf));
@@ -167,16 +167,16 @@ load_modules(void)
                     rv, "type", sentry_value_new_string("pe"));
 
                 // Set arch for PE modules (required for Sentry symbolication)
-#if defined(_M_AMD64)
+#    if defined(_M_AMD64)
                 sentry_value_set_by_key(
                     rv, "arch", sentry_value_new_string("x86_64"));
-#elif defined(_M_IX86)
+#    elif defined(_M_IX86)
                 sentry_value_set_by_key(
                     rv, "arch", sentry_value_new_string("x86"));
-#elif defined(_M_ARM64)
+#    elif defined(_M_ARM64)
                 sentry_value_set_by_key(
                     rv, "arch", sentry_value_new_string("arm64"));
-#endif
+#    endif
 
                 sentry_value_set_by_key(rv, "image_addr",
                     sentry__value_new_addr((uint64_t)module.modBaseAddr));
@@ -218,17 +218,18 @@ load_modules(void)
                     sentry_value_set_by_key(
                         rv, "type", sentry_value_new_string("pe"));
 
-                    // Set arch for PE modules (required for Sentry symbolication)
-#if defined(_M_AMD64)
+                    // Set arch for PE modules (required for Sentry
+                    // symbolication)
+#    if defined(_M_AMD64)
                     sentry_value_set_by_key(
                         rv, "arch", sentry_value_new_string("x86_64"));
-#elif defined(_M_IX86)
+#    elif defined(_M_IX86)
                     sentry_value_set_by_key(
                         rv, "arch", sentry_value_new_string("x86"));
-#elif defined(_M_ARM64)
+#    elif defined(_M_ARM64)
                     sentry_value_set_by_key(
                         rv, "arch", sentry_value_new_string("arm64"));
-#endif
+#    endif
 
                     sentry_value_set_by_key(rv, "image_addr",
                         sentry__value_new_addr((uint64_t)handle));

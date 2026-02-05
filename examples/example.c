@@ -641,7 +641,7 @@ main(int argc, char **argv)
         return EXIT_FAILURE;
     }
 
-if (has_arg(argc, argv, "set-global-attribute")) {
+    if (has_arg(argc, argv, "set-global-attribute")) {
         sentry_set_attribute("global.attribute.bool",
             sentry_value_new_attribute(sentry_value_new_bool(true), NULL));
         sentry_set_attribute("global.attribute.int",
