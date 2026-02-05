@@ -273,7 +273,8 @@ ptrace_get_thread_registers(pid_t tid, ucontext_t *uctx)
 }
 
 /**
- * Read memory from crashed process using ptrace
+ * Read memory from crashed process using process_vm_readv (fast bulk read)
+ * Falls back to ptrace PEEKDATA if process_vm_readv fails
  */
 static ssize_t
 read_process_memory(
@@ -285,7 +286,22 @@ read_process_memory(
 
     pid_t pid = writer->crash_ctx->crashed_pid;
 
-    // Read memory word-by-word using ptrace(PTRACE_PEEKDATA)
+    // Try process_vm_readv first - much faster for bulk reads
+    // (single syscall vs one syscall per word with ptrace)
+    struct iovec local_iov = { .iov_base = buf, .iov_len = len };
+    struct iovec remote_iov = { .iov_base = (void *)addr, .iov_len = len };
+
+    ssize_t nread = process_vm_readv(pid, &local_iov, 1, &remote_iov, 1, 0);
+    if (nread > 0) {
+        return nread;
+    }
+
+    // Fall back to ptrace word-by-word read if process_vm_readv fails
+    // This is much slower but works in more restricted environments
+    SENTRY_DEBUGF("process_vm_readv failed for pid %d at 0x%llx: %s, falling "
+                  "back to ptrace",
+        pid, (unsigned long long)addr, strerror(errno));
+
     size_t bytes_read = 0;
     uint8_t *byte_buf = (uint8_t *)buf;
     uint64_t current_addr = addr;
@@ -1299,26 +1315,28 @@ should_include_region(const memory_mapping_t *mapping,
         return mapping->permissions[0] == 'r'; // Must be readable
     }
 
-    // SMART: Include heap regions near crash address, and special regions
+    // SMART: Include only regions containing crash address and named heap
+    // We do NOT include all anonymous rw regions as that captures too much
+    // memory (thread stacks, mmap allocations, etc.) and results in huge
+    // minidumps (34MB+). Stack memory is already captured per-thread in the
+    // thread list stream, so we only need heap data that's directly relevant.
     if (mode == SENTRY_MINIDUMP_MODE_SMART) {
-        // Include regions containing crash address
+        // Include regions containing crash address (most important)
         if (crash_addr >= mapping->start && crash_addr < mapping->end) {
             return mapping->permissions[0] == 'r';
         }
 
-        // Include heap regions (likely named [heap] or anonymous with rw-)
+        // Include the main heap region (explicitly named [heap])
+        // Limit to 4MB to avoid huge dumps
         if (strstr(mapping->name, "[heap]") != NULL) {
-            return mapping->permissions[0] == 'r';
+            return mapping->permissions[0] == 'r'
+                && (mapping->end - mapping->start) <= (4 * 1024 * 1024);
         }
 
-        // Include writable anonymous regions (likely heap allocations)
-        if (mapping->name[0] == '\0' && mapping->permissions[0] == 'r'
-            && mapping->permissions[1] == 'w') {
-            // Limit to reasonable size to avoid huge dumps (max 64MB per
-            // region)
-            return (mapping->end - mapping->start)
-                <= (64 * SENTRY_CRASH_MAX_STACK_SIZE);
-        }
+        // Don't include anonymous regions - they're typically thread stacks
+        // (already captured), mmap'd memory, or large allocations that would
+        // bloat the minidump. Windows' MiniDumpWithIndirectlyReferencedMemory
+        // is much smarter about what to include (~683KB vs 34MB).
     }
 
     return false;
@@ -1366,8 +1384,9 @@ write_memory_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
 
         uint64_t region_size = mapping->end - mapping->start;
 
-        // Limit individual region size to avoid huge dumps
-        const size_t MAX_REGION_SIZE = 64 * SENTRY_CRASH_MAX_STACK_SIZE; // 64MB
+        // Limit individual region size to 4MB to avoid huge dumps
+        // (should_include_region already limits heap to 4MB for SMART mode)
+        const size_t MAX_REGION_SIZE = 4 * 1024 * 1024; // 4MB
         if (region_size > MAX_REGION_SIZE) {
             region_size = MAX_REGION_SIZE;
         }
