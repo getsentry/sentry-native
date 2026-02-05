@@ -1545,19 +1545,9 @@ enumerate_threads_from_process(sentry_crash_context_t *ctx)
     DWORD crashed_tid = (DWORD)ctx->crashed_tid;
     DWORD thread_count = 1;
 
-    // Verify crashed thread at index 0 matches crashed_tid
-    if (ctx->platform.threads[0].thread_id != crashed_tid) {
-        SENTRY_WARNF(
-            "Thread 0 ID mismatch: threads[0].thread_id=%lu, crashed_tid=%lu",
-            (unsigned long)ctx->platform.threads[0].thread_id,
-            (unsigned long)crashed_tid);
-        // Fix the mismatch - ensure threads[0] has the correct crashed thread
-        // ID
-        ctx->platform.threads[0].thread_id = crashed_tid;
-    }
-
-    SENTRY_DEBUGF("Starting thread enumeration: crashed_tid=%lu, pid=%lu",
-        (unsigned long)crashed_tid, (unsigned long)ctx->crashed_pid);
+    SENTRY_DEBUGF("enumerate_threads: start, crashed_tid=%lu, threads[0].id=%lu",
+        (unsigned long)crashed_tid,
+        (unsigned long)ctx->platform.threads[0].thread_id);
 
     THREADENTRY32 te32;
     te32.dwSize = sizeof(THREADENTRY32);
@@ -1800,36 +1790,12 @@ build_native_crash_event(const sentry_crash_context_t *ctx,
         }
         SENTRY_DEBUGF("Added %zu threads to event", ctx->platform.num_threads);
 #elif defined(SENTRY_PLATFORM_WINDOWS)
-        // Add all captured threads with defensive deduplication
-        // Track seen thread IDs to prevent duplicates in the event
-        DWORD seen_ids[SENTRY_CRASH_MAX_THREADS];
-        DWORD seen_count = 0;
-
+        // Add all captured threads
+        SENTRY_DEBUGF("Windows: adding %lu threads to event JSON",
+            (unsigned long)ctx->platform.num_threads);
         for (DWORD i = 0; i < ctx->platform.num_threads; i++) {
             const sentry_thread_context_windows_t *tctx
                 = &ctx->platform.threads[i];
-
-            // Defensive deduplication: skip if we've already seen this thread
-            // ID
-            bool is_duplicate = false;
-            for (DWORD j = 0; j < seen_count; j++) {
-                if (seen_ids[j] == tctx->thread_id) {
-                    is_duplicate = true;
-                    SENTRY_WARNF(
-                        "Skipping duplicate thread ID %lu at index %lu",
-                        (unsigned long)tctx->thread_id, (unsigned long)i);
-                    break;
-                }
-            }
-            if (is_duplicate) {
-                continue;
-            }
-
-            // Track this thread ID
-            if (seen_count < SENTRY_CRASH_MAX_THREADS) {
-                seen_ids[seen_count++] = tctx->thread_id;
-            }
-
             sentry_value_t thread = sentry_value_new_object();
 
             sentry_value_set_by_key(
@@ -1852,9 +1818,8 @@ build_native_crash_event(const sentry_crash_context_t *ctx,
 
             sentry_value_append(thread_values, thread);
         }
-        SENTRY_DEBUGF("Added %lu unique threads to event (from %lu total)",
-            (unsigned long)seen_count,
-            (unsigned long)ctx->platform.num_threads);
+        SENTRY_DEBUGF(
+            "Added %lu threads to event", (unsigned long)ctx->platform.num_threads);
 #else
         // Fallback: just add the crashed thread (without stacktrace since
         // it's already in exception.values)
@@ -2021,6 +1986,9 @@ write_envelope_with_native_stacktrace(const sentry_options_t *options,
     // Include threads only when minidump is NOT attached (Sentry extracts
     // threads from minidump, so including them would cause duplication)
     bool include_threads = (minidump_path == NULL || minidump_path[0] == '\0');
+    SENTRY_DEBUGF(
+        "write_envelope_with_native_stacktrace: minidump_path=%s, include_threads=%d",
+        minidump_path ? minidump_path : "(null)", include_threads);
     sentry_value_t event
         = build_native_crash_event(ctx, event_file_path, include_threads);
 
