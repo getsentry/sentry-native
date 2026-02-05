@@ -1781,7 +1781,8 @@ build_native_crash_event(const sentry_crash_context_t *ctx,
             sentry_value_set_by_key(
                 image, "type", sentry_value_new_string("pe"));
 
-            // Set arch for Windows PE modules (required for Sentry symbolication)
+            // Set arch for Windows PE modules (required for Sentry
+            // symbolication)
 #    if defined(_M_AMD64)
             sentry_value_set_by_key(
                 image, "arch", sentry_value_new_string("x86_64"));
@@ -1807,19 +1808,19 @@ build_native_crash_event(const sentry_crash_context_t *ctx,
             sentry_value_set_by_key(
                 image, "image_addr", sentry_value_new_string(addr_buf));
 
-            // Set image_size (use double to avoid overflow for large modules)
+            // Set image_size as int32 (modules > 2GB are extremely rare)
             sentry_value_set_by_key(image, "image_size",
-                sentry_value_new_double((double)mod->size));
+                sentry_value_new_int32((int32_t)mod->size));
 
 #if defined(SENTRY_PLATFORM_WINDOWS)
             // Set code_id for PE modules (TimeDateStamp + SizeOfImage)
-            // Format: 8-digit zero-padded timestamp (lowercase) + size
+            // Format: 8-digit zero-padded timestamp (uppercase) + size
             // (uppercase) Must match sentry_modulefinder_windows.c format
             if (mod->name[0]) {
                 DWORD timestamp = get_pe_timestamp(mod->name);
                 if (timestamp != 0) {
                     char code_id_buf[32];
-                    snprintf(code_id_buf, sizeof(code_id_buf), "%08lx%lX",
+                    snprintf(code_id_buf, sizeof(code_id_buf), "%08lX%lX",
                         (unsigned long)timestamp, (unsigned long)mod->size);
                     sentry_value_set_by_key(
                         image, "code_id", sentry_value_new_string(code_id_buf));

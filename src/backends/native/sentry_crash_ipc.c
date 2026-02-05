@@ -416,9 +416,6 @@ sentry__crash_ipc_init_app(sem_t *init_sem)
         return NULL;
     }
 
-    // Zero out shared memory to ensure clean state
-    memset(ipc->shmem, 0, SENTRY_CRASH_SHM_SIZE);
-
     // Create pipe for crash notifications (works across fork)
     if (pipe(ipc->notify_pipe) < 0) {
         SENTRY_WARNF("failed to create notification pipe: %s", strerror(errno));
@@ -454,7 +451,8 @@ sentry__crash_ipc_init_app(sem_t *init_sem)
         return NULL;
     }
 
-    // Initialize shared memory only if newly created
+    // Zero out shared memory only when first created to ensure clean state
+    // Don't zero existing memory to avoid corrupting state set by other threads
     if (!shm_exists) {
         memset(ipc->shmem, 0, SENTRY_CRASH_SHM_SIZE);
         ipc->shmem->magic = SENTRY_CRASH_MAGIC;
