@@ -1545,7 +1545,8 @@ enumerate_threads_from_process(sentry_crash_context_t *ctx)
     DWORD crashed_tid = (DWORD)ctx->crashed_tid;
     DWORD thread_count = 1;
 
-    SENTRY_DEBUGF("enumerate_threads: start, crashed_tid=%lu, threads[0].id=%lu",
+    SENTRY_DEBUGF(
+        "enumerate_threads: start, crashed_tid=%lu, threads[0].id=%lu",
         (unsigned long)crashed_tid,
         (unsigned long)ctx->platform.threads[0].thread_id);
 
@@ -1818,8 +1819,8 @@ build_native_crash_event(const sentry_crash_context_t *ctx,
 
             sentry_value_append(thread_values, thread);
         }
-        SENTRY_DEBUGF(
-            "Added %lu threads to event", (unsigned long)ctx->platform.num_threads);
+        SENTRY_DEBUGF("Added %lu threads to event",
+            (unsigned long)ctx->platform.num_threads);
 #else
         // Fallback: just add the crashed thread (without stacktrace since
         // it's already in exception.values)
@@ -1986,8 +1987,8 @@ write_envelope_with_native_stacktrace(const sentry_options_t *options,
     // Include threads only when minidump is NOT attached (Sentry extracts
     // threads from minidump, so including them would cause duplication)
     bool include_threads = (minidump_path == NULL || minidump_path[0] == '\0');
-    SENTRY_DEBUGF(
-        "write_envelope_with_native_stacktrace: minidump_path=%s, include_threads=%d",
+    SENTRY_DEBUGF("write_envelope_with_native_stacktrace: minidump_path=%s, "
+                  "include_threads=%d",
         minidump_path ? minidump_path : "(null)", include_threads);
     sentry_value_t event
         = build_native_crash_event(ctx, event_file_path, include_threads);
