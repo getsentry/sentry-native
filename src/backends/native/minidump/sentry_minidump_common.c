@@ -72,9 +72,16 @@ sentry__minidump_write_string(
 
     size_t utf8_len = strlen(utf8_str);
 
+    // Sanity check: prevent integer overflow and reject unreasonably long
+    // strings. Max reasonable module name/path is ~32KB, which fits in uint32_t
+    if (utf8_len > 32768) {
+        SENTRY_WARNF("minidump string too long: %zu bytes", utf8_len);
+        return 0;
+    }
+
     // Allocate buffer for: length (4 bytes) + UTF-16LE chars + null terminator
     // Each ASCII char becomes 2 bytes in UTF-16LE
-    uint32_t total_size
+    size_t total_size
         = sizeof(uint32_t) + (utf8_len * 2) + 2; // +2 for null terminator
     uint8_t *buf = sentry_malloc(total_size);
     if (!buf) {
