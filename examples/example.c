@@ -183,6 +183,25 @@ discarding_before_send_log_callback(sentry_value_t log, void *user_data)
     return log;
 }
 
+static sentry_value_t
+before_send_metric_callback(sentry_value_t metric, void *user_data)
+{
+    (void)user_data;
+    sentry_value_t attribute
+        = sentry_value_new_attribute(sentry_value_new_string("little"), NULL);
+    sentry_value_set_by_key(sentry_value_get_by_key(metric, "attributes"),
+        "coffeepot.size", attribute);
+    return metric;
+}
+
+static sentry_value_t
+discarding_before_send_metric_callback(sentry_value_t metric, void *user_data)
+{
+    (void)user_data;
+    sentry_value_decref(metric);
+    return sentry_value_new_null();
+}
+
 // Test logger that outputs in a format the integration tests can parse
 static void
 test_logger_callback(
@@ -317,8 +336,8 @@ create_debug_crumb(const char *message)
 }
 
 #define NUM_THREADS 50
-#define NUM_LOGS 100 // how many log calls each thread makes
-#define LOG_SLEEP_MS 1 // time (in ms) between log calls
+#define NUM_TELEMETRY 100 // how many telemetry calls each thread makes
+#define TELEMETRY_SLEEP_MS 1 // time (in ms) between telemetry calls
 
 #if defined(SENTRY_PLATFORM_WINDOWS)
 #    define sleep_ms(MILLISECONDS) Sleep(MILLISECONDS)
@@ -327,28 +346,79 @@ create_debug_crumb(const char *message)
 #endif
 
 #ifdef SENTRY_PLATFORM_WINDOWS
+typedef DWORD(WINAPI *thread_func_t)(LPVOID);
+
 DWORD WINAPI
 log_thread_func(LPVOID lpParam)
 {
     (void)lpParam;
-    for (int i = 0; i < NUM_LOGS; i++) {
+    for (int i = 0; i < NUM_TELEMETRY; i++) {
         sentry_log_debug(
             "thread log %d on thread %lu", i, get_current_thread_id());
-        sleep_ms(LOG_SLEEP_MS);
+        sleep_ms(TELEMETRY_SLEEP_MS);
     }
     return 0;
 }
+
+DWORD WINAPI
+metric_thread_func(LPVOID lpParam)
+{
+    (void)lpParam;
+    for (int i = 0; i < NUM_TELEMETRY; i++) {
+        sentry_metrics_count("thread.counter", 1, sentry_value_new_null());
+        sleep_ms(TELEMETRY_SLEEP_MS);
+    }
+    return 0;
+}
+
+static void
+run_threads(thread_func_t func)
+{
+    HANDLE threads[NUM_THREADS];
+    for (int t = 0; t < NUM_THREADS; t++) {
+        threads[t] = CreateThread(NULL, 0, func, NULL, 0, NULL);
+    }
+    WaitForMultipleObjects(NUM_THREADS, threads, TRUE, INFINITE);
+    for (int t = 0; t < NUM_THREADS; t++) {
+        CloseHandle(threads[t]);
+    }
+}
 #else
+typedef void *(*thread_func_t)(void *);
+
 void *
 log_thread_func(void *arg)
 {
     (void)arg;
-    for (int i = 0; i < NUM_LOGS; i++) {
+    for (int i = 0; i < NUM_TELEMETRY; i++) {
         sentry_log_debug(
             "thread log %d on thread %llu", i, get_current_thread_id());
-        sleep_ms(LOG_SLEEP_MS);
+        sleep_ms(TELEMETRY_SLEEP_MS);
     }
     return NULL;
+}
+
+void *
+metric_thread_func(void *arg)
+{
+    (void)arg;
+    for (int i = 0; i < NUM_TELEMETRY; i++) {
+        sentry_metrics_count("thread.counter", 1, sentry_value_new_null());
+        sleep_ms(TELEMETRY_SLEEP_MS);
+    }
+    return NULL;
+}
+
+static void
+run_threads(thread_func_t func)
+{
+    pthread_t threads[NUM_THREADS];
+    for (int t = 0; t < NUM_THREADS; t++) {
+        pthread_create(&threads[t], NULL, func, NULL);
+    }
+    for (int t = 0; t < NUM_THREADS; t++) {
+        pthread_join(threads[t], NULL);
+    }
 }
 #endif
 
@@ -510,6 +580,20 @@ main(int argc, char **argv)
         sentry_options_set_cache_max_items(options, 5);
     }
 
+    if (has_arg(argc, argv, "enable-metrics")) {
+        sentry_options_set_enable_metrics(options, true);
+    }
+
+    if (has_arg(argc, argv, "before-send-metric")) {
+        sentry_options_set_before_send_metric(
+            options, before_send_metric_callback, NULL);
+    }
+
+    if (has_arg(argc, argv, "discarding-before-send-metric")) {
+        sentry_options_set_before_send_metric(
+            options, discarding_before_send_metric_callback, NULL);
+    }
+
     if (0 != sentry_init(options)) {
         return EXIT_FAILURE;
     }
@@ -586,28 +670,39 @@ main(int argc, char **argv)
             sentry_log_debug("post-sleep log");
         }
         if (has_arg(argc, argv, "logs-threads")) {
-            // Spawn multiple threads to test concurrent logging
-#ifdef SENTRY_PLATFORM_WINDOWS
-            HANDLE threads[NUM_THREADS];
-            for (int t = 0; t < NUM_THREADS; t++) {
-                threads[t]
-                    = CreateThread(NULL, 0, log_thread_func, NULL, 0, NULL);
-            }
+            run_threads(log_thread_func);
+        }
+    }
 
-            WaitForMultipleObjects(NUM_THREADS, threads, TRUE, INFINITE);
-
-            for (int t = 0; t < NUM_THREADS; t++) {
-                CloseHandle(threads[t]);
+    if (sentry_options_get_enable_metrics(options)) {
+        if (has_arg(argc, argv, "capture-metric")) {
+            sentry_metrics_count("test.counter", 1, sentry_value_new_null());
+        }
+        if (has_arg(argc, argv, "capture-metric-all-types")) {
+            sentry_metrics_count("test.counter", 1, sentry_value_new_null());
+            sentry_metrics_gauge("test.gauge", 42.5, SENTRY_UNIT_PERCENT,
+                sentry_value_new_null());
+            sentry_metrics_distribution("test.distribution", 123.456,
+                SENTRY_UNIT_MILLISECOND, sentry_value_new_null());
+        }
+        if (has_arg(argc, argv, "metric-with-attributes")) {
+            sentry_value_t attributes = sentry_value_new_object();
+            sentry_value_t attr = sentry_value_new_attribute(
+                sentry_value_new_string("my_value"), NULL);
+            sentry_value_set_by_key(attributes, "my.custom.attribute", attr);
+            sentry_metrics_count("test.counter.with.attributes", 1, attributes);
+        }
+        if (has_arg(argc, argv, "metrics-timer")) {
+            for (int i = 0; i < 10; i++) {
+                sentry_metrics_count(
+                    "batch.counter", 1, sentry_value_new_null());
             }
-#else
-            pthread_t threads[NUM_THREADS];
-            for (int t = 0; t < NUM_THREADS; t++) {
-                pthread_create(&threads[t], NULL, log_thread_func, NULL);
-            }
-            for (int t = 0; t < NUM_THREADS; t++) {
-                pthread_join(threads[t], NULL);
-            }
-#endif
+            sleep_s(6);
+            sentry_metrics_count(
+                "post.sleep.counter", 1, sentry_value_new_null());
+        }
+        if (has_arg(argc, argv, "metrics-threads")) {
+            run_threads(metric_thread_func);
         }
     }
 
@@ -886,6 +981,10 @@ main(int argc, char **argv)
             sentry_capture_event(event);
             if (has_arg(argc, argv, "logs-scoped-transaction")) {
                 sentry_log_debug("logging during scoped transaction event");
+            }
+            if (has_arg(argc, argv, "metrics-scoped-transaction")) {
+                sentry_metrics_count(
+                    "scoped.transaction.metric", 1, sentry_value_new_null());
             }
         }
 
