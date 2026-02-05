@@ -1178,6 +1178,10 @@ write_module_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
         // Third pass: update specific fields in the module structure via lseek
         // Save position AFTER writing name and CV record
         off_t saved_pos = lseek(writer->fd, 0, SEEK_CUR);
+        if (saved_pos == (off_t)-1) {
+            SENTRY_WARNF("Failed to get current position for module %zu", i);
+            continue;
+        }
 
         // Update module_name_rva field
         off_t name_rva_offset = dir->rva + sizeof(uint32_t)
@@ -1228,7 +1232,10 @@ write_module_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
             }
         }
 
-        lseek(writer->fd, saved_pos, SEEK_SET);
+        if (lseek(writer->fd, saved_pos, SEEK_SET) != saved_pos) {
+            SENTRY_WARNF(
+                "Failed to restore position after module %zu update", i);
+        }
     }
 
     // Final flush to ensure all writes are committed
