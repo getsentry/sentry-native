@@ -156,7 +156,9 @@ def get_threads_from_event(event):
 
     # Debug: print if multiple thread entries found
     if len(thread_entries) > 1:
-        print(f"\n=== WARNING: MULTIPLE THREAD ENTRIES FOUND: {len(thread_entries)} ===")
+        print(
+            f"\n=== WARNING: MULTIPLE THREAD ENTRIES FOUND: {len(thread_entries)} ==="
+        )
         for i, te in enumerate(thread_entries):
             data = te.get("data", {})
             values = data.get("values", [])

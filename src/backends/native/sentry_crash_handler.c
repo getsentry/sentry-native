@@ -444,9 +444,9 @@ crash_signal_handler(int signum, siginfo_t *info, void *context)
                 }
 
                 // Fallback: if vm_region failed or returned unreasonable size,
-                // use a safe maximum (e.g., 512KB is typical stack size)
+                // use a safe maximum (512KB is typical stack size)
                 if (actual_stack_size == 0
-                    || actual_stack_size > SENTRY_CRASH_MAX_REGION_SIZE / 8) {
+                    || actual_stack_size > SENTRY_CRASH_MAX_STACK_CAPTURE) {
                     actual_stack_size = SENTRY_CRASH_MAX_STACK_CAPTURE;
                 }
 
