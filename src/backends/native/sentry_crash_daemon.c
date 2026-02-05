@@ -1607,12 +1607,11 @@ build_native_crash_event(const sentry_crash_context_t *ctx,
 
     // Build exception
     const char *signal_name = "UNKNOWN";
-    int signal_number = 0;
 #if defined(SENTRY_PLATFORM_UNIX)
-    signal_number = ctx->platform.signum;
+    int signal_number = ctx->platform.signum;
     signal_name = get_signal_name(signal_number);
 #elif defined(SENTRY_PLATFORM_WINDOWS)
-    signal_number = (int)ctx->platform.exception_code;
+    // Exception code is used directly below as unsigned
     signal_name = "EXCEPTION";
 #endif
 
@@ -1634,8 +1633,15 @@ build_native_crash_event(const sentry_crash_context_t *ctx,
     // Add signal metadata
     sentry_value_t meta = sentry_value_new_object();
     sentry_value_t signal_info = sentry_value_new_object();
+#if defined(SENTRY_PLATFORM_WINDOWS)
+    // Windows exception codes are unsigned 32-bit values (e.g., 0xC0000005)
+    // Use uint64 to preserve the unsigned value for the symbolicator
+    sentry_value_set_by_key(signal_info, "number",
+        sentry_value_new_uint64((uint64_t)ctx->platform.exception_code));
+#else
     sentry_value_set_by_key(
         signal_info, "number", sentry_value_new_int32(signal_number));
+#endif
     sentry_value_set_by_key(
         signal_info, "name", sentry_value_new_string(signal_name));
     sentry_value_set_by_key(meta, "signal", signal_info);
