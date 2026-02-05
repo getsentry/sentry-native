@@ -30,25 +30,6 @@
 #        define NT_PRSTATUS 1
 #    endif
 
-#    if defined(__x86_64__)
-// x86_64 FPU state structure from Linux kernel (matches _fpstate)
-// This is what uc_mcontext.fpregs points to on Linux x86_64
-struct linux_fxsave {
-    uint16_t cwd; // Control word
-    uint16_t swd; // Status word
-    uint16_t ftw; // Tag word
-    uint16_t fop; // Last instruction opcode
-    uint64_t rip; // Instruction pointer
-    uint64_t rdp; // Data pointer
-    uint32_t mxcsr; // MXCSR register
-    uint32_t mxcsr_mask; // MXCSR mask
-    uint32_t st_space[32]; // ST0-ST7 (8 registers, 16 bytes each = 128 bytes)
-    uint32_t
-        xmm_space[64]; // XMM0-XMM15 (16 registers, 16 bytes each = 256 bytes)
-    uint32_t padding[24];
-};
-#    endif
-
 // CodeView record format for ELF modules with Build ID
 // CV signature: 'BpEL' (Breakpad ELF) - compatible with Breakpad/Crashpad
 #    define CV_SIGNATURE_ELF 0x4270454c // "BpEL" in little-endian

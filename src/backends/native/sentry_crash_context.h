@@ -59,7 +59,6 @@ typedef DWORD pid_t;
 
 // String formatting buffer sizes
 #define SENTRY_CRASH_TIMESTAMP_SIZE 32 // Timestamp strings
-#define SENTRY_CRASH_PID_STRING_SIZE 32 // PID/TID string buffers
 
 // Memory and stack size limits
 #define SENTRY_CRASH_MAX_STACK_CAPTURE                                         \
