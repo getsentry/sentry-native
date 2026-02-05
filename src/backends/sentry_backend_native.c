@@ -517,12 +517,32 @@ native_backend_flush_scope(
     // Apply scope with contexts (includes OS, device info from Sentry)
     SENTRY_WITH_SCOPE (scope) {
         // Get contexts from scope (includes OS info)
-        sentry_value_t contexts
+        sentry_value_t os_context
             = sentry_value_get_by_key(scope->contexts, "os");
-        if (!sentry_value_is_null(contexts)) {
+        if (!sentry_value_is_null(os_context)) {
             sentry_value_t event_contexts = sentry_value_new_object();
-            sentry_value_set_by_key(event_contexts, "os", contexts);
-            sentry_value_incref(contexts);
+            sentry_value_set_by_key(event_contexts, "os", os_context);
+            sentry_value_incref(os_context);
+
+#if defined(SENTRY_PLATFORM_WINDOWS)
+            // Add device context with arch for Windows native events
+            // This is required for Sentry's symbolicator to process PE modules
+            sentry_value_t device_context = sentry_value_new_object();
+            sentry_value_set_by_key(
+                device_context, "type", sentry_value_new_string("device"));
+#    if defined(_M_AMD64)
+            sentry_value_set_by_key(
+                device_context, "arch", sentry_value_new_string("x86_64"));
+#    elif defined(_M_IX86)
+            sentry_value_set_by_key(
+                device_context, "arch", sentry_value_new_string("x86"));
+#    elif defined(_M_ARM64)
+            sentry_value_set_by_key(
+                device_context, "arch", sentry_value_new_string("arm64"));
+#    endif
+            sentry_value_set_by_key(event_contexts, "device", device_context);
+#endif
+
             sentry_value_set_by_key(event, "contexts", event_contexts);
         }
 
@@ -779,6 +799,32 @@ native_backend_except(sentry_backend_t *backend, const sentry_ucontext_t *uctx)
                     sentry__scope_apply_to_event(
                         scope, options, event, SENTRY_SCOPE_BREADCRUMBS);
                 }
+
+#if defined(SENTRY_PLATFORM_WINDOWS)
+                // Add device context with arch for Windows native events
+                // This is required for Sentry's symbolicator to process PE
+                // modules
+                sentry_value_t contexts
+                    = sentry_value_get_by_key(event, "contexts");
+                if (sentry_value_is_null(contexts)) {
+                    contexts = sentry_value_new_object();
+                    sentry_value_set_by_key(event, "contexts", contexts);
+                }
+                sentry_value_t device_context = sentry_value_new_object();
+                sentry_value_set_by_key(
+                    device_context, "type", sentry_value_new_string("device"));
+#    if defined(_M_AMD64)
+                sentry_value_set_by_key(
+                    device_context, "arch", sentry_value_new_string("x86_64"));
+#    elif defined(_M_IX86)
+                sentry_value_set_by_key(
+                    device_context, "arch", sentry_value_new_string("x86"));
+#    elif defined(_M_ARM64)
+                sentry_value_set_by_key(
+                    device_context, "arch", sentry_value_new_string("arm64"));
+#    endif
+                sentry_value_set_by_key(contexts, "device", device_context);
+#endif
 
                 // Write event as JSON file
                 // Daemon will read this and create envelope with minidump
