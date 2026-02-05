@@ -696,7 +696,7 @@ def test_http_retry_on_network_error(cmake, httpserver):
     assert retry_dir.exists()
     retry_files = list(retry_dir.glob("*.envelope"))
     assert len(retry_files) == 1
-    assert ".1.envelope" in str(retry_files[0])
+    assert "-1-" in str(retry_files[0].name)
 
     # retry on next run with working server
     env_reachable = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
@@ -731,19 +731,19 @@ def test_http_retry_multiple_attempts(cmake, httpserver):
 
     retry_files = list(retry_dir.glob("*.envelope"))
     assert len(retry_files) == 1
-    assert ".1.envelope" in str(retry_files[0])
+    assert "-1-" in str(retry_files[0].name)
 
     run(tmp_path, "sentry_example", ["log", "http-retry", "no-setup"], env=env)
 
     retry_files = list(retry_dir.glob("*.envelope"))
     assert len(retry_files) == 1
-    assert ".2.envelope" in str(retry_files[0])
+    assert "-2-" in str(retry_files[0].name)
 
     run(tmp_path, "sentry_example", ["log", "http-retry", "no-setup"], env=env)
 
     retry_files = list(retry_dir.glob("*.envelope"))
     assert len(retry_files) == 1
-    assert ".3.envelope" in str(retry_files[0])
+    assert "-3-" in str(retry_files[0].name)
 
     # exhaust remaining attempts (max 5)
     for i in range(3):

@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 static sentry_path_t *
 get_retry_path(const sentry_path_t *database_path)
@@ -26,7 +27,7 @@ get_cache_path(const sentry_path_t *database_path)
 
 /**
  * Build a retry envelope filename with attempt number.
- * Format: <uuid>.<attempt>.envelope
+ * Format: <timestamp>-<counter>-<uuid>.envelope
  */
 static char *
 make_retry_filename(const sentry_uuid_t *envelope_id, int attempt)
@@ -34,10 +35,11 @@ make_retry_filename(const sentry_uuid_t *envelope_id, int attempt)
     char uuid_str[37];
     sentry_uuid_as_string(envelope_id, uuid_str);
 
-    // <uuid>.<attempt>.envelope = 36 + 1 + digits + 9 + 1
-    char *filename = sentry_malloc(64);
+    // <timestamp>-<counter>-<uuid>.envelope
+    char *filename = sentry_malloc(80);
     if (filename) {
-        snprintf(filename, 64, "%s.%d.envelope", uuid_str, attempt);
+        snprintf(filename, 80, "%llu-%d-%s.envelope",
+            (unsigned long long)time(NULL), attempt, uuid_str);
     }
     return filename;
 }
@@ -52,7 +54,6 @@ find_retry_attempt(
 {
     char uuid_str[37];
     sentry_uuid_as_string(envelope_id, uuid_str);
-    size_t uuid_len = strlen(uuid_str);
 
     int found_attempt = 0;
     sentry_pathiter_t *iter = sentry__path_iter_directory(retry_path);
@@ -63,14 +64,19 @@ find_retry_attempt(
             continue;
         }
 
-        // Check if filename starts with our UUID
-        if (strncmp(filename, uuid_str, uuid_len) != 0) {
+        // Parse <timestamp>-<counter>-<uuid>.envelope
+        const char *first_dash = strchr(filename, '-');
+        if (!first_dash) {
             continue;
         }
-
-        // Parse attempt number from <uuid>.<attempt>.envelope
-        if (filename[uuid_len] == '.') {
-            int attempt = atoi(filename + uuid_len + 1);
+        int attempt = atoi(first_dash + 1);
+        const char *second_dash = strchr(first_dash + 1, '-');
+        if (!second_dash) {
+            continue;
+        }
+        const char *uuid_start = second_dash + 1;
+        if (strncmp(uuid_start, uuid_str, 36) == 0
+            && strcmp(uuid_start + 36, ".envelope") == 0) {
             if (attempt > found_attempt) {
                 found_attempt = attempt;
             }
@@ -89,7 +95,6 @@ remove_retry_file(
 {
     char uuid_str[37];
     sentry_uuid_as_string(envelope_id, uuid_str);
-    size_t uuid_len = strlen(uuid_str);
 
     sentry_pathiter_t *iter = sentry__path_iter_directory(retry_path);
     const sentry_path_t *file;
@@ -99,9 +104,18 @@ remove_retry_file(
             continue;
         }
 
-        // Check if filename starts with our UUID and ends with .envelope
-        if (strncmp(filename, uuid_str, uuid_len) == 0
-            && sentry__path_ends_with(file, ".envelope")) {
+        // Match <timestamp>-<counter>-<uuid>.envelope
+        const char *first_dash = strchr(filename, '-');
+        if (!first_dash) {
+            continue;
+        }
+        const char *second_dash = strchr(first_dash + 1, '-');
+        if (!second_dash) {
+            continue;
+        }
+        const char *uuid_start = second_dash + 1;
+        if (strncmp(uuid_start, uuid_str, 36) == 0
+            && strcmp(uuid_start + 36, ".envelope") == 0) {
             sentry__path_remove(file);
             break;
         }
@@ -266,7 +280,6 @@ sentry__retry_cache_envelope(
     // Find the retry file (any attempt number)
     char uuid_str[37];
     sentry_uuid_as_string(envelope_id, uuid_str);
-    size_t uuid_len = strlen(uuid_str);
 
     sentry_pathiter_t *iter = sentry__path_iter_directory(retry_path);
     const sentry_path_t *file;
@@ -276,9 +289,18 @@ sentry__retry_cache_envelope(
             continue;
         }
 
-        if (strncmp(filename, uuid_str, uuid_len) == 0
-            && sentry__path_ends_with(file, ".envelope")) {
-            // Found it - move to cache with clean filename
+        // Match <timestamp>-<counter>-<uuid>.envelope
+        const char *first_dash = strchr(filename, '-');
+        if (!first_dash) {
+            continue;
+        }
+        const char *second_dash = strchr(first_dash + 1, '-');
+        if (!second_dash) {
+            continue;
+        }
+        const char *uuid_start = second_dash + 1;
+        if (strncmp(uuid_start, uuid_str, 36) == 0
+            && strcmp(uuid_start + 36, ".envelope") == 0) {
             char *cache_filename
                 = sentry__uuid_as_filename(envelope_id, ".envelope");
             if (cache_filename) {
