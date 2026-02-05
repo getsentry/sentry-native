@@ -220,15 +220,25 @@ get_signal_name(int signum)
 #endif
 
 /**
- * Build registers value from crash context
+ * Build registers value from crash context for a specific thread.
+ *
+ * @param ctx The crash context
+ * @param thread_idx Index of the thread in ctx->platform.threads[]
+ *                   Pass SIZE_MAX to use the crashed thread context
+ * @return Registers value object
  */
 static sentry_value_t
-build_registers_from_ctx(const sentry_crash_context_t *ctx)
+build_registers_from_ctx(const sentry_crash_context_t *ctx, size_t thread_idx)
 {
     sentry_value_t registers = sentry_value_new_object();
 
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+    // Use thread-specific context, defaulting to crashed thread
     const ucontext_t *uctx = &ctx->platform.context;
+    if (thread_idx != SIZE_MAX && ctx->platform.num_threads > 0
+        && thread_idx < ctx->platform.num_threads) {
+        uctx = &ctx->platform.threads[thread_idx].context;
+    }
     uintptr_t *mctx = (uintptr_t *)&uctx->uc_mcontext;
 
 #    if defined(__x86_64__)
@@ -284,7 +294,12 @@ build_registers_from_ctx(const sentry_crash_context_t *ctx)
 #    endif
 
 #elif defined(SENTRY_PLATFORM_MACOS)
+    // Use thread-specific context, defaulting to crashed thread
     const _STRUCT_MCONTEXT *mctx = &ctx->platform.mcontext;
+    if (thread_idx != SIZE_MAX && ctx->platform.num_threads > 0
+        && thread_idx < ctx->platform.num_threads) {
+        mctx = &ctx->platform.threads[thread_idx].state;
+    }
 
 #    if defined(__x86_64__)
     sentry_value_set_by_key(
@@ -339,7 +354,12 @@ build_registers_from_ctx(const sentry_crash_context_t *ctx)
 #    endif
 
 #elif defined(SENTRY_PLATFORM_WINDOWS)
+    // Use thread-specific context, defaulting to crashed thread
     const CONTEXT *wctx = &ctx->platform.context;
+    if (thread_idx != SIZE_MAX && ctx->platform.num_threads > 0
+        && thread_idx < ctx->platform.num_threads) {
+        wctx = &ctx->platform.threads[thread_idx].context;
+    }
 
 #    if defined(_M_AMD64)
     sentry_value_set_by_key(
@@ -731,8 +751,8 @@ build_stacktrace_for_thread(
             }
 
             sentry_value_set_by_key(stacktrace, "frames", frames);
-            sentry_value_set_by_key(
-                stacktrace, "registers", build_registers_from_ctx(ctx));
+            sentry_value_set_by_key(stacktrace, "registers",
+                build_registers_from_ctx(ctx, thread_idx));
 
             CloseHandle(hProcess);
             return stacktrace;
@@ -862,7 +882,7 @@ build_stacktrace_for_thread(
 
     sentry_value_set_by_key(stacktrace, "frames", frames);
     sentry_value_set_by_key(
-        stacktrace, "registers", build_registers_from_ctx(ctx));
+        stacktrace, "registers", build_registers_from_ctx(ctx, thread_idx));
 
     return stacktrace;
 }
