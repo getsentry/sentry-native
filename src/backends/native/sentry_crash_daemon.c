@@ -1826,6 +1826,12 @@ build_native_crash_event(const sentry_crash_context_t *ctx,
                     char code_id_buf[32];
                     snprintf(code_id_buf, sizeof(code_id_buf), "%08lX%lX",
                         (unsigned long)timestamp, (unsigned long)mod->size);
+                    // Ensure uppercase (defensive - some runtimes may differ)
+                    for (char *p = code_id_buf; *p; p++) {
+                        if (*p >= 'a' && *p <= 'f') {
+                            *p = *p - 'a' + 'A';
+                        }
+                    }
                     sentry_value_set_by_key(
                         image, "code_id", sentry_value_new_string(code_id_buf));
                 }
