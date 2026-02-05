@@ -325,8 +325,48 @@ SENTRY_API sentry_value_t sentry_value_new_user_n(const char *id, size_t id_len,
     size_t email_len, const char *ip_address, size_t ip_address_len);
 
 /**
+ * Measurement units for telemetry.
+ *
+ * These constants represent the standardized units supported by Sentry.
+ * Custom units can also be passed as arbitrary strings.
+ *
+ * See: https://develop.sentry.dev/sdk/telemetry/attributes/#units
+ */
+
+/* Duration units */
+#define SENTRY_UNIT_NANOSECOND "nanosecond"
+#define SENTRY_UNIT_MICROSECOND "microsecond"
+#define SENTRY_UNIT_MILLISECOND "millisecond"
+#define SENTRY_UNIT_SECOND "second"
+#define SENTRY_UNIT_MINUTE "minute"
+#define SENTRY_UNIT_HOUR "hour"
+#define SENTRY_UNIT_DAY "day"
+#define SENTRY_UNIT_WEEK "week"
+
+/* Information units */
+#define SENTRY_UNIT_BIT "bit"
+#define SENTRY_UNIT_BYTE "byte"
+#define SENTRY_UNIT_KILOBYTE "kilobyte"
+#define SENTRY_UNIT_KIBIBYTE "kibibyte"
+#define SENTRY_UNIT_MEGABYTE "megabyte"
+#define SENTRY_UNIT_MEBIBYTE "mebibyte"
+#define SENTRY_UNIT_GIGABYTE "gigabyte"
+#define SENTRY_UNIT_GIBIBYTE "gibibyte"
+#define SENTRY_UNIT_TERABYTE "terabyte"
+#define SENTRY_UNIT_TEBIBYTE "tebibyte"
+#define SENTRY_UNIT_PETABYTE "petabyte"
+#define SENTRY_UNIT_PEBIBYTE "pebibyte"
+#define SENTRY_UNIT_EXABYTE "exabyte"
+#define SENTRY_UNIT_EXBIBYTE "exbibyte"
+
+/* Fraction units */
+#define SENTRY_UNIT_RATIO "ratio"
+#define SENTRY_UNIT_PERCENT "percent"
+
+/**
  * Creates a new attribute object.
- *  value is required, unit is optional.
+ *  value is required, unit is optional, but has to be one of the
+ * `SENTRY_UNIT_X` macros.
  *
  * value must be a bool, int, double or string `sentry_value_t`
  * OR a list of bool, int, double or string (with all items being the same type)
@@ -1863,6 +1903,7 @@ SENTRY_API void sentry_remove_extra_n(const char *key, size_t key_len);
  * Sets attributes created with `sentry_value_new_attribute` to be applied to
  * all:
  * - logs
+ * - metrics
  */
 SENTRY_API void sentry_set_attribute(const char *key, sentry_value_t attribute);
 SENTRY_API void sentry_set_attribute_n(
@@ -2125,6 +2166,91 @@ typedef sentry_value_t (*sentry_before_send_log_function_t)(
  */
 SENTRY_EXPERIMENTAL_API void sentry_options_set_before_send_log(
     sentry_options_t *opts, sentry_before_send_log_function_t func, void *data);
+
+/**
+ * Enables or disables the metrics feature.
+ * When disabled, all calls to `sentry_metrics_*()` are no-ops.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_options_set_enable_metrics(
+    sentry_options_t *opts, int enable_metrics);
+SENTRY_EXPERIMENTAL_API int sentry_options_get_enable_metrics(
+    const sentry_options_t *opts);
+
+/**
+ * Type of the `before_send_metric` callback.
+ *
+ * The callback takes ownership of the `metric` and should usually return
+ * that same metric. In case the metric should be discarded, the
+ * callback needs to call `sentry_value_decref` on the provided metric and
+ * return a `sentry_value_new_null()` instead.
+ */
+typedef sentry_value_t (*sentry_before_send_metric_function_t)(
+    sentry_value_t metric, void *user_data);
+
+/**
+ * Sets the `before_send_metric` callback.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_options_set_before_send_metric(
+    sentry_options_t *opts, sentry_before_send_metric_function_t func,
+    void *data);
+
+/**
+ * Result type for metric operations.
+ * - Success means the metric was enqueued
+ * - Discard means the `before_send_metric` callback discarded the metric
+ * - Failed means the metric wasn't enqueued (buffers are full)
+ * - Disabled means metrics are disabled
+ */
+typedef enum {
+    SENTRY_METRICS_RESULT_SUCCESS = 0,
+    SENTRY_METRICS_RESULT_DISCARD = 1,
+    SENTRY_METRICS_RESULT_FAILED = 2,
+    SENTRY_METRICS_RESULT_DISABLED = 3
+} sentry_metrics_result_t;
+
+/**
+ * Metrics interface for recording application metrics.
+ *
+ * Metrics are buffered and sent in batches. Each metric includes:
+ * - name: Hierarchical name with dot separators (e.g., "api.requests")
+ * - value: The numeric value to record
+ * - unit: Optional measurement unit (e.g., SENTRY_UNIT_MILLISECOND), or NULL
+ * - attributes: Optional sentry_value_t object with custom attributes, or
+ *   sentry_value_new_null(). Each attribute should be created with
+ *   sentry_value_new_attribute().
+ *
+ * Ownership of the attributes is transferred to the metric function.
+ *
+ * To re-use the same attributes, call `sentry_value_incref` on it
+ * before passing the attributes to the metric function.
+ *
+ * Metrics are automatically associated with the current trace and span if
+ * available. Default attributes (environment, release, SDK info) are attached
+ * automatically.
+ */
+
+/**
+ * Records a counter metric. Counters track incrementing values like
+ * request counts or error counts.
+ */
+SENTRY_EXPERIMENTAL_API sentry_metrics_result_t sentry_metrics_count(
+    const char *name, int64_t value, sentry_value_t attributes);
+
+/**
+ * Records a gauge metric. Gauges track values that can go up or down,
+ * like memory usage or active connections.
+ */
+SENTRY_EXPERIMENTAL_API sentry_metrics_result_t sentry_metrics_gauge(
+    const char *name, double value, const char *unit,
+    sentry_value_t attributes);
+
+/**
+ * Records a distribution metric. Distributions track the statistical
+ * distribution of values, useful for timing data and percentiles.
+ */
+SENTRY_EXPERIMENTAL_API sentry_metrics_result_t sentry_metrics_distribution(
+    const char *name, double value, const char *unit,
+    sentry_value_t attributes);
 
 #ifdef SENTRY_PLATFORM_LINUX
 

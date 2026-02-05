@@ -10,6 +10,7 @@
 #include "sentry_envelope.h"
 #include "sentry_hint.h"
 #include "sentry_logs.h"
+#include "sentry_metrics.h"
 #include "sentry_options.h"
 #include "sentry_path.h"
 #include "sentry_process.h"
@@ -297,6 +298,10 @@ sentry_init(sentry_options_t *options)
         sentry__logs_startup();
     }
 
+    if (options->enable_metrics) {
+        sentry__metrics_startup();
+    }
+
     sentry__mutex_unlock(&g_options_lock);
     return 0;
 
@@ -315,8 +320,18 @@ sentry_flush(uint64_t timeout)
 {
     int rv = 0;
     SENTRY_WITH_OPTIONS (options) {
+        // flush logs and metrics in parallel
         if (options->enable_logs) {
-            sentry__logs_force_flush();
+            sentry__logs_force_flush_begin();
+        }
+        if (options->enable_metrics) {
+            sentry__metrics_force_flush_begin();
+        }
+        if (options->enable_logs) {
+            sentry__logs_force_flush_wait();
+        }
+        if (options->enable_metrics) {
+            sentry__metrics_force_flush_wait();
         }
         rv = sentry__transport_flush(options->transport, timeout);
     }
@@ -326,12 +341,23 @@ sentry_flush(uint64_t timeout)
 int
 sentry_close(void)
 {
-    // Shutdown logs system before locking options to ensure logs are flushed.
-    // This prevents a potential deadlock on the options during log envelope
-    // creation.
+    // Shutdown logs and metrics in parallel before locking options to ensure
+    // they are flushed. This prevents a potential deadlock on the options
+    // during envelope creation.
     SENTRY_WITH_OPTIONS (options) {
+        bool wait_logs = false;
         if (options->enable_logs) {
-            sentry__logs_shutdown(options->shutdown_timeout);
+            wait_logs = sentry__logs_shutdown_begin();
+        }
+        bool wait_metrics = false;
+        if (options->enable_metrics) {
+            wait_metrics = sentry__metrics_shutdown_begin();
+        }
+        if (wait_logs) {
+            sentry__logs_shutdown_wait(options->shutdown_timeout);
+        }
+        if (wait_metrics) {
+            sentry__metrics_shutdown_wait(options->shutdown_timeout);
         }
     }
 

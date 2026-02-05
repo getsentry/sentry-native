@@ -10,6 +10,7 @@ extern "C" {
 #include "sentry_envelope.h"
 #include "sentry_logger.h"
 #include "sentry_logs.h"
+#include "sentry_metrics.h"
 #include "sentry_options.h"
 #ifdef SENTRY_PLATFORM_WINDOWS
 #    include "sentry_os.h"
@@ -356,9 +357,12 @@ sentry__crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
                 crash_event, nullptr, options->before_send_data);
         }
 
-        // Flush logs in a crash-safe manner before crash handling
+        // Flush logs and metrics in a crash-safe manner before crash handling
         if (options->enable_logs) {
             sentry__logs_flush_crash_safe();
+        }
+        if (options->enable_metrics) {
+            sentry__metrics_flush_crash_safe();
         }
 
         should_dump = !sentry_value_is_null(crash_event);

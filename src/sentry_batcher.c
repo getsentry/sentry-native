@@ -47,7 +47,7 @@ check_for_flush_condition(sentry_batcher_t *batcher)
         >= SENTRY_BATCHER_QUEUE_LENGTH;
 }
 
-void
+bool
 sentry__batcher_flush(sentry_batcher_t *batcher, bool crash_safe)
 {
     if (crash_safe) {
@@ -59,7 +59,7 @@ sentry__batcher_flush(sentry_batcher_t *batcher, bool crash_safe)
                 SENTRY_WARN(
                     "sentry__batcher_flush: timeout waiting for flushing "
                     "lock in crash-safe mode");
-                return;
+                return false;
             }
 
             // backoff max-wait with max_attempts = 200 based sleep slots:
@@ -74,7 +74,7 @@ sentry__batcher_flush(sentry_batcher_t *batcher, bool crash_safe)
         const long already_flushing
             = sentry__atomic_store(&batcher->flushing, 1);
         if (already_flushing) {
-            return;
+            return false;
         }
     }
     do {
@@ -135,6 +135,7 @@ sentry__batcher_flush(sentry_batcher_t *batcher, bool crash_safe)
     } while (check_for_flush_condition(batcher));
 
     sentry__atomic_store(&batcher->flushing, 0);
+    return true;
 }
 
 #define ENQUEUE_MAX_RETRIES 2
@@ -281,11 +282,8 @@ batcher_thread_func(void *data)
 }
 
 void
-sentry__batcher_startup(
-    sentry_batcher_t *batcher, sentry_batch_func_t batch_func)
+sentry__batcher_startup(sentry_batcher_t *batcher)
 {
-    batcher->batch_func = batch_func;
-
     // Mark thread as starting before actually spawning so thread can transition
     // to RUNNING. This prevents shutdown from thinking the thread was never
     // started if it races with the thread's initialization.
@@ -308,11 +306,9 @@ sentry__batcher_startup(
     }
 }
 
-void
-sentry__batcher_shutdown(sentry_batcher_t *batcher, uint64_t timeout)
+bool
+sentry__batcher_shutdown_begin(sentry_batcher_t *batcher)
 {
-    (void)timeout;
-
     // Atomically transition to STOPPED and get the previous state
     // This handles the race where thread might be in STARTING state:
     // - If thread's CAS hasn't run yet: CAS will fail, thread exits cleanly
@@ -323,11 +319,18 @@ sentry__batcher_shutdown(sentry_batcher_t *batcher, uint64_t timeout)
     // If thread was never started, nothing to do
     if (old_state == SENTRY_BATCHER_THREAD_STOPPED) {
         SENTRY_DEBUG("batcher thread was not started, skipping shutdown");
-        return;
+        return false;
     }
 
     // Thread was started (either STARTING or RUNNING), signal it to stop
     sentry__cond_wake(&batcher->request_flush);
+    return true;
+}
+
+void
+sentry__batcher_shutdown_wait(sentry_batcher_t *batcher, uint64_t timeout)
+{
+    (void)timeout;
 
     // Always join the thread to avoid leaks
     sentry__thread_join(batcher->batching_thread);
@@ -359,12 +362,21 @@ sentry__batcher_flush_crash_safe(sentry_batcher_t *batcher)
 }
 
 void
-sentry__batcher_force_flush(sentry_batcher_t *batcher)
+sentry__batcher_force_flush_begin(sentry_batcher_t *batcher)
 {
-    while (sentry__atomic_fetch(&batcher->flushing)) {
-        sentry__cpu_relax();
-    }
-    sentry__batcher_flush(batcher, false);
+    sentry__cond_wake(&batcher->request_flush);
+}
+
+void
+sentry__batcher_force_flush_wait(sentry_batcher_t *batcher)
+{
+    do {
+        // wait for in-progress flush to complete
+        while (sentry__atomic_fetch(&batcher->flushing)) {
+            sentry__cpu_relax();
+        }
+        // retry if the batcher thread (woken by _begin) wins the race
+    } while (!sentry__batcher_flush(batcher, false));
 }
 
 #ifdef SENTRY_UNITTEST

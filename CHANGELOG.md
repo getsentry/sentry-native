@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- Add support for metrics. It is currently experimental, and one can enable it by setting `sentry_options_set_enable_metrics`. When enabled, you can record a metric using `sentry_metrics_count()`, `sentry_metrics_gauge()`, or `sentry_metrics_distribution()`. Metrics can be filtered by setting the `before_send_metric` hook. ([#1498](https://github.com/getsentry/sentry-native/pull/1498))
+
 ## 0.12.5
 
 **Features**:
