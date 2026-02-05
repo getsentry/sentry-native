@@ -1,11 +1,16 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- Add new offline caching options to persist envelopes locally, currently supported with the `inproc` and `breakpad` backends: `sentry_options_set_cache_keep`, `sentry_options_set_cache_max_items`, `sentry_options_set_cache_max_size`, and `sentry_options_set_cache_max_age`. ([#1490](https://github.com/getsentry/sentry-native/pull/1490))
+
 ## 0.12.6
 
 **Features**:
 
 - Add support for metrics. It is currently experimental, and one can enable it by setting `sentry_options_set_enable_metrics`. When enabled, you can record a metric using `sentry_metrics_count()`, `sentry_metrics_gauge()`, or `sentry_metrics_distribution()`. Metrics can be filtered by setting the `before_send_metric` hook. ([#1498](https://github.com/getsentry/sentry-native/pull/1498))
-- Add new offline caching options to persist envelopes locally, currently supported with the `inproc` and `breakpad` backends: `sentry_options_set_cache_keep`, `sentry_options_set_cache_max_size`, and `sentry_options_set_cache_max_age`. ([#1490](https://github.com/getsentry/sentry-native/pull/1490))
 
 ## 0.12.5
 
