@@ -1,13 +1,16 @@
 #include "sentry_core.h"
 #include "sentry_sync.h"
 #include "sentry_testsupport.h"
+#include "sentry_utils.h"
 
 #ifdef SENTRY_PLATFORM_WINDOWS
 #    include <windows.h>
 #    define sleep_s(SECONDS) Sleep((SECONDS) * 1000)
+#    define sleep_ms(MS) Sleep(MS)
 #else
 #    include <unistd.h>
 #    define sleep_s(SECONDS) sleep(SECONDS)
+#    define sleep_ms(MS) usleep((MS) * 1000)
 #endif
 
 struct task_state {
@@ -165,5 +168,192 @@ SENTRY_TEST(bgworker_flush)
 
     int shutdown = sentry__bgworker_shutdown(bgw, 500);
     TEST_CHECK_INT_EQUAL(shutdown, 0);
+    sentry__bgworker_decref(bgw);
+}
+
+static sentry_cond_t blocker_signal;
+#ifdef SENTRY__MUTEX_INIT_DYN
+SENTRY__MUTEX_INIT_DYN(blocker_lock)
+#else
+static sentry_mutex_t blocker_lock = SENTRY__MUTEX_INIT;
+#endif
+static bool blocker_released;
+
+static void
+blocker_task(void *UNUSED(data), void *UNUSED(state))
+{
+    SENTRY__MUTEX_INIT_DYN_ONCE(blocker_lock);
+    sentry__mutex_lock(&blocker_lock);
+    while (!blocker_released) {
+        sentry__cond_wait_timeout(&blocker_signal, &blocker_lock, 100);
+    }
+    sentry__mutex_unlock(&blocker_lock);
+}
+
+struct order_state {
+    int order[10];
+    int count;
+};
+
+static void
+record_order_task(void *data, void *_state)
+{
+    struct order_state *state = (struct order_state *)_state;
+    state->order[state->count++] = (int)(size_t)data;
+}
+
+SENTRY_TEST(bgworker_task_delay)
+{
+    struct order_state os;
+    os.count = 0;
+
+    sentry_bgworker_t *bgw = sentry__bgworker_new(&os, NULL);
+    TEST_ASSERT(!!bgw);
+
+    uint64_t before = sentry__monotonic_time();
+    sentry__bgworker_submit_delayed(
+        bgw, record_order_task, NULL, (void *)1, 50);
+
+    sentry__bgworker_start(bgw);
+    TEST_CHECK_INT_EQUAL(sentry__bgworker_shutdown(bgw, 500), 0);
+    uint64_t after = sentry__monotonic_time();
+
+    TEST_CHECK_INT_EQUAL(os.count, 1);
+    TEST_CHECK_INT_EQUAL(os.order[0], 1);
+    TEST_CHECK(after - before >= 50);
+
+    sentry__bgworker_decref(bgw);
+}
+
+SENTRY_TEST(bgworker_delayed_tasks)
+{
+    struct order_state os;
+    os.count = 0;
+
+    sentry_bgworker_t *bgw = sentry__bgworker_new(&os, NULL);
+    TEST_ASSERT(!!bgw);
+
+    // all tasks sorted by execute_after: immediate (0) first, then delayed
+    // by deadline
+    //
+    // queue after each submit:
+    //   i(1)
+    //   i(1) d100(3)
+    //   i(1) i(6) d100(3)
+    //   i(1) i(6) d50(2) d100(3)
+    //   i(1) i(6) i(7) d50(2) d100(3)
+    //   i(1) i(6) i(7) d50(2) d100(3) d200(5)
+    //   i(1) i(6) i(7) d50(2) d100(3) d150(4) d200(5)
+    //   i(1) i(6) i(7) i(8) d50(2) d100(3) d150(4) d200(5)
+    //   i(1) i(6) i(7) i(8) d50(2) d75(9) d100(3) d150(4) d200(5)
+    //   i(1) i(6) i(7) i(8) i(10) d50(2) d75(9) d100(3) d150(4) d200(5)
+    sentry__bgworker_submit(bgw, record_order_task, NULL, (void *)1);
+    sentry__bgworker_submit_delayed(
+        bgw, record_order_task, NULL, (void *)3, 100);
+    sentry__bgworker_submit(bgw, record_order_task, NULL, (void *)6);
+    sentry__bgworker_submit_delayed(
+        bgw, record_order_task, NULL, (void *)2, 50);
+    sentry__bgworker_submit(bgw, record_order_task, NULL, (void *)7);
+    sentry__bgworker_submit_delayed(
+        bgw, record_order_task, NULL, (void *)5, 200);
+    sentry__bgworker_submit_delayed(
+        bgw, record_order_task, NULL, (void *)4, 150);
+    sentry__bgworker_submit(bgw, record_order_task, NULL, (void *)8);
+    sentry__bgworker_submit_delayed(
+        bgw, record_order_task, NULL, (void *)9, 75);
+    sentry__bgworker_submit(bgw, record_order_task, NULL, (void *)10);
+
+    sentry__bgworker_start(bgw);
+    TEST_CHECK_INT_EQUAL(sentry__bgworker_shutdown(bgw, 5000), 0);
+
+    // all tasks execute: immediate first, then delayed in deadline order
+    TEST_CHECK_INT_EQUAL(os.count, 10);
+    TEST_CHECK_INT_EQUAL(os.order[0], 1);
+    TEST_CHECK_INT_EQUAL(os.order[1], 6);
+    TEST_CHECK_INT_EQUAL(os.order[2], 7);
+    TEST_CHECK_INT_EQUAL(os.order[3], 8);
+    TEST_CHECK_INT_EQUAL(os.order[4], 10);
+    TEST_CHECK_INT_EQUAL(os.order[5], 2);
+    TEST_CHECK_INT_EQUAL(os.order[6], 9);
+    TEST_CHECK_INT_EQUAL(os.order[7], 3);
+    TEST_CHECK_INT_EQUAL(os.order[8], 4);
+    TEST_CHECK_INT_EQUAL(os.order[9], 5);
+
+    sentry__bgworker_decref(bgw);
+}
+
+SENTRY_TEST(bgworker_delayed_priority)
+{
+    SENTRY__MUTEX_INIT_DYN_ONCE(blocker_lock);
+    sentry__cond_init(&blocker_signal);
+    blocker_released = false;
+
+    struct order_state os;
+    os.count = 0;
+
+    sentry_bgworker_t *bgw = sentry__bgworker_new(&os, NULL);
+    TEST_ASSERT(!!bgw);
+
+    // blocker holds the worker busy
+    sentry__bgworker_submit(bgw, blocker_task, NULL, NULL);
+    // delayed task queued behind the blocker
+    sentry__bgworker_submit_delayed(
+        bgw, record_order_task, NULL, (void *)1, 50);
+
+    sentry__bgworker_start(bgw);
+
+    // wait for the delayed task to become ready
+    sleep_ms(100);
+
+    // submit an immediate task — should NOT bypass the ready delayed task
+    sentry__bgworker_submit(bgw, record_order_task, NULL, (void *)2);
+
+    // release the blocker
+    sentry__mutex_lock(&blocker_lock);
+    blocker_released = true;
+    sentry__cond_wake(&blocker_signal);
+    sentry__mutex_unlock(&blocker_lock);
+
+    TEST_CHECK_INT_EQUAL(sentry__bgworker_shutdown(bgw, 5000), 0);
+
+    TEST_CHECK_INT_EQUAL(os.count, 2);
+    TEST_CHECK_INT_EQUAL(os.order[0], 1); // delayed (was ready first)
+    TEST_CHECK_INT_EQUAL(os.order[1], 2); // immediate (submitted later)
+
+    sentry__bgworker_decref(bgw);
+}
+
+SENTRY_TEST(bgworker_delayed_shutdown)
+{
+    struct order_state os;
+    os.count = 0;
+
+    sentry_bgworker_t *bgw = sentry__bgworker_new(&os, NULL);
+    TEST_ASSERT(!!bgw);
+
+    // immediate tasks
+    sentry__bgworker_submit(bgw, record_order_task, NULL, (void *)1);
+    sentry__bgworker_submit(bgw, record_order_task, NULL, (void *)2);
+    sentry__bgworker_submit(bgw, record_order_task, NULL, (void *)3);
+
+    // short delay fits within shutdown deadline
+    sentry__bgworker_submit_delayed(
+        bgw, record_order_task, NULL, (void *)4, 50);
+
+    // long delay exceeds shutdown deadline and should be pruned
+    sentry__bgworker_submit_delayed(
+        bgw, record_order_task, NULL, (void *)5, 5000);
+    sentry__bgworker_submit_delayed(
+        bgw, record_order_task, NULL, (void *)6, 5000);
+
+    sentry__bgworker_start(bgw);
+    TEST_CHECK_INT_EQUAL(sentry__bgworker_shutdown(bgw, 1000), 0);
+
+    TEST_CHECK_INT_EQUAL(os.count, 4);
+    TEST_CHECK_INT_EQUAL(os.order[0], 1);
+    TEST_CHECK_INT_EQUAL(os.order[1], 2);
+    TEST_CHECK_INT_EQUAL(os.order[2], 3);
+    TEST_CHECK_INT_EQUAL(os.order[3], 4);
+
     sentry__bgworker_decref(bgw);
 }
