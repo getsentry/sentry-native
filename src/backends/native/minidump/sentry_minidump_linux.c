@@ -20,6 +20,7 @@
 
 #    include "sentry_alloc.h"
 #    include "sentry_logger.h"
+#    include "sentry_minidump_common.h"
 #    include "sentry_minidump_format.h"
 #    include "sentry_minidump_writer.h"
 
@@ -99,11 +100,15 @@ typedef struct {
 
 /**
  * Minidump writer context
+ * Note: fd and current_offset must be first to match minidump_writer_base_t
  */
 typedef struct {
-    const sentry_crash_context_t *crash_ctx;
+    // Base fields (must match minidump_writer_base_t layout)
     int fd;
     uint32_t current_offset;
+
+    // Linux-specific fields
+    const sentry_crash_context_t *crash_ctx;
 
     // Memory mappings
     memory_mapping_t mappings[SENTRY_CRASH_MAX_MAPPINGS];
@@ -440,60 +445,16 @@ enumerate_threads(minidump_writer_t *writer)
     return 0;
 }
 
-/**
- * Write data to minidump file and return RVA
- */
-static minidump_rva_t
-write_data(minidump_writer_t *writer, const void *data, size_t size)
-{
-    minidump_rva_t rva = writer->current_offset;
-
-    ssize_t written = write(writer->fd, data, size);
-    if (written != (ssize_t)size) {
-        SENTRY_WARNF("write failed: %s", strerror(errno));
-        return 0;
-    }
-
-    writer->current_offset += size;
-
-    // Align to 4-byte boundary
-    uint32_t padding = (4 - (writer->current_offset % 4)) % 4;
-    if (padding > 0) {
-        const uint8_t zeros[4] = { 0 };
-        if (write(writer->fd, zeros, padding) == (ssize_t)padding) {
-            writer->current_offset += padding;
-        } else {
-            SENTRY_WARN("Failed to write padding bytes");
-            // Don't update offset on failure - RVA is still valid for the data
-            // that was written
-        }
-    }
-
-    return rva;
-}
-
-/**
- * Write minidump header and directory
- */
-static int
-write_header(minidump_writer_t *writer, uint32_t stream_count)
-{
-    minidump_header_t header = {
-        .signature = MINIDUMP_SIGNATURE,
-        .version = MINIDUMP_VERSION,
-        .stream_count = stream_count,
-        .stream_directory_rva = sizeof(minidump_header_t),
-        .checksum = 0,
-        .time_date_stamp = (uint32_t)time(NULL),
-        .flags = 0,
-    };
-
-    if (write_data(writer, &header, sizeof(header)) == 0) {
-        return -1;
-    }
-
-    return 0;
-}
+// Use common minidump functions (cast writer to base type)
+#    define write_data(writer, data, size)                                     \
+        sentry__minidump_write_data(                                           \
+            (minidump_writer_base_t *)(writer), (data), (size))
+#    define write_header(writer, stream_count)                                 \
+        sentry__minidump_write_header(                                         \
+            (minidump_writer_base_t *)(writer), (stream_count))
+#    define write_minidump_string(writer, str)                                 \
+        sentry__minidump_write_string((minidump_writer_base_t *)(writer), (str))
+#    define get_context_size() sentry__minidump_get_context_size()
 
 /**
  * Write system info stream
@@ -526,25 +487,6 @@ write_system_info_stream(minidump_writer_t *writer, minidump_directory_t *dir)
     dir->data_size = sizeof(sysinfo);
 
     return dir->rva ? 0 : -1;
-}
-
-/**
- * Get size of thread context for current architecture
- */
-static size_t
-get_context_size(void)
-{
-#    if defined(__x86_64__)
-    return sizeof(minidump_context_x86_64_t);
-#    elif defined(__aarch64__)
-    return sizeof(minidump_context_arm64_t);
-#    elif defined(__i386__)
-    return sizeof(minidump_context_x86_t);
-#    elif defined(__arm__)
-    return sizeof(minidump_context_arm_t);
-#    else
-#        error "Unsupported architecture"
-#    endif
 }
 
 #    if defined(__aarch64__)
@@ -913,43 +855,6 @@ write_cv_record(minidump_writer_t *writer, const char *module_path,
 
     minidump_rva_t rva = write_data(writer, cv_record, total_size);
     sentry_free(cv_record);
-    return rva;
-}
-
-/**
- * Write UTF-16LE string for minidump
- */
-static minidump_rva_t
-write_minidump_string(minidump_writer_t *writer, const char *str)
-{
-    if (!str) {
-        return 0;
-    }
-
-    size_t utf8_len = strlen(str);
-    size_t utf16_len = utf8_len; // Approximate (ASCII chars = 1:1)
-
-    // Allocate buffer for UTF-16LE string (including null terminator)
-    uint32_t total_size
-        = sizeof(uint32_t) + (utf16_len * 2) + 2; // +2 for null terminator
-    uint8_t *buf = sentry_malloc(total_size);
-    if (!buf) {
-        return 0;
-    }
-
-    // Write string length (in bytes, NOT including null terminator)
-    uint32_t string_bytes = utf16_len * 2;
-    memcpy(buf, &string_bytes, sizeof(uint32_t));
-
-    // Convert UTF-8 to UTF-16LE (simple ASCII conversion)
-    uint16_t *utf16 = (uint16_t *)(buf + sizeof(uint32_t));
-    for (size_t i = 0; i < utf8_len; i++) {
-        utf16[i] = (uint16_t)(unsigned char)str[i];
-    }
-    utf16[utf8_len] = 0; // Null terminator
-
-    minidump_rva_t rva = write_data(writer, buf, total_size);
-    sentry_free(buf);
     return rva;
 }
 

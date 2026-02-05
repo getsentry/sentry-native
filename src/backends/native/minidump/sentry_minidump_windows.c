@@ -40,9 +40,11 @@ sentry__write_minidump(
     }
     sentry_free(woutput_path);
 
-    // Open crashed process
-    HANDLE process_handle
-        = OpenProcess(PROCESS_ALL_ACCESS, FALSE, ctx->crashed_pid);
+    // Open crashed process with minimum required permissions for
+    // MiniDumpWriteDump Using PROCESS_ALL_ACCESS is excessive and can fail in
+    // restricted environments (services, sandboxes)
+    HANDLE process_handle = OpenProcess(
+        PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, ctx->crashed_pid);
 
     if (process_handle == NULL) {
         SENTRY_WARNF("failed to open process %lu: %lu", ctx->crashed_pid,

@@ -1823,22 +1823,35 @@ build_native_crash_event(const sentry_crash_context_t *ctx,
             }
 
             // Set debug_id from PDB GUID + age (format: GUID-age)
+            // Only set if we have valid PDB info (non-zero GUID)
             // The GUID bytes from PE are in Windows mixed-endian format
             // (Data1/2/3 are little-endian, Data4 is big-endian)
             {
-                // Copy to aligned GUID structure to avoid alignment issues
-                // (mod->uuid is uint8_t[] with 1-byte alignment, GUID needs 4)
-                GUID guid;
-                memcpy(&guid, mod->uuid, sizeof(GUID));
-                sentry_uuid_t uuid = sentry__uuid_from_native(&guid);
-                char debug_id_buf[50]; // GUID (36) + '-' (1) + age (up to 10) +
-                                       // null
-                sentry_uuid_as_string(&uuid, debug_id_buf);
-                debug_id_buf[36] = '-';
-                snprintf(
-                    debug_id_buf + 37, 12, "%x", (unsigned int)mod->pdb_age);
-                sentry_value_set_by_key(
-                    image, "debug_id", sentry_value_new_string(debug_id_buf));
+                // Check if UUID is non-zero (valid PDB info was extracted)
+                bool has_valid_uuid = false;
+                for (int j = 0; j < 16; j++) {
+                    if (mod->uuid[j] != 0) {
+                        has_valid_uuid = true;
+                        break;
+                    }
+                }
+
+                if (has_valid_uuid) {
+                    // Copy to aligned GUID structure to avoid alignment issues
+                    // (mod->uuid is uint8_t[] with 1-byte alignment, GUID
+                    // needs 4)
+                    GUID guid;
+                    memcpy(&guid, mod->uuid, sizeof(GUID));
+                    sentry_uuid_t uuid = sentry__uuid_from_native(&guid);
+                    char debug_id_buf[50]; // GUID (36) + '-' (1) + age (up to
+                                           // 10) + null
+                    sentry_uuid_as_string(&uuid, debug_id_buf);
+                    debug_id_buf[36] = '-';
+                    snprintf(debug_id_buf + 37, 12, "%x",
+                        (unsigned int)mod->pdb_age);
+                    sentry_value_set_by_key(image, "debug_id",
+                        sentry_value_new_string(debug_id_buf));
+                }
             }
 
             // Set debug_file (path to PDB file for symbolication)
