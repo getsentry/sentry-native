@@ -1780,6 +1780,18 @@ build_native_crash_event(const sentry_crash_context_t *ctx,
 #elif defined(SENTRY_PLATFORM_WINDOWS)
             sentry_value_set_by_key(
                 image, "type", sentry_value_new_string("pe"));
+
+            // Set arch for Windows PE modules (required for Sentry symbolication)
+#    if defined(_M_AMD64)
+            sentry_value_set_by_key(
+                image, "arch", sentry_value_new_string("x86_64"));
+#    elif defined(_M_IX86)
+            sentry_value_set_by_key(
+                image, "arch", sentry_value_new_string("x86"));
+#    elif defined(_M_ARM64)
+            sentry_value_set_by_key(
+                image, "arch", sentry_value_new_string("arm64"));
+#    endif
 #endif
 
             // Set code_file (path to the module)

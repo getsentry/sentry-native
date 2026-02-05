@@ -165,6 +165,19 @@ load_modules(void)
                 sentry_value_t rv = sentry_value_new_object();
                 sentry_value_set_by_key(
                     rv, "type", sentry_value_new_string("pe"));
+
+                // Set arch for PE modules (required for Sentry symbolication)
+#if defined(_M_AMD64)
+                sentry_value_set_by_key(
+                    rv, "arch", sentry_value_new_string("x86_64"));
+#elif defined(_M_IX86)
+                sentry_value_set_by_key(
+                    rv, "arch", sentry_value_new_string("x86"));
+#elif defined(_M_ARM64)
+                sentry_value_set_by_key(
+                    rv, "arch", sentry_value_new_string("arm64"));
+#endif
+
                 sentry_value_set_by_key(rv, "image_addr",
                     sentry__value_new_addr((uint64_t)module.modBaseAddr));
                 sentry_value_set_by_key(rv, "image_size",
@@ -204,6 +217,19 @@ load_modules(void)
                     sentry_value_t rv = sentry_value_new_object();
                     sentry_value_set_by_key(
                         rv, "type", sentry_value_new_string("pe"));
+
+                    // Set arch for PE modules (required for Sentry symbolication)
+#if defined(_M_AMD64)
+                    sentry_value_set_by_key(
+                        rv, "arch", sentry_value_new_string("x86_64"));
+#elif defined(_M_IX86)
+                    sentry_value_set_by_key(
+                        rv, "arch", sentry_value_new_string("x86"));
+#elif defined(_M_ARM64)
+                    sentry_value_set_by_key(
+                        rv, "arch", sentry_value_new_string("arm64"));
+#endif
+
                     sentry_value_set_by_key(rv, "image_addr",
                         sentry__value_new_addr((uint64_t)handle));
 
