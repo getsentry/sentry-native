@@ -289,10 +289,12 @@ crash_signal_handler(int signum, siginfo_t *info, void *context)
 #        endif
             } else {
                 // Capture thread state from thread_get_state for other threads
+                // Note: thread_get_state writes to thread_state_t, which is __ss
+                // (not the full mcontext), so we must pass &state.__ss
                 mach_msg_type_number_t state_count = MACHINE_THREAD_STATE_COUNT;
                 kern_return_t state_kr
                     = thread_get_state(threads[i], MACHINE_THREAD_STATE,
-                        (thread_state_t)&ctx->platform.threads[i].state,
+                        (thread_state_t)&ctx->platform.threads[i].state.__ss,
                         &state_count);
                 if (state_kr != KERN_SUCCESS) {
                     // Failed to get state, but continue with other threads
