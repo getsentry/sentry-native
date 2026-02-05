@@ -1993,6 +1993,21 @@ write_envelope_with_native_stacktrace(const sentry_options_t *options,
     sentry_value_t event
         = build_native_crash_event(ctx, event_file_path, include_threads);
 
+    // Log whether event has threads (for debugging duplication issues)
+    sentry_value_t event_threads = sentry_value_get_by_key(event, "threads");
+    if (!sentry_value_is_null(event_threads)) {
+        sentry_value_t thread_values
+            = sentry_value_get_by_key(event_threads, "values");
+        size_t thread_count = sentry_value_get_length(thread_values);
+        SENTRY_WARNF("EVENT HAS THREADS: %zu threads in event JSON (expected: "
+                     "%s)",
+            thread_count, include_threads ? "yes" : "NO - SHOULD BE EMPTY!");
+    } else {
+        SENTRY_DEBUGF("Event has no threads (include_threads=%d, minidump "
+                      "will provide threads)",
+            include_threads);
+    }
+
     // Serialize event to JSON
     char *event_json = sentry_value_to_json(event);
     sentry_value_decref(event);
@@ -2581,9 +2596,15 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
 
     // Write envelope based on mode
     bool envelope_written = false;
+    SENTRY_DEBUGF("Envelope decision: mode=%d, use_native_mode=%d, "
+                  "need_minidump=%d, minidump_path='%s'",
+        mode, use_native_mode, need_minidump,
+        minidump_path[0] ? minidump_path : "(empty)");
     if (use_native_mode) {
         // Mode 1 (NATIVE) or Mode 2 (NATIVE_WITH_MINIDUMP)
-        SENTRY_DEBUG("Writing envelope with native stacktrace");
+        SENTRY_DEBUGF("Writing envelope with native stacktrace, passing "
+                      "minidump_path=%s",
+            minidump_path[0] ? minidump_path : "NULL");
         envelope_written = write_envelope_with_native_stacktrace(options,
             envelope_path, ctx, event_path,
             minidump_path[0] ? minidump_path : NULL, run_folder);
