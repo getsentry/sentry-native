@@ -163,6 +163,57 @@ def get_threads_from_event(event):
     return None
 
 
+def verify_no_thread_duplication(threads_data, test_name):
+    """
+    Verify that thread list has no duplicates.
+
+    This checks for a known issue where the entire thread list appears twice
+    on Windows.
+
+    Args:
+        threads_data: The threads data dict containing "values" list
+        test_name: Name of the test for error messages
+
+    Raises:
+        AssertionError: If duplicate thread IDs are found
+    """
+    if not threads_data or "values" not in threads_data:
+        return
+
+    threads = threads_data["values"]
+    thread_ids = [t.get("id") for t in threads if t.get("id") is not None]
+
+    # Check for duplicate thread IDs
+    seen_ids = set()
+    duplicates = []
+    for tid in thread_ids:
+        if tid in seen_ids:
+            duplicates.append(tid)
+        seen_ids.add(tid)
+
+    if duplicates:
+        # Print detailed thread info for debugging
+        print(f"\n=== THREAD DUPLICATION DETECTED in {test_name} ===")
+        print(f"Total threads: {len(threads)}")
+        print(f"Unique thread IDs: {len(seen_ids)}")
+        print(f"Duplicate IDs: {duplicates}")
+        print("Thread list:")
+        for i, t in enumerate(threads):
+            print(
+                f"  [{i}] id={t.get('id')}, "
+                f"crashed={t.get('crashed')}, "
+                f"current={t.get('current')}, "
+                f"name={t.get('name', 'N/A')}"
+            )
+        print("=== END THREAD DUPLICATION DEBUG ===\n")
+
+        raise AssertionError(
+            f"Thread duplication detected in {test_name}: "
+            f"{len(threads)} total threads but only {len(seen_ids)} unique IDs. "
+            f"Duplicate IDs: {duplicates}"
+        )
+
+
 def get_debug_meta_from_event(event):
     """
     Extract debug_meta data from Sentry API event response.
@@ -241,6 +292,32 @@ class TestE2ECrashModes:
         self.tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
         self.dsn = os.environ["SENTRY_E2E_DSN"]
 
+    def print_daemon_logs(self):
+        """Print daemon log files from the database directory for debugging."""
+        import glob
+        from pathlib import Path
+
+        # Find .sentry-native directory in tmp_path
+        db_path = Path(self.tmp_path) / ".sentry-native"
+        if not db_path.exists():
+            print(f"\n=== No .sentry-native directory found at {db_path} ===")
+            return
+
+        # Find daemon log files
+        log_files = list(db_path.glob("sentry-daemon-*.log"))
+        if not log_files:
+            print(f"\n=== No daemon log files found in {db_path} ===")
+            return
+
+        for log_file in log_files:
+            print(f"\n=== DAEMON LOG: {log_file.name} ===")
+            try:
+                content = log_file.read_text(errors="replace")
+                print(content)
+            except Exception as e:
+                print(f"Error reading log: {e}")
+            print(f"=== END DAEMON LOG ===\n")
+
     def run_crash_and_send(self, mode_args):
         """
         Crash the app with given mode, then restart to send the pending crash.
@@ -263,6 +340,9 @@ class TestE2ECrashModes:
 
         # Wait for crash daemon to process
         time.sleep(2)
+
+        # Print daemon logs for debugging (especially useful for Windows thread duplication investigation)
+        self.print_daemon_logs()
 
         # Restart to send pending crash (no-setup skips scope setup but still sends)
         run(self.tmp_path, "sentry_example", ["no-setup"], env=env)
@@ -319,6 +399,9 @@ class TestE2ECrashModes:
         assert (
             thread_count >= 1
         ), f"Minidump mode should capture threads (>= 1), got {thread_count}"
+
+        # Verify no thread duplication (regression test for Windows issue)
+        verify_no_thread_duplication(threads_data, "test_mode_minidump_e2e")
 
     def test_mode_native_e2e(self):
         """
@@ -396,6 +479,9 @@ class TestE2ECrashModes:
             thread_count >= 1
         ), f"Native mode should capture threads (>= 1), got {thread_count}"
 
+        # Verify no thread duplication (regression test for Windows issue)
+        verify_no_thread_duplication(threads_data, "test_mode_native_e2e")
+
     def test_mode_native_with_minidump_e2e(self):
         """
         Mode 2 (NATIVE_WITH_MINIDUMP): Verify Sentry receives both native stacktrace AND minidump.
@@ -448,6 +534,11 @@ class TestE2ECrashModes:
             thread_count >= 1
         ), f"Native-with-minidump mode should capture threads (>= 1), got {thread_count}"
 
+        # Verify no thread duplication (regression test for Windows issue)
+        verify_no_thread_duplication(
+            threads_data, "test_mode_native_with_minidump_e2e"
+        )
+
     def test_default_mode_is_native_with_minidump_e2e(self):
         """
         Verify that not specifying a mode uses NATIVE_WITH_MINIDUMP (the default).
@@ -483,3 +574,8 @@ class TestE2ECrashModes:
         assert (
             thread_count >= 1
         ), f"Default mode should capture threads (>= 1), got {thread_count}"
+
+        # Verify no thread duplication (regression test for Windows issue)
+        verify_no_thread_duplication(
+            threads_data, "test_default_mode_is_native_with_minidump_e2e"
+        )
