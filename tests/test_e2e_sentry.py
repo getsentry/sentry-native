@@ -535,9 +535,7 @@ class TestE2ECrashModes:
         ), f"Native-with-minidump mode should capture threads (>= 1), got {thread_count}"
 
         # Verify no thread duplication (regression test for Windows issue)
-        verify_no_thread_duplication(
-            threads_data, "test_mode_native_with_minidump_e2e"
-        )
+        verify_no_thread_duplication(threads_data, "test_mode_native_with_minidump_e2e")
 
     def test_default_mode_is_native_with_minidump_e2e(self):
         """
