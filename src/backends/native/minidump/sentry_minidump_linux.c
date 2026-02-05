@@ -713,7 +713,9 @@ extract_elf_build_id(const char *elf_path, uint8_t *build_id, size_t max_len)
     }
 
     // Read section headers
-    size_t shdr_size = ehdr.e_shentsize * ehdr.e_shnum;
+    // Cast to size_t to prevent integer overflow (uint16_t * uint16_t promotes
+    // to int, which can overflow)
+    size_t shdr_size = (size_t)ehdr.e_shentsize * ehdr.e_shnum;
     void *shdr_buf = sentry_malloc(shdr_size);
     if (!shdr_buf) {
         close(fd);
