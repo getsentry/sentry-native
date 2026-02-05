@@ -479,6 +479,18 @@ int sentry__bgworker_submit(sentry_bgworker_t *bgw,
     void *task_data);
 
 /**
+ * This will submit a new delayed task to the background thread.
+ *
+ * Execution is deferred by `delay_ms` milliseconds.
+ *
+ * Takes ownership of `data`, freeing it using the provided `cleanup_func`.
+ * Returns 0 on success.
+ */
+int sentry__bgworker_submit_delayed(sentry_bgworker_t *bgw,
+    sentry_task_exec_func_t exec_func, void (*cleanup_func)(void *task_data),
+    void *task_data, uint64_t delay_ms);
+
+/**
  * This function will iterate through all the current tasks of the worker
  * thread, and will call the `callback` function for each task with a matching
  * `exec_func`. The callback can return `true` to indicate if the current task
