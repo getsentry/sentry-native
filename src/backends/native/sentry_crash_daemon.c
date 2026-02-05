@@ -1676,10 +1676,13 @@ build_native_crash_event(const sentry_crash_context_t *ctx,
             sentry_value_set_by_key(
                 thread, "current", sentry_value_new_bool(is_crashed));
 
-            // Build stacktrace for this thread (only add if non-empty)
-            sentry_value_t stacktrace = build_stacktrace_for_thread(ctx, i);
-            if (!sentry_value_is_null(stacktrace)) {
-                sentry_value_set_by_key(thread, "stacktrace", stacktrace);
+            // Build stacktrace for non-crashed threads only
+            // (crashed thread's stacktrace is already in exception.values)
+            if (!is_crashed) {
+                sentry_value_t stacktrace = build_stacktrace_for_thread(ctx, i);
+                if (!sentry_value_is_null(stacktrace)) {
+                    sentry_value_set_by_key(thread, "stacktrace", stacktrace);
+                }
             }
 
             sentry_value_append(thread_values, thread);
@@ -1701,10 +1704,13 @@ build_native_crash_event(const sentry_crash_context_t *ctx,
             sentry_value_set_by_key(
                 thread, "current", sentry_value_new_bool(is_crashed));
 
-            // Build stacktrace for this thread (only add if non-empty)
-            sentry_value_t stacktrace = build_stacktrace_for_thread(ctx, i);
-            if (!sentry_value_is_null(stacktrace)) {
-                sentry_value_set_by_key(thread, "stacktrace", stacktrace);
+            // Build stacktrace for non-crashed threads only
+            // (crashed thread's stacktrace is already in exception.values)
+            if (!is_crashed) {
+                sentry_value_t stacktrace = build_stacktrace_for_thread(ctx, i);
+                if (!sentry_value_is_null(stacktrace)) {
+                    sentry_value_set_by_key(thread, "stacktrace", stacktrace);
+                }
             }
 
             sentry_value_append(thread_values, thread);
@@ -1726,10 +1732,13 @@ build_native_crash_event(const sentry_crash_context_t *ctx,
             sentry_value_set_by_key(
                 thread, "current", sentry_value_new_bool(is_crashed));
 
-            // Build stacktrace for this thread (only add if non-empty)
-            sentry_value_t stacktrace = build_stacktrace_for_thread(ctx, i);
-            if (!sentry_value_is_null(stacktrace)) {
-                sentry_value_set_by_key(thread, "stacktrace", stacktrace);
+            // Build stacktrace for non-crashed threads only
+            // (crashed thread's stacktrace is already in exception.values)
+            if (!is_crashed) {
+                sentry_value_t stacktrace = build_stacktrace_for_thread(ctx, i);
+                if (!sentry_value_is_null(stacktrace)) {
+                    sentry_value_set_by_key(thread, "stacktrace", stacktrace);
+                }
             }
 
             sentry_value_append(thread_values, thread);
@@ -1737,7 +1746,8 @@ build_native_crash_event(const sentry_crash_context_t *ctx,
         SENTRY_DEBUGF("Added %lu threads to event",
             (unsigned long)ctx->platform.num_threads);
 #else
-        // Fallback: just add the crashed thread
+        // Fallback: just add the crashed thread (without stacktrace since
+        // it's already in exception.values)
         sentry_value_t crashed_thread = sentry_value_new_object();
         sentry_value_set_by_key(crashed_thread, "id",
             sentry_value_new_int32((int32_t)ctx->crashed_tid));
@@ -1745,8 +1755,7 @@ build_native_crash_event(const sentry_crash_context_t *ctx,
             crashed_thread, "crashed", sentry_value_new_bool(true));
         sentry_value_set_by_key(
             crashed_thread, "current", sentry_value_new_bool(true));
-        sentry_value_set_by_key(
-            crashed_thread, "stacktrace", build_stacktrace_from_ctx(ctx));
+        // Note: stacktrace is NOT added here - it's in exception.values[0]
         sentry_value_append(thread_values, crashed_thread);
 #endif
 
