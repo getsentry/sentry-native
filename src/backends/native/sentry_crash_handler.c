@@ -115,6 +115,19 @@ get_tid(void)
 #    endif
 }
 
+/**
+ * Safe string length (signal-safe)
+ */
+static size_t
+safe_strlen(const char *s)
+{
+    size_t len = 0;
+    while (s && s[len] != '\0') {
+        len++;
+    }
+    return len;
+}
+
 // safe_strncpy is only used on macOS (for stack path and module names)
 #    if defined(SENTRY_PLATFORM_MACOS)
 /**
@@ -132,6 +145,98 @@ safe_strncpy(char *dest, const char *src, size_t n)
         dest[i] = src[i];
     }
     dest[i] = '\0';
+}
+
+/**
+ * Safe unsigned int to string (signal-safe)
+ * Returns number of characters written (not including null terminator)
+ */
+static size_t
+safe_uint_to_str(char *buf, size_t buf_size, unsigned int value)
+{
+    if (!buf || buf_size == 0) {
+        return 0;
+    }
+
+    // Handle zero case
+    if (value == 0) {
+        if (buf_size >= 2) {
+            buf[0] = '0';
+            buf[1] = '\0';
+            return 1;
+        }
+        buf[0] = '\0';
+        return 0;
+    }
+
+    // Build string in reverse
+    char tmp[16];
+    size_t len = 0;
+    while (value > 0 && len < sizeof(tmp)) {
+        tmp[len++] = '0' + (value % 10);
+        value /= 10;
+    }
+
+    // Check if we have enough space
+    if (len >= buf_size) {
+        buf[0] = '\0';
+        return 0;
+    }
+
+    // Reverse into output buffer
+    for (size_t i = 0; i < len; i++) {
+        buf[i] = tmp[len - 1 - i];
+    }
+    buf[len] = '\0';
+    return len;
+}
+
+/**
+ * Build stack path signal-safely: "{database_path}/__sentry-stack{index}"
+ * Returns total length or 0 on error/truncation
+ */
+static size_t
+safe_build_stack_path(
+    char *dest, size_t dest_size, const char *database_path, unsigned int index)
+{
+    if (!dest || dest_size == 0) {
+        return 0;
+    }
+
+    // Copy database path
+    size_t pos = 0;
+    size_t db_len = safe_strlen(database_path);
+    if (db_len >= dest_size) {
+        dest[0] = '\0';
+        return 0; // Would truncate
+    }
+    safe_strncpy(dest, database_path, dest_size);
+    pos = db_len;
+
+    // Append "/__sentry-stack"
+    const char *suffix = "/__sentry-stack";
+    size_t suffix_len = 15; // strlen("/__sentry-stack")
+    if (pos + suffix_len >= dest_size) {
+        dest[0] = '\0';
+        return 0; // Would truncate
+    }
+    for (size_t i = 0; i < suffix_len; i++) {
+        dest[pos++] = suffix[i];
+    }
+
+    // Append index number
+    char num_buf[16];
+    size_t num_len = safe_uint_to_str(num_buf, sizeof(num_buf), index);
+    if (pos + num_len >= dest_size) {
+        dest[0] = '\0';
+        return 0; // Would truncate
+    }
+    for (size_t i = 0; i < num_len; i++) {
+        dest[pos++] = num_buf[i];
+    }
+
+    dest[pos] = '\0';
+    return pos;
 }
 #    endif
 
@@ -347,12 +452,13 @@ crash_signal_handler(int signum, siginfo_t *info, void *context)
 
                 if (actual_stack_size > 0) {
                     // Create stack file path in database directory
+                    // (signal-safe)
                     char stack_path[SENTRY_CRASH_MAX_PATH];
-                    int len = snprintf(stack_path, sizeof(stack_path),
-                        "%s/__sentry-stack%u", ctx->database_path, i);
+                    size_t len = safe_build_stack_path(
+                        stack_path, sizeof(stack_path), ctx->database_path, i);
 
-                    // Check for truncation (signal-safe check)
-                    if (len < 0 || len >= (int)sizeof(stack_path)) {
+                    // Check for failure/truncation
+                    if (len == 0) {
                         continue; // Skip this thread if path too long
                     }
 
@@ -554,12 +660,14 @@ daemon_handling:
             // Try to open and dump log file
             int fd = open(log_path, O_RDONLY);
             if (fd >= 0) {
-                const char *header = "\n========== Daemon Log (";
-                ssize_t rv = write(STDERR_FILENO, header, strlen(header));
+                // Use sizeof()-1 for string literals (signal-safe)
+                ssize_t rv = write(STDERR_FILENO, "\n========== Daemon Log (",
+                    sizeof("\n========== Daemon Log (") - 1);
                 (void)rv; // Ignore write errors in signal handler
-                rv = write(STDERR_FILENO, shm_id, strlen(shm_id));
+                rv = write(STDERR_FILENO, shm_id, safe_strlen(shm_id));
                 (void)rv;
-                rv = write(STDERR_FILENO, ") ==========\n", 13);
+                rv = write(STDERR_FILENO, ") ==========\n",
+                    sizeof(") ==========\n") - 1);
                 (void)rv;
 
                 char buf[1024];
@@ -569,9 +677,10 @@ daemon_handling:
                     (void)rv;
                 }
 
-                const char *footer
-                    = "=========================================\n\n";
-                rv = write(STDERR_FILENO, footer, strlen(footer));
+                rv = write(STDERR_FILENO,
+                    "=========================================\n\n",
+                    sizeof("=========================================\n\n")
+                        - 1);
                 (void)rv;
                 close(fd);
             }
