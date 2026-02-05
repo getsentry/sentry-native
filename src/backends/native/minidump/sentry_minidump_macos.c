@@ -658,12 +658,12 @@ write_thread_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
             // Get thread state (registers)
             // Zero-initialize to ensure float/NEON state fields are not garbage
             // since MACHINE_THREAD_STATE only populates integer registers
-            // (__ss)
+            // (__ss), we must pass &mcontext.__ss (not &mcontext)
             _STRUCT_MCONTEXT mcontext;
             memset(&mcontext, 0, sizeof(mcontext));
             mach_msg_type_number_t state_count = MACHINE_THREAD_STATE_COUNT;
             if (thread_get_state(mach_thread, MACHINE_THREAD_STATE,
-                    (thread_state_t)&mcontext, &state_count)
+                    (thread_state_t)&mcontext.__ss, &state_count)
                 == KERN_SUCCESS) {
 
                 // Write thread context (registers)
