@@ -1815,7 +1815,8 @@ build_native_crash_event(const sentry_crash_context_t *ctx,
             for (DWORD j = 0; j < seen_count; j++) {
                 if (seen_ids[j] == tctx->thread_id) {
                     is_duplicate = true;
-                    SENTRY_WARNF("Skipping duplicate thread ID %lu at index %lu",
+                    SENTRY_WARNF(
+                        "Skipping duplicate thread ID %lu at index %lu",
                         (unsigned long)tctx->thread_id, (unsigned long)i);
                     break;
                 }

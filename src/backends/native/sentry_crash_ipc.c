@@ -118,12 +118,6 @@ sentry__crash_ipc_init_app(sem_t *init_sem)
         return NULL;
     }
 
-    // Zero out shared memory only when first created to ensure clean state
-    // Don't zero existing memory to avoid corrupting state set by other threads
-    if (!shm_exists) {
-        memset(ipc->shmem, 0, SENTRY_CRASH_SHM_SIZE);
-    }
-
     // Create eventfd for crash notifications
     ipc->notify_fd = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
     if (ipc->notify_fd < 0) {
