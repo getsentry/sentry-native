@@ -1530,6 +1530,7 @@ thread_id_exists(
 
 /**
  * Enumerate threads from the crashed process for the native event on Windows
+ * Captures thread contexts for stack walking.
  */
 static void
 enumerate_threads_from_process(sentry_crash_context_t *ctx)
@@ -1563,10 +1564,49 @@ enumerate_threads_from_process(sentry_crash_context_t *ctx)
                 continue;
             }
 
+            // Open thread to capture its context
+            HANDLE hThread = OpenThread(THREAD_GET_CONTEXT
+                    | THREAD_SUSPEND_RESUME | THREAD_QUERY_INFORMATION,
+                FALSE, te32.th32ThreadID);
+
+            if (hThread == NULL) {
+                SENTRY_WARNF("Failed to open thread %lu: %lu",
+                    (unsigned long)te32.th32ThreadID, GetLastError());
+                continue;
+            }
+
+            // Suspend thread to safely capture context
+            // (likely already suspended due to crash, but be safe)
+            DWORD suspend_count = SuspendThread(hThread);
+            bool was_running = (suspend_count == 0);
+
+            // Capture thread context
+            CONTEXT thread_ctx;
+            memset(&thread_ctx, 0, sizeof(thread_ctx));
+            thread_ctx.ContextFlags = CONTEXT_FULL;
+
+            BOOL got_context = GetThreadContext(hThread, &thread_ctx);
+
+            // Resume thread if we suspended it
+            if (was_running || suspend_count != (DWORD)-1) {
+                ResumeThread(hThread);
+            }
+
+            CloseHandle(hThread);
+
+            if (!got_context) {
+                SENTRY_WARNF("Failed to get context for thread %lu: %lu",
+                    (unsigned long)te32.th32ThreadID, GetLastError());
+                continue;
+            }
+
+            // Store thread info with captured context
             ctx->platform.threads[thread_count].thread_id = te32.th32ThreadID;
-            memset(&ctx->platform.threads[thread_count].context, 0,
-                sizeof(ctx->platform.threads[thread_count].context));
+            ctx->platform.threads[thread_count].context = thread_ctx;
             thread_count++;
+
+            SENTRY_DEBUGF("Captured context for thread %lu",
+                (unsigned long)te32.th32ThreadID);
         } while (Thread32Next(hSnapshot, &te32));
     }
 
