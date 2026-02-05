@@ -125,6 +125,7 @@ struct sentry_bgworker_task_s;
 typedef struct sentry_bgworker_task_s {
     struct sentry_bgworker_task_s *next_task;
     long refcount;
+    uint64_t execute_after;
     sentry_task_exec_func_t exec_func;
     void (*cleanup_func)(void *task_data);
     void *task_data;
@@ -260,6 +261,16 @@ worker_thread(void *data)
             continue;
         }
 
+        // wait for a delayed task, wake up to new submissions
+        {
+            uint64_t now = sentry__monotonic_time();
+            if (now < task->execute_after) {
+                sentry__cond_wait_timeout(&bgw->submit_signal, &bgw->task_lock,
+                    (uint32_t)(task->execute_after - now));
+                continue;
+            }
+        }
+
         sentry__task_incref(task);
         sentry__mutex_unlock(&bgw->task_lock);
 
@@ -350,11 +361,23 @@ sentry__bgworker_flush(sentry_bgworker_t *bgw, uint64_t timeout)
     sentry__cond_init(&flush_task->signal);
     sentry__mutex_init(&flush_task->lock);
 
+    // flush potential delayed tasks up until the timeout
+    uint64_t delay_ms = 0;
+    uint64_t before = sentry__monotonic_time();
+    sentry__mutex_lock(&bgw->task_lock);
+    if (bgw->last_task && bgw->last_task->execute_after > before) {
+        delay_ms = bgw->last_task->execute_after - before;
+        if (delay_ms > timeout) {
+            delay_ms = timeout;
+        }
+    }
+    sentry__mutex_unlock(&bgw->task_lock);
+
     sentry__mutex_lock(&flush_task->lock);
 
     /* submit the task that triggers our condvar once it runs */
-    sentry__bgworker_submit(bgw, sentry__flush_task,
-        (void (*)(void *))sentry__flush_task_decref, flush_task);
+    sentry__bgworker_submit_delayed(bgw, sentry__flush_task,
+        (void (*)(void *))sentry__flush_task_decref, flush_task, delay_ms);
 
     uint64_t started = sentry__monotonic_time();
     bool was_flushed = false;
@@ -396,6 +419,30 @@ sentry__bgworker_shutdown(sentry_bgworker_t *bgw, uint64_t timeout)
 
     uint64_t started = sentry__monotonic_time();
     sentry__mutex_lock(&bgw->task_lock);
+
+    // prune delayed tasks that exceed the shutdown timeout
+    sentry_bgworker_task_t *prev = NULL;
+    sentry_bgworker_task_t *cur = bgw->first_task;
+    while (cur) {
+        if (cur->execute_after > started + timeout) {
+            if (prev) {
+                prev->next_task = NULL;
+                bgw->last_task = prev;
+            } else {
+                bgw->first_task = NULL;
+                bgw->last_task = NULL;
+            }
+            while (cur) {
+                sentry_bgworker_task_t *next = cur->next_task;
+                sentry__task_decref(cur);
+                cur = next;
+            }
+            break;
+        }
+        prev = cur;
+        cur = cur->next_task;
+    }
+
     while (true) {
         if (sentry__bgworker_is_done(bgw)) {
             sentry__mutex_unlock(&bgw->task_lock);
@@ -423,6 +470,28 @@ sentry__bgworker_submit(sentry_bgworker_t *bgw,
     sentry_task_exec_func_t exec_func, void (*cleanup_func)(void *task_data),
     void *task_data)
 {
+    SENTRY_DEBUG("submitting task to background worker thread");
+    return sentry__bgworker_submit_at(
+        bgw, exec_func, cleanup_func, task_data, sentry__monotonic_time());
+}
+
+int
+sentry__bgworker_submit_delayed(sentry_bgworker_t *bgw,
+    sentry_task_exec_func_t exec_func, void (*cleanup_func)(void *task_data),
+    void *task_data, uint64_t delay_ms)
+{
+    SENTRY_DEBUGF("submitting %" PRIu64
+                  " ms delayed task to background worker thread",
+        delay_ms);
+    return sentry__bgworker_submit_at(bgw, exec_func, cleanup_func, task_data,
+        sentry__monotonic_time() + delay_ms);
+}
+
+int
+sentry__bgworker_submit_at(sentry_bgworker_t *bgw,
+    sentry_task_exec_func_t exec_func, void (*cleanup_func)(void *task_data),
+    void *task_data, uint64_t execute_after)
+{
     sentry_bgworker_task_t *task = SENTRY_MAKE(sentry_bgworker_task_t);
     if (!task) {
         if (cleanup_func) {
@@ -432,19 +501,41 @@ sentry__bgworker_submit(sentry_bgworker_t *bgw,
     }
     task->next_task = NULL;
     task->refcount = 1;
+    task->execute_after = execute_after;
     task->exec_func = exec_func;
     task->cleanup_func = cleanup_func;
     task->task_data = task_data;
 
-    SENTRY_DEBUG("submitting task to background worker thread");
     sentry__mutex_lock(&bgw->task_lock);
+
     if (!bgw->first_task) {
+        // empty queue
         bgw->first_task = task;
-    }
-    if (bgw->last_task) {
+        bgw->last_task = task;
+    } else if (bgw->last_task->execute_after <= task->execute_after) {
+        // append last (common fast path for FIFO immediates)
         bgw->last_task->next_task = task;
+        bgw->last_task = task;
+    } else {
+        // insert sorted by execute_after
+        sentry_bgworker_task_t *prev = NULL;
+        sentry_bgworker_task_t *cur = bgw->first_task;
+        while (cur && cur->execute_after <= task->execute_after) {
+            prev = cur;
+            cur = cur->next_task;
+        }
+
+        task->next_task = cur;
+        if (prev) {
+            prev->next_task = task;
+        } else {
+            bgw->first_task = task;
+        }
+        if (!task->next_task) {
+            bgw->last_task = task;
+        }
     }
-    bgw->last_task = task;
+
     sentry__cond_wake(&bgw->submit_signal);
     sentry__mutex_unlock(&bgw->task_lock);
 
