@@ -370,13 +370,6 @@ sentry__winhttp_send(void *_envelope, void *_state)
             }
         }
         SENTRY_DEBUGF("envelope sent successfully (HTTP %lu)", status_code);
-        if (state->retry) {
-            if (state->retry->cache_keep) {
-                sentry__retry_cache_envelope(state->retry, &event_id);
-            } else {
-                sentry__retry_remove_envelope(state->retry, &event_id);
-            }
-        }
         break;
     }
 
@@ -406,21 +399,16 @@ sentry__winhttp_send(void *_envelope, void *_state)
             sentry__rate_limiter_update_from_429(state->ratelimiter);
         }
         SENTRY_WARNF("envelope discarded due to HTTP error %lu", status_code);
-        if (state->retry) {
-            sentry__retry_remove_envelope(state->retry, &event_id);
-        }
         break;
     }
 
     case SENTRY_SEND_NETWORK_ERROR:
         SENTRY_WARNF(
             "network error (code %lu), persisting for retry", last_error);
-
-        if (state->retry) {
-            sentry__retry_write_envelope(state->retry, envelope);
-        }
         break;
     }
+
+    sentry__retry_handle_send_result(state->retry, result, &event_id, envelope);
 
     uint64_t now = sentry__monotonic_time();
     SENTRY_DEBUGF("request handled in %llums", now - started);

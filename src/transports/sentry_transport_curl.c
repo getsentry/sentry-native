@@ -301,13 +301,6 @@ sentry__curl_send(void *_envelope, void *_state)
                 state->ratelimiter, info.retry_after);
         }
         SENTRY_DEBUGF("envelope sent successfully (HTTP %ld)", response_code);
-        if (state->retry) {
-            if (state->retry->cache_keep) {
-                sentry__retry_cache_envelope(state->retry, &event_id);
-            } else {
-                sentry__retry_remove_envelope(state->retry, &event_id);
-            }
-        }
         break;
 
     case SENTRY_SEND_RATE_LIMITED:
@@ -322,33 +315,24 @@ sentry__curl_send(void *_envelope, void *_state)
             sentry__rate_limiter_update_from_429(state->ratelimiter);
         }
         SENTRY_WARNF("envelope discarded due to HTTP error %ld", response_code);
-        if (state->retry) {
-            sentry__retry_remove_envelope(state->retry, &event_id);
-        }
         break;
 
-    case SENTRY_SEND_NETWORK_ERROR:
-        // Network error - persist to retry directory for later
-        {
-            size_t len = strlen(error_buf);
-            if (len) {
-                if (error_buf[len - 1] == '\n') {
-                    error_buf[len - 1] = 0;
-                }
-                SENTRY_WARNF(
-                    "network error, persisting for retry: %s", error_buf);
-            } else {
-                SENTRY_WARNF(
-                    "network error (code %d), persisting for retry: %s",
-                    (int)rv, curl_easy_strerror(rv));
+    case SENTRY_SEND_NETWORK_ERROR: {
+        size_t len = strlen(error_buf);
+        if (len) {
+            if (error_buf[len - 1] == '\n') {
+                error_buf[len - 1] = 0;
             }
-
-            if (state->retry) {
-                sentry__retry_write_envelope(state->retry, envelope);
-            }
+            SENTRY_WARNF("network error, persisting for retry: %s", error_buf);
+        } else {
+            SENTRY_WARNF("network error (code %d), persisting for retry: %s",
+                (int)rv, curl_easy_strerror(rv));
         }
         break;
     }
+    }
+
+    sentry__retry_handle_send_result(state->retry, result, &event_id, envelope);
 
     curl_slist_free_all(headers);
     sentry_free(info.retry_after);

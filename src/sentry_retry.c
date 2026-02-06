@@ -331,6 +331,32 @@ sentry__retry_cache_envelope(
     sentry__path_free(cache_path);
 }
 
+void
+sentry__retry_handle_send_result(sentry_retry_t *retry,
+    sentry_send_result_t result, const sentry_uuid_t *envelope_id,
+    const sentry_envelope_t *envelope)
+{
+    if (!retry) {
+        return;
+    }
+    switch (result) {
+    case SENTRY_SEND_SUCCESS:
+        if (retry->cache_keep) {
+            sentry__retry_cache_envelope(retry, envelope_id);
+        } else {
+            sentry__retry_remove_envelope(retry, envelope_id);
+        }
+        break;
+    case SENTRY_SEND_RATE_LIMITED:
+    case SENTRY_SEND_DISCARDED:
+        sentry__retry_remove_envelope(retry, envelope_id);
+        break;
+    case SENTRY_SEND_NETWORK_ERROR:
+        sentry__retry_write_envelope(retry, envelope);
+        break;
+    }
+}
+
 static int
 compare_paths_by_filename(const void *a, const void *b)
 {
