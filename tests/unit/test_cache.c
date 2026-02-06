@@ -5,6 +5,7 @@
 #include "sentry_path.h"
 #include "sentry_retry.h"
 #include "sentry_testsupport.h"
+#include "sentry_transport.h"
 #include "sentry_uuid.h"
 #include "sentry_value.h"
 
@@ -89,20 +90,24 @@ SENTRY_TEST(cache_keep)
     TEST_CHECK_INT_EQUAL(count_envelope_files(retry_path), 0);
     TEST_CHECK_INT_EQUAL(count_envelope_files(cache_path), 0);
 
-    // First attempt - envelope goes to retry
+    bool use_http_retry = options->http_retry > 0
+        && sentry__transport_retry_envelope(options->transport, NULL);
+
     sentry__process_old_runs(options, 0);
     sentry_flush(1000);
     TEST_ASSERT(!sentry__path_is_file(old_envelope_path));
-    TEST_CHECK_INT_EQUAL(count_envelope_files(retry_path), 1);
 
-    // Retry until max attempts exceeded (5 more times)
-    for (int i = 0; i < 5; i++) {
-        sentry__retry_process_envelopes(options);
-        sentry_flush(1000);
+    if (use_http_retry) {
+        TEST_CHECK_INT_EQUAL(count_envelope_files(retry_path), 1);
+
+        for (int i = 0; i < 5; i++) {
+            sentry__retry_process_envelopes(options);
+            sentry_flush(1000);
+        }
+
+        TEST_CHECK_INT_EQUAL(count_envelope_files(retry_path), 0);
     }
 
-    // After max retries, envelope should be in cache
-    TEST_CHECK_INT_EQUAL(count_envelope_files(retry_path), 0);
     TEST_CHECK_INT_EQUAL(count_envelope_files(cache_path), 1);
 
     sentry__path_free(old_envelope_path);
