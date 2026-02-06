@@ -43,17 +43,16 @@ typedef struct {
 static sentry_send_result_t
 classify_winhttp_result(BOOL success, DWORD status_code)
 {
-    // Network error - should retry
     if (!success) {
-        return SENTRY_SEND_RETRY;
+        return SENTRY_SEND_NETWORK_ERROR;
     }
-    // HTTP response received - check status
     if (status_code >= 200 && status_code < 300) {
         return SENTRY_SEND_SUCCESS;
     }
-    // All non-2xx are failures (including 429, 5xx)
-    // Rate limiter is updated separately for 429
-    return SENTRY_SEND_FAILURE;
+    if (status_code == 429) {
+        return SENTRY_SEND_RATE_LIMITED;
+    }
+    return SENTRY_SEND_DISCARDED;
 }
 
 static winhttp_bgworker_state_t *
@@ -217,11 +216,12 @@ sentry__winhttp_transport_shutdown(uint64_t timeout, void *transport_state)
     return rv;
 }
 
-static void
-sentry__winhttp_send_task(void *_envelope, void *_state)
+static sentry_send_result_t
+sentry__winhttp_send(void *_envelope, void *_state)
 {
     sentry_envelope_t *envelope = (sentry_envelope_t *)_envelope;
     winhttp_bgworker_state_t *state = (winhttp_bgworker_state_t *)_state;
+    sentry_send_result_t result = SENTRY_SEND_NETWORK_ERROR;
 
     uint64_t started = sentry__monotonic_time();
 
@@ -230,7 +230,7 @@ sentry__winhttp_send_task(void *_envelope, void *_state)
         envelope, state->dsn, state->ratelimiter, user_agent);
     if (!req) {
         sentry_free(user_agent);
-        return;
+        return result;
     }
 
     wchar_t *url = sentry__string_to_wstr(req->url);
@@ -347,8 +347,7 @@ sentry__winhttp_send_task(void *_envelope, void *_state)
             WINHTTP_NO_HEADER_INDEX);
     }
 
-    sentry_send_result_t result
-        = classify_winhttp_result(send_success, status_code);
+    result = classify_winhttp_result(send_success, status_code);
     sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
 
     switch (result) {
@@ -384,7 +383,8 @@ sentry__winhttp_send_task(void *_envelope, void *_state)
         break;
     }
 
-    case SENTRY_SEND_FAILURE: {
+    case SENTRY_SEND_RATE_LIMITED:
+    case SENTRY_SEND_DISCARDED: {
         wchar_t buf[2048];
         DWORD buf_size = sizeof(buf);
 
@@ -405,7 +405,7 @@ sentry__winhttp_send_task(void *_envelope, void *_state)
                     state->ratelimiter, h);
                 sentry_free(h);
             }
-        } else if (status_code == 429) {
+        } else if (result == SENTRY_SEND_RATE_LIMITED) {
             sentry__rate_limiter_update_from_429(state->ratelimiter);
         }
         SENTRY_WARNF("envelope discarded due to HTTP error %lu", status_code);
@@ -415,7 +415,7 @@ sentry__winhttp_send_task(void *_envelope, void *_state)
         break;
     }
 
-    case SENTRY_SEND_RETRY:
+    case SENTRY_SEND_NETWORK_ERROR:
         SENTRY_WARNF(
             "network error (code %lu), persisting for retry", last_error);
 
@@ -439,6 +439,13 @@ exit:
     sentry_free(url);
     sentry_free(headers);
     sentry__prepared_http_request_free(req);
+    return result;
+}
+
+static void
+sentry__winhttp_send_task(void *envelope, void *state)
+{
+    sentry__winhttp_send(envelope, state);
 }
 
 static void
@@ -450,13 +457,51 @@ sentry__winhttp_transport_send_envelope(
         (void (*)(void *))sentry_envelope_free, envelope);
 }
 
+typedef struct {
+    sentry_envelope_t *envelope;
+    void (*on_result)(sentry_send_result_t, void *);
+    void *user_data;
+} winhttp_retry_task_t;
+
 static void
-sentry__winhttp_transport_retry_envelope(
-    sentry_envelope_t *envelope, void *transport_state)
+sentry__winhttp_retry_task_free(void *_task)
 {
+    winhttp_retry_task_t *task = _task;
+    if (task->envelope) {
+        sentry_envelope_free(task->envelope);
+    }
+    sentry_free(task);
+}
+
+static void
+sentry__winhttp_retry_task(void *_task, void *_state)
+{
+    winhttp_retry_task_t *task = _task;
+    sentry_send_result_t result = sentry__winhttp_send(task->envelope, _state);
+    sentry_envelope_free(task->envelope);
+    task->envelope = NULL;
+    if (task->on_result) {
+        task->on_result(result, task->user_data);
+    }
+}
+
+static void
+sentry__winhttp_transport_retry_envelope(sentry_envelope_t *envelope,
+    void *transport_state, void (*on_result)(sentry_send_result_t, void *),
+    void *user_data)
+{
+    winhttp_retry_task_t *task = sentry_malloc(sizeof(winhttp_retry_task_t));
+    if (!task) {
+        sentry_envelope_free(envelope);
+        return;
+    }
+    task->envelope = envelope;
+    task->on_result = on_result;
+    task->user_data = user_data;
+
     sentry_bgworker_t *bgworker = (sentry_bgworker_t *)transport_state;
-    sentry__bgworker_submit_delayed(bgworker, sentry__winhttp_send_task,
-        (void (*)(void *))sentry_envelope_free, envelope, 100);
+    sentry__bgworker_submit_delayed(bgworker, sentry__winhttp_retry_task,
+        sentry__winhttp_retry_task_free, task, 100);
 }
 
 static bool

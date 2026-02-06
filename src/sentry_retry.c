@@ -328,6 +328,57 @@ compare_paths_by_filename(const void *a, const void *b)
     return strcmp(sentry__path_filename(pa), sentry__path_filename(pb));
 }
 
+typedef struct {
+    sentry_transport_t *transport;
+    sentry_path_t **paths;
+    size_t count;
+    size_t index;
+} retry_chain_t;
+
+static void
+retry_chain_free(retry_chain_t *chain)
+{
+    for (size_t i = chain->index; i < chain->count; i++) {
+        sentry__path_free(chain->paths[i]);
+    }
+    sentry_free(chain->paths);
+    sentry_free(chain);
+}
+
+static void
+retry_chain_next(sentry_send_result_t result, void *_chain)
+{
+    retry_chain_t *chain = _chain;
+
+    if (result == SENTRY_SEND_RATE_LIMITED
+        || result == SENTRY_SEND_NETWORK_ERROR) {
+        SENTRY_DEBUG("stopping retry chain due to rate limit or network error");
+        retry_chain_free(chain);
+        return;
+    }
+
+    while (chain->index < chain->count) {
+        sentry_path_t *path = chain->paths[chain->index];
+        chain->index++;
+
+        sentry_envelope_t *envelope = sentry__envelope_from_path(path);
+        sentry__path_free(path);
+
+        if (envelope) {
+            SENTRY_DEBUG("retrying envelope from disk");
+            if (sentry__transport_retry_envelope(
+                    chain->transport, envelope, retry_chain_next, chain)) {
+                return;
+            }
+            sentry_envelope_free(envelope);
+        } else {
+            SENTRY_WARN("removing invalid envelope from retry directory");
+        }
+    }
+
+    retry_chain_free(chain);
+}
+
 void
 sentry__retry_process_envelopes(const sentry_options_t *options)
 {
@@ -379,19 +430,23 @@ sentry__retry_process_envelopes(const sentry_options_t *options)
         qsort(paths, count, sizeof(sentry_path_t *), compare_paths_by_filename);
     }
 
-    for (size_t i = 0; i < count; i++) {
-        sentry_envelope_t *envelope = sentry__envelope_from_path(paths[i]);
-        if (envelope) {
-            SENTRY_DEBUG("retrying envelope from disk");
-            if (!sentry__transport_retry_envelope(
-                    options->transport, envelope)) {
-                sentry_envelope_free(envelope);
-            }
-        } else {
-            SENTRY_WARN("removing invalid envelope from retry directory");
-            sentry__path_remove(paths[i]);
-        }
-        sentry__path_free(paths[i]);
+    if (count == 0) {
+        sentry_free(paths);
+        return;
     }
-    sentry_free(paths);
+
+    retry_chain_t *chain = sentry_malloc(sizeof(retry_chain_t));
+    if (!chain) {
+        for (size_t i = 0; i < count; i++) {
+            sentry__path_free(paths[i]);
+        }
+        sentry_free(paths);
+        return;
+    }
+    chain->transport = options->transport;
+    chain->paths = paths;
+    chain->count = count;
+    chain->index = 0;
+
+    retry_chain_next(SENTRY_SEND_SUCCESS, chain);
 }

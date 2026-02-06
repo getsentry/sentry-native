@@ -21,7 +21,8 @@
 
 struct sentry_transport_s {
     void (*send_envelope_func)(sentry_envelope_t *envelope, void *state);
-    void (*retry_envelope_func)(sentry_envelope_t *envelope, void *state);
+    void (*retry_envelope_func)(sentry_envelope_t *envelope, void *state,
+        void (*on_result)(sentry_send_result_t, void *), void *user_data);
     int (*startup_func)(const sentry_options_t *options, void *state);
     int (*shutdown_func)(uint64_t timeout, void *state);
     int (*flush_func)(uint64_t timeout, void *state);
@@ -79,14 +80,16 @@ sentry_transport_set_flush_func(sentry_transport_t *transport,
 
 void
 sentry__transport_set_retry_envelope_func(sentry_transport_t *transport,
-    void (*retry_envelope_func)(sentry_envelope_t *envelope, void *state))
+    void (*retry_envelope_func)(sentry_envelope_t *envelope, void *state,
+        void (*on_result)(sentry_send_result_t, void *), void *user_data))
 {
     transport->retry_envelope_func = retry_envelope_func;
 }
 
 bool
-sentry__transport_retry_envelope(
-    sentry_transport_t *transport, sentry_envelope_t *envelope)
+sentry__transport_retry_envelope(sentry_transport_t *transport,
+    sentry_envelope_t *envelope,
+    void (*on_result)(sentry_send_result_t, void *), void *user_data)
 {
     if (!transport || !transport->retry_envelope_func) {
         return false;
@@ -95,7 +98,8 @@ sentry__transport_retry_envelope(
         return true;
     }
     SENTRY_DEBUG("retrying envelope");
-    transport->retry_envelope_func(envelope, transport->state);
+    transport->retry_envelope_func(
+        envelope, transport->state, on_result, user_data);
     return true;
 }
 

@@ -42,17 +42,16 @@ typedef struct curl_transport_state_s {
 static sentry_send_result_t
 classify_curl_result(CURLcode rv, long response_code)
 {
-    // Network error - should retry
     if (rv != CURLE_OK) {
-        return SENTRY_SEND_RETRY;
+        return SENTRY_SEND_NETWORK_ERROR;
     }
-    // HTTP response received - check status
     if (response_code >= 200 && response_code < 300) {
         return SENTRY_SEND_SUCCESS;
     }
-    // All non-2xx are failures (including 429, 5xx)
-    // Rate limiter is updated separately for 429
-    return SENTRY_SEND_FAILURE;
+    if (response_code == 429) {
+        return SENTRY_SEND_RATE_LIMITED;
+    }
+    return SENTRY_SEND_DISCARDED;
 }
 
 struct header_info {
@@ -212,22 +211,23 @@ header_callback(char *buffer, size_t size, size_t nitems, void *userdata)
     return bytes;
 }
 
-static void
-sentry__curl_send_task(void *_envelope, void *_state)
+static sentry_send_result_t
+sentry__curl_send(void *_envelope, void *_state)
 {
     sentry_envelope_t *envelope = (sentry_envelope_t *)_envelope;
     curl_bgworker_state_t *state = (curl_bgworker_state_t *)_state;
 
 #ifdef SENTRY_PLATFORM_NX
     if (!sentry_nx_curl_connect(state->nx_state)) {
-        return; // TODO should we dump the envelope to disk?
+        return SENTRY_SEND_NETWORK_ERROR; // TODO should we dump the envelope to
+                                          // disk?
     }
 #endif
 
     sentry_prepared_http_request_t *req = sentry__prepare_http_request(
         envelope, state->dsn, state->ratelimiter, state->user_agent);
     if (!req) {
-        return;
+        return SENTRY_SEND_NETWORK_ERROR;
     }
 
     struct curl_slist *headers = NULL;
@@ -313,14 +313,15 @@ sentry__curl_send_task(void *_envelope, void *_state)
         }
         break;
 
-    case SENTRY_SEND_FAILURE:
+    case SENTRY_SEND_RATE_LIMITED:
+    case SENTRY_SEND_DISCARDED:
         if (info.x_sentry_rate_limits) {
             sentry__rate_limiter_update_from_header(
                 state->ratelimiter, info.x_sentry_rate_limits);
         } else if (info.retry_after) {
             sentry__rate_limiter_update_from_http_retry_after(
                 state->ratelimiter, info.retry_after);
-        } else if (response_code == 429) {
+        } else if (result == SENTRY_SEND_RATE_LIMITED) {
             sentry__rate_limiter_update_from_429(state->ratelimiter);
         }
         SENTRY_WARNF("envelope discarded due to HTTP error %ld", response_code);
@@ -329,7 +330,7 @@ sentry__curl_send_task(void *_envelope, void *_state)
         }
         break;
 
-    case SENTRY_SEND_RETRY:
+    case SENTRY_SEND_NETWORK_ERROR:
         // Network error - persist to retry directory for later
         {
             size_t len = strlen(error_buf);
@@ -357,6 +358,13 @@ sentry__curl_send_task(void *_envelope, void *_state)
     sentry_free(info.retry_after);
     sentry_free(info.x_sentry_rate_limits);
     sentry__prepared_http_request_free(req);
+    return result;
+}
+
+static void
+sentry__curl_send_task(void *envelope, void *state)
+{
+    sentry__curl_send(envelope, state);
 }
 
 static void
@@ -368,13 +376,51 @@ sentry__curl_transport_send_envelope(
         (void (*)(void *))sentry_envelope_free, envelope);
 }
 
+typedef struct {
+    sentry_envelope_t *envelope;
+    void (*on_result)(sentry_send_result_t, void *);
+    void *user_data;
+} curl_retry_task_t;
+
 static void
-sentry__curl_transport_retry_envelope(
-    sentry_envelope_t *envelope, void *transport_state)
+sentry__curl_retry_task_free(void *_task)
 {
+    curl_retry_task_t *task = _task;
+    if (task->envelope) {
+        sentry_envelope_free(task->envelope);
+    }
+    sentry_free(task);
+}
+
+static void
+sentry__curl_retry_task(void *_task, void *_state)
+{
+    curl_retry_task_t *task = _task;
+    sentry_send_result_t result = sentry__curl_send(task->envelope, _state);
+    sentry_envelope_free(task->envelope);
+    task->envelope = NULL;
+    if (task->on_result) {
+        task->on_result(result, task->user_data);
+    }
+}
+
+static void
+sentry__curl_transport_retry_envelope(sentry_envelope_t *envelope,
+    void *transport_state, void (*on_result)(sentry_send_result_t, void *),
+    void *user_data)
+{
+    curl_retry_task_t *task = sentry_malloc(sizeof(curl_retry_task_t));
+    if (!task) {
+        sentry_envelope_free(envelope);
+        return;
+    }
+    task->envelope = envelope;
+    task->on_result = on_result;
+    task->user_data = user_data;
+
     sentry_bgworker_t *bgworker = (sentry_bgworker_t *)transport_state;
-    sentry__bgworker_submit_delayed(bgworker, sentry__curl_send_task,
-        (void (*)(void *))sentry_envelope_free, envelope, 100);
+    sentry__bgworker_submit_delayed(bgworker, sentry__curl_retry_task,
+        sentry__curl_retry_task_free, task, 100);
 }
 
 static bool

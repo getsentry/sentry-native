@@ -7,26 +7,14 @@
 #include "sentry_utils.h"
 
 /**
- * Classification of HTTP send results.
- * Used to determine whether to retry, discard, or consider successful.
+ * Classification of HTTP send results per
+ * https://develop.sentry.dev/sdk/expected-features/#buffer-to-disk
  */
 typedef enum {
-    /**
-     * HTTP 2xx response received - envelope accepted.
-     */
-    SENTRY_SEND_SUCCESS,
-
-    /**
-     * Network error occurred (timeout, DNS failure, connection refused).
-     * Envelope should be cached to disk for retry on next startup.
-     */
-    SENTRY_SEND_RETRY,
-
-    /**
-     * HTTP response received but not 2xx (4xx, 5xx including 429).
-     * Envelope should be discarded (rate limiter updated separately for 429).
-     */
-    SENTRY_SEND_FAILURE
+    SENTRY_SEND_SUCCESS, // 2xx — envelope accepted
+    SENTRY_SEND_DISCARDED, // 4xx/5xx non-429 — envelope rejected
+    SENTRY_SEND_RATE_LIMITED, // 429 — pause queue consumption
+    SENTRY_SEND_NETWORK_ERROR // timeout, DNS, connection refused — retry later
 } sentry_send_result_t;
 
 /**
@@ -46,16 +34,20 @@ void sentry__transport_set_dump_func(sentry_transport_t *transport,
  * persisted due to network errors. If set, the transport supports HTTP retry.
  */
 void sentry__transport_set_retry_envelope_func(sentry_transport_t *transport,
-    void (*retry_envelope_func)(sentry_envelope_t *envelope, void *state));
+    void (*retry_envelope_func)(sentry_envelope_t *envelope, void *state,
+        void (*on_result)(sentry_send_result_t, void *), void *user_data));
 
 /**
  * Retry sending an envelope via the transport.
  *
  * Returns true if the transport supports retry and the envelope was submitted,
- * false if the transport does not support retry.
+ * false if the transport does not support retry. Pass NULL envelope to check
+ * capability without sending. The on_result callback is invoked on the worker
+ * thread after the send completes with the send result.
  */
-bool sentry__transport_retry_envelope(
-    sentry_transport_t *transport, sentry_envelope_t *envelope);
+bool sentry__transport_retry_envelope(sentry_transport_t *transport,
+    sentry_envelope_t *envelope,
+    void (*on_result)(sentry_send_result_t, void *), void *user_data);
 
 /**
  * Submit the given envelope to the transport.
