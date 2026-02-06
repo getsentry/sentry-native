@@ -4,6 +4,7 @@
 #include "sentry_options.h"
 #include "sentry_ratelimiter.h"
 #include "sentry_string.h"
+#include "sentry_sync.h"
 
 #ifdef SENTRY_TRANSPORT_COMPRESSION
 #    include "zlib.h"
@@ -179,11 +180,26 @@ sentry_transport_free(sentry_transport_t *transport)
     sentry_free(transport);
 }
 
+int
+sentry__transport_submit(sentry_transport_t *transport,
+    void (*exec_func)(void *task_data, void *state),
+    void (*cleanup_func)(void *task_data), void *task_data)
+{
+    if (!transport || !transport->state) {
+        return 1;
+    }
+    return sentry__bgworker_submit(
+        transport->state, exec_func, cleanup_func, task_data);
+}
+
+#ifdef SENTRY_UNITTEST
 void *
 sentry__transport_get_bgworker(sentry_transport_t *transport)
 {
+    // For HTTP transports (curl/winhttp), the transport state is the bgworker
     return transport ? transport->state : NULL;
 }
+#endif
 
 #ifdef SENTRY_TRANSPORT_COMPRESSION
 static bool

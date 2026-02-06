@@ -5,7 +5,6 @@
 #include "sentry_logger.h"
 #include "sentry_options.h"
 #include "sentry_string.h"
-#include "sentry_sync.h"
 #include "sentry_transport.h"
 #include "sentry_uuid.h"
 
@@ -424,12 +423,6 @@ sentry__retry_process_envelopes(const sentry_options_t *options)
         return;
     }
 
-    sentry_bgworker_t *bgworker
-        = sentry__transport_get_bgworker(options->transport);
-    if (!bgworker) {
-        return;
-    }
-
     sentry_path_t *retry_path = get_retry_path(options->database_path);
     if (!retry_path) {
         return;
@@ -489,5 +482,6 @@ sentry__retry_process_envelopes(const sentry_options_t *options)
     task->paths = paths;
     task->count = count;
 
-    sentry__bgworker_submit(bgworker, retry_task_exec, retry_task_free, task);
+    sentry__transport_submit(
+        options->transport, retry_task_exec, retry_task_free, task);
 }
