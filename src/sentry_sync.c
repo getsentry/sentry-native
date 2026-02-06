@@ -470,14 +470,27 @@ sentry__bgworker_submit(sentry_bgworker_t *bgw,
     sentry_task_exec_func_t exec_func, void (*cleanup_func)(void *task_data),
     void *task_data)
 {
-    return sentry__bgworker_submit_delayed(
-        bgw, exec_func, cleanup_func, task_data, 0);
+    SENTRY_DEBUG("submitting task to background worker thread");
+    return sentry__bgworker_submit_at(
+        bgw, exec_func, cleanup_func, task_data, sentry__monotonic_time());
 }
 
 int
 sentry__bgworker_submit_delayed(sentry_bgworker_t *bgw,
     sentry_task_exec_func_t exec_func, void (*cleanup_func)(void *task_data),
     void *task_data, uint64_t delay_ms)
+{
+    SENTRY_DEBUGF("submitting %" PRIu64
+                  " ms delayed task to background worker thread",
+        delay_ms);
+    return sentry__bgworker_submit_at(bgw, exec_func, cleanup_func, task_data,
+        sentry__monotonic_time() + delay_ms);
+}
+
+int
+sentry__bgworker_submit_at(sentry_bgworker_t *bgw,
+    sentry_task_exec_func_t exec_func, void (*cleanup_func)(void *task_data),
+    void *task_data, uint64_t execute_after)
 {
     sentry_bgworker_task_t *task = SENTRY_MAKE(sentry_bgworker_task_t);
     if (!task) {
@@ -488,18 +501,11 @@ sentry__bgworker_submit_delayed(sentry_bgworker_t *bgw,
     }
     task->next_task = NULL;
     task->refcount = 1;
-    task->execute_after = sentry__monotonic_time() + delay_ms;
+    task->execute_after = execute_after;
     task->exec_func = exec_func;
     task->cleanup_func = cleanup_func;
     task->task_data = task_data;
 
-    if (delay_ms > 0) {
-        SENTRY_DEBUGF("submitting %" PRIu64
-                      " ms delayed task to background worker thread",
-            delay_ms);
-    } else {
-        SENTRY_DEBUG("submitting task to background worker thread");
-    }
     sentry__mutex_lock(&bgw->task_lock);
 
     if (!bgw->first_task) {
