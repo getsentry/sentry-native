@@ -215,13 +215,14 @@ SENTRY_TEST(bgworker_task_delay)
         bgw, record_order_task, NULL, (void *)1, 50);
 
     sentry__bgworker_start(bgw);
-    TEST_CHECK_INT_EQUAL(sentry__bgworker_shutdown(bgw, 500), 0);
+    TEST_CHECK_INT_EQUAL(sentry__bgworker_flush(bgw, 500), 0);
     uint64_t after = sentry__monotonic_time();
 
     TEST_CHECK_INT_EQUAL(os.count, 1);
     TEST_CHECK_INT_EQUAL(os.order[0], 1);
     TEST_CHECK(after - before >= 50);
 
+    sentry__bgworker_shutdown(bgw, 500);
     sentry__bgworker_decref(bgw);
 }
 
@@ -264,7 +265,7 @@ SENTRY_TEST(bgworker_delayed_tasks)
     sentry__bgworker_submit(bgw, record_order_task, NULL, (void *)10);
 
     sentry__bgworker_start(bgw);
-    TEST_CHECK_INT_EQUAL(sentry__bgworker_shutdown(bgw, 5000), 0);
+    TEST_CHECK_INT_EQUAL(sentry__bgworker_flush(bgw, 5000), 0);
 
     // all tasks execute: immediate first, then delayed in deadline order
     TEST_CHECK_INT_EQUAL(os.count, 10);
@@ -279,6 +280,7 @@ SENTRY_TEST(bgworker_delayed_tasks)
     TEST_CHECK_INT_EQUAL(os.order[8], 4);
     TEST_CHECK_INT_EQUAL(os.order[9], 5);
 
+    sentry__bgworker_shutdown(bgw, 500);
     sentry__bgworker_decref(bgw);
 }
 
