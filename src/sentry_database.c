@@ -2,15 +2,11 @@
 #include "sentry_alloc.h"
 #include "sentry_envelope.h"
 #include "sentry_json.h"
-#include "sentry_logger.h"
 #include "sentry_options.h"
-#include "sentry_retry.h"
 #include "sentry_session.h"
 #include "sentry_transport.h"
-#include "sentry_utils.h"
 #include "sentry_uuid.h"
 #include <errno.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 

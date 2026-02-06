@@ -230,7 +230,6 @@ sentry_uuid_t
 sentry__envelope_get_event_id(const sentry_envelope_t *envelope)
 {
     if (envelope->is_raw) {
-        // Parse event_id from the first line (envelope header JSON)
         const char *payload = envelope->contents.raw.payload;
         size_t payload_len = envelope->contents.raw.payload_len;
         const char *newline = memchr(payload, '\n', payload_len);
