@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1770380018764,
+  "lastUpdate": 1770380056882,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -19438,6 +19438,66 @@ window.BENCHMARK_DATA = {
             "value": 14.292833000013161,
             "unit": "ms",
             "extra": "Min 9.993ms\nMax 19.651ms\nMean 14.443ms\nStdDev 4.339ms\nMedian 14.293ms\nCPU 1.259ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "60878493+JoshuaMoelans@users.noreply.github.com",
+            "name": "JoshuaMoelans",
+            "username": "JoshuaMoelans"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "620737843039570aea2ee1668f973721eb1316bb",
+          "message": "chore(test): split up `test_integration_http.py`  (#1504)\n\n* split up test_integration_http.py\n\n* cleanup unnecessary `auth_header`\n- already tested in `test_integration_http`, so no need to also have it for each of the other integration tests.\n\nCo-Authored-By: Claude <noreply@anthropic.com>\n\n---------\n\nCo-authored-by: Claude <noreply@anthropic.com>",
+          "timestamp": "2026-02-06T13:10:50+01:00",
+          "tree_id": "161d3bea8b6e56aeabe3ae3e5eefba51c90f4cc1",
+          "url": "https://github.com/getsentry/sentry-native/commit/620737843039570aea2ee1668f973721eb1316bb"
+        },
+        "date": 1770380055379,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 3.27758299999914,
+            "unit": "ms",
+            "extra": "Min 3.198ms\nMax 4.178ms\nMean 3.474ms\nStdDev 0.408ms\nMedian 3.278ms\nCPU 2.038ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 3.1970000000001164,
+            "unit": "ms",
+            "extra": "Min 2.992ms\nMax 4.223ms\nMean 3.379ms\nStdDev 0.509ms\nMedian 3.197ms\nCPU 1.856ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 12.439583999935167,
+            "unit": "ms",
+            "extra": "Min 10.511ms\nMax 14.363ms\nMean 12.658ms\nStdDev 1.611ms\nMedian 12.440ms\nCPU 3.834ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.017749999983607267,
+            "unit": "ms",
+            "extra": "Min 0.008ms\nMax 0.024ms\nMean 0.018ms\nStdDev 0.006ms\nMedian 0.018ms\nCPU 0.018ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.263334000010218,
+            "unit": "ms",
+            "extra": "Min 0.218ms\nMax 0.388ms\nMean 0.290ms\nStdDev 0.066ms\nMedian 0.263ms\nCPU 0.289ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 10.2713329999915,
+            "unit": "ms",
+            "extra": "Min 6.985ms\nMax 15.045ms\nMean 10.355ms\nStdDev 2.947ms\nMedian 10.271ms\nCPU 1.212ms"
           }
         ]
       }
