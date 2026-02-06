@@ -814,21 +814,30 @@ crashpad_backend_prune_database(sentry_backend_t *backend)
     // We want to eagerly clean up reports older than 2 days, and limit the
     // complete database to a maximum of 8M. That might still be a lot for
     // an embedded use-case, but minidumps on desktop can sometimes be quite
-    // large.
-    SENTRY_WITH_OPTIONS (options) {
-        if (options->cache_max_age > 0) {
-            data->db->CleanDatabase(options->cache_max_age);
-        }
+    // large. When offline caching is enabled, the cache_max_* options are
+    // used instead.
+    time_t max_age = 2 * 24 * 60 * 60; // 2 days
+    size_t max_size = 8 * 1024 * 1024; // 8 MB
+    size_t max_items = 0;
 
-        crashpad::BinaryPruneCondition condition(
-            crashpad::BinaryPruneCondition::OR,
-            new MaxItemsPruneCondition(options->cache_max_items),
-            new crashpad::BinaryPruneCondition(
-                crashpad::BinaryPruneCondition::OR,
-                new MaxSizePruneCondition(options->cache_max_size),
-                new MaxAgePruneCondition(options->cache_max_age)));
-        crashpad::PruneCrashReportDatabase(data->db, &condition);
+    SENTRY_WITH_OPTIONS (options) {
+        if (options->cache_keep) {
+            max_age = options->cache_max_age;
+            max_size = options->cache_max_size;
+            max_items = options->cache_max_items;
+        }
     }
+
+    if (max_age > 0) {
+        data->db->CleanDatabase(max_age);
+    }
+
+    crashpad::BinaryPruneCondition condition(crashpad::BinaryPruneCondition::OR,
+        new MaxItemsPruneCondition(max_items),
+        new crashpad::BinaryPruneCondition(crashpad::BinaryPruneCondition::OR,
+            new MaxSizePruneCondition(max_size),
+            new MaxAgePruneCondition(max_age)));
+    crashpad::PruneCrashReportDatabase(data->db, &condition);
 }
 
 #if defined(SENTRY_PLATFORM_WINDOWS) || defined(SENTRY_PLATFORM_LINUX)
