@@ -429,6 +429,15 @@ sentry__winhttp_transport_send_envelope(
         (void (*)(void *))sentry_envelope_free, envelope);
 }
 
+static void
+sentry__winhttp_transport_retry_envelope(
+    sentry_envelope_t *envelope, void *transport_state)
+{
+    sentry_bgworker_t *bgworker = (sentry_bgworker_t *)transport_state;
+    sentry__bgworker_submit_delayed(bgworker, sentry__winhttp_send_task,
+        (void (*)(void *))sentry_envelope_free, envelope, 100);
+}
+
 static bool
 sentry__winhttp_dump_task(void *envelope, void *run)
 {
@@ -476,7 +485,7 @@ sentry__transport_new_default(void)
         transport, sentry__winhttp_transport_shutdown);
     sentry__transport_set_dump_func(transport, sentry__winhttp_dump_queue);
     sentry__transport_set_retry_envelope_func(
-        transport, sentry__winhttp_transport_send_envelope);
+        transport, sentry__winhttp_transport_retry_envelope);
 
     return transport;
 }
