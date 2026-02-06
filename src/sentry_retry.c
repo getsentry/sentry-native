@@ -366,13 +366,16 @@ typedef struct {
     sentry_transport_t *transport;
     sentry_path_t **paths;
     size_t count;
+    size_t index;
 } retry_task_t;
+
+static void retry_task_exec(void *_task, void *bgworker_state);
 
 static void
 retry_task_free(void *_task)
 {
     retry_task_t *task = _task;
-    for (size_t i = 0; i < task->count; i++) {
+    for (size_t i = task->index; i < task->count; i++) {
         sentry__path_free(task->paths[i]);
     }
     sentry_free(task->paths);
@@ -384,9 +387,10 @@ retry_task_exec(void *_task, void *bgworker_state)
 {
     retry_task_t *task = _task;
 
-    for (size_t i = 0; i < task->count; i++) {
-        sentry_path_t *path = task->paths[i];
-        task->paths[i] = NULL;
+    while (task->index < task->count) {
+        sentry_path_t *path = task->paths[task->index];
+        task->paths[task->index] = NULL;
+        task->index++;
 
         sentry_envelope_t *envelope = sentry__envelope_from_path(path);
         sentry__path_free(path);
@@ -405,9 +409,18 @@ retry_task_exec(void *_task, void *bgworker_state)
             || result == SENTRY_SEND_NETWORK_ERROR) {
             SENTRY_DEBUG(
                 "stopping retry chain due to rate limit or network error");
-            break;
+            retry_task_free(task);
+            return;
+        }
+
+        if (task->index < task->count) {
+            sentry__transport_submit_delayed(
+                task->transport, retry_task_exec, NULL, task, 100);
+            return;
         }
     }
+
+    retry_task_free(task);
 }
 
 void
@@ -479,7 +492,8 @@ sentry__retry_process_envelopes(const sentry_options_t *options)
     task->transport = options->transport;
     task->paths = paths;
     task->count = count;
+    task->index = 0;
 
-    sentry__transport_submit(
-        options->transport, retry_task_exec, retry_task_free, task);
+    sentry__transport_submit_delayed(
+        options->transport, retry_task_exec, NULL, task, 100);
 }

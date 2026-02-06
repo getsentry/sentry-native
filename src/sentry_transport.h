@@ -83,9 +83,9 @@ size_t sentry__transport_dump_queue(
 /**
  * Submit a task to the transport's background worker.
  */
-int sentry__transport_submit(sentry_transport_t *transport,
+int sentry__transport_submit_delayed(sentry_transport_t *transport,
     void (*exec_func)(void *task_data, void *state),
-    void (*cleanup_func)(void *task_data), void *task_data);
+    void (*cleanup_func)(void *task_data), void *task_data, uint64_t delay_ms);
 
 #ifdef SENTRY_UNITTEST
 /**
