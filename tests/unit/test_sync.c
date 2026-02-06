@@ -234,6 +234,12 @@ SENTRY_TEST(bgworker_delayed_tasks)
     sentry_bgworker_t *bgw = sentry__bgworker_new(&os, NULL);
     TEST_ASSERT(!!bgw);
 
+    // submit_at with a fixed base so ordering is deterministic regardless
+    // of OS preemption between submissions (submit_delayed reads the clock
+    // per call, so a pause between calls could shift execute_after values
+    // and change the expected sort order)
+    uint64_t base = sentry__monotonic_time();
+
     // all tasks sorted by execute_after: immediate (0) first, then delayed
     // by deadline
     //
@@ -248,21 +254,21 @@ SENTRY_TEST(bgworker_delayed_tasks)
     //   i(1) i(6) i(7) i(8) d50(2) d100(3) d150(4) d200(5)
     //   i(1) i(6) i(7) i(8) d50(2) d75(9) d100(3) d150(4) d200(5)
     //   i(1) i(6) i(7) i(8) i(10) d50(2) d75(9) d100(3) d150(4) d200(5)
-    sentry__bgworker_submit(bgw, record_order_task, NULL, (void *)1);
-    sentry__bgworker_submit_delayed(
-        bgw, record_order_task, NULL, (void *)3, 100);
-    sentry__bgworker_submit(bgw, record_order_task, NULL, (void *)6);
-    sentry__bgworker_submit_delayed(
-        bgw, record_order_task, NULL, (void *)2, 50);
-    sentry__bgworker_submit(bgw, record_order_task, NULL, (void *)7);
-    sentry__bgworker_submit_delayed(
-        bgw, record_order_task, NULL, (void *)5, 200);
-    sentry__bgworker_submit_delayed(
-        bgw, record_order_task, NULL, (void *)4, 150);
-    sentry__bgworker_submit(bgw, record_order_task, NULL, (void *)8);
-    sentry__bgworker_submit_delayed(
-        bgw, record_order_task, NULL, (void *)9, 75);
-    sentry__bgworker_submit(bgw, record_order_task, NULL, (void *)10);
+    sentry__bgworker_submit_at(bgw, record_order_task, NULL, (void *)1, base);
+    sentry__bgworker_submit_at(
+        bgw, record_order_task, NULL, (void *)3, base + 100);
+    sentry__bgworker_submit_at(bgw, record_order_task, NULL, (void *)6, base);
+    sentry__bgworker_submit_at(
+        bgw, record_order_task, NULL, (void *)2, base + 50);
+    sentry__bgworker_submit_at(bgw, record_order_task, NULL, (void *)7, base);
+    sentry__bgworker_submit_at(
+        bgw, record_order_task, NULL, (void *)5, base + 200);
+    sentry__bgworker_submit_at(
+        bgw, record_order_task, NULL, (void *)4, base + 150);
+    sentry__bgworker_submit_at(bgw, record_order_task, NULL, (void *)8, base);
+    sentry__bgworker_submit_at(
+        bgw, record_order_task, NULL, (void *)9, base + 75);
+    sentry__bgworker_submit_at(bgw, record_order_task, NULL, (void *)10, base);
 
     sentry__bgworker_start(bgw);
     TEST_CHECK_INT_EQUAL(sentry__bgworker_flush(bgw, 5000), 0);
