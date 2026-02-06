@@ -296,6 +296,13 @@ sentry__curl_send_task(void *_envelope, void *_state)
 
     switch (result) {
     case SENTRY_SEND_SUCCESS:
+        if (info.x_sentry_rate_limits) {
+            sentry__rate_limiter_update_from_header(
+                state->ratelimiter, info.x_sentry_rate_limits);
+        } else if (info.retry_after) {
+            sentry__rate_limiter_update_from_http_retry_after(
+                state->ratelimiter, info.retry_after);
+        }
         SENTRY_DEBUGF("envelope sent successfully (HTTP %ld)", response_code);
         if (state->database_path && state->http_retry > 0) {
             if (state->cache_keep) {

@@ -352,7 +352,27 @@ sentry__winhttp_send_task(void *_envelope, void *_state)
     sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
 
     switch (result) {
-    case SENTRY_SEND_SUCCESS:
+    case SENTRY_SEND_SUCCESS: {
+        wchar_t rl_buf[2048];
+        DWORD rl_buf_size = sizeof(rl_buf);
+        if (WinHttpQueryHeaders(state->request, WINHTTP_QUERY_CUSTOM,
+                L"x-sentry-rate-limits", rl_buf, &rl_buf_size,
+                WINHTTP_NO_HEADER_INDEX)) {
+            char *h = sentry__string_from_wstr(rl_buf);
+            if (h) {
+                sentry__rate_limiter_update_from_header(state->ratelimiter, h);
+                sentry_free(h);
+            }
+        } else if (WinHttpQueryHeaders(state->request, WINHTTP_QUERY_CUSTOM,
+                       L"retry-after", rl_buf, &rl_buf_size,
+                       WINHTTP_NO_HEADER_INDEX)) {
+            char *h = sentry__string_from_wstr(rl_buf);
+            if (h) {
+                sentry__rate_limiter_update_from_http_retry_after(
+                    state->ratelimiter, h);
+                sentry_free(h);
+            }
+        }
         SENTRY_DEBUGF("envelope sent successfully (HTTP %lu)", status_code);
         if (state->database_path && state->http_retry > 0) {
             if (state->cache_keep) {
@@ -362,6 +382,7 @@ sentry__winhttp_send_task(void *_envelope, void *_state)
             }
         }
         break;
+    }
 
     case SENTRY_SEND_FAILURE: {
         wchar_t buf[2048];
