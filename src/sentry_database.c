@@ -245,7 +245,7 @@ sentry__process_old_runs(const sentry_options_t *options, uint64_t last_crash)
         }
 
         bool use_http_retry = options->http_retry > 0
-            && sentry__transport_get_send_for_retry_func(options->transport);
+            && sentry__transport_can_retry(options->transport);
 
         sentry_path_t *cache_dir = NULL;
         if (options->cache_keep && !use_http_retry) {

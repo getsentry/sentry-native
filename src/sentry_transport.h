@@ -17,9 +17,6 @@ typedef enum {
     SENTRY_SEND_NETWORK_ERROR // timeout, DNS, connection refused — retry later
 } sentry_send_result_t;
 
-typedef sentry_send_result_t (*sentry_transport_send_func_t)(
-    void *envelope, void *state);
-
 /**
  * Sets the dump function of the transport.
  *
@@ -35,11 +32,13 @@ void sentry__transport_set_dump_func(sentry_transport_t *transport,
  * This is the raw send function (e.g. sentry__curl_send) that runs
  * directly on the bgworker thread.
  */
-void sentry__transport_set_send_for_retry_func(
-    sentry_transport_t *transport, sentry_transport_send_func_t send_func);
+void sentry__transport_set_retry_func(sentry_transport_t *transport,
+    sentry_send_result_t (*retry_func)(void *envelope, void *state));
 
-sentry_transport_send_func_t sentry__transport_get_send_for_retry_func(
-    sentry_transport_t *transport);
+bool sentry__transport_can_retry(sentry_transport_t *transport);
+
+sentry_send_result_t sentry__transport_retry(
+    sentry_transport_t *transport, void *envelope, void *state);
 
 /**
  * Submit the given envelope to the transport.

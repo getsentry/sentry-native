@@ -381,7 +381,7 @@ sentry__transport_new_default(void)
     sentry_transport_set_shutdown_func(
         transport, sentry__curl_transport_shutdown);
     sentry__transport_set_dump_func(transport, sentry__curl_dump_queue);
-    sentry__transport_set_send_for_retry_func(transport, sentry__curl_send);
+    sentry__transport_set_retry_func(transport, sentry__curl_send);
 
     return transport;
 }

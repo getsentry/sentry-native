@@ -316,7 +316,7 @@ SENTRY_TEST(cache_retry)
     sentry_options_set_http_retry(options, 5);
     sentry_init(options);
 
-    if (!sentry__transport_get_send_for_retry_func(options->transport)) {
+    if (!sentry__transport_can_retry(options->transport)) {
         sentry_close();
         SKIP_TEST();
     }

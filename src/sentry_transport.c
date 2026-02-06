@@ -21,7 +21,7 @@
 
 struct sentry_transport_s {
     void (*send_envelope_func)(sentry_envelope_t *envelope, void *state);
-    sentry_transport_send_func_t send_for_retry_func;
+    sentry_send_result_t (*retry_func)(void *envelope, void *state);
     int (*startup_func)(const sentry_options_t *options, void *state);
     int (*shutdown_func)(uint64_t timeout, void *state);
     int (*flush_func)(uint64_t timeout, void *state);
@@ -78,19 +78,23 @@ sentry_transport_set_flush_func(sentry_transport_t *transport,
 }
 
 void
-sentry__transport_set_send_for_retry_func(
-    sentry_transport_t *transport, sentry_transport_send_func_t send_func)
+sentry__transport_set_retry_func(sentry_transport_t *transport,
+    sentry_send_result_t (*retry_func)(void *envelope, void *state))
 {
-    transport->send_for_retry_func = send_func;
+    transport->retry_func = retry_func;
 }
 
-sentry_transport_send_func_t
-sentry__transport_get_send_for_retry_func(sentry_transport_t *transport)
+bool
+sentry__transport_can_retry(sentry_transport_t *transport)
 {
-    if (!transport) {
-        return NULL;
-    }
-    return transport->send_for_retry_func;
+    return transport && transport->retry_func;
+}
+
+sentry_send_result_t
+sentry__transport_retry(
+    sentry_transport_t *transport, void *envelope, void *state)
+{
+    return transport->retry_func(envelope, state);
 }
 
 void

@@ -366,7 +366,7 @@ compare_paths_by_filename(const void *a, const void *b)
 }
 
 typedef struct {
-    sentry_transport_send_func_t send_func;
+    sentry_transport_t *transport;
     sentry_path_t **paths;
     size_t count;
 } retry_task_t;
@@ -400,7 +400,8 @@ retry_task_exec(void *_task, void *bgworker_state)
         }
 
         SENTRY_DEBUG("retrying envelope from disk");
-        sentry_send_result_t result = task->send_func(envelope, bgworker_state);
+        sentry_send_result_t result = sentry__transport_retry(
+            task->transport, envelope, bgworker_state);
         sentry_envelope_free(envelope);
 
         if (result == SENTRY_SEND_RATE_LIMITED
@@ -419,9 +420,7 @@ sentry__retry_process_envelopes(const sentry_options_t *options)
         return;
     }
 
-    sentry_transport_send_func_t send_func
-        = sentry__transport_get_send_for_retry_func(options->transport);
-    if (!send_func) {
+    if (!sentry__transport_can_retry(options->transport)) {
         return;
     }
 
@@ -486,7 +485,7 @@ sentry__retry_process_envelopes(const sentry_options_t *options)
         sentry_free(paths);
         return;
     }
-    task->send_func = send_func;
+    task->transport = options->transport;
     task->paths = paths;
     task->count = count;
 
