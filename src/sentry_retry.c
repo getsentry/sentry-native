@@ -1,10 +1,8 @@
 #include "sentry_retry.h"
 #include "sentry_alloc.h"
-#include "sentry_core.h"
 #include "sentry_envelope.h"
 #include "sentry_logger.h"
 #include "sentry_options.h"
-#include "sentry_string.h"
 #include "sentry_transport.h"
 #include "sentry_uuid.h"
 

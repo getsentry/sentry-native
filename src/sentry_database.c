@@ -294,9 +294,7 @@ sentry__process_old_runs(const sentry_options_t *options, uint64_t last_crash)
                 }
             } else if (sentry__path_ends_with(file, ".envelope")) {
                 sentry_envelope_t *envelope = sentry__envelope_from_path(file);
-                if (envelope) {
-                    sentry__capture_envelope(options->transport, envelope);
-                }
+                sentry__capture_envelope(options->transport, envelope);
 
                 if (cache_dir) {
                     sentry_path_t *cached_file = sentry__path_join_str(
