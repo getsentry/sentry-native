@@ -5,6 +5,7 @@
 #include "sentry_logger.h"
 #include "sentry_options.h"
 #include "sentry_string.h"
+#include "sentry_sync.h"
 #include "sentry_transport.h"
 #include "sentry_uuid.h"
 
@@ -12,6 +13,39 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+
+sentry_retry_t *
+sentry__retry_new(
+    const sentry_path_t *database_path, int max_attempts, bool cache_keep)
+{
+    if (!database_path || max_attempts <= 0) {
+        return NULL;
+    }
+
+    sentry_retry_t *retry = SENTRY_MAKE(sentry_retry_t);
+    if (!retry) {
+        return NULL;
+    }
+    retry->database_path = sentry__path_clone(database_path);
+    retry->max_attempts = max_attempts;
+    retry->cache_keep = cache_keep;
+
+    if (!retry->database_path) {
+        sentry_free(retry);
+        return NULL;
+    }
+    return retry;
+}
+
+void
+sentry__retry_free(sentry_retry_t *retry)
+{
+    if (!retry) {
+        return;
+    }
+    sentry__path_free(retry->database_path);
+    sentry_free(retry);
+}
 
 static sentry_path_t *
 get_retry_path(const sentry_path_t *database_path)
@@ -25,17 +59,12 @@ get_cache_path(const sentry_path_t *database_path)
     return sentry__path_join_str(database_path, "cache");
 }
 
-/**
- * Build a retry envelope filename with attempt number.
- * Format: <timestamp>-<counter>-<uuid>.envelope
- */
 static char *
 make_retry_filename(const sentry_uuid_t *envelope_id, int attempt)
 {
     char uuid_str[37];
     sentry_uuid_as_string(envelope_id, uuid_str);
 
-    // <timestamp>-<counter>-<uuid>.envelope
     char *filename = sentry_malloc(80);
     if (filename) {
         snprintf(filename, 80, "%llu-%d-%s.envelope",
@@ -44,10 +73,6 @@ make_retry_filename(const sentry_uuid_t *envelope_id, int attempt)
     return filename;
 }
 
-/**
- * Find an existing retry file for the given envelope ID.
- * Returns the attempt number (1-5), or 0 if not found.
- */
 static int
 find_retry_attempt(
     const sentry_path_t *retry_path, const sentry_uuid_t *envelope_id)
@@ -64,7 +89,6 @@ find_retry_attempt(
             continue;
         }
 
-        // Parse <timestamp>-<counter>-<uuid>.envelope
         const char *first_dash = strchr(filename, '-');
         if (!first_dash) {
             continue;
@@ -86,9 +110,6 @@ find_retry_attempt(
     return found_attempt;
 }
 
-/**
- * Remove retry file for the given envelope ID (any attempt number).
- */
 static void
 remove_retry_file(
     const sentry_path_t *retry_path, const sentry_uuid_t *envelope_id)
@@ -104,7 +125,6 @@ remove_retry_file(
             continue;
         }
 
-        // Match <timestamp>-<counter>-<uuid>.envelope
         const char *first_dash = strchr(filename, '-');
         if (!first_dash) {
             continue;
@@ -123,9 +143,6 @@ remove_retry_file(
     sentry__pathiter_free(iter);
 }
 
-/**
- * Write envelope to cache directory.
- */
 static bool
 write_to_cache(
     const sentry_path_t *database_path, const sentry_envelope_t *envelope)
@@ -165,14 +182,14 @@ write_to_cache(
 }
 
 bool
-sentry__retry_write_envelope(const sentry_path_t *database_path,
-    const sentry_envelope_t *envelope, int attempts, bool cache_keep)
+sentry__retry_write_envelope(
+    const sentry_retry_t *retry, const sentry_envelope_t *envelope)
 {
-    if (!database_path || !envelope || attempts <= 0) {
+    if (!retry || !envelope) {
         return false;
     }
 
-    sentry_path_t *retry_path = get_retry_path(database_path);
+    sentry_path_t *retry_path = get_retry_path(retry->database_path);
     if (!retry_path) {
         return false;
     }
@@ -188,30 +205,26 @@ sentry__retry_write_envelope(const sentry_path_t *database_path,
         event_id = sentry_uuid_new_v4();
     }
 
-    // Find existing retry file and get current attempt
     int current_attempt = find_retry_attempt(retry_path, &event_id);
     int next_attempt = current_attempt + 1;
 
-    // Remove old retry file if it exists
     if (current_attempt > 0) {
         remove_retry_file(retry_path, &event_id);
     }
 
-    // If max retries exceeded, move to cache or discard
-    if (next_attempt > attempts) {
+    if (next_attempt > retry->max_attempts) {
         sentry__path_free(retry_path);
-        if (cache_keep) {
-            SENTRY_WARNF(
-                "max retry attempts (%d) exceeded, moving to cache", attempts);
-            return write_to_cache(database_path, envelope);
+        if (retry->cache_keep) {
+            SENTRY_WARNF("max retry attempts (%d) exceeded, moving to cache",
+                retry->max_attempts);
+            return write_to_cache(retry->database_path, envelope);
         } else {
-            SENTRY_WARNF(
-                "max retry attempts (%d) exceeded, discarding", attempts);
+            SENTRY_WARNF("max retry attempts (%d) exceeded, discarding",
+                retry->max_attempts);
             return false;
         }
     }
 
-    // Write new retry file with incremented attempt
     char *filename = make_retry_filename(&event_id, next_attempt);
     if (!filename) {
         sentry__path_free(retry_path);
@@ -233,20 +246,20 @@ sentry__retry_write_envelope(const sentry_path_t *database_path,
         return false;
     }
 
-    SENTRY_DEBUGF(
-        "wrote envelope to retry (attempt %d/%d)", next_attempt, attempts);
+    SENTRY_DEBUGF("wrote envelope to retry (attempt %d/%d)", next_attempt,
+        retry->max_attempts);
     return true;
 }
 
 void
 sentry__retry_remove_envelope(
-    const sentry_path_t *database_path, const sentry_uuid_t *envelope_id)
+    const sentry_retry_t *retry, const sentry_uuid_t *envelope_id)
 {
-    if (!database_path || !envelope_id) {
+    if (!retry || !envelope_id) {
         return;
     }
 
-    sentry_path_t *retry_path = get_retry_path(database_path);
+    sentry_path_t *retry_path = get_retry_path(retry->database_path);
     if (!retry_path) {
         return;
     }
@@ -257,14 +270,14 @@ sentry__retry_remove_envelope(
 
 void
 sentry__retry_cache_envelope(
-    const sentry_path_t *database_path, const sentry_uuid_t *envelope_id)
+    const sentry_retry_t *retry, const sentry_uuid_t *envelope_id)
 {
-    if (!database_path || !envelope_id) {
+    if (!retry || !envelope_id) {
         return;
     }
 
-    sentry_path_t *retry_path = get_retry_path(database_path);
-    sentry_path_t *cache_path = get_cache_path(database_path);
+    sentry_path_t *retry_path = get_retry_path(retry->database_path);
+    sentry_path_t *cache_path = get_cache_path(retry->database_path);
     if (!retry_path || !cache_path) {
         sentry__path_free(retry_path);
         sentry__path_free(cache_path);
@@ -277,7 +290,6 @@ sentry__retry_cache_envelope(
         return;
     }
 
-    // Find the retry file (any attempt number)
     char uuid_str[37];
     sentry_uuid_as_string(envelope_id, uuid_str);
 
@@ -289,7 +301,6 @@ sentry__retry_cache_envelope(
             continue;
         }
 
-        // Match <timestamp>-<counter>-<uuid>.envelope
         const char *first_dash = strchr(filename, '-');
         if (!first_dash) {
             continue;
@@ -329,54 +340,50 @@ compare_paths_by_filename(const void *a, const void *b)
 }
 
 typedef struct {
-    sentry_transport_t *transport;
+    sentry_transport_send_func_t send_func;
     sentry_path_t **paths;
     size_t count;
-    size_t index;
-} retry_chain_t;
+} retry_task_t;
 
 static void
-retry_chain_free(retry_chain_t *chain)
+retry_task_free(void *_task)
 {
-    for (size_t i = chain->index; i < chain->count; i++) {
-        sentry__path_free(chain->paths[i]);
+    retry_task_t *task = _task;
+    for (size_t i = 0; i < task->count; i++) {
+        sentry__path_free(task->paths[i]);
     }
-    sentry_free(chain->paths);
-    sentry_free(chain);
+    sentry_free(task->paths);
+    sentry_free(task);
 }
 
 static void
-retry_chain_next(sentry_send_result_t result, void *_chain)
+retry_task_exec(void *_task, void *bgworker_state)
 {
-    retry_chain_t *chain = _chain;
+    retry_task_t *task = _task;
 
-    if (result == SENTRY_SEND_RATE_LIMITED
-        || result == SENTRY_SEND_NETWORK_ERROR) {
-        SENTRY_DEBUG("stopping retry chain due to rate limit or network error");
-        retry_chain_free(chain);
-        return;
-    }
-
-    while (chain->index < chain->count) {
-        sentry_path_t *path = chain->paths[chain->index];
-        chain->index++;
+    for (size_t i = 0; i < task->count; i++) {
+        sentry_path_t *path = task->paths[i];
+        task->paths[i] = NULL;
 
         sentry_envelope_t *envelope = sentry__envelope_from_path(path);
         sentry__path_free(path);
 
-        if (envelope) {
-            SENTRY_DEBUG("retrying envelope from disk");
-            if (sentry__transport_retry_envelope(
-                    chain->transport, envelope, retry_chain_next, chain)) {
-                return;
-            }
-            sentry_envelope_free(envelope);
-        } else {
+        if (!envelope) {
             SENTRY_WARN("removing invalid envelope from retry directory");
+            continue;
+        }
+
+        SENTRY_DEBUG("retrying envelope from disk");
+        sentry_send_result_t result = task->send_func(envelope, bgworker_state);
+        sentry_envelope_free(envelope);
+
+        if (result == SENTRY_SEND_RATE_LIMITED
+            || result == SENTRY_SEND_NETWORK_ERROR) {
+            SENTRY_DEBUG(
+                "stopping retry chain due to rate limit or network error");
+            break;
         }
     }
-
-    retry_chain_free(chain);
 }
 
 void
@@ -386,12 +393,23 @@ sentry__retry_process_envelopes(const sentry_options_t *options)
         return;
     }
 
+    sentry_transport_send_func_t send_func
+        = sentry__transport_get_send_for_retry_func(options->transport);
+    if (!send_func) {
+        return;
+    }
+
+    sentry_bgworker_t *bgworker
+        = sentry__transport_get_bgworker(options->transport);
+    if (!bgworker) {
+        return;
+    }
+
     sentry_path_t *retry_path = get_retry_path(options->database_path);
     if (!retry_path) {
         return;
     }
 
-    // Collect envelope paths
     size_t count = 0;
     size_t capacity = 8;
     sentry_path_t **paths = sentry_malloc(capacity * sizeof(sentry_path_t *));
@@ -425,7 +443,6 @@ sentry__retry_process_envelopes(const sentry_options_t *options)
     sentry__pathiter_free(iter);
     sentry__path_free(retry_path);
 
-    // Sort by filename (timestamp prefix gives oldest-first ordering)
     if (count > 1) {
         qsort(paths, count, sizeof(sentry_path_t *), compare_paths_by_filename);
     }
@@ -435,18 +452,17 @@ sentry__retry_process_envelopes(const sentry_options_t *options)
         return;
     }
 
-    retry_chain_t *chain = sentry_malloc(sizeof(retry_chain_t));
-    if (!chain) {
+    retry_task_t *task = sentry_malloc(sizeof(retry_task_t));
+    if (!task) {
         for (size_t i = 0; i < count; i++) {
             sentry__path_free(paths[i]);
         }
         sentry_free(paths);
         return;
     }
-    chain->transport = options->transport;
-    chain->paths = paths;
-    chain->count = count;
-    chain->index = 0;
+    task->send_func = send_func;
+    task->paths = paths;
+    task->count = count;
 
-    retry_chain_next(SENTRY_SEND_SUCCESS, chain);
+    sentry__bgworker_submit(bgworker, retry_task_exec, retry_task_free, task);
 }

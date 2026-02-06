@@ -17,6 +17,9 @@ typedef enum {
     SENTRY_SEND_NETWORK_ERROR // timeout, DNS, connection refused — retry later
 } sentry_send_result_t;
 
+typedef sentry_send_result_t (*sentry_transport_send_func_t)(
+    void *envelope, void *state);
+
 /**
  * Sets the dump function of the transport.
  *
@@ -28,26 +31,15 @@ void sentry__transport_set_dump_func(sentry_transport_t *transport,
     size_t (*dump_func)(sentry_run_t *run, void *state));
 
 /**
- * Sets the retry envelope function of the transport.
- *
- * This function is called on startup to retry sending envelopes that were
- * persisted due to network errors. If set, the transport supports HTTP retry.
+ * Sets the synchronous send function used for retrying envelopes.
+ * This is the raw send function (e.g. sentry__curl_send) that runs
+ * directly on the bgworker thread.
  */
-void sentry__transport_set_retry_envelope_func(sentry_transport_t *transport,
-    void (*retry_envelope_func)(sentry_envelope_t *envelope, void *state,
-        void (*on_result)(sentry_send_result_t, void *), void *user_data));
+void sentry__transport_set_send_for_retry_func(
+    sentry_transport_t *transport, sentry_transport_send_func_t send_func);
 
-/**
- * Retry sending an envelope via the transport.
- *
- * Returns true if the transport supports retry and the envelope was submitted,
- * false if the transport does not support retry. Pass NULL envelope to check
- * capability without sending. The on_result callback is invoked on the worker
- * thread after the send completes with the send result.
- */
-bool sentry__transport_retry_envelope(sentry_transport_t *transport,
-    sentry_envelope_t *envelope,
-    void (*on_result)(sentry_send_result_t, void *), void *user_data);
+sentry_transport_send_func_t sentry__transport_get_send_for_retry_func(
+    sentry_transport_t *transport);
 
 /**
  * Submit the given envelope to the transport.
@@ -89,13 +81,10 @@ sentry_transport_t *sentry__transport_new_default(void);
 size_t sentry__transport_dump_queue(
     sentry_transport_t *transport, sentry_run_t *run);
 
-#ifdef SENTRY_UNITTEST
 /**
- * Test helper function to get the bgworker from a transport.
- * Only available in unit tests and only works for HTTP transports.
+ * Get the bgworker from an HTTP transport.
  */
 void *sentry__transport_get_bgworker(sentry_transport_t *transport);
-#endif
 
 typedef struct sentry_prepared_http_header_s {
     const char *key;

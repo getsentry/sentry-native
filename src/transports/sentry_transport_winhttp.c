@@ -28,9 +28,7 @@ typedef struct {
     wchar_t *proxy_username;
     wchar_t *proxy_password;
     sentry_rate_limiter_t *ratelimiter;
-    sentry_path_t *database_path;
-    bool cache_keep;
-    int http_retry;
+    sentry_retry_t *retry;
     HINTERNET session;
     HINTERNET connect;
     HINTERNET request;
@@ -81,7 +79,7 @@ sentry__winhttp_bgworker_state_free(void *_state)
     }
     sentry__dsn_decref(state->dsn);
     sentry__rate_limiter_free(state->ratelimiter);
-    sentry__path_free(state->database_path);
+    sentry__retry_free(state->retry);
     sentry_free(state->user_agent);
     sentry_free(state->proxy_username);
     sentry_free(state->proxy_password);
@@ -124,9 +122,8 @@ sentry__winhttp_transport_start(
     state->dsn = sentry__dsn_incref(opts->dsn);
     state->user_agent = sentry__string_to_wstr(opts->user_agent);
     state->debug = opts->debug;
-    state->database_path = sentry__path_clone(opts->database_path);
-    state->cache_keep = opts->cache_keep;
-    state->http_retry = opts->http_retry;
+    state->retry = sentry__retry_new(
+        opts->database_path, opts->http_retry, opts->cache_keep);
 
     sentry__bgworker_setname(bgworker, opts->transport_thread_name);
 
@@ -373,11 +370,11 @@ sentry__winhttp_send(void *_envelope, void *_state)
             }
         }
         SENTRY_DEBUGF("envelope sent successfully (HTTP %lu)", status_code);
-        if (state->database_path && state->http_retry > 0) {
-            if (state->cache_keep) {
-                sentry__retry_cache_envelope(state->database_path, &event_id);
+        if (state->retry) {
+            if (state->retry->cache_keep) {
+                sentry__retry_cache_envelope(state->retry, &event_id);
             } else {
-                sentry__retry_remove_envelope(state->database_path, &event_id);
+                sentry__retry_remove_envelope(state->retry, &event_id);
             }
         }
         break;
@@ -409,8 +406,8 @@ sentry__winhttp_send(void *_envelope, void *_state)
             sentry__rate_limiter_update_from_429(state->ratelimiter);
         }
         SENTRY_WARNF("envelope discarded due to HTTP error %lu", status_code);
-        if (state->database_path && state->http_retry > 0) {
-            sentry__retry_remove_envelope(state->database_path, &event_id);
+        if (state->retry) {
+            sentry__retry_remove_envelope(state->retry, &event_id);
         }
         break;
     }
@@ -419,9 +416,8 @@ sentry__winhttp_send(void *_envelope, void *_state)
         SENTRY_WARNF(
             "network error (code %lu), persisting for retry", last_error);
 
-        if (state->database_path && state->http_retry > 0) {
-            sentry__retry_write_envelope(state->database_path, envelope,
-                state->http_retry, state->cache_keep);
+        if (state->retry) {
+            sentry__retry_write_envelope(state->retry, envelope);
         }
         break;
     }
@@ -455,53 +451,6 @@ sentry__winhttp_transport_send_envelope(
     sentry_bgworker_t *bgworker = (sentry_bgworker_t *)transport_state;
     sentry__bgworker_submit(bgworker, sentry__winhttp_send_task,
         (void (*)(void *))sentry_envelope_free, envelope);
-}
-
-typedef struct {
-    sentry_envelope_t *envelope;
-    void (*on_result)(sentry_send_result_t, void *);
-    void *user_data;
-} winhttp_retry_task_t;
-
-static void
-sentry__winhttp_retry_task_free(void *_task)
-{
-    winhttp_retry_task_t *task = _task;
-    if (task->envelope) {
-        sentry_envelope_free(task->envelope);
-    }
-    sentry_free(task);
-}
-
-static void
-sentry__winhttp_retry_task(void *_task, void *_state)
-{
-    winhttp_retry_task_t *task = _task;
-    sentry_send_result_t result = sentry__winhttp_send(task->envelope, _state);
-    sentry_envelope_free(task->envelope);
-    task->envelope = NULL;
-    if (task->on_result) {
-        task->on_result(result, task->user_data);
-    }
-}
-
-static void
-sentry__winhttp_transport_retry_envelope(sentry_envelope_t *envelope,
-    void *transport_state, void (*on_result)(sentry_send_result_t, void *),
-    void *user_data)
-{
-    winhttp_retry_task_t *task = sentry_malloc(sizeof(winhttp_retry_task_t));
-    if (!task) {
-        sentry_envelope_free(envelope);
-        return;
-    }
-    task->envelope = envelope;
-    task->on_result = on_result;
-    task->user_data = user_data;
-
-    sentry_bgworker_t *bgworker = (sentry_bgworker_t *)transport_state;
-    sentry__bgworker_submit_delayed(bgworker, sentry__winhttp_retry_task,
-        sentry__winhttp_retry_task_free, task, 100);
 }
 
 static bool
@@ -550,8 +499,7 @@ sentry__transport_new_default(void)
     sentry_transport_set_shutdown_func(
         transport, sentry__winhttp_transport_shutdown);
     sentry__transport_set_dump_func(transport, sentry__winhttp_dump_queue);
-    sentry__transport_set_retry_envelope_func(
-        transport, sentry__winhttp_transport_retry_envelope);
+    sentry__transport_set_send_for_retry_func(transport, sentry__winhttp_send);
 
     return transport;
 }

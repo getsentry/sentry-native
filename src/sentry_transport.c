@@ -21,8 +21,7 @@
 
 struct sentry_transport_s {
     void (*send_envelope_func)(sentry_envelope_t *envelope, void *state);
-    void (*retry_envelope_func)(sentry_envelope_t *envelope, void *state,
-        void (*on_result)(sentry_send_result_t, void *), void *user_data);
+    sentry_transport_send_func_t send_for_retry_func;
     int (*startup_func)(const sentry_options_t *options, void *state);
     int (*shutdown_func)(uint64_t timeout, void *state);
     int (*flush_func)(uint64_t timeout, void *state);
@@ -79,28 +78,19 @@ sentry_transport_set_flush_func(sentry_transport_t *transport,
 }
 
 void
-sentry__transport_set_retry_envelope_func(sentry_transport_t *transport,
-    void (*retry_envelope_func)(sentry_envelope_t *envelope, void *state,
-        void (*on_result)(sentry_send_result_t, void *), void *user_data))
+sentry__transport_set_send_for_retry_func(
+    sentry_transport_t *transport, sentry_transport_send_func_t send_func)
 {
-    transport->retry_envelope_func = retry_envelope_func;
+    transport->send_for_retry_func = send_func;
 }
 
-bool
-sentry__transport_retry_envelope(sentry_transport_t *transport,
-    sentry_envelope_t *envelope,
-    void (*on_result)(sentry_send_result_t, void *), void *user_data)
+sentry_transport_send_func_t
+sentry__transport_get_send_for_retry_func(sentry_transport_t *transport)
 {
-    if (!transport || !transport->retry_envelope_func) {
-        return false;
+    if (!transport) {
+        return NULL;
     }
-    if (!envelope) {
-        return true;
-    }
-    SENTRY_DEBUG("retrying envelope");
-    transport->retry_envelope_func(
-        envelope, transport->state, on_result, user_data);
-    return true;
+    return transport->send_for_retry_func;
 }
 
 void
@@ -185,14 +175,11 @@ sentry_transport_free(sentry_transport_t *transport)
     sentry_free(transport);
 }
 
-#ifdef SENTRY_UNITTEST
 void *
 sentry__transport_get_bgworker(sentry_transport_t *transport)
 {
-    // For HTTP transports (curl/winhttp), the transport state is the bgworker
     return transport ? transport->state : NULL;
 }
-#endif
 
 #ifdef SENTRY_TRANSPORT_COMPRESSION
 static bool

@@ -244,10 +244,8 @@ sentry__process_old_runs(const sentry_options_t *options, uint64_t last_crash)
             continue;
         }
 
-        // http_retry only makes sense with transports that support retry
         bool use_http_retry = options->http_retry > 0
-            && sentry__transport_retry_envelope(
-                options->transport, NULL, NULL, NULL);
+            && sentry__transport_get_send_for_retry_func(options->transport);
 
         sentry_path_t *cache_dir = NULL;
         if (options->cache_keep && !use_http_retry) {
