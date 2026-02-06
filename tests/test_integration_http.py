@@ -829,3 +829,111 @@ def test_http_retry_rate_limit_discards_envelope(cmake, httpserver):
     # 429 discards, not retry
     retry_files = list(retry_dir.glob("*.envelope")) if retry_dir.exists() else []
     assert len(retry_files) == 0
+
+
+@pytest.mark.skipif(not has_files, reason="test needs a local filesystem")
+def test_http_retry_chain_success(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+    retry_dir = tmp_path.joinpath(".sentry-native/retry")
+
+    unreachable_dsn = "http://uiaeosnrtdy@127.0.0.1:19999/123456"
+    env_unreachable = dict(os.environ, SENTRY_DSN=unreachable_dsn)
+
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "http-retry", "capture-multiple"],
+        env=env_unreachable,
+    )
+
+    retry_files = list(retry_dir.glob("*.envelope"))
+    assert len(retry_files) == 10
+
+    env_reachable = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+    for _ in range(10):
+        httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data(
+            "OK"
+        )
+
+    with httpserver.wait(timeout=10) as waiting:
+        run(
+            tmp_path,
+            "sentry_example",
+            ["log", "http-retry", "no-setup"],
+            env=env_reachable,
+        )
+    assert waiting.result
+
+    assert len(httpserver.log) == 10
+    retry_files = list(retry_dir.glob("*.envelope"))
+    assert len(retry_files) == 0
+
+
+@pytest.mark.skipif(not has_files, reason="test needs a local filesystem")
+def test_http_retry_chain_stops_on_network_error(cmake):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+    retry_dir = tmp_path.joinpath(".sentry-native/retry")
+
+    unreachable_dsn = "http://uiaeosnrtdy@127.0.0.1:19999/123456"
+    env = dict(os.environ, SENTRY_DSN=unreachable_dsn)
+
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "http-retry", "capture-multiple"],
+        env=env,
+    )
+
+    retry_files = list(retry_dir.glob("*.envelope"))
+    assert len(retry_files) == 10
+
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "http-retry", "no-setup"],
+        env=env,
+    )
+
+    retry_files = list(retry_dir.glob("*.envelope"))
+    assert len(retry_files) == 10
+    attempt_2 = [f for f in retry_files if "-2-" in f.name]
+    attempt_1 = [f for f in retry_files if "-1-" in f.name]
+    assert len(attempt_2) == 1
+    assert len(attempt_1) == 9
+
+
+@pytest.mark.skipif(not has_files, reason="test needs a local filesystem")
+def test_http_retry_chain_stops_on_rate_limit(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+    retry_dir = tmp_path.joinpath(".sentry-native/retry")
+
+    unreachable_dsn = "http://uiaeosnrtdy@127.0.0.1:19999/123456"
+    env_unreachable = dict(os.environ, SENTRY_DSN=unreachable_dsn)
+
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "http-retry", "capture-multiple"],
+        env=env_unreachable,
+    )
+
+    retry_files = list(retry_dir.glob("*.envelope"))
+    assert len(retry_files) == 10
+
+    env_reachable = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data(
+        "Rate Limited", status=429, headers={"retry-after": "60"}
+    )
+
+    with httpserver.wait(timeout=10) as waiting:
+        run(
+            tmp_path,
+            "sentry_example",
+            ["log", "http-retry", "no-setup"],
+            env=env_reachable,
+        )
+    assert waiting.result
+
+    assert len(httpserver.log) == 1
+    retry_files = list(retry_dir.glob("*.envelope"))
+    assert len(retry_files) == 9
