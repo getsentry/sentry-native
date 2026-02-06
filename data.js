@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1770380112713,
+  "lastUpdate": 1770382379935,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -9748,6 +9748,66 @@ window.BENCHMARK_DATA = {
             "value": 2.0292230000222844,
             "unit": "ms",
             "extra": "Min 1.983ms\nMax 2.279ms\nMean 2.098ms\nStdDev 0.126ms\nMedian 2.029ms\nCPU 0.629ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "6de36f693a6ff1fbeaf830174408237810d50634",
+          "message": "test: mark test_breakpad_dump_inflight as flaky with timeout (#1505)\n\nMiniDumpWriteDump can deadlock on Windows due to loader lock\ncontention (see #1501). Add a 5-minute timeout and retry up to 3\ntimes to prevent the test from hanging indefinitely in CI.\n\nCo-authored-by: Claude Opus 4.5 <noreply@anthropic.com>",
+          "timestamp": "2026-02-06T13:50:21+01:00",
+          "tree_id": "fd8fc5ee5cde7e296de415cdc847f82b84af0beb",
+          "url": "https://github.com/getsentry/sentry-native/commit/6de36f693a6ff1fbeaf830174408237810d50634"
+        },
+        "date": 1770382377629,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 0.7568150000167861,
+            "unit": "ms",
+            "extra": "Min 0.746ms\nMax 0.948ms\nMean 0.810ms\nStdDev 0.087ms\nMedian 0.757ms\nCPU 0.792ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.7725029999789967,
+            "unit": "ms",
+            "extra": "Min 0.730ms\nMax 0.827ms\nMean 0.770ms\nStdDev 0.040ms\nMedian 0.773ms\nCPU 0.769ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 3.232453999999052,
+            "unit": "ms",
+            "extra": "Min 3.202ms\nMax 5.083ms\nMean 3.626ms\nStdDev 0.818ms\nMedian 3.232ms\nCPU 1.699ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.012995000020055159,
+            "unit": "ms",
+            "extra": "Min 0.012ms\nMax 0.014ms\nMean 0.013ms\nStdDev 0.001ms\nMedian 0.013ms\nCPU 0.012ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.023944999981040382,
+            "unit": "ms",
+            "extra": "Min 0.023ms\nMax 0.040ms\nMean 0.027ms\nStdDev 0.007ms\nMedian 0.024ms\nCPU 0.027ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 2.1036439999875256,
+            "unit": "ms",
+            "extra": "Min 2.036ms\nMax 2.137ms\nMean 2.087ms\nStdDev 0.041ms\nMedian 2.104ms\nCPU 0.633ms"
           }
         ]
       }
