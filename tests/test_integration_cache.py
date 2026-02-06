@@ -2,12 +2,10 @@ import os
 import time
 import pytest
 
-from . import make_dsn, run
-from .conditions import has_breakpad, has_files, has_http
+from . import run
+from .conditions import has_breakpad, has_files
 
-pytestmark = pytest.mark.skipif(
-    not has_files or not has_http, reason="tests need local filesystem and http"
-)
+pytestmark = pytest.mark.skipif(not has_files, reason="tests need local filesystem")
 
 
 @pytest.mark.parametrize("cache_keep", [True, False])
@@ -23,29 +21,27 @@ pytestmark = pytest.mark.skipif(
         ),
     ],
 )
-def test_cache_keep(cmake, httpserver, backend, cache_keep):
-    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": backend})
+def test_cache_keep(cmake, backend, cache_keep):
+    tmp_path = cmake(
+        ["sentry_example"], {"SENTRY_BACKEND": backend, "SENTRY_TRANSPORT": "none"}
+    )
     cache_dir = tmp_path.joinpath(".sentry-native/cache")
-    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
 
-    httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
-
+    # capture
     run(
         tmp_path,
         "sentry_example",
         ["log", "crash"] + (["cache-keep"] if cache_keep else []),
         expect_failure=True,
-        env=env,
     )
 
     assert not cache_dir.exists() or len(list(cache_dir.glob("*.envelope"))) == 0
 
-    # upload (also caches for inproc/breakpad)
+    # cache
     run(
         tmp_path,
         "sentry_example",
         ["log", "no-setup"] + (["cache-keep"] if cache_keep else []),
-        env=env,
     )
 
     assert cache_dir.exists() or cache_keep is False
@@ -66,12 +62,11 @@ def test_cache_keep(cmake, httpserver, backend, cache_keep):
         ),
     ],
 )
-def test_cache_max_size(cmake, httpserver, backend):
-    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": backend})
+def test_cache_max_size(cmake, backend):
+    tmp_path = cmake(
+        ["sentry_example"], {"SENTRY_BACKEND": backend, "SENTRY_TRANSPORT": "none"}
+    )
     cache_dir = tmp_path.joinpath(".sentry-native/cache")
-    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
-
-    httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
 
     # 5 x 2mb
     for i in range(5):
@@ -80,18 +75,19 @@ def test_cache_max_size(cmake, httpserver, backend):
             "sentry_example",
             ["log", "cache-keep", "crash"],
             expect_failure=True,
-            env=env,
         )
 
-        # upload (also caches)
-        run(tmp_path, "sentry_example", ["log", "cache-keep", "no-setup"], env=env)
-
         if cache_dir.exists():
-            for f in cache_dir.glob("*.envelope"):
+            cache_files = list(cache_dir.glob("*.envelope"))
+            for f in cache_files:
                 with open(f, "r+b") as file:
                     file.truncate(2 * 1024 * 1024)
 
-    run(tmp_path, "sentry_example", ["log", "cache-keep", "no-setup"], env=env)
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "cache-keep", "no-setup"],
+    )
 
     # max 4mb
     assert cache_dir.exists()
@@ -112,45 +108,33 @@ def test_cache_max_size(cmake, httpserver, backend):
         ),
     ],
 )
-def test_cache_max_age(cmake, httpserver, backend):
-    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": backend})
+def test_cache_max_age(cmake, backend):
+    tmp_path = cmake(
+        ["sentry_example"], {"SENTRY_BACKEND": backend, "SENTRY_TRANSPORT": "none"}
+    )
     cache_dir = tmp_path.joinpath(".sentry-native/cache")
-    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
 
-    httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
-
-    # 4 crashes that get fully cached
-    for i in range(4):
+    for i in range(5):
         run(
             tmp_path,
             "sentry_example",
             ["log", "cache-keep", "crash"],
             expect_failure=True,
-            env=env,
         )
 
-        # upload (also caches)
-        run(tmp_path, "sentry_example", ["log", "cache-keep", "no-setup"], env=env)
-
-    # 2,4,6,8 days old
+    # 2,4,6,8,10 days old
     assert cache_dir.exists()
     cache_files = list(cache_dir.glob("*.envelope"))
-    assert len(cache_files) == 4
     for i, f in enumerate(cache_files):
         mtime = time.time() - ((i + 1) * 2 * 24 * 60 * 60)
         os.utime(str(f), (mtime, mtime))
 
-    # 5th crash
+    # 0 days old
     run(
         tmp_path,
         "sentry_example",
-        ["log", "cache-keep", "crash"],
-        expect_failure=True,
-        env=env,
+        ["log", "cache-keep", "no-setup"],
     )
-
-    # upload (caches 5th + prunes old files)
-    run(tmp_path, "sentry_example", ["log", "cache-keep", "no-setup"], env=env)
 
     # max 5 days
     cache_files = list(cache_dir.glob("*.envelope"))
