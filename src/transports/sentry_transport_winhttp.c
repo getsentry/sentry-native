@@ -302,12 +302,9 @@ sentry__winhttp_send(void *_envelope, void *_state)
             state->proxy_password, 0);
     }
 
-    BOOL send_success = WinHttpSendRequest(state->request, headers, (DWORD)-1,
-        (LPVOID)req->body, (DWORD)req->body_len, (DWORD)req->body_len, 0);
-    DWORD last_error = GetLastError();
     DWORD status_code = 0;
-
-    if (send_success) {
+    if (WinHttpSendRequest(state->request, headers, (DWORD)-1,
+            (LPVOID)req->body, (DWORD)req->body_len, (DWORD)req->body_len, 0)) {
         WinHttpReceiveResponse(state->request, NULL);
 
         if (state->debug) {
@@ -336,45 +333,13 @@ sentry__winhttp_send(void *_envelope, void *_state)
             }
         }
 
-        // Get the status code
         DWORD status_code_size = sizeof(status_code);
         WinHttpQueryHeaders(state->request,
             WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
             WINHTTP_HEADER_NAME_BY_INDEX, &status_code, &status_code_size,
             WINHTTP_NO_HEADER_INDEX);
-    }
 
-    result = classify_winhttp_result(send_success, status_code);
-    sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
-
-    switch (result) {
-    case SENTRY_SEND_SUCCESS: {
-        wchar_t rl_buf[2048];
-        DWORD rl_buf_size = sizeof(rl_buf);
-        if (WinHttpQueryHeaders(state->request, WINHTTP_QUERY_CUSTOM,
-                L"x-sentry-rate-limits", rl_buf, &rl_buf_size,
-                WINHTTP_NO_HEADER_INDEX)) {
-            char *h = sentry__string_from_wstr(rl_buf);
-            if (h) {
-                sentry__rate_limiter_update_from_header(state->ratelimiter, h);
-                sentry_free(h);
-            }
-        } else if (WinHttpQueryHeaders(state->request, WINHTTP_QUERY_CUSTOM,
-                       L"retry-after", rl_buf, &rl_buf_size,
-                       WINHTTP_NO_HEADER_INDEX)) {
-            char *h = sentry__string_from_wstr(rl_buf);
-            if (h) {
-                sentry__rate_limiter_update_from_http_retry_after(
-                    state->ratelimiter, h);
-                sentry_free(h);
-            }
-        }
-        SENTRY_DEBUGF("envelope sent successfully (HTTP %lu)", status_code);
-        break;
-    }
-
-    case SENTRY_SEND_RATE_LIMITED:
-    case SENTRY_SEND_DISCARDED: {
+        // lets just assume we won't have headers > 2k
         wchar_t buf[2048];
         DWORD buf_size = sizeof(buf);
 
@@ -395,19 +360,16 @@ sentry__winhttp_send(void *_envelope, void *_state)
                     state->ratelimiter, h);
                 sentry_free(h);
             }
-        } else if (result == SENTRY_SEND_RATE_LIMITED) {
+        } else if (status_code == 429) {
             sentry__rate_limiter_update_from_429(state->ratelimiter);
         }
-        SENTRY_WARNF("envelope discarded due to HTTP error %lu", status_code);
-        break;
-    }
-
-    case SENTRY_SEND_NETWORK_ERROR:
+    } else {
         SENTRY_WARNF(
-            "network error (code %lu), persisting for retry", last_error);
-        break;
+            "`WinHttpSendRequest` failed with code `%d`", GetLastError());
     }
 
+    result = classify_winhttp_result(status_code > 0, status_code);
+    sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
     sentry__retry_handle_send_result(state->retry, result, &event_id, envelope);
 
     uint64_t now = sentry__monotonic_time();

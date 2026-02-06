@@ -286,52 +286,32 @@ sentry__curl_send(void *_envelope, void *_state)
     long response_code = 0;
     if (rv == CURLE_OK) {
         curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response_code);
-    }
 
-    sentry_send_result_t result = classify_curl_result(rv, response_code);
-    sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
-
-    switch (result) {
-    case SENTRY_SEND_SUCCESS:
         if (info.x_sentry_rate_limits) {
             sentry__rate_limiter_update_from_header(
                 state->ratelimiter, info.x_sentry_rate_limits);
         } else if (info.retry_after) {
             sentry__rate_limiter_update_from_http_retry_after(
                 state->ratelimiter, info.retry_after);
-        }
-        SENTRY_DEBUGF("envelope sent successfully (HTTP %ld)", response_code);
-        break;
-
-    case SENTRY_SEND_RATE_LIMITED:
-    case SENTRY_SEND_DISCARDED:
-        if (info.x_sentry_rate_limits) {
-            sentry__rate_limiter_update_from_header(
-                state->ratelimiter, info.x_sentry_rate_limits);
-        } else if (info.retry_after) {
-            sentry__rate_limiter_update_from_http_retry_after(
-                state->ratelimiter, info.retry_after);
-        } else if (result == SENTRY_SEND_RATE_LIMITED) {
+        } else if (response_code == 429) {
             sentry__rate_limiter_update_from_429(state->ratelimiter);
         }
-        SENTRY_WARNF("envelope discarded due to HTTP error %ld", response_code);
-        break;
-
-    case SENTRY_SEND_NETWORK_ERROR: {
+    } else {
         size_t len = strlen(error_buf);
         if (len) {
             if (error_buf[len - 1] == '\n') {
                 error_buf[len - 1] = 0;
             }
-            SENTRY_WARNF("network error, persisting for retry: %s", error_buf);
+            SENTRY_WARNF("`curl_easy_perform` failed with code `%d`: %s",
+                (int)rv, error_buf);
         } else {
-            SENTRY_WARNF("network error (code %d), persisting for retry: %s",
+            SENTRY_WARNF("`curl_easy_perform` failed with code `%d`: %s",
                 (int)rv, curl_easy_strerror(rv));
         }
-        break;
-    }
     }
 
+    sentry_send_result_t result = classify_curl_result(rv, response_code);
+    sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
     sentry__retry_handle_send_result(state->retry, result, &event_id, envelope);
 
     curl_slist_free_all(headers);
