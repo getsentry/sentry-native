@@ -22,12 +22,6 @@ from .conditions import has_http
 
 pytestmark = pytest.mark.skipif(not has_http, reason="tests need http")
 
-# fmt: off
-auth_header = (
-    f"Sentry sentry_key=uiaeosnrtdy, sentry_version=7, sentry_client=sentry.native/{SENTRY_VERSION}"
-)
-# fmt: on
-
 
 def _setup_http_proxy_test(cmake, httpserver, proxy, proxy_auth=None):
     proxy_process = start_mitmdump(proxy, proxy_auth) if proxy else None
