@@ -573,6 +573,9 @@ main(int argc, char **argv)
     if (has_arg(argc, argv, "log-attributes")) {
         sentry_options_set_logs_with_attributes(options, true);
     }
+    if (has_arg(argc, argv, "cache-keep")) {
+        sentry_options_set_keep_dmp_on_crash(options, true);
+    }
 
     if (has_arg(argc, argv, "enable-metrics")) {
         sentry_options_set_enable_metrics(options, true);

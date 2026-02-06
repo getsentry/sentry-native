@@ -45,6 +45,7 @@ struct sentry_options_s {
     bool enable_logging_when_crashed;
     bool propagate_traceparent;
     bool crashpad_limit_stack_capture_to_sp;
+    bool keep_dmp_on_crash;
 
     sentry_attachment_t *attachments;
     sentry_run_t *run;
