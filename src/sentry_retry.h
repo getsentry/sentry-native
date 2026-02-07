@@ -7,6 +7,7 @@
 
 typedef struct {
     const struct sentry_run_s *run;
+    sentry_transport_t *transport;
     sentry_path_t *database_path;
     int max_attempts;
     bool cache_keep;
@@ -19,6 +20,6 @@ void sentry__retry_free(sentry_retry_t *retry);
 void sentry__retry_process_result(sentry_retry_t *retry,
     const sentry_envelope_t *envelope, sentry_send_result_t result);
 
-void sentry__retry_process_envelopes(const sentry_options_t *options);
+void sentry__retry_process_envelopes(sentry_retry_t *retry);
 
 #endif

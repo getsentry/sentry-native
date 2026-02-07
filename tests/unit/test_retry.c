@@ -76,8 +76,11 @@ SENTRY_TEST(retry_throttle)
         sentry_envelope_free(envelope);
     }
 
+    sentry_retry_t *retry = sentry__retry_new(options);
+    TEST_ASSERT(!!retry);
+
     uint64_t before = sentry__monotonic_time();
-    sentry__retry_process_envelopes(options);
+    sentry__retry_process_envelopes(retry);
 
     sentry_bgworker_t *bgw = sentry__transport_get_bgworker(options->transport);
     TEST_ASSERT(!!bgw);
@@ -99,6 +102,7 @@ SENTRY_TEST(retry_throttle)
             (unsigned long long)delta);
     }
 
+    sentry__retry_free(retry);
     sentry__path_free(retry_path);
     sentry_close();
 }
@@ -167,10 +171,13 @@ SENTRY_TEST(retry_cache)
     TEST_ASSERT(!sentry__path_is_file(old_envelope_path));
     TEST_CHECK_INT_EQUAL(count_envelope_files(retry_path), 1);
 
+    sentry_retry_t *retry = sentry__retry_new(options);
+    TEST_ASSERT(!!retry);
     for (int i = 0; i < 5; i++) {
-        sentry__retry_process_envelopes(options);
+        sentry__retry_process_envelopes(retry);
         sentry_flush(1000);
     }
+    sentry__retry_free(retry);
 
     TEST_CHECK_INT_EQUAL(count_envelope_files(retry_path), 0);
     TEST_CHECK_INT_EQUAL(count_envelope_files(cache_path), 1);

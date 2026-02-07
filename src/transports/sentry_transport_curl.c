@@ -156,7 +156,11 @@ sentry__curl_transport_start(
     }
 #endif
 
-    return sentry__bgworker_start(bgworker);
+    int rv = sentry__bgworker_start(bgworker);
+    if (rv == 0 && state->retry) {
+        sentry__retry_process_envelopes(state->retry);
+    }
+    return rv;
 }
 
 static int

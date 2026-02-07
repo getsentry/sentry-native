@@ -169,7 +169,11 @@ sentry__winhttp_transport_start(
         return 1;
     }
 
-    return sentry__bgworker_start(bgworker);
+    int rv = sentry__bgworker_start(bgworker);
+    if (rv == 0 && state->retry) {
+        sentry__retry_process_envelopes(state->retry);
+    }
+    return rv;
 }
 
 static int

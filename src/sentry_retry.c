@@ -24,6 +24,7 @@ sentry__retry_new(const sentry_options_t *options)
         return NULL;
     }
     retry->run = options->run;
+    retry->transport = options->transport;
     retry->database_path = sentry__path_clone(options->database_path);
     retry->max_attempts = options->http_retry;
     retry->cache_keep = options->cache_keep;
@@ -352,17 +353,13 @@ retry_task_exec(void *_task, void *bgworker_state)
 }
 
 void
-sentry__retry_process_envelopes(const sentry_options_t *options)
+sentry__retry_process_envelopes(sentry_retry_t *retry)
 {
-    if (!options || !options->database_path) {
+    if (!retry) {
         return;
     }
 
-    if (!sentry__transport_can_retry(options->transport)) {
-        return;
-    }
-
-    sentry_path_t *retry_path = get_retry_path(options->database_path);
+    sentry_path_t *retry_path = get_retry_path(retry->database_path);
     if (!retry_path) {
         return;
     }
@@ -417,11 +414,11 @@ sentry__retry_process_envelopes(const sentry_options_t *options)
         sentry_free(paths);
         return;
     }
-    task->transport = options->transport;
+    task->transport = retry->transport;
     task->paths = paths;
     task->count = count;
     task->index = 0;
 
     sentry__transport_submit_retry(
-        options->transport, retry_task_exec, NULL, task, 100);
+        retry->transport, retry_task_exec, NULL, task, 100);
 }
