@@ -334,9 +334,11 @@ retry_task_exec(void *_task, void *bgworker_state)
         }
 
         if (task->index < task->count) {
-            sentry__transport_schedule_retry(task->transport, retry_task_exec,
-                NULL, task, SENTRY_RETRY_DELAY_MS);
-            return;
+            if (sentry__transport_schedule_retry(task->transport,
+                    retry_task_exec, NULL, task, SENTRY_RETRY_DELAY_MS)
+                == 0) {
+                return;
+            }
         }
     }
 
@@ -410,6 +412,9 @@ sentry__retry_process_envelopes(sentry_retry_t *retry)
     task->count = count;
     task->index = 0;
 
-    sentry__transport_schedule_retry(
-        retry->transport, retry_task_exec, NULL, task, SENTRY_RETRY_DELAY_MS);
+    if (sentry__transport_schedule_retry(retry->transport, retry_task_exec,
+            NULL, task, SENTRY_RETRY_DELAY_MS)
+        != 0) {
+        retry_task_free(task);
+    }
 }
