@@ -107,6 +107,18 @@ sentry__transport_send_retry(
     return transport->retry_send_func(envelope, state);
 }
 
+int
+sentry__transport_submit_retry(sentry_transport_t *transport,
+    void (*exec_func)(void *task_data, void *state),
+    void (*cleanup_func)(void *task_data), void *task_data, uint64_t delay_ms)
+{
+    if (!transport || !transport->retry_submit_func) {
+        return 1;
+    }
+    return transport->retry_submit_func(
+        transport->state, exec_func, cleanup_func, task_data, delay_ms);
+}
+
 void
 sentry__transport_send_envelope(
     sentry_transport_t *transport, sentry_envelope_t *envelope)
@@ -187,18 +199,6 @@ sentry_transport_free(sentry_transport_t *transport)
         transport->free_func(transport->state);
     }
     sentry_free(transport);
-}
-
-int
-sentry__transport_submit_retry(sentry_transport_t *transport,
-    void (*exec_func)(void *task_data, void *state),
-    void (*cleanup_func)(void *task_data), void *task_data, uint64_t delay_ms)
-{
-    if (!transport || !transport->retry_submit_func) {
-        return 1;
-    }
-    return transport->retry_submit_func(
-        transport->state, exec_func, cleanup_func, task_data, delay_ms);
 }
 
 #ifdef SENTRY_UNITTEST

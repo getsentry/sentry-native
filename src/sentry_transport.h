@@ -43,6 +43,13 @@ sentry_send_result_t sentry__transport_send_retry(
     sentry_transport_t *transport, void *envelope, void *state);
 
 /**
+ * Submit a delayed retry task through the transport's retry_submit_func.
+ */
+int sentry__transport_submit_retry(sentry_transport_t *transport,
+    void (*exec_func)(void *task_data, void *state),
+    void (*cleanup_func)(void *task_data), void *task_data, uint64_t delay_ms);
+
+/**
  * Submit the given envelope to the transport.
  */
 void sentry__transport_send_envelope(
@@ -81,13 +88,6 @@ sentry_transport_t *sentry__transport_new_default(void);
  */
 size_t sentry__transport_dump_queue(
     sentry_transport_t *transport, sentry_run_t *run);
-
-/**
- * Submit a delayed retry task through the transport's retry_submit_func.
- */
-int sentry__transport_submit_retry(sentry_transport_t *transport,
-    void (*exec_func)(void *task_data, void *state),
-    void (*cleanup_func)(void *task_data), void *task_data, uint64_t delay_ms);
 
 #ifdef SENTRY_UNITTEST
 /**
