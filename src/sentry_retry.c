@@ -304,23 +304,25 @@ retry_cache_envelope(
 
 void
 sentry__retry_handle_send_result(sentry_retry_t *retry,
-    sentry_send_result_t result, const sentry_uuid_t *envelope_id,
-    const sentry_envelope_t *envelope)
+    sentry_send_result_t result, const sentry_envelope_t *envelope)
 {
     if (!retry) {
         return;
     }
+
+    sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
+
     switch (result) {
     case SENTRY_SEND_SUCCESS:
         if (retry->cache_keep) {
-            retry_cache_envelope(retry, envelope_id);
+            retry_cache_envelope(retry, &event_id);
         } else {
-            retry_remove_envelope(retry, envelope_id);
+            retry_remove_envelope(retry, &event_id);
         }
         break;
     case SENTRY_SEND_RATE_LIMITED:
     case SENTRY_SEND_DISCARDED:
-        retry_remove_envelope(retry, envelope_id);
+        retry_remove_envelope(retry, &event_id);
         break;
     case SENTRY_SEND_NETWORK_ERROR:
         retry_write_envelope(retry, envelope);
