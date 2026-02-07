@@ -308,7 +308,7 @@ sentry__curl_send(void *_envelope, void *_state)
     }
 
     sentry_send_result_t result = classify_curl_result(rv, response_code);
-    sentry__retry_handle_send_result(state->retry, result, envelope);
+    sentry__retry_process_result(state->retry, envelope, result);
 
     curl_slist_free_all(headers);
     sentry_free(info.retry_after);

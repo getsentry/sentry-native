@@ -365,7 +365,7 @@ sentry__winhttp_send(void *_envelope, void *_state)
     }
 
     result = classify_winhttp_result(status_code > 0, status_code);
-    sentry__retry_handle_send_result(state->retry, result, envelope);
+    sentry__retry_process_result(state->retry, envelope, result);
 
     uint64_t now = sentry__monotonic_time();
     SENTRY_DEBUGF("request handled in %llums", now - started);

@@ -255,8 +255,8 @@ retry_cache_envelope(
 }
 
 void
-sentry__retry_handle_send_result(sentry_retry_t *retry,
-    sentry_send_result_t result, const sentry_envelope_t *envelope)
+sentry__retry_process_result(sentry_retry_t *retry,
+    const sentry_envelope_t *envelope, sentry_send_result_t result)
 {
     if (!retry) {
         return;
