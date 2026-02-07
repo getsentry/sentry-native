@@ -29,7 +29,6 @@ void sentry__transport_set_dump_func(sentry_transport_t *transport,
 
 /**
  * Sets the retry function pointers used for retrying envelopes.
- * NULL arguments are ignored, preserving the existing value.
  */
 void sentry__transport_set_retry_func(sentry_transport_t *transport,
     sentry_send_result_t (*retry_send_func)(void *envelope, void *state),

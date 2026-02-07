@@ -27,6 +27,15 @@ recording_retry_func(void *envelope, void *state)
     return SENTRY_SEND_SUCCESS;
 }
 
+static int
+test_submit_delayed(void *_state,
+    void (*exec_func)(void *task_data, void *state),
+    void (*cleanup_func)(void *task_data), void *task_data, uint64_t delay_ms)
+{
+    return sentry__bgworker_submit_delayed((sentry_bgworker_t *)_state,
+        exec_func, cleanup_func, task_data, delay_ms);
+}
+
 SENTRY_TEST(retry_throttle)
 {
     SENTRY_TEST_OPTIONS_NEW(options);
@@ -40,7 +49,7 @@ SENTRY_TEST(retry_throttle)
     }
 
     sentry__transport_set_retry_func(
-        options->transport, recording_retry_func, NULL);
+        options->transport, recording_retry_func, test_submit_delayed);
 
     sentry_path_t *retry_path
         = sentry__path_join_str(options->database_path, "retry");

@@ -89,12 +89,8 @@ sentry__transport_set_retry_func(sentry_transport_t *transport,
         void (*cleanup_func)(void *task_data), void *task_data,
         uint64_t delay_ms))
 {
-    if (retry_send_func) {
-        transport->retry_send_func = retry_send_func;
-    }
-    if (retry_submit_func) {
-        transport->retry_submit_func = retry_submit_func;
-    }
+    transport->retry_send_func = retry_send_func;
+    transport->retry_submit_func = retry_submit_func;
 }
 
 bool
