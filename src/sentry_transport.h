@@ -37,6 +37,10 @@ void sentry__transport_set_retry_func(sentry_transport_t *transport,
         uint64_t delay_ms),
     sentry_send_result_t (*retry_send_func)(void *envelope, void *state));
 
+/**
+ * Returns true if the transport has both retry_schedule_func and
+ * retry_send_func configured.
+ */
 bool sentry__transport_can_retry(sentry_transport_t *transport);
 
 /**
@@ -46,6 +50,10 @@ int sentry__transport_schedule_retry(sentry_transport_t *transport,
     void (*exec_func)(void *task_data, void *state),
     void (*cleanup_func)(void *task_data), void *task_data, uint64_t delay_ms);
 
+/**
+ * Send an envelope through the transport's retry_send_func, returning the
+ * result classification.
+ */
 sentry_send_result_t sentry__transport_send_retry(
     sentry_transport_t *transport, void *envelope, void *state);
 
