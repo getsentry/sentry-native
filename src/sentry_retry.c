@@ -200,36 +200,16 @@ retry_write_envelope(
 
 static void
 retry_remove_envelope(
-    const sentry_retry_t *retry, const sentry_uuid_t *envelope_id)
+    const sentry_path_t *retry_path, const sentry_uuid_t *envelope_id)
 {
-    if (!retry || !envelope_id) {
-        return;
-    }
-
-    sentry_path_t *retry_path = get_retry_path(retry->database_path);
-    if (!retry_path) {
-        return;
-    }
-
     remove_retry_file(retry_path, envelope_id);
-    sentry__path_free(retry_path);
 }
 
 static void
-retry_cache_envelope(
-    const sentry_retry_t *retry, const sentry_uuid_t *envelope_id)
+retry_cache_envelope(const sentry_path_t *retry_path, const sentry_run_t *run,
+    const sentry_uuid_t *envelope_id)
 {
-    if (!retry || !envelope_id) {
-        return;
-    }
-
-    sentry_path_t *retry_path = get_retry_path(retry->database_path);
-    if (!retry_path) {
-        return;
-    }
-
-    if (sentry__path_create_dir_all(retry->run->cache_path) != 0) {
-        sentry__path_free(retry_path);
+    if (sentry__path_create_dir_all(run->cache_path) != 0) {
         return;
     }
 
@@ -243,7 +223,7 @@ retry_cache_envelope(
             = sentry__uuid_as_filename(envelope_id, ".envelope");
         if (cache_filename) {
             sentry_path_t *dst
-                = sentry__path_join_str(retry->run->cache_path, cache_filename);
+                = sentry__path_join_str(run->cache_path, cache_filename);
             sentry_free(cache_filename);
             if (dst) {
                 sentry__path_rename(file, dst);
@@ -252,7 +232,6 @@ retry_cache_envelope(
         }
     }
     sentry__pathiter_free(iter);
-    sentry__path_free(retry_path);
 }
 
 void
@@ -263,24 +242,36 @@ sentry__retry_process_result(sentry_retry_t *retry,
         return;
     }
 
+    if (result == SENTRY_SEND_NETWORK_ERROR) {
+        retry_write_envelope(retry, envelope);
+        return;
+    }
+
+    sentry_path_t *retry_path = get_retry_path(retry->database_path);
+    if (!retry_path || !sentry__path_is_dir(retry_path)) {
+        sentry__path_free(retry_path);
+        return;
+    }
+
     sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
 
     switch (result) {
     case SENTRY_SEND_SUCCESS:
         if (retry->cache_keep) {
-            retry_cache_envelope(retry, &event_id);
+            retry_cache_envelope(retry_path, retry->run, &event_id);
         } else {
-            retry_remove_envelope(retry, &event_id);
+            retry_remove_envelope(retry_path, &event_id);
         }
         break;
     case SENTRY_SEND_RATE_LIMITED:
     case SENTRY_SEND_DISCARDED:
-        retry_remove_envelope(retry, &event_id);
+        retry_remove_envelope(retry_path, &event_id);
         break;
     case SENTRY_SEND_NETWORK_ERROR:
-        retry_write_envelope(retry, envelope);
         break;
     }
+
+    sentry__path_free(retry_path);
 }
 
 static int
