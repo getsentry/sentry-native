@@ -794,6 +794,38 @@ def test_http_retry_with_cache_keep(cmake, httpserver):
 
 
 @pytest.mark.skipif(not has_files, reason="test needs a local filesystem")
+def test_http_retry_cache_keep_max_attempts(cmake):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+    retry_dir = tmp_path.joinpath(".sentry-native/retry")
+    cache_dir = tmp_path.joinpath(".sentry-native/cache")
+
+    unreachable_dsn = "http://uiaeosnrtdy@127.0.0.1:19999/123456"
+    env = dict(os.environ, SENTRY_DSN=unreachable_dsn)
+
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "http-retry", "cache-keep", "capture-event"],
+        env=env,
+    )
+
+    assert retry_dir.exists()
+    assert len(list(retry_dir.glob("*.envelope"))) == 1
+
+    for _ in range(5):
+        run(
+            tmp_path,
+            "sentry_example",
+            ["log", "http-retry", "cache-keep", "no-setup"],
+            env=env,
+        )
+
+    assert len(list(retry_dir.glob("*.envelope"))) == 0
+    assert cache_dir.exists()
+    assert len(list(cache_dir.glob("*.envelope"))) == 1
+
+
+@pytest.mark.skipif(not has_files, reason="test needs a local filesystem")
 def test_http_retry_http_error_discards_envelope(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "inproc"})
     retry_dir = tmp_path.joinpath(".sentry-native/retry")
