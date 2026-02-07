@@ -218,7 +218,7 @@ sentry__winhttp_send(void *_envelope, void *_state)
 {
     sentry_envelope_t *envelope = (sentry_envelope_t *)_envelope;
     winhttp_bgworker_state_t *state = (winhttp_bgworker_state_t *)_state;
-    sentry_send_result_t result = SENTRY_SEND_NETWORK_ERROR;
+    sentry_send_result_t result = SENTRY_SEND_DISCARDED;
 
     uint64_t started = sentry__monotonic_time();
 

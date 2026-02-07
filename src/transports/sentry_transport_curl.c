@@ -225,7 +225,7 @@ sentry__curl_send(void *_envelope, void *_state)
     sentry_prepared_http_request_t *req = sentry__prepare_http_request(
         envelope, state->dsn, state->ratelimiter, state->user_agent);
     if (!req) {
-        return SENTRY_SEND_NETWORK_ERROR;
+        return SENTRY_SEND_DISCARDED;
     }
 
     struct curl_slist *headers = NULL;
