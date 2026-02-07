@@ -170,8 +170,8 @@ write_to_cache(
     return rv == 0;
 }
 
-bool
-sentry__retry_write_envelope(
+static bool
+retry_write_envelope(
     const sentry_retry_t *retry, const sentry_envelope_t *envelope)
 {
     if (!retry || !envelope) {
@@ -323,7 +323,7 @@ sentry__retry_handle_send_result(sentry_retry_t *retry,
         retry_remove_envelope(retry, envelope_id);
         break;
     case SENTRY_SEND_NETWORK_ERROR:
-        sentry__retry_write_envelope(retry, envelope);
+        retry_write_envelope(retry, envelope);
         break;
     }
 }

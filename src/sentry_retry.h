@@ -16,9 +16,6 @@ sentry_retry_t *sentry__retry_new(
 
 void sentry__retry_free(sentry_retry_t *retry);
 
-bool sentry__retry_write_envelope(
-    const sentry_retry_t *retry, const sentry_envelope_t *envelope);
-
 void sentry__retry_handle_send_result(sentry_retry_t *retry,
     sentry_send_result_t result, const sentry_uuid_t *envelope_id,
     const sentry_envelope_t *envelope);

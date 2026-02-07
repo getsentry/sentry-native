@@ -56,19 +56,23 @@ SENTRY_TEST(retry_throttle)
     TEST_ASSERT(!!retry_path);
     sentry__path_remove_all(retry_path);
 
-    sentry_retry_t *retry = sentry__retry_new(options->database_path, 5, false);
-    TEST_ASSERT(!!retry);
-
     g_call_count = 0;
     memset(g_timestamps, 0, sizeof(g_timestamps));
 
+    TEST_ASSERT(sentry__path_create_dir_all(retry_path) == 0);
     for (int i = 0; i < NUM_ENVELOPES; i++) {
         sentry_envelope_t *envelope = sentry__envelope_new();
         TEST_ASSERT(!!envelope);
         sentry_uuid_t event_id = sentry_uuid_new_v4();
         sentry_value_t event = sentry__value_new_event_with_id(&event_id);
         sentry__envelope_add_event(envelope, event);
-        TEST_CHECK(sentry__retry_write_envelope(retry, envelope));
+        char *filename = sentry__uuid_as_filename(&event_id, ".envelope");
+        TEST_ASSERT(!!filename);
+        sentry_path_t *path = sentry__path_join_str(retry_path, filename);
+        sentry_free(filename);
+        TEST_ASSERT(!!path);
+        TEST_CHECK(sentry_envelope_write_to_path(envelope, path) == 0);
+        sentry__path_free(path);
         sentry_envelope_free(envelope);
     }
 
@@ -95,7 +99,6 @@ SENTRY_TEST(retry_throttle)
             (unsigned long long)delta);
     }
 
-    sentry__retry_free(retry);
     sentry__path_free(retry_path);
     sentry_close();
 }
