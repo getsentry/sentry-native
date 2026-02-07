@@ -49,7 +49,7 @@ SENTRY_TEST(retry_throttle)
     }
 
     sentry__transport_set_retry_func(
-        options->transport, recording_retry_func, test_submit_delayed);
+        options->transport, test_submit_delayed, recording_retry_func);
 
     sentry_path_t *retry_path
         = sentry__path_join_str(options->database_path, "retry");

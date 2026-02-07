@@ -31,23 +31,23 @@ void sentry__transport_set_dump_func(sentry_transport_t *transport,
  * Sets the retry function pointers used for retrying envelopes.
  */
 void sentry__transport_set_retry_func(sentry_transport_t *transport,
-    sentry_send_result_t (*retry_send_func)(void *envelope, void *state),
-    int (*retry_submit_func)(void *state,
+    int (*retry_schedule_func)(void *state,
         void (*exec_func)(void *task_data, void *state),
         void (*cleanup_func)(void *task_data), void *task_data,
-        uint64_t delay_ms));
+        uint64_t delay_ms),
+    sentry_send_result_t (*retry_send_func)(void *envelope, void *state));
 
 bool sentry__transport_can_retry(sentry_transport_t *transport);
 
-sentry_send_result_t sentry__transport_send_retry(
-    sentry_transport_t *transport, void *envelope, void *state);
-
 /**
- * Submit a delayed retry task through the transport's retry_submit_func.
+ * Schedule a delayed retry task through the transport's retry_schedule_func.
  */
-int sentry__transport_submit_retry(sentry_transport_t *transport,
+int sentry__transport_schedule_retry(sentry_transport_t *transport,
     void (*exec_func)(void *task_data, void *state),
     void (*cleanup_func)(void *task_data), void *task_data, uint64_t delay_ms);
+
+sentry_send_result_t sentry__transport_send_retry(
+    sentry_transport_t *transport, void *envelope, void *state);
 
 /**
  * Submit the given envelope to the transport.
