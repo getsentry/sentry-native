@@ -6,13 +6,13 @@
 #include "sentry_transport.h"
 
 typedef struct {
+    const struct sentry_run_s *run;
     sentry_path_t *database_path;
     int max_attempts;
     bool cache_keep;
 } sentry_retry_t;
 
-sentry_retry_t *sentry__retry_new(
-    const sentry_path_t *database_path, int max_attempts, bool cache_keep);
+sentry_retry_t *sentry__retry_new(const sentry_options_t *options);
 
 void sentry__retry_free(sentry_retry_t *retry);
 

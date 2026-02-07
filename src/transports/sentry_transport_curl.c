@@ -139,8 +139,7 @@ sentry__curl_transport_start(
     state->ca_certs = sentry__string_clone(options->ca_certs);
     state->curl_handle = curl_easy_init();
     state->debug = options->debug;
-    state->retry = sentry__retry_new(
-        options->database_path, options->http_retry, options->cache_keep);
+    state->retry = sentry__retry_new(options);
 
     sentry__bgworker_setname(bgworker, options->transport_thread_name);
 

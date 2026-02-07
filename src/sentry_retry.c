@@ -1,5 +1,6 @@
 #include "sentry_retry.h"
 #include "sentry_alloc.h"
+#include "sentry_database.h"
 #include "sentry_envelope.h"
 #include "sentry_logger.h"
 #include "sentry_options.h"
@@ -12,10 +13,9 @@
 #include <time.h>
 
 sentry_retry_t *
-sentry__retry_new(
-    const sentry_path_t *database_path, int max_attempts, bool cache_keep)
+sentry__retry_new(const sentry_options_t *options)
 {
-    if (!database_path || max_attempts <= 0) {
+    if (!options || !options->database_path || options->http_retry <= 0) {
         return NULL;
     }
 
@@ -23,9 +23,10 @@ sentry__retry_new(
     if (!retry) {
         return NULL;
     }
-    retry->database_path = sentry__path_clone(database_path);
-    retry->max_attempts = max_attempts;
-    retry->cache_keep = cache_keep;
+    retry->run = options->run;
+    retry->database_path = sentry__path_clone(options->database_path);
+    retry->max_attempts = options->http_retry;
+    retry->cache_keep = options->cache_keep;
 
     if (!retry->database_path) {
         sentry_free(retry);
@@ -48,12 +49,6 @@ static sentry_path_t *
 get_retry_path(const sentry_path_t *database_path)
 {
     return sentry__path_join_str(database_path, "retry");
-}
-
-static sentry_path_t *
-get_cache_path(const sentry_path_t *database_path)
-{
-    return sentry__path_join_str(database_path, "cache");
 }
 
 static char *
@@ -133,44 +128,6 @@ remove_retry_file(
 }
 
 static bool
-write_to_cache(
-    const sentry_path_t *database_path, const sentry_envelope_t *envelope)
-{
-    sentry_path_t *cache_path = get_cache_path(database_path);
-    if (!cache_path) {
-        return false;
-    }
-
-    if (sentry__path_create_dir_all(cache_path) != 0) {
-        sentry__path_free(cache_path);
-        return false;
-    }
-
-    sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
-    if (sentry_uuid_is_nil(&event_id)) {
-        event_id = sentry_uuid_new_v4();
-    }
-
-    char *filename = sentry__uuid_as_filename(&event_id, ".envelope");
-    if (!filename) {
-        sentry__path_free(cache_path);
-        return false;
-    }
-
-    sentry_path_t *output_path = sentry__path_join_str(cache_path, filename);
-    sentry_free(filename);
-    sentry__path_free(cache_path);
-
-    if (!output_path) {
-        return false;
-    }
-
-    int rv = sentry_envelope_write_to_path(envelope, output_path);
-    sentry__path_free(output_path);
-    return rv == 0;
-}
-
-static bool
 retry_write_envelope(
     const sentry_retry_t *retry, const sentry_envelope_t *envelope)
 {
@@ -206,7 +163,7 @@ retry_write_envelope(
         if (retry->cache_keep) {
             SENTRY_WARNF("max retry attempts (%d) exceeded, moving to cache",
                 retry->max_attempts);
-            return write_to_cache(retry->database_path, envelope);
+            return sentry__run_write_cache(retry->run, envelope);
         } else {
             SENTRY_WARNF("max retry attempts (%d) exceeded, discarding",
                 retry->max_attempts);
@@ -266,16 +223,12 @@ retry_cache_envelope(
     }
 
     sentry_path_t *retry_path = get_retry_path(retry->database_path);
-    sentry_path_t *cache_path = get_cache_path(retry->database_path);
-    if (!retry_path || !cache_path) {
-        sentry__path_free(retry_path);
-        sentry__path_free(cache_path);
+    if (!retry_path) {
         return;
     }
 
-    if (sentry__path_create_dir_all(cache_path) != 0) {
+    if (sentry__path_create_dir_all(retry->run->cache_path) != 0) {
         sentry__path_free(retry_path);
-        sentry__path_free(cache_path);
         return;
     }
 
@@ -289,7 +242,7 @@ retry_cache_envelope(
             = sentry__uuid_as_filename(envelope_id, ".envelope");
         if (cache_filename) {
             sentry_path_t *dst
-                = sentry__path_join_str(cache_path, cache_filename);
+                = sentry__path_join_str(retry->run->cache_path, cache_filename);
             sentry_free(cache_filename);
             if (dst) {
                 sentry__path_rename(file, dst);
@@ -299,7 +252,6 @@ retry_cache_envelope(
     }
     sentry__pathiter_free(iter);
     sentry__path_free(retry_path);
-    sentry__path_free(cache_path);
 }
 
 void

@@ -51,12 +51,23 @@ sentry__run_new(const sentry_path_t *database_path)
         return NULL;
     }
 
+    // `<db>/cache`
+    sentry_path_t *cache_path = sentry__path_join_str(database_path, "cache");
+    if (!cache_path) {
+        sentry__path_free(run_path);
+        sentry__path_free(lock_path);
+        sentry__path_free(session_path);
+        sentry__path_free(external_path);
+        return NULL;
+    }
+
     sentry_run_t *run = SENTRY_MAKE(sentry_run_t);
     if (!run) {
         sentry__path_free(run_path);
         sentry__path_free(session_path);
         sentry__path_free(lock_path);
         sentry__path_free(external_path);
+        sentry__path_free(cache_path);
         return NULL;
     }
 
@@ -64,6 +75,7 @@ sentry__run_new(const sentry_path_t *database_path)
     run->run_path = run_path;
     run->session_path = session_path;
     run->external_path = external_path;
+    run->cache_path = cache_path;
     run->lock = sentry__filelock_new(lock_path);
     if (!run->lock) {
         goto error;
@@ -97,6 +109,7 @@ sentry__run_free(sentry_run_t *run)
     sentry__path_free(run->run_path);
     sentry__path_free(run->session_path);
     sentry__path_free(run->external_path);
+    sentry__path_free(run->cache_path);
     sentry__filelock_free(run->lock);
     sentry_free(run);
 }
@@ -150,6 +163,18 @@ sentry__run_write_external(
     }
 
     return write_envelope(run->external_path, envelope);
+}
+
+bool
+sentry__run_write_cache(
+    const sentry_run_t *run, const sentry_envelope_t *envelope)
+{
+    if (sentry__path_create_dir_all(run->cache_path) != 0) {
+        SENTRY_ERRORF("mkdir failed: \"%s\"", run->cache_path->path);
+        return false;
+    }
+
+    return write_envelope(run->cache_path, envelope);
 }
 
 bool
@@ -243,12 +268,10 @@ sentry__process_old_runs(const sentry_options_t *options, uint64_t last_crash)
         bool use_http_retry = options->http_retry > 0
             && sentry__transport_can_retry(options->transport);
 
-        sentry_path_t *cache_dir = NULL;
+        const sentry_path_t *cache_path = NULL;
         if (options->cache_keep && !use_http_retry) {
-            cache_dir = sentry__path_join_str(options->database_path, "cache");
-            if (cache_dir) {
-                sentry__path_create_dir_all(cache_dir);
-            }
+            cache_path = options->run->cache_path;
+            sentry__path_create_dir_all(cache_path);
         }
 
         sentry_pathiter_t *run_iter = sentry__path_iter_directory(run_dir);
@@ -296,9 +319,9 @@ sentry__process_old_runs(const sentry_options_t *options, uint64_t last_crash)
                 sentry_envelope_t *envelope = sentry__envelope_from_path(file);
                 sentry__capture_envelope(options->transport, envelope);
 
-                if (cache_dir) {
+                if (cache_path) {
                     sentry_path_t *cached_file = sentry__path_join_str(
-                        cache_dir, sentry__path_filename(file));
+                        cache_path, sentry__path_filename(file));
                     if (!cached_file
                         || sentry__path_rename(file, cached_file) != 0) {
                         SENTRY_WARNF("failed to cache envelope \"%s\"",
@@ -313,7 +336,6 @@ sentry__process_old_runs(const sentry_options_t *options, uint64_t last_crash)
         }
         sentry__pathiter_free(run_iter);
 
-        sentry__path_free(cache_dir);
         sentry__path_remove_all(run_dir);
         sentry__filelock_free(lock);
     }
