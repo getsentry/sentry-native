@@ -62,6 +62,7 @@ SENTRY_TEST(retry_throttle)
         sentry_envelope_free(envelope);
     }
 
+    uint64_t before = sentry__monotonic_time();
     sentry__retry_process_envelopes(options);
 
     sentry_bgworker_t *bgw = sentry__transport_get_bgworker(options->transport);
@@ -71,6 +72,11 @@ SENTRY_TEST(retry_throttle)
     }
 
     TEST_CHECK_INT_EQUAL(g_call_count, NUM_ENVELOPES);
+
+    uint64_t initial_delay = g_timestamps[0] - before;
+    TEST_CHECK(initial_delay >= 100);
+    TEST_MSG("initial: expected >= 100ms, got %llu ms",
+        (unsigned long long)initial_delay);
 
     for (int i = 1; i < g_call_count && i < NUM_ENVELOPES; i++) {
         uint64_t delta = g_timestamps[i] - g_timestamps[i - 1];
