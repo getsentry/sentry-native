@@ -4,7 +4,6 @@
 #include "sentry_options.h"
 #include "sentry_ratelimiter.h"
 #include "sentry_string.h"
-#include "sentry_sync.h"
 
 #ifdef SENTRY_TRANSPORT_COMPRESSION
 #    include "zlib.h"
@@ -22,7 +21,11 @@
 
 struct sentry_transport_s {
     void (*send_envelope_func)(sentry_envelope_t *envelope, void *state);
-    sentry_send_result_t (*retry_func)(void *envelope, void *state);
+    sentry_send_result_t (*retry_send_func)(void *envelope, void *state);
+    int (*retry_submit_func)(void *state,
+        void (*exec_func)(void *task_data, void *state),
+        void (*cleanup_func)(void *task_data), void *task_data,
+        uint64_t delay_ms);
     int (*startup_func)(const sentry_options_t *options, void *state);
     int (*shutdown_func)(uint64_t timeout, void *state);
     int (*flush_func)(uint64_t timeout, void *state);
@@ -80,22 +83,32 @@ sentry_transport_set_flush_func(sentry_transport_t *transport,
 
 void
 sentry__transport_set_retry_func(sentry_transport_t *transport,
-    sentry_send_result_t (*retry_func)(void *envelope, void *state))
+    sentry_send_result_t (*retry_send_func)(void *envelope, void *state),
+    int (*retry_submit_func)(void *state,
+        void (*exec_func)(void *task_data, void *state),
+        void (*cleanup_func)(void *task_data), void *task_data,
+        uint64_t delay_ms))
 {
-    transport->retry_func = retry_func;
+    if (retry_send_func) {
+        transport->retry_send_func = retry_send_func;
+    }
+    if (retry_submit_func) {
+        transport->retry_submit_func = retry_submit_func;
+    }
 }
 
 bool
 sentry__transport_can_retry(sentry_transport_t *transport)
 {
-    return transport && transport->retry_func;
+    return transport && transport->retry_send_func
+        && transport->retry_submit_func;
 }
 
 sentry_send_result_t
-sentry__transport_retry(
+sentry__transport_send_retry(
     sentry_transport_t *transport, void *envelope, void *state)
 {
-    return transport->retry_func(envelope, state);
+    return transport->retry_send_func(envelope, state);
 }
 
 void
@@ -181,14 +194,14 @@ sentry_transport_free(sentry_transport_t *transport)
 }
 
 int
-sentry__transport_submit_delayed(sentry_transport_t *transport,
+sentry__transport_submit_retry(sentry_transport_t *transport,
     void (*exec_func)(void *task_data, void *state),
     void (*cleanup_func)(void *task_data), void *task_data, uint64_t delay_ms)
 {
-    if (!transport || !transport->state) {
+    if (!transport || !transport->retry_submit_func) {
         return 1;
     }
-    return sentry__bgworker_submit_delayed(
+    return transport->retry_submit_func(
         transport->state, exec_func, cleanup_func, task_data, delay_ms);
 }
 

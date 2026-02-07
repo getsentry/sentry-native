@@ -28,16 +28,19 @@ void sentry__transport_set_dump_func(sentry_transport_t *transport,
     size_t (*dump_func)(sentry_run_t *run, void *state));
 
 /**
- * Sets the synchronous send function used for retrying envelopes.
- * This is the raw send function (e.g. sentry__curl_send) that runs
- * directly on the bgworker thread.
+ * Sets the retry function pointers used for retrying envelopes.
+ * NULL arguments are ignored, preserving the existing value.
  */
 void sentry__transport_set_retry_func(sentry_transport_t *transport,
-    sentry_send_result_t (*retry_func)(void *envelope, void *state));
+    sentry_send_result_t (*retry_send_func)(void *envelope, void *state),
+    int (*retry_submit_func)(void *state,
+        void (*exec_func)(void *task_data, void *state),
+        void (*cleanup_func)(void *task_data), void *task_data,
+        uint64_t delay_ms));
 
 bool sentry__transport_can_retry(sentry_transport_t *transport);
 
-sentry_send_result_t sentry__transport_retry(
+sentry_send_result_t sentry__transport_send_retry(
     sentry_transport_t *transport, void *envelope, void *state);
 
 /**
@@ -81,9 +84,9 @@ size_t sentry__transport_dump_queue(
     sentry_transport_t *transport, sentry_run_t *run);
 
 /**
- * Submit a task to the transport's background worker.
+ * Submit a delayed retry task through the transport's retry_submit_func.
  */
-int sentry__transport_submit_delayed(sentry_transport_t *transport,
+int sentry__transport_submit_retry(sentry_transport_t *transport,
     void (*exec_func)(void *task_data, void *state),
     void (*cleanup_func)(void *task_data), void *task_data, uint64_t delay_ms);
 

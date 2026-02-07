@@ -39,7 +39,8 @@ SENTRY_TEST(retry_throttle)
         SKIP_TEST();
     }
 
-    sentry__transport_set_retry_func(options->transport, recording_retry_func);
+    sentry__transport_set_retry_func(
+        options->transport, recording_retry_func, NULL);
 
     sentry_path_t *retry_path
         = sentry__path_join_str(options->database_path, "retry");

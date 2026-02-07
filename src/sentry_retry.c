@@ -375,7 +375,7 @@ retry_task_exec(void *_task, void *bgworker_state)
         }
 
         SENTRY_DEBUG("retrying envelope from disk");
-        sentry_send_result_t result = sentry__transport_retry(
+        sentry_send_result_t result = sentry__transport_send_retry(
             task->transport, envelope, bgworker_state);
         sentry_envelope_free(envelope);
 
@@ -388,7 +388,7 @@ retry_task_exec(void *_task, void *bgworker_state)
         }
 
         if (task->index < task->count) {
-            sentry__transport_submit_delayed(
+            sentry__transport_submit_retry(
                 task->transport, retry_task_exec, NULL, task, 100);
             return;
         }
@@ -468,6 +468,6 @@ sentry__retry_process_envelopes(const sentry_options_t *options)
     task->count = count;
     task->index = 0;
 
-    sentry__transport_submit_delayed(
+    sentry__transport_submit_retry(
         options->transport, retry_task_exec, NULL, task, 100);
 }

@@ -350,6 +350,15 @@ sentry__curl_dump_queue(sentry_run_t *run, void *transport_state)
         bgworker, sentry__curl_send_task, sentry__curl_dump_task, run);
 }
 
+static int
+sentry__curl_submit_delayed(void *_state,
+    void (*exec_func)(void *task_data, void *state),
+    void (*cleanup_func)(void *task_data), void *task_data, uint64_t delay_ms)
+{
+    return sentry__bgworker_submit_delayed((sentry_bgworker_t *)_state,
+        exec_func, cleanup_func, task_data, delay_ms);
+}
+
 sentry_transport_t *
 sentry__transport_new_default(void)
 {
@@ -379,7 +388,8 @@ sentry__transport_new_default(void)
     sentry_transport_set_shutdown_func(
         transport, sentry__curl_transport_shutdown);
     sentry__transport_set_dump_func(transport, sentry__curl_dump_queue);
-    sentry__transport_set_retry_func(transport, sentry__curl_send);
+    sentry__transport_set_retry_func(
+        transport, sentry__curl_send, sentry__curl_submit_delayed);
 
     return transport;
 }
