@@ -70,6 +70,32 @@ make_retry_filename(const sentry_uuid_t *envelope_id, int attempt)
     return filename;
 }
 
+static const sentry_path_t *
+find_retry_file(sentry_pathiter_t *iter, const char *uuid_str)
+{
+    const sentry_path_t *file;
+    while ((file = sentry__pathiter_next(iter)) != NULL) {
+        const char *filename = sentry__path_filename(file);
+        if (!filename) {
+            continue;
+        }
+        const char *first_dash = strchr(filename, '-');
+        if (!first_dash) {
+            continue;
+        }
+        const char *second_dash = strchr(first_dash + 1, '-');
+        if (!second_dash) {
+            continue;
+        }
+        const char *uuid_start = second_dash + 1;
+        if (strncmp(uuid_start, uuid_str, 36) == 0
+            && strcmp(uuid_start + 36, ".envelope") == 0) {
+            return file;
+        }
+    }
+    return NULL;
+}
+
 static int
 find_retry_attempt(
     const sentry_path_t *retry_path, const sentry_uuid_t *envelope_id)
@@ -80,27 +106,11 @@ find_retry_attempt(
     int found_attempt = 0;
     sentry_pathiter_t *iter = sentry__path_iter_directory(retry_path);
     const sentry_path_t *file;
-    while (iter && (file = sentry__pathiter_next(iter)) != NULL) {
-        const char *filename = sentry__path_filename(file);
-        if (!filename) {
-            continue;
-        }
-
-        const char *first_dash = strchr(filename, '-');
-        if (!first_dash) {
-            continue;
-        }
+    while (iter && (file = find_retry_file(iter, uuid_str)) != NULL) {
+        const char *first_dash = strchr(sentry__path_filename(file), '-');
         int attempt = atoi(first_dash + 1);
-        const char *second_dash = strchr(first_dash + 1, '-');
-        if (!second_dash) {
-            continue;
-        }
-        const char *uuid_start = second_dash + 1;
-        if (strncmp(uuid_start, uuid_str, 36) == 0
-            && strcmp(uuid_start + 36, ".envelope") == 0) {
-            if (attempt > found_attempt) {
-                found_attempt = attempt;
-            }
+        if (attempt > found_attempt) {
+            found_attempt = attempt;
         }
     }
     sentry__pathiter_free(iter);
@@ -115,27 +125,9 @@ remove_retry_file(
     sentry_uuid_as_string(envelope_id, uuid_str);
 
     sentry_pathiter_t *iter = sentry__path_iter_directory(retry_path);
-    const sentry_path_t *file;
-    while (iter && (file = sentry__pathiter_next(iter)) != NULL) {
-        const char *filename = sentry__path_filename(file);
-        if (!filename) {
-            continue;
-        }
-
-        const char *first_dash = strchr(filename, '-');
-        if (!first_dash) {
-            continue;
-        }
-        const char *second_dash = strchr(first_dash + 1, '-');
-        if (!second_dash) {
-            continue;
-        }
-        const char *uuid_start = second_dash + 1;
-        if (strncmp(uuid_start, uuid_str, 36) == 0
-            && strcmp(uuid_start + 36, ".envelope") == 0) {
-            sentry__path_remove(file);
-            break;
-        }
+    const sentry_path_t *file = iter ? find_retry_file(iter, uuid_str) : NULL;
+    if (file) {
+        sentry__path_remove(file);
     }
     sentry__pathiter_free(iter);
 }
@@ -248,8 +240,8 @@ sentry__retry_write_envelope(
     return true;
 }
 
-void
-sentry__retry_remove_envelope(
+static void
+retry_remove_envelope(
     const sentry_retry_t *retry, const sentry_uuid_t *envelope_id)
 {
     if (!retry || !envelope_id) {
@@ -265,8 +257,8 @@ sentry__retry_remove_envelope(
     sentry__path_free(retry_path);
 }
 
-void
-sentry__retry_cache_envelope(
+static void
+retry_cache_envelope(
     const sentry_retry_t *retry, const sentry_uuid_t *envelope_id)
 {
     if (!retry || !envelope_id) {
@@ -291,36 +283,18 @@ sentry__retry_cache_envelope(
     sentry_uuid_as_string(envelope_id, uuid_str);
 
     sentry_pathiter_t *iter = sentry__path_iter_directory(retry_path);
-    const sentry_path_t *file;
-    while (iter && (file = sentry__pathiter_next(iter)) != NULL) {
-        const char *filename = sentry__path_filename(file);
-        if (!filename) {
-            continue;
-        }
-
-        const char *first_dash = strchr(filename, '-');
-        if (!first_dash) {
-            continue;
-        }
-        const char *second_dash = strchr(first_dash + 1, '-');
-        if (!second_dash) {
-            continue;
-        }
-        const char *uuid_start = second_dash + 1;
-        if (strncmp(uuid_start, uuid_str, 36) == 0
-            && strcmp(uuid_start + 36, ".envelope") == 0) {
-            char *cache_filename
-                = sentry__uuid_as_filename(envelope_id, ".envelope");
-            if (cache_filename) {
-                sentry_path_t *dst
-                    = sentry__path_join_str(cache_path, cache_filename);
-                sentry_free(cache_filename);
-                if (dst) {
-                    sentry__path_rename(file, dst);
-                    sentry__path_free(dst);
-                }
+    const sentry_path_t *file = iter ? find_retry_file(iter, uuid_str) : NULL;
+    if (file) {
+        char *cache_filename
+            = sentry__uuid_as_filename(envelope_id, ".envelope");
+        if (cache_filename) {
+            sentry_path_t *dst
+                = sentry__path_join_str(cache_path, cache_filename);
+            sentry_free(cache_filename);
+            if (dst) {
+                sentry__path_rename(file, dst);
+                sentry__path_free(dst);
             }
-            break;
         }
     }
     sentry__pathiter_free(iter);
@@ -339,14 +313,14 @@ sentry__retry_handle_send_result(sentry_retry_t *retry,
     switch (result) {
     case SENTRY_SEND_SUCCESS:
         if (retry->cache_keep) {
-            sentry__retry_cache_envelope(retry, envelope_id);
+            retry_cache_envelope(retry, envelope_id);
         } else {
-            sentry__retry_remove_envelope(retry, envelope_id);
+            retry_remove_envelope(retry, envelope_id);
         }
         break;
     case SENTRY_SEND_RATE_LIMITED:
     case SENTRY_SEND_DISCARDED:
-        sentry__retry_remove_envelope(retry, envelope_id);
+        retry_remove_envelope(retry, envelope_id);
         break;
     case SENTRY_SEND_NETWORK_ERROR:
         sentry__retry_write_envelope(retry, envelope);
