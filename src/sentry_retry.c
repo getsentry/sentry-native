@@ -179,13 +179,6 @@ retry_write_envelope(
 }
 
 static void
-retry_remove_envelope(
-    const sentry_path_t *retry_path, const sentry_uuid_t *envelope_id)
-{
-    remove_retry_file(retry_path, envelope_id);
-}
-
-static void
 retry_cache_envelope(const sentry_path_t *retry_path, const sentry_run_t *run,
     const sentry_uuid_t *envelope_id)
 {
@@ -239,12 +232,12 @@ sentry__retry_process_result(sentry_retry_t *retry,
         if (retry->cache_keep) {
             retry_cache_envelope(retry_path, retry->run, &event_id);
         } else {
-            retry_remove_envelope(retry_path, &event_id);
+            remove_retry_file(retry_path, &event_id);
         }
         break;
     case SENTRY_SEND_RATE_LIMITED:
     case SENTRY_SEND_DISCARDED:
-        retry_remove_envelope(retry_path, &event_id);
+        remove_retry_file(retry_path, &event_id);
         break;
     case SENTRY_SEND_NETWORK_ERROR:
         break;
